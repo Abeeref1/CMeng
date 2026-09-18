@@ -26,7 +26,12 @@ const ALIASES: Record<Exclude<ScheduleColumnRole,"unknown">, string[]> = {
 };
 
 function normalize(v:string):string {
- return v.toLowerCase().replace(/[._:/\-]+/g," ").replace(/\s+/g," ").trim();
+ return v
+  .toLowerCase()
+  .replace(/[\[(](?:h|hr|hrs|hour|hours|d|day|days|w|wk|wks|week|weeks|m|min|mins|minute|minutes)[\])]/g," ")
+  .replace(/[._:/\-]+/g," ")
+  .replace(/\s+/g," ")
+  .trim();
 }
 
 function roleFor(v:string):{role:ScheduleColumnRole;score:number}{
