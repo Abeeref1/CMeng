@@ -20,9 +20,9 @@ test("Primavera XML reads projects activities WBS calendars and relationships", 
       <Name>Excavation</Name>
       <WBSObjectId>100</WBSObjectId>
       <CalendarObjectId>500</CalendarObjectId>
-      <OriginalDuration>80</OriginalDuration>
-      <RemainingDuration>40</RemainingDuration>
-      <TotalFloat>16</TotalFloat>
+      <OriginalDuration>288000000</OriginalDuration>
+      <RemainingDuration>144000000</RemainingDuration>
+      <TotalFloat>57600000</TotalFloat>
     </Activity>
     <Activity>
       <ProjectObjectId>10</ProjectObjectId>
@@ -31,8 +31,8 @@ test("Primavera XML reads projects activities WBS calendars and relationships", 
       <Name>Foundation</Name>
       <WBSObjectId>100</WBSObjectId>
       <CalendarObjectId>500</CalendarObjectId>
-      <OriginalDuration>120</OriginalDuration>
-      <RemainingDuration>120</RemainingDuration>
+      <OriginalDuration>432000000</OriginalDuration>
+      <RemainingDuration>432000000</RemainingDuration>
       <TotalFloat>0</TotalFloat>
     </Activity>
     <Relationship>
@@ -41,7 +41,7 @@ test("Primavera XML reads projects activities WBS calendars and relationships", 
       <PredecessorActivityObjectId>1000</PredecessorActivityObjectId>
       <SuccessorActivityObjectId>1001</SuccessorActivityObjectId>
       <Type>Finish to Start</Type>
-      <Lag>8</Lag>
+      <Lag>28800000</Lag>
     </Relationship>
   </APIBusinessObjects>`;
 
@@ -110,4 +110,62 @@ test("duplicate Primavera XML activity identity is explicit", () => {
   const parsed = parsePrimaveraXml(Buffer.from(xml, "utf8"));
   assert.equal(parsed.sourceComplete, false);
   assert.ok(parsed.diagnostics.some(d=>d.startsWith("P6XML_DUPLICATE_ACTIVITY_IDENTITIES")));
+});
+
+test("P6 XML simple numeric duration is milliseconds, not hours", () => {
+  const xml = `
+  <APIBusinessObjects>
+    <Project><ObjectId>10</ObjectId><Id>P88</Id></Project>
+    <Activity>
+      <ProjectObjectId>10</ProjectObjectId>
+      <ObjectId>1001</ObjectId>
+      <Id>A200</Id>
+      <OriginalDuration>3600000</OriginalDuration>
+    </Activity>
+  </APIBusinessObjects>`;
+
+  const parsed = parsePrimaveraXml(Buffer.from(xml, "utf8"));
+  assert.equal(parsed.activities[0]!.originalDurationRaw, "3600000");
+  assert.equal(parsed.activities[0]!.originalDurationHours, 1);
+});
+
+test("P6 XML day-form duration is not converted to hours without calendar proof", () => {
+  const xml = `
+  <APIBusinessObjects>
+    <Project><ObjectId>10</ObjectId><Id>P88</Id></Project>
+    <Activity>
+      <ProjectObjectId>10</ProjectObjectId>
+      <ObjectId>1001</ObjectId>
+      <Id>A200</Id>
+      <OriginalDuration>2d</OriginalDuration>
+    </Activity>
+  </APIBusinessObjects>`;
+
+  const parsed = parsePrimaveraXml(Buffer.from(xml, "utf8"));
+  assert.equal(parsed.activities[0]!.originalDurationHours, null);
+  assert.equal(parsed.activities[0]!.status, "unresolved");
+  assert.ok(
+    parsed.activities[0]!.diagnostics.includes(
+      "P6XML_ORIGINAL_DURATION_AMBIGUOUS",
+    ),
+  );
+});
+
+test("P6 XML activity with missing WBS or calendar reference is unresolved", () => {
+  const xml = `
+  <APIBusinessObjects>
+    <Project><ObjectId>10</ObjectId><Id>P88</Id></Project>
+    <Activity>
+      <ProjectObjectId>10</ProjectObjectId>
+      <ObjectId>1001</ObjectId>
+      <Id>A200</Id>
+      <WBSObjectId>999</WBSObjectId>
+      <CalendarObjectId>888</CalendarObjectId>
+    </Activity>
+  </APIBusinessObjects>`;
+
+  const parsed = parsePrimaveraXml(Buffer.from(xml, "utf8"));
+  assert.equal(parsed.sourceComplete, false);
+  assert.deepEqual(parsed.missingWbsReferences, ["999"]);
+  assert.deepEqual(parsed.missingCalendarReferences, ["888"]);
 });
