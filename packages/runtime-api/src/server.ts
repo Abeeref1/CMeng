@@ -42,6 +42,9 @@ import type {
 import type {
   CanonicalQuantityProgressModel,
 } from "../../quantity-progress-core/src";
+import {
+  cmengUatHtml,
+} from "./ui";
 
 const port = Number.parseInt(
   process.env.PORT ?? "3000",
@@ -74,6 +77,22 @@ function json(
       Buffer.byteLength(payload),
   });
   res.end(payload);
+}
+
+function html(
+  res: ServerResponse,
+  statusCode: number,
+  body: string,
+): void {
+  res.writeHead(statusCode, {
+    "content-type":
+      "text/html; charset=utf-8",
+    "content-length":
+      Buffer.byteLength(body),
+    "cache-control":
+      "no-store",
+  });
+  res.end(body);
 }
 
 function mediaType(req: IncomingMessage): string {
@@ -780,6 +799,18 @@ async function route(
   if (
     req.method === "GET" &&
     url.pathname === "/"
+  ) {
+    html(
+      res,
+      200,
+      cmengUatHtml(),
+    );
+    return;
+  }
+
+  if (
+    req.method === "GET" &&
+    url.pathname === "/api"
   ) {
     json(res, 200, {
       name: "CMeng",
