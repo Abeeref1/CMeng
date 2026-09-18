@@ -77,6 +77,117 @@ assert.equal(
   "runtime_local",
 );
 
+
+const modulesResponse = await fetch(
+  base + "/api/schedule/modules",
+);
+
+const modulesText =
+  await modulesResponse.text();
+
+assert.equal(
+  modulesResponse.status,
+  200,
+  "Schedule modules endpoint failed: " +
+    modulesText,
+);
+
+const modulesBody =
+  JSON.parse(modulesText);
+
+assert.equal(
+  modulesBody.moduleCount,
+  22,
+);
+assert.equal(
+  new Set(
+    modulesBody.modules.map(
+      (module) => module.key,
+    ),
+  ).size,
+  22,
+);
+
+const certificationResponse =
+  await fetch(
+    base +
+      "/api/schedule/certification",
+  );
+
+const certificationText =
+  await certificationResponse.text();
+
+assert.equal(
+  certificationResponse.status,
+  200,
+  "Schedule certification endpoint failed: " +
+    certificationText,
+);
+
+const certification =
+  JSON.parse(certificationText);
+
+assert.equal(
+  certification.scope,
+  "schedule-22-final",
+);
+assert.equal(
+  certification.moduleCount,
+  22,
+);
+assert.equal(
+  certification.invariants
+    ?.missingEvidenceIsNotZero,
+  true,
+);
+assert.equal(
+  certification.invariants
+    ?.candidateExtractionIsNotOfficial,
+  true,
+);
+assert.equal(
+  certification.invariants
+    ?.currenciesAreNotCrossSummed,
+  true,
+);
+assert.equal(
+  certification.invariants
+    ?.deterministicCpmRemainsCanonical,
+  true,
+);
+assert.equal(
+  certification.invariants
+    ?.probabilisticForecastIsNonOfficial,
+  true,
+);
+assert.equal(
+  certification.invariants
+    ?.claimsRequireDelayEventAndScheduleLinkage,
+  true,
+);
+assert.equal(
+  certification.invariants
+    ?.boardReportRequiresEvidenceReceipts,
+  true,
+);
+
+const expectedRelease =
+  process.env.CMENG_EXPECTED_RELEASE ??
+  null;
+
+if (expectedRelease) {
+  assert.equal(
+    healthBody.release,
+    expectedRelease,
+    "Railway is not serving the expected final CMeng commit",
+  );
+  assert.equal(
+    certification.release,
+    expectedRelease,
+    "Certification endpoint is not serving the expected final CMeng commit",
+  );
+}
+
 const upload = await fetch(
   base +
     "/api/projects/" +
@@ -237,6 +348,10 @@ console.log(
       railway: base,
       release:
         healthBody.release ?? null,
+      scheduleModuleCount:
+        modulesBody.moduleCount,
+      scheduleCertificationScope:
+        certification.scope,
       ingestionId:
         created.ingestionId,
       evidenceReceiptId:
