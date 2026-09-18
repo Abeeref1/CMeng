@@ -61,6 +61,10 @@ function parseSegment(
       row,
       roleColumn(header.roles, "item_number"),
     );
+    const section = valueAt(
+      row,
+      roleColumn(header.roles, "section"),
+    );
     const description =
       valueAt(row, roleColumn(header.roles, "description")) ?? "";
     const unit = valueAt(row, roleColumn(header.roles, "unit"));
@@ -80,6 +84,7 @@ function parseSegment(
 
     if (
       !itemNumber &&
+      !section &&
       !description &&
       !unit &&
       !quantityRaw &&
@@ -152,6 +157,7 @@ function parseSegment(
     const sourceCells: BoqLineItem["sourceCells"] = {};
     for (const role of [
       "item_number",
+      "section",
       "description",
       "unit",
       "quantity",
@@ -174,6 +180,7 @@ function parseSegment(
       row: rowNumber,
       rowKind,
       itemNumber,
+      section,
       description,
       unit,
       quantity:
