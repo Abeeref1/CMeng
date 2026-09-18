@@ -243,11 +243,14 @@ test("supporting CSV evidence is retained and maps only explicit activity IDs", 
           body,
         },
       );
-    assert.equal(
-      response.status,
-      201,
-      await response.text(),
-    );
+    if (response.status !== 201) {
+      throw new Error(
+        "Expected HTTP 201, received " +
+          response.status +
+          ": " +
+          await response.text(),
+      );
+    }
     const result =
       await response.json() as {
         category: string;
@@ -400,11 +403,14 @@ test("ZIP evidence pack routes schedules, BOQ CSV and other project evidence wit
           body: Buffer.from(bytes),
         },
       );
-    assert.equal(
-      response.status,
-      201,
-      await response.text(),
-    );
+    if (response.status !== 201) {
+      throw new Error(
+        "Expected HTTP 201, received " +
+          response.status +
+          ": " +
+          await response.text(),
+      );
+    }
 
     const result =
       await response.json() as {
