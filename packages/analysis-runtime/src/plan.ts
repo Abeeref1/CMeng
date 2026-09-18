@@ -12,7 +12,6 @@ export const DEFAULT_ANALYSIS_PLAN: readonly ProjectionDefinition[] = [
   { key: "activity_analytics", dependencies: ["schedule_analytics"], requiredForPublish: true },
   { key: "resource_utilization", dependencies: ["schedule_analytics"], requiredForPublish: true },
   { key: "lookahead_schedule", dependencies: ["schedule_analytics"], requiredForPublish: true },
-  { key: "progress_report", dependencies: ["schedule_analytics"], requiredForPublish: true },
   { key: "schedule_change_report", dependencies: ["schedule_analytics"], requiredForPublish: true },
   { key: "variance_trends", dependencies: ["schedule_analytics"], requiredForPublish: true },
   { key: "progress_scurve", dependencies: ["schedule_analytics"], requiredForPublish: true },
@@ -21,6 +20,7 @@ export const DEFAULT_ANALYSIS_PLAN: readonly ProjectionDefinition[] = [
   { key: "near_critical", dependencies: ["schedule_analytics"], requiredForPublish: true },
   { key: "independent_forecast", dependencies: ["schedule_analytics"], requiredForPublish: true },
 
+  { key: "progress_report", dependencies: ["schedule_analytics", "milestones", "lookahead_schedule", "progress_scurve", "independent_forecast"], requiredForPublish: true },
   { key: "revision_trend", dependencies: ["schedule_change_report"], requiredForPublish: true },
   { key: "manhour_scurve", dependencies: ["resource_utilization"], requiredForPublish: true },
   { key: "forecast_history", dependencies: ["independent_forecast"], requiredForPublish: true },
