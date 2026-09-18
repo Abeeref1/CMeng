@@ -6,8 +6,10 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "build": "tsc",
-    "test": "npm run build && node --test dist/tests/**/*.test.js",
-    "verify": "npm run typecheck && npm test"
+    "test:unit": "npm run build && node --test $(find dist/tests -name '*.test.js' ! -name '*-scale.test.js')",
+    "test:stress": "npm run build && node --test dist/tests/*-scale.test.js",
+    "test": "npm run test:unit",
+    "verify": "npm run typecheck && npm run test:unit"
   },
   "dependencies": {
     "iconv-lite": "0.6.3",
