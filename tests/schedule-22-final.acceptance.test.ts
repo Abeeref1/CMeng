@@ -93,6 +93,15 @@ import {
 import {
   scheduleModules,
 } from "../packages/runtime-api/src/registry";
+import {
+  extractContractLdTerms,
+} from "../packages/contract-commercial/src";
+import {
+  buildProjectDirectorPosition,
+} from "../packages/project-director/src";
+import {
+  buildBoardReadyReport,
+} from "../packages/board-report/src";
 
 const GENERATED_AT =
   "2026-09-19T00:00:00.000Z";
@@ -591,7 +600,7 @@ function contractSection(
 
 function contract(): ContractDocumentResult {
   const section = contractSection(
-    "Clause 8.4 Extension of Time. The Contractor shall give notice within 7 calendar days. Liquidated damages apply for delay. Claims require contemporary records.",
+    "Clause 8.4 Extension of Time. The Contractor shall give notice within 7 calendar days. Liquidated damages are USD 10,000 per day and are capped at 10% of the Contract Amount. Claims require contemporary records.",
   );
   return {
     sourceType: "pdf",
@@ -900,6 +909,203 @@ test("all 22 Schedule modules execute coherently from governed cross-domain evid
         producerVersion: "challenge-final-v1",
       },
     );
+
+
+  const ldTerms =
+    extractContractLdTerms(
+      contract(),
+    );
+
+  assert.equal(
+    ldTerms.rateState,
+    "candidate",
+  );
+  assert.equal(
+    ldTerms.rate?.currency,
+    "USD",
+  );
+  assert.equal(
+    ldTerms.rate?.amount,
+    10000,
+  );
+  assert.equal(
+    ldTerms.cap?.percent,
+    10,
+  );
+
+  const director =
+    buildProjectDirectorPosition({
+      generatedAt: GENERATED_AT,
+      projectId: "P22",
+      scheduleAnalytics,
+      progressReport,
+      independentForecast,
+      delayClaims,
+      noticesClaims,
+      eotAssessment,
+      ldTerms,
+      contractValue: {
+        amount: 5_000_000,
+        currency: "USD",
+        sourceRefs: [
+          "contract:value:USD",
+        ],
+      },
+      variations: [
+        {
+          variationId: "V1",
+          state: "pending",
+          amount: 250_000,
+          currency: "AED",
+          sourceRefs: ["variation:V1"],
+        },
+        {
+          variationId: "V2",
+          state: "approved",
+          amount: 50_000,
+          currency: "USD",
+          sourceRefs: ["variation:V2"],
+        },
+      ],
+      invoices: [{
+        invoiceId: "INV1",
+        currency: "USD",
+        certifiedAmount: 400_000,
+        paidAmount: 300_000,
+        sourceRefs: ["invoice:INV1"],
+      }],
+      retentions: [{
+        retentionId: "RET1",
+        state: "held",
+        amount: 75_000,
+        currency: "AED",
+        sourceRefs: ["retention:RET1"],
+      }],
+      bonds: [
+        {
+          bondId: "B1",
+          kind: "performance",
+          status: "active",
+          amount: 500_000,
+          currency: "USD",
+          expiryIso:
+            "2026-10-01T00:00:00.000Z",
+          sourceRefs: ["bond:B1"],
+        },
+      ],
+      claimCommercials: [{
+        claimId: "C1",
+        currency: "USD",
+        claimedAmount: 125_000,
+        assessedAmount: null,
+        sourceRefs: ["claim:C1"],
+      }],
+      hseIncidents: [{
+        incidentId: "H1",
+        severity: "lti",
+        status: "open",
+        sourceRefs: ["hse:H1"],
+      }],
+      ncrs: [{
+        ncrId: "NCR1",
+        severity: "major",
+        status: "open",
+        sourceRefs: ["ncr:NCR1"],
+      }],
+      rfis: [{
+        rfiId: "RFI-22",
+        status: "open",
+        dueIso:
+          "2026-01-07T00:00:00.000Z",
+        sourceRefs: ["rfi:RFI-22"],
+      }],
+      permits: [{
+        permitId: "PER1",
+        status: "submitted",
+        dueIso:
+          "2026-01-08T00:00:00.000Z",
+        sourceRefs: ["permit:PER1"],
+      }],
+      boardEvidence: {
+        reportId: "BR1",
+        state: "finalized",
+        sourceManifestId: "manifest-1",
+        evidenceReceiptIds: [
+          "receipt-1",
+          "receipt-2",
+        ],
+        finalizedAt:
+          "2026-09-19T00:00:00.000Z",
+      },
+    });
+
+  assert.deepEqual(
+    director.commercialByCurrency.map(
+      (row) => row.currency,
+    ),
+    ["AED", "USD"],
+  );
+  assert.equal(
+    director.claims.fullyLinkedClaimCount,
+    1,
+  );
+  assert.equal(
+    director.claims.unlinkedClaimIds.length,
+    0,
+  );
+  assert.equal(
+    director.ld.state,
+    "scenario_candidate",
+  );
+  assert.equal(
+    director.ld.currency,
+    "USD",
+  );
+  assert.equal(
+    director.controls.openLtiOrWorseCount,
+    1,
+  );
+  assert.equal(
+    director.controls
+      .openCriticalMajorNcrCount,
+    1,
+  );
+  assert.equal(
+    director.controls.overdueRfiCount,
+    1,
+  );
+  assert.equal(
+    director.controls.overduePermitCount,
+    1,
+  );
+
+  const boardReport =
+    buildBoardReadyReport(
+      director,
+      {
+        sourceManifestId: "manifest-1",
+        evidenceReceiptIds: [
+          "receipt-1",
+          "receipt-2",
+        ],
+        finalizedAt:
+          "2026-09-19T00:00:00.000Z",
+      },
+    );
+
+  assert.equal(
+    boardReport.state,
+    "board_ready",
+  );
+  assert.ok(
+    boardReport.publicationReceipt
+      .sourceFingerprint.length > 20,
+  );
+  assert.ok(
+    boardReport.evidenceRefs.includes(
+      "source-manifest:manifest-1",
+    ),
+  );
 
   const pmoAnalysis =
     buildPmoAnalysisProjection({
