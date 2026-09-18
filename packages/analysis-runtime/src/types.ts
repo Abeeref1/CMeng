@@ -214,3 +214,12 @@ export class ProjectionDependencyNotReadyError extends Error {
     this.name = "ProjectionDependencyNotReadyError";
   }
 }
+
+
+export class RetryableProjectionError extends Error {
+  readonly code = "RETRYABLE_PROJECTION_ERROR";
+  constructor(message: string) {
+    super(message);
+    this.name = "RetryableProjectionError";
+  }
+}
