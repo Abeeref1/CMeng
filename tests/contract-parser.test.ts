@@ -253,3 +253,77 @@ test("native searchable contract PDF integrates page parsing and clause segmenta
   assert.equal(result.clauses.length, 2);
   assert.equal(result.complete, true);
 });
+
+
+test("table-of-contents entry does not create a false contract clause", () => {
+  assert.equal(
+    detectContractHeading(
+      "14.2 Payment ................................ 37",
+    ),
+    null,
+  );
+
+  const result = segmentContractPages(
+    pdfResult([
+      page(
+        1,
+        [
+          "TABLE OF CONTENTS",
+          "14.2 Payment ................................ 37",
+          "15 Variations ................................ 40",
+        ].join("\n"),
+      ),
+      page(
+        2,
+        [
+          "14.2 Payment",
+          "The Employer shall pay the certified amount.",
+          "15 Variations",
+          "Variations shall be instructed in writing.",
+        ].join("\n"),
+      ),
+    ]),
+  );
+
+  assert.equal(result.complete, true);
+  assert.equal(result.clauses.length, 2);
+  assert.deepEqual(
+    result.clauses.map((clause) => clause.identifier),
+    ["14.2", "15"],
+  );
+});
+
+test("repeated running clause heading on next page does not create a duplicate clause", () => {
+  const result = segmentContractPages(
+    pdfResult([
+      page(
+        1,
+        [
+          "8.4 Extension of Time",
+          "The Contractor may claim an extension.",
+        ].join("\n"),
+      ),
+      page(
+        2,
+        [
+          "8.4 Extension of Time",
+          "The claim shall state the cause and effect.",
+        ].join("\n"),
+      ),
+    ]),
+  );
+
+  assert.equal(result.complete, true);
+  assert.equal(result.clauses.length, 1);
+  assert.deepEqual(result.duplicateIdentifiers, []);
+  assert.equal(result.clauses[0]!.endPage, 2);
+  assert.ok(
+    result.clauses[0]!.diagnostics.includes(
+      "CONTRACT_REPEATED_RUNNING_HEADING",
+    ),
+  );
+  assert.match(
+    result.clauses[0]!.text,
+    /cause and effect/,
+  );
+});
