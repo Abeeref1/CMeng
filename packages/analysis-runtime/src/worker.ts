@@ -14,6 +14,7 @@ import {
   type ProjectionJob,
 } from "./types";
 import { AnalysisCoordinator } from "./coordinator";
+import { retryDecision } from "../../runtime-supervision/src";
 
 export interface ProjectionExecutor {
   processChunk(input: {
@@ -36,6 +37,16 @@ export const DEFAULT_DURABLE_WORKER_POLICY: DurableWorkerPolicy = {
 
 function nowIso(now?: string): string {
   return now ?? new Date().toISOString();
+}
+
+function retryNotBefore(
+  timestamp: string,
+  attempt: number,
+): string {
+  const decision = retryDecision(attempt);
+  return new Date(
+    Date.parse(timestamp) + decision.delayMs,
+  ).toISOString();
 }
 
 export class DurableProjectionWorker {
@@ -84,11 +95,16 @@ export class DurableProjectionWorker {
           error instanceof
           MetadataUnavailableError
         ) {
+          const nextAttempt = job.attempt + 1;
           await this.queue.retry(
             lease,
             {
               ...job,
-              attempt: job.attempt + 1,
+              attempt: nextAttempt,
+              notBefore: retryNotBefore(
+                timestamp,
+                nextAttempt,
+              ),
             },
           );
           return "publish_retry";
@@ -160,6 +176,7 @@ export class DurableProjectionWorker {
       job = {
         ...job,
         chunkCursor: result.nextCursor,
+        notBefore: null,
         attempt: job.attempt + 1,
       };
 
@@ -222,13 +239,18 @@ export class DurableProjectionWorker {
         error instanceof MetadataUnavailableError
       ) {
         // No recomputation. The next attempt is publication-only.
+        const nextAttempt = job.attempt + 1;
         await this.queue.retry(
           lease,
           {
             ...job,
             phase: "publish",
             pendingArtifact: pointer,
-            attempt: job.attempt + 1,
+            notBefore: retryNotBefore(
+              timestamp,
+              nextAttempt,
+            ),
+            attempt: nextAttempt,
           },
         );
         return "publish_retry";
