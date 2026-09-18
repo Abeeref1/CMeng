@@ -60,6 +60,19 @@ export function detectContractHeading(
     return null;
   }
 
+  const sectionClause = line.match(
+    /^section\s+([0-9]+)\s*[-–—:]\s*clause\s+([0-9]+)\s*:?\s*(.*)$/i,
+  );
+  if (sectionClause) {
+    const section = String(Number(sectionClause[1]!));
+    const clause = String(Number(sectionClause[2]!));
+    return {
+      kind: "clause",
+      identifier: section + "." + clause,
+      heading: cleanHeading(sectionClause[3] ?? ""),
+    };
+  }
+
   const explicit = line.match(
     /^(?:clause|article|section)\s+([0-9]+(?:\.[0-9]+){0,8})\s*(.*)$/i,
   );
