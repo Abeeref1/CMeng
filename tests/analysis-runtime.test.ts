@@ -211,8 +211,16 @@ test("run publication is atomic across the full projection plan", async () => {
     "P88",
     firstKey,
   );
-  assert.equal(read.state, "preparing");
-  assert.equal(read.artifact, null);
+  assert.equal(read.state, "ready");
+  assert.ok(read.artifact);
+  assert.equal(read.isCurrentRevision, true);
+
+  const stillPreparing = await rt.coordinator.readProjection(
+    "P88",
+    DEFAULT_ANALYSIS_PLAN[1]!.key,
+  );
+  assert.equal(stillPreparing.state, "preparing");
+  assert.equal(stillPreparing.artifact, null);
 });
 
 test("worker checkpoints one bounded chunk and resumes after termination without starting over", async () => {
@@ -392,5 +400,41 @@ test("calculable values never block on manual approval", () => {
   assert.equal(
     shouldBlockForApproval(variance.origin),
     false,
+  );
+});
+
+
+test("expired worker lease can be reacquired after abrupt termination", async () => {
+  const rt = runtime();
+  await rt.coordinator.ensureProjectAnalysis(
+    snapshot("rev-1"),
+    "2026-09-18T10:00:00.000Z",
+  );
+
+  const first = await rt.queue.acquire(
+    "worker-a",
+    "2026-09-18T10:00:00.000Z",
+    30_000,
+  );
+  assert.ok(first);
+
+  const beforeExpiry = await rt.queue.acquire(
+    "worker-b",
+    "2026-09-18T10:00:20.000Z",
+    30_000,
+  );
+  assert.equal(beforeExpiry, null);
+
+  // Worker A vanished without complete/retry. Lease expiry makes the
+  // same durable job available to a new worker.
+  const afterExpiry = await rt.queue.acquire(
+    "worker-b",
+    "2026-09-18T10:00:31.000Z",
+    30_000,
+  );
+  assert.ok(afterExpiry);
+  assert.equal(
+    afterExpiry!.job.jobId,
+    first!.job.jobId,
   );
 });
