@@ -15,6 +15,35 @@ export interface CanonicalResourceRate {
   sourceRefs: ResourceSourceRef[];
 }
 
+export interface CanonicalUnitOfMeasure {
+  unitId: string;
+  name: string | null;
+  abbreviation: string | null;
+  sourceRefs: ResourceSourceRef[];
+}
+
+export interface CanonicalFinancialPeriod {
+  periodId: string;
+  name: string | null;
+  startIso: string | null;
+  endIso: string | null;
+  sourceRefs: ResourceSourceRef[];
+}
+
+export interface CanonicalResourcePeriodActual {
+  assignmentId: string;
+  projectId: string | null;
+  activityId: string;
+  resourceId: string | null;
+  periodId: string;
+  periodName: string | null;
+  periodStartIso: string | null;
+  periodEndIso: string | null;
+  actualUnits: number | null;
+  sourceRefs: ResourceSourceRef[];
+  diagnostics: string[];
+}
+
 export interface CanonicalResource {
   resourceId: string;
   nativeId: string;
@@ -23,6 +52,8 @@ export interface CanonicalResource {
   parentResourceId: string | null;
   resourceType: CanonicalResourceType;
   unitId: string | null;
+  unitName: string | null;
+  unitAbbreviation: string | null;
   calendarId: string | null;
   priceTimeUnit: string | null;
   rates: CanonicalResourceRate[];
@@ -62,8 +93,11 @@ export interface CanonicalResourceAssignment {
 export interface CanonicalResourceModel {
   projectId: string | null;
   sourceRevisionId: string;
+  units: CanonicalUnitOfMeasure[];
+  financialPeriods: CanonicalFinancialPeriod[];
   resources: CanonicalResource[];
   assignments: CanonicalResourceAssignment[];
+  periodActuals: CanonicalResourcePeriodActual[];
   diagnostics: string[];
 }
 
