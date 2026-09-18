@@ -62,3 +62,9 @@ export interface MutableProjectAnalysisContextStore
     context: ProjectAnalysisContext,
   ): Promise<void>;
 }
+
+
+export type ProjectAnalysisContextInput = Omit<
+  ProjectAnalysisContext,
+  "runId" | "projectId" | "evidenceRevisionId"
+>;
