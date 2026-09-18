@@ -7,7 +7,8 @@ import type {
 } from "./types";
 
 function cellKind(cell: ExcelJS.Cell): BoqCellKind {
-  if (cell.value === null || cell.value === undefined || cell.text === "") return "blank";
+  if (cell.type === ExcelJS.ValueType.Formula) return "formula";
+  if (cell.value === null || cell.value === undefined) return "blank";
 
   switch (cell.type) {
     case ExcelJS.ValueType.Number:
