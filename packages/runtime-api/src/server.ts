@@ -217,6 +217,8 @@ function scheduleUploadSummary(
     ingestionId: result.ingestionId,
     projectId: result.projectId,
     sourceFormat: result.sourceFormat,
+    sourceProjectId:
+      result.sourceProjectId,
     sourceFilename: result.sourceFilename,
     sourceHashSha256:
       result.sourceHashSha256,
