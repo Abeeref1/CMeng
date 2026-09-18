@@ -468,21 +468,35 @@ export function buildManhourScurveProjection(
         if (pointMs <= dataDateMs) {
           forecastValue = actualValue;
         } else {
-          const futureRemaining =
+          const atPoint =
             phasedCumulative(
               remaining.phased,
               pointMs,
             );
+          const atDataDate =
+            phasedCumulative(
+              remaining.phased,
+              dataDateMs,
+            );
 
-          forecastValue =
-            futureRemaining === null
-              ? currentActualHours
-              : Number(
-                  (
-                    currentActualHours +
-                    futureRemaining
-                  ).toFixed(6),
-                );
+          if (atPoint === null) {
+            forecastValue =
+              currentActualHours;
+          } else {
+            const incrementalRemaining =
+              Math.max(
+                0,
+                atPoint -
+                  (atDataDate ?? 0),
+              );
+
+            forecastValue = Number(
+              (
+                currentActualHours +
+                incrementalRemaining
+              ).toFixed(6),
+            );
+          }
         }
       }
 
