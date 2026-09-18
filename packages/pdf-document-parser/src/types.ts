@@ -42,6 +42,7 @@ export interface PdfPageResult {
 
 export interface PdfParseCheckpoint {
   completedPages: number[];
+  persistedPages: PdfPageResult[];
 }
 
 export interface PdfDocumentResult {
