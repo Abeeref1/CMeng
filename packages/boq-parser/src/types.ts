@@ -73,6 +73,7 @@ export interface BoqLineItem {
   row: number;
   rowKind: "line_item" | "section" | "total_or_summary" | "unclassified";
   itemNumber: string | null;
+  section: string | null;
   description: string;
   unit: string | null;
   quantity: number | null;
@@ -95,9 +96,31 @@ export interface BoqSheetParseResult {
   diagnostics: string[];
 }
 
+export interface BoqSummaryRow {
+  row: number;
+  section: string | null;
+  description: string;
+  amount: number | null;
+  share: number | null;
+}
+
+export interface BoqAuxiliarySheet {
+  sheet: string;
+  kind: "summary" | "metadata";
+  rows: Array<{
+    row: number;
+    cells: string[];
+  }>;
+  summaryRows: BoqSummaryRow[];
+  totalAmount: number | null;
+  totalShare: number | null;
+  diagnostics: string[];
+}
+
 export interface BoqParseResult {
   inventory: BoqWorkbookInventory;
   sheets: BoqSheetParseResult[];
+  auxiliarySheets: BoqAuxiliarySheet[];
   candidateRows: number;
   parsedRows: number;
   unresolvedRows: number;
