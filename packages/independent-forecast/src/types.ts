@@ -1,3 +1,18 @@
+export interface ProbabilisticForecastComparator {
+  status: "available" | "unavailable";
+  method: "limited_triangular_duration_factor";
+  authority: "non_official";
+  iterations: number;
+  seed: number;
+  minFactor: number;
+  modeFactor: number;
+  maxFactor: number;
+  p50CompletionIso: string | null;
+  p80CompletionIso: string | null;
+  p90CompletionIso: string | null;
+  assumptions: string[];
+}
+
 import type {
   CpmActivityResult,
   CpmCalculationMode,
@@ -43,6 +58,7 @@ export interface IndependentForecastProjection {
   criticalActivityIds: string[];
   assumptions: string[];
   diagnostics: string[];
+  probabilistic: ProbabilisticForecastComparator;
   activities: IndependentForecastActivityRow[];
   complete: boolean;
 }
