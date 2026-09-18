@@ -1,169 +1,406 @@
 import ExcelJS from "exceljs";
 import { parseCsv } from "../../tabular-parser/src";
 import { parseStrictNumeric } from "../../boq-parser/src/numeric";
+import {
+  inferDurationUnitFromHeader,
+  parseScheduleDate,
+  parseScheduleDuration,
+  type ScheduleDurationUnit,
+  type ScheduleDurationValue,
+} from "../../schedule-values/src";
 import { detectScheduleHeader } from "./headers";
 import type {
   ScheduleActivityRow,
   ScheduleCellLocator,
   ScheduleColumnRole,
+  ScheduleHeaderMapping,
   ScheduleRelationshipRow,
   ScheduleTabularResult,
 } from "./types";
 
-function locator(source:"csv"|"xlsx",sheet:string|null,row:number,column:number,address:string|null):ScheduleCellLocator{
- return {source,sheet,row,column,address};
+function columnName(column: number): string {
+  let value = column;
+  let out = "";
+  while (value > 0) {
+    value -= 1;
+    out = String.fromCharCode(65 + (value % 26)) + out;
+    value = Math.floor(value / 26);
+  }
+  return out;
 }
 
-function roleColumn(roles:Record<number,ScheduleColumnRole>,role:ScheduleColumnRole):number|null{
- const e=Object.entries(roles).find(([,r])=>r===role);
- return e?Number(e[0]):null;
+function locator(
+  source: "csv" | "xlsx",
+  sheet: string | null,
+  row: number,
+  column: number,
+): ScheduleCellLocator {
+  return {
+    source,
+    sheet,
+    row,
+    column,
+    address:
+      source === "xlsx"
+        ? columnName(column) + row
+        : "R" + row + "C" + column,
+  };
 }
 
-function valueAt(row:readonly string[],column:number|null):string|null{
- if(column===null) return null;
- const value=(row[column-1]??"").trim();
- return value||null;
+function roleColumn(
+  roles: Record<number, ScheduleColumnRole>,
+  role: ScheduleColumnRole,
+): number | null {
+  const entry = Object.entries(roles).find(([, mapped]) => mapped === role);
+  return entry ? Number(entry[0]) : null;
 }
 
-function parseHours(raw:string|null,diagnostics:string[],code:string):number|null{
- if(raw===null) return null;
- const p=parseStrictNumeric(raw);
- if(p.status==="valid") return p.value;
- diagnostics.push(`${code}_${p.status.toUpperCase()}`);
- return null;
+function valueAt(
+  row: readonly string[],
+  column: number | null,
+): string | null {
+  if (column === null) return null;
+  const value = (row[column - 1] ?? "").trim();
+  return value || null;
+}
+
+function headerUnit(
+  header: ScheduleHeaderMapping,
+  role: ScheduleColumnRole,
+): ScheduleDurationUnit {
+  const column = roleColumn(header.roles, role);
+  if (column === null) return "unknown";
+  return inferDurationUnitFromHeader(header.headers[column] ?? "");
+}
+
+function durationValue(
+  row: readonly string[],
+  header: ScheduleHeaderMapping,
+  role: ScheduleColumnRole,
+  diagnostics: string[],
+  code: string,
+): ScheduleDurationValue {
+  const raw = valueAt(row, roleColumn(header.roles, role));
+  const parsed = parseScheduleDuration(raw, headerUnit(header, role));
+  if (
+    raw !== null &&
+    (parsed.status === "ambiguous" || parsed.status === "invalid")
+  ) {
+    diagnostics.push(code + "_" + parsed.status.toUpperCase());
+  }
+  return parsed;
+}
+
+function normalizedDate(
+  raw: string | null,
+  diagnostics: string[],
+  code: string,
+): string | null {
+  if (raw === null) return null;
+  const parsed = parseScheduleDate(raw);
+  if (parsed.status !== "valid") {
+    diagnostics.push(code + "_" + parsed.status.toUpperCase());
+    return null;
+  }
+  return parsed.iso;
+}
+
+function parsePercent(
+  raw: string | null,
+  diagnostics: string[],
+): number | null {
+  if (raw === null) return null;
+  const parsed = parseStrictNumeric(raw);
+  if (parsed.status !== "valid" || parsed.value === null) {
+    diagnostics.push(
+      "SCHEDULE_PERCENT_COMPLETE_" + parsed.status.toUpperCase(),
+    );
+    return null;
+  }
+  if (parsed.value < 0 || parsed.value > 100) {
+    diagnostics.push("SCHEDULE_PERCENT_COMPLETE_OUT_OF_RANGE");
+    return null;
+  }
+  return parsed.value;
 }
 
 function makeLocators(
- source:"csv"|"xlsx",
- sheet:string|null,
- rowNo:number,
- roles:Record<number,ScheduleColumnRole>,
-):Partial<Record<ScheduleColumnRole,ScheduleCellLocator>>{
- const out:Partial<Record<ScheduleColumnRole,ScheduleCellLocator>>={};
- for(const [col,role] of Object.entries(roles)){
-  const column=Number(col);
-  out[role]=locator(source,sheet,rowNo,column,source==="xlsx"?null:null);
- }
- return out;
+  source: "csv" | "xlsx",
+  sheet: string | null,
+  rowNo: number,
+  roles: Record<number, ScheduleColumnRole>,
+): Partial<Record<ScheduleColumnRole, ScheduleCellLocator>> {
+  const out: Partial<Record<ScheduleColumnRole, ScheduleCellLocator>> = {};
+  for (const [columnText, role] of Object.entries(roles)) {
+    const column = Number(columnText);
+    out[role] = locator(source, sheet, rowNo, column);
+  }
+  return out;
 }
 
 function parseRows(
- source:"csv"|"xlsx",
- sheet:string|null,
- rows:readonly (readonly string[])[],
- headerRow:number,
- roles:Record<number,ScheduleColumnRole>,
-):{activities:ScheduleActivityRow[];relationships:ScheduleRelationshipRow[];diagnostics:string[]}{
- const activities:ScheduleActivityRow[]=[];
- const relationships:ScheduleRelationshipRow[]=[];
- const diagnostics:string[]=[];
- const activityIdCol=roleColumn(roles,"activity_id");
- const predCol=roleColumn(roles,"predecessor_id");
- const succCol=roleColumn(roles,"successor_id");
+  source: "csv" | "xlsx",
+  sheet: string | null,
+  rows: readonly (readonly string[])[],
+  header: ScheduleHeaderMapping,
+): {
+  activities: ScheduleActivityRow[];
+  relationships: ScheduleRelationshipRow[];
+  diagnostics: string[];
+} {
+  const activities: ScheduleActivityRow[] = [];
+  const relationships: ScheduleRelationshipRow[] = [];
+  const diagnostics: string[] = [];
+  const activityIdColumn = roleColumn(header.roles, "activity_id");
+  const predecessorColumn = roleColumn(header.roles, "predecessor_id");
+  const successorColumn = roleColumn(header.roles, "successor_id");
 
- for(let i=headerRow;i<rows.length;i++){
-  const row=rows[i]??[];
-  if(row.every(v=>!v.trim())) continue;
-  const rowNo=i+1;
+  for (let index = header.row; index < rows.length; index += 1) {
+    const row = rows[index] ?? [];
+    if (row.every((value) => !value.trim())) continue;
+    const rowNumber = index + 1;
 
-  if(predCol!==null&&succCol!==null){
-   const d:string[]=[];
-   const predecessorId=valueAt(row,predCol);
-   const successorId=valueAt(row,succCol);
-   const relationshipType=valueAt(row,roleColumn(roles,"relationship_type"));
-   const lagHours=parseHours(valueAt(row,roleColumn(roles,"lag")),d,"SCHEDULE_LAG");
-   if(!predecessorId) d.push("SCHEDULE_PREDECESSOR_ID_MISSING");
-   if(!successorId) d.push("SCHEDULE_SUCCESSOR_ID_MISSING");
-   relationships.push({
-    predecessorId,successorId,relationshipType,lagHours,
-    locators:makeLocators(source,sheet,rowNo,roles),
-    statusState:d.length===0?"verified":"unresolved",
-    diagnostics:d,
-   });
-   continue;
+    if (predecessorColumn !== null && successorColumn !== null) {
+      const rowDiagnostics: string[] = [];
+      const predecessorId = valueAt(row, predecessorColumn);
+      const successorId = valueAt(row, successorColumn);
+      const relationshipType = valueAt(
+        row,
+        roleColumn(header.roles, "relationship_type"),
+      );
+      const lag = durationValue(
+        row,
+        header,
+        "lag",
+        rowDiagnostics,
+        "SCHEDULE_LAG",
+      );
+
+      if (!predecessorId) {
+        rowDiagnostics.push("SCHEDULE_PREDECESSOR_ID_MISSING");
+      }
+      if (!successorId) {
+        rowDiagnostics.push("SCHEDULE_SUCCESSOR_ID_MISSING");
+      }
+
+      relationships.push({
+        predecessorId,
+        successorId,
+        relationshipType,
+        lagRaw: lag.raw || null,
+        lagUnit: lag.unit,
+        lagHours: lag.hours,
+        locators: makeLocators(
+          source,
+          sheet,
+          rowNumber,
+          header.roles,
+        ),
+        statusState:
+          rowDiagnostics.length === 0 ? "verified" : "unresolved",
+        diagnostics: rowDiagnostics,
+      });
+      continue;
+    }
+
+    if (activityIdColumn !== null) {
+      const rowDiagnostics: string[] = [];
+      const activityId = valueAt(row, activityIdColumn);
+      if (!activityId) {
+        rowDiagnostics.push("SCHEDULE_ACTIVITY_ID_MISSING");
+      }
+
+      const originalDuration = durationValue(
+        row,
+        header,
+        "original_duration",
+        rowDiagnostics,
+        "SCHEDULE_ORIGINAL_DURATION",
+      );
+      const remainingDuration = durationValue(
+        row,
+        header,
+        "remaining_duration",
+        rowDiagnostics,
+        "SCHEDULE_REMAINING_DURATION",
+      );
+      const totalFloat = durationValue(
+        row,
+        header,
+        "total_float",
+        rowDiagnostics,
+        "SCHEDULE_TOTAL_FLOAT",
+      );
+      const freeFloat = durationValue(
+        row,
+        header,
+        "free_float",
+        rowDiagnostics,
+        "SCHEDULE_FREE_FLOAT",
+      );
+
+      const start = valueAt(row, roleColumn(header.roles, "start"));
+      const finish = valueAt(row, roleColumn(header.roles, "finish"));
+
+      activities.push({
+        activityId,
+        activityName: valueAt(
+          row,
+          roleColumn(header.roles, "activity_name"),
+        ),
+        wbs: valueAt(row, roleColumn(header.roles, "wbs")),
+        wbsId: valueAt(row, roleColumn(header.roles, "wbs_id")),
+        calendar: valueAt(row, roleColumn(header.roles, "calendar")),
+        start,
+        startIso: normalizedDate(
+          start,
+          rowDiagnostics,
+          "SCHEDULE_START_DATE",
+        ),
+        finish,
+        finishIso: normalizedDate(
+          finish,
+          rowDiagnostics,
+          "SCHEDULE_FINISH_DATE",
+        ),
+        originalDurationRaw: originalDuration.raw || null,
+        originalDurationUnit: originalDuration.unit,
+        originalDurationHours: originalDuration.hours,
+        remainingDurationRaw: remainingDuration.raw || null,
+        remainingDurationUnit: remainingDuration.unit,
+        remainingDurationHours: remainingDuration.hours,
+        totalFloatRaw: totalFloat.raw || null,
+        totalFloatUnit: totalFloat.unit,
+        totalFloatHours: totalFloat.hours,
+        freeFloatRaw: freeFloat.raw || null,
+        freeFloatUnit: freeFloat.unit,
+        freeFloatHours: freeFloat.hours,
+        percentComplete: parsePercent(
+          valueAt(
+            row,
+            roleColumn(header.roles, "percent_complete"),
+          ),
+          rowDiagnostics,
+        ),
+        status: valueAt(row, roleColumn(header.roles, "status")),
+        locators: makeLocators(
+          source,
+          sheet,
+          rowNumber,
+          header.roles,
+        ),
+        statusState:
+          rowDiagnostics.length === 0 ? "verified" : "unresolved",
+        diagnostics: rowDiagnostics,
+      });
+    }
   }
 
-  if(activityIdCol!==null){
-   const d:string[]=[];
-   const activityId=valueAt(row,activityIdCol);
-   if(!activityId) d.push("SCHEDULE_ACTIVITY_ID_MISSING");
-   const originalDurationHours=parseHours(valueAt(row,roleColumn(roles,"original_duration")),d,"SCHEDULE_ORIGINAL_DURATION");
-   const remainingDurationHours=parseHours(valueAt(row,roleColumn(roles,"remaining_duration")),d,"SCHEDULE_REMAINING_DURATION");
-   const totalFloatHours=parseHours(valueAt(row,roleColumn(roles,"total_float")),d,"SCHEDULE_TOTAL_FLOAT");
-   const freeFloatHours=parseHours(valueAt(row,roleColumn(roles,"free_float")),d,"SCHEDULE_FREE_FLOAT");
-   const percentComplete=parseHours(valueAt(row,roleColumn(roles,"percent_complete")),d,"SCHEDULE_PERCENT_COMPLETE");
-   if(percentComplete!==null&&(percentComplete<0||percentComplete>100)) d.push("SCHEDULE_PERCENT_COMPLETE_OUT_OF_RANGE");
-   activities.push({
-    activityId,
-    activityName:valueAt(row,roleColumn(roles,"activity_name")),
-    wbs:valueAt(row,roleColumn(roles,"wbs")),
-    wbsId:valueAt(row,roleColumn(roles,"wbs_id")),
-    calendar:valueAt(row,roleColumn(roles,"calendar")),
-    start:valueAt(row,roleColumn(roles,"start")),
-    finish:valueAt(row,roleColumn(roles,"finish")),
-    originalDurationHours,remainingDurationHours,totalFloatHours,freeFloatHours,percentComplete,
-    status:valueAt(row,roleColumn(roles,"status")),
-    locators:makeLocators(source,sheet,rowNo,roles),
-    statusState:d.length===0?"verified":"unresolved",
-    diagnostics:d,
-   });
-  }
- }
- return {activities,relationships,diagnostics};
+  return { activities, relationships, diagnostics };
 }
 
-function finalize(sourceType:"csv"|"xlsx",sets:Array<ReturnType<typeof parseRows>>,diagnostics:string[]):ScheduleTabularResult{
- const activities=sets.flatMap(s=>s.activities);
- const relationships=sets.flatMap(s=>s.relationships);
- const activityRowsUnresolved=activities.filter(x=>x.statusState==="unresolved").length;
- const relationshipRowsUnresolved=relationships.filter(x=>x.statusState==="unresolved").length;
- const total=activities.length+relationships.length;
- const verified=total-activityRowsUnresolved-relationshipRowsUnresolved;
- return {
-  sourceType,activities,relationships,
-  activityRowsSeen:activities.length,
-  activityRowsVerified:activities.length-activityRowsUnresolved,
-  activityRowsUnresolved,
-  relationshipRowsSeen:relationships.length,
-  relationshipRowsVerified:relationships.length-relationshipRowsUnresolved,
-  relationshipRowsUnresolved,
-  coveragePercent:total===0?null:Number(((verified/total)*100).toFixed(4)),
-  complete:total>0&&activityRowsUnresolved===0&&relationshipRowsUnresolved===0&&diagnostics.length===0,
-  diagnostics,
- };
+function finalize(
+  sourceType: "csv" | "xlsx",
+  sets: Array<ReturnType<typeof parseRows>>,
+  diagnostics: string[],
+): ScheduleTabularResult {
+  const activities = sets.flatMap((set) => set.activities);
+  const relationships = sets.flatMap((set) => set.relationships);
+  const activityRowsUnresolved = activities.filter(
+    (row) => row.statusState === "unresolved",
+  ).length;
+  const relationshipRowsUnresolved = relationships.filter(
+    (row) => row.statusState === "unresolved",
+  ).length;
+  const total = activities.length + relationships.length;
+  const verified =
+    total - activityRowsUnresolved - relationshipRowsUnresolved;
+
+  return {
+    sourceType,
+    activities,
+    relationships,
+    activityRowsSeen: activities.length,
+    activityRowsVerified:
+      activities.length - activityRowsUnresolved,
+    activityRowsUnresolved,
+    relationshipRowsSeen: relationships.length,
+    relationshipRowsVerified:
+      relationships.length - relationshipRowsUnresolved,
+    relationshipRowsUnresolved,
+    coveragePercent:
+      total === 0
+        ? null
+        : Number(((verified / total) * 100).toFixed(4)),
+    complete:
+      total > 0 &&
+      activityRowsUnresolved === 0 &&
+      relationshipRowsUnresolved === 0 &&
+      diagnostics.length === 0,
+    diagnostics,
+  };
 }
 
-export function parseScheduleCsv(bytes:Uint8Array):ScheduleTabularResult{
- const csv=parseCsv(bytes);
- const rows=csv.rows.map(r=>r.cells);
- const header=detectScheduleHeader(rows);
- const diagnostics=[...csv.diagnostics];
- if(!header){
-  diagnostics.push("SCHEDULE_CSV_HEADER_NOT_FOUND");
-  return finalize("csv",[],diagnostics);
- }
- return finalize("csv",[parseRows("csv",null,rows,header.row,header.roles)],diagnostics);
+export function parseScheduleCsv(
+  bytes: Uint8Array,
+): ScheduleTabularResult {
+  const csv = parseCsv(bytes);
+  const rows = csv.rows.map((row) => row.cells);
+  const header = detectScheduleHeader(rows);
+  const diagnostics = [...csv.diagnostics];
+
+  if (!header) {
+    diagnostics.push("SCHEDULE_CSV_HEADER_NOT_FOUND");
+    return finalize("csv", [], diagnostics);
+  }
+
+  return finalize(
+    "csv",
+    [parseRows("csv", null, rows, header)],
+    diagnostics,
+  );
 }
 
-export async function parseScheduleXlsx(bytes:Uint8Array):Promise<ScheduleTabularResult>{
- const wb=new ExcelJS.Workbook();
- await wb.xlsx.load(Buffer.from(bytes) as any);
- const sets:Array<ReturnType<typeof parseRows>>=[];
- const diagnostics:string[]=[];
- for(const sheet of wb.worksheets){
-  const rows:string[][]=[];
-  for(let r=1;r<=sheet.rowCount;r++){
-   const vals:string[]=[];
-   for(let c=1;c<=sheet.columnCount;c++) vals.push(sheet.getRow(r).getCell(c).text??"");
-   rows.push(vals);
+export async function parseScheduleXlsx(
+  bytes: Uint8Array,
+): Promise<ScheduleTabularResult> {
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(Buffer.from(bytes) as any);
+  const sets: Array<ReturnType<typeof parseRows>> = [];
+  const diagnostics: string[] = [];
+
+  for (const sheet of workbook.worksheets) {
+    const rows: string[][] = [];
+
+    for (let row = 1; row <= sheet.rowCount; row += 1) {
+      const values: string[] = [];
+      for (
+        let column = 1;
+        column <= sheet.columnCount;
+        column += 1
+      ) {
+        values.push(
+          sheet.getRow(row).getCell(column).text ?? "",
+        );
+      }
+      rows.push(values);
+    }
+
+    const header = detectScheduleHeader(rows);
+
+    if (!header) {
+      const populated = rows.flat().filter((value) => value.trim()).length;
+      if (populated >= 6) {
+        diagnostics.push(
+          sheet.name +
+            ":SCHEDULE_POPULATED_SHEET_UNCLASSIFIED",
+        );
+      }
+      continue;
+    }
+
+    sets.push(parseRows("xlsx", sheet.name, rows, header));
   }
-  const header=detectScheduleHeader(rows);
-  if(!header){
-   const populated=rows.flat().filter(v=>v.trim()).length;
-   if(populated>=6) diagnostics.push(`${sheet.name}:SCHEDULE_POPULATED_SHEET_UNCLASSIFIED`);
-   continue;
-  }
-  sets.push(parseRows("xlsx",sheet.name,rows,header.row,header.roles));
- }
- return finalize("xlsx",sets,diagnostics);
+
+  return finalize("xlsx", sets, diagnostics);
 }
