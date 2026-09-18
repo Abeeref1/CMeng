@@ -1,5 +1,9 @@
 import { XMLParser } from "fast-xml-parser";
 import { parseStrictNumeric } from "../../boq-parser/src/numeric";
+import {
+  parseP6ApiDuration,
+  parseScheduleDate,
+} from "../../schedule-values/src";
 import type {
   PrimaveraXmlActivity,
   PrimaveraXmlProject,
@@ -53,6 +57,48 @@ function numeric(
   if (parsed.status === "valid") return parsed.value;
   diagnostics.push(code + "_" + parsed.status.toUpperCase());
   return null;
+}
+
+function durationField(
+  obj: AnyObject,
+  explicitHourNames: string[],
+  apiDurationNames: string[],
+  diagnostics: string[],
+  code: string,
+): { raw: string | null; hours: number | null } {
+  const explicit = field(obj, explicitHourNames);
+  if (explicit !== null) {
+    const parsed = parseStrictNumeric(explicit);
+    if (parsed.status === "valid") {
+      return { raw: explicit, hours: parsed.value };
+    }
+    diagnostics.push(code + "_" + parsed.status.toUpperCase());
+    return { raw: explicit, hours: null };
+  }
+
+  const raw = field(obj, apiDurationNames);
+  if (raw === null) return { raw: null, hours: null };
+
+  const parsed = parseP6ApiDuration(raw);
+  if (parsed.status !== "valid") {
+    diagnostics.push(code + "_" + parsed.status.toUpperCase());
+  }
+  return { raw, hours: parsed.hours };
+}
+
+function dateField(
+  obj: AnyObject,
+  names: string[],
+  diagnostics: string[],
+  code: string,
+): { raw: string | null; iso: string | null } {
+  const raw = field(obj, names);
+  if (raw === null) return { raw: null, iso: null };
+  const parsed = parseScheduleDate(raw);
+  if (parsed.status !== "valid") {
+    diagnostics.push(code + "_" + parsed.status.toUpperCase());
+  }
+  return { raw, iso: parsed.iso };
 }
 
 function collectByLocalName(
