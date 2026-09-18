@@ -529,6 +529,59 @@ function parseMixedScheduleRows(
   const lagIndex = mixedHeaderIndex(header, "Lag");
   const revisionIndex = mixedHeaderIndex(header, "Revision");
 
+  let mixedDurationUnit: ScheduleDurationUnit = "unknown";
+  let mixedDurationUsable = 0;
+  let mixedDurationDayMatches = 0;
+
+  for (let index = 1; index < rows.length; index += 1) {
+    const row = rows[index] ?? [];
+    const recordType = (at(row, recordTypeIndex) ?? "").toUpperCase();
+    if (recordType !== "ACTIVITY") continue;
+
+    const rawDuration = at(row, durationIndex);
+    const rawStart = at(row, startIndex);
+    const rawFinish = at(row, finishIndex);
+    if (!rawDuration || !rawStart || !rawFinish) continue;
+
+    const duration = Number(rawDuration);
+    const start = parseScheduleDate(rawStart);
+    const finish = parseScheduleDate(rawFinish);
+
+    if (
+      !Number.isFinite(duration) ||
+      start.status !== "valid" ||
+      finish.status !== "valid" ||
+      !start.iso ||
+      !finish.iso
+    ) {
+      continue;
+    }
+
+    const startMs = Date.parse(start.iso.slice(0, 10) + "T00:00:00Z");
+    const finishMs = Date.parse(
+      finish.iso.slice(0, 10) + "T00:00:00Z",
+    );
+    if (
+      !Number.isFinite(startMs) ||
+      !Number.isFinite(finishMs)
+    ) {
+      continue;
+    }
+
+    mixedDurationUsable += 1;
+    const spanDays = (finishMs - startMs) / 86_400_000;
+    if (Math.abs(spanDays - duration) <= 1e-9) {
+      mixedDurationDayMatches += 1;
+    }
+  }
+
+  if (
+    mixedDurationUsable >= 20 &&
+    mixedDurationDayMatches === mixedDurationUsable
+  ) {
+    mixedDurationUnit = "days";
+  }
+
   const activities: ScheduleActivityRow[] = [];
   const relationships: ScheduleRelationshipRow[] = [];
   const wbsRows: ScheduleWbsRow[] = [];
@@ -616,7 +669,10 @@ function parseMixedScheduleRows(
       if (!successorId) {
         rowDiagnostics.push("SCHEDULE_SUCCESSOR_ID_MISSING");
       }
-      const lag = parseScheduleDuration(at(row, lagIndex), "unknown");
+      const lag = parseScheduleDuration(
+        at(row, lagIndex),
+        mixedDurationUnit,
+      );
       if (
         lag.raw &&
         (lag.status === "ambiguous" || lag.status === "invalid")
@@ -651,11 +707,11 @@ function parseMixedScheduleRows(
       const finish = at(row, finishIndex);
       const duration = parseScheduleDuration(
         at(row, durationIndex),
-        "unknown",
+        mixedDurationUnit,
       );
       const floatValue = parseScheduleDuration(
         at(row, floatIndex),
-        "unknown",
+        mixedDurationUnit,
       );
 
       if (
