@@ -866,15 +866,94 @@ function finalize(
 ): ScheduleTabularResult {
   const activities = sets.flatMap((set) => set.activities);
   const relationships = sets.flatMap((set) => set.relationships);
+  const wbsRows = mixed.wbsRows ?? [];
+  const calendarRows = mixed.calendarRows ?? [];
+  const activityCodeRows = mixed.activityCodeRows ?? [];
+
+  const activityIds = activities
+    .map((activity) => activity.activityId)
+    .filter((value): value is string => !!value);
+  const activityIdCounts = new Map<string, number>();
+  for (const activityId of activityIds) {
+    activityIdCounts.set(
+      activityId,
+      (activityIdCounts.get(activityId) ?? 0) + 1,
+    );
+  }
+  const duplicateActivityIds = [...activityIdCounts.entries()]
+    .filter(([, count]) => count > 1)
+    .map(([activityId]) => activityId)
+    .sort();
+
+  if (duplicateActivityIds.length > 0) {
+    diagnostics.push(
+      "SCHEDULE_DUPLICATE_ACTIVITY_IDS:" +
+        duplicateActivityIds.slice(0, 25).join(","),
+    );
+  }
+
+  const activityIdSet = new Set(activityIds);
+  if (activityIdSet.size > 0) {
+    for (const relationship of relationships) {
+      const missing: string[] = [];
+      if (
+        relationship.predecessorId &&
+        !activityIdSet.has(relationship.predecessorId)
+      ) {
+        missing.push(
+          "SCHEDULE_PREDECESSOR_REFERENCE_UNRESOLVED",
+        );
+      }
+      if (
+        relationship.successorId &&
+        !activityIdSet.has(relationship.successorId)
+      ) {
+        missing.push(
+          "SCHEDULE_SUCCESSOR_REFERENCE_UNRESOLVED",
+        );
+      }
+      if (missing.length > 0) {
+        relationship.statusState = "unresolved";
+        relationship.diagnostics.push(...missing);
+      }
+    }
+
+    for (const code of activityCodeRows) {
+      if (code.activityId && !activityIdSet.has(code.activityId)) {
+        code.statusState = "unresolved";
+        code.diagnostics.push(
+          "SCHEDULE_ACTIVITY_CODE_REFERENCE_UNRESOLVED",
+        );
+      }
+    }
+  }
+
+  const wbsIdSet = new Set(
+    wbsRows
+      .map((wbs) => wbs.wbsId)
+      .filter(Boolean),
+  );
+  if (wbsIdSet.size > 0) {
+    for (const activity of activities) {
+      if (
+        activity.wbs &&
+        !wbsIdSet.has(activity.wbs) &&
+        activity.wbsId === null
+      ) {
+        activity.statusState = "unresolved";
+        activity.diagnostics.push(
+          "SCHEDULE_WBS_REFERENCE_UNRESOLVED",
+        );
+      }
+    }
+  }
+
   const activityRowsUnresolved = activities.filter(
     (row) => row.statusState === "unresolved",
   ).length;
   const relationshipRowsUnresolved = relationships.filter(
     (row) => row.statusState === "unresolved",
   ).length;
-  const wbsRows = mixed.wbsRows ?? [];
-  const calendarRows = mixed.calendarRows ?? [];
-  const activityCodeRows = mixed.activityCodeRows ?? [];
   const total = activities.length + relationships.length;
   const verified =
     total - activityRowsUnresolved - relationshipRowsUnresolved;
