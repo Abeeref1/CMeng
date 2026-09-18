@@ -238,3 +238,17 @@ export interface ScheduleAnalyticsResult {
   diagnostics: string[];
   complete: boolean;
 }
+
+
+export interface ActivityLogicIndexEntry {
+  activityId: string;
+  predecessorIds: string[];
+  successorIds: string[];
+  incomingRelationshipIds: string[];
+  outgoingRelationshipIds: string[];
+}
+
+export interface ScheduleActivityLogicIndex {
+  byActivityId: Record<string, ActivityLogicIndexEntry>;
+  brokenRelationshipIds: string[];
+}
