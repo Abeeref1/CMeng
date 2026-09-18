@@ -327,6 +327,34 @@ export class AnalysisCoordinator {
     }
 
     if (head.desiredRunId) {
+      const desiredProjection =
+        await this.metadata.getProjection(
+          head.desiredRunId,
+          projectionKey,
+        );
+
+      if (
+        desiredProjection?.state === "ready" &&
+        desiredProjection.artifact
+      ) {
+        return {
+          state: "ready",
+          projectId,
+          projectionKey,
+          desiredRunId: head.desiredRunId,
+          publishedRunId:
+            head.publishedRunId,
+          desiredEvidenceRevisionId:
+            desiredRun?.evidenceRevisionId ??
+            null,
+          publishedEvidenceRevisionId:
+            publishedRun?.evidenceRevisionId ??
+            null,
+          artifact: desiredProjection.artifact,
+          isCurrentRevision: true,
+        };
+      }
+
       return {
         state: head.publishedRunId
           ? "updating"
