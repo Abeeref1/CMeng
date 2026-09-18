@@ -3,6 +3,7 @@ import type {
 } from "../../boq-ingestion/src";
 import type {
   ContractDocumentResult,
+  ContractFamilyResult,
 } from "../../contract-parser/src";
 import type {
   DelayClaimsModel,
