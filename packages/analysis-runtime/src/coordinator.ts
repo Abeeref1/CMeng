@@ -18,6 +18,8 @@ import type {
   ProjectionReadModel,
   ProjectionRecord,
   PublishedAnalysisPointer,
+} from "./types";
+import {
   ProjectionDependencyNotReadyError,
 } from "./types";
 
