@@ -423,6 +423,20 @@ test("completion dates retain separate contractual programme CPM recovery foreca
         evidenceRevisionIds: ["schedule-rev-1"],
       },
       {
+        basis: "cpm",
+        date: "2028-01-20",
+        state: "provisional",
+        sourceRefs: ["cpm:run-1"],
+        evidenceRevisionIds: ["schedule-rev-2"],
+      },
+      {
+        basis: "recovery",
+        date: "2028-02-01",
+        state: "provisional",
+        sourceRefs: ["recovery:rev-1"],
+        evidenceRevisionIds: ["recovery-rev-1"],
+      },
+      {
         basis: "forecast",
         date: "2028-03-01",
         state: "provisional",
@@ -451,6 +465,8 @@ test("completion dates retain separate contractual programme CPM recovery foreca
     [
       "contractual",
       "programme",
+      "cpm",
+      "recovery",
       "forecast",
       "actual",
       "eot",
@@ -616,4 +632,151 @@ test("database connection failure returns retry decision instead of killing work
       /database endpoint disabled/,
     );
   }
+});
+
+
+test("new candidate cannot silently replace an already-official fact", () => {
+  const original = {
+    candidateId: "candidate-official",
+    projectId: "P88",
+    factKey: "approved_budget",
+    value: 100,
+    origin: "manual_entry" as const,
+    evidenceReceiptIds: [],
+    sourceRefs: ["approved-register:1"],
+    confidence: 1,
+    createdAt: now,
+  };
+  const newer = {
+    candidateId: "candidate-new-upload",
+    projectId: "P88",
+    factKey: "approved_budget",
+    value: 125,
+    origin: "document_extraction" as const,
+    evidenceReceiptIds: ["receipt-new"],
+    sourceRefs: ["new-upload:p1"],
+    confidence: 0.99,
+    createdAt: now,
+  };
+
+  const provisional = attachCandidate(
+    missingFact<number>("P88", "approved_budget", now),
+    original,
+    now,
+  );
+  const official = promoteCandidate(
+    provisional,
+    original,
+    authority(),
+    now,
+  ).fact;
+
+  const afterNewCandidate = attachCandidate(
+    official,
+    newer,
+    "2026-09-18T11:00:00.000Z",
+  );
+
+  assert.equal(afterNewCandidate.state, "official");
+  assert.equal(afterNewCandidate.value, 100);
+  assert.equal(
+    afterNewCandidate.officialCandidateId,
+    "candidate-official",
+  );
+  assert.ok(
+    afterNewCandidate.candidateIds.includes(
+      "candidate-new-upload",
+    ),
+  );
+});
+
+test("pending partial conflicted and provisional numeric facts are distinct from zero", () => {
+  const states = [
+    "missing",
+    "pending",
+    "partial",
+    "conflicted",
+    "provisional",
+  ] as const;
+
+  for (const state of states) {
+    assert.equal(
+      numericFactValue({
+        projectId: "P88",
+        factKey: "value",
+        state,
+        value: null,
+        officialCandidateId: null,
+        candidateIds: [],
+        authorityReceipt: null,
+        updatedAt: now,
+      }),
+      null,
+    );
+  }
+
+  assert.equal(
+    numericFactValue({
+      projectId: "P88",
+      factKey: "value",
+      state: "official",
+      value: 0,
+      officialCandidateId: "official-zero",
+      candidateIds: ["official-zero"],
+      authorityReceipt: authority(),
+      updatedAt: now,
+    }),
+    0,
+  );
+});
+
+test("management DTO rejects stale producer or dependency receipt", () => {
+  const summary = buildCanonicalManagementSummary({
+    projectId: "P88",
+    analysisRunId: "run-1",
+    evidenceRevisionId: "rev-1",
+    generatedAt: now,
+    domains: [
+      {
+        key: "progress_scurve",
+        state: "ready",
+        producerVersion: "scurve-v2",
+        dependencyReceiptId: "dep-current",
+        asOf: now,
+      },
+    ],
+    completionDates: [],
+  });
+
+  assert.throws(
+    () =>
+      managementDto(summary, {
+        projectionKey: "progress_scurve",
+        projectId: "P88",
+        analysisRunId: "run-1",
+        evidenceRevisionId: "rev-1",
+        state: "ready",
+        validatedData: { points: [1] },
+        dependencyReceiptId: "dep-current",
+        producerVersion: "scurve-v1",
+        readableEvidence: true,
+      }),
+    /producer version/,
+  );
+
+  assert.throws(
+    () =>
+      managementDto(summary, {
+        projectionKey: "progress_scurve",
+        projectId: "P88",
+        analysisRunId: "run-1",
+        evidenceRevisionId: "rev-1",
+        state: "ready",
+        validatedData: { points: [1] },
+        dependencyReceiptId: "dep-old",
+        producerVersion: "scurve-v2",
+        readableEvidence: true,
+      }),
+    /dependency receipt/,
+  );
 });
