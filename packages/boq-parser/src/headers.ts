@@ -1,7 +1,7 @@
 import type { BoqColumnRole, BoqHeaderMapping } from "./types";
 
 const SYNONYMS: Record<
-  Exclude<BoqColumnRole, "unknown" | "section">,
+  Exclude<BoqColumnRole, "unknown">,
   string[]
 > = {
   item_number: [
@@ -15,6 +15,13 @@ const SYNONYMS: Record<
     "رقم",
     "رقم البند",
     "البند",
+  ],
+  section: [
+    "section",
+    "bill",
+    "trade",
+    "work section",
+    "القسم",
   ],
   description: [
     "description",
@@ -78,7 +85,7 @@ function roleForHeader(
 
   for (const [role, synonyms] of Object.entries(SYNONYMS) as Array<
     [
-      Exclude<BoqColumnRole, "unknown" | "section">,
+      Exclude<BoqColumnRole, "unknown">,
       string[],
     ]
   >) {
