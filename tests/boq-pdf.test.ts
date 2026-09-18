@@ -5,16 +5,49 @@ import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import { parseBoqPdf } from "../packages/boq-pdf-parser/src";
 import type { OcrPageResult, OcrProvider } from "../packages/pdf-document-parser/src";
 
+const DEFAULT_OCR =
+  "Item Description Unit Qty Rate Amount\n1 Excavation m3 100 20 2000";
+
 class FakeOcr implements OcrProvider {
   readonly name = "fake-ocr";
+  constructor(private readonly text = DEFAULT_OCR) {}
   async recognize(_image: Uint8Array, _pageNumber: number): Promise<OcrPageResult> {
     return {
-      text: "Item Description Unit Qty Rate Amount\n1 Excavation m3 100 20 2000",
+      text: this.text,
       confidence: 0.99,
       language: "eng",
       diagnostics: [],
     };
   }
+}
+
+function evidenceRows(
+  ocrText: string,
+  rows: string[][],
+) {
+  let cursor = 0;
+  return rows.map((row) =>
+    row.map((value) => {
+      let start = ocrText.indexOf(value, cursor);
+      if (start < 0) start = ocrText.indexOf(value);
+      if (start < 0) {
+        return {
+          value,
+          sourceStart: 0,
+          sourceEnd: 1,
+          sourceText: ocrText.slice(0, 1),
+        };
+      }
+      const end = start + value.length;
+      cursor = end;
+      return {
+        value,
+        sourceStart: start,
+        sourceEnd: end,
+        sourceText: ocrText.slice(start, end),
+      };
+    }),
+  );
 }
 
 async function nativeTextPdf(): Promise<Buffer> {
@@ -122,10 +155,10 @@ test("OCR plus high-confidence structured extractor still passes BOQ arithmetic 
         return {
           confidence: 0.99,
           diagnostics: [],
-          rows: [
+          rows: evidenceRows(DEFAULT_OCR, [
             ["Item", "Description", "Unit", "Qty", "Rate", "Amount"],
             ["1", "Excavation", "m3", "100", "20", "2000"],
-          ],
+          ]),
         };
       },
     },
@@ -140,18 +173,20 @@ test("OCR plus high-confidence structured extractor still passes BOQ arithmetic 
 });
 
 test("AI-extracted OCR BOQ with wrong arithmetic remains unresolved", async () => {
+  const wrongOcr =
+    "Item Description Unit Qty Rate Amount\n1 Excavation m3 100 20 2500";
   const parsed = await parseBoqPdf(await blankScannedPlaceholderPdf(), {
-    ocrProvider: new FakeOcr(),
+    ocrProvider: new FakeOcr(wrongOcr),
     aiTableExtractor: {
       name: "fake-structured-ai",
       async extract() {
         return {
           confidence: 0.99,
           diagnostics: [],
-          rows: [
+          rows: evidenceRows(wrongOcr, [
             ["Item", "Description", "Unit", "Qty", "Rate", "Amount"],
             ["1", "Excavation", "m3", "100", "20", "2500"],
-          ],
+          ]),
         };
       },
     },
@@ -177,4 +212,45 @@ test("native drawn BOQ table is structurally discovered when PDF table engine re
   assert.equal(parsed.items[0]!.quantity, 100);
   assert.equal(parsed.items[0]!.rate, 20);
   assert.equal(parsed.items[0]!.amount, 2000);
+});
+
+test("high-confidence AI BOQ cell without valid OCR source span is rejected", async () => {
+  const parsed = await parseBoqPdf(await blankScannedPlaceholderPdf(), {
+    ocrProvider: new FakeOcr(),
+    aiTableExtractor: {
+      name: "fake-structured-ai",
+      async extract() {
+        return {
+          confidence: 0.9999,
+          diagnostics: [],
+          rows: [
+            [
+              { value: "Item", sourceStart: 0, sourceEnd: 4, sourceText: "Item" },
+              { value: "Description", sourceStart: 5, sourceEnd: 16, sourceText: "Description" },
+              { value: "Unit", sourceStart: 17, sourceEnd: 21, sourceText: "Unit" },
+              { value: "Qty", sourceStart: 22, sourceEnd: 25, sourceText: "Qty" },
+              { value: "Rate", sourceStart: 26, sourceEnd: 30, sourceText: "Rate" },
+              { value: "Amount", sourceStart: 31, sourceEnd: 37, sourceText: "Amount" },
+            ],
+            [
+              {
+                value: "999999",
+                sourceStart: 38,
+                sourceEnd: 39,
+                sourceText: DEFAULT_OCR.slice(38, 39),
+              },
+            ],
+          ],
+        };
+      },
+    },
+  });
+
+  assert.equal(parsed.complete, false);
+  assert.deepEqual(parsed.unresolvedPages, [1]);
+  assert.ok(
+    parsed.diagnostics.some((d) =>
+      d.includes("BOQ_AI_VALUE_NOT_SUPPORTED_BY_SOURCE"),
+    ),
+  );
 });
