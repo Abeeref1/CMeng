@@ -1,3 +1,22 @@
+export type ProgressBasisAuthority =
+  | "deterministic_schedule"
+  | "progress_snapshot"
+  | "source_evidence"
+  | "missing";
+
+export interface ProgressBasisValue {
+  valuePercent: number | null;
+  state: "established" | "missing";
+  authority: ProgressBasisAuthority;
+  sourceRefs: string[];
+  varianceToBaselinePercentagePoints: number | null;
+}
+
+export interface ExternalProgressEvidence {
+  valuePercent: number;
+  sourceRefs: string[];
+}
+
 export interface ProgressReportProjectionRef {
   projectionKey:
     | "schedule_analytics"
@@ -28,6 +47,14 @@ export interface ProgressReportProjection {
     nearCriticalCount: number;
     negativeFloatCount: number;
     floatCoveragePercent: number | null;
+  };
+
+  progressBases: {
+    baselinePlanned: ProgressBasisValue;
+    currentSchedule: ProgressBasisValue;
+    physical: ProgressBasisValue;
+    contractorReported: ProgressBasisValue;
+    certified: ProgressBasisValue;
   };
 
   progress: {
