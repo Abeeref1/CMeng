@@ -214,6 +214,7 @@ function timeline(
   current: readonly WeightedActivity[],
   snapshots: readonly ActualProgressSnapshot[],
   intervalDays: number,
+  requiredDateIsos: readonly (string | null)[] = [],
 ): number[] {
   let start = Number.POSITIVE_INFINITY;
   let finish = Number.NEGATIVE_INFINITY;
@@ -263,7 +264,25 @@ function timeline(
     points.push(finish);
   }
 
-  return points;
+  for (const snapshot of snapshots) {
+    const value = dateMs(snapshot.asOfIso);
+    if (value !== null) points.push(value);
+  }
+
+  for (const required of requiredDateIsos) {
+    const value = dateMs(required);
+    if (
+      value !== null &&
+      value >= start &&
+      value <= finish
+    ) {
+      points.push(value);
+    }
+  }
+
+  return [...new Set(points)].sort(
+    (a, b) => a - b,
+  );
 }
 
 function actualAt(
@@ -385,6 +404,7 @@ export function buildProgressScurveProjection(
     current,
     actualSnapshots,
     intervalDays,
+    [model.dataDateIso],
   );
 
   const points: ProgressScurvePoint[] =

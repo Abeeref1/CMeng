@@ -323,6 +323,7 @@ test("Forecast History preserves an unestablished historical snapshot instead of
           producerVersion:
             "independent-forecast-v1",
           origin: "unresolved",
+          role: "regular_update",
           independentForecastCompletionIso:
             null,
           sourceForecastCompletionIso:
@@ -339,6 +340,7 @@ test("Forecast History preserves an unestablished historical snapshot instead of
             "independent-forecast-v1",
           origin:
             "deterministic_source_calendar",
+          role: "regular_update",
           independentForecastCompletionIso:
             "2026-02-03",
           sourceForecastCompletionIso:

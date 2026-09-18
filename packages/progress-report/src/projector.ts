@@ -14,6 +14,10 @@ import type {
   IndependentForecastProjection,
 } from "../../independent-forecast/src";
 import type {
+  ExternalProgressBases,
+  ExternalProgressBasisInput,
+  ProgressBasisName,
+  ProgressReportBasisValue,
   ProgressReportProjection,
 } from "./types";
 
@@ -36,6 +40,200 @@ function latestActualSnapshot(
     .progressPercent;
 }
 
+function exactDataDatePoint(
+  scurve: ProgressScurveProjection,
+) {
+  if (!scurve.dataDateIso) return null;
+  return (
+    scurve.points.find(
+      (point) =>
+        point.dateIso ===
+        scurve.dataDateIso,
+    ) ?? null
+  );
+}
+
+function derivedBasis(
+  input: {
+    basis: ProgressBasisName;
+    valuePercent: number | null;
+    coveragePercent: number | null;
+    dataDateIso: string | null;
+    sourceRef: string;
+    method: string;
+  },
+): ProgressReportBasisValue {
+  const state =
+    input.valuePercent === null
+      ? "missing"
+      : input.coveragePercent === 100
+        ? "derived"
+        : "partial";
+
+  return {
+    basis: input.basis,
+    valuePercent: input.valuePercent,
+    state,
+    asOfIso: input.dataDateIso,
+    coveragePercent:
+      input.coveragePercent,
+    sourceRefs: [input.sourceRef],
+    method: input.method,
+  };
+}
+
+function externalBasis(
+  basis: ProgressBasisName,
+  input: ExternalProgressBasisInput | undefined,
+  dataDateIso: string | null,
+): {
+  value: ProgressReportBasisValue;
+  diagnostics: string[];
+} {
+  const key =
+    basis.toUpperCase();
+
+  if (!input) {
+    return {
+      value: {
+        basis,
+        valuePercent: null,
+        state: "missing",
+        asOfIso: null,
+        coveragePercent: null,
+        sourceRefs: [],
+        method:
+          "governed_external_progress_evidence_required",
+      },
+      diagnostics: [
+        key +
+          "_PROGRESS_EVIDENCE_MISSING",
+      ],
+    };
+  }
+
+  const diagnostics: string[] = [];
+
+  if (
+    input.valuePercent !== null &&
+    (
+      !Number.isFinite(
+        input.valuePercent,
+      ) ||
+      input.valuePercent < 0 ||
+      input.valuePercent > 100
+    )
+  ) {
+    diagnostics.push(
+      key +
+        "_PROGRESS_PERCENT_INVALID",
+    );
+
+    return {
+      value: {
+        basis,
+        valuePercent: null,
+        state: "conflicted",
+        asOfIso: input.asOfIso,
+        coveragePercent: null,
+        sourceRefs: [
+          ...input.sourceRefs,
+        ],
+        method: input.method,
+      },
+      diagnostics,
+    };
+  }
+
+  if (
+    input.valuePercent === null &&
+    input.state !== "missing" &&
+    input.state !== "conflicted"
+  ) {
+    diagnostics.push(
+      key +
+        "_PROGRESS_VALUE_MISSING_FOR_DECLARED_STATE",
+    );
+
+    return {
+      value: {
+        basis,
+        valuePercent: null,
+        state: "conflicted",
+        asOfIso: input.asOfIso,
+        coveragePercent: null,
+        sourceRefs: [
+          ...input.sourceRefs,
+        ],
+        method: input.method,
+      },
+      diagnostics,
+    };
+  }
+
+  if (
+    dataDateIso &&
+    input.asOfIso &&
+    Date.parse(input.asOfIso) >
+      Date.parse(dataDateIso)
+  ) {
+    diagnostics.push(
+      key +
+        "_PROGRESS_AFTER_DATA_DATE",
+    );
+
+    return {
+      value: {
+        basis,
+        valuePercent: null,
+        state: "conflicted",
+        asOfIso: input.asOfIso,
+        coveragePercent: null,
+        sourceRefs: [
+          ...input.sourceRefs,
+        ],
+        method: input.method,
+      },
+      diagnostics,
+    };
+  }
+
+  return {
+    value: {
+      basis,
+      valuePercent:
+        input.valuePercent,
+      state: input.state,
+      asOfIso: input.asOfIso,
+      coveragePercent: null,
+      sourceRefs: [
+        ...input.sourceRefs,
+      ],
+      method: input.method,
+    },
+    diagnostics,
+  };
+}
+
+function varianceToBaseline(
+  baseline: ProgressReportBasisValue,
+  other: ProgressReportBasisValue,
+): number | null {
+  if (
+    baseline.valuePercent === null ||
+    other.valuePercent === null
+  ) {
+    return null;
+  }
+
+  return Number(
+    (
+      other.valuePercent -
+      baseline.valuePercent
+    ).toFixed(6),
+  );
+}
+
 export function buildProgressReportProjection(
   input: {
     generatedAt: string;
@@ -45,6 +243,7 @@ export function buildProgressReportProjection(
     lookAhead: LookAheadProjection;
     progressScurve: ProgressScurveProjection;
     independentForecast: IndependentForecastProjection;
+    progressBases?: ExternalProgressBases;
   },
 ): ProgressReportProjection {
   const schedule =
@@ -82,6 +281,89 @@ export function buildProgressReportProjection(
       "Progress Report inputs belong to different schedule revisions",
     );
   }
+
+  const dataDatePoint =
+    exactDataDatePoint(
+      input.progressScurve,
+    );
+
+  const baselinePlanned =
+    derivedBasis({
+      basis: "baseline_planned",
+      valuePercent:
+        dataDatePoint
+          ?.baselinePlannedPercent ??
+        null,
+      coveragePercent:
+        input.progressScurve
+          .baselineCoveragePercent,
+      dataDateIso:
+        schedule.dataDateIso,
+      sourceRef:
+        "projection:progress_scurve:" +
+        input.progressScurve
+          .producerVersion +
+        ":baseline:data-date",
+      method:
+        "duration_weighted_baseline_curve_at_data_date",
+    });
+
+  const currentSchedule =
+    derivedBasis({
+      basis: "current_schedule",
+      valuePercent:
+        dataDatePoint
+          ?.currentForecastPercent ??
+        null,
+      coveragePercent:
+        input.progressScurve
+          .currentCoveragePercent,
+      dataDateIso:
+        schedule.dataDateIso,
+      sourceRef:
+        "projection:progress_scurve:" +
+        input.progressScurve
+          .producerVersion +
+        ":current:data-date",
+      method:
+        "duration_weighted_current_schedule_curve_at_data_date",
+    });
+
+  const physical =
+    externalBasis(
+      "physical",
+      input.progressBases?.physical,
+      schedule.dataDateIso,
+    );
+
+  const contractorReported =
+    externalBasis(
+      "contractor_reported",
+      input.progressBases
+        ?.contractorReported,
+      schedule.dataDateIso,
+    );
+
+  const certified =
+    externalBasis(
+      "certified",
+      input.progressBases?.certified,
+      schedule.dataDateIso,
+    );
+
+  const progressDiagnostics = [
+    ...physical.diagnostics,
+    ...contractorReported.diagnostics,
+    ...certified.diagnostics,
+    ...(
+      dataDatePoint
+        ? []
+        : [
+            "PROGRESS_SCURVE_DATA_DATE_POINT_MISSING",
+          ]
+    ),
+    "SCHEDULE_PROGRESS_SNAPSHOT_NOT_AUTOMATICALLY_PHYSICAL_CONTRACTOR_REPORTED_OR_CERTIFIED",
+  ];
 
   return {
     schemaVersion: "1.0",
@@ -177,6 +459,36 @@ export function buildProgressReportProjection(
       scurveActualSnapshotCoveragePercent:
         input.progressScurve
           .actualSnapshotCoveragePercent,
+      bases: {
+        baselinePlanned,
+        currentSchedule,
+        physical: physical.value,
+        contractorReported:
+          contractorReported.value,
+        certified: certified.value,
+      },
+      variancesToBaseline: {
+        currentSchedule:
+          varianceToBaseline(
+            baselinePlanned,
+            currentSchedule,
+          ),
+        physical:
+          varianceToBaseline(
+            baselinePlanned,
+            physical.value,
+          ),
+        contractorReported:
+          varianceToBaseline(
+            baselinePlanned,
+            contractorReported.value,
+          ),
+        certified:
+          varianceToBaseline(
+            baselinePlanned,
+            certified.value,
+          ),
+      },
     },
     forecast: {
       sourceForecastCompletionIso:
@@ -217,6 +529,12 @@ export function buildProgressReportProjection(
           .currentDateCoveragePercent,
       overdueCount:
         input.lookAhead.overdueCount,
+      readyCount:
+        input.lookAhead.readyCount,
+      blockedCount:
+        input.lookAhead.blockedCount,
+      conditionalCount:
+        input.lookAhead.conditionalCount,
     },
     diagnostics: [
       ...schedule.diagnostics,
@@ -224,6 +542,7 @@ export function buildProgressReportProjection(
         .diagnostics,
       ...input.progressScurve
         .diagnostics,
+      ...progressDiagnostics,
     ],
   };
 }

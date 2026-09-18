@@ -480,6 +480,12 @@ export class CMengProjectionExecutor
             {
               generatedAt,
               producerVersion: version,
+              ...(context.lookAheadReadiness
+                ? {
+                    readinessEvidence:
+                      context.lookAheadReadiness,
+                  }
+                : {}),
             },
           );
         break;
@@ -752,6 +758,12 @@ export class CMengProjectionExecutor
             lookAhead,
             progressScurve,
             independentForecast,
+            ...(context.progressBases
+              ? {
+                  progressBases:
+                    context.progressBases,
+                }
+              : {}),
           });
         break;
       }

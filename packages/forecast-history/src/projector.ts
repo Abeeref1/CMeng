@@ -4,6 +4,7 @@ import type {
 import type {
   ForecastHistoryPoint,
   ForecastHistoryProjection,
+  ForecastHistoryRevisionRole,
   ForecastHistorySnapshot,
 } from "./types";
 
@@ -36,6 +37,8 @@ function movementDays(
 export function forecastSnapshotFromProjection(
   projection: IndependentForecastProjection,
   snapshotId: string,
+  role: ForecastHistoryRevisionRole =
+    "regular_update",
 ): ForecastHistorySnapshot {
   return {
     snapshotId,
@@ -47,6 +50,7 @@ export function forecastSnapshotFromProjection(
     producerVersion:
       projection.producerVersion,
     origin: projection.origin,
+    role,
     independentForecastCompletionIso:
       projection.independentForecastCompletionIso,
     sourceForecastCompletionIso:
@@ -57,6 +61,61 @@ export function forecastSnapshotFromProjection(
   };
 }
 
+function latestForDataDate(
+  snapshots:
+    readonly ForecastHistorySnapshot[],
+): {
+  selected: ForecastHistorySnapshot[];
+  duplicateIds: string[];
+} {
+  const byDate = new Map<
+    string,
+    ForecastHistorySnapshot[]
+  >();
+
+  for (const snapshot of snapshots) {
+    const date = snapshot.dataDateIso!;
+    const list = byDate.get(date) ?? [];
+    list.push(snapshot);
+    byDate.set(date, list);
+  }
+
+  const selected:
+    ForecastHistorySnapshot[] = [];
+  const duplicateIds: string[] = [];
+
+  for (const group of byDate.values()) {
+    group.sort(
+      (a, b) =>
+        Date.parse(a.generatedAt) -
+          Date.parse(b.generatedAt) ||
+        a.snapshotId.localeCompare(
+          b.snapshotId,
+        ),
+    );
+
+    const winner =
+      group[group.length - 1]!;
+    selected.push(winner);
+
+    for (
+      let index = 0;
+      index < group.length - 1;
+      index += 1
+    ) {
+      duplicateIds.push(
+        group[index]!.snapshotId,
+      );
+    }
+  }
+
+  return {
+    selected,
+    duplicateIds:
+      duplicateIds.sort(),
+  };
+}
+
 export function buildForecastHistoryProjection(
   snapshots: readonly ForecastHistorySnapshot[],
   input: {
@@ -64,14 +123,74 @@ export function buildForecastHistoryProjection(
     producerVersion: string;
   },
 ): ForecastHistoryProjection {
-  const ordered = [...snapshots].sort(
-    (a, b) =>
-      Date.parse(a.generatedAt) -
-        Date.parse(b.generatedAt) ||
-      a.snapshotId.localeCompare(
-        b.snapshotId,
-      ),
-  );
+  const diagnostics: string[] = [];
+  const excludedSnapshotIds: string[] = [];
+
+  const regularWithDate =
+    snapshots.filter((snapshot) => {
+      const role =
+        snapshot.role ?? "unknown";
+
+      if (role !== "regular_update") {
+        excludedSnapshotIds.push(
+          snapshot.snapshotId,
+        );
+        diagnostics.push(
+          "FORECAST_HISTORY_EXCLUDED_" +
+            role.toUpperCase() +
+            "_SNAPSHOT:" +
+            snapshot.snapshotId,
+        );
+        return false;
+      }
+
+      if (
+        snapshot.dataDateIso === null ||
+        ms(snapshot.dataDateIso) === null
+      ) {
+        excludedSnapshotIds.push(
+          snapshot.snapshotId,
+        );
+        diagnostics.push(
+          "FORECAST_HISTORY_EXCLUDED_MISSING_DATA_DATE:" +
+            snapshot.snapshotId,
+        );
+        return false;
+      }
+
+      return true;
+    });
+
+  const deduplicated =
+    latestForDataDate(
+      regularWithDate,
+    );
+
+  for (
+    const duplicateId of
+    deduplicated.duplicateIds
+  ) {
+    excludedSnapshotIds.push(
+      duplicateId,
+    );
+    diagnostics.push(
+      "FORECAST_HISTORY_DUPLICATE_DATA_DATE_EXCLUDED:" +
+        duplicateId,
+    );
+  }
+
+  const ordered =
+    deduplicated.selected.sort(
+      (a, b) =>
+        ms(a.dataDateIso)! -
+          ms(b.dataDateIso)! ||
+        a.sourceRevisionId.localeCompare(
+          b.sourceRevisionId,
+        ) ||
+        a.snapshotId.localeCompare(
+          b.snapshotId,
+        ),
+    );
 
   const firstEstablished =
     ordered.find(
@@ -90,6 +209,9 @@ export function buildForecastHistoryProjection(
 
       return {
         ...snapshot,
+        role: "regular_update",
+        dataDateIso:
+          snapshot.dataDateIso!,
         assumptions: [
           ...snapshot.assumptions,
         ],
@@ -110,7 +232,6 @@ export function buildForecastHistoryProjection(
       };
     });
 
-  const diagnostics: string[] = [];
   if (
     ordered.some(
       (snapshot) =>
@@ -128,12 +249,25 @@ export function buildForecastHistoryProjection(
     generatedAt: input.generatedAt,
     producerVersion: input.producerVersion,
     snapshotCount: points.length,
+    inputSnapshotCount:
+      snapshots.length,
     establishedForecastCount:
       points.filter(
         (point) =>
           point.independentForecastCompletionIso !== null,
       ).length,
+    excludedSnapshotCount:
+      excludedSnapshotIds.length,
+    excludedSnapshotIds: [
+      ...new Set(
+        excludedSnapshotIds,
+      ),
+    ].sort(),
+    duplicateDataDateSnapshotIds:
+      deduplicated.duplicateIds,
     points,
-    diagnostics,
+    diagnostics: [
+      ...new Set(diagnostics),
+    ],
   };
 }

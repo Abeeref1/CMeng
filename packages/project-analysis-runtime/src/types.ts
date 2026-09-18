@@ -26,6 +26,12 @@ import type {
 import type {
   CpmConfig,
 } from "../../schedule-cpm/src";
+import type {
+  LookAheadActivityReadinessEvidence,
+} from "../../lookahead-schedule/src";
+import type {
+  ExternalProgressBases,
+} from "../../progress-report/src";
 
 export interface ProjectAnalysisContext {
   runId: string;
@@ -45,6 +51,13 @@ export interface ProjectAnalysisContext {
   contract: ContractDocumentResult | null;
   delayClaims: DelayClaimsModel | null;
   contractTimeBasis: ContractTimeBasis | null;
+
+  lookAheadReadiness?: Record<
+    string,
+    LookAheadActivityReadinessEvidence
+  >;
+
+  progressBases?: ExternalProgressBases;
 
   scheduleConfig?: ScheduleAnalysisConfig;
   cpmConfig?: Partial<CpmConfig>;

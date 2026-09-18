@@ -4,9 +4,26 @@ import {
   type CanonicalScheduleModel,
 } from "../../schedule-analysis-core/src";
 import type {
+  ExternalLookAheadReadinessDimension,
+  LookAheadActivityReadinessEvidence,
   LookAheadActivityRow,
   LookAheadProjection,
+  LookAheadReadinessAssessment,
+  LookAheadReadinessDimension,
+  LookAheadReadinessEvidence,
 } from "./types";
+
+const EXTERNAL_DIMENSIONS:
+  readonly ExternalLookAheadReadinessDimension[] = [
+    "procurement",
+    "design_rfi_submittal",
+    "permit",
+    "resource",
+    "quality",
+    "commercial_obligation",
+    "risk",
+    "access",
+  ];
 
 function ms(value: string | null): number | null {
   if (!value) return null;
@@ -50,12 +67,214 @@ function effectiveFinish(
   );
 }
 
+function unknownEvidence(
+  dimension: LookAheadReadinessDimension,
+): LookAheadReadinessEvidence {
+  return {
+    state: "unknown",
+    sourceRefs: [],
+    note:
+      "No governed readiness evidence provided for " +
+      dimension,
+  };
+}
+
+function predecessorReadiness(
+  model: CanonicalScheduleModel,
+  activity: CanonicalScheduleActivity,
+): LookAheadReadinessEvidence {
+  if (
+    activity.status === "in_progress" ||
+    activity.actualStartIso
+  ) {
+    return {
+      state: "not_applicable",
+      sourceRefs: [],
+      note:
+        "Activity has already started; predecessor start-readiness is no longer applicable.",
+    };
+  }
+
+  const incoming = model.relationships.filter(
+    (relationship) =>
+      !relationship.external &&
+      relationship.successorActivityId ===
+        activity.activityId,
+  );
+
+  if (incoming.length === 0) {
+    return {
+      state: "ready",
+      sourceRefs: [],
+      note:
+        "No internal predecessor relationships constrain activity start readiness.",
+    };
+  }
+
+  const byId = new Map(
+    model.activities.map((candidate) => [
+      candidate.activityId,
+      candidate,
+    ]),
+  );
+
+  let hasConditional = false;
+  let hasUnknown = false;
+  let hasBlocked = false;
+  const sourceRefs: string[] = [];
+
+  for (const relationship of incoming) {
+    sourceRefs.push(
+      "schedule-relationship:" +
+        relationship.relationshipId,
+    );
+
+    const predecessor = byId.get(
+      relationship.predecessorActivityId,
+    );
+
+    if (!predecessor) {
+      hasUnknown = true;
+      continue;
+    }
+
+    const started =
+      predecessor.actualStartIso !== null ||
+      predecessor.status === "in_progress" ||
+      predecessor.status === "completed";
+
+    const finished =
+      predecessor.actualFinishIso !== null ||
+      predecessor.status === "completed";
+
+    switch (relationship.type) {
+      case "FS":
+        if (!finished) hasBlocked = true;
+        break;
+      case "SS":
+        if (!started) hasBlocked = true;
+        break;
+      case "FF":
+        if (!finished) hasConditional = true;
+        break;
+      case "SF":
+        if (!started) hasConditional = true;
+        break;
+      case "unknown":
+        hasUnknown = true;
+        break;
+    }
+  }
+
+  if (hasBlocked) {
+    return {
+      state: "blocked",
+      sourceRefs,
+      note:
+        "One or more predecessor relationship conditions are not yet satisfied.",
+    };
+  }
+
+  if (hasUnknown) {
+    return {
+      state: "unknown",
+      sourceRefs,
+      note:
+        "Predecessor readiness cannot be fully established from the current relationship evidence.",
+    };
+  }
+
+  if (hasConditional) {
+    return {
+      state: "conditional",
+      sourceRefs,
+      note:
+        "Finish-based predecessor conditions remain outstanding.",
+    };
+  }
+
+  return {
+    state: "ready",
+    sourceRefs,
+    note:
+      "All deterministic predecessor start conditions are satisfied.",
+  };
+}
+
+function readinessAssessment(
+  model: CanonicalScheduleModel,
+  activity: CanonicalScheduleActivity,
+  evidence:
+    | LookAheadActivityReadinessEvidence
+    | undefined,
+): LookAheadReadinessAssessment {
+  const dimensions =
+    {} as Record<
+      LookAheadReadinessDimension,
+      LookAheadReadinessEvidence
+    >;
+
+  dimensions.predecessor =
+    predecessorReadiness(
+      model,
+      activity,
+    );
+
+  for (const dimension of EXTERNAL_DIMENSIONS) {
+    dimensions[dimension] =
+      evidence?.[dimension] ??
+      unknownEvidence(dimension);
+  }
+
+  const entries =
+    Object.entries(dimensions) as Array<
+      [
+        LookAheadReadinessDimension,
+        LookAheadReadinessEvidence,
+      ]
+    >;
+
+  const blockingDimensions = entries
+    .filter(([, value]) =>
+      value.state === "blocked",
+    )
+    .map(([dimension]) => dimension);
+
+  const unknownDimensions = entries
+    .filter(([, value]) =>
+      value.state === "unknown",
+    )
+    .map(([dimension]) => dimension);
+
+  const allReady = entries.every(
+    ([, value]) =>
+      value.state === "ready" ||
+      value.state === "not_applicable",
+  );
+
+  return {
+    overall:
+      blockingDimensions.length > 0
+        ? "blocked"
+        : allReady
+          ? "ready"
+          : "conditional",
+    dimensions,
+    blockingDimensions,
+    unknownDimensions,
+  };
+}
+
 export function buildLookAheadProjection(
   model: CanonicalScheduleModel,
   input: {
     generatedAt: string;
     producerVersion: string;
     windowDays?: number;
+    readinessEvidence?: Record<
+      string,
+      LookAheadActivityReadinessEvidence
+    >;
   },
 ): LookAheadProjection {
   const windowDays = input.windowDays ?? 42;
@@ -167,6 +386,13 @@ export function buildLookAheadProjection(
           86_400_000
         ).toFixed(6),
       ),
+      readiness: readinessAssessment(
+        model,
+        activity,
+        input.readinessEvidence?.[
+          activity.activityId
+        ],
+      ),
     });
   }
 
@@ -209,6 +435,17 @@ export function buildLookAheadProjection(
     ),
     overdueCount: rows.filter(
       (row) => row.classification === "overdue",
+    ).length,
+    readyCount: rows.filter(
+      (row) => row.readiness.overall === "ready",
+    ).length,
+    blockedCount: rows.filter(
+      (row) => row.readiness.overall === "blocked",
+    ).length,
+    conditionalCount: rows.filter(
+      (row) =>
+        row.readiness.overall ===
+        "conditional",
     ).length,
     rows,
     missingCurrentDateActivityIds:

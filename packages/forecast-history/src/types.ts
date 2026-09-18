@@ -2,6 +2,14 @@ import type {
   IndependentForecastOrigin,
 } from "../../independent-forecast/src";
 
+export type ForecastHistoryRevisionRole =
+  | "regular_update"
+  | "baseline"
+  | "recovery"
+  | "rebaseline"
+  | "scenario"
+  | "unknown";
+
 export interface ForecastHistorySnapshot {
   snapshotId: string;
   generatedAt: string;
@@ -9,6 +17,7 @@ export interface ForecastHistorySnapshot {
   dataDateIso: string | null;
   producerVersion: string;
   origin: IndependentForecastOrigin;
+  role?: ForecastHistoryRevisionRole;
   independentForecastCompletionIso: string | null;
   sourceForecastCompletionIso: string | null;
   assumptions: string[];
@@ -16,6 +25,8 @@ export interface ForecastHistorySnapshot {
 
 export interface ForecastHistoryPoint
   extends ForecastHistorySnapshot {
+  role: "regular_update";
+  dataDateIso: string;
   movementDaysVsPrevious: number | null;
   movementDaysVsFirst: number | null;
 }
@@ -26,7 +37,11 @@ export interface ForecastHistoryProjection {
   generatedAt: string;
   producerVersion: string;
   snapshotCount: number;
+  inputSnapshotCount: number;
   establishedForecastCount: number;
+  excludedSnapshotCount: number;
+  excludedSnapshotIds: string[];
+  duplicateDataDateSnapshotIds: string[];
   points: ForecastHistoryPoint[];
   diagnostics: string[];
 }
