@@ -114,7 +114,9 @@ export interface ProjectionJob {
   projectId: string;
   evidenceRevisionId: string;
   projectionKey: AnalysisProjectionKey;
+  phase: "compute" | "publish";
   chunkCursor: string | null;
+  pendingArtifact: ProjectionArtifactPointer | null;
   attempt: number;
 }
 
