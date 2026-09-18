@@ -38,10 +38,40 @@ export interface CanonicalWbsNode {
   sourceRefs: ScheduleSourceRef[];
 }
 
+export interface CanonicalCalendarException {
+  isoDate: string;
+  nonWorking: boolean;
+  workIntervals: Array<{
+    start: string;
+    finish: string;
+    minutes: number;
+  }>;
+}
+
 export interface CanonicalCalendar {
   calendarId: string;
   name: string | null;
   semanticComplete: boolean;
+  weeklyWorkMinutes?: [
+    number,
+    number,
+    number,
+    number,
+    number,
+    number,
+    number,
+  ];
+  weeklyWorkIntervals?: Array<{
+    dayIndex: number;
+    intervals: Array<{
+      start: string;
+      finish: string;
+      minutes: number;
+    }>;
+  }>;
+  exceptions?: CanonicalCalendarException[];
+  standardDayHours?: number | null;
+  standardWeekHours?: number | null;
   sourceRefs: ScheduleSourceRef[];
 }
 
@@ -68,6 +98,21 @@ export interface CanonicalScheduleActivity {
   remainingDurationHours: number | null;
   totalFloatHours: number | null;
   freeFloatHours: number | null;
+
+  originalDurationRaw?: string | null;
+  originalDurationUnit?:
+    | "hours"
+    | "days"
+    | "weeks"
+    | "minutes"
+    | "unknown";
+  remainingDurationRaw?: string | null;
+  remainingDurationUnit?:
+    | "hours"
+    | "days"
+    | "weeks"
+    | "minutes"
+    | "unknown";
   percentComplete: number | null;
 
   sourceRefs: ScheduleSourceRef[];
