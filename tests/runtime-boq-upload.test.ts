@@ -92,13 +92,20 @@ test("runtime API accepts Excel BOQ upload and returns retrievable governed stat
       created.authority,
       "candidate_only",
     );
+    const expectedPersistence =
+      process.env
+        .CMENG_TEST_MODE
+        ?.trim() === "1"
+        ? "runtime_local"
+        : process.env
+            .RAILWAY_VOLUME_MOUNT_PATH
+            ?.trim()
+          ? "railway_volume"
+          : "runtime_local";
+
     assert.equal(
       created.persistence,
-      process.env
-        .RAILWAY_VOLUME_MOUNT_PATH
-        ?.trim()
-        ? "railway_volume"
-        : "runtime_local",
+      expectedPersistence,
     );
     assert.equal(
       created.state,
