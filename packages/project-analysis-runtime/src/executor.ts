@@ -758,6 +758,12 @@ export class CMengProjectionExecutor
             lookAhead,
             progressScurve,
             independentForecast,
+            ...(context.progressBases
+              ? {
+                  progressBases:
+                    context.progressBases,
+                }
+              : {}),
           });
         break;
       }
