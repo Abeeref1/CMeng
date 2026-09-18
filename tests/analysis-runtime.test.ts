@@ -350,8 +350,15 @@ test("database outage after artifact materialization causes publish-only retry w
   assert.equal(executorCalls, 1);
   assert.equal(rt.artifacts.writes, 1);
 
-  // DB comes back. The next attempt is metadata publication only.
+  // DB comes back. Backoff prevents a hot-loop before notBefore.
   rt.metadata.available = true;
+
+  const tooEarly = await worker.processOne(
+    "worker-b",
+    "2026-09-18T10:00:00.500Z",
+  );
+  assert.equal(tooEarly, "idle");
+  assert.equal(executorCalls, 1);
 
   const second = await worker.processOne(
     "worker-b",
@@ -419,6 +426,7 @@ test("expired worker lease can be reacquired after abrupt termination", async ()
     phase: "compute",
     chunkCursor: null,
     pendingArtifact: null,
+    notBefore: null,
     attempt: 0,
   });
 
