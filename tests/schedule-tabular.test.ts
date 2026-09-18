@@ -236,3 +236,35 @@ test("repeated XLSX schedule print headers do not inflate activity population", 
     ["A100", "A200"],
   );
 });
+
+
+test("mixed-model schedule CSV preserves activities relationships WBS calendars and activity codes", () => {
+  const csv = [
+    "Record Type,Record ID,Parent/Successor,Predecessor,WBS,Name/Description,Type,Start,Finish,Duration,Float,Percent,Status,Lag,Revision",
+    "WBS,NB.01,NB,,,Zone 01,WBS,,,,,,,,Rev7",
+    "CALENDAR,CAL-01,,, ,6D-10H | Sat-Thu,Calendar,,,,,,,,Rev7",
+    "ACTIVITY,A00001,,,NB.01,Procurement activity,Task,2025-10-24,2025-10-28,4,79,100,Completed,,Rev7",
+    "ACTIVITY,A00002,,,NB.01,Civil activity,Task,2025-10-28,2025-11-02,5,70,50,In Progress,,Rev7",
+    "RELATIONSHIP,R0001,A00002,A00001,,,FS,,,,,,,0,Rev7",
+    "ACTIVITY_CODE,CODE-01,A00001,,,Area=Zone 01,Code,,,,,,,,Rev7",
+  ].join("\n");
+
+  const parsed = parseScheduleCsv(Buffer.from(csv, "utf8"));
+
+  assert.equal(parsed.activityRowsSeen, 2);
+  assert.equal(parsed.relationshipRowsSeen, 1);
+  assert.equal(parsed.wbsRowsSeen, 1);
+  assert.equal(parsed.calendarRowsSeen, 1);
+  assert.equal(parsed.activityCodeRowsSeen, 1);
+  assert.equal(parsed.structuralCoveragePercent, 100);
+  assert.equal(parsed.wbsRows[0]!.wbsId, "NB.01");
+  assert.equal(parsed.calendarRows[0]!.calendarId, "CAL-01");
+  assert.equal(parsed.activityCodeRows[0]!.activityId, "A00001");
+  assert.equal(parsed.relationships[0]!.predecessorId, "A00001");
+  assert.equal(parsed.relationships[0]!.successorId, "A00002");
+
+  // Duration/float/lag units are intentionally not declared in this
+  // mixed export, so structural coverage can be 100% while semantic
+  // certification remains incomplete.
+  assert.equal(parsed.complete, false);
+});
