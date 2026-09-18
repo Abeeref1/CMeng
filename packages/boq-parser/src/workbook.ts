@@ -80,7 +80,7 @@ export function readBoqCell(
 
 export async function loadBoqWorkbook(bytes: Uint8Array): Promise<ExcelJS.Workbook> {
   const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load(Buffer.from(bytes));
+  await workbook.xlsx.load(Buffer.from(bytes) as any);
   return workbook;
 }
 
