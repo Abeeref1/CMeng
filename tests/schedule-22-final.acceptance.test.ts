@@ -131,7 +131,7 @@ function calendar(): CanonicalCalendar {
     exceptions: [],
     standardDayHours: 8,
     standardWeekHours: 40,
-    sourceRefs: ["calendar:CAL1"],
+    sourceRefs: [{ source: "xer", locator: "calendar:CAL1" }],
   };
 }
 
@@ -166,7 +166,7 @@ function activity(
     totalFloatHours: 16,
     freeFloatHours: 8,
     percentComplete: 0,
-    sourceRefs: ["schedule:" + activityId],
+    sourceRefs: [{ source: "xer", locator: "activity:" + activityId }],
     diagnostics: [],
     ...overrides,
   };
@@ -278,7 +278,7 @@ function model(
         type: "FS",
         lagHours: 0,
         external: false,
-        sourceRefs: ["schedule:R1"],
+        sourceRefs: [{ source: "xer", locator: "relationship:R1" }],
         diagnostics: [],
       },
       {
@@ -288,7 +288,7 @@ function model(
         type: "FS",
         lagHours: 0,
         external: false,
-        sourceRefs: ["schedule:R2"],
+        sourceRefs: [{ source: "xer", locator: "relationship:R2" }],
         diagnostics: [],
       },
     ],
@@ -296,7 +296,7 @@ function model(
       wbsId: "W1",
       parentWbsId: null,
       name: "Civil",
-      sourceRefs: ["schedule:W1"],
+      sourceRefs: [{ source: "xer", locator: "wbs:W1" }],
     }],
     calendars: [calendar()],
     diagnostics: [],
