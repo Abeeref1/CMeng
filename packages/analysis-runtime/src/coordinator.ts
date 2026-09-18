@@ -1,8 +1,10 @@
 import {
   analysisRunIdentity,
+  stableFingerprint,
 } from "./fingerprint";
 import {
   DEFAULT_ANALYSIS_PLAN,
+  projectionDefinition,
   projectionKeys,
 } from "./plan";
 import type {
@@ -16,10 +18,22 @@ import type {
   ProjectionReadModel,
   ProjectionRecord,
   PublishedAnalysisPointer,
+  ProjectionDependencyNotReadyError,
 } from "./types";
 
 function nowIso(now?: string): string {
   return now ?? new Date().toISOString();
+}
+
+function projectionProducerVersion(
+  analysisEngineVersion: string,
+  projectionKey: AnalysisProjectionKey,
+): string {
+  return (
+    analysisEngineVersion +
+    ":" +
+    projectionKey
+  );
 }
 
 export class AnalysisCoordinator {
@@ -52,6 +66,14 @@ export class AnalysisCoordinator {
     const keys = projectionKeys(DEFAULT_ANALYSIS_PLAN);
     const run: AnalysisRunRecord = {
       ...identity,
+      evidenceFingerprint:
+        snapshot.evidenceFingerprint,
+      sourceManifestId:
+        snapshot.sourceManifestId,
+      mappingVersion: snapshot.mappingVersion,
+      parserVersion: snapshot.parserVersion,
+      analysisEngineVersion:
+        snapshot.analysisEngineVersion,
       state: "queued",
       createdAt: timestamp,
       updatedAt: timestamp,
@@ -77,6 +99,13 @@ export class AnalysisCoordinator {
         attempt: 0,
         checkpointCursor: null,
         artifact: null,
+        dependencyReceiptId: null,
+        producerVersion:
+          projectionProducerVersion(
+            snapshot.analysisEngineVersion,
+            key,
+          ),
+        upstreamProjectionHashes: {},
         createdAt: timestamp,
         updatedAt: timestamp,
         errorCode: null,
@@ -160,19 +189,75 @@ export class AnalysisCoordinator {
       );
     }
 
-    await this.metadata.putProjection({
-      ...projection,
-      state: "ready",
-      artifact,
-      updatedAt: timestamp,
-      errorCode: null,
-      errorMessage: null,
-    });
-
     const run = await this.metadata.getRun(runId);
     if (!run) {
       throw new Error("Run not found: " + runId);
     }
+
+    const definition =
+      projectionDefinition(projectionKey);
+    const upstreamProjectionHashes:
+      Record<string, string> = {};
+
+    for (const dependencyKey of definition.dependencies) {
+      const dependency =
+        await this.metadata.getProjection(
+          runId,
+          dependencyKey,
+        );
+
+      if (
+        !dependency ||
+        dependency.state !== "ready" ||
+        !dependency.artifact ||
+        !dependency.dependencyReceiptId
+      ) {
+        throw new ProjectionDependencyNotReadyError(
+          runId,
+          projectionKey,
+          dependencyKey,
+        );
+      }
+
+      upstreamProjectionHashes[dependencyKey] =
+        dependency.artifact.contentHash;
+    }
+
+    const producerVersion =
+      projectionProducerVersion(
+        run.analysisEngineVersion,
+        projectionKey,
+      );
+
+    const dependencyReceiptId =
+      "dep_" +
+      stableFingerprint({
+        projectId: run.projectId,
+        runId: run.runId,
+        evidenceRevisionId:
+          run.evidenceRevisionId,
+        evidenceFingerprint:
+          run.evidenceFingerprint,
+        sourceManifestId:
+          run.sourceManifestId,
+        projectionKey,
+        upstreamProjectionHashes,
+        producerVersion,
+        parserVersion: run.parserVersion,
+        mappingVersion: run.mappingVersion,
+      }).slice(0, 24);
+
+    await this.metadata.putProjection({
+      ...projection,
+      state: "ready",
+      artifact,
+      dependencyReceiptId,
+      producerVersion,
+      upstreamProjectionHashes,
+      updatedAt: timestamp,
+      errorCode: null,
+      errorMessage: null,
+    });
 
     const projections =
       await this.metadata.listProjections(runId);
@@ -219,11 +304,26 @@ export class AnalysisCoordinator {
 
     const ready = new Set(
       projections
-        .filter(
-          (projection) =>
-            projection.state === "ready" &&
-            projection.artifact !== null,
-        )
+        .filter((projection) => {
+          if (
+            projection.state !== "ready" ||
+            projection.artifact === null ||
+            !projection.dependencyReceiptId
+          ) {
+            return false;
+          }
+
+          const expectedProducerVersion =
+            projectionProducerVersion(
+              run.analysisEngineVersion,
+              projection.projectionKey,
+            );
+
+          return (
+            projection.producerVersion ===
+            expectedProducerVersion
+          );
+        })
         .map(
           (projection) =>
             projection.projectionKey,
