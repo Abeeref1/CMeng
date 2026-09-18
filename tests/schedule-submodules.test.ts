@@ -13,6 +13,9 @@ import {
 import {
   buildNearCriticalProjection,
 } from "../packages/near-critical-analysis/src";
+import {
+  buildLookAheadProjection,
+} from "../packages/lookahead-schedule/src";
 
 function fixture(): CanonicalScheduleModel {
   return {
@@ -277,5 +280,102 @@ test("Near-Critical module excludes critical and unknown-float activities", () =
       (row) => row.totalFloatHours,
     ),
     [16, 40],
+  );
+});
+
+
+test("Look-Ahead uses current/forecast dates and never substitutes baseline dates", () => {
+  const input = fixture();
+
+  const projection =
+    buildLookAheadProjection(
+      input,
+      {
+        generatedAt:
+          "2026-09-18T16:30:00.000Z",
+        producerVersion:
+          "lookahead-v1",
+        windowDays: 42,
+      },
+    );
+
+  assert.equal(
+    projection.currentDateCoveragePercent,
+    66.6667,
+  );
+  assert.equal(
+    projection.missingCurrentDateActivityIds.includes(
+      "A400",
+    ),
+    true,
+  );
+
+  const milestone = projection.rows.find(
+    (row) => row.activityId === "A300",
+  )!;
+  assert.equal(
+    milestone.classification,
+    "overdue",
+  );
+  assert.equal(
+    milestone.daysToFinish,
+    -1,
+  );
+
+  const missing = projection.rows.find(
+    (row) => row.activityId === "A400",
+  );
+  assert.equal(missing, undefined);
+});
+
+test("Look-Ahead window does not pull future baseline-only work into current plan", () => {
+  const input = fixture();
+  input.activities.push({
+    projectId: "P88",
+    activityId: "A500",
+    nativeId: null,
+    name: "Baseline Only Future",
+    wbsId: "W2",
+    calendarId: null,
+    activityType: "task",
+    status: "not_started",
+    baselineStartIso: "2026-01-15",
+    baselineFinishIso: "2026-01-20",
+    currentStartIso: null,
+    currentFinishIso: null,
+    actualStartIso: null,
+    actualFinishIso: null,
+    forecastStartIso: null,
+    forecastFinishIso: null,
+    originalDurationHours: 40,
+    remainingDurationHours: 40,
+    totalFloatHours: 80,
+    freeFloatHours: 80,
+    percentComplete: 0,
+    sourceRefs: [],
+    diagnostics: [],
+  });
+
+  const projection =
+    buildLookAheadProjection(
+      input,
+      {
+        generatedAt:
+          "2026-09-18T16:30:00.000Z",
+        producerVersion:
+          "lookahead-v1",
+      },
+    );
+
+  assert.ok(
+    projection.missingCurrentDateActivityIds.includes(
+      "A500",
+    ),
+  );
+  assert.equal(
+    projection.rows.some(
+      (row) => row.activityId === "A500",
+    ),
+    false,
   );
 });
