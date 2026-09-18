@@ -1,7 +1,11 @@
 import { parseCsv } from "../../tabular-parser/src";
-import { detectBoqHeader } from "../../boq-parser/src/headers";
+import { detectAllBoqHeaders } from "../../boq-parser/src/headers";
 import { parseStrictNumeric } from "../../boq-parser/src/numeric";
-import type { BoqColumnRole, BoqLineItem } from "../../boq-parser/src/types";
+import type {
+  BoqColumnRole,
+  BoqHeaderMapping,
+  BoqLineItem,
+} from "../../boq-parser/src/types";
 import type { BoqCsvResult } from "./types";
 
 function roleColumn(
@@ -12,7 +16,10 @@ function roleColumn(
   return entry ? Number(entry[0]) : null;
 }
 
-function valueAt(row: readonly string[], column: number | null): string | null {
+function valueAt(
+  row: readonly string[],
+  column: number | null,
+): string | null {
   if (column === null) return null;
   const value = (row[column - 1] ?? "").trim();
   return value || null;
@@ -24,46 +31,52 @@ function looksLikeTotal(description: string): boolean {
     /(الإجمالي|اجمالي|المجموع|مرحّل|مرحل)/.test(normalized);
 }
 
-function arithmeticValid(quantity: number, rate: number, amount: number): boolean {
+function arithmeticValid(
+  quantity: number,
+  rate: number,
+  amount: number,
+): boolean {
   const expected = quantity * rate;
   const tolerance = Math.max(0.02, Math.abs(amount) * 0.0001);
   return Math.abs(expected - amount) <= tolerance;
 }
 
-export function parseBoqCsv(bytes: Uint8Array): BoqCsvResult {
-  const csv = parseCsv(bytes);
-  const diagnostics = [...csv.diagnostics];
-  const rows = csv.rows.map((row) => row.cells);
-  const header = detectBoqHeader(rows);
-
-  if (!header) {
-    diagnostics.push("BOQ_CSV_HEADER_NOT_FOUND");
-    return {
-      rowsSeen: csv.rowCount,
-      candidateRows: 0,
-      verifiedRows: 0,
-      unresolvedRows: csv.rowCount > 0 ? 1 : 0,
-      coveragePercent: null,
-      items: [],
-      complete: false,
-      diagnostics,
-    };
-  }
-
+function parseSegment(
+  rows: readonly (readonly string[])[],
+  header: BoqHeaderMapping,
+  endIndexExclusive: number,
+): BoqLineItem[] {
   const items: BoqLineItem[] = [];
 
-  for (let index = header.headerRow; index < rows.length; index += 1) {
+  for (
+    let index = header.headerRow;
+    index < Math.min(endIndexExclusive, rows.length);
+    index += 1
+  ) {
     const row = rows[index] ?? [];
     if (row.every((value) => !value.trim())) continue;
 
     const rowNumber = index + 1;
-    const itemNumber = valueAt(row, roleColumn(header.roles, "item_number"));
-    const description = valueAt(row, roleColumn(header.roles, "description")) ?? "";
+    const itemNumber = valueAt(
+      row,
+      roleColumn(header.roles, "item_number"),
+    );
+    const description =
+      valueAt(row, roleColumn(header.roles, "description")) ?? "";
     const unit = valueAt(row, roleColumn(header.roles, "unit"));
-    const currency = valueAt(row, roleColumn(header.roles, "currency"));
-    const quantityRaw = valueAt(row, roleColumn(header.roles, "quantity"));
+    const currency = valueAt(
+      row,
+      roleColumn(header.roles, "currency"),
+    );
+    const quantityRaw = valueAt(
+      row,
+      roleColumn(header.roles, "quantity"),
+    );
     const rateRaw = valueAt(row, roleColumn(header.roles, "rate"));
-    const amountRaw = valueAt(row, roleColumn(header.roles, "amount"));
+    const amountRaw = valueAt(
+      row,
+      roleColumn(header.roles, "amount"),
+    );
 
     if (
       !itemNumber &&
@@ -78,7 +91,9 @@ export function parseBoqCsv(bytes: Uint8Array): BoqCsvResult {
     }
 
     const rowDiagnostics: string[] = [];
-    if (!description) rowDiagnostics.push("BOQ_DESCRIPTION_MISSING");
+    if (!description) {
+      rowDiagnostics.push("BOQ_DESCRIPTION_MISSING");
+    }
 
     const quantity = parseStrictNumeric(quantityRaw);
     const rate = parseStrictNumeric(rateRaw);
@@ -98,7 +113,11 @@ export function parseBoqCsv(bytes: Uint8Array): BoqCsvResult {
       }
     }
 
-    const hasCommercial = quantityRaw !== null || rateRaw !== null || amountRaw !== null;
+    const hasCommercial =
+      quantityRaw !== null ||
+      rateRaw !== null ||
+      amountRaw !== null;
+
     const rowKind: BoqLineItem["rowKind"] =
       !description
         ? "unclassified"
@@ -116,7 +135,11 @@ export function parseBoqCsv(bytes: Uint8Array): BoqCsvResult {
       quantity.value !== null &&
       rate.value !== null &&
       amount.value !== null &&
-      !arithmeticValid(quantity.value, rate.value, amount.value)
+      !arithmeticValid(
+        quantity.value,
+        rate.value,
+        amount.value,
+      )
     ) {
       rowDiagnostics.push("BOQ_AMOUNT_ARITHMETIC_MISMATCH");
     }
@@ -148,18 +171,76 @@ export function parseBoqCsv(bytes: Uint8Array): BoqCsvResult {
       itemNumber,
       description,
       unit,
-      quantity: quantity.status === "valid" ? quantity.value : null,
+      quantity:
+        quantity.status === "valid" ? quantity.value : null,
       rate: rate.status === "valid" ? rate.value : null,
       amount: amount.status === "valid" ? amount.value : null,
       currency,
       sourceCells,
-      status: rowDiagnostics.length === 0 ? "verified" : "unresolved",
+      status:
+        rowDiagnostics.length === 0 ? "verified" : "unresolved",
       diagnosticCodes: rowDiagnostics,
     });
   }
 
-  const unresolvedRows = items.filter((item) => item.status === "unresolved").length;
+  return items;
+}
+
+export function parseBoqCsv(bytes: Uint8Array): BoqCsvResult {
+  const csv = parseCsv(bytes);
+  const diagnostics = [...csv.diagnostics];
+  const rows = csv.rows.map((row) => row.cells);
+  const headers = detectAllBoqHeaders(rows);
+
+  if (headers.length === 0) {
+    diagnostics.push("BOQ_CSV_HEADER_NOT_FOUND");
+    return {
+      rowsSeen: csv.rowCount,
+      candidateRows: 0,
+      verifiedRows: 0,
+      unresolvedRows: csv.rowCount > 0 ? 1 : 0,
+      coveragePercent: null,
+      items: [],
+      complete: false,
+      diagnostics,
+    };
+  }
+
+  const prefixRows = rows.slice(0, headers[0]!.headerRow - 1);
+  const populatedPrefixRows = prefixRows.filter((row) =>
+    row.some((value) => value.trim()),
+  ).length;
+
+  if (populatedPrefixRows > 0) {
+    diagnostics.push(
+      "BOQ_CSV_POPULATED_PREFIX_ROWS_UNCLASSIFIED:" +
+        populatedPrefixRows,
+    );
+  }
+
+  const items: BoqLineItem[] = [];
+
+  for (let index = 0; index < headers.length; index += 1) {
+    const header = headers[index]!;
+    const nextHeader = headers[index + 1];
+    const endIndexExclusive = nextHeader
+      ? nextHeader.headerRow - 1
+      : rows.length;
+
+    items.push(
+      ...parseSegment(
+        rows,
+        header,
+        endIndexExclusive,
+      ),
+    );
+  }
+
+  const unresolvedRows = items.filter(
+    (item) => item.status === "unresolved",
+  ).length;
   const verifiedRows = items.length - unresolvedRows;
+  const denominatorUnknown = populatedPrefixRows > 0;
 
   return {
     rowsSeen: csv.rowCount,
@@ -167,9 +248,11 @@ export function parseBoqCsv(bytes: Uint8Array): BoqCsvResult {
     verifiedRows,
     unresolvedRows,
     coveragePercent:
-      items.length === 0
+      denominatorUnknown || items.length === 0
         ? null
-        : Number(((verifiedRows / items.length) * 100).toFixed(4)),
+        : Number(
+            ((verifiedRows / items.length) * 100).toFixed(4),
+          ),
     items,
     complete:
       items.length > 0 &&
