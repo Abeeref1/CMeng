@@ -397,25 +397,44 @@ export class RuntimeProjectStore {
       durable?: boolean;
     } = {},
   ) {
-    const railwayMount =
+    const testMode =
       process.env
-        .RAILWAY_VOLUME_MOUNT_PATH
-        ?.trim();
+        .CMENG_TEST_MODE
+        ?.trim() === "1";
+    const railwayMount =
+      testMode
+        ? undefined
+        : process.env
+            .RAILWAY_VOLUME_MOUNT_PATH
+            ?.trim();
+    const testDataDir =
+      join(
+        process.cwd(),
+        ".cmeng-test-runtime",
+        String(process.pid),
+      );
 
     this.dataDir =
       options.dataDir ??
-      railwayMount ??
-      process.env
-        .CMENG_DATA_DIR
-        ?.trim() ??
-      join(
-        process.cwd(),
-        ".cmeng-runtime",
+      (
+        testMode
+          ? testDataDir
+          : railwayMount ??
+            process.env
+              .CMENG_DATA_DIR
+              ?.trim() ??
+            join(
+              process.cwd(),
+              ".cmeng-runtime",
+            )
       );
 
     this.durable =
       options.durable ??
-      Boolean(railwayMount);
+      (
+        !testMode &&
+        Boolean(railwayMount)
+      );
 
     this.stateFile =
       join(
