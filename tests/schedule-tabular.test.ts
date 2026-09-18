@@ -38,7 +38,7 @@ test("schedule CSV relationship table preserves predecessor successor type and l
 
 test("missing activity ID remains unresolved instead of disappearing", () => {
   const csv = [
-    "Activity ID,Activity Name,Original Duration",
+    "Activity ID,Activity Name,Original Duration (h)",
     "A100,Good,8",
     ",Missing ID,16",
   ].join("\n");
@@ -78,7 +78,7 @@ test("populated unclassified schedule sheet prevents complete status", async () 
   cover.addRow(["Data Date","2026-08-31"]);
 
   const activities = workbook.addWorksheet("Activities");
-  activities.addRow(["Activity ID","Activity Name","Original Duration"]);
+  activities.addRow(["Activity ID","Activity Name","Original Duration (h)"]);
   activities.addRow(["A100","Excavation",80]);
 
   const bytes = Buffer.from(await workbook.xlsx.writeBuffer());
