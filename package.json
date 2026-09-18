@@ -14,11 +14,14 @@
   "dependencies": {
     "iconv-lite": "0.6.3",
     "exceljs": "4.4.0",
-    "fast-xml-parser": "5.2.5"
+    "fast-xml-parser": "5.2.5",
+    "pdf-parse": "2.4.5",
+    "tesseract.js": "7.0.0"
   },
   "devDependencies": {
     "@types/node": "22.18.0",
-    "typescript": "5.9.2"
+    "typescript": "5.9.2",
+    "pdf-lib": "1.17.1"
   },
   "engines": {
     "node": ">=22"
