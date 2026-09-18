@@ -14,6 +14,7 @@ import type {
   ScheduleCellLocator,
   ScheduleColumnRole,
   ScheduleHeaderMapping,
+  ScheduleMetadataSheet,
   ScheduleRelationshipRow,
   ScheduleTabularResult,
 } from "./types";
@@ -304,10 +305,86 @@ function parseRows(
   return { activities, relationships, diagnostics };
 }
 
+function parseMetadataSheet(
+  sheetName: string,
+  rows: readonly (readonly string[])[],
+): ScheduleMetadataSheet | null {
+  let headerIndex = -1;
+
+  for (let index = 0; index < Math.min(rows.length, 20); index += 1) {
+    const row = rows[index] ?? [];
+    const normalized = row.map((value) =>
+      value.toLowerCase().replace(/\s+/g, " ").trim(),
+    );
+
+    if (
+      normalized[0] === "field" &&
+      normalized[1] === "value" &&
+      normalized[2] === "field" &&
+      normalized[3] === "value"
+    ) {
+      headerIndex = index;
+      break;
+    }
+  }
+
+  if (headerIndex < 0) return null;
+
+  const fields: ScheduleMetadataSheet["fields"] = [];
+
+  for (let index = headerIndex + 1; index < rows.length; index += 1) {
+    const row = rows[index] ?? [];
+
+    for (const [keyColumn, valueColumn] of [
+      [1, 2],
+      [3, 4],
+    ] as const) {
+      const key = (row[keyColumn - 1] ?? "").trim();
+      const value = (row[valueColumn - 1] ?? "").trim();
+      if (!key && !value) continue;
+      if (!key || !value) {
+        return null;
+      }
+      fields.push({
+        key,
+        value,
+        row: index + 1,
+        keyColumn,
+        valueColumn,
+      });
+    }
+  }
+
+  if (fields.length < 4) return null;
+
+  const firstPopulatedRow = rows.find(
+    (row) => row.some((value) => value.trim()),
+  );
+  const title =
+    firstPopulatedRow?.filter((value) => value.trim()).length === 1
+      ? firstPopulatedRow.find((value) => value.trim())?.trim() ?? null
+      : null;
+
+  return {
+    sheet: sheetName,
+    title,
+    fields,
+    rows: rows
+      .map((cells, index) => ({
+        row: index + 1,
+        cells: [...cells],
+      }))
+      .filter((row) =>
+        row.cells.some((value) => value.trim()),
+      ),
+  };
+}
+
 function finalize(
   sourceType: "csv" | "xlsx",
   sets: Array<ReturnType<typeof parseRows>>,
   diagnostics: string[],
+  metadataSheets: ScheduleMetadataSheet[] = [],
 ): ScheduleTabularResult {
   const activities = sets.flatMap((set) => set.activities);
   const relationships = sets.flatMap((set) => set.relationships);
@@ -323,6 +400,7 @@ function finalize(
 
   return {
     sourceType,
+    metadataSheets,
     activities,
     relationships,
     activityRowsSeen: activities.length,
@@ -386,6 +464,7 @@ export async function parseScheduleXlsx(
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(Buffer.from(bytes) as any);
   const sets: Array<ReturnType<typeof parseRows>> = [];
+  const metadataSheets: ScheduleMetadataSheet[] = [];
   const diagnostics: string[] = [];
 
   for (const sheet of workbook.worksheets) {
@@ -408,6 +487,12 @@ export async function parseScheduleXlsx(
     const headers = detectAllScheduleHeaders(rows);
 
     if (headers.length === 0) {
+      const metadata = parseMetadataSheet(sheet.name, rows);
+      if (metadata) {
+        metadataSheets.push(metadata);
+        continue;
+      }
+
       const populated = rows.flat().filter((value) => value.trim()).length;
       if (populated >= 6) {
         diagnostics.push(
@@ -436,5 +521,5 @@ export async function parseScheduleXlsx(
     }
   }
 
-  return finalize("xlsx", sets, diagnostics);
+  return finalize("xlsx", sets, diagnostics, metadataSheets);
 }
