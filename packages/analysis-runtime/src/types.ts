@@ -48,6 +48,7 @@ export interface AnalysisInputSnapshot {
   projectId: string;
   evidenceRevisionId: string;
   evidenceFingerprint: string;
+  sourceManifestId: string;
   mappingVersion: string;
   parserVersion: string;
   analysisEngineVersion: string;
@@ -64,6 +65,11 @@ export interface AnalysisRunIdentity {
 }
 
 export interface AnalysisRunRecord extends AnalysisRunIdentity {
+  evidenceFingerprint: string;
+  sourceManifestId: string;
+  mappingVersion: string;
+  parserVersion: string;
+  analysisEngineVersion: string;
   state: AnalysisRunState;
   createdAt: string;
   updatedAt: string;
@@ -88,6 +94,9 @@ export interface ProjectionRecord {
   attempt: number;
   checkpointCursor: string | null;
   artifact: ProjectionArtifactPointer | null;
+  dependencyReceiptId: string | null;
+  producerVersion: string;
+  upstreamProjectionHashes: Record<string, string>;
   createdAt: string;
   updatedAt: string;
   errorCode: string | null;
@@ -183,5 +192,25 @@ export class MetadataUnavailableError extends Error {
   constructor(message = "Analysis metadata store is unavailable") {
     super(message);
     this.name = "MetadataUnavailableError";
+  }
+}
+
+
+export class ProjectionDependencyNotReadyError extends Error {
+  readonly code = "PROJECTION_DEPENDENCY_NOT_READY";
+  constructor(
+    readonly runId: string,
+    readonly projectionKey: AnalysisProjectionKey,
+    readonly dependencyKey: AnalysisProjectionKey,
+  ) {
+    super(
+      "Projection dependency is not ready: " +
+        runId +
+        "/" +
+        projectionKey +
+        " requires " +
+        dependencyKey,
+    );
+    this.name = "ProjectionDependencyNotReadyError";
   }
 }
