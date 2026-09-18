@@ -176,6 +176,8 @@ export function parsePrimaveraXml(bytes: Uint8Array): PrimaveraXmlResult {
       relationshipCount: 0,
       unresolvedRelationships: 0,
       externalRelationships: 0,
+      missingWbsReferences: [],
+      missingCalendarReferences: [],
       coveragePercent: null,
       complete: false,
       sourceComplete: false,
@@ -208,10 +210,73 @@ export function parsePrimaveraXml(bytes: Uint8Array): PrimaveraXmlResult {
       .filter((value): value is string => !!value),
   );
 
+  const wbsObjects = new Set(
+    (found.get("wbs") ?? [])
+      .map((obj) => field(obj, ["ObjectId", "WBSObjectId", "WbsObjectId"]))
+      .filter((value): value is string => !!value),
+  );
+
+  const calendarObjects = new Set(
+    (found.get("calendar") ?? [])
+      .map((obj) => field(obj, ["ObjectId", "CalendarObjectId"]))
+      .filter((value): value is string => !!value),
+  );
+
+  const missingWbsReferences = new Set<string>();
+  const missingCalendarReferences = new Set<string>();
+
   const activities: PrimaveraXmlActivity[] = (
     found.get("activity") ?? []
   ).map((obj) => {
     const rowDiagnostics: string[] = [];
+
+    const start = dateField(
+      obj,
+      ["StartDate", "Start"],
+      rowDiagnostics,
+      "P6XML_START_DATE",
+    );
+    const finish = dateField(
+      obj,
+      ["FinishDate", "Finish"],
+      rowDiagnostics,
+      "P6XML_FINISH_DATE",
+    );
+    const originalDuration = durationField(
+      obj,
+      ["OriginalDurationHours", "PlannedDurationHours"],
+      ["OriginalDuration", "PlannedDuration"],
+      rowDiagnostics,
+      "P6XML_ORIGINAL_DURATION",
+    );
+    const remainingDuration = durationField(
+      obj,
+      ["RemainingDurationHours"],
+      ["RemainingDuration"],
+      rowDiagnostics,
+      "P6XML_REMAINING_DURATION",
+    );
+    const totalFloat = durationField(
+      obj,
+      ["TotalFloatHours"],
+      ["TotalFloat"],
+      rowDiagnostics,
+      "P6XML_TOTAL_FLOAT",
+    );
+
+    const wbsObjectId = field(obj, ["WBSObjectId", "WbsObjectId"]);
+    const calendarObjectId = field(obj, ["CalendarObjectId"]);
+
+    if (wbsObjectId && !wbsObjects.has(wbsObjectId)) {
+      missingWbsReferences.add(wbsObjectId);
+      rowDiagnostics.push("P6XML_WBS_REFERENCE_UNRESOLVED");
+    }
+
+    if (calendarObjectId && !calendarObjects.has(calendarObjectId)) {
+      missingCalendarReferences.add(calendarObjectId);
+      rowDiagnostics.push("P6XML_CALENDAR_REFERENCE_UNRESOLVED");
+    }
+
     const activity: PrimaveraXmlActivity = {
       projectObjectId: field(obj, [
         "ProjectObjectId",
@@ -224,32 +289,18 @@ export function parsePrimaveraXml(bytes: Uint8Array): PrimaveraXmlResult {
       ]),
       id: field(obj, ["Id", "ActivityId", "ActivityID", "TaskId"]),
       name: field(obj, ["Name", "ActivityName", "TaskName"]),
-      wbsObjectId: field(obj, ["WBSObjectId", "WbsObjectId"]),
-      calendarObjectId: field(obj, ["CalendarObjectId"]),
-      startDate: field(obj, ["StartDate", "Start"]),
-      finishDate: field(obj, ["FinishDate", "Finish"]),
-      originalDurationHours: numeric(
-        obj,
-        [
-          "OriginalDuration",
-          "OriginalDurationHours",
-          "PlannedDuration",
-        ],
-        rowDiagnostics,
-        "P6XML_ORIGINAL_DURATION",
-      ),
-      remainingDurationHours: numeric(
-        obj,
-        ["RemainingDuration", "RemainingDurationHours"],
-        rowDiagnostics,
-        "P6XML_REMAINING_DURATION",
-      ),
-      totalFloatHours: numeric(
-        obj,
-        ["TotalFloat", "TotalFloatHours"],
-        rowDiagnostics,
-        "P6XML_TOTAL_FLOAT",
-      ),
+      wbsObjectId,
+      calendarObjectId,
+      startDate: start.raw,
+      startDateIso: start.iso,
+      finishDate: finish.raw,
+      finishDateIso: finish.iso,
+      originalDurationRaw: originalDuration.raw,
+      originalDurationHours: originalDuration.hours,
+      remainingDurationRaw: remainingDuration.raw,
+      remainingDurationHours: remainingDuration.hours,
+      totalFloatRaw: totalFloat.raw,
+      totalFloatHours: totalFloat.hours,
       raw: obj,
       status: "verified",
       diagnostics: rowDiagnostics,
@@ -326,12 +377,16 @@ export function parsePrimaveraXml(bytes: Uint8Array): PrimaveraXmlResult {
       predecessorActivityObjectId,
       successorActivityObjectId,
       type: field(obj, ["Type", "RelationshipType"]),
-      lagHours: numeric(
+      lagRaw:
+        field(obj, ["LagHours"]) ??
+        field(obj, ["Lag"]),
+      lagHours: durationField(
         obj,
-        ["Lag", "LagHours"],
+        ["LagHours"],
+        ["Lag"],
         rowDiagnostics,
         "P6XML_LAG",
-      ),
+      ).hours,
       external,
       status:
         rowDiagnostics.length === 0 ? "verified" : "unresolved",
@@ -398,6 +453,8 @@ export function parsePrimaveraXml(bytes: Uint8Array): PrimaveraXmlResult {
     relationshipCount: relationships.length,
     unresolvedRelationships,
     externalRelationships,
+    missingWbsReferences: [...missingWbsReferences].sort(),
+    missingCalendarReferences: [...missingCalendarReferences].sort(),
     coveragePercent:
       total === 0
         ? null
