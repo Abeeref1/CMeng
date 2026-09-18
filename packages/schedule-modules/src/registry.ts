@@ -72,6 +72,12 @@ import {
 import type {
   CanonicalResourceModel,
 } from "../../schedule-resource-core/src";
+import {
+  buildQuantityScurveProjection,
+} from "../../quantity-scurve/src";
+import type {
+  CanonicalQuantityProgressModel,
+} from "../../quantity-progress-core/src";
 
 export type ImplementedScheduleProjectionKey =
   | "schedule_analytics"
@@ -295,4 +301,31 @@ export function buildImplementedScheduleResourceProjection(
         },
       );
   }
+}
+
+
+export function buildImplementedQuantityScurveProjection(
+  quantities: CanonicalQuantityProgressModel,
+  schedule: CanonicalScheduleModel,
+  input: {
+    generatedAt: string;
+    producerVersion: string;
+    intervalDays?: number;
+  },
+): unknown {
+  return buildQuantityScurveProjection(
+    quantities,
+    schedule,
+    {
+      generatedAt: input.generatedAt,
+      producerVersion:
+        input.producerVersion,
+      ...(input.intervalDays !== undefined
+        ? {
+            intervalDays:
+              input.intervalDays,
+          }
+        : {}),
+    },
+  );
 }
