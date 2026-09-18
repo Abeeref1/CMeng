@@ -83,26 +83,50 @@ function parseLineItem(
   const amountCell = cellForRole(worksheet, row, roles, "amount");
   const currencyCell = cellForRole(worksheet, row, roles, "currency");
 
-  const description = text(descriptionCell);
-  if (!description) return null;
+  const mappedCells = [
+    itemCell,
+    descriptionCell,
+    unitCell,
+    quantityCell,
+    rateCell,
+    amountCell,
+    currencyCell,
+  ];
+  const hasAnyMappedValue = mappedCells.some(
+    (cell) => cell && cell.text.trim() !== "",
+  );
+  if (!hasAnyMappedValue) return null;
 
+  const description = text(descriptionCell) ?? "";
   const hasCommercialValue = [quantityCell, rateCell, amountCell].some(
     (cell) => cell && cell.text.trim() !== "",
   );
 
-  if (!hasCommercialValue) return null;
+  const rowKind: BoqLineItem["rowKind"] =
+    !description
+      ? "unclassified"
+      : looksLikeTotal(description)
+        ? "total_or_summary"
+        : !hasCommercialValue
+          ? "section"
+          : "line_item";
 
   const quantity = parseStrictNumeric(numericSource(quantityCell));
   const rate = parseStrictNumeric(numericSource(rateCell));
   const amount = parseStrictNumeric(numericSource(amountCell));
   const diagnosticCodes: string[] = [];
 
+  if (!description) {
+    diagnosticCodes.push("BOQ_DESCRIPTION_MISSING");
+  }
+
   for (const [name, parsed, cell] of [
     ["QUANTITY", quantity, quantityCell],
     ["RATE", rate, rateCell],
     ["AMOUNT", amount, amountCell],
   ] as const) {
-    if (cell?.kind === "formula" && cell.formulaResult === null) {
+    if (!cell || cell.text.trim() === "") continue;
+    if (cell.kind === "formula" && cell.formulaResult === null) {
       diagnosticCodes.push(`BOQ_${name}_FORMULA_RESULT_MISSING`);
     }
     if (parsed.status === "ambiguous") {
@@ -114,6 +138,7 @@ function parseLineItem(
   }
 
   if (
+    rowKind === "line_item" &&
     quantity.status === "valid" &&
     rate.status === "valid" &&
     amount.status === "valid" &&
@@ -123,10 +148,6 @@ function parseLineItem(
     !arithmeticValid(quantity.value, rate.value, amount.value)
   ) {
     diagnosticCodes.push("BOQ_AMOUNT_ARITHMETIC_MISMATCH");
-  }
-
-  if (looksLikeTotal(description)) {
-    diagnosticCodes.push("BOQ_TOTAL_OR_SUMMARY_ROW");
   }
 
   const sourceCells: BoqLineItem["sourceCells"] = {};
@@ -145,6 +166,7 @@ function parseLineItem(
   return {
     sheet: worksheet.name,
     row,
+    rowKind,
     itemNumber: text(itemCell),
     description,
     unit: text(unitCell),
@@ -216,9 +238,13 @@ export async function parseBoqWorkbook(bytes: Uint8Array): Promise<BoqParseResul
     sheet.diagnostics.map((code) => `${sheet.sheet}:${code}`),
   );
 
+  const denominatorUnknown = diagnostics.some((diagnostic) =>
+    diagnostic.endsWith(":BOQ_POPULATED_SHEET_UNCLASSIFIED"),
+  );
+
   const coveragePercent =
-    candidateRows === 0
-      ? 0
+    denominatorUnknown || candidateRows === 0
+      ? null
       : Number(((parsedRows / candidateRows) * 100).toFixed(4));
 
   const complete =
