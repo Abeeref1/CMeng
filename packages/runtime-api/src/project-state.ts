@@ -1,4 +1,15 @@
 import { createHash } from "node:crypto";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  writeFileSync,
+} from "node:fs";
+import {
+  extname,
+  join,
+} from "node:path";
 
 import type {
   BoqIngestionResult,
@@ -31,6 +42,9 @@ import {
 import type {
   CanonicalQuantityProgressModel,
 } from "../../quantity-progress-core/src";
+import type {
+  CanonicalResourceModel,
+} from "../../schedule-resource-core/src";
 import type {
   ProjectControlState,
   ProjectRuntimeState,
@@ -279,12 +293,263 @@ function quantityModelFromBoq(
   };
 }
 
+
+interface SerializedProjectState
+  extends Omit<
+    ProjectRuntimeState,
+    "resourcesByRevision"
+  > {
+  resourcesByRevision:
+    Array<
+      [string, CanonicalResourceModel]
+    >;
+}
+
+interface RuntimeStateSnapshot {
+  schemaVersion: 1;
+  projects: SerializedProjectState[];
+}
+
+function serializeProject(
+  state: ProjectRuntimeState,
+): SerializedProjectState {
+  return {
+    ...state,
+    resourcesByRevision: [
+      ...state.resourcesByRevision
+        .entries(),
+    ],
+  };
+}
+
+function hydrateProject(
+  state: SerializedProjectState,
+): ProjectRuntimeState {
+  return {
+    ...state,
+    resourcesByRevision:
+      new Map(
+        state.resourcesByRevision,
+      ),
+  };
+}
+
+function safeSegment(
+  value: string,
+): string {
+  const cleaned = value
+    .replace(/[^A-Za-z0-9._-]+/g, "_")
+    .replace(/^\.+/, "")
+    .slice(0, 120);
+  return cleaned || "unknown";
+}
+
+function fileExtension(
+  filename: string | null | undefined,
+): string {
+  const extension = extname(
+    filename ?? "",
+  )
+    .toLowerCase()
+    .replace(/[^a-z0-9.]/g, "");
+  return extension.length <= 12
+    ? extension
+    : "";
+}
+
 export class RuntimeProjectStore {
   private readonly projects =
     new Map<
       string,
       ProjectRuntimeState
     >();
+
+  private readonly dataDir: string;
+  private readonly stateFile: string;
+  private readonly durable: boolean;
+
+  constructor(
+    options: {
+      dataDir?: string;
+      durable?: boolean;
+    } = {},
+  ) {
+    const railwayMount =
+      process.env
+        .RAILWAY_VOLUME_MOUNT_PATH
+        ?.trim();
+
+    this.dataDir =
+      options.dataDir ??
+      railwayMount ??
+      process.env
+        .CMENG_DATA_DIR
+        ?.trim() ??
+      join(
+        process.cwd(),
+        ".cmeng-runtime",
+      );
+
+    this.durable =
+      options.durable ??
+      Boolean(railwayMount);
+
+    this.stateFile =
+      join(
+        this.dataDir,
+        "cmeng-project-state.json",
+      );
+
+    mkdirSync(
+      this.dataDir,
+      { recursive: true },
+    );
+    this.loadSnapshot();
+  }
+
+  persistenceMode():
+    | "railway_volume"
+    | "runtime_local" {
+    return this.durable
+      ? "railway_volume"
+      : "runtime_local";
+  }
+
+  persistenceStatus(): {
+    mode:
+      | "railway_volume"
+      | "runtime_local";
+    dataDir: string;
+    stateFile: string;
+  } {
+    return {
+      mode: this.durable
+        ? "railway_volume"
+        : "runtime_local",
+      dataDir: this.dataDir,
+      stateFile: this.stateFile,
+    };
+  }
+
+  private loadSnapshot(): void {
+    if (!existsSync(this.stateFile)) {
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(
+        readFileSync(
+          this.stateFile,
+          "utf8",
+        ),
+      ) as RuntimeStateSnapshot;
+
+      if (
+        parsed.schemaVersion !== 1 ||
+        !Array.isArray(
+          parsed.projects,
+        )
+      ) {
+        throw new Error(
+          "CMENG_STATE_SCHEMA_UNSUPPORTED",
+        );
+      }
+
+      for (
+        const serialized of
+          parsed.projects
+      ) {
+        const state =
+          hydrateProject(
+            serialized,
+          );
+        this.projects.set(
+          state.projectId,
+          state,
+        );
+      }
+    } catch (error) {
+      throw new Error(
+        "CMENG_STATE_RESTORE_FAILED:" +
+          (
+            error instanceof Error
+              ? error.message
+              : String(error)
+          ),
+      );
+    }
+  }
+
+  private persistSnapshot(): void {
+    const snapshot:
+      RuntimeStateSnapshot = {
+      schemaVersion: 1,
+      projects: [
+        ...this.projects.values(),
+      ].map(
+        serializeProject,
+      ),
+    };
+
+    const temporary =
+      this.stateFile + ".tmp";
+
+    writeFileSync(
+      temporary,
+      JSON.stringify(snapshot),
+      "utf8",
+    );
+    renameSync(
+      temporary,
+      this.stateFile,
+    );
+  }
+
+  private persistRawUpload(
+    input: {
+      projectId: string;
+      category: string;
+      hash: string;
+      bytes: Uint8Array;
+      sourceFilename?:
+        | string
+        | null;
+    },
+  ): string {
+    const directory = join(
+      this.dataDir,
+      "uploads",
+      safeSegment(
+        input.projectId,
+      ),
+      safeSegment(
+        input.category,
+      ),
+    );
+    mkdirSync(
+      directory,
+      { recursive: true },
+    );
+
+    const path = join(
+      directory,
+      input.hash +
+        fileExtension(
+          input.sourceFilename,
+        ),
+    );
+
+    if (!existsSync(path)) {
+      writeFileSync(
+        path,
+        Buffer.from(
+          input.bytes,
+        ),
+      );
+    }
+
+    return path;
+  }
 
   get(
     projectId: string,
@@ -323,6 +588,7 @@ export class RuntimeProjectStore {
       projectId,
       state,
     );
+    this.persistSnapshot();
     return state;
   }
 
@@ -333,12 +599,14 @@ export class RuntimeProjectStore {
       state.projectId,
       state,
     );
+    this.persistSnapshot();
   }
 
   touch(
     state: ProjectRuntimeState,
   ): void {
     state.version += 1;
+    this.persistSnapshot();
   }
 
   latestSchedule(
@@ -538,6 +806,17 @@ export class RuntimeProjectStore {
       };
     }
 
+    this.persistRawUpload({
+      projectId:
+        input.projectId,
+      category: "schedule",
+      hash,
+      bytes: input.bytes,
+      sourceFilename:
+        input.sourceFilename ??
+        null,
+    });
+
     this.touch(state);
 
     return summary(
@@ -548,6 +827,10 @@ export class RuntimeProjectStore {
 
   attachBoq(
     result: BoqIngestionResult,
+    bytes?: Uint8Array,
+    sourceFilename?:
+      | string
+      | null,
   ): void {
     const state =
       this.getOrCreate(
@@ -566,6 +849,20 @@ export class RuntimeProjectStore {
           .revisionId ?? "",
         state.quantities,
       );
+
+    if (bytes) {
+      this.persistRawUpload({
+        projectId:
+          result.projectId,
+        category: "boq",
+        hash:
+          result.sourceHashSha256,
+        bytes,
+        sourceFilename:
+          sourceFilename ??
+          result.sourceFilename,
+      });
+    }
 
     this.touch(state);
   }
@@ -631,6 +928,19 @@ export class RuntimeProjectStore {
         input.projectId,
       );
     state.contract = parsed;
+
+    this.persistRawUpload({
+      projectId:
+        input.projectId,
+      category: "contract",
+      hash:
+        hashBytes(input.bytes),
+      bytes: input.bytes,
+      sourceFilename:
+        input.sourceFilename ??
+        null,
+    });
+
     this.touch(state);
     return parsed;
   }
