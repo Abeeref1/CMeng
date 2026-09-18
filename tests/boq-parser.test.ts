@@ -194,3 +194,47 @@ test("description-only section rows remain in the source population", async () =
   assert.equal(parsed.sheets[0]!.items[0]!.rowKind, "section");
   assert.equal(parsed.sheets[0]!.items[1]!.rowKind, "line_item");
 });
+
+test("repeated BOQ print headers are segmented and never parsed as line items", async () => {
+  const bytes = await workbookBytes((workbook) => {
+    const sheet = workbook.addWorksheet("Bill 1");
+    sheet.addRow(["Item", "Description", "Unit", "Qty", "Rate", "Amount"]);
+    sheet.addRow(["1", "Excavation", "m3", 100, 20, 2000]);
+    sheet.addRow(["Item", "Description", "Unit", "Qty", "Rate", "Amount"]);
+    sheet.addRow(["2", "Backfilling", "m3", 80, 15, 1200]);
+  });
+
+  const parsed = await parseBoqWorkbook(bytes);
+  const sheet = parsed.sheets[0]!;
+  assert.equal(sheet.headers.length, 2);
+  assert.equal(sheet.items.length, 2);
+  assert.deepEqual(sheet.items.map((item) => item.itemNumber), ["1", "2"]);
+  assert.equal(parsed.complete, true);
+});
+
+test("multiple BOQ tables with different column order in one sheet use their own header mappings", async () => {
+  const bytes = await workbookBytes((workbook) => {
+    const sheet = workbook.addWorksheet("Bills");
+    sheet.addRow(["Item", "Description", "Unit", "Qty", "Rate", "Amount"]);
+    sheet.addRow(["1", "Excavation", "m3", 100, 20, 2000]);
+    sheet.addRow([]);
+    sheet.addRow(["Description", "Amount", "Item", "Rate", "Qty", "Unit"]);
+    sheet.addRow(["Concrete", 4500, "2", 45, 100, "m3"]);
+    sheet.addRow([]);
+    sheet.addRow(["رقم البند", "وصف البند", "الوحدة", "الكمية", "سعر الوحدة", "الإجمالي"]);
+    sheet.addRow(["3", "أعمال البلوك", "م2", 200, 30, 6000]);
+  });
+
+  const parsed = await parseBoqWorkbook(bytes);
+  const sheet = parsed.sheets[0]!;
+  assert.equal(sheet.headers.length, 3);
+  assert.equal(sheet.items.length, 3);
+  assert.equal(sheet.items[0]!.amount, 2000);
+  assert.equal(sheet.items[1]!.description, "Concrete");
+  assert.equal(sheet.items[1]!.quantity, 100);
+  assert.equal(sheet.items[1]!.rate, 45);
+  assert.equal(sheet.items[1]!.amount, 4500);
+  assert.equal(sheet.items[2]!.description, "أعمال البلوك");
+  assert.equal(sheet.items[2]!.amount, 6000);
+  assert.equal(parsed.complete, true);
+});
