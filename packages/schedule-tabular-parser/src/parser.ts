@@ -231,6 +231,29 @@ function makeLocators(
   return out;
 }
 
+
+function parseEmbeddedPredecessorIds(
+  raw: string | null,
+): { ids: string[]; supported: boolean } {
+  if (!raw) return { ids: [], supported: true };
+
+  const parts = raw
+    .split(/[;,]/)
+    .map((value) => value.trim())
+    .filter(Boolean);
+
+  if (
+    parts.length === 0 ||
+    parts.some(
+      (value) => !/^[A-Za-z0-9_.:\-]+$/.test(value),
+    )
+  ) {
+    return { ids: [], supported: false };
+  }
+
+  return { ids: parts, supported: true };
+}
+
 function parseRows(
   source: "csv" | "xlsx",
   sheet: string | null,
@@ -401,6 +424,38 @@ function parseRows(
           rowDiagnostics.length === 0 ? "verified" : "unresolved",
         diagnostics: rowDiagnostics,
       });
+
+      const embeddedPredecessorRaw = valueAt(
+        row,
+        predecessorColumn,
+      );
+      const embeddedPredecessors =
+        parseEmbeddedPredecessorIds(embeddedPredecessorRaw);
+
+      if (!embeddedPredecessors.supported) {
+        rowDiagnostics.push(
+          "SCHEDULE_EMBEDDED_PREDECESSOR_SYNTAX_UNSUPPORTED",
+        );
+      } else if (activityId) {
+        for (const predecessorId of embeddedPredecessors.ids) {
+          relationships.push({
+            predecessorId,
+            successorId: activityId,
+            relationshipType: null,
+            lagRaw: null,
+            lagUnit: "unknown",
+            lagHours: null,
+            locators: makeLocators(
+              source,
+              sheet,
+              rowNumber,
+              header.roles,
+            ),
+            statusState: "verified",
+            diagnostics: [],
+          });
+        }
+      }
     }
   }
 
