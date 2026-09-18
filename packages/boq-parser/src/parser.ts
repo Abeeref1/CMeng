@@ -125,10 +125,11 @@ function parseLineItem(
     ["RATE", rate, rateCell],
     ["AMOUNT", amount, amountCell],
   ] as const) {
-    if (!cell || cell.text.trim() === "") continue;
+    if (!cell) continue;
     if (cell.kind === "formula" && cell.formulaResult === null) {
       diagnosticCodes.push(`BOQ_${name}_FORMULA_RESULT_MISSING`);
     }
+    if (cell.text.trim() === "" && cell.kind !== "formula") continue;
     if (parsed.status === "ambiguous") {
       diagnosticCodes.push(`BOQ_${name}_AMBIGUOUS`);
     }
