@@ -424,10 +424,9 @@ function parseSummarySheet(
   };
 }
 
-export async function parseBoqWorkbook(bytes: Uint8Array): Promise<BoqParseResult> {
-  const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load(Buffer.from(bytes) as any);
-
+export function parseLoadedBoqWorkbook(
+  workbook: ExcelJS.Workbook,
+): BoqParseResult {
   const inventory = inventoryBoqWorkbook(workbook);
   const sheets: BoqSheetParseResult[] = [];
   const auxiliarySheets: BoqAuxiliarySheet[] = [];
@@ -529,4 +528,12 @@ export async function parseBoqWorkbook(bytes: Uint8Array): Promise<BoqParseResul
     complete,
     diagnostics,
   };
+}
+
+export async function parseBoqWorkbook(
+  bytes: Uint8Array,
+): Promise<BoqParseResult> {
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(Buffer.from(bytes) as any);
+  return parseLoadedBoqWorkbook(workbook);
 }
