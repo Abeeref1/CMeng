@@ -117,6 +117,7 @@ export interface ProjectionJob {
   phase: "compute" | "publish";
   chunkCursor: string | null;
   pendingArtifact: ProjectionArtifactPointer | null;
+  notBefore: string | null;
   attempt: number;
 }
 
