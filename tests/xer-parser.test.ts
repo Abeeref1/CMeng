@@ -202,7 +202,7 @@ test("duplicate internal task IDs are explicit integrity failures", () => {
   ]);
   const integrity = verifyXerIntegrity(parseXerBytes(utf8(source)));
   assert.equal(integrity.complete, false);
-  assert.deepEqual(integrity.duplicateTaskIds, ["100"]);
+  assert.deepEqual(integrity.duplicateTaskIds, ["1::100"]);
 });
 
 test("duplicate project/activity codes are explicit integrity failures", () => {
@@ -252,7 +252,7 @@ test("broken predecessor references are reported, not dropped", () => {
   );
   const integrity = verifyXerIntegrity(parseXerBytes(utf8(source)));
   assert.equal(integrity.complete, false);
-  assert.deepEqual(integrity.missingPredecessorTaskIds, ["999"]);
+  assert.deepEqual(integrity.missingPredecessorTaskIds, ["1::999"]);
 });
 
 test("known P6 hour fields retain hour semantics", () => {
