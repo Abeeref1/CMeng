@@ -103,6 +103,10 @@ function roleForHeader(
   const normalized = normalize(value);
   if (!normalized) return { role: "unknown", score: 0 };
 
+  if (!/[A-Za-z\u0600-\u06FF]/.test(normalized)) {
+    return { role: "unknown", score: 0 };
+  }
+
   const exact = EXACT_ROLE_BY_HEADER.get(normalized);
   if (exact) {
     return { role: exact, score: 1 };
