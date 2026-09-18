@@ -24,6 +24,7 @@ function snapshot(
     projectId: "P88",
     evidenceRevisionId: revision,
     evidenceFingerprint,
+    sourceManifestId: "manifest-" + revision,
     mappingVersion: "map-v1",
     parserVersion: "parser-v1",
     analysisEngineVersion: "analysis-v1",
