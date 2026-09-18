@@ -123,20 +123,11 @@ export async function ingestScheduleXer(
       },
     );
 
-  if (
-    schedule.projectId !== null &&
-    schedule.projectId !==
-      input.projectId
-  ) {
-    throw new Error(
-      "SCHEDULE_SOURCE_PROJECT_ID_MISMATCH:" +
-        schedule.projectId +
-        ":" +
-        input.projectId,
-    );
-  }
+  const sourceProjectId =
+    schedule.projectId;
 
-  // Project context is governed by the upload route.
+  // The CMeng project context and source-system project identity are
+  // intentionally separate. The source identity is preserved below.
   schedule.projectId = input.projectId;
 
   const resources =
@@ -213,6 +204,7 @@ export async function ingestScheduleXer(
     ),
     projectId: input.projectId,
     sourceFormat: "xer",
+    sourceProjectId,
     mediaType:
       input.verifiedMediaType,
     sourceFilename:
@@ -227,6 +219,15 @@ export async function ingestScheduleXer(
     schedule,
     resources,
     diagnostics: [
+      ...(sourceProjectId &&
+      sourceProjectId !== input.projectId
+        ? [
+            "SCHEDULE_SOURCE_PROJECT_ID_DIFFERS_FROM_CMENG_CONTEXT:" +
+              sourceProjectId +
+              ":" +
+              input.projectId,
+          ]
+        : []),
       ...parsed.diagnostics,
       ...schedule.diagnostics,
       ...resources.diagnostics,
