@@ -45,6 +45,24 @@ import {
 import type {
   CpmConfig,
 } from "../../schedule-cpm/src";
+import {
+  buildProgressReportProjection,
+} from "../../progress-report/src";
+import type {
+  ScheduleAnalyticsProjection,
+} from "../../schedule-analytics/src";
+import type {
+  MilestonesProjection,
+} from "../../milestones-analysis/src";
+import type {
+  LookAheadProjection,
+} from "../../lookahead-schedule/src";
+import type {
+  ProgressScurveProjection,
+} from "../../progress-scurve/src";
+import type {
+  IndependentForecastProjection,
+} from "../../independent-forecast/src";
 
 export type ImplementedScheduleProjectionKey =
   | "schedule_analytics"
@@ -202,4 +220,19 @@ export function buildImplementedForecastHistoryProjection(
     snapshots,
     input,
   );
+}
+
+
+export function buildImplementedProgressReportProjection(
+  input: {
+    generatedAt: string;
+    producerVersion: string;
+    scheduleAnalytics: ScheduleAnalyticsProjection;
+    milestones: MilestonesProjection;
+    lookAhead: LookAheadProjection;
+    progressScurve: ProgressScurveProjection;
+    independentForecast: IndependentForecastProjection;
+  },
+): unknown {
+  return buildProgressReportProjection(input);
 }
