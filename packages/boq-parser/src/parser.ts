@@ -413,13 +413,26 @@ export async function parseBoqWorkbook(bytes: Uint8Array): Promise<BoqParseResul
   const auxiliarySheets: BoqAuxiliarySheet[] = [];
 
   for (const worksheet of workbook.worksheets) {
+    const summary = parseSummarySheet(worksheet);
+    const summaryIsAuthoritativeShape =
+      summary !== null &&
+      (
+        /summary|recap|abstract/i.test(worksheet.name) ||
+        summary.totalShare !== null ||
+        summary.summaryRows.some((row) => row.share !== null)
+      );
+
+    if (summaryIsAuthoritativeShape && summary) {
+      auxiliarySheets.push(summary);
+      continue;
+    }
+
     const parsed = parseWorksheet(worksheet);
     if (parsed.headers.length > 0) {
       sheets.push(parsed);
       continue;
     }
 
-    const summary = parseSummarySheet(worksheet);
     if (summary) {
       auxiliarySheets.push(summary);
       continue;
