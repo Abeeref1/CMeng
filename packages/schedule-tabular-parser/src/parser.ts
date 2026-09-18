@@ -77,15 +77,104 @@ function headerUnit(
   return inferDurationUnitFromHeader(header.headers[column] ?? "");
 }
 
+
+function inferDurationUnitFromDateSpan(
+  rows: readonly (readonly string[])[],
+  header: ScheduleHeaderMapping,
+  endIndexExclusive = rows.length,
+): ScheduleDurationUnit {
+  const explicit = headerUnit(header, "original_duration");
+  if (explicit !== "unknown") return explicit;
+
+  const durationColumn = roleColumn(
+    header.roles,
+    "original_duration",
+  );
+  const startColumn =
+    roleColumn(header.roles, "baseline_start") ??
+    roleColumn(header.roles, "start");
+  const finishColumn =
+    roleColumn(header.roles, "baseline_finish") ??
+    roleColumn(header.roles, "finish");
+
+  if (
+    durationColumn === null ||
+    startColumn === null ||
+    finishColumn === null
+  ) {
+    return "unknown";
+  }
+
+  let usable = 0;
+  let dayMatches = 0;
+
+  for (
+    let index = header.row;
+    index < Math.min(endIndexExclusive, rows.length);
+    index += 1
+  ) {
+    const row = rows[index] ?? [];
+    const rawDuration = valueAt(row, durationColumn);
+    const rawStart = valueAt(row, startColumn);
+    const rawFinish = valueAt(row, finishColumn);
+
+    if (!rawDuration || !rawStart || !rawFinish) continue;
+
+    const duration = Number(rawDuration);
+    const start = parseScheduleDate(rawStart);
+    const finish = parseScheduleDate(rawFinish);
+
+    if (
+      !Number.isFinite(duration) ||
+      start.status !== "valid" ||
+      finish.status !== "valid" ||
+      !start.iso ||
+      !finish.iso
+    ) {
+      continue;
+    }
+
+    const startMs = Date.parse(start.iso.slice(0, 10) + "T00:00:00Z");
+    const finishMs = Date.parse(
+      finish.iso.slice(0, 10) + "T00:00:00Z",
+    );
+
+    if (
+      !Number.isFinite(startMs) ||
+      !Number.isFinite(finishMs)
+    ) {
+      continue;
+    }
+
+    usable += 1;
+    const spanDays = (finishMs - startMs) / 86_400_000;
+    if (Math.abs(spanDays - duration) <= 1e-9) {
+      dayMatches += 1;
+    }
+  }
+
+  // Never infer from a tiny sample. For large exports, require every
+  // usable row to prove the same whole-day convention.
+  if (usable >= 20 && dayMatches === usable) {
+    return "days";
+  }
+
+  return "unknown";
+}
+
 function durationValue(
   row: readonly string[],
   header: ScheduleHeaderMapping,
   role: ScheduleColumnRole,
   diagnostics: string[],
   code: string,
+  inferredUnit: ScheduleDurationUnit = "unknown",
 ): ScheduleDurationValue {
   const raw = valueAt(row, roleColumn(header.roles, role));
-  const parsed = parseScheduleDuration(raw, headerUnit(header, role));
+  const declaredUnit = headerUnit(header, role);
+  const unit =
+    declaredUnit === "unknown" ? inferredUnit : declaredUnit;
+  const parsed = parseScheduleDuration(raw, unit);
   if (
     raw !== null &&
     (parsed.status === "ambiguous" || parsed.status === "invalid")
@@ -159,6 +248,11 @@ function parseRows(
   const activityIdColumn = roleColumn(header.roles, "activity_id");
   const predecessorColumn = roleColumn(header.roles, "predecessor_id");
   const successorColumn = roleColumn(header.roles, "successor_id");
+  const inferredDurationUnit = inferDurationUnitFromDateSpan(
+    rows,
+    header,
+    endIndexExclusive,
+  );
 
   for (
     let index = header.row;
@@ -183,6 +277,7 @@ function parseRows(
         "lag",
         rowDiagnostics,
         "SCHEDULE_LAG",
+        inferredDurationUnit,
       );
 
       if (!predecessorId) {
@@ -225,6 +320,7 @@ function parseRows(
         "original_duration",
         rowDiagnostics,
         "SCHEDULE_ORIGINAL_DURATION",
+        inferredDurationUnit,
       );
       const remainingDuration = durationValue(
         row,
@@ -232,6 +328,7 @@ function parseRows(
         "remaining_duration",
         rowDiagnostics,
         "SCHEDULE_REMAINING_DURATION",
+        inferredDurationUnit,
       );
       const totalFloat = durationValue(
         row,
@@ -239,6 +336,7 @@ function parseRows(
         "total_float",
         rowDiagnostics,
         "SCHEDULE_TOTAL_FLOAT",
+        inferredDurationUnit,
       );
       const freeFloat = durationValue(
         row,
@@ -246,6 +344,7 @@ function parseRows(
         "free_float",
         rowDiagnostics,
         "SCHEDULE_FREE_FLOAT",
+        inferredDurationUnit,
       );
 
       const start = valueAt(row, roleColumn(header.roles, "start"));
