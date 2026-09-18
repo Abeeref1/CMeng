@@ -1,5 +1,6 @@
 import type {
   XerDiagnostic,
+  XerExternalRelationship,
   XerIntegrityResult,
   XerParseResult,
   XerRow,
@@ -26,9 +27,14 @@ function duplicates(values: string[]): string[] {
   return [...dup].sort();
 }
 
+function key(projectId: string | null, taskId: string | null): string | null {
+  return projectId && taskId ? `${projectId}::${taskId}` : null;
+}
+
 export function verifyXerIntegrity(result: XerParseResult): XerIntegrityResult {
   const diagnostics: XerDiagnostic[] = [...result.diagnostics];
 
+  const projects = parsedRows(result, "PROJECT");
   const tasks = parsedRows(result, "TASK");
   const relationships = parsedRows(result, "TASKPRED");
   const wbsRows = parsedRows(result, "PROJWBS");
@@ -47,17 +53,23 @@ export function verifyXerIntegrity(result: XerParseResult): XerIntegrityResult {
     });
   }
 
-  const taskIds = tasks
-    .map((row) => nonEmpty(row, "task_id"))
+  const projectIds = new Set(
+    projects
+      .map((row) => nonEmpty(row, "proj_id"))
+      .filter((value): value is string => value !== null),
+  );
+
+  const taskKeys = tasks
+    .map((row) => key(nonEmpty(row, "proj_id"), nonEmpty(row, "task_id")))
     .filter((value): value is string => value !== null);
 
-  const duplicateTaskIds = duplicates(taskIds);
+  const duplicateTaskIds = duplicates(taskKeys);
 
-  for (const taskId of duplicateTaskIds) {
+  for (const taskKey of duplicateTaskIds) {
     diagnostics.push({
       code: "XER_DUPLICATE_TASK_ID",
       severity: "error",
-      message: `Duplicate TASK.task_id detected: ${taskId}`,
+      message: `Duplicate project/TASK.task_id detected: ${taskKey}`,
       table: "TASK",
     });
   }
@@ -72,29 +84,58 @@ export function verifyXerIntegrity(result: XerParseResult): XerIntegrityResult {
 
   const duplicateActivityCodes = duplicates(activityKeys);
 
-  for (const key of duplicateActivityCodes) {
+  for (const activityKey of duplicateActivityCodes) {
     diagnostics.push({
       code: "XER_DUPLICATE_ACTIVITY_CODE",
       severity: "error",
-      message: `Duplicate project/activity key detected: ${key}`,
+      message: `Duplicate project/activity key detected: ${activityKey}`,
       table: "TASK",
     });
   }
 
-  const taskIdSet = new Set(taskIds);
+  const taskKeySet = new Set(taskKeys);
   const missingPredecessorTaskIds = new Set<string>();
   const missingSuccessorTaskIds = new Set<string>();
+  const externalRelationships: XerExternalRelationship[] = [];
 
   for (const row of relationships) {
-    const predTaskId = nonEmpty(row, "pred_task_id");
+    const successorProjectId = nonEmpty(row, "proj_id");
     const successorTaskId = nonEmpty(row, "task_id");
+    const predecessorProjectId =
+      nonEmpty(row, "pred_proj_id") ?? successorProjectId;
+    const predecessorTaskId = nonEmpty(row, "pred_task_id");
 
-    if (predTaskId && !taskIdSet.has(predTaskId)) {
-      missingPredecessorTaskIds.add(predTaskId);
+    const successorKey = key(successorProjectId, successorTaskId);
+    const predecessorKey = key(predecessorProjectId, predecessorTaskId);
+
+    if (successorKey && !taskKeySet.has(successorKey)) {
+      missingSuccessorTaskIds.add(successorKey);
     }
-    if (successorTaskId && !taskIdSet.has(successorTaskId)) {
-      missingSuccessorTaskIds.add(successorTaskId);
+
+    if (predecessorKey && !taskKeySet.has(predecessorKey)) {
+      if (predecessorProjectId && !projectIds.has(predecessorProjectId)) {
+        externalRelationships.push({
+          line: row.line,
+          successorProjectId,
+          successorTaskId,
+          predecessorProjectId,
+          predecessorTaskId,
+        });
+      } else {
+        missingPredecessorTaskIds.add(predecessorKey);
+      }
     }
+  }
+
+  if (externalRelationships.length > 0) {
+    diagnostics.push({
+      code: "XER_EXTERNAL_RELATIONSHIPS_REQUIRE_RESOLUTION",
+      severity: "warning",
+      message:
+        `${externalRelationships.length} relationship(s) reference predecessor projects not contained in this XER. ` +
+        "The source can be parsed, but the complete schedule graph cannot be certified without resolving those external references.",
+      table: "TASKPRED",
+    });
   }
 
   const wbsIds = new Set(
@@ -140,14 +181,14 @@ export function verifyXerIntegrity(result: XerParseResult): XerIntegrityResult {
       diagnostics.push({
         code,
         severity: "error",
-        message: `${values.length} unresolved reference(s): ${values.slice(0, 20).join(", ")}`,
+        message: `${values.length} unresolved internal reference(s): ${values.slice(0, 20).join(", ")}`,
         table,
       });
     }
   }
 
   const truncated = !result.endMarkerSeen;
-  const complete =
+  const sourceComplete =
     !truncated &&
     result.rowsUnresolved === 0 &&
     missingCoreTables.length === 0 &&
@@ -159,8 +200,12 @@ export function verifyXerIntegrity(result: XerParseResult): XerIntegrityResult {
     missingCalendar.length === 0 &&
     diagnostics.every((diagnostic) => diagnostic.severity !== "error");
 
+  const graphComplete = sourceComplete && externalRelationships.length === 0;
+
   return {
-    complete,
+    complete: graphComplete,
+    sourceComplete,
+    graphComplete,
     activityCount: tasks.length,
     relationshipCount: relationships.length,
     wbsCount: wbsRows.length,
@@ -172,6 +217,8 @@ export function verifyXerIntegrity(result: XerParseResult): XerIntegrityResult {
     missingWbsIds: missingWbs,
     missingCalendarIds: missingCalendar,
     missingCoreTables,
+    externalRelationships,
+    externalRelationshipCount: externalRelationships.length,
     unresolvedRows: result.rowsUnresolved,
     truncated,
     diagnostics,
