@@ -59,6 +59,13 @@ function detectedFormat(
     return "excel_ooxml";
   }
 
+  if (
+    verifiedMediaType.toLowerCase().includes("text/csv") ||
+    verifiedMediaType.toLowerCase().includes("application/csv")
+  ) {
+    return "csv";
+  }
+
   throw new Error(
     "BOQ_MEDIA_UNSUPPORTED_OR_SIGNATURE_MISMATCH:" +
       verifiedMediaType,
@@ -150,6 +157,83 @@ function pdfSourceRefs(
   return [...new Set(refs)];
 }
 
+function parseCsv(text: string): string[][] {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let field = "";
+  let quoted = false;
+
+  for (let index = 0; index < text.length; index += 1) {
+    const value = text[index]!;
+    if (quoted) {
+      if (value === '"') {
+        if (text[index + 1] === '"') {
+          field += '"';
+          index += 1;
+        } else {
+          quoted = false;
+        }
+      } else {
+        field += value;
+      }
+      continue;
+    }
+
+    if (value === '"') quoted = true;
+    else if (value === ",") {
+      row.push(field);
+      field = "";
+    } else if (value === "\n") {
+      row.push(field.replace(/\r$/, ""));
+      rows.push(row);
+      row = [];
+      field = "";
+    } else {
+      field += value;
+    }
+  }
+
+  if (field.length > 0 || row.length > 0) {
+    row.push(field.replace(/\r$/, ""));
+    rows.push(row);
+  }
+  return rows;
+}
+
+function headerKey(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function csvNumber(value: string | undefined): number | null {
+  const normalized = (value ?? "")
+    .trim()
+    .replace(/,/g, "");
+  if (!normalized) return null;
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function csvColumn(
+  headers: string[],
+  candidates: readonly string[],
+): number {
+  const wanted = new Set(candidates.map(headerKey));
+  return headers.findIndex((header) =>
+    wanted.has(headerKey(header)),
+  );
+}
+
+function currencyFromHeaders(headers: string[]): string | null {
+  for (const header of headers) {
+    const match = /^(?:rate|amount)\s+([a-z]{3})$/i.exec(header.trim());
+    if (match) return match[1]!.toUpperCase();
+  }
+  return null;
+}
+
 function itemId(
   hash: string,
   sourceFormat: BoqSourceFormat,
@@ -228,7 +312,115 @@ export async function ingestBoq(
   let diagnostics: string[] = [];
   let canonicalItems: CanonicalBoqCommercialItem[] = [];
 
-  if (sourceFormat === "excel_ooxml") {
+  if (sourceFormat === "csv") {
+    const text = Buffer.from(input.bytes)
+      .toString("utf8")
+      .replace(/^\uFEFF/, "");
+    const rows = parseCsv(text);
+    const headers = rows[0] ?? [];
+    const itemIndex = csvColumn(headers, [
+      "item no",
+      "item number",
+      "item",
+      "boq item",
+    ]);
+    const sectionIndex = csvColumn(headers, ["section"]);
+    const descriptionIndex = csvColumn(headers, [
+      "description",
+      "item description",
+      "scope description",
+    ]);
+    const unitIndex = csvColumn(headers, ["unit", "uom"]);
+    const quantityIndex = csvColumn(headers, ["quantity", "qty"]);
+    const rateIndex = headers.findIndex((value) =>
+      /^rate(?:\s+[a-z]{3})?$/i.test(value.trim()),
+    );
+    const amountIndex = headers.findIndex((value) =>
+      /^amount(?:\s+[a-z]{3})?$/i.test(value.trim()),
+    );
+    const currencyIndex = csvColumn(headers, ["currency"]);
+    const headerCurrency = currencyFromHeaders(headers);
+
+    const dataRows = rows.slice(1).filter((row) =>
+      row.some((value) => value.trim() !== ""),
+    );
+    candidateRows = dataRows.length;
+
+    canonicalItems = dataRows.flatMap((row, offset) => {
+      const description =
+        descriptionIndex >= 0
+          ? (row[descriptionIndex] ?? "").trim()
+          : "";
+      if (!description) {
+        unresolvedRows += 1;
+        return [];
+      }
+      const rowNumber = offset + 2;
+      const itemNumber =
+        itemIndex >= 0
+          ? (row[itemIndex] ?? "").trim() || null
+          : null;
+      const currency =
+        currencyIndex >= 0
+          ? (row[currencyIndex] ?? "").trim().toUpperCase() || headerCurrency
+          : headerCurrency;
+      verifiedRows += 1;
+      return [{
+        itemId: itemId(
+          hash,
+          sourceFormat,
+          "row:" + rowNumber,
+        ),
+        itemNumber,
+        section:
+          sectionIndex >= 0
+            ? (row[sectionIndex] ?? "").trim() || null
+            : null,
+        description,
+        unit:
+          unitIndex >= 0
+            ? (row[unitIndex] ?? "").trim() || null
+            : null,
+        quantity:
+          quantityIndex >= 0
+            ? csvNumber(row[quantityIndex])
+            : null,
+        rate:
+          rateIndex >= 0
+            ? csvNumber(row[rateIndex])
+            : null,
+        amount:
+          amountIndex >= 0
+            ? csvNumber(row[amountIndex])
+            : null,
+        currency,
+        sourceFormat,
+        sourceRefs: [
+          "evidence-receipt:" + evidenceReceipt.receiptId,
+          "csv:row:" + rowNumber,
+        ],
+        status: "verified" as const,
+        diagnostics: [],
+      }];
+    });
+
+    coveragePercent =
+      candidateRows === 0
+        ? null
+        : (verifiedRows / candidateRows) * 100;
+    complete =
+      candidateRows > 0 &&
+      unresolvedRows === 0 &&
+      canonicalItems.length === candidateRows;
+    diagnostics = [
+      ...(headers.length === 0
+        ? ["BOQ_CSV_HEADER_MISSING"]
+        : []),
+      ...(descriptionIndex < 0
+        ? ["BOQ_CSV_DESCRIPTION_COLUMN_MISSING"]
+        : []),
+    ];
+  } else if (sourceFormat === "excel_ooxml") {
     const parsed = await parseBoqOoxmlWorkbook(
       input.bytes,
     );
