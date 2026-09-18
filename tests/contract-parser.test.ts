@@ -635,3 +635,48 @@ test("AI proposal with wrong source span is rejected and contract remains unreso
     ),
   );
 });
+
+
+test("NEBULA repeated source overlap is ignored only when contextual heading text is identical", () => {
+  const result = segmentContractPages(
+    pdfResult([
+      page(
+        1,
+        [
+          "Section 01 - Clause 01: General Provisions",
+          "1.1.1 First provision.",
+          "1.1.2 Second provision.",
+        ].join("\n"),
+      ),
+      page(
+        2,
+        [
+          "Section 01 - Clause 01: General Provisions",
+          "1.1.1 First provision.",
+          "1.1.2 Second provision.",
+          "1.1.3 Third provision.",
+        ].join("\n"),
+      ),
+    ]),
+  );
+
+  assert.equal(result.complete, true);
+  assert.deepEqual(result.duplicateIdentifiers, []);
+  assert.ok(
+    result.ignoredSpans.filter(
+      (item) =>
+        item.reason === "repeated_source_overlap",
+    ).length >= 3,
+  );
+  assert.equal(
+    result.clauses.filter(
+      (clause) => clause.identifier === "1.1.1",
+    ).length,
+    1,
+  );
+  assert.ok(
+    result.clauses.some(
+      (clause) => clause.identifier === "1.1.3",
+    ),
+  );
+});
