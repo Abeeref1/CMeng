@@ -19,21 +19,37 @@ import {
 import {
   buildProgressScurveProjection,
 } from "../packages/progress-scurve/src";
+import {
+  AnalysisCoordinator,
+  DurableProjectionWorker,
+  InMemoryAnalysisJobQueue,
+  InMemoryAnalysisMetadataStore,
+  InMemoryArtifactStore,
+  InMemoryCheckpointStore,
+  type AnalysisInputSnapshot,
+} from "../packages/analysis-runtime/src";
+import {
+  CMengProjectionExecutor,
+  InMemoryProjectAnalysisContextStore,
+  ProjectAnalysisOrchestrator,
+} from "../packages/project-analysis-runtime/src";
 
 const ACTIVITY_COUNT = 50_000;
 const MAX_SINGLE_PROJECTION_MS = 20_000;
 
-function largeModel(): CanonicalScheduleModel {
+function largeModel(
+  activityCount = ACTIVITY_COUNT,
+): CanonicalScheduleModel {
   const activities:
     CanonicalScheduleActivity[] =
-    new Array(ACTIVITY_COUNT);
+    new Array(activityCount);
   const relationships:
     CanonicalScheduleRelationship[] =
-    new Array(ACTIVITY_COUNT - 1);
+    new Array(activityCount - 1);
 
   for (
     let index = 0;
-    index < ACTIVITY_COUNT;
+    index < activityCount;
     index += 1
   ) {
     const activityId =
@@ -243,6 +259,178 @@ test(
     assert.equal(
       scurve.value.currentCoveragePercent,
       100,
+    );
+  },
+);
+
+
+function scaleSnapshot(
+  revision: string,
+): AnalysisInputSnapshot {
+  return {
+    projectId: "P-SCALE",
+    evidenceRevisionId: revision,
+    evidenceFingerprint:
+      "scale-evidence-" + revision,
+    sourceManifestId:
+      "scale-manifest-" + revision,
+    mappingVersion: "map-scale-v1",
+    parserVersion: "parser-scale-v1",
+    analysisEngineVersion:
+      "analysis-scale-v1",
+    analysisPlanVersion:
+      "plan-scale-v1",
+    projectConfigFingerprint:
+      "config-scale-v1",
+    createdAt:
+      "2026-09-18T20:00:00.000Z",
+  };
+}
+
+test(
+  "10,000-activity full durable projection plan publishes PMO with every worker call below slice ceiling",
+  { timeout: 180_000 },
+  async () => {
+    const model = largeModel(10_000);
+
+    const metadata =
+      new InMemoryAnalysisMetadataStore();
+    const artifacts =
+      new InMemoryArtifactStore();
+    const checkpoints =
+      new InMemoryCheckpointStore();
+    const queue =
+      new InMemoryAnalysisJobQueue();
+    const contexts =
+      new InMemoryProjectAnalysisContextStore();
+    const coordinator =
+      new AnalysisCoordinator(
+        metadata,
+        queue,
+      );
+    const orchestrator =
+      new ProjectAnalysisOrchestrator(
+        contexts,
+        coordinator,
+      );
+    const executor =
+      new CMengProjectionExecutor(
+        contexts,
+        metadata,
+        artifacts,
+      );
+    const worker =
+      new DurableProjectionWorker(
+        metadata,
+        artifacts,
+        checkpoints,
+        queue,
+        coordinator,
+        executor,
+      );
+
+    const run =
+      await orchestrator.ensure(
+        scaleSnapshot("rev-scale"),
+        {
+          generatedAt:
+            "2026-09-18T20:00:00.000Z",
+          analysisEngineVersion:
+            "analysis-scale-v1",
+          currentSchedule: model,
+          scheduleRevisions: [
+            {
+              revisionId:
+                model.sourceRevisionId,
+              label: "Current",
+              sequence: 1,
+              effectiveAt:
+                model.dataDateIso,
+              model,
+            },
+          ],
+          resources: null,
+          quantities: null,
+          forecastHistory: [],
+          contract: null,
+          delayClaims: null,
+          contractTimeBasis: null,
+        },
+        "2026-09-18T20:00:00.000Z",
+      );
+
+    let iterations = 0;
+    let maxWorkerMs = 0;
+
+    while (
+      (await queue.size()) > 0 &&
+      iterations < 100
+    ) {
+      const started =
+        performance.now();
+      const result =
+        await worker.processOne(
+          "scale-worker",
+          new Date(
+            Date.parse(
+              "2026-09-18T20:00:00.000Z",
+            ) +
+              iterations *
+                60_000,
+          ).toISOString(),
+        );
+      const elapsed =
+        performance.now() - started;
+      maxWorkerMs = Math.max(
+        maxWorkerMs,
+        elapsed,
+      );
+
+      assert.ok(
+        elapsed <
+          MAX_SINGLE_PROJECTION_MS,
+        "Durable projection worker call exceeded " +
+          MAX_SINGLE_PROJECTION_MS +
+          " ms: " +
+          elapsed.toFixed(2) +
+          " ms for result " +
+          result,
+      );
+
+      iterations += 1;
+    }
+
+    assert.equal(
+      await queue.size(),
+      0,
+    );
+    assert.ok(iterations < 100);
+
+    const head =
+      await metadata.getProjectHead(
+        "P-SCALE",
+      );
+    assert.equal(
+      head.publishedRunId,
+      run.runId,
+    );
+
+    const pmo =
+      await coordinator.readProjection(
+        "P-SCALE",
+        "pmo_analysis",
+      );
+    assert.equal(pmo.state, "ready");
+    assert.ok(pmo.artifact);
+
+    assert.equal(
+      artifacts.writes,
+      run.projectionKeys.length,
+    );
+
+    assert.ok(
+      maxWorkerMs <
+        MAX_SINGLE_PROJECTION_MS,
     );
   },
 );
