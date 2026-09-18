@@ -523,6 +523,13 @@ export function buildManhourScurveProjection(
     remaining.knownUnitsCount,
     laborAssignments.length,
   );
+  const forecastState: ManhourSeriesState =
+    actualState === "missing"
+      ? "missing"
+      : actualState === "complete" &&
+          remainingState === "complete"
+        ? "complete"
+        : "partial";
 
   const diagnostics: string[] = [];
 
@@ -623,7 +630,7 @@ export function buildManhourScurveProjection(
         remaining.timePhasedCount,
         laborAssignments.length,
       ),
-    forecastState: remainingState,
+    forecastState,
 
     points,
     assumptions: [
