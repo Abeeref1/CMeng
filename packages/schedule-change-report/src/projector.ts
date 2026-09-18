@@ -44,6 +44,7 @@ export function buildScheduleChangeReportProjection(
     projectionKey: "schedule_change_report",
     generatedAt: input.generatedAt,
     producerVersion: input.producerVersion,
+    state: "ready",
     fromRevisionId: comparison.fromRevisionId,
     toRevisionId: comparison.toRevisionId,
     matchedActivityCount:
@@ -67,5 +68,56 @@ export function buildScheduleChangeReportProjection(
     removedRelationships:
       comparison.removedRelationships,
     changedActivities,
+    diagnostics: [],
   };
+}
+
+
+export function buildScheduleChangeReportFromHistory(
+  revisions: readonly ScheduleRevision[],
+  input: {
+    generatedAt: string;
+    producerVersion: string;
+  },
+): ScheduleChangeReportProjection {
+  const ordered = [...revisions].sort(
+    (a, b) =>
+      a.sequence - b.sequence ||
+      a.revisionId.localeCompare(b.revisionId),
+  );
+
+  if (ordered.length < 2) {
+    return {
+      schemaVersion: "1.0",
+      projectionKey:
+        "schedule_change_report",
+      generatedAt: input.generatedAt,
+      producerVersion:
+        input.producerVersion,
+      state: "insufficient_history",
+      fromRevisionId: null,
+      toRevisionId:
+        ordered[0]?.revisionId ?? null,
+      matchedActivityCount: 0,
+      populationMatchPercent: null,
+      addedActivityCount: 0,
+      removedActivityCount: 0,
+      modifiedActivityCount: 0,
+      unchangedActivityCount: 0,
+      addedRelationshipCount: 0,
+      removedRelationshipCount: 0,
+      addedRelationships: [],
+      removedRelationships: [],
+      changedActivities: [],
+      diagnostics: [
+        "SCHEDULE_CHANGE_REQUIRES_AT_LEAST_TWO_REVISIONS",
+      ],
+    };
+  }
+
+  return buildScheduleChangeReportProjection(
+    ordered[ordered.length - 2]!,
+    ordered[ordered.length - 1]!,
+    input,
+  );
 }
