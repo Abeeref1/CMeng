@@ -109,3 +109,73 @@ test("calendar inheritance cycle is explicit and cannot certify", () => {
   assert.equal(integrity.complete, false);
   assert.equal(integrity.unresolvedCalendars, 2);
 });
+
+
+test("human-readable six-day calendar is parsed and reconciled", () => {
+  const parsed = parseP6CalendarData(
+    "Sat-Thu 07:00-17:00",
+  );
+
+  assert.equal(parsed.status, "valid");
+  assert.equal(parsed.days.length, 7);
+  assert.equal(
+    parsed.days.reduce(
+      (sum, day) => sum + day.workMinutes,
+      0,
+    ),
+    60 * 60,
+  );
+  assert.equal(
+    parsed.days.find((day) => day.dayIndex === 6)!
+      .workMinutes,
+    0,
+  );
+});
+
+test("human-readable overnight calendar preserves eight working hours", () => {
+  const parsed = parseP6CalendarData(
+    "Sat-Thu 22:00-06:00",
+  );
+
+  assert.equal(parsed.status, "valid");
+  assert.equal(
+    parsed.days.find((day) => day.dayIndex === 7)!
+      .workMinutes,
+    8 * 60,
+  );
+  assert.equal(
+    parsed.days.find((day) => day.dayIndex === 6)!
+      .workMinutes,
+    0,
+  );
+});
+
+test("human-readable nonwork declaration must match working-day range", () => {
+  const valid = parseP6CalendarData(
+    "Mon-Sat 07:00-17:00; Sun nonwork",
+  );
+  assert.equal(valid.status, "valid");
+
+  const invalid = parseP6CalendarData(
+    "Mon-Sat 07:00-17:00; Fri nonwork",
+  );
+  assert.equal(invalid.status, "invalid");
+  assert.ok(
+    invalid.diagnostics.includes(
+      "CALENDAR_HUMAN_NONWORK_DECLARATION_MISMATCH",
+    ),
+  );
+});
+
+test("human-readable 24-hour calendar is parsed exactly", () => {
+  const parsed = parseP6CalendarData("All days 24h");
+
+  assert.equal(parsed.status, "valid");
+  assert.equal(
+    parsed.days.reduce(
+      (sum, day) => sum + day.workMinutes,
+      0,
+    ),
+    168 * 60,
+  );
+});
