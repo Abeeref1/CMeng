@@ -63,6 +63,15 @@ import type {
 import type {
   IndependentForecastProjection,
 } from "../../independent-forecast/src";
+import {
+  buildResourceUtilizationProjection,
+} from "../../resource-utilization/src";
+import {
+  buildManhourScurveProjection,
+} from "../../manhour-scurve/src";
+import type {
+  CanonicalResourceModel,
+} from "../../schedule-resource-core/src";
 
 export type ImplementedScheduleProjectionKey =
   | "schedule_analytics"
@@ -235,4 +244,55 @@ export function buildImplementedProgressReportProjection(
   },
 ): unknown {
   return buildProgressReportProjection(input);
+}
+
+
+export type ImplementedScheduleResourceProjectionKey =
+  | "resource_utilization"
+  | "manhour_scurve";
+
+export const IMPLEMENTED_SCHEDULE_RESOURCE_PROJECTIONS:
+  readonly ImplementedScheduleResourceProjectionKey[] = [
+    "resource_utilization",
+    "manhour_scurve",
+  ] as const;
+
+export function buildImplementedScheduleResourceProjection(
+  key: ImplementedScheduleResourceProjectionKey,
+  resources: CanonicalResourceModel,
+  schedule: CanonicalScheduleModel,
+  input: {
+    generatedAt: string;
+    producerVersion: string;
+    intervalDays?: number;
+  },
+): unknown {
+  switch (key) {
+    case "resource_utilization":
+      return buildResourceUtilizationProjection(
+        resources,
+        schedule,
+        {
+          generatedAt: input.generatedAt,
+          producerVersion:
+            input.producerVersion,
+        },
+      );
+    case "manhour_scurve":
+      return buildManhourScurveProjection(
+        resources,
+        schedule,
+        {
+          generatedAt: input.generatedAt,
+          producerVersion:
+            input.producerVersion,
+          ...(input.intervalDays !== undefined
+            ? {
+                intervalDays:
+                  input.intervalDays,
+              }
+            : {}),
+        },
+      );
+  }
 }
