@@ -45,6 +45,9 @@ import type {
 import type {
   CanonicalResourceModel,
 } from "../../schedule-resource-core/src";
+import {
+  projectStatePersistence,
+} from "./persistence";
 import type {
   ProjectControlState,
   ProjectRuntimeState,
@@ -364,6 +367,51 @@ export class RuntimeProjectStore {
       ProjectRuntimeState
     >();
 
+  constructor() {
+    for (
+      const state of
+        projectStatePersistence
+          .loadAll()
+    ) {
+      this.projects.set(
+        state.projectId,
+        state,
+      );
+    }
+  }
+
+  persistenceMode():
+    | "railway_volume"
+    | "runtime_local" {
+    return projectStatePersistence
+      .mode();
+  }
+
+  persist(
+    state: ProjectRuntimeState,
+  ): void {
+    projectStatePersistence
+      .save(state);
+  }
+
+  storeEvidence(
+    input: {
+      projectId: string;
+      category:
+        | "schedule"
+        | "boq"
+        | "contract";
+      bytes: Uint8Array;
+      sourceHashSha256: string;
+      sourceFilename:
+        | string
+        | null;
+    },
+  ): string | null {
+    return projectStatePersistence
+      .storeEvidence(input);
+  }
+
   private readonly dataDir: string;
   private readonly stateFile: string;
   private readonly durable: boolean;
@@ -580,6 +628,7 @@ export class RuntimeProjectStore {
       projectId,
       state,
     );
+    this.persist(state);
     return state;
   }
 
@@ -590,6 +639,7 @@ export class RuntimeProjectStore {
       state.projectId,
       state,
     );
+    this.persist(state);
     this.persistSnapshot();
   }
 
@@ -781,6 +831,17 @@ export class RuntimeProjectStore {
     state.schedules.push(
       stored,
     );
+
+    this.storeEvidence({
+      projectId:
+        input.projectId,
+      category: "schedule",
+      bytes: input.bytes,
+      sourceHashSha256: hash,
+      sourceFilename:
+        input.sourceFilename ??
+        null,
+    });
 
     if (resourceModel) {
       state.resourcesByRevision.set(
