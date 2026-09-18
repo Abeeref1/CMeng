@@ -13,6 +13,8 @@ import type {
   ContractAiResolver,
 } from "../packages/contract-parser/src";
 import type {
+  OcrPageResult,
+  OcrProvider,
   PdfDocumentResult,
   PdfPageResult,
 } from "../packages/pdf-document-parser/src";
@@ -679,4 +681,40 @@ test("NEBULA repeated source overlap is ignored only when contextual heading tex
       (clause) => clause.identifier === "1.1.3",
     ),
   );
+});
+
+
+test("scanned contract PDF is parsed through OCR before contract segmentation", async () => {
+  const pdf = await PDFDocument.create();
+  pdf.addPage([595, 842]);
+
+  class FakeContractOcr implements OcrProvider {
+    readonly name = "fake-contract-ocr";
+
+    async recognize(
+      _image: Uint8Array,
+      _pageNumber: number,
+    ): Promise<OcrPageResult> {
+      return {
+        text:
+          "1 Scope\nThe Contractor shall execute the Works.\n2 Payment\nPayment is due within 30 days.",
+        confidence: 0.98,
+        language: "eng",
+        diagnostics: [],
+      };
+    }
+  }
+
+  const result = await parseContractPdf(
+    Buffer.from(await pdf.save()),
+    {
+      ocrProvider: new FakeContractOcr(),
+    },
+  );
+
+  assert.equal(result.pdf!.ocrPages, 1);
+  assert.equal(result.clauses.length, 2);
+  assert.equal(result.clauses[0]!.identifier, "1");
+  assert.equal(result.clauses[1]!.identifier, "2");
+  assert.equal(result.complete, true);
 });
