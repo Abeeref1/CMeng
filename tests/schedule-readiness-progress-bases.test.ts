@@ -154,10 +154,12 @@ test("Look-Ahead readiness is evidence-driven and missing access never becomes r
     string,
     LookAheadActivityReadinessEvidence
   > = {
-    A200: {
-      ...allReadyEvidence(),
-      access: undefined,
-    },
+    A200: (() => {
+      const evidence =
+        allReadyEvidence();
+      delete evidence.access;
+      return evidence;
+    })(),
     A300: allReadyEvidence(),
     A400: allReadyEvidence(),
   };
