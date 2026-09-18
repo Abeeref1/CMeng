@@ -268,12 +268,12 @@ export function previousWorkingInstant(
   calendar: CanonicalCalendar,
   instantMs: number,
 ): number {
-  let cursor = instantMs;
+  let searchDay = utcDayStart(instantMs);
+  let probe = instantMs;
 
   for (let guard = 0; guard < 36525; guard += 1) {
-    const dayStart = utcDayStart(cursor);
     const segments =
-      workSegmentsForDate(calendar, dayStart);
+      workSegmentsForDate(calendar, searchDay);
 
     for (
       let index = segments.length - 1;
@@ -281,18 +281,22 @@ export function previousWorkingInstant(
       index -= 1
     ) {
       const segment = segments[index]!;
-      if (cursor > segment.finishMs) {
+
+      if (probe >= segment.finishMs) {
         return segment.finishMs;
       }
+
       if (
-        cursor > segment.startMs &&
-        cursor <= segment.finishMs
+        probe > segment.startMs &&
+        probe < segment.finishMs
       ) {
-        return cursor;
+        return probe;
       }
     }
 
-    cursor = dayStart - 1;
+    const nextBoundary = searchDay;
+    searchDay -= DAY_MS;
+    probe = nextBoundary;
   }
 
   throw new Error(
@@ -376,45 +380,81 @@ export function subtractWorkingHours(
     );
   }
 
-  let cursor =
-    previousWorkingInstant(calendar, finishMs);
+  let cursor = finishMs;
   let remaining = hours * HOUR_MS;
 
-  if (remaining === 0) return cursor;
-
-  for (let guard = 0; guard < 1_000_000; guard += 1) {
-    const segments = workSegmentsForDate(
+  if (remaining === 0) {
+    return previousWorkingInstant(
       calendar,
       cursor,
     );
-    const segment = [...segments]
-      .reverse()
-      .find(
-        (item) =>
-          cursor > item.startMs &&
-          cursor <= item.finishMs,
-      );
+  }
 
-    if (!segment) {
-      cursor = previousWorkingInstant(
+  for (let guard = 0; guard < 1_000_000; guard += 1) {
+    const position =
+      previousWorkingInstant(
         calendar,
         cursor,
       );
-      continue;
+
+    let searchDay =
+      utcDayStart(position);
+    let segment:
+      | {
+          startMs: number;
+          finishMs: number;
+        }
+      | null = null;
+
+    for (
+      let dayGuard = 0;
+      dayGuard < 366;
+      dayGuard += 1
+    ) {
+      const segments =
+        workSegmentsForDate(
+          calendar,
+          searchDay,
+        );
+
+      segment =
+        [...segments]
+          .reverse()
+          .find(
+            (item) =>
+              position >= item.startMs &&
+              position <= item.finishMs &&
+              position > item.startMs,
+          ) ?? null;
+
+      if (segment) break;
+
+      searchDay -= DAY_MS;
     }
 
+    if (!segment) {
+      throw new Error(
+        "No prior work segment found for subtraction",
+      );
+    }
+
+    const effectivePosition =
+      Math.min(
+        position,
+        segment.finishMs,
+      );
     const available =
-      cursor - segment.startMs;
+      effectivePosition -
+      segment.startMs;
 
     if (remaining <= available) {
-      return cursor - remaining;
+      return (
+        effectivePosition - remaining
+      );
     }
 
     remaining -= available;
-    cursor = previousWorkingInstant(
-      calendar,
-      segment.startMs,
-    );
+    cursor = segment.startMs;
   }
 
   throw new Error(
