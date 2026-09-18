@@ -215,27 +215,36 @@ function timeline(
   snapshots: readonly ActualProgressSnapshot[],
   intervalDays: number,
 ): number[] {
-  const dateValues = [
-    ...baseline.flatMap((activity) => [
-      activity.startMs,
-      activity.finishMs,
-    ]),
-    ...current.flatMap((activity) => [
-      activity.startMs,
-      activity.finishMs,
-    ]),
-    ...snapshots
-      .map((snapshot) => dateMs(snapshot.asOfIso))
-      .filter(
-        (value): value is number =>
-          value !== null,
-      ),
-  ];
+  let start = Number.POSITIVE_INFINITY;
+  let finish = Number.NEGATIVE_INFINITY;
 
-  if (dateValues.length === 0) return [];
+  const include = (value: number | null): void => {
+    if (value === null) return;
+    if (value < start) start = value;
+    if (value > finish) finish = value;
+  };
 
-  const start = Math.min(...dateValues);
-  const finish = Math.max(...dateValues);
+  for (const activity of baseline) {
+    include(activity.startMs);
+    include(activity.finishMs);
+  }
+
+  for (const activity of current) {
+    include(activity.startMs);
+    include(activity.finishMs);
+  }
+
+  for (const snapshot of snapshots) {
+    include(dateMs(snapshot.asOfIso));
+  }
+
+  if (
+    !Number.isFinite(start) ||
+    !Number.isFinite(finish)
+  ) {
+    return [];
+  }
+
   const step = intervalDays * 86_400_000;
   const points: number[] = [];
 
@@ -254,9 +263,7 @@ function timeline(
     points.push(finish);
   }
 
-  return [...new Set(points)].sort(
-    (a, b) => a - b,
-  );
+  return points;
 }
 
 function actualAt(
