@@ -10,7 +10,8 @@
     "verify": "npm run typecheck && npm test"
   },
   "dependencies": {
-    "iconv-lite": "0.6.3"
+    "iconv-lite": "0.6.3",
+    "exceljs": "4.4.0"
   },
   "devDependencies": {
     "@types/node": "22.18.0",
