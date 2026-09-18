@@ -16,6 +16,9 @@ import type {
   ScheduleHeaderMapping,
   ScheduleMetadataSheet,
   ScheduleRelationshipRow,
+  ScheduleWbsRow,
+  ScheduleCalendarRow,
+  ScheduleActivityCodeRow,
   ScheduleTabularResult,
 } from "./types";
 
@@ -380,11 +383,276 @@ function parseMetadataSheet(
   };
 }
 
+
+interface MixedScheduleRows {
+  activities: ScheduleActivityRow[];
+  relationships: ScheduleRelationshipRow[];
+  wbsRows: ScheduleWbsRow[];
+  calendarRows: ScheduleCalendarRow[];
+  activityCodeRows: ScheduleActivityCodeRow[];
+  diagnostics: string[];
+  sourceRecordCount: number;
+}
+
+function mixedHeaderIndex(
+  header: readonly string[],
+  name: string,
+): number {
+  const normalized = name.toLowerCase().trim();
+  return header.findIndex(
+    (value) => value.toLowerCase().trim() === normalized,
+  );
+}
+
+function parseMixedScheduleRows(
+  rows: readonly (readonly string[])[],
+): MixedScheduleRows | null {
+  if (rows.length === 0) return null;
+  const header = rows[0] ?? [];
+  const recordTypeIndex = mixedHeaderIndex(header, "Record Type");
+  const recordIdIndex = mixedHeaderIndex(header, "Record ID");
+
+  if (recordTypeIndex < 0 || recordIdIndex < 0) {
+    return null;
+  }
+
+  const parentIndex = mixedHeaderIndex(header, "Parent/Successor");
+  const predecessorIndex = mixedHeaderIndex(header, "Predecessor");
+  const wbsIndex = mixedHeaderIndex(header, "WBS");
+  const nameIndex = mixedHeaderIndex(header, "Name/Description");
+  const typeIndex = mixedHeaderIndex(header, "Type");
+  const startIndex = mixedHeaderIndex(header, "Start");
+  const finishIndex = mixedHeaderIndex(header, "Finish");
+  const durationIndex = mixedHeaderIndex(header, "Duration");
+  const floatIndex = mixedHeaderIndex(header, "Float");
+  const percentIndex = mixedHeaderIndex(header, "Percent");
+  const statusIndex = mixedHeaderIndex(header, "Status");
+  const lagIndex = mixedHeaderIndex(header, "Lag");
+  const revisionIndex = mixedHeaderIndex(header, "Revision");
+
+  const activities: ScheduleActivityRow[] = [];
+  const relationships: ScheduleRelationshipRow[] = [];
+  const wbsRows: ScheduleWbsRow[] = [];
+  const calendarRows: ScheduleCalendarRow[] = [];
+  const activityCodeRows: ScheduleActivityCodeRow[] = [];
+  const diagnostics: string[] = [];
+  let sourceRecordCount = 0;
+
+  const at = (
+    row: readonly string[],
+    index: number,
+  ): string | null => {
+    if (index < 0) return null;
+    const value = (row[index] ?? "").trim();
+    return value || null;
+  };
+
+  for (let index = 1; index < rows.length; index += 1) {
+    const row = rows[index] ?? [];
+    if (row.every((value) => !value.trim())) continue;
+    sourceRecordCount += 1;
+    const rowNumber = index + 1;
+    const recordType = (at(row, recordTypeIndex) ?? "").toUpperCase();
+    const recordId = at(row, recordIdIndex);
+    const revision = at(row, revisionIndex);
+
+    if (recordType === "WBS") {
+      const rowDiagnostics: string[] = [];
+      if (!recordId) rowDiagnostics.push("SCHEDULE_WBS_ID_MISSING");
+      wbsRows.push({
+        wbsId: recordId ?? "",
+        parentWbsId: at(row, parentIndex),
+        name: at(row, nameIndex),
+        revision,
+        row: rowNumber,
+        statusState:
+          rowDiagnostics.length === 0 ? "verified" : "unresolved",
+        diagnostics: rowDiagnostics,
+      });
+      continue;
+    }
+
+    if (recordType === "CALENDAR") {
+      const rowDiagnostics: string[] = [];
+      if (!recordId) rowDiagnostics.push("SCHEDULE_CALENDAR_ID_MISSING");
+      calendarRows.push({
+        calendarId: recordId ?? "",
+        name: at(row, nameIndex),
+        revision,
+        row: rowNumber,
+        statusState:
+          rowDiagnostics.length === 0 ? "verified" : "unresolved",
+        diagnostics: rowDiagnostics,
+      });
+      continue;
+    }
+
+    if (recordType === "ACTIVITY_CODE") {
+      const rowDiagnostics: string[] = [];
+      if (!recordId) rowDiagnostics.push("SCHEDULE_ACTIVITY_CODE_ID_MISSING");
+      const activityId = at(row, parentIndex);
+      if (!activityId) {
+        rowDiagnostics.push("SCHEDULE_ACTIVITY_CODE_ACTIVITY_ID_MISSING");
+      }
+      activityCodeRows.push({
+        codeId: recordId ?? "",
+        activityId,
+        value: at(row, nameIndex),
+        revision,
+        row: rowNumber,
+        statusState:
+          rowDiagnostics.length === 0 ? "verified" : "unresolved",
+        diagnostics: rowDiagnostics,
+      });
+      continue;
+    }
+
+    if (recordType === "RELATIONSHIP") {
+      const rowDiagnostics: string[] = [];
+      const predecessorId = at(row, predecessorIndex);
+      const successorId = at(row, parentIndex);
+      if (!predecessorId) {
+        rowDiagnostics.push("SCHEDULE_PREDECESSOR_ID_MISSING");
+      }
+      if (!successorId) {
+        rowDiagnostics.push("SCHEDULE_SUCCESSOR_ID_MISSING");
+      }
+      const lag = parseScheduleDuration(at(row, lagIndex), "unknown");
+      if (
+        lag.raw &&
+        (lag.status === "ambiguous" || lag.status === "invalid")
+      ) {
+        rowDiagnostics.push(
+          "SCHEDULE_LAG_" + lag.status.toUpperCase(),
+        );
+      }
+      relationships.push({
+        predecessorId,
+        successorId,
+        relationshipType: at(row, typeIndex),
+        lagRaw: lag.raw || null,
+        lagUnit: lag.unit,
+        lagHours: lag.hours,
+        locators: {},
+        statusState:
+          rowDiagnostics.length === 0 ? "verified" : "unresolved",
+        diagnostics: rowDiagnostics,
+      });
+      continue;
+    }
+
+    if (recordType === "ACTIVITY") {
+      const rowDiagnostics: string[] = [];
+      const activityId = recordId;
+      if (!activityId) {
+        rowDiagnostics.push("SCHEDULE_ACTIVITY_ID_MISSING");
+      }
+
+      const start = at(row, startIndex);
+      const finish = at(row, finishIndex);
+      const duration = parseScheduleDuration(
+        at(row, durationIndex),
+        "unknown",
+      );
+      const floatValue = parseScheduleDuration(
+        at(row, floatIndex),
+        "unknown",
+      );
+
+      if (
+        duration.raw &&
+        (duration.status === "ambiguous" ||
+          duration.status === "invalid")
+      ) {
+        rowDiagnostics.push(
+          "SCHEDULE_ORIGINAL_DURATION_" +
+            duration.status.toUpperCase(),
+        );
+      }
+      if (
+        floatValue.raw &&
+        (floatValue.status === "ambiguous" ||
+          floatValue.status === "invalid")
+      ) {
+        rowDiagnostics.push(
+          "SCHEDULE_TOTAL_FLOAT_" +
+            floatValue.status.toUpperCase(),
+        );
+      }
+
+      activities.push({
+        activityId,
+        activityName: at(row, nameIndex),
+        wbs: at(row, wbsIndex),
+        wbsId: null,
+        calendar: null,
+        start,
+        startIso: normalizedDate(
+          start,
+          rowDiagnostics,
+          "SCHEDULE_START_DATE",
+        ),
+        finish,
+        finishIso: normalizedDate(
+          finish,
+          rowDiagnostics,
+          "SCHEDULE_FINISH_DATE",
+        ),
+        originalDurationRaw: duration.raw || null,
+        originalDurationUnit: duration.unit,
+        originalDurationHours: duration.hours,
+        remainingDurationRaw: null,
+        remainingDurationUnit: "unknown",
+        remainingDurationHours: null,
+        totalFloatRaw: floatValue.raw || null,
+        totalFloatUnit: floatValue.unit,
+        totalFloatHours: floatValue.hours,
+        freeFloatRaw: null,
+        freeFloatUnit: "unknown",
+        freeFloatHours: null,
+        percentComplete: parsePercent(
+          at(row, percentIndex),
+          rowDiagnostics,
+        ),
+        status: at(row, statusIndex),
+        locators: {},
+        statusState:
+          rowDiagnostics.length === 0 ? "verified" : "unresolved",
+        diagnostics: rowDiagnostics,
+      });
+      continue;
+    }
+
+    diagnostics.push(
+      "SCHEDULE_MIXED_UNKNOWN_RECORD_TYPE:" +
+        (recordType || "<blank>") +
+        ":row=" +
+        rowNumber,
+    );
+  }
+
+  return {
+    activities,
+    relationships,
+    wbsRows,
+    calendarRows,
+    activityCodeRows,
+    diagnostics,
+    sourceRecordCount,
+  };
+}
+
 function finalize(
   sourceType: "csv" | "xlsx",
   sets: Array<ReturnType<typeof parseRows>>,
   diagnostics: string[],
   metadataSheets: ScheduleMetadataSheet[] = [],
+  mixed: {
+    wbsRows?: ScheduleWbsRow[];
+    calendarRows?: ScheduleCalendarRow[];
+    activityCodeRows?: ScheduleActivityCodeRow[];
+    sourceRecordCount?: number;
+  } = {},
 ): ScheduleTabularResult {
   const activities = sets.flatMap((set) => set.activities);
   const relationships = sets.flatMap((set) => set.relationships);
@@ -394,13 +662,27 @@ function finalize(
   const relationshipRowsUnresolved = relationships.filter(
     (row) => row.statusState === "unresolved",
   ).length;
+  const wbsRows = mixed.wbsRows ?? [];
+  const calendarRows = mixed.calendarRows ?? [];
+  const activityCodeRows = mixed.activityCodeRows ?? [];
   const total = activities.length + relationships.length;
   const verified =
     total - activityRowsUnresolved - relationshipRowsUnresolved;
+  const recognizedStructuralRows =
+    activities.length +
+    relationships.length +
+    wbsRows.length +
+    calendarRows.length +
+    activityCodeRows.length;
+  const sourceRecordCount =
+    mixed.sourceRecordCount ?? recognizedStructuralRows;
 
   return {
     sourceType,
     metadataSheets,
+    wbsRows,
+    calendarRows,
+    activityCodeRows,
     activities,
     relationships,
     activityRowsSeen: activities.length,
@@ -411,6 +693,18 @@ function finalize(
     relationshipRowsVerified:
       relationships.length - relationshipRowsUnresolved,
     relationshipRowsUnresolved,
+    wbsRowsSeen: wbsRows.length,
+    calendarRowsSeen: calendarRows.length,
+    activityCodeRowsSeen: activityCodeRows.length,
+    structuralCoveragePercent:
+      sourceRecordCount === 0
+        ? null
+        : Number(
+            (
+              (recognizedStructuralRows / sourceRecordCount) *
+              100
+            ).toFixed(4),
+          ),
     coveragePercent:
       total === 0
         ? null
@@ -429,8 +723,31 @@ export function parseScheduleCsv(
 ): ScheduleTabularResult {
   const csv = parseCsv(bytes);
   const rows = csv.rows.map((row) => row.cells);
-  const headers = detectAllScheduleHeaders(rows);
   const diagnostics = [...csv.diagnostics];
+
+  const mixed = parseMixedScheduleRows(rows);
+  if (mixed) {
+    return finalize(
+      "csv",
+      [
+        {
+          activities: mixed.activities,
+          relationships: mixed.relationships,
+          diagnostics: mixed.diagnostics,
+        },
+      ],
+      [...diagnostics, ...mixed.diagnostics],
+      [],
+      {
+        wbsRows: mixed.wbsRows,
+        calendarRows: mixed.calendarRows,
+        activityCodeRows: mixed.activityCodeRows,
+        sourceRecordCount: mixed.sourceRecordCount,
+      },
+    );
+  }
+
+  const headers = detectAllScheduleHeaders(rows);
 
   if (headers.length === 0) {
     diagnostics.push("SCHEDULE_CSV_HEADER_NOT_FOUND");
