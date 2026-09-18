@@ -79,8 +79,27 @@ export interface ScheduleRelationshipRow {
   diagnostics: string[];
 }
 
+export interface ScheduleMetadataField {
+  key: string;
+  value: string;
+  row: number;
+  keyColumn: number;
+  valueColumn: number;
+}
+
+export interface ScheduleMetadataSheet {
+  sheet: string;
+  title: string | null;
+  fields: ScheduleMetadataField[];
+  rows: Array<{
+    row: number;
+    cells: string[];
+  }>;
+}
+
 export interface ScheduleTabularResult {
   sourceType: "csv" | "xlsx";
+  metadataSheets: ScheduleMetadataSheet[];
   activities: ScheduleActivityRow[];
   relationships: ScheduleRelationshipRow[];
   activityRowsSeen: number;
