@@ -389,6 +389,446 @@ async function route(
     return;
   }
 
+
+  const projectSummaryMatch =
+    /^\/api\/projects\/([^/]+)$/.exec(
+      url.pathname,
+    );
+
+  if (
+    req.method === "GET" &&
+    projectSummaryMatch
+  ) {
+    const projectId =
+      decodeURIComponent(
+        projectSummaryMatch[1]!,
+      );
+    json(
+      res,
+      200,
+      projectSummary(
+        projectState(projectId),
+      ),
+    );
+    return;
+  }
+
+  const scheduleUploadMatch =
+    /^\/api\/projects\/([^/]+)\/schedule\/uploads$/.exec(
+      url.pathname,
+    );
+
+  if (
+    req.method === "POST" &&
+    scheduleUploadMatch
+  ) {
+    const projectId =
+      decodeURIComponent(
+        scheduleUploadMatch[1]!,
+      );
+    const project =
+      projectState(projectId);
+    const bytes = await readBody(req);
+    const sequenceHeader =
+      header(
+        req,
+        "x-revision-sequence",
+      );
+    const sequence =
+      sequenceHeader === null
+        ? project.scheduleIngestions
+            .length + 1
+        : Number(sequenceHeader);
+
+    const result =
+      await ingestScheduleXer({
+        projectId,
+        bytes,
+        verifiedMediaType:
+          mediaType(req),
+        receivedAt:
+          new Date().toISOString(),
+        sourceFilename:
+          header(
+            req,
+            "x-source-filename",
+          ),
+        documentId:
+          header(
+            req,
+            "x-document-id",
+          ),
+        revisionId:
+          header(
+            req,
+            "x-revision-id",
+          ),
+        revisionLabel:
+          header(
+            req,
+            "x-revision-label",
+          ),
+        revisionSequence:
+          sequence,
+        effectiveAt:
+          header(
+            req,
+            "x-effective-at",
+          ),
+      });
+
+    const existingIndex =
+      project.scheduleIngestions
+        .findIndex(
+          (item) =>
+            item.revision.revisionId ===
+            result.revision.revisionId,
+        );
+    if (existingIndex >= 0) {
+      project.scheduleIngestions[
+        existingIndex
+      ] = result;
+    } else {
+      project.scheduleIngestions.push(
+        result,
+      );
+    }
+    project.scheduleIngestions.sort(
+      (a, b) =>
+        a.revision.sequence -
+        b.revision.sequence,
+    );
+    touchProject(project);
+
+    json(
+      res,
+      201,
+      scheduleUploadSummary(result),
+    );
+    return;
+  }
+
+  if (
+    req.method === "GET" &&
+    scheduleUploadMatch
+  ) {
+    const projectId =
+      decodeURIComponent(
+        scheduleUploadMatch[1]!,
+      );
+    const project =
+      projectState(projectId);
+    json(res, 200, {
+      projectId,
+      persistence:
+        "runtime_local",
+      uploads:
+        project.scheduleIngestions
+          .map(
+            scheduleUploadSummary,
+          ),
+    });
+    return;
+  }
+
+  const scheduleModuleMatch =
+    /^\/api\/projects\/([^/]+)\/schedule\/modules\/([^/]+)$/.exec(
+      url.pathname,
+    );
+
+  if (
+    req.method === "GET" &&
+    scheduleModuleMatch
+  ) {
+    const projectId =
+      decodeURIComponent(
+        scheduleModuleMatch[1]!,
+      );
+    const moduleKey =
+      decodeURIComponent(
+        scheduleModuleMatch[2]!,
+      );
+
+    if (
+      !scheduleModules.some(
+        (module) =>
+          module.key === moduleKey,
+      )
+    ) {
+      json(res, 404, {
+        error:
+          "schedule_module_not_found",
+        moduleKey,
+      });
+      return;
+    }
+
+    const result =
+      buildProjectScheduleModule(
+        moduleKey,
+        runtimeContext(projectId),
+      );
+
+    json(res, 200, result);
+    return;
+  }
+
+  const contractUploadMatch =
+    /^\/api\/projects\/([^/]+)\/contract\/uploads$/.exec(
+      url.pathname,
+    );
+
+  if (
+    req.method === "POST" &&
+    contractUploadMatch
+  ) {
+    const projectId =
+      decodeURIComponent(
+        contractUploadMatch[1]!,
+      );
+    const project =
+      projectState(projectId);
+    const bytes = await readBody(req);
+    const type =
+      mediaType(req).toLowerCase();
+    const filename =
+      header(
+        req,
+        "x-source-filename",
+      )?.toLowerCase() ?? "";
+
+    let contract:
+      ContractDocumentResult;
+
+    if (
+      type === "application/pdf" ||
+      filename.endsWith(".pdf")
+    ) {
+      contract =
+        await parseContractPdf(
+          bytes,
+        );
+    } else if (
+      type ===
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+      filename.endsWith(".docx")
+    ) {
+      contract =
+        await parseContractDocx(
+          bytes,
+        );
+    } else {
+      throw new Error(
+        "CONTRACT_FORMAT_UNSUPPORTED",
+      );
+    }
+
+    project.contract = contract;
+    touchProject(project);
+
+    const ldTerms =
+      extractContractLdTerms(
+        contract,
+      );
+
+    json(res, 201, {
+      projectId,
+      persistence:
+        "runtime_local",
+      sourceType:
+        contract.sourceType,
+      physicalComplete:
+        contract.physicalComplete,
+      semanticComplete:
+        contract.semanticComplete,
+      complete: contract.complete,
+      sectionCount:
+        contract.sections.length,
+      clauseCount:
+        contract.clauses.length,
+      semanticCoveragePercent:
+        contract.semanticCoveragePercent,
+      ldTerms,
+      diagnostics:
+        contract.diagnostics,
+    });
+    return;
+  }
+
+  const evidenceMatch =
+    /^\/api\/projects\/([^/]+)\/evidence\/(quantity-progress|delay-claims|eot-context|progress-snapshots|progress-evidence|readiness|director-controls)$/.exec(
+      url.pathname,
+    );
+
+  if (
+    req.method === "POST" &&
+    evidenceMatch
+  ) {
+    const projectId =
+      decodeURIComponent(
+        evidenceMatch[1]!,
+      );
+    const kind =
+      evidenceMatch[2]!;
+    const project =
+      projectState(projectId);
+
+    if (kind === "quantity-progress") {
+      const value =
+        await readJsonBody<
+          CanonicalQuantityProgressModel
+        >(req);
+      if (
+        value.projectId !== null &&
+        value.projectId !== projectId
+      ) {
+        throw new Error(
+          "QUANTITY_MODEL_PROJECT_MISMATCH",
+        );
+      }
+      const currentRevision =
+        project.scheduleIngestions
+          .at(-1)
+          ?.revision.revisionId;
+      if (
+        currentRevision &&
+        value.scheduleRevisionId !==
+          currentRevision
+      ) {
+        throw new Error(
+          "QUANTITY_MODEL_SCHEDULE_REVISION_MISMATCH",
+        );
+      }
+      project.quantityModel =
+        value;
+    } else if (
+      kind === "delay-claims"
+    ) {
+      const value =
+        await readJsonBody<
+          DelayClaimsModel
+        >(req);
+      if (
+        value.projectId !== projectId
+      ) {
+        throw new Error(
+          "DELAY_CLAIMS_PROJECT_MISMATCH",
+        );
+      }
+      project.delayClaimsModel =
+        value;
+    } else if (
+      kind === "eot-context"
+    ) {
+      project.eotContractContext =
+        await readJsonBody<
+          EotContractContext
+        >(req);
+    } else if (
+      kind === "progress-snapshots"
+    ) {
+      project.progressSnapshots =
+        await readJsonBody<
+          ActualProgressSnapshot[]
+        >(req);
+    } else if (
+      kind === "progress-evidence"
+    ) {
+      project.progressEvidence =
+        await readJsonBody<{
+          physical?: ExternalProgressEvidence;
+          contractorReported?: ExternalProgressEvidence;
+          certified?: ExternalProgressEvidence;
+        }>(req);
+    } else if (
+      kind === "readiness"
+    ) {
+      project.readinessEvidence =
+        await readJsonBody<
+          Record<
+            string,
+            Partial<
+              Record<
+                ReadinessDimensionKey,
+                ReadinessEvidence
+              >
+            >
+          >
+        >(req);
+    } else if (
+      kind === "director-controls"
+    ) {
+      project.directorEvidence =
+        await readJsonBody<
+          ProjectDirectorRuntimeEvidence
+        >(req);
+    }
+
+    touchProject(project);
+    json(
+      res,
+      201,
+      projectSummary(project),
+    );
+    return;
+  }
+
+  const computeDirectorMatch =
+    /^\/api\/projects\/([^/]+)\/director-position\/compute$/.exec(
+      url.pathname,
+    );
+
+  if (
+    req.method === "POST" &&
+    computeDirectorMatch
+  ) {
+    const projectId =
+      decodeURIComponent(
+        computeDirectorMatch[1]!,
+      );
+    const project =
+      projectState(projectId);
+
+    const evidence =
+      project.directorEvidence ??
+      await readJsonBody<
+        ProjectDirectorRuntimeEvidence
+      >(req);
+
+    project.directorEvidence =
+      evidence;
+
+    const built =
+      buildProjectDirectorFromRuntime(
+        projectId,
+        runtimeContext(projectId),
+        evidence,
+      );
+
+    if (
+      built.status !==
+        "available" ||
+      !built.position
+    ) {
+      json(res, 409, built);
+      return;
+    }
+
+    project.directorPosition =
+      built.position;
+    directorPositions.set(
+      projectId,
+      built.position,
+    );
+    touchProject(project);
+    json(
+      res,
+      201,
+      built.position,
+    );
+    return;
+  }
+
   const directorMatch =
     /^\/api\/projects\/([^/]+)\/director-position$/.exec(
       url.pathname,
