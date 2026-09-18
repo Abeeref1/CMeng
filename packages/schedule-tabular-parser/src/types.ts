@@ -26,6 +26,7 @@ export type ScheduleColumnRole =
 export interface ScheduleHeaderMapping {
   row: number;
   roles: Record<number, ScheduleColumnRole>;
+  headers: Record<number, string>;
   score: number;
 }
 
@@ -44,10 +45,20 @@ export interface ScheduleActivityRow {
   wbsId: string | null;
   calendar: string | null;
   start: string | null;
+  startIso: string | null;
   finish: string | null;
+  finishIso: string | null;
+  originalDurationRaw: string | null;
+  originalDurationUnit: "hours" | "days" | "weeks" | "minutes" | "unknown";
   originalDurationHours: number | null;
+  remainingDurationRaw: string | null;
+  remainingDurationUnit: "hours" | "days" | "weeks" | "minutes" | "unknown";
   remainingDurationHours: number | null;
+  totalFloatRaw: string | null;
+  totalFloatUnit: "hours" | "days" | "weeks" | "minutes" | "unknown";
   totalFloatHours: number | null;
+  freeFloatRaw: string | null;
+  freeFloatUnit: "hours" | "days" | "weeks" | "minutes" | "unknown";
   freeFloatHours: number | null;
   percentComplete: number | null;
   status: string | null;
@@ -60,6 +71,8 @@ export interface ScheduleRelationshipRow {
   predecessorId: string | null;
   successorId: string | null;
   relationshipType: string | null;
+  lagRaw: string | null;
+  lagUnit: "hours" | "days" | "weeks" | "minutes" | "unknown";
   lagHours: number | null;
   locators: Partial<Record<ScheduleColumnRole, ScheduleCellLocator>>;
   statusState: "verified" | "unresolved";
