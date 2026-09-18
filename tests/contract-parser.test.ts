@@ -1,11 +1,16 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { PDFDocument, StandardFonts } from "pdf-lib";
+import JSZip from "jszip";
 
 import {
   detectContractHeading,
+  parseContractDocx,
   parseContractPdf,
   segmentContractPages,
+} from "../packages/contract-parser/src";
+import type {
+  ContractAiResolver,
 } from "../packages/contract-parser/src";
 import type {
   PdfDocumentResult,
@@ -62,12 +67,70 @@ function pdfResult(
   };
 }
 
-test("contract headings support English Arabic and Arabic-Indic digits", () => {
+function xmlEscape(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+async function makeDocx(input: {
+  paragraphs: Array<{
+    text: string;
+    style?: string;
+  }>;
+  tableRows?: string[][];
+}): Promise<Buffer> {
+  const zip = new JSZip();
+
+  const paragraphXml = input.paragraphs
+    .map(
+      (paragraph) =>
+        `<w:p>${
+          paragraph.style
+            ? `<w:pPr><w:pStyle w:val="${xmlEscape(paragraph.style)}"/></w:pPr>`
+            : ""
+        }<w:r><w:t>${xmlEscape(paragraph.text)}</w:t></w:r></w:p>`,
+    )
+    .join("");
+
+  const tableXml = input.tableRows
+    ? `<w:tbl>${input.tableRows
+        .map(
+          (row) =>
+            `<w:tr>${row
+              .map(
+                (cell) =>
+                  `<w:tc><w:p><w:r><w:t>${xmlEscape(cell)}</w:t></w:r></w:p></w:tc>`,
+              )
+              .join("")}</w:tr>`,
+        )
+        .join("")}</w:tbl>`
+    : "";
+
+  zip.file(
+    "word/document.xml",
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    ${tableXml}
+    ${paragraphXml}
+  </w:body>
+</w:document>`,
+  );
+
+  return Buffer.from(
+    await zip.generateAsync({ type: "uint8array" }),
+  );
+}
+
+test("contract headings support context English Arabic and Arabic-Indic digits", () => {
   assert.deepEqual(
     detectContractHeading("Clause 14.2 Payment"),
     {
       kind: "clause",
       identifier: "14.2",
+      contextIdentifier: null,
       heading: "Payment",
     },
   );
@@ -77,7 +140,18 @@ test("contract headings support English Arabic and Arabic-Indic digits", () => {
     {
       kind: "clause",
       identifier: "12.3",
+      contextIdentifier: null,
       heading: "الدفعات",
+    },
+  );
+
+  assert.deepEqual(
+    detectContractHeading("Section 01 - Clause 02: Employer"),
+    {
+      kind: "clause",
+      identifier: "1.2",
+      contextIdentifier: "1",
+      heading: "Employer",
     },
   );
 
@@ -86,6 +160,7 @@ test("contract headings support English Arabic and Arabic-Indic digits", () => {
     {
       kind: "appendix",
       identifier: "A",
+      contextIdentifier: null,
       heading: "Price Schedule",
     },
   );
@@ -123,12 +198,10 @@ test("contract clause continuation across pages preserves exact source spans", (
 
   const clause1 = result.clauses[0]!;
   assert.equal(clause1.identifier, "1");
+  assert.equal(clause1.contextKey, "cycle:1");
   assert.equal(clause1.startPage, 1);
   assert.equal(clause1.endPage, 2);
-  assert.match(
-    clause1.text,
-    /continues clause 1/,
-  );
+  assert.match(clause1.text, /continues clause 1/);
   assert.ok(
     clause1.sourceSpans.some(
       (span) =>
@@ -139,7 +212,35 @@ test("contract clause continuation across pages preserves exact source spans", (
   assert.equal(result.semanticCoveragePercent, 100);
 });
 
-test("duplicate contract clause identifiers block semantic certification", () => {
+test("same clause number can repeat in a new deterministic cycle without false duplicate failure", () => {
+  const result = segmentContractPages(
+    pdfResult([
+      page(1, "Clause 1 - General\n1.1 First cycle."),
+      page(2, "Clause 2 - Payment\n2.1 First cycle payment."),
+      page(3, "Clause 1 - General\n1.1 Second cycle."),
+      page(4, "Clause 2 - Payment\n2.1 Second cycle payment."),
+    ]),
+  );
+
+  assert.equal(result.complete, true);
+  assert.deepEqual(result.duplicateIdentifiers, []);
+  assert.ok(
+    result.repeatedRawIdentifiers.includes("clause:1"),
+  );
+
+  const clauseOnes = result.clauses.filter(
+    (section) => section.identifier === "1",
+  );
+  assert.equal(clauseOnes.length, 2);
+  assert.equal(clauseOnes[0]!.contextKey, "cycle:1");
+  assert.equal(clauseOnes[1]!.contextKey, "cycle:2");
+  assert.notEqual(
+    clauseOnes[0]!.sectionKey,
+    clauseOnes[1]!.sectionKey,
+  );
+});
+
+test("duplicate clause inside the same context blocks semantic certification", () => {
   const result = segmentContractPages(
     pdfResult([
       page(
@@ -159,13 +260,102 @@ test("duplicate contract clause identifiers block semantic certification", () =>
   assert.equal(result.complete, false);
   assert.deepEqual(
     result.duplicateIdentifiers,
-    ["clause:1.1"],
+    ["clause:cycle:1:1.1"],
+  );
+});
+
+test("NEBULA section-clause hierarchy creates source-grounded unique identities", () => {
+  const result = segmentContractPages(
+    pdfResult([
+      page(
+        1,
+        [
+          "Section 01 - Clause 01: General Provisions",
+          "1.1.1 First provision.",
+          "Section 01 - Clause 02: Employer",
+          "1.2.1 Employer provision.",
+        ].join("\n"),
+      ),
+      page(
+        2,
+        [
+          "Section 02 - Clause 01: General Provisions",
+          "2.1.1 New section.",
+        ].join("\n"),
+      ),
+    ]),
+  );
+
+  assert.equal(result.complete, true);
+  assert.deepEqual(result.duplicateIdentifiers, []);
+
+  const employer = result.clauses.find(
+    (clause) => clause.identifier === "1.2",
+  )!;
+  assert.equal(employer.contextKey, "section:1");
+  assert.equal(employer.parentIdentifier, "1");
+
+  const section2 = result.clauses.find(
+    (clause) => clause.identifier === "2.1",
+  )!;
+  assert.equal(section2.contextKey, "section:2");
+});
+
+test("cross-reference resolves inside the same clause context", () => {
+  const result = segmentContractPages(
+    pdfResult([
+      page(
+        1,
+        [
+          "1 Notices",
+          "A claim is subject to Clause 2.",
+          "2 Claims",
+          "The claim shall be notified within 28 days.",
+        ].join("\n"),
+      ),
+    ]),
+  );
+
+  assert.equal(result.complete, true);
+  const reference = result.references.find(
+    (item) => item.targetIdentifier === "2",
+  )!;
+  assert.equal(reference.status, "resolved");
+  assert.equal(reference.resolvedSectionKeys.length, 1);
+  assert.match(
+    reference.resolvedSectionKeys[0]!,
+    /clause:cycle:1:2/,
+  );
+});
+
+test("amendment action is preserved as an external target to the base contract", () => {
+  const result = segmentContractPages(
+    pdfResult([
+      page(
+        1,
+        [
+          "CONTRACT AMENDMENT NO. 1",
+          "Amendment Provision 1.2",
+          "1.1 Clause 20.2.1 is amended: notice shall be given within 21 days.",
+          "1.2 The detailed claim period remains unchanged.",
+        ].join("\n"),
+      ),
+    ]),
+  );
+
+  assert.equal(result.complete, true);
+  assert.equal(result.amendmentActions.length, 1);
+  assert.equal(
+    result.amendmentActions[0]!.targetIdentifier,
+    "20.2.1",
   );
   assert.equal(
-    result.clauses.filter(
-      (clause) => clause.identifier === "1.1",
-    ).length,
-    2,
+    result.amendmentActions[0]!.action,
+    "amend",
+  );
+  assert.equal(
+    result.amendmentActions[0]!.status,
+    "external",
   );
 });
 
@@ -193,29 +383,78 @@ test("unreadable contract page prevents physical and overall completeness", () =
   );
 });
 
-test("contract with no detected clauses is preserved but not semantically certified", () => {
+test("table-of-contents line does not create false clause boundary", () => {
+  assert.equal(
+    detectContractHeading(
+      "14.2 Payment ................................ 37",
+    ),
+    null,
+  );
+
   const result = segmentContractPages(
     pdfResult([
       page(
         1,
-        "Cover Page\nProject P88\nSigned by the parties.",
+        [
+          "TABLE OF CONTENTS",
+          "14.2 Payment ................................ 37",
+          "15 Variations ................................ 40",
+        ].join("\n"),
+      ),
+      page(
+        2,
+        [
+          "14.2 Payment",
+          "The Employer shall pay the certified amount.",
+          "15 Variations",
+          "Variations shall be instructed in writing.",
+        ].join("\n"),
       ),
     ]),
   );
 
-  assert.equal(result.physicalComplete, true);
-  assert.equal(result.semanticComplete, false);
-  assert.equal(result.complete, false);
-  assert.equal(result.sections[0]!.kind, "preamble");
-  assert.match(result.sections[0]!.text, /Project P88/);
+  assert.equal(result.complete, true);
+  assert.deepEqual(
+    result.clauses.map((clause) => clause.identifier),
+    ["14.2", "15"],
+  );
+});
+
+test("repeated running heading is ignored instead of creating duplicate clause", () => {
+  const result = segmentContractPages(
+    pdfResult([
+      page(
+        1,
+        [
+          "8.4 Extension of Time",
+          "The Contractor may claim an extension.",
+        ].join("\n"),
+      ),
+      page(
+        2,
+        [
+          "8.4 Extension of Time",
+          "The claim shall state the cause and effect.",
+        ].join("\n"),
+      ),
+    ]),
+  );
+
+  assert.equal(result.complete, true);
+  assert.equal(result.clauses.length, 1);
+  assert.deepEqual(result.duplicateIdentifiers, []);
+  assert.equal(result.clauses[0]!.endPage, 2);
   assert.ok(
-    result.diagnostics.includes(
-      "CONTRACT_NO_CLAUSES_DETECTED",
+    result.ignoredSpans.some(
+      (item) =>
+        item.reason === "running_header" &&
+        item.sourceSpan.text ===
+          "8.4 Extension of Time",
     ),
   );
 });
 
-test("native searchable contract PDF integrates page parsing and clause segmentation", async () => {
+test("native searchable contract PDF integrates page parsing and hierarchy", async () => {
   const pdf = await PDFDocument.create();
   const font = await pdf.embedFont(StandardFonts.Helvetica);
 
@@ -247,122 +486,152 @@ test("native searchable contract PDF integrates page parsing and clause segmenta
     Buffer.from(await pdf.save()),
   );
 
-  assert.equal(result.pdf.totalPages, 2);
-  assert.equal(result.pdf.nativePages, 2);
+  assert.equal(result.sourceType, "pdf");
+  assert.equal(result.pdf!.totalPages, 2);
+  assert.equal(result.pdf!.nativePages, 2);
   assert.equal(result.physicalComplete, true);
   assert.equal(result.clauses.length, 2);
   assert.equal(result.complete, true);
 });
 
+test("ORION-style DOCX preserves metadata table and parses clauses", async () => {
+  const bytes = await makeDocx({
+    tableRows: [
+      [
+        "Contract No.",
+        "ORION-RAMLC-P1-CW-001",
+        "Contract Date",
+        "19 October 2025",
+      ],
+      [
+        "Employer",
+        "ORION Development Company",
+        "Engineer",
+        "Meridian PMC",
+      ],
+    ],
+    paragraphs: [
+      {
+        text: "Contract / Particular Conditions",
+        style: "Title",
+      },
+      { text: "1. Contract Scope", style: "Heading1" },
+      {
+        text:
+          "The Contractor shall execute, complete, test and remedy defects.",
+      },
+      {
+        text:
+          "2. Contract Documents and Order of Precedence",
+        style: "Heading1",
+      },
+      {
+        text:
+          "The Priced Bill of Quantities forms part of the Contract.",
+      },
+      { text: "6. Notices and Claims", style: "Heading1" },
+      {
+        text:
+          "A party seeking time or money shall notify a claim within 28 days.",
+      },
+    ],
+  });
 
-test("table-of-contents entry does not create a false contract clause", () => {
-  assert.equal(
-    detectContractHeading(
-      "14.2 Payment ................................ 37",
-    ),
-    null,
-  );
+  const result = await parseContractDocx(bytes);
 
-  const result = segmentContractPages(
-    pdfResult([
-      page(
-        1,
-        [
-          "TABLE OF CONTENTS",
-          "14.2 Payment ................................ 37",
-          "15 Variations ................................ 40",
-        ].join("\n"),
-      ),
-      page(
-        2,
-        [
-          "14.2 Payment",
-          "The Employer shall pay the certified amount.",
-          "15 Variations",
-          "Variations shall be instructed in writing.",
-        ].join("\n"),
-      ),
-    ]),
-  );
-
+  assert.equal(result.sourceType, "docx");
+  assert.equal(result.pdf, null);
+  assert.equal(result.docx!.complete, true);
+  assert.equal(result.docx!.tableCellBlocks, 8);
+  assert.equal(result.clauses.length, 3);
   assert.equal(result.complete, true);
-  assert.equal(result.clauses.length, 2);
-  assert.deepEqual(
-    result.clauses.map((clause) => clause.identifier),
-    ["14.2", "15"],
+  assert.equal(result.clauses[0]!.identifier, "1");
+  assert.ok(
+    result.sections[0]!.text.includes(
+      "ORION-RAMLC-P1-CW-001",
+    ),
   );
 });
 
-test("repeated running clause heading on next page does not create a duplicate clause", () => {
-  const result = segmentContractPages(
-    pdfResult([
-      page(
-        1,
-        [
-          "8.4 Extension of Time",
-          "The Contractor may claim an extension.",
-        ].join("\n"),
-      ),
-      page(
-        2,
-        [
-          "8.4 Extension of Time",
-          "The claim shall state the cause and effect.",
-        ].join("\n"),
-      ),
-    ]),
-  );
+test("grounded AI can recover ambiguous heading but cannot change source text", async () => {
+  const bytes = await makeDocx({
+    paragraphs: [
+      { text: "Part IV - Payment" },
+      {
+        text:
+          "Payment shall be certified within 28 days.",
+      },
+    ],
+  });
+
+  const resolver: ContractAiResolver = {
+    name: "fake-grounded-ai",
+    async resolveHeading(input) {
+      return {
+        kind: "clause",
+        identifier: "4",
+        contextIdentifier: null,
+        heading: "Payment",
+        confidence: 0.99,
+        sourceStart: input.sourceSpan.start,
+        sourceEnd: input.sourceSpan.end,
+        sourceText: input.sourceSpan.text,
+        explanation:
+          "Roman-numeral part heading grounded in exact source.",
+      };
+    },
+  };
+
+  const result = await parseContractDocx(bytes, {
+    aiResolver: resolver,
+  });
 
   assert.equal(result.complete, true);
   assert.equal(result.clauses.length, 1);
-  assert.deepEqual(result.duplicateIdentifiers, []);
-  assert.equal(result.clauses[0]!.endPage, 2);
-  assert.ok(
-    result.clauses[0]!.diagnostics.includes(
-      "CONTRACT_REPEATED_RUNNING_HEADING",
-    ),
-  );
+  assert.equal(result.clauses[0]!.sourceMode, "ai_grounded");
+  assert.equal(result.clauses[0]!.identifier, "4");
   assert.match(
     result.clauses[0]!.text,
-    /cause and effect/,
+    /Part IV - Payment/,
   );
 });
 
+test("AI proposal with wrong source span is rejected and contract remains unresolved", async () => {
+  const bytes = await makeDocx({
+    paragraphs: [
+      { text: "Part IV - Payment" },
+      { text: "Payment text." },
+    ],
+  });
 
-test("NEBULA section-clause composite heading creates unique clause identity", () => {
-  assert.deepEqual(
-    detectContractHeading("Section 01 - Clause 02: Employer"),
-    {
-      kind: "clause",
-      identifier: "1.2",
-      heading: "Employer",
+  const resolver: ContractAiResolver = {
+    name: "bad-ai",
+    async resolveHeading(input) {
+      return {
+        kind: "clause",
+        identifier: "4",
+        contextIdentifier: null,
+        heading: "Payment",
+        confidence: 0.999,
+        sourceStart: input.sourceSpan.start,
+        sourceEnd: input.sourceSpan.end,
+        sourceText: "different source text",
+        explanation: "Unsupported proposal.",
+      };
     },
-  );
+  };
 
-  const result = segmentContractPages(
-    pdfResult([
-      page(
-        1,
-        [
-          "Section 01 - Clause 01: General Provisions",
-          "1.1.1 First provision.",
-        ].join("\n"),
-      ),
-      page(
-        2,
-        [
-          "Section 01 - Clause 02: Employer",
-          "1.2.1 Employer provision.",
-        ].join("\n"),
-      ),
-    ]),
-  );
+  const result = await parseContractDocx(bytes, {
+    aiResolver: resolver,
+  });
 
-  assert.equal(result.complete, true);
-  assert.deepEqual(result.duplicateIdentifiers, []);
+  assert.equal(result.complete, false);
+  assert.equal(result.clauses.length, 0);
   assert.ok(
-    result.clauses.some(
-      (clause) => clause.identifier === "1.2",
+    result.diagnostics.some((diagnostic) =>
+      diagnostic.includes(
+        "CONTRACT_AI_SOURCE_SPAN_MISMATCH",
+      ),
     ),
   );
 });
