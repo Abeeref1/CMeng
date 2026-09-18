@@ -166,8 +166,8 @@ export async function parseBoqPdf(
   options: BoqPdfOptions = {},
 ): Promise<BoqPdfResult> {
   const pageResult = await parsePdfDocument(bytes, {
-    ocrProvider: options.ocrProvider,
-    aiVerifier: options.aiPageVerifier,
+    ...(options.ocrProvider ? { ocrProvider: options.ocrProvider } : {}),
+    ...(options.aiPageVerifier ? { aiVerifier: options.aiPageVerifier } : {}),
   });
 
   const parser = new PDFParse({ data: Buffer.from(bytes) as any });
