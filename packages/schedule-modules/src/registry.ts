@@ -35,6 +35,16 @@ import {
 import type {
   ScheduleRevision,
 } from "../../schedule-revision-core/src";
+import {
+  buildIndependentForecastProjection,
+} from "../../independent-forecast/src";
+import {
+  buildForecastHistoryProjection,
+  type ForecastHistorySnapshot,
+} from "../../forecast-history/src";
+import type {
+  CpmConfig,
+} from "../../schedule-cpm/src";
 
 export type ImplementedScheduleProjectionKey =
   | "schedule_analytics"
@@ -43,7 +53,8 @@ export type ImplementedScheduleProjectionKey =
   | "near_critical"
   | "lookahead_schedule"
   | "progress_breakdown"
-  | "progress_scurve";
+  | "progress_scurve"
+  | "independent_forecast";
 
 export const IMPLEMENTED_SCHEDULE_PROJECTIONS:
   readonly ImplementedScheduleProjectionKey[] = [
@@ -54,6 +65,7 @@ export const IMPLEMENTED_SCHEDULE_PROJECTIONS:
     "lookahead_schedule",
     "progress_breakdown",
     "progress_scurve",
+    "independent_forecast",
   ] as const;
 
 export function buildImplementedScheduleProjection(
@@ -63,6 +75,7 @@ export function buildImplementedScheduleProjection(
     generatedAt: string;
     producerVersion: string;
     config?: ScheduleAnalysisConfig;
+    cpmConfig?: Partial<CpmConfig>;
   },
 ): unknown {
   switch (key) {
@@ -100,6 +113,16 @@ export function buildImplementedScheduleProjection(
       return buildProgressScurveProjection(
         model,
         input,
+      );
+    case "independent_forecast":
+      return buildIndependentForecastProjection(
+        model,
+        {
+          generatedAt: input.generatedAt,
+          producerVersion:
+            input.producerVersion,
+          cpmConfig: input.cpmConfig,
+        },
       );
   }
 }
@@ -160,4 +183,18 @@ export function buildImplementedScheduleRevisionProjection(
         input,
       );
   }
+}
+
+
+export function buildImplementedForecastHistoryProjection(
+  snapshots: readonly ForecastHistorySnapshot[],
+  input: {
+    generatedAt: string;
+    producerVersion: string;
+  },
+): unknown {
+  return buildForecastHistoryProjection(
+    snapshots,
+    input,
+  );
 }
