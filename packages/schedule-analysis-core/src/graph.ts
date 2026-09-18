@@ -36,50 +36,109 @@ function stronglyConnectedCycles(
   ids: readonly string[],
   successors: ReadonlyMap<string, ReadonlySet<string>>,
 ): Set<string> {
-  let index = 0;
-  const indexes = new Map<string, number>();
-  const low = new Map<string, number>();
-  const stack: string[] = [];
-  const onStack = new Set<string>();
+  const reverse = new Map<string, Set<string>>();
+  for (const id of ids) {
+    reverse.set(id, new Set());
+  }
+
+  for (const id of ids) {
+    for (const successor of successors.get(id) ?? []) {
+      reverse.get(successor)?.add(id);
+    }
+  }
+
+  const visited = new Set<string>();
+  const finishOrder: string[] = [];
+
+  for (const start of ids) {
+    if (visited.has(start)) continue;
+
+    const stack: Array<{
+      id: string;
+      expanded: boolean;
+    }> = [
+      {
+        id: start,
+        expanded: false,
+      },
+    ];
+
+    while (stack.length > 0) {
+      const frame = stack.pop()!;
+
+      if (frame.expanded) {
+        finishOrder.push(frame.id);
+        continue;
+      }
+
+      if (visited.has(frame.id)) {
+        continue;
+      }
+
+      visited.add(frame.id);
+      stack.push({
+        id: frame.id,
+        expanded: true,
+      });
+
+      const next = [
+        ...(successors.get(frame.id) ?? []),
+      ];
+
+      for (
+        let index = next.length - 1;
+        index >= 0;
+        index -= 1
+      ) {
+        const successor = next[index]!;
+        if (!visited.has(successor)) {
+          stack.push({
+            id: successor,
+            expanded: false,
+          });
+        }
+      }
+    }
+  }
+
+  const assigned = new Set<string>();
   const cyclic = new Set<string>();
 
-  const visit = (id: string): void => {
-    indexes.set(id, index);
-    low.set(id, index);
-    index += 1;
-    stack.push(id);
-    onStack.add(id);
+  for (
+    let orderIndex =
+      finishOrder.length - 1;
+    orderIndex >= 0;
+    orderIndex -= 1
+  ) {
+    const start = finishOrder[orderIndex]!;
+    if (assigned.has(start)) continue;
 
-    for (const next of successors.get(id) ?? []) {
-      if (!indexes.has(next)) {
-        visit(next);
-        low.set(id, Math.min(low.get(id)!, low.get(next)!));
-      } else if (onStack.has(next)) {
-        low.set(id, Math.min(low.get(id)!, indexes.get(next)!));
+    const component: string[] = [];
+    const stack = [start];
+    assigned.add(start);
+
+    while (stack.length > 0) {
+      const current = stack.pop()!;
+      component.push(current);
+
+      for (const prior of reverse.get(current) ?? []) {
+        if (assigned.has(prior)) continue;
+        assigned.add(prior);
+        stack.push(prior);
       }
     }
 
-    if (low.get(id) !== indexes.get(id)) return;
-
-    const component: string[] = [];
-    while (stack.length > 0) {
-      const member = stack.pop()!;
-      onStack.delete(member);
-      component.push(member);
-      if (member === id) break;
-    }
-
     if (component.length > 1) {
-      component.forEach((member) => cyclic.add(member));
-      return;
+      for (const member of component) {
+        cyclic.add(member);
+      }
+      continue;
     }
 
     const only = component[0]!;
-    if (successors.get(only)?.has(only)) cyclic.add(only);
-  };
-
-  for (const id of ids) {
-    if (!indexes.has(id)) visit(id);
+    if (successors.get(only)?.has(only)) {
+      cyclic.add(only);
+    }
   }
 
   return cyclic;
@@ -98,8 +157,9 @@ function connectedComponents(
     const members: string[] = [];
     visited.add(id);
 
-    while (queue.length > 0) {
-      const current = queue.shift()!;
+    let queueIndex = 0;
+    while (queueIndex < queue.length) {
+      const current = queue[queueIndex++]!;
       members.push(current);
       for (const next of undirected.get(current) ?? []) {
         if (visited.has(next)) continue;
@@ -133,9 +193,10 @@ function topologicalOrder(
     .filter((id) => (indegree.get(id) ?? 0) === 0)
     .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
   const order: string[] = [];
+  let readyIndex = 0;
 
-  while (ready.length > 0) {
-    const id = ready.shift()!;
+  while (readyIndex < ready.length) {
+    const id = ready[readyIndex++]!;
     order.push(id);
 
     for (const successor of successors.get(id) ?? []) {
@@ -143,9 +204,6 @@ function topologicalOrder(
       indegree.set(successor, next);
       if (next === 0) {
         ready.push(successor);
-        ready.sort((a, b) =>
-          a.localeCompare(b, undefined, { numeric: true }),
-        );
       }
     }
   }
