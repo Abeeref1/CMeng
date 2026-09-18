@@ -94,7 +94,11 @@ test("runtime API accepts Excel BOQ upload and returns retrievable governed stat
     );
     assert.equal(
       created.persistence,
-      "runtime_local",
+      process.env
+        .RAILWAY_VOLUME_MOUNT_PATH
+        ?.trim()
+        ? "railway_volume"
+        : "runtime_local",
     );
     assert.equal(
       created.state,
