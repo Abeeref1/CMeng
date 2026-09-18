@@ -487,6 +487,7 @@ export function loadCertifiedDemoProject(
         ],
       ]),
     boq: null,
+    boqRevisions: [],
     quantities: {
       projectId,
       boqRevisionId:
