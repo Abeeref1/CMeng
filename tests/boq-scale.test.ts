@@ -6,7 +6,10 @@ import { join } from "node:path";
 import { performance } from "node:perf_hooks";
 import ExcelJS from "exceljs";
 
-import { parseBoqWorkbook } from "../packages/boq-parser/src";
+import {
+  loadBoqWorkbook,
+  parseLoadedBoqWorkbook,
+} from "../packages/boq-parser/src";
 
 test("50,000 BOQ line items are all counted with 100% source-row coverage", async () => {
   const dir = await mkdtemp(join(tmpdir(), "cmeng-boq-"));
@@ -59,11 +62,20 @@ test("50,000 BOQ line items are all counted with 100% source-row coverage", asyn
         bytes.length,
     );
 
+    const loadStarted = performance.now();
+    const loaded = await loadBoqWorkbook(bytes);
+    const loadMs = performance.now() - loadStarted;
+    console.info(
+      "[scale] BOQ XLSX load completed in " +
+        loadMs.toFixed(2) +
+        " ms",
+    );
+
     const parseStarted = performance.now();
-    const parsed = await parseBoqWorkbook(bytes);
+    const parsed = parseLoadedBoqWorkbook(loaded);
     const parseMs = performance.now() - parseStarted;
     console.info(
-      "[scale] BOQ parse completed in " +
+      "[scale] BOQ semantic parse completed in " +
         parseMs.toFixed(2) +
         " ms",
     );
