@@ -50,6 +50,16 @@ export function detectContractHeading(
 
   if (!line || line.length > 220) return null;
 
+  // Table-of-contents entries often look like clause headings but end
+  // with dot leaders and a page number. Preserve them as source text,
+  // but do not create semantic clause boundaries from them.
+  if (
+    /\.{3,}\s*\d+\s*$/.test(line) ||
+    /…{2,}\s*\d+\s*$/.test(line)
+  ) {
+    return null;
+  }
+
   const explicit = line.match(
     /^(?:clause|article|section)\s+([0-9]+(?:\.[0-9]+){0,8})\s*(.*)$/i,
   );
