@@ -1,6 +1,6 @@
 import ExcelJS from "exceljs";
 import { detectAllBoqHeaders } from "./headers";
-import { parseStrictNumeric } from "./numeric";
+import { resolveBoqCommercialNumerics } from "./numeric";
 import { inventoryBoqWorkbook, readBoqCell } from "./workbook";
 import type {
   BoqCell,
@@ -111,9 +111,14 @@ function parseLineItem(
           ? "section"
           : "line_item";
 
-  const quantity = parseStrictNumeric(numericSource(quantityCell));
-  const rate = parseStrictNumeric(numericSource(rateCell));
-  const amount = parseStrictNumeric(numericSource(amountCell));
+  const resolvedNumerics = resolveBoqCommercialNumerics(
+    numericSource(quantityCell),
+    numericSource(rateCell),
+    numericSource(amountCell),
+  );
+  const quantity = resolvedNumerics.quantity;
+  const rate = resolvedNumerics.rate;
+  const amount = resolvedNumerics.amount;
   const diagnosticCodes: string[] = [];
 
   if (!description) {
