@@ -1,6 +1,6 @@
 import { parseCsv } from "../../tabular-parser/src";
 import { detectAllBoqHeaders } from "../../boq-parser/src/headers";
-import { parseStrictNumeric } from "../../boq-parser/src/numeric";
+import { resolveBoqCommercialNumerics } from "../../boq-parser/src/numeric";
 import type {
   BoqColumnRole,
   BoqHeaderMapping,
@@ -95,9 +95,14 @@ function parseSegment(
       rowDiagnostics.push("BOQ_DESCRIPTION_MISSING");
     }
 
-    const quantity = parseStrictNumeric(quantityRaw);
-    const rate = parseStrictNumeric(rateRaw);
-    const amount = parseStrictNumeric(amountRaw);
+    const resolvedNumerics = resolveBoqCommercialNumerics(
+      quantityRaw,
+      rateRaw,
+      amountRaw,
+    );
+    const quantity = resolvedNumerics.quantity;
+    const rate = resolvedNumerics.rate;
+    const amount = resolvedNumerics.amount;
 
     for (const [name, raw, parsed] of [
       ["QUANTITY", quantityRaw, quantity],
