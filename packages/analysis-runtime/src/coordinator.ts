@@ -126,6 +126,7 @@ export class AnalysisCoordinator {
           projection?.checkpointCursor ?? null,
         pendingArtifact:
           projection?.artifact ?? null,
+        notBefore: null,
         attempt: projection?.attempt ?? 0,
       });
     }
