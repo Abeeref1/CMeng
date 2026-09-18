@@ -13,6 +13,7 @@ export interface BoqPdfLineItem {
   row: number;
   rowKind: "line_item" | "section" | "total_or_summary" | "unclassified";
   itemNumber: string | null;
+  section: string | null;
   description: string;
   unit: string | null;
   quantity: number | null;
