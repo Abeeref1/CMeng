@@ -5,6 +5,7 @@ import JSZip from "jszip";
 
 import {
   detectContractHeading,
+  linkContractFamily,
   parseContractDocx,
   parseContractPdf,
   segmentContractPages,
@@ -717,4 +718,86 @@ test("scanned contract PDF is parsed through OCR before contract segmentation", 
   assert.equal(result.clauses[0]!.identifier, "1");
   assert.equal(result.clauses[1]!.identifier, "2");
   assert.equal(result.complete, true);
+});
+
+
+test("amendment family links raw target to all repeated base clause instances", () => {
+  const base = segmentContractPages(
+    pdfResult([
+      page(
+        1,
+        [
+          "Clause 20 - Claims",
+          "20.2 Claims Procedure",
+          "20.2.1 Notice shall be given within 28 days.",
+          "Clause 21 - Disputes",
+        ].join("\n"),
+      ),
+      page(
+        2,
+        [
+          "Clause 1 - General",
+          "Clause 20 - Claims",
+          "20.2 Claims Procedure",
+          "20.2.1 Notice shall be given within 28 days.",
+          "Clause 21 - Disputes",
+        ].join("\n"),
+      ),
+    ]),
+  );
+
+  const amendment = segmentContractPages(
+    pdfResult([
+      page(
+        1,
+        [
+          "CONTRACT AMENDMENT NO. 1",
+          "1.1 Clause 20.2.1 is amended: notice shall be given within 21 days.",
+        ].join("\n"),
+      ),
+    ]),
+  );
+
+  const family = linkContractFamily(base, [amendment]);
+
+  assert.equal(family.complete, true);
+  const logical = family.logicalClauses.find(
+    (group) => group.identifier === "20.2.1",
+  )!;
+  assert.equal(logical.sectionKeys.length, 2);
+  assert.equal(logical.consistentHeading, true);
+  assert.equal(family.amendmentLinks.length, 1);
+  assert.equal(family.amendmentLinks[0]!.status, "resolved");
+  assert.equal(
+    family.amendmentLinks[0]!.baseSectionKeys.length,
+    2,
+  );
+});
+
+test("amendment family fails when target clause does not exist in base contract", () => {
+  const base = segmentContractPages(
+    pdfResult([
+      page(1, "1 Scope\nThe Works are defined."),
+    ]),
+  );
+
+  const amendment = segmentContractPages(
+    pdfResult([
+      page(
+        1,
+        [
+          "CONTRACT AMENDMENT NO. 1",
+          "1.1 Clause 99.1 is amended: revised text.",
+        ].join("\n"),
+      ),
+    ]),
+  );
+
+  const family = linkContractFamily(base, [amendment]);
+
+  assert.equal(family.complete, false);
+  assert.deepEqual(
+    family.unresolvedAmendmentTargets,
+    ["99.1"],
+  );
 });
