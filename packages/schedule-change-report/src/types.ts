@@ -17,8 +17,9 @@ export interface ScheduleChangeReportProjection {
   projectionKey: "schedule_change_report";
   generatedAt: string;
   producerVersion: string;
-  fromRevisionId: string;
-  toRevisionId: string;
+  state: "ready" | "insufficient_history";
+  fromRevisionId: string | null;
+  toRevisionId: string | null;
   matchedActivityCount: number;
   populationMatchPercent: number | null;
   addedActivityCount: number;
@@ -30,4 +31,5 @@ export interface ScheduleChangeReportProjection {
   addedRelationships: RelationshipSignature[];
   removedRelationships: RelationshipSignature[];
   changedActivities: ScheduleChangeActivityRow[];
+  diagnostics: string[];
 }
