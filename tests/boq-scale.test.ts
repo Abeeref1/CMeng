@@ -11,6 +11,8 @@ import {
   parseLoadedBoqWorkbook,
 } from "../packages/boq-parser/src";
 
+const MAX_BOQ_SEMANTIC_PARSE_MS = 60_000;
+
 test("50,000 BOQ line items are all counted with 100% source-row coverage", async () => {
   const dir = await mkdtemp(join(tmpdir(), "cmeng-boq-"));
   const filename = join(dir, "boq-50000.xlsx");
@@ -76,6 +78,15 @@ test("50,000 BOQ line items are all counted with 100% source-row coverage", asyn
     const parseMs = performance.now() - parseStarted;
     console.info(
       "[scale] BOQ semantic parse completed in " +
+        parseMs.toFixed(2) +
+        " ms",
+    );
+
+    assert.ok(
+      parseMs < MAX_BOQ_SEMANTIC_PARSE_MS,
+      "BOQ 50k semantic parse exceeded " +
+        MAX_BOQ_SEMANTIC_PARSE_MS +
+        " ms ceiling: " +
         parseMs.toFixed(2) +
         " ms",
     );
