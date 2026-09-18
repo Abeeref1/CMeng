@@ -115,6 +115,7 @@ export interface ScheduleGraphAnalysis {
   externalRelationshipCount: number;
 
   duplicateActivityIds: string[];
+  duplicateRelationshipKeys: string[];
   brokenPredecessorActivityIds: string[];
   brokenSuccessorActivityIds: string[];
   selfLoops: string[];
@@ -186,6 +187,7 @@ export interface MilestoneSummary {
 }
 
 export interface VarianceSummary {
+  method: string;
   comparableActivities: number;
   lateActivities: number;
   earlyActivities: number;
@@ -209,7 +211,8 @@ export interface CompletionBasisValue {
     | "actual";
   dateIso: string | null;
   activityId: string | null;
-  state: "available" | "missing";
+  state: "available" | "partial" | "missing";
+  coveragePercent: number | null;
   method: string;
   sourceRefs: string[];
 }
