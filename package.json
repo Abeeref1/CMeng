@@ -1,0 +1,19 @@
+{
+  "name": "cmeng",
+  "version": "0.1.0",
+  "private": true,
+  "description": "CMeng controlled construction/project evidence and intelligence platform",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc",
+    "test": "npm run build && node --test dist/tests/**/*.test.js",
+    "verify": "npm run typecheck && npm test"
+  },
+  "devDependencies": {
+    "@types/node": "22.18.0",
+    "typescript": "5.9.2"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
