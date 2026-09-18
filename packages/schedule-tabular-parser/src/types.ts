@@ -48,6 +48,14 @@ export interface ScheduleActivityRow {
   startIso: string | null;
   finish: string | null;
   finishIso: string | null;
+  actualStart: string | null;
+  actualStartIso: string | null;
+  actualFinish: string | null;
+  actualFinishIso: string | null;
+  baselineStart: string | null;
+  baselineStartIso: string | null;
+  baselineFinish: string | null;
+  baselineFinishIso: string | null;
   originalDurationRaw: string | null;
   originalDurationUnit: "hours" | "days" | "weeks" | "minutes" | "unknown";
   originalDurationHours: number | null;
