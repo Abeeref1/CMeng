@@ -193,6 +193,122 @@ function uploadSummary(
   };
 }
 
+function scheduleUploadSummary(
+  result: ScheduleIngestionResult,
+) {
+  return {
+    ingestionId: result.ingestionId,
+    projectId: result.projectId,
+    sourceFormat: result.sourceFormat,
+    sourceFilename: result.sourceFilename,
+    sourceHashSha256:
+      result.sourceHashSha256,
+    sourceManifestId:
+      result.sourceManifest.manifestId,
+    evidenceReceiptId:
+      result.evidenceReceipt.receiptId,
+    authority: result.authority,
+    persistence: result.persistence,
+    revision: {
+      revisionId:
+        result.revision.revisionId,
+      label: result.revision.label,
+      sequence:
+        result.revision.sequence,
+      effectiveAt:
+        result.revision.effectiveAt,
+      dataDateIso:
+        result.schedule.dataDateIso,
+    },
+    activityCount:
+      result.schedule.activities.length,
+    relationshipCount:
+      result.schedule.relationships.length,
+    resourceCount:
+      result.resources.resources.length,
+    resourceAssignmentCount:
+      result.resources.assignments.length,
+    diagnostics: result.diagnostics,
+  };
+}
+
+function runtimeContext(
+  projectId: string,
+): ProjectScheduleRuntimeContext {
+  const project = projectState(projectId);
+  const ordered = [
+    ...project.scheduleIngestions,
+  ].sort(
+    (a, b) =>
+      a.revision.sequence -
+      b.revision.sequence,
+  );
+  const latest = ordered.at(-1);
+
+  return {
+    generatedAt:
+      new Date().toISOString(),
+    producerVersion:
+      "cmeng-runtime-uat-v1",
+    revisions: ordered.map(
+      (item) => item.revision,
+    ),
+    ...(latest
+      ? {
+          resourceModel:
+            latest.resources,
+        }
+      : {}),
+    ...(project.quantityModel
+      ? {
+          quantityModel:
+            project.quantityModel,
+        }
+      : {}),
+    ...(project.delayClaimsModel
+      ? {
+          delayClaimsModel:
+            project.delayClaimsModel,
+        }
+      : {}),
+    ...(project.contract
+      ? {
+          contract: project.contract,
+        }
+      : {}),
+    ...(project.eotContractContext
+      ? {
+          eotContractContext:
+            project.eotContractContext,
+        }
+      : {}),
+    ...(project.progressSnapshots.length > 0
+      ? {
+          progressSnapshots: [
+            ...project.progressSnapshots,
+          ],
+        }
+      : {}),
+    ...(Object.keys(
+      project.progressEvidence,
+    ).length > 0
+      ? {
+          progressEvidence: {
+            ...project.progressEvidence,
+          },
+        }
+      : {}),
+    ...(Object.keys(
+      project.readinessEvidence,
+    ).length > 0
+      ? {
+          readinessEvidence:
+            project.readinessEvidence,
+        }
+      : {}),
+  };
+}
+
 async function route(
   req: IncomingMessage,
   res: ServerResponse,
