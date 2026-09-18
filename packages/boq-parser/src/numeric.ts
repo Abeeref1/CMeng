@@ -190,8 +190,8 @@ export function numericCandidates(input: unknown): number[] {
   }
 
   const sign = token.startsWith("-") ? -1 : 1;
-  const decimal = Number(parts[0] + "." + parts[1]);
-  const thousands = Number(parts[0] + parts[1]);
+  const decimal = Number(parts[0]! + "." + parts[1]!);
+  const thousands = Number(parts[0]! + parts[1]!);
 
   const values = [decimal, thousands]
     .filter((value) => Number.isFinite(value))
