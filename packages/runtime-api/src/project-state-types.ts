@@ -121,6 +121,20 @@ export interface StoredScheduleRevision {
     | "other";
 }
 
+export interface StoredContractDocument {
+  documentId: string;
+  role:
+    | "main"
+    | "amendment"
+    | "appendix"
+    | "tender"
+    | "other";
+  sourceFilename: string | null;
+  sourceHashSha256: string;
+  uploadedAt: string;
+  result: ContractDocumentResult;
+}
+
 export interface ProjectControlState {
   delayClaims: DelayClaimsModel | null;
   contractTimeBasis: ContractTimeBasis | null;
@@ -162,10 +176,10 @@ export interface ProjectRuntimeState {
     string,
     CanonicalResourceModel
   >;
-  boq: BoqIngestionResult | null;
+  boq: BoqIngestionResult | null;\n  boqRevisions: BoqIngestionResult[];
   quantities:
     CanonicalQuantityProgressModel | null;
-  contract: ContractDocumentResult | null;
+  contract: ContractDocumentResult | null;\n  contractDocuments: StoredContractDocument[];\n  contractFamily: ContractFamilyResult | null;
   controls: ProjectControlState;
 }
 
