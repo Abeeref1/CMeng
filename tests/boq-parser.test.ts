@@ -330,3 +330,77 @@ test("ambiguous numeric remains unresolved when BOQ arithmetic cannot prove a un
     item.diagnosticCodes.includes("BOQ_QUANTITY_AMBIGUOUS"),
   );
 });
+
+
+test("ORION-style BOQ summary is preserved and reconciled to priced items", async () => {
+  const bytes = await workbookBytes((workbook) => {
+    const summary = workbook.addWorksheet("BOQ Summary");
+    summary.addRow(["Section", "Description", "Amount (SAR)", "Share"]);
+    summary.addRow(["A", "Civil", 2000, 0.4]);
+    summary.addRow(["B", "MEP", 3000, 0.6]);
+    summary.addRow(["", "TOTAL", 5000, 1]);
+
+    const priced = workbook.addWorksheet("Priced BOQ");
+    priced.addRow([
+      "Item No.",
+      "Section",
+      "Description",
+      "Quantity",
+      "Unit",
+      "Rate (SAR)",
+      "Amount (SAR)",
+    ]);
+    priced.addRow(["1.1", "A", "Excavation", 100, "m3", 20, 2000]);
+    priced.addRow(["2.1", "B", "MEP Works", 100, "item", 30, 3000]);
+  });
+
+  const parsed = await parseBoqWorkbook(bytes);
+
+  assert.equal(parsed.complete, true);
+  assert.equal(parsed.candidateRows, 2);
+  assert.equal(parsed.sheets.length, 1);
+  assert.equal(parsed.sheets[0]!.items[0]!.section, "A");
+  assert.equal(parsed.sheets[0]!.items[1]!.section, "B");
+  assert.equal(parsed.auxiliarySheets.length, 1);
+
+  const summary = parsed.auxiliarySheets[0]!;
+  assert.equal(summary.kind, "summary");
+  assert.equal(summary.summaryRows.length, 2);
+  assert.equal(summary.totalAmount, 5000);
+  assert.equal(summary.totalShare, 1);
+  assert.deepEqual(summary.diagnostics, []);
+});
+
+test("BOQ summary mismatch blocks workbook certification", async () => {
+  const bytes = await workbookBytes((workbook) => {
+    const summary = workbook.addWorksheet("BOQ Summary");
+    summary.addRow(["Section", "Description", "Amount (SAR)", "Share"]);
+    summary.addRow(["A", "Civil", 2000, 0.4]);
+    summary.addRow(["B", "MEP", 3000, 0.6]);
+    summary.addRow(["", "TOTAL", 6000, 1]);
+
+    const priced = workbook.addWorksheet("Priced BOQ");
+    priced.addRow([
+      "Item",
+      "Section",
+      "Description",
+      "Qty",
+      "Unit",
+      "Rate (SAR)",
+      "Amount (SAR)",
+    ]);
+    priced.addRow(["1", "A", "Civil", 100, "m3", 20, 2000]);
+    priced.addRow(["2", "B", "MEP", 100, "item", 30, 3000]);
+  });
+
+  const parsed = await parseBoqWorkbook(bytes);
+
+  assert.equal(parsed.complete, false);
+  assert.ok(
+    parsed.diagnostics.some(
+      (diagnostic) =>
+        diagnostic.includes("BOQ_SUMMARY_INTERNAL_TOTAL_MISMATCH") ||
+        diagnostic.includes("BOQ_SUMMARY_TO_LINE_ITEMS_MISMATCH"),
+    ),
+  );
+});
