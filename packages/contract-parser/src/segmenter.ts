@@ -783,7 +783,16 @@ export function segmentContractPages(
     {
       sourceType: "pdf",
       physicalComplete: pdf.complete,
-      sourceDiagnostics: pdf.diagnostics,
+      sourceDiagnostics: [
+        ...pdf.diagnostics,
+        ...pdf.pages
+          .filter((page) => page.method === "failed")
+          .map(
+            (page) =>
+              "CONTRACT_PAGE_UNREADABLE:" +
+              page.pageNumber,
+          ),
+      ],
     },
   );
   result.pdf = pdf;
