@@ -71,6 +71,7 @@ export interface StrictNumeric {
 export interface BoqLineItem {
   sheet: string;
   row: number;
+  rowKind: "line_item" | "section" | "total_or_summary" | "unclassified";
   itemNumber: string | null;
   description: string;
   unit: string | null;
@@ -99,7 +100,7 @@ export interface BoqParseResult {
   candidateRows: number;
   parsedRows: number;
   unresolvedRows: number;
-  coveragePercent: number;
+  coveragePercent: number | null;
   complete: boolean;
   diagnostics: string[];
 }
