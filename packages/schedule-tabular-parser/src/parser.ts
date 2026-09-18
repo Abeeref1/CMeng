@@ -8,7 +8,7 @@ import {
   type ScheduleDurationUnit,
   type ScheduleDurationValue,
 } from "../../schedule-values/src";
-import { detectScheduleHeader } from "./headers";
+import { detectAllScheduleHeaders } from "./headers";
 import type {
   ScheduleActivityRow,
   ScheduleCellLocator,
@@ -143,6 +143,7 @@ function parseRows(
   sheet: string | null,
   rows: readonly (readonly string[])[],
   header: ScheduleHeaderMapping,
+  endIndexExclusive = rows.length,
 ): {
   activities: ScheduleActivityRow[];
   relationships: ScheduleRelationshipRow[];
@@ -155,7 +156,11 @@ function parseRows(
   const predecessorColumn = roleColumn(header.roles, "predecessor_id");
   const successorColumn = roleColumn(header.roles, "successor_id");
 
-  for (let index = header.row; index < rows.length; index += 1) {
+  for (
+    let index = header.row;
+    index < Math.min(endIndexExclusive, rows.length);
+    index += 1
+  ) {
     const row = rows[index] ?? [];
     if (row.every((value) => !value.trim())) continue;
     const rowNumber = index + 1;
@@ -346,19 +351,33 @@ export function parseScheduleCsv(
 ): ScheduleTabularResult {
   const csv = parseCsv(bytes);
   const rows = csv.rows.map((row) => row.cells);
-  const header = detectScheduleHeader(rows);
+  const headers = detectAllScheduleHeaders(rows);
   const diagnostics = [...csv.diagnostics];
 
-  if (!header) {
+  if (headers.length === 0) {
     diagnostics.push("SCHEDULE_CSV_HEADER_NOT_FOUND");
     return finalize("csv", [], diagnostics);
   }
 
-  return finalize(
-    "csv",
-    [parseRows("csv", null, rows, header)],
-    diagnostics,
-  );
+  const sets: Array<ReturnType<typeof parseRows>> = [];
+  for (let index = 0; index < headers.length; index += 1) {
+    const header = headers[index]!;
+    const nextHeader = headers[index + 1];
+    const endIndexExclusive = nextHeader
+      ? nextHeader.row - 1
+      : rows.length;
+    sets.push(
+      parseRows(
+        "csv",
+        null,
+        rows,
+        header,
+        endIndexExclusive,
+      ),
+    );
+  }
+
+  return finalize("csv", sets, diagnostics);
 }
 
 export async function parseScheduleXlsx(
@@ -386,9 +405,9 @@ export async function parseScheduleXlsx(
       rows.push(values);
     }
 
-    const header = detectScheduleHeader(rows);
+    const headers = detectAllScheduleHeaders(rows);
 
-    if (!header) {
+    if (headers.length === 0) {
       const populated = rows.flat().filter((value) => value.trim()).length;
       if (populated >= 6) {
         diagnostics.push(
@@ -399,7 +418,22 @@ export async function parseScheduleXlsx(
       continue;
     }
 
-    sets.push(parseRows("xlsx", sheet.name, rows, header));
+    for (let index = 0; index < headers.length; index += 1) {
+      const header = headers[index]!;
+      const nextHeader = headers[index + 1];
+      const endIndexExclusive = nextHeader
+        ? nextHeader.row - 1
+        : rows.length;
+      sets.push(
+        parseRows(
+          "xlsx",
+          sheet.name,
+          rows,
+          header,
+          endIndexExclusive,
+        ),
+      );
+    }
   }
 
   return finalize("xlsx", sets, diagnostics);
