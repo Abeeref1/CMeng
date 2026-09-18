@@ -67,3 +67,38 @@ export interface AvailableModuleResult {
 export type ProjectModuleResult =
   | EvidenceRequiredResult
   | AvailableModuleResult;
+
+import type {
+  BondRecord,
+  BoardEvidenceRecord,
+  ClaimCommercialRecord,
+  HseIncidentRecord,
+  InvoiceRecord,
+  MoneyValue,
+  NcrRecord,
+  PermitRecord,
+  ProjectDirectorPosition,
+  RetentionRecord,
+  RfiRecord,
+  VariationRecord,
+} from "../../project-director/src";
+
+export interface ProjectDirectorRuntimeEvidence {
+  contractValue?: MoneyValue;
+  variations: VariationRecord[];
+  invoices: InvoiceRecord[];
+  retentions: RetentionRecord[];
+  bonds: BondRecord[];
+  claimCommercials: ClaimCommercialRecord[];
+  hseIncidents: HseIncidentRecord[];
+  ncrs: NcrRecord[];
+  rfis: RfiRecord[];
+  permits: PermitRecord[];
+  boardEvidence: BoardEvidenceRecord | null;
+}
+
+export interface ProjectDirectorRuntimeResult {
+  status: "available" | "evidence_required";
+  missingEvidence: string[];
+  position: ProjectDirectorPosition | null;
+}
