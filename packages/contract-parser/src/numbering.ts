@@ -119,9 +119,12 @@ export function detectContractHeading(
   if (numbered) {
     const rest = numbered[2]!.trim();
 
-    // Avoid common dates, currencies, decimal quantities and bare values.
+    // Avoid common dates, durations, quantities and metadata values
+    // that begin with a number but are not legal section headings.
     if (
       /^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}/.test(rest) ||
+      /^(?:january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{4}\b/i.test(rest) ||
+      /^(?:calendar\s+)?(?:day|days|week|weeks|month|months|year|years)\b/i.test(rest) ||
       /^[0-9,.%]+$/.test(rest)
     ) {
       return null;
