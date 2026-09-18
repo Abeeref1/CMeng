@@ -142,6 +142,7 @@ test("a populated unclassified sheet is surfaced and prevents complete status", 
 
   const parsed = await parseBoqWorkbook(bytes);
   assert.equal(parsed.complete, false);
+  assert.equal(parsed.coveragePercent, null);
   assert.ok(parsed.diagnostics.some((d) => d.includes("Cover:BOQ_POPULATED_SHEET_UNCLASSIFIED")));
 });
 
@@ -155,8 +156,8 @@ test("summary/total rows are not silently mixed with ordinary line items", async
 
   const parsed = await parseBoqWorkbook(bytes);
   const total = parsed.sheets[0]!.items.find((item) => item.description === "TOTAL")!;
-  assert.equal(total.status, "unresolved");
-  assert.ok(total.diagnosticCodes.includes("BOQ_TOTAL_OR_SUMMARY_ROW"));
+  assert.equal(total.rowKind, "total_or_summary");
+  assert.equal(total.status, "verified");
 });
 
 test("AI BOQ header proposal can never become authoritative by confidence alone", () => {
@@ -176,4 +177,20 @@ test("AI BOQ header proposal can never become authoritative by confidence alone"
 
   assert.equal(assessment.accepted, true);
   assert.equal(assessment.authoritative, false);
+});
+
+test("description-only section rows remain in the source population", async () => {
+  const bytes = await workbookBytes((workbook) => {
+    const sheet = workbook.addWorksheet("BOQ");
+    sheet.addRow(["Item", "Description", "Unit", "Qty", "Rate", "Amount"]);
+    sheet.addRow(["1", "EARTHWORKS", "", "", "", ""]);
+    sheet.addRow(["1.1", "Excavation", "m3", 100, 20, 2000]);
+  });
+
+  const parsed = await parseBoqWorkbook(bytes);
+  assert.equal(parsed.candidateRows, 2);
+  assert.equal(parsed.parsedRows, 2);
+  assert.equal(parsed.coveragePercent, 100);
+  assert.equal(parsed.sheets[0]!.items[0]!.rowKind, "section");
+  assert.equal(parsed.sheets[0]!.items[1]!.rowKind, "line_item");
 });
