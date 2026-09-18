@@ -39,8 +39,8 @@ async function withServer(
   }
 }
 
-function xerFixture(): Uint8Array {
-  const text = [
+function xerFixture(): string {
+  return [
     "ERMHDR\t23.12",
     "%T\tPROJECT",
     "%F\tproj_id\tproj_short_name\tdata_date",
@@ -57,9 +57,6 @@ function xerFixture(): Uint8Array {
     "%R\tR1\t1\t101\t1\t100\tPR_FS\t0",
     "%E",
   ].join("\n");
-
-  return new TextEncoder()
-    .encode(text);
 }
 
 test("browser root serves CMeng UAT application", async () => {
