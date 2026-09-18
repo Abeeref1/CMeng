@@ -1,4 +1,5 @@
 import ExcelJS from "exceljs";
+import { performance } from "node:perf_hooks";
 import { detectAllBoqHeaders } from "./headers";
 import { parseStrictNumeric, resolveBoqCommercialNumerics } from "./numeric";
 import { inventoryBoqWorkbook, readBoqCell } from "./workbook";
@@ -211,8 +212,29 @@ function parseLineItem(
 }
 
 function parseWorksheet(worksheet: ExcelJS.Worksheet): BoqSheetParseResult {
+  const rowTextStarted = performance.now();
   const rows = rowTexts(worksheet);
+  const rowTextMs = performance.now() - rowTextStarted;
+
+  const headerStarted = performance.now();
   const headers = detectAllBoqHeaders(rows);
+  const headerMs = performance.now() - headerStarted;
+
+  console.info(
+    "[boq-profile] sheet=" +
+      worksheet.name +
+      " rowTextsMs=" +
+      rowTextMs.toFixed(2) +
+      " headerDetectionMs=" +
+      headerMs.toFixed(2) +
+      " rows=" +
+      worksheet.rowCount +
+      " cols=" +
+      worksheet.columnCount +
+      " headers=" +
+      headers.length,
+  );
+
   const diagnostics: string[] = [];
   const items: BoqLineItem[] = [];
 
@@ -229,6 +251,7 @@ function parseWorksheet(worksheet: ExcelJS.Worksheet): BoqSheetParseResult {
     };
   }
 
+  const itemStarted = performance.now();
   for (let headerIndex = 0; headerIndex < headers.length; headerIndex += 1) {
     const header = headers[headerIndex]!;
     const nextHeader = headers[headerIndex + 1];
@@ -240,6 +263,15 @@ function parseWorksheet(worksheet: ExcelJS.Worksheet): BoqSheetParseResult {
       items.push(item);
     }
   }
+
+  console.info(
+    "[boq-profile] sheet=" +
+      worksheet.name +
+      " itemParseMs=" +
+      (performance.now() - itemStarted).toFixed(2) +
+      " items=" +
+      items.length,
+  );
 
   const unresolvedRows = items.filter(
     (item) => item.status === "unresolved",
