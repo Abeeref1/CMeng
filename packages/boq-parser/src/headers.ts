@@ -119,15 +119,20 @@ function roleForHeader(
 
   for (const [role, synonyms] of NORMALIZED_SYNONYMS) {
     for (const candidate of synonyms) {
-      let score = 0;
-      if (
+      const possibleScore =
+        Math.min(normalized.length, candidate.length) /
+        Math.max(normalized.length, candidate.length);
+
+      if (possibleScore < 0.6) {
+        continue;
+      }
+
+      const score =
         normalized.includes(candidate) ||
         candidate.includes(normalized)
-      ) {
-        score =
-          Math.min(normalized.length, candidate.length) /
-          Math.max(normalized.length, candidate.length);
-      }
+          ? possibleScore
+          : 0;
+
       if (score > best.score) best = { role, score };
     }
   }
