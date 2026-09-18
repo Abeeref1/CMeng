@@ -1,0 +1,31 @@
+name: CMeng Railway Persistence Verify
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/railway-persistence-smoke.mjs"
+      - ".github/workflows/railway-persistence-seed.yml"
+      - ".github/workflows/railway-persistence-verify.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  verify-volume-project:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Verify persisted project exists on exact Railway release
+        env:
+          CMENG_RAILWAY_URL: https://cmeng-main-production.up.railway.app
+          EXPECTED_SHA: ${{ github.sha }}
+          PERSISTENCE_PROJECT_ID: PERSISTENCE-SMOKE-VOLUME
+          PERSISTENCE_MODE: verify
+        run: node scripts/railway-persistence-smoke.mjs
