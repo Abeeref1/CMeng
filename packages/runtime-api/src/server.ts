@@ -23,6 +23,46 @@ import {
   type BoardReadyReport,
   type BoardReportPublicationInput,
 } from "../../board-report/src";
+import {
+  ingestScheduleXer,
+  type ScheduleIngestionResult,
+} from "../../schedule-ingestion/src";
+import {
+  buildProjectScheduleModule,
+  buildProjectDirectorFromRuntime,
+  type ProjectDirectorRuntimeEvidence,
+  type ProjectScheduleRuntimeContext,
+} from "../../project-schedule-runtime/src";
+import {
+  parseContractPdf,
+  parseContractDocx,
+  type ContractDocumentResult,
+} from "../../contract-parser/src";
+import {
+  extractContractLdTerms,
+} from "../../contract-commercial/src";
+import type {
+  CanonicalQuantityProgressModel,
+} from "../../quantity-progress-core/src";
+import type {
+  DelayClaimsModel,
+  EotContractContext,
+} from "../../delay-analysis-core/src";
+import type {
+  ActualProgressSnapshot,
+} from "../../progress-scurve/src";
+import type {
+  ExternalProgressEvidence,
+} from "../../progress-report/src";
+import type {
+  ReadinessDimensionKey,
+  ReadinessEvidence,
+} from "../../lookahead-schedule/src";
+import {
+  projectState,
+  projectSummary,
+  touchProject,
+} from "./project-store";
 
 const port = Number.parseInt(
   process.env.PORT ?? "3000",
