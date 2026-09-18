@@ -1,0 +1,248 @@
+import type {
+  EvidenceCategory,
+  EvidenceMappingSummary,
+  StoredScheduleRevision,
+} from "./project-state-types";
+
+function normalizePath(value: string): string {
+  return value.replace(/\\\\/g, "/").replace(/^\\/+/, "");
+}
+
+function lower(value: string): string {
+  return normalizePath(value).toLowerCase();
+}
+
+export function inferEvidenceCategory(
+  path: string,
+  override?: string | null,
+): EvidenceCategory {
+  const requested = (override ?? "").trim() as EvidenceCategory;
+  const allowed = new Set<EvidenceCategory>([
+    "schedule",
+    "schedule_control",
+    "contract",
+    "boq_cost",
+    "risk_claims_procurement",
+    "correspondence",
+    "engineering",
+    "hse_quality_fm",
+    "tender_commissioning",
+    "other",
+  ]);
+  if (allowed.has(requested)) return requested;
+
+  const value = lower(path);
+  if (value.includes("02_schedules") || /(^|\\/)s0?\\d+_.*\\.(xer|xml|xlsx|xlsm|csv)$/.test(value)) {
+    return "schedule";
+  }
+  if (value.includes("03_schedule_control")) return "schedule_control";
+  if (value.includes("01_contract")) return "contract";
+  if (value.includes("04_cost_boq") || value.includes("boq")) return "boq_cost";
+  if (value.includes("05_risk_procurement_claims")) return "risk_claims_procurement";
+  if (value.includes("06_correspondence")) return "correspondence";
+  if (value.includes("07_engineering")) return "engineering";
+  if (value.includes("08_hse_quality_fm")) return "hse_quality_fm";
+  if (value.includes("09_tender_commissioning")) return "tender_commissioning";
+
+  if (/contract|amendment|appendix/.test(value)) return "contract";
+  if (/schedule|baseline|recovery|update.*\\.(xer|xml)/.test(value)) return "schedule";
+  if (/risk|claim|procurement/.test(value)) return "risk_claims_procurement";
+  if (/rfi|submittal|design/.test(value)) return "engineering";
+  if (/hse|ncr|asset|fm/.test(value)) return "hse_quality_fm";
+  if (/commission|orat|tender|employer.*requirement/.test(value)) return "tender_commissioning";
+  return "other";
+}
+
+export function inferDocumentType(
+  path: string,
+  override?: string | null,
+): string {
+  if (override?.trim()) return override.trim();
+  const value = lower(path);
+  const name = value.split("/").at(-1) ?? value;
+
+  if (/^c01_|main[_ -]?contract/.test(name)) return "main_contract";
+  if (/^c02_|amendment/.test(name)) return "contract_amendment";
+  if (/^c03_|technical[_ -]?appendix|appendix/.test(name)) return "contract_appendix";
+  if (/^s01_|baseline/.test(name)) return "schedule_baseline";
+  if (/^s0[2-9]_|update|latest/.test(name) && /\\.(xer|xml|xlsx|xlsm|csv)$/.test(name)) return "schedule_update";
+  if (/recovery/.test(name)) return "schedule_recovery";
+  if (/^obs/.test(name)) return "obs_responsibility_matrix";
+  if (/^pdb/.test(name)) return "project_data_book";
+  if (/^rel/.test(name)) return "longest_path_register";
+  if (/^res/.test(name)) return "resource_register";
+  if (/^sch01/.test(name)) return "schedule_control_basis";
+  if (/^sch02/.test(name)) return "schedule_metric_register";
+  if (/^wbs/.test(name)) return "wbs_dictionary";
+  if (/^b01_|original[_ -]?boq/.test(name)) return "boq";
+  if (/^cost/.test(name)) return "cost_evm_report";
+  if (/^pay/.test(name)) return "payment_certificates";
+  if (/^var/.test(name)) return "variation_register";
+  if (/^cl/.test(name)) return "delay_eot_claims_register";
+  if (/^p0?1_.*procurement|procurement/.test(name)) return "procurement_register";
+  if (/^r0?1_.*risk|risk[_ -]?register/.test(name)) return "risk_register";
+  if (/^l0?1_|letters|notices/.test(name)) return "letters_notices";
+  if (/^d0?1_|design[_ -]?deliver/.test(name)) return "design_deliverables";
+  if (/^rfi/.test(name)) return "rfi_register";
+  if (/^sub/.test(name)) return "submittal_register";
+  if (/^fm/.test(name)) return "asset_register";
+  if (/^hse/.test(name)) return "hse_report";
+  if (/^q0?1_|ncr/.test(name)) return "quality_ncr_register";
+  if (/^com/.test(name)) return "testing_commissioning_register";
+  if (/^t0?1_|tender|employer[_ -]?requirement/.test(name)) return "tender_employer_requirements";
+  return "supporting_document";
+}
+
+export function inferScheduleRole(
+  path: string,
+  requested?: string | null,
+): StoredScheduleRevision["role"] {
+  const normalized = (requested ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\\s-]+/g, "_");
+  if (
+    normalized === "baseline" ||
+    normalized === "update" ||
+    normalized === "recovery" ||
+    normalized === "revised_baseline"
+  ) return normalized;
+
+  const value = lower(path);
+  if (/revised[_ -]?baseline/.test(value)) return "revised_baseline";
+  if (/recovery/.test(value)) return "recovery";
+  if (/baseline|rev0|s01_/.test(value)) return "baseline";
+  if (/update|latest|s0[2-9]_/.test(value)) return "update";
+  return "other";
+}
+
+export function inferMediaType(
+  path: string,
+  fallback?: string | null,
+): string {
+  const value = lower(path);
+  if (value.endsWith(".xer")) return "text/plain";
+  if (value.endsWith(".csv")) return "text/csv";
+  if (value.endsWith(".xml")) return "application/xml";
+  if (value.endsWith(".pdf")) return "application/pdf";
+  if (value.endsWith(".docx")) return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+  if (value.endsWith(".xlsx")) return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+  if (value.endsWith(".xlsm")) return "application/vnd.ms-excel.sheet.macroEnabled.12";
+  if (value.endsWith(".zip")) return "application/zip";
+  return fallback?.trim() || "application/octet-stream";
+}
+
+function parseCsv(text: string): string[][] {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let field = "";
+  let quoted = false;
+
+  for (let i = 0; i < text.length; i += 1) {
+    const ch = text[i]!;
+    if (quoted) {
+      if (ch === '"') {
+        if (text[i + 1] === '"') {
+          field += '"';
+          i += 1;
+        } else {
+          quoted = false;
+        }
+      } else {
+        field += ch;
+      }
+      continue;
+    }
+
+    if (ch === '"') {
+      quoted = true;
+    } else if (ch === ",") {
+      row.push(field);
+      field = "";
+    } else if (ch === "\\n") {
+      row.push(field.replace(/\\r$/, ""));
+      rows.push(row);
+      row = [];
+      field = "";
+    } else {
+      field += ch;
+    }
+  }
+
+  if (field.length > 0 || row.length > 0) {
+    row.push(field.replace(/\\r$/, ""));
+    rows.push(row);
+  }
+  return rows;
+}
+
+function normalizedHeader(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+const LINKED_ACTIVITY_HEADERS = [
+  "linked activity",
+  "linked schedule activity",
+  "activity id",
+  "schedule activity",
+  "primary wbs",
+];
+
+export function analyzeCsvEvidence(
+  bytes: Uint8Array,
+  activityIds: ReadonlySet<string>,
+): EvidenceMappingSummary {
+  const text = Buffer.from(bytes).toString("utf8").replace(/^\\uFEFF/, "");
+  const rows = parseCsv(text);
+  if (rows.length === 0) {
+    return {
+      rowCount: 0,
+      linkedActivityField: null,
+      linkedActivityCount: null,
+      mappedActivityCount: null,
+      unmappedActivityCount: null,
+      coveragePercent: null,
+    };
+  }
+
+  const headers = rows[0]!.map(normalizedHeader);
+  const linkedIndex = headers.findIndex((header) =>
+    LINKED_ACTIVITY_HEADERS.includes(header),
+  );
+  const rowCount = rows.slice(1).filter((row) =>
+    row.some((value) => value.trim() !== ""),
+  ).length;
+
+  if (linkedIndex < 0) {
+    return {
+      rowCount,
+      linkedActivityField: null,
+      linkedActivityCount: null,
+      mappedActivityCount: null,
+      unmappedActivityCount: null,
+      coveragePercent: null,
+    };
+  }
+
+  let linkedActivityCount = 0;
+  let mappedActivityCount = 0;
+  for (const row of rows.slice(1)) {
+    const value = (row[linkedIndex] ?? "").trim();
+    if (!value) continue;
+    linkedActivityCount += 1;
+    if (activityIds.has(value)) mappedActivityCount += 1;
+  }
+
+  const unmappedActivityCount = linkedActivityCount - mappedActivityCount;
+  return {
+    rowCount,
+    linkedActivityField: rows[0]![linkedIndex] ?? null,
+    linkedActivityCount,
+    mappedActivityCount,
+    unmappedActivityCount,
+    coveragePercent:
+      linkedActivityCount === 0
+        ? null
+        : (mappedActivityCount / linkedActivityCount) * 100,
+  };
+}
