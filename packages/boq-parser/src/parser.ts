@@ -259,8 +259,25 @@ function parseWorksheet(worksheet: ExcelJS.Worksheet): BoqSheetParseResult {
 
     for (let row = header.headerRow + 1; row <= endRow; row += 1) {
       const item = parseLineItem(worksheet, row, header.roles);
-      if (!item) continue;
-      items.push(item);
+      if (item) {
+        items.push(item);
+      }
+
+      if (
+        row % 5_000 === 0 ||
+        row === endRow
+      ) {
+        console.info(
+          "[boq-profile] sheet=" +
+            worksheet.name +
+            " parsedThroughRow=" +
+            row +
+            " elapsedMs=" +
+            (performance.now() - itemStarted).toFixed(2) +
+            " items=" +
+            items.length,
+        );
+      }
     }
   }
 
