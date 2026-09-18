@@ -66,7 +66,8 @@ export interface ContractIgnoredSpan {
     | "running_header"
     | "running_footer"
     | "page_number"
-    | "watermark";
+    | "watermark"
+    | "repeated_source_overlap";
 }
 
 export interface ContractReference {
