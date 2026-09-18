@@ -63,6 +63,7 @@ import {
   projectSummary,
   touchProject,
 } from "./project-store";
+import { uatPage } from "../../runtime-ui/src/page";
 
 const port = Number.parseInt(
   process.env.PORT ?? "3000",
@@ -95,6 +96,22 @@ function json(
       Buffer.byteLength(payload),
   });
   res.end(payload);
+}
+
+function html(
+  res: ServerResponse,
+  statusCode: number,
+  body: string,
+): void {
+  res.writeHead(statusCode, {
+    "content-type":
+      "text/html; charset=utf-8",
+    "content-length":
+      Buffer.byteLength(body),
+    "cache-control":
+      "no-store",
+  });
+  res.end(body);
 }
 
 function mediaType(req: IncomingMessage): string {
@@ -1039,7 +1056,22 @@ async function route(
 
   if (
     req.method === "GET" &&
-    url.pathname === "/"
+    (
+      url.pathname === "/" ||
+      url.pathname === "/app"
+    )
+  ) {
+    html(
+      res,
+      200,
+      uatPage(),
+    );
+    return;
+  }
+
+  if (
+    req.method === "GET" &&
+    url.pathname === "/api"
   ) {
     json(res, 200, {
       name: "CMeng",
@@ -1050,12 +1082,17 @@ async function route(
         "/api/schedule/modules",
       scheduleCertification:
         "/api/schedule/certification",
+      scheduleUpload:
+        "/api/projects/:projectId/schedule/uploads",
       boqUpload:
         "/api/projects/:projectId/boq/uploads",
+      contractUpload:
+        "/api/projects/:projectId/contract/uploads",
       projectDirector:
         "/api/projects/:projectId/director-position",
       boardReport:
         "/api/projects/:projectId/board-report",
+      uat: "/app",
     });
     return;
   }
