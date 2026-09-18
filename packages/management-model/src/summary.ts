@@ -108,6 +108,37 @@ export function managementDto<T>(
     );
   }
 
+  if (
+    projection.producerVersion !==
+    domain.producerVersion
+  ) {
+    throw new Error(
+      "Projection producer version does not match the canonical management summary",
+    );
+  }
+
+  if (
+    domain.dependencyReceiptId !== null &&
+    projection.dependencyReceiptId !==
+      domain.dependencyReceiptId
+  ) {
+    throw new Error(
+      "Projection dependency receipt does not match the canonical management summary",
+    );
+  }
+
+  if (
+    domain.state === "ready" &&
+    (
+      domain.dependencyReceiptId === null ||
+      projection.dependencyReceiptId === null
+    )
+  ) {
+    throw new Error(
+      "Ready management projection requires a dependency receipt",
+    );
+  }
+
   const hasReadableData =
     projection.readableEvidence &&
     projection.validatedData !== null;
