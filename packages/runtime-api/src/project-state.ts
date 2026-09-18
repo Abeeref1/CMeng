@@ -813,7 +813,8 @@ export class RuntimeProjectStore {
       hash,
       bytes: input.bytes,
       sourceFilename:
-        input.sourceFilename,
+        input.sourceFilename ??
+        null,
     });
 
     this.touch(state);
@@ -936,7 +937,8 @@ export class RuntimeProjectStore {
         hashBytes(input.bytes),
       bytes: input.bytes,
       sourceFilename:
-        input.sourceFilename,
+        input.sourceFilename ??
+        null,
     });
 
     this.touch(state);
