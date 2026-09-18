@@ -219,7 +219,9 @@ async function route(
           "application/vnd.ms-excel.sheet.macroEnabled.12",
           "application/pdf",
         ],
-        persistence: "runtime_local",
+        persistence:
+          runtimeProjects
+            .persistenceMode(),
         authority: "candidate_only",
       },
     });
@@ -642,7 +644,9 @@ async function route(
       json(res, 404, {
         error:
           "director_position_not_found",
-        persistence: "runtime_local",
+        persistence:
+          runtimeProjects
+            .persistenceMode(),
       });
       return;
     }
@@ -706,7 +710,9 @@ async function route(
       json(res, 404, {
         error:
           "board_report_not_found",
-        persistence: "runtime_local",
+        persistence:
+          runtimeProjects
+            .persistenceMode(),
       });
       return;
     }
@@ -743,12 +749,21 @@ async function route(
         header(req, "x-object-id"),
     });
 
+    result.persistence =
+      runtimeProjects
+        .persistenceMode();
+
     boqIngestions.set(
       result.ingestionId,
       result,
     );
     runtimeProjects.attachBoq(
       result,
+      body,
+      header(
+        req,
+        "x-source-filename",
+      ),
     );
     invalidateProject(
       projectId,
