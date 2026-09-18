@@ -8,6 +8,21 @@ import type {
   SourceManifestEntry,
 } from "./types";
 
+export function documentIdentityKey(input: {
+  documentId: string;
+  revisionId: string;
+  objectId: string;
+  sha256: string;
+  sourceFilename?: string;
+}): string {
+  return stableFingerprint({
+    documentId: input.documentId,
+    revisionId: input.revisionId,
+    objectId: input.objectId,
+    sha256: input.sha256,
+  });
+}
+
 export interface UploadEvidenceInput {
   projectId: string;
   documentId: string;
