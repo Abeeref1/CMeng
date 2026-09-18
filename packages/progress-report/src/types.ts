@@ -8,6 +8,49 @@ export interface ProgressReportProjectionRef {
   producerVersion: string;
 }
 
+export type ProgressBasisState =
+  | "derived"
+  | "verified"
+  | "official"
+  | "provisional"
+  | "partial"
+  | "conflicted"
+  | "missing";
+
+export type ExternalProgressBasisState =
+  Exclude<ProgressBasisState, "derived">;
+
+export interface ExternalProgressBasisInput {
+  valuePercent: number | null;
+  state: ExternalProgressBasisState;
+  asOfIso: string | null;
+  sourceRefs: string[];
+  method: string;
+}
+
+export interface ExternalProgressBases {
+  physical?: ExternalProgressBasisInput;
+  contractorReported?: ExternalProgressBasisInput;
+  certified?: ExternalProgressBasisInput;
+}
+
+export type ProgressBasisName =
+  | "baseline_planned"
+  | "current_schedule"
+  | "physical"
+  | "contractor_reported"
+  | "certified";
+
+export interface ProgressReportBasisValue {
+  basis: ProgressBasisName;
+  valuePercent: number | null;
+  state: ProgressBasisState;
+  asOfIso: string | null;
+  coveragePercent: number | null;
+  sourceRefs: string[];
+  method: string;
+}
+
 export interface ProgressReportProjection {
   schemaVersion: "1.0";
   projectionKey: "progress_report";
@@ -39,6 +82,21 @@ export interface ProgressReportProjection {
     durationWeightedProgressCoveragePercent: number | null;
     scurveActualSnapshotPercent: number | null;
     scurveActualSnapshotCoveragePercent: number | null;
+
+    bases: {
+      baselinePlanned: ProgressReportBasisValue;
+      currentSchedule: ProgressReportBasisValue;
+      physical: ProgressReportBasisValue;
+      contractorReported: ProgressReportBasisValue;
+      certified: ProgressReportBasisValue;
+    };
+
+    variancesToBaseline: {
+      currentSchedule: number | null;
+      physical: number | null;
+      contractorReported: number | null;
+      certified: number | null;
+    };
   };
 
   forecast: {
@@ -62,6 +120,9 @@ export interface ProgressReportProjection {
     datedIncompleteActivityCount: number;
     currentDateCoveragePercent: number | null;
     overdueCount: number;
+    readyCount: number;
+    blockedCount: number;
+    conditionalCount: number;
   };
 
   diagnostics: string[];
