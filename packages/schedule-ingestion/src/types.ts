@@ -29,6 +29,7 @@ export interface ScheduleIngestionResult {
   ingestionId: string;
   projectId: string;
   sourceFormat: "xer";
+  sourceProjectId: string | null;
   mediaType: string;
   sourceFilename: string | null;
   sourceHashSha256: string;
