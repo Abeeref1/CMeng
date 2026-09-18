@@ -12,7 +12,9 @@ export interface PrimaveraXmlActivity {
   wbsObjectId: string | null;
   calendarObjectId: string | null;
   startDate: string | null;
+  startDateIso: string | null;
   finishDate: string | null;
+  finishDateIso: string | null;
   originalDurationRaw: string | null;
   originalDurationHours: number | null;
   remainingDurationRaw: string | null;
@@ -48,6 +50,8 @@ export interface PrimaveraXmlResult {
   relationshipCount: number;
   unresolvedRelationships: number;
   externalRelationships: number;
+  missingWbsReferences: string[];
+  missingCalendarReferences: string[];
   coveragePercent: number | null;
   complete: boolean;
   sourceComplete: boolean;
