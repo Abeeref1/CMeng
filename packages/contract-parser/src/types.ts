@@ -18,6 +18,14 @@ export type ContractSourceSpanKind =
   | "docx_paragraph"
   | "docx_table_cell";
 
+export interface ContractTextBlock {
+  sourceKind: ContractSourceSpanKind;
+  sourceIndex: number;
+  page: number | null;
+  block: number | null;
+  text: string;
+}
+
 export interface ContractSourceSpan {
   sourceKind: ContractSourceSpanKind;
   sourceIndex: number;
