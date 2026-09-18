@@ -20,8 +20,6 @@ function cellKind(cell: ExcelJS.Cell): BoqCellKind {
       return "date";
     case ExcelJS.ValueType.Boolean:
       return "boolean";
-    case ExcelJS.ValueType.Formula:
-      return "formula";
     case ExcelJS.ValueType.Error:
       return "error";
     default:
