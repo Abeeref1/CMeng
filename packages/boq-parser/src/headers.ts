@@ -72,28 +72,51 @@ function normalize(value: string): string {
     .trim();
 }
 
+const NORMALIZED_SYNONYMS = (
+  Object.entries(SYNONYMS) as Array<
+    [
+      Exclude<BoqColumnRole, "unknown">,
+      string[],
+    ]
+  >
+).map(([role, synonyms]) => [
+  role,
+  synonyms.map(normalize),
+] as const);
+
+const EXACT_ROLE_BY_HEADER = new Map<
+  string,
+  Exclude<BoqColumnRole, "unknown">
+>();
+
+for (const [role, synonyms] of NORMALIZED_SYNONYMS) {
+  for (const synonym of synonyms) {
+    if (!EXACT_ROLE_BY_HEADER.has(synonym)) {
+      EXACT_ROLE_BY_HEADER.set(synonym, role);
+    }
+  }
+}
+
 function roleForHeader(
   value: string,
 ): { role: BoqColumnRole; score: number } {
   const normalized = normalize(value);
   if (!normalized) return { role: "unknown", score: 0 };
 
+  const exact = EXACT_ROLE_BY_HEADER.get(normalized);
+  if (exact) {
+    return { role: exact, score: 1 };
+  }
+
   let best: { role: BoqColumnRole; score: number } = {
     role: "unknown",
     score: 0,
   };
 
-  for (const [role, synonyms] of Object.entries(SYNONYMS) as Array<
-    [
-      Exclude<BoqColumnRole, "unknown">,
-      string[],
-    ]
-  >) {
-    for (const synonym of synonyms) {
-      const candidate = normalize(synonym);
+  for (const [role, synonyms] of NORMALIZED_SYNONYMS) {
+    for (const candidate of synonyms) {
       let score = 0;
-      if (normalized === candidate) score = 1;
-      else if (
+      if (
         normalized.includes(candidate) ||
         candidate.includes(normalized)
       ) {
