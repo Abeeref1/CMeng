@@ -327,3 +327,42 @@ test("repeated running clause heading on next page does not create a duplicate c
     /cause and effect/,
   );
 });
+
+
+test("NEBULA section-clause composite heading creates unique clause identity", () => {
+  assert.deepEqual(
+    detectContractHeading("Section 01 - Clause 02: Employer"),
+    {
+      kind: "clause",
+      identifier: "1.2",
+      heading: "Employer",
+    },
+  );
+
+  const result = segmentContractPages(
+    pdfResult([
+      page(
+        1,
+        [
+          "Section 01 - Clause 01: General Provisions",
+          "1.1.1 First provision.",
+        ].join("\n"),
+      ),
+      page(
+        2,
+        [
+          "Section 01 - Clause 02: Employer",
+          "1.2.1 Employer provision.",
+        ].join("\n"),
+      ),
+    ]),
+  );
+
+  assert.equal(result.complete, true);
+  assert.deepEqual(result.duplicateIdentifiers, []);
+  assert.ok(
+    result.clauses.some(
+      (clause) => clause.identifier === "1.2",
+    ),
+  );
+});
