@@ -19,8 +19,9 @@ function rowTexts(
   const limit = Math.min(worksheet.rowCount, maxRows);
   for (let r = 1; r <= limit; r += 1) {
     const values: string[] = [];
+    const row = worksheet.getRow(r);
     for (let c = 1; c <= worksheet.columnCount; c += 1) {
-      values.push(readBoqCell(worksheet, r, c).text);
+      values.push(row.getCell(c).text ?? "");
     }
     rows.push(values);
   }
