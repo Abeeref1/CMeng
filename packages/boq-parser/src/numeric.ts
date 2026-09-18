@@ -239,6 +239,19 @@ export function resolveBoqCommercialNumerics(
   const rate = parseStrictNumeric(rateInput);
   const amount = parseStrictNumeric(amountInput);
 
+  if (
+    quantity.status !== "ambiguous" &&
+    rate.status !== "ambiguous" &&
+    amount.status !== "ambiguous"
+  ) {
+    return {
+      quantity,
+      rate,
+      amount,
+      resolvedByArithmetic: false,
+    };
+  }
+
   const quantityCandidates = numericCandidates(quantityInput);
   const rateCandidates = numericCandidates(rateInput);
   const amountCandidates = numericCandidates(amountInput);
