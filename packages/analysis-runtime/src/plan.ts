@@ -7,7 +7,7 @@ export const DEFAULT_ANALYSIS_PLAN: readonly ProjectionDefinition[] = [
   { key: "pmo_analysis", dependencies: [], requiredForPublish: true },
   { key: "schedule_analytics", dependencies: [], requiredForPublish: true },
   { key: "challenge_contract", dependencies: [], requiredForPublish: true },
-  { key: "quantity_scurve", dependencies: [], requiredForPublish: true },
+  { key: "quantity_scurve", dependencies: ["schedule_analytics"], requiredForPublish: true },
 
   { key: "activity_analytics", dependencies: ["schedule_analytics"], requiredForPublish: true },
   { key: "resource_utilization", dependencies: ["schedule_analytics"], requiredForPublish: true },
@@ -25,9 +25,9 @@ export const DEFAULT_ANALYSIS_PLAN: readonly ProjectionDefinition[] = [
   { key: "manhour_scurve", dependencies: ["resource_utilization"], requiredForPublish: true },
   { key: "forecast_history", dependencies: ["independent_forecast"], requiredForPublish: true },
   { key: "notices_claims", dependencies: ["challenge_contract"], requiredForPublish: true },
-  { key: "windows_analysis", dependencies: ["schedule_change_report"], requiredForPublish: true },
-  { key: "delay_claims", dependencies: ["schedule_change_report", "challenge_contract"], requiredForPublish: true },
-  { key: "eot_assessment", dependencies: ["windows_analysis", "challenge_contract"], requiredForPublish: true },
+  { key: "windows_analysis", dependencies: ["schedule_change_report", "independent_forecast"], requiredForPublish: true },
+  { key: "delay_claims", dependencies: ["windows_analysis", "notices_claims", "challenge_contract"], requiredForPublish: true },
+  { key: "eot_assessment", dependencies: ["windows_analysis", "delay_claims", "notices_claims", "challenge_contract"], requiredForPublish: true },
 ] as const;
 
 export function projectionKeys(
