@@ -330,7 +330,8 @@ export function loadCertifiedDemoProject(
     projectId,
     version: 1,
     demo: true,
-    evidenceDocuments: [],\n    schedules: [
+    evidenceDocuments: [],
+    schedules: [
       {
         revision: {
           revisionId:
@@ -550,7 +551,9 @@ export function loadCertifiedDemoProject(
       ],
       diagnostics: [],
     },
-    contractDocuments: [],\n    contractFamily: null,\n    contract: {
+    contractDocuments: [],
+    contractFamily: null,
+    contract: {
       sourceType: "pdf",
       pdf: null,
       docx: null,
