@@ -38,24 +38,31 @@ export async function parsePdfDocument(
     const textResult = await parser.getText();
     const totalPages = textResult.total;
     const completed = new Set(options.checkpoint?.completedPages ?? []);
+    const persistedByPage = new Map(
+      (options.checkpoint?.persistedPages ?? []).map((page) => [
+        page.pageNumber,
+        page,
+      ]),
+    );
 
     for (let pageNumber = 1; pageNumber <= totalPages; pageNumber += 1) {
       if (completed.has(pageNumber)) {
-        diagnostics.push(
-          "PDF_CHECKPOINT_SKIPPED_PAGE_REQUIRES_PERSISTED_RESULT:" +
+        const persisted = persistedByPage.get(pageNumber);
+        if (!persisted) {
+          pages.push({
             pageNumber,
-        );
-        pages.push({
-          pageNumber,
-          method: "failed",
-          text: "",
-          nativeCharacterCount: 0,
-          ocrConfidence: null,
-          aiReview: null,
-          diagnostics: [
-            "Checkpoint declared page complete but no persisted page result was supplied.",
-          ],
-        });
+            method: "failed",
+            text: "",
+            nativeCharacterCount: 0,
+            ocrConfidence: null,
+            aiReview: null,
+            diagnostics: [
+              "PDF_CHECKPOINT_RESULT_MISSING",
+            ],
+          });
+        } else {
+          pages.push(persisted);
+        }
         continue;
       }
 
