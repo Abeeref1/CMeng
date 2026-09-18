@@ -9,7 +9,7 @@ import {
 
 test("schedule CSV preserves activity population and hours semantics", () => {
   const csv = [
-    "Activity ID,Activity Name,WBS,Calendar,Original Duration,Remaining Duration,Total Float,Percent Complete,Status",
+    "Activity ID,Activity Name,WBS,Calendar,Original Duration (h),Remaining Duration (h),Total Float (h),Percent Complete,Status",
     "A100,Excavation,1.1,5 Day,80,40,16,50,In Progress",
     "A200,Foundation,1.2,5 Day,120,120,-8,0,Not Started",
   ].join("\n");
@@ -24,7 +24,7 @@ test("schedule CSV preserves activity population and hours semantics", () => {
 
 test("schedule CSV relationship table preserves predecessor successor type and lag", () => {
   const csv = [
-    "Predecessor ID,Successor ID,Relationship Type,Lag",
+    "Predecessor ID,Successor ID,Relationship Type,Lag (h)",
     "A100,A200,FS,8",
     "A200,A300,SS,-4",
   ].join("\n");
@@ -58,7 +58,7 @@ test("schedule XLSX recognizes separate activities and relationships sheets", as
   activities.addRow(["A200","Foundation","1.2",120,16]);
 
   const rel = workbook.addWorksheet("Relationships");
-  rel.addRow(["Predecessor ID","Successor ID","Relationship Type","Lag"]);
+  rel.addRow(["Predecessor ID","Successor ID","Relationship Type","Lag (h)"]);
   rel.addRow(["A100","A200","FS",0]);
 
   const bytes = Buffer.from(await workbook.xlsx.writeBuffer());
@@ -85,4 +85,52 @@ test("populated unclassified schedule sheet prevents complete status", async () 
   const parsed = await parseScheduleXlsx(bytes);
   assert.equal(parsed.complete, false);
   assert.ok(parsed.diagnostics.some(d=>d.includes("Cover:SCHEDULE_POPULATED_SHEET_UNCLASSIFIED")));
+});
+
+test("generic duration column without proven unit remains unresolved", () => {
+  const csv = [
+    "Activity ID,Activity Name,Original Duration",
+    "A100,Excavation,10",
+  ].join("\n");
+
+  const parsed = parseScheduleCsv(Buffer.from(csv, "utf8"));
+  assert.equal(parsed.complete, false);
+  assert.equal(parsed.activityRowsUnresolved, 1);
+  assert.equal(parsed.activities[0]!.originalDurationHours, null);
+  assert.equal(parsed.activities[0]!.originalDurationUnit, "unknown");
+  assert.ok(
+    parsed.activities[0]!.diagnostics.includes(
+      "SCHEDULE_ORIGINAL_DURATION_AMBIGUOUS",
+    ),
+  );
+});
+
+test("explicit day duration is preserved without unsafe conversion to hours", () => {
+  const csv = [
+    "Activity ID,Activity Name,Original Duration (days)",
+    "A100,Excavation,10",
+  ].join("\n");
+
+  const parsed = parseScheduleCsv(Buffer.from(csv, "utf8"));
+  assert.equal(parsed.complete, true);
+  assert.equal(parsed.activities[0]!.originalDurationUnit, "days");
+  assert.equal(parsed.activities[0]!.originalDurationRaw, "10");
+  assert.equal(parsed.activities[0]!.originalDurationHours, null);
+});
+
+test("ambiguous schedule date blocks certification", () => {
+  const csv = [
+    "Activity ID,Activity Name,Start Date,Finish Date,Original Duration (h)",
+    "A100,Excavation,03/04/2026,31-Aug-2026,80",
+  ].join("\n");
+
+  const parsed = parseScheduleCsv(Buffer.from(csv, "utf8"));
+  assert.equal(parsed.complete, false);
+  assert.equal(parsed.activities[0]!.startIso, null);
+  assert.equal(parsed.activities[0]!.finishIso, "2026-08-31");
+  assert.ok(
+    parsed.activities[0]!.diagnostics.includes(
+      "SCHEDULE_START_DATE_AMBIGUOUS",
+    ),
+  );
 });
