@@ -36,7 +36,9 @@ export interface BoqIngestionResult {
   sourceManifest: SourceManifest;
   evidenceReceipt: EvidenceReceipt;
   authority: "candidate_only";
-  persistence: "runtime_local";
+  persistence:
+    | "runtime_local"
+    | "railway_volume";
   state: BoqIngestionState;
   candidateRows: number;
   verifiedRows: number;
