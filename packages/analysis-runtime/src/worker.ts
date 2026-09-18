@@ -9,6 +9,7 @@ import type {
 } from "./stores";
 import {
   MetadataUnavailableError,
+  ProjectionDependencyNotReadyError,
   type DurableCheckpoint,
   type ProjectionChunkResult,
   type ProjectionJob,
@@ -146,13 +147,41 @@ export class DurableProjectionWorker {
       }
     }
 
-    const result =
-      await this.executor.processChunk({
-        job,
-        checkpoint,
-        sliceBudgetMs:
-          this.policy.sliceBudgetMs,
-      });
+    let result: ProjectionChunkResult;
+
+    try {
+      result =
+        await this.executor.processChunk({
+          job,
+          checkpoint,
+          sliceBudgetMs:
+            this.policy.sliceBudgetMs,
+        });
+    } catch (error) {
+      if (
+        error instanceof
+          MetadataUnavailableError ||
+        error instanceof
+          ProjectionDependencyNotReadyError
+      ) {
+        const nextAttempt =
+          job.attempt + 1;
+        await this.queue.retry(
+          lease,
+          {
+            ...job,
+            notBefore: retryNotBefore(
+              timestamp,
+              nextAttempt,
+            ),
+            attempt: nextAttempt,
+          },
+        );
+        return "checkpointed";
+      }
+
+      throw error;
+    }
 
     const durableCheckpoint: DurableCheckpoint = {
       runId: job.runId,
@@ -236,9 +265,12 @@ export class DurableProjectionWorker {
       return "published";
     } catch (error) {
       if (
-        error instanceof MetadataUnavailableError
+        error instanceof MetadataUnavailableError ||
+        error instanceof
+          ProjectionDependencyNotReadyError
       ) {
-        // No recomputation. The next attempt is publication-only.
+        // No recomputation. The immutable artifact already exists;
+        // dependency/metadata publication is retried only.
         const nextAttempt = job.attempt + 1;
         await this.queue.retry(
           lease,
