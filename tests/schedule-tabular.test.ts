@@ -134,3 +134,105 @@ test("ambiguous schedule date blocks certification", () => {
     ),
   );
 });
+
+
+test("repeated schedule CSV header is not parsed as an activity row", () => {
+  const csv = [
+    "Activity ID,Activity Name,Original Duration (h),Total Float (h)",
+    "A100,Excavation,80,0",
+    "A200,Foundation,120,8",
+    "Activity ID,Activity Name,Original Duration (h),Total Float (h)",
+    "A300,Structure,160,-4",
+  ].join("\n");
+
+  const parsed = parseScheduleCsv(Buffer.from(csv, "utf8"));
+
+  assert.equal(parsed.complete, true);
+  assert.equal(parsed.activityRowsSeen, 3);
+  assert.equal(parsed.activityRowsVerified, 3);
+  assert.deepEqual(
+    parsed.activities.map((activity) => activity.activityId),
+    ["A100", "A200", "A300"],
+  );
+});
+
+test("multiple schedule CSV tables can remap changed column order", () => {
+  const csv = [
+    "Activity ID,Activity Name,Original Duration (h),Total Float (h)",
+    "A100,Excavation,80,0",
+    "Total Float (h),Activity Name,Activity ID,Original Duration (h)",
+    "-8,Foundation,A200,120",
+  ].join("\n");
+
+  const parsed = parseScheduleCsv(Buffer.from(csv, "utf8"));
+
+  assert.equal(parsed.complete, true);
+  assert.equal(parsed.activityRowsSeen, 2);
+  assert.equal(parsed.activities[1]!.activityId, "A200");
+  assert.equal(parsed.activities[1]!.activityName, "Foundation");
+  assert.equal(parsed.activities[1]!.originalDurationHours, 120);
+  assert.equal(parsed.activities[1]!.totalFloatHours, -8);
+});
+
+test("one XLSX sheet may contain activities then relationships with different schemas", async () => {
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet("Schedule Export");
+
+  sheet.addRow([
+    "Activity ID",
+    "Activity Name",
+    "Original Duration (h)",
+    "Total Float (h)",
+  ]);
+  sheet.addRow(["A100", "Excavation", 80, 0]);
+  sheet.addRow(["A200", "Foundation", 120, 8]);
+  sheet.addRow([]);
+  sheet.addRow([
+    "Relationship Type",
+    "Successor ID",
+    "Lag (h)",
+    "Predecessor ID",
+  ]);
+  sheet.addRow(["FS", "A200", 0, "A100"]);
+
+  const bytes = Buffer.from(await workbook.xlsx.writeBuffer());
+  const parsed = await parseScheduleXlsx(bytes);
+
+  assert.equal(parsed.complete, true);
+  assert.equal(parsed.activityRowsSeen, 2);
+  assert.equal(parsed.relationshipRowsSeen, 1);
+  assert.equal(parsed.relationships[0]!.predecessorId, "A100");
+  assert.equal(parsed.relationships[0]!.successorId, "A200");
+  assert.equal(parsed.relationships[0]!.relationshipType, "FS");
+  assert.equal(parsed.relationships[0]!.lagHours, 0);
+});
+
+test("repeated XLSX schedule print headers do not inflate activity population", async () => {
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet("Activities");
+
+  sheet.addRow([
+    "Activity ID",
+    "Activity Name",
+    "Original Duration (h)",
+    "Total Float (h)",
+  ]);
+  sheet.addRow(["A100", "Excavation", 80, 0]);
+  sheet.addRow([
+    "Activity ID",
+    "Activity Name",
+    "Original Duration (h)",
+    "Total Float (h)",
+  ]);
+  sheet.addRow(["A200", "Foundation", 120, 8]);
+
+  const bytes = Buffer.from(await workbook.xlsx.writeBuffer());
+  const parsed = await parseScheduleXlsx(bytes);
+
+  assert.equal(parsed.complete, true);
+  assert.equal(parsed.activityRowsSeen, 2);
+  assert.deepEqual(
+    parsed.activities.map((activity) => activity.activityId),
+    ["A100", "A200"],
+  );
+});
