@@ -55,21 +55,62 @@ export function buildPmoAnalysisProjection(
   },
 ): PmoAnalysisProjection {
   const refs: PmoSourceProjectionRef[] = [
-    ["schedule_analytics", input.scheduleAnalytics.producerVersion],
-    ["progress_report", input.progressReport.producerVersion],
-    ["revision_trend", input.revisionTrend.producerVersion],
-    ["resource_utilization", input.resourceUtilization.producerVersion],
-    ["manhour_scurve", input.manhourScurve.producerVersion],
-    ["quantity_scurve", input.quantityScurve.producerVersion],
-    ["independent_forecast", input.independentForecast.producerVersion],
-    ["challenge_contract", input.challengeContract.producerVersion],
-    ["notices_claims", input.noticesClaims.producerVersion],
-    ["delay_claims", input.delayClaims.producerVersion],
-    ["eot_assessment", input.eotAssessment.producerVersion],
-  ].map(([projectionKey, producerVersion]) => ({
-    projectionKey,
-    producerVersion,
-  }));
+    {
+      projectionKey: "schedule_analytics",
+      producerVersion:
+        input.scheduleAnalytics.producerVersion,
+    },
+    {
+      projectionKey: "progress_report",
+      producerVersion:
+        input.progressReport.producerVersion,
+    },
+    {
+      projectionKey: "revision_trend",
+      producerVersion:
+        input.revisionTrend.producerVersion,
+    },
+    {
+      projectionKey: "resource_utilization",
+      producerVersion:
+        input.resourceUtilization.producerVersion,
+    },
+    {
+      projectionKey: "manhour_scurve",
+      producerVersion:
+        input.manhourScurve.producerVersion,
+    },
+    {
+      projectionKey: "quantity_scurve",
+      producerVersion:
+        input.quantityScurve.producerVersion,
+    },
+    {
+      projectionKey: "independent_forecast",
+      producerVersion:
+        input.independentForecast.producerVersion,
+    },
+    {
+      projectionKey: "challenge_contract",
+      producerVersion:
+        input.challengeContract.producerVersion,
+    },
+    {
+      projectionKey: "notices_claims",
+      producerVersion:
+        input.noticesClaims.producerVersion,
+    },
+    {
+      projectionKey: "delay_claims",
+      producerVersion:
+        input.delayClaims.producerVersion,
+    },
+    {
+      projectionKey: "eot_assessment",
+      producerVersion:
+        input.eotAssessment.producerVersion,
+    },
+  ];
 
   const schedule =
     input.scheduleAnalytics.result;
