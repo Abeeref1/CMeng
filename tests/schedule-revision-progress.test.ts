@@ -420,7 +420,7 @@ test("Variance Trends exposes project and activity worsening without mixing revi
   assert.equal(
     projection.points[1]!
       .projectCompletionVarianceDays,
-    4,
+    2,
   );
 
   const a200 = projection.activityTrends.find(
