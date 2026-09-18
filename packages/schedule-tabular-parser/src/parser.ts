@@ -529,6 +529,15 @@ function parseMixedScheduleRows(
   const lagIndex = mixedHeaderIndex(header, "Lag");
   const revisionIndex = mixedHeaderIndex(header, "Revision");
 
+  const at = (
+    row: readonly string[],
+    index: number,
+  ): string | null => {
+    if (index < 0) return null;
+    const value = (row[index] ?? "").trim();
+    return value || null;
+  };
+
   let mixedDurationUnit: ScheduleDurationUnit = "unknown";
   let mixedDurationUsable = 0;
   let mixedDurationDayMatches = 0;
@@ -589,15 +598,6 @@ function parseMixedScheduleRows(
   const activityCodeRows: ScheduleActivityCodeRow[] = [];
   const diagnostics: string[] = [];
   let sourceRecordCount = 0;
-
-  const at = (
-    row: readonly string[],
-    index: number,
-  ): string | null => {
-    if (index < 0) return null;
-    const value = (row[index] ?? "").trim();
-    return value || null;
-  };
 
   for (let index = 1; index < rows.length; index += 1) {
     const row = rows[index] ?? [];
