@@ -11,10 +11,12 @@ import {
   join,
 } from "node:path";
 
-import type {
-  BoqIngestionResult,
+import {
+  ingestBoq,
+  type BoqIngestionResult,
 } from "../../boq-ingestion/src";
 import {
+  linkContractFamily,
   parseContractDocx,
   parseContractPdf,
 } from "../../contract-parser/src";
@@ -46,12 +48,22 @@ import type {
   CanonicalResourceModel,
 } from "../../schedule-resource-core/src";
 import type {
+  EvidenceCategory,
+  EvidenceUploadSummary,
   ProjectControlState,
   ProjectRuntimeState,
   ScheduleUploadFormat,
   ScheduleUploadSummary,
+  StoredEvidenceDocument,
   StoredScheduleRevision,
 } from "./project-state-types";
+import {
+  analyzeCsvEvidence,
+  inferDocumentType,
+  inferEvidenceCategory,
+  inferMediaType,
+  inferScheduleRole,
+} from "./evidence";
 
 function hashBytes(
   bytes: Uint8Array,
@@ -325,8 +337,19 @@ function serializeProject(
 function hydrateProject(
   state: SerializedProjectState,
 ): ProjectRuntimeState {
+  const legacy = state as SerializedProjectState &
+    Partial<ProjectRuntimeState>;
   return {
     ...state,
+    evidenceDocuments:
+      legacy.evidenceDocuments ?? [],
+    boqRevisions:
+      legacy.boqRevisions ??
+      (legacy.boq ? [legacy.boq] : []),
+    contractDocuments:
+      legacy.contractDocuments ?? [],
+    contractFamily:
+      legacy.contractFamily ?? null,
     resourcesByRevision:
       new Map(
         state.resourcesByRevision,
@@ -575,11 +598,15 @@ export class RuntimeProjectStore {
         version: 1,
         demo: false,
         schedules: [],
+        evidenceDocuments: [],
         resourcesByRevision:
           new Map(),
         boq: null,
+        boqRevisions: [],
         quantities: null,
         contract: null,
+        contractDocuments: [],
+        contractFamily: null,
         controls:
           emptyControls(),
       };
@@ -621,13 +648,399 @@ export class RuntimeProjectStore {
       return null;
     }
 
-    return [...state.schedules]
-      .sort(
-        (a, b) =>
-          a.revision.sequence -
-          b.revision.sequence,
-      )
+    const official = state.schedules.filter(
+      (item) =>
+        item.role === "update" ||
+        item.role === "revised_baseline",
+    );
+    const baseline = state.schedules.filter(
+      (item) => item.role === "baseline",
+    );
+    const candidates =
+      official.length > 0
+        ? official
+        : baseline.length > 0
+          ? baseline
+          : state.schedules;
+
+    return [...candidates]
+      .sort((a, b) => {
+        const ad =
+          a.revision.model.dataDateIso ??
+          a.revision.effectiveAt ??
+          "";
+        const bd =
+          b.revision.model.dataDateIso ??
+          b.revision.effectiveAt ??
+          "";
+        const byDate = ad.localeCompare(bd);
+        return byDate !== 0
+          ? byDate
+          : a.revision.sequence -
+              b.revision.sequence;
+      })
       .at(-1) ?? null;
+  }
+
+  evidence(
+    projectId: string,
+  ): StoredEvidenceDocument[] {
+    return [
+      ...(this.projects.get(projectId)
+        ?.evidenceDocuments ?? []),
+    ].sort((a, b) =>
+      a.uploadedAt.localeCompare(b.uploadedAt),
+    );
+  }
+
+  private upsertEvidence(
+    state: ProjectRuntimeState,
+    document: StoredEvidenceDocument,
+  ): void {
+    const index =
+      state.evidenceDocuments.findIndex(
+        (item) =>
+          item.documentId ===
+          document.documentId,
+      );
+    if (index >= 0) {
+      state.evidenceDocuments[index] =
+        document;
+    } else {
+      state.evidenceDocuments.push(
+        document,
+      );
+    }
+  }
+
+  private evidenceDocumentId(
+    hash: string,
+    relativePath: string | null,
+  ): string {
+    return (
+      "evidence_" +
+      createHash("sha256")
+        .update(hash)
+        .update("|")
+        .update(relativePath ?? "")
+        .digest("hex")
+        .slice(0, 24)
+    );
+  }
+
+  private activityIds(
+    projectId: string,
+  ): Set<string> {
+    return new Set(
+      this.latestSchedule(projectId)
+        ?.revision.model.activities.map(
+          (activity) =>
+            activity.activityId,
+        ) ?? [],
+    );
+  }
+
+  async ingestEvidenceFile(
+    input: {
+      projectId: string;
+      bytes: Uint8Array;
+      mediaType?: string | null;
+      sourceFilename: string;
+      sourceRelativePath?: string | null;
+      category?: string | null;
+      documentType?: string | null;
+      scheduleRole?: string | null;
+      uploadedAt: string;
+    },
+  ): Promise<EvidenceUploadSummary> {
+    const relativePath =
+      input.sourceRelativePath?.trim() ||
+      input.sourceFilename;
+    const category =
+      inferEvidenceCategory(
+        relativePath,
+        input.category,
+      );
+    const documentType =
+      inferDocumentType(
+        relativePath,
+        input.documentType,
+      );
+    const media =
+      inferMediaType(
+        relativePath,
+        input.mediaType,
+      );
+
+    if (category === "schedule") {
+      const result =
+        await this.ingestSchedule({
+          projectId: input.projectId,
+          bytes: input.bytes,
+          mediaType: media,
+          sourceFilename:
+            input.sourceFilename,
+          sourceRelativePath:
+            relativePath,
+          role:
+            inferScheduleRole(
+              relativePath,
+              input.scheduleRole,
+            ),
+          label:
+            input.sourceFilename,
+          uploadedAt:
+            input.uploadedAt,
+        });
+      const document =
+        this.evidence(
+          input.projectId,
+        ).find(
+          (item) =>
+            item.linkedArtifactId ===
+            result.revisionId,
+        );
+      if (!document) {
+        throw new Error(
+          "EVIDENCE_SCHEDULE_REGISTRY_MISSING",
+        );
+      }
+      return {
+        documentId:
+          document.documentId,
+        category:
+          document.category,
+        documentType:
+          document.documentType,
+        sourceFilename:
+          document.sourceFilename,
+        parserState:
+          document.parserState,
+        linkedArtifactId:
+          document.linkedArtifactId,
+        scheduleRole:
+          document.scheduleRole,
+        mapping:
+          document.mapping,
+        diagnostics: [
+          ...document.diagnostics,
+        ],
+      };
+    }
+
+    if (
+      category === "boq_cost" &&
+      documentType === "boq" &&
+      (
+        media.includes("csv") ||
+        media.includes("spreadsheet") ||
+        media.includes("excel") ||
+        media.includes("pdf")
+      )
+    ) {
+      const result = await ingestBoq({
+        projectId:
+          input.projectId,
+        bytes: input.bytes,
+        verifiedMediaType: media,
+        receivedAt:
+          input.uploadedAt,
+        sourceFilename:
+          input.sourceFilename,
+      });
+      result.persistence =
+        this.persistenceMode();
+      this.attachBoq(
+        result,
+        input.bytes,
+        input.sourceFilename,
+        relativePath,
+      );
+      const document =
+        this.evidence(
+          input.projectId,
+        ).find(
+          (item) =>
+            item.linkedArtifactId ===
+            result.ingestionId,
+        );
+      if (!document) {
+        throw new Error(
+          "EVIDENCE_BOQ_REGISTRY_MISSING",
+        );
+      }
+      return {
+        documentId:
+          document.documentId,
+        category:
+          document.category,
+        documentType:
+          document.documentType,
+        sourceFilename:
+          document.sourceFilename,
+        parserState:
+          document.parserState,
+        linkedArtifactId:
+          document.linkedArtifactId,
+        scheduleRole: null,
+        mapping:
+          document.mapping,
+        diagnostics: [
+          ...document.diagnostics,
+        ],
+      };
+    }
+
+    if (
+      category === "contract" &&
+      (
+        media.includes("pdf") ||
+        media.includes(
+          "wordprocessingml",
+        )
+      )
+    ) {
+      const role =
+        documentType ===
+        "main_contract"
+          ? "main"
+          : documentType ===
+              "contract_amendment"
+            ? "amendment"
+            : documentType ===
+                "contract_appendix"
+              ? "appendix"
+              : "other";
+      await this.ingestContract({
+        projectId:
+          input.projectId,
+        bytes: input.bytes,
+        mediaType: media,
+        sourceFilename:
+          input.sourceFilename,
+        sourceRelativePath:
+          relativePath,
+        role,
+        uploadedAt:
+          input.uploadedAt,
+      });
+      const hash =
+        hashBytes(input.bytes);
+      const document =
+        this.evidence(
+          input.projectId,
+        ).find(
+          (item) =>
+            item.sourceHashSha256 ===
+              hash &&
+            item.category ===
+              "contract",
+        );
+      if (!document) {
+        throw new Error(
+          "EVIDENCE_CONTRACT_REGISTRY_MISSING",
+        );
+      }
+      return {
+        documentId:
+          document.documentId,
+        category:
+          document.category,
+        documentType:
+          document.documentType,
+        sourceFilename:
+          document.sourceFilename,
+        parserState:
+          document.parserState,
+        linkedArtifactId:
+          document.linkedArtifactId,
+        scheduleRole: null,
+        mapping:
+          document.mapping,
+        diagnostics: [
+          ...document.diagnostics,
+        ],
+      };
+    }
+
+    const state =
+      this.getOrCreate(
+        input.projectId,
+      );
+    const hash =
+      hashBytes(input.bytes);
+    const storedPath =
+      this.persistRawUpload({
+        projectId:
+          input.projectId,
+        category,
+        hash,
+        bytes: input.bytes,
+        sourceFilename:
+          input.sourceFilename,
+      });
+    const mapping =
+      media.includes("csv")
+        ? analyzeCsvEvidence(
+            input.bytes,
+            this.activityIds(
+              input.projectId,
+            ),
+          )
+        : null;
+    const documentId =
+      this.evidenceDocumentId(
+        hash,
+        relativePath,
+      );
+    const document:
+      StoredEvidenceDocument = {
+      documentId,
+      category:
+        category as EvidenceCategory,
+      documentType,
+      sourceFilename:
+        input.sourceFilename,
+      sourceRelativePath:
+        relativePath,
+      mediaType: media,
+      sourceHashSha256: hash,
+      sizeBytes:
+        input.bytes.length,
+      uploadedAt:
+        input.uploadedAt,
+      authority:
+        "candidate_only",
+      parserState:
+        mapping
+          ? "parsed"
+          : "stored",
+      storedPath,
+      linkedArtifactId: null,
+      scheduleRole: null,
+      mapping,
+      diagnostics: [],
+    };
+    this.upsertEvidence(
+      state,
+      document,
+    );
+    this.touch(state);
+    return {
+      documentId,
+      category:
+        document.category,
+      documentType:
+        document.documentType,
+      sourceFilename:
+        document.sourceFilename,
+      parserState:
+        document.parserState,
+      linkedArtifactId: null,
+      scheduleRole: null,
+      mapping,
+      diagnostics: [],
+    };
   }
 
   async ingestSchedule(
@@ -636,6 +1049,7 @@ export class RuntimeProjectStore {
       bytes: Uint8Array;
       mediaType: string;
       sourceFilename?: string | null;
+      sourceRelativePath?: string | null;
       role?: string | null;
       label?: string | null;
       uploadedAt: string;
@@ -806,16 +1220,67 @@ export class RuntimeProjectStore {
       };
     }
 
-    this.persistRawUpload({
-      projectId:
-        input.projectId,
-      category: "schedule",
-      hash,
-      bytes: input.bytes,
-      sourceFilename:
-        input.sourceFilename ??
-        null,
-    });
+    const storedPath =
+      this.persistRawUpload({
+        projectId:
+          input.projectId,
+        category: "schedule",
+        hash,
+        bytes: input.bytes,
+        sourceFilename:
+          input.sourceFilename ??
+          null,
+      });
+
+    this.upsertEvidence(
+      state,
+      {
+        documentId:
+          this.evidenceDocumentId(
+            hash,
+            input.sourceRelativePath ??
+              input.sourceFilename ??
+              null,
+          ),
+        category: "schedule",
+        documentType:
+          stored.role === "baseline"
+            ? "schedule_baseline"
+            : stored.role === "recovery"
+              ? "schedule_recovery"
+              : stored.role ===
+                  "revised_baseline"
+                ? "schedule_revised_baseline"
+                : "schedule_update",
+        sourceFilename:
+          input.sourceFilename?.trim() ||
+          "schedule",
+        sourceRelativePath:
+          input.sourceRelativePath?.trim() ||
+          input.sourceFilename?.trim() ||
+          null,
+        mediaType:
+          input.mediaType,
+        sourceHashSha256: hash,
+        sizeBytes:
+          input.bytes.length,
+        uploadedAt:
+          input.uploadedAt,
+        authority:
+          "candidate_only",
+        parserState:
+          "parsed",
+        storedPath,
+        linkedArtifactId:
+          revisionId,
+        scheduleRole:
+          stored.role,
+        mapping: null,
+        diagnostics: [
+          ...model.diagnostics,
+        ],
+      },
+    );
 
     this.touch(state);
 
@@ -831,6 +1296,9 @@ export class RuntimeProjectStore {
     sourceFilename?:
       | string
       | null,
+    sourceRelativePath?:
+      | string
+      | null,
   ): void {
     const state =
       this.getOrCreate(
@@ -842,6 +1310,21 @@ export class RuntimeProjectStore {
       );
 
     state.boq = result;
+    const existingBoqIndex =
+      state.boqRevisions.findIndex(
+        (item) =>
+          item.ingestionId ===
+          result.ingestionId,
+      );
+    if (existingBoqIndex >= 0) {
+      state.boqRevisions[
+        existingBoqIndex
+      ] = result;
+    } else {
+      state.boqRevisions.push(
+        result,
+      );
+    }
     state.quantities =
       quantityModelFromBoq(
         result,
@@ -851,17 +1334,62 @@ export class RuntimeProjectStore {
       );
 
     if (bytes) {
-      this.persistRawUpload({
-        projectId:
-          result.projectId,
-        category: "boq",
-        hash:
-          result.sourceHashSha256,
-        bytes,
-        sourceFilename:
-          sourceFilename ??
-          result.sourceFilename,
-      });
+      const storedPath =
+        this.persistRawUpload({
+          projectId:
+            result.projectId,
+          category: "boq_cost",
+          hash:
+            result.sourceHashSha256,
+          bytes,
+          sourceFilename:
+            sourceFilename ??
+            result.sourceFilename,
+        });
+      this.upsertEvidence(
+        state,
+        {
+          documentId:
+            this.evidenceDocumentId(
+              result.sourceHashSha256,
+              sourceRelativePath ??
+                sourceFilename ??
+                result.sourceFilename,
+            ),
+          category: "boq_cost",
+          documentType: "boq",
+          sourceFilename:
+            sourceFilename ??
+            result.sourceFilename ??
+            "boq",
+          sourceRelativePath:
+            sourceRelativePath ??
+            sourceFilename ??
+            result.sourceFilename,
+          mediaType:
+            result.mediaType,
+          sourceHashSha256:
+            result.sourceHashSha256,
+          sizeBytes:
+            bytes.length,
+          uploadedAt:
+            result.receivedAt,
+          authority:
+            "candidate_only",
+          parserState:
+            result.complete
+              ? "parsed"
+              : "partial",
+          storedPath,
+          linkedArtifactId:
+            result.ingestionId,
+          scheduleRole: null,
+          mapping: null,
+          diagnostics: [
+            ...result.diagnostics,
+          ],
+        },
+      );
     }
 
     this.touch(state);
@@ -885,6 +1413,14 @@ export class RuntimeProjectStore {
       bytes: Uint8Array;
       mediaType: string;
       sourceFilename?: string | null;
+      sourceRelativePath?: string | null;
+      role?:
+        | "main"
+        | "amendment"
+        | "appendix"
+        | "tender"
+        | "other";
+      uploadedAt?: string;
     },
   ): Promise<ContractDocumentResult> {
     const name =
@@ -927,19 +1463,141 @@ export class RuntimeProjectStore {
       this.getOrCreate(
         input.projectId,
       );
-    state.contract = parsed;
-
-    this.persistRawUpload({
-      projectId:
-        input.projectId,
-      category: "contract",
-      hash:
-        hashBytes(input.bytes),
-      bytes: input.bytes,
+    const hash =
+      hashBytes(input.bytes);
+    const role =
+      input.role ?? "other";
+    const documentId =
+      this.evidenceDocumentId(
+        hash,
+        input.sourceRelativePath ??
+          input.sourceFilename ??
+          null,
+      );
+    const storedContract = {
+      documentId,
+      role,
       sourceFilename:
-        input.sourceFilename ??
+        input.sourceFilename?.trim() ||
         null,
-    });
+      sourceHashSha256: hash,
+      uploadedAt:
+        input.uploadedAt ??
+        new Date().toISOString(),
+      result: parsed,
+    };
+    const contractIndex =
+      state.contractDocuments.findIndex(
+        (item) =>
+          item.documentId ===
+          documentId,
+      );
+    if (contractIndex >= 0) {
+      state.contractDocuments[
+        contractIndex
+      ] = storedContract;
+    } else {
+      state.contractDocuments.push(
+        storedContract,
+      );
+    }
+
+    const base =
+      [...state.contractDocuments]
+        .filter(
+          (item) =>
+            item.role === "main",
+        )
+        .sort((a, b) =>
+          a.uploadedAt.localeCompare(
+            b.uploadedAt,
+          ),
+        )
+        .at(-1) ??
+      state.contractDocuments.find(
+        (item) =>
+          item.role !== "amendment",
+      ) ??
+      storedContract;
+    state.contract =
+      base.result;
+    const amendments =
+      state.contractDocuments
+        .filter(
+          (item) =>
+            item.role ===
+            "amendment",
+        )
+        .map(
+          (item) => item.result,
+        );
+    state.contractFamily =
+      base
+        ? linkContractFamily(
+            base.result,
+            amendments,
+          )
+        : null;
+
+    const storedPath =
+      this.persistRawUpload({
+        projectId:
+          input.projectId,
+        category: "contract",
+        hash,
+        bytes: input.bytes,
+        sourceFilename:
+          input.sourceFilename ??
+          null,
+      });
+
+    this.upsertEvidence(
+      state,
+      {
+        documentId,
+        category: "contract",
+        documentType:
+          role === "main"
+            ? "main_contract"
+            : role === "amendment"
+              ? "contract_amendment"
+              : role === "appendix"
+                ? "contract_appendix"
+                : role === "tender"
+                  ? "tender_contract_document"
+                  : "contract_supporting_document",
+        sourceFilename:
+          input.sourceFilename?.trim() ||
+          "contract",
+        sourceRelativePath:
+          input.sourceRelativePath?.trim() ||
+          input.sourceFilename?.trim() ||
+          null,
+        mediaType:
+          input.mediaType,
+        sourceHashSha256: hash,
+        sizeBytes:
+          input.bytes.length,
+        uploadedAt:
+          storedContract.uploadedAt,
+        authority:
+          "candidate_only",
+        parserState:
+          parsed.complete
+            ? "parsed"
+            : "partial",
+        storedPath,
+        linkedArtifactId:
+          documentId,
+        scheduleRole: null,
+        mapping: null,
+        diagnostics: [
+          ...parsed.diagnostics,
+          ...(state.contractFamily
+            ?.diagnostics ?? []),
+        ],
+      },
+    );
 
     this.touch(state);
     return parsed;
