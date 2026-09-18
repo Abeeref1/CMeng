@@ -195,6 +195,21 @@ test("run publication is atomic across the full projection plan", async () => {
     "2026-09-18T10:01:00.000Z",
   );
 
+  const stamped =
+    await rt.metadata.getProjection(
+      run.runId,
+      firstKey,
+    );
+  assert.ok(stamped?.dependencyReceiptId);
+  assert.equal(
+    stamped?.producerVersion,
+    "analysis-v1:" + firstKey,
+  );
+  assert.deepEqual(
+    stamped?.upstreamProjectionHashes,
+    {},
+  );
+
   assert.equal(
     await rt.coordinator.tryPublishRun(
       run.runId,
@@ -457,4 +472,105 @@ test("expired worker lease can be reacquired after abrupt termination", async ()
     afterExpiry!.job.jobId,
     first!.job.jobId,
   );
+});
+
+
+test("dependent projection cannot become ready before its declared upstream projection", async () => {
+  const rt = runtime();
+  const run = await rt.coordinator.ensureProjectAnalysis(
+    snapshot("rev-1"),
+    "2026-09-18T10:00:00.000Z",
+  );
+
+  const artifact = await rt.artifacts.putImmutable(
+    run.runId,
+    "activity_analytics",
+    new TextEncoder().encode("activity-result"),
+  );
+
+  await assert.rejects(
+    () =>
+      rt.coordinator.markProjectionReady(
+        run.runId,
+        "activity_analytics",
+        artifact,
+        "2026-09-18T10:01:00.000Z",
+      ),
+    (error: any) => {
+      assert.equal(
+        error.code,
+        "PROJECTION_DEPENDENCY_NOT_READY",
+      );
+      assert.equal(
+        error.dependencyKey,
+        "schedule_analytics",
+      );
+      return true;
+    },
+  );
+});
+
+test("dependent projection receipt records upstream artifact hash after dependency is ready", async () => {
+  const rt = runtime();
+  const run = await rt.coordinator.ensureProjectAnalysis(
+    snapshot("rev-1"),
+    "2026-09-18T10:00:00.000Z",
+  );
+
+  const scheduleArtifact =
+    await rt.artifacts.putImmutable(
+      run.runId,
+      "schedule_analytics",
+      new TextEncoder().encode("schedule-result"),
+    );
+
+  await rt.coordinator.markProjectionReady(
+    run.runId,
+    "schedule_analytics",
+    scheduleArtifact,
+    "2026-09-18T10:01:00.000Z",
+  );
+
+  const activityArtifact =
+    await rt.artifacts.putImmutable(
+      run.runId,
+      "activity_analytics",
+      new TextEncoder().encode("activity-result"),
+    );
+
+  await rt.coordinator.markProjectionReady(
+    run.runId,
+    "activity_analytics",
+    activityArtifact,
+    "2026-09-18T10:02:00.000Z",
+  );
+
+  const activity =
+    await rt.metadata.getProjection(
+      run.runId,
+      "activity_analytics",
+    );
+
+  assert.ok(activity?.dependencyReceiptId);
+  assert.equal(
+    activity?.upstreamProjectionHashes
+      .schedule_analytics,
+    scheduleArtifact.contentHash,
+  );
+});
+
+test("source manifest change invalidates analysis identity even when evidence label is unchanged", () => {
+  const firstInput = snapshot(
+    "rev-1",
+    "same-evidence-fingerprint",
+  );
+  const secondInput = {
+    ...firstInput,
+    sourceManifestId: "manifest-repacked",
+  };
+
+  const first = analysisRunIdentity(firstInput);
+  const second = analysisRunIdentity(secondInput);
+
+  assert.notEqual(first.runId, second.runId);
 });
