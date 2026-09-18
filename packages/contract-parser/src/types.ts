@@ -142,6 +142,32 @@ export interface ContractDocxSource {
   diagnostics: string[];
 }
 
+export interface ContractLogicalClauseGroup {
+  identifier: string;
+  sectionKeys: string[];
+  contextKeys: string[];
+  headings: string[];
+  consistentHeading: boolean;
+}
+
+export interface ContractAmendmentLink {
+  amendmentSectionKey: string;
+  targetIdentifier: string;
+  action: ContractAmendmentAction["action"];
+  baseSectionKeys: string[];
+  status: "resolved" | "unresolved";
+}
+
+export interface ContractFamilyResult {
+  base: ContractDocumentResult;
+  amendments: ContractDocumentResult[];
+  logicalClauses: ContractLogicalClauseGroup[];
+  amendmentLinks: ContractAmendmentLink[];
+  unresolvedAmendmentTargets: string[];
+  complete: boolean;
+  diagnostics: string[];
+}
+
 export interface ContractParseOptions {
   ocrProvider?: OcrProvider;
   aiPageVerifier?: AiPageVerifier;
