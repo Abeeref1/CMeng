@@ -13,8 +13,11 @@ export interface PrimaveraXmlActivity {
   calendarObjectId: string | null;
   startDate: string | null;
   finishDate: string | null;
+  originalDurationRaw: string | null;
   originalDurationHours: number | null;
+  remainingDurationRaw: string | null;
   remainingDurationHours: number | null;
+  totalFloatRaw: string | null;
   totalFloatHours: number | null;
   raw: Record<string, unknown>;
   status: "verified" | "unresolved";
@@ -27,6 +30,7 @@ export interface PrimaveraXmlRelationship {
   predecessorActivityObjectId: string | null;
   successorActivityObjectId: string | null;
   type: string | null;
+  lagRaw: string | null;
   lagHours: number | null;
   external: boolean;
   status: "verified" | "unresolved";
