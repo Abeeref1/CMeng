@@ -4,6 +4,7 @@ import { parseStrictNumeric } from "../../boq-parser/src/numeric";
 import type { BoqColumnRole } from "../../boq-parser/src/types";
 import { parsePdfDocument } from "../../pdf-document-parser/src";
 import type {
+  AiBoqCellEvidence,
   AiBoqTableExtraction,
   BoqPdfLineItem,
   BoqPdfOptions,
@@ -34,6 +35,77 @@ function arithmeticValid(quantity: number, rate: number, amount: number): boolea
   const expected = quantity * rate;
   const tolerance = Math.max(0.02, Math.abs(amount) * 0.0001);
   return Math.abs(expected - amount) <= tolerance;
+}
+
+function normalizeEvidence(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[\s,._:\-\/\\()[\]{}]+/g, "")
+    .trim();
+}
+
+function validateAiTableEvidence(
+  ocrText: string,
+  extraction: AiBoqTableExtraction,
+): { valid: boolean; rows: string[][]; diagnostics: string[] } {
+  const diagnostics: string[] = [];
+  const rows: string[][] = [];
+
+  extraction.rows.forEach((row, rowIndex) => {
+    const values: string[] = [];
+    row.forEach((cell: AiBoqCellEvidence, columnIndex) => {
+      values.push(cell.value);
+
+      if (
+        !Number.isSafeInteger(cell.sourceStart) ||
+        !Number.isSafeInteger(cell.sourceEnd) ||
+        cell.sourceStart < 0 ||
+        cell.sourceEnd <= cell.sourceStart ||
+        cell.sourceEnd > ocrText.length
+      ) {
+        diagnostics.push(
+          "BOQ_AI_SOURCE_SPAN_INVALID:R" +
+            (rowIndex + 1) +
+            "C" +
+            (columnIndex + 1),
+        );
+        return;
+      }
+
+      const exact = ocrText.slice(cell.sourceStart, cell.sourceEnd);
+      if (exact !== cell.sourceText) {
+        diagnostics.push(
+          "BOQ_AI_SOURCE_SPAN_TEXT_MISMATCH:R" +
+            (rowIndex + 1) +
+            "C" +
+            (columnIndex + 1),
+        );
+        return;
+      }
+
+      const normalizedValue = normalizeEvidence(cell.value);
+      const normalizedSource = normalizeEvidence(cell.sourceText);
+      if (
+        normalizedValue &&
+        !normalizedSource.includes(normalizedValue) &&
+        !normalizedValue.includes(normalizedSource)
+      ) {
+        diagnostics.push(
+          "BOQ_AI_VALUE_NOT_SUPPORTED_BY_SOURCE:R" +
+            (rowIndex + 1) +
+            "C" +
+            (columnIndex + 1),
+        );
+      }
+    });
+    rows.push(values);
+  });
+
+  return {
+    valid: diagnostics.length === 0,
+    rows,
+    diagnostics,
+  };
 }
 
 function parseTableRows(
@@ -265,10 +337,26 @@ export async function parseBoqPdf(
           continue;
         }
 
+        const evidence = validateAiTableEvidence(
+          page.text,
+          extraction,
+        );
+
+        if (!evidence.valid) {
+          unresolvedPages.add(page.pageNumber);
+          diagnostics.push(
+            ...evidence.diagnostics.map(
+              (code) =>
+                "P" + page.pageNumber + ":" + code,
+            ),
+          );
+          continue;
+        }
+
         const parsed = parseTableRows(
           page.pageNumber,
           1,
-          extraction.rows,
+          evidence.rows,
           extraction.diagnostics,
         );
         items.push(...parsed.items);
