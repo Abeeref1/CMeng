@@ -49,25 +49,61 @@ function roleFor(v:string):{role:ScheduleColumnRole;score:number}{
  return best;
 }
 
-export function detectScheduleHeader(rows:readonly (readonly string[])[],maxRows=30):ScheduleHeaderMapping|null{
- let best:ScheduleHeaderMapping|null=null;
- for(let r=0;r<Math.min(rows.length,maxRows);r++){
+function mappingForRow(
+  row: readonly string[],
+  rowNumber: number,
+): ScheduleHeaderMapping | null {
   const roles:Record<number,ScheduleColumnRole>={};
   const headers:Record<number,string>={};
   const seen=new Set<ScheduleColumnRole>();
   let score=0;
-  (rows[r]??[]).forEach((cell,i)=>{
-   headers[i+1]=cell;
-   const m=roleFor(cell);
-   if(m.role!=="unknown"&&m.score>=0.65&&!seen.has(m.role)){
-    roles[i+1]=m.role; seen.add(m.role); score+=m.score;
-   }
+
+  row.forEach((cell,i)=>{
+    headers[i+1]=cell;
+    const m=roleFor(cell);
+    if(m.role!=="unknown"&&m.score>=0.65&&!seen.has(m.role)){
+      roles[i+1]=m.role;
+      seen.add(m.role);
+      score+=m.score;
+    }
   });
-  const looksActivity=seen.has("activity_id")&&(seen.has("activity_name")||seen.has("start")||seen.has("finish"));
-  const looksRelationship=seen.has("predecessor_id")&&seen.has("successor_id");
-  if(!looksActivity&&!looksRelationship) continue;
-  const candidate={row:r+1,roles,headers,score:Number(score.toFixed(4))};
-  if(!best||candidate.score>best.score) best=candidate;
- }
- return best;
+
+  const looksActivity =
+    seen.has("activity_id") &&
+    (seen.has("activity_name") || seen.has("start") || seen.has("finish"));
+  const looksRelationship =
+    seen.has("predecessor_id") && seen.has("successor_id");
+
+  if(!looksActivity && !looksRelationship) return null;
+
+  return {
+    row: rowNumber,
+    roles,
+    headers,
+    score:Number(score.toFixed(4)),
+  };
+}
+
+export function detectAllScheduleHeaders(
+  rows: readonly (readonly string[])[],
+): ScheduleHeaderMapping[] {
+  const mappings: ScheduleHeaderMapping[] = [];
+  rows.forEach((row,index)=>{
+    const mapping = mappingForRow(row,index+1);
+    if(mapping) mappings.push(mapping);
+  });
+  return mappings;
+}
+
+export function detectScheduleHeader(
+  rows:readonly (readonly string[])[],
+  maxRows=30,
+):ScheduleHeaderMapping|null{
+  let best:ScheduleHeaderMapping|null=null;
+  for(let r=0;r<Math.min(rows.length,maxRows);r++){
+    const candidate = mappingForRow(rows[r]??[],r+1);
+    if(!candidate) continue;
+    if(!best||candidate.score>best.score) best=candidate;
+  }
+  return best;
 }
