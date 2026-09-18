@@ -85,6 +85,47 @@ export function verifyXerCalendars(result: XerParseResult): XerCalendarIntegrity
       diagnostics.push(...data.diagnostics);
     }
 
+    if (data?.status === "valid" && data.days.length > 0) {
+      const computedWeekHours =
+        data.days.reduce(
+          (sum, day) => sum + day.workMinutes,
+          0,
+        ) / 60;
+
+      const declaredWeekHours = Number(
+        field(row, "week_hr_cnt") ?? "",
+      );
+      if (
+        Number.isFinite(declaredWeekHours) &&
+        Math.abs(declaredWeekHours - computedWeekHours) > 0.001
+      ) {
+        diagnostics.push(
+          `CALENDAR_WEEK_HOURS_MISMATCH:${declaredWeekHours}:${computedWeekHours}`,
+        );
+      }
+
+      const nonzeroDayHours = [
+        ...new Set(
+          data.days
+            .filter((day) => day.workMinutes > 0)
+            .map((day) => day.workMinutes / 60),
+        ),
+      ];
+
+      const declaredDayHours = Number(
+        field(row, "day_hr_cnt") ?? "",
+      );
+      if (
+        Number.isFinite(declaredDayHours) &&
+        nonzeroDayHours.length === 1 &&
+        Math.abs(declaredDayHours - nonzeroDayHours[0]!) > 0.001
+      ) {
+        diagnostics.push(
+          `CALENDAR_DAY_HOURS_MISMATCH:${declaredDayHours}:${nonzeroDayHours[0]}`,
+        );
+      }
+    }
+
     if (!raw && !baseCalendarId) {
       diagnostics.push("CALENDAR_DATA_AND_BASE_BOTH_MISSING");
     }
