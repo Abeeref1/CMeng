@@ -61,7 +61,7 @@ export function parseXerBytes(bytes: Uint8Array): XerParseResult {
           message: "Encountered a non-empty line outside a recognized XER record.",
           line,
           raw: rawLine,
-          table: currentTableName ?? undefined,
+          ...(currentTableName ? { table: currentTableName } : {}),
         });
       }
       continue;
@@ -213,7 +213,7 @@ export function parseXerBytes(bytes: Uint8Array): XerParseResult {
       severity: "warning",
       message: `Unknown XER record type: ${recordType}`,
       line,
-      table: currentTableName ?? undefined,
+      ...(currentTableName ? { table: currentTableName } : {}),
       raw: rawLine,
     });
   }
