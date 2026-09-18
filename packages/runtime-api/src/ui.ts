@@ -241,9 +241,11 @@ el("loadDemo").onclick=loadDemo;el("refresh").onclick=refresh;
 el("scheduleFile").onchange=e=>upload("schedule",e.target.files[0]);
 el("boqFile").onchange=e=>upload("boq",e.target.files[0]);
 el("contractFile").onchange=e=>upload("contract",e.target.files[0]);
-el("projectId").value=localStorage.getItem("cmeng-project")||"UAT-DEMO";
+const storedProject=localStorage.getItem("cmeng-project");
+el("projectId").value=storedProject||"UAT-DEMO";
 el("projectId").addEventListener("change",refresh);
-renderNav();refresh();
+renderNav();
+if(storedProject){refresh()}else{loadDemo()}
 </script>
 </body>
 </html>`;
