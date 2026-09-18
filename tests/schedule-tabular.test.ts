@@ -353,3 +353,67 @@ test("mixed-model schedule can prove day units from all activity date spans", ()
   assert.equal(parsed.relationships[0]!.lagUnit, "days");
   assert.equal(parsed.complete, true);
 });
+
+
+test("ORION-style activity table preserves embedded predecessor logic without inventing relationship type", async () => {
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet("Activities");
+
+  sheet.addRow([
+    "Activity ID",
+    "WBS",
+    "Activity Name",
+    "Original Duration (d)",
+    "Remaining Duration (d)",
+    "Current Start",
+    "Current Finish",
+    "Total Float (d)",
+    "Predecessor",
+  ]);
+  sheet.addRow([
+    "A100",
+    "01",
+    "Mobilize",
+    2,
+    2,
+    "2026-01-01",
+    "2026-01-03",
+    5,
+    "",
+  ]);
+  sheet.addRow([
+    "A200",
+    "01",
+    "Excavate",
+    3,
+    3,
+    "2026-01-03",
+    "2026-01-06",
+    4,
+    "A100",
+  ]);
+  sheet.addRow([
+    "A300",
+    "01",
+    "Concrete",
+    4,
+    4,
+    "2026-01-06",
+    "2026-01-10",
+    3,
+    "A200",
+  ]);
+
+  const parsed = await parseScheduleXlsx(
+    Buffer.from(await workbook.xlsx.writeBuffer()),
+  );
+
+  assert.equal(parsed.complete, true);
+  assert.equal(parsed.activityRowsSeen, 3);
+  assert.equal(parsed.relationshipRowsSeen, 2);
+  assert.equal(parsed.relationships[0]!.predecessorId, "A100");
+  assert.equal(parsed.relationships[0]!.successorId, "A200");
+  assert.equal(parsed.relationships[0]!.relationshipType, null);
+  assert.equal(parsed.relationships[1]!.predecessorId, "A200");
+  assert.equal(parsed.relationships[1]!.successorId, "A300");
+});
