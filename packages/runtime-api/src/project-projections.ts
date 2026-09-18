@@ -221,15 +221,27 @@ function buildBundle(
     );
   }
 
+  const officialHistory =
+    state.schedules.filter(
+      (item) =>
+        item.role === "baseline" ||
+        item.role === "update" ||
+        item.role ===
+          "revised_baseline",
+    );
   const ordered = [
-    ...state.schedules,
+    ...(officialHistory.length > 0
+      ? officialHistory
+      : state.schedules),
   ].sort(
     (a, b) =>
       a.revision.sequence -
       b.revision.sequence,
   );
   const current =
-    ordered.at(-1) ?? null;
+    runtimeProjects.latestSchedule(
+      state.projectId,
+    );
 
   let director:
     ProjectionBundle["director"] =
@@ -1145,6 +1157,36 @@ export function overviewForProject(
     demo: state.demo,
     revisionCount:
       state.schedules.length,
+    baselineRevisionCount:
+      state.schedules.filter(
+        (item) =>
+          item.role === "baseline" ||
+          item.role ===
+            "revised_baseline",
+      ).length,
+    updateRevisionCount:
+      state.schedules.filter(
+        (item) =>
+          item.role === "update",
+      ).length,
+    recoveryRevisionCount:
+      state.schedules.filter(
+        (item) =>
+          item.role === "recovery",
+      ).length,
+    evidenceDocumentCount:
+      state.evidenceDocuments.length,
+    evidenceCategoryCounts:
+      state.evidenceDocuments.reduce(
+        (counts, document) => {
+          counts[document.category] =
+            (counts[
+              document.category
+            ] ?? 0) + 1;
+          return counts;
+        },
+        {} as Record<string, number>,
+      ),
     latestRevisionId:
       latest?.revision
         .revisionId ?? null,
