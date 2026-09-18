@@ -667,20 +667,37 @@ export class RuntimeProjectStore {
       return null;
     }
 
-    const official = state.schedules.filter(
-      (item) =>
-        item.role === "update" ||
-        item.role === "revised_baseline",
-    );
-    const baseline = state.schedules.filter(
-      (item) => item.role === "baseline",
-    );
+    const updates =
+      state.schedules.filter(
+        (item) =>
+          item.role === "update",
+      );
+    const revisedBaselines =
+      state.schedules.filter(
+        (item) =>
+          item.role ===
+          "revised_baseline",
+      );
+    const baselines =
+      state.schedules.filter(
+        (item) =>
+          item.role === "baseline",
+      );
+    const nonRecovery =
+      state.schedules.filter(
+        (item) =>
+          item.role !== "recovery",
+      );
     const candidates =
-      official.length > 0
-        ? official
-        : baseline.length > 0
-          ? baseline
-          : state.schedules;
+      updates.length > 0
+        ? updates
+        : revisedBaselines.length > 0
+          ? revisedBaselines
+          : baselines.length > 0
+            ? baselines
+            : nonRecovery.length > 0
+              ? nonRecovery
+              : state.schedules;
 
     return [...candidates]
       .sort((a, b) => {
