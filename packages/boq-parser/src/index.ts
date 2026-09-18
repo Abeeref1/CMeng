@@ -4,3 +4,4 @@ export * from "./headers";
 export * from "./workbook";
 export * from "./parser";
 export * from "./ai-reconciliation";
+export * from "./ooxml";
