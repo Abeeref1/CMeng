@@ -72,35 +72,121 @@ function normalize(value: string): string {
     .trim();
 }
 
-function roleForHeader(
-  value: string,
+const NORMALIZED_SYNONYMS = (
+  Object.entries(SYNONYMS) as Array<
+    [
+      Exclude<BoqColumnRole, "unknown">,
+      string[],
+    ]
+  >
+).map(([role, synonyms]) => [
+  role,
+  synonyms.map(normalize),
+] as const);
+
+const EXACT_ROLE_BY_HEADER = new Map<
+  string,
+  Exclude<BoqColumnRole, "unknown">
+>();
+
+for (const [role, synonyms] of NORMALIZED_SYNONYMS) {
+  for (const synonym of synonyms) {
+    if (!EXACT_ROLE_BY_HEADER.has(synonym)) {
+      EXACT_ROLE_BY_HEADER.set(synonym, role);
+    }
+  }
+}
+
+const HEADER_ANCHORS = [
+  ...NORMALIZED_SYNONYMS
+    .filter(([role]) =>
+      role === "description" ||
+      role === "quantity" ||
+      role === "rate" ||
+      role === "amount" ||
+      role === "unit"
+    )
+    .flatMap(([, synonyms]) => synonyms),
+];
+
+function plausibleHeaderRow(
+  normalizedRow: readonly string[],
+): boolean {
+  let anchoredCells = 0;
+
+  for (const value of normalizedRow) {
+    if (!value || !/[A-Za-z\u0600-\u06FF]/.test(value)) {
+      continue;
+    }
+
+    const exact = EXACT_ROLE_BY_HEADER.get(value);
+    if (
+      exact === "description" ||
+      exact === "quantity" ||
+      exact === "rate" ||
+      exact === "amount" ||
+      exact === "unit"
+    ) {
+      anchoredCells += 1;
+    } else {
+      for (const anchor of HEADER_ANCHORS) {
+        const possibleScore =
+          Math.min(value.length, anchor.length) /
+          Math.max(value.length, anchor.length);
+
+        if (
+          possibleScore >= 0.6 &&
+          (value.includes(anchor) || anchor.includes(value))
+        ) {
+          anchoredCells += 1;
+          break;
+        }
+      }
+    }
+
+    if (anchoredCells >= 2) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function roleForNormalizedHeader(
+  normalized: string,
 ): { role: BoqColumnRole; score: number } {
-  const normalized = normalize(value);
   if (!normalized) return { role: "unknown", score: 0 };
+
+  if (!/[A-Za-z\u0600-\u06FF]/.test(normalized)) {
+    return { role: "unknown", score: 0 };
+  }
+
+  const exact = EXACT_ROLE_BY_HEADER.get(normalized);
+  if (exact) {
+    return { role: exact, score: 1 };
+  }
 
   let best: { role: BoqColumnRole; score: number } = {
     role: "unknown",
     score: 0,
   };
 
-  for (const [role, synonyms] of Object.entries(SYNONYMS) as Array<
-    [
-      Exclude<BoqColumnRole, "unknown">,
-      string[],
-    ]
-  >) {
-    for (const synonym of synonyms) {
-      const candidate = normalize(synonym);
-      let score = 0;
-      if (normalized === candidate) score = 1;
-      else if (
+  for (const [role, synonyms] of NORMALIZED_SYNONYMS) {
+    for (const candidate of synonyms) {
+      const possibleScore =
+        Math.min(normalized.length, candidate.length) /
+        Math.max(normalized.length, candidate.length);
+
+      if (possibleScore < 0.6) {
+        continue;
+      }
+
+      const score =
         normalized.includes(candidate) ||
         candidate.includes(normalized)
-      ) {
-        score =
-          Math.min(normalized.length, candidate.length) /
-          Math.max(normalized.length, candidate.length);
-      }
+          ? possibleScore
+          : 0;
+
       if (score > best.score) best = { role, score };
     }
   }
@@ -112,12 +198,18 @@ function mappingForRow(
   row: readonly string[],
   rowNumber: number,
 ): BoqHeaderMapping | null {
+  const normalizedRow = row.map(normalize);
+
+  if (!plausibleHeaderRow(normalizedRow)) {
+    return null;
+  }
+
   const roles: Record<number, BoqColumnRole> = {};
   const seen = new Set<BoqColumnRole>();
   let score = 0;
 
-  row.forEach((cell, columnIndex) => {
-    const match = roleForHeader(cell);
+  normalizedRow.forEach((cell, columnIndex) => {
+    const match = roleForNormalizedHeader(cell);
     if (
       match.role !== "unknown" &&
       match.score >= 0.6 &&

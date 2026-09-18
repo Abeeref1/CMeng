@@ -1,7 +1,8 @@
 import ExcelJS from "exceljs";
+import { performance } from "node:perf_hooks";
 import { detectAllBoqHeaders } from "./headers";
 import { parseStrictNumeric, resolveBoqCommercialNumerics } from "./numeric";
-import { inventoryBoqWorkbook, readBoqCell } from "./workbook";
+import { inventoryBoqWorkbook } from "./workbook";
 import type {
   BoqAuxiliarySheet,
   BoqCell,
@@ -11,12 +12,17 @@ import type {
   BoqSheetParseResult,
 } from "./types";
 
-function rowTexts(worksheet: ExcelJS.Worksheet): string[][] {
+function rowTexts(
+  worksheet: ExcelJS.Worksheet,
+  maxRows = worksheet.rowCount,
+): string[][] {
   const rows: string[][] = [];
-  for (let r = 1; r <= worksheet.rowCount; r += 1) {
+  const limit = Math.min(worksheet.rowCount, maxRows);
+  for (let r = 1; r <= limit; r += 1) {
     const values: string[] = [];
+    const row = worksheet.getRow(r);
     for (let c = 1; c <= worksheet.columnCount; c += 1) {
-      values.push(readBoqCell(worksheet, r, c).text);
+      values.push(row.getCell(c).text ?? "");
     }
     rows.push(values);
   }
@@ -33,23 +39,93 @@ function nonEmptyCellCount(worksheet: ExcelJS.Worksheet): number {
   return count;
 }
 
-function cellForRole(
-  worksheet: ExcelJS.Worksheet,
-  row: number,
+const roleColumnCache = new WeakMap<
+  Record<number, BoqColumnRole>,
+  Map<BoqColumnRole, number>
+>();
+
+type ParseCell = Pick<
+  BoqCell,
+  "locator" | "kind" | "raw" | "text" | "formulaResult"
+>;
+
+function roleColumns(
   roles: Record<number, BoqColumnRole>,
-  role: BoqColumnRole,
-): BoqCell | null {
-  const entry = Object.entries(roles).find(([, mapped]) => mapped === role);
-  if (!entry) return null;
-  return readBoqCell(worksheet, row, Number(entry[0]));
+): Map<BoqColumnRole, number> {
+  let columns = roleColumnCache.get(roles);
+  if (!columns) {
+    columns = new Map<BoqColumnRole, number>();
+    for (const [column, mapped] of Object.entries(roles)) {
+      columns.set(mapped, Number(column));
+    }
+    roleColumnCache.set(roles, columns);
+  }
+  return columns;
 }
 
-function text(cell: BoqCell | null): string | null {
+function parseCellKind(cell: ExcelJS.Cell): BoqCell["kind"] {
+  if (cell.type === ExcelJS.ValueType.Formula) return "formula";
+  if (cell.value === null || cell.value === undefined) return "blank";
+
+  switch (cell.type) {
+    case ExcelJS.ValueType.Number:
+      return "number";
+    case ExcelJS.ValueType.String:
+    case ExcelJS.ValueType.RichText:
+      return "string";
+    case ExcelJS.ValueType.Date:
+      return "date";
+    case ExcelJS.ValueType.Boolean:
+      return "boolean";
+    case ExcelJS.ValueType.Error:
+      return "error";
+    default:
+      return "string";
+  }
+}
+
+function parseCellForRole(
+  worksheet: ExcelJS.Worksheet,
+  row: ExcelJS.Row,
+  columns: Map<BoqColumnRole, number>,
+  role: BoqColumnRole,
+): ParseCell | null {
+  const column = columns.get(role);
+  if (column === undefined) return null;
+
+  const cell = row.getCell(column);
+  const raw = cell.value as unknown;
+  let formulaResult: unknown = null;
+
+  if (
+    cell.type === ExcelJS.ValueType.Formula &&
+    raw &&
+    typeof raw === "object"
+  ) {
+    formulaResult =
+      (raw as { result?: unknown }).result ?? null;
+  }
+
+  return {
+    locator: {
+      sheet: worksheet.name,
+      row: row.number,
+      column,
+      address: cell.address,
+    },
+    kind: parseCellKind(cell),
+    raw,
+    text: cell.text ?? "",
+    formulaResult,
+  };
+}
+
+function text(cell: ParseCell | null): string | null {
   const value = cell?.text.trim() ?? "";
   return value ? value : null;
 }
 
-function numericSource(cell: BoqCell | null): unknown {
+function numericSource(cell: ParseCell | null): unknown {
   if (!cell) return null;
   if (cell.kind === "formula") return cell.formulaResult;
   return cell.raw;
@@ -73,17 +149,20 @@ function arithmeticValid(
 
 function parseLineItem(
   worksheet: ExcelJS.Worksheet,
-  row: number,
+  rowNumber: number,
   roles: Record<number, BoqColumnRole>,
 ): BoqLineItem | null {
-  const itemCell = cellForRole(worksheet, row, roles, "item_number");
-  const sectionCell = cellForRole(worksheet, row, roles, "section");
-  const descriptionCell = cellForRole(worksheet, row, roles, "description");
-  const unitCell = cellForRole(worksheet, row, roles, "unit");
-  const quantityCell = cellForRole(worksheet, row, roles, "quantity");
-  const rateCell = cellForRole(worksheet, row, roles, "rate");
-  const amountCell = cellForRole(worksheet, row, roles, "amount");
-  const currencyCell = cellForRole(worksheet, row, roles, "currency");
+  const row = worksheet.getRow(rowNumber);
+  const columns = roleColumns(roles);
+
+  const itemCell = parseCellForRole(worksheet, row, columns, "item_number");
+  const sectionCell = parseCellForRole(worksheet, row, columns, "section");
+  const descriptionCell = parseCellForRole(worksheet, row, columns, "description");
+  const unitCell = parseCellForRole(worksheet, row, columns, "unit");
+  const quantityCell = parseCellForRole(worksheet, row, columns, "quantity");
+  const rateCell = parseCellForRole(worksheet, row, columns, "rate");
+  const amountCell = parseCellForRole(worksheet, row, columns, "amount");
+  const currencyCell = parseCellForRole(worksheet, row, columns, "currency");
 
   const mappedCells = [
     itemCell,
@@ -169,13 +248,13 @@ function parseLineItem(
     ["rate", rateCell],
     ["amount", amountCell],
     ["currency", currencyCell],
-  ] as Array<[BoqColumnRole, BoqCell | null]>) {
+  ] as Array<[BoqColumnRole, ParseCell | null]>) {
     if (cell) sourceCells[role] = cell.locator;
   }
 
   return {
     sheet: worksheet.name,
-    row,
+    row: rowNumber,
     rowKind,
     itemNumber: text(itemCell),
     section: text(sectionCell),
@@ -192,8 +271,29 @@ function parseLineItem(
 }
 
 function parseWorksheet(worksheet: ExcelJS.Worksheet): BoqSheetParseResult {
+  const rowTextStarted = performance.now();
   const rows = rowTexts(worksheet);
+  const rowTextMs = performance.now() - rowTextStarted;
+
+  const headerStarted = performance.now();
   const headers = detectAllBoqHeaders(rows);
+  const headerMs = performance.now() - headerStarted;
+
+  console.info(
+    "[boq-profile] sheet=" +
+      worksheet.name +
+      " rowTextsMs=" +
+      rowTextMs.toFixed(2) +
+      " headerDetectionMs=" +
+      headerMs.toFixed(2) +
+      " rows=" +
+      worksheet.rowCount +
+      " cols=" +
+      worksheet.columnCount +
+      " headers=" +
+      headers.length,
+  );
+
   const diagnostics: string[] = [];
   const items: BoqLineItem[] = [];
 
@@ -210,6 +310,7 @@ function parseWorksheet(worksheet: ExcelJS.Worksheet): BoqSheetParseResult {
     };
   }
 
+  const itemStarted = performance.now();
   for (let headerIndex = 0; headerIndex < headers.length; headerIndex += 1) {
     const header = headers[headerIndex]!;
     const nextHeader = headers[headerIndex + 1];
@@ -217,10 +318,36 @@ function parseWorksheet(worksheet: ExcelJS.Worksheet): BoqSheetParseResult {
 
     for (let row = header.headerRow + 1; row <= endRow; row += 1) {
       const item = parseLineItem(worksheet, row, header.roles);
-      if (!item) continue;
-      items.push(item);
+      if (item) {
+        items.push(item);
+      }
+
+      if (
+        row % 5_000 === 0 ||
+        row === endRow
+      ) {
+        console.info(
+          "[boq-profile] sheet=" +
+            worksheet.name +
+            " parsedThroughRow=" +
+            row +
+            " elapsedMs=" +
+            (performance.now() - itemStarted).toFixed(2) +
+            " items=" +
+            items.length,
+        );
+      }
     }
   }
+
+  console.info(
+    "[boq-profile] sheet=" +
+      worksheet.name +
+      " itemParseMs=" +
+      (performance.now() - itemStarted).toFixed(2) +
+      " items=" +
+      items.length,
+  );
 
   const unresolvedRows = items.filter(
     (item) => item.status === "unresolved",
@@ -258,15 +385,15 @@ function normalizeAuxHeader(value: string): string {
 function parseSummarySheet(
   worksheet: ExcelJS.Worksheet,
 ): BoqAuxiliarySheet | null {
-  const rows = rowTexts(worksheet);
+  const scanRows = rowTexts(worksheet, 40);
   let headerRow = -1;
   let sectionColumn = -1;
   let descriptionColumn = -1;
   let amountColumn = -1;
   let shareColumn = -1;
 
-  for (let row = 0; row < Math.min(rows.length, 40); row += 1) {
-    const normalized = (rows[row] ?? []).map(normalizeAuxHeader);
+  for (let row = 0; row < scanRows.length; row += 1) {
+    const normalized = (scanRows[row] ?? []).map(normalizeAuxHeader);
     const section = normalized.findIndex(
       (value) => value === "section",
     );
@@ -292,6 +419,7 @@ function parseSummarySheet(
 
   if (headerRow < 0) return null;
 
+  const rows = rowTexts(worksheet);
   const diagnostics: string[] = [];
   const summaryRows: BoqAuxiliarySheet["summaryRows"] = [];
   let declaredTotalAmount: number | null = null;
@@ -404,16 +532,33 @@ function parseSummarySheet(
   };
 }
 
-export async function parseBoqWorkbook(bytes: Uint8Array): Promise<BoqParseResult> {
-  const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load(Buffer.from(bytes) as any);
-
+export function parseLoadedBoqWorkbook(
+  workbook: ExcelJS.Workbook,
+): BoqParseResult {
+  const inventoryStarted = performance.now();
   const inventory = inventoryBoqWorkbook(workbook);
+  console.info(
+    "[boq-profile] inventoryMs=" +
+      (performance.now() - inventoryStarted).toFixed(2) +
+      " sheets=" +
+      workbook.worksheets.length,
+  );
+
   const sheets: BoqSheetParseResult[] = [];
   const auxiliarySheets: BoqAuxiliarySheet[] = [];
 
   for (const worksheet of workbook.worksheets) {
+    const summaryStarted = performance.now();
     const summary = parseSummarySheet(worksheet);
+    console.info(
+      "[boq-profile] sheet=" +
+        worksheet.name +
+        " summaryDetectionMs=" +
+        (performance.now() - summaryStarted).toFixed(2) +
+        " summary=" +
+        String(summary !== null),
+    );
+
     const summaryIsAuthoritativeShape =
       summary !== null &&
       (
@@ -509,4 +654,12 @@ export async function parseBoqWorkbook(bytes: Uint8Array): Promise<BoqParseResul
     complete,
     diagnostics,
   };
+}
+
+export async function parseBoqWorkbook(
+  bytes: Uint8Array,
+): Promise<BoqParseResult> {
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(Buffer.from(bytes) as any);
+  return parseLoadedBoqWorkbook(workbook);
 }

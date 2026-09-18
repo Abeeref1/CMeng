@@ -1,4 +1,4 @@
-name: CMeng Parser Stress
+name: CMeng Scale Certification
 
 on:
   push:
@@ -14,29 +14,60 @@ on:
       - "packages/**"
       - "tests/**"
       - "package.json"
+      - ".github/workflows/stress.yml"
 
 permissions:
   contents: read
 
 concurrency:
-  group: cmeng-parser-stress-${{ github.ref }}
+  group: cmeng-scale-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  stress:
+  schedule-scale:
+    name: Schedule 50k + durable 10k
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: "22"
-
       - name: Install dependencies
         run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Schedule scale certification
+        run: npm run test:stress:schedule
 
-      - name: Large schedule and BOQ stress tests
-        run: npm run test:stress
+  boq-scale:
+    name: BOQ 50k
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: BOQ scale certification
+        run: npm run test:stress:boq
+
+  xer-scale:
+    name: XER 100k
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: XER scale certification
+        run: npm run test:stress:xer

@@ -84,8 +84,41 @@ export async function loadBoqWorkbook(bytes: Uint8Array): Promise<ExcelJS.Workbo
 }
 
 function mergedRanges(worksheet: ExcelJS.Worksheet): string[] {
-  const model = worksheet.model as unknown as { merges?: string[] };
-  return [...(model.merges ?? [])];
+  // Accessing worksheet.model serializes the entire worksheet model,
+  // which is prohibitively expensive for large BOQs. ExcelJS keeps the
+  // authoritative merged-cell ranges in its internal merge registry.
+  const internal = worksheet as unknown as {
+    _merges?: Record<
+      string,
+      {
+        range?: string;
+        tl?: string;
+        br?: string;
+      }
+    >;
+  };
+
+  const merges = internal._merges ?? {};
+  const ranges: string[] = [];
+
+  for (const [masterAddress, merge] of Object.entries(merges)) {
+    if (typeof merge.range === "string" && merge.range) {
+      ranges.push(merge.range);
+      continue;
+    }
+
+    if (merge.tl && merge.br) {
+      ranges.push(merge.tl + ":" + merge.br);
+      continue;
+    }
+
+    // Fail closed to the known master address rather than forcing
+    // worksheet.model materialization. This path is only a defensive
+    // fallback for unexpected ExcelJS internal shapes.
+    ranges.push(masterAddress);
+  }
+
+  return ranges;
 }
 
 export function inventoryBoqWorkbook(workbook: ExcelJS.Workbook): BoqWorkbookInventory {

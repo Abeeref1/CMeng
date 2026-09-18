@@ -10,7 +10,10 @@
     "test:unit": "npm run build && node --test $(find dist/tests -name '*.test.js' ! -name '*-scale.test.js')",
     "test:stress": "npm run build && node --test dist/tests/*-scale.test.js",
     "test": "npm run test:unit",
-    "verify": "npm run typecheck && npm run test:unit"
+    "verify": "npm run typecheck && npm run test:unit",
+    "test:stress:schedule": "npm run build && node --test dist/tests/schedule-modules-scale.test.js",
+    "test:stress:boq": "npm run build && node --test dist/tests/boq-scale.test.js",
+    "test:stress:xer": "npm run build && node --test dist/tests/xer-scale.test.js"
   },
   "dependencies": {
     "iconv-lite": "0.6.3",

@@ -140,6 +140,14 @@ function timed<T>(
   const elapsedMs =
     performance.now() - started;
 
+  console.info(
+    "[scale] " +
+      label +
+      " completed in " +
+      elapsedMs.toFixed(2) +
+      " ms",
+  );
+
   assert.ok(
     elapsedMs <
       MAX_SINGLE_PROJECTION_MS,
@@ -386,6 +394,17 @@ test(
         elapsed,
       );
 
+      console.info(
+        "[scale] durable worker iteration " +
+          (iterations + 1) +
+          " result=" +
+          result +
+          " elapsedMs=" +
+          elapsed.toFixed(2) +
+          " queueRemaining=" +
+          (await queue.size()),
+      );
+
       assert.ok(
         elapsed <
           MAX_SINGLE_PROJECTION_MS,
@@ -431,6 +450,13 @@ test(
     assert.ok(
       maxWorkerMs <
         MAX_SINGLE_PROJECTION_MS,
+    );
+
+    console.info(
+      "[scale] durable plan completed iterations=" +
+        iterations +
+        " maxWorkerMs=" +
+        maxWorkerMs.toFixed(2),
     );
   },
 );
