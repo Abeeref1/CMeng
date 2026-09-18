@@ -954,6 +954,34 @@ function finalize(
   const relationshipRowsUnresolved = relationships.filter(
     (row) => row.statusState === "unresolved",
   ).length;
+  const wbsRowsUnresolved = wbsRows.filter(
+    (row) => row.statusState === "unresolved",
+  ).length;
+  const calendarRowsUnresolved = calendarRows.filter(
+    (row) => row.statusState === "unresolved",
+  ).length;
+  const activityCodeRowsUnresolved = activityCodeRows.filter(
+    (row) => row.statusState === "unresolved",
+  ).length;
+
+  if (wbsRowsUnresolved > 0) {
+    diagnostics.push(
+      "SCHEDULE_WBS_ROWS_UNRESOLVED:" + wbsRowsUnresolved,
+    );
+  }
+  if (calendarRowsUnresolved > 0) {
+    diagnostics.push(
+      "SCHEDULE_CALENDAR_ROWS_UNRESOLVED:" +
+        calendarRowsUnresolved,
+    );
+  }
+  if (activityCodeRowsUnresolved > 0) {
+    diagnostics.push(
+      "SCHEDULE_ACTIVITY_CODE_ROWS_UNRESOLVED:" +
+        activityCodeRowsUnresolved,
+    );
+  }
+
   const total = activities.length + relationships.length;
   const verified =
     total - activityRowsUnresolved - relationshipRowsUnresolved;
@@ -1002,6 +1030,9 @@ function finalize(
       total > 0 &&
       activityRowsUnresolved === 0 &&
       relationshipRowsUnresolved === 0 &&
+      wbsRowsUnresolved === 0 &&
+      calendarRowsUnresolved === 0 &&
+      activityCodeRowsUnresolved === 0 &&
       diagnostics.length === 0,
     diagnostics,
   };
