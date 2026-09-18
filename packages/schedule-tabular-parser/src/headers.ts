@@ -48,9 +48,11 @@ export function detectScheduleHeader(rows:readonly (readonly string[])[],maxRows
  let best:ScheduleHeaderMapping|null=null;
  for(let r=0;r<Math.min(rows.length,maxRows);r++){
   const roles:Record<number,ScheduleColumnRole>={};
+  const headers:Record<number,string>={};
   const seen=new Set<ScheduleColumnRole>();
   let score=0;
   (rows[r]??[]).forEach((cell,i)=>{
+   headers[i+1]=cell;
    const m=roleFor(cell);
    if(m.role!=="unknown"&&m.score>=0.65&&!seen.has(m.role)){
     roles[i+1]=m.role; seen.add(m.role); score+=m.score;
@@ -59,7 +61,7 @@ export function detectScheduleHeader(rows:readonly (readonly string[])[],maxRows
   const looksActivity=seen.has("activity_id")&&(seen.has("activity_name")||seen.has("start")||seen.has("finish"));
   const looksRelationship=seen.has("predecessor_id")&&seen.has("successor_id");
   if(!looksActivity&&!looksRelationship) continue;
-  const candidate={row:r+1,roles,score:Number(score.toFixed(4))};
+  const candidate={row:r+1,roles,headers,score:Number(score.toFixed(4))};
   if(!best||candidate.score>best.score) best=candidate;
  }
  return best;
