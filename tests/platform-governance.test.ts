@@ -587,7 +587,7 @@ test("API startup contract forbids full rebuilds during startup", () => {
         bindLivenessFirst: true,
         startDurableRebuildsInline: true,
         durableWorkMode: "supervised_workers",
-      }),
+      } as any),
     /Full project rebuilds are forbidden/,
   );
 });
