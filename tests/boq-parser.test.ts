@@ -238,3 +238,95 @@ test("multiple BOQ tables with different column order in one sheet use their own
   assert.equal(sheet.items[2]!.amount, 6000);
   assert.equal(parsed.complete, true);
 });
+
+
+test("currency-suffixed commercial headers map rate and amount correctly", async () => {
+  const bytes = await workbookBytes((workbook) => {
+    const sheet = workbook.addWorksheet("BOQ");
+    sheet.addRow([
+      "Item No",
+      "Description",
+      "Unit",
+      "Quantity",
+      "Rate SAR",
+      "Amount SAR",
+    ]);
+    sheet.addRow([
+      "1.0001",
+      "Concrete",
+      "m3",
+      "406.449",
+      "461",
+      "187373",
+    ]);
+  });
+
+  const parsed = await parseBoqWorkbook(bytes);
+
+  assert.equal(parsed.complete, true);
+  const item = parsed.sheets[0]!.items[0]!;
+  assert.equal(item.quantity, 406.449);
+  assert.equal(item.rate, 461);
+  assert.equal(item.amount, 187373);
+});
+
+test("single-separator 3-digit quantity is resolved only when BOQ arithmetic proves one interpretation", async () => {
+  const bytes = await workbookBytes((workbook) => {
+    const sheet = workbook.addWorksheet("BOQ");
+    sheet.addRow([
+      "Item",
+      "Description",
+      "Unit",
+      "Qty",
+      "Rate",
+      "Amount",
+    ]);
+    sheet.addRow([
+      "1",
+      "Concrete",
+      "m3",
+      "1,234",
+      "2",
+      "2468",
+    ]);
+  });
+
+  const parsed = await parseBoqWorkbook(bytes);
+  const item = parsed.sheets[0]!.items[0]!;
+
+  assert.equal(parsed.complete, true);
+  assert.equal(item.quantity, 1234);
+  assert.equal(item.rate, 2);
+  assert.equal(item.amount, 2468);
+});
+
+test("ambiguous numeric remains unresolved when BOQ arithmetic cannot prove a unique interpretation", async () => {
+  const bytes = await workbookBytes((workbook) => {
+    const sheet = workbook.addWorksheet("BOQ");
+    sheet.addRow([
+      "Item",
+      "Description",
+      "Unit",
+      "Qty",
+      "Rate",
+      "Amount",
+    ]);
+    sheet.addRow([
+      "1",
+      "Concrete",
+      "m3",
+      "1,234",
+      "",
+      "",
+    ]);
+  });
+
+  const parsed = await parseBoqWorkbook(bytes);
+  const item = parsed.sheets[0]!.items[0]!;
+
+  assert.equal(parsed.complete, false);
+  assert.equal(item.quantity, null);
+  assert.ok(
+    item.diagnosticCodes.includes("BOQ_QUANTITY_AMBIGUOUS"),
+  );
+});
