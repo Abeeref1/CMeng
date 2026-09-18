@@ -79,6 +79,35 @@ export interface ScheduleRelationshipRow {
   diagnostics: string[];
 }
 
+export interface ScheduleWbsRow {
+  wbsId: string;
+  parentWbsId: string | null;
+  name: string | null;
+  revision: string | null;
+  row: number;
+  statusState: "verified" | "unresolved";
+  diagnostics: string[];
+}
+
+export interface ScheduleCalendarRow {
+  calendarId: string;
+  name: string | null;
+  revision: string | null;
+  row: number;
+  statusState: "verified" | "unresolved";
+  diagnostics: string[];
+}
+
+export interface ScheduleActivityCodeRow {
+  codeId: string;
+  activityId: string | null;
+  value: string | null;
+  revision: string | null;
+  row: number;
+  statusState: "verified" | "unresolved";
+  diagnostics: string[];
+}
+
 export interface ScheduleMetadataField {
   key: string;
   value: string;
@@ -100,6 +129,9 @@ export interface ScheduleMetadataSheet {
 export interface ScheduleTabularResult {
   sourceType: "csv" | "xlsx";
   metadataSheets: ScheduleMetadataSheet[];
+  wbsRows: ScheduleWbsRow[];
+  calendarRows: ScheduleCalendarRow[];
+  activityCodeRows: ScheduleActivityCodeRow[];
   activities: ScheduleActivityRow[];
   relationships: ScheduleRelationshipRow[];
   activityRowsSeen: number;
@@ -108,6 +140,10 @@ export interface ScheduleTabularResult {
   relationshipRowsSeen: number;
   relationshipRowsVerified: number;
   relationshipRowsUnresolved: number;
+  wbsRowsSeen: number;
+  calendarRowsSeen: number;
+  activityCodeRowsSeen: number;
+  structuralCoveragePercent: number | null;
   coveragePercent: number | null;
   complete: boolean;
   diagnostics: string[];
