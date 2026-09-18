@@ -268,3 +268,88 @@ test("mixed-model schedule CSV preserves activities relationships WBS calendars 
   // certification remains incomplete.
   assert.equal(parsed.complete, false);
 });
+
+
+test("unitless schedule durations infer days only when the full table proves the convention", () => {
+  const rows = [
+    "Activity ID,Activity Name,Baseline Start,Baseline Finish,Original Duration,Total Float",
+  ];
+
+  for (let index = 0; index < 20; index += 1) {
+    const day = String(index + 1).padStart(2, "0");
+    const finish = String(index + 3).padStart(2, "0");
+    rows.push(
+      `A${index + 1},Activity ${index + 1},2026-01-${day},2026-01-${finish},2,5`,
+    );
+  }
+
+  const parsed = parseScheduleCsv(
+    Buffer.from(rows.join("\n"), "utf8"),
+  );
+
+  assert.equal(parsed.complete, true);
+  assert.equal(parsed.activityRowsSeen, 20);
+  assert.equal(parsed.activities[0]!.originalDurationUnit, "days");
+  assert.equal(parsed.activities[0]!.originalDurationHours, null);
+  assert.equal(parsed.activities[0]!.totalFloatUnit, "days");
+  assert.equal(parsed.activities[0]!.totalFloatRaw, "5");
+});
+
+test("unitless duration is not inferred when any usable row contradicts date-span proof", () => {
+  const rows = [
+    "Activity ID,Activity Name,Baseline Start,Baseline Finish,Original Duration",
+  ];
+
+  for (let index = 0; index < 20; index += 1) {
+    const day = String(index + 1).padStart(2, "0");
+    const finish = String(index + 3).padStart(2, "0");
+    rows.push(
+      `A${index + 1},Activity ${index + 1},2026-01-${day},2026-01-${finish},${index === 19 ? 3 : 2}`,
+    );
+  }
+
+  const parsed = parseScheduleCsv(
+    Buffer.from(rows.join("\n"), "utf8"),
+  );
+
+  assert.equal(parsed.complete, false);
+  assert.ok(
+    parsed.activities.some((activity) =>
+      activity.diagnostics.includes(
+        "SCHEDULE_ORIGINAL_DURATION_AMBIGUOUS",
+      ),
+    ),
+  );
+});
+
+test("mixed-model schedule can prove day units from all activity date spans", () => {
+  const rows = [
+    "Record Type,Record ID,Parent/Successor,Predecessor,WBS,Name/Description,Type,Start,Finish,Duration,Float,Percent,Status,Lag,Revision",
+    "WBS,NB.01,NB,,,Zone 01,WBS,,,,,,,,Rev7",
+    "CALENDAR,CAL-01,,,,6D-10H,Calendar,,,,,,,,Rev7",
+  ];
+
+  for (let index = 0; index < 20; index += 1) {
+    const start = new Date(Date.UTC(2026, 0, 1 + index * 3));
+    const finish = new Date(start.getTime() + 2 * 86_400_000);
+    const iso = (date: Date) => date.toISOString().slice(0, 10);
+    rows.push(
+      `ACTIVITY,A${String(index + 1).padStart(5, "0")},,,NB.01,Activity ${index + 1},Task,${iso(start)},${iso(finish)},2,5,0,Not Started,,Rev7`,
+    );
+  }
+
+  rows.push(
+    "RELATIONSHIP,R0001,A00002,A00001,,,FS,,,,,,,0,Rev7",
+  );
+
+  const parsed = parseScheduleCsv(
+    Buffer.from(rows.join("\n"), "utf8"),
+  );
+
+  assert.equal(parsed.structuralCoveragePercent, 100);
+  assert.equal(parsed.activityRowsSeen, 20);
+  assert.equal(parsed.relationshipRowsSeen, 1);
+  assert.equal(parsed.activities[0]!.originalDurationUnit, "days");
+  assert.equal(parsed.relationships[0]!.lagUnit, "days");
+  assert.equal(parsed.complete, true);
+});
