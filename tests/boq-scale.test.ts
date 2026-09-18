@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { performance } from "node:perf_hooks";
 import ExcelJS from "exceljs";
 
 import { parseBoqWorkbook } from "../packages/boq-parser/src";
@@ -12,6 +13,8 @@ test("50,000 BOQ line items are all counted with 100% source-row coverage", asyn
   const filename = join(dir, "boq-50000.xlsx");
 
   try {
+    const totalStarted = performance.now();
+    const workbookStarted = performance.now();
     const workbook = new ExcelJS.stream.xlsx.WorkbookWriter({
       filename,
       useStyles: false,
@@ -39,9 +42,36 @@ test("50,000 BOQ line items are all counted with 100% source-row coverage", asyn
     }
 
     await workbook.commit();
+    const workbookMs = performance.now() - workbookStarted;
+    console.info(
+      "[scale] BOQ workbook generation completed in " +
+        workbookMs.toFixed(2) +
+        " ms",
+    );
 
+    const readStarted = performance.now();
     const bytes = await readFile(filename);
+    const readMs = performance.now() - readStarted;
+    console.info(
+      "[scale] BOQ workbook read completed in " +
+        readMs.toFixed(2) +
+        " ms; bytes=" +
+        bytes.length,
+    );
+
+    const parseStarted = performance.now();
     const parsed = await parseBoqWorkbook(bytes);
+    const parseMs = performance.now() - parseStarted;
+    console.info(
+      "[scale] BOQ parse completed in " +
+        parseMs.toFixed(2) +
+        " ms",
+    );
+    console.info(
+      "[scale] BOQ total scale case completed in " +
+        (performance.now() - totalStarted).toFixed(2) +
+        " ms",
+    );
 
     assert.equal(parsed.candidateRows, 50_000);
     assert.equal(parsed.parsedRows, 50_000);
