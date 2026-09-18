@@ -372,6 +372,22 @@ function parseRows(
 
       const start = valueAt(row, roleColumn(header.roles, "start"));
       const finish = valueAt(row, roleColumn(header.roles, "finish"));
+      const actualStart = valueAt(
+        row,
+        roleColumn(header.roles, "actual_start"),
+      );
+      const actualFinish = valueAt(
+        row,
+        roleColumn(header.roles, "actual_finish"),
+      );
+      const baselineStart = valueAt(
+        row,
+        roleColumn(header.roles, "baseline_start"),
+      );
+      const baselineFinish = valueAt(
+        row,
+        roleColumn(header.roles, "baseline_finish"),
+      );
 
       activities.push({
         activityId,
@@ -393,6 +409,30 @@ function parseRows(
           finish,
           rowDiagnostics,
           "SCHEDULE_FINISH_DATE",
+        ),
+        actualStart,
+        actualStartIso: normalizedDate(
+          actualStart,
+          rowDiagnostics,
+          "SCHEDULE_ACTUAL_START_DATE",
+        ),
+        actualFinish,
+        actualFinishIso: normalizedDate(
+          actualFinish,
+          rowDiagnostics,
+          "SCHEDULE_ACTUAL_FINISH_DATE",
+        ),
+        baselineStart,
+        baselineStartIso: normalizedDate(
+          baselineStart,
+          rowDiagnostics,
+          "SCHEDULE_BASELINE_START_DATE",
+        ),
+        baselineFinish,
+        baselineFinishIso: normalizedDate(
+          baselineFinish,
+          rowDiagnostics,
+          "SCHEDULE_BASELINE_FINISH_DATE",
         ),
         originalDurationRaw: originalDuration.raw || null,
         originalDurationUnit: originalDuration.unit,
@@ -808,6 +848,14 @@ function parseMixedScheduleRows(
           rowDiagnostics,
           "SCHEDULE_FINISH_DATE",
         ),
+        actualStart: null,
+        actualStartIso: null,
+        actualFinish: null,
+        actualFinishIso: null,
+        baselineStart: null,
+        baselineStartIso: null,
+        baselineFinish: null,
+        baselineFinishIso: null,
         originalDurationRaw: duration.raw || null,
         originalDurationUnit: duration.unit,
         originalDurationHours: duration.hours,
