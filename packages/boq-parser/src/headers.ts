@@ -97,10 +97,64 @@ for (const [role, synonyms] of NORMALIZED_SYNONYMS) {
   }
 }
 
-function roleForHeader(
-  value: string,
+const HEADER_ANCHORS = [
+  ...NORMALIZED_SYNONYMS
+    .filter(([role]) =>
+      role === "description" ||
+      role === "quantity" ||
+      role === "rate" ||
+      role === "amount" ||
+      role === "unit"
+    )
+    .flatMap(([, synonyms]) => synonyms),
+];
+
+function plausibleHeaderRow(
+  normalizedRow: readonly string[],
+): boolean {
+  let anchoredCells = 0;
+
+  for (const value of normalizedRow) {
+    if (!value || !/[A-Za-z\u0600-\u06FF]/.test(value)) {
+      continue;
+    }
+
+    const exact = EXACT_ROLE_BY_HEADER.get(value);
+    if (
+      exact === "description" ||
+      exact === "quantity" ||
+      exact === "rate" ||
+      exact === "amount" ||
+      exact === "unit"
+    ) {
+      anchoredCells += 1;
+    } else {
+      for (const anchor of HEADER_ANCHORS) {
+        const possibleScore =
+          Math.min(value.length, anchor.length) /
+          Math.max(value.length, anchor.length);
+
+        if (
+          possibleScore >= 0.6 &&
+          (value.includes(anchor) || anchor.includes(value))
+        ) {
+          anchoredCells += 1;
+          break;
+        }
+      }
+    }
+
+    if (anchoredCells >= 2) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function roleForNormalizedHeader(
+  normalized: string,
 ): { role: BoqColumnRole; score: number } {
-  const normalized = normalize(value);
   if (!normalized) return { role: "unknown", score: 0 };
 
   if (!/[A-Za-z\u0600-\u06FF]/.test(normalized)) {
@@ -144,12 +198,18 @@ function mappingForRow(
   row: readonly string[],
   rowNumber: number,
 ): BoqHeaderMapping | null {
+  const normalizedRow = row.map(normalize);
+
+  if (!plausibleHeaderRow(normalizedRow)) {
+    return null;
+  }
+
   const roles: Record<number, BoqColumnRole> = {};
   const seen = new Set<BoqColumnRole>();
   let score = 0;
 
-  row.forEach((cell, columnIndex) => {
-    const match = roleForHeader(cell);
+  normalizedRow.forEach((cell, columnIndex) => {
+    const match = roleForNormalizedHeader(cell);
     if (
       match.role !== "unknown" &&
       match.score >= 0.6 &&
