@@ -326,10 +326,33 @@ test("worker checkpoints one bounded chunk and resumes after termination without
 
 test("database outage after artifact materialization causes publish-only retry with zero recomputation", async () => {
   const rt = runtime();
-  await rt.coordinator.ensureProjectAnalysis(
+  const run = await rt.coordinator.ensureProjectAnalysis(
     snapshot("rev-1"),
     "2026-09-18T10:00:00.000Z",
   );
+
+  // Isolate the retry behavior to one projection. The real full queue
+  // may continue other independent jobs while this one backs off.
+  const isolatedQueue =
+    new InMemoryAnalysisJobQueue();
+  const isolatedCoordinator =
+    new AnalysisCoordinator(
+      rt.metadata,
+      isolatedQueue,
+    );
+
+  await isolatedQueue.enqueueUnique({
+    jobId: "isolated-pmo-job",
+    runId: run.runId,
+    projectId: run.projectId,
+    evidenceRevisionId: run.evidenceRevisionId,
+    projectionKey: "pmo_analysis",
+    phase: "compute",
+    chunkCursor: null,
+    pendingArtifact: null,
+    notBefore: null,
+    attempt: 0,
+  });
 
   let executorCalls = 0;
   const executor: ProjectionExecutor = {
@@ -341,7 +364,7 @@ test("database outage after artifact materialization causes publish-only retry w
         checkpointPayload:
           new TextEncoder().encode("done"),
         finalArtifact:
-          new TextEncoder().encode("durable-scurve"),
+          new TextEncoder().encode("durable-pmo"),
       };
     },
   };
@@ -350,8 +373,8 @@ test("database outage after artifact materialization causes publish-only retry w
     rt.metadata,
     rt.artifacts,
     rt.checkpoints,
-    rt.queue,
-    rt.coordinator,
+    isolatedQueue,
+    isolatedCoordinator,
     executor,
   );
 
@@ -366,7 +389,6 @@ test("database outage after artifact materialization causes publish-only retry w
   assert.equal(executorCalls, 1);
   assert.equal(rt.artifacts.writes, 1);
 
-  // DB comes back. Backoff prevents a hot-loop before notBefore.
   rt.metadata.available = true;
 
   const tooEarly = await worker.processOne(
