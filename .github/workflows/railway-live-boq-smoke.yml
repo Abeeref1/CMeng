@@ -1,0 +1,33 @@
+name: CMeng Railway Live BOQ Smoke
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "scripts/railway-live-boq-smoke.mjs"
+      - ".github/workflows/railway-live-boq-smoke.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  live-boq-upload:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
+
+      - name: Live Railway BOQ upload smoke
+        env:
+          CMENG_RAILWAY_URL: https://cmeng-main-production.up.railway.app
+        run: node scripts/railway-live-boq-smoke.mjs
