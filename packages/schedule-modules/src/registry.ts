@@ -14,12 +14,16 @@ import {
 import {
   buildNearCriticalProjection,
 } from "../../near-critical-analysis/src";
+import {
+  buildLookAheadProjection,
+} from "../../lookahead-schedule/src";
 
 export type ImplementedScheduleProjectionKey =
   | "schedule_analytics"
   | "activity_analytics"
   | "milestones"
-  | "near_critical";
+  | "near_critical"
+  | "lookahead_schedule";
 
 export const IMPLEMENTED_SCHEDULE_PROJECTIONS:
   readonly ImplementedScheduleProjectionKey[] = [
@@ -27,6 +31,7 @@ export const IMPLEMENTED_SCHEDULE_PROJECTIONS:
     "activity_analytics",
     "milestones",
     "near_critical",
+    "lookahead_schedule",
   ] as const;
 
 export function buildImplementedScheduleProjection(
@@ -56,6 +61,11 @@ export function buildImplementedScheduleProjection(
       );
     case "near_critical":
       return buildNearCriticalProjection(
+        model,
+        input,
+      );
+    case "lookahead_schedule":
+      return buildLookAheadProjection(
         model,
         input,
       );
