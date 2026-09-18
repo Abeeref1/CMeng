@@ -192,6 +192,14 @@ export function canonicalScheduleFromTabular(
           remainingDurationHours:
             activity.remainingDurationHours,
           totalFloatHours: activity.totalFloatHours,
+          originalDurationRaw:
+            activity.originalDurationRaw,
+          originalDurationUnit:
+            activity.originalDurationUnit,
+          remainingDurationRaw:
+            activity.remainingDurationRaw,
+          remainingDurationUnit:
+            activity.remainingDurationUnit,
           freeFloatHours: activity.freeFloatHours,
           percentComplete: activity.percentComplete,
           sourceRefs: [
@@ -419,6 +427,18 @@ export function canonicalScheduleFromXer(
               "remain_drtn_hr_cnt",
             ),
           ),
+          originalDurationRaw:
+            firstXerField(row, [
+              "target_drtn_hr_cnt",
+              "orig_drtn_hr_cnt",
+            ]),
+          originalDurationUnit: "hours",
+          remainingDurationRaw:
+            xerField(
+              row,
+              "remain_drtn_hr_cnt",
+            ),
+          remainingDurationUnit: "hours",
           totalFloatHours: numeric(
             xerField(
               row,
@@ -542,19 +562,89 @@ export function canonicalScheduleFromXer(
     verifyXerCalendars(result);
   const calendars: CanonicalCalendar[] =
     calendarIntegrity.calendars.map(
-      (calendar) => ({
-        calendarId: calendar.calendarId,
-        name: calendar.name,
-        semanticComplete:
-          calendar.status === "verified",
-        sourceRefs: [
-          sourceRef(
-            "xer",
-            "CALENDAR:" +
-              calendar.calendarId,
+      (calendar) => {
+        const days = calendar.data?.days ?? [];
+        const weeklyWorkMinutes = [
+          1, 2, 3, 4, 5, 6, 7,
+        ].map(
+          (dayIndex) =>
+            days.find(
+              (day) =>
+                day.dayIndex === dayIndex,
+            )?.workMinutes ?? 0,
+        ) as [
+          number,
+          number,
+          number,
+          number,
+          number,
+          number,
+          number,
+        ];
+
+        const nonZeroDayHours = [
+          ...new Set(
+            weeklyWorkMinutes
+              .filter((minutes) => minutes > 0)
+              .map((minutes) => minutes / 60),
           ),
-        ],
-      }),
+        ];
+
+        return {
+          calendarId: calendar.calendarId,
+          name: calendar.name,
+          semanticComplete:
+            calendar.status === "verified" &&
+            calendar.data?.status === "valid" &&
+            days.length > 0,
+          weeklyWorkMinutes,
+          weeklyWorkIntervals:
+            days.map((day) => ({
+              dayIndex: day.dayIndex,
+              intervals: day.intervals.map(
+                (interval) => ({
+                  start: interval.start,
+                  finish: interval.finish,
+                  minutes: interval.minutes,
+                }),
+              ),
+            })),
+          exceptions:
+            calendar.data?.exceptions.map(
+              (exception) => ({
+                isoDate: exception.isoDate,
+                nonWorking:
+                  exception.nonWorking,
+                workIntervals:
+                  exception.intervals.map(
+                    (interval) => ({
+                      start: interval.start,
+                      finish: interval.finish,
+                      minutes:
+                        interval.minutes,
+                    }),
+                  ),
+              }),
+            ) ?? [],
+          standardDayHours:
+            nonZeroDayHours.length === 1
+              ? nonZeroDayHours[0]!
+              : null,
+          standardWeekHours:
+            weeklyWorkMinutes.reduce(
+              (sum, minutes) =>
+                sum + minutes,
+              0,
+            ) / 60,
+          sourceRefs: [
+            sourceRef(
+              "xer",
+              "CALENDAR:" +
+                calendar.calendarId,
+            ),
+          ],
+        };
+      },
     );
 
   return {
@@ -717,6 +807,34 @@ export function canonicalScheduleFromPrimaveraXml(
             activity.originalDurationHours,
           remainingDurationHours:
             activity.remainingDurationHours,
+          originalDurationRaw:
+            activity.originalDurationRaw,
+          originalDurationUnit:
+            activity.originalDurationRaw
+              ? activity.originalDurationRaw.trim().toLowerCase().endsWith("d")
+                ? "days"
+                : activity.originalDurationRaw.trim().toLowerCase().endsWith("w")
+                  ? "weeks"
+                  : activity.originalDurationHours !== null
+                    ? "hours"
+                    : "unknown"
+              : activity.originalDurationHours !== null
+                ? "hours"
+                : "unknown",
+          remainingDurationRaw:
+            activity.remainingDurationRaw,
+          remainingDurationUnit:
+            activity.remainingDurationRaw
+              ? activity.remainingDurationRaw.trim().toLowerCase().endsWith("d")
+                ? "days"
+                : activity.remainingDurationRaw.trim().toLowerCase().endsWith("w")
+                  ? "weeks"
+                  : activity.remainingDurationHours !== null
+                    ? "hours"
+                    : "unknown"
+              : activity.remainingDurationHours !== null
+                ? "hours"
+                : "unknown",
           totalFloatHours:
             activity.totalFloatHours,
           freeFloatHours: numeric(
