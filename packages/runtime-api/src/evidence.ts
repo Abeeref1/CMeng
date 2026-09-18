@@ -5,11 +5,20 @@ import type {
 } from "./project-state-types";
 
 function normalizePath(value: string): string {
-  return value.replace(/\\\\/g, "/").replace(/^\\/+/, "");
+  let normalized = value.split("\\").join("/");
+  while (normalized.startsWith("/")) {
+    normalized = normalized.slice(1);
+  }
+  return normalized;
 }
 
 function lower(value: string): string {
   return normalizePath(value).toLowerCase();
+}
+
+function basename(path: string): string {
+  const normalized = normalizePath(path);
+  return normalized.split("/").at(-1) ?? normalized;
 }
 
 export function inferEvidenceCategory(
@@ -32,7 +41,14 @@ export function inferEvidenceCategory(
   if (allowed.has(requested)) return requested;
 
   const value = lower(path);
-  if (value.includes("02_schedules") || /(^|\\/)s0?\\d+_.*\\.(xer|xml|xlsx|xlsm|csv)$/.test(value)) {
+  const name = basename(value);
+  if (
+    value.includes("02_schedules") ||
+    (
+      /^s0?\d+_/.test(name) &&
+      /\.(xer|xml|xlsx|xlsm|csv)$/.test(name)
+    )
+  ) {
     return "schedule";
   }
   if (value.includes("03_schedule_control")) return "schedule_control";
@@ -45,7 +61,10 @@ export function inferEvidenceCategory(
   if (value.includes("09_tender_commissioning")) return "tender_commissioning";
 
   if (/contract|amendment|appendix/.test(value)) return "contract";
-  if (/schedule|baseline|recovery|update.*\\.(xer|xml)/.test(value)) return "schedule";
+  if (
+    /schedule|baseline|recovery/.test(value) ||
+    (/update/.test(value) && /\.(xer|xml|xlsx|xlsm|csv)$/.test(value))
+  ) return "schedule";
   if (/risk|claim|procurement/.test(value)) return "risk_claims_procurement";
   if (/rfi|submittal|design/.test(value)) return "engineering";
   if (/hse|ncr|asset|fm/.test(value)) return "hse_quality_fm";
@@ -58,15 +77,18 @@ export function inferDocumentType(
   override?: string | null,
 ): string {
   if (override?.trim()) return override.trim();
-  const value = lower(path);
-  const name = value.split("/").at(-1) ?? value;
+  const name = basename(lower(path));
 
   if (/^c01_|main[_ -]?contract/.test(name)) return "main_contract";
   if (/^c02_|amendment/.test(name)) return "contract_amendment";
   if (/^c03_|technical[_ -]?appendix|appendix/.test(name)) return "contract_appendix";
-  if (/^s01_|baseline/.test(name)) return "schedule_baseline";
-  if (/^s0[2-9]_|update|latest/.test(name) && /\\.(xer|xml|xlsx|xlsm|csv)$/.test(name)) return "schedule_update";
   if (/recovery/.test(name)) return "schedule_recovery";
+  if (/revised[_ -]?baseline/.test(name)) return "schedule_revised_baseline";
+  if (/^s01_|baseline/.test(name)) return "schedule_baseline";
+  if (
+    (/^s0[2-9]_|update|latest/.test(name)) &&
+    /\.(xer|xml|xlsx|xlsm|csv)$/.test(name)
+  ) return "schedule_update";
   if (/^obs/.test(name)) return "obs_responsibility_matrix";
   if (/^pdb/.test(name)) return "project_data_book";
   if (/^rel/.test(name)) return "longest_path_register";
@@ -100,7 +122,7 @@ export function inferScheduleRole(
   const normalized = (requested ?? "")
     .trim()
     .toLowerCase()
-    .replace(/[\\s-]+/g, "_");
+    .replace(/[\s-]+/g, "_");
   if (
     normalized === "baseline" ||
     normalized === "update" ||
@@ -159,8 +181,8 @@ function parseCsv(text: string): string[][] {
     } else if (ch === ",") {
       row.push(field);
       field = "";
-    } else if (ch === "\\n") {
-      row.push(field.replace(/\\r$/, ""));
+    } else if (ch === "\n") {
+      row.push(field.replace(/\r$/, ""));
       rows.push(row);
       row = [];
       field = "";
@@ -170,7 +192,7 @@ function parseCsv(text: string): string[][] {
   }
 
   if (field.length > 0 || row.length > 0) {
-    row.push(field.replace(/\\r$/, ""));
+    row.push(field.replace(/\r$/, ""));
     rows.push(row);
   }
   return rows;
@@ -192,7 +214,9 @@ export function analyzeCsvEvidence(
   bytes: Uint8Array,
   activityIds: ReadonlySet<string>,
 ): EvidenceMappingSummary {
-  const text = Buffer.from(bytes).toString("utf8").replace(/^\\uFEFF/, "");
+  const text = Buffer.from(bytes)
+    .toString("utf8")
+    .replace(/^\uFEFF/, "");
   const rows = parseCsv(text);
   if (rows.length === 0) {
     return {
@@ -233,16 +257,22 @@ export function analyzeCsvEvidence(
     if (activityIds.has(value)) mappedActivityCount += 1;
   }
 
-  const unmappedActivityCount = linkedActivityCount - mappedActivityCount;
+  const unmappedActivityCount =
+    linkedActivityCount -
+    mappedActivityCount;
   return {
     rowCount,
-    linkedActivityField: rows[0]![linkedIndex] ?? null,
+    linkedActivityField:
+      rows[0]![linkedIndex] ?? null,
     linkedActivityCount,
     mappedActivityCount,
     unmappedActivityCount,
     coveragePercent:
       linkedActivityCount === 0
         ? null
-        : (mappedActivityCount / linkedActivityCount) * 100,
+        : (
+            mappedActivityCount /
+            linkedActivityCount
+          ) * 100,
   };
 }
