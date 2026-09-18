@@ -10,6 +10,7 @@ import type {
 import {
   MetadataUnavailableError,
   ProjectionDependencyNotReadyError,
+  RetryableProjectionError,
   type DurableCheckpoint,
   type ProjectionChunkResult,
   type ProjectionJob,
@@ -162,7 +163,9 @@ export class DurableProjectionWorker {
         error instanceof
           MetadataUnavailableError ||
         error instanceof
-          ProjectionDependencyNotReadyError
+          ProjectionDependencyNotReadyError ||
+        error instanceof
+          RetryableProjectionError
       ) {
         const nextAttempt =
           job.attempt + 1;
