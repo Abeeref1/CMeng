@@ -2,7 +2,7 @@ import ExcelJS from "exceljs";
 import { performance } from "node:perf_hooks";
 import { detectAllBoqHeaders } from "./headers";
 import { parseStrictNumeric, resolveBoqCommercialNumerics } from "./numeric";
-import { inventoryBoqWorkbook, readBoqCell } from "./workbook";
+import { inventoryBoqWorkbook } from "./workbook";
 import type {
   BoqAuxiliarySheet,
   BoqCell,
@@ -44,12 +44,14 @@ const roleColumnCache = new WeakMap<
   Map<BoqColumnRole, number>
 >();
 
-function cellForRole(
-  worksheet: ExcelJS.Worksheet,
-  row: number,
+type ParseCell = Pick<
+  BoqCell,
+  "locator" | "kind" | "raw" | "text" | "formulaResult"
+>;
+
+function roleColumns(
   roles: Record<number, BoqColumnRole>,
-  role: BoqColumnRole,
-): BoqCell | null {
+): Map<BoqColumnRole, number> {
   let columns = roleColumnCache.get(roles);
   if (!columns) {
     columns = new Map<BoqColumnRole, number>();
@@ -58,18 +60,72 @@ function cellForRole(
     }
     roleColumnCache.set(roles, columns);
   }
-
-  const column = columns.get(role);
-  if (column === undefined) return null;
-  return readBoqCell(worksheet, row, column);
+  return columns;
 }
 
-function text(cell: BoqCell | null): string | null {
+function parseCellKind(cell: ExcelJS.Cell): BoqCell["kind"] {
+  if (cell.type === ExcelJS.ValueType.Formula) return "formula";
+  if (cell.value === null || cell.value === undefined) return "blank";
+
+  switch (cell.type) {
+    case ExcelJS.ValueType.Number:
+      return "number";
+    case ExcelJS.ValueType.String:
+    case ExcelJS.ValueType.RichText:
+      return "string";
+    case ExcelJS.ValueType.Date:
+      return "date";
+    case ExcelJS.ValueType.Boolean:
+      return "boolean";
+    case ExcelJS.ValueType.Error:
+      return "error";
+    default:
+      return "string";
+  }
+}
+
+function parseCellForRole(
+  worksheet: ExcelJS.Worksheet,
+  row: ExcelJS.Row,
+  columns: Map<BoqColumnRole, number>,
+  role: BoqColumnRole,
+): ParseCell | null {
+  const column = columns.get(role);
+  if (column === undefined) return null;
+
+  const cell = row.getCell(column);
+  const raw = cell.value as unknown;
+  let formulaResult: unknown = null;
+
+  if (
+    cell.type === ExcelJS.ValueType.Formula &&
+    raw &&
+    typeof raw === "object"
+  ) {
+    formulaResult =
+      (raw as { result?: unknown }).result ?? null;
+  }
+
+  return {
+    locator: {
+      sheet: worksheet.name,
+      row: row.number,
+      column,
+      address: cell.address,
+    },
+    kind: parseCellKind(cell),
+    raw,
+    text: cell.text ?? "",
+    formulaResult,
+  };
+}
+
+function text(cell: ParseCell | null): string | null {
   const value = cell?.text.trim() ?? "";
   return value ? value : null;
 }
 
-function numericSource(cell: BoqCell | null): unknown {
+function numericSource(cell: ParseCell | null): unknown {
   if (!cell) return null;
   if (cell.kind === "formula") return cell.formulaResult;
   return cell.raw;
@@ -93,17 +149,20 @@ function arithmeticValid(
 
 function parseLineItem(
   worksheet: ExcelJS.Worksheet,
-  row: number,
+  rowNumber: number,
   roles: Record<number, BoqColumnRole>,
 ): BoqLineItem | null {
-  const itemCell = cellForRole(worksheet, row, roles, "item_number");
-  const sectionCell = cellForRole(worksheet, row, roles, "section");
-  const descriptionCell = cellForRole(worksheet, row, roles, "description");
-  const unitCell = cellForRole(worksheet, row, roles, "unit");
-  const quantityCell = cellForRole(worksheet, row, roles, "quantity");
-  const rateCell = cellForRole(worksheet, row, roles, "rate");
-  const amountCell = cellForRole(worksheet, row, roles, "amount");
-  const currencyCell = cellForRole(worksheet, row, roles, "currency");
+  const row = worksheet.getRow(rowNumber);
+  const columns = roleColumns(roles);
+
+  const itemCell = parseCellForRole(worksheet, row, columns, "item_number");
+  const sectionCell = parseCellForRole(worksheet, row, columns, "section");
+  const descriptionCell = parseCellForRole(worksheet, row, columns, "description");
+  const unitCell = parseCellForRole(worksheet, row, columns, "unit");
+  const quantityCell = parseCellForRole(worksheet, row, columns, "quantity");
+  const rateCell = parseCellForRole(worksheet, row, columns, "rate");
+  const amountCell = parseCellForRole(worksheet, row, columns, "amount");
+  const currencyCell = parseCellForRole(worksheet, row, columns, "currency");
 
   const mappedCells = [
     itemCell,
@@ -189,13 +248,13 @@ function parseLineItem(
     ["rate", rateCell],
     ["amount", amountCell],
     ["currency", currencyCell],
-  ] as Array<[BoqColumnRole, BoqCell | null]>) {
+  ] as Array<[BoqColumnRole, ParseCell | null]>) {
     if (cell) sourceCells[role] = cell.locator;
   }
 
   return {
     sheet: worksheet.name,
-    row,
+    row: rowNumber,
     rowKind,
     itemNumber: text(itemCell),
     section: text(sectionCell),
