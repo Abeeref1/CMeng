@@ -24,7 +24,7 @@ import {
   buildProgressScurveProjection,
 } from "../../progress-scurve/src";
 import {
-  buildScheduleChangeReportProjection,
+  buildScheduleChangeReportFromHistory,
 } from "../../schedule-change-report/src";
 import {
   buildRevisionTrendProjection,
@@ -193,23 +193,11 @@ export function buildImplementedScheduleRevisionProjection(
   }
 
   switch (key) {
-    case "schedule_change_report": {
-      if (revisions.length < 2) {
-        throw new Error(
-          "Schedule Change Report requires at least two revisions",
-        );
-      }
-      const ordered = [...revisions].sort(
-        (a, b) =>
-          a.sequence - b.sequence ||
-          a.revisionId.localeCompare(b.revisionId),
-      );
-      return buildScheduleChangeReportProjection(
-        ordered[ordered.length - 2]!,
-        ordered[ordered.length - 1]!,
+    case "schedule_change_report":
+      return buildScheduleChangeReportFromHistory(
+        revisions,
         input,
       );
-    }
     case "revision_trend":
       return buildRevisionTrendProjection(
         revisions,
