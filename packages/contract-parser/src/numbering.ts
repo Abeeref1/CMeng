@@ -1,6 +1,7 @@
 export interface ContractHeading {
   kind: "clause" | "appendix" | "annex" | "schedule";
   identifier: string;
+  contextIdentifier: string | null;
   heading: string | null;
 }
 
@@ -69,7 +70,22 @@ export function detectContractHeading(
     return {
       kind: "clause",
       identifier: section + "." + clause,
+      contextIdentifier: section,
       heading: cleanHeading(sectionClause[3] ?? ""),
+    };
+  }
+
+  const amendmentProvision = line.match(
+    /^amendment\s+provision\s+([0-9]+(?:\.[0-9]+){0,8})\s*(.*)$/i,
+  );
+  if (amendmentProvision) {
+    return {
+      kind: "clause",
+      identifier: amendmentProvision[1]!,
+      contextIdentifier: "amendment",
+      heading:
+        cleanHeading(amendmentProvision[2] ?? "") ??
+        "Amendment Provision",
     };
   }
 
@@ -80,6 +96,7 @@ export function detectContractHeading(
     return {
       kind: "clause",
       identifier: explicit[1]!,
+      contextIdentifier: null,
       heading: cleanHeading(explicit[2] ?? ""),
     };
   }
@@ -91,6 +108,7 @@ export function detectContractHeading(
     return {
       kind: "clause",
       identifier: arabicExplicit[1]!,
+      contextIdentifier: null,
       heading: cleanHeading(arabicExplicit[2] ?? ""),
     };
   }
@@ -112,6 +130,7 @@ export function detectContractHeading(
     return {
       kind: "clause",
       identifier: numbered[1]!,
+      contextIdentifier: null,
       heading: cleanHeading(rest),
     };
   }
@@ -127,6 +146,7 @@ export function detectContractHeading(
     return {
       kind,
       identifier: appendix[2]!.toUpperCase(),
+      contextIdentifier: null,
       heading: cleanHeading(appendix[3] ?? ""),
     };
   }
@@ -143,6 +163,7 @@ export function detectContractHeading(
       identifier: (
         arabicAppendix[2] ?? arabicAppendix[1]!
       ).toUpperCase(),
+      contextIdentifier: null,
       heading: cleanHeading(arabicAppendix[3] ?? ""),
     };
   }
