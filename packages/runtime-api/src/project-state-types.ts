@@ -172,15 +172,19 @@ export interface ProjectRuntimeState {
   projectId: string;
   version: number;
   demo: boolean;
-  schedules: StoredScheduleRevision[];\n  evidenceDocuments: StoredEvidenceDocument[];
+  schedules: StoredScheduleRevision[];
+  evidenceDocuments: StoredEvidenceDocument[];
   resourcesByRevision: Map<
     string,
     CanonicalResourceModel
   >;
-  boq: BoqIngestionResult | null;\n  boqRevisions: BoqIngestionResult[];
+  boq: BoqIngestionResult | null;
+  boqRevisions: BoqIngestionResult[];
   quantities:
     CanonicalQuantityProgressModel | null;
-  contract: ContractDocumentResult | null;\n  contractDocuments: StoredContractDocument[];\n  contractFamily: ContractFamilyResult | null;
+  contract: ContractDocumentResult | null;
+  contractDocuments: StoredContractDocument[];
+  contractFamily: ContractFamilyResult | null;
   controls: ProjectControlState;
 }
 
@@ -215,7 +219,12 @@ export interface ProjectRuntimeOverview {
   projectId: string;
   version: number;
   demo: boolean;
-  revisionCount: number;\n  baselineRevisionCount: number;\n  updateRevisionCount: number;\n  recoveryRevisionCount: number;\n  evidenceDocumentCount: number;\n  evidenceCategoryCounts: Record<string, number>;
+  revisionCount: number;
+  baselineRevisionCount: number;
+  updateRevisionCount: number;
+  recoveryRevisionCount: number;
+  evidenceDocumentCount: number;
+  evidenceCategoryCounts: Record<string, number>;
   latestRevisionId: string | null;
   latestDataDateIso: string | null;
   boqState: string | null;
