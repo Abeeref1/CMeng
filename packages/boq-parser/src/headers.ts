@@ -56,7 +56,7 @@ function normalize(value: string): string {
   return value
     .toLowerCase()
     .replace(/[\n\r\t]+/g, " ")
-    .replace(/[._:\-\/]+/g, " ")
+    .replace(/[._:\-\/()[\]{}]+/g, " ")
     .replace(
       /\b(?:sar|aed|usd|eur|gbp|jod|qar|omr|bhd|kwd)\b/gi,
       " ",
