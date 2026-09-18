@@ -1,34 +1,28 @@
-name: CMeng Parser Stress
+name: BOQ Scale Profile
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - "packages/**"
-      - "tests/**"
-      - "package.json"
-      - ".github/workflows/stress.yml"
   pull_request:
     branches: [main]
     paths:
-      - "packages/**"
-      - "tests/**"
-      - "package.json"
+      - ".github/workflows/stress.yml"
 
 permissions:
   contents: read
 
-concurrency:
-  group: cmeng-parser-stress-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
-  stress:
+  profile:
+    name: BOQ profile ${{ matrix.rows }} rows
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        rows: [5000, 10000, 20000]
     steps:
-      - name: Checkout
+      - name: Checkout current BOQ optimization branch
         uses: actions/checkout@v4
+        with:
+          ref: work/boq-scale-cert
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -38,5 +32,84 @@ jobs:
       - name: Install dependencies
         run: npm install --ignore-scripts --no-audit --no-fund
 
-      - name: Large schedule and BOQ stress tests
-        run: npm run test:stress
+      - name: Build
+        run: npm run build
+
+      - name: Profile BOQ phases
+        env:
+          ROW_COUNT: ${{ matrix.rows }}
+        run: |
+          node <<'NODE'
+          const { performance } = require("node:perf_hooks");
+          const { readFile, rm } = require("node:fs/promises");
+          const { join } = require("node:path");
+          const { tmpdir } = require("node:os");
+          const ExcelJS = require("exceljs");
+          const {
+            loadBoqWorkbook,
+            parseLoadedBoqWorkbook,
+          } = require("./dist/packages/boq-parser/src");
+
+          (async () => {
+            const rows = Number(process.env.ROW_COUNT);
+            const filename = join(tmpdir(), "cmeng-boq-profile-" + rows + ".xlsx");
+            const totalStarted = performance.now();
+
+            const generationStarted = performance.now();
+            const workbook = new ExcelJS.stream.xlsx.WorkbookWriter({
+              filename,
+              useStyles: false,
+              useSharedStrings: false,
+            });
+            const sheet = workbook.addWorksheet("Priced BOQ");
+            sheet.addRow(["Item No.", "Description", "Unit", "Quantity", "Rate", "Amount"]).commit();
+            for (let i = 1; i <= rows; i += 1) {
+              const qty = (i % 100) + 1;
+              const rate = ((i % 250) + 1) * 0.5;
+              sheet.addRow([
+                "I-" + String(i).padStart(6, "0"),
+                "BOQ line item " + i,
+                i % 2 === 0 ? "m2" : "m3",
+                qty,
+                rate,
+                qty * rate,
+              ]).commit();
+            }
+            await workbook.commit();
+            const generationMs = performance.now() - generationStarted;
+
+            const bytes = await readFile(filename);
+
+            const loadStarted = performance.now();
+            const loaded = await loadBoqWorkbook(bytes);
+            const loadMs = performance.now() - loadStarted;
+
+            const parseStarted = performance.now();
+            const parsed = parseLoadedBoqWorkbook(loaded);
+            const parseMs = performance.now() - parseStarted;
+
+            const totalMs = performance.now() - totalStarted;
+            console.log(JSON.stringify({
+              rows,
+              bytes: bytes.length,
+              generationMs: Number(generationMs.toFixed(2)),
+              loadMs: Number(loadMs.toFixed(2)),
+              semanticParseMs: Number(parseMs.toFixed(2)),
+              totalMs: Number(totalMs.toFixed(2)),
+              candidateRows: parsed.candidateRows,
+              parsedRows: parsed.parsedRows,
+              unresolvedRows: parsed.unresolvedRows,
+              coveragePercent: parsed.coveragePercent,
+              complete: parsed.complete,
+            }));
+
+            if (parsed.candidateRows !== rows || parsed.parsedRows !== rows || parsed.unresolvedRows !== 0 || parsed.coveragePercent !== 100 || parsed.complete !== true) {
+              throw new Error("BOQ profile correctness check failed");
+            }
+
+            await rm(filename, { force: true });
+          })().catch((error) => {
+            console.error(error);
+            process.exitCode = 1;
+          });
+          NODE
