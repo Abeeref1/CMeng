@@ -1,3 +1,4 @@
+import JSZip from "jszip";
 import {
   createServer,
   type IncomingMessage,
@@ -218,6 +219,7 @@ async function route(
           "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
           "application/vnd.ms-excel.sheet.macroEnabled.12",
           "application/pdf",
+          "text/csv",
         ],
         persistence:
           runtimeProjects
@@ -270,6 +272,257 @@ async function route(
           "/api/projects/:projectId/board-report",
       },
     });
+    return;
+  }
+
+
+  const evidenceMatch =
+    /^\/api\/projects\/([^/]+)\/evidence\/documents$/.exec(
+      url.pathname,
+    );
+
+  if (
+    req.method === "GET" &&
+    evidenceMatch
+  ) {
+    const projectId =
+      decodeURIComponent(
+        evidenceMatch[1]!,
+      );
+    const state =
+      runtimeProjects.get(
+        projectId,
+      );
+    if (!state) {
+      json(res, 404, {
+        error:
+          "project_not_found",
+      });
+      return;
+    }
+    json(res, 200, {
+      projectId,
+      documentCount:
+        state.evidenceDocuments
+          .length,
+      documents:
+        runtimeProjects
+          .evidence(projectId),
+    });
+    return;
+  }
+
+  const evidenceUploadMatch =
+    /^\/api\/projects\/([^/]+)\/evidence\/uploads$/.exec(
+      url.pathname,
+    );
+
+  if (
+    req.method === "POST" &&
+    evidenceUploadMatch
+  ) {
+    const projectId =
+      decodeURIComponent(
+        evidenceUploadMatch[1]!,
+      );
+    const body =
+      await readBody(req);
+    const filename =
+      header(
+        req,
+        "x-source-filename",
+      ) ?? "evidence";
+    const relativePath =
+      header(
+        req,
+        "x-source-relative-path",
+      ) ?? filename;
+    const type =
+      mediaType(req).toLowerCase();
+    const isZip =
+      type.includes("zip") ||
+      filename
+        .toLowerCase()
+        .endsWith(".zip");
+
+    if (isZip) {
+      const archive =
+        await JSZip.loadAsync(
+          Buffer.from(body),
+        );
+      const entries = Object.values(
+        archive.files,
+      )
+        .filter(
+          (entry) =>
+            !entry.dir &&
+            !entry.name.includes(
+              "__MACOSX/",
+            ),
+        )
+        .sort((a, b) => {
+          const priority = (
+            name: string,
+          ) => {
+            const value =
+              name.toLowerCase();
+            if (
+              value.includes(
+                "02_schedules",
+              )
+            ) {
+              if (
+                value.includes(
+                  "baseline",
+                )
+              ) return 10;
+              if (
+                value.includes(
+                  "recovery",
+                )
+              ) return 19;
+              return 12;
+            }
+            if (
+              value.includes(
+                "01_contract",
+              )
+            ) {
+              if (
+                value.includes(
+                  "main_contract",
+                )
+              ) return 20;
+              if (
+                value.includes(
+                  "amendment",
+                )
+              ) return 21;
+              return 22;
+            }
+            if (
+              value.includes(
+                "04_cost_boq",
+              ) &&
+              value.includes("boq")
+            ) return 30;
+            return 50;
+          };
+          const byPriority =
+            priority(a.name) -
+            priority(b.name);
+          return byPriority !== 0
+            ? byPriority
+            : a.name.localeCompare(
+                b.name,
+              );
+        });
+
+      const results = [];
+      let extractedBytes = 0;
+      const maxExtracted =
+        Number.parseInt(
+          process.env
+            .CMENG_MAX_PACK_EXTRACTED_BYTES ??
+            String(
+              500 *
+                1024 *
+                1024,
+            ),
+          10,
+        );
+
+      for (const entry of entries) {
+        const bytes =
+          new Uint8Array(
+            await entry.async(
+              "uint8array",
+            ),
+          );
+        extractedBytes +=
+          bytes.length;
+        if (
+          extractedBytes >
+          maxExtracted
+        ) {
+          throw new Error(
+            "EVIDENCE_PACK_EXTRACTED_TOO_LARGE",
+          );
+        }
+        const leaf =
+          entry.name
+            .split("/")
+            .filter(Boolean)
+            .at(-1) ??
+          entry.name;
+        const result =
+          await runtimeProjects
+            .ingestEvidenceFile({
+              projectId,
+              bytes,
+              mediaType: null,
+              sourceFilename:
+                leaf,
+              sourceRelativePath:
+                entry.name,
+              category: null,
+              documentType: null,
+              scheduleRole: null,
+              uploadedAt:
+                new Date()
+                  .toISOString(),
+            });
+        results.push(result);
+      }
+
+      invalidateProject(
+        projectId,
+      );
+      json(res, 201, {
+        projectId,
+        packFilename:
+          filename,
+        documentCount:
+          results.length,
+        extractedBytes,
+        documents: results,
+      });
+      return;
+    }
+
+    const result =
+      await runtimeProjects
+        .ingestEvidenceFile({
+          projectId,
+          bytes: body,
+          mediaType:
+            mediaType(req),
+          sourceFilename:
+            filename,
+          sourceRelativePath:
+            relativePath,
+          category:
+            header(
+              req,
+              "x-evidence-category",
+            ),
+          documentType:
+            header(
+              req,
+              "x-document-type",
+            ),
+          scheduleRole:
+            header(
+              req,
+              "x-schedule-role",
+            ),
+          uploadedAt:
+            new Date().toISOString(),
+        });
+    invalidateProject(
+      projectId,
+    );
+    json(res, 201, result);
     return;
   }
 
@@ -356,6 +609,11 @@ async function route(
             header(
               req,
               "x-source-filename",
+            ),
+          sourceRelativePath:
+            header(
+              req,
+              "x-source-relative-path",
             ),
           role:
             header(
@@ -501,6 +759,25 @@ async function route(
               req,
               "x-source-filename",
             ),
+          sourceRelativePath:
+            header(
+              req,
+              "x-source-relative-path",
+            ),
+          role:
+            (header(
+              req,
+              "x-contract-role",
+            ) as
+              | "main"
+              | "amendment"
+              | "appendix"
+              | "tender"
+              | "other"
+              | null) ??
+            "other",
+          uploadedAt:
+            new Date().toISOString(),
         });
     invalidateProject(
       projectId,
