@@ -51,6 +51,9 @@ test("runtime API accepts Excel BOQ upload and returns retrievable governed stat
       "http://127.0.0.1:" +
       address.port;
 
+    const uploadBytes =
+      new Uint8Array(await xlsxBytes());
+
     const upload = await fetch(
       base +
         "/api/projects/P-HTTP/boq/uploads",
@@ -62,7 +65,7 @@ test("runtime API accepts Excel BOQ upload and returns retrievable governed stat
           "x-source-filename":
             "priced-boq.xlsx",
         },
-        body: await xlsxBytes(),
+        body: uploadBytes,
       },
     );
 
