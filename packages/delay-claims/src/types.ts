@@ -17,6 +17,7 @@ export interface DelayClaimEventAssessmentRow {
   responsibilityState: GovernanceState;
   noticeTimeliness: NoticeTimeliness;
   linkedClaimIds: string[];
+  relatedActivityIds: string[];
   overlappingWindowIds: string[];
   observedNetIndependentMovementDays: number;
   observedPositiveIndependentMovementDays: number;

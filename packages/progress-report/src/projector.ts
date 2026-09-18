@@ -14,8 +14,69 @@ import type {
   IndependentForecastProjection,
 } from "../../independent-forecast/src";
 import type {
+  ExternalProgressEvidence,
+  ProgressBasisValue,
   ProgressReportProjection,
 } from "./types";
+
+
+function latestActualSnapshotRecord(
+  scurve: ProgressScurveProjection,
+) {
+  if (scurve.actualSnapshots.length === 0) {
+    return null;
+  }
+  return [...scurve.actualSnapshots].sort(
+    (a, b) =>
+      Date.parse(a.asOfIso) -
+      Date.parse(b.asOfIso),
+  ).at(-1) ?? null;
+}
+
+function pointAtOrBeforeDataDate(
+  scurve: ProgressScurveProjection,
+) {
+  if (!scurve.dataDateIso) return null;
+  const cutoff = Date.parse(scurve.dataDateIso);
+  if (!Number.isFinite(cutoff)) return null;
+  return [...scurve.points]
+    .filter((point) => {
+      const value = Date.parse(point.dateIso);
+      return Number.isFinite(value) && value <= cutoff;
+    })
+    .sort(
+      (a, b) =>
+        Date.parse(a.dateIso) -
+        Date.parse(b.dateIso),
+    )
+    .at(-1) ?? null;
+}
+
+function progressBasis(
+  valuePercent: number | null,
+  authority: ProgressBasisValue["authority"],
+  sourceRefs: string[],
+  baselinePercent: number | null,
+): ProgressBasisValue {
+  return {
+    valuePercent,
+    state:
+      valuePercent === null
+        ? "missing"
+        : "established",
+    authority:
+      valuePercent === null ? "missing" : authority,
+    sourceRefs:
+      valuePercent === null ? [] : [...sourceRefs],
+    varianceToBaselinePercentagePoints:
+      valuePercent !== null &&
+      baselinePercent !== null
+        ? Number(
+            (valuePercent - baselinePercent).toFixed(6),
+          )
+        : null,
+  };
+}
 
 function latestActualSnapshot(
   scurve: ProgressScurveProjection,
@@ -45,6 +106,11 @@ export function buildProgressReportProjection(
     lookAhead: LookAheadProjection;
     progressScurve: ProgressScurveProjection;
     independentForecast: IndependentForecastProjection;
+    progressEvidence?: {
+      physical?: ExternalProgressEvidence;
+      contractorReported?: ExternalProgressEvidence;
+      certified?: ExternalProgressEvidence;
+    };
   },
 ): ProgressReportProjection {
   const schedule =
@@ -83,6 +149,83 @@ export function buildProgressReportProjection(
     );
   }
 
+
+  const dataDatePoint =
+    pointAtOrBeforeDataDate(
+      input.progressScurve,
+    );
+  const baselinePercent =
+    dataDatePoint?.baselinePlannedPercent ??
+    null;
+  const currentSchedulePercent =
+    dataDatePoint?.currentForecastPercent ??
+    null;
+  const latestActual =
+    latestActualSnapshotRecord(
+      input.progressScurve,
+    );
+  const physicalPercent =
+    input.progressEvidence?.physical
+      ?.valuePercent ??
+    latestActual?.progressPercent ??
+    null;
+  const physicalRefs =
+    input.progressEvidence?.physical
+      ?.sourceRefs ??
+    latestActual?.sourceRefs ??
+    [];
+
+  const progressBases = {
+    baselinePlanned: progressBasis(
+      baselinePercent,
+      "deterministic_schedule",
+      [
+        "progress-scurve:baseline:" +
+          (dataDatePoint?.dateIso ?? "unestablished"),
+      ],
+      baselinePercent,
+    ),
+    currentSchedule: progressBasis(
+      currentSchedulePercent,
+      "deterministic_schedule",
+      [
+        "progress-scurve:current:" +
+          (dataDatePoint?.dateIso ?? "unestablished"),
+      ],
+      baselinePercent,
+    ),
+    physical: progressBasis(
+      physicalPercent,
+      input.progressEvidence?.physical
+        ? "source_evidence"
+        : latestActual
+          ? "progress_snapshot"
+          : "missing",
+      physicalRefs,
+      baselinePercent,
+    ),
+    contractorReported: progressBasis(
+      input.progressEvidence?.contractorReported
+        ?.valuePercent ?? null,
+      input.progressEvidence?.contractorReported
+        ? "source_evidence"
+        : "missing",
+      input.progressEvidence?.contractorReported
+        ?.sourceRefs ?? [],
+      baselinePercent,
+    ),
+    certified: progressBasis(
+      input.progressEvidence?.certified
+        ?.valuePercent ?? null,
+      input.progressEvidence?.certified
+        ? "source_evidence"
+        : "missing",
+      input.progressEvidence?.certified
+        ?.sourceRefs ?? [],
+      baselinePercent,
+    ),
+  };
+
   return {
     schemaVersion: "1.0",
     projectionKey: "progress_report",
@@ -94,6 +237,7 @@ export function buildProgressReportProjection(
       schedule.sourceRevisionId,
     dataDateIso:
       schedule.dataDateIso,
+    progressBases,
     sourceProjections: [
       {
         projectionKey:

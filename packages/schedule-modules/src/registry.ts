@@ -16,6 +16,8 @@ import {
 } from "../../near-critical-analysis/src";
 import {
   buildLookAheadProjection,
+  type ReadinessDimensionKey,
+  type ReadinessEvidence,
 } from "../../lookahead-schedule/src";
 import {
   buildProgressBreakdownProjection,
@@ -63,6 +65,9 @@ import type {
 import type {
   IndependentForecastProjection,
 } from "../../independent-forecast/src";
+import type {
+  ExternalProgressEvidence,
+} from "../../progress-report/src";
 import {
   buildResourceUtilizationProjection,
 } from "../../resource-utilization/src";
@@ -109,6 +114,17 @@ export function buildImplementedScheduleProjection(
     producerVersion: string;
     config?: ScheduleAnalysisConfig;
     cpmConfig?: Partial<CpmConfig>;
+    readinessEvidence?: Record<
+      string,
+      Partial<Record<ReadinessDimensionKey, ReadinessEvidence>>
+    >;
+    probabilisticConfig?: {
+      iterations?: number;
+      seed?: number;
+      minFactor?: number;
+      modeFactor?: number;
+      maxFactor?: number;
+    };
   },
 ): unknown {
   switch (key) {
@@ -135,7 +151,13 @@ export function buildImplementedScheduleProjection(
     case "lookahead_schedule":
       return buildLookAheadProjection(
         model,
-        input,
+        {
+          generatedAt: input.generatedAt,
+          producerVersion: input.producerVersion,
+          ...(input.readinessEvidence
+            ? { readinessEvidence: input.readinessEvidence }
+            : {}),
+        },
       );
     case "progress_breakdown":
       return buildProgressBreakdownProjection(
@@ -158,6 +180,12 @@ export function buildImplementedScheduleProjection(
             ? {
                 cpmConfig:
                   input.cpmConfig,
+              }
+            : {}),
+          ...(input.probabilisticConfig
+            ? {
+                probabilisticConfig:
+                  input.probabilisticConfig,
               }
             : {}),
         },
@@ -235,6 +263,11 @@ export function buildImplementedProgressReportProjection(
     lookAhead: LookAheadProjection;
     progressScurve: ProgressScurveProjection;
     independentForecast: IndependentForecastProjection;
+    progressEvidence?: {
+      physical?: ExternalProgressEvidence;
+      contractorReported?: ExternalProgressEvidence;
+      certified?: ExternalProgressEvidence;
+    };
   },
 ): unknown {
   return buildProgressReportProjection(input);

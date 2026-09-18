@@ -13,6 +13,16 @@ import {
   scheduleModules,
   scheduleModuleSummary,
 } from "./registry";
+import {
+  buildProjectDirectorPosition,
+  type DirectorPositionInput,
+  type ProjectDirectorPosition,
+} from "../../project-director/src";
+import {
+  buildBoardReadyReport,
+  type BoardReadyReport,
+  type BoardReportPublicationInput,
+} from "../../board-report/src";
 
 const port = Number.parseInt(
   process.env.PORT ?? "3000",
@@ -27,6 +37,10 @@ const MAX_UPLOAD_BYTES = Number.parseInt(
 
 const boqIngestions =
   new Map<string, BoqIngestionResult>();
+const directorPositions =
+  new Map<string, ProjectDirectorPosition>();
+const boardReports =
+  new Map<string, BoardReadyReport>();
 
 function json(
   res: ServerResponse,
@@ -89,6 +103,23 @@ async function readBody(
   }
 
   return Buffer.concat(chunks);
+}
+
+
+async function readJsonBody<T>(
+  req: IncomingMessage,
+): Promise<T> {
+  const bytes = await readBody(req);
+  if (bytes.length === 0) {
+    throw new Error("JSON_BODY_REQUIRED");
+  }
+  try {
+    return JSON.parse(
+      Buffer.from(bytes).toString("utf8"),
+    ) as T;
+  } catch {
+    throw new Error("JSON_BODY_INVALID");
+  }
 }
 
 function uploadSummary(
@@ -166,6 +197,155 @@ async function route(
       moduleCount: scheduleModules.length,
       modules: scheduleModules,
     });
+    return;
+  }
+
+
+  if (
+    req.method === "GET" &&
+    url.pathname ===
+      "/api/schedule/certification"
+  ) {
+    json(res, 200, {
+      release:
+        process.env.RAILWAY_GIT_COMMIT_SHA ??
+        process.env.GIT_COMMIT_SHA ??
+        null,
+      scope: "schedule-22-final",
+      moduleCount: scheduleModules.length,
+      modules: scheduleModules,
+      invariants: {
+        missingEvidenceIsNotZero: true,
+        candidateExtractionIsNotOfficial: true,
+        currenciesAreNotCrossSummed: true,
+        deterministicCpmRemainsCanonical: true,
+        probabilisticForecastIsNonOfficial: true,
+        claimsRequireDelayEventAndScheduleLinkage: true,
+        boardReportRequiresEvidenceReceipts: true,
+      },
+      managementOutputs: {
+        projectDirector:
+          "/api/projects/:projectId/director-position",
+        boardReport:
+          "/api/projects/:projectId/board-report",
+      },
+    });
+    return;
+  }
+
+  const directorMatch =
+    /^\/api\/projects\/([^/]+)\/director-position$/.exec(
+      url.pathname,
+    );
+
+  if (
+    req.method === "POST" &&
+    directorMatch
+  ) {
+    const projectId =
+      decodeURIComponent(
+        directorMatch[1]!,
+      );
+    const input =
+      await readJsonBody<
+        Omit<
+          DirectorPositionInput,
+          "projectId"
+        >
+      >(req);
+    const position =
+      buildProjectDirectorPosition({
+        ...input,
+        projectId,
+      });
+    directorPositions.set(
+      projectId,
+      position,
+    );
+    json(res, 201, position);
+    return;
+  }
+
+  if (
+    req.method === "GET" &&
+    directorMatch
+  ) {
+    const projectId =
+      decodeURIComponent(
+        directorMatch[1]!,
+      );
+    const position =
+      directorPositions.get(projectId);
+    if (!position) {
+      json(res, 404, {
+        error:
+          "director_position_not_found",
+        persistence: "runtime_local",
+      });
+      return;
+    }
+    json(res, 200, position);
+    return;
+  }
+
+  const boardMatch =
+    /^\/api\/projects\/([^/]+)\/board-report$/.exec(
+      url.pathname,
+    );
+
+  if (
+    req.method === "POST" &&
+    boardMatch
+  ) {
+    const projectId =
+      decodeURIComponent(
+        boardMatch[1]!,
+      );
+    const position =
+      directorPositions.get(projectId);
+    if (!position) {
+      json(res, 409, {
+        error:
+          "director_position_required_before_board_report",
+      });
+      return;
+    }
+    const publication =
+      await readJsonBody<
+        BoardReportPublicationInput
+      >(req);
+    const report =
+      buildBoardReadyReport(
+        position,
+        publication,
+      );
+    boardReports.set(
+      projectId,
+      report,
+    );
+    json(res, 201, report);
+    return;
+  }
+
+  if (
+    req.method === "GET" &&
+    boardMatch
+  ) {
+    const projectId =
+      decodeURIComponent(
+        boardMatch[1]!,
+      );
+    const report =
+      boardReports.get(projectId);
+    if (!report) {
+      json(res, 404, {
+        error:
+          "board_report_not_found",
+        persistence: "runtime_local",
+      });
+      return;
+    }
+    json(res, 200, report);
     return;
   }
 
@@ -256,8 +436,14 @@ async function route(
       health: "/health",
       scheduleModules:
         "/api/schedule/modules",
+      scheduleCertification:
+        "/api/schedule/certification",
       boqUpload:
         "/api/projects/:projectId/boq/uploads",
+      projectDirector:
+        "/api/projects/:projectId/director-position",
+      boardReport:
+        "/api/projects/:projectId/board-report",
     });
     return;
   }

@@ -6,6 +6,9 @@ import {
 import type {
   LookAheadActivityRow,
   LookAheadProjection,
+  ReadinessDimension,
+  ReadinessDimensionKey,
+  ReadinessEvidence,
 } from "./types";
 
 function ms(value: string | null): number | null {
@@ -16,6 +19,109 @@ function ms(value: string | null): number | null {
 
 function dateOnly(msValue: number): string {
   return new Date(msValue).toISOString().slice(0, 10);
+}
+
+
+const READINESS_KEYS: readonly ReadinessDimensionKey[] = [
+  "predecessor",
+  "procurement_material",
+  "design_submittal",
+  "permit",
+  "resource",
+  "quality",
+  "commercial",
+  "risk",
+  "access",
+];
+
+function readinessForActivity(
+  model: CanonicalScheduleModel,
+  predecessorIds: readonly string[],
+  externalEvidence:
+    | Partial<Record<ReadinessDimensionKey, ReadinessEvidence>>
+    | undefined,
+) {
+  const statusById = new Map(
+    model.activities.map((activity) => [
+      activity.activityId,
+      activity.status,
+    ]),
+  );
+
+  const dimensions: ReadinessDimension[] =
+    READINESS_KEYS.map((key) => {
+      if (key === "predecessor") {
+        if (predecessorIds.length === 0) {
+          return {
+            key,
+            state: "not_applicable" as const,
+            sourceRefs: [],
+            note: "No predecessor activities.",
+          };
+        }
+
+        const incomplete = predecessorIds.filter(
+          (id) => statusById.get(id) !== "completed",
+        );
+
+        return {
+          key,
+          state:
+            incomplete.length === 0
+              ? "ready" as const
+              : "blocked" as const,
+          sourceRefs: predecessorIds.map(
+            (id) => "schedule-activity:" + id,
+          ),
+          note:
+            incomplete.length === 0
+              ? "All linked predecessors are complete."
+              : "Incomplete predecessors: " + incomplete.join(", "),
+        };
+      }
+
+      const evidence = externalEvidence?.[key];
+      if (!evidence) {
+        return {
+          key,
+          state: "unknown" as const,
+          sourceRefs: [],
+          note: null,
+        };
+      }
+
+      return {
+        key,
+        state: evidence.state,
+        sourceRefs: [...evidence.sourceRefs],
+        note: evidence.note ?? null,
+      };
+    });
+
+  const blockedCount = dimensions.filter(
+    (dimension) => dimension.state === "blocked",
+  ).length;
+  const unknownCount = dimensions.filter(
+    (dimension) => dimension.state === "unknown",
+  ).length;
+  const readyCount = dimensions.filter(
+    (dimension) =>
+      dimension.state === "ready" ||
+      dimension.state === "not_applicable",
+  ).length;
+
+  return {
+    state:
+      blockedCount > 0
+        ? "blocked" as const
+        : unknownCount > 0
+          ? "conditional" as const
+          : "ready" as const,
+    readyCount,
+    blockedCount,
+    unknownCount,
+    dimensions,
+  };
 }
 
 function coverage(
@@ -56,6 +162,10 @@ export function buildLookAheadProjection(
     generatedAt: string;
     producerVersion: string;
     windowDays?: number;
+    readinessEvidence?: Record<
+      string,
+      Partial<Record<ReadinessDimensionKey, ReadinessEvidence>>
+    >;
   },
 ): LookAheadProjection {
   const windowDays = input.windowDays ?? 42;
@@ -155,6 +265,11 @@ export function buildLookAheadProjection(
         activityLogic?.predecessorIds ?? [],
       successorIds:
         activityLogic?.successorIds ?? [],
+      readiness: readinessForActivity(
+        model,
+        activityLogic?.predecessorIds ?? [],
+        input.readinessEvidence?.[activity.activityId],
+      ),
       daysToStart: Number(
         (
           (startMs - dataDateMs) /
@@ -209,6 +324,15 @@ export function buildLookAheadProjection(
     ),
     overdueCount: rows.filter(
       (row) => row.classification === "overdue",
+    ).length,
+    readyCount: rows.filter(
+      (row) => row.readiness.state === "ready",
+    ).length,
+    conditionalCount: rows.filter(
+      (row) => row.readiness.state === "conditional",
+    ).length,
+    blockedCount: rows.filter(
+      (row) => row.readiness.state === "blocked",
     ).length,
     rows,
     missingCurrentDateActivityIds:

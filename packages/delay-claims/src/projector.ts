@@ -150,6 +150,11 @@ export function buildDelayClaimsProjection(
             ) ?? [],
           ),
         ].sort(),
+        relatedActivityIds: [
+          ...new Set(
+            event.relatedActivityIds,
+          ),
+        ].sort(),
         overlappingWindowIds:
           overlapping.map(
             (window) =>
