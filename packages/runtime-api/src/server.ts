@@ -858,6 +858,11 @@ async function route(
       projectId,
       position,
     );
+    const project =
+      projectState(projectId);
+    project.directorPosition =
+      position;
+    touchProject(project);
     json(res, 201, position);
     return;
   }
@@ -919,6 +924,11 @@ async function route(
       projectId,
       report,
     );
+    const project =
+      projectState(projectId);
+    project.boardReport =
+      report;
+    touchProject(project);
     json(res, 201, report);
     return;
   }
@@ -978,6 +988,12 @@ async function route(
       result.ingestionId,
       result,
     );
+    const project =
+      projectState(projectId);
+    project.boqIngestions.push(
+      result,
+    );
+    touchProject(project);
 
     json(res, 201, uploadSummary(result));
     return;
