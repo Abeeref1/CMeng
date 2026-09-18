@@ -26,6 +26,9 @@ import type {
 import type {
   CpmConfig,
 } from "../../schedule-cpm/src";
+import type {
+  LookAheadActivityReadinessEvidence,
+} from "../../lookahead-schedule/src";
 
 export interface ProjectAnalysisContext {
   runId: string;
@@ -45,6 +48,11 @@ export interface ProjectAnalysisContext {
   contract: ContractDocumentResult | null;
   delayClaims: DelayClaimsModel | null;
   contractTimeBasis: ContractTimeBasis | null;
+
+  lookAheadReadiness?: Record<
+    string,
+    LookAheadActivityReadinessEvidence
+  >;
 
   scheduleConfig?: ScheduleAnalysisConfig;
   cpmConfig?: Partial<CpmConfig>;
