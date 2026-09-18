@@ -202,11 +202,17 @@ function laborResourceIds(
 function actualPeriodHistory(
   actuals: readonly CanonicalResourcePeriodActual[],
   laborIds: ReadonlySet<string>,
-): Array<{
-  periodEndIso: string;
-  units: number;
-}> {
+  dataDateIso: string | null,
+): {
+  history: Array<{
+    periodEndIso: string;
+    units: number;
+  }>;
+  excludedFuturePeriodActualCount: number;
+} {
   const byEnd = new Map<string, number>();
+  const dataDateMs = ms(dataDateIso);
+  let excludedFuturePeriodActualCount = 0;
 
   for (const actual of actuals) {
     if (
@@ -218,6 +224,16 @@ function actualPeriodHistory(
       continue;
     }
 
+    const periodEndMs = ms(actual.periodEndIso);
+    if (
+      dataDateMs !== null &&
+      periodEndMs !== null &&
+      periodEndMs > dataDateMs
+    ) {
+      excludedFuturePeriodActualCount += 1;
+      continue;
+    }
+
     byEnd.set(
       actual.periodEndIso,
       (byEnd.get(actual.periodEndIso) ?? 0) +
@@ -225,16 +241,19 @@ function actualPeriodHistory(
     );
   }
 
-  return [...byEnd.entries()]
-    .map(([periodEndIso, units]) => ({
-      periodEndIso,
-      units,
-    }))
-    .sort(
-      (a, b) =>
-        Date.parse(a.periodEndIso) -
-        Date.parse(b.periodEndIso),
-    );
+  return {
+    history: [...byEnd.entries()]
+      .map(([periodEndIso, units]) => ({
+        periodEndIso,
+        units,
+      }))
+      .sort(
+        (a, b) =>
+          Date.parse(a.periodEndIso) -
+          Date.parse(b.periodEndIso),
+      ),
+    excludedFuturePeriodActualCount,
+  };
 }
 
 function periodCumulativeAt(
@@ -402,11 +421,14 @@ export function buildManhourScurveProjection(
     currentActualHours.toFixed(6),
   );
 
-  const periodHistory =
+  const periodHistoryResult =
     actualPeriodHistory(
       resources.periodActuals,
       laborIds,
+      schedule.dataDateIso,
     );
+  const periodHistory =
+    periodHistoryResult.history;
 
   const assignmentsWithPeriodActual =
     new Set(
@@ -532,6 +554,17 @@ export function buildManhourScurveProjection(
         : "partial";
 
   const diagnostics: string[] = [];
+
+  if (
+    periodHistoryResult
+      .excludedFuturePeriodActualCount > 0
+  ) {
+    diagnostics.push(
+      "MANHOUR_PERIOD_ACTUALS_AFTER_DATA_DATE_EXCLUDED:" +
+        periodHistoryResult
+          .excludedFuturePeriodActualCount,
+    );
+  }
 
   if (
     periodHistory.length === 0 &&
