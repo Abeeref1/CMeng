@@ -527,6 +527,7 @@ export function segmentContractTextBlocks(
   const unclassifiedLines: ContractUnclassifiedLine[] = [];
   const ignored = detectIgnoredSpans(blocks);
   const instanceCounts = new Map<string, number>();
+  const priorSectionByBaseKey = new Map<string, ContractSection>();
   const duplicateBases = new Set<string>();
   const rawContexts = new Map<string, Set<string>>();
   const contextState: ContextState = {
@@ -596,6 +597,24 @@ export function segmentContractTextBlocks(
           heading,
           contextKey,
         );
+
+        const prior = priorSectionByBaseKey.get(baseKey);
+        if (
+          prior &&
+          normalizedHeading(prior.heading) ===
+            normalizedHeading(heading.heading) &&
+          normalizedHeading(
+            prior.sourceSpans[0]?.text ?? "",
+          ) === normalizedHeading(line.text)
+        ) {
+          ignored.spans.push({
+            sourceSpan: toSpan(line),
+            reason: "repeated_source_overlap",
+          });
+          current = prior;
+          continue;
+        }
+
         const instanceOrdinal =
           (instanceCounts.get(baseKey) ?? 0) + 1;
         instanceCounts.set(baseKey, instanceOrdinal);
@@ -646,6 +665,7 @@ export function segmentContractTextBlocks(
                 ],
         };
         sections.push(current);
+        priorSectionByBaseKey.set(baseKey, current);
         appendLine(current, line);
         continue;
       }
