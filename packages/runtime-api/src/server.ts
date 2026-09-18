@@ -23,6 +23,25 @@ import {
   type BoardReadyReport,
   type BoardReportPublicationInput,
 } from "../../board-report/src";
+import {
+  runtimeProjects,
+} from "./project-state";
+import {
+  boardReportForProject,
+  directorForProject,
+  invalidateProject,
+  moduleForProject,
+  overviewForProject,
+} from "./project-projections";
+import {
+  loadCertifiedDemoProject,
+} from "./demo-project";
+import type {
+  ProjectControlState,
+} from "./project-state-types";
+import type {
+  CanonicalQuantityProgressModel,
+} from "../../quantity-progress-core/src";
 
 const port = Number.parseInt(
   process.env.PORT ?? "3000",
@@ -233,6 +252,329 @@ async function route(
     return;
   }
 
+
+  const demoMatch =
+    /^\/api\/projects\/([^/]+)\/demo$/.exec(
+      url.pathname,
+    );
+
+  if (
+    req.method === "POST" &&
+    demoMatch
+  ) {
+    const projectId =
+      decodeURIComponent(
+        demoMatch[1]!,
+      );
+    const state =
+      loadCertifiedDemoProject(
+        projectId,
+      );
+    json(res, 201, {
+      projectId,
+      demo: true,
+      revisionCount:
+        state.schedules.length,
+      message:
+        "Certified demo project loaded. Demo evidence is isolated from user uploads.",
+    });
+    return;
+  }
+
+  const overviewMatch =
+    /^\/api\/projects\/([^/]+)\/overview$/.exec(
+      url.pathname,
+    );
+
+  if (
+    req.method === "GET" &&
+    overviewMatch
+  ) {
+    const projectId =
+      decodeURIComponent(
+        overviewMatch[1]!,
+      );
+    const overview =
+      overviewForProject(
+        projectId,
+      );
+    if (!overview) {
+      json(res, 404, {
+        error:
+          "project_not_found",
+      });
+      return;
+    }
+    json(res, 200, overview);
+    return;
+  }
+
+  const scheduleUploadMatch =
+    /^\/api\/projects\/([^/]+)\/schedule\/uploads$/.exec(
+      url.pathname,
+    );
+
+  if (
+    req.method === "POST" &&
+    scheduleUploadMatch
+  ) {
+    const projectId =
+      decodeURIComponent(
+        scheduleUploadMatch[1]!,
+      );
+    const body =
+      await readBody(req);
+    const result =
+      await runtimeProjects
+        .ingestSchedule({
+          projectId,
+          bytes: body,
+          mediaType:
+            mediaType(req),
+          sourceFilename:
+            header(
+              req,
+              "x-source-filename",
+            ),
+          role:
+            header(
+              req,
+              "x-schedule-role",
+            ),
+          label:
+            header(
+              req,
+              "x-revision-label",
+            ),
+          uploadedAt:
+            new Date().toISOString(),
+        });
+    invalidateProject(
+      projectId,
+    );
+    json(res, 201, result);
+    return;
+  }
+
+  const revisionsMatch =
+    /^\/api\/projects\/([^/]+)\/schedule\/revisions$/.exec(
+      url.pathname,
+    );
+
+  if (
+    req.method === "GET" &&
+    revisionsMatch
+  ) {
+    const projectId =
+      decodeURIComponent(
+        revisionsMatch[1]!,
+      );
+    const state =
+      runtimeProjects.get(
+        projectId,
+      );
+    if (!state) {
+      json(res, 404, {
+        error:
+          "project_not_found",
+      });
+      return;
+    }
+    json(
+      res,
+      200,
+      state.schedules
+        .map((item) => ({
+          revisionId:
+            item.revision
+              .revisionId,
+          label:
+            item.revision.label,
+          sequence:
+            item.revision
+              .sequence,
+          effectiveAt:
+            item.revision
+              .effectiveAt,
+          dataDateIso:
+            item.revision.model
+              .dataDateIso,
+          role: item.role,
+          format: item.format,
+          sourceFilename:
+            item.sourceFilename,
+          sourceHashSha256:
+            item.sourceHashSha256,
+          activityCount:
+            item.revision.model
+              .activities.length,
+          relationshipCount:
+            item.revision.model
+              .relationships.length,
+        }))
+        .sort(
+          (a, b) =>
+            a.sequence -
+            b.sequence,
+        ),
+    );
+    return;
+  }
+
+  const moduleMatch =
+    /^\/api\/projects\/([^/]+)\/schedule\/modules\/([^/]+)$/.exec(
+      url.pathname,
+    );
+
+  if (
+    req.method === "GET" &&
+    moduleMatch
+  ) {
+    const projectId =
+      decodeURIComponent(
+        moduleMatch[1]!,
+      );
+    const key =
+      decodeURIComponent(
+        moduleMatch[2]!,
+      );
+    const result =
+      moduleForProject(
+        projectId,
+        key,
+      );
+    json(
+      res,
+      result.status ===
+        "blocked"
+        ? 409
+        : 200,
+      result,
+    );
+    return;
+  }
+
+  const contractUploadMatch =
+    /^\/api\/projects\/([^/]+)\/contract\/uploads$/.exec(
+      url.pathname,
+    );
+
+  if (
+    req.method === "POST" &&
+    contractUploadMatch
+  ) {
+    const projectId =
+      decodeURIComponent(
+        contractUploadMatch[1]!,
+      );
+    const result =
+      await runtimeProjects
+        .ingestContract({
+          projectId,
+          bytes:
+            await readBody(req),
+          mediaType:
+            mediaType(req),
+          sourceFilename:
+            header(
+              req,
+              "x-source-filename",
+            ),
+        });
+    invalidateProject(
+      projectId,
+    );
+    json(res, 201, {
+      projectId,
+      sourceType:
+        result.sourceType,
+      complete:
+        result.complete,
+      physicalComplete:
+        result.physicalComplete,
+      semanticComplete:
+        result.semanticComplete,
+      sectionCount:
+        result.sections.length,
+      clauseCount:
+        result.clauses.length,
+      diagnostics:
+        result.diagnostics,
+    });
+    return;
+  }
+
+  const controlsMatch =
+    /^\/api\/projects\/([^/]+)\/controls$/.exec(
+      url.pathname,
+    );
+
+  if (
+    req.method === "PUT" &&
+    controlsMatch
+  ) {
+    const projectId =
+      decodeURIComponent(
+        controlsMatch[1]!,
+      );
+    const update =
+      await readJsonBody<
+        Partial<ProjectControlState>
+      >(req);
+    const controls =
+      runtimeProjects
+        .updateControls(
+          projectId,
+          update,
+        );
+    invalidateProject(
+      projectId,
+    );
+    json(res, 200, controls);
+    return;
+  }
+
+  const quantitiesMatch =
+    /^\/api\/projects\/([^/]+)\/quantities$/.exec(
+      url.pathname,
+    );
+
+  if (
+    req.method === "PUT" &&
+    quantitiesMatch
+  ) {
+    const projectId =
+      decodeURIComponent(
+        quantitiesMatch[1]!,
+      );
+    const quantities =
+      await readJsonBody<
+        CanonicalQuantityProgressModel
+      >(req);
+    runtimeProjects
+      .setQuantityModel(
+        projectId,
+        quantities,
+      );
+    invalidateProject(
+      projectId,
+    );
+    json(res, 200, {
+      projectId,
+      itemCount:
+        quantities.items.length,
+      allocationCount:
+        quantities.allocations
+          .length,
+      snapshotCount:
+        quantities
+          .installedSnapshots
+          .length,
+    });
+    return;
+  }
+
+
   const directorMatch =
     /^\/api\/projects\/([^/]+)\/director-position$/.exec(
       url.pathname,
@@ -275,6 +617,7 @@ async function route(
         directorMatch[1]!,
       );
     const position =
+      directorForProject(projectId) ??
       directorPositions.get(projectId);
     if (!position) {
       json(res, 404, {
@@ -336,6 +679,9 @@ async function route(
         boardMatch[1]!,
       );
     const report =
+      boardReportForProject(
+        projectId,
+      ) ??
       boardReports.get(projectId);
     if (!report) {
       json(res, 404, {
@@ -381,6 +727,12 @@ async function route(
     boqIngestions.set(
       result.ingestionId,
       result,
+    );
+    runtimeProjects.attachBoq(
+      result,
+    );
+    invalidateProject(
+      projectId,
     );
 
     json(res, 201, uploadSummary(result));
@@ -440,6 +792,20 @@ async function route(
         "/api/schedule/certification",
       boqUpload:
         "/api/projects/:projectId/boq/uploads",
+      projectOverview:
+        "/api/projects/:projectId/overview",
+      scheduleUpload:
+        "/api/projects/:projectId/schedule/uploads",
+      scheduleRevisions:
+        "/api/projects/:projectId/schedule/revisions",
+      scheduleModule:
+        "/api/projects/:projectId/schedule/modules/:moduleKey",
+      contractUpload:
+        "/api/projects/:projectId/contract/uploads",
+      projectControls:
+        "/api/projects/:projectId/controls",
+      demoProject:
+        "/api/projects/:projectId/demo",
       projectDirector:
         "/api/projects/:projectId/director-position",
       boardReport:
