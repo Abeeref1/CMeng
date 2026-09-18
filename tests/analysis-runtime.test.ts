@@ -342,11 +342,11 @@ test("database outage after artifact materialization causes publish-only retry w
     );
 
   await isolatedQueue.enqueueUnique({
-    jobId: "isolated-pmo-job",
+    jobId: "isolated-schedule-job",
     runId: run.runId,
     projectId: run.projectId,
     evidenceRevisionId: run.evidenceRevisionId,
-    projectionKey: "pmo_analysis",
+    projectionKey: "schedule_analytics",
     phase: "compute",
     chunkCursor: null,
     pendingArtifact: null,
@@ -364,7 +364,7 @@ test("database outage after artifact materialization causes publish-only retry w
         checkpointPayload:
           new TextEncoder().encode("done"),
         finalArtifact:
-          new TextEncoder().encode("durable-pmo"),
+          new TextEncoder().encode("durable-schedule"),
       };
     },
   };
