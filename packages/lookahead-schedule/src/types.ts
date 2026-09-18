@@ -10,6 +10,59 @@ export type LookAheadClassification =
   | "finishing_in_window"
   | "missing_current_dates";
 
+export type LookAheadReadinessState =
+  | "ready"
+  | "blocked"
+  | "conditional"
+  | "unknown"
+  | "not_applicable";
+
+export type LookAheadReadinessDimension =
+  | "predecessor"
+  | "procurement"
+  | "design_rfi_submittal"
+  | "permit"
+  | "resource"
+  | "quality"
+  | "commercial_obligation"
+  | "risk"
+  | "access";
+
+export type ExternalLookAheadReadinessDimension =
+  Exclude<
+    LookAheadReadinessDimension,
+    "predecessor"
+  >;
+
+export interface LookAheadReadinessEvidence {
+  state: LookAheadReadinessState;
+  sourceRefs: string[];
+  note?: string | null;
+}
+
+export type LookAheadActivityReadinessEvidence =
+  Partial<
+    Record<
+      ExternalLookAheadReadinessDimension,
+      LookAheadReadinessEvidence
+    >
+  >;
+
+export interface LookAheadReadinessAssessment {
+  overall:
+    | "ready"
+    | "blocked"
+    | "conditional";
+  dimensions: Record<
+    LookAheadReadinessDimension,
+    LookAheadReadinessEvidence
+  >;
+  blockingDimensions:
+    LookAheadReadinessDimension[];
+  unknownDimensions:
+    LookAheadReadinessDimension[];
+}
+
 export interface LookAheadActivityRow {
   activityId: string;
   name: string | null;
@@ -26,6 +79,7 @@ export interface LookAheadActivityRow {
   successorIds: string[];
   daysToStart: number | null;
   daysToFinish: number | null;
+  readiness: LookAheadReadinessAssessment;
 }
 
 export interface LookAheadProjection {
@@ -42,6 +96,9 @@ export interface LookAheadProjection {
   datedIncompleteActivityCount: number;
   currentDateCoveragePercent: number | null;
   overdueCount: number;
+  readyCount: number;
+  blockedCount: number;
+  conditionalCount: number;
   rows: LookAheadActivityRow[];
   missingCurrentDateActivityIds: string[];
 }
