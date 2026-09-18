@@ -147,11 +147,13 @@ test("PDF ingestion creates evidence but fails closed when no structured BOQ tab
 });
 
 test("media signature mismatch is rejected instead of trusting filename or MIME alone", async () => {
+  const bytes = await xlsxBytes();
+
   await assert.rejects(
     () =>
       ingestBoq({
         projectId: "P-BOQ-3",
-        bytes: await xlsxBytes(),
+        bytes,
         verifiedMediaType:
           "application/pdf",
         sourceFilename: "fake.pdf",
