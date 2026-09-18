@@ -87,6 +87,7 @@ export interface BoqLineItem {
 export interface BoqSheetParseResult {
   sheet: string;
   header: BoqHeaderMapping | null;
+  headers: BoqHeaderMapping[];
   candidateRows: number;
   parsedRows: number;
   unresolvedRows: number;
