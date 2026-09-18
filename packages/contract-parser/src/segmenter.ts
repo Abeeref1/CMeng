@@ -399,6 +399,13 @@ function extractReferences(
 
   for (const section of sections) {
     for (const span of section.sourceSpans) {
+      if (
+        section.sourceSpans[0] === span &&
+        detectContractHeading(span.text)
+      ) {
+        continue;
+      }
+
       for (const regex of [english, arabic]) {
         regex.lastIndex = 0;
         let match: RegExpExecArray | null;
