@@ -21,7 +21,8 @@ export function normalizeActivityStatus(
 
   if (
     /^(complete|completed|finished|finish)$/.test(normalized) ||
-    normalized.includes("completed")
+    normalized.includes("completed") ||
+    normalized === "tk complete"
   ) {
     return "completed";
   }
@@ -29,7 +30,8 @@ export function normalizeActivityStatus(
   if (
     normalized.includes("in progress") ||
     normalized.includes("inprogress") ||
-    normalized === "active"
+    normalized === "active" ||
+    normalized === "tk active"
   ) {
     return "in_progress";
   }
@@ -37,7 +39,9 @@ export function normalizeActivityStatus(
   if (
     normalized.includes("not started") ||
     normalized.includes("notstarted") ||
-    normalized === "planned"
+    normalized === "planned" ||
+    normalized === "tk notstart" ||
+    normalized === "tk not start"
   ) {
     return "not_started";
   }
@@ -63,7 +67,8 @@ export function normalizeActivityType(
 
   if (
     normalized.includes("start milestone") ||
-    normalized === "start milestone"
+    normalized === "start milestone" ||
+    normalized === "tt mile"
   ) {
     return {
       type: "start_milestone",
@@ -73,7 +78,9 @@ export function normalizeActivityType(
 
   if (
     normalized.includes("finish milestone") ||
-    normalized === "finish milestone"
+    normalized === "finish milestone" ||
+    normalized === "tt finmile" ||
+    normalized === "tt fin mile"
   ) {
     return {
       type: "finish_milestone",
@@ -90,7 +97,8 @@ export function normalizeActivityType(
 
   if (
     normalized.includes("level of effort") ||
-    normalized === "loe"
+    normalized === "loe" ||
+    normalized === "tt loe"
   ) {
     return {
       type: "level_of_effort",
@@ -100,7 +108,8 @@ export function normalizeActivityType(
 
   if (
     normalized.includes("wbs summary") ||
-    normalized.includes("summary")
+    normalized.includes("summary") ||
+    normalized === "tt wbs"
   ) {
     return {
       type: "wbs_summary",
@@ -112,7 +121,9 @@ export function normalizeActivityType(
     normalized === "task dependent" ||
     normalized === "resource dependent" ||
     normalized === "task" ||
-    normalized === "activity"
+    normalized === "activity" ||
+    normalized === "tt task" ||
+    normalized === "tt rsrc"
   ) {
     return {
       type: "task",
