@@ -42,6 +42,65 @@ import type {
   MoneyValue,
 } from "../../project-director/src";
 
+export type EvidenceCategory =
+  | "schedule"
+  | "schedule_control"
+  | "contract"
+  | "boq_cost"
+  | "risk_claims_procurement"
+  | "correspondence"
+  | "engineering"
+  | "hse_quality_fm"
+  | "tender_commissioning"
+  | "other";
+
+export type EvidenceParserState =
+  | "stored"
+  | "parsed"
+  | "partial"
+  | "unsupported"
+  | "error";
+
+export interface EvidenceMappingSummary {
+  rowCount: number | null;
+  linkedActivityField: string | null;
+  linkedActivityCount: number | null;
+  mappedActivityCount: number | null;
+  unmappedActivityCount: number | null;
+  coveragePercent: number | null;
+}
+
+export interface StoredEvidenceDocument {
+  documentId: string;
+  category: EvidenceCategory;
+  documentType: string;
+  sourceFilename: string;
+  sourceRelativePath: string | null;
+  mediaType: string;
+  sourceHashSha256: string;
+  sizeBytes: number;
+  uploadedAt: string;
+  authority: "candidate_only";
+  parserState: EvidenceParserState;
+  storedPath: string;
+  linkedArtifactId: string | null;
+  scheduleRole: StoredScheduleRevision["role"] | null;
+  mapping: EvidenceMappingSummary | null;
+  diagnostics: string[];
+}
+
+export interface EvidenceUploadSummary {
+  documentId: string;
+  category: EvidenceCategory;
+  documentType: string;
+  sourceFilename: string;
+  parserState: EvidenceParserState;
+  linkedArtifactId: string | null;
+  scheduleRole: StoredScheduleRevision["role"] | null;
+  mapping: EvidenceMappingSummary | null;
+  diagnostics: string[];
+}
+
 export type ScheduleUploadFormat =
   | "xer"
   | "primavera_xml"
@@ -98,7 +157,7 @@ export interface ProjectRuntimeState {
   projectId: string;
   version: number;
   demo: boolean;
-  schedules: StoredScheduleRevision[];
+  schedules: StoredScheduleRevision[];\n  evidenceDocuments: StoredEvidenceDocument[];
   resourcesByRevision: Map<
     string,
     CanonicalResourceModel
@@ -141,7 +200,7 @@ export interface ProjectRuntimeOverview {
   projectId: string;
   version: number;
   demo: boolean;
-  revisionCount: number;
+  revisionCount: number;\n  baselineRevisionCount: number;\n  updateRevisionCount: number;\n  recoveryRevisionCount: number;\n  evidenceDocumentCount: number;\n  evidenceCategoryCounts: Record<string, number>;
   latestRevisionId: string | null;
   latestDataDateIso: string | null;
   boqState: string | null;
