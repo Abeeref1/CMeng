@@ -4,7 +4,6 @@ import type {
 } from "./types";
 
 export const DEFAULT_ANALYSIS_PLAN: readonly ProjectionDefinition[] = [
-  { key: "pmo_analysis", dependencies: [], requiredForPublish: true },
   { key: "schedule_analytics", dependencies: [], requiredForPublish: true },
   { key: "challenge_contract", dependencies: [], requiredForPublish: true },
   { key: "quantity_scurve", dependencies: ["schedule_analytics"], requiredForPublish: true },
@@ -28,6 +27,8 @@ export const DEFAULT_ANALYSIS_PLAN: readonly ProjectionDefinition[] = [
   { key: "windows_analysis", dependencies: ["schedule_change_report", "independent_forecast"], requiredForPublish: true },
   { key: "delay_claims", dependencies: ["windows_analysis", "notices_claims", "challenge_contract"], requiredForPublish: true },
   { key: "eot_assessment", dependencies: ["windows_analysis", "delay_claims", "notices_claims", "challenge_contract"], requiredForPublish: true },
+
+  { key: "pmo_analysis", dependencies: ["schedule_analytics", "progress_report", "revision_trend", "resource_utilization", "manhour_scurve", "quantity_scurve", "independent_forecast", "challenge_contract", "notices_claims", "delay_claims", "eot_assessment"], requiredForPublish: true },
 ] as const;
 
 export function projectionKeys(
