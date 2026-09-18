@@ -1,8 +1,9 @@
 import ExcelJS from "exceljs";
 import { detectAllBoqHeaders } from "./headers";
-import { resolveBoqCommercialNumerics } from "./numeric";
+import { parseStrictNumeric, resolveBoqCommercialNumerics } from "./numeric";
 import { inventoryBoqWorkbook, readBoqCell } from "./workbook";
 import type {
+  BoqAuxiliarySheet,
   BoqCell,
   BoqColumnRole,
   BoqLineItem,
@@ -76,6 +77,7 @@ function parseLineItem(
   roles: Record<number, BoqColumnRole>,
 ): BoqLineItem | null {
   const itemCell = cellForRole(worksheet, row, roles, "item_number");
+  const sectionCell = cellForRole(worksheet, row, roles, "section");
   const descriptionCell = cellForRole(worksheet, row, roles, "description");
   const unitCell = cellForRole(worksheet, row, roles, "unit");
   const quantityCell = cellForRole(worksheet, row, roles, "quantity");
@@ -85,6 +87,7 @@ function parseLineItem(
 
   const mappedCells = [
     itemCell,
+    sectionCell,
     descriptionCell,
     unitCell,
     quantityCell,
@@ -159,6 +162,7 @@ function parseLineItem(
   const sourceCells: BoqLineItem["sourceCells"] = {};
   for (const [role, cell] of [
     ["item_number", itemCell],
+    ["section", sectionCell],
     ["description", descriptionCell],
     ["unit", unitCell],
     ["quantity", quantityCell],
@@ -174,6 +178,7 @@ function parseLineItem(
     row,
     rowKind,
     itemNumber: text(itemCell),
+    section: text(sectionCell),
     description,
     unit: text(unitCell),
     quantity: quantity.status === "valid" ? quantity.value : null,
@@ -193,16 +198,13 @@ function parseWorksheet(worksheet: ExcelJS.Worksheet): BoqSheetParseResult {
   const items: BoqLineItem[] = [];
 
   if (headers.length === 0) {
-    if (nonEmptyCellCount(worksheet) >= 6) {
-      diagnostics.push("BOQ_POPULATED_SHEET_UNCLASSIFIED");
-    }
     return {
       sheet: worksheet.name,
       header: null,
       headers: [],
       candidateRows: 0,
       parsedRows: 0,
-      unresolvedRows: diagnostics.length > 0 ? 1 : 0,
+      unresolvedRows: 0,
       items,
       diagnostics,
     };
@@ -240,19 +242,234 @@ function parseWorksheet(worksheet: ExcelJS.Worksheet): BoqSheetParseResult {
   };
 }
 
+function normalizeAuxHeader(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[\n\r\t]+/g, " ")
+    .replace(/[._:\-\/()[\]{}]+/g, " ")
+    .replace(
+      /\b(?:sar|aed|usd|eur|gbp|jod|qar|omr|bhd|kwd)\b/gi,
+      " ",
+    )
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function parseSummarySheet(
+  worksheet: ExcelJS.Worksheet,
+): BoqAuxiliarySheet | null {
+  const rows = rowTexts(worksheet);
+  let headerRow = -1;
+  let sectionColumn = -1;
+  let descriptionColumn = -1;
+  let amountColumn = -1;
+  let shareColumn = -1;
+
+  for (let row = 0; row < Math.min(rows.length, 40); row += 1) {
+    const normalized = (rows[row] ?? []).map(normalizeAuxHeader);
+    const section = normalized.findIndex(
+      (value) => value === "section",
+    );
+    const description = normalized.findIndex(
+      (value) => value === "description",
+    );
+    const amount = normalized.findIndex((value) =>
+      /(^| )amount($| )/.test(value),
+    );
+    const share = normalized.findIndex((value) =>
+      /(^| )share($| )/.test(value),
+    );
+
+    if (section >= 0 && description >= 0 && amount >= 0) {
+      headerRow = row;
+      sectionColumn = section;
+      descriptionColumn = description;
+      amountColumn = amount;
+      shareColumn = share;
+      break;
+    }
+  }
+
+  if (headerRow < 0) return null;
+
+  const diagnostics: string[] = [];
+  const summaryRows: BoqAuxiliarySheet["summaryRows"] = [];
+  let declaredTotalAmount: number | null = null;
+  let declaredTotalShare: number | null = null;
+
+  for (let row = headerRow + 1; row < rows.length; row += 1) {
+    const source = rows[row] ?? [];
+    if (source.every((value) => !value.trim())) continue;
+
+    const section = source[sectionColumn]?.trim() || null;
+    const description =
+      source[descriptionColumn]?.trim() ?? "";
+    const amount = parseStrictNumeric(
+      source[amountColumn] ?? null,
+    );
+    const share =
+      shareColumn >= 0
+        ? parseStrictNumeric(source[shareColumn] ?? null)
+        : null;
+
+    if (!description) {
+      diagnostics.push(
+        "BOQ_SUMMARY_DESCRIPTION_MISSING:" + (row + 1),
+      );
+      continue;
+    }
+
+    if (amount.status !== "valid" || amount.value === null) {
+      diagnostics.push(
+        "BOQ_SUMMARY_AMOUNT_INVALID:" + (row + 1),
+      );
+      continue;
+    }
+
+    if (looksLikeTotal(description)) {
+      declaredTotalAmount = amount.value;
+      if (
+        share &&
+        share.status === "valid" &&
+        share.value !== null
+      ) {
+        declaredTotalShare = share.value;
+      }
+      continue;
+    }
+
+    let shareValue: number | null = null;
+    if (share) {
+      if (share.status === "valid") {
+        shareValue = share.value;
+      } else if (share.status !== "empty") {
+        diagnostics.push(
+          "BOQ_SUMMARY_SHARE_INVALID:" + (row + 1),
+        );
+      }
+    }
+
+    summaryRows.push({
+      row: row + 1,
+      section,
+      description,
+      amount: amount.value,
+      share: shareValue,
+    });
+  }
+
+  const calculatedAmount = summaryRows.reduce(
+    (sum, row) => sum + (row.amount ?? 0),
+    0,
+  );
+  const calculatedShare = summaryRows.reduce(
+    (sum, row) => sum + (row.share ?? 0),
+    0,
+  );
+
+  if (
+    declaredTotalAmount !== null &&
+    Math.abs(declaredTotalAmount - calculatedAmount) >
+      Math.max(0.02, Math.abs(declaredTotalAmount) * 0.000001)
+  ) {
+    diagnostics.push(
+      "BOQ_SUMMARY_INTERNAL_TOTAL_MISMATCH",
+    );
+  }
+
+  if (
+    declaredTotalShare !== null &&
+    Math.abs(declaredTotalShare - calculatedShare) > 0.000001
+  ) {
+    diagnostics.push(
+      "BOQ_SUMMARY_SHARE_TOTAL_MISMATCH",
+    );
+  }
+
+  return {
+    sheet: worksheet.name,
+    kind: "summary",
+    rows: rows
+      .map((cells, index) => ({
+        row: index + 1,
+        cells,
+      }))
+      .filter((row) =>
+        row.cells.some((value) => value.trim()),
+      ),
+    summaryRows,
+    totalAmount: declaredTotalAmount,
+    totalShare: declaredTotalShare,
+    diagnostics,
+  };
+}
+
 export async function parseBoqWorkbook(bytes: Uint8Array): Promise<BoqParseResult> {
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(Buffer.from(bytes) as any);
 
   const inventory = inventoryBoqWorkbook(workbook);
-  const sheets = workbook.worksheets.map(parseWorksheet);
+  const sheets: BoqSheetParseResult[] = [];
+  const auxiliarySheets: BoqAuxiliarySheet[] = [];
+
+  for (const worksheet of workbook.worksheets) {
+    const parsed = parseWorksheet(worksheet);
+    if (parsed.headers.length > 0) {
+      sheets.push(parsed);
+      continue;
+    }
+
+    const summary = parseSummarySheet(worksheet);
+    if (summary) {
+      auxiliarySheets.push(summary);
+      continue;
+    }
+
+    if (nonEmptyCellCount(worksheet) >= 6) {
+      parsed.diagnostics.push(
+        "BOQ_POPULATED_SHEET_UNCLASSIFIED",
+      );
+      parsed.unresolvedRows = 1;
+    }
+    sheets.push(parsed);
+  }
 
   const candidateRows = sheets.reduce((sum, sheet) => sum + sheet.candidateRows, 0);
   const parsedRows = sheets.reduce((sum, sheet) => sum + sheet.parsedRows, 0);
   const unresolvedRows = sheets.reduce((sum, sheet) => sum + sheet.unresolvedRows, 0);
-  const diagnostics = sheets.flatMap((sheet) =>
-    sheet.diagnostics.map((code) => `${sheet.sheet}:${code}`),
-  );
+  const diagnostics = [
+    ...sheets.flatMap((sheet) =>
+      sheet.diagnostics.map((code) => `${sheet.sheet}:${code}`),
+    ),
+    ...auxiliarySheets.flatMap((sheet) =>
+      sheet.diagnostics.map((code) => `${sheet.sheet}:${code}`),
+    ),
+  ];
+
+  const lineItemAmount = sheets
+    .flatMap((sheet) => sheet.items)
+    .filter(
+      (item) =>
+        item.rowKind === "line_item" &&
+        item.amount !== null,
+    )
+    .reduce((sum, item) => sum + (item.amount ?? 0), 0);
+
+  for (const summary of auxiliarySheets) {
+    if (
+      summary.kind === "summary" &&
+      summary.totalAmount !== null &&
+      Math.abs(summary.totalAmount - lineItemAmount) >
+        Math.max(
+          0.02,
+          Math.abs(summary.totalAmount) * 0.000001,
+        )
+    ) {
+      diagnostics.push(
+        `${summary.sheet}:BOQ_SUMMARY_TO_LINE_ITEMS_MISMATCH`,
+      );
+    }
+  }
 
   const denominatorUnknown = diagnostics.some((diagnostic) =>
     diagnostic.endsWith(":BOQ_POPULATED_SHEET_UNCLASSIFIED"),
@@ -271,6 +488,7 @@ export async function parseBoqWorkbook(bytes: Uint8Array): Promise<BoqParseResul
   return {
     inventory,
     sheets,
+    auxiliarySheets,
     candidateRows,
     parsedRows,
     unresolvedRows,
