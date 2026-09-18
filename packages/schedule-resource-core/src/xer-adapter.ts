@@ -4,11 +4,14 @@ import {
   type XerRow,
 } from "../../xer-parser/src";
 import type {
+  CanonicalFinancialPeriod,
   CanonicalResource,
   CanonicalResourceAssignment,
   CanonicalResourceModel,
+  CanonicalResourcePeriodActual,
   CanonicalResourceRate,
   CanonicalResourceType,
+  CanonicalUnitOfMeasure,
   ResourceSourceRef,
 } from "./types";
 
@@ -115,8 +118,13 @@ export function canonicalResourcesFromXer(
   const taskRows = rows(result, "TASK");
   const resourceRows = rows(result, "RSRC");
   const rateRows = rows(result, "RSRCRATE");
+  const unitRows = rows(result, "UMEASURE");
+  const financialPeriodRows =
+    rows(result, "FINDATES");
   const assignmentRows =
     rows(result, "TASKRSRC");
+  const periodActualRows =
+    rows(result, "TRSRCFIN");
 
   const taskCodeByNative = new Map<
     string,
@@ -141,6 +149,71 @@ export function canonicalResourcesFromXer(
       );
     }
   }
+
+  const units: CanonicalUnitOfMeasure[] =
+    unitRows.flatMap((row) => {
+      const unitId = field(row, "unit_id");
+      if (!unitId) return [];
+
+      return [
+        {
+          unitId,
+          name: field(row, "unit_name"),
+          abbreviation:
+            field(row, "unit_abbrev"),
+          sourceRefs: [
+            sourceRef("UMEASURE", row),
+          ],
+        },
+      ];
+    });
+
+  const unitById = new Map(
+    units.map((unit) => [
+      unit.unitId,
+      unit,
+    ]),
+  );
+
+  const financialPeriods:
+    CanonicalFinancialPeriod[] =
+    financialPeriodRows.flatMap((row) => {
+      const periodId =
+        field(row, "fin_dates_id");
+      if (!periodId) return [];
+
+      return [
+        {
+          periodId,
+          name:
+            field(
+              row,
+              "fin_dates_name",
+            ),
+          startIso:
+            dateField(
+              row,
+              "start_date",
+            ),
+          endIso:
+            dateField(
+              row,
+              "end_date",
+            ),
+          sourceRefs: [
+            sourceRef("FINDATES", row),
+          ],
+        },
+      ];
+    });
+
+  const financialPeriodById =
+    new Map(
+      financialPeriods.map((period) => [
+        period.periodId,
+        period,
+      ]),
+    );
 
   const ratesByResource = new Map<
     string,
@@ -226,6 +299,18 @@ export function canonicalResourcesFromXer(
             ),
           unitId:
             field(row, "unit_id"),
+          unitName:
+            field(row, "unit_id")
+              ? unitById.get(
+                  field(row, "unit_id")!,
+                )?.name ?? null
+              : null,
+          unitAbbreviation:
+            field(row, "unit_id")
+              ? unitById.get(
+                  field(row, "unit_id")!,
+                )?.abbreviation ?? null
+              : null,
           calendarId:
             field(row, "clndr_id"),
           priceTimeUnit:
@@ -402,13 +487,107 @@ export function canonicalResourcesFromXer(
       ];
     });
 
+  const assignmentById = new Map(
+    assignments.map((assignment) => [
+      assignment.assignmentId,
+      assignment,
+    ]),
+  );
+
+  const periodActuals:
+    CanonicalResourcePeriodActual[] =
+    periodActualRows.flatMap((row) => {
+      const assignmentId =
+        field(row, "taskrsrc_id");
+      const periodId =
+        field(row, "fin_dates_id");
+
+      if (!assignmentId || !periodId) {
+        diagnostics.push(
+          "RESOURCE_PERIOD_ACTUAL_IDENTITY_MISSING:line=" +
+            row.line,
+        );
+        return [];
+      }
+
+      const assignment =
+        assignmentById.get(assignmentId);
+      const period =
+        financialPeriodById.get(periodId);
+      const rowDiagnostics = [
+        ...row.diagnosticCodes,
+      ];
+
+      if (!assignment) {
+        rowDiagnostics.push(
+          "RESOURCE_PERIOD_ACTUAL_ASSIGNMENT_REFERENCE_UNRESOLVED",
+        );
+      }
+      if (!period) {
+        rowDiagnostics.push(
+          "RESOURCE_PERIOD_ACTUAL_PERIOD_REFERENCE_UNRESOLVED",
+        );
+      }
+
+      const nativeTaskId =
+        field(row, "task_id");
+      const projectId =
+        field(row, "proj_id") ??
+        assignment?.projectId ??
+        null;
+      const activityId =
+        assignment?.activityId ??
+        (nativeTaskId
+          ? taskCodeByNative.get(
+              (projectId ?? "") +
+                "::" +
+                nativeTaskId,
+            ) ??
+            "native:" +
+              (projectId ?? "") +
+              "::" +
+              nativeTaskId
+          : "native:unknown");
+
+      return [
+        {
+          assignmentId,
+          projectId,
+          activityId,
+          resourceId:
+            assignment?.resourceId ??
+            null,
+          periodId,
+          periodName:
+            period?.name ?? null,
+          periodStartIso:
+            period?.startIso ?? null,
+          periodEndIso:
+            period?.endIso ?? null,
+          actualUnits:
+            numberField(row, "act_qty"),
+          sourceRefs: [
+            sourceRef(
+              "TRSRCFIN",
+              row,
+            ),
+          ],
+          diagnostics:
+            rowDiagnostics,
+        },
+      ];
+    });
+
   return {
     projectId:
       input.projectId ?? null,
     sourceRevisionId:
       input.sourceRevisionId,
+    units,
+    financialPeriods,
     resources,
     assignments,
+    periodActuals,
     diagnostics,
   };
 }
