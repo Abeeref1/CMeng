@@ -7,8 +7,7 @@ import { performance } from "node:perf_hooks";
 import ExcelJS from "exceljs";
 
 import {
-  loadBoqWorkbook,
-  parseLoadedBoqWorkbook,
+  parseBoqOoxmlWorkbook,
 } from "../packages/boq-parser/src";
 
 const MAX_BOQ_SEMANTIC_PARSE_MS = 60_000;
@@ -64,17 +63,8 @@ test("50,000 BOQ line items are all counted with 100% source-row coverage", asyn
         bytes.length,
     );
 
-    const loadStarted = performance.now();
-    const loaded = await loadBoqWorkbook(bytes);
-    const loadMs = performance.now() - loadStarted;
-    console.info(
-      "[scale] BOQ XLSX load completed in " +
-        loadMs.toFixed(2) +
-        " ms",
-    );
-
     const parseStarted = performance.now();
-    const parsed = parseLoadedBoqWorkbook(loaded);
+    const parsed = await parseBoqOoxmlWorkbook(bytes);
     const parseMs = performance.now() - parseStarted;
     console.info(
       "[scale] BOQ semantic parse completed in " +
