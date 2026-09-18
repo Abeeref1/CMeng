@@ -3,7 +3,7 @@ import type {
   SourceManifest,
 } from "../../governance-model/src";
 
-export type BoqSourceFormat = "excel_ooxml" | "pdf";
+export type BoqSourceFormat = "excel_ooxml" | "pdf" | "csv";
 
 export type BoqIngestionState =
   | "verified_candidate"
