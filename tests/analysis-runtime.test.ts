@@ -406,10 +406,21 @@ test("calculable values never block on manual approval", () => {
 
 test("expired worker lease can be reacquired after abrupt termination", async () => {
   const rt = runtime();
-  await rt.coordinator.ensureProjectAnalysis(
+  const identity = analysisRunIdentity(
     snapshot("rev-1"),
-    "2026-09-18T10:00:00.000Z",
   );
+
+  await rt.queue.enqueueUnique({
+    jobId: "single-lease-job",
+    runId: identity.runId,
+    projectId: "P88",
+    evidenceRevisionId: "rev-1",
+    projectionKey: "progress_scurve",
+    phase: "compute",
+    chunkCursor: null,
+    pendingArtifact: null,
+    attempt: 0,
+  });
 
   const first = await rt.queue.acquire(
     "worker-a",
@@ -426,7 +437,7 @@ test("expired worker lease can be reacquired after abrupt termination", async ()
   assert.equal(beforeExpiry, null);
 
   // Worker A vanished without complete/retry. Lease expiry makes the
-  // same durable job available to a new worker.
+  // exact same durable job available to a new worker.
   const afterExpiry = await rt.queue.acquire(
     "worker-b",
     "2026-09-18T10:00:31.000Z",
