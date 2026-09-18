@@ -330,6 +330,13 @@ export class InMemoryAnalysisJobQueue
 
       if (entry.lease && !expired) continue;
 
+      if (
+        entry.job.notBefore &&
+        Date.parse(entry.job.notBefore) > nowMs
+      ) {
+        continue;
+      }
+
       const lease: WorkerLease = {
         leaseId:
           "lease_" +
