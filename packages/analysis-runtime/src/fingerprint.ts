@@ -38,6 +38,7 @@ export function analysisInputFingerprint(
     projectId: snapshot.projectId,
     evidenceRevisionId: snapshot.evidenceRevisionId,
     evidenceFingerprint: snapshot.evidenceFingerprint,
+    sourceManifestId: snapshot.sourceManifestId,
     mappingVersion: snapshot.mappingVersion,
     parserVersion: snapshot.parserVersion,
     analysisEngineVersion: snapshot.analysisEngineVersion,
