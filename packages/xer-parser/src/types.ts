@@ -59,8 +59,18 @@ export interface XerParseResult {
   diagnostics: XerDiagnostic[];
 }
 
+export interface XerExternalRelationship {
+  line: number;
+  successorProjectId: string | null;
+  successorTaskId: string | null;
+  predecessorProjectId: string | null;
+  predecessorTaskId: string | null;
+}
+
 export interface XerIntegrityResult {
   complete: boolean;
+  sourceComplete: boolean;
+  graphComplete: boolean;
   activityCount: number;
   relationshipCount: number;
   wbsCount: number;
@@ -72,6 +82,8 @@ export interface XerIntegrityResult {
   missingWbsIds: string[];
   missingCalendarIds: string[];
   missingCoreTables: string[];
+  externalRelationships: XerExternalRelationship[];
+  externalRelationshipCount: number;
   unresolvedRows: number;
   truncated: boolean;
   diagnostics: XerDiagnostic[];
