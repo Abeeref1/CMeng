@@ -480,6 +480,12 @@ export class CMengProjectionExecutor
             {
               generatedAt,
               producerVersion: version,
+              ...(context.lookAheadReadiness
+                ? {
+                    readinessEvidence:
+                      context.lookAheadReadiness,
+                  }
+                : {}),
             },
           );
         break;
