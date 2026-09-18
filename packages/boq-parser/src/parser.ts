@@ -204,7 +204,7 @@ function parseWorksheet(worksheet: ExcelJS.Worksheet): BoqSheetParseResult {
 
 export async function parseBoqWorkbook(bytes: Uint8Array): Promise<BoqParseResult> {
   const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load(Buffer.from(bytes));
+  await workbook.xlsx.load(Buffer.from(bytes) as any);
 
   const inventory = inventoryBoqWorkbook(workbook);
   const sheets = workbook.worksheets.map(parseWorksheet);
