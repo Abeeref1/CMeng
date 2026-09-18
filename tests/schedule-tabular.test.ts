@@ -417,3 +417,51 @@ test("ORION-style activity table preserves embedded predecessor logic without in
   assert.equal(parsed.relationships[1]!.predecessorId, "A200");
   assert.equal(parsed.relationships[1]!.successorId, "A300");
 });
+
+
+test("mixed-model schedule can have 100% structural coverage and still fail broken references", () => {
+  const rows = [
+    "Record Type,Record ID,Parent/Successor,Predecessor,WBS,Name/Description,Type,Start,Finish,Duration,Float,Percent,Status,Lag,Revision",
+    "WBS,NB.01,NB,,,Zone 01,WBS,,,,,,,,Rev7",
+  ];
+
+  for (let index = 0; index < 20; index += 1) {
+    const start = new Date(Date.UTC(2026, 0, 1 + index * 3));
+    const finish = new Date(start.getTime() + 2 * 86_400_000);
+    const iso = (date: Date) => date.toISOString().slice(0, 10);
+    rows.push(
+      `ACTIVITY,A${String(index + 1).padStart(5, "0")},,,${index === 19 ? "NB.MISSING" : "NB.01"},Activity ${index + 1},Task,${iso(start)},${iso(finish)},2,5,0,Not Started,,Rev7`,
+    );
+  }
+
+  rows.push(
+    "RELATIONSHIP,R0001,A00002,A99999,,,FS,,,,,,,0,Rev7",
+  );
+  rows.push(
+    "ACTIVITY_CODE,CODE-01,A99999,,,Area=Zone 01,Code,,,,,,,,Rev7",
+  );
+
+  const parsed = parseScheduleCsv(
+    Buffer.from(rows.join("\n"), "utf8"),
+  );
+
+  assert.equal(parsed.structuralCoveragePercent, 100);
+  assert.equal(parsed.complete, false);
+  assert.ok(
+    parsed.relationships[0]!.diagnostics.includes(
+      "SCHEDULE_PREDECESSOR_REFERENCE_UNRESOLVED",
+    ),
+  );
+  assert.ok(
+    parsed.activities.some((activity) =>
+      activity.diagnostics.includes(
+        "SCHEDULE_WBS_REFERENCE_UNRESOLVED",
+      ),
+    ),
+  );
+  assert.ok(
+    parsed.activityCodeRows[0]!.diagnostics.includes(
+      "SCHEDULE_ACTIVITY_CODE_REFERENCE_UNRESOLVED",
+    ),
+  );
+});
