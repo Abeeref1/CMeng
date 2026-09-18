@@ -1,3 +1,4 @@
+import { verifyXerCalendars } from "./calendar-integrity";
 import type {
   XerDiagnostic,
   XerExternalRelationship,
@@ -39,6 +40,20 @@ export function verifyXerIntegrity(result: XerParseResult): XerIntegrityResult {
   const relationships = parsedRows(result, "TASKPRED");
   const wbsRows = parsedRows(result, "PROJWBS");
   const calendars = parsedRows(result, "CALENDAR");
+  const calendarIntegrity = verifyXerCalendars(result);
+
+  for (const calendar of calendarIntegrity.calendars) {
+    if (calendar.status === "unresolved") {
+      diagnostics.push({
+        code: "XER_CALENDAR_SEMANTICS_UNRESOLVED",
+        severity: "error",
+        message:
+          `Calendar ${calendar.calendarId} could not be semantically certified: ` +
+          calendar.diagnostics.join("; "),
+        table: "CALENDAR",
+      });
+    }
+  }
 
   const missingCoreTables = ["PROJECT", "PROJWBS", "TASK"].filter(
     (table) => !result.tables.has(table),
@@ -198,6 +213,7 @@ export function verifyXerIntegrity(result: XerParseResult): XerIntegrityResult {
     missingSucc.length === 0 &&
     missingWbs.length === 0 &&
     missingCalendar.length === 0 &&
+    calendarIntegrity.complete &&
     diagnostics.every((diagnostic) => diagnostic.severity !== "error");
 
   const graphComplete = sourceComplete && externalRelationships.length === 0;
@@ -210,6 +226,8 @@ export function verifyXerIntegrity(result: XerParseResult): XerIntegrityResult {
     relationshipCount: relationships.length,
     wbsCount: wbsRows.length,
     calendarCount: calendars.length,
+    calendarSemanticComplete: calendarIntegrity.complete,
+    unresolvedCalendars: calendarIntegrity.unresolvedCalendars,
     duplicateTaskIds,
     duplicateActivityCodes,
     missingPredecessorTaskIds: missingPred,
