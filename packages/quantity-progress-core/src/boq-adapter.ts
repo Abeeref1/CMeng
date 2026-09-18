@@ -106,10 +106,50 @@ export function quantityItemsFromBoqCsv(
 export function quantityItemsFromBoqPdf(
   result: BoqPdfResult,
 ): CanonicalQuantityItem[] {
-  return result.items.flatMap((item) =>
-    fromLineItem(
-      "boq_pdf",
-      item,
-    ),
-  );
+  return result.items.flatMap((item) => {
+    if (item.rowKind !== "line_item") {
+      return [];
+    }
+
+    const pdfSheet =
+      "PDF:p" +
+      item.page +
+      ":t" +
+      item.table;
+
+    return [
+      {
+        quantityItemId: id(
+          pdfSheet,
+          item.itemNumber,
+          item.row,
+        ),
+        itemNumber: item.itemNumber,
+        section: item.section,
+        description: item.description,
+        unit: item.unit,
+        contractQuantity:
+          item.quantity,
+        sourceRefs: [
+          ref(
+            "boq_pdf",
+            "page:" +
+              item.page +
+              ":table:" +
+              item.table +
+              ":row:" +
+              item.row,
+          ),
+        ],
+        diagnostics: [
+          ...item.diagnostics,
+          ...(item.status === "unresolved"
+            ? [
+                "QUANTITY_ITEM_SOURCE_UNRESOLVED",
+              ]
+            : []),
+        ],
+      },
+    ];
+  });
 }
