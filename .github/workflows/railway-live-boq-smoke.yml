@@ -30,4 +30,5 @@ jobs:
       - name: Live Railway BOQ upload smoke
         env:
           CMENG_RAILWAY_URL: https://cmeng-main-production.up.railway.app
+          CMENG_EXPECTED_RELEASE: 62a05c34d3b19a008383bf522e68f43aff778372
         run: node scripts/railway-live-boq-smoke.mjs
