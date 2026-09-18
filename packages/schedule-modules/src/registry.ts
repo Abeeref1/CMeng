@@ -121,7 +121,12 @@ export function buildImplementedScheduleProjection(
           generatedAt: input.generatedAt,
           producerVersion:
             input.producerVersion,
-          cpmConfig: input.cpmConfig,
+          ...(input.cpmConfig
+            ? {
+                cpmConfig:
+                  input.cpmConfig,
+              }
+            : {}),
         },
       );
   }
