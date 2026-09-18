@@ -459,12 +459,30 @@ function parseSummarySheet(
 export function parseLoadedBoqWorkbook(
   workbook: ExcelJS.Workbook,
 ): BoqParseResult {
+  const inventoryStarted = performance.now();
   const inventory = inventoryBoqWorkbook(workbook);
+  console.info(
+    "[boq-profile] inventoryMs=" +
+      (performance.now() - inventoryStarted).toFixed(2) +
+      " sheets=" +
+      workbook.worksheets.length,
+  );
+
   const sheets: BoqSheetParseResult[] = [];
   const auxiliarySheets: BoqAuxiliarySheet[] = [];
 
   for (const worksheet of workbook.worksheets) {
+    const summaryStarted = performance.now();
     const summary = parseSummarySheet(worksheet);
+    console.info(
+      "[boq-profile] sheet=" +
+        worksheet.name +
+        " summaryDetectionMs=" +
+        (performance.now() - summaryStarted).toFixed(2) +
+        " summary=" +
+        String(summary !== null),
+    );
+
     const summaryIsAuthoritativeShape =
       summary !== null &&
       (
