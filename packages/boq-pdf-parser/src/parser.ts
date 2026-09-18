@@ -1,6 +1,6 @@
 import { PDFParse } from "pdf-parse";
 import { detectBoqHeader } from "../../boq-parser/src/headers";
-import { parseStrictNumeric } from "../../boq-parser/src/numeric";
+import { resolveBoqCommercialNumerics } from "../../boq-parser/src/numeric";
 import type { BoqColumnRole } from "../../boq-parser/src/types";
 import { parsePdfDocument } from "../../pdf-document-parser/src";
 import type {
@@ -128,6 +128,7 @@ function parseTableRows(
     if (row.every((value) => !String(value).trim())) continue;
 
     const itemNumber = cell(row, roleColumn(header.roles, "item_number"));
+    const section = cell(row, roleColumn(header.roles, "section"));
     const description = cell(row, roleColumn(header.roles, "description")) ?? "";
     const unit = cell(row, roleColumn(header.roles, "unit"));
     const currency = cell(row, roleColumn(header.roles, "currency"));
@@ -137,6 +138,7 @@ function parseTableRows(
 
     if (
       !itemNumber &&
+      !section &&
       !description &&
       !unit &&
       !quantityRaw &&
@@ -150,9 +152,14 @@ function parseTableRows(
     const rowDiagnostics: string[] = [];
     if (!description) rowDiagnostics.push("BOQ_DESCRIPTION_MISSING");
 
-    const quantity = parseStrictNumeric(quantityRaw);
-    const rate = parseStrictNumeric(rateRaw);
-    const amount = parseStrictNumeric(amountRaw);
+    const resolvedNumerics = resolveBoqCommercialNumerics(
+      quantityRaw,
+      rateRaw,
+      amountRaw,
+    );
+    const quantity = resolvedNumerics.quantity;
+    const rate = resolvedNumerics.rate;
+    const amount = resolvedNumerics.amount;
 
     for (const [name, raw, parsed] of [
       ["QUANTITY", quantityRaw, quantity],
@@ -195,6 +202,7 @@ function parseTableRows(
     const sourceCells: Record<string, {page:number;table:number;row:number;column:number}> = {};
     for (const role of [
       "item_number",
+      "section",
       "description",
       "unit",
       "quantity",
@@ -218,6 +226,7 @@ function parseTableRows(
       row: index + 1,
       rowKind,
       itemNumber,
+      section,
       description,
       unit,
       quantity: quantity.status === "valid" ? quantity.value : null,
