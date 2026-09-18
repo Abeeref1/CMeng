@@ -162,6 +162,29 @@ function timeToMinutes(value: string): number | null {
   return hour * 60 + minute;
 }
 
+function intervalMinutes(
+  start: string,
+  finish: string,
+): number | null {
+  const startMinutes = timeToMinutes(start);
+  const finishMinutes = timeToMinutes(finish);
+
+  if (startMinutes === null || finishMinutes === null) {
+    return null;
+  }
+
+  if (finishMinutes > startMinutes) {
+    return finishMinutes - startMinutes;
+  }
+
+  // Overnight work period, e.g. 22:00-06:00.
+  if (finishMinutes < startMinutes) {
+    return 24 * 60 - startMinutes + finishMinutes;
+  }
+
+  return null;
+}
+
 function intervalFromNode(
   node: P6StructuredNode,
   diagnostics: string[],
@@ -175,13 +198,8 @@ function intervalFromNode(
     return null;
   }
 
-  const startMinutes = timeToMinutes(start);
-  const finishMinutes = timeToMinutes(finish);
-  if (
-    startMinutes === null ||
-    finishMinutes === null ||
-    finishMinutes <= startMinutes
-  ) {
+  const minutes = intervalMinutes(start, finish);
+  if (minutes === null) {
     diagnostics.push(`CALENDAR_INTERVAL_INVALID:${start}-${finish}`);
     return null;
   }
@@ -189,7 +207,7 @@ function intervalFromNode(
   return {
     start,
     finish,
-    minutes: finishMinutes - startMinutes,
+    minutes,
   };
 }
 
@@ -225,8 +243,185 @@ function serialToIso(serial: number): string {
   return new Date(epoch + serial * 86400000).toISOString().slice(0, 10);
 }
 
+const HUMAN_DAY_INDEX: Record<string, number> = {
+  sun: 1,
+  mon: 2,
+  tue: 3,
+  wed: 4,
+  thu: 5,
+  fri: 6,
+  sat: 7,
+};
+
+function humanDayRange(
+  startName: string,
+  endName: string,
+): number[] | null {
+  const start = HUMAN_DAY_INDEX[startName.toLowerCase()];
+  const end = HUMAN_DAY_INDEX[endName.toLowerCase()];
+  if (!start || !end) return null;
+
+  const days: number[] = [];
+  let current = start;
+  for (let count = 0; count < 7; count += 1) {
+    days.push(current);
+    if (current === end) return days;
+    current = current === 7 ? 1 : current + 1;
+  }
+  return null;
+}
+
+function humanInterval(
+  start: string,
+  finish: string,
+): P6CalendarInterval | null {
+  const minutes = intervalMinutes(start, finish);
+  if (minutes === null) return null;
+  return { start, finish, minutes };
+}
+
+function parseNonworkDays(
+  raw: string,
+): number[] | null {
+  const match = raw
+    .trim()
+    .match(
+      /^(Sun|Mon|Tue|Wed|Thu|Fri|Sat)(?:-(Sun|Mon|Tue|Wed|Thu|Fri|Sat))?\s+nonwork$/i,
+    );
+
+  if (!match) return null;
+  if (!match[2]) {
+    const day = HUMAN_DAY_INDEX[match[1]!.toLowerCase()];
+    return day ? [day] : null;
+  }
+
+  return humanDayRange(match[1]!, match[2]!);
+}
+
+function parseHumanReadableCalendar(
+  source: string,
+): P6CalendarDataResult | null {
+  const trimmed = source.trim();
+
+  if (/^All\s+days\s+24h$/i.test(trimmed)) {
+    const interval: P6CalendarInterval = {
+      start: "00:00",
+      finish: "24:00",
+      minutes: 24 * 60,
+    };
+    return {
+      status: "valid",
+      root: null,
+      days: Array.from({ length: 7 }, (_, index) => ({
+        dayIndex: index + 1,
+        intervals: [interval],
+        workMinutes: interval.minutes,
+      })),
+      exceptions: [],
+      unknownTopLevelNodes: [],
+      diagnostics: [],
+    };
+  }
+
+  const allDays = trimmed.match(
+    /^All\s+days\s+(\d{1,2}:\d{2})-(\d{1,2}:\d{2})$/i,
+  );
+  if (allDays) {
+    const interval = humanInterval(allDays[1]!, allDays[2]!);
+    if (!interval) {
+      return {
+        status: "invalid",
+        root: null,
+        days: [],
+        exceptions: [],
+        unknownTopLevelNodes: [],
+        diagnostics: [
+          `CALENDAR_INTERVAL_INVALID:${allDays[1]}-${allDays[2]}`,
+        ],
+      };
+    }
+
+    return {
+      status: "valid",
+      root: null,
+      days: Array.from({ length: 7 }, (_, index) => ({
+        dayIndex: index + 1,
+        intervals: [interval],
+        workMinutes: interval.minutes,
+      })),
+      exceptions: [],
+      unknownTopLevelNodes: [],
+      diagnostics: [],
+    };
+  }
+
+  const ranged = trimmed.match(
+    /^(Sun|Mon|Tue|Wed|Thu|Fri|Sat)-(Sun|Mon|Tue|Wed|Thu|Fri|Sat)\s+(\d{1,2}:\d{2})-(\d{1,2}:\d{2})(?:;\s*(.+))?$/i,
+  );
+  if (!ranged) return null;
+
+  const workingDays = humanDayRange(ranged[1]!, ranged[2]!);
+  const interval = humanInterval(ranged[3]!, ranged[4]!);
+  if (!workingDays || !interval) {
+    return {
+      status: "invalid",
+      root: null,
+      days: [],
+      exceptions: [],
+      unknownTopLevelNodes: [],
+      diagnostics: ["CALENDAR_HUMAN_FORMAT_INVALID"],
+    };
+  }
+
+  const workingSet = new Set(workingDays);
+  const diagnostics: string[] = [];
+
+  if (ranged[5]) {
+    const declaredNonwork = parseNonworkDays(ranged[5]!);
+    if (!declaredNonwork) {
+      diagnostics.push(
+        "CALENDAR_HUMAN_NONWORK_DECLARATION_INVALID",
+      );
+    } else {
+      const expectedNonwork = [1, 2, 3, 4, 5, 6, 7].filter(
+        (day) => !workingSet.has(day),
+      );
+      if (
+        declaredNonwork.length !== expectedNonwork.length ||
+        declaredNonwork.some(
+          (day) => !expectedNonwork.includes(day),
+        )
+      ) {
+        diagnostics.push(
+          "CALENDAR_HUMAN_NONWORK_DECLARATION_MISMATCH",
+        );
+      }
+    }
+  }
+
+  return {
+    status: diagnostics.length === 0 ? "valid" : "invalid",
+    root: null,
+    days: [1, 2, 3, 4, 5, 6, 7].map((dayIndex) => ({
+      dayIndex,
+      intervals: workingSet.has(dayIndex)
+        ? [interval]
+        : [],
+      workMinutes: workingSet.has(dayIndex)
+        ? interval.minutes
+        : 0,
+    })),
+    exceptions: [],
+    unknownTopLevelNodes: [],
+    diagnostics,
+  };
+}
+
 export function parseP6CalendarData(source: string): P6CalendarDataResult {
   const diagnostics: string[] = [];
+
+  const human = parseHumanReadableCalendar(source);
+  if (human) return human;
 
   let root: P6StructuredNode;
   try {
