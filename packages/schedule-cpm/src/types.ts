@@ -18,6 +18,7 @@ export interface CpmConfig {
   assumeMissingLagZero: boolean;
   criticalThresholdHours: number;
   projectStartIso?: string | null;
+  requiredFinishIso?: string | null;
 }
 
 export const DEFAULT_CPM_CONFIG: CpmConfig = {
@@ -58,6 +59,8 @@ export interface CpmResult {
     "successor_calendar_forward_predecessor_calendar_backward";
   projectStartIso: string | null;
   projectFinishIso: string | null;
+  requiredFinishIso: string | null;
+  latePassFinishIso: string | null;
   criticalThresholdHours: number;
   criticalActivityIds: string[];
   activities: CpmActivityResult[];
