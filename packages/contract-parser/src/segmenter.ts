@@ -116,13 +116,42 @@ export function segmentContractPages(
       continue;
     }
 
+    let firstMeaningfulSeen = false;
+
     for (const line of pageLines(page.pageNumber, page.text)) {
       if (!line.text.trim()) {
         appendLine(current, line);
         continue;
       }
 
+      const isFirstMeaningfulLine = !firstMeaningfulSeen;
+      firstMeaningfulSeen = true;
       const heading = detectContractHeading(line.text);
+
+      if (
+        heading &&
+        isFirstMeaningfulLine &&
+        current.identifier !== null &&
+        current.kind === heading.kind &&
+        current.identifier.toLowerCase() ===
+          heading.identifier.toLowerCase() &&
+        normalizedHeading(current.heading) ===
+          normalizedHeading(heading.heading)
+      ) {
+        // A clause heading repeated as the first meaningful line of a
+        // later page is treated as a running header, not a new clause.
+        appendLine(current, line);
+        if (
+          !current.diagnostics.includes(
+            "CONTRACT_REPEATED_RUNNING_HEADING",
+          )
+        ) {
+          current.diagnostics.push(
+            "CONTRACT_REPEATED_RUNNING_HEADING",
+          );
+        }
+        continue;
+      }
 
       if (heading) {
         current = {
