@@ -45,7 +45,7 @@ test("BOQ CSV arithmetic mismatch blocks certification", () => {
 test("ambiguous BOQ CSV numeric field is unresolved", () => {
   const csv = [
     "Item,Description,Unit,Qty,Rate,Amount",
-    '1,Steel,kg,"1,234",3.5,4319',
+    '1,Steel,kg,"1,234",3.5,5000',
   ].join("\n");
 
   const parsed = parseBoqCsv(Buffer.from(csv, "utf8"));
