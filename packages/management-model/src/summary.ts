@@ -108,7 +108,16 @@ export function managementDto<T>(
     );
   }
 
-  const state = domain.state;
+  const hasReadableData =
+    projection.readableEvidence &&
+    projection.validatedData !== null;
+
+  const state: DomainManagementState =
+    domain.state === "ready"
+      ? "ready"
+      : hasReadableData
+        ? "partial"
+        : domain.state;
 
   return {
     projectId: summary.projectId,
@@ -118,16 +127,20 @@ export function managementDto<T>(
     state,
     summaryId: summary.summaryId,
     data:
-      projection.validatedData !== null
+      hasReadableData
         ? projection.validatedData
-        : null,
+        : domain.state === "ready"
+          ? projection.validatedData
+          : null,
     readableEvidence: projection.readableEvidence,
     processingMessage:
       state === "ready"
         ? null
-        : projection.readableEvidence
-          ? "Additional analysis is still processing."
-          : "Preparing current project analysis.",
+        : hasReadableData
+          ? "Readable current-revision evidence is shown while remaining analysis continues or retries."
+          : domain.state === "failed"
+            ? "Current projection failed and is retrying; no readable current-revision evidence is available yet."
+            : "Preparing current project analysis.",
   };
 }
 
