@@ -29,6 +29,9 @@ import type {
 import type {
   LookAheadActivityReadinessEvidence,
 } from "../../lookahead-schedule/src";
+import type {
+  ExternalProgressBases,
+} from "../../progress-report/src";
 
 export interface ProjectAnalysisContext {
   runId: string;
@@ -53,6 +56,8 @@ export interface ProjectAnalysisContext {
     string,
     LookAheadActivityReadinessEvidence
   >;
+
+  progressBases?: ExternalProgressBases;
 
   scheduleConfig?: ScheduleAnalysisConfig;
   cpmConfig?: Partial<CpmConfig>;
