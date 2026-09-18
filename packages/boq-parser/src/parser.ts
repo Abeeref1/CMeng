@@ -1,5 +1,5 @@
 import ExcelJS from "exceljs";
-import { detectBoqHeader } from "./headers";
+import { detectAllBoqHeaders } from "./headers";
 import { parseStrictNumeric } from "./numeric";
 import { inventoryBoqWorkbook, readBoqCell } from "./workbook";
 import type {
@@ -183,17 +183,18 @@ function parseLineItem(
 
 function parseWorksheet(worksheet: ExcelJS.Worksheet): BoqSheetParseResult {
   const rows = rowTexts(worksheet);
-  const header = detectBoqHeader(rows);
+  const headers = detectAllBoqHeaders(rows);
   const diagnostics: string[] = [];
   const items: BoqLineItem[] = [];
 
-  if (!header) {
+  if (headers.length === 0) {
     if (nonEmptyCellCount(worksheet) >= 6) {
       diagnostics.push("BOQ_POPULATED_SHEET_UNCLASSIFIED");
     }
     return {
       sheet: worksheet.name,
       header: null,
+      headers: [],
       candidateRows: 0,
       parsedRows: 0,
       unresolvedRows: diagnostics.length > 0 ? 1 : 0,
@@ -202,13 +203,21 @@ function parseWorksheet(worksheet: ExcelJS.Worksheet): BoqSheetParseResult {
     };
   }
 
-  for (let row = header.headerRow + 1; row <= worksheet.rowCount; row += 1) {
-    const item = parseLineItem(worksheet, row, header.roles);
-    if (!item) continue;
-    items.push(item);
+  for (let headerIndex = 0; headerIndex < headers.length; headerIndex += 1) {
+    const header = headers[headerIndex]!;
+    const nextHeader = headers[headerIndex + 1];
+    const endRow = nextHeader ? nextHeader.headerRow - 1 : worksheet.rowCount;
+
+    for (let row = header.headerRow + 1; row <= endRow; row += 1) {
+      const item = parseLineItem(worksheet, row, header.roles);
+      if (!item) continue;
+      items.push(item);
+    }
   }
 
-  const unresolvedRows = items.filter((item) => item.status === "unresolved").length;
+  const unresolvedRows = items.filter(
+    (item) => item.status === "unresolved",
+  ).length;
 
   if (items.length === 0) {
     diagnostics.push("BOQ_HEADER_FOUND_BUT_NO_LINE_ITEMS");
@@ -216,7 +225,8 @@ function parseWorksheet(worksheet: ExcelJS.Worksheet): BoqSheetParseResult {
 
   return {
     sheet: worksheet.name,
-    header,
+    header: headers[0] ?? null,
+    headers,
     candidateRows: items.length,
     parsedRows: items.length - unresolvedRows,
     unresolvedRows,
