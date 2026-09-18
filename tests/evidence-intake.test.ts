@@ -92,11 +92,14 @@ async function postSchedule(
       ),
     },
   );
-  assert.equal(
-    response.status,
-    201,
-    await response.text(),
-  );
+  if (response.status !== 201) {
+    throw new Error(
+      "Expected HTTP 201, received " +
+        response.status +
+        ": " +
+        await response.text(),
+    );
+  }
 }
 
 test("baseline, updates and recovery remain distinct and recovery never silently becomes current", async () => {
