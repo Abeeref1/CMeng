@@ -53,7 +53,7 @@ test("missing activity ID remains unresolved instead of disappearing", () => {
 test("schedule XLSX recognizes separate activities and relationships sheets", async () => {
   const workbook = new ExcelJS.Workbook();
   const activities = workbook.addWorksheet("Activities");
-  activities.addRow(["Activity ID","Activity Name","WBS","Original Duration","Total Float"]);
+  activities.addRow(["Activity ID","Activity Name","WBS","Original Duration (h)","Total Float (h)"]);
   activities.addRow(["A100","Excavation","1.1",80,0]);
   activities.addRow(["A200","Foundation","1.2",120,16]);
 
