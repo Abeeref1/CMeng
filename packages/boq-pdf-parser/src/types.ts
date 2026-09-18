@@ -24,8 +24,15 @@ export interface BoqPdfLineItem {
   diagnostics: string[];
 }
 
+export interface AiBoqCellEvidence {
+  value: string;
+  sourceStart: number;
+  sourceEnd: number;
+  sourceText: string;
+}
+
 export interface AiBoqTableExtraction {
-  rows: string[][];
+  rows: AiBoqCellEvidence[][];
   confidence: number | null;
   diagnostics: string[];
 }
