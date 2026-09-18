@@ -75,6 +75,8 @@ export interface XerIntegrityResult {
   relationshipCount: number;
   wbsCount: number;
   calendarCount: number;
+  calendarSemanticComplete: boolean;
+  unresolvedCalendars: number;
   duplicateTaskIds: string[];
   duplicateActivityCodes: string[];
   missingPredecessorTaskIds: string[];
