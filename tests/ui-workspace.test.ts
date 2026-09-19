@@ -118,27 +118,33 @@ test("CMeng workspace keeps the active module primary and browser script parseab
   );
   assert.match(
     html,
-    /src="data:image\/png;base64,/,
-    "CMeng must use the full transparent emblem in the portal",
-  );
-  assert.equal(
-    html.includes(
-      'class="brand-symbol"',
-    ),
-    false,
-    "CMeng must not replace the full emblem with a simplified drawing",
-  );
-  assert.equal(
-    html.includes(
-      "data:image/jpeg;base64,",
-    ),
-    false,
-    "CMeng logo must not use the old boxed background image",
+    /class="cmeng-emblem"/,
+    "CMeng must use the approved muted C and four-direction emblem",
   );
   assert.match(
     html,
-    /--accent:#c99737/,
-    "CMeng gold brand accent must remain in the production theme",
+    /--accent:#c9b79f/,
+    "CMeng champagne-taupe accent must remain in the production theme",
+  );
+  assert.match(
+    html,
+    /--slate:#2e3a46/,
+    "CMeng dark slate identity must remain in the production theme",
+  );
+  assert.match(
+    html,
+    /--ivory:#f8f7f4/,
+    "CMeng ivory surface tone must remain in the production theme",
+  );
+  assert.match(
+    html,
+    /"Montserrat","Avenir Next","Segoe UI"/,
+    "CMeng headings must retain the approved theme typography",
+  );
+  assert.match(
+    html,
+    /Turning complexity into confidence\./,
+    "CMeng sidebar must retain the approved brand message",
   );
   assert.match(
     html,
