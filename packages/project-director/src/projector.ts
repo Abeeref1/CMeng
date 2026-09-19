@@ -1122,6 +1122,20 @@ export function buildProjectDirectorPosition(
           .officialAdjustedCompletionIso,
       independentForecastCompletionIso:
         forecast,
+      independentForecastBasisRevisionId:
+        input.independentForecast
+          .sourceRevisionId,
+      independentForecastCoveragePercent:
+        input.independentForecast
+          .activityCoveragePercent,
+      independentForecastAuthority:
+        input.independentForecast.origin ===
+          "deterministic_source_calendar"
+          ? "deterministic"
+          : input.independentForecast.origin ===
+              "scenario_with_assumptions"
+            ? "scenario"
+            : "unresolved",
       varianceDaysToOfficialAdjustedCompletion:
         delayDays,
       criticalCount:
