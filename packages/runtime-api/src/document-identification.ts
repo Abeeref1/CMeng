@@ -361,14 +361,19 @@ async function extractPdfSample(
   const diagnostics: string[] = [];
 
   try {
-    const result =
-      await parser.getText();
-    const pages =
-      result.pages ?? [];
+    const firstPages =
+      await parser.getText({
+        first: 3,
+      });
     const pageCount =
-      Number.isFinite(result.total)
-        ? result.total
-        : pages.length;
+      Number.isFinite(
+        firstPages.total,
+      )
+        ? firstPages.total
+        : (
+            firstPages.pages ??
+            []
+          ).length;
 
     const pageNumbers =
       unique([
@@ -387,6 +392,18 @@ async function extractPdfSample(
           page >= 1 &&
           page <= pageCount,
       );
+
+    const sampled =
+      pageNumbers.some(
+        (page) => page > 3,
+      )
+        ? await parser.getText({
+            partial:
+              pageNumbers,
+          })
+        : firstPages;
+    const pages =
+      sampled.pages ?? [];
 
     const nativeText =
       pageNumbers
@@ -453,10 +470,27 @@ async function extractPdfSample(
         ) || 3,
       );
     const chosen =
-      pageNumbers.slice(
-        0,
-        maxOcrPages,
-      );
+      unique([
+        1,
+        Math.ceil(
+          Math.max(
+            pageCount,
+            1,
+          ) / 2,
+        ),
+        pageCount,
+        2,
+        3,
+      ])
+        .filter(
+          (page) =>
+            page >= 1 &&
+            page <= pageCount,
+        )
+        .slice(
+          0,
+          maxOcrPages,
+        );
 
     const screenshots: any =
       await parser.getScreenshot({
