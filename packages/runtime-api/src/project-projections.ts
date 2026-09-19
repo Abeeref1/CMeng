@@ -1097,13 +1097,39 @@ function buildBundle(
             "missing",
           officialAdjustedCompletionIso:
             null,
+          observedProgrammeMovementDays:
+            windows
+              .positiveProgrammeMovementDays,
+          analyticalTimeImpactCandidateDays:
+            windows
+              .positiveProgrammeMovementDays,
+          attributableCandidateEotDays:
+            null,
+          unattributedTimeImpactDays:
+            windows
+              .positiveProgrammeMovementDays,
           candidateAdditionalEotDays:
             null,
           scenarioAdjustedCompletionIso:
             null,
+          timeImpactScenarioAdjustedCompletionIso:
+            null,
           observedScheduleMovementDays:
             windows
-              .positiveIndependentMovementDays,
+              .positiveProgrammeMovementDays,
+          programmeMovementBasis:
+            windows.windows.length ===
+              0
+              ? "unavailable"
+              : [
+                  ...new Set(
+                    windows.windows.map(
+                      (window) =>
+                        window
+                          .strongestProgrammeMovementBasis,
+                    ),
+                  ),
+                ],
           basis:
             "schedule_movement_only_not_eot_determination",
           assumptions: [
