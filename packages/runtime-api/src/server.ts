@@ -459,8 +459,7 @@ async function route(
 
             return {
               projectId,
-              demo:
-                state.demo === true,
+              demo: false,
               version:
                 state.version ?? 1,
               latestDataDateIso:
