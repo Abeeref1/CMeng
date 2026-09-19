@@ -78,7 +78,7 @@ test("browser root serves CMeng UAT application", async () => {
         await response.text();
       assert.match(
         html,
-        /Project Director/,
+        /More management detail/,
       );
       assert.match(
         html,
