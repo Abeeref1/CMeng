@@ -1,0 +1,163 @@
+import type {
+  QuantityScheduleMappingResult,
+} from "../../cross-domain-mapping/src";
+
+export type DeliveryChallengePosition =
+  | "supportable"
+  | "challenged"
+  | "not_yet_supportable"
+  | "scenario_only"
+  | "material_delivery_gap";
+
+export interface SubmittedManpowerPeriod {
+  periodId: string;
+  startIso: string;
+  endIso: string;
+  plannedManpower: number;
+  trade: string | null;
+  workFront: string | null;
+  sourceRefs: string[];
+}
+
+export interface SubmittedManpowerPlan {
+  planId: string;
+  periods: SubmittedManpowerPeriod[];
+  sourceRefs: string[];
+  diagnostics: string[];
+}
+
+export interface CrewScenario {
+  crewSize: number;
+  averageManpower: number | null;
+  peakManpower: number | null;
+  authority:
+    "schedule_derived_scenario";
+}
+
+export interface DeliveryChallengeFinding {
+  findingId: string;
+  topic:
+    | "manpower"
+    | "productivity"
+    | "quantity"
+    | "programme"
+    | "milestone"
+    | "mapping"
+    | "workfront";
+  state:
+    | "supported"
+    | "challenged"
+    | "missing_evidence"
+    | "scenario";
+  contractorAssumption:
+    string | null;
+  independentCalculation:
+    string | null;
+  difference:
+    string | null;
+  evidenceBasis: string[];
+  milestoneConsequence:
+    string | null;
+  requiredResponse:
+    string | null;
+}
+
+export interface DeliveryChallengeProjection {
+  schemaVersion: "1.0";
+  projectionKey:
+    "delivery_challenge";
+  generatedAt: string;
+  producerVersion: string;
+  projectId: string | null;
+  sourceRevisionId: string;
+  position:
+    DeliveryChallengePosition;
+  authority:
+    "analytical_challenge_not_replacement_programme";
+  disclaimer: string;
+
+  scheduleChallenge: {
+    contractorSubmittedCompletionIso:
+      string | null;
+    independentCompletionIso:
+      string | null;
+    contractualCompletionIso:
+      string | null;
+    contractorVsIndependentDays:
+      number | null;
+    independentVsContractualDays:
+      number | null;
+    remainingDurationDays:
+      number | null;
+    averageConcurrentWorkFronts:
+      number | null;
+    peakConcurrentWorkFronts:
+      number | null;
+    workFrontActivityCount:
+      number;
+  };
+
+  quantityChallenge: {
+    totalKnownQuantity: number | null;
+    mappedQuantity: number | null;
+    mappingCoveragePercent:
+      number | null;
+    knownRemainingQuantity:
+      number | null;
+    measuredInstalledQuantity:
+      number | null;
+    requiredQuantityPerDayToContract:
+      number | null;
+    requiredQuantityPerDayToContractorForecast:
+      number | null;
+    ambiguousMappingItemCount:
+      number;
+    unmappedItemCount: number;
+  };
+
+  productivityChallenge: {
+    actualMeasuredQuantityPerLaborHour:
+      number | null;
+    plannedQuantityPerLaborHour:
+      number | null;
+    requiredQuantityPerLaborHour:
+      number | null;
+    requiredProductivityVsActualPercent:
+      number | null;
+    productivityEvidenceState:
+      | "measured"
+      | "planned_only"
+      | "scenario_only"
+      | "missing";
+  };
+
+  manpowerChallenge: {
+    submittedPlanAvailable: boolean;
+    submittedAverageManpower:
+      number | null;
+    submittedPeakManpower:
+      number | null;
+    evidenceRemainingLaborHours:
+      number | null;
+    requiredAverageManpowerToContract:
+      number | null;
+    requiredAverageManpowerToContractorForecast:
+      number | null;
+    submittedVsRequiredToContract:
+      number | null;
+    scheduleDerivedScenarios:
+      CrewScenario[];
+    averageConcurrentWorkFronts:
+      number | null;
+    peakConcurrentWorkFronts:
+      number | null;
+  };
+
+  mapping:
+    QuantityScheduleMappingResult | null;
+
+  findings:
+    DeliveryChallengeFinding[];
+  assumptions: string[];
+  diagnostics: string[];
+}
