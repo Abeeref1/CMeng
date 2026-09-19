@@ -433,9 +433,14 @@ export function inferEvidenceLineage(
     effect ===
       "supplement";
   const predecessorDocumentIds =
-    predecessor
-      ? [predecessor]
-      : [];
+    effect === "full_replacement"
+      ? sameDomain.map(
+          (document) =>
+            document.documentId,
+        )
+      : predecessor
+        ? [predecessor]
+        : [];
 
   if (
     effect ===
