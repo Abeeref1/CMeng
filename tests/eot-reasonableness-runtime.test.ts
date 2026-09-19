@@ -275,6 +275,27 @@ test("multiple absurd claimed-EOT values cannot become the project EOT and do no
                     string |
                     null;
                 };
+                candidateComparisons:
+                  Array<{
+                    submittedValue:
+                      number |
+                      string;
+                    comparable:
+                      boolean;
+                    gapValue:
+                      number |
+                      string |
+                      null;
+                  }>;
+                conflictRecommendation: {
+                  state: string;
+                  recommendedValue:
+                    number |
+                    string |
+                    null;
+                  userDecisionRequired:
+                    boolean;
+                };
               }>;
             };
           };
@@ -315,14 +336,19 @@ test("multiple absurd claimed-EOT values cannot become the project EOT and do no
         claimed.submitted.state,
         "conflicted",
       );
-      assert.equal(
-        claimed.submitted.value,
-        14503,
+      assert.ok(
+        [
+          6503,
+          8000,
+        ].includes(
+          claimed.submitted
+            .value as number,
+        ),
       );
       assert.match(
         claimed.submitted.note ??
           "",
-        /does not treat this as consolidated project EOT/i,
+        /raw arithmetic sum=14503 days is retained for audit only/i,
       );
       assert.equal(
         claimed.independent.value,
@@ -335,11 +361,36 @@ test("multiple absurd claimed-EOT values cannot become the project EOT and do no
       );
       assert.equal(
         claimed.gap.state,
-        "conflicted",
+        "calculated",
       );
       assert.equal(
-        claimed.gap.value,
-        null,
+        claimed
+          .candidateComparisons
+          .length,
+        2,
+      );
+      assert.ok(
+        claimed
+          .candidateComparisons
+          .every(
+            (candidate) =>
+              candidate.comparable &&
+              typeof candidate
+                .gapValue ===
+                "number",
+          ),
+      );
+      assert.equal(
+        claimed
+          .conflictRecommendation
+          .state,
+        "recommendation_only",
+      );
+      assert.equal(
+        claimed
+          .conflictRecommendation
+          .userDecisionRequired,
+        true,
       );
     },
   );
