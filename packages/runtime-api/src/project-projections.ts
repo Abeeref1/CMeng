@@ -1491,6 +1491,34 @@ function buildBundle(
     );
   }
 
+  const evidenceTypes =
+    new Set(
+      state.evidenceDocuments.map(
+        (document) =>
+          document.documentType,
+      ),
+    );
+  const evidenceCategoryPresent = (
+    category: string,
+  ): boolean =>
+    state.evidenceDocuments.some(
+      (document) =>
+        document.category ===
+        category,
+    );
+  const evidenceCoverage = (
+    hasStructuredRows: boolean,
+    sourcePresent: boolean,
+  ):
+    | "established"
+    | "submitted_unparsed"
+    | "not_submitted" =>
+    hasStructuredRows
+      ? "established"
+      : sourcePresent
+        ? "submitted_unparsed"
+        : "not_submitted";
+
   if (
     ordered.length >= 2 &&
     resourceUtilization &&
@@ -1873,34 +1901,6 @@ function buildBundle(
     deliveryChallenge,
     modules,
   });
-
-  const evidenceTypes =
-    new Set(
-      state.evidenceDocuments.map(
-        (document) =>
-          document.documentType,
-      ),
-    );
-  const evidenceCategoryPresent = (
-    category: string,
-  ): boolean =>
-    state.evidenceDocuments.some(
-      (document) =>
-        document.category ===
-        category,
-    );
-  const evidenceCoverage = (
-    hasStructuredRows: boolean,
-    sourcePresent: boolean,
-  ):
-    | "established"
-    | "submitted_unparsed"
-    | "not_submitted" =>
-    hasStructuredRows
-      ? "established"
-      : sourcePresent
-        ? "submitted_unparsed"
-        : "not_submitted";
 
   if (
     delayClaims &&
