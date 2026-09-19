@@ -61,6 +61,8 @@ import type {
   EvidenceCategory,
   EvidenceIdentification,
   EvidenceLineage,
+  EvidenceUploadIntent,
+  EvidenceBasisEffect,
   EvidenceUploadSummary,
   ProjectControlState,
   ProjectRuntimeState,
@@ -82,6 +84,10 @@ import {
   identifyEvidenceDocument,
   type EvidenceIdentificationResult,
 } from "./document-identification";
+import {
+  applyEvidenceBasis,
+  evidenceFamily,
+} from "./evidence-control";
 
 function hashBytes(
   bytes: Uint8Array,
@@ -510,6 +516,44 @@ function hydrateProject(
           assertions:
             document.assertions ??
             [],
+          uploadIntent:
+            document.uploadIntent ??
+            "add_update",
+          familyKey:
+            document.familyKey ??
+            evidenceFamily({
+              category:
+                document.category,
+              documentType:
+                document.documentType,
+              scheduleRole:
+                document.scheduleRole,
+              textSample: "",
+              sourceFilename:
+                document.sourceFilename,
+            }).familyKey,
+          logicalDocumentKey:
+            document.logicalDocumentKey ??
+            evidenceFamily({
+              category:
+                document.category,
+              documentType:
+                document.documentType,
+              scheduleRole:
+                document.scheduleRole,
+              textSample: "",
+              sourceFilename:
+                document.sourceFilename,
+            }).logicalDocumentKey,
+          basisState:
+            document.basisState ??
+            "historical",
+          supersededByDocumentId:
+            document.supersededByDocumentId ??
+            null,
+          supersedesDocumentIds:
+            document.supersedesDocumentIds ??
+            [],
         })),
     boqRevisions:
       legacy.boqRevisions ??
@@ -520,6 +564,18 @@ function hydrateProject(
       legacy.contractFamily ?? null,
     submittedManpowerPlan:
       legacy.submittedManpowerPlan ??
+      null,
+    activeEvidenceBasis:
+      legacy.activeEvidenceBasis ??
+      {},
+    boardPublicationHistory:
+      legacy.boardPublicationHistory ??
+      [],
+    delayEventHistory:
+      legacy.delayEventHistory ??
+      [],
+    lastRerunReceipt:
+      legacy.lastRerunReceipt ??
       null,
     resourcesByRevision:
       new Map(
@@ -839,6 +895,10 @@ export class RuntimeProjectStore {
         contractFamily: null,
         submittedManpowerPlan:
           null,
+        activeEvidenceBasis: {},
+        boardPublicationHistory: [],
+        delayEventHistory: [],
+        lastRerunReceipt: null,
         controls:
           emptyControls(),
       };
