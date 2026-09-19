@@ -114,7 +114,7 @@ function exposureFromRate(
       amount: null,
       currency: null,
       diagnostics: [
-        "LD_PERCENT_RATE_REQUIRES_GOVERNED_CONTRACT_VALUE",
+        "LD_PERCENT_RATE_REQUIRES_CONTRACT_VALUE_CANDIDATE",
       ],
     };
   }
@@ -177,7 +177,7 @@ function capValue(
     return {
       amount: null,
       diagnostics: [
-        "LD_PERCENT_CAP_REQUIRES_GOVERNED_CONTRACT_VALUE",
+        "LD_PERCENT_CAP_REQUIRES_CONTRACT_VALUE_CANDIDATE",
       ],
     };
   }
@@ -209,36 +209,42 @@ function ldScenario(
   terms: ContractLdTerms,
   delayDays: number | null,
   contractValue: MoneyValue | undefined,
+  contractValueCandidates:
+    MoneyValue[] = [],
 ): ProjectDirectorPosition["ld"] {
-  if (
-    terms.rateState === "conflicted" ||
-    terms.capState === "conflicted"
-  ) {
-    return {
-      delayDays,
-      state: "conflicted",
-      currency: null,
-      uncappedAmount: null,
-      cappedAmount: null,
-      capApplied: null,
-      sourceRefs: [
-        ...terms.rateCandidates.flatMap(
-          (candidate) => candidate.sourceRefs,
-        ),
-        ...terms.capCandidates.flatMap(
-          (candidate) => candidate.sourceRefs,
-        ),
-      ],
-      diagnostics: [
-        ...terms.diagnostics,
-        "LD_SCENARIO_BLOCKED_BY_CONFLICTING_TERMS",
-      ],
-    };
-  }
+  const rateCandidates =
+    terms.rateState ===
+      "candidate" &&
+    terms.rate
+      ? [terms.rate]
+      : terms.rateCandidates;
+
+  const capCandidates:
+    Array<
+      LdCapCandidate | null
+    > =
+    terms.capState ===
+      "candidate" &&
+    terms.cap
+      ? [terms.cap]
+      : terms.capCandidates
+          .length > 0
+        ? terms.capCandidates
+        : [null];
+
+  const values: Array<
+    MoneyValue | undefined
+  > =
+    contractValue
+      ? [contractValue]
+      : contractValueCandidates
+          .length > 0
+        ? contractValueCandidates
+        : [undefined];
 
   if (
-    terms.rateState !== "candidate" ||
-    !terms.rate ||
+    rateCandidates.length ===
+      0 ||
     delayDays === null
   ) {
     return {
@@ -249,86 +255,415 @@ function ldScenario(
       cappedAmount: null,
       capApplied: null,
       sourceRefs: [],
+      recommendedScenarioId:
+        null,
+      recommendationRationale:
+        [],
+      userDecisionRequired:
+        false,
+      scenarios: [],
       diagnostics: [
         ...terms.diagnostics,
-        "LD_SCENARIO_REQUIRES_SINGLE_RATE_AND_SCHEDULE_DELAY",
+        ...(rateCandidates.length ===
+        0
+          ? [
+              "LD_SCENARIO_REQUIRES_RATE",
+            ]
+          : []),
+        ...(delayDays === null
+          ? [
+              "LD_SCENARIO_REQUIRES_SCHEDULE_DELAY",
+            ]
+          : []),
       ],
     };
   }
 
-  const exposure = exposureFromRate(
-    terms.rate,
-    delayDays,
-    contractValue,
+  const rawScenarios:
+    ProjectDirectorPosition["ld"]["scenarios"] =
+    [];
+
+  for (
+    const rate of
+      rateCandidates
+  ) {
+    for (
+      const cap of
+        capCandidates
+    ) {
+      for (
+        const candidateValue of
+          values
+      ) {
+        const exposure =
+          exposureFromRate(
+            rate,
+            delayDays,
+            candidateValue,
+          );
+        const diagnostics = [
+          ...terms.diagnostics,
+          ...exposure.diagnostics,
+        ];
+        const sourceRefs = [
+          ...rate.sourceRefs,
+          ...(cap
+            ? cap.sourceRefs
+            : []),
+          ...(candidateValue
+            ? candidateValue
+                .sourceRefs
+            : []),
+        ];
+
+        let cappedAmount:
+          number | null =
+          exposure.amount;
+        let capApplied:
+          boolean | null =
+          exposure.amount ===
+          null
+            ? null
+            : false;
+
+        if (
+          cap &&
+          exposure.amount !==
+            null &&
+          exposure.currency !==
+            null
+        ) {
+          const capResult =
+            capValue(
+              cap,
+              exposure.currency,
+              candidateValue,
+            );
+          diagnostics.push(
+            ...capResult.diagnostics,
+          );
+          if (
+            capResult.amount !==
+            null
+          ) {
+            cappedAmount =
+              Math.min(
+                exposure.amount,
+                capResult.amount,
+              );
+            capApplied =
+              cappedAmount <
+              exposure.amount;
+          }
+        }
+
+        const state =
+          exposure.amount !==
+            null &&
+          exposure.currency !==
+            null &&
+          cappedAmount !== null
+            ? "calculated" as const
+            : "not_calculable" as const;
+
+        const evidenceScore =
+          Number(
+            (
+              (
+                terms.rateState ===
+                  "candidate"
+                  ? 30
+                  : 18
+              ) +
+              (
+                cap === null
+                  ? 5
+                  : terms.capState ===
+                      "candidate"
+                    ? 25
+                    : 15
+              ) +
+              (
+                contractValue &&
+                candidateValue ===
+                  contractValue
+                  ? 50
+                  : candidateValue
+                    ? 20
+                    : 0
+              ) +
+              Math.min(
+                20,
+                new Set(
+                  sourceRefs,
+                ).size * 2,
+              ) -
+              diagnostics.length * 2
+            ).toFixed(4),
+          );
+
+        const scenarioId = [
+          "ld",
+          rate.candidateId,
+          cap?.candidateId ??
+            "no-cap",
+          candidateValue
+            ? (
+                candidateValue.currency +
+                "-" +
+                candidateValue.amount
+              )
+            : "no-contract-value",
+        ].join(":");
+
+        rawScenarios.push({
+          scenarioId,
+          rateCandidateId:
+            rate.candidateId,
+          capCandidateId:
+            cap?.candidateId ??
+            null,
+          contractValueAmount:
+            candidateValue
+              ?.amount ??
+            null,
+          contractValueCurrency:
+            candidateValue
+              ?.currency ??
+            null,
+          state,
+          currency:
+            exposure.currency,
+          uncappedAmount:
+            exposure.amount,
+          cappedAmount:
+            cappedAmount ===
+            null
+              ? null
+              : Number(
+                  cappedAmount.toFixed(
+                    6,
+                  ),
+                ),
+          capApplied,
+          evidenceScore,
+          recommended: false,
+          sourceRefs: [
+            ...new Set(
+              sourceRefs,
+            ),
+          ],
+          diagnostics: [
+            ...new Set(
+              diagnostics,
+            ),
+          ],
+        });
+      }
+    }
+  }
+
+  const deduped =
+    new Map<
+      string,
+      ProjectDirectorPosition["ld"]["scenarios"][number]
+    >();
+
+  for (
+    const scenario of
+      rawScenarios
+  ) {
+    const key = [
+      scenario
+        .rateCandidateId,
+      scenario
+        .capCandidateId ??
+        "",
+      scenario
+        .contractValueAmount ??
+        "",
+      scenario
+        .contractValueCurrency ??
+        "",
+      scenario.currency ??
+        "",
+      scenario
+        .uncappedAmount ??
+        "",
+      scenario
+        .cappedAmount ??
+        "",
+    ].join("|");
+    const existing =
+      deduped.get(key);
+    if (
+      !existing ||
+      scenario.evidenceScore >
+        existing.evidenceScore
+    ) {
+      deduped.set(
+        key,
+        scenario,
+      );
+    }
+  }
+
+  const scenarios = [
+    ...deduped.values(),
+  ].sort(
+    (a, b) =>
+      (
+        b.state ===
+        "calculated"
+          ? 1
+          : 0
+      ) -
+        (
+          a.state ===
+          "calculated"
+            ? 1
+            : 0
+        ) ||
+      b.evidenceScore -
+        a.evidenceScore ||
+      a.scenarioId.localeCompare(
+        b.scenarioId,
+      ),
   );
+
+  const calculated =
+    scenarios.filter(
+      (scenario) =>
+        scenario.state ===
+        "calculated",
+    );
+
   if (
-    exposure.amount === null ||
-    exposure.currency === null
+    calculated.length === 0
   ) {
     return {
       delayDays,
       state: "unavailable",
-      currency: exposure.currency,
+      currency: null,
       uncappedAmount: null,
       cappedAmount: null,
       capApplied: null,
       sourceRefs: [
-        ...terms.rate.sourceRefs,
+        ...new Set(
+          scenarios.flatMap(
+            (scenario) =>
+              scenario.sourceRefs,
+          ),
+        ),
       ],
+      recommendedScenarioId:
+        null,
+      recommendationRationale: [
+        "All contradictory branches were retained and attempted, but a mathematically required input is genuinely absent from every branch.",
+      ],
+      userDecisionRequired:
+        scenarios.length > 1,
+      scenarios,
       diagnostics: [
         ...terms.diagnostics,
-        ...exposure.diagnostics,
+        "LD_ALL_CANDIDATE_BRANCHES_NOT_CALCULABLE",
       ],
     };
   }
 
-  let cappedAmount = exposure.amount;
-  let capApplied = false;
-  const diagnostics = [
-    ...terms.diagnostics,
-    ...exposure.diagnostics,
-  ];
-  const sourceRefs = [
-    ...terms.rate.sourceRefs,
-  ];
+  const highestScore =
+    calculated[0]!
+      .evidenceScore;
+  const strongest =
+    calculated.filter(
+      (scenario) =>
+        scenario.evidenceScore ===
+        highestScore,
+    );
+  const uniqueRecommendation =
+    strongest.length === 1
+      ? strongest[0]!
+      : null;
 
   if (
-    terms.capState === "candidate" &&
-    terms.cap
+    uniqueRecommendation
   ) {
-    sourceRefs.push(
-      ...terms.cap.sourceRefs,
-    );
-    const cap = capValue(
-      terms.cap,
-      exposure.currency,
-      contractValue,
-    );
-    diagnostics.push(
-      ...cap.diagnostics,
-    );
-    if (cap.amount !== null) {
-      cappedAmount = Math.min(
-        exposure.amount,
-        cap.amount,
-      );
-      capApplied =
-        cappedAmount < exposure.amount;
-    }
+    uniqueRecommendation
+      .recommended = true;
   }
+
+  const conflictExists =
+    terms.rateState ===
+      "conflicted" ||
+    terms.capState ===
+      "conflicted" ||
+    (
+      !contractValue &&
+      contractValueCandidates
+        .length > 1
+    ) ||
+    calculated.length > 1;
+
+  const chosen =
+    uniqueRecommendation ??
+    calculated[0]!;
 
   return {
     delayDays,
-    state: "scenario_candidate",
-    currency: exposure.currency,
-    uncappedAmount: exposure.amount,
+    state:
+      conflictExists
+        ? "multi_scenario"
+        : "scenario_candidate",
+    currency:
+      chosen.currency,
+    uncappedAmount:
+      chosen.uncappedAmount,
     cappedAmount:
-      Number(cappedAmount.toFixed(6)),
-    capApplied,
+      chosen.cappedAmount,
+    capApplied:
+      chosen.capApplied,
     sourceRefs: [
-      ...new Set(sourceRefs),
+      ...new Set(
+        scenarios.flatMap(
+          (scenario) =>
+            scenario.sourceRefs,
+        ),
+      ),
     ],
-    diagnostics,
+    recommendedScenarioId:
+      uniqueRecommendation
+        ?.scenarioId ??
+      null,
+    recommendationRationale:
+      uniqueRecommendation
+        ? [
+            "This branch has the strongest evidence score among the calculable contradictory branches.",
+            ...(contractValue
+              ? [
+                  "It uses the governed contract value.",
+                ]
+              : []),
+            "Recommendation is analytical only; user confirmation is required before changing the governed basis.",
+          ]
+        : [
+            "Multiple calculable branches remain equally supported. CMeng retains every result and requires the user to select the governed basis.",
+          ],
+    userDecisionRequired:
+      conflictExists,
+    scenarios,
+    diagnostics: [
+      ...terms.diagnostics,
+      ...(conflictExists
+        ? [
+            "CONTRADICTORY_LD_INPUTS_CALCULATED_AS_PARALLEL_SCENARIOS",
+          ]
+        : []),
+      ...(uniqueRecommendation
+        ? [
+            "LD_RECOMMENDATION_IS_ANALYTICAL_NOT_GOVERNED",
+          ]
+        : []),
+    ],
   };
 }
 
@@ -391,6 +726,8 @@ export function buildProjectDirectorPosition(
     input.ldTerms,
     delayDays,
     input.contractValue,
+    input.contractValueCandidates ??
+      [],
   );
 
   const positions = positionMap();
@@ -483,7 +820,12 @@ export function buildProjectDirectorPosition(
   }
 
   if (
-    ld.state === "scenario_candidate" &&
+    (
+      ld.state ===
+        "scenario_candidate" ||
+      ld.state ===
+        "multi_scenario"
+    ) &&
     ld.currency &&
     ld.cappedAmount !== null
   ) {
