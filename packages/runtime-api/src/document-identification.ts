@@ -1837,13 +1837,16 @@ export async function identifyEvidenceDocument(
       | null;
     declaredMediaType?:
       | string
-      | null;
+      | null
+      | undefined;
     declaredCategory?:
       | string
-      | null;
+      | null
+      | undefined;
     declaredDocumentType?:
       | string
-      | null;
+      | null
+      | undefined;
   },
 ): Promise<
   EvidenceIdentificationResult
