@@ -553,6 +553,7 @@ export function loadCertifiedDemoProject(
     },
     contractDocuments: [],
     contractFamily: null,
+    submittedManpowerPlan: null,
     contract: {
       sourceType: "pdf",
       pdf: null,
