@@ -3,6 +3,7 @@ import {
 } from "../../schedule-analysis-core/src";
 import {
   compareScheduleRevisions,
+  orderScheduleRevisionsChronologically,
   type ScheduleRevision,
 } from "../../schedule-revision-core/src";
 import {
@@ -185,11 +186,10 @@ export function buildWindowsAnalysisProjection(
     cpmConfig?: Partial<CpmConfig>;
   },
 ): WindowsAnalysisProjection {
-  const ordered = [...revisions].sort(
-    (a, b) =>
-      a.sequence - b.sequence ||
-      a.revisionId.localeCompare(b.revisionId),
-  );
+  const ordered =
+    orderScheduleRevisionsChronologically(
+      revisions,
+    );
 
   const windows: ScheduleWindowResult[] = [];
   const diagnostics: string[] = [
