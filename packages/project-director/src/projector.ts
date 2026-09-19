@@ -205,7 +205,7 @@ function capValue(
   };
 }
 
-function ldScenario(
+export function buildLdScenario(
   terms: ContractLdTerms,
   delayDays: number | null,
   contractValue: MoneyValue | undefined,
@@ -722,7 +722,7 @@ export function buildProjectDirectorPosition(
     officialCompletion,
     forecast,
   );
-  const ld = ldScenario(
+  const ld = buildLdScenario(
     input.ldTerms,
     delayDays,
     input.contractValue,
