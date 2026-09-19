@@ -57,6 +57,50 @@ test("CMeng workspace keeps the active module primary and browser script parseab
     /replace_current_basis/,
   );
 
+  const dedicatedModuleViews = [
+    "pmo-analysis",
+    "schedule-analytics",
+    "activity-analytics",
+    "resource-utilization",
+    "lookahead-schedule",
+    "progress-report",
+    "schedule-change-report",
+    "revision-trend",
+    "variance-trends",
+    "progress-scurve",
+    "quantity-scurve",
+    "progress-breakdown",
+    "milestones",
+    "near-critical",
+    "manhour-scurve",
+    "forecast-history",
+    "independent-forecast",
+    "delay-claims",
+    "notices-claims",
+    "windows-analysis",
+    "eot-assessment",
+  ];
+
+  for (
+    const key of dedicatedModuleViews
+  ) {
+    assert.match(
+      html,
+      new RegExp(
+        'key==="' +
+          key +
+          '"',
+      ),
+      key,
+    );
+  }
+
+  assert.match(
+    html,
+    /key==="challenge-contract"&&renderDeliveryChallenge/,
+    "Challenge the Contract keeps its specialist renderer",
+  );
+
   const script =
     html.match(
       /<script>([\s\S]*?)<\/script>/,
