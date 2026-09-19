@@ -118,20 +118,22 @@ test("CMeng workspace keeps the active module primary and browser script parseab
   );
   assert.match(
     html,
-    /class="brand-symbol"/,
-    "CMeng must use the standalone gold C emblem in the portal",
+    /src="data:image\/png;base64,/,
+    "CMeng must use the full transparent emblem in the portal",
+  );
+  assert.equal(
+    html.includes(
+      'class="brand-symbol"',
+    ),
+    false,
+    "CMeng must not replace the full emblem with a simplified drawing",
   );
   assert.equal(
     html.includes(
       "data:image/jpeg;base64,",
     ),
     false,
-    "CMeng logo must not use the old boxed raster image",
-  );
-  assert.match(
-    html,
-    /stroke="url\(#cmengGold\)"/,
-    "CMeng C must retain the gold treatment",
+    "CMeng logo must not use the old boxed background image",
   );
   assert.match(
     html,
