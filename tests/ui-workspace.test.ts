@@ -176,6 +176,12 @@ test("CMeng workspace keeps the active module primary and browser script parseab
       "evidenceSelectAll",
       "deleteSelectedDocuments",
       "selectedEvidenceDocuments",
+      "upload-progress-fill",
+      "XMLHttpRequest",
+      "x-upload-id",
+      "evidence/upload-progress/",
+      "Last uploaded / updated",
+      "formatDocumentTime",
     ]
   ) {
     assert.equal(
