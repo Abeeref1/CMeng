@@ -57,6 +57,28 @@ test("CMeng workspace keeps the active module primary and browser script parseab
     /id="focusMode"/,
     "focus-mode control must remain available",
   );
+  for (
+    const uploadControl of [
+      "openEvidenceTop",
+      "openEvidenceHero",
+      "openEvidenceQuick",
+    ]
+  ) {
+    assert.match(
+      html,
+      new RegExp(
+        'id="' +
+          uploadControl +
+          '"',
+      ),
+      uploadControl,
+    );
+  }
+  assert.match(
+    html,
+    /id="evidenceControlDrawer" open/,
+    "evidence upload workspace must be open by default",
+  );
   assert.match(
     html,
     /function renderModuleBasis/,
