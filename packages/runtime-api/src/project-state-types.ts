@@ -70,6 +70,95 @@ export type EvidenceParserState =
   | "unsupported"
   | "error";
 
+export type EvidenceUploadIntent =
+  | "add_update"
+  | "replace_current_basis";
+
+export type EvidenceBasisState =
+  | "active"
+  | "superseded"
+  | "additive"
+  | "scenario"
+  | "candidate"
+  | "historical";
+
+export type EvidenceFamilyBehavior =
+  | "schedule_special"
+  | "boq_special"
+  | "contract_delta"
+  | "contract_replacement"
+  | "snapshot"
+  | "additive"
+  | "reference";
+
+export interface EvidenceBasisRecord {
+  familyKey: string;
+  behavior: EvidenceFamilyBehavior;
+  activeDocumentId: string | null;
+  activeArtifactId: string | null;
+  updatedAt: string;
+  reason: string;
+  previousDocumentIds: string[];
+}
+
+export interface EvidenceBasisEffect {
+  familyKey: string;
+  behavior: EvidenceFamilyBehavior;
+  intent: EvidenceUploadIntent;
+  logicalDocumentKey: string;
+  basisState: EvidenceBasisState;
+  previousActiveDocumentId: string | null;
+  activeDocumentId: string | null;
+  changedActiveBasis: boolean;
+  reason: string;
+}
+
+export interface EvidenceRerunReceipt {
+  receiptId: string;
+  projectId: string;
+  generatedAt: string;
+  projectVersion: number;
+  evidenceFingerprint: string;
+  activeBasis: Record<string, EvidenceBasisRecord>;
+  moduleCount: number;
+  moduleResults: Array<{
+    key: string;
+    status: "ready" | "partial" | "blocked";
+  }>;
+  pmoRecalculated: boolean;
+  directorRecalculated: boolean;
+  boardPublicationState:
+    | "none"
+    | "current"
+    | "stale";
+  certification: {
+    state: "pass" | "fail";
+    checkCount: number;
+    failedCheckIds: string[];
+  };
+  diagnostics: string[];
+}
+
+export interface PublishedBoardReportRecord {
+  publicationId: string;
+  basisVersion: number;
+  sourceManifestId: string | null;
+  evidenceReceiptIds: string[];
+  finalizedAt: string;
+  stale: boolean;
+  staleAt: string | null;
+}
+
+export interface DelayEventVersionRecord {
+  eventId: string;
+  version: number;
+  fingerprint: string;
+  effectiveAt: string;
+  supersedesVersion: number | null;
+  evidenceRevisionId: string;
+  snapshot: unknown;
+}
+
 export type EvidenceIdentificationMethod =
   | "signature"
   | "native_text"
@@ -151,6 +240,12 @@ export interface StoredEvidenceDocument {
   identification: EvidenceIdentification;
   lineage: EvidenceLineage;
   assertions: DocumentAssertion[];
+  uploadIntent: EvidenceUploadIntent;
+  familyKey: string;
+  logicalDocumentKey: string;
+  basisState: EvidenceBasisState;
+  supersededByDocumentId: string | null;
+  supersedesDocumentIds: string[];
   diagnostics: string[];
 }
 
@@ -166,6 +261,7 @@ export interface EvidenceUploadSummary {
   identification: EvidenceIdentification;
   lineage: EvidenceLineage;
   assertionCount: number;
+  basisEffect: EvidenceBasisEffect;
   diagnostics: string[];
 }
 
@@ -256,6 +352,14 @@ export interface ProjectRuntimeState {
   contractFamily: ContractFamilyResult | null;
   submittedManpowerPlan:
     SubmittedManpowerPlan | null;
+  activeEvidenceBasis:
+    Record<string, EvidenceBasisRecord>;
+  boardPublicationHistory:
+    PublishedBoardReportRecord[];
+  delayEventHistory:
+    DelayEventVersionRecord[];
+  lastRerunReceipt:
+    EvidenceRerunReceipt | null;
   controls: ProjectControlState;
 }
 
