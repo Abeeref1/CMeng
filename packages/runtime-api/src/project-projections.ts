@@ -91,6 +91,15 @@ import {
 import {
   scheduleModules,
 } from "./registry";
+import {
+  applyUniversalModuleChallenges,
+} from "./module-challenges";
+import {
+  buildQuantityScheduleMapping,
+} from "../../cross-domain-mapping/src";
+import type {
+  DelayClaimsModel,
+} from "../../delay-analysis-core/src";
 
 interface ProjectionBundle {
   version: number;
