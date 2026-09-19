@@ -557,6 +557,7 @@ export function loadCertifiedDemoProject(
     activeEvidenceBasis: {},
     boardPublicationHistory: [],
     delayEventHistory: [],
+    derivedReadinessByDocument: {},
     lastRerunReceipt: null,
     contract: {
       sourceType: "pdf",
