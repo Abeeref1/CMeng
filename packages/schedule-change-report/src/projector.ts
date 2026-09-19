@@ -1,5 +1,6 @@
 import {
   compareScheduleRevisions,
+  orderScheduleRevisionsChronologically,
   type ScheduleRevision,
 } from "../../schedule-revision-core/src";
 import type {
@@ -80,11 +81,10 @@ export function buildScheduleChangeReportFromHistory(
     producerVersion: string;
   },
 ): ScheduleChangeReportProjection {
-  const ordered = [...revisions].sort(
-    (a, b) =>
-      a.sequence - b.sequence ||
-      a.revisionId.localeCompare(b.revisionId),
-  );
+  const ordered =
+    orderScheduleRevisionsChronologically(
+      revisions,
+    );
 
   if (ordered.length < 2) {
     return {
