@@ -33,7 +33,15 @@ function documentIdentifier(
     ],
     [
       "vo",
-      /\b(?:vo|variation(?:\s+order)?|change\s+order)\s*(?:no\.?|number|#)?\s*[:\-]?\s*([A-Z0-9._/-]+)/i,
+      /\bvo\s*(?:no\.?|number|#)\s*[:\-]?\s*([A-Z0-9._/-]*\d[A-Z0-9._/-]*)/i,
+    ],
+    [
+      "vo",
+      /\b(?:variation\s+order|change\s+order)\s*(?:no\.?|number|#)\s*[:\-]?\s*([A-Z0-9._/-]*\d[A-Z0-9._/-]*)/i,
+    ],
+    [
+      "vo",
+      /\b(?:vo|variation\s+order|change\s+order)\s*[:\-]?\s*([A-Z0-9._/-]*\d[A-Z0-9._/-]*)/i,
     ],
     [
       "payment",
