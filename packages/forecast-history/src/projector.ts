@@ -65,12 +65,38 @@ export function buildForecastHistoryProjection(
   },
 ): ForecastHistoryProjection {
   const ordered = [...snapshots].sort(
-    (a, b) =>
-      Date.parse(a.generatedAt) -
-        Date.parse(b.generatedAt) ||
-      a.snapshotId.localeCompare(
-        b.snapshotId,
-      ),
+    (a, b) => {
+      const ad =
+        ms(a.dataDateIso);
+      const bd =
+        ms(b.dataDateIso);
+
+      if (
+        ad !== null &&
+        bd !== null &&
+        ad !== bd
+      ) {
+        return ad - bd;
+      }
+      if (ad !== null && bd === null) {
+        return -1;
+      }
+      if (ad === null && bd !== null) {
+        return 1;
+      }
+
+      return (
+        Date.parse(
+          a.generatedAt,
+        ) -
+          Date.parse(
+            b.generatedAt,
+          ) ||
+        a.snapshotId.localeCompare(
+          b.snapshotId,
+        )
+      );
+    },
   );
 
   const firstEstablished =
