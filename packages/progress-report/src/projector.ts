@@ -407,6 +407,20 @@ export function buildProgressReportProjection(
         input.independentForecast.origin,
       independentForecastComplete:
         input.independentForecast.complete,
+      basisRevisionId:
+        input.independentForecast
+          .sourceRevisionId,
+      activityCoveragePercent:
+        input.independentForecast
+          .activityCoveragePercent,
+      authority:
+        input.independentForecast.origin ===
+          "deterministic_source_calendar"
+          ? "deterministic"
+          : input.independentForecast.origin ===
+              "scenario_with_assumptions"
+            ? "scenario"
+            : "unresolved",
     },
     milestones: {
       milestoneCount:
