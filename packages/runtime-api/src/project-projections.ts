@@ -1973,6 +1973,23 @@ function buildBundle(
     modules,
   });
 
+  const latestBoardPublicationRecord =
+    state.boardPublicationHistory
+      .filter(
+        (item) =>
+          state.controls
+            .boardPublication
+            ?.finalizedAt ===
+          item.finalizedAt,
+      )
+      .sort(
+        (a, b) =>
+          a.basisVersion -
+          b.basisVersion,
+      )
+      .at(-1) ??
+    null;
+
   if (
     delayClaims &&
     noticesClaims &&
@@ -2034,11 +2051,14 @@ function buildBundle(
                 "board-" +
                 state.projectId,
               state:
-                state.controls
-                  .boardPublication
-                  .finalizedAt
-                  ? "finalized"
-                  : "draft",
+                latestBoardPublicationRecord
+                  ?.stale
+                  ? "stale"
+                  : state.controls
+                      .boardPublication
+                      .finalizedAt
+                    ? "finalized"
+                    : "draft",
               sourceManifestId:
                 state.controls
                   .boardPublication
@@ -2122,7 +2142,14 @@ function buildBundle(
 
     if (
       state.controls
-        .boardPublication
+        .boardPublication &&
+      !(
+        state.controls
+          .boardPublication
+          .finalizedAt &&
+        latestBoardPublicationRecord
+          ?.stale
+      )
     ) {
       boardReport =
         buildBoardReadyReport(
