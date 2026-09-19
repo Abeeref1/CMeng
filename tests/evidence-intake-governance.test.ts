@@ -100,11 +100,17 @@ async function upload(
         body,
       },
     );
-  assert.equal(
-    response.status,
-    201,
-    await response.text(),
-  );
+  if (
+    response.status !==
+    201
+  ) {
+    throw new Error(
+      "Upload failed " +
+        response.status +
+        ": " +
+        await response.text(),
+    );
+  }
   return await response.json() as any;
 }
 
