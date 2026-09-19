@@ -1,6 +1,8 @@
 import type {
   EvidenceCategory,
+  EvidenceLineage,
   EvidenceMappingSummary,
+  StoredEvidenceDocument,
   StoredScheduleRevision,
 } from "./project-state-types";
 
@@ -319,5 +321,160 @@ export function analyzeTextEvidence(
       matched.size,
     unmappedActivityCount: 0,
     coveragePercent: 100,
+  };
+}
+
+
+export function inferEvidenceLineage(
+  input: {
+    category: EvidenceCategory;
+    documentType: string;
+    textSample: string;
+    existingDocuments:
+      readonly StoredEvidenceDocument[];
+  },
+): EvidenceLineage {
+  const text =
+    input.textSample
+      .toLowerCase()
+      .normalize("NFKC")
+      .replace(/\s+/g, " ")
+      .trim();
+
+  const sameDomain =
+    input.existingDocuments.filter(
+      (document) =>
+        document.category ===
+        input.category,
+    );
+  const predecessor =
+    sameDomain
+      .at(-1)
+      ?.documentId;
+
+  const diagnostics: string[] = [];
+  let effect:
+    EvidenceLineage["effect"] =
+    "unknown";
+  let confidence = 0.55;
+
+  const fullReplacementSignal =
+    /\b(amended and restated|restated agreement|consolidated contract|consolidated boq|revised bill of quantities|revised boq|supersedes? (?:the )?(?:previous|prior|original)|replaces? (?:the )?(?:previous|prior|original) (?:contract|boq|bill of quantities))\b/i.test(
+      text,
+    );
+
+  const variationSignal =
+    /\b(variation order|change order|vo\s*(?:no\.?|number|#)|variation\s*(?:no\.?|number|#)|additional quantities|omitted quantities|deleted quantities)\b/i.test(
+      text,
+    ) ||
+    input.documentType ===
+      "variation_order";
+
+  const amendmentSignal =
+    /\b(contract amendment|amendment\s+(?:no\.?|number)|supplemental agreement|addendum)\b/i.test(
+      text,
+    ) ||
+    input.documentType ===
+      "contract_amendment";
+
+  const revisionSignal =
+    /\b(revision|rev\.?\s*\d+|revised)\b/i.test(
+      text,
+    );
+
+  if (
+    sameDomain.length === 0 &&
+    !variationSignal &&
+    !amendmentSignal
+  ) {
+    effect = "original";
+    confidence = 0.96;
+  } else if (
+    fullReplacementSignal
+  ) {
+    effect = "full_replacement";
+    confidence = 0.94;
+  } else if (
+    variationSignal
+  ) {
+    effect = "variation_order";
+    confidence = 0.92;
+  } else if (
+    amendmentSignal
+  ) {
+    effect = "delta_amendment";
+    confidence = 0.92;
+  } else if (
+    /\b(supplement|supplementary)\b/i.test(
+      text,
+    )
+  ) {
+    effect = "supplement";
+    confidence = 0.82;
+  } else if (
+    revisionSignal ||
+    sameDomain.length > 0
+  ) {
+    effect = "revision_snapshot";
+    confidence =
+      revisionSignal
+        ? 0.78
+        : 0.62;
+  }
+
+  const replacesEntireBasis =
+    effect ===
+    "full_replacement";
+  const appliesAsDelta =
+    effect ===
+      "delta_amendment" ||
+    effect ===
+      "variation_order" ||
+    effect ===
+      "supplement";
+  const predecessorDocumentIds =
+    predecessor
+      ? [predecessor]
+      : [];
+
+  if (
+    effect ===
+      "revision_snapshot" &&
+    !fullReplacementSignal
+  ) {
+    diagnostics.push(
+      "CHANGE_EFFECT_REQUIRES_REVIEW_BEFORE_REPLACING_CURRENT_BASIS",
+    );
+  }
+
+  if (
+    appliesAsDelta &&
+    predecessorDocumentIds.length ===
+      0
+  ) {
+    diagnostics.push(
+      "DELTA_DOCUMENT_HAS_NO_PRIOR_BASIS_DOCUMENT",
+    );
+  }
+
+  const needsReview =
+    effect === "unknown" ||
+    effect ===
+      "revision_snapshot" ||
+    (
+      appliesAsDelta &&
+      predecessorDocumentIds.length ===
+        0
+    );
+
+  return {
+    effect,
+    predecessorDocumentIds,
+    replacesEntireBasis,
+    appliesAsDelta,
+    inferred: true,
+    confidence,
+    needsReview,
+    diagnostics,
   };
 }
