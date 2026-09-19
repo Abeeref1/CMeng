@@ -892,7 +892,7 @@ function buildBundle(
         state.controls
           .contractTimeBasis,
       submittedManpowerPlan:
-        null,
+        state.submittedManpowerPlan,
     });
 
   if (state.contract) {
