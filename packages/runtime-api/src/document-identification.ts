@@ -7,6 +7,7 @@ import { PDFParse } from "pdf-parse";
 
 import {
   TesseractOcrProvider,
+  type OcrProvider,
 } from "../../pdf-document-parser/src";
 import type {
   EvidenceCategory,
@@ -339,6 +340,8 @@ async function verifiedMediaType(
 
 async function extractPdfSample(
   bytes: Uint8Array,
+  suppliedOcrProvider?:
+    OcrProvider,
 ): Promise<{
   text: string;
   method:
@@ -418,6 +421,7 @@ async function extractPdfSample(
     }
 
     if (
+      !suppliedOcrProvider &&
       process.env
         .CMENG_OCR_ENABLED
         ?.trim() === "0"
@@ -463,6 +467,7 @@ async function extractPdfSample(
       });
 
     const provider =
+      suppliedOcrProvider ??
       ocrProvider();
     const texts: string[] = [];
     const confidences: number[] = [];
@@ -580,12 +585,15 @@ async function extractPdfSample(
 
 async function extractImageSample(
   bytes: Uint8Array,
+  suppliedOcrProvider?:
+    OcrProvider,
 ): Promise<{
   text: string;
   ocrConfidence: number | null;
   diagnostics: string[];
 }> {
   if (
+    !suppliedOcrProvider &&
     process.env
       .CMENG_OCR_ENABLED
       ?.trim() === "0"
@@ -600,6 +608,7 @@ async function extractImageSample(
   }
 
   const provider =
+    suppliedOcrProvider ??
     ocrProvider();
   try {
     const result =
@@ -1858,6 +1867,8 @@ export async function identifyEvidenceDocument(
       | string
       | null
       | undefined;
+    ocrProvider?:
+      OcrProvider;
   },
 ): Promise<
   EvidenceIdentificationResult
@@ -1901,6 +1912,7 @@ export async function identifyEvidenceDocument(
       const extracted =
         await extractPdfSample(
           input.bytes,
+          input.ocrProvider,
         );
       text = extracted.text;
       method =
@@ -1922,6 +1934,7 @@ export async function identifyEvidenceDocument(
       const extracted =
         await extractImageSample(
           input.bytes,
+          input.ocrProvider,
         );
       text = extracted.text;
       method =
