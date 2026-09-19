@@ -700,6 +700,66 @@ async function route(
     return;
   }
 
+  const evidenceDocumentsBulkDeleteMatch =
+    /^\/api\/projects\/([^/]+)\/evidence\/documents\/delete$/.exec(
+      url.pathname,
+    );
+
+  if (
+    req.method === "POST" &&
+    evidenceDocumentsBulkDeleteMatch
+  ) {
+    const projectId =
+      decodeURIComponent(
+        evidenceDocumentsBulkDeleteMatch[1]!,
+      );
+    const body =
+      await readJsonBody<{
+        documentIds?: string[];
+      }>(req);
+    const documentIds =
+      Array.isArray(
+        body.documentIds,
+      )
+        ? body.documentIds
+        : [];
+
+    if (documentIds.length === 0) {
+      json(res, 400, {
+        error:
+          "document_ids_required",
+      });
+      return;
+    }
+
+    const deleted =
+      runtimeProjects
+        .deleteEvidenceDocuments(
+          projectId,
+          documentIds,
+        );
+
+    if (deleted.length === 0) {
+      json(res, 404, {
+        error:
+          "documents_not_found",
+      });
+      return;
+    }
+
+    invalidateProject(projectId);
+
+    json(res, 200, {
+      projectId,
+      deletedCount:
+        deleted.length,
+      deleted,
+      positionRefreshRequired:
+        true,
+    });
+    return;
+  }
+
   const evidenceDocumentDeleteMatch =
     /^\/api\/projects\/([^/]+)\/evidence\/documents\/([^/]+)$/.exec(
       url.pathname,
@@ -1799,6 +1859,8 @@ async function route(
         "/api/projects/:projectId/intelligence/ask",
       evidenceUpload:
         "/api/projects/:projectId/evidence/uploads",
+      evidenceBulkDelete:
+        "/api/projects/:projectId/evidence/documents/delete",
       evidenceDelete:
         "/api/projects/:projectId/evidence/documents/:documentId",
       evidenceRerun:
