@@ -160,12 +160,12 @@ test("CMeng workspace keeps the active module primary and browser script parseab
   );
   assert.match(
     html,
-    /class="btn primary" id="openEvidenceTop">Add documents</button>/,
+    /class="btn primary" id="openEvidenceTop">Add documents<\/button>/,
     "project document action must remain prominent without taking space from the analysis canvas",
   );
   assert.match(
     html,
-    /id="openLibraryQuick">Documents</button>/,
+    /id="openLibraryQuick">Documents<\/button>/,
     "document register must be available from a compact header action",
   );
   assert.match(
