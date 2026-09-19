@@ -127,6 +127,74 @@ function emptyControls():
   };
 }
 
+function normalizeControls(
+  controls:
+    | Partial<ProjectControlState>
+    | null
+    | undefined,
+): ProjectControlState {
+  const base = emptyControls();
+  const value = controls ?? {};
+  return {
+    ...base,
+    ...value,
+    delayClaims:
+      value.delayClaims ?? null,
+    contractTimeBasis:
+      value.contractTimeBasis ?? null,
+    readinessEvidence:
+      value.readinessEvidence ?? {},
+    progressEvidence:
+      value.progressEvidence ?? {},
+    contractValue:
+      value.contractValue ?? null,
+    variations:
+      Array.isArray(value.variations)
+        ? value.variations
+        : [],
+    invoices:
+      Array.isArray(value.invoices)
+        ? value.invoices
+        : [],
+    retentions:
+      Array.isArray(value.retentions)
+        ? value.retentions
+        : [],
+    bonds:
+      Array.isArray(value.bonds)
+        ? value.bonds
+        : [],
+    claimCommercials:
+      Array.isArray(
+        value.claimCommercials,
+      )
+        ? value.claimCommercials
+        : [],
+    hseIncidents:
+      Array.isArray(value.hseIncidents)
+        ? value.hseIncidents
+        : [],
+    ncrs:
+      Array.isArray(value.ncrs)
+        ? value.ncrs
+        : [],
+    rfis:
+      Array.isArray(value.rfis)
+        ? value.rfis
+        : [],
+    permits:
+      Array.isArray(value.permits)
+        ? value.permits
+        : [],
+    risks:
+      Array.isArray(value.risks)
+        ? value.risks
+        : [],
+    boardPublication:
+      value.boardPublication ?? null,
+  };
+}
+
 function normalizedFilename(
   filename: string | null | undefined,
 ): string {
@@ -601,9 +669,14 @@ function hydrateProject(
     lastRerunReceipt:
       legacy.lastRerunReceipt ??
       null,
+    controls:
+      normalizeControls(
+        legacy.controls,
+      ),
     resourcesByRevision:
       new Map(
-        state.resourcesByRevision,
+        state.resourcesByRevision ??
+          [],
       ),
   };
 }
