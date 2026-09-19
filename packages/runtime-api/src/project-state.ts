@@ -41,6 +41,9 @@ import {
 import {
   parseXerBytes,
 } from "../../xer-parser/src";
+import {
+  TesseractOcrProvider,
+} from "../../pdf-document-parser/src";
 import type {
   CanonicalQuantityProgressModel,
 } from "../../quantity-progress-core/src";
@@ -49,6 +52,7 @@ import type {
 } from "../../schedule-resource-core/src";
 import type {
   EvidenceCategory,
+  EvidenceIdentification,
   EvidenceUploadSummary,
   ProjectControlState,
   ProjectRuntimeState,
@@ -59,11 +63,15 @@ import type {
 } from "./project-state-types";
 import {
   analyzeCsvEvidence,
+  analyzeTextEvidence,
   inferDocumentType,
   inferEvidenceCategory,
   inferMediaType,
   inferScheduleRole,
 } from "./evidence";
+import {
+  identifyEvidenceDocument,
+} from "./document-identification";
 
 function hashBytes(
   bytes: Uint8Array,
@@ -334,6 +342,41 @@ function serializeProject(
   };
 }
 
+function legacyIdentification(
+  document: StoredEvidenceDocument,
+): EvidenceIdentification {
+  return {
+    verifiedMediaType:
+      document.mediaType,
+    detectedCategory:
+      document.category,
+    detectedDocumentType:
+      document.documentType,
+    confidence: 0.4,
+    method:
+      "metadata_fallback",
+    ocrUsed: false,
+    ocrConfidence: null,
+    pageCount: null,
+    extractedCharacterCount: 0,
+    detectedTitle: null,
+    filenameHintCategory:
+      document.category,
+    filenameHintDocumentType:
+      document.documentType,
+    declaredCategory: null,
+    declaredDocumentType: null,
+    classificationConflict: false,
+    needsReview: true,
+    signals: [
+      "legacy evidence metadata",
+    ],
+    diagnostics: [
+      "DOCUMENT_IDENTIFICATION_LEGACY_FALLBACK",
+    ],
+  };
+}
+
 function hydrateProject(
   state: SerializedProjectState,
 ): ProjectRuntimeState {
@@ -342,7 +385,42 @@ function hydrateProject(
   return {
     ...state,
     evidenceDocuments:
-      legacy.evidenceDocuments ?? [],
+      (legacy.evidenceDocuments ?? [])
+        .map((document) => ({
+          ...document,
+          mapping:
+            document.mapping
+              ? {
+                  method:
+                    document.mapping
+                      .method ??
+                    "explicit_column",
+                  rowCount:
+                    document.mapping
+                      .rowCount,
+                  linkedActivityField:
+                    document.mapping
+                      .linkedActivityField,
+                  linkedActivityCount:
+                    document.mapping
+                      .linkedActivityCount,
+                  mappedActivityCount:
+                    document.mapping
+                      .mappedActivityCount,
+                  unmappedActivityCount:
+                    document.mapping
+                      .unmappedActivityCount,
+                  coveragePercent:
+                    document.mapping
+                      .coveragePercent,
+                }
+              : null,
+          identification:
+            document.identification ??
+            legacyIdentification(
+              document,
+            ),
+        })),
     boqRevisions:
       legacy.boqRevisions ??
       (legacy.boq ? [legacy.boq] : []),
