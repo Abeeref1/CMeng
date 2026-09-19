@@ -80,10 +80,10 @@ export interface PmoAnalysisProjection {
     analyticalTimeImpactCandidateDays:
       number;
     attributableCandidateEotDays:
-      number;
+      number | null;
     unattributedTimeImpactDays:
       number;
-    candidateAdditionalEotDays: number;
+    candidateAdditionalEotDays: number | null;
     officialApprovedEotDays: number | null;
     officialAdjustedCompletionIso: string | null;
     scenarioAdjustedCompletionIso: string | null;
