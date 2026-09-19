@@ -550,6 +550,113 @@ test("unified evidence intake governs Add Replace and family-specific history", 
           .length,
         22,
       );
+
+      const certificationIds =
+        new Set(
+          receipt.certification
+            .checks.map(
+              (check: any) =>
+                check.checkId,
+            ),
+        );
+      for (
+        const required of [
+          "ACTIVE_SCHEDULE_REVISION_CONSISTENCY",
+          "PROGRESS_VALUE_CONSISTENCY",
+          "PROGRESS_COVERAGE_CONSISTENCY",
+          "FORECAST_COVERAGE_CONSISTENCY",
+          "FORECAST_AUTHORITY_CONSISTENCY",
+          "BOQ_ACTIVE_DOCUMENT_CONSISTENCY",
+          "BOQ_BASIS_CONSISTENCY",
+          "AUTHORITY_ON_ESTABLISHED_VALUES",
+          "COVERAGE_RANGE_ON_EVIDENCE_VALUES",
+          "CONTRADICTIONS_REMAIN_CALCULABLE_AND_USER_GOVERNED",
+          "BOARD_EXPORT_PUBLICATION_BASIS",
+        ]
+      ) {
+        assert.equal(
+          certificationIds.has(
+            required,
+          ),
+          true,
+          required,
+        );
+      }
+
+      const risk3 =
+        [
+          "Risk ID,Category,Description,Probability,Impact,Rating,Owner,Status,Due Date",
+          "R1,Schedule,Late access,High,High,High,PM,Closed,2026-06-15",
+          "R2,Commercial,Variation exposure,Medium,High,High,CM,Closed,2026-07-01",
+          "R3,Interface,System integration,High,High,Critical,SI,Open,2026-08-01",
+        ].join("\n");
+      const rerunUpload =
+        await fetch(
+          base +
+            "/api/projects/" +
+            project +
+            "/evidence/uploads",
+          {
+            method: "POST",
+            headers: {
+              "content-type":
+                "text/csv",
+              "x-source-filename":
+                "Risk_Register_Rev03.csv",
+              "x-upload-intent":
+                "add_update",
+              "x-rerun-after-upload":
+                "true",
+            },
+            body: risk3,
+          },
+        );
+      assert.equal(
+        rerunUpload.status,
+        201,
+        await rerunUpload.text(),
+      );
+      const rerunUploadBody =
+        await rerunUpload.json() as any;
+      assert.equal(
+        rerunUploadBody
+          .rerun
+          .certification
+          .state,
+        "pass",
+        JSON.stringify(
+          rerunUploadBody
+            .rerun
+            .certification,
+        ),
+      );
+      assert.equal(
+        rerunUploadBody
+          .rerun
+          .moduleCount,
+        22,
+      );
+      assert.equal(
+        rerunUploadBody
+          .rerun
+          .evidenceChanges
+          .length,
+        1,
+      );
+      assert.equal(
+        rerunUploadBody
+          .rerun
+          .evidenceChanges[0]
+          .familyKey,
+        "risk_claims_procurement:risk_register",
+      );
+      assert.equal(
+        rerunUploadBody
+          .rerun
+          .evidenceChanges[0]
+          .changedActiveBasis,
+        true,
+      );
     },
   );
 });
