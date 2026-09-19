@@ -789,9 +789,22 @@ async function route(
               .relationships.length,
         }))
         .sort(
-          (a, b) =>
-            a.sequence -
-            b.sequence,
+          (a, b) => {
+            const ad =
+              a.dataDateIso ??
+              a.effectiveAt ??
+              "";
+            const bd =
+              b.dataDateIso ??
+              b.effectiveAt ??
+              "";
+            const byDate =
+              ad.localeCompare(bd);
+            return byDate !== 0
+              ? byDate
+              : a.sequence -
+                  b.sequence;
+          },
         ),
     );
     return;
