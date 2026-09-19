@@ -41,6 +41,13 @@ export type EotWindowCandidateState =
 export interface EotWindowCandidate {
   windowId: string;
   positiveIndependentMovementDays: number;
+  positiveProgrammeMovementDays: number;
+  programmeMovementBasis:
+    | "independent_cpm"
+    | "source_forecast"
+    | "source_schedule_boundary"
+    | "unavailable";
+  analyticalTimeImpactCandidateDays: number;
   state: EotWindowCandidateState;
   eligibleEventIds: string[];
   contractorEventIds: string[];
@@ -63,8 +70,15 @@ export interface EotAssessmentProjection {
   officialApprovedEotState: GovernanceState;
   officialAdjustedCompletionIso: string | null;
 
+  observedProgrammeMovementDays: number;
+  analyticalTimeImpactCandidateDays: number;
+  attributableCandidateEotDays: number;
+  unattributedTimeImpactDays: number;
+
   candidateAdditionalEotDays: number;
   scenarioAdjustedCompletionIso: string | null;
+  timeImpactScenarioAdjustedCompletionIso:
+    string | null;
 
   eotDayBasis: EotDayBasis;
   eotDayBasisState: GovernanceState;
