@@ -48,7 +48,7 @@ button,input,select{font:inherit}button{cursor:pointer}
 details:not(.workspace-drawer){border:1px solid var(--line);border-radius:9px;background:#fff}details:not(.workspace-drawer)>summary{padding:11px 13px;cursor:pointer;font-size:12.5px;font-weight:700}pre{margin:0;padding:13px;max-height:560px;overflow:auto;background:#0c1525;color:#d7e5ff;font-size:12px;line-height:1.55;border-radius:0 0 9px 9px;white-space:pre-wrap;word-break:break-word}
 .currency-card{border:1px solid var(--line);border-radius:10px;padding:13px;background:#fff}.currency-code{font-size:17px;font-weight:820;margin-bottom:8px}.currency-line{display:flex;justify-content:space-between;gap:12px;font-size:13px;padding:5px 0;color:#526176}.currency-line strong{color:#152238}
 .challenge-card{padding:0!important;overflow:hidden}.challenge-card .challenge-head{padding:17px 18px;border-bottom:1px solid var(--line)}.challenge-card .challenge-summary{padding:15px 18px 0}.challenge-card .challenge-table-wrap{margin:15px 18px 18px}.conflict-expand-row>td{padding:0;background:#f9fbff!important}.conflict-panel{padding:16px 18px;border-top:1px solid #dce7f5;border-bottom:1px solid #dce7f5;background:linear-gradient(180deg,#f8fbff,#f4f8ff)}.conflict-title{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px}.conflict-title strong{font-size:14px}.conflict-title p{margin:3px 0 0;color:var(--muted);font-size:12px}.candidate-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px}.candidate-card{border:1px solid #cedcf3;border-radius:10px;background:#fff;padding:13px}.candidate-card.recommended{border-color:#85a7f8;box-shadow:0 0 0 2px rgba(35,87,217,.08)}.candidate-value{font-size:20px;font-weight:790;letter-spacing:-.025em;margin:3px 0 9px}.candidate-meta{display:grid;grid-template-columns:1fr 1fr;gap:7px;font-size:11.5px;color:var(--muted)}.candidate-meta b{display:block;color:#435169;font-size:10.5px;text-transform:uppercase;letter-spacing:.04em}.candidate-sources{font-size:11.5px;color:#5d6b7e;margin-top:9px;word-break:break-word}.recommendation-card{margin-top:12px;padding:13px 14px;border-radius:10px;background:#eef4ff;border:1px solid #ccdcff;display:flex;align-items:flex-start;justify-content:space-between;gap:16px}.recommendation-card strong{display:block;font-size:16px;color:#173f9b;margin:3px 0}.recommendation-card p{margin:0;color:#53647b;font-size:12px;line-height:1.45}.recommendation-label{font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;font-weight:820;color:#315fbf}.decision-pill{flex:0 0 auto;background:#fff7e8;color:#8b4b08;border:1px solid #f6d99f;border-radius:999px;padding:6px 9px;font-size:10.5px;font-weight:820;text-transform:uppercase;letter-spacing:.04em}
-.chart-card{margin-top:14px;border:1px solid var(--line);border-radius:12px;background:#fff;overflow:hidden}.chart-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid var(--line);background:#f8fafc}.chart-card-head h4{margin:0;font-size:14px}.chart-card-head p{margin:3px 0 0;color:var(--muted);font-size:12px}.chart-body{padding:14px 16px}.svg-chart{width:100%;min-width:620px;height:auto;display:block}.chart-scroll{overflow-x:auto}.chart-legend{display:flex;flex-wrap:wrap;gap:12px;margin:0 0 10px}.legend-item{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:#526176}.legend-dot{width:9px;height:9px;border-radius:50%}.position-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px}.position-card{border:1px solid var(--line);border-radius:10px;background:#fff;padding:13px}.position-card .position-label{font-size:10.5px;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:.05em}.position-card .position-value{font-size:19px;font-weight:780;margin:5px 0 3px;letter-spacing:-.02em}.position-card .position-sub{font-size:11.5px;color:var(--muted)}.readiness-table td{vertical-align:middle}.state-pill{display:inline-flex;border-radius:999px;padding:4px 7px;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.035em}.state-pill.ready,.state-pill.included{background:#ecfdf3;color:#067647}.state-pill.blocked,.state-pill.excluded{background:#fef3f2;color:#b42318}.state-pill.conditional,.state-pill.review,.state-pill.unknown{background:#fffaeb;color:#b54708}.state-pill.not_applicable{background:#f2f4f7;color:#667085}.window-strip{display:grid;gap:10px}.window-card{display:grid;grid-template-columns:minmax(170px,.55fr) minmax(0,1fr) minmax(180px,.6fr);gap:13px;border:1px solid var(--line);border-radius:10px;padding:13px;background:#fff}.window-id{font-size:13px;font-weight:800}.window-dates{font-size:11.5px;color:var(--muted);margin-top:4px}.movement-value{font-size:22px;font-weight:780;letter-spacing:-.03em}.movement-label{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:750}.event-tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px}.event-tag{font-size:10.5px;border:1px solid #d9e2ec;border-radius:999px;padding:3px 6px;background:#f8fafc;color:#526176}.data-section{margin-top:14px;border:1px solid var(--line);border-radius:12px;background:#fff;overflow:hidden}.data-section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid var(--line);background:#f8fafc}.data-section-head h4{margin:0;font-size:14px;letter-spacing:-.01em}.data-section-body{padding:14px 16px}.value-list{display:flex;flex-wrap:wrap;gap:7px}.value-chip{display:inline-flex;padding:6px 9px;border:1px solid #d9e2ec;border-radius:8px;background:#f8fafc;font-size:12px;color:#435169}.nested-block{margin-top:12px}.nested-block:first-child{margin-top:0}.nested-title{font-size:12px;font-weight:800;color:#526176;margin:0 0 8px;text-transform:uppercase;letter-spacing:.045em}.cell-details summary{padding:4px 0!important;border:0!important;background:transparent!important}.cell-details pre{max-height:320px}.technical-payload{margin-top:16px}.footer-note{font-size:12px;color:var(--muted);margin-top:22px;padding:0 2px}.muted{color:var(--muted)}
+.chart-card{margin-top:14px;border:1px solid var(--line);border-radius:12px;background:#fff;overflow:hidden}.chart-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid var(--line);background:#f8fafc}.chart-card-head h4{margin:0;font-size:14px}.chart-card-head p{margin:3px 0 0;color:var(--muted);font-size:12px}.chart-body{padding:14px 16px}.svg-chart{width:100%;min-width:620px;height:auto;display:block}.chart-scroll{overflow-x:auto}.chart-legend{display:flex;flex-wrap:wrap;gap:12px;margin:0 0 10px}.legend-item{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:#526176}.legend-dot{width:9px;height:9px;border-radius:50%}.domain-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:11px}.domain-card{border:1px solid var(--line);border-radius:11px;background:#fff;padding:14px}.domain-card h5{margin:0 0 10px;font-size:14px}.domain-metric{display:flex;justify-content:space-between;gap:12px;padding:5px 0;border-bottom:1px solid #edf1f5;font-size:12px;color:#5a687b}.domain-metric:last-child{border-bottom:0}.domain-metric strong{color:#182438;text-align:right}.position-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px}.position-card{border:1px solid var(--line);border-radius:10px;background:#fff;padding:13px}.position-card .position-label{font-size:10.5px;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:.05em}.position-card .position-value{font-size:19px;font-weight:780;margin:5px 0 3px;letter-spacing:-.02em}.position-card .position-sub{font-size:11.5px;color:var(--muted)}.readiness-table td{vertical-align:middle}.state-pill{display:inline-flex;border-radius:999px;padding:4px 7px;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.035em}.state-pill.ready,.state-pill.included{background:#ecfdf3;color:#067647}.state-pill.blocked,.state-pill.excluded{background:#fef3f2;color:#b42318}.state-pill.conditional,.state-pill.review,.state-pill.unknown{background:#fffaeb;color:#b54708}.state-pill.not_applicable{background:#f2f4f7;color:#667085}.window-strip{display:grid;gap:10px}.window-card{display:grid;grid-template-columns:minmax(170px,.55fr) minmax(0,1fr) minmax(180px,.6fr);gap:13px;border:1px solid var(--line);border-radius:10px;padding:13px;background:#fff}.window-id{font-size:13px;font-weight:800}.window-dates{font-size:11.5px;color:var(--muted);margin-top:4px}.movement-value{font-size:22px;font-weight:780;letter-spacing:-.03em}.movement-label{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:750}.event-tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px}.event-tag{font-size:10.5px;border:1px solid #d9e2ec;border-radius:999px;padding:3px 6px;background:#f8fafc;color:#526176}.data-section{margin-top:14px;border:1px solid var(--line);border-radius:12px;background:#fff;overflow:hidden}.data-section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid var(--line);background:#f8fafc}.data-section-head h4{margin:0;font-size:14px;letter-spacing:-.01em}.data-section-body{padding:14px 16px}.value-list{display:flex;flex-wrap:wrap;gap:7px}.value-chip{display:inline-flex;padding:6px 9px;border:1px solid #d9e2ec;border-radius:8px;background:#f8fafc;font-size:12px;color:#435169}.nested-block{margin-top:12px}.nested-block:first-child{margin-top:0}.nested-title{font-size:12px;font-weight:800;color:#526176;margin:0 0 8px;text-transform:uppercase;letter-spacing:.045em}.cell-details summary{padding:4px 0!important;border:0!important;background:transparent!important}.cell-details pre{max-height:320px}.technical-payload{margin-top:16px}.footer-note{font-size:12px;color:var(--muted);margin-top:22px;padding:0 2px}.muted{color:var(--muted)}
 .spinner{width:14px;height:14px;border:2px solid #d0d5dd;border-top-color:var(--accent);border-radius:50%;display:inline-block;animation:spin .7s linear infinite;vertical-align:-2px}@keyframes spin{to{transform:rotate(360deg)}}
 @media(max-width:1280px){.app{grid-template-columns:238px minmax(0,1fr)}.grid.three{grid-template-columns:1fr 1fr}.upload-row{grid-template-columns:1fr}.evidence-control-grid{grid-template-columns:1fr}.evidence-status-card{position:static}}
 @media(max-width:900px){.app{display:block}.sidebar{position:relative;height:auto}.topbar{position:relative;flex-wrap:wrap;padding:13px 18px}.content{padding:20px 18px 48px}.project-input{min-width:0;width:100%;flex-wrap:wrap}.workspace-header{align-items:center}.grid.two,.grid.three{grid-template-columns:1fr}.module-panel #moduleContent{padding:16px}.module-panel>.module-head{padding:17px}.candidate-grid{grid-template-columns:1fr}}
@@ -477,13 +477,181 @@ function renderEotVisual(data){
   const rows=p.windowCandidates.map(w=>'<tr><td>'+escapeHtml(w.windowId)+'</td><td>'+escapeHtml(fmt(w.positiveProgrammeMovementDays))+'</td><td>'+escapeHtml(w.programmeMovementBasis)+'</td><td>'+escapeHtml(fmt(w.analyticalTimeImpactCandidateDays))+'</td><td><span class="state-pill '+escapeHtml(w.state)+'">'+escapeHtml(w.state)+'</span></td><td>'+escapeHtml(fmt(w.includedCandidateDays))+'</td><td>'+escapeHtml((w.reasons||[]).join("; ")||"—")+'</td></tr>').join("");
   return '<section class="chart-card"><div class="chart-card-head"><div><h4>EOT Position</h4><p>Official award, observed movement and analytical candidate remain explicitly separate.</p></div><span class="badge partial">Analytical candidate ≠ award</span></div><div class="chart-body"><div class="position-grid">'+cards.map(c=>'<div class="position-card"><div class="position-label">'+escapeHtml(c[0])+'</div><div class="position-value">'+escapeHtml(c[1]||"—")+'</div><div class="position-sub">'+escapeHtml(c[2]||"")+'</div></div>').join("")+'</div><div class="table-wrap" style="margin-top:14px"><table><thead><tr><th>Window</th><th>Programme movement</th><th>Basis</th><th>Time impact</th><th>State</th><th>Included days</th><th>Reason</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></section>';
 }
+function visualSection(title,description,badge,body){
+  return '<section class="chart-card"><div class="chart-card-head"><div><h4>'+escapeHtml(title)+'</h4><p>'+escapeHtml(description)+'</p></div>'+(badge?'<span class="badge">'+escapeHtml(badge)+'</span>':'')+'</div><div class="chart-body">'+body+'</div></section>';
+}
+function metricLine(label,value){
+  return '<div class="domain-metric"><span>'+escapeHtml(label)+'</span><strong>'+escapeHtml(value===null||value===undefined?"—":fmt(value))+'</strong></div>';
+}
+function renderPmoVisual(data){
+  const p=projectionFor(data,"pmo_analysis");
+  if(!p.schedule||!p.progress||!p.forecast)return"";
+  const cards=[
+    ["Schedule",[
+      ["Activities",p.schedule.activityCount],["Relationships",p.schedule.relationshipCount],["Critical",p.schedule.criticalCount],["Near-critical",p.schedule.nearCriticalCount],["Negative float",p.schedule.negativeFloatCount],["Logic density",p.schedule.logicDensity],["CPM",p.schedule.independentCpmState]
+    ]],
+    ["Progress",[
+      ["Weighted progress",p.progress.durationWeightedProgressPercent===null?"—":fmt(p.progress.durationWeightedProgressPercent)+"%"],["Coverage",p.progress.progressCoveragePercent===null?"—":fmt(p.progress.progressCoveragePercent)+"%"],["Completed",p.progress.completedCount],["In progress",p.progress.inProgressCount],["Look-ahead overdue",p.progress.lookAheadOverdueCount],["Late milestones",p.progress.lateMilestoneCount]
+    ]],
+    ["Forecast",[
+      ["Source completion",p.forecast.sourceCompletionIso],["Independent completion",p.forecast.independentCompletionIso],["Variance days",p.forecast.varianceDays],["Authority",p.forecast.authority],["Coverage",p.forecast.activityCoveragePercent===null?"—":fmt(p.forecast.activityCoveragePercent)+"%"]
+    ]],
+    ["Resources",[
+      ["Assigned resources",p.resources.assignedResourceCount],["Capacity coverage",p.resources.capacityCoveragePercent===null?"—":fmt(p.resources.capacityCoveragePercent)+"%"],["Overloaded",p.resources.overloadedResourceCount],["Actual labor hours",p.resources.laborHoursActualKnown],["Actual coverage",p.resources.laborActualCoveragePercent===null?"—":fmt(p.resources.laborActualCoveragePercent)+"%"]
+    ]],
+    ["Quantities",[
+      ["Allocation",p.quantities.allocationState],["Unit series",p.quantities.unitSeriesCount],["Unmapped BOQ items",p.quantities.unmappedItemCount],["Over-allocated",p.quantities.overAllocatedItemCount]
+    ]],
+    ["Contract",[
+      ["Physical complete",p.contract.physicalComplete],["Semantic complete",p.contract.semanticComplete],["Challenge signals",p.contract.challengeSignalCount],["Notice candidates",p.contract.noticeRequirementCandidateCount]
+    ]],
+    ["Claims & EOT",[
+      ["Events",p.claims.eventCount],["Claims",p.claims.claimCount],["Timely notices",p.claims.timelyNoticeCount],["Late notices",p.claims.lateNoticeCount],["Observed movement",fmt(p.claims.observedProgrammeMovementDays)+" days"],["Analytical impact",fmt(p.claims.analyticalTimeImpactCandidateDays)+" days"],["Official EOT",p.claims.officialApprovedEotDays===null?"—":fmt(p.claims.officialApprovedEotDays)+" days"]
+    ]],
+    ["Revision",[
+      ["Revision count",p.revision.revisionCount],["Latest added",p.revision.latestAddedActivityCount],["Latest removed",p.revision.latestRemovedActivityCount],["Latest modified",p.revision.latestModifiedActivityCount]
+    ]]
+  ];
+  const body='<div class="domain-grid">'+cards.map(c=>'<div class="domain-card"><h5>'+escapeHtml(c[0])+'</h5>'+c[1].map(m=>metricLine(m[0],m[1])).join("")+'</div>').join("")+'</div>';
+  return visualSection("PMO Control Position","Cross-domain management position with each evidence authority kept separate.","evidence "+(p.evidenceRevisionId||""),body);
+}
+function renderScheduleAnalyticsVisual(data){
+  const p=projectionFor(data,"schedule_analytics");
+  const r=p.result||p;
+  if(!r.graph||!r.float)return"";
+  const position='<div class="position-grid">'+[
+    ["Activities",r.activityCount,"schedule population"],["Relationships",r.relationshipCount,"logic population"],["Logic density",r.graph.logicDensity,"relationships / activity"],["Critical",r.float.criticalCount,"source total float"],["Near-critical",r.float.nearCriticalCount,"source total float"],["Negative float",r.float.negativeFloatCount,"schedule pressure"],["Open starts",(r.graph.openStartActivityIds||[]).length,"logic integrity"],["Open finishes",(r.graph.openFinishActivityIds||[]).length,"logic integrity"],["Graph complete",r.graph.complete,"integrity state"]
+  ].map(c=>'<div class="position-card"><div class="position-label">'+escapeHtml(c[0])+'</div><div class="position-value">'+escapeHtml(fmt(c[1]))+'</div><div class="position-sub">'+escapeHtml(c[2])+'</div></div>').join("")+'</div>';
+  const bases='<div class="table-wrap" style="margin-top:14px"><table><thead><tr><th>Completion basis</th><th>Date</th><th>State</th><th>Coverage</th><th>Method</th><th>Source</th></tr></thead><tbody>'+
+    (r.completionBases||[]).map(b=>'<tr><td><b>'+escapeHtml(b.basis)+'</b></td><td>'+escapeHtml(b.dateIso||"—")+'</td><td><span class="state-pill '+(b.state==="available"?"ready":b.state==="partial"?"review":"unknown")+'">'+escapeHtml(b.state)+'</span></td><td>'+escapeHtml(b.coveragePercent===null?"—":fmt(b.coveragePercent)+"%")+'</td><td>'+escapeHtml(b.method||"")+'</td><td>'+escapeHtml((b.sourceRefs||[]).join(", ")||"—")+'</td></tr>').join("")+
+    '</tbody></table></div>';
+  return visualSection("Schedule Integrity & Completion Bases","Logic, float and completion bases are shown separately; actual completion is never inferred from forecast.",r.complete?"complete":"partial",position+bases);
+}
+function renderActivityAnalyticsVisual(data){
+  const p=projectionFor(data,"activity_analytics");
+  if(!Array.isArray(p.rows))return"";
+  const rows=p.rows.map(a=>'<tr><td><b>'+escapeHtml(a.activityId)+'</b><br><span class="muted">'+escapeHtml(a.name||"")+'</span></td><td>'+escapeHtml(a.status)+'</td><td><span class="state-pill '+(a.criticality==="critical"?"blocked":a.criticality==="near_critical"?"review":"ready")+'">'+escapeHtml(a.criticality)+'</span></td><td>'+escapeHtml(a.currentStartIso||"—")+'</td><td>'+escapeHtml(a.currentFinishIso||"—")+'</td><td>'+escapeHtml(a.percentComplete===null?"—":fmt(a.percentComplete)+"%")+'</td><td>'+escapeHtml(fmt(a.totalFloatHours))+'</td><td>'+escapeHtml(fmt(a.finishVarianceDays))+'</td><td>'+escapeHtml(a.predecessorCount)+'</td><td>'+escapeHtml(a.successorCount)+'</td><td>'+escapeHtml(a.openStart?"Yes":"No")+'</td><td>'+escapeHtml(a.openFinish?"Yes":"No")+'</td></tr>').join("");
+  return visualSection("Activity Detail","Current dates, progress, float, variance and logic status across the full activity population.",p.activityCount+" activities",'<div class="table-wrap"><table><thead><tr><th>Activity</th><th>Status</th><th>Criticality</th><th>Current start</th><th>Current finish</th><th>Progress</th><th>Total float h</th><th>Finish variance d</th><th>Pred</th><th>Succ</th><th>Open start</th><th>Open finish</th></tr></thead><tbody>'+rows+'</tbody></table></div>');
+}
+function renderResourceVisual(data){
+  const p=projectionFor(data,"resource_utilization");
+  if(!Array.isArray(p.rows))return"";
+  const rows=p.rows.map(r=>'<tr><td><b>'+escapeHtml(r.resourceId)+'</b><br><span class="muted">'+escapeHtml(r.resourceName||"")+'</span></td><td>'+escapeHtml(r.resourceType)+'</td><td>'+escapeHtml(r.assignmentCount)+'</td><td>'+escapeHtml(fmt(r.capacityUnitsPerHour))+'</td><td>'+escapeHtml(fmt(r.peakPlannedUnitsPerHour))+'</td><td>'+escapeHtml(fmt(r.peakRemainingUnitsPerHour))+'</td><td>'+escapeHtml(r.plannedUtilizationPercent===null?"—":fmt(r.plannedUtilizationPercent)+"%")+'</td><td>'+escapeHtml(r.remainingUtilizationPercent===null?"—":fmt(r.remainingUtilizationPercent)+"%")+'</td><td><span class="state-pill '+(r.overloaded===true?"blocked":r.state==="capacity_based"?"ready":"review")+'">'+escapeHtml(r.overloaded===true?"overloaded":r.state)+'</span></td></tr>').join("");
+  return visualSection("Resource Utilization","Capacity-based utilization is separated from demand-only resources; unknown capacity is not assumed.",p.overloadedResourceCount+" overloaded",'<div class="position-grid" style="margin-bottom:14px">'+[
+    ["Resources",p.resourceCount],["Assigned",p.assignedResourceCount],["Capacity based",p.capacityBasedResourceCount],["Capacity coverage",p.capacityCoveragePercent===null?"—":fmt(p.capacityCoveragePercent)+"%"]
+  ].map(c=>'<div class="position-card"><div class="position-label">'+escapeHtml(c[0])+'</div><div class="position-value">'+escapeHtml(fmt(c[1]))+'</div></div>').join("")+'</div><div class="table-wrap"><table><thead><tr><th>Resource</th><th>Type</th><th>Assignments</th><th>Capacity/hr</th><th>Peak planned/hr</th><th>Peak remaining/hr</th><th>Planned util.</th><th>Remaining util.</th><th>State</th></tr></thead><tbody>'+rows+'</tbody></table></div>');
+}
+function renderProgressReportVisual(data){
+  const p=projectionFor(data,"progress_report");
+  if(!p.progressBases)return"";
+  const bases=Object.entries(p.progressBases).map(([key,b])=>'<div class="position-card"><div class="position-label">'+escapeHtml(humanizeKey(key))+'</div><div class="position-value">'+escapeHtml(b.valuePercent===null?"—":fmt(b.valuePercent)+"%")+'</div><div class="position-sub">'+escapeHtml(b.state)+' · '+escapeHtml(b.authority)+'<br>Coverage '+escapeHtml(b.coveragePercent===null?"—":fmt(b.coveragePercent)+"%")+' · as of '+escapeHtml(b.asOfIso||"—")+'<br>Variance to baseline '+escapeHtml(b.varianceToBaselinePercentagePoints===null?"—":fmt(b.varianceToBaselinePercentagePoints)+" pp")+'</div></div>').join("");
+  const summary='<div class="domain-grid" style="margin-top:14px">'+[
+    ["Schedule",[["Critical",p.schedule?.criticalCount],["Near-critical",p.schedule?.nearCriticalCount],["Negative float",p.schedule?.negativeFloatCount],["Float coverage",p.schedule?.floatCoveragePercent===null?"—":fmt(p.schedule?.floatCoveragePercent)+"%"]]],
+    ["Forecast",[["Source",p.forecast?.sourceForecastCompletionIso],["Independent",p.forecast?.independentForecastCompletionIso],["Variance days",p.forecast?.forecastVarianceDays],["Authority",p.forecast?.authority]]],
+    ["Milestones",[["Total",p.milestones?.milestoneCount],["Open",p.milestones?.openCount],["Late open",p.milestones?.lateOpenCount]]],
+    ["Look-Ahead",[["Window days",p.lookAhead?.windowDays],["Incomplete",p.lookAhead?.incompleteActivityCount],["Overdue",p.lookAhead?.overdueCount],["Date coverage",p.lookAhead?.currentDateCoveragePercent===null?"—":fmt(p.lookAhead?.currentDateCoveragePercent)+"%"]]]
+  ].map(c=>'<div class="domain-card"><h5>'+escapeHtml(c[0])+'</h5>'+c[1].map(m=>metricLine(m[0],m[1])).join("")+'</div>').join("")+'</div>';
+  return visualSection("Progress Bases","Baseline, current schedule, physical, contractor-reported and certified progress are kept as distinct authorities.",p.dataDateIso||"",'<div class="position-grid">'+bases+'</div>'+summary);
+}
+function renderScheduleChangeVisual(data){
+  const p=projectionFor(data,"schedule_change_report");
+  if(!Array.isArray(p.changedActivities))return"";
+  const top='<div class="position-grid">'+[
+    ["Matched activities",p.matchedActivityCount],["Population match",p.populationMatchPercent===null?"—":fmt(p.populationMatchPercent)+"%"],["Added",p.addedActivityCount],["Removed",p.removedActivityCount],["Modified",p.modifiedActivityCount],["Unchanged",p.unchangedActivityCount],["Added relationships",p.addedRelationshipCount],["Removed relationships",p.removedRelationshipCount]
+  ].map(c=>'<div class="position-card"><div class="position-label">'+escapeHtml(c[0])+'</div><div class="position-value">'+escapeHtml(fmt(c[1]))+'</div></div>').join("")+'</div>';
+  const rows=p.changedActivities.map(a=>'<tr><td>'+escapeHtml(a.activityId)+'</td><td>'+escapeHtml(a.changeKind)+'</td><td>'+escapeHtml(fmt(a.finishShiftDays))+'</td><td>'+escapeHtml(fmt(a.floatShiftHours))+'</td><td>'+escapeHtml(fmt(a.progressShiftPercent))+'</td><td>'+renderComplexCell(a.fieldChanges||[])+'</td></tr>').join("");
+  return visualSection("Schedule Revision Comparison","Full canonical activity changes and relationship movement between the compared revisions.",p.state,top+'<div class="table-wrap" style="margin-top:14px"><table><thead><tr><th>Activity</th><th>Change</th><th>Finish shift d</th><th>Float shift h</th><th>Progress shift pp</th><th>All field changes</th></tr></thead><tbody>'+rows+'</tbody></table></div>');
+}
+function renderRevisionTrendVisual(data){
+  const p=projectionFor(data,"revision_trend");
+  if(!Array.isArray(p.points))return"";
+  const points=p.points.map(x=>({...x,dateIso:x.dataDateIso||("Rev "+x.sequence)}));
+  const chart=renderLineChart(points,[
+    {key:"durationWeightedProgressPercent",label:"Weighted progress %",color:"#2357d9"}
+  ],100);
+  const rows=p.points.map(x=>'<tr><td>'+escapeHtml(x.sequence)+'</td><td>'+escapeHtml(x.revisionId)+'</td><td>'+escapeHtml(x.dataDateIso||"—")+'</td><td>'+escapeHtml(x.durationWeightedProgressPercent===null?"—":fmt(x.durationWeightedProgressPercent)+"%")+'</td><td>'+escapeHtml(x.criticalCount)+'</td><td>'+escapeHtml(x.nearCriticalCount)+'</td><td>'+escapeHtml(x.negativeFloatCount)+'</td><td>'+escapeHtml(x.forecastCompletionIso||"—")+'</td><td>'+escapeHtml(fmt(x.addedVsPrevious))+'</td><td>'+escapeHtml(fmt(x.removedVsPrevious))+'</td><td>'+escapeHtml(fmt(x.modifiedVsPrevious))+'</td></tr>').join("");
+  return visualSection("Revision Trend","Chronological schedule evolution follows proven schedule chronology, not upload order.",p.revisionCount+" revisions",chart+'<div class="table-wrap" style="margin-top:14px"><table><thead><tr><th>Seq</th><th>Revision</th><th>Data date</th><th>Progress</th><th>Critical</th><th>Near-critical</th><th>Neg. float</th><th>Forecast completion</th><th>Added</th><th>Removed</th><th>Modified</th></tr></thead><tbody>'+rows+'</tbody></table></div>');
+}
+function renderVarianceTrendVisual(data){
+  const p=projectionFor(data,"variance_trends");
+  if(!Array.isArray(p.points))return"";
+  const rows=p.points.map(x=>'<tr><td>'+escapeHtml(x.sequence)+'</td><td>'+escapeHtml(x.revisionId)+'</td><td>'+escapeHtml(x.dataDateIso||"—")+'</td><td>'+escapeHtml(fmt(x.averageFinishVarianceDays))+'</td><td>'+escapeHtml(fmt(x.maximumDelayDays))+'</td><td>'+escapeHtml(x.lateActivityCount)+'</td><td>'+escapeHtml(x.earlyActivityCount)+'</td><td>'+escapeHtml(x.onTimeActivityCount)+'</td><td>'+escapeHtml(x.negativeFloatCount)+'</td><td>'+escapeHtml(x.criticalCount)+'</td><td>'+escapeHtml(fmt(x.projectCompletionVarianceDays))+'</td></tr>').join("");
+  return visualSection("Variance Trend","Finish variance and project completion movement by revision, with comparable-population coverage retained.",p.revisionCount+" revisions",'<div class="table-wrap"><table><thead><tr><th>Seq</th><th>Revision</th><th>Data date</th><th>Avg finish variance d</th><th>Max delay d</th><th>Late</th><th>Early</th><th>On time</th><th>Neg. float</th><th>Critical</th><th>Completion variance d</th></tr></thead><tbody>'+rows+'</tbody></table></div>');
+}
+function renderProgressBreakdownVisual(data){
+  const p=projectionFor(data,"progress_breakdown");
+  if(!Array.isArray(p.rows))return"";
+  const rows=p.rows.map(r=>'<tr><td><b>'+escapeHtml(r.wbsId)+'</b><br><span class="muted">'+escapeHtml(r.wbsName||"")+'</span></td><td>'+escapeHtml(r.activityCount)+'</td><td>'+escapeHtml(r.completedCount)+'</td><td>'+escapeHtml(r.inProgressCount)+'</td><td>'+escapeHtml(r.notStartedCount)+'</td><td>'+escapeHtml(r.durationWeightedProgressPercent===null?"—":fmt(r.durationWeightedProgressPercent)+"%")+'</td><td>'+escapeHtml(r.durationWeightedCoveragePercent===null?"—":fmt(r.durationWeightedCoveragePercent)+"%")+'</td><td>'+escapeHtml(r.criticalCount)+'</td><td>'+escapeHtml(r.nearCriticalCount)+'</td><td>'+escapeHtml(r.negativeFloatCount)+'</td></tr>').join("");
+  return visualSection("WBS Progress Breakdown","Duration-weighted progress, coverage and schedule pressure by WBS without averaging unknown values as zero.",p.totalActivityCount+" activities",'<div class="table-wrap"><table><thead><tr><th>WBS</th><th>Activities</th><th>Complete</th><th>In progress</th><th>Not started</th><th>Weighted progress</th><th>Coverage</th><th>Critical</th><th>Near-critical</th><th>Neg. float</th></tr></thead><tbody>'+rows+'</tbody></table></div>');
+}
+function renderMilestonesVisual(data){
+  const p=projectionFor(data,"milestones");
+  if(!Array.isArray(p.rows))return"";
+  const rows=p.rows.map(r=>'<tr><td><b>'+escapeHtml(r.activityId)+'</b><br><span class="muted">'+escapeHtml(r.name||"")+'</span></td><td>'+escapeHtml(r.status)+'</td><td>'+escapeHtml(r.baselineDateIso||"—")+'</td><td>'+escapeHtml(r.currentDateIso||"—")+'</td><td>'+escapeHtml(r.actualDateIso||"—")+'</td><td>'+escapeHtml(fmt(r.varianceDays))+'</td><td>'+escapeHtml(fmt(r.totalFloatHours))+'</td><td>'+escapeHtml(fmt(r.daysFromDataDate))+'</td></tr>').join("");
+  return visualSection("Milestone Position","Baseline, current and actual milestone dates remain separate, with direct variance and float visibility.",p.lateOpenCount+" late open",'<div class="position-grid" style="margin-bottom:14px">'+[
+    ["Milestones",p.milestoneCount],["Completed",p.completedCount],["Open",p.openCount],["Late open",p.lateOpenCount]
+  ].map(c=>'<div class="position-card"><div class="position-label">'+escapeHtml(c[0])+'</div><div class="position-value">'+escapeHtml(fmt(c[1]))+'</div></div>').join("")+'</div><div class="table-wrap"><table><thead><tr><th>Milestone</th><th>Status</th><th>Baseline</th><th>Current</th><th>Actual</th><th>Variance d</th><th>Total float h</th><th>Days from DD</th></tr></thead><tbody>'+rows+'</tbody></table></div>');
+}
+function renderNearCriticalVisual(data){
+  const p=projectionFor(data,"near_critical");
+  if(!Array.isArray(p.rows))return"";
+  const rows=p.rows.map(r=>'<tr><td><b>'+escapeHtml(r.activityId)+'</b><br><span class="muted">'+escapeHtml(r.name||"")+'</span></td><td>'+escapeHtml(r.status)+'</td><td>'+escapeHtml(fmt(r.totalFloatHours))+'</td><td>'+escapeHtml(r.baselineFinishIso||"—")+'</td><td>'+escapeHtml(r.currentFinishIso||"—")+'</td><td>'+escapeHtml(r.percentComplete===null?"—":fmt(r.percentComplete)+"%")+'</td></tr>').join("");
+  return visualSection("Near-Critical Watchlist","Activities inside the governed near-critical float band, shown with current finish and progress.",p.nearCriticalCount+" activities",'<div class="table-wrap"><table><thead><tr><th>Activity</th><th>Status</th><th>Total float h</th><th>Baseline finish</th><th>Current finish</th><th>Progress</th></tr></thead><tbody>'+rows+'</tbody></table></div>');
+}
+function renderManhourVisual(data){
+  const p=projectionFor(data,"manhour_scurve");
+  if(!Array.isArray(p.points))return"";
+  const chart=renderLineChart(p.points,[
+    {key:"plannedCumulativeHours",label:"Planned hours",color:"#2357d9"},
+    {key:"actualCumulativeHours",label:"Actual hours",color:"#d97706"},
+    {key:"forecastCumulativeHours",label:"Forecast hours",color:"#0f766e"}
+  ]);
+  const top='<div class="position-grid" style="margin-bottom:14px">'+[
+    ["Planned known",p.plannedHoursKnown+" h"],["Planned coverage",p.plannedAssignmentCoveragePercent===null?"—":fmt(p.plannedAssignmentCoveragePercent)+"%"],["Actual known",p.actualHoursKnownCurrent+" h"],["Actual coverage",p.actualAssignmentCoveragePercent===null?"—":fmt(p.actualAssignmentCoveragePercent)+"%"],["Remaining known",p.remainingHoursKnown+" h"],["Actual history",p.actualHistoryMethod]
+  ].map(c=>'<div class="position-card"><div class="position-label">'+escapeHtml(c[0])+'</div><div class="position-value">'+escapeHtml(fmt(c[1]))+'</div></div>').join("")+'</div>';
+  return visualSection("Man-Hour S-Curve","Labor work units only; actual history uses stored periods when available and never fabricates missing history.",p.actualState,top+chart);
+}
+function renderForecastHistoryVisual(data){
+  const p=projectionFor(data,"forecast_history");
+  if(!Array.isArray(p.points))return"";
+  const rows=p.points.map(x=>'<tr><td>'+escapeHtml(x.dataDateIso||"—")+'</td><td>'+escapeHtml(x.sourceRevisionId)+'</td><td>'+escapeHtml(x.sourceForecastCompletionIso||"—")+'</td><td>'+escapeHtml(x.independentForecastCompletionIso||"—")+'</td><td>'+escapeHtml(fmt(x.movementDaysVsPrevious))+'</td><td>'+escapeHtml(fmt(x.movementDaysVsFirst))+'</td><td>'+escapeHtml(x.origin)+'</td><td>'+escapeHtml((x.assumptions||[]).join("; ")||"—")+'</td></tr>').join("");
+  return visualSection("Forecast History","Independent forecast movement across controlled snapshots; source and independent dates remain separate.",p.establishedForecastCount+" established",'<div class="table-wrap"><table><thead><tr><th>Data date</th><th>Revision</th><th>Source forecast</th><th>Independent forecast</th><th>Move vs previous d</th><th>Move vs first d</th><th>Origin</th><th>Assumptions</th></tr></thead><tbody>'+rows+'</tbody></table></div>');
+}
+function renderNoticesClaimsVisual(data){
+  const p=projectionFor(data,"notices_claims");
+  if(!Array.isArray(p.events)||!Array.isArray(p.claims))return"";
+  const totals='<div class="position-grid" style="margin-bottom:14px">'+[
+    ["Timely notices",p.timelyNoticeCount],["Late notices",p.lateNoticeCount],["Missing notices",p.missingNoticeCount],["Official assessed days",p.officialAssessedDaysTotal],["Candidate/provisional days",p.provisionalOrCandidateAssessedDaysTotal],["Official assessed amount",p.officialAssessedAmountTotal],["Candidate/provisional amount",p.provisionalOrCandidateAssessedAmountTotal]
+  ].map(c=>'<div class="position-card"><div class="position-label">'+escapeHtml(c[0])+'</div><div class="position-value">'+escapeHtml(fmt(c[1]))+'</div></div>').join("")+'</div>';
+  const events='<div class="nested-title">Notice compliance by event</div><div class="table-wrap"><table><thead><tr><th>Event</th><th>Responsibility</th><th>Start</th><th>Notice</th><th>Required days</th><th>Elapsed days</th><th>Timeliness</th><th>Claims</th></tr></thead><tbody>'+
+    p.events.map(e=>'<tr><td><b>'+escapeHtml(e.eventId)+'</b><br><span class="muted">'+escapeHtml(e.title||"")+'</span></td><td>'+escapeHtml(e.responsibility)+'</td><td>'+escapeHtml(e.eventStartIso||"—")+'</td><td>'+escapeHtml(e.noticeIssuedAt||"—")+'</td><td>'+escapeHtml(fmt(e.requiredNoticeDays))+'</td><td>'+escapeHtml(fmt(e.elapsedNoticeDays))+'</td><td><span class="state-pill '+(e.noticeTimeliness==="timely"?"ready":e.noticeTimeliness==="late"?"blocked":"review")+'">'+escapeHtml(e.noticeTimeliness)+'</span></td><td>'+escapeHtml((e.linkedClaimIds||[]).join(", ")||"—")+'</td></tr>').join("")+
+    '</tbody></table></div>';
+  const claims='<div class="nested-title" style="margin-top:14px">Claim state & assessment authority</div><div class="table-wrap"><table><thead><tr><th>Claim</th><th>State</th><th>Submitted</th><th>Claimed days</th><th>Assessed days</th><th>Days authority</th><th>Claimed amount</th><th>Assessed amount</th><th>Amount authority</th></tr></thead><tbody>'+
+    p.claims.map(c=>'<tr><td><b>'+escapeHtml(c.claimId)+'</b><br><span class="muted">'+escapeHtml(c.title||"")+'</span></td><td>'+escapeHtml(c.state)+'</td><td>'+escapeHtml(c.submittedAt||"—")+'</td><td>'+escapeHtml(fmt(c.claimedDays))+'</td><td>'+escapeHtml(fmt(c.assessedDays))+'</td><td>'+escapeHtml(c.assessedDaysState)+'</td><td>'+escapeHtml(fmt(c.claimedAmount))+'</td><td>'+escapeHtml(fmt(c.assessedAmount))+'</td><td>'+escapeHtml(c.assessedAmountState)+'</td></tr>').join("")+
+    '</tbody></table></div>';
+  return visualSection("Notices, EOT & Claims","Actual notice timestamps drive timeliness; claimed and assessed values stay separate by authority.",p.claimCount+" claims",totals+events+claims);
+}
 function renderSpecializedModule(key,data){
+  if(key==="pmo-analysis")return renderPmoVisual(data);
+  if(key==="schedule-analytics")return renderScheduleAnalyticsVisual(data);
+  if(key==="activity-analytics")return renderActivityAnalyticsVisual(data);
+  if(key==="resource-utilization")return renderResourceVisual(data);
+  if(key==="lookahead-schedule")return renderLookAheadVisual(data);
+  if(key==="progress-report")return renderProgressReportVisual(data);
+  if(key==="schedule-change-report")return renderScheduleChangeVisual(data);
+  if(key==="revision-trend")return renderRevisionTrendVisual(data);
+  if(key==="variance-trends")return renderVarianceTrendVisual(data);
   if(key==="progress-scurve")return renderProgressScurveVisual(data);
   if(key==="quantity-scurve")return renderQuantityScurveVisual(data);
-  if(key==="lookahead-schedule")return renderLookAheadVisual(data);
+  if(key==="progress-breakdown")return renderProgressBreakdownVisual(data);
+  if(key==="milestones")return renderMilestonesVisual(data);
+  if(key==="near-critical")return renderNearCriticalVisual(data);
+  if(key==="manhour-scurve")return renderManhourVisual(data);
+  if(key==="forecast-history")return renderForecastHistoryVisual(data);
   if(key==="independent-forecast")return renderForecastVisual(data);
-  if(key==="windows-analysis")return renderWindowsVisual(data);
   if(key==="delay-claims")return renderDelayClaimsVisual(data);
+  if(key==="notices-claims")return renderNoticesClaimsVisual(data);
+  if(key==="windows-analysis")return renderWindowsVisual(data);
   if(key==="eot-assessment")return renderEotVisual(data);
   return"";
 }
