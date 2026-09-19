@@ -1025,6 +1025,55 @@ const rules:
   },
   {
     category:
+      "schedule_control",
+    documentType:
+      "contractor_manpower_plan",
+    signals: [
+      {
+        label:
+          "manpower plan",
+        pattern:
+          /\bmanpower\s+plan\b/i,
+        weight: 8,
+      },
+      {
+        label:
+          "planned manpower",
+        pattern:
+          /\bplanned\s+manpower\b/i,
+        weight: 6,
+      },
+      {
+        label:
+          "planned headcount",
+        pattern:
+          /\bplanned\s+headcount\b/i,
+        weight: 6,
+      },
+      {
+        label:
+          "headcount",
+        pattern:
+          /\bheadcount\b/i,
+        weight: 3,
+      },
+      {
+        label:
+          "work front",
+        pattern:
+          /\bwork\s*front\b/i,
+        weight: 2,
+      },
+      {
+        label: "trade",
+        pattern:
+          /\btrade\b/i,
+        weight: 1,
+      },
+    ],
+  },
+  {
+    category:
       "hse_quality_fm",
     documentType:
       "hse_report",
