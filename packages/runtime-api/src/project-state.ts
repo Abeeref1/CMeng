@@ -1429,6 +1429,8 @@ export class RuntimeProjectStore {
         mapping,
         identification,
         lineage,
+        assertionCount:
+          document.assertions.length,
         diagnostics,
       };
     }
