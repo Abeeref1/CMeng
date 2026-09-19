@@ -88,6 +88,10 @@ import {
   applyEvidenceBasis,
   evidenceFamily,
 } from "./evidence-control";
+import {
+  deriveReadinessFromCsv,
+  rebuildReadinessEvidence,
+} from "./evidence-readiness";
 
 function hashBytes(
   bytes: Uint8Array,
@@ -574,6 +578,9 @@ function hydrateProject(
     delayEventHistory:
       legacy.delayEventHistory ??
       [],
+    derivedReadinessByDocument:
+      legacy.derivedReadinessByDocument ??
+      {},
     lastRerunReceipt:
       legacy.lastRerunReceipt ??
       null,
@@ -898,6 +905,7 @@ export class RuntimeProjectStore {
         activeEvidenceBasis: {},
         boardPublicationHistory: [],
         delayEventHistory: [],
+        derivedReadinessByDocument: {},
         lastRerunReceipt: null,
         controls:
           emptyControls(),
@@ -1866,6 +1874,30 @@ export class RuntimeProjectStore {
       document,
       uploadIntent,
     );
+    if (
+      media.includes("csv")
+    ) {
+      const derived =
+        deriveReadinessFromCsv({
+          state,
+          document,
+          bytes:
+            input.bytes,
+        });
+      if (
+        Object.keys(
+          derived,
+        ).length > 0
+      ) {
+        state
+          .derivedReadinessByDocument[
+            document.documentId
+          ] = derived;
+      }
+      rebuildReadinessEvidence(
+        state,
+      );
+    }
     this.touchEvidence(state);
     return {
       documentId,
