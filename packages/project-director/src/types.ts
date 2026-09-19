@@ -135,6 +135,8 @@ export interface DirectorPositionInput {
   eotAssessment: EotAssessmentProjection;
   ldTerms: ContractLdTerms;
   contractValue?: MoneyValue;
+  contractValueCandidates?:
+    MoneyValue[];
   variations: VariationRecord[];
   invoices: InvoiceRecord[];
   retentions: RetentionRecord[];
@@ -206,12 +208,44 @@ export interface ProjectDirectorPosition {
   };
   ld: {
     delayDays: number | null;
-    state: "scenario_candidate" | "unavailable" | "conflicted";
+    state:
+      | "scenario_candidate"
+      | "multi_scenario"
+      | "unavailable";
     currency: string | null;
     uncappedAmount: number | null;
     cappedAmount: number | null;
     capApplied: boolean | null;
     sourceRefs: string[];
+    recommendedScenarioId:
+      string | null;
+    recommendationRationale:
+      string[];
+    userDecisionRequired: boolean;
+    scenarios: Array<{
+      scenarioId: string;
+      rateCandidateId: string;
+      capCandidateId:
+        string | null;
+      contractValueAmount:
+        number | null;
+      contractValueCurrency:
+        string | null;
+      state:
+        | "calculated"
+        | "not_calculable";
+      currency: string | null;
+      uncappedAmount:
+        number | null;
+      cappedAmount:
+        number | null;
+      capApplied:
+        boolean | null;
+      evidenceScore: number;
+      recommended: boolean;
+      sourceRefs: string[];
+      diagnostics: string[];
+    }>;
     diagnostics: string[];
   };
   commercialByCurrency: CurrencyCommercialPosition[];
