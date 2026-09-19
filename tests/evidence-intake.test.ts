@@ -737,3 +737,104 @@ test("Primavera content is recognized even when the file is named as a PDF", asy
     );
   });
 });
+
+
+test("ZIP routing identifies a renamed schedule before mapping unrelated filenames", async () => {
+  await withServer(async (base) => {
+    const project =
+      "ZIP-CONTENT-FIRST-UAT";
+    const zip = new JSZip();
+
+    zip.file(
+      "AAA/not_a_contract.pdf",
+      [
+        "Package ID,Description,Required On Site,Forecast Delivery,Status,Long Lead,Linked Activity,Vendor",
+        "PKG-001,Rail package,2026-12-16,2026-12-15,Awarded,No,A200,Vendor 01",
+      ].join("\n"),
+    );
+    zip.file(
+      "ZZZ/random_binary.dat",
+      xer(
+        project,
+        "2026-11-30",
+        "2026-12-15",
+      ),
+    );
+
+    const bytes =
+      await zip.generateAsync({
+        type: "uint8array",
+      });
+    const response =
+      await fetch(
+        base +
+          "/api/projects/" +
+          project +
+          "/evidence/uploads",
+        {
+          method: "POST",
+          headers: {
+            "content-type":
+              "application/zip",
+            "x-source-filename":
+              "misnamed-pack.zip",
+          },
+          body:
+            Buffer.from(bytes),
+        },
+      );
+
+    if (response.status !== 201) {
+      throw new Error(
+        "Expected HTTP 201, received " +
+          response.status +
+          ": " +
+          await response.text(),
+      );
+    }
+
+    const result =
+      await response.json() as {
+        documents: Array<{
+          category: string;
+          sourceFilename: string;
+          mapping: {
+            mappedActivityCount:
+              number | null;
+          } | null;
+          identification: {
+            verifiedMediaType:
+              string;
+          };
+        }>;
+      };
+
+    const schedule =
+      result.documents.find(
+        (document) =>
+          document.category ===
+          "schedule",
+      );
+    const procurement =
+      result.documents.find(
+        (document) =>
+          document.category ===
+          "risk_claims_procurement",
+      );
+
+    assert.ok(schedule);
+    assert.equal(
+      schedule
+        .identification
+        .verifiedMediaType,
+      "text/x-primavera-xer",
+    );
+    assert.ok(procurement);
+    assert.equal(
+      procurement
+        .mapping
+        ?.mappedActivityCount,
+      1,
+    );
+  });
+});
