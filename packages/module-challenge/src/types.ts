@@ -70,6 +70,9 @@ export interface ChallengeValueAlternative {
     string | null;
   asOfIso: string | null;
   confidence: number | null;
+  supportCount?: number;
+  evidenceScore?: number;
+  reasons?: string[];
 }
 
 export interface ChallengeValue {
