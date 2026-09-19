@@ -72,10 +72,10 @@ export interface EotAssessmentProjection {
 
   observedProgrammeMovementDays: number;
   analyticalTimeImpactCandidateDays: number;
-  attributableCandidateEotDays: number;
+  attributableCandidateEotDays: number | null;
   unattributedTimeImpactDays: number;
 
-  candidateAdditionalEotDays: number;
+  candidateAdditionalEotDays: number | null;
   scenarioAdjustedCompletionIso: string | null;
   timeImpactScenarioAdjustedCompletionIso:
     string | null;
