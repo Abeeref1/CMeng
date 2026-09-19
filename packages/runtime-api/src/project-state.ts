@@ -961,26 +961,61 @@ export class RuntimeProjectStore {
     const relativePath =
       input.sourceRelativePath?.trim() ||
       input.sourceFilename;
+
+    const identified =
+      await identifyEvidenceDocument({
+        bytes: input.bytes,
+        sourceFilename:
+          input.sourceFilename,
+        sourceRelativePath:
+          relativePath,
+        declaredMediaType:
+          input.mediaType,
+        declaredCategory:
+          input.category,
+        declaredDocumentType:
+          input.documentType,
+      });
+    const identification =
+      identified.identification;
     const category =
-      inferEvidenceCategory(
-        relativePath,
-        input.category,
-      );
+      identification.detectedCategory;
     const documentType =
-      inferDocumentType(
-        relativePath,
-        input.documentType,
-      );
+      identification.detectedDocumentType;
     const media =
-      inferMediaType(
-        relativePath,
-        input.mediaType,
+      identification.verifiedMediaType;
+    const activityIds =
+      this.activityIds(
+        input.projectId,
       );
+    const textMapping =
+      analyzeTextEvidence(
+        identified.textSample,
+        activityIds,
+      );
+    const syncOcrPageLimit =
+      Math.max(
+        1,
+        Number.parseInt(
+          process.env
+            .CMENG_SYNC_OCR_MAX_PAGES ??
+            "20",
+          10,
+        ) || 20,
+      );
+    const deferFullOcr =
+      identification.ocrUsed &&
+      (
+        identification.pageCount ??
+        1
+      ) >
+        syncOcrPageLimit;
 
     if (category === "schedule") {
       const result =
         await this.ingestSchedule({
-          projectId: input.projectId,
+          projectId:
+            input.projectId,
           bytes: input.bytes,
           mediaType: media,
           sourceFilename:
@@ -988,14 +1023,17 @@ export class RuntimeProjectStore {
           sourceRelativePath:
             relativePath,
           role:
-            inferScheduleRole(
-              relativePath,
-              input.scheduleRole,
-            ),
+            input.scheduleRole?.trim()
+              ? input.scheduleRole
+              : inferScheduleRole(
+                  relativePath,
+                  null,
+                ),
           label:
             input.sourceFilename,
           uploadedAt:
             input.uploadedAt,
+          identification,
         });
       const document =
         this.evidence(
@@ -1027,6 +1065,8 @@ export class RuntimeProjectStore {
           document.scheduleRole,
         mapping:
           document.mapping,
+        identification:
+          document.identification,
         diagnostics: [
           ...document.diagnostics,
         ],
@@ -1036,6 +1076,7 @@ export class RuntimeProjectStore {
     if (
       category === "boq_cost" &&
       documentType === "boq" &&
+      !deferFullOcr &&
       (
         media.includes("csv") ||
         media.includes("spreadsheet") ||
@@ -1043,16 +1084,28 @@ export class RuntimeProjectStore {
         media.includes("pdf")
       )
     ) {
-      const result = await ingestBoq({
-        projectId:
-          input.projectId,
-        bytes: input.bytes,
-        verifiedMediaType: media,
-        receivedAt:
-          input.uploadedAt,
-        sourceFilename:
-          input.sourceFilename,
-      });
+      const result =
+        await ingestBoq(
+          {
+            projectId:
+              input.projectId,
+            bytes: input.bytes,
+            verifiedMediaType:
+              media,
+            receivedAt:
+              input.uploadedAt,
+            sourceFilename:
+              input.sourceFilename,
+          },
+          media.includes("pdf")
+            ? {
+                pdf: {
+                  ocrProvider:
+                    this.createOcrProvider(),
+                },
+              }
+            : {},
+        );
       result.persistence =
         this.persistenceMode();
       this.attachBoq(
@@ -1060,6 +1113,7 @@ export class RuntimeProjectStore {
         input.bytes,
         input.sourceFilename,
         relativePath,
+        identification,
       );
       const document =
         this.evidence(
@@ -1090,6 +1144,8 @@ export class RuntimeProjectStore {
         scheduleRole: null,
         mapping:
           document.mapping,
+        identification:
+          document.identification,
         diagnostics: [
           ...document.diagnostics,
         ],
@@ -1098,6 +1154,7 @@ export class RuntimeProjectStore {
 
     if (
       category === "contract" &&
+      !deferFullOcr &&
       (
         media.includes("pdf") ||
         media.includes(
@@ -1128,6 +1185,7 @@ export class RuntimeProjectStore {
         role,
         uploadedAt:
           input.uploadedAt,
+        identification,
       });
       const hash =
         hashBytes(input.bytes);
@@ -1162,6 +1220,8 @@ export class RuntimeProjectStore {
         scheduleRole: null,
         mapping:
           document.mapping,
+        identification:
+          document.identification,
         diagnostics: [
           ...document.diagnostics,
         ],
@@ -1180,7 +1240,8 @@ export class RuntimeProjectStore {
           input.projectId,
         category,
         hash,
-        bytes: input.bytes,
+        bytes:
+          input.bytes,
         sourceFilename:
           input.sourceFilename,
       });
@@ -1188,21 +1249,54 @@ export class RuntimeProjectStore {
       media.includes("csv")
         ? analyzeCsvEvidence(
             input.bytes,
-            this.activityIds(
-              input.projectId,
-            ),
+            activityIds,
           )
-        : null;
+        : textMapping;
     const documentId =
       this.evidenceDocumentId(
         hash,
         relativePath,
       );
+    const diagnostics = [
+      ...identification
+        .diagnostics,
+      ...(deferFullOcr
+        ? [
+            "DOCUMENT_FULL_OCR_DEFERRED:" +
+              (
+                identification
+                  .pageCount ??
+                "unknown"
+              ) +
+              "_PAGES",
+          ]
+        : []),
+      ...(category ===
+        "contract" &&
+      media.startsWith(
+        "image/",
+      )
+        ? [
+            "CONTRACT_IMAGE_IDENTIFIED_FROM_OCR;SPECIALIST_CLAUSE_PARSE_PENDING",
+          ]
+        : []),
+    ];
+    const parserState =
+      deferFullOcr
+        ? "ocr_pending" as const
+        : identification
+            .method ===
+          "unreadable"
+          ? "error" as const
+          : identification
+              .needsReview
+            ? "partial" as const
+            : "identified" as const;
+
     const document:
       StoredEvidenceDocument = {
       documentId,
-      category:
-        category as EvidenceCategory,
+      category,
       documentType,
       sourceFilename:
         input.sourceFilename,
@@ -1216,15 +1310,13 @@ export class RuntimeProjectStore {
         input.uploadedAt,
       authority:
         "candidate_only",
-      parserState:
-        mapping
-          ? "parsed"
-          : "stored",
+      parserState,
       storedPath,
       linkedArtifactId: null,
       scheduleRole: null,
       mapping,
-      diagnostics: [],
+      identification,
+      diagnostics,
     };
     this.upsertEvidence(
       state,
@@ -1244,7 +1336,9 @@ export class RuntimeProjectStore {
       linkedArtifactId: null,
       scheduleRole: null,
       mapping,
-      diagnostics: [],
+      identification:
+        document.identification,
+      diagnostics,
     };
   }
 
