@@ -4,6 +4,7 @@ import {
   mkdirSync,
   readFileSync,
   renameSync,
+  unlinkSync,
   writeFileSync,
 } from "node:fs";
 import {
@@ -87,6 +88,7 @@ import {
 import {
   applyEvidenceBasis,
   evidenceFamily,
+  rebuildEvidenceFamily,
 } from "./evidence-control";
 import {
   deriveReadinessFromCsv,
@@ -1253,6 +1255,272 @@ export class RuntimeProjectStore {
     ].sort((a, b) =>
       a.uploadedAt.localeCompare(b.uploadedAt),
     );
+  }
+
+
+  deleteEvidenceDocument(
+    projectId: string,
+    documentId: string,
+  ): {
+    documentId: string;
+    sourceFilename: string;
+    familyKey: string;
+    wasActive: boolean;
+    replacementDocumentId:
+      string | null;
+  } | null {
+    const state =
+      this.projects.get(projectId);
+    if (!state) return null;
+
+    const index =
+      state.evidenceDocuments.findIndex(
+        (item) =>
+          item.documentId ===
+          documentId,
+      );
+    if (index < 0) return null;
+
+    const document =
+      state.evidenceDocuments[index]!;
+    const familyKey =
+      document.familyKey;
+    const wasActive =
+      state.activeEvidenceBasis[
+        familyKey
+      ]?.activeDocumentId ===
+      documentId;
+    const linkedArtifactId =
+      document.linkedArtifactId;
+    const storedPath =
+      document.storedPath;
+
+    state.evidenceDocuments.splice(
+      index,
+      1,
+    );
+
+    for (
+      const remaining of
+        state.evidenceDocuments
+    ) {
+      if (
+        remaining
+          .supersededByDocumentId ===
+        documentId
+      ) {
+        remaining
+          .supersededByDocumentId =
+          null;
+      }
+      remaining.supersedesDocumentIds =
+        remaining
+          .supersedesDocumentIds
+          .filter(
+            (id) =>
+              id !== documentId,
+          );
+    }
+
+    if (
+      document.category ===
+        "schedule" &&
+      linkedArtifactId
+    ) {
+      state.schedules =
+        state.schedules.filter(
+          (item) =>
+            item.revision
+              .revisionId !==
+            linkedArtifactId,
+        );
+      state.resourcesByRevision.delete(
+        linkedArtifactId,
+      );
+    }
+
+    if (
+      document.category ===
+        "boq_cost" &&
+      document.documentType ===
+        "boq" &&
+      linkedArtifactId
+    ) {
+      state.boqRevisions =
+        state.boqRevisions.filter(
+          (item) =>
+            item.ingestionId !==
+            linkedArtifactId,
+        );
+    }
+
+    if (
+      document.category ===
+      "contract"
+    ) {
+      state.contractDocuments =
+        state.contractDocuments.filter(
+          (item) =>
+            item.documentId !==
+            documentId,
+        );
+    }
+
+    if (
+      document.documentType ===
+        "contractor_manpower_plan" &&
+      linkedArtifactId &&
+      state.submittedManpowerPlan
+        ?.planId ===
+        linkedArtifactId
+    ) {
+      state.submittedManpowerPlan =
+        null;
+    }
+
+    delete state
+      .derivedControlsByDocument[
+        documentId
+      ];
+    delete state
+      .derivedReadinessByDocument[
+        documentId
+      ];
+
+    rebuildEvidenceFamily(
+      state,
+      familyKey,
+    );
+
+    const activeBoqArtifactId =
+      state.activeEvidenceBasis[
+        "boq:quantity"
+      ]?.activeArtifactId ??
+      null;
+    state.boq =
+      activeBoqArtifactId
+        ? state.boqRevisions.find(
+            (item) =>
+              item.ingestionId ===
+              activeBoqArtifactId,
+          ) ?? null
+        : null;
+
+    const latestSchedule =
+      this.latestSchedule(projectId);
+    if (state.boq) {
+      state.quantities =
+        quantityModelFromBoq(
+          state.boq,
+          latestSchedule
+            ?.revision.revisionId ??
+            "",
+          state.quantities,
+        );
+    } else {
+      state.quantities = null;
+    }
+
+    if (
+      document.category ===
+      "contract"
+    ) {
+      const activeBaseId =
+        state.activeEvidenceBasis[
+          "contract:base"
+        ]?.activeDocumentId ??
+        null;
+      const base =
+        activeBaseId
+          ? state.contractDocuments.find(
+              (item) =>
+                item.documentId ===
+                activeBaseId,
+            ) ?? null
+          : null;
+
+      state.contract =
+        base?.result ?? null;
+
+      if (base) {
+        const amendments =
+          state.contractDocuments
+            .filter(
+              (item) => {
+                if (
+                  item.role !==
+                  "amendment"
+                ) {
+                  return false;
+                }
+                const evidence =
+                  state.evidenceDocuments
+                    .find(
+                      (candidate) =>
+                        candidate
+                          .documentId ===
+                        item.documentId,
+                    );
+                return (
+                  evidence
+                    ?.basisState !==
+                  "superseded"
+                );
+              },
+            )
+            .map(
+              (item) =>
+                item.result,
+            );
+        state.contractFamily =
+          linkContractFamily(
+            base.result,
+            amendments,
+          );
+      } else {
+        state.contractFamily = null;
+      }
+    }
+
+    rebuildReadinessEvidence(
+      state,
+    );
+    rebuildDerivedControls(
+      state,
+    );
+
+    if (
+      storedPath &&
+      !state.evidenceDocuments.some(
+        (item) =>
+          item.storedPath ===
+          storedPath,
+      ) &&
+      existsSync(storedPath)
+    ) {
+      try {
+        unlinkSync(storedPath);
+      } catch {
+        // The project record is authoritative;
+        // orphan file cleanup must not
+        // undo a successful deletion.
+      }
+    }
+
+    this.touchEvidence(state);
+
+    return {
+      documentId,
+      sourceFilename:
+        document.sourceFilename,
+      familyKey,
+      wasActive,
+      replacementDocumentId:
+        state.activeEvidenceBasis[
+          familyKey
+        ]?.activeDocumentId ??
+        null,
+    };
   }
 
   private upsertEvidence(
