@@ -597,6 +597,43 @@ async function route(
       decodeURIComponent(
         demoMatch[1]!,
       );
+
+    if (
+      projectId !==
+      "UAT-DEMO"
+    ) {
+      json(res, 409, {
+        error:
+          "demo_project_id_must_be_UAT-DEMO",
+        message:
+          "Certified demo data can only be loaded into the isolated UAT-DEMO project. Existing user projects are never replaced by demo data.",
+      });
+      return;
+    }
+
+    const existing =
+      runtimeProjects.get(
+        projectId,
+      );
+    if (
+      existing &&
+      !existing.demo &&
+      (
+        existing.schedules.length >
+          0 ||
+        existing.evidenceDocuments
+          .length > 0
+      )
+    ) {
+      json(res, 409, {
+        error:
+          "demo_would_overwrite_user_project",
+        message:
+          "UAT-DEMO currently contains user evidence and was not created as a demo. Demo loading is refused to preserve the project.",
+      });
+      return;
+    }
+
     const state =
       loadCertifiedDemoProject(
         projectId,
@@ -607,7 +644,7 @@ async function route(
       revisionCount:
         state.schedules.length,
       message:
-        "Certified demo project loaded. Demo evidence is isolated from user uploads.",
+        "Certified demo project loaded in the isolated UAT-DEMO namespace.",
     });
     return;
   }
