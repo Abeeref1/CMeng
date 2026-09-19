@@ -2126,6 +2126,31 @@ function buildBundle(
                   .contractValue,
             }
           : {}),
+        ...(
+          !state.controls
+            .contractValue &&
+          contractValueExtraction
+            ?.candidates
+            .length
+            ? {
+                contractValueCandidates:
+                  contractValueExtraction
+                    .candidates
+                    .map(
+                      (candidate) => ({
+                        amount:
+                          candidate.amount,
+                        currency:
+                          candidate.currency,
+                        sourceRefs: [
+                          ...candidate
+                            .sourceRefs,
+                        ],
+                      }),
+                    ),
+              }
+            : {}
+        ),
         variations:
           state.controls
             .variations,
