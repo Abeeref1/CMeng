@@ -683,6 +683,16 @@ function hydrateProject(
   };
 }
 
+export function normalizeProjectCode(
+  value: string,
+): string {
+  return value
+    .normalize("NFKC")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toUpperCase();
+}
+
 function safeSegment(
   value: string,
 ): string {
@@ -967,27 +977,61 @@ export class RuntimeProjectStore {
     );
   }
 
+  findProjectIdByCode(
+    projectId: string,
+  ): string | null {
+    const normalized =
+      normalizeProjectCode(
+        projectId,
+      );
+    if (!normalized) return null;
+
+    return (
+      [...this.projects.keys()]
+        .find(
+          (existingId) =>
+            normalizeProjectCode(
+              existingId,
+            ) === normalized,
+        ) ??
+      null
+    );
+  }
+
   get(
     projectId: string,
   ): ProjectRuntimeState | null {
-    return (
-      this.projects.get(projectId) ??
-      null
-    );
+    const resolved =
+      this.findProjectIdByCode(
+        projectId,
+      );
+    return resolved
+      ? this.projects.get(
+          resolved,
+        ) ?? null
+      : null;
   }
 
   getOrCreate(
     projectId: string,
   ): ProjectRuntimeState {
-    const existing =
-      this.projects.get(projectId);
-    if (existing) {
-      return existing;
+    const normalized =
+      normalizeProjectCode(
+        projectId,
+      );
+    const existingId =
+      this.findProjectIdByCode(
+        normalized,
+      );
+    if (existingId) {
+      return this.projects.get(
+        existingId,
+      )!;
     }
 
     const state:
       ProjectRuntimeState = {
-        projectId,
+        projectId: normalized,
         version: 1,
         demo: false,
         schedules: [],
@@ -1013,7 +1057,7 @@ export class RuntimeProjectStore {
       };
 
     this.projects.set(
-      projectId,
+      state.projectId,
       state,
     );
     this.persistSnapshot();
