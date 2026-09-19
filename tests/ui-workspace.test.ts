@@ -358,6 +358,57 @@ test("CMeng workspace keeps the active module primary and browser script parseab
     );
   }
 
+  for (
+    const planningVisual of [
+      "Completion position",
+      "Programme health",
+      "Schedule pressure map",
+      "6-week execution view",
+      "Readiness matrix",
+      "Largest finish movements",
+      "Completion movement",
+      "Milestone timeline",
+      "Float risk distribution",
+      "Near-critical watchlist",
+      "Reconciliation with submitted position",
+    ]
+  ) {
+    assert.equal(
+      html.includes(
+        planningVisual,
+      ),
+      true,
+      "Programme & Planning visual must be present: " +
+        planningVisual,
+    );
+  }
+
+  assert.match(
+    html,
+    /class="planning-kpi-grid"/,
+    "Programme & Planning views must use the management KPI hierarchy",
+  );
+  assert.match(
+    html,
+    /class="reconciliation-panel"/,
+    "submitted-vs-CMeng reconciliation must be secondary to the specialist visual",
+  );
+  assert.match(
+    html,
+    /planningMilestoneTimeline/,
+    "milestones must have a real timeline visual",
+  );
+  assert.match(
+    html,
+    /planningLookAheadTimeline/,
+    "look-ahead must have a timeline visual",
+  );
+  assert.match(
+    html,
+    /planningActivityPressure/,
+    "activity and near-critical modules must have schedule-pressure visuals",
+  );
+
   assert.match(
     html,
     /key==="challenge-contract"&&renderDeliveryChallenge/,
