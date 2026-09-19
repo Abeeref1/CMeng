@@ -220,37 +220,194 @@ function latestPoint(
     : null;
 }
 
-function sumClaimedDays(
-  state: ProjectRuntimeState,
+function scheduleSpanDays(
+  model: CanonicalScheduleModel,
 ): number | null {
+  let earliest: number | null = null;
+  let latest: number | null = null;
+
+  for (const activity of model.activities) {
+    const starts = [
+      activity.baselineStartIso,
+      activity.currentStartIso,
+      activity.actualStartIso,
+      activity.forecastStartIso,
+    ];
+    const finishes = [
+      activity.baselineFinishIso,
+      activity.currentFinishIso,
+      activity.actualFinishIso,
+      activity.forecastFinishIso,
+    ];
+
+    for (const value of starts) {
+      if (!value) continue;
+      const parsed = Date.parse(value);
+      if (!Number.isFinite(parsed)) {
+        continue;
+      }
+      earliest =
+        earliest === null
+          ? parsed
+          : Math.min(
+              earliest,
+              parsed,
+            );
+    }
+
+    for (const value of finishes) {
+      if (!value) continue;
+      const parsed = Date.parse(value);
+      if (!Number.isFinite(parsed)) {
+        continue;
+      }
+      latest =
+        latest === null
+          ? parsed
+          : Math.max(
+              latest,
+              parsed,
+            );
+    }
+  }
+
+  if (
+    earliest === null ||
+    latest === null ||
+    latest <= earliest
+  ) {
+    return null;
+  }
+
+  return Number(
+    (
+      (latest - earliest) /
+      86_400_000
+    ).toFixed(6),
+  );
+}
+
+function claimedDaysOverride(
+  state: ProjectRuntimeState,
+  model: CanonicalScheduleModel,
+): ChallengeValue | undefined {
   const claims =
     state.controls
       .delayClaims?.claims ??
     [];
+
   const known =
     claims
-      .map(
-        (claim) =>
-          claim.claimedDays,
-      )
       .filter(
-        (
-          value,
-        ): value is number =>
-          typeof value ===
+        (claim) =>
+          typeof claim.claimedDays ===
             "number" &&
-          Number.isFinite(value),
+          Number.isFinite(
+            claim.claimedDays,
+          ),
+      )
+      .map(
+        (claim) => ({
+          claimId:
+            claim.claimId,
+          days:
+            claim.claimedDays!,
+        }),
       );
+
   if (known.length === 0) {
-    return null;
+    return undefined;
   }
-  return Number(
-    known.reduce(
-      (sum, value) =>
-        sum + value,
-      0,
-    ).toFixed(6),
-  );
+
+  const rawSum =
+    Number(
+      known
+        .reduce(
+          (sum, claim) =>
+            sum +
+            claim.days,
+          0,
+        )
+        .toFixed(6),
+    );
+
+  const span =
+    scheduleSpanDays(model);
+  const maximumReasonable =
+    span === null
+      ? 3650
+      : Math.max(
+          365,
+          span * 2,
+        );
+
+  const anyOutlier =
+    known.some(
+      (claim) =>
+        claim.days < 0 ||
+        claim.days >
+          maximumReasonable,
+    );
+  const rawSumOutlier =
+    rawSum >
+    maximumReasonable;
+
+  if (
+    known.length > 1 ||
+    anyOutlier ||
+    rawSumOutlier
+  ) {
+    return {
+      state:
+        "conflicted",
+      value:
+        rawSum,
+      unit: "days",
+      sourceRefs: [
+        ...known.map(
+          (claim) =>
+            "claim:" +
+            claim.claimId,
+        ),
+      ],
+      note:
+        "Raw arithmetic sum across " +
+        known.length +
+        " claim value(s) is " +
+        rawSum +
+        " days. CMeng does not treat this as consolidated project EOT because claim periods may overlap or duplicate events" +
+        (
+          anyOutlier ||
+          rawSumOutlier
+            ? " and the value fails the project-duration reasonableness check"
+            : ""
+        ) +
+        ". Individual values: " +
+        known
+          .map(
+            (claim) =>
+              claim.claimId +
+              "=" +
+              claim.days,
+          )
+          .join(", ") +
+        ".",
+    };
+  }
+
+  return {
+    state:
+      "submitted",
+    value:
+      known[0]!.days,
+    unit: "days",
+    sourceRefs: [
+      "claim:" +
+        known[0]!.claimId,
+    ],
+    note:
+      "Single submitted claim value. This remains a claimed position, not an assessed or awarded EOT.",
+  };
 }
 
 function baseCrewScenario(
@@ -390,7 +547,10 @@ function metricsFor(
       delivery,
     );
   const claimedDays =
-    sumClaimedDays(state);
+    claimedDaysOverride(
+      state,
+      ctx.model,
+    );
 
   switch (key) {
     case "schedule-analytics":
@@ -1105,17 +1265,7 @@ function metricsFor(
           ],
           {
             submittedOverride:
-              submitted(
-                claimedDays,
-                "days",
-                state.controls
-                  .delayClaims
-                  ? [
-                      "delay-claims-model",
-                    ]
-                  : [],
-                "Total contractor claimed days from loaded claim records.",
-              ),
+              claimedDays,
             consequenceMissing:
               "No contractor delay claim was identified. CMeng still reports independently observed schedule movement, without assigning legal causation.",
             actionMissing:
@@ -1154,17 +1304,7 @@ function metricsFor(
           ],
           {
             submittedOverride:
-              submitted(
-                claimedDays,
-                "days",
-                state.controls
-                  .delayClaims
-                  ? [
-                      "delay-claims-model",
-                    ]
-                  : [],
-                "Contractor claimed EOT days.",
-              ),
+              claimedDays,
             consequenceMissing:
               "No claim or assessable notice record was submitted; CMeng cannot invent an assessed EOT but can still identify notice requirements and schedule movement elsewhere.",
             actionMissing:
@@ -1249,17 +1389,7 @@ function metricsFor(
           ],
           {
             submittedOverride:
-              submitted(
-                claimedDays,
-                "days",
-                state.controls
-                  .delayClaims
-                  ? [
-                      "delay-claims-model",
-                    ]
-                  : [],
-                "Contractor claimed EOT days.",
-              ),
+              claimedDays,
             consequenceMissing:
               eot
                 ? "No contractor claimed EOT was identified, while CMeng has an analytical candidate based on the available evidence."
