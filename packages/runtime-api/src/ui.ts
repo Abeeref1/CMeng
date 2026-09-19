@@ -340,9 +340,9 @@ function renderUniversalChallenge(challenge){
     const submittedText=sub.state==="not_submitted"?"Not provided":conflicted?"Contradictory · "+Math.max(comparisons.length,sub.alternatives?.length||0)+" candidates":withUnit(sub.value,sub.unit);
     const gapText=conflicted?"Parallel calculations below":withUnit(gap.value,gap.unit);
     const main='<tr>'+
-      '<td><b>'+escapeHtml(item.label||item.metric)+'</b><br><span class="muted">'+escapeHtml(item.evidenceState||"")+'</span></td>'+
+      '<td><b>'+escapeHtml(item.label||item.metric)+'</b><br><span class="muted">'+escapeHtml(item.evidenceState?humanizeKey(item.evidenceState):"")+'</span></td>'+
       '<td>'+escapeHtml(submittedText)+(sub.note?'<br><span class="muted">'+escapeHtml(sub.note)+'</span>':'')+'</td>'+
-      '<td>'+escapeHtml(withUnit(ind.value,ind.unit))+'<br><span class="muted">'+escapeHtml(ind.state||"")+(ind.note?" · "+escapeHtml(ind.note):"")+'</span></td>'+
+      '<td>'+escapeHtml(withUnit(ind.value,ind.unit))+'<br><span class="muted">'+escapeHtml(ind.state?humanizeKey(ind.state):"")+(ind.note?" · "+escapeHtml(ind.note):"")+'</span></td>'+
       '<td>'+escapeHtml(gapText)+(!conflicted&&gap.note?'<br><span class="muted">'+escapeHtml(gap.note)+'</span>':'')+'</td>'+
       '<td>'+escapeHtml(item.consequence||"—")+'</td>'+
       '<td>'+escapeHtml(item.action||"—")+'</td>'+
@@ -352,8 +352,8 @@ function renderUniversalChallenge(challenge){
   }).join("");
   return '<div class="card challenge-card" style="margin-bottom:14px"><div class="module-head challenge-head"><h3>Submitted Position vs CMeng Check</h3><span class="badge '+(challenge.challengedCount?"partial":"ready")+'">'+escapeHtml(challenge.challengedCount)+" challenged"+'</span></div>'+
     '<div class="scalar-grid challenge-summary">'+
-      '<div class="scalar"><b>Submitted information</b><span>'+escapeHtml(challenge.submittedEvidenceState)+'</span></div>'+
-      '<div class="scalar"><b>CMeng check</b><span>'+escapeHtml(challenge.independentState)+'</span></div>'+
+      '<div class="scalar"><b>Submitted information</b><span>'+escapeHtml(humanizeKey(challenge.submittedEvidenceState))+'</span></div>'+
+      '<div class="scalar"><b>CMeng check</b><span>'+escapeHtml(humanizeKey(challenge.independentState))+'</span></div>'+
       '<div class="scalar"><b>Not provided</b><span>'+escapeHtml(challenge.notSubmittedCount)+'</span></div>'+
       '<div class="scalar"><b>Alternative positions</b><span>'+escapeHtml(challenge.scenarioCount)+'</span></div>'+
     '</div>'+
@@ -373,21 +373,21 @@ function renderDeliveryChallenge(data,reason){
     kpi("Avg work fronts",s.averageConcurrentWorkFronts)+
     kpi("Peak work fronts",s.peakConcurrentWorkFronts)+
   '</div>';
-  html+='<div class="grid two" style="margin-top:12px"><div class="card"><h3>Challenge manpower plan</h3><div class="scalar-grid">'+
+  html+='<div class="grid two" style="margin-top:12px"><div class="card"><h3>Manpower plan review</h3><div class="scalar-grid">'+
     '<div class="scalar"><b>Submitted average manpower</b><span>'+escapeHtml(fmt(m.submittedAverageManpower))+'</span></div>'+
     '<div class="scalar"><b>Submitted peak manpower</b><span>'+escapeHtml(fmt(m.submittedPeakManpower))+'</span></div>'+
     '<div class="scalar"><b>Required avg to contract</b><span>'+escapeHtml(fmt(m.requiredAverageManpowerToContract))+'</span></div>'+
     '<div class="scalar"><b>Required avg to contractor forecast</b><span>'+escapeHtml(fmt(m.requiredAverageManpowerToContractorForecast))+'</span></div>'+
     '<div class="scalar"><b>Submitted vs required</b><span>'+escapeHtml(fmt(m.submittedVsRequiredToContract))+'%</span></div>'+
     '<div class="scalar"><b>Remaining labor hours</b><span>'+escapeHtml(fmt(m.evidenceRemainingLaborHours))+'</span></div>'+
-    '</div><h3 style="margin-top:14px">Schedule-derived fallback scenarios</h3><div class="table-wrap"><table><thead><tr><th>Crew / work front</th><th>Average manpower</th><th>Peak manpower</th><th>Authority</th></tr></thead><tbody>'+
+    '</div><h3 style="margin-top:14px">Programme-based alternative scenarios</h3><div class="table-wrap"><table><thead><tr><th>Crew / work front</th><th>Average manpower</th><th>Peak manpower</th><th>Status</th></tr></thead><tbody>'+
     (m.scheduleDerivedScenarios||[]).map(x=>'<tr><td>'+escapeHtml(x.crewSize)+'</td><td>'+escapeHtml(fmt(x.averageManpower))+'</td><td>'+escapeHtml(fmt(x.peakManpower))+'</td><td>'+escapeHtml(x.authority)+'</td></tr>').join("")+
     '</tbody></table></div></div>';
   html+='<div class="card"><h3>Quantity, productivity & mapping</h3><div class="scalar-grid">'+
     '<div class="scalar"><b>Mapping coverage</b><span>'+escapeHtml(fmt(q.mappingCoveragePercent))+'%</span></div>'+
     '<div class="scalar"><b>Ambiguous BOQ items</b><span>'+escapeHtml(fmt(q.ambiguousMappingItemCount))+'</span></div>'+
     '<div class="scalar"><b>Unmapped BOQ items</b><span>'+escapeHtml(fmt(q.unmappedItemCount))+'</span></div>'+
-    '<div class="scalar"><b>Productivity evidence</b><span>'+escapeHtml(p.productivityEvidenceState||"—")+'</span></div>'+
+    '<div class="scalar"><b>Productivity records</b><span>'+escapeHtml(p.productivityEvidenceState||"—")+'</span></div>'+
     '</div><div class="table-wrap" style="margin-top:12px"><table><thead><tr><th>Unit</th><th>Contract qty</th><th>Mapped qty</th><th>Installed</th><th>Remaining</th><th>Req/day contract</th><th>Map coverage</th></tr></thead><tbody>'+
     (q.byUnit||[]).map(x=>'<tr><td>'+escapeHtml(x.unit)+'</td><td>'+escapeHtml(fmt(x.contractQuantity))+'</td><td>'+escapeHtml(fmt(x.mappedContractQuantity))+'</td><td>'+escapeHtml(fmt(x.installedQuantity))+'</td><td>'+escapeHtml(fmt(x.remainingQuantity))+'</td><td>'+escapeHtml(fmt(x.requiredPerDayToContract))+'</td><td>'+escapeHtml(fmt(x.mappingCoveragePercent))+'%</td></tr>').join("")+
     '</tbody></table></div></div></div>';
@@ -395,23 +395,23 @@ function renderDeliveryChallenge(data,reason){
     (d.findings||[]).map(x=>'<tr><td>'+escapeHtml(x.topic)+'</td><td>'+escapeHtml(x.state)+'</td><td>'+escapeHtml(x.contractorAssumption||"—")+'</td><td>'+escapeHtml(x.independentCalculation||"—")+'</td><td>'+escapeHtml(x.difference||"—")+'</td><td>'+escapeHtml(x.milestoneConsequence||"—")+'</td><td>'+escapeHtml(x.requiredResponse||"—")+'</td></tr>').join("")+
     '</tbody></table></div></div>';
   if(d.mapping){
-    html+='<details style="margin-top:12px"><summary>BOQ ↔ Schedule mapping candidates and evidence</summary><pre>'+escapeHtml(JSON.stringify(d.mapping,null,2))+'</pre></details>';
+    html+='<details style="margin-top:12px"><summary>BOQ ↔ Programme links and supporting records</summary><pre>'+escapeHtml(JSON.stringify(d.mapping,null,2))+'</pre></details>';
   }
   if(data.contractValueEvidence){
     const cv=data.contractValueEvidence;
     const governed=cv.governed;
     const candidate=cv.extraction?.value;
     const display=governed?fmt(governed.amount)+" "+(governed.currency||""):candidate?fmt(candidate.amount)+" "+(candidate.currency||""):"—";
-    html+='<div class="card" style="margin-top:12px"><h3>Contract value evidence</h3><div class="scalar-grid">'+
+    html+='<div class="card" style="margin-top:12px"><h3>Contract value records</h3><div class="scalar-grid">'+
       '<div class="scalar"><b>State</b><span>'+escapeHtml(cv.state||"missing")+'</span></div>'+
       '<div class="scalar"><b>Value</b><span>'+escapeHtml(display)+'</span></div>'+
-      '<div class="scalar"><b>Authority</b><span>'+escapeHtml(governed?"governed":candidate?"candidate only":"not established")+'</span></div>'+
+      '<div class="scalar"><b>Status</b><span>'+escapeHtml(governed?"governed":candidate?"candidate only":"not established")+'</span></div>'+
       '</div><div class="notice info">'+escapeHtml(cv.note||"")+'</div>'+
-      (cv.extraction?.candidates?.length?'<details><summary>Contract value candidates and source evidence</summary><pre>'+escapeHtml(JSON.stringify(cv.extraction,null,2))+'</pre></details>':'')+
+      (cv.extraction?.candidates?.length?'<details><summary>Contract value candidates and supporting records</summary><div style="padding:12px">'+renderStructuredValue(cv.extraction,0)+'</div></details>':'')+
       '</div>';
   }
   if(data.contractIntelligence){
-    html+='<details style="margin-top:12px"><summary>Contract clause intelligence supporting the challenge</summary><pre>'+escapeHtml(JSON.stringify(data.contractIntelligence,null,2))+'</pre></details>';
+    html+='<details style="margin-top:12px"><summary>Contract clauses supporting the review</summary><div style="padding:12px">'+renderStructuredValue(data.contractIntelligence,0)+'</div></details>';
   }
   el("moduleContent").innerHTML=html;
   return true;
@@ -428,7 +428,7 @@ function isScalarValue(value){
 function renderComplexCell(value){
   if(isScalarValue(value))return escapeHtml(fmt(value));
   if(Array.isArray(value)&&value.every(isScalarValue))return '<div class="value-list">'+value.map(v=>'<span class="value-chip">'+escapeHtml(fmt(v))+'</span>').join("")+'</div>';
-  return '<details class="cell-details"><summary>Open detail</summary><pre>'+escapeHtml(JSON.stringify(value,null,2))+'</pre></details>';
+  return '<details class="cell-details"><summary>Open detail</summary><div style="padding:8px 0">'+renderStructuredValue(value,1)+'</div></details>';
 }
 function renderRecordTable(records){
   const rows=records.filter(x=>x&&typeof x==="object"&&!Array.isArray(x));
@@ -440,11 +440,12 @@ function renderRecordTable(records){
 }
 function renderStructuredValue(value,depth=0){
   if(isScalarValue(value))return '<div class="value-chip">'+escapeHtml(fmt(value))+'</div>';
+  if(depth>3)return '<div class="muted">Additional supporting detail retained in the project record.</div>';
   if(Array.isArray(value)){
     if(!value.length)return '<div class="muted">No records.</div>';
     if(value.every(isScalarValue))return '<div class="value-list">'+value.map(v=>'<span class="value-chip">'+escapeHtml(fmt(v))+'</span>').join("")+'</div>';
     if(value.every(x=>x&&typeof x==="object"&&!Array.isArray(x)))return renderRecordTable(value);
-    return '<details><summary>Mixed records · '+escapeHtml(value.length)+'</summary><pre>'+escapeHtml(JSON.stringify(value,null,2))+'</pre></details>';
+    return '<details><summary>Additional records · '+escapeHtml(value.length)+'</summary><div style="padding:10px">'+value.map(item=>renderStructuredValue(item,depth+1)).join("")+'</div></details>';
   }
   if(!value||typeof value!=="object")return"";
   const entries=Object.entries(value);
@@ -452,7 +453,7 @@ function renderStructuredValue(value,depth=0){
   const complex=entries.filter(([,v])=>!isScalarValue(v));
   let html=scalars.length?'<div class="scalar-grid">'+scalars.map(([key,v])=>'<div class="scalar"><b>'+escapeHtml(humanizeKey(key))+'</b><span>'+escapeHtml(fmt(v))+'</span></div>').join("")+'</div>':"";
   if(depth>=2&&complex.length){
-    html+='<details><summary>Full nested evidence</summary><pre>'+escapeHtml(JSON.stringify(value,null,2))+'</pre></details>';
+    html+='<details><summary>Supporting records</summary><pre>'+escapeHtml(JSON.stringify(value,null,2))+'</pre></details>';
     return html;
   }
   html+=complex.map(([key,v])=>'<div class="nested-block"><div class="nested-title">'+escapeHtml(humanizeKey(key))+'</div>'+renderStructuredValue(v,depth+1)+'</div>').join("");
@@ -499,7 +500,7 @@ function renderLineChart(points,series,yMaxHint=null){
 function renderProgressScurveVisual(data){
   const p=projectionFor(data,"progress_scurve");
   if(!Array.isArray(p.points))return"";
-  return '<section class="chart-card"><div class="chart-card-head"><div><h4>Progress S-Curve</h4><p>Baseline, current forecast and actual history remain separate evidence series.</p></div><span class="badge">'+escapeHtml(p.actualHistoryMode||"")+'</span></div><div class="chart-body">'+
+  return '<section class="chart-card"><div class="chart-card-head"><div><h4>Progress S-Curve</h4><p>Baseline, current forecast and actual history remain separate.</p></div><span class="badge">'+escapeHtml(p.actualHistoryMode||"")+'</span></div><div class="chart-body">'+
     renderLineChart(p.points,[
       {key:"baselinePlannedPercent",label:"Baseline planned",color:"#2357d9"},
       {key:"currentForecastPercent",label:"Current forecast",color:"#0f766e"},
@@ -510,7 +511,7 @@ function renderProgressScurveVisual(data){
 function renderQuantityScurveVisual(data){
   const p=projectionFor(data,"quantity_scurve");
   if(!Array.isArray(p.series))return"";
-  return p.series.map(series=>'<section class="chart-card"><div class="chart-card-head"><div><h4>Quantity S-Curve · '+escapeHtml(series.unitKey||series.unit||series.seriesKey)+'</h4><p>'+escapeHtml(series.itemCount)+' mapped item(s) · '+escapeHtml(fmt(series.mappingCoveragePercent))+'% mapping coverage</p></div><span class="badge '+(series.authority==="governed_mapping"?"ready":"partial")+'">'+escapeHtml(series.authority)+'</span></div><div class="chart-body">'+
+  return p.series.map(series=>'<section class="chart-card"><div class="chart-card-head"><div><h4>Quantity S-Curve · '+escapeHtml(series.unitKey||series.unit||series.seriesKey)+'</h4><p>'+escapeHtml(series.itemCount)+' mapped item(s) · '+escapeHtml(fmt(series.mappingCoveragePercent))+'% mapping coverage</p></div><span class="badge '+(series.authority==="governed_mapping"?"ready":"partial")+'">'+escapeHtml(humanizeKey(series.authority))+'</span></div><div class="chart-body">'+
     renderLineChart(series.points||[],[
       {key:"baselinePlannedQuantity",label:"Baseline planned",color:"#2357d9"},
       {key:"currentForecastQuantity",label:"Current forecast",color:"#0f766e"},
@@ -527,7 +528,7 @@ function renderLookAheadVisual(data){
     return '<tr><td><b>'+escapeHtml(row.activityId)+'</b><br><span class="muted">'+escapeHtml(row.name||"")+'</span></td><td>'+escapeHtml(row.startIso||"—")+'</td><td>'+escapeHtml(row.finishIso||"—")+'</td><td><span class="state-pill '+escapeHtml(row.readiness?.state||"unknown")+'">'+escapeHtml(row.readiness?.state||"unknown")+'</span></td>'+
       dimensions.map(key=>{const dim=map.get(key);const state=dim?.state||"unknown";return '<td><span class="state-pill '+escapeHtml(state)+'" title="'+escapeHtml(dim?.note||"")+'">'+escapeHtml(state)+'</span></td>'}).join("")+'</tr>';
   }).join("");
-  return '<section class="chart-card"><div class="chart-card-head"><div><h4>Look-Ahead Readiness Matrix</h4><p>Readiness is evidence-derived by activity and control dimension, not inferred from planned dates.</p></div><span class="badge '+(p.blockedCount?"partial":"ready")+'">'+escapeHtml(p.readyCount||0)+' ready · '+escapeHtml(p.blockedCount||0)+' blocked</span></div><div class="chart-body"><div class="table-wrap readiness-table"><table><thead><tr><th>Activity</th><th>Start</th><th>Finish</th><th>Overall</th>'+
+  return '<section class="chart-card"><div class="chart-card-head"><div><h4>Look-Ahead Readiness Matrix</h4><p>Readiness is based on the current project records for each activity and control requirement, not assumed from planned dates.</p></div><span class="badge '+(p.blockedCount?"partial":"ready")+'">'+escapeHtml(p.readyCount||0)+' ready · '+escapeHtml(p.blockedCount||0)+' blocked</span></div><div class="chart-body"><div class="table-wrap readiness-table"><table><thead><tr><th>Activity</th><th>Start</th><th>Finish</th><th>Overall</th>'+
     dimensions.map(key=>'<th>'+escapeHtml(humanizeKey(key))+'</th>').join("")+
     '</tr></thead><tbody>'+rows+'</tbody></table></div></div></section>';
 }
@@ -543,20 +544,20 @@ function renderForecastVisual(data){
     ["P80 comparator",prob.p80CompletionIso,prob.authority||""],
     ["P90 comparator",prob.p90CompletionIso,prob.authority||""]
   ];
-  return '<section class="chart-card"><div class="chart-card-head"><div><h4>Forecast Position</h4><p>Source programme and independent calculation stay separate; probabilistic dates are non-official comparators.</p></div><span class="badge '+(p.complete?"ready":"partial")+'">'+escapeHtml(p.origin||"")+'</span></div><div class="chart-body"><div class="position-grid">'+cards.map(c=>'<div class="position-card"><div class="position-label">'+escapeHtml(c[0])+'</div><div class="position-value">'+escapeHtml(c[1]||"—")+'</div><div class="position-sub">'+escapeHtml(c[2]||"")+'</div></div>').join("")+'</div></div></section>';
+  return '<section class="chart-card"><div class="chart-card-head"><div><h4>Forecast Position</h4><p>Source programme and independent calculation stay separate; probabilistic dates are non-official comparators.</p></div><span class="badge '+(p.complete?"ready":"partial")+'">'+escapeHtml(p.origin?humanizeKey(p.origin):"")+'</span></div><div class="chart-body"><div class="position-grid">'+cards.map(c=>'<div class="position-card"><div class="position-label">'+escapeHtml(c[0])+'</div><div class="position-value">'+escapeHtml(c[1]||"—")+'</div><div class="position-sub">'+escapeHtml(c[2]||"")+'</div></div>').join("")+'</div></div></section>';
 }
 function renderWindowsVisual(data){
   const p=projectionFor(data,"windows_analysis");
   if(!Array.isArray(p.windows))return"";
   const rows=p.windows.map(w=>'<div class="window-card"><div><div class="window-id">Window '+escapeHtml(w.sequence)+' · '+escapeHtml(w.windowId)+'</div><div class="window-dates">'+escapeHtml(w.windowStartIso||"—")+' → '+escapeHtml(w.windowEndIso||"—")+'</div><div class="event-tags">'+
       (w.delayEvents||[]).map(e=>'<span class="event-tag">'+escapeHtml(e.responsibility)+' · '+escapeHtml(e.eventId)+'</span>').join("")+
-    '</div></div><div><div class="movement-label">Strongest programme movement</div><div class="movement-value">'+escapeHtml(fmt(w.strongestProgrammeMovementDays))+' days</div><div class="muted">'+escapeHtml(w.strongestProgrammeMovementBasis||"")+' · progress '+escapeHtml(fmt(w.progressMovementPercent))+'%</div></div><div><span class="state-pill '+escapeHtml(w.state||"unknown")+'">'+escapeHtml(w.state||"unknown")+'</span><div class="muted" style="margin-top:7px">'+escapeHtml(w.addedActivityCount)+' added · '+escapeHtml(w.removedActivityCount)+' removed · '+escapeHtml(w.modifiedActivityCount)+' modified</div>'+(w.concurrentEventCandidate?'<div class="event-tag" style="margin-top:7px">Concurrency review</div>':'')+'</div></div>').join("");
+    '</div></div><div><div class="movement-label">Strongest programme movement</div><div class="movement-value">'+escapeHtml(fmt(w.strongestProgrammeMovementDays))+' days</div><div class="muted">'+escapeHtml(w.strongestProgrammeMovementBasis||"")+' · progress '+escapeHtml(fmt(w.progressMovementPercent))+'%</div></div><div><span class="state-pill '+escapeHtml(humanizeKey(w.state||"unknown"))+'">'+escapeHtml(w.state||"unknown")+'</span><div class="muted" style="margin-top:7px">'+escapeHtml(w.addedActivityCount)+' added · '+escapeHtml(w.removedActivityCount)+' removed · '+escapeHtml(w.modifiedActivityCount)+' modified</div>'+(w.concurrentEventCandidate?'<div class="event-tag" style="margin-top:7px">Concurrency review</div>':'')+'</div></div>').join("");
   return '<section class="chart-card"><div class="chart-card-head"><div><h4>Schedule Windows</h4><p>Revision-to-revision programme movement with event population and concurrency visibility.</p></div><span class="badge">'+escapeHtml(p.windowCount||0)+' windows</span></div><div class="chart-body"><div class="window-strip">'+rows+'</div></div></section>';
 }
 function renderDelayClaimsVisual(data){
   const p=projectionFor(data,"delay_claims");
   if(!Array.isArray(p.events))return"";
-  const rows=p.events.map(e=>'<tr><td><b>'+escapeHtml(e.eventId)+'</b><br><span class="muted">'+escapeHtml(e.title||"")+'</span></td><td>'+escapeHtml(e.responsibility)+'</td><td>'+escapeHtml(e.noticeTimeliness)+'</td><td>'+escapeHtml(fmt(e.observedPositiveProgrammeMovementDays))+'</td><td>'+escapeHtml(e.programmeMovementBasis)+'</td><td><span class="state-pill '+(e.concurrencyCandidate?"review":"ready")+'">'+escapeHtml(e.candidateClass)+'</span></td><td>'+escapeHtml((e.linkedClaimIds||[]).join(", ")||"—")+'</td><td>'+escapeHtml((e.relatedActivityIds||[]).join(", ")||"—")+'</td></tr>').join("");
+  const rows=p.events.map(e=>'<tr><td><b>'+escapeHtml(e.eventId)+'</b><br><span class="muted">'+escapeHtml(e.title||"")+'</span></td><td>'+escapeHtml(e.responsibility)+'</td><td>'+escapeHtml(humanizeKey(e.noticeTimeliness))+'</td><td>'+escapeHtml(fmt(e.observedPositiveProgrammeMovementDays))+'</td><td>'+escapeHtml(e.programmeMovementBasis)+'</td><td><span class="state-pill '+(e.concurrencyCandidate?"review":"ready")+'">'+escapeHtml(humanizeKey(e.candidateClass))+'</span></td><td>'+escapeHtml((e.linkedClaimIds||[]).join(", ")||"—")+'</td><td>'+escapeHtml((e.relatedActivityIds||[]).join(", ")||"—")+'</td></tr>').join("");
   return '<section class="chart-card"><div class="chart-card-head"><div><h4>Delay Event & Claim Linkage</h4><p>Observed programme movement remains separate from causal/contractual entitlement.</p></div><span class="badge">'+escapeHtml(p.eventCount||0)+' events · '+escapeHtml(p.claimCount||0)+' claims</span></div><div class="chart-body"><div class="table-wrap"><table><thead><tr><th>Event</th><th>Responsibility</th><th>Notice</th><th>Positive movement days</th><th>Movement basis</th><th>Position class</th><th>Claims</th><th>Activities</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></section>';
 }
 function renderEotVisual(data){
@@ -571,7 +572,7 @@ function renderEotVisual(data){
     ["Attributable EOT candidate",p.attributableCandidateEotDays===null?"—":fmt(p.attributableCandidateEotDays)+" days","candidate, not award"],
     ["Scenario adjusted completion",p.scenarioAdjustedCompletionIso,"analytical scenario"]
   ];
-  const rows=p.windowCandidates.map(w=>'<tr><td>'+escapeHtml(w.windowId)+'</td><td>'+escapeHtml(fmt(w.positiveProgrammeMovementDays))+'</td><td>'+escapeHtml(w.programmeMovementBasis)+'</td><td>'+escapeHtml(fmt(w.analyticalTimeImpactCandidateDays))+'</td><td><span class="state-pill '+escapeHtml(w.state)+'">'+escapeHtml(w.state)+'</span></td><td>'+escapeHtml(fmt(w.includedCandidateDays))+'</td><td>'+escapeHtml((w.reasons||[]).join("; ")||"—")+'</td></tr>').join("");
+  const rows=p.windowCandidates.map(w=>'<tr><td>'+escapeHtml(w.windowId)+'</td><td>'+escapeHtml(fmt(w.positiveProgrammeMovementDays))+'</td><td>'+escapeHtml(w.programmeMovementBasis)+'</td><td>'+escapeHtml(fmt(w.analyticalTimeImpactCandidateDays))+'</td><td><span class="state-pill '+escapeHtml(humanizeKey(w.state))+'">'+escapeHtml(w.state)+'</span></td><td>'+escapeHtml(fmt(w.includedCandidateDays))+'</td><td>'+escapeHtml((w.reasons||[]).join("; ")||"—")+'</td></tr>').join("");
   return '<section class="chart-card"><div class="chart-card-head"><div><h4>EOT Position</h4><p>Official award, observed movement and analytical candidate remain explicitly separate.</p></div><span class="badge partial">Analytical candidate ≠ award</span></div><div class="chart-body"><div class="position-grid">'+cards.map(c=>'<div class="position-card"><div class="position-label">'+escapeHtml(c[0])+'</div><div class="position-value">'+escapeHtml(c[1]||"—")+'</div><div class="position-sub">'+escapeHtml(c[2]||"")+'</div></div>').join("")+'</div><div class="table-wrap" style="margin-top:14px"><table><thead><tr><th>Window</th><th>Programme movement</th><th>Basis</th><th>Time impact</th><th>State</th><th>Included days</th><th>Reason</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></section>';
 }
 function visualSection(title,description,badge,body){
@@ -591,7 +592,7 @@ function renderPmoVisual(data){
       ["Weighted progress",p.progress.durationWeightedProgressPercent===null?"—":fmt(p.progress.durationWeightedProgressPercent)+"%"],["Coverage",p.progress.progressCoveragePercent===null?"—":fmt(p.progress.progressCoveragePercent)+"%"],["Completed",p.progress.completedCount],["In progress",p.progress.inProgressCount],["Look-ahead overdue",p.progress.lookAheadOverdueCount],["Late milestones",p.progress.lateMilestoneCount]
     ]],
     ["Forecast",[
-      ["Source completion",p.forecast.sourceCompletionIso],["Independent completion",p.forecast.independentCompletionIso],["Variance days",p.forecast.varianceDays],["Authority",p.forecast.authority],["Coverage",p.forecast.activityCoveragePercent===null?"—":fmt(p.forecast.activityCoveragePercent)+"%"]
+      ["Source completion",p.forecast.sourceCompletionIso],["Independent completion",p.forecast.independentCompletionIso],["Variance days",p.forecast.varianceDays],["Status",p.forecast.authority],["Coverage",p.forecast.activityCoveragePercent===null?"—":fmt(p.forecast.activityCoveragePercent)+"%"]
     ]],
     ["Resources",[
       ["Assigned resources",p.resources.assignedResourceCount],["Capacity coverage",p.resources.capacityCoveragePercent===null?"—":fmt(p.resources.capacityCoveragePercent)+"%"],["Overloaded",p.resources.overloadedResourceCount],["Actual labor hours",p.resources.laborHoursActualKnown],["Actual coverage",p.resources.laborActualCoveragePercent===null?"—":fmt(p.resources.laborActualCoveragePercent)+"%"]
@@ -610,7 +611,7 @@ function renderPmoVisual(data){
     ]]
   ];
   const body='<div class="domain-grid">'+cards.map(c=>'<div class="domain-card"><h5>'+escapeHtml(c[0])+'</h5>'+c[1].map(m=>metricLine(m[0],m[1])).join("")+'</div>').join("")+'</div>';
-  return visualSection("PMO Control Position","Cross-domain management position with each evidence authority kept separate.","evidence "+(p.evidenceRevisionId||""),body);
+  return visualSection("PMO Control Position","Management position with each source and approval status kept separate.","evidence "+(p.evidenceRevisionId||""),body);
 }
 function renderScheduleAnalyticsVisual(data){
   const p=projectionFor(data,"schedule_analytics");
@@ -627,7 +628,7 @@ function renderScheduleAnalyticsVisual(data){
 function renderActivityAnalyticsVisual(data){
   const p=projectionFor(data,"activity_analytics");
   if(!Array.isArray(p.rows))return"";
-  const rows=p.rows.map(a=>'<tr><td><b>'+escapeHtml(a.activityId)+'</b><br><span class="muted">'+escapeHtml(a.name||"")+'</span></td><td>'+escapeHtml(a.status)+'</td><td><span class="state-pill '+(a.criticality==="critical"?"blocked":a.criticality==="near_critical"?"review":"ready")+'">'+escapeHtml(a.criticality)+'</span></td><td>'+escapeHtml(a.currentStartIso||"—")+'</td><td>'+escapeHtml(a.currentFinishIso||"—")+'</td><td>'+escapeHtml(a.percentComplete===null?"—":fmt(a.percentComplete)+"%")+'</td><td>'+escapeHtml(fmt(a.totalFloatHours))+'</td><td>'+escapeHtml(fmt(a.finishVarianceDays))+'</td><td>'+escapeHtml(a.predecessorCount)+'</td><td>'+escapeHtml(a.successorCount)+'</td><td>'+escapeHtml(a.openStart?"Yes":"No")+'</td><td>'+escapeHtml(a.openFinish?"Yes":"No")+'</td></tr>').join("");
+  const rows=p.rows.map(a=>'<tr><td><b>'+escapeHtml(a.activityId)+'</b><br><span class="muted">'+escapeHtml(a.name||"")+'</span></td><td>'+escapeHtml(humanizeKey(a.status))+'</td><td><span class="state-pill '+(a.criticality==="critical"?"blocked":a.criticality==="near_critical"?"review":"ready")+'">'+escapeHtml(humanizeKey(a.criticality))+'</span></td><td>'+escapeHtml(a.currentStartIso||"—")+'</td><td>'+escapeHtml(a.currentFinishIso||"—")+'</td><td>'+escapeHtml(a.percentComplete===null?"—":fmt(a.percentComplete)+"%")+'</td><td>'+escapeHtml(fmt(a.totalFloatHours))+'</td><td>'+escapeHtml(fmt(a.finishVarianceDays))+'</td><td>'+escapeHtml(a.predecessorCount)+'</td><td>'+escapeHtml(a.successorCount)+'</td><td>'+escapeHtml(a.openStart?"Yes":"No")+'</td><td>'+escapeHtml(a.openFinish?"Yes":"No")+'</td></tr>').join("");
   return visualSection("Activity Detail","Current dates, progress, float, variance and logic status across the full activity population.",p.activityCount+" activities",'<div class="table-wrap"><table><thead><tr><th>Activity</th><th>Status</th><th>Criticality</th><th>Current start</th><th>Current finish</th><th>Progress</th><th>Total float h</th><th>Finish variance d</th><th>Pred</th><th>Succ</th><th>Open start</th><th>Open finish</th></tr></thead><tbody>'+rows+'</tbody></table></div>');
 }
 function renderResourceVisual(data){
@@ -644,7 +645,7 @@ function renderProgressReportVisual(data){
   const bases=Object.entries(p.progressBases).map(([key,b])=>'<div class="position-card"><div class="position-label">'+escapeHtml(humanizeKey(key))+'</div><div class="position-value">'+escapeHtml(b.valuePercent===null?"—":fmt(b.valuePercent)+"%")+'</div><div class="position-sub">'+escapeHtml(b.state)+' · '+escapeHtml(b.authority)+'<br>Coverage '+escapeHtml(b.coveragePercent===null?"—":fmt(b.coveragePercent)+"%")+' · as of '+escapeHtml(b.asOfIso||"—")+'<br>Variance to baseline '+escapeHtml(b.varianceToBaselinePercentagePoints===null?"—":fmt(b.varianceToBaselinePercentagePoints)+" pp")+'</div></div>').join("");
   const summary='<div class="domain-grid" style="margin-top:14px">'+[
     ["Schedule",[["Critical",p.schedule?.criticalCount],["Near-critical",p.schedule?.nearCriticalCount],["Negative float",p.schedule?.negativeFloatCount],["Float coverage",p.schedule?.floatCoveragePercent===null?"—":fmt(p.schedule?.floatCoveragePercent)+"%"]]],
-    ["Forecast",[["Source",p.forecast?.sourceForecastCompletionIso],["Independent",p.forecast?.independentForecastCompletionIso],["Variance days",p.forecast?.forecastVarianceDays],["Authority",p.forecast?.authority]]],
+    ["Forecast",[["Source",p.forecast?.sourceForecastCompletionIso],["Independent",p.forecast?.independentForecastCompletionIso],["Variance days",p.forecast?.forecastVarianceDays],["Status",p.forecast?.authority]]],
     ["Milestones",[["Total",p.milestones?.milestoneCount],["Open",p.milestones?.openCount],["Late open",p.milestones?.lateOpenCount]]],
     ["Look-Ahead",[["Window days",p.lookAhead?.windowDays],["Incomplete",p.lookAhead?.incompleteActivityCount],["Overdue",p.lookAhead?.overdueCount],["Date coverage",p.lookAhead?.currentDateCoveragePercent===null?"—":fmt(p.lookAhead?.currentDateCoveragePercent)+"%"]]]
   ].map(c=>'<div class="domain-card"><h5>'+escapeHtml(c[0])+'</h5>'+c[1].map(m=>metricLine(m[0],m[1])).join("")+'</div>').join("")+'</div>';
@@ -724,7 +725,7 @@ function renderNoticesClaimsVisual(data){
     p.events.map(e=>'<tr><td><b>'+escapeHtml(e.eventId)+'</b><br><span class="muted">'+escapeHtml(e.title||"")+'</span></td><td>'+escapeHtml(e.responsibility)+'</td><td>'+escapeHtml(e.eventStartIso||"—")+'</td><td>'+escapeHtml(e.noticeIssuedAt||"—")+'</td><td>'+escapeHtml(fmt(e.requiredNoticeDays))+'</td><td>'+escapeHtml(fmt(e.elapsedNoticeDays))+'</td><td><span class="state-pill '+(e.noticeTimeliness==="timely"?"ready":e.noticeTimeliness==="late"?"blocked":"review")+'">'+escapeHtml(e.noticeTimeliness)+'</span></td><td>'+escapeHtml((e.linkedClaimIds||[]).join(", ")||"—")+'</td></tr>').join("")+
     '</tbody></table></div>';
   const claims='<div class="nested-title" style="margin-top:14px">Claim state & assessment authority</div><div class="table-wrap"><table><thead><tr><th>Claim</th><th>State</th><th>Submitted</th><th>Claimed days</th><th>Assessed days</th><th>Days authority</th><th>Claimed amount</th><th>Assessed amount</th><th>Amount authority</th></tr></thead><tbody>'+
-    p.claims.map(c=>'<tr><td><b>'+escapeHtml(c.claimId)+'</b><br><span class="muted">'+escapeHtml(c.title||"")+'</span></td><td>'+escapeHtml(c.state)+'</td><td>'+escapeHtml(c.submittedAt||"—")+'</td><td>'+escapeHtml(fmt(c.claimedDays))+'</td><td>'+escapeHtml(fmt(c.assessedDays))+'</td><td>'+escapeHtml(c.assessedDaysState)+'</td><td>'+escapeHtml(fmt(c.claimedAmount))+'</td><td>'+escapeHtml(fmt(c.assessedAmount))+'</td><td>'+escapeHtml(c.assessedAmountState)+'</td></tr>').join("")+
+    p.claims.map(c=>'<tr><td><b>'+escapeHtml(c.claimId)+'</b><br><span class="muted">'+escapeHtml(c.title||"")+'</span></td><td>'+escapeHtml(humanizeKey(c.state))+'</td><td>'+escapeHtml(c.submittedAt||"—")+'</td><td>'+escapeHtml(fmt(c.claimedDays))+'</td><td>'+escapeHtml(fmt(c.assessedDays))+'</td><td>'+escapeHtml(c.assessedDaysState)+'</td><td>'+escapeHtml(fmt(c.claimedAmount))+'</td><td>'+escapeHtml(fmt(c.assessedAmount))+'</td><td>'+escapeHtml(c.assessedAmountState)+'</td></tr>').join("")+
     '</tbody></table></div>';
   return visualSection("Notices, EOT & Claims","Actual notice timestamps drive timeliness; claimed and assessed values stay separate by authority.",p.claimCount+" claims",totals+events+claims);
 }
@@ -777,7 +778,8 @@ function renderModuleBasis(data){
 }
 function renderStructuredSections(data){
   if(!data||typeof data!=="object")return"";
-  const complex=Object.entries(data).filter(([key,value])=>key!=="challenge"&&!isScalarValue(value));
+  const hiddenKeys=new Set(["challenge","projectionKey","generatedAt","producerVersion","dependencyReceipts","sourceManifestId","evidenceReceiptIds"]);
+  const complex=Object.entries(data).filter(([key,value])=>!hiddenKeys.has(key)&&!isScalarValue(value));
   return complex.map(([key,value])=>{
     const count=Array.isArray(value)?value.length:null;
     return '<section class="data-section"><div class="data-section-head"><h4>'+escapeHtml(humanizeKey(key))+'</h4>'+(count===null?'':'<span class="badge">'+escapeHtml(count)+' records</span>')+'</div><div class="data-section-body">'+renderStructuredValue(value,0)+'</div></section>';
@@ -788,14 +790,14 @@ async function loadModule(key){if(!overview){el("moduleContent").innerHTML='<div
 function kpi(label,value,sub=""){return'<div class="card kpi-card"><div class="kpi-label">'+escapeHtml(label)+'</div><div class="kpi-value">'+escapeHtml(fmt(value))+'</div><div class="kpi-sub">'+escapeHtml(sub)+'</div></div>'}
 function evidenceCount(state,value){if(state==="established")return fmt(value);if(state==="submitted_unparsed")return"Source submitted · count not established";return"Not provided"}
 function renderDirector(d){if(!d){el("director").innerHTML='<div class="card"><div class="empty">Director position will populate only when its governed schedule, contract, claims/EOT and commercial dependencies are available.</div></div>';return}const s=d.schedule,c=d.claims,ctrl=d.controls;let html='<div class="grid kpi">'+kpi("Data Date",s.dataDateIso)+kpi("Independent Forecast",s.independentForecastCompletionIso)+kpi("Official Completion",s.officialAdjustedCompletionIso||s.contractualCompletionIso)+kpi("Programme movement",c.observedProgrammeMovementDays,"days carried from schedule windows")+kpi("Time-impact candidate",c.analyticalTimeImpactCandidateDays,"analytical, not entitlement")+kpi("Attributable EOT candidate",c.attributableCandidateEotDays,"analytical, not awarded")+kpi("Official EOT",c.officialApprovedEotDays,"governed award only")+kpi("CPM integrity",s.independentCpmState,s.drivingPathState)+kpi("Claims linked",c.fullyLinkedClaimCount+" / "+c.claimCount,"claim → event → activity")+kpi("LD Scenario",d.ld.cappedAmount===null?"—":fmt(d.ld.cappedAmount)+" "+(d.ld.currency||""),d.ld.state)+'</div>';html+='<div class="grid two"><div class="card"><h3>Commercial exposure by currency</h3><div class="grid three">';(d.commercialByCurrency||[]).forEach(r=>{html+='<div class="currency-card"><div class="currency-code">'+escapeHtml(r.currency)+'</div>'+[["Pending variations",r.pendingVariationAmount],["Approved variations",r.approvedVariationAmount],["Certified unpaid",r.certifiedUnpaidAmount],["Retention held",r.retentionHeldAmount],["Active bonds",r.activeBondAmount],["Claimed",r.claimClaimedAmount],["LD scenario",r.ldScenarioAmount]].map(x=>'<div class="currency-line"><span>'+x[0]+'</span><strong>'+escapeHtml(fmt(x[1]))+'</strong></div>').join("")+'</div>'});html+='</div></div><div class="card"><h3>Management actions</h3><div class="actions">'+((d.managementActions||[]).length?d.managementActions.map(a=>'<div class="action">'+escapeHtml(a)+'</div>').join(""):'<div class="empty">No current actions generated.</div>')+'</div><div style="margin-top:14px" class="scalar-grid">'+'<div class="scalar"><b>Open HSE</b><span>'+escapeHtml(evidenceCount(ctrl.hseEvidenceState,ctrl.openHseIncidentCount))+'</span></div>'+'<div class="scalar"><b>LTI or worse</b><span>'+escapeHtml(evidenceCount(ctrl.hseEvidenceState,ctrl.openLtiOrWorseCount))+'</span></div>'+'<div class="scalar"><b>Major / critical NCR</b><span>'+escapeHtml(evidenceCount(ctrl.qualityEvidenceState,ctrl.openCriticalMajorNcrCount))+'</span></div>'+'<div class="scalar"><b>Overdue RFI</b><span>'+escapeHtml(evidenceCount(ctrl.rfiEvidenceState,ctrl.overdueRfiCount))+'</span></div>'+'<div class="scalar"><b>Permit issues</b><span>'+escapeHtml(evidenceCount(ctrl.permitEvidenceState,ctrl.overduePermitCount))+'</span></div>'+'<div class="scalar"><b>Expiring bonds</b><span>'+escapeHtml(evidenceCount(ctrl.bondEvidenceState,ctrl.expiringBondCount30Days))+'</span></div>'+'<div class="scalar"><b>Open risks</b><span>'+escapeHtml(evidenceCount(ctrl.riskEvidenceState,ctrl.openRiskCount))+'</span></div>'+'</div></div></div>';el("director").innerHTML=html}
-function renderStatus(o){const ready=o.moduleStates.filter(x=>x.status==="ready").length,partial=o.moduleStates.filter(x=>x.status==="partial").length,blocked=o.moduleStates.filter(x=>x.status==="blocked").length;el("projectBadge").className="badge "+(o.demo?"partial":"ready");el("projectBadge").textContent=o.demo?"DEMONSTRATION PROJECT":"CURRENT PROJECT";el("projectStatus").innerHTML='<div class="scalar-grid">'+'<div class="scalar"><b>Baseline / revised baseline</b><span>'+fmt(o.baselineRevisionCount)+'</span></div>'+'<div class="scalar"><b>Updates</b><span>'+fmt(o.updateRevisionCount)+'</span></div>'+'<div class="scalar"><b>Recovery scenarios</b><span>'+fmt(o.recoveryRevisionCount)+'</span></div>'+'<div class="scalar"><b>Current Data Date</b><span>'+fmt(o.latestDataDateIso)+'</span></div>'+'<div class="scalar"><b>Evidence documents</b><span>'+fmt(o.evidenceDocumentCount)+'</span></div>'+'<div class="scalar"><b>Ready modules</b><span>'+ready+' / 22</span></div>'+'<div class="scalar"><b>Needs review</b><span>'+partial+'</span></div>'+'<div class="scalar"><b>Needs information</b><span>'+blocked+'</span></div>'+'</div>'}
+function renderStatus(o){const ready=o.moduleStates.filter(x=>x.status==="ready").length,partial=o.moduleStates.filter(x=>x.status==="partial").length,blocked=o.moduleStates.filter(x=>x.status==="blocked").length;el("projectBadge").className="badge "+(o.demo?"partial":"ready");el("projectBadge").textContent=o.demo?"DEMONSTRATION PROJECT":"CURRENT PROJECT";el("projectStatus").innerHTML='<div class="scalar-grid">'+'<div class="scalar"><b>Baseline / revised baseline</b><span>'+fmt(o.baselineRevisionCount)+'</span></div>'+'<div class="scalar"><b>Updates</b><span>'+fmt(o.updateRevisionCount)+'</span></div>'+'<div class="scalar"><b>Recovery scenarios</b><span>'+fmt(o.recoveryRevisionCount)+'</span></div>'+'<div class="scalar"><b>Current Data Date</b><span>'+fmt(o.latestDataDateIso)+'</span></div>'+'<div class="scalar"><b>Project documents</b><span>'+fmt(o.evidenceDocumentCount)+'</span></div>'+'<div class="scalar"><b>Available views</b><span>'+ready+' / 22</span></div>'+'<div class="scalar"><b>Needs review</b><span>'+partial+'</span></div>'+'<div class="scalar"><b>Needs information</b><span>'+blocked+'</span></div>'+'</div>'}
 function renderScheduleQueue(){el("scheduleQueue").innerHTML=scheduleSelection.map((file,i)=>'<div class="queue-row"><span class="queue-name">'+escapeHtml(file.name)+'</span><select class="schedule-role" data-index="'+i+'"><option value="baseline" '+(inferScheduleRole(file.name)==="baseline"?"selected":"")+'>Baseline</option><option value="update" '+(inferScheduleRole(file.name)==="update"?"selected":"")+'>Update</option><option value="revised_baseline" '+(inferScheduleRole(file.name)==="revised_baseline"?"selected":"")+'>Revised baseline</option><option value="recovery" '+(inferScheduleRole(file.name)==="recovery"?"selected":"")+'>Recovery</option></select></div>').join("")}
 function renderContractQueue(){el("contractQueue").innerHTML=contractSelection.map((file,i)=>{const role=inferContractRole(file.name);return'<div class="queue-row"><span class="queue-name">'+escapeHtml(file.name)+'</span><select class="contract-role" data-index="'+i+'"><option value="main" '+(role==="main"?"selected":"")+'>Main</option><option value="amendment" '+(role==="amendment"?"selected":"")+'>Amendment</option><option value="appendix" '+(role==="appendix"?"selected":"")+'>Appendix</option><option value="tender" '+(role==="tender"?"selected":"")+'>Tender/ER</option><option value="other" '+(role==="other"?"selected":"")+'>Other</option></select></div>'}).join("")}
 function renderSimpleQueue(target,files){el(target).innerHTML=files.map(file=>'<div class="queue-row" style="grid-template-columns:1fr"><span class="queue-name">'+escapeHtml(file.name)+'</span></div>').join("")}
-async function loadEvidence(){if(!overview){el("evidenceBadge").textContent="0 documents";el("evidenceLibrary").innerHTML='<div class="empty">No project documents have been added.</div>';return}try{const data=await api("/api/projects/"+encodeURIComponent(project())+"/evidence/documents");el("evidenceBadge").className="badge "+(data.documentCount?"ready":"");el("evidenceBadge").textContent=data.documentCount+" documents";if(!data.documentCount){el("evidenceLibrary").innerHTML='<div class="empty">No uploaded user evidence in this project yet.</div>';return}el("evidenceLibrary").innerHTML='<div class="table-wrap"><table><thead><tr><th>File</th><th>Content identified as</th><th>Change effect</th><th>Confidence</th><th>Read method</th><th>Metadata conflict</th><th>Parser</th><th>Schedule role</th><th>Activity mapping</th></tr></thead><tbody>'+data.documents.map(d=>{const m=d.mapping;const i=d.identification||{};const mapping=!m||m.linkedActivityCount===null?"—":fmt(m.mappedActivityCount)+" / "+fmt(m.linkedActivityCount)+(m.coveragePercent===null?"":" ("+fmt(m.coveragePercent)+"%)");const confidence=i.confidence===undefined?"—":fmt(i.confidence*100)+"%";const conflict=i.classificationConflict?"YES":"No";const method=(i.method||"—")+(i.ocrUsed?" / OCR":"");const title=i.detectedTitle?'<br><span class="muted">'+escapeHtml(i.detectedTitle)+'</span>':"";return'<tr><td><b>'+escapeHtml(d.sourceFilename)+'</b><br><span class="muted">'+escapeHtml(d.sourceRelativePath||"")+'</span></td><td><b>'+escapeHtml(d.category)+'</b><br>'+escapeHtml(d.documentType)+title+'</td><td>'+escapeHtml(d.lineage?.effect||"unknown")+(d.lineage?.replacesEntireBasis?'<br><span class="badge partial">replaces basis</span>':d.lineage?.appliesAsDelta?'<br><span class="badge">delta</span>':'')+'</td><td>'+escapeHtml(confidence)+(i.needsReview?'<br><span class="badge partial">review</span>':'')+'</td><td>'+escapeHtml(method)+'</td><td>'+escapeHtml(conflict)+'</td><td>'+escapeHtml(d.parserState)+'</td><td>'+escapeHtml(d.scheduleRole||"—")+'</td><td>'+escapeHtml(mapping)+'</td></tr>'}).join("")+'</tbody></table></div>'}catch(e){el("evidenceLibrary").innerHTML='<div class="notice warn">Document register could not be loaded: '+escapeHtml(e.message)+'</div>'}}
+async function loadEvidence(){if(!overview){el("evidenceBadge").textContent="0 documents";el("evidenceLibrary").innerHTML='<div class="empty">No project documents have been added.</div>';return}try{const data=await api("/api/projects/"+encodeURIComponent(project())+"/evidence/documents");el("evidenceBadge").className="badge "+(data.documentCount?"ready":"");el("evidenceBadge").textContent=data.documentCount+" documents";if(!data.documentCount){el("evidenceLibrary").innerHTML='<div class="empty">No project documents have been added yet.</div>';return}el("evidenceLibrary").innerHTML='<div class="table-wrap"><table><thead><tr><th>Document</th><th>Document type</th><th>Effect on current record</th><th>CMeng confidence</th><th>Read from</th><th>Document conflict</th><th>Reading status</th><th>Programme role</th><th>Activity links</th></tr></thead><tbody>'+data.documents.map(d=>{const m=d.mapping;const i=d.identification||{};const mapping=!m||m.linkedActivityCount===null?"—":fmt(m.mappedActivityCount)+" / "+fmt(m.linkedActivityCount)+(m.coveragePercent===null?"":" ("+fmt(m.coveragePercent)+"%)");const confidence=i.confidence===undefined?"—":fmt(i.confidence*100)+"%";const conflict=i.classificationConflict?"YES":"No";const method=(i.method||"—")+(i.ocrUsed?" / OCR":"");const title=i.detectedTitle?'<br><span class="muted">'+escapeHtml(i.detectedTitle)+'</span>':"";return'<tr><td><b>'+escapeHtml(d.sourceFilename)+'</b><br><span class="muted">'+escapeHtml(d.sourceRelativePath||"")+'</span></td><td><b>'+escapeHtml(d.category)+'</b><br>'+escapeHtml(d.documentType)+title+'</td><td>'+escapeHtml(d.lineage?.effect||"unknown")+(d.lineage?.replacesEntireBasis?'<br><span class="badge partial">replaces current document</span>':d.lineage?.appliesAsDelta?'<br><span class="badge">additional record</span>':'')+'</td><td>'+escapeHtml(confidence)+(i.needsReview?'<br><span class="badge partial">review</span>':'')+'</td><td>'+escapeHtml(method)+'</td><td>'+escapeHtml(conflict)+'</td><td>'+escapeHtml(d.parserState)+'</td><td>'+escapeHtml(d.scheduleRole||"—")+'</td><td>'+escapeHtml(mapping)+'</td></tr>'}).join("")+'</tbody></table></div>'}catch(e){el("evidenceLibrary").innerHTML='<div class="notice warn">Document register could not be loaded: '+escapeHtml(e.message)+'</div>'}}
 function projectCard(p){
-  const issue=p.analysisError?'<div class="notice warn" style="margin:10px 0 0">Legacy project requires analysis refresh. Portfolio remains available.</div>':"";
-  return '<article class="project-card"><div class="project-card-head"><div><h3>'+escapeHtml(p.projectId)+'</h3><div class="muted">'+escapeHtml(p.latestDataDateIso||"No schedule data date")+' · '+escapeHtml(p.evidenceDocumentCount)+' evidence docs</div></div><span class="badge '+(p.minimumEvidenceReady?"ready":"partial")+'">'+(p.minimumEvidenceReady?"core records complete":"core records incomplete")+'</span></div><div class="project-health"><div><b>'+escapeHtml(p.readyModules)+'</b><span>Ready</span></div><div><b>'+escapeHtml(p.partialModules)+'</b><span>Partial</span></div><div><b>'+escapeHtml(p.blockedModules)+'</b><span>Blocked</span></div></div>'+issue+'<div class="project-card-actions"><button class="btn small open-project" data-project="'+escapeHtml(p.projectId)+'">Open project</button></div></article>';
+  const issue=p.analysisError?'<div class="notice warn" style="margin:10px 0 0">This project needs a current-position refresh before all control views are available.</div>':"";
+  return '<article class="project-card"><div class="project-card-head"><div><h3>'+escapeHtml(p.projectId)+'</h3><div class="muted">'+escapeHtml(p.latestDataDateIso||"No schedule data date")+' · '+escapeHtml(p.evidenceDocumentCount)+' project documents</div></div><span class="badge '+(p.minimumEvidenceReady?"ready":"partial")+'">'+(p.minimumEvidenceReady?"core records complete":"core records incomplete")+'</span></div><div class="project-health"><div><b>'+escapeHtml(p.readyModules)+'</b><span>Available</span></div><div><b>'+escapeHtml(p.partialModules)+'</b><span>Needs review</span></div><div><b>'+escapeHtml(p.blockedModules)+'</b><span>Needs information</span></div></div>'+issue+'<div class="project-card-actions"><button class="btn small open-project" data-project="'+escapeHtml(p.projectId)+'">Open project</button></div></article>';
 }
 function bindProjectOpeners(){
   document.querySelectorAll(".open-project").forEach(button=>button.onclick=()=>openProject(button.dataset.project));
@@ -822,7 +824,7 @@ async function loadPortfolio(){
 function updateActiveProjectShell(){
   const id=overview?.projectId||project();
   el("activeProjectName").textContent=overview?id:"No project selected";
-  el("activeProjectMeta").textContent=overview?((overview.latestDataDateIso||"No data date")+" · "+overview.evidenceDocumentCount+" evidence docs"):"Open a project from Portfolio or Projects";
+  el("activeProjectMeta").textContent=overview?((overview.latestDataDateIso||"No data date")+" · "+overview.evidenceDocumentCount+" project documents"):"Open a project from Portfolio or Projects";
   el("aiProjectBadge").className="badge "+(overview?"ready":"");
   el("aiProjectBadge").textContent=overview?id:"No active project";
   el("aiProject information used").innerHTML=overview?'<b>'+escapeHtml(id)+'</b><br>'+escapeHtml(overview.evidenceDocumentCount)+' evidence documents<br>'+escapeHtml(overview.revisionCount)+' schedule revisions<br>'+escapeHtml(overview.latestDataDateIso||"No current data date"):'No project selected.';
@@ -887,7 +889,7 @@ async function askCmeng(){
   }catch(e){el("aiAnswer").textContent="CMeng AI could not answer: "+e.message}
 }
 function renderAiSuggestions(){
-  const qs=["What changed since the previous schedule update?","What is driving the current completion forecast?","Which delay events have the strongest time impact?","What evidence is missing from the look-ahead?","What commercial exposure is linked to schedule delay?"];
+  const qs=["What changed since the previous schedule update?","What is driving the current completion forecast?","Which delay events have the strongest time impact?","What project information is missing from the look-ahead?","What commercial exposure is linked to schedule delay?"];
   el("aiSuggestions").innerHTML=qs.map(q=>'<button class="ai-suggestion">'+escapeHtml(q)+'</button>').join("");
   document.querySelectorAll(".ai-suggestion").forEach(b=>b.onclick=()=>{el("aiQuestion").value=b.textContent;askCmeng()});
 }
@@ -899,7 +901,7 @@ async function uploadContracts(){if(!contractSelection.length)return;setBusy("Ad
 async function uploadEvidence(){if(!evidenceSelection.length)return;setBusy("Adding project documents");let documentCount=0;try{for(const file of evidenceSelection){const result=await api("/api/projects/"+encodeURIComponent(project())+"/evidence/uploads",{method:"POST",headers:{"content-type":fileType(file),"x-source-filename":file.name,"x-source-relative-path":file.webkitRelativePath||file.name,"x-upload-intent":el("evidenceIntent").value},body:file});documentCount+=result.documentCount||1}el("uploadMessage").innerHTML='<div class="notice info">'+documentCount+' project document(s) added. Programme, BOQ and contract documents are read directly; other records are retained and linked to activities where activity IDs are available.</div>';evidenceSelection=[];el("evidenceFiles").value="";renderSimpleQueue("evidenceQueue",evidenceSelection);await afterEvidenceChange()}catch(e){el("uploadMessage").innerHTML='<div class="notice error">'+escapeHtml(e.message)+'</div>'}finally{setBusy("")}}
 el("loadDemo").onclick=loadDemo;el("refresh").onclick=()=>refresh(false);el("runAnalysisTop").onclick=runAnalysis;el("openAiTop").onclick=()=>setAppView("ai");el("askAi").onclick=askCmeng;el("createProject").onclick=createProject;el("portfolioNewProject").onclick=()=>setAppView("projects");
 function openEvidenceWorkspace(){
-  if(!overview){setAppView("projects");el("createProjectMessage").innerHTML='<div class="notice info">Create or open a project before uploading evidence.</div>';return}
+  if(!overview){setAppView("projects");el("createProjectMessage").innerHTML='<div class="notice info">Create or open a project before adding documents.</div>';return}
   setFocusMode(false);
   setAppView("project");
   const drawer=el("evidenceControlDrawer");
