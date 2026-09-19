@@ -119,12 +119,12 @@ test("CMeng workspace keeps the active module primary and browser script parseab
   assert.match(
     html,
     /class="cmeng-emblem"/,
-    "CMeng must use the approved muted C and four-direction emblem",
+    "CMeng must use the blue C and four-direction emblem",
   );
   assert.match(
     html,
-    /--accent:#c9b79f/,
-    "CMeng champagne-taupe accent must remain in the production theme",
+    /--accent:#4f7fb4/,
+    "CMeng executive blue accent must remain in the production theme",
   );
   assert.match(
     html,
@@ -133,13 +133,18 @@ test("CMeng workspace keeps the active module primary and browser script parseab
   );
   assert.match(
     html,
-    /--ivory:#f8f7f4/,
-    "CMeng ivory surface tone must remain in the production theme",
+    /--ivory:#ffffff/,
+    "CMeng white surface tone must remain in the production theme",
   );
   assert.match(
     html,
     /"Montserrat","Avenir Next","Segoe UI"/,
     "CMeng headings must retain the approved theme typography",
+  );
+  assert.match(
+    html,
+    /id="cmengBlue"/,
+    "CMeng C must use the approved blue treatment",
   );
   assert.match(
     html,
