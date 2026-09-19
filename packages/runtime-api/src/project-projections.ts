@@ -474,6 +474,83 @@ function buildBundle(
     ),
   );
 
+  modules.set(
+    "schedule-analytics",
+    available(
+      "schedule-analytics",
+      {
+        ...scheduleAnalytics,
+        criticalityBasis:
+          "source_total_float",
+        independentCpmState:
+          independentForecast.complete
+            ? "established"
+            : "not_established",
+        drivingPathState:
+          independentForecast.complete
+            ? "independent_cpm_available"
+            : "not_established",
+        interpretation:
+          independentForecast.complete
+            ? "Source float classifications are shown alongside a valid independent CPM calculation."
+            : "Source total-float classifications remain visible, but CMeng does not call them an independently established critical/driving path because CPM integrity is unresolved.",
+      },
+      [],
+      independentForecast.complete
+        ? "ready"
+        : "partial",
+      independentForecast.complete
+        ? null
+        : "Schedule metrics derived directly from the submitted programme remain available, but independent CPM/driving-path conclusions are withheld until integrity defects are resolved.",
+    ),
+  );
+
+  modules.set(
+    "near-critical",
+    available(
+      "near-critical",
+      {
+        ...nearCritical,
+        classificationBasis:
+          "source_total_float",
+        independentCpmState:
+          independentForecast.complete
+            ? "established"
+            : "not_established",
+      },
+      [],
+      independentForecast.complete
+        ? "ready"
+        : "partial",
+      independentForecast.complete
+        ? null
+        : "Near-critical rows are source-float classifications only; independent CPM criticality is not asserted while schedule integrity fails.",
+    ),
+  );
+
+  modules.set(
+    "activity-analytics",
+    available(
+      "activity-analytics",
+      {
+        ...activityAnalytics,
+        floatClassificationBasis:
+          "source_total_float",
+        independentCpmState:
+          independentForecast.complete
+            ? "established"
+            : "not_established",
+      },
+      [],
+      independentForecast.complete
+        ? "ready"
+        : "partial",
+      independentForecast.complete
+        ? null
+        : "Activity float/criticality fields are source schedule values. Independent CPM/path status is not established.",
+    ),
+  );
+
   const progressReport =
     buildProgressReportProjection({
       generatedAt,
@@ -1471,6 +1548,18 @@ function buildBundle(
                 .result
                 .graph
                 .logicDensity,
+            criticalityBasis:
+              "source_total_float",
+            independentCpmState:
+              independentForecast
+                .complete
+                ? "established"
+                : "not_established",
+            drivingPathState:
+              independentForecast
+                .complete
+                ? "independent_cpm_available"
+                : "not_established",
           },
           progress: {
             durationWeightedProgressPercent:
