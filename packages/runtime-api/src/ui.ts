@@ -130,7 +130,7 @@ details:not(.workspace-drawer){border:1px solid var(--line);border-radius:9px;ba
           </div>
           <div class="ai-context">
             <h3>Project information used</h3>
-            <div id="aiProject information used" class="muted">No project selected.</div>
+            <div id="aiProjectInfo" class="muted">No project selected.</div>
           </div>
         </div>
       </section>
@@ -395,7 +395,7 @@ function renderDeliveryChallenge(data,reason){
     (d.findings||[]).map(x=>'<tr><td>'+escapeHtml(x.topic)+'</td><td>'+escapeHtml(x.state)+'</td><td>'+escapeHtml(x.contractorAssumption||"—")+'</td><td>'+escapeHtml(x.independentCalculation||"—")+'</td><td>'+escapeHtml(x.difference||"—")+'</td><td>'+escapeHtml(x.milestoneConsequence||"—")+'</td><td>'+escapeHtml(x.requiredResponse||"—")+'</td></tr>').join("")+
     '</tbody></table></div></div>';
   if(d.mapping){
-    html+='<details style="margin-top:12px"><summary>BOQ ↔ Programme links and supporting records</summary><pre>'+escapeHtml(JSON.stringify(d.mapping,null,2))+'</pre></details>';
+    html+='<details style="margin-top:12px"><summary>BOQ ↔ Programme links and supporting records</summary><div style="padding:12px">'+renderStructuredValue(d.mapping,0)+'</div></details>';
   }
   if(data.contractValueEvidence){
     const cv=data.contractValueEvidence;
@@ -453,7 +453,7 @@ function renderStructuredValue(value,depth=0){
   const complex=entries.filter(([,v])=>!isScalarValue(v));
   let html=scalars.length?'<div class="scalar-grid">'+scalars.map(([key,v])=>'<div class="scalar"><b>'+escapeHtml(humanizeKey(key))+'</b><span>'+escapeHtml(fmt(v))+'</span></div>').join("")+'</div>':"";
   if(depth>=2&&complex.length){
-    html+='<details><summary>Supporting records</summary><pre>'+escapeHtml(JSON.stringify(value,null,2))+'</pre></details>';
+    html+='<div class="muted" style="margin-top:8px">Additional supporting records are retained with the project documents.</div>';
     return html;
   }
   html+=complex.map(([key,v])=>'<div class="nested-block"><div class="nested-title">'+escapeHtml(humanizeKey(key))+'</div>'+renderStructuredValue(v,depth+1)+'</div>').join("");
@@ -827,7 +827,7 @@ function updateActiveProjectShell(){
   el("activeProjectMeta").textContent=overview?((overview.latestDataDateIso||"No data date")+" · "+overview.evidenceDocumentCount+" project documents"):"Open a project from Portfolio or Projects";
   el("aiProjectBadge").className="badge "+(overview?"ready":"");
   el("aiProjectBadge").textContent=overview?id:"No active project";
-  el("aiProject information used").innerHTML=overview?'<b>'+escapeHtml(id)+'</b><br>'+escapeHtml(overview.evidenceDocumentCount)+' evidence documents<br>'+escapeHtml(overview.revisionCount)+' schedule revisions<br>'+escapeHtml(overview.latestDataDateIso||"No current data date"):'No project selected.';
+  el("aiProjectInfo").innerHTML=overview?'<b>'+escapeHtml(id)+'</b><br>'+escapeHtml(overview.evidenceDocumentCount)+' evidence documents<br>'+escapeHtml(overview.revisionCount)+' schedule revisions<br>'+escapeHtml(overview.latestDataDateIso||"No current data date"):'No project selected.';
 }
 function setAppView(view){
   appView=view;
@@ -885,7 +885,7 @@ async function askCmeng(){
   try{
     const result=await api("/api/projects/"+encodeURIComponent(project())+"/intelligence/ask",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({question})});
     el("aiAnswer").textContent=result.answer+(result.managementActions?.length?"\n\nManagement actions:\n"+result.managementActions.map(x=>"• "+x).join("\n"):"")+(result.governance?"\n\n"+result.governance:"");
-    el("aiProject information used").innerHTML='<b>'+escapeHtml(result.projectId)+'</b><br>'+result.relevantModules.map(x=>escapeHtml((names[x.key]||humanizeKey(x.key))+" · "+statusLabel(x.status))).join("<br>");
+    el("aiProjectInfo").innerHTML='<b>'+escapeHtml(result.projectId)+'</b><br>'+result.relevantModules.map(x=>escapeHtml((names[x.key]||humanizeKey(x.key))+" · "+statusLabel(x.status))).join("<br>");
   }catch(e){el("aiAnswer").textContent="CMeng AI could not answer: "+e.message}
 }
 function renderAiSuggestions(){
