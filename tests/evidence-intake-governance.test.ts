@@ -509,13 +509,26 @@ test("unified evidence intake governs Add Replace and family-specific history", 
         );
       const receipt =
         await rerun.json() as any;
-      assert.ok(
-        [
-          200,
-          409,
-        ].includes(
-          rerun.status,
+      assert.equal(
+        rerun.status,
+        200,
+        "rerun certification=" +
+          JSON.stringify(
+            receipt.certification,
+          ),
+      );
+      assert.equal(
+        receipt.certification
+          .state,
+        "pass",
+        JSON.stringify(
+          receipt.certification,
         ),
+      );
+      assert.deepEqual(
+        receipt.certification
+          .failedCheckIds,
+        [],
       );
       assert.equal(
         receipt.moduleCount,
