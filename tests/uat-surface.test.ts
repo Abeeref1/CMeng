@@ -357,20 +357,38 @@ test("real XER upload creates isolated project revision and usable schedule modu
         );
       assert.equal(
         pmo.status,
-        409,
+        200,
       );
-      const blocked =
+      const partial =
         await pmo.json() as {
           status: string;
-          reason: string;
+          reason: string | null;
+          data: {
+            synthesisState: string;
+            challenge: {
+              itemCount: number;
+              notSubmittedCount:
+                number;
+            };
+          };
         };
       assert.equal(
-        blocked.status,
-        "blocked",
+        partial.status,
+        "partial",
+      );
+      assert.equal(
+        partial.data
+          .synthesisState,
+        "partial_cross_domain",
+      );
+      assert.ok(
+        partial.data
+          .challenge
+          .itemCount > 0,
       );
       assert.match(
-        blocked.reason,
-        /cross-domain/i,
+        partial.reason ?? "",
+        /missing evidence|synthesized|specialist/i,
       );
     },
   );
