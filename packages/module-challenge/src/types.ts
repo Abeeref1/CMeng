@@ -119,6 +119,7 @@ export interface ConflictCandidateAssessment {
   sourceRefs: string[];
   supportCount: number;
   evidenceScore: number;
+  recommendationScore: number;
   independentGap:
     number | string | null;
   gapUnit: string | null;
