@@ -158,6 +158,127 @@ function scalarFacts(
   return [];
 }
 
+function projectControlName(
+  key: string,
+): string {
+  const names: Record<string, string> = {
+    "pmo-analysis":
+      "Management Position",
+    "schedule-analytics":
+      "Programme Review",
+    "activity-analytics":
+      "Activity Review",
+    "resource-utilization":
+      "Resources",
+    "lookahead-schedule":
+      "Look-Ahead",
+    "progress-report":
+      "Progress Position",
+    "schedule-change-report":
+      "Programme Changes",
+    "revision-trend":
+      "Revision History",
+    "variance-trends":
+      "Variance Trend",
+    "progress-scurve":
+      "Progress S-Curve",
+    "quantity-scurve":
+      "Installed Quantities",
+    "progress-breakdown":
+      "WBS Progress",
+    milestones:
+      "Milestones",
+    "near-critical":
+      "Near-Critical Activities",
+    "manhour-scurve":
+      "Man-Hour S-Curve",
+    "forecast-history":
+      "Completion Forecast History",
+    "independent-forecast":
+      "CMeng Completion Forecast",
+    "delay-claims":
+      "Delay Events & Claims",
+    "notices-claims":
+      "Notices, EOT & Claims",
+    "windows-analysis":
+      "Delay Windows",
+    "eot-assessment":
+      "EOT Position",
+    "challenge-contract":
+      "Challenge the Contract",
+  };
+  return names[key] ?? key;
+}
+
+function factLabel(
+  path: string,
+): string {
+  const exact:
+    Record<string, string> = {
+      "overview.latestDataDateIso":
+        "Current data date",
+      "overview.evidenceDocumentCount":
+        "Project documents",
+      "overview.minimumEvidenceBasis.ready":
+        "Core project records",
+      "director.schedule.dataDateIso":
+        "Programme data date",
+      "director.schedule.independentForecastCompletionIso":
+        "CMeng forecast completion",
+      "director.schedule.officialAdjustedCompletionIso":
+        "Official completion",
+      "director.schedule.contractualCompletionIso":
+        "Contract completion",
+      "director.claims.observedProgrammeMovementDays":
+        "Programme movement",
+      "director.claims.analyticalTimeImpactCandidateDays":
+        "Time-impact candidate",
+      "director.claims.attributableCandidateEotDays":
+        "Attributable EOT candidate",
+      "director.claims.officialApprovedEotDays":
+        "Approved EOT",
+      "director.ld.cappedAmount":
+        "LD exposure",
+    };
+  if (exact[path]) {
+    return exact[path]!;
+  }
+
+  const raw =
+    path
+      .split(".")
+      .at(-1)
+      ?.replace(
+        /\[\d+\]/g,
+        "",
+      ) ??
+    path;
+
+  return raw
+    .replace(
+      /([a-z0-9])([A-Z])/g,
+      "$1 $2",
+    )
+    .replace(
+      /[_-]+/g,
+      " ",
+    )
+    .replace(
+      /\bIso\b/g,
+      "",
+    )
+    .replace(
+      /\s+/g,
+      " ",
+    )
+    .trim()
+    .replace(
+      /^./,
+      (value) =>
+        value.toUpperCase(),
+    );
+}
+
 function summarizeFacts(
   facts: Array<{
     path: string;
@@ -165,18 +286,29 @@ function summarizeFacts(
   }>,
 ): string {
   if (facts.length === 0) {
-    return "CMeng does not yet have enough established evidence to answer this from governed project data.";
+    return "CMeng needs more project information before it can answer this reliably.";
   }
   const lines = facts
     .slice(0, 8)
     .map(
       (fact) =>
-        fact.path +
+        factLabel(
+          fact.path,
+        ) +
         ": " +
-        String(fact.value),
+        (
+          typeof fact.value ===
+          "boolean"
+            ? fact.value
+              ? "Yes"
+              : "No"
+            : String(
+                fact.value,
+              )
+        ),
     );
   return (
-    "Evidence-grounded project position:\n" +
+    "Current project position:\n" +
     lines
       .map((line) => "• " + line)
       .join("\n")
@@ -296,21 +428,23 @@ export function answerProjectQuestion(
     facts: uniqueFacts,
     managementActions: actions,
     sources: [
-      "project overview",
-      "governed project director position",
+      "Project overview",
+      "Project Director position",
       ...keys.map(
         (key) =>
-          "module:" + key,
+          projectControlName(
+            key,
+          ),
       ),
     ],
     suggestedQuestions: [
       "What changed since the previous schedule update?",
       "What is driving the current completion forecast?",
       "Which delay events have the strongest time impact?",
-      "What evidence is missing from the look-ahead?",
+      "What project information is missing from the look-ahead?",
       "What commercial exposure is linked to schedule delay?",
     ],
     governance:
-      "Ask CMeng is advisory. It reads established CMeng project projections and does not promote recommendations or candidate evidence into the governed basis.",
+      "CMeng AI provides advice from the current project records and calculated position. Recommendations do not change the adopted project position unless they are approved.",
   };
 }
