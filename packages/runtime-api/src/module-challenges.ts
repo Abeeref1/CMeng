@@ -1249,6 +1249,14 @@ function metricsFor(
           "Delay days",
           numberOrNull(
             delay
+              ?.observedPositiveProgrammeMovementDays,
+          ) ??
+          numberOrNull(
+            windows
+              ?.positiveProgrammeMovementDays,
+          ) ??
+          numberOrNull(
+            delay
               ?.observedPositiveIndependentMovementDays,
           ) ??
           numberOrNull(
@@ -1256,12 +1264,24 @@ function metricsFor(
               ?.positiveIndependentMovementDays,
           ),
           "days",
-          delay ||
-          windows
-            ? "calculated"
-            : "not_derivable",
+          (
+            numberOrNull(
+              delay
+                ?.observedPositiveProgrammeMovementDays,
+            ) ??
+            numberOrNull(
+              windows
+                ?.positiveProgrammeMovementDays,
+            )
+          ) !== null
+            ? "derived"
+            : delay ||
+                windows
+              ? "scenario"
+              : "not_derivable",
           [
             "schedule-windows",
+            "programme-movement",
           ],
           {
             submittedOverride:
@@ -1274,44 +1294,73 @@ function metricsFor(
         ),
       ];
 
-    case "notices-claims":
+    case "notices-claims": {
+      const assessed =
+        numberOrNull(
+          notices
+            ?.officialAssessedDaysTotal,
+        ) ??
+        numberOrNull(
+          notices
+            ?.provisionalOrCandidateAssessedDaysTotal,
+        );
+      const timeImpact =
+        numberOrNull(
+          eot
+            ?.analyticalTimeImpactCandidateDays,
+        ) ??
+        numberOrNull(
+          windows
+            ?.positiveProgrammeMovementDays,
+        );
+
       return [
         spec(
           "claimed_eot_days",
-          "Claimed versus assessed EOT days",
-          numberOrNull(
-            notices
-              ?.officialAssessedDaysTotal,
-          ) ??
-          numberOrNull(
-            notices
-              ?.provisionalOrCandidateAssessedDaysTotal,
-          ),
+          "Claimed versus assessed/time-impact days",
+          assessed ??
+          timeImpact,
           "days",
-          notices &&
-          (
-            notices
-              .officialAssessedDaysTotal !==
-              null ||
-            notices
-              .provisionalOrCandidateAssessedDaysTotal !==
-              null
-          )
+          assessed !== null
             ? "derived"
-            : "not_derivable",
+            : timeImpact !== null
+              ? "scenario"
+              : "not_derivable",
           [
-            "notice-claim-evidence",
+            ...(assessed !==
+            null
+              ? [
+                  "notice-claim-evidence",
+                ]
+              : []),
+            ...(timeImpact !==
+            null
+              ? [
+                  "programme-movement",
+                ]
+              : []),
           ],
           {
             submittedOverride:
               claimedDays,
+            note:
+              assessed !== null
+                ? "Independent assessed/candidate claim position from claim and notice evidence."
+                : timeImpact !== null
+                  ? "No governed assessed-EOT position exists. The independent value shown is the carried-forward analytical time-impact candidate, not entitlement or award."
+                  : undefined,
             consequenceMissing:
-              "No claim or assessable notice record was submitted; CMeng cannot invent an assessed EOT but can still identify notice requirements and schedule movement elsewhere.",
+              timeImpact !== null
+                ? "No contractor/approved assessment is established, but CMeng still carries the observed programme movement forward as an analytical time-impact candidate."
+                : "No claim or assessable notice record was submitted and no defensible programme movement is established.",
             actionMissing:
-              "Provide the claim, notice and event chronology required for evidence-based assessment.",
+              timeImpact !== null
+                ? "Link the relevant events, notices, clauses and affected activities so CMeng can test how much of the time-impact candidate is attributable and potentially EOT-eligible."
+                : "Provide the claim, notice, event chronology and schedule evidence required for assessment.",
           },
         ),
       ];
+    }
 
     case "windows-analysis": {
       const latest =
@@ -1331,7 +1380,19 @@ function metricsFor(
           "Latest window forecast movement",
           numberOrNull(
             latest
+              ?.strongestProgrammeMovementDays,
+          ) ??
+          numberOrNull(
+            latest
               ?.independentForecastMovementDays,
+          ) ??
+          numberOrNull(
+            latest
+              ?.sourceForecastMovementDays,
+          ) ??
+          numberOrNull(
+            latest
+              ?.scheduleBoundaryMovementDays,
           ),
           "days",
           latest
@@ -1364,43 +1425,137 @@ function metricsFor(
       ];
     }
 
-    case "eot-assessment":
+    case "eot-assessment": {
+      const analyticalTimeImpact =
+        numberOrNull(
+          eot
+            ?.analyticalTimeImpactCandidateDays,
+        ) ??
+        numberOrNull(
+          windows
+            ?.positiveProgrammeMovementDays,
+        );
+      const attributableCandidate =
+        numberOrNull(
+          eot
+            ?.attributableCandidateEotDays,
+        ) ??
+        numberOrNull(
+          eot
+            ?.candidateAdditionalEotDays,
+        );
+      const officialAward =
+        state.controls
+          .contractTimeBasis
+          ?.officialApprovedEotDays ??
+        null;
+
       return [
         spec(
           "claimed_eot_days",
-          "EOT days",
-          numberOrNull(
-            eot
-              ?.candidateAdditionalEotDays,
-          ) ??
-          numberOrNull(
-            windows
-              ?.positiveIndependentMovementDays,
-          ),
+          "Claimed EOT vs analytical time impact",
+          analyticalTimeImpact,
           "days",
-          eot
-            ? "derived"
-            : windows
-              ? "scenario"
-              : "not_derivable",
+          analyticalTimeImpact !==
+            null
+            ? "scenario"
+            : "not_derivable",
           [
+            "programme-movement",
             "schedule-windows",
-            "delay-event-evidence",
           ],
           {
             submittedOverride:
               claimedDays,
+            note:
+              analyticalTimeImpact !==
+                null
+                ? "Programme movement is carried forward as a time-impact candidate even when causation or entitlement is not yet established."
+                : undefined,
             consequenceMissing:
-              eot
-                ? "No contractor claimed EOT was identified, while CMeng has an analytical candidate based on the available evidence."
-                : "Schedule movement may be observable, but EOT cannot be treated as an entitlement without event/causation and contract-time evidence.",
+              analyticalTimeImpact !==
+                null
+                ? "No reliable contractor claim total is established, but CMeng still has a quantified time-impact candidate for further causation testing."
+                : "Neither a reliable claimed-EOT position nor a defensible time-impact candidate is currently established.",
             actionMissing:
-              eot
-                ? "Submit/reconcile the contractor EOT claim against the analytical window assessment."
-                : "Provide event, causation, notice and contract-time evidence before treating schedule movement as EOT.",
+              analyticalTimeImpact !==
+                null
+                ? "Provide/link event, notice, clause and affected-activity evidence so CMeng can test causation, concurrency and entitlement against the quantified movement."
+                : "Provide the schedule revisions and event evidence required to calculate movement.",
+          },
+        ),
+        spec(
+          "attributable_eot_candidate_days",
+          "Attributable analytical EOT candidate",
+          attributableCandidate,
+          "days",
+          attributableCandidate !==
+            null
+            ? "derived"
+            : analyticalTimeImpact !==
+                null
+              ? "scenario"
+              : "not_derivable",
+          [
+            "programme-movement",
+            "delay-event-evidence",
+            "notice-evidence",
+          ],
+          {
+            submittedOverride:
+              claimedDays,
+            note:
+              attributableCandidate !==
+                null
+                ? "This is an analytical entitlement candidate, not an official award."
+                : analyticalTimeImpact !==
+                    null
+                  ? "Movement exists but attribution is not established; CMeng therefore preserves the movement instead of converting it to zero EOT."
+                  : undefined,
+            consequenceMissing:
+              analyticalTimeImpact !==
+                null
+                ? "The programme impact is quantified, but the evidence needed to attribute it to an EOT-eligible event remains incomplete."
+                : "No defensible time-impact basis exists yet.",
+            actionMissing:
+              "Link events to affected activities and provide the contemporaneous/contract evidence required for causation and notice testing.",
+          },
+        ),
+        spec(
+          "official_awarded_eot_days",
+          "Official awarded EOT",
+          officialAward,
+          "days",
+          officialAward !==
+            null
+            ? "calculated"
+            : "not_derivable",
+          state.controls
+            .contractTimeBasis
+            ?.sourceRefs ??
+          [],
+          {
+            submittedOverride:
+              officialAward !==
+                null
+                ? submitted(
+                    officialAward,
+                    "days",
+                    state.controls
+                      .contractTimeBasis
+                      ?.sourceRefs ??
+                    [],
+                    "Governed official EOT award/determination.",
+                  )
+                : undefined,
+            consequenceMissing:
+              "CMeng cannot manufacture an official contractual award. Analytical time impact and EOT candidates remain visible separately.",
+            actionMissing:
+              "Provide the formal EOT determination/award to establish the official adjusted completion date.",
           },
         ),
       ];
+    }
 
     case "challenge-contract":
       return [
