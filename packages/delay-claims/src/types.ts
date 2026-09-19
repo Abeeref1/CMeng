@@ -21,6 +21,14 @@ export interface DelayClaimEventAssessmentRow {
   overlappingWindowIds: string[];
   observedNetIndependentMovementDays: number;
   observedPositiveIndependentMovementDays: number;
+  observedNetProgrammeMovementDays: number;
+  observedPositiveProgrammeMovementDays: number;
+  programmeMovementBasis:
+    | "independent_cpm"
+    | "source_forecast"
+    | "source_schedule_boundary"
+    | "mixed"
+    | "unavailable";
   concurrencyCandidate: boolean;
   candidateClass: DelayCandidateClass;
   scheduleAttribution:
@@ -43,6 +51,8 @@ export interface DelayClaimsProjection {
   windowCount: number;
 
   observedPositiveIndependentMovementDays: number;
+  observedPositiveProgrammeMovementDays: number;
+  unattributedProgrammeMovementDays: number;
   employerOrNeutralCandidateWindowMovementDays: number;
   contractorRiskWindowMovementDays: number;
   concurrentReviewWindowMovementDays: number;
