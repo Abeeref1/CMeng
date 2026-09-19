@@ -1529,6 +1529,18 @@ export class RuntimeProjectStore {
         ...lineage.diagnostics,
         ...plan.diagnostics,
       ];
+      const family =
+        evidenceFamily({
+          category:
+            "schedule_control",
+          documentType:
+            "contractor_manpower_plan",
+          scheduleRole: null,
+          textSample:
+            identified.textSample,
+          sourceFilename:
+            input.sourceFilename,
+        });
       const document:
         StoredEvidenceDocument = {
         documentId,
@@ -1563,11 +1575,26 @@ export class RuntimeProjectStore {
         identification,
         lineage,
         assertions,
+        uploadIntent,
+        familyKey:
+          family.familyKey,
+        logicalDocumentKey:
+          family.logicalDocumentKey,
+        basisState: "candidate",
+        supersededByDocumentId:
+          null,
+        supersedesDocumentIds:
+          [],
         diagnostics,
       };
       this.upsertEvidence(
         existingState,
         document,
+      );
+      applyEvidenceBasis(
+        existingState,
+        document,
+        uploadIntent,
       );
       this.touch(
         existingState,
@@ -1591,6 +1618,12 @@ export class RuntimeProjectStore {
         lineage,
         assertionCount:
           document.assertions.length,
+        basisEffect:
+          this.summaryBasisEffect(
+            existingState,
+            document,
+            uploadIntent,
+          ),
         diagnostics,
       };
     }
@@ -1648,6 +1681,16 @@ export class RuntimeProjectStore {
           ]
         : []),
     ];
+    const family =
+      evidenceFamily({
+        category,
+        documentType,
+        scheduleRole: null,
+        textSample:
+          identified.textSample,
+        sourceFilename:
+          input.sourceFilename,
+      });
     const parserState =
       deferFullOcr
         ? "ocr_pending" as const
@@ -1687,11 +1730,26 @@ export class RuntimeProjectStore {
       identification,
       lineage,
       assertions,
+      uploadIntent,
+      familyKey:
+        family.familyKey,
+      logicalDocumentKey:
+        family.logicalDocumentKey,
+      basisState: "candidate",
+      supersededByDocumentId:
+        null,
+      supersedesDocumentIds:
+        [],
       diagnostics,
     };
     this.upsertEvidence(
       state,
       document,
+    );
+    applyEvidenceBasis(
+      state,
+      document,
+      uploadIntent,
     );
     this.touch(state);
     return {
@@ -1713,6 +1771,12 @@ export class RuntimeProjectStore {
         document.lineage,
       assertionCount:
         document.assertions.length,
+      basisEffect:
+        this.summaryBasisEffect(
+          state,
+          document,
+          uploadIntent,
+        ),
       diagnostics,
     };
   }
