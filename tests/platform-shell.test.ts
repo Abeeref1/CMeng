@@ -5,6 +5,9 @@ import type { AddressInfo } from "node:net";
 import {
   createCmengServer,
 } from "../packages/runtime-api/src/server";
+import {
+  runtimeProjects,
+} from "../packages/runtime-api/src/project-state";
 
 async function withServer(
   fn: (base: string) => Promise<void>,
@@ -75,6 +78,17 @@ test("portfolio, project creation and Ask CMeng remain project scoped", async ()
       true,
     );
 
+    const legacyProjectId =
+      projectId + "-LEGACY";
+    const legacy =
+      runtimeProjects.getOrCreate(
+        legacyProjectId,
+      );
+    delete (
+      legacy.controls as unknown as
+        Record<string, unknown>
+    ).risks;
+
     const portfolio =
       await fetch(
         base + "/api/portfolio",
@@ -87,6 +101,7 @@ test("portfolio, project creation and Ask CMeng remain project scoped", async ()
       await portfolio.json() as {
         projects: Array<{
           projectId: string;
+          analysisError?: string | null;
         }>;
       };
     assert.ok(
@@ -95,6 +110,14 @@ test("portfolio, project creation and Ask CMeng remain project scoped", async ()
           project.projectId ===
           projectId,
       ),
+    );
+    assert.ok(
+      portfolioBody.projects.some(
+        (project) =>
+          project.projectId ===
+          legacyProjectId,
+      ),
+      "one malformed legacy project must not crash the portfolio endpoint",
     );
 
     const intelligence =
