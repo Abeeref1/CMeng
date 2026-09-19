@@ -483,3 +483,257 @@ test("ZIP evidence pack routes schedules, BOQ CSV and other project evidence wit
     );
   });
 });
+
+
+test("content overrides a wrong filename, wrong MIME type and wrong declared category", async () => {
+  await withServer(async (base) => {
+    const project =
+      "CONTENT-FIRST-UAT";
+    const body = [
+      "Risk ID,Category,Description,Probability,Impact,Rating,Owner,Status,Due Date",
+      "RISK-0001,Cost,Supply chain risk,0.4,3,Extreme,Planning,Mitigating,2026-12-02",
+    ].join("\n");
+
+    const response =
+      await fetch(
+        base +
+          "/api/projects/" +
+          project +
+          "/evidence/uploads",
+        {
+          method: "POST",
+          headers: {
+            "content-type":
+              "application/pdf",
+            "x-source-filename":
+              "C01_Main_Contract.pdf",
+            "x-source-relative-path":
+              "Other/C01_Main_Contract.pdf",
+            "x-evidence-category":
+              "contract",
+            "x-document-type":
+              "main_contract",
+          },
+          body,
+        },
+      );
+
+    if (response.status !== 201) {
+      throw new Error(
+        "Expected HTTP 201, received " +
+          response.status +
+          ": " +
+          await response.text(),
+      );
+    }
+
+    const result =
+      await response.json() as {
+        category: string;
+        documentType: string;
+        identification: {
+          verifiedMediaType:
+            string;
+          classificationConflict:
+            boolean;
+          confidence: number;
+          method: string;
+        };
+      };
+
+    assert.equal(
+      result.category,
+      "risk_claims_procurement",
+    );
+    assert.equal(
+      result.documentType,
+      "risk_register",
+    );
+    assert.equal(
+      result.identification
+        .verifiedMediaType,
+      "text/csv",
+    );
+    assert.equal(
+      result.identification
+        .classificationConflict,
+      true,
+    );
+    assert.ok(
+      result.identification
+        .confidence >= 0.62,
+    );
+    assert.equal(
+      result.identification
+        .method,
+      "tabular_content",
+    );
+  });
+});
+
+test("a document uploaded as Other is identified from its content", async () => {
+  await withServer(async (base) => {
+    const project =
+      "OTHER-AUTO-ID-UAT";
+    const body = [
+      "CONTRACT AGREEMENT",
+      "FIDIC Conditions of Contract for Construction.",
+      "Accepted Contract Amount SAR 100000000 excluding VAT.",
+      "The Time for Completion is 900 days.",
+      "Liquidated damages apply for delay.",
+    ].join("\n");
+
+    const response =
+      await fetch(
+        base +
+          "/api/projects/" +
+          project +
+          "/evidence/uploads",
+        {
+          method: "POST",
+          headers: {
+            "content-type":
+              "application/octet-stream",
+            "x-source-filename":
+              "upload_00931.dat",
+            "x-source-relative-path":
+              "Other/upload_00931.dat",
+            "x-evidence-category":
+              "other",
+          },
+          body,
+        },
+      );
+
+    if (response.status !== 201) {
+      throw new Error(
+        "Expected HTTP 201, received " +
+          response.status +
+          ": " +
+          await response.text(),
+      );
+    }
+
+    const result =
+      await response.json() as {
+        category: string;
+        documentType: string;
+        parserState: string;
+        identification: {
+          verifiedMediaType:
+            string;
+          confidence: number;
+          detectedTitle:
+            string | null;
+          signals: string[];
+        };
+      };
+
+    assert.equal(
+      result.category,
+      "contract",
+    );
+    assert.equal(
+      result.documentType,
+      "main_contract",
+    );
+    assert.equal(
+      result.identification
+        .verifiedMediaType,
+      "text/plain",
+    );
+    assert.ok(
+      result.identification
+        .confidence >= 0.7,
+    );
+    assert.match(
+      result.identification
+        .detectedTitle ?? "",
+      /contract agreement/i,
+    );
+    assert.ok(
+      result.identification
+        .signals.length >= 2,
+    );
+    assert.ok(
+      [
+        "identified",
+        "parsed",
+      ].includes(
+        result.parserState,
+      ),
+    );
+  });
+});
+
+test("Primavera content is recognized even when the file is named as a PDF", async () => {
+  await withServer(async (base) => {
+    const project =
+      "RENAMED-XER-UAT";
+    const response =
+      await fetch(
+        base +
+          "/api/projects/" +
+          project +
+          "/evidence/uploads",
+        {
+          method: "POST",
+          headers: {
+            "content-type":
+              "application/pdf",
+            "x-source-filename":
+              "unknown_document.pdf",
+            "x-source-relative-path":
+              "Other/unknown_document.pdf",
+            "x-evidence-category":
+              "other",
+            "x-schedule-role":
+              "update",
+          },
+          body: xer(
+            project,
+            "2026-11-30",
+            "2026-12-15",
+          ),
+        },
+      );
+
+    if (response.status !== 201) {
+      throw new Error(
+        "Expected HTTP 201, received " +
+          response.status +
+          ": " +
+          await response.text(),
+      );
+    }
+
+    const result =
+      await response.json() as {
+        category: string;
+        scheduleRole: string | null;
+        identification: {
+          verifiedMediaType:
+            string;
+          confidence: number;
+        };
+      };
+
+    assert.equal(
+      result.category,
+      "schedule",
+    );
+    assert.equal(
+      result.scheduleRole,
+      "update",
+    );
+    assert.equal(
+      result.identification
+        .verifiedMediaType,
+      "text/x-primavera-xer",
+    );
+    assert.ok(
+      result.identification
+        .confidence >= 0.99,
+    );
+  });
+});
