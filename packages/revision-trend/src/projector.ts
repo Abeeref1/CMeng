@@ -3,6 +3,7 @@ import {
 } from "../../schedule-analysis-core/src";
 import {
   compareScheduleRevisions,
+  orderScheduleRevisionsChronologically,
   type ScheduleRevision,
 } from "../../schedule-revision-core/src";
 import type {
@@ -28,11 +29,10 @@ export function buildRevisionTrendProjection(
     producerVersion: string;
   },
 ): RevisionTrendProjection {
-  const ordered = [...revisions].sort(
-    (a, b) =>
-      a.sequence - b.sequence ||
-      a.revisionId.localeCompare(b.revisionId),
-  );
+  const ordered =
+    orderScheduleRevisionsChronologically(
+      revisions,
+    );
 
   const points: RevisionTrendPoint[] = [];
 
