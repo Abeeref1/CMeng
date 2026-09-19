@@ -54,6 +54,26 @@ test("CMeng workspace keeps the active module primary and browser script parseab
   );
   assert.match(
     html,
+    /id="focusMode"/,
+    "focus-mode control must remain available",
+  );
+  assert.match(
+    html,
+    /function renderModuleBasis/,
+    "module evidence-basis context must remain rendered",
+  );
+  assert.match(
+    html,
+    /id="topbarModule"/,
+    "active module must remain visible in the top bar",
+  );
+  assert.match(
+    html,
+    /id="releaseStatus"/,
+    "production release state must remain visible",
+  );
+  assert.match(
+    html,
     /replace_current_basis/,
   );
 
