@@ -1185,13 +1185,23 @@ export function buildDeliveryChallengeProjection(
         contractorAssumption:
           "BOQ and programme are assumed to describe the same delivery scope.",
         independentCalculation:
-          mapping.quantityCoveragePercent ===
-          null
+          (
+            mapping.quantityCoveragePercent ??
+            mapping.itemCoveragePercent
+          ) === null
             ? null
-            : mapping.quantityCoveragePercent.toFixed(
-                2,
-              ) +
-              "% of known BOQ quantity has a governed or scenario activity link.",
+            : (
+                mapping.quantityCoveragePercent !==
+                null
+                  ? mapping.quantityCoveragePercent.toFixed(
+                      2,
+                    ) +
+                    "% of known BOQ quantity has a governed or scenario activity link."
+                  : mapping.itemCoveragePercent!.toFixed(
+                      2,
+                    ) +
+                    "% of known BOQ items have a governed or scenario activity link; mixed quantity units are not cross-summed."
+              ),
         difference:
           mapping.unmappedItemIds.length +
           " BOQ item(s) remain unmapped; " +
@@ -1204,9 +1214,14 @@ export function buildDeliveryChallengeProjection(
           "Governed allocations where available",
         ],
         milestoneConsequence:
-          mapping.quantityCoveragePercent !==
-            null &&
-          mapping.quantityCoveragePercent <
+          (
+            mapping.quantityCoveragePercent ??
+            mapping.itemCoveragePercent
+          ) !== null &&
+          (
+            mapping.quantityCoveragePercent ??
+            mapping.itemCoveragePercent!
+          ) <
             80
             ? "Quantity-driven manpower/productivity conclusions have limited coverage."
             : null,
@@ -1561,8 +1576,13 @@ export function buildDeliveryChallengeProjection(
         null,
       mappingCoveragePercent:
         mapping
-          ?.quantityCoveragePercent ??
-        null,
+          ? (
+              mapping
+                .quantityCoveragePercent ??
+              mapping
+                .itemCoveragePercent
+            )
+          : null,
       knownRemainingQuantity:
         singleUnit
           ?.remainingQuantity ??
