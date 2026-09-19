@@ -6,6 +6,9 @@ import JSZip from "jszip";
 import {
   createCmengServer,
 } from "../packages/runtime-api/src/server";
+import {
+  runtimeProjects,
+} from "../packages/runtime-api/src/project-state";
 
 async function withServer(
   fn: (base: string) => Promise<void>,
@@ -835,6 +838,295 @@ test("ZIP routing identifies a renamed schedule before mapping unrelated filenam
         .mapping
         ?.mappedActivityCount,
       1,
+    );
+  });
+});
+
+
+test("BOQ full replacement is retained beside the original and never silently overwrites the established basis", async () => {
+  await withServer(async (base) => {
+    const project =
+      "BOQ-LINEAGE-UAT";
+
+    const original = [
+      "Item No,Section,Description,Unit,Quantity,Rate SAR,Amount SAR",
+      "1.0001,Civil,Excavation,m3,100,50,5000",
+    ].join("\n");
+    const revised = [
+      "Item No,Section,Description,Unit,Quantity,Rate SAR,Amount SAR",
+      "1.0001,Civil,Revised BOQ supersedes original bill of quantities - Excavation,m3,100,60,6000",
+    ].join("\n");
+
+    for (const [name, body] of [
+      ["original.csv", original],
+      ["revised.csv", revised],
+    ] as const) {
+      const response =
+        await fetch(
+          base +
+            "/api/projects/" +
+            project +
+            "/evidence/uploads",
+          {
+            method: "POST",
+            headers: {
+              "content-type":
+                "text/csv",
+              "x-source-filename":
+                name,
+              "x-evidence-category":
+                "boq_cost",
+              "x-document-type":
+                "boq",
+            },
+            body,
+          },
+        );
+      if (response.status !== 201) {
+        throw new Error(
+          "Expected HTTP 201, received " +
+            response.status +
+            ": " +
+            await response.text(),
+        );
+      }
+    }
+
+    const state =
+      runtimeProjects.get(project);
+    assert.ok(state);
+    assert.equal(
+      state.boqRevisions.length,
+      2,
+    );
+    assert.equal(
+      state.boq
+        ?.canonicalItems[0]
+        ?.amount,
+      5000,
+    );
+
+    const library =
+      await (
+        await fetch(
+          base +
+            "/api/projects/" +
+            project +
+            "/evidence/documents",
+        )
+      ).json() as {
+        documents: Array<{
+          sourceFilename: string;
+          documentId: string;
+          lineage: {
+            effect: string;
+            predecessorDocumentIds:
+              string[];
+            replacesEntireBasis:
+              boolean;
+            appliesAsDelta:
+              boolean;
+          };
+        }>;
+      };
+
+    const originalDoc =
+      library.documents.find(
+        (item) =>
+          item.sourceFilename ===
+          "original.csv",
+      );
+    const revisedDoc =
+      library.documents.find(
+        (item) =>
+          item.sourceFilename ===
+          "revised.csv",
+      );
+
+    assert.ok(originalDoc);
+    assert.ok(revisedDoc);
+    assert.equal(
+      originalDoc.lineage.effect,
+      "original",
+    );
+    assert.equal(
+      revisedDoc.lineage.effect,
+      "full_replacement",
+    );
+    assert.equal(
+      revisedDoc.lineage
+        .replacesEntireBasis,
+      true,
+    );
+    assert.equal(
+      revisedDoc.lineage
+        .appliesAsDelta,
+      false,
+    );
+    assert.ok(
+      revisedDoc.lineage
+        .predecessorDocumentIds
+        .includes(
+          originalDoc.documentId,
+        ),
+    );
+  });
+});
+
+test("contract amendments remain deltas while an amended-and-restated contract is a full replacement candidate", async () => {
+  await withServer(async (base) => {
+    const project =
+      "CONTRACT-LINEAGE-UAT";
+    const uploads = [
+      {
+        name: "doc001.dat",
+        text: [
+          "CONTRACT AGREEMENT",
+          "FIDIC Conditions of Contract for Construction",
+          "Accepted Contract Amount SAR 100000000",
+          "Time for Completion 900 days",
+        ].join("\n"),
+      },
+      {
+        name: "misc002.dat",
+        text: [
+          "CONTRACT AMENDMENT NO. 1",
+          "Clause 8.7 is amended.",
+          "The revised contract value is SAR 105000000.",
+        ].join("\n"),
+      },
+      {
+        name: "anything003.dat",
+        text: [
+          "AMENDED AND RESTATED CONTRACT AGREEMENT",
+          "This restated agreement supersedes the previous contract.",
+          "Accepted Contract Amount SAR 105000000.",
+        ].join("\n"),
+      },
+    ];
+
+    for (const upload of uploads) {
+      const response =
+        await fetch(
+          base +
+            "/api/projects/" +
+            project +
+            "/evidence/uploads",
+          {
+            method: "POST",
+            headers: {
+              "content-type":
+                "application/octet-stream",
+              "x-source-filename":
+                upload.name,
+              "x-evidence-category":
+                "other",
+            },
+            body:
+              upload.text,
+          },
+        );
+      if (response.status !== 201) {
+        throw new Error(
+          "Expected HTTP 201, received " +
+            response.status +
+            ": " +
+            await response.text(),
+        );
+      }
+    }
+
+    const library =
+      await (
+        await fetch(
+          base +
+            "/api/projects/" +
+            project +
+            "/evidence/documents",
+        )
+      ).json() as {
+        documents: Array<{
+          sourceFilename: string;
+          documentId: string;
+          documentType: string;
+          lineage: {
+            effect: string;
+            predecessorDocumentIds:
+              string[];
+            replacesEntireBasis:
+              boolean;
+            appliesAsDelta:
+              boolean;
+          };
+        }>;
+      };
+
+    const original =
+      library.documents.find(
+        (item) =>
+          item.sourceFilename ===
+          "doc001.dat",
+      );
+    const amendment =
+      library.documents.find(
+        (item) =>
+          item.sourceFilename ===
+          "misc002.dat",
+      );
+    const replacement =
+      library.documents.find(
+        (item) =>
+          item.sourceFilename ===
+          "anything003.dat",
+      );
+
+    assert.ok(original);
+    assert.ok(amendment);
+    assert.ok(replacement);
+
+    assert.equal(
+      original.lineage.effect,
+      "original",
+    );
+    assert.equal(
+      amendment.documentType,
+      "contract_amendment",
+    );
+    assert.equal(
+      amendment.lineage.effect,
+      "delta_amendment",
+    );
+    assert.equal(
+      amendment.lineage
+        .appliesAsDelta,
+      true,
+    );
+    assert.equal(
+      replacement.documentType,
+      "contract_replacement",
+    );
+    assert.equal(
+      replacement.lineage.effect,
+      "full_replacement",
+    );
+    assert.equal(
+      replacement.lineage
+        .replacesEntireBasis,
+      true,
+    );
+    assert.ok(
+      replacement.lineage
+        .predecessorDocumentIds
+        .includes(
+          original.documentId,
+        ),
+    );
+    assert.ok(
+      replacement.lineage
+        .predecessorDocumentIds
+        .includes(
+          amendment.documentId,
+        ),
     );
   });
 });
