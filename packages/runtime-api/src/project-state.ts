@@ -1291,7 +1291,9 @@ export class RuntimeProjectStore {
           : identification
               .needsReview
             ? "partial" as const
-            : "identified" as const;
+            : mapping
+              ? "parsed" as const
+              : "identified" as const;
 
     const document:
       StoredEvidenceDocument = {
