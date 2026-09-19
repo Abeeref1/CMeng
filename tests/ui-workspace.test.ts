@@ -128,7 +128,7 @@ test("CMeng workspace keeps the active module primary and browser script parseab
   );
   assert.match(
     html,
-    /--slate:#2e3a46/,
+    /--slate:#22364d/,
     "CMeng dark slate identity must remain in the production theme",
   );
   assert.match(
