@@ -136,6 +136,10 @@ test("unified evidence intake governs Add Replace and family-specific history", 
         baseline.basisEffect
           .basisState,
         "active",
+        "baseline=" +
+          JSON.stringify(
+            baseline.basisEffect,
+          ),
       );
 
       const update =
@@ -159,6 +163,10 @@ test("unified evidence intake governs Add Replace and family-specific history", 
         update.basisEffect
           .basisState,
         "active",
+        "update=" +
+          JSON.stringify(
+            update.basisEffect,
+          ),
       );
 
       const recovery =
@@ -206,6 +214,10 @@ test("unified evidence intake governs Add Replace and family-specific history", 
         b1.basisEffect
           .basisState,
         "active",
+        "boq1=" +
+          JSON.stringify(
+            b1.basisEffect,
+          ),
       );
 
       const boq2 =
@@ -253,6 +265,10 @@ test("unified evidence intake governs Add Replace and family-specific history", 
         b3.basisEffect
           .basisState,
         "active",
+        "boq3=" +
+          JSON.stringify(
+            b3.basisEffect,
+          ),
       );
       assert.equal(
         b3.basisEffect
@@ -277,6 +293,10 @@ test("unified evidence intake governs Add Replace and family-specific history", 
         r1.basisEffect
           .basisState,
         "active",
+        "risk1=" +
+          JSON.stringify(
+            r1.basisEffect,
+          ),
       );
 
       const risk2 =
@@ -297,6 +317,10 @@ test("unified evidence intake governs Add Replace and family-specific history", 
         r2.basisEffect
           .basisState,
         "active",
+        "risk2=" +
+          JSON.stringify(
+            r2.basisEffect,
+          ),
       );
       assert.equal(
         r2.basisEffect
