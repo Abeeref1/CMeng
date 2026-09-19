@@ -921,10 +921,107 @@ export class RuntimeProjectStore {
     this.persistSnapshot();
   }
 
+  private staleFinalizedBoardPublications(
+    state: ProjectRuntimeState,
+  ): void {
+    const now =
+      new Date().toISOString();
+    for (
+      const publication of
+        state.boardPublicationHistory
+    ) {
+      if (!publication.stale) {
+        publication.stale = true;
+        publication.staleAt = now;
+      }
+    }
+  }
+
+  private captureDelayEventHistory(
+    state: ProjectRuntimeState,
+    model:
+      NonNullable<
+        ProjectControlState["delayClaims"]
+      >,
+  ): void {
+    const now =
+      new Date().toISOString();
+
+    for (const event of model.events) {
+      const fingerprint =
+        createHash("sha256")
+          .update(
+            JSON.stringify(event),
+          )
+          .digest("hex");
+      const versions =
+        state.delayEventHistory
+          .filter(
+            (item) =>
+              item.eventId ===
+              event.eventId,
+          )
+          .sort(
+            (a, b) =>
+              a.version -
+              b.version,
+          );
+      const latest =
+        versions.at(-1) ??
+        null;
+      if (
+        latest?.fingerprint ===
+        fingerprint
+      ) {
+        continue;
+      }
+      state.delayEventHistory.push({
+        eventId:
+          event.eventId,
+        version:
+          (latest?.version ?? 0) +
+          1,
+        fingerprint,
+        effectiveAt: now,
+        supersedesVersion:
+          latest?.version ?? null,
+        evidenceRevisionId:
+          model.evidenceRevisionId,
+        snapshot:
+          JSON.parse(
+            JSON.stringify(event),
+          ),
+      });
+    }
+  }
+
   touch(
     state: ProjectRuntimeState,
   ): void {
     state.version += 1;
+    this.persistSnapshot();
+  }
+
+  touchEvidence(
+    state: ProjectRuntimeState,
+  ): void {
+    this.staleFinalizedBoardPublications(
+      state,
+    );
+    state.lastRerunReceipt =
+      null;
+    this.touch(state);
+  }
+
+  recordRerunReceipt(
+    projectId: string,
+    receipt:
+      ProjectRuntimeState["lastRerunReceipt"],
+  ): void {
+    const state =
+      this.getOrCreate(projectId);
+    state.lastRerunReceipt =
+      receipt;
     this.persistSnapshot();
   }
 
@@ -1614,7 +1711,7 @@ export class RuntimeProjectStore {
         document,
         uploadIntent,
       );
-      this.touch(
+      this.touchEvidence(
         existingState,
       );
 
@@ -1769,7 +1866,7 @@ export class RuntimeProjectStore {
       document,
       uploadIntent,
     );
-    this.touch(state);
+    this.touchEvidence(state);
     return {
       documentId,
       category:
@@ -2150,7 +2247,7 @@ export class RuntimeProjectStore {
       };
     }
 
-    this.touch(state);
+    this.touchEvidence(state);
 
     return summary(
       stored,
@@ -2372,7 +2469,7 @@ export class RuntimeProjectStore {
       this.getOrCreate(projectId);
     state.quantities =
       quantities;
-    this.touch(state);
+    this.touchEvidence(state);
   }
 
   async ingestContract(
@@ -2703,7 +2800,7 @@ export class RuntimeProjectStore {
       ),
     ];
 
-    this.touch(state);
+    this.touchEvidence(state);
     return parsed;
   }
 
@@ -2714,6 +2811,15 @@ export class RuntimeProjectStore {
   ): ProjectControlState {
     const state =
       this.getOrCreate(projectId);
+
+    if (
+      update.delayClaims
+    ) {
+      this.captureDelayEventHistory(
+        state,
+        update.delayClaims,
+      );
+    }
 
     state.controls = {
       ...state.controls,
@@ -2758,6 +2864,67 @@ export class RuntimeProjectStore {
     };
 
     this.touch(state);
+
+    if (
+      update.boardPublication
+        ?.finalizedAt
+    ) {
+      const publicationId =
+        "board-pub-" +
+        createHash("sha256")
+          .update(
+            JSON.stringify({
+              projectId,
+              basisVersion:
+                state.version,
+              sourceManifestId:
+                update
+                  .boardPublication
+                  .sourceManifestId,
+              evidenceReceiptIds:
+                update
+                  .boardPublication
+                  .evidenceReceiptIds,
+              finalizedAt:
+                update
+                  .boardPublication
+                  .finalizedAt,
+            }),
+          )
+          .digest("hex")
+          .slice(0, 20);
+      if (
+        !state.boardPublicationHistory
+          .some(
+            (item) =>
+              item.publicationId ===
+              publicationId,
+          )
+      ) {
+        state.boardPublicationHistory.push({
+          publicationId,
+          basisVersion:
+            state.version,
+          sourceManifestId:
+            update
+              .boardPublication
+              .sourceManifestId,
+          evidenceReceiptIds: [
+            ...update
+              .boardPublication
+              .evidenceReceiptIds,
+          ],
+          finalizedAt:
+            update
+              .boardPublication
+              .finalizedAt,
+          stale: false,
+          staleAt: null,
+        });
+        this.persistSnapshot();
+      }
+    }
+
     return state.controls;
   }
 
