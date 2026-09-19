@@ -2243,6 +2243,91 @@ export function overviewForProject(
     delayClaimsLoaded:
       state.controls
         .delayClaims !== null,
+    minimumEvidenceBasis: {
+      schedule: {
+        required: true,
+        established:
+          state.schedules.length > 0,
+        revisionCount:
+          state.schedules.length,
+        latestRevisionId:
+          latest?.revision
+            .revisionId ?? null,
+        latestDataDateIso:
+          latest?.revision.model
+            .dataDateIso ?? null,
+      },
+      boq: {
+        required: true,
+        established:
+          state.boqRevisions.length > 0,
+        revisionCount:
+          state.boqRevisions.length,
+        currentIngestionId:
+          state.boq
+            ?.ingestionId ?? null,
+      },
+      ready:
+        state.schedules.length > 0 &&
+        state.boqRevisions.length > 0,
+    },
+    optionalEvidence:
+      [
+        ...state.evidenceDocuments
+          .reduce(
+            (map, document) => {
+              if (
+                document.category ===
+                  "schedule" ||
+                (
+                  document.category ===
+                    "boq_cost" &&
+                  document.documentType ===
+                    "boq"
+                )
+              ) {
+                return map;
+              }
+              const existing =
+                map.get(
+                  document.documentType,
+                );
+              map.set(
+                document.documentType,
+                {
+                  documentType:
+                    document.documentType,
+                  count:
+                    (existing?.count ??
+                      0) + 1,
+                  latestUploadedAt:
+                    existing &&
+                    existing.latestUploadedAt >
+                      document.uploadedAt
+                      ? existing.latestUploadedAt
+                      : document.uploadedAt,
+                },
+              );
+              return map;
+            },
+            new Map<
+              string,
+              {
+                documentType:
+                  string;
+                count: number;
+                latestUploadedAt:
+                  string;
+              }
+            >(),
+          )
+          .values(),
+      ].sort(
+        (a, b) =>
+          a.documentType.localeCompare(
+            b.documentType,
+          ),
+      ),
     moduleStates:
       scheduleModules.map(
         (module) => {
