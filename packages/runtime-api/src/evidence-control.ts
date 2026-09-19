@@ -692,8 +692,7 @@ export function applyEvidenceBasis(
       "boq_special"
   ) {
     promote =
-      intent ===
-      "replace_current_basis";
+      replaceIntent;
     reason =
       "Later BOQ revisions remain candidate evidence unless explicitly promoted with Replace intent.";
   } else if (
@@ -702,8 +701,7 @@ export function applyEvidenceBasis(
   ) {
     promote =
       !current ||
-      intent ===
-        "replace_current_basis";
+      replaceIntent;
     reason = promote
       ? "Contract base established/promoted for this family."
       : "Replacement/restated contract retained as candidate until explicitly promoted.";
