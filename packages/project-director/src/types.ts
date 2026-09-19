@@ -121,6 +121,7 @@ export interface DirectorEvidenceAvailability {
   permits?: EvidenceCoverageState;
   bonds?: EvidenceCoverageState;
   risk?: EvidenceCoverageState;
+  claims?: EvidenceCoverageState;
 }
 
 export interface DirectorPositionInput {
@@ -185,20 +186,22 @@ export interface ProjectDirectorPosition {
     progressBases: ProgressReportProjection["progressBases"];
   };
   claims: {
-    eventCount: number;
-    claimCount: number;
-    fullyLinkedEventCount: number;
-    fullyLinkedClaimCount: number;
+    evidenceState:
+      EvidenceCoverageState;
+    eventCount: number | null;
+    claimCount: number | null;
+    fullyLinkedEventCount: number | null;
+    fullyLinkedClaimCount: number | null;
     unlinkedClaimIds: string[];
     observedProgrammeMovementDays:
       number;
     analyticalTimeImpactCandidateDays:
       number;
     attributableCandidateEotDays:
-      number;
+      number | null;
     unattributedTimeImpactDays:
       number;
-    candidateAdditionalEotDays: number;
+    candidateAdditionalEotDays: number | null;
     officialApprovedEotDays: number | null;
   };
   ld: {
