@@ -2,6 +2,9 @@ import type {
   BoqIngestionResult,
 } from "../../boq-ingestion/src";
 import type {
+  SubmittedManpowerPlan,
+} from "../../delivery-challenge/src";
+import type {
   ContractDocumentResult,
   ContractFamilyResult,
 } from "../../contract-parser/src";
@@ -246,6 +249,8 @@ export interface ProjectRuntimeState {
   contract: ContractDocumentResult | null;
   contractDocuments: StoredContractDocument[];
   contractFamily: ContractFamilyResult | null;
+  submittedManpowerPlan:
+    SubmittedManpowerPlan | null;
   controls: ProjectControlState;
 }
 
