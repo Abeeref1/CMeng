@@ -8,6 +8,12 @@ export type WindowAnalysisState =
   | "partial"
   | "unresolved";
 
+export type ProgrammeMovementBasis =
+  | "independent_cpm"
+  | "source_forecast"
+  | "source_schedule_boundary"
+  | "unavailable";
+
 export interface WindowEventRef {
   eventId: string;
   title: string;
@@ -33,6 +39,14 @@ export interface ScheduleWindowResult {
   fromIndependentForecastCompletionIso: string | null;
   toIndependentForecastCompletionIso: string | null;
   independentForecastMovementDays: number | null;
+
+  fromScheduleBoundaryIso: string | null;
+  toScheduleBoundaryIso: string | null;
+  scheduleBoundaryMovementDays: number | null;
+
+  strongestProgrammeMovementDays: number | null;
+  strongestProgrammeMovementBasis:
+    ProgrammeMovementBasis;
 
   fromProgressPercent: number | null;
   toProgressPercent: number | null;
@@ -72,6 +86,9 @@ export interface WindowsAnalysisProjection {
   unresolvedWindowCount: number;
   positiveIndependentMovementDays: number;
   negativeIndependentMovementDays: number;
+  positiveProgrammeMovementDays: number;
+  negativeProgrammeMovementDays: number;
+  programmeMovementAvailableWindowCount: number;
   windows: ScheduleWindowResult[];
   diagnostics: string[];
 }
