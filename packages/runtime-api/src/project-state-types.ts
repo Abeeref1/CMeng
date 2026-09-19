@@ -35,6 +35,7 @@ import type {
 } from "../../lookahead-schedule/src";
 import type {
   BoardReportPublicationInput,
+  BoardReadyReport,
 } from "../../board-report/src";
 import type {
   BondRecord,
@@ -147,6 +148,8 @@ export interface PublishedBoardReportRecord {
   finalizedAt: string;
   stale: boolean;
   staleAt: string | null;
+  reportSnapshot:
+    BoardReadyReport | null;
 }
 
 export interface DelayEventVersionRecord {
