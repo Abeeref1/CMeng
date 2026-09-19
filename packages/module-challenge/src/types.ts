@@ -17,6 +17,19 @@ export interface DocumentAssertion {
   sourceRef: string;
   sourceText: string;
   confidence: number;
+  documentId?: string | null;
+  evidenceBasisState?:
+    | "active"
+    | "superseded"
+    | "additive"
+    | "scenario"
+    | "candidate"
+    | "historical"
+    | null;
+  uploadedAt?: string | null;
+  basisRevisionId?: string | null;
+  sourceAuthority?:
+    ChallengeValueAuthority | null;
 }
 
 export type ChallengeValueState =
@@ -97,6 +110,33 @@ export interface SharedFindingContract {
   diagnostics: string[];
 }
 
+export interface ConflictCandidateAssessment {
+  value: number | string;
+  unit: string | null;
+  sourceRefs: string[];
+  supportCount: number;
+  evidenceScore: number;
+  independentGap:
+    number | string | null;
+  gapUnit: string | null;
+  reasons: string[];
+  recommended: boolean;
+}
+
+export interface ConflictRecommendation {
+  state:
+    | "not_applicable"
+    | "recommendation_only";
+  recommendedValue:
+    number | string | null;
+  recommendedUnit:
+    string | null;
+  rationale: string[];
+  userDecisionRequired: boolean;
+  candidates:
+    ConflictCandidateAssessment[];
+}
+
 export interface CandidateGapComparison {
   submittedValue:
     number | string;
@@ -128,6 +168,8 @@ export interface ModuleChallengeItem {
   action: string;
   candidateComparisons:
     CandidateGapComparison[];
+  conflictRecommendation:
+    ConflictRecommendation;
   diagnostics: string[];
 }
 
