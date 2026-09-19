@@ -46,6 +46,10 @@ import type {
 import {
   cmengUatHtml,
 } from "./ui";
+import {
+  identifyEvidenceDocument,
+  type EvidenceIdentificationResult,
+} from "./document-identification";
 
 const port = Number.parseInt(
   process.env.PORT ?? "3000",
@@ -350,76 +354,18 @@ async function route(
         await JSZip.loadAsync(
           Buffer.from(body),
         );
-      const entries = Object.values(
-        archive.files,
-      )
-        .filter(
-          (entry) =>
-            !entry.dir &&
-            !entry.name.includes(
-              "__MACOSX/",
-            ),
+      const entries =
+        Object.values(
+          archive.files,
         )
-        .sort((a, b) => {
-          const priority = (
-            name: string,
-          ) => {
-            const value =
-              name.toLowerCase();
-            if (
-              value.includes(
-                "02_schedules",
-              )
-            ) {
-              if (
-                value.includes(
-                  "baseline",
-                )
-              ) return 10;
-              if (
-                value.includes(
-                  "recovery",
-                )
-              ) return 19;
-              return 12;
-            }
-            if (
-              value.includes(
-                "01_contract",
-              )
-            ) {
-              if (
-                value.includes(
-                  "main_contract",
-                )
-              ) return 20;
-              if (
-                value.includes(
-                  "amendment",
-                )
-              ) return 21;
-              return 22;
-            }
-            if (
-              value.includes(
-                "04_cost_boq",
-              ) &&
-              value.includes("boq")
-            ) return 30;
-            return 50;
-          };
-          const byPriority =
-            priority(a.name) -
-            priority(b.name);
-          return byPriority !== 0
-            ? byPriority
-            : a.name.localeCompare(
-                b.name,
-              );
-        });
+          .filter(
+            (entry) =>
+              !entry.dir &&
+              !entry.name.includes(
+                "__MACOSX/",
+              ),
+          );
 
-      const results = [];
-      let extractedBytes = 0;
       const maxExtracted =
         Number.parseInt(
           process.env
@@ -431,6 +377,17 @@ async function route(
             ),
           10,
         );
+      let extractedBytes = 0;
+
+      const identifiedEntries:
+        Array<{
+          entry:
+            (typeof entries)[number];
+          leaf: string;
+          identification:
+            EvidenceIdentificationResult;
+          sizeBytes: number;
+        }> = [];
 
       for (const entry of entries) {
         const bytes =
@@ -455,6 +412,104 @@ async function route(
             .filter(Boolean)
             .at(-1) ??
           entry.name;
+
+        const identification =
+          await identifyEvidenceDocument({
+            bytes,
+            sourceFilename:
+              leaf,
+            sourceRelativePath:
+              entry.name,
+            declaredMediaType:
+              null,
+            declaredCategory:
+              null,
+            declaredDocumentType:
+              null,
+          });
+
+        identifiedEntries.push({
+          entry,
+          leaf,
+          identification,
+          sizeBytes:
+            bytes.length,
+        });
+      }
+
+      const categoryPriority = (
+        identified:
+          EvidenceIdentificationResult,
+      ): number => {
+        const id =
+          identified.identification;
+        if (
+          id.detectedCategory ===
+          "schedule"
+        ) return 10;
+        if (
+          id.detectedCategory ===
+          "contract"
+        ) {
+          if (
+            id.detectedDocumentType ===
+            "main_contract"
+          ) return 20;
+          if (
+            id.detectedDocumentType ===
+            "contract_amendment"
+          ) return 21;
+          return 22;
+        }
+        if (
+          id.detectedCategory ===
+          "boq_cost" &&
+          id.detectedDocumentType ===
+          "boq"
+        ) return 30;
+        if (
+          id.detectedCategory ===
+          "schedule_control"
+        ) return 35;
+        if (
+          id.detectedCategory ===
+          "risk_claims_procurement"
+        ) return 40;
+        if (
+          id.detectedCategory ===
+          "engineering"
+        ) return 45;
+        return 50;
+      };
+
+      identifiedEntries.sort(
+        (a, b) => {
+          const byCategory =
+            categoryPriority(
+              a.identification,
+            ) -
+            categoryPriority(
+              b.identification,
+            );
+          return byCategory !== 0
+            ? byCategory
+            : a.entry.name.localeCompare(
+                b.entry.name,
+              );
+        },
+      );
+
+      const results = [];
+      for (
+        const item of
+          identifiedEntries
+      ) {
+        const bytes =
+          new Uint8Array(
+            await item.entry.async(
+              "uint8array",
+            ),
+          );
         const result =
           await runtimeProjects
             .ingestEvidenceFile({
@@ -462,15 +517,17 @@ async function route(
               bytes,
               mediaType: null,
               sourceFilename:
-                leaf,
+                item.leaf,
               sourceRelativePath:
-                entry.name,
+                item.entry.name,
               category: null,
               documentType: null,
               scheduleRole: null,
               uploadedAt:
                 new Date()
                   .toISOString(),
+              preidentified:
+                item.identification,
             });
         results.push(result);
       }
