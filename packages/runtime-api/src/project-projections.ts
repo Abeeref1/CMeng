@@ -1192,6 +1192,149 @@ function buildBundle(
     ),
   );
 
+  if (!resources) {
+    modules.set(
+      "resource-utilization",
+      available(
+        "resource-utilization",
+        {
+          schemaVersion: "1.0",
+          projectionKey:
+            "resource_utilization_scenario",
+          generatedAt,
+          producerVersion:
+            versions.resource,
+          projectId:
+            state.projectId,
+          sourceRevisionId:
+            current.revision
+              .revisionId,
+          dataDateIso:
+            model.dataDateIso,
+          authority:
+            "schedule_derived_scenario",
+          submittedPlanAvailable:
+            state
+              .submittedManpowerPlan !==
+            null,
+          submittedAverageManpower:
+            deliveryChallenge
+              .manpowerChallenge
+              .submittedAverageManpower,
+          submittedPeakManpower:
+            deliveryChallenge
+              .manpowerChallenge
+              .submittedPeakManpower,
+          averageConcurrentWorkFronts:
+            deliveryChallenge
+              .manpowerChallenge
+              .averageConcurrentWorkFronts,
+          peakConcurrentWorkFronts:
+            deliveryChallenge
+              .manpowerChallenge
+              .peakConcurrentWorkFronts,
+          requiredAverageManpowerToContract:
+            deliveryChallenge
+              .manpowerChallenge
+              .requiredAverageManpowerToContract,
+          requiredAverageManpowerToContractorForecast:
+            deliveryChallenge
+              .manpowerChallenge
+              .requiredAverageManpowerToContractorForecast,
+          scheduleDerivedScenarios:
+            deliveryChallenge
+              .manpowerChallenge
+              .scheduleDerivedScenarios,
+          diagnostics: [
+            "RESOURCE_ASSIGNMENTS_NOT_SUBMITTED_SCENARIO_DERIVED_FROM_WORKFRONTS",
+          ],
+        },
+        [
+          "current schedule",
+          "contractor manpower plan when available",
+        ],
+        "partial",
+        "No resource-loaded schedule was submitted. CMeng still derives 4/6/8 crew work-front scenarios and compares any submitted manpower plan instead of returning Unavailable.",
+      ),
+    );
+
+    const remainingDays =
+      deliveryChallenge
+        .scheduleChallenge
+        .remainingDurationDays;
+    const manhourScenarios =
+      deliveryChallenge
+        .manpowerChallenge
+        .scheduleDerivedScenarios
+        .map((scenario) => ({
+          crewSize:
+            scenario.crewSize,
+          averageManpower:
+            scenario
+              .averageManpower,
+          peakManpower:
+            scenario
+              .peakManpower,
+          remainingScenarioHours:
+            remainingDays !==
+              null &&
+            remainingDays > 0 &&
+            scenario
+              .averageManpower !==
+              null
+              ? Number(
+                  (
+                    remainingDays *
+                    scenario
+                      .averageManpower *
+                    8
+                  ).toFixed(4),
+                )
+              : null,
+          basis:
+            "8 hours/person/day",
+          authority:
+            "schedule_derived_scenario",
+        }));
+
+    modules.set(
+      "manhour-scurve",
+      available(
+        "manhour-scurve",
+        {
+          schemaVersion: "1.0",
+          projectionKey:
+            "manhour_scurve_scenario",
+          generatedAt,
+          producerVersion:
+            versions.manhours,
+          projectId:
+            state.projectId,
+          sourceRevisionId:
+            current.revision
+              .revisionId,
+          dataDateIso:
+            model.dataDateIso,
+          actualHistoryMethod:
+            "missing",
+          submittedLaborAssignments:
+            false,
+          scenarios:
+            manhourScenarios,
+          diagnostics: [
+            "LABOR_ASSIGNMENTS_NOT_SUBMITTED_MANHOUR_SCENARIO_ONLY",
+          ],
+        },
+        [
+          "current schedule",
+          "labor assignments when available",
+        ],
+        "partial",
+        "No governed labor assignments were submitted. CMeng derives scenario remaining man-hours from concurrent work fronts and clearly labels them as scenarios.",
+      ),
+    );
+  }
+
   if (
     ordered.length >= 2 &&
     resourceUtilization &&
@@ -1202,15 +1345,6 @@ function buildBundle(
     delayClaims &&
     eotAssessment
   ) {
-    const revisionTrend =
-      (
-        modules.get(
-          "revision-trend",
-        )!.data
-      ) as ReturnType<
-        typeof buildRevisionTrendProjection
-      >;
-
     modules.set(
       "pmo-analysis",
       available(
@@ -1248,20 +1382,280 @@ function buildBundle(
   } else {
     modules.set(
       "pmo-analysis",
-      blocked(
+      available(
         "pmo-analysis",
-        "PMO Analysis requires the complete governed cross-domain control set.",
+        {
+          schemaVersion: "1.0",
+          projectionKey:
+            "pmo_analysis",
+          generatedAt,
+          producerVersion:
+            versions.pmo,
+          projectId:
+            state.projectId,
+          evidenceRevisionId:
+            delayModel
+              ?.evidenceRevisionId ??
+            current.revision
+              .revisionId,
+          synthesisState:
+            "partial_cross_domain",
+          schedule: {
+            activityCount:
+              scheduleAnalytics
+                .result
+                .activityCount,
+            relationshipCount:
+              scheduleAnalytics
+                .result
+                .relationshipCount,
+            graphComplete:
+              scheduleAnalytics
+                .result
+                .graph.complete,
+            criticalCount:
+              scheduleAnalytics
+                .result
+                .float
+                .criticalCount,
+            nearCriticalCount:
+              scheduleAnalytics
+                .result
+                .float
+                .nearCriticalCount,
+            negativeFloatCount:
+              scheduleAnalytics
+                .result
+                .float
+                .negativeFloatCount,
+            logicDensity:
+              scheduleAnalytics
+                .result
+                .graph
+                .logicDensity,
+          },
+          progress: {
+            durationWeightedProgressPercent:
+              progressReport
+                .progress
+                .durationWeightedProgressPercent,
+            progressCoveragePercent:
+              progressReport
+                .progress
+                .durationWeightedProgressCoveragePercent,
+            completedCount:
+              progressReport
+                .progress
+                .completedCount,
+            inProgressCount:
+              progressReport
+                .progress
+                .inProgressCount,
+            lookAheadOverdueCount:
+              progressReport
+                .lookAhead
+                .overdueCount,
+            lateMilestoneCount:
+              progressReport
+                .milestones
+                .lateOpenCount,
+          },
+          forecast: {
+            sourceCompletionIso:
+              independentForecast
+                .sourceForecastCompletionIso,
+            independentCompletionIso:
+              independentForecast
+                .independentForecastCompletionIso,
+            varianceDays:
+              independentForecast
+                .forecastVarianceDays,
+            origin:
+              independentForecast
+                .origin,
+            complete:
+              independentForecast
+                .complete,
+          },
+          resources: resourceUtilization
+            ? {
+                state:
+                  "resource_loaded",
+                assignedResourceCount:
+                  resourceUtilization
+                    .assignedResourceCount,
+                capacityCoveragePercent:
+                  resourceUtilization
+                    .capacityCoveragePercent,
+                overloadedResourceCount:
+                  resourceUtilization
+                    .overloadedResourceCount,
+              }
+            : {
+                state:
+                  "scenario_only",
+                submittedAverageManpower:
+                  deliveryChallenge
+                    .manpowerChallenge
+                    .submittedAverageManpower,
+                requiredAverageManpowerToContract:
+                  deliveryChallenge
+                    .manpowerChallenge
+                    .requiredAverageManpowerToContract,
+                scheduleDerivedScenarios:
+                  deliveryChallenge
+                    .manpowerChallenge
+                    .scheduleDerivedScenarios,
+              },
+          quantities: quantityScurve
+            ? {
+                state:
+                  quantityScurve
+                    .allocationState,
+                unitSeriesCount:
+                  quantityScurve
+                    .series.length,
+                unmappedItemCount:
+                  quantityScurve
+                    .unmappedItemIds
+                    .length,
+                overAllocatedItemCount:
+                  quantityScurve
+                    .overAllocatedItemIds
+                    .length,
+              }
+            : {
+                state:
+                  state.quantities
+                    ? "mapping_pending"
+                    : "not_submitted",
+                unitSeriesCount: 0,
+                unmappedItemCount:
+                  state.quantities
+                    ?.items.length ??
+                  0,
+                overAllocatedItemCount:
+                  0,
+              },
+          contract: challengeContract
+            ? {
+                loaded: true,
+                physicalComplete:
+                  challengeContract
+                    .physicalComplete,
+                semanticComplete:
+                  challengeContract
+                    .semanticComplete,
+                challengeSignalCount:
+                  challengeContract
+                    .signalCount,
+                noticeRequirementCandidateCount:
+                  challengeContract
+                    .noticeRequirementCandidates
+                    .length,
+              }
+            : {
+                loaded: false,
+                physicalComplete:
+                  false,
+                semanticComplete:
+                  false,
+                challengeSignalCount:
+                  0,
+                noticeRequirementCandidateCount:
+                  0,
+              },
+          claims: {
+            contractorClaimEvidenceSubmitted:
+              delayModel !== null,
+            eventCount:
+              noticesClaims
+                ?.eventCount ??
+              0,
+            claimCount:
+              noticesClaims
+                ?.claimCount ??
+              0,
+            observedPositiveMovementDays:
+              delayClaims
+                ?.observedPositiveIndependentMovementDays ??
+              windows
+                ?.positiveIndependentMovementDays ??
+              0,
+            candidateAdditionalEotDays:
+              eotAssessment
+                ?.candidateAdditionalEotDays ??
+              null,
+          },
+          revision: {
+            revisionCount:
+              revisionTrend
+                .revisionCount,
+            latestAddedActivityCount:
+              revisionTrend
+                .points.at(-1)
+                ?.addedVsPrevious ??
+              null,
+            latestRemovedActivityCount:
+              revisionTrend
+                .points.at(-1)
+                ?.removedVsPrevious ??
+              null,
+            latestModifiedActivityCount:
+              revisionTrend
+                .points.at(-1)
+                ?.modifiedVsPrevious ??
+              null,
+          },
+          missingEvidence: [
+            ...(resources
+              ? []
+              : [
+                  "resource assignments",
+                ]),
+            ...(state.quantities
+              ? []
+              : [
+                  "BOQ/quantity basis",
+                ]),
+            ...(state.contract
+              ? []
+              : [
+                  "contract",
+                ]),
+            ...(delayModel
+              ? []
+              : [
+                  "delay/claim submission",
+                ]),
+            ...(state.controls
+              .contractTimeBasis
+              ? []
+              : [
+                  "contract time basis",
+                ]),
+          ],
+          diagnostics: [
+            "PMO_ANALYSIS_PARTIAL_SYNTHESIS_INSTEAD_OF_BLOCKING",
+          ],
+        },
         [
-          "schedule revision history",
-          "resources",
-          "BOQ/quantity mapping",
-          "contract",
-          "delay/claims",
-          "contract time basis",
+          "available specialist evidence",
         ],
+        "partial",
+        "PMO Analysis is synthesized from every specialist result currently supportable. Missing evidence is exposed as a gap instead of suppressing the PMO view.",
       ),
     );
   }
+
+  applyUniversalModuleChallenges({
+    state,
+    generatedAt,
+    model,
+    independentForecast,
+    deliveryChallenge,
+    modules,
+  });
 
   if (
     delayClaims &&
