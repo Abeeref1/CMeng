@@ -471,12 +471,32 @@ function claimedDaysOverride(
       value:
         rawSum,
       unit: "days",
+      authority:
+        "submitted",
       sourceRefs: [
         ...known.map(
           (claim) =>
             "claim:" +
             claim.claimId,
         ),
+      ],
+      basisRevisionId:
+        state.controls
+          .delayClaims
+          ?.evidenceRevisionId ??
+        null,
+      coveragePercent:
+        null,
+      asOfIso: null,
+      confidence: null,
+      diagnostics: [
+        "CLAIM_TOTAL_REQUIRES_DEDUPLICATION_AND_OVERLAP_REVIEW",
+        ...(anyOutlier ||
+        rawSumOutlier
+          ? [
+              "CLAIM_VALUE_REASONABLENESS_FAILED",
+            ]
+          : []),
       ],
       note:
         "Raw arithmetic sum across " +
@@ -509,10 +529,22 @@ function claimedDaysOverride(
     value:
       known[0]!.days,
     unit: "days",
+    authority:
+      "submitted",
     sourceRefs: [
       "claim:" +
         known[0]!.claimId,
     ],
+    basisRevisionId:
+      state.controls
+        .delayClaims
+        ?.evidenceRevisionId ??
+      null,
+    coveragePercent:
+      null,
+    asOfIso: null,
+    confidence: 1,
+    diagnostics: [],
     note:
       "Single submitted claim value. This remains a claimed position, not an assessed or awarded EOT.",
   };
