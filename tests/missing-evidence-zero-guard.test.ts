@@ -27,6 +27,7 @@ test("missing control evidence is not presented as an established zero", () => {
     rfis: [],
     permits: [],
     bonds: [],
+    risks: [],
   };
   state.evidenceDocuments = [];
   state.version += 1;
