@@ -57,12 +57,47 @@ export type EvidenceCategory =
 
 export type EvidenceParserState =
   | "stored"
+  | "identified"
+  | "ocr_pending"
   | "parsed"
   | "partial"
   | "unsupported"
   | "error";
 
+export type EvidenceIdentificationMethod =
+  | "signature"
+  | "native_text"
+  | "ocr_sample"
+  | "tabular_content"
+  | "office_xml"
+  | "metadata_fallback"
+  | "unreadable";
+
+export interface EvidenceIdentification {
+  verifiedMediaType: string;
+  detectedCategory: EvidenceCategory;
+  detectedDocumentType: string;
+  confidence: number;
+  method: EvidenceIdentificationMethod;
+  ocrUsed: boolean;
+  ocrConfidence: number | null;
+  pageCount: number | null;
+  extractedCharacterCount: number;
+  detectedTitle: string | null;
+  filenameHintCategory: EvidenceCategory;
+  filenameHintDocumentType: string;
+  declaredCategory: string | null;
+  declaredDocumentType: string | null;
+  classificationConflict: boolean;
+  needsReview: boolean;
+  signals: string[];
+  diagnostics: string[];
+}
+
 export interface EvidenceMappingSummary {
+  method:
+    | "explicit_column"
+    | "exact_text_reference";
   rowCount: number | null;
   linkedActivityField: string | null;
   linkedActivityCount: number | null;
@@ -87,6 +122,7 @@ export interface StoredEvidenceDocument {
   linkedArtifactId: string | null;
   scheduleRole: StoredScheduleRevision["role"] | null;
   mapping: EvidenceMappingSummary | null;
+  identification: EvidenceIdentification;
   diagnostics: string[];
 }
 
@@ -99,6 +135,7 @@ export interface EvidenceUploadSummary {
   linkedArtifactId: string | null;
   scheduleRole: StoredScheduleRevision["role"] | null;
   mapping: EvidenceMappingSummary | null;
+  identification: EvidenceIdentification;
   diagnostics: string[];
 }
 
