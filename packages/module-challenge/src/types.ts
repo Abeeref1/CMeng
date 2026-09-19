@@ -28,12 +28,48 @@ export type ChallengeValueState =
   | "scenario"
   | "not_derivable";
 
+export type ChallengeValueAuthority =
+  | "submitted"
+  | "official"
+  | "governed"
+  | "deterministic"
+  | "derived"
+  | "scenario"
+  | "candidate"
+  | "missing";
+
 export interface ChallengeValue {
   state: ChallengeValueState;
   value: number | string | null;
   unit: string | null;
+  authority:
+    ChallengeValueAuthority;
   sourceRefs: string[];
+  basisRevisionId:
+    string | null;
+  coveragePercent:
+    number | null;
+  asOfIso: string | null;
+  confidence: number | null;
+  diagnostics: string[];
   note: string | null;
+}
+
+export interface SharedFindingContract {
+  findingId: string;
+  topic: string;
+  state:
+    | "supported"
+    | "challenged"
+    | "missing_evidence"
+    | "scenario";
+  submitted: ChallengeValue;
+  independent: ChallengeValue;
+  gap: ChallengeValue;
+  evidenceRefs: string[];
+  consequence: string | null;
+  action: string | null;
+  diagnostics: string[];
 }
 
 export interface ModuleChallengeItem {
