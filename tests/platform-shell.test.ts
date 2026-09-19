@@ -165,7 +165,7 @@ test("portfolio, project creation and Ask CMeng remain project scoped", async ()
     );
     assert.match(
       answer.governance,
-      /does not promote/i,
+      /does not change the adopted project position/i,
     );
   });
 });
