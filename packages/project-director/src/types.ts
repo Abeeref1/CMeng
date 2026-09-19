@@ -173,6 +173,12 @@ export interface ProjectDirectorPosition {
     contractualCompletionIso: string | null;
     officialAdjustedCompletionIso: string | null;
     independentForecastCompletionIso: string | null;
+    independentForecastBasisRevisionId: string;
+    independentForecastCoveragePercent: number | null;
+    independentForecastAuthority:
+      | "deterministic"
+      | "scenario"
+      | "unresolved";
     varianceDaysToOfficialAdjustedCompletion: number | null;
     criticalCount: number;
     nearCriticalCount: number;
