@@ -9,6 +9,7 @@ import {
 } from "../../challenge-contract/src";
 import {
   extractContractLdTerms,
+  extractContractValue,
 } from "../../contract-commercial/src";
 import {
   buildDelayClaimsProjection,
@@ -1250,6 +1251,13 @@ function buildBundle(
         state.submittedManpowerPlan,
     });
 
+  const contractValueExtraction =
+    state.contract
+      ? extractContractValue(
+          state.contract,
+        )
+      : null;
+
   if (state.contract) {
     challengeContract =
       buildChallengeContractProjection(
@@ -1276,6 +1284,39 @@ function buildBundle(
         deliveryChallenge,
         contractIntelligence:
           challengeContract,
+        contractValueEvidence: {
+          governed:
+            state.controls
+              .contractValue,
+          extraction:
+            contractValueExtraction,
+          state:
+            state.controls
+              .contractValue
+              ? "governed"
+              : contractValueExtraction
+                    ?.state ===
+                  "candidate"
+                ? "candidate"
+                : contractValueExtraction
+                      ?.state ===
+                    "conflicted"
+                  ? "conflicted"
+                  : "missing",
+          note:
+            state.controls
+              .contractValue
+              ? "Governed contract value is established."
+              : contractValueExtraction
+                    ?.state ===
+                  "candidate"
+                ? "CMeng found a contract value candidate in the contract. It is visible for review but is not used as a governed contract value until promoted."
+                : contractValueExtraction
+                      ?.state ===
+                    "conflicted"
+                  ? "Multiple contract value candidates conflict and require review."
+                  : "CMeng searched the parsed contract and did not identify a defensible contract value candidate.",
+        },
       },
       [
         "current schedule",
