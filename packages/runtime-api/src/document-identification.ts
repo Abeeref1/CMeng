@@ -644,7 +644,9 @@ async function extractImageSample(
       ],
     };
   } finally {
-    await provider.close();
+    if (provider.close) {
+      await provider.close();
+    }
   }
 }
 
