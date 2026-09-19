@@ -1295,6 +1295,121 @@ export class RuntimeProjectStore {
       };
     }
 
+    if (
+      documentType ===
+        "contractor_manpower_plan" &&
+      (
+        media.includes("csv") ||
+        media.includes("spreadsheet") ||
+        media.includes("excel")
+      )
+    ) {
+      const plan =
+        await parseSubmittedManpowerPlan({
+          bytes: input.bytes,
+          mediaType: media,
+          sourceRef:
+            "evidence:" +
+            input.sourceFilename,
+        });
+      existingState
+        .submittedManpowerPlan =
+        plan;
+
+      const hash =
+        hashBytes(input.bytes);
+      const storedPath =
+        this.persistRawUpload({
+          projectId:
+            input.projectId,
+          category:
+            "schedule_control",
+          hash,
+          bytes: input.bytes,
+          sourceFilename:
+            input.sourceFilename,
+        });
+      const documentId =
+        this.evidenceDocumentId(
+          hash,
+          relativePath,
+        );
+      const mapping =
+        media.includes("csv")
+          ? analyzeCsvEvidence(
+              input.bytes,
+              activityIds,
+            )
+          : textMapping;
+      const diagnostics = [
+        ...identification
+          .diagnostics,
+        ...lineage.diagnostics,
+        ...plan.diagnostics,
+      ];
+      const document:
+        StoredEvidenceDocument = {
+        documentId,
+        category:
+          "schedule_control",
+        documentType:
+          "contractor_manpower_plan",
+        sourceFilename:
+          input.sourceFilename,
+        sourceRelativePath:
+          relativePath,
+        mediaType: media,
+        sourceHashSha256: hash,
+        sizeBytes:
+          input.bytes.length,
+        uploadedAt:
+          input.uploadedAt,
+        authority:
+          "candidate_only",
+        parserState:
+          plan.periods.length > 0
+            ? plan.diagnostics.length >
+                0
+              ? "partial"
+              : "parsed"
+            : "partial",
+        storedPath,
+        linkedArtifactId:
+          plan.planId,
+        scheduleRole: null,
+        mapping,
+        identification,
+        lineage,
+        diagnostics,
+      };
+      this.upsertEvidence(
+        existingState,
+        document,
+      );
+      this.touch(
+        existingState,
+      );
+
+      return {
+        documentId,
+        category:
+          document.category,
+        documentType:
+          document.documentType,
+        sourceFilename:
+          document.sourceFilename,
+        parserState:
+          document.parserState,
+        linkedArtifactId:
+          document.linkedArtifactId,
+        scheduleRole: null,
+        mapping,
+        identification,
+        lineage,
+        diagnostics,
+      };
+    }
+
     const state =
       this.getOrCreate(
         input.projectId,
