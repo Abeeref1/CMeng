@@ -1784,6 +1784,34 @@ function buildBundle(
     modules,
   });
 
+  const evidenceTypes =
+    new Set(
+      state.evidenceDocuments.map(
+        (document) =>
+          document.documentType,
+      ),
+    );
+  const evidenceCategoryPresent = (
+    category: string,
+  ): boolean =>
+    state.evidenceDocuments.some(
+      (document) =>
+        document.category ===
+        category,
+    );
+  const evidenceCoverage = (
+    hasStructuredRows: boolean,
+    sourcePresent: boolean,
+  ):
+    | "established"
+    | "submitted_unparsed"
+    | "not_submitted" =>
+    hasStructuredRows
+      ? "established"
+      : sourcePresent
+        ? "submitted_unparsed"
+        : "not_submitted";
+
   if (
     delayClaims &&
     noticesClaims &&
@@ -1866,6 +1894,69 @@ function buildBundle(
                   .finalizedAt,
             }
           : null,
+        evidenceAvailability: {
+          hse:
+            evidenceCoverage(
+              state.controls
+                .hseIncidents
+                .length > 0,
+              evidenceTypes.has(
+                "hse_report",
+              ) ||
+              evidenceCategoryPresent(
+                "hse_quality_fm",
+              ),
+            ),
+          quality:
+            evidenceCoverage(
+              state.controls
+                .ncrs.length > 0,
+              evidenceTypes.has(
+                "quality_ncr_register",
+              ),
+            ),
+          rfi:
+            evidenceCoverage(
+              state.controls
+                .rfis.length > 0,
+              evidenceTypes.has(
+                "rfi_register",
+              ),
+            ),
+          permits:
+            evidenceCoverage(
+              state.controls
+                .permits.length > 0,
+              [
+                ...evidenceTypes,
+              ].some(
+                (type) =>
+                  type.includes(
+                    "permit",
+                  ),
+              ),
+            ),
+          bonds:
+            evidenceCoverage(
+              state.controls
+                .bonds.length > 0,
+              [
+                ...evidenceTypes,
+              ].some(
+                (type) =>
+                  type.includes(
+                    "bond",
+                  ),
+              ),
+            ),
+          risk:
+            evidenceCoverage(
+              false,
+              evidenceTypes.has(
+                "risk_register",
+              ),
+            ),
+        },
       });
 
     if (
