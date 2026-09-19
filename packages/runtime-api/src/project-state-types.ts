@@ -5,6 +5,9 @@ import type {
   SubmittedManpowerPlan,
 } from "../../delivery-challenge/src";
 import type {
+  DocumentAssertion,
+} from "../../module-challenge/src";
+import type {
   ContractDocumentResult,
   ContractFamilyResult,
 } from "../../contract-parser/src";
@@ -147,6 +150,7 @@ export interface StoredEvidenceDocument {
   mapping: EvidenceMappingSummary | null;
   identification: EvidenceIdentification;
   lineage: EvidenceLineage;
+  assertions: DocumentAssertion[];
   diagnostics: string[];
 }
 
@@ -161,6 +165,7 @@ export interface EvidenceUploadSummary {
   mapping: EvidenceMappingSummary | null;
   identification: EvidenceIdentification;
   lineage: EvidenceLineage;
+  assertionCount: number;
   diagnostics: string[];
 }
 
