@@ -88,7 +88,7 @@ details:not(.workspace-drawer){border:1px solid var(--line);border-radius:9px;ba
       <button class="btn project-only" id="refresh">Refresh</button>
       <button class="btn project-only" id="focusMode" aria-pressed="false">Focus view</button>
       <button class="btn project-only" id="loadDemo">Load certified demo</button>
-      <div class="topbar-context project-only"><span>Current view</span><b id="topbarModule">PMO Analysis</b></div>
+      <div class="topbar-context project-only"><span>Current view</span><b id="topbarModule">Management Position</b></div>
       <div class="topbar-spacer"></div>
       <span id="releaseStatus" class="release-state">Production</span>
       <span id="globalStatus" style="font-size:12px;color:#667085"></span>
@@ -160,7 +160,7 @@ details:not(.workspace-drawer){border:1px solid var(--line);border-radius:9px;ba
         <div class="module-head module-workspace-head">
           <div>
             <span class="section-kicker">Current view</span>
-            <h3 id="moduleTitle">Schedule module</h3>
+            <h3 id="moduleTitle">Project Controls</h3>
             <p>Current position, supporting records, variances, consequences and required management action.</p>
           </div>
           <span id="moduleBadge" class="badge">Select a view</span>
@@ -237,7 +237,7 @@ details:not(.workspace-drawer){border:1px solid var(--line);border-radius:9px;ba
 
       <details class="workspace-drawer" id="evidenceLibraryDrawer">
         <summary>
-          <div><span class="section-kicker">Project records</span><strong>Document register & mapping</strong></div>
+          <div><span class="section-kicker">Project records</span><strong>Document register & activity links</strong></div>
           <span id="evidenceBadge" class="badge">0 documents</span>
         </summary>
         <div class="drawer-body">
@@ -245,7 +245,7 @@ details:not(.workspace-drawer){border:1px solid var(--line);border-radius:9px;ba
         </div>
       </details>
 
-      <div class="footer-note">CMeng retains source lineage, keeps missing evidence distinct from zero, keeps recovery schedules separate from the current programme, and never turns a recommendation into the governed basis without the required authority or user decision.</div>
+      <div class="footer-note">CMeng keeps every project document traceable, treats missing information separately from zero, keeps recovery programmes separate from the current programme, and requires approval before changing the adopted project position.</div>
       </div>
     </div>
   </main>
@@ -308,7 +308,7 @@ function renderUniversalChallenge(challenge){
     const assessed=Array.isArray(rec.candidates)?rec.candidates:[];
     const candidateCards=comparisons.map((candidate,index)=>{
       const score=assessed.find(x=>String(x.value)===String(candidate.submittedValue)&&String(x.unit||"")===String(candidate.submittedUnit||""))||assessed[index]||{};
-      const sources=(candidate.sourceRefs||score.sourceRefs||[]).join(", ")||"Source lineage retained";
+      const sources=(candidate.sourceRefs||score.sourceRefs||[]).join(", ")||"Source records retained";
       const gap=candidate.comparable===false?"Not directly comparable":withUnit(candidate.gapValue,candidate.gapUnit);
       const evidenceScore=score.evidenceScore===undefined?"—":fmt(score.evidenceScore);
       const recommendationScore=score.recommendationScore===undefined?"—":fmt(score.recommendationScore);
@@ -326,7 +326,7 @@ function renderUniversalChallenge(challenge){
     }).join("");
     const hasRecommendation=rec.recommendedValue!==null&&rec.recommendedValue!==undefined;
     const recommendation=hasRecommendation?withUnit(rec.recommendedValue,rec.recommendedUnit):"No unique candidate";
-    const rationale=Array.isArray(rec.rationale)?rec.rationale.join(" "):(rec.rationale||"All defensible candidates remain visible until the user determines the governed basis.");
+    const rationale=Array.isArray(rec.rationale)?rec.rationale.join(" "):(rec.rationale||"All defensible positions remain visible until management selects the adopted project position.");
     return '<div class="conflict-panel">'+
       '<div class="conflict-title"><div><strong>Conflicting project information · all defensible positions retained</strong><p>CMeng calculates each defensible position separately and keeps the supporting records visible until management selects the adopted position.</p></div><span class="badge partial">Conflict</span></div>'+
       '<div class="candidate-grid">'+candidateCards+'</div>'+
