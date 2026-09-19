@@ -675,7 +675,10 @@ export function buildProjectDirectorPosition(
     evidenceState(
       input.evidenceAvailability
         ?.risk,
-      false,
+      input.openRiskCount !==
+        undefined &&
+      input.openRiskCount !==
+        null,
     );
 
   const controls = {
@@ -686,7 +689,11 @@ export function buildProjectDirectorPosition(
     bondEvidenceState,
     riskEvidenceState,
     openRiskCount:
-      null,
+      riskEvidenceState ===
+        "established"
+        ? input.openRiskCount ??
+          0
+        : null,
     openHseIncidentCount:
       openHse.length,
     openLtiOrWorseCount:
