@@ -112,13 +112,19 @@ function spec(
   sourceRefs: string[],
   input: {
     submittedOverride?:
-      ChallengeValue;
-    tolerance?: number;
-    note?: string;
-    consequenceDifferent?: string;
-    consequenceMissing?: string;
-    actionDifferent?: string;
-    actionMissing?: string;
+      ChallengeValue | undefined;
+    tolerance?:
+      number | undefined;
+    note?:
+      string | undefined;
+    consequenceDifferent?:
+      string | undefined;
+    consequenceMissing?:
+      string | undefined;
+    actionDifferent?:
+      string | undefined;
+    actionMissing?:
+      string | undefined;
   } = {},
 ): IndependentMetricSpec {
   return {
