@@ -2369,6 +2369,30 @@ export function overviewForProject(
             b.documentType,
           ),
       ),
+    activeEvidenceBasis:
+      JSON.parse(
+        JSON.stringify(
+          state.activeEvidenceBasis,
+        ),
+      ),
+    lastRerunReceipt:
+      state.lastRerunReceipt
+        ? JSON.parse(
+            JSON.stringify(
+              state.lastRerunReceipt,
+            ),
+          )
+        : null,
+    boardPublicationHistory:
+      state.boardPublicationHistory
+        .map(
+          (item) => ({
+            ...item,
+            evidenceReceiptIds: [
+              ...item.evidenceReceiptIds,
+            ],
+          }),
+        ),
     moduleStates:
       scheduleModules.map(
         (module) => {
