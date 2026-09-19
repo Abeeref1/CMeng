@@ -1007,6 +1007,24 @@ export class RuntimeProjectStore {
       });
     const identification =
       identified.identification;
+    const existingState =
+      this.getOrCreate(
+        input.projectId,
+      );
+    const lineage =
+      inferEvidenceLineage({
+        category:
+          identification
+            .detectedCategory,
+        documentType:
+          identification
+            .detectedDocumentType,
+        textSample:
+          identified.textSample,
+        existingDocuments:
+          existingState
+            .evidenceDocuments,
+      });
     const category =
       identification.detectedCategory;
     const documentType =
@@ -1063,6 +1081,7 @@ export class RuntimeProjectStore {
           uploadedAt:
             input.uploadedAt,
           identification,
+          lineage,
         });
       const document =
         this.evidence(
@@ -1096,6 +1115,8 @@ export class RuntimeProjectStore {
           document.mapping,
         identification:
           document.identification,
+        lineage:
+          document.lineage,
         diagnostics: [
           ...document.diagnostics,
         ],
@@ -1143,6 +1164,7 @@ export class RuntimeProjectStore {
         input.sourceFilename,
         relativePath,
         identification,
+        lineage,
       );
       const document =
         this.evidence(
@@ -1215,6 +1237,7 @@ export class RuntimeProjectStore {
         uploadedAt:
           input.uploadedAt,
         identification,
+        lineage,
       });
       const hash =
         hashBytes(input.bytes);
@@ -1347,6 +1370,7 @@ export class RuntimeProjectStore {
       scheduleRole: null,
       mapping,
       identification,
+      lineage,
       diagnostics,
     };
     this.upsertEvidence(
@@ -1369,6 +1393,8 @@ export class RuntimeProjectStore {
       mapping,
       identification:
         document.identification,
+      lineage:
+        document.lineage,
       diagnostics,
     };
   }
