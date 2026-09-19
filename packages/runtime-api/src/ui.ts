@@ -7,48 +7,58 @@ export function cmengUatHtml(): string {
 <title>CMeng | Project Control</title>
 <style>
 :root{
-  --bg:#f4f6f8;--panel:#fff;--ink:#17202a;--muted:#667085;--line:#e4e7ec;
-  --accent:#1d4ed8;--danger:#b42318;--warn:#b54708;--ok:#067647;
-  --nav:#101828;--nav2:#1d2939;--soft:#f8fafc;--shadow:0 1px 2px rgba(16,24,40,.05),0 4px 14px rgba(16,24,40,.04)
+  --bg:#eef2f6;--panel:#ffffff;--ink:#142033;--muted:#66758a;--line:#dce3ea;
+  --accent:#2357d9;--accent-strong:#1946b8;--accent-soft:#eef4ff;--teal:#0f766e;
+  --danger:#b42318;--warn:#b54708;--ok:#067647;--nav:#0b1424;--nav2:#16243a;
+  --soft:#f7f9fc;--soft-blue:#f3f7ff;--shadow:0 1px 2px rgba(15,23,42,.04),0 10px 28px rgba(15,23,42,.06);
+  --shadow-strong:0 18px 50px rgba(15,23,42,.08)
 }
-*{box-sizing:border-box} body{margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--ink)}
-button,input,select{font:inherit} button{cursor:pointer}
-.app{display:grid;grid-template-columns:290px 1fr;min-height:100vh}
-.sidebar{background:var(--nav);color:#fff;padding:22px 16px;position:sticky;top:0;height:100vh;overflow:auto}
-.brand{padding:0 10px 20px;border-bottom:1px solid #344054;margin-bottom:18px}
-.brand h1{font-size:22px;margin:0 0 4px}.brand p{margin:0;color:#98a2b3;font-size:12px;line-height:1.4}
-.nav-group{margin:18px 0}.nav-group-title{font-size:11px;color:#98a2b3;text-transform:uppercase;letter-spacing:.08em;padding:0 10px 8px}
-.nav-item{width:100%;border:0;background:transparent;color:#d0d5dd;text-align:left;padding:9px 10px;border-radius:7px;display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:13px}
-.nav-item:hover,.nav-item.active{background:var(--nav2);color:#fff}.nav-label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.status-dot{width:8px;height:8px;border-radius:50%;background:#667085;flex:0 0 auto}.status-dot.ready{background:#32d583}.status-dot.partial{background:#fdb022}.status-dot.blocked{background:#f97066}
-.main{min-width:0}.topbar{min-height:72px;background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px;padding:12px 28px;position:sticky;top:0;z-index:5}
-.project-input{display:flex;align-items:center;gap:8px;min-width:360px}.project-input label{font-size:12px;color:var(--muted);font-weight:600}.project-input input{height:38px;border:1px solid #d0d5dd;border-radius:7px;padding:0 10px;min-width:210px}
-.btn{border:1px solid #d0d5dd;background:#fff;border-radius:7px;padding:9px 13px;font-weight:600;font-size:13px;color:#344054}.btn:hover{background:#f9fafb}.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}.btn.primary:hover{filter:brightness(.95)}.btn.small{padding:7px 10px;font-size:12px}
-.content{padding:26px 28px 50px;max-width:1700px;margin:0 auto}.page-title{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:20px}
-.page-title h2{font-size:25px;letter-spacing:-.02em;margin:0 0 5px}.page-title p{margin:0;color:var(--muted);font-size:13px}
-.grid{display:grid;gap:14px}.grid.kpi{grid-template-columns:repeat(6,minmax(130px,1fr));margin-bottom:14px}.grid.two{grid-template-columns:1.45fr 1fr}.grid.three{grid-template-columns:repeat(3,1fr)}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);padding:17px}.card h3{font-size:14px;margin:0 0 12px}.kpi-card{padding:15px}.kpi-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:7px}.kpi-value{font-size:23px;font-weight:700;letter-spacing:-.03em}.kpi-sub{font-size:11px;color:var(--muted);margin-top:5px}
-.badge{display:inline-flex;align-items:center;border-radius:999px;padding:4px 8px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;background:#f2f4f7;color:#475467}.badge.ready{background:#ecfdf3;color:var(--ok)}.badge.partial{background:#fffaeb;color:var(--warn)}.badge.blocked{background:#fef3f2;color:var(--danger)}
-.upload-row{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.upload-box{border:1px dashed #cbd5e1;border-radius:9px;padding:13px;background:#fbfcfd}.upload-box strong{font-size:12px;display:block;margin-bottom:5px}.upload-box small{color:var(--muted);display:block;margin-bottom:9px;line-height:1.4}.upload-box input{width:100%;font-size:11px}
-.wide-upload{margin-top:10px;border:1px dashed #94a3b8;border-radius:9px;padding:13px;background:#f8fafc;display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center}.wide-upload strong{font-size:12px;display:block;margin-bottom:4px}.wide-upload small{color:var(--muted);font-size:11px}.wide-upload input{font-size:11px;width:100%;margin-top:7px}
-.queue{margin-top:9px;display:flex;flex-direction:column;gap:6px}.queue-row{display:grid;grid-template-columns:minmax(0,1fr) 145px;gap:8px;align-items:center;padding:7px 8px;border:1px solid var(--line);border-radius:6px;background:#fff}.queue-name{font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.queue-row select{height:30px;border:1px solid #d0d5dd;border-radius:6px;font-size:11px}
-.upload-actions{display:flex;justify-content:flex-end;margin-top:9px}
-.table-wrap{overflow:auto;border:1px solid var(--line);border-radius:8px;max-height:420px}table{border-collapse:collapse;width:100%;font-size:12px}th,td{padding:9px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}th{background:#f8fafc;color:#475467;font-weight:700;position:sticky;top:0}tr:last-child td{border-bottom:0}
-.actions{display:flex;flex-direction:column;gap:8px}.action{padding:10px 12px;background:#fff7ed;border-left:3px solid #f79009;border-radius:5px;font-size:12px}
-.empty{padding:30px;text-align:center;color:var(--muted);font-size:13px}.notice{padding:11px 12px;border-radius:7px;font-size:12px;margin:10px 0}.notice.info{background:#eff8ff;color:#175cd3}.notice.warn{background:#fffaeb;color:#93370d}.notice.error{background:#fef3f2;color:#912018}
-.module-panel{margin-top:18px}.module-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}.module-head h3{font-size:18px;margin:0}.scalar-grid{display:grid;grid-template-columns:repeat(4,minmax(130px,1fr));gap:10px;margin-bottom:12px}.scalar{background:var(--soft);padding:11px;border-radius:7px;border:1px solid #edf0f3}.scalar b{display:block;font-size:11px;color:var(--muted);margin-bottom:5px;overflow:hidden;text-overflow:ellipsis}.scalar span{font-size:14px;font-weight:650;word-break:break-word}
-details{border:1px solid var(--line);border-radius:8px;background:#fff}summary{padding:10px 12px;cursor:pointer;font-size:12px;font-weight:650}pre{margin:0;padding:12px;max-height:520px;overflow:auto;background:#0b1220;color:#d1e0ff;font-size:11px;line-height:1.5;border-radius:0 0 8px 8px;white-space:pre-wrap;word-break:break-word}
-.currency-card{border:1px solid var(--line);border-radius:8px;padding:12px}.currency-code{font-size:16px;font-weight:800;margin-bottom:8px}.currency-line{display:flex;justify-content:space-between;font-size:12px;padding:4px 0;color:#475467}.currency-line strong{color:#101828}
-.footer-note{font-size:11px;color:var(--muted);margin-top:20px}.muted{color:var(--muted)}
+*{box-sizing:border-box}
+html{background:var(--bg)}
+body{margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--ink);font-size:15px;line-height:1.48}
+button,input,select{font:inherit}button{cursor:pointer}
+.app{display:grid;grid-template-columns:258px minmax(0,1fr);min-height:100vh}
+.sidebar{background:linear-gradient(180deg,#0b1424 0%,#111d31 100%);color:#fff;padding:20px 14px;position:sticky;top:0;height:100vh;overflow:auto;border-right:1px solid rgba(255,255,255,.05)}
+.brand{display:flex;align-items:center;gap:12px;padding:2px 8px 20px;border-bottom:1px solid rgba(255,255,255,.12);margin-bottom:20px}
+.brand-mark{width:42px;height:42px;border-radius:11px;display:grid;place-items:center;background:linear-gradient(145deg,#2e66ed,#0f766e);box-shadow:0 8px 20px rgba(0,0,0,.2);font-size:14px;font-weight:850;letter-spacing:.04em}
+.brand-copy h1{font-size:21px;line-height:1.05;margin:0 0 5px;letter-spacing:-.025em}.brand-copy p{margin:0;color:#9fb0c6;font-size:11.5px;line-height:1.35}
+.nav-group{margin:20px 0}.nav-group-title{font-size:11px;color:#8292aa;text-transform:uppercase;letter-spacing:.095em;padding:0 10px 9px;font-weight:750}
+.nav-item{width:100%;border:0;background:transparent;color:#c5d0df;text-align:left;padding:10px 11px;border-radius:9px;display:flex;align-items:center;justify-content:space-between;gap:9px;font-size:13.5px;font-weight:570;transition:.16s ease}
+.nav-item:hover{background:rgba(255,255,255,.06);color:#fff}.nav-item.active{background:#213453;color:#fff;box-shadow:inset 3px 0 0 #4f7df1}
+.nav-label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.status-dot{width:8px;height:8px;border-radius:50%;background:#63738b;flex:0 0 auto;box-shadow:0 0 0 3px rgba(255,255,255,.03)}.status-dot.ready{background:#32d583}.status-dot.partial{background:#fdb022}.status-dot.blocked{background:#f97066}
+.main{min-width:0}.topbar{min-height:72px;background:rgba(255,255,255,.96);backdrop-filter:blur(12px);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:11px;padding:12px 30px;position:sticky;top:0;z-index:10}
+.project-input{display:flex;align-items:center;gap:9px;min-width:350px}.project-input label{font-size:12px;color:var(--muted);font-weight:750;text-transform:uppercase;letter-spacing:.04em}.project-input input{height:40px;border:1px solid #cbd5e1;border-radius:9px;padding:0 12px;min-width:220px;background:#fff;color:var(--ink);font-weight:650;outline:none}.project-input input:focus{border-color:#7aa2ff;box-shadow:0 0 0 3px rgba(35,87,217,.11)}
+.btn{border:1px solid #cbd5e1;background:#fff;border-radius:9px;padding:9px 14px;font-weight:700;font-size:13px;color:#334155;min-height:40px}.btn:hover{background:#f8fafc}.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;box-shadow:0 3px 10px rgba(35,87,217,.17)}.btn.primary:hover{background:var(--accent-strong)}.btn.small{padding:7px 11px;font-size:12px;min-height:34px}
+.content{padding:28px 32px 64px;width:100%;max-width:none;margin:0}
+.workspace-header{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin-bottom:18px}.page-title{margin:0}.page-title .eyebrow,.section-kicker{display:block;font-size:11px;color:#617086;text-transform:uppercase;letter-spacing:.095em;font-weight:800;margin-bottom:6px}.page-title h2{font-size:29px;line-height:1.15;letter-spacing:-.035em;margin:0 0 7px}.page-title p{margin:0;color:var(--muted);font-size:14px;max-width:780px}
+.grid{display:grid;gap:14px}.grid.kpi{grid-template-columns:repeat(auto-fit,minmax(170px,1fr));margin-bottom:16px}.grid.two{grid-template-columns:minmax(0,1.45fr) minmax(320px,1fr)}.grid.three{grid-template-columns:repeat(3,minmax(0,1fr))}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:13px;box-shadow:var(--shadow);padding:19px}.card h3{font-size:16px;line-height:1.25;margin:0 0 13px;letter-spacing:-.01em}.kpi-card{padding:17px 18px;min-height:112px}.kpi-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.055em;margin-bottom:9px;font-weight:750}.kpi-value{font-size:25px;font-weight:780;letter-spacing:-.035em;line-height:1.08}.kpi-sub{font-size:12px;color:var(--muted);margin-top:8px;line-height:1.35}
+.badge{display:inline-flex;align-items:center;border-radius:999px;padding:5px 9px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.045em;background:#f2f4f7;color:#475467;white-space:nowrap}.badge.ready{background:#ecfdf3;color:var(--ok)}.badge.partial{background:#fffaeb;color:var(--warn)}.badge.blocked{background:#fef3f2;color:var(--danger)}
+.module-panel{padding:0;margin:0;overflow:hidden;border-radius:16px;box-shadow:var(--shadow-strong);min-height:560px}.module-panel>.module-head{padding:20px 22px 18px;border-bottom:1px solid var(--line);margin:0;background:linear-gradient(180deg,#fff,#fbfcfe)}.module-workspace-head>div{min-width:0}.module-workspace-head h3{font-size:24px;margin:0 0 4px;letter-spacing:-.025em}.module-workspace-head p{margin:0;color:var(--muted);font-size:13px}.module-panel #moduleContent{padding:22px;min-height:470px;background:#fbfcfe}
+.module-head{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:13px}.module-head h3{font-size:18px;margin:0}
+.director-section{margin-top:24px}.section-heading{display:flex;justify-content:space-between;align-items:end;gap:14px;margin:0 0 12px}.section-heading h3{font-size:20px;margin:0 0 3px;letter-spacing:-.02em}.section-heading p{font-size:13px;color:var(--muted);margin:0}
+.scalar-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(175px,1fr));gap:11px;margin-bottom:14px}.scalar{background:var(--soft);padding:13px 14px;border-radius:9px;border:1px solid #e7edf3;min-width:0}.scalar b{display:block;font-size:11.5px;color:var(--muted);margin-bottom:6px;overflow:hidden;text-overflow:ellipsis;font-weight:750}.scalar span{font-size:15px;font-weight:680;word-break:break-word}
+.table-wrap{overflow:auto;border:1px solid var(--line);border-radius:10px;max-height:560px;background:#fff}table{border-collapse:collapse;width:100%;font-size:13px}th,td{padding:11px 12px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}th{background:#f6f8fb;color:#46556a;font-weight:780;position:sticky;top:0;z-index:1;font-size:12px;letter-spacing:.015em}tbody tr:hover td{background:#fbfdff}tr:last-child td{border-bottom:0}
+.actions{display:flex;flex-direction:column;gap:8px}.action{padding:11px 13px;background:#fff8ed;border-left:3px solid #f79009;border-radius:7px;font-size:13px}
+.empty{padding:34px;text-align:center;color:var(--muted);font-size:14px}.notice{padding:12px 14px;border-radius:9px;font-size:13px;margin:11px 0;line-height:1.45}.notice.info{background:#eff6ff;color:#1d4f91;border:1px solid #d9e8ff}.notice.warn{background:#fff9e8;color:#8a4b08;border:1px solid #f8e7b1}.notice.error{background:#fff1f0;color:#912018;border:1px solid #ffd8d3}
+.upload-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.upload-box{border:1px solid #d9e2ec;border-radius:11px;padding:14px;background:#fafcff}.upload-box strong{font-size:13px;display:block;margin-bottom:5px}.upload-box small{color:var(--muted);display:block;margin-bottom:10px;line-height:1.45;font-size:12px}.upload-box input{width:100%;font-size:12px}.intent-control{display:flex;align-items:center;justify-content:space-between;gap:9px;margin:10px 0;padding:8px 9px;background:#f2f6fb;border-radius:8px}.intent-control span{font-size:11px;color:#607086;font-weight:750}.intent-control select{max-width:175px;height:32px;border:1px solid #cbd5e1;border-radius:7px;background:#fff;color:#334155;font-size:11.5px;padding:0 7px}
+.wide-upload{margin-top:12px;border:1px solid #ccd9e8;border-radius:11px;padding:14px;background:#f7faff;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:14px;align-items:center}.wide-upload strong{font-size:13px;display:block;margin-bottom:4px}.wide-upload small{color:var(--muted);font-size:12px}.wide-upload input{font-size:12px;width:100%;margin-top:8px}
+.queue{margin-top:9px;display:flex;flex-direction:column;gap:6px}.queue-row{display:grid;grid-template-columns:minmax(0,1fr) 150px;gap:8px;align-items:center;padding:8px 9px;border:1px solid var(--line);border-radius:7px;background:#fff}.queue-name{font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.queue-row select{height:31px;border:1px solid #d0d5dd;border-radius:6px;font-size:11.5px}.upload-actions{display:flex;justify-content:flex-end;margin-top:10px}
+.workspace-drawer{margin-top:20px;border:1px solid var(--line);border-radius:13px;background:#fff;box-shadow:var(--shadow);overflow:hidden}.workspace-drawer>summary{list-style:none;display:flex;align-items:center;justify-content:space-between;gap:14px;padding:15px 18px;cursor:pointer;background:#fff}.workspace-drawer>summary::-webkit-details-marker{display:none}.workspace-drawer>summary strong{display:block;font-size:15px}.workspace-drawer>summary .section-kicker{margin-bottom:3px}.drawer-hint{font-size:12px;color:var(--accent);font-weight:750}.workspace-drawer[open] .drawer-hint{color:var(--muted)}.drawer-body{padding:0 18px 18px;background:#fbfcfe;border-top:1px solid var(--line)}.evidence-control-grid{grid-template-columns:minmax(280px,.62fr) minmax(0,1.5fr);align-items:start;padding-top:18px}.evidence-status-card{position:sticky;top:92px}.evidence-intake-card{min-width:0}
+details:not(.workspace-drawer){border:1px solid var(--line);border-radius:9px;background:#fff}details:not(.workspace-drawer)>summary{padding:11px 13px;cursor:pointer;font-size:12.5px;font-weight:700}pre{margin:0;padding:13px;max-height:560px;overflow:auto;background:#0c1525;color:#d7e5ff;font-size:12px;line-height:1.55;border-radius:0 0 9px 9px;white-space:pre-wrap;word-break:break-word}
+.currency-card{border:1px solid var(--line);border-radius:10px;padding:13px;background:#fff}.currency-code{font-size:17px;font-weight:820;margin-bottom:8px}.currency-line{display:flex;justify-content:space-between;gap:12px;font-size:13px;padding:5px 0;color:#526176}.currency-line strong{color:#152238}
+.challenge-card{padding:0!important;overflow:hidden}.challenge-card .challenge-head{padding:17px 18px;border-bottom:1px solid var(--line)}.challenge-card .challenge-summary{padding:15px 18px 0}.challenge-card .challenge-table-wrap{margin:15px 18px 18px}.conflict-expand-row>td{padding:0;background:#f9fbff!important}.conflict-panel{padding:16px 18px;border-top:1px solid #dce7f5;border-bottom:1px solid #dce7f5;background:linear-gradient(180deg,#f8fbff,#f4f8ff)}.conflict-title{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px}.conflict-title strong{font-size:14px}.conflict-title p{margin:3px 0 0;color:var(--muted);font-size:12px}.candidate-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px}.candidate-card{border:1px solid #cedcf3;border-radius:10px;background:#fff;padding:13px}.candidate-card.recommended{border-color:#85a7f8;box-shadow:0 0 0 2px rgba(35,87,217,.08)}.candidate-value{font-size:20px;font-weight:790;letter-spacing:-.025em;margin:3px 0 9px}.candidate-meta{display:grid;grid-template-columns:1fr 1fr;gap:7px;font-size:11.5px;color:var(--muted)}.candidate-meta b{display:block;color:#435169;font-size:10.5px;text-transform:uppercase;letter-spacing:.04em}.candidate-sources{font-size:11.5px;color:#5d6b7e;margin-top:9px;word-break:break-word}.recommendation-card{margin-top:12px;padding:13px 14px;border-radius:10px;background:#eef4ff;border:1px solid #ccdcff;display:flex;align-items:flex-start;justify-content:space-between;gap:16px}.recommendation-card strong{display:block;font-size:16px;color:#173f9b;margin:3px 0}.recommendation-card p{margin:0;color:#53647b;font-size:12px;line-height:1.45}.recommendation-label{font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;font-weight:820;color:#315fbf}.decision-pill{flex:0 0 auto;background:#fff7e8;color:#8b4b08;border:1px solid #f6d99f;border-radius:999px;padding:6px 9px;font-size:10.5px;font-weight:820;text-transform:uppercase;letter-spacing:.04em}
+.footer-note{font-size:12px;color:var(--muted);margin-top:22px;padding:0 2px}.muted{color:var(--muted)}
 .spinner{width:14px;height:14px;border:2px solid #d0d5dd;border-top-color:var(--accent);border-radius:50%;display:inline-block;animation:spin .7s linear infinite;vertical-align:-2px}@keyframes spin{to{transform:rotate(360deg)}}
-@media(max-width:1100px){.app{grid-template-columns:230px 1fr}.grid.kpi{grid-template-columns:repeat(3,1fr)}.grid.two,.grid.three,.upload-row{grid-template-columns:1fr}.scalar-grid{grid-template-columns:repeat(2,1fr)}}
-@media(max-width:760px){.app{display:block}.sidebar{position:relative;height:auto}.topbar{position:relative;flex-wrap:wrap;padding:14px}.content{padding:18px}.project-input{min-width:0;width:100%;flex-wrap:wrap}.grid.kpi{grid-template-columns:repeat(2,1fr)}.wide-upload{grid-template-columns:1fr}.queue-row{grid-template-columns:1fr}}
+@media(max-width:1280px){.app{grid-template-columns:238px minmax(0,1fr)}.grid.three{grid-template-columns:1fr 1fr}.upload-row{grid-template-columns:1fr}.evidence-control-grid{grid-template-columns:1fr}.evidence-status-card{position:static}}
+@media(max-width:900px){.app{display:block}.sidebar{position:relative;height:auto}.topbar{position:relative;flex-wrap:wrap;padding:13px 18px}.content{padding:20px 18px 48px}.project-input{min-width:0;width:100%;flex-wrap:wrap}.workspace-header{align-items:center}.grid.two,.grid.three{grid-template-columns:1fr}.module-panel #moduleContent{padding:16px}.module-panel>.module-head{padding:17px}.candidate-grid{grid-template-columns:1fr}}
+@media(max-width:620px){.workspace-header{display:block}.workspace-header .badge{margin-top:10px}.grid.kpi{grid-template-columns:1fr 1fr}.scalar-grid{grid-template-columns:1fr}.wide-upload{grid-template-columns:1fr}.queue-row{grid-template-columns:1fr}.recommendation-card{display:block}.decision-pill{display:inline-flex;margin-top:10px}}
 </style>
 </head>
 <body>
 <div class="app">
   <aside class="sidebar">
-    <div class="brand"><h1>CMeng</h1><p>Controlled project evidence & intelligence</p></div>
+    <div class="brand"><div class="brand-mark">CM</div><div class="brand-copy"><h1>CMeng</h1><p>Project Control Intelligence</p></div></div>
     <div id="nav"></div>
   </aside>
   <main class="main">
@@ -62,69 +72,106 @@ details{border:1px solid var(--line);border-radius:8px;background:#fff}summary{p
       <span id="globalStatus" style="margin-left:auto;font-size:12px;color:#667085"></span>
     </div>
     <div class="content">
-      <div class="page-title">
-        <div><h2>Project Director</h2><p>Where are we, what is exposed, and what requires action?</p></div>
+      <div class="workspace-header">
+        <div class="page-title">
+          <span class="eyebrow">CMeng · controlled project intelligence</span>
+          <h2>Project Control Workspace</h2>
+          <p>Evidence-backed schedule, progress, forecast, claims and commercial analysis. Select a module on the left to work directly in the active analysis.</p>
+        </div>
         <span id="projectBadge" class="badge">No project</span>
       </div>
 
-      <section id="director"></section>
-
-      <div class="grid two" style="margin-top:14px">
-        <section class="card">
-          <h3>Evidence intake</h3>
-          <div class="upload-row">
-            <div class="upload-box">
-              <strong>Schedule revisions</strong>
-              <small>Select baseline, multiple updates, revised baseline and recovery files together. CMeng verifies the actual file content/signature; the filename is only a hint.</small>
-              <input type="file" id="scheduleFiles" multiple accept=".xer,.xml,.xlsx,.xlsm,.csv">
-              <div id="scheduleQueue" class="queue"></div>
-              <div class="upload-actions"><button class="btn small primary" id="uploadSchedules">Upload schedule batch</button></div>
-            </div>
-            <div class="upload-box">
-              <strong>BOQ / quantity revisions</strong>
-              <small>Select one or more BOQ revisions. CMeng inspects the content before routing it, so a wrongly named file is not trusted as a BOQ.</small>
-              <input type="file" id="boqFiles" multiple accept=".csv,.xlsx,.xlsm,.pdf">
-              <div id="boqQueue" class="queue"></div>
-              <div class="upload-actions"><button class="btn small primary" id="uploadBoqs">Upload BOQ batch</button></div>
-            </div>
-            <div class="upload-box">
-              <strong>Contract family</strong>
-              <small>Select the main contract, amendments and appendices together. Searchable PDF, scanned PDF and image evidence are content-identified; amendments do not silently replace the base contract.</small>
-              <input type="file" id="contractFiles" multiple accept=".pdf,.docx,.png,.jpg,.jpeg,.tif,.tiff,.bmp,.webp">
-              <div id="contractQueue" class="queue"></div>
-              <div class="upload-actions"><button class="btn small primary" id="uploadContracts">Upload contract batch</button></div>
-            </div>
+      <section class="card module-panel module-workspace">
+        <div class="module-head module-workspace-head">
+          <div>
+            <span class="section-kicker">Active module</span>
+            <h3 id="moduleTitle">Schedule module</h3>
+            <p>Calculated position, evidence basis, contradictions, consequences and required action.</p>
           </div>
-
-          <div class="wide-upload">
-            <div>
-              <strong>Full evidence pack / supporting documents</strong>
-              <small>Upload a ZIP evidence pack or multiple supporting files: cost/EVM, payment certificates, variations, claims, risk, procurement, correspondence, RFI, submittals, design, HSE, NCR, assets/FM, testing/ORAT, tender requirements, WBS/OBS/control registers and other project evidence.</small>
-              <input type="file" id="evidenceFiles" multiple accept=".zip,.csv,.pdf,.docx,.xlsx,.xlsm,.xer,.xml,.png,.jpg,.jpeg,.tif,.tiff,.bmp,.webp">
-              <div id="evidenceQueue" class="queue"></div>
-            </div>
-            <button class="btn primary" id="uploadEvidence">Upload evidence</button>
-          </div>
-          <div id="uploadMessage"></div>
-        </section>
-
-        <section class="card">
-          <h3>Project evidence status</h3>
-          <div id="projectStatus" class="empty">Load the demo or upload project evidence.</div>
-        </section>
-      </div>
-
-      <section class="card" style="margin-top:14px">
-        <div class="module-head"><h3>Evidence library & mapping</h3><span id="evidenceBadge" class="badge">0 documents</span></div>
-        <div id="evidenceLibrary" class="empty">No project evidence has been registered.</div>
-      </section>
-
-      <section class="card module-panel">
-        <div class="module-head"><h3 id="moduleTitle">Schedule module</h3><span id="moduleBadge" class="badge">Select a module</span></div>
+          <span id="moduleBadge" class="badge">Select a module</span>
+        </div>
         <div id="moduleContent" class="empty">Choose a module from the left navigation.</div>
       </section>
 
-      <div class="footer-note">All uploaded documents are retained as candidate evidence with source hashes. Missing evidence is not treated as zero, recovery schedules do not silently replace the current control update, and amendments do not silently replace the main contract.</div>
+      <section class="director-section">
+        <div class="section-heading">
+          <div>
+            <span class="section-kicker">Management position</span>
+            <h3>Project Director</h3>
+            <p>Current time, exposure and action position derived from the governed project basis.</p>
+          </div>
+        </div>
+        <section id="director"></section>
+      </section>
+
+      <details class="workspace-drawer" id="evidenceControlDrawer">
+        <summary>
+          <div><span class="section-kicker">Evidence control</span><strong>Intake, basis intent and project status</strong></div>
+          <span class="drawer-hint">Open workspace</span>
+        </summary>
+        <div class="drawer-body">
+          <div class="grid evidence-control-grid">
+            <section class="card evidence-status-card">
+              <div class="module-head"><h3>Project evidence status</h3><span class="badge">Control basis</span></div>
+              <div id="projectStatus" class="empty">Load the demo or upload project evidence.</div>
+            </section>
+
+            <section class="card evidence-intake-card">
+              <h3>Evidence intake</h3>
+              <div class="upload-row">
+                <div class="upload-box">
+                  <strong>Schedule revisions</strong>
+                  <small>Select baseline, updates, revised baseline and recovery files together. CMeng verifies content and chronology; filenames are only hints.</small>
+                  <div class="intent-control"><span>Upload intent</span><select id="scheduleIntent"><option value="add_update" selected>Add / update</option><option value="replace_current_basis">Replace current basis</option></select></div>
+                  <input type="file" id="scheduleFiles" multiple accept=".xer,.xml,.xlsx,.xlsm,.csv">
+                  <div id="scheduleQueue" class="queue"></div>
+                  <div class="upload-actions"><button class="btn small primary" id="uploadSchedules">Upload schedule batch</button></div>
+                </div>
+                <div class="upload-box">
+                  <strong>BOQ / quantity revisions</strong>
+                  <small>Select one or more BOQ revisions. CMeng inspects the content and retains prior revisions rather than silently overwriting them.</small>
+                  <div class="intent-control"><span>Upload intent</span><select id="boqIntent"><option value="add_update" selected>Add / update</option><option value="replace_current_basis">Replace current basis</option></select></div>
+                  <input type="file" id="boqFiles" multiple accept=".csv,.xlsx,.xlsm,.pdf">
+                  <div id="boqQueue" class="queue"></div>
+                  <div class="upload-actions"><button class="btn small primary" id="uploadBoqs">Upload BOQ batch</button></div>
+                </div>
+                <div class="upload-box">
+                  <strong>Contract family</strong>
+                  <small>Select the main contract, amendments and appendices. Additive documents remain separate; replacement is an explicit user intent.</small>
+                  <div class="intent-control"><span>Upload intent</span><select id="contractIntent"><option value="add_update" selected>Add / update</option><option value="replace_current_basis">Replace current basis</option></select></div>
+                  <input type="file" id="contractFiles" multiple accept=".pdf,.docx,.png,.jpg,.jpeg,.tif,.tiff,.bmp,.webp">
+                  <div id="contractQueue" class="queue"></div>
+                  <div class="upload-actions"><button class="btn small primary" id="uploadContracts">Upload contract batch</button></div>
+                </div>
+              </div>
+
+              <div class="wide-upload">
+                <div>
+                  <strong>Full evidence pack / supporting documents</strong>
+                  <small>Upload ZIP or multiple files covering cost/EVM, payment, variations, claims, risk, procurement, RFI, submittals, design, HSE, NCR, FM/assets, ORAT and other control evidence.</small>
+                  <div class="intent-control"><span>Batch intent</span><select id="evidenceIntent"><option value="add_update" selected>Add / update</option><option value="replace_current_basis">Replace current basis where applicable</option></select></div>
+                  <input type="file" id="evidenceFiles" multiple accept=".zip,.csv,.pdf,.docx,.xlsx,.xlsm,.xer,.xml,.png,.jpg,.jpeg,.tif,.tiff,.bmp,.webp">
+                  <div id="evidenceQueue" class="queue"></div>
+                </div>
+                <button class="btn primary" id="uploadEvidence">Upload evidence</button>
+              </div>
+              <div id="uploadMessage"></div>
+            </section>
+          </div>
+        </div>
+      </details>
+
+      <details class="workspace-drawer" id="evidenceLibraryDrawer">
+        <summary>
+          <div><span class="section-kicker">Traceability</span><strong>Evidence library & mapping</strong></div>
+          <span id="evidenceBadge" class="badge">0 documents</span>
+        </summary>
+        <div class="drawer-body">
+          <div id="evidenceLibrary" class="empty">No project evidence has been registered.</div>
+        </div>
+      </details>
+
+      <div class="footer-note">CMeng retains source lineage, keeps missing evidence distinct from zero, keeps recovery schedules separate from the current programme, and never turns a recommendation into the governed basis without the required authority or user decision.</div>
     </div>
   </main>
 </div>
@@ -154,27 +201,66 @@ function renderNav(){const states=new Map((overview?.moduleStates||[]).map(x=>[x
 function scalarPairs(obj){if(!obj||typeof obj!=="object")return[];return Object.entries(obj).filter(([k,v])=>["string","number","boolean"].includes(typeof v)||v===null).slice(0,12)}
 function renderUniversalChallenge(challenge){
   if(!challenge||!Array.isArray(challenge.items))return"";
+  const show=v=>v===null||v===undefined?"—":fmt(v);
+  const withUnit=(v,u)=>show(v)+(u?" "+u:"");
+  const conflictPanel=(item)=>{
+    const sub=item.submitted||{};
+    const comparisons=Array.isArray(item.candidateComparisons)?item.candidateComparisons:[];
+    const rec=item.conflictRecommendation||{};
+    if(sub.state!=="conflicted"&&comparisons.length<2)return"";
+    const assessed=Array.isArray(rec.candidates)?rec.candidates:[];
+    const candidateCards=comparisons.map((candidate,index)=>{
+      const score=assessed.find(x=>String(x.value)===String(candidate.submittedValue)&&String(x.unit||"")===String(candidate.submittedUnit||""))||assessed[index]||{};
+      const sources=(candidate.sourceRefs||score.sourceRefs||[]).join(", ")||"Source lineage retained";
+      const gap=candidate.comparable===false?"Not directly comparable":withUnit(candidate.gapValue,candidate.gapUnit);
+      const evidenceScore=score.evidenceScore===undefined?"—":fmt(score.evidenceScore);
+      const recommendationScore=score.recommendationScore===undefined?"—":fmt(score.recommendationScore);
+      return '<div class="candidate-card '+(score.recommended?"recommended":"")+'">'+
+        '<span class="section-kicker">Candidate '+escapeHtml(index+1)+(score.recommended?" · recommended":"")+'</span>'+
+        '<div class="candidate-value">'+escapeHtml(withUnit(candidate.submittedValue,candidate.submittedUnit))+'</div>'+
+        '<div class="candidate-meta">'+
+          '<div><b>Independent gap</b>'+escapeHtml(gap)+'</div>'+
+          '<div><b>Comparable</b>'+escapeHtml(candidate.comparable===false?"No":"Yes")+'</div>'+
+          '<div><b>Evidence score</b>'+escapeHtml(evidenceScore)+'</div>'+
+          '<div><b>Recommendation score</b>'+escapeHtml(recommendationScore)+'</div>'+
+        '</div>'+
+        '<div class="candidate-sources"><b>Evidence:</b> '+escapeHtml(sources)+(candidate.note?'<br>'+escapeHtml(candidate.note):'')+'</div>'+
+      '</div>';
+    }).join("");
+    const hasRecommendation=rec.recommendedValue!==null&&rec.recommendedValue!==undefined;
+    const recommendation=hasRecommendation?withUnit(rec.recommendedValue,rec.recommendedUnit):"No unique candidate";
+    const rationale=Array.isArray(rec.rationale)?rec.rationale.join(" "):(rec.rationale||"All defensible candidates remain visible until the user determines the governed basis.");
+    return '<div class="conflict-panel">'+
+      '<div class="conflict-title"><div><strong>Contradictory evidence · parallel calculations retained</strong><p>CMeng calculates every defensible candidate separately. Contradiction does not make the metric unavailable.</p></div><span class="badge partial">Conflict</span></div>'+
+      '<div class="candidate-grid">'+candidateCards+'</div>'+
+      '<div class="recommendation-card"><div><span class="recommendation-label">CMeng recommendation</span><strong>'+escapeHtml(recommendation)+'</strong><p>'+escapeHtml(rationale)+'</p></div><span class="decision-pill">User decision required</span></div>'+
+    '</div>';
+  };
   const rows=challenge.items.map(item=>{
     const sub=item.submitted||{},ind=item.independent||{},gap=item.gap||{};
-    const show=v=>v===null||v===undefined?"—":fmt(v);
-    const withUnit=(v,u)=>show(v)+(u?" "+u:"");
-    return '<tr>'+
+    const comparisons=Array.isArray(item.candidateComparisons)?item.candidateComparisons:[];
+    const conflicted=sub.state==="conflicted"||comparisons.length>1;
+    const submittedText=sub.state==="not_submitted"?"Not submitted":conflicted?"Contradictory · "+Math.max(comparisons.length,sub.alternatives?.length||0)+" candidates":withUnit(sub.value,sub.unit);
+    const gapText=conflicted?"Parallel calculations below":withUnit(gap.value,gap.unit);
+    const main='<tr>'+
       '<td><b>'+escapeHtml(item.label||item.metric)+'</b><br><span class="muted">'+escapeHtml(item.evidenceState||"")+'</span></td>'+
-      '<td>'+escapeHtml(sub.state==="not_submitted"?"Not submitted":withUnit(sub.value,sub.unit))+(sub.note?'<br><span class="muted">'+escapeHtml(sub.note)+'</span>':'')+'</td>'+
+      '<td>'+escapeHtml(submittedText)+(sub.note?'<br><span class="muted">'+escapeHtml(sub.note)+'</span>':'')+'</td>'+
       '<td>'+escapeHtml(withUnit(ind.value,ind.unit))+'<br><span class="muted">'+escapeHtml(ind.state||"")+(ind.note?" · "+escapeHtml(ind.note):"")+'</span></td>'+
-      '<td>'+escapeHtml(withUnit(gap.value,gap.unit))+(gap.note?'<br><span class="muted">'+escapeHtml(gap.note)+'</span>':'')+'</td>'+
+      '<td>'+escapeHtml(gapText)+(!conflicted&&gap.note?'<br><span class="muted">'+escapeHtml(gap.note)+'</span>':'')+'</td>'+
       '<td>'+escapeHtml(item.consequence||"—")+'</td>'+
       '<td>'+escapeHtml(item.action||"—")+'</td>'+
     '</tr>';
+    const detail=conflictPanel(item);
+    return main+(detail?'<tr class="conflict-expand-row"><td colspan="6">'+detail+'</td></tr>':'');
   }).join("");
-  return '<div class="card" style="margin-bottom:12px"><div class="module-head"><h3>Submitted vs Independent Challenge</h3><span class="badge '+(challenge.challengedCount?"partial":"ready")+'">'+escapeHtml(challenge.challengedCount)+" challenged"+'</span></div>'+
-    '<div class="scalar-grid">'+
+  return '<div class="card challenge-card" style="margin-bottom:14px"><div class="module-head challenge-head"><h3>Submitted vs Independent Challenge</h3><span class="badge '+(challenge.challengedCount?"partial":"ready")+'">'+escapeHtml(challenge.challengedCount)+" challenged"+'</span></div>'+
+    '<div class="scalar-grid challenge-summary">'+
       '<div class="scalar"><b>Submitted evidence</b><span>'+escapeHtml(challenge.submittedEvidenceState)+'</span></div>'+
       '<div class="scalar"><b>Independent state</b><span>'+escapeHtml(challenge.independentState)+'</span></div>'+
       '<div class="scalar"><b>Not submitted</b><span>'+escapeHtml(challenge.notSubmittedCount)+'</span></div>'+
       '<div class="scalar"><b>Scenario items</b><span>'+escapeHtml(challenge.scenarioCount)+'</span></div>'+
     '</div>'+
-    '<div class="table-wrap"><table><thead><tr><th>Metric</th><th>Submitted</th><th>Independent</th><th>Gap</th><th>Consequence</th><th>Action</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';
+    '<div class="table-wrap challenge-table-wrap"><table><thead><tr><th>Metric</th><th>Submitted</th><th>Independent</th><th>Gap</th><th>Consequence</th><th>Action</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';
 }
 function renderDeliveryChallenge(data,reason){
   const d=data?.deliveryChallenge;
@@ -245,10 +331,10 @@ function renderSimpleQueue(target,files){el(target).innerHTML=files.map(file=>'<
 async function loadEvidence(){if(!overview){el("evidenceBadge").textContent="0 documents";el("evidenceLibrary").innerHTML='<div class="empty">No project evidence has been registered.</div>';return}try{const data=await api("/api/projects/"+encodeURIComponent(project())+"/evidence/documents");el("evidenceBadge").className="badge "+(data.documentCount?"ready":"");el("evidenceBadge").textContent=data.documentCount+" documents";if(!data.documentCount){el("evidenceLibrary").innerHTML='<div class="empty">No uploaded user evidence in this project yet.</div>';return}el("evidenceLibrary").innerHTML='<div class="table-wrap"><table><thead><tr><th>File</th><th>Content identified as</th><th>Change effect</th><th>Confidence</th><th>Read method</th><th>Metadata conflict</th><th>Parser</th><th>Schedule role</th><th>Activity mapping</th></tr></thead><tbody>'+data.documents.map(d=>{const m=d.mapping;const i=d.identification||{};const mapping=!m||m.linkedActivityCount===null?"—":fmt(m.mappedActivityCount)+" / "+fmt(m.linkedActivityCount)+(m.coveragePercent===null?"":" ("+fmt(m.coveragePercent)+"%)");const confidence=i.confidence===undefined?"—":fmt(i.confidence*100)+"%";const conflict=i.classificationConflict?"YES":"No";const method=(i.method||"—")+(i.ocrUsed?" / OCR":"");const title=i.detectedTitle?'<br><span class="muted">'+escapeHtml(i.detectedTitle)+'</span>':"";return'<tr><td><b>'+escapeHtml(d.sourceFilename)+'</b><br><span class="muted">'+escapeHtml(d.sourceRelativePath||"")+'</span></td><td><b>'+escapeHtml(d.category)+'</b><br>'+escapeHtml(d.documentType)+title+'</td><td>'+escapeHtml(d.lineage?.effect||"unknown")+(d.lineage?.replacesEntireBasis?'<br><span class="badge partial">replaces basis</span>':d.lineage?.appliesAsDelta?'<br><span class="badge">delta</span>':'')+'</td><td>'+escapeHtml(confidence)+(i.needsReview?'<br><span class="badge partial">review</span>':'')+'</td><td>'+escapeHtml(method)+'</td><td>'+escapeHtml(conflict)+'</td><td>'+escapeHtml(d.parserState)+'</td><td>'+escapeHtml(d.scheduleRole||"—")+'</td><td>'+escapeHtml(mapping)+'</td></tr>'}).join("")+'</tbody></table></div>'}catch(e){el("evidenceLibrary").innerHTML='<div class="notice warn">Evidence library could not be loaded: '+escapeHtml(e.message)+'</div>'}}
 async function refresh(bootstrapDemo=true){setBusy("Refreshing project");try{overview=await api("/api/projects/"+encodeURIComponent(project())+"/overview");renderStatus(overview);renderNav();let director=null;try{director=await api("/api/projects/"+encodeURIComponent(project())+"/director-position")}catch{}renderDirector(director);await loadEvidence();await loadModule(selected);localStorage.setItem("cmeng-project",project())}catch(e){if(bootstrapDemo&&e.status===404&&project()==="UAT-DEMO"){try{await api("/api/projects/UAT-DEMO/demo",{method:"POST"});return await refresh(false)}catch{}}overview=null;renderNav();renderDirector(null);el("projectStatus").innerHTML='<div class="notice warn">Project is not loaded yet. Upload evidence or load the certified demo.</div>';el("projectBadge").className="badge blocked";el("projectBadge").textContent="NO PROJECT";await loadEvidence()}finally{setBusy("")}}
 async function loadDemo(){setBusy("Loading certified demo");try{el("projectId").value="UAT-DEMO";localStorage.setItem("cmeng-project","UAT-DEMO");await api("/api/projects/UAT-DEMO/demo",{method:"POST"});selected="pmo-analysis";await refresh(false);el("uploadMessage").innerHTML='<div class="notice info">Certified demo loaded in the isolated UAT-DEMO project. User projects are never replaced by demo data.</div>'}catch(e){el("uploadMessage").innerHTML='<div class="notice error">'+escapeHtml(e.message)+'</div>'}finally{setBusy("")}}
-async function uploadSchedules(){if(!scheduleSelection.length)return;setBusy("Uploading schedule revisions");const roles=[...document.querySelectorAll(".schedule-role")].reduce((a,s)=>{a[Number(s.dataset.index)]=s.value;return a},{});const results=[];try{for(let i=0;i<scheduleSelection.length;i+=1){const file=scheduleSelection[i];const headers={"content-type":fileType(file),"x-source-filename":file.name,"x-source-relative-path":file.name,"x-evidence-category":"schedule","x-schedule-role":roles[i]||inferScheduleRole(file.name)};results.push(await api("/api/projects/"+encodeURIComponent(project())+"/evidence/uploads",{method:"POST",headers,body:file}))}el("uploadMessage").innerHTML='<div class="notice info">'+results.length+' schedule revision(s) accepted. Baselines/updates form official history; recovery remains a separate scenario.</div>';scheduleSelection=[];el("scheduleFiles").value="";renderScheduleQueue();await refresh(false)}catch(e){el("uploadMessage").innerHTML='<div class="notice error">'+escapeHtml(e.message)+'</div>'}finally{setBusy("")}}
-async function uploadBoqs(){if(!boqSelection.length)return;setBusy("Uploading BOQ revisions");let count=0;try{for(const file of boqSelection){await api("/api/projects/"+encodeURIComponent(project())+"/evidence/uploads",{method:"POST",headers:{"content-type":fileType(file),"x-source-filename":file.name,"x-source-relative-path":file.name,"x-evidence-category":"boq_cost","x-document-type":"boq"},body:file});count+=1}el("uploadMessage").innerHTML='<div class="notice info">'+count+' BOQ revision(s) accepted and retained.</div>';boqSelection=[];el("boqFiles").value="";renderSimpleQueue("boqQueue",boqSelection);await refresh(false)}catch(e){el("uploadMessage").innerHTML='<div class="notice error">'+escapeHtml(e.message)+'</div>'}finally{setBusy("")}}
-async function uploadContracts(){if(!contractSelection.length)return;setBusy("Uploading contract family");const roles=[...document.querySelectorAll(".contract-role")].reduce((a,s)=>{a[Number(s.dataset.index)]=s.value;return a},{});let count=0;try{for(let i=0;i<contractSelection.length;i+=1){const file=contractSelection[i];const role=roles[i]||inferContractRole(file.name);const docType=role==="main"?"main_contract":role==="amendment"?"contract_amendment":role==="appendix"?"contract_appendix":role==="tender"?"tender_employer_requirements":"contract_supporting_document";await api("/api/projects/"+encodeURIComponent(project())+"/evidence/uploads",{method:"POST",headers:{"content-type":fileType(file),"x-source-filename":file.name,"x-source-relative-path":file.name,"x-evidence-category":"contract","x-document-type":docType},body:file});count+=1}el("uploadMessage").innerHTML='<div class="notice info">'+count+' contract-family document(s) accepted. Amendments are retained separately from the base contract.</div>';contractSelection=[];el("contractFiles").value="";renderContractQueue();await refresh(false)}catch(e){el("uploadMessage").innerHTML='<div class="notice error">'+escapeHtml(e.message)+'</div>'}finally{setBusy("")}}
-async function uploadEvidence(){if(!evidenceSelection.length)return;setBusy("Uploading project evidence");let documentCount=0;try{for(const file of evidenceSelection){const result=await api("/api/projects/"+encodeURIComponent(project())+"/evidence/uploads",{method:"POST",headers:{"content-type":fileType(file),"x-source-filename":file.name,"x-source-relative-path":file.webkitRelativePath||file.name},body:file});documentCount+=result.documentCount||1}el("uploadMessage").innerHTML='<div class="notice info">'+documentCount+' evidence document(s) registered. Known schedule/BOQ/contract files were parsed; other files were classified, preserved and mapped to schedule activities where explicit activity IDs exist.</div>';evidenceSelection=[];el("evidenceFiles").value="";renderSimpleQueue("evidenceQueue",evidenceSelection);await refresh(false)}catch(e){el("uploadMessage").innerHTML='<div class="notice error">'+escapeHtml(e.message)+'</div>'}finally{setBusy("")}}
+async function uploadSchedules(){if(!scheduleSelection.length)return;setBusy("Uploading schedule revisions");const roles=[...document.querySelectorAll(".schedule-role")].reduce((a,s)=>{a[Number(s.dataset.index)]=s.value;return a},{});const results=[];try{for(let i=0;i<scheduleSelection.length;i+=1){const file=scheduleSelection[i];const headers={"content-type":fileType(file),"x-source-filename":file.name,"x-source-relative-path":file.name,"x-evidence-category":"schedule","x-upload-intent":el("scheduleIntent").value,"x-schedule-role":roles[i]||inferScheduleRole(file.name)};results.push(await api("/api/projects/"+encodeURIComponent(project())+"/evidence/uploads",{method:"POST",headers,body:file}))}el("uploadMessage").innerHTML='<div class="notice info">'+results.length+' schedule revision(s) accepted. Baselines/updates form official history; recovery remains a separate scenario.</div>';scheduleSelection=[];el("scheduleFiles").value="";renderScheduleQueue();await refresh(false)}catch(e){el("uploadMessage").innerHTML='<div class="notice error">'+escapeHtml(e.message)+'</div>'}finally{setBusy("")}}
+async function uploadBoqs(){if(!boqSelection.length)return;setBusy("Uploading BOQ revisions");let count=0;try{for(const file of boqSelection){await api("/api/projects/"+encodeURIComponent(project())+"/evidence/uploads",{method:"POST",headers:{"content-type":fileType(file),"x-source-filename":file.name,"x-source-relative-path":file.name,"x-evidence-category":"boq_cost","x-document-type":"boq","x-upload-intent":el("boqIntent").value},body:file});count+=1}el("uploadMessage").innerHTML='<div class="notice info">'+count+' BOQ revision(s) accepted and retained.</div>';boqSelection=[];el("boqFiles").value="";renderSimpleQueue("boqQueue",boqSelection);await refresh(false)}catch(e){el("uploadMessage").innerHTML='<div class="notice error">'+escapeHtml(e.message)+'</div>'}finally{setBusy("")}}
+async function uploadContracts(){if(!contractSelection.length)return;setBusy("Uploading contract family");const roles=[...document.querySelectorAll(".contract-role")].reduce((a,s)=>{a[Number(s.dataset.index)]=s.value;return a},{});let count=0;try{for(let i=0;i<contractSelection.length;i+=1){const file=contractSelection[i];const role=roles[i]||inferContractRole(file.name);const docType=role==="main"?"main_contract":role==="amendment"?"contract_amendment":role==="appendix"?"contract_appendix":role==="tender"?"tender_employer_requirements":"contract_supporting_document";await api("/api/projects/"+encodeURIComponent(project())+"/evidence/uploads",{method:"POST",headers:{"content-type":fileType(file),"x-source-filename":file.name,"x-source-relative-path":file.name,"x-evidence-category":"contract","x-document-type":docType,"x-upload-intent":el("contractIntent").value},body:file});count+=1}el("uploadMessage").innerHTML='<div class="notice info">'+count+' contract-family document(s) accepted. Amendments are retained separately from the base contract.</div>';contractSelection=[];el("contractFiles").value="";renderContractQueue();await refresh(false)}catch(e){el("uploadMessage").innerHTML='<div class="notice error">'+escapeHtml(e.message)+'</div>'}finally{setBusy("")}}
+async function uploadEvidence(){if(!evidenceSelection.length)return;setBusy("Uploading project evidence");let documentCount=0;try{for(const file of evidenceSelection){const result=await api("/api/projects/"+encodeURIComponent(project())+"/evidence/uploads",{method:"POST",headers:{"content-type":fileType(file),"x-source-filename":file.name,"x-source-relative-path":file.webkitRelativePath||file.name,"x-upload-intent":el("evidenceIntent").value},body:file});documentCount+=result.documentCount||1}el("uploadMessage").innerHTML='<div class="notice info">'+documentCount+' evidence document(s) registered. Known schedule/BOQ/contract files were parsed; other files were classified, preserved and mapped to schedule activities where explicit activity IDs exist.</div>';evidenceSelection=[];el("evidenceFiles").value="";renderSimpleQueue("evidenceQueue",evidenceSelection);await refresh(false)}catch(e){el("uploadMessage").innerHTML='<div class="notice error">'+escapeHtml(e.message)+'</div>'}finally{setBusy("")}}
 el("loadDemo").onclick=loadDemo;el("refresh").onclick=()=>refresh(false);
 el("scheduleFiles").onchange=e=>{scheduleSelection=[...e.target.files];renderScheduleQueue()};
 el("boqFiles").onchange=e=>{boqSelection=[...e.target.files];renderSimpleQueue("boqQueue",boqSelection)};
