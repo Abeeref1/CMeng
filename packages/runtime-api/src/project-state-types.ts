@@ -439,6 +439,15 @@ export interface ProjectRuntimeOverview {
     count: number;
     latestUploadedAt: string;
   }>;
+  activeEvidenceBasis:
+    Record<
+      string,
+      EvidenceBasisRecord
+    >;
+  lastRerunReceipt:
+    EvidenceRerunReceipt | null;
+  boardPublicationHistory:
+    PublishedBoardReportRecord[];
   moduleStates: Array<{
     key: string;
     status:
