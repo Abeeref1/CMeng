@@ -953,7 +953,9 @@ function renderModuleResult(result){
 }
 async function loadModule(key){
   if(!overview){el("moduleContent").innerHTML='<div class="empty">Load a project first.</div>';return}
-  setBusy("Loading "+names[key]);
+  const moduleName=names[key]||key;
+  setBusy("Loading "+moduleName);
+  el("moduleContent").innerHTML='<div class="view-state-bar"><span class="spinner"></span><strong>Loading '+escapeHtml(moduleName)+'</strong><span>CMeng is calculating this selected project-control view. The previous view is no longer being shown.</span></div>';
   try{
     const result=await api("/api/projects/"+encodeURIComponent(project())+"/schedule/modules/"+encodeURIComponent(key));
     renderModuleResult(result);
