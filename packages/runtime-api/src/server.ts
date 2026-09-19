@@ -282,11 +282,141 @@ async function route(
     const projects =
       runtimeProjects
         .listProjectIds()
-        .map((projectId) =>
-          overviewForProject(
-            projectId,
-          ),
-        )
+        .map((projectId) => {
+          const state =
+            runtimeProjects.get(
+              projectId,
+            );
+          if (!state) {
+            return null;
+          }
+
+          try {
+            const project =
+              overviewForProject(
+                projectId,
+              );
+            if (!project) {
+              return null;
+            }
+            return {
+              projectId:
+                project.projectId,
+              demo: project.demo,
+              version:
+                project.version,
+              latestDataDateIso:
+                project.latestDataDateIso,
+              evidenceDocumentCount:
+                project.evidenceDocumentCount,
+              revisionCount:
+                project.revisionCount,
+              minimumEvidenceReady:
+                project.minimumEvidenceBasis
+                  .ready,
+              readyModules:
+                project.moduleStates.filter(
+                  (item) =>
+                    item.status ===
+                    "ready",
+                ).length,
+              partialModules:
+                project.moduleStates.filter(
+                  (item) =>
+                    item.status ===
+                    "partial",
+                ).length,
+              blockedModules:
+                project.moduleStates.filter(
+                  (item) =>
+                    item.status ===
+                    "blocked",
+                ).length,
+              lastRerunState:
+                project.lastRerunReceipt
+                  ?.certification
+                  .state ??
+                null,
+              analysisError: null,
+            };
+          } catch (error) {
+            const schedules =
+              Array.isArray(
+                state.schedules,
+              )
+                ? state.schedules
+                : [];
+            const evidenceDocuments =
+              Array.isArray(
+                state.evidenceDocuments,
+              )
+                ? state.evidenceDocuments
+                : [];
+            const boqRevisions =
+              Array.isArray(
+                state.boqRevisions,
+              )
+                ? state.boqRevisions
+                : [];
+            const latest =
+              schedules
+                .filter(
+                  (item) =>
+                    item.role !==
+                    "recovery",
+                )
+                .sort(
+                  (a, b) =>
+                    (
+                      a.revision.model
+                        .dataDateIso ??
+                      a.revision
+                        .effectiveAt ??
+                      ""
+                    ).localeCompare(
+                      b.revision.model
+                        .dataDateIso ??
+                        b.revision
+                          .effectiveAt ??
+                        "",
+                    ),
+                )
+                .at(-1) ??
+              null;
+
+            return {
+              projectId,
+              demo:
+                state.demo === true,
+              version:
+                state.version ?? 1,
+              latestDataDateIso:
+                latest?.revision.model
+                  .dataDateIso ??
+                null,
+              evidenceDocumentCount:
+                evidenceDocuments.length,
+              revisionCount:
+                schedules.length,
+              minimumEvidenceReady:
+                schedules.length > 0 &&
+                boqRevisions.length > 0,
+              readyModules: 0,
+              partialModules: 0,
+              blockedModules:
+                scheduleModules.length,
+              lastRerunState:
+                state.lastRerunReceipt
+                  ?.certification
+                  .state ??
+                null,
+              analysisError:
+                error instanceof Error
+                  ? error.message
+                  : String(error),
+            };
+          }
+        })
         .filter(
           (
             value,
@@ -302,48 +432,7 @@ async function route(
         new Date().toISOString(),
       projectCount:
         projects.length,
-      projects:
-        projects.map(
-          (project) => ({
-            projectId:
-              project.projectId,
-            demo: project.demo,
-            version:
-              project.version,
-            latestDataDateIso:
-              project.latestDataDateIso,
-            evidenceDocumentCount:
-              project.evidenceDocumentCount,
-            revisionCount:
-              project.revisionCount,
-            minimumEvidenceReady:
-              project.minimumEvidenceBasis
-                .ready,
-            readyModules:
-              project.moduleStates.filter(
-                (item) =>
-                  item.status ===
-                  "ready",
-              ).length,
-            partialModules:
-              project.moduleStates.filter(
-                (item) =>
-                  item.status ===
-                  "partial",
-              ).length,
-            blockedModules:
-              project.moduleStates.filter(
-                (item) =>
-                  item.status ===
-                  "blocked",
-              ).length,
-            lastRerunState:
-              project.lastRerunReceipt
-                ?.certification
-                .state ??
-              null,
-          }),
-        ),
+      projects,
     });
     return;
   }
