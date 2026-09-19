@@ -38,6 +38,27 @@ export type ChallengeValueAuthority =
   | "candidate"
   | "missing";
 
+export type ValueResolutionState =
+  | "single"
+  | "corroborated"
+  | "authority_resolved"
+  | "chronology_resolved"
+  | "unresolved_conflict"
+  | "incomparable"
+  | "missing";
+
+export interface ChallengeValueAlternative {
+  value: number | string;
+  unit: string | null;
+  authority:
+    ChallengeValueAuthority;
+  sourceRefs: string[];
+  basisRevisionId:
+    string | null;
+  asOfIso: string | null;
+  confidence: number | null;
+}
+
 export interface ChallengeValue {
   state: ChallengeValueState;
   value: number | string | null;
@@ -53,6 +74,10 @@ export interface ChallengeValue {
   confidence: number | null;
   diagnostics: string[];
   note: string | null;
+  resolution?:
+    ValueResolutionState;
+  alternatives?:
+    ChallengeValueAlternative[];
 }
 
 export interface SharedFindingContract {
@@ -72,6 +97,20 @@ export interface SharedFindingContract {
   diagnostics: string[];
 }
 
+export interface CandidateGapComparison {
+  submittedValue:
+    number | string;
+  submittedUnit:
+    string | null;
+  sourceRefs: string[];
+  comparable: boolean;
+  gapValue:
+    number | string | null;
+  gapUnit:
+    string | null;
+  note: string;
+}
+
 export interface ModuleChallengeItem {
   itemId: string;
   metric: string;
@@ -87,6 +126,8 @@ export interface ModuleChallengeItem {
     | "conflicted";
   consequence: string;
   action: string;
+  candidateComparisons:
+    CandidateGapComparison[];
   diagnostics: string[];
 }
 
