@@ -109,6 +109,20 @@ export interface BoardEvidenceRecord {
   finalizedAt: string | null;
 }
 
+export type EvidenceCoverageState =
+  | "established"
+  | "submitted_unparsed"
+  | "not_submitted";
+
+export interface DirectorEvidenceAvailability {
+  hse?: boolean;
+  quality?: boolean;
+  rfi?: boolean;
+  permits?: boolean;
+  bonds?: boolean;
+  risk?: boolean;
+}
+
 export interface DirectorPositionInput {
   generatedAt: string;
   projectId: string;
@@ -130,6 +144,8 @@ export interface DirectorPositionInput {
   rfis: RfiRecord[];
   permits: PermitRecord[];
   boardEvidence: BoardEvidenceRecord | null;
+  evidenceAvailability?:
+    DirectorEvidenceAvailability;
 }
 
 export interface CurrencyCommercialPosition {
@@ -196,6 +212,19 @@ export interface ProjectDirectorPosition {
   };
   commercialByCurrency: CurrencyCommercialPosition[];
   controls: {
+    hseEvidenceState:
+      EvidenceCoverageState;
+    qualityEvidenceState:
+      EvidenceCoverageState;
+    rfiEvidenceState:
+      EvidenceCoverageState;
+    permitEvidenceState:
+      EvidenceCoverageState;
+    bondEvidenceState:
+      EvidenceCoverageState;
+    riskEvidenceState:
+      EvidenceCoverageState;
+    openRiskCount: number | null;
     openHseIncidentCount: number;
     openLtiOrWorseCount: number;
     openCriticalMajorNcrCount: number;
