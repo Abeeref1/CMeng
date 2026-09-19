@@ -29,6 +29,16 @@ export interface ProgressScurveProjection {
   weightingMethod: ScurveWeightingMethod;
   timePhasingMethod: ScurveTimePhasingMethod;
   intervalDays: number;
+  seriesContract: {
+    seriesKey:
+      "progress_percent";
+    unit: "%";
+    authority:
+      "derived_schedule";
+    basisRevisionId: string;
+    asOfIso: string | null;
+    sourceRefs: string[];
+  };
   baselineCoveragePercent: number | null;
   currentCoveragePercent: number | null;
   actualSnapshotCoveragePercent: number | null;
