@@ -2,8 +2,9 @@ import {
   analyzeSchedule,
   type CanonicalScheduleActivity,
 } from "../../schedule-analysis-core/src";
-import type {
-  ScheduleRevision,
+import {
+  orderScheduleRevisionsChronologically,
+  type ScheduleRevision,
 } from "../../schedule-revision-core/src";
 import type {
   ActivityVarianceTrend,
@@ -76,11 +77,10 @@ export function buildVarianceTrendsProjection(
     producerVersion: string;
   },
 ): VarianceTrendsProjection {
-  const ordered = [...revisions].sort(
-    (a, b) =>
-      a.sequence - b.sequence ||
-      a.revisionId.localeCompare(b.revisionId),
-  );
+  const ordered =
+    orderScheduleRevisionsChronologically(
+      revisions,
+    );
 
   const activitySeries = new Map<
     string,
