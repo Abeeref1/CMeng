@@ -19,9 +19,13 @@ body{margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSy
 button,input,select{font:inherit}button{cursor:pointer}
 .app{display:grid;grid-template-columns:258px minmax(0,1fr);min-height:100vh}
 .sidebar{background:linear-gradient(180deg,#0b1424 0%,#111d31 100%);color:#fff;padding:20px 14px;position:sticky;top:0;height:100vh;overflow:auto;border-right:1px solid rgba(255,255,255,.05)}
-.brand{display:flex;align-items:center;gap:12px;padding:2px 8px 20px;border-bottom:1px solid rgba(255,255,255,.12);margin-bottom:20px}
-.brand-mark{width:42px;height:42px;border-radius:11px;display:grid;place-items:center;background:linear-gradient(145deg,#2e66ed,#0f766e);box-shadow:0 8px 20px rgba(0,0,0,.2);font-size:14px;font-weight:850;letter-spacing:.04em}
-.brand-copy h1{font-size:21px;line-height:1.05;margin:0 0 5px;letter-spacing:-.025em}.brand-copy p{margin:0;color:#9fb0c6;font-size:11.5px;line-height:1.35}
+.brand{display:flex;align-items:center;gap:12px;padding:18px 8px 16px;border-bottom:1px solid rgba(255,255,255,.12);margin:-20px 0 14px;position:sticky;top:-20px;z-index:7;background:linear-gradient(180deg,#0b1424 0%,#0e192a 100%)}
+.brand-mark{width:46px;height:46px;border-radius:12px;display:grid;place-items:center;background:linear-gradient(145deg,#2f66e9,#0f766e);box-shadow:0 8px 20px rgba(0,0,0,.22);flex:0 0 auto}.brand-mark svg{width:31px;height:31px;display:block}.brand-mark path{fill:none;stroke:#fff;stroke-width:2.7;stroke-linecap:round;stroke-linejoin:round}
+.brand-copy h1{font-size:22px;line-height:1.02;margin:0 0 4px;letter-spacing:-.035em;font-weight:820}.brand-copy p{margin:0;color:#9fb0c6;font-size:10.5px;line-height:1.35;text-transform:uppercase;letter-spacing:.06em;font-weight:650}
+.platform-nav{display:grid;gap:5px;margin:0 0 14px}.platform-item{width:100%;border:0;background:transparent;color:#d7e0ec;text-align:left;padding:10px 11px;border-radius:9px;display:flex;align-items:center;gap:9px;font-size:13.5px;font-weight:690}.platform-item:hover{background:rgba(255,255,255,.06);color:#fff}.platform-item.active{background:#1d3150;color:#fff}.platform-icon{width:18px;text-align:center;color:#91a7c3;font-weight:850}.active-project-card{margin:10px 0 6px;padding:10px 11px;border:1px solid rgba(255,255,255,.09);border-radius:10px;background:rgba(255,255,255,.035)}.active-project-card b{display:block;font-size:12.5px;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.active-project-card span{display:block;color:#8092aa;font-size:10.5px;margin-top:3px}.sidebar-divider{height:1px;background:rgba(255,255,255,.09);margin:12px 0}
+.platform-view[hidden],#projectWorkspace[hidden]{display:none!important}.portfolio-hero{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;margin-bottom:20px}.portfolio-hero h2{font-size:31px;margin:0 0 6px;letter-spacing:-.04em}.portfolio-hero p{margin:0;color:var(--muted);max-width:760px}.portfolio-stats{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:12px;margin-bottom:18px}.portfolio-stat{background:#fff;border:1px solid var(--line);border-radius:11px;padding:15px}.portfolio-stat b{display:block;font-size:24px;letter-spacing:-.03em}.portfolio-stat span{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.055em;font-weight:750}.project-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:12px}.project-card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px;box-shadow:var(--shadow)}.project-card-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.project-card h3{margin:0;font-size:16px}.project-card .muted{font-size:12px}.project-health{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin:13px 0}.project-health div{background:#f7f9fc;border-radius:8px;padding:8px}.project-health b{display:block;font-size:16px}.project-health span{font-size:9.5px;color:var(--muted);text-transform:uppercase;font-weight:750}.project-card-actions{display:flex;justify-content:flex-end;gap:8px}.project-create{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;max-width:620px}.project-create input{height:42px;border:1px solid #cbd5e1;border-radius:9px;padding:0 12px}
+.ai-shell{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(300px,.65fr);gap:16px}.ai-panel,.ai-context{background:#fff;border:1px solid var(--line);border-radius:12px;padding:18px;box-shadow:var(--shadow)}.ai-panel h3,.ai-context h3{margin:0 0 6px}.ai-intro{color:var(--muted);font-size:13px;margin-bottom:15px}.ai-composer{display:flex;gap:8px}.ai-composer textarea{width:100%;min-height:96px;resize:vertical;border:1px solid #cbd5e1;border-radius:10px;padding:11px 12px;font:inherit}.ai-answer{margin-top:14px;border:1px solid #dbe5f1;border-radius:10px;background:#f8fbff;padding:14px;white-space:pre-wrap;font-size:13px;line-height:1.55}.ai-suggestions{display:flex;flex-wrap:wrap;gap:7px;margin-top:12px}.ai-suggestion{border:1px solid #d7e2f0;background:#fff;border-radius:999px;padding:7px 10px;font-size:11.5px;color:#36506f;cursor:pointer}.run-state{font-size:11.5px;color:var(--muted)}
+@media(max-width:900px){.portfolio-stats{grid-template-columns:1fr 1fr}.ai-shell{grid-template-columns:1fr}}
 .nav-group{margin:20px 0}.nav-group-title{font-size:11px;color:#8292aa;text-transform:uppercase;letter-spacing:.095em;padding:0 10px 9px;font-weight:750}
 .nav-item{width:100%;border:0;background:transparent;color:#c5d0df;text-align:left;padding:10px 11px;border-radius:9px;display:flex;align-items:center;justify-content:space-between;gap:9px;font-size:13.5px;font-weight:570;transition:.16s ease}
 .nav-item:hover{background:rgba(255,255,255,.06);color:#fff}.nav-item.active{background:#213453;color:#fff;box-shadow:inset 3px 0 0 #4f7df1}
@@ -58,7 +62,23 @@ details:not(.workspace-drawer){border:1px solid var(--line);border-radius:9px;ba
 <body>
 <div class="app">
   <aside class="sidebar">
-    <div class="brand"><div class="brand-mark">CM</div><div class="brand-copy"><h1>CMeng</h1><p>Project Control Intelligence</p></div></div>
+    <div class="brand">
+      <div class="brand-mark" aria-label="CMeng logo">
+        <svg viewBox="0 0 40 40" role="img" aria-hidden="true">
+          <path d="M20 5 7 12.5v15L20 35l13-7.5v-15L20 5Z"/>
+          <path d="M15.5 14.5c-5.5 0-8 3.3-8 6.2s2.5 6.1 8 6.1"/>
+          <path d="M18.5 27V14.2l5 6.1 5-6.1V27"/>
+        </svg>
+      </div>
+      <div class="brand-copy"><h1>CMeng</h1><p>Project Control Intelligence</p></div>
+    </div>
+    <div class="platform-nav" id="platformNav">
+      <button class="platform-item active" data-view="portfolio"><span class="platform-icon">◫</span><span>Portfolio</span></button>
+      <button class="platform-item" data-view="projects"><span class="platform-icon">▦</span><span>Projects</span></button>
+      <button class="platform-item" data-view="ai"><span class="platform-icon">✦</span><span>Ask CMeng</span></button>
+    </div>
+    <div class="active-project-card" id="activeProjectCard"><span>Active project</span><b id="activeProjectName">No project selected</b><span id="activeProjectMeta">Open a project from Portfolio or Projects</span></div>
+    <div class="sidebar-divider"></div>
     <div id="nav"></div>
   </aside>
   <main class="main">
@@ -67,7 +87,9 @@ details:not(.workspace-drawer){border:1px solid var(--line);border-radius:9px;ba
         <label>Project</label>
         <input id="projectId" value="UAT-DEMO" aria-label="Project ID">
       </div>
-      <button class="btn primary" id="openEvidenceTop">Upload evidence</button>
+      <button class="btn primary" id="openEvidenceTop">Upload / Update</button>
+      <button class="btn" id="runAnalysisTop">Run analysis</button>
+      <button class="btn" id="openAiTop">Ask CMeng</button>
       <button class="btn" id="loadDemo">Load certified demo</button>
       <button class="btn" id="refresh">Refresh</button>
       <button class="btn" id="focusMode" aria-pressed="false">Focus module</button>
@@ -77,6 +99,48 @@ details:not(.workspace-drawer){border:1px solid var(--line);border-radius:9px;ba
       <span id="globalStatus" style="font-size:12px;color:#667085"></span>
     </div>
     <div class="content">
+      <section id="portfolioView" class="platform-view">
+        <div class="portfolio-hero">
+          <div><span class="section-kicker">Portfolio</span><h2>Portfolio intelligence</h2><p>All projects, evidence readiness and analysis status in one place. Open a project to upload new evidence, rerun analysis and review its controlled position.</p></div>
+          <button class="btn primary" id="portfolioNewProject">New project</button>
+        </div>
+        <div id="portfolioStats" class="portfolio-stats"></div>
+        <div id="portfolioProjects" class="project-grid"><div class="empty">Loading portfolio...</div></div>
+      </section>
+
+      <section id="projectsView" class="platform-view" hidden>
+        <div class="portfolio-hero">
+          <div><span class="section-kicker">Projects</span><h2>Project register</h2><p>Create a project or open an existing project workspace. Every upload and analysis run remains scoped to that project.</p></div>
+        </div>
+        <div class="card" style="margin-bottom:16px">
+          <h3>Create project</h3>
+          <div class="project-create"><input id="newProjectId" placeholder="Project ID / code"><button class="btn primary" id="createProject">Create project</button></div>
+          <div id="createProjectMessage"></div>
+        </div>
+        <div id="projectRegister"></div>
+      </section>
+
+      <section id="aiView" class="platform-view" hidden>
+        <div class="portfolio-hero">
+          <div><span class="section-kicker">AI Intelligence</span><h2>Ask CMeng</h2><p>Ask questions against the active project's governed schedule, progress, forecast, claims, contract and evidence outputs.</p></div>
+          <span class="badge" id="aiProjectBadge">No active project</span>
+        </div>
+        <div class="ai-shell">
+          <div class="ai-panel">
+            <h3>Project intelligence</h3>
+            <div class="ai-intro">Answers remain advisory and evidence-grounded. Candidate or contradictory evidence is not silently promoted into the governed basis.</div>
+            <div class="ai-composer"><textarea id="aiQuestion" placeholder="Ask: What changed since the last update? What is driving the forecast? Which claims have the strongest time impact?"></textarea><button class="btn primary" id="askAi">Ask</button></div>
+            <div class="ai-suggestions" id="aiSuggestions"></div>
+            <div id="aiAnswer" class="ai-answer">Open a project, then ask CMeng about its position.</div>
+          </div>
+          <div class="ai-context">
+            <h3>Grounding</h3>
+            <div id="aiGrounding" class="muted">No project selected.</div>
+          </div>
+        </div>
+      </section>
+
+      <div id="projectWorkspace" hidden>
       <div class="workspace-header">
         <div class="page-title">
           <span class="eyebrow">CMeng · controlled project intelligence</span>
@@ -187,6 +251,7 @@ details:not(.workspace-drawer){border:1px solid var(--line);border-radius:9px;ba
       </details>
 
       <div class="footer-note">CMeng retains source lineage, keeps missing evidence distinct from zero, keeps recovery schedules separate from the current programme, and never turns a recommendation into the governed basis without the required authority or user decision.</div>
+      </div>
     </div>
   </main>
 </div>
@@ -200,7 +265,7 @@ const groups={
 const names={
 "pmo-analysis":"PMO Analysis","schedule-analytics":"Schedule Analytics","activity-analytics":"Activity Analytics","resource-utilization":"Resource Utilization","lookahead-schedule":"Look-Ahead Schedule","progress-report":"Progress Report","schedule-change-report":"Schedule Change Report","revision-trend":"Revision Trend","variance-trends":"Variance Trends","progress-scurve":"Progress S-Curve","quantity-scurve":"Quantity Installed S-Curve","progress-breakdown":"Progress Breakdown","milestones":"Milestones","near-critical":"Near-Critical Activities","manhour-scurve":"Man-Hour S-Curve","forecast-history":"Forecast History","independent-forecast":"Independent Forecast","delay-claims":"Delay & Claims","notices-claims":"Notices, EOT & Claims","windows-analysis":"Windows Analysis","eot-assessment":"EOT Assessment","challenge-contract":"Challenge the Contract"
 };
-let overview=null,selected="pmo-analysis";
+let overview=null,selected="pmo-analysis",portfolioData=null,appView="portfolio";
 let scheduleSelection=[],boqSelection=[],contractSelection=[],evidenceSelection=[];
 const el=id=>document.getElementById(id);
 const project=()=>el("projectId").value.trim()||"UAT-DEMO";
@@ -212,7 +277,28 @@ function escapeHtml(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"
 function fileType(file){const n=file.name.toLowerCase();if(n.endsWith(".zip"))return"application/zip";if(n.endsWith(".xer"))return"text/plain";if(n.endsWith(".xml"))return"application/xml";if(n.endsWith(".csv"))return"text/csv";if(n.endsWith(".pdf"))return"application/pdf";if(n.endsWith(".docx"))return"application/vnd.openxmlformats-officedocument.wordprocessingml.document";if(n.endsWith(".png"))return"image/png";if(n.endsWith(".jpg")||n.endsWith(".jpeg"))return"image/jpeg";if(n.endsWith(".tif")||n.endsWith(".tiff"))return"image/tiff";if(n.endsWith(".bmp"))return"image/bmp";if(n.endsWith(".webp"))return"image/webp";if(n.endsWith(".xlsm"))return"application/vnd.ms-excel.sheet.macroEnabled.12";return file.type||"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}
 function inferScheduleRole(name){const n=name.toLowerCase();if(n.includes("revised")&&n.includes("baseline"))return"revised_baseline";if(n.includes("recovery"))return"recovery";if(n.includes("baseline")||n.includes("rev0")||n.startsWith("s01_"))return"baseline";return"update"}
 function inferContractRole(name){const n=name.toLowerCase();if(n.includes("amendment"))return"amendment";if(n.includes("appendix")||n.includes("technical"))return"appendix";if(n.includes("tender")||n.includes("employer_require"))return"tender";if(n.includes("main")||n.startsWith("c01_"))return"main";return"other"}
-function renderNav(){const states=new Map((overview?.moduleStates||[]).map(x=>[x.key,x]));let html="";Object.entries(groups).forEach(([group,keys])=>{html+='<div class="nav-group"><div class="nav-group-title">'+group+'</div>';keys.forEach(key=>{const st=states.get(key)?.status||"blocked";html+='<button class="nav-item '+(selected===key?"active":"")+'" data-key="'+key+'" title="'+escapeHtml(names[key])+'"><span class="nav-label">'+names[key]+'</span><span class="status-dot '+statusClass(st)+'"></span></button>'});html+='</div>'});el("nav").innerHTML=html;document.querySelectorAll(".nav-item").forEach(b=>b.onclick=()=>{selected=b.dataset.key;localStorage.setItem("cmeng-module",selected);renderNav();loadModule(selected)})}
+function renderPlatformNav(){
+  document.querySelectorAll(".platform-item").forEach(button=>{
+    button.classList.toggle("active",button.dataset.view===appView);
+    button.onclick=()=>setAppView(button.dataset.view);
+  });
+}
+function renderNav(){
+  const nav=el("nav");
+  if(appView!=="project"||!overview){nav.innerHTML='<div class="nav-group"><div class="nav-group-title">Project workspace</div><div class="muted" style="padding:0 10px;font-size:11px;color:#8092aa">Open a project to access analysis modules.</div></div>';return}
+  const states=new Map((overview?.moduleStates||[]).map(x=>[x.key,x]));
+  let html='<div class="nav-group"><div class="nav-group-title">Project modules</div>';
+  Object.entries(groups).forEach(([group,keys])=>{
+    html+='<div class="nav-group-title" style="padding-top:10px">'+group+'</div>';
+    keys.forEach(key=>{
+      const st=states.get(key)?.status||"blocked";
+      html+='<button class="nav-item '+(selected===key?"active":"")+'" data-key="'+key+'" title="'+escapeHtml(names[key])+'"><span class="nav-label">'+names[key]+'</span><span class="status-dot '+statusClass(st)+'"></span></button>';
+    });
+  });
+  html+='</div>';
+  nav.innerHTML=html;
+  nav.querySelectorAll(".nav-item").forEach(b=>b.onclick=()=>{selected=b.dataset.key;localStorage.setItem("cmeng-module",selected);renderNav();loadModule(selected)});
+}
 function scalarPairs(obj){if(!obj||typeof obj!=="object")return[];return Object.entries(obj).filter(([k,v])=>["string","number","boolean"].includes(typeof v)||v===null).slice(0,12)}
 function renderUniversalChallenge(challenge){
   if(!challenge||!Array.isArray(challenge.items))return"";
@@ -711,13 +797,104 @@ function renderScheduleQueue(){el("scheduleQueue").innerHTML=scheduleSelection.m
 function renderContractQueue(){el("contractQueue").innerHTML=contractSelection.map((file,i)=>{const role=inferContractRole(file.name);return'<div class="queue-row"><span class="queue-name">'+escapeHtml(file.name)+'</span><select class="contract-role" data-index="'+i+'"><option value="main" '+(role==="main"?"selected":"")+'>Main</option><option value="amendment" '+(role==="amendment"?"selected":"")+'>Amendment</option><option value="appendix" '+(role==="appendix"?"selected":"")+'>Appendix</option><option value="tender" '+(role==="tender"?"selected":"")+'>Tender/ER</option><option value="other" '+(role==="other"?"selected":"")+'>Other</option></select></div>'}).join("")}
 function renderSimpleQueue(target,files){el(target).innerHTML=files.map(file=>'<div class="queue-row" style="grid-template-columns:1fr"><span class="queue-name">'+escapeHtml(file.name)+'</span></div>').join("")}
 async function loadEvidence(){if(!overview){el("evidenceBadge").textContent="0 documents";el("evidenceLibrary").innerHTML='<div class="empty">No project evidence has been registered.</div>';return}try{const data=await api("/api/projects/"+encodeURIComponent(project())+"/evidence/documents");el("evidenceBadge").className="badge "+(data.documentCount?"ready":"");el("evidenceBadge").textContent=data.documentCount+" documents";if(!data.documentCount){el("evidenceLibrary").innerHTML='<div class="empty">No uploaded user evidence in this project yet.</div>';return}el("evidenceLibrary").innerHTML='<div class="table-wrap"><table><thead><tr><th>File</th><th>Content identified as</th><th>Change effect</th><th>Confidence</th><th>Read method</th><th>Metadata conflict</th><th>Parser</th><th>Schedule role</th><th>Activity mapping</th></tr></thead><tbody>'+data.documents.map(d=>{const m=d.mapping;const i=d.identification||{};const mapping=!m||m.linkedActivityCount===null?"—":fmt(m.mappedActivityCount)+" / "+fmt(m.linkedActivityCount)+(m.coveragePercent===null?"":" ("+fmt(m.coveragePercent)+"%)");const confidence=i.confidence===undefined?"—":fmt(i.confidence*100)+"%";const conflict=i.classificationConflict?"YES":"No";const method=(i.method||"—")+(i.ocrUsed?" / OCR":"");const title=i.detectedTitle?'<br><span class="muted">'+escapeHtml(i.detectedTitle)+'</span>':"";return'<tr><td><b>'+escapeHtml(d.sourceFilename)+'</b><br><span class="muted">'+escapeHtml(d.sourceRelativePath||"")+'</span></td><td><b>'+escapeHtml(d.category)+'</b><br>'+escapeHtml(d.documentType)+title+'</td><td>'+escapeHtml(d.lineage?.effect||"unknown")+(d.lineage?.replacesEntireBasis?'<br><span class="badge partial">replaces basis</span>':d.lineage?.appliesAsDelta?'<br><span class="badge">delta</span>':'')+'</td><td>'+escapeHtml(confidence)+(i.needsReview?'<br><span class="badge partial">review</span>':'')+'</td><td>'+escapeHtml(method)+'</td><td>'+escapeHtml(conflict)+'</td><td>'+escapeHtml(d.parserState)+'</td><td>'+escapeHtml(d.scheduleRole||"—")+'</td><td>'+escapeHtml(mapping)+'</td></tr>'}).join("")+'</tbody></table></div>'}catch(e){el("evidenceLibrary").innerHTML='<div class="notice warn">Evidence library could not be loaded: '+escapeHtml(e.message)+'</div>'}}
-async function refresh(bootstrapDemo=true){setBusy("Refreshing project");try{overview=await api("/api/projects/"+encodeURIComponent(project())+"/overview");renderStatus(overview);renderNav();let director=null;try{director=await api("/api/projects/"+encodeURIComponent(project())+"/director-position")}catch{}renderDirector(director);await loadEvidence();await loadModule(selected);localStorage.setItem("cmeng-project",project())}catch(e){if(bootstrapDemo&&e.status===404&&project()==="UAT-DEMO"){try{await api("/api/projects/UAT-DEMO/demo",{method:"POST"});return await refresh(false)}catch{}}overview=null;renderNav();renderDirector(null);el("projectStatus").innerHTML='<div class="notice warn">Project is not loaded yet. Upload evidence or load the certified demo.</div>';el("projectBadge").className="badge blocked";el("projectBadge").textContent="NO PROJECT";await loadEvidence()}finally{setBusy("")}}
+function projectCard(p){
+  return '<article class="project-card"><div class="project-card-head"><div><h3>'+escapeHtml(p.projectId)+'</h3><div class="muted">'+escapeHtml(p.latestDataDateIso||"No schedule data date")+' · '+escapeHtml(p.evidenceDocumentCount)+' evidence docs</div></div><span class="badge '+(p.minimumEvidenceReady?"ready":"partial")+'">'+(p.minimumEvidenceReady?"basis ready":"basis incomplete")+'</span></div><div class="project-health"><div><b>'+escapeHtml(p.readyModules)+'</b><span>Ready</span></div><div><b>'+escapeHtml(p.partialModules)+'</b><span>Partial</span></div><div><b>'+escapeHtml(p.blockedModules)+'</b><span>Blocked</span></div></div><div class="project-card-actions"><button class="btn small open-project" data-project="'+escapeHtml(p.projectId)+'">Open project</button></div></article>';
+}
+function bindProjectOpeners(){
+  document.querySelectorAll(".open-project").forEach(button=>button.onclick=()=>openProject(button.dataset.project));
+}
+function renderPortfolio(){
+  const data=portfolioData||{projects:[],projectCount:0};
+  const projects=data.projects||[];
+  const ready=projects.filter(p=>p.minimumEvidenceReady).length;
+  const docs=projects.reduce((sum,p)=>sum+(p.evidenceDocumentCount||0),0);
+  const modules=projects.reduce((sum,p)=>sum+(p.readyModules||0),0);
+  el("portfolioStats").innerHTML=[
+    ["Projects",data.projectCount||0],
+    ["Minimum basis ready",ready],
+    ["Evidence documents",docs],
+    ["Ready analysis modules",modules]
+  ].map(x=>'<div class="portfolio-stat"><b>'+escapeHtml(x[1])+'</b><span>'+escapeHtml(x[0])+'</span></div>').join("");
+  el("portfolioProjects").innerHTML=projects.length?projects.map(projectCard).join(""):'<div class="card"><div class="empty">No projects yet. Create your first project to start controlled analysis.</div></div>';
+  el("projectRegister").innerHTML=projects.length?'<div class="table-wrap"><table><thead><tr><th>Project</th><th>Data date</th><th>Evidence</th><th>Revisions</th><th>Ready</th><th>Partial</th><th>Blocked</th><th></th></tr></thead><tbody>'+projects.map(p=>'<tr><td><b>'+escapeHtml(p.projectId)+'</b></td><td>'+escapeHtml(p.latestDataDateIso||"—")+'</td><td>'+escapeHtml(p.evidenceDocumentCount)+'</td><td>'+escapeHtml(p.revisionCount)+'</td><td>'+escapeHtml(p.readyModules)+'</td><td>'+escapeHtml(p.partialModules)+'</td><td>'+escapeHtml(p.blockedModules)+'</td><td><button class="btn small open-project" data-project="'+escapeHtml(p.projectId)+'">Open</button></td></tr>').join("")+'</tbody></table></div>':'<div class="empty">No projects registered.</div>';
+  bindProjectOpeners();
+}
+async function loadPortfolio(){
+  try{portfolioData=await api("/api/portfolio");renderPortfolio()}catch(e){el("portfolioProjects").innerHTML='<div class="notice error">Portfolio could not be loaded: '+escapeHtml(e.message)+'</div>'}
+}
+function updateActiveProjectShell(){
+  const id=overview?.projectId||project();
+  el("activeProjectName").textContent=overview?id:"No project selected";
+  el("activeProjectMeta").textContent=overview?((overview.latestDataDateIso||"No data date")+" · "+overview.evidenceDocumentCount+" evidence docs"):"Open a project from Portfolio or Projects";
+  el("aiProjectBadge").className="badge "+(overview?"ready":"");
+  el("aiProjectBadge").textContent=overview?id:"No active project";
+  el("aiGrounding").innerHTML=overview?'<b>'+escapeHtml(id)+'</b><br>'+escapeHtml(overview.evidenceDocumentCount)+' evidence documents<br>'+escapeHtml(overview.revisionCount)+' schedule revisions<br>'+escapeHtml(overview.latestDataDateIso||"No current data date"):'No project selected.';
+}
+function setAppView(view){
+  appView=view;
+  ["portfolio","projects","ai"].forEach(name=>{el(name+"View").hidden=view!==name});
+  el("projectWorkspace").hidden=view!=="project";
+  renderPlatformNav();
+  renderNav();
+  if(view==="portfolio"||view==="projects")loadPortfolio();
+  if(view==="ai")updateActiveProjectShell();
+  window.scrollTo({top:0,behavior:"smooth"});
+}
+async function openProject(projectId){
+  if(!projectId)return;
+  el("projectId").value=projectId;
+  localStorage.setItem("cmeng-project",projectId);
+  appView="project";
+  await refresh(false);
+  setAppView("project");
+}
+async function createProject(){
+  const projectId=el("newProjectId").value.trim();
+  if(!projectId){el("createProjectMessage").innerHTML='<div class="notice warn">Enter a project ID or code.</div>';return}
+  setBusy("Creating project");
+  try{
+    await api("/api/projects",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({projectId})});
+    el("createProjectMessage").innerHTML='<div class="notice info">Project created. Opening workspace...</div>';
+    await loadPortfolio();
+    await openProject(projectId);
+  }catch(e){el("createProjectMessage").innerHTML='<div class="notice error">'+escapeHtml(e.message)+'</div>'}finally{setBusy("")}
+}
+async function runAnalysis(){
+  if(!overview){return}
+  setBusy("Running project analysis");
+  try{
+    const receipt=await api("/api/projects/"+encodeURIComponent(project())+"/evidence/rerun",{method:"POST"});
+    el("globalStatus").textContent="Analysis "+receipt.certification.state+" · "+receipt.receiptId;
+    await refresh(false);
+  }catch(e){
+    const d=e.data||{};
+    el("globalStatus").textContent="Analysis requires review";
+    if(d.certification){await refresh(false)}else{throw e}
+  }finally{setBusy("")}
+}
+async function askCmeng(){
+  if(!overview){el("aiAnswer").textContent="Open a project first.";return}
+  const question=el("aiQuestion").value.trim();
+  if(!question)return;
+  el("aiAnswer").textContent="Reading governed project intelligence...";
+  try{
+    const result=await api("/api/projects/"+encodeURIComponent(project())+"/intelligence/ask",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({question})});
+    el("aiAnswer").textContent=result.answer+(result.managementActions?.length?"\n\nManagement actions:\n"+result.managementActions.map(x=>"• "+x).join("\n"):"")+(result.governance?"\n\n"+result.governance:"");
+    el("aiGrounding").innerHTML='<b>'+escapeHtml(result.projectId)+'</b><br>'+escapeHtml(result.relevantModules.map(x=>x.key+" · "+x.status).join("<br>"));
+  }catch(e){el("aiAnswer").textContent="Ask CMeng could not answer: "+e.message}
+}
+function renderAiSuggestions(){
+  const qs=["What changed since the previous schedule update?","What is driving the current completion forecast?","Which delay events have the strongest time impact?","What evidence is missing from the look-ahead?","What commercial exposure is linked to schedule delay?"];
+  el("aiSuggestions").innerHTML=qs.map(q=>'<button class="ai-suggestion">'+escapeHtml(q)+'</button>').join("");
+  document.querySelectorAll(".ai-suggestion").forEach(b=>b.onclick=()=>{el("aiQuestion").value=b.textContent;askCmeng()});
+}
+async function refresh(bootstrapDemo=true){setBusy("Refreshing project");try{overview=await api("/api/projects/"+encodeURIComponent(project())+"/overview");renderStatus(overview);updateActiveProjectShell();renderNav();let director=null;try{director=await api("/api/projects/"+encodeURIComponent(project())+"/director-position")}catch{}renderDirector(director);await loadEvidence();await loadModule(selected);localStorage.setItem("cmeng-project",project())}catch(e){if(bootstrapDemo&&e.status===404&&project()==="UAT-DEMO"){try{await api("/api/projects/UAT-DEMO/demo",{method:"POST"});return await refresh(false)}catch{}}overview=null;updateActiveProjectShell();renderNav();renderDirector(null);el("projectStatus").innerHTML='<div class="notice warn">Project is not loaded yet. Upload evidence or load the certified demo.</div>';el("projectBadge").className="badge blocked";el("projectBadge").textContent="NO PROJECT";await loadEvidence()}finally{setBusy("")}}
 async function loadDemo(){setBusy("Loading certified demo");try{el("projectId").value="UAT-DEMO";localStorage.setItem("cmeng-project","UAT-DEMO");await api("/api/projects/UAT-DEMO/demo",{method:"POST"});selected="pmo-analysis";await refresh(false);el("uploadMessage").innerHTML='<div class="notice info">Certified demo loaded in the isolated UAT-DEMO project. User projects are never replaced by demo data.</div>'}catch(e){el("uploadMessage").innerHTML='<div class="notice error">'+escapeHtml(e.message)+'</div>'}finally{setBusy("")}}
 async function uploadSchedules(){if(!scheduleSelection.length)return;setBusy("Uploading schedule revisions");const roles=[...document.querySelectorAll(".schedule-role")].reduce((a,s)=>{a[Number(s.dataset.index)]=s.value;return a},{});const results=[];try{for(let i=0;i<scheduleSelection.length;i+=1){const file=scheduleSelection[i];const headers={"content-type":fileType(file),"x-source-filename":file.name,"x-source-relative-path":file.name,"x-evidence-category":"schedule","x-upload-intent":el("scheduleIntent").value,"x-schedule-role":roles[i]||inferScheduleRole(file.name)};results.push(await api("/api/projects/"+encodeURIComponent(project())+"/evidence/uploads",{method:"POST",headers,body:file}))}el("uploadMessage").innerHTML='<div class="notice info">'+results.length+' schedule revision(s) accepted. Baselines/updates form official history; recovery remains a separate scenario.</div>';scheduleSelection=[];el("scheduleFiles").value="";renderScheduleQueue();await refresh(false)}catch(e){el("uploadMessage").innerHTML='<div class="notice error">'+escapeHtml(e.message)+'</div>'}finally{setBusy("")}}
 async function uploadBoqs(){if(!boqSelection.length)return;setBusy("Uploading BOQ revisions");let count=0;try{for(const file of boqSelection){await api("/api/projects/"+encodeURIComponent(project())+"/evidence/uploads",{method:"POST",headers:{"content-type":fileType(file),"x-source-filename":file.name,"x-source-relative-path":file.name,"x-evidence-category":"boq_cost","x-document-type":"boq","x-upload-intent":el("boqIntent").value},body:file});count+=1}el("uploadMessage").innerHTML='<div class="notice info">'+count+' BOQ revision(s) accepted and retained.</div>';boqSelection=[];el("boqFiles").value="";renderSimpleQueue("boqQueue",boqSelection);await refresh(false)}catch(e){el("uploadMessage").innerHTML='<div class="notice error">'+escapeHtml(e.message)+'</div>'}finally{setBusy("")}}
 async function uploadContracts(){if(!contractSelection.length)return;setBusy("Uploading contract family");const roles=[...document.querySelectorAll(".contract-role")].reduce((a,s)=>{a[Number(s.dataset.index)]=s.value;return a},{});let count=0;try{for(let i=0;i<contractSelection.length;i+=1){const file=contractSelection[i];const role=roles[i]||inferContractRole(file.name);const docType=role==="main"?"main_contract":role==="amendment"?"contract_amendment":role==="appendix"?"contract_appendix":role==="tender"?"tender_employer_requirements":"contract_supporting_document";await api("/api/projects/"+encodeURIComponent(project())+"/evidence/uploads",{method:"POST",headers:{"content-type":fileType(file),"x-source-filename":file.name,"x-source-relative-path":file.name,"x-evidence-category":"contract","x-document-type":docType,"x-upload-intent":el("contractIntent").value},body:file});count+=1}el("uploadMessage").innerHTML='<div class="notice info">'+count+' contract-family document(s) accepted. Amendments are retained separately from the base contract.</div>';contractSelection=[];el("contractFiles").value="";renderContractQueue();await refresh(false)}catch(e){el("uploadMessage").innerHTML='<div class="notice error">'+escapeHtml(e.message)+'</div>'}finally{setBusy("")}}
 async function uploadEvidence(){if(!evidenceSelection.length)return;setBusy("Uploading project evidence");let documentCount=0;try{for(const file of evidenceSelection){const result=await api("/api/projects/"+encodeURIComponent(project())+"/evidence/uploads",{method:"POST",headers:{"content-type":fileType(file),"x-source-filename":file.name,"x-source-relative-path":file.webkitRelativePath||file.name,"x-upload-intent":el("evidenceIntent").value},body:file});documentCount+=result.documentCount||1}el("uploadMessage").innerHTML='<div class="notice info">'+documentCount+' evidence document(s) registered. Known schedule/BOQ/contract files were parsed; other files were classified, preserved and mapped to schedule activities where explicit activity IDs exist.</div>';evidenceSelection=[];el("evidenceFiles").value="";renderSimpleQueue("evidenceQueue",evidenceSelection);await refresh(false)}catch(e){el("uploadMessage").innerHTML='<div class="notice error">'+escapeHtml(e.message)+'</div>'}finally{setBusy("")}}
-el("loadDemo").onclick=loadDemo;el("refresh").onclick=()=>refresh(false);
+el("loadDemo").onclick=loadDemo;el("refresh").onclick=()=>refresh(false);el("runAnalysisTop").onclick=runAnalysis;el("openAiTop").onclick=()=>setAppView("ai");el("askAi").onclick=askCmeng;el("createProject").onclick=createProject;el("portfolioNewProject").onclick=()=>setAppView("projects");
 function openEvidenceWorkspace(){
   setFocusMode(false);
   const drawer=el("evidenceControlDrawer");
@@ -743,7 +920,7 @@ el("boqFiles").onchange=e=>{boqSelection=[...e.target.files];renderSimpleQueue("
 el("contractFiles").onchange=e=>{contractSelection=[...e.target.files];renderContractQueue()};
 el("evidenceFiles").onchange=e=>{evidenceSelection=[...e.target.files];renderSimpleQueue("evidenceQueue",evidenceSelection)};
 el("uploadSchedules").onclick=uploadSchedules;el("uploadBoqs").onclick=uploadBoqs;el("uploadContracts").onclick=uploadContracts;el("uploadEvidence").onclick=uploadEvidence;
-const storedProject=localStorage.getItem("cmeng-project");const storedModule=localStorage.getItem("cmeng-module");if(storedModule&&names[storedModule])selected=storedModule;el("projectId").value=storedProject||"UAT-DEMO";el("projectId").addEventListener("change",()=>refresh(true));setFocusMode(localStorage.getItem("cmeng-focus")==="1");renderNav();loadRelease();refresh(true);
+const storedProject=localStorage.getItem("cmeng-project");const storedModule=localStorage.getItem("cmeng-module");if(storedModule&&names[storedModule])selected=storedModule;el("projectId").value=storedProject||"UAT-DEMO";el("projectId").addEventListener("change",()=>openProject(project()));setFocusMode(localStorage.getItem("cmeng-focus")==="1");renderAiSuggestions();renderPlatformNav();renderNav();loadRelease();loadPortfolio();if(storedProject){refresh(false).catch(()=>{})}setAppView("portfolio");
 </script>
 </body>
 </html>`;
