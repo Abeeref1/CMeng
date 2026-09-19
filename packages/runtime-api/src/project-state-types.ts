@@ -121,6 +121,8 @@ export interface EvidenceRerunReceipt {
   projectVersion: number;
   evidenceFingerprint: string;
   activeBasis: Record<string, EvidenceBasisRecord>;
+  evidenceChanges:
+    EvidenceBasisEffect[];
   moduleCount: number;
   moduleResults: Array<{
     key: string;
@@ -136,6 +138,18 @@ export interface EvidenceRerunReceipt {
     state: "pass" | "fail";
     checkCount: number;
     failedCheckIds: string[];
+    checks: Array<{
+      checkId: string;
+      state:
+        | "pass"
+        | "fail"
+        | "not_applicable";
+      detail: string;
+      values: Array<{
+        source: string;
+        value: unknown;
+      }>;
+    }>;
   };
   diagnostics: string[];
 }
