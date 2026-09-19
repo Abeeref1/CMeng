@@ -71,6 +71,7 @@ import {
 } from "./evidence";
 import {
   identifyEvidenceDocument,
+  type EvidenceIdentificationResult,
 } from "./document-identification";
 
 function hashBytes(
@@ -956,6 +957,8 @@ export class RuntimeProjectStore {
       documentType?: string | null;
       scheduleRole?: string | null;
       uploadedAt: string;
+      preidentified?:
+        EvidenceIdentificationResult;
     },
   ): Promise<EvidenceUploadSummary> {
     const relativePath =
@@ -963,6 +966,7 @@ export class RuntimeProjectStore {
       input.sourceFilename;
 
     const identified =
+      input.preidentified ??
       await identifyEvidenceDocument({
         bytes: input.bytes,
         sourceFilename:
