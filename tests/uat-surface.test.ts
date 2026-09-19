@@ -393,3 +393,162 @@ test("real XER upload creates isolated project revision and usable schedule modu
     },
   );
 });
+
+
+test("deleting the current programme document restores the prior update", async () => {
+  await withServer(
+    async (base) => {
+      const project =
+        "DELETE-DOC-E2E";
+
+      const earlier =
+        xerFixture().replace(
+          "2026-09-18",
+          "2026-09-17",
+        );
+      const current =
+        xerFixture();
+
+      for (
+        const [filename, body] of [
+          [
+            "Very Long Programme Update Rev 01 - 17 September 2026.xer",
+            earlier,
+          ],
+          [
+            "Very Long Programme Update Rev 02 - 18 September 2026.xer",
+            current,
+          ],
+        ] as const
+      ) {
+        const uploaded =
+          await fetch(
+            base +
+              "/api/projects/" +
+              project +
+              "/schedule/uploads",
+            {
+              method: "POST",
+              headers: {
+                "content-type":
+                  "text/plain",
+                "x-source-filename":
+                  filename,
+                "x-schedule-role":
+                  "update",
+              },
+              body,
+            },
+          );
+        assert.equal(
+          uploaded.status,
+          201,
+        );
+      }
+
+      const before =
+        await fetch(
+          base +
+            "/api/projects/" +
+            project +
+            "/evidence/documents",
+        );
+      const beforeBody =
+        await before.json() as {
+          documents: Array<{
+            documentId: string;
+            sourceFilename: string;
+            basisState: string;
+          }>;
+        };
+
+      assert.equal(
+        beforeBody.documents.length,
+        2,
+      );
+      const active =
+        beforeBody.documents.find(
+          (document) =>
+            document.basisState ===
+            "active",
+        );
+      assert.ok(active);
+      assert.match(
+        active.sourceFilename,
+        /Rev 02/,
+      );
+
+      const deleted =
+        await fetch(
+          base +
+            "/api/projects/" +
+            project +
+            "/evidence/documents/" +
+            encodeURIComponent(
+              active.documentId,
+            ),
+          {
+            method: "DELETE",
+          },
+        );
+      assert.equal(
+        deleted.status,
+        200,
+      );
+
+      const after =
+        await fetch(
+          base +
+            "/api/projects/" +
+            project +
+            "/evidence/documents",
+        );
+      const afterBody =
+        await after.json() as {
+          documents: Array<{
+            sourceFilename: string;
+            basisState: string;
+          }>;
+        };
+
+      assert.equal(
+        afterBody.documents.length,
+        1,
+      );
+      assert.match(
+        afterBody.documents[0]!
+          .sourceFilename,
+        /Rev 01/,
+      );
+      assert.equal(
+        afterBody.documents[0]!
+          .basisState,
+        "active",
+      );
+
+      const overview =
+        await fetch(
+          base +
+            "/api/projects/" +
+            project +
+            "/overview",
+        );
+      const overviewBody =
+        await overview.json() as {
+          revisionCount: number;
+          latestDataDateIso:
+            string | null;
+        };
+
+      assert.equal(
+        overviewBody.revisionCount,
+        1,
+      );
+      assert.equal(
+        overviewBody
+          .latestDataDateIso,
+        "2026-09-17",
+      );
+    },
+  );
+});
