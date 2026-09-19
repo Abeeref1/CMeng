@@ -21,6 +21,14 @@ export interface PmoAnalysisProjection {
     nearCriticalCount: number;
     negativeFloatCount: number;
     logicDensity: number | null;
+    criticalityBasis:
+      "source_total_float";
+    independentCpmState:
+      | "established"
+      | "not_established";
+    drivingPathState:
+      | "independent_cpm_available"
+      | "not_established";
   };
 
   progress: {
@@ -68,6 +76,13 @@ export interface PmoAnalysisProjection {
     timelyNoticeCount: number;
     lateNoticeCount: number;
     observedPositiveMovementDays: number;
+    observedProgrammeMovementDays: number;
+    analyticalTimeImpactCandidateDays:
+      number;
+    attributableCandidateEotDays:
+      number;
+    unattributedTimeImpactDays:
+      number;
     candidateAdditionalEotDays: number;
     officialApprovedEotDays: number | null;
     officialAdjustedCompletionIso: string | null;
