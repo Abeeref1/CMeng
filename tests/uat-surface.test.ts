@@ -495,6 +495,22 @@ test("deleting the current programme document restores the prior update", async 
         deleted.status,
         200,
       );
+      const deletedBody =
+        await deleted.json() as {
+          positionRefreshRequired:
+            boolean;
+          rerun?: unknown;
+        };
+      assert.equal(
+        deletedBody
+          .positionRefreshRequired,
+        true,
+      );
+      assert.equal(
+        "rerun" in deletedBody,
+        false,
+        "document deletion must not wait for a full project rerun",
+      );
 
       const after =
         await fetch(
