@@ -28,6 +28,10 @@ function documentIdentifier(
     [string, RegExp]
   > = [
     [
+      "amendment",
+      /\b(?:contract\s+)?amendment\s*(?:no\.?|number|#)?\s*[:\-]?\s*([A-Z0-9._/-]+)/i,
+    ],
+    [
       "vo",
       /\b(?:vo|variation(?:\s+order)?|change\s+order)\s*(?:no\.?|number|#)?\s*[:\-]?\s*([A-Z0-9._/-]+)/i,
     ],
@@ -184,7 +188,12 @@ export function evidenceFamily(
           sourceFilename,
         ) ??
         "contract:amendment:" +
-          norm(sourceFilename),
+          norm(
+            sourceFilename.replace(
+              /(?:rev(?:ision)?|r)\s*[-_. ]*\d+\b/gi,
+              "",
+            ),
+          ),
     };
   }
 
