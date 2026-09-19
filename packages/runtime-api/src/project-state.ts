@@ -342,6 +342,57 @@ function serializeProject(
   };
 }
 
+function specialistIdentification(
+  input: {
+    mediaType: string;
+    category: EvidenceCategory;
+    documentType: string;
+    sourceFilename:
+      | string
+      | null;
+    diagnostics?: string[];
+  },
+): EvidenceIdentification {
+  const filename =
+    input.sourceFilename ??
+    "evidence";
+  return {
+    verifiedMediaType:
+      input.mediaType,
+    detectedCategory:
+      input.category,
+    detectedDocumentType:
+      input.documentType,
+    confidence: 0.98,
+    method: "signature",
+    ocrUsed: false,
+    ocrConfidence: null,
+    pageCount: null,
+    extractedCharacterCount: 0,
+    detectedTitle: null,
+    filenameHintCategory:
+      inferEvidenceCategory(
+        filename,
+        null,
+      ),
+    filenameHintDocumentType:
+      inferDocumentType(
+        filename,
+        null,
+      ),
+    declaredCategory: null,
+    declaredDocumentType: null,
+    classificationConflict: false,
+    needsReview: false,
+    signals: [
+      "specialist parser accepted document",
+    ],
+    diagnostics: [
+      ...(input.diagnostics ?? []),
+    ],
+  };
+}
+
 function legacyIdentification(
   document: StoredEvidenceDocument,
 ): EvidenceIdentification {
