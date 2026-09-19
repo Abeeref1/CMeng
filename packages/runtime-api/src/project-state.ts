@@ -2396,6 +2396,8 @@ export class RuntimeProjectStore {
         EvidenceLineage;
       assertions?:
         DocumentAssertion[];
+      uploadIntent?:
+        EvidenceUploadIntent;
     },
   ): Promise<ContractDocumentResult> {
     const name =
@@ -2467,6 +2469,10 @@ export class RuntimeProjectStore {
     const assertions =
       input.assertions ??
       [];
+    const uploadIntent:
+      EvidenceUploadIntent =
+      input.uploadIntent ??
+      "add_update";
 
     const lineage =
       input.lineage ??
@@ -2524,7 +2530,122 @@ export class RuntimeProjectStore {
       );
     }
 
+    const storedPath =
+      this.persistRawUpload({
+        projectId:
+          input.projectId,
+        category: "contract",
+        hash,
+        bytes: input.bytes,
+        sourceFilename:
+          input.sourceFilename ??
+          null,
+      });
+
+    const documentType =
+      role === "main"
+        ? "main_contract"
+        : role === "amendment"
+          ? "contract_amendment"
+          : role === "appendix"
+            ? "contract_appendix"
+            : role === "tender"
+              ? "tender_contract_document"
+              : role === "replacement"
+                ? "contract_replacement"
+                : "contract_supporting_document";
+    const family =
+      evidenceFamily({
+        category: "contract",
+        documentType,
+        scheduleRole: null,
+        textSample:
+          assertions
+            .map(
+              (assertion) =>
+                assertion.sourceText,
+            )
+            .join("\n"),
+        sourceFilename:
+          input.sourceFilename ??
+          "contract",
+      });
+    const document:
+      StoredEvidenceDocument = {
+      documentId,
+      category: "contract",
+      documentType,
+      sourceFilename:
+        input.sourceFilename?.trim() ||
+        "contract",
+      sourceRelativePath:
+        input.sourceRelativePath?.trim() ||
+        input.sourceFilename?.trim() ||
+        null,
+      mediaType:
+        identification
+          .verifiedMediaType,
+      sourceHashSha256: hash,
+      sizeBytes:
+        input.bytes.length,
+      uploadedAt:
+        storedContract.uploadedAt,
+      authority:
+        "candidate_only",
+      parserState:
+        parsed.complete
+          ? "parsed"
+          : "partial",
+      storedPath,
+      linkedArtifactId:
+        documentId,
+      scheduleRole: null,
+      mapping: null,
+      identification,
+      lineage,
+      assertions,
+      uploadIntent,
+      familyKey:
+        family.familyKey,
+      logicalDocumentKey:
+        family.logicalDocumentKey,
+      basisState: "candidate",
+      supersededByDocumentId:
+        null,
+      supersedesDocumentIds:
+        [],
+      diagnostics: [
+        ...identification
+          .diagnostics,
+        ...lineage.diagnostics,
+        ...parsed.diagnostics,
+      ],
+    };
+    this.upsertEvidence(
+      state,
+      document,
+    );
+    applyEvidenceBasis(
+      state,
+      document,
+      uploadIntent,
+    );
+
+    const activeBaseId =
+      state.activeEvidenceBasis[
+        "contract:base"
+      ]?.activeDocumentId ??
+      null;
     const base =
+      (
+        activeBaseId
+          ? state.contractDocuments.find(
+              (item) =>
+                item.documentId ===
+                activeBaseId,
+            ) ?? null
+          : null
+      ) ??
       [...state.contractDocuments]
         .filter(
           (item) =>
@@ -2538,100 +2659,49 @@ export class RuntimeProjectStore {
           ),
         )
         .at(0) ??
-      state.contractDocuments.find(
-        (item) =>
-          item.role !== "amendment" &&
-          item.role !== "replacement",
-      ) ??
       storedContract;
+
     state.contract =
       base.result;
+
     const amendments =
       state.contractDocuments
         .filter(
-          (item) =>
-            item.role ===
-            "amendment",
+          (item) => {
+            if (
+              item.role !==
+              "amendment"
+            ) return false;
+            const evidence =
+              state.evidenceDocuments.find(
+                (document) =>
+                  document.documentId ===
+                  item.documentId,
+              );
+            return (
+              evidence?.basisState !==
+              "superseded"
+            );
+          },
         )
         .map(
           (item) => item.result,
         );
+
     state.contractFamily =
-      base
-        ? linkContractFamily(
-            base.result,
-            amendments,
-          )
-        : null;
+      linkContractFamily(
+        base.result,
+        amendments,
+      );
 
-    const storedPath =
-      this.persistRawUpload({
-        projectId:
-          input.projectId,
-        category: "contract",
-        hash,
-        bytes: input.bytes,
-        sourceFilename:
-          input.sourceFilename ??
-          null,
-      });
-
-    this.upsertEvidence(
-      state,
-      {
-        documentId,
-        category: "contract",
-        documentType:
-          role === "main"
-            ? "main_contract"
-            : role === "amendment"
-              ? "contract_amendment"
-              : role === "appendix"
-                ? "contract_appendix"
-                : role === "tender"
-                  ? "tender_contract_document"
-                  : role === "replacement"
-                    ? "contract_replacement"
-                    : "contract_supporting_document",
-        sourceFilename:
-          input.sourceFilename?.trim() ||
-          "contract",
-        sourceRelativePath:
-          input.sourceRelativePath?.trim() ||
-          input.sourceFilename?.trim() ||
-          null,
-        mediaType:
-          identification
-            .verifiedMediaType,
-        sourceHashSha256: hash,
-        sizeBytes:
-          input.bytes.length,
-        uploadedAt:
-          storedContract.uploadedAt,
-        authority:
-          "candidate_only",
-        parserState:
-          parsed.complete
-            ? "parsed"
-            : "partial",
-        storedPath,
-        linkedArtifactId:
-          documentId,
-        scheduleRole: null,
-        mapping: null,
-        identification,
-        lineage,
-        assertions,
-        diagnostics: [
-          ...identification
-            .diagnostics,
-          ...lineage.diagnostics,
-          ...parsed.diagnostics,
-          ...(state.contractFamily
-            ?.diagnostics ?? []),
-        ],
-      },
-    );
+    document.diagnostics = [
+      ...document.diagnostics,
+      ...(
+        state.contractFamily
+          ?.diagnostics ??
+        []
+      ),
+    ];
 
     this.touch(state);
     return parsed;
