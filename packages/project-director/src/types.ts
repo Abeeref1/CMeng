@@ -156,6 +156,14 @@ export interface ProjectDirectorPosition {
     varianceDaysToOfficialAdjustedCompletion: number | null;
     criticalCount: number;
     nearCriticalCount: number;
+    criticalityBasis:
+      "source_total_float";
+    independentCpmState:
+      | "established"
+      | "not_established";
+    drivingPathState:
+      | "independent_cpm_available"
+      | "not_established";
     overdueLookAheadCount: number;
     progressBases: ProgressReportProjection["progressBases"];
   };
@@ -165,6 +173,14 @@ export interface ProjectDirectorPosition {
     fullyLinkedEventCount: number;
     fullyLinkedClaimCount: number;
     unlinkedClaimIds: string[];
+    observedProgrammeMovementDays:
+      number;
+    analyticalTimeImpactCandidateDays:
+      number;
+    attributableCandidateEotDays:
+      number;
+    unattributedTimeImpactDays:
+      number;
     candidateAdditionalEotDays: number;
     officialApprovedEotDays: number | null;
   };
