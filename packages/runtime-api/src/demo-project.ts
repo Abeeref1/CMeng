@@ -554,6 +554,10 @@ export function loadCertifiedDemoProject(
     contractDocuments: [],
     contractFamily: null,
     submittedManpowerPlan: null,
+    activeEvidenceBasis: {},
+    boardPublicationHistory: [],
+    delayEventHistory: [],
+    lastRerunReceipt: null,
     contract: {
       sourceType: "pdf",
       pdf: null,
