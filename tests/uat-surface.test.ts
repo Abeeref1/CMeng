@@ -568,3 +568,155 @@ test("deleting the current programme document restores the prior update", async 
     },
   );
 });
+
+
+test("multiple project documents delete in one bulk action", async () => {
+  await withServer(
+    async (base) => {
+      const project =
+        "BULK-DELETE-E2E";
+
+      for (
+        const [filename, date] of [
+          [
+            "Programme Update Rev 01.xer",
+            "2026-09-16",
+          ],
+          [
+            "Programme Update Rev 02.xer",
+            "2026-09-17",
+          ],
+          [
+            "Programme Update Rev 03.xer",
+            "2026-09-18",
+          ],
+        ] as const
+      ) {
+        const uploaded =
+          await fetch(
+            base +
+              "/api/projects/" +
+              project +
+              "/schedule/uploads",
+            {
+              method: "POST",
+              headers: {
+                "content-type":
+                  "text/plain",
+                "x-source-filename":
+                  filename,
+                "x-schedule-role":
+                  "update",
+              },
+              body:
+                xerFixture().replace(
+                  "2026-09-18",
+                  date,
+                ),
+            },
+          );
+        assert.equal(
+          uploaded.status,
+          201,
+        );
+      }
+
+      const before =
+        await fetch(
+          base +
+            "/api/projects/" +
+            project +
+            "/evidence/documents",
+        );
+      const beforeBody =
+        await before.json() as {
+          documents: Array<{
+            documentId: string;
+          }>;
+        };
+      assert.equal(
+        beforeBody.documents.length,
+        3,
+      );
+
+      const bulk =
+        await fetch(
+          base +
+            "/api/projects/" +
+            project +
+            "/evidence/documents/delete",
+          {
+            method: "POST",
+            headers: {
+              "content-type":
+                "application/json",
+            },
+            body: JSON.stringify({
+              documentIds:
+                beforeBody.documents
+                  .map(
+                    (document) =>
+                      document.documentId,
+                  ),
+            }),
+          },
+        );
+      assert.equal(
+        bulk.status,
+        200,
+      );
+      const bulkBody =
+        await bulk.json() as {
+          deletedCount: number;
+          positionRefreshRequired:
+            boolean;
+          rerun?: unknown;
+        };
+      assert.equal(
+        bulkBody.deletedCount,
+        3,
+      );
+      assert.equal(
+        bulkBody
+          .positionRefreshRequired,
+        true,
+      );
+      assert.equal(
+        "rerun" in bulkBody,
+        false,
+      );
+
+      const after =
+        await fetch(
+          base +
+            "/api/projects/" +
+            project +
+            "/evidence/documents",
+        );
+      const afterBody =
+        await after.json() as {
+          documentCount: number;
+        };
+      assert.equal(
+        afterBody.documentCount,
+        0,
+      );
+
+      const overview =
+        await fetch(
+          base +
+            "/api/projects/" +
+            project +
+            "/overview",
+        );
+      const overviewBody =
+        await overview.json() as {
+          revisionCount: number;
+        };
+      assert.equal(
+        overviewBody.revisionCount,
+        0,
+      );
+    },
+  );
+});
