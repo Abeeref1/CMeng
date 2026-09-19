@@ -1323,6 +1323,7 @@ function buildBundle(
               "PROGRAMME_MOVEMENT_CARRIED_FORWARD_AS_ANALYTICAL_TIME_IMPACT_CANDIDATE",
             ]
           : []),
+      ],
     };
 
     modules.set(
