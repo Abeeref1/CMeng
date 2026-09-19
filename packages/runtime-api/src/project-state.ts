@@ -1352,6 +1352,8 @@ export class RuntimeProjectStore {
       role?: string | null;
       label?: string | null;
       uploadedAt: string;
+      identification?:
+        EvidenceIdentification;
     },
   ): Promise<ScheduleUploadSummary> {
     const state =
@@ -1360,6 +1362,27 @@ export class RuntimeProjectStore {
       );
     const hash =
       hashBytes(input.bytes);
+    const identification =
+      input.identification ??
+      (
+        await identifyEvidenceDocument({
+          bytes:
+            input.bytes,
+          sourceFilename:
+            input.sourceFilename ??
+            "schedule",
+          sourceRelativePath:
+            input.sourceRelativePath ??
+            input.sourceFilename ??
+            null,
+          declaredMediaType:
+            input.mediaType,
+          declaredCategory:
+            "schedule",
+          declaredDocumentType:
+            null,
+        })
+      ).identification;
 
     const existing =
       state.schedules.find(
@@ -1559,7 +1582,8 @@ export class RuntimeProjectStore {
           input.sourceFilename?.trim() ||
           null,
         mediaType:
-          input.mediaType,
+          identification
+            .verifiedMediaType,
         sourceHashSha256: hash,
         sizeBytes:
           input.bytes.length,
@@ -1575,7 +1599,10 @@ export class RuntimeProjectStore {
         scheduleRole:
           stored.role,
         mapping: null,
+        identification,
         diagnostics: [
+          ...identification
+            .diagnostics,
           ...model.diagnostics,
         ],
       },
