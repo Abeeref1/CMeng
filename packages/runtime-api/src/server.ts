@@ -700,6 +700,49 @@ async function route(
     return;
   }
 
+  const evidenceDocumentDeleteMatch =
+    /^\/api\/projects\/([^/]+)\/evidence\/documents\/([^/]+)$/.exec(
+      url.pathname,
+    );
+
+  if (
+    req.method === "DELETE" &&
+    evidenceDocumentDeleteMatch
+  ) {
+    const projectId =
+      decodeURIComponent(
+        evidenceDocumentDeleteMatch[1]!,
+      );
+    const documentId =
+      decodeURIComponent(
+        evidenceDocumentDeleteMatch[2]!,
+      );
+    const deleted =
+      runtimeProjects
+        .deleteEvidenceDocument(
+          projectId,
+          documentId,
+        );
+    if (!deleted) {
+      json(res, 404, {
+        error:
+          "document_not_found",
+      });
+      return;
+    }
+
+    invalidateProject(projectId);
+    const rerun =
+      rerunProject(projectId);
+
+    json(res, 200, {
+      projectId,
+      deleted,
+      rerun,
+    });
+    return;
+  }
+
   const evidenceRerunMatch =
     /^\/api\/projects\/([^/]+)\/evidence\/rerun$/.exec(
       url.pathname,
@@ -1757,6 +1800,8 @@ async function route(
         "/api/projects/:projectId/intelligence/ask",
       evidenceUpload:
         "/api/projects/:projectId/evidence/uploads",
+      evidenceDelete:
+        "/api/projects/:projectId/evidence/documents/:documentId",
       evidenceRerun:
         "/api/projects/:projectId/evidence/rerun",
       scheduleUpload:
