@@ -943,3 +943,49 @@ export function applyEvidenceBasis(
       "Evidence retained as candidate without changing the active family basis.",
   );
 }
+
+
+export function rebuildEvidenceFamily(
+  state: ProjectRuntimeState,
+  familyKey: string,
+): void {
+  const documents =
+    state.evidenceDocuments
+      .filter(
+        (document) =>
+          document.familyKey ===
+          familyKey,
+      )
+      .sort((a, b) => {
+        const byTime =
+          a.uploadedAt.localeCompare(
+            b.uploadedAt,
+          );
+        return byTime !== 0
+          ? byTime
+          : a.documentId.localeCompare(
+              b.documentId,
+            );
+      });
+
+  delete state.activeEvidenceBasis[
+    familyKey
+  ];
+
+  for (const document of documents) {
+    document.basisState =
+      "candidate";
+    document.supersededByDocumentId =
+      null;
+    document.supersedesDocumentIds =
+      [];
+  }
+
+  for (const document of documents) {
+    applyEvidenceBasis(
+      state,
+      document,
+      document.uploadIntent,
+    );
+  }
+}
