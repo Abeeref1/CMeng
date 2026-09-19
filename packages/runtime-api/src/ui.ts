@@ -60,7 +60,7 @@ button,input,select{font:inherit}button{cursor:pointer}
 .wide-upload{margin-top:12px;border:1px solid #d9e4ee;border-radius:11px;padding:14px;background:#faf8f5;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:14px;align-items:center}.wide-upload strong{font-size:13px;display:block;margin-bottom:4px}.wide-upload small{color:var(--muted);font-size:12px}.wide-upload input{font-size:12px;width:100%;margin-top:8px}
 .upload-progress-card{margin-top:12px;padding:14px 15px;border:1px solid #cbdcec;border-radius:11px;background:#fff;box-shadow:0 5px 16px rgba(34,54,77,.035)}.upload-progress-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:10px}.upload-progress-head strong{font-size:13.5px;color:var(--slate)}.upload-progress-head b{font-size:19px;line-height:1;color:var(--accent);font-variant-numeric:tabular-nums}.upload-progress-track{height:9px;border-radius:999px;background:#e7eef6;overflow:hidden}.upload-progress-fill{height:100%;width:0;background:linear-gradient(90deg,#2f6fb2,#1f5eff);border-radius:999px;transition:width .25s ease}.upload-progress-meta{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-top:9px;font-size:11.5px;color:var(--muted)}.upload-progress-current{margin-top:6px;font-size:11px;color:#506579;overflow-wrap:anywhere}.document-updated{white-space:nowrap;font-size:11.5px;color:#506579}.document-updated b{display:block;color:var(--slate);font-size:11.5px}.document-updated small{display:block;margin-top:2px;color:var(--muted)}
 .queue{margin-top:9px;display:flex;flex-direction:column;gap:7px}.queue-row{display:grid;grid-template-columns:minmax(260px,1fr) 205px auto;gap:10px;align-items:center;padding:10px 11px;border:1px solid var(--line);border-radius:8px;background:#fff}.queue-file{min-width:0}.queue-name{display:block;font-size:12.5px;font-weight:700;white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere;word-break:break-word;color:var(--slate);line-height:1.35}.queue-path{display:block;margin-top:3px;font-size:10.5px;color:var(--muted);white-space:normal;overflow-wrap:anywhere}.queue-role-control{display:grid;gap:4px}.queue-role-control label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:800}.queue-row select{height:34px;border:1px solid #cbd5e1;border-radius:7px;font-size:11.5px;background:#fff}.queue-remove,.document-delete{border:1px solid #efc2bd;background:#fff;color:#a13f36;border-radius:7px;padding:6px 9px;font-size:11px;font-weight:700}.queue-remove:hover,.document-delete:hover{background:#fff1f0}.document-delete:disabled{opacity:.45;cursor:not-allowed;background:#fff}.document-file{min-width:260px;max-width:460px;white-space:normal;overflow-wrap:anywhere;word-break:break-word;line-height:1.35}.document-file .muted{display:block;margin-top:4px;font-size:10.5px}.document-position{white-space:nowrap}.evidence-bulk-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 10px;padding:10px 12px;border:1px solid var(--line);border-radius:9px;background:#f8fbff}.evidence-bulk-bar label{display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:700;color:var(--slate)}.evidence-bulk-bar .bulk-spacer{flex:1}.evidence-bulk-count{font-size:11.5px;color:var(--muted);font-weight:700}.evidence-select,.evidence-select-all{width:16px;height:16px;accent-color:var(--accent);cursor:pointer}.select-col{width:42px;min-width:42px;text-align:center!important;padding-left:8px!important;padding-right:8px!important}.upload-actions{display:flex;justify-content:flex-end;margin-top:10px}
-.workspace-drawer{margin-top:20px;border:1px solid var(--line);border-radius:13px;background:#fff;box-shadow:var(--shadow);overflow:hidden}.workspace-drawer>summary{list-style:none;display:flex;align-items:center;justify-content:space-between;gap:14px;padding:15px 18px;cursor:pointer;background:#fff}.workspace-drawer>summary::-webkit-details-marker{display:none}.workspace-drawer>summary strong{display:block;font-size:15px}.workspace-drawer>summary .section-kicker{margin-bottom:3px}.drawer-hint{font-size:12px;color:var(--accent);font-weight:750}.workspace-drawer[open] .drawer-hint{color:var(--muted)}.drawer-body{padding:0 18px 18px;background:#faf9f7;border-top:1px solid var(--line)}.evidence-control-grid{grid-template-columns:minmax(280px,.62fr) minmax(0,1.5fr);align-items:start;padding-top:18px}.evidence-status-card{position:sticky;top:92px}.evidence-intake-card{min-width:0}
+.workspace-drawer{margin-top:20px;border:1px solid var(--line);border-radius:13px;background:#fff;box-shadow:var(--shadow);overflow:hidden}.auxiliary-drawer{display:none;position:fixed;right:18px;top:76px;width:min(940px,calc(100vw - 290px));max-height:calc(100vh - 94px);margin:0;z-index:70;overflow:auto!important;box-shadow:0 24px 70px rgba(25,42,62,.22)}.auxiliary-drawer[open]{display:block}.auxiliary-drawer>summary{position:sticky;top:0;z-index:5;border-bottom:1px solid var(--line)}.auxiliary-drawer .drawer-body{min-height:160px}.auxiliary-drawer[open] .drawer-hint:after{content:"Close";font-size:12px}.auxiliary-drawer[open] .drawer-hint{font-size:0}.auxiliary-drawer:not([open]){display:none}.workspace-drawer>summary{list-style:none;display:flex;align-items:center;justify-content:space-between;gap:14px;padding:15px 18px;cursor:pointer;background:#fff}.workspace-drawer>summary::-webkit-details-marker{display:none}.workspace-drawer>summary strong{display:block;font-size:15px}.workspace-drawer>summary .section-kicker{margin-bottom:3px}.drawer-hint{font-size:12px;color:var(--accent);font-weight:750}.workspace-drawer[open] .drawer-hint{color:var(--muted)}.drawer-body{padding:0 18px 18px;background:#faf9f7;border-top:1px solid var(--line)}.evidence-control-grid{grid-template-columns:minmax(280px,.62fr) minmax(0,1.5fr);align-items:start;padding-top:18px}.evidence-status-card{position:sticky;top:92px}.evidence-intake-card{min-width:0}
 details:not(.workspace-drawer){border:1px solid var(--line);border-radius:9px;background:#fff}details:not(.workspace-drawer)>summary{padding:11px 13px;cursor:pointer;font-size:12.5px;font-weight:700}pre{margin:0;padding:13px;max-height:560px;overflow:auto;background:#0c1525;color:#d7e5ff;font-size:12px;line-height:1.55;border-radius:0 0 9px 9px;white-space:pre-wrap;word-break:break-word}
 .currency-card{border:1px solid var(--line);border-radius:10px;padding:13px;background:#fff}.currency-code{font-size:17px;font-weight:820;margin-bottom:8px}.currency-line{display:flex;justify-content:space-between;gap:12px;font-size:13px;padding:5px 0;color:#506579}.currency-line strong{color:#2e3a46}
 .challenge-card{padding:0!important;overflow:hidden}.challenge-card .challenge-head{padding:17px 18px;border-bottom:1px solid var(--line)}.challenge-card .challenge-summary{padding:15px 18px 0}.challenge-card .challenge-table-wrap{margin:15px 18px 18px}.conflict-expand-row>td{padding:0;background:#faf8f5!important}.conflict-panel{padding:16px 18px;border-top:1px solid #e4ded6;border-bottom:1px solid #e4ded6;background:linear-gradient(180deg,#faf8f5,#f5f1eb)}.conflict-title{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px}.conflict-title strong{font-size:14px}.conflict-title p{margin:3px 0 0;color:var(--muted);font-size:12px}.candidate-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px}.candidate-card{border:1px solid #ddd5ca;border-radius:10px;background:#fff;padding:13px}.candidate-card.recommended{border-color:#4f7fb4;box-shadow:0 0 0 2px rgba(201,183,159,.14)}.candidate-value{font-size:20px;font-weight:790;letter-spacing:-.025em;margin:3px 0 9px}.candidate-meta{display:grid;grid-template-columns:1fr 1fr;gap:7px;font-size:11.5px;color:var(--muted)}.candidate-meta b{display:block;color:#506579;font-size:10.5px;text-transform:uppercase;letter-spacing:.04em}.candidate-sources{font-size:11.5px;color:#5d6b7e;margin-top:9px;word-break:break-word}.recommendation-card{margin-top:12px;padding:13px 14px;border-radius:10px;background:#f2ede6;border:1px solid #d7e3ef;display:flex;align-items:flex-start;justify-content:space-between;gap:16px}.recommendation-card strong{display:block;font-size:16px;color:var(--slate);margin:3px 0}.recommendation-card p{margin:0;color:#66727f;font-size:12px;line-height:1.45}.recommendation-label{font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;font-weight:820;color:#4e7299}.decision-pill{flex:0 0 auto;background:#fff7e8;color:#8b4b08;border:1px solid #f6d99f;border-radius:999px;padding:6px 9px;font-size:10.5px;font-weight:820;text-transform:uppercase;letter-spacing:.04em}
@@ -68,7 +68,7 @@ details:not(.workspace-drawer){border:1px solid var(--line);border-radius:9px;ba
 .chart-card{margin-top:14px;border:1px solid var(--line);border-radius:12px;background:#fff;overflow:hidden}.chart-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid var(--line);background:#faf9f6}.chart-card-head h4{margin:0;font-size:14px}.chart-card-head p{margin:3px 0 0;color:var(--muted);font-size:12px}.chart-body{padding:14px 16px}.svg-chart{width:100%;min-width:620px;height:auto;display:block}.chart-scroll{overflow-x:auto}.chart-legend{display:flex;flex-wrap:wrap;gap:12px;margin:0 0 10px}.legend-item{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:#506579}.legend-dot{width:9px;height:9px;border-radius:50%}.domain-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:11px}.domain-card{border:1px solid var(--line);border-radius:11px;background:#fff;padding:14px}.domain-card h5{margin:0 0 10px;font-size:14px}.domain-metric{display:flex;justify-content:space-between;gap:12px;padding:5px 0;border-bottom:1px solid #edf1f5;font-size:12px;color:#5a687b}.domain-metric:last-child{border-bottom:0}.domain-metric strong{color:#2e3a46;text-align:right}.position-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px}.position-card{border:1px solid #dfe7ef;border-radius:10px;background:#fff;padding:13px}.position-card .position-label{font-size:10.5px;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:.05em}.position-card .position-value{font-size:19px;font-weight:780;margin:5px 0 3px;letter-spacing:-.02em}.position-card .position-sub{font-size:11.5px;color:var(--muted)}.readiness-table td{vertical-align:middle}.state-pill{display:inline-flex;border-radius:999px;padding:4px 7px;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.035em}.state-pill.ready,.state-pill.included{background:#ecfdf3;color:#067647}.state-pill.blocked,.state-pill.excluded{background:#fef3f2;color:#b42318}.state-pill.conditional,.state-pill.review,.state-pill.unknown{background:#fffaeb;color:#b54708}.state-pill.not_applicable{background:#f2f4f7;color:#667085}.window-strip{display:grid;gap:10px}.window-card{display:grid;grid-template-columns:minmax(170px,.55fr) minmax(0,1fr) minmax(180px,.6fr);gap:13px;border:1px solid var(--line);border-radius:10px;padding:13px;background:#fff}.window-id{font-size:13px;font-weight:800}.window-dates{font-size:11.5px;color:var(--muted);margin-top:4px}.movement-value{font-size:22px;font-weight:780;letter-spacing:-.03em}.movement-label{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:750}.event-tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px}.event-tag{font-size:10.5px;border:1px solid #ded8cf;border-radius:999px;padding:3px 6px;background:#fbfdff;color:#506579}.data-section{margin-top:14px;border:1px solid var(--line);border-radius:12px;background:#fff;overflow:hidden}.data-section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid var(--line);background:#fbfdff}.data-section-head h4{margin:0;font-size:14px;letter-spacing:-.01em}.data-section-body{padding:14px 16px}.value-list{display:flex;flex-wrap:wrap;gap:7px}.value-chip{display:inline-flex;padding:6px 9px;border:1px solid #ded8cf;border-radius:8px;background:#fbfdff;font-size:12px;color:#506579}.nested-block{margin-top:12px}.nested-block:first-child{margin-top:0}.nested-title{font-size:12px;font-weight:800;color:#506579;margin:0 0 8px;text-transform:uppercase;letter-spacing:.045em}.cell-details summary{padding:4px 0!important;border:0!important;background:transparent!important}.cell-details pre{max-height:320px}.technical-payload{margin-top:16px}.footer-note{font-size:12px;color:var(--muted);margin-top:22px;padding:0 2px}.muted{color:var(--muted)}
 .spinner{width:14px;height:14px;border:2px solid #d0d5dd;border-top-color:var(--accent);border-radius:50%;display:inline-block;animation:spin .7s linear infinite;vertical-align:-2px}@keyframes spin{to{transform:rotate(360deg)}}
 @media(max-width:1280px){.app{grid-template-columns:238px minmax(0,1fr)}.grid.three{grid-template-columns:1fr 1fr}.upload-row{grid-template-columns:1fr}.evidence-control-grid{grid-template-columns:1fr}.evidence-status-card{position:static}}
-@media(max-width:900px){.app{display:block}.sidebar{position:relative;height:auto}.topbar{position:relative;flex-wrap:wrap;padding:13px 18px}.content{padding:20px 18px 48px}.project-input{min-width:0;width:100%;flex-wrap:wrap}.workspace-header{align-items:center}.grid.two,.grid.three{grid-template-columns:1fr}.module-panel #moduleContent{padding:16px}.module-panel>.module-head{padding:17px}.candidate-grid{grid-template-columns:1fr}}
+@media(max-width:900px){.app{display:block}.sidebar{position:relative;height:auto}.topbar{position:relative;flex-wrap:wrap;padding:13px 18px}.content{padding:20px 18px 48px}.project-input{min-width:0;width:100%;flex-wrap:wrap}.workspace-header{align-items:center}.grid.two,.grid.three{grid-template-columns:1fr}.module-panel #moduleContent{padding:16px}.module-panel>.module-head{padding:17px}.candidate-grid{grid-template-columns:1fr}.auxiliary-drawer{right:12px;top:12px;width:calc(100vw - 24px);max-height:calc(100vh - 24px)}}
 @media(max-width:620px){.workspace-header{display:block}.queue-row{grid-template-columns:1fr}.queue-role-control{grid-template-columns:1fr}.queue-remove{justify-self:start}.quick-upload-bar{display:block}.quick-upload-actions{margin-top:10px}.quick-upload-actions .btn{width:100%}.workspace-actions{justify-content:flex-start;margin-top:10px}.workspace-header .badge{margin-top:10px}.grid.kpi{grid-template-columns:1fr 1fr}.scalar-grid{grid-template-columns:1fr}.wide-upload{grid-template-columns:1fr}.queue-row{grid-template-columns:1fr}.recommendation-card{display:block}.decision-pill{display:inline-flex;margin-top:10px}}
 </style>
 </head>
@@ -172,18 +172,12 @@ details:not(.workspace-drawer){border:1px solid var(--line);border-radius:9px;ba
           <p>Current programme, progress, resources, forecast, claims and commercial position based on the latest project records. Choose a project-control view from the left.</p>
         </div>
         <div class="workspace-actions">
-          <button class="btn primary" id="openEvidenceTop">Add / update documents</button>
-          <button class="btn" id="runAnalysisTop">Update project position</button>
+          <button class="btn" id="openLibraryQuick">Documents</button>
+          <button class="btn primary" id="openEvidenceTop">Add documents</button>
+          <button class="btn" id="runAnalysisTop">Update position</button>
           <button class="btn" id="openAiTop">Ask CMeng</button>
           <button class="btn small" id="refresh">Refresh</button>
           <span id="projectBadge" class="badge">No project</span>
-        </div>
-      </div>
-
-      <div class="quick-upload-bar">
-        <div class="quick-upload-copy"><b>Project documents</b><span>Add programme updates, BOQ, contracts, claims, registers, reports or a complete document pack.</span></div>
-        <div class="quick-upload-actions">
-          <button class="btn ghost-dark" id="openLibraryQuick">Open document register</button>
         </div>
       </div>
 
@@ -199,9 +193,9 @@ details:not(.workspace-drawer){border:1px solid var(--line);border-radius:9px;ba
         <div id="moduleContent" class="empty">Choose a project-control view from the left.</div>
       </section>
 
-      <details class="workspace-drawer" id="evidenceControlDrawer" open>
+      <details class="workspace-drawer auxiliary-drawer" id="evidenceControlDrawer">
         <summary>
-          <div><span class="section-kicker">Project documents</span><strong>Add new documents or update the current project record</strong></div>
+          <div><span class="section-kicker">Documents</span><strong>Add or update project documents</strong></div>
           <span class="drawer-hint">Open</span>
         </summary>
         <div class="drawer-body">
@@ -258,7 +252,7 @@ details:not(.workspace-drawer){border:1px solid var(--line);border-radius:9px;ba
 
       <details class="workspace-drawer director-section" id="directorDrawer">
         <summary>
-          <div><span class="section-kicker">Management position</span><strong>Project Director</strong></div>
+          <div><span class="section-kicker">Management position</span><strong>More management detail</strong></div>
           <span class="drawer-hint">Open</span>
         </summary>
         <div class="drawer-body" style="padding-top:18px">
@@ -266,9 +260,9 @@ details:not(.workspace-drawer){border:1px solid var(--line);border-radius:9px;ba
         </div>
       </details>
 
-      <details class="workspace-drawer" id="evidenceLibraryDrawer">
+      <details class="workspace-drawer auxiliary-drawer" id="evidenceLibraryDrawer">
         <summary>
-          <div><span class="section-kicker">Project records</span><strong>Document register & activity links</strong></div>
+          <div><span class="section-kicker">Documents</span><strong>Documents and activity links</strong></div>
           <span id="evidenceBadge" class="badge">0 documents</span>
         </summary>
         <div class="drawer-body">
@@ -298,7 +292,7 @@ const el=id=>document.getElementById(id);
 const project=()=>el("projectId").value.trim();
 const fmt=v=>v===null||v===undefined?"—":typeof v==="number"?new Intl.NumberFormat(undefined,{maximumFractionDigits:2}).format(v):String(v);
 const statusClass=s=>s==="ready"?"ready":s==="partial"?"partial":"blocked";
-const statusLabel=s=>s==="ready"?"Available":s==="partial"?"Needs review":"Needs information";
+const statusLabel=s=>s==="ready"?"Ready":s==="partial"?"Review needed":"More information needed";
 function setBusy(text){el("globalStatus").innerHTML=text?'<span class="spinner"></span> '+text:"";}
 async function api(path,opts={}){const r=await fetch(path,opts);let data=null;try{data=await r.json()}catch{}if(!r.ok){const e=new Error(data?.message||data?.reason||data?.error||("HTTP "+r.status));e.data=data;e.status=r.status;throw e}return data}
 function escapeHtml(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
@@ -455,12 +449,15 @@ function renderUniversalChallenge(challenge){
       return '<div class="challenge-attention-row"><b>'+escapeHtml(item.label||item.metric)+'</b><span>'+escapeHtml(entry.kind)+'</span><span>CMeng check: '+escapeHtml(independentText)+(item.action?'<br>Action: '+escapeHtml(item.action):'')+'</span></div>';
     }).join("")+'</div>'
     :"";
-  return '<div class="card challenge-card" style="margin-bottom:14px"><div class="module-head challenge-head"><h3>Submitted Position vs CMeng Check</h3><span class="badge '+(challenge.challengedCount?"partial":"ready")+'">'+escapeHtml(challenge.challengedCount)+(challenge.challengedCount===1?" item needs attention":" items need attention")+'</span></div>'+
+  const reviewStateLabels={derived:"Calculated",calculated:"Calculated",partial:"Partial",complete:"Complete",established:"Confirmed",missing:"Missing",not_submitted:"Not provided"};
+  const submittedState=reviewStateLabels[challenge.submittedEvidenceState]||humanizeKey(challenge.submittedEvidenceState);
+  const independentState=reviewStateLabels[challenge.independentState]||humanizeKey(challenge.independentState);
+  return '<div class="card challenge-card" style="margin-bottom:14px"><div class="module-head challenge-head"><h3>Submitted position vs CMeng review</h3><span class="badge '+(challenge.challengedCount?"partial":"ready")+'">'+escapeHtml(challenge.challengedCount)+(challenge.challengedCount===1?" item needs attention":" items need attention")+'</span></div>'+
     '<div class="scalar-grid challenge-summary">'+
-      '<div class="scalar"><b>Submitted metrics found</b><span>'+escapeHtml(humanizeKey(challenge.submittedEvidenceState))+'</span></div>'+
-      '<div class="scalar"><b>CMeng independent check</b><span>'+escapeHtml(humanizeKey(challenge.independentState))+'</span></div>'+
-      '<div class="scalar"><b>Submitted metrics missing</b><span>'+escapeHtml(challenge.notSubmittedCount)+'</span></div>'+
-      '<div class="scalar"><b>Scenario calculations</b><span>'+escapeHtml(challenge.scenarioCount)+'</span></div>'+
+      '<div class="scalar"><b>Submitted position</b><span>'+escapeHtml(submittedState)+'</span></div>'+
+      '<div class="scalar"><b>CMeng review</b><span>'+escapeHtml(independentState)+'</span></div>'+
+      '<div class="scalar"><b>Missing comparisons</b><span>'+escapeHtml(challenge.notSubmittedCount)+'</span></div>'+
+      '<div class="scalar"><b>Other scenarios</b><span>'+escapeHtml(challenge.scenarioCount)+'</span></div>'+
     '</div>'+attentionHtml+
     '<div class="table-wrap challenge-table-wrap"><table><thead><tr><th>Metric</th><th>Submitted</th><th>CMeng independent check</th><th>Gap</th><th>Consequence</th><th>Action</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';
 }
@@ -727,7 +724,7 @@ function renderPmoVisual(data){
   if(!p.schedule||!p.progress||!p.forecast)return"";
   const cards=[
     ["Schedule",[
-      ["Activities",p.schedule.activityCount],["Relationships",p.schedule.relationshipCount],["Critical",p.schedule.criticalCount],["Near-critical",p.schedule.nearCriticalCount],["Negative float",p.schedule.negativeFloatCount],["Logic density",p.schedule.logicDensity],["CPM",p.schedule.independentCpmState]
+      ["Activities",p.schedule.activityCount],["Relationships",p.schedule.relationshipCount],["Critical",p.schedule.criticalCount],["Near-critical",p.schedule.nearCriticalCount],["Negative float",p.schedule.negativeFloatCount],["Logic density",p.schedule.logicDensity],["Path check",p.schedule.independentCpmState]
     ]],
     ["Progress",[
       ["Weighted progress",p.progress.durationWeightedProgressPercent===null?"—":fmt(p.progress.durationWeightedProgressPercent)+"%"],["Coverage",p.progress.progressCoveragePercent===null?"—":fmt(p.progress.progressCoveragePercent)+"%"],["Completed",p.progress.completedCount],["In progress",p.progress.inProgressCount],["Look-ahead overdue",p.progress.lookAheadOverdueCount],["Late milestones",p.progress.lateMilestoneCount]
@@ -739,10 +736,10 @@ function renderPmoVisual(data){
       ["Assigned resources",p.resources.assignedResourceCount],["Capacity coverage",p.resources.capacityCoveragePercent===null?"—":fmt(p.resources.capacityCoveragePercent)+"%"],["Overloaded",p.resources.overloadedResourceCount],["Actual labor hours",p.resources.laborHoursActualKnown],["Actual coverage",p.resources.laborActualCoveragePercent===null?"—":fmt(p.resources.laborActualCoveragePercent)+"%"]
     ]],
     ["Quantities",[
-      ["Allocation",p.quantities.allocationState],["Unit series",p.quantities.unitSeriesCount],["Unmapped BOQ items",p.quantities.unmappedItemCount],["Over-allocated",p.quantities.overAllocatedItemCount]
+      ["BOQ/activity link",p.quantities.allocationState],["Quantity groups",p.quantities.unitSeriesCount],["Unmapped BOQ items",p.quantities.unmappedItemCount],["Over-allocated",p.quantities.overAllocatedItemCount]
     ]],
     ["Contract",[
-      ["Physical complete",p.contract.physicalComplete],["Semantic complete",p.contract.semanticComplete],["Challenge signals",p.contract.challengeSignalCount],["Notice candidates",p.contract.noticeRequirementCandidateCount]
+      ["Contract file read",p.contract.physicalComplete],["Key terms read",p.contract.semanticComplete],["Items to review",p.contract.challengeSignalCount],["Notice requirements found",p.contract.noticeRequirementCandidateCount]
     ]],
     ["Claims & EOT",[
       ["Events",p.claims.eventCount],["Claims",p.claims.claimCount],["Timely notices",p.claims.timelyNoticeCount],["Late notices",p.claims.lateNoticeCount],["Observed movement",fmt(p.claims.observedProgrammeMovementDays)+" days"],["Analytical impact",fmt(p.claims.analyticalTimeImpactCandidateDays)+" days"],["Official EOT",p.claims.officialApprovedEotDays===null?"—":fmt(p.claims.officialApprovedEotDays)+" days"]
@@ -752,7 +749,7 @@ function renderPmoVisual(data){
     ]]
   ];
   const body='<div class="domain-grid">'+cards.map(c=>'<div class="domain-card"><h5>'+escapeHtml(c[0])+'</h5>'+c[1].map(m=>metricLine(m[0],m[1])).join("")+'</div>').join("")+'</div>';
-  return visualSection("PMO Control Position","Management position with each source and approval status kept separate.","evidence "+(p.evidenceRevisionId||""),body);
+  return visualSection("Management Position","Current programme, progress, forecast and key management issues are shown together.","current programme",body);
 }
 function renderScheduleAnalyticsVisual(data){
   const p=projectionFor(data,"schedule_analytics");
@@ -907,15 +904,18 @@ function renderModuleBasis(data){
   const authority=root.authority||root.forecast?.authority||root.seriesContract?.authority||null;
   const coverage=root.activityCoveragePercent??root.currentDateCoveragePercent??root.coveragePercent??root.floatCoveragePercent??root.progress?.durationWeightedProgressCoveragePercent??root.schedule?.floatCoveragePercent??null;
   const projectId=root.projectId||null;
+  const revisionText=revision&&(String(revision).length>28||String(revision).includes("rev_")||String(revision).includes("schedrev_"))?"Current programme":revision;
+  const authorityLabels={deterministic:"Calculated",scenario:"Scenario",unresolved:"Needs review",schedule_derived_scenario:"Scenario",candidate:"For review",official:"Approved"};
+  const authorityText=authority?(authorityLabels[authority]||humanizeKey(authority)):null;
   const values=[
     ["Project",projectId],
-    ["Current revision",revision],
+    ["Programme basis",revisionText],
     ["Data date",asOf],
-    ["Record status",authority],
+    ["Position",authorityText],
     ["Coverage",typeof coverage==="number"?fmt(coverage)+"%":coverage]
   ].filter(([,value])=>value!==null&&value!==undefined&&String(value).length>0);
   if(!values.length)return"";
-  return '<div class="module-basis">'+values.map(([label,value])=>'<span class="basis-chip"><b>'+escapeHtml(label)+'</b><strong>'+escapeHtml(value)+'</strong></span>').join("")+'</div>';
+  return '<div class="module-basis">'+values.map(([label,value])=>'<span class="basis-chip"><b>'+escapeHtml(label)+'</b><strong title="'+escapeHtml(label==="Programme basis"&&revision?revision:value)+'">'+escapeHtml(value)+'</strong></span>').join("")+'</div>';
 }
 function renderStructuredSections(data){
   if(!data||typeof data!=="object")return"";
@@ -945,24 +945,34 @@ function renderModuleResult(result){
   const structured=renderStructuredSections(data);
   const genericView=(scalars?'<div class="scalar-grid">'+scalars+'</div>':'')+structured;
   const primaryView=specialized||genericView;
-  const evidenceDetail=specialized&&structured?'<details class="technical-payload"><summary>Supporting project detail</summary><div style="padding:0 12px 12px">'+structured+'</div></details>':'';
+  const evidenceDetail=specialized&&structured?'<details class="technical-payload"><summary>More detail</summary><div style="padding:0 12px 12px">'+structured+'</div></details>':'';
   const generated=data.challenge?.generatedAt||findProjectionRoot(data)?.generatedAt||data.generatedAt||null;
-  const viewState='<div class="view-state-bar"><span class="'+(result.status==="ready"?"view-state-complete":"view-state-review")+'">'+(result.status==="ready"?"Calculation complete":"Calculation complete · review needed")+'</span><strong>'+escapeHtml(moduleName)+'</strong>'+(generated?'<span>Calculated '+escapeHtml(formatDocumentTime(generated))+'</span>':'')+'<span>The specialist result for this view is shown first. Submitted-vs-CMeng comparison follows below.</span></div>';
-  el("directorDrawer").open=result.key==="pmo-analysis";
+  const viewState='<div class="view-state-bar"><span class="'+(result.status==="ready"?"view-state-complete":"view-state-review")+'">'+(result.status==="ready"?"Updated":"Updated · review needed")+'</span><strong>'+escapeHtml(moduleName)+'</strong>'+(generated?'<span>Updated '+escapeHtml(formatDocumentTime(generated))+'</span>':'')+'<span>Current position and the items that need attention are shown below.</span></div>';
+  el("directorDrawer").open=false;
   el("moduleContent").innerHTML=viewState+basisHtml+(result.reason?'<div class="notice info">'+escapeHtml(result.reason)+'</div>':'')+primaryView+challengeHtml+evidenceDetail;
 }
+let moduleRequestSeq=0;
 async function loadModule(key){
   if(!overview){el("moduleContent").innerHTML='<div class="empty">Load a project first.</div>';return}
   const moduleName=names[key]||key;
-  setBusy("Loading "+moduleName);
-  el("moduleContent").innerHTML='<div class="view-state-bar"><span class="spinner"></span><strong>Loading '+escapeHtml(moduleName)+'</strong><span>CMeng is calculating this selected project-control view. The previous view is no longer being shown.</span></div>';
+  const requestSeq=++moduleRequestSeq;
+  el("moduleTitle").textContent=moduleName;
+  el("topbarModule").textContent=moduleName;
+  el("moduleBadge").className="badge";
+  el("moduleBadge").textContent="Updating";
+  setBusy("Updating "+moduleName);
+  el("moduleContent").innerHTML='<div class="view-state-bar"><span class="spinner"></span><strong>Updating '+escapeHtml(moduleName)+'</strong><span>Preparing the latest project position.</span></div>';
   try{
     const result=await api("/api/projects/"+encodeURIComponent(project())+"/schedule/modules/"+encodeURIComponent(key));
+    if(requestSeq!==moduleRequestSeq)return;
     renderModuleResult(result);
   }catch(e){
+    if(requestSeq!==moduleRequestSeq)return;
     const d=e.data||{};
     renderModuleResult({key,status:"blocked",reason:d.reason||d.error||e.message,dependencies:d.dependencies||[]});
-  }finally{setBusy("")}
+  }finally{
+    if(requestSeq===moduleRequestSeq)setBusy("");
+  }
 }
 function kpi(label,value,sub=""){return'<div class="card kpi-card"><div class="kpi-label">'+escapeHtml(label)+'</div><div class="kpi-value">'+escapeHtml(fmt(value))+'</div><div class="kpi-sub">'+escapeHtml(sub)+'</div></div>'}
 function evidenceCount(state,value){if(state==="established")return fmt(value);if(state==="submitted_unparsed")return"Source submitted · count not established";return"Not provided"}
@@ -1434,21 +1444,21 @@ function openEvidenceWorkspace(){
   if(!overview){setAppView("projects");el("createProjectMessage").innerHTML='<div class="notice info">Create or open a project before adding documents.</div>';return}
   setFocusMode(false);
   setAppView("project");
+  el("evidenceLibraryDrawer").open=false;
   const drawer=el("evidenceControlDrawer");
   drawer.open=true;
-  drawer.scrollIntoView({behavior:"smooth",block:"start"});
 }
 function openEvidenceLibrary(){
   setFocusMode(false);
+  el("evidenceControlDrawer").open=false;
   const drawer=el("evidenceLibraryDrawer");
   drawer.open=true;
-  drawer.scrollIntoView({behavior:"smooth",block:"start"});
 }
 el("openEvidenceTop").onclick=openEvidenceWorkspace;
 el("openLibraryQuick").onclick=openEvidenceLibrary;
 function setFocusMode(enabled){document.body.classList.toggle("focus-module",enabled);el("focusMode").classList.toggle("active",enabled);el("focusMode").setAttribute("aria-pressed",String(enabled));el("focusMode").textContent=enabled?"Exit focus":"Focus view";localStorage.setItem("cmeng-focus",enabled?"1":"0")}
 el("focusMode").onclick=()=>setFocusMode(!document.body.classList.contains("focus-module"));
-async function loadRelease(){try{const health=await api("/health");const short=health.release?String(health.release).slice(0,7):"runtime";el("releaseStatus").textContent="Production · "+short}catch{el("releaseStatus").textContent="Production"}}
+async function loadRelease(){try{await api("/health");el("releaseStatus").textContent="Live"}catch{el("releaseStatus").textContent="Connection issue"}}
 
 el("scheduleFiles").onchange=e=>{scheduleSelection=[...e.target.files];renderScheduleQueue()};
 el("boqFiles").onchange=e=>{boqSelection=[...e.target.files];renderSimpleQueue("boqQueue",boqSelection,"boq")};
