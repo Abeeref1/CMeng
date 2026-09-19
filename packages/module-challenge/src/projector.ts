@@ -32,6 +32,12 @@ export interface IndependentMetricSpec {
   tolerance?: number;
   submittedOverride?:
     ChallengeValue;
+  submittedReasonableMin?:
+    number;
+  submittedReasonableMax?:
+    number;
+  submittedReasonablenessNote?:
+    string;
 }
 
 function assertionSet(
@@ -370,12 +376,48 @@ function itemFor(
   spec:
     IndependentMetricSpec,
 ): ModuleChallengeItem {
-  const submitted =
+  let submitted =
     spec.submittedOverride ??
     submittedValue(
       assertions,
       spec.metric,
     );
+
+  if (
+    typeof submitted.value ===
+      "number" &&
+    (
+      (
+        spec.submittedReasonableMin !==
+          undefined &&
+        submitted.value <
+          spec.submittedReasonableMin
+      ) ||
+      (
+        spec.submittedReasonableMax !==
+          undefined &&
+        submitted.value >
+          spec.submittedReasonableMax
+      )
+    )
+  ) {
+    submitted = {
+      ...submitted,
+      state: "conflicted",
+      note:
+        (
+          spec.submittedReasonablenessNote ??
+          "Submitted value failed the configured reasonableness check."
+        ) +
+        (
+          submitted.note
+            ? " " +
+              submitted.note
+            : ""
+        ),
+    };
+  }
+
   const independent =
     independentValue(spec);
   const gap =
