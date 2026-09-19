@@ -583,6 +583,15 @@ export function buildProjectDirectorPosition(
       "Link open claims to governed delay events and affected schedule activities.",
     );
   }
+  if (
+    input.eotAssessment
+      .unattributedTimeImpactDays >
+      0
+  ) {
+    actions.push(
+      "Reconcile the quantified programme movement to dated delay events, notices, clauses and affected activities so causation and EOT eligibility can be tested without discarding the calculated movement.",
+    );
+  }
   if (openNcrs.length > 0) {
     actions.push(
       "Close critical/major NCRs.",
@@ -700,6 +709,18 @@ export function buildProjectDirectorPosition(
         schedule.float.criticalCount,
       nearCriticalCount:
         schedule.float.nearCriticalCount,
+      criticalityBasis:
+        "source_total_float",
+      independentCpmState:
+        input.independentForecast
+          .complete
+          ? "established"
+          : "not_established",
+      drivingPathState:
+        input.independentForecast
+          .complete
+          ? "independent_cpm_available"
+          : "not_established",
       overdueLookAheadCount:
         input.progressReport
           .lookAhead.overdueCount,
@@ -717,6 +738,18 @@ export function buildProjectDirectorPosition(
       fullyLinkedClaimCount:
         linkedClaimIds.size,
       unlinkedClaimIds,
+      observedProgrammeMovementDays:
+        input.delayClaims
+          .observedPositiveProgrammeMovementDays,
+      analyticalTimeImpactCandidateDays:
+        input.eotAssessment
+          .analyticalTimeImpactCandidateDays,
+      attributableCandidateEotDays:
+        input.eotAssessment
+          .attributableCandidateEotDays,
+      unattributedTimeImpactDays:
+        input.eotAssessment
+          .unattributedTimeImpactDays,
       candidateAdditionalEotDays:
         input.eotAssessment
           .candidateAdditionalEotDays,
