@@ -104,6 +104,51 @@ export function buildDelayClaimsProjection(
         0,
       );
 
+      const programmeNet =
+        overlapping.reduce(
+          (sum, window) =>
+            sum +
+            (window
+              .strongestProgrammeMovementDays ??
+              0),
+          0,
+        );
+
+      const programmePositive =
+        overlapping.reduce(
+          (sum, window) =>
+            sum +
+            Math.max(
+              0,
+              window
+                .strongestProgrammeMovementDays ??
+                0,
+            ),
+          0,
+        );
+
+      const movementBases =
+        new Set(
+          overlapping
+            .map(
+              (window) =>
+                window
+                  .strongestProgrammeMovementBasis,
+            )
+            .filter(
+              (basis) =>
+                basis !==
+                "unavailable",
+            ),
+        );
+      const programmeMovementBasis:
+        DelayClaimEventAssessmentRow["programmeMovementBasis"] =
+        movementBases.size === 0
+          ? "unavailable"
+          : movementBases.size === 1
+            ? [...movementBases][0]!
+            : "mixed";
+
       const concurrencyCandidate =
         overlapping.some(
           (window) =>
@@ -164,6 +209,15 @@ export function buildDelayClaimsProjection(
           Number(net.toFixed(6)),
         observedPositiveIndependentMovementDays:
           Number(positive.toFixed(6)),
+        observedNetProgrammeMovementDays:
+          Number(
+            programmeNet.toFixed(6),
+          ),
+        observedPositiveProgrammeMovementDays:
+          Number(
+            programmePositive.toFixed(6),
+          ),
+        programmeMovementBasis,
         concurrencyCandidate,
         candidateClass: classify(
           event.responsibility,
@@ -190,11 +244,12 @@ export function buildDelayClaimsProjection(
   let employerOrNeutral = 0;
   let contractor = 0;
   let concurrent = 0;
+  let unattributed = 0;
 
   for (const window of windows.windows) {
     const positive = Math.max(
       0,
-      window.independentForecastMovementDays ??
+      window.strongestProgrammeMovementDays ??
         0,
     );
 
@@ -229,6 +284,8 @@ export function buildDelayClaimsProjection(
       classes.has("contractor_risk")
     ) {
       contractor += positive;
+    } else {
+      unattributed += positive;
     }
   }
 
@@ -254,6 +311,16 @@ export function buildDelayClaimsProjection(
           6,
         ),
       ),
+    observedPositiveProgrammeMovementDays:
+      Number(
+        windows.positiveProgrammeMovementDays.toFixed(
+          6,
+        ),
+      ),
+    unattributedProgrammeMovementDays:
+      Number(
+        unattributed.toFixed(6),
+      ),
     employerOrNeutralCandidateWindowMovementDays:
       Number(employerOrNeutral.toFixed(6)),
     contractorRiskWindowMovementDays:
@@ -265,6 +332,7 @@ export function buildDelayClaimsProjection(
     diagnostics: [
       ...model.diagnostics,
       ...windows.diagnostics,
+      "PROGRAMME_MOVEMENT_PROPAGATES_FORWARD_EVEN_WHEN_CAUSATION_IS_NOT_ESTABLISHED",
       "DELAY_WINDOW_MOVEMENT_IS_NOT_CONTRACTUAL_CAUSATION_OR_ENTITLEMENT",
     ],
   };
