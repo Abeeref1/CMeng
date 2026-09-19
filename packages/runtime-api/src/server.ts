@@ -1137,6 +1137,78 @@ async function route(
     return;
   }
 
+  const boardHistoryMatch =
+    /^\/api\/projects\/([^/]+)\/board-report\/history$/.exec(
+      url.pathname,
+    );
+
+  if (
+    req.method === "GET" &&
+    boardHistoryMatch
+  ) {
+    const projectId =
+      decodeURIComponent(
+        boardHistoryMatch[1]!,
+      );
+    const state =
+      runtimeProjects.get(
+        projectId,
+      );
+    if (!state) {
+      json(res, 404, {
+        error:
+          "project_not_found",
+      });
+      return;
+    }
+    const includeReport =
+      url.searchParams.get(
+        "includeReport",
+      ) === "true";
+    json(res, 200, {
+      projectId,
+      publicationCount:
+        state
+          .boardPublicationHistory
+          .length,
+      publications:
+        state
+          .boardPublicationHistory
+          .map(
+            (item) => ({
+              publicationId:
+                item.publicationId,
+              basisVersion:
+                item.basisVersion,
+              sourceManifestId:
+                item.sourceManifestId,
+              evidenceReceiptIds: [
+                ...item.evidenceReceiptIds,
+              ],
+              finalizedAt:
+                item.finalizedAt,
+              stale:
+                item.stale,
+              staleAt:
+                item.staleAt,
+              reportSnapshot:
+                includeReport
+                  ? item
+                      .reportSnapshot
+                  : undefined,
+            }),
+          )
+          .sort(
+            (a, b) =>
+              a.finalizedAt
+                .localeCompare(
+                  b.finalizedAt,
+                ),
+          ),
+    });
+    return;
+  }
+
   const boardMatch =
     /^\/api\/projects\/([^/]+)\/board-report$/.exec(
       url.pathname,
@@ -1343,6 +1415,8 @@ async function route(
         "/api/projects/:projectId/director-position",
       boardReport:
         "/api/projects/:projectId/board-report",
+      boardReportHistory:
+        "/api/projects/:projectId/board-report/history",
     });
     return;
   }
