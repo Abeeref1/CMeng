@@ -1,0 +1,357 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+
+import type {
+  CanonicalScheduleActivity,
+  CanonicalScheduleModel,
+} from "../packages/schedule-analysis-core/src";
+import type {
+  ScheduleRevision,
+} from "../packages/schedule-revision-core/src";
+import type {
+  DelayClaimsModel,
+} from "../packages/delay-analysis-core/src";
+import {
+  buildWindowsAnalysisProjection,
+} from "../packages/windows-analysis/src";
+import {
+  buildDelayClaimsProjection,
+} from "../packages/delay-claims/src";
+import {
+  buildEotAssessmentProjection,
+  type ContractTimeBasis,
+} from "../packages/eot-assessment/src";
+
+function activity(
+  id: string,
+  finishIso: string,
+): CanonicalScheduleActivity {
+  return {
+    projectId: "P-MOVE",
+    activityId: id,
+    nativeId: id,
+    name: id,
+    wbsId: null,
+    calendarId: null,
+    activityType: "task",
+    status: "in_progress",
+    baselineStartIso:
+      "2026-01-01T00:00:00.000Z",
+    baselineFinishIso:
+      finishIso,
+    currentStartIso:
+      "2026-01-01T00:00:00.000Z",
+    currentFinishIso:
+      finishIso,
+    actualStartIso:
+      "2026-01-01T00:00:00.000Z",
+    actualFinishIso: null,
+    forecastStartIso:
+      "2026-01-01T00:00:00.000Z",
+    forecastFinishIso:
+      finishIso,
+    originalDurationHours: 100,
+    remainingDurationHours: 50,
+    totalFloatHours: 0,
+    freeFloatHours: 0,
+    percentComplete: 50,
+    sourceRefs: [],
+    diagnostics: [],
+  };
+}
+
+function model(
+  revisionId: string,
+  dataDateIso: string,
+  finishIso: string,
+): CanonicalScheduleModel {
+  return {
+    projectId: "P-MOVE",
+    source: "schedule_csv",
+    sourceRevisionId: revisionId,
+    dataDateIso,
+    activities: [
+      activity("A100", finishIso),
+      activity("A200", finishIso),
+    ],
+    relationships: [
+      {
+        relationshipId:
+          revisionId + "-R1",
+        predecessorActivityId:
+          "A100",
+        successorActivityId:
+          "A200",
+        type: "FS",
+        lagHours: 0,
+        external: false,
+        sourceRefs: [],
+        diagnostics: [],
+      },
+      {
+        relationshipId:
+          revisionId + "-R2",
+        predecessorActivityId:
+          "A200",
+        successorActivityId:
+          "A100",
+        type: "FS",
+        lagHours: 0,
+        external: false,
+        sourceRefs: [],
+        diagnostics: [],
+      },
+    ],
+    wbs: [],
+    calendars: [],
+    diagnostics: [],
+  };
+}
+
+function revision(
+  id: string,
+  sequence: number,
+  dataDateIso: string,
+  finishIso: string,
+): ScheduleRevision {
+  return {
+    revisionId: id,
+    label: id,
+    sequence,
+    effectiveAt:
+      dataDateIso,
+    model: model(
+      id,
+      dataDateIso,
+      finishIso,
+    ),
+  };
+}
+
+const emptyDelay:
+  DelayClaimsModel = {
+  projectId: "P-MOVE",
+  evidenceRevisionId: "D1",
+  events: [],
+  notices: [],
+  claims: [],
+  noticeRequirements: [],
+  diagnostics: [],
+};
+
+const contractTime:
+  ContractTimeBasis = {
+  contractualCompletionIso:
+    "2026-09-01T00:00:00.000Z",
+  contractualCompletionState:
+    "official",
+  officialApprovedEotDays:
+    null,
+  officialApprovedEotState:
+    "missing",
+  eotDayBasis:
+    "calendar_days",
+  eotDayBasisState:
+    "official",
+  sourceRefs: [
+    "contract:completion",
+  ],
+};
+
+test("programme movement survives CPM failure and flows into Delay and EOT as a time-impact candidate", () => {
+  const windows =
+    buildWindowsAnalysisProjection(
+      [
+        revision(
+          "S1",
+          1,
+          "2026-06-01T00:00:00.000Z",
+          "2026-08-01T00:00:00.000Z",
+        ),
+        revision(
+          "S2",
+          2,
+          "2026-07-01T00:00:00.000Z",
+          "2026-08-15T00:00:00.000Z",
+        ),
+      ],
+      emptyDelay,
+      {
+        generatedAt:
+          "2026-09-19T00:00:00.000Z",
+        producerVersion: "test",
+      },
+    );
+
+  assert.equal(
+    windows.windowCount,
+    1,
+  );
+  assert.equal(
+    windows.windows[0]
+      ?.independentForecastMovementDays,
+    null,
+  );
+  assert.equal(
+    windows.windows[0]
+      ?.sourceForecastMovementDays,
+    14,
+  );
+  assert.equal(
+    windows.windows[0]
+      ?.strongestProgrammeMovementDays,
+    14,
+  );
+  assert.equal(
+    windows.windows[0]
+      ?.strongestProgrammeMovementBasis,
+    "source_forecast",
+  );
+  assert.equal(
+    windows.positiveProgrammeMovementDays,
+    14,
+  );
+
+  const delay =
+    buildDelayClaimsProjection(
+      windows,
+      emptyDelay,
+      {
+        generatedAt:
+          "2026-09-19T00:00:00.000Z",
+        producerVersion: "test",
+      },
+    );
+
+  assert.equal(
+    delay.observedPositiveIndependentMovementDays,
+    0,
+  );
+  assert.equal(
+    delay.observedPositiveProgrammeMovementDays,
+    14,
+  );
+  assert.equal(
+    delay.unattributedProgrammeMovementDays,
+    14,
+  );
+
+  const eot =
+    buildEotAssessmentProjection(
+      windows,
+      delay,
+      contractTime,
+      {
+        generatedAt:
+          "2026-09-19T00:00:00.000Z",
+        producerVersion: "test",
+      },
+    );
+
+  assert.equal(
+    eot.observedProgrammeMovementDays,
+    14,
+  );
+  assert.equal(
+    eot.analyticalTimeImpactCandidateDays,
+    14,
+  );
+  assert.equal(
+    eot.attributableCandidateEotDays,
+    0,
+  );
+  assert.equal(
+    eot.unattributedTimeImpactDays,
+    14,
+  );
+  assert.equal(
+    eot.candidateAdditionalEotDays,
+    0,
+  );
+  assert.equal(
+    eot.timeImpactScenarioAdjustedCompletionIso,
+    "2026-09-15",
+  );
+  assert.equal(
+    eot.scenarioAdjustedCompletionIso,
+    "2026-09-01",
+  );
+  assert.ok(
+    eot.diagnostics.includes(
+      "PROGRAMME_MOVEMENT_CARRIED_FORWARD_AS_ANALYTICAL_TIME_IMPACT_CANDIDATE",
+    ),
+  );
+  assert.equal(
+    eot.windowCandidates[0]
+      ?.state,
+    "review",
+  );
+});
+
+test("programme movement remains separate from entitlement when an eligible event is absent", () => {
+  const windows =
+    buildWindowsAnalysisProjection(
+      [
+        revision(
+          "S1B",
+          1,
+          "2026-06-01T00:00:00.000Z",
+          "2026-08-01T00:00:00.000Z",
+        ),
+        revision(
+          "S2B",
+          2,
+          "2026-07-01T00:00:00.000Z",
+          "2026-08-20T00:00:00.000Z",
+        ),
+      ],
+      emptyDelay,
+      {
+        generatedAt:
+          "2026-09-19T00:00:00.000Z",
+        producerVersion: "test",
+      },
+    );
+
+  const delay =
+    buildDelayClaimsProjection(
+      windows,
+      emptyDelay,
+      {
+        generatedAt:
+          "2026-09-19T00:00:00.000Z",
+        producerVersion: "test",
+      },
+    );
+
+  const eot =
+    buildEotAssessmentProjection(
+      windows,
+      delay,
+      contractTime,
+      {
+        generatedAt:
+          "2026-09-19T00:00:00.000Z",
+        producerVersion: "test",
+      },
+    );
+
+  assert.equal(
+    eot.analyticalTimeImpactCandidateDays,
+    19,
+  );
+  assert.equal(
+    eot.attributableCandidateEotDays,
+    0,
+  );
+  assert.equal(
+    eot.unattributedTimeImpactDays,
+    19,
+  );
+  assert.ok(
+    eot.windowCandidates[0]
+      ?.reasons.includes(
+        "NO_ELIGIBLE_EMPLOYER_OR_NEUTRAL_EVENT",
+      ),
+  );
+});
