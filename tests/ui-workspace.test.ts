@@ -112,6 +112,39 @@ test("CMeng workspace keeps the active module primary and browser script parseab
     html,
     /replace_current_basis/,
   );
+  assert.match(
+    html,
+    /aria-label="CMeng logo"/,
+    "CMeng logo must remain visible in the shell",
+  );
+  for (
+    const platformView of [
+      "portfolioView",
+      "projectsView",
+      "projectWorkspace",
+      "aiView",
+    ]
+  ) {
+    assert.match(
+      html,
+      new RegExp(
+        'id="' +
+          platformView +
+          '"',
+      ),
+      platformView,
+    );
+  }
+  assert.match(
+    html,
+    /id="runAnalysisTop"/,
+    "project workspace must expose an explicit Run analysis action",
+  );
+  assert.match(
+    html,
+    /id="openAiTop"/,
+    "Ask CMeng must be directly accessible from project workspace",
+  );
 
   const dedicatedModuleViews = [
     "pmo-analysis",
