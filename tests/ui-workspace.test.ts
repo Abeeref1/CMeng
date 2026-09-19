@@ -73,10 +73,17 @@ test("CMeng workspace keeps the active module primary and browser script parseab
       uploadControl,
     );
   }
+  assert.equal(
+    html.includes(
+      'id="evidenceControlDrawer" open',
+    ),
+    false,
+    "document controls must stay out of the main analysis canvas until the user opens them",
+  );
   assert.match(
     html,
-    /id="evidenceControlDrawer" open/,
-    "evidence upload workspace must be open by default",
+    /class="workspace-drawer auxiliary-drawer" id="evidenceControlDrawer"/,
+    "document controls must open as an auxiliary overlay rather than consume the project-control page",
   );
   assert.ok(
     html.indexOf(
@@ -153,13 +160,33 @@ test("CMeng workspace keeps the active module primary and browser script parseab
   );
   assert.match(
     html,
-    /class="btn primary" id="openEvidenceTop"/,
-    "project document action must remain prominent inside Project Controls",
+    /class="btn primary" id="openEvidenceTop">Add documents</button>/,
+    "project document action must remain prominent without taking space from the analysis canvas",
+  );
+  assert.match(
+    html,
+    /id="openLibraryQuick">Documents</button>/,
+    "document register must be available from a compact header action",
   );
   assert.match(
     html,
     /id="runAfterUpload" checked/,
     "evidence intake should rerun analysis after upload by default",
+  );
+  assert.match(
+    html,
+    /let moduleRequestSeq=0/,
+    "module rendering must ignore stale responses when the user changes views quickly",
+  );
+  assert.match(
+    html,
+    /requestSeq!==moduleRequestSeq/,
+    "only the latest selected module may update the screen",
+  );
+  assert.equal(
+    html.includes("Production · "),
+    false,
+    "release hashes must not be exposed in the normal management interface",
   );
 
   for (
@@ -191,12 +218,12 @@ test("CMeng workspace keeps the active module primary and browser script parseab
       "Scenario only",
       "Reading result",
       "Full OCR required",
-      "Submitted metrics missing",
-      "Scenario calculations",
+      "Missing comparisons",
+      "Other scenarios",
       "What needs attention",
-      "Calculation complete",
-      "The specialist result for this view is shown first",
-      "The previous view is no longer being shown",
+      "Updated",
+      "Current position and the items that need attention are shown below",
+      "Preparing the latest project position",
     ]
   ) {
     assert.equal(
@@ -273,8 +300,8 @@ test("CMeng workspace keeps the active module primary and browser script parseab
       "Portfolio Overview",
       "Project Controls",
       "Current view",
-      "Project documents",
-      "Document register & activity links",
+      "Documents",
+      "Documents and activity links",
       "CMeng AI",
       "Management decision required",
       "Current positions",
