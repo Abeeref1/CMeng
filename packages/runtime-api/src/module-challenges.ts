@@ -451,6 +451,16 @@ function claimedDaysOverride(
             claim.claimId,
           days:
             claim.claimedDays!,
+          sourceRefs:
+            claim.evidenceRefs
+              .map(
+                (ref) =>
+                  [
+                    ref.sourceType,
+                    ref.sourceId,
+                    ref.locator,
+                  ].join(":"),
+              ),
         }),
       );
 
@@ -480,12 +490,86 @@ function claimedDaysOverride(
           span * 2,
         );
 
+  const alternatives =
+    known
+      .map(
+        (claim) => {
+          const outlier =
+            claim.days < 0 ||
+            claim.days >
+              maximumReasonable;
+          return {
+            value:
+              claim.days,
+            unit: "days",
+            authority:
+              "submitted" as const,
+            sourceRefs:
+              claim.sourceRefs.length >
+              0
+                ? [
+                    ...claim
+                      .sourceRefs,
+                  ]
+                : [
+                    "claim:" +
+                      claim.claimId,
+                  ],
+            basisRevisionId:
+              state.controls
+                .delayClaims
+                ?.evidenceRevisionId ??
+              null,
+            asOfIso: null,
+            confidence:
+              outlier
+                ? 0.25
+                : 1,
+            supportCount: 1,
+            evidenceScore:
+              outlier
+                ? 5
+                : 30,
+            reasons: [
+              "Submitted claim " +
+                claim.claimId +
+                " states " +
+                claim.days +
+                " days.",
+              ...(outlier
+                ? [
+                    "This value fails the project-duration reasonableness check.",
+                  ]
+                : [
+                    "This value is within the project-duration reasonableness envelope.",
+                  ]),
+            ],
+          };
+        },
+      )
+      .sort(
+        (a, b) =>
+          (
+            b.evidenceScore ??
+            0
+          ) -
+            (
+              a.evidenceScore ??
+              0
+            ) ||
+          a.value -
+            b.value,
+      );
+
+  const recommended =
+    alternatives[0]!;
   const anyOutlier =
-    known.some(
-      (claim) =>
-        claim.days < 0 ||
-        claim.days >
-          maximumReasonable,
+    alternatives.some(
+      (candidate) =>
+        candidate.confidence !==
+          null &&
+        candidate.confidence <
+          1,
     );
   const rawSumOutlier =
     rawSum >
@@ -500,15 +584,17 @@ function claimedDaysOverride(
       state:
         "conflicted",
       value:
-        rawSum,
+        recommended.value,
       unit: "days",
       authority:
         "submitted",
       sourceRefs: [
-        ...known.map(
-          (claim) =>
-            "claim:" +
-            claim.claimId,
+        ...new Set(
+          alternatives.flatMap(
+            (candidate) =>
+              candidate
+                .sourceRefs,
+          ),
         ),
       ],
       basisRevisionId:
@@ -519,7 +605,8 @@ function claimedDaysOverride(
       coveragePercent:
         null,
       asOfIso: null,
-      confidence: null,
+      confidence:
+        recommended.confidence,
       diagnostics: [
         "CLAIM_TOTAL_REQUIRES_DEDUPLICATION_AND_OVERLAP_REVIEW",
         ...(anyOutlier ||
@@ -528,29 +615,15 @@ function claimedDaysOverride(
               "CLAIM_VALUE_REASONABLENESS_FAILED",
             ]
           : []),
+        "CONFLICT_RECOMMENDATION_IS_NOT_GOVERNED_UNTIL_USER_DECISION",
       ],
       note:
-        "Raw arithmetic sum across " +
-        known.length +
-        " claim value(s) is " +
+        "The claim register contains multiple/contradictory day values. Raw arithmetic sum=" +
         rawSum +
-        " days. CMeng does not treat this as consolidated project EOT because claim periods may overlap or duplicate events" +
-        (
-          anyOutlier ||
-          rawSumOutlier
-            ? " and the value fails the project-duration reasonableness check"
-            : ""
-        ) +
-        ". Individual values: " +
-        known
-          .map(
-            (claim) =>
-              claim.claimId +
-              "=" +
-              claim.days,
-          )
-          .join(", ") +
-        ".",
+        " days is retained for audit only and is not treated as project EOT because claims may overlap or duplicate events. CMeng evaluates every claim value separately against the independent time-impact result.",
+      resolution:
+        "unresolved_conflict",
+      alternatives,
     };
   }
 
@@ -558,13 +631,13 @@ function claimedDaysOverride(
     state:
       "submitted",
     value:
-      known[0]!.days,
+      recommended.value,
     unit: "days",
     authority:
       "submitted",
     sourceRefs: [
-      "claim:" +
-        known[0]!.claimId,
+      ...recommended
+        .sourceRefs,
     ],
     basisRevisionId:
       state.controls
@@ -578,6 +651,8 @@ function claimedDaysOverride(
     diagnostics: [],
     note:
       "Single submitted claim value. This remains a claimed position, not an assessed or awarded EOT.",
+    resolution: "single",
+    alternatives,
   };
 }
 
