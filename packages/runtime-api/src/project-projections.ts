@@ -1889,19 +1889,64 @@ function buildBundle(
           },
           risk: {
             evidenceState:
-              evidenceTypes.has(
-                "risk_register",
-              )
-                ? "submitted_unparsed"
-                : "not_submitted",
+              state.controls.risks
+                .length > 0 ||
+              state.evidenceDocuments
+                .some(
+                  (document) =>
+                    document.documentType ===
+                      "risk_register" &&
+                    document.basisState ===
+                      "active" &&
+                    document.parserState ===
+                      "parsed",
+                )
+                ? "established"
+                : evidenceTypes.has(
+                    "risk_register",
+                  )
+                  ? "submitted_unparsed"
+                  : "not_submitted",
             openRiskCount:
-              null,
+              state.controls.risks
+                .length > 0 ||
+              state.evidenceDocuments
+                .some(
+                  (document) =>
+                    document.documentType ===
+                      "risk_register" &&
+                    document.basisState ===
+                      "active" &&
+                    document.parserState ===
+                      "parsed",
+                )
+                ? state.controls.risks
+                    .filter(
+                      (risk) =>
+                        risk.status ===
+                        "open",
+                    )
+                    .length
+                : null,
             note:
-              evidenceTypes.has(
-                "risk_register",
-              )
-                ? "Risk register evidence is present, but an open-risk population is not yet semantically established; CMeng will not display zero."
-                : "No risk register evidence is established; CMeng will not display zero.",
+              state.controls.risks
+                .length > 0 ||
+              state.evidenceDocuments
+                .some(
+                  (document) =>
+                    document.documentType ===
+                      "risk_register" &&
+                    document.basisState ===
+                      "active" &&
+                    document.parserState ===
+                      "parsed",
+                )
+                ? "Open-risk population is established from the active risk evidence basis."
+                : evidenceTypes.has(
+                    "risk_register",
+                  )
+                  ? "Risk register evidence is present, but an open-risk population is not yet semantically established; CMeng will not display zero."
+                  : "No risk register evidence is established; CMeng will not display zero.",
           },
           revision: {
             revisionCount:
@@ -2043,6 +2088,27 @@ function buildBundle(
           state.controls.rfis,
         permits:
           state.controls.permits,
+        openRiskCount:
+          state.controls.risks
+            .length > 0 ||
+          state.evidenceDocuments
+            .some(
+              (document) =>
+                document.documentType ===
+                  "risk_register" &&
+                document.basisState ===
+                  "active" &&
+                document.parserState ===
+                  "parsed",
+            )
+            ? state.controls.risks
+                .filter(
+                  (risk) =>
+                    risk.status ===
+                    "open",
+                )
+                .length
+            : null,
         boardEvidence:
           state.controls
             .boardPublication
@@ -2132,7 +2198,18 @@ function buildBundle(
             ),
           risk:
             evidenceCoverage(
-              false,
+              state.controls.risks
+                .length > 0 ||
+              state.evidenceDocuments
+                .some(
+                  (document) =>
+                    document.documentType ===
+                      "risk_register" &&
+                    document.basisState ===
+                      "active" &&
+                    document.parserState ===
+                      "parsed",
+                ),
               evidenceTypes.has(
                 "risk_register",
               ),
