@@ -431,6 +431,21 @@ export function buildProgressScurveProjection(
     timePhasingMethod:
       "linear_between_activity_dates",
     intervalDays,
+    seriesContract: {
+      seriesKey:
+        "progress_percent",
+      unit: "%",
+      authority:
+        "derived_schedule",
+      basisRevisionId:
+        model.sourceRevisionId,
+      asOfIso:
+        model.dataDateIso,
+      sourceRefs: [
+        "schedule:" +
+          model.sourceRevisionId,
+      ],
+    },
     baselineCoveragePercent: coverage(
       baseline.length,
       weightedEligible.length,
