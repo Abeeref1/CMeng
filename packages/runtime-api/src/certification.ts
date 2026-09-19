@@ -767,8 +767,8 @@ export function certifyCrossModuleConsistency(
 
   checks.push(
     equalityCheck(
-      "BOQ_BASIS_CONSISTENCY",
-      "Quantity S-Curve must use the same active BOQ basis as the canonical quantity model.",
+      "BOQ_ACTIVE_DOCUMENT_CONSISTENCY",
+      "The active BOQ evidence artifact must match the runtime BOQ ingestion that owns the current quantity basis.",
       [
         {
           source:
@@ -781,10 +781,27 @@ export function certifyCrossModuleConsistency(
         },
         {
           source:
-            "boq-runtime",
+            "boq-runtime-ingestion",
           value:
             state.boq
               ?.ingestionId,
+        },
+      ],
+    ),
+  );
+
+  checks.push(
+    equalityCheck(
+      "BOQ_BASIS_CONSISTENCY",
+      "The canonical quantity model and Quantity S-Curve must use the same BOQ evidence revision as the active runtime BOQ.",
+      [
+        {
+          source:
+            "boq-runtime-revision",
+          value:
+            state.boq
+              ?.evidenceReceipt
+              ?.revisionId,
         },
         {
           source:
