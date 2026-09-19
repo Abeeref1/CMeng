@@ -90,7 +90,8 @@ test("portfolio, project creation and Ask CMeng remain project scoped", async ()
     ).risks;
 
     const sampleId =
-      projectId + "-SAMPLE";
+      "DEMO-PORTFOLIO-" +
+      Date.now();
     const sample =
       await fetch(
         base +
