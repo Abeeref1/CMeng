@@ -358,6 +358,19 @@ export interface ProjectRuntimeState {
     PublishedBoardReportRecord[];
   delayEventHistory:
     DelayEventVersionRecord[];
+  derivedReadinessByDocument:
+    Record<
+      string,
+      Record<
+        string,
+        Partial<
+          Record<
+            ReadinessDimensionKey,
+            ReadinessEvidence
+          >
+        >
+      >
+    >;
   lastRerunReceipt:
     EvidenceRerunReceipt | null;
   controls: ProjectControlState;
