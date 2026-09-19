@@ -70,6 +70,72 @@ function assertionSet(
     );
 }
 
+function authorityWeight(
+  authority:
+    DocumentAssertion["sourceAuthority"],
+): number {
+  switch (authority) {
+    case "official":
+      return 60;
+    case "governed":
+      return 50;
+    case "deterministic":
+      return 45;
+    case "derived":
+      return 35;
+    case "submitted":
+      return 25;
+    case "candidate":
+      return 18;
+    case "scenario":
+      return 10;
+    default:
+      return 0;
+  }
+}
+
+function basisWeight(
+  state:
+    DocumentAssertion["evidenceBasisState"],
+): number {
+  switch (state) {
+    case "active":
+      return 50;
+    case "additive":
+      return 35;
+    case "candidate":
+      return 20;
+    case "scenario":
+      return 10;
+    case "historical":
+      return 8;
+    case "superseded":
+      return 2;
+    default:
+      return 0;
+  }
+}
+
+function assertionCanonicalKey(
+  assertion: DocumentAssertion,
+): string {
+  const value =
+    typeof assertion.value ===
+    "number"
+      ? String(
+          Number(
+            assertion.value.toFixed(
+              8,
+            ),
+          ),
+        )
+      : assertion.value;
+  return [
+    value,
+    assertion.unit ?? "",
+  ].join("|");
+}
+
 function submittedValue(
   assertions:
     readonly DocumentAssertion[],
@@ -103,10 +169,13 @@ function submittedValue(
       ],
       note:
         "No submitted value was identified in the available contractor evidence.",
+      resolution:
+        "missing",
+      alternatives: [],
     };
   }
 
-  const canonical =
+  const grouped =
     new Map<
       string,
       DocumentAssertion[]
@@ -114,80 +183,258 @@ function submittedValue(
 
   for (const match of matches) {
     const key =
-      typeof match.value ===
-      "number"
-        ? String(
-            Number(
-              match.value.toFixed(
-                8,
-              ),
-            ),
-          )
-        : match.value;
+      assertionCanonicalKey(
+        match,
+      );
     const list =
-      canonical.get(key) ??
+      grouped.get(key) ??
       [];
     list.push(match);
-    canonical.set(
+    grouped.set(
       key,
       list,
     );
   }
 
-  const top =
-    matches[0]!;
+  const latestUploadedAt =
+    matches
+      .map(
+        (match) =>
+          match.uploadedAt,
+      )
+      .filter(
+        (
+          value,
+        ): value is string =>
+          Boolean(value),
+      )
+      .sort()
+      .at(-1) ??
+    null;
+
+  const alternatives =
+    [...grouped.values()]
+      .map((group) => {
+        const exemplar =
+          group
+            .slice()
+            .sort(
+              (a, b) =>
+                (
+                  b.confidence -
+                  a.confidence
+                ) ||
+                (
+                  (
+                    b.uploadedAt ??
+                    ""
+                  ).localeCompare(
+                    a.uploadedAt ??
+                    "",
+                  )
+                ),
+            )[0]!;
+        const supportCount =
+          group.length;
+        const bestAuthority =
+          Math.max(
+            ...group.map(
+              (item) =>
+                authorityWeight(
+                  item.sourceAuthority,
+                ),
+            ),
+          );
+        const bestBasis =
+          Math.max(
+            ...group.map(
+              (item) =>
+                basisWeight(
+                  item.evidenceBasisState,
+                ),
+            ),
+          );
+        const bestConfidence =
+          Math.max(
+            ...group.map(
+              (item) =>
+                item.confidence,
+            ),
+          );
+        const recencyBonus =
+          latestUploadedAt &&
+          group.some(
+            (item) =>
+              item.uploadedAt ===
+              latestUploadedAt,
+          )
+            ? 10
+            : 0;
+        const corroborationBonus =
+          Math.min(
+            20,
+            Math.max(
+              0,
+              supportCount - 1,
+            ) * 5,
+          );
+        const evidenceScore =
+          Number(
+            (
+              bestAuthority +
+              bestBasis +
+              bestConfidence *
+                20 +
+              recencyBonus +
+              corroborationBonus
+            ).toFixed(4),
+          );
+
+        const reasons: string[] =
+          [];
+        if (bestBasis >= 50) {
+          reasons.push(
+            "Supported by the active evidence basis.",
+          );
+        }
+        if (bestAuthority >= 50) {
+          reasons.push(
+            "Supported by governed/official authority.",
+          );
+        }
+        if (supportCount > 1) {
+          reasons.push(
+            "Corroborated by " +
+              supportCount +
+              " source assertions.",
+          );
+        }
+        if (recencyBonus > 0) {
+          reasons.push(
+            "Appears in the latest uploaded evidence among the competing values.",
+          );
+        }
+
+        return {
+          value:
+            exemplar.value,
+          unit:
+            exemplar.unit,
+          authority:
+            exemplar.sourceAuthority ??
+            "submitted" as const,
+          sourceRefs:
+            group.map(
+              (item) =>
+                item.sourceRef,
+            ),
+          basisRevisionId:
+            exemplar.basisRevisionId ??
+            null,
+          asOfIso:
+            exemplar.uploadedAt ??
+            null,
+          confidence:
+            bestConfidence,
+          supportCount,
+          evidenceScore,
+          reasons,
+        };
+      })
+      .sort(
+        (a, b) =>
+          (
+            b.evidenceScore ??
+            0
+          ) -
+            (
+              a.evidenceScore ??
+              0
+            ) ||
+          String(a.value)
+            .localeCompare(
+              String(
+                b.value,
+              ),
+            ),
+      );
+
+  const recommended =
+    alternatives[0]!;
+  const sourceRefs =
+    matches.map(
+      (match) =>
+        match.sourceRef,
+    );
+
   if (
-    canonical.size > 1
+    alternatives.length === 1
   ) {
     return {
-      state: "conflicted",
-      value: top.value,
-      unit: top.unit,
+      state: "submitted",
+      value:
+        recommended.value,
+      unit:
+        recommended.unit,
       authority:
-        "submitted",
-      sourceRefs:
-        matches.map(
-          (match) =>
-            match.sourceRef,
-        ),
+        recommended.authority,
+      sourceRefs,
       basisRevisionId:
-        null,
+        recommended
+          .basisRevisionId,
       coveragePercent:
         null,
-      asOfIso: null,
+      asOfIso:
+        recommended.asOfIso,
       confidence:
-        top.confidence,
-      diagnostics: [
-        "SUBMITTED_VALUES_CONFLICT",
-      ],
+        recommended.confidence,
+      diagnostics: [],
       note:
-        "Conflicting submitted values were identified: " +
-        [...canonical.keys()]
-          .join(", "),
+        (
+          recommended.supportCount ??
+          1
+        ) > 1
+          ? "The submitted value is corroborated by multiple sources."
+          : matches[0]!
+              .sourceText,
+      resolution:
+        (
+          recommended.supportCount ??
+          1
+        ) > 1
+          ? "corroborated"
+          : "single",
+      alternatives,
     };
   }
 
   return {
-    state: "submitted",
-    value: top.value,
-    unit: top.unit,
+    state: "conflicted",
+    value:
+      recommended.value,
+    unit:
+      recommended.unit,
     authority:
-      "submitted",
-    sourceRefs:
-      matches.map(
-        (match) =>
-          match.sourceRef,
-      ),
+      recommended.authority,
+    sourceRefs,
     basisRevisionId:
-      null,
+      recommended
+        .basisRevisionId,
     coveragePercent:
       null,
-    asOfIso: null,
+    asOfIso:
+      recommended.asOfIso,
     confidence:
-      top.confidence,
-    diagnostics: [],
+      recommended.confidence,
+    diagnostics: [
+      "SUBMITTED_VALUES_CONFLICT",
+      "CONFLICT_RECOMMENDATION_IS_NOT_GOVERNED_UNTIL_USER_DECISION",
+    ],
     note:
-      top.sourceText,
+      "Conflicting submitted values were retained. The displayed value is the strongest-supported recommendation only; every candidate remains available for parallel calculation.",
+    resolution:
+      "unresolved_conflict",
+    alternatives,
   };
 }
 
