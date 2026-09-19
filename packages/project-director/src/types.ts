@@ -115,12 +115,12 @@ export type EvidenceCoverageState =
   | "not_submitted";
 
 export interface DirectorEvidenceAvailability {
-  hse?: boolean;
-  quality?: boolean;
-  rfi?: boolean;
-  permits?: boolean;
-  bonds?: boolean;
-  risk?: boolean;
+  hse?: EvidenceCoverageState;
+  quality?: EvidenceCoverageState;
+  rfi?: EvidenceCoverageState;
+  permits?: EvidenceCoverageState;
+  bonds?: EvidenceCoverageState;
+  risk?: EvidenceCoverageState;
 }
 
 export interface DirectorPositionInput {
