@@ -209,7 +209,6 @@ const LINKED_ACTIVITY_HEADERS = [
   "linked schedule activity",
   "activity id",
   "schedule activity",
-  "primary wbs",
 ];
 
 export function analyzeCsvEvidence(
