@@ -78,6 +78,46 @@ test("portfolio, project creation and Ask CMeng remain project scoped", async ()
       true,
     );
 
+    const duplicate =
+      await fetch(
+        base + "/api/projects",
+        {
+          method: "POST",
+          headers: {
+            "content-type":
+              "application/json",
+          },
+          body: JSON.stringify({
+            projectId:
+              "  " +
+              projectId.toLowerCase() +
+              "  ",
+          }),
+        },
+      );
+    assert.equal(
+      duplicate.status,
+      409,
+    );
+    const duplicateBody =
+      await duplicate.json() as {
+        error: string;
+        projectId: string;
+        message: string;
+      };
+    assert.equal(
+      duplicateBody.error,
+      "project_code_already_exists",
+    );
+    assert.equal(
+      duplicateBody.projectId,
+      projectId,
+    );
+    assert.match(
+      duplicateBody.message,
+      /already exists/i,
+    );
+
     const legacyProjectId =
       projectId + "-LEGACY";
     const legacy =
