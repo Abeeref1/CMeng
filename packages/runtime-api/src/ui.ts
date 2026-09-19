@@ -214,6 +214,19 @@ function renderDeliveryChallenge(data,reason){
   if(d.mapping){
     html+='<details style="margin-top:12px"><summary>BOQ ↔ Schedule mapping candidates and evidence</summary><pre>'+escapeHtml(JSON.stringify(d.mapping,null,2))+'</pre></details>';
   }
+  if(data.contractValueEvidence){
+    const cv=data.contractValueEvidence;
+    const governed=cv.governed;
+    const candidate=cv.extraction?.value;
+    const display=governed?fmt(governed.amount)+" "+(governed.currency||""):candidate?fmt(candidate.amount)+" "+(candidate.currency||""):"—";
+    html+='<div class="card" style="margin-top:12px"><h3>Contract value evidence</h3><div class="scalar-grid">'+
+      '<div class="scalar"><b>State</b><span>'+escapeHtml(cv.state||"missing")+'</span></div>'+
+      '<div class="scalar"><b>Value</b><span>'+escapeHtml(display)+'</span></div>'+
+      '<div class="scalar"><b>Authority</b><span>'+escapeHtml(governed?"governed":candidate?"candidate only":"not established")+'</span></div>'+
+      '</div><div class="notice info">'+escapeHtml(cv.note||"")+'</div>'+
+      (cv.extraction?.candidates?.length?'<details><summary>Contract value candidates and source evidence</summary><pre>'+escapeHtml(JSON.stringify(cv.extraction,null,2))+'</pre></details>':'')+
+      '</div>';
+  }
   if(data.contractIntelligence){
     html+='<details style="margin-top:12px"><summary>Contract clause intelligence supporting the challenge</summary><pre>'+escapeHtml(JSON.stringify(data.contractIntelligence,null,2))+'</pre></details>';
   }
