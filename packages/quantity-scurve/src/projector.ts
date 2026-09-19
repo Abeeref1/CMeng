@@ -486,8 +486,30 @@ function seriesForUnit(
         ),
     }));
 
+  const normalizedUnitKey =
+    unitKey(unit);
   return {
+    seriesKey:
+      "quantity:" +
+      normalizedUnitKey,
     unit,
+    unitKey:
+      normalizedUnitKey,
+    authority:
+      "governed_mapping",
+    sourceRefs: [
+      ...new Set(
+        items.flatMap(
+          (item) =>
+            item.sourceRefs.map(
+              (ref) =>
+                ref.source +
+                ":" +
+                ref.locator,
+            ),
+        ),
+      ),
+    ],
     itemCount: items.length,
     knownContractQuantity:
       Number(
@@ -649,6 +671,7 @@ export function buildQuantityScurveProjection(
       quantities.scheduleRevisionId,
     dataDateIso:
       schedule.dataDateIso,
+    unitKeyed: true,
     allocationState,
     series,
     unmappedItemIds:
