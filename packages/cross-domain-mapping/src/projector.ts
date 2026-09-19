@@ -636,6 +636,42 @@ export function buildQuantityScheduleMapping(
     }
   }
 
+  const knownUnits =
+    new Set(
+      quantities.items
+        .filter(
+          (item) =>
+            item.contractQuantity !==
+              null &&
+            item.contractQuantity >= 0,
+        )
+        .map(
+          (item) =>
+            (
+              item.unit ??
+              "UNSPECIFIED"
+            )
+              .normalize("NFKC")
+              .trim()
+              .toUpperCase() ||
+            "UNSPECIFIED",
+        ),
+    );
+  const mixedQuantityUnits =
+    knownUnits.size > 1;
+  const itemCoveragePercent =
+    knownQuantityItemCount === 0
+      ? null
+      : Number(
+          (
+            (
+              mappedKnownQuantityItemCount /
+              knownQuantityItemCount
+            ) *
+            100
+          ).toFixed(4),
+        );
+
   return {
     schemaVersion: "1.0",
     projectId:
@@ -670,10 +706,14 @@ export function buildQuantityScheduleMapping(
         totalKnownQuantity.toFixed(6),
       ),
     quantityCoveragePercent:
-      pct(
-        mappedQuantity,
-        totalKnownQuantity,
-      ),
+      mixedQuantityUnits
+        ? null
+        : pct(
+            mappedQuantity,
+            totalKnownQuantity,
+          ),
+    itemCoveragePercent,
+    mixedQuantityUnits,
     ambiguousItemIds:
       [...new Set(
         ambiguousItemIds,
@@ -698,6 +738,11 @@ export function buildQuantityScheduleMapping(
       ...(ambiguousItemIds.length
         ? [
             "AMBIGUOUS_QUANTITY_ACTIVITY_MAPPING_REQUIRES_REVIEW",
+          ]
+        : []),
+      ...(mixedQuantityUnits
+        ? [
+            "MIXED_QUANTITY_UNITS_NOT_CROSS_SUMMED_FOR_COVERAGE",
           ]
         : []),
     ],
