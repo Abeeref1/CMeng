@@ -732,13 +732,12 @@ async function route(
     }
 
     invalidateProject(projectId);
-    const rerun =
-      rerunProject(projectId);
 
     json(res, 200, {
       projectId,
       deleted,
-      rerun,
+      positionRefreshRequired:
+        true,
     });
     return;
   }
