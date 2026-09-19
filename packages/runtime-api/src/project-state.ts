@@ -118,6 +118,7 @@ function emptyControls():
     ncrs: [],
     rfis: [],
     permits: [],
+    risks: [],
     boardPublication: null,
   };
 }
@@ -587,6 +588,9 @@ function hydrateProject(
     delayEventHistory:
       legacy.delayEventHistory ??
       [],
+    derivedControlsByDocument:
+      legacy.derivedControlsByDocument ??
+      {},
     derivedReadinessByDocument:
       legacy.derivedReadinessByDocument ??
       {},
@@ -914,6 +918,7 @@ export class RuntimeProjectStore {
         activeEvidenceBasis: {},
         boardPublicationHistory: [],
         delayEventHistory: [],
+        derivedControlsByDocument: {},
         derivedReadinessByDocument: {},
         lastRerunReceipt: null,
         controls:
@@ -2933,6 +2938,9 @@ export class RuntimeProjectStore {
       permits:
         update.permits ??
         state.controls.permits,
+      risks:
+        update.risks ??
+        state.controls.risks,
     };
 
     this.touch(state);
