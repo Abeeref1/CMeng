@@ -48,6 +48,9 @@ import {
   cmengUatHtml,
 } from "./ui";
 import {
+  answerProjectQuestion,
+} from "./project-intelligence";
+import {
   identifyEvidenceDocument,
   type EvidenceIdentificationResult,
 } from "./document-identification";
@@ -268,6 +271,168 @@ async function route(
         authority: "candidate_only",
       },
     });
+    return;
+  }
+
+  if (
+    req.method === "GET" &&
+    url.pathname ===
+      "/api/portfolio"
+  ) {
+    const projects =
+      runtimeProjects
+        .listProjectIds()
+        .map((projectId) =>
+          overviewForProject(
+            projectId,
+          ),
+        )
+        .filter(
+          (
+            value,
+          ): value is NonNullable<
+            typeof value
+          > => value !== null,
+        );
+
+    json(res, 200, {
+      portfolioId:
+        "default",
+      generatedAt:
+        new Date().toISOString(),
+      projectCount:
+        projects.length,
+      projects:
+        projects.map(
+          (project) => ({
+            projectId:
+              project.projectId,
+            demo: project.demo,
+            version:
+              project.version,
+            latestDataDateIso:
+              project.latestDataDateIso,
+            evidenceDocumentCount:
+              project.evidenceDocumentCount,
+            revisionCount:
+              project.revisionCount,
+            minimumEvidenceReady:
+              project.minimumEvidenceBasis
+                .ready,
+            readyModules:
+              project.moduleStates.filter(
+                (item) =>
+                  item.status ===
+                  "ready",
+              ).length,
+            partialModules:
+              project.moduleStates.filter(
+                (item) =>
+                  item.status ===
+                  "partial",
+              ).length,
+            blockedModules:
+              project.moduleStates.filter(
+                (item) =>
+                  item.status ===
+                  "blocked",
+              ).length,
+            lastRerunState:
+              project.lastRerunReceipt
+                ?.certification
+                .state ??
+              null,
+          }),
+        ),
+    });
+    return;
+  }
+
+  if (
+    req.method === "POST" &&
+    url.pathname ===
+      "/api/projects"
+  ) {
+    const body =
+      await readJsonBody<{
+        projectId?: string;
+      }>(req);
+    const projectId =
+      (
+        body.projectId ??
+        ""
+      ).trim();
+    if (!projectId) {
+      json(res, 400, {
+        error:
+          "project_id_required",
+      });
+      return;
+    }
+    const existed =
+      runtimeProjects.get(
+        projectId,
+      ) !== null;
+    const state =
+      runtimeProjects.getOrCreate(
+        projectId,
+      );
+    json(
+      res,
+      existed ? 200 : 201,
+      {
+        projectId:
+          state.projectId,
+        created: !existed,
+        version:
+          state.version,
+      },
+    );
+    return;
+  }
+
+  const intelligenceMatch =
+    /^\/api\/projects\/([^/]+)\/intelligence\/ask$/.exec(
+      url.pathname,
+    );
+
+  if (
+    req.method === "POST" &&
+    intelligenceMatch
+  ) {
+    const projectId =
+      decodeURIComponent(
+        intelligenceMatch[1]!,
+      );
+    const body =
+      await readJsonBody<{
+        question?: string;
+      }>(req);
+    const question =
+      (
+        body.question ??
+        ""
+      ).trim();
+    if (!question) {
+      json(res, 400, {
+        error:
+          "question_required",
+      });
+      return;
+    }
+    const answer =
+      answerProjectQuestion(
+        projectId,
+        question,
+      );
+    if (!answer) {
+      json(res, 404, {
+        error:
+          "project_not_found",
+      });
+      return;
+    }
+    json(res, 200, answer);
     return;
   }
 
@@ -1400,8 +1565,14 @@ async function route(
         "/api/schedule/certification",
       boqUpload:
         "/api/projects/:projectId/boq/uploads",
+      portfolio:
+        "/api/portfolio",
+      createProject:
+        "/api/projects",
       projectOverview:
         "/api/projects/:projectId/overview",
+      projectIntelligence:
+        "/api/projects/:projectId/intelligence/ask",
       evidenceUpload:
         "/api/projects/:projectId/evidence/uploads",
       evidenceRerun:
