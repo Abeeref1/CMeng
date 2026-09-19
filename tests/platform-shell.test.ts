@@ -89,6 +89,25 @@ test("portfolio, project creation and Ask CMeng remain project scoped", async ()
         Record<string, unknown>
     ).risks;
 
+    const sampleId =
+      projectId + "-SAMPLE";
+    const sample =
+      await fetch(
+        base +
+          "/api/projects/" +
+          encodeURIComponent(
+            sampleId,
+          ) +
+          "/demo",
+        {
+          method: "POST",
+        },
+      );
+    assert.equal(
+      sample.status,
+      201,
+    );
+
     const portfolio =
       await fetch(
         base + "/api/portfolio",
@@ -101,6 +120,8 @@ test("portfolio, project creation and Ask CMeng remain project scoped", async ()
       await portfolio.json() as {
         projects: Array<{
           projectId: string;
+          positionState?: string;
+          managementActionCount?: number;
           analysisError?: string | null;
         }>;
       };
@@ -118,6 +139,15 @@ test("portfolio, project creation and Ask CMeng remain project scoped", async ()
           legacyProjectId,
       ),
       "one malformed legacy project must not crash the portfolio endpoint",
+    );
+    assert.equal(
+      portfolioBody.projects.some(
+        (project) =>
+          project.projectId ===
+          sampleId,
+      ),
+      false,
+      "demonstration projects must not appear in the live portfolio",
     );
 
     const intelligence =
