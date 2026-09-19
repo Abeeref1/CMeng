@@ -957,6 +957,14 @@ function buildBundle(
         ...quantityScurve,
         allocationState:
           "partial",
+        series:
+          quantityScurve.series.map(
+            (series) => ({
+              ...series,
+              authority:
+                "scenario_mapping" as const,
+            }),
+          ),
         diagnostics: [
           ...quantityScurve
             .diagnostics,
@@ -1017,6 +1025,7 @@ function buildBundle(
               .revisionId,
           dataDateIso:
             model.dataDateIso,
+          unitKeyed: true,
           allocationState:
             "missing",
           series: [],
