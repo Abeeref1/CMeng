@@ -46,6 +46,12 @@ export interface PmoAnalysisProjection {
     varianceDays: number | null;
     origin: string;
     complete: boolean;
+    basisRevisionId: string;
+    activityCoveragePercent: number | null;
+    authority:
+      | "deterministic"
+      | "scenario"
+      | "unresolved";
   };
 
   resources: {
