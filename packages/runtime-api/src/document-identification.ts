@@ -511,7 +511,9 @@ async function extractPdfSample(
         );
       }
     } finally {
-      await provider.close();
+      if (provider.close) {
+        await provider.close();
+      }
     }
 
     const ocrText =
