@@ -48,7 +48,7 @@ button,input,select{font:inherit}button{cursor:pointer}
 details:not(.workspace-drawer){border:1px solid var(--line);border-radius:9px;background:#fff}details:not(.workspace-drawer)>summary{padding:11px 13px;cursor:pointer;font-size:12.5px;font-weight:700}pre{margin:0;padding:13px;max-height:560px;overflow:auto;background:#0c1525;color:#d7e5ff;font-size:12px;line-height:1.55;border-radius:0 0 9px 9px;white-space:pre-wrap;word-break:break-word}
 .currency-card{border:1px solid var(--line);border-radius:10px;padding:13px;background:#fff}.currency-code{font-size:17px;font-weight:820;margin-bottom:8px}.currency-line{display:flex;justify-content:space-between;gap:12px;font-size:13px;padding:5px 0;color:#526176}.currency-line strong{color:#152238}
 .challenge-card{padding:0!important;overflow:hidden}.challenge-card .challenge-head{padding:17px 18px;border-bottom:1px solid var(--line)}.challenge-card .challenge-summary{padding:15px 18px 0}.challenge-card .challenge-table-wrap{margin:15px 18px 18px}.conflict-expand-row>td{padding:0;background:#f9fbff!important}.conflict-panel{padding:16px 18px;border-top:1px solid #dce7f5;border-bottom:1px solid #dce7f5;background:linear-gradient(180deg,#f8fbff,#f4f8ff)}.conflict-title{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px}.conflict-title strong{font-size:14px}.conflict-title p{margin:3px 0 0;color:var(--muted);font-size:12px}.candidate-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px}.candidate-card{border:1px solid #cedcf3;border-radius:10px;background:#fff;padding:13px}.candidate-card.recommended{border-color:#85a7f8;box-shadow:0 0 0 2px rgba(35,87,217,.08)}.candidate-value{font-size:20px;font-weight:790;letter-spacing:-.025em;margin:3px 0 9px}.candidate-meta{display:grid;grid-template-columns:1fr 1fr;gap:7px;font-size:11.5px;color:var(--muted)}.candidate-meta b{display:block;color:#435169;font-size:10.5px;text-transform:uppercase;letter-spacing:.04em}.candidate-sources{font-size:11.5px;color:#5d6b7e;margin-top:9px;word-break:break-word}.recommendation-card{margin-top:12px;padding:13px 14px;border-radius:10px;background:#eef4ff;border:1px solid #ccdcff;display:flex;align-items:flex-start;justify-content:space-between;gap:16px}.recommendation-card strong{display:block;font-size:16px;color:#173f9b;margin:3px 0}.recommendation-card p{margin:0;color:#53647b;font-size:12px;line-height:1.45}.recommendation-label{font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;font-weight:820;color:#315fbf}.decision-pill{flex:0 0 auto;background:#fff7e8;color:#8b4b08;border:1px solid #f6d99f;border-radius:999px;padding:6px 9px;font-size:10.5px;font-weight:820;text-transform:uppercase;letter-spacing:.04em}
-.data-section{margin-top:14px;border:1px solid var(--line);border-radius:12px;background:#fff;overflow:hidden}.data-section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid var(--line);background:#f8fafc}.data-section-head h4{margin:0;font-size:14px;letter-spacing:-.01em}.data-section-body{padding:14px 16px}.value-list{display:flex;flex-wrap:wrap;gap:7px}.value-chip{display:inline-flex;padding:6px 9px;border:1px solid #d9e2ec;border-radius:8px;background:#f8fafc;font-size:12px;color:#435169}.nested-block{margin-top:12px}.nested-block:first-child{margin-top:0}.nested-title{font-size:12px;font-weight:800;color:#526176;margin:0 0 8px;text-transform:uppercase;letter-spacing:.045em}.cell-details summary{padding:4px 0!important;border:0!important;background:transparent!important}.cell-details pre{max-height:320px}.technical-payload{margin-top:16px}.footer-note{font-size:12px;color:var(--muted);margin-top:22px;padding:0 2px}.muted{color:var(--muted)}
+.chart-card{margin-top:14px;border:1px solid var(--line);border-radius:12px;background:#fff;overflow:hidden}.chart-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid var(--line);background:#f8fafc}.chart-card-head h4{margin:0;font-size:14px}.chart-card-head p{margin:3px 0 0;color:var(--muted);font-size:12px}.chart-body{padding:14px 16px}.svg-chart{width:100%;min-width:620px;height:auto;display:block}.chart-scroll{overflow-x:auto}.chart-legend{display:flex;flex-wrap:wrap;gap:12px;margin:0 0 10px}.legend-item{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:#526176}.legend-dot{width:9px;height:9px;border-radius:50%}.position-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px}.position-card{border:1px solid var(--line);border-radius:10px;background:#fff;padding:13px}.position-card .position-label{font-size:10.5px;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:.05em}.position-card .position-value{font-size:19px;font-weight:780;margin:5px 0 3px;letter-spacing:-.02em}.position-card .position-sub{font-size:11.5px;color:var(--muted)}.readiness-table td{vertical-align:middle}.state-pill{display:inline-flex;border-radius:999px;padding:4px 7px;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.035em}.state-pill.ready,.state-pill.included{background:#ecfdf3;color:#067647}.state-pill.blocked,.state-pill.excluded{background:#fef3f2;color:#b42318}.state-pill.conditional,.state-pill.review,.state-pill.unknown{background:#fffaeb;color:#b54708}.state-pill.not_applicable{background:#f2f4f7;color:#667085}.window-strip{display:grid;gap:10px}.window-card{display:grid;grid-template-columns:minmax(170px,.55fr) minmax(0,1fr) minmax(180px,.6fr);gap:13px;border:1px solid var(--line);border-radius:10px;padding:13px;background:#fff}.window-id{font-size:13px;font-weight:800}.window-dates{font-size:11.5px;color:var(--muted);margin-top:4px}.movement-value{font-size:22px;font-weight:780;letter-spacing:-.03em}.movement-label{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:750}.event-tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px}.event-tag{font-size:10.5px;border:1px solid #d9e2ec;border-radius:999px;padding:3px 6px;background:#f8fafc;color:#526176}.data-section{margin-top:14px;border:1px solid var(--line);border-radius:12px;background:#fff;overflow:hidden}.data-section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid var(--line);background:#f8fafc}.data-section-head h4{margin:0;font-size:14px;letter-spacing:-.01em}.data-section-body{padding:14px 16px}.value-list{display:flex;flex-wrap:wrap;gap:7px}.value-chip{display:inline-flex;padding:6px 9px;border:1px solid #d9e2ec;border-radius:8px;background:#f8fafc;font-size:12px;color:#435169}.nested-block{margin-top:12px}.nested-block:first-child{margin-top:0}.nested-title{font-size:12px;font-weight:800;color:#526176;margin:0 0 8px;text-transform:uppercase;letter-spacing:.045em}.cell-details summary{padding:4px 0!important;border:0!important;background:transparent!important}.cell-details pre{max-height:320px}.technical-payload{margin-top:16px}.footer-note{font-size:12px;color:var(--muted);margin-top:22px;padding:0 2px}.muted{color:var(--muted)}
 .spinner{width:14px;height:14px;border:2px solid #d0d5dd;border-top-color:var(--accent);border-radius:50%;display:inline-block;animation:spin .7s linear infinite;vertical-align:-2px}@keyframes spin{to{transform:rotate(360deg)}}
 @media(max-width:1280px){.app{grid-template-columns:238px minmax(0,1fr)}.grid.three{grid-template-columns:1fr 1fr}.upload-row{grid-template-columns:1fr}.evidence-control-grid{grid-template-columns:1fr}.evidence-status-card{position:static}}
 @media(max-width:900px){.app{display:block}.sidebar{position:relative;height:auto}.topbar{position:relative;flex-wrap:wrap;padding:13px 18px}.content{padding:20px 18px 48px}.project-input{min-width:0;width:100%;flex-wrap:wrap}.workspace-header{align-items:center}.grid.two,.grid.three{grid-template-columns:1fr}.module-panel #moduleContent{padding:16px}.module-panel>.module-head{padding:17px}.candidate-grid{grid-template-columns:1fr}}
@@ -361,6 +361,132 @@ function renderStructuredValue(value,depth=0){
   html+=complex.map(([key,v])=>'<div class="nested-block"><div class="nested-title">'+escapeHtml(humanizeKey(key))+'</div>'+renderStructuredValue(v,depth+1)+'</div>').join("");
   return html||'<div class="muted">No displayable values.</div>';
 }
+function projectionFor(data,projectionKey){
+  if(data?.projectionKey===projectionKey)return data;
+  for(const value of Object.values(data||{})){
+    if(value&&typeof value==="object"&&!Array.isArray(value)&&value.projectionKey===projectionKey)return value;
+  }
+  return data||{};
+}
+function renderLineChart(points,series,yMaxHint=null){
+  if(!Array.isArray(points)||!points.length)return '<div class="muted">No series points available.</div>';
+  const numeric=[];
+  points.forEach(point=>series.forEach(s=>{const v=point?.[s.key];if(typeof v==="number"&&Number.isFinite(v))numeric.push(v)}));
+  if(!numeric.length)return '<div class="muted">No numeric series points available.</div>';
+  const width=960,height=270,left=52,right=18,top=18,bottom=42;
+  const plotW=width-left-right,plotH=height-top-bottom;
+  const rawMax=Math.max(...numeric,1);
+  const maxY=yMaxHint!==null?yMaxHint:Math.max(1,rawMax*1.08);
+  const x=i=>left+(points.length===1?plotW/2:(i/(points.length-1))*plotW);
+  const y=v=>top+plotH-(Math.max(0,Math.min(maxY,v))/maxY)*plotH;
+  const segments=(key)=>{
+    const result=[];let current=[];
+    points.forEach((point,i)=>{
+      const value=point?.[key];
+      if(typeof value==="number"&&Number.isFinite(value)){current.push(x(i).toFixed(1)+","+y(value).toFixed(1))}
+      else if(current.length){result.push(current);current=[]}
+    });
+    if(current.length)result.push(current);
+    return result;
+  };
+  const grid=[0,.25,.5,.75,1].map(r=>{
+    const yy=top+plotH-(r*plotH);
+    return '<line x1="'+left+'" y1="'+yy+'" x2="'+(width-right)+'" y2="'+yy+'" stroke="#e4eaf1" stroke-width="1"/><text x="'+(left-9)+'" y="'+(yy+4)+'" text-anchor="end" font-size="10" fill="#75849a">'+escapeHtml(fmt(maxY*r))+'</text>';
+  }).join("");
+  const lines=series.map(s=>segments(s.key).map(seg=>'<polyline points="'+seg.join(" ")+'" fill="none" stroke="'+s.color+'" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>').join("")).join("");
+  const labelIndexes=[0,Math.floor((points.length-1)/2),points.length-1].filter((v,i,a)=>a.indexOf(v)===i);
+  const labels=labelIndexes.map(i=>'<text x="'+x(i)+'" y="'+(height-14)+'" text-anchor="'+(i===0?"start":i===points.length-1?"end":"middle")+'" font-size="10" fill="#75849a">'+escapeHtml(points[i]?.dateIso||String(i+1))+'</text>').join("");
+  const legend='<div class="chart-legend">'+series.map(s=>'<span class="legend-item"><span class="legend-dot" style="background:'+s.color+'"></span>'+escapeHtml(s.label)+'</span>').join("")+'</div>';
+  return legend+'<div class="chart-scroll"><svg class="svg-chart" viewBox="0 0 '+width+' '+height+'" role="img">'+grid+lines+labels+'</svg></div>';
+}
+function renderProgressScurveVisual(data){
+  const p=projectionFor(data,"progress_scurve");
+  if(!Array.isArray(p.points))return"";
+  return '<section class="chart-card"><div class="chart-card-head"><div><h4>Progress S-Curve</h4><p>Baseline, current forecast and actual history remain separate evidence series.</p></div><span class="badge">'+escapeHtml(p.actualHistoryMode||"")+'</span></div><div class="chart-body">'+
+    renderLineChart(p.points,[
+      {key:"baselinePlannedPercent",label:"Baseline planned",color:"#2357d9"},
+      {key:"currentForecastPercent",label:"Current forecast",color:"#0f766e"},
+      {key:"actualProgressPercent",label:"Actual",color:"#d97706"}
+    ],100)+
+  '</div></section>';
+}
+function renderQuantityScurveVisual(data){
+  const p=projectionFor(data,"quantity_scurve");
+  if(!Array.isArray(p.series))return"";
+  return p.series.map(series=>'<section class="chart-card"><div class="chart-card-head"><div><h4>Quantity S-Curve · '+escapeHtml(series.unitKey||series.unit||series.seriesKey)+'</h4><p>'+escapeHtml(series.itemCount)+' mapped item(s) · '+escapeHtml(fmt(series.mappingCoveragePercent))+'% mapping coverage</p></div><span class="badge '+(series.authority==="governed_mapping"?"ready":"partial")+'">'+escapeHtml(series.authority)+'</span></div><div class="chart-body">'+
+    renderLineChart(series.points||[],[
+      {key:"baselinePlannedQuantity",label:"Baseline planned",color:"#2357d9"},
+      {key:"currentForecastQuantity",label:"Current forecast",color:"#0f766e"},
+      {key:"actualInstalledQuantity",label:"Actual installed",color:"#d97706"}
+    ])+
+  '</div></section>').join("");
+}
+function renderLookAheadVisual(data){
+  const p=projectionFor(data,"lookahead_schedule");
+  if(!Array.isArray(p.rows))return"";
+  const dimensions=["predecessor","procurement_material","design_submittal","permit","resource","quality","commercial","risk","access"];
+  const rows=p.rows.map(row=>{
+    const map=new Map((row.readiness?.dimensions||[]).map(d=>[d.key,d]));
+    return '<tr><td><b>'+escapeHtml(row.activityId)+'</b><br><span class="muted">'+escapeHtml(row.name||"")+'</span></td><td>'+escapeHtml(row.startIso||"—")+'</td><td>'+escapeHtml(row.finishIso||"—")+'</td><td><span class="state-pill '+escapeHtml(row.readiness?.state||"unknown")+'">'+escapeHtml(row.readiness?.state||"unknown")+'</span></td>'+
+      dimensions.map(key=>{const dim=map.get(key);const state=dim?.state||"unknown";return '<td><span class="state-pill '+escapeHtml(state)+'" title="'+escapeHtml(dim?.note||"")+'">'+escapeHtml(state)+'</span></td>'}).join("")+'</tr>';
+  }).join("");
+  return '<section class="chart-card"><div class="chart-card-head"><div><h4>Look-Ahead Readiness Matrix</h4><p>Readiness is evidence-derived by activity and control dimension, not inferred from planned dates.</p></div><span class="badge '+(p.blockedCount?"partial":"ready")+'">'+escapeHtml(p.readyCount||0)+' ready · '+escapeHtml(p.blockedCount||0)+' blocked</span></div><div class="chart-body"><div class="table-wrap readiness-table"><table><thead><tr><th>Activity</th><th>Start</th><th>Finish</th><th>Overall</th>'+
+    dimensions.map(key=>'<th>'+escapeHtml(humanizeKey(key))+'</th>').join("")+
+    '</tr></thead><tbody>'+rows+'</tbody></table></div></div></section>';
+}
+function renderForecastVisual(data){
+  const p=projectionFor(data,"independent_forecast");
+  if(!("independentForecastCompletionIso" in p))return"";
+  const prob=p.probabilistic||{};
+  const cards=[
+    ["Source forecast",p.sourceForecastCompletionIso,p.sourceRevisionId||""],
+    ["Independent forecast",p.independentForecastCompletionIso,(p.forecastVarianceDays===null||p.forecastVarianceDays===undefined)?"":fmt(p.forecastVarianceDays)+" days vs source"],
+    ["Required finish",p.requiredFinishIso,(p.requiredFinishVarianceDays===null||p.requiredFinishVarianceDays===undefined)?"":fmt(p.requiredFinishVarianceDays)+" days variance"],
+    ["P50 comparator",prob.p50CompletionIso,prob.authority||""],
+    ["P80 comparator",prob.p80CompletionIso,prob.authority||""],
+    ["P90 comparator",prob.p90CompletionIso,prob.authority||""]
+  ];
+  return '<section class="chart-card"><div class="chart-card-head"><div><h4>Forecast Position</h4><p>Source programme and independent calculation stay separate; probabilistic dates are non-official comparators.</p></div><span class="badge '+(p.complete?"ready":"partial")+'">'+escapeHtml(p.origin||"")+'</span></div><div class="chart-body"><div class="position-grid">'+cards.map(c=>'<div class="position-card"><div class="position-label">'+escapeHtml(c[0])+'</div><div class="position-value">'+escapeHtml(c[1]||"—")+'</div><div class="position-sub">'+escapeHtml(c[2]||"")+'</div></div>').join("")+'</div></div></section>';
+}
+function renderWindowsVisual(data){
+  const p=projectionFor(data,"windows_analysis");
+  if(!Array.isArray(p.windows))return"";
+  const rows=p.windows.map(w=>'<div class="window-card"><div><div class="window-id">Window '+escapeHtml(w.sequence)+' · '+escapeHtml(w.windowId)+'</div><div class="window-dates">'+escapeHtml(w.windowStartIso||"—")+' → '+escapeHtml(w.windowEndIso||"—")+'</div><div class="event-tags">'+
+      (w.delayEvents||[]).map(e=>'<span class="event-tag">'+escapeHtml(e.responsibility)+' · '+escapeHtml(e.eventId)+'</span>').join("")+
+    '</div></div><div><div class="movement-label">Strongest programme movement</div><div class="movement-value">'+escapeHtml(fmt(w.strongestProgrammeMovementDays))+' days</div><div class="muted">'+escapeHtml(w.strongestProgrammeMovementBasis||"")+' · progress '+escapeHtml(fmt(w.progressMovementPercent))+'%</div></div><div><span class="state-pill '+escapeHtml(w.state||"unknown")+'">'+escapeHtml(w.state||"unknown")+'</span><div class="muted" style="margin-top:7px">'+escapeHtml(w.addedActivityCount)+' added · '+escapeHtml(w.removedActivityCount)+' removed · '+escapeHtml(w.modifiedActivityCount)+' modified</div>'+(w.concurrentEventCandidate?'<div class="event-tag" style="margin-top:7px">Concurrency review</div>':'')+'</div></div>').join("");
+  return '<section class="chart-card"><div class="chart-card-head"><div><h4>Schedule Windows</h4><p>Revision-to-revision programme movement with event population and concurrency visibility.</p></div><span class="badge">'+escapeHtml(p.windowCount||0)+' windows</span></div><div class="chart-body"><div class="window-strip">'+rows+'</div></div></section>';
+}
+function renderDelayClaimsVisual(data){
+  const p=projectionFor(data,"delay_claims");
+  if(!Array.isArray(p.events))return"";
+  const rows=p.events.map(e=>'<tr><td><b>'+escapeHtml(e.eventId)+'</b><br><span class="muted">'+escapeHtml(e.title||"")+'</span></td><td>'+escapeHtml(e.responsibility)+'</td><td>'+escapeHtml(e.noticeTimeliness)+'</td><td>'+escapeHtml(fmt(e.observedPositiveProgrammeMovementDays))+'</td><td>'+escapeHtml(e.programmeMovementBasis)+'</td><td><span class="state-pill '+(e.concurrencyCandidate?"review":"ready")+'">'+escapeHtml(e.candidateClass)+'</span></td><td>'+escapeHtml((e.linkedClaimIds||[]).join(", ")||"—")+'</td><td>'+escapeHtml((e.relatedActivityIds||[]).join(", ")||"—")+'</td></tr>').join("");
+  return '<section class="chart-card"><div class="chart-card-head"><div><h4>Delay Event & Claim Linkage</h4><p>Observed programme movement remains separate from causal/contractual entitlement.</p></div><span class="badge">'+escapeHtml(p.eventCount||0)+' events · '+escapeHtml(p.claimCount||0)+' claims</span></div><div class="chart-body"><div class="table-wrap"><table><thead><tr><th>Event</th><th>Responsibility</th><th>Notice</th><th>Positive movement days</th><th>Movement basis</th><th>Candidate class</th><th>Claims</th><th>Activities</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></section>';
+}
+function renderEotVisual(data){
+  const p=projectionFor(data,"eot_assessment");
+  if(!Array.isArray(p.windowCandidates))return"";
+  const cards=[
+    ["Contract completion",p.contractualCompletionIso,p.contractualCompletionState],
+    ["Official approved EOT",p.officialApprovedEotDays===null?"—":fmt(p.officialApprovedEotDays)+" days",p.officialApprovedEotState],
+    ["Official adjusted completion",p.officialAdjustedCompletionIso,"governed only"],
+    ["Observed movement",fmt(p.observedProgrammeMovementDays)+" days","schedule observation"],
+    ["Analytical time impact",fmt(p.analyticalTimeImpactCandidateDays)+" days","candidate, not entitlement"],
+    ["Attributable EOT candidate",p.attributableCandidateEotDays===null?"—":fmt(p.attributableCandidateEotDays)+" days","candidate, not award"],
+    ["Scenario adjusted completion",p.scenarioAdjustedCompletionIso,"analytical scenario"]
+  ];
+  const rows=p.windowCandidates.map(w=>'<tr><td>'+escapeHtml(w.windowId)+'</td><td>'+escapeHtml(fmt(w.positiveProgrammeMovementDays))+'</td><td>'+escapeHtml(w.programmeMovementBasis)+'</td><td>'+escapeHtml(fmt(w.analyticalTimeImpactCandidateDays))+'</td><td><span class="state-pill '+escapeHtml(w.state)+'">'+escapeHtml(w.state)+'</span></td><td>'+escapeHtml(fmt(w.includedCandidateDays))+'</td><td>'+escapeHtml((w.reasons||[]).join("; ")||"—")+'</td></tr>').join("");
+  return '<section class="chart-card"><div class="chart-card-head"><div><h4>EOT Position</h4><p>Official award, observed movement and analytical candidate remain explicitly separate.</p></div><span class="badge partial">Analytical candidate ≠ award</span></div><div class="chart-body"><div class="position-grid">'+cards.map(c=>'<div class="position-card"><div class="position-label">'+escapeHtml(c[0])+'</div><div class="position-value">'+escapeHtml(c[1]||"—")+'</div><div class="position-sub">'+escapeHtml(c[2]||"")+'</div></div>').join("")+'</div><div class="table-wrap" style="margin-top:14px"><table><thead><tr><th>Window</th><th>Programme movement</th><th>Basis</th><th>Time impact</th><th>State</th><th>Included days</th><th>Reason</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></section>';
+}
+function renderSpecializedModule(key,data){
+  if(key==="progress-scurve")return renderProgressScurveVisual(data);
+  if(key==="quantity-scurve")return renderQuantityScurveVisual(data);
+  if(key==="lookahead-schedule")return renderLookAheadVisual(data);
+  if(key==="independent-forecast")return renderForecastVisual(data);
+  if(key==="windows-analysis")return renderWindowsVisual(data);
+  if(key==="delay-claims")return renderDelayClaimsVisual(data);
+  if(key==="eot-assessment")return renderEotVisual(data);
+  return"";
+}
 function renderStructuredSections(data){
   if(!data||typeof data!=="object")return"";
   const complex=Object.entries(data).filter(([key,value])=>key!=="challenge"&&!isScalarValue(value));
@@ -369,7 +495,7 @@ function renderStructuredSections(data){
     return '<section class="data-section"><div class="data-section-head"><h4>'+escapeHtml(humanizeKey(key))+'</h4>'+(count===null?'':'<span class="badge">'+escapeHtml(count)+' records</span>')+'</div><div class="data-section-body">'+renderStructuredValue(value,0)+'</div></section>';
   }).join("");
 }
-function renderModuleResult(result){el("moduleTitle").textContent=names[result.key]||result.key;el("moduleBadge").className="badge "+statusClass(result.status);el("moduleBadge").textContent=result.status;if(result.status==="blocked"){el("moduleContent").innerHTML='<div class="notice warn"><b>Blocked by evidence dependency</b><br>'+escapeHtml(result.reason||"Required evidence is not established.")+'</div><div class="scalar-grid">'+(result.dependencies||[]).map(x=>'<div class="scalar"><b>Required</b><span>'+escapeHtml(x)+'</span></div>').join("")+'</div>';return}const data=result.data||{};if(result.key==="challenge-contract"&&renderDeliveryChallenge(data,result.reason))return;const challengeHtml=renderUniversalChallenge(data.challenge);const scalars=scalarPairs(data).filter(([k])=>k!=="challenge").map(([k,v])=>'<div class="scalar"><b>'+escapeHtml(humanizeKey(k))+'</b><span>'+escapeHtml(fmt(v))+'</span></div>').join("");const structured=renderStructuredSections(data);el("moduleContent").innerHTML=(result.reason?'<div class="notice info">'+escapeHtml(result.reason)+'</div>':'')+challengeHtml+(scalars?'<div class="scalar-grid">'+scalars+'</div>':'')+structured+'<details class="technical-payload"><summary>Technical evidence payload</summary><pre>'+escapeHtml(JSON.stringify(data,null,2))+'</pre></details>'}
+function renderModuleResult(result){el("moduleTitle").textContent=names[result.key]||result.key;el("moduleBadge").className="badge "+statusClass(result.status);el("moduleBadge").textContent=result.status;if(result.status==="blocked"){el("moduleContent").innerHTML='<div class="notice warn"><b>Blocked by evidence dependency</b><br>'+escapeHtml(result.reason||"Required evidence is not established.")+'</div><div class="scalar-grid">'+(result.dependencies||[]).map(x=>'<div class="scalar"><b>Required</b><span>'+escapeHtml(x)+'</span></div>').join("")+'</div>';return}const data=result.data||{};if(result.key==="challenge-contract"&&renderDeliveryChallenge(data,result.reason))return;const challengeHtml=renderUniversalChallenge(data.challenge);const specialized=renderSpecializedModule(result.key,data);const scalars=scalarPairs(data).filter(([k])=>k!=="challenge").map(([k,v])=>'<div class="scalar"><b>'+escapeHtml(humanizeKey(k))+'</b><span>'+escapeHtml(fmt(v))+'</span></div>').join("");const structured=renderStructuredSections(data);el("moduleContent").innerHTML=(result.reason?'<div class="notice info">'+escapeHtml(result.reason)+'</div>':'')+challengeHtml+specialized+(scalars?'<div class="scalar-grid">'+scalars+'</div>':'')+structured+'<details class="technical-payload"><summary>Technical evidence payload</summary><pre>'+escapeHtml(JSON.stringify(data,null,2))+'</pre></details>'}
 async function loadModule(key){if(!overview){el("moduleContent").innerHTML='<div class="empty">Load a project first.</div>';return}setBusy("Calculating "+names[key]);try{const result=await api("/api/projects/"+encodeURIComponent(project())+"/schedule/modules/"+encodeURIComponent(key));renderModuleResult(result)}catch(e){const d=e.data||{};renderModuleResult({key,status:"blocked",reason:d.reason||d.error||e.message,dependencies:d.dependencies||[]})}finally{setBusy("")}}
 function kpi(label,value,sub=""){return'<div class="card kpi-card"><div class="kpi-label">'+escapeHtml(label)+'</div><div class="kpi-value">'+escapeHtml(fmt(value))+'</div><div class="kpi-sub">'+escapeHtml(sub)+'</div></div>'}
 function evidenceCount(state,value){if(state==="established")return fmt(value);if(state==="submitted_unparsed")return"Source submitted · count not established";return"Not submitted"}
