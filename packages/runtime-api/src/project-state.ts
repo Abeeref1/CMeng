@@ -1124,6 +1124,8 @@ export class RuntimeProjectStore {
       documentType?: string | null;
       scheduleRole?: string | null;
       uploadedAt: string;
+      uploadIntent?:
+        EvidenceUploadIntent;
       preidentified?:
         EvidenceIdentificationResult;
     },
@@ -1131,6 +1133,10 @@ export class RuntimeProjectStore {
     const relativePath =
       input.sourceRelativePath?.trim() ||
       input.sourceFilename;
+    const uploadIntent:
+      EvidenceUploadIntent =
+      input.uploadIntent ??
+      "add_update";
 
     const identified =
       input.preidentified ??
@@ -1231,6 +1237,7 @@ export class RuntimeProjectStore {
           identification,
           lineage,
           assertions,
+          uploadIntent,
         });
       const document =
         this.evidence(
@@ -1268,6 +1275,14 @@ export class RuntimeProjectStore {
           document.lineage,
         assertionCount:
           document.assertions.length,
+        basisEffect:
+          this.summaryBasisEffect(
+            this.getOrCreate(
+              input.projectId,
+            ),
+            document,
+            uploadIntent,
+          ),
         diagnostics: [
           ...document.diagnostics,
         ],
@@ -1317,6 +1332,7 @@ export class RuntimeProjectStore {
         identification,
         lineage,
         assertions,
+        uploadIntent,
       );
       const document =
         this.evidence(
@@ -1353,6 +1369,14 @@ export class RuntimeProjectStore {
           document.lineage,
         assertionCount:
           document.assertions.length,
+        basisEffect:
+          this.summaryBasisEffect(
+            this.getOrCreate(
+              input.projectId,
+            ),
+            document,
+            uploadIntent,
+          ),
         diagnostics: [
           ...document.diagnostics,
         ],
@@ -1398,6 +1422,7 @@ export class RuntimeProjectStore {
         identification,
         lineage,
         assertions,
+        uploadIntent,
       });
       const hash =
         hashBytes(input.bytes);
@@ -1438,6 +1463,14 @@ export class RuntimeProjectStore {
           document.lineage,
         assertionCount:
           document.assertions.length,
+        basisEffect:
+          this.summaryBasisEffect(
+            this.getOrCreate(
+              input.projectId,
+            ),
+            document,
+            uploadIntent,
+          ),
         diagnostics: [
           ...document.diagnostics,
         ],
