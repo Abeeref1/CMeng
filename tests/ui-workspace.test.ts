@@ -161,6 +161,34 @@ test("CMeng workspace keeps the active module primary and browser script parseab
     /id="runAfterUpload" checked/,
     "evidence intake should rerun analysis after upload by default",
   );
+
+  for (
+    const documentControl of [
+      "deleteProjectDocument",
+      "document-delete",
+      "queue-remove",
+      "Full document name",
+      "This programme is",
+      "This contract document is",
+      "Replacement / Restated contract",
+    ]
+  ) {
+    assert.equal(
+      html.includes(
+        documentControl,
+      ),
+      true,
+      "document workflow control must remain visible: " +
+        documentControl,
+    );
+  }
+  assert.equal(
+    html.includes(
+      "text-overflow:ellipsis;white-space:nowrap}.queue-name",
+    ),
+    false,
+    "upload filenames must not be truncated with ellipsis",
+  );
   for (
     const platformView of [
       "portfolioView",
