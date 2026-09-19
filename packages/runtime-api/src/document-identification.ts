@@ -300,9 +300,20 @@ async function verifiedMediaType(
   if (
     meaningfulCharacters(prefix) > 0
   ) {
+    const declaredType =
+      declared?.trim().toLowerCase();
     return (
-      declared?.trim() ||
-      "text/plain"
+      declaredType &&
+      (
+        declaredType.startsWith(
+          "text/",
+        ) ||
+        declaredType.includes(
+          "json",
+        )
+      )
+        ? declared!.trim()
+        : "text/plain"
     );
   }
 
