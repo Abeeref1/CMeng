@@ -551,3 +551,55 @@ test("submitted manpower is compared with independently required manpower when a
     ),
   );
 });
+
+
+test("non-hour labor UOM is not silently converted into manpower hours", () => {
+  const r =
+    resources();
+  r.resources[0]!.unitName =
+    "Persons";
+  r.resources[0]!.unitAbbreviation =
+    "person";
+
+  const result =
+    buildDeliveryChallengeProjection({
+      generatedAt:
+        "2026-06-01T00:00:00.000Z",
+      producerVersion: "test",
+      schedule: schedule(),
+      quantities:
+        quantities(),
+      resources: r,
+      independentForecast:
+        forecast(),
+      contractTimeBasis:
+        contractTime,
+      submittedManpowerPlan:
+        null,
+    });
+
+  assert.equal(
+    result.manpowerChallenge
+      .evidenceRemainingLaborHours,
+    null,
+  );
+  assert.equal(
+    result.manpowerChallenge
+      .requiredAverageManpowerToContract,
+    null,
+  );
+  assert.ok(
+    result.diagnostics.some(
+      (code) =>
+        code.startsWith(
+          "LABOR_UNIT_NOT_HOURS_NOT_USED_FOR_MANPOWER_CALCULATION",
+        ),
+    ),
+  );
+  assert.deepEqual(
+    result.manpowerChallenge
+      .scheduleDerivedScenarios
+      .map((row) => row.crewSize),
+    [4, 6, 8],
+  );
+});
