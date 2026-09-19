@@ -304,6 +304,27 @@ export interface StoredContractDocument {
   result: ContractDocumentResult;
 }
 
+export interface RiskControlRecord {
+  riskId: string;
+  status:
+    | "open"
+    | "closed"
+    | "unknown";
+  rating: string | null;
+  owner: string | null;
+  dueIso: string | null;
+  sourceRefs: string[];
+}
+
+export interface DerivedControlEvidence {
+  variations?: VariationRecord[];
+  invoices?: InvoiceRecord[];
+  ncrs?: NcrRecord[];
+  rfis?: RfiRecord[];
+  risks?: RiskControlRecord[];
+  delayClaims?: DelayClaimsModel;
+}
+
 export interface ProjectControlState {
   delayClaims: DelayClaimsModel | null;
   contractTimeBasis: ContractTimeBasis | null;
@@ -331,6 +352,7 @@ export interface ProjectControlState {
   ncrs: NcrRecord[];
   rfis: RfiRecord[];
   permits: PermitRecord[];
+  risks: RiskControlRecord[];
   boardPublication:
     | BoardReportPublicationInput
     | null;
@@ -361,6 +383,11 @@ export interface ProjectRuntimeState {
     PublishedBoardReportRecord[];
   delayEventHistory:
     DelayEventVersionRecord[];
+  derivedControlsByDocument:
+    Record<
+      string,
+      DerivedControlEvidence
+    >;
   derivedReadinessByDocument:
     Record<
       string,
