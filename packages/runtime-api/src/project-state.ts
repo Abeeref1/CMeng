@@ -625,6 +625,46 @@ export class RuntimeProjectStore {
     );
   }
 
+  private createOcrProvider():
+    TesseractOcrProvider {
+    const cachePath =
+      join(
+        this.dataDir,
+        "ocr-cache",
+      );
+    mkdirSync(
+      cachePath,
+      { recursive: true },
+    );
+    const languages =
+      (
+        process.env
+          .CMENG_OCR_LANGUAGES ??
+        "eng,ara"
+      )
+        .split(/[,+]/)
+        .map(
+          (value) =>
+            value.trim(),
+        )
+        .filter(Boolean);
+
+    return new TesseractOcrProvider({
+      languages,
+      cachePath,
+      ...(process.env
+        .CMENG_OCR_LANG_PATH
+        ?.trim()
+        ? {
+            langPath:
+              process.env
+                .CMENG_OCR_LANG_PATH!
+                .trim(),
+          }
+        : {}),
+    });
+  }
+
   private persistRawUpload(
     input: {
       projectId: string;
