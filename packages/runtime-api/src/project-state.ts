@@ -2173,6 +2173,9 @@ export class RuntimeProjectStore {
       EvidenceLineage,
     assertions:
       DocumentAssertion[] = [],
+    uploadIntent:
+      EvidenceUploadIntent =
+        "add_update",
   ): void {
     const state =
       this.getOrCreate(
@@ -2193,11 +2196,6 @@ export class RuntimeProjectStore {
           state.evidenceDocuments,
       });
 
-    // Preserve the established BOQ basis. Later revised or replacement
-    // documents remain candidate evidence until explicitly promoted.
-    if (!state.boq) {
-      state.boq = result;
-    }
     const existingBoqIndex =
       state.boqRevisions.findIndex(
         (item) =>
@@ -2213,18 +2211,6 @@ export class RuntimeProjectStore {
         result,
       );
     }
-    if (
-      state.boq?.ingestionId ===
-      result.ingestionId
-    ) {
-      state.quantities =
-        quantityModelFromBoq(
-          result,
-          latest?.revision
-            .revisionId ?? "",
-          state.quantities,
-        );
-    }
 
     if (bytes) {
       const storedPath =
@@ -2239,71 +2225,139 @@ export class RuntimeProjectStore {
             sourceFilename ??
             result.sourceFilename,
         });
-      this.upsertEvidence(
-        state,
-        {
-          documentId:
-            this.evidenceDocumentId(
-              result.sourceHashSha256,
-              sourceRelativePath ??
-                sourceFilename ??
-                result.sourceFilename,
-            ),
+      const documentId =
+        this.evidenceDocumentId(
+          result.sourceHashSha256,
+          sourceRelativePath ??
+            sourceFilename ??
+            result.sourceFilename,
+        );
+      const family =
+        evidenceFamily({
           category: "boq_cost",
           documentType: "boq",
+          scheduleRole: null,
+          textSample:
+            assertions
+              .map(
+                (assertion) =>
+                  assertion.sourceText,
+              )
+              .join("\n"),
           sourceFilename:
             sourceFilename ??
             result.sourceFilename ??
             "boq",
-          sourceRelativePath:
-            sourceRelativePath ??
-            sourceFilename ??
-            result.sourceFilename,
-          mediaType:
-            result.mediaType,
-          sourceHashSha256:
-            result.sourceHashSha256,
-          sizeBytes:
-            bytes.length,
-          uploadedAt:
-            result.receivedAt,
-          authority:
-            "candidate_only",
-          parserState:
-            result.complete
-              ? "parsed"
-              : "partial",
-          storedPath,
-          linkedArtifactId:
-            result.ingestionId,
-          scheduleRole: null,
-          mapping: null,
-          identification:
-            identification ??
-            specialistIdentification({
-              mediaType:
-                result.mediaType,
-              category:
-                "boq_cost",
-              documentType:
-                "boq",
-              sourceFilename:
-                sourceFilename ??
-                result.sourceFilename,
-              diagnostics:
-                result.diagnostics,
-            }),
-          lineage:
-            boqLineage,
-          assertions,
-          diagnostics: [
-            ...(identification
-              ?.diagnostics ?? []),
-            ...boqLineage.diagnostics,
-            ...result.diagnostics,
-          ],
-        },
+        });
+      const document:
+        StoredEvidenceDocument = {
+        documentId,
+        category: "boq_cost",
+        documentType: "boq",
+        sourceFilename:
+          sourceFilename ??
+          result.sourceFilename ??
+          "boq",
+        sourceRelativePath:
+          sourceRelativePath ??
+          sourceFilename ??
+          result.sourceFilename,
+        mediaType:
+          result.mediaType,
+        sourceHashSha256:
+          result.sourceHashSha256,
+        sizeBytes:
+          bytes.length,
+        uploadedAt:
+          result.receivedAt,
+        authority:
+          "candidate_only",
+        parserState:
+          result.complete
+            ? "parsed"
+            : "partial",
+        storedPath,
+        linkedArtifactId:
+          result.ingestionId,
+        scheduleRole: null,
+        mapping: null,
+        identification:
+          identification ??
+          specialistIdentification({
+            mediaType:
+              result.mediaType,
+            category:
+              "boq_cost",
+            documentType:
+              "boq",
+            sourceFilename:
+              sourceFilename ??
+              result.sourceFilename,
+            diagnostics:
+              result.diagnostics,
+          }),
+        lineage:
+          boqLineage,
+        assertions,
+        uploadIntent,
+        familyKey:
+          family.familyKey,
+        logicalDocumentKey:
+          family.logicalDocumentKey,
+        basisState: "candidate",
+        supersededByDocumentId:
+          null,
+        supersedesDocumentIds:
+          [],
+        diagnostics: [
+          ...(identification
+            ?.diagnostics ?? []),
+          ...boqLineage.diagnostics,
+          ...result.diagnostics,
+        ],
+      };
+      this.upsertEvidence(
+        state,
+        document,
       );
+      applyEvidenceBasis(
+        state,
+        document,
+        uploadIntent,
+      );
+
+      const activeBoqDocumentId =
+        state.activeEvidenceBasis[
+          "boq:quantity"
+        ]?.activeDocumentId ??
+        null;
+      if (
+        activeBoqDocumentId ===
+        document.documentId
+      ) {
+        state.boq = result;
+        state.quantities =
+          quantityModelFromBoq(
+            result,
+            latest?.revision
+              .revisionId ?? "",
+            state.quantities,
+          );
+      }
+    }
+
+    if (
+      !bytes &&
+      !state.boq
+    ) {
+      state.boq = result;
+      state.quantities =
+        quantityModelFromBoq(
+          result,
+          latest?.revision
+            .revisionId ?? "",
+          state.quantities,
+        );
     }
 
     this.touch(state);
