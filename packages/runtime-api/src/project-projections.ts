@@ -1656,13 +1656,18 @@ function buildBundle(
                   state.quantities
                     ? "mapping_pending"
                     : "not_submitted",
-                unitSeriesCount: 0,
+                unitSeriesCount:
+                  state.quantities
+                    ? 0
+                    : null,
                 unmappedItemCount:
                   state.quantities
                     ?.items.length ??
-                  0,
+                  null,
                 overAllocatedItemCount:
-                  0,
+                  state.quantities
+                    ? 0
+                    : null,
               },
           contract: challengeContract
             ? {
@@ -1684,35 +1689,79 @@ function buildBundle(
             : {
                 loaded: false,
                 physicalComplete:
-                  false,
+                  null,
                 semanticComplete:
-                  false,
+                  null,
                 challengeSignalCount:
-                  0,
+                  null,
                 noticeRequirementCandidateCount:
-                  0,
+                  null,
               },
           claims: {
             contractorClaimEvidenceSubmitted:
               delayModel !== null,
             eventCount:
-              noticesClaims
-                ?.eventCount ??
-              0,
+              delayModel
+                ? (
+                    noticesClaims
+                      ?.eventCount ??
+                    0
+                  )
+                : null,
             claimCount:
-              noticesClaims
-                ?.claimCount ??
-              0,
+              delayModel
+                ? (
+                    noticesClaims
+                      ?.claimCount ??
+                    0
+                  )
+                : null,
             observedPositiveMovementDays:
-              delayClaims
-                ?.observedPositiveIndependentMovementDays ??
               windows
-                ?.positiveIndependentMovementDays ??
-              0,
+                ? windows
+                    .positiveIndependentMovementDays
+                : null,
+            observedProgrammeMovementDays:
+              windows
+                ? windows
+                    .positiveProgrammeMovementDays
+                : null,
+            analyticalTimeImpactCandidateDays:
+              eotAssessment
+                ?.analyticalTimeImpactCandidateDays ??
+              windows
+                ?.positiveProgrammeMovementDays ??
+              null,
+            attributableCandidateEotDays:
+              eotAssessment
+                ?.attributableCandidateEotDays ??
+              null,
+            unattributedTimeImpactDays:
+              eotAssessment
+                ?.unattributedTimeImpactDays ??
+              windows
+                ?.positiveProgrammeMovementDays ??
+              null,
             candidateAdditionalEotDays:
               eotAssessment
                 ?.candidateAdditionalEotDays ??
               null,
+          },
+          risk: {
+            evidenceState:
+              evidenceTypes.has(
+                "risk_register",
+              )
+                ? "submitted_unparsed"
+                : "not_submitted",
+            openRiskCount:
+              null,
+            note:
+              evidenceTypes.has(
+                "risk_register",
+              )
+                ? "Risk register evidence is present, but an open-risk population is not yet semantically established; CMeng will not display zero."
+                : "No risk register evidence is established; CMeng will not display zero.",
           },
           revision: {
             revisionCount:
