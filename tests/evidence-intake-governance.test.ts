@@ -611,11 +611,17 @@ test("unified evidence intake governs Add Replace and family-specific history", 
             body: risk3,
           },
         );
-      assert.equal(
-        rerunUpload.status,
-        201,
-        await rerunUpload.text(),
-      );
+      if (
+        rerunUpload.status !==
+        201
+      ) {
+        throw new Error(
+          "Rerun upload failed " +
+            rerunUpload.status +
+            ": " +
+            await rerunUpload.text(),
+        );
+      }
       const rerunUploadBody =
         await rerunUpload.json() as any;
       assert.equal(
