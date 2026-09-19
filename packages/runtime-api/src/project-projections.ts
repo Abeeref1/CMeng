@@ -155,10 +155,82 @@ function available(
   };
 }
 
+function revisionRolePriority(
+  role:
+    ProjectRuntimeState["schedules"][number]["role"],
+): number {
+  if (role === "baseline") return 0;
+  if (role === "revised_baseline") return 1;
+  if (role === "update") return 2;
+  if (role === "other") return 3;
+  return 4;
+}
+
+function revisionChronology(
+  a: ProjectRuntimeState["schedules"][number],
+  b: ProjectRuntimeState["schedules"][number],
+): number {
+  const ad =
+    a.revision.model.dataDateIso ??
+    a.revision.effectiveAt ??
+    "";
+  const bd =
+    b.revision.model.dataDateIso ??
+    b.revision.effectiveAt ??
+    "";
+
+  if (ad && bd) {
+    const byDate =
+      ad.localeCompare(bd);
+    if (byDate !== 0) {
+      return byDate;
+    }
+  } else if (ad) {
+    return -1;
+  } else if (bd) {
+    return 1;
+  }
+
+  const byRole =
+    revisionRolePriority(a.role) -
+    revisionRolePriority(b.role);
+  return byRole !== 0
+    ? byRole
+    : a.revision.sequence -
+        b.revision.sequence;
+}
+
+function analyticalHistory(
+  state: ProjectRuntimeState,
+): ProjectRuntimeState["schedules"] {
+  const official =
+    state.schedules.filter(
+      (item) =>
+        item.role === "baseline" ||
+        item.role === "update" ||
+        item.role ===
+          "revised_baseline",
+    );
+  const nonRecovery =
+    state.schedules.filter(
+      (item) =>
+        item.role !== "recovery",
+    );
+  return [
+    ...(official.length > 0
+      ? official
+      : nonRecovery.length > 0
+        ? nonRecovery
+        : state.schedules),
+  ].sort(revisionChronology);
+}
+
 function actualHistory(
   state: ProjectRuntimeState,
 ) {
-  return state.schedules
+  return analyticalHistory(
+    state,
+  )
     .map((stored) => {
       const model =
         stored.revision.model;
@@ -234,23 +306,8 @@ function buildBundle(
     );
   }
 
-  const officialHistory =
-    state.schedules.filter(
-      (item) =>
-        item.role === "baseline" ||
-        item.role === "update" ||
-        item.role ===
-          "revised_baseline",
-    );
-  const ordered = [
-    ...(officialHistory.length > 0
-      ? officialHistory
-      : state.schedules),
-  ].sort(
-    (a, b) =>
-      a.revision.sequence -
-      b.revision.sequence,
-  );
+  const ordered =
+    analyticalHistory(state);
   const current =
     runtimeProjects.latestSchedule(
       state.projectId,
