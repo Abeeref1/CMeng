@@ -92,6 +92,10 @@ import {
   deriveReadinessFromCsv,
   rebuildReadinessEvidence,
 } from "./evidence-readiness";
+import {
+  deriveControlsFromCsv,
+  rebuildDerivedControls,
+} from "./evidence-control-adapters";
 
 function hashBytes(
   bytes: Uint8Array,
@@ -1939,9 +1943,42 @@ export class RuntimeProjectStore {
             document.documentId
           ] = derived;
       }
+
+      const derivedControls =
+        deriveControlsFromCsv({
+          state,
+          document,
+          bytes:
+            input.bytes,
+        });
+      if (
+        Object.keys(
+          derivedControls,
+        ).length > 0
+      ) {
+        state
+          .derivedControlsByDocument[
+            document.documentId
+          ] = derivedControls;
+      }
+
       rebuildReadinessEvidence(
         state,
       );
+      rebuildDerivedControls(
+        state,
+      );
+
+      if (
+        state.controls
+          .delayClaims
+      ) {
+        this.captureDelayEventHistory(
+          state,
+          state.controls
+            .delayClaims,
+        );
+      }
     }
     this.touchEvidence(state);
     return {
