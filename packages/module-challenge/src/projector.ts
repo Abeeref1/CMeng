@@ -431,7 +431,21 @@ function gapValue(
           ).toFixed(6),
         ),
       unit: "days",
+      authority:
+        "derived",
       sourceRefs: [],
+      basisRevisionId:
+        independent
+          .basisRevisionId,
+      coveragePercent:
+        independent
+          .coveragePercent,
+      asOfIso:
+        independent.asOfIso,
+      confidence:
+        independent
+          .confidence,
+      diagnostics: [],
       note:
         "Independent date minus submitted date.",
     };
