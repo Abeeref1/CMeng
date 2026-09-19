@@ -23,14 +23,14 @@ button,input,select{font:inherit}button{cursor:pointer}
 .brand-mark{width:52px;height:52px;border-radius:12px;overflow:hidden;background:#fff;border:1px solid #d8c79f;box-shadow:0 6px 18px rgba(104,80,27,.10);flex:0 0 auto}.brand-mark img{display:block;width:100%;height:100%;object-fit:cover}
 .brand-copy h1{font-size:22px;line-height:1.02;margin:0 0 4px;letter-spacing:-.035em;font-weight:820;color:#20242a}.brand-copy p{margin:0;color:#7b8190;font-size:10.5px;line-height:1.35;text-transform:uppercase;letter-spacing:.06em;font-weight:700}
 .platform-nav{display:grid;gap:5px;margin:0 0 14px}.platform-item{width:100%;border:0;background:transparent;color:#3d4653;text-align:left;padding:10px 11px;border-radius:9px;display:flex;align-items:center;gap:9px;font-size:13.5px;font-weight:720}.platform-item:hover{background:#f2ebdc;color:#20242a}.platform-item.active{background:#efe4cc;color:#221d15;box-shadow:inset 3px 0 0 var(--accent)}.platform-icon{width:18px;text-align:center;color:#a97721;font-weight:850}.active-project-card{margin:10px 0 6px;padding:12px 12px;border:1px solid #ddd6c8;border-radius:10px;background:#fff;box-shadow:0 3px 12px rgba(52,44,31,.035)}.active-project-card b{display:block;font-size:12.5px;color:#23272e;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.active-project-card span{display:block;color:#7a8290;font-size:10.5px;margin-top:3px}.sidebar-divider{height:1px;background:#ddd8ce;margin:12px 0}
-.platform-view[hidden],#projectWorkspace[hidden]{display:none!important}.portfolio-hero{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;margin-bottom:20px}.portfolio-hero h2{font-size:31px;margin:0 0 6px;letter-spacing:-.04em}.portfolio-hero p{margin:0;color:var(--muted);max-width:760px}.portfolio-stats{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:12px;margin-bottom:18px}.portfolio-stat{background:#fff;border:1px solid var(--line);border-top:3px solid #d7b46b;border-radius:11px;padding:15px}.portfolio-stat b{display:block;font-size:24px;letter-spacing:-.03em}.portfolio-stat span{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.055em;font-weight:750}.project-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:12px}.project-card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px;box-shadow:var(--shadow);transition:transform .15s ease,box-shadow .15s ease}.project-card:hover{transform:translateY(-1px);box-shadow:0 8px 24px rgba(15,23,42,.07)}.project-card-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.project-card h3{margin:0;font-size:16px}.project-card .muted{font-size:12px}.project-health{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin:13px 0}.project-health div{background:#f7f9fc;border-radius:8px;padding:8px}.project-health b{display:block;font-size:16px}.project-health span{font-size:9.5px;color:var(--muted);text-transform:uppercase;font-weight:750}.project-card-actions{display:flex;justify-content:flex-end;gap:8px}.project-create{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;max-width:620px}.project-create input{height:42px;border:1px solid #cbd5e1;border-radius:9px;padding:0 12px}
+.platform-view[hidden],#projectWorkspace[hidden]{display:none!important}.project-side-only{display:none}.project-active .project-side-only{display:block}.portfolio-hero{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;margin-bottom:20px}.portfolio-hero h2{font-size:31px;margin:0 0 6px;letter-spacing:-.04em}.portfolio-hero p{margin:0;color:var(--muted);max-width:760px}.portfolio-stats{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:12px;margin-bottom:18px}.portfolio-stat{background:#fff;border:1px solid var(--line);border-top:3px solid #d7b46b;border-radius:11px;padding:15px}.portfolio-stat b{display:block;font-size:24px;letter-spacing:-.03em}.portfolio-stat span{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.055em;font-weight:750}.project-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:12px}.project-card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px;box-shadow:var(--shadow);transition:transform .15s ease,box-shadow .15s ease}.project-card:hover{transform:translateY(-1px);box-shadow:0 8px 24px rgba(15,23,42,.07)}.project-card-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.project-card h3{margin:0;font-size:16px}.project-card .muted{font-size:12px}.project-health{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin:13px 0}.project-health div{background:#f7f9fc;border-radius:8px;padding:8px}.project-health b{display:block;font-size:16px}.project-health span{font-size:9.5px;color:var(--muted);text-transform:uppercase;font-weight:750}.project-card-actions{display:flex;justify-content:flex-end;gap:8px}.project-create{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;max-width:620px}.project-create input{height:42px;border:1px solid #cbd5e1;border-radius:9px;padding:0 12px}
 .ai-shell{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(300px,.65fr);gap:16px}.ai-panel,.ai-context{background:#fff;border:1px solid var(--line);border-radius:12px;padding:18px;box-shadow:var(--shadow)}.ai-panel h3,.ai-context h3{margin:0 0 6px}.ai-intro{color:var(--muted);font-size:13px;margin-bottom:15px}.ai-composer{display:flex;gap:8px}.ai-composer textarea{width:100%;min-height:96px;resize:vertical;border:1px solid #cbd5e1;border-radius:10px;padding:11px 12px;font:inherit}.ai-answer{margin-top:14px;border:1px solid #dbe5f1;border-radius:10px;background:#f8fbff;padding:14px;white-space:pre-wrap;font-size:13px;line-height:1.55}.ai-suggestions{display:flex;flex-wrap:wrap;gap:7px;margin-top:12px}.ai-suggestion{border:1px solid #d7e2f0;background:#fff;border-radius:999px;padding:7px 10px;font-size:11.5px;color:#36506f;cursor:pointer}.run-state{font-size:11.5px;color:var(--muted)}
 @media(max-width:900px){.portfolio-stats{grid-template-columns:1fr 1fr}.ai-shell{grid-template-columns:1fr}}
 .nav-group{margin:20px 0}.nav-group-title{font-size:11px;color:#8b8170;text-transform:uppercase;letter-spacing:.095em;padding:0 10px 9px;font-weight:800}
 .nav-item{width:100%;border:0;background:transparent;color:#4a525d;text-align:left;padding:10px 11px;border-radius:9px;display:flex;align-items:center;justify-content:space-between;gap:9px;font-size:13.5px;font-weight:620;transition:.16s ease}
 .nav-item:hover{background:#f2ebdc;color:#22262c}.nav-item.active{background:#efe4cc;color:#221d15;box-shadow:inset 3px 0 0 var(--accent)}
 .nav-label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.status-dot{width:8px;height:8px;border-radius:50%;background:#9ba3ad;flex:0 0 auto;box-shadow:0 0 0 3px rgba(90,75,40,.035)}.status-dot.ready{background:#32d583}.status-dot.partial{background:#fdb022}.status-dot.blocked{background:#f97066}
-.main{min-width:0}.topbar{min-height:66px;background:rgba(255,255,255,.97);backdrop-filter:blur(12px);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:9px;padding:10px 26px;position:sticky;top:0;z-index:10;flex-wrap:wrap;box-shadow:0 1px 0 rgba(15,23,42,.02)}.topbar-context{display:flex;flex-direction:column;gap:1px;padding-left:14px;margin-left:2px;border-left:1px solid var(--line);min-width:150px}.topbar-context b{font-size:12px;color:#182438}.topbar-context span{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.055em;font-weight:750}.topbar-spacer{flex:1}.release-state{display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#526176;white-space:nowrap}.release-state:before{content:"";width:7px;height:7px;border-radius:50%;background:#32d583;box-shadow:0 0 0 3px #ecfdf3}.platform-context{display:flex;flex-direction:column;min-width:160px}.platform-context span{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;font-weight:800}.platform-context b{font-size:13px;color:var(--ink)}.project-only{display:none!important}.project-active .project-only{display:flex!important}.project-active button.project-only{display:inline-flex!important}.project-active .topbar-context.project-only{display:flex!important}.auto-run-toggle{display:inline-flex;align-items:center;gap:7px;font-size:11.5px;color:var(--muted);font-weight:650}.auto-run-toggle input{width:auto}
+.main{min-width:0}.topbar{min-height:66px;background:rgba(255,255,255,.97);backdrop-filter:blur(12px);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:9px;padding:10px 26px;position:sticky;top:0;z-index:10;flex-wrap:wrap;box-shadow:0 1px 0 rgba(15,23,42,.02)}.topbar-context{display:flex;flex-direction:column;gap:1px;padding-left:14px;margin-left:2px;border-left:1px solid var(--line);min-width:150px}.topbar-context b{font-size:12px;color:#182438}.topbar-context span{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.055em;font-weight:750}.topbar-spacer{flex:1}.release-state{display:none!important}.release-state:before{content:"";width:7px;height:7px;border-radius:50%;background:#32d583;box-shadow:0 0 0 3px #ecfdf3}.platform-context{display:flex;flex-direction:column;min-width:160px}.platform-context span{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;font-weight:800}.platform-context b{font-size:13px;color:var(--ink)}.project-only{display:none!important}.project-active .project-only{display:flex!important}.project-active button.project-only{display:inline-flex!important}.project-active .topbar-context.project-only{display:flex!important}.auto-run-toggle{display:inline-flex;align-items:center;gap:7px;font-size:11.5px;color:var(--muted);font-weight:650}.auto-run-toggle input{width:auto}
 .project-input{display:flex;align-items:center;gap:9px;min-width:350px}.project-input label{font-size:12px;color:var(--muted);font-weight:750;text-transform:uppercase;letter-spacing:.04em}.project-input input{height:40px;border:1px solid #cbd5e1;border-radius:9px;padding:0 12px;min-width:220px;background:#fff;color:var(--ink);font-weight:650;outline:none}.project-input input:focus{border-color:#7aa2ff;box-shadow:0 0 0 3px rgba(35,87,217,.11)}
 .btn{border:1px solid #cbd5e1;background:#fff;border-radius:9px;padding:9px 14px;font-weight:700;font-size:13px;color:#334155;min-height:40px;transition:background .15s ease,border-color .15s ease,box-shadow .15s ease,transform .15s ease}.btn:hover{background:#f8fafc;border-color:#b8c4d1}.btn:active{transform:translateY(1px)}.btn.primary{background:var(--accent);border-color:var(--accent);color:#17120a;box-shadow:0 3px 10px rgba(166,112,24,.16)}.btn.primary:hover{background:var(--accent-strong);border-color:var(--accent-strong)}.btn.small{padding:7px 11px;font-size:12px;min-height:34px}.btn.active{background:var(--accent-soft);border-color:#e0bd78;color:#7e5515}
 .content{padding:28px 32px 64px;width:100%;max-width:none;margin:0}
@@ -42,7 +42,7 @@ button,input,select{font:inherit}button{cursor:pointer}
 .module-head{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:13px}.module-head h3{font-size:18px;margin:0}
 .director-section{margin-top:24px}.section-heading{display:flex;justify-content:space-between;align-items:end;gap:14px;margin:0 0 12px}.section-heading h3{font-size:20px;margin:0 0 3px;letter-spacing:-.02em}.section-heading p{font-size:13px;color:var(--muted);margin:0}
 .scalar-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(175px,1fr));gap:11px;margin-bottom:14px}.scalar{background:var(--soft);padding:13px 14px;border-radius:9px;border:1px solid #e7edf3;min-width:0}.scalar b{display:block;font-size:11.5px;color:var(--muted);margin-bottom:6px;overflow:hidden;text-overflow:ellipsis;font-weight:750}.scalar span{font-size:15px;font-weight:680;word-break:break-word}
-.table-wrap{overflow:auto;border:1px solid var(--line);border-radius:10px;max-height:min(66vh,680px);background:#fff;scrollbar-color:#c7d2df transparent;scrollbar-width:thin}table{border-collapse:separate;border-spacing:0;width:100%;font-size:13px;font-variant-numeric:tabular-nums}th,td{padding:11px 12px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}th{background:#f6f8fb;color:#46556a;font-weight:780;position:sticky;top:0;z-index:2;font-size:11.5px;letter-spacing:.025em;white-space:nowrap;text-transform:none}td{color:#27364a}tbody tr:nth-child(even) td{background:#fcfdff}tbody tr:hover td{background:#f6f9fd}tr:last-child td{border-bottom:0}.kpi-value,.position-value,.scalar span,.currency-line strong,.movement-value,.candidate-value{font-variant-numeric:tabular-nums}.module-panel{position:relative}.module-panel:before{content:"";position:absolute;left:0;right:0;top:0;height:3px;background:linear-gradient(90deg,#2357d9,#0f766e);z-index:3}.module-basis{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 14px}.basis-chip{display:inline-flex;align-items:center;gap:7px;min-height:32px;padding:6px 9px;border:1px solid #dbe4ee;border-radius:9px;background:#fff;font-size:11.5px;color:#526176}.basis-chip b{font-size:10px;color:#738198;text-transform:uppercase;letter-spacing:.05em}.basis-chip strong{font-size:11.5px;color:#233149;font-weight:780}.focus-module .director-section,.focus-module .workspace-drawer,.focus-module .footer-note,.focus-module .workspace-header,.focus-module .quick-upload-bar{display:none}.focus-module .content{padding-top:18px}.focus-module .module-panel{min-height:calc(100vh - 112px)}.focus-module .module-panel #moduleContent{min-height:calc(100vh - 190px)}
+.table-wrap{overflow:auto;border:1px solid var(--line);border-radius:10px;max-height:min(66vh,680px);background:#fff;scrollbar-color:#c7d2df transparent;scrollbar-width:thin}table{border-collapse:separate;border-spacing:0;width:100%;font-size:13px;font-variant-numeric:tabular-nums}th,td{padding:11px 12px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}th{background:#f6f8fb;color:#46556a;font-weight:780;position:sticky;top:0;z-index:2;font-size:11.5px;letter-spacing:.025em;white-space:nowrap;text-transform:none}td{color:#27364a}tbody tr:nth-child(even) td{background:#fcfdff}tbody tr:hover td{background:#f6f9fd}tr:last-child td{border-bottom:0}.kpi-value,.position-value,.scalar span,.currency-line strong,.movement-value,.candidate-value{font-variant-numeric:tabular-nums}.module-panel{position:relative}.module-panel:before{content:"";position:absolute;left:0;right:0;top:0;height:3px;background:linear-gradient(90deg,#c99737,#e2c785);z-index:3}.module-basis{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 14px}.basis-chip{display:inline-flex;align-items:center;gap:7px;min-height:32px;padding:6px 9px;border:1px solid #dbe4ee;border-radius:9px;background:#fff;font-size:11.5px;color:#526176}.basis-chip b{font-size:10px;color:#738198;text-transform:uppercase;letter-spacing:.05em}.basis-chip strong{font-size:11.5px;color:#233149;font-weight:780}.focus-module .director-section,.focus-module .workspace-drawer,.focus-module .footer-note,.focus-module .workspace-header,.focus-module .quick-upload-bar{display:none}.focus-module .content{padding-top:18px}.focus-module .module-panel{min-height:calc(100vh - 112px)}.focus-module .module-panel #moduleContent{min-height:calc(100vh - 190px)}
 .actions{display:flex;flex-direction:column;gap:8px}.action{padding:11px 13px;background:#fff8ed;border-left:3px solid #f79009;border-radius:7px;font-size:13px}
 .empty{padding:34px;text-align:center;color:var(--muted);font-size:14px}.notice{padding:12px 14px;border-radius:9px;font-size:13px;margin:11px 0;line-height:1.45}.notice.info{background:#eff6ff;color:#1d4f91;border:1px solid #d9e8ff}.notice.warn{background:#fff9e8;color:#8a4b08;border:1px solid #f8e7b1}.notice.error{background:#fff1f0;color:#912018;border:1px solid #ffd8d3}
 .upload-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.upload-box{border:1px solid #d9e2ec;border-radius:11px;padding:14px;background:#fafcff}.upload-box strong{font-size:13px;display:block;margin-bottom:5px}.upload-box small{color:var(--muted);display:block;margin-bottom:10px;line-height:1.45;font-size:12px}.upload-box input{width:100%;font-size:12px}.intent-control{display:flex;align-items:center;justify-content:space-between;gap:9px;margin:10px 0;padding:8px 9px;background:#f2f6fb;border-radius:8px}.intent-control span{font-size:11px;color:#607086;font-weight:750}.intent-control select{max-width:175px;height:32px;border:1px solid #cbd5e1;border-radius:7px;background:#fff;color:#334155;font-size:11.5px;padding:0 7px}
@@ -71,24 +71,24 @@ details:not(.workspace-drawer){border:1px solid var(--line);border-radius:9px;ba
       <button class="platform-item" data-view="projects"><span class="platform-icon">▦</span><span>Projects</span></button>
       <button class="platform-item" data-view="ai"><span class="platform-icon">✦</span><span>Ask CMeng</span></button>
     </div>
-    <div class="active-project-card" id="activeProjectCard"><span>Active project</span><b id="activeProjectName">No project selected</b><span id="activeProjectMeta">Open a project from Portfolio or Projects</span></div>
-    <div class="sidebar-divider"></div>
+    <div class="active-project-card project-side-only" id="activeProjectCard"><span>Active project</span><b id="activeProjectName">No project selected</b><span id="activeProjectMeta">Open a project from Portfolio or Projects</span></div>
+    <div class="sidebar-divider project-side-only"></div>
     <div id="nav"></div>
   </aside>
   <main class="main">
     <div class="topbar">
-      <div class="platform-context"><span>CMeng workspace</span><b id="platformContextTitle">Portfolio</b></div>
+      <div class="platform-context"><span>CMeng</span><b id="platformContextTitle">Portfolio</b></div>
       <div class="project-input project-only">
         <label>Project</label>
         <input id="projectId" value="" aria-label="Project ID">
       </div>
       <button class="btn primary project-only" id="openEvidenceTop">Upload / Update</button>
-      <button class="btn project-only" id="runAnalysisTop">Run analysis</button>
+      <button class="btn project-only" id="runAnalysisTop">Update position</button>
       <button class="btn project-only" id="openAiTop">Ask CMeng</button>
       <button class="btn project-only" id="refresh">Refresh</button>
-      <button class="btn project-only" id="focusMode" aria-pressed="false">Focus module</button>
+      <button class="btn project-only" id="focusMode" aria-pressed="false">Focus view</button>
       <button class="btn project-only" id="loadDemo">Load certified demo</button>
-      <div class="topbar-context project-only"><span>Active module</span><b id="topbarModule">PMO Analysis</b></div>
+      <div class="topbar-context project-only"><span>Current view</span><b id="topbarModule">PMO Analysis</b></div>
       <div class="topbar-spacer"></div>
       <span id="releaseStatus" class="release-state">Production</span>
       <span id="globalStatus" style="font-size:12px;color:#667085"></span>
@@ -96,16 +96,16 @@ details:not(.workspace-drawer){border:1px solid var(--line);border-radius:9px;ba
     <div class="content">
       <section id="portfolioView" class="platform-view">
         <div class="portfolio-hero">
-          <div><span class="section-kicker">Portfolio</span><h2>Portfolio intelligence</h2><p>All projects, evidence readiness and analysis status in one place. Open a project to upload new evidence, rerun analysis and review its controlled position.</p></div>
+          <div><span class="section-kicker">Portfolio</span><h2>Portfolio Overview</h2><p>View every project, latest data date, project-document completeness and current control position. Open a project to add or update documents and refresh its position.</p></div>
           <button class="btn primary" id="portfolioNewProject">New project</button>
         </div>
         <div id="portfolioStats" class="portfolio-stats"></div>
-        <div id="portfolioProjects" class="project-grid"><div class="empty">Loading portfolio...</div></div>
+        <div id="portfolioProjects" class="project-grid"><div class="empty">Loading projects...</div></div>
       </section>
 
       <section id="projectsView" class="platform-view" hidden>
         <div class="portfolio-hero">
-          <div><span class="section-kicker">Projects</span><h2>Project register</h2><p>Create a project or open an existing project workspace. Every upload and analysis run remains scoped to that project.</p></div>
+          <div><span class="section-kicker">Projects</span><h2>Projects</h2><p>Create a project or open an existing one. Documents, updates and calculations remain separate for each project.</p></div>
         </div>
         <div class="card" style="margin-bottom:16px">
           <h3>Create project</h3>
@@ -117,20 +117,20 @@ details:not(.workspace-drawer){border:1px solid var(--line);border-radius:9px;ba
 
       <section id="aiView" class="platform-view" hidden>
         <div class="portfolio-hero">
-          <div><span class="section-kicker">AI Intelligence</span><h2>Ask CMeng</h2><p>Ask questions against the active project's governed schedule, progress, forecast, claims, contract and evidence outputs.</p></div>
+          <div><span class="section-kicker">CMeng AI</span><h2>Ask CMeng</h2><p>Ask about the current programme, progress, resources, forecast, claims, contract and project documents.</p></div>
           <span class="badge" id="aiProjectBadge">No active project</span>
         </div>
         <div class="ai-shell">
           <div class="ai-panel">
-            <h3>Project intelligence</h3>
-            <div class="ai-intro">Answers remain advisory and evidence-grounded. Candidate or contradictory evidence is not silently promoted into the governed basis.</div>
+            <h3>Ask about this project</h3>
+            <div class="ai-intro">CMeng AI answers from the current project records and calculated position. Recommendations do not change the current project position unless you approve them.</div>
             <div class="ai-composer"><textarea id="aiQuestion" placeholder="Ask: What changed since the last update? What is driving the forecast? Which claims have the strongest time impact?"></textarea><button class="btn primary" id="askAi">Ask</button></div>
             <div class="ai-suggestions" id="aiSuggestions"></div>
             <div id="aiAnswer" class="ai-answer">Open a project, then ask CMeng about its position.</div>
           </div>
           <div class="ai-context">
-            <h3>Grounding</h3>
-            <div id="aiGrounding" class="muted">No project selected.</div>
+            <h3>Project information used</h3>
+            <div id="aiProject information used" class="muted">No project selected.</div>
           </div>
         </div>
       </section>
@@ -138,55 +138,55 @@ details:not(.workspace-drawer){border:1px solid var(--line);border-radius:9px;ba
       <div id="projectWorkspace" hidden>
       <div class="workspace-header">
         <div class="page-title">
-          <span class="eyebrow">CMeng · controlled project intelligence</span>
-          <h2>Project Control Workspace</h2>
-          <p>Evidence-backed schedule, progress, forecast, claims and commercial analysis. Select a module on the left to work directly in the active analysis.</p>
+          <span class="eyebrow">Current project</span>
+          <h2>Project Controls</h2>
+          <p>Current programme, progress, resources, forecast, claims and commercial position based on the latest project records. Choose a project-control view from the left.</p>
         </div>
         <div class="workspace-actions">
-          <button class="btn primary" id="openEvidenceHero">Upload evidence</button>
+          <button class="btn primary" id="openEvidenceHero">Add / update documents</button>
           <span id="projectBadge" class="badge">No project</span>
         </div>
       </div>
 
       <div class="quick-upload-bar">
-        <div class="quick-upload-copy"><b>Start with project evidence</b><span>Upload schedules, BOQ, contracts, claims, registers, reports or a complete ZIP evidence pack.</span></div>
+        <div class="quick-upload-copy"><b>Project documents</b><span>Add programme updates, BOQ, contracts, claims, registers, reports or a complete document pack.</span></div>
         <div class="quick-upload-actions">
-          <button class="btn upload-cta" id="openEvidenceQuick">Upload files</button>
-          <button class="btn ghost-dark" id="openLibraryQuick">Evidence library</button>
+          <button class="btn upload-cta" id="openEvidenceQuick">Add documents</button>
+          <button class="btn ghost-dark" id="openLibraryQuick">Document register</button>
         </div>
       </div>
 
       <section class="card module-panel module-workspace">
         <div class="module-head module-workspace-head">
           <div>
-            <span class="section-kicker">Active module</span>
+            <span class="section-kicker">Current view</span>
             <h3 id="moduleTitle">Schedule module</h3>
-            <p>Calculated position, evidence basis, contradictions, consequences and required action.</p>
+            <p>Current position, supporting records, variances, consequences and required management action.</p>
           </div>
-          <span id="moduleBadge" class="badge">Select a module</span>
+          <span id="moduleBadge" class="badge">Select a view</span>
         </div>
-        <div id="moduleContent" class="empty">Choose a module from the left navigation.</div>
+        <div id="moduleContent" class="empty">Choose a project-control view from the left.</div>
       </section>
 
       <details class="workspace-drawer" id="evidenceControlDrawer" open>
         <summary>
-          <div><span class="section-kicker">Evidence & uploads</span><strong>Upload project files and control the active basis</strong></div>
-          <span class="drawer-hint">Open workspace</span>
+          <div><span class="section-kicker">Project documents</span><strong>Add new documents or update the current project record</strong></div>
+          <span class="drawer-hint">Open</span>
         </summary>
         <div class="drawer-body">
           <div class="grid evidence-control-grid">
             <section class="card evidence-status-card">
-              <div class="module-head"><h3>Project evidence status</h3><span class="badge">Control basis</span></div>
-              <div id="projectStatus" class="empty">Load the demo or upload project evidence.</div>
+              <div class="module-head"><h3>Project information</h3><span class="badge">Current record</span></div>
+              <div id="projectStatus" class="empty">Add project documents to establish the current project position.</div>
             </section>
 
             <section class="card evidence-intake-card">
-              <div class="module-head"><h3>Evidence intake</h3><label class="auto-run-toggle"><input type="checkbox" id="runAfterUpload" checked> Run analysis after upload</label></div>
+              <div class="module-head"><h3>Add / update project documents</h3><label class="auto-run-toggle"><input type="checkbox" id="runAfterUpload" checked> Update position after upload</label></div>
               <div class="upload-row">
                 <div class="upload-box">
                   <strong>Schedule revisions</strong>
                   <small>Select baseline, updates, revised baseline and recovery files together. CMeng verifies content and chronology; filenames are only hints.</small>
-                  <div class="intent-control"><span>Upload intent</span><select id="scheduleIntent"><option value="add_update" selected>Add / update</option><option value="replace_current_basis">Replace current basis</option></select></div>
+                  <div class="intent-control"><span>Document action</span><select id="scheduleIntent"><option value="add_update" selected>Add / update</option><option value="replace_current_basis">Replace current document</option></select></div>
                   <input type="file" id="scheduleFiles" multiple accept=".xer,.xml,.xlsx,.xlsm,.csv">
                   <div id="scheduleQueue" class="queue"></div>
                   <div class="upload-actions"><button class="btn small primary" id="uploadSchedules">Upload schedule batch</button></div>
@@ -194,7 +194,7 @@ details:not(.workspace-drawer){border:1px solid var(--line);border-radius:9px;ba
                 <div class="upload-box">
                   <strong>BOQ / quantity revisions</strong>
                   <small>Select one or more BOQ revisions. CMeng inspects the content and retains prior revisions rather than silently overwriting them.</small>
-                  <div class="intent-control"><span>Upload intent</span><select id="boqIntent"><option value="add_update" selected>Add / update</option><option value="replace_current_basis">Replace current basis</option></select></div>
+                  <div class="intent-control"><span>Document action</span><select id="boqIntent"><option value="add_update" selected>Add / update</option><option value="replace_current_basis">Replace current document</option></select></div>
                   <input type="file" id="boqFiles" multiple accept=".csv,.xlsx,.xlsm,.pdf">
                   <div id="boqQueue" class="queue"></div>
                   <div class="upload-actions"><button class="btn small primary" id="uploadBoqs">Upload BOQ batch</button></div>
@@ -202,7 +202,7 @@ details:not(.workspace-drawer){border:1px solid var(--line);border-radius:9px;ba
                 <div class="upload-box">
                   <strong>Contract family</strong>
                   <small>Select the main contract, amendments and appendices. Additive documents remain separate; replacement is an explicit user intent.</small>
-                  <div class="intent-control"><span>Upload intent</span><select id="contractIntent"><option value="add_update" selected>Add / update</option><option value="replace_current_basis">Replace current basis</option></select></div>
+                  <div class="intent-control"><span>Document action</span><select id="contractIntent"><option value="add_update" selected>Add / update</option><option value="replace_current_basis">Replace current document</option></select></div>
                   <input type="file" id="contractFiles" multiple accept=".pdf,.docx,.png,.jpg,.jpeg,.tif,.tiff,.bmp,.webp">
                   <div id="contractQueue" class="queue"></div>
                   <div class="upload-actions"><button class="btn small primary" id="uploadContracts">Upload contract batch</button></div>
@@ -211,13 +211,13 @@ details:not(.workspace-drawer){border:1px solid var(--line);border-radius:9px;ba
 
               <div class="wide-upload">
                 <div>
-                  <strong>Full evidence pack / supporting documents</strong>
+                  <strong>Other project documents / full document pack</strong>
                   <small>Upload ZIP or multiple files covering cost/EVM, payment, variations, claims, risk, procurement, RFI, submittals, design, HSE, NCR, FM/assets, ORAT and other control evidence.</small>
-                  <div class="intent-control"><span>Batch intent</span><select id="evidenceIntent"><option value="add_update" selected>Add / update</option><option value="replace_current_basis">Replace current basis where applicable</option></select></div>
+                  <div class="intent-control"><span>Document action</span><select id="evidenceIntent"><option value="add_update" selected>Add / update</option><option value="replace_current_basis">Replace current document where applicable</option></select></div>
                   <input type="file" id="evidenceFiles" multiple accept=".zip,.csv,.pdf,.docx,.xlsx,.xlsm,.xer,.xml,.png,.jpg,.jpeg,.tif,.tiff,.bmp,.webp">
                   <div id="evidenceQueue" class="queue"></div>
                 </div>
-                <button class="btn primary" id="uploadEvidence">Upload evidence</button>
+                <button class="btn primary" id="uploadEvidence">Add / update documents</button>
               </div>
               <div id="uploadMessage"></div>
             </section>
@@ -228,7 +228,7 @@ details:not(.workspace-drawer){border:1px solid var(--line);border-radius:9px;ba
       <details class="workspace-drawer director-section" id="directorDrawer">
         <summary>
           <div><span class="section-kicker">Management position</span><strong>Project Director</strong></div>
-          <span class="drawer-hint">Open management view</span>
+          <span class="drawer-hint">Open</span>
         </summary>
         <div class="drawer-body" style="padding-top:18px">
           <section id="director"></section>
@@ -237,11 +237,11 @@ details:not(.workspace-drawer){border:1px solid var(--line);border-radius:9px;ba
 
       <details class="workspace-drawer" id="evidenceLibraryDrawer">
         <summary>
-          <div><span class="section-kicker">Traceability</span><strong>Evidence library & mapping</strong></div>
+          <div><span class="section-kicker">Project records</span><strong>Document register & mapping</strong></div>
           <span id="evidenceBadge" class="badge">0 documents</span>
         </summary>
         <div class="drawer-body">
-          <div id="evidenceLibrary" class="empty">No project evidence has been registered.</div>
+          <div id="evidenceLibrary" class="empty">No project documents have been added.</div>
         </div>
       </details>
 
@@ -252,13 +252,13 @@ details:not(.workspace-drawer){border:1px solid var(--line);border-radius:9px;ba
 </div>
 <script>
 const groups={
-  "Analysis":["pmo-analysis","schedule-analytics","activity-analytics","lookahead-schedule","schedule-change-report","revision-trend","milestones","near-critical"],
+  "Programme & Planning":["pmo-analysis","schedule-analytics","activity-analytics","lookahead-schedule","schedule-change-report","revision-trend","milestones","near-critical"],
   "Progress & Resources":["resource-utilization","progress-report","variance-trends","progress-scurve","quantity-scurve","progress-breakdown","manhour-scurve"],
-  "Forecast":["forecast-history","independent-forecast"],
-  "Claims & Contract":["delay-claims","notices-claims","windows-analysis","eot-assessment","challenge-contract"]
+  "Forecast & Completion":["forecast-history","independent-forecast"],
+  "Claims & Commercial":["delay-claims","notices-claims","windows-analysis","eot-assessment","challenge-contract"]
 };
 const names={
-"pmo-analysis":"PMO Analysis","schedule-analytics":"Schedule Analytics","activity-analytics":"Activity Analytics","resource-utilization":"Resource Utilization","lookahead-schedule":"Look-Ahead Schedule","progress-report":"Progress Report","schedule-change-report":"Schedule Change Report","revision-trend":"Revision Trend","variance-trends":"Variance Trends","progress-scurve":"Progress S-Curve","quantity-scurve":"Quantity Installed S-Curve","progress-breakdown":"Progress Breakdown","milestones":"Milestones","near-critical":"Near-Critical Activities","manhour-scurve":"Man-Hour S-Curve","forecast-history":"Forecast History","independent-forecast":"Independent Forecast","delay-claims":"Delay & Claims","notices-claims":"Notices, EOT & Claims","windows-analysis":"Windows Analysis","eot-assessment":"EOT Assessment","challenge-contract":"Challenge the Contract"
+"pmo-analysis":"Management Position","schedule-analytics":"Programme Review","activity-analytics":"Activity Review","resource-utilization":"Resources","lookahead-schedule":"Look-Ahead","progress-report":"Progress Position","schedule-change-report":"Programme Changes","revision-trend":"Revision History","variance-trends":"Variance Trend","progress-scurve":"Progress S-Curve","quantity-scurve":"Installed Quantities","progress-breakdown":"WBS Progress","milestones":"Milestones","near-critical":"Near-Critical Activities","manhour-scurve":"Man-Hour S-Curve","forecast-history":"Completion Forecast History","independent-forecast":"CMeng Completion Forecast","delay-claims":"Delay Events & Claims","notices-claims":"Notices, EOT & Claims","windows-analysis":"Delay Windows","eot-assessment":"EOT Position","challenge-contract":"Challenge the Contract"
 };
 let overview=null,selected="pmo-analysis",portfolioData=null,appView="portfolio";
 let scheduleSelection=[],boqSelection=[],contractSelection=[],evidenceSelection=[];
@@ -266,6 +266,7 @@ const el=id=>document.getElementById(id);
 const project=()=>el("projectId").value.trim();
 const fmt=v=>v===null||v===undefined?"—":typeof v==="number"?new Intl.NumberFormat(undefined,{maximumFractionDigits:2}).format(v):String(v);
 const statusClass=s=>s==="ready"?"ready":s==="partial"?"partial":"blocked";
+const statusLabel=s=>s==="ready"?"Available":s==="partial"?"Needs review":"Needs information";
 function setBusy(text){el("globalStatus").innerHTML=text?'<span class="spinner"></span> '+text:"";}
 async function api(path,opts={}){const r=await fetch(path,opts);let data=null;try{data=await r.json()}catch{}if(!r.ok){const e=new Error(data?.error||data?.reason||("HTTP "+r.status));e.data=data;e.status=r.status;throw e}return data}
 function escapeHtml(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
@@ -280,9 +281,9 @@ function renderPlatformNav(){
 }
 function renderNav(){
   const nav=el("nav");
-  if(appView!=="project"||!overview){nav.innerHTML='<div class="nav-group"><div class="nav-group-title">Project workspace</div><div class="muted" style="padding:0 10px;font-size:11px;color:#8092aa">Open a project to access analysis modules.</div></div>';return}
+  if(appView!=="project"||!overview){nav.innerHTML="";return}
   const states=new Map((overview?.moduleStates||[]).map(x=>[x.key,x]));
-  let html='<div class="nav-group"><div class="nav-group-title">Project modules</div>';
+  let html='<div class="nav-group"><div class="nav-group-title">Project Controls</div>';
   Object.entries(groups).forEach(([group,keys])=>{
     html+='<div class="nav-group-title" style="padding-top:10px">'+group+'</div>';
     keys.forEach(key=>{
@@ -312,31 +313,31 @@ function renderUniversalChallenge(challenge){
       const evidenceScore=score.evidenceScore===undefined?"—":fmt(score.evidenceScore);
       const recommendationScore=score.recommendationScore===undefined?"—":fmt(score.recommendationScore);
       return '<div class="candidate-card '+(score.recommended?"recommended":"")+'">'+
-        '<span class="section-kicker">Candidate '+escapeHtml(index+1)+(score.recommended?" · recommended":"")+'</span>'+
+        '<span class="section-kicker">Position '+escapeHtml(index+1)+(score.recommended?" · recommended":"")+'</span>'+
         '<div class="candidate-value">'+escapeHtml(withUnit(candidate.submittedValue,candidate.submittedUnit))+'</div>'+
         '<div class="candidate-meta">'+
           '<div><b>Independent gap</b>'+escapeHtml(gap)+'</div>'+
           '<div><b>Comparable</b>'+escapeHtml(candidate.comparable===false?"No":"Yes")+'</div>'+
-          '<div><b>Evidence score</b>'+escapeHtml(evidenceScore)+'</div>'+
-          '<div><b>Recommendation score</b>'+escapeHtml(recommendationScore)+'</div>'+
+          '<div><b>Source strength</b>'+escapeHtml(evidenceScore)+'</div>'+
+          '<div><b>CMeng confidence</b>'+escapeHtml(recommendationScore)+'</div>'+
         '</div>'+
-        '<div class="candidate-sources"><b>Evidence:</b> '+escapeHtml(sources)+(candidate.note?'<br>'+escapeHtml(candidate.note):'')+'</div>'+
+        '<div class="candidate-sources"><b>Sources:</b> '+escapeHtml(sources)+(candidate.note?'<br>'+escapeHtml(candidate.note):'')+'</div>'+
       '</div>';
     }).join("");
     const hasRecommendation=rec.recommendedValue!==null&&rec.recommendedValue!==undefined;
     const recommendation=hasRecommendation?withUnit(rec.recommendedValue,rec.recommendedUnit):"No unique candidate";
     const rationale=Array.isArray(rec.rationale)?rec.rationale.join(" "):(rec.rationale||"All defensible candidates remain visible until the user determines the governed basis.");
     return '<div class="conflict-panel">'+
-      '<div class="conflict-title"><div><strong>Contradictory evidence · parallel calculations retained</strong><p>CMeng calculates every defensible candidate separately. Contradiction does not make the metric unavailable.</p></div><span class="badge partial">Conflict</span></div>'+
+      '<div class="conflict-title"><div><strong>Conflicting project information · all defensible positions retained</strong><p>CMeng calculates each defensible position separately and keeps the supporting records visible until management selects the adopted position.</p></div><span class="badge partial">Conflict</span></div>'+
       '<div class="candidate-grid">'+candidateCards+'</div>'+
-      '<div class="recommendation-card"><div><span class="recommendation-label">CMeng recommendation</span><strong>'+escapeHtml(recommendation)+'</strong><p>'+escapeHtml(rationale)+'</p></div><span class="decision-pill">User decision required</span></div>'+
+      '<div class="recommendation-card"><div><span class="recommendation-label">CMeng recommendation</span><strong>'+escapeHtml(recommendation)+'</strong><p>'+escapeHtml(rationale)+'</p></div><span class="decision-pill">Management decision required</span></div>'+
     '</div>';
   };
   const rows=challenge.items.map(item=>{
     const sub=item.submitted||{},ind=item.independent||{},gap=item.gap||{};
     const comparisons=Array.isArray(item.candidateComparisons)?item.candidateComparisons:[];
     const conflicted=sub.state==="conflicted"||comparisons.length>1;
-    const submittedText=sub.state==="not_submitted"?"Not submitted":conflicted?"Contradictory · "+Math.max(comparisons.length,sub.alternatives?.length||0)+" candidates":withUnit(sub.value,sub.unit);
+    const submittedText=sub.state==="not_submitted"?"Not provided":conflicted?"Contradictory · "+Math.max(comparisons.length,sub.alternatives?.length||0)+" candidates":withUnit(sub.value,sub.unit);
     const gapText=conflicted?"Parallel calculations below":withUnit(gap.value,gap.unit);
     const main='<tr>'+
       '<td><b>'+escapeHtml(item.label||item.metric)+'</b><br><span class="muted">'+escapeHtml(item.evidenceState||"")+'</span></td>'+
@@ -349,12 +350,12 @@ function renderUniversalChallenge(challenge){
     const detail=conflictPanel(item);
     return main+(detail?'<tr class="conflict-expand-row"><td colspan="6">'+detail+'</td></tr>':'');
   }).join("");
-  return '<div class="card challenge-card" style="margin-bottom:14px"><div class="module-head challenge-head"><h3>Submitted vs Independent Challenge</h3><span class="badge '+(challenge.challengedCount?"partial":"ready")+'">'+escapeHtml(challenge.challengedCount)+" challenged"+'</span></div>'+
+  return '<div class="card challenge-card" style="margin-bottom:14px"><div class="module-head challenge-head"><h3>Submitted Position vs CMeng Check</h3><span class="badge '+(challenge.challengedCount?"partial":"ready")+'">'+escapeHtml(challenge.challengedCount)+" challenged"+'</span></div>'+
     '<div class="scalar-grid challenge-summary">'+
-      '<div class="scalar"><b>Submitted evidence</b><span>'+escapeHtml(challenge.submittedEvidenceState)+'</span></div>'+
-      '<div class="scalar"><b>Independent state</b><span>'+escapeHtml(challenge.independentState)+'</span></div>'+
-      '<div class="scalar"><b>Not submitted</b><span>'+escapeHtml(challenge.notSubmittedCount)+'</span></div>'+
-      '<div class="scalar"><b>Scenario items</b><span>'+escapeHtml(challenge.scenarioCount)+'</span></div>'+
+      '<div class="scalar"><b>Submitted information</b><span>'+escapeHtml(challenge.submittedEvidenceState)+'</span></div>'+
+      '<div class="scalar"><b>CMeng check</b><span>'+escapeHtml(challenge.independentState)+'</span></div>'+
+      '<div class="scalar"><b>Not provided</b><span>'+escapeHtml(challenge.notSubmittedCount)+'</span></div>'+
+      '<div class="scalar"><b>Alternative positions</b><span>'+escapeHtml(challenge.scenarioCount)+'</span></div>'+
     '</div>'+
     '<div class="table-wrap challenge-table-wrap"><table><thead><tr><th>Metric</th><th>Submitted</th><th>Independent</th><th>Gap</th><th>Consequence</th><th>Action</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';
 }
@@ -556,7 +557,7 @@ function renderDelayClaimsVisual(data){
   const p=projectionFor(data,"delay_claims");
   if(!Array.isArray(p.events))return"";
   const rows=p.events.map(e=>'<tr><td><b>'+escapeHtml(e.eventId)+'</b><br><span class="muted">'+escapeHtml(e.title||"")+'</span></td><td>'+escapeHtml(e.responsibility)+'</td><td>'+escapeHtml(e.noticeTimeliness)+'</td><td>'+escapeHtml(fmt(e.observedPositiveProgrammeMovementDays))+'</td><td>'+escapeHtml(e.programmeMovementBasis)+'</td><td><span class="state-pill '+(e.concurrencyCandidate?"review":"ready")+'">'+escapeHtml(e.candidateClass)+'</span></td><td>'+escapeHtml((e.linkedClaimIds||[]).join(", ")||"—")+'</td><td>'+escapeHtml((e.relatedActivityIds||[]).join(", ")||"—")+'</td></tr>').join("");
-  return '<section class="chart-card"><div class="chart-card-head"><div><h4>Delay Event & Claim Linkage</h4><p>Observed programme movement remains separate from causal/contractual entitlement.</p></div><span class="badge">'+escapeHtml(p.eventCount||0)+' events · '+escapeHtml(p.claimCount||0)+' claims</span></div><div class="chart-body"><div class="table-wrap"><table><thead><tr><th>Event</th><th>Responsibility</th><th>Notice</th><th>Positive movement days</th><th>Movement basis</th><th>Candidate class</th><th>Claims</th><th>Activities</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></section>';
+  return '<section class="chart-card"><div class="chart-card-head"><div><h4>Delay Event & Claim Linkage</h4><p>Observed programme movement remains separate from causal/contractual entitlement.</p></div><span class="badge">'+escapeHtml(p.eventCount||0)+' events · '+escapeHtml(p.claimCount||0)+' claims</span></div><div class="chart-body"><div class="table-wrap"><table><thead><tr><th>Event</th><th>Responsibility</th><th>Notice</th><th>Positive movement days</th><th>Movement basis</th><th>Position class</th><th>Claims</th><th>Activities</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></section>';
 }
 function renderEotVisual(data){
   const p=projectionFor(data,"eot_assessment");
@@ -766,9 +767,9 @@ function renderModuleBasis(data){
   const projectId=root.projectId||null;
   const values=[
     ["Project",projectId],
-    ["Basis revision",revision],
-    ["As of",asOf],
-    ["Authority",authority],
+    ["Current revision",revision],
+    ["Data date",asOf],
+    ["Record status",authority],
     ["Coverage",typeof coverage==="number"?fmt(coverage)+"%":coverage]
   ].filter(([,value])=>value!==null&&value!==undefined&&String(value).length>0);
   if(!values.length)return"";
@@ -782,19 +783,19 @@ function renderStructuredSections(data){
     return '<section class="data-section"><div class="data-section-head"><h4>'+escapeHtml(humanizeKey(key))+'</h4>'+(count===null?'':'<span class="badge">'+escapeHtml(count)+' records</span>')+'</div><div class="data-section-body">'+renderStructuredValue(value,0)+'</div></section>';
   }).join("");
 }
-function renderModuleResult(result){const moduleName=names[result.key]||result.key;el("moduleTitle").textContent=moduleName;el("topbarModule").textContent=moduleName;el("moduleBadge").className="badge "+statusClass(result.status);el("moduleBadge").textContent=result.status;if(result.status==="blocked"){el("moduleContent").innerHTML='<div class="notice warn"><b>Blocked by evidence dependency</b><br>'+escapeHtml(result.reason||"Required evidence is not established.")+'</div><div class="scalar-grid">'+(result.dependencies||[]).map(x=>'<div class="scalar"><b>Required</b><span>'+escapeHtml(x)+'</span></div>').join("")+'</div>';return}const data=result.data||{};if(result.key==="challenge-contract"&&renderDeliveryChallenge(data,result.reason))return;const basisHtml=renderModuleBasis(data);const challengeHtml=renderUniversalChallenge(data.challenge);const specialized=renderSpecializedModule(result.key,data);const scalars=scalarPairs(data).filter(([k])=>k!=="challenge").map(([k,v])=>'<div class="scalar"><b>'+escapeHtml(humanizeKey(k))+'</b><span>'+escapeHtml(fmt(v))+'</span></div>').join("");const structured=renderStructuredSections(data);const genericView=(scalars?'<div class="scalar-grid">'+scalars+'</div>':'')+structured;const primaryView=specialized||genericView;const evidenceDetail=specialized&&structured?'<details class="technical-payload"><summary>Full evidence-backed detail</summary><div style="padding:0 12px 12px">'+structured+'</div></details>':'';el("directorDrawer").open=result.key==="pmo-analysis";el("moduleContent").innerHTML=basisHtml+(result.reason?'<div class="notice info">'+escapeHtml(result.reason)+'</div>':'')+challengeHtml+primaryView+evidenceDetail+'<details class="technical-payload"><summary>Technical payload</summary><pre>'+escapeHtml(JSON.stringify(data,null,2))+'</pre></details>'}
+function renderModuleResult(result){const moduleName=names[result.key]||result.key;el("moduleTitle").textContent=moduleName;el("topbarModule").textContent=moduleName;el("moduleBadge").className="badge "+statusClass(result.status);el("moduleBadge").textContent=statusLabel(result.status);if(result.status==="blocked"){el("moduleContent").innerHTML='<div class="notice warn"><b>This view needs additional project information</b><br>'+escapeHtml(result.reason||"Required project information is not yet available.")+'</div><div class="scalar-grid">'+(result.dependencies||[]).map(x=>'<div class="scalar"><b>Required information</b><span>'+escapeHtml(humanizeKey(x))+'</span></div>').join("")+'</div>';return}const data=result.data||{};if(result.key==="challenge-contract"&&renderDeliveryChallenge(data,result.reason))return;const basisHtml=renderModuleBasis(data);const challengeHtml=renderUniversalChallenge(data.challenge);const specialized=renderSpecializedModule(result.key,data);const scalars=scalarPairs(data).filter(([k])=>k!=="challenge").map(([k,v])=>'<div class="scalar"><b>'+escapeHtml(humanizeKey(k))+'</b><span>'+escapeHtml(fmt(v))+'</span></div>').join("");const structured=renderStructuredSections(data);const genericView=(scalars?'<div class="scalar-grid">'+scalars+'</div>':'')+structured;const primaryView=specialized||genericView;const evidenceDetail=specialized&&structured?'<details class="technical-payload"><summary>Supporting project detail</summary><div style="padding:0 12px 12px">'+structured+'</div></details>':'';el("directorDrawer").open=result.key==="pmo-analysis";el("moduleContent").innerHTML=basisHtml+(result.reason?'<div class="notice info">'+escapeHtml(result.reason)+'</div>':'')+challengeHtml+primaryView+evidenceDetail}
 async function loadModule(key){if(!overview){el("moduleContent").innerHTML='<div class="empty">Load a project first.</div>';return}setBusy("Calculating "+names[key]);try{const result=await api("/api/projects/"+encodeURIComponent(project())+"/schedule/modules/"+encodeURIComponent(key));renderModuleResult(result)}catch(e){const d=e.data||{};renderModuleResult({key,status:"blocked",reason:d.reason||d.error||e.message,dependencies:d.dependencies||[]})}finally{setBusy("")}}
 function kpi(label,value,sub=""){return'<div class="card kpi-card"><div class="kpi-label">'+escapeHtml(label)+'</div><div class="kpi-value">'+escapeHtml(fmt(value))+'</div><div class="kpi-sub">'+escapeHtml(sub)+'</div></div>'}
-function evidenceCount(state,value){if(state==="established")return fmt(value);if(state==="submitted_unparsed")return"Source submitted · count not established";return"Not submitted"}
+function evidenceCount(state,value){if(state==="established")return fmt(value);if(state==="submitted_unparsed")return"Source submitted · count not established";return"Not provided"}
 function renderDirector(d){if(!d){el("director").innerHTML='<div class="card"><div class="empty">Director position will populate only when its governed schedule, contract, claims/EOT and commercial dependencies are available.</div></div>';return}const s=d.schedule,c=d.claims,ctrl=d.controls;let html='<div class="grid kpi">'+kpi("Data Date",s.dataDateIso)+kpi("Independent Forecast",s.independentForecastCompletionIso)+kpi("Official Completion",s.officialAdjustedCompletionIso||s.contractualCompletionIso)+kpi("Programme movement",c.observedProgrammeMovementDays,"days carried from schedule windows")+kpi("Time-impact candidate",c.analyticalTimeImpactCandidateDays,"analytical, not entitlement")+kpi("Attributable EOT candidate",c.attributableCandidateEotDays,"analytical, not awarded")+kpi("Official EOT",c.officialApprovedEotDays,"governed award only")+kpi("CPM integrity",s.independentCpmState,s.drivingPathState)+kpi("Claims linked",c.fullyLinkedClaimCount+" / "+c.claimCount,"claim → event → activity")+kpi("LD Scenario",d.ld.cappedAmount===null?"—":fmt(d.ld.cappedAmount)+" "+(d.ld.currency||""),d.ld.state)+'</div>';html+='<div class="grid two"><div class="card"><h3>Commercial exposure by currency</h3><div class="grid three">';(d.commercialByCurrency||[]).forEach(r=>{html+='<div class="currency-card"><div class="currency-code">'+escapeHtml(r.currency)+'</div>'+[["Pending variations",r.pendingVariationAmount],["Approved variations",r.approvedVariationAmount],["Certified unpaid",r.certifiedUnpaidAmount],["Retention held",r.retentionHeldAmount],["Active bonds",r.activeBondAmount],["Claimed",r.claimClaimedAmount],["LD scenario",r.ldScenarioAmount]].map(x=>'<div class="currency-line"><span>'+x[0]+'</span><strong>'+escapeHtml(fmt(x[1]))+'</strong></div>').join("")+'</div>'});html+='</div></div><div class="card"><h3>Management actions</h3><div class="actions">'+((d.managementActions||[]).length?d.managementActions.map(a=>'<div class="action">'+escapeHtml(a)+'</div>').join(""):'<div class="empty">No current actions generated.</div>')+'</div><div style="margin-top:14px" class="scalar-grid">'+'<div class="scalar"><b>Open HSE</b><span>'+escapeHtml(evidenceCount(ctrl.hseEvidenceState,ctrl.openHseIncidentCount))+'</span></div>'+'<div class="scalar"><b>LTI or worse</b><span>'+escapeHtml(evidenceCount(ctrl.hseEvidenceState,ctrl.openLtiOrWorseCount))+'</span></div>'+'<div class="scalar"><b>Major / critical NCR</b><span>'+escapeHtml(evidenceCount(ctrl.qualityEvidenceState,ctrl.openCriticalMajorNcrCount))+'</span></div>'+'<div class="scalar"><b>Overdue RFI</b><span>'+escapeHtml(evidenceCount(ctrl.rfiEvidenceState,ctrl.overdueRfiCount))+'</span></div>'+'<div class="scalar"><b>Permit issues</b><span>'+escapeHtml(evidenceCount(ctrl.permitEvidenceState,ctrl.overduePermitCount))+'</span></div>'+'<div class="scalar"><b>Expiring bonds</b><span>'+escapeHtml(evidenceCount(ctrl.bondEvidenceState,ctrl.expiringBondCount30Days))+'</span></div>'+'<div class="scalar"><b>Open risks</b><span>'+escapeHtml(evidenceCount(ctrl.riskEvidenceState,ctrl.openRiskCount))+'</span></div>'+'</div></div></div>';el("director").innerHTML=html}
-function renderStatus(o){const ready=o.moduleStates.filter(x=>x.status==="ready").length,partial=o.moduleStates.filter(x=>x.status==="partial").length,blocked=o.moduleStates.filter(x=>x.status==="blocked").length;el("projectBadge").className="badge "+(o.demo?"partial":"ready");el("projectBadge").textContent=o.demo?"CERTIFIED DEMO":"USER PROJECT";el("projectStatus").innerHTML='<div class="scalar-grid">'+'<div class="scalar"><b>Baseline / revised baseline</b><span>'+fmt(o.baselineRevisionCount)+'</span></div>'+'<div class="scalar"><b>Updates</b><span>'+fmt(o.updateRevisionCount)+'</span></div>'+'<div class="scalar"><b>Recovery scenarios</b><span>'+fmt(o.recoveryRevisionCount)+'</span></div>'+'<div class="scalar"><b>Current Data Date</b><span>'+fmt(o.latestDataDateIso)+'</span></div>'+'<div class="scalar"><b>Evidence documents</b><span>'+fmt(o.evidenceDocumentCount)+'</span></div>'+'<div class="scalar"><b>Ready modules</b><span>'+ready+' / 22</span></div>'+'<div class="scalar"><b>Partial</b><span>'+partial+'</span></div>'+'<div class="scalar"><b>Blocked</b><span>'+blocked+'</span></div>'+'</div>'}
+function renderStatus(o){const ready=o.moduleStates.filter(x=>x.status==="ready").length,partial=o.moduleStates.filter(x=>x.status==="partial").length,blocked=o.moduleStates.filter(x=>x.status==="blocked").length;el("projectBadge").className="badge "+(o.demo?"partial":"ready");el("projectBadge").textContent=o.demo?"DEMONSTRATION PROJECT":"CURRENT PROJECT";el("projectStatus").innerHTML='<div class="scalar-grid">'+'<div class="scalar"><b>Baseline / revised baseline</b><span>'+fmt(o.baselineRevisionCount)+'</span></div>'+'<div class="scalar"><b>Updates</b><span>'+fmt(o.updateRevisionCount)+'</span></div>'+'<div class="scalar"><b>Recovery scenarios</b><span>'+fmt(o.recoveryRevisionCount)+'</span></div>'+'<div class="scalar"><b>Current Data Date</b><span>'+fmt(o.latestDataDateIso)+'</span></div>'+'<div class="scalar"><b>Evidence documents</b><span>'+fmt(o.evidenceDocumentCount)+'</span></div>'+'<div class="scalar"><b>Ready modules</b><span>'+ready+' / 22</span></div>'+'<div class="scalar"><b>Needs review</b><span>'+partial+'</span></div>'+'<div class="scalar"><b>Needs information</b><span>'+blocked+'</span></div>'+'</div>'}
 function renderScheduleQueue(){el("scheduleQueue").innerHTML=scheduleSelection.map((file,i)=>'<div class="queue-row"><span class="queue-name">'+escapeHtml(file.name)+'</span><select class="schedule-role" data-index="'+i+'"><option value="baseline" '+(inferScheduleRole(file.name)==="baseline"?"selected":"")+'>Baseline</option><option value="update" '+(inferScheduleRole(file.name)==="update"?"selected":"")+'>Update</option><option value="revised_baseline" '+(inferScheduleRole(file.name)==="revised_baseline"?"selected":"")+'>Revised baseline</option><option value="recovery" '+(inferScheduleRole(file.name)==="recovery"?"selected":"")+'>Recovery</option></select></div>').join("")}
 function renderContractQueue(){el("contractQueue").innerHTML=contractSelection.map((file,i)=>{const role=inferContractRole(file.name);return'<div class="queue-row"><span class="queue-name">'+escapeHtml(file.name)+'</span><select class="contract-role" data-index="'+i+'"><option value="main" '+(role==="main"?"selected":"")+'>Main</option><option value="amendment" '+(role==="amendment"?"selected":"")+'>Amendment</option><option value="appendix" '+(role==="appendix"?"selected":"")+'>Appendix</option><option value="tender" '+(role==="tender"?"selected":"")+'>Tender/ER</option><option value="other" '+(role==="other"?"selected":"")+'>Other</option></select></div>'}).join("")}
 function renderSimpleQueue(target,files){el(target).innerHTML=files.map(file=>'<div class="queue-row" style="grid-template-columns:1fr"><span class="queue-name">'+escapeHtml(file.name)+'</span></div>').join("")}
-async function loadEvidence(){if(!overview){el("evidenceBadge").textContent="0 documents";el("evidenceLibrary").innerHTML='<div class="empty">No project evidence has been registered.</div>';return}try{const data=await api("/api/projects/"+encodeURIComponent(project())+"/evidence/documents");el("evidenceBadge").className="badge "+(data.documentCount?"ready":"");el("evidenceBadge").textContent=data.documentCount+" documents";if(!data.documentCount){el("evidenceLibrary").innerHTML='<div class="empty">No uploaded user evidence in this project yet.</div>';return}el("evidenceLibrary").innerHTML='<div class="table-wrap"><table><thead><tr><th>File</th><th>Content identified as</th><th>Change effect</th><th>Confidence</th><th>Read method</th><th>Metadata conflict</th><th>Parser</th><th>Schedule role</th><th>Activity mapping</th></tr></thead><tbody>'+data.documents.map(d=>{const m=d.mapping;const i=d.identification||{};const mapping=!m||m.linkedActivityCount===null?"—":fmt(m.mappedActivityCount)+" / "+fmt(m.linkedActivityCount)+(m.coveragePercent===null?"":" ("+fmt(m.coveragePercent)+"%)");const confidence=i.confidence===undefined?"—":fmt(i.confidence*100)+"%";const conflict=i.classificationConflict?"YES":"No";const method=(i.method||"—")+(i.ocrUsed?" / OCR":"");const title=i.detectedTitle?'<br><span class="muted">'+escapeHtml(i.detectedTitle)+'</span>':"";return'<tr><td><b>'+escapeHtml(d.sourceFilename)+'</b><br><span class="muted">'+escapeHtml(d.sourceRelativePath||"")+'</span></td><td><b>'+escapeHtml(d.category)+'</b><br>'+escapeHtml(d.documentType)+title+'</td><td>'+escapeHtml(d.lineage?.effect||"unknown")+(d.lineage?.replacesEntireBasis?'<br><span class="badge partial">replaces basis</span>':d.lineage?.appliesAsDelta?'<br><span class="badge">delta</span>':'')+'</td><td>'+escapeHtml(confidence)+(i.needsReview?'<br><span class="badge partial">review</span>':'')+'</td><td>'+escapeHtml(method)+'</td><td>'+escapeHtml(conflict)+'</td><td>'+escapeHtml(d.parserState)+'</td><td>'+escapeHtml(d.scheduleRole||"—")+'</td><td>'+escapeHtml(mapping)+'</td></tr>'}).join("")+'</tbody></table></div>'}catch(e){el("evidenceLibrary").innerHTML='<div class="notice warn">Evidence library could not be loaded: '+escapeHtml(e.message)+'</div>'}}
+async function loadEvidence(){if(!overview){el("evidenceBadge").textContent="0 documents";el("evidenceLibrary").innerHTML='<div class="empty">No project documents have been added.</div>';return}try{const data=await api("/api/projects/"+encodeURIComponent(project())+"/evidence/documents");el("evidenceBadge").className="badge "+(data.documentCount?"ready":"");el("evidenceBadge").textContent=data.documentCount+" documents";if(!data.documentCount){el("evidenceLibrary").innerHTML='<div class="empty">No uploaded user evidence in this project yet.</div>';return}el("evidenceLibrary").innerHTML='<div class="table-wrap"><table><thead><tr><th>File</th><th>Content identified as</th><th>Change effect</th><th>Confidence</th><th>Read method</th><th>Metadata conflict</th><th>Parser</th><th>Schedule role</th><th>Activity mapping</th></tr></thead><tbody>'+data.documents.map(d=>{const m=d.mapping;const i=d.identification||{};const mapping=!m||m.linkedActivityCount===null?"—":fmt(m.mappedActivityCount)+" / "+fmt(m.linkedActivityCount)+(m.coveragePercent===null?"":" ("+fmt(m.coveragePercent)+"%)");const confidence=i.confidence===undefined?"—":fmt(i.confidence*100)+"%";const conflict=i.classificationConflict?"YES":"No";const method=(i.method||"—")+(i.ocrUsed?" / OCR":"");const title=i.detectedTitle?'<br><span class="muted">'+escapeHtml(i.detectedTitle)+'</span>':"";return'<tr><td><b>'+escapeHtml(d.sourceFilename)+'</b><br><span class="muted">'+escapeHtml(d.sourceRelativePath||"")+'</span></td><td><b>'+escapeHtml(d.category)+'</b><br>'+escapeHtml(d.documentType)+title+'</td><td>'+escapeHtml(d.lineage?.effect||"unknown")+(d.lineage?.replacesEntireBasis?'<br><span class="badge partial">replaces basis</span>':d.lineage?.appliesAsDelta?'<br><span class="badge">delta</span>':'')+'</td><td>'+escapeHtml(confidence)+(i.needsReview?'<br><span class="badge partial">review</span>':'')+'</td><td>'+escapeHtml(method)+'</td><td>'+escapeHtml(conflict)+'</td><td>'+escapeHtml(d.parserState)+'</td><td>'+escapeHtml(d.scheduleRole||"—")+'</td><td>'+escapeHtml(mapping)+'</td></tr>'}).join("")+'</tbody></table></div>'}catch(e){el("evidenceLibrary").innerHTML='<div class="notice warn">Document register could not be loaded: '+escapeHtml(e.message)+'</div>'}}
 function projectCard(p){
   const issue=p.analysisError?'<div class="notice warn" style="margin:10px 0 0">Legacy project requires analysis refresh. Portfolio remains available.</div>':"";
-  return '<article class="project-card"><div class="project-card-head"><div><h3>'+escapeHtml(p.projectId)+'</h3><div class="muted">'+escapeHtml(p.latestDataDateIso||"No schedule data date")+' · '+escapeHtml(p.evidenceDocumentCount)+' evidence docs</div></div><span class="badge '+(p.minimumEvidenceReady?"ready":"partial")+'">'+(p.minimumEvidenceReady?"basis ready":"basis incomplete")+'</span></div><div class="project-health"><div><b>'+escapeHtml(p.readyModules)+'</b><span>Ready</span></div><div><b>'+escapeHtml(p.partialModules)+'</b><span>Partial</span></div><div><b>'+escapeHtml(p.blockedModules)+'</b><span>Blocked</span></div></div>'+issue+'<div class="project-card-actions"><button class="btn small open-project" data-project="'+escapeHtml(p.projectId)+'">Open project</button></div></article>';
+  return '<article class="project-card"><div class="project-card-head"><div><h3>'+escapeHtml(p.projectId)+'</h3><div class="muted">'+escapeHtml(p.latestDataDateIso||"No schedule data date")+' · '+escapeHtml(p.evidenceDocumentCount)+' evidence docs</div></div><span class="badge '+(p.minimumEvidenceReady?"ready":"partial")+'">'+(p.minimumEvidenceReady?"core records complete":"core records incomplete")+'</span></div><div class="project-health"><div><b>'+escapeHtml(p.readyModules)+'</b><span>Ready</span></div><div><b>'+escapeHtml(p.partialModules)+'</b><span>Partial</span></div><div><b>'+escapeHtml(p.blockedModules)+'</b><span>Blocked</span></div></div>'+issue+'<div class="project-card-actions"><button class="btn small open-project" data-project="'+escapeHtml(p.projectId)+'">Open project</button></div></article>';
 }
 function bindProjectOpeners(){
   document.querySelectorAll(".open-project").forEach(button=>button.onclick=()=>openProject(button.dataset.project));
@@ -807,16 +808,16 @@ function renderPortfolio(){
   const modules=projects.reduce((sum,p)=>sum+(p.readyModules||0),0);
   el("portfolioStats").innerHTML=[
     ["Projects",data.projectCount||0],
-    ["Minimum basis ready",ready],
-    ["Evidence documents",docs],
-    ["Ready analysis modules",modules]
+    ["Core records complete",ready],
+    ["Project documents",docs],
+    ["Available control views",modules]
   ].map(x=>'<div class="portfolio-stat"><b>'+escapeHtml(x[1])+'</b><span>'+escapeHtml(x[0])+'</span></div>').join("");
-  el("portfolioProjects").innerHTML=projects.length?projects.map(projectCard).join(""):'<div class="card"><div class="empty">No projects yet. Create your first project to start controlled analysis.</div></div>';
-  el("projectRegister").innerHTML=projects.length?'<div class="table-wrap"><table><thead><tr><th>Project</th><th>Data date</th><th>Evidence</th><th>Revisions</th><th>Ready</th><th>Partial</th><th>Blocked</th><th></th></tr></thead><tbody>'+projects.map(p=>'<tr><td><b>'+escapeHtml(p.projectId)+'</b></td><td>'+escapeHtml(p.latestDataDateIso||"—")+'</td><td>'+escapeHtml(p.evidenceDocumentCount)+'</td><td>'+escapeHtml(p.revisionCount)+'</td><td>'+escapeHtml(p.readyModules)+'</td><td>'+escapeHtml(p.partialModules)+'</td><td>'+escapeHtml(p.blockedModules)+'</td><td><button class="btn small open-project" data-project="'+escapeHtml(p.projectId)+'">Open</button></td></tr>').join("")+'</tbody></table></div>':'<div class="empty">No projects registered.</div>';
+  el("portfolioProjects").innerHTML=projects.length?projects.map(projectCard).join(""):'<div class="card"><div class="empty">No projects yet. Create your first project to begin project controls.</div></div>';
+  el("projectRegister").innerHTML=projects.length?'<div class="table-wrap"><table><thead><tr><th>Project</th><th>Data date</th><th>Documents</th><th>Revisions</th><th>Available</th><th>Needs review</th><th>Needs information</th><th></th></tr></thead><tbody>'+projects.map(p=>'<tr><td><b>'+escapeHtml(p.projectId)+'</b></td><td>'+escapeHtml(p.latestDataDateIso||"—")+'</td><td>'+escapeHtml(p.evidenceDocumentCount)+'</td><td>'+escapeHtml(p.revisionCount)+'</td><td>'+escapeHtml(p.readyModules)+'</td><td>'+escapeHtml(p.partialModules)+'</td><td>'+escapeHtml(p.blockedModules)+'</td><td><button class="btn small open-project" data-project="'+escapeHtml(p.projectId)+'">Open</button></td></tr>').join("")+'</tbody></table></div>':'<div class="empty">No projects have been created.</div>';
   bindProjectOpeners();
 }
 async function loadPortfolio(){
-  try{portfolioData=await api("/api/portfolio");renderPortfolio()}catch(e){el("portfolioProjects").innerHTML='<div class="notice error">Portfolio could not be loaded: '+escapeHtml(e.message)+'</div>'}
+  try{portfolioData=await api("/api/portfolio");renderPortfolio()}catch(e){el("portfolioProjects").innerHTML='<div class="notice error">Projects could not be loaded: '+escapeHtml(e.message)+'</div>'}
 }
 function updateActiveProjectShell(){
   const id=overview?.projectId||project();
@@ -824,14 +825,14 @@ function updateActiveProjectShell(){
   el("activeProjectMeta").textContent=overview?((overview.latestDataDateIso||"No data date")+" · "+overview.evidenceDocumentCount+" evidence docs"):"Open a project from Portfolio or Projects";
   el("aiProjectBadge").className="badge "+(overview?"ready":"");
   el("aiProjectBadge").textContent=overview?id:"No active project";
-  el("aiGrounding").innerHTML=overview?'<b>'+escapeHtml(id)+'</b><br>'+escapeHtml(overview.evidenceDocumentCount)+' evidence documents<br>'+escapeHtml(overview.revisionCount)+' schedule revisions<br>'+escapeHtml(overview.latestDataDateIso||"No current data date"):'No project selected.';
+  el("aiProject information used").innerHTML=overview?'<b>'+escapeHtml(id)+'</b><br>'+escapeHtml(overview.evidenceDocumentCount)+' evidence documents<br>'+escapeHtml(overview.revisionCount)+' schedule revisions<br>'+escapeHtml(overview.latestDataDateIso||"No current data date"):'No project selected.';
 }
 function setAppView(view){
   appView=view;
   ["portfolio","projects","ai"].forEach(name=>{el(name+"View").hidden=view!==name});
   el("projectWorkspace").hidden=view!=="project";
   document.body.classList.toggle("project-active",view==="project"&&!!overview);
-  const titles={portfolio:"Portfolio",projects:"Projects",ai:"Ask CMeng",project:overview?.projectId||"Project workspace"};
+  const titles={portfolio:"Portfolio",projects:"Projects",ai:"Ask CMeng",project:overview?.projectId||"Project Controls"};
   el("platformContextTitle").textContent=titles[view]||"CMeng";
   renderPlatformNav();
   renderNav();
@@ -853,21 +854,21 @@ async function createProject(){
   setBusy("Creating project");
   try{
     await api("/api/projects",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({projectId})});
-    el("createProjectMessage").innerHTML='<div class="notice info">Project created. Opening workspace...</div>';
+    el("createProjectMessage").innerHTML='<div class="notice info">Project created. Opening project controls...</div>';
     await loadPortfolio();
     await openProject(projectId);
   }catch(e){el("createProjectMessage").innerHTML='<div class="notice error">'+escapeHtml(e.message)+'</div>'}finally{setBusy("")}
 }
 async function runAnalysis(){
   if(!overview){setAppView("projects");return}
-  setBusy("Running project analysis");
+  setBusy("Updating project position");
   try{
     const receipt=await api("/api/projects/"+encodeURIComponent(project())+"/evidence/rerun",{method:"POST"});
-    el("globalStatus").textContent="Analysis "+receipt.certification.state+" · "+receipt.receiptId;
+    el("globalStatus").textContent=receipt.certification.state==="pass"?"Project position updated":"Project position needs review";
     await refresh(false);
   }catch(e){
     const d=e.data||{};
-    el("globalStatus").textContent=d.certification?"Analysis requires review":"Analysis failed · "+e.message;
+    el("globalStatus").textContent=d.certification?"Project position needs review":"Project position could not be updated · "+e.message;
     if(d.certification){await refresh(false)}
   }finally{setBusy("")}
 }
@@ -878,24 +879,24 @@ async function askCmeng(){
   if(!overview){el("aiAnswer").textContent="Open a project first.";return}
   const question=el("aiQuestion").value.trim();
   if(!question)return;
-  el("aiAnswer").textContent="Reading governed project intelligence...";
+  el("aiAnswer").textContent="Reviewing the current project position...";
   try{
     const result=await api("/api/projects/"+encodeURIComponent(project())+"/intelligence/ask",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({question})});
     el("aiAnswer").textContent=result.answer+(result.managementActions?.length?"\n\nManagement actions:\n"+result.managementActions.map(x=>"• "+x).join("\n"):"")+(result.governance?"\n\n"+result.governance:"");
-    el("aiGrounding").innerHTML='<b>'+escapeHtml(result.projectId)+'</b><br>'+result.relevantModules.map(x=>escapeHtml(x.key+" · "+x.status)).join("<br>");
-  }catch(e){el("aiAnswer").textContent="Ask CMeng could not answer: "+e.message}
+    el("aiProject information used").innerHTML='<b>'+escapeHtml(result.projectId)+'</b><br>'+result.relevantModules.map(x=>escapeHtml((names[x.key]||humanizeKey(x.key))+" · "+statusLabel(x.status))).join("<br>");
+  }catch(e){el("aiAnswer").textContent="CMeng AI could not answer: "+e.message}
 }
 function renderAiSuggestions(){
   const qs=["What changed since the previous schedule update?","What is driving the current completion forecast?","Which delay events have the strongest time impact?","What evidence is missing from the look-ahead?","What commercial exposure is linked to schedule delay?"];
   el("aiSuggestions").innerHTML=qs.map(q=>'<button class="ai-suggestion">'+escapeHtml(q)+'</button>').join("");
   document.querySelectorAll(".ai-suggestion").forEach(b=>b.onclick=()=>{el("aiQuestion").value=b.textContent;askCmeng()});
 }
-async function refresh(bootstrapDemo=true){setBusy("Refreshing project");try{overview=await api("/api/projects/"+encodeURIComponent(project())+"/overview");renderStatus(overview);updateActiveProjectShell();renderNav();let director=null;try{director=await api("/api/projects/"+encodeURIComponent(project())+"/director-position")}catch{}renderDirector(director);await loadEvidence();await loadModule(selected);localStorage.setItem("cmeng-project",project())}catch(e){if(bootstrapDemo&&e.status===404&&project()==="UAT-DEMO"){try{await api("/api/projects/UAT-DEMO/demo",{method:"POST"});return await refresh(false)}catch{}}overview=null;updateActiveProjectShell();renderNav();renderDirector(null);el("projectStatus").innerHTML='<div class="notice warn">Project is not loaded yet. Upload evidence or load the certified demo.</div>';el("projectBadge").className="badge blocked";el("projectBadge").textContent="NO PROJECT";await loadEvidence()}finally{setBusy("")}}
-async function loadDemo(){setBusy("Loading certified demo");try{el("projectId").value="UAT-DEMO";localStorage.setItem("cmeng-project","UAT-DEMO");await api("/api/projects/UAT-DEMO/demo",{method:"POST"});selected="pmo-analysis";await refresh(false);el("uploadMessage").innerHTML='<div class="notice info">Certified demo loaded in the isolated UAT-DEMO project. User projects are never replaced by demo data.</div>'}catch(e){el("uploadMessage").innerHTML='<div class="notice error">'+escapeHtml(e.message)+'</div>'}finally{setBusy("")}}
-async function uploadSchedules(){if(!scheduleSelection.length)return;setBusy("Uploading schedule revisions");const roles=[...document.querySelectorAll(".schedule-role")].reduce((a,s)=>{a[Number(s.dataset.index)]=s.value;return a},{});const results=[];try{for(let i=0;i<scheduleSelection.length;i+=1){const file=scheduleSelection[i];const headers={"content-type":fileType(file),"x-source-filename":file.name,"x-source-relative-path":file.name,"x-evidence-category":"schedule","x-upload-intent":el("scheduleIntent").value,"x-schedule-role":roles[i]||inferScheduleRole(file.name)};results.push(await api("/api/projects/"+encodeURIComponent(project())+"/evidence/uploads",{method:"POST",headers,body:file}))}el("uploadMessage").innerHTML='<div class="notice info">'+results.length+' schedule revision(s) accepted. Baselines/updates form official history; recovery remains a separate scenario.</div>';scheduleSelection=[];el("scheduleFiles").value="";renderScheduleQueue();await afterEvidenceChange()}catch(e){el("uploadMessage").innerHTML='<div class="notice error">'+escapeHtml(e.message)+'</div>'}finally{setBusy("")}}
-async function uploadBoqs(){if(!boqSelection.length)return;setBusy("Uploading BOQ revisions");let count=0;try{for(const file of boqSelection){await api("/api/projects/"+encodeURIComponent(project())+"/evidence/uploads",{method:"POST",headers:{"content-type":fileType(file),"x-source-filename":file.name,"x-source-relative-path":file.name,"x-evidence-category":"boq_cost","x-document-type":"boq","x-upload-intent":el("boqIntent").value},body:file});count+=1}el("uploadMessage").innerHTML='<div class="notice info">'+count+' BOQ revision(s) accepted and retained.</div>';boqSelection=[];el("boqFiles").value="";renderSimpleQueue("boqQueue",boqSelection);await afterEvidenceChange()}catch(e){el("uploadMessage").innerHTML='<div class="notice error">'+escapeHtml(e.message)+'</div>'}finally{setBusy("")}}
-async function uploadContracts(){if(!contractSelection.length)return;setBusy("Uploading contract family");const roles=[...document.querySelectorAll(".contract-role")].reduce((a,s)=>{a[Number(s.dataset.index)]=s.value;return a},{});let count=0;try{for(let i=0;i<contractSelection.length;i+=1){const file=contractSelection[i];const role=roles[i]||inferContractRole(file.name);const docType=role==="main"?"main_contract":role==="amendment"?"contract_amendment":role==="appendix"?"contract_appendix":role==="tender"?"tender_employer_requirements":"contract_supporting_document";await api("/api/projects/"+encodeURIComponent(project())+"/evidence/uploads",{method:"POST",headers:{"content-type":fileType(file),"x-source-filename":file.name,"x-source-relative-path":file.name,"x-evidence-category":"contract","x-document-type":docType,"x-upload-intent":el("contractIntent").value},body:file});count+=1}el("uploadMessage").innerHTML='<div class="notice info">'+count+' contract-family document(s) accepted. Amendments are retained separately from the base contract.</div>';contractSelection=[];el("contractFiles").value="";renderContractQueue();await afterEvidenceChange()}catch(e){el("uploadMessage").innerHTML='<div class="notice error">'+escapeHtml(e.message)+'</div>'}finally{setBusy("")}}
-async function uploadEvidence(){if(!evidenceSelection.length)return;setBusy("Uploading project evidence");let documentCount=0;try{for(const file of evidenceSelection){const result=await api("/api/projects/"+encodeURIComponent(project())+"/evidence/uploads",{method:"POST",headers:{"content-type":fileType(file),"x-source-filename":file.name,"x-source-relative-path":file.webkitRelativePath||file.name,"x-upload-intent":el("evidenceIntent").value},body:file});documentCount+=result.documentCount||1}el("uploadMessage").innerHTML='<div class="notice info">'+documentCount+' evidence document(s) registered. Known schedule/BOQ/contract files were parsed; other files were classified, preserved and mapped to schedule activities where explicit activity IDs exist.</div>';evidenceSelection=[];el("evidenceFiles").value="";renderSimpleQueue("evidenceQueue",evidenceSelection);await afterEvidenceChange()}catch(e){el("uploadMessage").innerHTML='<div class="notice error">'+escapeHtml(e.message)+'</div>'}finally{setBusy("")}}
+async function refresh(bootstrapDemo=true){setBusy("Refreshing project");try{overview=await api("/api/projects/"+encodeURIComponent(project())+"/overview");renderStatus(overview);updateActiveProjectShell();renderNav();let director=null;try{director=await api("/api/projects/"+encodeURIComponent(project())+"/director-position")}catch{}renderDirector(director);await loadEvidence();await loadModule(selected);localStorage.setItem("cmeng-project",project())}catch(e){if(bootstrapDemo&&e.status===404&&project()==="UAT-DEMO"){try{await api("/api/projects/UAT-DEMO/demo",{method:"POST"});return await refresh(false)}catch{}}overview=null;updateActiveProjectShell();renderNav();renderDirector(null);el("projectStatus").innerHTML='<div class="notice warn">Open or create a project, then add project documents.</div>';el("projectBadge").className="badge blocked";el("projectBadge").textContent="NO PROJECT";await loadEvidence()}finally{setBusy("")}}
+async function loadDemo(){setBusy("Loading demonstration project");try{el("projectId").value="UAT-DEMO";localStorage.setItem("cmeng-project","UAT-DEMO");await api("/api/projects/UAT-DEMO/demo",{method:"POST"});selected="pmo-analysis";await refresh(false);el("uploadMessage").innerHTML='<div class="notice info">Demonstration project loaded. Your own projects are not changed.</div>'}catch(e){el("uploadMessage").innerHTML='<div class="notice error">'+escapeHtml(e.message)+'</div>'}finally{setBusy("")}}
+async function uploadSchedules(){if(!scheduleSelection.length)return;setBusy("Adding programme revisions");const roles=[...document.querySelectorAll(".schedule-role")].reduce((a,s)=>{a[Number(s.dataset.index)]=s.value;return a},{});const results=[];try{for(let i=0;i<scheduleSelection.length;i+=1){const file=scheduleSelection[i];const headers={"content-type":fileType(file),"x-source-filename":file.name,"x-source-relative-path":file.name,"x-evidence-category":"schedule","x-upload-intent":el("scheduleIntent").value,"x-schedule-role":roles[i]||inferScheduleRole(file.name)};results.push(await api("/api/projects/"+encodeURIComponent(project())+"/evidence/uploads",{method:"POST",headers,body:file}))}el("uploadMessage").innerHTML='<div class="notice info">'+results.length+'  programme revision(s) added. Baselines and updates remain in the project history; recovery programmes remain separate.</div>';scheduleSelection=[];el("scheduleFiles").value="";renderScheduleQueue();await afterEvidenceChange()}catch(e){el("uploadMessage").innerHTML='<div class="notice error">'+escapeHtml(e.message)+'</div>'}finally{setBusy("")}}
+async function uploadBoqs(){if(!boqSelection.length)return;setBusy("Adding BOQ revisions");let count=0;try{for(const file of boqSelection){await api("/api/projects/"+encodeURIComponent(project())+"/evidence/uploads",{method:"POST",headers:{"content-type":fileType(file),"x-source-filename":file.name,"x-source-relative-path":file.name,"x-evidence-category":"boq_cost","x-document-type":"boq","x-upload-intent":el("boqIntent").value},body:file});count+=1}el("uploadMessage").innerHTML='<div class="notice info">'+count+'  BOQ revision(s) added and retained.</div>';boqSelection=[];el("boqFiles").value="";renderSimpleQueue("boqQueue",boqSelection);await afterEvidenceChange()}catch(e){el("uploadMessage").innerHTML='<div class="notice error">'+escapeHtml(e.message)+'</div>'}finally{setBusy("")}}
+async function uploadContracts(){if(!contractSelection.length)return;setBusy("Adding contract documents");const roles=[...document.querySelectorAll(".contract-role")].reduce((a,s)=>{a[Number(s.dataset.index)]=s.value;return a},{});let count=0;try{for(let i=0;i<contractSelection.length;i+=1){const file=contractSelection[i];const role=roles[i]||inferContractRole(file.name);const docType=role==="main"?"main_contract":role==="amendment"?"contract_amendment":role==="appendix"?"contract_appendix":role==="tender"?"tender_employer_requirements":"contract_supporting_document";await api("/api/projects/"+encodeURIComponent(project())+"/evidence/uploads",{method:"POST",headers:{"content-type":fileType(file),"x-source-filename":file.name,"x-source-relative-path":file.name,"x-evidence-category":"contract","x-document-type":docType,"x-upload-intent":el("contractIntent").value},body:file});count+=1}el("uploadMessage").innerHTML='<div class="notice info">'+count+'  contract document(s) added. Amendments remain separate from the main contract.</div>';contractSelection=[];el("contractFiles").value="";renderContractQueue();await afterEvidenceChange()}catch(e){el("uploadMessage").innerHTML='<div class="notice error">'+escapeHtml(e.message)+'</div>'}finally{setBusy("")}}
+async function uploadEvidence(){if(!evidenceSelection.length)return;setBusy("Adding project documents");let documentCount=0;try{for(const file of evidenceSelection){const result=await api("/api/projects/"+encodeURIComponent(project())+"/evidence/uploads",{method:"POST",headers:{"content-type":fileType(file),"x-source-filename":file.name,"x-source-relative-path":file.webkitRelativePath||file.name,"x-upload-intent":el("evidenceIntent").value},body:file});documentCount+=result.documentCount||1}el("uploadMessage").innerHTML='<div class="notice info">'+documentCount+' project document(s) added. Programme, BOQ and contract documents are read directly; other records are retained and linked to activities where activity IDs are available.</div>';evidenceSelection=[];el("evidenceFiles").value="";renderSimpleQueue("evidenceQueue",evidenceSelection);await afterEvidenceChange()}catch(e){el("uploadMessage").innerHTML='<div class="notice error">'+escapeHtml(e.message)+'</div>'}finally{setBusy("")}}
 el("loadDemo").onclick=loadDemo;el("refresh").onclick=()=>refresh(false);el("runAnalysisTop").onclick=runAnalysis;el("openAiTop").onclick=()=>setAppView("ai");el("askAi").onclick=askCmeng;el("createProject").onclick=createProject;el("portfolioNewProject").onclick=()=>setAppView("projects");
 function openEvidenceWorkspace(){
   if(!overview){setAppView("projects");el("createProjectMessage").innerHTML='<div class="notice info">Create or open a project before uploading evidence.</div>';return}
@@ -915,7 +916,7 @@ el("openEvidenceTop").onclick=openEvidenceWorkspace;
 el("openEvidenceHero").onclick=openEvidenceWorkspace;
 el("openEvidenceQuick").onclick=openEvidenceWorkspace;
 el("openLibraryQuick").onclick=openEvidenceLibrary;
-function setFocusMode(enabled){document.body.classList.toggle("focus-module",enabled);el("focusMode").classList.toggle("active",enabled);el("focusMode").setAttribute("aria-pressed",String(enabled));el("focusMode").textContent=enabled?"Exit focus":"Focus module";localStorage.setItem("cmeng-focus",enabled?"1":"0")}
+function setFocusMode(enabled){document.body.classList.toggle("focus-module",enabled);el("focusMode").classList.toggle("active",enabled);el("focusMode").setAttribute("aria-pressed",String(enabled));el("focusMode").textContent=enabled?"Exit focus":"Focus view";localStorage.setItem("cmeng-focus",enabled?"1":"0")}
 el("focusMode").onclick=()=>setFocusMode(!document.body.classList.contains("focus-module"));
 async function loadRelease(){try{const health=await api("/health");const short=health.release?String(health.release).slice(0,7):"runtime";el("releaseStatus").textContent="Production · "+short}catch{el("releaseStatus").textContent="Production"}}
 
