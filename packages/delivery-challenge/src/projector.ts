@@ -953,19 +953,197 @@ function planStats(
   };
 }
 
+type DeliveryChallengeFindingInput = {
+  topic:
+    DeliveryChallengeFinding["topic"];
+  state:
+    DeliveryChallengeFinding["state"];
+  contractorAssumption:
+    string | null;
+  independentCalculation:
+    string | null;
+  difference:
+    string | null;
+  evidenceBasis: string[];
+  milestoneConsequence:
+    string | null;
+  requiredResponse:
+    string | null;
+};
+
 function finding(
-  input: Omit<
-    DeliveryChallengeFinding,
-    "findingId"
-  >,
+  input:
+    DeliveryChallengeFindingInput,
 ): DeliveryChallengeFinding {
+  const findingId =
+    "delivery-find-" +
+    stableFingerprint(
+      input,
+    ).slice(0, 18);
+  const submitted =
+    input.contractorAssumption ===
+    null
+      ? {
+          state:
+            "not_submitted" as const,
+          value: null,
+          unit: null,
+          authority:
+            "missing" as const,
+          sourceRefs: [],
+          basisRevisionId: null,
+          coveragePercent: null,
+          asOfIso: null,
+          confidence: null,
+          diagnostics: [
+            "SUBMITTED_VALUE_NOT_IDENTIFIED",
+          ],
+          note:
+            "No contractor assumption was identified for this finding.",
+        }
+      : {
+          state:
+            "submitted" as const,
+          value:
+            input.contractorAssumption,
+          unit: null,
+          authority:
+            "submitted" as const,
+          sourceRefs: [
+            ...input.evidenceBasis,
+          ],
+          basisRevisionId: null,
+          coveragePercent: null,
+          asOfIso: null,
+          confidence: 1,
+          diagnostics: [],
+          note: null,
+        };
+  const independent =
+    input.independentCalculation ===
+    null
+      ? {
+          state:
+            "not_derivable" as const,
+          value: null,
+          unit: null,
+          authority:
+            "missing" as const,
+          sourceRefs: [
+            ...input.evidenceBasis,
+          ],
+          basisRevisionId: null,
+          coveragePercent: null,
+          asOfIso: null,
+          confidence: null,
+          diagnostics: [
+            "INDEPENDENT_VALUE_NOT_DERIVABLE_FROM_CURRENT_EVIDENCE",
+          ],
+          note: null,
+        }
+      : {
+          state:
+            (
+              input.state ===
+              "scenario"
+                ? "scenario"
+                : "derived"
+            ) as
+              | "scenario"
+              | "derived",
+          value:
+            input.independentCalculation,
+          unit: null,
+          authority:
+            (
+              input.state ===
+              "scenario"
+                ? "scenario"
+                : "derived"
+            ) as
+              | "scenario"
+              | "derived",
+          sourceRefs: [
+            ...input.evidenceBasis,
+          ],
+          basisRevisionId: null,
+          coveragePercent: null,
+          asOfIso: null,
+          confidence:
+            input.state ===
+            "scenario"
+              ? 0.65
+              : 0.9,
+          diagnostics: [],
+          note: null,
+        };
+  const gap =
+    input.difference === null
+      ? {
+          state:
+            "not_derivable" as const,
+          value: null,
+          unit: null,
+          authority:
+            "missing" as const,
+          sourceRefs: [],
+          basisRevisionId: null,
+          coveragePercent: null,
+          asOfIso: null,
+          confidence: null,
+          diagnostics: [],
+          note: null,
+        }
+      : {
+          state:
+            "derived" as const,
+          value:
+            input.difference,
+          unit: null,
+          authority:
+            "derived" as const,
+          sourceRefs: [
+            ...input.evidenceBasis,
+          ],
+          basisRevisionId: null,
+          coveragePercent: null,
+          asOfIso: null,
+          confidence:
+            independent.confidence,
+          diagnostics: [],
+          note: null,
+        };
+
   return {
-    findingId:
-      "delivery-find-" +
-      stableFingerprint(
-        input,
-      ).slice(0, 18),
-    ...input,
+    findingId,
+    topic:
+      input.topic,
+    state:
+      input.state,
+    submitted,
+    independent,
+    gap,
+    evidenceRefs: [
+      ...input.evidenceBasis,
+    ],
+    consequence:
+      input.milestoneConsequence,
+    action:
+      input.requiredResponse,
+    diagnostics: [],
+    contractorAssumption:
+      input.contractorAssumption,
+    independentCalculation:
+      input.independentCalculation,
+    difference:
+      input.difference,
+    evidenceBasis: [
+      ...input.evidenceBasis,
+    ],
+    milestoneConsequence:
+      input.milestoneConsequence,
+    requiredResponse:
+      input.requiredResponse,
   };
 }
 
