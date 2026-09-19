@@ -53,6 +53,7 @@ import type {
 import type {
   EvidenceCategory,
   EvidenceIdentification,
+  EvidenceLineage,
   EvidenceUploadSummary,
   ProjectControlState,
   ProjectRuntimeState,
@@ -65,6 +66,7 @@ import {
   analyzeCsvEvidence,
   analyzeTextEvidence,
   inferDocumentType,
+  inferEvidenceLineage,
   inferEvidenceCategory,
   inferMediaType,
   inferScheduleRole,
@@ -394,6 +396,24 @@ function specialistIdentification(
   };
 }
 
+function legacyLineage(
+  document: StoredEvidenceDocument,
+): EvidenceLineage {
+  return {
+    effect:
+      "unknown",
+    predecessorDocumentIds: [],
+    replacesEntireBasis: false,
+    appliesAsDelta: false,
+    inferred: true,
+    confidence: 0,
+    needsReview: true,
+    diagnostics: [
+      "EVIDENCE_LINEAGE_LEGACY_UNKNOWN",
+    ],
+  };
+}
+
 function legacyIdentification(
   document: StoredEvidenceDocument,
 ): EvidenceIdentification {
@@ -470,6 +490,11 @@ function hydrateProject(
           identification:
             document.identification ??
             legacyIdentification(
+              document,
+            ),
+          lineage:
+            document.lineage ??
+            legacyLineage(
               document,
             ),
         })),
