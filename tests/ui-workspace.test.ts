@@ -60,8 +60,7 @@ test("CMeng workspace keeps the active module primary and browser script parseab
   for (
     const uploadControl of [
       "openEvidenceTop",
-      "openEvidenceHero",
-      "openEvidenceQuick",
+      "openLibraryQuick",
     ]
   ) {
     assert.match(
@@ -129,8 +128,8 @@ test("CMeng workspace keeps the active module primary and browser script parseab
   );
   assert.match(
     html,
-    /class="btn primary project-only" id="openEvidenceTop"/,
-    "project actions must stay hidden outside an opened project",
+    /class="btn primary" id="openEvidenceTop"/,
+    "project document action must remain prominent inside Project Controls",
   );
   assert.match(
     html,
@@ -158,7 +157,7 @@ test("CMeng workspace keeps the active module primary and browser script parseab
   assert.match(
     html,
     /id="runAnalysisTop"/,
-    "project workspace must expose an explicit Run analysis action",
+    "Project Controls must expose an explicit update-position action",
   );
   assert.match(
     html,
