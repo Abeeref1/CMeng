@@ -557,6 +557,7 @@ export function loadCertifiedDemoProject(
     activeEvidenceBasis: {},
     boardPublicationHistory: [],
     delayEventHistory: [],
+    derivedControlsByDocument: {},
     derivedReadinessByDocument: {},
     lastRerunReceipt: null,
     contract: {
