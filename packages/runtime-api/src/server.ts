@@ -33,6 +33,7 @@ import {
   invalidateProject,
   moduleForProject,
   overviewForProject,
+  rerunProject,
 } from "./project-projections";
 import {
   loadCertifiedDemoProject,
@@ -98,6 +99,42 @@ function html(
       "no-store",
   });
   res.end(body);
+}
+
+function uploadIntent(
+  req: IncomingMessage,
+):
+  | "add_update"
+  | "replace_current_basis" {
+  const value =
+    header(
+      req,
+      "x-upload-intent",
+    )
+      ?.trim()
+      .toLowerCase()
+      .replace(/[\s-]+/g, "_");
+  return value ===
+    "replace_current_basis"
+    ? "replace_current_basis"
+    : "add_update";
+}
+
+function rerunRequested(
+  req: IncomingMessage,
+): boolean {
+  const value =
+    header(
+      req,
+      "x-rerun-after-upload",
+    )
+      ?.trim()
+      .toLowerCase();
+  return (
+    value === "1" ||
+    value === "true" ||
+    value === "yes"
+  );
 }
 
 function mediaType(req: IncomingMessage): string {
@@ -316,6 +353,39 @@ async function route(
     return;
   }
 
+  const evidenceRerunMatch =
+    /^\/api\/projects\/([^/]+)\/evidence\/rerun$/.exec(
+      url.pathname,
+    );
+
+  if (
+    req.method === "POST" &&
+    evidenceRerunMatch
+  ) {
+    const projectId =
+      decodeURIComponent(
+        evidenceRerunMatch[1]!,
+      );
+    const receipt =
+      rerunProject(projectId);
+    if (!receipt) {
+      json(res, 404, {
+        error:
+          "project_not_found",
+      });
+      return;
+    }
+    json(
+      res,
+      receipt.certification
+        .state === "pass"
+        ? 200
+        : 409,
+      receipt,
+    );
+    return;
+  }
+
   const evidenceUploadMatch =
     /^\/api\/projects\/([^/]+)\/evidence\/uploads$/.exec(
       url.pathname,
@@ -329,6 +399,8 @@ async function route(
       decodeURIComponent(
         evidenceUploadMatch[1]!,
       );
+    const intent =
+      uploadIntent(req);
     const body =
       await readBody(req);
     const filename =
@@ -526,6 +598,8 @@ async function route(
               uploadedAt:
                 new Date()
                   .toISOString(),
+              uploadIntent:
+                intent,
               preidentified:
                 item.identification,
             });
@@ -535,14 +609,23 @@ async function route(
       invalidateProject(
         projectId,
       );
+      const rerun =
+        rerunRequested(req)
+          ? rerunProject(
+              projectId,
+            )
+          : null;
       json(res, 201, {
         projectId,
+        uploadIntent:
+          intent,
         packFilename:
           filename,
         documentCount:
           results.length,
         extractedBytes,
         documents: results,
+        rerun,
       });
       return;
     }
@@ -575,11 +658,24 @@ async function route(
             ),
           uploadedAt:
             new Date().toISOString(),
+          uploadIntent:
+            intent,
         });
     invalidateProject(
       projectId,
     );
-    json(res, 201, result);
+    const rerun =
+      rerunRequested(req)
+        ? rerunProject(
+            projectId,
+          )
+        : null;
+    json(res, 201, {
+      ...result,
+      uploadIntent:
+        intent,
+      rerun,
+    });
     return;
   }
 
@@ -1227,6 +1323,10 @@ async function route(
         "/api/projects/:projectId/boq/uploads",
       projectOverview:
         "/api/projects/:projectId/overview",
+      evidenceUpload:
+        "/api/projects/:projectId/evidence/uploads",
+      evidenceRerun:
+        "/api/projects/:projectId/evidence/rerun",
       scheduleUpload:
         "/api/projects/:projectId/schedule/uploads",
       scheduleRevisions:
