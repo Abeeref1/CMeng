@@ -14,6 +14,9 @@ import {
   buildDelayClaimsProjection,
 } from "../../delay-claims/src";
 import {
+  buildDeliveryChallengeProjection,
+} from "../../delivery-challenge/src";
+import {
   buildEotAssessmentProjection,
 } from "../../eot-assessment/src";
 import {
@@ -870,6 +873,27 @@ function buildBundle(
     ReturnType<
       typeof buildChallengeContractProjection
     > | null = null;
+  let deliveryChallenge:
+    ReturnType<
+      typeof buildDeliveryChallengeProjection
+    > | null = null;
+
+  deliveryChallenge =
+    buildDeliveryChallengeProjection({
+      generatedAt,
+      producerVersion:
+        "uat-delivery-challenge-v1",
+      schedule: model,
+      quantities:
+        state.quantities,
+      resources,
+      independentForecast,
+      contractTimeBasis:
+        state.controls
+          .contractTimeBasis,
+      submittedManpowerPlan:
+        null,
+    });
 
   if (state.contract) {
     challengeContract =
@@ -881,32 +905,50 @@ function buildBundle(
             versions.challenge,
         },
       );
-    modules.set(
-      "challenge-contract",
-      available(
-        "challenge-contract",
-        challengeContract,
-        ["contract"],
-        state.contract
-          .semanticComplete
-          ? "ready"
-          : "partial",
-        state.contract
-          .semanticComplete
-          ? null
-          : "The contract semantic model is partial.",
-      ),
-    );
-  } else {
-    modules.set(
-      "challenge-contract",
-      blocked(
-        "challenge-contract",
-        "A contract PDF or DOCX is required.",
-        ["contract"],
-      ),
-    );
   }
+
+  modules.set(
+    "challenge-contract",
+    available(
+      "challenge-contract",
+      {
+        schemaVersion: "2.0",
+        projectionKey:
+          "challenge_contract",
+        generatedAt,
+        producerVersion:
+          versions.challenge,
+        deliveryChallenge,
+        contractIntelligence:
+          challengeContract,
+      },
+      [
+        "current schedule",
+        "independent forecast",
+        "contract time basis when available",
+        "BOQ/quantity evidence when available",
+        "resource/manpower evidence when available",
+      ],
+      (
+        challengeContract !== null &&
+        deliveryChallenge.position !==
+          "not_yet_supportable" &&
+        deliveryChallenge.position !==
+          "scenario_only"
+      )
+        ? "ready"
+        : "partial",
+      challengeContract === null
+        ? "Delivery challenge is available, but contractual clause intelligence is unavailable until a contract is loaded."
+        : deliveryChallenge.position ===
+            "not_yet_supportable"
+          ? "Delivery challenge cannot yet be fully supported by the available evidence."
+          : deliveryChallenge.position ===
+              "scenario_only"
+            ? "Delivery challenge is currently scenario-only because measured manpower/productivity evidence is incomplete."
+            : null,
+    ),
+  );
 
   if (
     ordered.length >= 2 &&
