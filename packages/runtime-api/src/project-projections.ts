@@ -1223,70 +1223,116 @@ function buildBundle(
       ),
     );
   } else {
+    eotAssessment = {
+      schemaVersion: "1.0",
+      projectionKey:
+        "eot_assessment",
+      generatedAt,
+      producerVersion:
+        versions.eot,
+      projectId:
+        state.projectId,
+      contractualCompletionIso:
+        null,
+      contractualCompletionState:
+        "missing",
+      officialApprovedEotDays:
+        null,
+      officialApprovedEotState:
+        "missing",
+      officialAdjustedCompletionIso:
+        null,
+      observedProgrammeMovementDays:
+        windows
+          .positiveProgrammeMovementDays,
+      analyticalTimeImpactCandidateDays:
+        windows
+          .positiveProgrammeMovementDays,
+      attributableCandidateEotDays:
+        null,
+      unattributedTimeImpactDays:
+        windows
+          .positiveProgrammeMovementDays,
+      candidateAdditionalEotDays:
+        null,
+      scenarioAdjustedCompletionIso:
+        null,
+      timeImpactScenarioAdjustedCompletionIso:
+        null,
+      eotDayBasis:
+        "unknown",
+      eotDayBasisState:
+        "missing",
+      includedWindowCount: 0,
+      excludedWindowCount: 0,
+      reviewWindowCount:
+        windows.windowCount,
+      windowCandidates:
+        windows.windows.map(
+          (window) => ({
+            windowId:
+              window.windowId,
+            positiveIndependentMovementDays:
+              Math.max(
+                0,
+                window
+                  .independentForecastMovementDays ??
+                  0,
+              ),
+            positiveProgrammeMovementDays:
+              Math.max(
+                0,
+                window
+                  .strongestProgrammeMovementDays ??
+                  0,
+              ),
+            programmeMovementBasis:
+              window
+                .strongestProgrammeMovementBasis,
+            analyticalTimeImpactCandidateDays:
+              Math.max(
+                0,
+                window
+                  .strongestProgrammeMovementDays ??
+                  0,
+              ),
+            state:
+              "review" as const,
+            eligibleEventIds: [],
+            contractorEventIds: [],
+            reasons: [
+              "CONTRACT_TIME_BASIS_NOT_SUBMITTED",
+            ],
+            assumptions: [
+              "Programme movement is retained for analysis but is not treated as EOT entitlement without a governed contract-time basis.",
+            ],
+            includedCandidateDays: 0,
+          }),
+        ),
+      basis:
+        "analytical_candidate_not_contractual_determination",
+      assumptions: [
+        "Observed programme movement is not treated as EOT without a governed contract-time basis and event/causation evidence.",
+      ],
+      diagnostics: [
+        "CONTRACT_TIME_BASIS_NOT_SUBMITTED",
+        ...(windows
+          .positiveProgrammeMovementDays >
+        0
+          ? [
+              "PROGRAMME_MOVEMENT_CARRIED_FORWARD_AS_ANALYTICAL_TIME_IMPACT_CANDIDATE",
+            ]
+          : []),
+    };
+
     modules.set(
       "eot-assessment",
       available(
         "eot-assessment",
         {
-          schemaVersion: "1.0",
-          projectionKey:
-            "eot_assessment",
-          generatedAt,
-          producerVersion:
-            versions.eot,
-          projectId:
-            state.projectId,
-          contractualCompletionIso:
-            null,
-          contractualCompletionState:
-            "missing",
-          officialApprovedEotDays:
-            null,
-          officialApprovedEotState:
-            "missing",
-          officialAdjustedCompletionIso:
-            null,
-          observedProgrammeMovementDays:
-            windows
-              .positiveProgrammeMovementDays,
-          analyticalTimeImpactCandidateDays:
-            windows
-              .positiveProgrammeMovementDays,
-          attributableCandidateEotDays:
-            null,
-          unattributedTimeImpactDays:
-            windows
-              .positiveProgrammeMovementDays,
-          candidateAdditionalEotDays:
-            null,
-          scenarioAdjustedCompletionIso:
-            null,
-          timeImpactScenarioAdjustedCompletionIso:
-            null,
-          observedScheduleMovementDays:
-            windows
-              .positiveProgrammeMovementDays,
-          programmeMovementBasis:
-            windows.windows.length ===
-              0
-              ? "unavailable"
-              : [
-                  ...new Set(
-                    windows.windows.map(
-                      (window) =>
-                        window
-                          .strongestProgrammeMovementBasis,
-                    ),
-                  ),
-                ],
-          basis:
-            "schedule_movement_only_not_eot_determination",
-          assumptions: [
-            "Observed programme movement is not treated as EOT without a governed contract-time basis and event/causation evidence.",
-          ],
-          diagnostics: [
-            "CONTRACT_TIME_BASIS_NOT_SUBMITTED",
-          ],
+          ...eotAssessment,
+          contractorEotEvidenceSubmitted:
+            delayModel !== null,
         },
         ["contract time basis"],
         "partial",
@@ -2038,13 +2084,26 @@ function buildBundle(
   if (
     delayClaims &&
     noticesClaims &&
-    eotAssessment &&
-    state.contract
+    eotAssessment
   ) {
     const ldTerms =
-      extractContractLdTerms(
-        state.contract,
-      );
+      state.contract
+        ? extractContractLdTerms(
+            state.contract,
+          )
+        : {
+            rateState:
+              "missing" as const,
+            capState:
+              "missing" as const,
+            rate: null,
+            cap: null,
+            rateCandidates: [],
+            capCandidates: [],
+            diagnostics: [
+              "CONTRACT_NOT_SUBMITTED_LD_TERMS_UNAVAILABLE",
+            ],
+          };
 
     director =
       buildProjectDirectorPosition({
@@ -2142,6 +2201,17 @@ function buildBundle(
             }
           : null,
         evidenceAvailability: {
+          claims:
+            evidenceCoverage(
+              delayModel !==
+                null,
+              evidenceTypes.has(
+                "delay_eot_claims_register",
+              ) ||
+              evidenceCategoryPresent(
+                "risk_claims_procurement",
+              ),
+            ),
           hse:
             evidenceCoverage(
               state.controls
