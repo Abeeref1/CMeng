@@ -881,6 +881,17 @@ export function loadCertifiedDemoProject(
           "demo:permit:PER1",
         ],
       }],
+      risks: [{
+        riskId: "R1",
+        status: "open",
+        rating: "high",
+        owner: "Project Director",
+        dueIso:
+          "2026-01-08T00:00:00.000Z",
+        sourceRefs: [
+          "demo:risk:R1",
+        ],
+      }],
       boardPublication: {
         sourceManifestId:
           "demo-manifest-1",
