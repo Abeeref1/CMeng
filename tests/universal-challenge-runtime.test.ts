@@ -129,6 +129,15 @@ test("every CMeng module emits Submitted Independent Gap Consequence Action inst
         report.status,
         201,
       );
+      const reportResult =
+        await report.json() as {
+          assertionCount: number;
+        };
+      assert.ok(
+        reportResult
+          .assertionCount >= 4,
+        "contractor report assertions were not persisted",
+      );
 
       const overview =
         await (
