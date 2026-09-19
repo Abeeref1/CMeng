@@ -402,6 +402,8 @@ test("ZIP evidence pack routes schedules, BOQ CSV and other project evidence wit
               "application/zip",
             "x-source-filename":
               "full-evidence.zip",
+            "x-upload-id":
+              "zip-progress-uat",
           },
           body: Buffer.from(bytes),
         },
@@ -414,6 +416,50 @@ test("ZIP evidence pack routes schedules, BOQ CSV and other project evidence wit
           await response.text(),
       );
     }
+
+    const progressResponse =
+      await fetch(
+        base +
+          "/api/projects/" +
+          project +
+          "/evidence/upload-progress/zip-progress-uat",
+      );
+    assert.equal(
+      progressResponse.status,
+      200,
+    );
+    const progress =
+      await progressResponse.json() as {
+        state: string;
+        percent: number;
+        documentTotal: number | null;
+        identifiedDocuments: number;
+        processedDocuments: number;
+        completedAt: string | null;
+        updatedAt: string;
+      };
+    assert.equal(
+      progress.state,
+      "complete",
+    );
+    assert.equal(
+      progress.percent,
+      100,
+    );
+    assert.equal(
+      progress.documentTotal,
+      6,
+    );
+    assert.equal(
+      progress.identifiedDocuments,
+      6,
+    );
+    assert.equal(
+      progress.processedDocuments,
+      6,
+    );
+    assert.ok(progress.completedAt);
+    assert.ok(progress.updatedAt);
 
     const result =
       await response.json() as {
@@ -483,6 +529,35 @@ test("ZIP evidence pack routes schedules, BOQ CSV and other project evidence wit
     assert.equal(
       overview.evidenceDocumentCount,
       6,
+    );
+
+    const documentRegister =
+      await (
+        await fetch(
+          base +
+            "/api/projects/" +
+            project +
+            "/evidence/documents",
+        )
+      ).json() as {
+        documents: Array<{
+          uploadedAt: string;
+          sourceFilename: string;
+        }>;
+      };
+    assert.equal(
+      documentRegister.documents.length,
+      6,
+    );
+    assert.ok(
+      documentRegister.documents.every(
+        (document) =>
+          Boolean(
+            Date.parse(
+              document.uploadedAt,
+            ),
+          ),
+      ),
     );
   });
 });
