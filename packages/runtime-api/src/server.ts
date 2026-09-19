@@ -74,6 +74,157 @@ const directorPositions =
 const boardReports =
   new Map<string, BoardReadyReport>();
 
+type EvidenceUploadProgress = {
+  uploadId: string;
+  projectId: string;
+  filename: string;
+  state:
+    | "receiving"
+    | "reading_package"
+    | "identifying"
+    | "processing"
+    | "updating_project"
+    | "complete"
+    | "failed";
+  percent: number;
+  receivedBytes: number;
+  totalBytes: number | null;
+  documentTotal: number | null;
+  identifiedDocuments: number;
+  processedDocuments: number;
+  currentDocument: string | null;
+  message: string | null;
+  startedAt: string;
+  updatedAt: string;
+  completedAt: string | null;
+};
+
+const evidenceUploadProgress =
+  new Map<string, EvidenceUploadProgress>();
+
+function evidenceUploadProgressKey(
+  projectId: string,
+  uploadId: string,
+): string {
+  return projectId + "::" + uploadId;
+}
+
+function cleanupUploadProgress(): void {
+  const cutoff =
+    Date.now() -
+    6 * 60 * 60 * 1000;
+  for (
+    const [key, progress] of
+      evidenceUploadProgress
+  ) {
+    if (
+      Date.parse(
+        progress.updatedAt,
+      ) < cutoff
+    ) {
+      evidenceUploadProgress.delete(
+        key,
+      );
+    }
+  }
+}
+
+function setEvidenceUploadProgress(
+  projectId: string,
+  uploadId: string,
+  update:
+    Partial<EvidenceUploadProgress> &
+    Pick<
+      EvidenceUploadProgress,
+      "state" | "percent"
+    >,
+): EvidenceUploadProgress {
+  cleanupUploadProgress();
+  const key =
+    evidenceUploadProgressKey(
+      projectId,
+      uploadId,
+    );
+  const now =
+    new Date().toISOString();
+  const existing =
+    evidenceUploadProgress.get(
+      key,
+    );
+  const progress:
+    EvidenceUploadProgress = {
+      uploadId,
+      projectId,
+      filename:
+        update.filename ??
+        existing?.filename ??
+        "project package",
+      state: update.state,
+      percent: Math.max(
+        0,
+        Math.min(
+          100,
+          Math.round(
+            update.percent,
+          ),
+        ),
+      ),
+      receivedBytes:
+        update.receivedBytes ??
+        existing?.receivedBytes ??
+        0,
+      totalBytes:
+        update.totalBytes ??
+        existing?.totalBytes ??
+        null,
+      documentTotal:
+        update.documentTotal ??
+        existing?.documentTotal ??
+        null,
+      identifiedDocuments:
+        update.identifiedDocuments ??
+        existing?.identifiedDocuments ??
+        0,
+      processedDocuments:
+        update.processedDocuments ??
+        existing?.processedDocuments ??
+        0,
+      currentDocument:
+        update.currentDocument ??
+        existing?.currentDocument ??
+        null,
+      message:
+        update.message ??
+        existing?.message ??
+        null,
+      startedAt:
+        existing?.startedAt ??
+        now,
+      updatedAt: now,
+      completedAt:
+        update.completedAt ??
+        existing?.completedAt ??
+        null,
+    };
+  evidenceUploadProgress.set(
+    key,
+    progress,
+  );
+  return progress;
+}
+
+function itemNameForProgress(
+  value: string,
+): string {
+  return (
+    value
+      .split("/")
+      .filter(Boolean)
+      .at(-1) ??
+    value
+  );
+}
+
 function json(
   res: ServerResponse,
   statusCode: number,
@@ -164,9 +315,29 @@ function header(
 
 async function readBody(
   req: IncomingMessage,
+  onProgress?: (
+    receivedBytes: number,
+    totalBytes: number | null,
+  ) => void,
 ): Promise<Uint8Array> {
   const chunks: Buffer[] = [];
   let total = 0;
+  const declaredTotal =
+    Number.parseInt(
+      String(
+        req.headers[
+          "content-length"
+        ] ?? "",
+      ),
+      10,
+    );
+  const totalBytes =
+    Number.isFinite(
+      declaredTotal,
+    ) &&
+    declaredTotal > 0
+      ? declaredTotal
+      : null;
 
   for await (const chunk of req) {
     const buffer = Buffer.isBuffer(chunk)
@@ -184,6 +355,10 @@ async function readBody(
     }
 
     chunks.push(buffer);
+    onProgress?.(
+      total,
+      totalBytes,
+    );
   }
 
   return Buffer.concat(chunks);
@@ -854,6 +1029,42 @@ async function route(
     return;
   }
 
+  const evidenceUploadProgressMatch =
+    /^\/api\/projects\/([^/]+)\/evidence\/upload-progress\/([^/]+)$/.exec(
+      url.pathname,
+    );
+
+  if (
+    req.method === "GET" &&
+    evidenceUploadProgressMatch
+  ) {
+    const projectId =
+      decodeURIComponent(
+        evidenceUploadProgressMatch[1]!,
+      );
+    const uploadId =
+      decodeURIComponent(
+        evidenceUploadProgressMatch[2]!,
+      );
+    cleanupUploadProgress();
+    const progress =
+      evidenceUploadProgress.get(
+        evidenceUploadProgressKey(
+          projectId,
+          uploadId,
+        ),
+      );
+    if (!progress) {
+      json(res, 404, {
+        error:
+          "upload_progress_not_found",
+      });
+      return;
+    }
+    json(res, 200, progress);
+    return;
+  }
+
   const evidenceUploadMatch =
     /^\/api\/projects\/([^/]+)\/evidence\/uploads$/.exec(
       url.pathname,
@@ -869,8 +1080,6 @@ async function route(
       );
     const intent =
       uploadIntent(req);
-    const body =
-      await readBody(req);
     const filename =
       header(
         req,
@@ -881,6 +1090,86 @@ async function route(
         req,
         "x-source-relative-path",
       ) ?? filename;
+    const uploadId =
+      header(
+        req,
+        "x-upload-id",
+      );
+    const declaredTotal =
+      Number.parseInt(
+        String(
+          req.headers[
+            "content-length"
+          ] ?? "",
+        ),
+        10,
+      );
+    const totalBytes =
+      Number.isFinite(
+        declaredTotal,
+      ) &&
+      declaredTotal > 0
+        ? declaredTotal
+        : null;
+
+    if (uploadId) {
+      setEvidenceUploadProgress(
+        projectId,
+        uploadId,
+        {
+          state: "receiving",
+          percent: 0,
+          filename,
+          totalBytes,
+          receivedBytes: 0,
+          documentTotal: null,
+          identifiedDocuments: 0,
+          processedDocuments: 0,
+          currentDocument: null,
+          message:
+            "Receiving project package",
+        },
+      );
+    }
+
+    const body =
+      await readBody(
+        req,
+        uploadId
+          ? (
+              receivedBytes,
+              bodyTotalBytes,
+            ) => {
+              const percent =
+                bodyTotalBytes
+                  ? Math.min(
+                      24,
+                      Math.round(
+                        (
+                          receivedBytes /
+                          bodyTotalBytes
+                        ) * 24,
+                      ),
+                    )
+                  : 12;
+              setEvidenceUploadProgress(
+                projectId,
+                uploadId,
+                {
+                  state:
+                    "receiving",
+                  percent,
+                  filename,
+                  receivedBytes,
+                  totalBytes:
+                    bodyTotalBytes,
+                  message:
+                    "Receiving project package",
+                },
+              );
+            }
+          : undefined,
+      );
     const type =
       mediaType(req).toLowerCase();
     const isZip =
@@ -888,6 +1177,31 @@ async function route(
       filename
         .toLowerCase()
         .endsWith(".zip");
+
+    if (uploadId) {
+      setEvidenceUploadProgress(
+        projectId,
+        uploadId,
+        {
+          state:
+            isZip
+              ? "reading_package"
+              : "processing",
+          percent:
+            isZip ? 25 : 55,
+          filename,
+          receivedBytes:
+            body.length,
+          totalBytes:
+            totalBytes ??
+            body.length,
+          message:
+            isZip
+              ? "Opening project package"
+              : "Processing document",
+        },
+      );
+    }
 
     if (isZip) {
       const archive =
@@ -905,6 +1219,26 @@ async function route(
                 "__MACOSX/",
               ),
           );
+
+      if (uploadId) {
+        setEvidenceUploadProgress(
+          projectId,
+          uploadId,
+          {
+            state:
+              "identifying",
+            percent: 30,
+            documentTotal:
+              entries.length,
+            identifiedDocuments: 0,
+            processedDocuments: 0,
+            currentDocument:
+              null,
+            message:
+              "Identifying project documents",
+          },
+        );
+      }
 
       const maxExtracted =
         Number.parseInt(
@@ -975,6 +1309,46 @@ async function route(
           sizeBytes:
             bytes.length,
         });
+        if (uploadId) {
+          const identifiedCount =
+            identifiedEntries.length;
+          const totalDocuments =
+            Math.max(
+              1,
+              entries.length,
+            );
+          setEvidenceUploadProgress(
+            projectId,
+            uploadId,
+            {
+              state:
+                "identifying",
+              percent:
+                30 +
+                Math.round(
+                  (
+                    identifiedCount /
+                    totalDocuments
+                  ) * 30,
+                ),
+              documentTotal:
+                entries.length,
+              identifiedDocuments:
+                identifiedCount,
+              processedDocuments: 0,
+              currentDocument:
+                itemNameForProgress(
+                  entry.name,
+                ),
+              message:
+                "Identifying " +
+                identifiedCount +
+                " of " +
+                entries.length +
+                " documents",
+            },
+          );
+        }
       }
 
       const categoryPriority = (
@@ -1040,6 +1414,29 @@ async function route(
       );
 
       const results = [];
+      let processedCount = 0;
+      if (uploadId) {
+        setEvidenceUploadProgress(
+          projectId,
+          uploadId,
+          {
+            state:
+              "processing",
+            percent: 62,
+            documentTotal:
+              identifiedEntries.length,
+            identifiedDocuments:
+              identifiedEntries.length,
+            processedDocuments: 0,
+            currentDocument:
+              identifiedEntries[0]
+                ?.leaf ??
+              null,
+            message:
+              "Processing project documents",
+          },
+        );
+      }
       for (
         const item of
           identifiedEntries
@@ -1072,11 +1469,69 @@ async function route(
                 item.identification,
             });
         results.push(result);
+        processedCount += 1;
+        if (uploadId) {
+          const totalDocuments =
+            Math.max(
+              1,
+              identifiedEntries
+                .length,
+            );
+          setEvidenceUploadProgress(
+            projectId,
+            uploadId,
+            {
+              state:
+                "processing",
+              percent:
+                62 +
+                Math.round(
+                  (
+                    processedCount /
+                    totalDocuments
+                  ) * 33,
+                ),
+              documentTotal:
+                identifiedEntries
+                  .length,
+              identifiedDocuments:
+                identifiedEntries
+                  .length,
+              processedDocuments:
+                processedCount,
+              currentDocument:
+                item.leaf,
+              message:
+                "Processing " +
+                processedCount +
+                " of " +
+                identifiedEntries
+                  .length +
+                " documents",
+            },
+          );
+        }
       }
 
       invalidateProject(
         projectId,
       );
+      if (
+        uploadId &&
+        rerunRequested(req)
+      ) {
+        setEvidenceUploadProgress(
+          projectId,
+          uploadId,
+          {
+            state:
+              "updating_project",
+            percent: 96,
+            message:
+              "Updating project position",
+          },
+        );
+      }
       const rerun =
         rerunRequested(req)
           ? rerunProject(
@@ -1087,6 +1542,30 @@ async function route(
               ),
             )
           : null;
+      if (uploadId) {
+        setEvidenceUploadProgress(
+          projectId,
+          uploadId,
+          {
+            state: "complete",
+            percent: 100,
+            documentTotal:
+              results.length,
+            identifiedDocuments:
+              results.length,
+            processedDocuments:
+              results.length,
+            currentDocument:
+              null,
+            completedAt:
+              new Date()
+                .toISOString(),
+            message:
+              results.length +
+              " documents loaded",
+          },
+        );
+      }
       json(res, 201, {
         projectId,
         uploadIntent:
@@ -1100,6 +1579,25 @@ async function route(
         rerun,
       });
       return;
+    }
+
+    if (uploadId) {
+      setEvidenceUploadProgress(
+        projectId,
+        uploadId,
+        {
+          state:
+            "processing",
+          percent: 70,
+          documentTotal: 1,
+          identifiedDocuments: 1,
+          processedDocuments: 0,
+          currentDocument:
+            filename,
+          message:
+            "Processing document",
+        },
+      );
     }
 
     const result =
@@ -1136,6 +1634,22 @@ async function route(
     invalidateProject(
       projectId,
     );
+    if (
+      uploadId &&
+      rerunRequested(req)
+    ) {
+      setEvidenceUploadProgress(
+        projectId,
+        uploadId,
+        {
+          state:
+            "updating_project",
+          percent: 96,
+          message:
+            "Updating project position",
+        },
+      );
+    }
     const rerun =
       rerunRequested(req)
         ? rerunProject(
@@ -1145,6 +1659,25 @@ async function route(
             ],
           )
         : null;
+    if (uploadId) {
+      setEvidenceUploadProgress(
+        projectId,
+        uploadId,
+        {
+          state: "complete",
+          percent: 100,
+          documentTotal: 1,
+          identifiedDocuments: 1,
+          processedDocuments: 1,
+          currentDocument: null,
+          completedAt:
+            new Date()
+              .toISOString(),
+          message:
+            "1 document loaded",
+        },
+      );
+    }
     json(res, 201, {
       ...result,
       uploadIntent:
@@ -1878,6 +2411,8 @@ async function route(
         "/api/projects/:projectId/intelligence/ask",
       evidenceUpload:
         "/api/projects/:projectId/evidence/uploads",
+      evidenceUploadProgress:
+        "/api/projects/:projectId/evidence/upload-progress/:uploadId",
       evidenceBulkDelete:
         "/api/projects/:projectId/evidence/documents/delete",
       evidenceDelete:
@@ -1915,6 +2450,52 @@ async function route(
 export function createCmengServer(): Server {
   return createServer((req, res) => {
     void route(req, res).catch((error) => {
+      const uploadId =
+        header(
+          req,
+          "x-upload-id",
+        );
+      const progressMatch =
+        /^\/api\/projects\/([^/]+)\/evidence\/uploads$/.exec(
+          new URL(
+            req.url ?? "/",
+            `http://${req.headers.host ?? "localhost"}`,
+          ).pathname,
+        );
+      if (
+        uploadId &&
+        progressMatch
+      ) {
+        const projectId =
+          decodeURIComponent(
+            progressMatch[1]!,
+          );
+        setEvidenceUploadProgress(
+          projectId,
+          uploadId,
+          {
+            state: "failed",
+            percent:
+              evidenceUploadProgress
+                .get(
+                  evidenceUploadProgressKey(
+                    projectId,
+                    uploadId,
+                  ),
+                )
+                ?.percent ??
+              0,
+            completedAt:
+              new Date()
+                .toISOString(),
+            message:
+              error instanceof Error
+                ? error.message
+                : String(error),
+          },
+        );
+      }
+
       const statusCode =
         typeof error === "object" &&
         error !== null &&
