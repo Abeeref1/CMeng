@@ -40,3 +40,33 @@ export interface ContractLdTerms {
   capCandidates: LdCapCandidate[];
   diagnostics: string[];
 }
+
+
+export type ContractValueState =
+  | "candidate"
+  | "missing"
+  | "conflicted";
+
+export type ContractValueKind =
+  | "accepted_contract_amount"
+  | "original_contract_sum"
+  | "contract_sum"
+  | "contract_price";
+
+export interface ContractValueCandidate {
+  candidateId: string;
+  kind: ContractValueKind;
+  amount: number;
+  currency: string;
+  sourceRefs: string[];
+  textSnippet: string;
+}
+
+export interface ContractValueExtraction {
+  state: ContractValueState;
+  value:
+    ContractValueCandidate | null;
+  candidates:
+    ContractValueCandidate[];
+  diagnostics: string[];
+}
