@@ -47,6 +47,10 @@ import {
 import {
   parseSubmittedManpowerPlan,
 } from "../../delivery-challenge/src";
+import {
+  extractDocumentAssertions,
+  type DocumentAssertion,
+} from "../../module-challenge/src";
 import type {
   CanonicalQuantityProgressModel,
 } from "../../quantity-progress-core/src";
@@ -500,6 +504,9 @@ function hydrateProject(
             legacyLineage(
               document,
             ),
+          assertions:
+            document.assertions ??
+            [],
         })),
     boqRevisions:
       legacy.boqRevisions ??
@@ -1015,6 +1022,12 @@ export class RuntimeProjectStore {
       });
     const identification =
       identified.identification;
+    const assertions =
+      extractDocumentAssertions(
+        identified.textSample,
+        "evidence:" +
+          input.sourceFilename,
+      );
     const existingState =
       this.getOrCreate(
         input.projectId,
@@ -1090,6 +1103,7 @@ export class RuntimeProjectStore {
             input.uploadedAt,
           identification,
           lineage,
+          assertions,
         });
       const document =
         this.evidence(
@@ -1125,6 +1139,8 @@ export class RuntimeProjectStore {
           document.identification,
         lineage:
           document.lineage,
+        assertionCount:
+          document.assertions.length,
         diagnostics: [
           ...document.diagnostics,
         ],
@@ -1173,6 +1189,7 @@ export class RuntimeProjectStore {
         relativePath,
         identification,
         lineage,
+        assertions,
       );
       const document =
         this.evidence(
@@ -1207,6 +1224,8 @@ export class RuntimeProjectStore {
           document.identification,
         lineage:
           document.lineage,
+        assertionCount:
+          document.assertions.length,
         diagnostics: [
           ...document.diagnostics,
         ],
@@ -1251,6 +1270,7 @@ export class RuntimeProjectStore {
           input.uploadedAt,
         identification,
         lineage,
+        assertions,
       });
       const hash =
         hashBytes(input.bytes);
@@ -1289,6 +1309,8 @@ export class RuntimeProjectStore {
           document.identification,
         lineage:
           document.lineage,
+        assertionCount:
+          document.assertions.length,
         diagnostics: [
           ...document.diagnostics,
         ],
@@ -1380,6 +1402,7 @@ export class RuntimeProjectStore {
         mapping,
         identification,
         lineage,
+        assertions,
         diagnostics,
       };
       this.upsertEvidence(
@@ -1501,6 +1524,7 @@ export class RuntimeProjectStore {
       mapping,
       identification,
       lineage,
+      assertions,
       diagnostics,
     };
     this.upsertEvidence(
@@ -1525,6 +1549,8 @@ export class RuntimeProjectStore {
         document.identification,
       lineage:
         document.lineage,
+      assertionCount:
+        document.assertions.length,
       diagnostics,
     };
   }
@@ -1543,6 +1569,8 @@ export class RuntimeProjectStore {
         EvidenceIdentification;
       lineage?:
         EvidenceLineage;
+      assertions?:
+        DocumentAssertion[];
     },
   ): Promise<ScheduleUploadSummary> {
     const state =
@@ -1572,6 +1600,10 @@ export class RuntimeProjectStore {
             null,
         })
       ).identification;
+
+    const assertions =
+      input.assertions ??
+      [];
 
     const lineage =
       input.lineage ??
@@ -1808,6 +1840,7 @@ export class RuntimeProjectStore {
         mapping: null,
         identification,
         lineage,
+        assertions,
         diagnostics: [
           ...identification
             .diagnostics,
@@ -1837,6 +1870,8 @@ export class RuntimeProjectStore {
       EvidenceIdentification,
     lineage?:
       EvidenceLineage,
+    assertions:
+      DocumentAssertion[] = [],
   ): void {
     const state =
       this.getOrCreate(
@@ -1959,6 +1994,7 @@ export class RuntimeProjectStore {
             }),
           lineage:
             boqLineage,
+          assertions,
           diagnostics: [
             ...(identification
               ?.diagnostics ?? []),
@@ -2003,6 +2039,8 @@ export class RuntimeProjectStore {
         EvidenceIdentification;
       lineage?:
         EvidenceLineage;
+      assertions?:
+        DocumentAssertion[];
     },
   ): Promise<ContractDocumentResult> {
     const name =
@@ -2071,6 +2109,10 @@ export class RuntimeProjectStore {
       this.getOrCreate(
         input.projectId,
       );
+    const assertions =
+      input.assertions ??
+      [];
+
     const lineage =
       input.lineage ??
       inferEvidenceLineage({
@@ -2224,6 +2266,7 @@ export class RuntimeProjectStore {
         mapping: null,
         identification,
         lineage,
+        assertions,
         diagnostics: [
           ...identification
             .diagnostics,
