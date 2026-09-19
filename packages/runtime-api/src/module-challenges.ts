@@ -125,6 +125,12 @@ function spec(
       string | undefined;
     actionMissing?:
       string | undefined;
+    submittedReasonableMin?:
+      number | undefined;
+    submittedReasonableMax?:
+      number | undefined;
+    submittedReasonablenessNote?:
+      string | undefined;
   } = {},
 ): IndependentMetricSpec {
   return {
@@ -149,6 +155,26 @@ function spec(
       : {}),
     ...(input.note
       ? { note: input.note }
+      : {}),
+    ...(input.submittedReasonableMin !==
+    undefined
+      ? {
+          submittedReasonableMin:
+            input.submittedReasonableMin,
+        }
+      : {}),
+    ...(input.submittedReasonableMax !==
+    undefined
+      ? {
+          submittedReasonableMax:
+            input.submittedReasonableMax,
+        }
+      : {}),
+    ...(input.submittedReasonablenessNote
+      ? {
+          submittedReasonablenessNote:
+            input.submittedReasonablenessNote,
+        }
       : {}),
     consequenceWhenDifferent:
       input.consequenceDifferent ??
