@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import {
   analyzeSchedule,
 } from "../../schedule-analysis-core/src";
@@ -85,6 +86,7 @@ import type {
   ProjectRuntimeState,
   ModuleRuntimeResult,
   ProjectRuntimeOverview,
+  EvidenceRerunReceipt,
 } from "./project-state-types";
 import {
   runtimeProjects,
@@ -101,6 +103,9 @@ import {
 import type {
   DelayClaimsModel,
 } from "../../delay-analysis-core/src";
+import {
+  certifyCrossModuleConsistency,
+} from "./certification";
 
 interface ProjectionBundle {
   version: number;
@@ -2347,6 +2352,183 @@ export function overviewForProject(
         },
       ),
   };
+}
+
+export function rerunProject(
+  projectId: string,
+): EvidenceRerunReceipt | null {
+  const state =
+    runtimeProjects.get(projectId);
+  if (!state) return null;
+
+  invalidateProject(projectId);
+  const generatedAt =
+    new Date().toISOString();
+  const bundle =
+    buildBundle(state);
+  const certification =
+    certifyCrossModuleConsistency({
+      generatedAt,
+      state,
+      modules:
+        bundle.modules,
+      director:
+        bundle.director,
+      boardReport:
+        bundle.boardReport,
+    });
+
+  const evidenceFingerprint =
+    createHash("sha256")
+      .update(
+        JSON.stringify({
+          projectVersion:
+            state.version,
+          evidence:
+            state.evidenceDocuments
+              .map(
+                (document) => ({
+                  documentId:
+                    document.documentId,
+                  hash:
+                    document
+                      .sourceHashSha256,
+                  familyKey:
+                    document.familyKey,
+                  basisState:
+                    document.basisState,
+                  supersededBy:
+                    document
+                      .supersededByDocumentId,
+                }),
+              )
+              .sort(
+                (a, b) =>
+                  a.documentId.localeCompare(
+                    b.documentId,
+                  ),
+              ),
+          activeBasis:
+            state.activeEvidenceBasis,
+        }),
+      )
+      .digest("hex");
+
+  const currentPublication =
+    state.boardPublicationHistory
+      .filter(
+        (item) =>
+          !item.stale,
+      )
+      .sort(
+        (a, b) =>
+          a.finalizedAt.localeCompare(
+            b.finalizedAt,
+          ),
+      )
+      .at(-1) ??
+    null;
+  const stalePublication =
+    state.boardPublicationHistory
+      .filter(
+        (item) =>
+          item.stale,
+      )
+      .sort(
+        (a, b) =>
+          a.finalizedAt.localeCompare(
+            b.finalizedAt,
+          ),
+      )
+      .at(-1) ??
+    null;
+
+  const receipt:
+    EvidenceRerunReceipt = {
+    receiptId:
+      "rerun_" +
+      createHash("sha256")
+        .update(
+          projectId +
+            "|" +
+            String(
+              state.version,
+            ) +
+            "|" +
+            evidenceFingerprint,
+        )
+        .digest("hex")
+        .slice(0, 24),
+    projectId,
+    generatedAt,
+    projectVersion:
+      state.version,
+    evidenceFingerprint,
+    activeBasis: JSON.parse(
+      JSON.stringify(
+        state.activeEvidenceBasis,
+      ),
+    ),
+    moduleCount:
+      bundle.modules.size,
+    moduleResults: [
+      ...bundle.modules.entries(),
+    ]
+      .map(
+        ([key, value]) => ({
+          key,
+          status:
+            value.status,
+        }),
+      )
+      .sort(
+        (a, b) =>
+          a.key.localeCompare(
+            b.key,
+          ),
+      ),
+    pmoRecalculated:
+      bundle.modules.has(
+        "pmo-analysis",
+      ),
+    directorRecalculated:
+      bundle.director !==
+      null,
+    boardPublicationState:
+      currentPublication
+        ? "current"
+        : stalePublication
+          ? "stale"
+          : "none",
+    certification: {
+      state:
+        certification.state,
+      checkCount:
+        certification
+          .checkCount,
+      failedCheckIds: [
+        ...certification
+          .failedCheckIds,
+      ],
+    },
+    diagnostics: [
+      ...(certification.state ===
+      "pass"
+        ? [
+            "CROSS_MODULE_CERTIFICATION_PASS",
+          ]
+        : [
+            "CROSS_MODULE_CERTIFICATION_FAIL",
+          ]),
+    ],
+  };
+
+  runtimeProjects
+    .recordRerunReceipt(
+      projectId,
+      receipt,
+    );
+  return receipt;
 }
 
 export function invalidateProject(
