@@ -9,12 +9,16 @@ export interface ProgressBasisValue {
   state: "established" | "missing";
   authority: ProgressBasisAuthority;
   sourceRefs: string[];
+  asOfIso: string | null;
+  coveragePercent: number | null;
   varianceToBaselinePercentagePoints: number | null;
 }
 
 export interface ExternalProgressEvidence {
   valuePercent: number;
   sourceRefs: string[];
+  asOfIso?: string | null;
+  coveragePercent?: number | null;
 }
 
 export interface ProgressReportProjectionRef {
