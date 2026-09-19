@@ -789,6 +789,83 @@ const rules:
   {
     category: "contract",
     documentType:
+      "contract_replacement",
+    signals: [
+      {
+        label:
+          "amended and restated agreement",
+        pattern:
+          /\bamended\s+and\s+restated\b/i,
+        weight: 8,
+      },
+      {
+        label:
+          "restated agreement",
+        pattern:
+          /\brestated\s+(?:contract|agreement)\b/i,
+        weight: 7,
+      },
+      {
+        label:
+          "consolidated contract",
+        pattern:
+          /\bconsolidated\s+contract\b/i,
+        weight: 7,
+      },
+      {
+        label:
+          "supersedes prior contract",
+        pattern:
+          /\bsupersedes?\s+(?:the\s+)?(?:previous|prior|original)\s+(?:contract|agreement)\b/i,
+        weight: 8,
+      },
+    ],
+  },
+  {
+    category: "boq_cost",
+    documentType:
+      "variation_order",
+    signals: [
+      {
+        label:
+          "variation order",
+        pattern:
+          /\bvariation\s+order\b/i,
+        weight: 8,
+      },
+      {
+        label:
+          "change order",
+        pattern:
+          /\bchange\s+order\b/i,
+        weight: 8,
+      },
+      {
+        label:
+          "VO number",
+        pattern:
+          /\bvo\s*(?:no\.?|number|#)\s*[A-Z0-9-]+/i,
+        weight: 6,
+      },
+      {
+        label:
+          "additional or omitted quantities",
+        pattern:
+          /\b(?:additional|omitted|deleted)\s+quantit/i,
+        weight: 5,
+      },
+      {
+        label:
+          "variation amount",
+        pattern:
+          /\bvariation\s+amount\b/i,
+        weight: 4,
+      },
+    ],
+  },
+  {
+    category: "contract",
+    documentType:
       "contract_amendment",
     signals: [
       {
