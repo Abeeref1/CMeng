@@ -1258,47 +1258,137 @@ export class RuntimeProjectStore {
   }
 
 
-  deleteEvidenceDocument(
+  deleteEvidenceDocuments(
     projectId: string,
-    documentId: string,
-  ): {
+    documentIds: string[],
+  ): Array<{
     documentId: string;
     sourceFilename: string;
     familyKey: string;
     wasActive: boolean;
     replacementDocumentId:
       string | null;
-  } | null {
+  }> {
     const state =
       this.projects.get(projectId);
-    if (!state) return null;
+    if (!state) return [];
 
-    const index =
-      state.evidenceDocuments.findIndex(
-        (item) =>
-          item.documentId ===
-          documentId,
+    const requested =
+      new Set(
+        documentIds
+          .map((id) => id.trim())
+          .filter(Boolean),
       );
-    if (index < 0) return null;
+    if (requested.size === 0) {
+      return [];
+    }
 
-    const document =
-      state.evidenceDocuments[index]!;
-    const familyKey =
-      document.familyKey;
+    const documents =
+      state.evidenceDocuments.filter(
+        (item) =>
+          requested.has(
+            item.documentId,
+          ),
+      );
+    if (documents.length === 0) {
+      return [];
+    }
+
+    const affectedFamilies =
+      new Set<string>();
+    const scheduleArtifacts =
+      new Set<string>();
+    const boqArtifacts =
+      new Set<string>();
+    const contractIds =
+      new Set<string>();
+    const removedIds =
+      new Set<string>(
+        documents.map(
+          (item) =>
+            item.documentId,
+        ),
+      );
+    const storedPaths =
+      new Set<string>();
     const wasActive =
-      state.activeEvidenceBasis[
-        familyKey
-      ]?.activeDocumentId ===
-      documentId;
-    const linkedArtifactId =
-      document.linkedArtifactId;
-    const storedPath =
-      document.storedPath;
+      new Map<string, boolean>();
 
-    state.evidenceDocuments.splice(
-      index,
-      1,
-    );
+    for (const document of documents) {
+      affectedFamilies.add(
+        document.familyKey,
+      );
+      if (document.storedPath) {
+        storedPaths.add(
+          document.storedPath,
+        );
+      }
+      wasActive.set(
+        document.documentId,
+        state.activeEvidenceBasis[
+          document.familyKey
+        ]?.activeDocumentId ===
+          document.documentId,
+      );
+
+      if (
+        document.category ===
+          "schedule" &&
+        document.linkedArtifactId
+      ) {
+        scheduleArtifacts.add(
+          document.linkedArtifactId,
+        );
+      }
+      if (
+        document.category ===
+          "boq_cost" &&
+        document.documentType ===
+          "boq" &&
+        document.linkedArtifactId
+      ) {
+        boqArtifacts.add(
+          document.linkedArtifactId,
+        );
+      }
+      if (
+        document.category ===
+        "contract"
+      ) {
+        contractIds.add(
+          document.documentId,
+        );
+      }
+
+      if (
+        document.documentType ===
+          "contractor_manpower_plan" &&
+        document.linkedArtifactId &&
+        state.submittedManpowerPlan
+          ?.planId ===
+          document.linkedArtifactId
+      ) {
+        state.submittedManpowerPlan =
+          null;
+      }
+
+      delete state
+        .derivedControlsByDocument[
+          document.documentId
+        ];
+      delete state
+        .derivedReadinessByDocument[
+          document.documentId
+        ];
+    }
+
+    state.evidenceDocuments =
+      state.evidenceDocuments.filter(
+        (item) =>
+          !removedIds.has(
+            item.documentId,
+          ),
+      );
 
     for (
       const remaining of
@@ -1306,8 +1396,11 @@ export class RuntimeProjectStore {
     ) {
       if (
         remaining
-          .supersededByDocumentId ===
-        documentId
+          .supersededByDocumentId &&
+        removedIds.has(
+          remaining
+            .supersededByDocumentId,
+        )
       ) {
         remaining
           .supersededByDocumentId =
@@ -1318,79 +1411,60 @@ export class RuntimeProjectStore {
           .supersedesDocumentIds
           .filter(
             (id) =>
-              id !== documentId,
+              !removedIds.has(id),
           );
     }
 
     if (
-      document.category ===
-        "schedule" &&
-      linkedArtifactId
+      scheduleArtifacts.size > 0
     ) {
       state.schedules =
         state.schedules.filter(
           (item) =>
-            item.revision
-              .revisionId !==
-            linkedArtifactId,
+            !scheduleArtifacts.has(
+              item.revision
+                .revisionId,
+            ),
         );
-      state.resourcesByRevision.delete(
-        linkedArtifactId,
-      );
+      for (
+        const artifactId of
+          scheduleArtifacts
+      ) {
+        state.resourcesByRevision.delete(
+          artifactId,
+        );
+      }
     }
 
-    if (
-      document.category ===
-        "boq_cost" &&
-      document.documentType ===
-        "boq" &&
-      linkedArtifactId
-    ) {
+    if (boqArtifacts.size > 0) {
       state.boqRevisions =
         state.boqRevisions.filter(
           (item) =>
-            item.ingestionId !==
-            linkedArtifactId,
+            !boqArtifacts.has(
+              item.ingestionId,
+            ),
         );
     }
 
-    if (
-      document.category ===
-      "contract"
-    ) {
+    if (contractIds.size > 0) {
       state.contractDocuments =
         state.contractDocuments.filter(
           (item) =>
-            item.documentId !==
-            documentId,
+            !contractIds.has(
+              item.documentId,
+            ),
         );
     }
 
-    if (
-      document.documentType ===
-        "contractor_manpower_plan" &&
-      linkedArtifactId &&
-      state.submittedManpowerPlan
-        ?.planId ===
-        linkedArtifactId
+    for (
+      const familyKey of
+        affectedFamilies
     ) {
-      state.submittedManpowerPlan =
-        null;
+      rebuildEvidenceFamily(
+        state,
+        familyKey,
+      );
     }
-
-    delete state
-      .derivedControlsByDocument[
-        documentId
-      ];
-    delete state
-      .derivedReadinessByDocument[
-        documentId
-      ];
-
-    rebuildEvidenceFamily(
-      state,
-      familyKey,
-    );
 
     const activeBoqArtifactId =
       state.activeEvidenceBasis[
@@ -1421,10 +1495,7 @@ export class RuntimeProjectStore {
       state.quantities = null;
     }
 
-    if (
-      document.category ===
-      "contract"
-    ) {
+    if (contractIds.size > 0) {
       const activeBaseId =
         state.activeEvidenceBasis[
           "contract:base"
@@ -1478,7 +1549,8 @@ export class RuntimeProjectStore {
             amendments,
           );
       } else {
-        state.contractFamily = null;
+        state.contractFamily =
+          null;
       }
     }
 
@@ -1489,38 +1561,69 @@ export class RuntimeProjectStore {
       state,
     );
 
-    if (
-      storedPath &&
-      !state.evidenceDocuments.some(
-        (item) =>
-          item.storedPath ===
-          storedPath,
-      ) &&
-      existsSync(storedPath)
+    for (
+      const storedPath of
+        storedPaths
     ) {
-      try {
-        unlinkSync(storedPath);
-      } catch {
-        // The project record is authoritative;
-        // orphan file cleanup must not
-        // undo a successful deletion.
+      if (
+        !state.evidenceDocuments.some(
+          (item) =>
+            item.storedPath ===
+            storedPath,
+        ) &&
+        existsSync(storedPath)
+      ) {
+        try {
+          unlinkSync(storedPath);
+        } catch {
+          // Project record deletion remains
+          // authoritative even if orphan
+          // file cleanup cannot complete.
+        }
       }
     }
 
     this.touchEvidence(state);
 
-    return {
-      documentId,
-      sourceFilename:
-        document.sourceFilename,
-      familyKey,
-      wasActive,
-      replacementDocumentId:
-        state.activeEvidenceBasis[
-          familyKey
-        ]?.activeDocumentId ??
-        null,
-    };
+    return documents.map(
+      (document) => ({
+        documentId:
+          document.documentId,
+        sourceFilename:
+          document.sourceFilename,
+        familyKey:
+          document.familyKey,
+        wasActive:
+          wasActive.get(
+            document.documentId,
+          ) ?? false,
+        replacementDocumentId:
+          state.activeEvidenceBasis[
+            document.familyKey
+          ]?.activeDocumentId ??
+          null,
+      }),
+    );
+  }
+
+  deleteEvidenceDocument(
+    projectId: string,
+    documentId: string,
+  ): {
+    documentId: string;
+    sourceFilename: string;
+    familyKey: string;
+    wasActive: boolean;
+    replacementDocumentId:
+      string | null;
+  } | null {
+    return (
+      this.deleteEvidenceDocuments(
+        projectId,
+        [documentId],
+      )[0] ??
+      null
+    );
   }
 
   private upsertEvidence(
