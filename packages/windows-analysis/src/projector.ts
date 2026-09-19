@@ -53,6 +53,76 @@ function windowBoundary(
   );
 }
 
+function sourceScheduleBoundary(
+  revision: ScheduleRevision,
+): string | null {
+  let latest: number | null = null;
+
+  for (const activity of revision.model.activities) {
+    const candidate =
+      activity.status === "completed"
+        ? (
+            activity.actualFinishIso ??
+            activity.forecastFinishIso ??
+            activity.currentFinishIso
+          )
+        : (
+            activity.forecastFinishIso ??
+            activity.currentFinishIso
+          );
+    const value = ms(candidate);
+    if (value === null) continue;
+    latest =
+      latest === null
+        ? value
+        : Math.max(latest, value);
+  }
+
+  return latest === null
+    ? null
+    : new Date(latest).toISOString();
+}
+
+function strongestMovement(
+  input: {
+    independent: number | null;
+    sourceForecast: number | null;
+    sourceBoundary: number | null;
+  },
+): {
+  days: number | null;
+  basis:
+    ScheduleWindowResult["strongestProgrammeMovementBasis"];
+} {
+  if (input.independent !== null) {
+    return {
+      days: input.independent,
+      basis:
+        "independent_cpm",
+    };
+  }
+  if (input.sourceForecast !== null) {
+    return {
+      days:
+        input.sourceForecast,
+      basis:
+        "source_forecast",
+    };
+  }
+  if (input.sourceBoundary !== null) {
+    return {
+      days:
+        input.sourceBoundary,
+      basis:
+        "source_schedule_boundary",
+    };
+  }
+  return {
+    days: null,
+    basis: "unavailable",
+  };
+}
+
 function eventOverlapsWindow(
   event: CanonicalDelayEvent,
   startIso: string | null,
@@ -180,6 +250,36 @@ export function buildWindowsAnalysisProjection(
     const fromProgress = progress(from);
     const toProgress = progress(to);
 
+    const fromScheduleBoundaryIso =
+      sourceScheduleBoundary(from);
+    const toScheduleBoundaryIso =
+      sourceScheduleBoundary(to);
+
+    const sourceForecastMovement =
+      movementDays(
+        fromForecast.sourceForecastCompletionIso,
+        toForecast.sourceForecastCompletionIso,
+      );
+    const independentMovement =
+      movementDays(
+        fromForecast.independentForecastCompletionIso,
+        toForecast.independentForecastCompletionIso,
+      );
+    const scheduleBoundaryMovement =
+      movementDays(
+        fromScheduleBoundaryIso,
+        toScheduleBoundaryIso,
+      );
+    const strongest =
+      strongestMovement({
+        independent:
+          independentMovement,
+        sourceForecast:
+          sourceForecastMovement,
+        sourceBoundary:
+          scheduleBoundaryMovement,
+      });
+
     const assumptions = [
       ...fromForecast.assumptions,
       ...toForecast.assumptions,
@@ -204,6 +304,28 @@ export function buildWindowsAnalysisProjection(
     if (!toForecast.complete) {
       windowDiagnostics.push(
         "WINDOW_TO_INDEPENDENT_FORECAST_INCOMPLETE",
+      );
+    }
+    if (
+      strongest.basis ===
+      "source_forecast"
+    ) {
+      windowDiagnostics.push(
+        "PROGRAMME_MOVEMENT_FALLBACK_TO_SOURCE_FORECAST",
+      );
+    } else if (
+      strongest.basis ===
+      "source_schedule_boundary"
+    ) {
+      windowDiagnostics.push(
+        "PROGRAMME_MOVEMENT_FALLBACK_TO_SOURCE_SCHEDULE_BOUNDARY",
+      );
+    } else if (
+      strongest.basis ===
+      "unavailable"
+    ) {
+      windowDiagnostics.push(
+        "PROGRAMME_MOVEMENT_NOT_DERIVABLE",
       );
     }
 
@@ -274,20 +396,23 @@ export function buildWindowsAnalysisProjection(
       toSourceForecastCompletionIso:
         toForecast.sourceForecastCompletionIso,
       sourceForecastMovementDays:
-        movementDays(
-          fromForecast.sourceForecastCompletionIso,
-          toForecast.sourceForecastCompletionIso,
-        ),
+        sourceForecastMovement,
 
       fromIndependentForecastCompletionIso:
         fromForecast.independentForecastCompletionIso,
       toIndependentForecastCompletionIso:
         toForecast.independentForecastCompletionIso,
       independentForecastMovementDays:
-        movementDays(
-          fromForecast.independentForecastCompletionIso,
-          toForecast.independentForecastCompletionIso,
-        ),
+        independentMovement,
+
+      fromScheduleBoundaryIso,
+      toScheduleBoundaryIso,
+      scheduleBoundaryMovementDays:
+        scheduleBoundaryMovement,
+      strongestProgrammeMovementDays:
+        strongest.days,
+      strongestProgrammeMovementBasis:
+        strongest.basis,
 
       fromProgressPercent: fromProgress,
       toProgressPercent: toProgress,
@@ -390,6 +515,43 @@ export function buildWindowsAnalysisProjection(
           )
           .toFixed(6),
       ),
+    positiveProgrammeMovementDays:
+      Number(
+        windows
+          .reduce(
+            (sum, window) =>
+              sum +
+              Math.max(
+                0,
+                window.strongestProgrammeMovementDays ??
+                  0,
+              ),
+            0,
+          )
+          .toFixed(6),
+      ),
+    negativeProgrammeMovementDays:
+      Number(
+        windows
+          .reduce(
+            (sum, window) =>
+              sum +
+              Math.min(
+                0,
+                window.strongestProgrammeMovementDays ??
+                  0,
+              ),
+            0,
+          )
+          .toFixed(6),
+      ),
+    programmeMovementAvailableWindowCount:
+      windows.filter(
+        (window) =>
+          window
+            .strongestProgrammeMovementDays !==
+          null,
+      ).length,
     windows,
     diagnostics,
   };
