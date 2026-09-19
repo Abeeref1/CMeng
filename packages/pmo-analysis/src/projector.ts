@@ -144,6 +144,18 @@ export function buildPmoAnalysisProjection(
         schedule.float.negativeFloatCount,
       logicDensity:
         schedule.graph.logicDensity,
+      criticalityBasis:
+        "source_total_float",
+      independentCpmState:
+        input.independentForecast
+          .complete
+          ? "established"
+          : "not_established",
+      drivingPathState:
+        input.independentForecast
+          .complete
+          ? "independent_cpm_available"
+          : "not_established",
     },
 
     progress: {
@@ -240,6 +252,18 @@ export function buildPmoAnalysisProjection(
       observedPositiveMovementDays:
         input.delayClaims
           .observedPositiveIndependentMovementDays,
+      observedProgrammeMovementDays:
+        input.delayClaims
+          .observedPositiveProgrammeMovementDays,
+      analyticalTimeImpactCandidateDays:
+        input.eotAssessment
+          .analyticalTimeImpactCandidateDays,
+      attributableCandidateEotDays:
+        input.eotAssessment
+          .attributableCandidateEotDays,
+      unattributedTimeImpactDays:
+        input.eotAssessment
+          .unattributedTimeImpactDays,
       candidateAdditionalEotDays:
         input.eotAssessment
           .candidateAdditionalEotDays,
