@@ -1,3 +1,4 @@
+import { cmengLogoDataUri } from "./brand-logo";
 export function cmengUatHtml(): string {
   return String.raw`<!doctype html>
 <html lang="en">
@@ -20,7 +21,7 @@ button,input,select{font:inherit}button{cursor:pointer}
 .app{display:grid;grid-template-columns:248px minmax(0,1fr);min-height:100vh}
 .sidebar{background:#ffffff;color:#22252b;padding:20px 13px;position:sticky;top:0;height:100vh;overflow:auto;border-right:1px solid #e4e1da}
 .brand{display:flex;align-items:center;gap:11px;padding:16px 7px 15px;border-bottom:1px solid #e8e5de;margin:-20px 0 14px;position:sticky;top:-20px;z-index:7;background:#ffffff}
-.brand-mark{width:48px;height:48px;display:grid;place-items:center;flex:0 0 auto}.brand-symbol{width:48px;height:48px;display:block;overflow:visible}.brand-symbol .arrow{fill:#4b515b}.brand-symbol .hub{fill:#c99737}
+.brand-mark{width:52px;height:52px;display:grid;place-items:center;flex:0 0 auto}.brand-mark img{width:52px;height:52px;display:block;object-fit:contain}
 .brand-copy h1{font-size:22px;line-height:1.02;margin:0 0 4px;letter-spacing:-.035em;font-weight:820;color:#20242a}.brand-copy p{margin:0;color:#7b8190;font-size:10.5px;line-height:1.35;text-transform:uppercase;letter-spacing:.06em;font-weight:700}
 .platform-nav{display:grid;gap:5px;margin:0 0 14px}.platform-item{width:100%;border:0;background:transparent;color:#3d4653;text-align:left;padding:10px 11px;border-radius:9px;display:flex;align-items:center;gap:9px;font-size:13.5px;font-weight:720}.platform-item:hover{background:#f7f6f2;color:#20242a}.platform-item.active{background:#f8f4ea;color:#221d15;box-shadow:inset 2px 0 0 var(--accent)}.platform-icon{width:18px;text-align:center;color:#a97721;font-weight:850}.active-project-card{margin:10px 0 6px;padding:11px 12px;border:1px solid #e3dfd6;border-radius:9px;background:#faf9f6}.active-project-card b{display:block;font-size:12.5px;color:#23272e;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.active-project-card span{display:block;color:#7a8290;font-size:10.5px;margin-top:3px}.sidebar-divider{height:1px;background:#ddd8ce;margin:12px 0}
 .platform-view[hidden],#projectWorkspace[hidden]{display:none!important}.project-side-only{display:none}.project-active .project-side-only{display:block}.portfolio-hero{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;margin-bottom:20px}.portfolio-hero h2{font-size:31px;margin:0 0 6px;letter-spacing:-.04em}.portfolio-hero p{margin:0;color:var(--muted);max-width:760px}.portfolio-stats{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:12px;margin-bottom:18px}.portfolio-stat{background:#fff;border:1px solid var(--line);border-top:3px solid #d7b46b;border-radius:11px;padding:15px}.portfolio-stat b{display:block;font-size:24px;letter-spacing:-.03em}.portfolio-stat span{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.055em;font-weight:750}.project-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:12px}.project-card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px;box-shadow:var(--shadow);transition:transform .15s ease,box-shadow .15s ease}.project-card:hover{transform:translateY(-1px);box-shadow:0 8px 24px rgba(15,23,42,.07)}.project-card-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.project-card h3{margin:0;font-size:16px}.project-card .muted{font-size:12px}.project-health{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin:13px 0}.project-health div{background:#f7f9fc;border-radius:8px;padding:8px}.project-health b{display:block;font-size:16px}.project-health span{font-size:9.5px;color:var(--muted);text-transform:uppercase;font-weight:750}.project-card-actions{display:flex;justify-content:flex-end;gap:8px}.project-create{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;max-width:620px}.project-create input{height:42px;border:1px solid #cbd5e1;border-radius:9px;padding:0 12px}
@@ -63,26 +64,7 @@ details:not(.workspace-drawer){border:1px solid var(--line);border-radius:9px;ba
 <div class="app">
   <aside class="sidebar">
     <div class="brand">
-      <div class="brand-mark" aria-label="CMeng logo">
-        <svg class="brand-symbol" viewBox="0 0 64 64" role="img" aria-hidden="true">
-          <defs>
-            <linearGradient id="cmengGold" x1="10" y1="8" x2="54" y2="58" gradientUnits="userSpaceOnUse">
-              <stop offset="0" stop-color="#f5d77d"/>
-              <stop offset=".32" stop-color="#c99737"/>
-              <stop offset=".72" stop-color="#9f6b18"/>
-              <stop offset="1" stop-color="#e6bd61"/>
-            </linearGradient>
-          </defs>
-          <path d="M48 14.5A23 23 0 1 0 48 49.5" fill="none" stroke="url(#cmengGold)" stroke-width="8" stroke-linecap="round"/>
-          <g transform="translate(32 32)">
-            <path class="arrow" d="M-3-4 -13-14 -13-9 -20-16 -16-20 -9-13 -14-13 -4-3Z"/>
-            <path class="arrow" d="M3-4 13-14 13-9 20-16 16-20 9-13 14-13 4-3Z"/>
-            <path class="arrow" d="M-3 4 -13 14 -13 9 -20 16 -16 20 -9 13 -14 13 -4 3Z"/>
-            <path class="arrow" d="M3 4 13 14 13 9 20 16 16 20 9 13 14 13 4 3Z"/>
-            <circle class="hub" cx="0" cy="0" r="4.2"/>
-          </g>
-        </svg>
-      </div>
+      <div class="brand-mark" aria-label="CMeng logo"><img src="${cmengLogoDataUri}" alt="CMeng logo"></div>
       <div class="brand-copy"><h1>CMeng</h1><p>Project Control Intelligence</p></div>
     </div>
     <div class="platform-nav" id="platformNav">
