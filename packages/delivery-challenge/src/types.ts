@@ -26,6 +26,41 @@ export interface SubmittedManpowerPlan {
   diagnostics: string[];
 }
 
+export interface QuantityUnitChallengeRow {
+  unit: string;
+  contractQuantity: number;
+  mappedContractQuantity: number;
+  installedQuantity: number | null;
+  remainingQuantity: number | null;
+  requiredPerDayToContract: number | null;
+  requiredPerDayToContractorForecast:
+    number | null;
+  mappingCoveragePercent:
+    number | null;
+}
+
+export interface ProductivityUnitChallengeRow {
+  unit: string;
+  measuredInstalledQuantity:
+    number | null;
+  actualLaborHours: number | null;
+  plannedQuantity: number | null;
+  plannedLaborHours: number | null;
+  actualMeasuredQuantityPerLaborHour:
+    number | null;
+  plannedQuantityPerLaborHour:
+    number | null;
+  requiredQuantityPerLaborHour:
+    number | null;
+  requiredProductivityVsActualPercent:
+    number | null;
+  evidenceState:
+    | "measured"
+    | "planned_only"
+    | "scenario_only"
+    | "missing";
+}
+
 export interface CrewScenario {
   crewSize: number;
   averageManpower: number | null;
@@ -113,6 +148,7 @@ export interface DeliveryChallengeProjection {
     ambiguousMappingItemCount:
       number;
     unmappedItemCount: number;
+    byUnit: QuantityUnitChallengeRow[];
   };
 
   productivityChallenge: {
@@ -129,6 +165,8 @@ export interface DeliveryChallengeProjection {
       | "planned_only"
       | "scenario_only"
       | "missing";
+    byUnit:
+      ProductivityUnitChallengeRow[];
   };
 
   manpowerChallenge: {
