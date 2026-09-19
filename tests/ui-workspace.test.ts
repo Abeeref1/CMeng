@@ -46,11 +46,11 @@ test("CMeng workspace keeps the active module primary and browser script parseab
 
   assert.match(
     html,
-    /Contradictory evidence · parallel calculations retained/,
+    /Conflicting project information · all defensible positions retained/,
   );
   assert.match(
     html,
-    /User decision required/,
+    /Management decision required/,
   );
   assert.match(
     html,
