@@ -1022,6 +1022,70 @@ export class RuntimeProjectStore {
     }
   }
 
+  private summaryBasisEffect(
+    state: ProjectRuntimeState,
+    document: StoredEvidenceDocument,
+    intent: EvidenceUploadIntent,
+  ): EvidenceBasisEffect {
+    const family =
+      evidenceFamily({
+        category:
+          document.category,
+        documentType:
+          document.documentType,
+        scheduleRole:
+          document.scheduleRole,
+        textSample:
+          document.assertions
+            .map(
+              (assertion) =>
+                assertion.sourceText,
+            )
+            .join("\n"),
+        sourceFilename:
+          document.sourceFilename,
+      });
+    const active =
+      state.activeEvidenceBasis[
+        document.familyKey
+      ]?.activeDocumentId ??
+      null;
+    return {
+      familyKey:
+        document.familyKey,
+      behavior:
+        family.behavior,
+      intent,
+      logicalDocumentKey:
+        document.logicalDocumentKey,
+      basisState:
+        document.basisState,
+      previousActiveDocumentId:
+        document
+          .supersedesDocumentIds
+          .at(-1) ??
+        null,
+      activeDocumentId: active,
+      changedActiveBasis:
+        active ===
+        document.documentId,
+      reason:
+        document.basisState ===
+          "active"
+          ? "Document is the active evidence basis for its family."
+          : document.basisState ===
+              "scenario"
+            ? "Document is retained as a scenario and does not replace the active basis."
+            : document.basisState ===
+                "additive"
+              ? "Document is additive evidence in a cumulative family."
+              : document.basisState ===
+                  "superseded"
+                ? "Document remains historical and has been superseded."
+                : "Document is retained without changing the active basis.",
+    };
+  }
+
   private evidenceDocumentId(
     hash: string,
     relativePath: string | null,
