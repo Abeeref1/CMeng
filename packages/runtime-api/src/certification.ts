@@ -153,6 +153,16 @@ export function certifyCrossModuleConsistency(
       modules,
       "progress-report",
     );
+  const scheduleAnalytics =
+    data(
+      modules,
+      "schedule-analytics",
+    );
+  const progressScurve =
+    data(
+      modules,
+      "progress-scurve",
+    );
   const challenge =
     data(
       modules,
@@ -401,11 +411,381 @@ export function certifyCrossModuleConsistency(
     ),
   );
 
+  const activeScheduleRevisionId =
+    state.activeEvidenceBasis[
+      "schedule:control"
+    ]?.activeArtifactId ??
+    state.activeEvidenceBasis[
+      "schedule:baseline"
+    ]?.activeArtifactId ??
+    latest?.revision.revisionId ??
+    null;
+
+  checks.push(
+    equalityCheck(
+      "ACTIVE_SCHEDULE_REVISION_CONSISTENCY",
+      "The active schedule revision must remain the same across Schedule Analytics, Forecast, Progress, Progress S-Curve, Challenge and Quantity analysis.",
+      [
+        {
+          source:
+            "active-evidence-basis",
+          value:
+            activeScheduleRevisionId,
+        },
+        {
+          source:
+            "schedule-analytics",
+          value:
+            scheduleAnalytics
+              ?.result
+              ?.sourceRevisionId,
+        },
+        {
+          source:
+            "independent-forecast",
+          value:
+            forecast
+              ?.sourceRevisionId,
+        },
+        {
+          source:
+            "progress-report",
+          value:
+            progress
+              ?.sourceRevisionId,
+        },
+        {
+          source:
+            "progress-scurve",
+          value:
+            progressScurve
+              ?.sourceRevisionId,
+        },
+        {
+          source:
+            "challenge-contract",
+          value:
+            challenge
+              ?.deliveryChallenge
+              ?.sourceRevisionId,
+        },
+        {
+          source:
+            "quantity-scurve",
+          value:
+            quantity
+              ?.scheduleRevisionId,
+        },
+        {
+          source:
+            "director",
+          value:
+            director?.schedule
+              .independentForecastBasisRevisionId,
+        },
+        {
+          source:
+            "board-report",
+          value:
+            boardReport
+              ?.sections
+              .executivePosition
+              .independentForecastBasisRevisionId,
+        },
+      ],
+    ),
+  );
+
+  checks.push(
+    equalityCheck(
+      "PROGRESS_VALUE_CONSISTENCY",
+      "Duration-weighted progress must remain consistent from Schedule Analytics through Progress Report and PMO Analysis.",
+      [
+        {
+          source:
+            "schedule-analytics",
+          value:
+            scheduleAnalytics
+              ?.result
+              ?.progress
+              ?.durationWeightedPercentComplete
+              ?.value,
+        },
+        {
+          source:
+            "progress-report",
+          value:
+            progress
+              ?.progress
+              ?.durationWeightedProgressPercent,
+        },
+        {
+          source:
+            "pmo-analysis",
+          value:
+            pmo?.progress
+              ?.durationWeightedProgressPercent,
+        },
+      ],
+    ),
+  );
+
+  checks.push(
+    equalityCheck(
+      "PROGRESS_COVERAGE_CONSISTENCY",
+      "Duration-weighted progress coverage must remain consistent from Schedule Analytics through Progress Report and PMO Analysis.",
+      [
+        {
+          source:
+            "schedule-analytics",
+          value:
+            scheduleAnalytics
+              ?.result
+              ?.progress
+              ?.durationWeightedPercentComplete
+              ?.coveragePercent,
+        },
+        {
+          source:
+            "progress-report",
+          value:
+            progress
+              ?.progress
+              ?.durationWeightedProgressCoveragePercent,
+        },
+        {
+          source:
+            "pmo-analysis",
+          value:
+            pmo?.progress
+              ?.progressCoveragePercent,
+        },
+      ],
+    ),
+  );
+
+  checks.push(
+    equalityCheck(
+      "FORECAST_COVERAGE_CONSISTENCY",
+      "Independent forecast activity coverage must remain consistent from Forecast through Progress, PMO, Director and Board.",
+      [
+        {
+          source:
+            "independent-forecast",
+          value:
+            forecast
+              ?.activityCoveragePercent,
+        },
+        {
+          source:
+            "progress-report",
+          value:
+            progress
+              ?.forecast
+              ?.activityCoveragePercent,
+        },
+        {
+          source:
+            "pmo-analysis",
+          value:
+            pmo?.forecast
+              ?.activityCoveragePercent,
+        },
+        {
+          source:
+            "director",
+          value:
+            director?.schedule
+              .independentForecastCoveragePercent,
+        },
+        {
+          source:
+            "board-report",
+          value:
+            boardReport
+              ?.sections
+              .executivePosition
+              .independentForecastCoveragePercent,
+        },
+      ],
+    ),
+  );
+
+  checks.push(
+    equalityCheck(
+      "FORECAST_AUTHORITY_CONSISTENCY",
+      "Independent forecast authority must remain consistent from Progress through PMO, Director and Board.",
+      [
+        {
+          source:
+            "progress-report",
+          value:
+            progress
+              ?.forecast
+              ?.authority,
+        },
+        {
+          source:
+            "pmo-analysis",
+          value:
+            pmo?.forecast
+              ?.authority,
+        },
+        {
+          source:
+            "director",
+          value:
+            director?.schedule
+              .independentForecastAuthority,
+        },
+        {
+          source:
+            "board-report",
+          value:
+            boardReport
+              ?.sections
+              .executivePosition
+              .independentForecastAuthority,
+        },
+      ],
+    ),
+  );
+
+  const progressCurveContractOk =
+    !progressScurve ||
+    (
+      progressScurve
+        .seriesContract
+        ?.seriesKey ===
+        "progress_percent" &&
+      progressScurve
+        .seriesContract
+        ?.unit === "%" &&
+      progressScurve
+        .seriesContract
+        ?.authority ===
+        "derived_schedule" &&
+      progressScurve
+        .seriesContract
+        ?.basisRevisionId ===
+        progressScurve
+          .sourceRevisionId &&
+      Array.isArray(
+        progressScurve
+          .seriesContract
+          ?.sourceRefs,
+      ) &&
+      progressScurve
+        .seriesContract
+        .sourceRefs.length > 0
+    );
+
+  checks.push(
+    booleanCheck(
+      "PROGRESS_CURVE_CONTRACT",
+      progressCurveContractOk,
+      "Progress S-Curve must carry a percent unit, schedule-derived authority, revision basis and evidence references.",
+      [
+        {
+          source:
+            "progress-scurve.seriesContract",
+          value:
+            progressScurve
+              ?.seriesContract ??
+            null,
+        },
+      ],
+    ),
+  );
+
+  const quantitySeries =
+    Array.isArray(
+      quantity?.series,
+    )
+      ? quantity.series
+      : [];
+  const quantityUnitKeys =
+    quantitySeries.map(
+      (series: any) =>
+        series.unitKey,
+    );
+  const quantityCurveContractOk =
+    !quantity ||
+    (
+      quantity.unitKeyed ===
+        true &&
+      quantitySeries.every(
+        (series: any) =>
+          typeof series
+            .seriesKey ===
+            "string" &&
+          typeof series
+            .unitKey ===
+            "string" &&
+          series.unitKey.length >
+            0 &&
+          (
+            series.authority ===
+              "governed_mapping" ||
+            series.authority ===
+              "scenario_mapping"
+          ) &&
+          Array.isArray(
+            series.sourceRefs,
+          )
+      ) &&
+      new Set(
+        quantityUnitKeys,
+      ).size ===
+        quantityUnitKeys.length
+    );
+
+  checks.push(
+    booleanCheck(
+      "QUANTITY_CURVE_UNIT_AUTHORITY_CONTRACT",
+      quantityCurveContractOk,
+      "Quantity S-Curve must remain unit-keyed, keep one series per unit key and declare governed versus scenario mapping authority.",
+      [
+        {
+          source:
+            "quantity-scurve.unitKeyed",
+          value:
+            quantity?.unitKeyed ??
+            null,
+        },
+        {
+          source:
+            "quantity-scurve.unitKeys",
+          value:
+            quantityUnitKeys.join(
+              ",",
+            ),
+        },
+      ],
+    ),
+  );
+
   checks.push(
     equalityCheck(
       "BOQ_BASIS_CONSISTENCY",
       "Quantity S-Curve must use the same active BOQ basis as the canonical quantity model.",
       [
+        {
+          source:
+            "active-evidence-basis",
+          value:
+            state.activeEvidenceBasis[
+              "boq:quantity"
+            ]?.activeArtifactId ??
+            null,
+        },
+        {
+          source:
+            "boq-runtime",
+          value:
+            state.boq
+              ?.ingestionId,
+        },
         {
           source:
             "quantity-model",
@@ -425,6 +805,14 @@ export function certifyCrossModuleConsistency(
   );
 
   const invalidChallengeValues:
+    string[] = [];
+  const invalidAuthorityValues:
+    string[] = [];
+  const invalidCoverageValues:
+    string[] = [];
+  const invalidConfidenceValues:
+    string[] = [];
+  const unresolvedConflictOutputs:
     string[] = [];
   for (
     const [
@@ -460,21 +848,117 @@ export function certifyCrossModuleConsistency(
             "not_submitted" &&
           value.state !==
             "not_derivable" &&
-          value.value !== null &&
-          (
+          value.value !== null
+        ) {
+          const valueKey =
+            moduleKey +
+            ":" +
+            item.metric +
+            ":" +
+            side;
+
+          if (
             !Array.isArray(
               value.sourceRefs,
             ) ||
             value.sourceRefs
               .length === 0
-          )
+          ) {
+            invalidChallengeValues.push(
+              valueKey,
+            );
+          }
+
+          if (
+            !value.authority ||
+            value.authority ===
+              "missing"
+          ) {
+            invalidAuthorityValues.push(
+              valueKey,
+            );
+          }
+
+          if (
+            value.coveragePercent !==
+              null &&
+            value.coveragePercent !==
+              undefined &&
+            (
+              typeof value
+                .coveragePercent !==
+                "number" ||
+              !Number.isFinite(
+                value
+                  .coveragePercent,
+              ) ||
+              value
+                .coveragePercent <
+                0 ||
+              value
+                .coveragePercent >
+                100
+            )
+          ) {
+            invalidCoverageValues.push(
+              valueKey,
+            );
+          }
+
+          if (
+            value.confidence !==
+              null &&
+            value.confidence !==
+              undefined &&
+            (
+              typeof value
+                .confidence !==
+                "number" ||
+              !Number.isFinite(
+                value.confidence,
+              ) ||
+              value.confidence <
+                0 ||
+              value.confidence >
+                1
+            )
+          ) {
+            invalidConfidenceValues.push(
+              valueKey,
+            );
+          }
+        }
+      }
+    }
+
+    for (
+      const item of
+        envelope?.items ?? []
+    ) {
+      if (
+        item.submitted?.state ===
+        "conflicted"
+      ) {
+        const recommendation =
+          item
+            .conflictRecommendation;
+        const comparisons =
+          item
+            .candidateComparisons;
+        if (
+          !recommendation ||
+          recommendation
+            .userDecisionRequired !==
+            true ||
+          !Array.isArray(
+            comparisons,
+          ) ||
+          comparisons.length < 2
         ) {
-          invalidChallengeValues.push(
+          unresolvedConflictOutputs.push(
             moduleKey +
               ":" +
-              item.metric +
-              ":" +
-              side,
+              item.metric,
           );
         }
       }
@@ -497,6 +981,161 @@ export function certifyCrossModuleConsistency(
       }],
     ),
   );
+
+  checks.push(
+    booleanCheck(
+      "AUTHORITY_ON_ESTABLISHED_VALUES",
+      invalidAuthorityValues
+        .length === 0,
+      "Every established challenge value must carry a non-missing authority.",
+      [{
+        source:
+          "values_missing_authority",
+        value:
+          invalidAuthorityValues.join(
+            ",",
+          ),
+      }],
+    ),
+  );
+
+  checks.push(
+    booleanCheck(
+      "COVERAGE_RANGE_ON_EVIDENCE_VALUES",
+      invalidCoverageValues
+        .length === 0,
+      "Coverage on evidence-safe values must be null or within 0..100 percent.",
+      [{
+        source:
+          "invalid_coverage_values",
+        value:
+          invalidCoverageValues.join(
+            ",",
+          ),
+      }],
+    ),
+  );
+
+  checks.push(
+    booleanCheck(
+      "CONFIDENCE_RANGE_ON_EVIDENCE_VALUES",
+      invalidConfidenceValues
+        .length === 0,
+      "Confidence on evidence-safe values must be null or within 0..1.",
+      [{
+        source:
+          "invalid_confidence_values",
+        value:
+          invalidConfidenceValues.join(
+            ",",
+          ),
+      }],
+    ),
+  );
+
+  checks.push(
+    booleanCheck(
+      "CONTRADICTIONS_REMAIN_CALCULABLE_AND_USER_GOVERNED",
+      unresolvedConflictOutputs
+        .length === 0,
+      "Contradictory submitted values must retain at least two candidate calculations and require a user decision; CMeng may recommend but must not silently govern one.",
+      [{
+        source:
+          "invalid_conflict_outputs",
+        value:
+          unresolvedConflictOutputs.join(
+            ",",
+          ),
+      }],
+    ),
+  );
+
+  if (
+    boardReport &&
+    state.controls
+      .boardPublication
+  ) {
+    const expectedReceipts = [
+      ...new Set(
+        state.controls
+          .boardPublication
+          .evidenceReceiptIds,
+      ),
+    ].sort();
+    const actualReceipts = [
+      ...new Set(
+        boardReport
+          .evidenceReceiptIds,
+      ),
+    ].sort();
+
+    checks.push(
+      booleanCheck(
+        "BOARD_EXPORT_PUBLICATION_BASIS",
+        boardReport
+          .sourceManifestId ===
+          state.controls
+            .boardPublication
+            .sourceManifestId &&
+        boardReport
+          .publicationReceipt
+          .finalizedAt ===
+          state.controls
+            .boardPublication
+            .finalizedAt &&
+        JSON.stringify(
+          actualReceipts,
+        ) ===
+          JSON.stringify(
+            expectedReceipts,
+          ),
+        "Board/export output must reference exactly the active publication source manifest, evidence receipts and finalization timestamp.",
+        [
+          {
+            source:
+              "board.sourceManifestId",
+            value:
+              boardReport
+                .sourceManifestId,
+          },
+          {
+            source:
+              "controls.sourceManifestId",
+            value:
+              state.controls
+                .boardPublication
+                .sourceManifestId,
+          },
+          {
+            source:
+              "board.evidenceReceiptIds",
+            value:
+              actualReceipts.join(
+                ",",
+              ),
+          },
+          {
+            source:
+              "controls.evidenceReceiptIds",
+            value:
+              expectedReceipts.join(
+                ",",
+              ),
+          },
+        ],
+      ),
+    );
+  } else {
+    checks.push({
+      checkId:
+        "BOARD_EXPORT_PUBLICATION_BASIS",
+      state:
+        "not_applicable",
+      detail:
+        "Board/export publication basis check applies when a current board report and publication input both exist.",
+      values: [],
+    });
+  }
 
   const staleFinalized =
     state.boardPublicationHistory
