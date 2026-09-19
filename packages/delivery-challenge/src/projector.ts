@@ -432,38 +432,36 @@ function laborAssignments(
   const byId =
     resourceById(resources);
   const diagnostics: string[] = [];
-  const assignments =
-    resources.assignments.filter(
-      (assignment) => {
-        if (
-          assignment.resourceType ===
-          "labor"
-        ) return true;
-        const resource =
-          assignment.resourceId
-            ? byId.get(
-                assignment.resourceId,
-              )
-            : null;
-        return (
-          resource?.resourceType ===
-          "labor"
-        );
-      },
-    );
+  const assignments:
+    CanonicalResourceAssignment[] =
+    [];
 
-  for (const assignment of assignments) {
-    if (!assignment.resourceId) {
+  for (
+    const assignment of
+      resources.assignments
+  ) {
+    const resource =
+      assignment.resourceId
+        ? byId.get(
+            assignment.resourceId,
+          ) ?? null
+        : null;
+    const isLabor =
+      assignment.resourceType ===
+        "labor" ||
+      resource?.resourceType ===
+        "labor";
+
+    if (!isLabor) continue;
+
+    if (!resource) {
       diagnostics.push(
-        "LABOR_ASSIGNMENT_RESOURCE_ID_MISSING",
+        "LABOR_ASSIGNMENT_RESOURCE_DEFINITION_MISSING:" +
+          assignment.assignmentId,
       );
       continue;
     }
-    const resource =
-      byId.get(
-        assignment.resourceId,
-      );
-    if (!resource) continue;
+
     const unit =
       (
         resource.unitAbbreviation ??
@@ -472,19 +470,32 @@ function laborAssignments(
       )
         .trim()
         .toLowerCase();
+
+    if (!unit) {
+      diagnostics.push(
+        "LABOR_UOM_MISSING_NOT_USED_AS_CONFIRMED_HOURS:" +
+          resource.resourceId,
+      );
+      continue;
+    }
+
     if (
-      unit &&
-      !/^(h|hr|hrs|hour|hours|mh|manhour|manhours)$/.test(
+      !/^(h|hr|hrs|hour|hours|mh|manhour|manhours|man hour|man hours)$/.test(
         unit,
       )
     ) {
       diagnostics.push(
-        "LABOR_UNIT_NOT_CONFIRMED_AS_HOURS:" +
+        "LABOR_UNIT_NOT_HOURS_NOT_USED_FOR_MANPOWER_CALCULATION:" +
           resource.resourceId +
           ":" +
           unit,
       );
+      continue;
     }
+
+    assignments.push(
+      assignment,
+    );
   }
 
   return {
