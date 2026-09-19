@@ -30,7 +30,7 @@ button,input,select{font:inherit}button{cursor:pointer}
 .project-input{display:flex;align-items:center;gap:9px;min-width:350px}.project-input label{font-size:12px;color:var(--muted);font-weight:750;text-transform:uppercase;letter-spacing:.04em}.project-input input{height:40px;border:1px solid #cbd5e1;border-radius:9px;padding:0 12px;min-width:220px;background:#fff;color:var(--ink);font-weight:650;outline:none}.project-input input:focus{border-color:#7aa2ff;box-shadow:0 0 0 3px rgba(35,87,217,.11)}
 .btn{border:1px solid #cbd5e1;background:#fff;border-radius:9px;padding:9px 14px;font-weight:700;font-size:13px;color:#334155;min-height:40px;transition:background .15s ease,border-color .15s ease,box-shadow .15s ease,transform .15s ease}.btn:hover{background:#f8fafc;border-color:#b8c4d1}.btn:active{transform:translateY(1px)}.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;box-shadow:0 3px 10px rgba(35,87,217,.17)}.btn.primary:hover{background:var(--accent-strong);border-color:var(--accent-strong)}.btn.small{padding:7px 11px;font-size:12px;min-height:34px}.btn.active{background:#eef4ff;border-color:#b6caff;color:#1f4fb8}
 .content{padding:28px 32px 64px;width:100%;max-width:none;margin:0}
-.workspace-header{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin-bottom:18px}.page-title{margin:0}.page-title .eyebrow,.section-kicker{display:block;font-size:11px;color:#617086;text-transform:uppercase;letter-spacing:.095em;font-weight:800;margin-bottom:6px}.page-title h2{font-size:29px;line-height:1.15;letter-spacing:-.035em;margin:0 0 7px}.page-title p{margin:0;color:var(--muted);font-size:14px;max-width:780px}
+.workspace-header{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin-bottom:18px}.workspace-actions{display:flex;align-items:center;gap:9px;flex-wrap:wrap;justify-content:flex-end}.quick-upload-bar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:0 0 16px;padding:14px 16px;border-radius:13px;background:linear-gradient(100deg,#153b88 0%,#2357d9 55%,#0f766e 125%);color:#fff;box-shadow:0 10px 28px rgba(35,87,217,.18)}.quick-upload-copy{min-width:0}.quick-upload-copy b{display:block;font-size:15px;margin-bottom:2px}.quick-upload-copy span{font-size:12px;color:rgba(255,255,255,.78)}.quick-upload-actions{display:flex;gap:8px;flex:0 0 auto}.btn.upload-cta{background:#fff;color:#173f9b;border-color:#fff;box-shadow:none}.btn.upload-cta:hover{background:#f4f7ff;border-color:#fff}.btn.ghost-dark{background:rgba(255,255,255,.10);color:#fff;border-color:rgba(255,255,255,.28)}.btn.ghost-dark:hover{background:rgba(255,255,255,.17);border-color:rgba(255,255,255,.4)}.page-title{margin:0}.page-title .eyebrow,.section-kicker{display:block;font-size:11px;color:#617086;text-transform:uppercase;letter-spacing:.095em;font-weight:800;margin-bottom:6px}.page-title h2{font-size:29px;line-height:1.15;letter-spacing:-.035em;margin:0 0 7px}.page-title p{margin:0;color:var(--muted);font-size:14px;max-width:780px}
 .grid{display:grid;gap:14px}.grid.kpi{grid-template-columns:repeat(auto-fit,minmax(170px,1fr));margin-bottom:16px}.grid.two{grid-template-columns:minmax(0,1.45fr) minmax(320px,1fr)}.grid.three{grid-template-columns:repeat(3,minmax(0,1fr))}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:13px;box-shadow:var(--shadow);padding:19px}.card h3{font-size:16px;line-height:1.25;margin:0 0 13px;letter-spacing:-.01em}.kpi-card{padding:17px 18px;min-height:112px}.kpi-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.055em;margin-bottom:9px;font-weight:750}.kpi-value{font-size:25px;font-weight:780;letter-spacing:-.035em;line-height:1.08}.kpi-sub{font-size:12px;color:var(--muted);margin-top:8px;line-height:1.35}
 .badge{display:inline-flex;align-items:center;border-radius:999px;padding:5px 9px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.045em;background:#f2f4f7;color:#475467;white-space:nowrap}.badge.ready{background:#ecfdf3;color:var(--ok)}.badge.partial{background:#fffaeb;color:var(--warn)}.badge.blocked{background:#fef3f2;color:var(--danger)}
@@ -52,7 +52,7 @@ details:not(.workspace-drawer){border:1px solid var(--line);border-radius:9px;ba
 .spinner{width:14px;height:14px;border:2px solid #d0d5dd;border-top-color:var(--accent);border-radius:50%;display:inline-block;animation:spin .7s linear infinite;vertical-align:-2px}@keyframes spin{to{transform:rotate(360deg)}}
 @media(max-width:1280px){.app{grid-template-columns:238px minmax(0,1fr)}.grid.three{grid-template-columns:1fr 1fr}.upload-row{grid-template-columns:1fr}.evidence-control-grid{grid-template-columns:1fr}.evidence-status-card{position:static}}
 @media(max-width:900px){.app{display:block}.sidebar{position:relative;height:auto}.topbar{position:relative;flex-wrap:wrap;padding:13px 18px}.content{padding:20px 18px 48px}.project-input{min-width:0;width:100%;flex-wrap:wrap}.workspace-header{align-items:center}.grid.two,.grid.three{grid-template-columns:1fr}.module-panel #moduleContent{padding:16px}.module-panel>.module-head{padding:17px}.candidate-grid{grid-template-columns:1fr}}
-@media(max-width:620px){.workspace-header{display:block}.workspace-header .badge{margin-top:10px}.grid.kpi{grid-template-columns:1fr 1fr}.scalar-grid{grid-template-columns:1fr}.wide-upload{grid-template-columns:1fr}.queue-row{grid-template-columns:1fr}.recommendation-card{display:block}.decision-pill{display:inline-flex;margin-top:10px}}
+@media(max-width:620px){.workspace-header{display:block}.quick-upload-bar{display:block}.quick-upload-actions{margin-top:10px}.quick-upload-actions .btn{width:100%}.workspace-actions{justify-content:flex-start;margin-top:10px}.workspace-header .badge{margin-top:10px}.grid.kpi{grid-template-columns:1fr 1fr}.scalar-grid{grid-template-columns:1fr}.wide-upload{grid-template-columns:1fr}.queue-row{grid-template-columns:1fr}.recommendation-card{display:block}.decision-pill{display:inline-flex;margin-top:10px}}
 </style>
 </head>
 <body>
@@ -67,7 +67,8 @@ details:not(.workspace-drawer){border:1px solid var(--line);border-radius:9px;ba
         <label>Project</label>
         <input id="projectId" value="UAT-DEMO" aria-label="Project ID">
       </div>
-      <button class="btn primary" id="loadDemo">Load certified demo</button>
+      <button class="btn primary" id="openEvidenceTop">Upload evidence</button>
+      <button class="btn" id="loadDemo">Load certified demo</button>
       <button class="btn" id="refresh">Refresh</button>
       <button class="btn" id="focusMode" aria-pressed="false">Focus module</button>
       <div class="topbar-context"><span>Active module</span><b id="topbarModule">PMO Analysis</b></div>
@@ -82,7 +83,18 @@ details:not(.workspace-drawer){border:1px solid var(--line);border-radius:9px;ba
           <h2>Project Control Workspace</h2>
           <p>Evidence-backed schedule, progress, forecast, claims and commercial analysis. Select a module on the left to work directly in the active analysis.</p>
         </div>
-        <span id="projectBadge" class="badge">No project</span>
+        <div class="workspace-actions">
+          <button class="btn primary" id="openEvidenceHero">Upload evidence</button>
+          <span id="projectBadge" class="badge">No project</span>
+        </div>
+      </div>
+
+      <div class="quick-upload-bar">
+        <div class="quick-upload-copy"><b>Start with project evidence</b><span>Upload schedules, BOQ, contracts, claims, registers, reports or a complete ZIP evidence pack.</span></div>
+        <div class="quick-upload-actions">
+          <button class="btn upload-cta" id="openEvidenceQuick">Upload files</button>
+          <button class="btn ghost-dark" id="openLibraryQuick">Evidence library</button>
+        </div>
       </div>
 
       <section class="card module-panel module-workspace">
@@ -108,9 +120,9 @@ details:not(.workspace-drawer){border:1px solid var(--line);border-radius:9px;ba
         <section id="director"></section>
       </section>
 
-      <details class="workspace-drawer" id="evidenceControlDrawer">
+      <details class="workspace-drawer" id="evidenceControlDrawer" open>
         <summary>
-          <div><span class="section-kicker">Evidence control</span><strong>Intake, basis intent and project status</strong></div>
+          <div><span class="section-kicker">Evidence & uploads</span><strong>Upload project files and control the active basis</strong></div>
           <span class="drawer-hint">Open workspace</span>
         </summary>
         <div class="drawer-body">
@@ -707,6 +719,22 @@ async function uploadBoqs(){if(!boqSelection.length)return;setBusy("Uploading BO
 async function uploadContracts(){if(!contractSelection.length)return;setBusy("Uploading contract family");const roles=[...document.querySelectorAll(".contract-role")].reduce((a,s)=>{a[Number(s.dataset.index)]=s.value;return a},{});let count=0;try{for(let i=0;i<contractSelection.length;i+=1){const file=contractSelection[i];const role=roles[i]||inferContractRole(file.name);const docType=role==="main"?"main_contract":role==="amendment"?"contract_amendment":role==="appendix"?"contract_appendix":role==="tender"?"tender_employer_requirements":"contract_supporting_document";await api("/api/projects/"+encodeURIComponent(project())+"/evidence/uploads",{method:"POST",headers:{"content-type":fileType(file),"x-source-filename":file.name,"x-source-relative-path":file.name,"x-evidence-category":"contract","x-document-type":docType,"x-upload-intent":el("contractIntent").value},body:file});count+=1}el("uploadMessage").innerHTML='<div class="notice info">'+count+' contract-family document(s) accepted. Amendments are retained separately from the base contract.</div>';contractSelection=[];el("contractFiles").value="";renderContractQueue();await refresh(false)}catch(e){el("uploadMessage").innerHTML='<div class="notice error">'+escapeHtml(e.message)+'</div>'}finally{setBusy("")}}
 async function uploadEvidence(){if(!evidenceSelection.length)return;setBusy("Uploading project evidence");let documentCount=0;try{for(const file of evidenceSelection){const result=await api("/api/projects/"+encodeURIComponent(project())+"/evidence/uploads",{method:"POST",headers:{"content-type":fileType(file),"x-source-filename":file.name,"x-source-relative-path":file.webkitRelativePath||file.name,"x-upload-intent":el("evidenceIntent").value},body:file});documentCount+=result.documentCount||1}el("uploadMessage").innerHTML='<div class="notice info">'+documentCount+' evidence document(s) registered. Known schedule/BOQ/contract files were parsed; other files were classified, preserved and mapped to schedule activities where explicit activity IDs exist.</div>';evidenceSelection=[];el("evidenceFiles").value="";renderSimpleQueue("evidenceQueue",evidenceSelection);await refresh(false)}catch(e){el("uploadMessage").innerHTML='<div class="notice error">'+escapeHtml(e.message)+'</div>'}finally{setBusy("")}}
 el("loadDemo").onclick=loadDemo;el("refresh").onclick=()=>refresh(false);
+function openEvidenceWorkspace(){
+  setFocusMode(false);
+  const drawer=el("evidenceControlDrawer");
+  drawer.open=true;
+  drawer.scrollIntoView({behavior:"smooth",block:"start"});
+}
+function openEvidenceLibrary(){
+  setFocusMode(false);
+  const drawer=el("evidenceLibraryDrawer");
+  drawer.open=true;
+  drawer.scrollIntoView({behavior:"smooth",block:"start"});
+}
+el("openEvidenceTop").onclick=openEvidenceWorkspace;
+el("openEvidenceHero").onclick=openEvidenceWorkspace;
+el("openEvidenceQuick").onclick=openEvidenceWorkspace;
+el("openLibraryQuick").onclick=openEvidenceLibrary;
 function setFocusMode(enabled){document.body.classList.toggle("focus-module",enabled);el("focusMode").classList.toggle("active",enabled);el("focusMode").setAttribute("aria-pressed",String(enabled));el("focusMode").textContent=enabled?"Exit focus":"Focus module";localStorage.setItem("cmeng-focus",enabled?"1":"0")}
 el("focusMode").onclick=()=>setFocusMode(!document.body.classList.contains("focus-module"));
 async function loadRelease(){try{const health=await api("/health");const short=health.release?String(health.release).slice(0,7):"runtime";el("releaseStatus").textContent="Production · "+short}catch{el("releaseStatus").textContent="Production"}}
