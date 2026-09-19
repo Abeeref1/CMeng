@@ -78,6 +78,12 @@ export interface ProgressReportProjection {
     forecastVarianceDays: number | null;
     independentForecastOrigin: string;
     independentForecastComplete: boolean;
+    basisRevisionId: string;
+    activityCoveragePercent: number | null;
+    authority:
+      | "deterministic"
+      | "scenario"
+      | "unresolved";
   };
 
   milestones: {
