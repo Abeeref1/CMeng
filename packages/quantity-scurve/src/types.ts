@@ -11,7 +11,13 @@ export interface QuantityScurvePoint {
 }
 
 export interface QuantityScurveSeries {
+  seriesKey: string;
   unit: string | null;
+  unitKey: string;
+  authority:
+    | "governed_mapping"
+    | "scenario_mapping";
+  sourceRefs: string[];
   itemCount: number;
   knownContractQuantity: number;
   mappingCoveragePercent: number | null;
@@ -32,6 +38,7 @@ export interface QuantityScurveProjection {
   boqRevisionId: string;
   scheduleRevisionId: string;
   dataDateIso: string | null;
+  unitKeyed: true;
   allocationState:
     | "complete"
     | "partial"
