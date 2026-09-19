@@ -51,6 +51,20 @@ function upperCurrency(
   return currency.trim().toUpperCase();
 }
 
+function evidenceState(
+  explicit:
+    | "established"
+    | "submitted_unparsed"
+    | "not_submitted"
+    | undefined,
+  hasStructuredRows: boolean,
+): "established" | "submitted_unparsed" | "not_submitted" {
+  if (explicit) return explicit;
+  return hasStructuredRows
+    ? "established"
+    : "not_submitted";
+}
+
 function exposureFromRate(
   rate: LdRateCandidate,
   delayDays: number,
@@ -626,7 +640,53 @@ export function buildProjectDirectorPosition(
     );
   }
 
+  const hseEvidenceState =
+    evidenceState(
+      input.evidenceAvailability
+        ?.hse,
+      input.hseIncidents.length >
+        0,
+    );
+  const qualityEvidenceState =
+    evidenceState(
+      input.evidenceAvailability
+        ?.quality,
+      input.ncrs.length > 0,
+    );
+  const rfiEvidenceState =
+    evidenceState(
+      input.evidenceAvailability
+        ?.rfi,
+      input.rfis.length > 0,
+    );
+  const permitEvidenceState =
+    evidenceState(
+      input.evidenceAvailability
+        ?.permits,
+      input.permits.length > 0,
+    );
+  const bondEvidenceState =
+    evidenceState(
+      input.evidenceAvailability
+        ?.bonds,
+      input.bonds.length > 0,
+    );
+  const riskEvidenceState =
+    evidenceState(
+      input.evidenceAvailability
+        ?.risk,
+      false,
+    );
+
   const controls = {
+    hseEvidenceState,
+    qualityEvidenceState,
+    rfiEvidenceState,
+    permitEvidenceState,
+    bondEvidenceState,
+    riskEvidenceState,
+    openRiskCount:
+      null,
     openHseIncidentCount:
       openHse.length,
     openLtiOrWorseCount:
