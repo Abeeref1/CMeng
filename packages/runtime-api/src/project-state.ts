@@ -884,6 +884,14 @@ export class RuntimeProjectStore {
     return path;
   }
 
+  listProjectIds(): string[] {
+    return [
+      ...this.projects.keys(),
+    ].sort((a, b) =>
+      a.localeCompare(b),
+    );
+  }
+
   get(
     projectId: string,
   ): ProjectRuntimeState | null {
