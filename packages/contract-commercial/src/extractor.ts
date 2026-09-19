@@ -7,6 +7,9 @@ import type {
 } from "../../contract-parser/src";
 import type {
   ContractLdTerms,
+  ContractValueCandidate,
+  ContractValueExtraction,
+  ContractValueKind,
   LdCapCandidate,
   LdRateCandidate,
 } from "./types";
@@ -336,6 +339,200 @@ export function extractContractLdTerms(
         ? ["LD_CAP_CONFLICT_REQUIRES_REVIEW"]
         : []),
       "LD_TERMS_ARE_EXTRACTION_CANDIDATES_UNTIL_GOVERNED_PROMOTION",
+    ],
+  };
+}
+
+
+function contractValueKind(
+  phrase: string,
+): ContractValueKind {
+  const normalized =
+    phrase.toLowerCase();
+  if (
+    normalized.includes(
+      "accepted contract amount",
+    )
+  ) {
+    return "accepted_contract_amount";
+  }
+  if (
+    normalized.includes(
+      "original contract sum",
+    )
+  ) {
+    return "original_contract_sum";
+  }
+  if (
+    normalized.includes(
+      "contract price",
+    )
+  ) {
+    return "contract_price";
+  }
+  return "contract_sum";
+}
+
+function contractValueCandidates(
+  section: ContractSection,
+): ContractValueCandidate[] {
+  const text = [
+    section.heading ?? "",
+    section.text,
+  ].join("\n");
+  const sourceRefs = refs(section);
+  const out:
+    ContractValueCandidate[] = [];
+
+  const patterns: Array<{
+    regex: RegExp;
+    currencyIndex: number;
+    amountIndex: number;
+    phraseIndex: number;
+  }> = [
+    {
+      regex:
+        /\b(accepted\s+contract\s+amount|original\s+contract\s+sum|contract\s+sum|contract\s+price)\b\s*(?:is|shall\s+be|of|:|=)?\s*(?:the\s+sum\s+of\s*)?([A-Z]{3})\s*([\d,]+(?:\.\d+)?)/gi,
+      phraseIndex: 1,
+      currencyIndex: 2,
+      amountIndex: 3,
+    },
+    {
+      regex:
+        /\b(accepted\s+contract\s+amount|original\s+contract\s+sum|contract\s+sum|contract\s+price)\b\s*(?:is|shall\s+be|of|:|=)?\s*(?:the\s+sum\s+of\s*)?([\d,]+(?:\.\d+)?)\s*([A-Z]{3})\b/gi,
+      phraseIndex: 1,
+      currencyIndex: 3,
+      amountIndex: 2,
+    },
+  ];
+
+  for (const pattern of patterns) {
+    pattern.regex.lastIndex = 0;
+    let match:
+      RegExpExecArray | null;
+    while (
+      (match =
+        pattern.regex.exec(
+          text,
+        )) !== null
+    ) {
+      const amount =
+        cleanNumber(
+          match[
+            pattern.amountIndex
+          ]!,
+        );
+      const currencyCode =
+        match[
+          pattern.currencyIndex
+        ]!
+          .toUpperCase()
+          .trim();
+      if (
+        amount === null ||
+        amount < 0 ||
+        currencyCode.length !== 3
+      ) {
+        continue;
+      }
+
+      out.push({
+        candidateId:
+          "contract-value-" +
+          stableFingerprint({
+            sectionKey:
+              section.sectionKey,
+            match: match[0],
+            offset: match.index,
+          }).slice(0, 20),
+        kind:
+          contractValueKind(
+            match[
+              pattern.phraseIndex
+            ]!,
+          ),
+        amount,
+        currency:
+          currencyCode,
+        sourceRefs: [
+          ...sourceRefs,
+        ],
+        textSnippet:
+          snippet(
+            text,
+            match.index,
+            match[0].length,
+          ),
+      });
+    }
+  }
+
+  return out;
+}
+
+function uniqueContractValues(
+  values:
+    readonly ContractValueCandidate[],
+): ContractValueCandidate[] {
+  const seen =
+    new Set<string>();
+  return values.filter(
+    (value) => {
+      const key = [
+        value.amount,
+        value.currency,
+      ].join("|");
+      if (seen.has(key)) {
+        return false;
+      }
+      seen.add(key);
+      return true;
+    },
+  );
+}
+
+export function extractContractValue(
+  contract: ContractDocumentResult,
+): ContractValueExtraction {
+  const candidates =
+    uniqueContractValues(
+      contract.sections.flatMap(
+        contractValueCandidates,
+      ),
+    );
+
+  const state:
+    ContractValueExtraction["state"] =
+    candidates.length === 0
+      ? "missing"
+      : candidates.length === 1
+        ? "candidate"
+        : "conflicted";
+
+  return {
+    state,
+    value:
+      state === "candidate"
+        ? candidates[0]!
+        : null,
+    candidates,
+    diagnostics: [
+      ...(contract.semanticComplete
+        ? []
+        : [
+            "CONTRACT_VALUE_EXTRACTION_FROM_PARTIAL_CONTRACT_SEMANTICS",
+          ]),
+      ...(state === "conflicted"
+        ? [
+            "CONTRACT_VALUE_CONFLICT_REQUIRES_REVIEW",
+          ]
+        : []),
+      ...(state === "missing"
+        ? [
+            "CONTRACT_VALUE_NOT_IDENTIFIED_IN_PARSED_CONTRACT",
+          ]
+        : []),
+      "CONTRACT_VALUE_IS_A_CANDIDATE_UNTIL_GOVERNED_PROMOTION",
     ],
   };
 }
