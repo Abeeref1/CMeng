@@ -86,6 +86,7 @@ import type {
   ProjectRuntimeState,
   ModuleRuntimeResult,
   ProjectRuntimeOverview,
+  EvidenceBasisEffect,
   EvidenceRerunReceipt,
 } from "./project-state-types";
 import {
@@ -2603,6 +2604,8 @@ export function overviewForProject(
 
 export function rerunProject(
   projectId: string,
+  evidenceChanges:
+    EvidenceBasisEffect[] = [],
 ): EvidenceRerunReceipt | null {
   const state =
     runtimeProjects.get(projectId);
@@ -2716,6 +2719,12 @@ export function rerunProject(
         state.activeEvidenceBasis,
       ),
     ),
+    evidenceChanges:
+      evidenceChanges.map(
+        (change) => ({
+          ...change,
+        }),
+      ),
     moduleCount:
       bundle.modules.size,
     moduleResults: [
@@ -2757,6 +2766,18 @@ export function rerunProject(
         ...certification
           .failedCheckIds,
       ],
+      checks:
+        certification.checks.map(
+          (check) => ({
+            ...check,
+            values:
+              check.values.map(
+                (value) => ({
+                  ...value,
+                }),
+              ),
+          }),
+        ),
     },
     diagnostics: [
       ...(certification.state ===
