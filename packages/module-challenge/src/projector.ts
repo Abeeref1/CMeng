@@ -917,7 +917,7 @@ function conflictOutputs(
         : []
     );
 
-  const candidateComparisons =
+  const assessed =
     alternatives.map(
       (alternative) => {
         const result =
@@ -925,25 +925,119 @@ function conflictOutputs(
             alternative,
             independent,
           );
+
+        let consistencyBonus = 0;
+        let consistencyReason =
+          "No independent-consistency bonus was applied.";
+
+        if (
+          result.comparable &&
+          typeof result.gapValue ===
+            "number"
+        ) {
+          const scale =
+            typeof independent.value ===
+              "number"
+              ? Math.max(
+                  1,
+                  Math.abs(
+                    independent.value,
+                  ),
+                )
+              : 30;
+          const normalizedGap =
+            Math.min(
+              1,
+              Math.abs(
+                result.gapValue,
+              ) / scale,
+            );
+          consistencyBonus =
+            Number(
+              (
+                25 *
+                (
+                  1 -
+                  normalizedGap
+                )
+              ).toFixed(4),
+            );
+          consistencyReason =
+            "Independent consistency contributes " +
+            consistencyBonus +
+            " recommendation points; evidence authority remains the primary basis.";
+        } else if (
+          result.comparable &&
+          typeof result.gapValue ===
+            "string"
+        ) {
+          consistencyBonus =
+            result.gapValue.startsWith(
+              String(
+                independent.value,
+              ) +
+                " vs " +
+                String(
+                  alternative.value,
+                ),
+            ) &&
+            String(
+              independent.value,
+            ) ===
+              String(
+                alternative.value,
+              )
+              ? 25
+              : 5;
+          consistencyReason =
+            "Independent consistency was assessed qualitatively for this non-numeric candidate.";
+        }
+
+        const evidenceScore =
+          alternative
+            .evidenceScore ??
+          0;
+        const recommendationScore =
+          Number(
+            (
+              evidenceScore +
+              consistencyBonus
+            ).toFixed(4),
+          );
+
         return {
-          submittedValue:
-            alternative.value,
-          submittedUnit:
-            alternative.unit,
-          sourceRefs: [
-            ...alternative
-              .sourceRefs,
-          ],
-          comparable:
-            result.comparable,
-          gapValue:
-            result.gapValue,
-          gapUnit:
-            result.gapUnit,
-          note:
-            result.note,
+          alternative,
+          result,
+          evidenceScore,
+          recommendationScore,
+          consistencyReason,
         };
       },
+    );
+
+  const candidateComparisons =
+    assessed.map(
+      ({
+        alternative,
+        result,
+      }) => ({
+        submittedValue:
+          alternative.value,
+        submittedUnit:
+          alternative.unit,
+        sourceRefs: [
+          ...alternative
+            .sourceRefs,
+        ],
+        comparable:
+          result.comparable,
+        gapValue:
+          result.gapValue,
+        gapUnit:
+          result.gapUnit,
+        note:
+          result.note,
+      }),
     );
 
   if (
@@ -968,70 +1062,88 @@ function conflictOutputs(
     };
   }
 
-  const highestScore =
-    Math.max(
-      ...alternatives.map(
-        (candidate) =>
-          candidate
-            .evidenceScore ??
-          0,
-      ),
-    );
-  const recommended =
-    alternatives.find(
-      (candidate) =>
-        (
-          candidate
-            .evidenceScore ??
-          0
-        ) ===
-        highestScore,
-    ) ??
-    alternatives[0]!;
+  const ranked =
+    assessed
+      .slice()
+      .sort(
+        (a, b) =>
+          b.recommendationScore -
+            a.recommendationScore ||
+          b.evidenceScore -
+            a.evidenceScore ||
+          String(
+            a.alternative.value,
+          ).localeCompare(
+            String(
+              b.alternative.value,
+            ),
+          ),
+      );
+
+  const top =
+    ranked[0]!;
+  const second =
+    ranked[1] ??
+    null;
+  const uniqueRecommendation =
+    second === null ||
+    top.recommendationScore >
+      second.recommendationScore
+      ? top
+      : null;
 
   const assessedCandidates =
-    alternatives.map(
-      (candidate) => {
-        const result =
-          candidateGap(
-            candidate,
-            independent,
-          );
-        return {
-          value:
-            candidate.value,
-          unit:
-            candidate.unit,
-          sourceRefs: [
-            ...candidate
-              .sourceRefs,
-          ],
-          supportCount:
-            candidate.supportCount ??
-            1,
-          evidenceScore:
-            candidate.evidenceScore ??
-            0,
-          independentGap:
-            result.gapValue,
-          gapUnit:
-            result.gapUnit,
-          reasons: [
-            ...(candidate.reasons ??
-              []),
-            ...(result.comparable
+    ranked.map(
+      (candidate) => ({
+        value:
+          candidate
+            .alternative.value,
+        unit:
+          candidate
+            .alternative.unit,
+        sourceRefs: [
+          ...candidate
+            .alternative
+            .sourceRefs,
+        ],
+        supportCount:
+          candidate
+            .alternative
+            .supportCount ??
+          1,
+        evidenceScore:
+          candidate.evidenceScore,
+        recommendationScore:
+          candidate
+            .recommendationScore,
+        independentGap:
+          candidate
+            .result.gapValue,
+        gapUnit:
+          candidate
+            .result.gapUnit,
+        reasons: [
+          ...(candidate
+            .alternative
+            .reasons ??
+            []),
+          candidate
+            .consistencyReason,
+          ...(candidate
+            .result.comparable
               ? [
                   "Independent comparison was calculated for this candidate.",
                 ]
               : [
                   "Independent comparison is not arithmetically comparable for this candidate.",
                 ]),
-          ],
-          recommended:
-            candidate ===
-            recommended,
-        };
-      },
+        ],
+        recommended:
+          uniqueRecommendation !==
+            null &&
+          candidate ===
+            uniqueRecommendation,
+      }),
     );
 
   return {
@@ -1040,14 +1152,27 @@ function conflictOutputs(
       state:
         "recommendation_only",
       recommendedValue:
-        recommended.value,
+        uniqueRecommendation
+          ?.alternative.value ??
+        null,
       recommendedUnit:
-        recommended.unit,
-      rationale: [
-        ...(recommended.reasons ??
-          []),
-        "Recommendation is evidence-ranked only and does not become governed until the user confirms the value.",
-      ],
+        uniqueRecommendation
+          ?.alternative.unit ??
+        null,
+      rationale:
+        uniqueRecommendation
+          ? [
+              ...(uniqueRecommendation
+                .alternative
+                .reasons ??
+                []),
+              uniqueRecommendation
+                .consistencyReason,
+              "The recommendation combines evidence authority/active-basis support, corroboration and independent consistency. It does not become governed until the user confirms it.",
+            ]
+          : [
+              "Two or more contradictory candidates are equally supported after evidence and independent-consistency scoring. CMeng retains all calculations and requires the user to choose the governed basis.",
+            ],
       userDecisionRequired:
         true,
       candidates:
