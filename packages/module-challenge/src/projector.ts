@@ -555,37 +555,6 @@ function gapValue(
   }
 
   if (
-    submitted.state ===
-      "conflicted"
-  ) {
-    return {
-      state: "conflicted",
-      value: null,
-      unit,
-      authority:
-        "derived",
-      sourceRefs: [
-        ...submitted
-          .sourceRefs,
-      ],
-      basisRevisionId:
-        independent
-          .basisRevisionId,
-      coveragePercent:
-        independent
-          .coveragePercent,
-      asOfIso:
-        independent.asOfIso,
-      confidence: null,
-      diagnostics: [
-        "SUBMITTED_VALUES_CONFLICT",
-      ],
-      note:
-        "Submitted evidence contains conflicting values, so a single numeric gap is not authoritative.",
-    };
-  }
-
-  if (
     independent.state ===
       "not_derivable" ||
     independent.value ===
@@ -648,7 +617,10 @@ function gapValue(
           .confidence,
       diagnostics: [],
       note:
-        "Independent minus submitted.",
+        submitted.state ===
+          "conflicted"
+          ? "Independent minus the strongest-supported submitted candidate. See candidate comparisons for all contradictory values; user decision is still required."
+          : "Independent minus submitted.",
     };
   }
 
@@ -694,7 +666,10 @@ function gapValue(
           .confidence,
       diagnostics: [],
       note:
-        "Independent date minus submitted date.",
+        submitted.state ===
+          "conflicted"
+          ? "Independent date minus the strongest-supported submitted candidate date. All contradictory dates are evaluated separately below."
+          : "Independent date minus submitted date.",
     };
   }
 
@@ -757,7 +732,327 @@ function gapValue(
         .confidence,
     diagnostics: [],
     note:
-      "Non-numeric comparison.",
+      submitted.state ===
+        "conflicted"
+        ? "Comparison shown against the strongest-supported submitted candidate. All contradictory candidates are preserved and assessed separately."
+        : "Non-numeric comparison.",
+  };
+}
+
+function compatibleUnit(
+  submittedUnit: string | null,
+  independentUnit: string | null,
+): boolean {
+  if (
+    submittedUnit === null ||
+    independentUnit === null
+  ) {
+    return true;
+  }
+  return (
+    submittedUnit
+      .trim()
+      .toLowerCase() ===
+    independentUnit
+      .trim()
+      .toLowerCase()
+  );
+}
+
+function candidateGap(
+  alternative:
+    NonNullable<
+      ChallengeValue["alternatives"]
+    >[number],
+  independent:
+    ChallengeValue,
+): {
+  comparable: boolean;
+  gapValue:
+    number | string | null;
+  gapUnit: string | null;
+  note: string;
+} {
+  if (
+    independent.value === null ||
+    independent.state ===
+      "not_derivable"
+  ) {
+    return {
+      comparable: false,
+      gapValue: null,
+      gapUnit:
+        independent.unit,
+      note:
+        "Independent result is not mathematically established, so this candidate cannot be gap-tested yet.",
+    };
+  }
+
+  if (
+    !compatibleUnit(
+      alternative.unit,
+      independent.unit,
+    )
+  ) {
+    return {
+      comparable: false,
+      gapValue: null,
+      gapUnit: null,
+      note:
+        "Candidate and independent result use incompatible units; CMeng will not convert or cross-subtract them without a governed conversion basis.",
+    };
+  }
+
+  if (
+    typeof alternative.value ===
+      "number" &&
+    typeof independent.value ===
+      "number"
+  ) {
+    return {
+      comparable: true,
+      gapValue:
+        Number(
+          (
+            independent.value -
+            alternative.value
+          ).toFixed(8),
+        ),
+      gapUnit:
+        independent.unit ??
+        alternative.unit,
+      note:
+        "Independent minus this submitted candidate.",
+    };
+  }
+
+  const submittedDate =
+    dateMs(
+      alternative.value,
+    );
+  const independentDate =
+    dateMs(
+      independent.value,
+    );
+  if (
+    submittedDate !== null &&
+    independentDate !== null
+  ) {
+    return {
+      comparable: true,
+      gapValue:
+        Number(
+          (
+            (
+              independentDate -
+              submittedDate
+            ) /
+            86_400_000
+          ).toFixed(6),
+        ),
+      gapUnit: "days",
+      note:
+        "Independent date minus this submitted candidate date.",
+    };
+  }
+
+  return {
+    comparable: true,
+    gapValue:
+      String(
+        independent.value,
+      ) +
+      " vs " +
+      String(
+        alternative.value,
+      ),
+    gapUnit:
+      independent.unit ??
+      alternative.unit,
+    note:
+      "Non-numeric candidate comparison.",
+  };
+}
+
+function conflictOutputs(
+  submitted: ChallengeValue,
+  independent: ChallengeValue,
+): {
+  candidateComparisons:
+    ModuleChallengeItem["candidateComparisons"];
+  conflictRecommendation:
+    ModuleChallengeItem["conflictRecommendation"];
+} {
+  const alternatives =
+    submitted.alternatives ??
+    (
+      submitted.value !== null
+        ? [{
+            value:
+              submitted.value,
+            unit:
+              submitted.unit,
+            authority:
+              submitted.authority,
+            sourceRefs: [
+              ...submitted
+                .sourceRefs,
+            ],
+            basisRevisionId:
+              submitted
+                .basisRevisionId,
+            asOfIso:
+              submitted.asOfIso,
+            confidence:
+              submitted.confidence,
+            supportCount: 1,
+            evidenceScore:
+              submitted.confidence ===
+                null
+                ? 0
+                : submitted.confidence *
+                  20,
+            reasons: [],
+          }]
+        : []
+    );
+
+  const candidateComparisons =
+    alternatives.map(
+      (alternative) => {
+        const result =
+          candidateGap(
+            alternative,
+            independent,
+          );
+        return {
+          submittedValue:
+            alternative.value,
+          submittedUnit:
+            alternative.unit,
+          sourceRefs: [
+            ...alternative
+              .sourceRefs,
+          ],
+          comparable:
+            result.comparable,
+          gapValue:
+            result.gapValue,
+          gapUnit:
+            result.gapUnit,
+          note:
+            result.note,
+        };
+      },
+    );
+
+  if (
+    submitted.state !==
+      "conflicted" ||
+    alternatives.length <= 1
+  ) {
+    return {
+      candidateComparisons,
+      conflictRecommendation: {
+        state:
+          "not_applicable",
+        recommendedValue:
+          submitted.value,
+        recommendedUnit:
+          submitted.unit,
+        rationale: [],
+        userDecisionRequired:
+          false,
+        candidates: [],
+      },
+    };
+  }
+
+  const highestScore =
+    Math.max(
+      ...alternatives.map(
+        (candidate) =>
+          candidate
+            .evidenceScore ??
+          0,
+      ),
+    );
+  const recommended =
+    alternatives.find(
+      (candidate) =>
+        (
+          candidate
+            .evidenceScore ??
+          0
+        ) ===
+        highestScore,
+    ) ??
+    alternatives[0]!;
+
+  const assessedCandidates =
+    alternatives.map(
+      (candidate) => {
+        const result =
+          candidateGap(
+            candidate,
+            independent,
+          );
+        return {
+          value:
+            candidate.value,
+          unit:
+            candidate.unit,
+          sourceRefs: [
+            ...candidate
+              .sourceRefs,
+          ],
+          supportCount:
+            candidate.supportCount ??
+            1,
+          evidenceScore:
+            candidate.evidenceScore ??
+            0,
+          independentGap:
+            result.gapValue,
+          gapUnit:
+            result.gapUnit,
+          reasons: [
+            ...(candidate.reasons ??
+              []),
+            ...(result.comparable
+              ? [
+                  "Independent comparison was calculated for this candidate.",
+                ]
+              : [
+                  "Independent comparison is not arithmetically comparable for this candidate.",
+                ]),
+          ],
+          recommended:
+            candidate ===
+            recommended,
+        };
+      },
+    );
+
+  return {
+    candidateComparisons,
+    conflictRecommendation: {
+      state:
+        "recommendation_only",
+      recommendedValue:
+        recommended.value,
+      recommendedUnit:
+        recommended.unit,
+      rationale: [
+        ...(recommended.reasons ??
+          []),
+        "Recommendation is evidence-ranked only and does not become governed until the user confirms the value.",
+      ],
+      userDecisionRequired:
+        true,
+      candidates:
+        assessedCandidates,
+    },
   };
 }
 
@@ -863,6 +1158,11 @@ function itemFor(
       independent,
       spec.unit,
     );
+  const conflict =
+    conflictOutputs(
+      submitted,
+      independent,
+    );
   const tolerance =
     spec.tolerance ?? 0;
   const different =
@@ -945,6 +1245,10 @@ function itemFor(
     evidenceState,
     consequence,
     action,
+    candidateComparisons:
+      conflict.candidateComparisons,
+    conflictRecommendation:
+      conflict.conflictRecommendation,
     diagnostics: [
       ...(submitted.state ===
       "not_submitted"
