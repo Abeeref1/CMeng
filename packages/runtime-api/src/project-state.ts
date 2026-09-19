@@ -1625,6 +1625,8 @@ export class RuntimeProjectStore {
     sourceRelativePath?:
       | string
       | null,
+    identification?:
+      EvidenceIdentification,
   ): void {
     const state =
       this.getOrCreate(
@@ -1711,7 +1713,24 @@ export class RuntimeProjectStore {
             result.ingestionId,
           scheduleRole: null,
           mapping: null,
+          identification:
+            identification ??
+            specialistIdentification({
+              mediaType:
+                result.mediaType,
+              category:
+                "boq_cost",
+              documentType:
+                "boq",
+              sourceFilename:
+                sourceFilename ??
+                result.sourceFilename,
+              diagnostics:
+                result.diagnostics,
+            }),
           diagnostics: [
+            ...(identification
+              ?.diagnostics ?? []),
             ...result.diagnostics,
           ],
         },
@@ -1747,6 +1766,8 @@ export class RuntimeProjectStore {
         | "tender"
         | "other";
       uploadedAt?: string;
+      identification?:
+        EvidenceIdentification;
     },
   ): Promise<ContractDocumentResult> {
     const name =
@@ -1777,9 +1798,35 @@ export class RuntimeProjectStore {
       );
     }
 
+    const identification =
+      input.identification ??
+      (
+        await identifyEvidenceDocument({
+          bytes:
+            input.bytes,
+          sourceFilename:
+            input.sourceFilename ??
+            "contract",
+          sourceRelativePath:
+            input.sourceRelativePath ??
+            input.sourceFilename ??
+            null,
+          declaredMediaType:
+            input.mediaType,
+          declaredCategory:
+            "contract",
+          declaredDocumentType:
+            null,
+        })
+      ).identification;
+
     const parsed = isPdf
       ? await parseContractPdf(
           input.bytes,
+          {
+            ocrProvider:
+              this.createOcrProvider(),
+          },
         )
       : await parseContractDocx(
           input.bytes,
@@ -1900,7 +1947,8 @@ export class RuntimeProjectStore {
           input.sourceFilename?.trim() ||
           null,
         mediaType:
-          input.mediaType,
+          identification
+            .verifiedMediaType,
         sourceHashSha256: hash,
         sizeBytes:
           input.bytes.length,
@@ -1917,7 +1965,10 @@ export class RuntimeProjectStore {
           documentId,
         scheduleRole: null,
         mapping: null,
+        identification,
         diagnostics: [
+          ...identification
+            .diagnostics,
           ...parsed.diagnostics,
           ...(state.contractFamily
             ?.diagnostics ?? []),
