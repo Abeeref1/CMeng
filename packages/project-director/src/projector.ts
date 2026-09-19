@@ -640,6 +640,16 @@ export function buildProjectDirectorPosition(
     );
   }
 
+  const claimEvidenceState =
+    evidenceState(
+      input.evidenceAvailability
+        ?.claims,
+      input.noticesClaims
+        .claimCount > 0 ||
+      input.delayClaims
+        .eventCount > 0,
+    );
+
   const hseEvidenceState =
     evidenceState(
       input.evidenceAvailability
@@ -796,14 +806,30 @@ export function buildProjectDirectorPosition(
           .progressBases,
     },
     claims: {
+      evidenceState:
+        claimEvidenceState,
       eventCount:
-        input.delayClaims.eventCount,
+        claimEvidenceState ===
+          "established"
+          ? input.delayClaims
+              .eventCount
+          : null,
       claimCount:
-        input.noticesClaims.claimCount,
+        claimEvidenceState ===
+          "established"
+          ? input.noticesClaims
+              .claimCount
+          : null,
       fullyLinkedEventCount:
-        fullyLinkedEvents.length,
+        claimEvidenceState ===
+          "established"
+          ? fullyLinkedEvents.length
+          : null,
       fullyLinkedClaimCount:
-        linkedClaimIds.size,
+        claimEvidenceState ===
+          "established"
+          ? linkedClaimIds.size
+          : null,
       unlinkedClaimIds,
       observedProgrammeMovementDays:
         input.delayClaims
