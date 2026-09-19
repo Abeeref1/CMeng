@@ -171,6 +171,7 @@ test("CMeng workspace keeps the active module primary and browser script parseab
       "This programme is",
       "This contract document is",
       "Replacement / Restated contract",
+      "project position needs refresh",
     ]
   ) {
     assert.equal(
