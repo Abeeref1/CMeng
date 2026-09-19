@@ -79,6 +79,20 @@ test("CMeng workspace keeps the active module primary and browser script parseab
     /id="evidenceControlDrawer" open/,
     "evidence upload workspace must be open by default",
   );
+  assert.ok(
+    html.indexOf(
+      'id="evidenceControlDrawer"',
+    ) <
+      html.indexOf(
+        'id="directorDrawer"',
+      ),
+    "evidence upload workspace must appear before Project Director",
+  );
+  assert.match(
+    html,
+    /const primaryView=specialized\|\|genericView/,
+    "specialized module view must replace duplicate generic dashboard layers",
+  );
   assert.match(
     html,
     /function renderModuleBasis/,
