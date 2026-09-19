@@ -52,6 +52,8 @@ export interface QuantityScheduleMappingResult {
   mappedQuantity: number;
   totalKnownQuantity: number;
   quantityCoveragePercent: number | null;
+  itemCoveragePercent: number | null;
+  mixedQuantityUnits: boolean;
   ambiguousItemIds: string[];
   unmappedItemIds: string[];
   candidates: QuantityActivityMappingCandidate[];
