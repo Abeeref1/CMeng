@@ -258,7 +258,10 @@ function quantityModelFromBoq(
   const source =
     result.sourceFormat === "pdf"
       ? "boq_pdf" as const
-      : "boq_xlsx" as const;
+      : result.sourceFormat ===
+          "csv"
+        ? "boq_csv" as const
+        : "boq_xlsx" as const;
 
   const items = result.canonicalItems.map(
     (item) => ({
