@@ -94,6 +94,26 @@ export interface EvidenceIdentification {
   diagnostics: string[];
 }
 
+export type EvidenceChangeEffect =
+  | "original"
+  | "delta_amendment"
+  | "variation_order"
+  | "full_replacement"
+  | "revision_snapshot"
+  | "supplement"
+  | "unknown";
+
+export interface EvidenceLineage {
+  effect: EvidenceChangeEffect;
+  predecessorDocumentIds: string[];
+  replacesEntireBasis: boolean;
+  appliesAsDelta: boolean;
+  inferred: boolean;
+  confidence: number;
+  needsReview: boolean;
+  diagnostics: string[];
+}
+
 export interface EvidenceMappingSummary {
   method:
     | "explicit_column"
@@ -123,6 +143,7 @@ export interface StoredEvidenceDocument {
   scheduleRole: StoredScheduleRevision["role"] | null;
   mapping: EvidenceMappingSummary | null;
   identification: EvidenceIdentification;
+  lineage: EvidenceLineage;
   diagnostics: string[];
 }
 
@@ -136,6 +157,7 @@ export interface EvidenceUploadSummary {
   scheduleRole: StoredScheduleRevision["role"] | null;
   mapping: EvidenceMappingSummary | null;
   identification: EvidenceIdentification;
+  lineage: EvidenceLineage;
   diagnostics: string[];
 }
 
@@ -166,7 +188,9 @@ export interface StoredContractDocument {
     | "amendment"
     | "appendix"
     | "tender"
+    | "replacement"
     | "other";
+  lineage: EvidenceLineage;
   sourceFilename: string | null;
   sourceHashSha256: string;
   uploadedAt: string;
