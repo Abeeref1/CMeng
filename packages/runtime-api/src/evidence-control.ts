@@ -325,23 +325,197 @@ export function evidenceFamily(
   };
 }
 
-function chronologicalKey(
+function revisionHint(
   document:
     StoredEvidenceDocument,
-): string {
-  return document.uploadedAt;
+): {
+  revision: number | null;
+  date: string | null;
+} {
+  const text = [
+    document.sourceFilename,
+    document.sourceRelativePath ??
+      "",
+    document.identification
+      .detectedTitle ??
+      "",
+  ].join(" ");
+
+  const rev =
+    /\b(?:rev(?:ision)?|r)\s*[-_. ]*0*(\d{1,6})\b/i.exec(
+      text,
+    );
+  const isoDate =
+    /\b(20\d{2})[-_. ]?(0[1-9]|1[0-2])[-_. ]?([0-2]\d|3[01])\b/.exec(
+      text,
+    );
+
+  return {
+    revision:
+      rev?.[1]
+        ? Number(
+            rev[1],
+          )
+        : null,
+    date:
+      isoDate
+        ? [
+            isoDate[1],
+            isoDate[2],
+            isoDate[3],
+          ].join("-")
+        : null,
+  };
 }
 
-function shouldPromoteSnapshot(
+function snapshotComparison(
   current:
     StoredEvidenceDocument | null,
   incoming:
     StoredEvidenceDocument,
-): boolean {
-  if (!current) return true;
-  return (
-    chronologicalKey(incoming) >=
-    chronologicalKey(current)
+): {
+  promote: boolean;
+  reason: string;
+} {
+  if (!current) {
+    return {
+      promote: true,
+      reason:
+        "First established snapshot becomes active.",
+    };
+  }
+
+  const before =
+    revisionHint(current);
+  const after =
+    revisionHint(incoming);
+
+  if (
+    before.revision !== null &&
+    after.revision !== null
+  ) {
+    return {
+      promote:
+        after.revision >
+        before.revision,
+      reason:
+        after.revision >
+        before.revision
+          ? "Incoming snapshot has a higher explicit revision number."
+          : "Incoming snapshot does not have a higher explicit revision number and is retained as candidate/history.",
+    };
+  }
+
+  if (
+    before.date !== null &&
+    after.date !== null
+  ) {
+    return {
+      promote:
+        after.date >
+        before.date,
+      reason:
+        after.date >
+        before.date
+          ? "Incoming snapshot has a later explicit document date."
+          : "Incoming snapshot does not have a later explicit document date and is retained as candidate/history.",
+    };
+  }
+
+  if (
+    before.revision === null &&
+    after.revision !== null
+  ) {
+    return {
+      promote: true,
+      reason:
+        "Incoming snapshot carries an explicit revision number while the current basis did not.",
+    };
+  }
+
+  if (
+    before.date === null &&
+    after.date !== null
+  ) {
+    return {
+      promote: true,
+      reason:
+        "Incoming snapshot carries an explicit document date while the current basis did not.",
+    };
+  }
+
+  return {
+    promote: false,
+    reason:
+      "Relative snapshot chronology cannot be proven from document content/metadata. Add/Update retains the file as candidate; use Replace to promote it explicitly.",
+  };
+}
+
+function scheduleComparison(
+  state: ProjectRuntimeState,
+  current:
+    StoredEvidenceDocument | null,
+  incoming:
+    StoredEvidenceDocument,
+): {
+  promote: boolean;
+  reason: string;
+} {
+  if (!current) {
+    return {
+      promote: true,
+      reason:
+        "First control schedule for the family becomes active.",
+    };
+  }
+
+  const currentRevision =
+    state.schedules.find(
+      (item) =>
+        item.revision
+          .revisionId ===
+        current.linkedArtifactId,
+    );
+  const incomingRevision =
+    state.schedules.find(
+      (item) =>
+        item.revision
+          .revisionId ===
+        incoming.linkedArtifactId,
+    );
+
+  const before =
+    currentRevision
+      ?.revision.model
+      .dataDateIso ??
+    currentRevision
+      ?.revision.effectiveAt ??
+    null;
+  const after =
+    incomingRevision
+      ?.revision.model
+      .dataDateIso ??
+    incomingRevision
+      ?.revision.effectiveAt ??
+    null;
+
+  if (
+    before &&
+    after
+  ) {
+    return {
+      promote:
+        after > before,
+      reason:
+        after > before
+          ? "Incoming control schedule has a later Data Date/effective date."
+          : "Incoming control schedule is not later than the active control schedule and remains historical/candidate.",
+    };
+  }
+
+  return snapshotComparison(
+    current,
+    incoming,
   );
 }
 
@@ -643,14 +817,15 @@ export function applyEvidenceBasis(
     behavior ===
       "snapshot"
   ) {
-    promote =
-      shouldPromoteSnapshot(
+    const comparison =
+      snapshotComparison(
         current,
         document,
       );
-    reason = promote
-      ? "Latest snapshot becomes the active family position."
-      : "Older snapshot retained as history; current family position is unchanged.";
+    promote =
+      comparison.promote;
+    reason =
+      comparison.reason;
   } else if (
     behavior ===
       "schedule_special"
@@ -659,14 +834,16 @@ export function applyEvidenceBasis(
       document.scheduleRole ===
         "update"
     ) {
-      promote =
-        shouldPromoteSnapshot(
+      const comparison =
+        scheduleComparison(
+          state,
           current,
           document,
         );
-      reason = promote
-        ? "Newer schedule update becomes the active control programme."
-        : "Older schedule update retained without changing the active control programme.";
+      promote =
+        comparison.promote;
+      reason =
+        comparison.reason;
     } else if (
       document.scheduleRole ===
         "revised_baseline"
@@ -680,16 +857,18 @@ export function applyEvidenceBasis(
       document.scheduleRole ===
         "baseline"
     ) {
-      promote =
-        familyKey ===
-          "schedule:baseline" &&
-        shouldPromoteSnapshot(
+      const comparison =
+        scheduleComparison(
+          state,
           current,
           document,
         );
-      reason = promote
-        ? "Baseline family updated."
-        : "Baseline retained as history.";
+      promote =
+        familyKey ===
+          "schedule:baseline" &&
+        comparison.promote;
+      reason =
+        comparison.reason;
     } else {
       promote = false;
       reason =
