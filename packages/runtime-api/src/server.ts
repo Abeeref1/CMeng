@@ -291,6 +291,19 @@ async function route(
             return null;
           }
 
+          // Demonstration and deployment-validation records are never
+          // presented as live portfolio projects.
+          if (
+            state.demo === true ||
+            projectId
+              .toUpperCase()
+              .startsWith(
+                "PERSISTENCE-SMOKE-",
+              )
+          ) {
+            return null;
+          }
+
           try {
             const project =
               overviewForProject(
@@ -299,10 +312,46 @@ async function route(
             if (!project) {
               return null;
             }
+
+            const director =
+              directorForProject(
+                projectId,
+              );
+            const readyModules =
+              project.moduleStates.filter(
+                (item) =>
+                  item.status ===
+                  "ready",
+              ).length;
+            const partialModules =
+              project.moduleStates.filter(
+                (item) =>
+                  item.status ===
+                  "partial",
+              ).length;
+            const blockedModules =
+              project.moduleStates.filter(
+                (item) =>
+                  item.status ===
+                  "blocked",
+              ).length;
+            const managementActions =
+              director?.managementActions ??
+              [];
+            const positionState =
+              !project.minimumEvidenceBasis
+                .ready
+                ? "needs_information"
+                : project.lastRerunReceipt
+                    ?.certification
+                    .state === "pass"
+                  ? "current"
+                  : "needs_review";
+
             return {
               projectId:
                 project.projectId,
-              demo: project.demo,
+              demo: false,
               version:
                 project.version,
               latestDataDateIso:
@@ -314,29 +363,53 @@ async function route(
               minimumEvidenceReady:
                 project.minimumEvidenceBasis
                   .ready,
-              readyModules:
-                project.moduleStates.filter(
-                  (item) =>
-                    item.status ===
-                    "ready",
-                ).length,
-              partialModules:
-                project.moduleStates.filter(
-                  (item) =>
-                    item.status ===
-                    "partial",
-                ).length,
-              blockedModules:
-                project.moduleStates.filter(
-                  (item) =>
-                    item.status ===
-                    "blocked",
-                ).length,
+              readyModules,
+              partialModules,
+              blockedModules,
               lastRerunState:
                 project.lastRerunReceipt
                   ?.certification
                   .state ??
                 null,
+              positionState,
+              forecastCompletionIso:
+                director?.schedule
+                  .independentForecastCompletionIso ??
+                null,
+              officialCompletionIso:
+                director?.schedule
+                  .officialAdjustedCompletionIso ??
+                director?.schedule
+                  .contractualCompletionIso ??
+                null,
+              programmeMovementDays:
+                director?.claims
+                  .observedProgrammeMovementDays ??
+                null,
+              approvedEotDays:
+                director?.claims
+                  .officialApprovedEotDays ??
+                null,
+              claimCount:
+                director?.claims
+                  .claimCount ??
+                null,
+              fullyLinkedClaimCount:
+                director?.claims
+                  .fullyLinkedClaimCount ??
+                null,
+              managementActionCount:
+                managementActions.length,
+              managementActions:
+                managementActions.slice(
+                  0,
+                  3,
+                ),
+              commercialCurrencyCount:
+                director
+                  ?.commercialByCurrency
+                  ?.length ??
+                0,
               analysisError: null,
             };
           } catch (error) {
@@ -410,6 +483,27 @@ async function route(
                   ?.certification
                   .state ??
                 null,
+              positionState:
+                schedules.length > 0 &&
+                boqRevisions.length > 0
+                  ? "needs_review"
+                  : "needs_information",
+              forecastCompletionIso:
+                null,
+              officialCompletionIso:
+                null,
+              programmeMovementDays:
+                null,
+              approvedEotDays:
+                null,
+              claimCount: null,
+              fullyLinkedClaimCount:
+                null,
+              managementActionCount:
+                0,
+              managementActions: [],
+              commercialCurrencyCount:
+                0,
               analysisError:
                 error instanceof Error
                   ? error.message
