@@ -22,6 +22,15 @@ export interface IndependentMetricSpec {
     | "scenario"
     | "not_derivable";
   sourceRefs: string[];
+  authority?:
+    ChallengeValue["authority"];
+  basisRevisionId?:
+    string | null;
+  coveragePercent?:
+    number | null;
+  asOfIso?: string | null;
+  confidence?: number | null;
+  diagnostics?: string[];
   note?: string | null;
   consequenceWhenDifferent:
     string;
@@ -80,7 +89,18 @@ function submittedValue(
         "not_submitted",
       value: null,
       unit: null,
+      authority:
+        "missing",
       sourceRefs: [],
+      basisRevisionId:
+        null,
+      coveragePercent:
+        null,
+      asOfIso: null,
+      confidence: null,
+      diagnostics: [
+        "SUBMITTED_VALUE_NOT_IDENTIFIED",
+      ],
       note:
         "No submitted value was identified in the available contractor evidence.",
     };
@@ -123,11 +143,23 @@ function submittedValue(
       state: "conflicted",
       value: top.value,
       unit: top.unit,
+      authority:
+        "submitted",
       sourceRefs:
         matches.map(
           (match) =>
             match.sourceRef,
         ),
+      basisRevisionId:
+        null,
+      coveragePercent:
+        null,
+      asOfIso: null,
+      confidence:
+        top.confidence,
+      diagnostics: [
+        "SUBMITTED_VALUES_CONFLICT",
+      ],
       note:
         "Conflicting submitted values were identified: " +
         [...canonical.keys()]
@@ -139,11 +171,21 @@ function submittedValue(
     state: "submitted",
     value: top.value,
     unit: top.unit,
+    authority:
+      "submitted",
     sourceRefs:
       matches.map(
         (match) =>
           match.sourceRef,
       ),
+    basisRevisionId:
+      null,
+    coveragePercent:
+      null,
+    asOfIso: null,
+    confidence:
+      top.confidence,
+    diagnostics: [],
     note:
       top.sourceText,
   };
@@ -153,12 +195,57 @@ function independentValue(
   spec:
     IndependentMetricSpec,
 ): ChallengeValue {
+  const authority:
+    ChallengeValue["authority"] =
+    spec.authority ??
+    (
+      spec.state ===
+        "calculated"
+        ? "deterministic"
+        : spec.state ===
+            "derived"
+          ? "derived"
+          : spec.state ===
+              "scenario"
+            ? "scenario"
+            : "missing"
+    );
+
+  const confidence =
+    spec.confidence ??
+    (
+      spec.state ===
+        "calculated"
+        ? 1
+        : spec.state ===
+            "derived"
+          ? 0.9
+          : spec.state ===
+              "scenario"
+            ? 0.65
+            : null
+    );
+
   return {
     state: spec.state,
     value: spec.value,
     unit: spec.unit,
+    authority,
     sourceRefs: [
       ...spec.sourceRefs,
+    ],
+    basisRevisionId:
+      spec.basisRevisionId ??
+      null,
+    coveragePercent:
+      spec.coveragePercent ??
+      null,
+    asOfIso:
+      spec.asOfIso ?? null,
+    confidence,
+    diagnostics: [
+      ...(spec.diagnostics ??
+        []),
     ],
     note:
       spec.note ?? null,
@@ -200,7 +287,21 @@ function gapValue(
       state: "derived",
       value: null,
       unit,
+      authority:
+        "derived",
       sourceRefs: [],
+      basisRevisionId:
+        independent
+          .basisRevisionId,
+      coveragePercent:
+        independent
+          .coveragePercent,
+      asOfIso:
+        independent.asOfIso,
+      confidence:
+        independent
+          .confidence,
+      diagnostics: [],
       note:
         "Gap is that the contractor did not submit a comparable value; the independent result is still shown.",
     };
@@ -214,9 +315,23 @@ function gapValue(
       state: "conflicted",
       value: null,
       unit,
+      authority:
+        "derived",
       sourceRefs: [
         ...submitted
           .sourceRefs,
+      ],
+      basisRevisionId:
+        independent
+          .basisRevisionId,
+      coveragePercent:
+        independent
+          .coveragePercent,
+      asOfIso:
+        independent.asOfIso,
+      confidence: null,
+      diagnostics: [
+        "SUBMITTED_VALUES_CONFLICT",
       ],
       note:
         "Submitted evidence contains conflicting values, so a single numeric gap is not authoritative.",
@@ -234,7 +349,21 @@ function gapValue(
         "not_derivable",
       value: null,
       unit,
+      authority:
+        "derived",
       sourceRefs: [],
+      basisRevisionId:
+        independent
+          .basisRevisionId,
+      coveragePercent:
+        independent
+          .coveragePercent,
+      asOfIso:
+        independent.asOfIso,
+      confidence:
+        independent
+          .confidence,
+      diagnostics: [],
       note:
         "The independent value cannot be defensibly derived from current evidence.",
     };
@@ -256,7 +385,21 @@ function gapValue(
           ).toFixed(8),
         ),
       unit,
+      authority:
+        "derived",
       sourceRefs: [],
+      basisRevisionId:
+        independent
+          .basisRevisionId,
+      coveragePercent:
+        independent
+          .coveragePercent,
+      asOfIso:
+        independent.asOfIso,
+      confidence:
+        independent
+          .confidence,
+      diagnostics: [],
       note:
         "Independent minus submitted.",
     };
@@ -306,7 +449,21 @@ function gapValue(
       state: "calculated",
       value: 0,
       unit,
+      authority:
+        "derived",
       sourceRefs: [],
+      basisRevisionId:
+        independent
+          .basisRevisionId,
+      coveragePercent:
+        independent
+          .coveragePercent,
+      asOfIso:
+        independent.asOfIso,
+      confidence:
+        independent
+          .confidence,
+      diagnostics: [],
       note:
         "Submitted and independent values agree.",
     };
@@ -323,7 +480,21 @@ function gapValue(
         submitted.value,
       ),
     unit,
+    authority:
+      "derived",
     sourceRefs: [],
+    basisRevisionId:
+      independent
+        .basisRevisionId,
+    coveragePercent:
+      independent
+        .coveragePercent,
+    asOfIso:
+      independent.asOfIso,
+    confidence:
+      independent
+        .confidence,
+    diagnostics: [],
     note:
       "Non-numeric comparison.",
   };
@@ -404,6 +575,11 @@ function itemFor(
     submitted = {
       ...submitted,
       state: "conflicted",
+      diagnostics: [
+        ...submitted
+          .diagnostics,
+        "SUBMITTED_VALUE_REASONABLENESS_FAILED",
+      ],
       note:
         (
           spec.submittedReasonablenessNote ??
