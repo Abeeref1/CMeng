@@ -608,14 +608,16 @@ export function applyEvidenceBasis(
 
   let promote = false;
   let reason = "";
+  const replaceIntent =
+    intent ===
+    "replace_current_basis";
 
   if (!current) {
     promote = true;
     reason =
       "First established evidence for this family becomes the active basis.";
   } else if (
-    intent ===
-    "replace_current_basis"
+    replaceIntent
   ) {
     promote = true;
     reason =
@@ -653,8 +655,7 @@ export function applyEvidenceBasis(
         "revised_baseline"
     ) {
       promote =
-        intent ===
-        "replace_current_basis";
+        replaceIntent;
       reason = promote
         ? "Revised baseline explicitly promoted by Replace intent."
         : "Revised baseline retained as candidate until explicitly promoted/effective.";
