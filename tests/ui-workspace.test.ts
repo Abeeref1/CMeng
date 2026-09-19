@@ -196,6 +196,7 @@ test("CMeng workspace keeps the active module primary and browser script parseab
       "What needs attention",
       "Calculation complete",
       "The specialist result for this view is shown first",
+      "The previous view is no longer being shown",
     ]
   ) {
     assert.equal(
