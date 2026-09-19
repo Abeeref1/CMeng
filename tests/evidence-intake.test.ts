@@ -1130,3 +1130,125 @@ test("contract amendments remain deltas while an amended-and-restated contract i
     );
   });
 });
+
+
+test("variation order is preserved as a delta against the existing commercial basis", async () => {
+  await withServer(async (base) => {
+    const project =
+      "VO-LINEAGE-UAT";
+
+    const original = [
+      "Item No,Section,Description,Unit,Quantity,Rate SAR,Amount SAR",
+      "1.0001,Civil,Excavation,m3,100,50,5000",
+    ].join("\n");
+
+    const originalResponse =
+      await fetch(
+        base +
+          "/api/projects/" +
+          project +
+          "/evidence/uploads",
+        {
+          method: "POST",
+          headers: {
+            "content-type":
+              "text/csv",
+            "x-source-filename":
+              "original_boq.csv",
+          },
+          body: original,
+        },
+      );
+    assert.equal(
+      originalResponse.status,
+      201,
+    );
+
+    const vo = [
+      "VARIATION ORDER",
+      "VO No. VO-014",
+      "Variation amount SAR 750000",
+      "Additional quantities for station civil works.",
+    ].join("\n");
+
+    const voResponse =
+      await fetch(
+        base +
+          "/api/projects/" +
+          project +
+          "/evidence/uploads",
+        {
+          method: "POST",
+          headers: {
+            "content-type":
+              "application/octet-stream",
+            "x-source-filename":
+              "random_file.bin",
+            "x-evidence-category":
+              "other",
+          },
+          body: vo,
+        },
+      );
+
+    if (voResponse.status !== 201) {
+      throw new Error(
+        await voResponse.text(),
+      );
+    }
+
+    const result =
+      await voResponse.json() as {
+        category: string;
+        documentType: string;
+        lineage: {
+          effect: string;
+          appliesAsDelta: boolean;
+          replacesEntireBasis: boolean;
+          predecessorDocumentIds:
+            string[];
+        };
+      };
+
+    assert.equal(
+      result.category,
+      "boq_cost",
+    );
+    assert.equal(
+      result.documentType,
+      "variation_order",
+    );
+    assert.equal(
+      result.lineage.effect,
+      "variation_order",
+    );
+    assert.equal(
+      result.lineage.appliesAsDelta,
+      true,
+    );
+    assert.equal(
+      result.lineage
+        .replacesEntireBasis,
+      false,
+    );
+    assert.equal(
+      result.lineage
+        .predecessorDocumentIds
+        .length,
+      1,
+    );
+
+    const state =
+      runtimeProjects.get(project);
+    assert.equal(
+      state?.boqRevisions.length,
+      1,
+    );
+    assert.equal(
+      state?.boq
+        ?.canonicalItems[0]
+        ?.amount,
+      5000,
+    );
+  });
+});
