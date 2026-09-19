@@ -58,6 +58,7 @@ button,input,select{font:inherit}button{cursor:pointer}
 .empty{padding:34px;text-align:center;color:var(--muted);font-size:14px}.notice{padding:12px 14px;border-radius:9px;font-size:13px;margin:11px 0;line-height:1.45}.notice.info{background:#f3eee7;color:#5b5144;border:1px solid #d8e4ef}.notice.warn{background:#fff6e5;color:#8b5a16;border:1px solid #ead8ac}.notice.error{background:#fff1f0;color:#912018;border:1px solid #ffd8d3}
 .upload-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.upload-box{border:1px solid #ded8cf;border-radius:11px;padding:14px;background:#faf9f7}.upload-box strong{font-size:13px;display:block;margin-bottom:5px}.upload-box small{color:var(--muted);display:block;margin-bottom:10px;line-height:1.45;font-size:12px}.upload-box input{width:100%;font-size:12px}.intent-control{display:flex;align-items:center;justify-content:space-between;gap:9px;margin:10px 0;padding:8px 9px;background:#eef4fa;border-radius:8px}.intent-control span{font-size:11px;color:#66727f;font-weight:750}.intent-control select{max-width:175px;height:32px;border:1px solid #cbd5e1;border-radius:7px;background:#fff;color:#334155;font-size:11.5px;padding:0 7px}
 .wide-upload{margin-top:12px;border:1px solid #d9e4ee;border-radius:11px;padding:14px;background:#faf8f5;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:14px;align-items:center}.wide-upload strong{font-size:13px;display:block;margin-bottom:4px}.wide-upload small{color:var(--muted);font-size:12px}.wide-upload input{font-size:12px;width:100%;margin-top:8px}
+.upload-progress-card{margin-top:12px;padding:14px 15px;border:1px solid #cbdcec;border-radius:11px;background:#fff;box-shadow:0 5px 16px rgba(34,54,77,.035)}.upload-progress-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:10px}.upload-progress-head strong{font-size:13.5px;color:var(--slate)}.upload-progress-head b{font-size:19px;line-height:1;color:var(--accent);font-variant-numeric:tabular-nums}.upload-progress-track{height:9px;border-radius:999px;background:#e7eef6;overflow:hidden}.upload-progress-fill{height:100%;width:0;background:linear-gradient(90deg,#2f6fb2,#1f5eff);border-radius:999px;transition:width .25s ease}.upload-progress-meta{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-top:9px;font-size:11.5px;color:var(--muted)}.upload-progress-current{margin-top:6px;font-size:11px;color:#506579;overflow-wrap:anywhere}.document-updated{white-space:nowrap;font-size:11.5px;color:#506579}.document-updated b{display:block;color:var(--slate);font-size:11.5px}.document-updated small{display:block;margin-top:2px;color:var(--muted)}
 .queue{margin-top:9px;display:flex;flex-direction:column;gap:7px}.queue-row{display:grid;grid-template-columns:minmax(260px,1fr) 205px auto;gap:10px;align-items:center;padding:10px 11px;border:1px solid var(--line);border-radius:8px;background:#fff}.queue-file{min-width:0}.queue-name{display:block;font-size:12.5px;font-weight:700;white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere;word-break:break-word;color:var(--slate);line-height:1.35}.queue-path{display:block;margin-top:3px;font-size:10.5px;color:var(--muted);white-space:normal;overflow-wrap:anywhere}.queue-role-control{display:grid;gap:4px}.queue-role-control label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:800}.queue-row select{height:34px;border:1px solid #cbd5e1;border-radius:7px;font-size:11.5px;background:#fff}.queue-remove,.document-delete{border:1px solid #efc2bd;background:#fff;color:#a13f36;border-radius:7px;padding:6px 9px;font-size:11px;font-weight:700}.queue-remove:hover,.document-delete:hover{background:#fff1f0}.document-delete:disabled{opacity:.45;cursor:not-allowed;background:#fff}.document-file{min-width:260px;max-width:460px;white-space:normal;overflow-wrap:anywhere;word-break:break-word;line-height:1.35}.document-file .muted{display:block;margin-top:4px;font-size:10.5px}.document-position{white-space:nowrap}.evidence-bulk-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 10px;padding:10px 12px;border:1px solid var(--line);border-radius:9px;background:#f8fbff}.evidence-bulk-bar label{display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:700;color:var(--slate)}.evidence-bulk-bar .bulk-spacer{flex:1}.evidence-bulk-count{font-size:11.5px;color:var(--muted);font-weight:700}.evidence-select,.evidence-select-all{width:16px;height:16px;accent-color:var(--accent);cursor:pointer}.select-col{width:42px;min-width:42px;text-align:center!important;padding-left:8px!important;padding-right:8px!important}.upload-actions{display:flex;justify-content:flex-end;margin-top:10px}
 .workspace-drawer{margin-top:20px;border:1px solid var(--line);border-radius:13px;background:#fff;box-shadow:var(--shadow);overflow:hidden}.workspace-drawer>summary{list-style:none;display:flex;align-items:center;justify-content:space-between;gap:14px;padding:15px 18px;cursor:pointer;background:#fff}.workspace-drawer>summary::-webkit-details-marker{display:none}.workspace-drawer>summary strong{display:block;font-size:15px}.workspace-drawer>summary .section-kicker{margin-bottom:3px}.drawer-hint{font-size:12px;color:var(--accent);font-weight:750}.workspace-drawer[open] .drawer-hint{color:var(--muted)}.drawer-body{padding:0 18px 18px;background:#faf9f7;border-top:1px solid var(--line)}.evidence-control-grid{grid-template-columns:minmax(280px,.62fr) minmax(0,1.5fr);align-items:start;padding-top:18px}.evidence-status-card{position:sticky;top:92px}.evidence-intake-card{min-width:0}
 details:not(.workspace-drawer){border:1px solid var(--line);border-radius:9px;background:#fff}details:not(.workspace-drawer)>summary{padding:11px 13px;cursor:pointer;font-size:12.5px;font-weight:700}pre{margin:0;padding:13px;max-height:560px;overflow:auto;background:#0c1525;color:#d7e5ff;font-size:12px;line-height:1.55;border-radius:0 0 9px 9px;white-space:pre-wrap;word-break:break-word}
@@ -304,6 +305,59 @@ function fileType(file){const n=file.name.toLowerCase();if(n.endsWith(".zip"))re
 function inferScheduleRole(name){const n=name.toLowerCase();if(n.includes("revised")&&n.includes("baseline"))return"revised_baseline";if(n.includes("recovery"))return"recovery";if(n.includes("baseline")||n.includes("rev0")||n.startsWith("s01_"))return"baseline";return"update"}
 function inferContractRole(name){const n=name.toLowerCase();if(n.includes("replacement")||n.includes("restated")||n.includes("replaced"))return"replacement";if(n.includes("amendment"))return"amendment";if(n.includes("appendix")||n.includes("technical"))return"appendix";if(n.includes("tender")||n.includes("employer_require"))return"tender";if(n.includes("main")||n.startsWith("c01_"))return"main";return"other"}
 function fileDisplayName(file){return file.webkitRelativePath||file.name}
+function humanBytes(value){
+  const bytes=Number(value||0);
+  if(!Number.isFinite(bytes)||bytes<=0)return "0 B";
+  const units=["B","KB","MB","GB"];
+  let n=bytes,index=0;
+  while(n>=1024&&index<units.length-1){n/=1024;index+=1}
+  return (index===0?Math.round(n):n.toFixed(n>=100?0:n>=10?1:2))+" "+units[index];
+}
+function formatDocumentTime(value){
+  if(!value)return "—";
+  const date=new Date(value);
+  if(Number.isNaN(date.getTime()))return String(value);
+  return new Intl.DateTimeFormat(undefined,{
+    year:"numeric",month:"short",day:"2-digit",
+    hour:"2-digit",minute:"2-digit",second:"2-digit"
+  }).format(date);
+}
+function uploadId(){
+  return window.crypto?.randomUUID
+    ? window.crypto.randomUUID()
+    : "upload-"+Date.now()+"-"+Math.random().toString(16).slice(2);
+}
+function uploadPhaseLabel(state){
+  return state==="receiving"?"Uploading package":
+    state==="reading_package"?"Opening package":
+    state==="identifying"?"Identifying documents":
+    state==="processing"?"Processing documents":
+    state==="updating_project"?"Updating project position":
+    state==="complete"?"Package loaded":
+    state==="failed"?"Upload failed":"Loading project documents";
+}
+function renderEvidenceUploadProgress(progress,fileIndex=0,fileTotal=1,transferDetail=""){
+  const perFile=Math.max(0,Math.min(100,Number(progress?.percent||0)));
+  const overall=Math.max(0,Math.min(100,Math.round(((fileIndex+(perFile/100))/Math.max(1,fileTotal))*100)));
+  const phase=uploadPhaseLabel(progress?.state);
+  const docDetail=progress?.documentTotal!==null&&progress?.documentTotal!==undefined
+    ? (progress.state==="identifying"
+        ? (progress.identifiedDocuments||0)+" / "+progress.documentTotal+" identified"
+        : progress.state==="processing"
+          ? (progress.processedDocuments||0)+" / "+progress.documentTotal+" processed"
+          : progress.documentTotal+" documents")
+    : "";
+  const fileDetail=fileTotal>1?"File "+(fileIndex+1)+" of "+fileTotal:"";
+  const meta=[fileDetail,docDetail,transferDetail].filter(Boolean).join(" · ");
+  const current=progress?.currentDocument?'<div class="upload-progress-current">Current: '+escapeHtml(progress.currentDocument)+'</div>':"";
+  el("uploadMessage").innerHTML=
+    '<div class="upload-progress-card">'+
+      '<div class="upload-progress-head"><strong>'+escapeHtml(phase)+'</strong><b>'+overall+'%</b></div>'+
+      '<div class="upload-progress-track"><div class="upload-progress-fill" style="width:'+overall+'%"></div></div>'+
+      '<div class="upload-progress-meta"><span>'+escapeHtml(progress?.message||phase)+'</span><span>'+escapeHtml(meta)+'</span></div>'+
+      current+
+    '</div>';
+}
 function renderPlatformNav(){
   document.querySelectorAll(".platform-item").forEach(button=>{
     button.classList.toggle("active",button.dataset.view===appView);
@@ -988,7 +1042,7 @@ async function loadEvidence(){
       return;
     }
     const bulkBar='<div class="evidence-bulk-bar"><label><input type="checkbox" class="evidence-select-all" id="evidenceSelectAll"> Select all</label><span class="evidence-bulk-count" id="evidenceSelectedCount">0 selected</span><span class="bulk-spacer"></span><button class="document-delete" id="deleteSelectedButton" disabled>Delete selected</button></div>';
-    el("evidenceLibrary").innerHTML=bulkBar+'<div class="table-wrap"><table><thead><tr><th class="select-col"></th><th>Full document name</th><th>Document type</th><th>Current position</th><th>Effect on current record</th><th>CMeng confidence</th><th>Read from</th><th>Document conflict</th><th>Reading status</th><th>Programme role</th><th>Activity links</th><th></th></tr></thead><tbody>'+data.documents.map(d=>{
+    el("evidenceLibrary").innerHTML=bulkBar+'<div class="table-wrap"><table><thead><tr><th class="select-col"></th><th>Full document name</th><th>Last uploaded / updated</th><th>Document type</th><th>Current position</th><th>Effect on current record</th><th>CMeng confidence</th><th>Read from</th><th>Document conflict</th><th>Reading status</th><th>Programme role</th><th>Activity links</th><th></th></tr></thead><tbody>'+data.documents.map(d=>{
       const m=d.mapping;
       const i=d.identification||{};
       const mapping=!m||m.linkedActivityCount===null?"—":fmt(m.mappedActivityCount)+" / "+fmt(m.linkedActivityCount)+(m.coveragePercent===null?"":" ("+fmt(m.coveragePercent)+"%)");
@@ -1000,7 +1054,7 @@ async function loadEvidence(){
       const position=humanizeKey(d.basisState||"historical");
       const positionClass=d.basisState==="active"?"ready":d.basisState==="candidate"?"partial":"";
       const checked=selectedEvidenceDocuments.has(d.documentId)?" checked":"";
-      return '<tr><td class="select-col"><input type="checkbox" class="evidence-select" data-document-id="'+escapeHtml(d.documentId)+'" data-filename="'+escapeHtml(d.sourceFilename)+'"'+checked+'></td><td class="document-file" title="'+escapeHtml(full)+'"><b>'+escapeHtml(d.sourceFilename)+'</b><span class="muted">'+escapeHtml(full)+'</span></td><td><b>'+escapeHtml(humanizeKey(d.category))+'</b><br>'+escapeHtml(humanizeKey(d.documentType))+title+'</td><td class="document-position"><span class="badge '+positionClass+'">'+escapeHtml(position)+'</span></td><td>'+escapeHtml(humanizeKey(d.lineage?.effect||"unknown"))+(d.lineage?.replacesEntireBasis?'<br><span class="badge partial">replaces current document</span>':d.lineage?.appliesAsDelta?'<br><span class="badge">additional record</span>':'')+'</td><td>'+escapeHtml(confidence)+(i.needsReview?'<br><span class="badge partial">review</span>':'')+'</td><td>'+escapeHtml(humanizeKey(method))+'</td><td>'+escapeHtml(conflict)+'</td><td>'+escapeHtml(humanizeKey(d.parserState))+'</td><td>'+escapeHtml(d.scheduleRole?humanizeKey(d.scheduleRole):"—")+'</td><td>'+escapeHtml(mapping)+'</td><td><button class="document-delete document-delete-single" data-document-id="'+escapeHtml(d.documentId)+'" data-filename="'+escapeHtml(d.sourceFilename)+'">Delete</button></td></tr>';
+      return '<tr><td class="select-col"><input type="checkbox" class="evidence-select" data-document-id="'+escapeHtml(d.documentId)+'" data-filename="'+escapeHtml(d.sourceFilename)+'"'+checked+'></td><td class="document-file" title="'+escapeHtml(full)+'"><b>'+escapeHtml(d.sourceFilename)+'</b><span class="muted">'+escapeHtml(full)+'</span></td><td class="document-updated" title="'+escapeHtml(d.uploadedAt||"")+'"><b>'+escapeHtml(formatDocumentTime(d.uploadedAt))+'</b><small>'+escapeHtml(d.uploadedAt||"—")+'</small></td><td><b>'+escapeHtml(humanizeKey(d.category))+'</b><br>'+escapeHtml(humanizeKey(d.documentType))+title+'</td><td class="document-position"><span class="badge '+positionClass+'">'+escapeHtml(position)+'</span></td><td>'+escapeHtml(humanizeKey(d.lineage?.effect||"unknown"))+(d.lineage?.replacesEntireBasis?'<br><span class="badge partial">replaces current document</span>':d.lineage?.appliesAsDelta?'<br><span class="badge">additional record</span>':'')+'</td><td>'+escapeHtml(confidence)+(i.needsReview?'<br><span class="badge partial">review</span>':'')+'</td><td>'+escapeHtml(humanizeKey(method))+'</td><td>'+escapeHtml(conflict)+'</td><td>'+escapeHtml(humanizeKey(d.parserState))+'</td><td>'+escapeHtml(d.scheduleRole?humanizeKey(d.scheduleRole):"—")+'</td><td>'+escapeHtml(mapping)+'</td><td><button class="document-delete document-delete-single" data-document-id="'+escapeHtml(d.documentId)+'" data-filename="'+escapeHtml(d.sourceFilename)+'">Delete</button></td></tr>';
     }).join("")+'</tbody></table></div>';
     bindDocumentDeletion();
     bindEvidenceSelection();
@@ -1166,7 +1220,112 @@ async function loadDemo(){setBusy("Loading demonstration project");try{el("proje
 async function uploadSchedules(){if(!scheduleSelection.length)return;setBusy("Adding programme revisions");const roles=[...document.querySelectorAll(".schedule-role")].reduce((a,s)=>{a[Number(s.dataset.index)]=s.value;return a},{});const results=[];try{for(let i=0;i<scheduleSelection.length;i+=1){const file=scheduleSelection[i];const headers={"content-type":fileType(file),"x-source-filename":file.name,"x-source-relative-path":file.name,"x-evidence-category":"schedule","x-upload-intent":el("scheduleIntent").value,"x-schedule-role":roles[i]||inferScheduleRole(file.name)};results.push(await api("/api/projects/"+encodeURIComponent(project())+"/evidence/uploads",{method:"POST",headers,body:file}))}el("uploadMessage").innerHTML='<div class="notice info">'+results.length+'  programme revision(s) added. Baselines and updates remain in the project history; recovery programmes remain separate.</div>';scheduleSelection=[];el("scheduleFiles").value="";renderScheduleQueue();await afterEvidenceChange()}catch(e){el("uploadMessage").innerHTML='<div class="notice error">'+escapeHtml(e.message)+'</div>'}finally{setBusy("")}}
 async function uploadBoqs(){if(!boqSelection.length)return;setBusy("Adding BOQ revisions");let count=0;try{for(const file of boqSelection){await api("/api/projects/"+encodeURIComponent(project())+"/evidence/uploads",{method:"POST",headers:{"content-type":fileType(file),"x-source-filename":file.name,"x-source-relative-path":file.name,"x-evidence-category":"boq_cost","x-document-type":"boq","x-upload-intent":el("boqIntent").value},body:file});count+=1}el("uploadMessage").innerHTML='<div class="notice info">'+count+'  BOQ revision(s) added and retained.</div>';boqSelection=[];el("boqFiles").value="";renderSimpleQueue("boqQueue",boqSelection,"boq");await afterEvidenceChange()}catch(e){el("uploadMessage").innerHTML='<div class="notice error">'+escapeHtml(e.message)+'</div>'}finally{setBusy("")}}
 async function uploadContracts(){if(!contractSelection.length)return;setBusy("Adding contract documents");const roles=[...document.querySelectorAll(".contract-role")].reduce((a,s)=>{a[Number(s.dataset.index)]=s.value;return a},{});let count=0;try{for(let i=0;i<contractSelection.length;i+=1){const file=contractSelection[i];const role=roles[i]||inferContractRole(file.name);const docType=role==="main"?"main_contract":role==="amendment"?"contract_amendment":role==="appendix"?"contract_appendix":role==="tender"?"tender_employer_requirements":role==="replacement"?"contract_replacement":"contract_supporting_document";await api("/api/projects/"+encodeURIComponent(project())+"/evidence/uploads",{method:"POST",headers:{"content-type":fileType(file),"x-source-filename":file.name,"x-source-relative-path":file.name,"x-evidence-category":"contract","x-document-type":docType,"x-upload-intent":el("contractIntent").value},body:file});count+=1}el("uploadMessage").innerHTML='<div class="notice info">'+count+'  contract document(s) added. Amendments remain separate from the main contract.</div>';contractSelection=[];el("contractFiles").value="";renderContractQueue();await afterEvidenceChange()}catch(e){el("uploadMessage").innerHTML='<div class="notice error">'+escapeHtml(e.message)+'</div>'}finally{setBusy("")}}
-async function uploadEvidence(){if(!evidenceSelection.length)return;setBusy("Adding project documents");let documentCount=0;try{for(const file of evidenceSelection){const result=await api("/api/projects/"+encodeURIComponent(project())+"/evidence/uploads",{method:"POST",headers:{"content-type":fileType(file),"x-source-filename":file.name,"x-source-relative-path":file.webkitRelativePath||file.name,"x-upload-intent":el("evidenceIntent").value},body:file});documentCount+=result.documentCount||1}el("uploadMessage").innerHTML='<div class="notice info">'+documentCount+' project document(s) added. Programme, BOQ and contract documents are read directly; other records are retained and linked to activities where activity IDs are available.</div>';evidenceSelection=[];el("evidenceFiles").value="";renderSimpleQueue("evidenceQueue",evidenceSelection,"evidence");await afterEvidenceChange()}catch(e){el("uploadMessage").innerHTML='<div class="notice error">'+escapeHtml(e.message)+'</div>'}finally{setBusy("")}}
+function uploadEvidenceFileWithProgress(file,fileIndex,fileTotal){
+  return new Promise((resolve,reject)=>{
+    const id=uploadId();
+    const url="/api/projects/"+encodeURIComponent(project())+"/evidence/uploads";
+    const xhr=new XMLHttpRequest();
+    let lastServerProgress=null;
+    let pollBusy=false;
+    xhr.open("POST",url,true);
+    xhr.setRequestHeader("content-type",fileType(file));
+    xhr.setRequestHeader("x-source-filename",file.name);
+    xhr.setRequestHeader("x-source-relative-path",file.webkitRelativePath||file.name);
+    xhr.setRequestHeader("x-upload-intent",el("evidenceIntent").value);
+    xhr.setRequestHeader("x-upload-id",id);
+
+    xhr.upload.onprogress=event=>{
+      if(!event.lengthComputable)return;
+      const transferPercent=Math.max(0,Math.min(100,Math.round((event.loaded/event.total)*100)));
+      const serverPercent=Math.max(0,Math.round(transferPercent*0.24));
+      renderEvidenceUploadProgress({
+        state:"receiving",
+        percent:serverPercent,
+        message:"Uploading "+file.name,
+        documentTotal:null,
+        currentDocument:file.name
+      },fileIndex,fileTotal,"Upload "+transferPercent+"% · "+humanBytes(event.loaded)+" / "+humanBytes(event.total));
+    };
+
+    const poll=async()=>{
+      if(pollBusy)return;
+      pollBusy=true;
+      try{
+        const response=await fetch("/api/projects/"+encodeURIComponent(project())+"/evidence/upload-progress/"+encodeURIComponent(id),{cache:"no-store"});
+        if(response.ok){
+          lastServerProgress=await response.json();
+          const transferDetail=lastServerProgress.totalBytes
+            ? humanBytes(lastServerProgress.receivedBytes)+" / "+humanBytes(lastServerProgress.totalBytes)
+            : "";
+          renderEvidenceUploadProgress(lastServerProgress,fileIndex,fileTotal,transferDetail);
+        }
+      }catch{}
+      finally{pollBusy=false}
+    };
+    const timer=setInterval(poll,650);
+    void poll();
+
+    const finish=()=>clearInterval(timer);
+    xhr.onerror=()=>{
+      finish();
+      reject(new Error("Upload connection failed"));
+    };
+    xhr.onabort=()=>{
+      finish();
+      reject(new Error("Upload cancelled"));
+    };
+    xhr.onload=async()=>{
+      finish();
+      await poll();
+      let data=null;
+      try{data=JSON.parse(xhr.responseText||"null")}catch{}
+      if(xhr.status<200||xhr.status>=300){
+        reject(Object.assign(new Error(data?.message||data?.reason||data?.error||("HTTP "+xhr.status)),{status:xhr.status,data}));
+        return;
+      }
+      renderEvidenceUploadProgress(lastServerProgress||{
+        state:"complete",
+        percent:100,
+        message:(data?.documentCount||1)+" documents loaded",
+        documentTotal:data?.documentCount||1,
+        currentDocument:null
+      },fileIndex,fileTotal,"");
+      resolve(data);
+    };
+    xhr.send(file);
+  });
+}
+async function uploadEvidence(){
+  if(!evidenceSelection.length)return;
+  setBusy("Loading project package");
+  let documentCount=0;
+  try{
+    const files=[...evidenceSelection];
+    for(let i=0;i<files.length;i+=1){
+      const result=await uploadEvidenceFileWithProgress(files[i],i,files.length);
+      documentCount+=result.documentCount||1;
+    }
+    renderEvidenceUploadProgress({
+      state:"complete",
+      percent:100,
+      message:documentCount+" project documents loaded",
+      documentTotal:documentCount,
+      identifiedDocuments:documentCount,
+      processedDocuments:documentCount,
+      currentDocument:null
+    },0,1,"");
+    evidenceSelection=[];
+    el("evidenceFiles").value="";
+    renderSimpleQueue("evidenceQueue",evidenceSelection,"evidence");
+    if(el("runAfterUpload")?.checked){
+      el("uploadMessage").insertAdjacentHTML("beforeend",'<div class="notice info" style="margin-top:9px">Package loading is complete. CMeng is now updating the project position.</div>');
+    }
+    await afterEvidenceChange();
+    el("uploadMessage").insertAdjacentHTML("beforeend",'<div class="notice info" style="margin-top:9px">'+documentCount+' project document(s) loaded. The document register shows the upload/update time for every document.</div>');
+  }catch(e){
+    el("uploadMessage").innerHTML='<div class="notice error">'+escapeHtml(e.message)+'</div>';
+  }finally{setBusy("")}
+}
 el("loadDemo").onclick=loadDemo;el("refresh").onclick=()=>refresh(false);el("runAnalysisTop").onclick=runAnalysis;el("openAiTop").onclick=()=>setAppView("ai");el("askAi").onclick=askCmeng;el("createProject").onclick=createProject;el("portfolioNewProject").onclick=()=>setAppView("projects");
 function openEvidenceWorkspace(){
   if(!overview){setAppView("projects");el("createProjectMessage").innerHTML='<div class="notice info">Create or open a project before adding documents.</div>';return}
