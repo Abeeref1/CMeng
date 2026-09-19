@@ -62,6 +62,15 @@ export function buildBoardReadyReport(
         independentForecastCompletionIso:
           position.schedule
             .independentForecastCompletionIso,
+        independentForecastBasisRevisionId:
+          position.schedule
+            .independentForecastBasisRevisionId,
+        independentForecastCoveragePercent:
+          position.schedule
+            .independentForecastCoveragePercent,
+        independentForecastAuthority:
+          position.schedule
+            .independentForecastAuthority,
         officialAdjustedCompletionIso:
           position.schedule
             .officialAdjustedCompletionIso,
