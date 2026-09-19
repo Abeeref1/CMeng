@@ -58,7 +58,7 @@ button,input,select{font:inherit}button{cursor:pointer}
 .empty{padding:34px;text-align:center;color:var(--muted);font-size:14px}.notice{padding:12px 14px;border-radius:9px;font-size:13px;margin:11px 0;line-height:1.45}.notice.info{background:#f3eee7;color:#5b5144;border:1px solid #d8e4ef}.notice.warn{background:#fff6e5;color:#8b5a16;border:1px solid #ead8ac}.notice.error{background:#fff1f0;color:#912018;border:1px solid #ffd8d3}
 .upload-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.upload-box{border:1px solid #ded8cf;border-radius:11px;padding:14px;background:#faf9f7}.upload-box strong{font-size:13px;display:block;margin-bottom:5px}.upload-box small{color:var(--muted);display:block;margin-bottom:10px;line-height:1.45;font-size:12px}.upload-box input{width:100%;font-size:12px}.intent-control{display:flex;align-items:center;justify-content:space-between;gap:9px;margin:10px 0;padding:8px 9px;background:#eef4fa;border-radius:8px}.intent-control span{font-size:11px;color:#66727f;font-weight:750}.intent-control select{max-width:175px;height:32px;border:1px solid #cbd5e1;border-radius:7px;background:#fff;color:#334155;font-size:11.5px;padding:0 7px}
 .wide-upload{margin-top:12px;border:1px solid #d9e4ee;border-radius:11px;padding:14px;background:#faf8f5;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:14px;align-items:center}.wide-upload strong{font-size:13px;display:block;margin-bottom:4px}.wide-upload small{color:var(--muted);font-size:12px}.wide-upload input{font-size:12px;width:100%;margin-top:8px}
-.queue{margin-top:9px;display:flex;flex-direction:column;gap:7px}.queue-row{display:grid;grid-template-columns:minmax(260px,1fr) 205px auto;gap:10px;align-items:center;padding:10px 11px;border:1px solid var(--line);border-radius:8px;background:#fff}.queue-file{min-width:0}.queue-name{display:block;font-size:12.5px;font-weight:700;white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere;word-break:break-word;color:var(--slate);line-height:1.35}.queue-path{display:block;margin-top:3px;font-size:10.5px;color:var(--muted);white-space:normal;overflow-wrap:anywhere}.queue-role-control{display:grid;gap:4px}.queue-role-control label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:800}.queue-row select{height:34px;border:1px solid #cbd5e1;border-radius:7px;font-size:11.5px;background:#fff}.queue-remove,.document-delete{border:1px solid #efc2bd;background:#fff;color:#a13f36;border-radius:7px;padding:6px 9px;font-size:11px;font-weight:700}.queue-remove:hover,.document-delete:hover{background:#fff1f0}.document-file{min-width:260px;max-width:460px;white-space:normal;overflow-wrap:anywhere;word-break:break-word;line-height:1.35}.document-file .muted{display:block;margin-top:4px;font-size:10.5px}.document-position{white-space:nowrap}.upload-actions{display:flex;justify-content:flex-end;margin-top:10px}
+.queue{margin-top:9px;display:flex;flex-direction:column;gap:7px}.queue-row{display:grid;grid-template-columns:minmax(260px,1fr) 205px auto;gap:10px;align-items:center;padding:10px 11px;border:1px solid var(--line);border-radius:8px;background:#fff}.queue-file{min-width:0}.queue-name{display:block;font-size:12.5px;font-weight:700;white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere;word-break:break-word;color:var(--slate);line-height:1.35}.queue-path{display:block;margin-top:3px;font-size:10.5px;color:var(--muted);white-space:normal;overflow-wrap:anywhere}.queue-role-control{display:grid;gap:4px}.queue-role-control label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:800}.queue-row select{height:34px;border:1px solid #cbd5e1;border-radius:7px;font-size:11.5px;background:#fff}.queue-remove,.document-delete{border:1px solid #efc2bd;background:#fff;color:#a13f36;border-radius:7px;padding:6px 9px;font-size:11px;font-weight:700}.queue-remove:hover,.document-delete:hover{background:#fff1f0}.document-delete:disabled{opacity:.45;cursor:not-allowed;background:#fff}.document-file{min-width:260px;max-width:460px;white-space:normal;overflow-wrap:anywhere;word-break:break-word;line-height:1.35}.document-file .muted{display:block;margin-top:4px;font-size:10.5px}.document-position{white-space:nowrap}.evidence-bulk-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 10px;padding:10px 12px;border:1px solid var(--line);border-radius:9px;background:#f8fbff}.evidence-bulk-bar label{display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:700;color:var(--slate)}.evidence-bulk-bar .bulk-spacer{flex:1}.evidence-bulk-count{font-size:11.5px;color:var(--muted);font-weight:700}.evidence-select,.evidence-select-all{width:16px;height:16px;accent-color:var(--accent);cursor:pointer}.select-col{width:42px;min-width:42px;text-align:center!important;padding-left:8px!important;padding-right:8px!important}.upload-actions{display:flex;justify-content:flex-end;margin-top:10px}
 .workspace-drawer{margin-top:20px;border:1px solid var(--line);border-radius:13px;background:#fff;box-shadow:var(--shadow);overflow:hidden}.workspace-drawer>summary{list-style:none;display:flex;align-items:center;justify-content:space-between;gap:14px;padding:15px 18px;cursor:pointer;background:#fff}.workspace-drawer>summary::-webkit-details-marker{display:none}.workspace-drawer>summary strong{display:block;font-size:15px}.workspace-drawer>summary .section-kicker{margin-bottom:3px}.drawer-hint{font-size:12px;color:var(--accent);font-weight:750}.workspace-drawer[open] .drawer-hint{color:var(--muted)}.drawer-body{padding:0 18px 18px;background:#faf9f7;border-top:1px solid var(--line)}.evidence-control-grid{grid-template-columns:minmax(280px,.62fr) minmax(0,1.5fr);align-items:start;padding-top:18px}.evidence-status-card{position:sticky;top:92px}.evidence-intake-card{min-width:0}
 details:not(.workspace-drawer){border:1px solid var(--line);border-radius:9px;background:#fff}details:not(.workspace-drawer)>summary{padding:11px 13px;cursor:pointer;font-size:12.5px;font-weight:700}pre{margin:0;padding:13px;max-height:560px;overflow:auto;background:#0c1525;color:#d7e5ff;font-size:12px;line-height:1.55;border-radius:0 0 9px 9px;white-space:pre-wrap;word-break:break-word}
 .currency-card{border:1px solid var(--line);border-radius:10px;padding:13px;background:#fff}.currency-code{font-size:17px;font-weight:820;margin-bottom:8px}.currency-line{display:flex;justify-content:space-between;gap:12px;font-size:13px;padding:5px 0;color:#506579}.currency-line strong{color:#2e3a46}
@@ -291,6 +291,7 @@ const names={
 };
 let overview=null,selected="pmo-analysis",portfolioData=null,appView="portfolio";
 let scheduleSelection=[],boqSelection=[],contractSelection=[],evidenceSelection=[];
+let selectedEvidenceDocuments=new Set();
 const el=id=>document.getElementById(id);
 const project=()=>el("projectId").value.trim();
 const fmt=v=>v===null||v===undefined?"—":typeof v==="number"?new Intl.NumberFormat(undefined,{maximumFractionDigits:2}).format(v):String(v);
@@ -859,51 +860,135 @@ function renderSimpleQueue(target,files,type){
   el(target).innerHTML=files.map((file,i)=>'<div class="queue-row" style="grid-template-columns:minmax(260px,1fr) auto">'+queueFileHtml(file)+'<button class="queue-remove" data-type="'+type+'" data-index="'+i+'">Remove</button></div>').join("");
   bindQueueRemoval();
 }
+function markProjectPositionNeedsRefresh(message){
+  if(overview){
+    overview.lastRerunReceipt=null;
+    updateActiveProjectShell();
+  }
+  el("globalStatus").textContent=message+" · project position needs refresh";
+  if(el("projectBadge")){
+    el("projectBadge").className="badge partial";
+    el("projectBadge").textContent="POSITION NEEDS REFRESH";
+  }
+  if(el("projectStatus")){
+    const existing=el("projectStatus").querySelector(".delete-refresh-warning");
+    if(!existing){
+      el("projectStatus").insertAdjacentHTML("afterbegin",'<div class="notice warn delete-refresh-warning">Project documents were changed. Choose <b>Update project position</b> when you are ready to recalculate the project.</div>');
+    }
+  }
+}
 async function deleteProjectDocument(documentId,filename){
   const ok=confirm('Delete "'+filename+'"?\n\nNothing is deleted unless you confirm this message. The document will be removed immediately; the full project position will refresh only when you choose Update project position.');
   if(!ok)return;
   setBusy("Deleting document");
   try{
     const result=await api("/api/projects/"+encodeURIComponent(project())+"/evidence/documents/"+encodeURIComponent(documentId),{method:"DELETE"});
+    selectedEvidenceDocuments.delete(documentId);
     if(overview){
       overview.evidenceDocumentCount=Math.max(0,(overview.evidenceDocumentCount||0)-1);
-      overview.lastRerunReceipt=null;
-      updateActiveProjectShell();
     }
     await loadEvidence();
-    el("globalStatus").textContent='Deleted '+filename+(result.deleted?.replacementDocumentId?" · previous document restored as current":"")+' · project position needs refresh';
-    if(el("projectBadge")){
-      el("projectBadge").className="badge partial";
-      el("projectBadge").textContent="POSITION NEEDS REFRESH";
-    }
-    if(el("projectStatus")){
-      el("projectStatus").insertAdjacentHTML("afterbegin",'<div class="notice warn">A project document was deleted. Choose <b>Update project position</b> when you are ready to recalculate the project.</div>');
-    }
+    markProjectPositionNeedsRefresh('Deleted '+filename+(result.deleted?.replacementDocumentId?" · previous document restored as current":""));
   }catch(e){
     el("globalStatus").textContent="Document could not be deleted · "+e.message;
     await loadEvidence();
   }finally{setBusy("")}
 }
 function bindDocumentDeletion(){
-  document.querySelectorAll(".document-delete").forEach(button=>{
+  document.querySelectorAll(".document-delete-single").forEach(button=>{
     button.onclick=()=>deleteProjectDocument(button.dataset.documentId,button.dataset.filename);
   });
 }
+function syncEvidenceSelection(){
+  const boxes=[...document.querySelectorAll(".evidence-select")];
+  boxes.forEach(box=>{
+    box.checked=selectedEvidenceDocuments.has(box.dataset.documentId);
+  });
+  const checked=boxes.filter(box=>box.checked);
+  const selectAll=el("evidenceSelectAll");
+  if(selectAll){
+    selectAll.checked=boxes.length>0&&checked.length===boxes.length;
+    selectAll.indeterminate=checked.length>0&&checked.length<boxes.length;
+  }
+  if(el("evidenceSelectedCount")){
+    el("evidenceSelectedCount").textContent=checked.length+" selected";
+  }
+  if(el("deleteSelectedButton")){
+    el("deleteSelectedButton").disabled=checked.length===0;
+    el("deleteSelectedButton").textContent=checked.length?"Delete selected ("+checked.length+")":"Delete selected";
+  }
+}
+function bindEvidenceSelection(){
+  document.querySelectorAll(".evidence-select").forEach(box=>{
+    box.onchange=()=>{
+      if(box.checked)selectedEvidenceDocuments.add(box.dataset.documentId);
+      else selectedEvidenceDocuments.delete(box.dataset.documentId);
+      syncEvidenceSelection();
+    };
+  });
+  if(el("evidenceSelectAll")){
+    el("evidenceSelectAll").onchange=()=>{
+      const checked=el("evidenceSelectAll").checked;
+      document.querySelectorAll(".evidence-select").forEach(box=>{
+        box.checked=checked;
+        if(checked)selectedEvidenceDocuments.add(box.dataset.documentId);
+        else selectedEvidenceDocuments.delete(box.dataset.documentId);
+      });
+      syncEvidenceSelection();
+    };
+  }
+  if(el("deleteSelectedButton")){
+    el("deleteSelectedButton").onclick=deleteSelectedDocuments;
+  }
+  syncEvidenceSelection();
+}
+async function deleteSelectedDocuments(){
+  const selected=[...document.querySelectorAll(".evidence-select:checked")];
+  if(!selected.length)return;
+  const ids=selected.map(box=>box.dataset.documentId);
+  const names=selected.map(box=>box.dataset.filename);
+  const preview=names.slice(0,6).map(name=>"• "+name).join("\n");
+  const more=names.length>6?"\n• … and "+(names.length-6)+" more":"";
+  const ok=confirm("Delete "+names.length+" selected document"+(names.length===1?"":"s")+"?\n\n"+preview+more+"\n\nThe documents will be removed in one action. The full project position will refresh only when you choose Update project position.");
+  if(!ok)return;
+  setBusy("Deleting "+names.length+" documents");
+  try{
+    const result=await api("/api/projects/"+encodeURIComponent(project())+"/evidence/documents/delete",{
+      method:"POST",
+      headers:{"content-type":"application/json"},
+      body:JSON.stringify({documentIds:ids})
+    });
+    selectedEvidenceDocuments.clear();
+    if(overview){
+      overview.evidenceDocumentCount=Math.max(0,(overview.evidenceDocumentCount||0)-(result.deletedCount||ids.length));
+    }
+    await loadEvidence();
+    markProjectPositionNeedsRefresh((result.deletedCount||ids.length)+" documents deleted");
+  }catch(e){
+    el("globalStatus").textContent="Selected documents could not be deleted · "+e.message;
+    await loadEvidence();
+  }finally{setBusy("")}
+}
 async function loadEvidence(){
   if(!overview){
+    selectedEvidenceDocuments.clear();
     el("evidenceBadge").textContent="0 documents";
     el("evidenceLibrary").innerHTML='<div class="empty">No project documents have been added.</div>';
     return;
   }
   try{
     const data=await api("/api/projects/"+encodeURIComponent(project())+"/evidence/documents");
+    const liveIds=new Set((data.documents||[]).map(document=>document.documentId));
+    selectedEvidenceDocuments=new Set([...selectedEvidenceDocuments].filter(id=>liveIds.has(id)));
     el("evidenceBadge").className="badge "+(data.documentCount?"ready":"");
     el("evidenceBadge").textContent=data.documentCount+" documents";
     if(!data.documentCount){
+      selectedEvidenceDocuments.clear();
       el("evidenceLibrary").innerHTML='<div class="empty">No project documents have been added yet.</div>';
       return;
     }
-    el("evidenceLibrary").innerHTML='<div class="table-wrap"><table><thead><tr><th>Full document name</th><th>Document type</th><th>Current position</th><th>Effect on current record</th><th>CMeng confidence</th><th>Read from</th><th>Document conflict</th><th>Reading status</th><th>Programme role</th><th>Activity links</th><th></th></tr></thead><tbody>'+data.documents.map(d=>{
+    const bulkBar='<div class="evidence-bulk-bar"><label><input type="checkbox" class="evidence-select-all" id="evidenceSelectAll"> Select all</label><span class="evidence-bulk-count" id="evidenceSelectedCount">0 selected</span><span class="bulk-spacer"></span><button class="document-delete" id="deleteSelectedButton" disabled>Delete selected</button></div>';
+    el("evidenceLibrary").innerHTML=bulkBar+'<div class="table-wrap"><table><thead><tr><th class="select-col"></th><th>Full document name</th><th>Document type</th><th>Current position</th><th>Effect on current record</th><th>CMeng confidence</th><th>Read from</th><th>Document conflict</th><th>Reading status</th><th>Programme role</th><th>Activity links</th><th></th></tr></thead><tbody>'+data.documents.map(d=>{
       const m=d.mapping;
       const i=d.identification||{};
       const mapping=!m||m.linkedActivityCount===null?"—":fmt(m.mappedActivityCount)+" / "+fmt(m.linkedActivityCount)+(m.coveragePercent===null?"":" ("+fmt(m.coveragePercent)+"%)");
@@ -914,9 +999,11 @@ async function loadEvidence(){
       const full=d.sourceRelativePath||d.sourceFilename;
       const position=humanizeKey(d.basisState||"historical");
       const positionClass=d.basisState==="active"?"ready":d.basisState==="candidate"?"partial":"";
-      return '<tr><td class="document-file" title="'+escapeHtml(full)+'"><b>'+escapeHtml(d.sourceFilename)+'</b><span class="muted">'+escapeHtml(full)+'</span></td><td><b>'+escapeHtml(humanizeKey(d.category))+'</b><br>'+escapeHtml(humanizeKey(d.documentType))+title+'</td><td class="document-position"><span class="badge '+positionClass+'">'+escapeHtml(position)+'</span></td><td>'+escapeHtml(humanizeKey(d.lineage?.effect||"unknown"))+(d.lineage?.replacesEntireBasis?'<br><span class="badge partial">replaces current document</span>':d.lineage?.appliesAsDelta?'<br><span class="badge">additional record</span>':'')+'</td><td>'+escapeHtml(confidence)+(i.needsReview?'<br><span class="badge partial">review</span>':'')+'</td><td>'+escapeHtml(humanizeKey(method))+'</td><td>'+escapeHtml(conflict)+'</td><td>'+escapeHtml(humanizeKey(d.parserState))+'</td><td>'+escapeHtml(d.scheduleRole?humanizeKey(d.scheduleRole):"—")+'</td><td>'+escapeHtml(mapping)+'</td><td><button class="document-delete" data-document-id="'+escapeHtml(d.documentId)+'" data-filename="'+escapeHtml(d.sourceFilename)+'">Delete</button></td></tr>';
+      const checked=selectedEvidenceDocuments.has(d.documentId)?" checked":"";
+      return '<tr><td class="select-col"><input type="checkbox" class="evidence-select" data-document-id="'+escapeHtml(d.documentId)+'" data-filename="'+escapeHtml(d.sourceFilename)+'"'+checked+'></td><td class="document-file" title="'+escapeHtml(full)+'"><b>'+escapeHtml(d.sourceFilename)+'</b><span class="muted">'+escapeHtml(full)+'</span></td><td><b>'+escapeHtml(humanizeKey(d.category))+'</b><br>'+escapeHtml(humanizeKey(d.documentType))+title+'</td><td class="document-position"><span class="badge '+positionClass+'">'+escapeHtml(position)+'</span></td><td>'+escapeHtml(humanizeKey(d.lineage?.effect||"unknown"))+(d.lineage?.replacesEntireBasis?'<br><span class="badge partial">replaces current document</span>':d.lineage?.appliesAsDelta?'<br><span class="badge">additional record</span>':'')+'</td><td>'+escapeHtml(confidence)+(i.needsReview?'<br><span class="badge partial">review</span>':'')+'</td><td>'+escapeHtml(humanizeKey(method))+'</td><td>'+escapeHtml(conflict)+'</td><td>'+escapeHtml(humanizeKey(d.parserState))+'</td><td>'+escapeHtml(d.scheduleRole?humanizeKey(d.scheduleRole):"—")+'</td><td>'+escapeHtml(mapping)+'</td><td><button class="document-delete document-delete-single" data-document-id="'+escapeHtml(d.documentId)+'" data-filename="'+escapeHtml(d.sourceFilename)+'">Delete</button></td></tr>';
     }).join("")+'</tbody></table></div>';
     bindDocumentDeletion();
+    bindEvidenceSelection();
   }catch(e){
     el("evidenceLibrary").innerHTML='<div class="notice warn">Document register could not be loaded: '+escapeHtml(e.message)+'</div>';
   }
