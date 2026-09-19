@@ -16,9 +16,22 @@ export type ScheduleActivityChangeKind =
   | "modified"
   | "unchanged";
 
+export type ActivityIdentityMethod =
+  | "activity_id"
+  | "native_id"
+  | "wbs_name_type";
+
+export interface ActivityIdentityMatch {
+  fromActivityId: string;
+  toActivityId: string;
+  method: ActivityIdentityMethod;
+  confidence: number;
+}
+
 export interface ActivityFieldChange {
   field:
     | "name"
+    | "activityType"
     | "wbsId"
     | "calendarId"
     | "status"
@@ -33,6 +46,7 @@ export interface ActivityFieldChange {
     | "originalDurationHours"
     | "remainingDurationHours"
     | "totalFloatHours"
+    | "freeFloatHours"
     | "percentComplete";
   before: string | number | null;
   after: string | number | null;
@@ -41,6 +55,11 @@ export interface ActivityFieldChange {
 
 export interface ScheduleActivityChange {
   activityId: string;
+  fromActivityId: string | null;
+  toActivityId: string | null;
+  identityMethod:
+    ActivityIdentityMethod | null;
+  identityConfidence: number | null;
   kind: ScheduleActivityChangeKind;
   fieldChanges: ActivityFieldChange[];
   finishShiftDays: number | null;
@@ -69,4 +88,15 @@ export interface ScheduleRevisionComparison {
   fromActivityCount: number;
   toActivityCount: number;
   populationMatchPercent: number | null;
+  identityCoveragePercent: number | null;
+  identityMatches:
+    ActivityIdentityMatch[];
+  ambiguousFromActivityIds:
+    string[];
+  ambiguousToActivityIds:
+    string[];
+  unmatchedFromActivityIds:
+    string[];
+  unmatchedToActivityIds:
+    string[];
 }
