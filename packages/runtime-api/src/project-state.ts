@@ -1411,6 +1411,8 @@ export class RuntimeProjectStore {
       uploadedAt: string;
       identification?:
         EvidenceIdentification;
+      lineage?:
+        EvidenceLineage;
     },
   ): Promise<ScheduleUploadSummary> {
     const state =
@@ -1440,6 +1442,24 @@ export class RuntimeProjectStore {
             null,
         })
       ).identification;
+
+    const lineage =
+      input.lineage ??
+      inferEvidenceLineage({
+        category: "schedule",
+        documentType:
+          input.role === "baseline"
+            ? "schedule_baseline"
+            : input.role === "recovery"
+              ? "schedule_recovery"
+              : input.role ===
+                  "revised_baseline"
+                ? "schedule_revised_baseline"
+                : "schedule_update",
+        textSample: "",
+        existingDocuments:
+          state.evidenceDocuments,
+      });
 
     const existing =
       state.schedules.find(
@@ -1657,6 +1677,7 @@ export class RuntimeProjectStore {
           stored.role,
         mapping: null,
         identification,
+        lineage,
         diagnostics: [
           ...identification
             .diagnostics,
@@ -1684,6 +1705,8 @@ export class RuntimeProjectStore {
       | null,
     identification?:
       EvidenceIdentification,
+    lineage?:
+      EvidenceLineage,
   ): void {
     const state =
       this.getOrCreate(
@@ -1694,7 +1717,21 @@ export class RuntimeProjectStore {
         result.projectId,
       );
 
-    state.boq = result;
+    const boqLineage =
+      lineage ??
+      inferEvidenceLineage({
+        category: "boq_cost",
+        documentType: "boq",
+        textSample: "",
+        existingDocuments:
+          state.evidenceDocuments,
+      });
+
+    // Preserve the established BOQ basis. Later revised or replacement
+    // documents remain candidate evidence until explicitly promoted.
+    if (!state.boq) {
+      state.boq = result;
+    }
     const existingBoqIndex =
       state.boqRevisions.findIndex(
         (item) =>
@@ -1710,13 +1747,18 @@ export class RuntimeProjectStore {
         result,
       );
     }
-    state.quantities =
-      quantityModelFromBoq(
-        result,
-        latest?.revision
-          .revisionId ?? "",
-        state.quantities,
-      );
+    if (
+      state.boq?.ingestionId ===
+      result.ingestionId
+    ) {
+      state.quantities =
+        quantityModelFromBoq(
+          result,
+          latest?.revision
+            .revisionId ?? "",
+          state.quantities,
+        );
+    }
 
     if (bytes) {
       const storedPath =
@@ -1785,9 +1827,12 @@ export class RuntimeProjectStore {
               diagnostics:
                 result.diagnostics,
             }),
+          lineage:
+            boqLineage,
           diagnostics: [
             ...(identification
               ?.diagnostics ?? []),
+            ...boqLineage.diagnostics,
             ...result.diagnostics,
           ],
         },
@@ -1821,10 +1866,13 @@ export class RuntimeProjectStore {
         | "amendment"
         | "appendix"
         | "tender"
+        | "replacement"
         | "other";
       uploadedAt?: string;
       identification?:
         EvidenceIdentification;
+      lineage?:
+        EvidenceLineage;
     },
   ): Promise<ContractDocumentResult> {
     const name =
@@ -1893,6 +1941,22 @@ export class RuntimeProjectStore {
       this.getOrCreate(
         input.projectId,
       );
+    const lineage =
+      input.lineage ??
+      inferEvidenceLineage({
+        category: "contract",
+        documentType:
+          input.role === "amendment"
+            ? "contract_amendment"
+            : input.role === "replacement"
+              ? "contract_replacement"
+              : input.role === "appendix"
+                ? "contract_appendix"
+                : "main_contract",
+        textSample: "",
+        existingDocuments:
+          state.evidenceDocuments,
+      });
     const hash =
       hashBytes(input.bytes);
     const role =
@@ -1914,6 +1978,7 @@ export class RuntimeProjectStore {
       uploadedAt:
         input.uploadedAt ??
         new Date().toISOString(),
+      lineage,
       result: parsed,
     };
     const contractIndex =
@@ -1936,17 +2001,20 @@ export class RuntimeProjectStore {
       [...state.contractDocuments]
         .filter(
           (item) =>
-            item.role === "main",
+            item.role === "main" &&
+            item.lineage.effect !==
+              "full_replacement",
         )
         .sort((a, b) =>
           a.uploadedAt.localeCompare(
             b.uploadedAt,
           ),
         )
-        .at(-1) ??
+        .at(0) ??
       state.contractDocuments.find(
         (item) =>
-          item.role !== "amendment",
+          item.role !== "amendment" &&
+          item.role !== "replacement",
       ) ??
       storedContract;
     state.contract =
@@ -1995,7 +2063,9 @@ export class RuntimeProjectStore {
                 ? "contract_appendix"
                 : role === "tender"
                   ? "tender_contract_document"
-                  : "contract_supporting_document",
+                  : role === "replacement"
+                    ? "contract_replacement"
+                    : "contract_supporting_document",
         sourceFilename:
           input.sourceFilename?.trim() ||
           "contract",
@@ -2023,9 +2093,11 @@ export class RuntimeProjectStore {
         scheduleRole: null,
         mapping: null,
         identification,
+        lineage,
         diagnostics: [
           ...identification
             .diagnostics,
+          ...lineage.diagnostics,
           ...parsed.diagnostics,
           ...(state.contractFamily
             ?.diagnostics ?? []),
