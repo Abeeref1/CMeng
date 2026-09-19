@@ -44,6 +44,9 @@ import {
 import {
   TesseractOcrProvider,
 } from "../../pdf-document-parser/src";
+import {
+  parseSubmittedManpowerPlan,
+} from "../../delivery-challenge/src";
 import type {
   CanonicalQuantityProgressModel,
 } from "../../quantity-progress-core/src";
@@ -505,6 +508,9 @@ function hydrateProject(
       legacy.contractDocuments ?? [],
     contractFamily:
       legacy.contractFamily ?? null,
+    submittedManpowerPlan:
+      legacy.submittedManpowerPlan ??
+      null,
     resourcesByRevision:
       new Map(
         state.resourcesByRevision,
@@ -821,6 +827,8 @@ export class RuntimeProjectStore {
         contract: null,
         contractDocuments: [],
         contractFamily: null,
+        submittedManpowerPlan:
+          null,
         controls:
           emptyControls(),
       };
