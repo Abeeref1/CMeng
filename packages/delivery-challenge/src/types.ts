@@ -1,6 +1,9 @@
 import type {
   QuantityScheduleMappingResult,
 } from "../../cross-domain-mapping/src";
+import type {
+  SharedFindingContract,
+} from "../../module-challenge/src";
 
 export type DeliveryChallengePosition =
   | "supportable"
@@ -69,8 +72,8 @@ export interface CrewScenario {
     "schedule_derived_scenario";
 }
 
-export interface DeliveryChallengeFinding {
-  findingId: string;
+export interface DeliveryChallengeFinding
+  extends SharedFindingContract {
   topic:
     | "manpower"
     | "productivity"
