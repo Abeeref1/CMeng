@@ -30,6 +30,8 @@ export interface IndependentMetricSpec {
   actionWhenDifferent: string;
   actionWhenMissing: string;
   tolerance?: number;
+  submittedOverride?:
+    ChallengeValue;
 }
 
 function assertionSet(
@@ -369,6 +371,7 @@ function itemFor(
     IndependentMetricSpec,
 ): ModuleChallengeItem {
   const submitted =
+    spec.submittedOverride ??
     submittedValue(
       assertions,
       spec.metric,
