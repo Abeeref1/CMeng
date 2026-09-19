@@ -57,6 +57,10 @@ function progressBasis(
   authority: ProgressBasisValue["authority"],
   sourceRefs: string[],
   baselinePercent: number | null,
+  input: {
+    asOfIso?: string | null;
+    coveragePercent?: number | null;
+  } = {},
 ): ProgressBasisValue {
   return {
     valuePercent,
@@ -68,6 +72,16 @@ function progressBasis(
       valuePercent === null ? "missing" : authority,
     sourceRefs:
       valuePercent === null ? [] : [...sourceRefs],
+    asOfIso:
+      valuePercent === null
+        ? null
+        : input.asOfIso ??
+          null,
+    coveragePercent:
+      valuePercent === null
+        ? null
+        : input.coveragePercent ??
+          null,
     varianceToBaselinePercentagePoints:
       valuePercent !== null &&
       baselinePercent !== null
@@ -184,6 +198,15 @@ export function buildProgressReportProjection(
           (dataDatePoint?.dateIso ?? "unestablished"),
       ],
       baselinePercent,
+      {
+        asOfIso:
+          dataDatePoint
+            ?.dateIso ??
+          schedule.dataDateIso,
+        coveragePercent:
+          input.progressScurve
+            .baselineCoveragePercent,
+      },
     ),
     currentSchedule: progressBasis(
       currentSchedulePercent,
@@ -193,6 +216,15 @@ export function buildProgressReportProjection(
           (dataDatePoint?.dateIso ?? "unestablished"),
       ],
       baselinePercent,
+      {
+        asOfIso:
+          dataDatePoint
+            ?.dateIso ??
+          schedule.dataDateIso,
+        coveragePercent:
+          input.progressScurve
+            .currentCoveragePercent,
+      },
     ),
     physical: progressBasis(
       physicalPercent,
@@ -203,6 +235,21 @@ export function buildProgressReportProjection(
           : "missing",
       physicalRefs,
       baselinePercent,
+      {
+        asOfIso:
+          input.progressEvidence
+            ?.physical
+            ?.asOfIso ??
+          latestActual
+            ?.asOfIso ??
+          schedule.dataDateIso,
+        coveragePercent:
+          input.progressEvidence
+            ?.physical
+            ?.coveragePercent ??
+          input.progressScurve
+            .actualSnapshotCoveragePercent,
+      },
     ),
     contractorReported: progressBasis(
       input.progressEvidence?.contractorReported
@@ -213,6 +260,18 @@ export function buildProgressReportProjection(
       input.progressEvidence?.contractorReported
         ?.sourceRefs ?? [],
       baselinePercent,
+      {
+        asOfIso:
+          input.progressEvidence
+            ?.contractorReported
+            ?.asOfIso ??
+          schedule.dataDateIso,
+        coveragePercent:
+          input.progressEvidence
+            ?.contractorReported
+            ?.coveragePercent ??
+          null,
+      },
     ),
     certified: progressBasis(
       input.progressEvidence?.certified
@@ -223,6 +282,18 @@ export function buildProgressReportProjection(
       input.progressEvidence?.certified
         ?.sourceRefs ?? [],
       baselinePercent,
+      {
+        asOfIso:
+          input.progressEvidence
+            ?.certified
+            ?.asOfIso ??
+          schedule.dataDateIso,
+        coveragePercent:
+          input.progressEvidence
+            ?.certified
+            ?.coveragePercent ??
+          null,
+      },
     ),
   };
 
