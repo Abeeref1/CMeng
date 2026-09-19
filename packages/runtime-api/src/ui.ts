@@ -87,7 +87,7 @@ details:not(.workspace-drawer){border:1px solid var(--line);border-radius:9px;ba
       <button class="btn project-only" id="openAiTop">Ask CMeng</button>
       <button class="btn project-only" id="refresh">Refresh</button>
       <button class="btn project-only" id="focusMode" aria-pressed="false">Focus module</button>
-      <button class="btn project-only" id="loadDemo">Load demo</button>
+      <button class="btn project-only" id="loadDemo">Load certified demo</button>
       <div class="topbar-context project-only"><span>Active module</span><b id="topbarModule">PMO Analysis</b></div>
       <div class="topbar-spacer"></div>
       <span id="releaseStatus" class="release-state">Production</span>
