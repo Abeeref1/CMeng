@@ -143,6 +143,7 @@ export interface DirectorPositionInput {
   ncrs: NcrRecord[];
   rfis: RfiRecord[];
   permits: PermitRecord[];
+  openRiskCount?: number | null;
   boardEvidence: BoardEvidenceRecord | null;
   evidenceAvailability?:
     DirectorEvidenceAvailability;
