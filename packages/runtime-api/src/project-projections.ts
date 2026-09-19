@@ -660,6 +660,13 @@ function buildBundle(
       current.revision
         .revisionId,
     ) ?? null;
+  const resourceAssignmentsAvailable =
+    (resources?.assignments.length ?? 0) >
+    0;
+  const usableResources =
+    resourceAssignmentsAvailable
+      ? resources
+      : null;
 
   let resourceUtilization:
     ReturnType<
@@ -670,10 +677,12 @@ function buildBundle(
       typeof buildManhourScurveProjection
     > | null = null;
 
-  if (resources) {
+  if (
+    usableResources
+  ) {
     resourceUtilization =
       buildResourceUtilizationProjection(
-        resources,
+        usableResources,
         model,
         {
           generatedAt,
@@ -683,7 +692,7 @@ function buildBundle(
       );
     manhourScurve =
       buildManhourScurveProjection(
-        resources,
+        usableResources,
         model,
         {
           generatedAt,
@@ -1128,7 +1137,8 @@ function buildBundle(
       schedule: model,
       quantities:
         state.quantities,
-      resources,
+      resources:
+        usableResources,
       independentForecast,
       contractTimeBasis:
         state.controls
@@ -1192,7 +1202,9 @@ function buildBundle(
     ),
   );
 
-  if (!resources) {
+  if (
+    !resourceAssignmentsAvailable
+  ) {
     modules.set(
       "resource-utilization",
       available(
@@ -1608,7 +1620,7 @@ function buildBundle(
               null,
           },
           missingEvidence: [
-            ...(resources
+            ...(resourceAssignmentsAvailable
               ? []
               : [
                   "resource assignments",
