@@ -600,13 +600,16 @@ async function route(
 
     if (
       projectId !==
-      "UAT-DEMO"
+        "UAT-DEMO" &&
+      !projectId.startsWith(
+        "DEMO-",
+      )
     ) {
       json(res, 409, {
         error:
-          "demo_project_id_must_be_UAT-DEMO",
+          "demo_project_id_must_use_demo_namespace",
         message:
-          "Certified demo data can only be loaded into the isolated UAT-DEMO project. Existing user projects are never replaced by demo data.",
+          "Certified demo data can only be loaded into UAT-DEMO or a DEMO-* project. Existing user projects are never replaced by demo data.",
       });
       return;
     }
