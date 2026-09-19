@@ -220,6 +220,7 @@ export function analyzeCsvEvidence(
   const rows = parseCsv(text);
   if (rows.length === 0) {
     return {
+      method: "explicit_column",
       rowCount: 0,
       linkedActivityField: null,
       linkedActivityCount: null,
@@ -239,6 +240,7 @@ export function analyzeCsvEvidence(
 
   if (linkedIndex < 0) {
     return {
+      method: "explicit_column",
       rowCount,
       linkedActivityField: null,
       linkedActivityCount: null,
@@ -261,6 +263,7 @@ export function analyzeCsvEvidence(
     linkedActivityCount -
     mappedActivityCount;
   return {
+    method: "explicit_column",
     rowCount,
     linkedActivityField:
       rows[0]![linkedIndex] ?? null,
@@ -274,5 +277,47 @@ export function analyzeCsvEvidence(
             mappedActivityCount /
             linkedActivityCount
           ) * 100,
+  };
+}
+
+
+export function analyzeTextEvidence(
+  text: string,
+  activityIds: ReadonlySet<string>,
+): EvidenceMappingSummary | null {
+  if (activityIds.size === 0) return null;
+
+  const matched = new Set<string>();
+  const tokens =
+    text.match(/[A-Za-z0-9][A-Za-z0-9_.:/-]{2,}/g) ?? [];
+
+  for (const raw of tokens) {
+    const token = raw
+      .replace(/^[("']+|[)"',.;]+$/g, "")
+      .trim();
+    if (
+      token &&
+      activityIds.has(token)
+    ) {
+      matched.add(token);
+    }
+  }
+
+  if (matched.size === 0) {
+    return null;
+  }
+
+  return {
+    method:
+      "exact_text_reference",
+    rowCount: null,
+    linkedActivityField:
+      "document text",
+    linkedActivityCount:
+      matched.size,
+    mappedActivityCount:
+      matched.size,
+    unmappedActivityCount: 0,
+    coveragePercent: 100,
   };
 }
