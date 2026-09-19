@@ -48,7 +48,7 @@ button,input,select{font:inherit}button{cursor:pointer}
 details:not(.workspace-drawer){border:1px solid var(--line);border-radius:9px;background:#fff}details:not(.workspace-drawer)>summary{padding:11px 13px;cursor:pointer;font-size:12.5px;font-weight:700}pre{margin:0;padding:13px;max-height:560px;overflow:auto;background:#0c1525;color:#d7e5ff;font-size:12px;line-height:1.55;border-radius:0 0 9px 9px;white-space:pre-wrap;word-break:break-word}
 .currency-card{border:1px solid var(--line);border-radius:10px;padding:13px;background:#fff}.currency-code{font-size:17px;font-weight:820;margin-bottom:8px}.currency-line{display:flex;justify-content:space-between;gap:12px;font-size:13px;padding:5px 0;color:#526176}.currency-line strong{color:#152238}
 .challenge-card{padding:0!important;overflow:hidden}.challenge-card .challenge-head{padding:17px 18px;border-bottom:1px solid var(--line)}.challenge-card .challenge-summary{padding:15px 18px 0}.challenge-card .challenge-table-wrap{margin:15px 18px 18px}.conflict-expand-row>td{padding:0;background:#f9fbff!important}.conflict-panel{padding:16px 18px;border-top:1px solid #dce7f5;border-bottom:1px solid #dce7f5;background:linear-gradient(180deg,#f8fbff,#f4f8ff)}.conflict-title{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px}.conflict-title strong{font-size:14px}.conflict-title p{margin:3px 0 0;color:var(--muted);font-size:12px}.candidate-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px}.candidate-card{border:1px solid #cedcf3;border-radius:10px;background:#fff;padding:13px}.candidate-card.recommended{border-color:#85a7f8;box-shadow:0 0 0 2px rgba(35,87,217,.08)}.candidate-value{font-size:20px;font-weight:790;letter-spacing:-.025em;margin:3px 0 9px}.candidate-meta{display:grid;grid-template-columns:1fr 1fr;gap:7px;font-size:11.5px;color:var(--muted)}.candidate-meta b{display:block;color:#435169;font-size:10.5px;text-transform:uppercase;letter-spacing:.04em}.candidate-sources{font-size:11.5px;color:#5d6b7e;margin-top:9px;word-break:break-word}.recommendation-card{margin-top:12px;padding:13px 14px;border-radius:10px;background:#eef4ff;border:1px solid #ccdcff;display:flex;align-items:flex-start;justify-content:space-between;gap:16px}.recommendation-card strong{display:block;font-size:16px;color:#173f9b;margin:3px 0}.recommendation-card p{margin:0;color:#53647b;font-size:12px;line-height:1.45}.recommendation-label{font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;font-weight:820;color:#315fbf}.decision-pill{flex:0 0 auto;background:#fff7e8;color:#8b4b08;border:1px solid #f6d99f;border-radius:999px;padding:6px 9px;font-size:10.5px;font-weight:820;text-transform:uppercase;letter-spacing:.04em}
-.footer-note{font-size:12px;color:var(--muted);margin-top:22px;padding:0 2px}.muted{color:var(--muted)}
+.data-section{margin-top:14px;border:1px solid var(--line);border-radius:12px;background:#fff;overflow:hidden}.data-section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid var(--line);background:#f8fafc}.data-section-head h4{margin:0;font-size:14px;letter-spacing:-.01em}.data-section-body{padding:14px 16px}.value-list{display:flex;flex-wrap:wrap;gap:7px}.value-chip{display:inline-flex;padding:6px 9px;border:1px solid #d9e2ec;border-radius:8px;background:#f8fafc;font-size:12px;color:#435169}.nested-block{margin-top:12px}.nested-block:first-child{margin-top:0}.nested-title{font-size:12px;font-weight:800;color:#526176;margin:0 0 8px;text-transform:uppercase;letter-spacing:.045em}.cell-details summary{padding:4px 0!important;border:0!important;background:transparent!important}.cell-details pre{max-height:320px}.technical-payload{margin-top:16px}.footer-note{font-size:12px;color:var(--muted);margin-top:22px;padding:0 2px}.muted{color:var(--muted)}
 .spinner{width:14px;height:14px;border:2px solid #d0d5dd;border-top-color:var(--accent);border-radius:50%;display:inline-block;animation:spin .7s linear infinite;vertical-align:-2px}@keyframes spin{to{transform:rotate(360deg)}}
 @media(max-width:1280px){.app{grid-template-columns:238px minmax(0,1fr)}.grid.three{grid-template-columns:1fr 1fr}.upload-row{grid-template-columns:1fr}.evidence-control-grid{grid-template-columns:1fr}.evidence-status-card{position:static}}
 @media(max-width:900px){.app{display:block}.sidebar{position:relative;height:auto}.topbar{position:relative;flex-wrap:wrap;padding:13px 18px}.content{padding:20px 18px 48px}.project-input{min-width:0;width:100%;flex-wrap:wrap}.workspace-header{align-items:center}.grid.two,.grid.three{grid-template-columns:1fr}.module-panel #moduleContent{padding:16px}.module-panel>.module-head{padding:17px}.candidate-grid{grid-template-columns:1fr}}
@@ -319,7 +319,57 @@ function renderDeliveryChallenge(data,reason){
   el("moduleContent").innerHTML=html;
   return true;
 }
-function renderModuleResult(result){el("moduleTitle").textContent=names[result.key]||result.key;el("moduleBadge").className="badge "+statusClass(result.status);el("moduleBadge").textContent=result.status;if(result.status==="blocked"){el("moduleContent").innerHTML='<div class="notice warn"><b>Blocked by evidence dependency</b><br>'+escapeHtml(result.reason||"Required evidence is not established.")+'</div><div class="scalar-grid">'+(result.dependencies||[]).map(x=>'<div class="scalar"><b>Required</b><span>'+escapeHtml(x)+'</span></div>').join("")+'</div>';return}const data=result.data||{};if(result.key==="challenge-contract"&&renderDeliveryChallenge(data,result.reason))return;const challengeHtml=renderUniversalChallenge(data.challenge);const scalars=scalarPairs(data).filter(([k])=>k!=="challenge").map(([k,v])=>'<div class="scalar"><b>'+escapeHtml(k)+'</b><span>'+escapeHtml(fmt(v))+'</span></div>').join("");el("moduleContent").innerHTML=(result.reason?'<div class="notice info">'+escapeHtml(result.reason)+'</div>':'')+challengeHtml+'<div class="scalar-grid">'+scalars+'</div><details><summary>Evidence-backed module output</summary><pre>'+escapeHtml(JSON.stringify(data,null,2))+'</pre></details>'}
+function humanizeKey(key){
+  return String(key)
+    .replace(/[_-]+/g," ")
+    .replace(/([a-z0-9])([A-Z])/g,"$1 $2")
+    .replace(/\b\w/g,c=>c.toUpperCase());
+}
+function isScalarValue(value){
+  return value===null||["string","number","boolean"].includes(typeof value);
+}
+function renderComplexCell(value){
+  if(isScalarValue(value))return escapeHtml(fmt(value));
+  if(Array.isArray(value)&&value.every(isScalarValue))return '<div class="value-list">'+value.map(v=>'<span class="value-chip">'+escapeHtml(fmt(v))+'</span>').join("")+'</div>';
+  return '<details class="cell-details"><summary>Open detail</summary><pre>'+escapeHtml(JSON.stringify(value,null,2))+'</pre></details>';
+}
+function renderRecordTable(records){
+  const rows=records.filter(x=>x&&typeof x==="object"&&!Array.isArray(x));
+  if(!rows.length)return"";
+  const columns=[...new Set(rows.flatMap(row=>Object.keys(row)))];
+  return '<div class="table-wrap"><table><thead><tr>'+columns.map(key=>'<th>'+escapeHtml(humanizeKey(key))+'</th>').join("")+'</tr></thead><tbody>'+
+    rows.map(row=>'<tr>'+columns.map(key=>'<td>'+renderComplexCell(row[key])+'</td>').join("")+'</tr>').join("")+
+    '</tbody></table></div>';
+}
+function renderStructuredValue(value,depth=0){
+  if(isScalarValue(value))return '<div class="value-chip">'+escapeHtml(fmt(value))+'</div>';
+  if(Array.isArray(value)){
+    if(!value.length)return '<div class="muted">No records.</div>';
+    if(value.every(isScalarValue))return '<div class="value-list">'+value.map(v=>'<span class="value-chip">'+escapeHtml(fmt(v))+'</span>').join("")+'</div>';
+    if(value.every(x=>x&&typeof x==="object"&&!Array.isArray(x)))return renderRecordTable(value);
+    return '<details><summary>Mixed records · '+escapeHtml(value.length)+'</summary><pre>'+escapeHtml(JSON.stringify(value,null,2))+'</pre></details>';
+  }
+  if(!value||typeof value!=="object")return"";
+  const entries=Object.entries(value);
+  const scalars=entries.filter(([,v])=>isScalarValue(v));
+  const complex=entries.filter(([,v])=>!isScalarValue(v));
+  let html=scalars.length?'<div class="scalar-grid">'+scalars.map(([key,v])=>'<div class="scalar"><b>'+escapeHtml(humanizeKey(key))+'</b><span>'+escapeHtml(fmt(v))+'</span></div>').join("")+'</div>':"";
+  if(depth>=2&&complex.length){
+    html+='<details><summary>Full nested evidence</summary><pre>'+escapeHtml(JSON.stringify(value,null,2))+'</pre></details>';
+    return html;
+  }
+  html+=complex.map(([key,v])=>'<div class="nested-block"><div class="nested-title">'+escapeHtml(humanizeKey(key))+'</div>'+renderStructuredValue(v,depth+1)+'</div>').join("");
+  return html||'<div class="muted">No displayable values.</div>';
+}
+function renderStructuredSections(data){
+  if(!data||typeof data!=="object")return"";
+  const complex=Object.entries(data).filter(([key,value])=>key!=="challenge"&&!isScalarValue(value));
+  return complex.map(([key,value])=>{
+    const count=Array.isArray(value)?value.length:null;
+    return '<section class="data-section"><div class="data-section-head"><h4>'+escapeHtml(humanizeKey(key))+'</h4>'+(count===null?'':'<span class="badge">'+escapeHtml(count)+' records</span>')+'</div><div class="data-section-body">'+renderStructuredValue(value,0)+'</div></section>';
+  }).join("");
+}
+function renderModuleResult(result){el("moduleTitle").textContent=names[result.key]||result.key;el("moduleBadge").className="badge "+statusClass(result.status);el("moduleBadge").textContent=result.status;if(result.status==="blocked"){el("moduleContent").innerHTML='<div class="notice warn"><b>Blocked by evidence dependency</b><br>'+escapeHtml(result.reason||"Required evidence is not established.")+'</div><div class="scalar-grid">'+(result.dependencies||[]).map(x=>'<div class="scalar"><b>Required</b><span>'+escapeHtml(x)+'</span></div>').join("")+'</div>';return}const data=result.data||{};if(result.key==="challenge-contract"&&renderDeliveryChallenge(data,result.reason))return;const challengeHtml=renderUniversalChallenge(data.challenge);const scalars=scalarPairs(data).filter(([k])=>k!=="challenge").map(([k,v])=>'<div class="scalar"><b>'+escapeHtml(humanizeKey(k))+'</b><span>'+escapeHtml(fmt(v))+'</span></div>').join("");const structured=renderStructuredSections(data);el("moduleContent").innerHTML=(result.reason?'<div class="notice info">'+escapeHtml(result.reason)+'</div>':'')+challengeHtml+(scalars?'<div class="scalar-grid">'+scalars+'</div>':'')+structured+'<details class="technical-payload"><summary>Technical evidence payload</summary><pre>'+escapeHtml(JSON.stringify(data,null,2))+'</pre></details>'}
 async function loadModule(key){if(!overview){el("moduleContent").innerHTML='<div class="empty">Load a project first.</div>';return}setBusy("Calculating "+names[key]);try{const result=await api("/api/projects/"+encodeURIComponent(project())+"/schedule/modules/"+encodeURIComponent(key));renderModuleResult(result)}catch(e){const d=e.data||{};renderModuleResult({key,status:"blocked",reason:d.reason||d.error||e.message,dependencies:d.dependencies||[]})}finally{setBusy("")}}
 function kpi(label,value,sub=""){return'<div class="card kpi-card"><div class="kpi-label">'+escapeHtml(label)+'</div><div class="kpi-value">'+escapeHtml(fmt(value))+'</div><div class="kpi-sub">'+escapeHtml(sub)+'</div></div>'}
 function evidenceCount(state,value){if(state==="established")return fmt(value);if(state==="submitted_unparsed")return"Source submitted · count not established";return"Not submitted"}
