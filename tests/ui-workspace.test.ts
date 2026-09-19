@@ -166,6 +166,49 @@ test("CMeng workspace keeps the active module primary and browser script parseab
     "Ask CMeng must be directly accessible from project workspace",
   );
 
+  for (
+    const developerPhrase of [
+      "Active module",
+      "Project Control Workspace",
+      ">Grounding<",
+      "Technical payload",
+      ">Parser<",
+      "Ready modules",
+      "evidence docs",
+      "Legacy project requires analysis refresh",
+    ]
+  ) {
+    assert.equal(
+      html.includes(
+        developerPhrase,
+      ),
+      false,
+      "normal CMeng interface must not expose developer wording: " +
+        developerPhrase,
+    );
+  }
+
+  for (
+    const projectControlPhrase of [
+      "Portfolio Overview",
+      "Project Controls",
+      "Current view",
+      "Project documents",
+      "Document register & activity links",
+      "CMeng AI",
+      "Management decision required",
+    ]
+  ) {
+    assert.equal(
+      html.includes(
+        projectControlPhrase,
+      ),
+      true,
+      "CMeng interface should use project-controls wording: " +
+        projectControlPhrase,
+    );
+  }
+
   const dedicatedModuleViews = [
     "pmo-analysis",
     "schedule-analytics",
