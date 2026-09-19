@@ -189,6 +189,8 @@ test("CMeng workspace keeps the active module primary and browser script parseab
       "Ready modules",
       "evidence docs",
       "Legacy project requires analysis refresh",
+      "Available control views",
+      "Core records complete",
     ]
   ) {
     assert.equal(
@@ -210,6 +212,10 @@ test("CMeng workspace keeps the active module primary and browser script parseab
       "Document register & activity links",
       "CMeng AI",
       "Management decision required",
+      "Current positions",
+      "Need attention",
+      "CMeng forecast",
+      "Portfolio attention",
     ]
   ) {
     assert.equal(
