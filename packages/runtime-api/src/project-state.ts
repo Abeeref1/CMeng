@@ -940,6 +940,24 @@ export class RuntimeProjectStore {
       return null;
     }
 
+    const governedActive =
+      state.activeEvidenceBasis[
+        "schedule:control"
+      ]?.activeArtifactId ??
+      null;
+    if (governedActive) {
+      const active =
+        state.schedules.find(
+          (item) =>
+            item.revision
+              .revisionId ===
+            governedActive,
+        );
+      if (active) {
+        return active;
+      }
+    }
+
     const updates =
       state.schedules.filter(
         (item) =>
@@ -1797,6 +1815,8 @@ export class RuntimeProjectStore {
         EvidenceLineage;
       assertions?:
         DocumentAssertion[];
+      uploadIntent?:
+        EvidenceUploadIntent;
     },
   ): Promise<ScheduleUploadSummary> {
     const state =
@@ -1830,6 +1850,10 @@ export class RuntimeProjectStore {
     const assertions =
       input.assertions ??
       [];
+    const uploadIntent:
+      EvidenceUploadIntent =
+      input.uploadIntent ??
+      "add_update";
 
     const lineage =
       input.lineage ??
@@ -1999,14 +2023,6 @@ export class RuntimeProjectStore {
       );
     }
 
-    if (state.quantities) {
-      state.quantities = {
-        ...state.quantities,
-        scheduleRevisionId:
-          revisionId,
-      };
-    }
-
     const storedPath =
       this.persistRawUpload({
         projectId:
@@ -2019,16 +2035,15 @@ export class RuntimeProjectStore {
           null,
       });
 
-    this.upsertEvidence(
-      state,
-      {
-        documentId:
-          this.evidenceDocumentId(
-            hash,
-            input.sourceRelativePath ??
-              input.sourceFilename ??
-              null,
-          ),
+    const documentId =
+      this.evidenceDocumentId(
+        hash,
+        input.sourceRelativePath ??
+          input.sourceFilename ??
+          null,
+      );
+    const family =
+      evidenceFamily({
         category: "schedule",
         documentType:
           stored.role === "baseline"
@@ -2039,41 +2054,101 @@ export class RuntimeProjectStore {
                   "revised_baseline"
                 ? "schedule_revised_baseline"
                 : "schedule_update",
-        sourceFilename:
-          input.sourceFilename?.trim() ||
-          "schedule",
-        sourceRelativePath:
-          input.sourceRelativePath?.trim() ||
-          input.sourceFilename?.trim() ||
-          null,
-        mediaType:
-          identification
-            .verifiedMediaType,
-        sourceHashSha256: hash,
-        sizeBytes:
-          input.bytes.length,
-        uploadedAt:
-          input.uploadedAt,
-        authority:
-          "candidate_only",
-        parserState:
-          "parsed",
-        storedPath,
-        linkedArtifactId:
-          revisionId,
         scheduleRole:
           stored.role,
-        mapping: null,
-        identification,
-        lineage,
-        assertions,
-        diagnostics: [
-          ...identification
-            .diagnostics,
-          ...model.diagnostics,
-        ],
-      },
+        textSample:
+          assertions
+            .map(
+              (assertion) =>
+                assertion.sourceText,
+            )
+            .join("\n"),
+        sourceFilename:
+          input.sourceFilename ??
+          "schedule",
+      });
+    const document:
+      StoredEvidenceDocument = {
+      documentId,
+      category: "schedule",
+      documentType:
+        stored.role === "baseline"
+          ? "schedule_baseline"
+          : stored.role === "recovery"
+            ? "schedule_recovery"
+            : stored.role ===
+                "revised_baseline"
+              ? "schedule_revised_baseline"
+              : "schedule_update",
+      sourceFilename:
+        input.sourceFilename?.trim() ||
+        "schedule",
+      sourceRelativePath:
+        input.sourceRelativePath?.trim() ||
+        input.sourceFilename?.trim() ||
+        null,
+      mediaType:
+        identification
+          .verifiedMediaType,
+      sourceHashSha256: hash,
+      sizeBytes:
+        input.bytes.length,
+      uploadedAt:
+        input.uploadedAt,
+      authority:
+        "candidate_only",
+      parserState:
+        "parsed",
+      storedPath,
+      linkedArtifactId:
+        revisionId,
+      scheduleRole:
+        stored.role,
+      mapping: null,
+      identification,
+      lineage,
+      assertions,
+      uploadIntent,
+      familyKey:
+        family.familyKey,
+      logicalDocumentKey:
+        family.logicalDocumentKey,
+      basisState: "candidate",
+      supersededByDocumentId:
+        null,
+      supersedesDocumentIds:
+        [],
+      diagnostics: [
+        ...identification
+          .diagnostics,
+        ...model.diagnostics,
+      ],
+    };
+    this.upsertEvidence(
+      state,
+      document,
     );
+    applyEvidenceBasis(
+      state,
+      document,
+      uploadIntent,
+    );
+
+    const activeSchedule =
+      this.latestSchedule(
+        input.projectId,
+      );
+    if (
+      state.quantities &&
+      activeSchedule
+    ) {
+      state.quantities = {
+        ...state.quantities,
+        scheduleRevisionId:
+          activeSchedule.revision
+            .revisionId,
+      };
+    }
 
     this.touch(state);
 
