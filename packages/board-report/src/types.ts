@@ -20,6 +20,12 @@ export interface BoardReadyReport {
     executivePosition: {
       dataDateIso: string | null;
       independentForecastCompletionIso: string | null;
+      independentForecastBasisRevisionId: string;
+      independentForecastCoveragePercent: number | null;
+      independentForecastAuthority:
+        | "deterministic"
+        | "scenario"
+        | "unresolved";
       officialAdjustedCompletionIso: string | null;
       varianceDays: number | null;
       managementActions: string[];
