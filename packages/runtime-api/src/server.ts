@@ -613,6 +613,10 @@ async function route(
         rerunRequested(req)
           ? rerunProject(
               projectId,
+              results.map(
+                (result) =>
+                  result.basisEffect,
+              ),
             )
           : null;
       json(res, 201, {
@@ -668,6 +672,9 @@ async function route(
       rerunRequested(req)
         ? rerunProject(
             projectId,
+            [
+              result.basisEffect,
+            ],
           )
         : null;
     json(res, 201, {
