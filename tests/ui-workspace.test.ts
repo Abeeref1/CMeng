@@ -117,6 +117,26 @@ test("CMeng workspace keeps the active module primary and browser script parseab
     /aria-label="CMeng logo"/,
     "CMeng logo must remain visible in the shell",
   );
+  assert.match(
+    html,
+    /data:image\/jpeg;base64,/,
+    "the supplied CMeng logo asset must be embedded instead of a placeholder mark",
+  );
+  assert.match(
+    html,
+    /--accent:#c99737/,
+    "CMeng gold brand accent must remain in the production theme",
+  );
+  assert.match(
+    html,
+    /class="btn primary project-only" id="openEvidenceTop"/,
+    "project actions must stay hidden outside an opened project",
+  );
+  assert.match(
+    html,
+    /id="runAfterUpload" checked/,
+    "evidence intake should rerun analysis after upload by default",
+  );
   for (
     const platformView of [
       "portfolioView",
