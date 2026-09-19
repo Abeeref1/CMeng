@@ -573,8 +573,17 @@ function hydrateProject(
       legacy.activeEvidenceBasis ??
       {},
     boardPublicationHistory:
-      legacy.boardPublicationHistory ??
-      [],
+      (
+        legacy.boardPublicationHistory ??
+        []
+      ).map(
+        (item) => ({
+          ...item,
+          reportSnapshot:
+            item.reportSnapshot ??
+            null,
+        }),
+      ),
     delayEventHistory:
       legacy.delayEventHistory ??
       [],
@@ -1019,6 +1028,37 @@ export class RuntimeProjectStore {
     state.lastRerunReceipt =
       null;
     this.touch(state);
+  }
+
+  attachPublishedBoardReport(
+    projectId: string,
+    publicationId: string,
+    report:
+      NonNullable<
+        ProjectRuntimeState["boardPublicationHistory"][number]["reportSnapshot"]
+      >,
+  ): void {
+    const state =
+      this.getOrCreate(
+        projectId,
+      );
+    const publication =
+      state.boardPublicationHistory
+        .find(
+          (item) =>
+            item.publicationId ===
+            publicationId,
+        );
+    if (!publication) {
+      return;
+    }
+    publication.reportSnapshot =
+      JSON.parse(
+        JSON.stringify(
+          report,
+        ),
+      );
+    this.persistSnapshot();
   }
 
   recordRerunReceipt(
@@ -2952,6 +2992,8 @@ export class RuntimeProjectStore {
               .finalizedAt,
           stale: false,
           staleAt: null,
+          reportSnapshot:
+            null,
         });
         this.persistSnapshot();
       }
