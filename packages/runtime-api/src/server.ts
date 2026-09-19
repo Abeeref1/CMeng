@@ -25,6 +25,7 @@ import {
   type BoardReportPublicationInput,
 } from "../../board-report/src";
 import {
+  normalizeProjectCode,
   runtimeProjects,
 } from "./project-state";
 import {
@@ -540,32 +541,50 @@ async function route(
         projectId?: string;
       }>(req);
     const projectId =
-      (
+      normalizeProjectCode(
         body.projectId ??
-        ""
-      ).trim();
+          "",
+      );
     if (!projectId) {
       json(res, 400, {
         error:
           "project_id_required",
+        message:
+          "Enter a project code.",
       });
       return;
     }
-    const existed =
-      runtimeProjects.get(
-        projectId,
-      ) !== null;
+
+    const existingId =
+      runtimeProjects
+        .findProjectIdByCode(
+          projectId,
+        );
+    if (existingId) {
+      json(res, 409, {
+        error:
+          "project_code_already_exists",
+        message:
+          "Project code " +
+          existingId +
+          " already exists. Open the existing project instead.",
+        projectId:
+          existingId,
+      });
+      return;
+    }
+
     const state =
       runtimeProjects.getOrCreate(
         projectId,
       );
     json(
       res,
-      existed ? 200 : 201,
+      201,
       {
         projectId:
           state.projectId,
-        created: !existed,
+        created: true,
         version:
           state.version,
       },
