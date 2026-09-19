@@ -1110,6 +1110,49 @@ const rules:
     category:
       "correspondence",
     documentType:
+      "meeting_minutes",
+    signals: [
+      {
+        label:
+          "minutes of meeting",
+        pattern:
+          /\bminutes\s+of\s+meeting\b/i,
+        weight: 8,
+      },
+      {
+        label:
+          "meeting minutes",
+        pattern:
+          /\bmeeting\s+minutes\b/i,
+        weight: 8,
+      },
+      {
+        label:
+          "MOM reference",
+        pattern:
+          /\bmom\s*(?:no\.?|number|#|ref(?:erence)?)?/i,
+        weight: 5,
+      },
+      {
+        label:
+          "attendees",
+        pattern:
+          /\battendees?\b/i,
+        weight: 2,
+      },
+      {
+        label:
+          "action items",
+        pattern:
+          /\baction\s+items?\b/i,
+        weight: 2,
+      },
+    ],
+  },
+  {
+    category:
+      "correspondence",
+    documentType:
       "letters_notices",
     signals: [
       {
