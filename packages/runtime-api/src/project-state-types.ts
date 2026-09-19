@@ -301,6 +301,27 @@ export interface ProjectRuntimeOverview {
   boqState: string | null;
   contractLoaded: boolean;
   delayClaimsLoaded: boolean;
+  minimumEvidenceBasis: {
+    schedule: {
+      required: true;
+      established: boolean;
+      revisionCount: number;
+      latestRevisionId: string | null;
+      latestDataDateIso: string | null;
+    };
+    boq: {
+      required: true;
+      established: boolean;
+      revisionCount: number;
+      currentIngestionId: string | null;
+    };
+    ready: boolean;
+  };
+  optionalEvidence: Array<{
+    documentType: string;
+    count: number;
+    latestUploadedAt: string;
+  }>;
   moduleStates: Array<{
     key: string;
     status:
