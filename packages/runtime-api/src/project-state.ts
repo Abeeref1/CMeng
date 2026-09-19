@@ -1197,6 +1197,8 @@ export class RuntimeProjectStore {
           document.mapping,
         identification:
           document.identification,
+        lineage:
+          document.lineage,
         diagnostics: [
           ...document.diagnostics,
         ],
@@ -1223,7 +1225,10 @@ export class RuntimeProjectStore {
             : documentType ===
                 "contract_appendix"
               ? "appendix"
-              : "other";
+              : documentType ===
+                  "contract_replacement"
+                ? "replacement"
+                : "other";
       await this.ingestContract({
         projectId:
           input.projectId,
@@ -1274,6 +1279,8 @@ export class RuntimeProjectStore {
           document.mapping,
         identification:
           document.identification,
+        lineage:
+          document.lineage,
         diagnostics: [
           ...document.diagnostics,
         ],
