@@ -2157,6 +2157,20 @@ function buildBundle(
           state.controls
             .boardPublication,
         );
+      if (
+        latestBoardPublicationRecord &&
+        state.controls
+          .boardPublication
+          .finalizedAt
+      ) {
+        runtimeProjects
+          .attachPublishedBoardReport(
+            state.projectId,
+            latestBoardPublicationRecord
+              .publicationId,
+            boardReport,
+          );
+      }
     }
   }
 
