@@ -39,7 +39,38 @@ function allAssertions(
   return state.evidenceDocuments
     .flatMap(
       (document) =>
-        document.assertions ?? [],
+        (
+          document.assertions ??
+          []
+        ).map(
+          (assertion) => ({
+            ...assertion,
+            documentId:
+              document.documentId,
+            evidenceBasisState:
+              document.basisState,
+            uploadedAt:
+              document.uploadedAt,
+            basisRevisionId:
+              document
+                .linkedArtifactId ??
+              null,
+            sourceAuthority:
+              document.basisState ===
+                "active"
+                ? "governed"
+                : document.basisState ===
+                    "additive"
+                  ? "candidate"
+                  : document.basisState ===
+                      "superseded"
+                    ? "submitted"
+                    : document.basisState ===
+                        "scenario"
+                      ? "scenario"
+                      : "candidate",
+          }),
+        ),
     );
 }
 
