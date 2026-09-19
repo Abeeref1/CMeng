@@ -182,6 +182,20 @@ test("CMeng workspace keeps the active module primary and browser script parseab
       "evidence/upload-progress/",
       "Last uploaded / updated",
       "formatDocumentTime",
+      "How to read these document statuses",
+      "Current / used now",
+      "Previous version",
+      "Needs review before current",
+      "Adds to current record",
+      "Reference only",
+      "Scenario only",
+      "Reading result",
+      "Full OCR required",
+      "Submitted metrics missing",
+      "Scenario calculations",
+      "What needs attention",
+      "Calculation complete",
+      "The specialist result for this view is shown first",
     ]
   ) {
     assert.equal(
