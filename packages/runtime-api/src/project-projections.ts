@@ -496,6 +496,60 @@ function buildBundle(
     ),
   );
 
+  const revisionTrend =
+    buildRevisionTrendProjection(
+      ordered.map(
+        (item) =>
+          item.revision,
+      ),
+      {
+        generatedAt,
+        producerVersion:
+          versions.revision,
+      },
+    );
+  modules.set(
+    "revision-trend",
+    available(
+      "revision-trend",
+      revisionTrend,
+      ["schedule revision history"],
+      ordered.length >= 2
+        ? "ready"
+        : "partial",
+      ordered.length >= 2
+        ? null
+        : "One revision is available. CMeng shows the established first trend point and identifies the missing comparison history.",
+    ),
+  );
+
+  const varianceTrends =
+    buildVarianceTrendsProjection(
+      ordered.map(
+        (item) =>
+          item.revision,
+      ),
+      {
+        generatedAt,
+        producerVersion:
+          versions.variance,
+      },
+    );
+  modules.set(
+    "variance-trends",
+    available(
+      "variance-trends",
+      varianceTrends,
+      ["schedule revision history"],
+      ordered.length >= 2
+        ? "ready"
+        : "partial",
+      ordered.length >= 2
+        ? null
+        : "One revision is available. Current variance is calculated, but cross-revision deterioration/improvement requires another revision.",
+    ),
+  );
+
   if (ordered.length >= 2) {
     const before =
       ordered.at(-2)!.revision;
@@ -518,59 +572,45 @@ function buildBundle(
         ["two schedule revisions"],
       ),
     );
-
-    modules.set(
-      "revision-trend",
-      available(
-        "revision-trend",
-        buildRevisionTrendProjection(
-          ordered.map(
-            (item) =>
-              item.revision,
-          ),
-          {
-            generatedAt,
-            producerVersion:
-              versions.revision,
-          },
-        ),
-        ["schedule revision history"],
-      ),
-    );
-
-    modules.set(
-      "variance-trends",
-      available(
-        "variance-trends",
-        buildVarianceTrendsProjection(
-          ordered.map(
-            (item) =>
-              item.revision,
-          ),
-          {
-            generatedAt,
-            producerVersion:
-              versions.variance,
-          },
-        ),
-        ["schedule revision history"],
-      ),
-    );
   } else {
-    for (const key of [
+    modules.set(
       "schedule-change-report",
-      "revision-trend",
-      "variance-trends",
-    ]) {
-      modules.set(
-        key,
-        blocked(
-          key,
-          "At least two schedule revisions are required.",
-          ["second schedule revision"],
-        ),
-      );
-    }
+      available(
+        "schedule-change-report",
+        {
+          schemaVersion: "1.0",
+          projectionKey:
+            "schedule_change_report",
+          generatedAt,
+          producerVersion:
+            versions.change,
+          state:
+            "insufficient_history",
+          fromRevisionId: null,
+          toRevisionId:
+            current.revision
+              .revisionId,
+          matchedActivityCount: 0,
+          populationMatchPercent:
+            null,
+          addedActivityCount: 0,
+          removedActivityCount: 0,
+          modifiedActivityCount: 0,
+          unchangedActivityCount: 0,
+          addedRelationshipCount: 0,
+          removedRelationshipCount: 0,
+          addedRelationships: [],
+          removedRelationships: [],
+          changedActivities: [],
+          diagnostics: [
+            "SECOND_SCHEDULE_REVISION_REQUIRED_FOR_CHANGE_COMPARISON",
+          ],
+        },
+        ["second schedule revision"],
+        "partial",
+        "CMeng has preserved the current revision. A second revision is required for an actual field-level change comparison.",
+      ),
+    );
   }
 
   const forecastSnapshots =
@@ -699,9 +739,62 @@ function buildBundle(
       current.revision
         .revisionId
   ) {
+    const inferredMapping =
+      buildQuantityScheduleMapping(
+        state.quantities,
+        model,
+      );
+    const useScenarioMapping =
+      state.quantities
+        .allocations.length ===
+        0 &&
+      inferredMapping
+        .selectedScenarioLinks
+        .length > 0;
+
+    const quantityBasis =
+      useScenarioMapping
+        ? {
+            ...state.quantities,
+            allocations:
+              inferredMapping
+                .selectedScenarioLinks
+                .filter(
+                  (link) =>
+                    link
+                      .allocatedQuantity !==
+                    null,
+                )
+                .map(
+                  (link) => ({
+                    allocationId:
+                      "scenario-" +
+                      link.candidateId,
+                    quantityItemId:
+                      link.quantityItemId,
+                    activityId:
+                      link.activityId,
+                    allocatedQuantity:
+                      link
+                        .allocatedQuantity!,
+                    sourceRefs: [
+                      ...link.sourceRefs,
+                      {
+                        source:
+                          "governed_mapping" as const,
+                        locator:
+                          "candidate-scenario:" +
+                          link.candidateId,
+                      },
+                    ],
+                  }),
+                ),
+          }
+        : state.quantities;
+
     quantityScurve =
       buildQuantityScurveProjection(
-        state.quantities,
+        quantityBasis,
         model,
         {
           generatedAt,
@@ -709,11 +802,36 @@ function buildBundle(
             versions.quantity,
         },
       );
+
+    if (useScenarioMapping) {
+      quantityScurve = {
+        ...quantityScurve,
+        allocationState:
+          "partial",
+        diagnostics: [
+          ...quantityScurve
+            .diagnostics,
+          "QUANTITY_SCURVE_USES_INFERRED_MAPPING_SCENARIO_NOT_GOVERNED_ALLOCATION",
+        ],
+      };
+    }
+
     modules.set(
       "quantity-scurve",
       available(
         "quantity-scurve",
-        quantityScurve,
+        {
+          ...quantityScurve,
+          mappingBasis:
+            useScenarioMapping
+              ? "candidate_scenario"
+              : state.quantities
+                    .allocations
+                    .length > 0
+                ? "governed"
+                : "missing",
+          inferredMapping,
+        },
         ["BOQ", "quantity-to-activity mapping"],
         state.quantities
           .allocations.length > 0
@@ -722,22 +840,80 @@ function buildBundle(
         state.quantities
           .allocations.length > 0
           ? null
-          : "BOQ is loaded but quantities are not yet mapped to schedule activities.",
+          : useScenarioMapping
+            ? "No governed BOQ/activity crosswalk was submitted. CMeng generated an evidence-scored scenario mapping and uses it only as a scenario."
+            : "BOQ is loaded but no defensible quantity-to-activity allocation can yet be established.",
       ),
     );
   } else {
     modules.set(
       "quantity-scurve",
-      blocked(
+      available(
         "quantity-scurve",
-        "A BOQ for the current schedule revision is required.",
+        {
+          schemaVersion: "1.0",
+          projectionKey:
+            "quantity_scurve",
+          generatedAt,
+          producerVersion:
+            versions.quantity,
+          projectId:
+            state.projectId,
+          boqRevisionId:
+            state.quantities
+              ?.boqRevisionId ??
+            null,
+          scheduleRevisionId:
+            current.revision
+              .revisionId,
+          dataDateIso:
+            model.dataDateIso,
+          allocationState:
+            "missing",
+          series: [],
+          unmappedItemIds:
+            state.quantities
+              ?.items.map(
+                (item) =>
+                  item
+                    .quantityItemId,
+              ) ?? [],
+          partiallyAllocatedItemIds:
+            [],
+          overAllocatedItemIds:
+            [],
+          mappingBasis:
+            "missing",
+          diagnostics: [
+            "QUANTITY_BASIS_NOT_ESTABLISHED_FOR_CURRENT_REVISION",
+          ],
+        },
         ["BOQ"],
+        "partial",
+        "No current BOQ quantity basis is established. CMeng keeps the module active and states exactly what evidence is needed rather than returning an unavailable page.",
       ),
     );
   }
 
   const delayModel =
     state.controls.delayClaims;
+  const analyticalDelayModel:
+    DelayClaimsModel =
+    delayModel ?? {
+      projectId:
+        state.projectId,
+      evidenceRevisionId:
+        current.revision
+          .revisionId,
+      events: [],
+      notices: [],
+      claims: [],
+      noticeRequirements: [],
+      diagnostics: [
+        "CONTRACTOR_DELAY_CLAIM_EVIDENCE_NOT_SUBMITTED",
+      ],
+    };
+
   let windows:
     ReturnType<
       typeof buildWindowsAnalysisProjection
@@ -755,127 +931,184 @@ function buildBundle(
       typeof buildEotAssessmentProjection
     > | null = null;
 
+  windows =
+    buildWindowsAnalysisProjection(
+      ordered.map(
+        (item) =>
+          item.revision,
+      ),
+      analyticalDelayModel,
+      {
+        generatedAt,
+        producerVersion:
+          versions.windows,
+      },
+    );
+  modules.set(
+    "windows-analysis",
+    available(
+      "windows-analysis",
+      windows,
+      ["schedule revision history"],
+      ordered.length >= 2
+        ? delayModel
+          ? "ready"
+          : "partial"
+        : "partial",
+      ordered.length < 2
+        ? "Only one revision exists. CMeng cannot calculate a comparative window until a second revision is supplied."
+        : delayModel
+          ? null
+          : "CMeng independently calculated schedule windows and movement. No contractor delay-event model was submitted, so causation remains un-attributed.",
+    ),
+  );
+
+  delayClaims =
+    buildDelayClaimsProjection(
+      windows,
+      analyticalDelayModel,
+      {
+        generatedAt,
+        producerVersion:
+          versions.delay,
+      },
+    );
+  modules.set(
+    "delay-claims",
+    available(
+      "delay-claims",
+      {
+        ...delayClaims,
+        contractorClaimEvidenceSubmitted:
+          delayModel !== null,
+        independentScheduleMovementAvailable:
+          windows.windowCount > 0,
+      },
+      ["schedule windows"],
+      delayModel &&
+      windows.windowCount > 0
+        ? "ready"
+        : "partial",
+      delayModel
+        ? windows.windowCount > 0
+          ? null
+          : "Claim evidence exists, but a second schedule revision is required to independently test movement."
+        : windows.windowCount > 0
+          ? "No contractor claim was submitted. CMeng still reports observed schedule movement without assigning legal causation."
+          : "No contractor claim was submitted and only one schedule revision exists. CMeng preserves the claim gap and states the evidence needed to test it.",
+    ),
+  );
+
+  noticesClaims =
+    buildNoticesClaimsProjection(
+      analyticalDelayModel,
+      {
+        generatedAt,
+        producerVersion:
+          versions.notices,
+      },
+    );
+  modules.set(
+    "notices-claims",
+    available(
+      "notices-claims",
+      {
+        ...noticesClaims,
+        contractorNoticeClaimEvidenceSubmitted:
+          delayModel !== null,
+      },
+      ["notices", "claims"],
+      delayModel
+        ? "ready"
+        : "partial",
+      delayModel
+        ? null
+        : "No contractor notices/claims were submitted. CMeng does not turn missing records into zero entitlement; it preserves the submission gap for reconciliation.",
+    ),
+  );
+
   if (
-    delayModel &&
-    ordered.length >= 2
+    state.controls
+      .contractTimeBasis
   ) {
-    windows =
-      buildWindowsAnalysisProjection(
-        ordered.map(
-          (item) =>
-            item.revision,
-        ),
-        delayModel,
-        {
-          generatedAt,
-          producerVersion:
-            versions.windows,
-        },
-      );
-    modules.set(
-      "windows-analysis",
-      available(
-        "windows-analysis",
+    eotAssessment =
+      buildEotAssessmentProjection(
         windows,
-        ["schedule revision history", "delay events"],
-      ),
-    );
-
-    delayClaims =
-      buildDelayClaimsProjection(
-        windows,
-        delayModel,
-        {
-          generatedAt,
-          producerVersion:
-            versions.delay,
-        },
-      );
-    modules.set(
-      "delay-claims",
-      available(
-        "delay-claims",
         delayClaims,
-        ["delay events", "schedule windows"],
-      ),
-    );
-
-    noticesClaims =
-      buildNoticesClaimsProjection(
-        delayModel,
+        state.controls
+          .contractTimeBasis,
         {
           generatedAt,
           producerVersion:
-            versions.notices,
+            versions.eot,
         },
       );
     modules.set(
-      "notices-claims",
+      "eot-assessment",
       available(
-        "notices-claims",
-        noticesClaims,
-        ["delay events", "notices", "claims"],
+        "eot-assessment",
+        {
+          ...eotAssessment,
+          contractorEotEvidenceSubmitted:
+            delayModel !== null,
+        },
+        ["schedule windows", "contract time basis"],
+        delayModel &&
+        windows.windowCount > 0
+          ? "ready"
+          : "partial",
+        delayModel
+          ? windows.windowCount > 0
+            ? null
+            : "Contract/EOT basis is available, but at least two schedule revisions are required for a window-based independent movement assessment."
+          : "Contract time basis is available and schedule movement is independently calculated where possible, but no contractor EOT/event case was submitted.",
       ),
     );
-
-    if (
-      state.controls
-        .contractTimeBasis
-    ) {
-      eotAssessment =
-        buildEotAssessmentProjection(
-          windows,
-          delayClaims,
-          state.controls
-            .contractTimeBasis,
-          {
-            generatedAt,
-            producerVersion:
-              versions.eot,
-          },
-        );
-      modules.set(
-        "eot-assessment",
-        available(
-          "eot-assessment",
-          eotAssessment,
-          ["schedule windows", "delay events", "contract time basis"],
-        ),
-      );
-    } else {
-      modules.set(
-        "eot-assessment",
-        blocked(
-          "eot-assessment",
-          "A governed contract completion/EOT basis is required.",
-          ["contract time basis"],
-        ),
-      );
-    }
   } else {
-    const reason =
-      !delayModel
-        ? "Delay-event and claim evidence has not been loaded."
-        : "At least two schedule revisions are required for windows analysis.";
-
-    for (const key of [
-      "windows-analysis",
-      "delay-claims",
-      "notices-claims",
+    modules.set(
       "eot-assessment",
-    ]) {
-      modules.set(
-        key,
-        blocked(
-          key,
-          reason,
-          [
-            "schedule revision history",
-            "delay/claim evidence",
+      available(
+        "eot-assessment",
+        {
+          schemaVersion: "1.0",
+          projectionKey:
+            "eot_assessment",
+          generatedAt,
+          producerVersion:
+            versions.eot,
+          projectId:
+            state.projectId,
+          contractualCompletionIso:
+            null,
+          contractualCompletionState:
+            "missing",
+          officialApprovedEotDays:
+            null,
+          officialApprovedEotState:
+            "missing",
+          officialAdjustedCompletionIso:
+            null,
+          candidateAdditionalEotDays:
+            null,
+          scenarioAdjustedCompletionIso:
+            null,
+          observedScheduleMovementDays:
+            windows
+              .positiveIndependentMovementDays,
+          basis:
+            "schedule_movement_only_not_eot_determination",
+          assumptions: [
+            "Observed programme movement is not treated as EOT without a governed contract-time basis and event/causation evidence.",
           ],
-        ),
-      );
-    }
+          diagnostics: [
+            "CONTRACT_TIME_BASIS_NOT_SUBMITTED",
+          ],
+        },
+        ["contract time basis"],
+        "partial",
+        "CMeng shows the independently observed schedule movement but does not fabricate EOT entitlement without the contract-time basis.",
+      ),
+    );
   }
 
   let challengeContract:
