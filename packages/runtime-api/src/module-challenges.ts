@@ -51,6 +51,18 @@ function submitted(
   unit: string | null,
   sourceRefs: string[],
   note: string,
+  input: {
+    basisRevisionId?:
+      string | null;
+    coveragePercent?:
+      number | null;
+    asOfIso?:
+      string | null;
+    confidence?:
+      number | null;
+    authority?:
+      ChallengeValue["authority"];
+  } = {},
 ): ChallengeValue {
   return value === null
     ? {
@@ -58,14 +70,49 @@ function submitted(
           "not_submitted",
         value: null,
         unit,
+        authority:
+          "missing",
         sourceRefs,
+        basisRevisionId:
+          input
+            .basisRevisionId ??
+          null,
+        coveragePercent:
+          input
+            .coveragePercent ??
+          null,
+        asOfIso:
+          input.asOfIso ??
+          null,
+        confidence: null,
+        diagnostics: [
+          "SUBMITTED_VALUE_NOT_ESTABLISHED",
+        ],
         note,
       }
     : {
         state: "submitted",
         value,
         unit,
+        authority:
+          input.authority ??
+          "submitted",
         sourceRefs,
+        basisRevisionId:
+          input
+            .basisRevisionId ??
+          null,
+        coveragePercent:
+          input
+            .coveragePercent ??
+          null,
+        asOfIso:
+          input.asOfIso ??
+          null,
+        confidence:
+          input.confidence ??
+          1,
+        diagnostics: [],
         note,
       };
 }
@@ -131,6 +178,18 @@ function spec(
       number | undefined;
     submittedReasonablenessNote?:
       string | undefined;
+    authority?:
+      ChallengeValue["authority"] | undefined;
+    basisRevisionId?:
+      string | null | undefined;
+    coveragePercent?:
+      number | null | undefined;
+    asOfIso?:
+      string | null | undefined;
+    confidence?:
+      number | null | undefined;
+    diagnostics?:
+      string[] | undefined;
   } = {},
 ): IndependentMetricSpec {
   return {
@@ -140,6 +199,55 @@ function spec(
     unit,
     state,
     sourceRefs,
+    basisRevisionId:
+      input.basisRevisionId ??
+      (
+        sourceRefs.some(
+          (ref) =>
+            ref.startsWith(
+              "schedule-revision:",
+            ),
+        )
+          ? sourceRefs
+              .find(
+                (ref) =>
+                  ref.startsWith(
+                    "schedule-revision:",
+                  ),
+              )
+              ?.slice(
+                "schedule-revision:"
+                  .length,
+              ) ??
+            null
+          : null
+      ),
+    coveragePercent:
+      input.coveragePercent ??
+      null,
+    asOfIso:
+      input.asOfIso ??
+      null,
+    ...(input.authority
+      ? {
+          authority:
+            input.authority,
+        }
+      : {}),
+    ...(input.confidence !==
+    undefined
+      ? {
+          confidence:
+            input.confidence,
+        }
+      : {}),
+    ...(input.diagnostics
+      ? {
+          diagnostics: [
+            ...input.diagnostics,
+          ],
+        }
+      : {}),
     ...(input.submittedOverride
       ? {
           submittedOverride:
@@ -536,6 +644,10 @@ function metricsFor(
   const sourceRef =
     "schedule-revision:" +
     ctx.model.sourceRevisionId;
+  const sourceRevisionId =
+    ctx.model.sourceRevisionId;
+  const dataDateIso =
+    ctx.model.dataDateIso;
   const contractorProgress =
     progress?.progressBases
       ?.contractorReported;
