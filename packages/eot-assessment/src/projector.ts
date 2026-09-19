@@ -83,11 +83,20 @@ function assessWindow(
   delay: DelayClaimsProjection,
   policy: EotScenarioPolicy,
 ): EotWindowCandidate {
-  const positiveMovement = Math.max(
+  const positiveIndependentMovement = Math.max(
     0,
     window.independentForecastMovementDays ??
       0,
   );
+  const positiveProgrammeMovement = Math.max(
+    0,
+    window.strongestProgrammeMovementDays ??
+      0,
+  );
+  const analyticalTimeImpactCandidateDays =
+    Number(
+      positiveProgrammeMovement.toFixed(6),
+    );
 
   const eventRows =
     eventRowsForWindow(window, delay);
@@ -108,7 +117,7 @@ function assessWindow(
   const reasons: string[] = [];
   const assumptions: string[] = [];
 
-  if (positiveMovement <= 0) {
+  if (positiveProgrammeMovement <= 0) {
     reasons.push(
       "NO_POSITIVE_INDEPENDENT_FORECAST_MOVEMENT",
     );
@@ -125,7 +134,13 @@ function assessWindow(
     return {
       windowId: window.windowId,
       positiveIndependentMovementDays:
-        positiveMovement,
+        positiveIndependentMovement,
+      positiveProgrammeMovementDays:
+        positiveProgrammeMovement,
+      programmeMovementBasis:
+        window
+          .strongestProgrammeMovementBasis,
+      analyticalTimeImpactCandidateDays,
       state: "review",
       eligibleEventIds:
         eligible.map(
@@ -203,16 +218,28 @@ function assessWindow(
   }
 
   const include =
-    positiveMovement > 0 &&
+    positiveProgrammeMovement > 0 &&
     eligibleAfterNotice.length > 0;
+
+  const reviewOnly =
+    positiveProgrammeMovement > 0 &&
+    !include;
 
   return {
     windowId: window.windowId,
     positiveIndependentMovementDays:
-      positiveMovement,
+      positiveIndependentMovement,
+    positiveProgrammeMovementDays:
+      positiveProgrammeMovement,
+    programmeMovementBasis:
+      window
+        .strongestProgrammeMovementBasis,
+    analyticalTimeImpactCandidateDays,
     state: include
       ? "included"
-      : "excluded",
+      : reviewOnly
+        ? "review"
+        : "excluded",
     eligibleEventIds:
       eligibleAfterNotice.map(
         (event) => event.eventId,
@@ -228,7 +255,7 @@ function assessWindow(
     includedCandidateDays:
       include
         ? Number(
-            positiveMovement.toFixed(6),
+            positiveProgrammeMovement.toFixed(6),
           )
         : 0,
   };
@@ -270,6 +297,43 @@ export function buildEotAssessmentProjection(
         .toFixed(6),
     );
 
+  const observedProgrammeMovementDays =
+    Number(
+      windowCandidates
+        .reduce(
+          (sum, window) =>
+            sum +
+            window.positiveProgrammeMovementDays,
+          0,
+        )
+        .toFixed(6),
+    );
+
+  const analyticalTimeImpactCandidateDays =
+    Number(
+      windowCandidates
+        .reduce(
+          (sum, window) =>
+            sum +
+            window
+              .analyticalTimeImpactCandidateDays,
+          0,
+        )
+        .toFixed(6),
+    );
+
+  const attributableCandidateEotDays =
+    candidateAdditionalEotDays;
+
+  const unattributedTimeImpactDays =
+    Number(
+      Math.max(
+        0,
+        analyticalTimeImpactCandidateDays -
+          attributableCandidateEotDays,
+      ).toFixed(6),
+    );
+
   const assumptions =
     windowCandidates.flatMap(
       (window) => window.assumptions,
@@ -278,6 +342,11 @@ export function buildEotAssessmentProjection(
   const diagnostics = [
     ...windows.diagnostics,
     ...delay.diagnostics,
+    ...(windows.positiveProgrammeMovementDays > 0
+      ? [
+          "PROGRAMME_MOVEMENT_CARRIED_FORWARD_AS_ANALYTICAL_TIME_IMPACT_CANDIDATE",
+        ]
+      : []),
   ];
 
   let officialAdjustedCompletionIso:
@@ -328,6 +397,9 @@ export function buildEotAssessmentProjection(
   let scenarioAdjustedCompletionIso:
     | string
     | null = null;
+  let timeImpactScenarioAdjustedCompletionIso:
+    | string
+    | null = null;
 
   if (
     contractTime.contractualCompletionIso &&
@@ -339,6 +411,12 @@ export function buildEotAssessmentProjection(
         contractTime.contractualCompletionIso,
         scenarioBaseApprovedDays +
           candidateAdditionalEotDays,
+      );
+    timeImpactScenarioAdjustedCompletionIso =
+      addCalendarDays(
+        contractTime.contractualCompletionIso,
+        scenarioBaseApprovedDays +
+          analyticalTimeImpactCandidateDays,
       );
   } else if (
     contractTime.eotDayBasis !==
@@ -368,8 +446,14 @@ export function buildEotAssessmentProjection(
       contractTime.officialApprovedEotState,
     officialAdjustedCompletionIso,
 
+    observedProgrammeMovementDays,
+    analyticalTimeImpactCandidateDays,
+    attributableCandidateEotDays,
+    unattributedTimeImpactDays,
+
     candidateAdditionalEotDays,
     scenarioAdjustedCompletionIso,
+    timeImpactScenarioAdjustedCompletionIso,
 
     eotDayBasis:
       contractTime.eotDayBasis,
