@@ -13,6 +13,17 @@ export interface WorkingCalendarResolution {
 const DAY_MS = 86_400_000;
 const HOUR_MS = 3_600_000;
 
+type WorkSegment = {
+  startMs: number;
+  finishMs: number;
+};
+
+const workSegmentCache =
+  new WeakMap<
+    CanonicalCalendar,
+    Map<number, WorkSegment[]>
+  >();
+
 export const ELAPSED_24H_CALENDAR: CanonicalCalendar = {
   calendarId: "__ELAPSED_24H__",
   name: "24/7 elapsed-time fallback",
@@ -93,7 +104,128 @@ function intervalsForRawDate(
 function workSegmentsForDate(
   calendar: CanonicalCalendar,
   dateMs: number,
-): Array<{ startMs: number; finishMs: number }> {
+): WorkSegment[] {
+  const dayStart =
+    utcDayStart(dateMs);
+  let calendarCache =
+    workSegmentCache.get(
+      calendar,
+    );
+  if (!calendarCache) {
+    calendarCache =
+      new Map<
+        number,
+        WorkSegment[]
+      >();
+    workSegmentCache.set(
+      calendar,
+      calendarCache,
+    );
+  }
+  const cached =
+    calendarCache.get(
+      dayStart,
+    );
+  if (cached) {
+    return cached;
+  }
+
+  const current =
+    intervalsForRawDate(
+      calendar,
+      dayStart,
+    );
+  const previousDay =
+    dayStart - DAY_MS;
+  const previous =
+    intervalsForRawDate(
+      calendar,
+      previousDay,
+    );
+
+  const segments:
+    WorkSegment[] = [];
+
+  for (const interval of previous) {
+    const start =
+      minutesOfDay(
+        interval.start,
+      );
+    const finish =
+      minutesOfDay(
+        interval.finish,
+      );
+    if (
+      start !== null &&
+      finish !== null &&
+      finish < start
+    ) {
+      segments.push({
+        startMs: dayStart,
+        finishMs:
+          dayStart +
+          finish * 60_000,
+      });
+    }
+  }
+
+  for (const interval of current) {
+    const start =
+      minutesOfDay(
+        interval.start,
+      );
+    const finish =
+      minutesOfDay(
+        interval.finish,
+      );
+    if (
+      start === null ||
+      finish === null
+    ) {
+      continue;
+    }
+
+    if (finish > start) {
+      segments.push({
+        startMs:
+          dayStart +
+          start * 60_000,
+        finishMs:
+          dayStart +
+          finish * 60_000,
+      });
+    } else if (
+      finish < start
+    ) {
+      segments.push({
+        startMs:
+          dayStart +
+          start * 60_000,
+        finishMs:
+          dayStart +
+          DAY_MS,
+      });
+    }
+  }
+
+  const resolved =
+    segments
+      .filter(
+        (segment) =>
+          segment.finishMs >
+          segment.startMs,
+      )
+      .sort(
+        (a, b) =>
+          a.startMs -
+          b.startMs,
+      );
+  calendarCache.set(
+    dayStart,
+    resolved,
+  );
+  return resolved;
+}> {
   const dayStart = utcDayStart(dateMs);
   const current = intervalsForRawDate(
     calendar,
