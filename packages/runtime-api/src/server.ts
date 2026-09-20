@@ -2580,10 +2580,45 @@ export function createCmengServer(): Server {
 }
 
 if (require.main === module) {
-  const server = createCmengServer();
-  server.listen(port, host, () => {
-    process.stdout.write(
-      `CMeng runtime listening on ${host}:${port}\n`,
+  void (async () => {
+    const refresh =
+      await runtimeProjects
+        .refreshScheduleControlBasisAssertions();
+    if (
+      refresh.refreshedDocumentCount > 0 ||
+      refresh.diagnostics.length > 0
+    ) {
+      process.stdout.write(
+        JSON.stringify({
+          event:
+            "schedule_control_basis_refresh",
+          refreshedDocumentCount:
+            refresh.refreshedDocumentCount,
+          diagnosticCodes:
+            refresh.diagnostics.map(
+              (item) =>
+                item.split(":")[0],
+            ),
+        }) + "\n",
+      );
+    }
+
+    const server = createCmengServer();
+    server.listen(port, host, () => {
+      process.stdout.write(
+        `CMeng runtime listening on ${host}:${port}\n`,
+      );
+    });
+  })().catch((error) => {
+    process.stderr.write(
+      "CMENG_STARTUP_FAILED:" +
+        (
+          error instanceof Error
+            ? error.message
+            : String(error)
+        ) +
+        "\n",
     );
+    process.exitCode = 1;
   });
 }
