@@ -374,6 +374,13 @@ export function buildEotAssessmentProjection(
   const diagnostics = [
     ...windows.diagnostics,
     ...delay.diagnostics,
+    ...(contractTime
+      .determinationAggregationState ===
+      "register_established_non_additive"
+      ? [
+          "ENGINEER_DETERMINATION_REGISTER_TOTAL_IS_NOT_AUTOMATICALLY_ADDED_TO_CONTRACT_AMENDMENT_EOT",
+        ]
+      : []),
     ...(windows.positiveProgrammeMovementDays > 0 &&
     analyticalTimeImpactCandidateDays === null
       ? [
@@ -488,6 +495,34 @@ export function buildEotAssessmentProjection(
     officialApprovedEotState:
       contractTime.officialApprovedEotState,
     officialAdjustedCompletionIso,
+    originalContractualCompletionIso:
+      contractTime
+        .originalContractualCompletionIso ??
+      null,
+    controllingAmendmentId:
+      contractTime
+        .controllingAmendmentId ??
+      null,
+    controllingAmendmentEffectiveAtIso:
+      contractTime
+        .controllingAmendmentEffectiveAtIso ??
+      null,
+    incorporatedAmendmentEotDays:
+      contractTime
+        .incorporatedAmendmentEotDays ??
+      null,
+    engineerDeterminationCount:
+      contractTime
+        .engineerDeterminationCount ??
+      0,
+    engineerDeterminationAwardedDaysTotal:
+      contractTime
+        .engineerDeterminationAwardedDaysTotal ??
+      null,
+    determinationAggregationState:
+      contractTime
+        .determinationAggregationState ??
+      "not_submitted",
 
     observedProgrammeMovementDays,
     analyticalTimeImpactCandidateDays,
