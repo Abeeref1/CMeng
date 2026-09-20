@@ -4282,7 +4282,20 @@ function buildSpecialistModuleFast(
       );
     result = available(
       key,
-      projection,
+      {
+        ...projection,
+        revisionLabels:
+          Object.fromEntries(
+            ordered.map(
+              (item) => [
+                item.revision
+                  .revisionId,
+                item.revision
+                  .label,
+              ],
+            ),
+          ),
+      },
       [
         "controlled schedule revision history",
       ],
