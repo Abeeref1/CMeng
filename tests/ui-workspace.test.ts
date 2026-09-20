@@ -388,13 +388,13 @@ test("CMeng workspace keeps the active module primary and browser script parseab
     const planningVisual of [
       "Finish-date position",
       "Programme health",
-      "Schedule pressure map",
+      "Delay & float matrix",
       "6-week execution view",
       "Readiness matrix",
       "Largest finish movements",
-      "Completion movement",
-      "Milestone timeline",
-      "Float risk distribution",
+      "Finish-date movement",
+      "Milestone movement",
+      "Near-critical float values",
       "Near-critical watchlist",
       "Reconciliation with submitted position",
     ]
@@ -428,6 +428,28 @@ test("CMeng workspace keeps the active module primary and browser script parseab
     html,
     /planningLookAheadTimeline/,
     "look-ahead must have a timeline visual",
+  );
+  assert.equal(
+    html.includes(
+      'const asOf=root.dataDateIso||root.asOfIso||root.generatedAt||null',
+    ),
+    false,
+    "generated-at timestamp must never be shown as the project data date",
+  );
+  assert.match(
+    html,
+    /Known blocker/,
+    "look-ahead must distinguish a known blocker from missing readiness evidence",
+  );
+  assert.match(
+    html,
+    /Exact submitted total-float values/,
+    "near-critical float chart must show exact discrete source values when possible",
+  );
+  assert.match(
+    html,
+    /Revision values/,
+    "revision history must expose exact values as well as charts",
   );
   assert.match(
     html,
