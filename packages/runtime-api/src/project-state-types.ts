@@ -12,6 +12,9 @@ import type {
   ContractFamilyResult,
 } from "../../contract-parser/src";
 import type {
+  SourceProductivityForecastModel,
+} from "../../independent-forecast/src";
+import type {
   DelayClaimsModel,
   NoticeRequirement,
 } from "../../delay-analysis-core/src";
@@ -396,6 +399,10 @@ export interface ProjectRuntimeState {
   >;
   resourceSupport:
     CanonicalResourceSupportModel | null;
+  sourceProductivityForecastByDocument:
+    Record<string, SourceProductivityForecastModel>;
+  sourceProductivityForecast:
+    SourceProductivityForecastModel | null;
   boq: BoqIngestionResult | null;
   boqRevisions: BoqIngestionResult[];
   quantities:
