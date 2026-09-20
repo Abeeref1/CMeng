@@ -17,6 +17,8 @@ import { projectScheduleControlBasis } from "../packages/runtime-api/src/schedul
 import { sourceProductivityForecastEvidence } from "../packages/runtime-api/src/source-productivity-forecast";
 import { canonicalTimeClaims } from "../packages/runtime-api/src/canonical-time-claims";
 import { buildDelayClaimsProjection } from "../packages/delay-claims/src";
+import { resolveProjectControlNumberMetric } from "../packages/runtime-api/src/project-control-source-metrics";
+import { extractDocumentAssertions } from "../packages/module-challenge/src";
 
 function calendar(
   calendarId: string,
@@ -357,6 +359,100 @@ test("P1-3 reads productivity basis and completion from separate governed column
   const productivity = sourceProductivityForecastEvidence(state);
   assert.equal(productivity.state, "official");
   assert.equal(productivity.completionIso, "2030-08-15");
+});
+
+test("generic metric/value/unit/source register resolves governed near-critical, productivity and gross movement semantics", (t) => {
+  const dir = mkdtempSync(join(tmpdir(), "cmeng-generic-control-register-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const register = storedDocument(
+    dir,
+    "SCH02",
+    "SCH02_Schedule_Metrics.csv",
+    "schedule_control",
+    "schedule_metric_register",
+    [
+      "Metric,Value,Unit,Source",
+      "Near Critical Activity Population,1,activities,Schedule control",
+      "Near Critical Threshold,40,hours,Legacy hour equivalent",
+      "Completion Outlook,2030-08-15,date,Measured Productivity Forecast",
+      "Gross Positive Window Movement,203.17,days,Controlled window register",
+    ].join("\n"),
+  );
+  const state = stateWithDocuments([register]);
+
+  const basis = projectScheduleControlBasis(state);
+  assert.equal(basis.nearCriticalSourceCount, 1);
+  assert.equal(basis.nearCriticalWorkingDays, 5);
+  assert.equal(basis.nearCriticalThresholdMethod, "source_count_reconciliation");
+
+  const productivity = sourceProductivityForecastEvidence(state);
+  assert.equal(productivity.completionIso, "2030-08-15");
+  assert.equal(productivity.state, "official");
+
+  const gross = resolveProjectControlNumberMetric(
+    state,
+    "gross_positive_programme_movement",
+  );
+  assert.equal(gross.value, 203.17);
+  assert.equal(gross.state, "official");
+});
+
+test("document assertion extractor recognizes productivity-based completion from PDF-style text", () => {
+  const assertions = extractDocumentAssertions(
+    "Project Data Book. Source Productivity Forecast Completion: 15 Aug 2030. Data Date: 31 Aug 2026.",
+    "evidence:PDB:full-document",
+  );
+  assert.equal(
+    assertions.find((item) => item.metric === "source_productivity_forecast_completion")?.value,
+    "2030-08-15",
+  );
+});
+
+test("delay lineage derives exact narrative activity and notice-date window without claiming causation", (t) => {
+  const dir = mkdtempSync(join(tmpdir(), "cmeng-derived-delay-lineage-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+
+  const claim = [
+    "Claim ID,Event,Notice Date,Days Claimed,Status",
+    "CL-001,Delay affecting A10 access,2030-01-16,12,Submitted",
+  ].join("\n");
+  const state = stateWithDocuments([
+    storedDocument(
+      dir,
+      "CL01",
+      "CL01_Claims.csv",
+      "risk_claims_procurement",
+      "delay_eot_claims_register",
+      claim,
+    ),
+  ]);
+  state.schedules = [
+    {
+      ...state.schedules[0],
+      revision: revision("R1", 1, 0),
+      role: "baseline",
+    },
+    {
+      ...state.schedules[0],
+      revision: revision("R2", 2, 20),
+      role: "update",
+    },
+  ];
+
+  const canonical = canonicalTimeClaims(state, true);
+  const event = canonical.delayClaims?.events[0]!;
+  assert.deepEqual(event.relatedActivityIds, ["A10"]);
+  assert.deepEqual(event.relatedWindowReferences, ["R1->R2"]);
+  assert.ok(
+    event.diagnostics.includes(
+      "ACTIVITY_LINK_DERIVED_FROM_EXACT_SCHEDULE_REFERENCE_OR_UNIQUE_ACTIVITY_NAME",
+    ),
+  );
+  assert.ok(
+    event.diagnostics.includes(
+      "WINDOW_ASSOCIATION_FROM_VERIFIED_NOTICE_DATE_NOT_CAUSATION",
+    ),
+  );
 });
 
 function addDays(days: number): string {
