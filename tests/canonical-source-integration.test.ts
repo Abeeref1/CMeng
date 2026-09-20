@@ -215,6 +215,40 @@ test('legacy SCH01 misclassified before schedule-control rules is recovered from
   assert.equal(projectScheduleControlBasis(restored).nearCriticalWorkingDays,5);
 });
 
+test('project near-critical basis can be corroborated from governed SCH02 or Project Data Book when SCH01 text is not machine-readable',t=>{
+  const {state,csvDoc}=fixture(t);
+  csvDoc(
+    'Metric,Value,Definition,As Of\nNear Critical Watchlist,629,0 < TF <= +5 working days,2026-08-31',
+    'schedule_metric_register',
+  );
+  csvDoc(
+    'Parameter,Value\nData Date,2026-08-31',
+    'project_data_book',
+  );
+  const basis=projectScheduleControlBasis(state);
+  assert.equal(basis.state,'official');
+  assert.equal(basis.nearCriticalWorkingDays,5);
+  assert.equal(basis.programmeDataDateIso,'2026-08-31');
+  assert.ok(basis.diagnostics.includes('PROJECT_NEAR_CRITICAL_BASIS_CORROBORATED_FROM_CONTROL_REGISTER'));
+});
+
+test('conflicting governed project-control definitions fail closed instead of choosing a near-critical threshold',t=>{
+  const {state,csvDoc}=fixture(t);
+  csvDoc(
+    'Metric,Value\nNear Critical Definition,0 < TF <= +5 working days',
+    'schedule_control_basis',
+  );
+  csvDoc(
+    'Metric,Value\nNear Critical Definition,0 < TF <= +7 working days',
+    'schedule_metric_register',
+  );
+  const basis=projectScheduleControlBasis(state);
+  assert.equal(basis.state,'conflicted');
+  assert.equal(basis.nearCriticalWorkingDays,null);
+  assert.ok(basis.diagnostics.includes('CONFLICTING_NEAR_CRITICAL_WORKING_DAY_DEFINITIONS'));
+  assert.equal(basis.analysisConfig.nearCriticalWorkingDays,null);
+});
+
 test('project near-critical basis comes from SCH01 and uses each activity calendar instead of generic 40h',t=>{
   const {state,csvDoc}=fixture(t);
   state.schedules[0]!.revision.model.calendars=[

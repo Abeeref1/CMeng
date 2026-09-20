@@ -107,9 +107,15 @@ export function projectScheduleControlBasis(
   if (prior?.version === state.version) return prior.value;
 
   const diagnostics: string[] = [];
+  const basisDocumentTypes = new Set([
+    "schedule_control_basis",
+    "schedule_metric_register",
+    "project_data_book",
+  ]);
   const documents = state.evidenceDocuments.filter(
     (document) =>
-      document.documentType === "schedule_control_basis" &&
+      document.category === "schedule_control" &&
+      basisDocumentTypes.has(document.documentType) &&
       ["active", "additive", "candidate"].includes(document.basisState),
   );
   const ids = new Set(documents.map((document) => document.documentId));
@@ -122,6 +128,8 @@ export function projectScheduleControlBasis(
   const criticalHours: number[] = [];
   const sourceDates: string[] = [];
   const receipts: SourceReceipt[] = [];
+  const nearWorkingReceipts: SourceReceipt[] = [];
+  const nearHourReceipts: SourceReceipt[] = [];
 
   for (const document of documents) {
     for (const assertion of document.assertions) {
@@ -145,6 +153,7 @@ export function projectScheduleControlBasis(
         assertion.value >= 0
       ) {
         nearWorking.push(assertion.value);
+        nearWorkingReceipts.push(receipt);
         receipts.push(receipt);
       } else if (
         assertion.metric === "near_critical_threshold_hours" &&
@@ -153,6 +162,7 @@ export function projectScheduleControlBasis(
         assertion.value >= 0
       ) {
         nearHours.push(assertion.value);
+        nearHourReceipts.push(receipt);
         receipts.push(receipt);
       } else if (
         assertion.metric === "critical_float_threshold_hours" &&
@@ -191,9 +201,16 @@ export function projectScheduleControlBasis(
       const rawValue = cell(
         row,
         "value",
-        "definition",
         "setting value",
         "control value",
+      );
+      const rawDefinition = cell(
+        row,
+        "definition",
+        "criteria",
+        "criterion",
+        "basis",
+        "rule",
       );
 
       const nearDefinition =
@@ -204,7 +221,11 @@ export function projectScheduleControlBasis(
           "near critical basis",
           "near-critical basis",
         ) ||
-        (norm(key).includes("near critical") ? rawValue : "") ||
+        (
+          norm(key).includes("near critical")
+            ? rawDefinition || rawValue
+            : ""
+        ) ||
         (/near[- ]?critical/i.test(rowText) ? rowText : "");
 
       const directNearDays = numberValue(
@@ -214,11 +235,18 @@ export function projectScheduleControlBasis(
           "near-critical working days",
           "near critical threshold working days",
           "near-critical threshold working days",
+          "near critical upper bound working days",
+          "near-critical upper bound working days",
+          "near critical max working days",
+          "near-critical max working days",
         ),
       );
       const parsedWorking =
         directNearDays ?? definitionNumber(nearDefinition, "working_days");
-      if (parsedWorking !== null) nearWorking.push(parsedWorking);
+      if (parsedWorking !== null) {
+        nearWorking.push(parsedWorking);
+        nearWorkingReceipts.push(row.receipt);
+      }
 
       const directNearHours = numberValue(
         cell(
@@ -231,7 +259,10 @@ export function projectScheduleControlBasis(
       );
       const parsedHours =
         directNearHours ?? definitionNumber(nearDefinition, "hours");
-      if (parsedHours !== null) nearHours.push(parsedHours);
+      if (parsedHours !== null) {
+        nearHours.push(parsedHours);
+        nearHourReceipts.push(row.receipt);
+      }
 
       const criticalDefinition =
         cell(
@@ -302,16 +333,24 @@ export function projectScheduleControlBasis(
   }
 
   const conflict = diagnostics.some((item) => item.startsWith("CONFLICTING_"));
-  const establishedDocuments = documents.filter((document) =>
-    ["active", "additive"].includes(document.basisState),
-  );
+  const thresholdReceipts =
+    uniqueNearWorking !== null
+      ? nearWorkingReceipts
+      : uniqueNearHours !== null
+        ? nearHourReceipts
+        : [];
+  const thresholdEstablished =
+    thresholdReceipts.some(
+      (receipt) =>
+        ["active", "additive"].includes(receipt.basisState),
+    );
   const hasThreshold =
     uniqueNearWorking !== null || uniqueNearHours !== null;
 
   const stateValue: ProjectScheduleControlBasis["state"] =
     conflict
       ? "conflicted"
-      : hasThreshold && establishedDocuments.length > 0
+      : hasThreshold && thresholdEstablished
         ? "official"
         : hasThreshold
           ? "candidate"
@@ -336,6 +375,19 @@ export function projectScheduleControlBasis(
   if (!hasThreshold) {
     diagnostics.push(
       "PROJECT_NEAR_CRITICAL_BASIS_NOT_ESTABLISHED_LEGACY_DEFAULT_RETAINED",
+    );
+  } else if (
+    uniqueNearWorking !== null &&
+    nearWorkingReceipts.some((receipt) =>
+      state.evidenceDocuments.some(
+        (document) =>
+          document.documentId === receipt.documentId &&
+          document.documentType !== "schedule_control_basis",
+      ),
+    )
+  ) {
+    diagnostics.push(
+      "PROJECT_NEAR_CRITICAL_BASIS_CORROBORATED_FROM_CONTROL_REGISTER",
     );
   }
   if (uniqueNearWorking !== null && uniqueNearHours !== null) {
