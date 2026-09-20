@@ -11,6 +11,8 @@ import {
   type BoqIngestionResult,
 } from "../../boq-ingestion/src";
 import {
+  commercialModules,
+  commercialModuleSummary,
   scheduleModules,
   scheduleModuleSummary,
 } from "./registry";
@@ -37,6 +39,10 @@ import {
   overviewForProject,
   rerunProject,
 } from "./project-projections";
+import {
+  commercialModuleForProject,
+  commercialOverviewForProject,
+} from "./commercial-projections";
 import {
   loadCertifiedDemoProject,
 } from "./demo-project";
@@ -463,6 +469,8 @@ async function route(
         null,
       scheduleModules:
         scheduleModuleSummary(),
+      commercialModules:
+        commercialModuleSummary(),
       boqIngestion: {
         acceptedFormats: [
           "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -750,6 +758,20 @@ async function route(
     json(res, 200, {
       moduleCount: scheduleModules.length,
       modules: scheduleModules,
+    });
+    return;
+  }
+
+  if (
+    req.method === "GET" &&
+    url.pathname ===
+      "/api/commercial/modules"
+  ) {
+    json(res, 200, {
+      moduleCount:
+        commercialModules.length,
+      modules:
+        commercialModules,
     });
     return;
   }
@@ -1710,7 +1732,13 @@ async function route(
       });
       return;
     }
-    json(res, 200, overview);
+    json(res, 200, {
+      ...overview,
+      commercial:
+        commercialOverviewForProject(
+          projectId,
+        ),
+    });
     return;
   }
 
@@ -1843,6 +1871,123 @@ async function route(
                   b.sequence;
           },
         ),
+    );
+    return;
+  }
+
+  const commercialModuleReportMatch =
+    /^\/api\/projects\/([^/]+)\/commercial\/modules\/([^/]+)\/report\.(xlsx|json)$/.exec(
+      url.pathname,
+    );
+
+  if (
+    req.method === "GET" &&
+    commercialModuleReportMatch
+  ) {
+    const projectId =
+      decodeURIComponent(
+        commercialModuleReportMatch[1]!,
+      );
+    const key =
+      decodeURIComponent(
+        commercialModuleReportMatch[2]!,
+      );
+    const format =
+      commercialModuleReportMatch[3] as
+        | "xlsx"
+        | "json";
+    const result =
+      commercialModuleForProject(
+        projectId,
+        key,
+      );
+
+    if (
+      result.status ===
+      "blocked"
+    ) {
+      json(res, 409, {
+        error:
+          "commercial_module_report_blocked",
+        moduleKey: key,
+        reason:
+          result.reason,
+        dependencies:
+          result.dependencies,
+      });
+      return;
+    }
+
+    if (format === "xlsx") {
+      const workbook =
+        await buildModuleWorkbook(
+          projectId,
+          key,
+          result,
+        );
+      attachment(
+        res,
+        200,
+        workbook,
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        moduleReportFilename(
+          projectId,
+          key,
+          "xlsx",
+        ),
+      );
+      return;
+    }
+
+    const payload =
+      buildModuleJsonDownload(
+        projectId,
+        key,
+        result,
+      );
+    attachment(
+      res,
+      200,
+      payload,
+      "application/json; charset=utf-8",
+      moduleReportFilename(
+        projectId,
+        key,
+        "json",
+      ),
+    );
+    return;
+  }
+
+  const commercialModuleMatch =
+    /^\/api\/projects\/([^/]+)\/commercial\/modules\/([^/]+)$/.exec(
+      url.pathname,
+    );
+
+  if (
+    req.method === "GET" &&
+    commercialModuleMatch
+  ) {
+    const projectId =
+      decodeURIComponent(
+        commercialModuleMatch[1]!,
+      );
+    const key =
+      decodeURIComponent(
+        commercialModuleMatch[2]!,
+      );
+    const result =
+      commercialModuleForProject(
+        projectId,
+        key,
+      );
+    json(
+      res,
+      result.status ===
+        "blocked"
+        ? 409
+        : 200,
+      result,
     );
     return;
   }
