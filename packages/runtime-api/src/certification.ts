@@ -203,9 +203,9 @@ export function certifyCrossModuleConsistency(
 
   checks.push(
     booleanCheck(
-      "MODULE_COUNT_22",
-      modules.size === 22,
-      "The runtime must expose all 22 specialist modules.",
+      "MODULE_COUNT_29",
+      modules.size === 29,
+      "The runtime must expose all 22 schedule modules plus 7 commercial control modules.",
       [{
         source:
           "runtime.modules",
