@@ -240,6 +240,55 @@ export function sourceProductivityForecastEvidence(
     official: boolean;
   }> = [];
 
+  for (const document of state.evidenceDocuments) {
+    if (!scheduleControlIds.has(document.documentId)) continue;
+    const asOfAssertion = document.assertions
+      .filter((assertion) => assertion.metric === "schedule_control_data_date")
+      .map((assertion) =>
+        typeof assertion.value === "string"
+          ? dateValue(assertion.value)
+          : null,
+      )
+      .find((value): value is string => value !== null) ?? null;
+
+    for (const assertion of document.assertions) {
+      if (assertion.metric !== "source_productivity_forecast_completion") {
+        continue;
+      }
+      const completionIso =
+        typeof assertion.value === "string"
+          ? dateValue(assertion.value)
+          : null;
+      if (!completionIso) continue;
+      if (
+        cutoff !== null &&
+        asOfAssertion !== null &&
+        asOfAssertion > cutoff
+      ) {
+        diagnostics.push(
+          "FUTURE_SOURCE_PRODUCTIVITY_FORECAST_NOT_APPLIED:" +
+            document.documentId +
+            ":" +
+            assertion.sourceRef,
+        );
+        continue;
+      }
+      candidates.push({
+        completionIso,
+        asOfIso: asOfAssertion,
+        receipt: {
+          documentId: document.documentId,
+          sourceHash: document.sourceHashSha256,
+          revision: document.linkedArtifactId ?? document.sourceHashSha256,
+          locator: assertion.sourceRef || "assertion:" + assertion.assertionId,
+          basisState: document.basisState,
+          authority: "source_record",
+        },
+        official: ["active", "additive"].includes(document.basisState),
+      });
+    }
+  }
+
   for (const table of tables) {
     for (const row of table.rows) {
       const completionIso = dateFromProductivityRow(row);
