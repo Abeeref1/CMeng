@@ -317,6 +317,143 @@ function scheduleConfigFromTruth(
             .nearCriticalLowerBoundInclusive,
   };
 }
+function forecastTaxonomy(
+  truth: ProjectTruthSnapshot,
+  forecast: ReturnType<
+    typeof buildIndependentForecastProjection
+  >,
+) {
+  const submitted =
+    truth.forecastPositions.find(
+      (position) =>
+        position.kind ===
+        "submitted_programme",
+    ) ?? null;
+  const productivity =
+    truth.forecastPositions.find(
+      (position) =>
+        position.kind ===
+        "source_productivity",
+    ) ?? null;
+  const probabilistic =
+    forecast.probabilistic ?? null;
+
+  return {
+    submittedProgramme: {
+      label:
+        "Submitted programme forecast",
+      dateIso:
+        submitted?.dateIso ??
+        forecast
+          .sourceForecastCompletionIso,
+      authority:
+        submitted?.authority ??
+        "derived",
+      sourceRefs:
+        submitted?.sourceRefs ??
+        [],
+      method:
+        submitted?.method ??
+        "current controlled programme",
+      driverId:
+        submitted?.driverId ??
+        truth.schedule
+          .projectCompletionActivityId
+          .value,
+    },
+    sourceProductivity: {
+      label:
+        "Source productivity forecast",
+      dateIso:
+        productivity?.dateIso ??
+        null,
+      authority:
+        productivity?.authority ??
+        "missing",
+      sourceRefs:
+        productivity?.sourceRefs ??
+        [],
+      method:
+        productivity?.method ??
+        "not established",
+      driverId:
+        productivity?.driverId ??
+        null,
+    },
+    cmengCpm: {
+      label:
+        "CMeng deterministic CPM",
+      dateIso:
+        forecast
+          .independentForecastCompletionIso,
+      authority:
+        forecast.complete
+          ? "derived"
+          : "missing",
+      sourceRefs: [
+        "schedule-revision:" +
+          forecast
+            .sourceRevisionId,
+      ],
+      method:
+        "independent CPM using current programme logic, remaining durations and source calendars",
+      coveragePercent:
+        forecast
+          .activityCoveragePercent,
+      origin:
+        forecast.origin,
+    },
+    probabilisticComparator: {
+      label:
+        "Probabilistic comparator",
+      authority:
+        probabilistic?.status ===
+          "available"
+          ? "derived_non_official"
+          : "missing",
+      method:
+        probabilistic?.method ??
+        "not established",
+      p50CompletionIso:
+        probabilistic
+          ?.p50CompletionIso ??
+        null,
+      p80CompletionIso:
+        probabilistic
+          ?.p80CompletionIso ??
+        null,
+      p90CompletionIso:
+        probabilistic
+          ?.p90CompletionIso ??
+        null,
+      assumptions:
+        probabilistic
+          ?.assumptions ??
+        [],
+    },
+    contractualRequirement: {
+      label:
+        "Revised contractual completion",
+      dateIso:
+        truth.schedule
+          .revisedContractCompletion
+          .value,
+      authority:
+        truth.schedule
+          .revisedContractCompletion
+          .authority,
+      sourceRefs:
+        truth.schedule
+          .revisedContractCompletion
+          .sourceRefs,
+      method:
+        truth.schedule
+          .revisedContractCompletion
+          .method,
+    },
+  };
+}
+
 
 function actualHistory(
   state: ProjectRuntimeState,
@@ -1073,7 +1210,14 @@ function buildBundle(
     "independent-forecast",
     available(
       "independent-forecast",
-      independentForecast,
+      {
+        ...independentForecast,
+        forecastTaxonomy:
+          forecastTaxonomy(
+            projectTruth,
+            independentForecast,
+          ),
+      },
       [],
       independentForecast.complete
         ? "ready"
@@ -5506,6 +5650,11 @@ function buildSpecialistModuleFast(
       key,
       {
         ...forecast,
+        forecastTaxonomy:
+          forecastTaxonomy(
+            projectTruth,
+            forecast,
+          ),
         managementReviewState:
           reviewReason
             ? "review_required"
