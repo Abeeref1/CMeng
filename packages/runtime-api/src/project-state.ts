@@ -3201,7 +3201,7 @@ export class RuntimeProjectStore {
       });
     const identification =
       identified.identification;
-    const assertions =
+    let assertions =
       extractDocumentAssertions(
         identified.textSample,
         "evidence:" +
@@ -3257,6 +3257,86 @@ export class RuntimeProjectStore {
         1
       ) >
         syncOcrPageLimit;
+
+    if (
+      category === "schedule_control" &&
+      media.includes("pdf") &&
+      (
+        documentType === "schedule_control_basis" ||
+        documentType === "project_data_book"
+      )
+    ) {
+      const targetMetrics =
+        documentType === "schedule_control_basis"
+          ? new Set([
+              "near_critical_working_days",
+              "near_critical_threshold_hours",
+              "near_critical_count",
+              "critical_float_threshold_hours",
+              "schedule_control_data_date",
+              "source_productivity_forecast_completion",
+              "completion_date",
+            ])
+          : new Set([
+              "source_productivity_forecast_completion",
+              "completion_date",
+              "schedule_control_data_date",
+            ]);
+      const requiredMetrics =
+        documentType === "schedule_control_basis"
+          ? new Set([
+              "near_critical_working_days",
+              "near_critical_threshold_hours",
+            ])
+          : new Set([
+              "source_productivity_forecast_completion",
+              "completion_date",
+            ]);
+
+      const deep =
+        await this.extractFullScheduleControlAssertions(
+          input.bytes,
+          "evidence:" +
+            input.sourceFilename +
+            ":full-document",
+          targetMetrics,
+          requiredMetrics,
+        );
+
+      const merged =
+        new Map<string, DocumentAssertion>();
+      for (
+        const assertion of [
+          ...assertions,
+          ...deep.assertions,
+        ]
+      ) {
+        const key =
+          assertion.metric +
+          "|" +
+          String(assertion.value) +
+          "|" +
+          String(assertion.unit ?? "");
+        const prior = merged.get(key);
+        if (
+          !prior ||
+          assertion.confidence >
+            prior.confidence
+        ) {
+          merged.set(key, assertion);
+        }
+      }
+      assertions = [
+        ...merged.values(),
+      ];
+      identification.diagnostics.push(
+        ...deep.diagnostics.map(
+          (item) =>
+            "PROJECT_CONTROL_DEEP_EXTRACTION:" +
+            item,
+        ),
+      );
+    }
 
     const programmeDocumentTypes =
       new Set([
