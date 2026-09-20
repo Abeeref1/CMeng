@@ -17,6 +17,7 @@ import {
   type BoqIngestionResult,
 } from "../../boq-ingestion/src";
 import {
+  extractContractNoticeRequirements,
   extractContractTimeBasis,
 } from "../../contract-commercial/src";
 import {
@@ -118,6 +119,7 @@ function emptyControls():
   ProjectControlState {
   return {
     delayClaims: null,
+    contractNoticeRequirements: [],
     contractTimeBasis: null,
     readinessEvidence: {},
     progressEvidence: {},
@@ -149,6 +151,12 @@ function normalizeControls(
     ...value,
     delayClaims:
       value.delayClaims ?? null,
+    contractNoticeRequirements:
+      Array.isArray(
+        value.contractNoticeRequirements,
+      )
+        ? value.contractNoticeRequirements
+        : [],
     contractTimeBasis:
       value.contractTimeBasis ?? null,
     readinessEvidence:
@@ -3873,6 +3881,31 @@ export class RuntimeProjectStore {
 
     state.controls.contractTimeBasis =
       extractContractTimeBasis({
+        base: {
+          documentId:
+            base.documentId,
+          role:
+            base.role === "replacement"
+              ? "replacement"
+              : base.role === "main"
+                ? "main"
+                : "other",
+          result: base.result,
+        },
+        amendments:
+          activeAmendmentDocuments.map(
+            (item) => ({
+              documentId:
+                item.documentId,
+              role:
+                "amendment" as const,
+              result: item.result,
+            }),
+          ),
+      });
+
+    state.controls.contractNoticeRequirements =
+      extractContractNoticeRequirements({
         base: {
           documentId:
             base.documentId,
