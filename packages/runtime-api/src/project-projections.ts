@@ -2934,6 +2934,10 @@ export function overviewForProject(
     latestRevisionId:
       latest?.revision
         .revisionId ?? null,
+    latestRevisionLabel:
+      latest?.revision.label ??
+      latest?.sourceFilename ??
+      null,
     latestDataDateIso:
       latest?.revision.model
         .dataDateIso ?? null,
