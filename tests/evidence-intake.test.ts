@@ -698,6 +698,10 @@ test("runtime activity variance uses the controlled baseline programme", async (
       await programmeResponse.json() as {
         data: {
           result: {
+            completionBases: Array<{
+              basis: string;
+              dateIso: string | null;
+            }>;
             finishVariance: {
               lateActivities: number;
               maximumDelayDays: number | null;
@@ -716,6 +720,39 @@ test("runtime activity variance uses the controlled baseline programme", async (
         .finishVariance
         .maximumDelayDays,
       5,
+    );
+    assert.match(
+      programme.data.result
+        .completionBases.find(
+          (basis) =>
+            basis.basis ===
+            "programme",
+        )?.dateIso ?? "",
+      /^2026-01-10/,
+    );
+
+    const managementResponse =
+      await fetch(
+        base +
+          "/api/projects/" +
+          project +
+          "/schedule/modules/pmo-analysis",
+      );
+    assert.equal(
+      managementResponse.status,
+      200,
+    );
+    const management =
+      await managementResponse.json() as {
+        data: {
+          programmeBaselineCompletionIso?: string | null;
+        };
+      };
+    assert.match(
+      management.data
+        .programmeBaselineCompletionIso ??
+        "",
+      /^2026-01-10/,
     );
 
     const nearCriticalResponse =
