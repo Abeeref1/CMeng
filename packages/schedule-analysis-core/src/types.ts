@@ -189,13 +189,12 @@ export interface ScheduleAnalysisConfig {
    */
   nearCriticalWorkingDays?: number | null;
   /**
-   * Controls whether an activity exactly on the critical float threshold
-   * belongs to the critical bucket or the near-critical watchlist.
-   * Default preserves the legacy <= critical convention.
+   * Management watchlist convention only. Criticality remains mutually
+   * exclusive and governed by criticalFloatThresholdHours. When true, the
+   * float-risk watchlist includes activities exactly on the critical boundary
+   * (for example TF = 0) in addition to strict near-critical activities.
    */
-  criticalBoundaryMode?:
-    | "critical_includes_threshold"
-    | "near_critical_includes_threshold";
+  floatRiskWatchlistIncludesCriticalThreshold?: boolean;
   varianceLateThresholdDays: number;
 }
 
@@ -203,7 +202,7 @@ export const DEFAULT_SCHEDULE_ANALYSIS_CONFIG: ScheduleAnalysisConfig = {
   criticalFloatThresholdHours: 0,
   nearCriticalFloatThresholdHours: 40,
   nearCriticalWorkingDays: null,
-  criticalBoundaryMode: "critical_includes_threshold",
+  floatRiskWatchlistIncludesCriticalThreshold: false,
   varianceLateThresholdDays: 0,
 };
 
@@ -230,6 +229,8 @@ export interface ActivityStatusSummary {
 export interface FloatSummary {
   criticalCount: number;
   nearCriticalCount: number;
+  floatRiskWatchlistCount: number;
+  zeroFloatCount: number;
   negativeFloatCount: number;
   positiveFloatCount: number;
   unknownFloatCount: number;
@@ -242,6 +243,7 @@ export interface FloatSummary {
   nearCriticalThresholdBasis:
     | "elapsed_hours"
     | "activity_working_days";
+  floatRiskWatchlistIncludesCriticalThreshold: boolean;
   nearCriticalThresholdUnresolvedCount: number;
 }
 
