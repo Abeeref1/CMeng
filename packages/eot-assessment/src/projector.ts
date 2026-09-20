@@ -497,12 +497,19 @@ export function buildEotAssessmentProjection(
     ...(contractTime.overlapResolution ? {timeBasisReconciliation: {
       incorporatedEotDays: contractTime.incorporatedEotDays ?? null,
       registerDeterminationDays: contractTime.registerDeterminationDays ?? null,
+      registerDeterminationCount: contractTime.registerDeterminationCount ?? null,
+      effectiveDeterminationCount: contractTime.effectiveDeterminationCount ?? null,
+      futureDeterminationCount: contractTime.futureDeterminationCount ?? null,
       additionalApprovedEotDays: additionalAwardDays,
       overlapResolution: contractTime.overlapResolution,
       dataDateIso: contractTime.dataDateIso ?? null,
     }} : {}),
 
     observedProgrammeMovementDays,
+    projectCompletionMovementDays:
+      windows.projectCompletionMovementDays,
+    projectCompletionMovementBasis:
+      windows.projectCompletionMovementBasis,
     analyticalTimeImpactCandidateDays,
     attributableCandidateEotDays,
     unattributedTimeImpactDays,

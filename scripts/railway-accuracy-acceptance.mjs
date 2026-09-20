@@ -38,19 +38,95 @@ try {
   const sourceBefore = evidenceDigest(before.documents);
   summary.documentCount = before.documentCount;
   const module = key => json(prefix + '/schedule/modules/' + key);
-  const resource = await module('resource-utilization');
+  const allModuleKeys = [
+    'pmo-analysis','schedule-analytics','activity-analytics','lookahead-schedule',
+    'schedule-change-report','revision-trend','milestones','near-critical',
+    'resource-utilization','progress-report','variance-trends','progress-scurve',
+    'quantity-scurve','progress-breakdown','manhour-scurve','forecast-history',
+    'independent-forecast','delay-claims','notices-claims','windows-analysis',
+    'eot-assessment','challenge-contract','commercial-overview','cost-forecast',
+    'variations-change','payments','cash-flow','commercial-claims-notices',
+    'contract-particulars-bonds'
+  ];
+  const modules = new Map();
+  for (const key of allModuleKeys) {
+    const result = await module(key);
+    modules.set(key, result);
+    check(key + ': live page resolves', result?.key === key && result?.status !== 'blocked' && result?.data !== null);
+    check(key + ': live JSON has no non-finite serialization marker', !/NaN|Infinity/.test(JSON.stringify(result?.data)));
+    const report = await json(prefix + '/schedule/modules/' + key + '/report.json');
+    check(key + ': report is generated from the same live result', report?.result?.key === key && digest(report.result.data) === digest(result.data));
+  }
+  check('All 29 Project Control pages are traced', modules.size === 29);
+
+  const overview = await json(prefix + '/overview');
+  check('Current programme Data Date is 31 Aug 2026', String(overview.latestDataDateIso ?? '').startsWith('2026-08-31'));
+  for (const [key, result] of modules) {
+    const date = result.data?.dataDateIso ?? result.data?.result?.dataDateIso ?? null;
+    if (date !== null) check(key + ': Data Date follows current programme', String(date).startsWith('2026-08-31'));
+  }
+
+  const resource = modules.get('resource-utilization');
   const weekly = resource.data?.weeklyCapacityEvidence;
   check('Resources use canonical weekly source evidence', resource.data?.producerVersion === 'resource-source-integration-v1' && weekly?.rowCount > 0);
-  check('Resource capacity is not an empty zero fallback', resource.data.capacityCoveragePercent > 0 && resource.data.plannedUtilizationPercent !== null);
-  const eot = await module('eot-assessment');
+  check('RES01–RES07 utilization-applicable population is 210', resource.data?.utilizationApplicableResourceCount === 210);
+  check('RES01–RES07 weekly population is 19,110 rows', weekly?.rowCount === 19110);
+  check('RES01–RES07 approved actual-usage population is 4,620 rows', weekly?.approvedActualUsageRowCount === 4620);
+  check('Resource capacity coverage is established, not zero', resource.data?.capacityCoveragePercent > 0);
+  check('Planned utilization reconciles to source 84.47%', Math.abs(resource.data?.plannedUtilizationPercent - 84.47) <= 0.02);
+  check('Actual utilization reconciles to source 76.97%', Math.abs(resource.data?.actualUtilizationPercent - 76.97) <= 0.02);
+  check('Resource arithmetic remains class/unit partitioned', Array.isArray(weekly?.weeklyTotals) && weekly.weeklyTotals.every(row => row.resourceClass !== 'material' && typeof row.unit === 'string' && row.unit.length > 0));
+  const manhours = modules.get('manhour-scurve');
+  check('Man-Hour S-Curve is labor-only source history', manhours.data?.unitBasis === 'source_labor_hours' && manhours.data?.actualHistoryMethod === 'source_approved_weekly_usage');
+  const near = modules.get('near-critical');
+  check('Near-critical uses project activity-calendar working days', near.data?.thresholdBasis === 'activity_calendar_working_days' && near.data?.nearCriticalThresholdWorkingDays === 5);
+  check('Near-critical watchlist reconciles to 629 activities', near.data?.nearCriticalCount === 629);
+  const scheduleReview = modules.get('schedule-analytics');
+  check('Programme Review agrees with Near-Critical watchlist', scheduleReview.data?.result?.float?.nearCriticalCount === 629 && scheduleReview.data?.result?.float?.nearCriticalThresholdBasis === 'activity_working_days');
+  const activityReview = modules.get('activity-analytics');
+  check('Activity Review agrees with Near-Critical watchlist', Array.isArray(activityReview.data?.rows) && activityReview.data.rows.filter(row => row.criticality === 'near_critical').length === 629);
+  const revision = modules.get('revision-trend');
+  check('Revision History latest point uses the same near-critical basis', revision.data?.points?.at(-1)?.nearCriticalCount === 629);
+  const variance = modules.get('variance-trends');
+  check('Variance Trend latest point uses the same near-critical basis', variance.data?.points?.at(-1)?.nearCriticalCount === 629);
+
+  const forecast = modules.get('independent-forecast');
+  check('Forecast taxonomy has four distinct named positions',
+    forecast.data?.forecastTaxonomy?.contractorProgramme?.label === 'Contractor Programme Forecast' &&
+    forecast.data?.forecastTaxonomy?.sourceProductivity?.label === 'Source Productivity Forecast' &&
+    forecast.data?.forecastTaxonomy?.cmengCpm?.label === 'CMeng Independent CPM Forecast' &&
+    forecast.data?.forecastTaxonomy?.probabilistic?.label === 'CMeng Probabilistic Forecast');
+  check('Contractor Programme Forecast is established', forecast.data?.forecastTaxonomy?.contractorProgramme?.completionIso !== null);
+  check('Source Productivity Forecast is a separate source position', forecast.data?.sourceProductivityForecastCompletionIso !== null && !['missing','conflicted'].includes(forecast.data?.sourceProductivityForecastState));
+  check('CMeng deterministic and probabilistic positions stay separately labelled', forecast.data?.independentForecastCompletionIso !== undefined && forecast.data?.probabilistic?.p50CompletionIso !== undefined && forecast.data?.probabilistic?.p80CompletionIso !== undefined && forecast.data?.probabilistic?.p90CompletionIso !== undefined);
+
+  const windows = modules.get('windows-analysis');
+  check('Gross positive window movement reconciles to 203.17 days', Math.abs(windows.data?.positiveProgrammeMovementDays - 203.17) <= 0.02);
+  check('Net Project Completion movement reconciles to 181 days', Math.abs(windows.data?.projectCompletionMovementDays - 181) <= 0.02);
+  check('Window gross and net measures remain distinct', Math.abs(windows.data?.positiveProgrammeMovementDays - windows.data?.projectCompletionMovementDays) > 0.1);
+
+  const eot = modules.get('eot-assessment');
   const time = eot.data?.timeBasisReconciliation;
   check('EOT exposes amendment/determination reconciliation', !!time);
+  check('C02 governs revised contractual completion at 31 Mar 2030', String(eot.data?.contractualCompletionIso ?? '').startsWith('2030-03-31'));
+  check('EOT03 immutable register population is 16', time?.registerDeterminationCount === 16);
+  check('EOT03 immutable register sums to 138 days', time?.registerDeterminationDays === 138);
+  check('C02 already incorporates 90 EOT days', time?.incorporatedEotDays === 90);
+  check('EOT is cutoff-controlled at the 31 Aug 2026 Data Date', time?.dataDateIso === '2026-08-31' && time?.effectiveDeterminationCount === 2 && eot.data?.officialApprovedEotDays === 26);
   check('Unresolved EOT overlap never manufactures an adjusted completion', time.overlapResolution !== 'unresolved' || eot.data.officialAdjustedCompletionIso === null);
-  const delay = await module('delay-claims');
+
+  const delay = modules.get('delay-claims');
   // DelayClaimsProjection exposes event rows, claimCount and linkedClaimIds, not raw claims.
   const events = delay.data?.events;
   check('Delay claim/event identities reach runtime', Array.isArray(events) && events.length > 0 && delay.data.claimCount > 0 && events.every(e => typeof e.eventId === 'string' && e.eventId.length > 0 && Array.isArray(e.linkedClaimIds) && e.linkedClaimIds.length > 0 && e.linkedClaimIds.every(id => typeof id === 'string' && id.length > 0)));
+  check('CL01 governed event population is 350', delay.data?.eventCount === 350 && events.length === 350);
   check('Delay identity populations are complete and consistent', delay.data.eventCount === events.length && new Set(events.map(e => e.eventId)).size === events.length && new Set(events.flatMap(e => e.linkedClaimIds)).size === delay.data.claimCount);
+  check('All governed events retain claim linkage', delay.data?.claimLinkedEventCount === 350);
+  check('Delay-event activities are represented in the canonical chain', delay.data?.activityLinkedEventCount > 0 && events.some(e => Array.isArray(e.relatedActivityIds) && e.relatedActivityIds.length > 0));
+  check('Delay-event windows are represented in the canonical chain', delay.data?.windowLinkedEventCount > 0 && events.some(e => Array.isArray(e.overlappingWindowIds) && e.overlappingWindowIds.length > 0));
+  check('Delay-event notices are represented in the canonical chain', delay.data?.noticeLinkedEventCount > 0 && events.some(e => Array.isArray(e.noticeIds) && e.noticeIds.length > 0));
+  check('All 16 Engineer determinations remain linked to governed events', delay.data?.determinationLinkedEventCount > 0 && new Set(events.flatMap(e => e.determinationIds ?? [])).size === 16);
+  check('Determination chains preserve claim/activity/window/notice/determination where source evidence supports all links', delay.data?.fullDeterminationChainEventCount > 0);
   const keys = ['commercial-overview','cost-forecast','variations-change','payments','cash-flow','commercial-claims-notices','contract-particulars-bonds'];
   let sourceDigest;
   for (const key of keys) {

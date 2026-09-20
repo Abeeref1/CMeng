@@ -2,8 +2,10 @@ export interface NearCriticalRow {
   activityId: string;
   name: string | null;
   wbsId: string | null;
+  calendarId: string | null;
   status: string;
   totalFloatHours: number;
+  nearCriticalThresholdHours: number | null;
   baselineFinishIso: string | null;
   currentFinishIso: string | null;
   percentComplete: number | null;
@@ -17,8 +19,11 @@ export interface NearCriticalProjection {
   projectId: string | null;
   sourceRevisionId: string;
   criticalThresholdHours: number;
-  nearCriticalThresholdHours: number;
+  nearCriticalThresholdHours: number | null;
+  nearCriticalThresholdWorkingDays: number | null;
+  thresholdBasis: "activity_calendar_working_days" | "explicit_hours" | "unresolved";
   floatCoveragePercent: number | null;
+  classificationCoveragePercent: number | null;
   nearCriticalCount: number;
   rows: NearCriticalRow[];
 }

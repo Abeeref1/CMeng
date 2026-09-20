@@ -1,5 +1,7 @@
 import {
   DEFAULT_SCHEDULE_ANALYSIS_CONFIG,
+  activityNearCriticalThresholdHours,
+  nearCriticalThresholdBasis,
   type CanonicalScheduleModel,
   type ScheduleAnalysisConfig,
 } from "../../schedule-analysis-core/src";
@@ -32,21 +34,33 @@ export function buildNearCriticalProjection(
       activity.totalFloatHours !== null,
   );
 
-  const rows = known
+  const classified = known.map((activity) => ({
+    activity,
+    threshold:
+      activityNearCriticalThresholdHours(
+        model,
+        activity,
+        config,
+      ),
+  }));
+  const rows = classified
     .filter(
-      (activity) =>
+      ({ activity, threshold }) =>
+        threshold !== null &&
         activity.totalFloatHours! >
           config.criticalFloatThresholdHours &&
-        activity.totalFloatHours! <=
-          config.nearCriticalFloatThresholdHours,
+        activity.totalFloatHours! <= threshold,
     )
-    .map((activity) => ({
+    .map(({ activity, threshold }) => ({
       activityId: activity.activityId,
       name: activity.name,
       wbsId: activity.wbsId,
+      calendarId: activity.calendarId,
       status: activity.status,
       totalFloatHours:
         activity.totalFloatHours!,
+      nearCriticalThresholdHours:
+        threshold,
       baselineFinishIso:
         activity.baselineFinishIso,
       currentFinishIso:
@@ -78,9 +92,28 @@ export function buildNearCriticalProjection(
     criticalThresholdHours:
       config.criticalFloatThresholdHours,
     nearCriticalThresholdHours:
-      config.nearCriticalFloatThresholdHours,
+      config.nearCriticalWorkingDays !== undefined &&
+      config.nearCriticalWorkingDays !== null
+        ? null
+        : config.nearCriticalFloatThresholdHours,
+    nearCriticalThresholdWorkingDays:
+      config.nearCriticalWorkingDays ?? null,
+    thresholdBasis:
+      nearCriticalThresholdBasis(config) ===
+      "activity_working_days"
+        ? "activity_calendar_working_days"
+        : "explicit_hours",
     floatCoveragePercent: coverage(
       known.length,
+      model.activities.length,
+    ),
+    classificationCoveragePercent: coverage(
+      classified.filter(
+        ({ activity, threshold }) =>
+          activity.totalFloatHours! <=
+            config.criticalFloatThresholdHours ||
+          threshold !== null,
+      ).length,
       model.activities.length,
     ),
     nearCriticalCount: rows.length,

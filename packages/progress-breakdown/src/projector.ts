@@ -1,5 +1,6 @@
 import {
   DEFAULT_SCHEDULE_ANALYSIS_CONFIG,
+  sourceFloatCriticality,
   type CanonicalScheduleActivity,
   type CanonicalScheduleModel,
   type ScheduleAnalysisConfig,
@@ -30,6 +31,7 @@ function average(
 }
 
 function buildRow(
+  model: CanonicalScheduleModel,
   wbsId: string,
   wbsName: string | null,
   activities: readonly CanonicalScheduleActivity[],
@@ -130,15 +132,13 @@ function buildRow(
       ),
     criticalCount: floatKnown.filter(
       (activity) =>
-        activity.totalFloatHours! <=
-        config.criticalFloatThresholdHours,
+        sourceFloatCriticality(model, activity, config) ===
+        "critical",
     ).length,
     nearCriticalCount: floatKnown.filter(
       (activity) =>
-        activity.totalFloatHours! >
-          config.criticalFloatThresholdHours &&
-        activity.totalFloatHours! <=
-          config.nearCriticalFloatThresholdHours,
+        sourceFloatCriticality(model, activity, config) ===
+        "near_critical",
     ).length,
     negativeFloatCount: floatKnown.filter(
       (activity) =>
@@ -191,6 +191,7 @@ export function buildProgressBreakdownProjection(
   const rows = [...groups.entries()]
     .map(([wbsId, activities]) =>
       buildRow(
+        model,
         wbsId,
         wbsId === "__UNASSIGNED__"
           ? null

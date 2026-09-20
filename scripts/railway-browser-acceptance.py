@@ -60,14 +60,41 @@ try:
         stage = 'open existing project'
         page.goto(BASE + '/', wait_until='domcontentloaded', timeout=90000)
         page.wait_for_function('typeof overview !== "undefined" && overview && typeof currentModuleResult !== "undefined" && currentModuleResult', timeout=90000)
-        keys = ['commercial-overview', 'cost-forecast', 'variations-change', 'payments', 'cash-flow', 'commercial-claims-notices', 'contract-particulars-bonds', 'resource-utilization', 'eot-assessment', 'delay-claims']
+        keys = [
+            'pmo-analysis','schedule-analytics','activity-analytics','lookahead-schedule',
+            'schedule-change-report','revision-trend','milestones','near-critical',
+            'resource-utilization','progress-report','variance-trends','progress-scurve',
+            'quantity-scurve','progress-breakdown','manhour-scurve','forecast-history',
+            'independent-forecast','delay-claims','notices-claims','windows-analysis',
+            'eot-assessment','challenge-contract','commercial-overview','cost-forecast',
+            'variations-change','payments','cash-flow','commercial-claims-notices',
+            'contract-particulars-bonds'
+        ]
+        check('Navigation exposes all 29 Project Control pages', all(page.locator('.nav-item[data-key="' + key + '"]').count() == 1 for key in keys))
         for key in keys:
             stage = key
             page.locator('.nav-item[data-key="' + key + '"]').click(timeout=15000)
             page.wait_for_function('key => currentModuleResult?.key === key && document.getElementById("moduleBadge").textContent !== "Updating"', arg=key, timeout=90000)
-            visible = page.evaluate('({key:currentModuleResult.key,status:currentModuleResult.status,bodyLength:document.getElementById("moduleContent").innerText.length,chartCount:document.getElementById("moduleContent").querySelectorAll("svg,canvas").length,tableCount:document.getElementById("moduleContent").querySelectorAll("table").length})')
+            visible = page.evaluate('({key:currentModuleResult.key,status:currentModuleResult.status,bodyLength:document.getElementById("moduleContent").innerText.length,structuredCount:document.getElementById("moduleContent").querySelectorAll("table,svg,canvas,.planning-panel,.chart-card,.position-card,.planning-kpi,.commercial-ledger").length})')
             check(key + ': visible module response without a blocked state', visible['key'] == key and visible['status'] != 'blocked' and visible['bodyLength'] > 100)
-            check(key + ': structured view is rendered', visible['tableCount'] + visible['chartCount'] > 0)
+            check(key + ': structured management view is rendered', visible['structuredCount'] > 0)
+            if key == 'near-critical':
+                check('Near-Critical page states the 5 working-day governed basis', '5' in page.locator('#moduleContent').inner_text() and ('working' in page.locator('#moduleContent').inner_text().lower() or 'calendar' in page.locator('#moduleContent').inner_text().lower()))
+            if key == 'independent-forecast':
+                body = page.locator('#moduleContent').inner_text()
+                check('Independent Forecast shows the four distinct forecast positions', all(label in body for label in ['Contractor Programme Forecast','Source Productivity Forecast','CMeng Independent CPM Forecast','P50 probabilistic forecast']))
+            if key == 'windows-analysis':
+                body = page.locator('#moduleContent').inner_text()
+                check('Delay Windows separates gross window movement from Project Completion movement', 'Gross positive window movement' in body and 'Project Completion movement' in body and 'not project delay or EOT' in body)
+            if key == 'delay-claims':
+                body = page.locator('#moduleContent').inner_text()
+                check('Delay Events page exposes claim-event evidence chain', all(label in body for label in ['Activities','Windows','Notices','Determinations']))
+            if key == 'eot-assessment':
+                body = page.locator('#moduleContent').inner_text()
+                check('EOT page exposes amendment and determination reconciliation', 'Amendment and determination reconciliation' in body and 'Full determination register' in body and 'Project Completion movement' in body)
+            if key == 'resource-utilization':
+                body = page.locator('#moduleContent').inner_text()
+                check('Resources page exposes measured source utilization', 'capacity' in body.lower() and 'planned' in body.lower() and 'actual' in body.lower())
             if key == 'payments':
                 check('Payment reconciliation panel is rendered', page.get_by_text('Cash allocation and balance reconciliation', exact=True).count() > 0)
                 check('Reported and calculated balances stay separate in the view', page.get_by_text('Reported outstanding', exact=True).count() > 0 and page.get_by_text('Calculated outstanding', exact=True).count() > 0)

@@ -19,6 +19,13 @@ export interface DelayClaimEventAssessmentRow {
   linkedClaimIds: string[];
   relatedActivityIds: string[];
   overlappingWindowIds: string[];
+  noticeIds: string[];
+  determinationIds: string[];
+  evidenceChainState:
+    | "full_determination_chain"
+    | "notice_chain"
+    | "schedule_chain"
+    | "claim_event_only";
   observedNetIndependentMovementDays: number;
   observedPositiveIndependentMovementDays: number;
   observedNetProgrammeMovementDays: number;
@@ -49,9 +56,22 @@ export interface DelayClaimsProjection {
   eventCount: number;
   claimCount: number;
   windowCount: number;
+  claimLinkedEventCount: number;
+  activityLinkedEventCount: number;
+  windowLinkedEventCount: number;
+  noticeLinkedEventCount: number;
+  determinationLinkedEventCount: number;
+  fullDeterminationChainEventCount: number;
 
   observedPositiveIndependentMovementDays: number;
+  /** Gross positive analytical movement summed across windows. Not project delay or EOT. */
   observedPositiveProgrammeMovementDays: number;
+  /** Net submitted Project Completion movement from first to latest controlled revision. */
+  projectCompletionMovementDays: number | null;
+  projectCompletionMovementBasis:
+    | "source_forecast"
+    | "source_schedule_boundary"
+    | "unavailable";
   unattributedProgrammeMovementDays: number;
   employerOrNeutralCandidateWindowMovementDays: number;
   contractorRiskWindowMovementDays: number;

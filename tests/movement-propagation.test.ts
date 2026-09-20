@@ -355,3 +355,29 @@ test("programme movement remains separate from entitlement when an eligible even
       ),
   );
 });
+
+test("gross positive window movement never replaces net Project Completion movement", () => {
+  const windows =
+    buildWindowsAnalysisProjection(
+      [
+        revision("S1C",1,"2026-06-01T00:00:00.000Z","2026-08-01T00:00:00.000Z"),
+        revision("S2C",2,"2026-07-01T00:00:00.000Z","2026-08-20T00:00:00.000Z"),
+        revision("S3C",3,"2026-08-01T00:00:00.000Z","2026-08-15T00:00:00.000Z"),
+      ],
+      emptyDelay,
+      {
+        generatedAt: "2026-09-20T00:00:00.000Z",
+        producerVersion: "window-semantics-test",
+      },
+    );
+  assert.equal(windows.positiveProgrammeMovementDays,19);
+  assert.equal(windows.negativeProgrammeMovementDays,-5);
+  assert.equal(windows.projectCompletionMovementDays,14);
+  assert.equal(windows.projectCompletionMovementBasis,"source_forecast");
+  const delay=buildDelayClaimsProjection(windows,emptyDelay,{generatedAt:"2026-09-20T00:00:00.000Z",producerVersion:"delay-test"});
+  assert.equal(delay.observedPositiveProgrammeMovementDays,19);
+  assert.equal(delay.projectCompletionMovementDays,14);
+  const eot=buildEotAssessmentProjection(windows,delay,contractTime,{generatedAt:"2026-09-20T00:00:00.000Z",producerVersion:"eot-test"});
+  assert.equal(eot.observedProgrammeMovementDays,19);
+  assert.equal(eot.projectCompletionMovementDays,14);
+});

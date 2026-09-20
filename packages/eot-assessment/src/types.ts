@@ -13,6 +13,9 @@ export interface ContractTimeBasis {
   additionalApprovedEotDays?: number | null;
   overlapResolution?: "resolved" | "unresolved";
   registerDeterminationDays?: number | null;
+  registerDeterminationCount?: number | null;
+  effectiveDeterminationCount?: number | null;
+  futureDeterminationCount?: number | null;
   dataDateIso?: string | null;
   contractualCompletionIso: string | null;
   contractualCompletionState: GovernanceState;
@@ -65,6 +68,9 @@ export interface EotAssessmentProjection {
   timeBasisReconciliation?: {
     incorporatedEotDays: number | null;
     registerDeterminationDays: number | null;
+    registerDeterminationCount: number | null;
+    effectiveDeterminationCount: number | null;
+    futureDeterminationCount: number | null;
     additionalApprovedEotDays: number | null;
     overlapResolution: "resolved" | "unresolved";
     dataDateIso: string | null;
@@ -82,7 +88,14 @@ export interface EotAssessmentProjection {
   officialApprovedEotState: GovernanceState;
   officialAdjustedCompletionIso: string | null;
 
+  /** Gross positive analytical window movement only; never an EOT award. */
   observedProgrammeMovementDays: number;
+  /** Net submitted Project Completion movement, kept distinct from window sums. */
+  projectCompletionMovementDays: number | null;
+  projectCompletionMovementBasis:
+    | "source_forecast"
+    | "source_schedule_boundary"
+    | "unavailable";
   analyticalTimeImpactCandidateDays: number | null;
   attributableCandidateEotDays: number | null;
   unattributedTimeImpactDays: number;

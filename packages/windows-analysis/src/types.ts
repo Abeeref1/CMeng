@@ -86,8 +86,18 @@ export interface WindowsAnalysisProjection {
   unresolvedWindowCount: number;
   positiveIndependentMovementDays: number;
   negativeIndependentMovementDays: number;
+  /** Sum of positive window movements only. This is not net project delay or EOT. */
   positiveProgrammeMovementDays: number;
+  /** Sum of negative window movements only. */
   negativeProgrammeMovementDays: number;
+  /** Net change in project completion from the first to the latest revision. */
+  projectCompletionMovementDays: number | null;
+  projectCompletionMovementBasis:
+    | "source_forecast"
+    | "source_schedule_boundary"
+    | "unavailable";
+  firstProjectCompletionIso: string | null;
+  latestProjectCompletionIso: string | null;
   programmeMovementAvailableWindowCount: number;
   windows: ScheduleWindowResult[];
   diagnostics: string[];

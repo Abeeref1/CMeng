@@ -182,12 +182,19 @@ export interface ScheduleGraphAnalysis {
 export interface ScheduleAnalysisConfig {
   criticalFloatThresholdHours: number;
   nearCriticalFloatThresholdHours: number;
+  /**
+   * When established from the project control basis, near-criticality is
+   * evaluated as working days using each activity's own calendar. This takes
+   * precedence over the legacy elapsed-hour threshold.
+   */
+  nearCriticalWorkingDays?: number | null;
   varianceLateThresholdDays: number;
 }
 
 export const DEFAULT_SCHEDULE_ANALYSIS_CONFIG: ScheduleAnalysisConfig = {
   criticalFloatThresholdHours: 0,
   nearCriticalFloatThresholdHours: 40,
+  nearCriticalWorkingDays: null,
   varianceLateThresholdDays: 0,
 };
 
@@ -221,7 +228,12 @@ export interface FloatSummary {
   totalActivities: number;
   coveragePercent: number | null;
   criticalThresholdHours: number;
-  nearCriticalThresholdHours: number;
+  nearCriticalThresholdHours: number | null;
+  nearCriticalWorkingDays: number | null;
+  nearCriticalThresholdBasis:
+    | "elapsed_hours"
+    | "activity_working_days";
+  nearCriticalThresholdUnresolvedCount: number;
 }
 
 export interface MilestoneSummary {

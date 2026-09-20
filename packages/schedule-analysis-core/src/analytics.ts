@@ -1,4 +1,9 @@
 import { analyzeScheduleGraph } from "./graph";
+import {
+  activityNearCriticalThresholdHours,
+  nearCriticalThresholdBasis,
+  sourceFloatCriticality,
+} from "./float-thresholds";
 import type {
   AverageMetric,
   CanonicalScheduleActivity,
@@ -197,6 +202,7 @@ function progressSummary(
 }
 
 function floatSummary(
+  model: CanonicalScheduleModel,
   activities: readonly CanonicalScheduleActivity[],
   config: ScheduleAnalysisConfig,
 ): FloatSummary {
@@ -206,16 +212,16 @@ function floatSummary(
 
   const critical = known.filter(
     (activity) =>
-      activity.totalFloatHours! <=
-      config.criticalFloatThresholdHours,
+      sourceFloatCriticality(model, activity, config) === "critical",
   );
-
   const nearCritical = known.filter(
     (activity) =>
-      activity.totalFloatHours! >
-        config.criticalFloatThresholdHours &&
-      activity.totalFloatHours! <=
-        config.nearCriticalFloatThresholdHours,
+      sourceFloatCriticality(model, activity, config) === "near_critical",
+  );
+  const thresholdUnresolved = known.filter(
+    (activity) =>
+      activity.totalFloatHours! > config.criticalFloatThresholdHours &&
+      activityNearCriticalThresholdHours(model, activity, config) === null,
   );
 
   return {
@@ -238,7 +244,16 @@ function floatSummary(
     criticalThresholdHours:
       config.criticalFloatThresholdHours,
     nearCriticalThresholdHours:
-      config.nearCriticalFloatThresholdHours,
+      config.nearCriticalWorkingDays !== undefined &&
+      config.nearCriticalWorkingDays !== null
+        ? null
+        : config.nearCriticalFloatThresholdHours,
+    nearCriticalWorkingDays:
+      config.nearCriticalWorkingDays ?? null,
+    nearCriticalThresholdBasis:
+      nearCriticalThresholdBasis(config),
+    nearCriticalThresholdUnresolvedCount:
+      thresholdUnresolved.length,
   };
 }
 
@@ -527,7 +542,7 @@ export function analyzeSchedule(
     graph,
     status: statusSummary(activities),
     progress: progressSummary(activities),
-    float: floatSummary(activities, config),
+    float: floatSummary(model, activities, config),
     milestones: milestoneSummary(activities),
     finishVariance: finishVariance(
       activities,

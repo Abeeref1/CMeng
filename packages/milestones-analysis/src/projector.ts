@@ -1,5 +1,7 @@
 import {
   DEFAULT_SCHEDULE_ANALYSIS_CONFIG,
+  nearCriticalThresholdBasis,
+  sourceFloatCriticality,
   type CanonicalScheduleActivity,
   type CanonicalScheduleModel,
   type ScheduleAnalysisConfig,
@@ -70,23 +72,19 @@ function dueState(
 }
 
 function criticality(
-  totalFloatHours: number | null,
+  model: CanonicalScheduleModel,
+  activity: CanonicalScheduleActivity,
   config: ScheduleAnalysisConfig,
 ): MilestoneCriticality {
-  if (totalFloatHours === null) return "unknown";
-  if (
-    totalFloatHours <=
-    config.criticalFloatThresholdHours
-  ) {
-    return "critical";
-  }
-  if (
-    totalFloatHours <=
-    config.nearCriticalFloatThresholdHours
-  ) {
-    return "near_critical";
-  }
-  return "positive_float";
+  const classification =
+    sourceFloatCriticality(
+      model,
+      activity,
+      config,
+    );
+  return classification === "noncritical"
+    ? "positive_float"
+    : classification;
 }
 
 function managementFlags(
@@ -271,9 +269,11 @@ export function buildMilestonesProjection(
     model.activities
       .filter(
         (activity) =>
-          activity.totalFloatHours !== null &&
-          activity.totalFloatHours <=
-            config.criticalFloatThresholdHours,
+          sourceFloatCriticality(
+            model,
+            activity,
+            config,
+          ) === "critical",
       )
       .map((activity) => activity.activityId),
   );
@@ -317,7 +317,8 @@ export function buildMilestonesProjection(
           current,
         );
         const activityCriticality = criticality(
-          activity.totalFloatHours,
+          model,
+          activity,
           config,
         );
         const predecessorIds =
@@ -442,7 +443,17 @@ export function buildMilestonesProjection(
     criticalFloatThresholdHours:
       config.criticalFloatThresholdHours,
     nearCriticalFloatThresholdHours:
-      config.nearCriticalFloatThresholdHours,
+      config.nearCriticalWorkingDays !== undefined &&
+      config.nearCriticalWorkingDays !== null
+        ? null
+        : config.nearCriticalFloatThresholdHours,
+    nearCriticalThresholdWorkingDays:
+      config.nearCriticalWorkingDays ?? null,
+    nearCriticalThresholdBasis:
+      nearCriticalThresholdBasis(config) ===
+      "activity_working_days"
+        ? "activity_calendar_working_days"
+        : "explicit_hours",
     floatCoveragePercent,
     criticalPathState,
     milestoneCount: rows.length,

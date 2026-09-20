@@ -4,3 +4,6 @@ export * from "./graph";
 export * from "./analytics";
 export * from "./adapters";
 export * from "./activity-index";
+
+
+export * from "./float-thresholds";

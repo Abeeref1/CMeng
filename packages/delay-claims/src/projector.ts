@@ -60,6 +60,21 @@ export function buildDelayClaimsProjection(
 
   const claimsByEvent =
     new Map<string, string[]>();
+  const noticesByEvent =
+    new Map<string, string[]>();
+  const determinationsByEvent =
+    new Map<string, string[]>();
+
+  for (const notice of model.notices) {
+    if (!notice.eventId) continue;
+    const target =
+      notice.kind === "determination"
+        ? determinationsByEvent
+        : noticesByEvent;
+    const list = target.get(notice.eventId) ?? [];
+    list.push(notice.noticeId);
+    target.set(notice.eventId, list);
+  }
 
   for (const claim of model.claims) {
     for (const eventId of claim.eventIds) {
@@ -205,6 +220,25 @@ export function buildDelayClaimsProjection(
             (window) =>
               window.windowId,
           ),
+        noticeIds: [
+          ...new Set(
+            noticesByEvent.get(event.eventId) ?? [],
+          ),
+        ].sort(),
+        determinationIds: [
+          ...new Set(
+            determinationsByEvent.get(event.eventId) ?? [],
+          ),
+        ].sort(),
+        evidenceChainState:
+          (determinationsByEvent.get(event.eventId)?.length ?? 0) > 0
+            ? "full_determination_chain"
+            : (noticesByEvent.get(event.eventId)?.length ?? 0) > 0
+              ? "notice_chain"
+              : overlapping.length > 0 &&
+                  event.relatedActivityIds.length > 0
+                ? "schedule_chain"
+                : "claim_event_only",
         observedNetIndependentMovementDays:
           Number(net.toFixed(6)),
         observedPositiveIndependentMovementDays:
@@ -304,6 +338,25 @@ export function buildDelayClaimsProjection(
       model.claims.length,
     windowCount:
       windows.windowCount,
+    claimLinkedEventCount:
+      rows.filter((row) => row.linkedClaimIds.length > 0).length,
+    activityLinkedEventCount:
+      rows.filter((row) => row.relatedActivityIds.length > 0).length,
+    windowLinkedEventCount:
+      rows.filter((row) => row.overlappingWindowIds.length > 0).length,
+    noticeLinkedEventCount:
+      rows.filter((row) => row.noticeIds.length > 0).length,
+    determinationLinkedEventCount:
+      rows.filter((row) => row.determinationIds.length > 0).length,
+    fullDeterminationChainEventCount:
+      rows.filter(
+        (row) =>
+          row.linkedClaimIds.length > 0 &&
+          row.relatedActivityIds.length > 0 &&
+          row.overlappingWindowIds.length > 0 &&
+          row.noticeIds.length > 0 &&
+          row.determinationIds.length > 0,
+      ).length,
 
     observedPositiveIndependentMovementDays:
       Number(
@@ -317,6 +370,10 @@ export function buildDelayClaimsProjection(
           6,
         ),
       ),
+    projectCompletionMovementDays:
+      windows.projectCompletionMovementDays,
+    projectCompletionMovementBasis:
+      windows.projectCompletionMovementBasis,
     unattributedProgrammeMovementDays:
       Number(
         unattributed.toFixed(6),

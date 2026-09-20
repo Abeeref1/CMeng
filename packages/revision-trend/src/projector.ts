@@ -1,5 +1,6 @@
 import {
   analyzeSchedule,
+  type ScheduleAnalysisConfig,
 } from "../../schedule-analysis-core/src";
 import {
   compareScheduleRevisions,
@@ -27,6 +28,7 @@ export function buildRevisionTrendProjection(
   input: {
     generatedAt: string;
     producerVersion: string;
+    config?: ScheduleAnalysisConfig;
   },
 ): RevisionTrendProjection {
   const ordered =
@@ -40,6 +42,7 @@ export function buildRevisionTrendProjection(
     const revision = ordered[index]!;
     const analytics = analyzeSchedule(
       revision.model,
+      input.config,
     );
     const previous =
       index > 0 ? ordered[index - 1]! : null;
