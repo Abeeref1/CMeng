@@ -13,6 +13,9 @@ export interface ContractTimeBasis {
   additionalApprovedEotDays?: number | null;
   overlapResolution?: "resolved" | "unresolved";
   registerDeterminationDays?: number | null;
+  registerDeterminationCount?: number | null;
+  effectiveDeterminationCount?: number | null;
+  futureDeterminationCount?: number | null;
   dataDateIso?: string | null;
   contractualCompletionIso: string | null;
   contractualCompletionState: GovernanceState;
@@ -65,6 +68,9 @@ export interface EotAssessmentProjection {
   timeBasisReconciliation?: {
     incorporatedEotDays: number | null;
     registerDeterminationDays: number | null;
+    registerDeterminationCount: number | null;
+    effectiveDeterminationCount: number | null;
+    futureDeterminationCount: number | null;
     additionalApprovedEotDays: number | null;
     overlapResolution: "resolved" | "unresolved";
     dataDateIso: string | null;
