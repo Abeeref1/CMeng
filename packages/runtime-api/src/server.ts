@@ -2632,12 +2632,20 @@ if (require.main === module) {
         state.evidenceDocuments,
         diagnostics,
       )
-        .filter((table) =>
-          table.document.category === "schedule_control"
-        )
-        .map((table) => ({
+        .map((table) => {
+          const evidenceDocument =
+            state.evidenceDocuments.find(
+              (document) =>
+                document.documentId ===
+                table.document.documentId,
+            );
+          return {
           documentType:
-            table.document.documentType,
+            evidenceDocument?.documentType ??
+            "unknown",
+          category:
+            evidenceDocument?.category ??
+            "other",
           basisState:
             table.document.basisState,
           rows: table.rows
@@ -2663,8 +2671,11 @@ if (require.main === module) {
               row.metric ||
               row.source
             ),
-        }))
+          };
+        })
         .filter((item) =>
+          item.category ===
+            "schedule_control" &&
           item.rows.length > 0
         );
 
