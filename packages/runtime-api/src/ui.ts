@@ -1065,30 +1065,56 @@ function renderForecastVisual(data){
   const p=projectionFor(data,"independent_forecast");
   if(!("independentForecastCompletionIso" in p))return"";
   const prob=p.probabilistic||{};
+  const taxonomy=p.forecastTaxonomy||{};
+  const sourceProductivity=p.sourceProductivityForecast||null;
   const review=p.managementReviewState==="review_required"||!p.complete;
+  const contractor=taxonomy.contractorProgrammeForecastIso??p.sourceForecastCompletionIso;
+  const contract=taxonomy.contractualCompletionIso??null;
+  const productivity=taxonomy.sourceProductivityForecastIso??null;
+  const cmeng=taxonomy.cmengCpmForecastIso??p.independentForecastCompletionIso;
   const variance=p.forecastVarianceDays;
+  const productivityVariance=productivity&&contract
+    ? planningDaysBetween(contract,productivity)
+    : null;
   const kpis=planningKpis([
-    ["Submitted finish",planningShortDate(p.sourceForecastCompletionIso),"current programme"],
-    ["Independent finish",planningShortDate(p.independentForecastCompletionIso),review?"requires reconciliation":"CMeng calculation",review?"warning":"accent"],
-    ["Difference",variance===null?"—":(variance>0?"+":"")+fmt(variance)+" days","independent minus submitted",variance!==null&&Math.abs(variance)>180?"danger":""],
-    ["Activity coverage",p.activityCoveragePercent===null?"—":fmt(p.activityCoveragePercent)+"%","independent CPM"],
-    ["Required finish",planningShortDate(p.requiredFinishIso),"contract/target if established"]
+    ["Revised contract finish",planningShortDate(contract),taxonomy.contractualAuthority||"contract basis",contract?"accent":"warning"],
+    ["Contractor programme",planningShortDate(contractor),"submitted current programme",contractor?"accent":"warning"],
+    ["Source productivity forecast",planningShortDate(productivity),sourceProductivity?"independent source model":"not submitted",productivity?"warning":""],
+    ["CMeng deterministic CPM",planningShortDate(cmeng),review?"requires reconciliation":"independent calculation",review?"warning":"accent"],
+    ["CPM vs contractor",variance===null?"—":(variance>0?"+":"")+fmt(variance)+" d","CMeng CPM minus submitted programme",variance!==null&&Math.abs(variance)>180?"danger":""],
+    ["Productivity vs contract",productivityVariance===null?"—":(productivityVariance>0?"+":"")+fmt(productivityVariance)+" d","source model minus revised contract",productivityVariance!==null&&productivityVariance>0?"warning":""]
   ]);
-  const warning=review?'<div class="notice warn"><b>Independent forecast requires reconciliation before management use.</b><br>'+escapeHtml(p.managementReviewReason||"The deterministic CPM basis contains unresolved evidence.")+'</div>':'';
+  const warning=review
+    ? '<div class="notice warn"><b>CMeng deterministic CPM requires reconciliation before management use.</b><br>'+escapeHtml(p.managementReviewReason||"The deterministic CPM basis contains unresolved schedule evidence.")+' The submitted programme and source productivity forecast remain visible as separate source positions.</div>'
+    : '';
+  const taxonomyNote='<div class="notice info"><b>Forecast positions are deliberately separate.</b> Contract date = governed contractual commitment. Contractor programme = submitted schedule forecast. Source productivity forecast = independent quantity/rate model from project evidence. CMeng CPM = deterministic schedule calculation. P50/P80/P90 below are non-official statistical comparators and never replace those four positions.</div>';
   const dateLadder=planningDateLadder([
-    {label:"Submitted finish",date:p.sourceForecastCompletionIso,tone:"current"},
-    {label:"Independent finish",date:p.independentForecastCompletionIso,tone:"cmeng"},
-    {label:"Required finish",date:p.requiredFinishIso,tone:"baseline"}
+    {label:"Revised contract finish",date:contract,tone:"baseline"},
+    {label:"Contractor programme forecast",date:contractor,tone:"current"},
+    {label:"Source productivity forecast",date:productivity,tone:"scenario"},
+    {label:"CMeng deterministic CPM",date:cmeng,tone:"cmeng"}
   ],p.dataDateIso);
+  const productivityPanel=sourceProductivity
+    ? '<div class="position-grid">'+[
+        ["Work packages",sourceProductivity.workPackageCount,"source model population"],
+        ["Forecast coverage",sourceProductivity.forecastCoveragePercent===null?"—":fmt(sourceProductivity.forecastCoveragePercent)+"%","work packages with finish"],
+        ["Driving work package",(sourceProductivity.drivingWorkPackageIds||[]).join(", ")||"—","latest source productivity finish"],
+        ["Method","Remaining quantity / conservative achievable rate + interface allowance","source-defined analytical method"]
+      ].map(c=>'<div class="position-card"><div class="position-label">'+escapeHtml(c[0])+'</div><div class="position-value">'+escapeHtml(c[1])+'</div><div class="position-sub">'+escapeHtml(c[2])+'</div></div>').join("")+'</div>'
+    : '<div class="notice warn">A governed source productivity forecast model is not established. CMeng does not fabricate one from schedule CPM.</div>';
   const probPanel=review
-    ? '<div class="notice info">P50/P80/P90 comparators are suppressed while the deterministic independent finish is under reconciliation. Probabilistic dates should not amplify an unresolved deterministic basis.</div>'
+    ? '<div class="notice info">P50/P80/P90 comparators are suppressed from management emphasis while the deterministic CMeng CPM is under reconciliation. Any calculated values remain non-official.</div>'
     : '<div class="position-grid">'+[
-        ["P50 comparator",planningShortDate(prob.p50CompletionIso),"non-official"],
-        ["P80 comparator",planningShortDate(prob.p80CompletionIso),"non-official"],
-        ["P90 comparator",planningShortDate(prob.p90CompletionIso),"non-official"]
+        ["P50 comparator",planningShortDate(prob.p50CompletionIso),"non-official · limited duration-factor comparator"],
+        ["P80 comparator",planningShortDate(prob.p80CompletionIso),"non-official · limited duration-factor comparator"],
+        ["P90 comparator",planningShortDate(prob.p90CompletionIso),"non-official · limited duration-factor comparator"]
       ].map(c=>'<div class="position-card"><div class="position-label">'+escapeHtml(c[0])+'</div><div class="position-value">'+escapeHtml(c[1])+'</div><div class="position-sub">'+escapeHtml(c[2])+'</div></div>').join("")+'</div>';
-  return '<section class="planning-view independent-forecast-view">'+kpis+warning+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Finish-date comparison</h4><p>Submitted and independent dates are shown side by side; neither silently replaces the other.</p></div><span class="badge '+(review?"partial":"ready")+'">'+escapeHtml(review?"Reconciliation required":"Calculated")+'</span></div><div class="planning-panel-body">'+dateLadder+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Probabilistic comparators</h4><p>Non-official comparators are only useful after the deterministic basis is credible.</p></div></div><div class="planning-panel-body">'+probPanel+'</div></section></section>';
+  return '<section class="planning-view independent-forecast-view">'+kpis+taxonomyNote+warning+
+    '<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Completion position taxonomy</h4><p>Contract, contractor programme, source productivity and CMeng CPM dates are shown together without collapsing their authority.</p></div><span class="badge '+(review?"partial":"ready")+'">'+escapeHtml(review?"CPM reconciliation required":"Positions separated")+'</span></div><div class="planning-panel-body">'+dateLadder+'</div></section>'+
+    '<div class="planning-primary-grid"><section class="planning-panel"><div class="planning-panel-head"><div><h4>Source productivity forecast</h4><p>Independent project-source forecast. This is not CMeng CPM.</p></div></div><div class="planning-panel-body">'+productivityPanel+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Probabilistic comparators</h4><p>P50/P80/P90 remain explicitly non-official and method-bounded.</p></div></div><div class="planning-panel-body">'+probPanel+'</div></section></div>'+
+  '</section>';
 }
+
 function renderWindowsVisual(data){
   const p=projectionFor(data,"windows_analysis");
   if(!Array.isArray(p.windows))return"";
