@@ -1971,7 +1971,19 @@ export function rebuildDerivedControls(
           document.basisState ===
             "active" ||
           document.basisState ===
-            "additive",
+            "additive" ||
+          (
+            document.basisState ===
+              "candidate" &&
+            [
+              "delay_event_impact_register",
+              "entitlement_assessment_register",
+              "engineer_determination_register",
+              "mitigation_acceleration_register",
+            ].includes(
+              document.documentType,
+            )
+          ),
       )
       .sort(
         (a, b) =>
