@@ -1797,6 +1797,31 @@ export function rebuildDerivedControls(
             row.sourceRefs,
           ),
       );
+  const manualRetentions =
+    state.controls.retentions
+      .filter(
+        (row) =>
+          !derivedRef(
+            row.sourceRefs,
+          ),
+      );
+  const manualBonds =
+    state.controls.bonds
+      .filter(
+        (row) =>
+          !derivedRef(
+            row.sourceRefs,
+          ),
+      );
+  const manualClaimCommercials =
+    state.controls
+      .claimCommercials
+      .filter(
+        (row) =>
+          !derivedRef(
+            row.sourceRefs,
+          ),
+      );
   const manualNcrs =
     state.controls.ncrs
       .filter(
@@ -1827,6 +1852,15 @@ export function rebuildDerivedControls(
   ];
   const invoices = [
     ...manualInvoices,
+  ];
+  const retentions = [
+    ...manualRetentions,
+  ];
+  const bonds = [
+    ...manualBonds,
+  ];
+  const claimCommercials = [
+    ...manualClaimCommercials,
   ];
   const ncrs = [
     ...manualNcrs,
@@ -1879,6 +1913,19 @@ export function rebuildDerivedControls(
       ...(derived.invoices ??
         []),
     );
+    retentions.push(
+      ...(derived.retentions ??
+        []),
+    );
+    bonds.push(
+      ...(derived.bonds ??
+        []),
+    );
+    claimCommercials.push(
+      ...(derived
+        .claimCommercials ??
+        []),
+    );
     ncrs.push(
       ...(derived.ncrs ??
         []),
@@ -1916,6 +1963,25 @@ export function rebuildDerivedControls(
       invoices,
       (row) =>
         row.invoiceId,
+    );
+  state.controls.retentions =
+    latestById(
+      retentions,
+      (row) =>
+        row.retentionId,
+    );
+  state.controls.bonds =
+    latestById(
+      bonds,
+      (row) =>
+        row.bondId,
+    );
+  state.controls
+    .claimCommercials =
+    latestById(
+      claimCommercials,
+      (row) =>
+        row.claimId,
     );
   state.controls.ncrs =
     latestById(
