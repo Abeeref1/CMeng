@@ -21,6 +21,9 @@ import {
   buildCommercialModule,
 } from "./commercial-projections";
 import {
+  certifyCommercial,
+} from "./commercial-certification";
+import {
   buildProjectDirectorPosition,
   type DirectorPositionInput,
   type ProjectDirectorPosition,
@@ -757,6 +760,45 @@ async function route(
       res,
       200,
       COMMERCIAL_MODULES,
+    );
+    return;
+  }
+
+  const commercialCertificationMatch =
+    /^\/api\/projects\/([^/]+)\/commercial\/certification$/.exec(
+      url.pathname,
+    );
+
+  if (
+    req.method === "GET" &&
+    commercialCertificationMatch
+  ) {
+    const projectId =
+      decodeURIComponent(
+        commercialCertificationMatch[1]!,
+      );
+    const state =
+      runtimeProjects.get(
+        projectId,
+      );
+    if (!state) {
+      json(res, 404, {
+        error:
+          "project_not_found",
+      });
+      return;
+    }
+    const certification =
+      certifyCommercial(
+        state,
+      );
+    json(
+      res,
+      certification.state ===
+        "pass"
+        ? 200
+        : 409,
+      certification,
     );
     return;
   }
@@ -2572,6 +2614,8 @@ async function route(
         "/api/schedule/modules",
       commercialModules:
         "/api/commercial/modules",
+      commercialCertification:
+        "/api/projects/:projectId/commercial/certification",
       scheduleCertification:
         "/api/schedule/certification",
       boqUpload:
