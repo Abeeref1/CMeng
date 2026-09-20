@@ -134,6 +134,155 @@ const bundleCache =
     ProjectionBundle
   >();
 
+function canonicalResourceSupportSummary(
+  state: ProjectRuntimeState,
+) {
+  const model = state.resourceSupport;
+  if (!model) {
+    return weeklyResourceCapacityEvidence(
+      state.evidenceDocuments,
+    );
+  }
+
+  const byWeek = new Map<
+    string,
+    {
+      unit: string;
+      weekStartIso: string | null;
+      availableCapacity: number;
+      plannedDemand: number;
+      actualApprovedUsage: number;
+      capacityCount: number;
+      plannedCount: number;
+      actualCount: number;
+      comparableResourceCount: number;
+    }
+  >();
+
+  for (const point of model.weekly) {
+    if (!point.unit) continue;
+    const key =
+      point.unit + "::" +
+      (point.weekStartIso ?? "undated");
+    const row = byWeek.get(key) ?? {
+      unit: point.unit,
+      weekStartIso: point.weekStartIso,
+      availableCapacity: 0,
+      plannedDemand: 0,
+      actualApprovedUsage: 0,
+      capacityCount: 0,
+      plannedCount: 0,
+      actualCount: 0,
+      comparableResourceCount: 0,
+    };
+    if (point.availableCapacity !== null) {
+      row.availableCapacity += point.availableCapacity;
+      row.capacityCount += 1;
+    }
+    if (point.plannedDemand !== null) {
+      row.plannedDemand += point.plannedDemand;
+      row.plannedCount += 1;
+    }
+    if (point.actualApprovedUsage !== null) {
+      row.actualApprovedUsage += point.actualApprovedUsage;
+      row.actualCount += 1;
+    }
+    if (
+      point.availableCapacity !== null &&
+      point.plannedDemand !== null
+    ) {
+      row.comparableResourceCount += 1;
+    }
+    byWeek.set(key, row);
+  }
+
+  const comparableRowCount =
+    model.weekly.filter(
+      (row) =>
+        row.availableCapacity !== null &&
+        row.plannedDemand !== null,
+    ).length;
+
+  return {
+    state:
+      comparableRowCount === model.weekly.length
+        ? "available" as const
+        : "partial" as const,
+    rowCount: model.weeklyRowCount,
+    comparableRowCount,
+    resourceCount:
+      model.utilizationApplicableResourceCount,
+    weekCount:
+      new Set(
+        model.weekly
+          .map((row) => row.weekStartIso)
+          .filter((value): value is string => value !== null),
+      ).size,
+    overloadedRowCount:
+      model.plannedOverallocationRowCount,
+    actualOverloadedRowCount:
+      model.actualOverallocationRowCount,
+    capacityCoveragePercent:
+      model.utilizationApplicableResourceCount > 0
+        ? 100
+        : null,
+    unitLabels: [...model.units],
+    sourceBasisStates: ["canonical_resource_support"],
+    candidateDocumentCount: 0,
+    averagePlannedUtilizationToDataDatePercent:
+      model.averagePlannedUtilizationToDataDatePercent,
+    averageActualUtilizationToDataDatePercent:
+      model.averageActualUtilizationToDataDatePercent,
+    actualUsageRowCount:
+      model.actualUsageRowCount,
+    assignmentTimephasedRowCount:
+      model.assignmentTimephasedRowCount,
+    points: model.weekly.map((row) => ({
+      resourceId: row.resourceId,
+      resourceName: null,
+      weekStartIso: row.weekStartIso,
+      availableCapacity: row.availableCapacity,
+      plannedDemand: row.plannedDemand,
+      actualApprovedUsage: row.actualApprovedUsage,
+      unit: row.unit,
+      sourceRef:
+        row.sourceRefs[0]
+          ? "evidence-document:" +
+            row.sourceRefs[0].sourceId +
+            ":" +
+            row.sourceRefs[0].locator
+          : "resource-support",
+    })),
+    weeklyTotals: [...byWeek.values()]
+      .sort(
+        (a, b) =>
+          a.unit.localeCompare(b.unit) ||
+          (a.weekStartIso ?? "").localeCompare(
+            b.weekStartIso ?? "",
+          ),
+      )
+      .map((row) => ({
+        unit: row.unit,
+        weekStartIso: row.weekStartIso,
+        availableCapacity:
+          row.capacityCount > 0
+            ? Number(row.availableCapacity.toFixed(6))
+            : null,
+        plannedDemand:
+          row.plannedCount > 0
+            ? Number(row.plannedDemand.toFixed(6))
+            : null,
+        actualApprovedUsage:
+          row.actualCount > 0
+            ? Number(row.actualApprovedUsage.toFixed(6))
+            : null,
+        comparableResourceCount:
+          row.comparableResourceCount,
+      })),
+    diagnostics: [...model.diagnostics],
+  };
+}
+
 function blocked(
   key: string,
   reason: string,
@@ -1280,7 +1429,7 @@ function buildBundle(
   if (
     usableResources
   ) {
-    resourceUtilization =
+    const baseResourceUtilization =
       buildResourceUtilizationProjection(
         usableResources,
         model,
@@ -1290,6 +1439,41 @@ function buildBundle(
             versions.resource,
         },
       );
+    const canonicalWeeklyCapacity =
+      canonicalResourceSupportSummary(
+        state,
+      );
+    resourceUtilization = {
+      ...baseResourceUtilization,
+      weeklyCapacityEvidence:
+        canonicalWeeklyCapacity,
+      canonicalResourceEvidenceState:
+        state.resourceSupport
+          ? "established"
+          : canonicalWeeklyCapacity.rowCount > 0
+            ? "legacy_source"
+            : "not_established",
+      sourceUtilizationApplicableResourceCount:
+        state.resourceSupport
+          ?.utilizationApplicableResourceCount ??
+        canonicalWeeklyCapacity.resourceCount,
+      sourceAveragePlannedUtilizationPercent:
+        state.resourceSupport
+          ?.averagePlannedUtilizationToDataDatePercent ??
+        null,
+      sourceAverageActualUtilizationPercent:
+        state.resourceSupport
+          ?.averageActualUtilizationToDataDatePercent ??
+        null,
+      sourcePlannedOverallocationRowCount:
+        state.resourceSupport
+          ?.plannedOverallocationRowCount ??
+        canonicalWeeklyCapacity.overloadedRowCount,
+      sourceActualOverallocationRowCount:
+        state.resourceSupport
+          ?.actualOverallocationRowCount ??
+        (canonicalWeeklyCapacity.actualOverloadedRowCount ?? 0),
+    };
     manhourScurve =
       buildManhourScurveProjection(
         usableResources,
@@ -4683,8 +4867,8 @@ function buildSpecialistModuleFast(
               manpower
                 .scheduleDerivedScenarios,
             weeklyCapacityEvidence:
-              weeklyResourceCapacityEvidence(
-                state.evidenceDocuments,
+              canonicalResourceSupportSummary(
+                state,
               ),
             diagnostics: [
               "RESOURCE_ASSIGNMENTS_NOT_SUBMITTED_SCENARIO_DERIVED_FROM_WORKFRONTS",
@@ -4786,8 +4970,8 @@ function buildSpecialistModuleFast(
           },
         );
       const weeklyCapacity =
-        weeklyResourceCapacityEvidence(
-          state.evidenceDocuments,
+        canonicalResourceSupportSummary(
+          state,
         );
       const capacityKnown =
         projection
