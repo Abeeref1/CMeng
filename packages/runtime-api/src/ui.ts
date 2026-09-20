@@ -924,7 +924,7 @@ function renderDeliveryChallenge(data,reason){
   }
   html+=reconciliation+'</section>';
   const basisHtml=renderModuleBasis(data);
-  el("moduleContent").innerHTML=basisHtml+renderRoleContent("challenge-contract",data,html,"",true);
+  el("moduleContent").innerHTML=basisHtml+renderRoleContent("challenge-contract",data,html,"",true)+renderEvidenceProvenance(data);
   return true;
 }
 function humanizeKey(key){
@@ -1318,7 +1318,7 @@ function planningStateLabel(value){
 function planningKpis(items){
   return '<div class="planning-kpi-grid">'+items.map(item=>{
     const label=item[0],value=item[1],sub=item[2]||"",tone=item[3]||"";
-    return '<div class="planning-kpi '+escapeHtml(tone)+'"><span>'+escapeHtml(label)+'</span><strong>'+escapeHtml(value===null||value===undefined?"—":fmt(value))+'</strong>'+(sub?'<small>'+escapeHtml(sub)+'</small>':'')+'</div>';
+    return '<div class="planning-kpi '+escapeHtml(tone)+'" tabindex="0" role="button" data-kpi-label="'+escapeHtml(label)+'" title="Open calculation and source trace" onclick="openCurrentSourceTrace(this.dataset.kpiLabel)" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();openCurrentSourceTrace(this.dataset.kpiLabel)}"><span>'+escapeHtml(label)+'</span><strong>'+escapeHtml(value===null||value===undefined?"—":fmt(value))+'</strong>'+(sub?'<small>'+escapeHtml(sub)+'</small>':'')+'</div>';
   }).join("")+'</div>';
 }
 function planningStatusBand(items){
@@ -2512,6 +2512,54 @@ function userFacingModuleReason(key,reason){
     .replace(/projection/gi,"analysis")
     .replace(/evidence/gi,"project information");
 }
+function provenanceValueText(value){
+  if(value===null||value===undefined)return"—";
+  if(typeof value==="object"&&value.amount!==undefined&&value.currency)return fmt(value.amount)+" "+value.currency;
+  if(typeof value==="object")return JSON.stringify(value);
+  return fmt(value);
+}
+function collectProvenance(value,path=[],depth=0,out=[]){
+  if(!value||typeof value!=="object"||depth>7||out.length>=120)return out;
+  if(Array.isArray(value)){
+    value.slice(0,120).forEach((item,index)=>collectProvenance(item,[...path,String(index+1)],depth+1,out));
+    return out;
+  }
+  const refs=Array.isArray(value.sourceRefs)?value.sourceRefs:[];
+  const hasTrace=refs.length>0||value.authority||value.method||value.basisRevisionId||value.coveragePercent!==undefined;
+  if(hasTrace&&(value.value!==undefined||value.amount!==undefined||value.dateIso!==undefined||value.state!==undefined)){
+    const raw=value.value!==undefined?value.value:value.amount!==undefined?value.amount:value.dateIso!==undefined?value.dateIso:value.state;
+    out.push({
+      path:path.join(" → ")||"Module value",
+      value:provenanceValueText(raw),
+      unit:value.unit||value.currency||"",
+      authority:value.authority||value.state||"—",
+      method:value.method||"—",
+      basis:value.basisRevisionId||value.revisionId||"—",
+      coverage:value.coveragePercent===null||value.coveragePercent===undefined?"—":fmt(value.coveragePercent)+"%",
+      sources:refs.map(ref=>typeof ref==="string"?ref:[ref.sourceId,ref.locator].filter(Boolean).join(":")).join("; ")||"—"
+    });
+  }
+  for(const [key,child] of Object.entries(value)){
+    if(["sourceRefs","diagnostics"].includes(key))continue;
+    if(child&&typeof child==="object")collectProvenance(child,[...path,humanizeKey(key)],depth+1,out);
+    if(out.length>=120)break;
+  }
+  return out;
+}
+function renderEvidenceProvenance(data){
+  const rows=collectProvenance(data);
+  if(!rows.length)return '<details class="role-supporting-detail" id="sourceTracePanel"><summary><b>Calculation & source trace</b><span>No structured provenance is established for this view.</span></summary><div class="role-supporting-detail-body"><div class="notice warn">This module does not yet expose field-level source receipts. It cannot be certified for KPI-level provenance until those receipts are added.</div></div></details>';
+  return '<details class="role-supporting-detail" id="sourceTracePanel"><summary><b id="sourceTraceTitle">Calculation & source trace</b><span>Value · authority · method · revision · coverage · evidence</span></summary><div class="role-supporting-detail-body"><p class="provenance-note">Every management KPI opens this trace. The table preserves the module source receipts and calculation authority; it does not promote candidates to governed facts.</p><div class="table-wrap"><table class="provenance-table"><thead><tr><th>Field</th><th>Value</th><th>Authority</th><th>Method</th><th>Basis</th><th>Coverage</th><th>Source</th></tr></thead><tbody>'+rows.map(row=>'<tr data-provenance-path="'+escapeHtml(row.path.toLowerCase())+'"><td class="provenance-path">'+escapeHtml(row.path)+'</td><td>'+escapeHtml(row.value+(row.unit?" "+row.unit:""))+'</td><td>'+escapeHtml(humanizeKey(row.authority))+'</td><td>'+escapeHtml(row.method)+'</td><td>'+escapeHtml(row.basis)+'</td><td>'+escapeHtml(row.coverage)+'</td><td class="provenance-source">'+escapeHtml(row.sources)+'</td></tr>').join("")+'</tbody></table></div></div></details>';
+}
+function openCurrentSourceTrace(label){
+  const panel=el("sourceTracePanel");
+  if(!panel)return;
+  panel.open=true;
+  const title=el("sourceTraceTitle");
+  if(title)title.textContent="Calculation & source trace"+(label?" · "+label:"");
+  panel.scrollIntoView({behavior:"smooth",block:"start"});
+}
+
 function renderModuleResult(result){
   currentModuleResult=result;
   renderRoleViewSelector();
@@ -2542,7 +2590,7 @@ function renderModuleResult(result){
   el("directorDrawer").open=false;
   const userReason=userFacingModuleReason(result.key,result.reason);
   const context=viewState+basisHtml+(userReason?'<div class="notice info">'+escapeHtml(userReason)+'</div>':'');
-  el("moduleContent").innerHTML=context+renderRoleContent(result.key,data,primaryView,challengeHtml,Boolean(specialized));
+  el("moduleContent").innerHTML=context+renderRoleContent(result.key,data,primaryView,challengeHtml,Boolean(specialized))+renderEvidenceProvenance(data);
 }
 let moduleRequestSeq=0;
 async function loadModule(key){
