@@ -779,6 +779,115 @@ function hydrateProject(
       };
     });
 
+  for (const document of evidenceDocuments) {
+    const sourcePath =
+      document.sourceRelativePath ??
+      document.sourceFilename;
+    const inferredType =
+      inferDocumentType(
+        sourcePath,
+        null,
+      );
+    const isResourceSupport =
+      /^res0?[1-7][_-]/i.test(
+        document.sourceFilename,
+      );
+    const isEotSpecialist =
+      [
+        "delay_event_impact_register",
+        "entitlement_assessment_register",
+        "engineer_determination_register",
+        "mitigation_acceleration_register",
+      ].includes(
+        inferredType,
+      );
+
+    if (
+      !isResourceSupport &&
+      !isEotSpecialist
+    ) {
+      continue;
+    }
+
+    const previousFamily =
+      document.familyKey;
+    const category:
+      EvidenceCategory =
+      isResourceSupport
+        ? "schedule_control"
+        : "risk_claims_procurement";
+    const documentType =
+      isResourceSupport
+        ? "resource_register"
+        : inferredType;
+    const migratedFamily =
+      evidenceFamily({
+        category,
+        documentType,
+        scheduleRole: null,
+        textSample: "",
+        sourceFilename:
+          document.sourceFilename,
+      });
+
+    affectedFamilies.add(
+      previousFamily,
+    );
+    affectedFamilies.add(
+      migratedFamily.familyKey,
+    );
+
+    document.category =
+      category;
+    document.documentType =
+      documentType;
+    document.scheduleRole =
+      null;
+    document.linkedArtifactId =
+      null;
+    document.familyKey =
+      migratedFamily.familyKey;
+    document.logicalDocumentKey =
+      migratedFamily
+        .logicalDocumentKey;
+    document.basisState =
+      "candidate";
+    document.supersededByDocumentId =
+      null;
+    document.supersedesDocumentIds =
+      [];
+    document.identification = {
+      ...document.identification,
+      detectedCategory:
+        category,
+      detectedDocumentType:
+        documentType,
+      filenameHintCategory:
+        category,
+      filenameHintDocumentType:
+        documentType,
+      classificationConflict:
+        false,
+      needsReview:
+        document.identification
+          .needsReview,
+      diagnostics: [
+        ...new Set([
+          ...document
+            .identification
+            .diagnostics,
+          "SPECIALIST_EVIDENCE_RECLASSIFIED_FROM_SOURCE_IDENTITY",
+        ]),
+      ],
+    };
+    document.diagnostics = [
+      ...new Set([
+        ...document.diagnostics,
+        "SPECIALIST_EVIDENCE_RECLASSIFIED_FROM_SOURCE_IDENTITY",
+      ]),
+    ];
+  }
+
   const resourcesByRevision =
     new Map(
       state.resourcesByRevision ??
@@ -880,6 +989,71 @@ function hydrateProject(
     );
   }
 
+  for (const document of hydrated.evidenceDocuments) {
+    if (
+      !document.mediaType
+        .toLowerCase()
+        .includes("csv") &&
+      !document.sourceFilename
+        .toLowerCase()
+        .endsWith(".csv")
+    ) {
+      continue;
+    }
+    if (
+      !existsSync(
+        document.storedPath,
+      )
+    ) {
+      continue;
+    }
+    try {
+      const bytes =
+        new Uint8Array(
+          readFileSync(
+            document.storedPath,
+          ),
+        );
+      const controls =
+        deriveControlsFromCsv({
+          state: hydrated,
+          document,
+          bytes,
+        });
+      if (
+        Object.keys(
+          controls,
+        ).length > 0
+      ) {
+        hydrated
+          .derivedControlsByDocument[
+            document.documentId
+          ] = controls;
+      }
+      const resourceSupport =
+        deriveResourceSupportFromCsv({
+          document,
+          bytes,
+        });
+      if (resourceSupport) {
+        hydrated
+          .resourceSupportByDocument[
+            document.documentId
+          ] = resourceSupport;
+      }
+    } catch {
+      document.diagnostics = [
+        ...new Set([
+          ...document.diagnostics,
+          "STORED_EVIDENCE_REDERIVATION_FAILED",
+        ]),
+      ];
+    }
+  }
+
+  rebuildDerivedControls(
+    hydrated,
+  );
   rebuildCanonicalResourceSupport(
     hydrated,
   );
