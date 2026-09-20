@@ -503,6 +503,10 @@ export function buildEotAssessmentProjection(
     }} : {}),
 
     observedProgrammeMovementDays,
+    projectCompletionMovementDays:
+      windows.projectCompletionMovementDays,
+    projectCompletionMovementBasis:
+      windows.projectCompletionMovementBasis,
     analyticalTimeImpactCandidateDays,
     attributableCandidateEotDays,
     unattributedTimeImpactDays,
