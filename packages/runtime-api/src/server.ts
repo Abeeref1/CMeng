@@ -56,6 +56,11 @@ import {
   identifyEvidenceDocument,
   type EvidenceIdentificationResult,
 } from "./document-identification";
+import {
+  buildModuleJsonDownload,
+  buildModuleWorkbook,
+  moduleReportFilename,
+} from "./module-report";
 
 const port = Number.parseInt(
   process.env.PORT ?? "3000",
@@ -239,6 +244,29 @@ function json(
       Buffer.byteLength(payload),
   });
   res.end(payload);
+}
+
+function attachment(
+  res: ServerResponse,
+  statusCode: number,
+  body: Buffer,
+  contentType: string,
+  filename: string,
+): void {
+  res.writeHead(statusCode, {
+    "content-type":
+      contentType,
+    "content-length":
+      body.length,
+    "content-disposition":
+      'attachment; filename="' +
+      filename
+        .replace(/[\r\n"]/g, "_") +
+      '"',
+    "cache-control":
+      "no-store",
+  });
+  res.end(body);
 }
 
 function html(
@@ -1819,6 +1847,91 @@ async function route(
     return;
   }
 
+  const moduleReportMatch =
+    /^\/api\/projects\/([^/]+)\/schedule\/modules\/([^/]+)\/report\.(xlsx|json)$/.exec(
+      url.pathname,
+    );
+
+  if (
+    req.method === "GET" &&
+    moduleReportMatch
+  ) {
+    const projectId =
+      decodeURIComponent(
+        moduleReportMatch[1]!,
+      );
+    const key =
+      decodeURIComponent(
+        moduleReportMatch[2]!,
+      );
+    const format =
+      moduleReportMatch[3] as
+        | "xlsx"
+        | "json";
+
+    const result =
+      moduleForProject(
+        projectId,
+        key,
+      );
+
+    if (
+      result.status ===
+      "blocked"
+    ) {
+      json(res, 409, {
+        error:
+          "module_report_blocked",
+        moduleKey: key,
+        reason:
+          result.reason,
+        dependencies:
+          result.dependencies,
+      });
+      return;
+    }
+
+    if (format === "xlsx") {
+      const workbook =
+        await buildModuleWorkbook(
+          projectId,
+          key,
+          result,
+        );
+      attachment(
+        res,
+        200,
+        workbook,
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        moduleReportFilename(
+          projectId,
+          key,
+          "xlsx",
+        ),
+      );
+      return;
+    }
+
+    const payload =
+      buildModuleJsonDownload(
+        projectId,
+        key,
+        result,
+      );
+    attachment(
+      res,
+      200,
+      payload,
+      "application/json; charset=utf-8",
+      moduleReportFilename(
+        projectId,
+        key,
+        "json",
+      ),
+    );
+    return;
+  }
+
   const moduleMatch =
     /^\/api\/projects\/([^/]+)\/schedule\/modules\/([^/]+)$/.exec(
       url.pathname,
@@ -2330,6 +2443,10 @@ async function route(
         "/api/projects/:projectId/schedule/revisions",
       scheduleModule:
         "/api/projects/:projectId/schedule/modules/:moduleKey",
+      moduleReportExcel:
+        "/api/projects/:projectId/schedule/modules/:moduleKey/report.xlsx",
+      moduleReportJson:
+        "/api/projects/:projectId/schedule/modules/:moduleKey/report.json",
       contractUpload:
         "/api/projects/:projectId/contract/uploads",
       projectControls:
