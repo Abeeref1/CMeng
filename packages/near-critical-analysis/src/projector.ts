@@ -157,8 +157,7 @@ export function buildNearCriticalProjection(
     ).length,
     negativeFloatCount: known.filter(
       (activity) =>
-        activity.totalFloatHours! <
-        config.criticalFloatThresholdHours,
+        activity.totalFloatHours! < 0,
     ).length,
     floatRiskWatchlistIncludesCriticalThreshold:
       config.floatRiskWatchlistIncludesCriticalThreshold === true,
