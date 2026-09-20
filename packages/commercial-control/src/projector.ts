@@ -678,6 +678,53 @@ export function buildCommercialControlPosition(
     claimCommercialCount:
       input
         .claimCommercials.length,
+    registers: {
+      variations:
+        input.variations.map(
+          (row) => ({
+            ...row,
+            sourceRefs: [
+              ...row.sourceRefs,
+            ],
+          }),
+        ),
+      invoices:
+        input.invoices.map(
+          (row) => ({
+            ...row,
+            sourceRefs: [
+              ...row.sourceRefs,
+            ],
+          }),
+        ),
+      retentions:
+        input.retentions.map(
+          (row) => ({
+            ...row,
+            sourceRefs: [
+              ...row.sourceRefs,
+            ],
+          }),
+        ),
+      bonds:
+        input.bonds.map(
+          (row) => ({
+            ...row,
+            sourceRefs: [
+              ...row.sourceRefs,
+            ],
+          }),
+        ),
+      claims:
+        input.claimCommercials.map(
+          (row) => ({
+            ...row,
+            sourceRefs: [
+              ...row.sourceRefs,
+            ],
+          }),
+        ),
+    },
     evidence: {
       commercial:
         stateFor(
@@ -838,6 +885,43 @@ export function buildCommercialModuleProjection(
   } else if (
     key === "cash_flow"
   ) {
+    const datedTransactions =
+      position.registers.invoices
+        .filter(
+          (row) =>
+            Boolean(
+              row.certificateDateIso ||
+              row.paymentDateIso,
+            ),
+        )
+        .map((row) => ({
+          invoiceId:
+            row.invoiceId,
+          currency:
+            row.currency,
+          certificateDateIso:
+            row.certificateDateIso ??
+            null,
+          paymentDateIso:
+            row.paymentDateIso ??
+            null,
+          certifiedAmount:
+            row.certifiedAmount,
+          paidAmount:
+            row.paidAmount,
+          retentionAmount:
+            row.retentionAmount ??
+            null,
+          advanceRecoveryAmount:
+            row.advanceRecoveryAmount ??
+            null,
+          advanceBalance:
+            row.advanceBalance ??
+            null,
+          sourceRefs: [
+            ...row.sourceRefs,
+          ],
+        }));
     focus = {
       currencies:
         position.currencies.map(
@@ -856,10 +940,16 @@ export function buildCommercialModuleProjection(
               row.advanceBalance,
           }),
         ),
+      transactions:
+        datedTransactions,
       timeSeriesState:
-        "not_established",
+        datedTransactions.length > 0
+          ? "established"
+          : "not_established",
       diagnostic:
-        "CASH_FLOW_TIME_SERIES_REQUIRES_DATED_CERTIFICATE_AND_PAYMENT_TRANSACTIONS",
+        datedTransactions.length > 0
+          ? "CASH_FLOW_TIME_SERIES_USES_EXPLICIT_CERTIFICATE_AND_PAYMENT_DATES"
+          : "CASH_FLOW_TIME_SERIES_REQUIRES_DATED_CERTIFICATE_AND_PAYMENT_TRANSACTIONS",
     };
   } else if (
     key ===
