@@ -288,17 +288,25 @@ export function buildEotAssessmentProjection(
         ),
     );
 
-  const candidateAdditionalEotDays =
-    Number(
-      windowCandidates
-        .reduce(
-          (sum, window) =>
-            sum +
-            window.includedCandidateDays,
-          0,
-        )
-        .toFixed(6),
+  const includedWindowCandidates =
+    windowCandidates.filter(
+      (window) =>
+        window.state ===
+        "included",
     );
+  const candidateAdditionalEotDays =
+    includedWindowCandidates.length > 0
+      ? Number(
+          includedWindowCandidates
+            .reduce(
+              (sum, window) =>
+                sum +
+                window.includedCandidateDays,
+              0,
+            )
+            .toFixed(6),
+        )
+      : null;
 
   const observedProgrammeMovementDays =
     Number(
@@ -351,7 +359,10 @@ export function buildEotAssessmentProjection(
           Math.max(
             0,
             analyticalTimeImpactCandidateDays -
-              attributableCandidateEotDays,
+              (
+                attributableCandidateEotDays ??
+                0
+              ),
           ).toFixed(6),
         );
 
@@ -363,11 +374,16 @@ export function buildEotAssessmentProjection(
   const diagnostics = [
     ...windows.diagnostics,
     ...delay.diagnostics,
-    ...(windows.positiveProgrammeMovementDays > 0
+    ...(windows.positiveProgrammeMovementDays > 0 &&
+    analyticalTimeImpactCandidateDays === null
       ? [
-          "PROGRAMME_MOVEMENT_CARRIED_FORWARD_AS_ANALYTICAL_TIME_IMPACT_CANDIDATE",
+          "PROGRAMME_MOVEMENT_OBSERVED_WITHOUT_CAUSAL_TIME_IMPACT_CANDIDATE",
         ]
-      : []),
+      : analyticalTimeImpactCandidateDays !== null
+        ? [
+            "ANALYTICAL_TIME_IMPACT_CANDIDATE_SUPPORTED_BY_ELIGIBLE_EVENT_WINDOW",
+          ]
+        : []),
   ];
 
   let officialAdjustedCompletionIso:
@@ -428,11 +444,14 @@ export function buildEotAssessmentProjection(
       "calendar_days"
   ) {
     scenarioAdjustedCompletionIso =
-      addCalendarDays(
-        contractTime.contractualCompletionIso,
-        scenarioBaseApprovedDays +
-          candidateAdditionalEotDays,
-      );
+      candidateAdditionalEotDays ===
+        null
+        ? null
+        : addCalendarDays(
+            contractTime.contractualCompletionIso,
+            scenarioBaseApprovedDays +
+              candidateAdditionalEotDays,
+          );
     timeImpactScenarioAdjustedCompletionIso =
       analyticalTimeImpactCandidateDays ===
         null
@@ -485,10 +504,7 @@ export function buildEotAssessmentProjection(
       contractTime.eotDayBasisState,
 
     includedWindowCount:
-      windowCandidates.filter(
-        (window) =>
-          window.state === "included",
-      ).length,
+      includedWindowCandidates.length,
     excludedWindowCount:
       windowCandidates.filter(
         (window) =>
