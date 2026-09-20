@@ -171,6 +171,50 @@ function available(
     data,
   };
 }
+function attachProjectTruth(
+  result: ModuleRuntimeResult,
+  truth: ProjectTruthSnapshot,
+): ModuleRuntimeResult {
+  if (
+    !result.data ||
+    typeof result.data !== "object" ||
+    Array.isArray(result.data)
+  ) {
+    return result;
+  }
+  return {
+    ...result,
+    data: {
+      ...(result.data as Record<string, unknown>),
+      dataDateIso:
+        truth.schedule.dataDate.value ??
+        (result.data as any).dataDateIso ??
+        null,
+      truthBasis: {
+        scheduleRevisionId:
+          truth.scheduleRevisionId,
+        dataDate:
+          truth.schedule.dataDate,
+        projectCompletionActivityId:
+          truth.schedule
+            .projectCompletionActivityId,
+        baselineCompletion:
+          truth.schedule
+            .baselineCompletion,
+        currentCompletion:
+          truth.schedule
+            .currentCompletion,
+        revisedContractCompletion:
+          truth.schedule
+            .revisedContractCompletion,
+        nearCriticalThresholdHours:
+          truth.schedule
+            .nearCriticalThresholdHours,
+      },
+    },
+  };
+}
+
 
 function revisionRolePriority(
   role:
@@ -2806,6 +2850,19 @@ function buildBundle(
     );
   }
 
+  for (
+    const [moduleKey, moduleResult] of
+      modules.entries()
+  ) {
+    modules.set(
+      moduleKey,
+      attachProjectTruth(
+        moduleResult,
+        projectTruth,
+      ),
+    );
+  }
+
   applyUniversalModuleChallenges({
     state,
     generatedAt,
@@ -4207,11 +4264,14 @@ function buildPlanningModuleFast(
   });
 
   const result =
-    modules.get(key) ??
-    blocked(
-      key,
-      "The selected Programme & Planning view could not be calculated.",
-      [],
+    attachProjectTruth(
+      modules.get(key) ??
+        blocked(
+          key,
+          "The selected Programme & Planning view could not be calculated.",
+          [],
+        ),
+      projectTruth,
     );
 
   planningModuleCache.set(
@@ -6218,8 +6278,11 @@ function buildSpecialistModuleFast(
       challengeModules,
   });
   result =
-    challengeModules.get(key) ??
-    result;
+    attachProjectTruth(
+      challengeModules.get(key) ??
+        result,
+      projectTruth,
+    );
 
   specialistModuleCache.set(
     cacheKey,
