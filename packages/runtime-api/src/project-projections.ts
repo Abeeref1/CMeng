@@ -5237,17 +5237,9 @@ function buildSpecialistModuleFast(
         linkedClaimCount;
       const assessable =
         notices.eventCount > 0 &&
-        (
-          analyticalDelayModel
-            .noticeRequirements
-            .length > 0 ||
-          analyticalDelayModel
-            .events.some(
-              (event) =>
-                event.startIso !==
-                null,
-            )
-        );
+        analyticalDelayModel
+          .noticeRequirements
+          .length > 0;
 
       result = available(
         key,
