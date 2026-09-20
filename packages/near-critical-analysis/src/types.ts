@@ -18,6 +18,8 @@ export interface NearCriticalProjection {
   sourceRevisionId: string;
   criticalThresholdHours: number;
   nearCriticalThresholdHours: number;
+  nearCriticalLowerBoundHours: number;
+  nearCriticalLowerBoundInclusive: boolean;
   floatCoveragePercent: number | null;
   nearCriticalCount: number;
   rows: NearCriticalRow[];
