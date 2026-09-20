@@ -444,6 +444,24 @@ test("CMeng workspace keeps the active module primary and browser script parseab
     /planningMilestoneTimeline/,
     "milestones must have a real timeline visual",
   );
+  for (
+    const milestoneChartFeature of [
+      "Milestone movement & criticality control chart",
+      "MILESTONE DATE SCALE",
+      "Controlled baseline",
+      "Current forecast",
+      "Red ring = critical path",
+      "true calendar-date scale",
+      "FLOAT / DUE",
+    ]
+  ) {
+    assert.equal(
+      html.includes(milestoneChartFeature),
+      true,
+      "professional milestone chart must expose: " +
+        milestoneChartFeature,
+    );
+  }
   assert.match(
     html,
     /planningLookAheadTimeline/,
