@@ -1274,8 +1274,49 @@ export class RuntimeProjectStore {
             serialized,
           );
         const migrated = migrateTypedEvidenceFamilies(state, applyEvidenceBasis);
-        if (migrated || state.sourceIntegrationVersion !== "canonical-source-v2") {
-          state.sourceIntegrationVersion = "canonical-source-v2";
+        let controlBasisMigrated = false;
+        if (state.sourceIntegrationVersion !== "canonical-source-v3") {
+          const controlBasisFamilies = [
+            ...new Set(
+              state.evidenceDocuments
+                .filter(
+                  (document) =>
+                    document.documentType === "schedule_control_basis" &&
+                    document.familyKey === "schedule_control:schedule_control_basis",
+                )
+                .map((document) => document.familyKey),
+            ),
+          ];
+          for (const familyKey of controlBasisFamilies) {
+            const legacy = state.evidenceDocuments.some(
+              (document) =>
+                document.familyKey === familyKey &&
+                document.basisState === "historical",
+            );
+            if (!legacy) continue;
+            rebuildEvidenceFamily(state, familyKey);
+            for (const document of state.evidenceDocuments.filter(
+              (item) => item.familyKey === familyKey,
+            )) {
+              if (
+                !document.diagnostics.includes(
+                  "SCHEDULE_CONTROL_BASIS_GOVERNANCE_MIGRATION_V3",
+                )
+              ) {
+                document.diagnostics.push(
+                  "SCHEDULE_CONTROL_BASIS_GOVERNANCE_MIGRATION_V3",
+                );
+              }
+            }
+            controlBasisMigrated = true;
+          }
+        }
+        if (
+          migrated ||
+          controlBasisMigrated ||
+          state.sourceIntegrationVersion !== "canonical-source-v3"
+        ) {
+          state.sourceIntegrationVersion = "canonical-source-v3";
           state.version += 1;
           this.staleFinalizedBoardPublications(state);
           state.lastRerunReceipt = null;
@@ -1604,7 +1645,7 @@ export class RuntimeProjectStore {
   touchEvidence(
     state: ProjectRuntimeState,
   ): void {
-    state.sourceIntegrationVersion = "canonical-source-v2";
+    state.sourceIntegrationVersion = "canonical-source-v3";
     synchronizeCanonicalTimeClaims(state, true);
     this.staleFinalizedBoardPublications(
       state,
