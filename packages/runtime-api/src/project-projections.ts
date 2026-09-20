@@ -581,6 +581,8 @@ function buildBundle(
         generatedAt,
         producerVersion:
           versions.schedule,
+        config:
+          scheduleConfig,
       },
     );
 
@@ -778,6 +780,8 @@ function buildBundle(
         generatedAt,
         producerVersion:
           versions.activity,
+        config:
+          scheduleConfig,
       },
     );
 
@@ -896,6 +900,8 @@ function buildBundle(
         generatedAt,
         producerVersion:
           versions.milestones,
+        config:
+          scheduleConfig,
       },
     );
   const milestones =
@@ -954,6 +960,8 @@ function buildBundle(
         generatedAt,
         producerVersion:
           versions.nearCritical,
+        config:
+          scheduleConfig,
       },
     );
   const nearCritical =
@@ -3310,6 +3318,8 @@ function buildPlanningModuleFast(
         generatedAt,
         producerVersion:
           "planning-fast:schedule-v1",
+        config:
+          scheduleConfig,
       },
     );
 
@@ -3587,6 +3597,8 @@ function buildPlanningModuleFast(
           generatedAt,
           producerVersion:
             "planning-fast:activity-v1",
+          config:
+            scheduleConfig,
         },
       );
     const activity =
@@ -3700,6 +3712,8 @@ function buildPlanningModuleFast(
           generatedAt,
           producerVersion:
             "planning-fast:milestones-v1",
+          config:
+            scheduleConfig,
         },
       );
     const milestones =
@@ -3760,6 +3774,8 @@ function buildPlanningModuleFast(
           generatedAt,
           producerVersion:
             "planning-fast:near-critical-v1",
+          config:
+            scheduleConfig,
         },
       );
     const nearCritical =
@@ -3942,6 +3958,8 @@ function buildPlanningModuleFast(
           generatedAt,
           producerVersion:
             "planning-fast:milestones-v1",
+          config:
+            scheduleConfig,
         },
       );
     const milestones =
@@ -5505,6 +5523,8 @@ function buildSpecialistModuleFast(
           generatedAt,
           producerVersion:
             "progress-position:schedule-v1",
+          config:
+            scheduleConfig,
         },
       );
     const milestones =
@@ -5514,6 +5534,8 @@ function buildSpecialistModuleFast(
           generatedAt,
           producerVersion:
             "progress-position:milestones-v1",
+          config:
+            scheduleConfig,
         },
       );
     const lookAhead =
