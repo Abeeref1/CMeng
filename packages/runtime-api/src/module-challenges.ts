@@ -1012,7 +1012,7 @@ function metricsFor(
       return [
         spec(
           "progress_percent",
-          "Overall progress",
+          "Schedule progress",
           numberOrNull(
             progress?.progress
               ?.durationWeightedProgressPercent,
@@ -1041,13 +1041,10 @@ function metricsFor(
         spec(
           "certified_progress_percent",
           "Certified progress",
-          numberOrNull(
-            progress?.progress
-              ?.durationWeightedProgressPercent,
-          ),
+          null,
           "%",
-          "derived",
-          [sourceRef],
+          "not_derivable",
+          [],
           {
             submittedOverride:
               certifiedProgress
@@ -1063,11 +1060,20 @@ function metricsFor(
                     "Certified progress evidence.",
                   )
                 : undefined,
-            tolerance: 0.01,
-            consequenceDifferent:
-              "Certified progress and independently derived progress are not aligned.",
-            actionDifferent:
-              "Reconcile certified quantities/progress basis against the activity and physical evidence.",
+            note:
+              "CMeng does not relabel schedule-derived percentage complete as an independent certified-progress measurement.",
+            consequenceMissing:
+              certifiedProgress
+                ?.state ===
+                "established"
+                ? "Certified progress exists as a governed source position, but no separate independent certification measurement is available for a like-for-like check."
+                : "Certified progress has not been provided.",
+            actionMissing:
+              certifiedProgress
+                ?.state ===
+                "established"
+                ? "Retain the certified source value as the certified position and reconcile it separately to schedule and physical-progress evidence."
+                : "Provide the certified progress record if certification is required for the management position.",
           },
         ),
       ];
@@ -1162,7 +1168,7 @@ function metricsFor(
       return [
         spec(
           "schedule_variance_days",
-          "Project completion variance",
+          "Project finish-date movement",
           numberOrNull(
             latest
               ?.projectCompletionVarianceDays,
@@ -1446,8 +1452,8 @@ function metricsFor(
         );
       return [
         spec(
-          "completion_date",
-          "Forecast completion",
+          "finish_date",
+          "Forecast finish",
           stringOrNull(
             latest
               ?.independentForecastCompletionIso,
@@ -1479,8 +1485,8 @@ function metricsFor(
     case "independent-forecast":
       return [
         spec(
-          "completion_date",
-          "Completion date",
+          "finish_date",
+          "Finish date",
           forecast
             .independentForecastCompletionIso,
           null,
@@ -1498,67 +1504,80 @@ function metricsFor(
                   .sourceForecastCompletionIso,
                 null,
                 [sourceRef],
-                "Contractor/source programme forecast completion.",
+                "Contractor/source programme forecast finish.",
               ),
             consequenceDifferent:
-              "The contractor completion date is not reproduced by CMeng's independent CPM calculation.",
+              "The submitted finish date is not reproduced by CMeng's independent CPM calculation.",
             actionDifferent:
-              "Demonstrate the logic, calendars, productivity and resource assumptions required to support the contractor completion date.",
+              "Reconcile logic, calendars, remaining durations and constraints before relying on either finish date for management decisions.",
           },
         ),
       ];
 
-    case "delay-claims":
+    case "delay-claims": {
+      const observedMovement =
+        numberOrNull(
+          delay
+            ?.observedPositiveProgrammeMovementDays,
+        ) ??
+        numberOrNull(
+          windows
+            ?.positiveProgrammeMovementDays,
+        ) ??
+        numberOrNull(
+          delay
+            ?.observedPositiveIndependentMovementDays,
+        ) ??
+        numberOrNull(
+          windows
+            ?.positiveIndependentMovementDays,
+        );
+
       return [
         spec(
-          "claimed_delay_days",
-          "Delay days",
-          numberOrNull(
-            delay
-              ?.observedPositiveProgrammeMovementDays,
-          ) ??
-          numberOrNull(
-            windows
-              ?.positiveProgrammeMovementDays,
-          ) ??
-          numberOrNull(
-            delay
-              ?.observedPositiveIndependentMovementDays,
-          ) ??
-          numberOrNull(
-            windows
-              ?.positiveIndependentMovementDays,
-          ),
+          "observed_programme_movement_days",
+          "Observed programme movement",
+          observedMovement,
           "days",
-          (
-            numberOrNull(
-              delay
-                ?.observedPositiveProgrammeMovementDays,
-            ) ??
-            numberOrNull(
-              windows
-                ?.positiveProgrammeMovementDays,
-            )
-          ) !== null
+          observedMovement !== null
             ? "derived"
-            : delay ||
-                windows
-              ? "scenario"
-              : "not_derivable",
+            : "not_derivable",
           [
             "schedule-windows",
             "programme-movement",
           ],
           {
+            note:
+              "Observed programme movement is a schedule comparison only. It is not a finding of delay causation, responsibility or entitlement.",
+            consequenceMissing:
+              "A comparable contractor programme-movement position was not submitted.",
+            actionMissing:
+              "Use delay events and affected-activity links to test causation separately from the observed schedule movement.",
+          },
+        ),
+        spec(
+          "claimed_delay_days",
+          "Claimed delay days",
+          null,
+          "days",
+          "not_derivable",
+          [],
+          {
             submittedOverride:
               claimedDays,
+            note:
+              "Claimed days remain a submitted claim position until governed delay events, responsibility and affected activities support an independent assessment.",
             consequenceMissing:
-              "No contractor delay claim was identified. CMeng still reports independently observed schedule movement, without assigning legal causation.",
+              claimedDays?.value !== null &&
+              claimedDays?.value !== undefined
+                ? "Claimed days are recorded, but no like-for-like independent assessed delay value is established from the current event linkage."
+                : "No claimed-delay value is established.",
             actionMissing:
-              "Provide delay-event/claim evidence if the contractor attributes the observed movement to a compensable event.",
+              "Link each claim to governed delay events and affected programme activities before comparing claimed days with an independent assessment.",
           },
         ),
       ];
+    }
 
     case "notices-claims": {
       const assessed =
@@ -1570,55 +1589,32 @@ function metricsFor(
           notices
             ?.provisionalOrCandidateAssessedDaysTotal,
         );
-      const timeImpact =
-        numberOrNull(
-          eot
-            ?.analyticalTimeImpactCandidateDays,
-        );
 
       return [
         spec(
           "claimed_eot_days",
-          "Claimed versus assessed/time-impact days",
-          assessed ??
-          timeImpact,
+          "Claimed versus assessed claim days",
+          assessed,
           "days",
           assessed !== null
             ? "derived"
-            : timeImpact !== null
-              ? "scenario"
-              : "not_derivable",
-          [
-            ...(assessed !==
-            null
-              ? [
-                  "notice-claim-evidence",
-                ]
-              : []),
-            ...(timeImpact !==
-            null
-              ? [
-                  "programme-movement",
-                ]
-              : []),
-          ],
+            : "not_derivable",
+          assessed !== null
+            ? [
+                "notice-claim-evidence",
+              ]
+            : [],
           {
             submittedOverride:
               claimedDays,
             note:
               assessed !== null
-                ? "Independent assessed/candidate claim position from claim and notice evidence."
-                : timeImpact !== null
-                  ? "No governed assessed-EOT position exists. The independent value shown is the carried-forward analytical time-impact candidate, not entitlement or award."
-                  : undefined,
+                ? "Assessed/candidate claim days come from claim assessment evidence. Schedule movement is deliberately not substituted as a notice/claim assessment."
+                : "No governed or candidate assessed-days value is established. Schedule movement is not used as a replacement for claim assessment.",
             consequenceMissing:
-              timeImpact !== null
-                ? "No contractor/approved assessment is established, but CMeng still carries the observed programme movement forward as an analytical time-impact candidate."
-                : "No claim or assessable notice record was submitted and no defensible programme movement is established.",
+              "Claimed days cannot be compared with a like-for-like assessed claim value from the current notice/claim evidence.",
             actionMissing:
-              timeImpact !== null
-                ? "Link the relevant events, notices, clauses and affected activities so CMeng can test how much of the time-impact candidate is attributable and potentially EOT-eligible."
-                : "Provide the claim, notice, event chronology and schedule evidence required for assessment.",
+              "Provide or govern the claim assessment and link the claim to applicable events, notices and clauses.",
           },
         ),
       ];
@@ -1818,8 +1814,8 @@ function metricsFor(
     case "challenge-contract":
       return [
         spec(
-          "completion_date",
-          "Completion date",
+          "finish_date",
+          "Finish date",
           delivery
             .scheduleChallenge
             .independentCompletionIso,
@@ -1840,13 +1836,13 @@ function metricsFor(
                   .contractorSubmittedCompletionIso,
                 null,
                 [sourceRef],
-                "Contractor proposed programme completion.",
+                "Contractor proposed programme finish.",
               ),
           },
         ),
         spec(
           "manpower_average",
-          "Average manpower",
+          "Average manpower requirement / scenario",
           delivery
             .manpowerChallenge
             .requiredAverageManpowerToContract ??
