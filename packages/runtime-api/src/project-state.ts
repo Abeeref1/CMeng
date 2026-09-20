@@ -2075,8 +2075,16 @@ export class RuntimeProjectStore {
     const controlMetrics = new Set([
       "near_critical_working_days",
       "near_critical_threshold_hours",
+      "near_critical_count",
       "critical_float_threshold_hours",
       "schedule_control_data_date",
+      "source_productivity_forecast_completion",
+      "gross_positive_window_movement_days",
+    ]);
+    const refreshableTypes = new Set([
+      "schedule_control_basis",
+      "schedule_metric_register",
+      "project_data_book",
     ]);
     const diagnostics: string[] = [];
     let refreshedDocumentCount = 0;
@@ -2084,17 +2092,17 @@ export class RuntimeProjectStore {
 
     for (const state of this.projects.values()) {
       let projectChanged = false;
-      let projectReadyForV5 = true;
-      const basisDocuments =
+      const controlDocuments =
         state.evidenceDocuments.filter(
           (document) =>
-            document.documentType === "schedule_control_basis" &&
+            document.category === "schedule_control" &&
+            refreshableTypes.has(document.documentType) &&
             ["active", "additive", "candidate"].includes(
               document.basisState,
             ),
         );
 
-      for (const document of basisDocuments) {
+      for (const document of controlDocuments) {
         if (
           /csv/i.test(
             document.mediaType +
@@ -2105,15 +2113,11 @@ export class RuntimeProjectStore {
           continue;
         }
 
-        const alreadyEstablished =
-          document.assertions.some(
-            (assertion) =>
-              assertion.metric ===
-                "near_critical_working_days" ||
-              assertion.metric ===
-                "near_critical_threshold_hours",
-          );
-        if (alreadyEstablished) {
+        if (
+          document.diagnostics.includes(
+            "SCHEDULE_CONTROL_ASSERTION_REFRESH_V6",
+          )
+        ) {
           continue;
         }
 
@@ -2122,9 +2126,8 @@ export class RuntimeProjectStore {
           !document.storedPath ||
           !existsSync(document.storedPath)
         ) {
-          projectReadyForV5 = false;
           diagnostics.push(
-            "SCHEDULE_CONTROL_BASIS_REFRESH_SOURCE_UNAVAILABLE:" +
+            "SCHEDULE_CONTROL_REFRESH_SOURCE_UNAVAILABLE:" +
               document.documentId,
           );
           continue;
@@ -2138,9 +2141,8 @@ export class RuntimeProjectStore {
           verifiedHash !==
           document.sourceHashSha256
         ) {
-          projectReadyForV5 = false;
           diagnostics.push(
-            "SCHEDULE_CONTROL_BASIS_REFRESH_HASH_MISMATCH:" +
+            "SCHEDULE_CONTROL_REFRESH_HASH_MISMATCH:" +
               document.documentId,
           );
           continue;
@@ -2159,10 +2161,10 @@ export class RuntimeProjectStore {
             declaredCategory:
               "schedule_control",
             declaredDocumentType:
-              "schedule_control_basis",
+              document.documentType,
           });
 
-        let extracted =
+        const sampleAssertions =
           extractDocumentAssertions(
             identified.textSample,
             "evidence:" +
@@ -2173,85 +2175,63 @@ export class RuntimeProjectStore {
             ),
           );
 
-        let establishesThreshold =
-          extracted.some(
-            (assertion) =>
-              assertion.metric ===
-                "near_critical_working_days" ||
-              assertion.metric ===
-                "near_critical_threshold_hours",
+        const fullDocument =
+          await this.extractFullScheduleControlAssertions(
+            bytes,
+            "evidence:" +
+              document.sourceFilename +
+              ":full-document",
+            controlMetrics,
           );
+        diagnostics.push(
+          ...fullDocument.diagnostics.map(
+            (item) =>
+              item +
+              ":" +
+              document.documentId,
+          ),
+        );
 
-        if (!establishesThreshold) {
-          const fullDocument =
-            await this.extractFullScheduleControlAssertions(
-              bytes,
-              "evidence:" +
-                document.sourceFilename +
-                ":full-document",
-              controlMetrics,
+        const merged =
+          new Map<
+            string,
+            DocumentAssertion
+          >();
+        for (
+          const assertion of [
+            ...sampleAssertions,
+            ...fullDocument.assertions,
+          ]
+        ) {
+          const key =
+            assertion.metric +
+            "|" +
+            String(assertion.value) +
+            "|" +
+            String(
+              assertion.unit ??
+              "",
             );
-          diagnostics.push(
-            ...fullDocument.diagnostics.map(
-              (item) =>
-                item +
-                ":" +
-                document.documentId,
-            ),
-          );
-
-          const merged =
-            new Map<
-              string,
-              DocumentAssertion
-            >();
-          for (
-            const assertion of [
-              ...extracted,
-              ...fullDocument.assertions,
-            ]
+          const prior =
+            merged.get(key);
+          if (
+            !prior ||
+            assertion.confidence >
+              prior.confidence
           ) {
-            const key =
-              assertion.metric +
-              "|" +
-              String(
-                assertion.value,
-              ) +
-              "|" +
-              String(
-                assertion.unit ??
-                "",
-              );
-            const prior =
-              merged.get(key);
-            if (
-              !prior ||
-              assertion.confidence >
-                prior.confidence
-            ) {
-              merged.set(
-                key,
-                assertion,
-              );
-            }
-          }
-          extracted = [
-            ...merged.values(),
-          ];
-          establishesThreshold =
-            extracted.some(
-              (assertion) =>
-                assertion.metric ===
-                  "near_critical_working_days" ||
-                assertion.metric ===
-                  "near_critical_threshold_hours",
+            merged.set(
+              key,
+              assertion,
             );
+          }
         }
+        const extracted = [
+          ...merged.values(),
+        ];
 
-        if (!establishesThreshold) {
-          projectReadyForV5 = false;
+        if (extracted.length === 0) {
           diagnostics.push(
-            "SCHEDULE_CONTROL_BASIS_THRESHOLD_NOT_EXTRACTED:" +
+            "SCHEDULE_CONTROL_ASSERTIONS_NOT_EXTRACTED:" +
               document.documentId,
           );
           continue;
@@ -2268,34 +2248,19 @@ export class RuntimeProjectStore {
           ...retained,
           ...extracted,
         ];
-        if (
-          !document.diagnostics.includes(
-            "SCHEDULE_CONTROL_BASIS_ASSERTION_REFRESH_V4",
-          )
-        ) {
-          document.diagnostics.push(
-            "SCHEDULE_CONTROL_BASIS_ASSERTION_REFRESH_V4",
-          );
-        }
+        document.diagnostics = [
+          ...new Set([
+            ...document.diagnostics,
+            "SCHEDULE_CONTROL_ASSERTION_REFRESH_V6",
+          ]),
+        ];
         refreshedDocumentCount += 1;
         projectChanged = true;
       }
 
-      if (
-        basisDocuments.length === 0 ||
-        projectReadyForV5
-      ) {
-        if (
-          state.sourceIntegrationVersion !==
-          "canonical-source-v5"
-        ) {
-          state.sourceIntegrationVersion =
-            "canonical-source-v5";
-          projectChanged = true;
-        }
-      }
-
       if (projectChanged) {
+        state.sourceIntegrationVersion =
+          "canonical-source-v6";
         state.version += 1;
         this.staleFinalizedBoardPublications(
           state,
