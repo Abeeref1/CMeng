@@ -106,7 +106,15 @@ jobs:
               identificationTitlePresent:Boolean(d.identification?.detectedTitle),
               mapping:d.mapping,
               assertionShape:(d.assertions||[]).map(a=>({
-                metric:a.metric,label:a.label,valueType:a.valueType,unit:a.unit
+                metric:a.metric,label:a.label,valueType:a.valueType,unit:a.unit,
+                snippetSignals:{
+                  near:/near/i.test(a.sourceText||""),
+                  critical:/critical/i.test(a.sourceText||""),
+                  working:/working|work\s*day|\bwd\b/i.test(a.sourceText||""),
+                  five:/\b5(?:\.0+)?\b/.test(a.sourceText||""),
+                  float:/float|\btf\b/i.test(a.sourceText||""),
+                  dataDate:/data\s*date/i.test(a.sourceText||"")
+                }
               })),
               diagnosticCodes:d.diagnostics
             }))
