@@ -4014,7 +4014,11 @@ function specialistChallengeContext(
         "specialist-challenge-fast-v1",
       schedule: model,
       quantities:
-        state.quantities,
+        state.quantities &&
+        state.quantities
+          .allocations.length > 0
+          ? state.quantities
+          : null,
       resources:
         resourceModel &&
         resourceModel
@@ -5369,7 +5373,11 @@ function buildSpecialistModuleFast(
           "delivery-challenge-fast-v2",
         schedule: model,
         quantities:
-          state.quantities,
+          state.quantities &&
+          state.quantities
+            .allocations.length > 0
+            ? state.quantities
+            : null,
         resources:
           resources &&
           resources.assignments
