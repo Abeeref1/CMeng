@@ -57,6 +57,26 @@ test("CMeng workspace keeps the active module primary and browser script parseab
     /id="focusMode"/,
     "focus-mode control must remain available",
   );
+  assert.match(
+    html,
+    /id="moduleReport"/,
+    "every submodule must expose a report-generation control",
+  );
+  assert.match(
+    html,
+    /Save PDF \/ Print/,
+    "module report preview must support PDF/print output",
+  );
+  assert.match(
+    html,
+    /report\.xlsx/,
+    "module report preview must provide an Excel download",
+  );
+  assert.match(
+    html,
+    /report\.json/,
+    "module report preview must provide a governed data download",
+  );
   for (
     const uploadControl of [
       "openEvidenceTop",
