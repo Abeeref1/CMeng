@@ -87,6 +87,9 @@ try {
       } : null,
       assertionMetrics: Array.isArray(document.assertions)
         ? [...new Set(document.assertions.map(item => item.metric).filter(Boolean))].sort()
+        : [],
+      schemaHeaders: Array.isArray(document.schemaHeaders)
+        ? document.schemaHeaders
         : []
     }))
     .filter(item => item.sourceClass !== null);
