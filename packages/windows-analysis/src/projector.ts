@@ -129,6 +129,7 @@ function sourceScheduleBoundary(
 
 function strongestMovement(
   input: {
+    sourceWindow: number | null;
     independent: number | null;
     sourceForecast: number | null;
     sourceBoundary: number | null;
@@ -138,6 +139,13 @@ function strongestMovement(
   basis:
     ScheduleWindowResult["strongestProgrammeMovementBasis"];
 } {
+  if (input.sourceWindow !== null) {
+    return {
+      days: input.sourceWindow,
+      basis:
+        "source_window_register",
+    };
+  }
   if (input.independent !== null) {
     return {
       days: input.independent,
@@ -300,8 +308,47 @@ export function buildWindowsAnalysisProjection(
 
     const startIso = windowBoundary(from);
     const endIso = windowBoundary(to);
+    const sourceWindowEvidence =
+      (delayModel.sourceWindows ?? [])
+        .filter((window) => {
+          if (
+            window.sequence !== null &&
+            window.sequence === index
+          ) {
+            return true;
+          }
+          const startsSame =
+            window.startIso !== null &&
+            startIso !== null &&
+            window.startIso === startIso;
+          const endsSame =
+            window.endIso !== null &&
+            endIso !== null &&
+            window.endIso === endIso;
+          return startsSame && endsSame;
+        });
+    const sourceWindowIds =
+      sourceWindowEvidence
+        .map((window) => window.windowId)
+        .sort();
+    const explicitEventIds =
+      new Set(
+        sourceWindowEvidence.flatMap(
+          (window) =>
+            window.eventIds,
+        ),
+      );
     const overlappingEvents =
       delayModel.events.filter((event) =>
+        explicitEventIds.has(event.eventId) ||
+        (event.relatedWindowIds ?? []).some(
+          (windowId) =>
+            sourceWindowIds.some(
+              (sourceId) =>
+                sourceId.toLowerCase() ===
+                windowId.toLowerCase(),
+            ),
+        ) ||
         eventOverlapsWindow(
           event,
           startIso,
@@ -332,8 +379,30 @@ export function buildWindowsAnalysisProjection(
         fromScheduleBoundaryIso,
         toScheduleBoundaryIso,
       );
+    const sourceWindowMovements =
+      [
+        ...new Set(
+          sourceWindowEvidence
+            .map(
+              (window) =>
+                window.programmeMovementDays,
+            )
+            .filter(
+              (
+                value,
+              ): value is number =>
+                value !== null,
+            ),
+        ),
+      ];
+    const sourceWindowMovement =
+      sourceWindowMovements.length === 1
+        ? sourceWindowMovements[0]!
+        : null;
     const strongest =
       strongestMovement({
+        sourceWindow:
+          sourceWindowMovement,
         independent:
           independentMovement,
         sourceForecast:
@@ -369,6 +438,20 @@ export function buildWindowsAnalysisProjection(
       );
     }
     if (
+      sourceWindowMovements.length > 1
+    ) {
+      windowDiagnostics.push(
+        "CONFLICTING_SOURCE_WINDOW_REGISTER_MOVEMENT",
+      );
+    }
+    if (
+      strongest.basis ===
+      "source_window_register"
+    ) {
+      windowDiagnostics.push(
+        "PROGRAMME_MOVEMENT_FROM_GOVERNED_SOURCE_WINDOW_REGISTER",
+      );
+    } else if (
       strongest.basis ===
       "source_forecast"
     ) {
@@ -471,6 +554,9 @@ export function buildWindowsAnalysisProjection(
       toScheduleBoundaryIso,
       scheduleBoundaryMovementDays:
         scheduleBoundaryMovement,
+      sourceWindowIds,
+      sourceWindowMovementDays:
+        sourceWindowMovement,
       strongestProgrammeMovementDays:
         strongest.days,
       strongestProgrammeMovementBasis:
