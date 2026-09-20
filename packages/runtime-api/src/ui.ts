@@ -846,7 +846,8 @@ function renderDeliveryChallenge(data,reason){
     ])+'</div></section>';
   }
   html+=reconciliation+'</section>';
-  el("moduleContent").innerHTML=html;
+  const basisHtml=renderModuleBasis(data);
+  el("moduleContent").innerHTML=basisHtml+renderRoleContent("challenge-contract",data,html,"",true);
   return true;
 }
 function humanizeKey(key){
