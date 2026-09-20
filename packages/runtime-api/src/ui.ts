@@ -1137,15 +1137,27 @@ function renderEotVisual(data){
   const contractReady=p.contractTimeBasisEstablished===true;
   const causalReady=p.eligibleCausalEventEvidenceEstablished===true;
   const analytical=p.analyticalTimeImpactCandidateDays;
+  const determinations=Number(p.engineerDeterminationCount||0);
+  const determinationDays=p.engineerDeterminationAwardedDaysTotal;
+  const incorporated=p.incorporatedAmendmentEotDays;
+  const revisedFinish=p.contractualCompletionIso;
+  const originalFinish=p.originalContractualCompletionIso;
+  const governingAmendment=p.controllingAmendmentId||null;
+  const nonAdditive=p.determinationAggregationState==="register_established_non_additive";
   const kpis=planningKpis([
-    ["Contract finish",planningShortDate(p.contractualCompletionIso),p.contractualCompletionState,contractReady?"":"warning"],
-    ["Official approved EOT",p.officialApprovedEotDays===null?"—":fmt(p.officialApprovedEotDays)+" d",p.officialApprovedEotState],
-    ["Official adjusted finish",planningShortDate(p.officialAdjustedCompletionIso),"governed only"],
-    ["Observed programme movement",fmt(p.observedProgrammeMovementDays)+" d","schedule observation only",p.observedProgrammeMovementDays>0?"warning":""],
-    ["Time-impact candidate",analytical===null?"Not established":fmt(analytical)+" d","requires causation",analytical===null?"warning":"accent"],
-    ["Attributable EOT candidate",p.attributableCandidateEotDays===null?"Not established":fmt(p.attributableCandidateEotDays)+" d","not an award",p.attributableCandidateEotDays===null?"warning":"accent"]
+    ["Original contract finish",planningShortDate(originalFinish),"original contractual date"],
+    ["Revised contract finish",planningShortDate(revisedFinish),governingAmendment?("controlled by "+governingAmendment):p.contractualCompletionState,contractReady?"accent":"warning"],
+    ["Amendment time extension",incorporated===null||incorporated===undefined?"—":fmt(incorporated)+" d","incorporated in revised contract finish",incorporated!==null&&incorporated!==undefined?"accent":"warning"],
+    ["Engineer determinations",determinations||"—",determinationDays===null||determinationDays===undefined?"register not established":fmt(determinationDays)+" awarded days in determination register",determinations?"accent":"warning"],
+    ["Official aggregate EOT",p.officialApprovedEotDays===null?"Not aggregated":fmt(p.officialApprovedEotDays)+" d",p.officialApprovedEotState],
+    ["Observed movement",fmt(p.observedProgrammeMovementDays)+" d","analytical schedule-window movement, not EOT",p.observedProgrammeMovementDays>0?"warning":""]
   ]);
-  const warning=analytical===null&&p.observedProgrammeMovementDays>0?'<div class="notice warn"><b>Schedule movement is not an EOT time-impact assessment.</b> CMeng can observe '+escapeHtml(fmt(p.observedProgrammeMovementDays))+' days of programme movement, but it will not call those days an EOT candidate until causal events and the contract time basis support that conclusion.</div>':'';
+  const authorityNotice=nonAdditive
+    ? '<div class="notice info"><b>Contract amendment and Engineer determinations are deliberately not added together.</b> The revised contractual finish already incorporates the amendment time adjustment. The Engineer determination register is shown as a separate governed award register until evidence establishes whether those determinations are additional to, included within, or superseded by the controlling contractual adjustment.</div>'
+    : '';
+  const warning=analytical===null&&p.observedProgrammeMovementDays>0
+    ? '<div class="notice warn"><b>Schedule-window movement is not an EOT award.</b> CMeng observes '+escapeHtml(fmt(p.observedProgrammeMovementDays))+' days under the window movement metric, but it will not convert this automatically into contractual entitlement or awarded EOT.</div>'
+    : '';
   const labels=p.revisionLabels||{};
   const movementBars=p.windowCandidates.map((w,index)=>({
     label:"Window "+(index+1)+" · "+readableWindow(w.windowId,labels),
@@ -1153,12 +1165,30 @@ function renderEotVisual(data){
     tone:"warning"
   }));
   const rows=p.windowCandidates.map(w=>'<tr><td><b>'+escapeHtml(readableWindow(w.windowId,labels))+'</b></td><td>'+escapeHtml(fmt(w.positiveProgrammeMovementDays))+'</td><td>'+escapeHtml(humanizeKey(w.programmeMovementBasis))+'</td><td>'+escapeHtml(w.analyticalTimeImpactCandidateDays===null?"—":fmt(w.analyticalTimeImpactCandidateDays))+'</td><td>'+escapeHtml(humanizeKey(w.state))+'</td><td>'+escapeHtml(fmt(w.includedCandidateDays))+'</td><td>'+escapeHtml((w.reasons||[]).map(managementReason).join("; ")||"—")+'</td></tr>').join("");
-  return '<section class="planning-view eot-view">'+kpis+warning+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Observed movement by window</h4><p>This chart shows programme movement only. It does not represent EOT entitlement.</p></div></div><div class="planning-panel-body">'+planningSignedBars(movementBars,"days")+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>EOT evidence gates</h4><p>All gates remain distinct before schedule movement can become an entitlement position.</p></div></div><div class="planning-panel-body">'+moduleEvidenceGate([
-    {label:"Contract time basis",value:contractReady?"Established":"Not established",state:contractReady?"ready":"missing"},
-    {label:"Causal delay events",value:causalReady?"Established":"Not established",state:causalReady?"ready":"missing"},
-    {label:"Official EOT award",value:p.officialApprovedEotState==="official"?"Established":"Not established",state:p.officialApprovedEotState==="official"?"ready":"missing"}
-  ])+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Window assessment</h4><p>Observed movement, candidate time impact and included entitlement days remain separate.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Window</th><th>Observed movement d</th><th>Movement basis</th><th>Time-impact candidate d</th><th>State</th><th>Included days</th><th>Reason</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></section></section>';
+  const determinationState=determinations
+    ? (nonAdditive?"Register established · non-additive until precedence/aggregation is proven":"Register established")
+    : "Not established";
+  return '<section class="planning-view eot-view">'+kpis+authorityNotice+warning+
+    '<div class="planning-primary-grid">'+
+      '<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Contract time authority</h4><p>Original completion, amendment-controlled completion and later determinations remain separate authority layers.</p></div></div><div class="planning-panel-body">'+moduleEvidenceGate([
+        {label:"Original contractual completion",value:originalFinish?planningShortDate(originalFinish):"Not established",state:originalFinish?"ready":"missing"},
+        {label:"Controlling amendment",value:governingAmendment||"Not established",state:governingAmendment?"ready":"missing"},
+        {label:"Revised contractual completion",value:revisedFinish?planningShortDate(revisedFinish):"Not established",state:contractReady?"ready":"missing"},
+        {label:"Engineer determination register",value:determinationState,state:determinations?"ready":"missing"},
+        {label:"Official aggregate EOT basis",value:p.officialApprovedEotState==="official"?"Established":"Not independently aggregated",state:p.officialApprovedEotState==="official"?"ready":"review"}
+      ])+'</div></section>'+
+      '<section class="planning-panel"><div class="planning-panel-head"><div><h4>EOT analytical gates</h4><p>Observed movement, causation, notice compliance, entitlement and award remain distinct.</p></div></div><div class="planning-panel-body">'+moduleEvidenceGate([
+        {label:"Contract time basis",value:contractReady?"Established":"Not established",state:contractReady?"ready":"missing"},
+        {label:"Delay-event identities",value:p.causalEventEvidenceEstablished?"Established":"Not established",state:p.causalEventEvidenceEstablished?"ready":"missing"},
+        {label:"EOT-eligible causal events",value:causalReady?"Established":"Not established",state:causalReady?"ready":"missing"},
+        {label:"Official aggregate award",value:p.officialApprovedEotState==="official"?"Established":"Not established",state:p.officialApprovedEotState==="official"?"ready":"review"}
+      ])+'</div></section>'+
+    '</div>'+
+    '<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Analytical window movement</h4><p>This chart is a schedule-analysis metric only. It must not be labelled project delay, claim entitlement or awarded EOT.</p></div></div><div class="planning-panel-body">'+planningSignedBars(movementBars,"days")+'</div></section>'+
+    '<section class="planning-panel"><div class="planning-panel-head"><div><h4>Window assessment</h4><p>Observed movement, analytical time-impact candidate and included scenario days remain separate from contractual determinations.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Window</th><th>Analytical movement d</th><th>Movement basis</th><th>Time-impact candidate d</th><th>State</th><th>Scenario included d</th><th>Reason</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></section>'+
+  '</section>';
 }
+
 function visualSection(title,description,badge,body){
   return '<section class="chart-card"><div class="chart-card-head"><div><h4>'+escapeHtml(title)+'</h4><p>'+escapeHtml(description)+'</p></div>'+(badge?'<span class="badge">'+escapeHtml(badge)+'</span>':'')+'</div><div class="chart-body">'+body+'</div></section>';
 }
