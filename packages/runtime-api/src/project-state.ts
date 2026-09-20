@@ -98,6 +98,10 @@ import {
   deriveControlsFromCsv,
   rebuildDerivedControls,
 } from "./evidence-control-adapters";
+import {
+  deriveResourceSupportFromCsv,
+  rebuildCanonicalResourceSupport,
+} from "./evidence-resource-adapters";
 
 function hashBytes(
   bytes: Uint8Array,
@@ -847,6 +851,12 @@ function hydrateProject(
       legacy
         .derivedReadinessByDocument ??
       {},
+    resourceSupportByDocument:
+      legacy.resourceSupportByDocument ??
+      {},
+    resourceSupport:
+      legacy.resourceSupport ??
+      null,
     lastRerunReceipt:
       legacy.lastRerunReceipt ??
       null,
@@ -866,6 +876,10 @@ function hydrateProject(
       familyKey,
     );
   }
+
+  rebuildCanonicalResourceSupport(
+    hydrated,
+  );
 
   return hydrated;
 }
@@ -1274,6 +1288,8 @@ export class RuntimeProjectStore {
         evidenceDocuments: [],
         resourcesByRevision:
           new Map(),
+        resourceSupportByDocument: {},
+        resourceSupport: null,
         boq: null,
         boqRevisions: [],
         quantities: null,
@@ -2719,10 +2735,24 @@ export class RuntimeProjectStore {
           ] = derivedControls;
       }
 
+      const resourceSupport =
+        deriveResourceSupportFromCsv({
+          document,
+          bytes: input.bytes,
+        });
+      if (resourceSupport) {
+        state.resourceSupportByDocument[
+          document.documentId
+        ] = resourceSupport;
+      }
+
       rebuildReadinessEvidence(
         state,
       );
       rebuildDerivedControls(
+        state,
+      );
+      rebuildCanonicalResourceSupport(
         state,
       );
 
