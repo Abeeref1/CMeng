@@ -1159,6 +1159,26 @@ function buildBundle(
         ...scheduleAnalytics,
         criticalityBasis:
           "source_total_float",
+        scheduleControlPolicy: {
+          authority:
+            scheduleControlPolicy
+              .authority,
+          definition:
+            scheduleControlPolicy
+              .definition,
+          sourceRefs:
+            scheduleControlPolicy
+              .sourceRefs,
+          sourceReportedNearCriticalCount:
+            scheduleControlPolicy
+              .reportedNearCriticalCount,
+          sourceDataDateIso:
+            scheduleControlPolicy
+              .sourceDataDateIso,
+          dataDateConflict:
+            scheduleControlPolicy
+              .dataDateConflict,
+        },
         independentCpmState:
           independentForecast.complete
             ? "established"
@@ -1191,6 +1211,24 @@ function buildBundle(
         ...nearCritical,
         classificationBasis:
           "source_total_float",
+        thresholdAuthority:
+          scheduleControlPolicy
+            .authority,
+        thresholdSourceRefs:
+          scheduleControlPolicy
+            .sourceRefs,
+        thresholdDefinition:
+          scheduleControlPolicy
+            .definition,
+        sourceReportedNearCriticalCount:
+          scheduleControlPolicy
+            .reportedNearCriticalCount,
+        sourceDataDateIso:
+          scheduleControlPolicy
+            .sourceDataDateIso,
+        dataDateConflict:
+          scheduleControlPolicy
+            .dataDateConflict,
         independentCpmState:
           independentForecast.complete
             ? "established"
@@ -1214,6 +1252,29 @@ function buildBundle(
         ...activityAnalytics,
         floatClassificationBasis:
           "source_total_float",
+        nearCriticalPolicy: {
+          authority:
+            scheduleControlPolicy
+              .authority,
+          definition:
+            scheduleControlPolicy
+              .definition,
+          lowerBoundHours:
+            scheduleControlPolicy
+              .config
+              .nearCriticalLowerBoundHours,
+          lowerBoundInclusive:
+            scheduleControlPolicy
+              .config
+              .nearCriticalLowerBoundInclusive,
+          thresholdHours:
+            scheduleControlPolicy
+              .config
+              .nearCriticalFloatThresholdHours,
+          sourceRefs:
+            scheduleControlPolicy
+              .sourceRefs,
+        },
         independentCpmState:
           independentForecast.complete
             ? "established"
@@ -3745,6 +3806,24 @@ function buildPlanningModuleFast(
           ...nearCritical,
           classificationBasis:
             "source_total_float",
+          thresholdAuthority:
+            scheduleControlPolicy
+              .authority,
+          thresholdSourceRefs:
+            scheduleControlPolicy
+              .sourceRefs,
+          thresholdDefinition:
+            scheduleControlPolicy
+              .definition,
+          sourceReportedNearCriticalCount:
+            scheduleControlPolicy
+              .reportedNearCriticalCount,
+          sourceDataDateIso:
+            scheduleControlPolicy
+              .sourceDataDateIso,
+          dataDateConflict:
+            scheduleControlPolicy
+              .dataDateConflict,
           independentCpmState:
             independentForecast.complete
               ? "established"
