@@ -1,6 +1,7 @@
 import { canonicalCommercialModule, commercialPositionForState } from "./commercial-runtime";
 import { projectControlSchedule } from "./canonical-time-claims";
 import { projectScheduleControlBasis } from "./schedule-control-basis";
+import { sourceProductivityForecastEvidence } from "./source-productivity-forecast";
 import { canonicalResourceModule } from "./canonical-resource-runtime";
 import { commercialCanonical } from "./commercial-canonical";
 import { createHash } from "node:crypto";
@@ -986,11 +987,62 @@ function buildBundle(
           versions.forecast,
       },
     );
+  const productivityForecast =
+    sourceProductivityForecastEvidence(state);
+  const forecastTaxonomy = {
+    contractorProgramme: {
+      label: "Contractor Programme Forecast",
+      completionIso:
+        independentForecast.sourceForecastCompletionIso,
+      authority: "submitted_programme",
+      state:
+        independentForecast.sourceForecastCompletionIso !== null
+          ? "established"
+          : "missing",
+    },
+    sourceProductivity: {
+      label: "Source Productivity Forecast",
+      completionIso:
+        productivityForecast.completionIso,
+      authority: "source_productivity_evidence",
+      state: productivityForecast.state,
+      sourceRefs: productivityForecast.sourceRefs,
+    },
+    cmengCpm: {
+      label: "CMeng Independent CPM Forecast",
+      completionIso:
+        independentForecast.independentForecastCompletionIso,
+      authority: "cmeng_deterministic",
+      state:
+        independentForecast.complete
+          ? "established"
+          : "review_required",
+    },
+    probabilistic: {
+      label: "CMeng Probabilistic Forecast",
+      p50CompletionIso:
+        independentForecast.probabilistic.p50CompletionIso,
+      p80CompletionIso:
+        independentForecast.probabilistic.p80CompletionIso,
+      p90CompletionIso:
+        independentForecast.probabilistic.p90CompletionIso,
+      authority: "non_official_comparator",
+      state:
+        independentForecast.probabilistic.status,
+    },
+  };
   modules.set(
     "independent-forecast",
     available(
       "independent-forecast",
-      independentForecast,
+      {
+        ...independentForecast,
+        sourceProductivityForecastCompletionIso:
+          productivityForecast.completionIso,
+        sourceProductivityForecastState:
+          productivityForecast.state,
+        forecastTaxonomy,
+      },
       [],
       independentForecast.complete
         ? "ready"
@@ -5246,10 +5298,61 @@ function buildSpecialistModuleFast(
       independentForecastReviewReason(
         forecast,
       );
+    const productivityForecast =
+      sourceProductivityForecastEvidence(state);
     result = available(
       key,
       {
         ...forecast,
+        sourceProductivityForecastCompletionIso:
+          productivityForecast.completionIso,
+        sourceProductivityForecastState:
+          productivityForecast.state,
+        forecastTaxonomy: {
+          contractorProgramme: {
+            label: "Contractor Programme Forecast",
+            completionIso:
+              forecast.sourceForecastCompletionIso,
+            authority: "submitted_programme",
+            state:
+              forecast.sourceForecastCompletionIso !== null
+                ? "established"
+                : "missing",
+          },
+          sourceProductivity: {
+            label: "Source Productivity Forecast",
+            completionIso:
+              productivityForecast.completionIso,
+            authority: "source_productivity_evidence",
+            state:
+              productivityForecast.state,
+            sourceRefs:
+              productivityForecast.sourceRefs,
+          },
+          cmengCpm: {
+            label: "CMeng Independent CPM Forecast",
+            completionIso:
+              forecast.independentForecastCompletionIso,
+            authority: "cmeng_deterministic",
+            state:
+              forecast.complete
+                ? "established"
+                : "review_required",
+          },
+          probabilistic: {
+            label: "CMeng Probabilistic Forecast",
+            p50CompletionIso:
+              forecast.probabilistic.p50CompletionIso,
+            p80CompletionIso:
+              forecast.probabilistic.p80CompletionIso,
+            p90CompletionIso:
+              forecast.probabilistic.p90CompletionIso,
+            authority:
+              "non_official_comparator",
+            state:
+              forecast.probabilistic.status,
+          },
+        },
         managementReviewState:
           reviewReason
             ? "review_required"
