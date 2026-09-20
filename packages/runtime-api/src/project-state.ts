@@ -1738,6 +1738,7 @@ export class RuntimeProjectStore {
     bytes: Uint8Array,
     sourceRef: string,
     controlMetrics: ReadonlySet<string>,
+    requiredMetrics: ReadonlySet<string> = controlMetrics,
   ): Promise<{
     assertions: DocumentAssertion[];
     diagnostics: string[];
@@ -1761,16 +1762,15 @@ export class RuntimeProjectStore {
         ),
       );
 
-    const hasThreshold = (
+    const hasRequiredMetric = (
       assertions:
         readonly DocumentAssertion[],
     ): boolean =>
       assertions.some(
         (assertion) =>
-          assertion.metric ===
-            "near_critical_working_days" ||
-          assertion.metric ===
-            "near_critical_threshold_hours",
+          requiredMetrics.has(
+            assertion.metric,
+          ),
       );
 
     const mergeAssertions = (
@@ -1836,7 +1836,7 @@ export class RuntimeProjectStore {
         relevant(nativeText);
 
       if (
-        hasThreshold(
+        hasRequiredMetric(
           assertions,
         )
       ) {
@@ -2030,7 +2030,7 @@ export class RuntimeProjectStore {
         );
 
       if (
-        hasThreshold(
+        hasRequiredMetric(
           assertions,
         )
       ) {
@@ -2075,7 +2075,16 @@ export class RuntimeProjectStore {
     const controlMetrics = new Set([
       "near_critical_working_days",
       "near_critical_threshold_hours",
+      "near_critical_count",
       "critical_float_threshold_hours",
+      "schedule_control_data_date",
+    ]);
+    const thresholdMetrics = new Set([
+      "near_critical_working_days",
+      "near_critical_threshold_hours",
+    ]);
+    const productivityMetrics = new Set([
+      "source_productivity_forecast_completion",
       "schedule_control_data_date",
     ]);
     const diagnostics: string[] = [];
@@ -2190,6 +2199,7 @@ export class RuntimeProjectStore {
                 document.sourceFilename +
                 ":full-document",
               controlMetrics,
+              thresholdMetrics,
             );
           diagnostics.push(
             ...fullDocument.diagnostics.map(
@@ -2275,6 +2285,177 @@ export class RuntimeProjectStore {
         ) {
           document.diagnostics.push(
             "SCHEDULE_CONTROL_BASIS_ASSERTION_REFRESH_V4",
+          );
+        }
+        refreshedDocumentCount += 1;
+        projectChanged = true;
+      }
+
+      const productivityDocuments =
+        state.evidenceDocuments.filter(
+          (document) =>
+            (
+              document.documentType === "project_data_book" ||
+              document.documentType === "schedule_control_basis"
+            ) &&
+            ["active", "additive", "candidate"].includes(
+              document.basisState,
+            ),
+        );
+
+      for (const document of productivityDocuments) {
+        if (
+          document.assertions.some(
+            (assertion) =>
+              assertion.metric ===
+              "source_productivity_forecast_completion",
+          )
+        ) {
+          continue;
+        }
+        if (
+          !/pdf/i.test(
+            document.mediaType +
+              " " +
+              document.sourceFilename,
+          ) ||
+          !document.storedPath ||
+          !existsSync(document.storedPath)
+        ) {
+          continue;
+        }
+
+        const bytes =
+          readFileSync(document.storedPath);
+        if (
+          hashBytes(bytes) !==
+          document.sourceHashSha256
+        ) {
+          diagnostics.push(
+            "PROJECT_CONTROL_PRODUCTIVITY_REFRESH_HASH_MISMATCH:" +
+              document.documentId,
+          );
+          continue;
+        }
+
+        const identified =
+          await identifyEvidenceDocument({
+            bytes,
+            sourceFilename:
+              document.sourceFilename,
+            sourceRelativePath:
+              document.sourceRelativePath ??
+              document.sourceFilename,
+            declaredMediaType:
+              document.mediaType,
+            declaredCategory:
+              "schedule_control",
+            declaredDocumentType:
+              document.documentType,
+          });
+
+        let extracted =
+          extractDocumentAssertions(
+            identified.textSample,
+            "evidence:" +
+              document.sourceFilename,
+          ).filter(
+            (assertion) =>
+              productivityMetrics.has(
+                assertion.metric,
+              ),
+          );
+
+        if (
+          !extracted.some(
+            (assertion) =>
+              assertion.metric ===
+              "source_productivity_forecast_completion",
+          )
+        ) {
+          const fullDocument =
+            await this.extractFullScheduleControlAssertions(
+              bytes,
+              "evidence:" +
+                document.sourceFilename +
+                ":full-document",
+              productivityMetrics,
+              new Set([
+                "source_productivity_forecast_completion",
+              ]),
+            );
+          diagnostics.push(
+            ...fullDocument.diagnostics.map(
+              (item) =>
+                "PROJECT_CONTROL_PRODUCTIVITY:" +
+                item +
+                ":" +
+                document.documentId,
+            ),
+          );
+          extracted = [
+            ...extracted,
+            ...fullDocument.assertions,
+          ];
+        }
+
+        const productivityAssertions =
+          extracted.filter(
+            (assertion) =>
+              productivityMetrics.has(
+                assertion.metric,
+              ),
+          );
+        if (
+          !productivityAssertions.some(
+            (assertion) =>
+              assertion.metric ===
+              "source_productivity_forecast_completion",
+          )
+        ) {
+          continue;
+        }
+
+        const retained =
+          document.assertions.filter(
+            (assertion) =>
+              !productivityMetrics.has(
+                assertion.metric,
+              ),
+          );
+        const merged =
+          new Map<string, DocumentAssertion>();
+        for (
+          const assertion of [
+            ...retained,
+            ...productivityAssertions,
+          ]
+        ) {
+          const key =
+            assertion.metric +
+            "|" +
+            String(assertion.value) +
+            "|" +
+            String(assertion.unit ?? "");
+          const prior = merged.get(key);
+          if (
+            !prior ||
+            assertion.confidence >
+              prior.confidence
+          ) {
+            merged.set(key, assertion);
+          }
+        }
+        document.assertions = [
+          ...merged.values(),
+        ];
+        if (
+          !document.diagnostics.includes(
+            "PROJECT_CONTROL_PRODUCTIVITY_ASSERTION_REFRESH_V1",
+          )
+        ) {
+          document.diagnostics.push(
+            "PROJECT_CONTROL_PRODUCTIVITY_ASSERTION_REFRESH_V1",
           );
         }
         refreshedDocumentCount += 1;
