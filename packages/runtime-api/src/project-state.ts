@@ -17,6 +17,9 @@ import {
   type BoqIngestionResult,
 } from "../../boq-ingestion/src";
 import {
+  extractContractTimeBasis,
+} from "../../contract-commercial/src";
+import {
   linkContractFamily,
   parseContractDocx,
   parseContractPdf,
@@ -3662,7 +3665,7 @@ export class RuntimeProjectStore {
     state.contract =
       base.result;
 
-    const amendments =
+    const activeAmendmentDocuments =
       state.contractDocuments
         .filter(
           (item) => {
@@ -3681,7 +3684,9 @@ export class RuntimeProjectStore {
               "superseded"
             );
           },
-        )
+        );
+    const amendments =
+      activeAmendmentDocuments
         .map(
           (item) => item.result,
         );
@@ -3691,6 +3696,31 @@ export class RuntimeProjectStore {
         base.result,
         amendments,
       );
+
+    state.controls.contractTimeBasis =
+      extractContractTimeBasis({
+        base: {
+          documentId:
+            base.documentId,
+          role:
+            base.role === "replacement"
+              ? "replacement"
+              : base.role === "main"
+                ? "main"
+                : "other",
+          result: base.result,
+        },
+        amendments:
+          activeAmendmentDocuments.map(
+            (item) => ({
+              documentId:
+                item.documentId,
+              role:
+                "amendment" as const,
+              result: item.result,
+            }),
+          ),
+      });
 
     document.diagnostics = [
       ...document.diagnostics,
