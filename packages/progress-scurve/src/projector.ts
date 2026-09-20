@@ -263,7 +263,21 @@ function timeline(
     points.push(finish);
   }
 
-  return points;
+  for (const snapshot of snapshots) {
+    const value =
+      dateMs(
+        snapshot.asOfIso,
+      );
+    if (value !== null) {
+      points.push(value);
+    }
+  }
+
+  return [
+    ...new Set(points),
+  ].sort(
+    (a, b) => a - b,
+  );
 }
 
 function actualAt(
