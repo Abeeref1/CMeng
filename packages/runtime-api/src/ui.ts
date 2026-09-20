@@ -1026,36 +1026,112 @@ function projectionFor(data,projectionKey){
   }
   return data||{};
 }
+function chartToneColor(tone){
+  const colors={
+    accent:"#4f7fb4",success:"#2c7a57",warning:"#b57922",danger:"#b4483e",
+    neutral:"#91a0b0",graphite:"#506579",purple:"#7c5ca8",teal:"#4c8f95"
+  };
+  return colors[tone]||tone||colors.accent;
+}
+function renderVisualPanel(title,description,body,badge=""){
+  return '<section class="visual-chart"><div class="visual-chart-head"><div><h5>'+escapeHtml(title)+'</h5>'+(description?'<p>'+escapeHtml(description)+'</p>':'')+'</div>'+(badge?'<span class="badge">'+escapeHtml(badge)+'</span>':'')+'</div><div class="visual-chart-body">'+body+'</div></section>';
+}
+function renderDonutChart(items,centerLabel="Total"){
+  const known=(items||[]).filter(item=>typeof item.value==="number"&&Number.isFinite(item.value)&&item.value>=0);
+  const total=known.reduce((sum,item)=>sum+item.value,0);
+  if(!known.length||total<=0)return '<div class="empty-visual">No established distribution is available for this chart.</div>';
+  let cursor=0;
+  const stops=[];
+  known.forEach(item=>{
+    const from=(cursor/total)*100;
+    cursor+=item.value;
+    const to=(cursor/total)*100;
+    const color=chartToneColor(item.tone||"neutral");
+    stops.push(color+" "+from.toFixed(3)+"% "+to.toFixed(3)+"%");
+  });
+  const legend=known.map(item=>'<div class="donut-legend-row"><i style="background:'+chartToneColor(item.tone||"neutral")+'"></i><span>'+escapeHtml(item.label)+'</span><b>'+escapeHtml(fmt(item.value))+'</b></div>').join("");
+  return '<div class="donut-layout"><div class="donut-ring" style="background:conic-gradient('+stops.join(",")+')"><div class="donut-center"><b>'+escapeHtml(fmt(total))+'</b><span>'+escapeHtml(centerLabel)+'</span></div></div><div class="donut-legend">'+legend+'</div></div>';
+}
+function renderVisualBars(items,unit=""){
+  const rows=(items||[]).filter(item=>typeof item.value==="number"&&Number.isFinite(item.value)&&item.value>=0);
+  if(!rows.length)return '<div class="empty-visual">No comparable values are established for this chart.</div>';
+  const max=Math.max(1,...rows.map(item=>item.value));
+  return '<div class="visual-bars">'+rows.map(item=>{
+    const width=Math.max(item.value===0?0:1,(item.value/max)*100);
+    const tone=item.tone||"accent";
+    return '<div class="visual-bar-row"><div class="visual-bar-label" title="'+escapeHtml(item.label)+'">'+escapeHtml(item.label)+'</div><div class="visual-bar-track"><div class="visual-bar-fill '+escapeHtml(tone)+'" style="width:'+width.toFixed(2)+'%"></div></div><div class="visual-bar-value">'+escapeHtml(fmt(item.value)+(unit?" "+unit:""))+'</div></div>';
+  }).join("")+'</div>';
+}
+function renderWaterfallChart(items,unit=""){
+  const rows=(items||[]).filter(item=>typeof item.value==="number"&&Number.isFinite(item.value));
+  if(!rows.length)return '<div class="empty-visual">No signed movement is established for this chart.</div>';
+  const max=Math.max(1,...rows.map(item=>Math.abs(item.value)));
+  return '<div class="waterfall">'+rows.map(item=>{
+    const width=Math.min(49,(Math.abs(item.value)/max)*48);
+    const left=item.value<0?50-width:50;
+    const tone=item.value>0?"positive":item.value<0?"negative":"neutral";
+    const text=(item.value>0?"+":"")+fmt(item.value)+(unit?" "+unit:"");
+    return '<div class="waterfall-row"><div class="visual-bar-label" title="'+escapeHtml(item.label)+'">'+escapeHtml(item.label)+'</div><div class="waterfall-track"><span class="waterfall-zero"></span><span class="waterfall-bar '+tone+'" style="left:'+left.toFixed(2)+'%;width:'+width.toFixed(2)+'%"></span></div><div class="visual-bar-value">'+escapeHtml(text)+'</div></div>';
+  }).join("")+'</div>';
+}
+function metricValue(metric){
+  if(metric===null||metric===undefined)return null;
+  if(typeof metric==="number")return Number.isFinite(metric)?metric:null;
+  if(typeof metric==="object"&&typeof metric.value==="number"&&Number.isFinite(metric.value))return metric.value;
+  return null;
+}
+function renderCommercialMetricBars(row,fields){
+  const items=(fields||[]).map(([label,field,tone])=>({label,value:metricValue(row?.[field]),tone:tone||"accent"})).filter(item=>item.value!==null);
+  return renderVisualBars(items,row?.currency||"");
+}
 function renderLineChart(points,series,yMaxHint=null){
-  if(!Array.isArray(points)||!points.length)return '<div class="muted">No series points available.</div>';
+  if(!Array.isArray(points)||!points.length)return '<div class="empty-visual">No series points available.</div>';
   const numeric=[];
-  points.forEach(point=>series.forEach(s=>{const v=point?.[s.key];if(typeof v==="number"&&Number.isFinite(v))numeric.push(v)}));
-  if(!numeric.length)return '<div class="muted">No numeric series points available.</div>';
-  const width=960,height=270,left=52,right=18,top=18,bottom=42;
+  points.forEach(point=>series.forEach(item=>{const value=point?.[item.key];if(typeof value==="number"&&Number.isFinite(value))numeric.push(value)}));
+  if(!numeric.length)return '<div class="empty-visual">No numeric series points available.</div>';
+  const width=1080,height=330,left=66,right=28,top=24,bottom=54;
   const plotW=width-left-right,plotH=height-top-bottom;
-  const rawMax=Math.max(...numeric,1);
-  const maxY=yMaxHint!==null?yMaxHint:Math.max(1,rawMax*1.08);
-  const x=i=>left+(points.length===1?plotW/2:(i/(points.length-1))*plotW);
-  const y=v=>top+plotH-(Math.max(0,Math.min(maxY,v))/maxY)*plotH;
-  const segments=(key)=>{
+  const rawMin=Math.min(...numeric,0),rawMax=Math.max(...numeric,1);
+  const minY=yMaxHint!==null?0:Math.min(0,rawMin-(rawMax-rawMin)*.08);
+  const maxY=yMaxHint!==null?yMaxHint:Math.max(1,rawMax+(rawMax-rawMin||1)*.1);
+  const span=Math.max(.0001,maxY-minY);
+  const x=index=>left+(points.length===1?plotW/2:(index/(points.length-1))*plotW);
+  const y=value=>top+plotH-((Math.max(minY,Math.min(maxY,value))-minY)/span)*plotH;
+  const segments=key=>{
     const result=[];let current=[];
-    points.forEach((point,i)=>{
+    points.forEach((point,index)=>{
       const value=point?.[key];
-      if(typeof value==="number"&&Number.isFinite(value)){current.push(x(i).toFixed(1)+","+y(value).toFixed(1))}
+      if(typeof value==="number"&&Number.isFinite(value))current.push({x:x(index),y:y(value),value,index});
       else if(current.length){result.push(current);current=[]}
     });
     if(current.length)result.push(current);
     return result;
   };
-  const grid=[0,.25,.5,.75,1].map(r=>{
-    const yy=top+plotH-(r*plotH);
-    return '<line x1="'+left+'" y1="'+yy+'" x2="'+(width-right)+'" y2="'+yy+'" stroke="#e4eaf1" stroke-width="1"/><text x="'+(left-9)+'" y="'+(yy+4)+'" text-anchor="end" font-size="10" fill="#75849a">'+escapeHtml(fmt(maxY*r))+'</text>';
+  const grid=[0,.25,.5,.75,1].map(ratio=>{
+    const value=minY+(span*ratio),yy=y(value);
+    return '<line x1="'+left+'" y1="'+yy.toFixed(1)+'" x2="'+(width-right)+'" y2="'+yy.toFixed(1)+'" stroke="#e6edf4" stroke-width="1"/><text x="'+(left-10)+'" y="'+(yy+4).toFixed(1)+'" text-anchor="end" font-size="10" fill="#738399">'+escapeHtml(fmt(value))+'</text>';
   }).join("");
-  const lines=series.map(s=>segments(s.key).map(seg=>'<polyline points="'+seg.join(" ")+'" fill="none" stroke="'+s.color+'" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>').join("")).join("");
-  const labelIndexes=[0,Math.floor((points.length-1)/2),points.length-1].filter((v,i,a)=>a.indexOf(v)===i);
-  const labels=labelIndexes.map(i=>'<text x="'+x(i)+'" y="'+(height-14)+'" text-anchor="'+(i===0?"start":i===points.length-1?"end":"middle")+'" font-size="10" fill="#75849a">'+escapeHtml(points[i]?.dateIso||String(i+1))+'</text>').join("");
-  const legend='<div class="chart-legend">'+series.map(s=>'<span class="legend-item"><span class="legend-dot" style="background:'+s.color+'"></span>'+escapeHtml(s.label)+'</span>').join("")+'</div>';
-  return legend+'<div class="chart-scroll"><svg class="svg-chart" viewBox="0 0 '+width+' '+height+'" role="img">'+grid+lines+labels+'</svg></div>';
+  const zero=minY<0&&maxY>0?'<line x1="'+left+'" y1="'+y(0).toFixed(1)+'" x2="'+(width-right)+'" y2="'+y(0).toFixed(1)+'" stroke="#98a2b3" stroke-width="1.2" stroke-dasharray="4 4"/>':'';
+  const plots=series.map((item,seriesIndex)=>{
+    const color=item.color||chartToneColor(item.tone||"accent");
+    const segs=segments(item.key);
+    return segs.map(seg=>{
+      const poly='<polyline points="'+seg.map(p=>p.x.toFixed(1)+","+p.y.toFixed(1)).join(" ")+'" fill="none" stroke="'+color+'" stroke-width="'+(seriesIndex===0?3:2.4)+'" stroke-linecap="round" stroke-linejoin="round"/>';
+      const area=seriesIndex===0&&minY>=0&&seg.length>1
+        ? '<polygon points="'+seg[0].x.toFixed(1)+","+y(minY).toFixed(1)+" "+seg.map(p=>p.x.toFixed(1)+","+p.y.toFixed(1)).join(" ")+" "+seg.at(-1).x.toFixed(1)+","+y(minY).toFixed(1)+'" fill="'+color+'" fill-opacity=".07"/>'
+        : '';
+      const dots=seg.length<=36?seg.map(p=>'<circle cx="'+p.x.toFixed(1)+'" cy="'+p.y.toFixed(1)+'" r="3.5" fill="#fff" stroke="'+color+'" stroke-width="2"><title>'+escapeHtml(item.label+": "+fmt(p.value))+'</title></circle>').join(""):'';
+      return area+poly+dots;
+    }).join("");
+  }).join("");
+  const labelIndexes=[0,Math.floor((points.length-1)/4),Math.floor((points.length-1)/2),Math.floor(((points.length-1)*3)/4),points.length-1].filter((v,i,a)=>a.indexOf(v)===i);
+  const labels=labelIndexes.map(index=>'<text x="'+x(index).toFixed(1)+'" y="'+(height-18)+'" text-anchor="'+(index===0?"start":index===points.length-1?"end":"middle")+'" font-size="10" fill="#738399">'+escapeHtml(planningShortDate(points[index]?.dateIso)||points[index]?.dateIso||String(index+1))+'</text>').join("");
+  const legend='<div class="chart-legend">'+series.map(item=>{
+    const values=points.map(point=>point?.[item.key]).filter(value=>typeof value==="number"&&Number.isFinite(value));
+    const latest=values.length?values.at(-1):null;
+    return '<span class="legend-item"><span class="legend-dot" style="background:'+(item.color||chartToneColor(item.tone||"accent"))+'"></span>'+escapeHtml(item.label)+(latest===null?'':' · '+escapeHtml(fmt(latest)))+'</span>';
+  }).join("")+'</div>';
+  return legend+'<div class="chart-scroll"><svg class="svg-chart" viewBox="0 0 '+width+' '+height+'" role="img" aria-label="Trend chart">'+grid+zero+plots+labels+'</svg></div>';
 }
 function renderProgressScurveVisual(data){
   const p=projectionFor(data,"progress_scurve");
