@@ -8,6 +8,9 @@ import {
 import type { ProjectRuntimeState } from "./project-state-types";
 import { projectDataDate } from "./canonical-time-claims";
 import { inferDocumentType } from "./evidence";
+import {
+  analyzeSchedule,
+} from "../../schedule-analysis-core/src";
 
 export interface SourceProductivityForecastEvidence {
   producerVersion: "source-productivity-forecast-v1";
@@ -328,6 +331,267 @@ export function sourceProductivityForecastEvidence(
         receipt: row.receipt,
         official: ["active", "additive"].includes(row.receipt.basisState),
       });
+    }
+  }
+
+  if (candidates.length === 0) {
+    const snapshots = state.schedules
+      .filter(
+        (stored) =>
+          stored.role !== "recovery" &&
+          stored.role !== "other",
+      )
+      .map((stored) => {
+        const asOfIso =
+          dateValue(
+            stored.revision.model.dataDateIso ??
+              stored.revision.effectiveAt ??
+              "",
+          );
+        if (
+          asOfIso === null ||
+          (
+            cutoff !== null &&
+            asOfIso > cutoff
+          )
+        ) {
+          return null;
+        }
+
+        const progress =
+          analyzeSchedule(
+            stored.revision.model,
+          ).progress
+            .durationWeightedPercentComplete
+            .value;
+        if (
+          progress === null ||
+          !Number.isFinite(progress)
+        ) {
+          return null;
+        }
+
+        const evidence =
+          state.evidenceDocuments.find(
+            (document) =>
+              document.linkedArtifactId ===
+                stored.revision.revisionId &&
+              ["active", "superseded", "historical", "candidate"].includes(
+                document.basisState,
+              ),
+          ) ??
+          null;
+
+        return {
+          asOfIso,
+          progress,
+          revisionId:
+            stored.revision.revisionId,
+          sequence:
+            stored.revision.sequence,
+          receipt:
+            evidence
+              ? {
+                  documentId:
+                    evidence.documentId,
+                  sourceHash:
+                    evidence.sourceHashSha256,
+                  revision:
+                    stored.revision.revisionId,
+                  locator:
+                    "schedule-progress:" +
+                    stored.revision.revisionId,
+                  basisState:
+                    evidence.basisState,
+                  authority:
+                    "source_record" as const,
+                }
+              : null,
+        };
+      })
+      .filter(
+        (
+          item,
+        ): item is NonNullable<
+          typeof item
+        > => item !== null,
+      )
+      .sort(
+        (a, b) =>
+          a.asOfIso.localeCompare(
+            b.asOfIso,
+          ) ||
+          a.sequence -
+            b.sequence,
+      );
+
+    const byDate =
+      new Map<
+        string,
+        (typeof snapshots)[number]
+      >();
+    for (const snapshot of snapshots) {
+      byDate.set(
+        snapshot.asOfIso,
+        snapshot,
+      );
+    }
+    const history = [
+      ...byDate.values(),
+    ].sort(
+      (a, b) =>
+        a.asOfIso.localeCompare(
+          b.asOfIso,
+        ) ||
+        a.sequence -
+          b.sequence,
+    );
+
+    const latestPoint =
+      history.at(-1) ??
+      null;
+    let priorPoint:
+      (typeof history)[number] |
+      null = null;
+    if (latestPoint) {
+      for (
+        let index =
+          history.length - 2;
+        index >= 0;
+        index -= 1
+      ) {
+        const candidate =
+          history[index]!;
+        if (
+          candidate.progress <
+          latestPoint.progress
+        ) {
+          priorPoint =
+            candidate;
+          break;
+        }
+      }
+    }
+
+    if (
+      latestPoint &&
+      priorPoint &&
+      latestPoint.progress < 100
+    ) {
+      const from =
+        Date.parse(
+          priorPoint.asOfIso,
+        );
+      const to =
+        Date.parse(
+          latestPoint.asOfIso,
+        );
+      const elapsedDays =
+        Number.isFinite(from) &&
+        Number.isFinite(to)
+          ? (
+              to - from
+            ) /
+            86_400_000
+          : 0;
+      const gained =
+        latestPoint.progress -
+        priorPoint.progress;
+
+      if (
+        elapsedDays > 0 &&
+        gained > 0
+      ) {
+        const percentPerDay =
+          gained /
+          elapsedDays;
+        const remainingDays =
+          (
+            100 -
+            latestPoint.progress
+          ) /
+          percentPerDay;
+        const completionMs =
+          to +
+          remainingDays *
+            86_400_000;
+
+        if (
+          Number.isFinite(
+            completionMs,
+          ) &&
+          remainingDays >= 0
+        ) {
+          const completionIso =
+            new Date(
+              completionMs,
+            )
+              .toISOString()
+              .slice(
+                0,
+                10,
+              );
+          const trendReceipts = [
+            priorPoint.receipt,
+            latestPoint.receipt,
+          ].filter(
+            (
+              receipt,
+            ): receipt is SourceReceipt =>
+              receipt !== null,
+          );
+          const receipt =
+            trendReceipts.at(-1) ??
+            {
+              documentId:
+                "schedule-progress-trend",
+              sourceHash:
+                [
+                  priorPoint.revisionId,
+                  latestPoint.revisionId,
+                ].join(":"),
+              revision:
+                latestPoint.revisionId,
+              locator:
+                "schedule-progress-trend:" +
+                priorPoint.revisionId +
+                "->" +
+                latestPoint.revisionId,
+              basisState:
+                "candidate",
+              authority:
+                "source_record" as const,
+            };
+
+          candidates.push({
+            completionIso,
+            asOfIso:
+              latestPoint.asOfIso,
+            receipt,
+            official: false,
+          });
+          diagnostics.push(
+            "SOURCE_PRODUCTIVITY_FORECAST_DERIVED_FROM_GOVERNED_PROGRESS_TREND:" +
+              priorPoint.revisionId +
+              "->" +
+              latestPoint.revisionId,
+          );
+        }
+      } else {
+        diagnostics.push(
+          "SOURCE_PRODUCTIVITY_PROGRESS_TREND_NOT_POSITIVE",
+        );
+      }
+    } else if (
+      history.length < 2
+    ) {
+      diagnostics.push(
+        "SOURCE_PRODUCTIVITY_FORECAST_REQUIRES_TWO_PROGRESS_SNAPSHOTS",
+      );
+    } else {
+      diagnostics.push(
+        "SOURCE_PRODUCTIVITY_FORECAST_PROGRESS_TREND_NOT_DERIVABLE",
+      );
     }
   }
 
