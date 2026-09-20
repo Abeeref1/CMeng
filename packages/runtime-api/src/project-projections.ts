@@ -13,6 +13,10 @@ import {
   extractContractValue,
 } from "../../contract-commercial/src";
 import {
+  buildCommercialControlPosition,
+  buildCommercialModuleProjection,
+} from "../../commercial-control/src";
+import {
   buildDelayClaimsProjection,
 } from "../../delay-claims/src";
 import {
@@ -1870,6 +1874,208 @@ function buildBundle(
           state.contract,
         )
       : null;
+
+  const commercialPosition =
+    buildCommercialControlPosition({
+      generatedAt,
+      projectId:
+        state.projectId,
+      contractValue:
+        state.controls
+          .contractValue,
+      contractValueCandidates:
+        contractValueExtraction
+          ?.candidates.map(
+            (candidate) => ({
+              amount:
+                candidate.amount,
+              currency:
+                candidate.currency,
+              sourceRefs: [
+                ...candidate
+                  .sourceRefs,
+              ],
+            }),
+          ) ?? [],
+      variations:
+        state.controls
+          .variations,
+      invoices:
+        state.controls.invoices,
+      retentions:
+        state.controls
+          .retentions,
+      bonds:
+        state.controls.bonds,
+      claimCommercials:
+        state.controls
+          .claimCommercials,
+      contractTimeBasis:
+        state.controls
+          .contractTimeBasis,
+      commercialEvidenceSubmitted:
+        Boolean(
+          state.contract ||
+          state.evidenceDocuments
+            .some(
+              (document) =>
+                document.basisState !==
+                  "superseded" &&
+                (
+                  document.category ===
+                    "boq_cost" ||
+                  document.category ===
+                    "risk_claims_procurement"
+                ),
+            ),
+        ),
+      paymentEvidenceSubmitted:
+        state.evidenceDocuments
+          .some(
+            (document) =>
+              document.basisState !==
+                "superseded" &&
+              /payment|invoice|certificate|retention|advance/i.test(
+                document.documentType +
+                " " +
+                document.sourceFilename,
+              ),
+          ),
+      variationEvidenceSubmitted:
+        state.evidenceDocuments
+          .some(
+            (document) =>
+              document.basisState !==
+                "superseded" &&
+              /variation|change/i.test(
+                document.documentType +
+                " " +
+                document.sourceFilename,
+              ),
+          ),
+      bondEvidenceSubmitted:
+        state.evidenceDocuments
+          .some(
+            (document) =>
+              document.basisState !==
+                "superseded" &&
+              /bond|guarantee|security/i.test(
+                document.documentType +
+                " " +
+                document.sourceFilename,
+              ),
+          ),
+      claimEvidenceSubmitted:
+        delayModel !== null ||
+        state.evidenceDocuments
+          .some(
+            (document) =>
+              document.basisState !==
+                "superseded" &&
+              /claim|eot|notice/i.test(
+                document.documentType +
+                " " +
+                document.sourceFilename,
+              ),
+          ),
+    });
+
+  const commercialModuleSpecs = [
+    [
+      "commercial-overview",
+      "commercial_overview",
+    ],
+    [
+      "cost-forecast",
+      "cost_forecast",
+    ],
+    [
+      "variations-change",
+      "variations_change",
+    ],
+    [
+      "payments",
+      "payments",
+    ],
+    [
+      "cash-flow",
+      "cash_flow",
+    ],
+    [
+      "commercial-claims-notices",
+      "commercial_claims_notices",
+    ],
+    [
+      "contract-particulars-bonds",
+      "contract_particulars_bonds",
+    ],
+  ] as const;
+
+  for (
+    const [
+      moduleKey,
+      projectionKey,
+    ] of commercialModuleSpecs
+  ) {
+    const projection =
+      buildCommercialModuleProjection(
+        projectionKey,
+        commercialPosition,
+      );
+    const relevantState =
+      moduleKey ===
+        "variations-change"
+        ? commercialPosition
+            .evidence.variations
+        : moduleKey ===
+            "payments" ||
+          moduleKey ===
+            "cash-flow"
+          ? commercialPosition
+              .evidence.payments
+          : moduleKey ===
+              "commercial-claims-notices"
+            ? commercialPosition
+                .evidence.claims
+            : moduleKey ===
+                "contract-particulars-bonds"
+              ? (
+                  commercialPosition
+                    .evidence.commercial ===
+                    "established" ||
+                  commercialPosition
+                    .evidence.bonds ===
+                    "established"
+                    ? "established"
+                    : commercialPosition
+                        .evidence.commercial
+                )
+              : commercialPosition
+                  .evidence.commercial;
+
+    modules.set(
+      moduleKey,
+      available(
+        moduleKey,
+        projection,
+        [
+          "governed commercial evidence",
+          "contract time basis",
+        ],
+        relevantState ===
+          "established"
+          ? "ready"
+          : "partial",
+        relevantState ===
+          "established"
+          ? null
+          : relevantState ===
+              "submitted_unparsed"
+            ? "Relevant evidence is submitted but not yet structurally established. CMeng preserves it as missing/partial rather than zero."
+            : "Relevant commercial evidence has not been submitted. CMeng does not infer zero exposure.",
+      ),
+    );
+  }
 
   if (state.contract) {
     challengeContract =
