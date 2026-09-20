@@ -2533,19 +2533,52 @@ function renderCommercialVisual(key,data){
     ? '<div class="table-wrap"><table><thead><tr>'+headers.map(h=>'<th>'+escapeHtml(h)+'</th>').join("")+'</tr></thead><tbody>'+rows.join("")+'</tbody></table></div>'
     : '<div class="empty-visual">'+escapeHtml(emptyMessage)+'</div>';
   let detail="";
+  let registerVisual="";
   if(key==="variations-change"||key==="cost-forecast"||key==="commercial-overview"){
+    const variationStates=(registers.variations||[]).reduce((map,row)=>{const state=humanizeKey(row.state||"unknown");map.set(state,(map.get(state)||0)+1);return map},new Map());
+    if(variationStates.size)registerVisual=renderVisualPanel(
+      "Variation status distribution",
+      "Variation counts by governed state. Amounts are not cross-summed across currency.",
+      renderDonutChart([...variationStates.entries()].map(([label,value])=>({label,value,tone:/approved/i.test(label)?"success":/pending|review/i.test(label)?"warning":"neutral"})),"Variations")
+    );
     const rows=(registers.variations||[]).map(row=>'<tr><td><b>'+escapeHtml(row.variationId)+'</b></td><td>'+escapeHtml(humanizeKey(row.state))+'</td><td>'+escapeHtml(fmt(row.amount))+'</td><td>'+escapeHtml(row.currency)+'</td><td>'+escapeHtml((row.sourceRefs||[]).join(", "))+'</td></tr>');
     detail='<section class="planning-panel"><div class="planning-panel-head"><div><h4>Variation register</h4><p>Approved and pending change remain separate and retain source lineage.</p></div></div><div class="planning-panel-body">'+table(["Variation","State","Amount","Currency","Source"],rows,"No governed variation records are established.")+'</div></section>';
   }
   if(key==="payments"||key==="cash-flow"){
+    const invoiceGroups=(registers.invoices||[]).reduce((map,row)=>{const currency=row.currency||"Unresolved";const list=map.get(currency)||[];list.push(row);map.set(currency,list);return map},new Map());
+    if(invoiceGroups.size)registerVisual='<div class="commercial-visual-grid">'+[...invoiceGroups.entries()].map(([currency,list])=>renderVisualPanel(
+      currency+" · certificate conversion",
+      "Certified, paid, retention and advance-recovery values stay within one currency.",
+      renderVisualBars([
+        {label:"Certified",value:list.reduce((sum,row)=>sum+(typeof row.certifiedAmount==="number"?row.certifiedAmount:0),0),tone:"accent"},
+        {label:"Paid",value:list.reduce((sum,row)=>sum+(typeof row.paidAmount==="number"?row.paidAmount:0),0),tone:"success"},
+        {label:"Retention",value:list.reduce((sum,row)=>sum+(typeof row.retentionAmount==="number"?row.retentionAmount:0),0),tone:"warning"},
+        {label:"Advance recovery",value:list.reduce((sum,row)=>sum+(typeof row.advanceRecoveryAmount==="number"?row.advanceRecoveryAmount:0),0),tone:"purple"}
+      ],currency)
+    )).join("")+'</div>';
     const rows=(registers.invoices||[]).map(row=>'<tr><td><b>'+escapeHtml(row.invoiceId)+'</b></td><td>'+escapeHtml(planningShortDate(row.certificateDateIso))+'</td><td>'+escapeHtml(fmt(row.certifiedAmount))+'</td><td>'+escapeHtml(fmt(row.paidAmount))+'</td><td>'+escapeHtml(fmt(row.retentionAmount))+'</td><td>'+escapeHtml(fmt(row.advanceRecoveryAmount))+'</td><td>'+escapeHtml(fmt(row.advanceBalance))+'</td><td>'+escapeHtml(row.currency)+'</td><td>'+escapeHtml(planningShortDate(row.paymentDateIso))+'</td></tr>');
     detail='<section class="planning-panel"><div class="planning-panel-head"><div><h4>Certificate and payment register</h4><p>Advance balance is shown only where explicitly stated in payment evidence.</p></div></div><div class="planning-panel-body">'+table(["Certificate","Certificate date","Certified","Paid","Retention","Advance recovery","Advance balance","Currency","Payment date"],rows,"No governed certificate/payment records are established.")+'</div></section>';
   }
   if(key==="commercial-claims-notices"){
+    const claimGroups=(registers.claims||[]).reduce((map,row)=>{const currency=row.currency||"Unresolved";const list=map.get(currency)||[];list.push(row);map.set(currency,list);return map},new Map());
+    if(claimGroups.size)registerVisual='<div class="commercial-visual-grid">'+[...claimGroups.entries()].map(([currency,list])=>renderVisualPanel(
+      currency+" · claim exposure",
+      "Claimed and assessed amounts are shown separately within one currency.",
+      renderVisualBars([
+        {label:"Claimed",value:list.reduce((sum,row)=>sum+(typeof row.claimedAmount==="number"?row.claimedAmount:0),0),tone:"danger"},
+        {label:"Assessed",value:list.reduce((sum,row)=>sum+(typeof row.assessedAmount==="number"?row.assessedAmount:0),0),tone:"purple"}
+      ],currency)
+    )).join("")+'</div>';
     const rows=(registers.claims||[]).map(row=>'<tr><td><b>'+escapeHtml(row.claimId)+'</b></td><td>'+escapeHtml(fmt(row.claimedAmount))+'</td><td>'+escapeHtml(fmt(row.assessedAmount))+'</td><td>'+escapeHtml(row.currency)+'</td><td>'+escapeHtml((row.sourceRefs||[]).join(", "))+'</td></tr>');
     detail='<section class="planning-panel"><div class="planning-panel-head"><div><h4>Commercial claim register</h4><p>Amounts use the same claim identities linked to delay-event and EOT evidence.</p></div></div><div class="planning-panel-body">'+table(["Claim","Claimed","Assessed","Currency","Source"],rows,"No governed commercial claim amounts are established.")+'</div></section>';
   }
   if(key==="contract-particulars-bonds"){
+    const bondStates=(registers.bonds||[]).reduce((map,row)=>{const state=humanizeKey(row.status||"unknown");map.set(state,(map.get(state)||0)+1);return map},new Map());
+    if(bondStates.size)registerVisual=renderVisualPanel(
+      "Security status",
+      "Performance, advance-payment and retention securities by status.",
+      renderDonutChart([...bondStates.entries()].map(([label,value])=>({label,value,tone:/active|valid/i.test(label)?"success":/expired|called/i.test(label)?"danger":"warning"})),"Securities")
+    );
     const rows=(registers.bonds||[]).map(row=>'<tr><td><b>'+escapeHtml(row.bondId)+'</b></td><td>'+escapeHtml(humanizeKey(row.kind))+'</td><td>'+escapeHtml(fmt(row.amount))+'</td><td>'+escapeHtml(row.currency)+'</td><td>'+escapeHtml(humanizeKey(row.status))+'</td><td>'+escapeHtml(planningShortDate(row.expiryIso))+'</td><td>'+escapeHtml((row.sourceRefs||[]).join(", "))+'</td></tr>');
     detail='<section class="planning-panel"><div class="planning-panel-head"><div><h4>Security register</h4><p>Performance, advance-payment and retention securities remain distinct from cash balances.</p></div></div><div class="planning-panel-body">'+table(["Bond / guarantee","Type","Amount","Currency","Status","Expiry","Source"],rows,"No governed bond/security register is established.")+'</div></section>';
   }
