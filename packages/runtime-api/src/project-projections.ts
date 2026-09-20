@@ -4188,6 +4188,135 @@ function cachedIndependentForecast(
   return projection;
 }
 
+const claimsFastContextCache =
+  new Map<
+    string,
+    {
+      version: number;
+      analyticalDelayModel:
+        DelayClaimsModel;
+      windows:
+        ReturnType<
+          typeof buildWindowsAnalysisProjection
+        >;
+      delay:
+        ReturnType<
+          typeof buildDelayClaimsProjection
+        >;
+      linkedClaimCount: number;
+      unlinkedClaimCount: number;
+      revisionLabels:
+        Record<string, string>;
+    }
+  >();
+
+function claimsFastContext(
+  state: ProjectRuntimeState,
+  ordered:
+    ProjectRuntimeState["schedules"],
+  current:
+    ProjectRuntimeState["schedules"][number],
+  generatedAt: string,
+) {
+  const cached =
+    claimsFastContextCache.get(
+      state.projectId,
+    );
+  if (
+    cached &&
+    cached.version ===
+      state.version
+  ) {
+    return cached;
+  }
+
+  const delayModel =
+    state.controls.delayClaims;
+  const analyticalDelayModel:
+    DelayClaimsModel =
+    delayModel ?? {
+      projectId:
+        state.projectId,
+      evidenceRevisionId:
+        current.revision
+          .revisionId,
+      events: [],
+      notices: [],
+      claims: [],
+      noticeRequirements: [],
+      diagnostics: [
+        "DELAY_CLAIM_EVIDENCE_NOT_SUBMITTED",
+      ],
+    };
+
+  const windows =
+    buildWindowsAnalysisProjection(
+      ordered.map(
+        (item) =>
+          item.revision,
+      ),
+      analyticalDelayModel,
+      {
+        generatedAt,
+        producerVersion:
+          "windows-fast-v3",
+        forecastResolver:
+          (revision) =>
+            sourceOnlyForecast(
+              revision.model,
+              generatedAt,
+            ),
+      },
+    );
+
+  const delay =
+    buildDelayClaimsProjection(
+      windows,
+      analyticalDelayModel,
+      {
+        generatedAt,
+        producerVersion:
+          "delay-claims-fast-v3",
+      },
+    );
+
+  const linkedClaimCount =
+    analyticalDelayModel.claims.filter(
+      (claim) =>
+        claim.eventIds.length >
+        0,
+    ).length;
+  const unlinkedClaimCount =
+    analyticalDelayModel
+      .claims.length -
+    linkedClaimCount;
+  const revisionLabels =
+    Object.fromEntries(
+      ordered.map(
+        (item) => [
+          item.revision.revisionId,
+          item.revision.label,
+        ],
+      ),
+    );
+
+  const context = {
+    version:
+      state.version,
+    analyticalDelayModel,
+    windows,
+    delay,
+    linkedClaimCount,
+    unlinkedClaimCount,
+    revisionLabels,
+  };
+  claimsFastContextCache.set(
+    state.projectId,
+    context,
+  );
+  return context;
+}
+
 function independentForecastReviewReason(
   forecast: ReturnType<
     typeof buildIndependentForecastProjection
@@ -5080,71 +5209,17 @@ function buildSpecialistModuleFast(
         ],
       };
 
-    const windows =
-      buildWindowsAnalysisProjection(
-        ordered.map(
-          (item) =>
-            item.revision,
-        ),
-        analyticalDelayModel,
-        {
-          generatedAt,
-          producerVersion:
-            "windows-fast-v2",
-          forecastResolver:
-            (revision) =>
-              sourceOnlyForecast(
-                revision.model,
-                generatedAt,
-              ),
-        },
-      );
-
     if (
       key ===
-      "windows-analysis"
+      "notices-claims"
     ) {
-      result = available(
-        key,
-        {
-          ...windows,
-          movementPresentationBasis:
-            "source_forecast_then_schedule_boundary",
-          revisionLabels:
-            Object.fromEntries(
-              ordered.map(
-                (item) => [
-                  item.revision
-                    .revisionId,
-                  item.revision
-                    .label,
-                ],
-              ),
-            ),
-        },
-        [
-          "controlled programme revision history",
-        ],
-        delayModel &&
-        delayModel.events.length >
-          0
-          ? "ready"
-          : "partial",
-        delayModel &&
-        delayModel.events.length >
-          0
-          ? null
-          : "Schedule-window movement is calculated from controlled programme revisions, but causation is un-attributed because no linked delay-event population is established.",
-      );
-    } else {
-      const delay =
-        buildDelayClaimsProjection(
-          windows,
+      const notices =
+        buildNoticesClaimsProjection(
           analyticalDelayModel,
           {
             generatedAt,
             producerVersion:
-              "delay-claims-fast-v2",
+              "notices-claims-fast-v3",
           },
         );
       const linkedClaimCount =
@@ -5158,8 +5233,90 @@ function buildSpecialistModuleFast(
         analyticalDelayModel
           .claims.length -
         linkedClaimCount;
+      const assessable =
+        notices.eventCount > 0 &&
+        (
+          analyticalDelayModel
+            .noticeRequirements
+            .length > 0 ||
+          analyticalDelayModel
+            .events.some(
+              (event) =>
+                event.startIso !==
+                null,
+            )
+        );
+
+      result = available(
+        key,
+        {
+          ...notices,
+          noticeAssessmentState:
+            assessable
+              ? "assessed"
+              : "not_assessable_without_delay_events_and_requirements",
+          linkedClaimCount,
+          unlinkedClaimCount,
+        },
+        [
+          "delay events",
+          "notice requirements",
+          "notices",
+          "claims",
+        ],
+        assessable
+          ? "ready"
+          : "partial",
+        assessable
+          ? null
+          : notices.claimCount +
+            " claim records are available, but notice timeliness is not assessable until governed delay events and applicable notice requirements are linked.",
+      );
+    } else {
+      const context =
+        claimsFastContext(
+          state,
+          ordered,
+          current,
+          generatedAt,
+        );
+      const windows =
+        context.windows;
+      const delay =
+        context.delay;
+      const linkedClaimCount =
+        context.linkedClaimCount;
+      const unlinkedClaimCount =
+        context.unlinkedClaimCount;
 
       if (
+        key ===
+        "windows-analysis"
+      ) {
+        result = available(
+          key,
+          {
+            ...windows,
+            movementPresentationBasis:
+              "source_forecast_then_schedule_boundary",
+            revisionLabels:
+              context.revisionLabels,
+          },
+          [
+            "controlled programme revision history",
+          ],
+          delayModel &&
+          delayModel.events.length >
+            0
+            ? "ready"
+            : "partial",
+          delayModel &&
+          delayModel.events.length >
+            0
+            ? null
+            : "Programme movement is calculated from controlled programme revisions, but causation remains un-attributed because no linked delay-event population is established.",
+        );
+      } else if (
         key ===
         "delay-claims"
       ) {
@@ -5178,6 +5335,8 @@ function buildSpecialistModuleFast(
               linkedClaimCount > 0
                 ? "linked"
                 : "not_established",
+            revisionLabels:
+              context.revisionLabels,
           },
           [
             "schedule windows",
@@ -5194,49 +5353,10 @@ function buildSpecialistModuleFast(
           delay.events.length === 0
             ? analyticalDelayModel
                 .claims.length +
-              " claim records are available, but no delay events are established. Schedule movement cannot be attributed to those claims."
+              " claim records are available, but no governed delay events are established. Programme movement cannot be attributed to those claims."
             : linkedClaimCount === 0
               ? "Claim records are not linked to governed delay events, so causation and entitlement remain unassessed."
               : null,
-        );
-      } else if (
-        key ===
-        "notices-claims"
-      ) {
-        const notices =
-          buildNoticesClaimsProjection(
-            analyticalDelayModel,
-            {
-              generatedAt,
-              producerVersion:
-                "notices-claims-fast-v2",
-            },
-          );
-        const assessable =
-          notices.eventCount > 0;
-        result = available(
-          key,
-          {
-            ...notices,
-            noticeAssessmentState:
-              assessable
-                ? "assessed"
-                : "not_assessable_without_delay_events",
-            linkedClaimCount,
-            unlinkedClaimCount,
-          },
-          [
-            "delay events",
-            "notices",
-            "claims",
-          ],
-          assessable
-            ? "ready"
-            : "partial",
-          assessable
-            ? null
-            : notices.claimCount +
-              " claim records are available, but notice timeliness cannot be assessed without linked delay events and applicable notice requirements.",
         );
       } else {
         const eot =
@@ -5250,7 +5370,7 @@ function buildSpecialistModuleFast(
                 {
                   generatedAt,
                   producerVersion:
-                    "eot-assessment-fast-v2",
+                    "eot-assessment-fast-v3",
                 },
               )
             : {
@@ -5260,7 +5380,7 @@ function buildSpecialistModuleFast(
                   "eot_assessment" as const,
                 generatedAt,
                 producerVersion:
-                  "eot-assessment-fast-v2",
+                  "eot-assessment-fast-v3",
                 projectId:
                   state.projectId,
                 contractualCompletionIso:
@@ -5344,7 +5464,7 @@ function buildSpecialistModuleFast(
                 basis:
                   "analytical_candidate_not_contractual_determination" as const,
                 assumptions: [
-                  "Observed schedule movement is not an EOT entitlement or time-impact candidate without governed contract and event causation evidence.",
+                  "Observed programme movement is not an EOT entitlement or time-impact candidate without governed contract and event causation evidence.",
                 ],
                 diagnostics: [
                   "CONTRACT_TIME_BASIS_NOT_SUBMITTED",
@@ -5357,6 +5477,7 @@ function buildSpecialistModuleFast(
           state.controls
             .contractTimeBasis !==
           null;
+
         result = available(
           key,
           {
@@ -5366,6 +5487,8 @@ function buildSpecialistModuleFast(
               null,
             causalEventEvidenceEstablished:
               hasCausalEvents,
+            revisionLabels:
+              context.revisionLabels,
           },
           [
             "contract time basis",
@@ -5377,9 +5500,9 @@ function buildSpecialistModuleFast(
             ? "ready"
             : "partial",
           !contractReady
-            ? "Observed schedule movement is shown separately, but a contractual EOT position cannot be calculated without a governed contract time basis."
+            ? "Observed programme movement is shown separately, but a contractual EOT position cannot be calculated without a governed contract time basis."
             : !hasCausalEvents
-              ? "Observed schedule movement is shown separately, but no EOT time-impact candidate is stated because causal delay events are not established."
+              ? "Observed programme movement is shown separately, but no EOT time-impact candidate is stated because causal delay events are not established."
               : null,
         );
       }
@@ -6081,6 +6204,9 @@ export function invalidateProject(
     }
   }
   specialistChallengeCache.delete(
+    projectId,
+  );
+  claimsFastContextCache.delete(
     projectId,
   );
 }
