@@ -1156,7 +1156,7 @@ function planningMilestoneTimeline(p){
   const x=v=>{const m=planningDateMs(v);return m===null?null:Math.max(1,Math.min(99,((m-min)/(max-min))*100));};
   const dd=planningDateMs(p.dataDateIso);
   const ddInRange=dd!==null&&dd>=min&&dd<=max;
-  const ddx=ddInRange?Math.max(1,Math.min(99,((dd-min)/(max-min))*100):null;
+  const ddx=ddInRange?Math.max(1,Math.min(99,((dd-min)/(max-min))*100)):null;
   const body=sorted.map(r=>{
     const b=x(r.baselineDateIso),cur=x(r.currentDateIso),act=x(r.actualDateIso);
     const vals=[b,cur,act].filter(v=>v!==null);
