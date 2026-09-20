@@ -99,6 +99,7 @@ import {
   runtimeProjects,
 } from "./project-state";
 import {
+  commercialModules,
   scheduleModules,
 } from "./registry";
 import {
@@ -6358,7 +6359,10 @@ export function overviewForProject(
           }),
         ),
     moduleStates:
-      scheduleModules.map(
+      [
+        ...scheduleModules,
+        ...commercialModules,
+      ].map(
         (module) => {
           const receiptStatus =
             receiptStates.get(
@@ -6369,16 +6373,28 @@ export function overviewForProject(
             status:
               receiptStatus ??
               (
-                scheduleEstablished
+                commercialModules.some(
+                  (item) =>
+                    item.key ===
+                    module.key,
+                )
                   ? "partial"
-                  : "blocked"
+                  : scheduleEstablished
+                    ? "partial"
+                    : "blocked"
               ),
             reason:
               receiptStatus
                 ? null
-                : scheduleEstablished
-                  ? "Open the view to calculate the latest specialist position."
-                  : "Programme evidence has not been established.",
+                : commercialModules.some(
+                    (item) =>
+                      item.key ===
+                      module.key,
+                  )
+                  ? "Open the commercial view to calculate the current governed position. Missing evidence will remain missing, not zero."
+                  : scheduleEstablished
+                    ? "Open the view to calculate the latest specialist position."
+                    : "Programme evidence has not been established.",
           };
         },
       ),
