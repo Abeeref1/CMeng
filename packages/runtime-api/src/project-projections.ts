@@ -36,6 +36,7 @@ import {
 } from "../../manhour-scurve/src";
 import {
   buildMilestonesProjection,
+  refreshMilestoneManagementControl,
 } from "../../milestones-analysis/src";
 import {
   buildNearCriticalProjection,
@@ -876,7 +877,7 @@ function buildBundle(
                           .currentFinishIso
                       )
                     : null;
-                return {
+                return refreshMilestoneManagementControl({
                   ...row,
                   baselineDateIso:
                     baselineDate,
@@ -885,7 +886,7 @@ function buildBundle(
                       baselineDate,
                       row.currentDateIso,
                     ),
-                };
+                });
               },
             ),
         }
@@ -3457,7 +3458,7 @@ function buildPlanningModuleFast(
                             .currentFinishIso
                         )
                       : null;
-                  return {
+                  return refreshMilestoneManagementControl({
                     ...row,
                     baselineDateIso,
                     varianceDays:
@@ -3465,7 +3466,7 @@ function buildPlanningModuleFast(
                         baselineDateIso,
                         row.currentDateIso,
                       ),
-                  };
+                  });
                 },
               ),
           }
@@ -3695,7 +3696,7 @@ function buildPlanningModuleFast(
                             .currentFinishIso
                         )
                       : null;
-                  return {
+                  return refreshMilestoneManagementControl({
                     ...row,
                     baselineDateIso,
                     varianceDays:
@@ -3703,7 +3704,7 @@ function buildPlanningModuleFast(
                         baselineDateIso,
                         row.currentDateIso,
                       ),
-                  };
+                  });
                 },
               ),
           }
