@@ -42,6 +42,35 @@ function criticality(
   return "noncritical";
 }
 
+function nearCriticalWatch(
+  activity: CanonicalScheduleActivity,
+  config: ScheduleAnalysisConfig,
+): boolean {
+  if (
+    activity.totalFloatHours ===
+    null
+  ) {
+    return false;
+  }
+  const value =
+    activity.totalFloatHours;
+  const aboveLower =
+    config
+      .nearCriticalLowerBoundInclusive
+      ? value >=
+        config
+          .nearCriticalLowerBoundHours
+      : value >
+        config
+          .nearCriticalLowerBoundHours;
+  return (
+    aboveLower &&
+    value <=
+      config
+        .nearCriticalFloatThresholdHours
+  );
+}
+
 function effectiveFinish(
   activity: CanonicalScheduleActivity,
 ): string | null {
@@ -146,6 +175,11 @@ export function buildActivityAnalyticsProjection(
 
         criticality:
           criticality(activity, config),
+        nearCriticalWatch:
+          nearCriticalWatch(
+            activity,
+            config,
+          ),
         finishVarianceDays:
           finishVarianceDays(activity),
 
@@ -193,6 +227,11 @@ export function buildActivityAnalyticsProjection(
       ).length,
       rows.length,
     ),
+    nearCriticalWatchCount:
+      rows.filter(
+        (row) =>
+          row.nearCriticalWatch,
+      ).length,
     rows,
     diagnostics: [
       ...model.diagnostics,
