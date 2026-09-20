@@ -624,10 +624,12 @@ test("runtime activity variance uses the controlled baseline programme", async (
             ),
           },
         );
+      const responseText =
+        await response.text();
       assert.equal(
         response.status,
         201,
-        await response.text(),
+        responseText,
       );
     };
 
