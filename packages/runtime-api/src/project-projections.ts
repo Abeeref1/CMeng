@@ -4297,7 +4297,9 @@ function claimsFastContext(
       ordered.map(
         (item) => [
           item.revision.revisionId,
-          item.revision.label,
+          item.revision.label ??
+          item.sourceFilename ??
+          item.revision.revisionId,
         ],
       ),
     );
