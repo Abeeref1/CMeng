@@ -56,6 +56,12 @@ export interface DelayClaimsProjection {
   eventCount: number;
   claimCount: number;
   windowCount: number;
+  claimLinkedEventCount: number;
+  activityLinkedEventCount: number;
+  windowLinkedEventCount: number;
+  noticeLinkedEventCount: number;
+  determinationLinkedEventCount: number;
+  fullDeterminationChainEventCount: number;
 
   observedPositiveIndependentMovementDays: number;
   /** Gross positive analytical movement summed across windows. Not project delay or EOT. */
