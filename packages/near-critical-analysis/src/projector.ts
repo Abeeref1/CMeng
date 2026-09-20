@@ -34,11 +34,25 @@ export function buildNearCriticalProjection(
 
   const rows = known
     .filter(
-      (activity) =>
-        activity.totalFloatHours! >
-          config.criticalFloatThresholdHours &&
-        activity.totalFloatHours! <=
-          config.nearCriticalFloatThresholdHours,
+      (activity) => {
+        const value =
+          activity.totalFloatHours!;
+        const aboveLower =
+          config
+            .nearCriticalLowerBoundInclusive
+            ? value >=
+              config
+                .nearCriticalLowerBoundHours
+            : value >
+              config
+                .nearCriticalLowerBoundHours;
+        return (
+          aboveLower &&
+          value <=
+            config
+              .nearCriticalFloatThresholdHours
+        );
+      },
     )
     .map((activity) => ({
       activityId: activity.activityId,
@@ -75,8 +89,14 @@ export function buildNearCriticalProjection(
     projectId: model.projectId,
     sourceRevisionId:
       model.sourceRevisionId,
+    dataDateIso:
+      model.dataDateIso,
     criticalThresholdHours:
       config.criticalFloatThresholdHours,
+    nearCriticalLowerBoundHours:
+      config.nearCriticalLowerBoundHours,
+    nearCriticalLowerBoundInclusive:
+      config.nearCriticalLowerBoundInclusive,
     nearCriticalThresholdHours:
       config.nearCriticalFloatThresholdHours,
     floatCoveragePercent: coverage(
