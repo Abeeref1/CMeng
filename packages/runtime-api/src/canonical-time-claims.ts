@@ -3,6 +3,7 @@ import { cell, has, numberValue, dateValue, governedTables, norm, sumKnown, type
 import type { CanonicalClaimRecord, CanonicalDelayEvent, CanonicalNoticeRecord, DelayClaimsModel } from '../../delay-analysis-core/src';
 import type { ContractTimeBasis } from '../../eot-assessment/src';
 import type { ProjectRuntimeState } from './project-state-types';
+import { inferDocumentType } from './evidence';
 export interface DeterminationRecord {
   determinationId: string; claimId: string; awardedDays: number | null; determinationDate: string | null;
   state: 'source_immutable' | 'candidate' | 'conflicted'; authority: string; sourceLetter: string | null;
@@ -85,8 +86,31 @@ function correspondenceRef(link: CorrespondenceLink) {
 export function projectControlSchedule(state:ProjectRuntimeState) {
   const basis=state.activeEvidenceBasis['schedule:control'] ?? state.activeEvidenceBasis['schedule:baseline'];
   if(basis?.activeArtifactId) return state.schedules.find(s=>s.revision.revisionId===basis.activeArtifactId) ?? null;
-  // Manually supplied models without an evidence register remain supported.
-  if(state.evidenceDocuments.some(d=>d.category==='schedule')) return null;
+
+  const programmeTypes=new Set([
+    'schedule_file',
+    'schedule_baseline',
+    'schedule_update',
+    'schedule_revised_baseline',
+    'schedule_recovery',
+  ]);
+  const hasProgrammeEvidence=state.evidenceDocuments.some(document=>{
+    if(document.category!=='schedule')return false;
+    const inferred=inferDocumentType(
+      document.sourceRelativePath??document.sourceFilename,
+      null,
+    );
+    return (
+      programmeTypes.has(document.documentType) ||
+      programmeTypes.has(inferred) ||
+      document.linkedArtifactId!==null
+    );
+  });
+
+  // If governed programme evidence exists but no active programme basis resolves,
+  // fail closed. Legacy/misclassified schedule-control support documents must not
+  // suppress an otherwise valid programme model.
+  if(hasProgrammeEvidence) return null;
   return state.schedules.filter(s=>s.role!=='recovery').sort((a,b)=>a.revision.sequence-b.revision.sequence).at(-1) ?? null;
 }
 export function projectDataDate(state:ProjectRuntimeState):string|null {
