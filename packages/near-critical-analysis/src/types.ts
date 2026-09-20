@@ -25,5 +25,10 @@ export interface NearCriticalProjection {
   floatCoveragePercent: number | null;
   classificationCoveragePercent: number | null;
   nearCriticalCount: number;
+  floatRiskWatchlistCount: number;
+  zeroFloatCount: number;
+  negativeFloatCount: number;
+  floatRiskWatchlistIncludesCriticalThreshold: boolean;
   rows: NearCriticalRow[];
+  watchlistRows: NearCriticalRow[];
 }
