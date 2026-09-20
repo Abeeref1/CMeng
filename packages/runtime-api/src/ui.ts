@@ -1764,13 +1764,19 @@ function renderResourceVisual(data){
     };
   }).filter(Boolean).sort((a,b)=>b.value-a.value).slice(0,12);
 
+  const sourceEstablished=p.canonicalResourceEvidenceState==="established";
+  const sourceApplicable=Number(p.sourceUtilizationApplicableResourceCount??weekly?.resourceCount??0);
+  const plannedAverage=p.sourceAveragePlannedUtilizationPercent??weekly?.averagePlannedUtilizationToDataDatePercent??null;
+  const actualAverage=p.sourceAverageActualUtilizationPercent??weekly?.averageActualUtilizationToDataDatePercent??null;
+  const plannedOver=Number(p.sourcePlannedOverallocationRowCount??weeklyOver??0);
+  const actualOver=Number(p.sourceActualOverallocationRowCount??weekly?.actualOverloadedRowCount??0);
   const kpis=planningKpis([
-    ["Resources",p.resourceCount,"current programme"],
-    ["Assigned",p.assignedResourceCount,"with schedule assignments"],
-    ["Per-hour capacity",perHourCapacityText,"resources with comparable rate",capacityKnown?"accent":"warning"],
-    ["Weekly capacity checks",weeklyComparable||weeklyRows,"source rows with capacity and demand",weeklyComparable?"accent":"warning"],
-    ["Weekly demand > capacity",weeklyComparable?weeklyOver:"Not assessable",weeklyComparable?"source-row checks":"weekly evidence required",weeklyOver?"danger":weeklyComparable?"success":"warning"],
-    ["Capacity units",weeklyUnits.length?weeklyUnits.join(" / "):"Not established","kept separate by source unit",weeklyUnits.length?"":"warning"]
+    ["Utilization applicable",sourceApplicable||"Not established","labor + equipment only",sourceEstablished?"accent":"warning"],
+    ["Planned utilization",plannedAverage===null?"—":fmt(plannedAverage)+"%","average to Data Date",plannedAverage!==null?"accent":"warning"],
+    ["Actual utilization",actualAverage===null?"—":fmt(actualAverage)+"%","approved actual usage to Data Date",actualAverage!==null?"accent":"warning"],
+    ["Weekly capacity rows",weeklyRows||"Not established","unit-safe resource-week evidence",weeklyRows?"accent":"warning"],
+    ["Planned overallocated",weeklyRows?plannedOver:"—","resource-weeks >100%",plannedOver?"danger":weeklyRows?"success":"warning"],
+    ["Actual overallocated",weeklyRows?actualOver:"—","approved actual resource-weeks >100%",actualOver?"danger":weeklyRows?"success":"warning"]
   ]);
 
   const rows=p.rows.map(r=>'<tr><td><b>'+escapeHtml(r.resourceId)+'</b><br><span class="muted">'+escapeHtml(r.resourceName||"")+'</span></td><td>'+escapeHtml(r.resourceType)+'</td><td>'+escapeHtml(r.assignmentCount)+'</td><td>'+escapeHtml(fmt(r.capacityUnitsPerHour))+'</td><td>'+escapeHtml(fmt(r.peakPlannedUnitsPerHour))+'</td><td>'+escapeHtml(fmt(r.peakRemainingUnitsPerHour))+'</td><td>'+escapeHtml(r.plannedUtilizationPercent===null?"—":fmt(r.plannedUtilizationPercent)+"%")+'</td><td>'+escapeHtml(r.remainingUtilizationPercent===null?"—":fmt(r.remainingUtilizationPercent)+"%")+'</td><td><span class="state-pill '+(r.overloaded===true?"blocked":r.state==="capacity_based"?"ready":"review")+'">'+escapeHtml(r.overloaded===true?"Overloaded":r.state==="capacity_based"?"Capacity assessed":"Capacity not set")+'</span></td></tr>').join("");
@@ -1782,7 +1788,7 @@ function renderResourceVisual(data){
       : '';
 
   const weeklyNote=weeklyComparable
-    ? '<div class="notice info"><b>Separate weekly capacity evidence is available.</b> CMeng found '+escapeHtml(fmt(weeklyOver))+' demand-above-capacity row checks out of '+escapeHtml(fmt(weeklyComparable))+' comparable weekly rows. These checks remain in their original units and are not converted into P6 per-hour utilization.</div>'
+    ? '<div class="notice '+(sourceEstablished?"info":"warn")+'"><b>'+(sourceEstablished?"Canonical weekly resource evidence established.":"Weekly source evidence detected but not fully governed.")+'</b> '+escapeHtml(fmt(sourceApplicable))+' utilization-applicable resources are assessed in their native units. Planned and approved actual utilization are calculated only where resource, period and unit match. Materials remain consumption quantities and are never converted into utilization percentages.</div>'
     : '';
 
   const weeklyChart=weeklyGroups.size
@@ -1798,8 +1804,10 @@ function renderResourceVisual(data){
   return '<section class="planning-view resource-view">'+kpis+perHourNote+weeklyNote+weeklyChart+'<div class="planning-primary-grid">'+demandPanel+'<section class="planning-panel"><div class="planning-panel-head"><div><h4>Capacity evidence</h4><p>Per-hour schedule capacity and weekly register capacity are shown as separate evidence bases.</p></div></div><div class="planning-panel-body">'+moduleEvidenceGate([
     {label:"Schedule assignments",value:p.assignedResourceCount+" resources",state:p.assignedResourceCount>0?"ready":"missing"},
     {label:"P6 max-units/hour capacity",value:capacityKnown>0?capacityKnown+" resources":"Not established",state:capacityKnown>0?"ready":"missing"},
-    {label:"Weekly capacity register",value:weeklyComparable?fmt(weeklyComparable)+" comparable rows":"Not established",state:weeklyComparable?"ready":"missing"},
-    {label:"Per-hour overload assessment",value:overloadValue,state:assessed>0?"ready":"missing"}
+    {label:"Canonical weekly capacity",value:weeklyComparable?fmt(weeklyComparable)+" comparable rows":"Not established",state:sourceEstablished?"ready":weeklyComparable?"review":"missing"},
+    {label:"Approved actual usage",value:weekly?.actualUsageRowCount?fmt(weekly.actualUsageRowCount)+" source rows":"Not established",state:weekly?.actualUsageRowCount?"ready":"missing"},
+    {label:"Assignment time-phasing",value:weekly?.assignmentTimephasedRowCount?fmt(weekly.assignmentTimephasedRowCount)+" source rows":"Not established",state:weekly?.assignmentTimephasedRowCount?"ready":"missing"},
+    {label:"P6 per-hour overload",value:overloadValue,state:assessed>0?"ready":"missing"}
   ])+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Resource detail</h4><p>Capacity and utilization remain blank when they are not established.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Resource</th><th>Type</th><th>Assignments</th><th>Capacity/hr</th><th>Peak planned/hr</th><th>Peak remaining/hr</th><th>Planned util.</th><th>Remaining util.</th><th>Assessment</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></section></section>';
 }
 function renderProgressReportVisual(data){
