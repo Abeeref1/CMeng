@@ -91,6 +91,13 @@ export interface CommercialControlPosition {
   retentionRecordCount: number;
   bondCount: number;
   claimCommercialCount: number;
+  registers: {
+    variations: VariationRecord[];
+    invoices: InvoiceRecord[];
+    retentions: RetentionRecord[];
+    bonds: BondRecord[];
+    claims: ClaimCommercialRecord[];
+  };
   evidence: {
     commercial:
       CommercialEvidenceState;
