@@ -8,10 +8,14 @@ import {
 } from "../../truth-kernel/src";
 import {
   DEFAULT_SCHEDULE_ANALYSIS_CONFIG,
+  activityNearCriticalThresholdHours,
   type ScheduleAnalysisConfig,
 } from "../../schedule-analysis-core/src";
 import type { ProjectRuntimeState } from "./project-state-types";
-import { projectDataDate } from "./canonical-time-claims";
+import {
+  projectControlSchedule,
+  projectDataDate,
+} from "./canonical-time-claims";
 
 export interface ProjectScheduleControlBasis {
   producerVersion: "schedule-control-basis-v1";
@@ -19,6 +23,12 @@ export interface ProjectScheduleControlBasis {
   criticalFloatThresholdHours: number | null;
   nearCriticalWorkingDays: number | null;
   nearCriticalExplicitHours: number | null;
+  nearCriticalSourceCount: number | null;
+  nearCriticalThresholdMethod:
+    | "explicit_working_days"
+    | "explicit_hours"
+    | "source_count_reconciliation"
+    | "unresolved";
   sourceDataDateIso: string | null;
   programmeDataDateIso: string | null;
   analysisConfig: ScheduleAnalysisConfig;
@@ -100,6 +110,113 @@ function criticalThreshold(raw: string): number | null {
   return match ? numberValue(match[1]!) : null;
 }
 
+
+function reconcileWorkingDaysFromSourceCount(
+  state: ProjectRuntimeState,
+  sourceCount: number,
+  criticalFloatThresholdHours: number,
+): {
+  workingDays: number | null;
+  diagnostics: string[];
+} {
+  const current = projectControlSchedule(state);
+  if (!current) {
+    return {
+      workingDays: null,
+      diagnostics: [
+        "NEAR_CRITICAL_COUNT_RECONCILIATION_REQUIRES_CURRENT_PROGRAMME",
+      ],
+    };
+  }
+
+  const model = current.revision.model;
+  const candidates: number[] = [];
+  const diagnostics: string[] = [];
+
+  for (let workingDays = 1; workingDays <= 30; workingDays += 1) {
+    const config: ScheduleAnalysisConfig = {
+      criticalFloatThresholdHours,
+      nearCriticalFloatThresholdHours:
+        DEFAULT_SCHEDULE_ANALYSIS_CONFIG.nearCriticalFloatThresholdHours,
+      nearCriticalWorkingDays: workingDays,
+      varianceLateThresholdDays:
+        DEFAULT_SCHEDULE_ANALYSIS_CONFIG.varianceLateThresholdDays,
+    };
+
+    let unresolved = 0;
+    let count = 0;
+
+    for (const activity of model.activities) {
+      if (
+        activity.totalFloatHours === null ||
+        activity.totalFloatHours <=
+          criticalFloatThresholdHours
+      ) {
+        continue;
+      }
+
+      const threshold =
+        activityNearCriticalThresholdHours(
+          model,
+          activity,
+          config,
+        );
+      if (threshold === null) {
+        unresolved += 1;
+        continue;
+      }
+
+      if (
+        activity.totalFloatHours <=
+        threshold
+      ) {
+        count += 1;
+      }
+    }
+
+    if (unresolved > 0) {
+      diagnostics.push(
+        "NEAR_CRITICAL_COUNT_RECONCILIATION_CALENDAR_GAPS:" +
+          workingDays +
+          ":" +
+          unresolved,
+      );
+      continue;
+    }
+
+    if (count === sourceCount) {
+      candidates.push(workingDays);
+    }
+  }
+
+  if (candidates.length === 1) {
+    diagnostics.push(
+      "NEAR_CRITICAL_WORKING_DAYS_RECONCILED_FROM_SOURCE_COUNT:" +
+        sourceCount +
+        ":" +
+        candidates[0],
+    );
+    return {
+      workingDays: candidates[0]!,
+      diagnostics,
+    };
+  }
+
+  diagnostics.push(
+    candidates.length === 0
+      ? "NEAR_CRITICAL_SOURCE_COUNT_HAS_NO_WORKING_DAY_SOLUTION:" +
+          sourceCount
+      : "NEAR_CRITICAL_SOURCE_COUNT_SOLUTION_NOT_UNIQUE:" +
+          sourceCount +
+          ":" +
+          candidates.join(","),
+  );
+  return {
+    workingDays: null,
+    diagnostics,
+  };
+}
+
 export function projectScheduleControlBasis(
   state: ProjectRuntimeState,
 ): ProjectScheduleControlBasis {
@@ -127,9 +244,11 @@ export function projectScheduleControlBasis(
   const nearHours: number[] = [];
   const criticalHours: number[] = [];
   const sourceDates: string[] = [];
+  const nearCriticalCounts: number[] = [];
   const receipts: SourceReceipt[] = [];
   const nearWorkingReceipts: SourceReceipt[] = [];
   const nearHourReceipts: SourceReceipt[] = [];
+  const nearCountReceipts: SourceReceipt[] = [];
 
   for (const document of documents) {
     for (const assertion of document.assertions) {
@@ -163,6 +282,15 @@ export function projectScheduleControlBasis(
       ) {
         nearHours.push(assertion.value);
         nearHourReceipts.push(receipt);
+        receipts.push(receipt);
+      } else if (
+        assertion.metric === "near_critical_count" &&
+        typeof assertion.value === "number" &&
+        Number.isFinite(assertion.value) &&
+        assertion.value >= 0
+      ) {
+        nearCriticalCounts.push(assertion.value);
+        nearCountReceipts.push(receipt);
         receipts.push(receipt);
       } else if (
         assertion.metric === "critical_float_threshold_hours" &&
@@ -248,6 +376,34 @@ export function projectScheduleControlBasis(
         nearWorkingReceipts.push(row.receipt);
       }
 
+      const directNearCount = numberValue(
+        cell(
+          row,
+          "near critical count",
+          "near-critical count",
+          "near critical activity count",
+          "near-critical activity count",
+          "near critical activities",
+          "near-critical activities",
+          "near critical watchlist count",
+          "near-critical watchlist count",
+        ),
+      );
+      const keyedNearCount =
+        norm(key).includes("near critical") &&
+        /(count|activities|watchlist)/i.test(key)
+          ? numberValue(rawValue)
+          : null;
+      const parsedNearCount =
+        directNearCount ?? keyedNearCount;
+      if (
+        parsedNearCount !== null &&
+        parsedNearCount >= 0
+      ) {
+        nearCriticalCounts.push(parsedNearCount);
+        nearCountReceipts.push(row.receipt);
+      }
+
       const directNearHours = numberValue(
         cell(
           row,
@@ -292,6 +448,7 @@ export function projectScheduleControlBasis(
       if (
         parsedWorking !== null ||
         parsedHours !== null ||
+        parsedNearCount !== null ||
         parsedCritical !== null ||
         sourceDate !== null
       ) {
@@ -302,6 +459,7 @@ export function projectScheduleControlBasis(
 
   const uniqueNearWorking = uniqueNumber(nearWorking);
   const uniqueNearHours = uniqueNumber(nearHours);
+  const uniqueNearCount = uniqueNumber(nearCriticalCounts);
   const uniqueCritical = uniqueNumber(criticalHours);
   const uniqueDates = [...new Set(sourceDates)];
   const sourceDataDateIso = uniqueDates.length === 1 ? uniqueDates[0]! : null;
@@ -315,6 +473,9 @@ export function projectScheduleControlBasis(
   }
   if (new Set(criticalHours).size > 1) {
     diagnostics.push("CONFLICTING_CRITICAL_FLOAT_DEFINITIONS");
+  }
+  if (new Set(nearCriticalCounts).size > 1) {
+    diagnostics.push("CONFLICTING_NEAR_CRITICAL_SOURCE_COUNTS");
   }
   if (uniqueDates.length > 1) {
     diagnostics.push("CONFLICTING_SCHEDULE_CONTROL_DATA_DATES");
@@ -332,10 +493,53 @@ export function projectScheduleControlBasis(
     );
   }
 
-  const conflict = diagnostics.some((item) => item.startsWith("CONFLICTING_"));
-  const thresholdReceipts =
+  const explicitConflict =
+    diagnostics.some((item) =>
+      item.startsWith("CONFLICTING_"),
+    );
+  const criticalFloatThresholdHours = uniqueCritical ?? 0;
+
+  let resolvedNearWorking =
+    uniqueNearWorking;
+  let thresholdMethod:
+    ProjectScheduleControlBasis["nearCriticalThresholdMethod"] =
     uniqueNearWorking !== null
-      ? nearWorkingReceipts
+      ? "explicit_working_days"
+      : uniqueNearHours !== null
+        ? "explicit_hours"
+        : "unresolved";
+
+  if (
+    !explicitConflict &&
+    resolvedNearWorking === null &&
+    uniqueNearHours === null &&
+    uniqueNearCount !== null
+  ) {
+    const reconciled =
+      reconcileWorkingDaysFromSourceCount(
+        state,
+        uniqueNearCount,
+        criticalFloatThresholdHours,
+      );
+    diagnostics.push(
+      ...reconciled.diagnostics,
+    );
+    if (
+      reconciled.workingDays !==
+      null
+    ) {
+      resolvedNearWorking =
+        reconciled.workingDays;
+      thresholdMethod =
+        "source_count_reconciliation";
+    }
+  }
+
+  const thresholdReceipts =
+    resolvedNearWorking !== null
+      ? uniqueNearWorking !== null
+        ? nearWorkingReceipts
+        : nearCountReceipts
       : uniqueNearHours !== null
         ? nearHourReceipts
         : [];
@@ -345,7 +549,10 @@ export function projectScheduleControlBasis(
         ["active", "additive"].includes(receipt.basisState),
     );
   const hasThreshold =
-    uniqueNearWorking !== null || uniqueNearHours !== null;
+    resolvedNearWorking !== null ||
+    uniqueNearHours !== null;
+  const conflict =
+    explicitConflict;
 
   const stateValue: ProjectScheduleControlBasis["state"] =
     conflict
@@ -356,7 +563,6 @@ export function projectScheduleControlBasis(
           ? "candidate"
           : "missing";
 
-  const criticalFloatThresholdHours = uniqueCritical ?? 0;
   const analysisConfig: ScheduleAnalysisConfig =
     stateValue === "official" || stateValue === "candidate"
       ? {
@@ -364,7 +570,7 @@ export function projectScheduleControlBasis(
           nearCriticalFloatThresholdHours:
             uniqueNearHours ??
             DEFAULT_SCHEDULE_ANALYSIS_CONFIG.nearCriticalFloatThresholdHours,
-          nearCriticalWorkingDays: uniqueNearWorking,
+          nearCriticalWorkingDays: resolvedNearWorking,
           varianceLateThresholdDays:
             DEFAULT_SCHEDULE_ANALYSIS_CONFIG.varianceLateThresholdDays,
         }
@@ -377,8 +583,8 @@ export function projectScheduleControlBasis(
       "PROJECT_NEAR_CRITICAL_BASIS_NOT_ESTABLISHED_LEGACY_DEFAULT_RETAINED",
     );
   } else if (
-    uniqueNearWorking !== null &&
-    nearWorkingReceipts.some((receipt) =>
+    resolvedNearWorking !== null &&
+    thresholdReceipts.some((receipt) =>
       state.evidenceDocuments.some(
         (document) =>
           document.documentId === receipt.documentId &&
@@ -390,7 +596,7 @@ export function projectScheduleControlBasis(
       "PROJECT_NEAR_CRITICAL_BASIS_CORROBORATED_FROM_CONTROL_REGISTER",
     );
   }
-  if (uniqueNearWorking !== null && uniqueNearHours !== null) {
+  if (resolvedNearWorking !== null && uniqueNearHours !== null) {
     diagnostics.push(
       "WORKING_DAY_NEAR_CRITICAL_BASIS_TAKES_PRECEDENCE_OVER_HOUR_VALUE",
     );
@@ -401,8 +607,11 @@ export function projectScheduleControlBasis(
     state: stateValue,
     criticalFloatThresholdHours:
       hasThreshold ? criticalFloatThresholdHours : null,
-    nearCriticalWorkingDays: uniqueNearWorking,
+    nearCriticalWorkingDays: resolvedNearWorking,
     nearCriticalExplicitHours: uniqueNearHours,
+    nearCriticalSourceCount: uniqueNearCount,
+    nearCriticalThresholdMethod:
+      thresholdMethod,
     sourceDataDateIso,
     programmeDataDateIso,
     analysisConfig,
