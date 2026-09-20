@@ -210,6 +210,31 @@ export function buildCommercialControlPosition(
               currency &&
             row.state === "held",
         );
+      const explicitAdvanceBalances =
+        invoices
+          .filter(
+            (row) =>
+              row.advanceBalance !==
+                null &&
+              row.advanceBalance !==
+                undefined,
+          )
+          .sort(
+            (a, b) =>
+              (
+                a.paymentDateIso ??
+                a.certificateDateIso ??
+                ""
+              ).localeCompare(
+                b.paymentDateIso ??
+                b.certificateDateIso ??
+                "",
+              ),
+          );
+      const latestAdvanceBalance =
+        explicitAdvanceBalances
+          .at(-1) ??
+        null;
       const activeBonds =
         input.bonds.filter(
           (row) =>
@@ -474,15 +499,25 @@ export function buildCommercialControlPosition(
           ),
         advanceBalance:
           moneyMetric(
-            null,
-            input
-              .paymentEvidenceSubmitted
-              ? "submitted_unparsed"
-              : "not_submitted",
-            [],
-            [
-              "ADVANCE_BALANCE_IS_NOT_DERIVED_FROM_ADVANCE_PAYMENT_BOND_VALUE",
-            ],
+            latestAdvanceBalance
+              ?.advanceBalance ??
+              null,
+            latestAdvanceBalance
+              ? "established"
+              : input
+                  .paymentEvidenceSubmitted
+                ? "submitted_unparsed"
+                : "not_submitted",
+            latestAdvanceBalance
+              ?.sourceRefs ??
+              [],
+            latestAdvanceBalance
+              ? [
+                  "ADVANCE_BALANCE_FROM_EXPLICIT_PAYMENT_CERTIFICATE_EVIDENCE",
+                ]
+              : [
+                  "ADVANCE_BALANCE_IS_NOT_DERIVED_FROM_ADVANCE_PAYMENT_BOND_VALUE",
+                ],
           ),
         activeBondAmount:
           moneyMetric(
