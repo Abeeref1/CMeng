@@ -74,9 +74,9 @@ details:not(.workspace-drawer){border:1px solid var(--line);border-radius:9px;ba
 .management-attention{display:grid;gap:8px}.management-attention-row{display:flex;justify-content:space-between;gap:12px;padding:11px 12px;border-left:3px solid #b57922;background:#fffaf0;border-radius:7px}.management-attention-row.danger{border-left-color:#b4483e;background:#fff6f5}.management-attention-row b{display:block;font-size:11.5px;color:#344054}.management-attention-row span{display:block;margin-top:3px;font-size:10.5px;color:#667085;line-height:1.35}.management-attention-row strong{flex:0 0 auto;font-size:13px;color:#22364d}.attention-clear{padding:13px;border:1px solid #d7eadf;background:#f4fbf7;border-radius:9px;font-size:11.5px;color:#2c6a4c}
 .management-health-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.integrity-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}.integrity-card{padding:12px;border:1px solid #dce5ef;border-radius:9px;background:#fff}.integrity-card span{display:block;font-size:10.5px;color:#667085}.integrity-card b{display:block;margin-top:4px;font-size:18px;color:#22364d}.integrity-card.danger{border-left:3px solid #b4483e}.integrity-card.warning{border-left:3px solid #b57922}.integrity-card.success{border-left:3px solid #2c7a57}
 .signed-bars{display:grid;gap:7px}.signed-row{display:grid;grid-template-columns:minmax(130px,.8fr) minmax(220px,1.7fr) 86px;gap:10px;align-items:center}.signed-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10.5px;color:#506579}.signed-track{height:14px;position:relative;background:#f3f6f9;border-radius:4px}.signed-zero{position:absolute;left:50%;top:-2px;bottom:-2px;width:1px;background:#98a2b3}.signed-bar{position:absolute;top:2px;height:10px;border-radius:3px;background:#91a0b0}.signed-bar.late{background:#b4483e}.signed-bar.early{background:#2c7a57}.signed-row>b{text-align:right;font-size:10.5px;color:#475467}.late-text{color:#b42318!important}.early-text{color:#067647!important}.date-trend-note{font-size:10.5px;color:#7b8795;margin-top:5px}
-.lookahead-axis,.lookahead-row{display:grid;grid-template-columns:220px minmax(430px,1fr) 92px;gap:10px;align-items:center}.lookahead-weeks{position:relative;height:20px}.lookahead-weeks span{position:absolute;transform:translateX(-50%);font-size:9.5px;color:#7b8795}.lookahead-timeline{display:grid;gap:6px}.lookahead-label{min-width:0}.lookahead-label b{display:block;font-size:10.5px;color:#344054}.lookahead-label span{display:block;font-size:9.5px;color:#7b8795;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.lookahead-track{position:relative;height:17px;border-radius:4px;background:repeating-linear-gradient(90deg,#f5f7fa 0,#f5f7fa calc(16.666% - 1px),#e4e7ec calc(16.666% - 1px),#e4e7ec 16.666%)}.lookahead-bar{position:absolute;top:3px;height:11px;border-radius:4px;background:#4f7fb4;min-width:3px}.lookahead-bar.ready{background:#2c7a57}.lookahead-bar.conditional{background:#b57922}.lookahead-bar.blocked{background:#b4483e}.lookahead-state{font-size:9.5px;text-transform:uppercase;color:#667085}.lookahead-state.ready{color:#067647}.lookahead-state.conditional{color:#b54708}.lookahead-state.blocked{color:#b42318}
+.lookahead-axis,.lookahead-row{display:grid;grid-template-columns:220px minmax(430px,1fr) 92px;gap:10px;align-items:center}.lookahead-weeks{position:relative;height:20px}.lookahead-weeks span{position:absolute;transform:translateX(-50%);font-size:9.5px;color:#7b8795}.lookahead-timeline{display:grid;gap:6px;max-height:620px;overflow-y:auto;padding-right:4px}.lookahead-label{min-width:0}.lookahead-label b{display:block;font-size:10.5px;color:#344054}.lookahead-label span{display:block;font-size:9.5px;color:#7b8795;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.lookahead-track{position:relative;height:17px;border-radius:4px;background:repeating-linear-gradient(90deg,#f5f7fa 0,#f5f7fa calc(16.666% - 1px),#e4e7ec calc(16.666% - 1px),#e4e7ec 16.666%)}.lookahead-bar{position:absolute;top:3px;height:11px;border-radius:4px;background:#4f7fb4;min-width:3px}.lookahead-bar.ready{background:#2c7a57}.lookahead-bar.conditional{background:#b57922}.lookahead-bar.blocked{background:#b4483e}.lookahead-state{font-size:9.5px;text-transform:uppercase;color:#667085}.lookahead-state.ready{color:#067647}.lookahead-state.conditional{color:#b54708}.lookahead-state.blocked{color:#b42318}
 .readiness-cell{display:inline-grid;place-items:center;width:23px;height:23px;border-radius:6px;font-size:11px;font-weight:900}.readiness-cell.ready{background:#ecfdf3;color:#067647}.readiness-cell.blocked{background:#fef3f2;color:#b42318}.readiness-cell.unknown{background:#fffaeb;color:#b54708}.readiness-cell.not_applicable{background:#f2f4f7;color:#667085}
-.milestone-timeline{display:grid;gap:7px}.milestone-row{display:grid;grid-template-columns:235px minmax(430px,1fr) 70px;gap:10px;align-items:center}.milestone-label{min-width:0}.milestone-label b{display:block;font-size:10.5px;color:#344054}.milestone-label span{display:block;font-size:9.5px;color:#7b8795;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.milestone-track{position:relative;height:22px;background:#f6f8fb;border:1px solid #e5eaf0;border-radius:5px}.milestone-point{position:absolute;top:50%;width:11px;height:11px;border-radius:50%;transform:translate(-50%,-50%);border:2px solid #fff;z-index:2}.milestone-point.baseline{background:#68788b}.milestone-point.current{background:#4f7fb4}.milestone-point.actual{background:#2c7a57}.milestone-shift{position:absolute;top:9px;height:3px;background:#9aa7b5}.milestone-shift.late{background:#b4483e}.milestone-dd{position:absolute;top:-4px;bottom:-4px;width:1px;background:#1f2937;opacity:.35}
+.milestone-timeline{display:grid;gap:7px;max-height:680px;overflow-y:auto;padding-right:4px}.milestone-row{display:grid;grid-template-columns:235px minmax(430px,1fr) 70px;gap:10px;align-items:center}.milestone-label{min-width:0}.milestone-label b{display:block;font-size:10.5px;color:#344054}.milestone-label span{display:block;font-size:9.5px;color:#7b8795;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.milestone-track{position:relative;height:22px;background:#f6f8fb;border:1px solid #e5eaf0;border-radius:5px}.milestone-point{position:absolute;top:50%;width:11px;height:11px;border-radius:50%;transform:translate(-50%,-50%);border:2px solid #fff;z-index:2}.milestone-point.baseline{background:#68788b}.milestone-point.current{background:#4f7fb4}.milestone-point.actual{background:#2c7a57}.milestone-shift{position:absolute;top:9px;height:3px;background:#9aa7b5}.milestone-shift.late{background:#b4483e}.milestone-dd{position:absolute;top:-4px;bottom:-4px;width:1px;background:#1f2937;opacity:.35}
 .float-histogram{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;height:230px;align-items:end}.float-bin{height:100%;display:grid;grid-template-rows:1fr auto auto;gap:4px;text-align:center}.float-bar-wrap{display:flex;align-items:flex-end;justify-content:center;border-bottom:1px solid #d0d5dd}.float-bar{width:65%;min-height:2px;background:#b57922;border-radius:5px 5px 0 0}.float-bin b{font-size:11px;color:#344054}.float-bin small{font-size:9.5px;color:#7b8795}
 .empty-visual{padding:28px;text-align:center;color:#7b8795;background:#f8fafc;border:1px dashed #dce5ef;border-radius:9px}.reconciliation-panel{margin-top:14px;border:1px solid #dce5ef;border-radius:12px;background:#fff;overflow:hidden}.reconciliation-panel>summary{list-style:none;display:flex;justify-content:space-between;gap:12px;padding:13px 15px;cursor:pointer;font-size:12px;font-weight:750;color:#344054;background:#fbfdff}.reconciliation-panel>summary::-webkit-details-marker{display:none}.reconciliation-panel>summary b{font-size:10.5px;color:#7b8795}.reconciliation-body{padding:0 0 2px}.reconciliation-body>.challenge-card{border:0!important;border-radius:0!important;margin:0!important;box-shadow:none!important}
 .chart-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid var(--line);background:#faf9f6}.chart-card-head h4{margin:0;font-size:14px}.chart-card-head p{margin:3px 0 0;color:var(--muted);font-size:12px}.chart-body{padding:14px 16px}.svg-chart{width:100%;min-width:620px;height:auto;display:block}.chart-scroll{overflow-x:auto}.chart-legend{display:flex;flex-wrap:wrap;gap:12px;margin:0 0 10px}.legend-item{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:#506579}.legend-dot{width:9px;height:9px;border-radius:50%}.domain-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:11px}.domain-card{border:1px solid var(--line);border-radius:11px;background:#fff;padding:14px}.domain-card h5{margin:0 0 10px;font-size:14px}.domain-metric{display:flex;justify-content:space-between;gap:12px;padding:5px 0;border-bottom:1px solid #edf1f5;font-size:12px;color:#5a687b}.domain-metric:last-child{border-bottom:0}.domain-metric strong{color:#2e3a46;text-align:right}.position-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px}.position-card{border:1px solid #dfe7ef;border-radius:10px;background:#fff;padding:13px}.position-card .position-label{font-size:10.5px;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:.05em}.position-card .position-value{font-size:19px;font-weight:780;margin:5px 0 3px;letter-spacing:-.02em}.position-card .position-sub{font-size:11.5px;color:var(--muted)}.readiness-table td{vertical-align:middle}.state-pill{display:inline-flex;border-radius:999px;padding:4px 7px;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.035em}.state-pill.ready,.state-pill.included{background:#ecfdf3;color:#067647}.state-pill.blocked,.state-pill.excluded{background:#fef3f2;color:#b42318}.state-pill.conditional,.state-pill.review,.state-pill.unknown{background:#fffaeb;color:#b54708}.state-pill.not_applicable{background:#f2f4f7;color:#667085}.window-strip{display:grid;gap:10px}.window-card{display:grid;grid-template-columns:minmax(170px,.55fr) minmax(0,1fr) minmax(180px,.6fr);gap:13px;border:1px solid var(--line);border-radius:10px;padding:13px;background:#fff}.window-id{font-size:13px;font-weight:800}.window-dates{font-size:11.5px;color:var(--muted);margin-top:4px}.movement-value{font-size:22px;font-weight:780;letter-spacing:-.03em}.movement-label{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:750}.event-tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px}.event-tag{font-size:10.5px;border:1px solid #ded8cf;border-radius:999px;padding:3px 6px;background:#fbfdff;color:#506579}.data-section{margin-top:14px;border:1px solid var(--line);border-radius:12px;background:#fff;overflow:hidden}.data-section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid var(--line);background:#fbfdff}.data-section-head h4{margin:0;font-size:14px;letter-spacing:-.01em}.data-section-body{padding:14px 16px}.value-list{display:flex;flex-wrap:wrap;gap:7px}.value-chip{display:inline-flex;padding:6px 9px;border:1px solid #ded8cf;border-radius:8px;background:#fbfdff;font-size:12px;color:#506579}.nested-block{margin-top:12px}.nested-block:first-child{margin-top:0}.nested-title{font-size:12px;font-weight:800;color:#506579;margin:0 0 8px;text-transform:uppercase;letter-spacing:.045em}.cell-details summary{padding:4px 0!important;border:0!important;background:transparent!important}.cell-details pre{max-height:320px}.technical-payload{margin-top:16px}.footer-note{font-size:12px;color:var(--muted);margin-top:22px;padding:0 2px}.muted{color:var(--muted)}
@@ -298,6 +298,16 @@ const groups={
 };
 const names={
 "pmo-analysis":"Management Position","schedule-analytics":"Programme Review","activity-analytics":"Activity Review","resource-utilization":"Resources","lookahead-schedule":"Look-Ahead","progress-report":"Progress Position","schedule-change-report":"Programme Changes","revision-trend":"Revision History","variance-trends":"Variance Trend","progress-scurve":"Progress S-Curve","quantity-scurve":"Installed Quantities","progress-breakdown":"WBS Progress","milestones":"Milestones","near-critical":"Near-Critical Activities","manhour-scurve":"Man-Hour S-Curve","forecast-history":"Completion Forecast History","independent-forecast":"CMeng Completion Forecast","delay-claims":"Delay Events & Claims","notices-claims":"Notices, EOT & Claims","windows-analysis":"Delay Windows","eot-assessment":"EOT Position","challenge-contract":"Challenge the Contract"
+};
+const descriptions={
+"pmo-analysis":"Completion outlook, schedule pressure and decisions requiring management attention.",
+"schedule-analytics":"Programme health, logic quality, float and completion dates.",
+"activity-analytics":"Activities driving delay, float pressure and logic exceptions.",
+"lookahead-schedule":"The next six weeks, readiness blockers and overdue work.",
+"schedule-change-report":"What changed between the latest controlled programme submissions.",
+"revision-trend":"How progress, forecast and schedule pressure have moved over time.",
+"milestones":"Baseline, current and actual milestone commitments and slippage.",
+"near-critical":"Activities at risk of becoming critical and requiring early action."
 };
 let overview=null,selected="pmo-analysis",portfolioData=null,appView="portfolio";
 let scheduleSelection=[],boqSelection=[],contractSelection=[],evidenceSelection=[];
@@ -825,27 +835,54 @@ function planningSignedBars(items,unit){
   }).join("")+'</div>';
 }
 function planningDateTrend(points,series){
-  const usable=points.map((point,index)=>{
-    const out={...point,dateIso:point.dateIso||("R"+(index+1))};
-    series.forEach(s=>{out[s.key+"__n"]=planningDateMs(point[s.key]);});
-    return out;
+  const width=960,height=290,left=112,right=24,top=22,bottom=48;
+  const prepared=points.map((point,index)=>{
+    const result={label:point.dateIso||("Revision "+(index+1)),values:{}};
+    series.forEach(s=>{result.values[s.key]=planningDateMs(point[s.key]);});
+    return result;
   });
   const vals=[];
-  usable.forEach(p=>series.forEach(s=>{const v=p[s.key+"__n"];if(typeof v==="number")vals.push(v)}));
+  prepared.forEach(p=>series.forEach(s=>{const v=p.values[s.key];if(typeof v==="number")vals.push(v)}));
   if(!vals.length)return '<div class="empty-visual">No completion-date trend is available.</div>';
-  const min=Math.min(...vals),max=Math.max(...vals),span=Math.max(86400000,max-min),base=min-span*.1,top=max+span*.1;
-  const normalized=usable.map(p=>{const n={...p};series.forEach(s=>{const v=p[s.key+"__n"];n[s.key]=typeof v==="number"?((v-base)/(top-base))*100:null});return n;});
-  return renderLineChart(normalized,series.map(s=>({key:s.key,label:s.label,color:s.color})),100)+'<div class="date-trend-note">Vertical position represents the forecast date. Higher means a later completion date.</div>';
+  let min=Math.min(...vals),max=Math.max(...vals);
+  if(min===max){min-=14*86400000;max+=14*86400000}
+  const pad=Math.max(7*86400000,(max-min)*.08);min-=pad;max+=pad;
+  const pw=width-left-right,ph=height-top-bottom;
+  const x=i=>left+(prepared.length===1?pw/2:(i/(prepared.length-1))*pw);
+  const y=v=>top+ph-((v-min)/(max-min))*ph;
+  const ticks=[0,.25,.5,.75,1].map(r=>{
+    const ms=min+r*(max-min),yy=y(ms);
+    return '<line x1="'+left+'" y1="'+yy.toFixed(1)+'" x2="'+(width-right)+'" y2="'+yy.toFixed(1)+'" stroke="#e4eaf1"/><text x="'+(left-9)+'" y="'+(yy+4).toFixed(1)+'" text-anchor="end" font-size="10" fill="#75849a">'+escapeHtml(planningShortDate(new Date(ms).toISOString()))+'</text>';
+  }).join("");
+  const paths=series.map(s=>{
+    let segments=[],current=[];
+    prepared.forEach((p,i)=>{
+      const v=p.values[s.key];
+      if(typeof v==="number"){current.push(x(i).toFixed(1)+","+y(v).toFixed(1))}
+      else if(current.length){segments.push(current);current=[]}
+    });
+    if(current.length)segments.push(current);
+    return segments.map(seg=>'<polyline points="'+seg.join(" ")+'" fill="none" stroke="'+s.color+'" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>').join("");
+  }).join("");
+  const pointsSvg=series.map(s=>prepared.map((p,i)=>{
+    const v=p.values[s.key];if(typeof v!=="number")return"";
+    return '<circle cx="'+x(i).toFixed(1)+'" cy="'+y(v).toFixed(1)+'" r="3.5" fill="'+s.color+'"><title>'+escapeHtml(s.label+" · "+planningShortDate(new Date(v).toISOString())+" · "+p.label)+'</title></circle>';
+  }).join("")).join("");
+  const labelIndexes=[0,Math.floor((prepared.length-1)/2),prepared.length-1].filter((v,i,a)=>a.indexOf(v)===i);
+  const labels=labelIndexes.map(i=>'<text x="'+x(i).toFixed(1)+'" y="'+(height-15)+'" text-anchor="'+(i===0?"start":i===prepared.length-1?"end":"middle")+'" font-size="10" fill="#75849a">'+escapeHtml(prepared[i].label)+'</text>').join("");
+  const legend='<div class="chart-legend">'+series.map(s=>'<span class="legend-item"><span class="legend-dot" style="background:'+s.color+'"></span>'+escapeHtml(s.label)+'</span>').join("")+'</div>';
+  return legend+'<div class="chart-scroll"><svg class="svg-chart" viewBox="0 0 '+width+' '+height+'">'+ticks+paths+pointsSvg+labels+'</svg></div>';
 }
 function planningActivityPressure(rows){
   const candidates=rows.filter(r=>typeof r.finishVarianceDays==="number"&&typeof r.totalFloatHours==="number");
   if(!candidates.length)return '<div class="empty-visual">Finish variance and float are not both available for enough activities.</div>';
   const sorted=[...candidates].sort((a,b)=>(Math.abs(b.finishVarianceDays)+(b.totalFloatHours<0?40:0))-(Math.abs(a.finishVarianceDays)+(a.totalFloatHours<0?40:0))).slice(0,500);
-  const xs=sorted.map(r=>r.finishVarianceDays),ys=sorted.map(r=>r.totalFloatHours);
-  const xmin=Math.min(0,...xs),xmax=Math.max(0,...xs),ymin=Math.min(0,...ys),ymax=Math.max(0,...ys);
+  const xs=sorted.map(r=>r.finishVarianceDays).sort((a,b)=>a-b),ys=sorted.map(r=>r.totalFloatHours).sort((a,b)=>a-b);
+  const q=(arr,p)=>arr[Math.max(0,Math.min(arr.length-1,Math.floor((arr.length-1)*p)))];
+  const xmin=Math.min(0,q(xs,.02)),xmax=Math.max(0,q(xs,.98)),ymin=Math.min(0,q(ys,.02)),ymax=Math.max(0,q(ys,.98));
   const width=960,height=330,left=58,right=24,top=22,bottom=44,pw=width-left-right,ph=height-top-bottom;
-  const x=v=>left+((v-xmin)/(Math.max(1e-9,xmax-xmin)))*pw;
-  const y=v=>top+ph-((v-ymin)/(Math.max(1e-9,ymax-ymin)))*ph;
+  const x=v=>left+((Math.max(xmin,Math.min(xmax,v))-xmin)/(Math.max(1e-9,xmax-xmin)))*pw;
+  const y=v=>top+ph-((Math.max(ymin,Math.min(ymax,v))-ymin)/(Math.max(1e-9,ymax-ymin)))*ph;
   const x0=x(0),y0=y(0);
   const points=sorted.map(r=>{
     const tone=r.criticality==="critical"?"#b4483e":r.criticality==="near_critical"?"#b57922":"#4f7fb4";
@@ -1238,6 +1275,7 @@ function renderStructuredSections(data){
 function renderModuleResult(result){
   const moduleName=names[result.key]||result.key;
   el("moduleTitle").textContent=moduleName;
+  el("moduleSubtitle").textContent=descriptions[result.key]||"Current position, key changes and actions requiring attention.";
   el("topbarModule").textContent=moduleName;
   el("moduleBadge").className="badge "+statusClass(result.status);
   el("moduleBadge").textContent=statusLabel(result.status);
@@ -1252,10 +1290,10 @@ function renderModuleResult(result){
   const challengeHtml=challengeBody?'<details class="reconciliation-panel" '+(data.challenge?.challengedCount?'open':'')+'><summary><span>Reconciliation with submitted position</span><b>'+(data.challenge?.challengedCount?escapeHtml(data.challenge.challengedCount)+' needs attention':'No material difference')+'</b></summary><div class="reconciliation-body">'+challengeBody+'</div></details>':'';
   const specialized=renderSpecializedModule(result.key,data);
   const scalars=scalarPairs(data).filter(([k])=>k!=="challenge").map(([k,v])=>'<div class="scalar"><b>'+escapeHtml(humanizeKey(k))+'</b><span>'+escapeHtml(fmt(v))+'</span></div>').join("");
-  const structured=renderStructuredSections(data);
+  const structured=specialized?"":renderStructuredSections(data);
   const genericView=(scalars?'<div class="scalar-grid">'+scalars+'</div>':'')+structured;
   const primaryView=specialized||genericView;
-  const evidenceDetail=specialized&&structured?'<details class="technical-payload"><summary>More detail</summary><div style="padding:0 12px 12px">'+structured+'</div></details>':'';
+  const evidenceDetail="";
   const generated=data.challenge?.generatedAt||findProjectionRoot(data)?.generatedAt||data.generatedAt||null;
   const viewState='<div class="view-state-bar"><span class="'+(result.status==="ready"?"view-state-complete":"view-state-review")+'">'+(result.status==="ready"?"Updated":"Updated · review needed")+'</span><strong>'+escapeHtml(moduleName)+'</strong>'+(generated?'<span>Updated '+escapeHtml(formatDocumentTime(generated))+'</span>':'')+'<span>Current position and the items that need attention are shown below.</span></div>';
   el("directorDrawer").open=false;
@@ -1267,6 +1305,7 @@ async function loadModule(key){
   const moduleName=names[key]||key;
   const requestSeq=++moduleRequestSeq;
   el("moduleTitle").textContent=moduleName;
+  el("moduleSubtitle").textContent=descriptions[key]||"Current position, key changes and actions requiring attention.";
   el("topbarModule").textContent=moduleName;
   el("moduleBadge").className="badge";
   el("moduleBadge").textContent="Updating";
