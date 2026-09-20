@@ -1005,15 +1005,54 @@ function buildBundle(
         config: scheduleAnalysisConfig,
       },
     );
+  const nearCriticalBase = {
+    ...nearCriticalRaw,
+    sourceReportedFloatRiskWatchlistCount:
+      scheduleControlBasis.sourceReportedFloatRiskWatchlistCount,
+    sourceReportedLabel:
+      scheduleControlBasis.sourceReportedFloatRiskWatchlistCount !== null
+        ? "Near Critical"
+        : null,
+    reconciliation: {
+      strictNearCriticalCount:
+        nearCriticalRaw.nearCriticalCount,
+      floatRiskWatchlistCount:
+        nearCriticalRaw.floatRiskWatchlistCount,
+      sourceReportedCount:
+        scheduleControlBasis.sourceReportedFloatRiskWatchlistCount,
+      gap:
+        scheduleControlBasis.sourceReportedFloatRiskWatchlistCount === null
+          ? null
+          : nearCriticalRaw.floatRiskWatchlistCount -
+            scheduleControlBasis.sourceReportedFloatRiskWatchlistCount,
+      status:
+        scheduleControlBasis.sourceReportedFloatRiskWatchlistCount === null
+          ? "source_not_reported"
+          : nearCriticalRaw.floatRiskWatchlistCount ===
+              scheduleControlBasis.sourceReportedFloatRiskWatchlistCount
+            ? "reconciled"
+            : "difference",
+    },
+    definitions: {
+      critical:
+        "TF <= governed critical float threshold",
+      nearCritical:
+        "governed critical threshold < TF <= N activity-calendar working days",
+      floatRiskWatchlist:
+        scheduleAnalysisConfig.floatRiskWatchlistIncludesCriticalThreshold
+          ? "governed critical threshold <= TF <= N activity-calendar working days"
+          : "governed critical threshold < TF <= N activity-calendar working days",
+    },
+  };
   const nearCritical =
     controlledBaseline
       ? {
-          ...nearCriticalRaw,
+          ...nearCriticalBase,
           controlledBaselineRevisionId:
             controlledBaseline
               .revision.revisionId,
           rows:
-            nearCriticalRaw.rows.map(
+            nearCriticalBase.rows.map(
               (row) => {
                 const baseline =
                   baselineByActivity.get(
@@ -1031,7 +1070,7 @@ function buildBundle(
               },
             ),
         }
-      : nearCriticalRaw;
+      : nearCriticalBase;
   modules.set(
     "near-critical",
     available(
@@ -3658,7 +3697,7 @@ function buildPlanningModuleFast(
                   )
                 : null,
             rows:
-              raw.rows.map(
+              nearCriticalBase.rows.map(
                 (row) => {
                   const baseline =
                     baselineByActivity.get(
@@ -3788,7 +3827,7 @@ function buildPlanningModuleFast(
                 },
               ),
           }
-        : raw;
+        : nearCriticalBase;
     modules.set(
       key,
       available(
@@ -3809,10 +3848,49 @@ function buildPlanningModuleFast(
           config: scheduleAnalysisConfig,
         },
       );
+    const nearCriticalBase = {
+      ...raw,
+      sourceReportedFloatRiskWatchlistCount:
+        scheduleControlBasis.sourceReportedFloatRiskWatchlistCount,
+      sourceReportedLabel:
+        scheduleControlBasis.sourceReportedFloatRiskWatchlistCount !== null
+          ? "Near Critical"
+          : null,
+      reconciliation: {
+        strictNearCriticalCount:
+          raw.nearCriticalCount,
+        floatRiskWatchlistCount:
+          raw.floatRiskWatchlistCount,
+        sourceReportedCount:
+          scheduleControlBasis.sourceReportedFloatRiskWatchlistCount,
+        gap:
+          scheduleControlBasis.sourceReportedFloatRiskWatchlistCount === null
+            ? null
+            : raw.floatRiskWatchlistCount -
+              scheduleControlBasis.sourceReportedFloatRiskWatchlistCount,
+        status:
+          scheduleControlBasis.sourceReportedFloatRiskWatchlistCount === null
+            ? "source_not_reported"
+            : raw.floatRiskWatchlistCount ===
+                scheduleControlBasis.sourceReportedFloatRiskWatchlistCount
+              ? "reconciled"
+              : "difference",
+      },
+      definitions: {
+        critical:
+          "TF <= governed critical float threshold",
+        nearCritical:
+          "governed critical threshold < TF <= N activity-calendar working days",
+        floatRiskWatchlist:
+          scheduleAnalysisConfig.floatRiskWatchlistIncludesCriticalThreshold
+            ? "governed critical threshold <= TF <= N activity-calendar working days"
+            : "governed critical threshold < TF <= N activity-calendar working days",
+      },
+    };
     const nearCritical =
       controlledBaseline
         ? {
-            ...raw,
+            ...nearCriticalBase,
             controlledBaselineRevisionId:
               controlledBaseline
                 .revision
