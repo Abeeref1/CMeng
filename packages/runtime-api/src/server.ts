@@ -2472,6 +2472,81 @@ async function route(
 
 
 
+export function createCmengServer(): Server {
+  return createServer((req, res) => {
+    void route(req, res).catch((error) => {
+      const uploadId =
+        header(
+          req,
+          "x-upload-id",
+        );
+      const progressMatch =
+        /^\/api\/projects\/([^/]+)\/evidence\/uploads$/.exec(
+          new URL(
+            req.url ?? "/",
+            `http://${req.headers.host ?? "localhost"}`,
+          ).pathname,
+        );
+      if (
+        uploadId &&
+        progressMatch
+      ) {
+        const projectId =
+          decodeURIComponent(
+            progressMatch[1]!,
+          );
+        setEvidenceUploadProgress(
+          projectId,
+          uploadId,
+          {
+            state: "failed",
+            percent:
+              evidenceUploadProgress
+                .get(
+                  evidenceUploadProgressKey(
+                    projectId,
+                    uploadId,
+                  ),
+                )
+                ?.percent ??
+              0,
+            completedAt:
+              new Date()
+                .toISOString(),
+            message:
+              error instanceof Error
+                ? error.message
+                : String(error),
+          },
+        );
+      }
+
+      const statusCode =
+        typeof error === "object" &&
+        error !== null &&
+        "statusCode" in error &&
+        typeof (
+          error as {
+            statusCode?: unknown;
+          }
+        ).statusCode === "number"
+          ? (
+              error as {
+                statusCode: number;
+              }
+            ).statusCode
+          : 400;
+
+      json(res, statusCode, {
+        error:
+          error instanceof Error
+            ? error.message
+            : String(error),
+      });
+    });
+  });
+}
+
 if (require.main === module) {
   const server = createCmengServer();
   server.listen(port, host, () => {
