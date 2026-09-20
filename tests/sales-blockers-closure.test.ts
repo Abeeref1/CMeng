@@ -255,6 +255,13 @@ test("P1-1 project control basis applies 0..+5 working days per activity calenda
       ?.nearCriticalThresholdHours,
     50,
   );
+  assert.deepEqual(
+    projection.watchlistRows.map((row) => row.activityId),
+    ["A0", "A10"],
+  );
+  assert.equal(projection.nearCriticalCount, 1);
+  assert.equal(projection.floatRiskWatchlistCount, 2);
+  assert.equal(projection.zeroFloatCount, 1);
 });
 
 test("P1-1 includes legacy SCH02 control evidence by verified source identity", (t) => {
@@ -279,7 +286,7 @@ test("P1-1 includes legacy SCH02 control evidence by verified source identity", 
   );
 });
 
-test("P1-1 governed watchlist count overrides a generic hour-equivalent threshold when it proves one working-day rule", (t) => {
+test("P1-1 source watchlist count never overrides an explicit project threshold and reconciles separately", (t) => {
   const dir = mkdtempSync(join(tmpdir(), "cmeng-p1-1-count-over-hours-"));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const source = storedDocument(
@@ -299,13 +306,9 @@ test("P1-1 governed watchlist count overrides a generic hour-equivalent threshol
   assert.equal(basis.state, "official");
   assert.equal(basis.nearCriticalExplicitHours, 40);
   assert.equal(basis.nearCriticalSourceCount, 1);
-  assert.equal(basis.nearCriticalWorkingDays, 5);
-  assert.equal(basis.nearCriticalThresholdMethod, "source_count_reconciliation");
-  assert.ok(
-    basis.diagnostics.includes(
-      "SOURCE_COUNT_WORKING_DAY_RECONCILIATION_TAKES_PRECEDENCE_OVER_GENERIC_HOUR_EQUIVALENT",
-    ),
-  );
+  assert.equal(basis.nearCriticalWorkingDays, null);
+  assert.equal(basis.nearCriticalThresholdMethod, "explicit_hours");
+  assert.equal(basis.sourceCountReconcilesTo, "float_risk_watchlist");
 });
 
 test("P1-2 and P1-3 keep programme Data Date and four forecast positions source-distinct", (t) => {
@@ -382,8 +385,9 @@ test("generic metric/value/unit/source register resolves governed near-critical,
 
   const basis = projectScheduleControlBasis(state);
   assert.equal(basis.nearCriticalSourceCount, 1);
-  assert.equal(basis.nearCriticalWorkingDays, 5);
-  assert.equal(basis.nearCriticalThresholdMethod, "source_count_reconciliation");
+  assert.equal(basis.nearCriticalWorkingDays, null);
+  assert.equal(basis.nearCriticalThresholdMethod, "explicit_hours");
+  assert.equal(basis.sourceCountReconcilesTo, "float_risk_watchlist");
 
   const productivity = sourceProductivityForecastEvidence(state);
   assert.equal(productivity.completionIso, "2030-08-15");
