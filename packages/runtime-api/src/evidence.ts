@@ -73,7 +73,7 @@ export function inferEvidenceCategory(
     /schedule|baseline|recovery/.test(value) ||
     (/update/.test(value) && /\.(xer|xml|xlsx|xlsm|csv)$/.test(value))
   ) return "schedule";
-  if (/risk|claim|procurement/.test(value)) return "risk_claims_procurement";
+  if (/risk|claim|procurement|bond|guarantee|security/.test(value)) return "risk_claims_procurement";
   if (/rfi|submittal|design/.test(value)) return "engineering";
   if (/hse|ncr|asset|fm/.test(value)) return "hse_quality_fm";
   if (/commission|orat|tender|employer.*requirement/.test(value)) return "tender_commissioning";
@@ -114,8 +114,10 @@ export function inferDocumentType(
   if (/^wbs/.test(name)) return "wbs_dictionary";
   if (/^b01_|original[_ -]?boq/.test(name)) return "boq";
   if (/^cost/.test(name)) return "cost_evm_report";
-  if (/^pay/.test(name)) return "payment_certificates";
-  if (/^var/.test(name)) return "variation_register";
+  if (/^pay|payment[_ -]?certificate|ipc[_ -]?register/.test(name)) return "payment_certificates";
+  if (/^var|variation[_ -]?register|change[_ -]?register/.test(name)) return "variation_register";
+  if (/^ret|retention[_ -]?register/.test(name)) return "retention_register";
+  if (/^bond|^sec|bond[_ -]?register|security[_ -]?register|guarantee[_ -]?register/.test(name)) return "bond_register";
   if (/^cl/.test(name)) return "delay_eot_claims_register";
   if (/^p0?1_.*procurement|procurement/.test(name)) return "procurement_register";
   if (/^r0?1_.*risk|risk[_ -]?register/.test(name)) return "risk_register";
