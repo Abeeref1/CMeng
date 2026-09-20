@@ -173,6 +173,36 @@ test('currency inheritance requires an explicit applicable contract statement an
   const {state,csvDoc}=fixture(t);csvDoc('Certificate No,Period End,Net Certified,VAT Basis\nIPC1,2026-08-31,1000,Exclusive','payment_certificates');assert.equal(commercialCanonical(state).payments[0]!.amounts.netCertifiedAmount.currency,null);
   amendment(state);const p=commercialCanonical(state).payments[0]!;assert.equal(p.amounts.netCertifiedAmount.currency,'AED');assert.ok(p.amounts.netCertifiedAmount.receipts.some(r=>r.documentId==='AMD'&&r.locator==='page:2'));
 });
+test('legacy SCH01 reference state migrates once to governed active basis without changing source bytes',t=>{
+  const {store,state,csvDoc,dir}=fixture(t);
+  const doc=csvDoc(
+    'Critical Definition,Near-Critical Definition,Data Date\nTF <= 0 hours,0 < TF <= +5 working days,2026-08-31',
+    'schedule_control_basis',
+    'historical',
+  );
+  doc.familyKey='schedule_control:schedule_control_basis';
+  doc.logicalDocumentKey='schedule_control:schedule_control_basis:'+doc.sourceFilename;
+  state.activeEvidenceBasis={};
+  state.sourceIntegrationVersion='canonical-source-v2';
+  const hash=doc.sourceHashSha256;
+  store.touch(state);
+
+  const restored=new RuntimeProjectStore({dataDir:dir,durable:false}).get('CANONICAL')!;
+  const restoredDoc=restored.evidenceDocuments.find(d=>d.documentId===doc.documentId)!;
+  assert.equal(restored.sourceIntegrationVersion,'canonical-source-v3');
+  assert.equal(restoredDoc.basisState,'active');
+  assert.equal(restoredDoc.sourceHashSha256,hash);
+  assert.equal(restored.activeEvidenceBasis['schedule_control:schedule_control_basis']?.activeDocumentId,doc.documentId);
+  assert.ok(restoredDoc.diagnostics.includes('SCHEDULE_CONTROL_BASIS_GOVERNANCE_MIGRATION_V3'));
+  const basis=projectScheduleControlBasis(restored);
+  assert.equal(basis.state,'official');
+  assert.equal(basis.nearCriticalWorkingDays,5);
+
+  const version=restored.version;
+  const again=new RuntimeProjectStore({dataDir:dir,durable:false}).get('CANONICAL')!;
+  assert.equal(again.version,version);
+  assert.equal(again.evidenceDocuments.find(d=>d.documentId===doc.documentId)?.basisState,'active');
+});
 test('legacy typed-family migration is audited, durable and does not modify source hashes',t=>{
   const {store,state,csvDoc,dir}=fixture(t);const a=csvDoc(master),b=csvDoc(weekly,'resource_register','candidate');for(const d of [a,b]){d.familyKey='schedule_control:resource_register';d.logicalDocumentKey=d.familyKey;}state.activeEvidenceBasis[a.familyKey]={familyKey:a.familyKey,activeDocumentId:a.documentId,activeArtifactId:null,behavior:'snapshot',updatedAt:stamp,reason:'legacy',previousDocumentIds:[]};
   const hashes=state.evidenceDocuments.map(d=>d.sourceHashSha256);store.touch(state);const restored=new RuntimeProjectStore({dataDir:dir,durable:false}).get('CANONICAL')!;
