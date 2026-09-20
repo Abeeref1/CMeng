@@ -1727,7 +1727,41 @@ function renderAiSuggestions(){
   el("aiSuggestions").innerHTML=qs.map(q=>'<button class="ai-suggestion">'+escapeHtml(q)+'</button>').join("");
   document.querySelectorAll(".ai-suggestion").forEach(b=>b.onclick=()=>{el("aiQuestion").value=b.textContent;askCmeng()});
 }
-async function refresh(bootstrapDemo=true){setBusy("Refreshing project");try{overview=await api("/api/projects/"+encodeURIComponent(project())+"/overview");renderStatus(overview);updateActiveProjectShell();renderNav();let director=null;try{director=await api("/api/projects/"+encodeURIComponent(project())+"/director-position")}catch{}renderDirector(director);await loadEvidence();await loadModule(selected);localStorage.setItem("cmeng-project",project())}catch(e){if(bootstrapDemo&&e.status===404&&project()==="UAT-DEMO"){try{await api("/api/projects/UAT-DEMO/demo",{method:"POST"});return await refresh(false)}catch{}}overview=null;updateActiveProjectShell();renderNav();renderDirector(null);el("projectStatus").innerHTML='<div class="notice warn">Open or create a project, then add project documents.</div>';el("projectBadge").className="badge blocked";el("projectBadge").textContent="NO PROJECT";await loadEvidence()}finally{setBusy("")}}
+async function refresh(bootstrapDemo=true){
+  setBusy("Refreshing project");
+  const projectId=project();
+  try{
+    const loadedOverview=await api("/api/projects/"+encodeURIComponent(projectId)+"/overview");
+    overview=loadedOverview;
+    localStorage.setItem("cmeng-project",projectId);
+    try{renderStatus(overview)}catch{}
+    updateActiveProjectShell();
+    renderNav();
+
+    let director=null;
+    try{director=await api("/api/projects/"+encodeURIComponent(projectId)+"/director-position")}catch{}
+    try{renderDirector(director)}catch{}
+
+    await Promise.allSettled([
+      loadModule(selected),
+      loadEvidence()
+    ]);
+  }catch(e){
+    if(bootstrapDemo&&e.status===404&&projectId==="UAT-DEMO"){
+      try{await api("/api/projects/UAT-DEMO/demo",{method:"POST"});return await refresh(false)}catch{}
+    }
+    overview=null;
+    updateActiveProjectShell();
+    renderNav();
+    try{renderDirector(null)}catch{}
+    el("projectStatus").innerHTML='<div class="notice warn">Open or create a project, then add project documents.</div>';
+    el("projectBadge").className="badge blocked";
+    el("projectBadge").textContent="NO PROJECT";
+    try{await loadEvidence()}catch{}
+  }finally{
+    setBusy("");
+  }
+}
 async function loadDemo(){setBusy("Loading demonstration project");try{el("projectId").value="UAT-DEMO";localStorage.setItem("cmeng-project","UAT-DEMO");await api("/api/projects/UAT-DEMO/demo",{method:"POST"});selected="pmo-analysis";await refresh(false);el("uploadMessage").innerHTML='<div class="notice info">Demonstration project loaded. Your own projects are not changed.</div>'}catch(e){el("uploadMessage").innerHTML='<div class="notice error">'+escapeHtml(e.message)+'</div>'}finally{setBusy("")}}
 async function uploadSchedules(){if(!scheduleSelection.length)return;setBusy("Adding programme revisions");const roles=[...document.querySelectorAll(".schedule-role")].reduce((a,s)=>{a[Number(s.dataset.index)]=s.value;return a},{});const results=[];try{for(let i=0;i<scheduleSelection.length;i+=1){const file=scheduleSelection[i];const headers={"content-type":fileType(file),"x-source-filename":file.name,"x-source-relative-path":file.name,"x-evidence-category":"schedule","x-upload-intent":el("scheduleIntent").value,"x-schedule-role":roles[i]||inferScheduleRole(file.name)};results.push(await api("/api/projects/"+encodeURIComponent(project())+"/evidence/uploads",{method:"POST",headers,body:file}))}el("uploadMessage").innerHTML='<div class="notice info">'+results.length+'  programme revision(s) added. Baselines and updates remain in the project history; recovery programmes remain separate.</div>';scheduleSelection=[];el("scheduleFiles").value="";renderScheduleQueue();await afterEvidenceChange()}catch(e){el("uploadMessage").innerHTML='<div class="notice error">'+escapeHtml(e.message)+'</div>'}finally{setBusy("")}}
 async function uploadBoqs(){if(!boqSelection.length)return;setBusy("Adding BOQ revisions");let count=0;try{for(const file of boqSelection){await api("/api/projects/"+encodeURIComponent(project())+"/evidence/uploads",{method:"POST",headers:{"content-type":fileType(file),"x-source-filename":file.name,"x-source-relative-path":file.name,"x-evidence-category":"boq_cost","x-document-type":"boq","x-upload-intent":el("boqIntent").value},body:file});count+=1}el("uploadMessage").innerHTML='<div class="notice info">'+count+'  BOQ revision(s) added and retained.</div>';boqSelection=[];el("boqFiles").value="";renderSimpleQueue("boqQueue",boqSelection,"boq");await afterEvidenceChange()}catch(e){el("uploadMessage").innerHTML='<div class="notice error">'+escapeHtml(e.message)+'</div>'}finally{setBusy("")}}
