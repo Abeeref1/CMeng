@@ -68,6 +68,66 @@ test("CMeng workspace keeps the active module primary and browser script parseab
     "every project-control page must expose the governed review-lens selector",
   );
   for (
+    const commercialGroup of [
+      "Commercial Foundation",
+      "Commercial Control",
+      "Commercial Assurance",
+      "Commercial Governance",
+    ]
+  ) {
+    assert.equal(
+      html.includes(commercialGroup),
+      true,
+      "Commercial workspace must expose group: " +
+        commercialGroup,
+    );
+  }
+  for (
+    const commercialModule of [
+      "Commercial Terms",
+      "Contract Amendments",
+      "Cost Register",
+      "Payment Register (IPC)",
+      "CBS Breakdown",
+      "Cost Control",
+      "EVM Curves & Performance",
+      "Cash Flow Register",
+      "Cost S-Curve",
+      "Variations",
+      "Contract Obligations",
+      "Liquidated Damages",
+      "Final Account / Closeout",
+      "Commitment Tracking",
+      "Accruals",
+      "Multi-Currency",
+      "Cost Audit Trail",
+      "Reconciliation Report",
+      "Cost Position",
+    ]
+  ) {
+    assert.equal(
+      html.includes(commercialModule),
+      true,
+      "Commercial workspace must expose: " +
+        commercialModule,
+    );
+  }
+  assert.match(
+    html,
+    /commercialModuleKeys\.has\(key\).*commercial.*schedule/s,
+    "Commercial views must use the dedicated Commercial API rather than the schedule endpoint",
+  );
+  assert.match(
+    html,
+    /id="sourceTracePanel"/,
+    "every calculated page must expose a calculation and evidence trace panel",
+  );
+  assert.match(
+    html,
+    /openCurrentSourceTrace/,
+    "management KPIs must open the calculation/source trace",
+  );
+  for (
     const roleView of [
       "Overall Detailed",
       "Planning Engineer",
