@@ -84,7 +84,7 @@ export interface PmoAnalysisProjection {
     observedPositiveMovementDays: number;
     observedProgrammeMovementDays: number;
     analyticalTimeImpactCandidateDays:
-      number;
+      number | null;
     attributableCandidateEotDays:
       number | null;
     unattributedTimeImpactDays:
