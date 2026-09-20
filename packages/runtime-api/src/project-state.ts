@@ -17,6 +17,9 @@ import {
   type BoqIngestionResult,
 } from "../../boq-ingestion/src";
 import {
+  emptyCommercialRuntimeState,
+} from "../../commercial-core/src";
+import {
   extractContractNoticeRequirements,
   extractContractTimeBasis,
 } from "../../contract-commercial/src";
@@ -936,6 +939,9 @@ function hydrateProject(
           ? [legacy.boq]
           : []
       ),
+    commercial:
+      legacy.commercial ??
+      emptyCommercialRuntimeState(),
     contractDocuments:
       legacy.contractDocuments ??
       [],
@@ -1494,6 +1500,8 @@ export class RuntimeProjectStore {
         boqRevisions: [],
         quantities: null,
         contract: null,
+        commercial:
+          emptyCommercialRuntimeState(),
         contractDocuments: [],
         contractFamily: null,
         submittedManpowerPlan:
