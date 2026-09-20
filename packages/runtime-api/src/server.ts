@@ -2434,5 +2434,49 @@ if (require.main === module) {
     process.stdout.write(
       `CMeng runtime listening on ${host}:${port}\n`,
     );
+    if (
+      runtimeProjects.get(
+        "ORBIT-JED-PLH-P3",
+      )
+    ) {
+      const overviewStarted =
+        Date.now();
+      overviewForProject(
+        "ORBIT-JED-PLH-P3",
+      );
+      const overviewMs =
+        Date.now() -
+        overviewStarted;
+
+      const activityStarted =
+        Date.now();
+      moduleForProject(
+        "ORBIT-JED-PLH-P3",
+        "activity-analytics",
+      );
+      const activityMs =
+        Date.now() -
+        activityStarted;
+
+      const pmoStarted =
+        Date.now();
+      moduleForProject(
+        "ORBIT-JED-PLH-P3",
+        "pmo-analysis",
+      );
+      const pmoMs =
+        Date.now() -
+        pmoStarted;
+
+      process.stdout.write(
+        "CMENG_PLANNING_PERF " +
+          JSON.stringify({
+            overviewMs,
+            activityMs,
+            pmoMs,
+          }) +
+          "\n",
+      );
+    }
   });
 }
