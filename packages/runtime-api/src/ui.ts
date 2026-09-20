@@ -801,7 +801,7 @@ function renderWindowsVisual(data){
   const p=projectionFor(data,"windows_analysis");
   if(!Array.isArray(p.windows))return"";
   const labels=p.revisionLabels||{};
-  const bars=p.windows.map(w=>({label:"Window "+w.sequence,value:w.sourceForecastMovementDays??w.scheduleBoundaryMovementDays??0,tone:(w.sourceForecastMovementDays??w.scheduleBoundaryMovementDays??0)>0?"danger":"success"}));
+  const bars=p.windows.map(w=>{const value=w.sourceForecastMovementDays??w.scheduleBoundaryMovementDays??null;return {label:"Window "+w.sequence,value,tone:value===null?"neutral":value>0?"danger":value<0?"success":"neutral"}});
   const cards=p.windows.map(w=>{
     const sourceMove=w.sourceForecastMovementDays??w.scheduleBoundaryMovementDays;
     const independent=w.independentForecastMovementDays;
@@ -1485,7 +1485,7 @@ function renderProgressBreakdownVisual(data){
   const p=projectionFor(data,"progress_breakdown");
   if(!Array.isArray(p.rows))return"";
   const ranked=[...p.rows].sort((a,b)=>(b.activityCount||0)-(a.activityCount||0)).slice(0,15);
-  const progressBars=ranked.map(r=>({label:(r.wbsName||r.wbsId),value:typeof r.durationWeightedProgressPercent==="number"?r.durationWeightedProgressPercent:0,tone:(r.negativeFloatCount||0)>0?"warning":"accent"}));
+  const progressBars=ranked.map(r=>({label:(r.wbsName||r.wbsId),value:typeof r.durationWeightedProgressPercent==="number"?r.durationWeightedProgressPercent:null,tone:(r.negativeFloatCount||0)>0?"warning":"accent"})).filter(r=>r.value!==null);
   const rows=p.rows.map(r=>'<tr><td><b>'+escapeHtml(r.wbsId)+'</b><br><span class="muted">'+escapeHtml(r.wbsName||"")+'</span></td><td>'+escapeHtml(r.activityCount)+'</td><td>'+escapeHtml(r.completedCount)+'</td><td>'+escapeHtml(r.inProgressCount)+'</td><td>'+escapeHtml(r.notStartedCount)+'</td><td>'+escapeHtml(r.durationWeightedProgressPercent===null?"—":fmt(r.durationWeightedProgressPercent)+"%")+'</td><td>'+escapeHtml(r.durationWeightedCoveragePercent===null?"—":fmt(r.durationWeightedCoveragePercent)+"%")+'</td><td>'+escapeHtml(r.criticalCount)+'</td><td>'+escapeHtml(r.nearCriticalCount)+'</td><td>'+escapeHtml(r.negativeFloatCount)+'</td></tr>').join("");
   return '<section class="planning-view wbs-view">'+planningKpis([
     ["Activities",p.totalActivityCount,"current programme"],
@@ -1707,12 +1707,7 @@ function userFacingModuleReason(key,reason){
     "near-critical":"The near-critical watchlist is based on the submitted programme float while the independent path check is still under review.",
     "revision-trend":"Only one controlled programme revision is available, so movement over time cannot yet be compared.",
     "schedule-change-report":"A second controlled programme revision is needed before CMeng can compare programme changes.",
-    "forecast-history":"Only one controlled forecast point is available, so a trend cannot yet be shown.",
-    "independent-forecast":"Some schedule information still needs review before the independent finish-date forecast can be used for management decisions.",
-    "windows-analysis":"More than one controlled programme revision is needed for a reliable delay-window comparison.",
-    "delay-claims":"Delay and claim information is incomplete. CMeng shows only the position supported by the current records.",
-    "notices-claims":"No complete contractor notice/claim position was found. Missing records are kept separate from zero.",
-    "eot-assessment":"The current schedule movement is visible, but the contractual time basis is incomplete for a full EOT assessment."
+    "forecast-history":"Only one controlled forecast point is available, so a trend cannot yet be shown."
   };
   return messages[key]||String(reason)
     .replace(/independent CPM/gi,"independent path check")
