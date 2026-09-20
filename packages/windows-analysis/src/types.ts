@@ -9,6 +9,7 @@ export type WindowAnalysisState =
   | "unresolved";
 
 export type ProgrammeMovementBasis =
+  | "source_window_register"
   | "independent_cpm"
   | "source_forecast"
   | "source_schedule_boundary"
@@ -43,6 +44,10 @@ export interface ScheduleWindowResult {
   fromScheduleBoundaryIso: string | null;
   toScheduleBoundaryIso: string | null;
   scheduleBoundaryMovementDays: number | null;
+
+  /** Governed source window-register movement, when explicitly provided. */
+  sourceWindowIds: string[];
+  sourceWindowMovementDays: number | null;
 
   strongestProgrammeMovementDays: number | null;
   strongestProgrammeMovementBasis:
