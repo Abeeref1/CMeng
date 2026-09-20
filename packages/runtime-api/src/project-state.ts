@@ -99,6 +99,197 @@ import {
   rebuildDerivedControls,
 } from "./evidence-control-adapters";
 
+function completionDateFromText(
+  text: string,
+): string | null {
+  if (
+    !/(?:revised\s+)?(?:date\s+for\s+)?completion|time\s+for\s+completion/i.test(
+      text,
+    )
+  ) {
+    return null;
+  }
+
+  const isoMatch =
+    /\b(20\d{2})[-\/.](0?[1-9]|1[0-2])[-\/.](0?[1-9]|[12]\d|3[01])\b/.exec(
+      text,
+    );
+  if (isoMatch) {
+    const [, year, month, day] =
+      isoMatch;
+    return [
+      year,
+      month!.padStart(2, "0"),
+      day!.padStart(2, "0"),
+    ].join("-");
+  }
+
+  const dayMonthYear =
+    /\b(0?[1-9]|[12]\d|3[01])\s+(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+(20\d{2})\b/i.exec(
+      text,
+    );
+  if (dayMonthYear) {
+    const parsed = Date.parse(
+      dayMonthYear[0],
+    );
+    if (Number.isFinite(parsed)) {
+      return new Date(parsed)
+        .toISOString()
+        .slice(0, 10);
+    }
+  }
+
+  const monthDayYear =
+    /\b(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+(0?[1-9]|[12]\d|3[01]),?\s+(20\d{2})\b/i.exec(
+      text,
+    );
+  if (monthDayYear) {
+    const parsed = Date.parse(
+      monthDayYear[0],
+    );
+    if (Number.isFinite(parsed)) {
+      return new Date(parsed)
+        .toISOString()
+        .slice(0, 10);
+    }
+  }
+
+  const numeric =
+    /\b(0?[1-9]|[12]\d|3[01])[\/-](0?[1-9]|1[0-2])[\/-](20\d{2})\b/.exec(
+      text,
+    );
+  if (numeric) {
+    const [, day, month, year] =
+      numeric;
+    return [
+      year,
+      month!.padStart(2, "0"),
+      day!.padStart(2, "0"),
+    ].join("-");
+  }
+
+  return null;
+}
+
+function promoteContractTimeBasis(
+  state: ProjectRuntimeState,
+): void {
+  const candidates =
+    state.contractDocuments
+      .filter((document) => {
+        const evidence =
+          state.evidenceDocuments.find(
+            (item) =>
+              item.documentId ===
+              document.documentId,
+          );
+        return (
+          evidence?.basisState ===
+            "active" ||
+          evidence?.basisState ===
+            "additive"
+        );
+      })
+      .flatMap((document) =>
+        document.result.sections.flatMap(
+          (section) => {
+            const date =
+              completionDateFromText(
+                [
+                  section.heading ?? "",
+                  section.text,
+                ].join("\n"),
+              );
+            return date
+              ? [
+                  {
+                    date,
+                    documentId:
+                      document.documentId,
+                    sectionKey:
+                      section.sectionKey,
+                    uploadedAt:
+                      document.uploadedAt,
+                    role:
+                      document.role,
+                  },
+                ]
+              : [];
+          },
+        ),
+      )
+      .sort((a, b) => {
+        const priority = (
+          role:
+            ProjectRuntimeState["contractDocuments"][number]["role"],
+        ) =>
+          role === "amendment"
+            ? 3
+            : role === "replacement"
+              ? 2
+              : role === "main"
+                ? 1
+                : 0;
+        return (
+          priority(a.role) -
+            priority(b.role) ||
+          a.uploadedAt.localeCompare(
+            b.uploadedAt,
+          )
+        );
+      });
+
+  const selected =
+    candidates.at(-1);
+  if (!selected) return;
+
+  const current =
+    state.controls
+      .contractTimeBasis;
+
+  state.controls
+    .contractTimeBasis = {
+    contractualCompletionIso:
+      selected.date,
+    contractualCompletionState:
+      "official",
+    officialApprovedEotDays:
+      current
+        ?.officialApprovedEotDays ??
+      null,
+    officialApprovedEotState:
+      current
+        ?.officialApprovedEotState ??
+      "missing",
+    eotDayBasis:
+      current
+        ?.eotDayBasis ??
+      "unknown",
+    eotDayBasisState:
+      current
+        ?.eotDayBasisState ??
+      "missing",
+    sourceRefs: [
+      ...new Set([
+        ...(
+          current
+            ?.sourceRefs ??
+          []
+        ).filter(
+          (ref) =>
+            !ref.includes(
+              ":contract-completion:",
+            ),
+        ),
+        "evidence-document:" +
+          selected.documentId +
+          ":contract-completion:" +
+          selected.sectionKey,
+      ]),
+    ],
+  };
+}
+
 function hashBytes(
   bytes: Uint8Array,
 ): string {
@@ -1839,6 +2030,9 @@ export class RuntimeProjectStore {
             base.result,
             amendments,
           );
+        promoteContractTimeBasis(
+          state,
+        );
       } else {
         state.contractFamily =
           null;
@@ -3661,6 +3855,9 @@ export class RuntimeProjectStore {
         base.result,
         amendments,
       );
+    promoteContractTimeBasis(
+      state,
+    );
 
     document.diagnostics = [
       ...document.diagnostics,
