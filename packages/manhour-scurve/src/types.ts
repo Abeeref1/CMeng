@@ -26,9 +26,17 @@ export interface ManhourScurveProjection {
   remainingTimePhasing:
     "linear_between_remaining_assignment_dates";
   actualHistoryMethod:
+    | "approved_resource_week_source"
     | "stored_financial_period_actuals"
     | "current_actual_snapshot_only"
     | "missing";
+  actualHistoryAuthority:
+    | "approved_source_register"
+    | "p6_period_actuals"
+    | "p6_current_snapshot"
+    | "missing";
+  sourceActualResourceCoveragePercent:
+    number | null;
 
   laborResourceCount: number;
   laborAssignmentCount: number;
