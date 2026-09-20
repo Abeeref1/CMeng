@@ -1223,6 +1223,27 @@ export function deriveControlsFromCsv(
           "approved eot days",
         ],
       );
+    const claimedAmountIndex =
+      indexOf(
+        headers,
+        [
+          "claimed amount",
+          "amount claimed",
+          "claim amount",
+          "submitted amount",
+        ],
+      );
+    const assessedAmountIndex =
+      indexOf(
+        headers,
+        [
+          "assessed amount",
+          "determined amount",
+          "approved amount",
+          "amount assessed",
+          "amount awarded",
+        ],
+      );
     const statusIndex =
       indexOf(
         headers,
@@ -1258,6 +1279,8 @@ export function deriveControlsFromCsv(
       CanonicalNoticeRecord[] = [];
     const events:
       CanonicalDelayEvent[] = [];
+    const claimCommercials:
+      ClaimCommercialRecord[] = [];
     const determinationDays =
       new Map<string, number>();
     let explicitDayBasis:
@@ -1343,6 +1366,20 @@ export function deriveControlsFromCsv(
           value(
             row,
             grantedDaysIndex,
+          ),
+        );
+      const claimedAmount =
+        numeric(
+          value(
+            row,
+            claimedAmountIndex,
+          ),
+        );
+      const assessedAmount =
+        numeric(
+          value(
+            row,
+            assessedAmountIndex,
           ),
         );
       const statusRaw =
@@ -1474,7 +1511,7 @@ export function deriveControlsFromCsv(
                 claimedDaysIndex,
               ),
             ),
-          claimedAmount: null,
+          claimedAmount,
           assessedDays:
             granted,
           assessedDaysState:
@@ -1483,9 +1520,20 @@ export function deriveControlsFromCsv(
               : officialDetermination
                 ? "official"
                 : "candidate",
-          assessedAmount: null,
+          assessedAmount,
           assessedAmountState:
-            "missing",
+            assessedAmount === null
+              ? "missing"
+              : /determined|approved|awarded|engineer/i.test(
+                  statusRaw +
+                  " " +
+                  value(
+                    row,
+                    determinationIdIndex,
+                  ),
+                )
+                ? "official"
+                : "candidate",
           clauseIdentifiers:
             splitRefs(
               value(
@@ -1501,6 +1549,30 @@ export function deriveControlsFromCsv(
                   "CLAIM_REGISTER_ROW_HAS_NO_PROVEN_DELAY_EVENT_CAUSATION_LINK",
                 ],
         });
+
+        if (
+          sourceCurrency &&
+          (
+            claimedAmount !==
+              null ||
+            assessedAmount !==
+              null
+          )
+        ) {
+          claimCommercials.push({
+            claimId,
+            currency:
+              sourceCurrency,
+            claimedAmount,
+            assessedAmount,
+            sourceRefs: [
+              evidenceRef(
+                input.document,
+                rowIndex + 1,
+              ),
+            ],
+          });
+        }
 
         const noticeDate =
           iso(
@@ -1658,6 +1730,12 @@ export function deriveControlsFromCsv(
 
     return {
       delayClaims,
+      claimCommercials:
+        latestById(
+          claimCommercials,
+          (row) =>
+            row.claimId,
+        ),
       ...(contractTimeBasis
         ? {
             contractTimeBasis,
