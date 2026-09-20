@@ -300,6 +300,7 @@ export function buildProgressScurveProjection(
     producerVersion: string;
     intervalDays?: number;
     actualHistory?: ActualProgressSnapshot[];
+    baselineModel?: CanonicalScheduleModel | null;
   },
 ): ProgressScurveProjection {
   const intervalDays =
@@ -325,14 +326,31 @@ export function buildProgressScurveProjection(
         activity.activityType !== "wbs_summary",
     );
 
+  const baselineSource =
+    input.baselineModel ??
+    model;
   const baseline =
     eligibleWeightedActivities(
-      model.activities,
+      baselineSource.activities,
       (activity) => ({
         startIso:
-          activity.baselineStartIso,
+          input.baselineModel
+            ? (
+                activity.forecastStartIso ??
+                activity.currentStartIso ??
+                activity.baselineStartIso ??
+                activity.actualStartIso
+              )
+            : activity.baselineStartIso,
         finishIso:
-          activity.baselineFinishIso,
+          input.baselineModel
+            ? (
+                activity.forecastFinishIso ??
+                activity.currentFinishIso ??
+                activity.baselineFinishIso ??
+                activity.actualFinishIso
+              )
+            : activity.baselineFinishIso,
       }),
     );
 
@@ -408,7 +426,9 @@ export function buildProgressScurveProjection(
     }));
 
   const diagnostics: string[] = [
-    "SCURVE_BASELINE_AND_CURRENT_DERIVED_BY_DURATION_WEIGHTED_LINEAR_TIME_PHASING",
+    input.baselineModel
+      ? "SCURVE_BASELINE_USES_CONTROLLED_BASELINE_REVISION"
+      : "SCURVE_BASELINE_AND_CURRENT_DERIVED_BY_DURATION_WEIGHTED_LINEAR_TIME_PHASING",
   ];
 
   if (suppliedHistory.length === 0) {
