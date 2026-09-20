@@ -47,6 +47,20 @@ export interface WeeklyResourceCapacitySummary {
     comparableResourceCount:
       number;
   }>;
+  plannedUtilizationPercent:
+    number | null;
+  actualUtilizationPercent:
+    number | null;
+  utilizationByUnit: Array<{
+    unit: string;
+    availableCapacity: number;
+    plannedDemand: number | null;
+    actualApprovedUsage: number | null;
+    plannedUtilizationPercent: number | null;
+    actualUtilizationPercent: number | null;
+    comparablePlannedRowCount: number;
+    comparableActualRowCount: number;
+  }>;
   diagnostics: string[];
 }
 
@@ -344,8 +358,11 @@ export function weeklyResourceCapacityEvidence(
 
     if (
       resourceIdIndex < 0 ||
-      capacityIndex < 0 ||
-      demandIndex < 0
+      (
+        capacityIndex < 0 &&
+        demandIndex < 0 &&
+        actualIndex < 0
+      )
     ) {
       continue;
     }
@@ -416,7 +433,65 @@ export function weeklyResourceCapacityEvidence(
     }
   }
 
-  if (points.length === 0) {
+  const mergedByKey =
+    new Map<
+      string,
+      WeeklyResourceCapacityPoint
+    >();
+
+  for (const point of points) {
+    const key = [
+      point.resourceId,
+      point.weekStartIso ?? "undated",
+      point.unit ?? "UNSPECIFIED",
+    ].join("::");
+    const current =
+      mergedByKey.get(key);
+    if (!current) {
+      mergedByKey.set(
+        key,
+        { ...point },
+      );
+      continue;
+    }
+
+    mergedByKey.set(
+      key,
+      {
+        resourceId:
+          current.resourceId,
+        resourceName:
+          current.resourceName ??
+          point.resourceName,
+        weekStartIso:
+          current.weekStartIso ??
+          point.weekStartIso,
+        availableCapacity:
+          current.availableCapacity ??
+          point.availableCapacity,
+        plannedDemand:
+          current.plannedDemand ??
+          point.plannedDemand,
+        actualApprovedUsage:
+          current.actualApprovedUsage ??
+          point.actualApprovedUsage,
+        unit:
+          current.unit ??
+          point.unit,
+        sourceRef:
+          [
+            current.sourceRef,
+            point.sourceRef,
+          ].join(";"),
+      },
+    );
+  }
+
+  const evidencePoints = [
+    ...mergedByKey.values(),
+  ];
+
+  if (evidencePoints.length === 0) {
     return {
       state: "not_found",
       rowCount: 0,
@@ -431,12 +506,17 @@ export function weeklyResourceCapacityEvidence(
       candidateDocumentCount: 0,
       points: [],
       weeklyTotals: [],
+      plannedUtilizationPercent:
+        null,
+      actualUtilizationPercent:
+        null,
+      utilizationByUnit: [],
       diagnostics,
     };
   }
 
   const comparable =
-    points.filter(
+    evidencePoints.filter(
       (point) =>
         point.availableCapacity !==
           null &&
@@ -464,7 +544,7 @@ export function weeklyResourceCapacityEvidence(
       }
     >();
 
-  for (const point of points) {
+  for (const point of evidencePoints) {
     const unit =
       point.unit ??
       "UNSPECIFIED";
@@ -594,29 +674,160 @@ export function weeklyResourceCapacityEvidence(
     candidates.length -
     candidateDocumentCount;
 
+  const utilizationByUnit =
+    [
+      ...new Set(
+        evidencePoints.map(
+          (point) =>
+            point.unit ??
+            "UNSPECIFIED",
+        ),
+      ),
+    ]
+      .sort()
+      .map((unit) => {
+        const unitPoints =
+          evidencePoints.filter(
+            (point) =>
+              (
+                point.unit ??
+                "UNSPECIFIED"
+              ) === unit,
+          );
+        const capacityRows =
+          unitPoints.filter(
+            (point) =>
+              point.availableCapacity !==
+              null,
+          );
+        const plannedRows =
+          unitPoints.filter(
+            (point) =>
+              point.availableCapacity !==
+                null &&
+              point.plannedDemand !==
+                null,
+          );
+        const actualRows =
+          unitPoints.filter(
+            (point) =>
+              point.availableCapacity !==
+                null &&
+              point.actualApprovedUsage !==
+                null,
+          );
+        const availableCapacity =
+          capacityRows.reduce(
+            (sum, point) =>
+              sum +
+              point.availableCapacity!,
+            0,
+          );
+        const plannedDemand =
+          plannedRows.length > 0
+            ? plannedRows.reduce(
+                (sum, point) =>
+                  sum +
+                  point.plannedDemand!,
+                0,
+              )
+            : null;
+        const actualApprovedUsage =
+          actualRows.length > 0
+            ? actualRows.reduce(
+                (sum, point) =>
+                  sum +
+                  point.actualApprovedUsage!,
+                0,
+              )
+            : null;
+
+        return {
+          unit,
+          availableCapacity:
+            Number(
+              availableCapacity.toFixed(
+                6,
+              ),
+            ),
+          plannedDemand:
+            plannedDemand === null
+              ? null
+              : Number(
+                  plannedDemand.toFixed(
+                    6,
+                  ),
+                ),
+          actualApprovedUsage:
+            actualApprovedUsage === null
+              ? null
+              : Number(
+                  actualApprovedUsage.toFixed(
+                    6,
+                  ),
+                ),
+          plannedUtilizationPercent:
+            availableCapacity > 0 &&
+            plannedDemand !== null
+              ? Number(
+                  (
+                    (
+                      plannedDemand /
+                      availableCapacity
+                    ) *
+                    100
+                  ).toFixed(4),
+                )
+              : null,
+          actualUtilizationPercent:
+            availableCapacity > 0 &&
+            actualApprovedUsage !==
+              null
+              ? Number(
+                  (
+                    (
+                      actualApprovedUsage /
+                      availableCapacity
+                    ) *
+                    100
+                  ).toFixed(4),
+                )
+              : null,
+          comparablePlannedRowCount:
+            plannedRows.length,
+          comparableActualRowCount:
+            actualRows.length,
+        };
+      });
+
+  const globallyComparable =
+    utilizationByUnit.length === 1
+      ? utilizationByUnit[0]!
+      : null;
+
   return {
     state:
       governedDocumentCount === 0 &&
       candidateDocumentCount > 0
         ? "candidate"
         : comparable.length ===
-            points.length
+            evidencePoints.length
           ? "available"
           : "partial",
     rowCount:
-      points.length,
+      evidencePoints.length,
     comparableRowCount:
       comparable.length,
     resourceCount:
       new Set(
-        points.map(
+        evidencePoints.map(
           (point) =>
             point.resourceId,
         ),
       ).size,
     weekCount:
       new Set(
-        points
+        evidencePoints
           .map(
             (point) =>
               point.weekStartIso,
@@ -635,12 +846,12 @@ export function weeklyResourceCapacityEvidence(
           point.availableCapacity!,
       ).length,
     capacityCoveragePercent:
-      points.length > 0
+      evidencePoints.length > 0
         ? Number(
             (
               (
                 comparable.length /
-                points.length
+                evidencePoints.length
               ) *
               100
             ).toFixed(4),
@@ -648,7 +859,7 @@ export function weeklyResourceCapacityEvidence(
         : null,
     unitLabels: [
       ...new Set(
-        points
+        evidencePoints
           .map(
             (point) =>
               point.unit,
@@ -663,8 +874,24 @@ export function weeklyResourceCapacityEvidence(
     ],
     sourceBasisStates,
     candidateDocumentCount,
-    points,
+    evidencePoints,
     weeklyTotals,
-    diagnostics,
+    plannedUtilizationPercent:
+      globallyComparable
+        ?.plannedUtilizationPercent ??
+      null,
+    actualUtilizationPercent:
+      globallyComparable
+        ?.actualUtilizationPercent ??
+      null,
+    utilizationByUnit,
+    diagnostics: [
+      ...diagnostics,
+      ...(utilizationByUnit.length > 1
+        ? [
+            "RESOURCE_UTILIZATION_REPORTED_BY_UNIT_TO_PREVENT_INCOMPATIBLE_UNIT_ARITHMETIC",
+          ]
+        : []),
+    ],
   };
 }
