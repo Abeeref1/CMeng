@@ -13,6 +13,7 @@ import type {
 } from "../../contract-parser/src";
 import type {
   DelayClaimsModel,
+  NoticeRequirement,
 } from "../../delay-analysis-core/src";
 import type {
   ContractTimeBasis,
@@ -346,6 +347,8 @@ export interface DerivedControlEvidence {
 
 export interface ProjectControlState {
   delayClaims: DelayClaimsModel | null;
+  contractNoticeRequirements:
+    NoticeRequirement[];
   contractTimeBasis: ContractTimeBasis | null;
   readinessEvidence: Record<
     string,
