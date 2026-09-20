@@ -348,6 +348,83 @@ function buildBundle(
 
   const model =
     current.revision.model;
+  const controlledBaseline =
+    ordered
+      .filter(
+        (item) =>
+          item.role ===
+            "revised_baseline" ||
+          item.role ===
+            "baseline",
+      )
+      .at(-1) ??
+    null;
+  const baselineByActivity =
+    new Map(
+      (
+        controlledBaseline
+          ?.revision.model
+          .activities ??
+        []
+      ).map(
+        (activity) => [
+          activity.activityId,
+          activity,
+        ],
+      ),
+    );
+  const controlledBaselineFinish =
+    (
+      activity:
+        ProjectRuntimeState["schedules"][number]["revision"]["model"]["activities"][number],
+    ): string | null =>
+      activity.baselineFinishIso ??
+      activity.forecastFinishIso ??
+      activity.currentFinishIso ??
+      activity.actualFinishIso;
+  const currentEffectiveFinish =
+    (
+      activity:
+        ProjectRuntimeState["schedules"][number]["revision"]["model"]["activities"][number],
+    ): string | null =>
+      (
+        activity.status ===
+          "completed"
+          ? activity.actualFinishIso
+          : null
+      ) ??
+      activity.forecastFinishIso ??
+      activity.currentFinishIso;
+  const varianceDays = (
+    baselineIso: string | null,
+    currentIso: string | null,
+  ): number | null => {
+    if (
+      !baselineIso ||
+      !currentIso
+    ) {
+      return null;
+    }
+    const before =
+      Date.parse(baselineIso);
+    const after =
+      Date.parse(currentIso);
+    if (
+      !Number.isFinite(before) ||
+      !Number.isFinite(after)
+    ) {
+      return null;
+    }
+    return Number(
+      (
+        (
+          after -
+          before
+        ) /
+        86_400_000
+      ).toFixed(6),
+    );
+  };
   const versions = {
     schedule:
       "uat-schedule-v1",
@@ -395,7 +472,7 @@ function buildBundle(
       "uat-pmo-v1",
   };
 
-  const scheduleAnalytics =
+  const scheduleAnalyticsRaw =
     buildScheduleAnalyticsProjection(
       model,
       {
@@ -404,6 +481,126 @@ function buildBundle(
           versions.schedule,
       },
     );
+
+  const controlledVariances =
+    controlledBaseline
+      ? model.activities.map(
+          (activity) => {
+            const baseline =
+              baselineByActivity.get(
+                activity.activityId,
+              );
+            return varianceDays(
+              baseline
+                ? controlledBaselineFinish(
+                    baseline,
+                  )
+                : null,
+              currentEffectiveFinish(
+                activity,
+              ),
+            );
+          },
+        )
+      : [];
+
+  const knownControlledVariances =
+    controlledVariances.filter(
+      (
+        value,
+      ): value is number =>
+        value !== null,
+    );
+
+  const scheduleAnalytics =
+    controlledBaseline
+      ? {
+          ...scheduleAnalyticsRaw,
+          controlledBaselineRevisionId:
+            controlledBaseline
+              .revision.revisionId,
+          result: {
+            ...scheduleAnalyticsRaw
+              .result,
+            finishVariance: {
+              ...scheduleAnalyticsRaw
+                .result
+                .finishVariance,
+              method:
+                "controlled baseline programme versus current/forecast finish",
+              comparableActivities:
+                knownControlledVariances
+                  .length,
+              lateActivities:
+                knownControlledVariances
+                  .filter(
+                    (value) =>
+                      value > 0,
+                  ).length,
+              earlyActivities:
+                knownControlledVariances
+                  .filter(
+                    (value) =>
+                      value < 0,
+                  ).length,
+              onTimeActivities:
+                knownControlledVariances
+                  .filter(
+                    (value) =>
+                      value === 0,
+                  ).length,
+              unknownActivities:
+                model.activities
+                  .length -
+                knownControlledVariances
+                  .length,
+              averageFinishVarianceDays:
+                knownControlledVariances
+                  .length
+                  ? Number(
+                      (
+                        knownControlledVariances
+                          .reduce(
+                            (
+                              sum,
+                              value,
+                            ) =>
+                              sum +
+                              value,
+                            0,
+                          ) /
+                        knownControlledVariances
+                          .length
+                      ).toFixed(6),
+                    )
+                  : null,
+              maximumDelayDays:
+                knownControlledVariances
+                  .length
+                  ? Math.max(
+                      ...knownControlledVariances,
+                    )
+                  : null,
+              coveragePercent:
+                model.activities
+                  .length
+                  ? Number(
+                      (
+                        (
+                          knownControlledVariances
+                            .length /
+                          model.activities
+                            .length
+                        ) *
+                        100
+                      ).toFixed(4),
+                    )
+                  : null,
+            },
+          },
+        }
+      : scheduleAnalyticsRaw;
+
   modules.set(
     "schedule-analytics",
     available(
@@ -412,7 +609,7 @@ function buildBundle(
     ),
   );
 
-  const activityAnalytics =
+  const activityAnalyticsRaw =
     buildActivityAnalyticsProjection(
       model,
       {
@@ -421,6 +618,66 @@ function buildBundle(
           versions.activity,
       },
     );
+
+  const activityAnalytics =
+    controlledBaseline
+      ? {
+          ...activityAnalyticsRaw,
+          controlledBaselineRevisionId:
+            controlledBaseline
+              .revision.revisionId,
+          finishVarianceCoveragePercent:
+            model.activities.length
+              ? Number(
+                  (
+                    (
+                      knownControlledVariances
+                        .length /
+                      model.activities
+                        .length
+                    ) *
+                    100
+                  ).toFixed(4),
+                )
+              : null,
+          rows:
+            activityAnalyticsRaw
+              .rows.map(
+                (row) => {
+                  const baseline =
+                    baselineByActivity.get(
+                      row.activityId,
+                    );
+                  const baselineFinish =
+                    baseline
+                      ? controlledBaselineFinish(
+                          baseline,
+                        )
+                      : null;
+                  const currentActivity =
+                    model.activities.find(
+                      (activity) =>
+                        activity.activityId ===
+                        row.activityId,
+                    );
+                  return {
+                    ...row,
+                    baselineFinishIso:
+                      baselineFinish,
+                    finishVarianceDays:
+                      varianceDays(
+                        baselineFinish,
+                        currentActivity
+                          ? currentEffectiveFinish(
+                              currentActivity,
+                            )
+                          : null,
+                      ),
+                  };
+                },
+              ),
+        }
+      : activityAnalyticsRaw;
   modules.set(
     "activity-analytics",
     available(
@@ -468,7 +725,7 @@ function buildBundle(
     ),
   );
 
-  const milestones =
+  const milestonesRaw =
     buildMilestonesProjection(
       model,
       {
@@ -477,6 +734,47 @@ function buildBundle(
           versions.milestones,
       },
     );
+  const milestones =
+    controlledBaseline
+      ? {
+          ...milestonesRaw,
+          controlledBaselineRevisionId:
+            controlledBaseline
+              .revision.revisionId,
+          rows:
+            milestonesRaw.rows.map(
+              (row) => {
+                const baseline =
+                  baselineByActivity.get(
+                    row.activityId,
+                  );
+                const baselineDate =
+                  baseline
+                    ? (
+                        baseline
+                          .baselineFinishIso ??
+                        baseline
+                          .baselineStartIso ??
+                        baseline
+                          .forecastFinishIso ??
+                        baseline
+                          .currentFinishIso
+                      )
+                    : null;
+                return {
+                  ...row,
+                  baselineDateIso:
+                    baselineDate,
+                  varianceDays:
+                    varianceDays(
+                      baselineDate,
+                      row.currentDateIso,
+                    ),
+                };
+              },
+            ),
+        }
+      : milestonesRaw;
   modules.set(
     "milestones",
     available(
