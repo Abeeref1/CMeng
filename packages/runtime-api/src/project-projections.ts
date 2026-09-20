@@ -790,7 +790,7 @@ function buildBundle(
     ),
   );
 
-  const nearCritical =
+  const nearCriticalRaw =
     buildNearCriticalProjection(
       model,
       {
@@ -799,6 +799,33 @@ function buildBundle(
           versions.nearCritical,
       },
     );
+  const nearCritical =
+    controlledBaseline
+      ? {
+          ...nearCriticalRaw,
+          controlledBaselineRevisionId:
+            controlledBaseline
+              .revision.revisionId,
+          rows:
+            nearCriticalRaw.rows.map(
+              (row) => {
+                const baseline =
+                  baselineByActivity.get(
+                    row.activityId,
+                  );
+                return {
+                  ...row,
+                  baselineFinishIso:
+                    baseline
+                      ? controlledBaselineFinish(
+                          baseline,
+                        )
+                      : null,
+                };
+              },
+            ),
+        }
+      : nearCriticalRaw;
   modules.set(
     "near-critical",
     available(
