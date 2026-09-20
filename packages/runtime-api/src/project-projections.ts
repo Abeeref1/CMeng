@@ -823,6 +823,10 @@ function buildBundle(
           versions.scurve,
         actualHistory:
           actualHistory(state),
+        baselineModel:
+          controlledBaseline
+            ?.revision.model ??
+          null,
       },
     );
   modules.set(
@@ -1113,6 +1117,10 @@ function buildBundle(
         generatedAt,
         producerVersion:
           versions.variance,
+        controlledBaselineRevision:
+          controlledBaseline
+            ?.revision ??
+          null,
       },
     );
   modules.set(
