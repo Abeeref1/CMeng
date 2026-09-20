@@ -151,6 +151,152 @@ test("volume-backed project state restores schedule revisions and controls after
   }
 });
 
+test("restoring legacy schedule support evidence reclassifies it and removes the false programme revision", async () => {
+  const dataDir =
+    mkdtempSync(
+      join(
+        tmpdir(),
+        "cmeng-legacy-support-",
+      ),
+    );
+
+  try {
+    const first =
+      new RuntimeProjectStore({
+        dataDir,
+        durable: true,
+      });
+
+    await first.ingestSchedule({
+      projectId:
+        "LEGACY-SUPPORT",
+      bytes: xerFixture(),
+      mediaType:
+        "text/plain",
+      sourceFilename:
+        "S03_Current_U02.xer",
+      sourceRelativePath:
+        "02_Schedules_XER/S03_Current_U02.xer",
+      role: "update",
+      label: "S03 Current",
+      uploadedAt:
+        "2026-09-18T20:00:00.000Z",
+    });
+
+    await first.ingestSchedule({
+      projectId:
+        "LEGACY-SUPPORT",
+      bytes: new TextEncoder()
+        .encode(
+          new TextDecoder()
+            .decode(
+              xerFixture(),
+            )
+            .replace(
+              "PERSIST",
+              "LEGACY-SUPPORT",
+            ),
+        ),
+      mediaType:
+        "text/plain",
+      sourceFilename:
+        "SCH03_Baseline_to_Current_Activity_Comparison.xer",
+      sourceRelativePath:
+        "02_Schedules_XER/SCH03_Baseline_to_Current_Activity_Comparison.xer",
+      role: "baseline",
+      label:
+        "Baseline to Current Comparison",
+      uploadedAt:
+        "2026-09-18T20:01:00.000Z",
+    });
+
+    const before =
+      first.get(
+        "LEGACY-SUPPORT",
+      );
+    assert.ok(before);
+    assert.equal(
+      before!.schedules.length,
+      2,
+      "legacy snapshot intentionally contains the historical misclassification",
+    );
+
+    const second =
+      new RuntimeProjectStore({
+        dataDir,
+        durable: true,
+      });
+    const restored =
+      second.get(
+        "LEGACY-SUPPORT",
+      );
+    assert.ok(restored);
+
+    assert.equal(
+      restored!.schedules.length,
+      1,
+      "support comparison must not remain a programme revision after restore",
+    );
+    assert.equal(
+      restored!.schedules[0]!
+        .sourceFilename,
+      "S03_Current_U02.xer",
+    );
+
+    const support =
+      restored!
+        .evidenceDocuments
+        .find(
+          (document) =>
+            document
+              .sourceFilename
+              .startsWith(
+                "SCH03_",
+              ),
+        );
+    assert.ok(support);
+    assert.equal(
+      support!.category,
+      "schedule_control",
+    );
+    assert.equal(
+      support!.documentType,
+      "schedule_activity_comparison",
+    );
+    assert.equal(
+      support!.scheduleRole,
+      null,
+    );
+    assert.equal(
+      support!.linkedArtifactId,
+      null,
+    );
+    assert.equal(
+      restored!
+        .activeEvidenceBasis[
+          "schedule:control"
+        ]?.activeDocumentId,
+      restored!
+        .evidenceDocuments
+        .find(
+          (document) =>
+            document
+              .sourceFilename ===
+            "S03_Current_U02.xer",
+        )?.documentId,
+    );
+  } finally {
+    rmSync(
+      dataDir,
+      {
+        recursive: true,
+        force: true,
+      },
+    );
+  }
+});
+
+
 test("local runtime explicitly reports non-durable mode when no Railway volume is configured", () => {
   const dataDir = mkdtempSync(
     join(tmpdir(), "cmeng-local-"),
