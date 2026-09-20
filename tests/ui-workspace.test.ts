@@ -486,7 +486,7 @@ test("CMeng workspace keeps the active module primary and browser script parseab
   for (
     const evidenceSafePhrase of [
       "Per-hour overload is not 0; it is not assessable.",
-      "Schedule progress is available, but certified/contractor physical progress is not established.",
+      "The programme contains a percentage-complete snapshot, but certified/contractor physical progress is not established.",
       "schedule-revision progress history",
       "Actual man-hours are missing, not zero.",
       "No governed quantity curve is available.",
