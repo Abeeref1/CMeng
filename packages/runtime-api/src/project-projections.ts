@@ -1007,10 +1007,10 @@ function buildBundle(
     );
   const nearCriticalBase = {
     ...nearCriticalRaw,
-    sourceReportedFloatRiskWatchlistCount:
-      scheduleControlBasis.sourceReportedFloatRiskWatchlistCount,
+    sourceReportedNearCriticalLabelCount:
+      scheduleControlBasis.sourceReportedNearCriticalLabelCount,
     sourceReportedLabel:
-      scheduleControlBasis.sourceReportedFloatRiskWatchlistCount !== null
+      scheduleControlBasis.sourceReportedNearCriticalLabelCount !== null
         ? "Near Critical"
         : null,
     reconciliation: {
@@ -1019,17 +1019,19 @@ function buildBundle(
       floatRiskWatchlistCount:
         nearCriticalRaw.floatRiskWatchlistCount,
       sourceReportedCount:
-        scheduleControlBasis.sourceReportedFloatRiskWatchlistCount,
+        scheduleControlBasis.sourceReportedNearCriticalLabelCount,
+      sourceLabelReconcilesTo:
+        scheduleControlBasis.sourceCountReconcilesTo,
       gap:
-        scheduleControlBasis.sourceReportedFloatRiskWatchlistCount === null
+        scheduleControlBasis.sourceReportedNearCriticalLabelCount === null
           ? null
           : nearCriticalRaw.floatRiskWatchlistCount -
-            scheduleControlBasis.sourceReportedFloatRiskWatchlistCount,
+            scheduleControlBasis.sourceReportedNearCriticalLabelCount,
       status:
-        scheduleControlBasis.sourceReportedFloatRiskWatchlistCount === null
+        scheduleControlBasis.sourceReportedNearCriticalLabelCount === null
           ? "source_not_reported"
           : nearCriticalRaw.floatRiskWatchlistCount ===
-              scheduleControlBasis.sourceReportedFloatRiskWatchlistCount
+              scheduleControlBasis.sourceReportedNearCriticalLabelCount
             ? "reconciled"
             : "difference",
     },
@@ -3850,10 +3852,10 @@ function buildPlanningModuleFast(
       );
     const nearCriticalBase = {
       ...raw,
-      sourceReportedFloatRiskWatchlistCount:
-        scheduleControlBasis.sourceReportedFloatRiskWatchlistCount,
+      sourceReportedNearCriticalLabelCount:
+        scheduleControlBasis.sourceReportedNearCriticalLabelCount,
       sourceReportedLabel:
-        scheduleControlBasis.sourceReportedFloatRiskWatchlistCount !== null
+        scheduleControlBasis.sourceReportedNearCriticalLabelCount !== null
           ? "Near Critical"
           : null,
       reconciliation: {
@@ -3862,17 +3864,17 @@ function buildPlanningModuleFast(
         floatRiskWatchlistCount:
           raw.floatRiskWatchlistCount,
         sourceReportedCount:
-          scheduleControlBasis.sourceReportedFloatRiskWatchlistCount,
+          scheduleControlBasis.sourceReportedNearCriticalLabelCount,
         gap:
-          scheduleControlBasis.sourceReportedFloatRiskWatchlistCount === null
+          scheduleControlBasis.sourceReportedNearCriticalLabelCount === null
             ? null
             : raw.floatRiskWatchlistCount -
-              scheduleControlBasis.sourceReportedFloatRiskWatchlistCount,
+              scheduleControlBasis.sourceReportedNearCriticalLabelCount,
         status:
-          scheduleControlBasis.sourceReportedFloatRiskWatchlistCount === null
+          scheduleControlBasis.sourceReportedNearCriticalLabelCount === null
             ? "source_not_reported"
             : raw.floatRiskWatchlistCount ===
-                scheduleControlBasis.sourceReportedFloatRiskWatchlistCount
+                scheduleControlBasis.sourceReportedNearCriticalLabelCount
               ? "reconciled"
               : "difference",
       },
