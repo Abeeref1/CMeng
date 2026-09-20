@@ -47,6 +47,12 @@ export interface DelayClaimsProjection {
   evidenceRevisionId: string;
 
   eventCount: number;
+  registeredEventIdentityCount: number;
+  datedEventCount: number;
+  activityLinkedEventCount: number;
+  claimLinkedEventCount: number;
+  windowLinkedEventCount: number;
+  fullyLinkedEventCount: number;
   claimCount: number;
   windowCount: number;
 
