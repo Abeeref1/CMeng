@@ -5443,7 +5443,11 @@ function buildSpecialistModuleFast(
             ? "Approved weekly actual-usage evidence exists. It is exposed as the authoritative actual-history source and must remain separate from schedule snapshots."
             : "Actual labor-hour history is not established.",
       );
-    } else {
+    } else if (
+      sourceResourceCapacity
+        .approvedActualUsageRowCount >
+      0
+    ) {
       result = available(
         key,
         {
@@ -5462,11 +5466,7 @@ function buildSpecialistModuleFast(
           dataDateIso:
             model.dataDateIso,
           actualHistoryMethod:
-            sourceResourceCapacity
-                .approvedActualUsageRowCount >
-              0
-              ? "approved_weekly_actual_usage"
-              : "missing",
+            "approved_weekly_actual_usage",
           sourceResourceEvidence:
             sourceResourceCapacity,
           diagnostics: [
@@ -5477,16 +5477,16 @@ function buildSpecialistModuleFast(
           "RES03 approved actual usage",
           "RES04 time-phased assignments",
         ],
-        sourceResourceCapacity
-            .approvedActualUsageRowCount >
-          0
-          ? "partial"
-          : "blocked",
-        sourceResourceCapacity
-            .approvedActualUsageRowCount >
-          0
-          ? "Approved actual resource history is available, but a complete labor-only plan/actual curve requires assignment classification and time-phased labor extraction."
-          : "No labor assignment or approved actual resource history is established.",
+        "partial",
+        "Approved actual resource history is available, but a complete labor-only plan/actual curve requires assignment classification and time-phased labor extraction.",
+      );
+    } else {
+      result = blocked(
+        key,
+        "No labor assignment or approved actual resource history is established.",
+        [
+          "labor assignments or approved time-phased labor evidence",
+        ],
       );
     }
   } else if (
