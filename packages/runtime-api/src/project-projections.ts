@@ -2892,8 +2892,21 @@ export function overviewForProject(
     state.schedules.filter(
       isProgrammeScheduleRevision,
     );
-  const bundle =
-    buildBundle(state);
+  const receiptStates =
+    new Map(
+      (
+        state.lastRerunReceipt
+          ?.moduleResults ??
+        []
+      ).map(
+        (item) => [
+          item.key,
+          item.status,
+        ],
+      ),
+    );
+  const scheduleEstablished =
+    programmeSchedules.length > 0;
 
   return {
     projectId,
@@ -2916,7 +2929,8 @@ export function overviewForProject(
     recoveryRevisionCount:
       programmeSchedules.filter(
         (item) =>
-          item.role === "recovery",
+          item.role ===
+          "recovery",
       ).length,
     evidenceDocumentCount:
       state.evidenceDocuments.length,
@@ -2952,7 +2966,7 @@ export function overviewForProject(
       schedule: {
         required: true,
         established:
-          programmeSchedules.length > 0,
+          scheduleEstablished,
         revisionCount:
           programmeSchedules.length,
         latestRevisionId:
@@ -2973,7 +2987,7 @@ export function overviewForProject(
             ?.ingestionId ?? null,
       },
       ready:
-        programmeSchedules.length > 0 &&
+        scheduleEstablished &&
         state.boqRevisions.length > 0,
     },
     optionalEvidence:
@@ -3060,18 +3074,25 @@ export function overviewForProject(
     moduleStates:
       scheduleModules.map(
         (module) => {
-          const value =
-            bundle.modules.get(
+          const receiptStatus =
+            receiptStates.get(
               module.key,
             );
           return {
             key: module.key,
             status:
-              value?.status ??
-              "blocked",
+              receiptStatus ??
+              (
+                scheduleEstablished
+                  ? "partial"
+                  : "blocked"
+              ),
             reason:
-              value?.reason ??
-              null,
+              receiptStatus
+                ? null
+                : scheduleEstablished
+                  ? "Open the view to calculate the latest specialist position."
+                  : "Programme evidence has not been established.",
           };
         },
       ),
