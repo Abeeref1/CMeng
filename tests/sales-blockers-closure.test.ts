@@ -16,6 +16,7 @@ import { buildWindowsAnalysisProjection } from "../packages/windows-analysis/src
 import { projectScheduleControlBasis } from "../packages/runtime-api/src/schedule-control-basis";
 import { sourceProductivityForecastEvidence } from "../packages/runtime-api/src/source-productivity-forecast";
 import { canonicalTimeClaims } from "../packages/runtime-api/src/canonical-time-claims";
+import { buildDelayClaimsProjection } from "../packages/delay-claims/src";
 
 function calendar(
   calendarId: string,
@@ -254,6 +255,28 @@ test("P1-1 project control basis applies 0..+5 working days per activity calenda
   );
 });
 
+test("P1-1 includes legacy SCH02 control evidence by verified source identity", (t) => {
+  const dir = mkdtempSync(join(tmpdir(), "cmeng-p1-1-legacy-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const sch02 = storedDocument(
+    dir,
+    "SCH02",
+    "SCH02_Schedule_Metrics.csv",
+    "schedule",
+    "supporting_document",
+    "Metric,Value,Definition,As Of\nNear Critical Watchlist,629,0 < TF <= +5 working days,2026-08-31",
+  );
+  const state = stateWithDocuments([sch02]);
+  const basis = projectScheduleControlBasis(state);
+  assert.equal(basis.state, "official");
+  assert.equal(basis.nearCriticalWorkingDays, 5);
+  assert.ok(
+    basis.diagnostics.includes(
+      "LEGACY_PROJECT_CONTROL_EVIDENCE_INCLUDED_BY_VERIFIED_SOURCE_IDENTITY",
+    ),
+  );
+});
+
 test("P1-2 and P1-3 keep programme Data Date and four forecast positions source-distinct", (t) => {
   const dir = mkdtempSync(join(tmpdir(), "cmeng-p1-23-"));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
@@ -285,6 +308,26 @@ test("P1-2 and P1-3 keep programme Data Date and four forecast positions source-
       item.startsWith("FUTURE_SOURCE_PRODUCTIVITY_FORECAST_NOT_APPLIED"),
     ),
   );
+});
+
+test("P1-3 reads productivity basis and completion from separate governed columns", (t) => {
+  const dir = mkdtempSync(join(tmpdir(), "cmeng-p1-3-layout-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const source = storedDocument(
+    dir,
+    "PDB01",
+    "PDB01_Project_Data_Book.csv",
+    "schedule",
+    "supporting_document",
+    [
+      "Metric,Forecast Basis,Forecast Completion,As Of",
+      "Completion Outlook,Measured Productivity,2030-08-15,2026-08-31",
+    ].join("\n"),
+  );
+  const state = stateWithDocuments([source]);
+  const productivity = sourceProductivityForecastEvidence(state);
+  assert.equal(productivity.state, "official");
+  assert.equal(productivity.completionIso, "2030-08-15");
 });
 
 function addDays(days: number): string {
@@ -386,6 +429,65 @@ test("P1-4 gross positive window movement is never conflated with net Project Co
     windows.positiveProgrammeMovementDays,
     windows.projectCompletionMovementDays,
   );
+});
+
+test("P0-3 merges EOT activity and explicit window references into the governed CL01 event", (t) => {
+  const dir = mkdtempSync(join(tmpdir(), "cmeng-p0-3-supplemental-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const claim = [
+    "Claim ID,Event ID,Event,Notice Date,Linked Letter,Days Claimed,Status",
+    "CL-001,EV-001,Late access,2026-06-02,L-NOTICE-001,12,Submitted",
+  ].join("\n");
+  const assessment = [
+    "Claim ID,Event ID,Schedule Activity ID,Window ID,Assessed Days",
+    "CL-001,EV-001,A10,Window 1,7",
+  ].join("\n");
+  const determination = [
+    "Determination ID,Claim ID,Awarded EOT Days,Determination Date,Status,Authority,Source Letter,Governance State",
+    "DET-001,CL-001,7,2026-07-01,Determined,Engineer,L-DET-001,Immutable",
+  ].join("\n");
+  const letters = [
+    "Letter ID,Letter Date,Subject,Claim ID,Event ID",
+    "L-NOTICE-001,2026-06-02,Notice of delay,CL-001,EV-001",
+    "L-DET-001,2026-07-01,Engineer determination,CL-001,EV-001",
+  ].join("\n");
+  const state = stateWithDocuments([
+    storedDocument(dir,"CL01","CL01_Claims.csv","risk_claims_procurement","delay_eot_claims_register",claim),
+    storedDocument(dir,"EOT01","EOT01_Assessment.csv","risk_claims_procurement","delay_eot_claims_register",assessment),
+    storedDocument(dir,"EOT03","EOT03_Determinations.csv","risk_claims_procurement","delay_eot_claims_register",determination),
+    storedDocument(dir,"L01","L01_Letters.csv","correspondence","letters_notices",letters),
+  ]);
+  const canonical = canonicalTimeClaims(state, true);
+  const event = canonical.delayClaims?.events[0]!;
+  assert.deepEqual(event.relatedActivityIds, ["A10"]);
+  assert.deepEqual(event.relatedWindowReferences, ["Window 1"]);
+
+  const revisions = [
+    revision("R1", 1, 0),
+    revision("R2", 2, 20),
+  ];
+  const windows = buildWindowsAnalysisProjection(
+    revisions,
+    canonical.delayClaims!,
+    {
+      generatedAt: "2026-09-20T00:00:00.000Z",
+      producerVersion: "sales-blocker-test",
+    },
+  );
+  assert.equal(windows.windows[0]!.delayEvents[0]?.eventId, "EV-001");
+  const delay = buildDelayClaimsProjection(
+    windows,
+    canonical.delayClaims!,
+    {
+      generatedAt: "2026-09-20T00:00:00.000Z",
+      producerVersion: "sales-blocker-test",
+    },
+  );
+  assert.equal(delay.activityLinkedEventCount, 1);
+  assert.equal(delay.windowLinkedEventCount, 1);
+  assert.equal(delay.noticeLinkedEventCount, 1);
+  assert.equal(delay.determinationLinkedEventCount, 1);
+  assert.equal(delay.fullDeterminationChainEventCount, 1);
 });
 
 test("P0-3 claim-event-activity-window-notice-determination chain uses verified L01 correspondence rows", (t) => {

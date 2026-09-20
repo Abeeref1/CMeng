@@ -22,6 +22,13 @@ export interface CanonicalTimeClaims {
 const cache = new WeakMap<ProjectRuntimeState,{version:number;value:CanonicalTimeClaims}>();
 const n = (r:SourceRow,...names:string[])=>numberValue(cell(r,...names));
 const evref = (r:SourceRow,sourceType:'claim'|'notice'|'other'='claim')=>({sourceType,sourceId:r.receipt.documentId,locator:r.receipt.locator});
+const splitRefs = (r:SourceRow,...names:string[]):string[] =>
+  cell(r,...names)
+    .split(/[;,|\n]+/)
+    .map(value=>value.trim())
+    .filter(Boolean);
+const uniq = (values:readonly string[]):string[] => [...new Set(values)];
+
 interface CorrespondenceLink {
   logicalId: string;
   claimId: string | null;
@@ -91,6 +98,32 @@ function claimStatus(s:string):CanonicalClaimRecord['state'] {
 export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):CanonicalTimeClaims {
   const old=cache.get(state);if(!force&&old?.version===state.version)return old.value;
   const diagnostics:string[]=[], tables=governedTables(state.evidenceDocuments,diagnostics),dataDateIso=projectDataDate(state);
+  const controlSchedule = projectControlSchedule(state);
+  const scheduleActivityIds = new Set(
+    controlSchedule?.revision.model.activities.map(activity=>activity.activityId) ?? [],
+  );
+  const activityByFolded = new Map<string,string>();
+  const duplicateFolded = new Set<string>();
+  for(const activityId of scheduleActivityIds){
+    const folded=activityId.normalize("NFKC").trim().toLowerCase();
+    if(activityByFolded.has(folded)&&activityByFolded.get(folded)!==activityId){
+      duplicateFolded.add(folded);
+      activityByFolded.delete(folded);
+    }else if(!duplicateFolded.has(folded)){
+      activityByFolded.set(folded,activityId);
+    }
+  }
+  const mapActivityRefs=(values:readonly string[],context:string):string[]=>{
+    const mapped:string[]=[];
+    for(const raw of values){
+      if(scheduleActivityIds.has(raw)){mapped.push(raw);continue;}
+      const folded=raw.normalize("NFKC").trim().toLowerCase();
+      const resolved=activityByFolded.get(folded);
+      if(resolved){mapped.push(resolved);continue;}
+      diagnostics.push("UNMAPPED_EXPLICIT_DELAY_ACTIVITY:"+context);
+    }
+    return uniq(mapped);
+  };
   const correspondence = correspondenceLinks(tables, diagnostics);
   const sourceTablesForClaims=tables.filter(t=>has(t,'claim id','event')&&has(t,'notice date'));
   const claims:CanonicalClaimRecord[]=[],events:CanonicalDelayEvent[]=[],notices:CanonicalNoticeRecord[]=[];
@@ -107,9 +140,28 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
       (!linkedCorrespondence.eventId||norm(linkedCorrespondence.eventId)===norm(eventId))
     );
     const evidenceRefs=[evref(r),...(linkedCorrespondence?[correspondenceRef(linkedCorrespondence)]:sourceLetter?[{sourceType:'correspondence' as const,sourceId:sourceLetter,locator:null}]:[])];
-    events.push({eventId,title,category:'other',startIso:dateValue(cell(r,'event start','start date')),endIso:dateValue(cell(r,'event end','end date')),
+    const explicitActivities=splitRefs(
+      r,
+      'activity id','activity ids','related activity id','related activity ids',
+      'schedule activity','schedule activity id','schedule activity ids',
+      'p6 activity','p6 activity id','p6 activity ids',
+      'affected activity','affected activity id','affected activity ids',
+      'impacted activity','impacted activity id','impacted activity ids',
+      'critical activity','critical activity id','critical activity ids',
+      'activity reference','activity references'
+    );
+    const explicitWindows=splitRefs(
+      r,
+      'window id','window ids','delay window','delay window id','delay window ids',
+      'window','window reference','window references','analysis window','analysis window id','time window'
+    );
+    events.push({eventId,title,category:'other',
+      startIso:dateValue(cell(r,'event start','event start date','start date','delay start','from date','impact start','analysis start')),
+      endIso:dateValue(cell(r,'event end','event end date','end date','delay end','to date','impact end','analysis end')),
       responsibility:'unknown',responsibilityState:'missing',describedImpactDays:n(r,'days claimed','claimed days'),describedImpactState:'candidate',
-      relatedActivityIds:cell(r,'activity id','related activity ids').split(/[;,|]/).map(s=>s.trim()).filter(Boolean),relatedClauseIdentifiers:clauseIdentifiers,evidenceRefs,
+      relatedActivityIds:mapActivityRefs(explicitActivities,claimId),
+      relatedWindowReferences:uniq(explicitWindows),
+      relatedClauseIdentifiers:clauseIdentifiers,evidenceRefs,
       diagnostics:['SOURCE_REGISTER_EVENT_NOT_PROVEN_CAUSATION',...(sourceLetter&&!linkedCorrespondence?['LINKED_CORRESPONDENCE_NOT_FOUND:'+sourceLetter]:sourceLetter&&!semanticLinkVerified?['LINKED_CORRESPONDENCE_SEMANTIC_MISMATCH:'+sourceLetter]:semanticLinkVerified?['LINKED_CORRESPONDENCE_VERIFIED:'+sourceLetter]:[])],});
     const registerIssued=dateValue(cell(r,'notice date'));
     const correspondenceIssued=semanticLinkVerified?linkedCorrespondence?.issuedAt??null:null;
@@ -121,6 +173,83 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
     if(issued)notices.push({noticeId:sourceLetter||claimId+':notice',kind:'claim_notice',eventId,claimId,actualIssuedAt:issued,actualReceivedAt:null,plannedAt:null,subject:title,clauseIdentifiers,evidenceRefs:[evref(r,'notice')],diagnostics:['NOTICE_DATE_FROM_REGISTER_NOT_EVENT_START_DATE']});
   }
   const byClaim=new Map(claims.map(c=>[c.claimId,c]));
+  const eventById=new Map(events.map(event=>[event.eventId,event]));
+  for(const table of tables.filter(t=>has(t,'claim id')))for(const r of table.rows){
+    const claimId=cell(r,'claim id');
+    const c=byClaim.get(claimId);
+    if(!c)continue;
+    const explicitEventId=cell(r,'event id','delay event id','related event id','event reference');
+    const targetEventId=explicitEventId||c.eventIds[0]||'';
+    const event=eventById.get(targetEventId);
+    if(!event){
+      if(explicitEventId)diagnostics.push('SUPPLEMENTAL_EVENT_ID_NOT_IN_CLAIM_REGISTER:'+claimId);
+      continue;
+    }
+    if(explicitEventId&&c.eventIds.length>0&&!c.eventIds.includes(explicitEventId)){
+      diagnostics.push('SUPPLEMENTAL_EVENT_ID_CONFLICT:'+claimId);
+      continue;
+    }
+
+    const activityRefs=splitRefs(
+      r,
+      'activity id','activity ids','related activity id','related activity ids',
+      'schedule activity','schedule activity id','schedule activity ids',
+      'p6 activity','p6 activity id','p6 activity ids',
+      'affected activity','affected activity id','affected activity ids',
+      'impacted activity','impacted activity id','impacted activity ids',
+      'critical activity','critical activity id','critical activity ids',
+      'activity reference','activity references'
+    );
+    const mappedActivities=mapActivityRefs(activityRefs,claimId);
+    if(mappedActivities.length){
+      event.relatedActivityIds=uniq([...event.relatedActivityIds,...mappedActivities]).sort();
+      if(!event.diagnostics.includes('EXPLICIT_ACTIVITY_LINK_FROM_SUPPLEMENTAL_CLAIM_EOT_SOURCE')){
+        event.diagnostics.push('EXPLICIT_ACTIVITY_LINK_FROM_SUPPLEMENTAL_CLAIM_EOT_SOURCE');
+      }
+    }
+
+    const windowRefs=splitRefs(
+      r,
+      'window id','window ids','delay window','delay window id','delay window ids',
+      'window','window reference','window references','analysis window','analysis window id','time window'
+    );
+    if(windowRefs.length){
+      event.relatedWindowReferences=uniq([...(event.relatedWindowReferences??[]),...windowRefs]);
+      if(!event.diagnostics.includes('EXPLICIT_WINDOW_REFERENCE_FROM_SUPPLEMENTAL_CLAIM_EOT_SOURCE')){
+        event.diagnostics.push('EXPLICIT_WINDOW_REFERENCE_FROM_SUPPLEMENTAL_CLAIM_EOT_SOURCE');
+      }
+    }
+
+    const fragmentStart=dateValue(cell(
+      r,'event start','event start date','start date','delay start','from date','impact start','analysis start'
+    ));
+    const fragmentEnd=dateValue(cell(
+      r,'event end','event end date','end date','delay end','to date','impact end','analysis end'
+    ));
+    if(event.startIso===null&&fragmentStart!==null){
+      event.startIso=fragmentStart;
+      event.diagnostics.push('EVENT_START_FROM_SUPPLEMENTAL_CLAIM_EOT_SOURCE');
+    }else if(event.startIso!==null&&fragmentStart!==null&&event.startIso!==fragmentStart){
+      event.diagnostics.push('CONFLICTING_EVENT_START_IN_SUPPLEMENTAL_SOURCE');
+    }
+    if(event.endIso===null&&fragmentEnd!==null){
+      event.endIso=fragmentEnd;
+      event.diagnostics.push('EVENT_END_FROM_SUPPLEMENTAL_CLAIM_EOT_SOURCE');
+    }else if(event.endIso!==null&&fragmentEnd!==null&&event.endIso!==fragmentEnd){
+      event.diagnostics.push('CONFLICTING_EVENT_END_IN_SUPPLEMENTAL_SOURCE');
+    }
+
+    const clauses=splitRefs(r,'clause','clause reference','clause references','contract clause');
+    if(clauses.length)event.relatedClauseIdentifiers=uniq([...event.relatedClauseIdentifiers,...clauses]);
+    const ref=evref(r);
+    if(!event.evidenceRefs.some(existing=>existing.sourceId===ref.sourceId&&existing.locator===ref.locator)){
+      event.evidenceRefs.push(ref);
+    }
+    if(!c.evidenceRefs.some(existing=>existing.sourceId===ref.sourceId&&existing.locator===ref.locator)){
+      c.evidenceRefs.push(ref);
+    }
+  }
+
   for(const table of tables.filter(t=>has(t,'claim id','net assessed impact days')||has(t,'claim id','assessed days')))for(const r of table.rows){
     const c=byClaim.get(cell(r,'claim id'));if(!c){diagnostics.push('ORPHAN_ASSESSMENT:'+cell(r,'claim id'));continue;}
     const assessed=n(r,'assessed days','net assessed impact days');

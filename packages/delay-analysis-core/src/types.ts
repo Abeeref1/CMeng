@@ -50,6 +50,12 @@ export interface CanonicalDelayEvent {
   describedImpactDays: number | null;
   describedImpactState: GovernanceState;
   relatedActivityIds: string[];
+  /**
+   * Explicit source window references only. These remain distinct from
+   * calculated date-overlap links and are resolved against canonical windows
+   * by the windows-analysis projection.
+   */
+  relatedWindowReferences?: string[];
   relatedClauseIdentifiers: string[];
   evidenceRefs: DelayEvidenceRef[];
   diagnostics: string[];

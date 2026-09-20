@@ -174,7 +174,20 @@ try {
       grossPositiveDays: windows.data?.positiveProgrammeMovementDays ?? null,
       grossNegativeDays: windows.data?.negativeProgrammeMovementDays ?? null,
       projectCompletionMovementDays: windows.data?.projectCompletionMovementDays ?? null,
-      projectCompletionMovementBasis: windows.data?.projectCompletionMovementBasis ?? null
+      projectCompletionMovementBasis: windows.data?.projectCompletionMovementBasis ?? null,
+      positiveIndependentDays: windows.data?.positiveIndependentMovementDays ?? null,
+      negativeIndependentDays: windows.data?.negativeIndependentMovementDays ?? null,
+      perWindow: Array.isArray(windows.data?.windows)
+        ? windows.data.windows.map(window => ({
+            sequence: window.sequence,
+            sourceForecastMovementDays: window.sourceForecastMovementDays ?? null,
+            independentForecastMovementDays: window.independentForecastMovementDays ?? null,
+            scheduleBoundaryMovementDays: window.scheduleBoundaryMovementDays ?? null,
+            strongestProgrammeMovementDays: window.strongestProgrammeMovementDays ?? null,
+            strongestProgrammeMovementBasis: window.strongestProgrammeMovementBasis ?? null,
+            linkedDelayEventCount: Array.isArray(window.delayEvents) ? window.delayEvents.length : 0
+          }))
+        : []
     },
     delayChain: {
       eventCount: delay.data?.eventCount ?? null,

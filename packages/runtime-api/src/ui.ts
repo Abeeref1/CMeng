@@ -1262,13 +1262,12 @@ function renderForecastVisual(data){
     {label:"CMeng Independent CPM Forecast",date:p.independentForecastCompletionIso,tone:"cmeng"},
     {label:"Required finish",date:p.requiredFinishIso,tone:"baseline"}
   ],p.dataDateIso);
-  const probPanel=review
-    ? '<div class="notice info">P50/P80/P90 comparators are suppressed while the deterministic independent finish is under reconciliation. Probabilistic dates should not amplify an unresolved deterministic basis.</div>'
-    : '<div class="position-grid">'+[
-        ["P50 probabilistic forecast",planningShortDate(prob.p50CompletionIso),"CMeng non-official comparator"],
-        ["P80 probabilistic forecast",planningShortDate(prob.p80CompletionIso),"CMeng non-official comparator"],
-        ["P90 probabilistic forecast",planningShortDate(prob.p90CompletionIso),"CMeng non-official comparator"]
-      ].map(c=>'<div class="position-card"><div class="position-label">'+escapeHtml(c[0])+'</div><div class="position-value">'+escapeHtml(c[1])+'</div><div class="position-sub">'+escapeHtml(c[2])+'</div></div>').join("")+'</div>';
+  const probPanel='<div class="position-grid">'+[
+      ["P50 probabilistic forecast",review?"Suppressed":planningShortDate(prob.p50CompletionIso),review?"Deterministic basis requires reconciliation":"CMeng non-official comparator"],
+      ["P80 probabilistic forecast",review?"Suppressed":planningShortDate(prob.p80CompletionIso),review?"Deterministic basis requires reconciliation":"CMeng non-official comparator"],
+      ["P90 probabilistic forecast",review?"Suppressed":planningShortDate(prob.p90CompletionIso),review?"Deterministic basis requires reconciliation":"CMeng non-official comparator"]
+    ].map(c=>'<div class="position-card '+(review?"review":"")+'"><div class="position-label">'+escapeHtml(c[0])+'</div><div class="position-value">'+escapeHtml(c[1])+'</div><div class="position-sub">'+escapeHtml(c[2])+'</div></div>').join("")+'</div>'+
+    (review?'<div class="notice info" style="margin-top:12px">P50/P80/P90 values are intentionally suppressed while the deterministic independent finish is under reconciliation. The forecast taxonomy remains visible without publishing unsupported dates.</div>':'');
   return '<section class="planning-view independent-forecast-view">'+kpis+warning+visualOverview+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Four distinct forecast positions</h4><p>Contractor programme, source productivity, CMeng deterministic CPM and CMeng probabilistic forecasts remain separate. No position silently replaces another.</p></div><span class="badge '+(review?"partial":"ready")+'">'+escapeHtml(review?"Reconciliation required":"Calculated")+'</span></div><div class="planning-panel-body">'+dateLadder+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Probabilistic comparators</h4><p>Non-official comparators are only useful after the deterministic basis is credible.</p></div></div><div class="planning-panel-body">'+probPanel+'</div></section></section>';
 }
 function renderWindowsVisual(data){
