@@ -12,6 +12,8 @@ export interface VarianceTrendPoint {
   negativeFloatCount: number;
   criticalCount: number;
   nearCriticalCount: number;
+  floatRiskWatchlistCount: number;
+  zeroFloatCount: number;
   forecastCompletionIso: string | null;
   programmeCompletionIso: string | null;
   projectCompletionVarianceDays: number | null;
