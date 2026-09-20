@@ -33,6 +33,7 @@ export interface ActivityAnalyticsRow {
   freeFloatHours: number | null;
 
   criticality: ActivityCriticality;
+  nearCriticalWatch: boolean;
   finishVarianceDays: number | null;
 
   predecessorIds: string[];
@@ -57,6 +58,7 @@ export interface ActivityAnalyticsProjection {
   floatCoveragePercent: number | null;
   percentCompleteCoveragePercent: number | null;
   finishVarianceCoveragePercent: number | null;
+  nearCriticalWatchCount: number;
   rows: ActivityAnalyticsRow[];
   diagnostics: string[];
 }
