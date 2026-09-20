@@ -84,6 +84,77 @@ details:not(.workspace-drawer){border:1px solid var(--line);border-radius:9px;ba
 @media(max-width:1280px){.planning-kpi-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.planning-primary-grid{grid-template-columns:1fr}.management-health-grid{grid-template-columns:1fr 1fr}.app{grid-template-columns:238px minmax(0,1fr)}.grid.three{grid-template-columns:1fr 1fr}.upload-row{grid-template-columns:1fr}.evidence-control-grid{grid-template-columns:1fr}.evidence-status-card{position:static}}
 @media(max-width:900px){.app{display:block}.sidebar{position:relative;height:auto}.topbar{position:relative;flex-wrap:wrap;padding:13px 18px}.content{padding:20px 18px 48px}.project-input{min-width:0;width:100%;flex-wrap:wrap}.workspace-header{align-items:center}.grid.two,.grid.three{grid-template-columns:1fr}.module-panel #moduleContent{padding:16px}.module-panel>.module-head{padding:17px}.candidate-grid{grid-template-columns:1fr}.auxiliary-drawer{right:12px;top:12px;width:calc(100vw - 24px);max-height:calc(100vh - 24px)}}
 @media(max-width:620px){.workspace-header{display:block}.queue-row{grid-template-columns:1fr}.queue-role-control{grid-template-columns:1fr}.queue-remove{justify-self:start}.quick-upload-bar{display:block}.quick-upload-actions{margin-top:10px}.quick-upload-actions .btn{width:100%}.workspace-actions{justify-content:flex-start;margin-top:10px}.workspace-header .badge{margin-top:10px}.grid.kpi{grid-template-columns:1fr 1fr}.scalar-grid{grid-template-columns:1fr}.wide-upload{grid-template-columns:1fr}.queue-row{grid-template-columns:1fr}.recommendation-card{display:block}.decision-pill{display:inline-flex;margin-top:10px}}
+
+/* CMeng Project Control visual system v4 */
+.module-panel{border-radius:18px!important;box-shadow:0 18px 48px rgba(31,47,67,.08)!important;border:1px solid #d9e3ee!important;background:#fff!important}
+.module-panel>.module-head{padding:24px 28px 20px!important;background:linear-gradient(135deg,#ffffff 0%,#f7faff 68%,#eef5fc 100%)!important}
+.module-workspace-head h3{font-size:28px!important;letter-spacing:-.035em!important}
+.module-panel #moduleContent{padding:28px!important;background:linear-gradient(180deg,#f8fbff 0,#f5f8fc 100%)!important}
+.role-view-selector{padding:12px 24px!important;background:#fff!important}
+.role-lens{border-radius:16px!important;box-shadow:0 8px 24px rgba(34,54,77,.05)!important}
+.role-review-layers{grid-template-columns:repeat(3,minmax(0,1fr))!important}
+.planning-view{display:grid;gap:18px;width:100%;min-width:0}
+.planning-kpi-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px!important;margin-bottom:0!important}
+.planning-kpi{position:relative;overflow:hidden;min-height:118px!important;padding:17px 17px 15px!important;border:1px solid #d9e4ef!important;border-radius:14px!important;background:linear-gradient(180deg,#fff 0,#fbfdff 100%)!important;box-shadow:0 7px 20px rgba(34,54,77,.045)!important}
+.planning-kpi:before{content:"";position:absolute;left:0;top:0;right:0;height:3px;background:#91a8c0}
+.planning-kpi.accent:before{background:#4f7fb4}.planning-kpi.success:before{background:#2c7a57}.planning-kpi.warning:before{background:#b57922}.planning-kpi.danger:before{background:#b4483e}
+.planning-kpi span{font-size:10px!important;letter-spacing:.07em!important;font-weight:850!important;color:#728198!important}
+.planning-kpi strong{display:block;font-size:24px!important;line-height:1.08!important;margin-top:8px!important;color:#22364d!important;letter-spacing:-.035em!important}
+.planning-kpi small{display:block;margin-top:7px!important;font-size:10.5px!important;color:#7b8795!important;line-height:1.35}
+.planning-panel{border:1px solid #d9e4ef!important;border-radius:16px!important;background:#fff!important;box-shadow:0 8px 26px rgba(34,54,77,.05)!important;overflow:hidden}
+.planning-panel.primary{border-color:#c7d8e8!important;box-shadow:0 11px 32px rgba(49,95,138,.07)!important}
+.planning-panel-head{padding:17px 20px 15px!important;background:linear-gradient(180deg,#fff,#fbfdff)!important;border-bottom:1px solid #e4ebf2!important}
+.planning-panel-head h4{font-size:16px!important;letter-spacing:-.018em!important;color:#22364d!important}
+.planning-panel-head p{font-size:11.5px!important;line-height:1.45!important;max-width:880px!important}
+.planning-panel-body{padding:20px!important}
+.planning-primary-grid{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(330px,.85fr);gap:18px!important}
+.chart-card{border-radius:16px!important;box-shadow:0 8px 26px rgba(34,54,77,.05)!important}
+.chart-card-head{padding:17px 20px!important;background:linear-gradient(180deg,#fff,#fbfdff)!important}
+.chart-body{padding:20px!important}
+.chart-scroll{overflow:auto hidden!important;padding:4px 0 2px}
+.svg-chart{width:100%!important;min-width:760px!important;max-height:360px!important;background:#fff;border-radius:10px}
+.chart-legend{gap:9px!important;margin-bottom:14px!important}
+.legend-item{padding:5px 8px;border:1px solid #e1e8ef;border-radius:999px;background:#fbfdff;font-size:10.5px!important;font-weight:700}
+.position-grid{grid-template-columns:repeat(auto-fit,minmax(210px,1fr))!important;gap:12px!important}
+.position-card{min-height:105px;border-radius:13px!important;padding:15px!important;box-shadow:0 5px 16px rgba(34,54,77,.035)}
+.position-card .position-value{font-size:22px!important}
+.table-wrap{border:1px solid #dfe7ef;border-radius:12px;overflow:auto;max-height:640px;background:#fff}
+.table-wrap table{border-collapse:separate;border-spacing:0;width:100%}
+.table-wrap thead th{position:sticky;top:0;z-index:2;background:#f3f7fb!important;color:#506579!important;font-size:9.5px!important;text-transform:uppercase;letter-spacing:.055em;border-bottom:1px solid #ccd8e4!important}
+.table-wrap tbody tr:nth-child(even){background:#fbfdff}
+.table-wrap tbody tr:hover{background:#f2f7fc}
+.table-wrap td{border-bottom:1px solid #edf2f6!important;vertical-align:top}
+.module-bar-row{grid-template-columns:minmax(145px,.9fr) minmax(260px,1.8fr) 110px!important;gap:12px!important}
+.module-bar-row>div{height:17px!important;border-radius:999px!important;background:#eef3f8!important;overflow:hidden}
+.module-bar-row i{height:100%!important;border-radius:999px!important;box-shadow:inset 0 0 0 1px rgba(255,255,255,.25)}
+.signed-track{height:18px!important;border-radius:999px!important;background:#eef3f8!important}
+.signed-bar{top:3px!important;height:12px!important;border-radius:999px!important}
+.status-band{height:34px!important;border-radius:10px!important;overflow:hidden;box-shadow:inset 0 0 0 1px rgba(15,23,42,.06)}
+.status-band-segment{min-width:3px;display:flex!important;align-items:center!important;justify-content:center!important;gap:5px!important}
+.status-band-segment span,.status-band-segment b{font-size:9.5px!important}
+.window-card{border-radius:14px!important;padding:16px!important;box-shadow:0 5px 18px rgba(34,54,77,.035)}
+.currency-card{border-radius:14px!important;box-shadow:0 6px 18px rgba(34,54,77,.04)!important;background:linear-gradient(180deg,#fff,#fbfdff)!important}
+.currency-code{font-size:13px!important;letter-spacing:.08em!important}
+.visual-chart-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}
+.visual-chart-grid.three{grid-template-columns:repeat(3,minmax(0,1fr))}
+.visual-chart{border:1px solid #d9e4ef;border-radius:16px;background:#fff;box-shadow:0 8px 26px rgba(34,54,77,.05);overflow:hidden;min-width:0}
+.visual-chart-head{display:flex;justify-content:space-between;gap:14px;align-items:start;padding:16px 18px 13px;border-bottom:1px solid #e5ecf3;background:linear-gradient(180deg,#fff,#fbfdff)}
+.visual-chart-head h5{margin:0;font-size:14px;color:#22364d;letter-spacing:-.015em}.visual-chart-head p{margin:4px 0 0;font-size:10.5px;color:#718096;line-height:1.4}
+.visual-chart-body{padding:18px}
+.donut-layout{display:grid;grid-template-columns:150px minmax(0,1fr);gap:18px;align-items:center}
+.donut-ring{width:142px;height:142px;border-radius:50%;position:relative;box-shadow:inset 0 0 0 1px rgba(34,54,77,.06)}
+.donut-ring:after{content:"";position:absolute;inset:24px;border-radius:50%;background:#fff;box-shadow:0 0 0 1px #edf2f7}
+.donut-center{position:absolute;inset:0;z-index:1;display:grid;place-content:center;text-align:center;pointer-events:none}.donut-center b{font-size:23px;color:#22364d;line-height:1}.donut-center span{margin-top:5px;font-size:9px;text-transform:uppercase;letter-spacing:.06em;color:#7b8795;font-weight:800}
+.donut-legend{display:grid;gap:8px}.donut-legend-row{display:grid;grid-template-columns:10px minmax(0,1fr) auto;gap:8px;align-items:center;font-size:11px;color:#5f6f82}.donut-legend-row i{width:9px;height:9px;border-radius:3px}.donut-legend-row b{color:#22364d}
+.visual-bars{display:grid;gap:10px}.visual-bar-row{display:grid;grid-template-columns:minmax(125px,.85fr) minmax(200px,1.6fr) 88px;gap:10px;align-items:center}.visual-bar-label{font-size:10.5px;color:#53657a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.visual-bar-track{height:20px;border-radius:999px;background:#eef3f8;overflow:hidden;position:relative}.visual-bar-fill{height:100%;border-radius:999px;background:linear-gradient(90deg,#6f96bd,#4f7fb4);min-width:2px}.visual-bar-fill.success{background:linear-gradient(90deg,#5b9b7c,#2c7a57)}.visual-bar-fill.warning{background:linear-gradient(90deg,#d4a653,#b57922)}.visual-bar-fill.danger{background:linear-gradient(90deg,#d4776e,#b4483e)}.visual-bar-value{text-align:right;font-size:10.5px;font-weight:800;color:#344054}
+.waterfall{display:grid;gap:8px}.waterfall-row{display:grid;grid-template-columns:minmax(145px,.85fr) minmax(230px,1.7fr) 96px;gap:10px;align-items:center}.waterfall-track{position:relative;height:22px;border-radius:7px;background:#eef3f8}.waterfall-zero{position:absolute;left:50%;top:0;bottom:0;width:1px;background:#98a2b3}.waterfall-bar{position:absolute;top:4px;height:14px;border-radius:5px}.waterfall-bar.positive{background:#b4483e}.waterfall-bar.negative{background:#2c7a57}.waterfall-bar.neutral{background:#91a0b0}
+.chart-insight{display:flex;align-items:flex-start;gap:9px;margin-top:12px;padding:10px 12px;border-radius:9px;background:#f6f9fc;color:#607086;font-size:10.5px;line-height:1.45}.chart-insight b{color:#344054}
+.commercial-visual-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:18px}
+.commercial-currency-chart{border:1px solid #d9e4ef;border-radius:14px;background:#fff;padding:15px}.commercial-currency-chart h5{margin:0 0 12px;font-size:13px;color:#22364d}
+@media(max-width:1450px){.planning-kpi-grid{grid-template-columns:repeat(3,minmax(0,1fr))!important}.visual-chart-grid.three{grid-template-columns:1fr 1fr}}
+@media(max-width:1050px){.planning-primary-grid,.visual-chart-grid,.visual-chart-grid.three{grid-template-columns:1fr!important}.donut-layout{grid-template-columns:140px minmax(0,1fr)}.role-review-layers{grid-template-columns:1fr 1fr!important}}
+@media(max-width:700px){.planning-kpi-grid{grid-template-columns:1fr 1fr!important}.donut-layout{grid-template-columns:1fr}.donut-ring{margin:auto}.module-panel #moduleContent{padding:18px!important}.role-review-layers{grid-template-columns:1fr!important}}
+
 </style>
 </head>
 <body>
@@ -836,14 +907,23 @@ function renderDeliveryChallenge(data,reason){
   ])+(quantityRows?'<div class="table-wrap" style="margin-top:12px"><table><thead><tr><th>Unit</th><th>Contract qty</th><th>Mapped qty</th><th>Installed</th><th>Remaining</th><th>Required/day</th><th>Map coverage</th></tr></thead><tbody>'+quantityRows+'</tbody></table></div>':'')+'</div></section>';
   const findings=(d.findings||[]).map(x=>'<tr><td>'+escapeHtml(x.topic)+'</td><td>'+escapeHtml(humanizeKey(x.state))+'</td><td>'+escapeHtml(x.contractorAssumption||"—")+'</td><td>'+escapeHtml(x.independentCalculation||"—")+'</td><td>'+escapeHtml(x.difference||"—")+'</td><td>'+escapeHtml(x.milestoneConsequence||"—")+'</td><td>'+escapeHtml(x.requiredResponse||"—")+'</td></tr>').join("");
   const contractCategoryCounts=contract?(contract.signals||[]).reduce((map,signal)=>{const label=humanizeKey(signal.category||"other");map.set(label,(map.get(label)||0)+1);return map},new Map()):new Map();
-  const contractCategoryBars=moduleBarList([...contractCategoryCounts.entries()].sort((a,b)=>b[1]-a[1]).map(([label,value])=>({label,value,tone:"accent"})),"accent");
+  const contractCategoryItems=[...contractCategoryCounts.entries()].sort((a,b)=>b[1]-a[1]).map(([label,value])=>({label,value,tone:"accent"}));
+  const contractCategoryBars=renderVisualBars(contractCategoryItems);
+  const readyGateCount=[contract,submittedManpower,measuredHours,mappingCoverage!==null&&mappingCoverage>0,s.independentCompletionIso].filter(Boolean).length;
+  const challengeVisuals='<div class="visual-chart-grid">'+
+    renderVisualPanel("Evidence readiness","What is established before CMeng challenges the submitted delivery position.",renderDonutChart([
+      {label:"Established",value:readyGateCount,tone:"success"},
+      {label:"Missing / review",value:5-readyGateCount,tone:"warning"}
+    ],"Evidence gates"))+
+    renderVisualPanel("Contract review signals","Source-grounded contract topics requiring management review.",contractCategoryCounts.size?renderDonutChart(contractCategoryItems,"Signals"):'<div class="empty-visual">Contract review signals are not established.</div>')+
+  '</div>';
   const contractSummary=contract?'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Contract review</h4><p>Clause intelligence is source-grounded; extracted candidates do not become official terms automatically.</p></div></div><div class="planning-panel-body">'+planningKpis([
     ["Contract review signals",contract.signalCount??contract.signals?.length??0,"items"],
     ["Notice candidates",contract.noticeRequirementCandidates?.length??0,"candidate clauses"],
     ["Categories",(contract.categoriesPresent||[]).length,"identified"]
   ])+(contractCategoryCounts.size?'<div class="nested-title" style="margin-top:14px">Signals by contract topic</div>'+contractCategoryBars:'')+'</div></section>':'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Contract review</h4></div></div><div class="planning-panel-body"><div class="notice warn">A parsed contract is required before CMeng can challenge clauses, notice obligations or contractual time provisions.</div></div></section>';
   const reconciliation=challengeBody?'<details class="reconciliation-panel"><summary><span>Reconciliation with submitted position</span><b>'+escapeHtml(data.challenge?.challengedCount||0)+' needs attention</b></summary><div class="reconciliation-body">'+challengeBody+'</div></details>':'';
-  let html='<section class="planning-view contract-challenge-view">'+(reason?'<div class="notice info">'+escapeHtml(reason)+'</div>':'')+'<section class="planning-panel"><div class="planning-panel-head"><div><h4>Evidence readiness</h4><p>CMeng does not present a scenario as an official project fact.</p></div><span class="badge '+(d.position==="challenged"||d.position==="material_delivery_gap"?"partial":"")+'">'+escapeHtml(humanizeKey(d.position))+'</span></div><div class="planning-panel-body">'+gates+'</div></section>'+scheduleCards+'<div class="planning-primary-grid">'+contractSummary+manpower+'</div>'+quantity;
+  let html='<section class="planning-view contract-challenge-view">'+(reason?'<div class="notice info">'+escapeHtml(reason)+'</div>':'')+challengeVisuals+'<section class="planning-panel"><div class="planning-panel-head"><div><h4>Evidence readiness</h4><p>CMeng does not present a scenario as an official project fact.</p></div><span class="badge '+(d.position==="challenged"||d.position==="material_delivery_gap"?"partial":"")+'">'+escapeHtml(humanizeKey(d.position))+'</span></div><div class="planning-panel-body">'+gates+'</div></section>'+scheduleCards+'<div class="planning-primary-grid">'+contractSummary+manpower+'</div>'+quantity;
   if(findings)html+='<section class="planning-panel"><div class="planning-panel-head"><div><h4>Delivery challenge findings</h4><p>Management issues, consequence and required response.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Topic</th><th>State</th><th>Contractor position</th><th>CMeng analysis</th><th>Gap</th><th>Consequence</th><th>Required response</th></tr></thead><tbody>'+findings+'</tbody></table></div></div></section>';
   if(data.contractValueEvidence){
     const cv=data.contractValueEvidence,governed=cv.governed,candidate=cv.extraction?.value;
@@ -955,36 +1035,112 @@ function projectionFor(data,projectionKey){
   }
   return data||{};
 }
+function chartToneColor(tone){
+  const colors={
+    accent:"#4f7fb4",success:"#2c7a57",warning:"#b57922",danger:"#b4483e",
+    neutral:"#91a0b0",graphite:"#506579",purple:"#7c5ca8",teal:"#4c8f95"
+  };
+  return colors[tone]||tone||colors.accent;
+}
+function renderVisualPanel(title,description,body,badge=""){
+  return '<section class="visual-chart"><div class="visual-chart-head"><div><h5>'+escapeHtml(title)+'</h5>'+(description?'<p>'+escapeHtml(description)+'</p>':'')+'</div>'+(badge?'<span class="badge">'+escapeHtml(badge)+'</span>':'')+'</div><div class="visual-chart-body">'+body+'</div></section>';
+}
+function renderDonutChart(items,centerLabel="Total"){
+  const known=(items||[]).filter(item=>typeof item.value==="number"&&Number.isFinite(item.value)&&item.value>=0);
+  const total=known.reduce((sum,item)=>sum+item.value,0);
+  if(!known.length||total<=0)return '<div class="empty-visual">No established distribution is available for this chart.</div>';
+  let cursor=0;
+  const stops=[];
+  known.forEach(item=>{
+    const from=(cursor/total)*100;
+    cursor+=item.value;
+    const to=(cursor/total)*100;
+    const color=chartToneColor(item.tone||"neutral");
+    stops.push(color+" "+from.toFixed(3)+"% "+to.toFixed(3)+"%");
+  });
+  const legend=known.map(item=>'<div class="donut-legend-row"><i style="background:'+chartToneColor(item.tone||"neutral")+'"></i><span>'+escapeHtml(item.label)+'</span><b>'+escapeHtml(fmt(item.value))+'</b></div>').join("");
+  return '<div class="donut-layout"><div class="donut-ring" style="background:conic-gradient('+stops.join(",")+')"><div class="donut-center"><b>'+escapeHtml(fmt(total))+'</b><span>'+escapeHtml(centerLabel)+'</span></div></div><div class="donut-legend">'+legend+'</div></div>';
+}
+function renderVisualBars(items,unit=""){
+  const rows=(items||[]).filter(item=>typeof item.value==="number"&&Number.isFinite(item.value)&&item.value>=0);
+  if(!rows.length)return '<div class="empty-visual">No comparable values are established for this chart.</div>';
+  const max=Math.max(1,...rows.map(item=>item.value));
+  return '<div class="visual-bars">'+rows.map(item=>{
+    const width=Math.max(item.value===0?0:1,(item.value/max)*100);
+    const tone=item.tone||"accent";
+    return '<div class="visual-bar-row"><div class="visual-bar-label" title="'+escapeHtml(item.label)+'">'+escapeHtml(item.label)+'</div><div class="visual-bar-track"><div class="visual-bar-fill '+escapeHtml(tone)+'" style="width:'+width.toFixed(2)+'%"></div></div><div class="visual-bar-value">'+escapeHtml(fmt(item.value)+(unit?" "+unit:""))+'</div></div>';
+  }).join("")+'</div>';
+}
+function renderWaterfallChart(items,unit=""){
+  const rows=(items||[]).filter(item=>typeof item.value==="number"&&Number.isFinite(item.value));
+  if(!rows.length)return '<div class="empty-visual">No signed movement is established for this chart.</div>';
+  const max=Math.max(1,...rows.map(item=>Math.abs(item.value)));
+  return '<div class="waterfall">'+rows.map(item=>{
+    const width=Math.min(49,(Math.abs(item.value)/max)*48);
+    const left=item.value<0?50-width:50;
+    const tone=item.value>0?"positive":item.value<0?"negative":"neutral";
+    const text=(item.value>0?"+":"")+fmt(item.value)+(unit?" "+unit:"");
+    return '<div class="waterfall-row"><div class="visual-bar-label" title="'+escapeHtml(item.label)+'">'+escapeHtml(item.label)+'</div><div class="waterfall-track"><span class="waterfall-zero"></span><span class="waterfall-bar '+tone+'" style="left:'+left.toFixed(2)+'%;width:'+width.toFixed(2)+'%"></span></div><div class="visual-bar-value">'+escapeHtml(text)+'</div></div>';
+  }).join("")+'</div>';
+}
+function metricValue(metric){
+  if(metric===null||metric===undefined)return null;
+  if(typeof metric==="number")return Number.isFinite(metric)?metric:null;
+  if(typeof metric==="object"&&typeof metric.value==="number"&&Number.isFinite(metric.value))return metric.value;
+  return null;
+}
+function renderCommercialMetricBars(row,fields){
+  const items=(fields||[]).map(([label,field,tone])=>({label,value:metricValue(row?.[field]),tone:tone||"accent"})).filter(item=>item.value!==null);
+  return renderVisualBars(items,row?.currency||"");
+}
 function renderLineChart(points,series,yMaxHint=null){
-  if(!Array.isArray(points)||!points.length)return '<div class="muted">No series points available.</div>';
+  if(!Array.isArray(points)||!points.length)return '<div class="empty-visual">No series points available.</div>';
   const numeric=[];
-  points.forEach(point=>series.forEach(s=>{const v=point?.[s.key];if(typeof v==="number"&&Number.isFinite(v))numeric.push(v)}));
-  if(!numeric.length)return '<div class="muted">No numeric series points available.</div>';
-  const width=960,height=270,left=52,right=18,top=18,bottom=42;
+  points.forEach(point=>series.forEach(item=>{const value=point?.[item.key];if(typeof value==="number"&&Number.isFinite(value))numeric.push(value)}));
+  if(!numeric.length)return '<div class="empty-visual">No numeric series points available.</div>';
+  const width=1080,height=330,left=66,right=28,top=24,bottom=54;
   const plotW=width-left-right,plotH=height-top-bottom;
-  const rawMax=Math.max(...numeric,1);
-  const maxY=yMaxHint!==null?yMaxHint:Math.max(1,rawMax*1.08);
-  const x=i=>left+(points.length===1?plotW/2:(i/(points.length-1))*plotW);
-  const y=v=>top+plotH-(Math.max(0,Math.min(maxY,v))/maxY)*plotH;
-  const segments=(key)=>{
+  const rawMin=Math.min(...numeric,0),rawMax=Math.max(...numeric,1);
+  const minY=yMaxHint!==null?0:Math.min(0,rawMin-(rawMax-rawMin)*.08);
+  const maxY=yMaxHint!==null?yMaxHint:Math.max(1,rawMax+(rawMax-rawMin||1)*.1);
+  const span=Math.max(.0001,maxY-minY);
+  const x=index=>left+(points.length===1?plotW/2:(index/(points.length-1))*plotW);
+  const y=value=>top+plotH-((Math.max(minY,Math.min(maxY,value))-minY)/span)*plotH;
+  const segments=key=>{
     const result=[];let current=[];
-    points.forEach((point,i)=>{
+    points.forEach((point,index)=>{
       const value=point?.[key];
-      if(typeof value==="number"&&Number.isFinite(value)){current.push(x(i).toFixed(1)+","+y(value).toFixed(1))}
+      if(typeof value==="number"&&Number.isFinite(value))current.push({x:x(index),y:y(value),value,index});
       else if(current.length){result.push(current);current=[]}
     });
     if(current.length)result.push(current);
     return result;
   };
-  const grid=[0,.25,.5,.75,1].map(r=>{
-    const yy=top+plotH-(r*plotH);
-    return '<line x1="'+left+'" y1="'+yy+'" x2="'+(width-right)+'" y2="'+yy+'" stroke="#e4eaf1" stroke-width="1"/><text x="'+(left-9)+'" y="'+(yy+4)+'" text-anchor="end" font-size="10" fill="#75849a">'+escapeHtml(fmt(maxY*r))+'</text>';
+  const grid=[0,.25,.5,.75,1].map(ratio=>{
+    const value=minY+(span*ratio),yy=y(value);
+    return '<line x1="'+left+'" y1="'+yy.toFixed(1)+'" x2="'+(width-right)+'" y2="'+yy.toFixed(1)+'" stroke="#e6edf4" stroke-width="1"/><text x="'+(left-10)+'" y="'+(yy+4).toFixed(1)+'" text-anchor="end" font-size="10" fill="#738399">'+escapeHtml(fmt(value))+'</text>';
   }).join("");
-  const lines=series.map(s=>segments(s.key).map(seg=>'<polyline points="'+seg.join(" ")+'" fill="none" stroke="'+s.color+'" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>').join("")).join("");
-  const labelIndexes=[0,Math.floor((points.length-1)/2),points.length-1].filter((v,i,a)=>a.indexOf(v)===i);
-  const labels=labelIndexes.map(i=>'<text x="'+x(i)+'" y="'+(height-14)+'" text-anchor="'+(i===0?"start":i===points.length-1?"end":"middle")+'" font-size="10" fill="#75849a">'+escapeHtml(points[i]?.dateIso||String(i+1))+'</text>').join("");
-  const legend='<div class="chart-legend">'+series.map(s=>'<span class="legend-item"><span class="legend-dot" style="background:'+s.color+'"></span>'+escapeHtml(s.label)+'</span>').join("")+'</div>';
-  return legend+'<div class="chart-scroll"><svg class="svg-chart" viewBox="0 0 '+width+' '+height+'" role="img">'+grid+lines+labels+'</svg></div>';
+  const zero=minY<0&&maxY>0?'<line x1="'+left+'" y1="'+y(0).toFixed(1)+'" x2="'+(width-right)+'" y2="'+y(0).toFixed(1)+'" stroke="#98a2b3" stroke-width="1.2" stroke-dasharray="4 4"/>':'';
+  const plots=series.map((item,seriesIndex)=>{
+    const color=item.color||chartToneColor(item.tone||"accent");
+    const segs=segments(item.key);
+    return segs.map(seg=>{
+      const poly='<polyline points="'+seg.map(p=>p.x.toFixed(1)+","+p.y.toFixed(1)).join(" ")+'" fill="none" stroke="'+color+'" stroke-width="'+(seriesIndex===0?3:2.4)+'" stroke-linecap="round" stroke-linejoin="round"/>';
+      const area=seriesIndex===0&&minY>=0&&seg.length>1
+        ? '<polygon points="'+seg[0].x.toFixed(1)+","+y(minY).toFixed(1)+" "+seg.map(p=>p.x.toFixed(1)+","+p.y.toFixed(1)).join(" ")+" "+seg.at(-1).x.toFixed(1)+","+y(minY).toFixed(1)+'" fill="'+color+'" fill-opacity=".07"/>'
+        : '';
+      const dots=seg.length<=36?seg.map(p=>'<circle cx="'+p.x.toFixed(1)+'" cy="'+p.y.toFixed(1)+'" r="3.5" fill="#fff" stroke="'+color+'" stroke-width="2"><title>'+escapeHtml(item.label+": "+fmt(p.value))+'</title></circle>').join(""):'';
+      return area+poly+dots;
+    }).join("");
+  }).join("");
+  const labelIndexes=[0,Math.floor((points.length-1)/4),Math.floor((points.length-1)/2),Math.floor(((points.length-1)*3)/4),points.length-1].filter((v,i,a)=>a.indexOf(v)===i);
+  const labels=labelIndexes.map(index=>'<text x="'+x(index).toFixed(1)+'" y="'+(height-18)+'" text-anchor="'+(index===0?"start":index===points.length-1?"end":"middle")+'" font-size="10" fill="#738399">'+escapeHtml(planningShortDate(points[index]?.dateIso)||points[index]?.dateIso||String(index+1))+'</text>').join("");
+  const legend='<div class="chart-legend">'+series.map(item=>{
+    const values=points.map(point=>point?.[item.key]).filter(value=>typeof value==="number"&&Number.isFinite(value));
+    const latest=values.length?values.at(-1):null;
+    return '<span class="legend-item"><span class="legend-dot" style="background:'+(item.color||chartToneColor(item.tone||"accent"))+'"></span>'+escapeHtml(item.label)+(latest===null?'':' · '+escapeHtml(fmt(latest)))+'</span>';
+  }).join("")+'</div>';
+  return legend+'<div class="chart-scroll"><svg class="svg-chart" viewBox="0 0 '+width+' '+height+'" role="img" aria-label="Trend chart">'+grid+zero+plots+labels+'</svg></div>';
 }
 function renderProgressScurveVisual(data){
   const p=projectionFor(data,"progress_scurve");
@@ -1084,6 +1240,22 @@ function renderForecastVisual(data){
     ["Required finish",planningShortDate(p.requiredFinishIso),"contract/target if established"]
   ]);
   const warning=review?'<div class="notice warn"><b>Independent forecast requires reconciliation before management use.</b><br>'+escapeHtml(p.managementReviewReason||"The deterministic CPM basis contains unresolved evidence.")+'</div>':'';
+  const forecastDistance=[
+    {label:"Contractor Programme Forecast",value:planningDaysBetween(p.dataDateIso,p.sourceForecastCompletionIso),tone:"graphite"},
+    {label:"Source Productivity Forecast",value:planningDaysBetween(p.dataDateIso,p.sourceProductivityForecastCompletionIso),tone:"warning"},
+    {label:"CMeng Independent CPM Forecast",value:planningDaysBetween(p.dataDateIso,p.independentForecastCompletionIso),tone:"accent"},
+    {label:"P50 probabilistic forecast",value:planningDaysBetween(p.dataDateIso,prob.p50CompletionIso),tone:"teal"},
+    {label:"P80 probabilistic forecast",value:planningDaysBetween(p.dataDateIso,prob.p80CompletionIso),tone:"purple"},
+    {label:"P90 probabilistic forecast",value:planningDaysBetween(p.dataDateIso,prob.p90CompletionIso),tone:"danger"}
+  ].filter(item=>typeof item.value==="number"&&Number.isFinite(item.value)&&item.value>=0);
+  const visualOverview='<div class="visual-chart-grid">'+
+    renderVisualPanel("Forecast distance from Data Date","All forecast positions translated to a common time distance without merging their authority.",renderVisualBars(forecastDistance,"d"))+
+    renderVisualPanel("Forecast variance bridge","Deterministic, source-productivity and probabilistic differences remain distinct.",renderWaterfallChart([
+      {label:"CMeng vs Contractor",value:typeof variance==="number"?variance:0},
+      {label:"Source productivity vs Contractor",value:(p.sourceProductivityForecastCompletionIso&&p.sourceForecastCompletionIso)?planningDaysBetween(p.sourceForecastCompletionIso,p.sourceProductivityForecastCompletionIso):0},
+      {label:"P80 vs CMeng CPM",value:(prob.p80CompletionIso&&p.independentForecastCompletionIso)?planningDaysBetween(p.independentForecastCompletionIso,prob.p80CompletionIso):0}
+    ],"d"))+
+  '</div>';
   const dateLadder=planningDateLadder([
     {label:"Contractor Programme Forecast",date:p.sourceForecastCompletionIso,tone:"current"},
     {label:"Source Productivity Forecast",date:p.sourceProductivityForecastCompletionIso,tone:"scenario"},
@@ -1097,7 +1269,7 @@ function renderForecastVisual(data){
         ["P80 probabilistic forecast",planningShortDate(prob.p80CompletionIso),"CMeng non-official comparator"],
         ["P90 probabilistic forecast",planningShortDate(prob.p90CompletionIso),"CMeng non-official comparator"]
       ].map(c=>'<div class="position-card"><div class="position-label">'+escapeHtml(c[0])+'</div><div class="position-value">'+escapeHtml(c[1])+'</div><div class="position-sub">'+escapeHtml(c[2])+'</div></div>').join("")+'</div>';
-  return '<section class="planning-view independent-forecast-view">'+kpis+warning+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Four distinct forecast positions</h4><p>Contractor programme, source productivity, CMeng deterministic CPM and CMeng probabilistic forecasts remain separate. No position silently replaces another.</p></div><span class="badge '+(review?"partial":"ready")+'">'+escapeHtml(review?"Reconciliation required":"Calculated")+'</span></div><div class="planning-panel-body">'+dateLadder+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Probabilistic comparators</h4><p>Non-official comparators are only useful after the deterministic basis is credible.</p></div></div><div class="planning-panel-body">'+probPanel+'</div></section></section>';
+  return '<section class="planning-view independent-forecast-view">'+kpis+warning+visualOverview+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Four distinct forecast positions</h4><p>Contractor programme, source productivity, CMeng deterministic CPM and CMeng probabilistic forecasts remain separate. No position silently replaces another.</p></div><span class="badge '+(review?"partial":"ready")+'">'+escapeHtml(review?"Reconciliation required":"Calculated")+'</span></div><div class="planning-panel-body">'+dateLadder+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Probabilistic comparators</h4><p>Non-official comparators are only useful after the deterministic basis is credible.</p></div></div><div class="planning-panel-body">'+probPanel+'</div></section></section>';
 }
 function renderWindowsVisual(data){
   const p=projectionFor(data,"windows_analysis");
@@ -1111,6 +1283,14 @@ function renderWindowsVisual(data){
     return '<div class="window-card clean"><div><div class="window-id">Window '+escapeHtml(w.sequence)+' · '+escapeHtml(from)+' → '+escapeHtml(to)+'</div><div class="window-dates">'+escapeHtml(planningShortDate(w.windowStartIso))+' → '+escapeHtml(planningShortDate(w.windowEndIso))+'</div></div><div><div class="movement-label">Submitted forecast movement</div><div class="movement-value">'+escapeHtml(sourceMove===null?"—":(sourceMove>0?"+":"")+fmt(sourceMove)+" days")+'</div><div class="muted">Progress movement '+escapeHtml(w.progressMovementPercent===null?"—":(w.progressMovementPercent>0?"+":"")+fmt(w.progressMovementPercent)+" pp")+'</div></div><div><div class="movement-label">Independent CPM movement</div><div class="movement-value small">'+escapeHtml(independent===null?"Not calculated in this view":(independent>0?"+":"")+fmt(independent)+" days")+'</div><div class="muted">'+escapeHtml((w.delayEvents||[]).length+" linked event(s)")+'</div></div></div>';
   }).join("");
   const note='<div class="notice info"><b>Window movement and Project Completion movement are different measures.</b> Gross positive window movement sums only positive revision-to-revision shifts. Project Completion movement is the net first-to-latest submitted completion shift. Neither is automatically delay entitlement or EOT.</div>'+(p.windows.some(w=>w.independentForecastMovementDays===null)?'<div class="notice info">Independent CPM is not silently substituted where it has not been calculated.</div>':'');
+  const visualOverview='<div class="visual-chart-grid">'+
+    renderVisualPanel("Window movement waterfall","Every revision-to-revision submitted finish movement is signed. Right is later; left is earlier.",renderWaterfallChart(bars,"d"))+
+    renderVisualPanel("Window completeness","Complete and partial analytical windows remain visibly separate.",renderDonutChart([
+      {label:"Complete",value:p.completeWindowCount||0,tone:"success"},
+      {label:"Partial",value:p.partialWindowCount||0,tone:"warning"},
+      {label:"Other",value:Math.max(0,(p.windowCount||0)-(p.completeWindowCount||0)-(p.partialWindowCount||0)),tone:"neutral"}
+    ],"Windows"))+
+  '</div>';
   return '<section class="planning-view windows-view">'+planningKpis([
     ["Windows",p.windowCount,"revision intervals"],
     ["Complete windows",p.completeWindowCount,""],
@@ -1118,7 +1298,7 @@ function renderWindowsVisual(data){
     ["Gross positive window movement",fmt(p.positiveProgrammeMovementDays)+" d","sum of positive windows; not project delay or EOT",p.positiveProgrammeMovementDays>0?"warning":""],
     ["Project Completion movement",p.projectCompletionMovementDays===null||p.projectCompletionMovementDays===undefined?"—":(p.projectCompletionMovementDays>0?"+":"")+fmt(p.projectCompletionMovementDays)+" d","first controlled → latest controlled · "+humanizeKey(p.projectCompletionMovementBasis||"unavailable"),p.projectCompletionMovementDays>0?"danger":""],
     ["Linked delay events",p.windows.reduce((sum,w)=>sum+(w.delayEvents||[]).length,0),"window references"]
-  ])+note+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Programme movement by window</h4><p>Source forecast movement is shown first. It is schedule movement, not automatic delay entitlement.</p></div></div><div class="planning-panel-body">'+planningSignedBars(bars,"days")+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Window detail</h4></div></div><div class="planning-panel-body"><div class="window-strip">'+cards+'</div></div></section></section>';
+  ])+note+visualOverview+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Programme movement by window</h4><p>Source forecast movement is shown first. It is schedule movement, not automatic delay entitlement.</p></div></div><div class="planning-panel-body">'+planningSignedBars(bars,"days")+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Window detail</h4></div></div><div class="planning-panel-body"><div class="window-strip">'+cards+'</div></div></section></section>';
 }
 function renderDelayClaimsVisual(data){
   const p=projectionFor(data,"delay_claims");
@@ -1141,11 +1321,26 @@ function renderDelayClaimsVisual(data){
     ["Linked to delay events",linked,"success"],
     ["Not linked to delay events",unlinked,"warning"]
   ]);
+  const chainChart=renderVisualBars([
+    {label:"Claim-linked events",value:p.claimLinkedEventCount??0,tone:"success"},
+    {label:"Activity-linked events",value:p.activityLinkedEventCount??0,tone:"accent"},
+    {label:"Window-linked events",value:p.windowLinkedEventCount??0,tone:"warning"},
+    {label:"Notice-linked events",value:p.noticeLinkedEventCount??0,tone:"teal"},
+    {label:"Determination-linked events",value:p.determinationLinkedEventCount??0,tone:"purple"}
+  ],"events");
+  const movementChart=renderWaterfallChart([
+    {label:"Gross positive window movement",value:typeof p.observedPositiveProgrammeMovementDays==="number"?p.observedPositiveProgrammeMovementDays:0},
+    {label:"Net Project Completion movement",value:typeof p.projectCompletionMovementDays==="number"?p.projectCompletionMovementDays:0}
+  ],"d");
+  const visualOverview='<div class="visual-chart-grid">'+
+    renderVisualPanel("Evidence-chain coverage","How far the governed claim/event population is connected into schedule, windows, notices and determinations.",chainChart)+
+    renderVisualPanel("Schedule movement semantics","Gross positive window movement and net Project Completion movement are shown as different analytical measures.",movementChart)+
+  '</div>';
   const classes=claimStateCounts(p.events.map(e=>({state:e.candidateClass})));
   const rows=p.events.map(e=>'<tr><td><b>'+escapeHtml(e.eventId)+'</b><br><span class="muted">'+escapeHtml(e.title||"")+'</span></td><td>'+escapeHtml(humanizeKey(e.responsibility))+'</td><td>'+escapeHtml(humanizeKey(e.noticeTimeliness))+'</td><td>'+escapeHtml(fmt(e.observedPositiveProgrammeMovementDays))+'</td><td>'+escapeHtml(humanizeKey(e.programmeMovementBasis))+'</td><td><span class="state-pill '+(e.concurrencyCandidate?"review":"ready")+'">'+escapeHtml(humanizeKey(e.evidenceChainState||e.candidateClass))+'</span></td><td>'+escapeHtml((e.linkedClaimIds||[]).join(", ")||"—")+'</td><td>'+escapeHtml((e.relatedActivityIds||[]).join(", ")||"—")+'</td><td>'+escapeHtml((e.overlappingWindowIds||[]).map(id=>readableWindow(id,p.revisionLabels||{})).join(", ")||"—")+'</td><td>'+escapeHtml((e.noticeIds||[]).join(", ")||"—")+'</td><td>'+escapeHtml((e.determinationIds||[]).join(", ")||"—")+'</td></tr>').join("");
   const detail=p.events.length?'<div class="table-wrap"><table><thead><tr><th>Event</th><th>Responsibility</th><th>Notice status</th><th>Gross positive movement d</th><th>Movement basis</th><th>Evidence chain</th><th>Claims</th><th>Activities</th><th>Windows</th><th>Notices</th><th>Determinations</th></tr></thead><tbody>'+rows+'</tbody></table></div>':'<div class="empty-visual">No delay-event population is established. Claim records alone are not converted into delay events.</div>';
   const classVisual=p.events.length?moduleBarList(classes,"warning"):'<div class="empty-visual">Event responsibility cannot be classified until delay events are established.</div>';
-  return '<section class="planning-view delay-claims-view">'+kpis+warning+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Claim-event linkage</h4><p>Claims without a governed delay-event link remain un-attributed.</p></div></div><div class="planning-panel-body">'+linkage+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Event assessment classes</h4><p>Responsibility classification is shown only for established delay events.</p></div></div><div class="planning-panel-body">'+classVisual+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Delay-event detail</h4></div></div><div class="planning-panel-body">'+detail+'</div></section></section>';
+  return '<section class="planning-view delay-claims-view">'+kpis+warning+visualOverview+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Claim-event linkage</h4><p>Claims without a governed delay-event link remain un-attributed.</p></div></div><div class="planning-panel-body">'+linkage+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Event assessment classes</h4><p>Responsibility classification is shown only for established delay events.</p></div></div><div class="planning-panel-body">'+classVisual+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Delay-event detail</h4></div></div><div class="planning-panel-body">'+detail+'</div></section></section>';
 }
 function renderEotVisual(data){
   const p=projectionFor(data,"eot_assessment");
@@ -1171,8 +1366,22 @@ function renderEotVisual(data){
   }));
   const rows=p.windowCandidates.map(w=>'<tr><td><b>'+escapeHtml(readableWindow(w.windowId,labels))+'</b></td><td>'+escapeHtml(fmt(w.positiveProgrammeMovementDays))+'</td><td>'+escapeHtml(humanizeKey(w.programmeMovementBasis))+'</td><td>'+escapeHtml(w.analyticalTimeImpactCandidateDays===null?"—":fmt(w.analyticalTimeImpactCandidateDays))+'</td><td>'+escapeHtml(humanizeKey(w.state))+'</td><td>'+escapeHtml(fmt(w.includedCandidateDays))+'</td><td>'+escapeHtml((w.reasons||[]).map(managementReason).join("; ")||"—")+'</td></tr>').join("");
   const recon=p.timeBasisReconciliation;
+  const determinationVisual=recon?renderDonutChart([
+    {label:"Effective by Data Date",value:recon.effectiveDeterminationCount||0,tone:"success"},
+    {label:"After Data Date",value:Math.max(0,(recon.registerDeterminationCount||0)-(recon.effectiveDeterminationCount||0)),tone:"neutral"}
+  ],"Determinations"):'<div class="empty-visual">Determination population is not established.</div>';
+  const movementVisual=renderWaterfallChart([
+    {label:"Gross positive window movement",value:typeof p.observedProgrammeMovementDays==="number"?p.observedProgrammeMovementDays:0},
+    {label:"Net Project Completion movement",value:typeof p.projectCompletionMovementDays==="number"?p.projectCompletionMovementDays:0},
+    {label:"Analytical time-impact candidate",value:typeof analytical==="number"?analytical:0},
+    {label:"Attributable EOT candidate",value:typeof p.attributableCandidateEotDays==="number"?p.attributableCandidateEotDays:0}
+  ],"d");
+  const visualOverview='<div class="visual-chart-grid">'+
+    renderVisualPanel("Time-position bridge","Schedule movement, time-impact analysis and EOT candidate remain separate measures.",movementVisual)+
+    renderVisualPanel("Determination timing","Engineer determinations split by the current programme Data Date.",determinationVisual)+
+  '</div>';
   const reconciliation=recon?'<section class="planning-panel"><div class="planning-panel-head"><div><h4>Amendment and determination reconciliation</h4><p>As-of date: '+escapeHtml(planningShortDate(recon.dataDateIso))+'.</p></div></div><div class="planning-panel-body">'+planningKpis([["EOT incorporated in amendment",fmt(recon.incorporatedEotDays)+" d","already inside revised completion"],["Full determination register",fmt(recon.registerDeterminationDays)+" d",(recon.registerDeterminationCount===null||recon.registerDeterminationCount===undefined?"population not stated":fmt(recon.registerDeterminationCount)+" immutable determination(s)")],["Determinations by Data Date",recon.effectiveDeterminationCount===null||recon.effectiveDeterminationCount===undefined?"—":fmt(recon.effectiveDeterminationCount),"cutoff-controlled population"],["Additional approved EOT",recon.additionalApprovedEotDays===null?"Unresolved":fmt(recon.additionalApprovedEotDays)+" d","never register total plus amendment"]])+'<div class="notice warn">'+(recon.overlapResolution==="unresolved"?"Amendment incorporation has not been reconciled to the determination register. No additional days are applied to the revised contractual completion.":"Additional awards have an explicit incorporation reconciliation.")+'</div></div></section>':"";
-  return '<section class="planning-view eot-view">'+kpis+reconciliation+warning+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Observed movement by window</h4><p>This chart shows programme movement only. It does not represent EOT entitlement.</p></div></div><div class="planning-panel-body">'+planningSignedBars(movementBars,"days")+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>EOT evidence gates</h4><p>All gates remain distinct before schedule movement can become an entitlement position.</p></div></div><div class="planning-panel-body">'+moduleEvidenceGate([
+  return '<section class="planning-view eot-view">'+kpis+reconciliation+warning+visualOverview+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Observed movement by window</h4><p>This chart shows programme movement only. It does not represent EOT entitlement.</p></div></div><div class="planning-panel-body">'+planningSignedBars(movementBars,"days")+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>EOT evidence gates</h4><p>All gates remain distinct before schedule movement can become an entitlement position.</p></div></div><div class="planning-panel-body">'+moduleEvidenceGate([
     {label:"Contract time basis",value:contractReady?"Established":"Not established",state:contractReady?"ready":"missing"},
     {label:"Causal delay events",value:causalReady?"Established":"Not established",state:causalReady?"ready":"missing"},
     {label:"Official EOT award",value:p.officialApprovedEotState==="official"?"Established":"Not established",state:p.officialApprovedEotState==="official"?"ready":"missing"}
@@ -1626,6 +1835,18 @@ function renderPmoVisual(data){
     p.resources.overloadedResourceCount>0?{title:"Resource overload identified",text:"Assigned demand exceeds known capacity for some resources.",value:p.resources.overloadedResourceCount,tone:"watch"}:null,
     p.contract.challengeSignalCount>0?{title:"Contract items need review",text:"CMeng found contract points that may affect the programme position.",value:p.contract.challengeSignalCount,tone:"watch"}:null
   ]);
+  const visualOverview='<div class="visual-chart-grid">'+
+    renderVisualPanel("Activity status","Current programme population by execution state.",renderDonutChart([
+      {label:"Completed",value:p.progress.completedCount||0,tone:"success"},
+      {label:"In progress",value:p.progress.inProgressCount||0,tone:"accent"},
+      {label:"Not started",value:Math.max(0,(p.schedule.activityCount||0)-(p.progress.completedCount||0)-(p.progress.inProgressCount||0)),tone:"neutral"}
+    ],"Activities"))+
+    renderVisualPanel("Schedule pressure","Criticality and negative-float populations that require management attention.",renderDonutChart([
+      {label:"Critical",value:p.schedule.criticalCount||0,tone:"danger"},
+      {label:"Near-critical",value:p.schedule.nearCriticalCount||0,tone:"warning"},
+      {label:"Negative float",value:p.schedule.negativeFloatCount||0,tone:"purple"}
+    ],"Pressure signals"))+
+  '</div>';
   const health='<div class="management-health-grid">'+[
     ["Programme",[
       ["Activities",p.schedule.activityCount],["Relationships",p.schedule.relationshipCount],["Logic density",p.schedule.logicDensity],["Path check",planningStateLabel(p.schedule.independentCpmState)]
@@ -1640,7 +1861,7 @@ function renderPmoVisual(data){
       ["Delay events",p.claims.eventCount],["Claims",p.claims.claimCount],["Programme movement",fmt(p.claims.observedProgrammeMovementDays)+" days"],["Approved EOT",p.claims.officialApprovedEotDays===null?"—":fmt(p.claims.officialApprovedEotDays)+" days"]
     ]]
   ].map(group=>'<div class="domain-card"><h5>'+escapeHtml(group[0])+'</h5>'+group[1].map(m=>metricLine(m[0],m[1])).join("")+'</div>').join("")+'</div>';
-  return '<section class="planning-view management-view">'+kpis+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Finish-date position</h4><p>Controlled baseline, submitted finish date and any independently calculated, approved or scenario finish dates.</p></div></div><div class="planning-panel-body">'+completion+'</div></section><section class="planning-panel attention"><div class="planning-panel-head"><div><h4>What needs attention</h4><p>Items that can change the current programme position.</p></div></div><div class="planning-panel-body">'+attention+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Programme health</h4><p>Schedule, progress, delivery and time position at a glance.</p></div></div><div class="planning-panel-body">'+health+'</div></section></section>';
+  return '<section class="planning-view management-view">'+kpis+visualOverview+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Finish-date position</h4><p>Controlled baseline, submitted finish date and any independently calculated, approved or scenario finish dates.</p></div></div><div class="planning-panel-body">'+completion+'</div></section><section class="planning-panel attention"><div class="planning-panel-head"><div><h4>What needs attention</h4><p>Items that can change the current programme position.</p></div></div><div class="planning-panel-body">'+attention+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Programme health</h4><p>Schedule, progress, delivery and time position at a glance.</p></div></div><div class="planning-panel-body">'+health+'</div></section></section>';
 }
 function renderScheduleAnalyticsVisual(data){
   const p=projectionFor(data,"schedule_analytics");
@@ -1666,6 +1887,21 @@ function renderScheduleAnalyticsVisual(data){
   ])+'<div class="coverage-line"><span>Float coverage</span><b>'+escapeHtml(r.float.coveragePercent===null?"—":fmt(r.float.coveragePercent)+"%")+'</b></div></div><div><h5>Activity status</h5>'+planningStatusBand([
     ["Completed",r.status.completed,"success"],["In progress",r.status.inProgress,"accent"],["Not started",r.status.notStarted,"neutral"],["Unknown",r.status.unknown,"warning"]
   ])+'</div></div>';
+  const visualOverview='<div class="visual-chart-grid">'+
+    renderVisualPanel("Activity status mix","Execution status across the full programme population.",renderDonutChart([
+      {label:"Completed",value:r.status.completed||0,tone:"success"},
+      {label:"In progress",value:r.status.inProgress||0,tone:"accent"},
+      {label:"Not started",value:r.status.notStarted||0,tone:"neutral"},
+      {label:"Unknown",value:r.status.unknown||0,tone:"warning"}
+    ],"Activities"))+
+    renderVisualPanel("Float classification","Submitted programme float separated into critical, near-critical and other populations.",renderDonutChart([
+      {label:"Negative float",value:r.float.negativeFloatCount||0,tone:"danger"},
+      {label:"Zero float",value:Math.max(0,(r.float.criticalCount||0)-(r.float.negativeFloatCount||0)),tone:"purple"},
+      {label:"Near-critical",value:r.float.nearCriticalCount||0,tone:"warning"},
+      {label:"Other positive",value:Math.max(0,(r.float.positiveFloatCount||0)-(r.float.nearCriticalCount||0)),tone:"accent"},
+      {label:"Unknown",value:r.float.unknownFloatCount||0,tone:"neutral"}
+    ],"Float population"))+
+  '</div>';
   const integrity='<div class="integrity-grid">'+[
     ["Cycles",cycles,cycles?"danger":"success"],["Broken links",broken,broken?"danger":"success"],["Open starts",openStarts,openStarts?"warning":"success"],["Open finishes",openFinishes,openFinishes?"warning":"success"],["Isolated activities",isolated,isolated?"warning":"success"],["Programme logic",r.graph.complete?"Complete":"Review needed",r.graph.complete?"success":"danger"]
   ].map(x=>'<div class="integrity-card '+escapeHtml(x[2])+'"><span>'+escapeHtml(x[0])+'</span><b>'+escapeHtml(fmt(x[1]))+'</b></div>').join("")+'</div>';
@@ -1678,7 +1914,7 @@ function renderScheduleAnalyticsVisual(data){
   const varianceBand=planningStatusBand([
     ["Late",variance.lateActivities||0,"danger"],["On time",variance.onTimeActivities||0,"success"],["Early",variance.earlyActivities||0,"accent"],["Unknown",variance.unknownActivities||0,"neutral"]
   ]);
-  return '<section class="planning-view programme-review">'+kpis+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Programme health</h4><p>Float, progress and logic quality across the current programme.</p></div></div><div class="planning-panel-body">'+pressure+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Logic checks</h4><p>Issues that reduce confidence in schedule sequencing.</p></div></div><div class="planning-panel-body">'+integrity+'</div></section></div><div class="planning-primary-grid"><section class="planning-panel"><div class="planning-panel-head"><div><h4>Finish dates</h4><p>Baseline, current forecast and actual finish dates are kept separate so one is not mistaken for another.</p></div></div><div class="planning-panel-body">'+completion+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Finish variance</h4><p>Activities finishing later, on time or earlier than their comparison date.</p></div></div><div class="planning-panel-body">'+varianceBand+'<div class="coverage-line"><span>Variance coverage</span><b>'+escapeHtml(variance.coveragePercent===null||variance.coveragePercent===undefined?"—":fmt(variance.coveragePercent)+"%")+'</b></div></div></section></div></section>';
+  return '<section class="planning-view programme-review">'+kpis+visualOverview+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Programme health</h4><p>Float, progress and logic quality across the current programme.</p></div></div><div class="planning-panel-body">'+pressure+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Logic checks</h4><p>Issues that reduce confidence in schedule sequencing.</p></div></div><div class="planning-panel-body">'+integrity+'</div></section></div><div class="planning-primary-grid"><section class="planning-panel"><div class="planning-panel-head"><div><h4>Finish dates</h4><p>Baseline, current forecast and actual finish dates are kept separate so one is not mistaken for another.</p></div></div><div class="planning-panel-body">'+completion+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Finish variance</h4><p>Activities finishing later, on time or earlier than their comparison date.</p></div></div><div class="planning-panel-body">'+varianceBand+'<div class="coverage-line"><span>Variance coverage</span><b>'+escapeHtml(variance.coveragePercent===null||variance.coveragePercent===undefined?"—":fmt(variance.coveragePercent)+"%")+'</b></div></div></section></div></section>';
 }
 function renderActivityAnalyticsVisual(data){
   const p=projectionFor(data,"activity_analytics");
@@ -1699,6 +1935,19 @@ function renderActivityAnalyticsVisual(data){
   ]);
   const topLate=[...p.rows].filter(r=>typeof r.finishVarianceDays==="number").sort((a,b)=>b.finishVarianceDays-a.finishVarianceDays).slice(0,15).map(r=>({label:r.activityId+" · "+(r.name||""),value:r.finishVarianceDays}));
   const pressure=planningActivityPressure(p.rows);
+  const visualOverview='<div class="visual-chart-grid">'+
+    renderVisualPanel("Execution status","Activity population by current execution state.",renderDonutChart([
+      {label:"Completed",value:status.completed||0,tone:"success"},
+      {label:"In progress",value:status.in_progress||0,tone:"accent"},
+      {label:"Not started",value:status.not_started||0,tone:"neutral"},
+      {label:"Unknown",value:status.unknown||0,tone:"warning"}
+    ],"Activities"))+
+    renderVisualPanel("Criticality watchlist","Critical and near-critical activities shown against the rest of the programme.",renderDonutChart([
+      {label:"Critical",value:critical,tone:"danger"},
+      {label:"Near-critical",value:near,tone:"warning"},
+      {label:"Other",value:Math.max(0,p.activityCount-critical-near),tone:"neutral"}
+    ],"Activities"))+
+  '</div>';
   const statusBand=planningStatusBand([
     ["Completed",status.completed,"success"],["In progress",status.in_progress,"accent"],["Not started",status.not_started,"neutral"],["Unknown",status.unknown,"warning"]
   ]);
@@ -1708,7 +1957,7 @@ function renderActivityAnalyticsVisual(data){
     return bs-as;
   }).slice(0,250);
   const rows=ranked.map(a=>'<tr><td><b>'+escapeHtml(a.activityId)+'</b><br><span class="muted">'+escapeHtml(a.name||"")+'</span></td><td>'+escapeHtml(planningStateLabel(a.status))+'</td><td><span class="state-pill '+(a.criticality==="critical"?"blocked":a.criticality==="near_critical"?"review":"ready")+'">'+escapeHtml(planningStateLabel(a.criticality))+'</span></td><td>'+escapeHtml(planningShortDate(a.currentFinishIso))+'</td><td>'+escapeHtml(a.percentComplete===null?"—":fmt(a.percentComplete)+"%")+'</td><td>'+escapeHtml(fmt(a.totalFloatHours))+'</td><td>'+escapeHtml(a.finishVarianceDays===null?"—":fmt(a.finishVarianceDays))+'</td><td>'+escapeHtml(a.openStart||a.openFinish||a.isolated?"Check":"—")+'</td></tr>').join("");
-  return '<section class="planning-view activity-review">'+kpis+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Delay & float matrix</h4><p>Activity counts by controlled-baseline finish movement and submitted programme total float.</p></div></div><div class="planning-panel-body">'+pressure+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Activity status</h4><p>'+escapeHtml(fmt(openLogic))+' activities also have an open or isolated logic condition.</p></div></div><div class="planning-panel-body">'+statusBand+'<div class="coverage-stack"><span>Progress coverage <b>'+escapeHtml(p.percentCompleteCoveragePercent===null?"—":fmt(p.percentCompleteCoveragePercent)+"%")+'</b></span><span>Float coverage <b>'+escapeHtml(p.floatCoveragePercent===null?"—":fmt(p.floatCoveragePercent)+"%")+'</b></span><span>Baseline comparison coverage <b>'+escapeHtml(p.finishVarianceCoveragePercent===null?"—":fmt(p.finishVarianceCoveragePercent)+"%")+'</b></span></div></div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Largest finish movements</h4><p>Activities furthest later than the controlled baseline finish.</p></div></div><div class="planning-panel-body">'+planningSignedBars(topLate,"days")+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Activity watchlist</h4><p>Highest-attention activities first. Showing '+escapeHtml(fmt(ranked.length))+' of '+escapeHtml(fmt(p.activityCount))+'.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Activity</th><th>Status</th><th>Criticality</th><th>Current finish</th><th>Progress</th><th>Total float h</th><th>Vs baseline d</th><th>Logic</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></section></section>';
+  return '<section class="planning-view activity-review">'+kpis+visualOverview+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Delay & float matrix</h4><p>Activity counts by controlled-baseline finish movement and submitted programme total float.</p></div></div><div class="planning-panel-body">'+pressure+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Activity status</h4><p>'+escapeHtml(fmt(openLogic))+' activities also have an open or isolated logic condition.</p></div></div><div class="planning-panel-body">'+statusBand+'<div class="coverage-stack"><span>Progress coverage <b>'+escapeHtml(p.percentCompleteCoveragePercent===null?"—":fmt(p.percentCompleteCoveragePercent)+"%")+'</b></span><span>Float coverage <b>'+escapeHtml(p.floatCoveragePercent===null?"—":fmt(p.floatCoveragePercent)+"%")+'</b></span><span>Baseline comparison coverage <b>'+escapeHtml(p.finishVarianceCoveragePercent===null?"—":fmt(p.finishVarianceCoveragePercent)+"%")+'</b></span></div></div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Largest finish movements</h4><p>Activities furthest later than the controlled baseline finish.</p></div></div><div class="planning-panel-body">'+planningSignedBars(topLate,"days")+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Activity watchlist</h4><p>Highest-attention activities first. Showing '+escapeHtml(fmt(ranked.length))+' of '+escapeHtml(fmt(p.activityCount))+'.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Activity</th><th>Status</th><th>Criticality</th><th>Current finish</th><th>Progress</th><th>Total float h</th><th>Vs baseline d</th><th>Logic</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></section></section>';
 }
 
 function moduleBarList(items,tone="accent",unit=""){
@@ -1857,7 +2106,23 @@ function renderProgressReportVisual(data){
     ["Near-critical",p.schedule?.nearCriticalCount||0,"warning"],
     ["Negative float",p.schedule?.negativeFloatCount||0,"danger-soft"]
   ]);
-  return '<section class="planning-view progress-position-view">'+kpis+warning+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Progress bases</h4><p>Baseline plan, current re-phased plan, activity percentage-complete snapshot, contractor-reported and certified values remain separate.</p></div></div><div class="planning-panel-body">'+progressBasisBars(p.progressBases)+'</div></section><div class="planning-primary-grid"><section class="planning-panel"><div class="planning-panel-head"><div><h4>Activity status</h4><p>Current programme population.</p></div></div><div class="planning-panel-body">'+status+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Schedule pressure</h4><p>Float classifications are schedule indicators, not progress evidence.</p></div></div><div class="planning-panel-body">'+pressure+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Near-term delivery</h4><p>Milestones and look-ahead indicators tied to the current data date.</p></div></div><div class="planning-panel-body">'+planningKpis([
+  const progressChart=renderVisualBars([
+    {label:"Baseline planned",value:typeof baseline?.valuePercent==="number"?baseline.valuePercent:null,tone:"graphite"},
+    {label:"Current programme plan",value:typeof current?.valuePercent==="number"?current.valuePercent:null,tone:"accent"},
+    {label:physicalLabel,value:typeof physical?.valuePercent==="number"?physical.valuePercent:null,tone:"teal"},
+    {label:"Contractor reported",value:typeof contractor?.valuePercent==="number"?contractor.valuePercent:null,tone:"warning"},
+    {label:"Certified progress",value:typeof certified?.valuePercent==="number"?certified.valuePercent:null,tone:"success"}
+  ].filter(item=>item.value!==null),"%");
+  const visualOverview='<div class="visual-chart-grid">'+
+    renderVisualPanel("Progress basis comparison","Five progress positions remain visually separate so schedule progress cannot be mistaken for certified progress.",progressChart)+
+    renderVisualPanel("Activity status","Current programme execution status.",renderDonutChart([
+      {label:"Completed",value:p.progress?.completedCount||0,tone:"success"},
+      {label:"In progress",value:p.progress?.inProgressCount||0,tone:"accent"},
+      {label:"Not started",value:p.progress?.notStartedCount||0,tone:"neutral"},
+      {label:"Unknown",value:p.progress?.unknownStatusCount||0,tone:"warning"}
+    ],"Activities"))+
+  '</div>';
+  return '<section class="planning-view progress-position-view">'+kpis+warning+visualOverview+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Progress bases</h4><p>Baseline plan, current re-phased plan, activity percentage-complete snapshot, contractor-reported and certified values remain separate.</p></div></div><div class="planning-panel-body">'+progressBasisBars(p.progressBases)+'</div></section><div class="planning-primary-grid"><section class="planning-panel"><div class="planning-panel-head"><div><h4>Activity status</h4><p>Current programme population.</p></div></div><div class="planning-panel-body">'+status+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Schedule pressure</h4><p>Float classifications are schedule indicators, not progress evidence.</p></div></div><div class="planning-panel-body">'+pressure+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Near-term delivery</h4><p>Milestones and look-ahead indicators tied to the current data date.</p></div></div><div class="planning-panel-body">'+planningKpis([
     ["Milestones",p.milestones?.milestoneCount,"total"],
     ["Open milestones",p.milestones?.openCount,"open"],
     ["Overdue milestones",p.milestones?.lateOpenCount,"past data date",p.milestones?.lateOpenCount?"danger":""],
@@ -2152,12 +2417,19 @@ function renderNoticesClaimsVisual(data){
     ["Missing",p.missingNoticeCount,"warning"],
     ["Requirement missing",p.noticeRequirementMissingCount,"neutral"]
   ]):'<div class="empty-visual">Notice timeliness cannot be assessed until governed delay events and applicable notice requirements are linked.</div>';
-  const claimBars=moduleBarList(claimStateCounts(p.claims),"accent");
+  const claimStateItems=claimStateCounts(p.claims).map(item=>({label:item.label,value:item.value,tone:"accent"}));
+  const claimBars=renderDonutChart(claimStateItems,"Claims");
+  const noticeVisual=assessable?renderDonutChart([
+    {label:"Timely",value:p.timelyNoticeCount||0,tone:"success"},
+    {label:"Late",value:p.lateNoticeCount||0,tone:"danger"},
+    {label:"Missing",value:p.missingNoticeCount||0,tone:"warning"},
+    {label:"Requirement missing",value:p.noticeRequirementMissingCount||0,tone:"neutral"}
+  ],"Events"):'<div class="empty-visual">Notice timeliness is not assessable from the governed evidence.</div>';
   const events=p.events.length?'<div class="table-wrap"><table><thead><tr><th>Event</th><th>Responsibility</th><th>Start</th><th>Notice</th><th>Required days</th><th>Elapsed days</th><th>Timeliness</th><th>Claims</th></tr></thead><tbody>'+
     p.events.map(e=>'<tr><td><b>'+escapeHtml(e.eventId)+'</b><br><span class="muted">'+escapeHtml(e.title||"")+'</span></td><td>'+escapeHtml(humanizeKey(e.responsibility))+'</td><td>'+escapeHtml(planningShortDate(e.eventStartIso))+'</td><td>'+escapeHtml(planningShortDate(e.noticeIssuedAt))+'</td><td>'+escapeHtml(fmt(e.requiredNoticeDays))+'</td><td>'+escapeHtml(fmt(e.elapsedNoticeDays))+'</td><td>'+escapeHtml(humanizeKey(e.noticeTimeliness))+'</td><td>'+escapeHtml((e.linkedClaimIds||[]).join(", ")||"—")+'</td></tr>').join("")+'</tbody></table></div>':'<div class="empty-visual">No governed delay events are available for notice assessment.</div>';
   const claims='<div class="table-wrap"><table><thead><tr><th>Claim</th><th>State</th><th>Submitted</th><th>Claimed days</th><th>Assessed days</th><th>Days authority</th><th>Claimed amount</th><th>Assessed amount</th><th>Amount authority</th></tr></thead><tbody>'+
     p.claims.map(c=>'<tr><td><b>'+escapeHtml(c.claimId)+'</b><br><span class="muted">'+escapeHtml(c.title||"")+'</span></td><td>'+escapeHtml(humanizeKey(c.state))+'</td><td>'+escapeHtml(planningShortDate(c.submittedAt))+'</td><td>'+escapeHtml(fmt(c.claimedDays))+'</td><td>'+escapeHtml(fmt(c.assessedDays))+'</td><td>'+escapeHtml(humanizeKey(c.assessedDaysState))+'</td><td>'+escapeHtml(fmt(c.claimedAmount))+'</td><td>'+escapeHtml(fmt(c.assessedAmount))+'</td><td>'+escapeHtml(humanizeKey(c.assessedAmountState))+'</td></tr>').join("")+'</tbody></table></div>';
-  return '<section class="planning-view notices-view">'+kpis+warning+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Notice assessment</h4><p>Timeliness is calculated only where an event and applicable contractual notice requirement exist.</p></div></div><div class="planning-panel-body">'+noticeBand+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Claim states</h4><p>Claim status is separate from notice compliance and assessment authority.</p></div></div><div class="planning-panel-body">'+claimBars+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Notice compliance by event</h4></div></div><div class="planning-panel-body">'+events+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Claim records</h4></div></div><div class="planning-panel-body">'+claims+'</div></section></section>';
+  return '<section class="planning-view notices-view">'+kpis+warning+'<div class="visual-chart-grid">'+renderVisualPanel("Notice compliance","Timeliness distribution is only shown where the contractual requirement and event basis are governed.",noticeVisual)+renderVisualPanel("Claim states","Claim status is independent from notice timeliness and assessment authority.",claimBars)+'</div><div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Notice assessment</h4><p>Timeliness is calculated only where an event and applicable contractual notice requirement exist.</p></div></div><div class="planning-panel-body">'+noticeBand+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Claim state detail</h4><p>Counts remain visible below the visual distribution.</p></div></div><div class="planning-panel-body">'+planningStatusBand(claimStateCounts(p.claims).map(item=>[item.label,item.value,"accent"]))+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Notice compliance by event</h4></div></div><div class="planning-panel-body">'+events+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Claim records</h4></div></div><div class="planning-panel-body">'+claims+'</div></section></section>';
 }
 function commercialMetricHtml(metric,currency=""){
   if(!metric)return'<span class="muted">Not established</span>';
@@ -2225,12 +2497,29 @@ function renderCommercialVisual(key,data){
     "contract-particulars-bonds":[["Committed","committedContractValue"],["Current contract","currentContractValue"],["Active bonds","activeBondAmount"]]
   };
   const cols=colsByKey[key]||colsByKey["commercial-overview"];
+  const chartFieldsByKey={
+    "commercial-overview":[["Committed","committedContractValue","graphite"],["Current contract","currentContractValue","accent"],["Pending variations","pendingVariationAmount","warning"],["Certified","grossCertifiedAmount","teal"],["Paid","paidAmount","success"],["Claims","claimedAmount","danger"]],
+    "cost-forecast":[["Committed","committedContractValue","graphite"],["Current contract","currentContractValue","accent"],["Approved variations","approvedVariationAmount","success"],["Pending variations","pendingVariationAmount","warning"],["Claimed","claimedAmount","danger"],["Assessed claims","assessedClaimAmount","purple"]],
+    "variations-change":[["Approved variations","approvedVariationAmount","success"],["Pending variations","pendingVariationAmount","warning"],["Current contract","currentContractValue","accent"]],
+    "payments":[["Gross certified","grossCertifiedAmount","accent"],["Paid","paidAmount","success"],["Certified unpaid","certifiedUnpaidAmount","danger"],["Retention held","retentionHeldAmount","warning"],["Advance balance","advanceBalance","purple"]],
+    "cash-flow":[["Gross certified","grossCertifiedAmount","accent"],["Paid","paidAmount","success"],["Certified unpaid","certifiedUnpaidAmount","danger"],["Retention held","retentionHeldAmount","warning"],["Advance balance","advanceBalance","purple"]],
+    "commercial-claims-notices":[["Claimed","claimedAmount","danger"],["Assessed","assessedClaimAmount","purple"],["Pending variations","pendingVariationAmount","warning"]],
+    "contract-particulars-bonds":[["Committed","committedContractValue","graphite"],["Current contract","currentContractValue","accent"],["Active bonds","activeBondAmount","warning"]]
+  };
+  const chartFields=chartFieldsByKey[key]||chartFieldsByKey["commercial-overview"];
   const cards=position.currencies.length
     ? position.currencies.map(row=>{
         const lines=cols.map(([label,field])=>'<div class="currency-line"><span>'+escapeHtml(label)+'</span><strong>'+commercialMetricHtml(row[field],field==="interimCertificateCount"?"":row.currency)+'</strong></div>').join("");
         return '<div class="currency-card"><div class="currency-code">'+escapeHtml(row.currency)+'</div>'+lines+'</div>';
       }).join("")
     : '<div class="empty-visual">No established commercial currency position. Submitted-but-unparsed and missing evidence remain distinct from zero.</div>';
+  const commercialCharts=position.currencies.length
+    ? '<div class="commercial-visual-grid">'+position.currencies.map(row=>renderVisualPanel(
+        row.currency+" · "+(names[key]||"Commercial position"),
+        "Values are compared only within this currency. Missing values remain absent, not zero.",
+        renderCommercialMetricBars(row,chartFields)
+      )).join("")+'</div>'
+    : "";
   const evidence=position.evidence||{};
   const gates=moduleEvidenceGate([
     {label:"Commercial basis",value:humanizeKey(evidence.commercial||"not_submitted"),state:evidence.commercial==="established"?"ready":"missing"},
@@ -2244,19 +2533,52 @@ function renderCommercialVisual(key,data){
     ? '<div class="table-wrap"><table><thead><tr>'+headers.map(h=>'<th>'+escapeHtml(h)+'</th>').join("")+'</tr></thead><tbody>'+rows.join("")+'</tbody></table></div>'
     : '<div class="empty-visual">'+escapeHtml(emptyMessage)+'</div>';
   let detail="";
+  let registerVisual="";
   if(key==="variations-change"||key==="cost-forecast"||key==="commercial-overview"){
+    const variationStates=(registers.variations||[]).reduce((map,row)=>{const state=humanizeKey(row.state||"unknown");map.set(state,(map.get(state)||0)+1);return map},new Map());
+    if(variationStates.size)registerVisual=renderVisualPanel(
+      "Variation status distribution",
+      "Variation counts by governed state. Amounts are not cross-summed across currency.",
+      renderDonutChart([...variationStates.entries()].map(([label,value])=>({label,value,tone:/approved/i.test(label)?"success":/pending|review/i.test(label)?"warning":"neutral"})),"Variations")
+    );
     const rows=(registers.variations||[]).map(row=>'<tr><td><b>'+escapeHtml(row.variationId)+'</b></td><td>'+escapeHtml(humanizeKey(row.state))+'</td><td>'+escapeHtml(fmt(row.amount))+'</td><td>'+escapeHtml(row.currency)+'</td><td>'+escapeHtml((row.sourceRefs||[]).join(", "))+'</td></tr>');
     detail='<section class="planning-panel"><div class="planning-panel-head"><div><h4>Variation register</h4><p>Approved and pending change remain separate and retain source lineage.</p></div></div><div class="planning-panel-body">'+table(["Variation","State","Amount","Currency","Source"],rows,"No governed variation records are established.")+'</div></section>';
   }
   if(key==="payments"||key==="cash-flow"){
+    const invoiceGroups=(registers.invoices||[]).reduce((map,row)=>{const currency=row.currency||"Unresolved";const list=map.get(currency)||[];list.push(row);map.set(currency,list);return map},new Map());
+    if(invoiceGroups.size)registerVisual='<div class="commercial-visual-grid">'+[...invoiceGroups.entries()].map(([currency,list])=>renderVisualPanel(
+      currency+" · certificate conversion",
+      "Certified, paid, retention and advance-recovery values stay within one currency.",
+      renderVisualBars([
+        {label:"Certified",value:list.reduce((sum,row)=>sum+(typeof row.certifiedAmount==="number"?row.certifiedAmount:0),0),tone:"accent"},
+        {label:"Paid",value:list.reduce((sum,row)=>sum+(typeof row.paidAmount==="number"?row.paidAmount:0),0),tone:"success"},
+        {label:"Retention",value:list.reduce((sum,row)=>sum+(typeof row.retentionAmount==="number"?row.retentionAmount:0),0),tone:"warning"},
+        {label:"Advance recovery",value:list.reduce((sum,row)=>sum+(typeof row.advanceRecoveryAmount==="number"?row.advanceRecoveryAmount:0),0),tone:"purple"}
+      ],currency)
+    )).join("")+'</div>';
     const rows=(registers.invoices||[]).map(row=>'<tr><td><b>'+escapeHtml(row.invoiceId)+'</b></td><td>'+escapeHtml(planningShortDate(row.certificateDateIso))+'</td><td>'+escapeHtml(fmt(row.certifiedAmount))+'</td><td>'+escapeHtml(fmt(row.paidAmount))+'</td><td>'+escapeHtml(fmt(row.retentionAmount))+'</td><td>'+escapeHtml(fmt(row.advanceRecoveryAmount))+'</td><td>'+escapeHtml(fmt(row.advanceBalance))+'</td><td>'+escapeHtml(row.currency)+'</td><td>'+escapeHtml(planningShortDate(row.paymentDateIso))+'</td></tr>');
     detail='<section class="planning-panel"><div class="planning-panel-head"><div><h4>Certificate and payment register</h4><p>Advance balance is shown only where explicitly stated in payment evidence.</p></div></div><div class="planning-panel-body">'+table(["Certificate","Certificate date","Certified","Paid","Retention","Advance recovery","Advance balance","Currency","Payment date"],rows,"No governed certificate/payment records are established.")+'</div></section>';
   }
   if(key==="commercial-claims-notices"){
+    const claimGroups=(registers.claims||[]).reduce((map,row)=>{const currency=row.currency||"Unresolved";const list=map.get(currency)||[];list.push(row);map.set(currency,list);return map},new Map());
+    if(claimGroups.size)registerVisual='<div class="commercial-visual-grid">'+[...claimGroups.entries()].map(([currency,list])=>renderVisualPanel(
+      currency+" · claim exposure",
+      "Claimed and assessed amounts are shown separately within one currency.",
+      renderVisualBars([
+        {label:"Claimed",value:list.reduce((sum,row)=>sum+(typeof row.claimedAmount==="number"?row.claimedAmount:0),0),tone:"danger"},
+        {label:"Assessed",value:list.reduce((sum,row)=>sum+(typeof row.assessedAmount==="number"?row.assessedAmount:0),0),tone:"purple"}
+      ],currency)
+    )).join("")+'</div>';
     const rows=(registers.claims||[]).map(row=>'<tr><td><b>'+escapeHtml(row.claimId)+'</b></td><td>'+escapeHtml(fmt(row.claimedAmount))+'</td><td>'+escapeHtml(fmt(row.assessedAmount))+'</td><td>'+escapeHtml(row.currency)+'</td><td>'+escapeHtml((row.sourceRefs||[]).join(", "))+'</td></tr>');
     detail='<section class="planning-panel"><div class="planning-panel-head"><div><h4>Commercial claim register</h4><p>Amounts use the same claim identities linked to delay-event and EOT evidence.</p></div></div><div class="planning-panel-body">'+table(["Claim","Claimed","Assessed","Currency","Source"],rows,"No governed commercial claim amounts are established.")+'</div></section>';
   }
   if(key==="contract-particulars-bonds"){
+    const bondStates=(registers.bonds||[]).reduce((map,row)=>{const state=humanizeKey(row.status||"unknown");map.set(state,(map.get(state)||0)+1);return map},new Map());
+    if(bondStates.size)registerVisual=renderVisualPanel(
+      "Security status",
+      "Performance, advance-payment and retention securities by status.",
+      renderDonutChart([...bondStates.entries()].map(([label,value])=>({label,value,tone:/active|valid/i.test(label)?"success":/expired|called/i.test(label)?"danger":"warning"})),"Securities")
+    );
     const rows=(registers.bonds||[]).map(row=>'<tr><td><b>'+escapeHtml(row.bondId)+'</b></td><td>'+escapeHtml(humanizeKey(row.kind))+'</td><td>'+escapeHtml(fmt(row.amount))+'</td><td>'+escapeHtml(row.currency)+'</td><td>'+escapeHtml(humanizeKey(row.status))+'</td><td>'+escapeHtml(planningShortDate(row.expiryIso))+'</td><td>'+escapeHtml((row.sourceRefs||[]).join(", "))+'</td></tr>');
     detail='<section class="planning-panel"><div class="planning-panel-head"><div><h4>Security register</h4><p>Performance, advance-payment and retention securities remain distinct from cash balances.</p></div></div><div class="planning-panel-body">'+table(["Bond / guarantee","Type","Amount","Currency","Status","Expiry","Source"],rows,"No governed bond/security register is established.")+'</div></section>';
   }
@@ -2272,7 +2594,7 @@ function renderCommercialVisual(key,data){
     if(key==="payments"||key==="cash-flow") ledgerDetail=section("commercial-payment-register",ledger.payments,{effectiveRecordCount:ledger.payments.filter(r=>r.periodEnd&&ledger.dataDateIso&&r.periodEnd<=ledger.dataDateIso).length});
     if(key==="variations-change") ledgerDetail=section("commercial-variations",ledger.variations);
   }
-  return '<section class="planning-view commercial-view">'+time+cashNote+ledgerDetail+
+  return '<section class="planning-view commercial-view">'+time+cashNote+commercialCharts+registerVisual+ledgerDetail+
     '<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>'+escapeHtml(names[key]||"Commercial position")+'</h4><p>Values remain isolated by currency and every missing value retains its evidence state.</p></div></div><div class="planning-panel-body"><div class="grid three">'+cards+'</div></div></section>'+
     detail+
     '<section class="planning-panel"><div class="planning-panel-head"><div><h4>Evidence coverage</h4><p>Missing, submitted-but-unparsed and established positions are not interchangeable.</p></div></div><div class="planning-panel-body">'+gates+'</div></section>'+
