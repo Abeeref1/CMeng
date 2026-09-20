@@ -1267,6 +1267,25 @@ function buildBundle(
     resourceAssignmentsAvailable
       ? resources
       : null;
+  const sourceResourceCapacity =
+    weeklyResourceCapacityEvidence(
+      state.evidenceDocuments,
+      model.dataDateIso,
+    );
+  const sourceCapacityEstablished =
+    sourceResourceCapacity
+      .utilizationApplicableResourceCount >
+      0 &&
+    sourceResourceCapacity
+      .comparableRowCount > 0 &&
+    sourceResourceCapacity
+      .unitSafe &&
+    (
+      sourceResourceCapacity.state ===
+        "available" ||
+      sourceResourceCapacity.state ===
+        "partial"
+    );
 
   let resourceUtilization:
     ReturnType<
@@ -1301,20 +1320,207 @@ function buildBundle(
         },
       );
 
+    const p6CapacityCoverage =
+      resourceUtilization
+        .capacityCoveragePercent;
     modules.set(
       "resource-utilization",
       available(
         "resource-utilization",
-        resourceUtilization,
-        ["resource-loaded XER"],
+        {
+          ...resourceUtilization,
+          authority:
+            sourceCapacityEstablished
+              ? "governed_weekly_capacity_register"
+              : "schedule_resource_model",
+          weeklyCapacityEvidence:
+            sourceResourceCapacity,
+          utilizationApplicableResourceCount:
+            sourceResourceCapacity
+              .utilizationApplicableResourceCount,
+          averagePlannedUtilizationToDataDate:
+            sourceResourceCapacity
+              .averagePlannedUtilizationToDataDate,
+          averageActualUtilizationToDataDate:
+            sourceResourceCapacity
+              .averageActualUtilizationToDataDate,
+          plannedOverallocatedResourceWeekCount:
+            sourceResourceCapacity
+              .plannedOverallocatedResourceWeekCount,
+          actualOverallocatedResourceWeekCount:
+            sourceResourceCapacity
+              .actualOverallocatedResourceWeekCount,
+          sourceCapacityCoveragePercent:
+            sourceResourceCapacity
+              .capacityCoveragePercent,
+          p6CapacityCoveragePercent:
+            p6CapacityCoverage,
+        },
+        [
+          "resource assignments",
+          "RES01-RES07 capacity/utilization evidence when available",
+        ],
+        sourceCapacityEstablished ||
+        (
+          resourceUtilization
+            .capacityBasedResourceCount >
+          0
+        )
+          ? "ready"
+          : "partial",
+        sourceCapacityEstablished
+          ? null
+          : resourceUtilization
+                .capacityBasedResourceCount >
+              0
+            ? "Per-hour schedule capacity is available for part of the resource population. No stronger governed weekly utilization register is established."
+            : "Resource assignments exist, but neither a governed weekly capacity register nor usable schedule capacity rates are established.",
       ),
     );
     modules.set(
       "manhour-scurve",
       available(
         "manhour-scurve",
-        manhourScurve,
-        ["resource-loaded XER"],
+        {
+          ...manhourScurve,
+          sourceResourceEvidence:
+            sourceResourceCapacity,
+        },
+        [
+          "resource-loaded XER",
+          "approved/time-phased resource evidence when available",
+        ],
+        (
+          manhourScurve
+            .actualHistoryMethod ===
+          "stored_financial_period_actuals"
+        ) ||
+        sourceResourceCapacity
+          .approvedActualUsageRowCount >
+          0
+          ? "ready"
+          : "partial",
+        (
+          manhourScurve
+            .actualHistoryMethod ===
+          "stored_financial_period_actuals"
+        )
+          ? null
+          : sourceResourceCapacity
+                .approvedActualUsageRowCount >
+              0
+            ? "Approved weekly actual-usage evidence exists and is retained separately from the XER snapshot; the historical man-hour curve must use the source time-phased evidence without fabricating missing periods."
+            : "Actual labor-hour history is not established.",
+      ),
+    );
+  } else if (
+    sourceCapacityEstablished
+  ) {
+    modules.set(
+      "resource-utilization",
+      available(
+        "resource-utilization",
+        {
+          schemaVersion: "1.0",
+          projectionKey:
+            "resource_utilization",
+          generatedAt,
+          producerVersion:
+            versions.resource +
+            ":source-register",
+          projectId:
+            state.projectId,
+          sourceRevisionId:
+            current.revision
+              .revisionId,
+          dataDateIso:
+            model.dataDateIso,
+          authority:
+            "governed_weekly_capacity_register",
+          resourceCount:
+            sourceResourceCapacity
+              .resourceCount,
+          assignedResourceCount:
+            sourceResourceCapacity
+              .utilizationApplicableResourceCount,
+          capacityBasedResourceCount:
+            sourceResourceCapacity
+              .utilizationApplicableResourceCount,
+          capacityCoveragePercent:
+            sourceResourceCapacity
+              .capacityCoveragePercent,
+          overloadedResourceCount:
+            sourceResourceCapacity
+              .plannedOverallocatedResourceCount,
+          rows: [],
+          weeklyCapacityEvidence:
+            sourceResourceCapacity,
+          utilizationApplicableResourceCount:
+            sourceResourceCapacity
+              .utilizationApplicableResourceCount,
+          averagePlannedUtilizationToDataDate:
+            sourceResourceCapacity
+              .averagePlannedUtilizationToDataDate,
+          averageActualUtilizationToDataDate:
+            sourceResourceCapacity
+              .averageActualUtilizationToDataDate,
+          plannedOverallocatedResourceWeekCount:
+            sourceResourceCapacity
+              .plannedOverallocatedResourceWeekCount,
+          actualOverallocatedResourceWeekCount:
+            sourceResourceCapacity
+              .actualOverallocatedResourceWeekCount,
+          sourceCapacityCoveragePercent:
+            sourceResourceCapacity
+              .capacityCoveragePercent,
+          diagnostics: [
+            ...sourceResourceCapacity
+              .diagnostics,
+            "RESOURCE_UTILIZATION_FROM_GOVERNED_WEEKLY_REGISTER_WITHOUT_P6_ASSIGNMENTS",
+          ],
+        },
+        [
+          "RES01-RES07 capacity/utilization evidence",
+        ],
+      ),
+    );
+    modules.set(
+      "manhour-scurve",
+      available(
+        "manhour-scurve",
+        {
+          schemaVersion: "1.0",
+          projectionKey:
+            "manhour_scurve_source_evidence",
+          generatedAt,
+          producerVersion:
+            versions.manhours +
+            ":source-register",
+          projectId:
+            state.projectId,
+          sourceRevisionId:
+            current.revision
+              .revisionId,
+          dataDateIso:
+            model.dataDateIso,
+          actualHistoryMethod:
+            sourceResourceCapacity
+                .approvedActualUsageRowCount >
+              0
+              ? "approved_weekly_actual_usage"
+              : "missing",
+          sourceResourceEvidence:
+            sourceResourceCapacity,
+          diagnostics: [
+            "P6_RESOURCE_ASSIGNMENTS_NOT_ESTABLISHED",
+          ],
+        },
+        [
+          "RES03 approved actual usage",
+          "RES04 time-phased assignments",
+        ],
+        "partial",
+        "Source weekly resource evidence is established, but P6 resource assignments are unavailable for a complete planned/remaining man-hour reconciliation.",
       ),
     );
   } else {
@@ -1322,16 +1528,20 @@ function buildBundle(
       "resource-utilization",
       blocked(
         "resource-utilization",
-        "The current schedule revision has no resource assignment evidence.",
-        ["resource-loaded XER"],
+        "Neither schedule resource assignments nor governed RES01-RES07 capacity/utilization evidence are established.",
+        [
+          "resource assignments or governed resource capacity register",
+        ],
       ),
     );
     modules.set(
       "manhour-scurve",
       blocked(
         "manhour-scurve",
-        "The current schedule revision has no governed labour assignment evidence.",
-        ["resource-loaded XER"],
+        "No governed labour assignment or approved actual-usage history is established.",
+        [
+          "labor assignments or approved time-phased labor evidence",
+        ],
       ),
     );
   }
@@ -4621,23 +4831,190 @@ function buildSpecialistModuleFast(
           ?.assignments.length ??
         0
       ) > 0;
+    const sourceResourceCapacity =
+      weeklyResourceCapacityEvidence(
+        state.evidenceDocuments,
+        model.dataDateIso,
+      );
+    const sourceCapacityEstablished =
+      sourceResourceCapacity
+        .utilizationApplicableResourceCount >
+        0 &&
+      sourceResourceCapacity
+        .comparableRowCount > 0 &&
+      sourceResourceCapacity
+        .unitSafe &&
+      (
+        sourceResourceCapacity.state ===
+          "available" ||
+        sourceResourceCapacity.state ===
+          "partial"
+      );
 
-    if (!resources ||
-        !hasAssignments) {
-      const scenarioContext =
-        specialistChallengeContext(
-          state,
-          model,
-          generatedAt,
-        );
-      const manpower =
-        scenarioContext
-          .delivery
-          .manpowerChallenge;
+    if (
+      key ===
+      "resource-utilization"
+    ) {
       if (
-        key ===
-        "resource-utilization"
+        resources &&
+        hasAssignments
       ) {
+        const projection =
+          buildResourceUtilizationProjection(
+            resources,
+            model,
+            {
+              generatedAt,
+              producerVersion:
+                "resource-utilization-fast-v3",
+            },
+          );
+        const p6CapacityKnown =
+          projection
+            .capacityBasedResourceCount;
+        result = available(
+          key,
+          {
+            ...projection,
+            authority:
+              sourceCapacityEstablished
+                ? "governed_weekly_capacity_register"
+                : "schedule_resource_model",
+            weeklyCapacityEvidence:
+              sourceResourceCapacity,
+            utilizationApplicableResourceCount:
+              sourceResourceCapacity
+                .utilizationApplicableResourceCount,
+            averagePlannedUtilizationToDataDate:
+              sourceResourceCapacity
+                .averagePlannedUtilizationToDataDate,
+            averageActualUtilizationToDataDate:
+              sourceResourceCapacity
+                .averageActualUtilizationToDataDate,
+            plannedOverallocatedResourceWeekCount:
+              sourceResourceCapacity
+                .plannedOverallocatedResourceWeekCount,
+            actualOverallocatedResourceWeekCount:
+              sourceResourceCapacity
+                .actualOverallocatedResourceWeekCount,
+            sourceCapacityCoveragePercent:
+              sourceResourceCapacity
+                .capacityCoveragePercent,
+            p6CapacityCoveragePercent:
+              projection
+                .capacityCoveragePercent,
+            assessedOverloadResourceCount:
+              sourceCapacityEstablished
+                ? sourceResourceCapacity
+                    .plannedOverallocatedResourceCount
+                : p6CapacityKnown,
+            overloadAssessmentState:
+              sourceCapacityEstablished
+                ? "complete_source_weekly"
+                : p6CapacityKnown > 0
+                  ? "partial_p6_per_hour"
+                  : "not_assessable",
+          },
+          [
+            "current schedule",
+            "RES01-RES07 resource evidence",
+          ],
+          sourceCapacityEstablished ||
+          p6CapacityKnown > 0
+            ? "ready"
+            : "partial",
+          sourceCapacityEstablished
+            ? null
+            : p6CapacityKnown > 0
+              ? "Utilization is available only for schedule resources with explicit per-hour capacity. No governed weekly utilization register is established."
+              : "Assignments are available, but capacity is not established. CMeng does not infer zero or unlimited capacity.",
+        );
+      } else if (
+        sourceCapacityEstablished
+      ) {
+        result = available(
+          key,
+          {
+            schemaVersion:
+              "1.0",
+            projectionKey:
+              "resource_utilization",
+            generatedAt,
+            producerVersion:
+              "resource-utilization-fast-v3:source-register",
+            projectId:
+              state.projectId,
+            sourceRevisionId:
+              current.revision
+                .revisionId,
+            dataDateIso:
+              model.dataDateIso,
+            authority:
+              "governed_weekly_capacity_register",
+            resourceCount:
+              sourceResourceCapacity
+                .resourceCount,
+            assignedResourceCount:
+              sourceResourceCapacity
+                .utilizationApplicableResourceCount,
+            capacityBasedResourceCount:
+              sourceResourceCapacity
+                .utilizationApplicableResourceCount,
+            capacityCoveragePercent:
+              sourceResourceCapacity
+                .capacityCoveragePercent,
+            overloadedResourceCount:
+              sourceResourceCapacity
+                .plannedOverallocatedResourceCount,
+            rows: [],
+            weeklyCapacityEvidence:
+              sourceResourceCapacity,
+            utilizationApplicableResourceCount:
+              sourceResourceCapacity
+                .utilizationApplicableResourceCount,
+            averagePlannedUtilizationToDataDate:
+              sourceResourceCapacity
+                .averagePlannedUtilizationToDataDate,
+            averageActualUtilizationToDataDate:
+              sourceResourceCapacity
+                .averageActualUtilizationToDataDate,
+            plannedOverallocatedResourceWeekCount:
+              sourceResourceCapacity
+                .plannedOverallocatedResourceWeekCount,
+            actualOverallocatedResourceWeekCount:
+              sourceResourceCapacity
+                .actualOverallocatedResourceWeekCount,
+            sourceCapacityCoveragePercent:
+              sourceResourceCapacity
+                .capacityCoveragePercent,
+            assessedOverloadResourceCount:
+              sourceResourceCapacity
+                .plannedOverallocatedResourceCount,
+            overloadAssessmentState:
+              "complete_source_weekly",
+            diagnostics: [
+              ...sourceResourceCapacity
+                .diagnostics,
+              "RESOURCE_UTILIZATION_PRIMARY_BASIS_IS_GOVERNED_WEEKLY_REGISTER",
+            ],
+          },
+          [
+            "RES01-RES07 capacity/utilization evidence",
+          ],
+          "ready",
+          null,
+        );
+      } else {
+        const scenarioContext =
+          specialistChallengeContext(
+            state,
+            model,
+            generatedAt,
+          );
+        const manpower =
+          scenarioContext
+            .delivery
+            .manpowerChallenge;
         result = available(
           key,
           {
@@ -4647,7 +5024,7 @@ function buildSpecialistModuleFast(
               "resource_utilization_scenario",
             generatedAt,
             producerVersion:
-              "resource-utilization-fast-v2",
+              "resource-utilization-fast-v3",
             projectId:
               state.projectId,
             sourceRevisionId:
@@ -4683,155 +5060,23 @@ function buildSpecialistModuleFast(
               manpower
                 .scheduleDerivedScenarios,
             weeklyCapacityEvidence:
-              weeklyResourceCapacityEvidence(
-                state.evidenceDocuments,
-              ),
+              sourceResourceCapacity,
             diagnostics: [
-              "RESOURCE_ASSIGNMENTS_NOT_SUBMITTED_SCENARIO_DERIVED_FROM_WORKFRONTS",
+              "RESOURCE_CAPACITY_EVIDENCE_NOT_ESTABLISHED_SCENARIO_ONLY",
             ],
           },
           [
             "current schedule",
-            "resource assignments when available",
+            "resource evidence when available",
           ],
           "partial",
-          "Resource assignments are not established. CMeng keeps schedule-derived crew scenarios separate from measured resource utilization.",
-        );
-      } else {
-        const remainingDays =
-          scenarioContext
-            .delivery
-            .scheduleChallenge
-            .remainingDurationDays;
-        result = available(
-          key,
-          {
-            schemaVersion:
-              "1.0",
-            projectionKey:
-              "manhour_scurve_scenario",
-            generatedAt,
-            producerVersion:
-              "manhour-scurve-fast-v2",
-            projectId:
-              state.projectId,
-            sourceRevisionId:
-              current.revision
-                .revisionId,
-            dataDateIso:
-              model.dataDateIso,
-            actualHistoryMethod:
-              "missing",
-            submittedLaborAssignments:
-              false,
-            scenarios:
-              manpower
-                .scheduleDerivedScenarios
-                .map(
-                  (scenario) => ({
-                    crewSize:
-                      scenario.crewSize,
-                    averageManpower:
-                      scenario
-                        .averageManpower,
-                    peakManpower:
-                      scenario
-                        .peakManpower,
-                    remainingScenarioHours:
-                      remainingDays !==
-                        null &&
-                      remainingDays > 0 &&
-                      scenario
-                        .averageManpower !==
-                        null
-                        ? Number(
-                            (
-                              remainingDays *
-                              scenario
-                                .averageManpower *
-                              8
-                            ).toFixed(4),
-                          )
-                        : null,
-                    basis:
-                      "8 hours/person/day",
-                    authority:
-                      "schedule_derived_scenario",
-                  }),
-                ),
-            diagnostics: [
-              "LABOR_ASSIGNMENTS_NOT_SUBMITTED_MANHOUR_SCENARIO_ONLY",
-            ],
-          },
-          [
-            "current schedule",
-            "labor assignments when available",
-          ],
-          "partial",
-          "Labor assignments are not established. Any man-hour values shown are explicit schedule-derived scenarios, not measured history.",
+          "Measured resource capacity/utilization evidence is not established. Schedule-derived crew positions remain scenarios only.",
         );
       }
     } else if (
-      key ===
-      "resource-utilization"
+      resources &&
+      hasAssignments
     ) {
-      const projection =
-        buildResourceUtilizationProjection(
-          resources,
-          model,
-          {
-            generatedAt,
-            producerVersion:
-              "resource-utilization-fast-v2",
-          },
-        );
-      const weeklyCapacity =
-        weeklyResourceCapacityEvidence(
-          state.evidenceDocuments,
-        );
-      const capacityKnown =
-        projection
-          .capacityBasedResourceCount;
-      const allCapacityKnown =
-        projection
-          .assignedResourceCount >
-          0 &&
-        capacityKnown ===
-          projection
-            .assignedResourceCount;
-      const weeklyComparable =
-        weeklyCapacity
-          .comparableRowCount > 0;
-      const enriched = {
-        ...projection,
-        assessedOverloadResourceCount:
-          capacityKnown,
-        overloadAssessmentState:
-          capacityKnown === 0
-            ? "not_assessable_per_hour"
-            : allCapacityKnown
-              ? "complete"
-              : "partial",
-        weeklyCapacityEvidence:
-          weeklyCapacity,
-      };
-      result = available(
-        key,
-        enriched,
-        [
-          "resource assignments",
-          "resource capacity",
-        ],
-        allCapacityKnown
-          ? "ready"
-          : "partial",
-        capacityKnown === 0
-          ? weeklyComparable
-            ? "Per-hour resource capacity is not established in the schedule resource model. Weekly capacity and demand evidence is shown separately without unsafe unit conversion."
-            : "Resource assignments are available, but no usable capacity rate is established. Overload cannot be assessed and zero must not be inferred."
-          : "Resource utilization is calculated only for resources with established capacity; the remaining resources stay demand-only.",
-      );
-    } else {
       const projection =
         buildManhourScurveProjection(
           resources,
@@ -4839,30 +5084,82 @@ function buildSpecialistModuleFast(
           {
             generatedAt,
             producerVersion:
-              "manhour-scurve-fast-v2",
+              "manhour-scurve-fast-v3",
           },
         );
-      const actualHistoryComplete =
+      const actualHistoryEstablished =
         projection
           .actualHistoryMethod ===
-        "stored_financial_period_actuals";
+          "stored_financial_period_actuals";
       result = available(
         key,
-        projection,
+        {
+          ...projection,
+          sourceResourceEvidence:
+            sourceResourceCapacity,
+        },
         [
           "labor assignments",
-          "financial-period actuals when available",
+          "RES03/RES04 actual and time-phased resource evidence",
         ],
-        actualHistoryComplete
+        actualHistoryEstablished ||
+        sourceResourceCapacity
+          .approvedActualUsageRowCount >
+        0
           ? "ready"
           : "partial",
-        actualHistoryComplete
+        actualHistoryEstablished
           ? null
-          : projection
-              .actualHistoryMethod ===
-            "current_actual_snapshot_only"
-            ? "Only a current labor-hours snapshot is available. CMeng does not reconstruct a historical actual S-curve from that single value."
+          : sourceResourceCapacity
+                .approvedActualUsageRowCount >
+              0
+            ? "Approved weekly actual-usage evidence exists. It is exposed as the authoritative actual-history source and must remain separate from schedule snapshots."
             : "Actual labor-hour history is not established.",
+      );
+    } else {
+      result = available(
+        key,
+        {
+          schemaVersion:
+            "1.0",
+          projectionKey:
+            "manhour_scurve_source_evidence",
+          generatedAt,
+          producerVersion:
+            "manhour-scurve-fast-v3",
+          projectId:
+            state.projectId,
+          sourceRevisionId:
+            current.revision
+              .revisionId,
+          dataDateIso:
+            model.dataDateIso,
+          actualHistoryMethod:
+            sourceResourceCapacity
+                .approvedActualUsageRowCount >
+              0
+              ? "approved_weekly_actual_usage"
+              : "missing",
+          sourceResourceEvidence:
+            sourceResourceCapacity,
+          diagnostics: [
+            "P6_LABOR_ASSIGNMENTS_NOT_ESTABLISHED",
+          ],
+        },
+        [
+          "RES03 approved actual usage",
+          "RES04 time-phased assignments",
+        ],
+        sourceResourceCapacity
+            .approvedActualUsageRowCount >
+          0
+          ? "partial"
+          : "blocked",
+        sourceResourceCapacity
+            .approvedActualUsageRowCount >
+          0
+          ? "Approved actual resource history is available, but a complete labor-only plan/actual curve requires assignment classification and time-phased labor extraction."
+          : "No labor assignment or approved actual resource history is established.",
       );
     }
   } else if (
