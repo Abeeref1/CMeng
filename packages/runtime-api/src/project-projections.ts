@@ -2525,6 +2525,16 @@ function buildBundle(
     );
   }
 
+  if (perfEnabled) {
+    perfTargetMs =
+      Date.now() -
+      targetStarted;
+  }
+  const challengeStarted =
+    perfEnabled
+      ? Date.now()
+      : 0;
+
   applyUniversalModuleChallenges({
     state,
     generatedAt,
@@ -2893,6 +2903,18 @@ function buildPlanningModuleFast(
 
   const generatedAt =
     new Date().toISOString();
+  const perfEnabled =
+    state.projectId ===
+    "ORBIT-JED-PLH-P3";
+  const perfStarted =
+    perfEnabled
+      ? Date.now()
+      : 0;
+  let perfScheduleMs = 0;
+  let perfForecastMs = 0;
+  let perfDeliveryMs = 0;
+  let perfTargetMs = 0;
+  let perfChallengeMs = 0;
   const ordered =
     analyticalHistory(state);
   const model =
@@ -3024,6 +3046,10 @@ function buildPlanningModuleFast(
       .at(-1) ??
     null;
 
+  const scheduleStarted =
+    perfEnabled
+      ? Date.now()
+      : 0;
   const scheduleRaw =
     buildScheduleAnalyticsProjection(
       model,
@@ -3033,6 +3059,11 @@ function buildPlanningModuleFast(
           "planning-fast:schedule-v1",
       },
     );
+  if (perfEnabled) {
+    perfScheduleMs =
+      Date.now() -
+      scheduleStarted;
+  }
 
   const controlledVariances =
     controlledBaseline
@@ -3195,6 +3226,10 @@ function buildPlanningModuleFast(
         }
       : scheduleRaw;
 
+  const forecastStarted =
+    perfEnabled
+      ? Date.now()
+      : 0;
   const independentForecast =
     buildIndependentForecastProjection(
       model,
@@ -3204,7 +3239,16 @@ function buildPlanningModuleFast(
           "planning-fast:forecast-v1",
       },
     );
+  if (perfEnabled) {
+    perfForecastMs =
+      Date.now() -
+      forecastStarted;
+  }
 
+  const deliveryStarted =
+    perfEnabled
+      ? Date.now()
+      : 0;
   const minimalDeliveryChallenge =
     buildDeliveryChallengeProjection({
       generatedAt,
@@ -3220,6 +3264,11 @@ function buildPlanningModuleFast(
       submittedManpowerPlan:
         state.submittedManpowerPlan,
     });
+  if (perfEnabled) {
+    perfDeliveryMs =
+      Date.now() -
+      deliveryStarted;
+  }
 
   const modules =
     new Map<
@@ -3266,6 +3315,11 @@ function buildPlanningModuleFast(
       scheduleResult,
     );
   }
+
+  const targetStarted =
+    perfEnabled
+      ? Date.now()
+      : 0;
 
   if (key === "activity-analytics") {
     const raw =
@@ -3869,6 +3923,11 @@ function buildPlanningModuleFast(
       minimalDeliveryChallenge,
     modules,
   });
+  if (perfEnabled) {
+    perfChallengeMs =
+      Date.now() -
+      challengeStarted;
+  }
 
   const result =
     modules.get(key) ??
@@ -3885,6 +3944,29 @@ function buildPlanningModuleFast(
       result,
     },
   );
+
+  if (perfEnabled) {
+    process.stdout.write(
+      "CMENG_PLANNING_PHASES " +
+        JSON.stringify({
+          key,
+          totalMs:
+            Date.now() -
+            perfStarted,
+          scheduleMs:
+            perfScheduleMs,
+          forecastMs:
+            perfForecastMs,
+          deliveryMs:
+            perfDeliveryMs,
+          targetMs:
+            perfTargetMs,
+          challengeMs:
+            perfChallengeMs,
+        }) +
+        "\n",
+    );
+  }
 
   return result;
 }
