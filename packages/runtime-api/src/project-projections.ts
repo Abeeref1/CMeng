@@ -2483,6 +2483,12 @@ function buildBundle(
         {
           ...pmoAnalysis,
           programmeBaselineCompletionIso:
+            scheduleAnalytics.result
+              .completionBases.find(
+                (basis) =>
+                  basis.basis ===
+                  "programme",
+              )?.dateIso ??
             controlledBaselineCompletion
               ?.dateIso ??
             null,
@@ -2521,6 +2527,12 @@ function buildBundle(
             current.revision
               .revisionId,
           programmeBaselineCompletionIso:
+            scheduleAnalytics.result
+              .completionBases.find(
+                (basis) =>
+                  basis.basis ===
+                  "programme",
+              )?.dateIso ??
             controlledBaselineCompletion
               ?.dateIso ??
             null,
@@ -4132,6 +4144,12 @@ function buildPlanningModuleFast(
         current.revision
           .revisionId,
       programmeBaselineCompletionIso:
+        scheduleAnalytics.result
+          .completionBases.find(
+            (basis) =>
+              basis.basis ===
+              "programme",
+          )?.dateIso ??
         controlledBaselineCompletion
           ?.dateIso ??
         null,
