@@ -60,6 +60,21 @@ export function buildDelayClaimsProjection(
 
   const claimsByEvent =
     new Map<string, string[]>();
+  const noticesByEvent =
+    new Map<string, string[]>();
+  const determinationsByEvent =
+    new Map<string, string[]>();
+
+  for (const notice of model.notices) {
+    if (!notice.eventId) continue;
+    const target =
+      notice.kind === "determination"
+        ? determinationsByEvent
+        : noticesByEvent;
+    const list = target.get(notice.eventId) ?? [];
+    list.push(notice.noticeId);
+    target.set(notice.eventId, list);
+  }
 
   for (const claim of model.claims) {
     for (const eventId of claim.eventIds) {
@@ -205,6 +220,25 @@ export function buildDelayClaimsProjection(
             (window) =>
               window.windowId,
           ),
+        noticeIds: [
+          ...new Set(
+            noticesByEvent.get(event.eventId) ?? [],
+          ),
+        ].sort(),
+        determinationIds: [
+          ...new Set(
+            determinationsByEvent.get(event.eventId) ?? [],
+          ),
+        ].sort(),
+        evidenceChainState:
+          (determinationsByEvent.get(event.eventId)?.length ?? 0) > 0
+            ? "full_determination_chain"
+            : (noticesByEvent.get(event.eventId)?.length ?? 0) > 0
+              ? "notice_chain"
+              : overlapping.length > 0 &&
+                  event.relatedActivityIds.length > 0
+                ? "schedule_chain"
+                : "claim_event_only",
         observedNetIndependentMovementDays:
           Number(net.toFixed(6)),
         observedPositiveIndependentMovementDays:
