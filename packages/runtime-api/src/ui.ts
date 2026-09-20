@@ -1159,7 +1159,7 @@ function renderForecastVisual(data){
     ["CPM coverage",p.activityCoveragePercent===null?"—":fmt(p.activityCoveragePercent)+"%","current programme activities"],
     ["Revised contract finish",planningShortDate(contract.dateIso??p.requiredFinishIso),"contractual requirement"]
   ]);
-  const warning=review?'<div class="notice warn"><b>CMeng deterministic CPM requires reconciliation before management reliance.</b><br>'+escapeHtml(p.managementReviewReason||"The deterministic CPM basis contains unresolved evidence.")+'</div>':'';
+  const warning=review?'<div class="notice warn"><b>Independent forecast requires reconciliation before management use.</b><br>CMeng deterministic CPM is an analytical position and does not replace the submitted programme. '+escapeHtml(p.managementReviewReason||"The deterministic CPM basis contains unresolved evidence.")+'</div>':'';
   const dateLadder=planningDateLadder([
     {label:"Revised contractual completion",date:contract.dateIso??p.requiredFinishIso,tone:"baseline"},
     {label:"Submitted programme forecast",date:submittedDate,tone:"current"},
