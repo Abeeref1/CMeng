@@ -25,6 +25,8 @@ import type {
 } from "../../quantity-progress-core/src";
 import type {
   CanonicalResourceModel,
+  CanonicalResourceSupportFragment,
+  CanonicalResourceSupportModel,
 } from "../../schedule-resource-core/src";
 import type {
   ScheduleRevision,
@@ -382,6 +384,12 @@ export interface ProjectRuntimeState {
     string,
     CanonicalResourceModel
   >;
+  resourceSupportByDocument: Record<
+    string,
+    CanonicalResourceSupportFragment
+  >;
+  resourceSupport:
+    CanonicalResourceSupportModel | null;
   boq: BoqIngestionResult | null;
   boqRevisions: BoqIngestionResult[];
   quantities:
