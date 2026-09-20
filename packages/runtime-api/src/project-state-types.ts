@@ -337,6 +337,7 @@ export interface DerivedControlEvidence {
   rfis?: RfiRecord[];
   risks?: RiskControlRecord[];
   delayClaims?: DelayClaimsModel;
+  contractTimeBasis?: ContractTimeBasis;
 }
 
 export interface ProjectControlState {
