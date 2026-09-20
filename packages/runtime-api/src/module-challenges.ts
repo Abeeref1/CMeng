@@ -1452,7 +1452,7 @@ function metricsFor(
         );
       return [
         spec(
-          "finish_date",
+          "completion_date",
           "Forecast finish",
           stringOrNull(
             latest
@@ -1485,7 +1485,7 @@ function metricsFor(
     case "independent-forecast":
       return [
         spec(
-          "finish_date",
+          "completion_date",
           "Finish date",
           forecast
             .independentForecastCompletionIso,
@@ -1814,7 +1814,7 @@ function metricsFor(
     case "challenge-contract":
       return [
         spec(
-          "finish_date",
+          "completion_date",
           "Finish date",
           delivery
             .scheduleChallenge
