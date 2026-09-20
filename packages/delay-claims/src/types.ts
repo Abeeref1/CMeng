@@ -13,6 +13,8 @@ export type DelayCandidateClass =
 export interface DelayClaimEventAssessmentRow {
   eventId: string;
   title: string;
+  eventStartIso: string | null;
+  eventEndIso: string | null;
   responsibility: DelayResponsibility;
   responsibilityState: GovernanceState;
   noticeTimeliness: NoticeTimeliness;
