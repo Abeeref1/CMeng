@@ -1266,8 +1266,13 @@ function renderResourceVisual(data){
     return visualSection("Resources","Resource demand and capacity are kept separate so missing capacity is never treated as zero.","Review needed",'<div class="notice warn">Resource assignments or capacity evidence are not established for the current programme.</div>');
   }
   const weekly=p.weeklyCapacityEvidence||null;
-  const weeklyPoints=weekly?.weeklyTotals?.map(row=>({dateIso:row.weekStartIso,availableCapacity:row.availableCapacity,plannedDemand:row.plannedDemand,actualApprovedUsage:row.actualApprovedUsage}))||[];
-  const weeklyUnit=weekly?.unitLabels?.length===1?weekly.unitLabels[0]:"source units";
+  const weeklyGroups=weekly?.weeklyTotals?.reduce((map,row)=>{
+    const unit=row.unit||"UNSPECIFIED";
+    const list=map.get(unit)||[];
+    list.push({dateIso:row.weekStartIso,availableCapacity:row.availableCapacity,plannedDemand:row.plannedDemand,actualApprovedUsage:row.actualApprovedUsage});
+    map.set(unit,list);
+    return map;
+  },new Map())||new Map();
   const capacityKnown=Number(p.capacityBasedResourceCount||0);
   const assessed=Number(p.assessedOverloadResourceCount??capacityKnown);
   const capacityState=capacityKnown===0?"Not established":(p.capacityCoveragePercent===100?"Complete":"Partial");
@@ -1286,11 +1291,11 @@ function renderResourceVisual(data){
   ]);
   const rows=p.rows.map(r=>'<tr><td><b>'+escapeHtml(r.resourceId)+'</b><br><span class="muted">'+escapeHtml(r.resourceName||"")+'</span></td><td>'+escapeHtml(r.resourceType)+'</td><td>'+escapeHtml(r.assignmentCount)+'</td><td>'+escapeHtml(fmt(r.capacityUnitsPerHour))+'</td><td>'+escapeHtml(fmt(r.peakPlannedUnitsPerHour))+'</td><td>'+escapeHtml(fmt(r.peakRemainingUnitsPerHour))+'</td><td>'+escapeHtml(r.plannedUtilizationPercent===null?"—":fmt(r.plannedUtilizationPercent)+"%")+'</td><td>'+escapeHtml(r.remainingUtilizationPercent===null?"—":fmt(r.remainingUtilizationPercent)+"%")+'</td><td><span class="state-pill '+(r.overloaded===true?"blocked":r.state==="capacity_based"?"ready":"review")+'">'+escapeHtml(r.overloaded===true?"Overloaded":r.state==="capacity_based"?"Capacity assessed":"Demand only")+'</span></td></tr>').join("");
   const note=capacityKnown===0?'<div class="notice warn"><b>Overload is not zero.</b> Capacity has not been established for these resources, so CMeng cannot assess utilization or overload. The table shows assignment demand only.</div>':p.capacityCoveragePercent<100?'<div class="notice info">Utilization is calculated only for resources with established capacity. Demand-only resources remain unassessed.</div>':'';
-  const weeklyChart=weeklyPoints.length?'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Weekly capacity vs demand</h4><p>Values are taken directly from the uploaded capacity register in '+escapeHtml(weeklyUnit)+'. They are not converted into per-hour capacity.</p></div><span class="badge '+(weekly?.state==="available"?"ready":"partial")+'">'+escapeHtml(fmt(weekly?.comparableRowCount||0))+' comparable rows</span></div><div class="planning-panel-body">'+renderLineChart(weeklyPoints,[
+  const weeklyChart=weeklyGroups.size?[...weeklyGroups.entries()].map(([unit,points])=>'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Weekly capacity vs demand · '+escapeHtml(unit)+'</h4><p>Source-unit values are kept separate. CMeng does not add labor hours to equipment hours or convert them into per-hour capacity.</p></div><span class="badge '+(weekly?.state==="available"?"ready":"partial")+'">'+escapeHtml(humanizeKey(weekly?.state||"partial"))+'</span></div><div class="planning-panel-body">'+renderLineChart(points,[
     {key:"availableCapacity",label:"Available capacity",color:"#506579"},
     {key:"plannedDemand",label:"Planned demand",color:"#b57922"},
     {key:"actualApprovedUsage",label:"Approved actual usage",color:"#2c7a57"}
-  ])+'</div></section>':'';
+  ])+'</div></section>').join(""):'';
   return '<section class="planning-view resource-view">'+kpis+note+weeklyChart+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Resource demand concentration</h4><p>Highest remaining/planned demand where rates exist; assignment count is used only when no demand rate is available.</p></div></div><div class="planning-panel-body">'+moduleBarList(top)+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Capacity evidence</h4><p>Capacity must exist before overload can be judged.</p></div></div><div class="planning-panel-body">'+moduleEvidenceGate([
     {label:"Assignment evidence",value:p.assignedResourceCount+" resources",state:p.assignedResourceCount>0?"ready":"missing"},
     {label:"Capacity evidence",value:capacityState,state:capacityKnown>0?"ready":"missing"},
