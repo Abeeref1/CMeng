@@ -2813,6 +2813,98 @@ function logProgrammePlanningVisualQa(
       }),
     );
 
+  const controlledBaseline =
+    governedRevisions
+      .filter(
+        (item) =>
+          item.role ===
+            "revised_baseline" ||
+          item.role ===
+            "baseline",
+      )
+      .at(-1) ??
+    null;
+  const controlledBaselineByActivity =
+    new Map(
+      (
+        controlledBaseline
+          ?.revision.model
+          .activities ??
+        []
+      ).map(
+        (activity) => [
+          activity.activityId,
+          activity,
+        ],
+      ),
+    );
+  const controlledVariances:
+    number[] = [];
+  const controlledMilestoneVariances:
+    number[] = [];
+  for (const activity of activities) {
+    const baseline =
+      controlledBaselineByActivity.get(
+        activity.activityId,
+      );
+    if (!baseline) continue;
+    const baselineFinish =
+      baseline.baselineFinishIso ??
+      baseline.forecastFinishIso ??
+      baseline.currentFinishIso ??
+      baseline.actualFinishIso;
+    const currentFinish =
+      (
+        activity.status ===
+          "completed"
+          ? activity.actualFinishIso
+          : null
+      ) ??
+      activity.forecastFinishIso ??
+      activity.currentFinishIso;
+    if (
+      !baselineFinish ||
+      !currentFinish
+    ) {
+      continue;
+    }
+    const before =
+      Date.parse(
+        baselineFinish,
+      );
+    const after =
+      Date.parse(
+        currentFinish,
+      );
+    if (
+      !Number.isFinite(before) ||
+      !Number.isFinite(after)
+    ) {
+      continue;
+    }
+    const variance =
+      (
+        after -
+        before
+      ) /
+      86_400_000;
+    controlledVariances.push(
+      variance,
+    );
+    if (
+      activity.activityType ===
+        "milestone" ||
+      activity.activityType ===
+        "start_milestone" ||
+      activity.activityType ===
+        "finish_milestone"
+    ) {
+      controlledMilestoneVariances.push(
+        variance,
+      );
+    }
+  }
+
   let comparison:
     Record<string, unknown> | null =
     null;
@@ -3085,6 +3177,49 @@ function logProgrammePlanningVisualQa(
         },
         revisions:
           revisionSummary,
+        controlledBaselineVariance: {
+          baselineLabel:
+            controlledBaseline
+              ?.revision.label ??
+            null,
+          comparableCount:
+            controlledVariances.length,
+          min:
+            controlledVariances.length
+              ? Math.min(
+                  ...controlledVariances,
+                )
+              : null,
+          max:
+            controlledVariances.length
+              ? Math.max(
+                  ...controlledVariances,
+                )
+              : null,
+          lateCount:
+            controlledVariances
+              .filter(
+                (value) =>
+                  value > 0,
+              ).length,
+          milestoneComparableCount:
+            controlledMilestoneVariances
+              .length,
+          milestoneMin:
+            controlledMilestoneVariances
+              .length
+              ? Math.min(
+                  ...controlledMilestoneVariances,
+                )
+              : null,
+          milestoneMax:
+            controlledMilestoneVariances
+              .length
+              ? Math.max(
+                  ...controlledMilestoneVariances,
+                )
+              : null,
+        },
         latestComparison:
           comparison,
       }) +
