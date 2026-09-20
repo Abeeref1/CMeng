@@ -623,13 +623,17 @@ test("schedule support registers never become programme revisions", async () => 
           },
         );
 
+      const responseText =
+        await response.text();
       assert.equal(
         response.status,
         201,
-        await response.text(),
+        responseText,
       );
       const result =
-        await response.json() as {
+        JSON.parse(
+          responseText,
+        ) as {
           category: string;
           documentType: string;
         };
