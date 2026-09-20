@@ -3829,7 +3829,7 @@ function buildPlanningModuleFast(
                 },
               ),
           }
-        : nearCriticalBase;
+        : raw;
     modules.set(
       key,
       available(
@@ -3865,6 +3865,8 @@ function buildPlanningModuleFast(
           raw.floatRiskWatchlistCount,
         sourceReportedCount:
           scheduleControlBasis.sourceReportedNearCriticalLabelCount,
+        sourceLabelReconcilesTo:
+          scheduleControlBasis.sourceCountReconcilesTo,
         gap:
           scheduleControlBasis.sourceReportedNearCriticalLabelCount === null
             ? null
@@ -3916,7 +3918,7 @@ function buildPlanningModuleFast(
                 },
               ),
           }
-        : raw;
+        : nearCriticalBase;
     modules.set(
       key,
       available(
