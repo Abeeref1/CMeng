@@ -624,7 +624,9 @@ export function buildManhourScurveProjection(
       laborAssignments.length,
 
     plannedHoursKnown:
-      planned.unitsKnown,
+      planned.knownUnitsCount > 0
+        ? planned.unitsKnown
+        : null,
     plannedAssignmentCoveragePercent:
       coverage(
         planned.knownUnitsCount,
@@ -638,7 +640,9 @@ export function buildManhourScurveProjection(
     plannedState,
 
     actualHoursKnownCurrent:
-      currentActualHours,
+      currentActualKnownCount > 0
+        ? currentActualHours
+        : null,
     actualAssignmentCoveragePercent:
       coverage(
         currentActualKnownCount,
@@ -652,7 +656,9 @@ export function buildManhourScurveProjection(
     actualState,
 
     remainingHoursKnown:
-      remaining.unitsKnown,
+      remaining.knownUnitsCount > 0
+        ? remaining.unitsKnown
+        : null,
     remainingAssignmentCoveragePercent:
       coverage(
         remaining.knownUnitsCount,
