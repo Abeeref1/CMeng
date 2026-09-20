@@ -300,6 +300,35 @@ export function buildDelayClaimsProjection(
       model.evidenceRevisionId,
 
     eventCount: rows.length,
+    registeredEventIdentityCount:
+      rows.length,
+    datedEventCount:
+      model.events.filter(
+        (event) =>
+          event.startIso !== null,
+      ).length,
+    activityLinkedEventCount:
+      model.events.filter(
+        (event) =>
+          event.relatedActivityIds.length > 0,
+      ).length,
+    claimLinkedEventCount:
+      rows.filter(
+        (row) =>
+          row.linkedClaimIds.length > 0,
+      ).length,
+    windowLinkedEventCount:
+      rows.filter(
+        (row) =>
+          row.overlappingWindowIds.length > 0,
+      ).length,
+    fullyLinkedEventCount:
+      rows.filter(
+        (row) =>
+          row.linkedClaimIds.length > 0 &&
+          row.relatedActivityIds.length > 0 &&
+          row.overlappingWindowIds.length > 0,
+      ).length,
     claimCount:
       model.claims.length,
     windowCount:
