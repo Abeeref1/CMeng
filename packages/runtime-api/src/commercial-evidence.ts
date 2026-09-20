@@ -437,7 +437,6 @@ function titleForContract(
     ProjectRuntimeState["contractDocuments"][number],
 ): string {
   return (
-    contract.result.title ??
     contract.sourceFilename ??
     contract.documentId
   );
@@ -1735,7 +1734,7 @@ function parsePayments(
           diagnostics: [
             "APPLICATION_ASSESSMENT_AND_RECEIPT_STAGES_NOT_ESTABLISHED_BY_CERTIFICATE_REGISTER",
           ],
-        } satisfies PaymentCertificateRecord;
+        } as PaymentCertificateRecord;
       },
     )
     .filter(
@@ -1932,7 +1931,7 @@ function parseVariations(
           diagnostics: [
             "SITE_INSTRUCTION_AND_PAYMENT_LINKAGE_NOT_ESTABLISHED_IN_VARIATION_REGISTER",
           ],
-        } satisfies VariationRecord;
+        } as VariationRecord;
       },
     )
     .filter(
