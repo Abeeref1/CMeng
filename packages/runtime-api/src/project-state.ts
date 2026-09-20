@@ -547,109 +547,286 @@ function legacyIdentification(
 function hydrateProject(
   state: SerializedProjectState,
 ): ProjectRuntimeState {
-  const legacy = state as SerializedProjectState &
-    Partial<ProjectRuntimeState>;
-  return {
+  const legacy =
+    state as SerializedProjectState &
+      Partial<ProjectRuntimeState>;
+
+  const affectedFamilies =
+    new Set<string>();
+  const legacySupportScheduleArtifactIds =
+    new Set<string>();
+  const scheduleSupportTypes =
+    new Set([
+      "schedule_control_basis",
+      "schedule_metric_register",
+      "schedule_activity_comparison",
+      "longest_path_register",
+      "resource_register",
+      "wbs_dictionary",
+      "obs_responsibility_matrix",
+      "project_data_book",
+    ]);
+
+  const evidenceDocuments:
+    StoredEvidenceDocument[] =
+    (
+      legacy.evidenceDocuments ??
+      []
+    ).map((document) => {
+      const baseFamily =
+        evidenceFamily({
+          category:
+            document.category,
+          documentType:
+            document.documentType,
+          scheduleRole:
+            document.scheduleRole,
+          textSample: "",
+          sourceFilename:
+            document.sourceFilename,
+        });
+
+      const hydrated:
+        StoredEvidenceDocument = {
+        ...document,
+        mapping:
+          document.mapping
+            ? {
+                method:
+                  document.mapping
+                    .method ??
+                  "explicit_column",
+                rowCount:
+                  document.mapping
+                    .rowCount,
+                linkedActivityField:
+                  document.mapping
+                    .linkedActivityField,
+                linkedActivityCount:
+                  document.mapping
+                    .linkedActivityCount,
+                mappedActivityCount:
+                  document.mapping
+                    .mappedActivityCount,
+                unmappedActivityCount:
+                  document.mapping
+                    .unmappedActivityCount,
+                coveragePercent:
+                  document.mapping
+                    .coveragePercent,
+              }
+            : null,
+        identification:
+          document.identification ??
+          legacyIdentification(
+            document,
+          ),
+        lineage:
+          document.lineage ??
+          legacyLineage(
+            document,
+          ),
+        assertions:
+          document.assertions ??
+          [],
+        uploadIntent:
+          document.uploadIntent ??
+          "add_update",
+        familyKey:
+          document.familyKey ??
+          baseFamily.familyKey,
+        logicalDocumentKey:
+          document.logicalDocumentKey ??
+          baseFamily
+            .logicalDocumentKey,
+        basisState:
+          document.basisState ??
+          "historical",
+        supersededByDocumentId:
+          document
+            .supersededByDocumentId ??
+          null,
+        supersedesDocumentIds:
+          document
+            .supersedesDocumentIds ??
+          [],
+      };
+
+      const sourcePath =
+        hydrated
+          .sourceRelativePath ??
+        hydrated.sourceFilename;
+      const inferredCategory =
+        inferEvidenceCategory(
+          sourcePath,
+          null,
+        );
+      const inferredDocumentType =
+        inferDocumentType(
+          sourcePath,
+          null,
+        );
+
+      const legacyScheduleSupport =
+        hydrated.category ===
+          "schedule" &&
+        inferredCategory ===
+          "schedule_control" &&
+        scheduleSupportTypes.has(
+          inferredDocumentType,
+        );
+
+      if (!legacyScheduleSupport) {
+        return hydrated;
+      }
+
+      affectedFamilies.add(
+        hydrated.familyKey,
+      );
+      if (
+        hydrated.linkedArtifactId
+      ) {
+        legacySupportScheduleArtifactIds.add(
+          hydrated.linkedArtifactId,
+        );
+      }
+
+      const migratedFamily =
+        evidenceFamily({
+          category:
+            "schedule_control",
+          documentType:
+            inferredDocumentType,
+          scheduleRole: null,
+          textSample: "",
+          sourceFilename:
+            hydrated
+              .sourceFilename,
+        });
+      affectedFamilies.add(
+        migratedFamily.familyKey,
+      );
+
+      return {
+        ...hydrated,
+        category:
+          "schedule_control",
+        documentType:
+          inferredDocumentType,
+        linkedArtifactId: null,
+        scheduleRole: null,
+        familyKey:
+          migratedFamily.familyKey,
+        logicalDocumentKey:
+          migratedFamily
+            .logicalDocumentKey,
+        basisState: "candidate",
+        supersededByDocumentId:
+          null,
+        supersedesDocumentIds: [],
+        identification: {
+          ...hydrated
+            .identification,
+          detectedCategory:
+            "schedule_control",
+          detectedDocumentType:
+            inferredDocumentType,
+          filenameHintCategory:
+            "schedule_control",
+          filenameHintDocumentType:
+            inferredDocumentType,
+          classificationConflict:
+            false,
+        },
+        lineage: {
+          ...hydrated.lineage,
+          effect:
+            "revision_snapshot",
+          replacesEntireBasis:
+            false,
+          appliesAsDelta:
+            false,
+          inferred: true,
+          confidence:
+            Math.max(
+              hydrated.lineage
+                .confidence,
+              0.8,
+            ),
+          diagnostics: [
+            ...new Set([
+              ...hydrated
+                .lineage
+                .diagnostics,
+              "LEGACY_SCHEDULE_SUPPORT_RECLASSIFIED",
+            ]),
+          ],
+        },
+        diagnostics: [
+          ...new Set([
+            ...hydrated
+              .diagnostics,
+            "LEGACY_SCHEDULE_SUPPORT_RECLASSIFIED",
+          ]),
+        ],
+      };
+    });
+
+  const resourcesByRevision =
+    new Map(
+      state.resourcesByRevision ??
+        [],
+    );
+  for (
+    const artifactId of
+      legacySupportScheduleArtifactIds
+  ) {
+    resourcesByRevision.delete(
+      artifactId,
+    );
+  }
+
+  const hydrated:
+    ProjectRuntimeState = {
     ...state,
-    evidenceDocuments:
-      (legacy.evidenceDocuments ?? [])
-        .map((document) => ({
-          ...document,
-          mapping:
-            document.mapping
-              ? {
-                  method:
-                    document.mapping
-                      .method ??
-                    "explicit_column",
-                  rowCount:
-                    document.mapping
-                      .rowCount,
-                  linkedActivityField:
-                    document.mapping
-                      .linkedActivityField,
-                  linkedActivityCount:
-                    document.mapping
-                      .linkedActivityCount,
-                  mappedActivityCount:
-                    document.mapping
-                      .mappedActivityCount,
-                  unmappedActivityCount:
-                    document.mapping
-                      .unmappedActivityCount,
-                  coveragePercent:
-                    document.mapping
-                      .coveragePercent,
-                }
-              : null,
-          identification:
-            document.identification ??
-            legacyIdentification(
-              document,
-            ),
-          lineage:
-            document.lineage ??
-            legacyLineage(
-              document,
-            ),
-          assertions:
-            document.assertions ??
-            [],
-          uploadIntent:
-            document.uploadIntent ??
-            "add_update",
-          familyKey:
-            document.familyKey ??
-            evidenceFamily({
-              category:
-                document.category,
-              documentType:
-                document.documentType,
-              scheduleRole:
-                document.scheduleRole,
-              textSample: "",
-              sourceFilename:
-                document.sourceFilename,
-            }).familyKey,
-          logicalDocumentKey:
-            document.logicalDocumentKey ??
-            evidenceFamily({
-              category:
-                document.category,
-              documentType:
-                document.documentType,
-              scheduleRole:
-                document.scheduleRole,
-              textSample: "",
-              sourceFilename:
-                document.sourceFilename,
-            }).logicalDocumentKey,
-          basisState:
-            document.basisState ??
-            "historical",
-          supersededByDocumentId:
-            document.supersededByDocumentId ??
-            null,
-          supersedesDocumentIds:
-            document.supersedesDocumentIds ??
-            [],
-        })),
+    schedules:
+      (
+        legacy.schedules ??
+        []
+      ).filter(
+        (item) =>
+          !legacySupportScheduleArtifactIds.has(
+            item.revision
+              .revisionId,
+          ),
+      ),
+    evidenceDocuments,
     boqRevisions:
       legacy.boqRevisions ??
-      (legacy.boq ? [legacy.boq] : []),
+      (
+        legacy.boq
+          ? [legacy.boq]
+          : []
+      ),
     contractDocuments:
-      legacy.contractDocuments ?? [],
+      legacy.contractDocuments ??
+      [],
     contractFamily:
-      legacy.contractFamily ?? null,
+      legacy.contractFamily ??
+      null,
     submittedManpowerPlan:
       legacy.submittedManpowerPlan ??
       null,
-    activeEvidenceBasis:
-      legacy.activeEvidenceBasis ??
-      {},
+    activeEvidenceBasis: {
+      ...(
+        legacy.activeEvidenceBasis ??
+        {}
+      ),
+    },
     boardPublicationHistory:
       (
-        legacy.boardPublicationHistory ??
+        legacy
+          .boardPublicationHistory ??
         []
       ).map(
         (item) => ({
@@ -663,10 +840,12 @@ function hydrateProject(
       legacy.delayEventHistory ??
       [],
     derivedControlsByDocument:
-      legacy.derivedControlsByDocument ??
+      legacy
+        .derivedControlsByDocument ??
       {},
     derivedReadinessByDocument:
-      legacy.derivedReadinessByDocument ??
+      legacy
+        .derivedReadinessByDocument ??
       {},
     lastRerunReceipt:
       legacy.lastRerunReceipt ??
@@ -675,12 +854,20 @@ function hydrateProject(
       normalizeControls(
         legacy.controls,
       ),
-    resourcesByRevision:
-      new Map(
-        state.resourcesByRevision ??
-          [],
-      ),
+    resourcesByRevision,
   };
+
+  for (
+    const familyKey of
+      affectedFamilies
+  ) {
+    rebuildEvidenceFamily(
+      hydrated,
+      familyKey,
+    );
+  }
+
+  return hydrated;
 }
 
 export function normalizeProjectCode(
