@@ -285,6 +285,8 @@ export function evidenceFamily(
       "delay_eot_claims_register",
       "contractor_manpower_plan",
       "schedule_metric_register",
+      "schedule_activity_comparison",
+      "longest_path_register",
       "resource_register",
       "wbs_dictionary",
       "obs_responsibility_matrix",
