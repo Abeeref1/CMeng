@@ -1,0 +1,32 @@
+name: CMeng Diagnostic Source
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/diagnostic-source.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  bundle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install pinned diagnostic dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Bundle tracked source and dependencies only
+        run: |
+          git rev-parse HEAD > diagnostic-source-commit.txt
+          git ls-files -z > /tmp/cmeng-tracked-files
+          tar --null -T /tmp/cmeng-tracked-files -czf /tmp/cmeng-source.tgz node_modules package-lock.json diagnostic-source-commit.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cmeng-diagnostic-source
+          path: /tmp/cmeng-source.tgz
+          retention-days: 1
