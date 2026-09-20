@@ -8,6 +8,18 @@ const base = process.env.CMENG_RAILWAY_URL ?? 'https://cmeng-main-production.up.
 const expected = process.env.CMENG_EXPECTED_RELEASE;
 assert.match(expected ?? '', /^[a-f0-9]{40}$/, 'An exact expected release SHA is required');
 const digest = value => createHash('sha256').update(JSON.stringify(value)).digest('hex');
+const comparableRuntimeValue = value => {
+  if (Array.isArray(value)) return value.map(comparableRuntimeValue);
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value)
+        .filter(([key]) => key !== 'generatedAt')
+        .map(([key, child]) => [key, comparableRuntimeValue(child)])
+    );
+  }
+  return value;
+};
+const comparableDigest = value => digest(comparableRuntimeValue(value));
 const evidenceDigest = docs => digest(docs.map(d => [d.documentId, d.sourceHashSha256]).sort((a,b) => a[0].localeCompare(b[0])));
 const summary = { expectedRelease: expected, mode: 'GET_ONLY', checks: [], status: 'running' };
 const check = (name, condition) => { assert.ok(condition, name); summary.checks.push({ name, status: 'pass' }); };
@@ -55,7 +67,7 @@ try {
     check(key + ': live page resolves', result?.key === key && result?.status !== 'blocked' && result?.data !== null);
     check(key + ': live JSON has no non-finite serialization marker', !/NaN|Infinity/.test(JSON.stringify(result?.data)));
     const report = await json(prefix + '/schedule/modules/' + key + '/report.json');
-    check(key + ': report is generated from the same live result', report?.result?.key === key && digest(report.result.data) === digest(result.data));
+    check(key + ': report is generated from the same live governed result', report?.result?.key === key && comparableDigest(report.result.data) === comparableDigest(result.data));
   }
   check('All 29 Project Control pages are traced', modules.size === 29);
 
