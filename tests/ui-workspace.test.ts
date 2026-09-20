@@ -483,6 +483,44 @@ test("CMeng workspace keeps the active module primary and browser script parseab
     "Challenge the Contract keeps its specialist renderer",
   );
 
+  for (
+    const evidenceSafePhrase of [
+      "Per-hour overload is not 0; it is not assessable.",
+      "Schedule progress is available, but certified/contractor physical progress is not established.",
+      "schedule-revision progress history",
+      "Actual man-hours are missing, not zero.",
+      "No governed quantity curve is available.",
+      "Notice performance is not zero; it is not assessable.",
+      "Schedule movement is not an EOT time-impact assessment.",
+      "Source forecast history is available.",
+      "Independent forecast requires reconciliation before management use.",
+    ]
+  ) {
+    assert.equal(
+      html.includes(
+        evidenceSafePhrase,
+      ),
+      true,
+      "specialist modules must preserve evidence-safe semantics: " +
+        evidenceSafePhrase,
+    );
+  }
+
+  assert.equal(
+    html.includes(
+      "CMeng Completion Forecast",
+    ),
+    false,
+    "the navigation must use Independent Forecast rather than ambiguous CMeng Completion Forecast wording",
+  );
+  assert.equal(
+    html.includes(
+      "Completion Forecast History",
+    ),
+    false,
+    "the navigation must use Forecast History rather than ambiguous completion wording",
+  );
+
   const script =
     html.match(
       /<script>([\s\S]*?)<\/script>/,
