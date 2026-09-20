@@ -211,11 +211,25 @@ function floatSummary(
   );
 
   const nearCritical = known.filter(
-    (activity) =>
-      activity.totalFloatHours! >
-        config.criticalFloatThresholdHours &&
-      activity.totalFloatHours! <=
-        config.nearCriticalFloatThresholdHours,
+    (activity) => {
+      const value =
+        activity.totalFloatHours!;
+      const aboveLower =
+        config
+          .nearCriticalLowerBoundInclusive
+          ? value >=
+            config
+              .nearCriticalLowerBoundHours
+          : value >
+            config
+              .nearCriticalLowerBoundHours;
+      return (
+        aboveLower &&
+        value <=
+          config
+            .nearCriticalFloatThresholdHours
+      );
+    },
   );
 
   return {
@@ -237,6 +251,10 @@ function floatSummary(
     ),
     criticalThresholdHours:
       config.criticalFloatThresholdHours,
+    nearCriticalLowerBoundHours:
+      config.nearCriticalLowerBoundHours,
+    nearCriticalLowerBoundInclusive:
+      config.nearCriticalLowerBoundInclusive,
     nearCriticalThresholdHours:
       config.nearCriticalFloatThresholdHours,
   };
@@ -506,10 +524,10 @@ export function analyzeSchedule(
 ): ScheduleAnalyticsResult {
   if (
     config.nearCriticalFloatThresholdHours <
-    config.criticalFloatThresholdHours
+    config.nearCriticalLowerBoundHours
   ) {
     throw new Error(
-      "nearCriticalFloatThresholdHours cannot be below criticalFloatThresholdHours",
+      "nearCriticalFloatThresholdHours cannot be below nearCriticalLowerBoundHours",
     );
   }
 
