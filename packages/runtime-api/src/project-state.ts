@@ -1275,7 +1275,14 @@ export class RuntimeProjectStore {
           );
         const migrated = migrateTypedEvidenceFamilies(state, applyEvidenceBasis);
         let controlBasisMigrated = false;
-        if (state.sourceIntegrationVersion !== "canonical-source-v3") {
+        const requiresV3GovernanceMigration =
+          ![
+            "canonical-source-v3",
+            "canonical-source-v4",
+          ].includes(
+            state.sourceIntegrationVersion ?? "",
+          );
+        if (requiresV3GovernanceMigration) {
           const controlBasisFamilies = [
             ...new Set(
               state.evidenceDocuments
@@ -1314,9 +1321,9 @@ export class RuntimeProjectStore {
         if (
           migrated ||
           controlBasisMigrated ||
-          state.sourceIntegrationVersion !== "canonical-source-v3"
+          requiresV3GovernanceMigration
         ) {
-          state.sourceIntegrationVersion = "canonical-source-v3";
+          state.sourceIntegrationVersion = "canonical-source-v4";
           state.version += 1;
           this.staleFinalizedBoardPublications(state);
           state.lastRerunReceipt = null;
@@ -1633,6 +1640,192 @@ export class RuntimeProjectStore {
           ),
       });
     }
+  }
+
+  async refreshScheduleControlBasisAssertions(): Promise<{
+    refreshedDocumentCount: number;
+    diagnostics: string[];
+  }> {
+    const controlMetrics = new Set([
+      "near_critical_working_days",
+      "near_critical_threshold_hours",
+      "critical_float_threshold_hours",
+      "schedule_control_data_date",
+    ]);
+    const diagnostics: string[] = [];
+    let refreshedDocumentCount = 0;
+    let changed = false;
+
+    for (const state of this.projects.values()) {
+      let projectChanged = false;
+      let projectReadyForV4 = true;
+      const basisDocuments =
+        state.evidenceDocuments.filter(
+          (document) =>
+            document.documentType === "schedule_control_basis" &&
+            ["active", "additive", "candidate"].includes(
+              document.basisState,
+            ),
+        );
+
+      for (const document of basisDocuments) {
+        if (
+          /csv/i.test(
+            document.mediaType +
+              " " +
+              document.sourceFilename,
+          )
+        ) {
+          continue;
+        }
+
+        const alreadyEstablished =
+          document.assertions.some(
+            (assertion) =>
+              assertion.metric ===
+                "near_critical_working_days" ||
+              assertion.metric ===
+                "near_critical_threshold_hours",
+          );
+        if (alreadyEstablished) {
+          continue;
+        }
+
+        if (
+          !/pdf/i.test(document.mediaType) ||
+          !document.storedPath ||
+          !existsSync(document.storedPath)
+        ) {
+          projectReadyForV4 = false;
+          diagnostics.push(
+            "SCHEDULE_CONTROL_BASIS_REFRESH_SOURCE_UNAVAILABLE:" +
+              document.documentId,
+          );
+          continue;
+        }
+
+        const bytes =
+          readFileSync(document.storedPath);
+        const verifiedHash =
+          hashBytes(bytes);
+        if (
+          verifiedHash !==
+          document.sourceHashSha256
+        ) {
+          projectReadyForV4 = false;
+          diagnostics.push(
+            "SCHEDULE_CONTROL_BASIS_REFRESH_HASH_MISMATCH:" +
+              document.documentId,
+          );
+          continue;
+        }
+
+        const identified =
+          await identifyEvidenceDocument({
+            bytes,
+            sourceFilename:
+              document.sourceFilename,
+            sourceRelativePath:
+              document.sourceRelativePath ??
+              document.sourceFilename,
+            declaredMediaType:
+              document.mediaType,
+            declaredCategory:
+              "schedule_control",
+            declaredDocumentType:
+              "schedule_control_basis",
+          });
+
+        const extracted =
+          extractDocumentAssertions(
+            identified.textSample,
+            "evidence:" +
+              document.sourceFilename,
+          ).filter((assertion) =>
+            controlMetrics.has(
+              assertion.metric,
+            ),
+          );
+
+        const establishesThreshold =
+          extracted.some(
+            (assertion) =>
+              assertion.metric ===
+                "near_critical_working_days" ||
+              assertion.metric ===
+                "near_critical_threshold_hours",
+          );
+
+        if (!establishesThreshold) {
+          projectReadyForV4 = false;
+          diagnostics.push(
+            "SCHEDULE_CONTROL_BASIS_THRESHOLD_NOT_EXTRACTED:" +
+              document.documentId,
+          );
+          continue;
+        }
+
+        const retained =
+          document.assertions.filter(
+            (assertion) =>
+              !controlMetrics.has(
+                assertion.metric,
+              ),
+          );
+        document.assertions = [
+          ...retained,
+          ...extracted,
+        ];
+        if (
+          !document.diagnostics.includes(
+            "SCHEDULE_CONTROL_BASIS_ASSERTION_REFRESH_V4",
+          )
+        ) {
+          document.diagnostics.push(
+            "SCHEDULE_CONTROL_BASIS_ASSERTION_REFRESH_V4",
+          );
+        }
+        refreshedDocumentCount += 1;
+        projectChanged = true;
+      }
+
+      if (
+        basisDocuments.length === 0 ||
+        projectReadyForV4
+      ) {
+        if (
+          state.sourceIntegrationVersion !==
+          "canonical-source-v4"
+        ) {
+          state.sourceIntegrationVersion =
+            "canonical-source-v4";
+          projectChanged = true;
+        }
+      }
+
+      if (projectChanged) {
+        state.version += 1;
+        this.staleFinalizedBoardPublications(
+          state,
+        );
+        state.lastRerunReceipt =
+          null;
+        synchronizeCanonicalTimeClaims(
+          state,
+          true,
+        );
+        changed = true;
+      }
+    }
+
+    if (changed) {
+      this.persistSnapshot();
+    }
+
+    return {
+      refreshedDocumentCount,
+      diagnostics,
+    };
   }
 
   touch(

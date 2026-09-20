@@ -48,6 +48,52 @@ function dateValue(
 
 const RULES: AssertionRule[] = [
   {
+    metric: "near_critical_working_days",
+    label: "Near-critical working-day threshold",
+    valueType: "days",
+    unit: "working_days",
+    patterns: [
+      /near[-\s]?critical(?:\s+(?:activities?|threshold|definition|criteria|criterion|band|range|float|watchlist|basis))?[\s\S]{0,180}?([0-9]+(?:\.[0-9]+)?)\s*(?:working\s*days?|work\s*days?|wd)\b/gi,
+      /near[-\s]?critical[\s\S]{0,180}?(?:tf|total\s+float)[\s\S]{0,80}?([0-9]+(?:\.[0-9]+)?)\s*(?:working\s*days?|work\s*days?|wd)\b/gi,
+    ],
+    parse: numberValue,
+    confidence: 0.98,
+  },
+  {
+    metric: "near_critical_threshold_hours",
+    label: "Near-critical explicit-hour threshold",
+    valueType: "number",
+    unit: "hours",
+    patterns: [
+      /near[-\s]?critical(?:\s+(?:activities?|threshold|definition|criteria|criterion|band|range|float|watchlist|basis))?[\s\S]{0,160}?([0-9]+(?:\.[0-9]+)?)\s*(?:hours?|hrs?|hr|h)\b/gi,
+    ],
+    parse: numberValue,
+    confidence: 0.97,
+  },
+  {
+    metric: "critical_float_threshold_hours",
+    label: "Critical total-float threshold",
+    valueType: "number",
+    unit: "hours",
+    patterns: [
+      /(?<!near[-\s])critical(?:\s+(?:activities?|threshold|definition|criteria|criterion|float|basis))?[\s\S]{0,120}?(?:tf|total\s+float)?\s*(?:<=|≤|less\s+than\s+or\s+equal\s+to)\s*\+?\s*(-?[0-9]+(?:\.[0-9]+)?)/gi,
+      /(?:tf|total\s+float)\s*(?:<=|≤)\s*\+?\s*(-?[0-9]+(?:\.[0-9]+)?)[\s\S]{0,100}?\bcritical\b/gi,
+    ],
+    parse: numberValue,
+    confidence: 0.98,
+  },
+  {
+    metric: "schedule_control_data_date",
+    label: "Schedule control Data Date",
+    valueType: "date",
+    unit: null,
+    patterns: [
+      /\bdata\s+date\b\s*(?::|=|-)?\s*([0-9]{4}-[0-9]{2}-[0-9]{2}|[0-9]{1,2}[\s\/-](?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)[\s\/-][0-9]{4}|[A-Za-z]{3,9}\s+[0-9]{1,2},?\s+[0-9]{4})/gi,
+    ],
+    parse: dateValue,
+    confidence: 0.98,
+  },
+  {
     metric: "activity_count",
     label: "Activity count",
     valueType: "count",

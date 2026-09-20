@@ -123,6 +123,57 @@ export function projectScheduleControlBasis(
   const sourceDates: string[] = [];
   const receipts: SourceReceipt[] = [];
 
+  for (const document of documents) {
+    for (const assertion of document.assertions) {
+      const receipt: SourceReceipt = {
+        documentId: document.documentId,
+        sourceHash: document.sourceHashSha256,
+        revision:
+          document.linkedArtifactId ??
+          document.sourceHashSha256,
+        locator:
+          assertion.sourceRef ||
+          "assertion:" + assertion.assertionId,
+        basisState: document.basisState,
+        authority: "source_record",
+      };
+
+      if (
+        assertion.metric === "near_critical_working_days" &&
+        typeof assertion.value === "number" &&
+        Number.isFinite(assertion.value) &&
+        assertion.value >= 0
+      ) {
+        nearWorking.push(assertion.value);
+        receipts.push(receipt);
+      } else if (
+        assertion.metric === "near_critical_threshold_hours" &&
+        typeof assertion.value === "number" &&
+        Number.isFinite(assertion.value) &&
+        assertion.value >= 0
+      ) {
+        nearHours.push(assertion.value);
+        receipts.push(receipt);
+      } else if (
+        assertion.metric === "critical_float_threshold_hours" &&
+        typeof assertion.value === "number" &&
+        Number.isFinite(assertion.value)
+      ) {
+        criticalHours.push(assertion.value);
+        receipts.push(receipt);
+      } else if (
+        assertion.metric === "schedule_control_data_date" &&
+        typeof assertion.value === "string"
+      ) {
+        const parsed = dateValue(assertion.value);
+        if (parsed) {
+          sourceDates.push(parsed);
+          receipts.push(receipt);
+        }
+      }
+    }
+  }
+
   for (const table of tables) {
     for (const row of table.rows) {
       const rowText = Object.entries(row.cells)
