@@ -51,7 +51,14 @@ export interface DelayClaimsProjection {
   windowCount: number;
 
   observedPositiveIndependentMovementDays: number;
+  /** Gross positive analytical movement summed across windows. Not project delay or EOT. */
   observedPositiveProgrammeMovementDays: number;
+  /** Net submitted Project Completion movement from first to latest controlled revision. */
+  projectCompletionMovementDays: number | null;
+  projectCompletionMovementBasis:
+    | "source_forecast"
+    | "source_schedule_boundary"
+    | "unavailable";
   unattributedProgrammeMovementDays: number;
   employerOrNeutralCandidateWindowMovementDays: number;
   contractorRiskWindowMovementDays: number;
