@@ -373,6 +373,15 @@ function buildBundle(
         ],
       ),
     );
+  const currentByActivity =
+    new Map(
+      model.activities.map(
+        (activity) => [
+          activity.activityId,
+          activity,
+        ],
+      ),
+    );
   const controlledBaselineFinish =
     (
       activity:
@@ -655,10 +664,8 @@ function buildBundle(
                         )
                       : null;
                   const currentActivity =
-                    model.activities.find(
-                      (activity) =>
-                        activity.activityId ===
-                        row.activityId,
+                    currentByActivity.get(
+                      row.activityId,
                     );
                   return {
                     ...row,
