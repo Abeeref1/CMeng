@@ -1647,6 +1647,503 @@ function latestById<T>(
   ];
 }
 
+function governanceRank(
+  state: GovernanceState,
+): number {
+  if (state === "official") return 4;
+  if (state === "provisional") return 3;
+  if (state === "candidate") return 2;
+  return 1;
+}
+
+function claimStateRank(
+  state: CanonicalClaimRecord["state"],
+): number {
+  if (state === "determined") return 6;
+  if (state === "rejected") return 5;
+  if (state === "under_review") return 4;
+  if (state === "submitted") return 3;
+  if (state === "draft") return 2;
+  if (state === "withdrawn") return 1;
+  return 0;
+}
+
+function evidenceRefKey(
+  ref: CanonicalDelayEvent["evidenceRefs"][number],
+): string {
+  return [
+    ref.sourceType,
+    ref.sourceId,
+    ref.locator ?? "",
+  ].join("|");
+}
+
+function uniqueDelayRefs(
+  refs: CanonicalDelayEvent["evidenceRefs"],
+): CanonicalDelayEvent["evidenceRefs"] {
+  const map = new Map<
+    string,
+    CanonicalDelayEvent["evidenceRefs"][number]
+  >();
+  for (const ref of refs) {
+    map.set(
+      evidenceRefKey(ref),
+      ref,
+    );
+  }
+  return [...map.values()];
+}
+
+function mergeDelayEvent(
+  before: CanonicalDelayEvent | null,
+  incoming: CanonicalDelayEvent,
+): CanonicalDelayEvent {
+  if (!before) {
+    return {
+      ...incoming,
+      relatedActivityIds: [
+        ...new Set(
+          incoming.relatedActivityIds,
+        ),
+      ],
+      relatedClauseIdentifiers: [
+        ...new Set(
+          incoming
+            .relatedClauseIdentifiers,
+        ),
+      ],
+      evidenceRefs:
+        uniqueDelayRefs(
+          incoming.evidenceRefs,
+        ),
+      diagnostics: [
+        ...new Set(
+          incoming.diagnostics,
+        ),
+      ],
+    };
+  }
+
+  const incomingResponsibilityWins =
+    governanceRank(
+      incoming.responsibilityState,
+    ) >
+      governanceRank(
+        before.responsibilityState,
+      ) ||
+    (
+      governanceRank(
+        incoming.responsibilityState,
+      ) ===
+        governanceRank(
+          before.responsibilityState,
+        ) &&
+      before.responsibility ===
+        "unknown" &&
+      incoming.responsibility !==
+        "unknown"
+    );
+
+  const incomingImpactWins =
+    incoming.describedImpactDays !==
+      null &&
+    (
+      before.describedImpactDays ===
+        null ||
+      governanceRank(
+        incoming.describedImpactState,
+      ) >=
+        governanceRank(
+          before.describedImpactState,
+        )
+    );
+
+  return {
+    ...before,
+    title:
+      (
+        before.title ===
+          before.eventId ||
+        before.title.includes(
+          "impact assessment",
+        ) ||
+        before.title.includes(
+          "entitlement assessment",
+        )
+      ) &&
+      incoming.title
+        ? incoming.title
+        : before.title,
+    startIso:
+      before.startIso ??
+      incoming.startIso,
+    endIso:
+      before.endIso ??
+      incoming.endIso,
+    responsibility:
+      incomingResponsibilityWins
+        ? incoming.responsibility
+        : before.responsibility,
+    responsibilityState:
+      incomingResponsibilityWins
+        ? incoming.responsibilityState
+        : before.responsibilityState,
+    describedImpactDays:
+      incomingImpactWins
+        ? incoming.describedImpactDays
+        : before.describedImpactDays,
+    describedImpactState:
+      incomingImpactWins
+        ? incoming.describedImpactState
+        : before.describedImpactState,
+    relatedActivityIds: [
+      ...new Set([
+        ...before.relatedActivityIds,
+        ...incoming.relatedActivityIds,
+      ]),
+    ],
+    relatedClauseIdentifiers: [
+      ...new Set([
+        ...before
+          .relatedClauseIdentifiers,
+        ...incoming
+          .relatedClauseIdentifiers,
+      ]),
+    ],
+    evidenceRefs:
+      uniqueDelayRefs([
+        ...before.evidenceRefs,
+        ...incoming.evidenceRefs,
+      ]),
+    diagnostics: [
+      ...new Set([
+        ...before.diagnostics,
+        ...incoming.diagnostics,
+      ]),
+    ],
+  };
+}
+
+function mergeClaim(
+  before: CanonicalClaimRecord | null,
+  incoming: CanonicalClaimRecord,
+): CanonicalClaimRecord {
+  if (!before) {
+    return {
+      ...incoming,
+      eventIds: [
+        ...new Set(
+          incoming.eventIds,
+        ),
+      ],
+      clauseIdentifiers: [
+        ...new Set(
+          incoming
+            .clauseIdentifiers,
+        ),
+      ],
+      evidenceRefs:
+        uniqueDelayRefs(
+          incoming.evidenceRefs,
+        ),
+      diagnostics: [
+        ...new Set(
+          incoming.diagnostics,
+        ),
+      ],
+    };
+  }
+
+  const incomingAssessmentWins =
+    incoming.assessedDays !==
+      null &&
+    (
+      before.assessedDays ===
+        null ||
+      governanceRank(
+        incoming.assessedDaysState,
+      ) >=
+        governanceRank(
+          before.assessedDaysState,
+        )
+    );
+  const incomingAmountWins =
+    incoming.assessedAmount !==
+      null &&
+    (
+      before.assessedAmount ===
+        null ||
+      governanceRank(
+        incoming.assessedAmountState,
+      ) >=
+        governanceRank(
+          before.assessedAmountState,
+        )
+    );
+
+  return {
+    ...before,
+    title:
+      before.title ===
+        before.claimId &&
+      incoming.title !==
+        incoming.claimId
+        ? incoming.title
+        : before.title,
+    state:
+      claimStateRank(
+        incoming.state,
+      ) >
+      claimStateRank(
+        before.state,
+      )
+        ? incoming.state
+        : before.state,
+    eventIds: [
+      ...new Set([
+        ...before.eventIds,
+        ...incoming.eventIds,
+      ]),
+    ],
+    submittedAt:
+      before.submittedAt ??
+      incoming.submittedAt,
+    claimedDays:
+      before.claimedDays ??
+      incoming.claimedDays,
+    claimedAmount:
+      before.claimedAmount ??
+      incoming.claimedAmount,
+    assessedDays:
+      incomingAssessmentWins
+        ? incoming.assessedDays
+        : before.assessedDays,
+    assessedDaysState:
+      incomingAssessmentWins
+        ? incoming.assessedDaysState
+        : before.assessedDaysState,
+    assessedAmount:
+      incomingAmountWins
+        ? incoming.assessedAmount
+        : before.assessedAmount,
+    assessedAmountState:
+      incomingAmountWins
+        ? incoming.assessedAmountState
+        : before.assessedAmountState,
+    clauseIdentifiers: [
+      ...new Set([
+        ...before.clauseIdentifiers,
+        ...incoming.clauseIdentifiers,
+      ]),
+    ],
+    evidenceRefs:
+      uniqueDelayRefs([
+        ...before.evidenceRefs,
+        ...incoming.evidenceRefs,
+      ]),
+    diagnostics: [
+      ...new Set([
+        ...before.diagnostics,
+        ...incoming.diagnostics,
+      ]),
+    ],
+  };
+}
+
+function mergeDelayFragments(
+  projectId: string,
+  fragments: DelayClaimsModel[],
+): DelayClaimsModel | null {
+  if (fragments.length === 0) {
+    return null;
+  }
+
+  const events =
+    new Map<
+      string,
+      CanonicalDelayEvent
+    >();
+  const claims =
+    new Map<
+      string,
+      CanonicalClaimRecord
+    >();
+  const notices =
+    new Map<
+      string,
+      CanonicalNoticeRecord
+    >();
+  const requirements =
+    new Map<
+      string,
+      DelayClaimsModel["noticeRequirements"][number]
+    >();
+
+  for (const fragment of fragments) {
+    for (const event of fragment.events) {
+      events.set(
+        event.eventId,
+        mergeDelayEvent(
+          events.get(
+            event.eventId,
+          ) ?? null,
+          event,
+        ),
+      );
+    }
+    for (const claim of fragment.claims) {
+      claims.set(
+        claim.claimId,
+        mergeClaim(
+          claims.get(
+            claim.claimId,
+          ) ?? null,
+          claim,
+        ),
+      );
+    }
+    for (const notice of fragment.notices) {
+      const existing =
+        notices.get(
+          notice.noticeId,
+        );
+      notices.set(
+        notice.noticeId,
+        existing
+          ? {
+              ...existing,
+              eventId:
+                existing.eventId ??
+                notice.eventId,
+              claimId:
+                existing.claimId ??
+                notice.claimId,
+              actualIssuedAt:
+                existing
+                  .actualIssuedAt ??
+                notice
+                  .actualIssuedAt,
+              actualReceivedAt:
+                existing
+                  .actualReceivedAt ??
+                notice
+                  .actualReceivedAt,
+              plannedAt:
+                existing.plannedAt ??
+                notice.plannedAt,
+              subject:
+                existing.subject ??
+                notice.subject,
+              clauseIdentifiers: [
+                ...new Set([
+                  ...existing
+                    .clauseIdentifiers,
+                  ...notice
+                    .clauseIdentifiers,
+                ]),
+              ],
+              evidenceRefs:
+                uniqueDelayRefs([
+                  ...existing
+                    .evidenceRefs,
+                  ...notice
+                    .evidenceRefs,
+                ]),
+              diagnostics: [
+                ...new Set([
+                  ...existing
+                    .diagnostics,
+                  ...notice
+                    .diagnostics,
+                ]),
+              ],
+            }
+          : notice,
+      );
+    }
+    for (
+      const requirement of
+        fragment.noticeRequirements
+    ) {
+      const existing =
+        requirements.get(
+          requirement
+            .requirementId,
+        );
+      if (
+        !existing ||
+        governanceRank(
+          requirement.state,
+        ) >
+          governanceRank(
+            existing.state,
+          )
+      ) {
+        requirements.set(
+          requirement
+            .requirementId,
+          requirement,
+        );
+      }
+    }
+  }
+
+  return {
+    projectId,
+    evidenceRevisionId:
+      "merged-evidence:" +
+      fragments
+        .map(
+          (fragment) =>
+            fragment
+              .evidenceRevisionId,
+        )
+        .sort()
+        .join("|"),
+    events: [
+      ...events.values(),
+    ].sort(
+      (a, b) =>
+        a.eventId.localeCompare(
+          b.eventId,
+        ),
+    ),
+    notices: [
+      ...notices.values(),
+    ].sort(
+      (a, b) =>
+        a.noticeId.localeCompare(
+          b.noticeId,
+        ),
+    ),
+    claims: [
+      ...claims.values(),
+    ].sort(
+      (a, b) =>
+        a.claimId.localeCompare(
+          b.claimId,
+        ),
+    ),
+    noticeRequirements: [
+      ...requirements.values(),
+    ].sort(
+      (a, b) =>
+        a.requirementId.localeCompare(
+          b.requirementId,
+        ),
+    ),
+    diagnostics: [
+      ...new Set([
+        ...fragments.flatMap(
+          (fragment) =>
+            fragment.diagnostics,
+        ),
+        "DELAY_EVENT_CLAIM_EVIDENCE_MERGED_ACROSS_ACTIVE_REGISTERS",
+      ]),
+    ],
+  };
+}
+
 export function rebuildDerivedControls(
   state: ProjectRuntimeState,
 ): void {
@@ -1706,10 +2203,11 @@ export function rebuildDerivedControls(
   const risks = [
     ...manualRisks,
   ];
-
-  let derivedDelay:
-    DelayClaimsModel | null =
-    null;
+  const delayFragments:
+    DelayClaimsModel[] = [];
+  const determinations:
+    EngineerEotDetermination[] =
+    [];
 
   const activeDocuments =
     state.evidenceDocuments
@@ -1737,6 +2235,7 @@ export function rebuildDerivedControls(
           document.documentId
         ];
     if (!derived) continue;
+
     variations.push(
       ...(derived.variations ??
         []),
@@ -1760,9 +2259,17 @@ export function rebuildDerivedControls(
     if (
       derived.delayClaims
     ) {
-      derivedDelay =
-        derived.delayClaims;
+      delayFragments.push(
+        derived.delayClaims,
+      );
     }
+    determinations.push(
+      ...(
+        derived
+          .eotDeterminations ??
+        []
+      ),
+    );
   }
 
   state.controls.variations =
@@ -1805,13 +2312,83 @@ export function rebuildDerivedControls(
       .evidenceRevisionId
       .startsWith(
         "evidence-document:",
+      ) &&
+    !currentDelay
+      .evidenceRevisionId
+      .startsWith(
+        "merged-evidence:",
       );
 
   if (
     !manuallyGovernedDelay
   ) {
+    state.controls.delayClaims =
+      mergeDelayFragments(
+        state.projectId,
+        delayFragments,
+      );
+  }
+
+  const timeBasis =
     state.controls
-      .delayClaims =
-      derivedDelay;
+      .contractTimeBasis;
+  if (
+    timeBasis &&
+    determinations.length > 0
+  ) {
+    const unique =
+      latestById(
+        determinations,
+        (item) =>
+          item.determinationId,
+      );
+    const awarded =
+      unique
+        .map(
+          (item) =>
+            item.awardedEotDays,
+        )
+        .filter(
+          (
+            value,
+          ): value is number =>
+            value !== null,
+        );
+    state.controls
+      .contractTimeBasis = {
+        ...timeBasis,
+        engineerDeterminations:
+          unique,
+        engineerDeterminationCount:
+          unique.length,
+        engineerDeterminationAwardedDaysTotal:
+          awarded.length > 0
+            ? Number(
+                awarded
+                  .reduce(
+                    (
+                      sum,
+                      value,
+                    ) =>
+                      sum +
+                      value,
+                    0,
+                  )
+                  .toFixed(6),
+              )
+            : null,
+        determinationAggregationState:
+          "register_established_non_additive",
+        sourceRefs: [
+          ...new Set([
+            ...timeBasis
+              .sourceRefs,
+            ...unique.flatMap(
+              (item) =>
+                item.sourceRefs,
+            ),
+          ]),
+        ],
+      };
   }
 }
