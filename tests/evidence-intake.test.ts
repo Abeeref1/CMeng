@@ -564,6 +564,88 @@ test("ZIP evidence pack routes schedules, BOQ CSV and other project evidence wit
 
 
 
+test("legacy support artifacts are excluded from programme history even if stored as schedules", async () => {
+  await withServer(async (base) => {
+    const project =
+      "LEGACY-SUPPORT-FILTER-UAT";
+
+    await postSchedule(
+      base,
+      project,
+      "S03_Current_U02.xer",
+      "update",
+      "2026-08-31",
+      "2026-09-15",
+    );
+
+    // Simulates a legacy persisted mistake from an older release:
+    // a comparison register was stored through the schedule route.
+    await postSchedule(
+      base,
+      project,
+      "SCH03_Baseline_to_Current_Activity_Comparison.csv",
+      "baseline",
+      "2026-09-01",
+      "2026-09-20",
+    );
+
+    const overview =
+      await (
+        await fetch(
+          base +
+            "/api/projects/" +
+            project +
+            "/overview",
+        )
+      ).json() as {
+        revisionCount: number;
+        updateRevisionCount: number;
+        baselineRevisionCount: number;
+        latestDataDateIso: string | null;
+      };
+
+    assert.equal(
+      overview.revisionCount,
+      1,
+    );
+    assert.equal(
+      overview.updateRevisionCount,
+      1,
+    );
+    assert.equal(
+      overview.baselineRevisionCount,
+      0,
+    );
+    assert.match(
+      overview.latestDataDateIso ?? "",
+      /^2026-08-31/,
+    );
+
+    const revisions =
+      await (
+        await fetch(
+          base +
+            "/api/projects/" +
+            project +
+            "/schedule/revisions",
+        )
+      ).json() as Array<{
+        sourceFilename: string | null;
+      }>;
+
+    assert.deepEqual(
+      revisions.map(
+        (row) =>
+          row.sourceFilename,
+      ),
+      [
+        "S03_Current_U02.xer",
+      ],
+    );
+  });
+});
+
+
 test("schedule support registers never become programme revisions", async () => {
   await withServer(async (base) => {
     const project =
