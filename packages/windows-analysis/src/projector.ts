@@ -1,7 +1,4 @@
 import {
-  analyzeSchedule,
-} from "../../schedule-analysis-core/src";
-import {
   compareScheduleRevisions,
   orderScheduleRevisionsChronologically,
   type ScheduleRevision,
@@ -42,8 +39,53 @@ function movementDays(
 function progress(
   revision: ScheduleRevision,
 ): number | null {
-  return analyzeSchedule(revision.model)
-    .progress.durationWeightedPercentComplete.value;
+  let weighted = 0;
+  let duration = 0;
+
+  for (
+    const activity of
+      revision.model.activities
+  ) {
+    if (
+      activity.activityType ===
+        "wbs_summary" ||
+      activity.activityType ===
+        "level_of_effort" ||
+      activity.activityType ===
+        "milestone" ||
+      activity.activityType ===
+        "start_milestone" ||
+      activity.activityType ===
+        "finish_milestone" ||
+      activity.originalDurationHours ===
+        null ||
+      activity.originalDurationHours <=
+        0 ||
+      activity.percentComplete ===
+        null ||
+      activity.percentComplete <
+        0 ||
+      activity.percentComplete >
+        100
+    ) {
+      continue;
+    }
+
+    duration +=
+      activity.originalDurationHours;
+    weighted +=
+      activity.originalDurationHours *
+      activity.percentComplete;
+  }
+
+  return duration > 0
+    ? Number(
+        (
+          weighted /
+          duration
+        ).toFixed(6),
+      )
+    : null;
 }
 
 function windowBoundary(
