@@ -181,12 +181,16 @@ export interface ScheduleGraphAnalysis {
 
 export interface ScheduleAnalysisConfig {
   criticalFloatThresholdHours: number;
+  nearCriticalLowerBoundHours: number;
+  nearCriticalLowerBoundInclusive: boolean;
   nearCriticalFloatThresholdHours: number;
   varianceLateThresholdDays: number;
 }
 
 export const DEFAULT_SCHEDULE_ANALYSIS_CONFIG: ScheduleAnalysisConfig = {
   criticalFloatThresholdHours: 0,
+  nearCriticalLowerBoundHours: 0,
+  nearCriticalLowerBoundInclusive: false,
   nearCriticalFloatThresholdHours: 40,
   varianceLateThresholdDays: 0,
 };
@@ -221,6 +225,8 @@ export interface FloatSummary {
   totalActivities: number;
   coveragePercent: number | null;
   criticalThresholdHours: number;
+  nearCriticalLowerBoundHours: number;
+  nearCriticalLowerBoundInclusive: boolean;
   nearCriticalThresholdHours: number;
 }
 

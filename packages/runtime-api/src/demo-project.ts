@@ -3,6 +3,9 @@ import type {
   CanonicalScheduleActivity,
   CanonicalScheduleModel,
 } from "../../schedule-analysis-core/src";
+import {
+  emptyCommercialRuntimeState,
+} from "../../commercial-core/src";
 import type {
   ProjectRuntimeState,
 } from "./project-state-types";
@@ -487,6 +490,10 @@ export function loadCertifiedDemoProject(
           },
         ],
       ]),
+    resourceSupportByDocument: {},
+    resourceSupport: null,
+    sourceProductivityForecastByDocument: {},
+    sourceProductivityForecast: null,
     boq: null,
     boqRevisions: [],
     quantities: {
@@ -551,6 +558,8 @@ export function loadCertifiedDemoProject(
       ],
       diagnostics: [],
     },
+    commercial:
+      emptyCommercialRuntimeState(),
     contractDocuments: [],
     contractFamily: null,
     submittedManpowerPlan: null,
@@ -558,6 +567,7 @@ export function loadCertifiedDemoProject(
     boardPublicationHistory: [],
     delayEventHistory: [],
     derivedControlsByDocument: {},
+    derivedCommercialByDocument: {},
     derivedReadinessByDocument: {},
     lastRerunReceipt: null,
     contract: {
@@ -697,6 +707,25 @@ export function loadCertifiedDemoProject(
         }],
         diagnostics: [],
       },
+      contractNoticeRequirements: [{
+        requirementId: "NR1",
+        noticeKind: "eot_notice",
+        eventCategories: [
+          "late_information",
+        ],
+        noticePeriodDays: 7,
+        state: "official",
+        clauseIdentifiers: [
+          "8.4",
+        ],
+        evidenceRefs: [{
+          sourceType: "contract",
+          sourceId:
+            "demo-contract",
+          locator:
+            "clause:8.4",
+        }],
+      }],
       contractTimeBasis: {
         contractualCompletionIso:
           "2026-01-09",

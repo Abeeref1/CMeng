@@ -17,6 +17,13 @@ import {
   type BoqIngestionResult,
 } from "../../boq-ingestion/src";
 import {
+  emptyCommercialRuntimeState,
+} from "../../commercial-core/src";
+import {
+  extractContractNoticeRequirements,
+  extractContractTimeBasis,
+} from "../../contract-commercial/src";
+import {
   linkContractFamily,
   parseContractDocx,
   parseContractPdf,
@@ -98,6 +105,18 @@ import {
   deriveControlsFromCsv,
   rebuildDerivedControls,
 } from "./evidence-control-adapters";
+import {
+  deriveResourceSupportFromCsv,
+  rebuildCanonicalResourceSupport,
+} from "./evidence-resource-adapters";
+import {
+  deriveSourceProductivityForecastFromCsv,
+  rebuildSourceProductivityForecast,
+} from "./evidence-forecast-adapters";
+import {
+  deriveCommercialFromCsv,
+  rebuildCommercialState,
+} from "./evidence-commercial-adapters";
 
 function hashBytes(
   bytes: Uint8Array,
@@ -111,6 +130,7 @@ function emptyControls():
   ProjectControlState {
   return {
     delayClaims: null,
+    contractNoticeRequirements: [],
     contractTimeBasis: null,
     readinessEvidence: {},
     progressEvidence: {},
@@ -142,6 +162,12 @@ function normalizeControls(
     ...value,
     delayClaims:
       value.delayClaims ?? null,
+    contractNoticeRequirements:
+      Array.isArray(
+        value.contractNoticeRequirements,
+      )
+        ? value.contractNoticeRequirements
+        : [],
     contractTimeBasis:
       value.contractTimeBasis ?? null,
     readinessEvidence:
@@ -772,6 +798,115 @@ function hydrateProject(
       };
     });
 
+  for (const document of evidenceDocuments) {
+    const sourcePath =
+      document.sourceRelativePath ??
+      document.sourceFilename;
+    const inferredType =
+      inferDocumentType(
+        sourcePath,
+        null,
+      );
+    const isResourceSupport =
+      /^res0?[1-7][_-]/i.test(
+        document.sourceFilename,
+      );
+    const isEotSpecialist =
+      [
+        "delay_event_impact_register",
+        "entitlement_assessment_register",
+        "engineer_determination_register",
+        "mitigation_acceleration_register",
+      ].includes(
+        inferredType,
+      );
+
+    if (
+      !isResourceSupport &&
+      !isEotSpecialist
+    ) {
+      continue;
+    }
+
+    const previousFamily =
+      document.familyKey;
+    const category:
+      EvidenceCategory =
+      isResourceSupport
+        ? "schedule_control"
+        : "risk_claims_procurement";
+    const documentType =
+      isResourceSupport
+        ? "resource_register"
+        : inferredType;
+    const migratedFamily =
+      evidenceFamily({
+        category,
+        documentType,
+        scheduleRole: null,
+        textSample: "",
+        sourceFilename:
+          document.sourceFilename,
+      });
+
+    affectedFamilies.add(
+      previousFamily,
+    );
+    affectedFamilies.add(
+      migratedFamily.familyKey,
+    );
+
+    document.category =
+      category;
+    document.documentType =
+      documentType;
+    document.scheduleRole =
+      null;
+    document.linkedArtifactId =
+      null;
+    document.familyKey =
+      migratedFamily.familyKey;
+    document.logicalDocumentKey =
+      migratedFamily
+        .logicalDocumentKey;
+    document.basisState =
+      "candidate";
+    document.supersededByDocumentId =
+      null;
+    document.supersedesDocumentIds =
+      [];
+    document.identification = {
+      ...document.identification,
+      detectedCategory:
+        category,
+      detectedDocumentType:
+        documentType,
+      filenameHintCategory:
+        category,
+      filenameHintDocumentType:
+        documentType,
+      classificationConflict:
+        false,
+      needsReview:
+        document.identification
+          .needsReview,
+      diagnostics: [
+        ...new Set([
+          ...document
+            .identification
+            .diagnostics,
+          "SPECIALIST_EVIDENCE_RECLASSIFIED_FROM_SOURCE_IDENTITY",
+        ]),
+      ],
+    };
+    document.diagnostics = [
+      ...new Set([
+        ...document.diagnostics,
+        "SPECIALIST_EVIDENCE_RECLASSIFIED_FROM_SOURCE_IDENTITY",
+      ]),
+    ];
+  }
+
   const resourcesByRevision =
     new Map(
       state.resourcesByRevision ??
@@ -808,6 +943,9 @@ function hydrateProject(
           ? [legacy.boq]
           : []
       ),
+    commercial:
+      legacy.commercial ??
+      emptyCommercialRuntimeState(),
     contractDocuments:
       legacy.contractDocuments ??
       [],
@@ -843,10 +981,26 @@ function hydrateProject(
       legacy
         .derivedControlsByDocument ??
       {},
+    derivedCommercialByDocument:
+      legacy
+        .derivedCommercialByDocument ??
+      {},
     derivedReadinessByDocument:
       legacy
         .derivedReadinessByDocument ??
       {},
+    resourceSupportByDocument:
+      legacy.resourceSupportByDocument ??
+      {},
+    resourceSupport:
+      legacy.resourceSupport ??
+      null,
+    sourceProductivityForecastByDocument:
+      legacy.sourceProductivityForecastByDocument ??
+      {},
+    sourceProductivityForecast:
+      legacy.sourceProductivityForecast ??
+      null,
     lastRerunReceipt:
       legacy.lastRerunReceipt ??
       null,
@@ -866,6 +1020,81 @@ function hydrateProject(
       familyKey,
     );
   }
+
+  for (const document of hydrated.evidenceDocuments) {
+    if (
+      !document.mediaType
+        .toLowerCase()
+        .includes("csv") &&
+      !document.sourceFilename
+        .toLowerCase()
+        .endsWith(".csv")
+    ) {
+      continue;
+    }
+    if (
+      !existsSync(
+        document.storedPath,
+      )
+    ) {
+      continue;
+    }
+    try {
+      const bytes =
+        new Uint8Array(
+          readFileSync(
+            document.storedPath,
+          ),
+        );
+      const controls =
+        deriveControlsFromCsv({
+          state: hydrated,
+          document,
+          bytes,
+        });
+      if (
+        Object.keys(
+          controls,
+        ).length > 0
+      ) {
+        hydrated
+          .derivedControlsByDocument[
+            document.documentId
+          ] = controls;
+      }
+      const resourceSupport =
+        deriveResourceSupportFromCsv({
+          document,
+          bytes,
+        });
+      if (resourceSupport) {
+        hydrated
+          .resourceSupportByDocument[
+            document.documentId
+          ] = resourceSupport;
+      }
+    } catch {
+      document.diagnostics = [
+        ...new Set([
+          ...document.diagnostics,
+          "STORED_EVIDENCE_REDERIVATION_FAILED",
+        ]),
+      ];
+    }
+  }
+
+  rebuildDerivedControls(
+    hydrated,
+  );
+  rebuildCanonicalResourceSupport(
+    hydrated,
+  );
+  rebuildSourceProductivityForecast(
+    hydrated,
+  );
+  rebuildCommercialState(
+    hydrated,
+  );
 
   return hydrated;
 }
@@ -1274,10 +1503,16 @@ export class RuntimeProjectStore {
         evidenceDocuments: [],
         resourcesByRevision:
           new Map(),
+        resourceSupportByDocument: {},
+        resourceSupport: null,
+        sourceProductivityForecastByDocument: {},
+        sourceProductivityForecast: null,
         boq: null,
         boqRevisions: [],
         quantities: null,
         contract: null,
+        commercial:
+          emptyCommercialRuntimeState(),
         contractDocuments: [],
         contractFamily: null,
         submittedManpowerPlan:
@@ -1286,6 +1521,7 @@ export class RuntimeProjectStore {
         boardPublicationHistory: [],
         delayEventHistory: [],
         derivedControlsByDocument: {},
+        derivedCommercialByDocument: {},
         derivedReadinessByDocument: {},
         lastRerunReceipt: null,
         controls:
@@ -2719,10 +2955,58 @@ export class RuntimeProjectStore {
           ] = derivedControls;
       }
 
+      const resourceSupport =
+        deriveResourceSupportFromCsv({
+          document,
+          bytes: input.bytes,
+        });
+      if (resourceSupport) {
+        state.resourceSupportByDocument[
+          document.documentId
+        ] = resourceSupport;
+      }
+
+      const productivityForecast =
+        deriveSourceProductivityForecastFromCsv({
+          state,
+          document,
+          bytes: input.bytes,
+        });
+      if (productivityForecast) {
+        state.sourceProductivityForecastByDocument[
+          document.documentId
+        ] = productivityForecast;
+      }
+
+      const commercialFragment =
+        deriveCommercialFromCsv({
+          state,
+          document,
+          bytes: input.bytes,
+        });
+      if (
+        Object.keys(
+          commercialFragment,
+        ).length > 0
+      ) {
+        state.derivedCommercialByDocument[
+          document.documentId
+        ] = commercialFragment;
+      }
+
       rebuildReadinessEvidence(
         state,
       );
       rebuildDerivedControls(
+        state,
+      );
+      rebuildCanonicalResourceSupport(
+        state,
+      );
+      rebuildSourceProductivityForecast(
+        state,
+      );
+      rebuildCommercialState(
         state,
       );
 
@@ -3632,7 +3916,7 @@ export class RuntimeProjectStore {
     state.contract =
       base.result;
 
-    const amendments =
+    const activeAmendmentDocuments =
       state.contractDocuments
         .filter(
           (item) => {
@@ -3651,7 +3935,9 @@ export class RuntimeProjectStore {
               "superseded"
             );
           },
-        )
+        );
+    const amendments =
+      activeAmendmentDocuments
         .map(
           (item) => item.result,
         );
@@ -3662,6 +3948,56 @@ export class RuntimeProjectStore {
         amendments,
       );
 
+    state.controls.contractTimeBasis =
+      extractContractTimeBasis({
+        base: {
+          documentId:
+            base.documentId,
+          role:
+            base.role === "replacement"
+              ? "replacement"
+              : base.role === "main"
+                ? "main"
+                : "other",
+          result: base.result,
+        },
+        amendments:
+          activeAmendmentDocuments.map(
+            (item) => ({
+              documentId:
+                item.documentId,
+              role:
+                "amendment" as const,
+              result: item.result,
+            }),
+          ),
+      });
+
+    state.controls.contractNoticeRequirements =
+      extractContractNoticeRequirements({
+        base: {
+          documentId:
+            base.documentId,
+          role:
+            base.role === "replacement"
+              ? "replacement"
+              : base.role === "main"
+                ? "main"
+                : "other",
+          result: base.result,
+        },
+        amendments:
+          activeAmendmentDocuments.map(
+            (item) => ({
+              documentId:
+                item.documentId,
+              role:
+                "amendment" as const,
+              result: item.result,
+            }),
+          ),
+      });
+
     document.diagnostics = [
       ...document.diagnostics,
       ...(
@@ -3670,6 +4006,13 @@ export class RuntimeProjectStore {
         []
       ),
     ];
+
+    rebuildDerivedControls(
+      state,
+    );
+    rebuildCommercialState(
+      state,
+    );
 
     this.touchEvidence(state);
     return parsed;

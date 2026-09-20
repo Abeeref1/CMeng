@@ -196,6 +196,21 @@ export function certifyCrossModuleConsistency(
       modules,
       "quantity-scurve",
     );
+  const nearCritical =
+    data(
+      modules,
+      "near-critical",
+    );
+  const resources =
+    data(
+      modules,
+      "resource-utilization",
+    );
+  const manhours =
+    data(
+      modules,
+      "manhour-scurve",
+    );
 
   const checks:
     CrossModuleCertificationCheck[] =
@@ -837,6 +852,333 @@ export function certifyCrossModuleConsistency(
           value:
             quantity
               ?.boqRevisionId,
+        },
+      ],
+    ),
+  );
+
+  checks.push(
+    equalityCheck(
+      "SOURCE_DATA_DATE_RECONCILIATION",
+      "When a governed/source schedule metric register publishes a Data Date, it must match the active programme Data Date and the value presented by Schedule Analytics.",
+      [
+        {
+          source:
+            "active-programme",
+          value:
+            latest?.revision.model
+              .dataDateIso,
+        },
+        {
+          source:
+            "source-metric-register",
+          value:
+            scheduleAnalytics
+              ?.scheduleControlPolicy
+              ?.sourceDataDateIso,
+        },
+        {
+          source:
+            "schedule-analytics",
+          value:
+            scheduleAnalytics
+              ?.result
+              ?.dataDateIso,
+        },
+      ],
+    ),
+  );
+
+  checks.push(
+    equalityCheck(
+      "SOURCE_NEAR_CRITICAL_RECONCILIATION",
+      "When the source control basis/register establishes a near-critical population, the calculated watchlist must reconcile to that source-controlled policy rather than a global default.",
+      [
+        {
+          source:
+            "source-reported-near-critical",
+          value:
+            nearCritical
+              ?.sourceReportedNearCriticalCount ??
+            scheduleAnalytics
+              ?.scheduleControlPolicy
+              ?.sourceReportedNearCriticalCount,
+        },
+        {
+          source:
+            "near-critical-calculation",
+          value:
+            nearCritical
+              ?.nearCriticalCount,
+        },
+      ],
+    ),
+  );
+
+  checks.push(
+    equalityCheck(
+      "RESOURCE_SOURCE_POPULATION_RECONCILIATION",
+      "Canonical resource support population must propagate to the Resources module without becoming schedule-only demand.",
+      [
+        {
+          source:
+            "canonical-resource-support",
+          value:
+            state.resourceSupport
+              ?.utilizationApplicableResourceCount,
+        },
+        {
+          source:
+            "resource-module",
+          value:
+            resources
+              ?.sourceUtilizationApplicableResourceCount,
+        },
+      ],
+    ),
+  );
+
+  checks.push(
+    equalityCheck(
+      "RESOURCE_WEEK_ROWS_RECONCILIATION",
+      "Weekly resource-capacity row population must remain identical from canonical source evidence to the Resources module.",
+      [
+        {
+          source:
+            "canonical-resource-support",
+          value:
+            state.resourceSupport
+              ?.weeklyRowCount,
+        },
+        {
+          source:
+            "resource-module",
+          value:
+            resources
+              ?.weeklyCapacityEvidence
+              ?.rowCount,
+        },
+      ],
+    ),
+  );
+
+  checks.push(
+    equalityCheck(
+      "RESOURCE_PLANNED_UTILIZATION_RECONCILIATION",
+      "Planned utilization from governed weekly resource evidence must propagate without unit mixing or silent recalculation on another basis.",
+      [
+        {
+          source:
+            "canonical-resource-support",
+          value:
+            state.resourceSupport
+              ?.averagePlannedUtilizationToDataDatePercent,
+        },
+        {
+          source:
+            "resource-module",
+          value:
+            resources
+              ?.sourceAveragePlannedUtilizationPercent,
+        },
+      ],
+    ),
+  );
+
+  checks.push(
+    equalityCheck(
+      "RESOURCE_ACTUAL_UTILIZATION_RECONCILIATION",
+      "Approved actual utilization from governed weekly resource evidence must propagate without being replaced by planned demand.",
+      [
+        {
+          source:
+            "canonical-resource-support",
+          value:
+            state.resourceSupport
+              ?.averageActualUtilizationToDataDatePercent,
+        },
+        {
+          source:
+            "resource-module",
+          value:
+            resources
+              ?.sourceAverageActualUtilizationPercent,
+        },
+      ],
+    ),
+  );
+
+  checks.push(
+    equalityCheck(
+      "CONTRACT_TIME_BASIS_RECONCILIATION",
+      "The governed contractual completion from the active contract/amendment family must propagate unchanged to EOT assessment.",
+      [
+        {
+          source:
+            "canonical-contract-time-basis",
+          value:
+            state.controls
+              .contractTimeBasis
+              ?.contractualCompletionIso,
+        },
+        {
+          source:
+            "eot-assessment",
+          value:
+            eot
+              ?.contractualCompletionIso,
+        },
+      ],
+    ),
+  );
+
+  const contractTimeSourceBound =
+    !state.controls
+      .contractTimeBasis
+      ?.contractualCompletionIso ||
+    (
+      state.controls
+        .contractTimeBasis
+        .contractualCompletionState !==
+        "missing" &&
+      state.controls
+        .contractTimeBasis
+        .sourceRefs.length > 0
+    );
+  checks.push(
+    booleanCheck(
+      "CONTRACT_TIME_SOURCE_RECEIPT",
+      contractTimeSourceBound,
+      "An established contractual completion must retain contract/amendment source references and authority state.",
+      [{
+        source:
+          "contract-time.sourceRefs",
+        value:
+          state.controls
+            .contractTimeBasis
+            ?.sourceRefs
+            ?.join(",") ??
+          null,
+      }],
+    ),
+  );
+
+  checks.push(
+    equalityCheck(
+      "ENGINEER_DETERMINATION_COUNT_RECONCILIATION",
+      "Engineer determination register population must propagate to EOT without being collapsed into a generic approved-EOT number.",
+      [
+        {
+          source:
+            "canonical-contract-time-basis",
+          value:
+            state.controls
+              .contractTimeBasis
+              ?.engineerDeterminationCount,
+        },
+        {
+          source:
+            "eot-assessment",
+          value:
+            eot
+              ?.engineerDeterminationCount,
+        },
+      ],
+    ),
+  );
+
+  checks.push(
+    equalityCheck(
+      "ENGINEER_DETERMINATION_DAYS_RECONCILIATION",
+      "The determination-register awarded-day total must remain a separate source fact and must not be silently added to incorporated amendment days.",
+      [
+        {
+          source:
+            "canonical-contract-time-basis",
+          value:
+            state.controls
+              .contractTimeBasis
+              ?.engineerDeterminationAwardedDaysTotal,
+        },
+        {
+          source:
+            "eot-assessment",
+          value:
+            eot
+              ?.engineerDeterminationAwardedDaysTotal,
+        },
+      ],
+    ),
+  );
+
+  checks.push(
+    equalityCheck(
+      "DELAY_EVENT_IDENTITY_RECONCILIATION",
+      "Registered delay-event identities must reconcile from the merged claims/EOT evidence model to the Delay Events module.",
+      [
+        {
+          source:
+            "canonical-delay-model",
+          value:
+            state.controls
+              .delayClaims
+              ?.events.length,
+        },
+        {
+          source:
+            "delay-events-module",
+          value:
+            delay
+              ?.registeredEventIdentityCount,
+        },
+      ],
+    ),
+  );
+
+  checks.push(
+    equalityCheck(
+      "SOURCE_PRODUCTIVITY_FORECAST_RECONCILIATION",
+      "A source productivity forecast must remain distinct and propagate unchanged into the forecast taxonomy.",
+      [
+        {
+          source:
+            "canonical-source-productivity",
+          value:
+            state.sourceProductivityForecast
+              ?.independentForecastCompletionIso,
+        },
+        {
+          source:
+            "forecast-taxonomy",
+          value:
+            forecast
+              ?.forecastTaxonomy
+              ?.sourceProductivityForecastIso,
+        },
+      ],
+    ),
+  );
+
+  checks.push(
+    equalityCheck(
+      "APPROVED_MANHOUR_HISTORY_AUTHORITY",
+      "When approved source resource-week history is present, the Man-Hour S-Curve must expose that authority rather than label the curve as reconstructed schedule history.",
+      [
+        {
+          source:
+            "canonical-approved-resource-usage",
+          value:
+            state.resourceSupport
+              ?.actualUsageRowCount
+              ? "approved_source_register"
+              : null,
+        },
+        {
+          source:
+            "manhour-scurve",
+          value:
+            manhours
+              ?.actualHistoryAuthority,
         },
       ],
     ),

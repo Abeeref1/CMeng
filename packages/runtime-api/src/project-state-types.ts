@@ -12,10 +12,18 @@ import type {
   ContractFamilyResult,
 } from "../../contract-parser/src";
 import type {
+  CommercialRuntimeState,
+} from "../../commercial-core/src";
+import type {
+  SourceProductivityForecastModel,
+} from "../../independent-forecast/src";
+import type {
   DelayClaimsModel,
+  NoticeRequirement,
 } from "../../delay-analysis-core/src";
 import type {
   ContractTimeBasis,
+  EngineerEotDetermination,
 } from "../../eot-assessment/src";
 import type {
   ExternalProgressEvidence,
@@ -25,6 +33,8 @@ import type {
 } from "../../quantity-progress-core/src";
 import type {
   CanonicalResourceModel,
+  CanonicalResourceSupportFragment,
+  CanonicalResourceSupportModel,
 } from "../../schedule-resource-core/src";
 import type {
   ScheduleRevision,
@@ -337,10 +347,14 @@ export interface DerivedControlEvidence {
   rfis?: RfiRecord[];
   risks?: RiskControlRecord[];
   delayClaims?: DelayClaimsModel;
+  eotDeterminations?:
+    EngineerEotDetermination[];
 }
 
 export interface ProjectControlState {
   delayClaims: DelayClaimsModel | null;
+  contractNoticeRequirements:
+    NoticeRequirement[];
   contractTimeBasis: ContractTimeBasis | null;
   readinessEvidence: Record<
     string,
@@ -382,11 +396,22 @@ export interface ProjectRuntimeState {
     string,
     CanonicalResourceModel
   >;
+  resourceSupportByDocument: Record<
+    string,
+    CanonicalResourceSupportFragment
+  >;
+  resourceSupport:
+    CanonicalResourceSupportModel | null;
+  sourceProductivityForecastByDocument:
+    Record<string, SourceProductivityForecastModel>;
+  sourceProductivityForecast:
+    SourceProductivityForecastModel | null;
   boq: BoqIngestionResult | null;
   boqRevisions: BoqIngestionResult[];
   quantities:
     CanonicalQuantityProgressModel | null;
   contract: ContractDocumentResult | null;
+  commercial: CommercialRuntimeState;
   contractDocuments: StoredContractDocument[];
   contractFamily: ContractFamilyResult | null;
   submittedManpowerPlan:
@@ -401,6 +426,11 @@ export interface ProjectRuntimeState {
     Record<
       string,
       DerivedControlEvidence
+    >;
+  derivedCommercialByDocument:
+    Record<
+      string,
+      Partial<CommercialRuntimeState>
     >;
   derivedReadinessByDocument:
     Record<

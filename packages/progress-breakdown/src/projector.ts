@@ -134,11 +134,25 @@ function buildRow(
         config.criticalFloatThresholdHours,
     ).length,
     nearCriticalCount: floatKnown.filter(
-      (activity) =>
-        activity.totalFloatHours! >
-          config.criticalFloatThresholdHours &&
-        activity.totalFloatHours! <=
-          config.nearCriticalFloatThresholdHours,
+      (activity) => {
+        const value =
+          activity.totalFloatHours!;
+        const aboveLower =
+          config
+            .nearCriticalLowerBoundInclusive
+            ? value >=
+              config
+                .nearCriticalLowerBoundHours
+            : value >
+              config
+                .nearCriticalLowerBoundHours;
+        return (
+          aboveLower &&
+          value <=
+            config
+              .nearCriticalFloatThresholdHours
+        );
+      },
     ).length,
     negativeFloatCount: floatKnown.filter(
       (activity) =>

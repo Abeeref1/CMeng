@@ -56,6 +56,16 @@ export interface ResourceUtilizationProjection {
   capacityBasedResourceCount: number;
   capacityCoveragePercent: number | null;
   overloadedResourceCount: number;
+  canonicalResourceEvidenceState?:
+    | "established"
+    | "legacy_source"
+    | "not_established";
+  sourceUtilizationApplicableResourceCount?: number;
+  sourceAveragePlannedUtilizationPercent?: number | null;
+  sourceAverageActualUtilizationPercent?: number | null;
+  sourcePlannedOverallocationRowCount?: number;
+  sourceActualOverallocationRowCount?: number;
+  weeklyCapacityEvidence?: unknown;
   rows: ResourceUtilizationRow[];
   diagnostics: string[];
 }

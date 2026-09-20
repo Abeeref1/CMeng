@@ -168,6 +168,27 @@ export function evidenceFamily(
     };
   }
 
+  const resourceSupportMatch =
+    /^res(0?[1-7])[_-]/i.exec(
+      sourceFilename,
+    );
+  if (
+    category === "schedule_control" &&
+    resourceSupportMatch
+  ) {
+    const code =
+      "res" +
+      resourceSupportMatch[1]!
+        .padStart(2, "0");
+    return {
+      familyKey:
+        "resource-support:" + code,
+      behavior: "snapshot",
+      logicalDocumentKey:
+        "resource-support:" + code,
+    };
+  }
+
   if (
     category === "boq_cost" &&
     documentType === "boq"
@@ -279,10 +300,16 @@ export function evidenceFamily(
       "quality_ncr_register",
       "asset_register",
       "testing_commissioning_register",
+      "productivity_forecast_model",
+      "productivity_forecast_method",
       "cost_evm_report",
       "payment_certificates",
       "variation_register",
       "delay_eot_claims_register",
+      "delay_event_impact_register",
+      "entitlement_assessment_register",
+      "engineer_determination_register",
+      "mitigation_acceleration_register",
       "contractor_manpower_plan",
       "schedule_metric_register",
       "schedule_activity_comparison",

@@ -45,6 +45,12 @@ export function inferEvidenceCategory(
   const value = lower(path);
   const name = basename(value);
   if (
+    /^if0?\d+[_-]/.test(name) ||
+    value.includes("resource_productivity")
+  ) {
+    return "schedule_control";
+  }
+  if (
     /^(?:rel\d*|res\d*|sch\d*|wbs\d*|obs\d*|pdb\d*)[_-]/.test(name) ||
     /(?:longest[_ -]?path|schedule[_ -]?comparison|resource[_ -]?register|wbs[_ -]?dictionary)/.test(name)
   ) {
@@ -112,10 +118,16 @@ export function inferDocumentType(
   if (/^sch01/.test(name)) return "schedule_control_basis";
   if (/^sch02/.test(name)) return "schedule_metric_register";
   if (/^wbs/.test(name)) return "wbs_dictionary";
+  if (/^if0?1[_-]/.test(name)) return "productivity_forecast_model";
+  if (/^if0?2[_-]/.test(name)) return "productivity_forecast_method";
   if (/^b01_|original[_ -]?boq/.test(name)) return "boq";
   if (/^cost/.test(name)) return "cost_evm_report";
   if (/^pay/.test(name)) return "payment_certificates";
   if (/^var/.test(name)) return "variation_register";
+  if (/^eot0?1[_-]/.test(name)) return "delay_event_impact_register";
+  if (/^eot0?2[_-]/.test(name)) return "entitlement_assessment_register";
+  if (/^eot0?3[_-]/.test(name)) return "engineer_determination_register";
+  if (/^eot0?4[_-]/.test(name)) return "mitigation_acceleration_register";
   if (/^cl/.test(name)) return "delay_eot_claims_register";
   if (/^p0?1_.*procurement|procurement/.test(name)) return "procurement_register";
   if (/^r0?1_.*risk|risk[_ -]?register/.test(name)) return "risk_register";

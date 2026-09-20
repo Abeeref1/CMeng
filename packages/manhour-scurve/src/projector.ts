@@ -351,6 +351,13 @@ export function buildManhourScurveProjection(
     generatedAt: string;
     producerVersion: string;
     intervalDays?: number;
+    sourceActualHistory?: Array<{
+      periodEndIso: string;
+      hours: number;
+      sourceRefs: string[];
+    }>;
+    sourceActualResourceCoveragePercent?:
+      number | null;
   },
 ): ManhourScurveProjection {
   if (
@@ -421,14 +428,57 @@ export function buildManhourScurveProjection(
     currentActualHours.toFixed(6),
   );
 
+  if (
+    sourceActualHistory.length > 0
+  ) {
+    currentActualHours =
+      Number(
+        sourceActualHistory
+          .reduce(
+            (sum, item) =>
+              sum + item.hours,
+            0,
+          )
+          .toFixed(6),
+      );
+    currentActualKnownCount =
+      laborAssignments.length;
+  }
+
   const periodHistoryResult =
     actualPeriodHistory(
       resources.periodActuals,
       laborIds,
       schedule.dataDateIso,
     );
+  const sourceActualHistory =
+    (input.sourceActualHistory ?? [])
+      .filter(
+        (item) =>
+          Number.isFinite(
+            Date.parse(
+              item.periodEndIso,
+            ),
+          ) &&
+          Number.isFinite(
+            item.hours,
+          ),
+      )
+      .sort(
+        (a, b) =>
+          Date.parse(a.periodEndIso) -
+          Date.parse(b.periodEndIso),
+      );
   const periodHistory =
-    periodHistoryResult.history;
+    sourceActualHistory.length > 0
+      ? sourceActualHistory.map(
+          (item) => ({
+            periodEndIso:
+              item.periodEndIso,
+            units: item.hours,
+          }),
+        )
+      : periodHistoryResult.history;
 
   const assignmentsWithPeriodActual =
     new Set(
@@ -567,6 +617,14 @@ export function buildManhourScurveProjection(
   }
 
   if (
+    sourceActualHistory.length > 0
+  ) {
+    diagnostics.push(
+      "MANHOUR_ACTUAL_HISTORY_FROM_APPROVED_RESOURCE_WEEK_SOURCE",
+    );
+  }
+
+  if (
     periodHistory.length === 0 &&
     currentActualKnownCount > 0
   ) {
@@ -612,11 +670,24 @@ export function buildManhourScurveProjection(
     remainingTimePhasing:
       "linear_between_remaining_assignment_dates",
     actualHistoryMethod:
-      periodHistory.length > 0
-        ? "stored_financial_period_actuals"
-        : currentActualKnownCount > 0
-          ? "current_actual_snapshot_only"
-          : "missing",
+      sourceActualHistory.length > 0
+        ? "approved_resource_week_source"
+        : periodHistory.length > 0
+          ? "stored_financial_period_actuals"
+          : currentActualKnownCount > 0
+            ? "current_actual_snapshot_only"
+            : "missing",
+    actualHistoryAuthority:
+      sourceActualHistory.length > 0
+        ? "approved_source_register"
+        : periodHistory.length > 0
+          ? "p6_period_actuals"
+          : currentActualKnownCount > 0
+            ? "p6_current_snapshot"
+            : "missing",
+    sourceActualResourceCoveragePercent:
+      input.sourceActualResourceCoveragePercent ??
+      null,
 
     laborResourceCount:
       laborIds.size,

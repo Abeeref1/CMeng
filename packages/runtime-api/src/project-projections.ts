@@ -112,6 +112,9 @@ import {
 import {
   weeklyResourceCapacityEvidence,
 } from "./resource-support-evidence";
+import {
+  resolveScheduleControlPolicy,
+} from "./schedule-control-policy";
 
 interface ProjectionBundle {
   version: number;
@@ -133,6 +136,363 @@ const bundleCache =
     string,
     ProjectionBundle
   >();
+
+function approvedLaborActualHistory(
+  state: ProjectRuntimeState,
+): {
+  history: Array<{
+    periodEndIso: string;
+    hours: number;
+    sourceRefs: string[];
+  }>;
+  resourceCoveragePercent: number | null;
+} {
+  const support =
+    state.resourceSupport;
+  if (!support) {
+    return {
+      history: [],
+      resourceCoveragePercent:
+        null,
+    };
+  }
+
+  const laborIds =
+    new Set(
+      support.capacityMaster
+        .filter(
+          (row) =>
+            row.resourceClass ===
+              "labor" &&
+            row.utilizationApplicable ===
+              true,
+        )
+        .map(
+          (row) =>
+            row.resourceId,
+        ),
+    );
+  const dataDate =
+    support.dataDateIso
+      ? Date.parse(
+          support.dataDateIso,
+        )
+      : Number.NaN;
+  const actualRows =
+    support.actualUsage.filter(
+      (row) => {
+        if (
+          !laborIds.has(
+            row.resourceId,
+          ) ||
+          row.actualApprovedUsage ===
+            null ||
+          !row.weekStartIso
+        ) {
+          return false;
+        }
+        const period =
+          Date.parse(
+            row.weekStartIso,
+          );
+        return (
+          Number.isFinite(period) &&
+          (
+            !Number.isFinite(
+              dataDate,
+            ) ||
+            period <= dataDate
+          )
+        );
+      },
+    );
+
+  const byPeriod =
+    new Map<
+      string,
+      {
+        hours: number;
+        sourceRefs: string[];
+      }
+    >();
+  for (const row of actualRows) {
+    const key =
+      row.weekStartIso!;
+    const current =
+      byPeriod.get(key) ?? {
+        hours: 0,
+        sourceRefs: [],
+      };
+    current.hours +=
+      row.actualApprovedUsage!;
+    current.sourceRefs.push(
+      ...row.sourceRefs.map(
+        (ref) =>
+          "evidence-document:" +
+          ref.sourceId +
+          ":" +
+          ref.locator,
+      ),
+    );
+    byPeriod.set(
+      key,
+      current,
+    );
+  }
+
+  const covered =
+    new Set(
+      actualRows.map(
+        (row) =>
+          row.resourceId,
+      ),
+    );
+
+  return {
+    history: [
+      ...byPeriod.entries(),
+    ]
+      .sort(
+        (a, b) =>
+          a[0].localeCompare(
+            b[0],
+          ),
+      )
+      .map(
+        ([periodEndIso, row]) => ({
+          periodEndIso,
+          hours:
+            Number(
+              row.hours.toFixed(
+                6,
+              ),
+            ),
+          sourceRefs: [
+            ...new Set(
+              row.sourceRefs,
+            ),
+          ],
+        }),
+      ),
+    resourceCoveragePercent:
+      laborIds.size > 0
+        ? Number(
+            (
+              (
+                covered.size /
+                laborIds.size
+              ) *
+              100
+            ).toFixed(4),
+          )
+        : null,
+  };
+}
+
+function canonicalResourceSupportSummary(
+  state: ProjectRuntimeState,
+) {
+  const model = state.resourceSupport;
+  if (!model) {
+    return weeklyResourceCapacityEvidence(
+      state.evidenceDocuments,
+    );
+  }
+
+  const byWeek = new Map<
+    string,
+    {
+      unit: string;
+      weekStartIso: string | null;
+      availableCapacity: number;
+      plannedDemand: number;
+      actualApprovedUsage: number;
+      capacityCount: number;
+      plannedCount: number;
+      actualCount: number;
+      comparableResourceCount: number;
+    }
+  >();
+
+  for (const point of model.weekly) {
+    if (!point.unit) continue;
+    const key =
+      point.unit + "::" +
+      (point.weekStartIso ?? "undated");
+    const row = byWeek.get(key) ?? {
+      unit: point.unit,
+      weekStartIso: point.weekStartIso,
+      availableCapacity: 0,
+      plannedDemand: 0,
+      actualApprovedUsage: 0,
+      capacityCount: 0,
+      plannedCount: 0,
+      actualCount: 0,
+      comparableResourceCount: 0,
+    };
+    if (point.availableCapacity !== null) {
+      row.availableCapacity += point.availableCapacity;
+      row.capacityCount += 1;
+    }
+    if (point.plannedDemand !== null) {
+      row.plannedDemand += point.plannedDemand;
+      row.plannedCount += 1;
+    }
+    if (point.actualApprovedUsage !== null) {
+      row.actualApprovedUsage += point.actualApprovedUsage;
+      row.actualCount += 1;
+    }
+    if (
+      point.availableCapacity !== null &&
+      point.plannedDemand !== null
+    ) {
+      row.comparableResourceCount += 1;
+    }
+    byWeek.set(key, row);
+  }
+
+  const comparableRowCount =
+    model.weekly.filter(
+      (row) =>
+        row.availableCapacity !== null &&
+        row.plannedDemand !== null,
+    ).length;
+
+  return {
+    state:
+      comparableRowCount === model.weekly.length
+        ? "available" as const
+        : "partial" as const,
+    rowCount: model.weeklyRowCount,
+    comparableRowCount,
+    resourceCount:
+      model.utilizationApplicableResourceCount,
+    weekCount:
+      new Set(
+        model.weekly
+          .map((row) => row.weekStartIso)
+          .filter((value): value is string => value !== null),
+      ).size,
+    overloadedRowCount:
+      model.plannedOverallocationRowCount,
+    actualOverloadedRowCount:
+      model.actualOverallocationRowCount,
+    capacityCoveragePercent:
+      model.utilizationApplicableResourceCount > 0
+        ? 100
+        : null,
+    unitLabels: [...model.units],
+    sourceBasisStates: ["canonical_resource_support"],
+    candidateDocumentCount: 0,
+    averagePlannedUtilizationToDataDatePercent:
+      model.averagePlannedUtilizationToDataDatePercent,
+    averageActualUtilizationToDataDatePercent:
+      model.averageActualUtilizationToDataDatePercent,
+    actualUsageRowCount:
+      model.actualUsageRowCount,
+    assignmentTimephasedRowCount:
+      model.assignmentTimephasedRowCount,
+    points: model.weekly.map((row) => ({
+      resourceId: row.resourceId,
+      resourceName: null,
+      weekStartIso: row.weekStartIso,
+      availableCapacity: row.availableCapacity,
+      plannedDemand: row.plannedDemand,
+      actualApprovedUsage: row.actualApprovedUsage,
+      unit: row.unit,
+      sourceRef:
+        row.sourceRefs[0]
+          ? "evidence-document:" +
+            row.sourceRefs[0].sourceId +
+            ":" +
+            row.sourceRefs[0].locator
+          : "resource-support",
+    })),
+    weeklyTotals: [...byWeek.values()]
+      .sort(
+        (a, b) =>
+          a.unit.localeCompare(b.unit) ||
+          (a.weekStartIso ?? "").localeCompare(
+            b.weekStartIso ?? "",
+          ),
+      )
+      .map((row) => ({
+        unit: row.unit,
+        weekStartIso: row.weekStartIso,
+        availableCapacity:
+          row.capacityCount > 0
+            ? Number(row.availableCapacity.toFixed(6))
+            : null,
+        plannedDemand:
+          row.plannedCount > 0
+            ? Number(row.plannedDemand.toFixed(6))
+            : null,
+        actualApprovedUsage:
+          row.actualCount > 0
+            ? Number(row.actualApprovedUsage.toFixed(6))
+            : null,
+        comparableResourceCount:
+          row.comparableResourceCount,
+      })),
+    diagnostics: [...model.diagnostics],
+  };
+}
+
+function calendarDaysBetween(
+  fromIso: string | null,
+  toIso: string | null,
+): number | null {
+  if (!fromIso || !toIso) return null;
+  const from = Date.parse(fromIso);
+  const to = Date.parse(toIso);
+  if (
+    !Number.isFinite(from) ||
+    !Number.isFinite(to)
+  ) {
+    return null;
+  }
+  return Number(
+    (
+      (to - from) /
+      86_400_000
+    ).toFixed(6),
+  );
+}
+
+function projectCompletionMovement(
+  baseline:
+    ProjectRuntimeState["schedules"][number] |
+    null,
+  current:
+    ProjectRuntimeState["schedules"][number],
+  generatedAt: string,
+): {
+  baselineCompletionIso: string | null;
+  currentCompletionIso: string | null;
+  movementDays: number | null;
+} {
+  const baselineCompletionIso =
+    baseline
+      ? sourceOnlyForecast(
+          baseline.revision.model,
+          generatedAt,
+        ).sourceForecastCompletionIso
+      : null;
+  const currentCompletionIso =
+    sourceOnlyForecast(
+      current.revision.model,
+      generatedAt,
+    ).sourceForecastCompletionIso;
+  return {
+    baselineCompletionIso,
+    currentCompletionIso,
+    movementDays:
+      calendarDaysBetween(
+        baselineCompletionIso,
+        currentCompletionIso,
+      ),
+  };
+}
 
 function blocked(
   key: string,
@@ -352,6 +712,11 @@ function buildBundle(
 
   const model =
     current.revision.model;
+  const scheduleControlPolicy =
+    resolveScheduleControlPolicy(
+      state,
+      model,
+    );
   const controlledBaseline =
     ordered
       .filter(
@@ -533,6 +898,8 @@ function buildBundle(
         generatedAt,
         producerVersion:
           versions.schedule,
+        config:
+          scheduleControlPolicy.config,
       },
     );
 
@@ -730,6 +1097,8 @@ function buildBundle(
         generatedAt,
         producerVersion:
           versions.activity,
+        config:
+          scheduleControlPolicy.config,
       },
     );
 
@@ -848,6 +1217,8 @@ function buildBundle(
         generatedAt,
         producerVersion:
           versions.milestones,
+        config:
+          scheduleControlPolicy.config,
       },
     );
   const milestones =
@@ -906,6 +1277,8 @@ function buildBundle(
         generatedAt,
         producerVersion:
           versions.nearCritical,
+        config:
+          scheduleControlPolicy.config,
       },
     );
   const nearCritical =
@@ -950,6 +1323,8 @@ function buildBundle(
         generatedAt,
         producerVersion:
           versions.breakdown,
+        config:
+          scheduleControlPolicy.config,
       },
     );
   modules.set(
@@ -973,14 +1348,66 @@ function buildBundle(
     "independent-forecast",
     available(
       "independent-forecast",
-      independentForecast,
+      {
+        ...independentForecast,
+        forecastTaxonomy: {
+          contractualCompletionIso:
+            state.controls
+              .contractTimeBasis
+              ?.contractualCompletionIso ??
+            null,
+          contractualAuthority:
+            state.controls
+              .contractTimeBasis
+              ?.contractualCompletionState ??
+            "missing",
+          contractorProgrammeForecastIso:
+            independentForecast
+              .sourceForecastCompletionIso,
+          contractorProgrammeAuthority:
+            "submitted_current_programme",
+          sourceProductivityForecastIso:
+            state.sourceProductivityForecast
+              ?.independentForecastCompletionIso ??
+            null,
+          sourceProductivityAuthority:
+            state.sourceProductivityForecast
+              ? "source_productivity_model"
+              : "missing",
+          sourceProductivityMethod:
+            state.sourceProductivityForecast
+              ?.method ??
+            null,
+          sourceProductivityDriverWorkPackageIds:
+            state.sourceProductivityForecast
+              ?.drivingWorkPackageIds ??
+            [],
+          sourceProductivityWorkPackageCount:
+            state.sourceProductivityForecast
+              ?.workPackageCount ??
+            0,
+          cmengCpmForecastIso:
+            independentForecast
+              .independentForecastCompletionIso,
+          cmengCpmAuthority:
+            independentForecast.complete
+              ? "deterministic_calculation"
+              : "unresolved",
+          probabilisticAuthority:
+            independentForecast
+              .probabilistic
+              .authority,
+        },
+        sourceProductivityForecast:
+          state.sourceProductivityForecast,
+      },
       [],
       independentForecast.complete
         ? "ready"
         : "partial",
       independentForecast.complete
         ? null
-        : "Independent forecast contains unresolved schedule evidence.",
+        : "CMeng deterministic CPM contains unresolved schedule evidence. Submitted programme and source productivity positions remain separate and are not overwritten.",
     ),
   );
 
@@ -992,6 +1419,26 @@ function buildBundle(
         ...scheduleAnalytics,
         criticalityBasis:
           "source_total_float",
+        scheduleControlPolicy: {
+          authority:
+            scheduleControlPolicy
+              .authority,
+          definition:
+            scheduleControlPolicy
+              .definition,
+          sourceRefs:
+            scheduleControlPolicy
+              .sourceRefs,
+          sourceReportedNearCriticalCount:
+            scheduleControlPolicy
+              .reportedNearCriticalCount,
+          sourceDataDateIso:
+            scheduleControlPolicy
+              .sourceDataDateIso,
+          dataDateConflict:
+            scheduleControlPolicy
+              .dataDateConflict,
+        },
         independentCpmState:
           independentForecast.complete
             ? "established"
@@ -1024,6 +1471,24 @@ function buildBundle(
         ...nearCritical,
         classificationBasis:
           "source_total_float",
+        thresholdAuthority:
+          scheduleControlPolicy
+            .authority,
+        thresholdSourceRefs:
+          scheduleControlPolicy
+            .sourceRefs,
+        thresholdDefinition:
+          scheduleControlPolicy
+            .definition,
+        sourceReportedNearCriticalCount:
+          scheduleControlPolicy
+            .reportedNearCriticalCount,
+        sourceDataDateIso:
+          scheduleControlPolicy
+            .sourceDataDateIso,
+        dataDateConflict:
+          scheduleControlPolicy
+            .dataDateConflict,
         independentCpmState:
           independentForecast.complete
             ? "established"
@@ -1047,6 +1512,29 @@ function buildBundle(
         ...activityAnalytics,
         floatClassificationBasis:
           "source_total_float",
+        nearCriticalPolicy: {
+          authority:
+            scheduleControlPolicy
+              .authority,
+          definition:
+            scheduleControlPolicy
+              .definition,
+          lowerBoundHours:
+            scheduleControlPolicy
+              .config
+              .nearCriticalLowerBoundHours,
+          lowerBoundInclusive:
+            scheduleControlPolicy
+              .config
+              .nearCriticalLowerBoundInclusive,
+          thresholdHours:
+            scheduleControlPolicy
+              .config
+              .nearCriticalFloatThresholdHours,
+          sourceRefs:
+            scheduleControlPolicy
+              .sourceRefs,
+        },
         independentCpmState:
           independentForecast.complete
             ? "established"
@@ -1094,6 +1582,8 @@ function buildBundle(
         generatedAt,
         producerVersion:
           versions.revision,
+        config:
+          scheduleControlPolicy.config,
       },
     );
   modules.set(
@@ -1125,6 +1615,8 @@ function buildBundle(
           controlledBaseline
             ?.revision ??
           null,
+        config:
+          scheduleControlPolicy.config,
       },
     );
   modules.set(
@@ -1280,7 +1772,7 @@ function buildBundle(
   if (
     usableResources
   ) {
-    resourceUtilization =
+    const baseResourceUtilization =
       buildResourceUtilizationProjection(
         usableResources,
         model,
@@ -1290,6 +1782,45 @@ function buildBundle(
             versions.resource,
         },
       );
+    const canonicalWeeklyCapacity =
+      canonicalResourceSupportSummary(
+        state,
+      );
+    resourceUtilization = {
+      ...baseResourceUtilization,
+      weeklyCapacityEvidence:
+        canonicalWeeklyCapacity,
+      canonicalResourceEvidenceState:
+        state.resourceSupport
+          ? "established"
+          : canonicalWeeklyCapacity.rowCount > 0
+            ? "legacy_source"
+            : "not_established",
+      sourceUtilizationApplicableResourceCount:
+        state.resourceSupport
+          ?.utilizationApplicableResourceCount ??
+        canonicalWeeklyCapacity.resourceCount,
+      sourceAveragePlannedUtilizationPercent:
+        state.resourceSupport
+          ?.averagePlannedUtilizationToDataDatePercent ??
+        null,
+      sourceAverageActualUtilizationPercent:
+        state.resourceSupport
+          ?.averageActualUtilizationToDataDatePercent ??
+        null,
+      sourcePlannedOverallocationRowCount:
+        state.resourceSupport
+          ?.plannedOverallocationRowCount ??
+        canonicalWeeklyCapacity.overloadedRowCount,
+      sourceActualOverallocationRowCount:
+        state.resourceSupport
+          ?.actualOverallocationRowCount ??
+        (canonicalWeeklyCapacity.actualOverloadedRowCount ?? 0),
+    };
+    const approvedActualHistory =
+      approvedLaborActualHistory(
+        state,
+      );
     manhourScurve =
       buildManhourScurveProjection(
         usableResources,
@@ -1298,6 +1829,12 @@ function buildBundle(
           generatedAt,
           producerVersion:
             versions.manhours,
+          sourceActualHistory:
+            approvedActualHistory
+              .history,
+          sourceActualResourceCoveragePercent:
+            approvedActualHistory
+              .resourceCoveragePercent,
         },
       );
 
@@ -1562,11 +2099,30 @@ function buildBundle(
           versions.windows,
       },
     );
+  const fullCompletionMovement =
+    projectCompletionMovement(
+      controlledBaseline,
+      current,
+      generatedAt,
+    );
   modules.set(
     "windows-analysis",
     available(
       "windows-analysis",
-      windows,
+      {
+        ...windows,
+        analyticalWindowMovementLabel:
+          "gross positive analytical movement across revision windows",
+        projectCompletionMovementDays:
+          fullCompletionMovement
+            .movementDays,
+        controlledBaselineCompletionIso:
+          fullCompletionMovement
+            .baselineCompletionIso,
+        currentProgrammeCompletionIso:
+          fullCompletionMovement
+            .currentCompletionIso,
+      },
       ["schedule revision history"],
       ordered.length >= 2
         ? delayModel
@@ -2904,6 +3460,11 @@ function buildPlanningModuleFast(
     analyticalHistory(state);
   const model =
     current.revision.model;
+  const scheduleControlPolicy =
+    resolveScheduleControlPolicy(
+      state,
+      model,
+    );
   const controlledBaseline =
     ordered
       .filter(
@@ -3038,6 +3599,8 @@ function buildPlanningModuleFast(
         generatedAt,
         producerVersion:
           "planning-fast:schedule-v1",
+        config:
+          scheduleControlPolicy.config,
       },
     );
 
@@ -3315,6 +3878,8 @@ function buildPlanningModuleFast(
           generatedAt,
           producerVersion:
             "planning-fast:activity-v1",
+          config:
+            scheduleControlPolicy.config,
         },
       );
     const activity =
@@ -3428,6 +3993,8 @@ function buildPlanningModuleFast(
           generatedAt,
           producerVersion:
             "planning-fast:milestones-v1",
+          config:
+            scheduleControlPolicy.config,
         },
       );
     const milestones =
@@ -3488,6 +4055,8 @@ function buildPlanningModuleFast(
           generatedAt,
           producerVersion:
             "planning-fast:near-critical-v1",
+          config:
+            scheduleControlPolicy.config,
         },
       );
     const nearCritical =
@@ -3526,6 +4095,24 @@ function buildPlanningModuleFast(
           ...nearCritical,
           classificationBasis:
             "source_total_float",
+          thresholdAuthority:
+            scheduleControlPolicy
+              .authority,
+          thresholdSourceRefs:
+            scheduleControlPolicy
+              .sourceRefs,
+          thresholdDefinition:
+            scheduleControlPolicy
+              .definition,
+          sourceReportedNearCriticalCount:
+            scheduleControlPolicy
+              .reportedNearCriticalCount,
+          sourceDataDateIso:
+            scheduleControlPolicy
+              .sourceDataDateIso,
+          dataDateConflict:
+            scheduleControlPolicy
+              .dataDateConflict,
           independentCpmState:
             independentForecast.complete
               ? "established"
@@ -3549,6 +4136,8 @@ function buildPlanningModuleFast(
           generatedAt,
           producerVersion:
             "planning-fast:revision-v1",
+          config:
+            scheduleControlPolicy.config,
         },
       );
     modules.set(
@@ -3670,6 +4259,8 @@ function buildPlanningModuleFast(
           generatedAt,
           producerVersion:
             "planning-fast:milestones-v1",
+          config:
+            scheduleControlPolicy.config,
         },
       );
     const milestones =
@@ -4476,6 +5067,11 @@ function buildSpecialistModuleFast(
     new Date().toISOString();
   const model =
     current.revision.model;
+  const scheduleControlPolicy =
+    resolveScheduleControlPolicy(
+      state,
+      model,
+    );
   const ordered =
     analyticalHistory(state);
   const controlledBaseline =
@@ -4546,6 +5142,8 @@ function buildSpecialistModuleFast(
           generatedAt,
           producerVersion:
             "progress-breakdown-fast-v1",
+          config:
+            scheduleControlPolicy.config,
         },
       );
     result = available(
@@ -4570,6 +5168,8 @@ function buildSpecialistModuleFast(
             controlledBaseline
               ?.revision ??
             null,
+          config:
+            scheduleControlPolicy.config,
         },
       );
     result = available(
@@ -4683,8 +5283,8 @@ function buildSpecialistModuleFast(
               manpower
                 .scheduleDerivedScenarios,
             weeklyCapacityEvidence:
-              weeklyResourceCapacityEvidence(
-                state.evidenceDocuments,
+              canonicalResourceSupportSummary(
+                state,
               ),
             diagnostics: [
               "RESOURCE_ASSIGNMENTS_NOT_SUBMITTED_SCENARIO_DERIVED_FROM_WORKFRONTS",
@@ -4786,8 +5386,8 @@ function buildSpecialistModuleFast(
           },
         );
       const weeklyCapacity =
-        weeklyResourceCapacityEvidence(
-          state.evidenceDocuments,
+        canonicalResourceSupportSummary(
+          state,
         );
       const capacityKnown =
         projection
@@ -4802,18 +5402,52 @@ function buildSpecialistModuleFast(
       const weeklyComparable =
         weeklyCapacity
           .comparableRowCount > 0;
+      const canonicalResourceEstablished =
+        state.resourceSupport !== null &&
+        state.resourceSupport
+          .utilizationApplicableResourceCount > 0 &&
+        weeklyComparable;
       const enriched = {
         ...projection,
         assessedOverloadResourceCount:
-          capacityKnown,
+          canonicalResourceEstablished
+            ? state.resourceSupport!
+                .utilizationApplicableResourceCount
+            : capacityKnown,
         overloadAssessmentState:
-          capacityKnown === 0
-            ? "not_assessable_per_hour"
-            : allCapacityKnown
-              ? "complete"
-              : "partial",
+          canonicalResourceEstablished
+            ? "source_weekly_complete"
+            : capacityKnown === 0
+              ? "not_assessable_per_hour"
+              : allCapacityKnown
+                ? "complete"
+                : "partial",
         weeklyCapacityEvidence:
           weeklyCapacity,
+        canonicalResourceEvidenceState:
+          canonicalResourceEstablished
+            ? "established"
+            : "not_established",
+        sourceUtilizationApplicableResourceCount:
+          state.resourceSupport
+            ?.utilizationApplicableResourceCount ??
+          weeklyCapacity.resourceCount,
+        sourceAveragePlannedUtilizationPercent:
+          state.resourceSupport
+            ?.averagePlannedUtilizationToDataDatePercent ??
+          null,
+        sourceAverageActualUtilizationPercent:
+          state.resourceSupport
+            ?.averageActualUtilizationToDataDatePercent ??
+          null,
+        sourcePlannedOverallocationRowCount:
+          state.resourceSupport
+            ?.plannedOverallocationRowCount ??
+          weeklyCapacity.overloadedRowCount,
+        sourceActualOverallocationRowCount:
+          state.resourceSupport
+            ?.actualOverallocationRowCount ??
+          (weeklyCapacity.actualOverloadedRowCount ?? 0),
       };
       result = available(
         key,
@@ -4822,16 +5456,23 @@ function buildSpecialistModuleFast(
           "resource assignments",
           "resource capacity",
         ],
+        canonicalResourceEstablished ||
         allCapacityKnown
           ? "ready"
           : "partial",
-        capacityKnown === 0
-          ? weeklyComparable
-            ? "Per-hour resource capacity is not established in the schedule resource model. Weekly capacity and demand evidence is shown separately without unsafe unit conversion."
-            : "Resource assignments are available, but no usable capacity rate is established. Overload cannot be assessed and zero must not be inferred."
-          : "Resource utilization is calculated only for resources with established capacity; the remaining resources stay demand-only.",
+        canonicalResourceEstablished
+          ? null
+          : capacityKnown === 0
+            ? weeklyComparable
+              ? "Weekly capacity evidence is available but has not yet formed a complete canonical resource model."
+              : "Resource assignments are available, but no usable capacity rate is established. Overload cannot be assessed and zero must not be inferred."
+            : "Resource utilization is calculated only for resources with established capacity; the remaining resources stay demand-only.",
       );
     } else {
+      const approvedActualHistory =
+        approvedLaborActualHistory(
+          state,
+        );
       const projection =
         buildManhourScurveProjection(
           resources,
@@ -4840,12 +5481,21 @@ function buildSpecialistModuleFast(
             generatedAt,
             producerVersion:
               "manhour-scurve-fast-v2",
+            sourceActualHistory:
+              approvedActualHistory
+                .history,
+            sourceActualResourceCoveragePercent:
+              approvedActualHistory
+                .resourceCoveragePercent,
           },
         );
       const actualHistoryComplete =
         projection
           .actualHistoryMethod ===
-        "stored_financial_period_actuals";
+          "approved_resource_week_source" ||
+        projection
+          .actualHistoryMethod ===
+          "stored_financial_period_actuals";
       result = available(
         key,
         projection,
@@ -5026,6 +5676,55 @@ function buildSpecialistModuleFast(
       key,
       {
         ...forecast,
+        forecastTaxonomy: {
+          contractualCompletionIso:
+            state.controls
+              .contractTimeBasis
+              ?.contractualCompletionIso ??
+            null,
+          contractualAuthority:
+            state.controls
+              .contractTimeBasis
+              ?.contractualCompletionState ??
+            "missing",
+          contractorProgrammeForecastIso:
+            forecast
+              .sourceForecastCompletionIso,
+          contractorProgrammeAuthority:
+            "submitted_current_programme",
+          sourceProductivityForecastIso:
+            state.sourceProductivityForecast
+              ?.independentForecastCompletionIso ??
+            null,
+          sourceProductivityAuthority:
+            state.sourceProductivityForecast
+              ? "source_productivity_model"
+              : "missing",
+          sourceProductivityMethod:
+            state.sourceProductivityForecast
+              ?.method ??
+            null,
+          sourceProductivityDriverWorkPackageIds:
+            state.sourceProductivityForecast
+              ?.drivingWorkPackageIds ??
+            [],
+          sourceProductivityWorkPackageCount:
+            state.sourceProductivityForecast
+              ?.workPackageCount ??
+            0,
+          cmengCpmForecastIso:
+            forecast
+              .independentForecastCompletionIso,
+          cmengCpmAuthority:
+            forecast.complete
+              ? "deterministic_calculation"
+              : "unresolved",
+          probabilisticAuthority:
+            forecast.probabilistic
+              .authority,
+        },
+        sourceProductivityForecast:
+          state.sourceProductivityForecast,
         managementReviewState:
           reviewReason
             ? "review_required"
@@ -5037,6 +5736,8 @@ function buildSpecialistModuleFast(
         "current programme logic",
         "remaining durations",
         "source calendars",
+        "source productivity model when submitted",
+        "contract time basis when submitted",
       ],
       reviewReason
         ? "partial"
@@ -5132,6 +5833,8 @@ function buildSpecialistModuleFast(
           generatedAt,
           producerVersion:
             "progress-position:schedule-v1",
+          config:
+            scheduleControlPolicy.config,
         },
       );
     const milestones =
@@ -5141,6 +5844,8 @@ function buildSpecialistModuleFast(
           generatedAt,
           producerVersion:
             "progress-position:milestones-v1",
+          config:
+            scheduleControlPolicy.config,
         },
       );
     const lookAhead =
@@ -5334,12 +6039,29 @@ function buildSpecialistModuleFast(
         key ===
         "windows-analysis"
       ) {
+        const completionMovement =
+          projectCompletionMovement(
+            controlledBaseline,
+            current,
+            generatedAt,
+          );
         result = available(
           key,
           {
             ...windows,
             movementPresentationBasis:
               "source_forecast_then_schedule_boundary",
+            analyticalWindowMovementLabel:
+              "gross positive analytical movement across revision windows",
+            projectCompletionMovementDays:
+              completionMovement
+                .movementDays,
+            controlledBaselineCompletionIso:
+              completionMovement
+                .baselineCompletionIso,
+            currentProgrammeCompletionIso:
+              completionMovement
+                .currentCompletionIso,
             revisionLabels:
               context.revisionLabels,
           },
@@ -5371,11 +6093,13 @@ function buildSpecialistModuleFast(
             linkedClaimCount,
             unlinkedClaimCount,
             eventLinkageState:
-              delay.events.length >
-                0 &&
-              linkedClaimCount > 0
-                ? "linked"
-                : "not_established",
+              delay.fullyLinkedEventCount > 0
+                ? "fully_linked"
+                : delay.registeredEventIdentityCount > 0
+                  ? "event_identities_established_lineage_incomplete"
+                  : "not_established",
+            claimToEventIdentityCount:
+              linkedClaimCount,
             revisionLabels:
               context.revisionLabels,
           },
@@ -5384,19 +6108,19 @@ function buildSpecialistModuleFast(
             "delay events",
             "claim-event linkage",
           ],
-          delay.events.length > 0 &&
-          linkedClaimCount > 0
+          delay.fullyLinkedEventCount > 0
             ? "ready"
             : "partial",
-          analyticalDelayModel
-              .claims.length >
-            0 &&
-          delay.events.length === 0
-            ? analyticalDelayModel
-                .claims.length +
-              " claim records are available, but no governed delay events are established. Programme movement cannot be attributed to those claims."
-            : linkedClaimCount === 0
-              ? "Claim records are not linked to governed delay events, so causation and entitlement remain unassessed."
+          delay.registeredEventIdentityCount > 0
+            ? delay.registeredEventIdentityCount +
+              " delay-event identities are established and " +
+              linkedClaimCount +
+              " claims are linked to those identities, but causal activity/window lineage remains incomplete for " +
+              Math.max(0, delay.registeredEventIdentityCount - delay.fullyLinkedEventCount) +
+              " events. CMeng does not treat identity linkage as proven schedule causation."
+            : analyticalDelayModel.claims.length > 0
+              ? analyticalDelayModel.claims.length +
+                " claim records are available, but delay-event identities are not established."
               : null,
         );
       } else {
@@ -5511,9 +6235,10 @@ function buildSpecialistModuleFast(
                   "CONTRACT_TIME_BASIS_NOT_SUBMITTED",
                 ],
               };
+        const eventIdentityEvidenceEstablished =
+          delay.registeredEventIdentityCount > 0;
         const hasCausalEvents =
-          analyticalDelayModel
-            .events.length > 0;
+          delay.fullyLinkedEventCount > 0;
         const contractBasis =
           state.controls
             .contractTimeBasis;
@@ -5606,6 +6331,7 @@ function buildSpecialistModuleFast(
             contractorEotEvidenceSubmitted:
               delayModel !==
               null,
+            eventIdentityEvidenceEstablished,
             causalEventEvidenceEstablished:
               hasCausalEvents,
             eligibleCausalEventEvidenceEstablished:

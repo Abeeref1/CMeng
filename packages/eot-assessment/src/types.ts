@@ -8,11 +8,36 @@ export type EotDayBasis =
   | "working_days"
   | "unknown";
 
+export interface EngineerEotDetermination {
+  determinationId: string;
+  claimId: string | null;
+  awardedEotDays: number | null;
+  determinationDateIso: string | null;
+  status: string | null;
+  authority: string | null;
+  sourceLetter: string | null;
+  governanceState: string | null;
+  immutable: boolean;
+  sourceRefs: string[];
+}
+
 export interface ContractTimeBasis {
+  originalContractualCompletionIso?: string | null;
   contractualCompletionIso: string | null;
   contractualCompletionState: GovernanceState;
+  controllingAmendmentId?: string | null;
+  controllingAmendmentEffectiveAtIso?: string | null;
+  incorporatedAmendmentEotDays?: number | null;
+  incorporatedAmendmentEotState?: GovernanceState;
   officialApprovedEotDays: number | null;
   officialApprovedEotState: GovernanceState;
+  engineerDeterminations?: EngineerEotDetermination[];
+  engineerDeterminationCount?: number;
+  engineerDeterminationAwardedDaysTotal?: number | null;
+  determinationAggregationState?:
+    | "not_submitted"
+    | "register_established_non_additive"
+    | "governed_project_total";
   eotDayBasis: EotDayBasis;
   eotDayBasisState: GovernanceState;
   sourceRefs: string[];
@@ -69,6 +94,13 @@ export interface EotAssessmentProjection {
   officialApprovedEotDays: number | null;
   officialApprovedEotState: GovernanceState;
   officialAdjustedCompletionIso: string | null;
+  originalContractualCompletionIso?: string | null;
+  controllingAmendmentId?: string | null;
+  controllingAmendmentEffectiveAtIso?: string | null;
+  incorporatedAmendmentEotDays?: number | null;
+  engineerDeterminationCount?: number;
+  engineerDeterminationAwardedDaysTotal?: number | null;
+  determinationAggregationState?: ContractTimeBasis["determinationAggregationState"];
 
   observedProgrammeMovementDays: number;
   analyticalTimeImpactCandidateDays: number | null;

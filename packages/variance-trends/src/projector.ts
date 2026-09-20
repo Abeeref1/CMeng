@@ -1,6 +1,7 @@
 import {
   analyzeSchedule,
   type CanonicalScheduleActivity,
+  type ScheduleAnalysisConfig,
 } from "../../schedule-analysis-core/src";
 import {
   orderScheduleRevisionsChronologically,
@@ -76,6 +77,7 @@ export function buildVarianceTrendsProjection(
     generatedAt: string;
     producerVersion: string;
     controlledBaselineRevision?: ScheduleRevision | null;
+    config?: ScheduleAnalysisConfig;
   },
 ): VarianceTrendsProjection {
   const ordered =
@@ -106,6 +108,7 @@ export function buildVarianceTrendsProjection(
     baselineRevision
       ? analyzeSchedule(
           baselineRevision.model,
+          input.config,
         ).completionBases.find(
           (item) =>
             item.basis === "forecast" ||
@@ -134,6 +137,7 @@ export function buildVarianceTrendsProjection(
     ordered.map((revision) => {
       const analytics = analyzeSchedule(
         revision.model,
+        input.config,
       );
       const programme =
         analytics.completionBases.find(
