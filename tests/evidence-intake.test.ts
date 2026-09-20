@@ -721,14 +721,23 @@ test("runtime activity variance uses the controlled baseline programme", async (
         .maximumDelayDays,
       5,
     );
-    assert.match(
+    const programmeBasis =
       programme.data.result
         .completionBases.find(
           (basis) =>
             basis.basis ===
             "programme",
-        )?.dateIso ?? "",
+        );
+    assert.match(
+      programmeBasis?.dateIso ?? "",
       /^2026-01-10/,
+      "Programme basis payload: " +
+        JSON.stringify({
+          programmeBasis,
+          completionBases:
+            programme.data.result
+              .completionBases,
+        }),
     );
 
     const managementResponse =
