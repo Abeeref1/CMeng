@@ -522,6 +522,40 @@ export function buildWindowsAnalysisProjection(
     });
   }
 
+  const firstWindow = windows[0] ?? null;
+  const lastWindow = windows.at(-1) ?? null;
+  const sourceProjectMovement =
+    movementDays(
+      firstWindow?.fromSourceForecastCompletionIso ?? null,
+      lastWindow?.toSourceForecastCompletionIso ?? null,
+    );
+  const boundaryProjectMovement =
+    movementDays(
+      firstWindow?.fromScheduleBoundaryIso ?? null,
+      lastWindow?.toScheduleBoundaryIso ?? null,
+    );
+  const projectCompletionMovementDays =
+    sourceProjectMovement ?? boundaryProjectMovement;
+  const projectCompletionMovementBasis:
+    WindowsAnalysisProjection["projectCompletionMovementBasis"] =
+    sourceProjectMovement !== null
+      ? "source_forecast"
+      : boundaryProjectMovement !== null
+        ? "source_schedule_boundary"
+        : "unavailable";
+  const firstProjectCompletionIso =
+    sourceProjectMovement !== null
+      ? firstWindow?.fromSourceForecastCompletionIso ?? null
+      : boundaryProjectMovement !== null
+        ? firstWindow?.fromScheduleBoundaryIso ?? null
+        : null;
+  const latestProjectCompletionIso =
+    sourceProjectMovement !== null
+      ? lastWindow?.toSourceForecastCompletionIso ?? null
+      : boundaryProjectMovement !== null
+        ? lastWindow?.toScheduleBoundaryIso ?? null
+        : null;
+
   return {
     schemaVersion: "1.0",
     projectionKey: "windows_analysis",
@@ -607,6 +641,10 @@ export function buildWindowsAnalysisProjection(
           )
           .toFixed(6),
       ),
+    projectCompletionMovementDays,
+    projectCompletionMovementBasis,
+    firstProjectCompletionIso,
+    latestProjectCompletionIso,
     programmeMovementAvailableWindowCount:
       windows.filter(
         (window) =>
