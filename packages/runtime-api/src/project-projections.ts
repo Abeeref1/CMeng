@@ -123,6 +123,9 @@ import {
 import {
   weeklyResourceCapacityEvidence,
 } from "./resource-support-evidence";
+import {
+  resolveProjectControlNumberMetric,
+} from "./project-control-source-metrics";
 
 interface ProjectionBundle {
   version: number;
@@ -249,6 +252,82 @@ function analyticalHistory(
         ? nonRecovery
         : programmeSchedules),
   ].sort(revisionChronology);
+}
+
+function applyGovernedWindowMovementMetrics(
+  state: ProjectRuntimeState,
+  projection: ReturnType<typeof buildWindowsAnalysisProjection>,
+): ReturnType<typeof buildWindowsAnalysisProjection> {
+  const positive =
+    resolveProjectControlNumberMetric(
+      state,
+      "gross_positive_programme_movement",
+    );
+  const negative =
+    resolveProjectControlNumberMetric(
+      state,
+      "gross_negative_programme_movement",
+    );
+
+  let positiveDays =
+    projection.positiveProgrammeMovementDays;
+  let negativeDays =
+    projection.negativeProgrammeMovementDays;
+  const diagnostics = [
+    ...projection.diagnostics,
+    ...positive.diagnostics,
+    ...negative.diagnostics,
+  ];
+
+  if (
+    positive.value !== null &&
+    !["missing", "conflicted"].includes(positive.state)
+  ) {
+    positiveDays = positive.value;
+    diagnostics.push(
+      "GROSS_POSITIVE_PROGRAMME_MOVEMENT_FROM_GOVERNED_CONTROL_REGISTER",
+    );
+
+    if (
+      negative.value === null &&
+      projection.projectCompletionMovementDays !== null
+    ) {
+      const reconciledNegative = Number(
+        (
+          projection.projectCompletionMovementDays -
+          positive.value
+        ).toFixed(6),
+      );
+      if (reconciledNegative <= 0) {
+        negativeDays = reconciledNegative;
+        diagnostics.push(
+          "GROSS_NEGATIVE_PROGRAMME_MOVEMENT_RECONCILED_FROM_GROSS_POSITIVE_AND_NET_COMPLETION",
+        );
+      }
+    }
+  }
+
+  if (
+    negative.value !== null &&
+    !["missing", "conflicted"].includes(negative.state)
+  ) {
+    negativeDays =
+      negative.value > 0
+        ? -negative.value
+        : negative.value;
+    diagnostics.push(
+      "GROSS_NEGATIVE_PROGRAMME_MOVEMENT_FROM_GOVERNED_CONTROL_REGISTER",
+    );
+  }
+
+  return {
+    ...projection,
+    positiveProgrammeMovementDays:
+      positiveDays,
+    negativeProgrammeMovementDays:
+      negativeDays,
+    diagnostics: [...new Set(diagnostics)],
+  };
 }
 
 function actualHistory(
@@ -1670,17 +1749,20 @@ function buildBundle(
     > | null = null;
 
   windows =
-    buildWindowsAnalysisProjection(
-      ordered.map(
-        (item) =>
-          item.revision,
+    applyGovernedWindowMovementMetrics(
+      state,
+      buildWindowsAnalysisProjection(
+        ordered.map(
+          (item) =>
+            item.revision,
+        ),
+        analyticalDelayModel,
+        {
+          generatedAt,
+          producerVersion:
+            versions.windows,
+        },
       ),
-      analyticalDelayModel,
-      {
-        generatedAt,
-        producerVersion:
-          versions.windows,
-      },
     );
   modules.set(
     "windows-analysis",
@@ -4535,23 +4617,26 @@ function claimsFastContext(
     };
 
   const windows =
-    buildWindowsAnalysisProjection(
-      ordered.map(
-        (item) =>
-          item.revision,
+    applyGovernedWindowMovementMetrics(
+      state,
+      buildWindowsAnalysisProjection(
+        ordered.map(
+          (item) =>
+            item.revision,
+        ),
+        analyticalDelayModel,
+        {
+          generatedAt,
+          producerVersion:
+            "windows-fast-v3",
+          forecastResolver:
+            (revision) =>
+              sourceOnlyForecast(
+                revision.model,
+                generatedAt,
+              ),
+        },
       ),
-      analyticalDelayModel,
-      {
-        generatedAt,
-        producerVersion:
-          "windows-fast-v3",
-        forecastResolver:
-          (revision) =>
-            sourceOnlyForecast(
-              revision.model,
-              generatedAt,
-            ),
-      },
     );
 
   const delay =

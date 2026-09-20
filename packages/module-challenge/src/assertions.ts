@@ -46,7 +46,36 @@ function dateValue(
     : null;
 }
 
+const SOURCE_PRODUCTIVITY_DATE =
+  "([0-9]{4}-[0-9]{2}-[0-9]{2}|[0-9]{1,2}[\\s\\/-](?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)[\\s\\/-][0-9]{4}|[A-Za-z]{3,9}\\s+[0-9]{1,2},?\\s+[0-9]{4})";
+
 const RULES: AssertionRule[] = [
+  {
+    metric: "source_productivity_forecast_completion",
+    label: "Source productivity forecast completion",
+    valueType: "date",
+    unit: null,
+    patterns: [
+      new RegExp(
+        "(?:source\\s+)?productivity(?:[-\\s]+based)?(?:\\s+(?:forecast|projection|outlook))?[\\s\\S]{0,180}?(?:completion|finish|forecast)[\\s\\S]{0,80}?" +
+          SOURCE_PRODUCTIVITY_DATE,
+        "gi",
+      ),
+      new RegExp(
+        "(?:forecast|projected)\\s+(?:completion|finish)[\\s\\S]{0,120}?(?:based\\s+on|using|from)?\\s*(?:measured|current|actual)?\\s*productivity[\\s\\S]{0,80}?" +
+          SOURCE_PRODUCTIVITY_DATE,
+        "gi",
+      ),
+      new RegExp(
+        "(?:completion|finish)[\\s\\S]{0,120}?" +
+          SOURCE_PRODUCTIVITY_DATE +
+          "[\\s\\S]{0,120}?(?:measured|current|actual|source)?\\s*productivity",
+        "gi",
+      ),
+    ],
+    parse: dateValue,
+    confidence: 0.97,
+  },
   {
     metric: "near_critical_working_days",
     label: "Near-critical working-day threshold",

@@ -377,6 +377,17 @@ export function projectScheduleControlBasis(
         "basis",
         "rule",
       );
+      const rawUnit = cell(
+        row,
+        "unit",
+        "uom",
+        "measure",
+        "measurement unit",
+      );
+      const normalizedKey = norm(key);
+      const nearCriticalMetric =
+        /\bnear\s*critical\b/i.test(normalizedKey) ||
+        /\bnearcritical\b/i.test(normalizedKey);
 
       const nearDefinition =
         cell(
@@ -387,8 +398,8 @@ export function projectScheduleControlBasis(
           "near-critical basis",
         ) ||
         (
-          norm(key).includes("near critical")
-            ? rawDefinition || rawValue
+          nearCriticalMetric
+            ? [rawDefinition, rawValue, rawUnit].filter(Boolean).join(" ")
             : ""
         ) ||
         (/near[- ]?critical/i.test(rowText) ? rowText : "");
@@ -406,8 +417,18 @@ export function projectScheduleControlBasis(
           "near-critical max working days",
         ),
       );
+      const genericNearWorkingDays =
+        nearCriticalMetric &&
+        (
+          /^(working\s*days?|work\s*days?|workdays?|wd)$/i.test(rawUnit.trim()) ||
+          /\b(?:working\s*days?|work\s*days?|workdays?|wd)\b/i.test(key)
+        )
+          ? numberValue(rawValue)
+          : null;
       const parsedWorking =
-        directNearDays ?? definitionNumber(nearDefinition, "working_days");
+        directNearDays ??
+        genericNearWorkingDays ??
+        definitionNumber(nearDefinition, "working_days");
       if (parsedWorking !== null) {
         nearWorking.push(parsedWorking);
         nearWorkingReceipts.push(row.receipt);
@@ -427,8 +448,11 @@ export function projectScheduleControlBasis(
         ),
       );
       const keyedNearCount =
-        norm(key).includes("near critical") &&
-        /(count|activities|watchlist)/i.test(key)
+        nearCriticalMetric &&
+        (
+          /(count|activities|activity|watchlist|population|items|records)/i.test(key) ||
+          /^(activities?|activity|count|items?|records?)$/i.test(rawUnit.trim())
+        )
           ? numberValue(rawValue)
           : null;
       const parsedNearCount =
@@ -450,8 +474,18 @@ export function projectScheduleControlBasis(
           "near-critical threshold hours",
         ),
       );
+      const genericNearHours =
+        nearCriticalMetric &&
+        (
+          /^(hours?|hrs?|hr|h)$/i.test(rawUnit.trim()) ||
+          /\b(?:hours?|hrs?|hr)\b/i.test(key)
+        )
+          ? numberValue(rawValue)
+          : null;
       const parsedHours =
-        directNearHours ?? definitionNumber(nearDefinition, "hours");
+        directNearHours ??
+        genericNearHours ??
+        definitionNumber(nearDefinition, "hours");
       if (parsedHours !== null) {
         nearHours.push(parsedHours);
         nearHourReceipts.push(row.receipt);
@@ -549,7 +583,6 @@ export function projectScheduleControlBasis(
   if (
     !explicitConflict &&
     resolvedNearWorking === null &&
-    uniqueNearHours === null &&
     uniqueNearCount !== null
   ) {
     const reconciled =
@@ -569,6 +602,11 @@ export function projectScheduleControlBasis(
         reconciled.workingDays;
       thresholdMethod =
         "source_count_reconciliation";
+      if (uniqueNearHours !== null) {
+        diagnostics.push(
+          "SOURCE_COUNT_WORKING_DAY_RECONCILIATION_TAKES_PRECEDENCE_OVER_GENERIC_HOUR_EQUIVALENT",
+        );
+      }
     }
   }
 

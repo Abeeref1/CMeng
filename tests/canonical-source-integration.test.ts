@@ -167,14 +167,19 @@ test('SCH01 threshold beyond classification sample pages is recovered by full-do
   });
   const doc=state.evidenceDocuments.find(d=>d.documentId===upload.documentId)!;
   const originalHash=doc.sourceHashSha256;
-  assert.equal(doc.assertions.some(a=>a.metric==='near_critical_working_days'),false);
+  assert.equal(doc.assertions.find(a=>a.metric==='near_critical_working_days')?.value,5);
+  assert.equal(projectScheduleControlBasis(state).nearCriticalWorkingDays,5);
+  assert.ok(
+    doc.identification.diagnostics.some(
+      d=>d.includes('PROJECT_CONTROL_DEEP_EXTRACTION:SCHEDULE_CONTROL_BASIS_FULL_NATIVE_TEXT_USED'),
+    ),
+  );
 
   const refreshed=await store.refreshScheduleControlBasisAssertions();
-  assert.equal(refreshed.refreshedDocumentCount,1);
+  assert.equal(refreshed.refreshedDocumentCount,0);
   assert.equal(doc.sourceHashSha256,originalHash);
   assert.equal(doc.assertions.find(a=>a.metric==='near_critical_working_days')?.value,5);
   assert.equal(projectScheduleControlBasis(state).nearCriticalWorkingDays,5);
-  assert.ok(refreshed.diagnostics.some(d=>d.startsWith('SCHEDULE_CONTROL_BASIS_FULL_NATIVE_TEXT_USED')));
 });
 
 test('legacy SCH01 misclassified before schedule-control rules is recovered from its original path without changing source hash',t=>{
