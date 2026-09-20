@@ -88,6 +88,7 @@ import {
 } from "./evidence";
 import {
   identifyEvidenceDocument,
+  extractFullPdfEvidenceText,
   type EvidenceIdentificationResult,
 } from "./document-identification";
 import {
@@ -1644,6 +1645,8 @@ export class RuntimeProjectStore {
 
   async refreshScheduleControlBasisAssertions(): Promise<{
     refreshedDocumentCount: number;
+    basisDocumentCount: number;
+    scannedDocumentCount: number;
     diagnostics: string[];
   }> {
     const controlMetrics = new Set([
@@ -1654,7 +1657,33 @@ export class RuntimeProjectStore {
     ]);
     const diagnostics: string[] = [];
     let refreshedDocumentCount = 0;
+    let basisDocumentCount = 0;
+    let scannedDocumentCount = 0;
     let changed = false;
+
+    const controlAssertions = (
+      text: string,
+      filename: string,
+    ) =>
+      extractDocumentAssertions(
+        text,
+        "evidence:" + filename,
+      ).filter((assertion) =>
+        controlMetrics.has(
+          assertion.metric,
+        ),
+      );
+
+    const thresholdEstablished = (
+      assertions: readonly DocumentAssertion[],
+    ) =>
+      assertions.some(
+        (assertion) =>
+          assertion.metric ===
+            "near_critical_working_days" ||
+          assertion.metric ===
+            "near_critical_threshold_hours",
+      );
 
     for (const state of this.projects.values()) {
       let projectChanged = false;
@@ -1667,6 +1696,8 @@ export class RuntimeProjectStore {
               document.basisState,
             ),
         );
+      basisDocumentCount +=
+        basisDocuments.length;
 
       for (const document of basisDocuments) {
         if (
@@ -1679,15 +1710,11 @@ export class RuntimeProjectStore {
           continue;
         }
 
-        const alreadyEstablished =
-          document.assertions.some(
-            (assertion) =>
-              assertion.metric ===
-                "near_critical_working_days" ||
-              assertion.metric ===
-                "near_critical_threshold_hours",
-          );
-        if (alreadyEstablished) {
+        if (
+          thresholdEstablished(
+            document.assertions,
+          )
+        ) {
           continue;
         }
 
@@ -1720,43 +1747,78 @@ export class RuntimeProjectStore {
           continue;
         }
 
-        const identified =
-          await identifyEvidenceDocument({
+        scannedDocumentCount += 1;
+        const fullNative =
+          await extractFullPdfEvidenceText(
             bytes,
-            sourceFilename:
-              document.sourceFilename,
-            sourceRelativePath:
-              document.sourceRelativePath ??
-              document.sourceFilename,
-            declaredMediaType:
-              document.mediaType,
-            declaredCategory:
-              "schedule_control",
-            declaredDocumentType:
-              "schedule_control_basis",
-          });
+          );
+        diagnostics.push(
+          ...fullNative.diagnostics.map(
+            (item) =>
+              "SCHEDULE_CONTROL_BASIS_NATIVE:" +
+              item,
+          ),
+        );
+        let extracted =
+          controlAssertions(
+            fullNative.text,
+            document.sourceFilename,
+          );
 
-        const extracted =
-          extractDocumentAssertions(
-            identified.textSample,
-            "evidence:" +
-              document.sourceFilename,
-          ).filter((assertion) =>
-            controlMetrics.has(
-              assertion.metric,
+        if (
+          !thresholdEstablished(
+            extracted,
+          ) &&
+          process.env
+            .CMENG_OCR_ENABLED
+            ?.trim() !== "0"
+        ) {
+          const fullOcr =
+            await extractFullPdfEvidenceText(
+              bytes,
+              {
+                forceOcr: true,
+                ocrProvider:
+                  this.createOcrProvider(),
+                maxOcrPages:
+                  Math.max(
+                    1,
+                    Number.parseInt(
+                      process.env
+                        .CMENG_CONTROL_BASIS_OCR_MAX_PAGES ??
+                        "40",
+                      10,
+                    ) || 40,
+                  ),
+              },
+            );
+          diagnostics.push(
+            ...fullOcr.diagnostics.map(
+              (item) =>
+                "SCHEDULE_CONTROL_BASIS_OCR:" +
+                item,
             ),
           );
+          const ocrAssertions =
+            controlAssertions(
+              fullOcr.text,
+              document.sourceFilename,
+            );
+          if (
+            thresholdEstablished(
+              ocrAssertions,
+            )
+          ) {
+            extracted =
+              ocrAssertions;
+          }
+        }
 
-        const establishesThreshold =
-          extracted.some(
-            (assertion) =>
-              assertion.metric ===
-                "near_critical_working_days" ||
-              assertion.metric ===
-                "near_critical_threshold_hours",
-          );
-
-        if (!establishesThreshold) {
+        if (
+          !thresholdEstablished(
+            extracted,
+          )
+        ) {
           projectReadyForV4 = false;
           diagnostics.push(
             "SCHEDULE_CONTROL_BASIS_THRESHOLD_NOT_EXTRACTED:" +
@@ -1824,6 +1886,8 @@ export class RuntimeProjectStore {
 
     return {
       refreshedDocumentCount,
+      basisDocumentCount,
+      scannedDocumentCount,
       diagnostics,
     };
   }
@@ -1838,7 +1902,7 @@ export class RuntimeProjectStore {
   touchEvidence(
     state: ProjectRuntimeState,
   ): void {
-    state.sourceIntegrationVersion = "canonical-source-v3";
+    state.sourceIntegrationVersion = "canonical-source-v4";
     synchronizeCanonicalTimeClaims(state, true);
     this.staleFinalizedBoardPublications(
       state,
