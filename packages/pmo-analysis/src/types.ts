@@ -58,7 +58,7 @@ export interface PmoAnalysisProjection {
     assignedResourceCount: number;
     capacityCoveragePercent: number | null;
     overloadedResourceCount: number;
-    laborHoursActualKnown: number;
+    laborHoursActualKnown: number | null;
     laborActualCoveragePercent: number | null;
   };
 
