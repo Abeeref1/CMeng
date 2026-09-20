@@ -7,6 +7,7 @@ import {
 } from "../../truth-kernel/src";
 import type { ProjectRuntimeState } from "./project-state-types";
 import { projectDataDate } from "./canonical-time-claims";
+import { inferDocumentType } from "./evidence";
 
 export interface SourceProductivityForecastEvidence {
   producerVersion: "source-productivity-forecast-v1";
@@ -42,7 +43,10 @@ function dateFromProductivityRow(
   ]
     .map((name) => row.cells[norm(name)] ?? "")
     .find((value) => value.trim());
-  if (direct) return dateValue(direct);
+  if (direct) {
+    const parsed = dateValue(direct);
+    if (parsed) return parsed;
+  }
 
   const key =
     cell(
@@ -54,24 +58,125 @@ function dateFromProductivityRow(
       "forecast type",
       "position",
     ) || "";
-  const value =
+  const basis =
     cell(
       row as any,
-      "value",
-      "date",
-      "completion",
-      "completion date",
-      "forecast date",
-      "finish",
+      "forecast basis",
+      "forecast method",
+      "method",
+      "calculation basis",
+      "basis",
+      "source",
+      "forecast source",
     ) || "";
+  const semanticText = [
+    key,
+    basis,
+    ...Object.values(
+      row.cells,
+    ),
+  ]
+    .join(" | ")
+    .normalize("NFKC");
+
   if (
-    /productivity/i.test(key) &&
-    /(forecast|completion|finish)/i.test(key)
+    !/productivity/i.test(
+      semanticText,
+    ) ||
+    !/(forecast|completion|finish)/i.test(
+      semanticText,
+    )
   ) {
-    return dateValue(value);
+    return null;
   }
 
-  return null;
+  const explicitCompletionValues = [
+    "value",
+    "completion",
+    "completion date",
+    "forecast completion",
+    "forecast completion date",
+    "forecast date",
+    "finish",
+    "finish date",
+    "projected completion",
+    "projected finish",
+  ]
+    .map(
+      (name) =>
+        row.cells[norm(name)] ??
+        "",
+    )
+    .filter(Boolean)
+    .map(dateValue)
+    .filter(
+      (
+        value,
+      ): value is string =>
+        value !== null,
+    );
+
+  const explicitUnique = [
+    ...new Set(
+      explicitCompletionValues,
+    ),
+  ];
+  if (
+    explicitUnique.length === 1
+  ) {
+    return explicitUnique[0]!;
+  }
+  if (
+    explicitUnique.length > 1
+  ) {
+    return null;
+  }
+
+  const excludedDateHeaders =
+    new Set(
+      [
+        "as of",
+        "as of date",
+        "data date",
+        "reporting date",
+        "reporting period",
+        "period end",
+        "period start",
+        "effective date",
+        "issue date",
+        "document date",
+        "actual date",
+        "status date",
+      ].map(norm),
+    );
+  const genericDates =
+    Object.entries(
+      row.cells,
+    )
+      .filter(
+        ([header]) =>
+          !excludedDateHeaders.has(
+            norm(header),
+          ),
+      )
+      .map(
+        ([, value]) =>
+          dateValue(value),
+      )
+      .filter(
+        (
+          value,
+        ): value is string =>
+          value !== null,
+      );
+  const genericUnique = [
+    ...new Set(
+      genericDates,
+    ),
+  ];
+  return genericUnique.length === 1
+    ? genericUnique[0]!
+    : null;
 }
 
 export function sourceProductivityForecastEvidence(
@@ -81,15 +186,49 @@ export function sourceProductivityForecastEvidence(
   if (old?.version === state.version) return old.value;
 
   const diagnostics: string[] = [];
-  const scheduleControlIds = new Set(
-    state.evidenceDocuments
-      .filter(
-        (document) =>
-          document.category === "schedule_control" &&
-          ["active", "additive", "candidate"].includes(document.basisState),
-      )
-      .map((document) => document.documentId),
-  );
+  const productivitySourceTypes =
+    new Set([
+      "schedule_control_basis",
+      "schedule_metric_register",
+      "project_data_book",
+    ]);
+  const scheduleControlIds =
+    new Set(
+      state.evidenceDocuments
+        .filter(
+          (document) => {
+            const inferredType =
+              inferDocumentType(
+                document.sourceRelativePath ??
+                  document.sourceFilename,
+                null,
+              );
+            return (
+              (
+                document.category ===
+                  "schedule_control" ||
+                productivitySourceTypes.has(
+                  document.documentType,
+                ) ||
+                productivitySourceTypes.has(
+                  inferredType,
+                )
+              ) &&
+              [
+                "active",
+                "additive",
+                "candidate",
+              ].includes(
+                document.basisState,
+              )
+            );
+          },
+        )
+        .map(
+          (document) =>
+            document.documentId,
+        ),
+    );
   const tables = governedTables(state.evidenceDocuments, diagnostics).filter(
     (table) => scheduleControlIds.has(table.document.documentId),
   );
