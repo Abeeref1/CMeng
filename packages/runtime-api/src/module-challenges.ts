@@ -1574,10 +1574,6 @@ function metricsFor(
         numberOrNull(
           eot
             ?.analyticalTimeImpactCandidateDays,
-        ) ??
-        numberOrNull(
-          windows
-            ?.positiveProgrammeMovementDays,
         );
 
       return [
@@ -1696,10 +1692,6 @@ function metricsFor(
         numberOrNull(
           eot
             ?.analyticalTimeImpactCandidateDays,
-        ) ??
-        numberOrNull(
-          windows
-            ?.positiveProgrammeMovementDays,
         );
       const attributableCandidate =
         numberOrNull(
@@ -1736,12 +1728,12 @@ function metricsFor(
             note:
               analyticalTimeImpact !==
                 null
-                ? "Programme movement is carried forward as a time-impact candidate even when causation or entitlement is not yet established."
+                ? "Analytical time impact is shown only where causal event evidence supports a candidate assessment; it is not an official award."
                 : undefined,
             consequenceMissing:
               analyticalTimeImpact !==
                 null
-                ? "No reliable contractor claim total is established, but CMeng still has a quantified time-impact candidate for further causation testing."
+                ? "A quantified analytical time-impact candidate exists for further causation and entitlement testing."
                 : "Neither a reliable claimed-EOT position nor a defensible time-impact candidate is currently established.",
             actionMissing:
               analyticalTimeImpact !==
@@ -1776,7 +1768,7 @@ function metricsFor(
                 ? "This is an analytical entitlement candidate, not an official award."
                 : analyticalTimeImpact !==
                     null
-                  ? "Movement exists but attribution is not established; CMeng therefore preserves the movement instead of converting it to zero EOT."
+                  ? "An analytical time-impact candidate exists, but attribution is not established; CMeng does not convert observed schedule movement into entitlement."
                   : undefined,
             consequenceMissing:
               analyticalTimeImpact !==
