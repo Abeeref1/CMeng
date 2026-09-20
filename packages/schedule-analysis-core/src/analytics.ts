@@ -3,6 +3,7 @@ import {
   activityNearCriticalThresholdHours,
   nearCriticalThresholdBasis,
   sourceFloatCriticality,
+  sourceFloatMeetsNearCriticalLowerBound,
 } from "./float-thresholds";
 import type {
   AverageMetric,
@@ -220,7 +221,10 @@ function floatSummary(
   );
   const thresholdUnresolved = known.filter(
     (activity) =>
-      activity.totalFloatHours! > config.criticalFloatThresholdHours &&
+      sourceFloatMeetsNearCriticalLowerBound(
+        activity.totalFloatHours!,
+        config,
+      ) &&
       activityNearCriticalThresholdHours(model, activity, config) === null,
   );
 
