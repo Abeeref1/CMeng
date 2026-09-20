@@ -183,6 +183,16 @@ test("CMeng workspace keeps the active module primary and browser script parseab
     /requestSeq!==moduleRequestSeq/,
     "only the latest selected module may update the screen",
   );
+  assert.match(
+    html,
+    /Promise\.allSettled\(\[\s*loadModule\(selected\),\s*loadEvidence\(\)/,
+    "project refresh must load the specialist module independently from the document register",
+  );
+  assert.match(
+    html,
+    /overview=loadedOverview;\s*localStorage\.setItem\("cmeng-project",projectId\)/,
+    "a valid overview must establish the active project before secondary panels load",
+  );
   assert.equal(
     html.includes("Production · "),
     false,
