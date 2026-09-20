@@ -11,11 +11,33 @@ export type EotDayBasis =
 export interface ContractTimeBasis {
   contractualCompletionIso: string | null;
   contractualCompletionState: GovernanceState;
+
+  /**
+   * Official EOT determinations evidenced by the current register.
+   * These days are NOT automatically added to contractualCompletionIso.
+   * contractualCompletionIso may already include an amendment/EOT.
+   */
   officialApprovedEotDays: number | null;
   officialApprovedEotState: GovernanceState;
+
+  incorporatedAmendmentEotDays?: number | null;
+  incorporatedAmendmentEotState?: GovernanceState;
+  determinationCount?: number | null;
+  determinationAwardedDaysTotal?: number | null;
+  determinationAwardedDaysToDataDate?: number | null;
+  determinationDataDateIso?: string | null;
+
+  /**
+   * Only true where evidence explicitly establishes that officialApprovedEotDays
+   * are additional to the current contractualCompletionIso.
+   */
+  approvedEotAdditionalToContractBasis?: boolean | null;
+
   eotDayBasis: EotDayBasis;
   eotDayBasisState: GovernanceState;
   sourceRefs: string[];
+  determinationSourceRefs?: string[];
+  diagnostics?: string[];
 }
 
 export interface EotScenarioPolicy {
