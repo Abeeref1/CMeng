@@ -1739,7 +1739,7 @@ function renderModuleResult(result){
   if(result.key==="challenge-contract"&&renderDeliveryChallenge(data,result.reason))return;
   const basisHtml=renderModuleBasis(data);
   const challengeBody=renderUniversalChallenge(data.challenge);
-  const challengeHtml=challengeBody?'<details class="reconciliation-panel" '+(data.challenge?.challengedCount?'open':'')+'><summary><span>Reconciliation with submitted position</span><b>'+(data.challenge?.challengedCount?escapeHtml(data.challenge.challengedCount)+' needs attention':'No material difference')+'</b></summary><div class="reconciliation-body">'+challengeBody+'</div></details>':'';
+  const challengeHtml=challengeBody?'<details class="reconciliation-panel"><summary><span>Reconciliation with submitted position</span><b>'+(data.challenge?.challengedCount?escapeHtml(data.challenge.challengedCount)+' needs attention':'No material difference')+'</b></summary><div class="reconciliation-body">'+challengeBody+'</div></details>':'';
   const specialized=renderSpecializedModule(result.key,data);
   const scalars=scalarPairs(data).filter(([k])=>k!=="challenge").map(([k,v])=>'<div class="scalar"><b>'+escapeHtml(humanizeKey(k))+'</b><span>'+escapeHtml(fmt(v))+'</span></div>').join("");
   const structured=specialized?"":renderStructuredSections(data);
