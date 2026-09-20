@@ -1522,6 +1522,15 @@ export function deriveControlsFromCsv(
     const determinations:
       EngineerEotDetermination[] =
       [];
+    const claims:
+      CanonicalClaimRecord[] =
+      [];
+    const notices:
+      CanonicalNoticeRecord[] =
+      [];
+    const events:
+      CanonicalDelayEvent[] =
+      [];
 
     for (
       let rowIndex = 1;
@@ -1540,61 +1549,229 @@ export function deriveControlsFromCsv(
       if (!determinationId) {
         continue;
       }
+
+      const claimId =
+        value(
+          row,
+          claimIdIndex,
+        ) || null;
+      const awarded =
+        numeric(
+          value(
+            row,
+            awardedIndex,
+          ),
+        );
+      const date =
+        iso(
+          value(
+            row,
+            dateIndex,
+          ),
+        );
+      const status =
+        value(
+          row,
+          statusIndex,
+        ) || null;
+      const authority =
+        value(
+          row,
+          authorityIndex,
+        ) || null;
+      const letter =
+        value(
+          row,
+          letterIndex,
+        ) || null;
       const governance =
         value(
           row,
           governanceIndex,
         );
+      const immutable =
+        norm(
+          governance,
+        ).includes(
+          "immutable",
+        );
+      const official =
+        immutable ||
+        norm(
+          governance,
+        ).includes(
+          "official",
+        ) ||
+        norm(
+          status ??
+          "",
+        ).includes(
+          "determined",
+        ) ||
+        norm(
+          status ??
+          "",
+        ).includes(
+          "approved",
+        );
+      const governanceState:
+        GovernanceState =
+        official
+          ? "official"
+          : "candidate";
+      const sourceRefs = [
+        evidenceRef(
+          input.document,
+          rowIndex + 1,
+        ),
+      ];
+
       determinations.push({
         determinationId,
-        claimId:
-          value(
-            row,
-            claimIdIndex,
-          ) || null,
+        claimId,
         awardedEotDays:
-          numeric(
-            value(
-              row,
-              awardedIndex,
-            ),
-          ),
+          awarded,
         determinationDateIso:
-          iso(
-            value(
-              row,
-              dateIndex,
-            ),
-          ),
-        status:
-          value(
-            row,
-            statusIndex,
-          ) || null,
-        authority:
-          value(
-            row,
-            authorityIndex,
-          ) || null,
+          date,
+        status,
+        authority,
         sourceLetter:
-          value(
-            row,
-            letterIndex,
-          ) || null,
+          letter,
         governanceState:
           governance ||
           null,
-        immutable:
-          norm(
-            governance,
-          ).includes(
-            "immutable",
-          ),
-        sourceRefs: [
-          evidenceRef(
-            input.document,
-            rowIndex + 1,
-          ),
+        immutable,
+        sourceRefs,
+      });
+
+      if (!claimId) {
+        continue;
+      }
+
+      const eventId =
+        "delay-event:" +
+        claimId;
+      const rowRef = {
+        sourceType:
+          "claim" as const,
+        sourceId:
+          input.document
+            .documentId,
+        locator:
+          "row:" +
+          (rowIndex + 1),
+      };
+
+      events.push({
+        eventId,
+        title:
+          claimId +
+          " Engineer determination",
+        category: "other",
+        startIso: null,
+        endIso: null,
+        responsibility:
+          "unknown",
+        responsibilityState:
+          "missing",
+        describedImpactDays:
+          awarded,
+        describedImpactState:
+          awarded === null
+            ? "missing"
+            : governanceState,
+        relatedActivityIds: [],
+        relatedClauseIdentifiers:
+          [],
+        evidenceRefs: [
+          rowRef,
+          ...(letter
+            ? [{
+                sourceType:
+                  "correspondence" as const,
+                sourceId:
+                  letter,
+                locator: null,
+              }]
+            : []),
+        ],
+        diagnostics: [
+          "ENGINEER_DETERMINATION_LINKED_TO_CLAIM_EVENT_IDENTITY",
+          "DETERMINATION_DOES_NOT_BY_ITSELF_ESTABLISH_EVENT_OCCURRENCE_DATE_OR_SCHEDULE_CAUSATION",
+        ],
+      });
+
+      claims.push({
+        claimId,
+        title:
+          claimId,
+        state:
+          official
+            ? "determined"
+            : "under_review",
+        eventIds: [
+          eventId,
+        ],
+        submittedAt: null,
+        claimedDays: null,
+        claimedAmount: null,
+        assessedDays:
+          awarded,
+        assessedDaysState:
+          awarded === null
+            ? "missing"
+            : governanceState,
+        assessedAmount: null,
+        assessedAmountState:
+          "missing",
+        clauseIdentifiers: [],
+        evidenceRefs: [
+          rowRef,
+        ],
+        diagnostics: [
+          "ENGINEER_DETERMINATION_SUPERSEDES_STALE_CLAIM_ASSESSMENT_WHEN_OFFICIAL",
+          ...(immutable
+            ? [
+                "ENGINEER_DETERMINATION_IMMUTABLE",
+              ]
+            : []),
+        ],
+      });
+
+      notices.push({
+        noticeId:
+          determinationId,
+        kind:
+          "determination",
+        eventId,
+        claimId,
+        actualIssuedAt:
+          date,
+        actualReceivedAt:
+          null,
+        plannedAt: null,
+        subject:
+          letter
+            ? "Engineer determination " +
+              letter
+            : "Engineer determination " +
+              determinationId,
+        clauseIdentifiers:
+          [],
+        evidenceRefs: [
+          rowRef,
+          ...(letter
+            ? [{
+                sourceType:
+                  "correspondence" as const,
+                sourceId:
+                  letter,
+                locator: null,
+              }]
+            : []),
+        ],
+        diagnostics: [
+          "ENGINEER_DETERMINATION_NOTICE_RECORD",
         ],
       });
     }
@@ -1602,6 +1779,21 @@ export function deriveControlsFromCsv(
     return {
       eotDeterminations:
         determinations,
+      delayClaims: {
+        projectId:
+          input.state.projectId,
+        evidenceRevisionId:
+          "evidence-document:" +
+          input.document
+            .documentId,
+        events,
+        notices,
+        claims,
+        noticeRequirements: [],
+        diagnostics: [
+          "ENGINEER_DETERMINATION_REGISTER_FRAGMENT",
+        ],
+      },
     };
   }
 
