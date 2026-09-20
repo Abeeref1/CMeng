@@ -2,6 +2,7 @@ import {
   buildScheduleActivityLogicIndex,
   DEFAULT_SCHEDULE_ANALYSIS_CONFIG,
   sourceFloatCriticality,
+  sourceFloatInFloatRiskWatchlist,
   type CanonicalScheduleActivity,
   type CanonicalScheduleModel,
   type ScheduleAnalysisConfig,
@@ -136,6 +137,12 @@ export function buildActivityAnalyticsProjection(
 
         criticality:
           criticality(model, activity, config),
+        floatRiskWatchlist:
+          sourceFloatInFloatRiskWatchlist(
+            model,
+            activity,
+            config,
+          ),
         finishVarianceDays:
           finishVarianceDays(activity),
 
