@@ -54,6 +54,8 @@ try {
     modules.set(key, result);
     check(key + ': live page resolves', result?.key === key && result?.status !== 'blocked' && result?.data !== null);
     check(key + ': live JSON has no non-finite serialization marker', !/NaN|Infinity/.test(JSON.stringify(result?.data)));
+    const report = await json(prefix + '/schedule/modules/' + key + '/report.json');
+    check(key + ': report is generated from the same live result', report?.result?.key === key && digest(report.result.data) === digest(result.data));
   }
   check('All 29 Project Control pages are traced', modules.size === 29);
 
