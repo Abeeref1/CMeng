@@ -382,3 +382,253 @@ test("Notice counts are not presented as performance when delay events and requi
     },
   );
 });
+
+
+test("Progress challenge never presents schedule-derived progress as an independent certified value", async () => {
+  await withServer(
+    async (base) => {
+      const project =
+        "PROGRESS-CHALLENGE-UAT";
+      await uploadSchedule(
+        base,
+        project,
+        "baseline",
+        "baseline.xer",
+        "2026-06-01",
+        "2026-12-31",
+      );
+      await uploadSchedule(
+        base,
+        project,
+        "update",
+        "update.xer",
+        "2026-08-31",
+        "2027-01-31",
+      );
+
+      const response =
+        await fetch(
+          base +
+            "/api/projects/" +
+            project +
+            "/schedule/modules/progress-report",
+        );
+      assert.equal(
+        response.status,
+        200,
+      );
+      const result =
+        await response.json() as {
+          data: {
+            challenge: {
+              items: Array<{
+                metric: string;
+                independent: {
+                  value:
+                    number |
+                    string |
+                    null;
+                  state: string;
+                  note:
+                    string |
+                    null;
+                };
+              }>;
+            };
+          };
+        };
+
+      const certified =
+        result.data.challenge.items
+          .find(
+            (item) =>
+              item.metric ===
+              "certified_progress_percent",
+          );
+      assert.ok(certified);
+      assert.equal(
+        certified.independent.value,
+        null,
+      );
+      assert.equal(
+        certified.independent.state,
+        "not_derivable",
+      );
+      assert.match(
+        certified.independent
+          .note ??
+          "",
+        /does not relabel schedule-derived percentage complete/i,
+      );
+    },
+  );
+});
+
+test("Delay challenge keeps submitted claim days separate from observed programme movement", async () => {
+  await withServer(
+    async (base) => {
+      const project =
+        "DELAY-MOVEMENT-SEPARATION-UAT";
+      await uploadSchedule(
+        base,
+        project,
+        "baseline",
+        "baseline.xer",
+        "2026-06-01",
+        "2026-12-31",
+      );
+      await uploadSchedule(
+        base,
+        project,
+        "update",
+        "update.xer",
+        "2026-08-31",
+        "2027-01-31",
+      );
+
+      const controls =
+        await fetch(
+          base +
+            "/api/projects/" +
+            project +
+            "/controls",
+          {
+            method: "PUT",
+            headers: {
+              "content-type":
+                "application/json",
+            },
+            body: JSON.stringify({
+              delayClaims: {
+                projectId:
+                  project,
+                evidenceRevisionId:
+                  "claims-register-1",
+                events: [],
+                notices: [],
+                claims: [
+                  {
+                    claimId:
+                      "C1",
+                    title:
+                      "Claim 1",
+                    state:
+                      "submitted",
+                    eventIds: [],
+                    submittedAt:
+                      "2026-08-15T00:00:00.000Z",
+                    claimedDays:
+                      20,
+                    claimedAmount:
+                      null,
+                    assessedDays:
+                      null,
+                    assessedDaysState:
+                      "missing",
+                    assessedAmount:
+                      null,
+                    assessedAmountState:
+                      "missing",
+                    clauseIdentifiers:
+                      [],
+                    evidenceRefs:
+                      [],
+                    diagnostics:
+                      [],
+                  },
+                ],
+                noticeRequirements:
+                  [],
+                diagnostics:
+                  [],
+              },
+            }),
+          },
+        );
+      assert.equal(
+        controls.status,
+        200,
+        await controls.text(),
+      );
+
+      const response =
+        await fetch(
+          base +
+            "/api/projects/" +
+            project +
+            "/schedule/modules/delay-claims",
+        );
+      assert.equal(
+        response.status,
+        200,
+      );
+      const result =
+        await response.json() as {
+          data: {
+            challenge: {
+              items: Array<{
+                metric: string;
+                submitted: {
+                  value:
+                    number |
+                    string |
+                    null;
+                };
+                independent: {
+                  value:
+                    number |
+                    string |
+                    null;
+                  state: string;
+                  note:
+                    string |
+                    null;
+                };
+              }>;
+            };
+          };
+        };
+
+      const claimed =
+        result.data.challenge.items
+          .find(
+            (item) =>
+              item.metric ===
+              "claimed_delay_days",
+          );
+      const movement =
+        result.data.challenge.items
+          .find(
+            (item) =>
+              item.metric ===
+              "observed_programme_movement_days",
+          );
+
+      assert.ok(claimed);
+      assert.equal(
+        claimed.submitted.value,
+        20,
+      );
+      assert.equal(
+        claimed.independent.value,
+        null,
+      );
+      assert.equal(
+        claimed.independent.state,
+        "not_derivable",
+      );
+
+      assert.ok(movement);
+      assert.equal(
+        typeof movement.independent
+          .value,
+        "number",
+      );
+      assert.match(
+        movement.independent.note ??
+          "",
+        /not a finding of delay causation/i,
+      );
+    },
+  );
+});
