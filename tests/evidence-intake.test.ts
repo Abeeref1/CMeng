@@ -717,6 +717,42 @@ test("runtime activity variance uses the controlled baseline programme", async (
         .maximumDelayDays,
       5,
     );
+
+    const nearCriticalResponse =
+      await fetch(
+        base +
+          "/api/projects/" +
+          project +
+          "/schedule/modules/near-critical",
+      );
+    assert.equal(
+      nearCriticalResponse.status,
+      200,
+    );
+    const nearCritical =
+      await nearCriticalResponse.json() as {
+        data: {
+          rows: Array<{
+            activityId: string;
+            baselineFinishIso: string | null;
+            currentFinishIso: string | null;
+          }>;
+        };
+      };
+    const nearRow =
+      nearCritical.data.rows.find(
+        (row) =>
+          row.activityId ===
+          "A200",
+      );
+    assert.match(
+      nearRow?.baselineFinishIso ?? "",
+      /^2026-01-10/,
+    );
+    assert.match(
+      nearRow?.currentFinishIso ?? "",
+      /^2026-01-15/,
+    );
   });
 });
 
