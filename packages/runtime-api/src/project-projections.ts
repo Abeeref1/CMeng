@@ -1870,6 +1870,10 @@ function buildBundle(
         generatedAt,
         producerVersion:
           versions.windows,
+        trackedCompletionActivityId:
+          projectTruth.schedule
+            .projectCompletionActivityId
+            .value,
       },
     );
   modules.set(
@@ -4661,6 +4665,11 @@ function claimsFastContext(
         "DELAY_CLAIM_EVIDENCE_NOT_SUBMITTED",
       ],
     };
+  const projectTruth =
+    buildProjectTruth(
+      state,
+      current.revision.model,
+    );
 
   const windows =
     buildWindowsAnalysisProjection(
@@ -4679,6 +4688,10 @@ function claimsFastContext(
               revision.model,
               generatedAt,
             ),
+        trackedCompletionActivityId:
+          projectTruth.schedule
+            .projectCompletionActivityId
+            .value,
       },
     );
 
