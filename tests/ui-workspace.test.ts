@@ -111,6 +111,11 @@ test("CMeng workspace keeps the active module primary and browser script parseab
   );
   assert.match(
     html,
+    /id="moduleSubtitle"/,
+    "loadModule must have a real subtitle DOM target before it updates the selected view",
+  );
+  assert.match(
+    html,
     /id="releaseStatus"/,
     "production release state must remain visible",
   );
