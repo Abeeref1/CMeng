@@ -317,6 +317,10 @@ export function buildDelayClaimsProjection(
           6,
         ),
       ),
+    projectCompletionMovementDays:
+      windows.projectCompletionMovementDays,
+    projectCompletionMovementBasis:
+      windows.projectCompletionMovementBasis,
     unattributedProgrammeMovementDays:
       Number(
         unattributed.toFixed(6),
