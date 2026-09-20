@@ -2204,6 +2204,8 @@ function buildBundle(
       observedProgrammeMovementDays:
         windows
           .positiveProgrammeMovementDays,
+      eligibleCausalEventEvidenceEstablished:
+        false,
       analyticalTimeImpactCandidateDays:
         null,
       attributableCandidateEotDays:
@@ -6143,6 +6145,8 @@ function buildSpecialistModuleFast(
                 observedProgrammeMovementDays:
                   windows
                     .positiveProgrammeMovementDays,
+                eligibleCausalEventEvidenceEstablished:
+                  false,
                 analyticalTimeImpactCandidateDays:
                   null,
                 attributableCandidateEotDays:
