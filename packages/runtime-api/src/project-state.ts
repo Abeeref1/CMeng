@@ -4010,6 +4010,9 @@ export class RuntimeProjectStore {
     rebuildDerivedControls(
       state,
     );
+    rebuildCommercialState(
+      state,
+    );
 
     this.touchEvidence(state);
     return parsed;
