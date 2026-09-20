@@ -137,6 +137,158 @@ const bundleCache =
     ProjectionBundle
   >();
 
+function approvedLaborActualHistory(
+  state: ProjectRuntimeState,
+): {
+  history: Array<{
+    periodEndIso: string;
+    hours: number;
+    sourceRefs: string[];
+  }>;
+  resourceCoveragePercent: number | null;
+} {
+  const support =
+    state.resourceSupport;
+  if (!support) {
+    return {
+      history: [],
+      resourceCoveragePercent:
+        null,
+    };
+  }
+
+  const laborIds =
+    new Set(
+      support.capacityMaster
+        .filter(
+          (row) =>
+            row.resourceClass ===
+              "labor" &&
+            row.utilizationApplicable ===
+              true,
+        )
+        .map(
+          (row) =>
+            row.resourceId,
+        ),
+    );
+  const dataDate =
+    support.dataDateIso
+      ? Date.parse(
+          support.dataDateIso,
+        )
+      : Number.NaN;
+  const actualRows =
+    support.actualUsage.filter(
+      (row) => {
+        if (
+          !laborIds.has(
+            row.resourceId,
+          ) ||
+          row.actualApprovedUsage ===
+            null ||
+          !row.weekStartIso
+        ) {
+          return false;
+        }
+        const period =
+          Date.parse(
+            row.weekStartIso,
+          );
+        return (
+          Number.isFinite(period) &&
+          (
+            !Number.isFinite(
+              dataDate,
+            ) ||
+            period <= dataDate
+          )
+        );
+      },
+    );
+
+  const byPeriod =
+    new Map<
+      string,
+      {
+        hours: number;
+        sourceRefs: string[];
+      }
+    >();
+  for (const row of actualRows) {
+    const key =
+      row.weekStartIso!;
+    const current =
+      byPeriod.get(key) ?? {
+        hours: 0,
+        sourceRefs: [],
+      };
+    current.hours +=
+      row.actualApprovedUsage!;
+    current.sourceRefs.push(
+      ...row.sourceRefs.map(
+        (ref) =>
+          "evidence-document:" +
+          ref.sourceId +
+          ":" +
+          ref.locator,
+      ),
+    );
+    byPeriod.set(
+      key,
+      current,
+    );
+  }
+
+  const covered =
+    new Set(
+      actualRows.map(
+        (row) =>
+          row.resourceId,
+      ),
+    );
+
+  return {
+    history: [
+      ...byPeriod.entries(),
+    ]
+      .sort(
+        (a, b) =>
+          a[0].localeCompare(
+            b[0],
+          ),
+      )
+      .map(
+        ([periodEndIso, row]) => ({
+          periodEndIso,
+          hours:
+            Number(
+              row.hours.toFixed(
+                6,
+              ),
+            ),
+          sourceRefs: [
+            ...new Set(
+              row.sourceRefs,
+            ),
+          ],
+        }),
+      ),
+    resourceCoveragePercent:
+      laborIds.size > 0
+        ? Number(
+            (
+              (
+                covered.size /
+                laborIds.size
+              ) *
+              100
+            ).toFixed(4),
+          )
+        : null,
+  };
+}
+
 function canonicalResourceSupportSummary(
   state: ProjectRuntimeState,
 ) {
@@ -1665,6 +1817,10 @@ function buildBundle(
           ?.actualOverallocationRowCount ??
         (canonicalWeeklyCapacity.actualOverloadedRowCount ?? 0),
     };
+    const approvedActualHistory =
+      approvedLaborActualHistory(
+        state,
+      );
     manhourScurve =
       buildManhourScurveProjection(
         usableResources,
@@ -1673,6 +1829,12 @@ function buildBundle(
           generatedAt,
           producerVersion:
             versions.manhours,
+          sourceActualHistory:
+            approvedActualHistory
+              .history,
+          sourceActualResourceCoveragePercent:
+            approvedActualHistory
+              .resourceCoveragePercent,
         },
       );
 
@@ -5307,6 +5469,10 @@ function buildSpecialistModuleFast(
             : "Resource utilization is calculated only for resources with established capacity; the remaining resources stay demand-only.",
       );
     } else {
+      const approvedActualHistory =
+        approvedLaborActualHistory(
+          state,
+        );
       const projection =
         buildManhourScurveProjection(
           resources,
@@ -5315,12 +5481,21 @@ function buildSpecialistModuleFast(
             generatedAt,
             producerVersion:
               "manhour-scurve-fast-v2",
+            sourceActualHistory:
+              approvedActualHistory
+                .history,
+            sourceActualResourceCoveragePercent:
+              approvedActualHistory
+                .resourceCoveragePercent,
           },
         );
       const actualHistoryComplete =
         projection
           .actualHistoryMethod ===
-        "stored_financial_period_actuals";
+          "approved_resource_week_source" ||
+        projection
+          .actualHistoryMethod ===
+          "stored_financial_period_actuals";
       result = available(
         key,
         projection,
