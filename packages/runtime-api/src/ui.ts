@@ -293,22 +293,36 @@ details:not(.workspace-drawer){border:1px solid var(--line);border-radius:9px;ba
 const groups={
   "Programme & Planning":["pmo-analysis","schedule-analytics","activity-analytics","lookahead-schedule","schedule-change-report","revision-trend","milestones","near-critical"],
   "Progress & Resources":["resource-utilization","progress-report","variance-trends","progress-scurve","quantity-scurve","progress-breakdown","manhour-scurve"],
-  "Forecast & Completion":["forecast-history","independent-forecast"],
+  "Forecast & Finish":["forecast-history","independent-forecast"],
   "Claims & Commercial":["delay-claims","notices-claims","windows-analysis","eot-assessment","challenge-contract"]
 };
 const names={
-"pmo-analysis":"Management Position","schedule-analytics":"Programme Review","activity-analytics":"Activity Review","resource-utilization":"Resources","lookahead-schedule":"Look-Ahead","progress-report":"Progress Position","schedule-change-report":"Programme Changes","revision-trend":"Revision History","variance-trends":"Variance Trend","progress-scurve":"Progress S-Curve","quantity-scurve":"Installed Quantities","progress-breakdown":"WBS Progress","milestones":"Milestones","near-critical":"Near-Critical Activities","manhour-scurve":"Man-Hour S-Curve","forecast-history":"Completion Forecast History","independent-forecast":"CMeng Completion Forecast","delay-claims":"Delay Events & Claims","notices-claims":"Notices, EOT & Claims","windows-analysis":"Delay Windows","eot-assessment":"EOT Position","challenge-contract":"Challenge the Contract"
+"pmo-analysis":"Management Position","schedule-analytics":"Programme Review","activity-analytics":"Activity Review","resource-utilization":"Resources","lookahead-schedule":"Look-Ahead","progress-report":"Progress Position","schedule-change-report":"Programme Changes","revision-trend":"Revision History","variance-trends":"Variance Trend","progress-scurve":"Progress S-Curve","quantity-scurve":"Installed Quantities","progress-breakdown":"WBS Progress","milestones":"Milestones","near-critical":"Near-Critical Activities","manhour-scurve":"Man-Hour S-Curve","forecast-history":"Forecast History","independent-forecast":"Independent Forecast","delay-claims":"Delay Events & Claims","notices-claims":"Notices, EOT & Claims","windows-analysis":"Delay Windows","eot-assessment":"EOT Position","challenge-contract":"Challenge the Contract"
 };
 const descriptions={
-"pmo-analysis":"Completion outlook, schedule pressure and decisions requiring management attention.",
-"schedule-analytics":"Programme health, logic quality, float and completion dates.",
+"pmo-analysis":"Finish-date outlook, schedule pressure and decisions requiring management attention.",
+"schedule-analytics":"Programme health, logic quality, float and finish dates.",
 "activity-analytics":"Activities driving delay, float pressure and logic exceptions.",
 "lookahead-schedule":"The next six weeks, readiness blockers and overdue work.",
 "schedule-change-report":"What changed between the latest controlled programme submissions.",
-"revision-trend":"How progress, forecast and schedule pressure have moved over time.",
+"revision-trend":"How progress, forecast finish and schedule pressure have moved over time.",
 "milestones":"Baseline, current and actual milestone commitments and slippage.",
-"near-critical":"Activities at risk of becoming critical and requiring early action."
-};
+"near-critical":"Activities at risk of becoming critical and requiring early action.",
+"resource-utilization":"Resource demand, capacity and overload position. Missing capacity is never treated as zero.",
+"progress-report":"Baseline, current schedule, physical, contractor-reported and certified progress kept separate.",
+"variance-trends":"Activity finish movement and schedule pressure across controlled programme revisions.",
+"progress-scurve":"Baseline plan, current forecast and actual progress history on one time axis.",
+"quantity-scurve":"Installed quantities by unit, shown only where BOQ-to-programme mapping is defensible.",
+"progress-breakdown":"Duration-weighted progress and schedule pressure by WBS.",
+"manhour-scurve":"Planned, actual and forecast labor hours, with history coverage stated explicitly.",
+"forecast-history":"How submitted and independently calculated finish dates move across controlled revisions.",
+"independent-forecast":"Submitted finish compared with CMeng CPM, with reconciliation warnings before management use.",
+"delay-claims":"Claim records linked to governed delay events and observed programme movement.",
+"notices-claims":"Notice timeliness and claim assessment authority, only where the required evidence exists.",
+"windows-analysis":"Revision-to-revision programme movement kept separate from causation and entitlement.",
+"eot-assessment":"Observed movement, time impact, contractual entitlement and official EOT award kept separate.",
+"challenge-contract":"Contract clause intelligence and delivery assumptions reviewed against the available project evidence."
+}
 let overview=null,selected="pmo-analysis",portfolioData=null,appView="portfolio",currentModuleResult=null;
 let scheduleSelection=[],boqSelection=[],contractSelection=[],evidenceSelection=[];
 let selectedEvidenceDocuments=new Set();
