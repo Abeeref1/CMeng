@@ -532,7 +532,7 @@ test("unified evidence intake governs Add Replace and family-specific history", 
       );
       assert.equal(
         receipt.moduleCount,
-        22,
+        29,
       );
       assert.equal(
         receipt
@@ -548,7 +548,7 @@ test("unified evidence intake governs Add Replace and family-specific history", 
         receipt
           .moduleResults
           .length,
-        22,
+        29,
       );
 
       const certificationIds =
@@ -640,7 +640,7 @@ test("unified evidence intake governs Add Replace and family-specific history", 
         rerunUploadBody
           .rerun
           .moduleCount,
-        22,
+        29,
       );
       assert.equal(
         rerunUploadBody
