@@ -857,6 +857,119 @@ function hydrateProject(
     resourcesByRevision,
   };
 
+  const semanticMigrationTypes =
+    new Set([
+      "resource_capacity_master",
+      "resource_weekly_capacity_utilization",
+      "resource_approved_actual_usage",
+      "resource_assignment_timephased_weekly",
+      "resource_utilization_control_basis",
+      "resource_monthly_utilization_summary",
+      "resource_utilization_headline_metrics",
+      "delay_eot_claims_register",
+      "delay_event_impact_register",
+      "entitlement_assessment_register",
+      "engineer_determination_register",
+      "mitigation_acceleration_register",
+      "schedule_metric_register",
+      "schedule_control_basis",
+    ]);
+
+  for (
+    const document of
+      hydrated.evidenceDocuments
+  ) {
+    const sourcePath =
+      document.sourceRelativePath ??
+      document.sourceFilename;
+    const inferredType =
+      inferDocumentType(
+        sourcePath,
+        null,
+      );
+
+    if (
+      semanticMigrationTypes.has(
+        inferredType,
+      ) &&
+      document.documentType !==
+        inferredType
+    ) {
+      document.documentType =
+        inferredType;
+      document.identification = {
+        ...document.identification,
+        detectedDocumentType:
+          inferredType,
+        filenameHintDocumentType:
+          inferredType,
+      };
+      document.diagnostics = [
+        ...new Set([
+          ...document.diagnostics,
+          "EVIDENCE_SEMANTIC_TYPE_MIGRATED_ON_RESTORE",
+        ]),
+      ];
+    }
+
+    if (
+      document.mediaType
+        .toLowerCase()
+        .includes("csv") &&
+      existsSync(
+        document.storedPath,
+      )
+    ) {
+      try {
+        const bytes =
+          readFileSync(
+            document.storedPath,
+          );
+        const derivedControls =
+          deriveControlsFromCsv({
+            state: hydrated,
+            document,
+            bytes,
+          });
+        if (
+          Object.keys(
+            derivedControls,
+          ).length > 0
+        ) {
+          hydrated
+            .derivedControlsByDocument[
+              document.documentId
+            ] =
+            derivedControls;
+        }
+        const readiness =
+          deriveReadinessFromCsv({
+            state: hydrated,
+            document,
+            bytes,
+          });
+        if (
+          Object.keys(
+            readiness,
+          ).length > 0
+        ) {
+          hydrated
+            .derivedReadinessByDocument[
+              document.documentId
+            ] =
+            readiness;
+        }
+      } catch {
+        document.diagnostics = [
+          ...new Set([
+            ...document.diagnostics,
+            "EVIDENCE_DERIVED_CONTROL_REBUILD_FAILED_ON_RESTORE",
+          ]),
+        ];
+      }
+    }
+  }
+
   for (
     const familyKey of
       affectedFamilies
@@ -866,6 +979,12 @@ function hydrateProject(
       familyKey,
     );
   }
+  rebuildReadinessEvidence(
+    hydrated,
+  );
+  rebuildDerivedControls(
+    hydrated,
+  );
 
   return hydrated;
 }
