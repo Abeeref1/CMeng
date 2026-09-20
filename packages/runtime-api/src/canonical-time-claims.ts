@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { cell, has, numberValue, dateValue, governedTables, norm, sumKnown, type SourceReceipt, type SourceRow, type SourceTable } from '../../truth-kernel/src';
-import type { CanonicalClaimRecord, CanonicalDelayEvent, CanonicalNoticeRecord, DelayClaimsModel } from '../../delay-analysis-core/src';
+import type { CanonicalClaimRecord, CanonicalDelayEvent, CanonicalDelayWindowEvidence, CanonicalNoticeRecord, DelayClaimsModel } from '../../delay-analysis-core/src';
 import type { ContractTimeBasis } from '../../eot-assessment/src';
 import type { ProjectRuntimeState } from './project-state-types';
 export interface DeterminationRecord {
@@ -21,6 +21,7 @@ export interface CanonicalTimeClaims {
 }
 const cache = new WeakMap<ProjectRuntimeState,{version:number;value:CanonicalTimeClaims}>();
 const n = (r:SourceRow,...names:string[])=>numberValue(cell(r,...names));
+const refs = (value:string):string[] => [...new Set(value.split(/[;,|]/).map(v=>v.trim()).filter(Boolean))];
 const evref = (r:SourceRow,sourceType:'claim'|'notice'|'other'='claim')=>({sourceType,sourceId:r.receipt.documentId,locator:r.receipt.locator});
 interface CorrespondenceLink {
   logicalId: string;
@@ -109,7 +110,9 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
     const evidenceRefs=[evref(r),...(linkedCorrespondence?[correspondenceRef(linkedCorrespondence)]:sourceLetter?[{sourceType:'correspondence' as const,sourceId:sourceLetter,locator:null}]:[])];
     events.push({eventId,title,category:'other',startIso:dateValue(cell(r,'event start','start date')),endIso:dateValue(cell(r,'event end','end date')),
       responsibility:'unknown',responsibilityState:'missing',describedImpactDays:n(r,'days claimed','claimed days'),describedImpactState:'candidate',
-      relatedActivityIds:cell(r,'activity id','related activity ids').split(/[;,|]/).map(s=>s.trim()).filter(Boolean),relatedClauseIdentifiers:clauseIdentifiers,evidenceRefs,
+      relatedActivityIds:refs(cell(r,'activity id','activity ids','related activity ids','impacted activity','affected activity','linked activity')),
+      relatedWindowIds:refs(cell(r,'window id','analysis window','delay window','window')),
+      relatedClauseIdentifiers:clauseIdentifiers,evidenceRefs,
       diagnostics:['SOURCE_REGISTER_EVENT_NOT_PROVEN_CAUSATION',...(sourceLetter&&!linkedCorrespondence?['LINKED_CORRESPONDENCE_NOT_FOUND:'+sourceLetter]:sourceLetter&&!semanticLinkVerified?['LINKED_CORRESPONDENCE_SEMANTIC_MISMATCH:'+sourceLetter]:semanticLinkVerified?['LINKED_CORRESPONDENCE_VERIFIED:'+sourceLetter]:[])],});
     const registerIssued=dateValue(cell(r,'notice date'));
     const correspondenceIssued=semanticLinkVerified?linkedCorrespondence?.issuedAt??null:null;
@@ -121,6 +124,104 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
     if(issued)notices.push({noticeId:sourceLetter||claimId+':notice',kind:'claim_notice',eventId,claimId,actualIssuedAt:issued,actualReceivedAt:null,plannedAt:null,subject:title,clauseIdentifiers,evidenceRefs:[evref(r,'notice')],diagnostics:['NOTICE_DATE_FROM_REGISTER_NOT_EVENT_START_DATE']});
   }
   const byClaim=new Map(claims.map(c=>[c.claimId,c]));
+  const eventById=new Map(events.map(e=>[e.eventId,e]));
+  const sourceWindows:CanonicalDelayWindowEvidence[]=[];
+  const sourceWindowById=new Map<string,CanonicalDelayWindowEvidence>();
+
+  for(const table of tables){
+    const hasActivityEvidence=table.headers.some(h=>[
+      'activity id','activity ids','related activity ids','impacted activity','affected activity','linked activity'
+    ].map(norm).includes(h));
+    const hasWindowEvidence=table.headers.some(h=>[
+      'window id','analysis window','delay window','window'
+    ].map(norm).includes(h));
+    const hasMovementEvidence=table.headers.some(h=>[
+      'programme movement days','program movement days','window movement days','positive movement days',
+      'submitted movement days','gross positive window movement','gross window movement days'
+    ].map(norm).includes(h));
+    if(!hasActivityEvidence&&!hasWindowEvidence&&!hasMovementEvidence)continue;
+
+    for(const r of table.rows){
+      const claimId=cell(r,'claim id','claim reference');
+      const claim=claimId?byClaim.get(claimId)??null:null;
+      const explicitEventId=cell(r,'event id','delay event id','related event id','event reference');
+      const event=explicitEventId
+        ? eventById.get(explicitEventId)??null
+        : claim?.eventIds[0]
+          ? eventById.get(claim.eventIds[0])??null
+          : null;
+      if(!event&&!claimId)continue;
+
+      const activityIds=refs(cell(
+        r,'activity id','activity ids','related activity ids','impacted activity','affected activity','linked activity','linked schedule activity'
+      ));
+      const windowIds=refs(cell(r,'window id','analysis window','delay window','window'));
+
+      if(event&&activityIds.length){
+        event.relatedActivityIds=[...new Set([...event.relatedActivityIds,...activityIds])].sort();
+        event.evidenceRefs.push(evref(r,'other'));
+        event.diagnostics=[...new Set([...event.diagnostics,'ACTIVITY_LINK_ENRICHED_FROM_EOT_REGISTER'])];
+      }
+      if(event&&windowIds.length){
+        event.relatedWindowIds=[...new Set([...(event.relatedWindowIds??[]),...windowIds])].sort();
+        event.evidenceRefs.push(evref(r,'other'));
+        event.diagnostics=[...new Set([...event.diagnostics,'WINDOW_LINK_ENRICHED_FROM_EOT_REGISTER'])];
+      }
+
+      const sourceEventStart=dateValue(cell(r,'event start','delay start','event from'));
+      const sourceEventEnd=dateValue(cell(r,'event end','delay end','event to'));
+      if(event&&sourceEventStart){
+        if(event.startIso&&event.startIso!==sourceEventStart)event.diagnostics.push('EVENT_START_CONFLICT_FROM_EOT_REGISTER');
+        else if(!event.startIso)event.startIso=sourceEventStart;
+      }
+      if(event&&sourceEventEnd){
+        if(event.endIso&&event.endIso!==sourceEventEnd)event.diagnostics.push('EVENT_END_CONFLICT_FROM_EOT_REGISTER');
+        else if(!event.endIso)event.endIso=sourceEventEnd;
+      }
+
+      for(const windowId of windowIds){
+        const key=norm(windowId);
+        const movement=n(
+          r,'programme movement days','program movement days','window movement days','positive movement days',
+          'submitted movement days','gross positive window movement','gross window movement days'
+        );
+        const startIso=dateValue(cell(r,'window start','window start date','analysis start','period start'));
+        const endIso=dateValue(cell(r,'window end','window end date','analysis end','period end'));
+        const sequenceValue=n(r,'window sequence','sequence','window no','window number');
+        const parsedSequence=sequenceValue===null
+          ? (()=>{const m=/([0-9]+)/.exec(windowId);return m?Number(m[1]):null;})()
+          : Math.trunc(sequenceValue);
+        const existing=sourceWindowById.get(key);
+        if(existing){
+          if(existing.programmeMovementDays!==null&&movement!==null&&existing.programmeMovementDays!==movement){
+            existing.programmeMovementDays=null;
+            existing.diagnostics.push('CONFLICTING_SOURCE_WINDOW_MOVEMENT');
+          } else if(existing.programmeMovementDays===null&&movement!==null&&!existing.diagnostics.includes('CONFLICTING_SOURCE_WINDOW_MOVEMENT')){
+            existing.programmeMovementDays=movement;
+          }
+          existing.claimIds=[...new Set([...existing.claimIds,...(claimId?[claimId]:[])])].sort();
+          existing.eventIds=[...new Set([...existing.eventIds,...(event?[event.eventId]:[])])].sort();
+          existing.relatedActivityIds=[...new Set([...existing.relatedActivityIds,...activityIds])].sort();
+          existing.evidenceRefs.push(evref(r,'other'));
+        }else{
+          const record:CanonicalDelayWindowEvidence={
+            windowId,
+            sequence:parsedSequence,
+            startIso,
+            endIso,
+            programmeMovementDays:movement,
+            claimIds:claimId?[claimId]:[],
+            eventIds:event?[event.eventId]:[],
+            relatedActivityIds:activityIds,
+            evidenceRefs:[evref(r,'other')],
+            diagnostics:[],
+          };
+          sourceWindowById.set(key,record);
+          sourceWindows.push(record);
+        }
+      }
+    }
+  }
   for(const table of tables.filter(t=>has(t,'claim id','net assessed impact days')||has(t,'claim id','assessed days')))for(const r of table.rows){
     const c=byClaim.get(cell(r,'claim id'));if(!c){diagnostics.push('ORPHAN_ASSESSMENT:'+cell(r,'claim id'));continue;}
     const assessed=n(r,'assessed days','net assessed impact days');
@@ -204,7 +305,7 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
     if(determinations.length)diagnostics.push('AMENDMENT_DETERMINATION_OVERLAP_UNRESOLVED_NO_ADDITIONAL_DAYS_APPLIED');
   }
   if(amendmentConflict)diagnostics.push('CONFLICTING_EFFECTIVE_AMENDMENTS');
-  const delayClaims:DelayClaimsModel|null=claims.length?{projectId:state.projectId,evidenceRevisionId:'canonical-evidence:'+createHash('sha256').update(JSON.stringify(tables.filter(t=>has(t,'claim id')).map(t=>[t.document.documentId,t.document.sourceHashSha256,t.document.basisState]))).digest('hex'),events,claims,notices,noticeRequirements:[],diagnostics:['EVENT_IDENTITIES_ESTABLISHED_FROM_SOURCE_REGISTER_CAUSATION_REMAINS_UNPROVEN',...diagnostics]}:null;
+  const delayClaims:DelayClaimsModel|null=claims.length?{projectId:state.projectId,evidenceRevisionId:'canonical-evidence:'+createHash('sha256').update(JSON.stringify(tables.filter(t=>has(t,'claim id')).map(t=>[t.document.documentId,t.document.sourceHashSha256,t.document.basisState]))).digest('hex'),events,claims,notices,noticeRequirements:[],sourceWindows,diagnostics:['EVENT_IDENTITIES_ESTABLISHED_FROM_SOURCE_REGISTER_CAUSATION_REMAINS_UNPROVEN',...diagnostics]}:null;
   const result:CanonicalTimeClaims={producerVersion:'canonical-time-claims-v1',dataDateIso,delayClaims,contractTimeBasis,determinations,amendments,registerDeterminationDays,effectiveDeterminationDays,futureDeterminationCount:eligible.filter(d=>dataDateIso!==null&&d.determinationDate!==null&&d.determinationDate>dataDateIso).length,diagnostics};
   cache.set(state,{version:state.version,value:result});return result;
 }
