@@ -3967,7 +3967,7 @@ const sourceOnlyForecastCache =
   new Map<
     string,
     ReturnType<
-      typeof sourceOnlyForecast
+      typeof buildIndependentForecastProjection
     >
   >();
 
@@ -4059,7 +4059,9 @@ function sourceOnlyForecast(
   model:
     ProjectRuntimeState["schedules"][number]["revision"]["model"],
   generatedAt: string,
-) {
+): ReturnType<
+  typeof buildIndependentForecastProjection
+> {
   const key =
     model.sourceRevisionId;
   const cached =
