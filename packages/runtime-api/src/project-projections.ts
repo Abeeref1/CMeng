@@ -5908,8 +5908,8 @@ export function invalidateProject(
       );
     }
   }
-}
   specialistChallengeCache.delete(
     projectId,
   );
+}
 
