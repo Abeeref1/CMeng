@@ -564,6 +564,161 @@ test("ZIP evidence pack routes schedules, BOQ CSV and other project evidence wit
 
 
 
+test("runtime activity variance uses the controlled baseline programme", async () => {
+  await withServer(async (base) => {
+    const project =
+      "CONTROLLED-BASELINE-UAT";
+
+    const customXer = (
+      dataDate: string,
+      targetFinish: string,
+      currentFinish: string,
+    ) => [
+      "ERMHDR\t23.12",
+      "%T\tPROJECT",
+      "%F\tproj_id\tproj_short_name\tlast_recalc_date",
+      "%R\t1\t" + project + "\t" + dataDate,
+      "%T\tPROJWBS",
+      "%F\twbs_id\tproj_id\twbs_short_name",
+      "%R\t10\t1\tROOT",
+      "%T\tTASK",
+      "%F\ttask_id\tproj_id\twbs_id\ttask_code\ttask_name\tstatus_code\ttarget_start_date\ttarget_end_date\tearly_start_date\tearly_end_date\ttarget_drtn_hr_cnt\tremain_drtn_hr_cnt\ttotal_float_hr_cnt\tphys_complete_pct",
+      "%R\t100\t1\t10\tA100\tMobilise\tTK_Complete\t2026-01-01\t2026-01-02\t2026-01-01\t2026-01-02\t16\t0\t0\t100",
+      "%R\t101\t1\t10\tA200\tExcavate\tTK_Active\t2026-01-03\t" + targetFinish + "\t2026-01-03\t" + currentFinish + "\t48\t24\t16\t50",
+      "%T\tTASKPRED",
+      "%F\ttask_pred_id\tproj_id\ttask_id\tpred_proj_id\tpred_task_id\tpred_type\tlag_hr_cnt",
+      "%R\tR1\t1\t101\t1\t100\tPR_FS\t0",
+      "%E",
+    ].join("\n");
+
+    const upload = async (
+      filename: string,
+      role: string,
+      dataDate: string,
+      targetFinish: string,
+      currentFinish: string,
+    ) => {
+      const response =
+        await fetch(
+          base +
+            "/api/projects/" +
+            project +
+            "/schedule/uploads",
+          {
+            method: "POST",
+            headers: {
+              "content-type":
+                "text/plain",
+              "x-source-filename":
+                filename,
+              "x-source-relative-path":
+                "02_Schedules_XER/" +
+                filename,
+              "x-schedule-role":
+                role,
+            },
+            body: customXer(
+              dataDate,
+              targetFinish,
+              currentFinish,
+            ),
+          },
+        );
+      assert.equal(
+        response.status,
+        201,
+        await response.text(),
+      );
+    };
+
+    await upload(
+      "S01_Baseline_Rev0.xer",
+      "baseline",
+      "2026-01-01",
+      "2026-01-10",
+      "2026-01-10",
+    );
+    await upload(
+      "S02_Current_U01.xer",
+      "update",
+      "2026-01-05",
+      "2026-01-15",
+      "2026-01-15",
+    );
+
+    const activityResponse =
+      await fetch(
+        base +
+          "/api/projects/" +
+          project +
+          "/schedule/modules/activity-analytics",
+      );
+    assert.equal(
+      activityResponse.status,
+      200,
+    );
+    const activity =
+      await activityResponse.json() as {
+        data: {
+          controlledBaselineRevisionId?: string;
+          rows: Array<{
+            activityId: string;
+            finishVarianceDays: number | null;
+          }>;
+        };
+      };
+
+    assert.ok(
+      activity.data
+        .controlledBaselineRevisionId,
+    );
+    assert.equal(
+      activity.data.rows.find(
+        (row) =>
+          row.activityId ===
+          "A200",
+      )?.finishVarianceDays,
+      5,
+    );
+
+    const programmeResponse =
+      await fetch(
+        base +
+          "/api/projects/" +
+          project +
+          "/schedule/modules/schedule-analytics",
+      );
+    assert.equal(
+      programmeResponse.status,
+      200,
+    );
+    const programme =
+      await programmeResponse.json() as {
+        data: {
+          result: {
+            finishVariance: {
+              lateActivities: number;
+              maximumDelayDays: number | null;
+            };
+          };
+        };
+      };
+    assert.equal(
+      programme.data.result
+        .finishVariance
+        .lateActivities,
+      1,
+    );
+    assert.equal(
+      programme.data.result
+        .finishVariance
+        .maximumDelayDays,
+      5,
+    );
+  });
+});
+
+
 test("legacy support artifacts are excluded from programme history even if stored as schedules", async () => {
   await withServer(async (base) => {
     const project =
