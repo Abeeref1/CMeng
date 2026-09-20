@@ -386,7 +386,7 @@ test("CMeng workspace keeps the active module primary and browser script parseab
 
   for (
     const planningVisual of [
-      "Completion position",
+      "Finish-date position",
       "Programme health",
       "Schedule pressure map",
       "6-week execution view",
