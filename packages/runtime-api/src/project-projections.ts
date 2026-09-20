@@ -690,6 +690,8 @@ function buildBundle(
         generatedAt,
         producerVersion:
           versions.schedule,
+        config:
+          scheduleControlPolicy.config,
       },
     );
 
@@ -887,6 +889,8 @@ function buildBundle(
         generatedAt,
         producerVersion:
           versions.activity,
+        config:
+          scheduleControlPolicy.config,
       },
     );
 
@@ -1005,6 +1009,8 @@ function buildBundle(
         generatedAt,
         producerVersion:
           versions.milestones,
+        config:
+          scheduleControlPolicy.config,
       },
     );
   const milestones =
@@ -1063,6 +1069,8 @@ function buildBundle(
         generatedAt,
         producerVersion:
           versions.nearCritical,
+        config:
+          scheduleControlPolicy.config,
       },
     );
   const nearCritical =
@@ -1107,6 +1115,8 @@ function buildBundle(
         generatedAt,
         producerVersion:
           versions.breakdown,
+        config:
+          scheduleControlPolicy.config,
       },
     );
   modules.set(
@@ -1251,6 +1261,8 @@ function buildBundle(
         generatedAt,
         producerVersion:
           versions.revision,
+        config:
+          scheduleControlPolicy.config,
       },
     );
   modules.set(
@@ -1282,6 +1294,8 @@ function buildBundle(
           controlledBaseline
             ?.revision ??
           null,
+        config:
+          scheduleControlPolicy.config,
       },
     );
   modules.set(
@@ -3235,6 +3249,8 @@ function buildPlanningModuleFast(
         generatedAt,
         producerVersion:
           "planning-fast:schedule-v1",
+        config:
+          scheduleControlPolicy.config,
       },
     );
 
@@ -3512,6 +3528,8 @@ function buildPlanningModuleFast(
           generatedAt,
           producerVersion:
             "planning-fast:activity-v1",
+          config:
+            scheduleControlPolicy.config,
         },
       );
     const activity =
@@ -3625,6 +3643,8 @@ function buildPlanningModuleFast(
           generatedAt,
           producerVersion:
             "planning-fast:milestones-v1",
+          config:
+            scheduleControlPolicy.config,
         },
       );
     const milestones =
@@ -3685,6 +3705,8 @@ function buildPlanningModuleFast(
           generatedAt,
           producerVersion:
             "planning-fast:near-critical-v1",
+          config:
+            scheduleControlPolicy.config,
         },
       );
     const nearCritical =
@@ -3746,6 +3768,8 @@ function buildPlanningModuleFast(
           generatedAt,
           producerVersion:
             "planning-fast:revision-v1",
+          config:
+            scheduleControlPolicy.config,
         },
       );
     modules.set(
@@ -3867,6 +3891,8 @@ function buildPlanningModuleFast(
           generatedAt,
           producerVersion:
             "planning-fast:milestones-v1",
+          config:
+            scheduleControlPolicy.config,
         },
       );
     const milestones =
@@ -4748,6 +4774,8 @@ function buildSpecialistModuleFast(
           generatedAt,
           producerVersion:
             "progress-breakdown-fast-v1",
+          config:
+            scheduleControlPolicy.config,
         },
       );
     result = available(
@@ -4772,6 +4800,8 @@ function buildSpecialistModuleFast(
             controlledBaseline
               ?.revision ??
             null,
+          config:
+            scheduleControlPolicy.config,
         },
       );
     result = available(
@@ -5371,6 +5401,8 @@ function buildSpecialistModuleFast(
           generatedAt,
           producerVersion:
             "progress-position:schedule-v1",
+          config:
+            scheduleControlPolicy.config,
         },
       );
     const milestones =
@@ -5380,6 +5412,8 @@ function buildSpecialistModuleFast(
           generatedAt,
           producerVersion:
             "progress-position:milestones-v1",
+          config:
+            scheduleControlPolicy.config,
         },
       );
     const lookAhead =
