@@ -784,6 +784,100 @@ export function deriveControlsFromCsv(
   if (
     input.document
       .documentType ===
+    "retention_register"
+  ) {
+    const idIndex =
+      indexOf(
+        headers,
+        [
+          "retention id",
+          "retention no",
+          "retention number",
+          "certificate no",
+          "certificate number",
+        ],
+      );
+    const amountIndex =
+      indexOf(
+        headers,
+        [
+          "retention amount",
+          "retention held",
+          "held amount",
+          "amount",
+        ],
+      );
+    const statusIndex =
+      indexOf(
+        headers,
+        [
+          "status",
+          "retention status",
+        ],
+      );
+
+    if (
+      idIndex < 0 ||
+      amountIndex < 0 ||
+      !sourceCurrency
+    ) {
+      return {};
+    }
+
+    const retentions:
+      RetentionRecord[] = [];
+    for (
+      let rowIndex = 1;
+      rowIndex <
+      rows.length;
+      rowIndex += 1
+    ) {
+      const row =
+        rows[rowIndex] ??
+        [];
+      const retentionId =
+        value(
+          row,
+          idIndex,
+        );
+      const amount =
+        numeric(
+          value(
+            row,
+            amountIndex,
+          ),
+        );
+      if (
+        !retentionId ||
+        amount === null
+      ) continue;
+
+      retentions.push({
+        retentionId,
+        amount,
+        currency:
+          sourceCurrency,
+        state:
+          retentionState(
+            value(
+              row,
+              statusIndex,
+            ),
+          ),
+        sourceRefs: [
+          evidenceRef(
+            input.document,
+            rowIndex + 1,
+          ),
+        ],
+      });
+    }
+    return { retentions };
+  }
+
+  if (
+    input.document
+      .documentType ===
       "bond_register" ||
     input.document
       .documentType ===
