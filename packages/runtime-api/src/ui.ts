@@ -1267,7 +1267,7 @@ function renderModuleBasis(data){
   const values=[
     ["Project",projectId],
     ["Programme basis",revisionText],
-    ["Data date",asOf],
+    ["Data date",asOf?planningShortDate(asOf):asOf],
     ["Position",authorityText],
     ["Coverage",typeof coverage==="number"?fmt(coverage)+"%":coverage]
   ].filter(([,value])=>value!==null&&value!==undefined&&String(value).length>0);
@@ -1282,6 +1282,27 @@ function renderStructuredSections(data){
     const count=Array.isArray(value)?value.length:null;
     return '<section class="data-section"><div class="data-section-head"><h4>'+escapeHtml(humanizeKey(key))+'</h4>'+(count===null?'':'<span class="badge">'+escapeHtml(count)+' records</span>')+'</div><div class="data-section-body">'+renderStructuredValue(value,0)+'</div></section>';
   }).join("");
+}
+function userFacingModuleReason(key,reason){
+  if(!reason)return"";
+  const messages={
+    "schedule-analytics":"Programme health is available from the submitted schedule. The independent path check still needs review before it can be confirmed.",
+    "activity-analytics":"Activity dates, progress and float are available. The independent path check still needs review.",
+    "near-critical":"The near-critical watchlist is based on the submitted programme float while the independent path check is still under review.",
+    "revision-trend":"Only one controlled programme revision is available, so movement over time cannot yet be compared.",
+    "schedule-change-report":"A second controlled programme revision is needed before CMeng can compare programme changes.",
+    "forecast-history":"Only one controlled forecast point is available, so a trend cannot yet be shown.",
+    "independent-forecast":"Some schedule information still needs review before the completion forecast can be fully confirmed.",
+    "windows-analysis":"More than one controlled programme revision is needed for a reliable delay-window comparison.",
+    "delay-claims":"Delay and claim information is incomplete. CMeng shows only the position supported by the current records.",
+    "notices-claims":"No complete contractor notice/claim position was found. Missing records are kept separate from zero.",
+    "eot-assessment":"The current schedule movement is visible, but the contractual time basis is incomplete for a full EOT assessment."
+  };
+  return messages[key]||String(reason)
+    .replace(/independent CPM/gi,"independent path check")
+    .replace(/driving-path/gi,"driving path")
+    .replace(/projection/gi,"analysis")
+    .replace(/evidence/gi,"project information");
 }
 function renderModuleResult(result){
   const moduleName=names[result.key]||result.key;
@@ -1308,7 +1329,8 @@ function renderModuleResult(result){
   const generated=data.challenge?.generatedAt||findProjectionRoot(data)?.generatedAt||data.generatedAt||null;
   const viewState='<div class="view-state-bar"><span class="'+(result.status==="ready"?"view-state-complete":"view-state-review")+'">'+(result.status==="ready"?"Updated":"Updated · review needed")+'</span><strong>'+escapeHtml(moduleName)+'</strong>'+(generated?'<span>Updated '+escapeHtml(formatDocumentTime(generated))+'</span>':'')+'<span>Current position and the items that need attention are shown below.</span></div>';
   el("directorDrawer").open=false;
-  el("moduleContent").innerHTML=viewState+basisHtml+(result.reason?'<div class="notice info">'+escapeHtml(result.reason)+'</div>':'')+primaryView+challengeHtml+evidenceDetail;
+  const userReason=userFacingModuleReason(result.key,result.reason);
+  el("moduleContent").innerHTML=viewState+basisHtml+(userReason?'<div class="notice info">'+escapeHtml(userReason)+'</div>':'')+primaryView+challengeHtml+evidenceDetail;
 }
 let moduleRequestSeq=0;
 async function loadModule(key){
