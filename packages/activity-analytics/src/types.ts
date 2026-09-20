@@ -33,6 +33,7 @@ export interface ActivityAnalyticsRow {
   freeFloatHours: number | null;
 
   criticality: ActivityCriticality;
+  floatRiskWatchlist: boolean | null;
   finishVarianceDays: number | null;
 
   predecessorIds: string[];
