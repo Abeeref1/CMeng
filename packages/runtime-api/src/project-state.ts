@@ -2084,7 +2084,7 @@ export class RuntimeProjectStore {
 
     for (const state of this.projects.values()) {
       let projectChanged = false;
-      let projectReadyForV4 = true;
+      let projectReadyForV5 = true;
       const basisDocuments =
         state.evidenceDocuments.filter(
           (document) =>
@@ -2122,7 +2122,7 @@ export class RuntimeProjectStore {
           !document.storedPath ||
           !existsSync(document.storedPath)
         ) {
-          projectReadyForV4 = false;
+          projectReadyForV5 = false;
           diagnostics.push(
             "SCHEDULE_CONTROL_BASIS_REFRESH_SOURCE_UNAVAILABLE:" +
               document.documentId,
@@ -2138,7 +2138,7 @@ export class RuntimeProjectStore {
           verifiedHash !==
           document.sourceHashSha256
         ) {
-          projectReadyForV4 = false;
+          projectReadyForV5 = false;
           diagnostics.push(
             "SCHEDULE_CONTROL_BASIS_REFRESH_HASH_MISMATCH:" +
               document.documentId,
@@ -2162,7 +2162,7 @@ export class RuntimeProjectStore {
               "schedule_control_basis",
           });
 
-        const extracted =
+        let extracted =
           extractDocumentAssertions(
             identified.textSample,
             "evidence:" +
@@ -2173,7 +2173,7 @@ export class RuntimeProjectStore {
             ),
           );
 
-        const establishesThreshold =
+        let establishesThreshold =
           extracted.some(
             (assertion) =>
               assertion.metric ===
@@ -2183,7 +2183,73 @@ export class RuntimeProjectStore {
           );
 
         if (!establishesThreshold) {
-          projectReadyForV4 = false;
+          const fullDocument =
+            await this.extractFullScheduleControlAssertions(
+              bytes,
+              "evidence:" +
+                document.sourceFilename +
+                ":full-document",
+              controlMetrics,
+            );
+          diagnostics.push(
+            ...fullDocument.diagnostics.map(
+              (item) =>
+                item +
+                ":" +
+                document.documentId,
+            ),
+          );
+
+          const merged =
+            new Map<
+              string,
+              DocumentAssertion
+            >();
+          for (
+            const assertion of [
+              ...extracted,
+              ...fullDocument.assertions,
+            ]
+          ) {
+            const key =
+              assertion.metric +
+              "|" +
+              String(
+                assertion.value,
+              ) +
+              "|" +
+              String(
+                assertion.unit ??
+                "",
+              );
+            const prior =
+              merged.get(key);
+            if (
+              !prior ||
+              assertion.confidence >
+                prior.confidence
+            ) {
+              merged.set(
+                key,
+                assertion,
+              );
+            }
+          }
+          extracted = [
+            ...merged.values(),
+          ];
+          establishesThreshold =
+            extracted.some(
+              (assertion) =>
+                assertion.metric ===
+                  "near_critical_working_days" ||
+                assertion.metric ===
+                  "near_critical_threshold_hours",
+            );
+        }
+
+        if (!establishesThreshold) {
+          projectReadyForV5 = false;
           diagnostics.push(
             "SCHEDULE_CONTROL_BASIS_THRESHOLD_NOT_EXTRACTED:" +
               document.documentId,
@@ -2217,14 +2283,14 @@ export class RuntimeProjectStore {
 
       if (
         basisDocuments.length === 0 ||
-        projectReadyForV4
+        projectReadyForV5
       ) {
         if (
           state.sourceIntegrationVersion !==
-          "canonical-source-v4"
+          "canonical-source-v5"
         ) {
           state.sourceIntegrationVersion =
-            "canonical-source-v4";
+            "canonical-source-v5";
           projectChanged = true;
         }
       }
