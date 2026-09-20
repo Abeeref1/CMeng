@@ -487,6 +487,8 @@ export function loadCertifiedDemoProject(
           },
         ],
       ]),
+    resourceSupportByDocument: {},
+    resourceSupport: null,
     boq: null,
     boqRevisions: [],
     quantities: {
