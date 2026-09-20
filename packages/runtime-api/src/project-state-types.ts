@@ -12,6 +12,9 @@ import type {
   ContractFamilyResult,
 } from "../../contract-parser/src";
 import type {
+  CommercialRuntimeState,
+} from "../../commercial-core/src";
+import type {
   SourceProductivityForecastModel,
 } from "../../independent-forecast/src";
 import type {
@@ -408,6 +411,7 @@ export interface ProjectRuntimeState {
   quantities:
     CanonicalQuantityProgressModel | null;
   contract: ContractDocumentResult | null;
+  commercial: CommercialRuntimeState;
   contractDocuments: StoredContractDocument[];
   contractFamily: ContractFamilyResult | null;
   submittedManpowerPlan:
