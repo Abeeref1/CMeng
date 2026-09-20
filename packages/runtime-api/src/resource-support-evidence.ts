@@ -21,6 +21,7 @@ export interface WeeklyResourceCapacitySummary {
   state:
     | "available"
     | "partial"
+    | "candidate"
     | "not_found";
   rowCount: number;
   comparableRowCount: number;
@@ -30,6 +31,8 @@ export interface WeeklyResourceCapacitySummary {
   capacityCoveragePercent:
     number | null;
   unitLabels: string[];
+  sourceBasisStates: string[];
+  candidateDocumentCount: number;
   points:
     WeeklyResourceCapacityPoint[];
   weeklyTotals: Array<{
@@ -224,7 +227,9 @@ export function weeklyResourceCapacityEvidence(
           document.basisState ===
             "active" ||
           document.basisState ===
-            "additive"
+            "additive" ||
+          document.basisState ===
+            "candidate"
         ) &&
         (
           document.documentType ===
@@ -421,6 +426,8 @@ export function weeklyResourceCapacityEvidence(
       capacityCoveragePercent:
         null,
       unitLabels: [],
+      sourceBasisStates: [],
+      candidateDocumentCount: 0,
       points: [],
       weeklyTotals: [],
       diagnostics,
@@ -554,12 +561,33 @@ export function weeklyResourceCapacityEvidence(
         }),
       );
 
+  const sourceBasisStates = [
+    ...new Set(
+      candidates.map(
+        (document) =>
+          document.basisState,
+      ),
+    ),
+  ];
+  const candidateDocumentCount =
+    candidates.filter(
+      (document) =>
+        document.basisState ===
+        "candidate",
+    ).length;
+  const governedDocumentCount =
+    candidates.length -
+    candidateDocumentCount;
+
   return {
     state:
-      comparable.length ===
-      points.length
-        ? "available"
-        : "partial",
+      governedDocumentCount === 0 &&
+      candidateDocumentCount > 0
+        ? "candidate"
+        : comparable.length ===
+            points.length
+          ? "available"
+          : "partial",
     rowCount:
       points.length,
     comparableRowCount:
@@ -618,6 +646,8 @@ export function weeklyResourceCapacityEvidence(
           ),
       ),
     ],
+    sourceBasisStates,
+    candidateDocumentCount,
     points,
     weeklyTotals,
     diagnostics,
