@@ -8,7 +8,7 @@ import {
 } from "../../truth-kernel/src";
 import {
   DEFAULT_SCHEDULE_ANALYSIS_CONFIG,
-  activityNearCriticalThresholdHours,
+  sourceFloatInFloatRiskWatchlist,
   type ScheduleAnalysisConfig,
 } from "../../schedule-analysis-core/src";
 import type { ProjectRuntimeState } from "./project-state-types";
@@ -25,6 +25,8 @@ export interface ProjectScheduleControlBasis {
   nearCriticalWorkingDays: number | null;
   nearCriticalExplicitHours: number | null;
   nearCriticalSourceCount: number | null;
+  sourceReportedFloatRiskWatchlistCount: number | null;
+  floatRiskWatchlistIncludesCriticalThreshold: boolean | null;
   nearCriticalThresholdMethod:
     | "explicit_working_days"
     | "explicit_hours"
@@ -118,102 +120,145 @@ function reconcileWorkingDaysFromSourceCount(
   criticalFloatThresholdHours: number,
 ): {
   workingDays: number | null;
+  includeCriticalThreshold: boolean | null;
   diagnostics: string[];
 } {
   const current = projectControlSchedule(state);
   if (!current) {
     return {
       workingDays: null,
+      includeCriticalThreshold: null,
       diagnostics: [
-        "NEAR_CRITICAL_COUNT_RECONCILIATION_REQUIRES_CURRENT_PROGRAMME",
+        "FLOAT_RISK_COUNT_RECONCILIATION_REQUIRES_CURRENT_PROGRAMME",
       ],
     };
   }
 
   const model = current.revision.model;
-  const candidates: number[] = [];
+  const candidates: Array<{
+    workingDays: number;
+    includeCriticalThreshold: boolean;
+  }> = [];
   const diagnostics: string[] = [];
 
   for (let workingDays = 1; workingDays <= 30; workingDays += 1) {
-    const config: ScheduleAnalysisConfig = {
-      criticalFloatThresholdHours,
-      nearCriticalFloatThresholdHours:
-        DEFAULT_SCHEDULE_ANALYSIS_CONFIG.nearCriticalFloatThresholdHours,
-      nearCriticalWorkingDays: workingDays,
-      varianceLateThresholdDays:
-        DEFAULT_SCHEDULE_ANALYSIS_CONFIG.varianceLateThresholdDays,
-    };
+    for (
+      const includeCriticalThreshold of [
+        false,
+        true,
+      ]
+    ) {
+      const config: ScheduleAnalysisConfig = {
+        criticalFloatThresholdHours,
+        nearCriticalFloatThresholdHours:
+          DEFAULT_SCHEDULE_ANALYSIS_CONFIG.nearCriticalFloatThresholdHours,
+        nearCriticalWorkingDays:
+          workingDays,
+        floatRiskWatchlistIncludesCriticalThreshold:
+          includeCriticalThreshold,
+        varianceLateThresholdDays:
+          DEFAULT_SCHEDULE_ANALYSIS_CONFIG.varianceLateThresholdDays,
+      };
 
-    let unresolved = 0;
-    let count = 0;
+      let unresolved = 0;
+      let count = 0;
 
-    for (const activity of model.activities) {
-      if (
-        activity.totalFloatHours === null ||
-        activity.totalFloatHours <=
-          criticalFloatThresholdHours
-      ) {
-        continue;
+      for (const activity of model.activities) {
+        if (activity.totalFloatHours === null) {
+          continue;
+        }
+
+        const member =
+          sourceFloatInFloatRiskWatchlist(
+            model,
+            activity,
+            config,
+          );
+        if (member === null) {
+          const canBeInRange =
+            includeCriticalThreshold
+              ? activity.totalFloatHours >=
+                criticalFloatThresholdHours
+              : activity.totalFloatHours >
+                criticalFloatThresholdHours;
+          if (canBeInRange) unresolved += 1;
+          continue;
+        }
+
+        if (member) count += 1;
       }
 
-      const threshold =
-        activityNearCriticalThresholdHours(
-          model,
-          activity,
-          config,
+      if (unresolved > 0) {
+        diagnostics.push(
+          "FLOAT_RISK_COUNT_RECONCILIATION_CALENDAR_GAPS:" +
+            workingDays +
+            ":" +
+            (
+              includeCriticalThreshold
+                ? "inclusive"
+                : "exclusive"
+            ) +
+            ":" +
+            unresolved,
         );
-      if (threshold === null) {
-        unresolved += 1;
         continue;
       }
 
-      if (
-        activity.totalFloatHours <=
-        threshold
-      ) {
-        count += 1;
+      if (count === sourceCount) {
+        candidates.push({
+          workingDays,
+          includeCriticalThreshold,
+        });
       }
-    }
-
-    if (unresolved > 0) {
-      diagnostics.push(
-        "NEAR_CRITICAL_COUNT_RECONCILIATION_CALENDAR_GAPS:" +
-          workingDays +
-          ":" +
-          unresolved,
-      );
-      continue;
-    }
-
-    if (count === sourceCount) {
-      candidates.push(workingDays);
     }
   }
 
   if (candidates.length === 1) {
+    const candidate = candidates[0]!;
     diagnostics.push(
-      "NEAR_CRITICAL_WORKING_DAYS_RECONCILED_FROM_SOURCE_COUNT:" +
+      "FLOAT_RISK_WORKING_DAYS_AND_BOUNDARY_RECONCILED_FROM_SOURCE_COUNT:" +
         sourceCount +
         ":" +
-        candidates[0],
+        candidate.workingDays +
+        ":" +
+        (
+          candidate.includeCriticalThreshold
+            ? "inclusive"
+            : "exclusive"
+        ),
     );
     return {
-      workingDays: candidates[0]!,
+      workingDays:
+        candidate.workingDays,
+      includeCriticalThreshold:
+        candidate.includeCriticalThreshold,
       diagnostics,
     };
   }
 
   diagnostics.push(
     candidates.length === 0
-      ? "NEAR_CRITICAL_SOURCE_COUNT_HAS_NO_WORKING_DAY_SOLUTION:" +
+      ? "FLOAT_RISK_SOURCE_COUNT_HAS_NO_UNIQUE_CALENDAR_BOUNDARY_SOLUTION:" +
           sourceCount
-      : "NEAR_CRITICAL_SOURCE_COUNT_SOLUTION_NOT_UNIQUE:" +
+      : "FLOAT_RISK_SOURCE_COUNT_SOLUTION_NOT_UNIQUE:" +
           sourceCount +
           ":" +
-          candidates.join(","),
+          candidates
+            .map(
+              (candidate) =>
+                candidate.workingDays +
+                ":" +
+                (
+                  candidate.includeCriticalThreshold
+                    ? "inclusive"
+                    : "exclusive"
+                ),
+            )
+            .join(","),
   );
   return {
     workingDays: null,
+    includeCriticalThreshold: null,
     diagnostics,
   };
 }
@@ -572,6 +617,11 @@ export function projectScheduleControlBasis(
 
   let resolvedNearWorking =
     uniqueNearWorking;
+  let resolvedWatchlistIncludesCriticalThreshold:
+    boolean | null =
+    uniqueNearWorking !== null
+      ? false
+      : null;
   let thresholdMethod:
     ProjectScheduleControlBasis["nearCriticalThresholdMethod"] =
     uniqueNearWorking !== null
@@ -596,10 +646,14 @@ export function projectScheduleControlBasis(
     );
     if (
       reconciled.workingDays !==
-      null
+        null &&
+      reconciled.includeCriticalThreshold !==
+        null
     ) {
       resolvedNearWorking =
         reconciled.workingDays;
+      resolvedWatchlistIncludesCriticalThreshold =
+        reconciled.includeCriticalThreshold;
       thresholdMethod =
         "source_count_reconciliation";
       if (uniqueNearHours !== null) {
@@ -646,6 +700,9 @@ export function projectScheduleControlBasis(
             uniqueNearHours ??
             DEFAULT_SCHEDULE_ANALYSIS_CONFIG.nearCriticalFloatThresholdHours,
           nearCriticalWorkingDays: resolvedNearWorking,
+          floatRiskWatchlistIncludesCriticalThreshold:
+            resolvedWatchlistIncludesCriticalThreshold ===
+            true,
           varianceLateThresholdDays:
             DEFAULT_SCHEDULE_ANALYSIS_CONFIG.varianceLateThresholdDays,
         }
@@ -685,6 +742,10 @@ export function projectScheduleControlBasis(
     nearCriticalWorkingDays: resolvedNearWorking,
     nearCriticalExplicitHours: uniqueNearHours,
     nearCriticalSourceCount: uniqueNearCount,
+    sourceReportedFloatRiskWatchlistCount:
+      uniqueNearCount,
+    floatRiskWatchlistIncludesCriticalThreshold:
+      resolvedWatchlistIncludesCriticalThreshold,
     nearCriticalThresholdMethod:
       thresholdMethod,
     sourceDataDateIso,
