@@ -1301,12 +1301,53 @@ function buildBundle(
         },
       );
 
+    const weeklyCapacity =
+      weeklyResourceCapacityEvidence(
+        state.evidenceDocuments,
+      );
     modules.set(
       "resource-utilization",
       available(
         "resource-utilization",
-        resourceUtilization,
-        ["resource-loaded XER"],
+        {
+          ...resourceUtilization,
+          scheduleCapacityCoveragePercent:
+            resourceUtilization
+              .capacityCoveragePercent,
+          capacityCoveragePercent:
+            weeklyCapacity
+              .capacityCoveragePercent ??
+            resourceUtilization
+              .capacityCoveragePercent,
+          plannedUtilizationPercent:
+            weeklyCapacity
+              .plannedUtilizationPercent ??
+            null,
+          actualUtilizationPercent:
+            weeklyCapacity
+              .actualUtilizationPercent ??
+            null,
+          utilizationByUnit:
+            weeklyCapacity
+              .utilizationByUnit,
+          weeklyCapacityEvidence:
+            weeklyCapacity,
+        },
+        [
+          "resource-loaded XER",
+          "governed resource evidence",
+        ],
+        weeklyCapacity.state ===
+            "available" ||
+          resourceUtilization
+            .capacityBasedResourceCount >
+            0
+          ? "ready"
+          : "partial",
+        weeklyCapacity.state ===
+            "candidate"
+          ? "Resource support evidence exists only as candidate and is not promoted to governed utilization."
+          : null,
       ),
     );
     modules.set(
@@ -4802,14 +4843,51 @@ function buildSpecialistModuleFast(
       const weeklyComparable =
         weeklyCapacity
           .comparableRowCount > 0;
+      const governedWeeklyCapacity =
+        weeklyCapacity.state ===
+          "available" ||
+        weeklyCapacity.state ===
+          "partial";
+      const effectiveCoverage =
+        governedWeeklyCapacity &&
+        weeklyCapacity
+          .capacityCoveragePercent !==
+          null
+          ? weeklyCapacity
+              .capacityCoveragePercent
+          : projection
+              .capacityCoveragePercent;
       const enriched = {
         ...projection,
+        scheduleCapacityCoveragePercent:
+          projection
+            .capacityCoveragePercent,
+        capacityCoveragePercent:
+          effectiveCoverage,
+        plannedUtilizationPercent:
+          governedWeeklyCapacity
+            ? weeklyCapacity
+                .plannedUtilizationPercent
+            : null,
+        actualUtilizationPercent:
+          governedWeeklyCapacity
+            ? weeklyCapacity
+                .actualUtilizationPercent
+            : null,
+        utilizationByUnit:
+          governedWeeklyCapacity
+            ? weeklyCapacity
+                .utilizationByUnit
+            : [],
         assessedOverloadResourceCount:
           capacityKnown,
         overloadAssessmentState:
-          capacityKnown === 0
+          capacityKnown === 0 &&
+          !weeklyComparable
             ? "not_assessable_per_hour"
-            : allCapacityKnown
+            : allCapacityKnown ||
+                weeklyCapacity.state ===
+                  "available"
               ? "complete"
               : "partial",
         weeklyCapacityEvidence:
@@ -4822,7 +4900,9 @@ function buildSpecialistModuleFast(
           "resource assignments",
           "resource capacity",
         ],
-        allCapacityKnown
+        allCapacityKnown ||
+        weeklyCapacity.state ===
+          "available"
           ? "ready"
           : "partial",
         capacityKnown === 0
