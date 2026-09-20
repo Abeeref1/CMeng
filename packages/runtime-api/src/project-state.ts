@@ -16,6 +16,7 @@ import {
   extname,
   join,
 } from "node:path";
+import { PDFParse } from "pdf-parse";
 
 import {
   ingestBoq,
@@ -1730,6 +1731,340 @@ export class RuntimeProjectStore {
             JSON.stringify(event),
           ),
       });
+    }
+  }
+
+  private async extractFullScheduleControlAssertions(
+    bytes: Uint8Array,
+    sourceRef: string,
+    controlMetrics: ReadonlySet<string>,
+  ): Promise<{
+    assertions: DocumentAssertion[];
+    diagnostics: string[];
+  }> {
+    const diagnostics: string[] = [];
+    const parser =
+      new PDFParse({
+        data:
+          Buffer.from(bytes) as any,
+      });
+
+    const relevant = (
+      text: string,
+    ): DocumentAssertion[] =>
+      extractDocumentAssertions(
+        text,
+        sourceRef,
+      ).filter((assertion) =>
+        controlMetrics.has(
+          assertion.metric,
+        ),
+      );
+
+    const hasThreshold = (
+      assertions:
+        readonly DocumentAssertion[],
+    ): boolean =>
+      assertions.some(
+        (assertion) =>
+          assertion.metric ===
+            "near_critical_working_days" ||
+          assertion.metric ===
+            "near_critical_threshold_hours",
+      );
+
+    const mergeAssertions = (
+      ...sets:
+        readonly DocumentAssertion[][]
+    ): DocumentAssertion[] => {
+      const byKey =
+        new Map<
+          string,
+          DocumentAssertion
+        >();
+      for (
+        const assertion of
+          sets.flat()
+      ) {
+        const key =
+          assertion.metric +
+          "|" +
+          String(assertion.value) +
+          "|" +
+          String(
+            assertion.unit ??
+            "",
+          );
+        const prior =
+          byKey.get(key);
+        if (
+          !prior ||
+          assertion.confidence >
+            prior.confidence
+        ) {
+          byKey.set(
+            key,
+            assertion,
+          );
+        }
+      }
+      return [
+        ...byKey.values(),
+      ];
+    };
+
+    try {
+      const full =
+        await parser.getText();
+      const pages =
+        [
+          ...(full.pages ?? []),
+        ].sort(
+          (a, b) =>
+            (a.num ?? 0) -
+            (b.num ?? 0),
+        );
+      const nativeText =
+        pages
+          .map(
+            (page) =>
+              page.text ??
+              "",
+          )
+          .join("\n");
+      let assertions =
+        relevant(nativeText);
+
+      if (
+        hasThreshold(
+          assertions,
+        )
+      ) {
+        diagnostics.push(
+          "SCHEDULE_CONTROL_BASIS_FULL_NATIVE_TEXT_USED",
+        );
+        return {
+          assertions,
+          diagnostics,
+        };
+      }
+
+      if (
+        process.env
+          .CMENG_OCR_ENABLED
+          ?.trim() === "0"
+      ) {
+        diagnostics.push(
+          "SCHEDULE_CONTROL_BASIS_FULL_OCR_DISABLED",
+        );
+        return {
+          assertions,
+          diagnostics,
+        };
+      }
+
+      const pageCount =
+        Number.isFinite(
+          full.total,
+        )
+          ? Number(full.total)
+          : pages.length;
+      const maxOcrPages =
+        Math.max(
+          1,
+          Number.parseInt(
+            process.env
+              .CMENG_SCHEDULE_CONTROL_OCR_MAX_PAGES ??
+              "16",
+            10,
+          ) || 16,
+        );
+
+      const allPageNumbers =
+        Array.from(
+          {
+            length:
+              Math.max(
+                0,
+                pageCount,
+              ),
+          },
+          (
+            _,
+            index,
+          ) =>
+            index + 1,
+        );
+      const selected =
+        allPageNumbers.length <=
+        maxOcrPages
+          ? allPageNumbers
+          : [
+              ...new Set(
+                Array.from(
+                  {
+                    length:
+                      maxOcrPages,
+                  },
+                  (
+                    _,
+                    index,
+                  ) =>
+                    Math.max(
+                      1,
+                      Math.min(
+                        pageCount,
+                        Math.round(
+                          1 +
+                            (
+                              index /
+                              Math.max(
+                                1,
+                                maxOcrPages -
+                                  1,
+                              )
+                            ) *
+                              (
+                                pageCount -
+                                1
+                              ),
+                        ),
+                      ),
+                    ),
+                ),
+              ),
+            ];
+
+      if (
+        selected.length ===
+        0
+      ) {
+        diagnostics.push(
+          "SCHEDULE_CONTROL_BASIS_PDF_HAS_NO_PAGES",
+        );
+        return {
+          assertions,
+          diagnostics,
+        };
+      }
+
+      const screenshots:
+        any =
+        await parser.getScreenshot({
+          partial:
+            selected,
+          scale: 1.75,
+          imageBuffer: true,
+          imageDataUrl: false,
+        });
+      const provider =
+        this.createOcrProvider();
+      const texts:
+        string[] = [];
+
+      try {
+        for (
+          let index = 0;
+          index <
+          (
+            screenshots.pages ??
+            []
+          ).length;
+          index += 1
+        ) {
+          const page =
+            screenshots.pages[
+              index
+            ];
+          const image =
+            page?.data;
+          if (!image) {
+            continue;
+          }
+          const ocr =
+            await provider.recognize(
+              image instanceof
+                Uint8Array
+                ? image
+                : Buffer.from(
+                    image,
+                  ),
+              selected[
+                index
+              ] ??
+                index + 1,
+            );
+          if (
+            ocr.text?.trim()
+          ) {
+            texts.push(
+              ocr.text,
+            );
+          }
+          diagnostics.push(
+            ...ocr.diagnostics.map(
+              (item) =>
+                "SCHEDULE_CONTROL_OCR:" +
+                item,
+            ),
+          );
+        }
+      } finally {
+        if (
+          provider.close
+        ) {
+          await provider.close();
+        }
+      }
+
+      const ocrAssertions =
+        relevant(
+          texts.join(
+            "\n",
+          ),
+        );
+      assertions =
+        mergeAssertions(
+          assertions,
+          ocrAssertions,
+        );
+
+      if (
+        hasThreshold(
+          assertions,
+        )
+      ) {
+        diagnostics.push(
+          "SCHEDULE_CONTROL_BASIS_FULL_OCR_USED",
+        );
+      } else {
+        diagnostics.push(
+          "SCHEDULE_CONTROL_BASIS_FULL_DOCUMENT_THRESHOLD_NOT_FOUND",
+        );
+      }
+
+      return {
+        assertions,
+        diagnostics,
+      };
+    } catch (error) {
+      diagnostics.push(
+        "SCHEDULE_CONTROL_BASIS_FULL_DOCUMENT_PARSE_ERROR:" +
+          (
+            error instanceof
+              Error
+              ? error.message
+              : String(
+                  error,
+                )
+          ),
+      );
+      return {
+        assertions: [],
+        diagnostics,
+      };
+    } finally {
+      await parser.destroy();
     }
   }
 
