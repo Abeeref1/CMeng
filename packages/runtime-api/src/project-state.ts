@@ -693,6 +693,55 @@ export function normalizeProjectCode(
     .toUpperCase();
 }
 
+export function isProgrammeScheduleRevision(
+  item: StoredScheduleRevision,
+): boolean {
+  if (
+    item.revision.model
+      .activities.length === 0
+  ) {
+    return false;
+  }
+
+  const filename =
+    (
+      item.sourceFilename ??
+      ""
+    ).toLowerCase();
+
+  if (
+    /^(?:rel\d*|res\d*|sch\d*|wbs\d*|obs\d*|pdb\d*)[_-]/i.test(
+      filename,
+    ) ||
+    /(?:longest[_ -]?path|baseline[_ -]?to[_ -]?current|schedule[_ -]?comparison|resource[_ -]?register|wbs[_ -]?dictionary)/i.test(
+      filename,
+    )
+  ) {
+    return false;
+  }
+
+  if (
+    item.role === "baseline" ||
+    item.role === "update" ||
+    item.role ===
+      "revised_baseline" ||
+    item.role === "recovery"
+  ) {
+    return true;
+  }
+
+  return (
+    item.format === "xer" ||
+    item.format ===
+      "primavera_xml" ||
+    item.revision.model
+      .dataDateIso !== null ||
+    item.revision.model
+      .relationships.length > 0
+  );
+}
+
+
 function safeSegment(
   value: string,
 ): string {
@@ -1221,6 +1270,17 @@ export class RuntimeProjectStore {
       return null;
     }
 
+    const programmeSchedules =
+      state.schedules.filter(
+        isProgrammeScheduleRevision,
+      );
+    if (
+      programmeSchedules.length ===
+      0
+    ) {
+      return null;
+    }
+
     const governedActive =
       state.activeEvidenceBasis[
         "schedule:control"
@@ -1228,7 +1288,7 @@ export class RuntimeProjectStore {
       null;
     if (governedActive) {
       const active =
-        state.schedules.find(
+        programmeSchedules.find(
           (item) =>
             item.revision
               .revisionId ===
@@ -1240,23 +1300,23 @@ export class RuntimeProjectStore {
     }
 
     const updates =
-      state.schedules.filter(
+      programmeSchedules.filter(
         (item) =>
           item.role === "update",
       );
     const revisedBaselines =
-      state.schedules.filter(
+      programmeSchedules.filter(
         (item) =>
           item.role ===
           "revised_baseline",
       );
     const baselines =
-      state.schedules.filter(
+      programmeSchedules.filter(
         (item) =>
           item.role === "baseline",
       );
     const nonRecovery =
-      state.schedules.filter(
+      programmeSchedules.filter(
         (item) =>
           item.role !== "recovery",
       );
@@ -1269,7 +1329,7 @@ export class RuntimeProjectStore {
             ? baselines
             : nonRecovery.length > 0
               ? nonRecovery
-              : state.schedules;
+              : programmeSchedules;
 
     return [...candidates]
       .sort((a, b) => {
@@ -1880,7 +1940,21 @@ export class RuntimeProjectStore {
       ) >
         syncOcrPageLimit;
 
-    if (category === "schedule") {
+    const programmeDocumentTypes =
+      new Set([
+        "schedule_file",
+        "schedule_baseline",
+        "schedule_update",
+        "schedule_revised_baseline",
+        "schedule_recovery",
+      ]);
+
+    if (
+      category === "schedule" &&
+      programmeDocumentTypes.has(
+        documentType,
+      )
+    ) {
       const result =
         await this.ingestSchedule({
           projectId:
