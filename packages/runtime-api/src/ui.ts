@@ -548,7 +548,18 @@ function humanizeKey(key){
     .replace(/([a-z0-9])([A-Z])/g,"$1 $2")
     .replace(/\b\w/g,c=>c.toUpperCase());
 }
-function documentUseLabel(state){
+function documentUseLabel(state,document=null){
+  if(document?.category==="schedule_control"){
+    const supportLabels={
+      active:"Current supporting record",
+      superseded:"Previous supporting record",
+      candidate:"Supporting record needs review",
+      additive:"Additional supporting record",
+      historical:"Reference only",
+      scenario:"Scenario only"
+    };
+    return supportLabels[state]||humanizeKey(state||"unknown");
+  }
   const labels={
     active:"Current / used now",
     superseded:"Previous version",
@@ -1531,7 +1542,7 @@ async function loadEvidence(){
       return;
     }
     const guide='<div class="document-state-guide"><h4>How to read these document statuses</h4><div class="document-state-grid">'+
-      '<div class="document-state-item"><b>Current / used now</b><span>This is the current controlling document for its document family.</span></div>'+
+      '<div class="document-state-item"><b>Current / used now</b><span>This is the current controlling document for its document family. Schedule support registers are labelled separately as supporting records.</span></div>'+
       '<div class="document-state-item"><b>Previous version</b><span>Retained for audit and comparison, but no longer current.</span></div>'+
       '<div class="document-state-item"><b>Needs review before current</b><span>CMeng retained it, but has not promoted it to the current basis.</span></div>'+
       '<div class="document-state-item"><b>Adds to current record</b><span>It supplements the current base, such as an amendment or variation; it does not replace it.</span></div>'+
@@ -1549,7 +1560,7 @@ async function loadEvidence(){
       const method=(i.method||"—")+(i.ocrUsed?" / OCR":"");
       const title=i.detectedTitle?'<br><span class="muted">'+escapeHtml(i.detectedTitle)+'</span>':"";
       const full=d.sourceRelativePath||d.sourceFilename;
-      const position=documentUseLabel(d.basisState||"historical");
+      const position=documentUseLabel(d.basisState||"historical",d);
       const positionClass=d.basisState==="active"?"ready":d.basisState==="candidate"?"partial":"";
       const readLabel=documentReadLabel(d.parserState);
       const readNote=documentReadNote(d.parserState);
