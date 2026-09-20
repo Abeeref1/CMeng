@@ -1,6 +1,6 @@
 import {
   DEFAULT_SCHEDULE_ANALYSIS_CONFIG,
-  activityFloatBasis,
+  sourceFloatCriticality,
   type CanonicalScheduleActivity,
   type CanonicalScheduleModel,
   type ScheduleAnalysisConfig,
@@ -132,12 +132,12 @@ function buildRow(
       ),
     criticalCount: floatKnown.filter(
       (activity) =>
-        activityFloatBasis(model, activity, config).classification ===
+        sourceFloatCriticality(model, activity, config) ===
         "critical",
     ).length,
     nearCriticalCount: floatKnown.filter(
       (activity) =>
-        activityFloatBasis(model, activity, config).classification ===
+        sourceFloatCriticality(model, activity, config) ===
         "near_critical",
     ).length,
     negativeFloatCount: floatKnown.filter(
