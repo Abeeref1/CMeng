@@ -556,6 +556,9 @@ test("deleting the current programme document restores the prior update", async 
         assert.equal(
           uploaded.status,
           201,
+          await uploaded
+            .clone()
+            .text(),
         );
       }
 
