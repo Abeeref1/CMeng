@@ -201,9 +201,16 @@ export function projectScheduleControlBasis(
       const rawValue = cell(
         row,
         "value",
-        "definition",
         "setting value",
         "control value",
+      );
+      const rawDefinition = cell(
+        row,
+        "definition",
+        "criteria",
+        "criterion",
+        "basis",
+        "rule",
       );
 
       const nearDefinition =
@@ -214,7 +221,11 @@ export function projectScheduleControlBasis(
           "near critical basis",
           "near-critical basis",
         ) ||
-        (norm(key).includes("near critical") ? rawValue : "") ||
+        (
+          norm(key).includes("near critical")
+            ? rawDefinition || rawValue
+            : ""
+        ) ||
         (/near[- ]?critical/i.test(rowText) ? rowText : "");
 
       const directNearDays = numberValue(
