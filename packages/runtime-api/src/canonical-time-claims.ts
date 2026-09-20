@@ -124,6 +124,72 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
     }
     return uniq(mapped);
   };
+  const normalizeNarrative=(value:string):string=>
+    value.normalize("NFKC").toLowerCase().replace(/[^a-z0-9]+/g," ").replace(/\s+/g," ").trim();
+  const activityNameCandidates=new Map<string,string>();
+  const duplicateActivityNames=new Set<string>();
+  for(const activity of controlSchedule?.revision.model.activities??[]){
+    const normalized=normalizeNarrative(activity.name??"");
+    const meaningfulTokens=normalized.split(" ").filter(token=>token.length>2);
+    if(normalized.length<8||meaningfulTokens.length<2)continue;
+    if(activityNameCandidates.has(normalized)&&activityNameCandidates.get(normalized)!==activity.activityId){
+      duplicateActivityNames.add(normalized);
+      activityNameCandidates.delete(normalized);
+    }else if(!duplicateActivityNames.has(normalized)){
+      activityNameCandidates.set(normalized,activity.activityId);
+    }
+  }
+  const narrativeActivityRefs=(values:readonly string[],context:string):string[]=>{
+    const mapped:string[]=[];
+    const joined=values.filter(Boolean).join(" | ");
+    const tokens=joined.match(/[A-Za-z0-9][A-Za-z0-9_.:/-]{2,}/g)??[];
+    for(const token of tokens){
+      const folded=token.normalize("NFKC").trim().toLowerCase();
+      const resolved=activityByFolded.get(folded);
+      if(resolved)mapped.push(resolved);
+    }
+    const narrative=normalizeNarrative(joined);
+    if(narrative){
+      for(const [name,activityId] of activityNameCandidates){
+        if(
+          narrative===name||
+          narrative.includes(" "+name+" ")||
+          narrative.startsWith(name+" ")||
+          narrative.endsWith(" "+name)
+        ){
+          mapped.push(activityId);
+        }
+      }
+    }
+    const unique=uniq(mapped);
+    if(unique.length>0)diagnostics.push("DERIVED_DELAY_ACTIVITY_FROM_EXACT_NARRATIVE_REFERENCE:"+context+":"+unique.length);
+    return unique;
+  };
+  const programmeWindowReference=(anchorIso:string|null):string[]=>{
+    if(!anchorIso)return[];
+    const programmes=state.schedules.filter(item=>item.role!=="recovery");
+    const official=programmes.filter(item=>["baseline","revised_baseline","update"].includes(item.role));
+    const ordered=[...(official.length?official:programmes)].sort((a,b)=>{
+      const ad=a.revision.model.dataDateIso??a.revision.effectiveAt??"";
+      const bd=b.revision.model.dataDateIso??b.revision.effectiveAt??"";
+      const byDate=ad.localeCompare(bd);
+      return byDate!==0?byDate:a.revision.sequence-b.revision.sequence;
+    });
+    const anchor=Date.parse(anchorIso);
+    if(!Number.isFinite(anchor))return[];
+    for(let index=1;index<ordered.length;index+=1){
+      const from=ordered[index-1]!,to=ordered[index]!;
+      const fromIso=from.revision.model.dataDateIso??from.revision.effectiveAt;
+      const toIso=to.revision.model.dataDateIso??to.revision.effectiveAt;
+      if(!fromIso||!toIso)continue;
+      const fromMs=Date.parse(fromIso),toMs=Date.parse(toIso);
+      if(!Number.isFinite(fromMs)||!Number.isFinite(toMs))continue;
+      if(anchor>fromMs&&anchor<=toMs){
+        return[from.revision.revisionId+"->"+to.revision.revisionId];
+      }
+    }
+    return[];
+  };
   const correspondence = correspondenceLinks(tables, diagnostics);
   const sourceTablesForClaims=tables.filter(t=>has(t,'claim id','event')&&has(t,'notice date'));
   const claims:CanonicalClaimRecord[]=[],events:CanonicalDelayEvent[]=[],notices:CanonicalNoticeRecord[]=[];
@@ -155,15 +221,30 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
       'window id','window ids','delay window','delay window id','delay window ids',
       'window','window reference','window references','analysis window','analysis window id','time window'
     );
+    const registerIssued=dateValue(cell(r,'notice date'));
+    const narrativeActivities=narrativeActivityRefs(Object.values(r.cells),claimId);
+    const temporalWindows=programmeWindowReference(registerIssued);
+    const relatedActivities=uniq([
+      ...mapActivityRefs(explicitActivities,claimId),
+      ...narrativeActivities,
+    ]).sort();
+    const relatedWindows=uniq([
+      ...explicitWindows,
+      ...temporalWindows,
+    ]);
     events.push({eventId,title,category:'other',
       startIso:dateValue(cell(r,'event start','event start date','start date','delay start','from date','impact start','analysis start')),
       endIso:dateValue(cell(r,'event end','event end date','end date','delay end','to date','impact end','analysis end')),
       responsibility:'unknown',responsibilityState:'missing',describedImpactDays:n(r,'days claimed','claimed days'),describedImpactState:'candidate',
-      relatedActivityIds:mapActivityRefs(explicitActivities,claimId),
-      relatedWindowReferences:uniq(explicitWindows),
+      relatedActivityIds:relatedActivities,
+      relatedWindowReferences:relatedWindows,
       relatedClauseIdentifiers:clauseIdentifiers,evidenceRefs,
-      diagnostics:['SOURCE_REGISTER_EVENT_NOT_PROVEN_CAUSATION',...(sourceLetter&&!linkedCorrespondence?['LINKED_CORRESPONDENCE_NOT_FOUND:'+sourceLetter]:sourceLetter&&!semanticLinkVerified?['LINKED_CORRESPONDENCE_SEMANTIC_MISMATCH:'+sourceLetter]:semanticLinkVerified?['LINKED_CORRESPONDENCE_VERIFIED:'+sourceLetter]:[])],});
-    const registerIssued=dateValue(cell(r,'notice date'));
+      diagnostics:[
+        'SOURCE_REGISTER_EVENT_NOT_PROVEN_CAUSATION',
+        ...(narrativeActivities.length?['ACTIVITY_LINK_DERIVED_FROM_EXACT_SCHEDULE_REFERENCE_OR_UNIQUE_ACTIVITY_NAME']:[]),
+        ...(temporalWindows.length?['WINDOW_ASSOCIATION_FROM_VERIFIED_NOTICE_DATE_NOT_CAUSATION']:[]),
+        ...(sourceLetter&&!linkedCorrespondence?['LINKED_CORRESPONDENCE_NOT_FOUND:'+sourceLetter]:sourceLetter&&!semanticLinkVerified?['LINKED_CORRESPONDENCE_SEMANTIC_MISMATCH:'+sourceLetter]:semanticLinkVerified?['LINKED_CORRESPONDENCE_VERIFIED:'+sourceLetter]:[])
+      ],});
     const correspondenceIssued=semanticLinkVerified?linkedCorrespondence?.issuedAt??null:null;
     const issued=registerIssued??correspondenceIssued;
     if(registerIssued&&correspondenceIssued&&registerIssued!==correspondenceIssued)diagnostics.push('NOTICE_DATE_CONFLICT:'+claimId+':'+sourceLetter);
@@ -200,7 +281,10 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
       'critical activity','critical activity id','critical activity ids',
       'activity reference','activity references'
     );
-    const mappedActivities=mapActivityRefs(activityRefs,claimId);
+    const mappedActivities=uniq([
+      ...mapActivityRefs(activityRefs,claimId),
+      ...narrativeActivityRefs(Object.values(r.cells),claimId),
+    ]);
     if(mappedActivities.length){
       event.relatedActivityIds=uniq([...event.relatedActivityIds,...mappedActivities]).sort();
       if(!event.diagnostics.includes('EXPLICIT_ACTIVITY_LINK_FROM_SUPPLEMENTAL_CLAIM_EOT_SOURCE')){
