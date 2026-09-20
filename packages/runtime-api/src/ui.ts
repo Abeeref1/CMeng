@@ -1667,7 +1667,7 @@ function renderActivityAnalyticsVisual(data){
   const status={completed:0,in_progress:0,not_started:0,unknown:0};
   p.rows.forEach(r=>{status[r.status]=(status[r.status]||0)+1});
   const critical=p.rows.filter(r=>r.criticality==="critical").length;
-  const near=p.rows.filter(r=>r.criticality==="near_critical").length;
+  const near=Number.isFinite(Number(p.nearCriticalWatchCount))?Number(p.nearCriticalWatchCount):p.rows.filter(r=>r.nearCriticalWatch===true||r.criticality==="near_critical").length;
   const late=p.rows.filter(r=>typeof r.finishVarianceDays==="number"&&r.finishVarianceDays>0).length;
   const openLogic=p.rows.filter(r=>r.openStart||r.openFinish||r.isolated).length;
   const kpis=planningKpis([
@@ -2018,19 +2018,21 @@ function renderNearCriticalVisual(data){
   const inProgress=p.rows.filter(r=>r.status==="in_progress").length;
   const notStarted=p.rows.filter(r=>r.status==="not_started").length;
   const slipped=p.rows.filter(r=>planningDaysBetween(r.baselineFinishIso,r.currentFinishIso)>0).length;
+  const thresholdText=(p.nearCriticalLowerBoundInclusive?"≥ ":"\u003e ")+fmt(p.nearCriticalLowerBoundHours??0)+" h to ≤ "+fmt(p.nearCriticalThresholdHours)+" h";
   const kpis=planningKpis([
-    ["Near-critical",p.nearCriticalCount,"activities","warning"],
-    ["Near-critical limit",fmt(p.nearCriticalThresholdHours)+" h","submitted total float"],
+    ["Near-critical",p.nearCriticalCount,"governed watch population","warning"],
+    ["Watch definition",thresholdText,p.thresholdAuthority?humanizeKey(p.thresholdAuthority):"submitted total float"],
     ["Float coverage",p.floatCoveragePercent===null?"—":fmt(p.floatCoveragePercent)+"%","current programme"],
-    ["In progress",inProgress,"near-critical"],
-    ["Not started",notStarted,"near-critical","warning"],
-    ["Later than baseline",slipped,"near-critical","danger"]
+    ["In progress",inProgress,"watch population"],
+    ["Not started",notStarted,"watch population","warning"],
+    ["Later than baseline",slipped,"watch population","danger"]
   ]);
   const histogram=planningFloatHistogram(p.rows,p.nearCriticalThresholdHours);
   const finishPeriods=planningFinishPeriodBars(p.rows);
   const watch=[...p.rows].map(r=>({...r,varianceDays:planningDaysBetween(r.baselineFinishIso,r.currentFinishIso)})).sort((a,b)=>a.totalFloatHours-b.totalFloatHours||((b.varianceDays||0)-(a.varianceDays||0))).slice(0,150);
   const rows=watch.map(r=>'<tr><td><b>'+escapeHtml(r.activityId)+'</b><br><span class="muted">'+escapeHtml(r.name||"")+'</span></td><td>'+escapeHtml(planningStateLabel(r.status))+'</td><td>'+escapeHtml(fmt(r.totalFloatHours))+'</td><td>'+escapeHtml(planningShortDate(r.baselineFinishIso))+'</td><td>'+escapeHtml(planningShortDate(r.currentFinishIso))+'</td><td class="'+((r.varianceDays||0)>0?"late-text":(r.varianceDays||0)<0?"early-text":"")+'">'+escapeHtml(r.varianceDays===null?"—":((r.varianceDays>0?"+":"")+fmt(r.varianceDays)))+'</td><td>'+escapeHtml(r.percentComplete===null?"—":fmt(r.percentComplete)+"%")+'</td></tr>').join("");
-  return '<section class="planning-view nearcritical-view">'+kpis+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Near-critical float values</h4><p>These are the actual submitted total-float values for activities between 0 and '+escapeHtml(fmt(p.nearCriticalThresholdHours))+' hours. Exact values are shown when the source contains discrete float levels.</p></div></div><div class="planning-panel-body">'+histogram+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Where near-critical work finishes</h4><p>Current finish-month concentration for the near-critical population.</p></div></div><div class="planning-panel-body">'+finishPeriods+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Near-critical watchlist</h4><p>Lowest submitted total float first, then the largest movement from the controlled baseline.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Activity</th><th>Status</th><th>Total float h</th><th>Baseline finish</th><th>Current finish</th><th>Vs baseline d</th><th>Progress</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></section></section>';
+  const policyNote='<div class="notice info"><b>Near-critical policy:</b> '+escapeHtml(p.thresholdDefinition||thresholdText)+'. <b>Data Date:</b> '+escapeHtml(planningShortDate(p.dataDateIso))+'.'+(p.sourceReportedNearCriticalCount===null||p.sourceReportedNearCriticalCount===undefined?'':' Source register population: <b>'+escapeHtml(fmt(p.sourceReportedNearCriticalCount))+'</b>.')+(p.dataDateConflict?' <b>Warning:</b> source metric register Data Date conflicts with the active programme.':'')+'</div>';
+  return '<section class="planning-view nearcritical-view">'+kpis+policyNote+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Near-critical float values</h4><p>Submitted total-float values using the governed project watch definition: '+escapeHtml(thresholdText)+'. Exact values are retained; missing float is never treated as zero.</p></div></div><div class="planning-panel-body">'+histogram+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Where near-critical work finishes</h4><p>Current finish-month concentration for the near-critical population.</p></div></div><div class="planning-panel-body">'+finishPeriods+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Near-critical watchlist</h4><p>Lowest submitted total float first, then the largest movement from the controlled baseline.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Activity</th><th>Status</th><th>Total float h</th><th>Baseline finish</th><th>Current finish</th><th>Vs baseline d</th><th>Progress</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></section></section>';
 }
 function renderManhourVisual(data){
   const p=projectionFor(data,"manhour_scurve");
