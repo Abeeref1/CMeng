@@ -11,6 +11,8 @@ import {
   type BoqIngestionResult,
 } from "../../boq-ingestion/src";
 import {
+  commercialModules,
+  commercialModuleSummary,
   scheduleModules,
   scheduleModuleSummary,
 } from "./registry";
@@ -463,6 +465,8 @@ async function route(
         null,
       scheduleModules:
         scheduleModuleSummary(),
+      commercialModules:
+        commercialModuleSummary(),
       boqIngestion: {
         acceptedFormats: [
           "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -754,6 +758,32 @@ async function route(
     return;
   }
 
+
+  if (
+    req.method === "GET" &&
+    url.pathname ===
+      "/api/commercial/modules"
+  ) {
+    json(res, 200, {
+      moduleCount:
+        commercialModules.length,
+      modules:
+        commercialModules,
+      invariants: {
+        missingEvidenceIsNotZero:
+          true,
+        currenciesAreNotCrossSummed:
+          true,
+        currentContractValueUsesApprovedVariationsOnly:
+          true,
+        advanceBalanceIsNotInferredFromBondValue:
+          true,
+        contractAmendmentsSetTimeBasisBeforeEotDays:
+          true,
+      },
+    });
+    return;
+  }
 
   if (
     req.method === "GET" &&
@@ -2415,6 +2445,8 @@ async function route(
       health: "/health",
       scheduleModules:
         "/api/schedule/modules",
+      commercialModules:
+        "/api/commercial/modules",
       scheduleCertification:
         "/api/schedule/certification",
       boqUpload:
