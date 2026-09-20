@@ -197,7 +197,9 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
     contractTimeBasis={contractualCompletionIso:amendment.completionIso,contractualCompletionState:amendment.state,
       officialApprovedEotDays:effectiveDeterminationDays,officialApprovedEotState:effectiveDeterminationDays===null?'missing':'official',eotDayBasis:'calendar_days',eotDayBasisState:amendment.state,
       sourceRefs:[...new Set([amendment.receipt,...eligible.map(d=>d.receipt)].map(r=>'evidence-document:'+r.documentId+':'+r.locator))],
-      incorporatedEotDays:amendment.incorporatedEotDays,additionalApprovedEotDays:null,overlapResolution:'unresolved',registerDeterminationDays,dataDateIso,
+      incorporatedEotDays:amendment.incorporatedEotDays,additionalApprovedEotDays:null,overlapResolution:'unresolved',registerDeterminationDays,
+      registerDeterminationCount:eligible.length,effectiveDeterminationCount:effective.length,
+      futureDeterminationCount:eligible.filter(d=>dataDateIso!==null&&d.determinationDate!==null&&d.determinationDate>dataDateIso).length,dataDateIso,
     };
     if(determinations.length)diagnostics.push('AMENDMENT_DETERMINATION_OVERLAP_UNRESOLVED_NO_ADDITIONAL_DAYS_APPLIED');
   }
