@@ -36,6 +36,11 @@ export interface InvoiceRecord {
   currency: string;
   certifiedAmount: number | null;
   paidAmount: number | null;
+  certificateDateIso?: string | null;
+  paymentDateIso?: string | null;
+  retentionAmount?: number | null;
+  advanceRecoveryAmount?: number | null;
+  advanceBalance?: number | null;
   sourceRefs: string[];
 }
 
