@@ -63,6 +63,9 @@ import {
   buildModuleWorkbook,
   moduleReportFilename,
 } from "./module-report";
+import {
+  governedTables,
+} from "../../truth-kernel/src";
 
 const port = Number.parseInt(
   process.env.PORT ?? "3000",
@@ -842,6 +845,17 @@ async function route(
       });
       return;
     }
+    const schemaDiagnostics: string[] = [];
+    const schemaByDocument =
+      new Map(
+        governedTables(
+          state.evidenceDocuments,
+          schemaDiagnostics,
+        ).map((table) => [
+          table.document.documentId,
+          [...table.headers],
+        ]),
+      );
     json(res, 200, {
       projectId,
       documentCount:
@@ -849,7 +863,14 @@ async function route(
           .length,
       documents:
         runtimeProjects
-          .evidence(projectId),
+          .evidence(projectId)
+          .map((document) => ({
+            ...document,
+            schemaHeaders:
+              schemaByDocument.get(
+                document.documentId,
+              ) ?? [],
+          })),
     });
     return;
   }
