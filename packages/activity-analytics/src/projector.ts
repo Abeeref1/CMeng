@@ -1,6 +1,7 @@
 import {
   buildScheduleActivityLogicIndex,
   DEFAULT_SCHEDULE_ANALYSIS_CONFIG,
+  activityFloatBasis,
   type CanonicalScheduleActivity,
   type CanonicalScheduleModel,
   type ScheduleAnalysisConfig,
@@ -20,26 +21,18 @@ function coverage(
 }
 
 function criticality(
+  model: CanonicalScheduleModel,
   activity: CanonicalScheduleActivity,
   config: ScheduleAnalysisConfig,
 ): ActivityCriticality {
-  if (activity.totalFloatHours === null) return "unknown";
-
-  if (
-    activity.totalFloatHours <=
-    config.criticalFloatThresholdHours
-  ) {
-    return "critical";
-  }
-
-  if (
-    activity.totalFloatHours <=
-    config.nearCriticalFloatThresholdHours
-  ) {
-    return "near_critical";
-  }
-
-  return "noncritical";
+  const classification =
+    activityFloatBasis(
+      model,
+      activity,
+      config,
+    ).classification;
+  if (classification === "positive_float") return "noncritical";
+  return classification;
 }
 
 function effectiveFinish(
@@ -145,7 +138,7 @@ export function buildActivityAnalyticsProjection(
           activity.freeFloatHours,
 
         criticality:
-          criticality(activity, config),
+          criticality(model, activity, config),
         finishVarianceDays:
           finishVarianceDays(activity),
 
