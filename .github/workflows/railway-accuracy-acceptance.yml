@@ -29,10 +29,12 @@ jobs:
       - name: Verify exact release, canonical runtime, reports and source preservation
         run: node scripts/railway-accuracy-acceptance.mjs
       - name: Install isolated browser test tools
+        if: always()
         run: |
           python -m pip install playwright==1.57.0
           python -m playwright install --with-deps chromium
       - name: Verify live module navigation and report window without writes
+        if: always()
         run: python scripts/railway-browser-acceptance.py
       - uses: actions/upload-artifact@v4
         if: always()

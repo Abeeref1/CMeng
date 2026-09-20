@@ -232,6 +232,52 @@ test('project near-critical basis can be corroborated from governed SCH02 or Pro
   assert.ok(basis.diagnostics.includes('PROJECT_NEAR_CRITICAL_BASIS_CORROBORATED_FROM_CONTROL_REGISTER'));
 });
 
+test('source near-critical population can uniquely reconcile the project working-day threshold without hard-coding it',t=>{
+  const {state,csvDoc}=fixture(t);
+  state.schedules[0]!.revision.model.calendars=[
+    {calendarId:'CAL8',name:'8h',semanticComplete:true,standardDayHours:8,sourceRefs:[]},
+    {calendarId:'CAL10',name:'10h',semanticComplete:true,standardDayHours:10,sourceRefs:[]},
+  ] as any;
+  state.schedules[0]!.revision.model.activities=[
+    {projectId:'CANONICAL',activityId:'A40',nativeId:'A40',name:'40h float',wbsId:null,calendarId:'CAL8',activityType:'task',status:'not_started',baselineStartIso:null,baselineFinishIso:null,currentStartIso:null,currentFinishIso:null,actualStartIso:null,actualFinishIso:null,forecastStartIso:null,forecastFinishIso:null,originalDurationHours:8,remainingDurationHours:8,totalFloatHours:40,freeFloatHours:null,percentComplete:0,sourceRefs:[],diagnostics:[]},
+    {projectId:'CANONICAL',activityId:'A45',nativeId:'A45',name:'45h float on 10h calendar',wbsId:null,calendarId:'CAL10',activityType:'task',status:'not_started',baselineStartIso:null,baselineFinishIso:null,currentStartIso:null,currentFinishIso:null,actualStartIso:null,actualFinishIso:null,forecastStartIso:null,forecastFinishIso:null,originalDurationHours:8,remainingDurationHours:8,totalFloatHours:45,freeFloatHours:null,percentComplete:0,sourceRefs:[],diagnostics:[]},
+    {projectId:'CANONICAL',activityId:'A55',nativeId:'A55',name:'55h float on 10h calendar',wbsId:null,calendarId:'CAL10',activityType:'task',status:'not_started',baselineStartIso:null,baselineFinishIso:null,currentStartIso:null,currentFinishIso:null,actualStartIso:null,actualFinishIso:null,forecastStartIso:null,forecastFinishIso:null,originalDurationHours:8,remainingDurationHours:8,totalFloatHours:55,freeFloatHours:null,percentComplete:0,sourceRefs:[],diagnostics:[]},
+  ] as any;
+  csvDoc(
+    'Metric,Value,As Of\nNear Critical Watchlist Count,2,2026-08-31',
+    'schedule_metric_register',
+  );
+  const basis=projectScheduleControlBasis(state);
+  assert.equal(basis.state,'official');
+  assert.equal(basis.nearCriticalSourceCount,2);
+  assert.equal(basis.nearCriticalWorkingDays,5);
+  assert.equal(basis.nearCriticalThresholdMethod,'source_count_reconciliation');
+  assert.ok(basis.diagnostics.includes('NEAR_CRITICAL_WORKING_DAYS_RECONCILED_FROM_SOURCE_COUNT:2:5'));
+  const projection=buildNearCriticalProjection(
+    state.schedules[0]!.revision.model,
+    {generatedAt:stamp,producerVersion:'test',config:basis.analysisConfig},
+  );
+  assert.deepEqual(projection.rows.map(row=>row.activityId),['A40','A45']);
+});
+
+test('source population reconciliation fails closed when more than one working-day threshold reproduces the count',t=>{
+  const {state,csvDoc}=fixture(t);
+  state.schedules[0]!.revision.model.calendars=[
+    {calendarId:'CAL8',name:'8h',semanticComplete:true,standardDayHours:8,sourceRefs:[]},
+  ] as any;
+  state.schedules[0]!.revision.model.activities=[
+    {projectId:'CANONICAL',activityId:'A8',nativeId:'A8',name:'8h float',wbsId:null,calendarId:'CAL8',activityType:'task',status:'not_started',baselineStartIso:null,baselineFinishIso:null,currentStartIso:null,currentFinishIso:null,actualStartIso:null,actualFinishIso:null,forecastStartIso:null,forecastFinishIso:null,originalDurationHours:8,remainingDurationHours:8,totalFloatHours:8,freeFloatHours:null,percentComplete:0,sourceRefs:[],diagnostics:[]},
+  ] as any;
+  csvDoc(
+    'Metric,Value\nNear Critical Watchlist Count,1',
+    'schedule_metric_register',
+  );
+  const basis=projectScheduleControlBasis(state);
+  assert.equal(basis.nearCriticalWorkingDays,null);
+  assert.equal(basis.nearCriticalThresholdMethod,'unresolved');
+  assert.ok(basis.diagnostics.some(d=>d.startsWith('NEAR_CRITICAL_SOURCE_COUNT_SOLUTION_NOT_UNIQUE:1:')));
+});
+
 test('conflicting governed project-control definitions fail closed instead of choosing a near-critical threshold',t=>{
   const {state,csvDoc}=fixture(t);
   csvDoc(

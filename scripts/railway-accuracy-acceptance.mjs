@@ -22,7 +22,11 @@ const comparableRuntimeValue = value => {
 const comparableDigest = value => digest(comparableRuntimeValue(value));
 const evidenceDigest = docs => digest(docs.map(d => [d.documentId, d.sourceHashSha256]).sort((a,b) => a[0].localeCompare(b[0])));
 const summary = { expectedRelease: expected, mode: 'GET_ONLY', checks: [], status: 'running' };
-const check = (name, condition) => { assert.ok(condition, name); summary.checks.push({ name, status: 'pass' }); };
+const check = (name, condition) => {
+  const passed = Boolean(condition);
+  summary.checks.push({ name, status: passed ? 'pass' : 'fail' });
+  return passed;
+};
 async function get(path) {
   const response = await fetch(base + path, { signal: AbortSignal.timeout(90000) });
   assert.equal(response.status, 200, 'GET failed: ' + path.replace(/projects\/[^/]+/, 'projects/[redacted]'));
@@ -164,6 +168,13 @@ try {
   check('All original source identities and hashes remain unchanged', sourceBefore === evidenceDigest(after.documents));
   const finalHealth = await json('/health');
   check('Release stayed unchanged throughout acceptance', finalHealth.release === expected);
+  const failedChecks = summary.checks.filter(item => item.status === 'fail');
+  if (failedChecks.length > 0) {
+    throw new Error(
+      'Production accuracy checks failed: ' +
+      failedChecks.map(item => item.name).join(' | ')
+    );
+  }
   summary.status = 'pass';
 } catch (error) {
   summary.status = 'fail';
