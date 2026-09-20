@@ -16,6 +16,7 @@ import {
   projectControlSchedule,
   projectDataDate,
 } from "./canonical-time-claims";
+import { inferDocumentType } from "./evidence";
 
 export interface ProjectScheduleControlBasis {
   producerVersion: "schedule-control-basis-v1";
@@ -230,12 +231,48 @@ export function projectScheduleControlBasis(
     "project_data_book",
   ]);
   const documents = state.evidenceDocuments.filter(
-    (document) =>
-      document.category === "schedule_control" &&
-      basisDocumentTypes.has(document.documentType) &&
-      ["active", "additive", "candidate"].includes(document.basisState),
+    (document) => {
+      const inferredType =
+        inferDocumentType(
+          document.sourceRelativePath ??
+            document.sourceFilename,
+          null,
+        );
+      return (
+        (
+          basisDocumentTypes.has(
+            document.documentType,
+          ) ||
+          basisDocumentTypes.has(
+            inferredType,
+          )
+        ) &&
+        ["active", "additive", "candidate"].includes(
+          document.basisState,
+        )
+      );
+    },
   );
-  const ids = new Set(documents.map((document) => document.documentId));
+  const ids = new Set(
+    documents.map(
+      (document) =>
+        document.documentId,
+    ),
+  );
+  if (
+    documents.some(
+      (document) =>
+        document.category !==
+          "schedule_control" ||
+        !basisDocumentTypes.has(
+          document.documentType,
+        ),
+    )
+  ) {
+    diagnostics.push(
+      "LEGACY_PROJECT_CONTROL_EVIDENCE_INCLUDED_BY_VERIFIED_SOURCE_IDENTITY",
+    );
+  }
   const tables = governedTables(state.evidenceDocuments, diagnostics).filter(
     (table) => ids.has(table.document.documentId),
   );
