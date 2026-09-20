@@ -2308,6 +2308,17 @@ function renderCommercialTermsVisual(data){
   ])+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Notice / time-bar terms</h4><p>Current terms after amendment precedence.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Requirement</th><th>Period</th><th>Authority</th><th>Trigger</th><th>Clause</th></tr></thead><tbody>'+noticeRows+'</tbody></table></div></div></section></div>'+
   '<section class="planning-panel"><div class="planning-panel-head"><div><h4>Amendments register</h4><p>Number, effective date, precedence and changed commercial/time facts.</p></div></div><div class="planning-panel-body">'+(rows?'<div class="table-wrap"><table><thead><tr><th>Amendment</th><th>Effective</th><th>Value</th><th>Revised contract</th><th>EOT</th><th>Revised completion</th><th>Changed terms</th></tr></thead><tbody>'+rows+'</tbody></table></div>':'<div class="empty-visual">No amendment is established.</div>')+'</div></section></section>';
 }
+function renderContractAmendmentsVisual(data){
+  const amendments=data.amendments||[];
+  const comparisons=amendments.flatMap(a=>(a.termComparisons||[]).map(c=>({...c,amendment:a.number||a.amendmentId,effectiveDateIso:a.effectiveDateIso,title:a.title})));
+  const rows=amendments.map(a=>'<tr><td><b>'+escapeHtml(a.number||a.amendmentId)+'</b><br><span class="muted">'+escapeHtml(a.title||"")+'</span></td><td>'+escapeHtml(planningShortDate(a.effectiveDateIso))+'</td><td>'+escapeHtml(humanizeKey(a.precedence||"unknown"))+'</td><td>'+escapeHtml(commercialFactText(a.amendmentValue))+'</td><td>'+escapeHtml(commercialFactText(a.revisedContractValue))+'</td><td>'+escapeHtml(commercialFactText(a.eotDays))+'</td><td>'+escapeHtml(commercialFactText(a.revisedCompletionIso))+'</td><td>'+escapeHtml((a.changedClauses||[]).join(", ")||"—")+'</td></tr>').join("");
+  const comparisonRows=comparisons.map(c=>'<tr><td><b>'+escapeHtml(c.amendment)+'</b><br><span class="muted">'+escapeHtml(planningShortDate(c.effectiveDateIso))+'</span></td><td>'+escapeHtml(c.term)+'</td><td>'+escapeHtml(c.before===null||c.before===undefined?"Not established":fmt(c.before)+(c.unit&&c.unit!=="date"?" "+c.unit:""))+'</td><td>'+escapeHtml(c.after===null||c.after===undefined?"Not established":fmt(c.after)+(c.unit&&c.unit!=="date"?" "+c.unit:""))+'</td><td>'+commercialAuthorityPill(c.authority)+'</td></tr>').join("");
+  return '<section class="planning-view contract-amendments-view">'+planningKpis([
+    ["Amendments",amendments.length,"governed instruments"],
+    ["Term changes",comparisons.length,"explicitly changed facts"],
+    ["Precedence",amendments.length?"Amendment over changed terms":"—","main contract remains for unamended terms"]
+  ])+'<div class="notice info"><b>Amendment precedence is term-specific.</b> CMeng does not replace the whole main contract when an amendment changes only selected commercial/time terms.</div><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Amendments register</h4><p>Number, effective date, precedence and governed commercial/time changes.</p></div></div><div class="planning-panel-body">'+(rows?'<div class="table-wrap"><table><thead><tr><th>Amendment</th><th>Effective</th><th>Precedence</th><th>Amendment value</th><th>Revised contract</th><th>EOT</th><th>Revised completion</th><th>Changed terms</th></tr></thead><tbody>'+rows+'</tbody></table></div>':'<div class="empty-visual">No contract amendment is established.</div>')+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Original vs amended term comparison</h4><p>Before/after is shown only for terms explicitly evidenced as changed.</p></div></div><div class="planning-panel-body">'+(comparisonRows?'<div class="table-wrap"><table><thead><tr><th>Amendment</th><th>Term</th><th>Before</th><th>After</th><th>Authority</th></tr></thead><tbody>'+comparisonRows+'</tbody></table></div>':'<div class="empty-visual">No explicit term-level change comparison is established.</div>')+'</div></section></section>';
+}
 function renderCommercialCostControlVisual(data){
   const c=data.cost||{};
   const e=data.evm||{};
@@ -2430,7 +2441,8 @@ function renderCommercialGenericVisual(key,data){
   return '<section class="planning-view commercial-generic-view">'+(top.length?planningKpis(top):"")+'<div class="milestone-basis-note"><span><b>'+escapeHtml(title)+':</b> source, calculation, provisional and governed authority remain separate.</span><span>Missing values are not zero; cross-currency arithmetic requires governed FX.</span></div>'+structured+'</section>';
 }
 function renderCommercialVisual(key,data){
-  if(key==="commercial-terms"||key==="contract-amendments")return renderCommercialTermsVisual(data);
+  if(key==="commercial-terms")return renderCommercialTermsVisual(data);
+  if(key==="contract-amendments")return renderContractAmendmentsVisual(data);
   if(key==="cost-control")return renderCommercialCostControlVisual(data);
   if(key==="payment-register")return renderCommercialPaymentVisual(data);
   if(key==="cost-register")return renderCommercialCostRegisterVisual(data);
