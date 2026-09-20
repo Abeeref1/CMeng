@@ -2470,6 +2470,679 @@ async function route(
 }
 
 
+
+function logOrbitModuleQa(): void {
+  const projectId =
+    "ORBIT-JED-PLH-P3";
+  if (
+    !runtimeProjects.get(
+      projectId,
+    )
+  ) {
+    process.stdout.write(
+      "CMENG_ORBIT_QA " +
+        JSON.stringify({
+          projectId,
+          state:
+            "project_not_found",
+        }) +
+        "\n",
+    );
+    return;
+  }
+
+  const keys = [
+    "resource-utilization",
+    "progress-report",
+    "variance-trends",
+    "progress-scurve",
+    "quantity-scurve",
+    "progress-breakdown",
+    "manhour-scurve",
+    "forecast-history",
+    "independent-forecast",
+    "delay-claims",
+    "notices-claims",
+    "windows-analysis",
+    "eot-assessment",
+    "challenge-contract",
+  ];
+
+  for (const key of keys) {
+    const started = Date.now();
+    try {
+      const result =
+        moduleForProject(
+          projectId,
+          key,
+        );
+      const elapsedMs =
+        Date.now() - started;
+      const data =
+        result.data &&
+        typeof result.data ===
+          "object"
+          ? result.data as
+              Record<
+                string,
+                any
+              >
+          : {};
+
+      let summary:
+        Record<
+          string,
+          unknown
+        > = {};
+
+      if (
+        key ===
+        "resource-utilization"
+      ) {
+        summary = {
+          resourceCount:
+            data.resourceCount ??
+            null,
+          assignedResourceCount:
+            data.assignedResourceCount ??
+            null,
+          capacityBasedResourceCount:
+            data.capacityBasedResourceCount ??
+            null,
+          capacityCoveragePercent:
+            data.capacityCoveragePercent ??
+            null,
+          overloadedResourceCount:
+            data.overloadedResourceCount ??
+            null,
+          overloadAssessmentState:
+            data.overloadAssessmentState ??
+            null,
+          weeklyCapacityState:
+            data
+              .weeklyCapacityEvidence
+              ?.state ??
+            null,
+          weeklyCapacityRows:
+            data
+              .weeklyCapacityEvidence
+              ?.rowCount ??
+            0,
+          weeklyComparableRows:
+            data
+              .weeklyCapacityEvidence
+              ?.comparableRowCount ??
+            0,
+          weeklyOverloadedRows:
+            data
+              .weeklyCapacityEvidence
+              ?.overloadedRowCount ??
+            0,
+          weeklyUnits:
+            data
+              .weeklyCapacityEvidence
+              ?.unitLabels ??
+            [],
+          authority:
+            data.authority ??
+            null,
+          scenarioCount:
+            data
+              .scheduleDerivedScenarios
+              ?.length ??
+            0,
+        };
+      } else if (
+        key ===
+        "progress-report"
+      ) {
+        summary = {
+          progressBases:
+            data.progressBases ??
+            null,
+          progress:
+            data.progress ??
+            null,
+          milestones:
+            data.milestones ??
+            null,
+          lookAhead:
+            data.lookAhead ??
+            null,
+          independentForecastDeferred:
+            data
+              .independentForecastDeferred ??
+            null,
+        };
+      } else if (
+        key ===
+        "variance-trends"
+      ) {
+        summary = {
+          revisionCount:
+            data.revisionCount ??
+            null,
+          points:
+            Array.isArray(
+              data.points,
+            )
+              ? data.points.map(
+                  (point: any) => ({
+                    sequence:
+                      point.sequence,
+                    dataDateIso:
+                      point
+                        .dataDateIso,
+                    averageFinishVarianceDays:
+                      point
+                        .averageFinishVarianceDays,
+                    maximumDelayDays:
+                      point
+                        .maximumDelayDays,
+                    lateActivityCount:
+                      point
+                        .lateActivityCount,
+                    earlyActivityCount:
+                      point
+                        .earlyActivityCount,
+                    onTimeActivityCount:
+                      point
+                        .onTimeActivityCount,
+                    projectCompletionVarianceDays:
+                      point
+                        .projectCompletionVarianceDays,
+                  }),
+                )
+              : [],
+        };
+      } else if (
+        key ===
+        "progress-scurve"
+      ) {
+        const points =
+          Array.isArray(
+            data.points,
+          )
+            ? data.points
+            : [];
+        const dataDate =
+          data.dataDateIso
+            ? Date.parse(
+                data.dataDateIso,
+              )
+            : Number.NaN;
+        const currentPoint =
+          points
+            .filter(
+              (point: any) =>
+                point.dateIso &&
+                Number.isFinite(
+                  dataDate,
+                ) &&
+                Date.parse(
+                  point.dateIso,
+                ) <=
+                  dataDate,
+            )
+            .at(-1) ??
+          null;
+        summary = {
+          dataDateIso:
+            data.dataDateIso ??
+            null,
+          baselineCoveragePercent:
+            data
+              .baselineCoveragePercent ??
+            null,
+          currentCoveragePercent:
+            data
+              .currentCoveragePercent ??
+            null,
+          actualHistoryMode:
+            data.actualHistoryMode ??
+            null,
+          actualSnapshotCoveragePercent:
+            data
+              .actualSnapshotCoveragePercent ??
+            null,
+          dataDatePoint:
+            currentPoint,
+        };
+      } else if (
+        key ===
+        "quantity-scurve"
+      ) {
+        summary = {
+          allocationState:
+            data.allocationState ??
+            null,
+          mappingBasis:
+            data.mappingBasis ??
+            null,
+          seriesCount:
+            data.series?.length ??
+            0,
+          inferredScenarioLinks:
+            data
+              .inferredMapping
+              ?.selectedScenarioLinks
+              ?.length ??
+            0,
+          unmappedItemCount:
+            data
+              .unmappedItemIds
+              ?.length ??
+            0,
+          partialItemCount:
+            data
+              .partiallyAllocatedItemIds
+              ?.length ??
+            0,
+          overAllocatedItemCount:
+            data
+              .overAllocatedItemIds
+              ?.length ??
+            0,
+        };
+      } else if (
+        key ===
+        "progress-breakdown"
+      ) {
+        summary = {
+          totalActivityCount:
+            data.totalActivityCount ??
+            null,
+          rowCount:
+            data.rows?.length ??
+            0,
+          topRows:
+            data.rows
+              ?.slice(0, 5)
+              .map(
+                (row: any) => ({
+                  wbsId:
+                    row.wbsId,
+                  wbsName:
+                    row.wbsName,
+                  activityCount:
+                    row.activityCount,
+                  progress:
+                    row
+                      .durationWeightedProgressPercent,
+                  negativeFloatCount:
+                    row
+                      .negativeFloatCount,
+                }),
+              ) ??
+            [],
+        };
+      } else if (
+        key ===
+        "manhour-scurve"
+      ) {
+        summary = {
+          laborResourceCount:
+            data.laborResourceCount ??
+            null,
+          laborAssignmentCount:
+            data.laborAssignmentCount ??
+            null,
+          plannedHoursKnown:
+            data.plannedHoursKnown ??
+            null,
+          remainingHoursKnown:
+            data.remainingHoursKnown ??
+            null,
+          actualHoursKnownCurrent:
+            data.actualHoursKnownCurrent ??
+            null,
+          actualAssignmentCoveragePercent:
+            data
+              .actualAssignmentCoveragePercent ??
+            null,
+          actualHistoryMethod:
+            data.actualHistoryMethod ??
+            null,
+          scenarioCount:
+            data.scenarios?.length ??
+            0,
+        };
+      } else if (
+        key ===
+        "forecast-history"
+      ) {
+        summary = {
+          snapshotCount:
+            data.snapshotCount ??
+            null,
+          establishedForecastCount:
+            data
+              .establishedForecastCount ??
+            null,
+          sourceForecastCount:
+            data.sourceForecastCount ??
+            null,
+          historyState:
+            data.historyState ??
+            null,
+          points:
+            data.points?.map(
+              (point: any) => ({
+                sourceRevisionId:
+                  point
+                    .sourceRevisionId,
+                dataDateIso:
+                  point.dataDateIso,
+                sourceForecastCompletionIso:
+                  point
+                    .sourceForecastCompletionIso,
+                independentForecastCompletionIso:
+                  point
+                    .independentForecastCompletionIso,
+              }),
+            ) ??
+            [],
+        };
+      } else if (
+        key ===
+        "independent-forecast"
+      ) {
+        summary = {
+          sourceForecastCompletionIso:
+            data
+              .sourceForecastCompletionIso ??
+            null,
+          independentForecastCompletionIso:
+            data
+              .independentForecastCompletionIso ??
+            null,
+          forecastVarianceDays:
+            data
+              .forecastVarianceDays ??
+            null,
+          activityCoveragePercent:
+            data
+              .activityCoveragePercent ??
+            null,
+          complete:
+            data.complete ??
+            null,
+          origin:
+            data.origin ??
+            null,
+          managementReviewState:
+            data
+              .managementReviewState ??
+            null,
+          managementReviewReason:
+            data
+              .managementReviewReason ??
+            null,
+          probabilistic:
+            data.probabilistic
+              ? {
+                  status:
+                    data
+                      .probabilistic
+                      .status,
+                  p50:
+                    data
+                      .probabilistic
+                      .p50CompletionIso,
+                  p80:
+                    data
+                      .probabilistic
+                      .p80CompletionIso,
+                  p90:
+                    data
+                      .probabilistic
+                      .p90CompletionIso,
+                }
+              : null,
+        };
+      } else if (
+        key ===
+        "delay-claims"
+      ) {
+        summary = {
+          eventCount:
+            data.eventCount ??
+            null,
+          claimCount:
+            data.claimCount ??
+            null,
+          linkedClaimCount:
+            data.linkedClaimCount ??
+            null,
+          unlinkedClaimCount:
+            data.unlinkedClaimCount ??
+            null,
+          eventLinkageState:
+            data.eventLinkageState ??
+            null,
+          observedPositiveProgrammeMovementDays:
+            data
+              .observedPositiveProgrammeMovementDays ??
+            null,
+        };
+      } else if (
+        key ===
+        "notices-claims"
+      ) {
+        summary = {
+          eventCount:
+            data.eventCount ??
+            null,
+          claimCount:
+            data.claimCount ??
+            null,
+          timelyNoticeCount:
+            data.timelyNoticeCount ??
+            null,
+          lateNoticeCount:
+            data.lateNoticeCount ??
+            null,
+          missingNoticeCount:
+            data.missingNoticeCount ??
+            null,
+          noticeRequirementMissingCount:
+            data
+              .noticeRequirementMissingCount ??
+            null,
+          noticeAssessmentState:
+            data
+              .noticeAssessmentState ??
+            null,
+        };
+      } else if (
+        key ===
+        "windows-analysis"
+      ) {
+        summary = {
+          windowCount:
+            data.windowCount ??
+            null,
+          positiveProgrammeMovementDays:
+            data
+              .positiveProgrammeMovementDays ??
+            null,
+          positiveIndependentMovementDays:
+            data
+              .positiveIndependentMovementDays ??
+            null,
+          windows:
+            data.windows?.map(
+              (window: any) => ({
+                sequence:
+                  window.sequence,
+                sourceForecastMovementDays:
+                  window
+                    .sourceForecastMovementDays,
+                independentForecastMovementDays:
+                  window
+                    .independentForecastMovementDays,
+                strongestProgrammeMovementDays:
+                  window
+                    .strongestProgrammeMovementDays,
+                strongestProgrammeMovementBasis:
+                  window
+                    .strongestProgrammeMovementBasis,
+                linkedDelayEvents:
+                  window
+                    .delayEvents
+                    ?.length ??
+                  0,
+              }),
+            ) ??
+            [],
+        };
+      } else if (
+        key ===
+        "eot-assessment"
+      ) {
+        summary = {
+          contractualCompletionIso:
+            data
+              .contractualCompletionIso ??
+            null,
+          officialApprovedEotDays:
+            data
+              .officialApprovedEotDays ??
+            null,
+          observedProgrammeMovementDays:
+            data
+              .observedProgrammeMovementDays ??
+            null,
+          analyticalTimeImpactCandidateDays:
+            data
+              .analyticalTimeImpactCandidateDays ??
+            null,
+          attributableCandidateEotDays:
+            data
+              .attributableCandidateEotDays ??
+            null,
+          candidateAdditionalEotDays:
+            data
+              .candidateAdditionalEotDays ??
+            null,
+          causalEventEvidenceEstablished:
+            data
+              .causalEventEvidenceEstablished ??
+            null,
+          reviewWindowCount:
+            data.reviewWindowCount ??
+            null,
+        };
+      } else if (
+        key ===
+        "challenge-contract"
+      ) {
+        summary = {
+          deliveryPosition:
+            data
+              .deliveryChallenge
+              ?.position ??
+            null,
+          submittedAverageManpower:
+            data
+              .deliveryChallenge
+              ?.manpowerChallenge
+              ?.submittedAverageManpower ??
+            null,
+          requiredAverageManpowerToContract:
+            data
+              .deliveryChallenge
+              ?.manpowerChallenge
+              ?.requiredAverageManpowerToContract ??
+            null,
+          scheduleScenarioCount:
+            data
+              .deliveryChallenge
+              ?.manpowerChallenge
+              ?.scheduleDerivedScenarios
+              ?.length ??
+            0,
+          contractSignalCount:
+            data
+              .contractIntelligence
+              ?.signalCount ??
+            data
+              .contractIntelligence
+              ?.signals
+              ?.length ??
+            0,
+          contractValueState:
+            data
+              .contractValueEvidence
+              ?.state ??
+            null,
+          independentForecastState:
+            data
+              .independentForecastState ??
+            null,
+        };
+      }
+
+      process.stdout.write(
+        "CMENG_ORBIT_QA " +
+          JSON.stringify({
+            projectId,
+            key,
+            elapsedMs,
+            status:
+              result.status,
+            reason:
+              result.reason,
+            challenge:
+              result.data &&
+              typeof result.data ===
+                "object" &&
+              "challenge" in
+                result.data
+                ? {
+                    itemCount:
+                      (
+                        result.data as
+                          any
+                      ).challenge
+                        ?.itemCount ??
+                      0,
+                    challengedCount:
+                      (
+                        result.data as
+                          any
+                      ).challenge
+                        ?.challengedCount ??
+                      0,
+                  }
+                : null,
+            summary,
+          }) +
+          "\n",
+      );
+    } catch (error) {
+      process.stdout.write(
+        "CMENG_ORBIT_QA " +
+          JSON.stringify({
+            projectId,
+            key,
+            elapsedMs:
+              Date.now() -
+              started,
+            error:
+              error instanceof
+                Error
+                ? error.message
+                : String(
+                    error,
+                  ),
+          }) +
+          "\n",
+      );
+    }
+  }
+}
+
 export function createCmengServer(): Server {
   return createServer((req, res) => {
     void route(req, res).catch((error) => {
@@ -2550,6 +3223,11 @@ if (require.main === module) {
   server.listen(port, host, () => {
     process.stdout.write(
       `CMeng runtime listening on ${host}:${port}\n`,
+    );
+    setTimeout(
+      () =>
+        logOrbitModuleQa(),
+      15000,
     );
   });
 }
