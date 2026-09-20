@@ -297,9 +297,50 @@ const groups={
   "Forecast & Finish":["forecast-history","independent-forecast"],
   "Claims & Commercial":["delay-claims","notices-claims","windows-analysis","eot-assessment","challenge-contract"]
 };
+const commercialGroups={
+  "Commercial Foundation":["commercial-terms","cost-register","payment-register","cbs-breakdown"],
+  "Cost & Performance":["cost-control","evm-performance","cash-flow","cost-scurve","earned-schedule","evm-by-wbs","cost-position"],
+  "Contract Administration":["variations","site-instructions","contract-obligations","liquidated-damages","bonds-insurance","retention-calendar","final-account"],
+  "Risk & Tender":["commercial-risk-register","monte-carlo-risk","contract-risk","tender-readiness"],
+  "Commercial Governance":["commitment-tracking","accruals","contingency-reserve","price-adjustment","vat-tax","multi-currency","cost-audit-trail","commercial-reconciliation"]
+};
+const commercialKeys=new Set(Object.values(commercialGroups).flat());
+const isCommercialKey=key=>commercialKeys.has(key);
 const names={
 "pmo-analysis":"Management Position","schedule-analytics":"Programme Review","activity-analytics":"Activity Review","resource-utilization":"Resources","lookahead-schedule":"Look-Ahead","progress-report":"Progress Position","schedule-change-report":"Programme Changes","revision-trend":"Revision History","variance-trends":"Variance Trend","progress-scurve":"Progress S-Curve","quantity-scurve":"Installed Quantities","progress-breakdown":"WBS Progress","milestones":"Milestones","near-critical":"Near-Critical Activities","manhour-scurve":"Man-Hour S-Curve","forecast-history":"Forecast History","independent-forecast":"Independent Forecast","delay-claims":"Delay Events & Claims","notices-claims":"Notices, EOT & Claims","windows-analysis":"Delay Windows","eot-assessment":"EOT Position","challenge-contract":"Challenge the Contract"
 };
+Object.assign(names,{
+  "commercial-terms":"Commercial Terms",
+  "cost-register":"Cost Register",
+  "payment-register":"Payment Register (IPC)",
+  "cbs-breakdown":"CBS Breakdown",
+  "cost-control":"Cost Control",
+  "evm-performance":"EVM Curves & Performance",
+  "cash-flow":"Cash Flow Register",
+  "cost-scurve":"Cost S-Curve",
+  "variations":"Variations",
+  "site-instructions":"Site Instructions",
+  "contract-obligations":"Contract Obligations",
+  "liquidated-damages":"Liquidated Damages",
+  "bonds-insurance":"Bonds & Insurance",
+  "retention-calendar":"Retention Calendar",
+  "final-account":"Final Account / Closeout",
+  "earned-schedule":"Earned Schedule",
+  "evm-by-wbs":"EVM by WBS",
+  "commercial-risk-register":"Risk Register",
+  "monte-carlo-risk":"Monte Carlo Risk",
+  "contract-risk":"Contract Risk",
+  "tender-readiness":"Tender Readiness",
+  "commitment-tracking":"Commitment Tracking",
+  "accruals":"Accruals",
+  "contingency-reserve":"Contingency & Management Reserve",
+  "price-adjustment":"Escalation & Price Adjustment",
+  "vat-tax":"VAT & Tax",
+  "multi-currency":"Multi-Currency",
+  "cost-audit-trail":"Cost Audit Trail",
+  "commercial-reconciliation":"Reconciliation Report",
+  "cost-position":"Cost Position"
+});
 const descriptions={
 "pmo-analysis":"Finish-date outlook, schedule pressure and decisions requiring management attention.",
 "schedule-analytics":"Programme health, logic quality, float and finish dates.",
@@ -324,6 +365,38 @@ const descriptions={
 "eot-assessment":"Observed movement, time impact, contractual entitlement and official EOT award kept separate.",
 "challenge-contract":"Contract clause intelligence and delivery assumptions reviewed against the available project evidence."
 }
+Object.assign(descriptions,{
+  "commercial-terms":"Governed contract value, dates, payment/retention/LD/notice terms and amendment precedence.",
+  "cost-register":"CBS-level budget, commitments, accruals, actual cost, ETC, EAC and allocation governance.",
+  "payment-register":"Application, assessment, certification, deductions, receipts, due dates and outstanding payment position.",
+  "cbs-breakdown":"Cost hierarchy and mapping completeness across BOQ, payments, WBS and commitments.",
+  "cost-control":"Budget, actual, forecast and EVM performance with explicit EAC methodology governance.",
+  "evm-performance":"Time-phased PV, EV and AC with source-reported versus CMeng-calculated performance.",
+  "cash-flow":"Governed period cash movement, paid income, actual expenditure and payment reconciliation.",
+  "cost-scurve":"Cumulative planned, earned/certified, actual and forecast cost on a governed time axis.",
+  "variations":"Instruction-to-certification variation lifecycle including dayworks, provisional sums and amendment links.",
+  "site-instructions":"Instruction register with downstream variation, claim, schedule, payment and non-compliance linkage.",
+  "contract-obligations":"Governed obligations, deadlines, time bars, conditions precedent and party accountability.",
+  "liquidated-damages":"LD exposure by contractual/EOT scenario, including caps and sectional/milestone positions.",
+  "bonds-insurance":"Required versus issued instruments, expiry, calls, insurance claims and recoveries.",
+  "retention-calendar":"Retention withheld, released, capped, substituted and due by contractual trigger.",
+  "final-account":"Governed settlement and immutable closeout position, including DLP/performance-certificate conditions.",
+  "earned-schedule":"Time-based EVM comparator kept separate from CPM forecast.",
+  "evm-by-wbs":"PV/EV/AC/EAC/ETC/VAC by WBS with project-level reconciliation.",
+  "commercial-risk-register":"Governed qualitative/quantitative commercial risk register and interdependencies.",
+  "monte-carlo-risk":"Probabilistic time/cost exposure, QRA readiness and cost-time trade-off inputs.",
+  "contract-risk":"Clause-level contract risk, deadlines, recommendations and source trace.",
+  "tender-readiness":"Tender evidence cutoff, returnables, clarifications, bid comparison and readiness.",
+  "commitment-tracking":"PO, subcontract and service-agreement commitments linked to cost.",
+  "accruals":"Period-end accruals, invoice matching, reversals and governance.",
+  "contingency-reserve":"Contingency and management-reserve draw/release governance linked to risk.",
+  "price-adjustment":"Escalation formulas, indices, base dates and price-adjustment amounts.",
+  "vat-tax":"VAT, withholding/reverse-charge treatment and tax-invoice evidence.",
+  "multi-currency":"Contract/payment/reporting currencies, governed FX and gain/loss treatment.",
+  "cost-audit-trail":"Before/after record of every governed cost mutation with actor, reason and source.",
+  "commercial-reconciliation":"Contract → variations → current contract → certified → paid → balance money-flow reconciliation.",
+  "cost-position":"Current cash position, peak funding need and overdraft requirement from governed cash evidence."
+});
 const roleViews={
   overall:{
     label:"Overall Detailed",
@@ -366,6 +439,7 @@ const roleViewOrder=["overall","planning","controls","project-director","program
 const storedRoleView=localStorage.getItem("cmeng-role-view");
 let selectedRoleView=roleViewOrder.includes(storedRoleView)?storedRoleView:"overall";
 let overview=null,selected="pmo-analysis",portfolioData=null,appView="portfolio",currentModuleResult=null;
+let workspaceMode=localStorage.getItem("cmeng-workspace")==="commercial"?"commercial":"controls";
 let scheduleSelection=[],boqSelection=[],contractSelection=[],evidenceSelection=[];
 let selectedEvidenceDocuments=new Set();
 const el=id=>document.getElementById(id);
@@ -376,6 +450,9 @@ const statusLabel=s=>s==="ready"?"Ready":s==="partial"?"Review needed":"More inf
 function moduleGroupForRole(key){
   for(const [group,keys] of Object.entries(groups)){
     if(keys.includes(key))return group;
+  }
+  for(const [group,keys] of Object.entries(commercialGroups)){
+    if(keys.includes(key))return "Commercial & Cost";
   }
   return "Project Controls";
 }
