@@ -1645,7 +1645,7 @@ export class RuntimeProjectStore {
   touchEvidence(
     state: ProjectRuntimeState,
   ): void {
-    state.sourceIntegrationVersion = "canonical-source-v2";
+    state.sourceIntegrationVersion = "canonical-source-v3";
     synchronizeCanonicalTimeClaims(state, true);
     this.staleFinalizedBoardPublications(
       state,
