@@ -1216,7 +1216,7 @@ function renderEotVisual(data){
     ? '<div class="notice info"><b>Contract amendment and Engineer determinations are deliberately not added together.</b> The revised contractual finish already incorporates the amendment time adjustment. The Engineer determination register is shown as a separate governed award register until evidence establishes whether those determinations are additional to, included within, or superseded by the controlling contractual adjustment.</div>'
     : '';
   const warning=analytical===null&&p.observedProgrammeMovementDays>0
-    ? '<div class="notice warn"><b>Schedule-window movement is not an EOT award.</b> CMeng observes '+escapeHtml(fmt(p.observedProgrammeMovementDays))+' days under the window movement metric, but it will not convert this automatically into contractual entitlement or awarded EOT.</div>'
+    ? '<div class="notice warn"><b>Schedule movement is not an EOT time-impact assessment.</b> Schedule-window movement is not an EOT award. CMeng observes '+escapeHtml(fmt(p.observedProgrammeMovementDays))+' days under the window movement metric, but it will not convert this automatically into contractual entitlement or awarded EOT.</div>'
     : '';
   const labels=p.revisionLabels||{};
   const movementBars=p.windowCandidates.map((w,index)=>({
