@@ -254,6 +254,34 @@ function analyticalHistory(
   ].sort(revisionChronology);
 }
 
+function windowHistory(
+  state: ProjectRuntimeState,
+): ProjectRuntimeState["schedules"] {
+  const programmeSchedules =
+    state.schedules.filter(
+      isProgrammeScheduleRevision,
+    );
+  const controlled =
+    programmeSchedules.filter(
+      (item) =>
+        item.role === "baseline" ||
+        item.role === "update" ||
+        item.role ===
+          "revised_baseline" ||
+        item.role === "recovery",
+    );
+
+  // Recovery programmes are genuine points in forecast movement chronology.
+  // They remain excluded from actual-progress/trend history, but Windows
+  // Analysis must retain them so gross positive and negative movement cannot
+  // collapse into the first-to-last net Project Completion change.
+  return [
+    ...(controlled.length > 0
+      ? controlled
+      : programmeSchedules),
+  ].sort(revisionChronology);
+}
+
 function applyGovernedWindowMovementMetrics(
   state: ProjectRuntimeState,
   projection: ReturnType<typeof buildWindowsAnalysisProjection>,
@@ -413,6 +441,8 @@ function buildBundle(
 
   const ordered =
     analyticalHistory(state);
+  const movementHistory =
+    windowHistory(state);
   const current =
     runtimeProjects.latestSchedule(
       state.projectId,
@@ -1752,7 +1782,7 @@ function buildBundle(
     applyGovernedWindowMovementMetrics(
       state,
       buildWindowsAnalysisProjection(
-        ordered.map(
+        movementHistory.map(
           (item) =>
             item.revision,
         ),
@@ -1770,12 +1800,12 @@ function buildBundle(
       "windows-analysis",
       windows,
       ["schedule revision history"],
-      ordered.length >= 2
+      movementHistory.length >= 2
         ? delayModel
           ? "ready"
           : "partial"
         : "partial",
-      ordered.length < 2
+      movementHistory.length < 2
         ? "Only one revision exists. CMeng cannot calculate a comparative window until a second revision is supplied."
         : delayModel
           ? null
@@ -4597,6 +4627,8 @@ function claimsFastContext(
     return cached;
   }
 
+  const movementHistory =
+    windowHistory(state);
   const delayModel =
     state.controls.delayClaims;
   const analyticalDelayModel:
@@ -4620,7 +4652,7 @@ function claimsFastContext(
     applyGovernedWindowMovementMetrics(
       state,
       buildWindowsAnalysisProjection(
-        ordered.map(
+        movementHistory.map(
           (item) =>
             item.revision,
         ),
@@ -4628,7 +4660,7 @@ function claimsFastContext(
         {
           generatedAt,
           producerVersion:
-            "windows-fast-v3",
+            "windows-fast-v4",
           forecastResolver:
             (revision) =>
               sourceOnlyForecast(
@@ -4662,7 +4694,7 @@ function claimsFastContext(
     linkedClaimCount;
   const revisionLabels =
     Object.fromEntries(
-      ordered.map(
+      movementHistory.map(
         (item) => [
           item.revision.revisionId,
           item.revision.label ??
