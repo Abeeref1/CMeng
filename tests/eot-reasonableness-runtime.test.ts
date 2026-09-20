@@ -245,11 +245,11 @@ test("multiple absurd claimed-EOT values cannot become the project EOT and do no
         await response.json() as {
           data: {
             analyticalTimeImpactCandidateDays:
-              number;
+              number | null;
             attributableCandidateEotDays:
-              number;
+              number | null;
             candidateAdditionalEotDays:
-              number;
+              number | null;
             challenge: {
               items: Array<{
                 metric: string;
@@ -301,26 +301,21 @@ test("multiple absurd claimed-EOT values cannot become the project EOT and do no
           };
         };
 
-      assert.ok(
+      assert.equal(
         result.data
-          .analyticalTimeImpactCandidateDays >
-          0,
-      );
-      assert.ok(
-        result.data
-          .analyticalTimeImpactCandidateDays <
-          365,
-        "independent time impact must remain a project-scale movement, not inherit the absurd raw claim total",
+          .analyticalTimeImpactCandidateDays,
+        null,
+        "raw schedule movement and raw claim totals must not become an EOT time-impact candidate without linked causal delay events",
       );
       assert.equal(
         result.data
           .attributableCandidateEotDays,
-        0,
+        null,
       );
       assert.equal(
         result.data
           .candidateAdditionalEotDays,
-        0,
+        null,
       );
 
       const claimed =
@@ -352,16 +347,11 @@ test("multiple absurd claimed-EOT values cannot become the project EOT and do no
       );
       assert.equal(
         claimed.independent.value,
-        result.data
-          .analyticalTimeImpactCandidateDays,
+        null,
       );
       assert.equal(
         claimed.independent.state,
-        "scenario",
-      );
-      assert.equal(
-        claimed.gap.state,
-        "calculated",
+        "not_derivable",
       );
       assert.equal(
         claimed
@@ -374,10 +364,10 @@ test("multiple absurd claimed-EOT values cannot become the project EOT and do no
           .candidateComparisons
           .every(
             (candidate) =>
-              candidate.comparable &&
-              typeof candidate
+              !candidate.comparable &&
+              candidate
                 .gapValue ===
-                "number",
+                null,
           ),
       );
       assert.equal(
