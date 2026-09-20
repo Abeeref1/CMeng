@@ -60,6 +60,13 @@ export interface ContractAmendmentRecord {
   claimNoticeDays: CommercialFact<number>;
   fullyDetailedClaimDays: CommercialFact<number>;
   changedClauses: string[];
+  termComparisons: Array<{
+    term: string;
+    before: string | number | null;
+    after: string | number | null;
+    unit: string | null;
+    authority: CommercialAuthority;
+  }>;
   sourceRefs: CommercialSourceRef[];
 }
 
