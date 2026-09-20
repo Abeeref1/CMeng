@@ -1702,8 +1702,7 @@ function buildBundle(
         windows
           .positiveProgrammeMovementDays,
       analyticalTimeImpactCandidateDays:
-        windows
-          .positiveProgrammeMovementDays,
+        null,
       attributableCandidateEotDays:
         null,
       unattributedTimeImpactDays:
@@ -1746,12 +1745,7 @@ function buildBundle(
               window
                 .strongestProgrammeMovementBasis,
             analyticalTimeImpactCandidateDays:
-              Math.max(
-                0,
-                window
-                  .strongestProgrammeMovementDays ??
-                  0,
-              ),
+              null,
             state:
               "review" as const,
             eligibleEventIds: [],
@@ -1768,7 +1762,7 @@ function buildBundle(
       basis:
         "analytical_candidate_not_contractual_determination",
       assumptions: [
-        "Observed programme movement is not treated as EOT without a governed contract-time basis and event/causation evidence.",
+        "Observed programme movement is schedule evidence only. No analytical time-impact candidate is stated without event/causation evidence and a governed contract-time basis.",
       ],
       diagnostics: [
         "CONTRACT_TIME_BASIS_NOT_SUBMITTED",
