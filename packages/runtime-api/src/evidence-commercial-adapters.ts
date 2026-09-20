@@ -411,7 +411,7 @@ function derivePayments(
     const vat = cell(row, vatIndex);
     const status = cell(row, statusIndex);
     const recordState =
-      state(status);
+      valueState(status);
     const commercialAuthority: CanonicalAuthority =
       recordState === "certified" ||
       norm(status).includes("certif")
