@@ -583,7 +583,7 @@ test("runtime activity variance uses the controlled baseline programme", async (
       "%R\t10\t1\tROOT",
       "%T\tCALENDAR",
       "%F\tclndr_id\tclndr_name\tclndr_data",
-      "%R\t77\tStandard 8h\tMon-Fri 08:00-12:00,13:00-17:00",
+      "%R\t77\tStandard 8h\tMon-Fri 08:00-16:00",
       "%T\tTASK",
       "%F\ttask_id\tproj_id\twbs_id\tclndr_id\ttask_code\ttask_name\tstatus_code\ttarget_start_date\ttarget_end_date\tearly_start_date\tearly_end_date\ttarget_drtn_hr_cnt\tremain_drtn_hr_cnt\ttotal_float_hr_cnt\tphys_complete_pct",
       "%R\t100\t1\t10\t77\tA100\tMobilise\tTK_Complete\t2026-01-01\t2026-01-02\t2026-01-01\t2026-01-02\t16\t0\t0\t100",
