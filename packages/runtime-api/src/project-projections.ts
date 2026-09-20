@@ -5723,11 +5723,13 @@ function buildSpecialistModuleFast(
             linkedClaimCount,
             unlinkedClaimCount,
             eventLinkageState:
-              delay.events.length >
-                0 &&
-              linkedClaimCount > 0
-                ? "linked"
-                : "not_established",
+              delay.fullyLinkedEventCount > 0
+                ? "fully_linked"
+                : delay.registeredEventIdentityCount > 0
+                  ? "event_identities_established_lineage_incomplete"
+                  : "not_established",
+            claimToEventIdentityCount:
+              linkedClaimCount,
             revisionLabels:
               context.revisionLabels,
           },
@@ -5736,19 +5738,19 @@ function buildSpecialistModuleFast(
             "delay events",
             "claim-event linkage",
           ],
-          delay.events.length > 0 &&
-          linkedClaimCount > 0
+          delay.fullyLinkedEventCount > 0
             ? "ready"
             : "partial",
-          analyticalDelayModel
-              .claims.length >
-            0 &&
-          delay.events.length === 0
-            ? analyticalDelayModel
-                .claims.length +
-              " claim records are available, but no governed delay events are established. Programme movement cannot be attributed to those claims."
-            : linkedClaimCount === 0
-              ? "Claim records are not linked to governed delay events, so causation and entitlement remain unassessed."
+          delay.registeredEventIdentityCount > 0
+            ? delay.registeredEventIdentityCount +
+              " delay-event identities are established and " +
+              linkedClaimCount +
+              " claims are linked to those identities, but causal activity/window lineage remains incomplete for " +
+              Math.max(0, delay.registeredEventIdentityCount - delay.fullyLinkedEventCount) +
+              " events. CMeng does not treat identity linkage as proven schedule causation."
+            : analyticalDelayModel.claims.length > 0
+              ? analyticalDelayModel.claims.length +
+                " claim records are available, but delay-event identities are not established."
               : null,
         );
       } else {
@@ -5863,9 +5865,10 @@ function buildSpecialistModuleFast(
                   "CONTRACT_TIME_BASIS_NOT_SUBMITTED",
                 ],
               };
+        const eventIdentityEvidenceEstablished =
+          delay.registeredEventIdentityCount > 0;
         const hasCausalEvents =
-          analyticalDelayModel
-            .events.length > 0;
+          delay.fullyLinkedEventCount > 0;
         const contractBasis =
           state.controls
             .contractTimeBasis;
@@ -5958,6 +5961,7 @@ function buildSpecialistModuleFast(
             contractorEotEvidenceSubmitted:
               delayModel !==
               null,
+            eventIdentityEvidenceEstablished,
             causalEventEvidenceEstablished:
               hasCausalEvents,
             eligibleCausalEventEvidenceEstablished:
