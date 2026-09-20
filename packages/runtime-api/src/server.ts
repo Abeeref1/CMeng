@@ -2447,6 +2447,559 @@ async function route(
   });
 }
 
+
+function logProgrammePlanningVisualQa(
+  projectId: string,
+): void {
+  const state =
+    runtimeProjects.get(projectId);
+  if (!state) {
+    process.stdout.write(
+      "CMENG_VISUAL_QA " +
+        JSON.stringify({
+          projectId,
+          state: "project_not_found",
+        }) +
+        "\n",
+    );
+    return;
+  }
+
+  const keys = [
+    "pmo-analysis",
+    "schedule-analytics",
+    "activity-analytics",
+    "lookahead-schedule",
+    "schedule-change-report",
+    "revision-trend",
+    "milestones",
+    "near-critical",
+  ];
+
+  const summary: Record<
+    string,
+    unknown
+  > = {};
+
+  for (const key of keys) {
+    const result =
+      moduleForProject(
+        projectId,
+        key,
+      );
+    const data =
+      (
+        result.data &&
+        typeof result.data === "object"
+      )
+        ? result.data as
+            Record<
+              string,
+              any
+            >
+        : {};
+
+    if (
+      key === "pmo-analysis"
+    ) {
+      summary[key] = {
+        status: result.status,
+        reason: result.reason,
+        activityCount:
+          data.schedule?.activityCount ??
+          null,
+        relationshipCount:
+          data.schedule?.relationshipCount ??
+          null,
+        criticalCount:
+          data.schedule?.criticalCount ??
+          null,
+        nearCriticalCount:
+          data.schedule?.nearCriticalCount ??
+          null,
+        negativeFloatCount:
+          data.schedule?.negativeFloatCount ??
+          null,
+        weightedProgress:
+          data.progress
+            ?.durationWeightedProgressPercent ??
+          null,
+        sourceCompletion:
+          data.forecast
+            ?.sourceCompletionIso ??
+          null,
+        independentCompletion:
+          data.forecast
+            ?.independentCompletionIso ??
+          null,
+        forecastVarianceDays:
+          data.forecast
+            ?.varianceDays ??
+          null,
+        lateMilestones:
+          data.progress
+            ?.lateMilestoneCount ??
+          null,
+        lookAheadOverdue:
+          data.progress
+            ?.lookAheadOverdueCount ??
+          null,
+        assignedResourceCount:
+          data.resources
+            ?.assignedResourceCount ??
+          null,
+      };
+      continue;
+    }
+
+    if (
+      key ===
+        "schedule-analytics"
+    ) {
+      const root =
+        data.result ?? data;
+      summary[key] = {
+        status: result.status,
+        reason: result.reason,
+        activityCount:
+          root.activityCount ??
+          null,
+        relationshipCount:
+          root.relationshipCount ??
+          null,
+        dataDateIso:
+          root.dataDateIso ??
+          null,
+        logicDensity:
+          root.graph
+            ?.logicDensity ??
+          null,
+        openStartCount:
+          root.graph
+            ?.openStartActivityIds
+            ?.length ??
+          null,
+        openFinishCount:
+          root.graph
+            ?.openFinishActivityIds
+            ?.length ??
+          null,
+        isolatedCount:
+          root.graph
+            ?.isolatedActivityIds
+            ?.length ??
+          null,
+        cycleCount:
+          root.graph
+            ?.cyclicActivityIds
+            ?.length ??
+          null,
+        criticalCount:
+          root.float
+            ?.criticalCount ??
+          null,
+        nearCriticalCount:
+          root.float
+            ?.nearCriticalCount ??
+          null,
+        negativeFloatCount:
+          root.float
+            ?.negativeFloatCount ??
+          null,
+        floatCoveragePercent:
+          root.float
+            ?.coveragePercent ??
+          null,
+        completionBases:
+          root.completionBases ??
+          [],
+      };
+      continue;
+    }
+
+    if (
+      key ===
+        "activity-analytics"
+    ) {
+      const rows =
+        Array.isArray(data.rows)
+          ? data.rows
+          : [];
+      const finiteFinish =
+        rows
+          .map(
+            (row: any) =>
+              row.finishVarianceDays,
+          )
+          .filter(
+            (value: unknown) =>
+              typeof value ===
+                "number" &&
+              Number.isFinite(
+                value,
+              ),
+          ) as number[];
+      const finiteFloat =
+        rows
+          .map(
+            (row: any) =>
+              row.totalFloatHours,
+          )
+          .filter(
+            (value: unknown) =>
+              typeof value ===
+                "number" &&
+              Number.isFinite(
+                value,
+              ),
+          ) as number[];
+      summary[key] = {
+        status: result.status,
+        reason: result.reason,
+        rowCount: rows.length,
+        floatCoveragePercent:
+          data.floatCoveragePercent ??
+          null,
+        progressCoveragePercent:
+          data
+            .percentCompleteCoveragePercent ??
+          null,
+        finishVarianceCoveragePercent:
+          data
+            .finishVarianceCoveragePercent ??
+          null,
+        criticalCount:
+          rows.filter(
+            (row: any) =>
+              row.criticality ===
+              "critical",
+          ).length,
+        nearCriticalCount:
+          rows.filter(
+            (row: any) =>
+              row.criticality ===
+              "near_critical",
+          ).length,
+        lateCount:
+          finiteFinish.filter(
+            (value) => value > 0,
+          ).length,
+        finishVarianceMin:
+          finiteFinish.length
+            ? Math.min(
+                ...finiteFinish,
+              )
+            : null,
+        finishVarianceMax:
+          finiteFinish.length
+            ? Math.max(
+                ...finiteFinish,
+              )
+            : null,
+        floatMin:
+          finiteFloat.length
+            ? Math.min(
+                ...finiteFloat,
+              )
+            : null,
+        floatMax:
+          finiteFloat.length
+            ? Math.max(
+                ...finiteFloat,
+              )
+            : null,
+      };
+      continue;
+    }
+
+    if (
+      key ===
+        "lookahead-schedule"
+    ) {
+      const rows =
+        Array.isArray(data.rows)
+          ? data.rows
+          : [];
+      summary[key] = {
+        status: result.status,
+        reason: result.reason,
+        rowCount: rows.length,
+        windowDays:
+          data.windowDays ??
+          null,
+        dataDateIso:
+          data.dataDateIso ??
+          null,
+        windowEndIso:
+          data.windowEndIso ??
+          null,
+        overdueCount:
+          data.overdueCount ??
+          null,
+        readyCount:
+          data.readyCount ??
+          null,
+        conditionalCount:
+          data.conditionalCount ??
+          null,
+        blockedCount:
+          data.blockedCount ??
+          null,
+        dateCoveragePercent:
+          data
+            .currentDateCoveragePercent ??
+          null,
+        missingDateCount:
+          Array.isArray(
+            data
+              .missingCurrentDateActivityIds,
+          )
+            ? data
+                .missingCurrentDateActivityIds
+                .length
+            : null,
+      };
+      continue;
+    }
+
+    if (
+      key ===
+        "schedule-change-report"
+    ) {
+      const rows =
+        Array.isArray(
+          data.changedActivities,
+        )
+          ? data.changedActivities
+          : [];
+      const shifts =
+        rows
+          .map(
+            (row: any) =>
+              row.finishShiftDays,
+          )
+          .filter(
+            (value: unknown) =>
+              typeof value ===
+                "number" &&
+              Number.isFinite(
+                value,
+              ),
+          ) as number[];
+      summary[key] = {
+        status: result.status,
+        reason: result.reason,
+        state:
+          data.state ??
+          null,
+        rowCount: rows.length,
+        fromRevisionId:
+          data.fromRevisionId ??
+          null,
+        toRevisionId:
+          data.toRevisionId ??
+          null,
+        matchedActivityCount:
+          data.matchedActivityCount ??
+          null,
+        populationMatchPercent:
+          data
+            .populationMatchPercent ??
+          null,
+        addedActivityCount:
+          data.addedActivityCount ??
+          null,
+        removedActivityCount:
+          data.removedActivityCount ??
+          null,
+        modifiedActivityCount:
+          data.modifiedActivityCount ??
+          null,
+        addedRelationshipCount:
+          data.addedRelationshipCount ??
+          null,
+        removedRelationshipCount:
+          data.removedRelationshipCount ??
+          null,
+        finishShiftMin:
+          shifts.length
+            ? Math.min(...shifts)
+            : null,
+        finishShiftMax:
+          shifts.length
+            ? Math.max(...shifts)
+            : null,
+      };
+      continue;
+    }
+
+    if (
+      key === "revision-trend"
+    ) {
+      const points =
+        Array.isArray(data.points)
+          ? data.points
+          : [];
+      summary[key] = {
+        status: result.status,
+        reason: result.reason,
+        revisionCount:
+          data.revisionCount ??
+          points.length,
+        points:
+          points.map(
+            (point: any) => ({
+              sequence:
+                point.sequence,
+              label:
+                point.label,
+              dataDateIso:
+                point.dataDateIso,
+              activityCount:
+                point.activityCount,
+              weightedProgress:
+                point
+                  .durationWeightedProgressPercent,
+              criticalCount:
+                point.criticalCount,
+              nearCriticalCount:
+                point
+                  .nearCriticalCount,
+              negativeFloatCount:
+                point
+                  .negativeFloatCount,
+              forecastCompletionIso:
+                point
+                  .forecastCompletionIso,
+              addedVsPrevious:
+                point.addedVsPrevious,
+              removedVsPrevious:
+                point
+                  .removedVsPrevious,
+              modifiedVsPrevious:
+                point
+                  .modifiedVsPrevious,
+            }),
+          ),
+      };
+      continue;
+    }
+
+    if (key === "milestones") {
+      const rows =
+        Array.isArray(data.rows)
+          ? data.rows
+          : [];
+      const variances =
+        rows
+          .map(
+            (row: any) =>
+              row.varianceDays,
+          )
+          .filter(
+            (value: unknown) =>
+              typeof value ===
+                "number" &&
+              Number.isFinite(
+                value,
+              ),
+          ) as number[];
+      summary[key] = {
+        status: result.status,
+        reason: result.reason,
+        rowCount: rows.length,
+        milestoneCount:
+          data.milestoneCount ??
+          null,
+        completedCount:
+          data.completedCount ??
+          null,
+        openCount:
+          data.openCount ??
+          null,
+        lateOpenCount:
+          data.lateOpenCount ??
+          null,
+        dataDateIso:
+          data.dataDateIso ??
+          null,
+        varianceMin:
+          variances.length
+            ? Math.min(
+                ...variances,
+              )
+            : null,
+        varianceMax:
+          variances.length
+            ? Math.max(
+                ...variances,
+              )
+            : null,
+      };
+      continue;
+    }
+
+    if (key === "near-critical") {
+      const rows =
+        Array.isArray(data.rows)
+          ? data.rows
+          : [];
+      const floats =
+        rows
+          .map(
+            (row: any) =>
+              row.totalFloatHours,
+          )
+          .filter(
+            (value: unknown) =>
+              typeof value ===
+                "number" &&
+              Number.isFinite(
+                value,
+              ),
+          ) as number[];
+      summary[key] = {
+        status: result.status,
+        reason: result.reason,
+        rowCount: rows.length,
+        nearCriticalCount:
+          data.nearCriticalCount ??
+          null,
+        criticalThresholdHours:
+          data
+            .criticalThresholdHours ??
+          null,
+        nearCriticalThresholdHours:
+          data
+            .nearCriticalThresholdHours ??
+          null,
+        floatCoveragePercent:
+          data.floatCoveragePercent ??
+          null,
+        floatMin:
+          floats.length
+            ? Math.min(...floats)
+            : null,
+        floatMax:
+          floats.length
+            ? Math.max(...floats)
+            : null,
+      };
+    }
+  }
+
+  process.stdout.write(
+    "CMENG_VISUAL_QA " +
+      JSON.stringify({
+        projectId,
+        generatedAt:
+          new Date().toISOString(),
+        summary,
+      }) +
+      "\n",
+  );
+}
+
 export function createCmengServer(): Server {
   return createServer((req, res) => {
     void route(req, res).catch((error) => {
@@ -2527,6 +3080,13 @@ if (require.main === module) {
   server.listen(port, host, () => {
     process.stdout.write(
       `CMeng runtime listening on ${host}:${port}\n`,
+    );
+    setTimeout(
+      () =>
+        logProgrammePlanningVisualQa(
+          "ORBIT-JED-PLH-P3",
+        ),
+      0,
     );
   });
 }
