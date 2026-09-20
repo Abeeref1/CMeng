@@ -1112,25 +1112,48 @@ function renderWindowsVisual(data){
 function renderDelayClaimsVisual(data){
   const p=projectionFor(data,"delay_claims");
   if(!Array.isArray(p.events))return"";
-  const linked=p.linkedClaimCount??0,unlinked=p.unlinkedClaimCount??Math.max(0,(p.claimCount||0)-linked);
+  const linked=p.linkedClaimCount??p.claimToEventIdentityCount??0;
+  const unlinked=p.unlinkedClaimCount??Math.max(0,(p.claimCount||0)-linked);
+  const registered=p.registeredEventIdentityCount??p.eventCount??0;
+  const dated=p.datedEventCount??0;
+  const activityLinked=p.activityLinkedEventCount??0;
+  const windowLinked=p.windowLinkedEventCount??0;
+  const fullyLinked=p.fullyLinkedEventCount??0;
   const kpis=planningKpis([
-    ["Delay events",p.eventCount,"governed events",p.eventCount?"":"warning"],
+    ["Registered event identities",registered,"from delay/claim evidence",registered?"accent":"warning"],
     ["Claims",p.claimCount,"claim records"],
-    ["Claims linked to events",linked,"causal linkage",linked?"success":"warning"],
-    ["Unlinked claims",unlinked,"cannot be attributed",unlinked?"warning":""],
-    ["Observed schedule movement",fmt(p.observedPositiveProgrammeMovementDays)+" d","schedule movement, not entitlement",p.observedPositiveProgrammeMovementDays?"warning":""]
+    ["Claim → event identity",linked,"identity linkage only",linked?"accent":"warning"],
+    ["Dated events",dated,"occurrence/start date established",dated?"accent":"warning"],
+    ["Activity linked",activityLinked,"event → schedule activity",activityLinked?"accent":"warning"],
+    ["Full causal lineage",fullyLinked,"claim → event → activity → window",fullyLinked?"success":"warning"]
   ]);
-  const warning=p.eventCount===0&&p.claimCount>0?'<div class="notice warn"><b>'+escapeHtml(fmt(p.claimCount))+' claim records are present, but no governed delay events are established.</b> CMeng will not attribute schedule movement, responsibility or EOT entitlement to those claims until event linkage exists.</div>':'';
+  const warning=registered>0&&fullyLinked<registered
+    ? '<div class="notice warn"><b>'+escapeHtml(fmt(registered))+' event identities exist, but event identity is not the same as proven schedule causation.</b> '+escapeHtml(fmt(activityLinked))+' are linked to schedule activities, '+escapeHtml(fmt(windowLinked))+' overlap an analysis window, and '+escapeHtml(fmt(fullyLinked))+' currently have the full claim → event → activity → window lineage. CMeng therefore keeps entitlement attribution under review.</div>'
+    : registered===0&&p.claimCount>0
+      ? '<div class="notice warn"><b>'+escapeHtml(fmt(p.claimCount))+' claim rows exist but no delay-event identity has been established.</b></div>'
+      : '';
   const linkage=planningStatusBand([
-    ["Linked to delay events",linked,"success"],
-    ["Not linked to delay events",unlinked,"warning"]
+    ["Full causal lineage",fullyLinked,"success"],
+    ["Identity only / incomplete",Math.max(0,registered-fullyLinked),"warning"],
+    ["Claims without event identity",unlinked,"danger"]
   ]);
   const classes=claimStateCounts(p.events.map(e=>({state:e.candidateClass})));
-  const rows=p.events.map(e=>'<tr><td><b>'+escapeHtml(e.eventId)+'</b><br><span class="muted">'+escapeHtml(e.title||"")+'</span></td><td>'+escapeHtml(humanizeKey(e.responsibility))+'</td><td>'+escapeHtml(humanizeKey(e.noticeTimeliness))+'</td><td>'+escapeHtml(fmt(e.observedPositiveProgrammeMovementDays))+'</td><td>'+escapeHtml(humanizeKey(e.programmeMovementBasis))+'</td><td><span class="state-pill '+(e.concurrencyCandidate?"review":"ready")+'">'+escapeHtml(humanizeKey(e.candidateClass))+'</span></td><td>'+escapeHtml((e.linkedClaimIds||[]).join(", ")||"—")+'</td><td>'+escapeHtml((e.relatedActivityIds||[]).join(", ")||"—")+'</td></tr>').join("");
-  const detail=p.events.length?'<div class="table-wrap"><table><thead><tr><th>Event</th><th>Responsibility</th><th>Notice</th><th>Observed movement d</th><th>Movement basis</th><th>Assessment class</th><th>Claims</th><th>Activities</th></tr></thead><tbody>'+rows+'</tbody></table></div>':'<div class="empty-visual">No delay-event population is established. Claim records alone are not converted into delay events.</div>';
-  const classVisual=p.events.length?moduleBarList(classes,"warning"):'<div class="empty-visual">Event responsibility cannot be classified until delay events are established.</div>';
-  return '<section class="planning-view delay-claims-view">'+kpis+warning+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Claim-event linkage</h4><p>Claims without a governed delay-event link remain un-attributed.</p></div></div><div class="planning-panel-body">'+linkage+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Event assessment classes</h4><p>Responsibility classification is shown only for established delay events.</p></div></div><div class="planning-panel-body">'+classVisual+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Delay-event detail</h4></div></div><div class="planning-panel-body">'+detail+'</div></section></section>';
+  const rows=p.events.map(e=>'<tr><td><b>'+escapeHtml(e.eventId)+'</b><br><span class="muted">'+escapeHtml(e.title||"")+'</span></td><td>'+escapeHtml(humanizeKey(e.responsibility))+'</td><td>'+escapeHtml(humanizeKey(e.noticeTimeliness))+'</td><td>'+escapeHtml((e.relatedActivityIds||[]).length)+'</td><td>'+escapeHtml((e.overlappingWindowIds||[]).length)+'</td><td>'+escapeHtml(fmt(e.observedPositiveProgrammeMovementDays))+'</td><td>'+escapeHtml(humanizeKey(e.programmeMovementBasis))+'</td><td><span class="state-pill '+(e.relatedActivityIds?.length&&e.overlappingWindowIds?.length?"ready":"review")+'">'+escapeHtml(humanizeKey(e.candidateClass))+'</span></td><td>'+escapeHtml((e.linkedClaimIds||[]).join(", ")||"—")+'</td></tr>').join("");
+  const detail=p.events.length
+    ? '<div class="table-wrap"><table><thead><tr><th>Event identity</th><th>Responsibility</th><th>Notice</th><th>Activities</th><th>Windows</th><th>Analytical movement d</th><th>Movement basis</th><th>Assessment</th><th>Claims</th></tr></thead><tbody>'+rows+'</tbody></table></div>'
+    : '<div class="empty-visual">No delay-event population is established.</div>';
+  const classVisual=p.events.length
+    ? moduleBarList(classes,"warning")
+    : '<div class="empty-visual">Event responsibility cannot be classified until delay-event identities are established.</div>';
+  return '<section class="planning-view delay-claims-view">'+kpis+warning+
+    '<div class="planning-primary-grid">'+
+      '<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Delay-event lineage completeness</h4><p>CMeng distinguishes a registered event identity from causal linkage to activities and schedule windows.</p></div></div><div class="planning-panel-body">'+linkage+'</div></section>'+
+      '<section class="planning-panel"><div class="planning-panel-head"><div><h4>Event assessment classes</h4><p>Responsibility and entitlement classification remain provisional until causal evidence is complete.</p></div></div><div class="planning-panel-body">'+classVisual+'</div></section>'+
+    '</div>'+
+    '<section class="planning-panel"><div class="planning-panel-head"><div><h4>Delay-event detail</h4><p>Claim, event, activity, window, notice and determination links are retained separately. Missing links are not inferred.</p></div></div><div class="planning-panel-body">'+detail+'</div></section>'+
+  '</section>';
 }
+
 function renderEotVisual(data){
   const p=projectionFor(data,"eot_assessment");
   if(!Array.isArray(p.windowCandidates))return"";
