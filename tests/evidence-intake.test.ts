@@ -762,6 +762,8 @@ test("runtime activity variance uses the controlled baseline programme", async (
         .programmeBaselineCompletionIso ??
         "",
       /^2026-01-10/,
+      "Management baseline payload: " +
+        JSON.stringify(management.data),
     );
 
     const nearCriticalResponse =
@@ -794,6 +796,8 @@ test("runtime activity variance uses the controlled baseline programme", async (
     assert.match(
       nearRow?.baselineFinishIso ?? "",
       /^2026-01-10/,
+      "Near-critical controlled-baseline row: " +
+        JSON.stringify(nearRow),
     );
     assert.match(
       nearRow?.currentFinishIso ?? "",
