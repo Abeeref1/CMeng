@@ -2497,12 +2497,29 @@ function renderCommercialVisual(key,data){
     "contract-particulars-bonds":[["Committed","committedContractValue"],["Current contract","currentContractValue"],["Active bonds","activeBondAmount"]]
   };
   const cols=colsByKey[key]||colsByKey["commercial-overview"];
+  const chartFieldsByKey={
+    "commercial-overview":[["Committed","committedContractValue","graphite"],["Current contract","currentContractValue","accent"],["Pending variations","pendingVariationAmount","warning"],["Certified","grossCertifiedAmount","teal"],["Paid","paidAmount","success"],["Claims","claimedAmount","danger"]],
+    "cost-forecast":[["Committed","committedContractValue","graphite"],["Current contract","currentContractValue","accent"],["Approved variations","approvedVariationAmount","success"],["Pending variations","pendingVariationAmount","warning"],["Claimed","claimedAmount","danger"],["Assessed claims","assessedClaimAmount","purple"]],
+    "variations-change":[["Approved variations","approvedVariationAmount","success"],["Pending variations","pendingVariationAmount","warning"],["Current contract","currentContractValue","accent"]],
+    "payments":[["Gross certified","grossCertifiedAmount","accent"],["Paid","paidAmount","success"],["Certified unpaid","certifiedUnpaidAmount","danger"],["Retention held","retentionHeldAmount","warning"],["Advance balance","advanceBalance","purple"]],
+    "cash-flow":[["Gross certified","grossCertifiedAmount","accent"],["Paid","paidAmount","success"],["Certified unpaid","certifiedUnpaidAmount","danger"],["Retention held","retentionHeldAmount","warning"],["Advance balance","advanceBalance","purple"]],
+    "commercial-claims-notices":[["Claimed","claimedAmount","danger"],["Assessed","assessedClaimAmount","purple"],["Pending variations","pendingVariationAmount","warning"]],
+    "contract-particulars-bonds":[["Committed","committedContractValue","graphite"],["Current contract","currentContractValue","accent"],["Active bonds","activeBondAmount","warning"]]
+  };
+  const chartFields=chartFieldsByKey[key]||chartFieldsByKey["commercial-overview"];
   const cards=position.currencies.length
     ? position.currencies.map(row=>{
         const lines=cols.map(([label,field])=>'<div class="currency-line"><span>'+escapeHtml(label)+'</span><strong>'+commercialMetricHtml(row[field],field==="interimCertificateCount"?"":row.currency)+'</strong></div>').join("");
         return '<div class="currency-card"><div class="currency-code">'+escapeHtml(row.currency)+'</div>'+lines+'</div>';
       }).join("")
     : '<div class="empty-visual">No established commercial currency position. Submitted-but-unparsed and missing evidence remain distinct from zero.</div>';
+  const commercialCharts=position.currencies.length
+    ? '<div class="commercial-visual-grid">'+position.currencies.map(row=>renderVisualPanel(
+        row.currency+" · "+(names[key]||"Commercial position"),
+        "Values are compared only within this currency. Missing values remain absent, not zero.",
+        renderCommercialMetricBars(row,chartFields)
+      )).join("")+'</div>'
+    : "";
   const evidence=position.evidence||{};
   const gates=moduleEvidenceGate([
     {label:"Commercial basis",value:humanizeKey(evidence.commercial||"not_submitted"),state:evidence.commercial==="established"?"ready":"missing"},
