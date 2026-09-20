@@ -97,6 +97,31 @@ function windowBoundary(
   );
 }
 
+function activityFinish(
+  revision: ScheduleRevision,
+  activityId: string | null,
+): string | null {
+  if (!activityId) return null;
+  const activity =
+    revision.model.activities.find(
+      (item) =>
+        item.activityId ===
+        activityId,
+    );
+  if (!activity) return null;
+  return (
+    (
+      activity.status ===
+        "completed"
+        ? activity.actualFinishIso
+        : null
+    ) ??
+    activity.forecastFinishIso ??
+    activity.currentFinishIso ??
+    activity.actualFinishIso
+  );
+}
+
 function sourceScheduleBoundary(
   revision: ScheduleRevision,
 ): string | null {
@@ -230,6 +255,8 @@ export function buildWindowsAnalysisProjection(
     forecastResolver?: (
       revision: ScheduleRevision,
     ) => IndependentForecastProjection;
+    trackedCompletionActivityId?:
+      string | null;
   },
 ): WindowsAnalysisProjection {
   const ordered =
@@ -341,6 +368,23 @@ export function buildWindowsAnalysisProjection(
         sourceBoundary:
           scheduleBoundaryMovement,
       });
+    const fromTrackedCompletionIso =
+      activityFinish(
+        from,
+        input.trackedCompletionActivityId ??
+          null,
+      );
+    const toTrackedCompletionIso =
+      activityFinish(
+        to,
+        input.trackedCompletionActivityId ??
+          null,
+      );
+    const trackedCompletionMovementDays =
+      movementDays(
+        fromTrackedCompletionIso,
+        toTrackedCompletionIso,
+      );
 
     const assumptions = [
       ...fromForecast.assumptions,
@@ -475,6 +519,13 @@ export function buildWindowsAnalysisProjection(
         strongest.days,
       strongestProgrammeMovementBasis:
         strongest.basis,
+
+      trackedCompletionActivityId:
+        input.trackedCompletionActivityId ??
+        null,
+      fromTrackedCompletionIso,
+      toTrackedCompletionIso,
+      trackedCompletionMovementDays,
 
       fromProgressPercent: fromProgress,
       toProgressPercent: toProgress,
@@ -614,6 +665,52 @@ export function buildWindowsAnalysisProjection(
             .strongestProgrammeMovementDays !==
           null,
       ).length,
+    trackedCompletionActivityId:
+      input.trackedCompletionActivityId ??
+      null,
+    positiveTrackedCompletionMovementDays:
+      Number(
+        windows.reduce(
+          (sum, window) =>
+            sum +
+            Math.max(
+              0,
+              window
+                .trackedCompletionMovementDays ??
+                0,
+            ),
+          0,
+        ).toFixed(6),
+      ),
+    negativeTrackedCompletionMovementDays:
+      Number(
+        windows.reduce(
+          (sum, window) =>
+            sum +
+            Math.min(
+              0,
+              window
+                .trackedCompletionMovementDays ??
+                0,
+            ),
+          0,
+        ).toFixed(6),
+      ),
+    netTrackedCompletionMovementDays:
+      input.trackedCompletionActivityId
+        ? Number(
+            windows.reduce(
+              (sum, window) =>
+                sum +
+                (
+                  window
+                    .trackedCompletionMovementDays ??
+                  0
+                ),
+              0,
+            ).toFixed(6),
+          )
+        : null,
     windows,
     diagnostics,
   };
