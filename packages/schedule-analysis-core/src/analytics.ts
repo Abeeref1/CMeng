@@ -3,7 +3,7 @@ import {
   activityNearCriticalThresholdHours,
   nearCriticalThresholdBasis,
   sourceFloatCriticality,
-  sourceFloatMeetsNearCriticalLowerBound,
+  sourceFloatInFloatRiskWatchlist,
 } from "./float-thresholds";
 import type {
   AverageMetric,
@@ -221,16 +221,29 @@ function floatSummary(
   );
   const thresholdUnresolved = known.filter(
     (activity) =>
-      sourceFloatMeetsNearCriticalLowerBound(
-        activity.totalFloatHours!,
-        config,
-      ) &&
+      activity.totalFloatHours! >
+        config.criticalFloatThresholdHours &&
       activityNearCriticalThresholdHours(model, activity, config) === null,
+  );
+  const floatRiskWatchlist = known.filter(
+    (activity) =>
+      sourceFloatInFloatRiskWatchlist(
+        model,
+        activity,
+        config,
+      ) === true,
   );
 
   return {
     criticalCount: critical.length,
     nearCriticalCount: nearCritical.length,
+    floatRiskWatchlistCount:
+      floatRiskWatchlist.length,
+    zeroFloatCount: known.filter(
+      (activity) =>
+        activity.totalFloatHours ===
+        config.criticalFloatThresholdHours,
+    ).length,
     negativeFloatCount: known.filter(
       (activity) => activity.totalFloatHours! < 0,
     ).length,
@@ -256,6 +269,8 @@ function floatSummary(
       config.nearCriticalWorkingDays ?? null,
     nearCriticalThresholdBasis:
       nearCriticalThresholdBasis(config),
+    floatRiskWatchlistIncludesCriticalThreshold:
+      config.floatRiskWatchlistIncludesCriticalThreshold === true,
     nearCriticalThresholdUnresolvedCount:
       thresholdUnresolved.length,
   };
