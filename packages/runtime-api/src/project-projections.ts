@@ -3699,7 +3699,7 @@ function buildPlanningModuleFast(
                   )
                 : null,
             rows:
-              nearCriticalBase.rows.map(
+              raw.rows.map(
                 (row) => {
                   const baseline =
                     baselineByActivity.get(
