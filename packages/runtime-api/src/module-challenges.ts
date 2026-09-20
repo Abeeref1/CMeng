@@ -1328,29 +1328,45 @@ function metricsFor(
           nearCritical
             ?.criticalThresholdHours,
         ) ?? 0;
+      const forecastDeferred =
+        forecast.diagnostics
+          ?.includes(
+            "INDEPENDENT_CPM_DEFERRED_FOR_FAST_PROGRAMME_VIEW",
+          ) ??
+        false;
       const independentCount =
-        forecast.activities.filter(
-          (activity) =>
-            activity
-              .independentTotalFloatHours !==
-              null &&
-            activity
-              .independentTotalFloatHours >
-              criticalThreshold &&
-            activity
-              .independentTotalFloatHours <=
-              threshold,
-        ).length;
+        forecastDeferred
+          ? null
+          : forecast.activities.filter(
+              (activity) =>
+                activity
+                  .independentTotalFloatHours !==
+                  null &&
+                activity
+                  .independentTotalFloatHours >
+                  criticalThreshold &&
+                activity
+                  .independentTotalFloatHours <=
+                  threshold,
+            ).length;
       return [
         spec(
           "near_critical_count",
           "Near-critical activity count",
           independentCount,
           "activities",
-          "calculated",
+          independentCount === null
+            ? "not_derivable"
+            : "calculated",
           [
             "independent-cpm",
           ],
+          {
+            note:
+              independentCount === null
+                ? "Independent CPM is deferred from the initial fast view; submitted programme float remains visible without being relabelled as an independent result."
+                : undefined,
+          },
         ),
       ];
     }
