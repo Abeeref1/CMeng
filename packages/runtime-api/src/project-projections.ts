@@ -2026,22 +2026,32 @@ function buildBundle(
             .value,
       },
     );
+  const governedCausalEventCount =
+    analyticalDelayModel.events.filter(
+      (event) =>
+        (
+          event.startIso !== null ||
+          event.endIso !== null
+        ) &&
+        event.relatedActivityIds.length >
+          0,
+    ).length;
+
   modules.set(
     "windows-analysis",
     available(
       "windows-analysis",
       windows,
       ["schedule revision history"],
-      ordered.length >= 2
-        ? delayModel
-          ? "ready"
-          : "partial"
+      ordered.length >= 2 &&
+      governedCausalEventCount > 0
+        ? "ready"
         : "partial",
       ordered.length < 2
         ? "Only one revision exists. CMeng cannot calculate a comparative window until a second revision is supplied."
-        : delayModel
+        : governedCausalEventCount > 0
           ? null
-          : "CMeng independently calculated schedule windows and movement. No contractor delay-event model was submitted, so causation remains un-attributed.",
+          : "CMeng independently calculated schedule windows and movement. Delay-event identities may exist, but causation remains un-attributed until event dates and affected activities are governed.",
     ),
   );
 
@@ -2067,17 +2077,20 @@ function buildBundle(
           windows.windowCount > 0,
       },
       ["schedule windows"],
-      delayModel &&
+      governedCausalEventCount >
+        0 &&
       windows.windowCount > 0
         ? "ready"
         : "partial",
-      delayModel
+      governedCausalEventCount > 0
         ? windows.windowCount > 0
           ? null
-          : "Claim evidence exists, but a second schedule revision is required to independently test movement."
-        : windows.windowCount > 0
-          ? "No contractor claim was submitted. CMeng still reports observed schedule movement without assigning legal causation."
-          : "No contractor claim was submitted and only one schedule revision exists. CMeng preserves the claim gap and states the evidence needed to test it.",
+          : "Delay-event causation evidence exists, but a second schedule revision is required to independently test movement."
+        : analyticalDelayModel.events.length > 0
+          ? "Submitted delay-event identities exist, but event occurrence dates and/or affected schedule activities are not governed. CMeng does not assign causation from identity alone."
+          : windows.windowCount > 0
+            ? "No governed delay-event population exists. CMeng still reports observed schedule movement without assigning legal causation."
+            : "No governed delay-event population exists and only one schedule revision is available.",
     ),
   );
 
@@ -2099,13 +2112,25 @@ function buildBundle(
         contractorNoticeClaimEvidenceSubmitted:
           delayModel !== null,
       },
-      ["notices", "claims"],
-      delayModel
+      ["delay event dates", "notice requirements", "notices", "claims"],
+      analyticalDelayModel.events.some(
+        (event) =>
+          event.startIso !== null ||
+          event.endIso !== null,
+      ) &&
+      analyticalDelayModel.noticeRequirements.length >
+        0
         ? "ready"
         : "partial",
-      delayModel
+      analyticalDelayModel.events.some(
+        (event) =>
+          event.startIso !== null ||
+          event.endIso !== null,
+      ) &&
+      analyticalDelayModel.noticeRequirements.length >
+        0
         ? null
-        : "No contractor notices/claims were submitted. CMeng does not turn missing records into zero entitlement; it preserves the submission gap for reconciliation.",
+        : "Notice performance is not zero; it is not assessable. Event occurrence/awareness dates and applicable notice requirements must both be governed before timeliness is authoritative.",
     ),
   );
 
@@ -2133,15 +2158,15 @@ function buildBundle(
             delayModel !== null,
         },
         ["schedule windows", "contract time basis"],
-        delayModel &&
+        eotAssessment.eligibleCausalEventEvidenceEstablished &&
         windows.windowCount > 0
           ? "ready"
           : "partial",
-        delayModel
+        eotAssessment.eligibleCausalEventEvidenceEstablished
           ? windows.windowCount > 0
             ? null
-            : "Contract/EOT basis is available, but at least two schedule revisions are required for a window-based independent movement assessment."
-          : "Contract time basis is available and schedule movement is independently calculated where possible, but no contractor EOT/event case was submitted.",
+            : "Contract/EOT basis and causal event evidence are available, but at least two schedule revisions are required for a window-based independent movement assessment."
+          : "Contract time basis and event/claim identities may be available, but EOT causation is not management-ready until governed event dates and affected schedule activities are established.",
       ),
     );
   } else {
@@ -5985,16 +6010,36 @@ function buildSpecialistModuleFast(
           [
             "controlled programme revision history",
           ],
-          delayModel &&
-          delayModel.events.length >
-            0
+          delay.events.some(
+            (event) =>
+              (
+                event.eventStartIso !==
+                  null ||
+                event.eventEndIso !==
+                  null
+              ) &&
+              (
+                event.relatedActivityIds ??
+                []
+              ).length > 0,
+          )
             ? "ready"
             : "partial",
-          delayModel &&
-          delayModel.events.length >
-            0
+          delay.events.some(
+            (event) =>
+              (
+                event.eventStartIso !==
+                  null ||
+                event.eventEndIso !==
+                  null
+              ) &&
+              (
+                event.relatedActivityIds ??
+                []
+              ).length > 0,
+          )
             ? null
-            : "Programme movement is calculated from controlled programme revisions, but causation remains un-attributed because no linked delay-event population is established.",
+            : "Programme movement is calculated from controlled programme revisions, but event identity alone is insufficient for causation. Govern event dates and affected activities first.",
         );
       } else if (
         key ===
@@ -6023,7 +6068,19 @@ function buildSpecialistModuleFast(
             "delay events",
             "claim-event linkage",
           ],
-          delay.events.length > 0 &&
+          delay.events.some(
+            (event) =>
+              (
+                event.eventStartIso !==
+                  null ||
+                event.eventEndIso !==
+                  null
+              ) &&
+              (
+                event.relatedActivityIds ??
+                []
+              ).length > 0,
+          ) &&
           linkedClaimCount > 0
             ? "ready"
             : "partial",
