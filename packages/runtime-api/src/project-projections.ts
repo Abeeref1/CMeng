@@ -108,6 +108,9 @@ import type {
 import {
   certifyCrossModuleConsistency,
 } from "./certification";
+import {
+  weeklyResourceCapacityEvidence,
+} from "./resource-support-evidence";
 
 interface ProjectionBundle {
   version: number;
@@ -4456,6 +4459,10 @@ function buildSpecialistModuleFast(
               "resource-utilization-fast-v2",
           },
         );
+      const weeklyCapacity =
+        weeklyResourceCapacityEvidence(
+          state.evidenceDocuments,
+        );
       const capacityKnown =
         projection
           .capacityBasedResourceCount;
@@ -4466,16 +4473,21 @@ function buildSpecialistModuleFast(
         capacityKnown ===
           projection
             .assignedResourceCount;
+      const weeklyComparable =
+        weeklyCapacity
+          .comparableRowCount > 0;
       const enriched = {
         ...projection,
         assessedOverloadResourceCount:
           capacityKnown,
         overloadAssessmentState:
           capacityKnown === 0
-            ? "not_assessable"
+            ? "not_assessable_per_hour"
             : allCapacityKnown
               ? "complete"
               : "partial",
+        weeklyCapacityEvidence:
+          weeklyCapacity,
       };
       result = available(
         key,
@@ -4488,7 +4500,9 @@ function buildSpecialistModuleFast(
           ? "ready"
           : "partial",
         capacityKnown === 0
-          ? "Resource assignments are available, but no usable capacity rate is established. Overload cannot be assessed and zero must not be inferred."
+          ? weeklyComparable
+            ? "Per-hour resource capacity is not established in the schedule resource model. Weekly capacity and demand evidence is shown separately without unsafe unit conversion."
+            : "Resource assignments are available, but no usable capacity rate is established. Overload cannot be assessed and zero must not be inferred."
           : "Resource utilization is calculated only for resources with established capacity; the remaining resources stay demand-only.",
       );
     } else {
