@@ -842,8 +842,8 @@ function renderDelayClaimsVisual(data){
 function renderEotVisual(data){
   const p=projectionFor(data,"eot_assessment");
   if(!Array.isArray(p.windowCandidates))return"";
-  const contractReady=p.contractualCompletionState!=="missing";
-  const causalReady=p.causalEventEvidenceEstablished===true||p.windowCandidates.some(w=>(w.eligibleEventIds||[]).length>0);
+  const contractReady=p.contractTimeBasisEstablished===true;
+  const causalReady=p.eligibleCausalEventEvidenceEstablished===true;
   const analytical=p.analyticalTimeImpactCandidateDays;
   const kpis=planningKpis([
     ["Contract finish",planningShortDate(p.contractualCompletionIso),p.contractualCompletionState,contractReady?"":"warning"],
