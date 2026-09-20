@@ -225,66 +225,6 @@ function workSegmentsForDate(
     resolved,
   );
   return resolved;
-}> {
-  const dayStart = utcDayStart(dateMs);
-  const current = intervalsForRawDate(
-    calendar,
-    dayStart,
-  );
-  const previousDay = dayStart - DAY_MS;
-  const previous = intervalsForRawDate(
-    calendar,
-    previousDay,
-  );
-
-  const segments: Array<{
-    startMs: number;
-    finishMs: number;
-  }> = [];
-
-  for (const interval of previous) {
-    const start = minutesOfDay(interval.start);
-    const finish = minutesOfDay(interval.finish);
-    if (
-      start !== null &&
-      finish !== null &&
-      finish < start
-    ) {
-      segments.push({
-        startMs: dayStart,
-        finishMs:
-          dayStart + finish * 60_000,
-      });
-    }
-  }
-
-  for (const interval of current) {
-    const start = minutesOfDay(interval.start);
-    const finish = minutesOfDay(interval.finish);
-    if (start === null || finish === null) continue;
-
-    if (finish > start) {
-      segments.push({
-        startMs:
-          dayStart + start * 60_000,
-        finishMs:
-          dayStart + finish * 60_000,
-      });
-    } else if (finish < start) {
-      segments.push({
-        startMs:
-          dayStart + start * 60_000,
-        finishMs: dayStart + DAY_MS,
-      });
-    }
-  }
-
-  return segments
-    .filter(
-      (segment) =>
-        segment.finishMs > segment.startMs,
-    )
-    .sort((a, b) => a.startMs - b.startMs);
 }
 
 export function calendarHasUsableWorkPattern(
