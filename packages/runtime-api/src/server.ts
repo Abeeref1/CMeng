@@ -2533,15 +2533,5 @@ if (require.main === module) {
     process.stdout.write(
       `CMeng runtime listening on ${host}:${port}\n`,
     );
-    process.stdout.write(
-      "CMENG_PROJECT_STATE " +
-        JSON.stringify({
-          persistence:
-            runtimeProjects.persistenceMode(),
-          projectIds:
-            runtimeProjects.listProjectIds(),
-        }) +
-        "\n",
-    );
   });
 }
