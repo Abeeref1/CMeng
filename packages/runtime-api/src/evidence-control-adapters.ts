@@ -2322,11 +2322,62 @@ export function rebuildDerivedControls(
   if (
     !manuallyGovernedDelay
   ) {
-    state.controls.delayClaims =
+    const merged =
       mergeDelayFragments(
         state.projectId,
         delayFragments,
       );
+    if (merged) {
+      const requirementById =
+        new Map(
+          merged.noticeRequirements.map(
+            (item) => [
+              item.requirementId,
+              item,
+            ],
+          ),
+        );
+      for (
+        const requirement of
+          state.controls
+            .contractNoticeRequirements
+      ) {
+        requirementById.set(
+          requirement.requirementId,
+          requirement,
+        );
+      }
+      state.controls.delayClaims = {
+        ...merged,
+        noticeRequirements: [
+          ...requirementById.values(),
+        ],
+      };
+    } else if (
+      state.controls
+        .contractNoticeRequirements
+        .length > 0
+    ) {
+      state.controls.delayClaims = {
+        projectId:
+          state.projectId,
+        evidenceRevisionId:
+          "contract-notice-requirements",
+        events: [],
+        notices: [],
+        claims: [],
+        noticeRequirements: [
+          ...state.controls
+            .contractNoticeRequirements,
+        ],
+        diagnostics: [
+          "CONTRACT_NOTICE_REQUIREMENTS_ESTABLISHED_WITHOUT_DELAY_EVENT_REGISTER",
+        ],
+      };
+    } else {
+      state.controls.delayClaims =
+        null;
+    }
   }
 
   const timeBasis =
