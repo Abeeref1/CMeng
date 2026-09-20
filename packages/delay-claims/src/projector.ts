@@ -181,6 +181,10 @@ export function buildDelayClaimsProjection(
       return {
         eventId: event.eventId,
         title: event.title,
+        eventStartIso:
+          event.startIso,
+        eventEndIso:
+          event.endIso,
         responsibility:
           event.responsibility,
         responsibilityState:
