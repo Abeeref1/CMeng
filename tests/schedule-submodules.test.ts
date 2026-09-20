@@ -247,6 +247,31 @@ test("Milestones module identifies completed/open/late milestones from canonical
     projection.rows[0]!.daysFromDataDate,
     -1,
   );
+  assert.equal(
+    projection.rows[0]!.criticality,
+    "near_critical",
+  );
+  assert.equal(
+    projection.rows[0]!.dueState,
+    "overdue",
+  );
+  assert.equal(
+    projection.rows[0]!.managementPriority,
+    "critical",
+  );
+  assert.equal(
+    projection.rows[0]!.wbsName,
+    "Civil",
+  );
+  assert.ok(
+    projection.rows[0]!.managementFlags.includes(
+      "OVERDUE",
+    ),
+  );
+  assert.match(
+    projection.rows[0]!.managementAction,
+    /overdue milestone/i,
+  );
 });
 
 test("Near-Critical module excludes critical and unknown-float activities", () => {
