@@ -395,6 +395,119 @@ test("real XER upload creates isolated project revision and usable schedule modu
 });
 
 
+
+test("every schedule submodule exposes downloadable report data", async () => {
+  await withServer(async (base) => {
+    const project =
+      "MODULE-REPORT-E2E";
+
+    const uploaded =
+      await fetch(
+        base +
+          "/api/projects/" +
+          project +
+          "/schedule/uploads",
+        {
+          method: "POST",
+          headers: {
+            "content-type":
+              "text/plain",
+            "x-source-filename":
+              "current.xer",
+            "x-schedule-role":
+              "update",
+          },
+          body: xerFixture(),
+        },
+      );
+    assert.equal(
+      uploaded.status,
+      201,
+    );
+
+    const excel =
+      await fetch(
+        base +
+          "/api/projects/" +
+          project +
+          "/schedule/modules/schedule-analytics/report.xlsx",
+      );
+    assert.equal(
+      excel.status,
+      200,
+    );
+    assert.match(
+      excel.headers.get(
+        "content-type",
+      ) ?? "",
+      /spreadsheetml/,
+    );
+    assert.match(
+      excel.headers.get(
+        "content-disposition",
+      ) ?? "",
+      /attachment; filename=/,
+    );
+    const excelBytes =
+      new Uint8Array(
+        await excel.arrayBuffer(),
+      );
+    assert.ok(
+      excelBytes.length >
+        1000,
+    );
+    assert.equal(
+      String.fromCharCode(
+        excelBytes[0] ?? 0,
+        excelBytes[1] ?? 0,
+      ),
+      "PK",
+      "Excel report must be a real XLSX ZIP package",
+    );
+
+    const jsonReport =
+      await fetch(
+        base +
+          "/api/projects/" +
+          project +
+          "/schedule/modules/schedule-analytics/report.json",
+      );
+    assert.equal(
+      jsonReport.status,
+      200,
+    );
+    assert.match(
+      jsonReport.headers.get(
+        "content-disposition",
+      ) ?? "",
+      /attachment; filename=/,
+    );
+    const payload =
+      await jsonReport.json() as {
+        report: {
+          projectId: string;
+          moduleKey: string;
+        };
+        result: {
+          status: string;
+        };
+      };
+    assert.equal(
+      payload.report.projectId,
+      project,
+    );
+    assert.equal(
+      payload.report.moduleKey,
+      "schedule-analytics",
+    );
+    assert.notEqual(
+      payload.result.status,
+      "blocked",
+    );
+  });
+});
+
+
 test("deleting the current programme document restores the prior update", async () => {
   await withServer(
     async (base) => {
