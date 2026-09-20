@@ -25,6 +25,7 @@ import {
   type BoardReportPublicationInput,
 } from "../../board-report/src";
 import {
+  isProgrammeScheduleRevision,
   normalizeProjectCode,
   runtimeProjects,
 } from "./project-state";
@@ -1864,6 +1865,9 @@ async function route(
       res,
       200,
       state.schedules
+        .filter(
+          isProgrammeScheduleRevision,
+        )
         .map((item) => ({
           revisionId:
             item.revision
@@ -2767,8 +2771,11 @@ function logProgrammePlanningVisualQa(
     state.schedules
       .filter(
         (item) =>
+          isProgrammeScheduleRevision(
+            item,
+          ) &&
           item.role !==
-          "recovery",
+            "recovery",
       )
       .sort(
         (a, b) =>
