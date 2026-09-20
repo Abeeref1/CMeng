@@ -211,16 +211,39 @@ function floatSummary(
   );
 
   const nearCritical = known.filter(
-    (activity) =>
-      activity.totalFloatHours! >
-        config.criticalFloatThresholdHours &&
-      activity.totalFloatHours! <=
-        config.nearCriticalFloatThresholdHours,
+    (activity) => {
+      const value =
+        activity.totalFloatHours!;
+      const aboveLower =
+        config
+          .nearCriticalLowerBoundInclusive
+          ? value >=
+            config
+              .nearCriticalLowerBoundHours
+          : value >
+            config
+              .nearCriticalLowerBoundHours;
+      return (
+        aboveLower &&
+        value <=
+          config
+            .nearCriticalFloatThresholdHours
+      );
+    },
   );
+  const nearCriticalExclusive =
+    nearCritical.filter(
+      (activity) =>
+        activity.totalFloatHours! >
+        config
+          .criticalFloatThresholdHours,
+    );
 
   return {
     criticalCount: critical.length,
     nearCriticalCount: nearCritical.length,
+    nearCriticalExclusiveCount:
+      nearCriticalExclusive.length,
     negativeFloatCount: known.filter(
       (activity) => activity.totalFloatHours! < 0,
     ).length,
@@ -239,6 +262,10 @@ function floatSummary(
       config.criticalFloatThresholdHours,
     nearCriticalThresholdHours:
       config.nearCriticalFloatThresholdHours,
+    nearCriticalLowerBoundHours:
+      config.nearCriticalLowerBoundHours,
+    nearCriticalLowerBoundInclusive:
+      config.nearCriticalLowerBoundInclusive,
   };
 }
 
