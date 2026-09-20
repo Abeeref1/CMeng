@@ -112,6 +112,9 @@ import {
 import {
   weeklyResourceCapacityEvidence,
 } from "./resource-support-evidence";
+import {
+  resolveScheduleControlPolicy,
+} from "./schedule-control-policy";
 
 interface ProjectionBundle {
   version: number;
@@ -501,6 +504,11 @@ function buildBundle(
 
   const model =
     current.revision.model;
+  const scheduleControlPolicy =
+    resolveScheduleControlPolicy(
+      state,
+      model,
+    );
   const controlledBaseline =
     ordered
       .filter(
@@ -3088,6 +3096,11 @@ function buildPlanningModuleFast(
     analyticalHistory(state);
   const model =
     current.revision.model;
+  const scheduleControlPolicy =
+    resolveScheduleControlPolicy(
+      state,
+      model,
+    );
   const controlledBaseline =
     ordered
       .filter(
@@ -4660,6 +4673,11 @@ function buildSpecialistModuleFast(
     new Date().toISOString();
   const model =
     current.revision.model;
+  const scheduleControlPolicy =
+    resolveScheduleControlPolicy(
+      state,
+      model,
+    );
   const ordered =
     analyticalHistory(state);
   const controlledBaseline =
