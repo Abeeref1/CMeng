@@ -50,6 +50,8 @@ export interface CanonicalDelayEvent {
   describedImpactDays: number | null;
   describedImpactState: GovernanceState;
   relatedActivityIds: string[];
+  /** Explicit source window identities from governed EOT/window registers. */
+  relatedWindowIds?: string[];
   relatedClauseIdentifiers: string[];
   evidenceRefs: DelayEvidenceRef[];
   diagnostics: string[];
@@ -114,6 +116,19 @@ export interface NoticeRequirement {
   evidenceRefs: DelayEvidenceRef[];
 }
 
+export interface CanonicalDelayWindowEvidence {
+  windowId: string;
+  sequence: number | null;
+  startIso: string | null;
+  endIso: string | null;
+  programmeMovementDays: number | null;
+  claimIds: string[];
+  eventIds: string[];
+  relatedActivityIds: string[];
+  evidenceRefs: DelayEvidenceRef[];
+  diagnostics: string[];
+}
+
 export interface DelayClaimsModel {
   projectId: string;
   evidenceRevisionId: string;
@@ -121,6 +136,8 @@ export interface DelayClaimsModel {
   notices: CanonicalNoticeRecord[];
   claims: CanonicalClaimRecord[];
   noticeRequirements: NoticeRequirement[];
+  /** Optional governed EOT/window register evidence kept separate from entitlement. */
+  sourceWindows?: CanonicalDelayWindowEvidence[];
   diagnostics: string[];
 }
 
