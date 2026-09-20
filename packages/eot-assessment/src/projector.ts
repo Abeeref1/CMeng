@@ -390,7 +390,15 @@ export function buildEotAssessmentProjection(
   const officialApprovedEotIsAdditional =
     contractTime
       .approvedEotAdditionalToContractBasis ===
-    true;
+      true ||
+    (
+      contractTime
+        .approvedEotAdditionalToContractBasis ==
+        null &&
+      contractTime
+        .incorporatedAmendmentEotDays ==
+        null
+    );
 
   let officialAdjustedCompletionIso:
     | string
