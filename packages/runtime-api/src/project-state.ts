@@ -113,6 +113,10 @@ import {
   deriveSourceProductivityForecastFromCsv,
   rebuildSourceProductivityForecast,
 } from "./evidence-forecast-adapters";
+import {
+  deriveCommercialFromCsv,
+  rebuildCommercialState,
+} from "./evidence-commercial-adapters";
 
 function hashBytes(
   bytes: Uint8Array,
@@ -977,6 +981,10 @@ function hydrateProject(
       legacy
         .derivedControlsByDocument ??
       {},
+    derivedCommercialByDocument:
+      legacy
+        .derivedCommercialByDocument ??
+      {},
     derivedReadinessByDocument:
       legacy
         .derivedReadinessByDocument ??
@@ -1082,6 +1090,9 @@ function hydrateProject(
     hydrated,
   );
   rebuildSourceProductivityForecast(
+    hydrated,
+  );
+  rebuildCommercialState(
     hydrated,
   );
 
@@ -1510,6 +1521,7 @@ export class RuntimeProjectStore {
         boardPublicationHistory: [],
         delayEventHistory: [],
         derivedControlsByDocument: {},
+        derivedCommercialByDocument: {},
         derivedReadinessByDocument: {},
         lastRerunReceipt: null,
         controls:
@@ -2966,6 +2978,22 @@ export class RuntimeProjectStore {
         ] = productivityForecast;
       }
 
+      const commercialFragment =
+        deriveCommercialFromCsv({
+          state,
+          document,
+          bytes: input.bytes,
+        });
+      if (
+        Object.keys(
+          commercialFragment,
+        ).length > 0
+      ) {
+        state.derivedCommercialByDocument[
+          document.documentId
+        ] = commercialFragment;
+      }
+
       rebuildReadinessEvidence(
         state,
       );
@@ -2976,6 +3004,9 @@ export class RuntimeProjectStore {
         state,
       );
       rebuildSourceProductivityForecast(
+        state,
+      );
+      rebuildCommercialState(
         state,
       );
 
