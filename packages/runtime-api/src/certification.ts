@@ -8,6 +8,9 @@ import type {
 import type {
   BoardReadyReport,
 } from "../../board-report/src";
+import {
+  isProgrammeScheduleRevision,
+} from "./project-state";
 
 export interface CrossModuleCertificationCheck {
   checkId: string;
@@ -350,8 +353,12 @@ export function certifyCrossModuleConsistency(
     ),
   );
 
+  const programmeSchedules =
+    state.schedules.filter(
+      isProgrammeScheduleRevision,
+    );
   const latest =
-    state.schedules
+    programmeSchedules
       .filter(
         (item) =>
           item.role !==
@@ -411,13 +418,27 @@ export function certifyCrossModuleConsistency(
     ),
   );
 
-  const activeScheduleRevisionId =
+  const governedScheduleArtifactId =
     state.activeEvidenceBasis[
       "schedule:control"
     ]?.activeArtifactId ??
     state.activeEvidenceBasis[
       "schedule:baseline"
     ]?.activeArtifactId ??
+    null;
+  const governedProgrammeSchedule =
+    governedScheduleArtifactId
+      ? programmeSchedules.find(
+          (item) =>
+            item.revision
+              .revisionId ===
+            governedScheduleArtifactId,
+        ) ??
+        null
+      : null;
+  const activeScheduleRevisionId =
+    governedProgrammeSchedule
+      ?.revision.revisionId ??
     latest?.revision.revisionId ??
     null;
 
