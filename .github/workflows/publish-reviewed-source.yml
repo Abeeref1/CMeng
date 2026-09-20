@@ -16,7 +16,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Validate source checksum and apply
+      - name: Validate source checksum and apply application changes
         shell: python
         run: |
           import re, base64, gzip, hashlib, subprocess
@@ -29,8 +29,27 @@ jobs:
           patch = gzip.decompress(base64.b64decode(data, validate=True))
           assert hashlib.sha256(patch).hexdigest() == 'd81c0b013c5df153669516f62ca72767f6a4517f8acb342ceab004922a3d362c', 'Source checksum mismatch: refusing changes'
           Path('/tmp/accuracy.patch').write_bytes(patch)
-          subprocess.run(['git','apply','--check','/tmp/accuracy.patch'], check=True)
-          subprocess.run(['git','apply','/tmp/accuracy.patch'], check=True)
+          # Workflow installation is a separate authorized repository write.
+          # Preserve the acceptance workflow that already exists on this branch.
+          subprocess.run(['git','apply','--exclude=.github/workflows/*','--check','/tmp/accuracy.patch'], check=True)
+          subprocess.run(['git','apply','--exclude=.github/workflows/*','/tmp/accuracy.patch'], check=True)
+      - name: Connect payment evidence reconciliation to the existing view
+        shell: python
+        run: |
+          from pathlib import Path
+          p = Path('packages/runtime-api/src/ui.ts')
+          s = p.read_text()
+          replacements = [
+            ('["Payment receipts",rows.filter(r=>r.amounts.paidAmount.value!==null).length,"explicit paid amounts only"]', '["Recorded paid amounts",rows.filter(r=>r.amounts.paidAmount.value!==null).length,"source figures, not verified receipt count"],["Reconciled balances",rows.filter(r=>r.calculatedOutstandingAmount?.state==="official").length,"dated, governed cash allocations"]'),
+            ('This check covers the four reported components only. Omitted tax and other deductions remain unknown.', 'Gross work plus variations less retention, advance recovery and other deductions. All required components and money bases must be explicit; tax is added only for an evidenced exclusive-to-inclusive transition.')
+          ]
+          for old, new in replacements:
+              assert s.count(old) == 1, 'Unexpected payment view structure'
+              s = s.replace(old, new, 1)
+          anchor = '  } else if(key==="commercial-variations"){'
+          assert s.count(anchor) == 1, 'Unexpected commercial view structure'
+          addition = '    content+=panel("Cash allocation and balance reconciliation","Reported outstanding is retained unchanged. A calculated balance requires a dated, approved cumulative receipt allocated to this certificate on or before the Data Date.",table(["Certificate","Payment as of","Payment reference","Reported outstanding","Calculated outstanding","Balance state","Diagnostics","Evidence"],rows.map(r=>[escapeHtml(r.paymentId),period(r.paymentDate),escapeHtml(r.paymentReference||"Not provided"),amount(r.amounts.outstandingAmount),amount(r.calculatedOutstandingAmount),escapeHtml(humanizeKey(r.calculatedOutstandingAmount?.state||"missing")),escapeHtml((r.diagnostics||[]).map(humanizeKey).join("; ")||"No conflict in the checked fields"),evidence(r.calculatedOutstandingAmount?.receipts||[])])));\n'
+          p.write_text(s.replace(anchor, addition + anchor, 1))
       - run: npm install --ignore-scripts --no-audit --no-fund
       - name: Typecheck and all regression tests
         env:
@@ -46,11 +65,9 @@ jobs:
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          # The Actions token can publish application source, not workflow changes.
-          # Workflow installation and cleanup are separate authorized repository writes.
-          git add packages/runtime-api/src/canonical-time-claims.ts packages/runtime-api/src/commercial-canonical.ts packages/runtime-api/src/payment-reconciliation.ts tests/canonical-source-integration.test.ts scripts/railway-accuracy-acceptance.mjs
+          git add packages/runtime-api/src/canonical-time-claims.ts packages/runtime-api/src/commercial-canonical.ts packages/runtime-api/src/payment-reconciliation.ts packages/runtime-api/src/ui.ts tests/canonical-source-integration.test.ts scripts/railway-accuracy-acceptance.mjs
           git diff --cached --check
-          git commit -m 'fix: reconcile payment evidence and EOT positions at the programme cutoff'
+          git commit -m 'fix: reconcile payment evidence and cutoff EOT in canonical runtime and views'
           git push origin HEAD:refs/heads/fix/accuracy-foundation-reconciled-20260920
           git rev-parse HEAD > /tmp/accuracy-source-sha.txt
           git ls-files -z | tar --null -T - -czf /tmp/accuracy-source.tgz
