@@ -993,8 +993,9 @@ function buildBundle(
             ? "independent_cpm_available"
             : "not_established",
         interpretation:
-          independentForecast.complete
-            ? "Source float classifications are shown alongside a valid independent CPM calculation."
+          scheduleAnalytics.result
+            .complete
+            ? "Source float classifications are shown for programme review. Independent CPM/driving-path calculation is kept separate and is not asserted by this quick view."
             : "Source total-float classifications remain visible, but CMeng does not call them an independently established critical/driving path because CPM integrity is unresolved.",
       },
       [],
@@ -3195,15 +3196,46 @@ function buildPlanningModuleFast(
         }
       : scheduleRaw;
 
+  const sourceForecastCompletionIso =
+    scheduleAnalytics.result
+      .completionBases.find(
+        (basis) =>
+          basis.basis ===
+          "forecast",
+      )?.dateIso ??
+    null;
+
   const independentForecast =
-    buildIndependentForecastProjection(
-      model,
-      {
-        generatedAt,
-        producerVersion:
-          "planning-fast:forecast-v1",
-      },
-    );
+    {
+      schemaVersion: "1.0",
+      projectionKey:
+        "independent_forecast",
+      generatedAt,
+      producerVersion:
+        "planning-fast:forecast-deferred-v1",
+      projectId:
+        model.projectId,
+      sourceRevisionId:
+        model.sourceRevisionId,
+      dataDateIso:
+        model.dataDateIso,
+      origin: "unresolved",
+      sourceForecastCompletionIso,
+      independentForecastCompletionIso:
+        null,
+      forecastVarianceDays: null,
+      requiredFinishIso: null,
+      requiredFinishVarianceDays:
+        null,
+      activities: [],
+      criticalActivityIds: [],
+      complete: false,
+      diagnostics: [
+        "INDEPENDENT_CPM_DEFERRED_FOR_FAST_PROGRAMME_VIEW",
+      ],
+    } as unknown as ReturnType<
+      typeof buildIndependentForecastProjection
+    >;
 
   const minimalDeliveryChallenge =
     buildDeliveryChallengeProjection({
@@ -3248,12 +3280,14 @@ function buildPlanningModuleFast(
             : "Source total-float classifications remain visible, but CMeng does not call them an independently established critical/driving path because CPM integrity is unresolved.",
       },
       [],
-      independentForecast.complete
+      scheduleAnalytics.result
+        .complete
         ? "ready"
         : "partial",
-      independentForecast.complete
+      scheduleAnalytics.result
+        .complete
         ? null
-        : "Programme values are available, while the independent path check still needs review.",
+        : "Programme values are available, while schedule integrity items still need review.",
     );
 
   if (
@@ -3348,12 +3382,14 @@ function buildPlanningModuleFast(
               : "not_established",
         },
         [],
-        independentForecast.complete
+        scheduleAnalytics.result
+          .complete
           ? "ready"
           : "partial",
-        independentForecast.complete
+        scheduleAnalytics.result
+          .complete
           ? null
-          : "Activity dates, progress and source float are available while the independent path check still needs review.",
+          : "Activity dates, progress and source float are available while schedule integrity items still need review.",
       ),
     );
   } else if (
@@ -3490,12 +3526,8 @@ function buildPlanningModuleFast(
               : "not_established",
         },
         [],
-        independentForecast.complete
-          ? "ready"
-          : "partial",
-        independentForecast.complete
-          ? null
-          : "The watchlist uses submitted programme float while the independent path check still needs review.",
+        "partial",
+        "The watchlist uses submitted programme float. Independent CPM criticality is calculated separately and is not presented as established here.",
       ),
     );
   } else if (
