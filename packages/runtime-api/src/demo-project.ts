@@ -567,6 +567,7 @@ export function loadCertifiedDemoProject(
     boardPublicationHistory: [],
     delayEventHistory: [],
     derivedControlsByDocument: {},
+    derivedCommercialByDocument: {},
     derivedReadinessByDocument: {},
     lastRerunReceipt: null,
     contract: {
