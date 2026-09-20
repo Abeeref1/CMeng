@@ -1677,8 +1677,11 @@ async function openProject(projectId){
   el("projectId").value=projectId;
   localStorage.setItem("cmeng-project",projectId);
   appView="project";
-  await refresh(false);
   setAppView("project");
+  el("projectBadge").className="badge";
+  el("projectBadge").textContent="OPENING PROJECT";
+  el("moduleContent").innerHTML='<div class="view-state-bar"><span class="spinner"></span><strong>Opening '+escapeHtml(projectId)+'</strong><span>Loading the current project position.</span></div>';
+  await refresh(false);
 }
 async function createProject(){
   const projectId=el("newProjectId").value.trim();
