@@ -2,7 +2,9 @@ import { csv, norm, sourceTables } from '../../truth-kernel/src';
 import type { applyEvidenceBasis } from './evidence-control';
 import type { ProjectRuntimeState } from './project-state-types';
 export function typedEvidenceRole(documentType: string, headers: readonly string[]): string | null {
-  const keys = new Set(headers.map(norm)); const has = (...fields: string[]) => fields.every(f => keys.has(norm(f)));
+  const keys = new Set(headers.map(norm));
+  const has = (...fields: string[]) => fields.every(f => keys.has(norm(f)));
+  const any = (...fields: string[]) => fields.some(f => keys.has(norm(f)));
   if (documentType === 'resource_register') {
     if (has('resource id', 'available capacity', 'planned demand') && (has('week start') || has('period start'))) return 'weekly_capacity';
     if (has('resource id', 'week start', 'actual approved usage', 'source status')) return 'approved_usage';
@@ -13,9 +15,18 @@ export function typedEvidenceRole(documentType: string, headers: readonly string
   }
   if (documentType === 'delay_eot_claims_register') {
     if (has('determination id', 'claim id', 'awarded eot days')) return 'engineer_determinations';
+    if (has('claim id', 'event', 'notice date')) return 'claim_events';
+    if (
+      has('claim id') &&
+      any('window id','analysis window','window') &&
+      any('programme movement days','program movement days','window movement days','positive movement days','submitted movement days')
+    ) return 'window_impacts';
+    if (
+      has('claim id') &&
+      any('activity id','activity ids','related activity ids','impacted activity','affected activity','linked activity')
+    ) return 'event_activity_links';
     if (has('claim id', 'net assessed impact days')) return 'event_impacts';
     if (has('claim id', 'assessed days')) return 'entitlement_assessments';
-    if (has('claim id', 'event', 'notice date')) return 'claim_events';
   }
   return null;
 }
