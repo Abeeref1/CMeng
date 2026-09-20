@@ -70,7 +70,9 @@ export interface MilestonesProjection {
   dataDateIso: string | null;
   criticalityBasis: "submitted_total_float";
   criticalFloatThresholdHours: number;
-  nearCriticalFloatThresholdHours: number;
+  nearCriticalFloatThresholdHours: number | null;
+  nearCriticalThresholdWorkingDays: number | null;
+  nearCriticalThresholdBasis: "activity_calendar_working_days" | "explicit_hours" | "unresolved";
   floatCoveragePercent: number | null;
   criticalPathState:
     | "source_float_established"
