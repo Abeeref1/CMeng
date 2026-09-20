@@ -158,7 +158,7 @@ test("every CMeng module emits Submitted Independent Gap Consequence Action inst
         overview
           .moduleStates
           .length,
-        22,
+        29,
       );
       assert.equal(
         overview
