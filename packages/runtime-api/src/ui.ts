@@ -822,21 +822,22 @@ function renderDelayClaimsVisual(data){
   if(!Array.isArray(p.events))return"";
   const linked=p.linkedClaimCount??0,unlinked=p.unlinkedClaimCount??Math.max(0,(p.claimCount||0)-linked);
   const kpis=planningKpis([
-    ["Delay events",p.eventCount,"established"],
-    ["Claims",p.claimCount,"records"],
+    ["Delay events",p.eventCount,"governed events",p.eventCount?"":"warning"],
+    ["Claims",p.claimCount,"claim records"],
     ["Claims linked to events",linked,"causal linkage",linked?"success":"warning"],
-    ["Unlinked claims",unlinked,"records",unlinked?"warning":""],
-    ["Observed schedule movement",fmt(p.observedPositiveProgrammeMovementDays)+" d","not entitlement"]
+    ["Unlinked claims",unlinked,"cannot be attributed",unlinked?"warning":""],
+    ["Observed schedule movement",fmt(p.observedPositiveProgrammeMovementDays)+" d","schedule movement, not entitlement",p.observedPositiveProgrammeMovementDays?"warning":""]
   ]);
   const warning=p.eventCount===0&&p.claimCount>0?'<div class="notice warn"><b>'+escapeHtml(fmt(p.claimCount))+' claim records are present, but no governed delay events are established.</b> CMeng will not attribute schedule movement, responsibility or EOT entitlement to those claims until event linkage exists.</div>':'';
+  const linkage=planningStatusBand([
+    ["Linked to delay events",linked,"success"],
+    ["Not linked to delay events",unlinked,"warning"]
+  ]);
   const classes=claimStateCounts(p.events.map(e=>({state:e.candidateClass})));
   const rows=p.events.map(e=>'<tr><td><b>'+escapeHtml(e.eventId)+'</b><br><span class="muted">'+escapeHtml(e.title||"")+'</span></td><td>'+escapeHtml(humanizeKey(e.responsibility))+'</td><td>'+escapeHtml(humanizeKey(e.noticeTimeliness))+'</td><td>'+escapeHtml(fmt(e.observedPositiveProgrammeMovementDays))+'</td><td>'+escapeHtml(humanizeKey(e.programmeMovementBasis))+'</td><td><span class="state-pill '+(e.concurrencyCandidate?"review":"ready")+'">'+escapeHtml(humanizeKey(e.candidateClass))+'</span></td><td>'+escapeHtml((e.linkedClaimIds||[]).join(", ")||"—")+'</td><td>'+escapeHtml((e.relatedActivityIds||[]).join(", ")||"—")+'</td></tr>').join("");
   const detail=p.events.length?'<div class="table-wrap"><table><thead><tr><th>Event</th><th>Responsibility</th><th>Notice</th><th>Observed movement d</th><th>Movement basis</th><th>Assessment class</th><th>Claims</th><th>Activities</th></tr></thead><tbody>'+rows+'</tbody></table></div>':'<div class="empty-visual">No delay-event population is established. Claim records alone are not converted into delay events.</div>';
-  return '<section class="planning-view delay-claims-view">'+kpis+warning+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Claim-event linkage</h4><p>A claim must link to a delay event and schedule evidence before causation can be assessed.</p></div></div><div class="planning-panel-body">'+moduleEvidenceGate([
-    {label:"Claim records",value:fmt(p.claimCount),state:p.claimCount>0?"ready":"missing"},
-    {label:"Delay events",value:fmt(p.eventCount),state:p.eventCount>0?"ready":"missing"},
-    {label:"Linked claims",value:fmt(linked),state:linked>0?"ready":"missing"}
-  ])+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Event assessment classes</h4></div></div><div class="planning-panel-body">'+moduleBarList(classes,"warning")+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Delay-event detail</h4></div></div><div class="planning-panel-body">'+detail+'</div></section></section>';
+  const classVisual=p.events.length?moduleBarList(classes,"warning"):'<div class="empty-visual">Event responsibility cannot be classified until delay events are established.</div>';
+  return '<section class="planning-view delay-claims-view">'+kpis+warning+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Claim-event linkage</h4><p>Claims without a governed delay-event link remain un-attributed.</p></div></div><div class="planning-panel-body">'+linkage+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Event assessment classes</h4><p>Responsibility classification is shown only for established delay events.</p></div></div><div class="planning-panel-body">'+classVisual+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Delay-event detail</h4></div></div><div class="planning-panel-body">'+detail+'</div></section></section>';
 }
 function renderEotVisual(data){
   const p=projectionFor(data,"eot_assessment");
@@ -854,12 +855,17 @@ function renderEotVisual(data){
   ]);
   const warning=analytical===null&&p.observedProgrammeMovementDays>0?'<div class="notice warn"><b>Schedule movement is not an EOT time-impact assessment.</b> CMeng can observe '+escapeHtml(fmt(p.observedProgrammeMovementDays))+' days of programme movement, but it will not call those days an EOT candidate until causal events and the contract time basis support that conclusion.</div>':'';
   const labels=p.revisionLabels||{};
+  const movementBars=p.windowCandidates.map((w,index)=>({
+    label:"Window "+(index+1)+" · "+readableWindow(w.windowId,labels),
+    value:typeof w.positiveProgrammeMovementDays==="number"?w.positiveProgrammeMovementDays:0,
+    tone:"warning"
+  }));
   const rows=p.windowCandidates.map(w=>'<tr><td><b>'+escapeHtml(readableWindow(w.windowId,labels))+'</b></td><td>'+escapeHtml(fmt(w.positiveProgrammeMovementDays))+'</td><td>'+escapeHtml(humanizeKey(w.programmeMovementBasis))+'</td><td>'+escapeHtml(w.analyticalTimeImpactCandidateDays===null?"—":fmt(w.analyticalTimeImpactCandidateDays))+'</td><td>'+escapeHtml(humanizeKey(w.state))+'</td><td>'+escapeHtml(fmt(w.includedCandidateDays))+'</td><td>'+escapeHtml((w.reasons||[]).map(managementReason).join("; ")||"—")+'</td></tr>').join("");
-  return '<section class="planning-view eot-view">'+kpis+warning+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>EOT evidence gates</h4><p>Each gate must be distinguished before schedule slippage can become an entitlement position.</p></div></div><div class="planning-panel-body">'+moduleEvidenceGate([
+  return '<section class="planning-view eot-view">'+kpis+warning+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Observed movement by window</h4><p>This chart shows programme movement only. It does not represent EOT entitlement.</p></div></div><div class="planning-panel-body">'+planningSignedBars(movementBars,"days")+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>EOT evidence gates</h4><p>All gates remain distinct before schedule movement can become an entitlement position.</p></div></div><div class="planning-panel-body">'+moduleEvidenceGate([
     {label:"Contract time basis",value:contractReady?"Established":"Not established",state:contractReady?"ready":"missing"},
     {label:"Causal delay events",value:causalReady?"Established":"Not established",state:causalReady?"ready":"missing"},
     {label:"Official EOT award",value:p.officialApprovedEotState==="official"?"Established":"Not established",state:p.officialApprovedEotState==="official"?"ready":"missing"}
-  ])+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Window assessment</h4><p>Observed movement, candidate time impact and included entitlement days remain separate.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Window</th><th>Observed movement d</th><th>Movement basis</th><th>Time-impact candidate d</th><th>State</th><th>Included days</th><th>Reason</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></section></section>';
+  ])+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Window assessment</h4><p>Observed movement, candidate time impact and included entitlement days remain separate.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Window</th><th>Observed movement d</th><th>Movement basis</th><th>Time-impact candidate d</th><th>State</th><th>Included days</th><th>Reason</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></section></section>';
 }
 function visualSection(title,description,badge,body){
   return '<section class="chart-card"><div class="chart-card-head"><div><h4>'+escapeHtml(title)+'</h4><p>'+escapeHtml(description)+'</p></div>'+(badge?'<span class="badge">'+escapeHtml(badge)+'</span>':'')+'</div><div class="chart-body">'+body+'</div></section>';
@@ -1616,28 +1622,28 @@ function renderForecastHistoryVisual(data){
 function renderNoticesClaimsVisual(data){
   const p=projectionFor(data,"notices_claims");
   if(!Array.isArray(p.events)||!Array.isArray(p.claims))return"";
-  const assessable=p.noticeAssessmentState!=="not_assessable_without_delay_events"&&p.eventCount>0;
+  const assessable=p.noticeAssessmentState==="assessed";
   const kpis=planningKpis([
     ["Claims",p.claimCount,"records"],
     ["Delay events",p.eventCount,"notice assessment basis",p.eventCount?"":"warning"],
-    ["Timely notices",assessable?p.timelyNoticeCount:"Not assessed",assessable?"events":"events required"],
-    ["Late notices",assessable?p.lateNoticeCount:"Not assessed",assessable?"events":"events required"],
-    ["Missing notices",assessable?p.missingNoticeCount:"Not assessed",assessable?"events":"events required"],
-    ["Notice requirements missing",assessable?p.noticeRequirementMissingCount:"Not assessed",assessable?"events":"events required"]
+    ["Timely notices",assessable?p.timelyNoticeCount:"Not assessed",assessable?"events":"event + requirement needed"],
+    ["Late notices",assessable?p.lateNoticeCount:"Not assessed",assessable?"events":"event + requirement needed"],
+    ["Missing notices",assessable?p.missingNoticeCount:"Not assessed",assessable?"events":"event + requirement needed"],
+    ["Requirements missing",assessable?p.noticeRequirementMissingCount:"Not assessed",assessable?"events":"governed requirement needed"]
   ]);
-  const warning=!assessable?'<div class="notice warn"><b>Notice performance is not zero; it is not assessable.</b> Claim records exist without linked delay events and applicable event notice requirements, so CMeng does not count them as timely, late or missing notices.</div>':'';
+  const warning=!assessable?'<div class="notice warn"><b>Notice performance is not zero; it is not assessable.</b> A claim row or notice date by itself does not prove notice compliance. CMeng needs a governed delay event and the applicable contractual notice requirement before classifying notice as timely, late or missing.</div>':'';
   const noticeBand=assessable?planningStatusBand([
     ["Timely",p.timelyNoticeCount,"success"],
     ["Late",p.lateNoticeCount,"danger"],
     ["Missing",p.missingNoticeCount,"warning"],
     ["Requirement missing",p.noticeRequirementMissingCount,"neutral"]
-  ]):'<div class="empty-visual">Notice timeliness cannot be assessed until delay events and notice requirements are linked.</div>';
+  ]):'<div class="empty-visual">Notice timeliness cannot be assessed until governed delay events and applicable notice requirements are linked.</div>';
   const claimBars=moduleBarList(claimStateCounts(p.claims),"accent");
   const events=p.events.length?'<div class="table-wrap"><table><thead><tr><th>Event</th><th>Responsibility</th><th>Start</th><th>Notice</th><th>Required days</th><th>Elapsed days</th><th>Timeliness</th><th>Claims</th></tr></thead><tbody>'+
-    p.events.map(e=>'<tr><td><b>'+escapeHtml(e.eventId)+'</b><br><span class="muted">'+escapeHtml(e.title||"")+'</span></td><td>'+escapeHtml(humanizeKey(e.responsibility))+'</td><td>'+escapeHtml(planningShortDate(e.eventStartIso))+'</td><td>'+escapeHtml(planningShortDate(e.noticeIssuedAt))+'</td><td>'+escapeHtml(fmt(e.requiredNoticeDays))+'</td><td>'+escapeHtml(fmt(e.elapsedNoticeDays))+'</td><td>'+escapeHtml(humanizeKey(e.noticeTimeliness))+'</td><td>'+escapeHtml((e.linkedClaimIds||[]).join(", ")||"—")+'</td></tr>').join("")+'</tbody></table></div>':'<div class="empty-visual">No linked delay events are available for notice assessment.</div>';
+    p.events.map(e=>'<tr><td><b>'+escapeHtml(e.eventId)+'</b><br><span class="muted">'+escapeHtml(e.title||"")+'</span></td><td>'+escapeHtml(humanizeKey(e.responsibility))+'</td><td>'+escapeHtml(planningShortDate(e.eventStartIso))+'</td><td>'+escapeHtml(planningShortDate(e.noticeIssuedAt))+'</td><td>'+escapeHtml(fmt(e.requiredNoticeDays))+'</td><td>'+escapeHtml(fmt(e.elapsedNoticeDays))+'</td><td>'+escapeHtml(humanizeKey(e.noticeTimeliness))+'</td><td>'+escapeHtml((e.linkedClaimIds||[]).join(", ")||"—")+'</td></tr>').join("")+'</tbody></table></div>':'<div class="empty-visual">No governed delay events are available for notice assessment.</div>';
   const claims='<div class="table-wrap"><table><thead><tr><th>Claim</th><th>State</th><th>Submitted</th><th>Claimed days</th><th>Assessed days</th><th>Days authority</th><th>Claimed amount</th><th>Assessed amount</th><th>Amount authority</th></tr></thead><tbody>'+
     p.claims.map(c=>'<tr><td><b>'+escapeHtml(c.claimId)+'</b><br><span class="muted">'+escapeHtml(c.title||"")+'</span></td><td>'+escapeHtml(humanizeKey(c.state))+'</td><td>'+escapeHtml(planningShortDate(c.submittedAt))+'</td><td>'+escapeHtml(fmt(c.claimedDays))+'</td><td>'+escapeHtml(fmt(c.assessedDays))+'</td><td>'+escapeHtml(humanizeKey(c.assessedDaysState))+'</td><td>'+escapeHtml(fmt(c.claimedAmount))+'</td><td>'+escapeHtml(fmt(c.assessedAmount))+'</td><td>'+escapeHtml(humanizeKey(c.assessedAmountState))+'</td></tr>').join("")+'</tbody></table></div>';
-  return '<section class="planning-view notices-view">'+kpis+warning+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Notice assessment</h4><p>Timeliness is calculated only where an event and applicable notice requirement exist.</p></div></div><div class="planning-panel-body">'+noticeBand+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Claim states</h4><p>Claim status is separate from notice compliance and assessment authority.</p></div></div><div class="planning-panel-body">'+claimBars+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Notice compliance by event</h4></div></div><div class="planning-panel-body">'+events+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Claim records</h4></div></div><div class="planning-panel-body">'+claims+'</div></section></section>';
+  return '<section class="planning-view notices-view">'+kpis+warning+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Notice assessment</h4><p>Timeliness is calculated only where an event and applicable contractual notice requirement exist.</p></div></div><div class="planning-panel-body">'+noticeBand+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Claim states</h4><p>Claim status is separate from notice compliance and assessment authority.</p></div></div><div class="planning-panel-body">'+claimBars+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Notice compliance by event</h4></div></div><div class="planning-panel-body">'+events+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Claim records</h4></div></div><div class="planning-panel-body">'+claims+'</div></section></section>';
 }
 function renderSpecializedModule(key,data){
   if(key==="pmo-analysis")return renderPmoVisual(data);
