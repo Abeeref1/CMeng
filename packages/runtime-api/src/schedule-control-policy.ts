@@ -396,10 +396,9 @@ function explicitBasis(
       sourceRefs:
         document.assertions.length
           ? document.assertions
-              .flatMap(
+              .map(
                 (assertion) =>
-                  assertion.sourceRefs ??
-                  [],
+                  assertion.sourceRef,
               )
           : [
               "evidence-document:" +
