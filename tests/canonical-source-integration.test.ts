@@ -138,8 +138,43 @@ test('PDF SCH01 is persisted as governed control assertions and legacy PDF asser
   assert.equal(refreshed.refreshedDocumentCount,1);
   assert.equal(doc.sourceHashSha256,originalHash);
   assert.ok(doc.diagnostics.includes('SCHEDULE_CONTROL_BASIS_ASSERTION_REFRESH_V4'));
-  assert.equal(state.sourceIntegrationVersion,'canonical-source-v4');
+  assert.equal(state.sourceIntegrationVersion,'canonical-source-v5');
   assert.equal(projectScheduleControlBasis(state).nearCriticalWorkingDays,5);
+});
+
+test('SCH01 threshold beyond classification sample pages is recovered by full-document extraction',async t=>{
+  const {store,state}=fixture(t);
+  const pdf=await PDFDocument.create();
+  const font=await pdf.embedFont(StandardFonts.Helvetica);
+  for(let index=1;index<=6;index+=1){
+    const page=pdf.addPage([595,842]);
+    const lines=index===1
+      ? ['SCHEDULE CONTROL BASIS','Data Date: 31 August 2026','Critical Definition: TF <= 0']
+      : index===5
+        ? ['FLOAT CONTROL RULES','Near Critical Activities: 0 < TF <= +5 working days']
+        : ['Schedule control supporting narrative page '+index,'Programme governance and reporting basis'];
+    lines.forEach((line,row)=>page.drawText(line,{x:50,y:780-row*24,size:12,font}));
+  }
+  const bytes=await pdf.save();
+  const upload=await store.ingestEvidenceFile({
+    projectId:'CANONICAL',
+    bytes,
+    mediaType:'application/pdf',
+    sourceFilename:'SCH01_Schedule_Control_Basis_Multipage.pdf',
+    sourceRelativePath:'03_Schedule_Control/SCH01_Schedule_Control_Basis_Multipage.pdf',
+    uploadedAt:stamp,
+    uploadIntent:'add_update',
+  });
+  const doc=state.evidenceDocuments.find(d=>d.documentId===upload.documentId)!;
+  const originalHash=doc.sourceHashSha256;
+  assert.equal(doc.assertions.some(a=>a.metric==='near_critical_working_days'),false);
+
+  const refreshed=await store.refreshScheduleControlBasisAssertions();
+  assert.equal(refreshed.refreshedDocumentCount,1);
+  assert.equal(doc.sourceHashSha256,originalHash);
+  assert.equal(doc.assertions.find(a=>a.metric==='near_critical_working_days')?.value,5);
+  assert.equal(projectScheduleControlBasis(state).nearCriticalWorkingDays,5);
+  assert.ok(refreshed.diagnostics.some(d=>d.startsWith('SCHEDULE_CONTROL_BASIS_FULL_NATIVE_TEXT_USED')));
 });
 
 test('legacy SCH01 misclassified before schedule-control rules is recovered from its original path without changing source hash',t=>{

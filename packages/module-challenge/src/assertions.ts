@@ -53,8 +53,10 @@ const RULES: AssertionRule[] = [
     valueType: "days",
     unit: "working_days",
     patterns: [
-      /near[-\s]?critical(?:\s+(?:activities?|threshold|definition|criteria|criterion|band|range|float|watchlist|basis))?[\s\S]{0,180}?([0-9]+(?:\.[0-9]+)?)\s*(?:working\s*days?|work\s*days?|wd)\b/gi,
-      /near[-\s]?critical[\s\S]{0,180}?(?:tf|total\s+float)[\s\S]{0,80}?([0-9]+(?:\.[0-9]+)?)\s*(?:working\s*days?|work\s*days?|wd)\b/gi,
+      /near[-\s]?critical(?:\s+(?:activities?|threshold|definition|criteria|criterion|band|range|float|watchlist|basis))?[\s\S]{0,320}?([0-9]+(?:\.[0-9]+)?)\s*(?:working[-\s]*days?|work[-\s]*days?|workdays?|wd)\b/gi,
+      /near[-\s]?critical[\s\S]{0,320}?(?:tf|total\s+float)[\s\S]{0,160}?([0-9]+(?:\.[0-9]+)?)\s*(?:working[-\s]*days?|work[-\s]*days?|workdays?|wd)\b/gi,
+      /([0-9]+(?:\.[0-9]+)?)\s*(?:working[-\s]*days?|work[-\s]*days?|workdays?|wd)\b[\s\S]{0,320}?near[-\s]?critical/gi,
+      /near[-\s]?critical[\s\S]{0,240}?(?:0\s*)?(?:<|>|≤|>=|=>|to|through|[-–—])?[\s\S]{0,80}?(?:tf|total\s+float)?[\s\S]{0,80}?(?:<=|=<|≤|to|through|[-–—])\s*\+?\s*([0-9]+(?:\.[0-9]+)?)[\s\S]{0,80}?\b(?:working|work)\b/gi,
     ],
     parse: numberValue,
     confidence: 0.98,
