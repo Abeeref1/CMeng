@@ -1912,15 +1912,13 @@ function buildBundle(
   );
 
   if (
-    state.controls
-      .contractTimeBasis
+    contractTimeBasis
   ) {
     eotAssessment =
       buildEotAssessmentProjection(
         windows,
         delayClaims,
-        state.controls
-          .contractTimeBasis,
+        contractTimeBasis,
         {
           generatedAt,
           producerVersion:
@@ -1967,6 +1965,18 @@ function buildBundle(
       officialApprovedEotState:
         "missing",
       officialAdjustedCompletionIso:
+        null,
+      incorporatedAmendmentEotDays:
+        null,
+      determinationCount:
+        null,
+      determinationAwardedDaysTotal:
+        null,
+      determinationAwardedDaysToDataDate:
+        null,
+      determinationDataDateIso:
+        model.dataDateIso,
+      approvedEotAdditionalToContractBasis:
         null,
       observedProgrammeMovementDays:
         windows
@@ -2082,9 +2092,7 @@ function buildBundle(
       resources:
         usableResources,
       independentForecast,
-      contractTimeBasis:
-        state.controls
-          .contractTimeBasis,
+      contractTimeBasis,
       submittedManpowerPlan:
         state.submittedManpowerPlan,
     });
@@ -4301,6 +4309,16 @@ function specialistChallengeContext(
       model,
       generatedAt,
     );
+  const projectTruth =
+    buildProjectTruth(
+      state,
+      model,
+    );
+  const contractTimeBasis =
+    state.controls
+      .contractTimeBasis ??
+    projectTruth
+      .contractTimeBasis;
   const resourceModel =
     state.resourcesByRevision.get(
       model.sourceRevisionId,
@@ -4326,9 +4344,7 @@ function specialistChallengeContext(
           : null,
       independentForecast:
         forecast,
-      contractTimeBasis:
-        state.controls
-          .contractTimeBasis,
+      contractTimeBasis,
       submittedManpowerPlan:
         state.submittedManpowerPlan,
     });
@@ -5796,13 +5812,11 @@ function buildSpecialistModuleFast(
         );
       } else {
         const eot =
-          state.controls
-            .contractTimeBasis
+          contractTimeBasis
             ? buildEotAssessmentProjection(
                 windows,
                 delay,
-                state.controls
-                  .contractTimeBasis,
+                contractTimeBasis,
                 {
                   generatedAt,
                   producerVersion:
@@ -5828,6 +5842,18 @@ function buildSpecialistModuleFast(
                 officialApprovedEotState:
                   "missing" as const,
                 officialAdjustedCompletionIso:
+                  null,
+                incorporatedAmendmentEotDays:
+                  null,
+                determinationCount:
+                  null,
+                determinationAwardedDaysTotal:
+                  null,
+                determinationAwardedDaysToDataDate:
+                  null,
+                determinationDataDateIso:
+                  model.dataDateIso,
+                approvedEotAdditionalToContractBasis:
                   null,
                 observedProgrammeMovementDays:
                   windows
@@ -5910,8 +5936,7 @@ function buildSpecialistModuleFast(
           analyticalDelayModel
             .events.length > 0;
         const contractBasis =
-          state.controls
-            .contractTimeBasis;
+          contractTimeBasis;
         const contractReady =
           contractBasis !==
             null &&
@@ -6063,9 +6088,7 @@ function buildSpecialistModuleFast(
             : null,
         independentForecast:
           sourceForecast,
-        contractTimeBasis:
-          state.controls
-            .contractTimeBasis,
+        contractTimeBasis,
         submittedManpowerPlan:
           state.submittedManpowerPlan,
       });
