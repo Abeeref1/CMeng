@@ -458,6 +458,7 @@ export interface ProjectRuntimeOverview {
   evidenceDocumentCount: number;
   evidenceCategoryCounts: Record<string, number>;
   latestRevisionId: string | null;
+  latestRevisionLabel?: string | null;
   latestDataDateIso: string | null;
   boqState: string | null;
   contractLoaded: boolean;
