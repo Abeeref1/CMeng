@@ -2832,6 +2832,1062 @@ function buildBundle(
   return bundle;
 }
 
+
+const planningModuleKeys =
+  new Set([
+    "pmo-analysis",
+    "schedule-analytics",
+    "activity-analytics",
+    "lookahead-schedule",
+    "schedule-change-report",
+    "revision-trend",
+    "milestones",
+    "near-critical",
+  ]);
+
+const planningModuleCache =
+  new Map<
+    string,
+    {
+      version: number;
+      result:
+        ModuleRuntimeResult;
+    }
+  >();
+
+function buildPlanningModuleFast(
+  state: ProjectRuntimeState,
+  key: string,
+): ModuleRuntimeResult | null {
+  if (!planningModuleKeys.has(key)) {
+    return null;
+  }
+
+  const cacheKey =
+    state.projectId +
+    "::" +
+    key;
+  const cached =
+    planningModuleCache.get(
+      cacheKey,
+    );
+  if (
+    cached &&
+    cached.version ===
+      state.version
+  ) {
+    return cached.result;
+  }
+
+  const current =
+    runtimeProjects.latestSchedule(
+      state.projectId,
+    );
+  if (!current) {
+    return blocked(
+      key,
+      "Programme evidence has not been established.",
+      ["schedule"],
+    );
+  }
+
+  const generatedAt =
+    new Date().toISOString();
+  const ordered =
+    analyticalHistory(state);
+  const model =
+    current.revision.model;
+  const controlledBaseline =
+    ordered
+      .filter(
+        (item) =>
+          item.role ===
+            "revised_baseline" ||
+          item.role ===
+            "baseline",
+      )
+      .at(-1) ??
+    null;
+
+  const baselineByActivity =
+    new Map(
+      (
+        controlledBaseline
+          ?.revision.model
+          .activities ??
+        []
+      ).map(
+        (activity) => [
+          activity.activityId,
+          activity,
+        ],
+      ),
+    );
+  const currentByActivity =
+    new Map(
+      model.activities.map(
+        (activity) => [
+          activity.activityId,
+          activity,
+        ],
+      ),
+    );
+
+  const baselineFinish = (
+    activity:
+      ProjectRuntimeState["schedules"][number]["revision"]["model"]["activities"][number],
+  ): string | null =>
+    activity.baselineFinishIso ??
+    activity.forecastFinishIso ??
+    activity.currentFinishIso ??
+    activity.actualFinishIso;
+
+  const currentFinish = (
+    activity:
+      ProjectRuntimeState["schedules"][number]["revision"]["model"]["activities"][number],
+  ): string | null =>
+    (
+      activity.status ===
+        "completed"
+        ? activity.actualFinishIso
+        : null
+    ) ??
+    activity.forecastFinishIso ??
+    activity.currentFinishIso ??
+    activity.actualFinishIso;
+
+  const daysBetween = (
+    from: string | null,
+    to: string | null,
+  ): number | null => {
+    if (!from || !to) {
+      return null;
+    }
+    const a = Date.parse(from);
+    const b = Date.parse(to);
+    if (
+      !Number.isFinite(a) ||
+      !Number.isFinite(b)
+    ) {
+      return null;
+    }
+    return Number(
+      (
+        (
+          b - a
+        ) /
+        86_400_000
+      ).toFixed(6),
+    );
+  };
+
+  const baselineCompletionCandidates =
+    (
+      controlledBaseline
+        ?.revision.model
+        .activities ??
+      []
+    )
+      .map(
+        (activity) => ({
+          activityId:
+            activity.activityId,
+          dateIso:
+            baselineFinish(
+              activity,
+            ),
+        }),
+      )
+      .filter(
+        (
+          item,
+        ): item is {
+          activityId: string;
+          dateIso: string;
+        } =>
+          item.dateIso !== null &&
+          Number.isFinite(
+            Date.parse(
+              item.dateIso,
+            ),
+          ),
+      )
+      .sort(
+        (a, b) =>
+          a.dateIso.localeCompare(
+            b.dateIso,
+          ),
+      );
+
+  const controlledBaselineCompletion =
+    baselineCompletionCandidates
+      .at(-1) ??
+    null;
+
+  const scheduleRaw =
+    buildScheduleAnalyticsProjection(
+      model,
+      {
+        generatedAt,
+        producerVersion:
+          "planning-fast:schedule-v1",
+      },
+    );
+
+  const controlledVariances =
+    controlledBaseline
+      ? model.activities.map(
+          (activity) => {
+            const baseline =
+              baselineByActivity.get(
+                activity.activityId,
+              );
+            return daysBetween(
+              baseline
+                ? baselineFinish(
+                    baseline,
+                  )
+                : null,
+              currentFinish(
+                activity,
+              ),
+            );
+          },
+        )
+      : [];
+
+  const knownVariances =
+    controlledVariances.filter(
+      (
+        value,
+      ): value is number =>
+        value !== null,
+    );
+
+  const scheduleAnalytics =
+    controlledBaseline
+      ? {
+          ...scheduleRaw,
+          controlledBaselineRevisionId:
+            controlledBaseline
+              .revision.revisionId,
+          result: {
+            ...scheduleRaw.result,
+            completionBases:
+              scheduleRaw.result
+                .completionBases.map(
+                  (basis) =>
+                    basis.basis ===
+                      "programme"
+                      ? {
+                          ...basis,
+                          dateIso:
+                            controlledBaselineCompletion
+                              ?.dateIso ??
+                            null,
+                          activityId:
+                            controlledBaselineCompletion
+                              ?.activityId ??
+                            null,
+                          state:
+                            baselineCompletionCandidates
+                              .length ===
+                            0
+                              ? "missing" as const
+                              : "available" as const,
+                          coveragePercent:
+                            controlledBaseline
+                              .revision.model
+                              .activities
+                              .length
+                              ? Number(
+                                  (
+                                    (
+                                      baselineCompletionCandidates
+                                        .length /
+                                      controlledBaseline
+                                        .revision.model
+                                        .activities
+                                        .length
+                                    ) *
+                                    100
+                                  ).toFixed(4),
+                                )
+                              : null,
+                          method:
+                            "controlled baseline programme completion",
+                          sourceRefs: [
+                            "schedule-revision:" +
+                              controlledBaseline
+                                .revision
+                                .revisionId,
+                          ],
+                        }
+                      : basis,
+                ),
+            finishVariance: {
+              ...scheduleRaw.result
+                .finishVariance,
+              method:
+                "controlled baseline programme versus current/forecast finish",
+              comparableActivities:
+                knownVariances.length,
+              lateActivities:
+                knownVariances.filter(
+                  (value) =>
+                    value > 0,
+                ).length,
+              earlyActivities:
+                knownVariances.filter(
+                  (value) =>
+                    value < 0,
+                ).length,
+              onTimeActivities:
+                knownVariances.filter(
+                  (value) =>
+                    value === 0,
+                ).length,
+              unknownActivities:
+                model.activities
+                  .length -
+                knownVariances.length,
+              averageFinishVarianceDays:
+                knownVariances.length
+                  ? Number(
+                      (
+                        knownVariances.reduce(
+                          (
+                            sum,
+                            value,
+                          ) =>
+                            sum +
+                            value,
+                          0,
+                        ) /
+                        knownVariances
+                          .length
+                      ).toFixed(6),
+                    )
+                  : null,
+              maximumDelayDays:
+                knownVariances.length
+                  ? Math.max(
+                      ...knownVariances,
+                    )
+                  : null,
+              coveragePercent:
+                model.activities
+                  .length
+                  ? Number(
+                      (
+                        (
+                          knownVariances
+                            .length /
+                          model.activities
+                            .length
+                        ) *
+                        100
+                      ).toFixed(4),
+                    )
+                  : null,
+            },
+          },
+        }
+      : scheduleRaw;
+
+  const independentForecast =
+    buildIndependentForecastProjection(
+      model,
+      {
+        generatedAt,
+        producerVersion:
+          "planning-fast:forecast-v1",
+      },
+    );
+
+  const minimalDeliveryChallenge =
+    buildDeliveryChallengeProjection({
+      generatedAt,
+      producerVersion:
+        "planning-fast:delivery-v1",
+      schedule: model,
+      quantities: null,
+      resources: null,
+      independentForecast,
+      contractTimeBasis:
+        state.controls
+          .contractTimeBasis,
+      submittedManpowerPlan:
+        state.submittedManpowerPlan,
+    });
+
+  const modules =
+    new Map<
+      string,
+      ModuleRuntimeResult
+    >();
+
+  const scheduleResult =
+    available(
+      "schedule-analytics",
+      {
+        ...scheduleAnalytics,
+        criticalityBasis:
+          "source_total_float",
+        independentCpmState:
+          independentForecast.complete
+            ? "established"
+            : "not_established",
+        drivingPathState:
+          independentForecast.complete
+            ? "independent_cpm_available"
+            : "not_established",
+      },
+      [],
+      independentForecast.complete
+        ? "ready"
+        : "partial",
+      independentForecast.complete
+        ? null
+        : "Programme values are available, while the independent path check still needs review.",
+    );
+
+  if (
+    key === "schedule-analytics" ||
+    key === "activity-analytics" ||
+    key === "pmo-analysis"
+  ) {
+    modules.set(
+      "schedule-analytics",
+      scheduleResult,
+    );
+  }
+
+  if (key === "activity-analytics") {
+    const raw =
+      buildActivityAnalyticsProjection(
+        model,
+        {
+          generatedAt,
+          producerVersion:
+            "planning-fast:activity-v1",
+        },
+      );
+    const activity =
+      controlledBaseline
+        ? {
+            ...raw,
+            controlledBaselineRevisionId:
+              controlledBaseline
+                .revision
+                .revisionId,
+            finishVarianceCoveragePercent:
+              model.activities.length
+                ? Number(
+                    (
+                      (
+                        knownVariances
+                          .length /
+                        model.activities
+                          .length
+                      ) *
+                      100
+                    ).toFixed(4),
+                  )
+                : null,
+            rows:
+              raw.rows.map(
+                (row) => {
+                  const baseline =
+                    baselineByActivity.get(
+                      row.activityId,
+                    );
+                  const currentActivity =
+                    currentByActivity.get(
+                      row.activityId,
+                    );
+                  const baselineFinishIso =
+                    baseline
+                      ? baselineFinish(
+                          baseline,
+                        )
+                      : null;
+                  return {
+                    ...row,
+                    baselineFinishIso,
+                    finishVarianceDays:
+                      daysBetween(
+                        baselineFinishIso,
+                        currentActivity
+                          ? currentFinish(
+                              currentActivity,
+                            )
+                          : null,
+                      ),
+                  };
+                },
+              ),
+          }
+        : raw;
+
+    modules.set(
+      key,
+      available(
+        key,
+        {
+          ...activity,
+          floatClassificationBasis:
+            "source_total_float",
+          independentCpmState:
+            independentForecast.complete
+              ? "established"
+              : "not_established",
+        },
+        [],
+        independentForecast.complete
+          ? "ready"
+          : "partial",
+        independentForecast.complete
+          ? null
+          : "Activity dates, progress and source float are available while the independent path check still needs review.",
+      ),
+    );
+  } else if (
+    key === "lookahead-schedule"
+  ) {
+    modules.set(
+      key,
+      available(
+        key,
+        buildLookAheadProjection(
+          model,
+          {
+            generatedAt,
+            producerVersion:
+              "planning-fast:lookahead-v1",
+            readinessEvidence:
+              state.controls
+                .readinessEvidence,
+          },
+        ),
+      ),
+    );
+  } else if (
+    key === "milestones"
+  ) {
+    const raw =
+      buildMilestonesProjection(
+        model,
+        {
+          generatedAt,
+          producerVersion:
+            "planning-fast:milestones-v1",
+        },
+      );
+    const milestones =
+      controlledBaseline
+        ? {
+            ...raw,
+            controlledBaselineRevisionId:
+              controlledBaseline
+                .revision
+                .revisionId,
+            rows:
+              raw.rows.map(
+                (row) => {
+                  const baseline =
+                    baselineByActivity.get(
+                      row.activityId,
+                    );
+                  const baselineDateIso =
+                    baseline
+                      ? (
+                          baseline
+                            .baselineFinishIso ??
+                          baseline
+                            .baselineStartIso ??
+                          baseline
+                            .forecastFinishIso ??
+                          baseline
+                            .currentFinishIso
+                        )
+                      : null;
+                  return {
+                    ...row,
+                    baselineDateIso,
+                    varianceDays:
+                      daysBetween(
+                        baselineDateIso,
+                        row.currentDateIso,
+                      ),
+                  };
+                },
+              ),
+          }
+        : raw;
+    modules.set(
+      key,
+      available(
+        key,
+        milestones,
+      ),
+    );
+  } else if (
+    key === "near-critical"
+  ) {
+    const raw =
+      buildNearCriticalProjection(
+        model,
+        {
+          generatedAt,
+          producerVersion:
+            "planning-fast:near-critical-v1",
+        },
+      );
+    const nearCritical =
+      controlledBaseline
+        ? {
+            ...raw,
+            controlledBaselineRevisionId:
+              controlledBaseline
+                .revision
+                .revisionId,
+            rows:
+              raw.rows.map(
+                (row) => {
+                  const baseline =
+                    baselineByActivity.get(
+                      row.activityId,
+                    );
+                  return {
+                    ...row,
+                    baselineFinishIso:
+                      baseline
+                        ? baselineFinish(
+                            baseline,
+                          )
+                        : null,
+                  };
+                },
+              ),
+          }
+        : raw;
+    modules.set(
+      key,
+      available(
+        key,
+        {
+          ...nearCritical,
+          classificationBasis:
+            "source_total_float",
+          independentCpmState:
+            independentForecast.complete
+              ? "established"
+              : "not_established",
+        },
+        [],
+        independentForecast.complete
+          ? "ready"
+          : "partial",
+        independentForecast.complete
+          ? null
+          : "The watchlist uses submitted programme float while the independent path check still needs review.",
+      ),
+    );
+  } else if (
+    key === "revision-trend"
+  ) {
+    const revisionTrend =
+      buildRevisionTrendProjection(
+        ordered.map(
+          (item) =>
+            item.revision,
+        ),
+        {
+          generatedAt,
+          producerVersion:
+            "planning-fast:revision-v1",
+        },
+      );
+    modules.set(
+      key,
+      available(
+        key,
+        revisionTrend,
+        [
+          "schedule revision history",
+        ],
+        ordered.length >= 2
+          ? "ready"
+          : "partial",
+        ordered.length >= 2
+          ? null
+          : "A second controlled programme revision is required for trend comparison.",
+      ),
+    );
+  } else if (
+    key === "schedule-change-report"
+  ) {
+    if (ordered.length >= 2) {
+      const before =
+        ordered.at(-2)!
+          .revision;
+      const after =
+        current.revision;
+      const change =
+        buildScheduleChangeReportProjection(
+          before,
+          after,
+          {
+            generatedAt,
+            producerVersion:
+              "planning-fast:change-v1",
+          },
+        );
+      modules.set(
+        key,
+        available(
+          key,
+          {
+            ...change,
+            fromRevisionLabel:
+              before.label,
+            toRevisionLabel:
+              after.label,
+          },
+          [
+            "two schedule revisions",
+          ],
+        ),
+      );
+    } else {
+      modules.set(
+        key,
+        available(
+          key,
+          {
+            schemaVersion: "1.0",
+            projectionKey:
+              "schedule_change_report",
+            generatedAt,
+            producerVersion:
+              "planning-fast:change-v1",
+            state:
+              "insufficient_history",
+            fromRevisionId: null,
+            toRevisionId:
+              current.revision
+                .revisionId,
+            fromRevisionLabel:
+              null,
+            toRevisionLabel:
+              current.revision.label,
+            matchedActivityCount: 0,
+            populationMatchPercent:
+              null,
+            addedActivityCount: 0,
+            removedActivityCount: 0,
+            modifiedActivityCount: 0,
+            unchangedActivityCount: 0,
+            addedRelationshipCount: 0,
+            removedRelationshipCount: 0,
+            addedRelationships: [],
+            removedRelationships: [],
+            changedActivities: [],
+            diagnostics: [
+              "SECOND_SCHEDULE_REVISION_REQUIRED_FOR_CHANGE_COMPARISON",
+            ],
+          },
+          [
+            "second schedule revision",
+          ],
+          "partial",
+          "A second controlled programme revision is required for comparison.",
+        ),
+      );
+    }
+  } else if (
+    key === "pmo-analysis"
+  ) {
+    const lookAhead =
+      buildLookAheadProjection(
+        model,
+        {
+          generatedAt,
+          producerVersion:
+            "planning-fast:lookahead-v1",
+          readinessEvidence:
+            state.controls
+              .readinessEvidence,
+        },
+      );
+    const milestonesRaw =
+      buildMilestonesProjection(
+        model,
+        {
+          generatedAt,
+          producerVersion:
+            "planning-fast:milestones-v1",
+        },
+      );
+    const milestones =
+      controlledBaseline
+        ? {
+            ...milestonesRaw,
+            rows:
+              milestonesRaw.rows.map(
+                (row) => {
+                  const baseline =
+                    baselineByActivity.get(
+                      row.activityId,
+                    );
+                  const baselineDateIso =
+                    baseline
+                      ? (
+                          baseline
+                            .baselineFinishIso ??
+                          baseline
+                            .baselineStartIso ??
+                          baseline
+                            .forecastFinishIso ??
+                          baseline
+                            .currentFinishIso
+                        )
+                      : null;
+                  return {
+                    ...row,
+                    baselineDateIso,
+                    varianceDays:
+                      daysBetween(
+                        baselineDateIso,
+                        row.currentDateIso,
+                      ),
+                  };
+                },
+              ),
+          }
+        : milestonesRaw;
+
+    const resourceModel =
+      state.resourcesByRevision.get(
+        current.revision
+          .revisionId,
+      ) ??
+      null;
+
+    const pmoData = {
+      schemaVersion: "1.0",
+      projectionKey:
+        "pmo_analysis",
+      generatedAt,
+      producerVersion:
+        "planning-fast:pmo-v1",
+      projectId:
+        state.projectId,
+      evidenceRevisionId:
+        current.revision
+          .revisionId,
+      programmeBaselineCompletionIso:
+        controlledBaselineCompletion
+          ?.dateIso ??
+        null,
+      programmeBaselineRevisionId:
+        controlledBaseline
+          ?.revision.revisionId ??
+        null,
+      synthesisState:
+        "programme_planning",
+      schedule: {
+        activityCount:
+          scheduleAnalytics
+            .result
+            .activityCount,
+        relationshipCount:
+          scheduleAnalytics
+            .result
+            .relationshipCount,
+        graphComplete:
+          scheduleAnalytics
+            .result
+            .graph.complete,
+        criticalCount:
+          scheduleAnalytics
+            .result
+            .float
+            .criticalCount,
+        nearCriticalCount:
+          scheduleAnalytics
+            .result
+            .float
+            .nearCriticalCount,
+        negativeFloatCount:
+          scheduleAnalytics
+            .result
+            .float
+            .negativeFloatCount,
+        logicDensity:
+          scheduleAnalytics
+            .result
+            .graph
+            .logicDensity,
+        independentCpmState:
+          independentForecast.complete
+            ? "established"
+            : "not_established",
+      },
+      progress: {
+        durationWeightedProgressPercent:
+          scheduleAnalytics
+            .result
+            .progress
+            .durationWeightedPercentComplete
+            .value,
+        progressCoveragePercent:
+          scheduleAnalytics
+            .result
+            .progress
+            .durationWeightedPercentComplete
+            .coveragePercent,
+        completedCount:
+          scheduleAnalytics
+            .result
+            .status.completed,
+        inProgressCount:
+          scheduleAnalytics
+            .result
+            .status.inProgress,
+        lookAheadOverdueCount:
+          lookAhead.overdueCount,
+        lateMilestoneCount:
+          milestonesRaw
+            .lateOpenCount,
+      },
+      forecast: {
+        sourceCompletionIso:
+          independentForecast
+            .sourceForecastCompletionIso,
+        independentCompletionIso:
+          independentForecast
+            .independentForecastCompletionIso,
+        varianceDays:
+          independentForecast
+            .forecastVarianceDays,
+        origin:
+          independentForecast.origin,
+        complete:
+          independentForecast.complete,
+      },
+      resources: {
+        state:
+          resourceModel &&
+          resourceModel
+            .assignments.length > 0
+            ? "resource_loaded"
+            : "not_loaded",
+        assignedResourceCount:
+          resourceModel
+            ?.assignments.length ??
+          null,
+        capacityCoveragePercent:
+          null,
+        overloadedResourceCount:
+          null,
+      },
+      quantities: {
+        state:
+          state.quantities
+            ? "submitted"
+            : "not_submitted",
+        unitSeriesCount: null,
+        unmappedItemCount:
+          state.quantities
+            ? state.quantities
+                .items.length
+            : null,
+        overAllocatedItemCount:
+          null,
+      },
+      contract: {
+        loaded:
+          state.contract !== null,
+        physicalComplete:
+          state.contract
+            ?.physicalComplete ??
+          null,
+        semanticComplete:
+          state.contract
+            ?.semanticComplete ??
+          null,
+        challengeSignalCount:
+          null,
+        noticeRequirementCandidateCount:
+          null,
+      },
+      claims: {
+        eventCount:
+          state.controls
+            .delayClaims
+            ?.events.length ??
+          null,
+        claimCount:
+          state.controls
+            .delayClaims
+            ?.claims.length ??
+          null,
+        observedProgrammeMovementDays:
+          null,
+        officialApprovedEotDays:
+          null,
+      },
+    };
+
+    modules.set(
+      key,
+      available(
+        key,
+        pmoData,
+        [
+          "current programme",
+        ],
+        independentForecast.complete
+          ? "ready"
+          : "partial",
+        independentForecast.complete
+          ? null
+          : "The programme position is available while the independent path check still needs review.",
+      ),
+    );
+  }
+
+  applyUniversalModuleChallenges({
+    state,
+    generatedAt,
+    model,
+    independentForecast,
+    deliveryChallenge:
+      minimalDeliveryChallenge,
+    modules,
+  });
+
+  const result =
+    modules.get(key) ??
+    blocked(
+      key,
+      "The selected Programme & Planning view could not be calculated.",
+      [],
+    );
+
+  planningModuleCache.set(
+    cacheKey,
+    {
+      version: state.version,
+      result,
+    },
+  );
+
+  return result;
+}
+
 export function moduleForProject(
   projectId: string,
   key: string,
@@ -2844,6 +3900,15 @@ export function moduleForProject(
       "Project has not been created.",
       ["project"],
     );
+  }
+
+  const planning =
+    buildPlanningModuleFast(
+      state,
+      key,
+    );
+  if (planning) {
+    return planning;
   }
 
   const bundle =
@@ -3300,4 +4365,18 @@ export function invalidateProject(
   projectId: string,
 ): void {
   bundleCache.delete(projectId);
+  for (
+    const key of
+      planningModuleCache.keys()
+  ) {
+    if (
+      key.startsWith(
+        projectId + "::",
+      )
+    ) {
+      planningModuleCache.delete(
+        key,
+      );
+    }
+  }
 }
