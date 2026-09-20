@@ -35,3 +35,27 @@ export function scheduleModuleSummary() {
     keys: scheduleModules.map((module) => module.key)
   };
 }
+
+
+export interface CommercialModuleDescriptor {
+  key: string;
+  title: string;
+  category: "commercial";
+}
+
+export const commercialModules: CommercialModuleDescriptor[] = [
+  { key: "commercial-overview", title: "Commercial Overview", category: "commercial" },
+  { key: "cost-forecast", title: "Cost & Forecast", category: "commercial" },
+  { key: "variations-change", title: "Variations & Change", category: "commercial" },
+  { key: "payments", title: "Payments", category: "commercial" },
+  { key: "cash-flow", title: "Cash Flow", category: "commercial" },
+  { key: "commercial-claims-notices", title: "Claims & Notices", category: "commercial" },
+  { key: "contract-particulars-bonds", title: "Contract Particulars & Bonds", category: "commercial" },
+];
+
+export function commercialModuleSummary() {
+  return {
+    total: commercialModules.length,
+    keys: commercialModules.map((module) => module.key),
+  };
+}
