@@ -200,7 +200,7 @@ details:not(.workspace-drawer){border:1px solid var(--line);border-radius:9px;ba
           <div>
             <span class="section-kicker">Current view</span>
             <h3 id="moduleTitle">Project Controls</h3>
-            <p>Current position, supporting records, variances, consequences and required management action.</p>
+            <p id="moduleSubtitle">Current position, key changes and actions requiring attention.</p>
           </div>
           <div class="module-head-actions"><button class="btn small" id="focusMode" aria-pressed="false">Focus view</button><span id="moduleBadge" class="badge">Select a view</span></div>
         </div>
