@@ -19,6 +19,13 @@ export interface DelayClaimEventAssessmentRow {
   linkedClaimIds: string[];
   relatedActivityIds: string[];
   overlappingWindowIds: string[];
+  noticeIds: string[];
+  determinationIds: string[];
+  evidenceChainState:
+    | "full_determination_chain"
+    | "notice_chain"
+    | "schedule_chain"
+    | "claim_event_only";
   observedNetIndependentMovementDays: number;
   observedPositiveIndependentMovementDays: number;
   observedNetProgrammeMovementDays: number;
