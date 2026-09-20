@@ -3938,6 +3938,10 @@ export class RuntimeProjectStore {
       ),
     ];
 
+    rebuildDerivedControls(
+      state,
+    );
+
     this.touchEvidence(state);
     return parsed;
   }
