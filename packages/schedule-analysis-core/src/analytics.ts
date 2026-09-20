@@ -242,7 +242,7 @@ function floatSummary(
     zeroFloatCount: known.filter(
       (activity) =>
         activity.totalFloatHours ===
-        config.criticalFloatThresholdHours,
+        0,
     ).length,
     negativeFloatCount: known.filter(
       (activity) => activity.totalFloatHours! < 0,
