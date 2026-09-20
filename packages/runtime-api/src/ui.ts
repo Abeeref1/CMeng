@@ -1258,6 +1258,14 @@ function renderWindowsVisual(data){
     return '<div class="window-card clean"><div><div class="window-id">Window '+escapeHtml(w.sequence)+' · '+escapeHtml(from)+' → '+escapeHtml(to)+'</div><div class="window-dates">'+escapeHtml(planningShortDate(w.windowStartIso))+' → '+escapeHtml(planningShortDate(w.windowEndIso))+'</div></div><div><div class="movement-label">Submitted forecast movement</div><div class="movement-value">'+escapeHtml(sourceMove===null?"—":(sourceMove>0?"+":"")+fmt(sourceMove)+" days")+'</div><div class="muted">Progress movement '+escapeHtml(w.progressMovementPercent===null?"—":(w.progressMovementPercent>0?"+":"")+fmt(w.progressMovementPercent)+" pp")+'</div></div><div><div class="movement-label">Independent CPM movement</div><div class="movement-value small">'+escapeHtml(independent===null?"Not calculated in this view":(independent>0?"+":"")+fmt(independent)+" days")+'</div><div class="muted">'+escapeHtml((w.delayEvents||[]).length+" linked event(s)")+'</div></div></div>';
   }).join("");
   const note='<div class="notice info"><b>Window movement and Project Completion movement are different measures.</b> Gross positive window movement sums only positive revision-to-revision shifts. Project Completion movement is the net first-to-latest submitted completion shift. Neither is automatically delay entitlement or EOT.</div>'+(p.windows.some(w=>w.independentForecastMovementDays===null)?'<div class="notice info">Independent CPM is not silently substituted where it has not been calculated.</div>':'');
+  const visualOverview='<div class="visual-chart-grid">'+
+    renderVisualPanel("Window movement waterfall","Every revision-to-revision submitted finish movement is signed. Right is later; left is earlier.",renderWaterfallChart(bars,"d"))+
+    renderVisualPanel("Window completeness","Complete and partial analytical windows remain visibly separate.",renderDonutChart([
+      {label:"Complete",value:p.completeWindowCount||0,tone:"success"},
+      {label:"Partial",value:p.partialWindowCount||0,tone:"warning"},
+      {label:"Other",value:Math.max(0,(p.windowCount||0)-(p.completeWindowCount||0)-(p.partialWindowCount||0)),tone:"neutral"}
+    ],"Windows"))+
+  '</div>';
   return '<section class="planning-view windows-view">'+planningKpis([
     ["Windows",p.windowCount,"revision intervals"],
     ["Complete windows",p.completeWindowCount,""],
@@ -1265,7 +1273,7 @@ function renderWindowsVisual(data){
     ["Gross positive window movement",fmt(p.positiveProgrammeMovementDays)+" d","sum of positive windows; not project delay or EOT",p.positiveProgrammeMovementDays>0?"warning":""],
     ["Project Completion movement",p.projectCompletionMovementDays===null||p.projectCompletionMovementDays===undefined?"—":(p.projectCompletionMovementDays>0?"+":"")+fmt(p.projectCompletionMovementDays)+" d","first controlled → latest controlled · "+humanizeKey(p.projectCompletionMovementBasis||"unavailable"),p.projectCompletionMovementDays>0?"danger":""],
     ["Linked delay events",p.windows.reduce((sum,w)=>sum+(w.delayEvents||[]).length,0),"window references"]
-  ])+note+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Programme movement by window</h4><p>Source forecast movement is shown first. It is schedule movement, not automatic delay entitlement.</p></div></div><div class="planning-panel-body">'+planningSignedBars(bars,"days")+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Window detail</h4></div></div><div class="planning-panel-body"><div class="window-strip">'+cards+'</div></div></section></section>';
+  ])+note+visualOverview+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Programme movement by window</h4><p>Source forecast movement is shown first. It is schedule movement, not automatic delay entitlement.</p></div></div><div class="planning-panel-body">'+planningSignedBars(bars,"days")+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Window detail</h4></div></div><div class="planning-panel-body"><div class="window-strip">'+cards+'</div></div></section></section>';
 }
 function renderDelayClaimsVisual(data){
   const p=projectionFor(data,"delay_claims");
@@ -1288,11 +1296,26 @@ function renderDelayClaimsVisual(data){
     ["Linked to delay events",linked,"success"],
     ["Not linked to delay events",unlinked,"warning"]
   ]);
+  const chainChart=renderVisualBars([
+    {label:"Claim-linked events",value:p.claimLinkedEventCount??0,tone:"success"},
+    {label:"Activity-linked events",value:p.activityLinkedEventCount??0,tone:"accent"},
+    {label:"Window-linked events",value:p.windowLinkedEventCount??0,tone:"warning"},
+    {label:"Notice-linked events",value:p.noticeLinkedEventCount??0,tone:"teal"},
+    {label:"Determination-linked events",value:p.determinationLinkedEventCount??0,tone:"purple"}
+  ],"events");
+  const movementChart=renderWaterfallChart([
+    {label:"Gross positive window movement",value:typeof p.observedPositiveProgrammeMovementDays==="number"?p.observedPositiveProgrammeMovementDays:0},
+    {label:"Net Project Completion movement",value:typeof p.projectCompletionMovementDays==="number"?p.projectCompletionMovementDays:0}
+  ],"d");
+  const visualOverview='<div class="visual-chart-grid">'+
+    renderVisualPanel("Evidence-chain coverage","How far the governed claim/event population is connected into schedule, windows, notices and determinations.",chainChart)+
+    renderVisualPanel("Schedule movement semantics","Gross positive window movement and net Project Completion movement are shown as different analytical measures.",movementChart)+
+  '</div>';
   const classes=claimStateCounts(p.events.map(e=>({state:e.candidateClass})));
   const rows=p.events.map(e=>'<tr><td><b>'+escapeHtml(e.eventId)+'</b><br><span class="muted">'+escapeHtml(e.title||"")+'</span></td><td>'+escapeHtml(humanizeKey(e.responsibility))+'</td><td>'+escapeHtml(humanizeKey(e.noticeTimeliness))+'</td><td>'+escapeHtml(fmt(e.observedPositiveProgrammeMovementDays))+'</td><td>'+escapeHtml(humanizeKey(e.programmeMovementBasis))+'</td><td><span class="state-pill '+(e.concurrencyCandidate?"review":"ready")+'">'+escapeHtml(humanizeKey(e.evidenceChainState||e.candidateClass))+'</span></td><td>'+escapeHtml((e.linkedClaimIds||[]).join(", ")||"—")+'</td><td>'+escapeHtml((e.relatedActivityIds||[]).join(", ")||"—")+'</td><td>'+escapeHtml((e.overlappingWindowIds||[]).map(id=>readableWindow(id,p.revisionLabels||{})).join(", ")||"—")+'</td><td>'+escapeHtml((e.noticeIds||[]).join(", ")||"—")+'</td><td>'+escapeHtml((e.determinationIds||[]).join(", ")||"—")+'</td></tr>').join("");
   const detail=p.events.length?'<div class="table-wrap"><table><thead><tr><th>Event</th><th>Responsibility</th><th>Notice status</th><th>Gross positive movement d</th><th>Movement basis</th><th>Evidence chain</th><th>Claims</th><th>Activities</th><th>Windows</th><th>Notices</th><th>Determinations</th></tr></thead><tbody>'+rows+'</tbody></table></div>':'<div class="empty-visual">No delay-event population is established. Claim records alone are not converted into delay events.</div>';
   const classVisual=p.events.length?moduleBarList(classes,"warning"):'<div class="empty-visual">Event responsibility cannot be classified until delay events are established.</div>';
-  return '<section class="planning-view delay-claims-view">'+kpis+warning+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Claim-event linkage</h4><p>Claims without a governed delay-event link remain un-attributed.</p></div></div><div class="planning-panel-body">'+linkage+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Event assessment classes</h4><p>Responsibility classification is shown only for established delay events.</p></div></div><div class="planning-panel-body">'+classVisual+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Delay-event detail</h4></div></div><div class="planning-panel-body">'+detail+'</div></section></section>';
+  return '<section class="planning-view delay-claims-view">'+kpis+warning+visualOverview+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Claim-event linkage</h4><p>Claims without a governed delay-event link remain un-attributed.</p></div></div><div class="planning-panel-body">'+linkage+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Event assessment classes</h4><p>Responsibility classification is shown only for established delay events.</p></div></div><div class="planning-panel-body">'+classVisual+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Delay-event detail</h4></div></div><div class="planning-panel-body">'+detail+'</div></section></section>';
 }
 function renderEotVisual(data){
   const p=projectionFor(data,"eot_assessment");
@@ -1318,8 +1341,22 @@ function renderEotVisual(data){
   }));
   const rows=p.windowCandidates.map(w=>'<tr><td><b>'+escapeHtml(readableWindow(w.windowId,labels))+'</b></td><td>'+escapeHtml(fmt(w.positiveProgrammeMovementDays))+'</td><td>'+escapeHtml(humanizeKey(w.programmeMovementBasis))+'</td><td>'+escapeHtml(w.analyticalTimeImpactCandidateDays===null?"—":fmt(w.analyticalTimeImpactCandidateDays))+'</td><td>'+escapeHtml(humanizeKey(w.state))+'</td><td>'+escapeHtml(fmt(w.includedCandidateDays))+'</td><td>'+escapeHtml((w.reasons||[]).map(managementReason).join("; ")||"—")+'</td></tr>').join("");
   const recon=p.timeBasisReconciliation;
+  const determinationVisual=recon?renderDonutChart([
+    {label:"Effective by Data Date",value:recon.effectiveDeterminationCount||0,tone:"success"},
+    {label:"After Data Date",value:Math.max(0,(recon.registerDeterminationCount||0)-(recon.effectiveDeterminationCount||0)),tone:"neutral"}
+  ],"Determinations"):'<div class="empty-visual">Determination population is not established.</div>';
+  const movementVisual=renderWaterfallChart([
+    {label:"Gross positive window movement",value:typeof p.observedProgrammeMovementDays==="number"?p.observedProgrammeMovementDays:0},
+    {label:"Net Project Completion movement",value:typeof p.projectCompletionMovementDays==="number"?p.projectCompletionMovementDays:0},
+    {label:"Analytical time-impact candidate",value:typeof analytical==="number"?analytical:0},
+    {label:"Attributable EOT candidate",value:typeof p.attributableCandidateEotDays==="number"?p.attributableCandidateEotDays:0}
+  ],"d");
+  const visualOverview='<div class="visual-chart-grid">'+
+    renderVisualPanel("Time-position bridge","Schedule movement, time-impact analysis and EOT candidate remain separate measures.",movementVisual)+
+    renderVisualPanel("Determination timing","Engineer determinations split by the current programme Data Date.",determinationVisual)+
+  '</div>';
   const reconciliation=recon?'<section class="planning-panel"><div class="planning-panel-head"><div><h4>Amendment and determination reconciliation</h4><p>As-of date: '+escapeHtml(planningShortDate(recon.dataDateIso))+'.</p></div></div><div class="planning-panel-body">'+planningKpis([["EOT incorporated in amendment",fmt(recon.incorporatedEotDays)+" d","already inside revised completion"],["Full determination register",fmt(recon.registerDeterminationDays)+" d",(recon.registerDeterminationCount===null||recon.registerDeterminationCount===undefined?"population not stated":fmt(recon.registerDeterminationCount)+" immutable determination(s)")],["Determinations by Data Date",recon.effectiveDeterminationCount===null||recon.effectiveDeterminationCount===undefined?"—":fmt(recon.effectiveDeterminationCount),"cutoff-controlled population"],["Additional approved EOT",recon.additionalApprovedEotDays===null?"Unresolved":fmt(recon.additionalApprovedEotDays)+" d","never register total plus amendment"]])+'<div class="notice warn">'+(recon.overlapResolution==="unresolved"?"Amendment incorporation has not been reconciled to the determination register. No additional days are applied to the revised contractual completion.":"Additional awards have an explicit incorporation reconciliation.")+'</div></div></section>':"";
-  return '<section class="planning-view eot-view">'+kpis+reconciliation+warning+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Observed movement by window</h4><p>This chart shows programme movement only. It does not represent EOT entitlement.</p></div></div><div class="planning-panel-body">'+planningSignedBars(movementBars,"days")+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>EOT evidence gates</h4><p>All gates remain distinct before schedule movement can become an entitlement position.</p></div></div><div class="planning-panel-body">'+moduleEvidenceGate([
+  return '<section class="planning-view eot-view">'+kpis+reconciliation+warning+visualOverview+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Observed movement by window</h4><p>This chart shows programme movement only. It does not represent EOT entitlement.</p></div></div><div class="planning-panel-body">'+planningSignedBars(movementBars,"days")+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>EOT evidence gates</h4><p>All gates remain distinct before schedule movement can become an entitlement position.</p></div></div><div class="planning-panel-body">'+moduleEvidenceGate([
     {label:"Contract time basis",value:contractReady?"Established":"Not established",state:contractReady?"ready":"missing"},
     {label:"Causal delay events",value:causalReady?"Established":"Not established",state:causalReady?"ready":"missing"},
     {label:"Official EOT award",value:p.officialApprovedEotState==="official"?"Established":"Not established",state:p.officialApprovedEotState==="official"?"ready":"missing"}
@@ -2355,12 +2392,19 @@ function renderNoticesClaimsVisual(data){
     ["Missing",p.missingNoticeCount,"warning"],
     ["Requirement missing",p.noticeRequirementMissingCount,"neutral"]
   ]):'<div class="empty-visual">Notice timeliness cannot be assessed until governed delay events and applicable notice requirements are linked.</div>';
-  const claimBars=moduleBarList(claimStateCounts(p.claims),"accent");
+  const claimStateItems=claimStateCounts(p.claims).map(item=>({label:item.label,value:item.value,tone:"accent"}));
+  const claimBars=renderDonutChart(claimStateItems,"Claims");
+  const noticeVisual=assessable?renderDonutChart([
+    {label:"Timely",value:p.timelyNoticeCount||0,tone:"success"},
+    {label:"Late",value:p.lateNoticeCount||0,tone:"danger"},
+    {label:"Missing",value:p.missingNoticeCount||0,tone:"warning"},
+    {label:"Requirement missing",value:p.noticeRequirementMissingCount||0,tone:"neutral"}
+  ],"Events"):'<div class="empty-visual">Notice timeliness is not assessable from the governed evidence.</div>';
   const events=p.events.length?'<div class="table-wrap"><table><thead><tr><th>Event</th><th>Responsibility</th><th>Start</th><th>Notice</th><th>Required days</th><th>Elapsed days</th><th>Timeliness</th><th>Claims</th></tr></thead><tbody>'+
     p.events.map(e=>'<tr><td><b>'+escapeHtml(e.eventId)+'</b><br><span class="muted">'+escapeHtml(e.title||"")+'</span></td><td>'+escapeHtml(humanizeKey(e.responsibility))+'</td><td>'+escapeHtml(planningShortDate(e.eventStartIso))+'</td><td>'+escapeHtml(planningShortDate(e.noticeIssuedAt))+'</td><td>'+escapeHtml(fmt(e.requiredNoticeDays))+'</td><td>'+escapeHtml(fmt(e.elapsedNoticeDays))+'</td><td>'+escapeHtml(humanizeKey(e.noticeTimeliness))+'</td><td>'+escapeHtml((e.linkedClaimIds||[]).join(", ")||"—")+'</td></tr>').join("")+'</tbody></table></div>':'<div class="empty-visual">No governed delay events are available for notice assessment.</div>';
   const claims='<div class="table-wrap"><table><thead><tr><th>Claim</th><th>State</th><th>Submitted</th><th>Claimed days</th><th>Assessed days</th><th>Days authority</th><th>Claimed amount</th><th>Assessed amount</th><th>Amount authority</th></tr></thead><tbody>'+
     p.claims.map(c=>'<tr><td><b>'+escapeHtml(c.claimId)+'</b><br><span class="muted">'+escapeHtml(c.title||"")+'</span></td><td>'+escapeHtml(humanizeKey(c.state))+'</td><td>'+escapeHtml(planningShortDate(c.submittedAt))+'</td><td>'+escapeHtml(fmt(c.claimedDays))+'</td><td>'+escapeHtml(fmt(c.assessedDays))+'</td><td>'+escapeHtml(humanizeKey(c.assessedDaysState))+'</td><td>'+escapeHtml(fmt(c.claimedAmount))+'</td><td>'+escapeHtml(fmt(c.assessedAmount))+'</td><td>'+escapeHtml(humanizeKey(c.assessedAmountState))+'</td></tr>').join("")+'</tbody></table></div>';
-  return '<section class="planning-view notices-view">'+kpis+warning+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Notice assessment</h4><p>Timeliness is calculated only where an event and applicable contractual notice requirement exist.</p></div></div><div class="planning-panel-body">'+noticeBand+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Claim states</h4><p>Claim status is separate from notice compliance and assessment authority.</p></div></div><div class="planning-panel-body">'+claimBars+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Notice compliance by event</h4></div></div><div class="planning-panel-body">'+events+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Claim records</h4></div></div><div class="planning-panel-body">'+claims+'</div></section></section>';
+  return '<section class="planning-view notices-view">'+kpis+warning+'<div class="visual-chart-grid">'+renderVisualPanel("Notice compliance","Timeliness distribution is only shown where the contractual requirement and event basis are governed.",noticeVisual)+renderVisualPanel("Claim states","Claim status is independent from notice timeliness and assessment authority.",claimBars)+'</div><div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Notice assessment</h4><p>Timeliness is calculated only where an event and applicable contractual notice requirement exist.</p></div></div><div class="planning-panel-body">'+noticeBand+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Claim state detail</h4><p>Counts remain visible below the visual distribution.</p></div></div><div class="planning-panel-body">'+planningStatusBand(claimStateCounts(p.claims).map(item=>[item.label,item.value,"accent"]))+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Notice compliance by event</h4></div></div><div class="planning-panel-body">'+events+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Claim records</h4></div></div><div class="planning-panel-body">'+claims+'</div></section></section>';
 }
 function commercialMetricHtml(metric,currency=""){
   if(!metric)return'<span class="muted">Not established</span>';
