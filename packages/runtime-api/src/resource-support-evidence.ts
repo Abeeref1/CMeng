@@ -28,6 +28,11 @@ export interface WeeklyResourceCapacitySummary {
   resourceCount: number;
   weekCount: number;
   overloadedRowCount: number;
+  actualOverloadedRowCount?: number;
+  averagePlannedUtilizationToDataDatePercent?: number | null;
+  averageActualUtilizationToDataDatePercent?: number | null;
+  actualUsageRowCount?: number;
+  assignmentTimephasedRowCount?: number;
   capacityCoveragePercent:
     number | null;
   unitLabels: string[];
