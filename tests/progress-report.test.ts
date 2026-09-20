@@ -402,7 +402,7 @@ test("Progress S-Curve controlled-baseline coverage uses the baseline population
   );
   assert.ok(
     scurve.diagnostics.includes(
-      "SCURVE_CONTROLLED_BASELINE_REVISION_AND_CURRENT_DERIVED_BY_DURATION_WEIGHTED_LINEAR_TIME_PHASING",
+      "SCURVE_BASELINE_USES_CONTROLLED_BASELINE_REVISION",
     ),
   );
 });
