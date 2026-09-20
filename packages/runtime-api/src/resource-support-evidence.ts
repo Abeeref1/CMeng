@@ -36,6 +36,7 @@ export interface WeeklyResourceCapacitySummary {
   points:
     WeeklyResourceCapacityPoint[];
   weeklyTotals: Array<{
+    unit: string;
     weekStartIso: string | null;
     availableCapacity:
       number | null;
@@ -446,6 +447,7 @@ export function weeklyResourceCapacityEvidence(
     new Map<
       string,
       {
+        unit: string;
         weekStartIso:
           string | null;
         availableCapacity:
@@ -463,11 +465,19 @@ export function weeklyResourceCapacityEvidence(
     >();
 
   for (const point of points) {
+    const unit =
+      point.unit ??
+      "UNSPECIFIED";
     const key =
-      point.weekStartIso ??
-      "undated";
+      unit +
+      "::" +
+      (
+        point.weekStartIso ??
+        "undated"
+      );
     const row =
       byWeek.get(key) ?? {
+        unit,
         weekStartIso:
           point.weekStartIso,
         availableCapacity: 0,
@@ -520,6 +530,9 @@ export function weeklyResourceCapacityEvidence(
     [...byWeek.values()]
       .sort(
         (a, b) =>
+          a.unit.localeCompare(
+            b.unit,
+          ) ||
           (
             a.weekStartIso ??
             ""
@@ -530,6 +543,8 @@ export function weeklyResourceCapacityEvidence(
       )
       .map(
         (row) => ({
+          unit:
+            row.unit,
           weekStartIso:
             row.weekStartIso,
           availableCapacity:
