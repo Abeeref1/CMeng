@@ -143,6 +143,61 @@ try {
   check('Delay-event notices are represented in the canonical chain', delay.data?.noticeLinkedEventCount > 0 && events.some(e => Array.isArray(e.noticeIds) && e.noticeIds.length > 0));
   check('All 16 Engineer determinations remain linked to governed events', delay.data?.determinationLinkedEventCount > 0 && new Set(events.flatMap(e => e.determinationIds ?? [])).size === 16);
   check('Determination chains preserve claim/activity/window/notice/determination where source evidence supports all links', delay.data?.fullDeterminationChainEventCount > 0);
+  summary.observed = {
+    nearCritical: {
+      thresholdBasis: near.data?.thresholdBasis ?? null,
+      workingDays: near.data?.nearCriticalThresholdWorkingDays ?? near.data?.nearCriticalWorkingDays ?? null,
+      thresholdHours: near.data?.nearCriticalThresholdHours ?? null,
+      count: near.data?.nearCriticalCount ?? null,
+      floatCoveragePercent: near.data?.floatCoveragePercent ?? null,
+      classificationCoveragePercent: near.data?.classificationCoveragePercent ?? null,
+      unresolvedActivityCount: near.data?.thresholdUnresolvedActivityCount ?? null,
+      programmeReviewCount: scheduleReview.data?.result?.float?.nearCriticalCount ?? null,
+      programmeReviewBasis: scheduleReview.data?.result?.float?.nearCriticalThresholdBasis ?? null,
+      activityReviewCount: Array.isArray(activityReview.data?.rows)
+        ? activityReview.data.rows.filter(row => row.criticality === 'near_critical').length
+        : null,
+      revisionLatestCount: revision.data?.points?.at(-1)?.nearCriticalCount ?? null,
+      varianceLatestCount: variance.data?.points?.at(-1)?.nearCriticalCount ?? null
+    },
+    forecast: {
+      sourceProductivityState: forecast.data?.sourceProductivityForecastState ?? null,
+      sourceProductivityCompletionPresent: Boolean(forecast.data?.sourceProductivityForecastCompletionIso),
+      contractorCompletionPresent: Boolean(forecast.data?.sourceForecastCompletionIso),
+      cmengCompletionPresent: forecast.data?.independentForecastCompletionIso !== undefined,
+      probabilisticPresent: Boolean(forecast.data?.probabilistic)
+    },
+    windows: {
+      windowCount: windows.data?.windowCount ?? null,
+      completeWindowCount: windows.data?.completeWindowCount ?? null,
+      partialWindowCount: windows.data?.partialWindowCount ?? null,
+      grossPositiveDays: windows.data?.positiveProgrammeMovementDays ?? null,
+      grossNegativeDays: windows.data?.negativeProgrammeMovementDays ?? null,
+      projectCompletionMovementDays: windows.data?.projectCompletionMovementDays ?? null,
+      projectCompletionMovementBasis: windows.data?.projectCompletionMovementBasis ?? null
+    },
+    delayChain: {
+      eventCount: delay.data?.eventCount ?? null,
+      claimCount: delay.data?.claimCount ?? null,
+      claimLinkedEventCount: delay.data?.claimLinkedEventCount ?? null,
+      activityLinkedEventCount: delay.data?.activityLinkedEventCount ?? null,
+      windowLinkedEventCount: delay.data?.windowLinkedEventCount ?? null,
+      noticeLinkedEventCount: delay.data?.noticeLinkedEventCount ?? null,
+      determinationLinkedEventCount: delay.data?.determinationLinkedEventCount ?? null,
+      fullDeterminationChainEventCount: delay.data?.fullDeterminationChainEventCount ?? null
+    },
+    eot: {
+      contractualCompletionPresent: Boolean(eot.data?.contractualCompletionIso),
+      officialApprovedEotDays: eot.data?.officialApprovedEotDays ?? null,
+      projectCompletionMovementDays: eot.data?.projectCompletionMovementDays ?? null,
+      registerDeterminationCount: time?.registerDeterminationCount ?? null,
+      registerDeterminationDays: time?.registerDeterminationDays ?? null,
+      effectiveDeterminationCount: time?.effectiveDeterminationCount ?? null,
+      incorporatedEotDays: time?.incorporatedEotDays ?? null,
+      overlapResolution: time?.overlapResolution ?? null
+    }
+  };
+
   const keys = ['commercial-overview','cost-forecast','variations-change','payments','cash-flow','commercial-claims-notices','contract-particulars-bonds'];
   let sourceDigest;
   for (const key of keys) {
