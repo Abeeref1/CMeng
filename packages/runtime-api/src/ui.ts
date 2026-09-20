@@ -1773,6 +1773,18 @@ function renderPmoVisual(data){
     p.resources.overloadedResourceCount>0?{title:"Resource overload identified",text:"Assigned demand exceeds known capacity for some resources.",value:p.resources.overloadedResourceCount,tone:"watch"}:null,
     p.contract.challengeSignalCount>0?{title:"Contract items need review",text:"CMeng found contract points that may affect the programme position.",value:p.contract.challengeSignalCount,tone:"watch"}:null
   ]);
+  const visualOverview='<div class="visual-chart-grid">'+
+    renderVisualPanel("Activity status","Current programme population by execution state.",renderDonutChart([
+      {label:"Completed",value:p.progress.completedCount||0,tone:"success"},
+      {label:"In progress",value:p.progress.inProgressCount||0,tone:"accent"},
+      {label:"Not started",value:Math.max(0,(p.schedule.activityCount||0)-(p.progress.completedCount||0)-(p.progress.inProgressCount||0)),tone:"neutral"}
+    ],"Activities"))+
+    renderVisualPanel("Schedule pressure","Criticality and negative-float populations that require management attention.",renderDonutChart([
+      {label:"Critical",value:p.schedule.criticalCount||0,tone:"danger"},
+      {label:"Near-critical",value:p.schedule.nearCriticalCount||0,tone:"warning"},
+      {label:"Negative float",value:p.schedule.negativeFloatCount||0,tone:"purple"}
+    ],"Pressure signals"))+
+  '</div>';
   const health='<div class="management-health-grid">'+[
     ["Programme",[
       ["Activities",p.schedule.activityCount],["Relationships",p.schedule.relationshipCount],["Logic density",p.schedule.logicDensity],["Path check",planningStateLabel(p.schedule.independentCpmState)]
@@ -1787,7 +1799,7 @@ function renderPmoVisual(data){
       ["Delay events",p.claims.eventCount],["Claims",p.claims.claimCount],["Programme movement",fmt(p.claims.observedProgrammeMovementDays)+" days"],["Approved EOT",p.claims.officialApprovedEotDays===null?"—":fmt(p.claims.officialApprovedEotDays)+" days"]
     ]]
   ].map(group=>'<div class="domain-card"><h5>'+escapeHtml(group[0])+'</h5>'+group[1].map(m=>metricLine(m[0],m[1])).join("")+'</div>').join("")+'</div>';
-  return '<section class="planning-view management-view">'+kpis+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Finish-date position</h4><p>Controlled baseline, submitted finish date and any independently calculated, approved or scenario finish dates.</p></div></div><div class="planning-panel-body">'+completion+'</div></section><section class="planning-panel attention"><div class="planning-panel-head"><div><h4>What needs attention</h4><p>Items that can change the current programme position.</p></div></div><div class="planning-panel-body">'+attention+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Programme health</h4><p>Schedule, progress, delivery and time position at a glance.</p></div></div><div class="planning-panel-body">'+health+'</div></section></section>';
+  return '<section class="planning-view management-view">'+kpis+visualOverview+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Finish-date position</h4><p>Controlled baseline, submitted finish date and any independently calculated, approved or scenario finish dates.</p></div></div><div class="planning-panel-body">'+completion+'</div></section><section class="planning-panel attention"><div class="planning-panel-head"><div><h4>What needs attention</h4><p>Items that can change the current programme position.</p></div></div><div class="planning-panel-body">'+attention+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Programme health</h4><p>Schedule, progress, delivery and time position at a glance.</p></div></div><div class="planning-panel-body">'+health+'</div></section></section>';
 }
 function renderScheduleAnalyticsVisual(data){
   const p=projectionFor(data,"schedule_analytics");
@@ -1813,6 +1825,21 @@ function renderScheduleAnalyticsVisual(data){
   ])+'<div class="coverage-line"><span>Float coverage</span><b>'+escapeHtml(r.float.coveragePercent===null?"—":fmt(r.float.coveragePercent)+"%")+'</b></div></div><div><h5>Activity status</h5>'+planningStatusBand([
     ["Completed",r.status.completed,"success"],["In progress",r.status.inProgress,"accent"],["Not started",r.status.notStarted,"neutral"],["Unknown",r.status.unknown,"warning"]
   ])+'</div></div>';
+  const visualOverview='<div class="visual-chart-grid">'+
+    renderVisualPanel("Activity status mix","Execution status across the full programme population.",renderDonutChart([
+      {label:"Completed",value:r.status.completed||0,tone:"success"},
+      {label:"In progress",value:r.status.inProgress||0,tone:"accent"},
+      {label:"Not started",value:r.status.notStarted||0,tone:"neutral"},
+      {label:"Unknown",value:r.status.unknown||0,tone:"warning"}
+    ],"Activities"))+
+    renderVisualPanel("Float classification","Submitted programme float separated into critical, near-critical and other populations.",renderDonutChart([
+      {label:"Negative float",value:r.float.negativeFloatCount||0,tone:"danger"},
+      {label:"Zero float",value:Math.max(0,(r.float.criticalCount||0)-(r.float.negativeFloatCount||0)),tone:"purple"},
+      {label:"Near-critical",value:r.float.nearCriticalCount||0,tone:"warning"},
+      {label:"Other positive",value:Math.max(0,(r.float.positiveFloatCount||0)-(r.float.nearCriticalCount||0)),tone:"accent"},
+      {label:"Unknown",value:r.float.unknownFloatCount||0,tone:"neutral"}
+    ],"Float population"))+
+  '</div>';
   const integrity='<div class="integrity-grid">'+[
     ["Cycles",cycles,cycles?"danger":"success"],["Broken links",broken,broken?"danger":"success"],["Open starts",openStarts,openStarts?"warning":"success"],["Open finishes",openFinishes,openFinishes?"warning":"success"],["Isolated activities",isolated,isolated?"warning":"success"],["Programme logic",r.graph.complete?"Complete":"Review needed",r.graph.complete?"success":"danger"]
   ].map(x=>'<div class="integrity-card '+escapeHtml(x[2])+'"><span>'+escapeHtml(x[0])+'</span><b>'+escapeHtml(fmt(x[1]))+'</b></div>').join("")+'</div>';
@@ -1825,7 +1852,7 @@ function renderScheduleAnalyticsVisual(data){
   const varianceBand=planningStatusBand([
     ["Late",variance.lateActivities||0,"danger"],["On time",variance.onTimeActivities||0,"success"],["Early",variance.earlyActivities||0,"accent"],["Unknown",variance.unknownActivities||0,"neutral"]
   ]);
-  return '<section class="planning-view programme-review">'+kpis+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Programme health</h4><p>Float, progress and logic quality across the current programme.</p></div></div><div class="planning-panel-body">'+pressure+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Logic checks</h4><p>Issues that reduce confidence in schedule sequencing.</p></div></div><div class="planning-panel-body">'+integrity+'</div></section></div><div class="planning-primary-grid"><section class="planning-panel"><div class="planning-panel-head"><div><h4>Finish dates</h4><p>Baseline, current forecast and actual finish dates are kept separate so one is not mistaken for another.</p></div></div><div class="planning-panel-body">'+completion+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Finish variance</h4><p>Activities finishing later, on time or earlier than their comparison date.</p></div></div><div class="planning-panel-body">'+varianceBand+'<div class="coverage-line"><span>Variance coverage</span><b>'+escapeHtml(variance.coveragePercent===null||variance.coveragePercent===undefined?"—":fmt(variance.coveragePercent)+"%")+'</b></div></div></section></div></section>';
+  return '<section class="planning-view programme-review">'+kpis+visualOverview+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Programme health</h4><p>Float, progress and logic quality across the current programme.</p></div></div><div class="planning-panel-body">'+pressure+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Logic checks</h4><p>Issues that reduce confidence in schedule sequencing.</p></div></div><div class="planning-panel-body">'+integrity+'</div></section></div><div class="planning-primary-grid"><section class="planning-panel"><div class="planning-panel-head"><div><h4>Finish dates</h4><p>Baseline, current forecast and actual finish dates are kept separate so one is not mistaken for another.</p></div></div><div class="planning-panel-body">'+completion+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Finish variance</h4><p>Activities finishing later, on time or earlier than their comparison date.</p></div></div><div class="planning-panel-body">'+varianceBand+'<div class="coverage-line"><span>Variance coverage</span><b>'+escapeHtml(variance.coveragePercent===null||variance.coveragePercent===undefined?"—":fmt(variance.coveragePercent)+"%")+'</b></div></div></section></div></section>';
 }
 function renderActivityAnalyticsVisual(data){
   const p=projectionFor(data,"activity_analytics");
@@ -1846,6 +1873,19 @@ function renderActivityAnalyticsVisual(data){
   ]);
   const topLate=[...p.rows].filter(r=>typeof r.finishVarianceDays==="number").sort((a,b)=>b.finishVarianceDays-a.finishVarianceDays).slice(0,15).map(r=>({label:r.activityId+" · "+(r.name||""),value:r.finishVarianceDays}));
   const pressure=planningActivityPressure(p.rows);
+  const visualOverview='<div class="visual-chart-grid">'+
+    renderVisualPanel("Execution status","Activity population by current execution state.",renderDonutChart([
+      {label:"Completed",value:status.completed||0,tone:"success"},
+      {label:"In progress",value:status.in_progress||0,tone:"accent"},
+      {label:"Not started",value:status.not_started||0,tone:"neutral"},
+      {label:"Unknown",value:status.unknown||0,tone:"warning"}
+    ],"Activities"))+
+    renderVisualPanel("Criticality watchlist","Critical and near-critical activities shown against the rest of the programme.",renderDonutChart([
+      {label:"Critical",value:critical,tone:"danger"},
+      {label:"Near-critical",value:near,tone:"warning"},
+      {label:"Other",value:Math.max(0,p.activityCount-critical-near),tone:"neutral"}
+    ],"Activities"))+
+  '</div>';
   const statusBand=planningStatusBand([
     ["Completed",status.completed,"success"],["In progress",status.in_progress,"accent"],["Not started",status.not_started,"neutral"],["Unknown",status.unknown,"warning"]
   ]);
@@ -1855,7 +1895,7 @@ function renderActivityAnalyticsVisual(data){
     return bs-as;
   }).slice(0,250);
   const rows=ranked.map(a=>'<tr><td><b>'+escapeHtml(a.activityId)+'</b><br><span class="muted">'+escapeHtml(a.name||"")+'</span></td><td>'+escapeHtml(planningStateLabel(a.status))+'</td><td><span class="state-pill '+(a.criticality==="critical"?"blocked":a.criticality==="near_critical"?"review":"ready")+'">'+escapeHtml(planningStateLabel(a.criticality))+'</span></td><td>'+escapeHtml(planningShortDate(a.currentFinishIso))+'</td><td>'+escapeHtml(a.percentComplete===null?"—":fmt(a.percentComplete)+"%")+'</td><td>'+escapeHtml(fmt(a.totalFloatHours))+'</td><td>'+escapeHtml(a.finishVarianceDays===null?"—":fmt(a.finishVarianceDays))+'</td><td>'+escapeHtml(a.openStart||a.openFinish||a.isolated?"Check":"—")+'</td></tr>').join("");
-  return '<section class="planning-view activity-review">'+kpis+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Delay & float matrix</h4><p>Activity counts by controlled-baseline finish movement and submitted programme total float.</p></div></div><div class="planning-panel-body">'+pressure+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Activity status</h4><p>'+escapeHtml(fmt(openLogic))+' activities also have an open or isolated logic condition.</p></div></div><div class="planning-panel-body">'+statusBand+'<div class="coverage-stack"><span>Progress coverage <b>'+escapeHtml(p.percentCompleteCoveragePercent===null?"—":fmt(p.percentCompleteCoveragePercent)+"%")+'</b></span><span>Float coverage <b>'+escapeHtml(p.floatCoveragePercent===null?"—":fmt(p.floatCoveragePercent)+"%")+'</b></span><span>Baseline comparison coverage <b>'+escapeHtml(p.finishVarianceCoveragePercent===null?"—":fmt(p.finishVarianceCoveragePercent)+"%")+'</b></span></div></div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Largest finish movements</h4><p>Activities furthest later than the controlled baseline finish.</p></div></div><div class="planning-panel-body">'+planningSignedBars(topLate,"days")+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Activity watchlist</h4><p>Highest-attention activities first. Showing '+escapeHtml(fmt(ranked.length))+' of '+escapeHtml(fmt(p.activityCount))+'.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Activity</th><th>Status</th><th>Criticality</th><th>Current finish</th><th>Progress</th><th>Total float h</th><th>Vs baseline d</th><th>Logic</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></section></section>';
+  return '<section class="planning-view activity-review">'+kpis+visualOverview+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Delay & float matrix</h4><p>Activity counts by controlled-baseline finish movement and submitted programme total float.</p></div></div><div class="planning-panel-body">'+pressure+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Activity status</h4><p>'+escapeHtml(fmt(openLogic))+' activities also have an open or isolated logic condition.</p></div></div><div class="planning-panel-body">'+statusBand+'<div class="coverage-stack"><span>Progress coverage <b>'+escapeHtml(p.percentCompleteCoveragePercent===null?"—":fmt(p.percentCompleteCoveragePercent)+"%")+'</b></span><span>Float coverage <b>'+escapeHtml(p.floatCoveragePercent===null?"—":fmt(p.floatCoveragePercent)+"%")+'</b></span><span>Baseline comparison coverage <b>'+escapeHtml(p.finishVarianceCoveragePercent===null?"—":fmt(p.finishVarianceCoveragePercent)+"%")+'</b></span></div></div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Largest finish movements</h4><p>Activities furthest later than the controlled baseline finish.</p></div></div><div class="planning-panel-body">'+planningSignedBars(topLate,"days")+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Activity watchlist</h4><p>Highest-attention activities first. Showing '+escapeHtml(fmt(ranked.length))+' of '+escapeHtml(fmt(p.activityCount))+'.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Activity</th><th>Status</th><th>Criticality</th><th>Current finish</th><th>Progress</th><th>Total float h</th><th>Vs baseline d</th><th>Logic</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></section></section>';
 }
 
 function moduleBarList(items,tone="accent",unit=""){
@@ -2004,7 +2044,23 @@ function renderProgressReportVisual(data){
     ["Near-critical",p.schedule?.nearCriticalCount||0,"warning"],
     ["Negative float",p.schedule?.negativeFloatCount||0,"danger-soft"]
   ]);
-  return '<section class="planning-view progress-position-view">'+kpis+warning+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Progress bases</h4><p>Baseline plan, current re-phased plan, activity percentage-complete snapshot, contractor-reported and certified values remain separate.</p></div></div><div class="planning-panel-body">'+progressBasisBars(p.progressBases)+'</div></section><div class="planning-primary-grid"><section class="planning-panel"><div class="planning-panel-head"><div><h4>Activity status</h4><p>Current programme population.</p></div></div><div class="planning-panel-body">'+status+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Schedule pressure</h4><p>Float classifications are schedule indicators, not progress evidence.</p></div></div><div class="planning-panel-body">'+pressure+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Near-term delivery</h4><p>Milestones and look-ahead indicators tied to the current data date.</p></div></div><div class="planning-panel-body">'+planningKpis([
+  const progressChart=renderVisualBars([
+    {label:"Baseline planned",value:typeof baseline?.valuePercent==="number"?baseline.valuePercent:null,tone:"graphite"},
+    {label:"Current programme plan",value:typeof current?.valuePercent==="number"?current.valuePercent:null,tone:"accent"},
+    {label:physicalLabel,value:typeof physical?.valuePercent==="number"?physical.valuePercent:null,tone:"teal"},
+    {label:"Contractor reported",value:typeof contractor?.valuePercent==="number"?contractor.valuePercent:null,tone:"warning"},
+    {label:"Certified progress",value:typeof certified?.valuePercent==="number"?certified.valuePercent:null,tone:"success"}
+  ].filter(item=>item.value!==null),"%");
+  const visualOverview='<div class="visual-chart-grid">'+
+    renderVisualPanel("Progress basis comparison","Five progress positions remain visually separate so schedule progress cannot be mistaken for certified progress.",progressChart)+
+    renderVisualPanel("Activity status","Current programme execution status.",renderDonutChart([
+      {label:"Completed",value:p.progress?.completedCount||0,tone:"success"},
+      {label:"In progress",value:p.progress?.inProgressCount||0,tone:"accent"},
+      {label:"Not started",value:p.progress?.notStartedCount||0,tone:"neutral"},
+      {label:"Unknown",value:p.progress?.unknownStatusCount||0,tone:"warning"}
+    ],"Activities"))+
+  '</div>';
+  return '<section class="planning-view progress-position-view">'+kpis+warning+visualOverview+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Progress bases</h4><p>Baseline plan, current re-phased plan, activity percentage-complete snapshot, contractor-reported and certified values remain separate.</p></div></div><div class="planning-panel-body">'+progressBasisBars(p.progressBases)+'</div></section><div class="planning-primary-grid"><section class="planning-panel"><div class="planning-panel-head"><div><h4>Activity status</h4><p>Current programme population.</p></div></div><div class="planning-panel-body">'+status+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Schedule pressure</h4><p>Float classifications are schedule indicators, not progress evidence.</p></div></div><div class="planning-panel-body">'+pressure+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Near-term delivery</h4><p>Milestones and look-ahead indicators tied to the current data date.</p></div></div><div class="planning-panel-body">'+planningKpis([
     ["Milestones",p.milestones?.milestoneCount,"total"],
     ["Open milestones",p.milestones?.openCount,"open"],
     ["Overdue milestones",p.milestones?.lateOpenCount,"past data date",p.milestones?.lateOpenCount?"danger":""],
