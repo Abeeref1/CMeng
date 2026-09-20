@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { cell, has, numberValue, dateValue, governedTables, sumKnown, type SourceReceipt, type SourceRow } from '../../truth-kernel/src';
+import { cell, has, numberValue, dateValue, governedTables, norm, sumKnown, type SourceReceipt, type SourceRow, type SourceTable } from '../../truth-kernel/src';
 import type { CanonicalClaimRecord, CanonicalDelayEvent, CanonicalNoticeRecord, DelayClaimsModel } from '../../delay-analysis-core/src';
 import type { ContractTimeBasis } from '../../eot-assessment/src';
 import type { ProjectRuntimeState } from './project-state-types';
@@ -22,6 +22,59 @@ export interface CanonicalTimeClaims {
 const cache = new WeakMap<ProjectRuntimeState,{version:number;value:CanonicalTimeClaims}>();
 const n = (r:SourceRow,...names:string[])=>numberValue(cell(r,...names));
 const evref = (r:SourceRow,sourceType:'claim'|'notice'|'other'='claim')=>({sourceType,sourceId:r.receipt.documentId,locator:r.receipt.locator});
+interface CorrespondenceLink {
+  logicalId: string;
+  claimId: string | null;
+  eventId: string | null;
+  issuedAt: string | null;
+  subject: string | null;
+  receipt: SourceReceipt;
+}
+function correspondenceLinks(tables: readonly SourceTable[], diagnostics: string[]): Map<string, CorrespondenceLink> {
+  const links = new Map<string, CorrespondenceLink>();
+  for (const table of tables) {
+    const docType = norm((table.document as any).sourceFilename ?? "");
+    const schemaLooksLikeCorrespondence =
+      has(table,'letter id') || has(table,'letter no') || has(table,'letter number') ||
+      has(table,'letter reference') || has(table,'correspondence id') ||
+      (has(table,'reference') && (has(table,'subject') || has(table,'letter date') || has(table,'date')));
+    if (!schemaLooksLikeCorrespondence && !/^l0?1\b/.test(docType)) continue;
+    for (const row of table.rows) {
+      const logicalId = cell(row,'letter id','letter no','letter number','letter reference','correspondence id','reference');
+      if (!logicalId) continue;
+      const key = norm(logicalId);
+      const record: CorrespondenceLink = {
+        logicalId,
+        claimId: cell(row,'claim id','related claim id','claim reference') || null,
+        eventId: cell(row,'event id','delay event id','related event id','event reference') || null,
+        issuedAt: dateValue(cell(row,'letter date','date','issued date','notice date')),
+        subject: cell(row,'subject','title','description') || null,
+        receipt: row.receipt,
+      };
+      const previous = links.get(key);
+      if (previous && (
+        previous.claimId !== record.claimId ||
+        previous.eventId !== record.eventId ||
+        previous.issuedAt !== record.issuedAt ||
+        previous.subject !== record.subject
+      )) {
+        links.delete(key);
+        diagnostics.push('CONFLICTING_CORRESPONDENCE_ID:' + logicalId);
+        continue;
+      }
+      if (!previous) links.set(key, record);
+    }
+  }
+  return links;
+}
+function correspondenceRef(link: CorrespondenceLink) {
+  return {
+    sourceType: 'correspondence' as const,
+    sourceId: link.receipt.documentId,
+    locator: link.receipt.locator,
+  };
+}
+
 export function projectControlSchedule(state:ProjectRuntimeState) {
   const basis=state.activeEvidenceBasis['schedule:control'] ?? state.activeEvidenceBasis['schedule:baseline'];
   if(basis?.activeArtifactId) return state.schedules.find(s=>s.revision.revisionId===basis.activeArtifactId) ?? null;
@@ -38,6 +91,7 @@ function claimStatus(s:string):CanonicalClaimRecord['state'] {
 export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):CanonicalTimeClaims {
   const old=cache.get(state);if(!force&&old?.version===state.version)return old.value;
   const diagnostics:string[]=[], tables=governedTables(state.evidenceDocuments,diagnostics),dataDateIso=projectDataDate(state);
+  const correspondence = correspondenceLinks(tables, diagnostics);
   const sourceTablesForClaims=tables.filter(t=>has(t,'claim id','event')&&has(t,'notice date'));
   const claims:CanonicalClaimRecord[]=[],events:CanonicalDelayEvent[]=[],notices:CanonicalNoticeRecord[]=[];
   const claimIds=new Set<string>();
@@ -46,12 +100,21 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
     if(claimIds.has(claimId)){diagnostics.push('DUPLICATE_CLAIM_ID_REQUIRES_REVISION_RECONCILIATION:'+claimId);continue;}claimIds.add(claimId);
     const eventId=cell(r,'event id')||claimId+':event',title=cell(r,'event','title')||claimId;
     const clause=cell(r,'clause'),clauseIdentifiers=clause?[clause]:[];
-    const sourceLetter=cell(r,'linked letter');const evidenceRefs=[evref(r),...(sourceLetter?[{sourceType:'correspondence' as const,sourceId:sourceLetter,locator:null}]:[])];
+    const sourceLetter=cell(r,'linked letter');
+    const linkedCorrespondence=sourceLetter?correspondence.get(norm(sourceLetter))??null:null;
+    const semanticLinkVerified=!!linkedCorrespondence&&(
+      (!linkedCorrespondence.claimId||norm(linkedCorrespondence.claimId)===norm(claimId)) &&
+      (!linkedCorrespondence.eventId||norm(linkedCorrespondence.eventId)===norm(eventId))
+    );
+    const evidenceRefs=[evref(r),...(linkedCorrespondence?[correspondenceRef(linkedCorrespondence)]:sourceLetter?[{sourceType:'correspondence' as const,sourceId:sourceLetter,locator:null}]:[])];
     events.push({eventId,title,category:'other',startIso:dateValue(cell(r,'event start','start date')),endIso:dateValue(cell(r,'event end','end date')),
       responsibility:'unknown',responsibilityState:'missing',describedImpactDays:n(r,'days claimed','claimed days'),describedImpactState:'candidate',
       relatedActivityIds:cell(r,'activity id','related activity ids').split(/[;,|]/).map(s=>s.trim()).filter(Boolean),relatedClauseIdentifiers:clauseIdentifiers,evidenceRefs,
-      diagnostics:['SOURCE_REGISTER_EVENT_NOT_PROVEN_CAUSATION',...(sourceLetter?['LINKED_LETTER_CONTENT_NOT_YET_VERIFIED']:[])],});
-    const issued=dateValue(cell(r,'notice date'));
+      diagnostics:['SOURCE_REGISTER_EVENT_NOT_PROVEN_CAUSATION',...(sourceLetter&&!linkedCorrespondence?['LINKED_CORRESPONDENCE_NOT_FOUND:'+sourceLetter]:sourceLetter&&!semanticLinkVerified?['LINKED_CORRESPONDENCE_SEMANTIC_MISMATCH:'+sourceLetter]:semanticLinkVerified?['LINKED_CORRESPONDENCE_VERIFIED:'+sourceLetter]:[])],});
+    const registerIssued=dateValue(cell(r,'notice date'));
+    const correspondenceIssued=semanticLinkVerified?linkedCorrespondence?.issuedAt??null:null;
+    const issued=registerIssued??correspondenceIssued;
+    if(registerIssued&&correspondenceIssued&&registerIssued!==correspondenceIssued)diagnostics.push('NOTICE_DATE_CONFLICT:'+claimId+':'+sourceLetter);
     claims.push({claimId,title,state:claimStatus(cell(r,'status')),eventIds:[eventId],submittedAt:dateValue(cell(r,'submitted date','submission date')),
       claimedDays:n(r,'days claimed','claimed days'),claimedAmount:n(r,'claimed amount'),assessedDays:n(r,'source granted days','days granted'),assessedDaysState:n(r,'source granted days','days granted')===null?'missing':'candidate',
       assessedAmount:null,assessedAmountState:'missing',clauseIdentifiers,evidenceRefs,diagnostics:['REGISTER_ASSESSMENT_IS_NOT_ENGINEER_DETERMINATION']});
@@ -75,8 +138,14 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
     const previous=determinationById.get(record.determinationId);
     if(previous){if(previous.awardedDays!==record.awardedDays||previous.claimId!==record.claimId||previous.determinationDate!==record.determinationDate){previous.state='conflicted';diagnostics.push('IMMUTABLE_DETERMINATION_CONFLICT:'+record.determinationId);}continue;}
     determinationById.set(record.determinationId,record);determinations.push(record);
-    const c=byClaim.get(record.claimId);if(c)c.evidenceRefs.push(evref(r));else diagnostics.push('ORPHAN_DETERMINATION:'+record.determinationId);
-    notices.push({noticeId:record.sourceLetter||record.determinationId,kind:'determination',eventId:c?.eventIds[0]??null,claimId:record.claimId,actualIssuedAt:record.determinationDate,actualReceivedAt:null,plannedAt:null,subject:'Engineer determination '+record.determinationId,clauseIdentifiers:[],evidenceRefs:[evref(r,'notice')],diagnostics:[]});
+    const c=byClaim.get(record.claimId);
+    const event=c?events.find(e=>e.eventId===c.eventIds[0]):null;
+    const determinationLetter=record.sourceLetter?correspondence.get(norm(record.sourceLetter))??null:null;
+    const determinationRefs=[evref(r),...(determinationLetter?[correspondenceRef(determinationLetter)]:[])];
+    if(c)c.evidenceRefs.push(...determinationRefs);else diagnostics.push('ORPHAN_DETERMINATION:'+record.determinationId);
+    if(event)event.evidenceRefs.push(...determinationRefs);
+    if(record.sourceLetter&&!determinationLetter)diagnostics.push('DETERMINATION_CORRESPONDENCE_NOT_FOUND:'+record.determinationId+':'+record.sourceLetter);
+    notices.push({noticeId:record.sourceLetter||record.determinationId,kind:'determination',eventId:c?.eventIds[0]??null,claimId:record.claimId,actualIssuedAt:record.determinationDate,actualReceivedAt:null,plannedAt:null,subject:'Engineer determination '+record.determinationId,clauseIdentifiers:[],evidenceRefs:[evref(r,'notice'),...(determinationLetter?[correspondenceRef(determinationLetter)]:[])],diagnostics:determinationLetter?['DETERMINATION_CORRESPONDENCE_LINK_VERIFIED']:record.sourceLetter?['DETERMINATION_CORRESPONDENCE_UNVERIFIED']:[]});
   }
   // Validate lineage once, but resolve supersession separately for each reporting cutoff.
   for (const d of determinations.filter(d => d.state === 'source_immutable' && d.supersedes)) {
