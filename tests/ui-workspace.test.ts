@@ -222,7 +222,6 @@ test("CMeng workspace keeps the active module primary and browser script parseab
       "Other scenarios",
       "What needs attention",
       "Updated",
-      "Current position and the items that need attention are shown below",
       "Preparing the latest project position",
     ]
   ) {
@@ -241,6 +240,18 @@ test("CMeng workspace keeps the active module primary and browser script parseab
     ),
     false,
     "upload filenames must not be truncated with ellipsis",
+  );
+  assert.equal(
+    html.includes(
+      "Current position and the items that need attention are shown below",
+    ),
+    false,
+    "successful specialist views should not waste the first viewport on a redundant status sentence",
+  );
+  assert.match(
+    html,
+    /planning-view \.table-wrap\{max-height:620px;overflow:auto\}/,
+    "large planning tables must scroll inside their analysis panel rather than extend the entire page",
   );
   for (
     const platformView of [
