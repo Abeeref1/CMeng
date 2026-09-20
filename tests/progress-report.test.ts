@@ -358,3 +358,51 @@ test("durable Progress Report projection declares every upstream schedule depend
     ].sort(),
   );
 });
+
+
+test("Progress S-Curve controlled-baseline coverage uses the baseline population rather than the current population", () => {
+  const baseline =
+    model();
+  baseline.sourceRevisionId =
+    "baseline-rev";
+
+  const current =
+    model();
+  current.sourceRevisionId =
+    "current-rev";
+  current.activities =
+    current.activities.filter(
+      (activity) =>
+        activity.activityId !==
+        "A200",
+    );
+  current.relationships = [];
+
+  const scurve =
+    buildProgressScurveProjection(
+      current,
+      {
+        generatedAt:
+          "2026-09-20T07:00:00.000Z",
+        producerVersion:
+          "controlled-baseline-test-v1",
+        baselineModel:
+          baseline,
+      },
+    );
+
+  assert.equal(
+    scurve.baselineCoveragePercent,
+    100,
+    "baseline coverage must be measured against baseline-eligible activities, not the smaller current population",
+  );
+  assert.equal(
+    scurve.currentCoveragePercent,
+    100,
+  );
+  assert.ok(
+    scurve.diagnostics.includes(
+      "SCURVE_CONTROLLED_BASELINE_REVISION_AND_CURRENT_DERIVED_BY_DURATION_WEIGHTED_LINEAR_TIME_PHASING",
+    ),
+  );
+});
