@@ -66,7 +66,7 @@ details:not(.workspace-drawer){border:1px solid var(--line);border-radius:9px;ba
 .challenge-card{padding:0!important;overflow:hidden}.challenge-card .challenge-head{padding:17px 18px;border-bottom:1px solid var(--line)}.challenge-card .challenge-summary{padding:15px 18px 0}.challenge-card .challenge-table-wrap{margin:15px 18px 18px}.conflict-expand-row>td{padding:0;background:#faf8f5!important}.conflict-panel{padding:16px 18px;border-top:1px solid #e4ded6;border-bottom:1px solid #e4ded6;background:linear-gradient(180deg,#faf8f5,#f5f1eb)}.conflict-title{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px}.conflict-title strong{font-size:14px}.conflict-title p{margin:3px 0 0;color:var(--muted);font-size:12px}.candidate-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px}.candidate-card{border:1px solid #ddd5ca;border-radius:10px;background:#fff;padding:13px}.candidate-card.recommended{border-color:#4f7fb4;box-shadow:0 0 0 2px rgba(201,183,159,.14)}.candidate-value{font-size:20px;font-weight:790;letter-spacing:-.025em;margin:3px 0 9px}.candidate-meta{display:grid;grid-template-columns:1fr 1fr;gap:7px;font-size:11.5px;color:var(--muted)}.candidate-meta b{display:block;color:#506579;font-size:10.5px;text-transform:uppercase;letter-spacing:.04em}.candidate-sources{font-size:11.5px;color:#5d6b7e;margin-top:9px;word-break:break-word}.recommendation-card{margin-top:12px;padding:13px 14px;border-radius:10px;background:#f2ede6;border:1px solid #d7e3ef;display:flex;align-items:flex-start;justify-content:space-between;gap:16px}.recommendation-card strong{display:block;font-size:16px;color:var(--slate);margin:3px 0}.recommendation-card p{margin:0;color:#66727f;font-size:12px;line-height:1.45}.recommendation-label{font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;font-weight:820;color:#4e7299}.decision-pill{flex:0 0 auto;background:#fff7e8;color:#8b4b08;border:1px solid #f6d99f;border-radius:999px;padding:6px 9px;font-size:10.5px;font-weight:820;text-transform:uppercase;letter-spacing:.04em}
 .view-state-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 14px;padding:10px 12px;border:1px solid #d8e3ee;border-radius:9px;background:#f8fbff}.view-state-bar strong{font-size:12px;color:var(--slate)}.view-state-bar span{font-size:11.5px;color:var(--muted)}.view-state-complete{display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border-radius:999px;background:#edf7f1;color:#2c7a57!important;font-weight:800}.view-state-review{display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border-radius:999px;background:#fff5df;color:#9a671f!important;font-weight:800}.challenge-attention{margin:12px 18px 0;border:1px solid #e4eaf1;border-radius:10px;overflow:hidden;background:#fff}.challenge-attention-head{padding:11px 13px;background:#f8fafc;border-bottom:1px solid #e7edf3}.challenge-attention-head strong{font-size:12.5px}.challenge-attention-head span{display:block;margin-top:2px;font-size:11px;color:var(--muted)}.challenge-attention-row{display:grid;grid-template-columns:minmax(190px,.85fr) minmax(180px,.65fr) minmax(0,1.4fr);gap:12px;padding:10px 13px;border-bottom:1px solid #edf1f5;font-size:11.5px}.challenge-attention-row:last-child{border-bottom:0}.challenge-attention-row b{color:var(--slate)}.challenge-attention-row span{color:#5e6c7c}.document-state-guide{margin:0 0 12px;padding:13px;border:1px solid #dce5ef;border-radius:10px;background:#fff}.document-state-guide h4{margin:0 0 9px;font-size:13px}.document-state-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px}.document-state-item{padding:9px 10px;border:1px solid #e7edf3;border-radius:8px;background:#fafcff;font-size:11px;line-height:1.4}.document-state-item b{display:block;color:var(--slate);margin-bottom:2px}.document-state-item span{color:var(--muted)}
 .chart-card{margin-top:14px;border:1px solid var(--line);border-radius:12px;background:#fff;overflow:hidden}
-.planning-view{display:grid;gap:14px;--module-accent:#4f7fb4}.management-view{--module-accent:#315f8a}.programme-review{--module-accent:#4f7fb4}.activity-review{--module-accent:#566e99}.lookahead-view{--module-accent:#3f7f76}.changes-view{--module-accent:#8b6b35}.revision-view{--module-accent:#6d628e}.milestone-view{--module-accent:#44759c}.nearcritical-view{--module-accent:#9b6a24}.planning-view .planning-panel.primary{border-top:3px solid var(--module-accent)}.planning-view .planning-panel-head h4{letter-spacing:-.01em}.planning-kpi-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px}.planning-kpi{min-height:94px;padding:14px 15px;border:1px solid #dce5ef;border-radius:11px;background:#fff;box-shadow:0 5px 16px rgba(34,54,77,.035)}.planning-kpi span{display:block;font-size:11.5px;color:#718096;font-weight:800;text-transform:uppercase;letter-spacing:.045em}.planning-kpi strong{display:block;margin-top:7px;font-size:24px;line-height:1.1;color:#22364d;letter-spacing:-.025em}.planning-kpi small{display:block;margin-top:6px;font-size:12px;color:#7b8795}.planning-kpi.danger{border-top:3px solid #b4483e}.planning-kpi.warning{border-top:3px solid #b57922}.planning-kpi.success{border-top:3px solid #2c7a57}.planning-kpi.accent{border-top:3px solid #4f7fb4}
+.planning-view{display:grid;gap:14px;--module-accent:#4f7fb4}.pressure-matrix{display:grid;gap:6px}.pressure-matrix-head,.pressure-matrix-row{display:grid;grid-template-columns:140px repeat(5,minmax(82px,1fr));gap:6px;align-items:stretch}.pressure-matrix-head span,.pressure-matrix-head b{font-size:10.5px;color:#667085;text-align:center;padding:5px}.pressure-matrix-head span{text-align:left}.pressure-matrix-row>strong{display:flex;align-items:center;font-size:11px;color:#344054}.pressure-cell{min-height:48px;border-radius:7px;display:grid;place-items:center;border:1px solid #e3e8ef;background:rgba(79,127,180,var(--cell-alpha))}.pressure-cell.danger{background:rgba(180,72,62,var(--cell-alpha))}.pressure-cell.danger-soft{background:rgba(196,96,79,var(--cell-alpha))}.pressure-cell.warning{background:rgba(181,121,34,var(--cell-alpha))}.pressure-cell.accent{background:rgba(79,127,180,var(--cell-alpha))}.pressure-cell b{font-size:12px;color:#1f3349}.pressure-note,.float-distribution-note{margin-top:9px;font-size:10.5px;color:#7b8795}.constraint-bars,.finish-period-bars{display:grid;gap:8px}.constraint-row,.finish-period-row{display:grid;grid-template-columns:minmax(140px,.9fr) minmax(160px,1.7fr) 54px;gap:10px;align-items:center}.constraint-row span,.finish-period-row span{font-size:11px;color:#506579}.constraint-row>div,.finish-period-row>div{height:10px;background:#eef2f6;border-radius:999px;overflow:hidden}.constraint-row i,.finish-period-row i{display:block;height:100%;background:#b4483e;border-radius:999px}.finish-period-row i{background:#b57922}.constraint-row b,.finish-period-row b{text-align:right;font-size:11px;color:#344054}.revision-value-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px}.revision-value-card{border:1px solid #dde5ee;border-radius:9px;padding:11px;background:#fbfdff}.revision-value-head{display:flex;justify-content:space-between;gap:8px;border-bottom:1px solid #e8edf3;padding-bottom:7px}.revision-value-head b{font-size:11.5px;color:#22364d}.revision-value-head span{font-size:10px;color:#7b8795}.revision-value-lines{display:grid;gap:5px;margin-top:8px}.revision-value-lines span{display:flex;justify-content:space-between;gap:8px;font-size:10.5px;color:#667085}.revision-value-lines b{color:#22364d}.milestone-context{display:flex;justify-content:space-between;gap:12px;margin-bottom:8px;padding:7px 9px;border-radius:7px;background:#f6f8fb;font-size:10.5px;color:#667085}.milestone-label small{display:block;margin-top:3px;font-size:9.5px;color:#8a96a6}.lookahead-state{white-space:normal;line-height:1.1}.float-histogram{overflow-x:auto}.management-view{--module-accent:#315f8a}.programme-review{--module-accent:#4f7fb4}.activity-review{--module-accent:#566e99}.lookahead-view{--module-accent:#3f7f76}.changes-view{--module-accent:#8b6b35}.revision-view{--module-accent:#6d628e}.milestone-view{--module-accent:#44759c}.nearcritical-view{--module-accent:#9b6a24}.planning-view .planning-panel.primary{border-top:3px solid var(--module-accent)}.planning-view .planning-panel-head h4{letter-spacing:-.01em}.planning-kpi-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px}.planning-kpi{min-height:94px;padding:14px 15px;border:1px solid #dce5ef;border-radius:11px;background:#fff;box-shadow:0 5px 16px rgba(34,54,77,.035)}.planning-kpi span{display:block;font-size:11.5px;color:#718096;font-weight:800;text-transform:uppercase;letter-spacing:.045em}.planning-kpi strong{display:block;margin-top:7px;font-size:24px;line-height:1.1;color:#22364d;letter-spacing:-.025em}.planning-kpi small{display:block;margin-top:6px;font-size:12px;color:#7b8795}.planning-kpi.danger{border-top:3px solid #b4483e}.planning-kpi.warning{border-top:3px solid #b57922}.planning-kpi.success{border-top:3px solid #2c7a57}.planning-kpi.accent{border-top:3px solid #4f7fb4}
 .planning-primary-grid{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(320px,.85fr);gap:14px}.comparison-ribbon{display:grid;grid-template-columns:1fr auto 1fr;gap:12px;align-items:center;padding:12px 14px;border:1px solid #dce5ef;border-radius:11px;background:#f8fbff}.comparison-ribbon div{min-width:0}.comparison-ribbon span{display:block;font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;font-weight:800;color:#7b8795}.comparison-ribbon b{display:block;margin-top:3px;font-size:14px;color:#22364d;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.comparison-ribbon i{font-style:normal;color:#4f7fb4;font-size:18px}.planning-panel{border:1px solid #dce5ef;border-radius:12px;background:#fff;overflow:hidden;box-shadow:0 5px 18px rgba(34,54,77,.035)}.planning-panel.primary{box-shadow:0 9px 26px rgba(34,54,77,.055)}.planning-panel-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:14px 16px 12px;border-bottom:1px solid #e5ebf2;background:#fbfdff}.planning-panel-head h4{margin:0;font-size:16px;color:#22364d}.planning-panel-head p{margin:4px 0 0;font-size:12.5px;color:#718096}.planning-panel-body{padding:15px 16px}.planning-view .table-wrap{max-height:620px;overflow:auto}.planning-view .table-wrap thead th{position:sticky;top:0;z-index:2;background:#f8fafc}.planning-view .table-wrap tbody tr:hover{background:#f8fbff}.planning-split{display:grid;grid-template-columns:1fr 1fr;gap:22px}.planning-split h5{margin:0 0 10px;font-size:13.5px;color:#506579}
 .status-band{height:42px;display:flex;overflow:hidden;border-radius:9px;border:1px solid #dce5ef;background:#f6f8fb}.status-band-segment{min-width:28px;display:flex;flex-direction:column;justify-content:center;padding:0 8px;color:#fff;overflow:hidden}.status-band-segment span{font-size:10.5px;font-weight:800;white-space:nowrap}.status-band-segment b{font-size:13px}.status-band-segment.danger{background:#b4483e}.status-band-segment.warning{background:#b57922}.status-band-segment.success{background:#2c7a57}.status-band-segment.accent{background:#4f7fb4}.status-band-segment.neutral{background:#91a0b0}.status-band-legend{display:flex;flex-wrap:wrap;gap:9px 14px;margin-top:9px}.status-band-legend span{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;color:#667085}.status-band-legend i{width:8px;height:8px;border-radius:2px;background:#91a0b0}.status-band-legend i.danger{background:#b4483e}.status-band-legend i.warning{background:#b57922}.status-band-legend i.success{background:#2c7a57}.status-band-legend i.accent{background:#4f7fb4}.status-band-legend b{color:#344054}
 .coverage-line{display:flex;align-items:center;justify-content:space-between;margin-top:12px;padding-top:10px;border-top:1px solid #edf1f5;font-size:11.5px;color:#667085}.coverage-line b{color:#22364d}.coverage-stack{display:grid;gap:7px;margin-top:12px}.coverage-stack span{display:flex;justify-content:space-between;font-size:11.5px;color:#667085}.coverage-stack b{color:#22364d}
@@ -700,9 +700,9 @@ function renderLookAheadVisual(data){
     ["Look-ahead",p.windowDays+" days",planningShortDate(p.dataDateIso)+" → "+planningShortDate(p.windowEndIso)],
     ["Activities",inWindow,"in look-ahead"],
     ["Overdue",p.overdueCount,"activities","danger"],
-    ["Ready",p.readyCount,"activities","success"],
-    ["Conditional",p.conditionalCount,"activities","warning"],
-    ["Blocked",p.blockedCount,"activities","danger"]
+    ["Ready to proceed",p.readyCount,"all known requirements ready","success"],
+    ["Evidence gaps",p.conditionalCount,"no known blocker, information incomplete","warning"],
+    ["Known blocker",p.blockedCount,"at least one explicit blocker","danger"]
   ]);
   const timeline=planningLookAheadTimeline(p);
   const dimensions=["predecessor","procurement_material","design_submittal","permit","resource","quality","commercial","risk","access"];
@@ -714,15 +714,12 @@ function renderLookAheadVisual(data){
   }).slice(0,80);
   const rows=watch.map(row=>{
     const map=new Map((row.readiness?.dimensions||[]).map(d=>[d.key,d]));
-    return '<tr><td><b>'+escapeHtml(row.activityId)+'</b><br><span class="muted">'+escapeHtml(row.name||"")+'</span></td><td>'+escapeHtml(planningShortDate(row.startIso))+'</td><td>'+escapeHtml(planningShortDate(row.finishIso))+'</td><td><span class="state-pill '+escapeHtml(row.readiness?.state||"unknown")+'">'+escapeHtml(planningStateLabel(row.readiness?.state||"unknown"))+'</span></td>'+dimensions.map(key=>{const dim=map.get(key);const state=dim?.state||"unknown";return '<td><span class="readiness-cell '+escapeHtml(state)+'" title="'+escapeHtml(dim?.note||planningStateLabel(state))+'">'+escapeHtml(state==="ready"?"✓":state==="blocked"?"!":state==="not_applicable"?"—":"?")+'</span></td>'}).join("")+'</tr>';
+    const overall=row.readiness?.state==="blocked"?"Known blocker":row.readiness?.state==="conditional"?"Evidence gaps":"Ready";
+    return '<tr><td><b>'+escapeHtml(row.activityId)+'</b><br><span class="muted">'+escapeHtml(row.name||"")+'</span></td><td>'+escapeHtml(planningShortDate(row.startIso))+'</td><td>'+escapeHtml(planningShortDate(row.finishIso))+'</td><td><span class="state-pill '+escapeHtml(row.readiness?.state||"unknown")+'">'+escapeHtml(overall)+'</span></td>'+dimensions.map(key=>{const dim=map.get(key);const state=dim?.state||"unknown";return '<td><span class="readiness-cell '+escapeHtml(state)+'" title="'+escapeHtml(dim?.note||planningStateLabel(state))+'">'+escapeHtml(state==="ready"?"✓":state==="blocked"?"!":state==="not_applicable"?"—":"?")+'</span></td>'}).join("")+'</tr>';
   }).join("");
-  const readiness=planningStatusBand([["Ready",p.readyCount,"success"],["Conditional",p.conditionalCount,"warning"],["Blocked",p.blockedCount,"danger"]]);
-  return '<section class="planning-view lookahead-view">'+kpis+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>6-week execution view</h4><p>Showing the 36 highest-priority activities from '+escapeHtml(fmt(inWindow))+' activities in the window. Red activities have a known blocker.</p></div></div><div class="planning-panel-body">'+timeline+'</div></section><div class="planning-primary-grid"><section class="planning-panel"><div class="planning-panel-head"><div><h4>Readiness position</h4><p>Ready, conditional and blocked work in the current look-ahead.</p></div></div><div class="planning-panel-body">'+readiness+'<div class="coverage-line"><span>Date coverage</span><b>'+escapeHtml(p.currentDateCoveragePercent===null?"—":fmt(p.currentDateCoveragePercent)+"%")+'</b></div></div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Immediate focus</h4><p>Overdue and blocked work should be resolved first.</p></div></div><div class="planning-panel-body">'+planningAttention([
-    p.overdueCount?{title:"Overdue activities",text:"Activities have passed their current finish date.",value:p.overdueCount,tone:"danger"}:null,
-    p.blockedCount?{title:"Blocked activities",text:"At least one readiness requirement is not ready.",value:p.blockedCount,tone:"danger"}:null,
-    p.conditionalCount?{title:"Readiness gaps",text:"Some requirements are still unknown or incomplete.",value:p.conditionalCount,tone:"watch"}:null,
-    (p.missingCurrentDateActivityIds||[]).length?{title:"Activities missing current dates",text:"They cannot be positioned reliably in the look-ahead.",value:(p.missingCurrentDateActivityIds||[]).length,tone:"watch"}:null
-  ])+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Readiness matrix</h4><p>Showing the 80 highest-attention activities. ✓ ready · ! blocked · ? information missing · — not applicable.</p></div></div><div class="planning-panel-body"><div class="table-wrap readiness-table"><table><thead><tr><th>Activity</th><th>Start</th><th>Finish</th><th>Overall</th>'+dimensions.map(key=>'<th>'+escapeHtml(labels[key])+'</th>').join("")+'</tr></thead><tbody>'+rows+'</tbody></table></div></div></section></section>';
+  const readiness=planningStatusBand([["Ready",p.readyCount,"success"],["Evidence gaps",p.conditionalCount,"warning"],["Known blocker",p.blockedCount,"danger"]]);
+  const blockers=planningLookAheadBlockers(p.rows);
+  return '<section class="planning-view lookahead-view">'+kpis+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>6-week execution view</h4><p>Showing the 36 highest-priority activities from '+escapeHtml(fmt(inWindow))+' activities. The label at right states the actual blocker or whether evidence is still missing.</p></div></div><div class="planning-panel-body">'+timeline+'</div></section><div class="planning-primary-grid"><section class="planning-panel"><div class="planning-panel-head"><div><h4>Readiness position</h4><p>A known blocker is different from missing readiness evidence.</p></div></div><div class="planning-panel-body">'+readiness+'<div class="coverage-line"><span>Date coverage</span><b>'+escapeHtml(p.currentDateCoveragePercent===null?"—":fmt(p.currentDateCoveragePercent)+"%")+'</b></div></div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Why work is blocked</h4><p>Counts by explicit blocker. An incomplete predecessor is a sequencing blocker.</p></div></div><div class="planning-panel-body">'+blockers+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Readiness matrix</h4><p>Showing the 80 highest-attention activities. ✓ ready · ! explicit blocker · ? evidence missing · — not applicable.</p></div></div><div class="planning-panel-body"><div class="table-wrap readiness-table"><table><thead><tr><th>Activity</th><th>Start</th><th>Finish</th><th>Overall</th>'+dimensions.map(key=>'<th>'+escapeHtml(labels[key])+'</th>').join("")+'</tr></thead><tbody>'+rows+'</tbody></table></div></div></section></section>';
 }
 function renderForecastVisual(data){
   const p=projectionFor(data,"independent_forecast");
@@ -821,11 +818,17 @@ function planningKpis(items){
 function planningStatusBand(items){
   const total=items.reduce((sum,item)=>sum+Math.max(0,Number(item[1]||0)),0);
   if(total<=0)return '<div class="empty-visual">No distribution is available for this view.</div>';
-  return '<div class="status-band">'+items.filter(item=>Number(item[1]||0)>0).map(item=>{
+  const segments=items.filter(item=>Number(item[1]||0)>0).map(item=>{
     const value=Math.max(0,Number(item[1]||0));
     const width=(value/total)*100;
-    return '<div class="status-band-segment '+escapeHtml(item[2]||"neutral")+'" style="width:'+width.toFixed(3)+'%" title="'+escapeHtml(item[0]+": "+fmt(value))+'"><span>'+escapeHtml(item[0])+'</span><b>'+escapeHtml(fmt(value))+'</b></div>';
-  }).join("")+'</div><div class="status-band-legend">'+items.map(item=>'<span><i class="'+escapeHtml(item[2]||"neutral")+'"></i>'+escapeHtml(item[0])+' <b>'+escapeHtml(fmt(item[1]))+'</b></span>').join("")+'</div>';
+    const inner=width>=16
+      ? '<span>'+escapeHtml(item[0])+'</span><b>'+escapeHtml(fmt(value))+'</b>'
+      : width>=7
+        ? '<b>'+escapeHtml(fmt(value))+'</b>'
+        : '';
+    return '<div class="status-band-segment '+escapeHtml(item[2]||"neutral")+'" style="width:'+width.toFixed(3)+'%" title="'+escapeHtml(item[0]+": "+fmt(value))+'">'+inner+'</div>';
+  }).join("");
+  return '<div class="status-band">'+segments+'</div><div class="status-band-legend">'+items.map(item=>'<span><i class="'+escapeHtml(item[2]||"neutral")+'"></i>'+escapeHtml(item[0])+' <b>'+escapeHtml(fmt(item[1]))+'</b></span>').join("")+'</div>';
 }
 function planningDateLadder(items,dataDate){
   const valid=items.map(item=>({...item,ms:planningDateMs(item.date)})).filter(item=>item.ms!==null);
@@ -895,23 +898,32 @@ function planningDateTrend(points,series){
   return legend+'<div class="chart-scroll"><svg class="svg-chart" viewBox="0 0 '+width+' '+height+'">'+ticks+paths+pointsSvg+labels+'</svg></div>';
 }
 function planningActivityPressure(rows){
-  const candidates=rows.filter(r=>typeof r.finishVarianceDays==="number"&&typeof r.totalFloatHours==="number");
-  if(!candidates.length)return '<div class="empty-visual">Finish variance and float are not both available for enough activities.</div>';
-  const sorted=[...candidates].sort((a,b)=>(Math.abs(b.finishVarianceDays)+(b.totalFloatHours<0?40:0))-(Math.abs(a.finishVarianceDays)+(a.totalFloatHours<0?40:0))).slice(0,500);
-  const xs=sorted.map(r=>r.finishVarianceDays).sort((a,b)=>a-b),ys=sorted.map(r=>r.totalFloatHours).sort((a,b)=>a-b);
-  const q=(arr,p)=>arr[Math.max(0,Math.min(arr.length-1,Math.floor((arr.length-1)*p)))];
-  const xmin=Math.min(0,q(xs,.02)),xmax=Math.max(0,q(xs,.98)),ymin=Math.min(0,q(ys,.02)),ymax=Math.max(0,q(ys,.98));
-  const width=960,height=330,left=58,right=24,top=22,bottom=44,pw=width-left-right,ph=height-top-bottom;
-  const x=v=>left+((Math.max(xmin,Math.min(xmax,v))-xmin)/(Math.max(1e-9,xmax-xmin)))*pw;
-  const y=v=>top+ph-((Math.max(ymin,Math.min(ymax,v))-ymin)/(Math.max(1e-9,ymax-ymin)))*ph;
-  const x0=x(0),y0=y(0);
-  const points=sorted.map(r=>{
-    const tone=r.criticality==="critical"?"#b4483e":r.criticality==="near_critical"?"#b57922":"#4f7fb4";
-    return '<circle cx="'+x(r.finishVarianceDays).toFixed(1)+'" cy="'+y(r.totalFloatHours).toFixed(1)+'" r="3.3" fill="'+tone+'" opacity=".72"><title>'+escapeHtml(r.activityId+" · "+(r.name||"")+" · finish "+fmt(r.finishVarianceDays)+" d · float "+fmt(r.totalFloatHours)+" h")+'</title></circle>';
-  }).join("");
-  return '<div class="chart-legend"><span class="legend-item"><span class="legend-dot" style="background:#b4483e"></span>Critical</span><span class="legend-item"><span class="legend-dot" style="background:#b57922"></span>Near-critical</span><span class="legend-item"><span class="legend-dot" style="background:#4f7fb4"></span>Other</span></div><div class="chart-scroll"><svg class="svg-chart" viewBox="0 0 '+width+' '+height+'"><rect x="'+left+'" y="'+top+'" width="'+pw+'" height="'+ph+'" fill="#fbfdff"/><line x1="'+x0+'" y1="'+top+'" x2="'+x0+'" y2="'+(top+ph)+'" stroke="#8291a3" stroke-dasharray="4 4"/><line x1="'+left+'" y1="'+y0+'" x2="'+(left+pw)+'" y2="'+y0+'" stroke="#8291a3" stroke-dasharray="4 4"/>'+points+'<text x="'+left+'" y="'+(height-13)+'" font-size="11" fill="#667085">Earlier finish</text><text x="'+(width-right)+'" y="'+(height-13)+'" text-anchor="end" font-size="11" fill="#667085">Later finish</text><text x="10" y="'+(top+12)+'" font-size="11" fill="#667085">More float</text><text x="10" y="'+(top+ph)+'" font-size="11" fill="#667085">Less float</text></svg></div>';
+  const candidates=(rows||[]).filter(r=>typeof r.finishVarianceDays==="number"&&Number.isFinite(r.finishVarianceDays)&&typeof r.totalFloatHours==="number"&&Number.isFinite(r.totalFloatHours));
+  if(!candidates.length)return '<div class="empty-visual">Baseline variance and float are not both available for enough activities.</div>';
+  const columns=[
+    {label:"On / early",match:v=>v<=0},
+    {label:"1–30 d late",match:v=>v>0&&v<=30},
+    {label:"31–90 d late",match:v=>v>30&&v<=90},
+    {label:"91–180 d late",match:v=>v>90&&v<=180},
+    {label:">180 d late",match:v=>v>180}
+  ];
+  const bands=[
+    {label:"Negative float",tone:"danger",match:r=>r.totalFloatHours<0},
+    {label:"Zero float",tone:"danger-soft",match:r=>r.totalFloatHours===0},
+    {label:"Near-critical",tone:"warning",match:r=>r.totalFloatHours>0&&r.totalFloatHours<=40},
+    {label:"Other positive",tone:"accent",match:r=>r.totalFloatHours>40}
+  ];
+  const counts=bands.map(band=>columns.map(col=>candidates.filter(r=>band.match(r)&&col.match(r.finishVarianceDays)).length));
+  const max=Math.max(1,...counts.flat());
+  const head='<div class="pressure-matrix-head"><span>Float position</span>'+columns.map(col=>'<b>'+escapeHtml(col.label)+'</b>').join("")+'</div>';
+  const body=bands.map((band,rowIndex)=>'<div class="pressure-matrix-row"><strong>'+escapeHtml(band.label)+'</strong>'+counts[rowIndex].map(count=>{
+    const intensity=count/max;
+    return '<span class="pressure-cell '+escapeHtml(band.tone)+'" style="--cell-alpha:'+Math.max(.08,intensity).toFixed(3)+'" title="'+escapeHtml(band.label+" · "+fmt(count))+'"><b>'+escapeHtml(fmt(count))+'</b></span>';
+  }).join("")+'</div>').join("");
+  return '<div class="pressure-matrix">'+head+body+'</div><div class="pressure-note">Counts use the controlled-baseline finish movement and submitted programme total float. Missing values are excluded, not treated as zero.</div>';
 }
 function planningLookAheadTimeline(p){
+  const labelMap={predecessor:"Predecessor",procurement_material:"Material",design_submittal:"Design",permit:"Permit",resource:"Resource",quality:"Quality",commercial:"Commercial",risk:"Risk",access:"Access"};
   const rows=[...(p.rows||[])].sort((a,b)=>{
     const ar=a.readiness?.state==="blocked"?0:a.classification==="overdue"?1:a.readiness?.state==="conditional"?2:3;
     const br=b.readiness?.state==="blocked"?0:b.classification==="overdue"?1:b.readiness?.state==="conditional"?2:3;
@@ -921,13 +933,22 @@ function planningLookAheadTimeline(p){
   if(start===null||end===null||end<=start)return '<div class="empty-visual">The look-ahead date window is not established.</div>';
   const x=ms=>Math.max(0,Math.min(100,((ms-start)/(end-start))*100));
   const weekMarks=[];
-  for(let i=0;i<=6;i++)weekMarks.push('<span style="left:'+((i/6)*100).toFixed(2)+'%">'+(i===0?"DD":"W"+i)+'</span>');
+  for(let i=0;i<=6;i++)weekMarks.push('<span style="left:'+((i/6)*100).toFixed(2)+'%">'+(i===0?"Data date":"W"+i)+'</span>');
   const body=rows.map(r=>{
     const s=planningDateMs(r.startIso),e=planningDateMs(r.finishIso);
     if(s===null||e===null)return "";
     const l=x(s),rr=x(e),w=Math.max(1,rr-l);
     const state=r.readiness?.state||"conditional";
-    return '<div class="lookahead-row"><div class="lookahead-label"><b>'+escapeHtml(r.activityId)+'</b><span>'+escapeHtml(r.name||"")+'</span></div><div class="lookahead-track"><span class="lookahead-bar '+escapeHtml(state)+'" style="left:'+l.toFixed(2)+'%;width:'+w.toFixed(2)+'%" title="'+escapeHtml(planningShortDate(r.startIso)+" → "+planningShortDate(r.finishIso)+" · "+planningStateLabel(state))+'"></span></div><b class="lookahead-state '+escapeHtml(state)+'">'+escapeHtml(planningStateLabel(state))+'</b></div>';
+    const dims=r.readiness?.dimensions||[];
+    const blocked=dims.filter(d=>d.state==="blocked");
+    const unknown=dims.filter(d=>d.state==="unknown");
+    let stateText="Ready";
+    if(blocked.length===1) stateText=labelMap[blocked[0].key]||"Known blocker";
+    else if(blocked.length>1) stateText=(labelMap[blocked[0].key]||"Blocker")+" +"+(blocked.length-1);
+    else if(unknown.length>0) stateText="Evidence gaps";
+    const notes=blocked.map(d=>(labelMap[d.key]||d.key)+(d.note?": "+d.note:"")).join(" · ")||unknown.map(d=>labelMap[d.key]||d.key).join(", ");
+    const title=planningShortDate(r.startIso)+" → "+planningShortDate(r.finishIso)+" · "+stateText+(notes?" · "+notes:"");
+    return '<div class="lookahead-row"><div class="lookahead-label"><b>'+escapeHtml(r.activityId)+'</b><span>'+escapeHtml(r.name||"")+'</span></div><div class="lookahead-track"><span class="lookahead-bar '+escapeHtml(state)+'" style="left:'+l.toFixed(2)+'%;width:'+w.toFixed(2)+'%" title="'+escapeHtml(title)+'"></span></div><b class="lookahead-state '+escapeHtml(state)+'" title="'+escapeHtml(notes||stateText)+'">'+escapeHtml(stateText)+'</b></div>';
   }).join("");
   return '<div class="lookahead-axis"><div></div><div class="lookahead-weeks">'+weekMarks.join("")+'</div><div></div></div><div class="lookahead-timeline">'+body+'</div>';
 }
@@ -935,37 +956,90 @@ function planningMilestoneTimeline(p){
   const all=(p.rows||[]).filter(r=>planningDateMs(r.baselineDateIso)!==null||planningDateMs(r.currentDateIso)!==null||planningDateMs(r.actualDateIso)!==null);
   if(!all.length)return '<div class="empty-visual">No milestone dates are available.</div>';
   const sorted=[...all].sort((a,b)=>{
-    const ad=planningDateMs(a.currentDateIso||a.actualDateIso||a.baselineDateIso)||0;
-    const bd=planningDateMs(b.currentDateIso||b.actualDateIso||b.baselineDateIso)||0;
     const ar=(a.status!=="completed"&&typeof a.varianceDays==="number"&&a.varianceDays>0)?0:1;
     const br=(b.status!=="completed"&&typeof b.varianceDays==="number"&&b.varianceDays>0)?0:1;
-    return ar-br||ad-bd;
-  }).slice(0,40);
+    const av=Math.abs(a.varianceDays||0),bv=Math.abs(b.varianceDays||0);
+    const ad=planningDateMs(a.currentDateIso||a.actualDateIso||a.baselineDateIso)||0;
+    const bd=planningDateMs(b.currentDateIso||b.actualDateIso||b.baselineDateIso)||0;
+    return ar-br||bv-av||ad-bd;
+  }).slice(0,24);
   const dates=[];
   sorted.forEach(r=>[r.baselineDateIso,r.currentDateIso,r.actualDateIso].forEach(v=>{const m=planningDateMs(v);if(m!==null)dates.push(m)}));
-  const dd=planningDateMs(p.dataDateIso);if(dd!==null)dates.push(dd);
-  let min=Math.min(...dates),max=Math.max(...dates);if(min===max){min-=86400000*14;max+=86400000*14}
+  let min=Math.min(...dates),max=Math.max(...dates);
+  if(min===max){min-=86400000*14;max+=86400000*14}
   const pad=Math.max(86400000*7,(max-min)*.06);min-=pad;max+=pad;
   const x=v=>{const m=planningDateMs(v);return m===null?null:Math.max(1,Math.min(99,((m-min)/(max-min))*100));};
+  const dd=planningDateMs(p.dataDateIso);
+  const ddInRange=dd!==null&&dd>=min&&dd<=max;
+  const ddx=ddInRange?Math.max(1,Math.min(99,((dd-min)/(max-min))*100)):null;
   const body=sorted.map(r=>{
-    const b=x(r.baselineDateIso),cur=x(r.currentDateIso),act=x(r.actualDateIso),ddx=dd===null?null:Math.max(1,Math.min(99,((dd-min)/(max-min))*100));
+    const b=x(r.baselineDateIso),cur=x(r.currentDateIso),act=x(r.actualDateIso);
     const vals=[b,cur,act].filter(v=>v!==null);
     const line=vals.length>1?'<span class="milestone-shift '+((r.varianceDays||0)>0?"late":"")+'" style="left:'+Math.min(...vals).toFixed(2)+'%;width:'+(Math.max(...vals)-Math.min(...vals)).toFixed(2)+'%"></span>':'';
-    return '<div class="milestone-row"><div class="milestone-label"><b>'+escapeHtml(r.activityId)+'</b><span>'+escapeHtml(r.name||"")+'</span></div><div class="milestone-track">'+line+(ddx===null?'':'<span class="milestone-dd" style="left:'+ddx.toFixed(2)+'%"></span>')+(b===null?'':'<span class="milestone-point baseline" style="left:'+b.toFixed(2)+'%" title="Baseline · '+escapeHtml(planningShortDate(r.baselineDateIso))+'"></span>')+(cur===null?'':'<span class="milestone-point current" style="left:'+cur.toFixed(2)+'%" title="Current · '+escapeHtml(planningShortDate(r.currentDateIso))+'"></span>')+(act===null?'':'<span class="milestone-point actual" style="left:'+act.toFixed(2)+'%" title="Actual · '+escapeHtml(planningShortDate(r.actualDateIso))+'"></span>')+'</div><b class="'+((r.varianceDays||0)>0?"late-text":(r.varianceDays||0)<0?"early-text":"")+'">'+escapeHtml(r.varianceDays===null||r.varianceDays===undefined?"—":((r.varianceDays>0?"+":"")+fmt(r.varianceDays)+" d"))+'</b></div>';
+    const pair='Baseline '+planningShortDate(r.baselineDateIso)+' → Current '+planningShortDate(r.currentDateIso);
+    return '<div class="milestone-row"><div class="milestone-label"><b>'+escapeHtml(r.activityId)+'</b><span>'+escapeHtml(r.name||"")+'</span><small>'+escapeHtml(pair)+'</small></div><div class="milestone-track">'+line+(ddx===null?'':'<span class="milestone-dd" style="left:'+ddx.toFixed(2)+'%" title="Data date '+escapeHtml(planningShortDate(p.dataDateIso))+'"></span>')+(b===null?'':'<span class="milestone-point baseline" style="left:'+b.toFixed(2)+'%" title="Baseline · '+escapeHtml(planningShortDate(r.baselineDateIso))+'"></span>')+(cur===null?'':'<span class="milestone-point current" style="left:'+cur.toFixed(2)+'%" title="Current · '+escapeHtml(planningShortDate(r.currentDateIso))+'"></span>')+(act===null?'':'<span class="milestone-point actual" style="left:'+act.toFixed(2)+'%" title="Actual · '+escapeHtml(planningShortDate(r.actualDateIso))+'"></span>')+'</div><b class="'+((r.varianceDays||0)>0?"late-text":(r.varianceDays||0)<0?"early-text":"")+'">'+escapeHtml(r.varianceDays===null||r.varianceDays===undefined?"—":((r.varianceDays>0?"+":"")+fmt(r.varianceDays)+" d"))+'</b></div>';
   }).join("");
-  return '<div class="milestone-key"><span><i class="baseline"></i>Baseline</span><span><i class="current"></i>Current</span><span><i class="actual"></i>Actual</span><span><i class="data"></i>Data date</span></div><div class="milestone-timeline">'+body+'</div>';
+  const context='<div class="milestone-context"><span>Data date <b>'+escapeHtml(planningShortDate(p.dataDateIso))+'</b></span><span>Timeline scale uses milestone dates so slippage remains visible.</span></div>';
+  return context+'<div class="milestone-key"><span><i class="baseline"></i>Baseline</span><span><i class="current"></i>Current</span><span><i class="actual"></i>Actual</span>'+(ddInRange?'<span><i class="data"></i>Data date</span>':'')+'</div><div class="milestone-timeline">'+body+'</div>';
 }
 function planningFloatHistogram(rows,limitHours){
-  const vals=(rows||[]).map(r=>Number(r.totalFloatHours)).filter(v=>Number.isFinite(v));
+  const vals=(rows||[]).map(r=>Number(r.totalFloatHours)).filter(v=>Number.isFinite(v)).map(v=>Number(v.toFixed(4)));
   if(!vals.length)return '<div class="empty-visual">Float information is not available.</div>';
-  const max=Math.max(1,Number(limitHours)||Math.max(...vals));
-  const bins=6,counts=Array.from({length:bins},()=>0);
-  vals.forEach(v=>{const idx=Math.max(0,Math.min(bins-1,Math.floor((Math.max(0,v)/max)*bins)));counts[idx]++;});
-  const peak=Math.max(1,...counts);
-  return '<div class="float-histogram">'+counts.map((count,i)=>{
-    const a=(i*max/bins),b=((i+1)*max/bins);
-    return '<div class="float-bin"><div class="float-bar-wrap"><span class="float-bar" style="height:'+((count/peak)*100).toFixed(2)+'%"></span></div><b>'+escapeHtml(fmt(count))+'</b><small>'+escapeHtml(fmt(a))+'–'+escapeHtml(fmt(b))+' h</small></div>';
-  }).join("")+'</div>';
+  const counts=new Map();
+  vals.forEach(v=>counts.set(v,(counts.get(v)||0)+1));
+  const distinct=[...counts.entries()].sort((a,b)=>a[0]-b[0]);
+  let groups=[];
+  let exact=false;
+  if(distinct.length<=10){
+    exact=true;
+    groups=distinct.map(([value,count])=>({label:fmt(value)+" h",count,value}));
+  }else{
+    const max=Math.max(1,Number(limitHours)||Math.max(...vals));
+    const bins=5;
+    const step=max/bins;
+    groups=Array.from({length:bins},(_,i)=>({label:(i===0?"0":">"+fmt(i*step))+"–"+fmt((i+1)*step)+" h",count:0,value:i}));
+    vals.forEach(v=>{
+      const normalized=Math.max(0,Math.min(max,v));
+      const idx=Math.min(bins-1,Math.max(0,Math.ceil(normalized/step)-1));
+      groups[idx].count+=1;
+    });
+  }
+  const peak=Math.max(1,...groups.map(g=>g.count));
+  return '<div class="float-distribution-note">'+(exact?'Exact submitted total-float values':'Submitted total-float bands')+'</div><div class="float-histogram" style="grid-template-columns:repeat('+groups.length+',minmax(72px,1fr))">'+groups.map(group=>'<div class="float-bin"><div class="float-bar-wrap"><span class="float-bar" style="height:'+((group.count/peak)*100).toFixed(2)+'%"></span></div><b>'+escapeHtml(fmt(group.count))+'</b><small>'+escapeHtml(group.label)+'</small></div>').join("")+'</div>';
+}
+
+
+function planningLookAheadBlockers(rows){
+  const labels={predecessor:"Predecessor not complete",procurement_material:"Material / procurement",design_submittal:"Design / submittal",permit:"Permit",resource:"Resource",quality:"Quality",commercial:"Commercial",risk:"Risk",access:"Access"};
+  const counts=new Map();
+  for(const row of rows||[]){
+    for(const dim of row.readiness?.dimensions||[]){
+      if(dim.state==="blocked")counts.set(dim.key,(counts.get(dim.key)||0)+1);
+    }
+  }
+  const entries=[...counts.entries()].sort((a,b)=>b[1]-a[1]);
+  if(!entries.length)return '<div class="attention-clear"><b>No explicit blocker has been recorded in the look-ahead.</b></div>';
+  const max=Math.max(...entries.map(x=>x[1]),1);
+  return '<div class="constraint-bars">'+entries.map(([key,count])=>'<div class="constraint-row"><span>'+escapeHtml(labels[key]||humanizeKey(key))+'</span><div><i style="width:'+((count/max)*100).toFixed(2)+'%"></i></div><b>'+escapeHtml(fmt(count))+'</b></div>').join("")+'</div>';
+}
+function planningRevisionValues(points){
+  const visible=(points||[]).slice(-6);
+  if(!visible.length)return"";
+  return '<div class="revision-value-grid">'+visible.map(point=>'<div class="revision-value-card"><div class="revision-value-head"><b>'+escapeHtml(planningRevisionLabel(point.label)||("Revision "+point.sequence))+'</b><span>'+escapeHtml(planningShortDate(point.dataDateIso))+'</span></div><div class="revision-value-lines"><span>Progress <b>'+escapeHtml(point.durationWeightedProgressPercent===null||point.durationWeightedProgressPercent===undefined?"—":fmt(point.durationWeightedProgressPercent)+"%")+'</b></span><span>Forecast finish <b>'+escapeHtml(planningShortDate(point.forecastCompletionIso))+'</b></span><span>Critical <b>'+escapeHtml(fmt(point.criticalCount))+'</b></span><span>Near-critical <b>'+escapeHtml(fmt(point.nearCriticalCount))+'</b></span><span>Negative float <b>'+escapeHtml(fmt(point.negativeFloatCount))+'</b></span></div></div>').join("")+'</div>';
+}
+function planningFinishPeriodBars(rows){
+  const counts=new Map();
+  for(const row of rows||[]){
+    if(!row.currentFinishIso)continue;
+    const date=new Date(row.currentFinishIso);
+    if(Number.isNaN(date.getTime()))continue;
+    const key=date.toISOString().slice(0,7);
+    counts.set(key,(counts.get(key)||0)+1);
+  }
+  const entries=[...counts.entries()].sort((a,b)=>a[0].localeCompare(b[0])).slice(0,12);
+  if(!entries.length)return '<div class="empty-visual">Current finish dates are not available.</div>';
+  const max=Math.max(1,...entries.map(x=>x[1]));
+  return '<div class="finish-period-bars">'+entries.map(([month,count])=>'<div class="finish-period-row"><span>'+escapeHtml(new Intl.DateTimeFormat(undefined,{month:"short",year:"numeric"}).format(new Date(month+"-01T00:00:00Z")))+'</span><div><i style="width:'+((count/max)*100).toFixed(2)+'%"></i></div><b>'+escapeHtml(fmt(count))+'</b></div>').join("")+'</div>';
 }
 
 function renderPmoVisual(data){
@@ -1064,7 +1138,7 @@ function renderActivityAnalyticsVisual(data){
     ["In progress",status.in_progress,"activities","accent"],
     ["Critical",critical,"activities","danger"],
     ["Near-critical",near,"activities","warning"],
-    ["Finishing late",late,"activities","danger"]
+    ["Later than baseline",late,"activities","danger"]
   ]);
   const topLate=[...p.rows].filter(r=>typeof r.finishVarianceDays==="number").sort((a,b)=>b.finishVarianceDays-a.finishVarianceDays).slice(0,15).map(r=>({label:r.activityId+" · "+(r.name||""),value:r.finishVarianceDays}));
   const pressure=planningActivityPressure(p.rows);
@@ -1077,7 +1151,7 @@ function renderActivityAnalyticsVisual(data){
     return bs-as;
   }).slice(0,250);
   const rows=ranked.map(a=>'<tr><td><b>'+escapeHtml(a.activityId)+'</b><br><span class="muted">'+escapeHtml(a.name||"")+'</span></td><td>'+escapeHtml(planningStateLabel(a.status))+'</td><td><span class="state-pill '+(a.criticality==="critical"?"blocked":a.criticality==="near_critical"?"review":"ready")+'">'+escapeHtml(planningStateLabel(a.criticality))+'</span></td><td>'+escapeHtml(planningShortDate(a.currentFinishIso))+'</td><td>'+escapeHtml(a.percentComplete===null?"—":fmt(a.percentComplete)+"%")+'</td><td>'+escapeHtml(fmt(a.totalFloatHours))+'</td><td>'+escapeHtml(a.finishVarianceDays===null?"—":fmt(a.finishVarianceDays))+'</td><td>'+escapeHtml(a.openStart||a.openFinish||a.isolated?"Check":"—")+'</td></tr>').join("");
-  return '<section class="planning-view activity-review">'+kpis+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Schedule pressure map</h4><p>Activities farther right are finishing later; activities lower on the chart have less float.</p></div></div><div class="planning-panel-body">'+pressure+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Activity status</h4><p>'+escapeHtml(fmt(openLogic))+' activities also have an open or isolated logic condition.</p></div></div><div class="planning-panel-body">'+statusBand+'<div class="coverage-stack"><span>Progress coverage <b>'+escapeHtml(p.percentCompleteCoveragePercent===null?"—":fmt(p.percentCompleteCoveragePercent)+"%")+'</b></span><span>Float coverage <b>'+escapeHtml(p.floatCoveragePercent===null?"—":fmt(p.floatCoveragePercent)+"%")+'</b></span><span>Finish variance coverage <b>'+escapeHtml(p.finishVarianceCoveragePercent===null?"—":fmt(p.finishVarianceCoveragePercent)+"%")+'</b></span></div></div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Largest finish delays</h4><p>Activities with the greatest positive finish movement.</p></div></div><div class="planning-panel-body">'+planningSignedBars(topLate,"days")+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Activity watchlist</h4><p>Highest-attention activities first. Showing '+escapeHtml(fmt(ranked.length))+' of '+escapeHtml(fmt(p.activityCount))+'.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Activity</th><th>Status</th><th>Criticality</th><th>Current finish</th><th>Progress</th><th>Total float h</th><th>Finish variance d</th><th>Logic</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></section></section>';
+  return '<section class="planning-view activity-review">'+kpis+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Delay & float matrix</h4><p>Activity counts by controlled-baseline finish movement and submitted programme total float.</p></div></div><div class="planning-panel-body">'+pressure+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Activity status</h4><p>'+escapeHtml(fmt(openLogic))+' activities also have an open or isolated logic condition.</p></div></div><div class="planning-panel-body">'+statusBand+'<div class="coverage-stack"><span>Progress coverage <b>'+escapeHtml(p.percentCompleteCoveragePercent===null?"—":fmt(p.percentCompleteCoveragePercent)+"%")+'</b></span><span>Float coverage <b>'+escapeHtml(p.floatCoveragePercent===null?"—":fmt(p.floatCoveragePercent)+"%")+'</b></span><span>Baseline comparison coverage <b>'+escapeHtml(p.finishVarianceCoveragePercent===null?"—":fmt(p.finishVarianceCoveragePercent)+"%")+'</b></span></div></div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Largest finish movements</h4><p>Activities furthest later than the controlled baseline finish.</p></div></div><div class="planning-panel-body">'+planningSignedBars(topLate,"days")+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Activity watchlist</h4><p>Highest-attention activities first. Showing '+escapeHtml(fmt(ranked.length))+' of '+escapeHtml(fmt(p.activityCount))+'.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Activity</th><th>Status</th><th>Criticality</th><th>Current finish</th><th>Progress</th><th>Total float h</th><th>Vs baseline d</th><th>Logic</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></section></section>';
 }
 function renderResourceVisual(data){
   const p=projectionFor(data,"resource_utilization");
@@ -1133,6 +1207,7 @@ function renderRevisionTrendVisual(data){
     ["Latest negative float",latest.negativeFloatCount,"activities","danger"],
     ["Latest forecast finish",planningShortDate(latest.forecastCompletionIso),"date"]
   ]);
+  const values=planningRevisionValues(p.points);
   const progress=renderLineChart(points,[{key:"durationWeightedProgressPercent",label:"Weighted progress %",color:"#4f7fb4"}],100);
   const completion=planningDateTrend(points,[
     {key:"programmeCompletionIso",label:"Programme finish",color:"#506579"},
@@ -1147,7 +1222,7 @@ function renderRevisionTrendVisual(data){
     ["Added",latest.addedVsPrevious||0,"accent"],["Removed",latest.removedVsPrevious||0,"neutral"],["Modified",latest.modifiedVsPrevious||0,"warning"]
   ]);
   const rows=p.points.map(x=>'<tr><td>'+escapeHtml(x.sequence)+'</td><td><b>'+escapeHtml(planningRevisionLabel(x.label)||("Revision "+x.sequence))+'</b><br><span class="muted">'+escapeHtml(planningShortDate(x.dataDateIso))+'</span></td><td>'+escapeHtml(x.durationWeightedProgressPercent===null?"—":fmt(x.durationWeightedProgressPercent)+"%")+'</td><td>'+escapeHtml(x.activityCount)+'</td><td>'+escapeHtml(x.criticalCount)+'</td><td>'+escapeHtml(x.nearCriticalCount)+'</td><td>'+escapeHtml(x.negativeFloatCount)+'</td><td>'+escapeHtml(planningShortDate(x.forecastCompletionIso))+'</td><td>'+escapeHtml(fmt((x.addedVsPrevious||0)+(x.removedVsPrevious||0)+(x.modifiedVsPrevious||0)))+'</td></tr>').join("");
-  return '<section class="planning-view revision-view">'+kpis+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Finish-date movement</h4><p>How the programme and forecast finish dates have moved across revisions.</p></div></div><div class="planning-panel-body">'+completion+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Progress evolution</h4><p>Weighted schedule progress by revision.</p></div></div><div class="planning-panel-body">'+progress+'</div></section></div><div class="planning-primary-grid"><section class="planning-panel"><div class="planning-panel-head"><div><h4>Schedule pressure trend</h4><p>Critical, near-critical and negative-float activity counts by revision.</p></div></div><div class="planning-panel-body">'+pressure+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Latest revision change volume</h4><p>Activity additions, removals and modifications in the latest revision.</p></div></div><div class="planning-panel-body">'+changeBars+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Revision history</h4><p>Controlled programme revisions in chronological order.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Seq</th><th>Revision</th><th>Progress</th><th>Activities</th><th>Critical</th><th>Near-critical</th><th>Negative float</th><th>Forecast finish</th><th>Change volume</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></section></section>';
+  return '<section class="planning-view revision-view">'+kpis+'<section class="planning-panel"><div class="planning-panel-head"><div><h4>Revision values</h4><p>Exact values are shown here so the trend charts do not require guessing from a line.</p></div></div><div class="planning-panel-body">'+values+'</div></section><div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Finish-date movement</h4><p>How the programme and forecast finish dates have moved across revisions.</p></div></div><div class="planning-panel-body">'+completion+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Progress evolution</h4><p>Weighted schedule progress by revision.</p></div></div><div class="planning-panel-body">'+progress+'</div></section></div><div class="planning-primary-grid"><section class="planning-panel"><div class="planning-panel-head"><div><h4>Schedule pressure trend</h4><p>Critical, near-critical and negative-float activity counts by revision.</p></div></div><div class="planning-panel-body">'+pressure+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Latest revision change volume</h4><p>Activity additions, removals and modifications in the latest revision.</p></div></div><div class="planning-panel-body">'+changeBars+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Revision history</h4><p>Controlled programme revisions in chronological order.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Seq</th><th>Revision</th><th>Progress</th><th>Activities</th><th>Critical</th><th>Near-critical</th><th>Negative float</th><th>Forecast finish</th><th>Change volume</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></section></section>';
 }
 function renderVarianceTrendVisual(data){
   const p=projectionFor(data,"variance_trends");
@@ -1168,13 +1243,16 @@ function renderMilestonesVisual(data){
   const due30=p.rows.filter(r=>r.status!=="completed"&&planningDateMs(r.currentDateIso)!==null&&dd!==null&&planningDateMs(r.currentDateIso)>=dd&&planningDateMs(r.currentDateIso)<=dd+30*86400000).length;
   const slippedOpen=p.rows.filter(r=>r.status!=="completed"&&typeof r.varianceDays==="number"&&r.varianceDays>0).length;
   const largest=Math.max(0,...p.rows.map(r=>typeof r.varianceDays==="number"?r.varianceDays:0));
+  const frequency=new Map();
+  p.rows.filter(r=>r.status!=="completed"&&typeof r.varianceDays==="number"&&r.varianceDays>0).forEach(r=>{const key=Number(r.varianceDays.toFixed(2));frequency.set(key,(frequency.get(key)||0)+1)});
+  const common=[...frequency.entries()].sort((a,b)=>b[1]-a[1])[0]||null;
   const kpis=planningKpis([
     ["Milestones",p.milestoneCount,"total"],
     ["Completed",p.completedCount,"milestones","success"],
     ["Open",p.openCount,"milestones"],
     ["Overdue",p.lateOpenCount,"past data date","danger"],
-    ["Baseline slips",slippedOpen,"open milestones","warning"],
-    ["Largest slip",largest?fmt(largest)+" days":"—","vs baseline",largest?"danger":""]
+    ["Later than baseline",slippedOpen,"open milestones","warning"],
+    ["Largest movement",largest?fmt(largest)+" days":"—","vs baseline",largest?"danger":""]
   ]);
   const timeline=planningMilestoneTimeline(p);
   const late=[...p.rows].filter(r=>r.status!=="completed"&&typeof r.varianceDays==="number"&&r.varianceDays>0).sort((a,b)=>b.varianceDays-a.varianceDays).slice(0,20);
@@ -1182,12 +1260,12 @@ function renderMilestonesVisual(data){
   const rows=[...p.rows].sort((a,b)=>(b.varianceDays||0)-(a.varianceDays||0)).slice(0,250).map(r=>'<tr><td><b>'+escapeHtml(r.activityId)+'</b><br><span class="muted">'+escapeHtml(r.name||"")+'</span></td><td>'+escapeHtml(planningStateLabel(r.status))+'</td><td>'+escapeHtml(planningShortDate(r.baselineDateIso))+'</td><td>'+escapeHtml(planningShortDate(r.currentDateIso))+'</td><td>'+escapeHtml(planningShortDate(r.actualDateIso))+'</td><td class="'+((r.varianceDays||0)>0?"late-text":(r.varianceDays||0)<0?"early-text":"")+'">'+escapeHtml(r.varianceDays===null?"—":((r.varianceDays>0?"+":"")+fmt(r.varianceDays)))+'</td><td>'+escapeHtml(fmt(r.totalFloatHours))+'</td></tr>').join("");
   const attention=planningAttention([
     p.lateOpenCount?{title:"Overdue milestones",text:"These open commitments have passed the current data date.",value:p.lateOpenCount,tone:"danger"}:null,
-    slippedOpen?{title:"Open milestones slipped from baseline",text:"Current milestone dates are later than the controlled baseline.",value:slippedOpen,tone:"watch"}:null,
+    common&&common[1]>1?{title:"Repeated milestone movement",text:fmt(common[1])+" open milestones carry the same movement from baseline.",value:(common[0]>0?"+":"")+fmt(common[0])+" days",tone:"watch"}:null,
+    slippedOpen?{title:"Open milestones later than baseline",text:"Current milestone dates are later than the controlled baseline.",value:slippedOpen,tone:"watch"}:null,
     due30?{title:"Milestones due in the next 30 days",text:"These commitments need near-term management attention.",value:due30,tone:"watch"}:null,
-    late[0]?{title:"Largest milestone slip",text:(late[0].activityId+" · "+(late[0].name||"")),value:fmt(late[0].varianceDays)+" days",tone:"danger"}:null,
     upcoming[0]?{title:"Next open milestone",text:(upcoming[0].activityId+" · "+planningShortDate(upcoming[0].currentDateIso)),tone:"watch"}:null
   ]);
-  return '<section class="planning-view milestone-view">'+kpis+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Milestone timeline</h4><p>Showing the 40 highest-attention milestones from '+escapeHtml(fmt(p.milestoneCount))+'. Baseline, current and actual dates remain separate.</p></div></div><div class="planning-panel-body">'+timeline+'</div></section><div class="planning-primary-grid"><section class="planning-panel"><div class="planning-panel-head"><div><h4>What needs attention</h4><p>Late and upcoming milestone commitments.</p></div></div><div class="planning-panel-body">'+attention+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Milestone position</h4><p>Completed, open and late commitments.</p></div></div><div class="planning-panel-body">'+planningStatusBand([["Completed",p.completedCount,"success"],["Open",Math.max(0,p.openCount-p.lateOpenCount),"accent"],["Overdue",p.lateOpenCount,"danger"]])+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Milestone detail</h4><p>Largest schedule slips first.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Milestone</th><th>Status</th><th>Baseline</th><th>Current</th><th>Actual</th><th>Variance d</th><th>Total float h</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></section></section>';
+  return '<section class="planning-view milestone-view">'+kpis+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Milestone movement</h4><p>Showing 24 high-attention milestones. The timeline scale is based on milestone dates, not the project data date, so baseline-to-current movement is visible.</p></div></div><div class="planning-panel-body">'+timeline+'</div></section><div class="planning-primary-grid"><section class="planning-panel"><div class="planning-panel-head"><div><h4>What needs attention</h4><p>Overdue, upcoming and repeated milestone movement.</p></div></div><div class="planning-panel-body">'+attention+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Milestone position</h4><p>Completed, open and overdue commitments.</p></div></div><div class="planning-panel-body">'+planningStatusBand([["Completed",p.completedCount,"success"],["Open",Math.max(0,p.openCount-p.lateOpenCount),"accent"],["Overdue",p.lateOpenCount,"danger"]])+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Milestone detail</h4><p>Largest movement from the controlled baseline first.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Milestone</th><th>Status</th><th>Baseline</th><th>Current</th><th>Actual</th><th>Vs baseline d</th><th>Total float h</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></section></section>';
 }
 function renderNearCriticalVisual(data){
   const p=projectionFor(data,"near_critical");
@@ -1197,17 +1275,17 @@ function renderNearCriticalVisual(data){
   const slipped=p.rows.filter(r=>planningDaysBetween(r.baselineFinishIso,r.currentFinishIso)>0).length;
   const kpis=planningKpis([
     ["Near-critical",p.nearCriticalCount,"activities","warning"],
-    ["Watch threshold",fmt(p.nearCriticalThresholdHours)+" h","total float"],
+    ["Near-critical limit",fmt(p.nearCriticalThresholdHours)+" h","submitted total float"],
     ["Float coverage",p.floatCoveragePercent===null?"—":fmt(p.floatCoveragePercent)+"%","current programme"],
     ["In progress",inProgress,"near-critical"],
     ["Not started",notStarted,"near-critical","warning"],
-    ["Finish slipped",slipped,"near-critical","danger"]
+    ["Later than baseline",slipped,"near-critical","danger"]
   ]);
   const histogram=planningFloatHistogram(p.rows,p.nearCriticalThresholdHours);
+  const finishPeriods=planningFinishPeriodBars(p.rows);
   const watch=[...p.rows].map(r=>({...r,varianceDays:planningDaysBetween(r.baselineFinishIso,r.currentFinishIso)})).sort((a,b)=>a.totalFloatHours-b.totalFloatHours||((b.varianceDays||0)-(a.varianceDays||0))).slice(0,150);
-  const scatter=planningActivityPressure(watch.map(r=>({...r,criticality:"near_critical",finishVarianceDays:r.varianceDays})));
   const rows=watch.map(r=>'<tr><td><b>'+escapeHtml(r.activityId)+'</b><br><span class="muted">'+escapeHtml(r.name||"")+'</span></td><td>'+escapeHtml(planningStateLabel(r.status))+'</td><td>'+escapeHtml(fmt(r.totalFloatHours))+'</td><td>'+escapeHtml(planningShortDate(r.baselineFinishIso))+'</td><td>'+escapeHtml(planningShortDate(r.currentFinishIso))+'</td><td class="'+((r.varianceDays||0)>0?"late-text":(r.varianceDays||0)<0?"early-text":"")+'">'+escapeHtml(r.varianceDays===null?"—":((r.varianceDays>0?"+":"")+fmt(r.varianceDays)))+'</td><td>'+escapeHtml(r.percentComplete===null?"—":fmt(r.percentComplete)+"%")+'</td></tr>').join("");
-  return '<section class="planning-view nearcritical-view">'+kpis+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Float risk distribution</h4><p>Activities closest to zero float are closest to becoming critical.</p></div></div><div class="planning-panel-body">'+histogram+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Finish pressure</h4><p>Later finishes to the right; lower float toward the bottom.</p></div></div><div class="planning-panel-body">'+scatter+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Near-critical watchlist</h4><p>Lowest float first, then the largest finish slips.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Activity</th><th>Status</th><th>Total float h</th><th>Baseline finish</th><th>Current finish</th><th>Variance d</th><th>Progress</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></section></section>';
+  return '<section class="planning-view nearcritical-view">'+kpis+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Near-critical float values</h4><p>These are the actual submitted total-float values for activities between 0 and '+escapeHtml(fmt(p.nearCriticalThresholdHours))+' hours. Exact values are shown when the source contains discrete float levels.</p></div></div><div class="planning-panel-body">'+histogram+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Where near-critical work finishes</h4><p>Current finish-month concentration for the near-critical population.</p></div></div><div class="planning-panel-body">'+finishPeriods+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Near-critical watchlist</h4><p>Lowest submitted total float first, then the largest movement from the controlled baseline.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Activity</th><th>Status</th><th>Total float h</th><th>Baseline finish</th><th>Current finish</th><th>Vs baseline d</th><th>Progress</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></section></section>';
 }
 function renderManhourVisual(data){
   const p=projectionFor(data,"manhour_scurve");
@@ -1275,14 +1353,10 @@ function findProjectionRoot(data){
 function renderModuleBasis(data){
   const root=findProjectionRoot(data);
   const revision=root.sourceRevisionId||root.evidenceRevisionId||root.scheduleRevisionId||root.boqRevisionId||root.basisRevisionId||root.forecast?.basisRevisionId||null;
-  const asOf=root.dataDateIso||root.asOfIso||root.generatedAt||null;
-  const authority=root.authority||root.forecast?.authority||root.seriesContract?.authority||null;
+  const asOf=root.dataDateIso||root.asOfIso||overview?.latestDataDateIso||null;
   const coverage=root.activityCoveragePercent??root.currentDateCoveragePercent??root.coveragePercent??root.floatCoveragePercent??root.progress?.durationWeightedProgressCoveragePercent??root.schedule?.floatCoveragePercent??null;
-  const projectId=root.projectId||null;
   const overviewProgramme=overview?.latestRevisionLabel?planningRevisionLabel(overview.latestRevisionLabel):null;
   const revisionText=overviewProgramme||(revision&&(String(revision).length>28||String(revision).includes("rev_")||String(revision).includes("schedrev_"))?"Current programme":revision);
-  const authorityLabels={deterministic:"Calculated",scenario:"Scenario",unresolved:"Needs review",schedule_derived_scenario:"Scenario",candidate:"For review",official:"Approved"};
-  const authorityText=authority?(authorityLabels[authority]||humanizeKey(authority)):null;
   const values=[
     ["Programme basis",revisionText],
     ["Data date",asOf?planningShortDate(asOf):asOf],
