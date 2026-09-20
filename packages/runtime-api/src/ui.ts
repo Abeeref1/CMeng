@@ -717,12 +717,12 @@ function renderLookAheadVisual(data){
     return '<tr><td><b>'+escapeHtml(row.activityId)+'</b><br><span class="muted">'+escapeHtml(row.name||"")+'</span></td><td>'+escapeHtml(planningShortDate(row.startIso))+'</td><td>'+escapeHtml(planningShortDate(row.finishIso))+'</td><td><span class="state-pill '+escapeHtml(row.readiness?.state||"unknown")+'">'+escapeHtml(planningStateLabel(row.readiness?.state||"unknown"))+'</span></td>'+dimensions.map(key=>{const dim=map.get(key);const state=dim?.state||"unknown";return '<td><span class="readiness-cell '+escapeHtml(state)+'" title="'+escapeHtml(dim?.note||planningStateLabel(state))+'">'+escapeHtml(state==="ready"?"✓":state==="blocked"?"!":state==="not_applicable"?"—":"?")+'</span></td>'}).join("")+'</tr>';
   }).join("");
   const readiness=planningStatusBand([["Ready",p.readyCount,"success"],["Conditional",p.conditionalCount,"warning"],["Blocked",p.blockedCount,"danger"]]);
-  return '<section class="planning-view lookahead-view">'+kpis+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>6-week execution view</h4><p>Work is ordered by immediate delivery risk. Red activities have a known blocker.</p></div></div><div class="planning-panel-body">'+timeline+'</div></section><div class="planning-primary-grid"><section class="planning-panel"><div class="planning-panel-head"><div><h4>Readiness position</h4><p>Ready, conditional and blocked work in the current look-ahead.</p></div></div><div class="planning-panel-body">'+readiness+'<div class="coverage-line"><span>Date coverage</span><b>'+escapeHtml(p.currentDateCoveragePercent===null?"—":fmt(p.currentDateCoveragePercent)+"%")+'</b></div></div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Immediate focus</h4><p>Overdue and blocked work should be resolved first.</p></div></div><div class="planning-panel-body">'+planningAttention([
+  return '<section class="planning-view lookahead-view">'+kpis+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>6-week execution view</h4><p>Showing the 36 highest-priority activities from '+escapeHtml(fmt(inWindow))+' activities in the window. Red activities have a known blocker.</p></div></div><div class="planning-panel-body">'+timeline+'</div></section><div class="planning-primary-grid"><section class="planning-panel"><div class="planning-panel-head"><div><h4>Readiness position</h4><p>Ready, conditional and blocked work in the current look-ahead.</p></div></div><div class="planning-panel-body">'+readiness+'<div class="coverage-line"><span>Date coverage</span><b>'+escapeHtml(p.currentDateCoveragePercent===null?"—":fmt(p.currentDateCoveragePercent)+"%")+'</b></div></div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Immediate focus</h4><p>Overdue and blocked work should be resolved first.</p></div></div><div class="planning-panel-body">'+planningAttention([
     p.overdueCount?{title:"Overdue activities",text:"Activities have passed their current finish date.",value:p.overdueCount,tone:"danger"}:null,
     p.blockedCount?{title:"Blocked activities",text:"At least one readiness requirement is not ready.",value:p.blockedCount,tone:"danger"}:null,
     p.conditionalCount?{title:"Readiness gaps",text:"Some requirements are still unknown or incomplete.",value:p.conditionalCount,tone:"watch"}:null,
     (p.missingCurrentDateActivityIds||[]).length?{title:"Activities missing current dates",text:"They cannot be positioned reliably in the look-ahead.",value:(p.missingCurrentDateActivityIds||[]).length,tone:"watch"}:null
-  ])+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Readiness matrix</h4><p>✓ ready · ! blocked · ? information missing · — not applicable. Highest-attention activities are shown first.</p></div></div><div class="planning-panel-body"><div class="table-wrap readiness-table"><table><thead><tr><th>Activity</th><th>Start</th><th>Finish</th><th>Overall</th>'+dimensions.map(key=>'<th>'+escapeHtml(labels[key])+'</th>').join("")+'</tr></thead><tbody>'+rows+'</tbody></table></div></div></section></section>';
+  ])+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Readiness matrix</h4><p>Showing the 80 highest-attention activities. ✓ ready · ! blocked · ? information missing · — not applicable.</p></div></div><div class="planning-panel-body"><div class="table-wrap readiness-table"><table><thead><tr><th>Activity</th><th>Start</th><th>Finish</th><th>Overall</th>'+dimensions.map(key=>'<th>'+escapeHtml(labels[key])+'</th>').join("")+'</tr></thead><tbody>'+rows+'</tbody></table></div></div></section></section>';
 }
 function renderForecastVisual(data){
   const p=projectionFor(data,"independent_forecast");
@@ -978,7 +978,7 @@ function renderPmoVisual(data){
     ["Critical",p.schedule.criticalCount,"activities","danger"],
     ["Near-critical",p.schedule.nearCriticalCount,"activities","warning"],
     ["Negative float",p.schedule.negativeFloatCount,"activities","danger"],
-    ["Late milestones",p.progress.lateMilestoneCount,"open milestones","danger"]
+    ["Overdue milestones",p.progress.lateMilestoneCount,"past the data date","danger"]
   ]);
   const completion=planningDateLadder([
     {label:"Controlled baseline",date:p.programmeBaselineCompletionIso,tone:"baseline"},
@@ -990,7 +990,7 @@ function renderPmoVisual(data){
   const attention=planningAttention([
     variance!==null&&variance>0?{title:"CMeng completion is later than the submitted programme",text:"Review remaining durations, logic and delivery assumptions.",value:variance+" days",tone:"danger"}:null,
     p.schedule.negativeFloatCount>0?{title:"Negative float requires attention",text:"Activities are carrying schedule pressure against the current dates.",value:p.schedule.negativeFloatCount,tone:"danger"}:null,
-    p.progress.lateMilestoneCount>0?{title:"Milestones are late",text:"Open milestone commitments have moved beyond their baseline or required dates.",value:p.progress.lateMilestoneCount,tone:"danger"}:null,
+    p.progress.lateMilestoneCount>0?{title:"Milestones are overdue",text:"Open milestone commitments have passed the current data date.",value:p.progress.lateMilestoneCount,tone:"danger"}:null,
     p.progress.lookAheadOverdueCount>0?{title:"Look-ahead contains overdue work",text:"Review overdue activities and immediate recovery actions.",value:p.progress.lookAheadOverdueCount,tone:"watch"}:null,
     p.resources.overloadedResourceCount>0?{title:"Resource overload identified",text:"Assigned demand exceeds known capacity for some resources.",value:p.resources.overloadedResourceCount,tone:"watch"}:null,
     p.contract.challengeSignalCount>0?{title:"Contract items need review",text:"CMeng found contract points that may affect the programme position.",value:p.contract.challengeSignalCount,tone:"watch"}:null
@@ -1039,7 +1039,7 @@ function renderScheduleAnalyticsVisual(data){
     ["Cycles",cycles,cycles?"danger":"success"],["Broken links",broken,broken?"danger":"success"],["Open starts",openStarts,openStarts?"warning":"success"],["Open finishes",openFinishes,openFinishes?"warning":"success"],["Isolated activities",isolated,isolated?"warning":"success"],["Programme logic",r.graph.complete?"Complete":"Review needed",r.graph.complete?"success":"danger"]
   ].map(x=>'<div class="integrity-card '+escapeHtml(x[2])+'"><span>'+escapeHtml(x[0])+'</span><b>'+escapeHtml(fmt(x[1]))+'</b></div>').join("")+'</div>';
   const completion=planningDateLadder((r.completionBases||[]).map(b=>({
-    label:b.basis==="programme"?"Programme completion":b.basis==="forecast"?"Forecast completion":"Actual completion",
+    label:b.basis==="programme"?"Controlled baseline completion":b.basis==="forecast"?"Current forecast completion":"Actual completion",
     date:b.dateIso,
     tone:b.basis==="forecast"?"cmeng":b.basis==="actual"?"actual":"current"
   })),r.dataDateIso);
@@ -1166,13 +1166,14 @@ function renderMilestonesVisual(data){
   if(!Array.isArray(p.rows))return"";
   const dd=planningDateMs(p.dataDateIso);
   const due30=p.rows.filter(r=>r.status!=="completed"&&planningDateMs(r.currentDateIso)!==null&&dd!==null&&planningDateMs(r.currentDateIso)>=dd&&planningDateMs(r.currentDateIso)<=dd+30*86400000).length;
+  const slippedOpen=p.rows.filter(r=>r.status!=="completed"&&typeof r.varianceDays==="number"&&r.varianceDays>0).length;
   const largest=Math.max(0,...p.rows.map(r=>typeof r.varianceDays==="number"?r.varianceDays:0));
   const kpis=planningKpis([
     ["Milestones",p.milestoneCount,"total"],
     ["Completed",p.completedCount,"milestones","success"],
     ["Open",p.openCount,"milestones"],
-    ["Late open",p.lateOpenCount,"milestones","danger"],
-    ["Due next 30 days",due30,"milestones","warning"],
+    ["Overdue",p.lateOpenCount,"past data date","danger"],
+    ["Baseline slips",slippedOpen,"open milestones","warning"],
     ["Largest slip",largest?fmt(largest)+" days":"—","vs baseline",largest?"danger":""]
   ]);
   const timeline=planningMilestoneTimeline(p);
@@ -1180,12 +1181,13 @@ function renderMilestonesVisual(data){
   const upcoming=[...p.rows].filter(r=>r.status!=="completed"&&planningDateMs(r.currentDateIso)!==null).sort((a,b)=>planningDateMs(a.currentDateIso)-planningDateMs(b.currentDateIso)).slice(0,20);
   const rows=[...p.rows].sort((a,b)=>(b.varianceDays||0)-(a.varianceDays||0)).slice(0,250).map(r=>'<tr><td><b>'+escapeHtml(r.activityId)+'</b><br><span class="muted">'+escapeHtml(r.name||"")+'</span></td><td>'+escapeHtml(planningStateLabel(r.status))+'</td><td>'+escapeHtml(planningShortDate(r.baselineDateIso))+'</td><td>'+escapeHtml(planningShortDate(r.currentDateIso))+'</td><td>'+escapeHtml(planningShortDate(r.actualDateIso))+'</td><td class="'+((r.varianceDays||0)>0?"late-text":(r.varianceDays||0)<0?"early-text":"")+'">'+escapeHtml(r.varianceDays===null?"—":((r.varianceDays>0?"+":"")+fmt(r.varianceDays)))+'</td><td>'+escapeHtml(fmt(r.totalFloatHours))+'</td></tr>').join("");
   const attention=planningAttention([
-    p.lateOpenCount?{title:"Late open milestones",text:"Open milestone dates have moved beyond baseline.",value:p.lateOpenCount,tone:"danger"}:null,
+    p.lateOpenCount?{title:"Overdue milestones",text:"These open commitments have passed the current data date.",value:p.lateOpenCount,tone:"danger"}:null,
+    slippedOpen?{title:"Open milestones slipped from baseline",text:"Current milestone dates are later than the controlled baseline.",value:slippedOpen,tone:"watch"}:null,
     due30?{title:"Milestones due in the next 30 days",text:"These commitments need near-term management attention.",value:due30,tone:"watch"}:null,
     late[0]?{title:"Largest milestone slip",text:(late[0].activityId+" · "+(late[0].name||"")),value:fmt(late[0].varianceDays)+" days",tone:"danger"}:null,
     upcoming[0]?{title:"Next open milestone",text:(upcoming[0].activityId+" · "+planningShortDate(upcoming[0].currentDateIso)),tone:"watch"}:null
   ]);
-  return '<section class="planning-view milestone-view">'+kpis+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Milestone timeline</h4><p>Baseline, current and actual dates on one timeline. The line shows the movement between dates.</p></div></div><div class="planning-panel-body">'+timeline+'</div></section><div class="planning-primary-grid"><section class="planning-panel"><div class="planning-panel-head"><div><h4>What needs attention</h4><p>Late and upcoming milestone commitments.</p></div></div><div class="planning-panel-body">'+attention+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Milestone position</h4><p>Completed, open and late commitments.</p></div></div><div class="planning-panel-body">'+planningStatusBand([["Completed",p.completedCount,"success"],["Open",Math.max(0,p.openCount-p.lateOpenCount),"accent"],["Late",p.lateOpenCount,"danger"]])+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Milestone detail</h4><p>Largest schedule slips first.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Milestone</th><th>Status</th><th>Baseline</th><th>Current</th><th>Actual</th><th>Variance d</th><th>Total float h</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></section></section>';
+  return '<section class="planning-view milestone-view">'+kpis+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Milestone timeline</h4><p>Showing the 40 highest-attention milestones from '+escapeHtml(fmt(p.milestoneCount))+'. Baseline, current and actual dates remain separate.</p></div></div><div class="planning-panel-body">'+timeline+'</div></section><div class="planning-primary-grid"><section class="planning-panel"><div class="planning-panel-head"><div><h4>What needs attention</h4><p>Late and upcoming milestone commitments.</p></div></div><div class="planning-panel-body">'+attention+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Milestone position</h4><p>Completed, open and late commitments.</p></div></div><div class="planning-panel-body">'+planningStatusBand([["Completed",p.completedCount,"success"],["Open",Math.max(0,p.openCount-p.lateOpenCount),"accent"],["Overdue",p.lateOpenCount,"danger"]])+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Milestone detail</h4><p>Largest schedule slips first.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Milestone</th><th>Status</th><th>Baseline</th><th>Current</th><th>Actual</th><th>Variance d</th><th>Total float h</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></section></section>';
 }
 function renderNearCriticalVisual(data){
   const p=projectionFor(data,"near_critical");
