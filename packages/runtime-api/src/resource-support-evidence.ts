@@ -874,7 +874,7 @@ export function weeklyResourceCapacityEvidence(
     ],
     sourceBasisStates,
     candidateDocumentCount,
-    evidencePoints,
+    points: evidencePoints,
     weeklyTotals,
     plannedUtilizationPercent:
       globallyComparable
