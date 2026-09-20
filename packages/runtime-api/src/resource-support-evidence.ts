@@ -433,63 +433,158 @@ export function weeklyResourceCapacityEvidence(
     }
   }
 
-  const mergedByKey =
+  const rawByResourceWeek =
     new Map<
       string,
-      WeeklyResourceCapacityPoint
+      WeeklyResourceCapacityPoint[]
     >();
 
   for (const point of points) {
-    const key = [
+    const baseKey = [
       point.resourceId,
-      point.weekStartIso ?? "undated",
-      point.unit ?? "UNSPECIFIED",
+      point.weekStartIso ??
+        "undated",
     ].join("::");
-    const current =
-      mergedByKey.get(key);
-    if (!current) {
-      mergedByKey.set(
-        key,
-        { ...point },
-      );
-      continue;
-    }
-
-    mergedByKey.set(
-      key,
-      {
-        resourceId:
-          current.resourceId,
-        resourceName:
-          current.resourceName ??
-          point.resourceName,
-        weekStartIso:
-          current.weekStartIso ??
-          point.weekStartIso,
-        availableCapacity:
-          current.availableCapacity ??
-          point.availableCapacity,
-        plannedDemand:
-          current.plannedDemand ??
-          point.plannedDemand,
-        actualApprovedUsage:
-          current.actualApprovedUsage ??
-          point.actualApprovedUsage,
-        unit:
-          current.unit ??
-          point.unit,
-        sourceRef:
-          [
-            current.sourceRef,
-            point.sourceRef,
-          ].join(";"),
-      },
+    const bucket =
+      rawByResourceWeek.get(
+        baseKey,
+      ) ?? [];
+    bucket.push(point);
+    rawByResourceWeek.set(
+      baseKey,
+      bucket,
     );
   }
 
-  const evidencePoints = [
-    ...mergedByKey.values(),
-  ];
+  const mergePoint = (
+    current:
+      WeeklyResourceCapacityPoint | null,
+    point:
+      WeeklyResourceCapacityPoint,
+    resolvedUnit:
+      string | null,
+  ):
+    WeeklyResourceCapacityPoint => ({
+    resourceId:
+      current?.resourceId ??
+      point.resourceId,
+    resourceName:
+      current?.resourceName ??
+      point.resourceName,
+    weekStartIso:
+      current?.weekStartIso ??
+      point.weekStartIso,
+    availableCapacity:
+      current?.availableCapacity ??
+      point.availableCapacity,
+    plannedDemand:
+      current?.plannedDemand ??
+      point.plannedDemand,
+    actualApprovedUsage:
+      current?.actualApprovedUsage ??
+      point.actualApprovedUsage,
+    unit:
+      resolvedUnit ??
+      current?.unit ??
+      point.unit,
+    sourceRef:
+      current
+        ? [
+            current.sourceRef,
+            point.sourceRef,
+          ].join(";")
+        : point.sourceRef,
+  });
+
+  const evidencePoints:
+    WeeklyResourceCapacityPoint[] =
+    [];
+
+  for (
+    const bucket of
+      rawByResourceWeek.values()
+  ) {
+    const explicitUnits = [
+      ...new Set(
+        bucket
+          .map((point) =>
+            point.unit
+              ?.trim()
+              .toUpperCase(),
+          )
+          .filter(
+            (unit):
+              unit is string =>
+              Boolean(unit),
+          ),
+      ),
+    ];
+
+    if (explicitUnits.length <= 1) {
+      const resolvedUnit =
+        explicitUnits[0] ??
+        null;
+      let merged:
+        WeeklyResourceCapacityPoint | null =
+        null;
+      for (const point of bucket) {
+        merged = mergePoint(
+          merged,
+          point,
+          resolvedUnit,
+        );
+      }
+      if (merged) {
+        evidencePoints.push(
+          merged,
+        );
+      }
+      continue;
+    }
+
+    diagnostics.push(
+      "RESOURCE_UNIT_CONFLICT_PRESERVED_WITHOUT_CROSS_UNIT_MERGE",
+    );
+    const byExplicitUnit =
+      new Map<
+        string,
+        WeeklyResourceCapacityPoint
+      >();
+    const unspecified =
+      bucket.filter(
+        (point) =>
+          !point.unit?.trim(),
+      );
+
+    for (
+      const point of bucket.filter(
+        (item) =>
+          Boolean(
+            item.unit?.trim(),
+          ),
+      )
+    ) {
+      const resolvedUnit =
+        point.unit!
+          .trim()
+          .toUpperCase();
+      byExplicitUnit.set(
+        resolvedUnit,
+        mergePoint(
+          byExplicitUnit.get(
+            resolvedUnit,
+          ) ?? null,
+          point,
+          resolvedUnit,
+        ),
+      );
+    }
+
+    evidencePoints.push(
+      ...byExplicitUnit.values(),
+      ...unspecified,
+    );
+  }
 
   if (evidencePoints.length === 0) {
     return {
