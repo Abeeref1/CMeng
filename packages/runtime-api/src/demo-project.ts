@@ -3,6 +3,9 @@ import type {
   CanonicalScheduleActivity,
   CanonicalScheduleModel,
 } from "../../schedule-analysis-core/src";
+import {
+  emptyCommercialRuntimeState,
+} from "../../commercial-core/src";
 import type {
   ProjectRuntimeState,
 } from "./project-state-types";
@@ -555,6 +558,8 @@ export function loadCertifiedDemoProject(
       ],
       diagnostics: [],
     },
+    commercial:
+      emptyCommercialRuntimeState(),
     contractDocuments: [],
     contractFamily: null,
     submittedManpowerPlan: null,
