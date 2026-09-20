@@ -855,11 +855,13 @@ export function weeklyResourceCapacityEvidence(
       points.push({
         resourceId,
         resourceName:
-          cell(
-            row,
-            resourceNameIndex,
-          ) ||
-          meta?.name ??
+          (
+            cell(
+              row,
+              resourceNameIndex,
+            ) ||
+            meta?.name
+          ) ??
           null,
         resourceClass:
           classValue ===
@@ -925,11 +927,13 @@ export function weeklyResourceCapacityEvidence(
                 100
           ),
         unit:
-          cell(
-            row,
-            unitIndex,
-          ) ||
-          meta?.unit ??
+          (
+            cell(
+              row,
+              unitIndex,
+            ) ||
+            meta?.unit
+          ) ??
           null,
         sourceRef:
           sourceRef(
