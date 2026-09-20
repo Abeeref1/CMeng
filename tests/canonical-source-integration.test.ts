@@ -10,6 +10,9 @@ import { RuntimeProjectStore } from '../packages/runtime-api/src/project-state';
 import { evidenceFamily } from '../packages/runtime-api/src/evidence-control';
 import { canonicalTimeClaims, projectDataDate, synchronizeCanonicalTimeClaims } from '../packages/runtime-api/src/canonical-time-claims';
 import { canonicalResources } from '../packages/runtime-api/src/canonical-resource-runtime';
+import { projectScheduleControlBasis } from '../packages/runtime-api/src/schedule-control-basis';
+import { sourceProductivityForecastEvidence } from '../packages/runtime-api/src/source-productivity-forecast';
+import { buildNearCriticalProjection } from '../packages/near-critical-analysis/src';
 import { commercialCanonical } from '../packages/runtime-api/src/commercial-canonical';
 import { identifyEvidenceDocument } from '../packages/runtime-api/src/document-identification';
 import { buildEotAssessmentProjection } from '../packages/eot-assessment/src';
@@ -27,7 +30,7 @@ function fixture(t: { after(fn:()=>void): unknown }) {
   function csvDoc(text:string,type='resource_register',basis:StoredEvidenceDocument['basisState']='active',familySuffix='') {
     const hash=createHash('sha256').update(text).digest('hex'),id='doc-'+state.evidenceDocuments.length;
     const path=join(dir,id+'.csv');writeFileSync(path,text);
-    const category=type==='resource_register'?'schedule_control':type==='delay_eot_claims_register'?'risk_claims_procurement':'boq_cost';
+    const category=['resource_register','schedule_control_basis','schedule_metric_register','project_data_book'].includes(type)?'schedule_control':type==='delay_eot_claims_register'?'risk_claims_procurement':type==='letters_notices'?'correspondence':'boq_cost';
     const family=evidenceFamily({category,documentType:type,scheduleRole:null,textSample:text,sourceFilename:id+'.csv'});
     const doc={documentId:id,category,documentType:type,sourceFilename:id+'.csv',sourceRelativePath:null,mediaType:'text/csv',sourceHashSha256:hash,sizeBytes:Buffer.byteLength(text),storedPath:path,uploadedAt:stamp,
       authority:'candidate_only',parserState:'parsed',linkedArtifactId:null,scheduleRole:null,mapping:null,assertions:[],uploadIntent:'add_update',familyKey:family.familyKey+familySuffix,logicalDocumentKey:family.logicalDocumentKey+familySuffix,basisState:basis,supersedesDocumentIds:[],supersededByDocumentId:null,diagnostics:[],identification:{},lineage:{}} as unknown as StoredEvidenceDocument;
@@ -92,6 +95,43 @@ test('a pending same-role revision does not override an accepted resource source
   const {state,csvDoc}=fixture(t);csvDoc(master);csvDoc(weekly);csvDoc(weekly.replace(',120,',',999,'),'resource_register','candidate');const r=canonicalResources(state);
   assert.equal(r.plannedAverageToDataDate,100);assert.ok(r.diagnostics.some(s=>s.startsWith('CANDIDATE_REVISION_NOT_APPLIED')));
 });
+test('project near-critical basis comes from SCH01 and uses each activity calendar instead of generic 40h',t=>{
+  const {state,csvDoc}=fixture(t);
+  state.schedules[0]!.revision.model.calendars=[
+    {calendarId:'CAL8',name:'8h',semanticComplete:true,standardDayHours:8,sourceRefs:[]},
+    {calendarId:'CAL10',name:'10h',semanticComplete:true,standardDayHours:10,sourceRefs:[]},
+  ] as any;
+  state.schedules[0]!.revision.model.activities=[
+    {projectId:'CANONICAL',activityId:'A40',nativeId:'A40',name:'40h float',wbsId:null,calendarId:'CAL8',activityType:'task',status:'not_started',baselineStartIso:null,baselineFinishIso:null,currentStartIso:null,currentFinishIso:null,actualStartIso:null,actualFinishIso:null,forecastStartIso:null,forecastFinishIso:null,originalDurationHours:8,remainingDurationHours:8,totalFloatHours:40,freeFloatHours:null,percentComplete:0,sourceRefs:[],diagnostics:[]},
+    {projectId:'CANONICAL',activityId:'A45',nativeId:'A45',name:'45h float on 10h calendar',wbsId:null,calendarId:'CAL10',activityType:'task',status:'not_started',baselineStartIso:null,baselineFinishIso:null,currentStartIso:null,currentFinishIso:null,actualStartIso:null,actualFinishIso:null,forecastStartIso:null,forecastFinishIso:null,originalDurationHours:8,remainingDurationHours:8,totalFloatHours:45,freeFloatHours:null,percentComplete:0,sourceRefs:[],diagnostics:[]},
+    {projectId:'CANONICAL',activityId:'A55',nativeId:'A55',name:'55h float on 10h calendar',wbsId:null,calendarId:'CAL10',activityType:'task',status:'not_started',baselineStartIso:null,baselineFinishIso:null,currentStartIso:null,currentFinishIso:null,actualStartIso:null,actualFinishIso:null,forecastStartIso:null,forecastFinishIso:null,originalDurationHours:8,remainingDurationHours:8,totalFloatHours:55,freeFloatHours:null,percentComplete:0,sourceRefs:[],diagnostics:[]},
+  ] as any;
+  csvDoc('Critical Definition,Near-Critical Definition,Data Date\nTF <= 0 hours,0 < TF <= +5 working days,2026-08-31','schedule_control_basis');
+  const basis=projectScheduleControlBasis(state);
+  assert.equal(basis.state,'official');assert.equal(basis.nearCriticalWorkingDays,5);assert.equal(basis.programmeDataDateIso,'2026-08-31');
+  const p=buildNearCriticalProjection(state.schedules[0]!.revision.model,{generatedAt:stamp,producerVersion:'test',config:basis.analysisConfig});
+  assert.equal(p.thresholdBasis,'activity_calendar_working_days');assert.equal(p.nearCriticalThresholdWorkingDays,5);
+  assert.deepEqual(p.rows.map(r=>r.activityId),['A40','A45']);assert.equal(p.rows.find(r=>r.activityId==='A45')?.nearCriticalThresholdHours,50);
+});
+test('source productivity forecast is an explicit governed position and future evidence cannot leak before the Data Date',t=>{
+  const {state,csvDoc}=fixture(t);
+  csvDoc('Metric,Value,As Of\nSource Productivity Forecast Completion,2030-08-31,2026-08-31\nSource Productivity Forecast Completion,2031-01-01,2026-09-30','schedule_metric_register');
+  const p=sourceProductivityForecastEvidence(state);
+  assert.equal(p.state,'official');assert.equal(p.completionIso,'2030-08-31');assert.ok(p.diagnostics.some(d=>d.startsWith('FUTURE_SOURCE_PRODUCTIVITY_FORECAST_NOT_APPLIED')));
+});
+test('L01 correspondence is resolved to source rows and determination evidence reaches the governed event chain',t=>{
+  const {state,csvDoc}=fixture(t);
+  csvDoc('Letter ID,Letter Date,Claim ID,Event ID,Subject\nL1,2026-08-02,C1,C1:event,Notice of delay\nL2,2026-08-16,C1,C1:event,Engineer determination','letters_notices');
+  csvDoc('Claim ID,Event,Notice Date,Days Claimed,Linked Letter,Status\nC1,Access unavailable,2026-08-02,20,L1,Submitted','delay_eot_claims_register');
+  csvDoc('Determination ID,Claim ID,Awarded EOT Days,Determination Date,Status,Authority,Source Letter,Governance State\nD1,C1,11,2026-08-16,Determined,Engineer,L2,Immutable','delay_eot_claims_register');
+  const m=canonicalTimeClaims(state,true).delayClaims!;
+  const event=m.events[0]!;
+  assert.ok(event.diagnostics.some(d=>d==='LINKED_CORRESPONDENCE_VERIFIED:L1'));
+  assert.ok(event.evidenceRefs.some(ref=>ref.sourceType==='correspondence'&&ref.locator==='row:2'));
+  assert.ok(event.evidenceRefs.some(ref=>ref.locator==='row:2'&&ref.sourceId!==m.evidenceRevisionId));
+  assert.ok(m.notices.some(n=>n.kind==='determination'&&n.diagnostics.includes('DETERMINATION_CORRESPONDENCE_LINK_VERIFIED')));
+});
+
 test('programme Data Date comes from the active revision, not a future candidate',t=>{
   const {state}=fixture(t);state.activeEvidenceBasis['schedule:control']={activeArtifactId:'U1'} as ProjectRuntimeState['activeEvidenceBasis'][string];
   const future=structuredClone(state.schedules[0]!);future.revision.revisionId='U2';future.revision.sequence=2;future.revision.model.dataDateIso='2027-01-01';state.schedules.push(future);
