@@ -94,6 +94,41 @@ export function activityNearCriticalThresholdHours(
     : null;
 }
 
+export function sourceCriticalBoundaryIncludesThreshold(
+  config: ScheduleAnalysisConfig,
+): boolean {
+  return (
+    config.criticalBoundaryMode ??
+    "critical_includes_threshold"
+  ) === "critical_includes_threshold";
+}
+
+export function sourceFloatIsCritical(
+  totalFloatHours: number,
+  config: ScheduleAnalysisConfig,
+): boolean {
+  return sourceCriticalBoundaryIncludesThreshold(
+    config,
+  )
+    ? totalFloatHours <=
+        config.criticalFloatThresholdHours
+    : totalFloatHours <
+        config.criticalFloatThresholdHours;
+}
+
+export function sourceFloatMeetsNearCriticalLowerBound(
+  totalFloatHours: number,
+  config: ScheduleAnalysisConfig,
+): boolean {
+  return sourceCriticalBoundaryIncludesThreshold(
+    config,
+  )
+    ? totalFloatHours >
+        config.criticalFloatThresholdHours
+    : totalFloatHours >=
+        config.criticalFloatThresholdHours;
+}
+
 export function sourceFloatCriticality(
   model: CanonicalScheduleModel,
   activity: CanonicalScheduleActivity,
@@ -101,33 +136,22 @@ export function sourceFloatCriticality(
 ): "critical" | "near_critical" | "noncritical" | "unknown" {
   if (activity.totalFloatHours === null) return "unknown";
 
-  const boundaryMode =
-    config.criticalBoundaryMode ??
-    "critical_includes_threshold";
-  const isCritical =
-    boundaryMode ===
-      "near_critical_includes_threshold"
-      ? activity.totalFloatHours <
-        config.criticalFloatThresholdHours
-      : activity.totalFloatHours <=
-        config.criticalFloatThresholdHours;
-
-  if (isCritical) {
+  if (
+    sourceFloatIsCritical(
+      activity.totalFloatHours,
+      config,
+    )
+  ) {
     return "critical";
   }
 
   const near = activityNearCriticalThresholdHours(model, activity, config);
   if (near === null) return "unknown";
 
-  const lowerBoundSatisfied =
-    boundaryMode ===
-      "near_critical_includes_threshold"
-      ? activity.totalFloatHours >=
-        config.criticalFloatThresholdHours
-      : activity.totalFloatHours >
-        config.criticalFloatThresholdHours;
-
-  return lowerBoundSatisfied &&
+  return sourceFloatMeetsNearCriticalLowerBound(
+    activity.totalFloatHours,
+    config,
+  ) &&
     activity.totalFloatHours <= near
     ? "near_critical"
     : "noncritical";
