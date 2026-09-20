@@ -294,6 +294,16 @@ export function buildEotAssessmentProjection(
         window.state ===
         "included",
     );
+  const eligibleCausalEventEvidenceEstablished =
+    windowCandidates.some(
+      (window) =>
+        window
+          .eligibleEventIds
+          .length > 0 &&
+        window
+          .analyticalTimeImpactCandidateDays !==
+          null,
+    );
   const candidateAdditionalEotDays =
     includedWindowCandidates.length > 0
       ? Number(
@@ -549,6 +559,7 @@ export function buildEotAssessmentProjection(
       null,
 
     observedProgrammeMovementDays,
+    eligibleCausalEventEvidenceEstablished,
     analyticalTimeImpactCandidateDays,
     attributableCandidateEotDays,
     unattributedTimeImpactDays,
