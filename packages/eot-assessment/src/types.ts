@@ -100,6 +100,7 @@ export interface EotAssessmentProjection {
     boolean | null;
 
   observedProgrammeMovementDays: number;
+  eligibleCausalEventEvidenceEstablished: boolean;
   analyticalTimeImpactCandidateDays: number | null;
   attributableCandidateEotDays: number | null;
   unattributedTimeImpactDays: number;
