@@ -6,3 +6,5 @@ export * from "./adapters";
 export * from "./activity-index";
 
 export * from "./float-basis";
+
+export * from "./float-thresholds";
