@@ -419,7 +419,10 @@ export function projectScheduleControlBasis(
       );
       const genericNearWorkingDays =
         nearCriticalMetric &&
-        /^(working\s*days?|work\s*days?|workdays?|wd)$/i.test(rawUnit.trim())
+        (
+          /^(working\s*days?|work\s*days?|workdays?|wd)$/i.test(rawUnit.trim()) ||
+          /\b(?:working\s*days?|work\s*days?|workdays?|wd)\b/i.test(key)
+        )
           ? numberValue(rawValue)
           : null;
       const parsedWorking =
@@ -473,7 +476,10 @@ export function projectScheduleControlBasis(
       );
       const genericNearHours =
         nearCriticalMetric &&
-        /^(hours?|hrs?|hr|h)$/i.test(rawUnit.trim())
+        (
+          /^(hours?|hrs?|hr|h)$/i.test(rawUnit.trim()) ||
+          /\b(?:hours?|hrs?|hr)\b/i.test(key)
+        )
           ? numberValue(rawValue)
           : null;
       const parsedHours =
