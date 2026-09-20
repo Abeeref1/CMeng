@@ -16,6 +16,7 @@ import type {
 } from "../../delay-analysis-core/src";
 import type {
   ContractTimeBasis,
+  EngineerEotDetermination,
 } from "../../eot-assessment/src";
 import type {
   ExternalProgressEvidence,
@@ -339,6 +340,8 @@ export interface DerivedControlEvidence {
   rfis?: RfiRecord[];
   risks?: RiskControlRecord[];
   delayClaims?: DelayClaimsModel;
+  eotDeterminations?:
+    EngineerEotDetermination[];
 }
 
 export interface ProjectControlState {
