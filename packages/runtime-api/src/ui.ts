@@ -923,10 +923,12 @@ function planningKpis(items){
   }).join("")+'</div>';
 }
 function planningStatusBand(items){
-  const total=items.reduce((sum,item)=>sum+Math.max(0,Number(item[1]||0)),0);
-  if(total<=0)return '<div class="empty-visual">No distribution is available for this view.</div>';
-  const segments=items.filter(item=>Number(item[1]||0)>0).map(item=>{
-    const value=Math.max(0,Number(item[1]||0));
+  const known=(items||[]).filter(item=>typeof item[1]==="number"&&Number.isFinite(item[1])&&item[1]>=0);
+  const total=known.reduce((sum,item)=>sum+item[1],0);
+  if(!known.length)return '<div class="empty-visual">This distribution is not established from the available project information.</div>';
+  if(total<=0)return '<div class="empty-visual">The established population is zero for this distribution.</div>';
+  const segments=known.filter(item=>item[1]>0).map(item=>{
+    const value=item[1];
     const width=(value/total)*100;
     const inner=width>=16
       ? '<span>'+escapeHtml(item[0])+'</span><b>'+escapeHtml(fmt(value))+'</b>'
@@ -935,7 +937,7 @@ function planningStatusBand(items){
         : '';
     return '<div class="status-band-segment '+escapeHtml(item[2]||"neutral")+'" style="width:'+width.toFixed(3)+'%" title="'+escapeHtml(item[0]+": "+fmt(value))+'">'+inner+'</div>';
   }).join("");
-  return '<div class="status-band">'+segments+'</div><div class="status-band-legend">'+items.map(item=>'<span><i class="'+escapeHtml(item[2]||"neutral")+'"></i>'+escapeHtml(item[0])+' <b>'+escapeHtml(fmt(item[1]))+'</b></span>').join("")+'</div>';
+  return '<div class="status-band">'+segments+'</div><div class="status-band-legend">'+known.map(item=>'<span><i class="'+escapeHtml(item[2]||"neutral")+'"></i>'+escapeHtml(item[0])+' <b>'+escapeHtml(fmt(item[1]))+'</b></span>').join("")+'</div>';
 }
 function planningDateLadder(items,dataDate){
   const valid=items.map(item=>({...item,ms:planningDateMs(item.date)})).filter(item=>item.ms!==null);
