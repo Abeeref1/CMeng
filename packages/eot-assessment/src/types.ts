@@ -47,7 +47,7 @@ export interface EotWindowCandidate {
     | "source_forecast"
     | "source_schedule_boundary"
     | "unavailable";
-  analyticalTimeImpactCandidateDays: number;
+  analyticalTimeImpactCandidateDays: number | null;
   state: EotWindowCandidateState;
   eligibleEventIds: string[];
   contractorEventIds: string[];
@@ -71,7 +71,7 @@ export interface EotAssessmentProjection {
   officialAdjustedCompletionIso: string | null;
 
   observedProgrammeMovementDays: number;
-  analyticalTimeImpactCandidateDays: number;
+  analyticalTimeImpactCandidateDays: number | null;
   attributableCandidateEotDays: number | null;
   unattributedTimeImpactDays: number;
 
