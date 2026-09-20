@@ -3923,6 +3923,1321 @@ function buildPlanningModuleFast(
   return result;
 }
 
+
+const specialistFastModuleKeys =
+  new Set([
+    "resource-utilization",
+    "progress-report",
+    "variance-trends",
+    "progress-scurve",
+    "quantity-scurve",
+    "progress-breakdown",
+    "manhour-scurve",
+    "forecast-history",
+    "independent-forecast",
+    "delay-claims",
+    "notices-claims",
+    "windows-analysis",
+    "eot-assessment",
+    "challenge-contract",
+  ]);
+
+const specialistModuleCache =
+  new Map<
+    string,
+    {
+      version: number;
+      result:
+        ModuleRuntimeResult;
+    }
+  >();
+
+const independentForecastCache =
+  new Map<
+    string,
+    ReturnType<
+      typeof buildIndependentForecastProjection
+    >
+  >();
+
+function sourceOnlyForecast(
+  model:
+    ProjectRuntimeState["schedules"][number]["revision"]["model"],
+  generatedAt: string,
+) {
+  const analytics =
+    analyzeSchedule(model);
+  const sourceForecastCompletionIso =
+    analytics.completionBases.find(
+      (basis) =>
+        basis.basis ===
+        "forecast",
+    )?.dateIso ??
+    null;
+
+  return {
+    schemaVersion:
+      "1.0" as const,
+    projectionKey:
+      "independent_forecast" as const,
+    generatedAt,
+    producerVersion:
+      "source-forecast-only-v1",
+    projectId:
+      model.projectId,
+    sourceRevisionId:
+      model.sourceRevisionId,
+    dataDateIso:
+      model.dataDateIso,
+    origin:
+      "unresolved" as const,
+    durationBasis:
+      "remaining" as const,
+    calculationMode:
+      "elapsed_time_fallback" as const,
+    sourceForecastCompletionIso,
+    independentForecastCompletionIso:
+      null,
+    forecastVarianceDays:
+      null,
+    requiredFinishIso:
+      null,
+    requiredFinishVarianceDays:
+      null,
+    calculatedActivityCount:
+      0,
+    unresolvedActivityCount:
+      model.activities.length,
+    activityCoveragePercent:
+      0,
+    criticalActivityIds:
+      [],
+    assumptions:
+      [],
+    diagnostics: [
+      "INDEPENDENT_CPM_NOT_CALCULATED_IN_THIS_FAST_VIEW",
+    ],
+    probabilistic: {
+      status:
+        "unavailable" as const,
+      method:
+        "limited_triangular_duration_factor" as const,
+      authority:
+        "non_official" as const,
+      iterations: 0,
+      seed: 0,
+      minFactor: 0.9,
+      modeFactor: 1,
+      maxFactor: 1.25,
+      p50CompletionIso:
+        null,
+      p80CompletionIso:
+        null,
+      p90CompletionIso:
+        null,
+      assumptions: [
+        "Probabilistic comparison is not calculated until the independent deterministic forecast is reviewed.",
+      ],
+    },
+    activities: [],
+    complete: false,
+  };
+}
+
+function cachedIndependentForecast(
+  model:
+    ProjectRuntimeState["schedules"][number]["revision"]["model"],
+  generatedAt: string,
+) {
+  const key =
+    model.sourceRevisionId;
+  const cached =
+    independentForecastCache.get(
+      key,
+    );
+  if (cached) {
+    return cached;
+  }
+  const projection =
+    buildIndependentForecastProjection(
+      model,
+      {
+        generatedAt,
+        producerVersion:
+          "independent-forecast-fast-v1",
+      },
+    );
+  independentForecastCache.set(
+    key,
+    projection,
+  );
+  return projection;
+}
+
+function independentForecastReviewReason(
+  forecast: ReturnType<
+    typeof buildIndependentForecastProjection
+  >,
+): string | null {
+  if (!forecast.complete) {
+    return "Independent forecast requires review because one or more CPM inputs are unresolved.";
+  }
+
+  const variance =
+    forecast.forecastVarianceDays;
+  if (
+    variance === null ||
+    !forecast.dataDateIso ||
+    !forecast
+      .sourceForecastCompletionIso
+  ) {
+    return null;
+  }
+
+  const dataDate =
+    Date.parse(
+      forecast.dataDateIso,
+    );
+  const sourceFinish =
+    Date.parse(
+      forecast
+        .sourceForecastCompletionIso,
+    );
+  const sourceRemainingDays =
+    Number.isFinite(dataDate) &&
+    Number.isFinite(sourceFinish)
+      ? Math.max(
+          1,
+          (
+            sourceFinish -
+            dataDate
+          ) /
+            86_400_000,
+        )
+      : 1;
+  const reviewLimit =
+    Math.max(
+      180,
+      sourceRemainingDays *
+        0.25,
+    );
+
+  if (
+    Math.abs(variance) >
+    reviewLimit
+  ) {
+    return (
+      "Independent forecast differs from the submitted finish by " +
+      Math.abs(
+        Number(
+          variance.toFixed(1),
+        ),
+      ) +
+      " days. Reconcile calendars, remaining durations, logic and constraints before treating the independent date as a management forecast."
+    );
+  }
+
+  return null;
+}
+
+function buildSpecialistModuleFast(
+  state: ProjectRuntimeState,
+  key: string,
+): ModuleRuntimeResult | null {
+  if (
+    !specialistFastModuleKeys.has(
+      key,
+    )
+  ) {
+    return null;
+  }
+
+  const cacheKey =
+    state.projectId +
+    "::specialist::" +
+    key;
+  const cached =
+    specialistModuleCache.get(
+      cacheKey,
+    );
+  if (
+    cached &&
+    cached.version ===
+      state.version
+  ) {
+    return cached.result;
+  }
+
+  const current =
+    runtimeProjects.latestSchedule(
+      state.projectId,
+    );
+  if (!current) {
+    return blocked(
+      key,
+      "Programme evidence has not been established.",
+      ["schedule"],
+    );
+  }
+
+  const generatedAt =
+    new Date().toISOString();
+  const model =
+    current.revision.model;
+  const ordered =
+    analyticalHistory(state);
+  const controlledBaseline =
+    ordered
+      .filter(
+        (item) =>
+          item.role ===
+            "revised_baseline" ||
+          item.role ===
+            "baseline",
+      )
+      .at(-1) ??
+    null;
+
+  let result:
+    ModuleRuntimeResult;
+
+  if (
+    key ===
+      "progress-scurve"
+  ) {
+    const projection =
+      buildProgressScurveProjection(
+        model,
+        {
+          generatedAt,
+          producerVersion:
+            "progress-scurve-fast-v2",
+          actualHistory:
+            actualHistory(state),
+          baselineModel:
+            controlledBaseline
+              ?.revision.model ??
+            null,
+        },
+      );
+    const actualHistoryEstablished =
+      projection
+        .actualHistoryMode ===
+      "snapshot_history";
+    result = available(
+      key,
+      projection,
+      [
+        "current programme",
+        "controlled baseline",
+        "progress history when available",
+      ],
+      actualHistoryEstablished
+        ? "ready"
+        : "partial",
+      actualHistoryEstablished
+        ? null
+        : projection
+              .actualHistoryMode ===
+            "current_snapshot_only"
+          ? "Only the current progress snapshot is available. CMeng does not draw a fabricated historical actual curve."
+          : "Actual progress history has not been established.",
+    );
+  } else if (
+    key ===
+      "progress-breakdown"
+  ) {
+    const projection =
+      buildProgressBreakdownProjection(
+        model,
+        {
+          generatedAt,
+          producerVersion:
+            "progress-breakdown-fast-v1",
+        },
+      );
+    result = available(
+      key,
+      projection,
+    );
+  } else if (
+    key ===
+      "variance-trends"
+  ) {
+    const projection =
+      buildVarianceTrendsProjection(
+        ordered.map(
+          (item) =>
+            item.revision,
+        ),
+        {
+          generatedAt,
+          producerVersion:
+            "variance-trends-fast-v2",
+          controlledBaselineRevision:
+            controlledBaseline
+              ?.revision ??
+            null,
+        },
+      );
+    result = available(
+      key,
+      projection,
+      [
+        "controlled schedule revision history",
+      ],
+      ordered.length >= 2 &&
+      controlledBaseline !==
+        null
+        ? "ready"
+        : "partial",
+      controlledBaseline ===
+        null
+        ? "A controlled baseline is required before revision variance can be presented as baseline movement."
+        : ordered.length < 2
+          ? "A second controlled programme revision is required for a variance trend."
+          : null,
+    );
+  } else if (
+    key ===
+      "resource-utilization" ||
+    key ===
+      "manhour-scurve"
+  ) {
+    const resources =
+      state.resourcesByRevision.get(
+        current.revision
+          .revisionId,
+      ) ??
+      null;
+    const hasAssignments =
+      (
+        resources
+          ?.assignments.length ??
+        0
+      ) > 0;
+
+    if (!resources ||
+        !hasAssignments) {
+      result = available(
+        key,
+        {
+          schemaVersion:
+            "1.0",
+          projectionKey:
+            key ===
+              "resource-utilization"
+              ? "resource_utilization"
+              : "manhour_scurve",
+          generatedAt,
+          projectId:
+            state.projectId,
+          sourceRevisionId:
+            current.revision
+              .revisionId,
+          dataDateIso:
+            model.dataDateIso,
+          evidenceState:
+            "resource_assignments_missing",
+          diagnostics: [
+            "RESOURCE_ASSIGNMENTS_NOT_ESTABLISHED_FOR_CURRENT_PROGRAMME",
+          ],
+        },
+        [
+          "resource-loaded current programme",
+        ],
+        "partial",
+        "Resource assignments are not established for the current programme. Missing resource evidence is not treated as zero.",
+      );
+    } else if (
+      key ===
+      "resource-utilization"
+    ) {
+      const projection =
+        buildResourceUtilizationProjection(
+          resources,
+          model,
+          {
+            generatedAt,
+            producerVersion:
+              "resource-utilization-fast-v2",
+          },
+        );
+      const capacityKnown =
+        projection
+          .capacityBasedResourceCount;
+      const allCapacityKnown =
+        projection
+          .assignedResourceCount >
+          0 &&
+        capacityKnown ===
+          projection
+            .assignedResourceCount;
+      const enriched = {
+        ...projection,
+        assessedOverloadResourceCount:
+          capacityKnown,
+        overloadAssessmentState:
+          capacityKnown === 0
+            ? "not_assessable"
+            : allCapacityKnown
+              ? "complete"
+              : "partial",
+      };
+      result = available(
+        key,
+        enriched,
+        [
+          "resource assignments",
+          "resource capacity",
+        ],
+        allCapacityKnown
+          ? "ready"
+          : "partial",
+        capacityKnown === 0
+          ? "Resource assignments are available, but no usable capacity rate is established. Overload cannot be assessed and zero must not be inferred."
+          : "Resource utilization is calculated only for resources with established capacity; the remaining resources stay demand-only.",
+      );
+    } else {
+      const projection =
+        buildManhourScurveProjection(
+          resources,
+          model,
+          {
+            generatedAt,
+            producerVersion:
+              "manhour-scurve-fast-v2",
+          },
+        );
+      const actualHistoryComplete =
+        projection
+          .actualHistoryMethod ===
+        "stored_financial_period_actuals";
+      result = available(
+        key,
+        projection,
+        [
+          "labor assignments",
+          "financial-period actuals when available",
+        ],
+        actualHistoryComplete
+          ? "ready"
+          : "partial",
+        actualHistoryComplete
+          ? null
+          : projection
+              .actualHistoryMethod ===
+            "current_actual_snapshot_only"
+            ? "Only a current labor-hours snapshot is available. CMeng does not reconstruct a historical actual S-curve from that single value."
+            : "Actual labor-hour history is not established.",
+      );
+    }
+  } else if (
+    key ===
+      "quantity-scurve"
+  ) {
+    const quantities =
+      state.quantities;
+    if (
+      !quantities ||
+      quantities
+        .scheduleRevisionId !==
+        current.revision
+          .revisionId
+    ) {
+      result = available(
+        key,
+        {
+          schemaVersion:
+            "1.0",
+          projectionKey:
+            "quantity_scurve",
+          generatedAt,
+          projectId:
+            state.projectId,
+          boqRevisionId:
+            quantities
+              ?.boqRevisionId ??
+            null,
+          scheduleRevisionId:
+            current.revision
+              .revisionId,
+          dataDateIso:
+            model.dataDateIso,
+          unitKeyed: true,
+          allocationState:
+            "missing",
+          mappingBasis:
+            "missing",
+          series: [],
+          unmappedItemIds:
+            quantities
+              ?.items.map(
+                (item) =>
+                  item
+                    .quantityItemId,
+              ) ??
+            [],
+          partiallyAllocatedItemIds:
+            [],
+          overAllocatedItemIds:
+            [],
+          diagnostics: [
+            "CURRENT_BOQ_QUANTITY_BASIS_NOT_ESTABLISHED",
+          ],
+        },
+        ["BOQ", "quantity mapping"],
+        "partial",
+        "A current BOQ quantity basis and schedule crosswalk are required before an Installed Quantities curve can be calculated.",
+      );
+    } else {
+      const mapping =
+        buildQuantityScheduleMapping(
+          quantities,
+          model,
+        );
+      if (
+        quantities
+          .allocations.length ===
+        0
+      ) {
+        result = available(
+          key,
+          {
+            schemaVersion:
+              "1.0",
+            projectionKey:
+              "quantity_scurve",
+            generatedAt,
+            projectId:
+              state.projectId,
+            boqRevisionId:
+              quantities
+                .boqRevisionId,
+            scheduleRevisionId:
+              current.revision
+                .revisionId,
+            dataDateIso:
+              model.dataDateIso,
+            unitKeyed: true,
+            allocationState:
+              "missing",
+            mappingBasis:
+              mapping
+                .selectedScenarioLinks
+                .length > 0
+                ? "candidate_scenario"
+                : "missing",
+            series: [],
+            unmappedItemIds:
+              quantities.items.map(
+                (item) =>
+                  item
+                    .quantityItemId,
+              ),
+            partiallyAllocatedItemIds:
+              [],
+            overAllocatedItemIds:
+              [],
+            inferredMapping:
+              mapping,
+            diagnostics: [
+              "NO_GOVERNED_QUANTITY_TO_ACTIVITY_ALLOCATION",
+            ],
+          },
+          [
+            "BOQ",
+            "governed quantity-to-activity mapping",
+          ],
+          "partial",
+          mapping
+            .selectedScenarioLinks
+            .length > 0
+            ? "CMeng found candidate BOQ-to-programme links, but they are not governed allocations. No quantity curve is published until the crosswalk is confirmed."
+            : "BOQ items are available, but no defensible quantity-to-activity allocation is established.",
+        );
+      } else {
+        const projection =
+          buildQuantityScurveProjection(
+            quantities,
+            model,
+            {
+              generatedAt,
+              producerVersion:
+                "quantity-scurve-fast-v2",
+            },
+          );
+        result = available(
+          key,
+          {
+            ...projection,
+            mappingBasis:
+              "governed",
+            inferredMapping:
+              mapping,
+          },
+          [
+            "BOQ",
+            "governed quantity-to-activity mapping",
+          ],
+          projection
+            .allocationState ===
+            "complete"
+            ? "ready"
+            : "partial",
+          projection
+              .allocationState ===
+            "complete"
+            ? null
+            : "The quantity mapping is incomplete or conflicted. CMeng keeps unit series separate and reports mapping coverage.",
+        );
+      }
+    }
+  } else if (
+    key ===
+      "independent-forecast"
+  ) {
+    const forecast =
+      cachedIndependentForecast(
+        model,
+        generatedAt,
+      );
+    const reviewReason =
+      independentForecastReviewReason(
+        forecast,
+      );
+    result = available(
+      key,
+      {
+        ...forecast,
+        managementReviewState:
+          reviewReason
+            ? "review_required"
+            : "accepted_for_analysis",
+        managementReviewReason:
+          reviewReason,
+      },
+      [
+        "current programme logic",
+        "remaining durations",
+        "source calendars",
+      ],
+      reviewReason
+        ? "partial"
+        : "ready",
+      reviewReason,
+    );
+  } else if (
+    key ===
+      "forecast-history"
+  ) {
+    const snapshots =
+      ordered.map(
+        (stored) => {
+          const cachedForecast =
+            independentForecastCache.get(
+              stored.revision
+                .revisionId,
+            );
+          return forecastSnapshotFromProjection(
+            cachedForecast ??
+              sourceOnlyForecast(
+                stored.revision
+                  .model,
+                generatedAt,
+              ),
+            "forecast-" +
+              stored.revision
+                .revisionId,
+          );
+        },
+      );
+    const projection =
+      buildForecastHistoryProjection(
+        snapshots,
+        {
+          generatedAt,
+          producerVersion:
+            "forecast-history-fast-v2",
+        },
+      );
+    const sourceForecastCount =
+      projection.points.filter(
+        (point) =>
+          point
+            .sourceForecastCompletionIso !==
+          null,
+      ).length;
+    result = available(
+      key,
+      {
+        ...projection,
+        sourceForecastCount,
+        historyState:
+          projection
+            .establishedForecastCount >
+          0
+            ? "source_and_independent"
+            : "source_forecast_only",
+      },
+      [
+        "controlled programme revision history",
+      ],
+      projection
+          .establishedForecastCount >
+        0
+        ? "ready"
+        : "partial",
+      projection
+          .establishedForecastCount >
+        0
+        ? null
+        : "Source forecast history is established. Independent historical CPM dates are not recalculated automatically in this view.",
+    );
+  } else if (
+    key ===
+      "progress-report"
+  ) {
+    const scheduleAnalytics =
+      buildScheduleAnalyticsProjection(
+        model,
+        {
+          generatedAt,
+          producerVersion:
+            "progress-position:schedule-v1",
+        },
+      );
+    const milestones =
+      buildMilestonesProjection(
+        model,
+        {
+          generatedAt,
+          producerVersion:
+            "progress-position:milestones-v1",
+        },
+      );
+    const lookAhead =
+      buildLookAheadProjection(
+        model,
+        {
+          generatedAt,
+          producerVersion:
+            "progress-position:lookahead-v1",
+          readinessEvidence:
+            state.controls
+              .readinessEvidence,
+        },
+      );
+    const progressScurve =
+      buildProgressScurveProjection(
+        model,
+        {
+          generatedAt,
+          producerVersion:
+            "progress-position:scurve-v2",
+          actualHistory:
+            actualHistory(state),
+          baselineModel:
+            controlledBaseline
+              ?.revision.model ??
+            null,
+        },
+      );
+    const sourceForecast =
+      sourceOnlyForecast(
+        model,
+        generatedAt,
+      );
+    const projection =
+      buildProgressReportProjection({
+        generatedAt,
+        producerVersion:
+          "progress-report-fast-v2",
+        scheduleAnalytics,
+        milestones,
+        lookAhead,
+        progressScurve,
+        independentForecast:
+          sourceForecast,
+        progressEvidence:
+          state.controls
+            .progressEvidence,
+      });
+    result = available(
+      key,
+      {
+        ...projection,
+        independentForecastDeferred:
+          true,
+      },
+      [
+        "current programme",
+        "controlled baseline",
+        "progress evidence",
+      ],
+      "ready",
+      null,
+    );
+  } else if (
+    key ===
+      "windows-analysis" ||
+    key ===
+      "delay-claims" ||
+    key ===
+      "notices-claims" ||
+    key ===
+      "eot-assessment"
+  ) {
+    const delayModel =
+      state.controls
+        .delayClaims;
+    const analyticalDelayModel:
+      DelayClaimsModel =
+      delayModel ?? {
+        projectId:
+          state.projectId,
+        evidenceRevisionId:
+          current.revision
+            .revisionId,
+        events: [],
+        notices: [],
+        claims: [],
+        noticeRequirements: [],
+        diagnostics: [
+          "DELAY_CLAIM_EVIDENCE_NOT_SUBMITTED",
+        ],
+      };
+
+    const windows =
+      buildWindowsAnalysisProjection(
+        ordered.map(
+          (item) =>
+            item.revision,
+        ),
+        analyticalDelayModel,
+        {
+          generatedAt,
+          producerVersion:
+            "windows-fast-v2",
+          forecastResolver:
+            (revision) =>
+              sourceOnlyForecast(
+                revision.model,
+                generatedAt,
+              ),
+        },
+      );
+
+    if (
+      key ===
+      "windows-analysis"
+    ) {
+      result = available(
+        key,
+        {
+          ...windows,
+          movementPresentationBasis:
+            "source_forecast_then_schedule_boundary",
+        },
+        [
+          "controlled programme revision history",
+        ],
+        delayModel &&
+        delayModel.events.length >
+          0
+          ? "ready"
+          : "partial",
+        delayModel &&
+        delayModel.events.length >
+          0
+          ? null
+          : "Schedule-window movement is calculated from controlled programme revisions, but causation is un-attributed because no linked delay-event population is established.",
+      );
+    } else {
+      const delay =
+        buildDelayClaimsProjection(
+          windows,
+          analyticalDelayModel,
+          {
+            generatedAt,
+            producerVersion:
+              "delay-claims-fast-v2",
+          },
+        );
+      const linkedClaimCount =
+        analyticalDelayModel
+          .claims.filter(
+            (claim) =>
+              claim.eventIds
+                .length > 0,
+          ).length;
+      const unlinkedClaimCount =
+        analyticalDelayModel
+          .claims.length -
+        linkedClaimCount;
+
+      if (
+        key ===
+        "delay-claims"
+      ) {
+        result = available(
+          key,
+          {
+            ...delay,
+            contractorClaimEvidenceSubmitted:
+              delayModel !==
+              null,
+            linkedClaimCount,
+            unlinkedClaimCount,
+            eventLinkageState:
+              delay.events.length >
+                0 &&
+              linkedClaimCount > 0
+                ? "linked"
+                : "not_established",
+          },
+          [
+            "schedule windows",
+            "delay events",
+            "claim-event linkage",
+          ],
+          delay.events.length > 0 &&
+          linkedClaimCount > 0
+            ? "ready"
+            : "partial",
+          analyticalDelayModel
+              .claims.length >
+            0 &&
+          delay.events.length === 0
+            ? analyticalDelayModel
+                .claims.length +
+              " claim records are available, but no delay events are established. Schedule movement cannot be attributed to those claims."
+            : linkedClaimCount === 0
+              ? "Claim records are not linked to governed delay events, so causation and entitlement remain unassessed."
+              : null,
+        );
+      } else if (
+        key ===
+        "notices-claims"
+      ) {
+        const notices =
+          buildNoticesClaimsProjection(
+            analyticalDelayModel,
+            {
+              generatedAt,
+              producerVersion:
+                "notices-claims-fast-v2",
+            },
+          );
+        const assessable =
+          notices.eventCount > 0;
+        result = available(
+          key,
+          {
+            ...notices,
+            noticeAssessmentState:
+              assessable
+                ? "assessed"
+                : "not_assessable_without_delay_events",
+            linkedClaimCount,
+            unlinkedClaimCount,
+          },
+          [
+            "delay events",
+            "notices",
+            "claims",
+          ],
+          assessable
+            ? "ready"
+            : "partial",
+          assessable
+            ? null
+            : notices.claimCount +
+              " claim records are available, but notice timeliness cannot be assessed without linked delay events and applicable notice requirements.",
+        );
+      } else {
+        const eot =
+          state.controls
+            .contractTimeBasis
+            ? buildEotAssessmentProjection(
+                windows,
+                delay,
+                state.controls
+                  .contractTimeBasis,
+                {
+                  generatedAt,
+                  producerVersion:
+                    "eot-assessment-fast-v2",
+                },
+              )
+            : {
+                schemaVersion:
+                  "1.0" as const,
+                projectionKey:
+                  "eot_assessment" as const,
+                generatedAt,
+                producerVersion:
+                  "eot-assessment-fast-v2",
+                projectId:
+                  state.projectId,
+                contractualCompletionIso:
+                  null,
+                contractualCompletionState:
+                  "missing" as const,
+                officialApprovedEotDays:
+                  null,
+                officialApprovedEotState:
+                  "missing" as const,
+                officialAdjustedCompletionIso:
+                  null,
+                observedProgrammeMovementDays:
+                  windows
+                    .positiveProgrammeMovementDays,
+                analyticalTimeImpactCandidateDays:
+                  null,
+                attributableCandidateEotDays:
+                  null,
+                unattributedTimeImpactDays:
+                  windows
+                    .positiveProgrammeMovementDays,
+                candidateAdditionalEotDays:
+                  null,
+                scenarioAdjustedCompletionIso:
+                  null,
+                timeImpactScenarioAdjustedCompletionIso:
+                  null,
+                eotDayBasis:
+                  "unknown" as const,
+                eotDayBasisState:
+                  "missing" as const,
+                includedWindowCount:
+                  0,
+                excludedWindowCount:
+                  0,
+                reviewWindowCount:
+                  windows
+                    .windowCount,
+                windowCandidates:
+                  windows.windows.map(
+                    (window) => ({
+                      windowId:
+                        window
+                          .windowId,
+                      positiveIndependentMovementDays:
+                        Math.max(
+                          0,
+                          window
+                            .independentForecastMovementDays ??
+                            0,
+                        ),
+                      positiveProgrammeMovementDays:
+                        Math.max(
+                          0,
+                          window
+                            .strongestProgrammeMovementDays ??
+                            0,
+                        ),
+                      programmeMovementBasis:
+                        window
+                          .strongestProgrammeMovementBasis,
+                      analyticalTimeImpactCandidateDays:
+                        null,
+                      state:
+                        "review" as const,
+                      eligibleEventIds:
+                        [],
+                      contractorEventIds:
+                        [],
+                      reasons: [
+                        "CONTRACT_TIME_BASIS_NOT_SUBMITTED",
+                        "CAUSAL_DELAY_EVENT_BASIS_NOT_ESTABLISHED",
+                      ],
+                      assumptions:
+                        [],
+                      includedCandidateDays:
+                        0,
+                    }),
+                  ),
+                basis:
+                  "analytical_candidate_not_contractual_determination" as const,
+                assumptions: [
+                  "Observed schedule movement is not an EOT entitlement or time-impact candidate without governed contract and event causation evidence.",
+                ],
+                diagnostics: [
+                  "CONTRACT_TIME_BASIS_NOT_SUBMITTED",
+                ],
+              };
+        const hasCausalEvents =
+          analyticalDelayModel
+            .events.length > 0;
+        const contractReady =
+          state.controls
+            .contractTimeBasis !==
+          null;
+        result = available(
+          key,
+          {
+            ...eot,
+            contractorEotEvidenceSubmitted:
+              delayModel !==
+              null,
+            causalEventEvidenceEstablished:
+              hasCausalEvents,
+          },
+          [
+            "contract time basis",
+            "schedule windows",
+            "causal delay events",
+          ],
+          contractReady &&
+          hasCausalEvents
+            ? "ready"
+            : "partial",
+          !contractReady
+            ? "Observed schedule movement is shown separately, but a contractual EOT position cannot be calculated without a governed contract time basis."
+            : !hasCausalEvents
+              ? "Observed schedule movement is shown separately, but no EOT time-impact candidate is stated because causal delay events are not established."
+              : null,
+        );
+      }
+    }
+  } else if (
+    key ===
+      "challenge-contract"
+  ) {
+    const sourceForecast =
+      sourceOnlyForecast(
+        model,
+        generatedAt,
+      );
+    const resources =
+      state.resourcesByRevision.get(
+        current.revision
+          .revisionId,
+      ) ??
+      null;
+    const delivery =
+      buildDeliveryChallengeProjection({
+        generatedAt,
+        producerVersion:
+          "delivery-challenge-fast-v2",
+        schedule: model,
+        quantities:
+          state.quantities,
+        resources:
+          resources &&
+          resources.assignments
+            .length > 0
+            ? resources
+            : null,
+        independentForecast:
+          sourceForecast,
+        contractTimeBasis:
+          state.controls
+            .contractTimeBasis,
+        submittedManpowerPlan:
+          state.submittedManpowerPlan,
+      });
+    const contractIntelligence =
+      state.contract
+        ? buildChallengeContractProjection(
+            state.contract,
+            {
+              generatedAt,
+              producerVersion:
+                "challenge-contract-fast-v2",
+            },
+          )
+        : null;
+    const contractValueExtraction =
+      state.contract
+        ? extractContractValue(
+            state.contract,
+          )
+        : null;
+
+    result = available(
+      key,
+      {
+        schemaVersion:
+          "2.0",
+        projectionKey:
+          "challenge_contract",
+        generatedAt,
+        producerVersion:
+          "challenge-contract-fast-v2",
+        deliveryChallenge:
+          delivery,
+        contractIntelligence,
+        contractValueEvidence: {
+          governed:
+            state.controls
+              .contractValue,
+          extraction:
+            contractValueExtraction,
+          state:
+            state.controls
+              .contractValue
+              ? "governed"
+              : contractValueExtraction
+                    ?.state ===
+                  "candidate"
+                ? "candidate"
+                : contractValueExtraction
+                      ?.state ===
+                    "conflicted"
+                  ? "conflicted"
+                  : "missing",
+          note:
+            state.controls
+              .contractValue
+              ? "Governed contract value is established."
+              : "Contract value evidence remains ungoverned until confirmed.",
+        },
+        independentForecastState:
+          "deferred",
+      },
+      [
+        "current programme",
+        "contract",
+        "resource and quantity evidence when available",
+      ],
+      (
+        contractIntelligence !==
+          null &&
+        delivery.position !==
+          "not_yet_supportable" &&
+        delivery.position !==
+          "scenario_only"
+      )
+        ? "ready"
+        : "partial",
+      contractIntelligence ===
+        null
+        ? "Contract clause intelligence requires a parsed contract."
+        : delivery.position ===
+            "scenario_only"
+          ? "Delivery challenge contains scenarios because measured manpower/productivity evidence is incomplete. Scenario values are not treated as project facts."
+          : delivery.position ===
+              "not_yet_supportable"
+            ? "Delivery challenge cannot yet be supported by the available measured evidence."
+            : null,
+    );
+  } else {
+    return null;
+  }
+
+  specialistModuleCache.set(
+    cacheKey,
+    {
+      version:
+        state.version,
+      result,
+    },
+  );
+  return result;
+}
+
 export function moduleForProject(
   projectId: string,
   key: string,
@@ -3944,6 +5259,15 @@ export function moduleForProject(
     );
   if (planning) {
     return planning;
+  }
+
+  const specialist =
+    buildSpecialistModuleFast(
+      state,
+      key,
+    );
+  if (specialist) {
+    return specialist;
   }
 
   const bundle =
@@ -4410,6 +5734,21 @@ export function invalidateProject(
       )
     ) {
       planningModuleCache.delete(
+        key,
+      );
+    }
+  }
+  for (
+    const key of
+      specialistModuleCache.keys()
+  ) {
+    if (
+      key.startsWith(
+        projectId +
+          "::specialist::",
+      )
+    ) {
+      specialistModuleCache.delete(
         key,
       );
     }
