@@ -1864,7 +1864,19 @@ el("boqFiles").onchange=e=>{boqSelection=[...e.target.files];renderSimpleQueue("
 el("contractFiles").onchange=e=>{contractSelection=[...e.target.files];renderContractQueue()};
 el("evidenceFiles").onchange=e=>{evidenceSelection=[...e.target.files];renderSimpleQueue("evidenceQueue",evidenceSelection,"evidence")};
 el("uploadSchedules").onclick=uploadSchedules;el("uploadBoqs").onclick=uploadBoqs;el("uploadContracts").onclick=uploadContracts;el("uploadEvidence").onclick=uploadEvidence;
-const storedProject=localStorage.getItem("cmeng-project");const storedModule=localStorage.getItem("cmeng-module");if(storedModule&&names[storedModule])selected=storedModule;el("projectId").value=storedProject||"";el("projectId").addEventListener("change",()=>openProject(project()));setFocusMode(localStorage.getItem("cmeng-focus")==="1");renderAiSuggestions();renderPlatformNav();renderNav();loadRelease();loadPortfolio();if(storedProject){refresh(false).catch(()=>{})}setAppView("portfolio");
+const storedProject=localStorage.getItem("cmeng-project");const storedModule=localStorage.getItem("cmeng-module");if(storedModule&&names[storedModule])selected=storedModule;el("projectId").value=storedProject||"";el("projectId").addEventListener("change",()=>openProject(project()));setFocusMode(localStorage.getItem("cmeng-focus")==="1");renderAiSuggestions();renderPlatformNav();renderNav();
+async function bootstrapWorkspace(){
+  loadRelease();
+  await loadPortfolio();
+  const projects=portfolioData?.projects||[];
+  const savedProject=storedProject&&projects.some(item=>item.projectId===storedProject);
+  if(savedProject){
+    await openProject(storedProject);
+    return;
+  }
+  setAppView("portfolio");
+}
+bootstrapWorkspace().catch(()=>setAppView("portfolio"));
 </script>
 </body>
 </html>`;
