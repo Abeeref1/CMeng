@@ -54,3 +54,31 @@ jobs:
           name: cmeng-verification-${{ github.run_id }}
           path: /tmp/cmeng-verification/
           retention-days: 7
+
+
+  live-production-acceptance:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CMENG_RAILWAY_URL: https://cmeng-main-production.up.railway.app
+      CMENG_EXPECTED_RELEASE: 575c8d7c5cd082b11679f4bfa7461e61240f93af
+    steps:
+      - name: Checkout acceptance source
+        uses: actions/checkout@v4
+        with:
+          ref: 575c8d7c5cd082b11679f4bfa7461e61240f93af
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Trace all 29 live Project Control pages against governed results
+        run: node scripts/railway-accuracy-acceptance.mjs
+      - name: Install isolated browser acceptance tools
+        run: |
+          python -m pip install playwright==1.57.0
+          python -m playwright install --with-deps chromium
+      - name: Trace all 29 live pages in the browser without writes
+        run: python scripts/railway-browser-acceptance.py
