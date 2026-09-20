@@ -2,6 +2,8 @@ import {
   DEFAULT_SCHEDULE_ANALYSIS_CONFIG,
   activityNearCriticalThresholdHours,
   nearCriticalThresholdBasis,
+  sourceFloatCriticality,
+  sourceFloatInFloatRiskWatchlist,
   type CanonicalScheduleModel,
   type ScheduleAnalysisConfig,
 } from "../../schedule-analysis-core/src";
@@ -43,33 +45,62 @@ export function buildNearCriticalProjection(
         config,
       ),
   }));
+  const rowFor = ({
+    activity,
+    threshold,
+  }: (typeof classified)[number]) => ({
+    activityId: activity.activityId,
+    name: activity.name,
+    wbsId: activity.wbsId,
+    calendarId: activity.calendarId,
+    status: activity.status,
+    totalFloatHours:
+      activity.totalFloatHours!,
+    nearCriticalThresholdHours:
+      threshold,
+    baselineFinishIso:
+      activity.baselineFinishIso,
+    currentFinishIso:
+      activity.forecastFinishIso ??
+      activity.currentFinishIso ??
+      activity.actualFinishIso,
+    percentComplete:
+      activity.percentComplete,
+  });
+
   const rows = classified
     .filter(
       ({ activity, threshold }) =>
         threshold !== null &&
-        activity.totalFloatHours! >
-          config.criticalFloatThresholdHours &&
-        activity.totalFloatHours! <= threshold,
+        sourceFloatCriticality(
+          model,
+          activity,
+          config,
+        ) === "near_critical",
     )
-    .map(({ activity, threshold }) => ({
-      activityId: activity.activityId,
-      name: activity.name,
-      wbsId: activity.wbsId,
-      calendarId: activity.calendarId,
-      status: activity.status,
-      totalFloatHours:
-        activity.totalFloatHours!,
-      nearCriticalThresholdHours:
-        threshold,
-      baselineFinishIso:
-        activity.baselineFinishIso,
-      currentFinishIso:
-        activity.forecastFinishIso ??
-        activity.currentFinishIso ??
-        activity.actualFinishIso,
-      percentComplete:
-        activity.percentComplete,
-    }))
+    .map(rowFor)
+    .sort(
+      (a, b) =>
+        a.totalFloatHours -
+          b.totalFloatHours ||
+        a.activityId.localeCompare(
+          b.activityId,
+          undefined,
+          { numeric: true },
+        ),
+    );
+
+  const watchlistRows = classified
+    .filter(
+      ({ activity, threshold }) =>
+        threshold !== null &&
+        sourceFloatInFloatRiskWatchlist(
+          model,
+          activity,
+          config,
+        ) === true,
+    )
+    .map(rowFor)
     .sort(
       (a, b) =>
         a.totalFloatHours -
@@ -117,6 +148,20 @@ export function buildNearCriticalProjection(
       model.activities.length,
     ),
     nearCriticalCount: rows.length,
+    floatRiskWatchlistCount:
+      watchlistRows.length,
+    zeroFloatCount: known.filter(
+      (activity) =>
+        activity.totalFloatHours ===
+        0,
+    ).length,
+    negativeFloatCount: known.filter(
+      (activity) =>
+        activity.totalFloatHours! < 0,
+    ).length,
+    floatRiskWatchlistIncludesCriticalThreshold:
+      config.floatRiskWatchlistIncludesCriticalThreshold === true,
     rows,
+    watchlistRows,
   };
 }

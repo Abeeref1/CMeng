@@ -274,6 +274,12 @@ export function buildVarianceTrendsProjection(
         nearCriticalCount:
           analytics.float
             .nearCriticalCount,
+        floatRiskWatchlistCount:
+          analytics.float
+            .floatRiskWatchlistCount,
+        zeroFloatCount:
+          analytics.float
+            .zeroFloatCount,
         forecastCompletionIso: forecast,
         programmeCompletionIso: programme,
         projectCompletionVarianceDays:

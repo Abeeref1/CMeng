@@ -135,16 +135,32 @@ try {
   const manhours = modules.get('manhour-scurve');
   check('Man-Hour S-Curve is labor-only source history', manhours.data?.unitBasis === 'source_labor_hours' && manhours.data?.actualHistoryMethod === 'source_approved_weekly_usage');
   const near = modules.get('near-critical');
-  check('Near-critical uses project activity-calendar working days', near.data?.thresholdBasis === 'activity_calendar_working_days' && near.data?.nearCriticalThresholdWorkingDays === 5);
-  check('Near-critical watchlist reconciles to 629 activities', near.data?.nearCriticalCount === 629);
+  check('Near-critical uses activity-calendar working days', near.data?.thresholdBasis === 'activity_calendar_working_days' && near.data?.nearCriticalThresholdWorkingDays === 5);
+  check('Strict Near-Critical is 0 < TF <= 5 working days', near.data?.nearCriticalCount === 504);
+  check('Float-Risk Watchlist is 0 <= TF <= 5 working days', near.data?.floatRiskWatchlistCount === 629);
+  check('Zero-float population is preserved separately', near.data?.zeroFloatCount === 125);
+  check('Negative-float population is preserved separately', near.data?.negativeFloatCount === 378);
+  check('Source label Near Critical reconciles to the Float-Risk Watchlist rather than redefining CMeng taxonomy',
+    near.data?.sourceReportedNearCriticalLabelCount === 629 &&
+    near.data?.reconciliation?.sourceLabelReconcilesTo === 'float_risk_watchlist' &&
+    near.data?.reconciliation?.gap === 0);
+
   const scheduleReview = modules.get('schedule-analytics');
-  check('Programme Review agrees with Near-Critical watchlist', scheduleReview.data?.result?.float?.nearCriticalCount === 629 && scheduleReview.data?.result?.float?.nearCriticalThresholdBasis === 'activity_working_days');
+  check('Programme Review keeps strict Near-Critical separate', scheduleReview.data?.result?.float?.nearCriticalCount === 504 && scheduleReview.data?.result?.float?.nearCriticalThresholdBasis === 'activity_working_days');
+  check('Programme Review carries the same Float-Risk Watchlist', scheduleReview.data?.result?.float?.floatRiskWatchlistCount === 629);
+  check('Programme Review criticality remains TF <= 0', scheduleReview.data?.result?.float?.criticalCount === 503 && scheduleReview.data?.result?.float?.zeroFloatCount === 125 && scheduleReview.data?.result?.float?.negativeFloatCount === 378);
+
   const activityReview = modules.get('activity-analytics');
-  check('Activity Review agrees with Near-Critical watchlist', Array.isArray(activityReview.data?.rows) && activityReview.data.rows.filter(row => row.criticality === 'near_critical').length === 629);
+  check('Activity Review strict Near-Critical taxonomy is consistent', Array.isArray(activityReview.data?.rows) && activityReview.data.rows.filter(row => row.criticality === 'near_critical').length === 504);
+  check('Activity Review Float-Risk Watchlist is consistent', Array.isArray(activityReview.data?.rows) && activityReview.data.rows.filter(row => row.floatRiskWatchlist === true).length === 629);
+
   const revision = modules.get('revision-trend');
-  check('Revision History latest point uses the same near-critical basis', revision.data?.points?.at(-1)?.nearCriticalCount === 629);
+  check('Revision History latest point keeps strict Near-Critical', revision.data?.points?.at(-1)?.nearCriticalCount === 504);
+  check('Revision History latest point carries Float-Risk Watchlist', revision.data?.points?.at(-1)?.floatRiskWatchlistCount === 629);
+
   const variance = modules.get('variance-trends');
-  check('Variance Trend latest point uses the same near-critical basis', variance.data?.points?.at(-1)?.nearCriticalCount === 629);
+  check('Variance Trend latest point keeps strict Near-Critical', variance.data?.points?.at(-1)?.nearCriticalCount === 504);
+  check('Variance Trend latest point carries Float-Risk Watchlist', variance.data?.points?.at(-1)?.floatRiskWatchlistCount === 629);
 
   const forecast = modules.get('independent-forecast');
   check('Forecast taxonomy has four distinct named positions',
@@ -188,17 +204,29 @@ try {
       thresholdBasis: near.data?.thresholdBasis ?? null,
       workingDays: near.data?.nearCriticalThresholdWorkingDays ?? near.data?.nearCriticalWorkingDays ?? null,
       thresholdHours: near.data?.nearCriticalThresholdHours ?? null,
-      count: near.data?.nearCriticalCount ?? null,
+      strictNearCriticalCount: near.data?.nearCriticalCount ?? null,
+      floatRiskWatchlistCount: near.data?.floatRiskWatchlistCount ?? null,
+      zeroFloatCount: near.data?.zeroFloatCount ?? null,
+      negativeFloatCount: near.data?.negativeFloatCount ?? null,
+      sourceReportedNearCriticalLabelCount: near.data?.sourceReportedNearCriticalLabelCount ?? null,
+      sourceLabelReconcilesTo: near.data?.reconciliation?.sourceLabelReconcilesTo ?? null,
       floatCoveragePercent: near.data?.floatCoveragePercent ?? null,
       classificationCoveragePercent: near.data?.classificationCoveragePercent ?? null,
       unresolvedActivityCount: near.data?.thresholdUnresolvedActivityCount ?? null,
-      programmeReviewCount: scheduleReview.data?.result?.float?.nearCriticalCount ?? null,
+      programmeReviewStrictCount: scheduleReview.data?.result?.float?.nearCriticalCount ?? null,
+      programmeReviewWatchlistCount: scheduleReview.data?.result?.float?.floatRiskWatchlistCount ?? null,
+      programmeReviewCriticalCount: scheduleReview.data?.result?.float?.criticalCount ?? null,
       programmeReviewBasis: scheduleReview.data?.result?.float?.nearCriticalThresholdBasis ?? null,
-      activityReviewCount: Array.isArray(activityReview.data?.rows)
+      activityReviewStrictCount: Array.isArray(activityReview.data?.rows)
         ? activityReview.data.rows.filter(row => row.criticality === 'near_critical').length
         : null,
-      revisionLatestCount: revision.data?.points?.at(-1)?.nearCriticalCount ?? null,
-      varianceLatestCount: variance.data?.points?.at(-1)?.nearCriticalCount ?? null
+      activityReviewWatchlistCount: Array.isArray(activityReview.data?.rows)
+        ? activityReview.data.rows.filter(row => row.floatRiskWatchlist === true).length
+        : null,
+      revisionLatestStrictCount: revision.data?.points?.at(-1)?.nearCriticalCount ?? null,
+      revisionLatestWatchlistCount: revision.data?.points?.at(-1)?.floatRiskWatchlistCount ?? null,
+      varianceLatestStrictCount: variance.data?.points?.at(-1)?.nearCriticalCount ?? null,
+      varianceLatestWatchlistCount: variance.data?.points?.at(-1)?.floatRiskWatchlistCount ?? null
     },
     forecast: {
       sourceProductivityState: forecast.data?.sourceProductivityForecastState ?? null,

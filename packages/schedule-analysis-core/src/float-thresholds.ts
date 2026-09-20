@@ -101,16 +101,51 @@ export function sourceFloatCriticality(
 ): "critical" | "near_critical" | "noncritical" | "unknown" {
   if (activity.totalFloatHours === null) return "unknown";
 
-  if (activity.totalFloatHours <= config.criticalFloatThresholdHours) {
+  if (
+    activity.totalFloatHours <=
+    config.criticalFloatThresholdHours
+  ) {
     return "critical";
   }
 
-  const near = activityNearCriticalThresholdHours(model, activity, config);
+  const near = activityNearCriticalThresholdHours(
+    model,
+    activity,
+    config,
+  );
   if (near === null) return "unknown";
 
   return activity.totalFloatHours <= near
     ? "near_critical"
     : "noncritical";
+}
+
+export function sourceFloatInFloatRiskWatchlist(
+  model: CanonicalScheduleModel,
+  activity: CanonicalScheduleActivity,
+  config: ScheduleAnalysisConfig,
+): boolean | null {
+  if (activity.totalFloatHours === null) return null;
+
+  const upper =
+    activityNearCriticalThresholdHours(
+      model,
+      activity,
+      config,
+    );
+  if (upper === null) return null;
+
+  const lowerSatisfied =
+    config.floatRiskWatchlistIncludesCriticalThreshold === true
+      ? activity.totalFloatHours >=
+        config.criticalFloatThresholdHours
+      : activity.totalFloatHours >
+        config.criticalFloatThresholdHours;
+
+  return (
+    lowerSatisfied &&
+    activity.totalFloatHours <= upper
+  );
 }
 
 export function nearCriticalThresholdBasis(

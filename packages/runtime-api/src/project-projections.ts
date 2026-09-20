@@ -1005,15 +1005,56 @@ function buildBundle(
         config: scheduleAnalysisConfig,
       },
     );
+  const nearCriticalBase = {
+    ...nearCriticalRaw,
+    sourceReportedNearCriticalLabelCount:
+      scheduleControlBasis.sourceReportedNearCriticalLabelCount,
+    sourceReportedLabel:
+      scheduleControlBasis.sourceReportedNearCriticalLabelCount !== null
+        ? "Near Critical"
+        : null,
+    reconciliation: {
+      strictNearCriticalCount:
+        nearCriticalRaw.nearCriticalCount,
+      floatRiskWatchlistCount:
+        nearCriticalRaw.floatRiskWatchlistCount,
+      sourceReportedCount:
+        scheduleControlBasis.sourceReportedNearCriticalLabelCount,
+      sourceLabelReconcilesTo:
+        scheduleControlBasis.sourceCountReconcilesTo,
+      gap:
+        scheduleControlBasis.sourceReportedNearCriticalLabelCount === null
+          ? null
+          : nearCriticalRaw.floatRiskWatchlistCount -
+            scheduleControlBasis.sourceReportedNearCriticalLabelCount,
+      status:
+        scheduleControlBasis.sourceReportedNearCriticalLabelCount === null
+          ? "source_not_reported"
+          : nearCriticalRaw.floatRiskWatchlistCount ===
+              scheduleControlBasis.sourceReportedNearCriticalLabelCount
+            ? "reconciled"
+            : "difference",
+    },
+    definitions: {
+      critical:
+        "TF <= governed critical float threshold",
+      nearCritical:
+        "governed critical threshold < TF <= N activity-calendar working days",
+      floatRiskWatchlist:
+        scheduleAnalysisConfig.floatRiskWatchlistIncludesCriticalThreshold
+          ? "governed critical threshold <= TF <= N activity-calendar working days"
+          : "governed critical threshold < TF <= N activity-calendar working days",
+    },
+  };
   const nearCritical =
     controlledBaseline
       ? {
-          ...nearCriticalRaw,
+          ...nearCriticalBase,
           controlledBaselineRevisionId:
             controlledBaseline
               .revision.revisionId,
           rows:
-            nearCriticalRaw.rows.map(
+            nearCriticalBase.rows.map(
               (row) => {
                 const baseline =
                   baselineByActivity.get(
@@ -1031,7 +1072,7 @@ function buildBundle(
               },
             ),
         }
-      : nearCriticalRaw;
+      : nearCriticalBase;
   modules.set(
     "near-critical",
     available(
@@ -2442,6 +2483,12 @@ function buildBundle(
         {
           ...pmoAnalysis,
           programmeBaselineCompletionIso:
+            scheduleAnalytics.result
+              .completionBases.find(
+                (basis) =>
+                  basis.basis ===
+                  "programme",
+              )?.dateIso ??
             controlledBaselineCompletion
               ?.dateIso ??
             null,
@@ -2480,6 +2527,12 @@ function buildBundle(
             current.revision
               .revisionId,
           programmeBaselineCompletionIso:
+            scheduleAnalytics.result
+              .completionBases.find(
+                (basis) =>
+                  basis.basis ===
+                  "programme",
+              )?.dateIso ??
             controlledBaselineCompletion
               ?.dateIso ??
             null,
@@ -3809,10 +3862,51 @@ function buildPlanningModuleFast(
           config: scheduleAnalysisConfig,
         },
       );
+    const nearCriticalBase = {
+      ...raw,
+      sourceReportedNearCriticalLabelCount:
+        scheduleControlBasis.sourceReportedNearCriticalLabelCount,
+      sourceReportedLabel:
+        scheduleControlBasis.sourceReportedNearCriticalLabelCount !== null
+          ? "Near Critical"
+          : null,
+      reconciliation: {
+        strictNearCriticalCount:
+          raw.nearCriticalCount,
+        floatRiskWatchlistCount:
+          raw.floatRiskWatchlistCount,
+        sourceReportedCount:
+          scheduleControlBasis.sourceReportedNearCriticalLabelCount,
+        sourceLabelReconcilesTo:
+          scheduleControlBasis.sourceCountReconcilesTo,
+        gap:
+          scheduleControlBasis.sourceReportedNearCriticalLabelCount === null
+            ? null
+            : raw.floatRiskWatchlistCount -
+              scheduleControlBasis.sourceReportedNearCriticalLabelCount,
+        status:
+          scheduleControlBasis.sourceReportedNearCriticalLabelCount === null
+            ? "source_not_reported"
+            : raw.floatRiskWatchlistCount ===
+                scheduleControlBasis.sourceReportedNearCriticalLabelCount
+              ? "reconciled"
+              : "difference",
+      },
+      definitions: {
+        critical:
+          "TF <= governed critical float threshold",
+        nearCritical:
+          "governed critical threshold < TF <= N activity-calendar working days",
+        floatRiskWatchlist:
+          scheduleAnalysisConfig.floatRiskWatchlistIncludesCriticalThreshold
+            ? "governed critical threshold <= TF <= N activity-calendar working days"
+            : "governed critical threshold < TF <= N activity-calendar working days",
+      },
+    };
     const nearCritical =
       controlledBaseline
         ? {
-            ...raw,
+            ...nearCriticalBase,
             controlledBaselineRevisionId:
               controlledBaseline
                 .revision
@@ -3836,7 +3930,7 @@ function buildPlanningModuleFast(
                 },
               ),
           }
-        : raw;
+        : nearCriticalBase;
     modules.set(
       key,
       available(
@@ -4050,6 +4144,12 @@ function buildPlanningModuleFast(
         current.revision
           .revisionId,
       programmeBaselineCompletionIso:
+        scheduleAnalytics.result
+          .completionBases.find(
+            (basis) =>
+              basis.basis ===
+              "programme",
+          )?.dateIso ??
         controlledBaselineCompletion
           ?.dateIso ??
         null,

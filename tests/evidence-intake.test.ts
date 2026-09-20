@@ -581,10 +581,13 @@ test("runtime activity variance uses the controlled baseline programme", async (
       "%T\tPROJWBS",
       "%F\twbs_id\tproj_id\twbs_short_name",
       "%R\t10\t1\tROOT",
+      "%T\tCALENDAR",
+      "%F\tclndr_id\tclndr_name\tclndr_data",
+      "%R\t77\tStandard 8h\tMon-Fri 08:00-16:00",
       "%T\tTASK",
-      "%F\ttask_id\tproj_id\twbs_id\ttask_code\ttask_name\tstatus_code\ttarget_start_date\ttarget_end_date\tearly_start_date\tearly_end_date\ttarget_drtn_hr_cnt\tremain_drtn_hr_cnt\ttotal_float_hr_cnt\tphys_complete_pct",
-      "%R\t100\t1\t10\tA100\tMobilise\tTK_Complete\t2026-01-01\t2026-01-02\t2026-01-01\t2026-01-02\t16\t0\t0\t100",
-      "%R\t101\t1\t10\tA200\tExcavate\tTK_Active\t2026-01-03\t" + targetFinish + "\t2026-01-03\t" + currentFinish + "\t48\t24\t16\t50",
+      "%F\ttask_id\tproj_id\twbs_id\tclndr_id\ttask_code\ttask_name\tstatus_code\ttarget_start_date\ttarget_end_date\tearly_start_date\tearly_end_date\ttarget_drtn_hr_cnt\tremain_drtn_hr_cnt\ttotal_float_hr_cnt\tphys_complete_pct",
+      "%R\t100\t1\t10\t77\tA100\tMobilise\tTK_Complete\t2026-01-01\t2026-01-02\t2026-01-01\t2026-01-02\t16\t0\t0\t100",
+      "%R\t101\t1\t10\t77\tA200\tExcavate\tTK_Active\t2026-01-03\t" + targetFinish + "\t2026-01-03\t" + currentFinish + "\t48\t24\t16\t50",
       "%T\tTASKPRED",
       "%F\ttask_pred_id\tproj_id\ttask_id\tpred_proj_id\tpred_task_id\tpred_type\tlag_hr_cnt",
       "%R\tR1\t1\t101\t1\t100\tPR_FS\t0",
@@ -721,14 +724,23 @@ test("runtime activity variance uses the controlled baseline programme", async (
         .maximumDelayDays,
       5,
     );
-    assert.match(
+    const programmeBasis =
       programme.data.result
         .completionBases.find(
           (basis) =>
             basis.basis ===
             "programme",
-        )?.dateIso ?? "",
+        );
+    assert.match(
+      programmeBasis?.dateIso ?? "",
       /^2026-01-10/,
+      "Programme basis payload: " +
+        JSON.stringify({
+          programmeBasis,
+          completionBases:
+            programme.data.result
+              .completionBases,
+        }),
     );
 
     const managementResponse =
@@ -753,6 +765,8 @@ test("runtime activity variance uses the controlled baseline programme", async (
         .programmeBaselineCompletionIso ??
         "",
       /^2026-01-10/,
+      "Management baseline payload: " +
+        JSON.stringify(management.data),
     );
 
     const nearCriticalResponse =
@@ -785,6 +799,8 @@ test("runtime activity variance uses the controlled baseline programme", async (
     assert.match(
       nearRow?.baselineFinishIso ?? "",
       /^2026-01-10/,
+      "Near-critical controlled-baseline row: " +
+        JSON.stringify(nearRow),
     );
     assert.match(
       nearRow?.currentFinishIso ?? "",

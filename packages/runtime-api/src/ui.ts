@@ -370,7 +370,7 @@ const groups={
   "Commercial":["commercial-overview","cost-forecast","variations-change","payments","cash-flow","commercial-claims-notices","contract-particulars-bonds"]
 };
 const names={
-"pmo-analysis":"Management Position","schedule-analytics":"Programme Review","activity-analytics":"Activity Review","resource-utilization":"Resources","lookahead-schedule":"Look-Ahead","progress-report":"Progress Position","schedule-change-report":"Programme Changes","revision-trend":"Revision History","variance-trends":"Variance Trend","progress-scurve":"Progress S-Curve","quantity-scurve":"Installed Quantities","progress-breakdown":"WBS Progress","milestones":"Milestones","near-critical":"Near-Critical Activities","manhour-scurve":"Man-Hour S-Curve","forecast-history":"Forecast History","independent-forecast":"Independent Forecast","delay-claims":"Delay Events & Claims","notices-claims":"Notices, EOT & Claims","windows-analysis":"Delay Windows","eot-assessment":"EOT Position","challenge-contract":"Challenge the Contract","commercial-overview":"Commercial Overview","cost-forecast":"Cost & Forecast","variations-change":"Variations & Change","payments":"Payments","cash-flow":"Cash Flow","commercial-claims-notices":"Claims & Notices","contract-particulars-bonds":"Contract Particulars & Bonds"
+"pmo-analysis":"Management Position","schedule-analytics":"Programme Review","activity-analytics":"Activity Review","resource-utilization":"Resources","lookahead-schedule":"Look-Ahead","progress-report":"Progress Position","schedule-change-report":"Programme Changes","revision-trend":"Revision History","variance-trends":"Variance Trend","progress-scurve":"Progress S-Curve","quantity-scurve":"Installed Quantities","progress-breakdown":"WBS Progress","milestones":"Milestones","near-critical":"Near-Critical & Float Risk","manhour-scurve":"Man-Hour S-Curve","forecast-history":"Forecast History","independent-forecast":"Independent Forecast","delay-claims":"Delay Events & Claims","notices-claims":"Notices, EOT & Claims","windows-analysis":"Delay Windows","eot-assessment":"EOT Position","challenge-contract":"Challenge the Contract","commercial-overview":"Commercial Overview","cost-forecast":"Cost & Forecast","variations-change":"Variations & Change","payments":"Payments","cash-flow":"Cash Flow","commercial-claims-notices":"Claims & Notices","contract-particulars-bonds":"Contract Particulars & Bonds"
 };
 const descriptions={
 "pmo-analysis":"Finish-date outlook, schedule pressure and decisions requiring management attention.",
@@ -380,7 +380,7 @@ const descriptions={
 "schedule-change-report":"What changed between the latest controlled programme submissions.",
 "revision-trend":"How progress, forecast finish and schedule pressure have moved over time.",
 "milestones":"Critical-path milestones, status, float, due dates, baseline movement and required management action.",
-"near-critical":"Activities at risk of becoming critical and requiring early action.",
+"near-critical":"Strict near-critical activities and the wider float-risk watchlist, kept separate and reconciled to the submitted source position.",
 "resource-utilization":"Resource demand, capacity and overload position. Missing capacity is never treated as zero.",
 "progress-report":"Baseline, current schedule, physical, contractor-reported and certified progress kept separate.",
 "variance-trends":"Activity finish movement and schedule pressure across controlled programme revisions.",
@@ -1922,6 +1922,7 @@ function renderActivityAnalyticsVisual(data){
   p.rows.forEach(r=>{status[r.status]=(status[r.status]||0)+1});
   const critical=p.rows.filter(r=>r.criticality==="critical").length;
   const near=p.rows.filter(r=>r.criticality==="near_critical").length;
+  const floatRisk=p.rows.filter(r=>r.floatRiskWatchlist===true).length;
   const late=p.rows.filter(r=>typeof r.finishVarianceDays==="number"&&r.finishVarianceDays>0).length;
   const openLogic=p.rows.filter(r=>r.openStart||r.openFinish||r.isolated).length;
   const kpis=planningKpis([
@@ -1929,7 +1930,8 @@ function renderActivityAnalyticsVisual(data){
     ["Completed",status.completed,"activities","success"],
     ["In progress",status.in_progress,"activities","accent"],
     ["Critical",critical,"activities","danger"],
-    ["Near-critical",near,"activities","warning"],
+    ["Near-critical",near,"strict taxonomy","warning"],
+    ["Float-risk watchlist",floatRisk,"includes critical boundary","accent"],
     ["Later than baseline",late,"activities","danger"]
   ]);
   const topLate=[...p.rows].filter(r=>typeof r.finishVarianceDays==="number").sort((a,b)=>b.finishVarianceDays-a.finishVarianceDays).slice(0,15).map(r=>({label:r.activityId+" · "+(r.name||""),value:r.finishVarianceDays}));
@@ -1941,7 +1943,7 @@ function renderActivityAnalyticsVisual(data){
       {label:"Not started",value:status.not_started||0,tone:"neutral"},
       {label:"Unknown",value:status.unknown||0,tone:"warning"}
     ],"Activities"))+
-    renderVisualPanel("Criticality watchlist","Critical and near-critical activities shown against the rest of the programme.",renderDonutChart([
+    renderVisualPanel("Criticality classification","Mutually exclusive critical and near-critical classifications. Float-risk watchlist membership is tracked separately.",renderDonutChart([
       {label:"Critical",value:critical,tone:"danger"},
       {label:"Near-critical",value:near,tone:"warning"},
       {label:"Other",value:Math.max(0,p.activityCount-critical-near),tone:"neutral"}
@@ -2294,30 +2296,48 @@ function renderMilestonesVisual(data){
 function renderNearCriticalVisual(data){
   const p=projectionFor(data,"near_critical");
   if(!Array.isArray(p.rows))return"";
-  const inProgress=p.rows.filter(r=>r.status==="in_progress").length;
-  const notStarted=p.rows.filter(r=>r.status==="not_started").length;
-  const slipped=p.rows.filter(r=>planningDaysBetween(r.baselineFinishIso,r.currentFinishIso)>0).length;
+  const strictRows=p.rows||[];
+  const riskRows=Array.isArray(p.watchlistRows)?p.watchlistRows:strictRows;
+  const inProgress=riskRows.filter(r=>r.status==="in_progress").length;
+  const notStarted=riskRows.filter(r=>r.status==="not_started").length;
+  const slipped=riskRows.filter(r=>planningDaysBetween(r.baselineFinishIso,r.currentFinishIso)>0).length;
   const workingDays=p.nearCriticalThresholdWorkingDays??p.nearCriticalWorkingDays??null;
   const calendarBasis=p.thresholdBasis==="activity_calendar_working_days"||p.nearCriticalThresholdBasis==="activity_working_days";
   const limitValue=calendarBasis&&workingDays!==null?fmt(workingDays)+" working days":p.nearCriticalThresholdHours===null||p.nearCriticalThresholdHours===undefined?"Not established":fmt(p.nearCriticalThresholdHours)+" h";
-  const limitSub=calendarBasis?"converted using each activity calendar":"submitted total float";
-  const unresolved=p.thresholdUnresolvedActivityCount??Math.max(0,(p.rows||[]).filter(r=>r.nearCriticalThresholdHours===null).length);
+  const limitSub=calendarBasis?"each activity calendar":"explicit hour threshold";
+  const unresolved=p.thresholdUnresolvedActivityCount??Math.max(0,riskRows.filter(r=>r.nearCriticalThresholdHours===null).length);
+  const sourceCount=p.sourceReportedNearCriticalLabelCount??p.reconciliation?.sourceReportedCount??null;
+  const sourceMatch=p.reconciliation?.sourceLabelReconcilesTo??null;
+  const reconciliationText=sourceCount===null
+    ?"No submitted Near Critical population is available for reconciliation."
+    : sourceMatch==="float_risk_watchlist"
+      ?"The submitted label “Near Critical” reconciles to CMeng's Float-Risk Watchlist, not to strict Near-Critical."
+      : sourceMatch==="strict_near_critical"
+        ?"The submitted label “Near Critical” reconciles to CMeng's strict Near-Critical classification."
+        :"The submitted population does not reconcile to either CMeng classification and remains a visible gap.";
+
   const kpis=planningKpis([
-    ["Near-critical",p.nearCriticalCount,"activities","warning"],
-    ["Near-critical limit",limitValue,limitSub],
+    ["Near-critical",p.nearCriticalCount,"0 < TF ≤ "+limitValue,"warning"],
+    ["Float-risk watchlist",p.floatRiskWatchlistCount,"0 ≤ TF ≤ "+limitValue,"accent"],
+    ["Zero float",p.zeroFloatCount??"—","critical boundary","danger"],
+    ["Negative float",p.negativeFloatCount??"—","TF < 0","danger"],
+    ["Source reported",sourceCount===null?"—":sourceCount,p.sourceReportedLabel||"Near Critical"],
     ["Float coverage",p.floatCoveragePercent===null?"—":fmt(p.floatCoveragePercent)+"%","current programme"],
-    ["Classification coverage",p.classificationCoveragePercent===null||p.classificationCoveragePercent===undefined?"—":fmt(p.classificationCoveragePercent)+"%","project control basis",unresolved?"warning":""],
-    ["In progress",inProgress,"near-critical"],
-    ["Not started",notStarted,"near-critical","warning"],
-    ["Later than baseline",slipped,"near-critical","danger"]
+    ["Classification coverage",p.classificationCoveragePercent===null||p.classificationCoveragePercent===undefined?"—":fmt(p.classificationCoveragePercent)+"%","calendar-aware",unresolved?"warning":""]
   ]);
-  const maxThreshold=Math.max(1,...p.rows.map(r=>typeof r.nearCriticalThresholdHours==="number"?r.nearCriticalThresholdHours:0));
-  const histogram=planningFloatHistogram(p.rows,maxThreshold);
-  const finishPeriods=planningFinishPeriodBars(p.rows);
-  const watch=[...p.rows].map(r=>({...r,varianceDays:planningDaysBetween(r.baselineFinishIso,r.currentFinishIso)})).sort((a,b)=>a.totalFloatHours-b.totalFloatHours||((b.varianceDays||0)-(a.varianceDays||0))).slice(0,150);
-  const rows=watch.map(r=>'<tr><td><b>'+escapeHtml(r.activityId)+'</b><br><span class="muted">'+escapeHtml(r.name||"")+'</span></td><td>'+escapeHtml(planningStateLabel(r.status))+'</td><td>'+escapeHtml(fmt(r.totalFloatHours))+'</td><td>'+escapeHtml(r.nearCriticalThresholdHours===null||r.nearCriticalThresholdHours===undefined?"—":fmt(r.nearCriticalThresholdHours))+'</td><td>'+escapeHtml(r.calendarId||"—")+'</td><td>'+escapeHtml(planningShortDate(r.baselineFinishIso))+'</td><td>'+escapeHtml(planningShortDate(r.currentFinishIso))+'</td><td class="'+((r.varianceDays||0)>0?"late-text":(r.varianceDays||0)<0?"early-text":"")+'">'+escapeHtml(r.varianceDays===null?"—":((r.varianceDays>0?"+":"")+fmt(r.varianceDays)))+'</td><td>'+escapeHtml(r.percentComplete===null?"—":fmt(r.percentComplete)+"%")+'</td></tr>').join("");
-  const basis='<div class="notice info"><b>Project near-critical basis: '+escapeHtml(limitValue)+'.</b> '+(calendarBasis?'CMeng converts the working-day threshold with each activity\'s own programme calendar; it does not use a global 40-hour constant.':'An explicit working-day project basis has not been established, so the displayed hour basis is used.')+'</div>';
-  return '<section class="planning-view nearcritical-view">'+kpis+basis+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Near-critical float values</h4><p>Submitted total float is classified against the governed project-control threshold. Where the basis is working days, each activity calendar produces its own hour-equivalent limit.</p></div></div><div class="planning-panel-body">'+histogram+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Where near-critical work finishes</h4><p>Current finish-month concentration for the near-critical population.</p></div></div><div class="planning-panel-body">'+finishPeriods+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Near-critical watchlist</h4><p>Lowest submitted total float first, then the largest movement from the controlled baseline.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Activity</th><th>Status</th><th>Total float h</th><th>Threshold h</th><th>Calendar</th><th>Baseline finish</th><th>Current finish</th><th>Vs baseline d</th><th>Progress</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></section></section>';
+
+  const maxThreshold=Math.max(1,...riskRows.map(r=>typeof r.nearCriticalThresholdHours==="number"?r.nearCriticalThresholdHours:0));
+  const histogram=planningFloatHistogram(riskRows,maxThreshold);
+  const finishPeriods=planningFinishPeriodBars(riskRows);
+  const watch=[...riskRows].map(r=>({...r,varianceDays:planningDaysBetween(r.baselineFinishIso,r.currentFinishIso)})).sort((a,b)=>a.totalFloatHours-b.totalFloatHours||((b.varianceDays||0)-(a.varianceDays||0))).slice(0,150);
+  const criticalThreshold=p.criticalThresholdHours??0;
+  const rows=watch.map(r=>{
+    const classLabel=r.totalFloatHours===criticalThreshold?"Zero-float boundary":"Near-critical";
+    return '<tr><td><b>'+escapeHtml(r.activityId)+'</b><br><span class="muted">'+escapeHtml(r.name||"")+'</span></td><td>'+escapeHtml(classLabel)+'</td><td>'+escapeHtml(planningStateLabel(r.status))+'</td><td>'+escapeHtml(fmt(r.totalFloatHours))+'</td><td>'+escapeHtml(r.nearCriticalThresholdHours===null||r.nearCriticalThresholdHours===undefined?"—":fmt(r.nearCriticalThresholdHours))+'</td><td>'+escapeHtml(r.calendarId||"—")+'</td><td>'+escapeHtml(planningShortDate(r.baselineFinishIso))+'</td><td>'+escapeHtml(planningShortDate(r.currentFinishIso))+'</td><td class="'+((r.varianceDays||0)>0?"late-text":(r.varianceDays||0)<0?"early-text":"")+'">'+escapeHtml(r.varianceDays===null?"—":((r.varianceDays>0?"+":"")+fmt(r.varianceDays)))+'</td><td>'+escapeHtml(r.percentComplete===null?"—":fmt(r.percentComplete)+"%")+'</td></tr>';
+  }).join("");
+  const basis='<div class="notice info"><b>CMeng schedule taxonomy:</b> Critical = TF ≤ '+escapeHtml(fmt(criticalThreshold))+' h; Near-Critical = TF > '+escapeHtml(fmt(criticalThreshold))+' h and ≤ '+escapeHtml(limitValue)+'; Float-Risk Watchlist also includes the zero-float boundary. Working-day limits use each activity\'s own programme calendar.</div>';
+  const reconciliation='<div class="notice '+(sourceMatch==="float_risk_watchlist"||sourceMatch==="strict_near_critical"?"good":"warn")+'"><b>Submitted vs independent:</b> '+escapeHtml(reconciliationText)+'</div>';
+  return '<section class="planning-view nearcritical-view">'+kpis+basis+reconciliation+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Float-risk distribution</h4><p>Submitted total float is assessed independently against CMeng/project-control taxonomy using each activity calendar.</p></div></div><div class="planning-panel-body">'+histogram+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Where float-risk work finishes</h4><p>Current finish-month concentration for the full float-risk watchlist.</p></div></div><div class="planning-panel-body">'+finishPeriods+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Float-Risk Watchlist</h4><p>Zero-float boundary activities and strict near-critical activities are shown together for management attention, while their taxonomy remains separate.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Activity</th><th>Risk class</th><th>Status</th><th>Total float h</th><th>Threshold h</th><th>Calendar</th><th>Baseline finish</th><th>Current finish</th><th>Vs baseline d</th><th>Progress</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></section></section>';
 }
 function renderManhourVisual(data){
   const p=projectionFor(data,"manhour_scurve");
