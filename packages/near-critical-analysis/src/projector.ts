@@ -2,6 +2,7 @@ import {
   DEFAULT_SCHEDULE_ANALYSIS_CONFIG,
   activityNearCriticalThresholdHours,
   nearCriticalThresholdBasis,
+  sourceFloatCriticality,
   type CanonicalScheduleModel,
   type ScheduleAnalysisConfig,
 } from "../../schedule-analysis-core/src";
@@ -47,9 +48,11 @@ export function buildNearCriticalProjection(
     .filter(
       ({ activity, threshold }) =>
         threshold !== null &&
-        activity.totalFloatHours! >
-          config.criticalFloatThresholdHours &&
-        activity.totalFloatHours! <= threshold,
+        sourceFloatCriticality(
+          model,
+          activity,
+          config,
+        ) === "near_critical",
     )
     .map(({ activity, threshold }) => ({
       activityId: activity.activityId,
