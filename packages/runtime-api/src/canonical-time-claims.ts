@@ -78,18 +78,31 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
     const c=byClaim.get(record.claimId);if(c)c.evidenceRefs.push(evref(r));else diagnostics.push('ORPHAN_DETERMINATION:'+record.determinationId);
     notices.push({noticeId:record.sourceLetter||record.determinationId,kind:'determination',eventId:c?.eventIds[0]??null,claimId:record.claimId,actualIssuedAt:record.determinationDate,actualReceivedAt:null,plannedAt:null,subject:'Engineer determination '+record.determinationId,clauseIdentifiers:[],evidenceRefs:[evref(r,'notice')],diagnostics:[]});
   }
-  const superseded=new Set<string>();
-  for(const d of determinations.filter(d=>d.state==='source_immutable'&&d.supersedes)) {
-    const prior=determinationById.get(d.supersedes!);
-    if(!prior || prior.claimId!==d.claimId || !d.determinationDate || !prior.determinationDate || d.determinationDate<=prior.determinationDate) {
-      diagnostics.push('INVALID_DETERMINATION_SUPERSESSION:'+d.determinationId); d.state='conflicted';
-    } else superseded.add(prior.determinationId);
+  // Validate lineage once, but resolve supersession separately for each reporting cutoff.
+  for (const d of determinations.filter(d => d.state === 'source_immutable' && d.supersedes)) {
+    const prior = determinationById.get(d.supersedes!);
+    if (!prior || prior.claimId !== d.claimId || !d.determinationDate || !prior.determinationDate ||
+        d.determinationDate <= prior.determinationDate) {
+      diagnostics.push('INVALID_DETERMINATION_SUPERSESSION:' + d.determinationId);
+      d.state = 'conflicted';
+    }
   }
-  const eligible=determinations.filter(d=>d.state==='source_immutable'&&!superseded.has(d.determinationId));
-  const conflict=determinations.some(d=>d.state==='conflicted');
-  const registerDeterminationDays=conflict?null:sumKnown(eligible.map(d=>d.awardedDays));
-  const effective=eligible.filter(d=>dataDateIso!==null&&d.determinationDate!==null&&d.determinationDate<=dataDateIso);
-  const effectiveDeterminationDays=conflict||dataDateIso===null||eligible.some(d=>d.determinationDate===null)?null:effective.length?sumKnown(effective.map(d=>d.awardedDays)):eligible.length?0:null;
+  function population(cutoff: string | null) {
+    const dated = determinations.filter(d => cutoff === null ||
+      (d.determinationDate !== null && d.determinationDate <= cutoff));
+    const accepted = dated.filter(d => d.state === 'source_immutable');
+    const superseded = new Set(accepted.map(d => d.supersedes).filter(Boolean));
+    return accepted.filter(d => !superseded.has(d.determinationId));
+  }
+  const eligible = population(null);
+  const registerDeterminationDays = determinations.some(d => d.state === 'conflicted') ? null :
+    sumKnown(eligible.map(d => d.awardedDays));
+  const effective = dataDateIso === null ? [] : population(dataDateIso);
+  const asOfConflict = determinations.some(d => d.state === 'conflicted' &&
+    (d.determinationDate === null || dataDateIso !== null && d.determinationDate <= dataDateIso));
+  const effectiveDeterminationDays = asOfConflict || dataDateIso === null ||
+    eligible.some(d => d.determinationDate === null) ? null :
+    effective.length ? sumKnown(effective.map(d => d.awardedDays)) : eligible.length ? 0 : null;
   const amendments:AmendmentTimeRecord[]=[];
   for(const contract of state.contractDocuments.filter(c=>c.role==='amendment')){
     const doc=state.evidenceDocuments.find(d=>d.documentId===contract.documentId);if(!doc||!['active','additive','candidate'].includes(doc.basisState))continue;
@@ -105,7 +118,10 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
       receipt:{documentId:doc.documentId,sourceHash:doc.sourceHashSha256,revision:doc.linkedArtifactId??doc.sourceHashSha256,locator:section?.startPage?'page:'+section.startPage:section?.sectionKey??'contract',basisState:doc.basisState,authority:'source_approved'}});
   }
   const applicable=amendments.filter(a=>a.effectiveDate!==null&&dataDateIso!==null&&a.effectiveDate<=dataDateIso).sort((a,b)=>a.effectiveDate!.localeCompare(b.effectiveDate!));
-  const amendment=applicable.at(-1); const sameEffective=applicable.filter(a=>a.effectiveDate===amendment?.effectiveDate);
+  const officialApplicable = applicable.filter(a => a.state === 'official');
+  const selection = officialApplicable.length ? officialApplicable : applicable;
+  const amendment=selection.at(-1); const sameEffective=selection.filter(a=>a.effectiveDate===amendment?.effectiveDate);
+  if (officialApplicable.length && applicable.some(a => a.state === 'candidate')) diagnostics.push('CANDIDATE_AMENDMENT_NOT_APPLIED');
   const amendmentConflict=new Set(sameEffective.map(a=>a.completionIso)).size>1;
   let contractTimeBasis:ContractTimeBasis|null=null;
   if(amendment&&!amendmentConflict){
@@ -131,6 +147,8 @@ export function synchronizeCanonicalTimeClaims(state:ProjectRuntimeState,force=f
       state.delayEventHistory.push({eventId:event.eventId,version:(last?.version??0)+1,fingerprint,effectiveAt:new Date().toISOString(),supersedesVersion:last?.version??null,evidenceRevisionId:model.delayClaims!.evidenceRevisionId,snapshot:JSON.parse(JSON.stringify(event))});
     }
   }
+  if (!model.delayClaims && existing?.evidenceRevisionId.startsWith('canonical-evidence:')) state.controls.delayClaims = null;
   const existingTime=state.controls.contractTimeBasis;
+  if (!model.contractTimeBasis && existingTime?.overlapResolution && existingTime.sourceRefs.length && existingTime.sourceRefs.every(r => r.startsWith('evidence-document:'))) state.controls.contractTimeBasis = null;
   if(model.contractTimeBasis && (!existingTime||(existingTime.sourceRefs.length>0&&existingTime.sourceRefs.every(r=>r.startsWith('evidence-document:')))))state.controls.contractTimeBasis=model.contractTimeBasis;
 }

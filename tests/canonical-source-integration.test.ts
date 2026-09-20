@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { dateValue, numberValue, sumKnown, ratio, sourceTables, fact } from '../packages/truth-kernel/src';
 import { RuntimeProjectStore } from '../packages/runtime-api/src/project-state';
 import { evidenceFamily } from '../packages/runtime-api/src/evidence-control';
-import { canonicalTimeClaims, projectDataDate } from '../packages/runtime-api/src/canonical-time-claims';
+import { canonicalTimeClaims, projectDataDate, synchronizeCanonicalTimeClaims } from '../packages/runtime-api/src/canonical-time-claims';
 import { canonicalResources } from '../packages/runtime-api/src/canonical-resource-runtime';
 import { commercialCanonical } from '../packages/runtime-api/src/commercial-canonical';
 import { identifyEvidenceDocument } from '../packages/runtime-api/src/document-identification';
@@ -126,7 +126,7 @@ test('missing cost evidence and unknown tax basis do not manufacture EVM ratios'
   const {state,csvDoc}=fixture(t);csvDoc('Metric,Value,Unit,Status,As Of\nEV,200,USD,Source,2026-08-31\nAC,250,USD,Source,2026-08-31','cost_evm_report');const p=commercialCanonical(state).costPosition[0]!;assert.equal(p.values.cpi,null);assert.ok(p.diagnostics.includes('TAX_BASIS_UNKNOWN_DERIVED_METRICS_WITHHELD'));
 });
 test('payment application, assessment, certification and receipts are never conflated',t=>{
-  const {state,csvDoc}=fixture(t);csvDoc('Certificate No,Period End,Gross Work,Variations,Retention,Advance Recovery,Net Certified,VAT Basis,Status,Currency\nIPC1,2026-08-31,1000,100,50,20,1030,Exclusive,Paid,AED','payment_certificates');const p=commercialCanonical(state).payments[0]!;
+  const {state,csvDoc}=fixture(t);csvDoc('Certificate No,Period End,Gross Work,Variations,Retention,Advance Recovery,Other Deductions,Net Certified,VAT Basis,Status,Currency\nIPC1,2026-08-31,1000,100,50,20,0,1030,Exclusive,Paid,AED','payment_certificates');const p=commercialCanonical(state).payments[0]!;
   assert.equal(p.amounts.applicationAmount.value,null);assert.equal(p.amounts.engineerAssessedAmount.value,null);assert.equal(p.amounts.employerCertifiedAmount.value,null);assert.equal(p.amounts.paidAmount.value,null);assert.equal(p.amounts.outstandingAmount.value,null);assert.equal(p.amounts.netCertifiedAmount.value,1030);assert.equal(p.reconciliation,'matched');
 });
 test('currency inheritance requires an explicit applicable contract statement and receipt',t=>{
@@ -156,4 +156,69 @@ test('amendment overlap cannot add the full determination total twice',t=>{
 test('commercial and EOT user views expose stage separation and double-counting safeguards',()=>{
   const html=cmengUatHtml();for(const term of ['commercial-cost-position','commercial-payment-register','Payment stages and certificates','CPI scenario EAC','Amendment and determination reconciliation','Weekly resource utilization detail'])assert.ok(html.includes(term),term);
   const script=html.match(/<script>([\s\S]*?)<\/script>/)?.[1];assert.ok(script);assert.doesNotThrow(()=>new Function(script));
+});
+
+
+test('future supersession does not remove an award from an earlier reporting cutoff', t => {
+  const {state,csvDoc}=fixture(t);
+  csvDoc('Determination ID,Claim ID,Awarded EOT Days,Determination Date,Status,Authority,Source Letter,Governance State,Supersedes\nD1,C1,10,2026-07-01,Determined,Engineer,L1,Immutable,\nD2,C1,15,2026-09-01,Determined,Engineer,L2,Immutable,D1','delay_eot_claims_register');
+  const model=canonicalTimeClaims(state);
+  assert.equal(model.registerDeterminationDays,15);
+  assert.equal(model.effectiveDeterminationDays,10);
+  assert.equal(model.futureDeterminationCount,1);
+});
+test('a later candidate amendment does not displace the official contractual date', t => {
+  const {state}=fixture(t);amendment(state);
+  const doc=structuredClone(state.evidenceDocuments[0]!);doc.documentId='PENDING';doc.basisState='candidate';state.evidenceDocuments.push(doc);
+  const contract=structuredClone(state.contractDocuments[0]!);contract.documentId='PENDING';
+  contract.result.sections[0]!.text='Effective Date 20 August 2026\nRevised Contractual Completion 31 May 2030\nEOT Granted 151 calendar days';
+  state.contractDocuments.push(contract);state.version++;
+  const model=canonicalTimeClaims(state);
+  assert.equal(model.contractTimeBasis?.contractualCompletionIso,'2030-03-31');
+  assert.equal(model.contractTimeBasis?.contractualCompletionState,'official');
+  assert.ok(model.diagnostics.includes('CANDIDATE_AMENDMENT_NOT_APPLIED'));
+});
+test('source-derived current facts clear after evidence is no longer active while immutable history remains', t => {
+  const {state,csvDoc}=fixture(t);const doc=csvDoc(claims,'delay_eot_claims_register');amendment(state);
+  synchronizeCanonicalTimeClaims(state,true);assert.equal(state.controls.delayClaims?.events.length,1);
+  const history=structuredClone(state.delayEventHistory);
+  doc.basisState='historical';state.evidenceDocuments.find(d=>d.documentId==='AMD')!.basisState='historical';state.version++;
+  synchronizeCanonicalTimeClaims(state,true);
+  assert.equal(state.controls.delayClaims,null);assert.equal(state.controls.contractTimeBasis,null);
+  assert.deepEqual(state.delayEventHistory,history);
+});
+const paymentColumns=['Certificate No','Period End','Gross Work','Variations','Retention','Advance Recovery','Other Deductions','Net Certified','VAT Basis','Currency','Paid Amount','Paid Date','Payment Reference','Paid Amount Basis','Payment Source Status','Outstanding Amount'];
+function paymentFixture(t:Parameters<typeof fixture>[0], overrides:Record<string,string>={}) {
+  const fx=fixture(t);
+  const row:Record<string,string>={'Certificate No':'IPC1','Period End':'2026-08-31','Gross Work':'1000','Variations':'100','Retention':'50','Advance Recovery':'20','Other Deductions':'10','Net Certified':'1020','VAT Basis':'Exclusive','Currency':'AED','Paid Amount':'200','Paid Date':'2026-08-31','Payment Reference':'RECEIPT1','Paid Amount Basis':'cumulative','Payment Source Status':'posted','Outstanding Amount':'820',...overrides};
+  const headers=[...new Set([...paymentColumns,...Object.keys(overrides)])];
+  fx.csvDoc(headers.join(',')+'\n'+headers.map(h=>row[h]??'').join(','),'payment_certificates');
+  return commercialCanonical(fx.state).payments[0]!;
+}
+test('certificate reconciliation includes explicitly recorded other deductions', t => {
+  const p=paymentFixture(t);assert.equal(p.reconciliation,'matched');
+  assert.equal(p.calculatedOutstandingAmount.value,820);assert.equal(p.calculatedOutstandingAmount.state,'official');
+});
+test('unprovided deductions stay unknown and cannot yield a matched certificate', t => {
+  const p=paymentFixture(t,{'Other Deductions':''});assert.equal(p.reconciliation,'unresolved');
+});
+test('net inclusive tax is added only to explicitly exclusive components with a tax amount', t => {
+  const p=paymentFixture(t,{'Net Certified':'1122','Net VAT Basis':'Inclusive','Tax Amount':'102','Paid VAT Basis':'Inclusive','Outstanding Amount':'922'});
+  assert.equal(p.reconciliation,'matched');assert.equal(p.calculatedOutstandingAmount.value,922);
+});
+test('a tax-basis transition without tax evidence remains unresolved', t => {
+  const p=paymentFixture(t,{'Net VAT Basis':'Inclusive'});assert.equal(p.reconciliation,'unresolved');
+});
+test('calculated outstanding never overwrites a contradictory source figure', t => {
+  const p=paymentFixture(t,{'Outstanding Amount':'900'});
+  assert.equal(p.amounts.outstandingAmount.value,900);assert.equal(p.calculatedOutstandingAmount.value,820);
+  assert.equal(p.calculatedOutstandingAmount.state,'conflicted');
+});
+for(const [name,override] of Object.entries({
+  undated:{'Paid Date':''},future:{'Paid Date':'2026-09-01'},unallocated:{'Paid Amount Basis':'incremental'},
+  unapproved:{'Payment Source Status':'pending'},missingReceipt:{'Payment Reference':''},
+  differentCurrency:{'Paid Currency':'USD'},unknownTax:{'VAT Basis':''},
+})) test('cash balance does not become official from '+name+' payment evidence', t => {
+  const p=paymentFixture(t,override);assert.equal(p.amounts.paidAmount.value,200);
+  assert.equal(p.calculatedOutstandingAmount.value,null);
 });

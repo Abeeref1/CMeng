@@ -1,4 +1,5 @@
 import { cell, has, norm, numberValue, dateValue, governedTables, sumKnown, ratio, round, type SourceReceipt, type SourceRow, type FactState } from '../../truth-kernel/src';
+import { reconcilePaymentEvidence } from './payment-reconciliation';
 import { canonicalTimeClaims, projectDataDate } from './canonical-time-claims';
 import type { ProjectRuntimeState, ModuleRuntimeResult } from './project-state-types';
 export interface CommercialMoney {
@@ -10,6 +11,8 @@ export interface PaymentStageRecord {
   paymentId: string; periodEnd: string | null; sourceStatus: string;
   amounts: Record<'applicationAmount'|'engineerAssessedAmount'|'employerCertifiedAmount'|'grossWork'|'variations'|'retentionDeduction'|'advanceRecovery'|'otherDeduction'|'taxAmount'|'netCertifiedAmount'|'paidAmount'|'outstandingAmount',CommercialMoney>;
   receipt: SourceReceipt; reconciliation: 'matched'|'conflicted'|'unresolved';
+  diagnostics: string[]; calculatedOutstandingAmount: CommercialMoney;
+  paymentDate: string | null; paymentReference: string | null;
 }
 export interface CommercialVariation { variationId:string; description:string; approvalDate:string|null; status:string; authority:string|null; approvedAmount:CommercialMoney; receipt:SourceReceipt }
 export interface CanonicalCommercialModel {
@@ -48,14 +51,8 @@ export function commercialCanonical(state:ProjectRuntimeState):CanonicalCommerci
    const asOf=dateValue(cell(r,'period end')),currency=cell(r,'currency')||inheritedCurrency;
    const amounts=Object.fromEntries(moneyNames.map(k=>[k,money(r,cell(r,...paymentHeaders[k]),k,currency,asOf)])) as PaymentStageRecord['amounts'];
    if(!cell(r,'currency')&&currency) for(const a of Object.values(amounts)) a.receipts.push(...currencyReceipts.filter((v,i,all)=>all.findIndex(x=>x.documentId===v.documentId)===i));
-   // Omitted deductions are unknown, not assumed zero. Arithmetic below is a consistency check on explicitly reported components only.
-   const required=[amounts.grossWork.value,amounts.variations.value,amounts.retentionDeduction.value,amounts.advanceRecovery.value,amounts.netCertifiedAmount.value];
-   const candidate=required.every(v=>v!==null)?amounts.grossWork.value!+amounts.variations.value!-amounts.retentionDeduction.value!-amounts.advanceRecovery.value!:null;
-   const reconciliation=candidate===null?'unresolved':Math.abs(candidate-amounts.netCertifiedAmount.value!)>0.01?'conflicted':'matched';
-   if(amounts.paidAmount.value!==null&&amounts.netCertifiedAmount.value!==null&&currency&&amounts.netCertifiedAmount.taxBasis!=='unknown'){
-     amounts.outstandingAmount={...amounts.netCertifiedAmount,amountBasis:'net certified less recorded paid amount',value:round(amounts.netCertifiedAmount.value-amounts.paidAmount.value,6)};
-   }
-   payments.push({paymentId:cell(r,'certificate no'),periodEnd:asOf,sourceStatus:cell(r,'status'),amounts,receipt:r.receipt,reconciliation});
+   const reconciliation = reconcilePaymentEvidence(r, amounts, dataDateIso);
+   payments.push({paymentId:cell(r,'certificate no'),periodEnd:asOf,sourceStatus:cell(r,'status'),amounts,receipt:r.receipt,...reconciliation});
   }
   if(has(t,'variation id','status'))for(const r of t.rows){
    const amountHeader=t.headers.find(h=>/^approved amount(?: [a-z]{3})?$/.test(h));if(!amountHeader)continue;
