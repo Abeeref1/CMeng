@@ -53,6 +53,43 @@ try {
   const before = await json(prefix + '/evidence/documents');
   const sourceBefore = evidenceDigest(before.documents);
   summary.documentCount = before.documentCount;
+  const sourceClass = document => {
+    const value = String(document.sourceRelativePath ?? document.sourceFilename ?? "")
+      .split(/[\\/]/).at(-1)?.toUpperCase() ?? "";
+    for (const label of ["SCH01","SCH02","PDB","CL01","EOT01","EOT02","EOT03","L01"]) {
+      if (value.startsWith(label)) return label;
+    }
+    return null;
+  };
+  const mediaClass = document => {
+    const value = String(document.mediaType ?? "") + " " + String(document.sourceFilename ?? "");
+    if (/csv/i.test(value)) return "csv";
+    if (/spreadsheet|excel|xlsx|xlsm/i.test(value)) return "excel";
+    if (/pdf/i.test(value)) return "pdf";
+    if (/wordprocessing|docx/i.test(value)) return "docx";
+    return "other";
+  };
+  summary.sourceInventory = before.documents
+    .map(document => ({
+      sourceClass: sourceClass(document),
+      category: document.category ?? null,
+      documentType: document.documentType ?? null,
+      basisState: document.basisState ?? null,
+      mediaClass: mediaClass(document),
+      parserState: document.parserState ?? null,
+      mapping: document.mapping ? {
+        method: document.mapping.method ?? null,
+        linkedActivityField: document.mapping.linkedActivityField ?? null,
+        linkedActivityCount: document.mapping.linkedActivityCount ?? null,
+        mappedActivityCount: document.mapping.mappedActivityCount ?? null,
+        unmappedActivityCount: document.mapping.unmappedActivityCount ?? null,
+        coveragePercent: document.mapping.coveragePercent ?? null
+      } : null,
+      assertionMetrics: Array.isArray(document.assertions)
+        ? [...new Set(document.assertions.map(item => item.metric).filter(Boolean))].sort()
+        : []
+    }))
+    .filter(item => item.sourceClass !== null);
   const module = key => json(prefix + '/schedule/modules/' + key);
   const allModuleKeys = [
     'pmo-analysis','schedule-analytics','activity-analytics','lookahead-schedule',
