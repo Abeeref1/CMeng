@@ -499,13 +499,45 @@ function roleFocusItems(key,role){
       "program-director":["Impact on programme milestones","Contingency / interface consumption","Downstream exposure"],
       executive:["Commitment credibility","Schedule exposure","Executive recovery or stakeholder decision"]
     },
-    "Claims & Commercial":{
-      overall:["Governed contractual/claim position","Time and commercial exposure","Event, notice, entitlement and evidence chain"],
+    "Claims & Time":{
+      overall:["Governed claim/event/time position","Schedule movement and entitlement layers","Event, notice, determination and evidence chain"],
       planning:["Schedule-event linkage","Window movement and time impact","Causation evidence and chronology"],
       controls:["Claim status, notice and authority","Observed vs attributable movement","Exposure, gaps and required response"],
       "project-director":["Delivery / entitlement exposure","Negotiation and response priority","Decision, owner and deadline"],
-      "program-director":["Cross-project/contract interface exposure","Programme time and commercial consequence","Strategic claim coordination"],
-      executive:["Material time/commercial exposure","Stakeholder / contractual risk","Executive decision or escalation"]
+      "program-director":["Cross-project/contract interface exposure","Programme time consequence","Strategic claim coordination"],
+      executive:["Material time exposure","Stakeholder / contractual risk","Executive decision or escalation"]
+    },
+    "Commercial Foundation":{
+      overall:["Governed contract and money truth","Authority, precedence and mapping","Complete source trace and missing-value state"],
+      planning:["Schedule/contract date alignment","WBS/CBS interfaces","Source basis and mapping assumptions"],
+      controls:["Budget / certified / paid reconciliation","CBS and payment mapping","Commercial evidence gaps"],
+      "project-director":["Contract value and payment exposure","Commercial obligations requiring action","Delivery impact and decision"],
+      "program-director":["Programme commercial commitments","Cross-package exposure and interfaces","Strategic contract changes"],
+      executive:["Contract value and cash exposure","Material commercial exceptions","Executive approval / escalation"]
+    },
+    "Commercial Control":{
+      overall:["Current cost/payment/variation position","Performance and forecast variance","Full registers, methods and source evidence"],
+      planning:["Cost/schedule alignment","Time impact and WBS/CBS mapping","Method and data-date integrity"],
+      controls:["EVM and forecast variance","Cash/certification/commitment reconciliation","Corrective commercial action"],
+      "project-director":["Cost and payment threats to delivery","Variation / LD / retention exposure","Decision, owner and deadline"],
+      "program-director":["Programme-level commercial exposure","Package and funding interfaces","Strategic contractual action"],
+      executive:["Budget / EAC / cash position","Material exposure and downside","Executive decision"]
+    },
+    "Commercial Assurance":{
+      overall:["Settlement / risk truth","Readiness and reconciliation","Evidence gates and unresolved exposure"],
+      planning:["Schedule evidence supporting commercial position","Risk/time integration","Mapping and method integrity"],
+      controls:["Closeout and risk reconciliation","Forecast / EVM / tender assurance","Governance exceptions"],
+      "project-director":["Settlement and risk exposure","Actions blocking closeout or delivery","Leadership decisions"],
+      "program-director":["Programme risk and closeout interfaces","Cross-project commercial consequence","Strategic assurance"],
+      executive:["Final exposure / risk range","Material unresolved liabilities","Executive approval"]
+    },
+    "Commercial Governance":{
+      overall:["Governed supporting ledgers","Controls, audit and reconciliation","Evidence lineage and mutation trace"],
+      planning:["WBS/CBS/time interfaces","Allocation and time-phasing basis","Data lineage"],
+      controls:["Commitment / accrual / reserve integrity","FX/tax/allocation governance","Reconciliation and audit exceptions"],
+      "project-director":["Funding and contractual governance issues","Actions / approvals required","Delivery consequence"],
+      "program-director":["Programme reserve / funding / FX exposure","Shared commercial controls","Strategic governance"],
+      executive:["Cash/funding/reserve exposure","Audit and currency risk","Executive authorization"]
     },
     "Project Controls":{
       overall:["Complete current position","Exceptions and consequences","Full evidence and calculation basis"],
