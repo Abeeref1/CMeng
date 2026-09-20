@@ -286,6 +286,62 @@ function canonicalResourceSupportSummary(
   };
 }
 
+function calendarDaysBetween(
+  fromIso: string | null,
+  toIso: string | null,
+): number | null {
+  if (!fromIso || !toIso) return null;
+  const from = Date.parse(fromIso);
+  const to = Date.parse(toIso);
+  if (
+    !Number.isFinite(from) ||
+    !Number.isFinite(to)
+  ) {
+    return null;
+  }
+  return Number(
+    (
+      (to - from) /
+      86_400_000
+    ).toFixed(6),
+  );
+}
+
+function projectCompletionMovement(
+  baseline:
+    ProjectRuntimeState["schedules"][number] |
+    null,
+  current:
+    ProjectRuntimeState["schedules"][number],
+  generatedAt: string,
+): {
+  baselineCompletionIso: string | null;
+  currentCompletionIso: string | null;
+  movementDays: number | null;
+} {
+  const baselineCompletionIso =
+    baseline
+      ? sourceOnlyForecast(
+          baseline.revision.model,
+          generatedAt,
+        ).sourceForecastCompletionIso
+      : null;
+  const currentCompletionIso =
+    sourceOnlyForecast(
+      current.revision.model,
+      generatedAt,
+    ).sourceForecastCompletionIso;
+  return {
+    baselineCompletionIso,
+    currentCompletionIso,
+    movementDays:
+      calendarDaysBetween(
+        baselineCompletionIso,
+        currentCompletionIso,
+      ),
+  };
+}
+
 function blocked(
   key: string,
   reason: string,
@@ -1881,11 +1937,30 @@ function buildBundle(
           versions.windows,
       },
     );
+  const fullCompletionMovement =
+    projectCompletionMovement(
+      controlledBaseline,
+      current,
+      generatedAt,
+    );
   modules.set(
     "windows-analysis",
     available(
       "windows-analysis",
-      windows,
+      {
+        ...windows,
+        analyticalWindowMovementLabel:
+          "gross positive analytical movement across revision windows",
+        projectCompletionMovementDays:
+          fullCompletionMovement
+            .movementDays,
+        controlledBaselineCompletionIso:
+          fullCompletionMovement
+            .baselineCompletionIso,
+        currentProgrammeCompletionIso:
+          fullCompletionMovement
+            .currentCompletionIso,
+      },
       ["schedule revision history"],
       ordered.length >= 2
         ? delayModel
@@ -5789,12 +5864,29 @@ function buildSpecialistModuleFast(
         key ===
         "windows-analysis"
       ) {
+        const completionMovement =
+          projectCompletionMovement(
+            controlledBaseline,
+            current,
+            generatedAt,
+          );
         result = available(
           key,
           {
             ...windows,
             movementPresentationBasis:
               "source_forecast_then_schedule_boundary",
+            analyticalWindowMovementLabel:
+              "gross positive analytical movement across revision windows",
+            projectCompletionMovementDays:
+              completionMovement
+                .movementDays,
+            controlledBaselineCompletionIso:
+              completionMovement
+                .baselineCompletionIso,
+            currentProgrammeCompletionIso:
+              completionMovement
+                .currentCompletionIso,
             revisionLabels:
               context.revisionLabels,
           },
