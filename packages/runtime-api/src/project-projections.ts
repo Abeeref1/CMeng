@@ -3242,6 +3242,10 @@ function buildPlanningModuleFast(
           independentForecast.complete
             ? "independent_cpm_available"
             : "not_established",
+        interpretation:
+          independentForecast.complete
+            ? "Source float classifications are shown alongside a valid independent CPM calculation."
+            : "Source total-float classifications remain visible, but CMeng does not call them an independently established critical/driving path because CPM integrity is unresolved.",
       },
       [],
       independentForecast.complete
