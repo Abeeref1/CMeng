@@ -101,14 +101,34 @@ export function sourceFloatCriticality(
 ): "critical" | "near_critical" | "noncritical" | "unknown" {
   if (activity.totalFloatHours === null) return "unknown";
 
-  if (activity.totalFloatHours <= config.criticalFloatThresholdHours) {
+  const boundaryMode =
+    config.criticalBoundaryMode ??
+    "critical_includes_threshold";
+  const isCritical =
+    boundaryMode ===
+      "near_critical_includes_threshold"
+      ? activity.totalFloatHours <
+        config.criticalFloatThresholdHours
+      : activity.totalFloatHours <=
+        config.criticalFloatThresholdHours;
+
+  if (isCritical) {
     return "critical";
   }
 
   const near = activityNearCriticalThresholdHours(model, activity, config);
   if (near === null) return "unknown";
 
-  return activity.totalFloatHours <= near
+  const lowerBoundSatisfied =
+    boundaryMode ===
+      "near_critical_includes_threshold"
+      ? activity.totalFloatHours >=
+        config.criticalFloatThresholdHours
+      : activity.totalFloatHours >
+        config.criticalFloatThresholdHours;
+
+  return lowerBoundSatisfied &&
+    activity.totalFloatHours <= near
     ? "near_critical"
     : "noncritical";
 }
