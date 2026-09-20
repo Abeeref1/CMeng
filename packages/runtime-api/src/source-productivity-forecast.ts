@@ -252,7 +252,13 @@ export function sourceProductivityForecastEvidence(
       .find((value): value is string => value !== null) ?? null;
 
     for (const assertion of document.assertions) {
-      if (assertion.metric !== "source_productivity_forecast_completion") {
+      const productivitySpecific =
+        assertion.metric === "source_productivity_forecast_completion";
+      const contextualCompletion =
+        assertion.metric === "completion_date" &&
+        /productivity/i.test(assertion.sourceText ?? "") &&
+        /(forecast|completion|finish|projected)/i.test(assertion.sourceText ?? "");
+      if (!productivitySpecific && !contextualCompletion) {
         continue;
       }
       const completionIso =
