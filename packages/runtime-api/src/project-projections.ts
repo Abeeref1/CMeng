@@ -382,6 +382,47 @@ function buildBundle(
         ],
       ),
     );
+  const controlledBaselineCompletionCandidates =
+    (
+      controlledBaseline
+        ?.revision.model
+        .activities ??
+      []
+    )
+      .map(
+        (activity) => ({
+          activityId:
+            activity.activityId,
+          dateIso:
+            controlledBaselineFinish(
+              activity,
+            ),
+        }),
+      )
+      .filter(
+        (
+          item,
+        ): item is {
+          activityId: string;
+          dateIso: string;
+        } =>
+          item.dateIso !== null &&
+          Number.isFinite(
+            Date.parse(
+              item.dateIso,
+            ),
+          ),
+      )
+      .sort(
+        (a, b) =>
+          a.dateIso.localeCompare(
+            b.dateIso,
+          ),
+      );
+  const controlledBaselineCompletion =
+    controlledBaselineCompletionCandidates
+      .at(-1) ??
+    null;
   const controlledBaselineFinish =
     (
       activity:
@@ -531,6 +572,66 @@ function buildBundle(
           result: {
             ...scheduleAnalyticsRaw
               .result,
+            completionBases:
+              scheduleAnalyticsRaw
+                .result
+                .completionBases.map(
+                  (basis) =>
+                    basis.basis ===
+                      "programme"
+                      ? {
+                          ...basis,
+                          dateIso:
+                            controlledBaselineCompletion
+                              ?.dateIso ??
+                            null,
+                          activityId:
+                            controlledBaselineCompletion
+                              ?.activityId ??
+                            null,
+                          state:
+                            controlledBaselineCompletionCandidates
+                              .length ===
+                            0
+                              ? "missing" as const
+                              : controlledBaselineCompletionCandidates
+                                    .length ===
+                                  controlledBaseline
+                                    .revision.model
+                                    .activities
+                                    .length
+                                ? "available" as const
+                                : "partial" as const,
+                          coveragePercent:
+                            controlledBaseline
+                              .revision.model
+                              .activities
+                              .length
+                              ? Number(
+                                  (
+                                    (
+                                      controlledBaselineCompletionCandidates
+                                        .length /
+                                      controlledBaseline
+                                        .revision.model
+                                        .activities
+                                        .length
+                                    ) *
+                                    100
+                                  ).toFixed(4),
+                                )
+                              : null,
+                          method:
+                            "controlled baseline programme completion",
+                          sourceRefs: [
+                            "schedule-revision:" +
+                              controlledBaseline
+                                .revision
+                                .revisionId,
+                          ],
+                        }
+                      : basis,
+                ),
             finishVariance: {
               ...scheduleAnalyticsRaw
                 .result
@@ -1993,31 +2094,44 @@ function buildBundle(
     delayClaims &&
     eotAssessment
   ) {
+    const pmoAnalysis =
+      buildPmoAnalysisProjection({
+        generatedAt,
+        producerVersion:
+          versions.pmo,
+        evidenceRevisionId:
+          delayModel
+            ?.evidenceRevisionId ??
+          current.revision
+            .revisionId,
+        scheduleAnalytics,
+        progressReport,
+        revisionTrend,
+        resourceUtilization,
+        manhourScurve,
+        quantityScurve,
+        independentForecast,
+        challengeContract,
+        noticesClaims,
+        delayClaims,
+        eotAssessment,
+      });
     modules.set(
       "pmo-analysis",
       available(
         "pmo-analysis",
-        buildPmoAnalysisProjection({
-          generatedAt,
-          producerVersion:
-            versions.pmo,
-          evidenceRevisionId:
-            delayModel
-              ?.evidenceRevisionId ??
-            current.revision
-              .revisionId,
-          scheduleAnalytics,
-          progressReport,
-          revisionTrend,
-          resourceUtilization,
-          manhourScurve,
-          quantityScurve,
-          independentForecast,
-          challengeContract,
-          noticesClaims,
-          delayClaims,
-          eotAssessment,
-        }),
+        {
+          ...pmoAnalysis,
+          programmeBaselineCompletionIso:
+            controlledBaselineCompletion
+              ?.dateIso ??
+            null,
+          programmeBaselineRevisionId:
+            controlledBaseline
+              ?.revision
+              .revisionId ??
+            null,
+        },
         [
           "schedule",
           "resources",
@@ -2046,6 +2160,15 @@ function buildBundle(
               ?.evidenceRevisionId ??
             current.revision
               .revisionId,
+          programmeBaselineCompletionIso:
+            controlledBaselineCompletion
+              ?.dateIso ??
+            null,
+          programmeBaselineRevisionId:
+            controlledBaseline
+              ?.revision
+              .revisionId ??
+            null,
           synthesisState:
             "partial_cross_domain",
           schedule: {
