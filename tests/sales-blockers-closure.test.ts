@@ -277,6 +277,35 @@ test("P1-1 includes legacy SCH02 control evidence by verified source identity", 
   );
 });
 
+test("P1-1 governed watchlist count overrides a generic hour-equivalent threshold when it proves one working-day rule", (t) => {
+  const dir = mkdtempSync(join(tmpdir(), "cmeng-p1-1-count-over-hours-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const source = storedDocument(
+    dir,
+    "SCH02",
+    "SCH02_Schedule_Metrics.csv",
+    "schedule",
+    "supporting_document",
+    [
+      "Metric,Value,Definition,As Of",
+      "Near Critical Threshold Hours,40,,2026-08-31",
+      "Near Critical Watchlist,1,,2026-08-31",
+    ].join("\n"),
+  );
+  const state = stateWithDocuments([source]);
+  const basis = projectScheduleControlBasis(state);
+  assert.equal(basis.state, "official");
+  assert.equal(basis.nearCriticalExplicitHours, 40);
+  assert.equal(basis.nearCriticalSourceCount, 1);
+  assert.equal(basis.nearCriticalWorkingDays, 5);
+  assert.equal(basis.nearCriticalThresholdMethod, "source_count_reconciliation");
+  assert.ok(
+    basis.diagnostics.includes(
+      "SOURCE_COUNT_WORKING_DAY_RECONCILIATION_TAKES_PRECEDENCE_OVER_GENERIC_HOUR_EQUIVALENT",
+    ),
+  );
+});
+
 test("P1-2 and P1-3 keep programme Data Date and four forecast positions source-distinct", (t) => {
   const dir = mkdtempSync(join(tmpdir(), "cmeng-p1-23-"));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
