@@ -3960,6 +3960,86 @@ const independentForecastCache =
     >
   >();
 
+const specialistChallengeCache =
+  new Map<
+    string,
+    {
+      version: number;
+      forecast:
+        ReturnType<
+          typeof buildIndependentForecastProjection
+        >;
+      delivery:
+        ReturnType<
+          typeof buildDeliveryChallengeProjection
+        >;
+    }
+  >();
+
+function specialistChallengeContext(
+  state: ProjectRuntimeState,
+  model:
+    ProjectRuntimeState["schedules"][number]["revision"]["model"],
+  generatedAt: string,
+) {
+  const cached =
+    specialistChallengeCache.get(
+      state.projectId,
+    );
+  if (
+    cached &&
+    cached.version ===
+      state.version
+  ) {
+    return cached;
+  }
+
+  const forecast =
+    sourceOnlyForecast(
+      model,
+      generatedAt,
+    );
+  const resourceModel =
+    state.resourcesByRevision.get(
+      model.sourceRevisionId,
+    ) ??
+    null;
+  const delivery =
+    buildDeliveryChallengeProjection({
+      generatedAt,
+      producerVersion:
+        "specialist-challenge-fast-v1",
+      schedule: model,
+      quantities:
+        state.quantities,
+      resources:
+        resourceModel &&
+        resourceModel
+          .assignments.length > 0
+          ? resourceModel
+          : null,
+      independentForecast:
+        forecast,
+      contractTimeBasis:
+        state.controls
+          .contractTimeBasis,
+      submittedManpowerPlan:
+        state.submittedManpowerPlan,
+    });
+
+  const context = {
+    version:
+      state.version,
+    forecast,
+    delivery,
+  };
+  specialistChallengeCache.set(
+    state.projectId,
+    context,
+  );
+  return context;
+}
+
 function sourceOnlyForecast(
   model:
     ProjectRuntimeState["schedules"][number]["revision"]["model"],
@@ -5262,6 +5342,46 @@ function buildSpecialistModuleFast(
     return null;
   }
 
+  const challengeContext =
+    specialistChallengeContext(
+      state,
+      model,
+      generatedAt,
+    );
+  const challengeModules =
+    new Map<
+      string,
+      ModuleRuntimeResult
+    >([
+      [key, result],
+    ]);
+  applyUniversalModuleChallenges({
+    state,
+    generatedAt,
+    model,
+    independentForecast:
+      key ===
+        "independent-forecast" &&
+      result.data &&
+      typeof result.data ===
+        "object" &&
+      "projectionKey" in
+        result.data
+        ? result.data as ReturnType<
+            typeof buildIndependentForecastProjection
+          >
+        : challengeContext
+            .forecast,
+    deliveryChallenge:
+      challengeContext
+        .delivery,
+    modules:
+      challengeModules,
+  });
+  result =
+    challengeModules.get(key) ??
+    result;
+
   specialistModuleCache.set(
     cacheKey,
     {
@@ -5789,3 +5909,7 @@ export function invalidateProject(
     }
   }
 }
+  specialistChallengeCache.delete(
+    projectId,
+  );
+
