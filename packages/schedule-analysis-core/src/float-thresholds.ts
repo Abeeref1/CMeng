@@ -94,41 +94,6 @@ export function activityNearCriticalThresholdHours(
     : null;
 }
 
-export function sourceCriticalBoundaryIncludesThreshold(
-  config: ScheduleAnalysisConfig,
-): boolean {
-  return (
-    config.criticalBoundaryMode ??
-    "critical_includes_threshold"
-  ) === "critical_includes_threshold";
-}
-
-export function sourceFloatIsCritical(
-  totalFloatHours: number,
-  config: ScheduleAnalysisConfig,
-): boolean {
-  return sourceCriticalBoundaryIncludesThreshold(
-    config,
-  )
-    ? totalFloatHours <=
-        config.criticalFloatThresholdHours
-    : totalFloatHours <
-        config.criticalFloatThresholdHours;
-}
-
-export function sourceFloatMeetsNearCriticalLowerBound(
-  totalFloatHours: number,
-  config: ScheduleAnalysisConfig,
-): boolean {
-  return sourceCriticalBoundaryIncludesThreshold(
-    config,
-  )
-    ? totalFloatHours >
-        config.criticalFloatThresholdHours
-    : totalFloatHours >=
-        config.criticalFloatThresholdHours;
-}
-
 export function sourceFloatCriticality(
   model: CanonicalScheduleModel,
   activity: CanonicalScheduleActivity,
@@ -137,24 +102,50 @@ export function sourceFloatCriticality(
   if (activity.totalFloatHours === null) return "unknown";
 
   if (
-    sourceFloatIsCritical(
-      activity.totalFloatHours,
-      config,
-    )
+    activity.totalFloatHours <=
+    config.criticalFloatThresholdHours
   ) {
     return "critical";
   }
 
-  const near = activityNearCriticalThresholdHours(model, activity, config);
+  const near = activityNearCriticalThresholdHours(
+    model,
+    activity,
+    config,
+  );
   if (near === null) return "unknown";
 
-  return sourceFloatMeetsNearCriticalLowerBound(
-    activity.totalFloatHours,
-    config,
-  ) &&
-    activity.totalFloatHours <= near
+  return activity.totalFloatHours <= near
     ? "near_critical"
     : "noncritical";
+}
+
+export function sourceFloatInFloatRiskWatchlist(
+  model: CanonicalScheduleModel,
+  activity: CanonicalScheduleActivity,
+  config: ScheduleAnalysisConfig,
+): boolean | null {
+  if (activity.totalFloatHours === null) return null;
+
+  const upper =
+    activityNearCriticalThresholdHours(
+      model,
+      activity,
+      config,
+    );
+  if (upper === null) return null;
+
+  const lowerSatisfied =
+    config.floatRiskWatchlistIncludesCriticalThreshold === true
+      ? activity.totalFloatHours >=
+        config.criticalFloatThresholdHours
+      : activity.totalFloatHours >
+        config.criticalFloatThresholdHours;
+
+  return (
+    lowerSatisfied &&
+    activity.totalFloatHours <= upper
+  );
 }
 
 export function nearCriticalThresholdBasis(
