@@ -106,6 +106,10 @@ import {
   deriveResourceSupportFromCsv,
   rebuildCanonicalResourceSupport,
 } from "./evidence-resource-adapters";
+import {
+  deriveSourceProductivityForecastFromCsv,
+  rebuildSourceProductivityForecast,
+} from "./evidence-forecast-adapters";
 
 function hashBytes(
   bytes: Uint8Array,
@@ -977,6 +981,12 @@ function hydrateProject(
     resourceSupport:
       legacy.resourceSupport ??
       null,
+    sourceProductivityForecastByDocument:
+      legacy.sourceProductivityForecastByDocument ??
+      {},
+    sourceProductivityForecast:
+      legacy.sourceProductivityForecast ??
+      null,
     lastRerunReceipt:
       legacy.lastRerunReceipt ??
       null,
@@ -1063,6 +1073,9 @@ function hydrateProject(
     hydrated,
   );
   rebuildCanonicalResourceSupport(
+    hydrated,
+  );
+  rebuildSourceProductivityForecast(
     hydrated,
   );
 
@@ -1475,6 +1488,8 @@ export class RuntimeProjectStore {
           new Map(),
         resourceSupportByDocument: {},
         resourceSupport: null,
+        sourceProductivityForecastByDocument: {},
+        sourceProductivityForecast: null,
         boq: null,
         boqRevisions: [],
         quantities: null,
@@ -2931,6 +2946,18 @@ export class RuntimeProjectStore {
         ] = resourceSupport;
       }
 
+      const productivityForecast =
+        deriveSourceProductivityForecastFromCsv({
+          state,
+          document,
+          bytes: input.bytes,
+        });
+      if (productivityForecast) {
+        state.sourceProductivityForecastByDocument[
+          document.documentId
+        ] = productivityForecast;
+      }
+
       rebuildReadinessEvidence(
         state,
       );
@@ -2938,6 +2965,9 @@ export class RuntimeProjectStore {
         state,
       );
       rebuildCanonicalResourceSupport(
+        state,
+      );
+      rebuildSourceProductivityForecast(
         state,
       );
 
