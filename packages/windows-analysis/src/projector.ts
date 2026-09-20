@@ -8,6 +8,7 @@ import {
 } from "../../schedule-revision-core/src";
 import {
   buildIndependentForecastProjection,
+  type IndependentForecastProjection,
 } from "../../independent-forecast/src";
 import type {
   DelayClaimsModel,
@@ -184,6 +185,9 @@ export function buildWindowsAnalysisProjection(
     generatedAt: string;
     producerVersion: string;
     cpmConfig?: Partial<CpmConfig>;
+    forecastResolver?: (
+      revision: ScheduleRevision,
+    ) => IndependentForecastProjection;
   },
 ): WindowsAnalysisProjection {
   const ordered =
@@ -207,34 +211,50 @@ export function buildWindowsAnalysisProjection(
       compareScheduleRevisions(from, to);
 
     const fromForecast =
-      buildIndependentForecastProjection(
-        from.model,
-        {
-          generatedAt: input.generatedAt,
-          producerVersion:
-            input.producerVersion +
-            ":from:" +
-            from.revisionId,
-          ...(input.cpmConfig
-            ? { cpmConfig: input.cpmConfig }
-            : {}),
-        },
-      );
+      input.forecastResolver
+        ? input.forecastResolver(
+            from,
+          )
+        : buildIndependentForecastProjection(
+            from.model,
+            {
+              generatedAt:
+                input.generatedAt,
+              producerVersion:
+                input.producerVersion +
+                ":from:" +
+                from.revisionId,
+              ...(input.cpmConfig
+                ? {
+                    cpmConfig:
+                      input.cpmConfig,
+                  }
+                : {}),
+            },
+          );
 
     const toForecast =
-      buildIndependentForecastProjection(
-        to.model,
-        {
-          generatedAt: input.generatedAt,
-          producerVersion:
-            input.producerVersion +
-            ":to:" +
-            to.revisionId,
-          ...(input.cpmConfig
-            ? { cpmConfig: input.cpmConfig }
-            : {}),
-        },
-      );
+      input.forecastResolver
+        ? input.forecastResolver(
+            to,
+          )
+        : buildIndependentForecastProjection(
+            to.model,
+            {
+              generatedAt:
+                input.generatedAt,
+              producerVersion:
+                input.producerVersion +
+                ":to:" +
+                to.revisionId,
+              ...(input.cpmConfig
+                ? {
+                    cpmConfig:
+                      input.cpmConfig,
+                  }
+                : {}),
+            },
+          );
 
     const startIso = windowBoundary(from);
     const endIso = windowBoundary(to);
