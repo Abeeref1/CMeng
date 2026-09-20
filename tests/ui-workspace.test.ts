@@ -64,6 +64,48 @@ test("CMeng workspace keeps the active module primary and browser script parseab
   );
   assert.match(
     html,
+    /id="roleViewSelector"/,
+    "every project-control page must expose the governed review-lens selector",
+  );
+  for (
+    const roleView of [
+      "Overall Detailed",
+      "Planning Engineer",
+      "Project Controls Manager",
+      "Project Director",
+      "Program Director",
+      "Executive / CEO",
+    ]
+  ) {
+    assert.equal(
+      html.includes(roleView),
+      true,
+      "six-view architecture must include: " +
+        roleView,
+    );
+  }
+  assert.match(
+    html,
+    /selectedRoleView=.*"overall"/,
+    "Overall Detailed must be the safe default review lens",
+  );
+  assert.match(
+    html,
+    /cmeng-role-view/,
+    "selected review lens must persist between page loads",
+  );
+  assert.match(
+    html,
+    /function renderRoleContent/,
+    "all specialist modules must pass through one governed role-presentation layer",
+  );
+  assert.match(
+    html,
+    /Complete truth · same governed calculations/,
+    "Overall Detailed must remain the authoritative master review rather than a separate calculation",
+  );
+  assert.match(
+    html,
     /Save PDF \/ Print/,
     "module report preview must support PDF/print output",
   );
@@ -76,6 +118,11 @@ test("CMeng workspace keeps the active module primary and browser script parseab
     html,
     /reportDownloadUrl\("json"\)/,
     "module report preview must provide a governed data download",
+  );
+  assert.match(
+    html,
+    /<span>Review lens<\/span>/,
+    "generated module reports must identify the selected review lens",
   );
   for (
     const uploadControl of [
