@@ -414,6 +414,25 @@ export function buildManhourScurveProjection(
     assumptions,
   );
 
+  const sourceActualHistory =
+    (input.sourceActualHistory ?? [])
+      .filter(
+        (item) =>
+          Number.isFinite(
+            Date.parse(
+              item.periodEndIso,
+            ),
+          ) &&
+          Number.isFinite(
+            item.hours,
+          ),
+      )
+      .sort(
+        (a, b) =>
+          Date.parse(a.periodEndIso) -
+          Date.parse(b.periodEndIso),
+      );
+
   let currentActualHours = 0;
   let currentActualKnownCount = 0;
 
@@ -451,24 +470,6 @@ export function buildManhourScurveProjection(
       laborIds,
       schedule.dataDateIso,
     );
-  const sourceActualHistory =
-    (input.sourceActualHistory ?? [])
-      .filter(
-        (item) =>
-          Number.isFinite(
-            Date.parse(
-              item.periodEndIso,
-            ),
-          ) &&
-          Number.isFinite(
-            item.hours,
-          ),
-      )
-      .sort(
-        (a, b) =>
-          Date.parse(a.periodEndIso) -
-          Date.parse(b.periodEndIso),
-      );
   const periodHistory =
     sourceActualHistory.length > 0
       ? sourceActualHistory.map(
