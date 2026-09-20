@@ -1231,6 +1231,22 @@ function renderForecastVisual(data){
     ["Required finish",planningShortDate(p.requiredFinishIso),"contract/target if established"]
   ]);
   const warning=review?'<div class="notice warn"><b>Independent forecast requires reconciliation before management use.</b><br>'+escapeHtml(p.managementReviewReason||"The deterministic CPM basis contains unresolved evidence.")+'</div>':'';
+  const forecastDistance=[
+    {label:"Contractor Programme Forecast",value:planningDaysBetween(p.dataDateIso,p.sourceForecastCompletionIso),tone:"graphite"},
+    {label:"Source Productivity Forecast",value:planningDaysBetween(p.dataDateIso,p.sourceProductivityForecastCompletionIso),tone:"warning"},
+    {label:"CMeng Independent CPM Forecast",value:planningDaysBetween(p.dataDateIso,p.independentForecastCompletionIso),tone:"accent"},
+    {label:"P50 probabilistic forecast",value:planningDaysBetween(p.dataDateIso,prob.p50CompletionIso),tone:"teal"},
+    {label:"P80 probabilistic forecast",value:planningDaysBetween(p.dataDateIso,prob.p80CompletionIso),tone:"purple"},
+    {label:"P90 probabilistic forecast",value:planningDaysBetween(p.dataDateIso,prob.p90CompletionIso),tone:"danger"}
+  ].filter(item=>typeof item.value==="number"&&Number.isFinite(item.value)&&item.value>=0);
+  const visualOverview='<div class="visual-chart-grid">'+
+    renderVisualPanel("Forecast distance from Data Date","All forecast positions translated to a common time distance without merging their authority.",renderVisualBars(forecastDistance,"d"))+
+    renderVisualPanel("Forecast variance bridge","Deterministic, source-productivity and probabilistic differences remain distinct.",renderWaterfallChart([
+      {label:"CMeng vs Contractor",value:typeof variance==="number"?variance:0},
+      {label:"Source productivity vs Contractor",value:(p.sourceProductivityForecastCompletionIso&&p.sourceForecastCompletionIso)?planningDaysBetween(p.sourceForecastCompletionIso,p.sourceProductivityForecastCompletionIso):0},
+      {label:"P80 vs CMeng CPM",value:(prob.p80CompletionIso&&p.independentForecastCompletionIso)?planningDaysBetween(p.independentForecastCompletionIso,prob.p80CompletionIso):0}
+    ],"d"))+
+  '</div>';
   const dateLadder=planningDateLadder([
     {label:"Contractor Programme Forecast",date:p.sourceForecastCompletionIso,tone:"current"},
     {label:"Source Productivity Forecast",date:p.sourceProductivityForecastCompletionIso,tone:"scenario"},
@@ -1244,7 +1260,7 @@ function renderForecastVisual(data){
         ["P80 probabilistic forecast",planningShortDate(prob.p80CompletionIso),"CMeng non-official comparator"],
         ["P90 probabilistic forecast",planningShortDate(prob.p90CompletionIso),"CMeng non-official comparator"]
       ].map(c=>'<div class="position-card"><div class="position-label">'+escapeHtml(c[0])+'</div><div class="position-value">'+escapeHtml(c[1])+'</div><div class="position-sub">'+escapeHtml(c[2])+'</div></div>').join("")+'</div>';
-  return '<section class="planning-view independent-forecast-view">'+kpis+warning+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Four distinct forecast positions</h4><p>Contractor programme, source productivity, CMeng deterministic CPM and CMeng probabilistic forecasts remain separate. No position silently replaces another.</p></div><span class="badge '+(review?"partial":"ready")+'">'+escapeHtml(review?"Reconciliation required":"Calculated")+'</span></div><div class="planning-panel-body">'+dateLadder+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Probabilistic comparators</h4><p>Non-official comparators are only useful after the deterministic basis is credible.</p></div></div><div class="planning-panel-body">'+probPanel+'</div></section></section>';
+  return '<section class="planning-view independent-forecast-view">'+kpis+warning+visualOverview+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Four distinct forecast positions</h4><p>Contractor programme, source productivity, CMeng deterministic CPM and CMeng probabilistic forecasts remain separate. No position silently replaces another.</p></div><span class="badge '+(review?"partial":"ready")+'">'+escapeHtml(review?"Reconciliation required":"Calculated")+'</span></div><div class="planning-panel-body">'+dateLadder+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Probabilistic comparators</h4><p>Non-official comparators are only useful after the deterministic basis is credible.</p></div></div><div class="planning-panel-body">'+probPanel+'</div></section></section>';
 }
 function renderWindowsVisual(data){
   const p=projectionFor(data,"windows_analysis");
