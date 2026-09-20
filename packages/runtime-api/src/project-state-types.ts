@@ -333,6 +333,9 @@ export interface RiskControlRecord {
 export interface DerivedControlEvidence {
   variations?: VariationRecord[];
   invoices?: InvoiceRecord[];
+  retentions?: RetentionRecord[];
+  bonds?: BondRecord[];
+  claimCommercials?: ClaimCommercialRecord[];
   ncrs?: NcrRecord[];
   rfis?: RfiRecord[];
   risks?: RiskControlRecord[];
