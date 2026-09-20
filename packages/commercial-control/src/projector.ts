@@ -81,7 +81,7 @@ function sum(
 function currenciesOf(
   input: CommercialControlInput,
 ): string[] {
-  const values = new Set<string>();
+  const values = new Set<string>((input.sourceLedger?.costPosition ?? []).map(p => p.currency));
   if (input.contractValue) {
     values.add(
       input.contractValue.currency
@@ -135,7 +135,7 @@ export function buildCommercialControlPosition(
   const adjusted =
     addDays(
       contractual,
-      approvedEot,
+      contractTime?.overlapResolution ? (contractTime.additionalApprovedEotDays ?? null) : approvedEot,
     );
 
   const currencies =
@@ -604,7 +604,39 @@ export function buildCommercialControlPosition(
     ...timeRefs,
   ]);
 
+  // A source summary is not a commitment ledger. Reuse explicit period/currency facts
+  // without adding variation values twice or conflating net certification and cash receipts.
+  if(input.sourceLedger){
+    const ledger=input.sourceLedger;
+    for(const position of positions){
+      const reported=ledger.costPosition.filter(p=>p.currency===position.currency&&p.state!=="candidate");
+      const latest=reported.map(p=>p.asOf).sort().at(-1);
+      const applicable=reported.filter(p=>p.asOf===latest);
+      if(applicable.length===1){
+        const source=applicable[0]!;
+        const refs=source.receipts.map(r=>"evidence-document:"+r.documentId+":"+r.locator);
+        const metric=(name:string)=>moneyMetric(source.values[name]??null,source.values[name]==null?"submitted_unparsed":"established",refs,["EXPLICIT_SOURCE_SNAPSHOT_NOT_RECALCULATED_FROM_VARIATIONS"]);
+        if("original contract value" in source.values)position.committedContractValue=metric("original contract value");
+        if("current contract value" in source.values)position.currentContractValue=metric("current contract value");
+        if("approved variations" in source.values)position.approvedVariationAmount=metric("approved variations");
+      }else if(applicable.length>1){
+        position.currentContractValue=moneyMetric(null,"submitted_unparsed",[],["MIXED_TAX_BASES_USE_PARTITIONED_SOURCE_LEDGER"]);
+      }
+      const payments=ledger.payments.filter(p=>p.amounts.netCertifiedAmount.currency===position.currency);
+      if(payments.length){
+        const refs=payments.flatMap(p=>p.amounts.netCertifiedAmount.receipts.map(r=>"evidence-document:"+r.documentId+":"+r.locator));
+        const unestablished=(reason:string)=>moneyMetric(null,"submitted_unparsed",refs,[reason]);
+        position.grossCertifiedAmount=unestablished("NET_CERTIFICATE_IS_NOT_GROSS_CERTIFICATION");
+        position.netCertifiedAmount=unestablished("INCREMENTAL_VERSUS_CUMULATIVE_BASIS_REQUIRED_FOR_AGGREGATION");
+        position.paidAmount=unestablished("DATED_PAYMENT_RECEIPT_AND_ALLOCATION_REQUIRED");
+        position.certifiedUnpaidAmount=unestablished("UNKNOWN_PAID_AMOUNT_IS_NOT_ZERO");
+        position.retentionHeldAmount=unestablished("RETENTION_DEDUCTION_IS_NOT_A_RECONCILED_HELD_BALANCE");
+      }
+    }
+  }
+
   return {
+    ...(input.sourceLedger ? {sourceLedger: input.sourceLedger} : {}),
     schemaVersion: "1.0",
     projectionKey:
       "commercial_control_position",

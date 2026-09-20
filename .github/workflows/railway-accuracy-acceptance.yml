@@ -1,0 +1,36 @@
+name: CMeng Railway Accuracy Acceptance
+on:
+  workflow_run:
+    workflows: [CMeng Verify]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: cmeng-production-accuracy
+  cancel-in-progress: true
+jobs:
+  read-only-production:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Verify exact release, canonical runtime, reports and source preservation
+        env:
+          CMENG_RAILWAY_URL: https://cmeng-main-production.up.railway.app
+          CMENG_EXPECTED_RELEASE: ${{ github.event.workflow_run.head_sha || github.sha }}
+        run: node scripts/railway-accuracy-acceptance.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cmeng-production-accuracy-${{ github.run_id }}
+          path: accuracy-acceptance.json
+          retention-days: 7

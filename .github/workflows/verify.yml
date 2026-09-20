@@ -30,4 +30,27 @@ jobs:
         run: npm install --ignore-scripts --no-audit --no-fund
 
       - name: Typecheck and adversarial tests
-        run: npm run verify
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run verify 2>&1 | tee /tmp/cmeng-verify.log
+
+      - name: Record tested source identity
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p /tmp/cmeng-verification
+          git rev-parse HEAD > /tmp/cmeng-verification/source-commit.txt
+          git ls-files -z > /tmp/cmeng-tracked-files
+          tar --null -T /tmp/cmeng-tracked-files -czf /tmp/cmeng-verification/cmeng-source.tgz
+          cp /tmp/cmeng-verify.log /tmp/cmeng-verification/verify.log 2>/dev/null || true
+          cd /tmp/cmeng-verification
+          sha256sum cmeng-source.tgz > source-sha256.txt
+
+      - name: Preserve verification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cmeng-verification-${{ github.run_id }}
+          path: /tmp/cmeng-verification/
+          retention-days: 7

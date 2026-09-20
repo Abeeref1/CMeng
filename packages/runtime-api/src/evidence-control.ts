@@ -1,3 +1,4 @@
+import { typedEvidenceRoleFromText } from "./typed-evidence-families";
 import type {
   EvidenceBasisEffect,
   EvidenceBasisRecord,
@@ -267,6 +268,12 @@ export function evidenceFamily(
           ":" +
           norm(sourceFilename),
     };
+  }
+
+  const sourceRole = typedEvidenceRoleFromText(documentType, textSample);
+  if (sourceRole) {
+    const key = category + ":" + documentType + ":" + sourceRole;
+    return { familyKey: key, behavior: "snapshot", logicalDocumentKey: key };
   }
 
   const snapshotTypes =

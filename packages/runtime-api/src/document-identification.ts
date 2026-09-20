@@ -1,3 +1,4 @@
+import { typedEvidenceRoleFromText } from "./typed-evidence-families";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 
@@ -1879,6 +1880,16 @@ function classifyText(
 } | null {
   const normalized =
     normalizeText(text);
+
+  if (/csv|text\/plain/.test(mediaType)) {
+    for (const type of ["resource_register", "delay_eot_claims_register"]) {
+      const role = typedEvidenceRoleFromText(type, text);
+      if (role) return {
+        category: type === "resource_register" ? "schedule_control" : "risk_claims_procurement",
+        documentType: type, confidence: 0.99, signals: ["Verified tabular source-role schema: " + role],
+      };
+    }
+  }
 
   if (
     mediaType ===

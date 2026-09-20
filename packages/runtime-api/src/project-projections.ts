@@ -1,3 +1,7 @@
+import { canonicalCommercialModule, commercialPositionForState } from "./commercial-runtime";
+import { projectControlSchedule } from "./canonical-time-claims";
+import { canonicalResourceModule } from "./canonical-resource-runtime";
+import { commercialCanonical } from "./commercial-canonical";
 import { createHash } from "node:crypto";
 import {
   analyzeSchedule,
@@ -1559,6 +1563,14 @@ function buildBundle(
     );
   }
 
+  for (const resourceKey of ["resource-utilization", "manhour-scurve"]) {
+    const sourceResource = canonicalResourceModule(state, resourceKey);
+    if (sourceResource) {
+      modules.set(resourceKey, sourceResource);
+      if (resourceKey === "resource-utilization") resourceUtilization = sourceResource.data as ReturnType<typeof buildResourceUtilizationProjection>;
+      if (resourceKey === "manhour-scurve") manhourScurve = sourceResource.data as ReturnType<typeof buildManhourScurveProjection>;
+    }
+  }
   const delayModel =
     state.controls.delayClaims;
   const analyticalDelayModel:
@@ -1876,110 +1888,7 @@ function buildBundle(
         )
       : null;
 
-  const commercialPosition =
-    buildCommercialControlPosition({
-      generatedAt,
-      projectId:
-        state.projectId,
-      contractValue:
-        state.controls
-          .contractValue,
-      contractValueCandidates:
-        contractValueExtraction
-          ?.candidates.map(
-            (candidate) => ({
-              amount:
-                candidate.amount,
-              currency:
-                candidate.currency,
-              sourceRefs: [
-                ...candidate
-                  .sourceRefs,
-              ],
-            }),
-          ) ?? [],
-      variations:
-        state.controls
-          .variations,
-      invoices:
-        state.controls.invoices,
-      retentions:
-        state.controls
-          .retentions,
-      bonds:
-        state.controls.bonds,
-      claimCommercials:
-        state.controls
-          .claimCommercials,
-      contractTimeBasis:
-        state.controls
-          .contractTimeBasis,
-      commercialEvidenceSubmitted:
-        Boolean(
-          state.contract ||
-          state.evidenceDocuments
-            .some(
-              (document) =>
-                document.basisState !==
-                  "superseded" &&
-                (
-                  document.category ===
-                    "boq_cost" ||
-                  document.category ===
-                    "risk_claims_procurement"
-                ),
-            ),
-        ),
-      paymentEvidenceSubmitted:
-        state.evidenceDocuments
-          .some(
-            (document) =>
-              document.basisState !==
-                "superseded" &&
-              /payment|invoice|certificate|retention|advance/i.test(
-                document.documentType +
-                " " +
-                document.sourceFilename,
-              ),
-          ),
-      variationEvidenceSubmitted:
-        state.evidenceDocuments
-          .some(
-            (document) =>
-              document.basisState !==
-                "superseded" &&
-              /variation|change/i.test(
-                document.documentType +
-                " " +
-                document.sourceFilename,
-              ),
-          ),
-      bondEvidenceSubmitted:
-        state.evidenceDocuments
-          .some(
-            (document) =>
-              document.basisState !==
-                "superseded" &&
-              /bond|guarantee|security/i.test(
-                document.documentType +
-                " " +
-                document.sourceFilename,
-              ),
-          ),
-      claimEvidenceSubmitted:
-        delayModel !== null ||
-        state.evidenceDocuments
-          .some(
-            (document) =>
-              document.basisState !==
-                "superseded" &&
-              /claim|eot|notice/i.test(
-                document.documentType +
-                " " +
-                document.sourceFilename,
-              ),
-          ),
-    });
+  const commercialPosition = commercialPositionForState(state, generatedAt);
 
   const commercialModuleSpecs = [
     [
@@ -2076,6 +1985,11 @@ function buildBundle(
             : "Relevant commercial evidence has not been submitted. CMeng does not infer zero exposure.",
       ),
     );
+  }
+
+  for (const [moduleKey] of commercialModuleSpecs) {
+    const canonicalCommercial = canonicalCommercialModule(state, moduleKey);
+    if (canonicalCommercial) modules.set(moduleKey, canonicalCommercial);
   }
 
   if (state.contract) {
@@ -6113,6 +6027,18 @@ export function moduleForProject(
       "Project has not been created.",
       ["project"],
     );
+  }
+
+  const sourceResource = canonicalResourceModule(state, key) ?? canonicalCommercialModule(state, key);
+  if (sourceResource) {
+    const current = projectControlSchedule(state);
+    if (!current) return sourceResource;
+    const generatedAt = new Date().toISOString();
+    const context = specialistChallengeContext(state, current.revision.model, generatedAt);
+    const modules = new Map([[key, sourceResource]]);
+    applyUniversalModuleChallenges({state, generatedAt, model:current.revision.model,
+      independentForecast:context.forecast, deliveryChallenge:context.delivery, modules});
+    return modules.get(key) ?? sourceResource;
   }
 
   const planning =

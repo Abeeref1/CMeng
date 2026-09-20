@@ -4,6 +4,7 @@ import type {
 } from "./project-state-types";
 import {
   scheduleModules,
+  commercialModules,
 } from "./registry";
 
 type FlatValue =
@@ -21,7 +22,7 @@ function titleForModule(
   moduleKey: string,
 ): string {
   return (
-    scheduleModules.find(
+    [...scheduleModules, ...commercialModules].find(
       (item) =>
         item.key === moduleKey,
     )?.title ??

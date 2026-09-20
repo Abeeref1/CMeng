@@ -9,6 +9,11 @@ export type EotDayBasis =
   | "unknown";
 
 export interface ContractTimeBasis {
+  incorporatedEotDays?: number | null;
+  additionalApprovedEotDays?: number | null;
+  overlapResolution?: "resolved" | "unresolved";
+  registerDeterminationDays?: number | null;
+  dataDateIso?: string | null;
   contractualCompletionIso: string | null;
   contractualCompletionState: GovernanceState;
   officialApprovedEotDays: number | null;
@@ -57,6 +62,13 @@ export interface EotWindowCandidate {
 }
 
 export interface EotAssessmentProjection {
+  timeBasisReconciliation?: {
+    incorporatedEotDays: number | null;
+    registerDeterminationDays: number | null;
+    additionalApprovedEotDays: number | null;
+    overlapResolution: "resolved" | "unresolved";
+    dataDateIso: string | null;
+  };
   schemaVersion: "1.0";
   projectionKey: "eot_assessment";
   generatedAt: string;
