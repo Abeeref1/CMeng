@@ -82,6 +82,10 @@ export function buildRevisionTrendProjection(
         analytics.float.criticalCount,
       nearCriticalCount:
         analytics.float.nearCriticalCount,
+      floatRiskWatchlistCount:
+        analytics.float.floatRiskWatchlistCount,
+      zeroFloatCount:
+        analytics.float.zeroFloatCount,
       negativeFloatCount:
         analytics.float.negativeFloatCount,
       forecastCompletionIso:
