@@ -1,5 +1,6 @@
 name: CMeng Diagnostic Source
 
+# Refresh source snapshot after concurrent commercial-control integration.
 on:
   workflow_dispatch:
   push:
