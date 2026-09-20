@@ -324,6 +324,47 @@ const descriptions={
 "eot-assessment":"Observed movement, time impact, contractual entitlement and official EOT award kept separate.",
 "challenge-contract":"Contract clause intelligence and delivery assumptions reviewed against the available project evidence."
 }
+const roleViews={
+  overall:{
+    label:"Overall Detailed",
+    short:"Overall",
+    eyebrow:"Authoritative master review",
+    question:"What is the complete governed project-control position, from management signal through technical detail and source evidence?"
+  },
+  planning:{
+    label:"Planning Engineer",
+    short:"Planning",
+    eyebrow:"Technical planning review",
+    question:"What exactly is happening in the programme, why is it happening, and are the dates, logic, float and revisions technically defensible?"
+  },
+  controls:{
+    label:"Project Controls Manager",
+    short:"Project Controls",
+    eyebrow:"Integrated controls review",
+    question:"Where is control being lost, which variances are material, and what must be reconciled, forecast or escalated?"
+  },
+  "project-director":{
+    label:"Project Director",
+    short:"Project Director",
+    eyebrow:"Delivery leadership review",
+    question:"What threatens delivery, who owns the recovery, and what decision or intervention is required now?"
+  },
+  "program-director":{
+    label:"Program Director",
+    short:"Program Director",
+    eyebrow:"Programme integration review",
+    question:"How can this position affect strategic milestones, interfaces, downstream packages and the wider programme commitment?"
+  },
+  executive:{
+    label:"Executive / CEO",
+    short:"Executive",
+    eyebrow:"Executive commitment review",
+    question:"Are the strategic commitments protected, what is the business exposure, and where is executive intervention required?"
+  }
+};
+const roleViewOrder=["overall","planning","controls","project-director","program-director","executive"];
+const storedRoleView=localStorage.getItem("cmeng-role-view");
+let selectedRoleView=roleViewOrder.includes(storedRoleView)?storedRoleView:"overall";
 let overview=null,selected="pmo-analysis",portfolioData=null,appView="portfolio",currentModuleResult=null;
 let scheduleSelection=[],boqSelection=[],contractSelection=[],evidenceSelection=[];
 let selectedEvidenceDocuments=new Set();
@@ -332,6 +373,251 @@ const project=()=>el("projectId").value.trim();
 const fmt=v=>v===null||v===undefined?"—":typeof v==="number"?new Intl.NumberFormat(undefined,{maximumFractionDigits:2}).format(v):String(v);
 const statusClass=s=>s==="ready"?"ready":s==="partial"?"partial":"blocked";
 const statusLabel=s=>s==="ready"?"Ready":s==="partial"?"Review needed":"More information needed";
+function moduleGroupForRole(key){
+  for(const [group,keys] of Object.entries(groups)){
+    if(keys.includes(key))return group;
+  }
+  return "Project Controls";
+}
+function rolePrimaryQuestion(key,role){
+  const moduleName=names[key]||humanizeKey(key);
+  const group=moduleGroupForRole(key);
+  const specific={
+    milestones:{
+      overall:"What is the complete milestone position, including criticality, movement, due status, recovery priority, full register and evidence?",
+      planning:"Which milestones are truly critical or near-critical, what is driving their dates and how have they moved across revisions?",
+      controls:"Which milestone commitments are deteriorating, overdue or consuming float, and what control action is required?",
+      "project-director":"Which milestone commitments can prevent delivery, who owns them and what recovery decision is required now?",
+      "program-director":"Which project milestones threaten programme interfaces, downstream packages, handovers or strategic dates?",
+      executive:"Which strategic commitments are at risk and does any milestone require executive intervention?"
+    },
+    "lookahead-schedule":{
+      planning:"Which activities enter the next six weeks, what readiness evidence exists and which constraints are technically driving non-readiness?",
+      controls:"Which near-term activities are blocked, conditional or overdue, and are owners clearing constraints fast enough?",
+      "project-director":"What can stop execution in the next six weeks and which blockers require leadership intervention?",
+      "program-director":"Which near-term constraints can disrupt interfaces, shared resources or downstream programme commitments?",
+      executive:"Are any near-term blockers capable of moving a strategic commitment?"
+    },
+    "independent-forecast":{
+      planning:"How does the independent CPM result differ from the submitted programme and which activities create the difference?",
+      controls:"Is the submitted finish credible, what assumptions remain, and what forecast variance needs control action?",
+      "project-director":"What completion date should delivery leadership plan against and what recovery is required?",
+      "program-director":"How does the project forecast affect downstream programme dates and contingency?",
+      executive:"Is the committed completion date still credible and what is the exposure if it is not?"
+    },
+    "eot-assessment":{
+      planning:"What schedule movement is analytically established and which windows/events support or weaken the time-impact case?",
+      controls:"What is observed movement versus attributable time impact, entitlement and officially approved EOT?",
+      "project-director":"What time exposure exists, what is defensible and what management action is required on the EOT position?",
+      "program-director":"How does the time-entitlement position affect programme commitments, interfaces and commercial strategy?",
+      executive:"What is the material time/commercial exposure and is an executive decision required?"
+    }
+  };
+  if(specific[key]?.[role])return specific[key][role];
+  const generic={
+    overall:"What is the complete governed "+moduleName+" position, including current status, exceptions, trends, consequences, full register and evidence?",
+    planning:"What technical detail in "+moduleName+" explains the current position and what source or calculation needs validation?",
+    controls:"Where is "+moduleName+" outside the controlled position, how material is the variance and what requires reconciliation?",
+    "project-director":"What in "+moduleName+" can threaten delivery, who needs to act and what leadership decision is required?",
+    "program-director":"How can "+moduleName+" affect strategic interfaces, downstream packages and the wider programme?",
+    executive:"Does "+moduleName+" threaten a strategic commitment, material exposure or require executive intervention?"
+  };
+  if(group==="Progress & Resources"&&role==="planning")return "What do the time-phased progress/resource records actually establish, where is coverage incomplete and what explains the variance?";
+  if(group==="Forecast & Finish"&&role==="controls")return "How credible is the completion outlook, how has it moved and which assumptions or drivers require control action?";
+  if(group==="Claims & Commercial"&&role==="project-director")return "What contractual, delay or claim exposure can affect delivery, entitlement or negotiation strategy and what decision is required?";
+  return generic[role]||roleViews[role]?.question||generic.overall;
+}
+function roleFocusItems(key,role){
+  const group=moduleGroupForRole(key);
+  const byGroup={
+    "Programme & Planning":{
+      overall:["Current governed position","Critical exceptions and date movement","Cause, consequence and required action"],
+      planning:["Logic, dates, float and path","Revision movement and schedule integrity","Driving activities, assumptions and evidence"],
+      controls:["Baseline/current variance and trend","Critical/near-critical pressure and coverage","Cross-control consistency and escalation"],
+      "project-director":["Delivery threats and recovery","Accountable owner and decision date","Impact on completion and key commitments"],
+      "program-director":["Strategic milestones and interfaces","Cascading downstream impact","Programme buffer and cross-project exposure"],
+      executive:["Strategic commitment status","Material delivery exposure","Executive intervention / decision"]
+    },
+    "Progress & Resources":{
+      overall:["Progress/resource position and source authority","Variance, productivity and coverage","Full time-phased records and evidence"],
+      planning:["Time phasing and assignment basis","Coverage, units and source history","Schedule/resource consistency"],
+      controls:["Plan vs actual/certified position","Resource overload/productivity exception","Forecast consequence and recovery"],
+      "project-director":["Delivery output versus plan","Resource constraint requiring intervention","Recovery capacity and owner"],
+      "program-director":["Shared resource / package pressure","Interface and downstream production impact","Programme-level capacity risk"],
+      executive:["Delivery performance","Material capacity or progress exposure","Strategic recovery requirement"]
+    },
+    "Forecast & Finish":{
+      overall:["Submitted and independent finish position","Forecast movement, assumptions and confidence","Activity-level basis and evidence"],
+      planning:["CPM logic and calendars","Driving activities and float","Assumptions, unresolved activities and reconciliation"],
+      controls:["Forecast credibility and variance","Trend and change since prior updates","Required recovery / governance"],
+      "project-director":["Likely delivery date","Main drivers and recovery options","Leadership decision required"],
+      "program-director":["Impact on programme milestones","Contingency / interface consumption","Downstream exposure"],
+      executive:["Commitment credibility","Schedule exposure","Executive recovery or stakeholder decision"]
+    },
+    "Claims & Commercial":{
+      overall:["Governed contractual/claim position","Time and commercial exposure","Event, notice, entitlement and evidence chain"],
+      planning:["Schedule-event linkage","Window movement and time impact","Causation evidence and chronology"],
+      controls:["Claim status, notice and authority","Observed vs attributable movement","Exposure, gaps and required response"],
+      "project-director":["Delivery / entitlement exposure","Negotiation and response priority","Decision, owner and deadline"],
+      "program-director":["Cross-project/contract interface exposure","Programme time and commercial consequence","Strategic claim coordination"],
+      executive:["Material time/commercial exposure","Stakeholder / contractual risk","Executive decision or escalation"]
+    },
+    "Project Controls":{
+      overall:["Complete current position","Exceptions and consequences","Full evidence and calculation basis"],
+      planning:["Technical basis","Data quality and calculations","Detailed reconciliation"],
+      controls:["Variance and trend","Control integrity","Required corrective action"],
+      "project-director":["Delivery threat","Accountability","Decision / recovery"],
+      "program-director":["Programme interface","Cascading impact","Strategic coordination"],
+      executive:["Commitment","Exposure","Executive intervention"]
+    }
+  };
+  const items=byGroup[group]||byGroup["Project Controls"];
+  return items[role]||items.overall;
+}
+function flattenRoleScalars(value,path=[],depth=0,out=[]){
+  if(out.length>220||depth>4||value===undefined)return out;
+  if(value===null||["string","number","boolean"].includes(typeof value)){
+    if(path.length)out.push({path:[...path],key:path.at(-1),value});
+    return out;
+  }
+  if(Array.isArray(value)){
+    if(value.length&&value.length<=6&&value.every(v=>v===null||["string","number","boolean"].includes(typeof v))){
+      out.push({path:[...path],key:path.at(-1),value:value.join(", ")});
+    }
+    return out;
+  }
+  if(typeof value!=="object")return out;
+  for(const [key,child] of Object.entries(value)){
+    flattenRoleScalars(child,[...path,key],depth+1,out);
+    if(out.length>220)break;
+  }
+  return out;
+}
+function roleSignalScore(item,role){
+  const key=(item.path||[]).join(" ").toLowerCase().replace(/[_-]/g," ");
+  const skip=["schema","producer","generated","source revision","project id","revision id","manifest","receipt","fingerprint","hash","method","diagnostic","assumption"];
+  if(skip.some(word=>key.includes(word)))return -100;
+  const common=["critical","overdue","variance","forecast","finish","completion","progress","delay","claim","float","coverage","due","open","risk","movement","blocked","unmapped","exposure","amount","count","state","status"];
+  const roleWords={
+    overall:["critical","overdue","variance","forecast","completion","progress","delay","claim","float","coverage","movement","amount"],
+    planning:["activity","relationship","logic","float","critical","calendar","duration","finish","start","variance","coverage","milestone","revision","progress"],
+    controls:["variance","progress","forecast","critical","near critical","negative float","coverage","overdue","resource","claim","delay","mapping","amount","movement"],
+    "project-director":["forecast","critical","overdue","delay","completion","due","variance","risk","negative float","progress","blocked","claim"],
+    "program-director":["completion","milestone","forecast","delay","interface","critical","due","handover","opening","program","claim","movement"],
+    executive:["completion","forecast","overdue","critical","claim","amount","exposure","progress","delay","milestone","risk","movement"]
+  };
+  let score=0;
+  for(const word of common)if(key.includes(word))score+=1;
+  for(const word of (roleWords[role]||roleWords.overall))if(key.includes(word))score+=3;
+  if(typeof item.value==="number"&&Number.isFinite(item.value))score+=1;
+  if(typeof item.value==="string"&&/\d{4}-\d{2}-\d{2}/.test(item.value))score+=1;
+  if(key.includes("count")&&item.value===0)score-=1;
+  if(key.includes("coverage"))score+=role==="planning"||role==="controls"?2:0;
+  return score;
+}
+function roleSignalLabel(item){
+  const meaningful=(item.path||[]).filter(key=>!["result","data","schedule","progress","forecast"].includes(String(key).toLowerCase()));
+  return meaningful.slice(-2).map(humanizeKey).join(" · ")||humanizeKey(item.key||"Value");
+}
+function roleSignalValue(item){
+  const key=(item.path||[]).join(" ").toLowerCase();
+  const value=item.value;
+  if(typeof value==="string"&&/\d{4}-\d{2}-\d{2}/.test(value)&&/(date|finish|start|completion|submitted|actual|forecast)/.test(key)){
+    return planningShortDate(value);
+  }
+  return fmt(value);
+}
+function roleSignalTone(item){
+  const key=(item.path||[]).join(" ").toLowerCase().replace(/[_-]/g," ");
+  const numeric=typeof item.value==="number"?item.value:null;
+  const text=String(item.value??"").toLowerCase();
+  if((/(critical|overdue|negative float|late|blocked|failed|unmapped|delay)/.test(key)&&numeric!==0)||(text.includes("critical")&&!text.includes("noncritical"))||text.includes("blocked")||text.includes("overdue"))return"danger";
+  if((/(near critical|due|variance|risk|partial|review|movement)/.test(key)&&numeric!==0)||text.includes("partial")||text.includes("review"))return"warning";
+  if(text.includes("complete")||text.includes("ready")||text.includes("established"))return"success";
+  return"";
+}
+function roleTopSignals(data,role){
+  const seen=new Set();
+  return flattenRoleScalars(data).map(item=>({...item,score:roleSignalScore(item,role)}))
+    .filter(item=>item.score>0&&item.value!==null&&item.value!==undefined&&String(item.value)!=="")
+    .sort((a,b)=>b.score-a.score)
+    .filter(item=>{const label=roleSignalLabel(item);if(seen.has(label))return false;seen.add(label);return true})
+    .slice(0,6);
+}
+function collectRoleActions(data,role){
+  const actions=[];
+  const add=(text,kind="Action")=>{const clean=String(text||"").trim();if(clean&&clean!=="—"&&!actions.some(x=>x.text===clean))actions.push({text:clean,kind})};
+  const challenge=data?.challenge;
+  for(const item of challenge?.items||[]){
+    if(item.action)add(item.action,"Control action");
+    else if(item.consequence&&(role==="project-director"||role==="program-director"||role==="executive"))add(item.consequence,"Consequence");
+  }
+  const walk=(value,depth=0)=>{
+    if(depth>4||actions.length>=8||!value)return;
+    if(Array.isArray(value)){for(const child of value.slice(0,40))walk(child,depth+1);return}
+    if(typeof value!=="object")return;
+    for(const [key,child] of Object.entries(value)){
+      const k=key.toLowerCase();
+      if(typeof child==="string"&&(/action|requiredresponse|managementaction|recommendation|consequence|mitigation/.test(k)))add(child,/consequence/.test(k)?"Consequence":/mitigation/.test(k)?"Mitigation":"Action");
+      else if(Array.isArray(child)&&(/actions|recommendations/.test(k)))child.slice(0,6).forEach(x=>typeof x==="string"&&add(x,"Action"));
+      else if(typeof child==="object")walk(child,depth+1);
+      if(actions.length>=8)break;
+    }
+  };
+  walk(data);
+  return actions.slice(0,role==="executive"?3:role==="project-director"||role==="program-director"?5:6);
+}
+function renderRoleViewSelector(){
+  const host=el("roleViewSelector");
+  if(!host)return;
+  host.innerHTML='<span class="role-view-selector-label">Review as</span>'+roleViewOrder.map(key=>'<button class="role-view-button '+(selectedRoleView===key?"active":"")+'" data-role-view="'+key+'" aria-pressed="'+String(selectedRoleView===key)+'">'+escapeHtml(roleViews[key].label)+'</button>').join("");
+  host.querySelectorAll("[data-role-view]").forEach(button=>{
+    button.onclick=()=>{
+      const next=button.dataset.roleView;
+      if(!roleViewOrder.includes(next)||next===selectedRoleView)return;
+      selectedRoleView=next;
+      localStorage.setItem("cmeng-role-view",selectedRoleView);
+      renderRoleViewSelector();
+      if(currentModuleResult)renderModuleResult(currentModuleResult);
+    };
+  });
+}
+function renderRoleLens(key,data,role){
+  const profile=roleViews[role]||roleViews.overall;
+  const focus=roleFocusItems(key,role);
+  const question=rolePrimaryQuestion(key,role);
+  if(role==="overall"){
+    const layers=[
+      ["1 · Position","Current governed position and headline commitments"],
+      ["2 · Exceptions","Critical issues, variances and missing information"],
+      ["3 · Visual analysis","Trends, movements, relationships and distributions"],
+      ["4 · Cause / impact","Why it changed, consequence, owner and required action"],
+      ["5 · Full register","Complete row-level control population"],
+      ["6 · Evidence","Sources, assumptions, coverage and calculation traceability"]
+    ];
+    return '<section class="role-lens"><div class="role-lens-head"><div><span class="section-kicker">'+escapeHtml(profile.eyebrow)+'</span><h4>'+escapeHtml(names[key]||humanizeKey(key))+' · Overall Detailed Review</h4><p>'+escapeHtml(question)+'</p></div><span class="role-lens-badge">Complete truth · same governed calculations</span></div><div class="role-lens-body"><div class="role-review-layers">'+layers.map(([title,text])=>'<div class="role-review-layer"><b>'+escapeHtml(title)+'</b><span>'+escapeHtml(text)+'</span></div>').join("")+'</div></div></section>';
+  }
+  const signals=roleTopSignals(data,role);
+  const actions=collectRoleActions(data,role);
+  return '<section class="role-lens"><div class="role-lens-head"><div><span class="section-kicker">'+escapeHtml(profile.eyebrow)+'</span><h4>'+escapeHtml(profile.label)+' lens · '+escapeHtml(names[key]||humanizeKey(key))+'</h4><p>'+escapeHtml(question)+'</p></div><span class="role-lens-badge">Same governed project position</span></div><div class="role-lens-body"><div class="role-focus-grid">'+focus.map((text,index)=>'<div class="role-focus-card"><span>Focus '+(index+1)+'</span><b>'+escapeHtml(text)+'</b></div>').join("")+'</div>'+(signals.length?'<div class="role-signal-grid">'+signals.map(item=>'<div class="role-signal '+escapeHtml(roleSignalTone(item))+'" title="'+escapeHtml((item.path||[]).join(" · "))+'"><span>'+escapeHtml(roleSignalLabel(item))+'</span><b>'+escapeHtml(roleSignalValue(item))+'</b></div>').join("")+'</div>':'')+(actions.length?'<div class="role-action-panel"><strong>'+(role==="executive"?"Executive attention":role==="project-director"?"Leadership actions":role==="program-director"?"Programme actions":"Control actions")+'</strong><div class="role-action-list">'+actions.map((item,index)=>'<div class="role-action-row"><i>'+(index+1)+'</i><span><b>'+escapeHtml(item.kind)+':</b> '+escapeHtml(item.text)+'</span></div>').join("")+'</div></div>':'')+'</div></section>';
+}
+function renderRoleContent(key,data,primaryView,challengeHtml="",includeTechnical=false){
+  const role=selectedRoleView;
+  const lens=renderRoleLens(key,data,role);
+  const className="role-view-"+role;
+  const technical=includeTechnical?renderStructuredSections(data):"";
+  if(role==="overall"){
+    return '<div class="'+className+'">'+lens+'<div class="role-primary-analysis">'+primaryView+'</div>'+challengeHtml+(technical?'<details class="role-supporting-detail"><summary><b>Full calculation & evidence detail</b><span>Open the complete structured module payload</span></summary><div class="role-supporting-detail-body">'+technical+'</div></details>':'')+'</div>';
+  }
+  if(role==="planning"){
+    return '<div class="'+className+'">'+lens+'<div class="role-primary-analysis">'+primaryView+'</div>'+challengeHtml+(technical?'<details class="role-supporting-detail"><summary><b>Technical calculation & source detail</b><span>Fields, coverage and supporting records</span></summary><div class="role-supporting-detail-body">'+technical+'</div></details>':'')+'</div>';
+  }
+  if(role==="controls"){
+    return '<div class="'+className+'">'+lens+'<div class="role-primary-analysis">'+primaryView+'</div>'+challengeHtml+'</div>';
+  }
+  return '<div class="'+className+'">'+lens+'<div class="role-primary-analysis">'+primaryView+'</div>'+(challengeHtml?'<details class="role-supporting-detail"><summary><b>Submitted position reconciliation</b><span>Open detailed comparison</span></summary><div class="role-supporting-detail-body">'+challengeHtml+'</div></details>':'')+'<details class="role-supporting-detail"><summary><b>Full detailed review</b><span>Open all technical charts, registers and supporting detail for this module</span></summary><div class="role-supporting-detail-body">'+primaryView+challengeHtml+'</div></details></div>';
+}
+
 function setBusy(text){el("globalStatus").innerHTML=text?'<span class="spinner"></span> '+text:"";}
 async function api(path,opts={}){const r=await fetch(path,opts);let data=null;try{data=await r.json()}catch{}if(!r.ok){const e=new Error(data?.message||data?.reason||data?.error||("HTTP "+r.status));e.data=data;e.status=r.status;throw e}return data}
 function escapeHtml(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
