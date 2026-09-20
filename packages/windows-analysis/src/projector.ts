@@ -193,6 +193,64 @@ function eventOverlapsWindow(
   );
 }
 
+function normalizeWindowReference(
+  value: string,
+): string {
+  return value
+    .normalize("NFKC")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "");
+}
+
+function eventReferencesWindow(
+  event: CanonicalDelayEvent,
+  input: {
+    windowId: string;
+    sequence: number;
+    fromRevisionId: string;
+    toRevisionId: string;
+  },
+): boolean {
+  const references =
+    event.relatedWindowReferences ??
+    [];
+  if (references.length === 0) {
+    return false;
+  }
+  const accepted = new Set([
+    normalizeWindowReference(
+      input.windowId,
+    ),
+    normalizeWindowReference(
+      "window " +
+        input.sequence,
+    ),
+    normalizeWindowReference(
+      "w" +
+        input.sequence,
+    ),
+    String(input.sequence),
+    normalizeWindowReference(
+      input.fromRevisionId +
+        " to " +
+        input.toRevisionId,
+    ),
+    normalizeWindowReference(
+      input.fromRevisionId +
+        "->" +
+        input.toRevisionId,
+    ),
+  ]);
+  return references.some(
+    (reference) =>
+      accepted.has(
+        normalizeWindowReference(
+          reference,
+        ),
+      ),
+  );
+}
+
 function eventRef(
   event: CanonicalDelayEvent,
 ): WindowEventRef {
@@ -300,12 +358,28 @@ export function buildWindowsAnalysisProjection(
 
     const startIso = windowBoundary(from);
     const endIso = windowBoundary(to);
+    const canonicalWindowId =
+      from.revisionId +
+      "->" +
+      to.revisionId;
     const overlappingEvents =
       delayModel.events.filter((event) =>
         eventOverlapsWindow(
           event,
           startIso,
           endIso,
+        ) ||
+        eventReferencesWindow(
+          event,
+          {
+            windowId:
+              canonicalWindowId,
+            sequence: index,
+            fromRevisionId:
+              from.revisionId,
+            toRevisionId:
+              to.revisionId,
+          },
         ),
       );
 
@@ -443,9 +517,7 @@ export function buildWindowsAnalysisProjection(
 
     windows.push({
       windowId:
-        from.revisionId +
-        "->" +
-        to.revisionId,
+        canonicalWindowId,
       sequence: index,
       fromRevisionId: from.revisionId,
       toRevisionId: to.revisionId,
