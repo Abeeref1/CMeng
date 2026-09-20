@@ -1007,19 +1007,27 @@ function buildBundle(
     const after =
       current.revision;
 
+    const changeProjection =
+      buildScheduleChangeReportProjection(
+        before,
+        after,
+        {
+          generatedAt,
+          producerVersion:
+            versions.change,
+        },
+      );
     modules.set(
       "schedule-change-report",
       available(
         "schedule-change-report",
-        buildScheduleChangeReportProjection(
-          before,
-          after,
-          {
-            generatedAt,
-            producerVersion:
-              versions.change,
-          },
-        ),
+        {
+          ...changeProjection,
+          fromRevisionLabel:
+            before.label,
+          toRevisionLabel:
+            after.label,
+        },
         ["two schedule revisions"],
       ),
     );
