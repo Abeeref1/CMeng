@@ -91,6 +91,13 @@ export interface EotAssessmentProjection {
   officialApprovedEotDays: number | null;
   officialApprovedEotState: GovernanceState;
   officialAdjustedCompletionIso: string | null;
+  incorporatedAmendmentEotDays: number | null;
+  determinationCount: number | null;
+  determinationAwardedDaysTotal: number | null;
+  determinationAwardedDaysToDataDate: number | null;
+  determinationDataDateIso: string | null;
+  approvedEotAdditionalToContractBasis:
+    boolean | null;
 
   observedProgrammeMovementDays: number;
   analyticalTimeImpactCandidateDays: number | null;
