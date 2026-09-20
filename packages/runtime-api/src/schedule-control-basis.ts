@@ -549,7 +549,6 @@ export function projectScheduleControlBasis(
   if (
     !explicitConflict &&
     resolvedNearWorking === null &&
-    uniqueNearHours === null &&
     uniqueNearCount !== null
   ) {
     const reconciled =
@@ -569,6 +568,11 @@ export function projectScheduleControlBasis(
         reconciled.workingDays;
       thresholdMethod =
         "source_count_reconciliation";
+      if (uniqueNearHours !== null) {
+        diagnostics.push(
+          "SOURCE_COUNT_WORKING_DAY_RECONCILIATION_TAKES_PRECEDENCE_OVER_GENERIC_HOUR_EQUIVALENT",
+        );
+      }
     }
   }
 
