@@ -295,10 +295,24 @@ const groups={
   "Programme & Planning":["pmo-analysis","schedule-analytics","activity-analytics","lookahead-schedule","schedule-change-report","revision-trend","milestones","near-critical"],
   "Progress & Resources":["resource-utilization","progress-report","variance-trends","progress-scurve","quantity-scurve","progress-breakdown","manhour-scurve"],
   "Forecast & Finish":["forecast-history","independent-forecast"],
-  "Claims & Commercial":["delay-claims","notices-claims","windows-analysis","eot-assessment","challenge-contract"]
+  "Claims & Time":["delay-claims","notices-claims","windows-analysis","eot-assessment","challenge-contract"],
+  "Commercial Foundation":["commercial-terms","contract-amendments","cost-register","payment-register","cbs-breakdown"],
+  "Commercial Control":["cost-control","evm-performance","cash-flow-register","cost-scurve","variations","site-instructions","contract-obligations","liquidated-damages","bonds-insurance","retention-calendar"],
+  "Commercial Assurance":["final-account","earned-schedule","evm-by-wbs","risk-register","monte-carlo-risk","contract-risk","tender-readiness"],
+  "Commercial Governance":["commitment-tracking","accruals","contingency-reserve","escalation-price-adjustment","vat-tax","multi-currency","cost-audit-trail","reconciliation-report","cost-position"]
 };
+const commercialModuleKeys=new Set([
+  "commercial-terms","contract-amendments","cost-register","payment-register","cbs-breakdown",
+  "cost-control","evm-performance","cash-flow-register","cost-scurve","variations","site-instructions","contract-obligations","liquidated-damages","bonds-insurance","retention-calendar",
+  "final-account","earned-schedule","evm-by-wbs","risk-register","monte-carlo-risk","contract-risk","tender-readiness",
+  "commitment-tracking","accruals","contingency-reserve","escalation-price-adjustment","vat-tax","multi-currency","cost-audit-trail","reconciliation-report","cost-position"
+]);
 const names={
-"pmo-analysis":"Management Position","schedule-analytics":"Programme Review","activity-analytics":"Activity Review","resource-utilization":"Resources","lookahead-schedule":"Look-Ahead","progress-report":"Progress Position","schedule-change-report":"Programme Changes","revision-trend":"Revision History","variance-trends":"Variance Trend","progress-scurve":"Progress S-Curve","quantity-scurve":"Installed Quantities","progress-breakdown":"WBS Progress","milestones":"Milestones","near-critical":"Near-Critical Activities","manhour-scurve":"Man-Hour S-Curve","forecast-history":"Forecast History","independent-forecast":"Independent Forecast","delay-claims":"Delay Events & Claims","notices-claims":"Notices, EOT & Claims","windows-analysis":"Delay Windows","eot-assessment":"EOT Position","challenge-contract":"Challenge the Contract"
+"pmo-analysis":"Management Position","schedule-analytics":"Programme Review","activity-analytics":"Activity Review","resource-utilization":"Resources","lookahead-schedule":"Look-Ahead","progress-report":"Progress Position","schedule-change-report":"Programme Changes","revision-trend":"Revision History","variance-trends":"Variance Trend","progress-scurve":"Progress S-Curve","quantity-scurve":"Installed Quantities","progress-breakdown":"WBS Progress","milestones":"Milestones","near-critical":"Near-Critical Activities","manhour-scurve":"Man-Hour S-Curve","forecast-history":"Forecast History","independent-forecast":"Independent Forecast","delay-claims":"Delay Events & Claims","notices-claims":"Notices, EOT & Claims","windows-analysis":"Delay Windows","eot-assessment":"EOT Position","challenge-contract":"Challenge the Contract",
+"commercial-terms":"Commercial Terms","contract-amendments":"Contract Amendments","cost-register":"Cost Register","payment-register":"Payment Register (IPC)","cbs-breakdown":"CBS Breakdown",
+"cost-control":"Cost Control","evm-performance":"EVM Curves & Performance","cash-flow-register":"Cash Flow Register","cost-scurve":"Cost S-Curve","variations":"Variations","site-instructions":"Site Instructions","contract-obligations":"Contract Obligations","liquidated-damages":"Liquidated Damages","bonds-insurance":"Bonds & Insurance","retention-calendar":"Retention Calendar",
+"final-account":"Final Account / Closeout","earned-schedule":"Earned Schedule","evm-by-wbs":"EVM by WBS","risk-register":"Risk Register","monte-carlo-risk":"Monte Carlo Risk","contract-risk":"Contract Risk","tender-readiness":"Tender Readiness",
+"commitment-tracking":"Commitment Tracking","accruals":"Accruals","contingency-reserve":"Contingency & Management Reserve","escalation-price-adjustment":"Escalation & Price Adjustment","vat-tax":"VAT & Tax","multi-currency":"Multi-Currency","cost-audit-trail":"Cost Audit Trail","reconciliation-report":"Reconciliation Report","cost-position":"Cost Position"
 };
 const descriptions={
 "pmo-analysis":"Finish-date outlook, schedule pressure and decisions requiring management attention.",
@@ -322,7 +336,38 @@ const descriptions={
 "notices-claims":"Notice timeliness and claim assessment authority, only where the required evidence exists.",
 "windows-analysis":"Revision-to-revision programme movement kept separate from causation and entitlement.",
 "eot-assessment":"Observed movement, time impact, contractual entitlement and official EOT award kept separate.",
-"challenge-contract":"Contract clause intelligence and delivery assumptions reviewed against the available project evidence."
+"challenge-contract":"Contract clause intelligence and delivery assumptions reviewed against the available project evidence.",
+"commercial-terms":"Governed contract value, dates, payment/retention/LD terms, notices, precedence and amendments.",
+"contract-amendments":"Amendment numbering, effective dates, precedence and changed commercial/time terms.",
+"cost-register":"CBS-level budget, commitments, certified, paid, actual, ETC, EAC and VAC without unsupported zeroes.",
+"payment-register":"IPC lifecycle from application and assessment through certification, deductions, receipts and outstanding.",
+"cbs-breakdown":"CBS hierarchy and BOQ/payment/WBS mapping completeness.",
+"cost-control":"Budget, EVM, EAC/ETC/VAC, source-vs-calculated reconciliation and cost-to-complete method.",
+"evm-performance":"Documented versus calculated EVM with PV/EV/AC and CPI/SPI series completeness.",
+"cash-flow-register":"Period certified income, paid income, expenditure, forecast and reconciliation.",
+"cost-scurve":"Cumulative cost/certified/actual/forecast curves only where dated evidence exists.",
+"variations":"Variation lifecycle, approved/pending exposure, time impact and contract/payment linkages.",
+"site-instructions":"Instruction register, response, commercial action, non-compliance and downstream links.",
+"contract-obligations":"Contract deadlines, notices, milestones, instruments, time bars and conditions precedent.",
+"liquidated-damages":"LD rate/cap and exposure scenarios kept separate from schedule movement and EOT authority.",
+"bonds-insurance":"Required versus issued instruments, expiry, claims, calls and recoveries.",
+"retention-calendar":"Retention withheld, released, remaining, cap and release trigger calendar.",
+"final-account":"Closeout reconciliation from original sum through revised sum, certified, paid and settlement.",
+"earned-schedule":"Time-based EVM where complete dated PV/EV evidence supports ES, SPI(t) and SV(t).",
+"evm-by-wbs":"WBS-level EVM only where WBS/CBS allocation is governed.",
+"risk-register":"Governed qualitative risks, owners, mitigation, residual position and dependencies.",
+"monte-carlo-risk":"Probabilistic time/cost analysis with QRA readiness and source distributions.",
+"contract-risk":"Clause-level contract risk, deadlines, severity, recommendation and evidence trace.",
+"tender-readiness":"Tender-stage returnables, BOQ/compliance, clarifications and bid-evaluation readiness.",
+"commitment-tracking":"PO, subcontract and service-agreement commitments linked to CBS and cost.",
+"accruals":"Period-end accruals, invoice matching, reversals and governance.",
+"contingency-reserve":"Contingency and management-reserve allocation, draw, release and risk linkage.",
+"escalation-price-adjustment":"Price-adjustment formulas, indices, base dates and retroactive adjustments.",
+"vat-tax":"VAT basis, tax invoices, withholding tax and jurisdictional treatment.",
+"multi-currency":"Contract/payment/reporting currencies with explicit FX source/date and gain/loss.",
+"cost-audit-trail":"Immutable cost mutation history with actor, reason and before/after values.",
+"reconciliation-report":"Single money-flow reconciliation: contract → variations → revised contract → certified → paid → balance.",
+"cost-position":"Cash position, peak funding need and overdraft/funding requirement."
 }
 const roleViews={
   overall:{
