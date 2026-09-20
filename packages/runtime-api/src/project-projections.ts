@@ -3696,7 +3696,7 @@ function buildPlanningModuleFast(
           ?.revision.revisionId ??
         null,
       synthesisState:
-        "programme_planning",
+        "partial_cross_domain",
       schedule: {
         activityCount:
           scheduleAnalytics
@@ -3848,13 +3848,10 @@ function buildPlanningModuleFast(
         pmoData,
         [
           "current programme",
+          "available specialist evidence",
         ],
-        independentForecast.complete
-          ? "ready"
-          : "partial",
-        independentForecast.complete
-          ? null
-          : "The programme position is available while the independent path check still needs review.",
+        "partial",
+        "Management Position is synthesized from the specialist evidence currently available. Missing cross-domain evidence remains visible instead of being treated as zero.",
       ),
     );
   }
