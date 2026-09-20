@@ -1,4 +1,8 @@
 import {
+  extractContractLdTerms,
+  extractContractValue,
+} from "../../contract-commercial/src";
+import {
   emptyCommercialRuntimeState,
   type CommercialMoney,
   type CommercialRuntimeState,
@@ -676,6 +680,364 @@ function latestBy<T>(
   ];
 }
 
+function stringSourceRef(
+  value: string,
+): CanonicalSourceRef {
+  const parts =
+    value.split(":");
+  return {
+    sourceId:
+      parts.length > 1
+        ? parts.slice(0, 2)
+            .join(":")
+        : value,
+    locator:
+      parts.length > 2
+        ? parts.slice(2)
+            .join(":")
+        : null,
+  };
+}
+
+function contractCandidateMoney(
+  state: ProjectRuntimeState,
+): CommercialMoney | null {
+  if (state.controls.contractValue) {
+    return money({
+      amount:
+        state.controls
+          .contractValue
+          .amount,
+      currency:
+        state.controls
+          .contractValue
+          .currency,
+      taxBasisValue:
+        "unknown",
+      stateValue:
+        "official",
+      authorityValue:
+        "management_approved",
+      sourceRefs:
+        state.controls
+          .contractValue
+          .sourceRefs
+          .map(
+            stringSourceRef,
+          ),
+    });
+  }
+  if (!state.contract) return null;
+  const extracted =
+    extractContractValue(
+      state.contract,
+    );
+  if (
+    extracted.state !==
+      "candidate" ||
+    !extracted.value
+  ) {
+    return null;
+  }
+  return money({
+    amount:
+      extracted.value
+        .amount,
+    currency:
+      extracted.value
+        .currency,
+    taxBasisValue:
+      "unknown",
+    stateValue:
+      "candidate",
+    authorityValue:
+      "candidate",
+    sourceRefs:
+      extracted.value
+        .sourceRefs
+        .map(
+          stringSourceRef,
+        ),
+    diagnostics: [
+      "CONTRACT_VALUE_EXTRACTED_CANDIDATE_REQUIRES_GOVERNANCE",
+    ],
+  });
+}
+
+function applyContractTerms(
+  state: ProjectRuntimeState,
+  commercial:
+    CommercialRuntimeState,
+): void {
+  const latestCost =
+    commercial
+      .costEvmSnapshots
+      .at(-1) ??
+    null;
+  const contractCandidate =
+    contractCandidateMoney(
+      state,
+    );
+
+  const sourceMoney = (
+    amount: number | null,
+  ): CommercialMoney | null =>
+    amount === null
+      ? null
+      : money({
+          amount,
+          currency:
+            latestCost
+              ?.currency ??
+            contractCandidate
+              ?.currency ??
+            null,
+          taxBasisValue:
+            latestCost
+              ?.vatBasis ??
+            "unknown",
+          stateValue:
+            latestCost
+              ?.state ??
+            "candidate",
+          authorityValue:
+            latestCost
+              ?.authority ??
+            "source_register",
+          asOfIso:
+            latestCost
+              ?.asOfIso ??
+            null,
+          sourceRefs:
+            latestCost
+              ?.sourceRefs ??
+            [],
+        });
+
+  const original =
+    sourceMoney(
+      latestCost
+        ?.originalContractValue ??
+      null,
+    ) ??
+    contractCandidate;
+  const current =
+    sourceMoney(
+      latestCost
+        ?.currentContractValue ??
+      null,
+    ) ??
+    contractCandidate;
+
+  const time =
+    state.controls
+      .contractTimeBasis;
+  const notices =
+    state.controls
+      .contractNoticeRequirements;
+
+  const claimNotice =
+    notices.find(
+      (item) =>
+        item.noticeKind ===
+        "claim_notice",
+    );
+  const detailed =
+    notices.find(
+      (item) =>
+        item.noticeKind ===
+        "detailed_claim",
+    );
+
+  const amendments =
+    state.contractDocuments
+      .filter(
+        (document) =>
+          document.role ===
+          "amendment",
+      )
+      .map(
+        (document, index) => ({
+          amendmentId:
+            document.documentId,
+          amendmentNumber:
+            document.sourceFilename ??
+            null,
+          effectiveDateIso:
+            time
+              ?.controllingAmendmentId ===
+              document.documentId
+              ? time
+                  .controllingAmendmentEffectiveAtIso ??
+                null
+              : null,
+          description:
+            document.sourceFilename ??
+            null,
+          contractValueChange:
+            null,
+          timeExtensionDays:
+            time
+              ?.controllingAmendmentId ===
+              document.documentId
+              ? time
+                  .incorporatedAmendmentEotDays ??
+                null
+              : null,
+          revisedContractualCompletionIso:
+            time
+              ?.controllingAmendmentId ===
+              document.documentId
+              ? time
+                  .contractualCompletionIso
+              : null,
+          precedence:
+            index + 1,
+          state:
+            "approved" as const,
+          sourceRefs: [{
+            sourceId:
+              document.documentId,
+            locator:
+              null,
+          }],
+          diagnostics: [],
+        }),
+      );
+
+  commercial.contractTerms = {
+    ...commercial
+      .contractTerms,
+    originalContractValue:
+      original,
+    currentContractValue:
+      current,
+    originalCompletionIso:
+      time
+        ?.originalContractualCompletionIso ??
+      commercial
+        .contractTerms
+        .originalCompletionIso,
+    revisedCompletionIso:
+      time
+        ?.contractualCompletionIso ??
+      commercial
+        .contractTerms
+        .revisedCompletionIso,
+    noticePeriodDays:
+      claimNotice
+        ?.noticePeriodDays ??
+      commercial
+        .contractTerms
+        .noticePeriodDays,
+    detailedClaimPeriodDays:
+      detailed
+        ?.noticePeriodDays ??
+      commercial
+        .contractTerms
+        .detailedClaimPeriodDays,
+    amendments,
+    sourceRefs: [
+      ...new Map(
+        [
+          ...(original
+            ?.sourceRefs ??
+            []),
+          ...(current
+            ?.sourceRefs ??
+            []),
+          ...(time
+            ?.sourceRefs
+            .map(
+              stringSourceRef,
+            ) ??
+            []),
+          ...notices.flatMap(
+            (item) =>
+              item.evidenceRefs.map(
+                (ref) => ({
+                  sourceId:
+                    ref.sourceId,
+                  locator:
+                    ref.locator,
+                }),
+              ),
+          ),
+        ].map(
+          (ref) => [
+            ref.sourceId +
+            "|" +
+            (
+              ref.locator ??
+              ""
+            ),
+            ref,
+          ],
+        ),
+      ).values(),
+    ],
+    diagnostics: [
+      ...commercial
+        .contractTerms
+        .diagnostics,
+    ],
+  };
+
+  if (state.contract) {
+    const ld =
+      extractContractLdTerms(
+        state.contract,
+      );
+    if (
+      ld.rateState ===
+        "candidate" &&
+      ld.rate
+    ) {
+      if (
+        ld.rate.amount !==
+          null &&
+        ld.rate.currency
+      ) {
+        commercial
+          .contractTerms
+          .ldRatePerDay =
+          money({
+            amount:
+              ld.rate.amount,
+            currency:
+              ld.rate.currency,
+            taxBasisValue:
+              "not applicable",
+            stateValue:
+              "candidate",
+            authorityValue:
+              "candidate",
+            sourceRefs:
+              ld.rate
+                .sourceRefs
+                .map(
+                  stringSourceRef,
+                ),
+            diagnostics: [
+              "LD_RATE_REQUIRES_GOVERNED_PROMOTION",
+            ],
+          });
+      }
+    }
+    if (
+      ld.capState ===
+        "candidate" &&
+      ld.cap?.percent !==
+        null
+    ) {
+      commercial
+        .contractTerms
+        .ldCapPercent =
+        ld.cap.percent;
+    }
+  }
+}
+
 export function rebuildCommercialState(
   state: ProjectRuntimeState,
 ): void {
@@ -786,6 +1148,11 @@ export function rebuildCommercialState(
       rebuilt.sourceDocumentIds,
     ),
   ];
+
+  applyContractTerms(
+    state,
+    rebuilt,
+  );
 
   state.commercial =
     rebuilt;
