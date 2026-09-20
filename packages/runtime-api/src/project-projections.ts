@@ -210,6 +210,12 @@ function attachProjectTruth(
         nearCriticalThresholdHours:
           truth.schedule
             .nearCriticalThresholdHours,
+        nearCriticalWorkingDays:
+          truth.schedule
+            .nearCriticalWorkingDays,
+        nearCriticalSourceCount:
+          truth.schedule
+            .nearCriticalSourceCount,
       },
     },
   };
