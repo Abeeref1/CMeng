@@ -2453,548 +2453,633 @@ function logProgrammePlanningVisualQa(
 ): void {
   const state =
     runtimeProjects.get(projectId);
-  if (!state) {
+  const current =
+    runtimeProjects.latestSchedule(
+      projectId,
+    );
+  if (!state || !current) {
     process.stdout.write(
       "CMENG_VISUAL_QA " +
         JSON.stringify({
           projectId,
-          state: "project_not_found",
+          state:
+            !state
+              ? "project_not_found"
+              : "schedule_not_found",
         }) +
         "\n",
     );
     return;
   }
 
-  const keys = [
-    "pmo-analysis",
-    "schedule-analytics",
-    "activity-analytics",
-    "lookahead-schedule",
-    "schedule-change-report",
-    "revision-trend",
-    "milestones",
-    "near-critical",
-  ];
-
-  const summary: Record<
-    string,
-    unknown
-  > = {};
-
-  for (const key of keys) {
-    const result =
-      moduleForProject(
-        projectId,
-        key,
-      );
-    const data =
-      (
-        result.data &&
-        typeof result.data === "object"
-      )
-        ? result.data as
-            Record<
-              string,
-              any
-            >
-        : {};
-
-    if (
-      key === "pmo-analysis"
-    ) {
-      summary[key] = {
-        status: result.status,
-        reason: result.reason,
-        activityCount:
-          data.schedule?.activityCount ??
-          null,
-        relationshipCount:
-          data.schedule?.relationshipCount ??
-          null,
-        criticalCount:
-          data.schedule?.criticalCount ??
-          null,
-        nearCriticalCount:
-          data.schedule?.nearCriticalCount ??
-          null,
-        negativeFloatCount:
-          data.schedule?.negativeFloatCount ??
-          null,
-        weightedProgress:
-          data.progress
-            ?.durationWeightedProgressPercent ??
-          null,
-        sourceCompletion:
-          data.forecast
-            ?.sourceCompletionIso ??
-          null,
-        independentCompletion:
-          data.forecast
-            ?.independentCompletionIso ??
-          null,
-        forecastVarianceDays:
-          data.forecast
-            ?.varianceDays ??
-          null,
-        lateMilestones:
-          data.progress
-            ?.lateMilestoneCount ??
-          null,
-        lookAheadOverdue:
-          data.progress
-            ?.lookAheadOverdueCount ??
-          null,
-        assignedResourceCount:
-          data.resources
-            ?.assignedResourceCount ??
-          null,
-      };
-      continue;
-    }
-
-    if (
-      key ===
-        "schedule-analytics"
-    ) {
-      const root =
-        data.result ?? data;
-      summary[key] = {
-        status: result.status,
-        reason: result.reason,
-        activityCount:
-          root.activityCount ??
-          null,
-        relationshipCount:
-          root.relationshipCount ??
-          null,
-        dataDateIso:
-          root.dataDateIso ??
-          null,
-        logicDensity:
-          root.graph
-            ?.logicDensity ??
-          null,
-        openStartCount:
-          root.graph
-            ?.openStartActivityIds
-            ?.length ??
-          null,
-        openFinishCount:
-          root.graph
-            ?.openFinishActivityIds
-            ?.length ??
-          null,
-        isolatedCount:
-          root.graph
-            ?.isolatedActivityIds
-            ?.length ??
-          null,
-        cycleCount:
-          root.graph
-            ?.cyclicActivityIds
-            ?.length ??
-          null,
-        criticalCount:
-          root.float
-            ?.criticalCount ??
-          null,
-        nearCriticalCount:
-          root.float
-            ?.nearCriticalCount ??
-          null,
-        negativeFloatCount:
-          root.float
-            ?.negativeFloatCount ??
-          null,
-        floatCoveragePercent:
-          root.float
-            ?.coveragePercent ??
-          null,
-        completionBases:
-          root.completionBases ??
-          [],
-      };
-      continue;
-    }
-
-    if (
-      key ===
-        "activity-analytics"
-    ) {
-      const rows =
-        Array.isArray(data.rows)
-          ? data.rows
-          : [];
-      const finiteFinish =
-        rows
-          .map(
-            (row: any) =>
-              row.finishVarianceDays,
-          )
-          .filter(
-            (value: unknown) =>
-              typeof value ===
-                "number" &&
-              Number.isFinite(
-                value,
-              ),
-          ) as number[];
-      const finiteFloat =
-        rows
-          .map(
-            (row: any) =>
-              row.totalFloatHours,
-          )
-          .filter(
-            (value: unknown) =>
-              typeof value ===
-                "number" &&
-              Number.isFinite(
-                value,
-              ),
-          ) as number[];
-      summary[key] = {
-        status: result.status,
-        reason: result.reason,
-        rowCount: rows.length,
-        floatCoveragePercent:
-          data.floatCoveragePercent ??
-          null,
-        progressCoveragePercent:
-          data
-            .percentCompleteCoveragePercent ??
-          null,
-        finishVarianceCoveragePercent:
-          data
-            .finishVarianceCoveragePercent ??
-          null,
-        criticalCount:
-          rows.filter(
-            (row: any) =>
-              row.criticality ===
-              "critical",
-          ).length,
-        nearCriticalCount:
-          rows.filter(
-            (row: any) =>
-              row.criticality ===
-              "near_critical",
-          ).length,
-        lateCount:
-          finiteFinish.filter(
-            (value) => value > 0,
-          ).length,
-        finishVarianceMin:
-          finiteFinish.length
-            ? Math.min(
-                ...finiteFinish,
-              )
-            : null,
-        finishVarianceMax:
-          finiteFinish.length
-            ? Math.max(
-                ...finiteFinish,
-              )
-            : null,
-        floatMin:
-          finiteFloat.length
-            ? Math.min(
-                ...finiteFloat,
-              )
-            : null,
-        floatMax:
-          finiteFloat.length
-            ? Math.max(
-                ...finiteFloat,
-              )
-            : null,
-      };
-      continue;
-    }
-
-    if (
-      key ===
-        "lookahead-schedule"
-    ) {
-      const rows =
-        Array.isArray(data.rows)
-          ? data.rows
-          : [];
-      summary[key] = {
-        status: result.status,
-        reason: result.reason,
-        rowCount: rows.length,
-        windowDays:
-          data.windowDays ??
-          null,
-        dataDateIso:
-          data.dataDateIso ??
-          null,
-        windowEndIso:
-          data.windowEndIso ??
-          null,
-        overdueCount:
-          data.overdueCount ??
-          null,
-        readyCount:
-          data.readyCount ??
-          null,
-        conditionalCount:
-          data.conditionalCount ??
-          null,
-        blockedCount:
-          data.blockedCount ??
-          null,
-        dateCoveragePercent:
-          data
-            .currentDateCoveragePercent ??
-          null,
-        missingDateCount:
-          Array.isArray(
-            data
-              .missingCurrentDateActivityIds,
-          )
-            ? data
-                .missingCurrentDateActivityIds
-                .length
-            : null,
-      };
-      continue;
-    }
-
-    if (
-      key ===
-        "schedule-change-report"
-    ) {
-      const rows =
-        Array.isArray(
-          data.changedActivities,
+  const model =
+    current.revision.model;
+  const activities =
+    model.activities;
+  const relationships =
+    model.relationships;
+  const dataDateMs =
+    model.dataDateIso
+      ? Date.parse(
+          model.dataDateIso,
         )
-          ? data.changedActivities
-          : [];
-      const shifts =
-        rows
-          .map(
-            (row: any) =>
-              row.finishShiftDays,
-          )
-          .filter(
-            (value: unknown) =>
-              typeof value ===
-                "number" &&
-              Number.isFinite(
-                value,
-              ),
-          ) as number[];
-      summary[key] = {
-        status: result.status,
-        reason: result.reason,
-        state:
-          data.state ??
-          null,
-        rowCount: rows.length,
-        fromRevisionId:
-          data.fromRevisionId ??
-          null,
-        toRevisionId:
-          data.toRevisionId ??
-          null,
-        matchedActivityCount:
-          data.matchedActivityCount ??
-          null,
-        populationMatchPercent:
-          data
-            .populationMatchPercent ??
-          null,
-        addedActivityCount:
-          data.addedActivityCount ??
-          null,
-        removedActivityCount:
-          data.removedActivityCount ??
-          null,
-        modifiedActivityCount:
-          data.modifiedActivityCount ??
-          null,
-        addedRelationshipCount:
-          data.addedRelationshipCount ??
-          null,
-        removedRelationshipCount:
-          data.removedRelationshipCount ??
-          null,
-        finishShiftMin:
-          shifts.length
-            ? Math.min(...shifts)
-            : null,
-        finishShiftMax:
-          shifts.length
-            ? Math.max(...shifts)
-            : null,
-      };
-      continue;
+      : Number.NaN;
+
+  const status = {
+    completed: 0,
+    inProgress: 0,
+    notStarted: 0,
+    unknown: 0,
+  };
+  const floats: number[] = [];
+  const finishVarianceDays:
+    number[] = [];
+  let criticalCount = 0;
+  let nearCriticalCount = 0;
+  let negativeFloatCount = 0;
+  let openStartCount = 0;
+  let openFinishCount = 0;
+  let isolatedCount = 0;
+  let lookAheadCount = 0;
+  let overdueCount = 0;
+  let missingCurrentDateCount = 0;
+
+  const predecessorCount =
+    new Map<string, number>();
+  const successorCount =
+    new Map<string, number>();
+  for (const relationship of relationships) {
+    predecessorCount.set(
+      relationship
+        .successorActivityId,
+      (
+        predecessorCount.get(
+          relationship
+            .successorActivityId,
+        ) ?? 0
+      ) + 1,
+    );
+    successorCount.set(
+      relationship
+        .predecessorActivityId,
+      (
+        successorCount.get(
+          relationship
+            .predecessorActivityId,
+        ) ?? 0
+      ) + 1,
+    );
+  }
+
+  const milestoneRows:
+    Array<{
+      id: string;
+      status: string;
+      baseline: string | null;
+      current: string | null;
+      actual: string | null;
+      varianceDays: number | null;
+    }> = [];
+
+  for (const activity of activities) {
+    if (
+      activity.status ===
+        "completed"
+    ) {
+      status.completed += 1;
+    } else if (
+      activity.status ===
+        "in_progress"
+    ) {
+      status.inProgress += 1;
+    } else if (
+      activity.status ===
+        "not_started"
+    ) {
+      status.notStarted += 1;
+    } else {
+      status.unknown += 1;
     }
 
     if (
-      key === "revision-trend"
+      typeof activity
+        .totalFloatHours ===
+        "number" &&
+      Number.isFinite(
+        activity
+          .totalFloatHours,
+      )
     ) {
-      const points =
-        Array.isArray(data.points)
-          ? data.points
-          : [];
-      summary[key] = {
-        status: result.status,
-        reason: result.reason,
-        revisionCount:
-          data.revisionCount ??
-          points.length,
-        points:
-          points.map(
-            (point: any) => ({
-              sequence:
-                point.sequence,
-              label:
-                point.label,
-              dataDateIso:
-                point.dataDateIso,
-              activityCount:
-                point.activityCount,
-              weightedProgress:
-                point
-                  .durationWeightedProgressPercent,
-              criticalCount:
-                point.criticalCount,
-              nearCriticalCount:
-                point
-                  .nearCriticalCount,
-              negativeFloatCount:
-                point
-                  .negativeFloatCount,
-              forecastCompletionIso:
-                point
-                  .forecastCompletionIso,
-              addedVsPrevious:
-                point.addedVsPrevious,
-              removedVsPrevious:
-                point
-                  .removedVsPrevious,
-              modifiedVsPrevious:
-                point
-                  .modifiedVsPrevious,
-            }),
-          ),
-      };
-      continue;
+      const value =
+        activity
+          .totalFloatHours;
+      floats.push(value);
+      if (value <= 0) {
+        criticalCount += 1;
+      } else if (value <= 40) {
+        nearCriticalCount += 1;
+      }
+      if (value < 0) {
+        negativeFloatCount += 1;
+      }
     }
 
-    if (key === "milestones") {
-      const rows =
-        Array.isArray(data.rows)
-          ? data.rows
-          : [];
-      const variances =
-        rows
-          .map(
-            (row: any) =>
-              row.varianceDays,
-          )
-          .filter(
-            (value: unknown) =>
-              typeof value ===
-                "number" &&
-              Number.isFinite(
-                value,
-              ),
-          ) as number[];
-      summary[key] = {
-        status: result.status,
-        reason: result.reason,
-        rowCount: rows.length,
-        milestoneCount:
-          data.milestoneCount ??
-          null,
-        completedCount:
-          data.completedCount ??
-          null,
-        openCount:
-          data.openCount ??
-          null,
-        lateOpenCount:
-          data.lateOpenCount ??
-          null,
-        dataDateIso:
-          data.dataDateIso ??
-          null,
-        varianceMin:
-          variances.length
-            ? Math.min(
-                ...variances,
-              )
-            : null,
-        varianceMax:
-          variances.length
-            ? Math.max(
-                ...variances,
-              )
-            : null,
-      };
-      continue;
+    const pred =
+      predecessorCount.get(
+        activity.activityId,
+      ) ?? 0;
+    const succ =
+      successorCount.get(
+        activity.activityId,
+      ) ?? 0;
+    if (pred === 0) {
+      openStartCount += 1;
+    }
+    if (succ === 0) {
+      openFinishCount += 1;
+    }
+    if (
+      pred === 0 &&
+      succ === 0
+    ) {
+      isolatedCount += 1;
     }
 
-    if (key === "near-critical") {
-      const rows =
-        Array.isArray(data.rows)
-          ? data.rows
-          : [];
-      const floats =
-        rows
-          .map(
-            (row: any) =>
-              row.totalFloatHours,
-          )
-          .filter(
-            (value: unknown) =>
-              typeof value ===
-                "number" &&
-              Number.isFinite(
-                value,
-              ),
-          ) as number[];
-      summary[key] = {
-        status: result.status,
-        reason: result.reason,
-        rowCount: rows.length,
-        nearCriticalCount:
-          data.nearCriticalCount ??
-          null,
-        criticalThresholdHours:
-          data
-            .criticalThresholdHours ??
-          null,
-        nearCriticalThresholdHours:
-          data
-            .nearCriticalThresholdHours ??
-          null,
-        floatCoveragePercent:
-          data.floatCoveragePercent ??
-          null,
-        floatMin:
-          floats.length
-            ? Math.min(...floats)
-            : null,
-        floatMax:
-          floats.length
-            ? Math.max(...floats)
-            : null,
-      };
+    const effectiveFinish =
+      activity.actualFinishIso ??
+      activity.forecastFinishIso ??
+      activity.currentFinishIso;
+    if (
+      activity.baselineFinishIso &&
+      effectiveFinish
+    ) {
+      const baselineMs =
+        Date.parse(
+          activity
+            .baselineFinishIso,
+        );
+      const finishMs =
+        Date.parse(
+          effectiveFinish,
+        );
+      if (
+        Number.isFinite(
+          baselineMs,
+        ) &&
+        Number.isFinite(
+          finishMs,
+        )
+      ) {
+        finishVarianceDays.push(
+          (
+            finishMs -
+            baselineMs
+          ) /
+            86_400_000,
+        );
+      }
+    }
+
+    if (
+      activity.status !==
+        "completed" &&
+      activity.activityType !==
+        "wbs_summary"
+    ) {
+      const start =
+        activity.actualStartIso ??
+        activity.forecastStartIso ??
+        activity.currentStartIso;
+      const finish =
+        activity.actualFinishIso ??
+        activity.forecastFinishIso ??
+        activity.currentFinishIso;
+      const startMs =
+        start
+          ? Date.parse(start)
+          : Number.NaN;
+      const finishMs =
+        finish
+          ? Date.parse(finish)
+          : Number.NaN;
+      if (
+        !Number.isFinite(
+          dataDateMs,
+        ) ||
+        !Number.isFinite(
+          startMs,
+        ) ||
+        !Number.isFinite(
+          finishMs,
+        )
+      ) {
+        missingCurrentDateCount += 1;
+      } else {
+        const windowEnd =
+          dataDateMs +
+          42 *
+            86_400_000;
+        const overdue =
+          finishMs <
+          dataDateMs;
+        const inWindow =
+          startMs <=
+            windowEnd &&
+          finishMs >=
+            dataDateMs;
+        if (
+          overdue ||
+          inWindow
+        ) {
+          lookAheadCount += 1;
+        }
+        if (overdue) {
+          overdueCount += 1;
+        }
+      }
+    }
+
+    const milestone =
+      activity.activityType ===
+        "milestone" ||
+      activity.activityType ===
+        "start_milestone" ||
+      activity.activityType ===
+        "finish_milestone" ||
+      activity
+        .originalDurationHours ===
+        0;
+    if (milestone) {
+      let variance:
+        number | null = null;
+      const currentDate =
+        activity.actualFinishIso ??
+        activity.forecastFinishIso ??
+        activity.currentFinishIso ??
+        activity.actualStartIso ??
+        activity.forecastStartIso ??
+        activity.currentStartIso;
+      const baselineDate =
+        activity.baselineFinishIso ??
+        activity.baselineStartIso;
+      if (
+        baselineDate &&
+        currentDate
+      ) {
+        const a =
+          Date.parse(
+            baselineDate,
+          );
+        const b =
+          Date.parse(
+            currentDate,
+          );
+        if (
+          Number.isFinite(a) &&
+          Number.isFinite(b)
+        ) {
+          variance =
+            (
+              b - a
+            ) /
+            86_400_000;
+        }
+      }
+      milestoneRows.push({
+        id:
+          activity.activityId,
+        status:
+          activity.status,
+        baseline:
+          baselineDate,
+        current:
+          currentDate,
+        actual:
+          activity.actualFinishIso ??
+          activity.actualStartIso,
+        varianceDays:
+          variance,
+      });
     }
   }
+
+  const governedRevisions =
+    state.schedules
+      .filter(
+        (item) =>
+          item.role !==
+          "recovery",
+      )
+      .sort(
+        (a, b) =>
+          (
+            a.revision.model
+              .dataDateIso ??
+            a.revision
+              .effectiveAt ??
+            ""
+          ).localeCompare(
+            b.revision.model
+              .dataDateIso ??
+              b.revision
+                .effectiveAt ??
+              "",
+          ),
+      );
+
+  const revisionSummary =
+    governedRevisions.map(
+      (item) => ({
+        label:
+          item.revision.label,
+        role:
+          item.role,
+        dataDateIso:
+          item.revision.model
+            .dataDateIso,
+        activityCount:
+          item.revision.model
+            .activities.length,
+        relationshipCount:
+          item.revision.model
+            .relationships.length,
+      }),
+    );
+
+  let comparison:
+    Record<string, unknown> | null =
+    null;
+  if (
+    governedRevisions.length >=
+    2
+  ) {
+    const from =
+      governedRevisions.at(-2)!
+        .revision.model;
+    const to =
+      governedRevisions.at(-1)!
+        .revision.model;
+    const before =
+      new Map(
+        from.activities.map(
+          (activity) => [
+            activity.activityId,
+            activity,
+          ],
+        ),
+      );
+    const after =
+      new Map(
+        to.activities.map(
+          (activity) => [
+            activity.activityId,
+            activity,
+          ],
+        ),
+      );
+    let added = 0;
+    let removed = 0;
+    let modified = 0;
+    const finishShifts:
+      number[] = [];
+    for (
+      const [id, item] of
+        after
+    ) {
+      const previous =
+        before.get(id);
+      if (!previous) {
+        added += 1;
+        continue;
+      }
+      const changed =
+        previous.status !==
+          item.status ||
+        previous.currentStartIso !==
+          item.currentStartIso ||
+        previous.currentFinishIso !==
+          item.currentFinishIso ||
+        previous.percentComplete !==
+          item.percentComplete ||
+        previous.totalFloatHours !==
+          item.totalFloatHours;
+      if (changed) {
+        modified += 1;
+      }
+      if (
+        previous.currentFinishIso &&
+        item.currentFinishIso
+      ) {
+        const a =
+          Date.parse(
+            previous
+              .currentFinishIso,
+          );
+        const b =
+          Date.parse(
+            item.currentFinishIso,
+          );
+        if (
+          Number.isFinite(a) &&
+          Number.isFinite(b)
+        ) {
+          finishShifts.push(
+            (
+              b - a
+            ) /
+              86_400_000,
+          );
+        }
+      }
+    }
+    for (const id of before.keys()) {
+      if (!after.has(id)) {
+        removed += 1;
+      }
+    }
+    comparison = {
+      added,
+      removed,
+      modified,
+      finishShiftMin:
+        finishShifts.length
+          ? Math.min(
+              ...finishShifts,
+            )
+          : null,
+      finishShiftMax:
+        finishShifts.length
+          ? Math.max(
+              ...finishShifts,
+            )
+          : null,
+    };
+  }
+
+  const openMilestones =
+    milestoneRows.filter(
+      (row) =>
+        row.status !==
+        "completed",
+    );
+  const lateOpenMilestones =
+    openMilestones.filter(
+      (row) =>
+        typeof row
+          .varianceDays ===
+          "number" &&
+        row.varianceDays > 0,
+    );
 
   process.stdout.write(
     "CMENG_VISUAL_QA " +
       JSON.stringify({
         projectId,
-        generatedAt:
-          new Date().toISOString(),
-        summary,
+        dataDateIso:
+          model.dataDateIso,
+        currentRevision: {
+          revisionId:
+            current.revision
+              .revisionId,
+          label:
+            current.revision.label,
+          role:
+            current.role,
+          activityCount:
+            activities.length,
+          relationshipCount:
+            relationships.length,
+        },
+        activity: {
+          status,
+          criticalCount,
+          nearCriticalCount,
+          negativeFloatCount,
+          floatCoveragePercent:
+            activities.length
+              ? (
+                  floats.length /
+                  activities.length
+                ) *
+                100
+              : null,
+          floatMin:
+            floats.length
+              ? Math.min(
+                  ...floats,
+                )
+              : null,
+          floatMax:
+            floats.length
+              ? Math.max(
+                  ...floats,
+                )
+              : null,
+          finishVarianceMin:
+            finishVarianceDays
+              .length
+              ? Math.min(
+                  ...finishVarianceDays,
+                )
+              : null,
+          finishVarianceMax:
+            finishVarianceDays
+              .length
+              ? Math.max(
+                  ...finishVarianceDays,
+                )
+              : null,
+          openStartCount,
+          openFinishCount,
+          isolatedCount,
+        },
+        lookAhead: {
+          rowCount:
+            lookAheadCount,
+          overdueCount,
+          missingCurrentDateCount,
+        },
+        milestones: {
+          count:
+            milestoneRows.length,
+          completedCount:
+            milestoneRows.filter(
+              (row) =>
+                row.status ===
+                "completed",
+            ).length,
+          openCount:
+            openMilestones.length,
+          lateOpenCount:
+            lateOpenMilestones
+              .length,
+          varianceMin:
+            milestoneRows
+              .map(
+                (row) =>
+                  row.varianceDays,
+              )
+              .filter(
+                (
+                  value,
+                ): value is number =>
+                  typeof value ===
+                    "number" &&
+                  Number.isFinite(
+                    value,
+                  ),
+              )
+              .reduce<
+                number | null
+              >(
+                (
+                  min,
+                  value,
+                ) =>
+                  min === null
+                    ? value
+                    : Math.min(
+                        min,
+                        value,
+                      ),
+                null,
+              ),
+          varianceMax:
+            milestoneRows
+              .map(
+                (row) =>
+                  row.varianceDays,
+              )
+              .filter(
+                (
+                  value,
+                ): value is number =>
+                  typeof value ===
+                    "number" &&
+                  Number.isFinite(
+                    value,
+                  ),
+              )
+              .reduce<
+                number | null
+              >(
+                (
+                  max,
+                  value,
+                ) =>
+                  max === null
+                    ? value
+                    : Math.max(
+                        max,
+                        value,
+                      ),
+                null,
+              ),
+        },
+        revisions:
+          revisionSummary,
+        latestComparison:
+          comparison,
       }) +
       "\n",
   );
