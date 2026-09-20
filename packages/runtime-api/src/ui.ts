@@ -1708,7 +1708,7 @@ function userFacingModuleReason(key,reason){
     "revision-trend":"Only one controlled programme revision is available, so movement over time cannot yet be compared.",
     "schedule-change-report":"A second controlled programme revision is needed before CMeng can compare programme changes.",
     "forecast-history":"Only one controlled forecast point is available, so a trend cannot yet be shown.",
-    "independent-forecast":"Some schedule information still needs review before the completion forecast can be fully confirmed.",
+    "independent-forecast":"Some schedule information still needs review before the independent finish-date forecast can be used for management decisions.",
     "windows-analysis":"More than one controlled programme revision is needed for a reliable delay-window comparison.",
     "delay-claims":"Delay and claim information is incomplete. CMeng shows only the position supported by the current records.",
     "notices-claims":"No complete contractor notice/claim position was found. Missing records are kept separate from zero.",
