@@ -158,7 +158,7 @@ const contractTime:
   ],
 };
 
-test("programme movement survives CPM failure and flows into Delay and EOT as a time-impact candidate", () => {
+test("programme movement survives CPM failure but is not promoted to EOT time impact without a causal event", () => {
   const windows =
     buildWindowsAnalysisProjection(
       [
@@ -254,11 +254,11 @@ test("programme movement survives CPM failure and flows into Delay and EOT as a 
   );
   assert.equal(
     eot.analyticalTimeImpactCandidateDays,
-    14,
+    null,
   );
   assert.equal(
     eot.attributableCandidateEotDays,
-    0,
+    null,
   );
   assert.equal(
     eot.unattributedTimeImpactDays,
@@ -266,19 +266,19 @@ test("programme movement survives CPM failure and flows into Delay and EOT as a 
   );
   assert.equal(
     eot.candidateAdditionalEotDays,
-    0,
+    null,
   );
   assert.equal(
     eot.timeImpactScenarioAdjustedCompletionIso,
-    "2026-09-15",
+    null,
   );
   assert.equal(
     eot.scenarioAdjustedCompletionIso,
-    "2026-09-01",
+    null,
   );
   assert.ok(
     eot.diagnostics.includes(
-      "PROGRAMME_MOVEMENT_CARRIED_FORWARD_AS_ANALYTICAL_TIME_IMPACT_CANDIDATE",
+      "PROGRAMME_MOVEMENT_OBSERVED_WITHOUT_CAUSAL_TIME_IMPACT_CANDIDATE",
     ),
   );
   assert.equal(
@@ -338,11 +338,11 @@ test("programme movement remains separate from entitlement when an eligible even
 
   assert.equal(
     eot.analyticalTimeImpactCandidateDays,
-    19,
+    null,
   );
   assert.equal(
     eot.attributableCandidateEotDays,
-    0,
+    null,
   );
   assert.equal(
     eot.unattributedTimeImpactDays,
