@@ -1,0 +1,70 @@
+name: CMeng Apply Reconciled Accuracy
+
+on:
+  push:
+    branches: ['fix/accuracy-foundation-reconciled-20260920']
+    paths: ['.github/workflows/apply-accuracy.yml']
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/accuracy-foundation-reconciled-20260920
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate transferred source patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git branch --show-current)" = 'fix/accuracy-foundation-reconciled-20260920'
+          python3 - <<'PY'
+          import base64, hashlib, lzma, pathlib, subprocess
+          root = pathlib.Path('.github/accuracy-transfer')
+          parts = [root / f'part-{i:02d}.b64' for i in range(4)]
+          encoded = ''.join(p.read_text().strip() for p in parts)
+          patch = lzma.decompress(base64.b64decode(encoded, validate=True))
+          digest = hashlib.sha256(patch).hexdigest()
+          assert digest == 'f3494e60d9c23e4a4466edfc364d5222fbb9dc8b7127c0dbb9364925ee3c6b1e', digest
+          pathlib.Path('/tmp/cmeng-accuracy.patch').write_bytes(patch)
+          pathlib.Path('/tmp/cmeng-patch-sha256.txt').write_text(digest + '\n')
+          subprocess.run(['git', 'apply', '--check', '/tmp/cmeng-accuracy.patch'], check=True)
+          subprocess.run(['git', 'apply', '/tmp/cmeng-accuracy.patch'], check=True)
+          print('Source patch checksum and clean application verified:', digest)
+          PY
+      - name: Install pinned dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Verify exact reconciled source
+        shell: bash
+        run: |
+          set -euo pipefail
+          CMENG_TEST_MODE=1 npm run verify 2>&1 | tee /tmp/cmeng-accuracy-verify.log
+      - name: Commit tested implementation and remove transfer helpers
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm -- .github/accuracy-transfer/part-00.b64 .github/accuracy-transfer/part-01.b64 .github/accuracy-transfer/part-02.b64 .github/accuracy-transfer/part-03.b64 .github/workflows/apply-accuracy.yml
+          git add -- .gitignore packages tests
+          git diff --cached --stat
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'fix: reconcile evidence-safe P0 ingestion and shared commercial runtime' -m 'Keep units, dates, source authority, currency, payment stages and EOT incorporation distinct. Add 24 regression tests, preserve existing modules and challenge envelopes, and avoid full schedule recomputation for commercial views.'
+          git push origin HEAD:refs/heads/fix/accuracy-foundation-reconciled-20260920
+          git rev-parse HEAD > /tmp/cmeng-verified-commit.txt
+      - name: Retain verification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cmeng-accuracy-verification
+          path: |
+            /tmp/cmeng-accuracy-verify.log
+            /tmp/cmeng-patch-sha256.txt
+            /tmp/cmeng-verified-commit.txt
+          retention-days: 7
