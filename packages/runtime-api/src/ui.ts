@@ -1271,7 +1271,7 @@ function moduleBarList(items,tone="accent",unit=""){
 }
 function progressBasisDisplay(key,basis){
   if(key==="baselinePlanned")return "Baseline planned";
-  if(key==="currentSchedule")return "Current programme";
+  if(key==="currentSchedule")return "Current programme plan";
   if(key==="physical")return basis?.authority==="progress_snapshot"?"Schedule progress snapshot":"Physical progress";
   if(key==="contractorReported")return "Contractor reported";
   if(key==="certified")return "Certified progress";
@@ -1381,17 +1381,19 @@ function renderProgressReportVisual(data){
   const physical=p.progressBases.physical;
   const contractor=p.progressBases.contractorReported;
   const certified=p.progressBases.certified;
-  const gap=typeof current?.valuePercent==="number"&&typeof baseline?.valuePercent==="number"?Number((current.valuePercent-baseline.valuePercent).toFixed(2)):null;
+  const planMovement=typeof current?.valuePercent==="number"&&typeof baseline?.valuePercent==="number"?Number((current.valuePercent-baseline.valuePercent).toFixed(2)):null;
+  const progressMovement=typeof physical?.valuePercent==="number"&&typeof baseline?.valuePercent==="number"?Number((physical.valuePercent-baseline.valuePercent).toFixed(2)):null;
   const sourceProgressEstablished=contractor?.valuePercent!==null||certified?.valuePercent!==null||(physical?.authority==="source_evidence"&&physical?.valuePercent!==null);
+  const physicalLabel=physical?.authority==="source_evidence"?"Physical progress":"Schedule % complete";
   const kpis=planningKpis([
-    ["Schedule progress",current?.valuePercent===null?"—":fmt(current?.valuePercent)+"%","current programme calculation","accent"],
-    ["Baseline planned",baseline?.valuePercent===null?"—":fmt(baseline?.valuePercent)+"%","at data date"],
-    ["Schedule variance",gap===null?"—":(gap>0?"+":"")+fmt(gap)+" pp","current schedule minus baseline",gap!==null&&gap<0?"danger":gap!==null&&gap>0?"success":""],
-    ["Schedule snapshot",physical?.authority==="progress_snapshot"&&physical?.valuePercent!==null?fmt(physical.valuePercent)+"%":"—","not certified physical progress",physical?.authority==="progress_snapshot"?"warning":""],
+    ["Baseline planned",baseline?.valuePercent===null?"—":fmt(baseline?.valuePercent)+"%","planned by data date"],
+    ["Current programme plan",current?.valuePercent===null?"—":fmt(current?.valuePercent)+"%","re-phased programme expectation","accent"],
+    [physicalLabel,physical?.valuePercent===null?"—":fmt(physical?.valuePercent)+"%",physical?.authority==="source_evidence"?"source physical record":"activity percentage-complete snapshot",physical?.valuePercent===null?"warning":"accent"],
+    ["Progress vs baseline",progressMovement===null?"—":(progressMovement>0?"+":"")+fmt(progressMovement)+" pp","percentage-complete snapshot minus baseline",progressMovement!==null&&progressMovement<0?"danger":progressMovement!==null&&progressMovement>0?"success":""],
     ["Contractor reported",contractor?.valuePercent===null?"Not provided":fmt(contractor.valuePercent)+"%","source record",contractor?.valuePercent===null?"warning":"accent"],
     ["Certified progress",certified?.valuePercent===null?"Not provided":fmt(certified.valuePercent)+"%","source record",certified?.valuePercent===null?"warning":"success"]
   ]);
-  const warning=!sourceProgressEstablished?'<div class="notice warn"><b>Schedule progress is available, but certified/contractor physical progress is not established.</b> CMeng does not relabel the schedule percentage-complete snapshot as certified physical progress.</div>':'';
+  const warning=!sourceProgressEstablished?'<div class="notice warn"><b>The programme contains a percentage-complete snapshot, but certified/contractor physical progress is not established.</b> CMeng keeps the schedule snapshot separate from certified or independently sourced physical progress.</div>':'';
   const status=planningStatusBand([
     ["Completed",p.progress?.completedCount||0,"success"],
     ["In progress",p.progress?.inProgressCount||0,"accent"],
@@ -1403,7 +1405,7 @@ function renderProgressReportVisual(data){
     ["Near-critical",p.schedule?.nearCriticalCount||0,"warning"],
     ["Negative float",p.schedule?.negativeFloatCount||0,"danger-soft"]
   ]);
-  return '<section class="planning-view progress-position-view">'+kpis+warning+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Progress bases</h4><p>Baseline, current schedule, schedule snapshot, contractor-reported and certified values remain separate authorities.</p></div></div><div class="planning-panel-body">'+progressBasisBars(p.progressBases)+'</div></section><div class="planning-primary-grid"><section class="planning-panel"><div class="planning-panel-head"><div><h4>Activity status</h4><p>Current programme population.</p></div></div><div class="planning-panel-body">'+status+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Schedule pressure</h4><p>Float classifications are schedule indicators, not progress evidence.</p></div></div><div class="planning-panel-body">'+pressure+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Near-term delivery</h4><p>Milestones and look-ahead indicators tied to the current data date.</p></div></div><div class="planning-panel-body">'+planningKpis([
+  return '<section class="planning-view progress-position-view">'+kpis+warning+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Progress bases</h4><p>Baseline plan, current re-phased plan, activity percentage-complete snapshot, contractor-reported and certified values remain separate.</p></div></div><div class="planning-panel-body">'+progressBasisBars(p.progressBases)+'</div></section><div class="planning-primary-grid"><section class="planning-panel"><div class="planning-panel-head"><div><h4>Activity status</h4><p>Current programme population.</p></div></div><div class="planning-panel-body">'+status+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Schedule pressure</h4><p>Float classifications are schedule indicators, not progress evidence.</p></div></div><div class="planning-panel-body">'+pressure+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Near-term delivery</h4><p>Milestones and look-ahead indicators tied to the current data date.</p></div></div><div class="planning-panel-body">'+planningKpis([
     ["Milestones",p.milestones?.milestoneCount,"total"],
     ["Open milestones",p.milestones?.openCount,"open"],
     ["Overdue milestones",p.milestones?.lateOpenCount,"past data date",p.milestones?.lateOpenCount?"danger":""],
