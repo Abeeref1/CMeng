@@ -168,6 +168,27 @@ export function evidenceFamily(
     };
   }
 
+  const resourceSupportMatch =
+    /^res(0?[1-7])[_-]/i.exec(
+      sourceFilename,
+    );
+  if (
+    category === "schedule_control" &&
+    resourceSupportMatch
+  ) {
+    const code =
+      "res" +
+      resourceSupportMatch[1]!
+        .padStart(2, "0");
+    return {
+      familyKey:
+        "resource-support:" + code,
+      behavior: "snapshot",
+      logicalDocumentKey:
+        "resource-support:" + code,
+    };
+  }
+
   if (
     category === "boq_cost" &&
     documentType === "boq"
