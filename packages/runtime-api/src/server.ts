@@ -15,6 +15,15 @@ import {
   scheduleModuleSummary,
 } from "./registry";
 import {
+  COMMERCIAL_MODULES,
+} from "./commercial-registry";
+import {
+  buildCommercialModule,
+} from "./commercial-projections";
+import {
+  certifyCommercial,
+} from "./commercial-certification";
+import {
   buildProjectDirectorPosition,
   type DirectorPositionInput,
   type ProjectDirectorPosition,
@@ -739,6 +748,58 @@ async function route(
       return;
     }
     json(res, 200, answer);
+    return;
+  }
+
+  if (
+    req.method === "GET" &&
+    url.pathname ===
+      "/api/commercial/modules"
+  ) {
+    json(
+      res,
+      200,
+      COMMERCIAL_MODULES,
+    );
+    return;
+  }
+
+  const commercialCertificationMatch =
+    /^\/api\/projects\/([^/]+)\/commercial\/certification$/.exec(
+      url.pathname,
+    );
+
+  if (
+    req.method === "GET" &&
+    commercialCertificationMatch
+  ) {
+    const projectId =
+      decodeURIComponent(
+        commercialCertificationMatch[1]!,
+      );
+    const state =
+      runtimeProjects.get(
+        projectId,
+      );
+    if (!state) {
+      json(res, 404, {
+        error:
+          "project_not_found",
+      });
+      return;
+    }
+    const certification =
+      certifyCommercial(
+        state,
+      );
+    json(
+      res,
+      certification.state ===
+        "pass"
+        ? 200
+        : 409,
+      certification,
+    );
     return;
   }
 
@@ -1847,6 +1908,142 @@ async function route(
     return;
   }
 
+  const commercialReportMatch =
+    /^\/api\/projects\/([^/]+)\/commercial\/modules\/([^/]+)\/report\.(xlsx|json)$/.exec(
+      url.pathname,
+    );
+
+  if (
+    req.method === "GET" &&
+    commercialReportMatch
+  ) {
+    const projectId =
+      decodeURIComponent(
+        commercialReportMatch[1]!,
+      );
+    const key =
+      decodeURIComponent(
+        commercialReportMatch[2]!,
+      );
+    const format =
+      commercialReportMatch[3] as
+        | "xlsx"
+        | "json";
+    const state =
+      runtimeProjects.get(
+        projectId,
+      );
+    if (!state) {
+      json(res, 404, {
+        error:
+          "project_not_found",
+      });
+      return;
+    }
+    const result =
+      buildCommercialModule(
+        state,
+        key,
+      );
+    if (
+      result.status ===
+      "blocked"
+    ) {
+      json(res, 409, {
+        error:
+          "commercial_module_report_blocked",
+        moduleKey: key,
+        reason:
+          result.reason,
+        dependencies:
+          result.dependencies,
+      });
+      return;
+    }
+    if (format === "xlsx") {
+      const workbook =
+        await buildModuleWorkbook(
+          projectId,
+          key,
+          result,
+        );
+      attachment(
+        res,
+        200,
+        workbook,
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        moduleReportFilename(
+          projectId,
+          key,
+          "xlsx",
+        ),
+      );
+      return;
+    }
+    const payload =
+      buildModuleJsonDownload(
+        projectId,
+        key,
+        result,
+      );
+    attachment(
+      res,
+      200,
+      payload,
+      "application/json; charset=utf-8",
+      moduleReportFilename(
+        projectId,
+        key,
+        "json",
+      ),
+    );
+    return;
+  }
+
+  const commercialModuleMatch =
+    /^\/api\/projects\/([^/]+)\/commercial\/modules\/([^/]+)$/.exec(
+      url.pathname,
+    );
+
+  if (
+    req.method === "GET" &&
+    commercialModuleMatch
+  ) {
+    const projectId =
+      decodeURIComponent(
+        commercialModuleMatch[1]!,
+      );
+    const key =
+      decodeURIComponent(
+        commercialModuleMatch[2]!,
+      );
+    const state =
+      runtimeProjects.get(
+        projectId,
+      );
+    if (!state) {
+      json(res, 404, {
+        error:
+          "project_not_found",
+      });
+      return;
+    }
+    const result =
+      buildCommercialModule(
+        state,
+        key,
+      );
+    json(
+      res,
+      result.status ===
+        "blocked"
+        ? 409
+        : 200,
+      result,
+    );
+    return;
+  }
+
   const moduleReportMatch =
     /^\/api\/projects\/([^/]+)\/schedule\/modules\/([^/]+)\/report\.(xlsx|json)$/.exec(
       url.pathname,
@@ -2415,6 +2612,10 @@ async function route(
       health: "/health",
       scheduleModules:
         "/api/schedule/modules",
+      commercialModules:
+        "/api/commercial/modules",
+      commercialCertification:
+        "/api/projects/:projectId/commercial/certification",
       scheduleCertification:
         "/api/schedule/certification",
       boqUpload:
@@ -2443,10 +2644,16 @@ async function route(
         "/api/projects/:projectId/schedule/revisions",
       scheduleModule:
         "/api/projects/:projectId/schedule/modules/:moduleKey",
+      commercialModule:
+        "/api/projects/:projectId/commercial/modules/:moduleKey",
       moduleReportExcel:
         "/api/projects/:projectId/schedule/modules/:moduleKey/report.xlsx",
       moduleReportJson:
         "/api/projects/:projectId/schedule/modules/:moduleKey/report.json",
+      commercialReportExcel:
+        "/api/projects/:projectId/commercial/modules/:moduleKey/report.xlsx",
+      commercialReportJson:
+        "/api/projects/:projectId/commercial/modules/:moduleKey/report.json",
       contractUpload:
         "/api/projects/:projectId/contract/uploads",
       projectControls:

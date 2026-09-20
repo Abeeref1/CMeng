@@ -1,7 +1,9 @@
 import type {
   CanonicalClaimRecord,
+  CanonicalDelayEvent,
   CanonicalNoticeRecord,
   DelayClaimsModel,
+  GovernanceState,
 } from "../../delay-analysis-core/src";
 import type {
   InvoiceRecord,
@@ -728,7 +730,7 @@ export function deriveControlsFromCsv(
   if (
     input.document
       .documentType ===
-    "delay_eot_claims_register"
+      "delay_eot_claims_register"
   ) {
     const claimIdIndex =
       indexOf(
@@ -753,7 +755,10 @@ export function deriveControlsFromCsv(
     const grantedDaysIndex =
       indexOf(
         headers,
-        ["days granted"],
+        [
+          "source granted days",
+          "days granted",
+        ],
       );
     const statusIndex =
       indexOf(
@@ -765,7 +770,14 @@ export function deriveControlsFromCsv(
         headers,
         ["clause"],
       );
+    const linkedLetterIndex =
+      indexOf(
+        headers,
+        ["linked letter"],
+      );
 
+    const events:
+      CanonicalDelayEvent[] = [];
     const claims:
       CanonicalClaimRecord[] = [];
     const notices:
@@ -786,6 +798,17 @@ export function deriveControlsFromCsv(
           claimIdIndex,
         );
       if (!claimId) continue;
+      const eventTitle =
+        value(
+          row,
+          titleIndex,
+        ) ||
+        claimId;
+      const eventId =
+        claimId.replace(
+          /^CLM/i,
+          "EVT",
+        );
       const ref = {
         sourceType:
           "claim" as const,
@@ -796,6 +819,16 @@ export function deriveControlsFromCsv(
           "row:" +
           (rowIndex + 1),
       };
+      const linkedLetter =
+        value(
+          row,
+          linkedLetterIndex,
+        );
+      const clause =
+        value(
+          row,
+          clauseIndex,
+        );
       const granted =
         numeric(
           value(
@@ -803,13 +836,46 @@ export function deriveControlsFromCsv(
             grantedDaysIndex,
           ),
         );
+
+      events.push({
+        eventId,
+        title: eventTitle,
+        category: "other",
+        startIso: null,
+        endIso: null,
+        responsibility:
+          "unknown",
+        responsibilityState:
+          "missing",
+        describedImpactDays:
+          null,
+        describedImpactState:
+          "missing",
+        relatedActivityIds: [],
+        relatedClauseIdentifiers:
+          clause ? [clause] : [],
+        evidenceRefs: [
+          ref,
+          ...(linkedLetter
+            ? [{
+                sourceType:
+                  "correspondence" as const,
+                sourceId:
+                  linkedLetter,
+                locator: null,
+              }]
+            : []),
+        ],
+        diagnostics: [
+          "EVENT_IDENTITY_EXPLICIT_IN_CLAIMS_REGISTER",
+          "EVENT_OCCURRENCE_DATE_NOT_ESTABLISHED_BY_CL01",
+          "EVENT_SCHEDULE_ACTIVITY_LINK_NOT_YET_ESTABLISHED",
+        ],
+      });
+
       claims.push({
         claimId,
-        title:
-          value(
-            row,
-            titleIndex,
-          ) || claimId,
+        title: eventTitle,
         state:
           claimState(
             value(
@@ -817,7 +883,9 @@ export function deriveControlsFromCsv(
               statusIndex,
             ),
           ),
-        eventIds: [],
+        eventIds: [
+          eventId,
+        ],
         submittedAt:
           iso(
             value(
@@ -843,20 +911,11 @@ export function deriveControlsFromCsv(
         assessedAmountState:
           "missing",
         clauseIdentifiers:
-          value(
-            row,
-            clauseIndex,
-          )
-            ? [
-                value(
-                  row,
-                  clauseIndex,
-                ),
-              ]
-            : [],
+          clause ? [clause] : [],
         evidenceRefs: [ref],
         diagnostics: [
-          "CLAIM_REGISTER_ROW_HAS_NO_PROVEN_DELAY_EVENT_CAUSATION_LINK",
+          "CLAIM_LINKED_TO_EXPLICIT_SUBMITTED_EVENT_IDENTITY",
+          "CLAIM_EVENT_CAUSATION_TO_SCHEDULE_NOT_YET_GOVERNED",
         ],
       });
 
@@ -874,7 +933,7 @@ export function deriveControlsFromCsv(
             ":notice",
           kind:
             "claim_notice",
-          eventId: null,
+          eventId,
           claimId,
           actualIssuedAt:
             noticeDate,
@@ -882,23 +941,21 @@ export function deriveControlsFromCsv(
             null,
           plannedAt: null,
           subject:
-            value(
-              row,
-              titleIndex,
-            ) || null,
+            eventTitle,
           clauseIdentifiers:
-            value(
-              row,
-              clauseIndex,
-            )
-              ? [
-                  value(
-                    row,
-                    clauseIndex,
-                  ),
-                ]
-              : [],
-          evidenceRefs: [ref],
+            clause ? [clause] : [],
+          evidenceRefs: [
+            ref,
+            ...(linkedLetter
+              ? [{
+                  sourceType:
+                    "correspondence" as const,
+                  sourceId:
+                    linkedLetter,
+                  locator: null,
+                }]
+              : []),
+          ],
           diagnostics: [
             "NOTICE_DATE_FROM_CLAIMS_REGISTER",
           ],
@@ -913,12 +970,12 @@ export function deriveControlsFromCsv(
       evidenceRevisionId:
         "evidence-document:" +
         input.document.documentId,
-      events: [],
+      events,
       notices,
       claims,
       noticeRequirements: [],
       diagnostics: [
-        "CLAIMS_REGISTER_PARSED_WITHOUT_INVENTING_DELAY_EVENTS",
+        "CLAIMS_REGISTER_EVENT_IDENTITIES_PROMOTED_WITHOUT_INVENTING_EVENT_DATES_OR_RESPONSIBILITY",
       ],
     };
 
@@ -927,7 +984,890 @@ export function deriveControlsFromCsv(
     };
   }
 
+  if (
+    input.document
+      .documentType ===
+      "delay_event_impact_register"
+  ) {
+    const claimIdIndex =
+      indexOf(
+        headers,
+        ["claim id"],
+      );
+    const criticalIndex =
+      indexOf(
+        headers,
+        [
+          "calculated critical impact days",
+        ],
+      );
+    const netIndex =
+      indexOf(
+        headers,
+        [
+          "net assessed impact days",
+        ],
+      );
+    const concurrencyIndex =
+      indexOf(
+        headers,
+        ["concurrency days"],
+      );
+    const mitigationIndex =
+      indexOf(
+        headers,
+        ["mitigation days"],
+      );
+    const claims:
+      CanonicalClaimRecord[] = [];
+    const events:
+      CanonicalDelayEvent[] = [];
+
+    for (
+      let rowIndex = 1;
+      rowIndex <
+      rows.length;
+      rowIndex += 1
+    ) {
+      const row =
+        rows[rowIndex] ??
+        [];
+      const claimId =
+        value(
+          row,
+          claimIdIndex,
+        );
+      if (!claimId) continue;
+      const eventId =
+        claimId.replace(
+          /^CLM/i,
+          "EVT",
+        );
+      const ref = {
+        sourceType:
+          "claim" as const,
+        sourceId:
+          input.document
+            .documentId,
+        locator:
+          "row:" +
+          (rowIndex + 1),
+      };
+      const net =
+        numeric(
+          value(
+            row,
+            netIndex,
+          ),
+        );
+      const critical =
+        numeric(
+          value(
+            row,
+            criticalIndex,
+          ),
+        );
+      const concurrency =
+        numeric(
+          value(
+            row,
+            concurrencyIndex,
+          ),
+        );
+      const mitigation =
+        numeric(
+          value(
+            row,
+            mitigationIndex,
+          ),
+        );
+
+      events.push({
+        eventId,
+        title:
+          "Delay event for " +
+          claimId,
+        category: "other",
+        startIso: null,
+        endIso: null,
+        responsibility:
+          "unknown",
+        responsibilityState:
+          "missing",
+        describedImpactDays:
+          net,
+        describedImpactState:
+          net === null
+            ? "missing"
+            : "provisional",
+        relatedActivityIds: [],
+        relatedClauseIdentifiers:
+          [],
+        evidenceRefs: [ref],
+        diagnostics: [
+          "ANALYTICAL_EVENT_IMPACT_FROM_EOT01",
+          ...(critical !== null
+            ? [
+                "CALCULATED_CRITICAL_IMPACT_DAYS:" +
+                  critical,
+              ]
+            : []),
+          ...(concurrency !== null
+            ? [
+                "CONCURRENCY_DAYS:" +
+                  concurrency,
+              ]
+            : []),
+          ...(mitigation !== null
+            ? [
+                "MITIGATION_DAYS:" +
+                  mitigation,
+              ]
+            : []),
+        ],
+      });
+
+      claims.push({
+        claimId,
+        title: claimId,
+        state:
+          "under_review",
+        eventIds: [
+          eventId,
+        ],
+        submittedAt: null,
+        claimedDays: null,
+        claimedAmount: null,
+        assessedDays: net,
+        assessedDaysState:
+          net === null
+            ? "missing"
+            : "provisional",
+        assessedAmount: null,
+        assessedAmountState:
+          "missing",
+        clauseIdentifiers: [],
+        evidenceRefs: [ref],
+        diagnostics: [
+          "EOT01_ANALYTICAL_IMPACT_IS_NOT_ENGINEER_DETERMINATION",
+        ],
+      });
+    }
+
+    return {
+      delayClaims: {
+        projectId:
+          input.state.projectId,
+        evidenceRevisionId:
+          "evidence-document:" +
+          input.document.documentId,
+        events,
+        notices: [],
+        claims,
+        noticeRequirements: [],
+        diagnostics: [
+          "EOT01_IMPACT_REGISTER_MERGED_BY_CLAIM_ID",
+        ],
+      },
+    };
+  }
+
+  if (
+    input.document
+      .documentType ===
+      "entitlement_assessment_register"
+  ) {
+    const claimIdIndex =
+      indexOf(
+        headers,
+        ["claim id"],
+      );
+    const claimedIndex =
+      indexOf(
+        headers,
+        ["claimed days"],
+      );
+    const assessedIndex =
+      indexOf(
+        headers,
+        ["assessed days"],
+      );
+    const employerIndex =
+      indexOf(
+        headers,
+        ["employer delay days"],
+      );
+    const contractorIndex =
+      indexOf(
+        headers,
+        ["contractor delay days"],
+      );
+    const concurrencyIndex =
+      indexOf(
+        headers,
+        ["concurrency days"],
+      );
+    const claims:
+      CanonicalClaimRecord[] = [];
+    const events:
+      CanonicalDelayEvent[] = [];
+
+    for (
+      let rowIndex = 1;
+      rowIndex <
+      rows.length;
+      rowIndex += 1
+    ) {
+      const row =
+        rows[rowIndex] ??
+        [];
+      const claimId =
+        value(
+          row,
+          claimIdIndex,
+        );
+      if (!claimId) continue;
+      const eventId =
+        claimId.replace(
+          /^CLM/i,
+          "EVT",
+        );
+      const ref = {
+        sourceType:
+          "claim" as const,
+        sourceId:
+          input.document
+            .documentId,
+        locator:
+          "row:" +
+          (rowIndex + 1),
+      };
+      const employer =
+        numeric(
+          value(
+            row,
+            employerIndex,
+          ),
+        ) ?? 0;
+      const contractor =
+        numeric(
+          value(
+            row,
+            contractorIndex,
+          ),
+        ) ?? 0;
+      const concurrency =
+        numeric(
+          value(
+            row,
+            concurrencyIndex,
+          ),
+        ) ?? 0;
+      const responsibility:
+        CanonicalDelayEvent["responsibility"] =
+        concurrency > 0 ||
+        (
+          employer > 0 &&
+          contractor > 0
+        )
+          ? "concurrent"
+          : employer > 0
+            ? "employer"
+            : contractor > 0
+              ? "contractor"
+              : "unknown";
+      const assessed =
+        numeric(
+          value(
+            row,
+            assessedIndex,
+          ),
+        );
+
+      events.push({
+        eventId,
+        title:
+          "Delay event for " +
+          claimId,
+        category: "other",
+        startIso: null,
+        endIso: null,
+        responsibility,
+        responsibilityState:
+          responsibility ===
+            "unknown"
+            ? "missing"
+            : "provisional",
+        describedImpactDays:
+          assessed,
+        describedImpactState:
+          assessed === null
+            ? "missing"
+            : "provisional",
+        relatedActivityIds: [],
+        relatedClauseIdentifiers:
+          [],
+        evidenceRefs: [ref],
+        diagnostics: [
+          "RESPONSIBILITY_FROM_EOT02_ENTITLEMENT_ASSESSMENT",
+          "ENTITLEMENT_ASSESSMENT_IS_PROVISIONAL_UNTIL_DETERMINATION",
+        ],
+      });
+
+      claims.push({
+        claimId,
+        title: claimId,
+        state:
+          "under_review",
+        eventIds: [
+          eventId,
+        ],
+        submittedAt: null,
+        claimedDays:
+          numeric(
+            value(
+              row,
+              claimedIndex,
+            ),
+          ),
+        claimedAmount: null,
+        assessedDays:
+          assessed,
+        assessedDaysState:
+          assessed === null
+            ? "missing"
+            : "provisional",
+        assessedAmount: null,
+        assessedAmountState:
+          "missing",
+        clauseIdentifiers: [],
+        evidenceRefs: [ref],
+        diagnostics: [
+          "EOT02_ENTITLEMENT_ASSESSMENT_IS_NOT_FINAL_ENGINEER_DETERMINATION",
+        ],
+      });
+    }
+
+    return {
+      delayClaims: {
+        projectId:
+          input.state.projectId,
+        evidenceRevisionId:
+          "evidence-document:" +
+          input.document.documentId,
+        events,
+        notices: [],
+        claims,
+        noticeRequirements: [],
+        diagnostics: [
+          "EOT02_ENTITLEMENT_REGISTER_MERGED_BY_CLAIM_ID",
+        ],
+      },
+    };
+  }
+
+  if (
+    input.document
+      .documentType ===
+      "engineer_determination_register"
+  ) {
+    const determinationIdIndex =
+      indexOf(
+        headers,
+        ["determination id"],
+      );
+    const claimIdIndex =
+      indexOf(
+        headers,
+        ["claim id"],
+      );
+    const awardedIndex =
+      indexOf(
+        headers,
+        ["awarded eot days"],
+      );
+    const dateIndex =
+      indexOf(
+        headers,
+        ["determination date"],
+      );
+    const letterIndex =
+      indexOf(
+        headers,
+        ["source letter"],
+      );
+    const claims:
+      CanonicalClaimRecord[] = [];
+    const notices:
+      CanonicalNoticeRecord[] = [];
+
+    for (
+      let rowIndex = 1;
+      rowIndex <
+      rows.length;
+      rowIndex += 1
+    ) {
+      const row =
+        rows[rowIndex] ??
+        [];
+      const claimId =
+        value(
+          row,
+          claimIdIndex,
+        );
+      if (!claimId) continue;
+      const eventId =
+        claimId.replace(
+          /^CLM/i,
+          "EVT",
+        );
+      const awarded =
+        numeric(
+          value(
+            row,
+            awardedIndex,
+          ),
+        );
+      const determinationId =
+        value(
+          row,
+          determinationIdIndex,
+        ) ||
+        claimId +
+        ":determination";
+      const sourceLetter =
+        value(
+          row,
+          letterIndex,
+        );
+      const ref = {
+        sourceType:
+          "claim" as const,
+        sourceId:
+          input.document
+            .documentId,
+        locator:
+          "row:" +
+          (rowIndex + 1),
+      };
+
+      claims.push({
+        claimId,
+        title: claimId,
+        state:
+          "determined",
+        eventIds: [
+          eventId,
+        ],
+        submittedAt: null,
+        claimedDays: null,
+        claimedAmount: null,
+        assessedDays:
+          awarded,
+        assessedDaysState:
+          awarded === null
+            ? "missing"
+            : "official",
+        assessedAmount: null,
+        assessedAmountState:
+          "missing",
+        clauseIdentifiers: [],
+        evidenceRefs: [
+          ref,
+          ...(sourceLetter
+            ? [{
+                sourceType:
+                  "correspondence" as const,
+                sourceId:
+                  sourceLetter,
+                locator: null,
+              }]
+            : []),
+        ],
+        diagnostics: [
+          "ENGINEER_DETERMINATION_OVERRIDES_STALE_PROVISIONAL_ASSESSMENT",
+        ],
+      });
+      notices.push({
+        noticeId:
+          determinationId,
+        kind:
+          "determination",
+        eventId,
+        claimId,
+        actualIssuedAt:
+          iso(
+            value(
+              row,
+              dateIndex,
+            ),
+          ),
+        actualReceivedAt:
+          null,
+        plannedAt: null,
+        subject:
+          "Engineer determination " +
+          determinationId,
+        clauseIdentifiers: [],
+        evidenceRefs: [
+          ref,
+          ...(sourceLetter
+            ? [{
+                sourceType:
+                  "correspondence" as const,
+                sourceId:
+                  sourceLetter,
+                locator: null,
+              }]
+            : []),
+        ],
+        diagnostics: [
+          "IMMUTABLE_ENGINEER_DETERMINATION",
+        ],
+      });
+    }
+
+    return {
+      delayClaims: {
+        projectId:
+          input.state.projectId,
+        evidenceRevisionId:
+          "evidence-document:" +
+          input.document.documentId,
+        events: [],
+        notices,
+        claims,
+        noticeRequirements: [],
+        diagnostics: [
+          "EOT03_ENGINEER_DETERMINATIONS_MERGED_AS_OFFICIAL_AUTHORITY",
+        ],
+      },
+    };
+  }
+
   return {};
+}
+
+function governanceRank(
+  state: GovernanceState,
+): number {
+  return state === "official"
+    ? 4
+    : state === "provisional"
+      ? 3
+      : state === "candidate"
+        ? 2
+        : 1;
+}
+
+function uniqueStrings(
+  values: string[],
+): string[] {
+  return [...new Set(values)];
+}
+
+function mergeDelayModels(
+  models: DelayClaimsModel[],
+  projectId: string,
+): DelayClaimsModel | null {
+  if (!models.length) return null;
+
+  const events =
+    new Map<
+      string,
+      CanonicalDelayEvent
+    >();
+  const claims =
+    new Map<
+      string,
+      CanonicalClaimRecord
+    >();
+  const notices =
+    new Map<
+      string,
+      CanonicalNoticeRecord
+    >();
+  const requirements =
+    new Map<
+      string,
+      DelayClaimsModel["noticeRequirements"][number]
+    >();
+
+  for (const model of models) {
+    for (const next of model.events) {
+      const prior =
+        events.get(next.eventId);
+      if (!prior) {
+        events.set(
+          next.eventId,
+          next,
+        );
+        continue;
+      }
+      const responsibilityFromNext =
+        governanceRank(
+          next.responsibilityState,
+        ) >
+        governanceRank(
+          prior.responsibilityState,
+        );
+      const impactFromNext =
+        governanceRank(
+          next.describedImpactState,
+        ) >
+        governanceRank(
+          prior.describedImpactState,
+        );
+      events.set(
+        next.eventId,
+        {
+          ...prior,
+          title:
+            prior.title ||
+            next.title,
+          category:
+            prior.category !==
+              "other"
+              ? prior.category
+              : next.category,
+          startIso:
+            prior.startIso ??
+            next.startIso,
+          endIso:
+            prior.endIso ??
+            next.endIso,
+          responsibility:
+            responsibilityFromNext
+              ? next.responsibility
+              : prior.responsibility,
+          responsibilityState:
+            responsibilityFromNext
+              ? next.responsibilityState
+              : prior.responsibilityState,
+          describedImpactDays:
+            impactFromNext
+              ? next.describedImpactDays
+              : prior.describedImpactDays,
+          describedImpactState:
+            impactFromNext
+              ? next.describedImpactState
+              : prior.describedImpactState,
+          relatedActivityIds:
+            uniqueStrings([
+              ...prior.relatedActivityIds,
+              ...next.relatedActivityIds,
+            ]),
+          relatedClauseIdentifiers:
+            uniqueStrings([
+              ...prior.relatedClauseIdentifiers,
+              ...next.relatedClauseIdentifiers,
+            ]),
+          evidenceRefs:
+            [
+              ...prior.evidenceRefs,
+              ...next.evidenceRefs,
+            ],
+          diagnostics:
+            uniqueStrings([
+              ...prior.diagnostics,
+              ...next.diagnostics,
+            ]),
+        },
+      );
+    }
+
+    for (const next of model.claims) {
+      const prior =
+        claims.get(next.claimId);
+      if (!prior) {
+        claims.set(
+          next.claimId,
+          next,
+        );
+        continue;
+      }
+      const nextAssessmentWins =
+        governanceRank(
+          next.assessedDaysState,
+        ) >
+          governanceRank(
+            prior.assessedDaysState,
+          ) ||
+        (
+          governanceRank(
+            next.assessedDaysState,
+          ) ===
+            governanceRank(
+              prior.assessedDaysState,
+            ) &&
+          next.assessedDays !==
+            null
+        );
+      const stateRank = (
+        state:
+          CanonicalClaimRecord["state"],
+      ) =>
+        state === "determined"
+          ? 6
+          : state === "rejected"
+            ? 5
+            : state === "under_review"
+              ? 4
+              : state === "submitted"
+                ? 3
+                : state === "draft"
+                  ? 2
+                  : 1;
+      claims.set(
+        next.claimId,
+        {
+          ...prior,
+          title:
+            prior.title ||
+            next.title,
+          state:
+            stateRank(next.state) >
+            stateRank(prior.state)
+              ? next.state
+              : prior.state,
+          eventIds:
+            uniqueStrings([
+              ...prior.eventIds,
+              ...next.eventIds,
+            ]),
+          submittedAt:
+            prior.submittedAt ??
+            next.submittedAt,
+          claimedDays:
+            prior.claimedDays ??
+            next.claimedDays,
+          claimedAmount:
+            prior.claimedAmount ??
+            next.claimedAmount,
+          assessedDays:
+            nextAssessmentWins
+              ? next.assessedDays
+              : prior.assessedDays,
+          assessedDaysState:
+            nextAssessmentWins
+              ? next.assessedDaysState
+              : prior.assessedDaysState,
+          assessedAmount:
+            prior.assessedAmount ??
+            next.assessedAmount,
+          assessedAmountState:
+            governanceRank(
+              next.assessedAmountState,
+            ) >
+            governanceRank(
+              prior.assessedAmountState,
+            )
+              ? next.assessedAmountState
+              : prior.assessedAmountState,
+          clauseIdentifiers:
+            uniqueStrings([
+              ...prior.clauseIdentifiers,
+              ...next.clauseIdentifiers,
+            ]),
+          evidenceRefs:
+            [
+              ...prior.evidenceRefs,
+              ...next.evidenceRefs,
+            ],
+          diagnostics:
+            uniqueStrings([
+              ...prior.diagnostics,
+              ...next.diagnostics,
+            ]),
+        },
+      );
+    }
+
+    for (const notice of model.notices) {
+      const prior =
+        notices.get(
+          notice.noticeId,
+        );
+      notices.set(
+        notice.noticeId,
+        prior
+          ? {
+              ...prior,
+              ...notice,
+              actualIssuedAt:
+                notice.actualIssuedAt ??
+                prior.actualIssuedAt,
+              actualReceivedAt:
+                notice.actualReceivedAt ??
+                prior.actualReceivedAt,
+              evidenceRefs: [
+                ...prior.evidenceRefs,
+                ...notice.evidenceRefs,
+              ],
+              diagnostics:
+                uniqueStrings([
+                  ...prior.diagnostics,
+                  ...notice.diagnostics,
+                ]),
+            }
+          : notice,
+      );
+    }
+
+    for (const requirement of model.noticeRequirements) {
+      const prior =
+        requirements.get(
+          requirement
+            .requirementId,
+        );
+      if (
+        !prior ||
+        governanceRank(
+          requirement.state,
+        ) >
+          governanceRank(
+            prior.state,
+          )
+      ) {
+        requirements.set(
+          requirement
+            .requirementId,
+          requirement,
+        );
+      }
+    }
+  }
+
+  return {
+    projectId,
+    evidenceRevisionId:
+      "evidence-composite:" +
+      models
+        .map(
+          (model) =>
+            model.evidenceRevisionId,
+        )
+        .join("|"),
+    events: [
+      ...events.values(),
+    ],
+    notices: [
+      ...notices.values(),
+    ],
+    claims: [
+      ...claims.values(),
+    ],
+    noticeRequirements: [
+      ...requirements.values(),
+    ],
+    diagnostics:
+      uniqueStrings(
+        models.flatMap(
+          (model) =>
+            model.diagnostics,
+        ),
+      ),
+  };
 }
 
 function derivedRef(
@@ -1021,9 +1961,8 @@ export function rebuildDerivedControls(
     ...manualRisks,
   ];
 
-  let derivedDelay:
-    DelayClaimsModel | null =
-    null;
+  const derivedDelayModels:
+    DelayClaimsModel[] = [];
 
   const activeDocuments =
     state.evidenceDocuments
@@ -1032,7 +1971,19 @@ export function rebuildDerivedControls(
           document.basisState ===
             "active" ||
           document.basisState ===
-            "additive",
+            "additive" ||
+          (
+            document.basisState ===
+              "candidate" &&
+            [
+              "delay_event_impact_register",
+              "entitlement_assessment_register",
+              "engineer_determination_register",
+              "mitigation_acceleration_register",
+            ].includes(
+              document.documentType,
+            )
+          ),
       )
       .sort(
         (a, b) =>
@@ -1074,8 +2025,9 @@ export function rebuildDerivedControls(
     if (
       derived.delayClaims
     ) {
-      derivedDelay =
-        derived.delayClaims;
+      derivedDelayModels.push(
+        derived.delayClaims,
+      );
     }
   }
 
@@ -1126,6 +2078,9 @@ export function rebuildDerivedControls(
   ) {
     state.controls
       .delayClaims =
-      derivedDelay;
+      mergeDelayModels(
+        derivedDelayModels,
+        state.projectId,
+      );
   }
 }

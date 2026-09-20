@@ -11,6 +11,12 @@ import type {
 import {
   isProgrammeScheduleRevision,
 } from "./project-state";
+import {
+  buildProjectTruth,
+} from "./project-truth";
+import {
+  weeklyResourceCapacityEvidence,
+} from "./resource-support-evidence";
 
 export interface CrossModuleCertificationCheck {
   checkId: string;
@@ -195,6 +201,16 @@ export function certifyCrossModuleConsistency(
     data(
       modules,
       "quantity-scurve",
+    );
+  const resources =
+    data(
+      modules,
+      "resource-utilization",
+    );
+  const nearCritical =
+    data(
+      modules,
+      "near-critical",
     );
 
   const checks:
@@ -382,6 +398,390 @@ export function certifyCrossModuleConsistency(
       )
       .at(-1) ??
     null;
+
+  const sourceTruth =
+    latest
+      ? buildProjectTruth(
+          state,
+          latest.revision.model,
+        )
+      : null;
+  const sourceResourceEvidence =
+    latest
+      ? weeklyResourceCapacityEvidence(
+          state.evidenceDocuments,
+          latest.revision.model
+            .dataDateIso,
+        )
+      : null;
+
+  if (sourceTruth) {
+    checks.push(
+      equalityCheck(
+        "SOURCE_DATA_DATE_RECONCILIATION",
+        "Every analytical module must use the current programme Data Date, never a generation timestamp.",
+        [
+          {
+            source:
+              "source-truth.current-programme",
+            value:
+              sourceTruth.schedule
+                .dataDate.value,
+          },
+          {
+            source:
+              "independent-forecast",
+            value:
+              forecast?.dataDateIso,
+          },
+          {
+            source:
+              "progress-report",
+            value:
+              progress?.dataDateIso,
+          },
+          {
+            source:
+              "near-critical",
+            value:
+              nearCritical?.dataDateIso,
+          },
+          {
+            source:
+              "windows-analysis",
+            value:
+              windows?.dataDateIso,
+          },
+          {
+            source:
+              "eot-assessment",
+            value:
+              eot?.dataDateIso,
+          },
+        ],
+      ),
+    );
+
+    checks.push(
+      equalityCheck(
+        "SOURCE_PROJECT_COMPLETION_RECONCILIATION",
+        "The explicit current Project Completion milestone must reconcile across submitted forecast, PMO and window tracking.",
+        [
+          {
+            source:
+              "source-truth.project-completion",
+            value:
+              sourceTruth.schedule
+                .currentCompletion.value,
+          },
+          {
+            source:
+              "independent-forecast.submitted",
+            value:
+              forecast
+                ?.sourceForecastCompletionIso,
+          },
+          {
+            source:
+              "pmo-analysis.submitted",
+            value:
+              pmo?.forecast
+                ?.sourceCompletionIso,
+          },
+        ],
+      ),
+    );
+
+    checks.push(
+      equalityCheck(
+        "SOURCE_NEAR_CRITICAL_COUNT_RECONCILIATION",
+        "Near-critical watch population must reconcile to the project-controlled source definition.",
+        [
+          {
+            source:
+              "source-truth.near-critical-count",
+            value:
+              sourceTruth.schedule
+                .nearCriticalSourceCount
+                .value,
+          },
+          {
+            source:
+              "near-critical.module-count",
+            value:
+              nearCritical
+                ?.nearCriticalCount,
+          },
+          {
+            source:
+              "schedule-analytics.module-count",
+            value:
+              scheduleAnalytics
+                ?.result?.float
+                ?.nearCriticalCount,
+          },
+        ],
+      ),
+    );
+
+    checks.push(
+      equalityCheck(
+        "SOURCE_NEAR_CRITICAL_THRESHOLD_RECONCILIATION",
+        "Near-critical threshold hours must come from the governed project basis/calendar rather than a platform constant.",
+        [
+          {
+            source:
+              "source-truth.threshold-hours",
+            value:
+              sourceTruth.schedule
+                .nearCriticalThresholdHours
+                .value,
+          },
+          {
+            source:
+              "near-critical.threshold-hours",
+            value:
+              nearCritical
+                ?.nearCriticalThresholdHours,
+          },
+          {
+            source:
+              "schedule-analytics.threshold-hours",
+            value:
+              scheduleAnalytics
+                ?.result?.float
+                ?.nearCriticalThresholdHours,
+          },
+        ],
+      ),
+    );
+
+    checks.push(
+      equalityCheck(
+        "SOURCE_REVISED_CONTRACT_COMPLETION_RECONCILIATION",
+        "Revised contractual completion must reconcile from contract/amendment truth into EOT and management outputs.",
+        [
+          {
+            source:
+              "source-truth.revised-contract-completion",
+            value:
+              sourceTruth.schedule
+                .revisedContractCompletion
+                .value,
+          },
+          {
+            source:
+              "eot-assessment.contractual-completion",
+            value:
+              eot
+                ?.contractualCompletionIso,
+          },
+        ],
+      ),
+    );
+
+    checks.push(
+      equalityCheck(
+        "SOURCE_EOT_DETERMINATION_TOTAL_RECONCILIATION",
+        "Engineer determination register totals must remain visible as a separate authority layer and must not be silently lost or double-counted.",
+        [
+          {
+            source:
+              "source-truth.determination-total",
+            value:
+              sourceTruth
+                .contractTimeBasis
+                ?.determinationAwardedDaysTotal ??
+              null,
+          },
+          {
+            source:
+              "eot-assessment.determination-total",
+            value:
+              eot
+                ?.determinationAwardedDaysTotal ??
+              null,
+          },
+        ],
+      ),
+    );
+
+    checks.push(
+      equalityCheck(
+        "SOURCE_PROJECT_COMPLETION_WINDOW_MOVEMENT_RECONCILIATION",
+        "Explicit Project Completion movement must be shown separately from the analytical strongest-window movement.",
+        [
+          {
+            source:
+              "source-truth.programme-movement-days",
+            value:
+              sourceTruth.schedule
+                .programmeMovementDays
+                .value,
+          },
+          {
+            source:
+              "windows-analysis.tracked-completion-net",
+            value:
+              windows
+                ?.netTrackedCompletionMovementDays ??
+              null,
+          },
+        ],
+      ),
+    );
+  }
+
+  if (
+    sourceResourceEvidence &&
+    sourceResourceEvidence
+      .utilizationApplicableResourceCount >
+      0
+  ) {
+    checks.push(
+      equalityCheck(
+        "SOURCE_RESOURCE_APPLICABLE_POPULATION_RECONCILIATION",
+        "Resource utilization population must reconcile to the governed resource master and exclude consumption-only materials.",
+        [
+          {
+            source:
+              "source-resource-evidence",
+            value:
+              sourceResourceEvidence
+                .utilizationApplicableResourceCount,
+          },
+          {
+            source:
+              "resource-utilization.module",
+            value:
+              resources
+                ?.utilizationApplicableResourceCount ??
+              resources
+                ?.capacityBasedResourceCount,
+          },
+        ],
+      ),
+    );
+    checks.push(
+      equalityCheck(
+        "SOURCE_RESOURCE_WEEKLY_ROWS_RECONCILIATION",
+        "Weekly resource capacity/utilization row count must reconcile to source evidence.",
+        [
+          {
+            source:
+              "source-resource-evidence",
+            value:
+              sourceResourceEvidence
+                .rowCount,
+          },
+          {
+            source:
+              "resource-utilization.module",
+            value:
+              resources
+                ?.weeklyCapacityEvidence
+                ?.rowCount ??
+              null,
+          },
+        ],
+      ),
+    );
+    checks.push(
+      equalityCheck(
+        "SOURCE_RESOURCE_PLANNED_UTILIZATION_RECONCILIATION",
+        "Average planned utilization to the Data Date must reconcile to the governed weekly capacity register.",
+        [
+          {
+            source:
+              "source-resource-evidence",
+            value:
+              sourceResourceEvidence
+                .averagePlannedUtilizationToDataDate,
+          },
+          {
+            source:
+              "resource-utilization.module",
+            value:
+              resources
+                ?.averagePlannedUtilizationToDataDate ??
+              null,
+          },
+        ],
+      ),
+    );
+    checks.push(
+      equalityCheck(
+        "SOURCE_RESOURCE_ACTUAL_UTILIZATION_RECONCILIATION",
+        "Average actual utilization to the Data Date must reconcile to approved actual usage.",
+        [
+          {
+            source:
+              "source-resource-evidence",
+            value:
+              sourceResourceEvidence
+                .averageActualUtilizationToDataDate,
+          },
+          {
+            source:
+              "resource-utilization.module",
+            value:
+              resources
+                ?.averageActualUtilizationToDataDate ??
+              null,
+          },
+        ],
+      ),
+    );
+  }
+
+  if (
+    state.controls.delayClaims
+  ) {
+    checks.push(
+      equalityCheck(
+        "SOURCE_DELAY_EVENT_IDENTITY_RECONCILIATION",
+        "Submitted delay-event identities must not disappear when projected into the Delay Events & Claims module.",
+        [
+          {
+            source:
+              "canonical-delay-model.events",
+            value:
+              state.controls
+                .delayClaims.events
+                .length,
+          },
+          {
+            source:
+              "delay-claims.event-count",
+            value:
+              delay?.eventCount,
+          },
+        ],
+      ),
+    );
+    checks.push(
+      equalityCheck(
+        "SOURCE_CLAIM_COUNT_RECONCILIATION",
+        "Claim population must remain consistent from the canonical delay model into claims analysis.",
+        [
+          {
+            source:
+              "canonical-delay-model.claims",
+            value:
+              state.controls
+                .delayClaims.claims
+                .length,
+          },
+          {
+            source:
+              "delay-claims.claim-count",
+            value:
+              delay?.claimCount,
+          },
+        ],
+      ),
+    );
+  }
 
   checks.push(
     equalityCheck(

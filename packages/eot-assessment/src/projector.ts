@@ -294,6 +294,16 @@ export function buildEotAssessmentProjection(
         window.state ===
         "included",
     );
+  const eligibleCausalEventEvidenceEstablished =
+    windowCandidates.some(
+      (window) =>
+        window
+          .eligibleEventIds
+          .length > 0 &&
+        window
+          .analyticalTimeImpactCandidateDays !==
+          null,
+    );
   const candidateAdditionalEotDays =
     includedWindowCandidates.length > 0
       ? Number(
@@ -374,6 +384,7 @@ export function buildEotAssessmentProjection(
   const diagnostics = [
     ...windows.diagnostics,
     ...delay.diagnostics,
+    ...(contractTime.diagnostics ?? []),
     ...(windows.positiveProgrammeMovementDays > 0 &&
     analyticalTimeImpactCandidateDays === null
       ? [
@@ -386,6 +397,19 @@ export function buildEotAssessmentProjection(
         : []),
   ];
 
+  const officialApprovedEotIsAdditional =
+    contractTime
+      .approvedEotAdditionalToContractBasis ===
+      true ||
+    (
+      contractTime
+        .approvedEotAdditionalToContractBasis ==
+        null &&
+      contractTime
+        .incorporatedAmendmentEotDays ==
+        null
+    );
+
   let officialAdjustedCompletionIso:
     | string
     | null = null;
@@ -397,7 +421,8 @@ export function buildEotAssessmentProjection(
     contractTime.officialApprovedEotDays !==
       null &&
     contractTime.officialApprovedEotState ===
-      "official"
+      "official" &&
+    officialApprovedEotIsAdditional
   ) {
     if (
       contractTime.eotDayBasis ===
@@ -413,6 +438,16 @@ export function buildEotAssessmentProjection(
         "OFFICIAL_ADJUSTED_COMPLETION_REQUIRES_SUPPORTED_EOT_DAY_BASIS",
       );
     }
+  } else if (
+    contractTime.officialApprovedEotDays !==
+      null &&
+    contractTime.officialApprovedEotState ===
+      "official" &&
+    !officialApprovedEotIsAdditional
+  ) {
+    diagnostics.push(
+      "OFFICIAL_EOT_DETERMINATIONS_NOT_AUTO_ADDED_TO_CURRENT_CONTRACTUAL_COMPLETION",
+    );
   }
 
   let scenarioBaseApprovedDays = 0;
@@ -421,13 +456,23 @@ export function buildEotAssessmentProjection(
     contractTime.officialApprovedEotDays !==
       null &&
     contractTime.officialApprovedEotState ===
-      "official"
+      "official" &&
+    officialApprovedEotIsAdditional
   ) {
     scenarioBaseApprovedDays =
       contractTime.officialApprovedEotDays;
-  } else {
+  } else if (
+    contractTime.officialApprovedEotDays ===
+      null ||
+    contractTime.officialApprovedEotState !==
+      "official"
+  ) {
     assumptions.push(
       "OFFICIAL_APPROVED_EOT_NOT_ESTABLISHED_ASSUMED_ZERO_FOR_SCENARIO_ONLY",
+    );
+  } else {
+    assumptions.push(
+      "OFFICIAL_EOT_DETERMINATIONS_ARE_REPORTED_BUT_NOT_ADDED_TO_THE_CURRENT_CONTRACTUAL_COMPLETION_WITHOUT_ADDITIVITY_EVIDENCE",
     );
   }
 
@@ -488,8 +533,33 @@ export function buildEotAssessmentProjection(
     officialApprovedEotState:
       contractTime.officialApprovedEotState,
     officialAdjustedCompletionIso,
+    incorporatedAmendmentEotDays:
+      contractTime
+        .incorporatedAmendmentEotDays ??
+      null,
+    determinationCount:
+      contractTime
+        .determinationCount ??
+      null,
+    determinationAwardedDaysTotal:
+      contractTime
+        .determinationAwardedDaysTotal ??
+      null,
+    determinationAwardedDaysToDataDate:
+      contractTime
+        .determinationAwardedDaysToDataDate ??
+      null,
+    determinationDataDateIso:
+      contractTime
+        .determinationDataDateIso ??
+      null,
+    approvedEotAdditionalToContractBasis:
+      contractTime
+        .approvedEotAdditionalToContractBasis ??
+      null,
 
     observedProgrammeMovementDays,
+    eligibleCausalEventEvidenceEstablished,
     analyticalTimeImpactCandidateDays,
     attributableCandidateEotDays,
     unattributedTimeImpactDays,

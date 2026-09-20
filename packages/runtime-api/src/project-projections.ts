@@ -1,6 +1,8 @@
 import { createHash } from "node:crypto";
 import {
   analyzeSchedule,
+  DEFAULT_SCHEDULE_ANALYSIS_CONFIG,
+  type ScheduleAnalysisConfig,
 } from "../../schedule-analysis-core/src";
 import {
   buildActivityAnalyticsProjection,
@@ -112,6 +114,10 @@ import {
 import {
   weeklyResourceCapacityEvidence,
 } from "./resource-support-evidence";
+import {
+  buildProjectTruth,
+  type ProjectTruthSnapshot,
+} from "./project-truth";
 
 interface ProjectionBundle {
   version: number;
@@ -165,6 +171,56 @@ function available(
     data,
   };
 }
+function attachProjectTruth(
+  result: ModuleRuntimeResult,
+  truth: ProjectTruthSnapshot,
+): ModuleRuntimeResult {
+  if (
+    !result.data ||
+    typeof result.data !== "object" ||
+    Array.isArray(result.data)
+  ) {
+    return result;
+  }
+  return {
+    ...result,
+    data: {
+      ...(result.data as Record<string, unknown>),
+      dataDateIso:
+        truth.schedule.dataDate.value ??
+        (result.data as any).dataDateIso ??
+        null,
+      truthBasis: {
+        scheduleRevisionId:
+          truth.scheduleRevisionId,
+        dataDate:
+          truth.schedule.dataDate,
+        projectCompletionActivityId:
+          truth.schedule
+            .projectCompletionActivityId,
+        baselineCompletion:
+          truth.schedule
+            .baselineCompletion,
+        currentCompletion:
+          truth.schedule
+            .currentCompletion,
+        revisedContractCompletion:
+          truth.schedule
+            .revisedContractCompletion,
+        nearCriticalThresholdHours:
+          truth.schedule
+            .nearCriticalThresholdHours,
+        nearCriticalWorkingDays:
+          truth.schedule
+            .nearCriticalWorkingDays,
+        nearCriticalSourceCount:
+          truth.schedule
+            .nearCriticalSourceCount,
+      },
+    },
+  };
+}
+
 
 function revisionRolePriority(
   role:
@@ -239,6 +295,171 @@ function analyticalHistory(
         : programmeSchedules),
   ].sort(revisionChronology);
 }
+
+function scheduleConfigFromTruth(
+  truth: ProjectTruthSnapshot,
+): ScheduleAnalysisConfig {
+  const threshold =
+    truth.schedule
+      .nearCriticalThresholdHours
+      .value;
+  return {
+    ...DEFAULT_SCHEDULE_ANALYSIS_CONFIG,
+    nearCriticalFloatThresholdHours:
+      threshold ??
+      DEFAULT_SCHEDULE_ANALYSIS_CONFIG
+        .nearCriticalFloatThresholdHours,
+    nearCriticalLowerBoundHours:
+      threshold !== null
+        ? 0
+        : DEFAULT_SCHEDULE_ANALYSIS_CONFIG
+            .nearCriticalLowerBoundHours,
+    nearCriticalLowerBoundInclusive:
+      threshold !== null &&
+      truth.schedule
+        .nearCriticalIncludesZeroFloat
+        ? true
+        : DEFAULT_SCHEDULE_ANALYSIS_CONFIG
+            .nearCriticalLowerBoundInclusive,
+  };
+}
+function forecastTaxonomy(
+  truth: ProjectTruthSnapshot,
+  forecast: ReturnType<
+    typeof buildIndependentForecastProjection
+  >,
+) {
+  const submitted =
+    truth.forecastPositions.find(
+      (position) =>
+        position.kind ===
+        "submitted_programme",
+    ) ?? null;
+  const productivity =
+    truth.forecastPositions.find(
+      (position) =>
+        position.kind ===
+        "source_productivity",
+    ) ?? null;
+  const probabilistic =
+    forecast.probabilistic ?? null;
+
+  return {
+    submittedProgramme: {
+      label:
+        "Submitted programme forecast",
+      dateIso:
+        submitted?.dateIso ??
+        forecast
+          .sourceForecastCompletionIso,
+      authority:
+        submitted?.authority ??
+        "derived",
+      sourceRefs:
+        submitted?.sourceRefs ??
+        [],
+      method:
+        submitted?.method ??
+        "current controlled programme",
+      driverId:
+        submitted?.driverId ??
+        truth.schedule
+          .projectCompletionActivityId
+          .value,
+    },
+    sourceProductivity: {
+      label:
+        "Source productivity forecast",
+      dateIso:
+        productivity?.dateIso ??
+        null,
+      authority:
+        productivity?.authority ??
+        "missing",
+      sourceRefs:
+        productivity?.sourceRefs ??
+        [],
+      method:
+        productivity?.method ??
+        "not established",
+      driverId:
+        productivity?.driverId ??
+        null,
+    },
+    cmengCpm: {
+      label:
+        "CMeng deterministic CPM",
+      dateIso:
+        forecast
+          .independentForecastCompletionIso,
+      authority:
+        forecast.complete
+          ? "derived"
+          : "missing",
+      sourceRefs: [
+        "schedule-revision:" +
+          forecast
+            .sourceRevisionId,
+      ],
+      method:
+        "independent CPM using current programme logic, remaining durations and source calendars",
+      coveragePercent:
+        forecast
+          .activityCoveragePercent,
+      origin:
+        forecast.origin,
+    },
+    probabilisticComparator: {
+      label:
+        "Probabilistic comparator",
+      authority:
+        probabilistic?.status ===
+          "available"
+          ? "derived_non_official"
+          : "missing",
+      method:
+        probabilistic?.method ??
+        "not established",
+      p50CompletionIso:
+        probabilistic
+          ?.p50CompletionIso ??
+        null,
+      p80CompletionIso:
+        probabilistic
+          ?.p80CompletionIso ??
+        null,
+      p90CompletionIso:
+        probabilistic
+          ?.p90CompletionIso ??
+        null,
+      assumptions:
+        probabilistic
+          ?.assumptions ??
+        [],
+    },
+    contractualRequirement: {
+      label:
+        "Revised contractual completion",
+      dateIso:
+        truth.schedule
+          .revisedContractCompletion
+          .value,
+      authority:
+        truth.schedule
+          .revisedContractCompletion
+          .authority,
+      sourceRefs:
+        truth.schedule
+          .revisedContractCompletion
+          .sourceRefs,
+      method:
+        truth.schedule
+          .revisedContractCompletion
+          .method,
+    },
+  };
+}
+
 
 function actualHistory(
   state: ProjectRuntimeState,
@@ -352,6 +573,20 @@ function buildBundle(
 
   const model =
     current.revision.model;
+  const projectTruth =
+    buildProjectTruth(
+      state,
+      model,
+    );
+  const scheduleConfig =
+    scheduleConfigFromTruth(
+      projectTruth,
+    );
+  const contractTimeBasis =
+    state.controls
+      .contractTimeBasis ??
+    projectTruth
+      .contractTimeBasis;
   const controlledBaseline =
     ordered
       .filter(
@@ -533,6 +768,8 @@ function buildBundle(
         generatedAt,
         producerVersion:
           versions.schedule,
+        config:
+          scheduleConfig,
       },
     );
 
@@ -730,6 +967,8 @@ function buildBundle(
         generatedAt,
         producerVersion:
           versions.activity,
+        config:
+          scheduleConfig,
       },
     );
 
@@ -848,6 +1087,8 @@ function buildBundle(
         generatedAt,
         producerVersion:
           versions.milestones,
+        config:
+          scheduleConfig,
       },
     );
   const milestones =
@@ -906,6 +1147,8 @@ function buildBundle(
         generatedAt,
         producerVersion:
           versions.nearCritical,
+        config:
+          scheduleConfig,
       },
     );
   const nearCritical =
@@ -973,7 +1216,14 @@ function buildBundle(
     "independent-forecast",
     available(
       "independent-forecast",
-      independentForecast,
+      {
+        ...independentForecast,
+        forecastTaxonomy:
+          forecastTaxonomy(
+            projectTruth,
+            independentForecast,
+          ),
+      },
       [],
       independentForecast.complete
         ? "ready"
@@ -1267,6 +1517,25 @@ function buildBundle(
     resourceAssignmentsAvailable
       ? resources
       : null;
+  const sourceResourceCapacity =
+    weeklyResourceCapacityEvidence(
+      state.evidenceDocuments,
+      model.dataDateIso,
+    );
+  const sourceCapacityEstablished =
+    sourceResourceCapacity
+      .utilizationApplicableResourceCount >
+      0 &&
+    sourceResourceCapacity
+      .comparableRowCount > 0 &&
+    sourceResourceCapacity
+      .unitSafe &&
+    (
+      sourceResourceCapacity.state ===
+        "available" ||
+      sourceResourceCapacity.state ===
+        "partial"
+    );
 
   let resourceUtilization:
     ReturnType<
@@ -1301,20 +1570,207 @@ function buildBundle(
         },
       );
 
+    const p6CapacityCoverage =
+      resourceUtilization
+        .capacityCoveragePercent;
     modules.set(
       "resource-utilization",
       available(
         "resource-utilization",
-        resourceUtilization,
-        ["resource-loaded XER"],
+        {
+          ...resourceUtilization,
+          authority:
+            sourceCapacityEstablished
+              ? "governed_weekly_capacity_register"
+              : "schedule_resource_model",
+          weeklyCapacityEvidence:
+            sourceResourceCapacity,
+          utilizationApplicableResourceCount:
+            sourceResourceCapacity
+              .utilizationApplicableResourceCount,
+          averagePlannedUtilizationToDataDate:
+            sourceResourceCapacity
+              .averagePlannedUtilizationToDataDate,
+          averageActualUtilizationToDataDate:
+            sourceResourceCapacity
+              .averageActualUtilizationToDataDate,
+          plannedOverallocatedResourceWeekCount:
+            sourceResourceCapacity
+              .plannedOverallocatedResourceWeekCount,
+          actualOverallocatedResourceWeekCount:
+            sourceResourceCapacity
+              .actualOverallocatedResourceWeekCount,
+          sourceCapacityCoveragePercent:
+            sourceResourceCapacity
+              .capacityCoveragePercent,
+          p6CapacityCoveragePercent:
+            p6CapacityCoverage,
+        },
+        [
+          "resource assignments",
+          "RES01-RES07 capacity/utilization evidence when available",
+        ],
+        sourceCapacityEstablished ||
+        (
+          resourceUtilization
+            .capacityBasedResourceCount >
+          0
+        )
+          ? "ready"
+          : "partial",
+        sourceCapacityEstablished
+          ? null
+          : resourceUtilization
+                .capacityBasedResourceCount >
+              0
+            ? "Per-hour schedule capacity is available for part of the resource population. No stronger governed weekly utilization register is established."
+            : "Resource assignments exist, but neither a governed weekly capacity register nor usable schedule capacity rates are established.",
       ),
     );
     modules.set(
       "manhour-scurve",
       available(
         "manhour-scurve",
-        manhourScurve,
-        ["resource-loaded XER"],
+        {
+          ...manhourScurve,
+          sourceResourceEvidence:
+            sourceResourceCapacity,
+        },
+        [
+          "resource-loaded XER",
+          "approved/time-phased resource evidence when available",
+        ],
+        (
+          manhourScurve
+            .actualHistoryMethod ===
+          "stored_financial_period_actuals"
+        ) ||
+        sourceResourceCapacity
+          .approvedActualUsageRowCount >
+          0
+          ? "ready"
+          : "partial",
+        (
+          manhourScurve
+            .actualHistoryMethod ===
+          "stored_financial_period_actuals"
+        )
+          ? null
+          : sourceResourceCapacity
+                .approvedActualUsageRowCount >
+              0
+            ? "Approved weekly actual-usage evidence exists and is retained separately from the XER snapshot; the historical man-hour curve must use the source time-phased evidence without fabricating missing periods."
+            : "Actual labor-hour history is not established.",
+      ),
+    );
+  } else if (
+    sourceCapacityEstablished
+  ) {
+    modules.set(
+      "resource-utilization",
+      available(
+        "resource-utilization",
+        {
+          schemaVersion: "1.0",
+          projectionKey:
+            "resource_utilization",
+          generatedAt,
+          producerVersion:
+            versions.resource +
+            ":source-register",
+          projectId:
+            state.projectId,
+          sourceRevisionId:
+            current.revision
+              .revisionId,
+          dataDateIso:
+            model.dataDateIso,
+          authority:
+            "governed_weekly_capacity_register",
+          resourceCount:
+            sourceResourceCapacity
+              .resourceCount,
+          assignedResourceCount:
+            sourceResourceCapacity
+              .utilizationApplicableResourceCount,
+          capacityBasedResourceCount:
+            sourceResourceCapacity
+              .utilizationApplicableResourceCount,
+          capacityCoveragePercent:
+            sourceResourceCapacity
+              .capacityCoveragePercent,
+          overloadedResourceCount:
+            sourceResourceCapacity
+              .plannedOverallocatedResourceCount,
+          rows: [],
+          weeklyCapacityEvidence:
+            sourceResourceCapacity,
+          utilizationApplicableResourceCount:
+            sourceResourceCapacity
+              .utilizationApplicableResourceCount,
+          averagePlannedUtilizationToDataDate:
+            sourceResourceCapacity
+              .averagePlannedUtilizationToDataDate,
+          averageActualUtilizationToDataDate:
+            sourceResourceCapacity
+              .averageActualUtilizationToDataDate,
+          plannedOverallocatedResourceWeekCount:
+            sourceResourceCapacity
+              .plannedOverallocatedResourceWeekCount,
+          actualOverallocatedResourceWeekCount:
+            sourceResourceCapacity
+              .actualOverallocatedResourceWeekCount,
+          sourceCapacityCoveragePercent:
+            sourceResourceCapacity
+              .capacityCoveragePercent,
+          diagnostics: [
+            ...sourceResourceCapacity
+              .diagnostics,
+            "RESOURCE_UTILIZATION_FROM_GOVERNED_WEEKLY_REGISTER_WITHOUT_P6_ASSIGNMENTS",
+          ],
+        },
+        [
+          "RES01-RES07 capacity/utilization evidence",
+        ],
+      ),
+    );
+    modules.set(
+      "manhour-scurve",
+      available(
+        "manhour-scurve",
+        {
+          schemaVersion: "1.0",
+          projectionKey:
+            "manhour_scurve_source_evidence",
+          generatedAt,
+          producerVersion:
+            versions.manhours +
+            ":source-register",
+          projectId:
+            state.projectId,
+          sourceRevisionId:
+            current.revision
+              .revisionId,
+          dataDateIso:
+            model.dataDateIso,
+          actualHistoryMethod:
+            sourceResourceCapacity
+                .approvedActualUsageRowCount >
+              0
+              ? "approved_weekly_actual_usage"
+              : "missing",
+          sourceResourceEvidence:
+            sourceResourceCapacity,
+          diagnostics: [
+            "P6_RESOURCE_ASSIGNMENTS_NOT_ESTABLISHED",
+          ],
+        },
+        [
+          "RES03 approved actual usage",
+          "RES04 time-phased assignments",
+        ],
+        "partial",
+        "Source weekly resource evidence is established, but P6 resource assignments are unavailable for a complete planned/remaining man-hour reconciliation.",
       ),
     );
   } else {
@@ -1322,16 +1778,20 @@ function buildBundle(
       "resource-utilization",
       blocked(
         "resource-utilization",
-        "The current schedule revision has no resource assignment evidence.",
-        ["resource-loaded XER"],
+        "Neither schedule resource assignments nor governed RES01-RES07 capacity/utilization evidence are established.",
+        [
+          "resource assignments or governed resource capacity register",
+        ],
       ),
     );
     modules.set(
       "manhour-scurve",
       blocked(
         "manhour-scurve",
-        "The current schedule revision has no governed labour assignment evidence.",
-        ["resource-loaded XER"],
+        "No governed labour assignment or approved actual-usage history is established.",
+        [
+          "labor assignments or approved time-phased labor evidence",
+        ],
       ),
     );
   }
@@ -1560,24 +2020,38 @@ function buildBundle(
         generatedAt,
         producerVersion:
           versions.windows,
+        trackedCompletionActivityId:
+          projectTruth.schedule
+            .projectCompletionActivityId
+            .value,
       },
     );
+  const governedCausalEventCount =
+    analyticalDelayModel.events.filter(
+      (event) =>
+        (
+          event.startIso !== null ||
+          event.endIso !== null
+        ) &&
+        event.relatedActivityIds.length >
+          0,
+    ).length;
+
   modules.set(
     "windows-analysis",
     available(
       "windows-analysis",
       windows,
       ["schedule revision history"],
-      ordered.length >= 2
-        ? delayModel
-          ? "ready"
-          : "partial"
+      ordered.length >= 2 &&
+      governedCausalEventCount > 0
+        ? "ready"
         : "partial",
       ordered.length < 2
         ? "Only one revision exists. CMeng cannot calculate a comparative window until a second revision is supplied."
-        : delayModel
+        : governedCausalEventCount > 0
           ? null
-          : "CMeng independently calculated schedule windows and movement. No contractor delay-event model was submitted, so causation remains un-attributed.",
+          : "CMeng independently calculated schedule windows and movement. Delay-event identities may exist, but causation remains un-attributed until event dates and affected activities are governed.",
     ),
   );
 
@@ -1603,17 +2077,20 @@ function buildBundle(
           windows.windowCount > 0,
       },
       ["schedule windows"],
-      delayModel &&
+      governedCausalEventCount >
+        0 &&
       windows.windowCount > 0
         ? "ready"
         : "partial",
-      delayModel
+      governedCausalEventCount > 0
         ? windows.windowCount > 0
           ? null
-          : "Claim evidence exists, but a second schedule revision is required to independently test movement."
-        : windows.windowCount > 0
-          ? "No contractor claim was submitted. CMeng still reports observed schedule movement without assigning legal causation."
-          : "No contractor claim was submitted and only one schedule revision exists. CMeng preserves the claim gap and states the evidence needed to test it.",
+          : "Delay-event causation evidence exists, but a second schedule revision is required to independently test movement."
+        : analyticalDelayModel.events.length > 0
+          ? "Submitted delay-event identities exist, but event occurrence dates and/or affected schedule activities are not governed. CMeng does not assign causation from identity alone."
+          : windows.windowCount > 0
+            ? "No governed delay-event population exists. CMeng still reports observed schedule movement without assigning legal causation."
+            : "No governed delay-event population exists and only one schedule revision is available.",
     ),
   );
 
@@ -1635,26 +2112,36 @@ function buildBundle(
         contractorNoticeClaimEvidenceSubmitted:
           delayModel !== null,
       },
-      ["notices", "claims"],
-      delayModel
+      ["delay event dates", "notice requirements", "notices", "claims"],
+      analyticalDelayModel.events.some(
+        (event) =>
+          event.startIso !== null ||
+          event.endIso !== null,
+      ) &&
+      analyticalDelayModel.noticeRequirements.length >
+        0
         ? "ready"
         : "partial",
-      delayModel
+      analyticalDelayModel.events.some(
+        (event) =>
+          event.startIso !== null ||
+          event.endIso !== null,
+      ) &&
+      analyticalDelayModel.noticeRequirements.length >
+        0
         ? null
-        : "No contractor notices/claims were submitted. CMeng does not turn missing records into zero entitlement; it preserves the submission gap for reconciliation.",
+        : "Notice performance is not zero; it is not assessable. Event occurrence/awareness dates and applicable notice requirements must both be governed before timeliness is authoritative.",
     ),
   );
 
   if (
-    state.controls
-      .contractTimeBasis
+    contractTimeBasis
   ) {
     eotAssessment =
       buildEotAssessmentProjection(
         windows,
         delayClaims,
-        state.controls
-          .contractTimeBasis,
+        contractTimeBasis,
         {
           generatedAt,
           producerVersion:
@@ -1671,15 +2158,15 @@ function buildBundle(
             delayModel !== null,
         },
         ["schedule windows", "contract time basis"],
-        delayModel &&
+        eotAssessment.eligibleCausalEventEvidenceEstablished &&
         windows.windowCount > 0
           ? "ready"
           : "partial",
-        delayModel
+        eotAssessment.eligibleCausalEventEvidenceEstablished
           ? windows.windowCount > 0
             ? null
-            : "Contract/EOT basis is available, but at least two schedule revisions are required for a window-based independent movement assessment."
-          : "Contract time basis is available and schedule movement is independently calculated where possible, but no contractor EOT/event case was submitted.",
+            : "Contract/EOT basis and causal event evidence are available, but at least two schedule revisions are required for a window-based independent movement assessment."
+          : "Contract time basis and event/claim identities may be available, but EOT causation is not management-ready until governed event dates and affected schedule activities are established.",
       ),
     );
   } else {
@@ -1702,9 +2189,23 @@ function buildBundle(
         "missing",
       officialAdjustedCompletionIso:
         null,
+      incorporatedAmendmentEotDays:
+        null,
+      determinationCount:
+        null,
+      determinationAwardedDaysTotal:
+        null,
+      determinationAwardedDaysToDataDate:
+        null,
+      determinationDataDateIso:
+        model.dataDateIso,
+      approvedEotAdditionalToContractBasis:
+        null,
       observedProgrammeMovementDays:
         windows
           .positiveProgrammeMovementDays,
+      eligibleCausalEventEvidenceEstablished:
+        false,
       analyticalTimeImpactCandidateDays:
         null,
       attributableCandidateEotDays:
@@ -1816,9 +2317,7 @@ function buildBundle(
       resources:
         usableResources,
       independentForecast,
-      contractTimeBasis:
-        state.controls
-          .contractTimeBasis,
+      contractTimeBasis,
       submittedManpowerPlan:
         state.submittedManpowerPlan,
     });
@@ -2532,6 +3031,19 @@ function buildBundle(
     );
   }
 
+  for (
+    const [moduleKey, moduleResult] of
+      modules.entries()
+  ) {
+    modules.set(
+      moduleKey,
+      attachProjectTruth(
+        moduleResult,
+        projectTruth,
+      ),
+    );
+  }
+
   applyUniversalModuleChallenges({
     state,
     generatedAt,
@@ -2904,6 +3416,20 @@ function buildPlanningModuleFast(
     analyticalHistory(state);
   const model =
     current.revision.model;
+  const projectTruth =
+    buildProjectTruth(
+      state,
+      model,
+    );
+  const scheduleConfig =
+    scheduleConfigFromTruth(
+      projectTruth,
+    );
+  const contractTimeBasis =
+    state.controls
+      .contractTimeBasis ??
+    projectTruth
+      .contractTimeBasis;
   const controlledBaseline =
     ordered
       .filter(
@@ -3038,6 +3564,8 @@ function buildPlanningModuleFast(
         generatedAt,
         producerVersion:
           "planning-fast:schedule-v1",
+        config:
+          scheduleConfig,
       },
     );
 
@@ -3315,6 +3843,8 @@ function buildPlanningModuleFast(
           generatedAt,
           producerVersion:
             "planning-fast:activity-v1",
+          config:
+            scheduleConfig,
         },
       );
     const activity =
@@ -3428,6 +3958,8 @@ function buildPlanningModuleFast(
           generatedAt,
           producerVersion:
             "planning-fast:milestones-v1",
+          config:
+            scheduleConfig,
         },
       );
     const milestones =
@@ -3488,6 +4020,8 @@ function buildPlanningModuleFast(
           generatedAt,
           producerVersion:
             "planning-fast:near-critical-v1",
+          config:
+            scheduleConfig,
         },
       );
     const nearCritical =
@@ -3670,6 +4204,8 @@ function buildPlanningModuleFast(
           generatedAt,
           producerVersion:
             "planning-fast:milestones-v1",
+          config:
+            scheduleConfig,
         },
       );
     const milestones =
@@ -3909,11 +4445,14 @@ function buildPlanningModuleFast(
   });
 
   const result =
-    modules.get(key) ??
-    blocked(
-      key,
-      "The selected Programme & Planning view could not be calculated.",
-      [],
+    attachProjectTruth(
+      modules.get(key) ??
+        blocked(
+          key,
+          "The selected Programme & Planning view could not be calculated.",
+          [],
+        ),
+      projectTruth,
     );
 
   planningModuleCache.set(
@@ -4011,6 +4550,16 @@ function specialistChallengeContext(
       model,
       generatedAt,
     );
+  const projectTruth =
+    buildProjectTruth(
+      state,
+      model,
+    );
+  const contractTimeBasis =
+    state.controls
+      .contractTimeBasis ??
+    projectTruth
+      .contractTimeBasis;
   const resourceModel =
     state.resourcesByRevision.get(
       model.sourceRevisionId,
@@ -4036,9 +4585,7 @@ function specialistChallengeContext(
           : null,
       independentForecast:
         forecast,
-      contractTimeBasis:
-        state.controls
-          .contractTimeBasis,
+      contractTimeBasis,
       submittedManpowerPlan:
         state.submittedManpowerPlan,
     });
@@ -4295,6 +4842,11 @@ function claimsFastContext(
         "DELAY_CLAIM_EVIDENCE_NOT_SUBMITTED",
       ],
     };
+  const projectTruth =
+    buildProjectTruth(
+      state,
+      current.revision.model,
+    );
 
   const windows =
     buildWindowsAnalysisProjection(
@@ -4313,6 +4865,10 @@ function claimsFastContext(
               revision.model,
               generatedAt,
             ),
+        trackedCompletionActivityId:
+          projectTruth.schedule
+            .projectCompletionActivityId
+            .value,
       },
     );
 
@@ -4476,6 +5032,20 @@ function buildSpecialistModuleFast(
     new Date().toISOString();
   const model =
     current.revision.model;
+  const projectTruth =
+    buildProjectTruth(
+      state,
+      model,
+    );
+  const scheduleConfig =
+    scheduleConfigFromTruth(
+      projectTruth,
+    );
+  const contractTimeBasis =
+    state.controls
+      .contractTimeBasis ??
+    projectTruth
+      .contractTimeBasis;
   const ordered =
     analyticalHistory(state);
   const controlledBaseline =
@@ -4621,23 +5191,190 @@ function buildSpecialistModuleFast(
           ?.assignments.length ??
         0
       ) > 0;
+    const sourceResourceCapacity =
+      weeklyResourceCapacityEvidence(
+        state.evidenceDocuments,
+        model.dataDateIso,
+      );
+    const sourceCapacityEstablished =
+      sourceResourceCapacity
+        .utilizationApplicableResourceCount >
+        0 &&
+      sourceResourceCapacity
+        .comparableRowCount > 0 &&
+      sourceResourceCapacity
+        .unitSafe &&
+      (
+        sourceResourceCapacity.state ===
+          "available" ||
+        sourceResourceCapacity.state ===
+          "partial"
+      );
 
-    if (!resources ||
-        !hasAssignments) {
-      const scenarioContext =
-        specialistChallengeContext(
-          state,
-          model,
-          generatedAt,
-        );
-      const manpower =
-        scenarioContext
-          .delivery
-          .manpowerChallenge;
+    if (
+      key ===
+      "resource-utilization"
+    ) {
       if (
-        key ===
-        "resource-utilization"
+        resources &&
+        hasAssignments
       ) {
+        const projection =
+          buildResourceUtilizationProjection(
+            resources,
+            model,
+            {
+              generatedAt,
+              producerVersion:
+                "resource-utilization-fast-v3",
+            },
+          );
+        const p6CapacityKnown =
+          projection
+            .capacityBasedResourceCount;
+        result = available(
+          key,
+          {
+            ...projection,
+            authority:
+              sourceCapacityEstablished
+                ? "governed_weekly_capacity_register"
+                : "schedule_resource_model",
+            weeklyCapacityEvidence:
+              sourceResourceCapacity,
+            utilizationApplicableResourceCount:
+              sourceResourceCapacity
+                .utilizationApplicableResourceCount,
+            averagePlannedUtilizationToDataDate:
+              sourceResourceCapacity
+                .averagePlannedUtilizationToDataDate,
+            averageActualUtilizationToDataDate:
+              sourceResourceCapacity
+                .averageActualUtilizationToDataDate,
+            plannedOverallocatedResourceWeekCount:
+              sourceResourceCapacity
+                .plannedOverallocatedResourceWeekCount,
+            actualOverallocatedResourceWeekCount:
+              sourceResourceCapacity
+                .actualOverallocatedResourceWeekCount,
+            sourceCapacityCoveragePercent:
+              sourceResourceCapacity
+                .capacityCoveragePercent,
+            p6CapacityCoveragePercent:
+              projection
+                .capacityCoveragePercent,
+            assessedOverloadResourceCount:
+              sourceCapacityEstablished
+                ? sourceResourceCapacity
+                    .plannedOverallocatedResourceCount
+                : p6CapacityKnown,
+            overloadAssessmentState:
+              sourceCapacityEstablished
+                ? "complete_source_weekly"
+                : p6CapacityKnown > 0
+                  ? "partial_p6_per_hour"
+                  : "not_assessable",
+          },
+          [
+            "current schedule",
+            "RES01-RES07 resource evidence",
+          ],
+          sourceCapacityEstablished ||
+          p6CapacityKnown > 0
+            ? "ready"
+            : "partial",
+          sourceCapacityEstablished
+            ? null
+            : p6CapacityKnown > 0
+              ? "Utilization is available only for schedule resources with explicit per-hour capacity. No governed weekly utilization register is established."
+              : "Assignments are available, but capacity is not established. CMeng does not infer zero or unlimited capacity.",
+        );
+      } else if (
+        sourceCapacityEstablished
+      ) {
+        result = available(
+          key,
+          {
+            schemaVersion:
+              "1.0",
+            projectionKey:
+              "resource_utilization",
+            generatedAt,
+            producerVersion:
+              "resource-utilization-fast-v3:source-register",
+            projectId:
+              state.projectId,
+            sourceRevisionId:
+              current.revision
+                .revisionId,
+            dataDateIso:
+              model.dataDateIso,
+            authority:
+              "governed_weekly_capacity_register",
+            resourceCount:
+              sourceResourceCapacity
+                .resourceCount,
+            assignedResourceCount:
+              sourceResourceCapacity
+                .utilizationApplicableResourceCount,
+            capacityBasedResourceCount:
+              sourceResourceCapacity
+                .utilizationApplicableResourceCount,
+            capacityCoveragePercent:
+              sourceResourceCapacity
+                .capacityCoveragePercent,
+            overloadedResourceCount:
+              sourceResourceCapacity
+                .plannedOverallocatedResourceCount,
+            rows: [],
+            weeklyCapacityEvidence:
+              sourceResourceCapacity,
+            utilizationApplicableResourceCount:
+              sourceResourceCapacity
+                .utilizationApplicableResourceCount,
+            averagePlannedUtilizationToDataDate:
+              sourceResourceCapacity
+                .averagePlannedUtilizationToDataDate,
+            averageActualUtilizationToDataDate:
+              sourceResourceCapacity
+                .averageActualUtilizationToDataDate,
+            plannedOverallocatedResourceWeekCount:
+              sourceResourceCapacity
+                .plannedOverallocatedResourceWeekCount,
+            actualOverallocatedResourceWeekCount:
+              sourceResourceCapacity
+                .actualOverallocatedResourceWeekCount,
+            sourceCapacityCoveragePercent:
+              sourceResourceCapacity
+                .capacityCoveragePercent,
+            assessedOverloadResourceCount:
+              sourceResourceCapacity
+                .plannedOverallocatedResourceCount,
+            overloadAssessmentState:
+              "complete_source_weekly",
+            diagnostics: [
+              ...sourceResourceCapacity
+                .diagnostics,
+              "RESOURCE_UTILIZATION_PRIMARY_BASIS_IS_GOVERNED_WEEKLY_REGISTER",
+            ],
+          },
+          [
+            "RES01-RES07 capacity/utilization evidence",
+          ],
+          "ready",
+          null,
+        );
+      } else {
+        const scenarioContext =
+          specialistChallengeContext(
+            state,
+            model,
+            generatedAt,
+          );
+        const manpower =
+          scenarioContext
+            .delivery
+            .manpowerChallenge;
         result = available(
           key,
           {
@@ -4647,7 +5384,7 @@ function buildSpecialistModuleFast(
               "resource_utilization_scenario",
             generatedAt,
             producerVersion:
-              "resource-utilization-fast-v2",
+              "resource-utilization-fast-v3",
             projectId:
               state.projectId,
             sourceRevisionId:
@@ -4683,155 +5420,23 @@ function buildSpecialistModuleFast(
               manpower
                 .scheduleDerivedScenarios,
             weeklyCapacityEvidence:
-              weeklyResourceCapacityEvidence(
-                state.evidenceDocuments,
-              ),
+              sourceResourceCapacity,
             diagnostics: [
-              "RESOURCE_ASSIGNMENTS_NOT_SUBMITTED_SCENARIO_DERIVED_FROM_WORKFRONTS",
+              "RESOURCE_CAPACITY_EVIDENCE_NOT_ESTABLISHED_SCENARIO_ONLY",
             ],
           },
           [
             "current schedule",
-            "resource assignments when available",
+            "resource evidence when available",
           ],
           "partial",
-          "Resource assignments are not established. CMeng keeps schedule-derived crew scenarios separate from measured resource utilization.",
-        );
-      } else {
-        const remainingDays =
-          scenarioContext
-            .delivery
-            .scheduleChallenge
-            .remainingDurationDays;
-        result = available(
-          key,
-          {
-            schemaVersion:
-              "1.0",
-            projectionKey:
-              "manhour_scurve_scenario",
-            generatedAt,
-            producerVersion:
-              "manhour-scurve-fast-v2",
-            projectId:
-              state.projectId,
-            sourceRevisionId:
-              current.revision
-                .revisionId,
-            dataDateIso:
-              model.dataDateIso,
-            actualHistoryMethod:
-              "missing",
-            submittedLaborAssignments:
-              false,
-            scenarios:
-              manpower
-                .scheduleDerivedScenarios
-                .map(
-                  (scenario) => ({
-                    crewSize:
-                      scenario.crewSize,
-                    averageManpower:
-                      scenario
-                        .averageManpower,
-                    peakManpower:
-                      scenario
-                        .peakManpower,
-                    remainingScenarioHours:
-                      remainingDays !==
-                        null &&
-                      remainingDays > 0 &&
-                      scenario
-                        .averageManpower !==
-                        null
-                        ? Number(
-                            (
-                              remainingDays *
-                              scenario
-                                .averageManpower *
-                              8
-                            ).toFixed(4),
-                          )
-                        : null,
-                    basis:
-                      "8 hours/person/day",
-                    authority:
-                      "schedule_derived_scenario",
-                  }),
-                ),
-            diagnostics: [
-              "LABOR_ASSIGNMENTS_NOT_SUBMITTED_MANHOUR_SCENARIO_ONLY",
-            ],
-          },
-          [
-            "current schedule",
-            "labor assignments when available",
-          ],
-          "partial",
-          "Labor assignments are not established. Any man-hour values shown are explicit schedule-derived scenarios, not measured history.",
+          "Measured resource capacity/utilization evidence is not established. Schedule-derived crew positions remain scenarios only.",
         );
       }
     } else if (
-      key ===
-      "resource-utilization"
+      resources &&
+      hasAssignments
     ) {
-      const projection =
-        buildResourceUtilizationProjection(
-          resources,
-          model,
-          {
-            generatedAt,
-            producerVersion:
-              "resource-utilization-fast-v2",
-          },
-        );
-      const weeklyCapacity =
-        weeklyResourceCapacityEvidence(
-          state.evidenceDocuments,
-        );
-      const capacityKnown =
-        projection
-          .capacityBasedResourceCount;
-      const allCapacityKnown =
-        projection
-          .assignedResourceCount >
-          0 &&
-        capacityKnown ===
-          projection
-            .assignedResourceCount;
-      const weeklyComparable =
-        weeklyCapacity
-          .comparableRowCount > 0;
-      const enriched = {
-        ...projection,
-        assessedOverloadResourceCount:
-          capacityKnown,
-        overloadAssessmentState:
-          capacityKnown === 0
-            ? "not_assessable_per_hour"
-            : allCapacityKnown
-              ? "complete"
-              : "partial",
-        weeklyCapacityEvidence:
-          weeklyCapacity,
-      };
-      result = available(
-        key,
-        enriched,
-        [
-          "resource assignments",
-          "resource capacity",
-        ],
-        allCapacityKnown
-          ? "ready"
-          : "partial",
-        capacityKnown === 0
-          ? weeklyComparable
-            ? "Per-hour resource capacity is not established in the schedule resource model. Weekly capacity and demand evidence is shown separately without unsafe unit conversion."
-            : "Resource assignments are available, but no usable capacity rate is established. Overload cannot be assessed and zero must not be inferred."
-          : "Resource utilization is calculated only for resources with established capacity; the remaining resources stay demand-only.",
-      );
-    } else {
       const projection =
         buildManhourScurveProjection(
           resources,
@@ -4839,30 +5444,82 @@ function buildSpecialistModuleFast(
           {
             generatedAt,
             producerVersion:
-              "manhour-scurve-fast-v2",
+              "manhour-scurve-fast-v3",
           },
         );
-      const actualHistoryComplete =
+      const actualHistoryEstablished =
         projection
           .actualHistoryMethod ===
-        "stored_financial_period_actuals";
+          "stored_financial_period_actuals";
       result = available(
         key,
-        projection,
+        {
+          ...projection,
+          sourceResourceEvidence:
+            sourceResourceCapacity,
+        },
         [
           "labor assignments",
-          "financial-period actuals when available",
+          "RES03/RES04 actual and time-phased resource evidence",
         ],
-        actualHistoryComplete
+        actualHistoryEstablished ||
+        sourceResourceCapacity
+          .approvedActualUsageRowCount >
+        0
           ? "ready"
           : "partial",
-        actualHistoryComplete
+        actualHistoryEstablished
           ? null
-          : projection
-              .actualHistoryMethod ===
-            "current_actual_snapshot_only"
-            ? "Only a current labor-hours snapshot is available. CMeng does not reconstruct a historical actual S-curve from that single value."
+          : sourceResourceCapacity
+                .approvedActualUsageRowCount >
+              0
+            ? "Approved weekly actual-usage evidence exists. It is exposed as the authoritative actual-history source and must remain separate from schedule snapshots."
             : "Actual labor-hour history is not established.",
+      );
+    } else if (
+      sourceResourceCapacity
+        .approvedActualUsageRowCount >
+      0
+    ) {
+      result = available(
+        key,
+        {
+          schemaVersion:
+            "1.0",
+          projectionKey:
+            "manhour_scurve_source_evidence",
+          generatedAt,
+          producerVersion:
+            "manhour-scurve-fast-v3",
+          projectId:
+            state.projectId,
+          sourceRevisionId:
+            current.revision
+              .revisionId,
+          dataDateIso:
+            model.dataDateIso,
+          actualHistoryMethod:
+            "approved_weekly_actual_usage",
+          sourceResourceEvidence:
+            sourceResourceCapacity,
+          diagnostics: [
+            "P6_LABOR_ASSIGNMENTS_NOT_ESTABLISHED",
+          ],
+        },
+        [
+          "RES03 approved actual usage",
+          "RES04 time-phased assignments",
+        ],
+        "partial",
+        "Approved actual resource history is available, but a complete labor-only plan/actual curve requires assignment classification and time-phased labor extraction.",
+      );
+    } else {
+      result = blocked(
+        key,
+        "No labor assignment or approved actual resource history is established.",
+        [
+          "labor assignments or approved time-phased labor evidence",
+        ],
       );
     }
   } else if (
@@ -5026,6 +5683,11 @@ function buildSpecialistModuleFast(
       key,
       {
         ...forecast,
+        forecastTaxonomy:
+          forecastTaxonomy(
+            projectTruth,
+            forecast,
+          ),
         managementReviewState:
           reviewReason
             ? "review_required"
@@ -5132,6 +5794,8 @@ function buildSpecialistModuleFast(
           generatedAt,
           producerVersion:
             "progress-position:schedule-v1",
+          config:
+            scheduleConfig,
         },
       );
     const milestones =
@@ -5141,6 +5805,8 @@ function buildSpecialistModuleFast(
           generatedAt,
           producerVersion:
             "progress-position:milestones-v1",
+          config:
+            scheduleConfig,
         },
       );
     const lookAhead =
@@ -5346,16 +6012,36 @@ function buildSpecialistModuleFast(
           [
             "controlled programme revision history",
           ],
-          delayModel &&
-          delayModel.events.length >
-            0
+          delay.events.some(
+            (event) =>
+              (
+                event.eventStartIso !==
+                  null ||
+                event.eventEndIso !==
+                  null
+              ) &&
+              (
+                event.relatedActivityIds ??
+                []
+              ).length > 0,
+          )
             ? "ready"
             : "partial",
-          delayModel &&
-          delayModel.events.length >
-            0
+          delay.events.some(
+            (event) =>
+              (
+                event.eventStartIso !==
+                  null ||
+                event.eventEndIso !==
+                  null
+              ) &&
+              (
+                event.relatedActivityIds ??
+                []
+              ).length > 0,
+          )
             ? null
-            : "Programme movement is calculated from controlled programme revisions, but causation remains un-attributed because no linked delay-event population is established.",
+            : "Programme movement is calculated from controlled programme revisions, but event identity alone is insufficient for causation. Govern event dates and affected activities first.",
         );
       } else if (
         key ===
@@ -5384,7 +6070,19 @@ function buildSpecialistModuleFast(
             "delay events",
             "claim-event linkage",
           ],
-          delay.events.length > 0 &&
+          delay.events.some(
+            (event) =>
+              (
+                event.eventStartIso !==
+                  null ||
+                event.eventEndIso !==
+                  null
+              ) &&
+              (
+                event.relatedActivityIds ??
+                []
+              ).length > 0,
+          ) &&
           linkedClaimCount > 0
             ? "ready"
             : "partial",
@@ -5401,13 +6099,11 @@ function buildSpecialistModuleFast(
         );
       } else {
         const eot =
-          state.controls
-            .contractTimeBasis
+          contractTimeBasis
             ? buildEotAssessmentProjection(
                 windows,
                 delay,
-                state.controls
-                  .contractTimeBasis,
+                contractTimeBasis,
                 {
                   generatedAt,
                   producerVersion:
@@ -5434,9 +6130,23 @@ function buildSpecialistModuleFast(
                   "missing" as const,
                 officialAdjustedCompletionIso:
                   null,
+                incorporatedAmendmentEotDays:
+                  null,
+                determinationCount:
+                  null,
+                determinationAwardedDaysTotal:
+                  null,
+                determinationAwardedDaysToDataDate:
+                  null,
+                determinationDataDateIso:
+                  model.dataDateIso,
+                approvedEotAdditionalToContractBasis:
+                  null,
                 observedProgrammeMovementDays:
                   windows
                     .positiveProgrammeMovementDays,
+                eligibleCausalEventEvidenceEstablished:
+                  false,
                 analyticalTimeImpactCandidateDays:
                   null,
                 attributableCandidateEotDays:
@@ -5515,8 +6225,7 @@ function buildSpecialistModuleFast(
           analyticalDelayModel
             .events.length > 0;
         const contractBasis =
-          state.controls
-            .contractTimeBasis;
+          contractTimeBasis;
         const contractReady =
           contractBasis !==
             null &&
@@ -5668,9 +6377,7 @@ function buildSpecialistModuleFast(
             : null,
         independentForecast:
           sourceForecast,
-        contractTimeBasis:
-          state.controls
-            .contractTimeBasis,
+        contractTimeBasis,
         submittedManpowerPlan:
           state.submittedManpowerPlan,
       });
@@ -5800,8 +6507,11 @@ function buildSpecialistModuleFast(
       challengeModules,
   });
   result =
-    challengeModules.get(key) ??
-    result;
+    attachProjectTruth(
+      challengeModules.get(key) ??
+        result,
+      projectTruth,
+    );
 
   specialistModuleCache.set(
     cacheKey,

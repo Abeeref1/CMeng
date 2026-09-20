@@ -91,6 +91,13 @@ export function inferDocumentType(
   if (/^c02_|amendment/.test(name)) return "contract_amendment";
   if (/^c03_|technical[_ -]?appendix|appendix/.test(name)) return "contract_appendix";
   if (/^rel/.test(name)) return "longest_path_register";
+  if (/^res0?1/.test(name)) return "resource_capacity_master";
+  if (/^res0?2/.test(name)) return "resource_weekly_capacity_utilization";
+  if (/^res0?3/.test(name)) return "resource_approved_actual_usage";
+  if (/^res0?4/.test(name)) return "resource_assignment_timephased_weekly";
+  if (/^res0?5/.test(name)) return "resource_utilization_control_basis";
+  if (/^res0?6/.test(name)) return "resource_monthly_utilization_summary";
+  if (/^res0?7/.test(name)) return "resource_utilization_headline_metrics";
   if (/^res/.test(name)) return "resource_register";
   if (/^sch0?1/.test(name)) return "schedule_control_basis";
   if (/^sch0?2/.test(name)) return "schedule_metric_register";
@@ -117,6 +124,10 @@ export function inferDocumentType(
   if (/^pay/.test(name)) return "payment_certificates";
   if (/^var/.test(name)) return "variation_register";
   if (/^cl/.test(name)) return "delay_eot_claims_register";
+  if (/^eot0?1/.test(name)) return "delay_event_impact_register";
+  if (/^eot0?2/.test(name)) return "entitlement_assessment_register";
+  if (/^eot0?3/.test(name)) return "engineer_determination_register";
+  if (/^eot0?4/.test(name)) return "mitigation_acceleration_register";
   if (/^p0?1_.*procurement|procurement/.test(name)) return "procurement_register";
   if (/^r0?1_.*risk|risk[_ -]?register/.test(name)) return "risk_register";
   if (/^l0?1_|letters|notices/.test(name)) return "letters_notices";

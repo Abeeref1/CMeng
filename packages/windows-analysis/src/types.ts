@@ -48,6 +48,15 @@ export interface ScheduleWindowResult {
   strongestProgrammeMovementBasis:
     ProgrammeMovementBasis;
 
+  trackedCompletionActivityId:
+    string | null;
+  fromTrackedCompletionIso:
+    string | null;
+  toTrackedCompletionIso:
+    string | null;
+  trackedCompletionMovementDays:
+    number | null;
+
   fromProgressPercent: number | null;
   toProgressPercent: number | null;
   progressMovementPercent: number | null;
@@ -89,6 +98,14 @@ export interface WindowsAnalysisProjection {
   positiveProgrammeMovementDays: number;
   negativeProgrammeMovementDays: number;
   programmeMovementAvailableWindowCount: number;
+  trackedCompletionActivityId:
+    string | null;
+  positiveTrackedCompletionMovementDays:
+    number;
+  negativeTrackedCompletionMovementDays:
+    number;
+  netTrackedCompletionMovementDays:
+    number | null;
   windows: ScheduleWindowResult[];
   diagnostics: string[];
 }
