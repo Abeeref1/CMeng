@@ -2624,6 +2624,63 @@ if (require.main === module) {
       );
     }
 
+    for (const projectId of runtimeProjects.listProjectIds()) {
+      const state = runtimeProjects.get(projectId);
+      if (!state) continue;
+      const diagnostics: string[] = [];
+      const catalog = governedTables(
+        state.evidenceDocuments,
+        diagnostics,
+      )
+        .filter((table) =>
+          table.document.category === "schedule_control"
+        )
+        .map((table) => ({
+          documentType:
+            table.document.documentType,
+          basisState:
+            table.document.basisState,
+          rows: table.rows
+            .map((row) => ({
+              metric:
+                row.cells["metric"] ??
+                row.cells["parameter"] ??
+                row.cells["measure"] ??
+                row.cells["name"] ??
+                row.cells["indicator"] ??
+                "",
+              unit:
+                row.cells["unit"] ??
+                row.cells["uom"] ??
+                "",
+              source:
+                row.cells["source"] ??
+                row.cells["forecast basis"] ??
+                row.cells["basis"] ??
+                "",
+            }))
+            .filter((row) =>
+              row.metric ||
+              row.source
+            ),
+        }))
+        .filter((item) =>
+          item.rows.length > 0
+        );
+
+      if (catalog.length > 0) {
+        process.stdout.write(
+          JSON.stringify({
+            event:
+              "project_control_metric_catalog",
+            projectFingerprint:
+              projectId.length,
+            catalog,
+          }) + "\n",
+        );
+      }
+    }
+
     const server = createCmengServer();
     server.listen(port, host, () => {
       process.stdout.write(
