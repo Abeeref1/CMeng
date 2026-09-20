@@ -92,6 +92,63 @@ test("browser root serves CMeng UAT application", async () => {
   );
 });
 
+test("Commercial workspace exposes the governed module catalogue", async () => {
+  await withServer(
+    async (base) => {
+      const response =
+        await fetch(
+          base +
+            "/api/commercial/modules",
+        );
+      assert.equal(
+        response.status,
+        200,
+      );
+      const modules =
+        await response.json() as Array<{
+          key: string;
+          label: string;
+          tier: number;
+        }>;
+      assert.equal(
+        modules.length,
+        31,
+      );
+      for (
+        const required of [
+          "commercial-terms",
+          "contract-amendments",
+          "cost-register",
+          "payment-register",
+          "cbs-breakdown",
+          "cost-control",
+          "evm-performance",
+          "cash-flow-register",
+          "cost-scurve",
+          "variations",
+          "contract-obligations",
+          "liquidated-damages",
+          "final-account",
+          "commitment-tracking",
+          "accruals",
+          "multi-currency",
+          "reconciliation-report",
+          "cost-position",
+        ]
+      ) {
+        assert.ok(
+          modules.some(
+            (module) =>
+              module.key ===
+              required,
+          ),
+          required,
+        );
+      }
+    },
+  );
+});
+
 test("certified demo exposes all 22 modules plus Director and board-ready report", async () => {
   await withServer(
     async (base) => {
@@ -556,9 +613,6 @@ test("deleting the current programme document restores the prior update", async 
         assert.equal(
           uploaded.status,
           201,
-          await uploaded
-            .clone()
-            .text(),
         );
       }
 
