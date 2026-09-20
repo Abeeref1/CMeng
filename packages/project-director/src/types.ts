@@ -204,7 +204,7 @@ export interface ProjectDirectorPosition {
     observedProgrammeMovementDays:
       number;
     analyticalTimeImpactCandidateDays:
-      number;
+      number | null;
     attributableCandidateEotDays:
       number | null;
     unattributedTimeImpactDays:
