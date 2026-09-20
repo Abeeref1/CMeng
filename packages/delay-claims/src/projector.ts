@@ -338,6 +338,25 @@ export function buildDelayClaimsProjection(
       model.claims.length,
     windowCount:
       windows.windowCount,
+    claimLinkedEventCount:
+      rows.filter((row) => row.linkedClaimIds.length > 0).length,
+    activityLinkedEventCount:
+      rows.filter((row) => row.relatedActivityIds.length > 0).length,
+    windowLinkedEventCount:
+      rows.filter((row) => row.overlappingWindowIds.length > 0).length,
+    noticeLinkedEventCount:
+      rows.filter((row) => row.noticeIds.length > 0).length,
+    determinationLinkedEventCount:
+      rows.filter((row) => row.determinationIds.length > 0).length,
+    fullDeterminationChainEventCount:
+      rows.filter(
+        (row) =>
+          row.linkedClaimIds.length > 0 &&
+          row.relatedActivityIds.length > 0 &&
+          row.overlappingWindowIds.length > 0 &&
+          row.noticeIds.length > 0 &&
+          row.determinationIds.length > 0,
+      ).length,
 
     observedPositiveIndependentMovementDays:
       Number(
