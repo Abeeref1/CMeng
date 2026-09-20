@@ -1,6 +1,8 @@
 import { createHash } from "node:crypto";
 import {
   analyzeSchedule,
+  DEFAULT_SCHEDULE_ANALYSIS_CONFIG,
+  type ScheduleAnalysisConfig,
 } from "../../schedule-analysis-core/src";
 import {
   buildActivityAnalyticsProjection,
@@ -112,6 +114,10 @@ import {
 import {
   weeklyResourceCapacityEvidence,
 } from "./resource-support-evidence";
+import {
+  buildProjectTruth,
+  type ProjectTruthSnapshot,
+} from "./project-truth";
 
 interface ProjectionBundle {
   version: number;
@@ -240,6 +246,34 @@ function analyticalHistory(
   ].sort(revisionChronology);
 }
 
+function scheduleConfigFromTruth(
+  truth: ProjectTruthSnapshot,
+): ScheduleAnalysisConfig {
+  const threshold =
+    truth.schedule
+      .nearCriticalThresholdHours
+      .value;
+  return {
+    ...DEFAULT_SCHEDULE_ANALYSIS_CONFIG,
+    nearCriticalFloatThresholdHours:
+      threshold ??
+      DEFAULT_SCHEDULE_ANALYSIS_CONFIG
+        .nearCriticalFloatThresholdHours,
+    nearCriticalLowerBoundHours:
+      threshold !== null
+        ? 0
+        : DEFAULT_SCHEDULE_ANALYSIS_CONFIG
+            .nearCriticalLowerBoundHours,
+    nearCriticalLowerBoundInclusive:
+      threshold !== null &&
+      truth.schedule
+        .nearCriticalIncludesZeroFloat
+        ? true
+        : DEFAULT_SCHEDULE_ANALYSIS_CONFIG
+            .nearCriticalLowerBoundInclusive,
+  };
+}
+
 function actualHistory(
   state: ProjectRuntimeState,
 ) {
@@ -352,6 +386,20 @@ function buildBundle(
 
   const model =
     current.revision.model;
+  const projectTruth =
+    buildProjectTruth(
+      state,
+      model,
+    );
+  const scheduleConfig =
+    scheduleConfigFromTruth(
+      projectTruth,
+    );
+  const contractTimeBasis =
+    state.controls
+      .contractTimeBasis ??
+    projectTruth
+      .contractTimeBasis;
   const controlledBaseline =
     ordered
       .filter(
@@ -3114,6 +3162,20 @@ function buildPlanningModuleFast(
     analyticalHistory(state);
   const model =
     current.revision.model;
+  const projectTruth =
+    buildProjectTruth(
+      state,
+      model,
+    );
+  const scheduleConfig =
+    scheduleConfigFromTruth(
+      projectTruth,
+    );
+  const contractTimeBasis =
+    state.controls
+      .contractTimeBasis ??
+    projectTruth
+      .contractTimeBasis;
   const controlledBaseline =
     ordered
       .filter(
@@ -4686,6 +4748,20 @@ function buildSpecialistModuleFast(
     new Date().toISOString();
   const model =
     current.revision.model;
+  const projectTruth =
+    buildProjectTruth(
+      state,
+      model,
+    );
+  const scheduleConfig =
+    scheduleConfigFromTruth(
+      projectTruth,
+    );
+  const contractTimeBasis =
+    state.controls
+      .contractTimeBasis ??
+    projectTruth
+      .contractTimeBasis;
   const ordered =
     analyticalHistory(state);
   const controlledBaseline =
