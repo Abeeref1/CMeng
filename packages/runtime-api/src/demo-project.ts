@@ -699,6 +699,25 @@ export function loadCertifiedDemoProject(
         }],
         diagnostics: [],
       },
+      contractNoticeRequirements: [{
+        requirementId: "NR1",
+        noticeKind: "eot_notice",
+        eventCategories: [
+          "late_information",
+        ],
+        noticePeriodDays: 7,
+        state: "official",
+        clauseIdentifiers: [
+          "8.4",
+        ],
+        evidenceRefs: [{
+          sourceType: "contract",
+          sourceId:
+            "demo-contract",
+          locator:
+            "clause:8.4",
+        }],
+      }],
       contractTimeBasis: {
         contractualCompletionIso:
           "2026-01-09",
