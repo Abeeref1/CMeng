@@ -116,6 +116,10 @@ export function inferDocumentType(
   if (/^cost/.test(name)) return "cost_evm_report";
   if (/^pay/.test(name)) return "payment_certificates";
   if (/^var/.test(name)) return "variation_register";
+  if (/^eot0?1[_-]/.test(name)) return "delay_event_impact_register";
+  if (/^eot0?2[_-]/.test(name)) return "entitlement_assessment_register";
+  if (/^eot0?3[_-]/.test(name)) return "engineer_determination_register";
+  if (/^eot0?4[_-]/.test(name)) return "mitigation_acceleration_register";
   if (/^cl/.test(name)) return "delay_eot_claims_register";
   if (/^p0?1_.*procurement|procurement/.test(name)) return "procurement_register";
   if (/^r0?1_.*risk|risk[_ -]?register/.test(name)) return "risk_register";
