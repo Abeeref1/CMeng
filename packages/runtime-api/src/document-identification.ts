@@ -1928,6 +1928,70 @@ function classifyText(
   }
 
   if (
+    /\bactivity\s+id\b/i.test(normalized) &&
+    /\b(?:driving\s+path|float\s+path)\b/i.test(normalized) &&
+    /\btotal\s+float\b/i.test(normalized)
+  ) {
+    return {
+      category: "schedule_control",
+      documentType:
+        "longest_path_register",
+      confidence: 0.96,
+      signals: [
+        "driving/float path register columns",
+      ],
+    };
+  }
+
+  if (
+    /\bresource\s+(?:unique\s+)?id\b/i.test(normalized) &&
+    /\bresource\s+name\b/i.test(normalized)
+  ) {
+    return {
+      category: "schedule_control",
+      documentType:
+        "resource_register",
+      confidence: 0.96,
+      signals: [
+        "resource register columns",
+      ],
+    };
+  }
+
+  if (
+    /\bwbs\s+(?:code|id)\b/i.test(normalized) &&
+    /\bwbs\s+name\b/i.test(normalized) &&
+    /\bparent\s+wbs\b/i.test(normalized)
+  ) {
+    return {
+      category: "schedule_control",
+      documentType:
+        "wbs_dictionary",
+      confidence: 0.95,
+      signals: [
+        "WBS dictionary columns",
+      ],
+    };
+  }
+
+  if (
+    /\bactivity\s+id\b/i.test(normalized) &&
+    /\bbaseline\b/i.test(normalized) &&
+    /\bcurrent\b/i.test(normalized) &&
+    /\b(?:comparison|variance|shift|change|changed|delta)\b/i.test(normalized)
+  ) {
+    return {
+      category: "schedule_control",
+      documentType:
+        "schedule_activity_comparison",
+      confidence: 0.97,
+      signals: [
+        "baseline-to-current comparison columns",
+      ],
+    };
+  }
+
+  if (
     /\bactivity\s+id\b/i.test(
       normalized,
     ) &&
