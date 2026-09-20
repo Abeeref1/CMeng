@@ -4075,15 +4075,59 @@ function sourceOnlyForecast(
     };
   }
 
-  const analytics =
-    analyzeSchedule(model);
-  const sourceForecastCompletionIso =
-    analytics.completionBases.find(
-      (basis) =>
-        basis.basis ===
-        "forecast",
-    )?.dateIso ??
-    null;
+  let latestFinishMs:
+    number | null = null;
+  let sourceForecastCompletionIso:
+    string | null = null;
+
+  for (
+    const activity of
+      model.activities
+  ) {
+    if (
+      activity.activityType ===
+        "wbs_summary" ||
+      activity.activityType ===
+        "level_of_effort"
+    ) {
+      continue;
+    }
+
+    const finish =
+      (
+        activity.status ===
+          "completed" &&
+        activity.actualFinishIso
+          ? activity
+              .actualFinishIso
+          : activity
+              .forecastFinishIso ??
+            activity
+              .currentFinishIso
+      ) ??
+      null;
+
+    if (!finish) continue;
+    const finishMs =
+      Date.parse(finish);
+    if (
+      !Number.isFinite(
+        finishMs,
+      )
+    ) {
+      continue;
+    }
+    if (
+      latestFinishMs === null ||
+      finishMs >
+        latestFinishMs
+    ) {
+      latestFinishMs =
+        finishMs;
+      sourceForecastCompletionIso =
+        finish;
+    }
+  }
 
   const projection = {
     schemaVersion:
@@ -4092,7 +4136,7 @@ function sourceOnlyForecast(
       "independent_forecast" as const,
     generatedAt,
     producerVersion:
-      "source-forecast-only-v2",
+      "source-forecast-only-v3",
     projectId:
       model.projectId,
     sourceRevisionId:
