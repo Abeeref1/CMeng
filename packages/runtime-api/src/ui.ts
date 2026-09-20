@@ -1737,10 +1737,7 @@ async function refresh(bootstrapDemo=true){
     try{renderStatus(overview)}catch{}
     updateActiveProjectShell();
     renderNav();
-
-    let director=null;
-    try{director=await api("/api/projects/"+encodeURIComponent(projectId)+"/director-position")}catch{}
-    try{renderDirector(director)}catch{}
+    try{renderDirector(null)}catch{}
 
     await Promise.allSettled([
       loadModule(selected),
@@ -1901,14 +1898,15 @@ el("uploadSchedules").onclick=uploadSchedules;el("uploadBoqs").onclick=uploadBoq
 const storedProject=localStorage.getItem("cmeng-project");const storedModule=localStorage.getItem("cmeng-module");if(storedModule&&names[storedModule])selected=storedModule;el("projectId").value=storedProject||"";el("projectId").addEventListener("change",()=>openProject(project()));setFocusMode(localStorage.getItem("cmeng-focus")==="1");renderAiSuggestions();renderPlatformNav();renderNav();
 async function bootstrapWorkspace(){
   loadRelease();
-  await loadPortfolio();
-  const projects=portfolioData?.projects||[];
-  const savedProject=storedProject&&projects.some(item=>item.projectId===storedProject);
-  if(savedProject){
-    await openProject(storedProject);
-    return;
+  if(storedProject){
+    try{
+      await openProject(storedProject);
+      loadPortfolio();
+      return;
+    }catch{}
   }
   setAppView("portfolio");
+  loadPortfolio();
 }
 bootstrapWorkspace().catch(()=>setAppView("portfolio"));
 </script>
