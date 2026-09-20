@@ -4686,6 +4686,17 @@ function buildSpecialistModuleFast(
       {
         ...projection,
         sourceForecastCount,
+        revisionLabels:
+          Object.fromEntries(
+            ordered.map(
+              (item) => [
+                item.revision
+                  .revisionId,
+                item.revision
+                  .label,
+              ],
+            ),
+          ),
         historyState:
           projection
             .establishedForecastCount >
