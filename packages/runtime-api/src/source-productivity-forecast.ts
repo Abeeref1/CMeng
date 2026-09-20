@@ -101,6 +101,142 @@ export function sourceProductivityForecastEvidence(
     official: boolean;
   }> = [];
 
+  for (const document of state.evidenceDocuments) {
+    if (
+      document.category !== "schedule_control" ||
+      !["active", "additive", "candidate"].includes(
+        document.basisState,
+      )
+    ) {
+      continue;
+    }
+
+    const productivityAssertions =
+      document.assertions.filter(
+        (assertion) =>
+          assertion.metric ===
+            "source_productivity_forecast_completion" &&
+          typeof assertion.value === "string",
+      );
+    if (productivityAssertions.length === 0) {
+      continue;
+    }
+
+    const documentDataDates =
+      document.assertions
+        .filter(
+          (assertion) =>
+            assertion.metric ===
+              "schedule_control_data_date" &&
+            typeof assertion.value ===
+              "string",
+        )
+        .map(
+          (assertion) =>
+            dateValue(
+              String(
+                assertion.value,
+              ),
+            ),
+        )
+        .filter(
+          (
+            value,
+          ): value is string =>
+            value !== null,
+        );
+    const uniqueDocumentDates =
+      [
+        ...new Set(
+          documentDataDates,
+        ),
+      ];
+    const assertionAsOf =
+      uniqueDocumentDates.length === 1
+        ? uniqueDocumentDates[0]!
+        : cutoff;
+
+    if (
+      uniqueDocumentDates.length >
+      1
+    ) {
+      diagnostics.push(
+        "CONFLICTING_PRODUCTIVITY_ASSERTION_DATA_DATES:" +
+          document.documentId,
+      );
+      continue;
+    }
+
+    for (
+      const assertion of
+        productivityAssertions
+    ) {
+      const completionIso =
+        dateValue(
+          String(
+            assertion.value,
+          ),
+        );
+      if (!completionIso) {
+        continue;
+      }
+
+      if (
+        cutoff !== null &&
+        assertionAsOf !== null &&
+        assertionAsOf > cutoff
+      ) {
+        diagnostics.push(
+          "FUTURE_SOURCE_PRODUCTIVITY_FORECAST_NOT_APPLIED:" +
+            document.documentId +
+            ":" +
+            assertion.assertionId,
+        );
+        continue;
+      }
+
+      const receipt:
+        SourceReceipt = {
+        documentId:
+          document.documentId,
+        sourceHash:
+          document.sourceHashSha256,
+        revision:
+          document.linkedArtifactId ??
+          document.sourceHashSha256,
+        locator:
+          assertion.sourceRef ||
+          "assertion:" +
+            assertion.assertionId,
+        basisState:
+          document.basisState,
+        authority:
+          "source_record",
+      };
+      candidates.push({
+        completionIso,
+        asOfIso:
+          assertionAsOf,
+        receipt,
+        official:
+          ["active", "additive"].includes(
+            document.basisState,
+          ),
+      });
+
+      if (
+        uniqueDocumentDates.length ===
+          0 &&
+        cutoff !== null
+      ) {
+        diagnostics.push(
+          "PRODUCTIVITY_ASSERTION_ASOF_USES_PROGRAMME_DATA_DATE:" +
+            document.documentId,
+        );
+      }
+    }
+  }
+
   for (const table of tables) {
     for (const row of table.rows) {
       const completionIso = dateFromProductivityRow(row);
