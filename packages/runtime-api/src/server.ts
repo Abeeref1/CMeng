@@ -468,8 +468,6 @@ async function route(
             return null;
           }
 
-          // Demonstration and deployment-validation records are never
-          // presented as live portfolio projects.
           if (
             state.demo === true ||
             projectId
@@ -481,211 +479,114 @@ async function route(
             return null;
           }
 
-          try {
-            const project =
-              overviewForProject(
-                projectId,
-              );
-            if (!project) {
-              return null;
-            }
-
-            const director =
-              directorForProject(
-                projectId,
-              );
-            const readyModules =
-              project.moduleStates.filter(
-                (item) =>
-                  item.status ===
-                  "ready",
-              ).length;
-            const partialModules =
-              project.moduleStates.filter(
-                (item) =>
-                  item.status ===
-                  "partial",
-              ).length;
-            const blockedModules =
-              project.moduleStates.filter(
-                (item) =>
-                  item.status ===
-                  "blocked",
-              ).length;
-            const managementActions =
-              director?.managementActions ??
-              [];
-            const positionState =
-              !project.minimumEvidenceBasis
-                .ready
-                ? "needs_information"
-                : project.lastRerunReceipt
-                    ?.certification
-                    .state === "pass"
-                  ? "current"
-                  : "needs_review";
-
-            return {
-              projectId:
-                project.projectId,
-              demo: false,
-              version:
-                project.version,
-              latestDataDateIso:
-                project.latestDataDateIso,
-              evidenceDocumentCount:
-                project.evidenceDocumentCount,
-              revisionCount:
-                project.revisionCount,
-              minimumEvidenceReady:
-                project.minimumEvidenceBasis
-                  .ready,
-              readyModules,
-              partialModules,
-              blockedModules,
-              lastRerunState:
-                project.lastRerunReceipt
-                  ?.certification
-                  .state ??
-                null,
-              positionState,
-              forecastCompletionIso:
-                director?.schedule
-                  .independentForecastCompletionIso ??
-                null,
-              officialCompletionIso:
-                director?.schedule
-                  .officialAdjustedCompletionIso ??
-                director?.schedule
-                  .contractualCompletionIso ??
-                null,
-              programmeMovementDays:
-                director?.claims
-                  .observedProgrammeMovementDays ??
-                null,
-              approvedEotDays:
-                director?.claims
-                  .officialApprovedEotDays ??
-                null,
-              claimCount:
-                director?.claims
-                  .claimCount ??
-                null,
-              fullyLinkedClaimCount:
-                director?.claims
-                  .fullyLinkedClaimCount ??
-                null,
-              managementActionCount:
-                managementActions.length,
-              managementActions:
-                managementActions.slice(
-                  0,
-                  3,
-                ),
-              commercialCurrencyCount:
-                director
-                  ?.commercialByCurrency
-                  ?.length ??
-                0,
-              analysisError: null,
-            };
-          } catch (error) {
-            const schedules =
-              Array.isArray(
-                state.schedules,
-              )
-                ? state.schedules
-                : [];
-            const evidenceDocuments =
-              Array.isArray(
-                state.evidenceDocuments,
-              )
-                ? state.evidenceDocuments
-                : [];
-            const boqRevisions =
-              Array.isArray(
-                state.boqRevisions,
-              )
-                ? state.boqRevisions
-                : [];
-            const latest =
-              schedules
-                .filter(
-                  (item) =>
-                    item.role !==
-                    "recovery",
-                )
-                .sort(
-                  (a, b) =>
-                    (
-                      a.revision.model
-                        .dataDateIso ??
-                      a.revision
-                        .effectiveAt ??
-                      ""
-                    ).localeCompare(
-                      b.revision.model
-                        .dataDateIso ??
-                        b.revision
-                          .effectiveAt ??
-                        "",
-                    ),
-                )
-                .at(-1) ??
-              null;
-
-            return {
+          const programmeSchedules =
+            state.schedules.filter(
+              isProgrammeScheduleRevision,
+            );
+          const latest =
+            runtimeProjects.latestSchedule(
               projectId,
-              demo: false,
-              version:
-                state.version ?? 1,
-              latestDataDateIso:
-                latest?.revision.model
-                  .dataDateIso ??
-                null,
-              evidenceDocumentCount:
-                evidenceDocuments.length,
-              revisionCount:
-                schedules.length,
-              minimumEvidenceReady:
-                schedules.length > 0 &&
-                boqRevisions.length > 0,
-              readyModules: 0,
-              partialModules: 0,
-              blockedModules:
-                scheduleModules.length,
-              lastRerunState:
+            );
+          const receiptStates =
+            new Map(
+              (
                 state.lastRerunReceipt
-                  ?.certification
-                  .state ??
-                null,
-              positionState:
-                schedules.length > 0 &&
-                boqRevisions.length > 0
-                  ? "needs_review"
-                  : "needs_information",
-              forecastCompletionIso:
-                null,
-              officialCompletionIso:
-                null,
-              programmeMovementDays:
-                null,
-              approvedEotDays:
-                null,
-              claimCount: null,
-              fullyLinkedClaimCount:
-                null,
-              managementActionCount:
-                0,
-              managementActions: [],
-              commercialCurrencyCount:
-                0,
-              analysisError:
-                error instanceof Error
-                  ? error.message
-                  : String(error),
-            };
+                  ?.moduleResults ??
+                []
+              ).map(
+                (item) => [
+                  item.key,
+                  item.status,
+                ],
+              ),
+            );
+          let readyModules = 0;
+          let partialModules = 0;
+          let blockedModules = 0;
+          for (
+            const module of
+              scheduleModules
+          ) {
+            const status =
+              receiptStates.get(
+                module.key,
+              ) ??
+              (
+                programmeSchedules
+                  .length > 0
+                  ? "partial"
+                  : "blocked"
+              );
+            if (status === "ready") {
+              readyModules += 1;
+            } else if (
+              status === "partial"
+            ) {
+              partialModules += 1;
+            } else {
+              blockedModules += 1;
+            }
           }
+
+          const minimumEvidenceReady =
+            programmeSchedules.length >
+              0 &&
+            state.boqRevisions.length >
+              0;
+          const lastRerunState =
+            state.lastRerunReceipt
+              ?.certification
+              .state ??
+            null;
+
+          return {
+            projectId,
+            demo: false,
+            version:
+              state.version,
+            latestDataDateIso:
+              latest?.revision.model
+                .dataDateIso ??
+              null,
+            evidenceDocumentCount:
+              state.evidenceDocuments
+                .length,
+            revisionCount:
+              programmeSchedules.length,
+            minimumEvidenceReady,
+            readyModules,
+            partialModules,
+            blockedModules,
+            lastRerunState,
+            positionState:
+              !minimumEvidenceReady
+                ? "needs_information"
+                : lastRerunState ===
+                    "pass"
+                  ? "current"
+                  : "needs_review",
+            forecastCompletionIso:
+              null,
+            officialCompletionIso:
+              null,
+            programmeMovementDays:
+              null,
+            approvedEotDays:
+              null,
+            claimCount:
+              state.controls
+                .delayClaims
+                ?.claims.length ??
+              null,
+            fullyLinkedClaimCount:
+              null,
+            managementActionCount:
+              0,
+            managementActions: [],
+            commercialCurrencyCount:
+              0,
+            analysisError: null,
+          };
         })
         .filter(
           (
