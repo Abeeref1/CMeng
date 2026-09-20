@@ -1,4 +1,7 @@
-import { createHash } from "node:crypto";
+import {
+  createHash,
+  randomUUID,
+} from "node:crypto";
 import {
   existsSync,
   mkdirSync,
@@ -1297,7 +1300,12 @@ export class RuntimeProjectStore {
     };
 
     const temporary =
-      this.stateFile + ".tmp";
+      this.stateFile +
+      "." +
+      process.pid +
+      "." +
+      randomUUID() +
+      ".tmp";
 
     writeFileSync(
       temporary,
