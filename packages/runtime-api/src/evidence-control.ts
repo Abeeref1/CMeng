@@ -291,6 +291,7 @@ export function evidenceFamily(
       "variation_register",
       "delay_eot_claims_register",
       "contractor_manpower_plan",
+      "schedule_control_basis",
       "schedule_metric_register",
       "schedule_activity_comparison",
       "longest_path_register",
