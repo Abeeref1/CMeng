@@ -343,6 +343,16 @@ export function buildProgressScurveProjection(
   const baselineSource =
     input.baselineModel ??
     model;
+  const baselineEligible =
+    baselineSource.activities.filter(
+      (activity) =>
+        activity.originalDurationHours !== null &&
+        activity.originalDurationHours > 0 &&
+        activity.activityType !== "milestone" &&
+        activity.activityType !== "start_milestone" &&
+        activity.activityType !== "finish_milestone" &&
+        activity.activityType !== "wbs_summary",
+    );
   const baseline =
     eligibleWeightedActivities(
       baselineSource.activities,
@@ -482,7 +492,7 @@ export function buildProgressScurveProjection(
     },
     baselineCoveragePercent: coverage(
       baseline.length,
-      weightedEligible.length,
+      baselineEligible.length,
     ),
     currentCoveragePercent: coverage(
       current.length,
