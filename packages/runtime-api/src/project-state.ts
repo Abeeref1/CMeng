@@ -1275,55 +1275,146 @@ export class RuntimeProjectStore {
           );
         const migrated = migrateTypedEvidenceFamilies(state, applyEvidenceBasis);
         let controlBasisMigrated = false;
-        const requiresV3GovernanceMigration =
-          ![
-            "canonical-source-v3",
-            "canonical-source-v4",
-          ].includes(
-            state.sourceIntegrationVersion ?? "",
-          );
-        if (requiresV3GovernanceMigration) {
-          const controlBasisFamilies = [
-            ...new Set(
-              state.evidenceDocuments
-                .filter(
-                  (document) =>
-                    document.documentType === "schedule_control_basis" &&
-                    document.familyKey === "schedule_control:schedule_control_basis",
-                )
-                .map((document) => document.familyKey),
-            ),
-          ];
-          for (const familyKey of controlBasisFamilies) {
-            const legacy = state.evidenceDocuments.some(
-              (document) =>
-                document.familyKey === familyKey &&
-                document.basisState === "historical",
+        const requiresV5GovernanceMigration =
+          state.sourceIntegrationVersion !==
+          "canonical-source-v5";
+
+        if (requiresV5GovernanceMigration) {
+          const controlFamily =
+            "schedule_control:schedule_control_basis";
+          const sch01Documents =
+            state.evidenceDocuments.filter(
+              (document) => {
+                const sourcePath =
+                  document.sourceRelativePath ??
+                  document.sourceFilename;
+                return (
+                  document.documentType ===
+                    "schedule_control_basis" ||
+                  inferDocumentType(
+                    sourcePath,
+                    null,
+                  ) ===
+                    "schedule_control_basis"
+                );
+              },
             );
-            if (!legacy) continue;
-            rebuildEvidenceFamily(state, familyKey);
-            for (const document of state.evidenceDocuments.filter(
-              (item) => item.familyKey === familyKey,
-            )) {
+
+          for (const document of sch01Documents) {
+            const sourcePath =
+              document.sourceRelativePath ??
+              document.sourceFilename;
+            const inferredCategory =
+              inferEvidenceCategory(
+                sourcePath,
+                null,
+              );
+            const inferredType =
+              inferDocumentType(
+                sourcePath,
+                null,
+              );
+
+            if (
+              document.category !==
+                "schedule_control" ||
+              document.documentType !==
+                "schedule_control_basis" ||
+              document.familyKey !==
+                controlFamily ||
+              document.logicalDocumentKey !==
+                controlFamily
+            ) {
+              document.category =
+                "schedule_control";
+              document.documentType =
+                "schedule_control_basis";
+              document.familyKey =
+                controlFamily;
+              document.logicalDocumentKey =
+                controlFamily;
+              document.scheduleRole =
+                null;
+              document.linkedArtifactId =
+                null;
+              document.identification = {
+                ...document.identification,
+                detectedCategory:
+                  "schedule_control",
+                detectedDocumentType:
+                  "schedule_control_basis",
+                filenameHintCategory:
+                  inferredCategory ===
+                  "schedule_control"
+                    ? inferredCategory
+                    : "schedule_control",
+                filenameHintDocumentType:
+                  inferredType ===
+                  "schedule_control_basis"
+                    ? inferredType
+                    : "schedule_control_basis",
+                classificationConflict:
+                  false,
+              };
               if (
                 !document.diagnostics.includes(
-                  "SCHEDULE_CONTROL_BASIS_GOVERNANCE_MIGRATION_V3",
+                  "SCHEDULE_CONTROL_BASIS_METADATA_MIGRATION_V5",
                 )
               ) {
                 document.diagnostics.push(
-                  "SCHEDULE_CONTROL_BASIS_GOVERNANCE_MIGRATION_V3",
+                  "SCHEDULE_CONTROL_BASIS_METADATA_MIGRATION_V5",
+                );
+              }
+              controlBasisMigrated =
+                true;
+            }
+          }
+
+          if (sch01Documents.length > 0) {
+            const currentActive =
+              state.activeEvidenceBasis[
+                controlFamily
+              ]?.activeDocumentId ??
+              null;
+            const hasGovernedActive =
+              sch01Documents.some(
+                (document) =>
+                  document.documentId ===
+                    currentActive &&
+                  document.basisState ===
+                    "active",
+              );
+
+            if (!hasGovernedActive) {
+              rebuildEvidenceFamily(
+                state,
+                controlFamily,
+              );
+              controlBasisMigrated =
+                true;
+            }
+
+            for (const document of sch01Documents) {
+              if (
+                !document.diagnostics.includes(
+                  "SCHEDULE_CONTROL_BASIS_GOVERNANCE_MIGRATION_V5",
+                )
+              ) {
+                document.diagnostics.push(
+                  "SCHEDULE_CONTROL_BASIS_GOVERNANCE_MIGRATION_V5",
                 );
               }
             }
-            controlBasisMigrated = true;
           }
         }
+
         if (
           migrated ||
           controlBasisMigrated ||
-          requiresV3GovernanceMigration
+          requiresV5GovernanceMigration
         ) {
-          state.sourceIntegrationVersion = "canonical-source-v4";
+          state.sourceIntegrationVersion =
+            "canonical-source-v5";
           state.version += 1;
           this.staleFinalizedBoardPublications(state);
           state.lastRerunReceipt = null;

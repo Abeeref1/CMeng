@@ -142,6 +142,44 @@ test('PDF SCH01 is persisted as governed control assertions and legacy PDF asser
   assert.equal(projectScheduleControlBasis(state).nearCriticalWorkingDays,5);
 });
 
+test('legacy SCH01 misclassified before schedule-control rules is recovered from its original path without changing source hash',t=>{
+  const {store,state,csvDoc,dir}=fixture(t);
+  const doc=csvDoc(
+    'Critical Definition,Near-Critical Definition,Data Date\nTF <= 0 hours,0 < TF <= +5 working days,2026-08-31',
+    'schedule_control_basis',
+    'historical',
+  );
+  doc.category='other';
+  doc.documentType='supporting_document';
+  doc.sourceFilename='SCH01_Schedule_Control_Basis.csv';
+  doc.sourceRelativePath='03_Schedule_Control/SCH01_Schedule_Control_Basis.csv';
+  doc.familyKey='other:supporting_document';
+  doc.logicalDocumentKey='other:supporting_document:'+doc.documentId;
+  doc.identification={
+    ...doc.identification,
+    detectedCategory:'other',
+    detectedDocumentType:'supporting_document',
+    filenameHintCategory:'other',
+    filenameHintDocumentType:'supporting_document',
+  } as any;
+  state.activeEvidenceBasis={};
+  state.sourceIntegrationVersion='canonical-source-v4';
+  const hash=doc.sourceHashSha256;
+  store.touch(state);
+
+  const restored=new RuntimeProjectStore({dataDir:dir,durable:false}).get('CANONICAL')!;
+  const restoredDoc=restored.evidenceDocuments.find(d=>d.documentId===doc.documentId)!;
+  assert.equal(restored.sourceIntegrationVersion,'canonical-source-v5');
+  assert.equal(restoredDoc.category,'schedule_control');
+  assert.equal(restoredDoc.documentType,'schedule_control_basis');
+  assert.equal(restoredDoc.familyKey,'schedule_control:schedule_control_basis');
+  assert.equal(restoredDoc.basisState,'active');
+  assert.equal(restoredDoc.sourceHashSha256,hash);
+  assert.ok(restoredDoc.diagnostics.includes('SCHEDULE_CONTROL_BASIS_METADATA_MIGRATION_V5'));
+  assert.ok(restoredDoc.diagnostics.includes('SCHEDULE_CONTROL_BASIS_GOVERNANCE_MIGRATION_V5'));
+  assert.equal(projectScheduleControlBasis(restored).nearCriticalWorkingDays,5);
+});
+
 test('project near-critical basis comes from SCH01 and uses each activity calendar instead of generic 40h',t=>{
   const {state,csvDoc}=fixture(t);
   state.schedules[0]!.revision.model.calendars=[
@@ -236,11 +274,11 @@ test('legacy SCH01 reference state migrates once to governed active basis withou
 
   const restored=new RuntimeProjectStore({dataDir:dir,durable:false}).get('CANONICAL')!;
   const restoredDoc=restored.evidenceDocuments.find(d=>d.documentId===doc.documentId)!;
-  assert.equal(restored.sourceIntegrationVersion,'canonical-source-v4');
+  assert.equal(restored.sourceIntegrationVersion,'canonical-source-v5');
   assert.equal(restoredDoc.basisState,'active');
   assert.equal(restoredDoc.sourceHashSha256,hash);
   assert.equal(restored.activeEvidenceBasis['schedule_control:schedule_control_basis']?.activeDocumentId,doc.documentId);
-  assert.ok(restoredDoc.diagnostics.includes('SCHEDULE_CONTROL_BASIS_GOVERNANCE_MIGRATION_V3'));
+  assert.ok(restoredDoc.diagnostics.includes('SCHEDULE_CONTROL_BASIS_GOVERNANCE_MIGRATION_V5'));
   const basis=projectScheduleControlBasis(restored);
   assert.equal(basis.state,'official');
   assert.equal(basis.nearCriticalWorkingDays,5);
