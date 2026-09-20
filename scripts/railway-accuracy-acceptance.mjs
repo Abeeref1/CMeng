@@ -47,7 +47,10 @@ try {
   check('EOT exposes amendment/determination reconciliation', !!time);
   check('Unresolved EOT overlap never manufactures an adjusted completion', time.overlapResolution !== 'unresolved' || eot.data.officialAdjustedCompletionIso === null);
   const delay = await module('delay-claims');
-  check('Delay claim/event identities reach runtime', delay.data?.events?.length > 0 && delay.data?.claims?.length > 0);
+  // DelayClaimsProjection exposes event rows, claimCount and linkedClaimIds, not raw claims.
+  const events = delay.data?.events;
+  check('Delay claim/event identities reach runtime', Array.isArray(events) && events.length > 0 && delay.data.claimCount > 0 && events.every(e => typeof e.eventId === 'string' && e.eventId.length > 0 && Array.isArray(e.linkedClaimIds) && e.linkedClaimIds.length > 0 && e.linkedClaimIds.every(id => typeof id === 'string' && id.length > 0)));
+  check('Delay identity populations are complete and consistent', delay.data.eventCount === events.length && new Set(events.map(e => e.eventId)).size === events.length && new Set(events.flatMap(e => e.linkedClaimIds)).size === delay.data.claimCount);
   const keys = ['commercial-overview','cost-forecast','variations-change','payments','cash-flow','commercial-claims-notices','contract-particulars-bonds'];
   let sourceDigest;
   for (const key of keys) {
