@@ -295,10 +295,11 @@ const groups={
   "Programme & Planning":["pmo-analysis","schedule-analytics","activity-analytics","lookahead-schedule","schedule-change-report","revision-trend","milestones","near-critical"],
   "Progress & Resources":["resource-utilization","progress-report","variance-trends","progress-scurve","quantity-scurve","progress-breakdown","manhour-scurve"],
   "Forecast & Finish":["forecast-history","independent-forecast"],
-  "Claims & Commercial":["delay-claims","notices-claims","windows-analysis","eot-assessment","challenge-contract"]
+  "Claims & Commercial":["delay-claims","notices-claims","windows-analysis","eot-assessment","challenge-contract"],
+  "Commercial":["commercial-overview","cost-forecast","variations-change","payments","cash-flow","commercial-claims-notices","contract-particulars-bonds"]
 };
 const names={
-"pmo-analysis":"Management Position","schedule-analytics":"Programme Review","activity-analytics":"Activity Review","resource-utilization":"Resources","lookahead-schedule":"Look-Ahead","progress-report":"Progress Position","schedule-change-report":"Programme Changes","revision-trend":"Revision History","variance-trends":"Variance Trend","progress-scurve":"Progress S-Curve","quantity-scurve":"Installed Quantities","progress-breakdown":"WBS Progress","milestones":"Milestones","near-critical":"Near-Critical Activities","manhour-scurve":"Man-Hour S-Curve","forecast-history":"Forecast History","independent-forecast":"Independent Forecast","delay-claims":"Delay Events & Claims","notices-claims":"Notices, EOT & Claims","windows-analysis":"Delay Windows","eot-assessment":"EOT Position","challenge-contract":"Challenge the Contract"
+"pmo-analysis":"Management Position","schedule-analytics":"Programme Review","activity-analytics":"Activity Review","resource-utilization":"Resources","lookahead-schedule":"Look-Ahead","progress-report":"Progress Position","schedule-change-report":"Programme Changes","revision-trend":"Revision History","variance-trends":"Variance Trend","progress-scurve":"Progress S-Curve","quantity-scurve":"Installed Quantities","progress-breakdown":"WBS Progress","milestones":"Milestones","near-critical":"Near-Critical Activities","manhour-scurve":"Man-Hour S-Curve","forecast-history":"Forecast History","independent-forecast":"Independent Forecast","delay-claims":"Delay Events & Claims","notices-claims":"Notices, EOT & Claims","windows-analysis":"Delay Windows","eot-assessment":"EOT Position","challenge-contract":"Challenge the Contract","commercial-overview":"Commercial Overview","cost-forecast":"Cost & Forecast","variations-change":"Variations & Change","payments":"Payments","cash-flow":"Cash Flow","commercial-claims-notices":"Claims & Notices","contract-particulars-bonds":"Contract Particulars & Bonds"
 };
 const descriptions={
 "pmo-analysis":"Finish-date outlook, schedule pressure and decisions requiring management attention.",
@@ -322,7 +323,14 @@ const descriptions={
 "notices-claims":"Notice timeliness and claim assessment authority, only where the required evidence exists.",
 "windows-analysis":"Revision-to-revision programme movement kept separate from causation and entitlement.",
 "eot-assessment":"Observed movement, time impact, contractual entitlement and official EOT award kept separate.",
-"challenge-contract":"Contract clause intelligence and delivery assumptions reviewed against the available project evidence."
+"challenge-contract":"Contract clause intelligence and delivery assumptions reviewed against the available project evidence.",
+"commercial-overview":"Integrated contract value, change, payment, retention, bond, claim and time position by currency.",
+"cost-forecast":"Committed and current contract value, approved/pending change and claim exposure without cross-currency arithmetic.",
+"variations-change":"Approved and pending variation exposure with governed source state.",
+"payments":"Interim certificates, certified value, payments, unpaid certified balance, retention and advance evidence.",
+"cash-flow":"Certified, paid and retained cash position. Time-series cash flow appears only when dated transactions are established.",
+"commercial-claims-notices":"Commercial claim exposure reconciled with contractual time and EOT position.",
+"contract-particulars-bonds":"Contract value, contractual completion, approved EOT and active security position."
 }
 const roleViews={
   overall:{
@@ -2128,6 +2136,60 @@ function renderNoticesClaimsVisual(data){
     p.claims.map(c=>'<tr><td><b>'+escapeHtml(c.claimId)+'</b><br><span class="muted">'+escapeHtml(c.title||"")+'</span></td><td>'+escapeHtml(humanizeKey(c.state))+'</td><td>'+escapeHtml(planningShortDate(c.submittedAt))+'</td><td>'+escapeHtml(fmt(c.claimedDays))+'</td><td>'+escapeHtml(fmt(c.assessedDays))+'</td><td>'+escapeHtml(humanizeKey(c.assessedDaysState))+'</td><td>'+escapeHtml(fmt(c.claimedAmount))+'</td><td>'+escapeHtml(fmt(c.assessedAmount))+'</td><td>'+escapeHtml(humanizeKey(c.assessedAmountState))+'</td></tr>').join("")+'</tbody></table></div>';
   return '<section class="planning-view notices-view">'+kpis+warning+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Notice assessment</h4><p>Timeliness is calculated only where an event and applicable contractual notice requirement exist.</p></div></div><div class="planning-panel-body">'+noticeBand+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Claim states</h4><p>Claim status is separate from notice compliance and assessment authority.</p></div></div><div class="planning-panel-body">'+claimBars+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Notice compliance by event</h4></div></div><div class="planning-panel-body">'+events+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Claim records</h4></div></div><div class="planning-panel-body">'+claims+'</div></section></section>';
 }
+function commercialMetricHtml(metric,currency=""){
+  if(!metric)return'<span class="muted">Not established</span>';
+  const state=humanizeKey(metric.state||"not_submitted");
+  const value=metric.value===null||metric.value===undefined
+    ? "Not established"
+    : (typeof metric.value==="number"?fmt(metric.value)+(currency?" "+currency:""):planningShortDate(metric.value));
+  return '<b>'+escapeHtml(value)+'</b><br><span class="muted">'+escapeHtml(state)+'</span>';
+}
+function renderCommercialVisual(key,data){
+  const p=projectionFor(data,data?.projectionKey||"");
+  const position=p.position||data.position||data;
+  if(!position||!Array.isArray(position.currencies))return"";
+  const t=position.timeExposure||{};
+  const time=planningKpis([
+    ["Contract completion",t.contractualCompletion?.value?planningShortDate(t.contractualCompletion.value):"Not established",humanizeKey(t.contractualCompletion?.state||"not_submitted")],
+    ["Approved EOT",t.approvedEotDays?.value===null||t.approvedEotDays?.value===undefined?"Not established":fmt(t.approvedEotDays.value)+" d",humanizeKey(t.approvedEotDays?.state||"not_submitted")],
+    ["Adjusted completion",t.officialAdjustedCompletion?.value?planningShortDate(t.officialAdjustedCompletion.value):"Not established",humanizeKey(t.officialAdjustedCompletion?.state||"not_submitted")],
+    ["Variations",position.variationCount,"records"],
+    ["Certificates",position.invoiceCount,"records"],
+    ["Commercial claims",position.claimCommercialCount,"records"]
+  ]);
+  const colsByKey={
+    "commercial-overview":[["Committed","committedContractValue"],["Current contract","currentContractValue"],["Pending variations","pendingVariationAmount"],["Certified","grossCertifiedAmount"],["Paid","paidAmount"],["Retention","retentionHeldAmount"],["Claims","claimedAmount"],["Active bonds","activeBondAmount"]],
+    "cost-forecast":[["Committed","committedContractValue"],["Approved variations","approvedVariationAmount"],["Pending variations","pendingVariationAmount"],["Current contract","currentContractValue"],["Claimed","claimedAmount"],["Assessed claims","assessedClaimAmount"]],
+    "variations-change":[["Approved variations","approvedVariationAmount"],["Pending variations","pendingVariationAmount"],["Current contract","currentContractValue"]],
+    "payments":[["Certificates","interimCertificateCount"],["Gross certified","grossCertifiedAmount"],["Paid","paidAmount"],["Certified unpaid","certifiedUnpaidAmount"],["Retention held","retentionHeldAmount"],["Advance balance","advanceBalance"]],
+    "cash-flow":[["Gross certified","grossCertifiedAmount"],["Paid","paidAmount"],["Certified unpaid","certifiedUnpaidAmount"],["Retention held","retentionHeldAmount"],["Advance balance","advanceBalance"]],
+    "commercial-claims-notices":[["Claimed","claimedAmount"],["Assessed","assessedClaimAmount"],["Pending variations","pendingVariationAmount"]],
+    "contract-particulars-bonds":[["Committed","committedContractValue"],["Current contract","currentContractValue"],["Active bonds","activeBondAmount"]]
+  };
+  const cols=colsByKey[key]||colsByKey["commercial-overview"];
+  const cards=position.currencies.length
+    ? position.currencies.map(row=>{
+        const lines=cols.map(([label,field])=>'<div class="currency-line"><span>'+escapeHtml(label)+'</span><strong>'+commercialMetricHtml(row[field],field==="interimCertificateCount"?"":row.currency)+'</strong></div>').join("");
+        return '<div class="currency-card"><div class="currency-code">'+escapeHtml(row.currency)+'</div>'+lines+'</div>';
+      }).join("")
+    : '<div class="empty-visual">No established commercial currency position. Submitted-but-unparsed and missing evidence remain distinct from zero.</div>';
+  const evidence=position.evidence||{};
+  const gates=moduleEvidenceGate([
+    {label:"Commercial basis",value:humanizeKey(evidence.commercial||"not_submitted"),state:evidence.commercial==="established"?"ready":"missing"},
+    {label:"Variations",value:humanizeKey(evidence.variations||"not_submitted"),state:evidence.variations==="established"?"ready":"missing"},
+    {label:"Payments",value:humanizeKey(evidence.payments||"not_submitted"),state:evidence.payments==="established"?"ready":"missing"},
+    {label:"Bonds",value:humanizeKey(evidence.bonds||"not_submitted"),state:evidence.bonds==="established"?"ready":"missing"},
+    {label:"Claims",value:humanizeKey(evidence.claims||"not_submitted"),state:evidence.claims==="established"?"ready":"missing"}
+  ]);
+  const cashNote=key==="cash-flow"
+    ? '<div class="notice info"><b>Cash-flow curve is evidence-gated.</b> CMeng will not invent a time series from cumulative certificate totals. Dated certificate/payment transactions are required.</div>'
+    : "";
+  return '<section class="planning-view commercial-view">'+time+cashNote+
+    '<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>'+escapeHtml(names[key]||"Commercial position")+'</h4><p>Values remain isolated by currency and every missing value retains its evidence state.</p></div></div><div class="planning-panel-body"><div class="grid three">'+cards+'</div></div></section>'+
+    '<section class="planning-panel"><div class="planning-panel-head"><div><h4>Evidence coverage</h4><p>Missing, submitted-but-unparsed and established positions are not interchangeable.</p></div></div><div class="planning-panel-body">'+gates+'</div></section>'+
+    '</section>';
+}
+
 function renderSpecializedModule(key,data){
   if(key==="pmo-analysis")return renderPmoVisual(data);
   if(key==="schedule-analytics")return renderScheduleAnalyticsVisual(data);
@@ -2150,6 +2212,7 @@ function renderSpecializedModule(key,data){
   if(key==="notices-claims")return renderNoticesClaimsVisual(data);
   if(key==="windows-analysis")return renderWindowsVisual(data);
   if(key==="eot-assessment")return renderEotVisual(data);
+  if(["commercial-overview","cost-forecast","variations-change","payments","cash-flow","commercial-claims-notices","contract-particulars-bonds"].includes(key))return renderCommercialVisual(key,data);
   return"";
 }
 function findProjectionRoot(data){
