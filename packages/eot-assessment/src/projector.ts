@@ -93,11 +93,6 @@ function assessWindow(
     window.strongestProgrammeMovementDays ??
       0,
   );
-  const analyticalTimeImpactCandidateDays =
-    Number(
-      positiveProgrammeMovement.toFixed(6),
-    );
-
   const eventRows =
     eventRowsForWindow(window, delay);
 
@@ -140,7 +135,8 @@ function assessWindow(
       programmeMovementBasis:
         window
           .strongestProgrammeMovementBasis,
-      analyticalTimeImpactCandidateDays,
+      analyticalTimeImpactCandidateDays:
+        null,
       state: "review",
       eligibleEventIds:
         eligible.map(
@@ -220,6 +216,13 @@ function assessWindow(
   const include =
     positiveProgrammeMovement > 0 &&
     eligibleAfterNotice.length > 0;
+
+  const analyticalTimeImpactCandidateDays =
+    include
+      ? Number(
+          positiveProgrammeMovement.toFixed(6),
+        )
+      : null;
 
   const reviewOnly =
     positiveProgrammeMovement > 0 &&
@@ -309,30 +312,48 @@ export function buildEotAssessmentProjection(
         .toFixed(6),
     );
 
+  const establishedTimeImpacts =
+    windowCandidates
+      .map(
+        (window) =>
+          window
+            .analyticalTimeImpactCandidateDays,
+      )
+      .filter(
+        (
+          value,
+        ): value is number =>
+          value !== null,
+      );
   const analyticalTimeImpactCandidateDays =
-    Number(
-      windowCandidates
-        .reduce(
-          (sum, window) =>
-            sum +
-            window
-              .analyticalTimeImpactCandidateDays,
-          0,
+    establishedTimeImpacts.length > 0
+      ? Number(
+          establishedTimeImpacts
+            .reduce(
+              (sum, value) =>
+                sum + value,
+              0,
+            )
+            .toFixed(6),
         )
-        .toFixed(6),
-    );
+      : null;
 
   const attributableCandidateEotDays =
     candidateAdditionalEotDays;
 
   const unattributedTimeImpactDays =
-    Number(
-      Math.max(
-        0,
-        analyticalTimeImpactCandidateDays -
-          attributableCandidateEotDays,
-      ).toFixed(6),
-    );
+    analyticalTimeImpactCandidateDays ===
+      null
+      ? Number(
+          observedProgrammeMovementDays.toFixed(6),
+        )
+      : Number(
+          Math.max(
+            0,
+            analyticalTimeImpactCandidateDays -
+              attributableCandidateEotDays,
+          ).toFixed(6),
+        );
 
   const assumptions =
     windowCandidates.flatMap(
@@ -413,11 +434,14 @@ export function buildEotAssessmentProjection(
           candidateAdditionalEotDays,
       );
     timeImpactScenarioAdjustedCompletionIso =
-      addCalendarDays(
-        contractTime.contractualCompletionIso,
-        scenarioBaseApprovedDays +
-          analyticalTimeImpactCandidateDays,
-      );
+      analyticalTimeImpactCandidateDays ===
+        null
+        ? null
+        : addCalendarDays(
+            contractTime.contractualCompletionIso,
+            scenarioBaseApprovedDays +
+              analyticalTimeImpactCandidateDays,
+          );
   } else if (
     contractTime.eotDayBasis !==
     "calendar_days"
