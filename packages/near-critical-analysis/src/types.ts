@@ -16,8 +16,17 @@ export interface NearCriticalProjection {
   producerVersion: string;
   projectId: string | null;
   sourceRevisionId: string;
+  dataDateIso: string | null;
   criticalThresholdHours: number;
+  nearCriticalLowerBoundHours: number;
+  nearCriticalLowerBoundInclusive: boolean;
   nearCriticalThresholdHours: number;
+  thresholdAuthority?:
+    | "default"
+    | "project_control_basis"
+    | "source_metric_reconciled";
+  thresholdSourceRefs?: string[];
+  thresholdDefinition?: string | null;
   floatCoveragePercent: number | null;
   nearCriticalCount: number;
   rows: NearCriticalRow[];
