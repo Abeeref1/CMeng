@@ -2132,31 +2132,35 @@ function renderManhourVisual(data){
     return '<section class="planning-view manhour-view"><div class="notice warn"><b>Measured labor-assignment history is not established.</b> Any values below are programme-derived scenarios and are not presented as actual man-hours.</div>'+scenarioTable+'</section>';
   }
   const actualEstablished=typeof p.actualHoursKnownCurrent==="number"&&p.actualAssignmentCoveragePercent>0;
-  const actualHistoryEstablished=p.actualHistoryMethod==="stored_financial_period_actuals";
+  const actualHistoryEstablished=p.actualHistoryMethod==="approved_resource_week_source"||p.actualHistoryMethod==="stored_financial_period_actuals";
+  const approvedSourceActual=p.actualHistoryMethod==="approved_resource_week_source";
   const top=planningKpis([
     ["Planned labor hours",p.plannedHoursKnown===null?"—":fmt(p.plannedHoursKnown)+" h","assignment plan"],
     ["Planned coverage",p.plannedAssignmentCoveragePercent===null?"—":fmt(p.plannedAssignmentCoveragePercent)+"%","labor assignments"],
     ["Actual labor hours",p.actualHoursKnownCurrent===null?"Not provided":fmt(p.actualHoursKnownCurrent)+" h",p.actualHoursKnownCurrent===null?"missing, not zero":"current known total",p.actualHoursKnownCurrent===null?"warning":"success"],
     ["Actual coverage",p.actualAssignmentCoveragePercent===null?"—":fmt(p.actualAssignmentCoveragePercent)+"%","labor assignments",p.actualAssignmentCoveragePercent<100?"warning":""],
     ["Remaining labor hours",p.remainingHoursKnown===null?"—":fmt(p.remainingHoursKnown)+" h","assignment remainder"],
-    ["Actual history",actualHistoryEstablished?"Financial-period history":"Not established",actualHistoryEstablished?"stored periods":"no fabricated history",actualHistoryEstablished?"success":"warning"]
+    ["Actual history",approvedSourceActual?"Approved source history":actualHistoryEstablished?"P6 financial-period history":"Not established",approvedSourceActual?"RES03 approved resource-week usage":actualHistoryEstablished?"stored P6 periods":"no fabricated history",actualHistoryEstablished?"success":"warning"]
   ]);
   const note=!actualEstablished
     ? '<div class="notice warn"><b>Actual man-hours are missing, not zero.</b> Planned and remaining labor hours are available, but no current actual-hours population is established. CMeng therefore withholds the actual and forecast cumulative curves.</div>'
     : !actualHistoryEstablished
       ? '<div class="notice warn">A current actual-hours snapshot exists, but historical period actuals are not established. CMeng does not backfill an artificial historical actual curve.</div>'
-      : '';
+      : approvedSourceActual
+        ? '<div class="notice info"><b>Actual history uses approved source evidence.</b> RES03 approved resource-week labor usage is used for the actual curve and remains separate from equipment/material consumption. Source labor-resource coverage is '+escapeHtml(p.sourceActualResourceCoveragePercent===null||p.sourceActualResourceCoveragePercent===undefined?"—":fmt(p.sourceActualResourceCoveragePercent)+"%")+'.</div>'
+        : '';
   const series=[
     {key:"plannedCumulativeHours",label:"Planned labor hours",color:"#506579"},
     ...(actualEstablished?[{key:"actualCumulativeHours",label:"Actual labor hours",color:"#2c7a57"}]:[]),
     ...(actualEstablished?[{key:"forecastCumulativeHours",label:"Forecast labor hours",color:"#4f7fb4"}]:[])
   ];
-  return '<section class="planning-view manhour-view">'+top+note+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Man-Hour S-Curve</h4><p>Labor only. Missing actual history never becomes a zero line.</p></div></div><div class="planning-panel-body">'+renderLineChart(p.points,series)+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Evidence coverage</h4><p>The curve only uses hours that are actually present in the resource assignments/financial periods.</p></div></div><div class="planning-panel-body">'+moduleEvidenceGate([
+  return '<section class="planning-view manhour-view">'+top+note+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Man-Hour S-Curve</h4><p>Labor only. Missing actual history never becomes a zero line.</p></div></div><div class="planning-panel-body">'+renderLineChart(p.points,series)+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Evidence coverage</h4><p>The curve uses source-approved labor history where available; otherwise it falls back to P6 financial-period actuals. Equipment and material units are never added to labor hours.</p></div></div><div class="planning-panel-body">'+moduleEvidenceGate([
     {label:"Labor resources",value:fmt(p.laborResourceCount),state:p.laborResourceCount>0?"ready":"missing"},
     {label:"Labor assignments",value:fmt(p.laborAssignmentCount),state:p.laborAssignmentCount>0?"ready":"missing"},
     {label:"Planned hours",value:p.plannedHoursKnown===null?"Not established":fmt(p.plannedHoursKnown)+" h",state:p.plannedHoursKnown===null?"missing":"ready"},
     {label:"Actual hours",value:p.actualHoursKnownCurrent===null?"Not established":fmt(p.actualHoursKnownCurrent)+" h",state:p.actualHoursKnownCurrent===null?"missing":"ready"},
-    {label:"Period actual history",value:actualHistoryEstablished?"Established":"Not established",state:actualHistoryEstablished?"ready":"missing"}
+    {label:"Actual-history authority",value:approvedSourceActual?"Approved source register":actualHistoryEstablished?"P6 financial periods":"Not established",state:actualHistoryEstablished?"ready":"missing"},
+    {label:"Source labor coverage",value:p.sourceActualResourceCoveragePercent===null||p.sourceActualResourceCoveragePercent===undefined?"Not established":fmt(p.sourceActualResourceCoveragePercent)+"%",state:p.sourceActualResourceCoveragePercent>0?"ready":"missing"}
   ])+'</div></section></section>';
 }
 
