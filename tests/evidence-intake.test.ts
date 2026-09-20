@@ -563,6 +563,133 @@ test("ZIP evidence pack routes schedules, BOQ CSV and other project evidence wit
 });
 
 
+
+test("schedule support registers never become programme revisions", async () => {
+  await withServer(async (base) => {
+    const project =
+      "SCHEDULE-SUPPORT-UAT";
+
+    await postSchedule(
+      base,
+      project,
+      "S03_Current_U02.xer",
+      "update",
+      "2026-08-31",
+      "2026-09-15",
+    );
+
+    const supportFiles = [
+      {
+        filename:
+          "REL01_Longest_Path_Register.csv",
+        body: [
+          "Activity ID,Driving Path,Float Path,Total Float,Finish,Status",
+          "A200,Yes,FP-01,16,2026-09-15,In Progress",
+        ].join("\n"),
+        expectedType:
+          "longest_path_register",
+      },
+      {
+        filename:
+          "SCH03_Baseline_to_Current_Activity_Comparison.csv",
+        body: [
+          "Activity ID,Baseline Finish,Current Finish,Finish Variance Days,Change",
+          "A200,2026-09-10,2026-09-15,5,Modified",
+        ].join("\n"),
+        expectedType:
+          "schedule_activity_comparison",
+      },
+    ];
+
+    for (const file of supportFiles) {
+      const response =
+        await fetch(
+          base +
+            "/api/projects/" +
+            project +
+            "/evidence/uploads",
+          {
+            method: "POST",
+            headers: {
+              "content-type":
+                "text/csv",
+              "x-source-filename":
+                file.filename,
+              "x-source-relative-path":
+                "02_Schedules_XER/" +
+                file.filename,
+            },
+            body: file.body,
+          },
+        );
+
+      assert.equal(
+        response.status,
+        201,
+        await response.text(),
+      );
+      const result =
+        await response.json() as {
+          category: string;
+          documentType: string;
+        };
+      assert.equal(
+        result.category,
+        "schedule_control",
+      );
+      assert.equal(
+        result.documentType,
+        file.expectedType,
+      );
+    }
+
+    const overview =
+      await (
+        await fetch(
+          base +
+            "/api/projects/" +
+            project +
+            "/overview",
+        )
+      ).json() as {
+        revisionCount: number;
+        updateRevisionCount: number;
+      };
+
+    assert.equal(
+      overview.revisionCount,
+      1,
+    );
+    assert.equal(
+      overview.updateRevisionCount,
+      1,
+    );
+
+    const revisions =
+      await (
+        await fetch(
+          base +
+            "/api/projects/" +
+            project +
+            "/schedule/revisions",
+        )
+      ).json() as Array<{
+        sourceFilename: string | null;
+      }>;
+
+    assert.equal(
+      revisions.length,
+      1,
+    );
+    assert.equal(
+      revisions[0]
+        ?.sourceFilename,
+      "S03_Current_U02.xer",
+    );
+  });
+});
+
+
 test("content overrides a wrong filename, wrong MIME type and wrong declared category", async () => {
   await withServer(async (base) => {
     const project =
