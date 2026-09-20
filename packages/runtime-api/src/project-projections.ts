@@ -4985,20 +4985,43 @@ function buildSpecialistModuleFast(
           state.controls
             .progressEvidence,
       });
+    const externalProgressEstablished =
+      projection.progressBases
+        .contractorReported
+        .valuePercent !== null ||
+      projection.progressBases
+        .certified
+        .valuePercent !== null ||
+      (
+        projection.progressBases
+          .physical
+          .valuePercent !== null &&
+        projection.progressBases
+          .physical
+          .authority ===
+          "source_evidence"
+      );
+
     result = available(
       key,
       {
         ...projection,
         independentForecastDeferred:
           true,
+        scheduleSnapshotOnly:
+          !externalProgressEstablished,
       },
       [
         "current programme",
         "controlled baseline",
         "progress evidence",
       ],
-      "ready",
-      null,
+      externalProgressEstablished
+        ? "ready"
+        : "partial",
+      externalProgressEstablished
+        ? null
+        : "Schedule-derived progress is available, but contractor-reported, certified or independently sourced physical progress is not established. The schedule snapshot is not treated as certified physical progress.",
     );
   } else if (
     key ===
