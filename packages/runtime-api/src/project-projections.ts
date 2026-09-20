@@ -90,6 +90,7 @@ import type {
   EvidenceRerunReceipt,
 } from "./project-state-types";
 import {
+  isProgrammeScheduleRevision,
   runtimeProjects,
 } from "./project-state";
 import {
@@ -209,8 +210,12 @@ function revisionChronology(
 function analyticalHistory(
   state: ProjectRuntimeState,
 ): ProjectRuntimeState["schedules"] {
-  const official =
+  const programmeSchedules =
     state.schedules.filter(
+      isProgrammeScheduleRevision,
+    );
+  const official =
+    programmeSchedules.filter(
       (item) =>
         item.role === "baseline" ||
         item.role === "update" ||
@@ -218,7 +223,7 @@ function analyticalHistory(
           "revised_baseline",
     );
   const nonRecovery =
-    state.schedules.filter(
+    programmeSchedules.filter(
       (item) =>
         item.role !== "recovery",
     );
@@ -227,7 +232,7 @@ function analyticalHistory(
       ? official
       : nonRecovery.length > 0
         ? nonRecovery
-        : state.schedules),
+        : programmeSchedules),
   ].sort(revisionChronology);
 }
 
@@ -2420,6 +2425,10 @@ export function overviewForProject(
     runtimeProjects.latestSchedule(
       projectId,
     );
+  const programmeSchedules =
+    state.schedules.filter(
+      isProgrammeScheduleRevision,
+    );
   const bundle =
     buildBundle(state);
 
@@ -2428,21 +2437,21 @@ export function overviewForProject(
     version: state.version,
     demo: state.demo,
     revisionCount:
-      state.schedules.length,
+      programmeSchedules.length,
     baselineRevisionCount:
-      state.schedules.filter(
+      programmeSchedules.filter(
         (item) =>
           item.role === "baseline" ||
           item.role ===
             "revised_baseline",
       ).length,
     updateRevisionCount:
-      state.schedules.filter(
+      programmeSchedules.filter(
         (item) =>
           item.role === "update",
       ).length,
     recoveryRevisionCount:
-      state.schedules.filter(
+      programmeSchedules.filter(
         (item) =>
           item.role === "recovery",
       ).length,
@@ -2476,9 +2485,9 @@ export function overviewForProject(
       schedule: {
         required: true,
         established:
-          state.schedules.length > 0,
+          programmeSchedules.length > 0,
         revisionCount:
-          state.schedules.length,
+          programmeSchedules.length,
         latestRevisionId:
           latest?.revision
             .revisionId ?? null,
@@ -2497,7 +2506,7 @@ export function overviewForProject(
             ?.ingestionId ?? null,
       },
       ready:
-        state.schedules.length > 0 &&
+        programmeSchedules.length > 0 &&
         state.boqRevisions.length > 0,
     },
     optionalEvidence:
