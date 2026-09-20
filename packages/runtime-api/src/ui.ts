@@ -970,6 +970,7 @@ function renderPmoVisual(data){
     ["Late milestones",p.progress.lateMilestoneCount,"open milestones","danger"]
   ]);
   const completion=planningDateLadder([
+    {label:"Controlled baseline",date:p.programmeBaselineCompletionIso,tone:"baseline"},
     {label:"Submitted programme",date:p.forecast.sourceCompletionIso,tone:"current"},
     {label:"CMeng completion",date:p.forecast.independentCompletionIso,tone:"cmeng"},
     {label:"Approved completion",date:p.claims?.officialAdjustedCompletionIso,tone:"baseline"},
