@@ -1,3 +1,4 @@
+import { numberValue } from "../../truth-kernel/src";
 import type {
   CanonicalClaimRecord,
   CanonicalDelayEvent,
@@ -150,18 +151,23 @@ function norm(
     .trim();
 }
 
-function indexOf(
-  headers: string[],
-  candidates: string[],
-): number {
-  const wanted =
-    new Set(
-      candidates.map(norm),
-    );
-  return headers.findIndex(
-    (header) =>
-      wanted.has(norm(header)),
-  );
+const currencyCodes = new Set(Intl.supportedValuesOf("currency"));
+function headerCurrency(header: string): string | null {
+  const matches = header.toUpperCase().match(/\b[A-Z]{3}\b/g) ?? [];
+  const codes = [...new Set(matches.filter(code => currencyCodes.has(code)))];
+  return codes.length === 1 ? codes[0]! : null;
+}
+function indexOf(headers: string[], candidates: string[]): number {
+  const wanted = new Set(candidates.map(norm));
+  const exact = headers.findIndex(header => wanted.has(norm(header)));
+  if (exact >= 0) return exact;
+  // Currency suffixes qualify an amount column; never fuzzy-match unrelated fields.
+  const qualified = headers.flatMap((header,index) => {
+    const currency = headerCurrency(header);
+    const plain = currency ? norm(header.replace(new RegExp("\\b"+currency+"\\b", "ig"), "")) : null;
+    return plain && wanted.has(plain) ? [index] : [];
+  });
+  return qualified.length === 1 ? qualified[0]! : -1;
 }
 
 function value(
@@ -176,24 +182,7 @@ function value(
     : "";
 }
 
-function numeric(
-  raw: string,
-): number | null {
-  const cleaned =
-    raw
-      .replace(/,/g, "")
-      .replace(
-        /[^0-9.+-]/g,
-        "",
-      )
-      .trim();
-  if (!cleaned) return null;
-  const parsed =
-    Number(cleaned);
-  return Number.isFinite(parsed)
-    ? parsed
-    : null;
-}
+function numeric(raw: string): number | null { return numberValue(raw); }
 
 function iso(
   raw: string,
@@ -222,18 +211,9 @@ function evidenceRef(
   );
 }
 
-function currencyFromHeaders(
-  headers: string[],
-): string | null {
-  const joined =
-    headers.join(" ");
-  const matches =
-    joined.match(
-      /\b(?:SAR|AED|USD|EUR|GBP|JOD|QAR|KWD|BHD|OMR)\b/i,
-    );
-  return matches?.[0]
-    ?.toUpperCase() ??
-    null;
+function currencyFromHeaders(headers: string[]): string | null {
+  const codes = [...new Set(headers.map(headerCurrency).filter((code):code is string => code !== null))];
+  return codes.length === 1 ? codes[0]! : null;
 }
 
 function variationState(

@@ -6,3 +6,6 @@ dist/
 coverage/
 .DS_Store
 *.log
+
+.cmeng-runtime/
+.cmeng-test-runtime/

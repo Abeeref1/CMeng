@@ -386,6 +386,12 @@ export function buildEotAssessmentProjection(
         : []),
   ];
 
+  const additionalAwardDays = contractTime.overlapResolution
+    ? contractTime.additionalApprovedEotDays ?? null
+    : contractTime.officialApprovedEotDays;
+  if (contractTime.overlapResolution === "unresolved") {
+    diagnostics.push("AMENDMENT_ALREADY_INCLUDES_EOT_DETERMINATION_OVERLAP_UNRESOLVED");
+  }
   let officialAdjustedCompletionIso:
     | string
     | null = null;
@@ -394,7 +400,7 @@ export function buildEotAssessmentProjection(
     contractTime.contractualCompletionIso &&
     contractTime.contractualCompletionState ===
       "official" &&
-    contractTime.officialApprovedEotDays !==
+    additionalAwardDays !==
       null &&
     contractTime.officialApprovedEotState ===
       "official"
@@ -406,7 +412,7 @@ export function buildEotAssessmentProjection(
       officialAdjustedCompletionIso =
         addCalendarDays(
           contractTime.contractualCompletionIso,
-          contractTime.officialApprovedEotDays,
+          additionalAwardDays,
         );
     } else {
       diagnostics.push(
@@ -418,13 +424,13 @@ export function buildEotAssessmentProjection(
   let scenarioBaseApprovedDays = 0;
 
   if (
-    contractTime.officialApprovedEotDays !==
+    additionalAwardDays !==
       null &&
     contractTime.officialApprovedEotState ===
       "official"
   ) {
     scenarioBaseApprovedDays =
-      contractTime.officialApprovedEotDays;
+      additionalAwardDays;
   } else {
     assumptions.push(
       "OFFICIAL_APPROVED_EOT_NOT_ESTABLISHED_ASSUMED_ZERO_FOR_SCENARIO_ONLY",
@@ -488,6 +494,13 @@ export function buildEotAssessmentProjection(
     officialApprovedEotState:
       contractTime.officialApprovedEotState,
     officialAdjustedCompletionIso,
+    ...(contractTime.overlapResolution ? {timeBasisReconciliation: {
+      incorporatedEotDays: contractTime.incorporatedEotDays ?? null,
+      registerDeterminationDays: contractTime.registerDeterminationDays ?? null,
+      additionalApprovedEotDays: additionalAwardDays,
+      overlapResolution: contractTime.overlapResolution,
+      dataDateIso: contractTime.dataDateIso ?? null,
+    }} : {}),
 
     observedProgrammeMovementDays,
     analyticalTimeImpactCandidateDays,

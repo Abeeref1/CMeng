@@ -1147,7 +1147,7 @@ function renderEotVisual(data){
   const analytical=p.analyticalTimeImpactCandidateDays;
   const kpis=planningKpis([
     ["Contract finish",planningShortDate(p.contractualCompletionIso),p.contractualCompletionState,contractReady?"":"warning"],
-    ["Official approved EOT",p.officialApprovedEotDays===null?"—":fmt(p.officialApprovedEotDays)+" d",p.officialApprovedEotState],
+    ["Determinations by Data Date",p.officialApprovedEotDays===null?"—":fmt(p.officialApprovedEotDays)+" d",p.officialApprovedEotState],
     ["Official adjusted finish",planningShortDate(p.officialAdjustedCompletionIso),"governed only"],
     ["Observed programme movement",fmt(p.observedProgrammeMovementDays)+" d","schedule observation only",p.observedProgrammeMovementDays>0?"warning":""],
     ["Time-impact candidate",analytical===null?"Not established":fmt(analytical)+" d","requires causation",analytical===null?"warning":"accent"],
@@ -1161,7 +1161,9 @@ function renderEotVisual(data){
     tone:"warning"
   }));
   const rows=p.windowCandidates.map(w=>'<tr><td><b>'+escapeHtml(readableWindow(w.windowId,labels))+'</b></td><td>'+escapeHtml(fmt(w.positiveProgrammeMovementDays))+'</td><td>'+escapeHtml(humanizeKey(w.programmeMovementBasis))+'</td><td>'+escapeHtml(w.analyticalTimeImpactCandidateDays===null?"—":fmt(w.analyticalTimeImpactCandidateDays))+'</td><td>'+escapeHtml(humanizeKey(w.state))+'</td><td>'+escapeHtml(fmt(w.includedCandidateDays))+'</td><td>'+escapeHtml((w.reasons||[]).map(managementReason).join("; ")||"—")+'</td></tr>').join("");
-  return '<section class="planning-view eot-view">'+kpis+warning+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Observed movement by window</h4><p>This chart shows programme movement only. It does not represent EOT entitlement.</p></div></div><div class="planning-panel-body">'+planningSignedBars(movementBars,"days")+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>EOT evidence gates</h4><p>All gates remain distinct before schedule movement can become an entitlement position.</p></div></div><div class="planning-panel-body">'+moduleEvidenceGate([
+  const recon=p.timeBasisReconciliation;
+  const reconciliation=recon?'<section class="planning-panel"><div class="planning-panel-head"><div><h4>Amendment and determination reconciliation</h4><p>As-of date: '+escapeHtml(planningShortDate(recon.dataDateIso))+'.</p></div></div><div class="planning-panel-body">'+planningKpis([["EOT incorporated in amendment",fmt(recon.incorporatedEotDays)+" d","already inside revised completion"],["Full determination register",fmt(recon.registerDeterminationDays)+" d","includes later-dated records"],["Additional approved EOT",recon.additionalApprovedEotDays===null?"Unresolved":fmt(recon.additionalApprovedEotDays)+" d","never register total plus amendment"]])+'<div class="notice warn">'+(recon.overlapResolution==="unresolved"?"Amendment incorporation has not been reconciled to the determination register. No additional days are applied to the revised contractual completion.":"Additional awards have an explicit incorporation reconciliation.")+'</div></div></section>':"";
+  return '<section class="planning-view eot-view">'+kpis+reconciliation+warning+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Observed movement by window</h4><p>This chart shows programme movement only. It does not represent EOT entitlement.</p></div></div><div class="planning-panel-body">'+planningSignedBars(movementBars,"days")+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>EOT evidence gates</h4><p>All gates remain distinct before schedule movement can become an entitlement position.</p></div></div><div class="planning-panel-body">'+moduleEvidenceGate([
     {label:"Contract time basis",value:contractReady?"Established":"Not established",state:contractReady?"ready":"missing"},
     {label:"Causal delay events",value:causalReady?"Established":"Not established",state:causalReady?"ready":"missing"},
     {label:"Official EOT award",value:p.officialApprovedEotState==="official"?"Established":"Not established",state:p.officialApprovedEotState==="official"?"ready":"missing"}
@@ -1750,14 +1752,14 @@ function renderResourceVisual(data){
     return map;
   },new Map())||new Map();
 
-  const capacityKnown=Number(p.capacityBasedResourceCount||0);
+  const capacityKnown=Number(p.perHourCapacityBasedResourceCount??p.capacityBasedResourceCount??0);
   const assessed=Number(p.assessedOverloadResourceCount??capacityKnown);
   const weeklyRows=Number(weekly?.rowCount||0);
   const weeklyComparable=Number(weekly?.comparableRowCount||0);
   const weeklyOver=Number(weekly?.overloadedRowCount||0);
   const weeklyUnits=Array.isArray(weekly?.unitLabels)?weekly.unitLabels:[];
   const perHourCapacityText=capacityKnown>0?fmt(capacityKnown)+" / "+fmt(p.assignedResourceCount):"Not established";
-  const overloadValue=assessed>0?fmt(p.overloadedResourceCount):"Not assessable";
+  const overloadValue=assessed>0?fmt(p.perHourOverloadedResourceCount??p.overloadedResourceCount):"Not assessable";
 
   const comparableDemand=[...p.rows].map(r=>{
     const value=typeof r.peakRemainingUnitsPerHour==="number"
@@ -1775,6 +1777,9 @@ function renderResourceVisual(data){
   const kpis=planningKpis([
     ["Resources",p.resourceCount,"current programme"],
     ["Assigned",p.assignedResourceCount,"with schedule assignments"],
+    ["Weekly capacity coverage",weekly?.capacityCoveragePercent==null?"Not established":fmt(weekly.capacityCoveragePercent)+"%","applicable resource-week rows"],
+    ["Planned utilization",weekly?.plannedAverageToDataDate==null?"Not established":fmt(weekly.plannedAverageToDataDate)+"%","mean resource-week ratio to Data Date"],
+    ["Actual utilization",weekly?.actualAverageToDataDate==null?"Not established":fmt(weekly.actualAverageToDataDate)+"%","approved usage to Data Date"],
     ["Per-hour capacity",perHourCapacityText,"resources with comparable rate",capacityKnown?"accent":"warning"],
     ["Weekly capacity checks",weeklyComparable||weeklyRows,"source rows with capacity and demand",weeklyComparable?"accent":"warning"],
     ["Weekly demand > capacity",weeklyComparable?weeklyOver:"Not assessable",weeklyComparable?"source-row checks":"weekly evidence required",weeklyOver?"danger":weeklyComparable?"success":"warning"],
@@ -1803,7 +1808,8 @@ function renderResourceVisual(data){
 
   const demandPanel='<section class="planning-panel"><div class="planning-panel-head"><div><h4>Per-hour demand concentration</h4><p>Only resources with an established planned or remaining demand rate are charted. Assignment counts are not used as a substitute for demand.</p></div></div><div class="planning-panel-body">'+moduleBarList(comparableDemand)+'</div></section>';
 
-  return '<section class="planning-view resource-view">'+kpis+perHourNote+weeklyNote+weeklyChart+'<div class="planning-primary-grid">'+demandPanel+'<section class="planning-panel"><div class="planning-panel-head"><div><h4>Capacity evidence</h4><p>Per-hour schedule capacity and weekly register capacity are shown as separate evidence bases.</p></div></div><div class="planning-panel-body">'+moduleEvidenceGate([
+  const weeklyDetail=weekly?.resourceSummaries?.length?'<section class="planning-panel"><div class="planning-panel-head"><div><h4>Weekly resource utilization detail</h4><p>Means of comparable resource-week ratios on or before '+escapeHtml(planningShortDate(weekly.dataDateIso))+'. Source units and resource classes stay separate.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Resource</th><th>Class</th><th>Unit</th><th>Periods</th><th>Planned utilization</th><th>Actual utilization</th></tr></thead><tbody>'+weekly.resourceSummaries.map(r=>'<tr><td><b>'+escapeHtml(r.resourceId)+'</b><br>'+escapeHtml(r.resourceName||"")+'</td><td>'+escapeHtml(r.resourceClass)+'</td><td>'+escapeHtml(r.unit||"Not established")+'</td><td>'+escapeHtml(fmt(r.periodCount))+'</td><td>'+escapeHtml(r.plannedUtilizationPercent===null?"Not established":fmt(r.plannedUtilizationPercent)+"%")+'</td><td>'+escapeHtml(r.actualUtilizationPercent===null?"Not established":fmt(r.actualUtilizationPercent)+"%")+'</td></tr>').join("")+'</tbody></table></div></div></section>':"";
+  return '<section class="planning-view resource-view">'+kpis+perHourNote+weeklyNote+weeklyChart+weeklyDetail+'<div class="planning-primary-grid">'+demandPanel+'<section class="planning-panel"><div class="planning-panel-head"><div><h4>Capacity evidence</h4><p>Per-hour schedule capacity and weekly register capacity are shown as separate evidence bases.</p></div></div><div class="planning-panel-body">'+moduleEvidenceGate([
     {label:"Schedule assignments",value:p.assignedResourceCount+" resources",state:p.assignedResourceCount>0?"ready":"missing"},
     {label:"P6 max-units/hour capacity",value:capacityKnown>0?capacityKnown+" resources":"Not established",state:capacityKnown>0?"ready":"missing"},
     {label:"Weekly capacity register",value:weeklyComparable?fmt(weeklyComparable)+" comparable rows":"Not established",state:weeklyComparable?"ready":"missing"},
@@ -2144,6 +2150,40 @@ function commercialMetricHtml(metric,currency=""){
     : (typeof metric.value==="number"?fmt(metric.value)+(currency?" "+currency:""):planningShortDate(metric.value));
   return '<b>'+escapeHtml(value)+'</b><br><span class="muted">'+escapeHtml(state)+'</span>';
 }
+function renderCommercialLedgerVisual(data){
+  const p=projectionFor(data,"commercial_canonical"), rows=Array.isArray(p.rows)?p.rows:[], key=p.moduleKey;
+  const num=v=>v===null||v===undefined?"Not established":new Intl.NumberFormat(undefined,{maximumFractionDigits:6}).format(v);
+  const amount=a=>a?'<b>'+escapeHtml(num(a.value))+'</b>'+(a.value===null?"":' <small>'+escapeHtml(a.currency||"Currency unresolved")+'</small>'):"Not established";
+  const period=d=>escapeHtml(planningShortDate(d))+(d&&p.dataDateIso&&d>p.dataDateIso?'<br><span class="state-pill review">After Data Date</span>':"");
+  const table=(heads,body)=>'<div class="table-wrap"><table><thead><tr>'+heads.map(h=>'<th>'+escapeHtml(h)+'</th>').join("")+'</tr></thead><tbody>'+body.map(r=>'<tr>'+r.map(v=>'<td>'+v+'</td>').join("")+'</tr>').join("")+'</tbody></table></div>';
+  const evidence=list=>'<details><summary>Source evidence ('+(list||[]).length+')</summary>'+table(["Document","Location","Revision / hash","Basis"],(list||[]).map(r=>[escapeHtml(r.documentId),escapeHtml(r.locator),escapeHtml(r.revision||r.sourceHash),escapeHtml(r.basisState)]))+'</details>';
+  const panel=(title,description,body)=>'<section class="planning-panel"><div class="planning-panel-head"><div><h4>'+escapeHtml(title)+'</h4><p>'+escapeHtml(description)+'</p></div></div><div class="planning-panel-body">'+body+'</div></section>';
+  let content="";
+  if(key==="commercial-cost-position"){
+    content=rows.map(r=>{
+      const v=r.values||{}, money=k=>v[k]==null?"Not established":num(v[k])+" "+r.currency;
+      const metrics=planningKpis([["Control budget / BAC",money("bac"),"source control budget"],["Source EAC",money("eac"),"source forecast, not CPI scenario"],["Variance at completion",money("calculated vac"),"BAC minus source EAC",v["calculated vac"]<0?"danger":""],["SPI",num(v.spi),"EV / PV"],["CPI",num(v.cpi),"EV / AC"],["CPI scenario EAC",money("cpi scenario eac"),"separate scenario; BAC / CPI"]]);
+      const bars=moduleBarList([["PV · planned value","pv"],["EV · earned value","ev"],["AC · actual cost","ac"]].map(([label,k])=>({label,value:v[k]})),"accent",r.currency);
+      const changes=planningSignedBars([["Schedule variance","calculated sv"],["Cost variance","calculated cv"],["Variance at completion","calculated vac"]].map(([label,k])=>({label,value:v[k]})),r.currency);
+      return panel(r.currency+" · "+planningShortDate(r.asOf),"Tax basis: "+r.taxBasis+". Values from this reporting period only.",metrics+'<div class="planning-primary-grid">'+panel("Earned value position","Comparable values in one currency and tax basis.",bars)+panel("Variance position","Negative values are adverse; missing values are not zero.",changes)+'</div>'+table(["Original contract","Approved variations","Current contract","Remaining cost / ETC"],[[money("original contract value"),money("approved variations"),money("current contract value"),money("etc")]])+(r.diagnostics?.length?'<div class="notice warn">'+escapeHtml(r.diagnostics.map(humanizeKey).join("; "))+'</div>':"")+evidence(r.receipts));
+    }).join("");
+  } else if(key==="commercial-cost-register"){
+    content=panel("Cost evidence register","Source values retain their reporting period, tax basis, approval description and provenance.",table(["Metric","Value","As of","Tax basis","Source status","CBS / WBS","Evidence"],rows.map(r=>[escapeHtml(r.metric),amount(r.amount),period(r.amount.asOf),escapeHtml(r.amount.taxBasis),escapeHtml(r.sourceStatus||"Not established"),escapeHtml([r.cbsId,r.wbsId].filter(Boolean).join(" / ")||"Not allocated"),evidence(r.amount.receipts)])));
+  } else if(key==="commercial-payment-register"){
+    content=planningKpis([["Certificate records",rows.length,"full source register"],["On / before Data Date",p.summary?.effectiveRecordCount,"dated certificate periods"],["Payment receipts",rows.filter(r=>r.amounts.paidAmount.value!==null).length,"explicit paid amounts only"]])+panel("Payment stages and certificates","A certificate does not prove an employer approval or a bank receipt. No payment stage is copied into another.",table(["Certificate","Period","Source status","Application","Engineer assessment","Employer certification","Net certified","Paid","Outstanding","Evidence"],rows.map(r=>[escapeHtml(r.paymentId),period(r.periodEnd),escapeHtml(r.sourceStatus),amount(r.amounts.applicationAmount),amount(r.amounts.engineerAssessedAmount),amount(r.amounts.employerCertifiedAmount),amount(r.amounts.netCertifiedAmount),amount(r.amounts.paidAmount),amount(r.amounts.outstandingAmount),evidence(r.amounts.netCertifiedAmount.receipts)])))+panel("Certificate component checks","This check covers the four reported components only. Omitted tax and other deductions remain unknown.",table(["Certificate","Gross work","Variations","Retention","Advance recovery","Other deductions","Tax","Component check"],rows.map(r=>[escapeHtml(r.paymentId),amount(r.amounts.grossWork),amount(r.amounts.variations),amount(r.amounts.retentionDeduction),amount(r.amounts.advanceRecovery),amount(r.amounts.otherDeduction),amount(r.amounts.taxAmount),escapeHtml(humanizeKey(r.reconciliation))])));
+  } else if(key==="commercial-variations"){
+    content=planningKpis([["Source variations",rows.length,"no duplicate addition to current contract"],["Approved by Data Date",rows.filter(r=>/^approved$/i.test(r.status)&&r.approvalDate&&p.dataDateIso&&r.approvalDate<=p.dataDateIso).length,"dated approved source records"]])+panel("Variation register","Approved variation values are not added again to a current contract value or BAC that already includes them.",table(["Variation","Description","Approval date","Status","Approved amount","Tax basis","Authority","Evidence"],rows.map(r=>[escapeHtml(r.variationId),escapeHtml(r.description),period(r.approvalDate),escapeHtml(r.status),amount(r.approvedAmount),escapeHtml(r.approvedAmount.taxBasis),escapeHtml(r.authority||"Not stated"),evidence([r.receipt])])));
+  } else if(key==="commercial-amendments"){
+    const s=p.summary||{};
+    content=planningKpis([["Revised contract finish",planningShortDate(s.revisedCompletion),"applicable amendment"],["EOT incorporated",num(s.incorporatedEotDays)+" d","already inside revised completion"],["Determination register",num(s.determinationRegisterDays)+" d","all register dates"],["Determinations by Data Date",num(s.effectiveDeterminationDays)+" d","not automatically additional EOT"]])+panel("Contract amendments","Completion is not extended twice for the same award. Additional EOT stays unresolved until incorporation is reconciled.",table(["Effective date","Revised completion","Incorporated EOT","Basis","Evidence"],rows.map(r=>[period(r.effectiveDate),period(r.completionIso),escapeHtml(num(r.incorporatedEotDays)+" days"),escapeHtml(r.state),evidence([r.receipt])])));
+    const d=p.determinations||[];content+=panel("Engineer determination register","Source awards remain immutable. Rows dated after the Data Date are not part of the as-of position.",table(["Determination","Claim","Date","Awarded days","Authority","State","Supersedes","Evidence"],d.map(r=>[escapeHtml(r.determinationId),escapeHtml(r.claimId),period(r.determinationDate),escapeHtml(num(r.awardedDays)),escapeHtml(r.authority),escapeHtml(humanizeKey(r.state)),escapeHtml(r.supersedes||"None stated"),evidence([r.receipt])])));
+  } else {
+    content=panel("Commercial reconciliation","Source comparisons do not substitute for approval workflows, allocations or receipts.",table(["Record","Reporting period","State","Findings","Evidence"],rows.map(r=>[escapeHtml(r.paymentId||r.currency||"Source"),period(r.asOf),escapeHtml(humanizeKey(r.state)),escapeHtml((r.diagnostics||[]).map(humanizeKey).join("; ")||"No conflict in the checked fields"),evidence(r.receipts||[r.receipt].filter(Boolean))])))+'<div class="notice warn">'+escapeHtml((p.summary?.gaps||[]).join(" "))+'</div>';
+  }
+  if(!rows.length)content='<div class="notice warn">No compatible source records are established for this view. Missing approvals, allocation records and receipts are not treated as zero.</div>'+content;
+  return '<section class="planning-view commercial-view"><div class="notice info"><b>Data Date: '+escapeHtml(planningShortDate(p.dataDateIso))+'</b><br>Currency, tax basis and reporting period are kept separate. Source forecasts and calculated scenarios remain distinct.</div>'+content+'</section>';
+}
+
 function renderCommercialVisual(key,data){
   const p=projectionFor(data,data?.projectionKey||"");
   const position=p.position||data.position||data;
@@ -2206,7 +2246,15 @@ function renderCommercialVisual(key,data){
   const cashNote=key==="cash-flow"
     ? '<div class="notice '+(cashEstablished?'info':'warn')+'"><b>Cash-flow time series '+(cashEstablished?'uses explicit dated transactions.':'is evidence-gated.')+'</b> '+(cashEstablished?'Certificate and payment dates are retained for the transaction series.':'CMeng will not invent a time series from cumulative certificate totals. Dated certificate/payment transactions are required.')+'</div>'
     : "";
-  return '<section class="planning-view commercial-view">'+time+cashNote+
+  const ledger=position.sourceLedger;
+  let ledgerDetail="";
+  if(ledger){
+    const section=(moduleKey,rows,summary={})=>renderCommercialLedgerVisual({projectionKey:"commercial_canonical",moduleKey,rows,summary,dataDateIso:ledger.dataDateIso,diagnostics:ledger.diagnostics});
+    if(key==="cost-forecast"||key==="commercial-overview") ledgerDetail=section("commercial-cost-position",ledger.costPosition)+section("commercial-cost-register",ledger.costMetrics);
+    if(key==="payments"||key==="cash-flow") ledgerDetail=section("commercial-payment-register",ledger.payments,{effectiveRecordCount:ledger.payments.filter(r=>r.periodEnd&&ledger.dataDateIso&&r.periodEnd<=ledger.dataDateIso).length});
+    if(key==="variations-change") ledgerDetail=section("commercial-variations",ledger.variations);
+  }
+  return '<section class="planning-view commercial-view">'+time+cashNote+ledgerDetail+
     '<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>'+escapeHtml(names[key]||"Commercial position")+'</h4><p>Values remain isolated by currency and every missing value retains its evidence state.</p></div></div><div class="planning-panel-body"><div class="grid three">'+cards+'</div></div></section>'+
     detail+
     '<section class="planning-panel"><div class="planning-panel-head"><div><h4>Evidence coverage</h4><p>Missing, submitted-but-unparsed and established positions are not interchangeable.</p></div></div><div class="planning-panel-body">'+gates+'</div></section>'+

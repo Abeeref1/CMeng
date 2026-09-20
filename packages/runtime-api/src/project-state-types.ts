@@ -377,6 +377,7 @@ export interface ProjectControlState {
 }
 
 export interface ProjectRuntimeState {
+  sourceIntegrationVersion?: string;
   projectId: string;
   version: number;
   demo: boolean;

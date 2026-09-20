@@ -1,3 +1,5 @@
+import { synchronizeCanonicalTimeClaims } from "./canonical-time-claims";
+import { migrateTypedEvidenceFamilies } from "./typed-evidence-families";
 import {
   createHash,
   randomUUID,
@@ -1271,11 +1273,20 @@ export class RuntimeProjectStore {
           hydrateProject(
             serialized,
           );
+        const migrated = migrateTypedEvidenceFamilies(state, applyEvidenceBasis);
+        if (migrated || state.sourceIntegrationVersion !== "canonical-source-v2") {
+          state.sourceIntegrationVersion = "canonical-source-v2";
+          state.version += 1;
+          this.staleFinalizedBoardPublications(state);
+          state.lastRerunReceipt = null;
+        }
+        synchronizeCanonicalTimeClaims(state, true);
         this.projects.set(
           state.projectId,
           state,
         );
       }
+      this.persistSnapshot();
     } catch (error) {
       throw new Error(
         "CMENG_STATE_RESTORE_FAILED:" +
@@ -1593,6 +1604,8 @@ export class RuntimeProjectStore {
   touchEvidence(
     state: ProjectRuntimeState,
   ): void {
+    state.sourceIntegrationVersion = "canonical-source-v2";
+    synchronizeCanonicalTimeClaims(state, true);
     this.staleFinalizedBoardPublications(
       state,
     );

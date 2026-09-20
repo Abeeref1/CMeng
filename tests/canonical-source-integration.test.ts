@@ -1,0 +1,159 @@
+import { canonicalCommercialModule } from "../packages/runtime-api/src/commercial-runtime";
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
+import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { dateValue, numberValue, sumKnown, ratio, sourceTables, fact } from '../packages/truth-kernel/src';
+import { RuntimeProjectStore } from '../packages/runtime-api/src/project-state';
+import { evidenceFamily } from '../packages/runtime-api/src/evidence-control';
+import { canonicalTimeClaims, projectDataDate } from '../packages/runtime-api/src/canonical-time-claims';
+import { canonicalResources } from '../packages/runtime-api/src/canonical-resource-runtime';
+import { commercialCanonical } from '../packages/runtime-api/src/commercial-canonical';
+import { identifyEvidenceDocument } from '../packages/runtime-api/src/document-identification';
+import { buildEotAssessmentProjection } from '../packages/eot-assessment/src';
+import type { ProjectRuntimeState, StoredEvidenceDocument } from '../packages/runtime-api/src/project-state-types';
+import { cmengUatHtml } from '../packages/runtime-api/src/ui';
+
+const stamp='2026-09-20T10:00:00.000Z';
+function fixture(t: { after(fn:()=>void): unknown }) {
+  const dir=mkdtempSync(join(tmpdir(),'cmeng-canonical-'));
+  t.after(()=>rmSync(dir,{recursive:true,force:true}));
+  const store=new RuntimeProjectStore({dataDir:dir,durable:false});
+  const state=store.getOrCreate('CANONICAL');
+  state.schedules.push({role:'update',format:'xer',sourceFilename:'renamed.xer',sourceHashSha256:'schedule-hash',uploadedAt:stamp,
+    revision:{revisionId:'U1',label:'Current',sequence:1,effectiveAt:'2026-08-31',model:{projectId:'CANONICAL',source:'xer',sourceRevisionId:'U1',dataDateIso:'2026-08-31T08:00:00',activities:[],relationships:[],calendars:[],diagnostics:[]}}} as unknown as ProjectRuntimeState['schedules'][number]);
+  function csvDoc(text:string,type='resource_register',basis:StoredEvidenceDocument['basisState']='active',familySuffix='') {
+    const hash=createHash('sha256').update(text).digest('hex'),id='doc-'+state.evidenceDocuments.length;
+    const path=join(dir,id+'.csv');writeFileSync(path,text);
+    const category=type==='resource_register'?'schedule_control':type==='delay_eot_claims_register'?'risk_claims_procurement':'boq_cost';
+    const family=evidenceFamily({category,documentType:type,scheduleRole:null,textSample:text,sourceFilename:id+'.csv'});
+    const doc={documentId:id,category,documentType:type,sourceFilename:id+'.csv',sourceRelativePath:null,mediaType:'text/csv',sourceHashSha256:hash,sizeBytes:Buffer.byteLength(text),storedPath:path,uploadedAt:stamp,
+      authority:'candidate_only',parserState:'parsed',linkedArtifactId:null,scheduleRole:null,mapping:null,assertions:[],uploadIntent:'add_update',familyKey:family.familyKey+familySuffix,logicalDocumentKey:family.logicalDocumentKey+familySuffix,basisState:basis,supersedesDocumentIds:[],supersededByDocumentId:null,diagnostics:[],identification:{},lineage:{}} as unknown as StoredEvidenceDocument;
+    state.evidenceDocuments.push(doc);state.version++;
+    return doc;
+  }
+  return {dir,store,state,csvDoc};
+}
+const master='Resource ID,Resource UID,Resource Name,Class,Unit,Utilization Applicable\nL,1,Labour,Labor,labor_hour,Yes\nE,2,Crane,Equipment,equipment_hour,Yes\nM,3,Concrete,Material,m3,No';
+const weekly='Resource ID,Week Start,Available Capacity,Planned Demand,Actual Approved Usage,Unit\nL,2026-08-24,100,120,80,labor_hour\nE,2026-08-24,50,40,30,equipment_hour\nM,2026-08-24,1000,200,150,m3';
+const claims='Claim ID,Event,Notice Date,Days Claimed,Source Granted Days,Status\nC1,Access unavailable,2026-08-02,20,5,Submitted';
+const determinations='Determination ID,Claim ID,Awarded EOT Days,Determination Date,Status,Authority,Source Letter,Governance State\nD1,C1,15,2026-07-24,Determined,Engineer,L1,Immutable\nD2,C1,11,2026-08-16,Determined,Engineer,L2,Immutable\nD3,C1,112,2026-09-08,Determined,Engineer,L3,Immutable';
+function amendment(state:ProjectRuntimeState) {
+  const doc={documentId:'AMD',category:'contract',documentType:'contract_amendment',sourceFilename:'renamed.pdf',sourceHashSha256:'amd-hash',basisState:'additive',linkedArtifactId:null,diagnostics:[]} as unknown as StoredEvidenceDocument;
+  state.evidenceDocuments.push(doc);
+  state.contractDocuments.push({documentId:'AMD',role:'amendment',result:{sections:[{text:'Effective Date 15 August 2026\nRevised Contractual Completion 31 March 2030\nEOT Granted 90 calendar days',startPage:1,sectionKey:'preamble',sourceMode:'deterministic'}],pdf:{pages:[{method:'native',pageNumber:2,text:'All contract, BOQ, variation, payment and cost values are stated in AED and are exclusive of VAT unless expressly stated otherwise.'}]}}} as unknown as ProjectRuntimeState['contractDocuments'][number]);
+  state.version++;
+}
+
+test('civil programme dates accept XER timestamps without inventing a timezone',()=>{
+  for(const s of ['2026-08-31','2026-08-31T08:00:00','2026-08-31T08:00:00.000Z','2026-08-31T08:00:00+03:00','31 August 2026'])assert.equal(dateValue(s),'2026-08-31');
+  for(const s of ['2026-02-30','2026-08-31T26:00:00','08/09/2026','garbage'])assert.equal(dateValue(s),null);
+});
+test('missing numeric evidence is not zero; invalid/grouped values fail closed',()=>{
+  assert.equal(numberValue(''),null);assert.equal(numberValue('NaN'),null);assert.equal(numberValue('1,00'),null);
+  assert.equal(numberValue('0'),0);assert.equal(numberValue('١٬٢٣٤٫٥'),1234.5);assert.equal(sumKnown([1,null]),null);assert.equal(sumKnown([]),null);assert.equal(sumKnown([0]),0);assert.equal(ratio(1,0),null);assert.equal(fact(1,[],'unsupported').state,'candidate');
+});
+test('content schemas distinguish resource capacity and actual registers without filenames',async()=>{
+  const a=await identifyEvidenceDocument({bytes:Buffer.from(weekly),sourceFilename:'a.csv',sourceRelativePath:null});
+  assert.equal(a.identification.detectedDocumentType,'resource_register');
+  const first=evidenceFamily({category:'schedule_control',documentType:'resource_register',scheduleRole:null,textSample:master,sourceFilename:'same.csv'});
+  const second=evidenceFamily({category:'schedule_control',documentType:'resource_register',scheduleRole:null,textSample:weekly,sourceFilename:'same.csv'});
+  assert.notEqual(first.familyKey,second.familyKey);
+});
+test('source receipt hashes are checked again when stored bytes change',t=>{
+  const {csvDoc}=fixture(t);const d=csvDoc(master);assert.equal(sourceTables([d],[]).length,1);
+  writeFileSync(d.storedPath,master+'\nchanged');const diagnostics:string[]=[];assert.equal(sourceTables([d],diagnostics).length,0);assert.ok(diagnostics.some(s=>s.startsWith('SOURCE_HASH_MISMATCH')));
+});
+test('malformed row widths and duplicate normalized headers are not silently repaired',t=>{
+  const {csvDoc}=fixture(t);const a=csvDoc('A,B\n1,2,3'),b=csvDoc('Resource ID,resource_id\n1,2');const d:string[]=[];
+  assert.equal(sourceTables([a,b],d).length,0);assert.ok(d.some(s=>s.startsWith('CSV_ROW_WIDTH_MISMATCH')));assert.ok(d.some(s=>s.startsWith('DUPLICATE_NORMALIZED_HEADERS')));
+});
+test('resource quantities are partitioned by class and unit; materials never enter utilization',t=>{
+  const {state,csvDoc}=fixture(t);csvDoc(master);csvDoc(weekly);const r=canonicalResources(state);
+  assert.equal(r.resourceCount,2);assert.equal(r.rowCount,2);assert.equal(r.capacityCoveragePercent,100);
+  assert.equal(r.plannedAverageToDataDate,100);assert.equal(r.actualAverageToDataDate,70);assert.equal(r.overloadedRowCount,1);
+  assert.deepEqual(r.weeklyTotals.map(p=>p.unit).sort(),['equipment_hour','labor_hour']);assert.ok(!r.points.some(p=>p.resourceId==='M'));
+});
+test('resource population coverage uses the applicable master, not only observed rows',t=>{
+  const {state,csvDoc}=fixture(t);csvDoc(master);csvDoc(weekly.split('\n').slice(0,2).join('\n'));const r=canonicalResources(state);
+  assert.equal(r.capacityCoveragePercent,50);assert.equal(r.expectedResourceWeekCount,2);assert.equal(r.state,'partial');
+});
+test('resource/master unit mismatches withhold arithmetic, not source rows',t=>{
+  const {state,csvDoc}=fixture(t);csvDoc(master);csvDoc(weekly.replace('L,2026-08-24,100,120,80,labor_hour','L,2026-08-24,100,120,80,equipment_hour'));const r=canonicalResources(state);
+  assert.equal(r.points.find(p=>p.resourceId==='L')?.plannedDemand,null);assert.equal(r.capacityCoveragePercent,50);assert.ok(r.diagnostics.some(s=>s.startsWith('RESOURCE_UNIT_CLASS_CONFLICT')));
+});
+test('explicit approved actual usage conflicts are visible and not averaged away',t=>{
+  const {state,csvDoc}=fixture(t);csvDoc(master);csvDoc(weekly);csvDoc('Resource ID,Week Start,Actual Approved Usage,Source Status,Unit\nL,2026-08-24,90,Approved,labor_hour');const r=canonicalResources(state);
+  assert.equal(r.points.find(p=>p.resourceId==='L')?.actualApprovedUsage,null);assert.ok(r.diagnostics.some(s=>s.startsWith('ACTUAL_USAGE_RECONCILIATION_CONFLICT')));
+});
+test('a pending same-role revision does not override an accepted resource source',t=>{
+  const {state,csvDoc}=fixture(t);csvDoc(master);csvDoc(weekly);csvDoc(weekly.replace(',120,',',999,'),'resource_register','candidate');const r=canonicalResources(state);
+  assert.equal(r.plannedAverageToDataDate,100);assert.ok(r.diagnostics.some(s=>s.startsWith('CANDIDATE_REVISION_NOT_APPLIED')));
+});
+test('programme Data Date comes from the active revision, not a future candidate',t=>{
+  const {state}=fixture(t);state.activeEvidenceBasis['schedule:control']={activeArtifactId:'U1'} as ProjectRuntimeState['activeEvidenceBasis'][string];
+  const future=structuredClone(state.schedules[0]!);future.revision.revisionId='U2';future.revision.sequence=2;future.revision.model.dataDateIso='2027-01-01';state.schedules.push(future);
+  assert.equal(projectDataDate(state),'2026-08-31');
+});
+test('claim-register event identities do not invent dates, responsibility or critical causation',t=>{
+  const {state,csvDoc}=fixture(t);csvDoc(claims,'delay_eot_claims_register');const m=canonicalTimeClaims(state).delayClaims!;
+  assert.equal(m.events.length,1);assert.equal(m.claims[0]!.eventIds[0],m.events[0]!.eventId);assert.equal(m.events[0]!.startIso,null);assert.equal(m.events[0]!.responsibilityState,'missing');assert.equal(m.claims[0]!.assessedDaysState,'candidate');assert.equal(m.notices[0]!.actualIssuedAt,'2026-08-02');
+});
+test('determination register total, as-of total and future population remain separate',t=>{
+  const {state,csvDoc}=fixture(t);csvDoc(claims,'delay_eot_claims_register');csvDoc(determinations,'delay_eot_claims_register');amendment(state);const m=canonicalTimeClaims(state);
+  assert.equal(m.registerDeterminationDays,138);assert.equal(m.effectiveDeterminationDays,26);assert.equal(m.futureDeterminationCount,1);
+  assert.equal(m.contractTimeBasis?.contractualCompletionIso,'2030-03-31');assert.equal(m.contractTimeBasis?.incorporatedEotDays,90);assert.equal(m.contractTimeBasis?.additionalApprovedEotDays,null);assert.equal(m.contractTimeBasis?.overlapResolution,'unresolved');
+});
+test('conflicting immutable determination IDs fail closed instead of summing or overwriting',t=>{
+  const {state,csvDoc}=fixture(t);csvDoc(determinations+'\nD1,C1,99,2026-07-24,Determined,Engineer,L1,Immutable','delay_eot_claims_register');const m=canonicalTimeClaims(state);
+  assert.equal(m.registerDeterminationDays,null);assert.equal(m.effectiveDeterminationDays,null);assert.ok(m.diagnostics.some(s=>s.startsWith('IMMUTABLE_DETERMINATION_CONFLICT')));
+});
+test('explicit same-claim supersession removes only the superseded determination',t=>{
+  const {state,csvDoc}=fixture(t);csvDoc('Determination ID,Claim ID,Awarded EOT Days,Determination Date,Status,Authority,Source Letter,Governance State,Supersedes\nD1,C1,10,2026-07-01,Determined,Engineer,L1,Immutable,\nD2,C1,15,2026-08-01,Determined,Engineer,L2,Immutable,D1','delay_eot_claims_register');
+  assert.equal(canonicalTimeClaims(state).registerDeterminationDays,15);
+});
+test('future-only dated awards establish zero as-of, not a missing whole register',t=>{
+  const {state,csvDoc}=fixture(t);csvDoc(determinations.split('\n')[0]+'\nD1,C1,10,2027-01-01,Determined,Engineer,L1,Immutable','delay_eot_claims_register');const m=canonicalTimeClaims(state);assert.equal(m.registerDeterminationDays,10);assert.equal(m.effectiveDeterminationDays,0);
+});
+test('commercial values stay separated by currency, tax basis and period',t=>{
+  const {state,csvDoc}=fixture(t);csvDoc('Metric,Value,Unit,Status,As Of,VAT Basis\nBAC,1000,AED,Approved,2026-08-31,Exclusive\nEV,200,AED,Approved,2026-08-31,Exclusive\nAC,250,AED,Actual,2026-08-31,Exclusive\nPV,300,AED,Plan,2026-08-31,Exclusive\nEAC,1300,AED,Forecast,2026-08-31,Exclusive\nBAC,100,KWD,Approved,2026-08-31,Exclusive\nAC,20.123,KWD,Actual,2026-08-31,Exclusive\nEV,25,AED,Approved,2026-08-31,Inclusive\nBAC,9000,AED,Future,2027-01-01,Exclusive','cost_evm_report');const m=commercialCanonical(state);
+  assert.equal(m.costPosition.length,3);const a=m.costPosition.find(p=>p.currency==='AED'&&p.taxBasis==='exclusive')!;assert.equal(a.values.cpi,0.8);assert.equal(a.values['cpi scenario eac'],1250);assert.equal(a.values.eac,1300);assert.equal(a.values['calculated vac'],-300);
+  const k=m.costPosition.find(p=>p.currency==='KWD')!;assert.equal(k.values.ac,20.123);assert.equal(k.values.cpi,null);
+});
+test('missing cost evidence and unknown tax basis do not manufacture EVM ratios',t=>{
+  const {state,csvDoc}=fixture(t);csvDoc('Metric,Value,Unit,Status,As Of\nEV,200,USD,Source,2026-08-31\nAC,250,USD,Source,2026-08-31','cost_evm_report');const p=commercialCanonical(state).costPosition[0]!;assert.equal(p.values.cpi,null);assert.ok(p.diagnostics.includes('TAX_BASIS_UNKNOWN_DERIVED_METRICS_WITHHELD'));
+});
+test('payment application, assessment, certification and receipts are never conflated',t=>{
+  const {state,csvDoc}=fixture(t);csvDoc('Certificate No,Period End,Gross Work,Variations,Retention,Advance Recovery,Net Certified,VAT Basis,Status,Currency\nIPC1,2026-08-31,1000,100,50,20,1030,Exclusive,Paid,AED','payment_certificates');const p=commercialCanonical(state).payments[0]!;
+  assert.equal(p.amounts.applicationAmount.value,null);assert.equal(p.amounts.engineerAssessedAmount.value,null);assert.equal(p.amounts.employerCertifiedAmount.value,null);assert.equal(p.amounts.paidAmount.value,null);assert.equal(p.amounts.outstandingAmount.value,null);assert.equal(p.amounts.netCertifiedAmount.value,1030);assert.equal(p.reconciliation,'matched');
+});
+test('currency inheritance requires an explicit applicable contract statement and receipt',t=>{
+  const {state,csvDoc}=fixture(t);csvDoc('Certificate No,Period End,Net Certified,VAT Basis\nIPC1,2026-08-31,1000,Exclusive','payment_certificates');assert.equal(commercialCanonical(state).payments[0]!.amounts.netCertifiedAmount.currency,null);
+  amendment(state);const p=commercialCanonical(state).payments[0]!;assert.equal(p.amounts.netCertifiedAmount.currency,'AED');assert.ok(p.amounts.netCertifiedAmount.receipts.some(r=>r.documentId==='AMD'&&r.locator==='page:2'));
+});
+test('legacy typed-family migration is audited, durable and does not modify source hashes',t=>{
+  const {store,state,csvDoc,dir}=fixture(t);const a=csvDoc(master),b=csvDoc(weekly,'resource_register','candidate');for(const d of [a,b]){d.familyKey='schedule_control:resource_register';d.logicalDocumentKey=d.familyKey;}state.activeEvidenceBasis[a.familyKey]={familyKey:a.familyKey,activeDocumentId:a.documentId,activeArtifactId:null,behavior:'snapshot',updatedAt:stamp,reason:'legacy',previousDocumentIds:[]};
+  const hashes=state.evidenceDocuments.map(d=>d.sourceHashSha256);store.touch(state);const restored=new RuntimeProjectStore({dataDir:dir,durable:false}).get('CANONICAL')!;
+  assert.notEqual(restored.evidenceDocuments[0]!.familyKey,restored.evidenceDocuments[1]!.familyKey);assert.ok(restored.evidenceDocuments.every(d=>d.basisState==='active'));assert.deepEqual(restored.evidenceDocuments.map(d=>d.sourceHashSha256),hashes);assert.ok(restored.evidenceDocuments[1]!.diagnostics.some(d=>d.startsWith('SOURCE_ROLE_FAMILY_MIGRATION_V1')));
+  const version=restored.version;const again=new RuntimeProjectStore({dataDir:dir,durable:false}).get('CANONICAL')!;assert.equal(again.version,version);
+});
+test('seven commercial views reuse the identical source-ledger position rather than page calculators',t=>{
+  const {state,csvDoc}=fixture(t);csvDoc('Metric,Value,Unit,Status,As Of,VAT Basis\nBAC,100,USD,Approved,2026-08-31,Exclusive','cost_evm_report');
+  const keys=['commercial-overview','cost-forecast','variations-change','payments','cash-flow','commercial-claims-notices','contract-particulars-bonds'];
+  const positions=keys.map(key=>{const m=canonicalCommercialModule(state,key)!;assert.equal(m.key,key);assert.equal(m.status,'partial');return (m.data as {position:{sourceLedger:{costPosition:Array<{values:Record<string,number>}>}}}).position;});
+  assert.ok(positions.every(p=>p===positions[0]));assert.equal(positions[0]!.sourceLedger.costPosition[0]!.values.bac,100);
+});
+
+test('amendment overlap cannot add the full determination total twice',t=>{
+  const {state,csvDoc}=fixture(t);csvDoc(determinations,'delay_eot_claims_register');amendment(state);
+  const windows={windows:[],diagnostics:[],positiveProgrammeMovementDays:0} as unknown as Parameters<typeof buildEotAssessmentProjection>[0];
+  const delay={projectId:state.projectId,events:[],claims:[],diagnostics:[]} as unknown as Parameters<typeof buildEotAssessmentProjection>[1];
+  const p=buildEotAssessmentProjection(windows,delay,canonicalTimeClaims(state).contractTimeBasis!,{generatedAt:stamp,producerVersion:'test'});
+  assert.equal(p.officialAdjustedCompletionIso,null);assert.equal(p.timeBasisReconciliation?.incorporatedEotDays,90);assert.equal(p.timeBasisReconciliation?.additionalApprovedEotDays,null);
+});
+test('commercial and EOT user views expose stage separation and double-counting safeguards',()=>{
+  const html=cmengUatHtml();for(const term of ['commercial-cost-position','commercial-payment-register','Payment stages and certificates','CPI scenario EAC','Amendment and determination reconciliation','Weekly resource utilization detail'])assert.ok(html.includes(term),term);
+  const script=html.match(/<script>([\s\S]*?)<\/script>/)?.[1];assert.ok(script);assert.doesNotThrow(()=>new Function(script));
+});

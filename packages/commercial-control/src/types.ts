@@ -1,3 +1,4 @@
+import type { CanonicalCommercialModel } from "../../runtime-api/src/commercial-canonical";
 import type {
   BondRecord,
   ClaimCommercialRecord,
@@ -26,6 +27,7 @@ export interface CommercialMetric<T> {
 
 export interface CommercialMoneyPosition {
   currency: string;
+  netCertifiedAmount?: CommercialMetric<number>;
   committedContractValue:
     CommercialMetric<number>;
   approvedVariationAmount:
@@ -55,6 +57,7 @@ export interface CommercialMoneyPosition {
 }
 
 export interface CommercialControlInput {
+  sourceLedger?: CanonicalCommercialModel;
   generatedAt: string;
   projectId: string;
   contractValue: MoneyValue | null;
@@ -73,6 +76,7 @@ export interface CommercialControlInput {
 }
 
 export interface CommercialControlPosition {
+  sourceLedger?: CanonicalCommercialModel;
   schemaVersion: "1.0";
   projectionKey: "commercial_control_position";
   generatedAt: string;
