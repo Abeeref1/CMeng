@@ -1825,6 +1825,12 @@ function buildBundle(
       observedProgrammeMovementDays:
         windows
           .positiveProgrammeMovementDays,
+      projectCompletionMovementDays:
+        windows
+          .projectCompletionMovementDays,
+      projectCompletionMovementBasis:
+        windows
+          .projectCompletionMovementBasis,
       analyticalTimeImpactCandidateDays:
         null,
       attributableCandidateEotDays:
@@ -5765,6 +5771,12 @@ function buildSpecialistModuleFast(
                 observedProgrammeMovementDays:
                   windows
                     .positiveProgrammeMovementDays,
+                projectCompletionMovementDays:
+                  windows
+                    .projectCompletionMovementDays,
+                projectCompletionMovementBasis:
+                  windows
+                    .projectCompletionMovementBasis,
                 analyticalTimeImpactCandidateDays:
                   null,
                 attributableCandidateEotDays:
