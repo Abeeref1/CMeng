@@ -513,16 +513,29 @@ function standardDayHours(
   )[0]?.[0] ?? null;
 }
 
-function inferredNearCriticalThreshold(
+function inferredNearCriticalPolicy(
   model: CanonicalScheduleModel,
   targetCount: number | null,
-): number | null {
+): {
+  thresholdHours: number | null;
+  lowerBoundInclusive: boolean;
+  state:
+    | "reconciled"
+    | "ambiguous"
+    | "missing";
+} {
   if (
     targetCount === null ||
     targetCount <= 0
-  ) return null;
+  ) {
+    return {
+      thresholdHours: null,
+      lowerBoundInclusive: false,
+      state: "missing",
+    };
+  }
 
-  const known =
+  const values =
     model.activities
       .map(
         (activity) =>
@@ -536,28 +549,79 @@ function inferredNearCriticalThreshold(
             "number" &&
           Number.isFinite(value) &&
           value >= 0,
-      )
-      .sort(
-        (a, b) => a - b,
       );
-  if (
-    known.length <
-    targetCount
-  ) return null;
+  if (!values.length) {
+    return {
+      thresholdHours: null,
+      lowerBoundInclusive: false,
+      state: "missing",
+    };
+  }
 
-  const candidate =
-    known[
-      targetCount - 1
-    ]!;
-  const count =
-    known.filter(
-      (value) =>
-        value <= candidate,
-    ).length;
-  return count ===
-    targetCount
-    ? candidate
-    : null;
+  const thresholds = [
+    ...new Set(values),
+  ].sort((a, b) => a - b);
+  const matches: Array<{
+    thresholdHours: number;
+    lowerBoundInclusive: boolean;
+  }> = [];
+
+  for (const threshold of thresholds) {
+    const inclusive =
+      values.filter(
+        (value) =>
+          value >= 0 &&
+          value <= threshold,
+      ).length;
+    if (inclusive === targetCount) {
+      matches.push({
+        thresholdHours: threshold,
+        lowerBoundInclusive: true,
+      });
+    }
+    const exclusive =
+      values.filter(
+        (value) =>
+          value > 0 &&
+          value <= threshold,
+      ).length;
+    if (exclusive === targetCount) {
+      matches.push({
+        thresholdHours: threshold,
+        lowerBoundInclusive: false,
+      });
+    }
+  }
+
+  if (matches.length === 1) {
+    return {
+      ...matches[0]!,
+      state: "reconciled",
+    };
+  }
+  if (matches.length > 1) {
+    const shortest =
+      matches.sort(
+        (a, b) =>
+          a.thresholdHours -
+            b.thresholdHours ||
+          Number(
+            b.lowerBoundInclusive,
+          ) -
+            Number(
+              a.lowerBoundInclusive,
+            ),
+      )[0]!;
+    return {
+      ...shortest,
+      state: "ambiguous",
+    };
+  }
+  return {
+    thresholdHours: null,
+    lowerBoundInclusive: false,
+    state: "missing",
+  };
 }
 
 function contractDocumentText(
@@ -1186,11 +1250,14 @@ export function buildProjectTruth(
           nearMetric.value,
         )
       : null;
-  const thresholdHours =
-    inferredNearCriticalThreshold(
+  const nearCriticalPolicy =
+    inferredNearCriticalPolicy(
       model,
       nearCount,
     );
+  const thresholdHours =
+    nearCriticalPolicy
+      .thresholdHours;
   const workingDays =
     thresholdHours !== null &&
     dayHours !== null &&
@@ -1516,12 +1583,18 @@ export function buildProjectTruth(
           method:
             "reconcile governed near-critical population to source Total Float distribution; preserve project calendar hours",
           diagnostics:
-            thresholdHours ===
-            null
+            nearCriticalPolicy
+                .state ===
+              "ambiguous"
               ? [
-                  "NEAR_CRITICAL_THRESHOLD_COULD_NOT_BE_RECONCILED_TO_SOURCE_COUNT",
+                  "NEAR_CRITICAL_POLICY_RECONCILIATION_AMBIGUOUS",
                 ]
-              : [],
+              : thresholdHours ===
+                  null
+                ? [
+                    "NEAR_CRITICAL_THRESHOLD_COULD_NOT_BE_RECONCILED_TO_SOURCE_COUNT",
+                  ]
+                : [],
         }),
       nearCriticalWorkingDays:
         fact({
@@ -1546,8 +1619,8 @@ export function buildProjectTruth(
             "threshold hours divided by governing activity calendar standard day hours",
         }),
       nearCriticalIncludesZeroFloat:
-        nearCount !== null &&
-        thresholdHours !== null,
+        nearCriticalPolicy
+          .lowerBoundInclusive,
       standardWorkingDayHours:
         dayHours,
     },
