@@ -4718,108 +4718,91 @@ function buildSpecialistModuleFast(
         "partial",
         "A current BOQ quantity basis and schedule crosswalk are required before an Installed Quantities curve can be calculated.",
       );
+    } else if (
+      quantities
+        .allocations.length ===
+      0
+    ) {
+      result = available(
+        key,
+        {
+          schemaVersion:
+            "1.0",
+          projectionKey:
+            "quantity_scurve",
+          generatedAt,
+          projectId:
+            state.projectId,
+          boqRevisionId:
+            quantities
+              .boqRevisionId,
+          scheduleRevisionId:
+            current.revision
+              .revisionId,
+          dataDateIso:
+            model.dataDateIso,
+          unitKeyed: true,
+          allocationState:
+            "missing",
+          mappingBasis:
+            "missing",
+          candidateMappingState:
+            "not_run_in_initial_view",
+          series: [],
+          unmappedItemIds:
+            quantities.items.map(
+              (item) =>
+                item.quantityItemId,
+            ),
+          partiallyAllocatedItemIds:
+            [],
+          overAllocatedItemIds:
+            [],
+          diagnostics: [
+            "NO_GOVERNED_QUANTITY_TO_ACTIVITY_ALLOCATION",
+            "INFERRED_MAPPING_NOT_RUN_IN_INITIAL_VIEW",
+          ],
+        },
+        [
+          "BOQ",
+          "governed quantity-to-activity mapping",
+        ],
+        "partial",
+        "BOQ items are available, but no governed quantity-to-activity allocation is established. CMeng does not run an expensive inferred crosswalk or publish a quantity curve as if the mapping were approved.",
+      );
     } else {
-      const mapping =
-        buildQuantityScheduleMapping(
+      const projection =
+        buildQuantityScurveProjection(
           quantities,
           model,
-        );
-      if (
-        quantities
-          .allocations.length ===
-        0
-      ) {
-        result = available(
-          key,
           {
-            schemaVersion:
-              "1.0",
-            projectionKey:
-              "quantity_scurve",
             generatedAt,
-            projectId:
-              state.projectId,
-            boqRevisionId:
-              quantities
-                .boqRevisionId,
-            scheduleRevisionId:
-              current.revision
-                .revisionId,
-            dataDateIso:
-              model.dataDateIso,
-            unitKeyed: true,
-            allocationState:
-              "missing",
-            mappingBasis:
-              mapping
-                .selectedScenarioLinks
-                .length > 0
-                ? "candidate_scenario"
-                : "missing",
-            series: [],
-            unmappedItemIds:
-              quantities.items.map(
-                (item) =>
-                  item
-                    .quantityItemId,
-              ),
-            partiallyAllocatedItemIds:
-              [],
-            overAllocatedItemIds:
-              [],
-            inferredMapping:
-              mapping,
-            diagnostics: [
-              "NO_GOVERNED_QUANTITY_TO_ACTIVITY_ALLOCATION",
-            ],
+            producerVersion:
+              "quantity-scurve-fast-v3",
           },
-          [
-            "BOQ",
-            "governed quantity-to-activity mapping",
-          ],
-          "partial",
-          mapping
-            .selectedScenarioLinks
-            .length > 0
-            ? "CMeng found candidate BOQ-to-programme links, but they are not governed allocations. No quantity curve is published until the crosswalk is confirmed."
-            : "BOQ items are available, but no defensible quantity-to-activity allocation is established.",
         );
-      } else {
-        const projection =
-          buildQuantityScurveProjection(
-            quantities,
-            model,
-            {
-              generatedAt,
-              producerVersion:
-                "quantity-scurve-fast-v2",
-            },
-          );
-        result = available(
-          key,
-          {
-            ...projection,
-            mappingBasis:
-              "governed",
-            inferredMapping:
-              mapping,
-          },
-          [
-            "BOQ",
-            "governed quantity-to-activity mapping",
-          ],
-          projection
+      result = available(
+        key,
+        {
+          ...projection,
+          mappingBasis:
+            "governed",
+        },
+        [
+          "BOQ",
+          "governed quantity-to-activity mapping",
+        ],
+        projection
+          .allocationState ===
+          "complete"
+          ? "ready"
+          : "partial",
+        projection
             .allocationState ===
-            "complete"
-            ? "ready"
-            : "partial",
-          projection
-              .allocationState ===
-            "complete"
-            ? null
-            : "The quantity mapping is incomplete or conflicted. CMeng keeps unit series separate and reports mapping coverage.",
-        );
-      }
+          "complete"
+          ? null
+          : "The governed quantity allocation is incomplete or conflicted. CMeng keeps unit series separate and reports mapping coverage.",
+      );
     }
   } else if (
     key ===
