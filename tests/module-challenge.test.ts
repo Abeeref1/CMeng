@@ -76,6 +76,40 @@ test("contractor narrative assertions are extracted for independent challenge", 
   );
 });
 
+test("schedule-control PDF text extracts working-day criticality and Data Date facts", () => {
+  const assertions =
+    extractDocumentAssertions(
+      [
+        "SCHEDULE CONTROL BASIS",
+        "Data Date: 31 August 2026",
+        "Critical activities: TF <= 0",
+        "Near Critical Activities: 0 < TF <= +5 working days",
+      ].join("\n"),
+      "evidence:SCH01.pdf",
+    );
+
+  const values =
+    new Map(
+      assertions.map((item) => [
+        item.metric,
+        item.value,
+      ]),
+    );
+
+  assert.equal(
+    values.get("near_critical_working_days"),
+    5,
+  );
+  assert.equal(
+    values.get("critical_float_threshold_hours"),
+    0,
+  );
+  assert.equal(
+    values.get("schedule_control_data_date"),
+    "2026-08-31",
+  );
+});
+
 test("missing submitted value does not suppress the independent answer", () => {
   const result =
     buildModuleChallenge({
