@@ -15,6 +15,9 @@ jobs:
     if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 12
+    env:
+      CMENG_RAILWAY_URL: https://cmeng-main-production.up.railway.app
+      CMENG_EXPECTED_RELEASE: ${{ github.event.workflow_run.head_sha || github.sha }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -24,13 +27,18 @@ jobs:
           node-version: '22'
       - run: npm install --ignore-scripts --no-audit --no-fund
       - name: Verify exact release, canonical runtime, reports and source preservation
-        env:
-          CMENG_RAILWAY_URL: https://cmeng-main-production.up.railway.app
-          CMENG_EXPECTED_RELEASE: ${{ github.event.workflow_run.head_sha || github.sha }}
         run: node scripts/railway-accuracy-acceptance.mjs
+      - name: Install isolated browser test tools
+        run: |
+          python -m pip install playwright==1.57.0
+          python -m playwright install --with-deps chromium
+      - name: Verify live module navigation and report window without writes
+        run: python scripts/railway-browser-acceptance.py
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: cmeng-production-accuracy-${{ github.run_id }}
-          path: accuracy-acceptance.json
+          path: |
+            accuracy-acceptance.json
+            browser-acceptance.json
           retention-days: 7
