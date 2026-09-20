@@ -2,7 +2,6 @@ import {
   buildScheduleActivityLogicIndex,
   DEFAULT_SCHEDULE_ANALYSIS_CONFIG,
   sourceFloatCriticality,
-  activityFloatBasis,
   type CanonicalScheduleActivity,
   type CanonicalScheduleModel,
   type ScheduleAnalysisConfig,
@@ -26,14 +25,11 @@ function criticality(
   activity: CanonicalScheduleActivity,
   config: ScheduleAnalysisConfig,
 ): ActivityCriticality {
-  const classification =
-    activityFloatBasis(
-      model,
-      activity,
-      config,
-    ).classification;
-  if (classification === "positive_float") return "noncritical";
-  return classification;
+  return sourceFloatCriticality(
+    model,
+    activity,
+    config,
+  );
 }
 
 function effectiveFinish(
