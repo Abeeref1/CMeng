@@ -647,3 +647,54 @@ test("Man-Hour actual history is one current snapshot only when stored financial
     ),
   );
 });
+
+
+test("missing man-hour totals remain null rather than zero", () => {
+  const input =
+    resources();
+  input.periodActuals = [];
+  input.assignments =
+    input.assignments.map(
+      (assignment) => ({
+        ...assignment,
+        actualRegularUnits:
+          null,
+        actualOvertimeUnits:
+          null,
+      }),
+    );
+
+  const projection =
+    buildManhourScurveProjection(
+      input,
+      schedule(),
+      {
+        generatedAt:
+          "2026-09-20T07:00:00.000Z",
+        producerVersion:
+          "manhour-missing-v1",
+      },
+    );
+
+  assert.equal(
+    projection.actualState,
+    "missing",
+  );
+  assert.equal(
+    projection.actualHoursKnownCurrent,
+    null,
+  );
+  assert.equal(
+    projection.actualAssignmentCoveragePercent,
+    0,
+  );
+  assert.ok(
+    projection.points.every(
+      (point) =>
+        point.actualCumulativeHours ===
+          null &&
+        point.forecastCumulativeHours ===
+          null,
+    ),
+  );
+});
