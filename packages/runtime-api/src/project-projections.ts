@@ -4415,36 +4415,153 @@ function buildSpecialistModuleFast(
 
     if (!resources ||
         !hasAssignments) {
-      result = available(
-        key,
-        {
-          schemaVersion:
-            "1.0",
-          projectionKey:
-            key ===
-              "resource-utilization"
-              ? "resource_utilization"
-              : "manhour_scurve",
+      const scenarioContext =
+        specialistChallengeContext(
+          state,
+          model,
           generatedAt,
-          projectId:
-            state.projectId,
-          sourceRevisionId:
-            current.revision
-              .revisionId,
-          dataDateIso:
-            model.dataDateIso,
-          evidenceState:
-            "resource_assignments_missing",
-          diagnostics: [
-            "RESOURCE_ASSIGNMENTS_NOT_ESTABLISHED_FOR_CURRENT_PROGRAMME",
+        );
+      const manpower =
+        scenarioContext
+          .delivery
+          .manpowerChallenge;
+      if (
+        key ===
+        "resource-utilization"
+      ) {
+        result = available(
+          key,
+          {
+            schemaVersion:
+              "1.0",
+            projectionKey:
+              "resource_utilization_scenario",
+            generatedAt,
+            producerVersion:
+              "resource-utilization-fast-v2",
+            projectId:
+              state.projectId,
+            sourceRevisionId:
+              current.revision
+                .revisionId,
+            dataDateIso:
+              model.dataDateIso,
+            authority:
+              "schedule_derived_scenario",
+            submittedPlanAvailable:
+              state
+                .submittedManpowerPlan !==
+              null,
+            submittedAverageManpower:
+              manpower
+                .submittedAverageManpower,
+            submittedPeakManpower:
+              manpower
+                .submittedPeakManpower,
+            averageConcurrentWorkFronts:
+              manpower
+                .averageConcurrentWorkFronts,
+            peakConcurrentWorkFronts:
+              manpower
+                .peakConcurrentWorkFronts,
+            requiredAverageManpowerToContract:
+              manpower
+                .requiredAverageManpowerToContract,
+            requiredAverageManpowerToContractorForecast:
+              manpower
+                .requiredAverageManpowerToContractorForecast,
+            scheduleDerivedScenarios:
+              manpower
+                .scheduleDerivedScenarios,
+            weeklyCapacityEvidence:
+              weeklyResourceCapacityEvidence(
+                state.evidenceDocuments,
+              ),
+            diagnostics: [
+              "RESOURCE_ASSIGNMENTS_NOT_SUBMITTED_SCENARIO_DERIVED_FROM_WORKFRONTS",
+            ],
+          },
+          [
+            "current schedule",
+            "resource assignments when available",
           ],
-        },
-        [
-          "resource-loaded current programme",
-        ],
-        "partial",
-        "Resource assignments are not established for the current programme. Missing resource evidence is not treated as zero.",
-      );
+          "partial",
+          "Resource assignments are not established. CMeng keeps schedule-derived crew scenarios separate from measured resource utilization.",
+        );
+      } else {
+        const remainingDays =
+          scenarioContext
+            .delivery
+            .scheduleChallenge
+            .remainingDurationDays;
+        result = available(
+          key,
+          {
+            schemaVersion:
+              "1.0",
+            projectionKey:
+              "manhour_scurve_scenario",
+            generatedAt,
+            producerVersion:
+              "manhour-scurve-fast-v2",
+            projectId:
+              state.projectId,
+            sourceRevisionId:
+              current.revision
+                .revisionId,
+            dataDateIso:
+              model.dataDateIso,
+            actualHistoryMethod:
+              "missing",
+            submittedLaborAssignments:
+              false,
+            scenarios:
+              manpower
+                .scheduleDerivedScenarios
+                .map(
+                  (scenario) => ({
+                    crewSize:
+                      scenario.crewSize,
+                    averageManpower:
+                      scenario
+                        .averageManpower,
+                    peakManpower:
+                      scenario
+                        .peakManpower,
+                    remainingScenarioHours:
+                      remainingDays !==
+                        null &&
+                      remainingDays > 0 &&
+                      scenario
+                        .averageManpower !==
+                        null
+                        ? Number(
+                            (
+                              remainingDays *
+                              scenario
+                                .averageManpower *
+                              8
+                            ).toFixed(4),
+                          )
+                        : null,
+                    basis:
+                      "8 hours/person/day",
+                    authority:
+                      "schedule_derived_scenario",
+                  }),
+                ),
+            diagnostics: [
+              "LABOR_ASSIGNMENTS_NOT_SUBMITTED_MANHOUR_SCENARIO_ONLY",
+            ],
+          },
+          [
+            "current schedule",
+            "labor assignments when available",
+          ],
+          "partial",
+          "Labor assignments are not established. Any man-hour values shown are explicit schedule-derived scenarios, not measured history.",
+        );
+      }
     } else if (
       key ===
       "resource-utilization"
