@@ -250,7 +250,7 @@ test('source near-critical label is reconciled after CMeng independently calcula
     {projectId:'CANONICAL',activityId:'A55',nativeId:'A55',name:'55h float on 10h calendar',wbsId:null,calendarId:'CAL10',activityType:'task',status:'not_started',baselineStartIso:null,baselineFinishIso:null,currentStartIso:null,currentFinishIso:null,actualStartIso:null,actualFinishIso:null,forecastStartIso:null,forecastFinishIso:null,originalDurationHours:8,remainingDurationHours:8,totalFloatHours:55,freeFloatHours:null,percentComplete:0,sourceRefs:[],diagnostics:[]},
   ] as any;
   csvDoc(
-    'Metric,Value,As Of\nNear Critical,3,2026-08-31',
+    'Metric,Value,Unit,As Of\nNear Critical,3,count,2026-08-31',
     'schedule_metric_register',
   );
   const basis=projectScheduleControlBasis(state);
@@ -279,7 +279,7 @@ test('source count never reverse-engineers CMeng threshold policy',t=>{
     {projectId:'CANONICAL',activityId:'A8',nativeId:'A8',name:'8h float',wbsId:null,calendarId:'CAL8',activityType:'task',status:'not_started',baselineStartIso:null,baselineFinishIso:null,currentStartIso:null,currentFinishIso:null,actualStartIso:null,actualFinishIso:null,forecastStartIso:null,forecastFinishIso:null,originalDurationHours:8,remainingDurationHours:8,totalFloatHours:8,freeFloatHours:null,percentComplete:0,sourceRefs:[],diagnostics:[]},
   ] as any;
   csvDoc(
-    'Metric,Value\nNear Critical,999',
+    'Metric,Value,Unit\nNear Critical,999,count',
     'schedule_metric_register',
   );
   const basis=projectScheduleControlBasis(state);
