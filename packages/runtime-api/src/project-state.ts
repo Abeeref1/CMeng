@@ -3290,7 +3290,6 @@ export class RuntimeProjectStore {
             ])
           : new Set([
               "source_productivity_forecast_completion",
-              "completion_date",
             ]);
 
       const deep =
@@ -3303,12 +3302,63 @@ export class RuntimeProjectStore {
           requiredMetrics,
         );
 
+      let deepAssertions = [
+        ...deep.assertions,
+      ];
+      const hasProductivity =
+        [...assertions, ...deepAssertions].some(
+          (assertion) =>
+            assertion.metric ===
+              "source_productivity_forecast_completion" ||
+            (
+              assertion.metric ===
+                "completion_date" &&
+              /productivity/i.test(
+                assertion.sourceText ??
+                  "",
+              )
+            ),
+        );
+
+      if (
+        documentType ===
+          "schedule_control_basis" &&
+        !hasProductivity
+      ) {
+        const productivityDeep =
+          await this.extractFullScheduleControlAssertions(
+            input.bytes,
+            "evidence:" +
+              input.sourceFilename +
+              ":full-document:productivity",
+            new Set([
+              "source_productivity_forecast_completion",
+              "completion_date",
+              "schedule_control_data_date",
+            ]),
+            new Set([
+              "source_productivity_forecast_completion",
+            ]),
+          );
+        deepAssertions = [
+          ...deepAssertions,
+          ...productivityDeep.assertions,
+        ];
+        deep.diagnostics.push(
+          ...productivityDeep.diagnostics.map(
+            (item) =>
+              "PRODUCTIVITY_PASS:" +
+              item,
+          ),
+        );
+      }
+
       const merged =
         new Map<string, DocumentAssertion>();
       for (
         const assertion of [
           ...assertions,
-          ...deep.assertions,
+          ...deepAssertions,
         ]
       ) {
         const key =
