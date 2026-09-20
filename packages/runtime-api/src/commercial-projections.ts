@@ -27,7 +27,8 @@ function available(
   dependencies: string[] = [],
   status:
     | "ready"
-    | "partial" = "ready",
+    | "partial"
+    | "blocked" = "ready",
   reason: string | null = null,
 ): ModuleRuntimeResult {
   return {
