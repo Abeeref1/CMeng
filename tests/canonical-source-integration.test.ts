@@ -138,7 +138,7 @@ test('PDF SCH01 is persisted as governed control assertions and legacy PDF asser
   assert.equal(refreshed.refreshedDocumentCount,1);
   assert.equal(doc.sourceHashSha256,originalHash);
   assert.ok(doc.diagnostics.includes('SCHEDULE_CONTROL_BASIS_ASSERTION_REFRESH_V4'));
-  assert.equal(state.sourceIntegrationVersion,'canonical-source-v5');
+  assert.equal(state.sourceIntegrationVersion,'canonical-source-v4');
   assert.equal(projectScheduleControlBasis(state).nearCriticalWorkingDays,5);
 });
 
@@ -278,7 +278,7 @@ test('legacy SCH01 reference state migrates once to governed active basis withou
   assert.equal(restoredDoc.basisState,'active');
   assert.equal(restoredDoc.sourceHashSha256,hash);
   assert.equal(restored.activeEvidenceBasis['schedule_control:schedule_control_basis']?.activeDocumentId,doc.documentId);
-  assert.ok(restoredDoc.diagnostics.includes('SCHEDULE_CONTROL_BASIS_GOVERNANCE_MIGRATION_V3'));
+  assert.ok(restoredDoc.diagnostics.includes('SCHEDULE_CONTROL_BASIS_GOVERNANCE_MIGRATION_V5'));
   const basis=projectScheduleControlBasis(restored);
   assert.equal(basis.state,'official');
   assert.equal(basis.nearCriticalWorkingDays,5);
