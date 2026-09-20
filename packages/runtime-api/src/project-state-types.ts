@@ -427,6 +427,11 @@ export interface ProjectRuntimeState {
       string,
       DerivedControlEvidence
     >;
+  derivedCommercialByDocument:
+    Record<
+      string,
+      Partial<CommercialRuntimeState>
+    >;
   derivedReadinessByDocument:
     Record<
       string,
