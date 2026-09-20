@@ -1119,22 +1119,33 @@ function renderWindowsVisual(data){
   const p=projectionFor(data,"windows_analysis");
   if(!Array.isArray(p.windows))return"";
   const labels=p.revisionLabels||{};
-  const bars=p.windows.map(w=>{const value=w.sourceForecastMovementDays??w.scheduleBoundaryMovementDays??null;return {label:"Window "+w.sequence,value,tone:value===null?"neutral":value>0?"danger":value<0?"success":"neutral"}});
+  const projectMove=p.projectCompletionMovementDays;
+  const analyticalGross=p.positiveProgrammeMovementDays;
+  const bars=p.windows.map(w=>{
+    const value=w.sourceForecastMovementDays??w.scheduleBoundaryMovementDays??null;
+    return {label:"Window "+w.sequence,value,tone:value===null?"neutral":value>0?"danger":value<0?"success":"neutral"};
+  });
   const cards=p.windows.map(w=>{
     const sourceMove=w.sourceForecastMovementDays??w.scheduleBoundaryMovementDays;
     const independent=w.independentForecastMovementDays;
     const from=shortRevision(w.fromRevisionId,labels),to=shortRevision(w.toRevisionId,labels);
-    return '<div class="window-card clean"><div><div class="window-id">Window '+escapeHtml(w.sequence)+' · '+escapeHtml(from)+' → '+escapeHtml(to)+'</div><div class="window-dates">'+escapeHtml(planningShortDate(w.windowStartIso))+' → '+escapeHtml(planningShortDate(w.windowEndIso))+'</div></div><div><div class="movement-label">Submitted forecast movement</div><div class="movement-value">'+escapeHtml(sourceMove===null?"—":(sourceMove>0?"+":"")+fmt(sourceMove)+" days")+'</div><div class="muted">Progress movement '+escapeHtml(w.progressMovementPercent===null?"—":(w.progressMovementPercent>0?"+":"")+fmt(w.progressMovementPercent)+" pp")+'</div></div><div><div class="movement-label">Independent CPM movement</div><div class="movement-value small">'+escapeHtml(independent===null?"Not calculated in this view":(independent>0?"+":"")+fmt(independent)+" days")+'</div><div class="muted">'+escapeHtml((w.delayEvents||[]).length+" linked event(s)")+'</div></div></div>';
+    return '<div class="window-card clean"><div><div class="window-id">Window '+escapeHtml(w.sequence)+' · '+escapeHtml(from)+' → '+escapeHtml(to)+'</div><div class="window-dates">'+escapeHtml(planningShortDate(w.windowStartIso))+' → '+escapeHtml(planningShortDate(w.windowEndIso))+'</div></div><div><div class="movement-label">Window source movement</div><div class="movement-value">'+escapeHtml(sourceMove===null?"—":(sourceMove>0?"+":"")+fmt(sourceMove)+" days")+'</div><div class="muted">Analytical revision-window metric</div></div><div><div class="movement-label">Independent CPM movement</div><div class="movement-value small">'+escapeHtml(independent===null?"Not calculated in this view":(independent>0?"+":"")+fmt(independent)+" days")+'</div><div class="muted">'+escapeHtml((w.delayEvents||[]).length+" linked event reference(s)")+'</div></div></div>';
   }).join("");
-  const note=p.windows.some(w=>w.independentForecastMovementDays===null)?'<div class="notice info">This window view uses controlled submitted-forecast movement for fast comparison. Independent CPM is not silently substituted as the contractual delay measure.</div>':'';
+  const semanticNote='<div class="notice info"><b>These two numbers answer different questions.</b> Project Completion movement compares the controlled baseline completion with the current submitted programme completion. Gross analytical window movement sums the positive movement metric selected inside each revision window. The latter is <b>not</b> project delay, claim entitlement, or EOT and can differ from the net Project Completion movement.</div>';
+  const note=p.windows.some(w=>w.independentForecastMovementDays===null)?'<div class="notice info">The fast window view uses controlled submitted-forecast/schedule-boundary movement where independent CPM was not recalculated for that historical revision. The source basis is labelled per window.</div>':'';
   return '<section class="planning-view windows-view">'+planningKpis([
+    ["Project Completion movement",projectMove===null||projectMove===undefined?"—":(projectMove>0?"+":"")+fmt(projectMove)+" d","controlled baseline → current programme",projectMove>0?"danger":""],
+    ["Gross analytical window movement",fmt(analyticalGross)+" d","sum of positive window movement metrics",analyticalGross>0?"warning":""],
+    ["Controlled baseline finish",planningShortDate(p.controlledBaselineCompletionIso),"project completion basis"],
+    ["Current programme finish",planningShortDate(p.currentProgrammeCompletionIso),"submitted programme"],
     ["Windows",p.windowCount,"revision intervals"],
-    ["Complete windows",p.completeWindowCount,""],
-    ["Partial windows",p.partialWindowCount,"",p.partialWindowCount?"warning":""],
-    ["Positive submitted movement",fmt(p.positiveProgrammeMovementDays)+" d","gross across windows",p.positiveProgrammeMovementDays>0?"danger":""],
-    ["Linked delay events",p.windows.reduce((sum,w)=>sum+(w.delayEvents||[]).length,0),"window references"]
-  ])+note+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Programme movement by window</h4><p>Source forecast movement is shown first. It is schedule movement, not automatic delay entitlement.</p></div></div><div class="planning-panel-body">'+planningSignedBars(bars,"days")+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Window detail</h4></div></div><div class="planning-panel-body"><div class="window-strip">'+cards+'</div></div></section></section>';
+    ["Linked event references",p.windows.reduce((sum,w)=>sum+(w.delayEvents||[]).length,0),"not automatic causation"]
+  ])+semanticNote+note+
+    '<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Analytical movement by revision window</h4><p>Each bar shows its window movement metric. The sum must not be labelled overall project delay.</p></div></div><div class="planning-panel-body">'+planningSignedBars(bars,"days")+'</div></section>'+
+    '<section class="planning-panel"><div class="planning-panel-head"><div><h4>Window detail</h4><p>Window movement basis, schedule progress and linked event references remain traceable by revision interval.</p></div></div><div class="planning-panel-body"><div class="window-strip">'+cards+'</div></div></section>'+
+  '</section>';
 }
+
 function renderDelayClaimsVisual(data){
   const p=projectionFor(data,"delay_claims");
   if(!Array.isArray(p.events))return"";
