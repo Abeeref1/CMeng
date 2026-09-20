@@ -82,7 +82,14 @@ export interface EotAssessmentProjection {
   officialApprovedEotState: GovernanceState;
   officialAdjustedCompletionIso: string | null;
 
+  /** Gross positive analytical window movement only; never an EOT award. */
   observedProgrammeMovementDays: number;
+  /** Net submitted Project Completion movement, kept distinct from window sums. */
+  projectCompletionMovementDays: number | null;
+  projectCompletionMovementBasis:
+    | "source_forecast"
+    | "source_schedule_boundary"
+    | "unavailable";
   analyticalTimeImpactCandidateDays: number | null;
   attributableCandidateEotDays: number | null;
   unattributedTimeImpactDays: number;
