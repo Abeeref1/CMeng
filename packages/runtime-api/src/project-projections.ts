@@ -3963,6 +3963,14 @@ const independentForecastCache =
     >
   >();
 
+const sourceOnlyForecastCache =
+  new Map<
+    string,
+    ReturnType<
+      typeof sourceOnlyForecast
+    >
+  >();
+
 const specialistChallengeCache =
   new Map<
     string,
@@ -4052,6 +4060,19 @@ function sourceOnlyForecast(
     ProjectRuntimeState["schedules"][number]["revision"]["model"],
   generatedAt: string,
 ) {
+  const key =
+    model.sourceRevisionId;
+  const cached =
+    sourceOnlyForecastCache.get(
+      key,
+    );
+  if (cached) {
+    return {
+      ...cached,
+      generatedAt,
+    };
+  }
+
   const analytics =
     analyzeSchedule(model);
   const sourceForecastCompletionIso =
@@ -4062,14 +4083,14 @@ function sourceOnlyForecast(
     )?.dateIso ??
     null;
 
-  return {
+  const projection = {
     schemaVersion:
       "1.0" as const,
     projectionKey:
       "independent_forecast" as const,
     generatedAt,
     producerVersion:
-      "source-forecast-only-v1",
+      "source-forecast-only-v2",
     projectId:
       model.projectId,
     sourceRevisionId:
@@ -4129,6 +4150,12 @@ function sourceOnlyForecast(
     activities: [],
     complete: false,
   };
+
+  sourceOnlyForecastCache.set(
+    key,
+    projection,
+  );
+  return projection;
 }
 
 function cachedIndependentForecast(
