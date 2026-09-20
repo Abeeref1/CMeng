@@ -92,7 +92,7 @@ test("browser root serves CMeng UAT application", async () => {
   );
 });
 
-test("certified demo exposes all 22 modules plus Director and board-ready report", async () => {
+test("certified demo exposes all 22 schedule modules plus 7 commercial modules, Director and board-ready report", async () => {
   await withServer(
     async (base) => {
       const project =
@@ -138,7 +138,7 @@ test("certified demo exposes all 22 modules plus Director and board-ready report
       );
       assert.equal(
         o.moduleStates.length,
-        22,
+        29,
       );
       assert.equal(
         o.moduleStates.filter(
