@@ -1,5 +1,6 @@
 import { canonicalCommercialModule, commercialPositionForState } from "./commercial-runtime";
 import { projectControlSchedule } from "./canonical-time-claims";
+import { projectScheduleControlBasis } from "./schedule-control-basis";
 import { canonicalResourceModule } from "./canonical-resource-runtime";
 import { commercialCanonical } from "./commercial-canonical";
 import { createHash } from "node:crypto";
@@ -361,6 +362,10 @@ function buildBundle(
 
   const model =
     current.revision.model;
+  const scheduleControlBasis =
+    projectScheduleControlBasis(state);
+  const scheduleAnalysisConfig =
+    scheduleControlBasis.analysisConfig;
   const controlledBaseline =
     ordered
       .filter(
@@ -542,6 +547,7 @@ function buildBundle(
         generatedAt,
         producerVersion:
           versions.schedule,
+        config: scheduleAnalysisConfig,
       },
     );
 
@@ -739,6 +745,7 @@ function buildBundle(
         generatedAt,
         producerVersion:
           versions.activity,
+        config: scheduleAnalysisConfig,
       },
     );
 
@@ -915,6 +922,7 @@ function buildBundle(
         generatedAt,
         producerVersion:
           versions.nearCritical,
+        config: scheduleAnalysisConfig,
       },
     );
   const nearCritical =
@@ -1103,6 +1111,7 @@ function buildBundle(
         generatedAt,
         producerVersion:
           versions.revision,
+        config: scheduleAnalysisConfig,
       },
     );
   modules.set(
@@ -1130,6 +1139,7 @@ function buildBundle(
         generatedAt,
         producerVersion:
           versions.variance,
+        config: scheduleAnalysisConfig,
         controlledBaselineRevision:
           controlledBaseline
             ?.revision ??
@@ -3066,6 +3076,10 @@ function buildPlanningModuleFast(
     analyticalHistory(state);
   const model =
     current.revision.model;
+  const scheduleControlBasis =
+    projectScheduleControlBasis(state);
+  const scheduleAnalysisConfig =
+    scheduleControlBasis.analysisConfig;
   const controlledBaseline =
     ordered
       .filter(
@@ -3200,6 +3214,7 @@ function buildPlanningModuleFast(
         generatedAt,
         producerVersion:
           "planning-fast:schedule-v1",
+        config: scheduleAnalysisConfig,
       },
     );
 
@@ -3477,6 +3492,7 @@ function buildPlanningModuleFast(
           generatedAt,
           producerVersion:
             "planning-fast:activity-v1",
+          config: scheduleAnalysisConfig,
         },
       );
     const activity =
@@ -3650,6 +3666,7 @@ function buildPlanningModuleFast(
           generatedAt,
           producerVersion:
             "planning-fast:near-critical-v1",
+          config: scheduleAnalysisConfig,
         },
       );
     const nearCritical =
@@ -3711,6 +3728,7 @@ function buildPlanningModuleFast(
           generatedAt,
           producerVersion:
             "planning-fast:revision-v1",
+          config: scheduleAnalysisConfig,
         },
       );
     modules.set(
@@ -4638,6 +4656,10 @@ function buildSpecialistModuleFast(
     new Date().toISOString();
   const model =
     current.revision.model;
+  const scheduleControlBasis =
+    projectScheduleControlBasis(state);
+  const scheduleAnalysisConfig =
+    scheduleControlBasis.analysisConfig;
   const ordered =
     analyticalHistory(state);
   const controlledBaseline =
@@ -4728,6 +4750,7 @@ function buildSpecialistModuleFast(
           generatedAt,
           producerVersion:
             "variance-trends-fast-v2",
+          config: scheduleAnalysisConfig,
           controlledBaselineRevision:
             controlledBaseline
               ?.revision ??
@@ -5333,6 +5356,7 @@ function buildSpecialistModuleFast(
           generatedAt,
           producerVersion:
             "progress-position:schedule-v1",
+          config: scheduleAnalysisConfig,
         },
       );
     const milestones =
