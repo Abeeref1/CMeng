@@ -2584,24 +2584,23 @@ if (require.main === module) {
     const refresh =
       await runtimeProjects
         .refreshScheduleControlBasisAssertions();
-    if (
-      refresh.refreshedDocumentCount > 0 ||
-      refresh.diagnostics.length > 0
-    ) {
-      process.stdout.write(
-        JSON.stringify({
-          event:
-            "schedule_control_basis_refresh",
-          refreshedDocumentCount:
-            refresh.refreshedDocumentCount,
-          diagnosticCodes:
-            refresh.diagnostics.map(
-              (item) =>
-                item.split(":")[0],
-            ),
-        }) + "\n",
-      );
-    }
+    process.stdout.write(
+      JSON.stringify({
+        event:
+          "schedule_control_basis_refresh",
+        basisDocumentCount:
+          refresh.basisDocumentCount,
+        scannedDocumentCount:
+          refresh.scannedDocumentCount,
+        refreshedDocumentCount:
+          refresh.refreshedDocumentCount,
+        diagnosticCodes:
+          refresh.diagnostics.map(
+            (item) =>
+              item.split(":")[0],
+          ),
+      }) + "\n",
+    );
 
     const server = createCmengServer();
     server.listen(port, host, () => {
