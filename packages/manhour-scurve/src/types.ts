@@ -33,17 +33,17 @@ export interface ManhourScurveProjection {
   laborResourceCount: number;
   laborAssignmentCount: number;
 
-  plannedHoursKnown: number;
+  plannedHoursKnown: number | null;
   plannedAssignmentCoveragePercent: number | null;
   plannedCurveCoveragePercent: number | null;
   plannedState: ManhourSeriesState;
 
-  actualHoursKnownCurrent: number;
+  actualHoursKnownCurrent: number | null;
   actualAssignmentCoveragePercent: number | null;
   periodActualAssignmentCoveragePercent: number | null;
   actualState: ManhourSeriesState;
 
-  remainingHoursKnown: number;
+  remainingHoursKnown: number | null;
   remainingAssignmentCoveragePercent: number | null;
   remainingCurveCoveragePercent: number | null;
   forecastState: ManhourSeriesState;
