@@ -1027,7 +1027,8 @@ function applyContractTerms(
     if (
       ld.capState ===
         "candidate" &&
-      ld.cap?.percent !==
+      ld.cap &&
+      ld.cap.percent !==
         null
     ) {
       commercial
