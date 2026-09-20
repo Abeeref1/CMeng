@@ -188,6 +188,14 @@ export interface ScheduleAnalysisConfig {
    * precedence over the legacy elapsed-hour threshold.
    */
   nearCriticalWorkingDays?: number | null;
+  /**
+   * Controls whether an activity exactly on the critical float threshold
+   * belongs to the critical bucket or the near-critical watchlist.
+   * Default preserves the legacy <= critical convention.
+   */
+  criticalBoundaryMode?:
+    | "critical_includes_threshold"
+    | "near_critical_includes_threshold";
   varianceLateThresholdDays: number;
 }
 
@@ -195,6 +203,7 @@ export const DEFAULT_SCHEDULE_ANALYSIS_CONFIG: ScheduleAnalysisConfig = {
   criticalFloatThresholdHours: 0,
   nearCriticalFloatThresholdHours: 40,
   nearCriticalWorkingDays: null,
+  criticalBoundaryMode: "critical_includes_threshold",
   varianceLateThresholdDays: 0,
 };
 
