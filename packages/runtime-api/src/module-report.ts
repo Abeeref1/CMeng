@@ -338,6 +338,10 @@ function fitColumns(
   sheet.columns.forEach(
     (column) => {
       let width = 10;
+      if (!column.eachCell) {
+        column.width = width;
+        return;
+      }
       column.eachCell(
         {
           includeEmpty: false,
