@@ -669,6 +669,7 @@ function amendmentRecord(
           "explicit amended detailed claim period",
       }),
     changedClauses,
+    termComparisons: [],
     sourceRefs: [
       contractRef(
         document.documentId,
@@ -804,6 +805,56 @@ function buildTerms(
         /fully\s+detailed\s+claim(?:\s+period)?\s*[:\-]?\s*([\d,.]+)\s*(?:calendar\s+)?days/i,
       ],
     );
+
+  for (const amendment of amendmentRows) {
+    const comparisons: ContractAmendmentRecord["termComparisons"] = [];
+    if (amendment.revisedContractValue.value) {
+      comparisons.push({
+        term: "Contract value",
+        before: mainValue?.amount ?? null,
+        after: amendment.revisedContractValue.value.amount,
+        unit: amendment.revisedContractValue.value.currency,
+        authority: amendment.revisedContractValue.authority,
+      });
+    }
+    if (amendment.revisedCompletionIso.value) {
+      comparisons.push({
+        term: "Contractual completion",
+        before: originalCompletion,
+        after: amendment.revisedCompletionIso.value,
+        unit: "date",
+        authority: amendment.revisedCompletionIso.authority,
+      });
+    }
+    if (amendment.eotDays.value !== null) {
+      comparisons.push({
+        term: "EOT incorporated by amendment",
+        before: null,
+        after: amendment.eotDays.value,
+        unit: amendment.eotDays.unit,
+        authority: amendment.eotDays.authority,
+      });
+    }
+    if (amendment.claimNoticeDays.value !== null) {
+      comparisons.push({
+        term: "Initial claim notice period",
+        before: originalNotice,
+        after: amendment.claimNoticeDays.value,
+        unit: amendment.claimNoticeDays.unit,
+        authority: amendment.claimNoticeDays.authority,
+      });
+    }
+    if (amendment.fullyDetailedClaimDays.value !== null) {
+      comparisons.push({
+        term: "Fully detailed claim period",
+        before: originalDetailed,
+        after: amendment.fullyDetailedClaimDays.value,
+        unit: amendment.fullyDetailedClaimDays.unit,
+        authority: amendment.fullyDetailedClaimDays.authority,
+      });
+    }
+    amendment.termComparisons = comparisons;
+  }
 
   const ld =
     main
