@@ -1340,12 +1340,12 @@ function parseEvm(
   const dataDateIndex =
     findColumn(
       headers,
-      ["data date"],
+      ["data date", "as of"],
     );
   const authorityIndex =
     findColumn(
       headers,
-      ["authority"],
+      ["authority", "status"],
     );
   const map =
     new Map<
@@ -1578,17 +1578,27 @@ function parsePayments(
   const certificateDateIndex =
     findColumn(
       headers,
-      ["certificate date"],
+      ["certificate date", "period end"],
     );
   const grossIndex =
     findColumn(
       headers,
       ["gross certified"],
     );
+  const grossWorkIndex =
+    findColumn(
+      headers,
+      ["gross work"],
+    );
+  const variationIndex =
+    findColumn(
+      headers,
+      ["variations"],
+    );
   const retentionIndex =
     findColumn(
       headers,
-      ["retention withheld"],
+      ["retention withheld", "retention"],
     );
   const recoveryIndex =
     findColumn(
@@ -1656,6 +1666,39 @@ function parsePayments(
             row,
             netIndex,
           );
+        const explicitGross =
+          toMoney(
+            row,
+            grossIndex,
+          );
+        const grossWork =
+          toMoney(
+            row,
+            grossWorkIndex,
+          );
+        const variationValue =
+          toMoney(
+            row,
+            variationIndex,
+          );
+        const grossCertified =
+          explicitGross ??
+          (
+            grossWork &&
+            (!variationValue ||
+              grossWork.currency ===
+                variationValue.currency)
+              ? money(
+                  grossWork.amount +
+                    (
+                      variationValue?.amount ??
+                      0
+                    ),
+                  grossWork.currency,
+                  grossWork.vatBasis,
+                )
+              : grossWork
+          );
         return {
           paymentId: id,
           type:
@@ -1690,11 +1733,7 @@ function parsePayments(
           paymentDueDateIso:
             null,
           paidDateIso: null,
-          grossCertified:
-            toMoney(
-              row,
-              grossIndex,
-            ),
+          grossCertified,
           retentionWithheld:
             toMoney(
               row,
@@ -1732,6 +1771,7 @@ function parsePayments(
             ),
           ],
           diagnostics: [
+            "CERTIFICATE_PERIOD_END_IS_NOT_A_PAYMENT_RECEIPT_DATE",
             "APPLICATION_ASSESSMENT_AND_RECEIPT_STAGES_NOT_ESTABLISHED_BY_CERTIFICATE_REGISTER",
           ],
         } as PaymentCertificateRecord;
