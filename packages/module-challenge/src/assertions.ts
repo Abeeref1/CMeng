@@ -96,6 +96,30 @@ const RULES: AssertionRule[] = [
     confidence: 0.98,
   },
   {
+    metric: "source_productivity_forecast_completion",
+    label: "Source productivity forecast completion",
+    valueType: "date",
+    unit: null,
+    patterns: [
+      /(?:source\s+)?productivity(?:[-\s]+based)?\s+(?:forecast|completion\s+forecast|forecast\s+completion|completion|finish)\s*(?::|=|-)?\s*([0-9]{4}-[0-9]{2}-[0-9]{2}|[0-9]{1,2}[\s\/-](?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)[\s\/-][0-9]{4}|[A-Za-z]{3,9}\s+[0-9]{1,2},?\s+[0-9]{4})/gi,
+      /(?:forecast|completion|finish)\s+(?:from|by)\s+(?:current\s+)?productivity\s*(?::|=|-)?\s*([0-9]{4}-[0-9]{2}-[0-9]{2}|[0-9]{1,2}[\s\/-][A-Za-z]{3,9}[\s\/-][0-9]{4}|[A-Za-z]{3,9}\s+[0-9]{1,2},?\s+[0-9]{4})/gi,
+    ],
+    parse: dateValue,
+    confidence: 0.96,
+  },
+  {
+    metric: "gross_positive_window_movement_days",
+    label: "Gross positive window movement",
+    valueType: "days",
+    unit: "days",
+    patterns: [
+      /(?:gross\s+)?positive\s+(?:programme|program|submitted)?\s*window\s+movement(?:\s+days?)?\s*(?::|=|-)?\s*([0-9]+(?:\.[0-9]+)?)\s*(?:days?|d)?\b/gi,
+      /sum\s+of\s+positive\s+(?:programme|program|submitted)?\s*window\s+(?:movement|delay)(?:\s+days?)?\s*(?::|=|-)?\s*([0-9]+(?:\.[0-9]+)?)\s*(?:days?|d)?\b/gi,
+    ],
+    parse: numberValue,
+    confidence: 0.96,
+  },
+  {
     metric: "activity_count",
     label: "Activity count",
     valueType: "count",
