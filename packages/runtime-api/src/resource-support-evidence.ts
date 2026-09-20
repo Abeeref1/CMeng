@@ -56,6 +56,10 @@ export interface WeeklyResourceCapacitySummary {
     number;
   actualOverallocatedResourceWeekCount:
     number;
+  plannedOverallocatedResourceCount:
+    number;
+  actualOverallocatedResourceCount:
+    number;
   overloadedRowCount: number;
   capacityCoveragePercent:
     number | null;
@@ -985,6 +989,10 @@ export function weeklyResourceCapacityEvidence(
         0,
       actualOverallocatedResourceWeekCount:
         0,
+      plannedOverallocatedResourceCount:
+        0,
+      actualOverallocatedResourceCount:
+        0,
       overloadedRowCount: 0,
       capacityCoveragePercent:
         null,
@@ -1340,6 +1348,34 @@ export function weeklyResourceCapacityEvidence(
             .actualOverallocated ===
           true,
       ).length,
+    plannedOverallocatedResourceCount:
+      new Set(
+        applicablePoints
+          .filter(
+            (point) =>
+              point
+                .plannedOverallocated ===
+              true,
+          )
+          .map(
+            (point) =>
+              point.resourceId,
+          ),
+      ).size,
+    actualOverallocatedResourceCount:
+      new Set(
+        applicablePoints
+          .filter(
+            (point) =>
+              point
+                .actualOverallocated ===
+              true,
+          )
+          .map(
+            (point) =>
+              point.resourceId,
+          ),
+      ).size,
     overloadedRowCount:
       comparable.filter(
         (point) =>
