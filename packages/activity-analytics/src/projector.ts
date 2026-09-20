@@ -1,6 +1,7 @@
 import {
   buildScheduleActivityLogicIndex,
   DEFAULT_SCHEDULE_ANALYSIS_CONFIG,
+  sourceFloatCriticality,
   activityFloatBasis,
   type CanonicalScheduleActivity,
   type CanonicalScheduleModel,
