@@ -1140,14 +1140,66 @@ function buildBundle(
     "independent-forecast",
     available(
       "independent-forecast",
-      independentForecast,
+      {
+        ...independentForecast,
+        forecastTaxonomy: {
+          contractualCompletionIso:
+            state.controls
+              .contractTimeBasis
+              ?.contractualCompletionIso ??
+            null,
+          contractualAuthority:
+            state.controls
+              .contractTimeBasis
+              ?.contractualCompletionState ??
+            "missing",
+          contractorProgrammeForecastIso:
+            independentForecast
+              .sourceForecastCompletionIso,
+          contractorProgrammeAuthority:
+            "submitted_current_programme",
+          sourceProductivityForecastIso:
+            state.sourceProductivityForecast
+              ?.independentForecastCompletionIso ??
+            null,
+          sourceProductivityAuthority:
+            state.sourceProductivityForecast
+              ? "source_productivity_model"
+              : "missing",
+          sourceProductivityMethod:
+            state.sourceProductivityForecast
+              ?.method ??
+            null,
+          sourceProductivityDriverWorkPackageIds:
+            state.sourceProductivityForecast
+              ?.drivingWorkPackageIds ??
+            [],
+          sourceProductivityWorkPackageCount:
+            state.sourceProductivityForecast
+              ?.workPackageCount ??
+            0,
+          cmengCpmForecastIso:
+            independentForecast
+              .independentForecastCompletionIso,
+          cmengCpmAuthority:
+            independentForecast.complete
+              ? "deterministic_calculation"
+              : "unresolved",
+          probabilisticAuthority:
+            independentForecast
+              .probabilistic
+              .authority,
+        },
+        sourceProductivityForecast:
+          state.sourceProductivityForecast,
+      },
       [],
       independentForecast.complete
         ? "ready"
         : "partial",
       independentForecast.complete
         ? null
-        : "Independent forecast contains unresolved schedule evidence.",
+        : "CMeng deterministic CPM contains unresolved schedule evidence. Submitted programme and source productivity positions remain separate and are not overwritten.",
     ),
   );
 
@@ -5374,6 +5426,55 @@ function buildSpecialistModuleFast(
       key,
       {
         ...forecast,
+        forecastTaxonomy: {
+          contractualCompletionIso:
+            state.controls
+              .contractTimeBasis
+              ?.contractualCompletionIso ??
+            null,
+          contractualAuthority:
+            state.controls
+              .contractTimeBasis
+              ?.contractualCompletionState ??
+            "missing",
+          contractorProgrammeForecastIso:
+            forecast
+              .sourceForecastCompletionIso,
+          contractorProgrammeAuthority:
+            "submitted_current_programme",
+          sourceProductivityForecastIso:
+            state.sourceProductivityForecast
+              ?.independentForecastCompletionIso ??
+            null,
+          sourceProductivityAuthority:
+            state.sourceProductivityForecast
+              ? "source_productivity_model"
+              : "missing",
+          sourceProductivityMethod:
+            state.sourceProductivityForecast
+              ?.method ??
+            null,
+          sourceProductivityDriverWorkPackageIds:
+            state.sourceProductivityForecast
+              ?.drivingWorkPackageIds ??
+            [],
+          sourceProductivityWorkPackageCount:
+            state.sourceProductivityForecast
+              ?.workPackageCount ??
+            0,
+          cmengCpmForecastIso:
+            forecast
+              .independentForecastCompletionIso,
+          cmengCpmAuthority:
+            forecast.complete
+              ? "deterministic_calculation"
+              : "unresolved",
+          probabilisticAuthority:
+            forecast.probabilistic
+              .authority,
+        },
+        sourceProductivityForecast:
+          state.sourceProductivityForecast,
         managementReviewState:
           reviewReason
             ? "review_required"
@@ -5385,6 +5486,8 @@ function buildSpecialistModuleFast(
         "current programme logic",
         "remaining durations",
         "source calendars",
+        "source productivity model when submitted",
+        "contract time basis when submitted",
       ],
       reviewReason
         ? "partial"
