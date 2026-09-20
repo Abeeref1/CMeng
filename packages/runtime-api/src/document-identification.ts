@@ -620,6 +620,204 @@ async function extractPdfSample(
   }
 }
 
+
+export async function extractFullPdfEvidenceText(
+  bytes: Uint8Array,
+  options: {
+    ocrProvider?: OcrProvider;
+    forceOcr?: boolean;
+    maxOcrPages?: number;
+  } = {},
+): Promise<{
+  text: string;
+  method: "native_full_text" | "ocr_full_text" | "unreadable";
+  pageCount: number | null;
+  diagnostics: string[];
+}> {
+  const parser =
+    new PDFParse({
+      data:
+        Buffer.from(bytes) as any,
+    });
+  const diagnostics: string[] = [];
+
+  try {
+    const parsed =
+      await parser.getText();
+    const pages =
+      parsed.pages ?? [];
+    const pageCount =
+      Number.isFinite(parsed.total)
+        ? parsed.total
+        : pages.length;
+    const nativeText =
+      pages
+        .map((page) => page.text ?? "")
+        .join("\n")
+        .slice(0, 2_000_000);
+
+    if (
+      !options.forceOcr &&
+      meaningfulCharacters(nativeText) > 0
+    ) {
+      return {
+        text: nativeText,
+        method: "native_full_text",
+        pageCount,
+        diagnostics,
+      };
+    }
+
+    if (!options.ocrProvider) {
+      if (
+        meaningfulCharacters(nativeText) > 0
+      ) {
+        return {
+          text: nativeText,
+          method: "native_full_text",
+          pageCount,
+          diagnostics,
+        };
+      }
+      diagnostics.push(
+        "DOCUMENT_FULL_PDF_OCR_PROVIDER_NOT_SUPPLIED",
+      );
+      return {
+        text: "",
+        method: "unreadable",
+        pageCount,
+        diagnostics,
+      };
+    }
+
+    const maxOcrPages =
+      Math.max(
+        1,
+        Math.min(
+          options.maxOcrPages ?? 40,
+          200,
+        ),
+      );
+    const chosen =
+      Array.from(
+        {
+          length:
+            Math.min(
+              Math.max(
+                pageCount ?? pages.length,
+                0,
+              ),
+              maxOcrPages,
+            ),
+        },
+        (_, index) =>
+          index + 1,
+      );
+    if (chosen.length === 0) {
+      diagnostics.push(
+        "DOCUMENT_FULL_PDF_NO_PAGES",
+      );
+      return {
+        text: nativeText,
+        method:
+          meaningfulCharacters(nativeText) > 0
+            ? "native_full_text"
+            : "unreadable",
+        pageCount,
+        diagnostics,
+      };
+    }
+
+    const screenshots: any =
+      await parser.getScreenshot({
+        partial: chosen,
+        scale: 1.5,
+        imageBuffer: true,
+        imageDataUrl: false,
+      });
+    const texts: string[] = [];
+    try {
+      for (
+        let index = 0;
+        index <
+        (screenshots.pages ?? [])
+          .length;
+        index += 1
+      ) {
+        const page =
+          screenshots.pages[index];
+        const image =
+          page?.data;
+        if (!image) continue;
+        const ocr =
+          await options.ocrProvider.recognize(
+            image instanceof Uint8Array
+              ? image
+              : Buffer.from(image),
+            chosen[index] ??
+              index + 1,
+          );
+        if (ocr.text?.trim()) {
+          texts.push(ocr.text);
+        }
+        diagnostics.push(
+          ...ocr.diagnostics,
+        );
+      }
+    } finally {
+      if (
+        options.ocrProvider.close
+      ) {
+        await options.ocrProvider.close();
+      }
+    }
+
+    const ocrText =
+      texts
+        .join("\n")
+        .slice(0, 2_000_000);
+    if (
+      meaningfulCharacters(ocrText) === 0
+    ) {
+      diagnostics.push(
+        "DOCUMENT_FULL_PDF_OCR_EMPTY",
+      );
+      return {
+        text: nativeText,
+        method:
+          meaningfulCharacters(nativeText) > 0
+            ? "native_full_text"
+            : "unreadable",
+        pageCount,
+        diagnostics,
+      };
+    }
+    return {
+      text: ocrText,
+      method: "ocr_full_text",
+      pageCount,
+      diagnostics,
+    };
+  } catch (error) {
+    diagnostics.push(
+      "DOCUMENT_FULL_PDF_INSPECTION_ERROR:" +
+        (
+          error instanceof Error
+            ? error.message
+            : String(error)
+        ),
+    );
+    return {
+      text: "",
+      method: "unreadable",
+      pageCount: null,
+      diagnostics,
+    };
+  } finally {
+    await parser.destroy();
+  }
+}
+
 async function extractImageSample(
   bytes: Uint8Array,
   suppliedOcrProvider?:
