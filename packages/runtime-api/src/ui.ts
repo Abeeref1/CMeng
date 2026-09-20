@@ -2199,14 +2199,17 @@ function userFacingModuleReason(key,reason){
 }
 function renderModuleResult(result){
   currentModuleResult=result;
+  renderRoleViewSelector();
   const moduleName=names[result.key]||result.key;
+  const roleLabel=roleViews[selectedRoleView]?.label||roleViews.overall.label;
   el("moduleTitle").textContent=moduleName;
-  el("moduleSubtitle").textContent=descriptions[result.key]||"Current position, key changes and actions requiring attention.";
+  el("moduleSubtitle").textContent=(descriptions[result.key]||"Current position, key changes and actions requiring attention.")+" · "+roleLabel;
   el("topbarModule").textContent=moduleName;
   el("moduleBadge").className="badge "+statusClass(result.status);
   el("moduleBadge").textContent=statusLabel(result.status);
   if(result.status==="blocked"){
-    el("moduleContent").innerHTML='<div class="view-state-bar"><span class="view-state-review">Calculation stopped</span><strong>'+escapeHtml(moduleName)+'</strong><span>More project information is required before this view can be calculated.</span></div><div class="notice warn"><b>This view needs additional project information</b><br>'+escapeHtml(result.reason||"Required project information is not yet available.")+'</div><div class="scalar-grid">'+(result.dependencies||[]).map(x=>'<div class="scalar"><b>Required information</b><span>'+escapeHtml(humanizeKey(x))+'</span></div>').join("")+'</div>';
+    const blockedBody='<div class="view-state-bar"><span class="view-state-review">Calculation stopped</span><strong>'+escapeHtml(moduleName)+'</strong><span>More project information is required before this view can be calculated.</span></div><div class="notice warn"><b>This view needs additional project information</b><br>'+escapeHtml(result.reason||"Required project information is not yet available.")+'</div><div class="scalar-grid">'+(result.dependencies||[]).map(x=>'<div class="scalar"><b>Required information</b><span>'+escapeHtml(humanizeKey(x))+'</span></div>').join("")+'</div>';
+    el("moduleContent").innerHTML=renderRoleContent(result.key,{},blockedBody,"",false);
     return;
   }
   const data=result.data||{};
@@ -2219,12 +2222,12 @@ function renderModuleResult(result){
   const structured=specialized?"":renderStructuredSections(data);
   const genericView=(scalars?'<div class="scalar-grid">'+scalars+'</div>':'')+structured;
   const primaryView=specialized||genericView;
-  const evidenceDetail="";
   const generated=data.challenge?.generatedAt||findProjectionRoot(data)?.generatedAt||data.generatedAt||null;
   const viewState=result.status==="ready"?"":'<div class="view-state-bar"><span class="view-state-review">Review needed</span><strong>'+escapeHtml(moduleName)+'</strong>'+(generated?'<span>Updated '+escapeHtml(formatDocumentTime(generated))+'</span>':'')+'</div>';
   el("directorDrawer").open=false;
   const userReason=userFacingModuleReason(result.key,result.reason);
-  el("moduleContent").innerHTML=viewState+basisHtml+(userReason?'<div class="notice info">'+escapeHtml(userReason)+'</div>':'')+primaryView+challengeHtml+evidenceDetail;
+  const context=viewState+basisHtml+(userReason?'<div class="notice info">'+escapeHtml(userReason)+'</div>':'');
+  el("moduleContent").innerHTML=context+renderRoleContent(result.key,data,primaryView,challengeHtml,Boolean(specialized));
 }
 let moduleRequestSeq=0;
 async function loadModule(key){
