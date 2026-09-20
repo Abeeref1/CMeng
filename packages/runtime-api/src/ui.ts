@@ -1586,7 +1586,9 @@ function renderManhourVisual(data){
 function managementReason(value){
   const labels={
     CONTRACT_TIME_BASIS_NOT_SUBMITTED:"Contract time basis not established",
+    CONTRACT_TIME_BASIS_NOT_ESTABLISHED:"Contract finish and EOT day basis are not established",
     CAUSAL_DELAY_EVENT_BASIS_NOT_ESTABLISHED:"Causal delay-event basis not established",
+    NO_EOT_ELIGIBLE_CAUSAL_EVENT_ESTABLISHED:"No employer/neutral causal event is established for EOT assessment",
     NO_ELIGIBLE_EVENT_IN_WINDOW:"No eligible delay event is linked to this window",
     CONCURRENT_WINDOW_REQUIRES_REVIEW:"Concurrent delay requires review",
     NOTICE_REQUIREMENT_NOT_SATISFIED:"Notice requirement not satisfied",
