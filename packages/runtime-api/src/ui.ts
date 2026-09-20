@@ -973,22 +973,22 @@ function renderPmoVisual(data){
   if(!p.schedule||!p.progress||!p.forecast)return"";
   const variance=typeof p.forecast.varianceDays==="number"?p.forecast.varianceDays:null;
   const kpis=planningKpis([
-    ["Programme completion",planningShortDate(p.forecast.sourceCompletionIso),"Submitted programme",""],
-    ["CMeng completion",planningShortDate(p.forecast.independentCompletionIso),variance===null?"":((variance>0?"+":"")+fmt(variance)+" days vs submitted"),variance!==null&&variance>0?"danger":"accent"],
+    ["Baseline finish",planningShortDate(p.programmeBaselineCompletionIso),"controlled baseline",""],
+    ["Submitted finish",planningShortDate(p.forecast.sourceCompletionIso),"current programme",""],
     ["Critical",p.schedule.criticalCount,"activities","danger"],
     ["Near-critical",p.schedule.nearCriticalCount,"activities","warning"],
     ["Negative float",p.schedule.negativeFloatCount,"activities","danger"],
     ["Overdue milestones",p.progress.lateMilestoneCount,"past the data date","danger"]
   ]);
   const completion=planningDateLadder([
-    {label:"Controlled baseline",date:p.programmeBaselineCompletionIso,tone:"baseline"},
-    {label:"Submitted programme",date:p.forecast.sourceCompletionIso,tone:"current"},
-    {label:"CMeng completion",date:p.forecast.independentCompletionIso,tone:"cmeng"},
-    {label:"Approved completion",date:p.claims?.officialAdjustedCompletionIso,tone:"baseline"},
-    {label:"Scenario completion",date:p.claims?.scenarioAdjustedCompletionIso,tone:"scenario"}
+    {label:"Controlled baseline finish",date:p.programmeBaselineCompletionIso,tone:"baseline"},
+    {label:"Submitted finish",date:p.forecast.sourceCompletionIso,tone:"current"},
+    {label:"Independent forecast finish",date:p.forecast.independentCompletionIso,tone:"cmeng"},
+    {label:"Approved finish date",date:p.claims?.officialAdjustedCompletionIso,tone:"baseline"},
+    {label:"Scenario finish date",date:p.claims?.scenarioAdjustedCompletionIso,tone:"scenario"}
   ],null);
   const attention=planningAttention([
-    variance!==null&&variance>0?{title:"CMeng completion is later than the submitted programme",text:"Review remaining durations, logic and delivery assumptions.",value:variance+" days",tone:"danger"}:null,
+    variance!==null&&variance>0?{title:"Independent forecast is later than the submitted finish date",text:"Review remaining durations, logic and delivery assumptions.",value:variance+" days",tone:"danger"}:null,
     p.schedule.negativeFloatCount>0?{title:"Negative float requires attention",text:"Activities are carrying schedule pressure against the current dates.",value:p.schedule.negativeFloatCount,tone:"danger"}:null,
     p.progress.lateMilestoneCount>0?{title:"Milestones are overdue",text:"Open milestone commitments have passed the current data date.",value:p.progress.lateMilestoneCount,tone:"danger"}:null,
     p.progress.lookAheadOverdueCount>0?{title:"Look-ahead contains overdue work",text:"Review overdue activities and immediate recovery actions.",value:p.progress.lookAheadOverdueCount,tone:"watch"}:null,
@@ -1009,7 +1009,7 @@ function renderPmoVisual(data){
       ["Delay events",p.claims.eventCount],["Claims",p.claims.claimCount],["Programme movement",fmt(p.claims.observedProgrammeMovementDays)+" days"],["Approved EOT",p.claims.officialApprovedEotDays===null?"—":fmt(p.claims.officialApprovedEotDays)+" days"]
     ]]
   ].map(group=>'<div class="domain-card"><h5>'+escapeHtml(group[0])+'</h5>'+group[1].map(m=>metricLine(m[0],m[1])).join("")+'</div>').join("")+'</div>';
-  return '<section class="planning-view management-view">'+kpis+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Completion position</h4><p>Submitted programme, CMeng calculation and any approved or scenario completion dates.</p></div></div><div class="planning-panel-body">'+completion+'</div></section><section class="planning-panel attention"><div class="planning-panel-head"><div><h4>What needs attention</h4><p>Items that can change the current programme position.</p></div></div><div class="planning-panel-body">'+attention+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Programme health</h4><p>Schedule, progress, delivery and time position at a glance.</p></div></div><div class="planning-panel-body">'+health+'</div></section></section>';
+  return '<section class="planning-view management-view">'+kpis+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Finish-date position</h4><p>Controlled baseline, submitted finish date and any independently calculated, approved or scenario finish dates.</p></div></div><div class="planning-panel-body">'+completion+'</div></section><section class="planning-panel attention"><div class="planning-panel-head"><div><h4>What needs attention</h4><p>Items that can change the current programme position.</p></div></div><div class="planning-panel-body">'+attention+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Programme health</h4><p>Schedule, progress, delivery and time position at a glance.</p></div></div><div class="planning-panel-body">'+health+'</div></section></section>';
 }
 function renderScheduleAnalyticsVisual(data){
   const p=projectionFor(data,"schedule_analytics");
@@ -1039,7 +1039,7 @@ function renderScheduleAnalyticsVisual(data){
     ["Cycles",cycles,cycles?"danger":"success"],["Broken links",broken,broken?"danger":"success"],["Open starts",openStarts,openStarts?"warning":"success"],["Open finishes",openFinishes,openFinishes?"warning":"success"],["Isolated activities",isolated,isolated?"warning":"success"],["Programme logic",r.graph.complete?"Complete":"Review needed",r.graph.complete?"success":"danger"]
   ].map(x=>'<div class="integrity-card '+escapeHtml(x[2])+'"><span>'+escapeHtml(x[0])+'</span><b>'+escapeHtml(fmt(x[1]))+'</b></div>').join("")+'</div>';
   const completion=planningDateLadder((r.completionBases||[]).map(b=>({
-    label:b.basis==="programme"?"Controlled baseline completion":b.basis==="forecast"?"Current forecast completion":"Actual completion",
+    label:b.basis==="programme"?"Controlled baseline finish":b.basis==="forecast"?"Current forecast finish":"Actual finish",
     date:b.dateIso,
     tone:b.basis==="forecast"?"cmeng":b.basis==="actual"?"actual":"current"
   })),r.dataDateIso);
@@ -1047,7 +1047,7 @@ function renderScheduleAnalyticsVisual(data){
   const varianceBand=planningStatusBand([
     ["Late",variance.lateActivities||0,"danger"],["On time",variance.onTimeActivities||0,"success"],["Early",variance.earlyActivities||0,"accent"],["Unknown",variance.unknownActivities||0,"neutral"]
   ]);
-  return '<section class="planning-view programme-review">'+kpis+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Programme health</h4><p>Float, progress and logic quality across the current programme.</p></div></div><div class="planning-panel-body">'+pressure+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Logic checks</h4><p>Issues that reduce confidence in schedule sequencing.</p></div></div><div class="planning-panel-body">'+integrity+'</div></section></div><div class="planning-primary-grid"><section class="planning-panel"><div class="planning-panel-head"><div><h4>Completion dates</h4><p>The different completion dates are kept separate so forecast is not confused with actual completion.</p></div></div><div class="planning-panel-body">'+completion+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Finish variance</h4><p>Activities finishing later, on time or earlier than their comparison date.</p></div></div><div class="planning-panel-body">'+varianceBand+'<div class="coverage-line"><span>Variance coverage</span><b>'+escapeHtml(variance.coveragePercent===null||variance.coveragePercent===undefined?"—":fmt(variance.coveragePercent)+"%")+'</b></div></div></section></div></section>';
+  return '<section class="planning-view programme-review">'+kpis+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Programme health</h4><p>Float, progress and logic quality across the current programme.</p></div></div><div class="planning-panel-body">'+pressure+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Logic checks</h4><p>Issues that reduce confidence in schedule sequencing.</p></div></div><div class="planning-panel-body">'+integrity+'</div></section></div><div class="planning-primary-grid"><section class="planning-panel"><div class="planning-panel-head"><div><h4>Finish dates</h4><p>Baseline, current forecast and actual finish dates are kept separate so one is not mistaken for another.</p></div></div><div class="planning-panel-body">'+completion+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Finish variance</h4><p>Activities finishing later, on time or earlier than their comparison date.</p></div></div><div class="planning-panel-body">'+varianceBand+'<div class="coverage-line"><span>Variance coverage</span><b>'+escapeHtml(variance.coveragePercent===null||variance.coveragePercent===undefined?"—":fmt(variance.coveragePercent)+"%")+'</b></div></div></section></div></section>';
 }
 function renderActivityAnalyticsVisual(data){
   const p=projectionFor(data,"activity_analytics");
@@ -1131,12 +1131,12 @@ function renderRevisionTrendVisual(data){
     ["Latest critical",latest.criticalCount,"activities","danger"],
     ["Latest near-critical",latest.nearCriticalCount,"activities","warning"],
     ["Latest negative float",latest.negativeFloatCount,"activities","danger"],
-    ["Latest forecast",planningShortDate(latest.forecastCompletionIso),"completion"]
+    ["Latest forecast finish",planningShortDate(latest.forecastCompletionIso),"date"]
   ]);
   const progress=renderLineChart(points,[{key:"durationWeightedProgressPercent",label:"Weighted progress %",color:"#4f7fb4"}],100);
   const completion=planningDateTrend(points,[
-    {key:"programmeCompletionIso",label:"Programme completion",color:"#506579"},
-    {key:"forecastCompletionIso",label:"Forecast completion",color:"#4f7fb4"}
+    {key:"programmeCompletionIso",label:"Programme finish",color:"#506579"},
+    {key:"forecastCompletionIso",label:"Forecast finish",color:"#4f7fb4"}
   ]);
   const pressure=renderLineChart(points,[
     {key:"criticalCount",label:"Critical",color:"#b4483e"},
@@ -1147,13 +1147,13 @@ function renderRevisionTrendVisual(data){
     ["Added",latest.addedVsPrevious||0,"accent"],["Removed",latest.removedVsPrevious||0,"neutral"],["Modified",latest.modifiedVsPrevious||0,"warning"]
   ]);
   const rows=p.points.map(x=>'<tr><td>'+escapeHtml(x.sequence)+'</td><td><b>'+escapeHtml(planningRevisionLabel(x.label)||("Revision "+x.sequence))+'</b><br><span class="muted">'+escapeHtml(planningShortDate(x.dataDateIso))+'</span></td><td>'+escapeHtml(x.durationWeightedProgressPercent===null?"—":fmt(x.durationWeightedProgressPercent)+"%")+'</td><td>'+escapeHtml(x.activityCount)+'</td><td>'+escapeHtml(x.criticalCount)+'</td><td>'+escapeHtml(x.nearCriticalCount)+'</td><td>'+escapeHtml(x.negativeFloatCount)+'</td><td>'+escapeHtml(planningShortDate(x.forecastCompletionIso))+'</td><td>'+escapeHtml(fmt((x.addedVsPrevious||0)+(x.removedVsPrevious||0)+(x.modifiedVsPrevious||0)))+'</td></tr>').join("");
-  return '<section class="planning-view revision-view">'+kpis+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Completion movement</h4><p>How the programme and forecast completion dates have moved across revisions.</p></div></div><div class="planning-panel-body">'+completion+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Progress evolution</h4><p>Weighted schedule progress by revision.</p></div></div><div class="planning-panel-body">'+progress+'</div></section></div><div class="planning-primary-grid"><section class="planning-panel"><div class="planning-panel-head"><div><h4>Schedule pressure trend</h4><p>Critical, near-critical and negative-float activity counts by revision.</p></div></div><div class="planning-panel-body">'+pressure+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Latest revision change volume</h4><p>Activity additions, removals and modifications in the latest revision.</p></div></div><div class="planning-panel-body">'+changeBars+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Revision history</h4><p>Controlled programme revisions in chronological order.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Seq</th><th>Revision</th><th>Progress</th><th>Activities</th><th>Critical</th><th>Near-critical</th><th>Negative float</th><th>Forecast completion</th><th>Change volume</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></section></section>';
+  return '<section class="planning-view revision-view">'+kpis+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Finish-date movement</h4><p>How the programme and forecast finish dates have moved across revisions.</p></div></div><div class="planning-panel-body">'+completion+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Progress evolution</h4><p>Weighted schedule progress by revision.</p></div></div><div class="planning-panel-body">'+progress+'</div></section></div><div class="planning-primary-grid"><section class="planning-panel"><div class="planning-panel-head"><div><h4>Schedule pressure trend</h4><p>Critical, near-critical and negative-float activity counts by revision.</p></div></div><div class="planning-panel-body">'+pressure+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Latest revision change volume</h4><p>Activity additions, removals and modifications in the latest revision.</p></div></div><div class="planning-panel-body">'+changeBars+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Revision history</h4><p>Controlled programme revisions in chronological order.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Seq</th><th>Revision</th><th>Progress</th><th>Activities</th><th>Critical</th><th>Near-critical</th><th>Negative float</th><th>Forecast finish</th><th>Change volume</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></section></section>';
 }
 function renderVarianceTrendVisual(data){
   const p=projectionFor(data,"variance_trends");
   if(!Array.isArray(p.points))return"";
   const rows=p.points.map(x=>'<tr><td>'+escapeHtml(x.sequence)+'</td><td>'+escapeHtml(x.revisionId)+'</td><td>'+escapeHtml(x.dataDateIso||"—")+'</td><td>'+escapeHtml(fmt(x.averageFinishVarianceDays))+'</td><td>'+escapeHtml(fmt(x.maximumDelayDays))+'</td><td>'+escapeHtml(x.lateActivityCount)+'</td><td>'+escapeHtml(x.earlyActivityCount)+'</td><td>'+escapeHtml(x.onTimeActivityCount)+'</td><td>'+escapeHtml(x.negativeFloatCount)+'</td><td>'+escapeHtml(x.criticalCount)+'</td><td>'+escapeHtml(fmt(x.projectCompletionVarianceDays))+'</td></tr>').join("");
-  return visualSection("Variance Trend","Finish variance and project completion movement by revision, with comparable-population coverage retained.",p.revisionCount+" revisions",'<div class="table-wrap"><table><thead><tr><th>Seq</th><th>Revision</th><th>Data date</th><th>Avg finish variance d</th><th>Max delay d</th><th>Late</th><th>Early</th><th>On time</th><th>Neg. float</th><th>Critical</th><th>Completion variance d</th></tr></thead><tbody>'+rows+'</tbody></table></div>');
+  return visualSection("Variance Trend","Finish variance and project finish-date movement by revision, with comparable-population coverage retained.",p.revisionCount+" revisions",'<div class="table-wrap"><table><thead><tr><th>Seq</th><th>Revision</th><th>Data date</th><th>Avg finish variance d</th><th>Max delay d</th><th>Late</th><th>Early</th><th>On time</th><th>Neg. float</th><th>Critical</th><th>Project finish variance d</th></tr></thead><tbody>'+rows+'</tbody></table></div>');
 }
 function renderProgressBreakdownVisual(data){
   const p=projectionFor(data,"progress_breakdown");
