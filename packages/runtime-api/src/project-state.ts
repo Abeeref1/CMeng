@@ -2085,6 +2085,7 @@ export class RuntimeProjectStore {
     ]);
     const productivityMetrics = new Set([
       "source_productivity_forecast_completion",
+      "completion_date",
       "schedule_control_data_date",
     ]);
     const diagnostics: string[] = [];
@@ -2370,7 +2371,11 @@ export class RuntimeProjectStore {
           !extracted.some(
             (assertion) =>
               assertion.metric ===
-              "source_productivity_forecast_completion",
+                "source_productivity_forecast_completion" ||
+              (
+                assertion.metric === "completion_date" &&
+                /productivity/i.test(assertion.sourceText ?? "")
+              ),
           )
         ) {
           const fullDocument =
@@ -2410,7 +2415,11 @@ export class RuntimeProjectStore {
           !productivityAssertions.some(
             (assertion) =>
               assertion.metric ===
-              "source_productivity_forecast_completion",
+                "source_productivity_forecast_completion" ||
+              (
+                assertion.metric === "completion_date" &&
+                /productivity/i.test(assertion.sourceText ?? "")
+              ),
           )
         ) {
           continue;
