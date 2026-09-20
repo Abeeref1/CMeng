@@ -5469,20 +5469,104 @@ function buildSpecialistModuleFast(
         const hasCausalEvents =
           analyticalDelayModel
             .events.length > 0;
-        const contractReady =
+        const contractBasis =
           state.controls
-            .contractTimeBasis !==
-          null;
+            .contractTimeBasis;
+        const contractReady =
+          contractBasis !==
+            null &&
+          contractBasis
+            .contractualCompletionIso !==
+            null &&
+          contractBasis
+            .contractualCompletionState !==
+            "missing" &&
+          contractBasis
+            .eotDayBasis !==
+            "unknown" &&
+          contractBasis
+            .eotDayBasisState !==
+            "missing";
+        const eligibleCausalEvents =
+          eot.windowCandidates.some(
+            (window) =>
+              window
+                .eligibleEventIds
+                .length > 0,
+          );
+        const analyticalSupport =
+          contractReady &&
+          hasCausalEvents &&
+          eligibleCausalEvents;
+
+        const governedEot =
+          analyticalSupport
+            ? eot
+            : {
+                ...eot,
+                analyticalTimeImpactCandidateDays:
+                  null,
+                attributableCandidateEotDays:
+                  null,
+                candidateAdditionalEotDays:
+                  null,
+                scenarioAdjustedCompletionIso:
+                  null,
+                timeImpactScenarioAdjustedCompletionIso:
+                  null,
+                includedWindowCount:
+                  0,
+                reviewWindowCount:
+                  eot.windowCandidates
+                    .length,
+                windowCandidates:
+                  eot.windowCandidates.map(
+                    (window) => ({
+                      ...window,
+                      analyticalTimeImpactCandidateDays:
+                        null,
+                      includedCandidateDays:
+                        0,
+                      state:
+                        "review" as const,
+                      reasons: [
+                        ...new Set([
+                          ...window.reasons,
+                          ...(!contractReady
+                            ? [
+                                "CONTRACT_TIME_BASIS_NOT_ESTABLISHED",
+                              ]
+                            : []),
+                          ...(!hasCausalEvents
+                            ? [
+                                "CAUSAL_DELAY_EVENT_BASIS_NOT_ESTABLISHED",
+                              ]
+                            : []),
+                          ...(hasCausalEvents &&
+                          !eligibleCausalEvents
+                            ? [
+                                "NO_EOT_ELIGIBLE_CAUSAL_EVENT_ESTABLISHED",
+                              ]
+                            : []),
+                        ]),
+                      ],
+                    }),
+                  ),
+              };
 
         result = available(
           key,
           {
-            ...eot,
+            ...governedEot,
             contractorEotEvidenceSubmitted:
               delayModel !==
               null,
             causalEventEvidenceEstablished:
               hasCausalEvents,
+            eligibleCausalEventEvidenceEstablished:
+              eligibleCausalEvents,
+            contractTimeBasisEstablished:
+              contractReady,
             revisionLabels:
               context.revisionLabels,
           },
@@ -5491,15 +5575,16 @@ function buildSpecialistModuleFast(
             "schedule windows",
             "causal delay events",
           ],
-          contractReady &&
-          hasCausalEvents
+          analyticalSupport
             ? "ready"
             : "partial",
           !contractReady
-            ? "Observed programme movement is shown separately, but a contractual EOT position cannot be calculated without a governed contract time basis."
+            ? "Observed programme movement is shown separately, but a contractual EOT position cannot be calculated without an established contract finish and EOT day basis."
             : !hasCausalEvents
               ? "Observed programme movement is shown separately, but no EOT time-impact candidate is stated because causal delay events are not established."
-              : null,
+              : !eligibleCausalEvents
+                ? "Delay events exist, but no EOT-eligible employer/neutral causal event is established for the observed movement."
+                : null,
         );
       }
     }
