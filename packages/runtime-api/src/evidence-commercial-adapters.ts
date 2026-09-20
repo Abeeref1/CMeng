@@ -110,7 +110,7 @@ function taxBasis(raw: string): TaxBasis {
   return "unknown";
 }
 
-function state(raw: string): CanonicalValueState {
+function valueState(raw: string): CanonicalValueState {
   const value = norm(raw);
   if (value.includes("official")) return "official";
   if (value.includes("approved")) return "approved";
@@ -287,14 +287,14 @@ function deriveCostEvm(
     const parsed = numeric(raw);
     const unit = cell(row, unitIndex);
     const key = costMetricKey(metric);
-    const rowState = state(cell(row, statusIndex));
+    const rowState = valueState(cell(row, statusIndex));
     const rowAsOf = iso(cell(row, asOfIndex));
     const vat = cell(row, vatIndex);
     const ref = sourceRef(document, rowIndex + 1);
     states.push(rowState);
     snapshot.sourceRefs.push(ref);
     snapshot.sourceReportedMetrics[metric] =
-      parsed ?? raw || null;
+      parsed ?? (raw || null);
     if (rowAsOf) snapshot.asOfIso = rowAsOf;
     if (vat) snapshot.vatBasis = vat;
     const currency = currencyFromUnit(unit);
@@ -552,7 +552,7 @@ function deriveVariations(
         stateValue:
           approved
             ? "approved"
-            : state(status),
+            : valueState(status),
         authorityValue:
           approved
             ? "approved_amendment"
