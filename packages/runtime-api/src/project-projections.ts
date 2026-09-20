@@ -382,6 +382,28 @@ function buildBundle(
         ],
       ),
     );
+  const controlledBaselineFinish =
+    (
+      activity:
+        ProjectRuntimeState["schedules"][number]["revision"]["model"]["activities"][number],
+    ): string | null =>
+      activity.baselineFinishIso ??
+      activity.forecastFinishIso ??
+      activity.currentFinishIso ??
+      activity.actualFinishIso;
+  const currentEffectiveFinish =
+    (
+      activity:
+        ProjectRuntimeState["schedules"][number]["revision"]["model"]["activities"][number],
+    ): string | null =>
+      (
+        activity.status ===
+          "completed"
+          ? activity.actualFinishIso
+          : null
+      ) ??
+      activity.forecastFinishIso ??
+      activity.currentFinishIso;
   const controlledBaselineCompletionCandidates =
     (
       controlledBaseline
@@ -423,28 +445,6 @@ function buildBundle(
     controlledBaselineCompletionCandidates
       .at(-1) ??
     null;
-  const controlledBaselineFinish =
-    (
-      activity:
-        ProjectRuntimeState["schedules"][number]["revision"]["model"]["activities"][number],
-    ): string | null =>
-      activity.baselineFinishIso ??
-      activity.forecastFinishIso ??
-      activity.currentFinishIso ??
-      activity.actualFinishIso;
-  const currentEffectiveFinish =
-    (
-      activity:
-        ProjectRuntimeState["schedules"][number]["revision"]["model"]["activities"][number],
-    ): string | null =>
-      (
-        activity.status ===
-          "completed"
-          ? activity.actualFinishIso
-          : null
-      ) ??
-      activity.forecastFinishIso ??
-      activity.currentFinishIso;
   const varianceDays = (
     baselineIso: string | null,
     currentIso: string | null,
