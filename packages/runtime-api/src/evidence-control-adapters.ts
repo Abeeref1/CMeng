@@ -8,8 +8,11 @@ import type {
   ContractTimeBasis,
 } from "../../eot-assessment/src";
 import type {
+  BondRecord,
+  ClaimCommercialRecord,
   InvoiceRecord,
   NcrRecord,
+  RetentionRecord,
   RfiRecord,
   VariationRecord,
 } from "../../project-director/src";
@@ -251,6 +254,50 @@ function variationState(
   return "pending";
 }
 
+function bondKind(
+  raw: string,
+): BondRecord["kind"] {
+  const value = norm(raw);
+  if (
+    value.includes("performance")
+  ) return "performance";
+  if (
+    value.includes("advance")
+  ) return "advance_payment";
+  if (
+    value.includes("retention")
+  ) return "retention";
+  return "other";
+}
+
+function bondStatus(
+  raw: string,
+): BondRecord["status"] {
+  const value = norm(raw);
+  if (
+    value.includes("released") ||
+    value.includes("discharged") ||
+    value.includes("cancelled") ||
+    value.includes("canceled")
+  ) return "released";
+  if (
+    value.includes("expired")
+  ) return "expired";
+  return "active";
+}
+
+function retentionState(
+  raw: string,
+): RetentionRecord["state"] {
+  const value = norm(raw);
+  return (
+    value.includes("released") ||
+    value.includes("paid")
+  )
+    ? "released"
+    : "held";
+}
+
 function claimState(
   raw: string,
 ): CanonicalClaimRecord["state"] {
@@ -415,24 +462,47 @@ export function deriveControlsFromCsv(
         headers,
         [
           "variation id",
+          "variation no",
+          "variation number",
           "vo id",
+          "vo no",
+          "change id",
+          "change order",
         ],
       );
-    const amountIndex =
-      headers.findIndex(
-        (header) =>
-          norm(header).includes(
-            "approved amount",
-          ),
+    const approvedAmountIndex =
+      indexOf(
+        headers,
+        [
+          "approved amount",
+          "agreed amount",
+          "determined amount",
+        ],
+      );
+    const submittedAmountIndex =
+      indexOf(
+        headers,
+        [
+          "submitted amount",
+          "claimed amount",
+          "proposed amount",
+          "estimated amount",
+          "current amount",
+          "variation amount",
+          "vo amount",
+        ],
       );
     const statusIndex =
       indexOf(
         headers,
-        ["status"],
+        ["status", "variation status"],
       );
     if (
       idIndex < 0 ||
-      amountIndex < 0 ||
+      (
+        approvedAmountIndex < 0 &&
+        submittedAmountIndex < 0
+      ) ||
       !sourceCurrency
     ) {
       return {};
@@ -454,29 +524,45 @@ export function deriveControlsFromCsv(
           row,
           idIndex,
         );
-      const amount =
+      if (!variationId) continue;
+
+      const state =
+        variationState(
+          value(
+            row,
+            statusIndex,
+          ),
+        );
+      const approvedAmount =
         numeric(
           value(
             row,
-            amountIndex,
+            approvedAmountIndex,
           ),
         );
-      if (
-        !variationId ||
-        amount === null
-      ) continue;
+      const submittedAmount =
+        numeric(
+          value(
+            row,
+            submittedAmountIndex,
+          ),
+        );
+      const amount =
+        state === "approved"
+          ? approvedAmount ??
+            submittedAmount
+          : submittedAmount ??
+            approvedAmount;
+      if (amount === null) {
+        continue;
+      }
+
       variations.push({
         variationId,
         amount,
         currency:
           sourceCurrency,
-        state:
-          variationState(
-            value(
-              row,
-              statusIndex,
-            ),
-          ),
+        state,
         sourceRefs: [
           evidenceRef(
             input.document,
@@ -501,6 +587,10 @@ export function deriveControlsFromCsv(
         [
           "certificate no",
           "certificate number",
+          "certificate id",
+          "ipc no",
+          "ipc number",
+          "payment certificate",
         ],
       );
     const certifiedIndex =
@@ -509,11 +599,76 @@ export function deriveControlsFromCsv(
         [
           "net certified",
           "certified amount",
+          "net amount certified",
+          "amount certified",
         ],
       );
+    const paidIndex =
+      indexOf(
+        headers,
+        [
+          "paid amount",
+          "amount paid",
+          "payment amount",
+          "actual paid",
+        ],
+      );
+    const certificateDateIndex =
+      indexOf(
+        headers,
+        [
+          "certificate date",
+          "certification date",
+          "ipc date",
+        ],
+      );
+    const paymentDateIndex =
+      indexOf(
+        headers,
+        [
+          "payment date",
+          "paid date",
+          "date paid",
+        ],
+      );
+    const retentionIndex =
+      indexOf(
+        headers,
+        [
+          "retention amount",
+          "retention held",
+          "retention",
+        ],
+      );
+    const advanceRecoveryIndex =
+      indexOf(
+        headers,
+        [
+          "advance recovery",
+          "advance payment recovery",
+          "advance recovered",
+        ],
+      );
+    const advanceBalanceIndex =
+      indexOf(
+        headers,
+        [
+          "advance balance",
+          "advance payment balance",
+          "unamortized advance",
+          "unamortised advance",
+          "outstanding advance",
+        ],
+      );
+
     if (
       idIndex < 0 ||
-      certifiedIndex < 0 ||
+      (
+        certifiedIndex < 0 &&
+        paidIndex < 0 &&
+        retentionIndex < 0 &&
+        advanceBalanceIndex < 0
+      ) ||
       !sourceCurrency
     ) {
       return {};
@@ -521,6 +676,8 @@ export function deriveControlsFromCsv(
 
     const invoices:
       InvoiceRecord[] = [];
+    const retentions:
+      RetentionRecord[] = [];
     for (
       let rowIndex = 1;
       rowIndex <
@@ -536,6 +693,18 @@ export function deriveControlsFromCsv(
           idIndex,
         );
       if (!invoiceId) continue;
+      const sourceRef =
+        evidenceRef(
+          input.document,
+          rowIndex + 1,
+        );
+      const retentionAmount =
+        numeric(
+          value(
+            row,
+            retentionIndex,
+          ),
+        );
       invoices.push({
         invoiceId,
         currency:
@@ -547,7 +716,187 @@ export function deriveControlsFromCsv(
               certifiedIndex,
             ),
           ),
-        paidAmount: null,
+        paidAmount:
+          numeric(
+            value(
+              row,
+              paidIndex,
+            ),
+          ),
+        certificateDateIso:
+          iso(
+            value(
+              row,
+              certificateDateIndex,
+            ),
+          ),
+        paymentDateIso:
+          iso(
+            value(
+              row,
+              paymentDateIndex,
+            ),
+          ),
+        retentionAmount,
+        advanceRecoveryAmount:
+          numeric(
+            value(
+              row,
+              advanceRecoveryIndex,
+            ),
+          ),
+        advanceBalance:
+          numeric(
+            value(
+              row,
+              advanceBalanceIndex,
+            ),
+          ),
+        sourceRefs: [
+          sourceRef,
+        ],
+      });
+
+      if (
+        retentionAmount !== null
+      ) {
+        retentions.push({
+          retentionId:
+            invoiceId +
+            ":retention",
+          amount:
+            retentionAmount,
+          currency:
+            sourceCurrency,
+          state: "held",
+          sourceRefs: [
+            sourceRef,
+          ],
+        });
+      }
+    }
+    return {
+      invoices,
+      retentions,
+    };
+  }
+
+  if (
+    input.document
+      .documentType ===
+      "bond_register" ||
+    input.document
+      .documentType ===
+      "security_register"
+  ) {
+    const idIndex =
+      indexOf(
+        headers,
+        [
+          "bond id",
+          "bond no",
+          "bond number",
+          "guarantee no",
+          "guarantee number",
+          "security id",
+        ],
+      );
+    const kindIndex =
+      indexOf(
+        headers,
+        [
+          "bond type",
+          "guarantee type",
+          "security type",
+          "type",
+        ],
+      );
+    const amountIndex =
+      indexOf(
+        headers,
+        [
+          "bond amount",
+          "guarantee amount",
+          "security amount",
+          "amount",
+        ],
+      );
+    const statusIndex =
+      indexOf(
+        headers,
+        ["status", "bond status"],
+      );
+    const expiryIndex =
+      indexOf(
+        headers,
+        [
+          "expiry date",
+          "expiration date",
+          "valid until",
+        ],
+      );
+
+    if (
+      idIndex < 0 ||
+      amountIndex < 0 ||
+      !sourceCurrency
+    ) {
+      return {};
+    }
+
+    const bonds:
+      BondRecord[] = [];
+    for (
+      let rowIndex = 1;
+      rowIndex <
+      rows.length;
+      rowIndex += 1
+    ) {
+      const row =
+        rows[rowIndex] ??
+        [];
+      const bondId =
+        value(
+          row,
+          idIndex,
+        );
+      const amount =
+        numeric(
+          value(
+            row,
+            amountIndex,
+          ),
+        );
+      if (
+        !bondId ||
+        amount === null
+      ) continue;
+      bonds.push({
+        bondId,
+        amount,
+        currency:
+          sourceCurrency,
+        kind:
+          bondKind(
+            value(
+              row,
+              kindIndex,
+            ),
+          ),
+        status:
+          bondStatus(
+            value(
+              row,
+              statusIndex,
+            ),
+          ),
+        expiryIso:
+          iso(
+            value(
+              row,
+              expiryIndex,
+            ),
+          ),
         sourceRefs: [
           evidenceRef(
             input.document,
@@ -556,9 +905,7 @@ export function deriveControlsFromCsv(
         ],
       });
     }
-    return {
-      invoices,
-    };
+    return { bonds };
   }
 
   if (
