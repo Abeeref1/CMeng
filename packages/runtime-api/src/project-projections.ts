@@ -4838,6 +4838,17 @@ function buildSpecialistModuleFast(
           ...windows,
           movementPresentationBasis:
             "source_forecast_then_schedule_boundary",
+          revisionLabels:
+            Object.fromEntries(
+              ordered.map(
+                (item) => [
+                  item.revision
+                    .revisionId,
+                  item.revision
+                    .label,
+                ],
+              ),
+            ),
         },
         [
           "controlled programme revision history",
