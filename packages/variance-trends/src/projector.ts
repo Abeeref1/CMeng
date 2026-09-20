@@ -75,6 +75,7 @@ export function buildVarianceTrendsProjection(
   input: {
     generatedAt: string;
     producerVersion: string;
+    controlledBaselineRevision?: ScheduleRevision | null;
   },
 ): VarianceTrendsProjection {
   const ordered =
@@ -86,6 +87,48 @@ export function buildVarianceTrendsProjection(
     string,
     ActivityVarianceTrend
   >();
+
+  const baselineRevision =
+    input.controlledBaselineRevision ??
+    null;
+  const baselineByActivity =
+    baselineRevision
+      ? new Map(
+          baselineRevision.model.activities.map(
+            (activity) => [
+              activity.activityId,
+              activity,
+            ],
+          ),
+        )
+      : null;
+  const baselineProjectFinish =
+    baselineRevision
+      ? analyzeSchedule(
+          baselineRevision.model,
+        ).completionBases.find(
+          (item) =>
+            item.basis === "forecast" ||
+            item.basis === "programme",
+        )?.dateIso ?? null
+      : null;
+
+  const controlledVarianceDays = (
+    activity: CanonicalScheduleActivity,
+  ): number | null => {
+    if (!baselineByActivity) {
+      return varianceDays(activity);
+    }
+    const baseline =
+      baselineByActivity.get(
+        activity.activityId,
+      );
+    if (!baseline) return null;
+    return projectVariance(
+      finish(baseline),
+      finish(activity),
+    );
+  };
 
   const points: VarianceTrendPoint[] =
     ordered.map((revision) => {
@@ -117,7 +160,9 @@ export function buildVarianceTrendsProjection(
           revisionId: revision.revisionId,
           sequence: revision.sequence,
           finishVarianceDays:
-            varianceDays(activity),
+            controlledVarianceDays(
+              activity,
+            ),
           totalFloatHours:
             activity.totalFloatHours,
         });
@@ -127,32 +172,96 @@ export function buildVarianceTrendsProjection(
         );
       }
 
+      const controlledValues =
+        revision.model.activities
+          .map(
+            controlledVarianceDays,
+          )
+          .filter(
+            (
+              value,
+            ): value is number =>
+              value !== null,
+          );
+      const comparable =
+        controlledValues.length;
+      const totalActivities =
+        revision.model.activities.length;
+
       return {
         revisionId: revision.revisionId,
         sequence: revision.sequence,
         dataDateIso:
           revision.model.dataDateIso,
         comparableActivities:
-          analytics.finishVariance
-            .comparableActivities,
+          baselineByActivity
+            ? comparable
+            : analytics.finishVariance
+                .comparableActivities,
         finishVarianceCoveragePercent:
-          analytics.finishVariance
-            .coveragePercent,
+          baselineByActivity
+            ? totalActivities > 0
+              ? Number(
+                  (
+                    (
+                      comparable /
+                      totalActivities
+                    ) *
+                    100
+                  ).toFixed(4),
+                )
+              : null
+            : analytics.finishVariance
+                .coveragePercent,
         averageFinishVarianceDays:
-          analytics.finishVariance
-            .averageFinishVarianceDays,
+          baselineByActivity
+            ? comparable > 0
+              ? Number(
+                  (
+                    controlledValues.reduce(
+                      (sum, value) =>
+                        sum + value,
+                      0,
+                    ) /
+                    comparable
+                  ).toFixed(6),
+                )
+              : null
+            : analytics.finishVariance
+                .averageFinishVarianceDays,
         maximumDelayDays:
-          analytics.finishVariance
-            .maximumDelayDays,
+          baselineByActivity
+            ? comparable > 0
+              ? Math.max(
+                  ...controlledValues,
+                )
+              : null
+            : analytics.finishVariance
+                .maximumDelayDays,
         lateActivityCount:
-          analytics.finishVariance
-            .lateActivities,
+          baselineByActivity
+            ? controlledValues.filter(
+                (value) =>
+                  value > 0,
+              ).length
+            : analytics.finishVariance
+                .lateActivities,
         earlyActivityCount:
-          analytics.finishVariance
-            .earlyActivities,
+          baselineByActivity
+            ? controlledValues.filter(
+                (value) =>
+                  value < 0,
+              ).length
+            : analytics.finishVariance
+                .earlyActivities,
         onTimeActivityCount:
-          analytics.finishVariance
-            .onTimeActivities,
+          baselineByActivity
+            ? controlledValues.filter(
+                (value) =>
+                  value === 0,
+              ).length
+            : analytics.finishVariance
+                .onTimeActivities,
         negativeFloatCount:
           analytics.float
             .negativeFloatCount,
@@ -164,10 +273,15 @@ export function buildVarianceTrendsProjection(
         forecastCompletionIso: forecast,
         programmeCompletionIso: programme,
         projectCompletionVarianceDays:
-          projectVariance(
-            programme,
-            forecast,
-          ),
+          baselineProjectFinish !== null
+            ? projectVariance(
+                baselineProjectFinish,
+                forecast,
+              )
+            : projectVariance(
+                programme,
+                forecast,
+              ),
       };
     });
 
