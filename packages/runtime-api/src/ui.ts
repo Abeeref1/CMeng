@@ -1015,7 +1015,11 @@ function renderScheduleAnalyticsVisual(data){
     ["Negative float",r.float.negativeFloatCount,"activities","danger"]
   ]);
   const pressure='<div class="planning-split"><div><h5>Schedule pressure</h5>'+planningStatusBand([
-    ["Critical",r.float.criticalCount,"danger"],["Near-critical",r.float.nearCriticalCount,"warning"],["Positive float",r.float.positiveFloatCount,"accent"],["Float unknown",r.float.unknownFloatCount,"neutral"]
+    ["Negative float",r.float.negativeFloatCount,"danger"],
+    ["Zero float",Math.max(0,r.float.criticalCount-r.float.negativeFloatCount),"danger"],
+    ["Near-critical",r.float.nearCriticalCount,"warning"],
+    ["Other positive",Math.max(0,r.float.positiveFloatCount-r.float.nearCriticalCount),"accent"],
+    ["Float unknown",r.float.unknownFloatCount,"neutral"]
   ])+'<div class="coverage-line"><span>Float coverage</span><b>'+escapeHtml(r.float.coveragePercent===null?"—":fmt(r.float.coveragePercent)+"%")+'</b></div></div><div><h5>Activity status</h5>'+planningStatusBand([
     ["Completed",r.status.completed,"success"],["In progress",r.status.inProgress,"accent"],["Not started",r.status.notStarted,"neutral"],["Unknown",r.status.unknown,"warning"]
   ])+'</div></div>';
