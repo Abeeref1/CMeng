@@ -96,18 +96,26 @@ test('a pending same-role revision does not override an accepted resource source
   const {state,csvDoc}=fixture(t);csvDoc(master);csvDoc(weekly);csvDoc(weekly.replace(',120,',',999,'),'resource_register','candidate');const r=canonicalResources(state);
   assert.equal(r.plannedAverageToDataDate,100);assert.ok(r.diagnostics.some(s=>s.startsWith('CANDIDATE_REVISION_NOT_APPLIED')));
 });
-test('PDF SCH01 is persisted as governed control assertions and legacy PDF assertions can be refreshed from verified bytes',async t=>{
+test('PDF SCH01 full-text refresh finds a governing threshold outside classification sample pages and preserves source bytes',async t=>{
   const {store,state}=fixture(t);
   const pdf=await PDFDocument.create();
   const font=await pdf.embedFont(StandardFonts.Helvetica);
-  const page=pdf.addPage([595,842]);
-  const lines=[
-    'SCHEDULE CONTROL BASIS',
-    'Data Date: 31 August 2026',
-    'Critical activities: TF <= 0',
-    'Near Critical Activities: 0 < TF <= +5 working days',
-  ];
-  lines.forEach((line,index)=>page.drawText(line,{x:50,y:780-index*24,size:12,font}));
+  for(let pageNumber=1;pageNumber<=6;pageNumber++){
+    const page=pdf.addPage([595,842]);
+    const lines=pageNumber===1
+      ? [
+          'SCHEDULE CONTROL BASIS',
+          'Data Date: 31 August 2026',
+          'Programme governance reference',
+        ]
+      : pageNumber===5
+        ? [
+            'Critical activities: TF <= 0',
+            'Near Critical Activities: 0 < TF <= +5 working days',
+          ]
+        : ['Schedule control supporting page '+pageNumber];
+    lines.forEach((line,index)=>page.drawText(line,{x:50,y:780-index*24,size:12,font}));
+  }
   const bytes=await pdf.save();
   const upload=await store.ingestEvidenceFile({
     projectId:'CANONICAL',
@@ -122,24 +130,23 @@ test('PDF SCH01 is persisted as governed control assertions and legacy PDF asser
   const doc=state.evidenceDocuments.find(d=>d.documentId===upload.documentId)!;
   const originalHash=doc.sourceHashSha256;
   assert.equal(doc.basisState,'active');
-  assert.equal(projectScheduleControlBasis(state).nearCriticalWorkingDays,5);
 
-  const controlMetrics=new Set([
-    'near_critical_working_days',
-    'near_critical_threshold_hours',
-    'critical_float_threshold_hours',
-    'schedule_control_data_date',
-  ]);
-  doc.assertions=doc.assertions.filter(a=>!controlMetrics.has(a.metric));
-  state.sourceIntegrationVersion='canonical-source-v3';
-  state.version+=1;
+  // Page 5 is intentionally outside the classifier's 1/2/3/middle/last sample.
+  assert.equal(projectScheduleControlBasis(state).nearCriticalWorkingDays,null);
 
   const refreshed=await store.refreshScheduleControlBasisAssertions();
+  assert.equal(refreshed.basisDocumentCount,1);
+  assert.equal(refreshed.scannedDocumentCount,1);
   assert.equal(refreshed.refreshedDocumentCount,1);
   assert.equal(doc.sourceHashSha256,originalHash);
   assert.ok(doc.diagnostics.includes('SCHEDULE_CONTROL_BASIS_ASSERTION_REFRESH_V4'));
   assert.equal(state.sourceIntegrationVersion,'canonical-source-v4');
   assert.equal(projectScheduleControlBasis(state).nearCriticalWorkingDays,5);
+
+  const again=await store.refreshScheduleControlBasisAssertions();
+  assert.equal(again.refreshedDocumentCount,0);
+  assert.equal(again.scannedDocumentCount,0);
+  assert.equal(doc.sourceHashSha256,originalHash);
 });
 
 test('project near-critical basis comes from SCH01 and uses each activity calendar instead of generic 40h',t=>{
