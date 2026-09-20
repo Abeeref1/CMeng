@@ -4986,18 +4986,52 @@ function buildSpecialistModuleFast(
       const weeklyComparable =
         weeklyCapacity
           .comparableRowCount > 0;
+      const canonicalResourceEstablished =
+        state.resourceSupport !== null &&
+        state.resourceSupport
+          .utilizationApplicableResourceCount > 0 &&
+        weeklyComparable;
       const enriched = {
         ...projection,
         assessedOverloadResourceCount:
-          capacityKnown,
+          canonicalResourceEstablished
+            ? state.resourceSupport!
+                .utilizationApplicableResourceCount
+            : capacityKnown,
         overloadAssessmentState:
-          capacityKnown === 0
-            ? "not_assessable_per_hour"
-            : allCapacityKnown
-              ? "complete"
-              : "partial",
+          canonicalResourceEstablished
+            ? "source_weekly_complete"
+            : capacityKnown === 0
+              ? "not_assessable_per_hour"
+              : allCapacityKnown
+                ? "complete"
+                : "partial",
         weeklyCapacityEvidence:
           weeklyCapacity,
+        canonicalResourceEvidenceState:
+          canonicalResourceEstablished
+            ? "established"
+            : "not_established",
+        sourceUtilizationApplicableResourceCount:
+          state.resourceSupport
+            ?.utilizationApplicableResourceCount ??
+          weeklyCapacity.resourceCount,
+        sourceAveragePlannedUtilizationPercent:
+          state.resourceSupport
+            ?.averagePlannedUtilizationToDataDatePercent ??
+          null,
+        sourceAverageActualUtilizationPercent:
+          state.resourceSupport
+            ?.averageActualUtilizationToDataDatePercent ??
+          null,
+        sourcePlannedOverallocationRowCount:
+          state.resourceSupport
+            ?.plannedOverallocationRowCount ??
+          weeklyCapacity.overloadedRowCount,
+        sourceActualOverallocationRowCount:
+          state.resourceSupport
+            ?.actualOverallocationRowCount ??
+          (weeklyCapacity.actualOverloadedRowCount ?? 0),
       };
       result = available(
         key,
@@ -5006,14 +5040,17 @@ function buildSpecialistModuleFast(
           "resource assignments",
           "resource capacity",
         ],
+        canonicalResourceEstablished ||
         allCapacityKnown
           ? "ready"
           : "partial",
-        capacityKnown === 0
-          ? weeklyComparable
-            ? "Per-hour resource capacity is not established in the schedule resource model. Weekly capacity and demand evidence is shown separately without unsafe unit conversion."
-            : "Resource assignments are available, but no usable capacity rate is established. Overload cannot be assessed and zero must not be inferred."
-          : "Resource utilization is calculated only for resources with established capacity; the remaining resources stay demand-only.",
+        canonicalResourceEstablished
+          ? null
+          : capacityKnown === 0
+            ? weeklyComparable
+              ? "Weekly capacity evidence is available but has not yet formed a complete canonical resource model."
+              : "Resource assignments are available, but no usable capacity rate is established. Overload cannot be assessed and zero must not be inferred."
+            : "Resource utilization is calculated only for resources with established capacity; the remaining resources stay demand-only.",
       );
     } else {
       const projection =
