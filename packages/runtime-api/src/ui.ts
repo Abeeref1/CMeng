@@ -76,7 +76,7 @@ details:not(.workspace-drawer){border:1px solid var(--line);border-radius:9px;ba
 .signed-bars{display:grid;gap:7px}.signed-row{display:grid;grid-template-columns:minmax(130px,.8fr) minmax(220px,1.7fr) 86px;gap:10px;align-items:center}.signed-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10.5px;color:#506579}.signed-track{height:14px;position:relative;background:#f3f6f9;border-radius:4px}.signed-zero{position:absolute;left:50%;top:-2px;bottom:-2px;width:1px;background:#98a2b3}.signed-bar{position:absolute;top:2px;height:10px;border-radius:3px;background:#91a0b0}.signed-bar.late{background:#b4483e}.signed-bar.early{background:#2c7a57}.signed-row>b{text-align:right;font-size:10.5px;color:#475467}.late-text{color:#b42318!important}.early-text{color:#067647!important}.date-trend-note{font-size:10.5px;color:#7b8795;margin-top:5px}
 .lookahead-axis,.lookahead-row{display:grid;grid-template-columns:220px minmax(430px,1fr) 92px;gap:10px;align-items:center}.lookahead-weeks{position:relative;height:20px}.lookahead-weeks span{position:absolute;transform:translateX(-50%);font-size:10.5px;color:#7b8795}.lookahead-timeline{display:grid;gap:6px;max-height:620px;overflow-y:auto;padding-right:4px}.lookahead-label{min-width:0}.lookahead-label b{display:block;font-size:11.5px;color:#344054}.lookahead-label span{display:block;font-size:10.5px;color:#7b8795;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.lookahead-track{position:relative;height:17px;border-radius:4px;background:repeating-linear-gradient(90deg,#f5f7fa 0,#f5f7fa calc(16.666% - 1px),#e4e7ec calc(16.666% - 1px),#e4e7ec 16.666%)}.lookahead-bar{position:absolute;top:3px;height:11px;border-radius:4px;background:#4f7fb4;min-width:3px}.lookahead-bar.ready{background:#2c7a57}.lookahead-bar.conditional{background:#b57922}.lookahead-bar.blocked{background:#b4483e}.lookahead-state{font-size:10.5px;text-transform:uppercase;color:#667085}.lookahead-state.ready{color:#067647}.lookahead-state.conditional{color:#b54708}.lookahead-state.blocked{color:#b42318}
 .readiness-cell{display:inline-grid;place-items:center;width:23px;height:23px;border-radius:6px;font-size:11px;font-weight:900}.readiness-cell.ready{background:#ecfdf3;color:#067647}.readiness-cell.blocked{background:#fef3f2;color:#b42318}.readiness-cell.unknown{background:#fffaeb;color:#b54708}.readiness-cell.not_applicable{background:#f2f4f7;color:#667085}
-.milestone-timeline{display:grid;gap:7px;max-height:680px;overflow-y:auto;padding-right:4px}.milestone-row{display:grid;grid-template-columns:235px minmax(430px,1fr) 70px;gap:10px;align-items:center}.milestone-label{min-width:0}.milestone-label b{display:block;font-size:11.5px;color:#344054}.milestone-label span{display:block;font-size:10.5px;color:#7b8795;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.milestone-track{position:relative;height:22px;background:#f6f8fb;border:1px solid #e5eaf0;border-radius:5px}.milestone-point{position:absolute;top:50%;width:11px;height:11px;border-radius:50%;transform:translate(-50%,-50%);border:2px solid #fff;z-index:2}.milestone-point.baseline{background:#68788b}.milestone-point.current{background:#4f7fb4}.milestone-point.actual{background:#2c7a57}.milestone-shift{position:absolute;top:9px;height:3px;background:#9aa7b5}.milestone-shift.late{background:#b4483e}.milestone-dd{position:absolute;top:-4px;bottom:-4px;width:1px;background:#1f2937;opacity:.35}
+.milestone-timeline{display:grid;gap:8px;max-height:680px;overflow-y:auto;padding-right:4px}.milestone-row{display:grid;grid-template-columns:285px minmax(420px,1fr) 92px;gap:10px;align-items:center;padding:5px 6px;border-radius:8px}.milestone-row.priority-critical{background:#fff7f6}.milestone-row.priority-high{background:#fffbf2}.milestone-label{min-width:0}.milestone-label-line{display:flex;align-items:center;gap:7px;min-width:0}.milestone-label b{font-size:11.5px;color:#344054;white-space:nowrap}.milestone-label>span{display:block;font-size:10.5px;color:#7b8795;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.milestone-label small{display:block;font-size:9.8px;color:#8793a3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.milestone-priority-pill{display:inline-flex!important;align-items:center;width:max-content;padding:2px 6px;border-radius:999px;font-size:8.8px!important;font-weight:850;text-transform:uppercase;letter-spacing:.045em;line-height:1.4}.milestone-priority-pill.critical{background:#fef0ef;color:#b42318}.milestone-priority-pill.high{background:#fff4d8;color:#a15c00}.milestone-priority-pill.watch{background:#edf4fb;color:#3d6897}.milestone-priority-pill.normal{background:#f2f4f7;color:#667085}.milestone-track{position:relative;height:22px;background:#f6f8fb;border:1px solid #e5eaf0;border-radius:5px}.milestone-row.priority-critical .milestone-track{border-color:#efb5b0}.milestone-row.priority-high .milestone-track{border-color:#e6cf9c}.milestone-point{position:absolute;top:50%;width:11px;height:11px;border-radius:50%;transform:translate(-50%,-50%);border:2px solid #fff;z-index:2}.milestone-point.baseline{background:#68788b}.milestone-point.current{background:#4f7fb4}.milestone-point.actual{background:#2c7a57}.milestone-shift{position:absolute;top:9px;height:3px;background:#9aa7b5}.milestone-shift.late{background:#b4483e}.milestone-dd{position:absolute;top:-4px;bottom:-4px;width:1px;background:#1f2937;opacity:.35}.milestone-row-meta{text-align:right;min-width:0}.milestone-row-meta b{display:block;font-size:11px}.milestone-row-meta small{display:block;font-size:9.5px;color:#7b8795;margin-top:2px}.milestone-basis-note{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;padding:10px 12px;border:1px solid #dce5ef;border-radius:9px;background:#f8fbff;margin-bottom:12px;font-size:11px;color:#667085}.milestone-basis-note b{color:#344054}.milestone-priority-board{display:grid;gap:8px}.milestone-priority-row{display:grid;grid-template-columns:78px minmax(205px,1.25fr) 105px 112px 92px 90px minmax(235px,1.35fr);gap:10px;align-items:center;padding:10px 11px;border:1px solid #e2e8f0;border-radius:9px;background:#fff}.milestone-priority-row.critical{border-left:4px solid #b4483e;background:#fff8f7}.milestone-priority-row.high{border-left:4px solid #b57922;background:#fffaf2}.milestone-priority-row.watch{border-left:4px solid #4f7fb4}.milestone-priority-main{min-width:0}.milestone-priority-main b{display:block;font-size:11.5px;color:#344054}.milestone-priority-main span{display:block;font-size:10.5px;color:#667085;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.milestone-priority-main small{display:block;font-size:9.5px;color:#98a2b3;margin-top:2px}.milestone-priority-metric span{display:block;font-size:9px;text-transform:uppercase;letter-spacing:.045em;color:#98a2b3;font-weight:800}.milestone-priority-metric b{display:block;margin-top:2px;font-size:11px;color:#344054}.milestone-priority-action{font-size:10.5px;color:#475467;line-height:1.35}.milestone-flags{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}.milestone-flag{display:inline-flex;padding:2px 5px;border-radius:999px;background:#eef3f8;color:#596b7f;font-size:8.7px;font-weight:750;text-transform:uppercase;letter-spacing:.025em}.milestone-flag.danger{background:#fef0ef;color:#b42318}.milestone-flag.warning{background:#fff4d8;color:#a15c00}.milestone-criticality{font-weight:800}.milestone-criticality.critical{color:#b42318}.milestone-criticality.near_critical{color:#b54708}.milestone-criticality.positive_float{color:#2f6b57}.milestone-criticality.unknown{color:#667085}
 .float-histogram{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;height:230px;align-items:end}.float-bin{height:100%;display:grid;grid-template-rows:1fr auto auto;gap:4px;text-align:center}.float-bar-wrap{display:flex;align-items:flex-end;justify-content:center;border-bottom:1px solid #d0d5dd}.float-bar{width:65%;min-height:2px;background:#b57922;border-radius:5px 5px 0 0}.float-bin b{font-size:11px;color:#344054}.float-bin small{font-size:10.5px;color:#7b8795}
 .empty-visual{padding:28px;text-align:center;color:#7b8795;background:#f8fafc;border:1px dashed #dce5ef;border-radius:9px}.reconciliation-panel{margin-top:14px;border:1px solid #dce5ef;border-radius:12px;background:#fff;overflow:hidden}.reconciliation-panel>summary{list-style:none;display:flex;justify-content:space-between;gap:12px;padding:13px 15px;cursor:pointer;font-size:12px;font-weight:750;color:#344054;background:#fbfdff}.reconciliation-panel>summary::-webkit-details-marker{display:none}.reconciliation-panel>summary b{font-size:10.5px;color:#7b8795}.reconciliation-body{padding:0 0 2px}.reconciliation-body>.challenge-card{border:0!important;border-radius:0!important;margin:0!important;box-shadow:none!important}
 .chart-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid var(--line);background:#faf9f6}.chart-card-head h4{margin:0;font-size:14px}.chart-card-head p{margin:3px 0 0;color:var(--muted);font-size:12px}.chart-body{padding:14px 16px}.svg-chart{width:100%;min-width:620px;height:auto;display:block}.chart-scroll{overflow-x:auto}.chart-legend{display:flex;flex-wrap:wrap;gap:12px;margin:0 0 10px}.legend-item{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:#506579}.legend-dot{width:9px;height:9px;border-radius:50%}.domain-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:11px}.domain-card{border:1px solid var(--line);border-radius:11px;background:#fff;padding:14px}.domain-card h5{margin:0 0 10px;font-size:14px}.domain-metric{display:flex;justify-content:space-between;gap:12px;padding:5px 0;border-bottom:1px solid #edf1f5;font-size:12px;color:#5a687b}.domain-metric:last-child{border-bottom:0}.domain-metric strong{color:#2e3a46;text-align:right}.position-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px}.position-card{border:1px solid #dfe7ef;border-radius:10px;background:#fff;padding:13px}.position-card .position-label{font-size:10.5px;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:.05em}.position-card .position-value{font-size:19px;font-weight:780;margin:5px 0 3px;letter-spacing:-.02em}.position-card .position-sub{font-size:11.5px;color:var(--muted)}.readiness-table td{vertical-align:middle}.state-pill{display:inline-flex;border-radius:999px;padding:4px 7px;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.035em}.state-pill.ready,.state-pill.included{background:#ecfdf3;color:#067647}.state-pill.blocked,.state-pill.excluded{background:#fef3f2;color:#b42318}.state-pill.conditional,.state-pill.review,.state-pill.unknown{background:#fffaeb;color:#b54708}.state-pill.not_applicable{background:#f2f4f7;color:#667085}.window-strip{display:grid;gap:10px}.window-card{display:grid;grid-template-columns:minmax(170px,.55fr) minmax(0,1fr) minmax(180px,.6fr);gap:13px;border:1px solid var(--line);border-radius:10px;padding:13px;background:#fff}.window-id{font-size:13px;font-weight:800}.window-dates{font-size:11.5px;color:var(--muted);margin-top:4px}.movement-value{font-size:22px;font-weight:780;letter-spacing:-.03em}.movement-label{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:750}.event-tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px}.event-tag{font-size:10.5px;border:1px solid #ded8cf;border-radius:999px;padding:3px 6px;background:#fbfdff;color:#506579}.data-section{margin-top:14px;border:1px solid var(--line);border-radius:12px;background:#fff;overflow:hidden}.data-section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid var(--line);background:#fbfdff}.data-section-head h4{margin:0;font-size:14px;letter-spacing:-.01em}.data-section-body{padding:14px 16px}.value-list{display:flex;flex-wrap:wrap;gap:7px}.value-chip{display:inline-flex;padding:6px 9px;border:1px solid #ded8cf;border-radius:8px;background:#fbfdff;font-size:12px;color:#506579}.nested-block{margin-top:12px}.nested-block:first-child{margin-top:0}.nested-title{font-size:12px;font-weight:800;color:#506579;margin:0 0 8px;text-transform:uppercase;letter-spacing:.045em}.cell-details summary{padding:4px 0!important;border:0!important;background:transparent!important}.cell-details pre{max-height:320px}.technical-payload{margin-top:16px}.footer-note{font-size:12px;color:var(--muted);margin-top:22px;padding:0 2px}.muted{color:var(--muted)}
@@ -306,7 +306,7 @@ const descriptions={
 "lookahead-schedule":"The next six weeks, readiness blockers and overdue work.",
 "schedule-change-report":"What changed between the latest controlled programme submissions.",
 "revision-trend":"How progress, forecast finish and schedule pressure have moved over time.",
-"milestones":"Baseline, current and actual milestone commitments and slippage.",
+"milestones":"Critical-path milestones, status, float, due dates, baseline movement and required management action.",
 "near-critical":"Activities at risk of becoming critical and requiring early action.",
 "resource-utilization":"Resource demand, capacity and overload position. Missing capacity is never treated as zero.",
 "progress-report":"Baseline, current schedule, physical, contractor-reported and certified progress kept separate.",
@@ -1061,17 +1061,93 @@ function planningLookAheadTimeline(p){
   }).join("");
   return '<div class="lookahead-axis"><div></div><div class="lookahead-weeks">'+weekMarks.join("")+'</div><div></div></div><div class="lookahead-timeline">'+body+'</div>';
 }
+function planningMilestonePriorityRank(value){
+  return value==="critical"?0:value==="high"?1:value==="watch"?2:3;
+}
+function planningMilestoneCriticalityLabel(row){
+  if(row.criticality==="critical")return row.negativeFloat?"Critical · negative float":"Critical path";
+  if(row.criticality==="near_critical")return "Near-critical";
+  if(row.criticality==="positive_float")return "Positive float";
+  return "Float not established";
+}
+function planningMilestoneDueLabel(row){
+  const labels={
+    completed:"Completed",
+    overdue:"Overdue",
+    due_30_days:"Due ≤30 days",
+    due_90_days:"Due 31–90 days",
+    future:"Future",
+    unknown:"Due date unknown"
+  };
+  return labels[row.dueState]||humanizeKey(row.dueState||"unknown");
+}
+function planningMilestoneFlagLabel(flag){
+  const labels={
+    CRITICAL_PATH:"Critical path",
+    NEGATIVE_FLOAT:"Negative float",
+    NEAR_CRITICAL:"Near-critical",
+    OVERDUE:"Overdue",
+    DUE_WITHIN_30_DAYS:"Due ≤30d",
+    DUE_WITHIN_90_DAYS:"Due ≤90d",
+    LATER_THAN_BASELINE:"Later than baseline",
+    FLOAT_NOT_ESTABLISHED:"Float missing",
+    TERMINAL_CRITICAL_MILESTONE:"Critical finish"
+  };
+  return labels[flag]||humanizeKey(flag);
+}
+function planningMilestoneFlagTone(flag){
+  return ["NEGATIVE_FLOAT","OVERDUE","CRITICAL_PATH","TERMINAL_CRITICAL_MILESTONE"].includes(flag)?"danger":["NEAR_CRITICAL","DUE_WITHIN_30_DAYS","DUE_WITHIN_90_DAYS","LATER_THAN_BASELINE"].includes(flag)?"warning":"";
+}
+function planningMilestonePriorityBoard(p){
+  const candidates=[...(p.rows||[])]
+    .filter(r=>r.status!=="completed")
+    .sort((a,b)=>{
+      const pr=planningMilestonePriorityRank(a.managementPriority)-planningMilestonePriorityRank(b.managementPriority);
+      if(pr!==0)return pr;
+      const ac=a.criticality==="critical"?0:a.criticality==="near_critical"?1:2;
+      const bc=b.criticality==="critical"?0:b.criticality==="near_critical"?1:2;
+      if(ac!==bc)return ac-bc;
+      const ad=typeof a.daysFromDataDate==="number"?a.daysFromDataDate:Number.MAX_SAFE_INTEGER;
+      const bd=typeof b.daysFromDataDate==="number"?b.daysFromDataDate:Number.MAX_SAFE_INTEGER;
+      if(ad!==bd)return ad-bd;
+      return (b.varianceDays||0)-(a.varianceDays||0);
+    })
+    .filter((r,index)=>r.managementPriority!=="normal"||index<10)
+    .slice(0,20);
+  if(!candidates.length)return '<div class="attention-clear"><b>No open milestone currently meets the critical/high/watch criteria.</b></div>';
+  return '<div class="milestone-priority-board">'+candidates.map(r=>{
+    const priority=r.managementPriority||"normal";
+    const flags=(r.managementFlags||[]).slice(0,4);
+    const floatText=r.totalFloatHours===null||r.totalFloatHours===undefined?"—":fmt(r.totalFloatHours)+" h";
+    const variance=r.varianceDays===null||r.varianceDays===undefined?"—":((r.varianceDays>0?"+":"")+fmt(r.varianceDays)+" d");
+    const status=planningStateLabel(r.status);
+    const due=planningMilestoneDueLabel(r);
+    const criticality=planningMilestoneCriticalityLabel(r);
+    const wbs=r.wbsName||r.wbsId||"WBS not identified";
+    return '<div class="milestone-priority-row '+escapeHtml(priority)+'">'+
+      '<span class="milestone-priority-pill '+escapeHtml(priority)+'">'+escapeHtml(priority)+'</span>'+
+      '<div class="milestone-priority-main"><b>'+escapeHtml(r.activityId)+'</b><span>'+escapeHtml(r.name||"")+'</span><small>'+escapeHtml(wbs)+'</small><div class="milestone-flags">'+flags.map(f=>'<span class="milestone-flag '+escapeHtml(planningMilestoneFlagTone(f))+'">'+escapeHtml(planningMilestoneFlagLabel(f))+'</span>').join("")+'</div></div>'+
+      '<div class="milestone-priority-metric"><span>Status</span><b>'+escapeHtml(status)+'</b></div>'+
+      '<div class="milestone-priority-metric"><span>Criticality</span><b class="milestone-criticality '+escapeHtml(r.criticality||"unknown")+'">'+escapeHtml(criticality)+'</b></div>'+
+      '<div class="milestone-priority-metric"><span>Current date</span><b>'+escapeHtml(planningShortDate(r.currentDateIso))+'</b><small>'+escapeHtml(due)+'</small></div>'+
+      '<div class="milestone-priority-metric"><span>Float / slip</span><b>'+escapeHtml(floatText)+'</b><small class="'+((r.varianceDays||0)>0?"late-text":(r.varianceDays||0)<0?"early-text":"")+'">'+escapeHtml(variance)+'</small></div>'+
+      '<div class="milestone-priority-action"><b>Required attention</b><br>'+escapeHtml(r.managementAction||"Monitor against the current programme and controlled baseline.")+'</div>'+
+    '</div>';
+  }).join("")+'</div>';
+}
 function planningMilestoneTimeline(p){
   const all=(p.rows||[]).filter(r=>planningDateMs(r.baselineDateIso)!==null||planningDateMs(r.currentDateIso)!==null||planningDateMs(r.actualDateIso)!==null);
   if(!all.length)return '<div class="empty-visual">No milestone dates are available.</div>';
   const sorted=[...all].sort((a,b)=>{
-    const ar=(a.status!=="completed"&&typeof a.varianceDays==="number"&&a.varianceDays>0)?0:1;
-    const br=(b.status!=="completed"&&typeof b.varianceDays==="number"&&b.varianceDays>0)?0:1;
+    const ao=a.status==="completed"?1:0,bo=b.status==="completed"?1:0;
+    const pr=planningMilestonePriorityRank(a.managementPriority)-planningMilestonePriorityRank(b.managementPriority);
+    const ac=a.criticality==="critical"?0:a.criticality==="near_critical"?1:2;
+    const bc=b.criticality==="critical"?0:b.criticality==="near_critical"?1:2;
     const av=Math.abs(a.varianceDays||0),bv=Math.abs(b.varianceDays||0);
-    const ad=planningDateMs(a.currentDateIso||a.actualDateIso||a.baselineDateIso)||0;
-    const bd=planningDateMs(b.currentDateIso||b.actualDateIso||b.baselineDateIso)||0;
-    return ar-br||bv-av||ad-bd;
-  }).slice(0,24);
+    const ad=planningDateMs(a.currentDateIso||a.actualDateIso||a.baselineDateIso)||Number.MAX_SAFE_INTEGER;
+    const bd=planningDateMs(b.currentDateIso||b.actualDateIso||b.baselineDateIso)||Number.MAX_SAFE_INTEGER;
+    return ao-bo||pr||ac-bc||bv-av||ad-bd;
+  }).slice(0,16);
   const dates=[];
   sorted.forEach(r=>[r.baselineDateIso,r.currentDateIso,r.actualDateIso].forEach(v=>{const m=planningDateMs(v);if(m!==null)dates.push(m)}));
   let min=Math.min(...dates),max=Math.max(...dates);
@@ -1080,15 +1156,19 @@ function planningMilestoneTimeline(p){
   const x=v=>{const m=planningDateMs(v);return m===null?null:Math.max(1,Math.min(99,((m-min)/(max-min))*100));};
   const dd=planningDateMs(p.dataDateIso);
   const ddInRange=dd!==null&&dd>=min&&dd<=max;
-  const ddx=ddInRange?Math.max(1,Math.min(99,((dd-min)/(max-min))*100)):null;
+  const ddx=ddInRange?Math.max(1,Math.min(99,((dd-min)/(max-min))*100):null;
   const body=sorted.map(r=>{
     const b=x(r.baselineDateIso),cur=x(r.currentDateIso),act=x(r.actualDateIso);
     const vals=[b,cur,act].filter(v=>v!==null);
     const line=vals.length>1?'<span class="milestone-shift '+((r.varianceDays||0)>0?"late":"")+'" style="left:'+Math.min(...vals).toFixed(2)+'%;width:'+(Math.max(...vals)-Math.min(...vals)).toFixed(2)+'%"></span>':'';
     const pair='Baseline '+planningShortDate(r.baselineDateIso)+' → Current '+planningShortDate(r.currentDateIso);
-    return '<div class="milestone-row"><div class="milestone-label"><b>'+escapeHtml(r.activityId)+'</b><span>'+escapeHtml(r.name||"")+'</span><small>'+escapeHtml(pair)+'</small></div><div class="milestone-track">'+line+(ddx===null?'':'<span class="milestone-dd" style="left:'+ddx.toFixed(2)+'%" title="Data date '+escapeHtml(planningShortDate(p.dataDateIso))+'"></span>')+(b===null?'':'<span class="milestone-point baseline" style="left:'+b.toFixed(2)+'%" title="Baseline · '+escapeHtml(planningShortDate(r.baselineDateIso))+'"></span>')+(cur===null?'':'<span class="milestone-point current" style="left:'+cur.toFixed(2)+'%" title="Current · '+escapeHtml(planningShortDate(r.currentDateIso))+'"></span>')+(act===null?'':'<span class="milestone-point actual" style="left:'+act.toFixed(2)+'%" title="Actual · '+escapeHtml(planningShortDate(r.actualDateIso))+'"></span>')+'</div><b class="'+((r.varianceDays||0)>0?"late-text":(r.varianceDays||0)<0?"early-text":"")+'">'+escapeHtml(r.varianceDays===null||r.varianceDays===undefined?"—":((r.varianceDays>0?"+":"")+fmt(r.varianceDays)+" d"))+'</b></div>';
+    const context=planningStateLabel(r.status)+' · '+planningMilestoneCriticalityLabel(r)+' · '+planningMilestoneDueLabel(r);
+    const priority=r.managementPriority||"normal";
+    const variance=r.varianceDays===null||r.varianceDays===undefined?"—":((r.varianceDays>0?"+":"")+fmt(r.varianceDays)+" d");
+    const float=r.totalFloatHours===null||r.totalFloatHours===undefined?"Float —":fmt(r.totalFloatHours)+" h float";
+    return '<div class="milestone-row priority-'+escapeHtml(priority)+'"><div class="milestone-label"><div class="milestone-label-line"><b>'+escapeHtml(r.activityId)+'</b><span class="milestone-priority-pill '+escapeHtml(priority)+'">'+escapeHtml(priority)+'</span></div><span>'+escapeHtml(r.name||"")+'</span><small>'+escapeHtml(context)+'</small><small>'+escapeHtml(pair)+'</small></div><div class="milestone-track">'+line+(ddx===null?'':'<span class="milestone-dd" style="left:'+ddx.toFixed(2)+'%" title="Data date '+escapeHtml(planningShortDate(p.dataDateIso))+'"></span>')+(b===null?'':'<span class="milestone-point baseline" style="left:'+b.toFixed(2)+'%" title="Baseline · '+escapeHtml(planningShortDate(r.baselineDateIso))+'"></span>')+(cur===null?'':'<span class="milestone-point current" style="left:'+cur.toFixed(2)+'%" title="Current · '+escapeHtml(planningShortDate(r.currentDateIso))+'"></span>')+(act===null?'':'<span class="milestone-point actual" style="left:'+act.toFixed(2)+'%" title="Actual · '+escapeHtml(planningShortDate(r.actualDateIso))+'"></span>')+'</div><div class="milestone-row-meta"><b class="'+((r.varianceDays||0)>0?"late-text":(r.varianceDays||0)<0?"early-text":"")+'">'+escapeHtml(variance)+'</b><small>'+escapeHtml(float)+'</small></div></div>';
   }).join("");
-  const context='<div class="milestone-context"><span>Data date <b>'+escapeHtml(planningShortDate(p.dataDateIso))+'</b></span><span>Timeline scale uses milestone dates so slippage remains visible.</span></div>';
+  const context='<div class="milestone-context"><span>Data date <b>'+escapeHtml(planningShortDate(p.dataDateIso))+'</b></span><span>Highest management priority first. Timeline still uses milestone dates so baseline movement remains visible.</span></div>';
   return context+'<div class="milestone-key"><span><i class="baseline"></i>Baseline</span><span><i class="current"></i>Current</span><span><i class="actual"></i>Actual</span>'+(ddInRange?'<span><i class="data"></i>Data date</span>':'')+'</div><div class="milestone-timeline">'+body+'</div>';
 }
 function planningFloatHistogram(rows,limitHours){
@@ -1502,32 +1582,78 @@ function renderMilestonesVisual(data){
   const p=projectionFor(data,"milestones");
   if(!Array.isArray(p.rows))return"";
   const dd=planningDateMs(p.dataDateIso);
-  const due30=p.rows.filter(r=>r.status!=="completed"&&planningDateMs(r.currentDateIso)!==null&&dd!==null&&planningDateMs(r.currentDateIso)>=dd&&planningDateMs(r.currentDateIso)<=dd+30*86400000).length;
+  const due30=p.due30Count??p.rows.filter(r=>r.status!=="completed"&&planningDateMs(r.currentDateIso)!==null&&dd!==null&&planningDateMs(r.currentDateIso)>=dd&&planningDateMs(r.currentDateIso)<=dd+30*86400000).length;
   const slippedOpen=p.rows.filter(r=>r.status!=="completed"&&typeof r.varianceDays==="number"&&r.varianceDays>0).length;
+  const criticalCount=p.criticalMilestoneCount??p.rows.filter(r=>r.status!=="completed"&&typeof r.totalFloatHours==="number"&&r.totalFloatHours<=0).length;
+  const nearCriticalCount=p.nearCriticalMilestoneCount??p.rows.filter(r=>r.status!=="completed"&&typeof r.totalFloatHours==="number"&&r.totalFloatHours>0&&r.totalFloatHours<=40).length;
+  const negativeFloatCount=p.negativeFloatMilestoneCount??p.rows.filter(r=>r.status!=="completed"&&typeof r.totalFloatHours==="number"&&r.totalFloatHours<0).length;
   const largest=Math.max(0,...p.rows.map(r=>typeof r.varianceDays==="number"?r.varianceDays:0));
-  const frequency=new Map();
-  p.rows.filter(r=>r.status!=="completed"&&typeof r.varianceDays==="number"&&r.varianceDays>0).forEach(r=>{const key=Number(r.varianceDays.toFixed(2));frequency.set(key,(frequency.get(key)||0)+1)});
-  const common=[...frequency.entries()].sort((a,b)=>b[1]-a[1])[0]||null;
+  const urgentDates=(p.lateOpenCount||0)+due30;
+  const priorityRows=[...p.rows].filter(r=>r.status!=="completed").sort((a,b)=>planningMilestonePriorityRank(a.managementPriority)-planningMilestonePriorityRank(b.managementPriority)||((a.daysFromDataDate??Number.MAX_SAFE_INTEGER)-(b.daysFromDataDate??Number.MAX_SAFE_INTEGER))||((b.varianceDays||0)-(a.varianceDays||0)));
+  const topPriority=priorityRows[0]||null;
   const kpis=planningKpis([
-    ["Milestones",p.milestoneCount,"total"],
-    ["Completed",p.completedCount,"milestones","success"],
-    ["Open",p.openCount,"milestones"],
-    ["Overdue",p.lateOpenCount,"past data date","danger"],
-    ["Later than baseline",slippedOpen,"open milestones","warning"],
-    ["Largest movement",largest?fmt(largest)+" days":"—","vs baseline",largest?"danger":""]
+    ["Open milestones",p.openCount,"of "+fmt(p.milestoneCount)+" total"],
+    ["Critical path",criticalCount,"open milestones · submitted float",criticalCount?"danger":""],
+    ["Negative float",negativeFloatCount,"open milestones",negativeFloatCount?"danger":""],
+    ["Near-critical",nearCriticalCount,"open milestones",nearCriticalCount?"warning":""],
+    ["Urgent dates",urgentDates,(p.lateOpenCount||0)+" overdue · "+due30+" due ≤30d",urgentDates?"warning":""],
+    ["Largest movement",largest?fmt(largest)+" days":"—","vs controlled baseline",largest?"danger":""]
+  ]);
+  const basisState=p.criticalPathState==="source_float_established"
+    ?"Float coverage complete for milestone population"
+    : p.criticalPathState==="source_float_partial"
+      ?"Float coverage is partial; milestones without float are not silently treated as non-critical"
+      :"Critical-path status is not established because milestone float is unavailable";
+  const basis='<div class="milestone-basis-note"><span><b>Critical-path basis:</b> current submitted programme total float. Critical ≤ '+escapeHtml(fmt(p.criticalFloatThresholdHours??0))+' h; near-critical > '+escapeHtml(fmt(p.criticalFloatThresholdHours??0))+' h to '+escapeHtml(fmt(p.nearCriticalFloatThresholdHours??40))+' h.</span><span><b>'+escapeHtml(basisState)+'</b>'+(p.floatCoveragePercent===null||p.floatCoveragePercent===undefined?'':' · '+escapeHtml(fmt(p.floatCoveragePercent))+'% coverage')+'</span></div>';
+  const attention=planningAttention([
+    negativeFloatCount?{title:"Negative-float milestones require immediate recovery",text:"These milestones have already consumed available float on the submitted programme.",value:negativeFloatCount,tone:"danger"}:null,
+    criticalCount?{title:"Critical-path milestones need protection",text:"Any further delay to these open milestones can move programme completion or another critical commitment.",value:criticalCount,tone:"danger"}:null,
+    p.lateOpenCount?{title:"Overdue milestone commitments",text:"Current milestone dates are before the data date and need status/recovery confirmation.",value:p.lateOpenCount,tone:"danger"}:null,
+    due30?{title:"Milestones due within 30 days",text:"Confirm predecessor completion, approvals, access, materials and responsible owner now.",value:due30,tone:"watch"}:null,
+    nearCriticalCount?{title:"Near-critical milestones",text:"These milestones retain limited float and should be protected before they become critical.",value:nearCriticalCount,tone:"watch"}:null,
+    slippedOpen?{title:"Open milestones later than baseline",text:"Current milestone commitments are later than the controlled baseline.",value:slippedOpen,tone:"watch"}:null,
+    topPriority?{title:"Highest-priority milestone",text:topPriority.activityId+" · "+(topPriority.name||"")+" · "+planningShortDate(topPriority.currentDateIso),value:topPriority.managementPriority?humanizeKey(topPriority.managementPriority):undefined,tone:topPriority.managementPriority==="critical"?"danger":"watch"}:null
   ]);
   const timeline=planningMilestoneTimeline(p);
-  const late=[...p.rows].filter(r=>r.status!=="completed"&&typeof r.varianceDays==="number"&&r.varianceDays>0).sort((a,b)=>b.varianceDays-a.varianceDays).slice(0,20);
-  const upcoming=[...p.rows].filter(r=>r.status!=="completed"&&planningDateMs(r.currentDateIso)!==null).sort((a,b)=>planningDateMs(a.currentDateIso)-planningDateMs(b.currentDateIso)).slice(0,20);
-  const rows=[...p.rows].sort((a,b)=>(b.varianceDays||0)-(a.varianceDays||0)).slice(0,250).map(r=>'<tr><td><b>'+escapeHtml(r.activityId)+'</b><br><span class="muted">'+escapeHtml(r.name||"")+'</span></td><td>'+escapeHtml(planningStateLabel(r.status))+'</td><td>'+escapeHtml(planningShortDate(r.baselineDateIso))+'</td><td>'+escapeHtml(planningShortDate(r.currentDateIso))+'</td><td>'+escapeHtml(planningShortDate(r.actualDateIso))+'</td><td class="'+((r.varianceDays||0)>0?"late-text":(r.varianceDays||0)<0?"early-text":"")+'">'+escapeHtml(r.varianceDays===null?"—":((r.varianceDays>0?"+":"")+fmt(r.varianceDays)))+'</td><td>'+escapeHtml(fmt(r.totalFloatHours))+'</td></tr>').join("");
-  const attention=planningAttention([
-    p.lateOpenCount?{title:"Overdue milestones",text:"These open commitments have passed the current data date.",value:p.lateOpenCount,tone:"danger"}:null,
-    common&&common[1]>1?{title:"Repeated milestone movement",text:fmt(common[1])+" open milestones carry the same movement from baseline.",value:(common[0]>0?"+":"")+fmt(common[0])+" days",tone:"watch"}:null,
-    slippedOpen?{title:"Open milestones later than baseline",text:"Current milestone dates are later than the controlled baseline.",value:slippedOpen,tone:"watch"}:null,
-    due30?{title:"Milestones due in the next 30 days",text:"These commitments need near-term management attention.",value:due30,tone:"watch"}:null,
-    upcoming[0]?{title:"Next open milestone",text:(upcoming[0].activityId+" · "+planningShortDate(upcoming[0].currentDateIso)),tone:"watch"}:null
+  const priorityBoard=planningMilestonePriorityBoard(p);
+  const statusBand=planningStatusBand([
+    ["Completed",p.completedCount,"success"],
+    ["Open non-overdue",Math.max(0,p.openCount-(p.lateOpenCount||0)),"accent"],
+    ["Overdue",p.lateOpenCount||0,"danger"]
   ]);
-  return '<section class="planning-view milestone-view">'+kpis+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Milestone movement</h4><p>Showing 24 high-attention milestones. The timeline scale is based on milestone dates, not the project data date, so baseline-to-current movement is visible.</p></div></div><div class="planning-panel-body">'+timeline+'</div></section><div class="planning-primary-grid"><section class="planning-panel"><div class="planning-panel-head"><div><h4>What needs attention</h4><p>Overdue, upcoming and repeated milestone movement.</p></div></div><div class="planning-panel-body">'+attention+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Milestone position</h4><p>Completed, open and overdue commitments.</p></div></div><div class="planning-panel-body">'+planningStatusBand([["Completed",p.completedCount,"success"],["Open",Math.max(0,p.openCount-p.lateOpenCount),"accent"],["Overdue",p.lateOpenCount,"danger"]])+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Milestone detail</h4><p>Largest movement from the controlled baseline first.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Milestone</th><th>Status</th><th>Baseline</th><th>Current</th><th>Actual</th><th>Vs baseline d</th><th>Total float h</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></section></section>';
+  const priorityBand=planningStatusBand([
+    ["Critical",p.criticalPriorityCount??priorityRows.filter(r=>r.managementPriority==="critical").length,"danger"],
+    ["High",p.highPriorityCount??priorityRows.filter(r=>r.managementPriority==="high").length,"warning"],
+    ["Watch",priorityRows.filter(r=>r.managementPriority==="watch").length,"accent"],
+    ["Normal",priorityRows.filter(r=>r.managementPriority==="normal").length,"neutral"]
+  ]);
+  const detail=[...p.rows].sort((a,b)=>{
+    const ac=a.status==="completed"?1:0,bc=b.status==="completed"?1:0;
+    return ac-bc||planningMilestonePriorityRank(a.managementPriority)-planningMilestonePriorityRank(b.managementPriority)||((a.daysFromDataDate??Number.MAX_SAFE_INTEGER)-(b.daysFromDataDate??Number.MAX_SAFE_INTEGER))||((b.varianceDays||0)-(a.varianceDays||0));
+  }).slice(0,500).map(r=>{
+    const priority=r.managementPriority||"normal";
+    const variance=r.varianceDays===null||r.varianceDays===undefined?"—":((r.varianceDays>0?"+":"")+fmt(r.varianceDays));
+    const currentOrActual=r.status==="completed"?(r.actualDateIso||r.currentDateIso):r.currentDateIso;
+    const floatText=r.totalFloatHours===null||r.totalFloatHours===undefined?"—":fmt(r.totalFloatHours);
+    const flags=(r.managementFlags||[]).map(f=>'<span class="milestone-flag '+escapeHtml(planningMilestoneFlagTone(f))+'">'+escapeHtml(planningMilestoneFlagLabel(f))+'</span>').join("");
+    return '<tr>'+
+      '<td><span class="milestone-priority-pill '+escapeHtml(priority)+'">'+escapeHtml(priority)+'</span></td>'+
+      '<td><b>'+escapeHtml(r.activityId)+'</b><br><span class="muted">'+escapeHtml(r.name||"")+'</span><br><span class="muted">'+escapeHtml(r.wbsName||r.wbsId||"")+'</span></td>'+
+      '<td>'+escapeHtml(planningStateLabel(r.status))+'</td>'+
+      '<td><span class="milestone-criticality '+escapeHtml(r.criticality||"unknown")+'">'+escapeHtml(planningMilestoneCriticalityLabel(r))+'</span></td>'+
+      '<td>'+escapeHtml(planningShortDate(r.baselineDateIso))+'</td>'+
+      '<td>'+escapeHtml(planningShortDate(currentOrActual))+'<br><span class="muted">'+escapeHtml(planningMilestoneDueLabel(r))+'</span></td>'+
+      '<td class="'+((r.varianceDays||0)>0?"late-text":(r.varianceDays||0)<0?"early-text":"")+'">'+escapeHtml(variance)+'</td>'+
+      '<td>'+escapeHtml(floatText)+'</td>'+
+      '<td>'+flags+'</td>'+
+      '<td>'+escapeHtml(r.managementAction||"Monitor against the current programme and controlled baseline.")+'</td>'+
+    '</tr>';
+  }).join("");
+  return '<section class="planning-view milestone-view">'+kpis+basis+
+    '<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Critical path & key milestone watchlist</h4><p>Open milestones are ranked by criticality, negative float, date urgency and baseline movement so management sees what requires action first.</p></div></div><div class="planning-panel-body">'+priorityBoard+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Management alerts</h4><p>Exceptions requiring intervention or protection.</p></div></div><div class="planning-panel-body">'+attention+'</div></section></div>'+
+    '<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Priority milestone movement</h4><p>Highest-priority milestones first. Baseline, current and actual dates remain visible together.</p></div></div><div class="planning-panel-body">'+timeline+'</div></section>'+
+    '<div class="planning-primary-grid"><section class="planning-panel"><div class="planning-panel-head"><div><h4>Milestone status</h4><p>Completed, open and overdue commitments.</p></div></div><div class="planning-panel-body">'+statusBand+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Management priority</h4><p>Open milestones grouped by required level of attention.</p></div></div><div class="planning-panel-body">'+priorityBand+'</div></section></div>'+
+    '<section class="planning-panel"><div class="planning-panel-head"><div><h4>Milestone control register</h4><p>Criticality, status, due position, baseline movement, float, flags and required management action for each milestone.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Priority</th><th>Milestone / WBS</th><th>Status</th><th>Criticality</th><th>Baseline</th><th>Current / actual</th><th>Vs baseline d</th><th>Total float h</th><th>Flags</th><th>Required attention</th></tr></thead><tbody>'+detail+'</tbody></table></div></div></section></section>';
 }
 function renderNearCriticalVisual(data){
   const p=projectionFor(data,"near_critical");
