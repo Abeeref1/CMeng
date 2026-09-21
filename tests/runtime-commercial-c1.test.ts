@@ -5,6 +5,12 @@ import type { AddressInfo } from "node:net";
 import {
   createCmengServer,
 } from "../packages/runtime-api/src/server";
+import {
+  buildCommercialControlPosition,
+} from "../packages/commercial-control/src";
+import type {
+  DelayClaimsModel,
+} from "../packages/delay-analysis-core/src";
 
 async function withServer(
   fn: (base: string) => Promise<void>,
@@ -512,5 +518,263 @@ test("C1 exposes real Commercial routes, evidence-driven status and portfolio in
         22,
       );
     },
+  );
+});
+
+
+test("C1 Commercial claims and notices reuse governed lifecycle, notice timeliness and fail partial money coverage closed", () => {
+  const ref = (
+    sourceId: string,
+  ) => ({
+    sourceType:
+      "claim" as const,
+    sourceId,
+    locator: null,
+  });
+  const delayClaims:
+    DelayClaimsModel = {
+    projectId: "CLAIMS-UAT",
+    evidenceRevisionId:
+      "CLAIMS-R1",
+    events: [
+      {
+        eventId: "EV-1",
+        title:
+          "Late access to work area",
+        category: "late_access",
+        startIso:
+          "2026-08-01",
+        endIso: null,
+        responsibility:
+          "employer",
+        responsibilityState:
+          "official",
+        describedImpactDays:
+          5,
+        describedImpactState:
+          "candidate",
+        relatedActivityIds: [],
+        relatedClauseIdentifiers: [
+          "2.1",
+        ],
+        evidenceRefs: [
+          ref("EV-1"),
+        ],
+        diagnostics: [],
+      },
+    ],
+    notices: [
+      {
+        noticeId: "N-1",
+        kind: "claim_notice",
+        eventId: "EV-1",
+        claimId: "CLM-1",
+        actualIssuedAt:
+          "2026-08-10",
+        actualReceivedAt:
+          "2026-08-10",
+        plannedAt: null,
+        subject:
+          "Late access notice",
+        clauseIdentifiers: [
+          "20.1",
+        ],
+        evidenceRefs: [
+          {
+            sourceType:
+              "notice",
+            sourceId: "N-1",
+            locator: null,
+          },
+        ],
+        diagnostics: [],
+      },
+    ],
+    claims: [
+      {
+        claimId: "CLM-1",
+        title:
+          "Late access claim",
+        state: "submitted",
+        eventIds: ["EV-1"],
+        submittedAt:
+          "2026-08-15",
+        claimedDays: 5,
+        claimedAmount:
+          100_000,
+        assessedDays: null,
+        assessedDaysState:
+          "missing",
+        assessedAmount: null,
+        assessedAmountState:
+          "missing",
+        clauseIdentifiers: [
+          "20.1",
+        ],
+        evidenceRefs: [
+          ref("CLM-1"),
+        ],
+        diagnostics: [],
+      },
+      {
+        claimId: "CLM-2",
+        title:
+          "Commercial-only amount pending",
+        state: "under_review",
+        eventIds: ["EV-1"],
+        submittedAt:
+          "2026-08-20",
+        claimedDays: null,
+        claimedAmount: null,
+        assessedDays: null,
+        assessedDaysState:
+          "missing",
+        assessedAmount: null,
+        assessedAmountState:
+          "missing",
+        clauseIdentifiers: [],
+        evidenceRefs: [
+          ref("CLM-2"),
+        ],
+        diagnostics: [],
+      },
+    ],
+    noticeRequirements: [
+      {
+        requirementId:
+          "REQ-20.1",
+        noticeKind:
+          "claim_notice",
+        eventCategories: [
+          "late_access",
+        ],
+        noticePeriodDays: 7,
+        state: "official",
+        clauseIdentifiers: [
+          "20.1",
+        ],
+        evidenceRefs: [
+          {
+            sourceType:
+              "contract",
+            sourceId:
+              "CLAUSE-20.1",
+            locator: null,
+          },
+        ],
+      },
+    ],
+    diagnostics: [],
+  };
+
+  const position =
+    buildCommercialControlPosition({
+      generatedAt:
+        "2026-09-21T18:00:00.000Z",
+      projectId: "CLAIMS-UAT",
+      contractValue: null,
+      variations: [],
+      invoices: [],
+      retentions: [],
+      bonds: [],
+      claimCommercials: [
+        {
+          claimId: "CLM-1",
+          currency: "AED",
+          claimedAmount:
+            100_000,
+          assessedAmount:
+            80_000,
+          sourceRefs: [
+            "claim-money:CLM-1",
+          ],
+        },
+        {
+          claimId: "CLM-2",
+          currency: "AED",
+          claimedAmount: null,
+          assessedAmount: null,
+          sourceRefs: [
+            "claim-money:CLM-2",
+          ],
+        },
+      ],
+      delayClaims,
+      contractTimeBasis: null,
+      commercialEvidenceSubmitted:
+        false,
+      paymentEvidenceSubmitted:
+        false,
+      variationEvidenceSubmitted:
+        false,
+      bondEvidenceSubmitted:
+        false,
+      claimEvidenceSubmitted:
+        true,
+    });
+
+  assert.equal(
+    position.claimsNotices.state,
+    "established",
+  );
+  assert.equal(
+    position.claimsNotices
+      .commercialLifecycleLinkCoveragePercent,
+    100,
+  );
+  assert.equal(
+    position.claimsNotices
+      .claimStateCounts
+      .submitted,
+    1,
+  );
+  assert.equal(
+    position.claimsNotices
+      .claimStateCounts
+      .under_review,
+    1,
+  );
+  assert.equal(
+    position.claimsNotices
+      .noticeTimelinessCounts
+      .late,
+    1,
+  );
+  assert.equal(
+    position.claimsNotices
+      .noticeAssessments[0]
+      ?.requiredNoticeDays,
+    7,
+  );
+
+  const aed =
+    position.currencies.find(
+      (row) =>
+        row.currency === "AED",
+    )!;
+  assert.equal(
+    aed.claimedAmount.value,
+    100_000,
+  );
+  assert.equal(
+    aed.claimedAmount.state,
+    "submitted_unparsed",
+    "known claim money may remain visible but partial amount coverage must not be promoted as established total exposure",
+  );
+  assert.ok(
+    aed.claimedAmount
+      .diagnostics.includes(
+        "CLAIMED_AMOUNT_COVERAGE_PARTIAL_MISSING_AMOUNTS_ARE_NOT_ZERO",
+      ),
+  );
+  assert.equal(
+    aed.assessedClaimAmount
+      .value,
+    80_000,
+  );
+  assert.equal(
+    aed.assessedClaimAmount
+      .state,
+    "submitted_unparsed",
   );
 });
