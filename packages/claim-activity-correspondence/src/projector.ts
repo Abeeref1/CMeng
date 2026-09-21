@@ -401,6 +401,29 @@ function activitySignals(
     });
   }
 
+  const activityNameTokens =
+    tokenSet(activity.name);
+  const nameCoverage =
+    coverageOf(
+      activityNameTokens,
+      narrativeTokens,
+    );
+  if (nameCoverage > 0) {
+    signals.push({
+      key: "name_coverage",
+      score:
+        nameCoverage >= 0.6
+          ? Math.min(
+              0.22,
+              nameCoverage * 0.22,
+            )
+          : 0,
+      detail:
+        "Activity-name token coverage in governed narrative=" +
+        nameCoverage.toFixed(4),
+    });
+  }
+
   const narrativeNouns = new Set(extraction.nouns);
   const nounCoverage = coverageOf(narrativeNouns, activityTokens);
   if (nounCoverage > 0) {
@@ -599,6 +622,11 @@ export function resolveClaimActivityCorrespondence(
   );
   const extraction = extract(input.narrative);
   const index = scheduleIndex(input.schedule);
+  const claimSignalCount =
+    new Set([
+      ...tokens(input.narrative),
+      ...extraction.codes,
+    ]).size;
   const explicit = new Set(input.explicitActivityIds ?? []);
 
   const validExplicit = [...explicit].filter(
@@ -632,6 +660,9 @@ export function resolveClaimActivityCorrespondence(
     return {
       resolverVersion: "claim-activity-correspondence-v1",
       extraction,
+      activityPoolCount: index.indexed.length,
+      claimSignalCount,
+      retrievedCandidateCount: candidates.length,
       preFilterCandidateCount: candidates.length,
       boundedCandidateCount: candidates.length,
       aiStage: "not_required",
@@ -645,11 +676,15 @@ export function resolveClaimActivityCorrespondence(
     };
   }
 
-  const ranked = prefilterIndexedActivities(
+  // Retrieval is scored-OR: any shared Unicode token or code may admit an
+  // activity to the cheap candidate stage. Confidence/ambiguity gates below
+  // are unchanged and continue to fail closed.
+  const retrieved = prefilterIndexedActivities(
     index,
     input.narrative,
     extraction,
-  )
+  );
+  const ranked = retrieved
     .map((indexedActivity) => {
       const scored = activitySignals(
         input.narrative,
@@ -729,18 +764,6 @@ export function resolveClaimActivityCorrespondence(
     top?.signals.some((signal) => signal.key === "exact_activity_name") ?? false;
   const exactNarrativeActivityId =
     top?.signals.some((signal) => signal.key === "explicit_activity_id") ?? false;
-  const hasSpecificLocationSignal =
-    top?.signals.some(
-      (signal) =>
-        signal.key === "location" &&
-        signal.score >= 0.18,
-    ) ?? false;
-  const hasLocationConflict =
-    top?.signals.some(
-      (signal) =>
-        signal.key === "location" &&
-        signal.score < 0,
-    ) ?? false;
   const deterministicStrong =
     top !== null &&
     (
@@ -750,14 +773,6 @@ export function resolveClaimActivityCorrespondence(
         exactName &&
         top.prefilterScore >= 0.82 &&
         (margin ?? 0) >= 0.12
-      )
-    ||
-      (
-        hasSpecificLocationSignal &&
-        !hasLocationConflict &&
-        top.prefilterScore >= 0.58 &&
-        deterministicFamilies >= 4 &&
-        (margin ?? 0) >= 0.18
       )
     ||
       (
@@ -862,6 +877,9 @@ export function resolveClaimActivityCorrespondence(
   return {
     resolverVersion: "claim-activity-correspondence-v1",
     extraction,
+    activityPoolCount: index.indexed.length,
+    claimSignalCount,
+    retrievedCandidateCount: retrieved.length,
     preFilterCandidateCount: ranked.length,
     boundedCandidateCount: bounded.length,
     aiStage: ai.stage,
