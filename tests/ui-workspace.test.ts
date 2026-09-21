@@ -504,6 +504,60 @@ test("CMeng workspace keeps the active module primary and browser script parseab
     /class="planning-kpi-grid"/,
     "Programme & Planning views must use the management KPI hierarchy",
   );
+
+  for (
+    const progressResourceFeature of [
+      "Resource Capacity & Utilization Position",
+      "Utilization position",
+      "Capacity evidence & source coverage",
+      "Full resource detail",
+      "Progress Management Position",
+      "Progress basis comparison",
+      "Progress evidence & authority",
+      "Schedule pressure",
+      "Near-term delivery",
+    ]
+  ) {
+    assert.equal(
+      html.includes(
+        progressResourceFeature,
+      ),
+      true,
+      "Progress / Resources enterprise presentation must expose: " +
+        progressResourceFeature,
+    );
+  }
+  assert.equal(
+    html.includes(
+      'const planMovement=',
+    ),
+    false,
+    "Progress Position must not calculate management plan movement in the browser.",
+  );
+  assert.equal(
+    html.includes(
+      'const progressMovement=',
+    ),
+    false,
+    "Progress Position must not calculate progress variance in the browser.",
+  );
+  assert.match(
+    html,
+    /varianceToBaselinePercentagePoints/,
+    "Progress Position must consume the producer-owned variance-to-baseline contract.",
+  );
+  assert.equal(
+    html.includes(
+      "<h4>Progress bases</h4>",
+    ),
+    false,
+    "Progress Position must not repeat the same five progress bases in a second primary panel.",
+  );
+  assert.match(
+    html,
+    /visual-bar-fill\.teal/,
+    "physical/schedule progress must have an explicit supported chart tone.",
+  );
   assert.match(
     html,
     /class="reconciliation-panel"/,
