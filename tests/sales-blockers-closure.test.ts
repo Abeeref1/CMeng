@@ -486,14 +486,95 @@ test("delay lineage derives exact narrative activity and notice-date window with
   const event = canonical.delayClaims?.events[0]!;
   assert.deepEqual(event.relatedActivityIds, ["A10"]);
   assert.deepEqual(event.relatedWindowReferences, ["R1->R2"]);
+  assert.equal(
+    event.activityCorrespondence?.classification,
+    "accepted_deterministic",
+  );
   assert.ok(
     event.diagnostics.includes(
-      "ACTIVITY_LINK_DERIVED_FROM_EXACT_SCHEDULE_REFERENCE_OR_UNIQUE_ACTIVITY_NAME",
+      "ACTIVITY_CORRESPONDENCE_ACCEPTED:accepted_deterministic",
     ),
   );
   assert.ok(
     event.diagnostics.includes(
       "WINDOW_ASSOCIATION_FROM_VERIFIED_NOTICE_DATE_NOT_CAUSATION",
+    ),
+  );
+});
+
+test("semantic claim activity correspondence is accepted only with a unique high-confidence match and retains provenance", (t) => {
+  const dir = mkdtempSync(join(tmpdir(), "cmeng-semantic-delay-lineage-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+
+  const claim = [
+    "Claim ID,Event,Notice Date,Days Claimed,Status",
+    "CL-SEM-001,Late access stopped Tower A structural concrete frame works at Level 13,2030-01-16,12,Submitted",
+  ].join("\n");
+  const state = stateWithDocuments([
+    storedDocument(
+      dir,
+      "CL01",
+      "CL01_Claims.csv",
+      "risk_claims_procurement",
+      "delay_eot_claims_register",
+      claim,
+    ),
+  ]);
+  state.schedules = [
+    {
+      ...state.schedules[0],
+      revision: revision("R1", 1, 0),
+      role: "baseline",
+    },
+    {
+      ...state.schedules[0],
+      revision: revision("R2", 2, 20),
+      role: "update",
+    },
+  ];
+  state.schedules[1].revision.model.wbs = [
+    {
+      wbsId: "W-A",
+      parentWbsId: null,
+      name: "Tower A Structural",
+      sourceRefs: [],
+    },
+    {
+      wbsId: "W-B",
+      parentWbsId: null,
+      name: "Tower B Structural",
+      sourceRefs: [],
+    },
+  ];
+  state.schedules[1].revision.model.activities = [
+    {
+      ...activity("A10", "CAL10", 48),
+      name: "Tower A concrete frame Level 13",
+      wbsId: "W-A",
+      sourceRefs: [{ source: "xer", locator: "TASK:line:10" }],
+    },
+    {
+      ...activity("A20", "CAL10", 48),
+      name: "Tower B concrete frame Level 13",
+      wbsId: "W-B",
+      sourceRefs: [{ source: "xer", locator: "TASK:line:20" }],
+    },
+  ];
+
+  const canonical = canonicalTimeClaims(state, true);
+  const event = canonical.delayClaims?.events[0]!;
+  assert.equal(
+    event.activityCorrespondence?.classification,
+    "accepted_deterministic",
+  );
+  assert.deepEqual(event.relatedActivityIds, ["A10"]);
+  assert.equal(
+    event.activityCorrespondence?.aiStage,
+    "not_configured",
+  );
+  assert.ok(
+    event.activityCorrespondence?.candidates[0]?.activitySourceRefs.includes(
+      "xer:TASK:line:10",
     ),
   );
 });
