@@ -455,6 +455,110 @@ function variations(
         row.lifecycleStage !==
         "unknown",
     ).length;
+  const lifecycleStageCounts = {
+    instruction:
+      rows.filter(
+        (row) =>
+          row.lifecycleStage ===
+          "instruction",
+      ).length,
+    submitted:
+      rows.filter(
+        (row) =>
+          row.lifecycleStage ===
+          "submitted",
+      ).length,
+    quoted:
+      rows.filter(
+        (row) =>
+          row.lifecycleStage ===
+          "quoted",
+      ).length,
+    assessed:
+      rows.filter(
+        (row) =>
+          row.lifecycleStage ===
+          "assessed",
+      ).length,
+    agreed:
+      rows.filter(
+        (row) =>
+          row.lifecycleStage ===
+          "agreed",
+      ).length,
+    approved:
+      rows.filter(
+        (row) =>
+          row.lifecycleStage ===
+          "approved",
+      ).length,
+    rejected:
+      rows.filter(
+        (row) =>
+          row.lifecycleStage ===
+          "rejected",
+      ).length,
+    unknown:
+      rows.filter(
+        (row) =>
+          row.lifecycleStage ===
+          "unknown",
+      ).length,
+  };
+  const pendingRows =
+    rows.filter(
+      (row) =>
+        ![
+          "approved",
+          "rejected",
+        ].includes(
+          row.lifecycleStage,
+        ),
+    );
+  const pendingAgeBands = {
+    upTo30Days:
+      pendingRows.filter(
+        (row) =>
+          row.ageDays.value !==
+            null &&
+          row.ageDays.value <=
+            30,
+      ).length,
+    days31To60:
+      pendingRows.filter(
+        (row) =>
+          row.ageDays.value !==
+            null &&
+          row.ageDays.value >
+            30 &&
+          row.ageDays.value <=
+            60,
+      ).length,
+    days61To90:
+      pendingRows.filter(
+        (row) =>
+          row.ageDays.value !==
+            null &&
+          row.ageDays.value >
+            60 &&
+          row.ageDays.value <=
+            90,
+      ).length,
+    over90Days:
+      pendingRows.filter(
+        (row) =>
+          row.ageDays.value !==
+            null &&
+          row.ageDays.value >
+            90,
+      ).length,
+    unknown:
+      pendingRows.filter(
+        (row) =>
+          row.ageDays.value ===
+            null,
+      ).length,
+  };
   return {
     capabilityKey:
       "variations",
@@ -501,6 +605,8 @@ function variations(
         lifecycleKnown,
         rows.length,
       ),
+    lifecycleStageCounts,
+    pendingAgeBands,
     scheduleLinkCoveragePercent:
       coverage(
         rows.filter(
