@@ -257,6 +257,7 @@ export interface CorrespondenceNarrativeRefreshReceipt {
   totalPages: number;
   nativePages: number;
   ocrPages: number;
+  ocrFailedPages: number;
   unresolvedAnchorCount: number;
   completedAt: string;
 }
