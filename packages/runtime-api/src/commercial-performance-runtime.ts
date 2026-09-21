@@ -148,6 +148,8 @@ export function commercialPerformanceForState(
               row.amount.state,
             sourceStatus:
               row.sourceStatus,
+            amountBasis:
+              row.amount.amountBasis,
             cbsId:
               row.cbsId,
             wbsId:
