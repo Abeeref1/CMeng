@@ -889,10 +889,25 @@ try {
     cashCurrencies.every(cash => {
       const readiness = cash.sourceReadiness;
       if (!readiness) return false;
-      const payments = sourcePayments.filter(payment => payment.currency === cash.currency);
+      const paymentCertifiedMoney = payment =>
+        payment.amounts?.employerCertifiedAmount?.value !== null &&
+        payment.amounts?.employerCertifiedAmount?.value !== undefined
+          ? payment.amounts.employerCertifiedAmount
+          : payment.amounts?.netCertifiedAmount;
+      const paymentCurrency = payment =>
+        paymentCertifiedMoney(payment)?.currency ??
+        payment.amounts?.paidAmount?.currency ??
+        null;
+      const payments = sourcePayments.filter(payment => paymentCurrency(payment) === cash.currency);
       const costRows = sourceCostRows.filter(row => row.amount?.currency === cash.currency);
-      const certifiedRows = payments.filter(payment => payment.certifiedAmount !== null && payment.certifiedAmount !== undefined);
-      const paidRows = payments.filter(payment => payment.paidAmount !== null && payment.paidAmount !== undefined);
+      const certifiedRows = payments.filter(payment => {
+        const amount = paymentCertifiedMoney(payment);
+        return amount?.value !== null && amount?.value !== undefined;
+      });
+      const paidRows = payments.filter(payment =>
+        payment.amounts?.paidAmount?.value !== null &&
+        payment.amounts?.paidAmount?.value !== undefined
+      );
       const certifiedDated = certifiedRows.filter(payment => Boolean(payment.certificationDate ?? payment.periodEnd));
       const paidDated = paidRows.filter(payment => Boolean(payment.paymentDate));
       const budgetRows = cashAliasRows(costRows, ['expenditure budget','cash expenditure budget','cash budget']);
