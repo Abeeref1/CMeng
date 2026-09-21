@@ -6,13 +6,34 @@ export interface CommercialMoney {
   value: number | null; currency: string | null; taxBasis: 'exclusive' | 'inclusive' | 'unknown';
   amountBasis: string; state: FactState; asOf: string | null; receipts: SourceReceipt[];
 }
-export interface CostMetricRecord { metric: string; amount: CommercialMoney; sourceStatus: string; cbsId: string | null; wbsId: string | null; counterparty: string | null }
+export interface CostMetricRecord {
+  metric: string;
+  amount: CommercialMoney;
+  sourceStatus: string;
+  cbsId: string | null;
+  cbsDescription: string | null;
+  parentCbsId: string | null;
+  wbsId: string | null;
+  counterparty: string | null;
+  boqItemId: string | null;
+  paymentId: string | null;
+}
 export interface PaymentStageRecord {
   paymentId: string; periodEnd: string | null; sourceStatus: string;
   amounts: Record<'applicationAmount'|'engineerAssessedAmount'|'employerCertifiedAmount'|'grossWork'|'variations'|'retentionDeduction'|'advanceRecovery'|'otherDeduction'|'taxAmount'|'netCertifiedAmount'|'paidAmount'|'outstandingAmount',CommercialMoney>;
   receipt: SourceReceipt; reconciliation: 'matched'|'conflicted'|'unresolved';
   diagnostics: string[]; calculatedOutstandingAmount: CommercialMoney;
-  paymentDate: string | null; paymentReference: string | null;
+  paymentType: string | null;
+  applicationDate: string | null;
+  assessmentDate: string | null;
+  certificationDate: string | null;
+  certificationDueDate: string | null;
+  paymentDueDate: string | null;
+  paymentDate: string | null;
+  paymentTimestamp: string | null;
+  retentionReleaseDate: string | null;
+  finalReceiptDate: string | null;
+  paymentReference: string | null;
 }
 export interface CommercialVariation { variationId:string; description:string; approvalDate:string|null; status:string; authority:string|null; approvedAmount:CommercialMoney; receipt:SourceReceipt }
 export interface CanonicalCommercialModel {
@@ -45,14 +66,41 @@ export function commercialCanonical(state:ProjectRuntimeState):CanonicalCommerci
  for(const t of tables){
   if(has(t,'metric','value','unit','as of'))for(const r of t.rows){
    const unit=cell(r,'unit');if(!/^[A-Z]{3}$/.test(unit))continue;
-   costMetrics.push({metric:cell(r,'metric'),amount:money(r,cell(r,'value'),cell(r,'metric'),unit,dateValue(cell(r,'as of'))),sourceStatus:cell(r,'status'),cbsId:cell(r,'cbs','cbs id')||null,wbsId:cell(r,'wbs','wbs id')||null,counterparty:cell(r,'counterparty')||null});
+   costMetrics.push({
+    metric:cell(r,'metric'),
+    amount:money(r,cell(r,'value'),cell(r,'metric'),unit,dateValue(cell(r,'as of'))),
+    sourceStatus:cell(r,'status'),
+    cbsId:cell(r,'cbs','cbs id','cost code')||null,
+    cbsDescription:cell(r,'cbs description','cost code description','description')||null,
+    parentCbsId:cell(r,'parent cbs','parent cbs id','parent cost code')||null,
+    wbsId:cell(r,'wbs','wbs id')||null,
+    counterparty:cell(r,'counterparty','vendor','subcontractor')||null,
+    boqItemId:cell(r,'boq item','boq item id','boq line')||null,
+    paymentId:cell(r,'payment id','certificate no','ipc')||null,
+   });
   }
   if(has(t,'certificate no','net certified'))for(const r of t.rows){
    const asOf=dateValue(cell(r,'period end')),currency=cell(r,'currency')||inheritedCurrency;
    const amounts=Object.fromEntries(moneyNames.map(k=>[k,money(r,cell(r,...paymentHeaders[k]),k,currency,asOf)])) as PaymentStageRecord['amounts'];
    if(!cell(r,'currency')&&currency) for(const a of Object.values(amounts)) a.receipts.push(...currencyReceipts.filter((v,i,all)=>all.findIndex(x=>x.documentId===v.documentId)===i));
    const reconciliation = reconcilePaymentEvidence(r, amounts, dataDateIso);
-   payments.push({paymentId:cell(r,'certificate no'),periodEnd:asOf,sourceStatus:cell(r,'status'),amounts,receipt:r.receipt,...reconciliation});
+   payments.push({
+    paymentId:cell(r,'certificate no'),
+    paymentType:cell(r,'payment type','type')||null,
+    periodEnd:asOf,
+    sourceStatus:cell(r,'status'),
+    applicationDate:dateValue(cell(r,'application date','submission date')),
+    assessmentDate:dateValue(cell(r,'assessment date','engineer assessment date')),
+    certificationDate:dateValue(cell(r,'certificate date','certification date')),
+    certificationDueDate:dateValue(cell(r,'certification due date','certificate due date')),
+    paymentDueDate:dateValue(cell(r,'payment due date','due date')),
+    paymentTimestamp:cell(r,'payment timestamp','paid timestamp')||null,
+    retentionReleaseDate:dateValue(cell(r,'retention release date')),
+    finalReceiptDate:dateValue(cell(r,'final receipt date')),
+    amounts,
+    receipt:r.receipt,
+    ...reconciliation
+   });
   }
   if(has(t,'variation id','status'))for(const r of t.rows){
    const amountHeader=t.headers.find(h=>/^approved amount(?: [a-z]{3})?$/.test(h));if(!amountHeader)continue;
