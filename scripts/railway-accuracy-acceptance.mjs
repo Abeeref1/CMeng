@@ -149,15 +149,17 @@ try {
   check('All 29 Project Control pages are traced', modules.size === 29);
 
   const commercialCapabilityIndex = await json('/api/commercial/capabilities');
-  check('C2B1 exposes eight controlled Commercial capabilities',
-    commercialCapabilityIndex?.phase === 'C2B1' &&
-    commercialCapabilityIndex?.capabilityCount === 8 &&
+  check('C2B2 exposes fourteen controlled Commercial capabilities',
+    commercialCapabilityIndex?.phase === 'C2B2' &&
+    commercialCapabilityIndex?.capabilityCount === 14 &&
     Array.isArray(commercialCapabilityIndex?.capabilities) &&
     commercialCapabilityIndex.capabilities.map(item => item.key).join('|') ===
-      'commercial-terms|cost-register|payment-register|cbs-breakdown|cost-control|evm-performance|cash-flow-register|cost-scurve');
+      'commercial-terms|cost-register|payment-register|cbs-breakdown|cost-control|evm-performance|cash-flow-register|cost-scurve|variations|site-instructions|contract-obligations|liquidated-damages|bonds-insurance|retention-calendar');
   const commercialCapabilityKeys = [
     'commercial-terms','cost-register','payment-register','cbs-breakdown',
-    'cost-control','evm-performance','cash-flow-register','cost-scurve'
+    'cost-control','evm-performance','cash-flow-register','cost-scurve',
+    'variations','site-instructions','contract-obligations','liquidated-damages',
+    'bonds-insurance','retention-calendar'
   ];
   const commercialCapabilities = new Map();
   for (const key of commercialCapabilityKeys) {
@@ -168,13 +170,14 @@ try {
     check(key + ': live Commercial capability has no non-finite serialization marker',
       !/NaN|Infinity/.test(JSON.stringify(result?.data)));
   }
-  check('Commercial management views consume the canonical foundation and performance producers',
+  check('Commercial management views consume canonical foundation performance and contract-control producers',
     modules.get('commercial-overview')?.data?.position?.foundation?.producerVersion === 'commercial-foundation-v1' &&
     modules.get('cost-forecast')?.data?.position?.foundation?.producerVersion === 'commercial-foundation-v1' &&
     modules.get('cost-forecast')?.data?.position?.performance?.producerVersion === 'commercial-performance-v1' &&
+    modules.get('variations-change')?.data?.position?.contractControls?.producerVersion === 'commercial-contract-controls-v1' &&
     modules.get('payments')?.data?.position?.foundation?.producerVersion === 'commercial-foundation-v1' &&
     modules.get('cash-flow')?.data?.position?.performance?.producerVersion === 'commercial-performance-v1' &&
-    modules.get('contract-particulars-bonds')?.data?.position?.foundation?.producerVersion === 'commercial-foundation-v1');
+    modules.get('contract-particulars-bonds')?.data?.position?.contractControls?.producerVersion === 'commercial-contract-controls-v1');
 
   const overview = await json(prefix + '/overview');
   check('Current programme Data Date is 31 Aug 2026', String(overview.latestDataDateIso ?? '').startsWith('2026-08-31'));

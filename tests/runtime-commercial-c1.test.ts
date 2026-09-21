@@ -244,11 +244,11 @@ test("C1 exposes real Commercial routes, evidence-driven status and portfolio in
       assert.equal(
         capabilityIndex
           .capabilityCount,
-        8,
+        14,
       );
       assert.equal(
         capabilityIndex.phase,
-        "C2B1",
+        "C2B2",
       );
       assert.deepEqual(
         capabilityIndex
@@ -266,6 +266,12 @@ test("C1 exposes real Commercial routes, evidence-driven status and portfolio in
           "evm-performance",
           "cash-flow-register",
           "cost-scurve",
+          "variations",
+          "site-instructions",
+          "contract-obligations",
+          "liquidated-damages",
+          "bonds-insurance",
+          "retention-calendar",
         ],
       );
 
@@ -367,6 +373,72 @@ test("C1 exposes real Commercial routes, evidence-driven status and portfolio in
         costScurve.data
           .capabilityKey,
         "cost-scurve",
+      );
+
+      const variationsCapability =
+        await (
+          await fetch(
+            base +
+              "/api/projects/" +
+              encodeURIComponent(
+                project,
+              ) +
+              "/commercial/capabilities/variations",
+          )
+        ).json() as {
+          key: string;
+          data: {
+            capabilityKey: string;
+          };
+        };
+      assert.equal(
+        variationsCapability
+          .data.capabilityKey,
+        "variations",
+      );
+
+      const ldCapability =
+        await (
+          await fetch(
+            base +
+              "/api/projects/" +
+              encodeURIComponent(
+                project,
+              ) +
+              "/commercial/capabilities/liquidated-damages",
+          )
+        ).json() as {
+          key: string;
+          data: {
+            capabilityKey: string;
+          };
+        };
+      assert.equal(
+        ldCapability.data
+          .capabilityKey,
+        "liquidated-damages",
+      );
+
+      const retentionCapability =
+        await (
+          await fetch(
+            base +
+              "/api/projects/" +
+              encodeURIComponent(
+                project,
+              ) +
+              "/commercial/capabilities/retention-calendar",
+          )
+        ).json() as {
+          key: string;
+          data: {
+            capabilityKey: string;
+          };
+        };
+      assert.equal(
+        retentionCapability
+          .data.capabilityKey,
+        "retention-calendar",
       );
 
       const invalidCapability =
