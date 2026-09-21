@@ -515,10 +515,10 @@ test("CMeng workspace keeps the active module primary and browser script parseab
       "Current evidenced net cash",
       "Current cash position",
       "Missing cash is not treated as zero.",
-      "Paid cash receipts",
-      "Actual expenditure",
+      "Actual cash receipts",
+      "Actual cash expenditure",
       "Cash-flow S-curve & funding position",
-      "A management S-curve requires at least two defensible dated points.",
+      "A funding curve requires at least two producer-certified net-cash points.",
       "Governed dated cash-flow register",
       "Calculation trace",
       "Evidence & governance",
@@ -558,6 +558,24 @@ test("CMeng workspace keeps the active module primary and browser script parseab
     html,
     /renderCashMovementBars/,
     "Cash Flow must use a cash-semantic period movement visual",
+  );
+
+  assert.match(
+    html,
+    /const sourceReadiness=row\.sourceReadiness\|\|null/,
+    "Cash Flow UI must consume producer-owned source readiness rather than infer management readiness from rendered findings.",
+  );
+  assert.match(
+    html,
+    /sourceReadiness\.fundingCurveReady===true/,
+    "funding S-curve visibility must be gated by the producer-certified funding-curve state.",
+  );
+  assert.equal(
+    html.includes(
+      'const missingCore=[',
+    ),
+    false,
+    "Cash Flow UI must not maintain its own parallel missing-cash decision logic.",
   );
 
   assert.match(
