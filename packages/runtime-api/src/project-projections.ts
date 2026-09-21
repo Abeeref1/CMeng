@@ -1126,6 +1126,17 @@ function buildBundle(
         productivityForecast.completionIso,
       authority: "source_productivity_evidence",
       state: productivityForecast.state,
+      method: productivityForecast.method,
+      driverWorkPackageId:
+        productivityForecast.driverWorkPackageId,
+      workPackageCount:
+        productivityForecast.workPackageCount,
+      calculatedWorkPackageCount:
+        productivityForecast.calculatedWorkPackageCount,
+      coveragePercent:
+        productivityForecast.calculationCoveragePercent,
+      reconciliation:
+        productivityForecast.reconciliation,
       sourceRefs: productivityForecast.sourceRefs,
     },
     cmengCpm: {
@@ -1161,6 +1172,20 @@ function buildBundle(
           productivityForecast.completionIso,
         sourceProductivityForecastState:
           productivityForecast.state,
+        sourceProductivityForecastMethod:
+          productivityForecast.method,
+        sourceProductivityForecastDriverWorkPackageId:
+          productivityForecast.driverWorkPackageId,
+        sourceProductivityForecastWorkPackageCount:
+          productivityForecast.workPackageCount,
+        sourceProductivityForecastCalculatedWorkPackageCount:
+          productivityForecast.calculatedWorkPackageCount,
+        sourceProductivityForecastCoveragePercent:
+          productivityForecast.calculationCoveragePercent,
+        sourceProductivityForecastReconciliation:
+          productivityForecast.reconciliation,
+        sourceProductivityForecastEvidence:
+          productivityForecast,
         forecastTaxonomy,
       },
       [],
@@ -5499,6 +5524,20 @@ function buildSpecialistModuleFast(
           productivityForecast.completionIso,
         sourceProductivityForecastState:
           productivityForecast.state,
+        sourceProductivityForecastMethod:
+          productivityForecast.method,
+        sourceProductivityForecastDriverWorkPackageId:
+          productivityForecast.driverWorkPackageId,
+        sourceProductivityForecastWorkPackageCount:
+          productivityForecast.workPackageCount,
+        sourceProductivityForecastCalculatedWorkPackageCount:
+          productivityForecast.calculatedWorkPackageCount,
+        sourceProductivityForecastCoveragePercent:
+          productivityForecast.calculationCoveragePercent,
+        sourceProductivityForecastReconciliation:
+          productivityForecast.reconciliation,
+        sourceProductivityForecastEvidence:
+          productivityForecast,
         forecastTaxonomy: {
           contractorProgramme: {
             label: "Contractor Programme Forecast",
@@ -5517,6 +5556,18 @@ function buildSpecialistModuleFast(
             authority: "source_productivity_evidence",
             state:
               productivityForecast.state,
+            method:
+              productivityForecast.method,
+            driverWorkPackageId:
+              productivityForecast.driverWorkPackageId,
+            workPackageCount:
+              productivityForecast.workPackageCount,
+            calculatedWorkPackageCount:
+              productivityForecast.calculatedWorkPackageCount,
+            coveragePercent:
+              productivityForecast.calculationCoveragePercent,
+            reconciliation:
+              productivityForecast.reconciliation,
             sourceRefs:
               productivityForecast.sourceRefs,
           },
