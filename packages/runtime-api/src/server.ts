@@ -35,6 +35,7 @@ import {
   boardReportForProject,
   directorForProject,
   invalidateProject,
+  managementSurfacesForProject,
   moduleForProject,
   overviewForProject,
   rerunProject,
@@ -2411,6 +2412,38 @@ async function route(
   }
 
 
+  const managementSurfacesMatch =
+    /^\/api\/projects\/([^/]+)\/management-surfaces$/.exec(
+      url.pathname,
+    );
+
+  if (
+    req.method === "GET" &&
+    managementSurfacesMatch
+  ) {
+    const projectId =
+      decodeURIComponent(
+        managementSurfacesMatch[1]!,
+      );
+    const surfaces =
+      managementSurfacesForProject(
+        projectId,
+      );
+    if (!surfaces) {
+      json(res, 404, {
+        error:
+          "management_surfaces_not_found",
+      });
+      return;
+    }
+    json(
+      res,
+      200,
+      surfaces,
+    );
+    return;
+  }
+
   const directorMatch =
     /^\/api\/projects\/([^/]+)\/director-position$/.exec(
       url.pathname,
@@ -2771,6 +2804,8 @@ async function route(
         "/api/projects/:projectId/demo",
       projectDirector:
         "/api/projects/:projectId/director-position",
+      managementSurfaces:
+        "/api/projects/:projectId/management-surfaces",
       boardReport:
         "/api/projects/:projectId/board-report",
       boardReportHistory:
