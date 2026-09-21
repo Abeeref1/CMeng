@@ -18,8 +18,15 @@ export interface CostMetricRecord {
   boqItemId: string | null;
   paymentId: string | null;
 }
+export type PaymentSeriesBasis =
+  | 'incremental'
+  | 'project_cumulative'
+  | 'certificate_cumulative'
+  | 'unknown';
 export interface PaymentStageRecord {
   paymentId: string; periodEnd: string | null; sourceStatus: string;
+  certifiedAmountBasis: PaymentSeriesBasis;
+  paidAmountBasis: PaymentSeriesBasis;
   amounts: Record<'applicationAmount'|'engineerAssessedAmount'|'employerCertifiedAmount'|'grossWork'|'variations'|'retentionDeduction'|'advanceRecovery'|'otherDeduction'|'taxAmount'|'netCertifiedAmount'|'paidAmount'|'outstandingAmount',CommercialMoney>;
   receipt: SourceReceipt; reconciliation: 'matched'|'conflicted'|'unresolved';
   diagnostics: string[]; calculatedOutstandingAmount: CommercialMoney;
@@ -123,6 +130,14 @@ const paymentHeaders:Record<typeof moneyNames[number],string[]>={
   applicationAmount:['application amount','applied amount'],engineerAssessedAmount:['engineer assessed amount'],employerCertifiedAmount:['employer certified amount'],grossWork:['gross work'],variations:['variations'],retentionDeduction:['retention','retention deduction'],advanceRecovery:['advance recovery'],otherDeduction:['other deduction','other deductions'],taxAmount:['tax amount','vat amount'],netCertifiedAmount:['net certified','net certified amount'],paidAmount:['paid amount'],outstandingAmount:['outstanding amount'],
 };
 const tax=(s:string):CommercialMoney['taxBasis']=>/excl/i.test(s)?'exclusive':/incl/i.test(s)?'inclusive':'unknown';
+function paymentSeriesBasis(value:string):PaymentSeriesBasis{
+ const v=norm(value);
+ if(!v)return 'unknown';
+ if(/^(incremental|period|periodic|this period|transaction|current period|period amount)$/.test(v))return 'incremental';
+ if(/^(project cumulative|cumulative project|cumulative to date|to date|project to date|cumulative total)$/.test(v))return 'project_cumulative';
+ if(/^(cumulative|certificate total|cumulative allocated to certificate|certificate cumulative)$/.test(v))return 'certificate_cumulative';
+ return 'unknown';
+}
 function money(row:SourceRow,value:string,amountBasis:string,currency:string|null,asOf:string|null):CommercialMoney{
  const v=numberValue(value);return {value:v,currency,taxBasis:tax(cell(row,'vat basis','tax basis')),amountBasis,
  state:v===null?'missing':currency===null?'partial':['active','additive'].includes(row.receipt.basisState)?'official':'candidate',asOf,receipts:[row.receipt]};
@@ -184,6 +199,8 @@ export function commercialCanonical(state:ProjectRuntimeState):CanonicalCommerci
    payments.push({
     paymentId:cell(r,'certificate no'),
     paymentType:cell(r,'payment type','type')||null,
+    certifiedAmountBasis:paymentSeriesBasis(cell(r,'certified amount basis','net certified basis','certificate amount basis')),
+    paidAmountBasis:paymentSeriesBasis(cell(r,'paid amount basis','payment amount basis')),
     periodEnd:asOf,
     sourceStatus:cell(r,'status'),
     applicationDate:dateValue(cell(r,'application date','submission date')),
