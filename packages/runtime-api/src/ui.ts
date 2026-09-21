@@ -152,9 +152,9 @@ details:not(.workspace-drawer){border:1px solid var(--line);border-radius:9px;ba
 .commercial-visual-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:18px}
 .commercial-currency-chart{border:1px solid #d9e4ef;border-radius:14px;background:#fff;padding:15px}.commercial-currency-chart h5{margin:0 0 12px;font-size:13px;color:#22364d}
 .visual-chart-actions{display:flex;align-items:center;gap:7px;flex:0 0 auto}.visual-focus-button{border:1px solid #cbd8e5;background:#fff;color:#425b74;border-radius:7px;padding:6px 9px;font-size:10.5px;font-weight:750;cursor:pointer}.visual-focus-button:hover{background:#f3f7fb;border-color:#9fb7ce}.visual-panel-open{overflow:hidden}.visual-chart.visual-focus{position:fixed;inset:24px;z-index:1000;overflow:auto;box-shadow:0 24px 70px rgba(15,23,42,.28);border-color:#aec4da}.visual-chart.visual-focus .visual-chart-head{position:sticky;top:0;z-index:4}.visual-chart.visual-focus .visual-chart-body{padding:24px}.visual-chart.visual-focus .svg-chart{min-height:500px}.cash-flow-primary{display:grid;gap:12px;margin:18px 0}.cash-flow-primary .visual-chart-body{padding:20px}.cash-flow-primary .svg-chart{min-height:390px}.cash-flow-secondary{grid-template-columns:repeat(3,minmax(0,1fr));margin-top:18px}.cash-movement-bars{display:grid;gap:9px}.cash-movement-row{display:grid;grid-template-columns:minmax(90px,.65fr) minmax(190px,1.55fr) 105px;gap:10px;align-items:center}.cash-movement-track{position:relative;height:22px;border-radius:7px;background:#eef3f8}.cash-movement-zero{position:absolute;left:50%;top:0;bottom:0;width:1px;background:#98a2b3}.cash-movement-bar{position:absolute;top:4px;height:14px;border-radius:5px}.cash-movement-bar.positive{background:#2c7a57}.cash-movement-bar.negative{background:#b4483e}.cash-movement-bar.neutral{background:#91a0b0}.cash-register-section{margin-top:20px}.section-heading.compact{align-items:center;margin-bottom:10px}.section-heading.compact h5{margin:0;font-size:14px;color:#22364d}.section-heading.compact p{margin:3px 0 0;font-size:11px;color:#718096}
-.commercial-management-summary{margin-bottom:18px}.commercial-management-summary .currency-card{min-height:100%;box-shadow:0 8px 22px rgba(15,23,42,.05)}.cost-forecast-primary .visual-chart-body{padding:20px}.cost-forecast-primary .svg-chart{min-height:410px}.cost-control-secondary{grid-template-columns:repeat(2,minmax(0,1fr));margin:18px 0}.cost-control-position{border-color:#c9d8e6}.commercial-overview-enterprise>.commercial-visual-grid{margin-bottom:18px}
+.commercial-management-summary{margin-bottom:18px}.commercial-management-summary .currency-card{min-height:100%;box-shadow:0 8px 22px rgba(15,23,42,.05)}.cost-forecast-primary .visual-chart-body{padding:20px}.cost-forecast-primary .svg-chart{min-height:410px}.cost-control-secondary{grid-template-columns:repeat(2,minmax(0,1fr));margin:18px 0}.cost-control-position{border-color:#c9d8e6}.commercial-overview-enterprise>.commercial-visual-grid{margin-bottom:18px}.payment-lifecycle-grid,.variation-control-grid{grid-template-columns:repeat(2,minmax(0,1fr));margin:18px 0}.change-bridge-grid{grid-template-columns:repeat(2,minmax(0,1fr));margin:18px 0}.value-bridge{display:grid;grid-template-columns:minmax(135px,1fr) 28px minmax(135px,1fr) 28px minmax(135px,1fr);gap:8px;align-items:stretch}.value-bridge-cell{border:1px solid #d9e4ef;border-radius:10px;padding:12px;background:#fff;min-width:0}.value-bridge-cell span{display:block;font-size:10.5px;font-weight:700;color:#718096;margin-bottom:6px}.value-bridge-cell b{display:block;font-size:17px;color:#22364d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.value-bridge-cell small{display:block;margin-top:5px;font-size:9.5px;color:#8895a5}.value-bridge-cell.change{border-color:#b9d6c7;background:#f7fbf8}.value-bridge-cell.current{border-color:#adc7df;background:#f6f9fc}.value-bridge-cell.pending{border-color:#e6cf9f;background:#fffaf0}.value-bridge-op{display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:800;color:#7b8da1}.value-bridge-pending{grid-column:1/-1;margin-top:4px}.value-bridge-pending .value-bridge-cell{display:grid;grid-template-columns:minmax(170px,1fr) auto;column-gap:16px;align-items:center}.value-bridge-pending .value-bridge-cell small{grid-column:1/-1}.payment-management-position,.variation-management-position{border-color:#b9ccde}
 @media(max-width:1450px){.planning-kpi-grid{grid-template-columns:repeat(3,minmax(0,1fr))!important}.visual-chart-grid.three{grid-template-columns:1fr 1fr}}
-@media(max-width:1050px){.planning-primary-grid,.visual-chart-grid,.visual-chart-grid.three,.cash-flow-secondary{grid-template-columns:1fr!important}.donut-layout{grid-template-columns:140px minmax(0,1fr)}.role-review-layers{grid-template-columns:1fr 1fr!important}}
+@media(max-width:1050px){.planning-primary-grid,.visual-chart-grid,.visual-chart-grid.three,.cash-flow-secondary,.payment-lifecycle-grid,.variation-control-grid,.change-bridge-grid{grid-template-columns:1fr!important}.donut-layout{grid-template-columns:140px minmax(0,1fr)}.role-review-layers{grid-template-columns:1fr 1fr!important}}
 @media(max-width:700px){.planning-kpi-grid{grid-template-columns:1fr 1fr!important}.donut-layout{grid-template-columns:1fr}.donut-ring{margin:auto}.module-panel #moduleContent{padding:18px!important}.role-review-layers{grid-template-columns:1fr!important}}
 
 </style>
@@ -1096,6 +1096,21 @@ function renderCashMovementBars(items,unit=""){
     const text=(item.value>0?"+":"")+fmt(item.value)+(unit?" "+unit:"");
     return '<div class="cash-movement-row"><div class="visual-bar-label" title="'+escapeHtml(item.label)+'">'+escapeHtml(item.label)+'</div><div class="cash-movement-track"><span class="cash-movement-zero"></span><span class="cash-movement-bar '+tone+'" style="left:'+left.toFixed(2)+'%;width:'+width.toFixed(2)+'%"></span></div><div class="visual-bar-value">'+escapeHtml(text)+'</div></div>';
   }).join("")+'</div>';
+}
+function renderCommercialValueBridge(base,approved,current,pending,unit=""){
+  const cell=(label,metric,tone)=>{
+    const value=metricValue(metric);
+    const state=metric?.state?humanizeKey(metric.state):value===null?"Missing":"Established";
+    return '<div class="value-bridge-cell '+escapeHtml(tone)+'"><span>'+escapeHtml(label)+'</span><b>'+escapeHtml(value===null?"Not established":fmt(value)+(unit?" "+unit:""))+'</b><small>'+escapeHtml(state)+'</small></div>';
+  };
+  return '<div class="value-bridge">'+
+    cell("Committed contract",base,"base")+
+    '<div class="value-bridge-op">+</div>'+
+    cell("Approved changes",approved,"change")+
+    '<div class="value-bridge-op">=</div>'+
+    cell("Current contract",current,"current")+
+    '<div class="value-bridge-pending">'+cell("Pending exposure · outside current contract",pending,"pending")+'</div>'+
+    '</div>';
 }
 function metricValue(metric){
   if(metric===null||metric===undefined)return null;
@@ -2650,17 +2665,45 @@ function renderCommercialVisual(key,data){
         '</div></section>';
     }
     if(key==="payments"||key==="cash-flow"){
-      const paymentRows=(foundation.paymentRegister?.rows||[]).slice(0,100).map(row=>{
+      const paymentRegister=foundation.paymentRegister||{};
+      const lifecycleCounts=paymentRegister.lifecycleCounts||{};
+      const slaCounts=paymentRegister.slaCounts||{};
+      const paymentRows=(paymentRegister.rows||[]).map(row=>{
         const amounts=row.amounts||{};
         return '<tr><td><b>'+escapeHtml(row.paymentId)+'</b></td><td>'+escapeHtml(row.paymentType||"Not stated")+'</td><td>'+escapeHtml(planningShortDate(row.periodEnd))+'</td><td>'+escapeHtml(planningShortDate(row.lifecycle?.applicationDate))+'</td><td>'+escapeHtml(planningShortDate(row.lifecycle?.assessmentDate))+'</td><td>'+escapeHtml(planningShortDate(row.lifecycle?.certificationDate))+'</td><td>'+escapeHtml(planningShortDate(row.lifecycle?.certificationDueDate?.value))+'</td><td>'+escapeHtml(planningShortDate(row.lifecycle?.paymentDueDate?.value))+'</td><td>'+escapeHtml(planningShortDate(row.lifecycle?.paymentDate))+'</td><td>'+escapeHtml(humanizeKey(row.lifecycle?.slaState||"not_established"))+'</td><td>'+escapeHtml(findingValue(amounts.applicationAmount))+'</td><td>'+escapeHtml(findingValue(amounts.engineerAssessedAmount))+'</td><td>'+escapeHtml(findingValue(amounts.employerCertifiedAmount))+'</td><td>'+escapeHtml(findingValue(amounts.paidAmount))+'</td></tr>';
       });
-      foundationDetail='<section class="planning-panel"><div class="planning-panel-head"><div><h4>Payment Register / IPC lifecycle</h4><p>Application, assessment, certification and payment remain separate. Due dates are calculated only from evidenced event dates and contractual periods.</p></div></div><div class="planning-panel-body">'+
+      const lifecycleVisual=renderVisualPanel(
+        "IPC lifecycle completion",
+        "Counts come from governed application, assessment, certification and payment event dates. Missing stages are not copied from another stage.",
+        renderVisualBars([
+          {label:"Applied",value:lifecycleCounts.applied??0,tone:"graphite"},
+          {label:"Assessed",value:lifecycleCounts.assessed??0,tone:"purple"},
+          {label:"Certified",value:lifecycleCounts.certified??0,tone:"accent"},
+          {label:"Paid",value:lifecycleCounts.paid??0,tone:"success"}
+        ],"records")
+      );
+      const slaVisual=renderVisualPanel(
+        "Payment SLA & aging position",
+        "Paid-late, overdue-unpaid and open-not-due positions remain distinct and use actual event dates.",
+        renderDonutChart([
+          {label:"Paid on time",value:slaCounts.paidOnTime??0,tone:"success"},
+          {label:"Paid late",value:slaCounts.paidLate??0,tone:"warning"},
+          {label:"Overdue unpaid",value:slaCounts.overdueUnpaid??0,tone:"danger"},
+          {label:"Open · not due",value:slaCounts.openUnpaid??0,tone:"accent"},
+          {label:"SLA not established",value:slaCounts.notEstablished??0,tone:"neutral"}
+        ],"Payments")
+      );
+      foundationDetail='<section class="planning-panel primary payment-management-position"><div class="planning-panel-head"><div><h4>Payments & IPC Management Position</h4><p>Application, assessment, certification and payment remain separate. Due dates and SLA states come from evidenced event dates and contractual periods.</p></div></div><div class="planning-panel-body">'+
         planningKpis([
-          ["Payment records",foundation.paymentRegister?.recordCount||0,"source register"],
-          ["Stage coverage",foundation.paymentRegister?.stageCoveragePercent==null?"Not established":fmt(foundation.paymentRegister.stageCoveragePercent)+"%","application / assessment / certification / payment dates"],
+          ["Payment records",paymentRegister.recordCount||0,"source register"],
+          ["Stage coverage",paymentRegister.stageCoveragePercent==null?"Not established":fmt(paymentRegister.stageCoveragePercent)+"%","application / assessment / certification / payment dates"],
+          ["Overdue unpaid",slaCounts.overdueUnpaid||0,"past governed payment due date"],
+          ["Paid late",slaCounts.paidLate||0,"actual payment after due date"],
           ["Payment period",findingValue(terms.paymentPeriodDays,"days"),findingMeta(terms.paymentPeriodDays)],
           ["Certification period",findingValue(terms.certificationPeriodDays,"days"),findingMeta(terms.certificationPeriodDays)]
         ])+
+        '<div class="commercial-visual-grid payment-lifecycle-grid">'+lifecycleVisual+slaVisual+'</div>'+
+        '<div class="section-heading compact"><div><h5>Payment register / IPC lifecycle</h5><p>Full governed register; no presentation-only row cap.</p></div><span class="badge">'+escapeHtml(fmt((paymentRegister.rows||[]).length))+' records</span></div>'+
         table(["Payment","Type","Period","Applied","Assessed","Certified","Certification due","Payment due","Paid","SLA","Applied amount","Assessed amount","Certified amount","Paid amount"],paymentRows,"No payment register is established.")+
         '</div></section>';
     }
@@ -2896,21 +2939,73 @@ function renderCommercialVisual(key,data){
     }
     if(key==="variations-change"){
       const vo=contractControls.variations||{};
-      const voRows=(vo.rows||[]).map(row=>'<tr><td><b>'+escapeHtml(row.variationId)+'</b></td><td>'+escapeHtml(humanizeKey(row.lifecycleStage))+'</td><td>'+escapeHtml(row.description||"")+'</td><td>'+escapeHtml(planningShortDate(row.dates?.instruction))+'</td><td>'+escapeHtml(planningShortDate(row.dates?.submitted))+'</td><td>'+escapeHtml(planningShortDate(row.dates?.assessed))+'</td><td>'+escapeHtml(planningShortDate(row.dates?.agreed))+'</td><td>'+escapeHtml(planningShortDate(row.dates?.approved))+'</td><td>'+escapeHtml(findingValue(row.cost?.claimed))+'</td><td>'+escapeHtml(findingValue(row.cost?.assessed))+'</td><td>'+escapeHtml(findingValue(row.cost?.agreed))+'</td><td>'+escapeHtml(findingValue(row.cost?.approved))+'</td><td>'+escapeHtml(findingValue(row.scheduleImpactDays,"d"))+'</td><td>'+escapeHtml([row.instructionId,row.claimId,row.paymentId,(row.activityIds||[]).join("; ")].filter(Boolean).join(" · ")||"No cross-domain link")+'</td></tr>');
+      const stageCounts=vo.lifecycleStageCounts||{};
+      const ageBands=vo.pendingAgeBands||{};
+      const lifecycleVisual=renderVisualPanel(
+        "Variation lifecycle distribution",
+        "Current controlled lifecycle stage for every variation. Instruction, submission, quotation, assessment, agreement, approval and rejection stay distinct.",
+        renderVisualBars([
+          {label:"Instruction",value:stageCounts.instruction??0,tone:"graphite"},
+          {label:"Submitted",value:stageCounts.submitted??0,tone:"accent"},
+          {label:"Quoted",value:stageCounts.quoted??0,tone:"purple"},
+          {label:"Assessed",value:stageCounts.assessed??0,tone:"warning"},
+          {label:"Agreed",value:stageCounts.agreed??0,tone:"teal"},
+          {label:"Approved",value:stageCounts.approved??0,tone:"success"},
+          {label:"Rejected",value:stageCounts.rejected??0,tone:"danger"},
+          {label:"Unknown",value:stageCounts.unknown??0,tone:"neutral"}
+        ],"items")
+      );
+      const agingVisual=renderVisualPanel(
+        "Pending variation aging",
+        "Age bands use the latest evidenced open lifecycle date to the project Data Date. Closed variations are excluded.",
+        renderVisualBars([
+          {label:"0–30 days",value:ageBands.upTo30Days??0,tone:"success"},
+          {label:"31–60 days",value:ageBands.days31To60??0,tone:"accent"},
+          {label:"61–90 days",value:ageBands.days61To90??0,tone:"warning"},
+          {label:">90 days",value:ageBands.over90Days??0,tone:"danger"},
+          {label:"Age not established",value:ageBands.unknown??0,tone:"neutral"}
+        ],"items")
+      );
+      const bridgeVisuals=(position.currencies||[]).map(row=>renderVisualPanel(
+        row.currency+" · Contract value & change bridge",
+        "Approved changes may move the governed contract value. Pending change remains outside the current contract value until approved.",
+        renderCommercialValueBridge(
+          row.committedContractValue,
+          row.approvedVariationAmount,
+          row.currentContractValue,
+          row.pendingVariationAmount,
+          row.currency
+        )
+      )).join("");
+      const voRows=(vo.rows||[]).map(row=>'<tr><td><b>'+escapeHtml(row.variationId)+'</b></td><td>'+escapeHtml(humanizeKey(row.lifecycleStage))+'</td><td>'+escapeHtml(row.description||"")+'</td><td>'+escapeHtml(planningShortDate(row.dates?.instruction))+'</td><td>'+escapeHtml(planningShortDate(row.dates?.submitted))+'</td><td>'+escapeHtml(planningShortDate(row.dates?.assessed))+'</td><td>'+escapeHtml(planningShortDate(row.dates?.agreed))+'</td><td>'+escapeHtml(planningShortDate(row.dates?.approved))+'</td><td>'+escapeHtml(findingValue(row.ageDays,"d"))+'</td><td>'+escapeHtml(findingValue(row.cost?.claimed))+'</td><td>'+escapeHtml(findingValue(row.cost?.assessed))+'</td><td>'+escapeHtml(findingValue(row.cost?.agreed))+'</td><td>'+escapeHtml(findingValue(row.cost?.approved))+'</td><td>'+escapeHtml(findingValue(row.scheduleImpactDays,"d"))+'</td><td>'+escapeHtml([row.instructionId,row.claimId,row.paymentId,(row.activityIds||[]).join("; ")].filter(Boolean).join(" · ")||"No cross-domain link")+'</td></tr>');
       const si=contractControls.siteInstructions||{};
+      const instructionPressure=renderVisualPanel(
+        "Site Instruction conversion & quotation pressure",
+        "An instruction is not automatically a variation. Overdue quotation and explicit VO conversion are shown separately.",
+        renderVisualBars([
+          {label:"Instructions",value:si.recordCount||0,tone:"graphite"},
+          {label:"Unquoted",value:si.unquotedCount||0,tone:"warning"},
+          {label:"Overdue quotations",value:si.overdueQuotationCount||0,tone:"danger"},
+          {label:"Converted to VO",value:si.convertedVariationCount||0,tone:"success"}
+        ],"items")
+      );
       const siRows=(si.rows||[]).map(row=>'<tr><td><b>'+escapeHtml(row.instructionId)+'</b></td><td>'+escapeHtml(planningShortDate(row.issueDate))+'</td><td>'+escapeHtml(row.description||"")+'</td><td>'+escapeHtml(humanizeKey(row.status))+'</td><td>'+escapeHtml(planningShortDate(row.quotationDueDate?.value))+'</td><td>'+escapeHtml(planningShortDate(row.quotationDate))+'</td><td>'+escapeHtml(humanizeKey(row.quotationTimeliness))+'</td><td>'+escapeHtml(findingValue(row.openAgeDays,"d"))+'</td><td>'+escapeHtml(findingValue(row.estimatedAmount))+'</td><td>'+escapeHtml(row.variationId||"Not linked")+'</td><td>'+escapeHtml([row.claimId,row.paymentId,(row.activityIds||[]).join("; ")].filter(Boolean).join(" · ")||"—")+'</td></tr>');
       contractControlDetail=
-        '<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Variation lifecycle</h4><p>Instruction, submission, assessment, agreement, approval and payment are separate controlled states.</p></div></div><div class="planning-panel-body">'+
+        '<section class="planning-panel primary variation-management-position"><div class="planning-panel-head"><div><h4>Variations & Change Management Position</h4><p>Lifecycle, aging, contract-value effect and schedule/claim/payment links remain controlled separately.</p></div></div><div class="planning-panel-body">'+
         planningKpis([
           ["Variations",vo.recordCount||0,"full lifecycle records"],
           ["Approved",vo.approvedCount||0,"governed approval"],
           ["Pending",vo.pendingCount||0,"not approved"],
+          ["Rejected",vo.rejectedCount||0,"closed without approval"],
           ["Lifecycle coverage",vo.lifecycleCoveragePercent==null?"Not established":fmt(vo.lifecycleCoveragePercent)+"%","stage identified"],
           ["Schedule linkage",vo.scheduleLinkCoveragePercent==null?"Not established":fmt(vo.scheduleLinkCoveragePercent)+"%","time/activity evidence"],
           ["Claim linkage",vo.claimLinkCoveragePercent==null?"Not established":fmt(vo.claimLinkCoveragePercent)+"%","claim IDs"],
           ["Payment linkage",vo.paymentLinkCoveragePercent==null?"Not established":fmt(vo.paymentLinkCoveragePercent)+"%","certificate/payment IDs"]
         ])+
-        table(["Variation","Stage","Description","Instruction","Submitted","Assessed","Agreed","Approved","Claimed","Assessed value","Agreed value","Approved value","Time impact","Cross-domain links"],voRows,"No governed variation lifecycle records are established.")+
+        '<div class="commercial-visual-grid variation-control-grid">'+lifecycleVisual+agingVisual+'</div>'+
+        (bridgeVisuals?'<div class="commercial-visual-grid change-bridge-grid">'+bridgeVisuals+'</div>':"")+
+        '<div class="section-heading compact"><div><h5>Variation register</h5><p>Full governed lifecycle and cross-domain linkage.</p></div><span class="badge">'+escapeHtml(fmt((vo.rows||[]).length))+' records</span></div>'+
+        table(["Variation","Stage","Description","Instruction","Submitted","Assessed","Agreed","Approved","Open age","Claimed","Assessed value","Agreed value","Approved value","Time impact","Cross-domain links"],voRows,"No governed variation lifecycle records are established.")+
         '</div></section>'+
         '<section class="planning-panel"><div class="planning-panel-head"><div><h4>Site Instructions</h4><p>An instruction is not automatically a variation or entitlement. Quotation aging uses actual issue and due dates.</p></div></div><div class="planning-panel-body">'+
         planningKpis([
@@ -2919,6 +3014,7 @@ function renderCommercialVisual(key,data){
           ["Overdue quotations",si.overdueQuotationCount||0,"past due"],
           ["Converted to VO",si.convertedVariationCount||0,"explicit link only"]
         ])+
+        instructionPressure+
         table(["Instruction","Issued","Description","Status","Quote due","Quoted","Timeliness","Open age","Estimate","Variation","Other links"],siRows,"No Site Instruction register is established.")+
         '</div></section>';
     }
@@ -2992,20 +3088,9 @@ function renderCommercialVisual(key,data){
     const rows=(registers.variations||[]).map(row=>'<tr><td><b>'+escapeHtml(row.variationId)+'</b></td><td>'+escapeHtml(humanizeKey(row.state))+'</td><td>'+escapeHtml(fmt(row.amount))+'</td><td>'+escapeHtml(row.currency)+'</td><td>'+escapeHtml((row.sourceRefs||[]).join(", "))+'</td></tr>');
     detail='<section class="planning-panel"><div class="planning-panel-head"><div><h4>Variation register</h4><p>Approved and pending change remain separate and retain source lineage.</p></div></div><div class="planning-panel-body">'+table(["Variation","State","Amount","Currency","Source"],rows,"No governed variation records are established.")+'</div></section>';
   }
-  if(key==="payments"||key==="cash-flow"){
-    const invoiceGroups=(registers.invoices||[]).reduce((map,row)=>{const currency=row.currency||"Unresolved";const list=map.get(currency)||[];list.push(row);map.set(currency,list);return map},new Map());
-    if(invoiceGroups.size)registerVisual='<div class="commercial-visual-grid">'+[...invoiceGroups.entries()].map(([currency,list])=>renderVisualPanel(
-      currency+" · certificate conversion",
-      "Certified, paid, retention and advance-recovery values stay within one currency.",
-      renderVisualBars([
-        {label:"Certified",value:list.reduce((sum,row)=>sum+(typeof row.certifiedAmount==="number"?row.certifiedAmount:0),0),tone:"accent"},
-        {label:"Paid",value:list.reduce((sum,row)=>sum+(typeof row.paidAmount==="number"?row.paidAmount:0),0),tone:"success"},
-        {label:"Retention",value:list.reduce((sum,row)=>sum+(typeof row.retentionAmount==="number"?row.retentionAmount:0),0),tone:"warning"},
-        {label:"Advance recovery",value:list.reduce((sum,row)=>sum+(typeof row.advanceRecoveryAmount==="number"?row.advanceRecoveryAmount:0),0),tone:"purple"}
-      ],currency)
-    )).join("")+'</div>';
+  if(key==="payments"){
     const rows=(registers.invoices||[]).map(row=>'<tr><td><b>'+escapeHtml(row.invoiceId)+'</b></td><td>'+escapeHtml(planningShortDate(row.certificateDateIso))+'</td><td>'+escapeHtml(fmt(row.certifiedAmount))+'</td><td>'+escapeHtml(fmt(row.paidAmount))+'</td><td>'+escapeHtml(fmt(row.retentionAmount))+'</td><td>'+escapeHtml(fmt(row.advanceRecoveryAmount))+'</td><td>'+escapeHtml(fmt(row.advanceBalance))+'</td><td>'+escapeHtml(row.currency)+'</td><td>'+escapeHtml(planningShortDate(row.paymentDateIso))+'</td></tr>');
-    detail='<section class="planning-panel"><div class="planning-panel-head"><div><h4>Certificate and payment register</h4><p>Advance balance is shown only where explicitly stated in payment evidence.</p></div></div><div class="planning-panel-body">'+table(["Certificate","Certificate date","Certified","Paid","Retention","Advance recovery","Advance balance","Currency","Payment date"],rows,"No governed certificate/payment records are established.")+'</div></section>';
+    detail='<section class="planning-panel"><div class="planning-panel-head"><div><h4>Certificate and payment source register</h4><p>Source certificate rows remain available beneath the governed payment lifecycle; values are not re-summed in the browser.</p></div></div><div class="planning-panel-body">'+table(["Certificate","Certificate date","Certified","Paid","Retention","Advance recovery","Advance balance","Currency","Payment date"],rows,"No governed certificate/payment records are established.")+'</div></section>';
   }
   if(key==="commercial-claims-notices"){
     const claimGroups=(registers.claims||[]).reduce((map,row)=>{const currency=row.currency||"Unresolved";const list=map.get(currency)||[];list.push(row);map.set(currency,list);return map},new Map());
@@ -3065,6 +3150,40 @@ function renderCommercialVisual(key,data){
       registerVisual+
       foundationDetail+
       detail+
+      ledgerDetail+
+      evidencePanel+
+      '</section>';
+  }
+  if(key==="variations-change"){
+    return '<section class="planning-view commercial-view variations-enterprise">'+
+      contractControlDetail+
+      commercialSummaryPanel('Change Exposure by Currency','Approved and pending change remain separate and are never cross-summed between currencies.')+
+      commercialCharts+
+      time+
+      detail+
+      ledgerDetail+
+      evidencePanel+
+      '</section>';
+  }
+  if(key==="payments"){
+    return '<section class="planning-view commercial-view payments-enterprise">'+
+      foundationDetail+
+      commercialSummaryPanel('Payment Value Position by Currency','Certified, paid, unpaid, retention and advance positions come from the governed Commercial position.')+
+      commercialCharts+
+      time+
+      detail+
+      ledgerDetail+
+      evidencePanel+
+      '</section>';
+  }
+  if(key==="cash-flow"){
+    return '<section class="planning-view commercial-view cash-flow-enterprise">'+
+      performanceDetail+
+      commercialSummaryPanel('Cash & Certification Position by Currency','Cash receipt, certification, retention and advance balances remain separate from the funding curve.')+
+      commercialCharts+
+      time+
+      cashNote+
+      foundationDetail+
       ledgerDetail+
       evidencePanel+
       '</section>';
