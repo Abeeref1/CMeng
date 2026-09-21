@@ -262,6 +262,42 @@ test("P1-1 project control basis applies 0..+5 working days per activity calenda
   assert.equal(projection.nearCriticalCount, 1);
   assert.equal(projection.floatRiskWatchlistCount, 2);
   assert.equal(projection.zeroFloatCount, 1);
+  assert.equal(
+    projection.boundaryAudit.atCriticalBoundaryCount,
+    1,
+  );
+  assert.equal(
+    projection.boundaryAudit.aboveCriticalBoundaryCount,
+    2,
+  );
+  assert.deepEqual(
+    projection.boundaryAudit.atCriticalBoundary.map(
+      (row) => row.activityId,
+    ),
+    ["A0"],
+  );
+  assert.deepEqual(
+    projection.boundaryAudit.nearCriticalUpperInside.map(
+      (row) => row.activityId,
+    ),
+    ["A10"],
+  );
+  assert.deepEqual(
+    projection.boundaryAudit.nearCriticalUpperOutside.map(
+      (row) => row.activityId,
+    ),
+    ["A8"],
+  );
+  assert.equal(
+    projection.boundaryAudit.nearCriticalUpperInside[0]
+      ?.calendarWorkingDayHours,
+    10,
+  );
+  assert.equal(
+    projection.boundaryAudit.nearCriticalUpperInside[0]
+      ?.totalFloatWorkingDays,
+    4.8,
+  );
 });
 
 test("P1-1 includes legacy SCH02 control evidence by verified source identity", (t) => {
@@ -306,6 +342,14 @@ test("P1-1 source watchlist count never overrides an explicit project threshold 
   assert.equal(basis.state, "official");
   assert.equal(basis.nearCriticalExplicitHours, 40);
   assert.equal(basis.nearCriticalSourceCount, 1);
+  assert.equal(
+    basis.analysisConfig.criticalFloatThresholdHours,
+    0,
+  );
+  assert.equal(
+    basis.criticalFloatThresholdHours,
+    0,
+  );
   assert.equal(basis.nearCriticalWorkingDays, null);
   assert.equal(basis.nearCriticalThresholdMethod, "explicit_hours");
   assert.equal(basis.sourceCountReconcilesTo, "float_risk_watchlist");
@@ -377,6 +421,7 @@ test("generic metric/value/unit/source register resolves governed near-critical,
       "Metric,Value,Unit,Source",
       "Near Critical Activity Population,1,activities,Schedule control",
       "Near Critical Threshold,40,hours,Legacy hour equivalent",
+      "Critical Path Length,1200,working_day,Control basis",
       "Completion Outlook,2030-08-15,date,Measured Productivity Forecast",
       "Gross Positive Window Movement,203.17,days,Controlled window register",
     ].join("\n"),
