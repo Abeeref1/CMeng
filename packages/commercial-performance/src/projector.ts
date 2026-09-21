@@ -2168,6 +2168,34 @@ function cashFlow(
           "Paid income and actual expenditure are both required for cash position.",
       });
 
+    const certifiedUnpaid =
+      calc(
+        certifiedIncome.value !==
+            null &&
+          paidIncome.value !==
+            null
+          ? certifiedIncome.value -
+            paidIncome.value
+          : null,
+        {
+          asOf:
+            input.dataDateIso ??
+            "",
+          method:
+            "certified income - paid income",
+          refs: uniq([
+            ...certifiedIncome.basis
+              .sourceRefs,
+            ...paidIncome.basis
+              .sourceRefs,
+          ]),
+          consequence:
+            "Certified-but-unpaid value is kept separate from actual cash received.",
+          missingAction:
+            "Certified income and paid income are both required to establish certified-but-unpaid value.",
+        },
+      );
+
     const dates =
       uniq(
         entries.map(
@@ -2175,91 +2203,291 @@ function cashFlow(
             entry.periodDate,
         ),
       );
-    let cumulativeIncome:
-      number | null = 0;
-    let cumulativeExpenditure:
-      number | null = 0;
+    const hasKind = (
+      kind:
+        CashFlowEntry["kind"],
+    ) =>
+      entries.some(
+        (entry) =>
+          entry.kind === kind,
+      );
+    const hasCertifiedIncome =
+      hasKind(
+        "certified_income",
+      );
+    const hasPaidIncome =
+      hasKind(
+        "paid_income",
+      );
+    const hasBudget =
+      hasKind(
+        "expenditure_budget",
+      );
+    const hasForecast =
+      hasKind(
+        "expenditure_forecast",
+      );
+    const hasActualExpenditure =
+      hasKind(
+        "actual_expenditure",
+      );
+
+    const dayTotal = (
+      date: string,
+      kind:
+        CashFlowEntry["kind"],
+    ): number | null => {
+      const rows =
+        entries.filter(
+          (entry) =>
+            entry.periodDate ===
+              date &&
+            entry.kind === kind,
+        );
+      if (!rows.length) {
+        return 0;
+      }
+      return sumKnown(
+        rows.map(
+          (row) =>
+            row.amount.value,
+        ),
+      );
+    };
+
+    let cumulativeCertified:
+      number | null =
+      hasCertifiedIncome
+        ? 0
+        : null;
+    let cumulativePaid:
+      number | null =
+      hasPaidIncome
+        ? 0
+        : null;
+    let cumulativeBudget:
+      number | null =
+      hasBudget
+        ? 0
+        : null;
+    let cumulativeForecast:
+      number | null =
+      hasForecast
+        ? 0
+        : null;
+    let cumulativeActual:
+      number | null =
+      hasActualExpenditure
+        ? 0
+        : null;
     const cumulativeActualSeries:
       CashFlowCurrencyPosition["cumulativeActualSeries"] =
       [];
+    const cumulativePositionSeries:
+      CashFlowCurrencyPosition["cumulativePositionSeries"] =
+      [];
     let peakNeed:
-      number | null = null;
+      number | null =
+      hasPaidIncome &&
+      hasActualExpenditure
+        ? 0
+        : null;
+
     for (const date of dates) {
-      const incomeRows =
-        entries.filter(
-          (entry) =>
-            entry.periodDate ===
-              date &&
-            entry.kind ===
-              "paid_income",
+      const certified =
+        dayTotal(
+          date,
+          "certified_income",
         );
-      const expRows =
-        entries.filter(
-          (entry) =>
-            entry.periodDate ===
-              date &&
-            entry.kind ===
-              "actual_expenditure",
+      const paid =
+        dayTotal(
+          date,
+          "paid_income",
         );
-      const income =
-        incomeRows.length
-          ? sumKnown(
-              incomeRows.map(
-                (row) =>
-                  row.amount
-                    .value,
-              ),
-            )
-          : 0;
-      const exp =
-        expRows.length
-          ? sumKnown(
-              expRows.map(
-                (row) =>
-                  row.amount
-                    .value,
-              ),
-            )
-          : 0;
-      cumulativeIncome =
-        cumulativeIncome !==
+      const budget =
+        dayTotal(
+          date,
+          "expenditure_budget",
+        );
+      const forecast =
+        dayTotal(
+          date,
+          "expenditure_forecast",
+        );
+      const actual =
+        dayTotal(
+          date,
+          "actual_expenditure",
+        );
+
+      cumulativeCertified =
+        cumulativeCertified !==
           null &&
-        income !== null
-          ? cumulativeIncome +
-            income
+        certified !== null
+          ? cumulativeCertified +
+            certified
           : null;
-      cumulativeExpenditure =
-        cumulativeExpenditure !==
+      cumulativePaid =
+        cumulativePaid !==
           null &&
-        exp !== null
-          ? cumulativeExpenditure +
-            exp
+        paid !== null
+          ? cumulativePaid +
+            paid
           : null;
+      cumulativeBudget =
+        cumulativeBudget !==
+          null &&
+        budget !== null
+          ? cumulativeBudget +
+            budget
+          : null;
+      cumulativeForecast =
+        cumulativeForecast !==
+          null &&
+        forecast !== null
+          ? cumulativeForecast +
+            forecast
+          : null;
+      cumulativeActual =
+        cumulativeActual !==
+          null &&
+        actual !== null
+          ? cumulativeActual +
+            actual
+          : null;
+
       const pointNet =
-        cumulativeIncome !==
+        cumulativePaid !==
           null &&
-        cumulativeExpenditure !==
+        cumulativeActual !==
           null
-          ? cumulativeIncome -
-            cumulativeExpenditure
+          ? cumulativePaid -
+            cumulativeActual
           : null;
       if (
+        peakNeed !== null &&
         pointNet !== null &&
         pointNet < 0
       ) {
         peakNeed =
           Math.max(
-            peakNeed ?? 0,
+            peakNeed,
             -pointNet,
           );
       }
+
       cumulativeActualSeries.push({
         asOf: date,
-        cumulativeIncome,
-        cumulativeExpenditure,
+        cumulativeIncome:
+          cumulativePaid,
+        cumulativeExpenditure:
+          cumulativeActual,
         net: pointNet,
       });
+      cumulativePositionSeries.push({
+        asOf: date,
+        cumulativeCertifiedIncome:
+          cumulativeCertified,
+        cumulativePaidIncome:
+          cumulativePaid,
+        cumulativeExpenditureBudget:
+          cumulativeBudget,
+        cumulativeExpenditureForecast:
+          cumulativeForecast,
+        cumulativeActualExpenditure:
+          cumulativeActual,
+        actualNetCash:
+          pointNet,
+      });
     }
+
+    const periods =
+      uniq(
+        dates.map(
+          (date) =>
+            date.slice(0, 7),
+        ),
+      );
+    const periodMovementSeries:
+      CashFlowCurrencyPosition["periodMovementSeries"] =
+      periods.map(
+        (period) => {
+          const periodTotal = (
+            kind:
+              CashFlowEntry["kind"],
+            established:
+              boolean,
+          ):
+            number | null => {
+            if (!established) {
+              return null;
+            }
+            const rows =
+              entries.filter(
+                (entry) =>
+                  entry.kind ===
+                    kind &&
+                  entry.periodDate
+                    .startsWith(
+                      period,
+                    ),
+              );
+            if (!rows.length) {
+              return 0;
+            }
+            return sumKnown(
+              rows.map(
+                (row) =>
+                  row.amount
+                    .value,
+              ),
+            );
+          };
+          const certified =
+            periodTotal(
+              "certified_income",
+              hasCertifiedIncome,
+            );
+          const paid =
+            periodTotal(
+              "paid_income",
+              hasPaidIncome,
+            );
+          const budget =
+            periodTotal(
+              "expenditure_budget",
+              hasBudget,
+            );
+          const forecast =
+            periodTotal(
+              "expenditure_forecast",
+              hasForecast,
+            );
+          const actual =
+            periodTotal(
+              "actual_expenditure",
+              hasActualExpenditure,
+            );
+          return {
+            period,
+            certifiedIncome:
+              certified,
+            paidIncome: paid,
+            expenditureBudget:
+              budget,
+            expenditureForecast:
+              forecast,
+            actualExpenditure:
+              actual,
+            actualNetCashMovement:
+              paid !== null &&
+              actual !== null
+                ? paid - actual
+                : null,
+          };
+        },
+      );
+
     const peakFundingNeed =
       peakNeed === null
         ? missing(
@@ -2299,7 +2527,10 @@ function cashFlow(
       actualExpenditure,
       netCashPosition,
       peakFundingNeed,
+      certifiedUnpaid,
       cumulativeActualSeries,
+      cumulativePositionSeries,
+      periodMovementSeries,
       diagnostics: [
         "CERTIFIED_INCOME_IS_NOT_CASH_RECEIVED",
         "COMMITMENTS_AND_RETENTION_ARE_NOT_CASH_EXPENDITURE",
