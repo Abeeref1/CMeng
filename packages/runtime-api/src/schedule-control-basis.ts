@@ -116,6 +116,8 @@ function criticalThreshold(raw: string): number | null {
   // A critical-float threshold must describe total float / TF or an explicit
   // critical threshold rule. Metrics such as "Critical Path Length = 1200"
   // are schedule measures, not float-classification thresholds.
+  // Threshold identity is semantic, not lexical: "critical path length"
+  // is deliberately excluded because it is not a float-classification rule.
   const hasFloatSemantics =
     /\b(?:tf|total\s+float|float\s+threshold|critical\s+float)\b/i.test(
       text,
