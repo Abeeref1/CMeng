@@ -169,6 +169,18 @@ export function buildNearCriticalProjection(
         calendar
           ? calendar.semanticComplete
           : null,
+      totalFloatSourceRefs:
+        activity.sourceRefs.map(
+          (ref) =>
+            ref.source + ":" +
+            ref.locator,
+        ),
+      calendarSourceRefs:
+        (calendar?.sourceRefs ?? []).map(
+          (ref) =>
+            ref.source + ":" +
+            ref.locator,
+        ),
       totalFloatHours:
         activity.totalFloatHours!,
       calendarWorkingDayHours:
@@ -286,6 +298,12 @@ export function buildNearCriticalProjection(
   const boundaryAudit = {
     sampleLimitPerSide:
       SAMPLE_LIMIT,
+    sourceRevisionId:
+      model.sourceRevisionId,
+    totalFloatSourceField:
+      "TASK.total_float_hr_cnt" as const,
+    calendarJoinField:
+      "TASK.clndr_id -> CALENDAR.clndr_id" as const,
     criticalBoundary: {
       thresholdHours:
         config.criticalFloatThresholdHours,
