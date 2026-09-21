@@ -453,7 +453,7 @@ function dashboardMetrics(
           ? null
           : "Variance to official adjusted completion: " +
             String(
-              d.schedule
+              d?.schedule
                 .varianceDaysToOfficialAdjustedCompletion,
             ) +
             " days.",
@@ -461,8 +461,8 @@ function dashboardMetrics(
         d?.schedule
           .varianceDaysToOfficialAdjustedCompletion !==
           null &&
-        d.schedule
-          .varianceDaysToOfficialAdjustedCompletion >
+        (d?.schedule
+          .varianceDaysToOfficialAdjustedCompletion ?? 0) >
           0
           ? "Open Independent Forecast and EOT Position."
           : null,
@@ -606,13 +606,13 @@ function dashboardMetrics(
           null
           ? null
           : String(
-              d.claims
+              d?.claims
                 .fullyLinkedClaimCount ??
               0,
             ) +
             " / " +
             String(
-              d.claims
+              d?.claims
                 .claimCount,
             ),
       state:
@@ -734,7 +734,8 @@ function dashboardMetrics(
           ? "calculated"
           : "unavailable",
       health:
-        firstEvm?.spi === null ||
+        !firstEvm ||
+        firstEvm.spi === null ||
         input.commercial
           .evmByCurrency.length !==
           1
