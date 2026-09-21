@@ -181,7 +181,11 @@ function input():
         currency: "AED",
         certifiedAmount:
           1_000_000,
+        certifiedAmountBasis:
+          "incremental",
         paidAmount: 900_000,
+        paidAmountBasis:
+          "incremental",
         sourceRefs: [
           "evidence-document:IPC:row:2",
         ],
