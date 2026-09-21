@@ -5,13 +5,22 @@ on:
       - main
 permissions:
   contents: read
+concurrency:
+  group: cmeng-manual-visual-audit-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 jobs:
   capture:
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3]
     runs-on: ubuntu-latest
-    timeout-minutes: 18
+    timeout-minutes: 12
     env:
       CMENG_RAILWAY_URL: https://cmeng-main-production.up.railway.app
       CMENG_EXPECTED_RELEASE: 60e6ddff54d6ab4bed8fcb7b05ec348625a5cae1
+      CMENG_AUDIT_SHARD: ${{ matrix.shard }}
+      CMENG_AUDIT_SHARD_COUNT: 4
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -21,11 +30,11 @@ jobs:
         run: |
           python -m pip install playwright==1.57.0
           python -m playwright install --with-deps chromium
-      - name: Capture 32 live pages
+      - name: Capture live pages
         run: python scripts/railway-visual-audit.py
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: cmeng-manual-visual-audit
+          name: cmeng-manual-visual-audit-shard-${{ matrix.shard }}
           path: visual-audit
           retention-days: 7
