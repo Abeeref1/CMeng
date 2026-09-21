@@ -582,10 +582,15 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
         explicitActivityIds,
         aiScores:null,
         maxCandidates:8,
-        diagnosticSource:
-          eventClaims[0]
-            ? claimDiagnosticSources.get(eventClaims[0].claimId)
-            : undefined,
+        ...(
+          eventClaims[0] &&
+          claimDiagnosticSources.has(eventClaims[0].claimId)
+            ? {
+                diagnosticSource:
+                  claimDiagnosticSources.get(eventClaims[0].claimId)!,
+              }
+            : {}
+        ),
       });
       event.activityCorrespondence=resolution;
       if(resolution.acceptedActivityIds.length){
