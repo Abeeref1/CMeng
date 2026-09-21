@@ -549,6 +549,120 @@ test("Delay Claims separates employer candidate movement from concurrency review
   );
 });
 
+test("determination chain is full only when claim activity window notice and determination are all present", () => {
+  const model = delayModel();
+  model.notices.push({
+    noticeId: "D1",
+    kind: "determination",
+    eventId: "E1",
+    claimId: "CL1",
+    actualIssuedAt: "2026-01-10",
+    actualReceivedAt: null,
+    plannedAt: null,
+    subject: "Engineer determination",
+    clauseIdentifiers: ["20.2"],
+    evidenceRefs: [],
+    diagnostics: [],
+  });
+  const windows = buildWindowsAnalysisProjection(
+    revisions(),
+    model,
+    {
+      generatedAt: "2026-09-18T20:30:00.000Z",
+      producerVersion: "windows-v1",
+    },
+  );
+  const projection = buildDelayClaimsProjection(
+    windows,
+    model,
+    {
+      generatedAt: "2026-09-18T20:30:00.000Z",
+      producerVersion: "delay-claims-v1",
+    },
+  );
+  const e1 = projection.events.find(
+    (event) => event.eventId === "E1",
+  )!;
+  assert.equal(
+    e1.evidenceChainState,
+    "full_determination_chain",
+  );
+  assert.deepEqual(
+    e1.evidenceChainMissingLinks,
+    [],
+  );
+  assert.equal(
+    projection.fullDeterminationChainEventCount,
+    1,
+  );
+  assert.equal(
+    projection.determinationChainIncompleteEventCount,
+    0,
+  );
+});
+
+test("determination chain fails closed and names the activity gap when activity evidence is absent", () => {
+  const model = delayModel();
+  model.events[0]!.relatedActivityIds = [];
+  model.notices.push({
+    noticeId: "D1",
+    kind: "determination",
+    eventId: "E1",
+    claimId: "CL1",
+    actualIssuedAt: "2026-01-10",
+    actualReceivedAt: null,
+    plannedAt: null,
+    subject: "Engineer determination",
+    clauseIdentifiers: ["20.2"],
+    evidenceRefs: [],
+    diagnostics: [],
+  });
+  const windows = buildWindowsAnalysisProjection(
+    revisions(),
+    model,
+    {
+      generatedAt: "2026-09-18T20:30:00.000Z",
+      producerVersion: "windows-v1",
+    },
+  );
+  const projection = buildDelayClaimsProjection(
+    windows,
+    model,
+    {
+      generatedAt: "2026-09-18T20:30:00.000Z",
+      producerVersion: "delay-claims-v1",
+    },
+  );
+  const e1 = projection.events.find(
+    (event) => event.eventId === "E1",
+  )!;
+  assert.equal(
+    e1.evidenceChainState,
+    "determination_chain_incomplete",
+  );
+  assert.deepEqual(
+    e1.evidenceChainMissingLinks,
+    ["activity"],
+  );
+  assert.ok(
+    e1.diagnostics.includes(
+      "DETERMINATION_CHAIN_INCOMPLETE_MISSING:activity",
+    ),
+  );
+  assert.equal(
+    projection.fullDeterminationChainEventCount,
+    0,
+  );
+  assert.equal(
+    projection.determinationChainIncompleteEventCount,
+    1,
+  );
+  assert.equal(
+    projection.activityEvidenceInsufficientEventCount,
+    1,
+  );
+});
+
 test("EOT Assessment keeps official EOT separate from analytical candidate and excludes concurrent window", () => {
   const windows =
     buildWindowsAnalysisProjection(
