@@ -22,6 +22,13 @@ export interface ClaimActivityCorrespondenceInput {
   explicitActivityIds?: string[];
   aiScores?: ClaimActivityAiScore[] | null;
   maxCandidates?: number;
+  diagnosticSource?: {
+    tableDocumentId: string | null;
+    tableSourceFilename: string | null;
+    sourceLocator: string | null;
+    columns: string[];
+    rawFragments: Array<{ column: string; value: string }>;
+  };
 }
 
 export interface ClaimActivityCorrespondenceResolution

@@ -296,14 +296,23 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
   const correspondenceNarratives=correspondenceNarrativeSegments(state);
   const sourceTablesForClaims=tables.filter(t=>has(t,'claim id','event')&&has(t,'notice date'));
   const claimNarratives=new Map<string,string[]>();
+  const claimDiagnosticSources=new Map<string,{
+    tableDocumentId:string|null;
+    tableSourceFilename:string|null;
+    sourceLocator:string|null;
+    columns:string[];
+    rawFragments:Array<{column:string;value:string}>;
+  }>();
   const explicitActivitiesByClaim=new Map<string,string[]>();
-  const semanticNarrativeValues=(row:SourceRow):string[] =>
+  const semanticNarrativeFragments=(row:SourceRow):Array<{column:string;value:string}> =>
     Object.entries(row.cells)
       .filter(([key,value]) =>
         value.trim() !== "" &&
         /(?:event|title|description|subject|location|discipline|trade|scope|area|zone|wbs|work package|cause|reason|impact|activity name|affected work)/i.test(key),
       )
-      .map(([,value])=>value);
+      .map(([column,value])=>({column,value}));
+  const semanticNarrativeValues=(row:SourceRow):string[] =>
+    semanticNarrativeFragments(row).map(fragment=>fragment.value);
   const addClaimNarrative=(claimId:string,values:readonly string[]):void=>{
     const existing=claimNarratives.get(claimId)??[];
     claimNarratives.set(claimId,[...existing,...values.filter(Boolean)]);
@@ -321,6 +330,14 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
     const claimId=cell(r,'claim id');if(!claimId)continue;
     if(claimIds.has(claimId)){diagnostics.push('DUPLICATE_CLAIM_ID_REQUIRES_REVISION_RECONCILIATION:'+claimId);continue;}claimIds.add(claimId);
     const eventId=cell(r,'event id')||claimId+':event',title=cell(r,'event','title')||claimId;
+    const primarySemanticFragments=semanticNarrativeFragments(r);
+    claimDiagnosticSources.set(claimId,{
+      tableDocumentId:table.document.documentId??null,
+      tableSourceFilename:table.document.sourceFilename??null,
+      sourceLocator:r.receipt.locator??null,
+      columns:primarySemanticFragments.map(fragment=>fragment.column),
+      rawFragments:primarySemanticFragments,
+    });
     const clause=cell(r,'clause'),clauseIdentifiers=clause?[clause]:[];
     const sourceLetter=cell(r,'linked letter');
     const linkedCorrespondence=sourceLetter?correspondence.get(norm(sourceLetter))??null:null;
@@ -359,7 +376,7 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
     addClaimNarrative(
       claimId,
       [
-        ...semanticNarrativeValues(r),
+        ...primarySemanticFragments.map(fragment=>fragment.value),
         linkedCorrespondence?.subject??"",
         ...linkedNarratives.map(item=>item.text),
       ],
@@ -565,6 +582,15 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
         explicitActivityIds,
         aiScores:null,
         maxCandidates:8,
+        ...(
+          eventClaims[0] &&
+          claimDiagnosticSources.has(eventClaims[0].claimId)
+            ? {
+                diagnosticSource:
+                  claimDiagnosticSources.get(eventClaims[0].claimId)!,
+              }
+            : {}
+        ),
       });
       event.activityCorrespondence=resolution;
       if(resolution.acceptedActivityIds.length){
