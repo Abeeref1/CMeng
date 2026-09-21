@@ -6829,11 +6829,11 @@ export function managementSurfacesForProject(
         (publication) => ({
           eventId:
             "board-publication:" +
-            publication.reportId,
+            publication.publicationId,
           occurredAt:
             publication.finalizedAt,
           entity:
-            publication.reportId,
+            publication.publicationId,
           action:
             publication.stale
               ? "Board publication became stale"
