@@ -365,6 +365,96 @@ test('IF01 and IF02 route to schedule-control productivity evidence',()=>{
   );
 });
 
+test('live IF01 source model is validated and retained without inventing an unproven calendar basis',t=>{
+  const {state,csvDoc}=fixture(t);
+  const doc=csvDoc(
+    [
+      'Work Package,Description,Discipline,Remaining Quantity,Unit,Recent Achieved Rate / Day,Conservative Achievable Rate / Day,Available Start,Productive Days,Interface Allowance Days,Independent Forecast Finish,Status',
+      'WP-001,Primary productivity driver,Civil,100,m3,12,10,2026-09-01,10,2,2030-07-20,Open',
+      'WP-002,Secondary package,MEP,50,no,11,10,2026-09-01,5,1,2030-07-10,Open',
+    ].join('\n'),
+    'boq',
+    'active',
+    ':legacy-if01',
+  );
+  doc.category='boq_cost';
+  doc.documentType='boq';
+  doc.sourceFilename='IF01_Productivity_Remaining_Quantity_Model.csv';
+  doc.sourceRelativePath='04_Resource_Productivity/IF01_Productivity_Remaining_Quantity_Model.csv';
+
+  const p=sourceProductivityForecastEvidence(state);
+  assert.equal(p.method,'source_work_package_productivity_model');
+  assert.equal(p.state,'official');
+  assert.equal(p.workPackageCount,2);
+  assert.equal(p.calculatedWorkPackageCount,2);
+  assert.equal(p.calendarCalculatedWorkPackageCount,0);
+  assert.equal(p.sourceModelWorkPackageCount,2);
+  assert.equal(p.calculationCoveragePercent,100);
+  assert.equal(p.driverWorkPackageId,'WP-001');
+  assert.deepEqual(p.driverWorkPackageIds,['WP-001']);
+  assert.equal(p.completionIso,'2030-07-20');
+
+  const wp1=p.rows.find(row=>row.workPackageId==='WP-001')!;
+  assert.equal(wp1.discipline,'Civil');
+  assert.equal(wp1.remainingQuantity,100);
+  assert.equal(wp1.recentAchievedRatePerDay,12);
+  assert.equal(wp1.conservativeAchievableRatePerDay,10);
+  assert.equal(wp1.calculatedProductiveDays,10);
+  assert.equal(wp1.sourceProductiveDays,10);
+  assert.equal(wp1.productiveDaysReconciliation,'reconciled');
+  assert.equal(wp1.sourceInterfaceAllowanceDays,2);
+  assert.equal(wp1.sourceIndependentForecastFinishIso,'2030-07-20');
+  assert.equal(wp1.rateBasis,'explicit_productive_day_rate');
+  assert.equal(wp1.completionBasis,'source_model_finish');
+  assert.equal(wp1.completionIso,'2030-07-20');
+  assert.equal(wp1.calendarId,null);
+  assert.ok(
+    wp1.diagnostics.includes(
+      'PRODUCTIVITY_SOURCE_MODEL_ARITHMETIC_RECONCILED',
+    ),
+  );
+  assert.ok(
+    wp1.diagnostics.includes(
+      'PRODUCTIVITY_SOURCE_FINISH_RETAINED_CALENDAR_BASIS_NOT_INDEPENDENTLY_RECALCULATED',
+    ),
+  );
+});
+
+test('live IF01 source finish fails closed when productive-day arithmetic does not reconcile',t=>{
+  const {state,csvDoc}=fixture(t);
+  const doc=csvDoc(
+    [
+      'Work Package,Description,Discipline,Remaining Quantity,Unit,Recent Achieved Rate / Day,Conservative Achievable Rate / Day,Available Start,Productive Days,Interface Allowance Days,Independent Forecast Finish,Status',
+      'WP-001,Arithmetic mismatch,Civil,100,m3,12,10,2026-09-01,12,2,2030-07-20,Open',
+    ].join('\n'),
+    'boq',
+    'active',
+    ':legacy-if01',
+  );
+  doc.category='boq_cost';
+  doc.documentType='boq';
+  doc.sourceFilename='IF01_Productivity_Remaining_Quantity_Model.csv';
+  doc.sourceRelativePath='04_Resource_Productivity/IF01_Productivity_Remaining_Quantity_Model.csv';
+
+  const p=sourceProductivityForecastEvidence(state);
+  assert.equal(p.method,'missing');
+  assert.equal(p.state,'missing');
+  assert.equal(p.completionIso,null);
+  assert.equal(p.workPackageCount,1);
+  assert.equal(p.calculatedWorkPackageCount,0);
+  const wp=p.rows[0]!;
+  assert.equal(wp.calculatedProductiveDays,10);
+  assert.equal(wp.sourceProductiveDays,12);
+  assert.equal(wp.productiveDaysReconciliation,'different');
+  assert.equal(wp.completionBasis,'unresolved');
+  assert.equal(wp.completionIso,null);
+  assert.ok(
+    wp.diagnostics.includes(
+      'PRODUCTIVITY_SOURCE_PRODUCTIVE_DAYS_ARITHMETIC_MISMATCH',
+    ),
+  );
+});
+
 test('productivity producer calculates work-package completion from remaining quantity measured rate calendar and explicit allowance',t=>{
   const {state,csvDoc}=fixture(t);
   state.schedules[0]!.revision.model.calendars=[
