@@ -235,7 +235,17 @@ function strongestMovement(
   basis:
     ScheduleWindowResult["strongestProgrammeMovementBasis"];
 } {
-  if (input.activityPositive !== null) {
+  const activityPositiveIsDistinct =
+    input.activityPositive !== null &&
+    (
+      input.sourceForecast === null ||
+      Math.abs(
+        input.activityPositive -
+          input.sourceForecast,
+      ) > 0.000001
+    );
+
+  if (activityPositiveIsDistinct) {
     return {
       days: input.activityPositive,
       basis:
