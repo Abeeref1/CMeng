@@ -538,12 +538,17 @@ export function analyzeSchedule(
   config: ScheduleAnalysisConfig =
     DEFAULT_SCHEDULE_ANALYSIS_CONFIG,
 ): ScheduleAnalyticsResult {
+  const usesWorkingDayNearCriticalRule =
+    config.nearCriticalWorkingDays !== undefined &&
+    config.nearCriticalWorkingDays !== null;
+
   if (
+    !usesWorkingDayNearCriticalRule &&
     config.nearCriticalFloatThresholdHours <
-    config.criticalFloatThresholdHours
+      config.criticalFloatThresholdHours
   ) {
     throw new Error(
-      "nearCriticalFloatThresholdHours cannot be below criticalFloatThresholdHours",
+      "nearCriticalFloatThresholdHours cannot be below criticalFloatThresholdHours when the near-critical basis is elapsed hours",
     );
   }
 
