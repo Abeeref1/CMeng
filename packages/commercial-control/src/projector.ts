@@ -772,7 +772,24 @@ export function buildCommercialControlPosition(
             input.retentions.length ||
             input.bonds.length ||
             input
-              .claimCommercials.length,
+              .claimCommercials.length ||
+            (
+              input.sourceLedger &&
+              (
+                input.sourceLedger
+                  .costMetrics.length >
+                  0 ||
+                input.sourceLedger
+                  .costPosition.length >
+                  0 ||
+                input.sourceLedger
+                  .payments.length >
+                  0 ||
+                input.sourceLedger
+                  .variations.length >
+                  0
+              )
+            )
           ),
           input
             .commercialEvidenceSubmitted,
@@ -781,6 +798,12 @@ export function buildCommercialControlPosition(
         stateFor(
           input.invoices.length > 0 ||
             input.retentions.length >
+              0 ||
+            (
+              input.sourceLedger
+                ?.payments.length ??
+              0
+            ) >
               0,
           input
             .paymentEvidenceSubmitted,
@@ -788,7 +811,13 @@ export function buildCommercialControlPosition(
       variations:
         stateFor(
           input.variations.length >
-            0,
+            0 ||
+            (
+              input.sourceLedger
+                ?.variations.length ??
+              0
+            ) >
+              0,
           input
             .variationEvidenceSubmitted,
         ),

@@ -2764,6 +2764,15 @@ function renderModuleResult(result){
   el("moduleContent").innerHTML=context+renderRoleContent(result.key,data,primaryView,challengeHtml,Boolean(specialized));
 }
 let moduleRequestSeq=0;
+const commercialModuleKeysForApi=new Set([
+  "commercial-overview",
+  "cost-forecast",
+  "variations-change",
+  "payments",
+  "cash-flow",
+  "commercial-claims-notices",
+  "contract-particulars-bonds"
+]);
 async function loadModule(key){
   if(!overview){el("moduleContent").innerHTML='<div class="empty">Load a project first.</div>';return}
   const moduleName=names[key]||key;
@@ -2776,7 +2785,7 @@ async function loadModule(key){
   setBusy("Updating "+moduleName);
   el("moduleContent").innerHTML='<div class="view-state-bar"><span class="spinner"></span><strong>Updating '+escapeHtml(moduleName)+'</strong><span>Preparing the latest project position.</span></div>';
   try{
-    const moduleArea=groups["Commercial"].includes(key)?"commercial":"schedule";
+    const moduleArea=commercialModuleKeysForApi.has(key)?"commercial":"schedule";
     const result=await api("/api/projects/"+encodeURIComponent(project())+"/"+moduleArea+"/modules/"+encodeURIComponent(key));
     if(requestSeq!==moduleRequestSeq)return;
     renderModuleResult(result);
@@ -3307,7 +3316,7 @@ el("openLibraryQuick").onclick=openEvidenceLibrary;
 function setFocusMode(enabled){document.body.classList.toggle("focus-module",enabled);el("focusMode").classList.toggle("active",enabled);el("focusMode").setAttribute("aria-pressed",String(enabled));el("focusMode").textContent=enabled?"Exit focus":"Focus view";localStorage.setItem("cmeng-focus",enabled?"1":"0")}
 el("focusMode").onclick=()=>setFocusMode(!document.body.classList.contains("focus-module"));
 function reportDownloadUrl(format){
-  const moduleArea=groups["Commercial"].includes(selected)?"commercial":"schedule";
+  const moduleArea=commercialModuleKeysForApi.has(selected)?"commercial":"schedule";
   return "/api/projects/"+encodeURIComponent(project())+"/"+moduleArea+"/modules/"+encodeURIComponent(selected)+"/report."+format;
 }
 function reportSafeFilename(value){
