@@ -240,6 +240,7 @@ export interface EvidenceMappingSummary {
 
 export interface EvidenceTextSegment {
   segmentId: string;
+  producerVersion: string;
   kind: "linked_correspondence_context";
   anchor: string;
   pageNumber: number | null;

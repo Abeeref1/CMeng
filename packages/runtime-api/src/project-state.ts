@@ -2085,6 +2085,8 @@ export class RuntimeProjectStore {
     diagnostics: string[];
   }> {
     const diagnostics: string[] = [];
+    const correspondenceSegmentProducerVersion =
+      "correspondence-linked-context-v2";
     let refreshedDocumentCount = 0;
     let segmentCount = 0;
     let unresolvedAnchorCount = 0;
@@ -2231,16 +2233,28 @@ export class RuntimeProjectStore {
         const existing =
           document.textSegments ??
           [];
+        const currentExisting =
+          existing.filter(
+            (segment) =>
+              segment.kind ===
+                "linked_correspondence_context" &&
+              segment.sourceHashSha256 ===
+                document.sourceHashSha256 &&
+              segment.producerVersion ===
+                correspondenceSegmentProducerVersion,
+          );
+        if (
+          existing.length >
+          currentExisting.length
+        ) {
+          diagnostics.push(
+            "CORRESPONDENCE_SEGMENTS_STALE_PRODUCER:" +
+              document.documentId,
+          );
+        }
         const existingAnchors =
           new Set(
-            existing
-              .filter(
-                (segment) =>
-                  segment.kind ===
-                    "linked_correspondence_context" &&
-                  segment.sourceHashSha256 ===
-                    document.sourceHashSha256,
-              )
+            currentExisting
               .map(
                 (segment) =>
                   normalizeAnchor(
@@ -2259,10 +2273,10 @@ export class RuntimeProjectStore {
           );
         if (
           allAnchorsCovered &&
-          existing.length > 0
+          currentExisting.length > 0
         ) {
           segmentCount +=
-            existing.length;
+            currentExisting.length;
           continue;
         }
 
@@ -2480,6 +2494,8 @@ export class RuntimeProjectStore {
 
               segments.push({
                 segmentId,
+                producerVersion:
+                  correspondenceSegmentProducerVersion,
                 kind:
                   "linked_correspondence_context",
                 anchor:
