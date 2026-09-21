@@ -1,0 +1,32 @@
+name: CMeng Manual Visual Audit
+on:
+  push:
+    branches:
+      - audit/visual-20260922
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    env:
+      CMENG_RAILWAY_URL: https://cmeng-main-production.up.railway.app
+      CMENG_EXPECTED_RELEASE: b978af587b5380a2083c28d0287d8e69a7cb8d76
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install browser
+        run: |
+          python -m pip install playwright==1.57.0
+          python -m playwright install --with-deps chromium
+      - name: Capture 32 live pages
+        run: python scripts/railway-visual-audit.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cmeng-manual-visual-audit
+          path: visual-audit
+          retention-days: 7
