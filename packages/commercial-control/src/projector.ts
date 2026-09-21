@@ -637,6 +637,8 @@ export function buildCommercialControlPosition(
 
   return {
     ...(input.sourceLedger ? {sourceLedger: input.sourceLedger} : {}),
+    foundation:
+      input.foundation,
     schemaVersion: "1.0",
     projectionKey:
       "commercial_control_position",
@@ -860,11 +862,59 @@ export function buildCommercialModuleProjection(
         position.currencies,
       evidence:
         position.evidence,
+      commercialTerms:
+        position.foundation
+          .commercialTerms,
+      costRegisterSummary: {
+        state:
+          position.foundation
+            .costRegister.state,
+        recordCount:
+          position.foundation
+            .costRegister
+            .recordCount,
+        mappingCoveragePercent:
+          position.foundation
+            .costRegister
+            .mappingCoveragePercent,
+      },
+      paymentRegisterSummary: {
+        state:
+          position.foundation
+            .paymentRegister.state,
+        recordCount:
+          position.foundation
+            .paymentRegister
+            .recordCount,
+        stageCoveragePercent:
+          position.foundation
+            .paymentRegister
+            .stageCoveragePercent,
+      },
+      cbsBreakdownSummary: {
+        state:
+          position.foundation
+            .cbsBreakdown.state,
+        nodeCount:
+          position.foundation
+            .cbsBreakdown
+            .nodeCount,
+        mappingCoveragePercent:
+          position.foundation
+            .cbsBreakdown
+            .mappingCoveragePercent,
+      },
     };
   } else if (
     key === "cost_forecast"
   ) {
     focus = {
+      costRegister:
+        position.foundation
+          .costRegister,
+      cbsBreakdown:
+        position.foundation
+          .cbsBreakdown,
       currencies:
         position.currencies.map(
           (row) => ({
@@ -914,6 +964,9 @@ export function buildCommercialModuleProjection(
     key === "payments"
   ) {
     focus = {
+      paymentRegister:
+        position.foundation
+          .paymentRegister,
       invoiceCount:
         position.invoiceCount,
       retentionRecordCount:
@@ -984,6 +1037,9 @@ export function buildCommercialModuleProjection(
           ],
         }));
     focus = {
+      paymentRegister:
+        position.foundation
+          .paymentRegister,
       currencies:
         position.currencies.map(
           (row) => ({
@@ -1037,6 +1093,9 @@ export function buildCommercialModuleProjection(
     };
   } else {
     focus = {
+      commercialTerms:
+        position.foundation
+          .commercialTerms,
       timeExposure:
         position.timeExposure,
       bondCount:
