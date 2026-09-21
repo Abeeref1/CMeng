@@ -534,6 +534,55 @@ test("CMeng workspace keeps the active module primary and browser script parseab
   );
 
   for (
+    const managementControlFeature of [
+      "Master Dashboard",
+      "Command Center",
+      "Master Control Programme",
+      "Executive Project Position",
+      "Management Priorities",
+      "Decisions Required",
+      "Integrated Governance Position",
+      "WBS & Work-Package Control",
+      "AI / Extracted Candidate Review Inbox",
+      "Control History",
+      "Observed WBS labels are schedule evidence.",
+      "no candidate can directly author the official MCP position",
+    ]
+  ) {
+    assert.equal(
+      html.includes(
+        managementControlFeature,
+      ),
+      true,
+      "Management Control surface must expose: " +
+        managementControlFeature,
+    );
+  }
+
+  assert.equal(
+    html.includes(
+      "/management-control/",
+    ),
+    false,
+    "management views must use the canonical first-class management route, not the obsolete prototype endpoint",
+  );
+  assert.match(
+    html,
+    /\/management\/"\+encodeURIComponent\(key\)/,
+    "management views must load the server-owned ModuleRuntimeResult",
+  );
+  assert.match(
+    html,
+    /\/management\/"\+encodeURIComponent\(selected\)\+"\/report\."/,
+    "management views must use the same report-generation pattern as specialist modules",
+  );
+  assert.match(
+    html,
+    /selected="master-dashboard"/,
+    "a newly opened CMeng project should lead with the executive Master Dashboard",
+  );
+
+  for (
     const commercialManagementVisual of [
       "Executive Commercial Position",
       "Cost S-Curve & Forecast Position",
