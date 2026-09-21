@@ -1062,6 +1062,9 @@ export function buildCommercialControlPosition(
     ...(input.sourceLedger ? {sourceLedger: input.sourceLedger} : {}),
     foundation,
     performance,
+    ...(input.contractControls
+      ? { contractControls: input.contractControls }
+      : {}),
     schemaVersion: "1.0",
     projectionKey:
       "commercial_control_position",
@@ -1363,6 +1366,29 @@ export function buildCommercialModuleProjection(
             .costScurve
             .series.length,
       },
+      contractControlSummary:
+        position.contractControls
+          ? {
+              variations:
+                position.contractControls
+                  .variations.state,
+              siteInstructions:
+                position.contractControls
+                  .siteInstructions.state,
+              obligations:
+                position.contractControls
+                  .contractObligations.state,
+              liquidatedDamages:
+                position.contractControls
+                  .liquidatedDamages.state,
+              bondsInsurance:
+                position.contractControls
+                  .bondsInsurance.state,
+              retentionCalendar:
+                position.contractControls
+                  .retentionCalendar.state,
+            }
+          : null,
     };
   } else if (
     key === "cost_forecast"
@@ -1412,6 +1438,14 @@ export function buildCommercialModuleProjection(
     key === "variations_change"
   ) {
     focus = {
+      variationControl:
+        position.contractControls
+          ?.variations ??
+        null,
+      siteInstructions:
+        position.contractControls
+          ?.siteInstructions ??
+        null,
       variationCount:
         position.variationCount,
       currencies:
@@ -1567,6 +1601,22 @@ export function buildCommercialModuleProjection(
       commercialTerms:
         position.foundation
           .commercialTerms,
+      contractObligations:
+        position.contractControls
+          ?.contractObligations ??
+        null,
+      liquidatedDamages:
+        position.contractControls
+          ?.liquidatedDamages ??
+        null,
+      bondsInsurance:
+        position.contractControls
+          ?.bondsInsurance ??
+        null,
+      retentionCalendar:
+        position.contractControls
+          ?.retentionCalendar ??
+        null,
       timeExposure:
         position.timeExposure,
       bondCount:

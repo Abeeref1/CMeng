@@ -52,6 +52,10 @@ import {
   commercialPerformanceCapabilityForState,
 } from "./commercial-performance-runtime";
 import {
+  commercialContractControlCapabilities,
+  commercialContractControlCapabilityForState,
+} from "./commercial-contract-controls-runtime";
+import {
   loadCertifiedDemoProject,
 } from "./demo-project";
 import type {
@@ -841,12 +845,14 @@ async function route(
     json(res, 200, {
       capabilityCount:
         commercialFoundationCapabilities.length +
-        commercialPerformanceCapabilities.length,
+        commercialPerformanceCapabilities.length +
+        commercialContractControlCapabilities.length,
       capabilities: [
         ...commercialFoundationCapabilities,
         ...commercialPerformanceCapabilities,
+        ...commercialContractControlCapabilities,
       ],
-      phase: "C2B1",
+      phase: "C2B2",
       invariants: {
         universalCommercialFindingContract:
           true,
@@ -2015,6 +2021,10 @@ async function route(
         key,
       ) ??
       commercialPerformanceCapabilityForState(
+        state,
+        key,
+      ) ??
+      commercialContractControlCapabilityForState(
         state,
         key,
       );
