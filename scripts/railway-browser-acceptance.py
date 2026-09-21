@@ -83,8 +83,21 @@ try:
                 body = page.locator('#moduleContent').inner_text()
                 check('Master Dashboard is compact executive position with evidence-safe authority',
                       all(label in body for label in ['Executive Project Position','Control Readiness','Evidence Snapshot','Commercial Exposure by Currency']))
+                contract_risk = page.evaluate('''() => {
+                    const metric = (currentModuleResult?.data?.metrics || []).find(item => item.key === 'contract-risk')
+                    return metric ? {
+                        value: metric.value,
+                        state: metric.state,
+                        authority: metric.authority
+                    } : null
+                }''')
                 check('Master Dashboard does not fabricate Contract Risk',
-                      'Contract risk' in body and 'Not established' in body)
+                      contract_risk is not None and
+                      contract_risk['value'] is None and
+                      contract_risk['state'] == 'unavailable' and
+                      contract_risk['authority'] == 'unavailable' and
+                      'contract risk' in body.lower() and
+                      'not established' in body.lower())
             if key == 'command-center':
                 body = page.locator('#moduleContent').inner_text()
                 check('Command Center presents priorities decisions evidence gaps and commercial position',
