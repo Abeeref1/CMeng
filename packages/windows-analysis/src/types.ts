@@ -41,6 +41,20 @@ export interface ScheduleWindowResult {
   toIndependentForecastCompletionIso: string | null;
   independentForecastMovementDays: number | null;
 
+  /** Submitted/control-programme completion movement within this window. */
+  netCompletionMovementDays: number | null;
+  netCompletionMovementBasis:
+    | "source_forecast"
+    | "source_schedule_boundary"
+    | "unavailable";
+  /** CMeng independently recalculated CPM movement within this window. */
+  grossAnalyticalMovementDays: number | null;
+  grossAnalyticalPositiveMovementDays: number | null;
+  analyticalRecoveryMovementDays: number | null;
+  analyticalVsNetDeltaDays: number | null;
+  /** Non-negative reconciliation candidate only. Not concurrency or entitlement. */
+  overlapCandidateDays: number | null;
+
   fromScheduleBoundaryIso: string | null;
   toScheduleBoundaryIso: string | null;
   scheduleBoundaryMovementDays: number | null;
@@ -101,6 +115,12 @@ export interface WindowsAnalysisProjection {
   unresolvedWindowCount: number;
   positiveIndependentMovementDays: number;
   negativeIndependentMovementDays: number;
+  grossAnalyticalMovementDays: number;
+  analyticalRecoveryMovementDays: number;
+  analyticalMovementAvailableWindowCount: number;
+  analyticalVsNetDeltaDays: number | null;
+  /** Gross analytical positive movement less positive net completion movement, floored at zero. */
+  overlapCandidateDays: number | null;
   /**
    * Sum of the strongest positive matched-activity finish shift in each
    * chronological analysis window. This is an analytical gross movement
@@ -121,6 +141,14 @@ export interface WindowsAnalysisProjection {
   firstProjectCompletionIso: string | null;
   latestProjectCompletionIso: string | null;
   programmeMovementAvailableWindowCount: number;
+  sourceReportedGrossPositiveMovementDays: number | null;
+  sourceReportedGrossNegativeMovementDays: number | null;
+  sourceMovementReconciliation: {
+    state: "reconciled" | "different" | "source_not_reported" | "calculation_unavailable";
+    positiveGapDays: number | null;
+    negativeGapDays: number | null;
+    sourceRefs: string[];
+  };
   windows: ScheduleWindowResult[];
   diagnostics: string[];
 }
