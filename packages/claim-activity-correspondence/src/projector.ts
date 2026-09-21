@@ -45,6 +45,27 @@ const LOCATION_WORDS = new Set([
   "room","rooms","block","sector","section","pier","deck","terminal","station",
 ]);
 
+interface IndexedActivity {
+  activity: CanonicalScheduleActivity;
+  wbs: string;
+  corpus: string;
+  tokens: Set<string>;
+  codes: Set<string>;
+}
+
+interface ClaimActivityScheduleIndex {
+  scheduleRevisionId: string;
+  wbsById: Map<string, CanonicalWbsNode>;
+  activityById: Map<string, CanonicalScheduleActivity>;
+  indexed: IndexedActivity[];
+  byToken: Map<string, Set<number>>;
+  byCode: Map<string, Set<number>>;
+}
+
+const scheduleIndexCache =
+  new WeakMap<CanonicalScheduleModel, ClaimActivityScheduleIndex>();
+
+
 function norm(value: string | null | undefined): string {
   return (value ?? "")
     .normalize("NFKC")
@@ -123,6 +144,139 @@ function wbsPath(
         : null;
   }
   return parts.join(" ");
+}
+
+function addIndexValue(
+  map: Map<string, Set<number>>,
+  key: string,
+  index: number,
+): void {
+  if (!key) return;
+  const bucket = map.get(key) ?? new Set<number>();
+  bucket.add(index);
+  map.set(key, bucket);
+}
+
+function scheduleIndex(
+  schedule: CanonicalScheduleModel,
+): ClaimActivityScheduleIndex {
+  const cached = scheduleIndexCache.get(schedule);
+  if (cached) return cached;
+
+  const wbsById = new Map(
+    (schedule.wbs ?? []).map((node) => [node.wbsId, node]),
+  );
+  const activityById = new Map(
+    (schedule.activities ?? []).map((activity) => [activity.activityId, activity]),
+  );
+  const byToken = new Map<string, Set<number>>();
+  const byCode = new Map<string, Set<number>>();
+  const indexed = (schedule.activities ?? [])
+    .filter(
+      (activity) =>
+        activity.activityType !== "wbs_summary" &&
+        activity.name !== null,
+    )
+    .map((activity) => {
+      const wbs = wbsPath(activity, wbsById);
+      const corpus = [
+        activity.activityId,
+        activity.nativeId ?? "",
+        activity.name ?? "",
+        activity.wbsId ?? "",
+        wbs,
+      ].join(" ");
+      return {
+        activity,
+        wbs,
+        corpus,
+        tokens: tokenSet(corpus),
+        codes: codeTokens(corpus),
+      };
+    });
+
+  indexed.forEach((item, index) => {
+    for (const token of item.tokens) {
+      addIndexValue(byToken, token, index);
+    }
+    for (const code of item.codes) {
+      addIndexValue(byCode, code, index);
+    }
+  });
+
+  const value = {
+    scheduleRevisionId: schedule.sourceRevisionId,
+    wbsById,
+    activityById,
+    indexed,
+    byToken,
+    byCode,
+  };
+  scheduleIndexCache.set(schedule, value);
+  return value;
+}
+
+function prefilterIndexedActivities(
+  index: ClaimActivityScheduleIndex,
+  narrative: string,
+  extraction: ClaimActivityCorrespondenceResolution["extraction"],
+): IndexedActivity[] {
+  const queryTokens = new Set([
+    ...tokens(narrative),
+    ...extraction.nouns,
+    ...extraction.locations.flatMap((value) => tokens(value)),
+    ...extraction.disciplines,
+    ...extraction.trades,
+  ]);
+  const queryCodes = new Set(
+    extraction.codes.map((value) => value.toUpperCase()),
+  );
+
+  const candidateIndexes = new Set<number>();
+  for (const token of queryTokens) {
+    for (const activityIndex of index.byToken.get(token) ?? []) {
+      candidateIndexes.add(activityIndex);
+    }
+  }
+  for (const code of queryCodes) {
+    for (const activityIndex of index.byCode.get(code) ?? []) {
+      candidateIndexes.add(activityIndex);
+    }
+  }
+
+  if (candidateIndexes.size === 0) {
+    return [];
+  }
+
+  return [...candidateIndexes]
+    .map((activityIndex) => index.indexed[activityIndex]!)
+    .map((item) => {
+      let overlap = 0;
+      for (const token of queryTokens) {
+        if (item.tokens.has(token)) overlap += 1;
+      }
+      let codeOverlap = 0;
+      for (const code of queryCodes) {
+        if (item.codes.has(code)) codeOverlap += 1;
+      }
+      return {
+        item,
+        cheapScore:
+          overlap +
+          codeOverlap * 4,
+      };
+    })
+    .sort(
+      (a, b) =>
+        b.cheapScore - a.cheapScore ||
+        a.item.activity.activityId.localeCompare(
+          b.item.activity.activityId,
+          undefined,
+          { numeric: true },
+        ),
+    )
+    .slice(0, 96)
+    .map((entry) => entry.item);
 }
 
 function scheduleRefs(
@@ -444,20 +598,17 @@ export function resolveClaimActivityCorrespondence(
     Math.max(1, input.maxCandidates ?? 8),
   );
   const extraction = extract(input.narrative);
-  const wbsById = new Map(
-    (input.schedule.wbs ?? []).map((node) => [node.wbsId, node]),
-  );
+  const index = scheduleIndex(input.schedule);
   const explicit = new Set(input.explicitActivityIds ?? []);
-  const activityById = new Map(
-    (input.schedule.activities ?? []).map((activity) => [activity.activityId, activity]),
-  );
 
-  const validExplicit = [...explicit].filter((activityId) => activityById.has(activityId));
+  const validExplicit = [...explicit].filter(
+    (activityId) => index.activityById.has(activityId),
+  );
   if (validExplicit.length > 0) {
     const candidates = validExplicit
       .sort()
       .map((activityId) => {
-        const activity = activityById.get(activityId)!;
+        const activity = index.activityById.get(activityId)!;
         return {
           activityId,
           activityName: activity.name,
@@ -494,21 +645,20 @@ export function resolveClaimActivityCorrespondence(
     };
   }
 
-  const ranked = (input.schedule.activities ?? [])
-    .filter(
-      (activity) =>
-        activity.activityType !== "wbs_summary" &&
-        activity.name !== null,
-    )
-    .map((activity) => {
+  const ranked = prefilterIndexedActivities(
+    index,
+    input.narrative,
+    extraction,
+  )
+    .map((indexedActivity) => {
       const scored = activitySignals(
         input.narrative,
         extraction,
-        activity,
-        wbsPath(activity, wbsById),
+        indexedActivity.activity,
+        indexedActivity.wbs,
       );
       return {
-        activity,
+        activity: indexedActivity.activity,
         prefilterScore: Number(scored.score.toFixed(4)),
         signals: scored.signals,
       };
