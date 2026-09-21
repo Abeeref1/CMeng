@@ -262,6 +262,18 @@ test("P1-1 project control basis applies 0..+5 working days per activity calenda
   assert.equal(projection.nearCriticalCount, 1);
   assert.equal(projection.floatRiskWatchlistCount, 2);
   assert.equal(projection.zeroFloatCount, 1);
+  assert.equal(
+    projection.boundaryAudit.sourceRevisionId,
+    model().sourceRevisionId,
+  );
+  assert.equal(
+    projection.boundaryAudit.totalFloatSourceField,
+    "TASK.total_float_hr_cnt",
+  );
+  assert.equal(
+    projection.boundaryAudit.calendarJoinField,
+    "TASK.clndr_id -> CALENDAR.clndr_id",
+  );
   assert.deepEqual(
     projection.boundaryAudit.criticalBoundary.at.map(
       (row) => row.activityId,
