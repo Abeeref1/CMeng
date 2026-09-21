@@ -408,30 +408,44 @@ function activitySignals(
       activityNameTokens,
       narrativeTokens,
     );
+  const coverageSpecificLocations =
+    extraction.locations.filter(
+      (value) =>
+        norm(value).includes(" "),
+    );
+  const activityCorpusNorm =
+    norm(activityCorpus);
+  const specificLocationAligned =
+    coverageSpecificLocations.length > 0 &&
+    coverageSpecificLocations.every(
+      (value) =>
+        activityCorpusNorm.includes(
+          norm(value),
+        ),
+    );
   if (nameCoverage > 0) {
-    // Full or near-full coverage of the activity's own name is strong
-    // deterministic evidence even when a correspondence letter wraps the
-    // activity wording in additional prose. This strengthens evidence
-    // measurement; the downstream 0.78 score, multi-family and margin gates
-    // remain unchanged.
+    // Name coverage only receives material weight when a specific location
+    // phrase from the governed evidence aligns to the same activity corpus.
+    // This prevents generic shared activity wording from saturating competing
+    // candidates while keeping the original acceptance thresholds unchanged.
     const coverageScore =
-      nameCoverage >= 0.8
+      nameCoverage >= 0.6 &&
+      specificLocationAligned
         ? Math.min(
-            0.46,
-            nameCoverage * 0.46,
+            0.22,
+            nameCoverage * 0.22,
           )
-        : nameCoverage >= 0.6
-          ? Math.min(
-              0.28,
-              nameCoverage * 0.34,
-            )
-          : 0;
+        : 0;
     signals.push({
       key: "name_coverage",
       score: coverageScore,
       detail:
-        "Activity-name token coverage in governed narrative=" +
-        nameCoverage.toFixed(4),
+        "Activity-name token coverage=" +
+        nameCoverage.toFixed(4) +
+        "; specific-location aligned=" +
+        String(
+          specificLocationAligned,
+        ),
     });
   }
 
