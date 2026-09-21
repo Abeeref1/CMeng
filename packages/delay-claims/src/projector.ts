@@ -215,6 +215,8 @@ export function buildDelayClaimsProjection(
             event.relatedActivityIds,
           ),
         ].sort(),
+        activityCorrespondence:
+          event.activityCorrespondence ?? null,
         overlappingWindowIds:
           overlapping.map(
             (window) =>
@@ -356,6 +358,27 @@ export function buildDelayClaimsProjection(
           row.overlappingWindowIds.length > 0 &&
           row.noticeIds.length > 0 &&
           row.determinationIds.length > 0,
+      ).length,
+    activityCorrespondenceAcceptedCount:
+      rows.filter(
+        (row) =>
+          row.activityCorrespondence?.acceptedActivityIds.length,
+      ).length,
+    activityCorrespondenceCandidateCount:
+      rows.filter(
+        (row) =>
+          row.activityCorrespondence?.classification === "candidate",
+      ).length,
+    activityCorrespondenceAmbiguousCount:
+      rows.filter(
+        (row) =>
+          row.activityCorrespondence?.classification === "ambiguous",
+      ).length,
+    activityCorrespondenceUnresolvedCount:
+      rows.filter(
+        (row) =>
+          !row.activityCorrespondence ||
+          row.activityCorrespondence.classification === "unresolved",
       ).length,
 
     observedPositiveIndependentMovementDays:
