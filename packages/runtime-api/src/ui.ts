@@ -2798,6 +2798,104 @@ function renderCommercialVisual(key,data){
       performanceDetail=cashSections||'<div class="notice warn">No governed cash-flow currency position is established.</div>';
     }
   }
+  const contractControls=position.contractControls||null;
+  let contractControlDetail="";
+  if(contractControls){
+    if(key==="commercial-overview"){
+      contractControlDetail='<section class="planning-panel"><div class="planning-panel-head"><div><h4>Tier 2 contract-control readiness</h4><p>Change, obligations, LD, security/insurance and retention reuse Schedule, Claims/EOT and canonical Commercial evidence.</p></div></div><div class="planning-panel-body">'+
+        planningKpis([
+          ["Variations",humanizeKey(contractControls.variations?.state||"missing"),fmt(contractControls.variations?.recordCount||0)+" records"],
+          ["Site Instructions",humanizeKey(contractControls.siteInstructions?.state||"missing"),fmt(contractControls.siteInstructions?.recordCount||0)+" records"],
+          ["Obligations",humanizeKey(contractControls.contractObligations?.state||"missing"),fmt(contractControls.contractObligations?.recordCount||0)+" controls"],
+          ["LD",humanizeKey(contractControls.liquidatedDamages?.state||"missing"),fmt(contractControls.liquidatedDamages?.scenarios?.length||0)+" scenarios"],
+          ["Bonds & Insurance",humanizeKey(contractControls.bondsInsurance?.state||"missing"),fmt((contractControls.bondsInsurance?.bonds?.length||0)+(contractControls.bondsInsurance?.insurances?.length||0))+" instruments"],
+          ["Retention",humanizeKey(contractControls.retentionCalendar?.state||"missing"),fmt(contractControls.retentionCalendar?.recordCount||0)+" records"]
+        ])+'</div></section>';
+    }
+    if(key==="variations-change"){
+      const vo=contractControls.variations||{};
+      const voRows=(vo.rows||[]).map(row=>'<tr><td><b>'+escapeHtml(row.variationId)+'</b></td><td>'+escapeHtml(humanizeKey(row.lifecycleStage))+'</td><td>'+escapeHtml(row.description||"")+'</td><td>'+escapeHtml(planningShortDate(row.dates?.instruction))+'</td><td>'+escapeHtml(planningShortDate(row.dates?.submitted))+'</td><td>'+escapeHtml(planningShortDate(row.dates?.assessed))+'</td><td>'+escapeHtml(planningShortDate(row.dates?.agreed))+'</td><td>'+escapeHtml(planningShortDate(row.dates?.approved))+'</td><td>'+escapeHtml(findingValue(row.cost?.claimed))+'</td><td>'+escapeHtml(findingValue(row.cost?.assessed))+'</td><td>'+escapeHtml(findingValue(row.cost?.agreed))+'</td><td>'+escapeHtml(findingValue(row.cost?.approved))+'</td><td>'+escapeHtml(findingValue(row.scheduleImpactDays,"d"))+'</td><td>'+escapeHtml([row.instructionId,row.claimId,row.paymentId,(row.activityIds||[]).join("; ")].filter(Boolean).join(" · ")||"No cross-domain link")+'</td></tr>');
+      const si=contractControls.siteInstructions||{};
+      const siRows=(si.rows||[]).map(row=>'<tr><td><b>'+escapeHtml(row.instructionId)+'</b></td><td>'+escapeHtml(planningShortDate(row.issueDate))+'</td><td>'+escapeHtml(row.description||"")+'</td><td>'+escapeHtml(humanizeKey(row.status))+'</td><td>'+escapeHtml(planningShortDate(row.quotationDueDate?.value))+'</td><td>'+escapeHtml(planningShortDate(row.quotationDate))+'</td><td>'+escapeHtml(humanizeKey(row.quotationTimeliness))+'</td><td>'+escapeHtml(findingValue(row.openAgeDays,"d"))+'</td><td>'+escapeHtml(findingValue(row.estimatedAmount))+'</td><td>'+escapeHtml(row.variationId||"Not linked")+'</td><td>'+escapeHtml([row.claimId,row.paymentId,(row.activityIds||[]).join("; ")].filter(Boolean).join(" · ")||"—")+'</td></tr>');
+      contractControlDetail=
+        '<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Variation lifecycle</h4><p>Instruction, submission, assessment, agreement, approval and payment are separate controlled states.</p></div></div><div class="planning-panel-body">'+
+        planningKpis([
+          ["Variations",vo.recordCount||0,"full lifecycle records"],
+          ["Approved",vo.approvedCount||0,"governed approval"],
+          ["Pending",vo.pendingCount||0,"not approved"],
+          ["Lifecycle coverage",vo.lifecycleCoveragePercent==null?"Not established":fmt(vo.lifecycleCoveragePercent)+"%","stage identified"],
+          ["Schedule linkage",vo.scheduleLinkCoveragePercent==null?"Not established":fmt(vo.scheduleLinkCoveragePercent)+"%","time/activity evidence"],
+          ["Claim linkage",vo.claimLinkCoveragePercent==null?"Not established":fmt(vo.claimLinkCoveragePercent)+"%","claim IDs"],
+          ["Payment linkage",vo.paymentLinkCoveragePercent==null?"Not established":fmt(vo.paymentLinkCoveragePercent)+"%","certificate/payment IDs"]
+        ])+
+        table(["Variation","Stage","Description","Instruction","Submitted","Assessed","Agreed","Approved","Claimed","Assessed value","Agreed value","Approved value","Time impact","Cross-domain links"],voRows,"No governed variation lifecycle records are established.")+
+        '</div></section>'+
+        '<section class="planning-panel"><div class="planning-panel-head"><div><h4>Site Instructions</h4><p>An instruction is not automatically a variation or entitlement. Quotation aging uses actual issue and due dates.</p></div></div><div class="planning-panel-body">'+
+        planningKpis([
+          ["Instructions",si.recordCount||0,"source records"],
+          ["Unquoted",si.unquotedCount||0,"quotation missing"],
+          ["Overdue quotations",si.overdueQuotationCount||0,"past due"],
+          ["Converted to VO",si.convertedVariationCount||0,"explicit link only"]
+        ])+
+        table(["Instruction","Issued","Description","Status","Quote due","Quoted","Timeliness","Open age","Estimate","Variation","Other links"],siRows,"No Site Instruction register is established.")+
+        '</div></section>';
+    }
+    if(key==="contract-particulars-bonds"){
+      const obl=contractControls.contractObligations||{};
+      const obligationRows=(obl.rows||[]).map(row=>'<tr><td><b>'+escapeHtml(row.obligationId)+'</b></td><td>'+escapeHtml(humanizeKey(row.origin))+'</td><td>'+escapeHtml(row.clauseIdentifier||"—")+'</td><td>'+escapeHtml(row.description||"")+'</td><td>'+escapeHtml(row.responsibleParty||"Not mapped")+'</td><td>'+escapeHtml(planningShortDate(row.dueDate))+'</td><td>'+escapeHtml(planningShortDate(row.completedDate))+'</td><td>'+escapeHtml(humanizeKey(row.status))+'</td><td>'+escapeHtml(findingValue(row.daysToDue,"d"))+'</td><td>'+escapeHtml((row.sourceRefs||[]).join(", "))+'</td></tr>');
+      const ld=contractControls.liquidatedDamages||{};
+      const ldRows=(ld.scenarios||[]).map(row=>'<tr><td><b>'+escapeHtml(humanizeKey(row.scenario))+'</b></td><td>'+escapeHtml(findingValue(row.eotDays,"d"))+'</td><td>'+escapeHtml(row.adjustedCompletion?.value?planningShortDate(row.adjustedCompletion.value):"Not established")+'</td><td>'+escapeHtml(row.forecastCompletion?.value?planningShortDate(row.forecastCompletion.value):"Not established")+'</td><td>'+escapeHtml(findingValue(row.exposureDays,"d"))+'</td><td>'+escapeHtml(findingValue(row.uncappedExposure,row.currency||""))+'</td><td>'+escapeHtml(findingValue(row.capAmount,row.currency||""))+'</td><td>'+escapeHtml(findingValue(row.cappedExposure,row.currency||""))+'</td><td>'+escapeHtml(findingMeta(row.cappedExposure))+'</td></tr>');
+      const bi=contractControls.bondsInsurance||{};
+      const bondRows=(bi.bonds||[]).map(row=>'<tr><td><b>'+escapeHtml(row.bondId)+'</b></td><td>'+escapeHtml(humanizeKey(row.kind))+'</td><td>'+escapeHtml(humanizeKey(row.status))+'</td><td>'+escapeHtml(findingValue(row.amount))+'</td><td>'+escapeHtml(planningShortDate(row.expiryDate))+'</td><td>'+escapeHtml(findingValue(row.daysToExpiry,"d"))+'</td><td>'+escapeHtml(humanizeKey(row.expiryState))+'</td></tr>');
+      const insuranceRows=(bi.insurances||[]).map(row=>'<tr><td><b>'+escapeHtml(row.policyId)+'</b></td><td>'+escapeHtml(humanizeKey(row.kind))+'</td><td>'+escapeHtml(row.insurer||"Not stated")+'</td><td>'+escapeHtml(humanizeKey(row.status))+'</td><td>'+escapeHtml(findingValue(row.coverageAmount))+'</td><td>'+escapeHtml(planningShortDate(row.expiryDate))+'</td><td>'+escapeHtml(findingValue(row.daysToExpiry,"d"))+'</td><td>'+escapeHtml(humanizeKey(row.expiryState))+'</td><td>'+escapeHtml(row.sourceRequirement||"Not linked")+'</td></tr>');
+      const ret=contractControls.retentionCalendar||{};
+      const retentionRows=(ret.rows||[]).map(row=>'<tr><td><b>'+escapeHtml(row.retentionId)+'</b></td><td>'+escapeHtml(humanizeKey(row.origin))+'</td><td>'+escapeHtml(row.certificateNo||"—")+'</td><td>'+escapeHtml(humanizeKey(row.state))+'</td><td>'+escapeHtml(row.trigger||"Not established")+'</td><td>'+escapeHtml(findingValue(row.amount))+'</td><td>'+escapeHtml(row.dueDate?.value?planningShortDate(row.dueDate.value):"Not established")+'</td><td>'+escapeHtml(planningShortDate(row.releaseDate))+'</td><td>'+escapeHtml(findingValue(row.daysToDue,"d"))+'</td></tr>');
+      contractControlDetail=
+        '<section class="planning-panel"><div class="planning-panel-head"><div><h4>Contract Obligations</h4><p>Explicit obligation controls remain separate from clause-derived candidates. A clause does not invent compliance status.</p></div></div><div class="planning-panel-body">'+
+        planningKpis([
+          ["Controlled obligations",obl.explicitRecordCount||0,"explicit register"],
+          ["Clause candidates",obl.clauseCandidateCount||0,"not yet mapped"],
+          ["Overdue",obl.overdueCount||0,"explicit dated obligations"],
+          ["Complete",obl.completeCount||0,"evidenced completion"]
+        ])+
+        table(["Obligation","Origin","Clause","Requirement","Responsible","Due","Completed","Status","Days to due","Evidence"],obligationRows,"No obligation controls or clause candidates are established.")+
+        '</div></section>'+
+        '<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Liquidated Damages</h4><p>No-EOT, claimed, assessed and awarded-EOT scenarios stay separate. Schedule exposure is not legal entitlement and LD is never auto-deducted.</p></div></div><div class="planning-panel-body">'+
+        planningKpis([
+          ["LD state",humanizeKey(ld.state||"missing"),"scenario authority"],
+          ["Rate",humanizeKey(ld.rateState||"missing"),"contract term"],
+          ["Cap",humanizeKey(ld.capState||"missing"),"contract term"],
+          ["Scenarios",(ld.scenarios||[]).length,"time positions"]
+        ])+
+        table(["Scenario","EOT","Adjusted completion","Forecast completion","Exposure days","Uncapped","Cap","Capped","Authority"],ldRows,"No defensible LD scenario can be calculated from the current evidence.")+
+        '</div></section>'+
+        '<section class="planning-panel"><div class="planning-panel-head"><div><h4>Bonds & Insurance</h4><p>Security values, cash balances, contractual requirements and expiry status remain distinct.</p></div></div><div class="planning-panel-body">'+
+        planningKpis([
+          ["Active bonds",bi.activeBondCount||0,"security records"],
+          ["Expired bonds",bi.expiredBondCount||0,"requires action"],
+          ["Expiring bonds",bi.expiringBondCount||0,"within 90 days"],
+          ["Active policies",bi.activeInsuranceCount||0,"insurance records"],
+          ["Expired policies",bi.expiredInsuranceCount||0,"requires action"],
+          ["Expiring policies",bi.expiringInsuranceCount||0,"within 90 days"]
+        ])+
+        '<div class="notice info"><b>Performance requirement:</b> '+escapeHtml(findingValue(bi.performanceBondRequirement))+' · '+escapeHtml(findingMeta(bi.performanceBondRequirement))+'<br><b>Advance-payment requirement:</b> '+escapeHtml(findingValue(bi.advancePaymentBondRequirement))+' · '+escapeHtml(findingMeta(bi.advancePaymentBondRequirement))+'<br><b>Contract insurance requirements:</b> '+escapeHtml(bi.insuranceRequirementCount||0)+'</div>'+
+        table(["Bond","Type","Status","Amount","Expiry","Days","Expiry state"],bondRows,"No bond/security register is established.")+
+        table(["Policy","Type","Insurer","Status","Coverage","Expiry","Days","Expiry state","Requirement"],insuranceRows,"No insurance-policy register is established.")+
+        '</div></section>'+
+        '<section class="planning-panel"><div class="planning-panel-head"><div><h4>Retention Calendar</h4><p>Percentage, cap, deduction, held balance, release due date and actual release are not interchangeable.</p></div></div><div class="planning-panel-body">'+
+        planningKpis([
+          ["Retention rate",findingValue(ret.retentionPercent,"%"),findingMeta(ret.retentionPercent)],
+          ["Retention cap",findingValue(ret.retentionCapPercent,"%"),findingMeta(ret.retentionCapPercent)],
+          ["Records",ret.recordCount||0,"all evidence origins"],
+          ["Held",ret.heldCount||0,"explicit held state"],
+          ["Released",ret.releasedCount||0,"explicit release state"],
+          ["Dated",ret.dueCount||0,"release date/trigger established"],
+          ["Overdue",ret.overdueCount||0,"past due and unreleased"]
+        ])+
+        table(["Retention","Origin","Certificate","State","Trigger","Amount","Due","Released","Days to due"],retentionRows,"No retention calendar records are established.")+
+        '</div></section>';
+    }
+  }
   let detail="";
   let registerVisual="";
   if(key==="variations-change"||key==="cost-forecast"||key==="commercial-overview"){
@@ -2860,7 +2958,7 @@ function renderCommercialVisual(key,data){
     if(key==="payments"||key==="cash-flow") ledgerDetail=section("commercial-payment-register",ledger.payments,{effectiveRecordCount:ledger.payments.filter(r=>r.periodEnd&&ledger.dataDateIso&&r.periodEnd<=ledger.dataDateIso).length});
     if(key==="variations-change") ledgerDetail=section("commercial-variations",ledger.variations);
   }
-  return '<section class="planning-view commercial-view">'+time+cashNote+commercialCharts+registerVisual+foundationDetail+performanceDetail+ledgerDetail+
+  return '<section class="planning-view commercial-view">'+time+cashNote+commercialCharts+registerVisual+foundationDetail+performanceDetail+contractControlDetail+ledgerDetail+
     '<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>'+escapeHtml(names[key]||"Commercial position")+'</h4><p>Values remain isolated by currency and every missing value retains its evidence state.</p></div></div><div class="planning-panel-body"><div class="grid three">'+cards+'</div></div></section>'+
     detail+
     '<section class="planning-panel"><div class="planning-panel-head"><div><h4>Evidence coverage</h4><p>Missing, submitted-but-unparsed and established positions are not interchangeable.</p></div></div><div class="planning-panel-body">'+gates+'</div></section>'+
