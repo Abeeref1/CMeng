@@ -409,6 +409,31 @@ test("C2B1 Cash Flow keeps certification separate from cash and computes funding
       "CERTIFIED_INCOME_IS_NOT_CASH_RECEIVED",
     ),
   );
+  assert.equal(
+    cash.sourceReadiness
+      .certification.state,
+    "ready",
+  );
+  assert.equal(
+    cash.sourceReadiness
+      .receipts.state,
+    "ready",
+  );
+  assert.equal(
+    cash.sourceReadiness
+      .expenditure.state,
+    "ready",
+  );
+  assert.equal(
+    cash.sourceReadiness
+      .forwardPlan.state,
+    "ready",
+  );
+  assert.equal(
+    cash.sourceReadiness
+      .netCashReady,
+    true,
+  );
 });
 
 test("C2B1 peak funding remains unknown when one actual cash side is missing", () => {
@@ -449,6 +474,184 @@ test("C2B1 peak funding remains unknown when one actual cash side is missing", (
         point =>
           point.net === null,
       ),
+  );
+  assert.equal(
+    cash.sourceReadiness
+      .receipts.state,
+    "missing",
+  );
+  assert.equal(
+    cash.sourceReadiness
+      .receipts.observedCount,
+    0,
+  );
+  assert.equal(
+    cash.sourceReadiness
+      .expenditure.state,
+    "ready",
+  );
+  assert.equal(
+    cash.sourceReadiness
+      .netCashReady,
+    false,
+  );
+});
+
+test("C2B1 Cash Flow readiness explains certified-only source evidence without relabelling AC as cash", () => {
+  const value = input();
+  value.payments = Array.from(
+    { length: 18 },
+    (_, index) => ({
+      paymentId:
+        "IPC-" +
+        String(index + 1)
+          .padStart(2, "0"),
+      periodEnd:
+        "2026-08-" +
+        String(
+          Math.min(
+            index + 1,
+            28,
+          ),
+        ).padStart(2, "0"),
+      certificationDate: null,
+      paymentDate: null,
+      currency: "AED",
+      certifiedAmount:
+        100_000 +
+        index,
+      certifiedAmountBasis:
+        "unknown" as const,
+      paidAmount: null,
+      paidAmountBasis:
+        "unknown" as const,
+      sourceRefs: [
+        "evidence-document:IPC:row:" +
+          String(index + 2),
+      ],
+    }),
+  );
+  value.costMetrics = value.costMetrics.filter(
+    row =>
+      !/expenditure/i.test(
+        row.metric,
+      ),
+  );
+  value.costMetrics.push({
+    metric: "ac",
+    value: 4_800_000,
+    currency: "AED",
+    taxBasis: "exclusive",
+    asOf: "2026-08-31",
+    state: "official",
+    sourceStatus: "Actual",
+    amountBasis:
+      "project cumulative",
+    cbsId: null,
+    wbsId: null,
+    sourceRefs: [
+      "evidence-document:COST:row:ac",
+    ],
+  });
+
+  const result =
+    buildCommercialPerformance(
+      value,
+    );
+  const cash =
+    result.cashFlow
+      .currencies.find(
+        row =>
+          row.currency ===
+          "AED",
+      )!;
+
+  assert.equal(
+    cash.sourceReadiness
+      .paymentRecordCount,
+    18,
+  );
+  assert.equal(
+    cash.sourceReadiness
+      .certification.observedCount,
+    18,
+  );
+  assert.equal(
+    cash.sourceReadiness
+      .certification.datedAmountCount,
+    18,
+  );
+  assert.equal(
+    cash.sourceReadiness
+      .certification.basis,
+    "unknown",
+  );
+  assert.equal(
+    cash.sourceReadiness
+      .certification.state,
+    "not_aggregable",
+  );
+  assert.equal(
+    cash.sourceReadiness
+      .receipts.observedCount,
+    0,
+  );
+  assert.equal(
+    cash.sourceReadiness
+      .receipts.paymentDateCount,
+    0,
+  );
+  assert.equal(
+    cash.sourceReadiness
+      .receipts.state,
+    "missing",
+  );
+  assert.equal(
+    cash.sourceReadiness
+      .expenditure.observedCount,
+    0,
+  );
+  assert.ok(
+    cash.sourceReadiness
+      .expenditure.actualCostRecordCount >
+      0,
+  );
+  assert.equal(
+    cash.sourceReadiness
+      .expenditure.state,
+    "missing",
+  );
+  assert.match(
+    cash.sourceReadiness
+      .expenditure.consequence,
+    /Actual Cost evidence exists.*not the same as cash expenditure/i,
+  );
+  assert.equal(
+    cash.certifiedIncome.value,
+    null,
+    "unknown certificate series basis must still withhold the aggregate certified position",
+  );
+  assert.equal(
+    cash.paidIncome.value,
+    null,
+  );
+  assert.equal(
+    cash.actualExpenditure.value,
+    null,
+  );
+  assert.equal(
+    cash.netCashPosition.value,
+    null,
+  );
+  assert.equal(
+    cash.sourceReadiness
+      .netCashReady,
+    false,
+  );
+  assert.equal(
+    cash.sourceReadiness
+      .fundingCurveReady,
+    false,
   );
 });
 

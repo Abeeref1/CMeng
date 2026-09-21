@@ -873,6 +873,61 @@ try {
         .every(entry => typeof entry.periodDate === 'string' && entry.periodDate.length >= 10)
     ));
 
+  const cashAliasRows = (rows, aliases) =>
+    rows.filter(row =>
+      row?.amount?.value !== null &&
+      row?.amount?.value !== undefined &&
+      row?.amount?.asOf &&
+      aliases.map(normalMetric).includes(normalMetric(row.metric))
+    );
+  const basisState = values => {
+    if (!values.length) return 'no_rows';
+    const distinct = [...new Set(values)];
+    return distinct.length === 1 ? distinct[0] : 'mixed';
+  };
+  check('Cash Flow source-readiness contract reconciles exactly to canonical payment and cost evidence',
+    cashCurrencies.every(cash => {
+      const readiness = cash.sourceReadiness;
+      if (!readiness) return false;
+      const payments = sourcePayments.filter(payment => payment.currency === cash.currency);
+      const costRows = sourceCostRows.filter(row => row.amount?.currency === cash.currency);
+      const certifiedRows = payments.filter(payment => payment.certifiedAmount !== null && payment.certifiedAmount !== undefined);
+      const paidRows = payments.filter(payment => payment.paidAmount !== null && payment.paidAmount !== undefined);
+      const certifiedDated = certifiedRows.filter(payment => Boolean(payment.certificationDate ?? payment.periodEnd));
+      const paidDated = paidRows.filter(payment => Boolean(payment.paymentDate));
+      const budgetRows = cashAliasRows(costRows, ['expenditure budget','cash expenditure budget','cash budget']);
+      const forecastRows = cashAliasRows(costRows, ['expenditure forecast','cash expenditure forecast','cash forecast']);
+      const actualRows = cashAliasRows(costRows, ['actual expenditure','cash actual expenditure']);
+      const actualCostRows = cashAliasRows(costRows, ['ac','actual cost','actual incurred cost']);
+      const metricBasis = rows => basisState(rows.map(row => {
+        const value = normalMetric(row.amount?.amountBasis);
+        if (['incremental','period','periodic','this period','transaction','current period','period amount'].includes(value)) return 'incremental';
+        if (['project cumulative','cumulative project','cumulative to date','to date','project to date','cumulative total'].includes(value)) return 'project_cumulative';
+        if (['cumulative','certificate total','cumulative allocated to certificate','certificate cumulative'].includes(value)) return 'certificate_cumulative';
+        return 'unknown';
+      }));
+      const certifiedBasis = basisState(certifiedRows.map(row => row.certifiedAmountBasis));
+      const paidBasis = basisState(paidRows.map(row => row.paidAmountBasis));
+      return readiness.paymentRecordCount === payments.length &&
+        readiness.costMetricRecordCount === costRows.length &&
+        readiness.certification.observedCount === certifiedRows.length &&
+        readiness.certification.datedAmountCount === certifiedDated.length &&
+        readiness.certification.basis === certifiedBasis &&
+        readiness.receipts.observedCount === paidRows.length &&
+        readiness.receipts.paymentDateCount === payments.filter(row => Boolean(row.paymentDate)).length &&
+        readiness.receipts.datedPaidAmountCount === paidDated.length &&
+        readiness.receipts.basis === paidBasis &&
+        readiness.expenditure.observedCount === actualRows.length &&
+        readiness.expenditure.actualCostRecordCount === actualCostRows.length &&
+        readiness.expenditure.basis === metricBasis(actualRows) &&
+        readiness.forwardPlan.budgetRecordCount === budgetRows.length &&
+        readiness.forwardPlan.forecastRecordCount === forecastRows.length &&
+        readiness.forwardPlan.budgetBasis === metricBasis(budgetRows) &&
+        readiness.forwardPlan.forecastBasis === metricBasis(forecastRows) &&
+        readiness.netCashReady === (findingValue(cash.netCashPosition) !== null) &&
+        readiness.fundingCurveReady === ((cash.cumulativePositionSeries ?? []).filter(point => point.actualNetCash !== null).length >= 2);
+    }));
+
   // C2B2 source registers: no invented lifecycle identities or explicit compliance records.
   const sourceVariations = Array.isArray(commercialLedger?.variations) ? commercialLedger.variations : [];
   const variationRows = Array.isArray(contractControls?.variations?.rows) ? contractControls.variations.rows : [];

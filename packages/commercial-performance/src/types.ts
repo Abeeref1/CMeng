@@ -185,6 +185,52 @@ export interface CashFlowEntry {
   sourceRefs: string[];
 }
 
+export type CashFlowSeriesBasisState =
+  | PerformancePaymentSeriesBasis
+  | "mixed"
+  | "no_rows";
+
+export type CashFlowReadinessState =
+  | "ready"
+  | "partial"
+  | "missing"
+  | "not_aggregable";
+
+export interface CashFlowReadinessDomain {
+  state: CashFlowReadinessState;
+  observedCount: number;
+  totalCount: number;
+  basis: CashFlowSeriesBasisState;
+  consequence: string;
+  action: string | null;
+}
+
+export interface CashFlowSourceReadiness {
+  paymentRecordCount: number;
+  costMetricRecordCount: number;
+  certification: CashFlowReadinessDomain & {
+    datedAmountCount: number;
+  };
+  receipts: CashFlowReadinessDomain & {
+    paymentDateCount: number;
+    datedPaidAmountCount: number;
+  };
+  expenditure: CashFlowReadinessDomain & {
+    actualCostRecordCount: number;
+  };
+  forwardPlan: {
+    state: CashFlowReadinessState;
+    budgetRecordCount: number;
+    forecastRecordCount: number;
+    budgetBasis: CashFlowSeriesBasisState;
+    forecastBasis: CashFlowSeriesBasisState;
+    consequence: string;
+    action: string | null;
+  };
+  netCashReady: boolean;
+  fundingCurveReady: boolean;
+}
+
 export interface CashFlowCurrencyPosition {
   currency: string;
   entries: CashFlowEntry[];
@@ -204,6 +250,8 @@ export interface CashFlowCurrencyPosition {
     CommercialFinding<number>;
   certifiedUnpaid:
     CommercialFinding<number>;
+  sourceReadiness:
+    CashFlowSourceReadiness;
   cumulativeActualSeries:
     Array<{
       asOf: string;

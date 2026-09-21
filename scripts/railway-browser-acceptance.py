@@ -159,19 +159,33 @@ try:
                 check('Reported and calculated balances stay separate in the view', page.get_by_text('Reported outstanding', exact=True).count() > 0 and page.get_by_text('Calculated outstanding', exact=True).count() > 0)
             if key == 'cash-flow':
                 body = page.locator('#moduleContent').inner_text()
+                readiness = page.evaluate('''() => {
+                    const cash = currentModuleResult?.data?.position?.performance?.cashFlow?.currencies?.[0]
+                    return cash?.sourceReadiness || null
+                }''')
                 check('Cash Flow leads with one defensible cash position and explicit prerequisites',
                       page.locator('.cash-flow-hero').count() >= 1 and
                       page.locator('.cash-readiness-grid').count() >= 1 and
                       ('current cash position' in body.lower() or 'current evidenced net cash' in body.lower()))
+                check('Cash Flow UI is driven by producer-owned source readiness',
+                      readiness is not None and
+                      str(readiness['paymentRecordCount']) + ' payment records' in body and
+                      str(readiness['receipts']['observedCount']) + ' paid amounts' in body and
+                      str(readiness['receipts']['paymentDateCount']) + ' payment dates' in body)
+                if readiness is not None and readiness['expenditure']['actualCostRecordCount'] > 0 and readiness['expenditure']['observedCount'] == 0:
+                    check('Cash Flow explicitly keeps Actual Cost separate from cash expenditure',
+                          'ac/accrual cost is not relabelled as cash expenditure' in body.lower() or
+                          'ac/accrual cost is not the same as cash expenditure' in body.lower())
                 check('Cash Flow no longer dumps the generic Commercial currency summary into the main canvas',
                       page.locator('.commercial-management-summary').count() == 0 and
                       'Cash & Certification Position by Currency' not in body)
                 check('Cash Flow source register is drill-down detail rather than the primary management canvas',
                       page.locator('.cash-flow-register-detail').count() == 0 or
                       page.locator('.cash-flow-register-detail').first.evaluate('(node) => !node.open'))
-                if page.locator('.cash-flow-curve-withheld').count() > 0:
-                    check('Cash Flow does not draw a fake curve when dated cash evidence is insufficient',
-                          page.locator('.cash-flow-primary .visual-chart').count() == 0)
+                if readiness is not None and readiness['fundingCurveReady'] is False:
+                    check('Cash Flow does not draw a fake funding curve when producer readiness is false',
+                          page.locator('.cash-flow-primary .visual-chart').count() == 0 and
+                          page.locator('.cash-flow-curve-withheld').count() >= 1)
                 check('Overall Detailed review context is compact before specialist analysis',
                       page.locator('.role-lens-compact-strip').count() == 1)
         stage = 'management report popup'
