@@ -97,6 +97,13 @@ export interface DelayActivityCorrespondence {
     trades: string[];
     codes: string[];
   };
+  /** Current canonical schedule activity population available to the resolver. */
+  activityPoolCount: number;
+  /** Distinct language-neutral narrative/code signals extracted from the claim/event evidence. */
+  claimSignalCount: number;
+  /** Activities reached by the cheap scored-OR retrieval stage before confidence scoring. */
+  retrievedCandidateCount: number;
+  /** Candidates surviving deterministic prefilter scoring. */
   preFilterCandidateCount: number;
   boundedCandidateCount: number;
   aiStage:
