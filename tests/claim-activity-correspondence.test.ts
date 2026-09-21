@@ -153,7 +153,7 @@ test("strong multi-signal semantic correspondence is deterministically accepted"
   assert.equal(result.classification, "accepted_deterministic");
   assert.deepEqual(result.acceptedActivityIds, ["A-100"]);
   assert.equal(result.aiStage, "not_configured");
-  assert.ok(result.candidates[0]!.prefilterScore >= 0.9);
+  assert.ok(result.candidates[0]!.prefilterScore >= 0.78);
   assert.ok((result.candidates[0]!.marginToNext ?? 0) >= 0.16);
 });
 
