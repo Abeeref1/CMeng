@@ -6,6 +6,7 @@ import type {
 import type {
   CashFlowCurrencyPosition,
   CashFlowEntry,
+  CashFlowSeriesBasisState,
   CommercialPerformanceInput,
   CommercialPerformanceProjection,
   CostControlPosition,
@@ -1475,6 +1476,81 @@ function sumKnown(
   );
 }
 
+function cashSeriesBasis(
+  value: string,
+):
+  | "incremental"
+  | "project_cumulative"
+  | "certificate_cumulative"
+  | "unknown" {
+  const basis =
+    normalized(value);
+  if (
+    [
+      "incremental",
+      "period",
+      "periodic",
+      "this period",
+      "transaction",
+      "current period",
+      "period amount",
+    ].includes(basis)
+  ) {
+    return "incremental";
+  }
+  if (
+    [
+      "project cumulative",
+      "cumulative project",
+      "cumulative to date",
+      "to date",
+      "project to date",
+      "cumulative total",
+    ].includes(basis)
+  ) {
+    return "project_cumulative";
+  }
+  if (
+    [
+      "cumulative",
+      "certificate total",
+      "cumulative allocated to certificate",
+      "certificate cumulative",
+    ].includes(basis)
+  ) {
+    return "certificate_cumulative";
+  }
+  return "unknown";
+}
+
+function aggregateCashSeriesBasis(
+  values: Array<
+    | "incremental"
+    | "project_cumulative"
+    | "certificate_cumulative"
+    | "unknown"
+  >,
+): CashFlowSeriesBasisState {
+  if (!values.length) {
+    return "no_rows";
+  }
+  const distinct =
+    new Set(values);
+  if (distinct.size > 1) {
+    return "mixed";
+  }
+  return values[0]!;
+}
+
+function isAggregableCashBasis(
+  value: CashFlowSeriesBasisState,
+): boolean {
+  return (
+    value === "incremental" ||
+    value === "project_cumulative"
+  );
+}
+
 function cashFlow(
   input:
     CommercialPerformanceInput,
@@ -1751,52 +1827,106 @@ function cashFlow(
           ),
       );
 
-    const metricSeriesBasis = (
-      value: string,
-    ):
-      | "incremental"
-      | "project_cumulative"
-      | "certificate_cumulative"
-      | "unknown" => {
-      const basis =
-        normalized(value);
-      if (
-        [
-          "incremental",
-          "period",
-          "periodic",
-          "this period",
-          "transaction",
-          "current period",
-          "period amount",
-        ].includes(basis)
-      ) {
-        return "incremental";
-      }
-      if (
-        [
-          "project cumulative",
-          "cumulative project",
-          "cumulative to date",
-          "to date",
-          "project to date",
-          "cumulative total",
-        ].includes(basis)
-      ) {
-        return "project_cumulative";
-      }
-      if (
-        [
-          "cumulative",
-          "certificate total",
-          "cumulative allocated to certificate",
-          "certificate cumulative",
-        ].includes(basis)
-      ) {
-        return "certificate_cumulative";
-      }
-      return "unknown";
-    };
+    const certifiedAmountRows =
+      payments.filter(
+        (payment) =>
+          payment.certifiedAmount !==
+          null,
+      );
+    const certifiedDatedRows =
+      certifiedAmountRows.filter(
+        (payment) =>
+          Boolean(
+            payment.certificationDate ??
+            payment.periodEnd,
+          ),
+      );
+    const paidAmountRows =
+      payments.filter(
+        (payment) =>
+          payment.paidAmount !==
+          null,
+      );
+    const paidDatedRows =
+      paidAmountRows.filter(
+        (payment) =>
+          Boolean(
+            payment.paymentDate,
+          ),
+      );
+    const certifiedBasis =
+      aggregateCashSeriesBasis(
+        certifiedAmountRows.map(
+          (payment) =>
+            payment.certifiedAmountBasis,
+        ),
+      );
+    const paidBasis =
+      aggregateCashSeriesBasis(
+        paidAmountRows.map(
+          (payment) =>
+            payment.paidAmountBasis,
+        ),
+      );
+
+    const rowsForAliases = (
+      names: readonly string[],
+    ) =>
+      explicit.filter(
+        (row) =>
+          row.value !== null &&
+          row.asOf !== null &&
+          names
+            .map(normalized)
+            .includes(
+              normalized(
+                row.metric,
+              ),
+            ),
+      );
+    const expenditureBudgetRows =
+      rowsForAliases(
+        aliases.expenditureBudget,
+      );
+    const expenditureForecastRows =
+      rowsForAliases(
+        aliases.expenditureForecast,
+      );
+    const actualExpenditureRows =
+      rowsForAliases(
+        aliases.actualExpenditure,
+      );
+    const actualCostRows =
+      rowsForAliases(
+        aliases.ac,
+      );
+    const expenditureBudgetBasis =
+      aggregateCashSeriesBasis(
+        expenditureBudgetRows.map(
+          (row) =>
+            cashSeriesBasis(
+              row.amountBasis,
+            ),
+        ),
+      );
+    const expenditureForecastBasis =
+      aggregateCashSeriesBasis(
+        expenditureForecastRows.map(
+          (row) =>
+            cashSeriesBasis(
+              row.amountBasis,
+            ),
+        ),
+      );
+    const actualExpenditureBasis =
+      aggregateCashSeriesBasis(
+        actualExpenditureRows.map(
+          (row) =>
+            cashSeriesBasis(
+              row.amountBasis,
+            ),
+        ),
+      );
 
     const addMetrics = (
       names:
@@ -1863,7 +1993,7 @@ function cashFlow(
           new Set(
             ordered.map(
               (row) =>
-                metricSeriesBasis(
+                cashSeriesBasis(
                   row.amountBasis,
                 ),
             ),
@@ -1877,7 +2007,7 @@ function cashFlow(
           continue;
         }
         const basis =
-          metricSeriesBasis(
+          cashSeriesBasis(
             ordered[0]!
               .amountBasis,
           );
@@ -2517,6 +2647,201 @@ function cashFlow(
             },
           );
 
+    const certificationState =
+      certifiedAmountRows.length ===
+        0 ||
+      certifiedDatedRows.length ===
+        0
+        ? "missing" as const
+        : isAggregableCashBasis(
+              certifiedBasis,
+            )
+          ? "ready" as const
+          : "not_aggregable" as const;
+    const receiptsState =
+      paidAmountRows.length ===
+        0 ||
+      paidDatedRows.length ===
+        0
+        ? "missing" as const
+        : isAggregableCashBasis(
+              paidBasis,
+            )
+          ? "ready" as const
+          : "not_aggregable" as const;
+    const expenditureState =
+      actualExpenditureRows.length ===
+        0
+        ? "missing" as const
+        : isAggregableCashBasis(
+              actualExpenditureBasis,
+            )
+          ? "ready" as const
+          : "not_aggregable" as const;
+    const budgetState =
+      expenditureBudgetRows.length ===
+        0
+        ? "missing" as const
+        : isAggregableCashBasis(
+              expenditureBudgetBasis,
+            )
+          ? "ready" as const
+          : "not_aggregable" as const;
+    const forecastState =
+      expenditureForecastRows.length ===
+        0
+        ? "missing" as const
+        : isAggregableCashBasis(
+              expenditureForecastBasis,
+            )
+          ? "ready" as const
+          : "not_aggregable" as const;
+    const forwardPlanState =
+      budgetState === "ready" &&
+      forecastState === "ready"
+        ? "ready" as const
+        : budgetState === "missing" &&
+            forecastState === "missing"
+          ? "missing" as const
+          : "partial" as const;
+
+    const sourceReadiness = {
+      paymentRecordCount:
+        payments.length,
+      costMetricRecordCount:
+        explicit.length,
+      certification: {
+        state:
+          certificationState,
+        observedCount:
+          certifiedAmountRows.length,
+        totalCount:
+          payments.length,
+        datedAmountCount:
+          certifiedDatedRows.length,
+        basis:
+          certifiedBasis,
+        consequence:
+          certificationState ===
+          "ready"
+            ? "Certified amounts can be aggregated as a controlled project series, but remain separate from cash receipts."
+            : certificationState ===
+                "not_aggregable"
+              ? "Certified amounts exist, but their series basis is not one explicit incremental or project-cumulative basis, so CMeng withholds the project total."
+              : "Certified amount/date evidence is incomplete, so a controlled certification series cannot be established.",
+        action:
+          certificationState ===
+          "ready"
+            ? null
+            : certificationState ===
+                "not_aggregable"
+              ? "State whether certificate values are incremental or project cumulative."
+              : "Provide dated certified amounts and their series basis.",
+      },
+      receipts: {
+        state:
+          receiptsState,
+        observedCount:
+          paidAmountRows.length,
+        totalCount:
+          payments.length,
+        paymentDateCount:
+          payments.filter(
+            (payment) =>
+              Boolean(
+                payment.paymentDate,
+              ),
+          ).length,
+        datedPaidAmountCount:
+          paidDatedRows.length,
+        basis:
+          paidBasis,
+        consequence:
+          receiptsState ===
+          "ready"
+            ? "Actual paid cash has an explicit date and aggregable series basis."
+            : receiptsState ===
+                "not_aggregable"
+              ? "Paid amounts and dates exist, but the cash series basis is not explicitly incremental or project cumulative."
+              : "Actual cash receipt cannot be established until paid amounts and their real payment dates are evidenced.",
+        action:
+          receiptsState ===
+          "ready"
+            ? null
+            : receiptsState ===
+                "not_aggregable"
+              ? "State whether paid values are incremental or project cumulative."
+              : "Provide paid amount and payment date for each actual cash receipt.",
+      },
+      expenditure: {
+        state:
+          expenditureState,
+        observedCount:
+          actualExpenditureRows
+            .length,
+        totalCount:
+          explicit.length,
+        actualCostRecordCount:
+          actualCostRows.length,
+        basis:
+          actualExpenditureBasis,
+        consequence:
+          expenditureState ===
+          "ready"
+            ? "Dated actual cash expenditure has an aggregable series basis."
+            : actualExpenditureRows
+                  .length === 0 &&
+                actualCostRows.length >
+                  0
+              ? "Actual Cost evidence exists, but AC/accrual cost is not the same as cash expenditure. CMeng does not relabel AC as cash."
+              : expenditureState ===
+                  "not_aggregable"
+                ? "Actual cash expenditure exists, but its series basis is not explicitly incremental or project cumulative."
+                : "No dated actual cash expenditure series is established.",
+        action:
+          expenditureState ===
+          "ready"
+            ? null
+            : actualExpenditureRows
+                  .length === 0
+              ? "Provide dated actual cash expenditure separately from AC/accrual cost."
+              : "State whether actual cash expenditure is incremental or project cumulative.",
+      },
+      forwardPlan: {
+        state:
+          forwardPlanState,
+        budgetRecordCount:
+          expenditureBudgetRows
+            .length,
+        forecastRecordCount:
+          expenditureForecastRows
+            .length,
+        budgetBasis:
+          expenditureBudgetBasis,
+        forecastBasis:
+          expenditureForecastBasis,
+        consequence:
+          forwardPlanState ===
+          "ready"
+            ? "Budget and forecast cash-expenditure series are both available for forward funding analysis."
+            : "Forward funding cannot be fully analysed until explicit dated cash budget and cash forecast series are established.",
+        action:
+          forwardPlanState ===
+          "ready"
+            ? null
+            : "Provide dated cash expenditure budget and forecast series with explicit incremental or project-cumulative basis.",
+      },
+      netCashReady:
+        netCashPosition.value !==
+        null,
+      fundingCurveReady:
+        cumulativePositionSeries.filter(
+          (point) =>
+            point.actualNetCash !==
+            null,
+        ).length >= 2,
+    };
+
     currencies.push({
       currency,
       entries,
@@ -2528,6 +2853,7 @@ function cashFlow(
       netCashPosition,
       peakFundingNeed,
       certifiedUnpaid,
+      sourceReadiness,
       cumulativeActualSeries,
       cumulativePositionSeries,
       periodMovementSeries,
