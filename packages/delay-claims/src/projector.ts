@@ -193,6 +193,75 @@ export function buildDelayClaimsProjection(
         );
       }
 
+      const linkedClaimIds = [
+        ...new Set(
+          claimsByEvent.get(
+            event.eventId,
+          ) ?? [],
+        ),
+      ].sort();
+      const relatedActivityIds = [
+        ...new Set(
+          event.relatedActivityIds,
+        ),
+      ].sort();
+      const overlappingWindowIds =
+        overlapping.map(
+          (window) =>
+            window.windowId,
+        );
+      const noticeIds = [
+        ...new Set(
+          noticesByEvent.get(
+            event.eventId,
+          ) ?? [],
+        ),
+      ].sort();
+      const determinationIds = [
+        ...new Set(
+          determinationsByEvent.get(
+            event.eventId,
+          ) ?? [],
+        ),
+      ].sort();
+      const evidenceChainMissingLinks:
+        DelayClaimEventAssessmentRow["evidenceChainMissingLinks"] = [
+          ...(linkedClaimIds.length === 0
+            ? ["claim" as const]
+            : []),
+          ...(relatedActivityIds.length === 0
+            ? ["activity" as const]
+            : []),
+          ...(overlappingWindowIds.length === 0
+            ? ["window" as const]
+            : []),
+          ...(noticeIds.length === 0
+            ? ["notice" as const]
+            : []),
+          ...(determinationIds.length === 0
+            ? ["determination" as const]
+            : []),
+        ];
+
+      if (
+        determinationIds.length > 0 &&
+        evidenceChainMissingLinks.length > 0
+      ) {
+        diagnostics.push(
+          "DETERMINATION_CHAIN_INCOMPLETE_MISSING:" +
+            evidenceChainMissingLinks.join(","),
+        );
+      }
+      if (
+        relatedActivityIds.length === 0 &&
+        event.activityCorrespondence?.classification ===
+          "unresolved"
+      ) {
+        diagnostics.push(
+          "ACTIVITY_LINK_NOT_ESTABLISHED_FAIL_CLOSED",
+        );
+      }
+
       return {
         eventId: event.eventId,
         title: event.title,
@@ -203,44 +272,25 @@ export function buildDelayClaimsProjection(
         noticeTimeliness:
           notice?.timeliness ??
           "requirement_missing",
-        linkedClaimIds: [
-          ...new Set(
-            claimsByEvent.get(
-              event.eventId,
-            ) ?? [],
-          ),
-        ].sort(),
-        relatedActivityIds: [
-          ...new Set(
-            event.relatedActivityIds,
-          ),
-        ].sort(),
+        linkedClaimIds,
+        relatedActivityIds,
         activityCorrespondence:
           event.activityCorrespondence ?? null,
-        overlappingWindowIds:
-          overlapping.map(
-            (window) =>
-              window.windowId,
-          ),
-        noticeIds: [
-          ...new Set(
-            noticesByEvent.get(event.eventId) ?? [],
-          ),
-        ].sort(),
-        determinationIds: [
-          ...new Set(
-            determinationsByEvent.get(event.eventId) ?? [],
-          ),
-        ].sort(),
+        overlappingWindowIds,
+        noticeIds,
+        determinationIds,
         evidenceChainState:
-          (determinationsByEvent.get(event.eventId)?.length ?? 0) > 0
-            ? "full_determination_chain"
-            : (noticesByEvent.get(event.eventId)?.length ?? 0) > 0
+          determinationIds.length > 0
+            ? evidenceChainMissingLinks.length === 0
+              ? "full_determination_chain"
+              : "determination_chain_incomplete"
+            : noticeIds.length > 0
               ? "notice_chain"
-              : overlapping.length > 0 &&
-                  event.relatedActivityIds.length > 0
+              : overlappingWindowIds.length > 0 &&
+                  relatedActivityIds.length > 0
                 ? "schedule_chain"
                 : "claim_event_only",
+        evidenceChainMissingLinks,
         observedNetIndependentMovementDays:
           Number(net.toFixed(6)),
         observedPositiveIndependentMovementDays:
@@ -353,11 +403,24 @@ export function buildDelayClaimsProjection(
     fullDeterminationChainEventCount:
       rows.filter(
         (row) =>
-          row.linkedClaimIds.length > 0 &&
-          row.relatedActivityIds.length > 0 &&
-          row.overlappingWindowIds.length > 0 &&
-          row.noticeIds.length > 0 &&
-          row.determinationIds.length > 0,
+          row.evidenceChainState ===
+          "full_determination_chain",
+      ).length,
+    determinationChainIncompleteEventCount:
+      rows.filter(
+        (row) =>
+          row.evidenceChainState ===
+          "determination_chain_incomplete",
+      ).length,
+    activityEvidenceInsufficientEventCount:
+      rows.filter(
+        (row) =>
+          row.relatedActivityIds.length === 0 &&
+          (
+            !row.activityCorrespondence ||
+            row.activityCorrespondence.classification ===
+              "unresolved"
+          ),
       ).length,
     activityCorrespondenceAcceptedCount:
       rows.filter(
