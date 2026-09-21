@@ -362,10 +362,93 @@ test("C2B1 Cash Flow keeps certification separate from cash and computes funding
       .at(-1)?.net,
     -300_000,
   );
+  assert.equal(
+    cash.certifiedUnpaid.value,
+    100_000,
+  );
+  assert.deepEqual(
+    cash.cumulativePositionSeries
+      .at(-1),
+    {
+      asOf: "2026-08-20",
+      cumulativeCertifiedIncome:
+        1_000_000,
+      cumulativePaidIncome:
+        900_000,
+      cumulativeExpenditureBudget:
+        2_000_000,
+      cumulativeExpenditureForecast:
+        1_800_000,
+      cumulativeActualExpenditure:
+        1_200_000,
+      actualNetCash:
+        -300_000,
+    },
+  );
+  assert.deepEqual(
+    cash.periodMovementSeries,
+    [
+      {
+        period: "2026-08",
+        certifiedIncome:
+          1_000_000,
+        paidIncome: 900_000,
+        expenditureBudget:
+          2_000_000,
+        expenditureForecast:
+          1_800_000,
+        actualExpenditure:
+          1_200_000,
+        actualNetCashMovement:
+          -300_000,
+      },
+    ],
+  );
   assert.ok(
     cash.diagnostics.includes(
       "CERTIFIED_INCOME_IS_NOT_CASH_RECEIVED",
     ),
+  );
+});
+
+test("C2B1 peak funding remains unknown when one actual cash side is missing", () => {
+  const value = input();
+  value.payments = value.payments.map(payment => ({
+    ...payment,
+    paidAmount: null,
+    paidAmountBasis: "unknown",
+    paymentDate: null,
+  }));
+  const result =
+    buildCommercialPerformance(
+      value,
+    );
+  const cash =
+    result.cashFlow
+      .currencies[0]!;
+  assert.equal(
+    cash.paidIncome.value,
+    null,
+  );
+  assert.equal(
+    cash.actualExpenditure.value,
+    1_200_000,
+  );
+  assert.equal(
+    cash.netCashPosition.value,
+    null,
+  );
+  assert.equal(
+    cash.peakFundingNeed.value,
+    null,
+    "missing paid cash must not be treated as zero when calculating funding need",
+  );
+  assert.ok(
+    cash.cumulativeActualSeries
+      .every(
+        point =>
+          point.net === null,
+      ),
   );
 });
 
