@@ -1303,19 +1303,25 @@ function renderDelayClaimsVisual(data){
   const p=projectionFor(data,"delay_claims");
   if(!Array.isArray(p.events))return"";
   const linked=p.linkedClaimCount??0,unlinked=p.unlinkedClaimCount??Math.max(0,(p.claimCount||0)-linked);
+  const activityGapCount=p.activityEvidenceInsufficientEventCount??p.events.filter(e=>(e.relatedActivityIds||[]).length===0).length;
+  const incompleteDeterminationCount=p.determinationChainIncompleteEventCount??p.events.filter(e=>e.evidenceChainState==="determination_chain_incomplete").length;
   const kpis=planningKpis([
     ["Delay events",p.eventCount,"governed events",p.eventCount?"":"warning"],
     ["Claims",p.claimCount,"claim records"],
     ["Claims linked to events",linked,"causal linkage",linked?"success":"warning"],
     ["Unlinked claims",unlinked,"cannot be attributed",unlinked?"warning":""],
     ["Events linked to activities",p.activityLinkedEventCount??0,"schedule linkage"],
+    ["Activity evidence gaps",activityGapCount,"fail-closed source gaps",activityGapCount?"warning":""],
     ["Events linked to windows",p.windowLinkedEventCount??0,"time-window linkage"],
     ["Notice-linked events",p.noticeLinkedEventCount??0,"notice evidence"],
     ["Determined events",p.determinationLinkedEventCount??0,"Engineer determination linkage"],
+    ["Incomplete determination chains",incompleteDeterminationCount,"required links missing",incompleteDeterminationCount?"warning":""],
     ["Gross positive window movement",fmt(p.observedPositiveProgrammeMovementDays)+" d","analytical window sum; not entitlement",p.observedPositiveProgrammeMovementDays?"warning":""],
     ["Project Completion movement",p.projectCompletionMovementDays===null||p.projectCompletionMovementDays===undefined?"—":(p.projectCompletionMovementDays>0?"+":"")+fmt(p.projectCompletionMovementDays)+" d","net submitted completion movement"]
   ]);
-  const warning=p.eventCount===0&&p.claimCount>0?'<div class="notice warn"><b>'+escapeHtml(fmt(p.claimCount))+' claim records are present, but no governed delay events are established.</b> CMeng will not attribute schedule movement, responsibility or EOT entitlement to those claims until event linkage exists.</div>':'';
+  const noEventWarning=p.eventCount===0&&p.claimCount>0?'<div class="notice warn"><b>'+escapeHtml(fmt(p.claimCount))+' claim records are present, but no governed delay events are established.</b> CMeng will not attribute schedule movement, responsibility or EOT entitlement to those claims until event linkage exists.</div>':'';
+  const activityEvidenceWarning=activityGapCount>0?'<div class="notice warn"><b>Activity evidence not established for '+escapeHtml(fmt(activityGapCount))+' delay event'+(activityGapCount===1?'':'s')+'.</b> The available claim/correspondence sources do not establish a defensible activity-level relationship for these events. CMeng fails closed and does not invent activity links. Determination chains remain explicitly incomplete where the activity link is required.</div>':'';
+  const warning=noEventWarning+activityEvidenceWarning;
   const linkage=planningStatusBand([
     ["Linked to delay events",linked,"success"],
     ["Not linked to delay events",unlinked,"warning"]
@@ -1336,8 +1342,8 @@ function renderDelayClaimsVisual(data){
     renderVisualPanel("Schedule movement semantics","Gross positive window movement and net Project Completion movement are shown as different analytical measures.",movementChart)+
   '</div>';
   const classes=claimStateCounts(p.events.map(e=>({state:e.candidateClass})));
-  const rows=p.events.map(e=>'<tr><td><b>'+escapeHtml(e.eventId)+'</b><br><span class="muted">'+escapeHtml(e.title||"")+'</span></td><td>'+escapeHtml(humanizeKey(e.responsibility))+'</td><td>'+escapeHtml(humanizeKey(e.noticeTimeliness))+'</td><td>'+escapeHtml(fmt(e.observedPositiveProgrammeMovementDays))+'</td><td>'+escapeHtml(humanizeKey(e.programmeMovementBasis))+'</td><td><span class="state-pill '+(e.concurrencyCandidate?"review":"ready")+'">'+escapeHtml(humanizeKey(e.evidenceChainState||e.candidateClass))+'</span></td><td>'+escapeHtml((e.linkedClaimIds||[]).join(", ")||"—")+'</td><td>'+escapeHtml((e.relatedActivityIds||[]).join(", ")||"—")+'</td><td>'+escapeHtml((e.overlappingWindowIds||[]).map(id=>readableWindow(id,p.revisionLabels||{})).join(", ")||"—")+'</td><td>'+escapeHtml((e.noticeIds||[]).join(", ")||"—")+'</td><td>'+escapeHtml((e.determinationIds||[]).join(", ")||"—")+'</td></tr>').join("");
-  const detail=p.events.length?'<div class="table-wrap"><table><thead><tr><th>Event</th><th>Responsibility</th><th>Notice status</th><th>Gross positive movement d</th><th>Movement basis</th><th>Evidence chain</th><th>Claims</th><th>Activities</th><th>Windows</th><th>Notices</th><th>Determinations</th></tr></thead><tbody>'+rows+'</tbody></table></div>':'<div class="empty-visual">No delay-event population is established. Claim records alone are not converted into delay events.</div>';
+  const rows=p.events.map(e=>'<tr><td><b>'+escapeHtml(e.eventId)+'</b><br><span class="muted">'+escapeHtml(e.title||"")+'</span></td><td>'+escapeHtml(humanizeKey(e.responsibility))+'</td><td>'+escapeHtml(humanizeKey(e.noticeTimeliness))+'</td><td>'+escapeHtml(fmt(e.observedPositiveProgrammeMovementDays))+'</td><td>'+escapeHtml(humanizeKey(e.programmeMovementBasis))+'</td><td><span class="state-pill '+(e.concurrencyCandidate?"review":"ready")+'">'+escapeHtml(humanizeKey(e.evidenceChainState||e.candidateClass))+'</span></td><td>'+escapeHtml((e.linkedClaimIds||[]).join(", ")||"—")+'</td><td>'+escapeHtml((e.relatedActivityIds||[]).join(", ")||"—")+'</td><td>'+escapeHtml((e.overlappingWindowIds||[]).map(id=>readableWindow(id,p.revisionLabels||{})).join(", ")||"—")+'</td><td>'+escapeHtml((e.noticeIds||[]).join(", ")||"—")+'</td><td>'+escapeHtml((e.determinationIds||[]).join(", ")||"—")+'</td><td>'+escapeHtml((e.evidenceChainMissingLinks||[]).map(humanizeKey).join(", ")||"—")+'</td></tr>').join("");
+  const detail=p.events.length?'<div class="table-wrap"><table><thead><tr><th>Event</th><th>Responsibility</th><th>Notice status</th><th>Gross positive movement d</th><th>Movement basis</th><th>Evidence chain</th><th>Claims</th><th>Activities</th><th>Windows</th><th>Notices</th><th>Determinations</th><th>Missing links</th></tr></thead><tbody>'+rows+'</tbody></table></div>':'<div class="empty-visual">No delay-event population is established. Claim records alone are not converted into delay events.</div>';
   const classVisual=p.events.length?moduleBarList(classes,"warning"):'<div class="empty-visual">Event responsibility cannot be classified until delay events are established.</div>';
   return '<section class="planning-view delay-claims-view">'+kpis+warning+visualOverview+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Claim-event linkage</h4><p>Claims without a governed delay-event link remain un-attributed.</p></div></div><div class="planning-panel-body">'+linkage+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Event assessment classes</h4><p>Responsibility classification is shown only for established delay events.</p></div></div><div class="planning-panel-body">'+classVisual+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Delay-event detail</h4></div></div><div class="planning-panel-body">'+detail+'</div></section></section>';
 }
