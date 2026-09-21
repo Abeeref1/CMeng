@@ -59,7 +59,7 @@ export interface CommercialMoneyPosition {
 
 export interface CommercialControlInput {
   sourceLedger?: CanonicalCommercialModel;
-  foundation: CommercialFoundationProjection;
+  foundation?: CommercialFoundationProjection;
   generatedAt: string;
   projectId: string;
   contractValue: MoneyValue | null;
