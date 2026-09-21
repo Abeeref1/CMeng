@@ -35,10 +35,86 @@ export interface PaymentStageRecord {
   finalReceiptDate: string | null;
   paymentReference: string | null;
 }
-export interface CommercialVariation { variationId:string; description:string; approvalDate:string|null; status:string; authority:string|null; approvedAmount:CommercialMoney; receipt:SourceReceipt }
+export interface CommercialVariation {
+  variationId:string;
+  description:string;
+  approvalDate:string|null;
+  status:string;
+  authority:string|null;
+  instructionId:string|null;
+  instructionDate:string|null;
+  submittedDate:string|null;
+  quotationDate:string|null;
+  assessedDate:string|null;
+  agreedDate:string|null;
+  scheduleImpactDays:number|null;
+  claimId:string|null;
+  paymentId:string|null;
+  activityIds:string[];
+  clauseIdentifiers:string[];
+  claimedAmount:CommercialMoney;
+  assessedAmount:CommercialMoney;
+  agreedAmount:CommercialMoney;
+  approvedAmount:CommercialMoney;
+  receipt:SourceReceipt;
+}
+export interface CommercialSiteInstruction {
+  instructionId:string;
+  description:string;
+  issueDate:string|null;
+  status:string;
+  variationId:string|null;
+  quotationDueDate:string|null;
+  quotationDate:string|null;
+  scheduleImpactDays:number|null;
+  claimId:string|null;
+  paymentId:string|null;
+  activityIds:string[];
+  clauseIdentifiers:string[];
+  estimatedAmount:CommercialMoney;
+  receipt:SourceReceipt;
+}
+export interface CommercialInsuranceRecord {
+  policyId:string;
+  kind:string;
+  insurer:string|null;
+  status:string;
+  inceptionDate:string|null;
+  expiryDate:string|null;
+  coverageAmount:CommercialMoney;
+  sourceRequirement:string|null;
+  receipt:SourceReceipt;
+}
+export interface CommercialObligationRecord {
+  obligationId:string;
+  clauseIdentifier:string|null;
+  description:string;
+  responsibleParty:string|null;
+  dueDate:string|null;
+  completedDate:string|null;
+  status:string;
+  evidenceReference:string|null;
+  receipt:SourceReceipt;
+}
+export interface CommercialRetentionRecord {
+  retentionId:string;
+  certificateNo:string|null;
+  state:string;
+  trigger:string|null;
+  dueDate:string|null;
+  releaseDate:string|null;
+  amount:CommercialMoney;
+  receipt:SourceReceipt;
+}
 export interface CanonicalCommercialModel {
   schemaVersion:'1.0'; producerVersion:'commercial-canonical-v1'; dataDateIso:string|null;
-  costMetrics:CostMetricRecord[]; payments:PaymentStageRecord[]; variations:CommercialVariation[];
+  costMetrics:CostMetricRecord[];
+  payments:PaymentStageRecord[];
+  variations:CommercialVariation[];
+  siteInstructions:CommercialSiteInstruction[];
+  insurances:CommercialInsuranceRecord[];
+  obligations:CommercialObligationRecord[];
+  retentions:CommercialRetentionRecord[];
   costPosition:Array<{ currency:string;taxBasis:string;asOf:string;state:FactState;values:Record<string,number|null>;receipts:SourceReceipt[];diagnostics:string[] }>;
   diagnostics:string[];
 }
@@ -51,6 +127,27 @@ function money(row:SourceRow,value:string,amountBasis:string,currency:string|nul
  const v=numberValue(value);return {value:v,currency,taxBasis:tax(cell(row,'vat basis','tax basis')),amountBasis,
  state:v===null?'missing':currency===null?'partial':['active','additive'].includes(row.receipt.basisState)?'official':'candidate',asOf,receipts:[row.receipt]};
 }
+function splitList(value:string):string[]{
+ return [...new Set(value.split(/[;,|]+/).map(v=>v.trim()).filter(Boolean))];
+}
+function amountHeader(headers:string[],...labels:string[]):string|null{
+ for(const label of labels){
+  const n=norm(label);
+  const found=headers.find(h=>h===n||(h.startsWith(n+' ')&&/^[a-z]{3}$/.test(h.slice(n.length+1))));
+  if(found)return found;
+ }
+ return null;
+}
+function headerCurrency(header:string|null):string|null{
+ if(!header)return null;
+ const parts=header.split(' ');
+ const tail=parts.at(-1)??'';
+ return /^[a-z]{3}$/.test(tail)?tail.toUpperCase():null;
+}
+function moneyFromHeader(row:SourceRow,header:string|null,basis:string,fallbackCurrency:string|null,asOf:string|null):CommercialMoney{
+ const currency=cell(row,'currency')||headerCurrency(header)||fallbackCurrency;
+ return money(row,header?cell(row,header):'',basis,currency,asOf);
+}
 const cache=new WeakMap<ProjectRuntimeState,{version:number;value:CanonicalCommercialModel}>();
 export function commercialCanonical(state:ProjectRuntimeState):CanonicalCommercialModel {
  const old=cache.get(state);if(old?.version===state.version)return old.value;
@@ -62,7 +159,7 @@ export function commercialCanonical(state:ProjectRuntimeState):CanonicalCommerci
  const textSources=[...c.result.sections.filter(s=>s.sourceMode==='deterministic').map(s=>({text:s.text,startPage:s.startPage})),...(c.result.pdf?.pages??[]).filter(p=>p.method==='native').map(p=>({text:p.text,startPage:p.pageNumber}))];
  for(const section of textSources)for(const m of section.text.matchAll(/(?:all contract[^\n.]{0,160}?values are stated in|contract currency(?:\s+is)?|currency of (?:the )?contract(?:\s+is)?)\s*[:\n]?\s*([A-Z]{3})\b/gi)){ contractCurrencies.add(m[1]!.toUpperCase());currencyReceipts.push({documentId:d.documentId,sourceHash:d.sourceHashSha256,revision:d.linkedArtifactId??d.sourceHashSha256,locator:'page:'+(section.startPage??1),basisState:d.basisState,authority:'source_record'}); }}
  const inheritedCurrency=contractCurrencies.size===1?[...contractCurrencies][0]!:null;
- const costMetrics:CostMetricRecord[]=[],payments:PaymentStageRecord[]=[],variations:CommercialVariation[]=[];
+ const costMetrics:CostMetricRecord[]=[],payments:PaymentStageRecord[]=[],variations:CommercialVariation[]=[],siteInstructions:CommercialSiteInstruction[]=[],insurances:CommercialInsuranceRecord[]=[],obligations:CommercialObligationRecord[]=[],retentions:CommercialRetentionRecord[]=[];
  for(const t of tables){
   if(has(t,'metric','value','unit','as of'))for(const r of t.rows){
    const unit=cell(r,'unit');if(!/^[A-Z]{3}$/.test(unit))continue;
@@ -103,11 +200,98 @@ export function commercialCanonical(state:ProjectRuntimeState):CanonicalCommerci
    });
   }
   if(has(t,'variation id','status'))for(const r of t.rows){
-   const amountHeader=t.headers.find(h=>/^approved amount(?: [a-z]{3})?$/.test(h));if(!amountHeader)continue;
-   const headerCurrency=/approved amount ([a-z]{3})$/.exec(amountHeader)?.[1]?.toUpperCase()??null;
-   const currency=cell(r,'currency')||headerCurrency||inheritedCurrency;
+   const approvedHeader=amountHeader(t.headers,'approved amount');
+   const agreedHeader=amountHeader(t.headers,'agreed amount');
+   const assessedHeader=amountHeader(t.headers,'assessed amount');
+   const claimedHeader=amountHeader(t.headers,'claimed amount','submitted amount');
    const approvalDate=dateValue(cell(r,'approval date'));
-   variations.push({variationId:cell(r,'variation id'),description:cell(r,'description'),approvalDate,status:cell(r,'status'),authority:cell(r,'authority')||null,approvedAmount:money(r,cell(r,amountHeader),'approved variation',currency,approvalDate),receipt:r.receipt});
+   const asOf=approvalDate??dateValue(cell(r,'agreed date','assessment date','submitted date','quotation date'));
+   const fallbackCurrency=cell(r,'currency')||headerCurrency(approvedHeader)||headerCurrency(agreedHeader)||headerCurrency(assessedHeader)||headerCurrency(claimedHeader)||inheritedCurrency;
+   variations.push({
+    variationId:cell(r,'variation id'),
+    description:cell(r,'description','variation description'),
+    approvalDate,
+    status:cell(r,'status'),
+    authority:cell(r,'authority')||null,
+    instructionId:cell(r,'instruction id','site instruction id','si id')||null,
+    instructionDate:dateValue(cell(r,'instruction date','site instruction date','si date')),
+    submittedDate:dateValue(cell(r,'submitted date','submission date')),
+    quotationDate:dateValue(cell(r,'quotation date','quote date')),
+    assessedDate:dateValue(cell(r,'assessment date','assessed date')),
+    agreedDate:dateValue(cell(r,'agreed date')),
+    scheduleImpactDays:numberValue(cell(r,'schedule impact days','time impact days','eot days')),
+    claimId:cell(r,'claim id')||null,
+    paymentId:cell(r,'payment id','certificate no','ipc')||null,
+    activityIds:splitList(cell(r,'activity ids','activity id','schedule activity ids')),
+    clauseIdentifiers:splitList(cell(r,'clause','clause identifiers','clause references')),
+    claimedAmount:moneyFromHeader(r,claimedHeader,'claimed variation',fallbackCurrency,asOf),
+    assessedAmount:moneyFromHeader(r,assessedHeader,'assessed variation',fallbackCurrency,asOf),
+    agreedAmount:moneyFromHeader(r,agreedHeader,'agreed variation',fallbackCurrency,asOf),
+    approvedAmount:moneyFromHeader(r,approvedHeader,'approved variation',fallbackCurrency,approvalDate),
+    receipt:r.receipt
+   });
+  }
+  if((t.headers.includes(norm('instruction id'))||t.headers.includes(norm('site instruction id'))||t.headers.includes(norm('si id')))&&t.headers.includes(norm('status')))for(const r of t.rows){
+   const estimateHeader=amountHeader(t.headers,'estimated amount','instruction amount','quotation amount');
+   const issueDate=dateValue(cell(r,'issue date','instruction date','site instruction date','si date'));
+   siteInstructions.push({
+    instructionId:cell(r,'instruction id','site instruction id','si id'),
+    description:cell(r,'description','instruction description'),
+    issueDate,
+    status:cell(r,'status'),
+    variationId:cell(r,'variation id')||null,
+    quotationDueDate:dateValue(cell(r,'quotation due date','quote due date')),
+    quotationDate:dateValue(cell(r,'quotation date','quote date')),
+    scheduleImpactDays:numberValue(cell(r,'schedule impact days','time impact days')),
+    claimId:cell(r,'claim id')||null,
+    paymentId:cell(r,'payment id','certificate no','ipc')||null,
+    activityIds:splitList(cell(r,'activity ids','activity id','schedule activity ids')),
+    clauseIdentifiers:splitList(cell(r,'clause','clause identifiers','clause references')),
+    estimatedAmount:moneyFromHeader(r,estimateHeader,'site instruction estimate',cell(r,'currency')||inheritedCurrency,issueDate),
+    receipt:r.receipt
+   });
+  }
+  if(has(t,'policy id','status'))for(const r of t.rows){
+   const coverageHeader=amountHeader(t.headers,'coverage amount','insured amount','policy limit');
+   const expiryDate=dateValue(cell(r,'expiry date','expiration date'));
+   insurances.push({
+    policyId:cell(r,'policy id'),
+    kind:cell(r,'insurance type','policy type','type'),
+    insurer:cell(r,'insurer','insurance company')||null,
+    status:cell(r,'status'),
+    inceptionDate:dateValue(cell(r,'inception date','start date','effective date')),
+    expiryDate,
+    coverageAmount:moneyFromHeader(r,coverageHeader,'insurance coverage',cell(r,'currency')||inheritedCurrency,expiryDate),
+    sourceRequirement:cell(r,'contract requirement','clause','clause reference')||null,
+    receipt:r.receipt
+   });
+  }
+  if(has(t,'obligation id','status'))for(const r of t.rows){
+   obligations.push({
+    obligationId:cell(r,'obligation id'),
+    clauseIdentifier:cell(r,'clause','clause identifier','clause reference')||null,
+    description:cell(r,'description','obligation'),
+    responsibleParty:cell(r,'responsible party','owner','party')||null,
+    dueDate:dateValue(cell(r,'due date')),
+    completedDate:dateValue(cell(r,'completed date','completion date')),
+    status:cell(r,'status'),
+    evidenceReference:cell(r,'evidence reference','evidence','document reference')||null,
+    receipt:r.receipt
+   });
+  }
+  if(has(t,'retention id','status'))for(const r of t.rows){
+   const amountH=amountHeader(t.headers,'retention amount','amount');
+   const dueDate=dateValue(cell(r,'due date','release due date'));
+   retentions.push({
+    retentionId:cell(r,'retention id'),
+    certificateNo:cell(r,'certificate no','ipc')||null,
+    state:cell(r,'status','state'),
+    trigger:cell(r,'trigger','release trigger')||null,
+    dueDate,
+    releaseDate:dateValue(cell(r,'release date','released date')),
+    amount:moneyFromHeader(r,amountH,'retention balance',cell(r,'currency')||inheritedCurrency,dueDate),
+    receipt:r.receipt
+   });
   }
  }
  const groups=new Map<string,CostMetricRecord[]>();
@@ -129,6 +313,6 @@ export function commercialCanonical(state:ProjectRuntimeState):CanonicalCommerci
   if(!compatible)issues.push('TAX_BASIS_UNKNOWN_DERIVED_METRICS_WITHHELD');
   return {state:rows.some(r=>r.amount.state==='candidate')?'candidate' as const:issues.length?'partial' as const:'official' as const,currency:rows[0]!.amount.currency!,taxBasis:rows[0]!.amount.taxBasis,asOf:rows[0]!.amount.asOf!,values,receipts:rows.flatMap(r=>r.amount.receipts),diagnostics:issues};
  });
- const model:CanonicalCommercialModel={schemaVersion:'1.0',producerVersion:'commercial-canonical-v1',dataDateIso,costMetrics,payments,variations,costPosition,diagnostics};
+ const model:CanonicalCommercialModel={schemaVersion:'1.0',producerVersion:'commercial-canonical-v1',dataDateIso,costMetrics,payments,variations,siteInstructions,insurances,obligations,retentions,costPosition,diagnostics};
  cache.set(state,{version:state.version,value:model});return model;
 }
