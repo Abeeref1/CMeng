@@ -84,6 +84,51 @@ function correspondenceRef(link: CorrespondenceLink) {
   };
 }
 
+interface SemanticCorrespondenceSegment {
+  documentId: string;
+  locator: string;
+  text: string;
+  compact: string;
+}
+function compactSemanticReference(value:string):string {
+  return value
+    .normalize('NFKC')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu,'');
+}
+function semanticCorrespondenceSegments(state:ProjectRuntimeState):SemanticCorrespondenceSegment[] {
+  const segments:SemanticCorrespondenceSegment[]=[];
+  for(const document of state.evidenceDocuments){
+    if(!['active','additive'].includes(document.basisState))continue;
+    if(document.category!=='correspondence'&&document.documentType!=='letters_notices')continue;
+    for(const segment of document.semanticSegments??[]){
+      const text=segment.text?.trim()??'';
+      if(!text)continue;
+      segments.push({
+        documentId:document.documentId,
+        locator:segment.locator,
+        text,
+        compact:compactSemanticReference(text),
+      });
+    }
+  }
+  return segments;
+}
+function semanticRef(segment:SemanticCorrespondenceSegment){
+  return {
+    sourceType:'correspondence' as const,
+    sourceId:segment.documentId,
+    locator:segment.locator,
+  };
+}
+function semanticContext(text:string,reference:string):string {
+  const lower=text.toLowerCase();
+  const raw=reference.toLowerCase();
+  const index=lower.indexOf(raw);
+  if(index<0)return text.slice(0,3200);
+  return text.slice(Math.max(0,index-1200),Math.min(text.length,index+raw.length+2200));
+}
+
 export function projectControlSchedule(state:ProjectRuntimeState) {
   const basis=state.activeEvidenceBasis['schedule:control'] ?? state.activeEvidenceBasis['schedule:baseline'];
   if(basis?.activeArtifactId) return state.schedules.find(s=>s.revision.revisionId===basis.activeArtifactId) ?? null;
@@ -216,16 +261,33 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
     return[];
   };
   const correspondence = correspondenceLinks(tables, diagnostics);
+  const semanticCorrespondence=semanticCorrespondenceSegments(state);
+  const semanticReferenceCache=new Map<string,SemanticCorrespondenceSegment[]>();
+  const semanticForReference=(reference:string):SemanticCorrespondenceSegment[]=>{
+    const key=compactSemanticReference(reference);
+    if(!key||key.length<4)return[];
+    const cached=semanticReferenceCache.get(key);
+    if(cached)return cached;
+    const hits=semanticCorrespondence
+      .filter(segment=>segment.compact.includes(key))
+      .slice(0,4);
+    semanticReferenceCache.set(key,hits);
+    return hits;
+  };
   const sourceTablesForClaims=tables.filter(t=>has(t,'claim id','event')&&has(t,'notice date'));
   const claimNarratives=new Map<string,string[]>();
   const explicitActivitiesByClaim=new Map<string,string[]>();
+  // Preserve all meaningful text cells rather than depending on English header
+  // names. Numeric-only values remain available in their governed fields but do
+  // not pollute semantic matching. Unicode text is retained unchanged.
   const semanticNarrativeValues=(row:SourceRow):string[] =>
-    Object.entries(row.cells)
-      .filter(([key,value]) =>
-        value.trim() !== "" &&
-        /(?:event|title|description|subject|location|discipline|trade|scope|area|zone|wbs|work package|cause|reason|impact|activity name|affected work)/i.test(key),
+    Object.values(row.cells)
+      .map(value=>value.trim())
+      .filter(value=>
+        value.length>=2 &&
+        !/^[+\-]?[\d\s.,:%/]+$/u.test(value)
       )
-      .map(([,value])=>value);
+      .slice(0,80);
   const addClaimNarrative=(claimId:string,values:readonly string[]):void=>{
     const existing=claimNarratives.get(claimId)??[];
     claimNarratives.set(claimId,[...existing,...values.filter(Boolean)]);
@@ -246,11 +308,18 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
     const clause=cell(r,'clause'),clauseIdentifiers=clause?[clause]:[];
     const sourceLetter=cell(r,'linked letter');
     const linkedCorrespondence=sourceLetter?correspondence.get(norm(sourceLetter))??null:null;
+    const semanticSegments=sourceLetter?semanticForReference(sourceLetter):[];
     const semanticLinkVerified=!!linkedCorrespondence&&(
       (!linkedCorrespondence.claimId||norm(linkedCorrespondence.claimId)===norm(claimId)) &&
       (!linkedCorrespondence.eventId||norm(linkedCorrespondence.eventId)===norm(eventId))
     );
-    const evidenceRefs=[evref(r),...(linkedCorrespondence?[correspondenceRef(linkedCorrespondence)]:sourceLetter?[{sourceType:'correspondence' as const,sourceId:sourceLetter,locator:null}]:[])];
+    const semanticReferenceVerified=semanticSegments.length>0;
+    const evidenceRefs=[
+      evref(r),
+      ...(linkedCorrespondence?[correspondenceRef(linkedCorrespondence)]:[]),
+      ...semanticSegments.map(semanticRef),
+      ...(!linkedCorrespondence&&!semanticReferenceVerified&&sourceLetter?[{sourceType:'correspondence' as const,sourceId:sourceLetter,locator:null}]:[]),
+    ];
     const explicitActivities=splitRefs(
       r,
       'activity id','activity ids','related activity id','related activity ids',
@@ -272,6 +341,7 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
       [
         ...semanticNarrativeValues(r),
         linkedCorrespondence?.subject??"",
+        ...semanticSegments.map(segment=>semanticContext(segment.text,sourceLetter)),
       ],
     );
     const governedExplicitActivities=mapActivityRefs(explicitActivities,claimId);
@@ -295,7 +365,7 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
         'SOURCE_REGISTER_EVENT_NOT_PROVEN_CAUSATION',
         ...(governedExplicitActivities.length?['ACTIVITY_LINK_FROM_GOVERNED_EXPLICIT_SCHEDULE_REFERENCE']:[]),
         ...(temporalWindows.length?['WINDOW_ASSOCIATION_FROM_VERIFIED_NOTICE_DATE_NOT_CAUSATION']:[]),
-        ...(sourceLetter&&!linkedCorrespondence?['LINKED_CORRESPONDENCE_NOT_FOUND:'+sourceLetter]:sourceLetter&&!semanticLinkVerified?['LINKED_CORRESPONDENCE_SEMANTIC_MISMATCH:'+sourceLetter]:semanticLinkVerified?['LINKED_CORRESPONDENCE_VERIFIED:'+sourceLetter]:[])
+        ...(sourceLetter&&!linkedCorrespondence&&!semanticReferenceVerified?['LINKED_CORRESPONDENCE_NOT_FOUND:'+sourceLetter]:sourceLetter&&linkedCorrespondence&&!semanticLinkVerified?['LINKED_CORRESPONDENCE_SEMANTIC_MISMATCH:'+sourceLetter]:semanticLinkVerified?['LINKED_CORRESPONDENCE_VERIFIED:'+sourceLetter]:semanticReferenceVerified?['LINKED_CORRESPONDENCE_TEXT_REFERENCE_VERIFIED:'+sourceLetter]:[])
       ],});
     const correspondenceIssued=semanticLinkVerified?linkedCorrespondence?.issuedAt??null:null;
     const issued=registerIssued??correspondenceIssued;
@@ -458,11 +528,13 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
     const c=byClaim.get(record.claimId);
     const event=c?events.find(e=>e.eventId===c.eventIds[0]):null;
     const determinationLetter=record.sourceLetter?correspondence.get(norm(record.sourceLetter))??null:null;
-    const determinationRefs=[evref(r),...(determinationLetter?[correspondenceRef(determinationLetter)]:[])];
+    const determinationSemantic=record.sourceLetter?semanticForReference(record.sourceLetter):[];
+    const determinationRefs=[evref(r),...(determinationLetter?[correspondenceRef(determinationLetter)]:[]),...determinationSemantic.map(semanticRef)];
     if(c)c.evidenceRefs.push(...determinationRefs);else diagnostics.push('ORPHAN_DETERMINATION:'+record.determinationId);
     if(event)event.evidenceRefs.push(...determinationRefs);
-    if(record.sourceLetter&&!determinationLetter)diagnostics.push('DETERMINATION_CORRESPONDENCE_NOT_FOUND:'+record.determinationId+':'+record.sourceLetter);
-    notices.push({noticeId:record.determinationId,kind:'determination',eventId:c?.eventIds[0]??null,claimId:record.claimId,actualIssuedAt:record.determinationDate,actualReceivedAt:null,plannedAt:null,subject:'Engineer determination '+record.determinationId,clauseIdentifiers:[],evidenceRefs:[evref(r,'notice'),...(determinationLetter?[correspondenceRef(determinationLetter)]:[])],diagnostics:determinationLetter?['DETERMINATION_CORRESPONDENCE_LINK_VERIFIED',...(record.sourceLetter?['SOURCE_LETTER:'+record.sourceLetter]:[])]:record.sourceLetter?['DETERMINATION_CORRESPONDENCE_UNVERIFIED','SOURCE_LETTER:'+record.sourceLetter]:[]});
+    if(record.sourceLetter&&!determinationLetter&&determinationSemantic.length===0)diagnostics.push('DETERMINATION_CORRESPONDENCE_NOT_FOUND:'+record.determinationId+':'+record.sourceLetter);
+    const determinationCorrespondenceVerified=!!determinationLetter||determinationSemantic.length>0;
+    notices.push({noticeId:record.determinationId,kind:'determination',eventId:c?.eventIds[0]??null,claimId:record.claimId,actualIssuedAt:record.determinationDate,actualReceivedAt:null,plannedAt:null,subject:'Engineer determination '+record.determinationId,clauseIdentifiers:[],evidenceRefs:[evref(r,'notice'),...(determinationLetter?[correspondenceRef(determinationLetter)]:[]),...determinationSemantic.map(semanticRef)],diagnostics:determinationCorrespondenceVerified?['DETERMINATION_CORRESPONDENCE_LINK_VERIFIED',...(record.sourceLetter?['SOURCE_LETTER:'+record.sourceLetter]:[])]:record.sourceLetter?['DETERMINATION_CORRESPONDENCE_UNVERIFIED','SOURCE_LETTER:'+record.sourceLetter]:[]});
   }
   // Validate lineage once, but resolve supersession separately for each reporting cutoff.
   for (const d of determinations.filter(d => d.state === 'source_immutable' && d.supersedes)) {
@@ -521,7 +593,10 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
     if(determinations.length)diagnostics.push('AMENDMENT_DETERMINATION_OVERLAP_UNRESOLVED_NO_ADDITIONAL_DAYS_APPLIED');
   }
   if(amendmentConflict)diagnostics.push('CONFLICTING_EFFECTIVE_AMENDMENTS');
-  const delayClaims:DelayClaimsModel|null=claims.length?{projectId:state.projectId,evidenceRevisionId:'canonical-evidence:'+createHash('sha256').update(JSON.stringify(tables.filter(t=>has(t,'claim id')).map(t=>[t.document.documentId,t.document.sourceHashSha256,t.document.basisState]))).digest('hex'),events,claims,notices,noticeRequirements:[],diagnostics:['EVENT_IDENTITIES_ESTABLISHED_FROM_SOURCE_REGISTER_CAUSATION_REMAINS_UNPROVEN',...diagnostics]}:null;
+  const semanticEvidenceIdentity=state.evidenceDocuments
+    .filter(document=>(document.category==='correspondence'||document.documentType==='letters_notices')&&['active','additive'].includes(document.basisState)&&(document.semanticSegments??[]).length>0)
+    .map(document=>[document.documentId,document.sourceHashSha256,document.basisState,(document.semanticSegments??[]).length]);
+  const delayClaims:DelayClaimsModel|null=claims.length?{projectId:state.projectId,evidenceRevisionId:'canonical-evidence:'+createHash('sha256').update(JSON.stringify([tables.filter(t=>has(t,'claim id')).map(t=>[t.document.documentId,t.document.sourceHashSha256,t.document.basisState]),semanticEvidenceIdentity])).digest('hex'),events,claims,notices,noticeRequirements:[],diagnostics:['EVENT_IDENTITIES_ESTABLISHED_FROM_SOURCE_REGISTER_CAUSATION_REMAINS_UNPROVEN',...diagnostics]}:null;
   const result:CanonicalTimeClaims={producerVersion:'canonical-time-claims-v1',dataDateIso,delayClaims,contractTimeBasis,determinations,amendments,registerDeterminationDays,effectiveDeterminationDays,futureDeterminationCount:eligible.filter(d=>dataDateIso!==null&&d.determinationDate!==null&&d.determinationDate>dataDateIso).length,diagnostics};
   cache.set(state,{version:state.version,value:result});return result;
 }
