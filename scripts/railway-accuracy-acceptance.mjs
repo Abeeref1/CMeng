@@ -110,6 +110,39 @@ try {
         : []
     }))
     .filter(item => item.sourceClass !== null);
+  const semanticTerms = text => {
+    const stop = new Set([
+      'the','and','for','with','from','into','onto','over','under','between',
+      'this','that','these','those','project','letter','notice','claim','event',
+      'delay','days','day','subject','reference','ref','regarding','dear','sir',
+      'of','to','in','on','at','by','or','a','an','as','per','is','are','was',
+      'were','be','been','has','have','had','we','you','your','our','their'
+    ]);
+    return [...new Set(
+      String(text ?? '')
+        .normalize('NFKC')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g,' ')
+        .split(/\s+/)
+        .filter(token => token.length >= 3 && !stop.has(token))
+    )].slice(0,50);
+  };
+  summary.correspondenceNarrativeSample = before.documents
+    .filter(document => document.documentType === 'letters_notices')
+    .flatMap(document =>
+      (Array.isArray(document.textSegments) ? document.textSegments : [])
+        .filter(segment => segment.kind === 'linked_correspondence_context')
+        .map(segment => ({
+          anchor: segment.anchor ?? null,
+          pageNumber: segment.pageNumber ?? null,
+          textLength: String(segment.text ?? '').length,
+          terms: semanticTerms(segment.text),
+          codes: [...new Set(
+            (String(segment.text ?? '').toUpperCase().match(/[A-Z]{1,10}[-_.]?[A-Z0-9]{0,8}[-_.]?\d{1,8}|\d{2,}/g) ?? [])
+          )].slice(0,20)
+        }))
+    )
+    .slice(0,20);
   const module = key => json(prefix + '/schedule/modules/' + key);
   const allModuleKeys = [
     'pmo-analysis','schedule-analytics','activity-analytics','lookahead-schedule',
