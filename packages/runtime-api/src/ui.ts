@@ -2537,6 +2537,7 @@ function renderCommercialVisual(key,data){
   const p=projectionFor(data,data?.projectionKey||"");
   const position=p.position||data.position||data;
   if(!position||!Array.isArray(position.currencies))return"";
+  const foundation=position.foundation||null;
   const t=position.timeExposure||{};
   const time=planningKpis([
     ["Contract completion",t.contractualCompletion?.value?planningShortDate(t.contractualCompletion.value):"Not established",humanizeKey(t.contractualCompletion?.state||"not_submitted")],
@@ -2591,6 +2592,84 @@ function renderCommercialVisual(key,data){
   const table=(headers,rows,emptyMessage)=>rows.length
     ? '<div class="table-wrap"><table><thead><tr>'+headers.map(h=>'<th>'+escapeHtml(h)+'</th>').join("")+'</tr></thead><tbody>'+rows.join("")+'</tbody></table></div>'
     : '<div class="empty-visual">'+escapeHtml(emptyMessage)+'</div>';
+  const findingValue=(finding,unit="")=>{
+    if(!finding||finding.value===null||finding.value===undefined)return"Not established";
+    return fmt(finding.value)+(unit?" "+unit:"");
+  };
+  const findingMeta=(finding)=>{
+    if(!finding)return"Missing";
+    const bits=[humanizeKey(finding.state||"missing"),humanizeKey(finding.authority||"missing")];
+    if(finding.coverage?.percent!==null&&finding.coverage?.percent!==undefined)bits.push(fmt(finding.coverage.percent)+"% coverage");
+    return bits.join(" · ");
+  };
+  let foundationDetail="";
+  if(foundation){
+    const terms=foundation.commercialTerms||{};
+    if(key==="commercial-overview"){
+      foundationDetail='<section class="planning-panel"><div class="planning-panel-head"><div><h4>Commercial foundation readiness</h4><p>Tier 1 capabilities share one governed evidence-safe contract. Missing evidence stays distinct from zero.</p></div></div><div class="planning-panel-body">'+
+        planningKpis([
+          ["Commercial Terms",humanizeKey(terms.state||"missing"),"contract facts, clauses and amendments"],
+          ["Cost Register",humanizeKey(foundation.costRegister?.state||"missing"),fmt(foundation.costRegister?.recordCount||0)+" records"],
+          ["Payment Register",humanizeKey(foundation.paymentRegister?.state||"missing"),fmt(foundation.paymentRegister?.recordCount||0)+" records"],
+          ["CBS Breakdown",humanizeKey(foundation.cbsBreakdown?.state||"missing"),fmt(foundation.cbsBreakdown?.nodeCount||0)+" nodes"]
+        ])+'</div></section>';
+    }
+    if(key==="cost-forecast"){
+      const costRows=(foundation.costRegister?.rows||[]).slice(0,100).map(row=>{
+        const metricNames=Object.keys(row.metrics||{}).sort();
+        const metrics=metricNames.slice(0,8).map(name=>humanizeKey(name)+": "+findingValue(row.metrics[name],row.currency)).join(" · ");
+        return '<tr><td><b>'+escapeHtml(row.costCode||"Unmapped")+'</b></td><td>'+escapeHtml(row.description||"")+'</td><td>'+escapeHtml(row.parentCostCode||"—")+'</td><td>'+escapeHtml(row.wbsId||"—")+'</td><td>'+escapeHtml(row.currency)+'</td><td>'+escapeHtml(row.taxBasis)+'</td><td>'+escapeHtml(metrics||"No established metrics")+'</td><td>'+escapeHtml(humanizeKey(row.state))+'</td></tr>';
+      });
+      const cbsRows=(foundation.cbsBreakdown?.nodes||[]).slice(0,100).map(node=>'<tr><td><b>'+escapeHtml(node.costCode)+'</b></td><td>'+escapeHtml(node.description||"")+'</td><td>'+escapeHtml(node.parentCostCode||"Root")+'</td><td>'+escapeHtml((node.childCostCodes||[]).join(", ")||"—")+'</td><td>'+escapeHtml((node.wbsIds||[]).join(", ")||"—")+'</td><td>'+escapeHtml((node.boqItemIds||[]).join(", ")||"—")+'</td><td>'+escapeHtml((node.paymentIds||[]).join(", ")||"—")+'</td></tr>');
+      foundationDetail=
+        '<section class="planning-panel"><div class="planning-panel-head"><div><h4>Cost Register</h4><p>CBS/WBS/currency/tax/date/source authority remain explicit. Unmapped rows are retained, never discarded.</p></div></div><div class="planning-panel-body">'+
+        planningKpis([
+          ["Cost records",foundation.costRegister?.recordCount||0,"canonical grouped records"],
+          ["CBS mapping",foundation.costRegister?.mappingCoveragePercent==null?"Not established":fmt(foundation.costRegister.mappingCoveragePercent)+"%","source rows mapped"],
+          ["CBS nodes",foundation.cbsBreakdown?.nodeCount||0,"hierarchy nodes"],
+          ["Unmapped",foundation.cbsBreakdown?.unmappedCostMetricCount||0,"retained for correction"]
+        ])+
+        table(["Cost code","Description","Parent","WBS","Currency","Tax basis","Current metrics","State"],costRows,"No cost-register source metrics are established.")+
+        '</div></section>'+
+        '<section class="planning-panel"><div class="planning-panel-head"><div><h4>CBS Breakdown</h4><p>Parent-child structure, WBS/BOQ/payment mappings and currency-isolated metric positions.</p></div></div><div class="planning-panel-body">'+
+        table(["CBS","Description","Parent","Children","WBS","BOQ links","Payment links"],cbsRows,"No CBS hierarchy is established.")+
+        '</div></section>';
+    }
+    if(key==="payments"||key==="cash-flow"){
+      const paymentRows=(foundation.paymentRegister?.rows||[]).slice(0,100).map(row=>{
+        const amounts=row.amounts||{};
+        return '<tr><td><b>'+escapeHtml(row.paymentId)+'</b></td><td>'+escapeHtml(row.paymentType||"Not stated")+'</td><td>'+escapeHtml(planningShortDate(row.periodEnd))+'</td><td>'+escapeHtml(planningShortDate(row.lifecycle?.applicationDate))+'</td><td>'+escapeHtml(planningShortDate(row.lifecycle?.assessmentDate))+'</td><td>'+escapeHtml(planningShortDate(row.lifecycle?.certificationDate))+'</td><td>'+escapeHtml(planningShortDate(row.lifecycle?.certificationDueDate?.value))+'</td><td>'+escapeHtml(planningShortDate(row.lifecycle?.paymentDueDate?.value))+'</td><td>'+escapeHtml(planningShortDate(row.lifecycle?.paymentDate))+'</td><td>'+escapeHtml(humanizeKey(row.lifecycle?.slaState||"not_established"))+'</td><td>'+escapeHtml(findingValue(amounts.applicationAmount))+'</td><td>'+escapeHtml(findingValue(amounts.engineerAssessedAmount))+'</td><td>'+escapeHtml(findingValue(amounts.employerCertifiedAmount))+'</td><td>'+escapeHtml(findingValue(amounts.paidAmount))+'</td></tr>';
+      });
+      foundationDetail='<section class="planning-panel"><div class="planning-panel-head"><div><h4>Payment Register / IPC lifecycle</h4><p>Application, assessment, certification and payment remain separate. Due dates are calculated only from evidenced event dates and contractual periods.</p></div></div><div class="planning-panel-body">'+
+        planningKpis([
+          ["Payment records",foundation.paymentRegister?.recordCount||0,"source register"],
+          ["Stage coverage",foundation.paymentRegister?.stageCoveragePercent==null?"Not established":fmt(foundation.paymentRegister.stageCoveragePercent)+"%","application / assessment / certification / payment dates"],
+          ["Payment period",findingValue(terms.paymentPeriodDays,"days"),findingMeta(terms.paymentPeriodDays)],
+          ["Certification period",findingValue(terms.certificationPeriodDays,"days"),findingMeta(terms.certificationPeriodDays)]
+        ])+
+        table(["Payment","Type","Period","Applied","Assessed","Certified","Certification due","Payment due","Paid","SLA","Applied amount","Assessed amount","Certified amount","Paid amount"],paymentRows,"No payment register is established.")+
+        '</div></section>';
+    }
+    if(key==="contract-particulars-bonds"){
+      const clauseRows=(terms.clauses||[]).slice(0,100).map(row=>'<tr><td><b>'+escapeHtml(row.identifier||row.clauseKey)+'</b></td><td>'+escapeHtml(row.heading||"")+'</td><td>'+escapeHtml(row.documentRole)+'</td><td>'+escapeHtml(humanizeKey(row.governanceState))+'</td><td>'+escapeHtml(row.startPage||"—")+'</td><td>'+escapeHtml(row.textPreview||"")+'</td></tr>');
+      const amendmentRows=(terms.amendments||[]).map(row=>'<tr><td><b>'+escapeHtml(row.documentId)+'</b></td><td>'+escapeHtml(planningShortDate(row.effectiveDate))+'</td><td>'+escapeHtml(planningShortDate(row.completionIso))+'</td><td>'+escapeHtml(row.incorporatedEotDays===null?"Not established":fmt(row.incorporatedEotDays)+" d")+'</td><td>'+escapeHtml(humanizeKey(row.state))+'</td><td>'+escapeHtml((row.actions||[]).map(a=>a.action+" "+a.targetIdentifier).join("; ")||"No parsed clause actions")+'</td></tr>');
+      foundationDetail='<section class="planning-panel"><div class="planning-panel-head"><div><h4>Commercial Terms</h4><p>Contract facts, clauses, amendments and candidate terms remain source-backed and are never auto-promoted.</p></div></div><div class="planning-panel-body">'+
+        planningKpis([
+          ["Contract currency",findingValue(terms.contractCurrency),findingMeta(terms.contractCurrency)],
+          ["Contract completion",terms.contractualCompletionDate?.value?planningShortDate(terms.contractualCompletionDate.value):"Not established",findingMeta(terms.contractualCompletionDate)],
+          ["Retention",findingValue(terms.retentionPercent,"%"),findingMeta(terms.retentionPercent)],
+          ["Retention cap",findingValue(terms.retentionCapPercent,"%"),findingMeta(terms.retentionCapPercent)],
+          ["Payment period",findingValue(terms.paymentPeriodDays,"days"),findingMeta(terms.paymentPeriodDays)],
+          ["Notice period",findingValue(terms.noticePeriodDays,"days"),findingMeta(terms.noticePeriodDays)],
+          ["LD rate",findingValue(terms.ldRate),findingMeta(terms.ldRate)],
+          ["LD cap",findingValue(terms.ldCap),findingMeta(terms.ldCap)]
+        ])+
+        '<div class="notice info"><b>Performance security:</b> '+escapeHtml(findingValue(terms.performanceBondRequirement))+' · '+escapeHtml(findingMeta(terms.performanceBondRequirement))+'<br><b>Advance-payment security:</b> '+escapeHtml(findingValue(terms.advancePaymentBondRequirement))+' · '+escapeHtml(findingMeta(terms.advancePaymentBondRequirement))+'<br><b>Insurance clauses:</b> '+escapeHtml((terms.insuranceRequirements||[]).length)+' · <b>Precedence clauses:</b> '+escapeHtml((terms.hierarchyAndPrecedenceClauses||[]).length)+'</div>'+
+        table(["Clause","Heading","Document role","Governance","Page","Source text"],clauseRows,"No parsed contract clauses are established.")+
+        table(["Amendment","Effective","Revised completion","Incorporated EOT","State","Clause actions"],amendmentRows,"No contract amendments are established.")+
+        '</div></section>';
+    }
+  }
   let detail="";
   let registerVisual="";
   if(key==="variations-change"||key==="cost-forecast"||key==="commercial-overview"){
@@ -2653,7 +2732,7 @@ function renderCommercialVisual(key,data){
     if(key==="payments"||key==="cash-flow") ledgerDetail=section("commercial-payment-register",ledger.payments,{effectiveRecordCount:ledger.payments.filter(r=>r.periodEnd&&ledger.dataDateIso&&r.periodEnd<=ledger.dataDateIso).length});
     if(key==="variations-change") ledgerDetail=section("commercial-variations",ledger.variations);
   }
-  return '<section class="planning-view commercial-view">'+time+cashNote+commercialCharts+registerVisual+ledgerDetail+
+  return '<section class="planning-view commercial-view">'+time+cashNote+commercialCharts+registerVisual+foundationDetail+ledgerDetail+
     '<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>'+escapeHtml(names[key]||"Commercial position")+'</h4><p>Values remain isolated by currency and every missing value retains its evidence state.</p></div></div><div class="planning-panel-body"><div class="grid three">'+cards+'</div></div></section>'+
     detail+
     '<section class="planning-panel"><div class="planning-panel-head"><div><h4>Evidence coverage</h4><p>Missing, submitted-but-unparsed and established positions are not interchangeable.</p></div></div><div class="planning-panel-body">'+gates+'</div></section>'+
