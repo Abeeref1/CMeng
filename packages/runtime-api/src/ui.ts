@@ -152,9 +152,9 @@ details:not(.workspace-drawer){border:1px solid var(--line);border-radius:9px;ba
 .commercial-visual-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:18px}
 .commercial-currency-chart{border:1px solid #d9e4ef;border-radius:14px;background:#fff;padding:15px}.commercial-currency-chart h5{margin:0 0 12px;font-size:13px;color:#22364d}
 .visual-chart-actions{display:flex;align-items:center;gap:7px;flex:0 0 auto}.visual-focus-button{border:1px solid #cbd8e5;background:#fff;color:#425b74;border-radius:7px;padding:6px 9px;font-size:10.5px;font-weight:750;cursor:pointer}.visual-focus-button:hover{background:#f3f7fb;border-color:#9fb7ce}.visual-panel-open{overflow:hidden}.visual-chart.visual-focus{position:fixed;inset:24px;z-index:1000;overflow:auto;box-shadow:0 24px 70px rgba(15,23,42,.28);border-color:#aec4da}.visual-chart.visual-focus .visual-chart-head{position:sticky;top:0;z-index:4}.visual-chart.visual-focus .visual-chart-body{padding:24px}.visual-chart.visual-focus .svg-chart{min-height:500px}.cash-flow-primary{display:grid;gap:12px;margin:18px 0}.cash-flow-primary .visual-chart-body{padding:20px}.cash-flow-primary .svg-chart{min-height:390px}.cash-flow-secondary{grid-template-columns:repeat(3,minmax(0,1fr));margin-top:18px}.cash-movement-bars{display:grid;gap:9px}.cash-movement-row{display:grid;grid-template-columns:minmax(90px,.65fr) minmax(190px,1.55fr) 105px;gap:10px;align-items:center}.cash-movement-track{position:relative;height:22px;border-radius:7px;background:#eef3f8}.cash-movement-zero{position:absolute;left:50%;top:0;bottom:0;width:1px;background:#98a2b3}.cash-movement-bar{position:absolute;top:4px;height:14px;border-radius:5px}.cash-movement-bar.positive{background:#2c7a57}.cash-movement-bar.negative{background:#b4483e}.cash-movement-bar.neutral{background:#91a0b0}.cash-register-section{margin-top:20px}.section-heading.compact{align-items:center;margin-bottom:10px}.section-heading.compact h5{margin:0;font-size:14px;color:#22364d}.section-heading.compact p{margin:3px 0 0;font-size:11px;color:#718096}
-.commercial-management-summary{margin-bottom:18px}.commercial-management-summary .currency-card{min-height:100%;box-shadow:0 8px 22px rgba(15,23,42,.05)}.cost-forecast-primary .visual-chart-body{padding:20px}.cost-forecast-primary .svg-chart{min-height:410px}.cost-control-secondary{grid-template-columns:repeat(2,minmax(0,1fr));margin:18px 0}.cost-control-position{border-color:#c9d8e6}.commercial-overview-enterprise>.commercial-visual-grid{margin-bottom:18px}.payment-lifecycle-grid,.variation-control-grid{grid-template-columns:repeat(2,minmax(0,1fr));margin:18px 0}.change-bridge-grid{grid-template-columns:repeat(2,minmax(0,1fr));margin:18px 0}.value-bridge{display:grid;grid-template-columns:minmax(135px,1fr) 28px minmax(135px,1fr) 28px minmax(135px,1fr);gap:8px;align-items:stretch}.value-bridge-cell{border:1px solid #d9e4ef;border-radius:10px;padding:12px;background:#fff;min-width:0}.value-bridge-cell span{display:block;font-size:10.5px;font-weight:700;color:#718096;margin-bottom:6px}.value-bridge-cell b{display:block;font-size:17px;color:#22364d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.value-bridge-cell small{display:block;margin-top:5px;font-size:9.5px;color:#8895a5}.value-bridge-cell.change{border-color:#b9d6c7;background:#f7fbf8}.value-bridge-cell.current{border-color:#adc7df;background:#f6f9fc}.value-bridge-cell.pending{border-color:#e6cf9f;background:#fffaf0}.value-bridge-op{display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:800;color:#7b8da1}.value-bridge-pending{grid-column:1/-1;margin-top:4px}.value-bridge-pending .value-bridge-cell{display:grid;grid-template-columns:minmax(170px,1fr) auto;column-gap:16px;align-items:center}.value-bridge-pending .value-bridge-cell small{grid-column:1/-1}.payment-management-position,.variation-management-position{border-color:#b9ccde}
+.commercial-management-summary{margin-bottom:18px}.commercial-management-summary .currency-card{min-height:100%;box-shadow:0 8px 22px rgba(15,23,42,.05)}.cost-forecast-primary .visual-chart-body{padding:20px}.cost-forecast-primary .svg-chart{min-height:410px}.cost-control-secondary{grid-template-columns:repeat(2,minmax(0,1fr));margin:18px 0}.cost-control-position{border-color:#c9d8e6}.commercial-overview-enterprise>.commercial-visual-grid{margin-bottom:18px}.payment-lifecycle-grid,.variation-control-grid{grid-template-columns:repeat(2,minmax(0,1fr));margin:18px 0}.change-bridge-grid{grid-template-columns:repeat(2,minmax(0,1fr));margin:18px 0}.value-bridge{display:grid;grid-template-columns:minmax(135px,1fr) 28px minmax(135px,1fr) 28px minmax(135px,1fr);gap:8px;align-items:stretch}.value-bridge-cell{border:1px solid #d9e4ef;border-radius:10px;padding:12px;background:#fff;min-width:0}.value-bridge-cell span{display:block;font-size:10.5px;font-weight:700;color:#718096;margin-bottom:6px}.value-bridge-cell b{display:block;font-size:17px;color:#22364d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.value-bridge-cell small{display:block;margin-top:5px;font-size:9.5px;color:#8895a5}.value-bridge-cell.change{border-color:#b9d6c7;background:#f7fbf8}.value-bridge-cell.current{border-color:#adc7df;background:#f6f9fc}.value-bridge-cell.pending{border-color:#e6cf9f;background:#fffaf0}.value-bridge-op{display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:800;color:#7b8da1}.value-bridge-pending{grid-column:1/-1;margin-top:4px}.value-bridge-pending .value-bridge-cell{display:grid;grid-template-columns:minmax(170px,1fr) auto;column-gap:16px;align-items:center}.value-bridge-pending .value-bridge-cell small{grid-column:1/-1}.payment-management-position,.variation-management-position{border-color:#b9ccde}.commercial-claims-management,.contract-particulars-management{border-color:#b9ccde}.claims-lifecycle-grid{grid-template-columns:repeat(3,minmax(0,1fr));margin:18px 0}.contract-control-grid{grid-template-columns:repeat(2,minmax(0,1fr));margin:18px 0}.contract-bridge-grid{grid-template-columns:repeat(2,minmax(0,1fr));margin:18px 0}
 @media(max-width:1450px){.planning-kpi-grid{grid-template-columns:repeat(3,minmax(0,1fr))!important}.visual-chart-grid.three{grid-template-columns:1fr 1fr}}
-@media(max-width:1050px){.planning-primary-grid,.visual-chart-grid,.visual-chart-grid.three,.cash-flow-secondary,.payment-lifecycle-grid,.variation-control-grid,.change-bridge-grid{grid-template-columns:1fr!important}.donut-layout{grid-template-columns:140px minmax(0,1fr)}.role-review-layers{grid-template-columns:1fr 1fr!important}}
+@media(max-width:1050px){.planning-primary-grid,.visual-chart-grid,.visual-chart-grid.three,.cash-flow-secondary,.payment-lifecycle-grid,.variation-control-grid,.change-bridge-grid,.claims-lifecycle-grid,.contract-control-grid,.contract-bridge-grid{grid-template-columns:1fr!important}.donut-layout{grid-template-columns:140px minmax(0,1fr)}.role-review-layers{grid-template-columns:1fr 1fr!important}}
 @media(max-width:700px){.planning-kpi-grid{grid-template-columns:1fr 1fr!important}.donut-layout{grid-template-columns:1fr}.donut-ring{margin:auto}.module-panel #moduleContent{padding:18px!important}.role-review-layers{grid-template-columns:1fr!important}.value-bridge{grid-template-columns:1fr}.value-bridge-op{min-height:18px}.value-bridge-pending{grid-column:auto}.value-bridge-pending .value-bridge-cell{grid-template-columns:1fr}}
 
 </style>
@@ -2708,7 +2708,7 @@ function renderCommercialVisual(key,data){
         '</div></section>';
     }
     if(key==="contract-particulars-bonds"){
-      const clauseRows=(terms.clauses||[]).slice(0,100).map(row=>'<tr><td><b>'+escapeHtml(row.identifier||row.clauseKey)+'</b></td><td>'+escapeHtml(row.heading||"")+'</td><td>'+escapeHtml(row.documentRole)+'</td><td>'+escapeHtml(humanizeKey(row.governanceState))+'</td><td>'+escapeHtml(row.startPage||"—")+'</td><td>'+escapeHtml(row.textPreview||"")+'</td></tr>');
+      const clauseRows=(terms.clauses||[]).map(row=>'<tr><td><b>'+escapeHtml(row.identifier||row.clauseKey)+'</b></td><td>'+escapeHtml(row.heading||"")+'</td><td>'+escapeHtml(row.documentRole)+'</td><td>'+escapeHtml(humanizeKey(row.governanceState))+'</td><td>'+escapeHtml(row.startPage||"—")+'</td><td>'+escapeHtml(row.textPreview||"")+'</td></tr>');
       const amendmentRows=(terms.amendments||[]).map(row=>'<tr><td><b>'+escapeHtml(row.documentId)+'</b></td><td>'+escapeHtml(planningShortDate(row.effectiveDate))+'</td><td>'+escapeHtml(planningShortDate(row.completionIso))+'</td><td>'+escapeHtml(row.incorporatedEotDays===null?"Not established":fmt(row.incorporatedEotDays)+" d")+'</td><td>'+escapeHtml(humanizeKey(row.state))+'</td><td>'+escapeHtml((row.actions||[]).map(a=>a.action+" "+a.targetIdentifier).join("; ")||"No parsed clause actions")+'</td></tr>');
       foundationDetail='<section class="planning-panel"><div class="planning-panel-head"><div><h4>Commercial Terms</h4><p>Contract facts, clauses, amendments and candidate terms remain source-backed and are never auto-promoted.</p></div></div><div class="planning-panel-body">'+
         planningKpis([
@@ -3020,25 +3020,93 @@ function renderCommercialVisual(key,data){
     }
     if(key==="contract-particulars-bonds"){
       const obl=contractControls.contractObligations||{};
-      const obligationRows=(obl.rows||[]).map(row=>'<tr><td><b>'+escapeHtml(row.obligationId)+'</b></td><td>'+escapeHtml(humanizeKey(row.origin))+'</td><td>'+escapeHtml(row.clauseIdentifier||"—")+'</td><td>'+escapeHtml(row.description||"")+'</td><td>'+escapeHtml(row.responsibleParty||"Not mapped")+'</td><td>'+escapeHtml(planningShortDate(row.dueDate))+'</td><td>'+escapeHtml(planningShortDate(row.completedDate))+'</td><td>'+escapeHtml(humanizeKey(row.status))+'</td><td>'+escapeHtml(findingValue(row.daysToDue,"d"))+'</td><td>'+escapeHtml((row.sourceRefs||[]).join(", "))+'</td></tr>');
       const ld=contractControls.liquidatedDamages||{};
-      const ldRows=(ld.scenarios||[]).map(row=>'<tr><td><b>'+escapeHtml(humanizeKey(row.scenario))+'</b></td><td>'+escapeHtml(findingValue(row.eotDays,"d"))+'</td><td>'+escapeHtml(row.adjustedCompletion?.value?planningShortDate(row.adjustedCompletion.value):"Not established")+'</td><td>'+escapeHtml(row.forecastCompletion?.value?planningShortDate(row.forecastCompletion.value):"Not established")+'</td><td>'+escapeHtml(findingValue(row.exposureDays,"d"))+'</td><td>'+escapeHtml(findingValue(row.uncappedExposure,row.currency||""))+'</td><td>'+escapeHtml(findingValue(row.capAmount,row.currency||""))+'</td><td>'+escapeHtml(findingValue(row.cappedExposure,row.currency||""))+'</td><td>'+escapeHtml(findingMeta(row.cappedExposure))+'</td></tr>');
       const bi=contractControls.bondsInsurance||{};
+      const ret=contractControls.retentionCalendar||{};
+      const obligationVisual=renderVisualPanel(
+        "Contract obligation control",
+        "Only explicit controlled obligations receive compliance status. Clause-derived requirements stay candidates until mapped.",
+        renderVisualBars([
+          {label:"Open",value:obl.openCount??0,tone:"accent"},
+          {label:"Overdue",value:obl.overdueCount??0,tone:"danger"},
+          {label:"Complete",value:obl.completeCount??0,tone:"success"},
+          {label:"Clause candidates",value:obl.clauseCandidateCount??0,tone:"warning"}
+        ],"items")
+      );
+      const securityVisual=renderVisualPanel(
+        "Security & insurance monitoring",
+        "Active, expiring and expired counts are monitoring indicators; expiring instruments may also be active.",
+        renderVisualBars([
+          {label:"Active bonds",value:bi.activeBondCount??0,tone:"success"},
+          {label:"Expiring bonds",value:bi.expiringBondCount??0,tone:"warning"},
+          {label:"Expired bonds",value:bi.expiredBondCount??0,tone:"danger"},
+          {label:"Active policies",value:bi.activeInsuranceCount??0,tone:"accent"},
+          {label:"Expiring policies",value:bi.expiringInsuranceCount??0,tone:"warning"},
+          {label:"Expired policies",value:bi.expiredInsuranceCount??0,tone:"danger"}
+        ],"instruments")
+      );
+      const retentionVisual=renderVisualPanel(
+        "Retention release control",
+        "Held, released, dated and overdue positions remain distinct; overdue may be a subset of held.",
+        renderVisualBars([
+          {label:"Held",value:ret.heldCount??0,tone:"warning"},
+          {label:"Released",value:ret.releasedCount??0,tone:"success"},
+          {label:"Release date established",value:ret.dueCount??0,tone:"accent"},
+          {label:"Overdue unreleased",value:ret.overdueCount??0,tone:"danger"}
+        ],"records")
+      );
+      const ldCurrencies=[...new Set((ld.scenarios||[]).map(row=>row.currency).filter(Boolean))];
+      const ldVisuals=ldCurrencies.map(currency=>renderVisualPanel(
+        currency+" · LD scenario exposure",
+        "No-EOT, claimed, assessed and awarded-EOT scenarios remain separate. This is exposure analysis, not an automatic deduction or entitlement decision.",
+        renderVisualBars((ld.scenarios||[]).filter(row=>row.currency===currency).map(row=>({
+          label:humanizeKey(row.scenario),
+          value:metricValue(row.cappedExposure),
+          tone:row.scenario==="awarded_eot"?"success":row.scenario==="no_eot"?"danger":"warning"
+        })),currency)
+      )).join("");
+      const contractBridgeVisuals=(position.currencies||[]).map(row=>renderVisualPanel(
+        row.currency+" · Contract value bridge",
+        "Current contract value changes only through governed approved variation value. Pending variation remains outside the current contract value.",
+        renderCommercialValueBridge(
+          row.committedContractValue,
+          row.approvedVariationAmount,
+          row.currentContractValue,
+          row.pendingVariationAmount,
+          row.currency
+        )
+      )).join("");
+      const obligationRows=(obl.rows||[]).map(row=>'<tr><td><b>'+escapeHtml(row.obligationId)+'</b></td><td>'+escapeHtml(humanizeKey(row.origin))+'</td><td>'+escapeHtml(row.clauseIdentifier||"—")+'</td><td>'+escapeHtml(row.description||"")+'</td><td>'+escapeHtml(row.responsibleParty||"Not mapped")+'</td><td>'+escapeHtml(planningShortDate(row.dueDate))+'</td><td>'+escapeHtml(planningShortDate(row.completedDate))+'</td><td>'+escapeHtml(humanizeKey(row.status))+'</td><td>'+escapeHtml(findingValue(row.daysToDue,"d"))+'</td><td>'+escapeHtml((row.sourceRefs||[]).join(", "))+'</td></tr>');
+      const ldRows=(ld.scenarios||[]).map(row=>'<tr><td><b>'+escapeHtml(humanizeKey(row.scenario))+'</b></td><td>'+escapeHtml(findingValue(row.eotDays,"d"))+'</td><td>'+escapeHtml(row.adjustedCompletion?.value?planningShortDate(row.adjustedCompletion.value):"Not established")+'</td><td>'+escapeHtml(row.forecastCompletion?.value?planningShortDate(row.forecastCompletion.value):"Not established")+'</td><td>'+escapeHtml(findingValue(row.exposureDays,"d"))+'</td><td>'+escapeHtml(findingValue(row.uncappedExposure,row.currency||""))+'</td><td>'+escapeHtml(findingValue(row.capAmount,row.currency||""))+'</td><td>'+escapeHtml(findingValue(row.cappedExposure,row.currency||""))+'</td><td>'+escapeHtml(findingMeta(row.cappedExposure))+'</td></tr>');
       const bondRows=(bi.bonds||[]).map(row=>'<tr><td><b>'+escapeHtml(row.bondId)+'</b></td><td>'+escapeHtml(humanizeKey(row.kind))+'</td><td>'+escapeHtml(humanizeKey(row.status))+'</td><td>'+escapeHtml(findingValue(row.amount))+'</td><td>'+escapeHtml(planningShortDate(row.expiryDate))+'</td><td>'+escapeHtml(findingValue(row.daysToExpiry,"d"))+'</td><td>'+escapeHtml(humanizeKey(row.expiryState))+'</td></tr>');
       const insuranceRows=(bi.insurances||[]).map(row=>'<tr><td><b>'+escapeHtml(row.policyId)+'</b></td><td>'+escapeHtml(humanizeKey(row.kind))+'</td><td>'+escapeHtml(row.insurer||"Not stated")+'</td><td>'+escapeHtml(humanizeKey(row.status))+'</td><td>'+escapeHtml(findingValue(row.coverageAmount))+'</td><td>'+escapeHtml(planningShortDate(row.expiryDate))+'</td><td>'+escapeHtml(findingValue(row.daysToExpiry,"d"))+'</td><td>'+escapeHtml(humanizeKey(row.expiryState))+'</td><td>'+escapeHtml(row.sourceRequirement||"Not linked")+'</td></tr>');
-      const ret=contractControls.retentionCalendar||{};
       const retentionRows=(ret.rows||[]).map(row=>'<tr><td><b>'+escapeHtml(row.retentionId)+'</b></td><td>'+escapeHtml(humanizeKey(row.origin))+'</td><td>'+escapeHtml(row.certificateNo||"—")+'</td><td>'+escapeHtml(humanizeKey(row.state))+'</td><td>'+escapeHtml(row.trigger||"Not established")+'</td><td>'+escapeHtml(findingValue(row.amount))+'</td><td>'+escapeHtml(row.dueDate?.value?planningShortDate(row.dueDate.value):"Not established")+'</td><td>'+escapeHtml(planningShortDate(row.releaseDate))+'</td><td>'+escapeHtml(findingValue(row.daysToDue,"d"))+'</td></tr>');
       contractControlDetail=
+        '<section class="planning-panel primary contract-particulars-management"><div class="planning-panel-head"><div><h4>Contract Particulars, Securities & Obligations Management Position</h4><p>Contract value, obligations, LD scenarios, securities, insurance and retention are controlled as separate evidence-backed positions.</p></div></div><div class="planning-panel-body">'+
+        planningKpis([
+          ["Controlled obligations",obl.explicitRecordCount||0,"explicit register"],
+          ["Open obligations",obl.openCount||0,"not overdue / not complete"],
+          ["Overdue obligations",obl.overdueCount||0,"requires attention"],
+          ["Active bonds",bi.activeBondCount||0,"security instruments"],
+          ["Expiring bonds",bi.expiringBondCount||0,"within 90 days"],
+          ["Expired bonds",bi.expiredBondCount||0,"requires attention"],
+          ["Retention held",ret.heldCount||0,"explicit held state"],
+          ["Retention overdue",ret.overdueCount||0,"past due and unreleased"]
+        ])+
+        (contractBridgeVisuals?'<div class="commercial-visual-grid contract-bridge-grid">'+contractBridgeVisuals+'</div>':"")+
+        '<div class="commercial-visual-grid contract-control-grid">'+obligationVisual+securityVisual+retentionVisual+ldVisuals+'</div>'+
+        '</div></section>'+
         '<section class="planning-panel"><div class="planning-panel-head"><div><h4>Contract Obligations</h4><p>Explicit obligation controls remain separate from clause-derived candidates. A clause does not invent compliance status.</p></div></div><div class="planning-panel-body">'+
         planningKpis([
           ["Controlled obligations",obl.explicitRecordCount||0,"explicit register"],
           ["Clause candidates",obl.clauseCandidateCount||0,"not yet mapped"],
+          ["Open",obl.openCount||0,"controlled and not overdue"],
           ["Overdue",obl.overdueCount||0,"explicit dated obligations"],
           ["Complete",obl.completeCount||0,"evidenced completion"]
         ])+
         table(["Obligation","Origin","Clause","Requirement","Responsible","Due","Completed","Status","Days to due","Evidence"],obligationRows,"No obligation controls or clause candidates are established.")+
         '</div></section>'+
-        '<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Liquidated Damages</h4><p>No-EOT, claimed, assessed and awarded-EOT scenarios stay separate. Schedule exposure is not legal entitlement and LD is never auto-deducted.</p></div></div><div class="planning-panel-body">'+
+        '<section class="planning-panel"><div class="planning-panel-head"><div><h4>Liquidated Damages Scenarios</h4><p>No-EOT, claimed, assessed and awarded-EOT scenarios stay separate. Schedule exposure is not legal entitlement and LD is never auto-deducted.</p></div></div><div class="planning-panel-body">'+
         planningKpis([
           ["LD state",humanizeKey(ld.state||"missing"),"scenario authority"],
           ["Rate",humanizeKey(ld.rateState||"missing"),"contract term"],
@@ -3093,17 +3161,72 @@ function renderCommercialVisual(key,data){
     detail='<section class="planning-panel"><div class="planning-panel-head"><div><h4>Certificate and payment source register</h4><p>Source certificate rows remain available beneath the governed payment lifecycle; values are not re-summed in the browser.</p></div></div><div class="planning-panel-body">'+table(["Certificate","Certificate date","Certified","Paid","Retention","Advance recovery","Advance balance","Currency","Payment date"],rows,"No governed certificate/payment records are established.")+'</div></section>';
   }
   if(key==="commercial-claims-notices"){
-    const claimGroups=(registers.claims||[]).reduce((map,row)=>{const currency=row.currency||"Unresolved";const list=map.get(currency)||[];list.push(row);map.set(currency,list);return map},new Map());
-    if(claimGroups.size)registerVisual='<div class="commercial-visual-grid">'+[...claimGroups.entries()].map(([currency,list])=>renderVisualPanel(
-      currency+" · claim exposure",
-      "Claimed and assessed amounts are shown separately within one currency.",
+    const cn=position.claimsNotices||p.focus?.claimsNotices||{};
+    const stateCounts=cn.claimStateCounts||{};
+    const timeliness=cn.noticeTimelinessCounts||{};
+    const kindCounts=cn.noticeKindCounts||{};
+    const claimLifecycleVisual=renderVisualPanel(
+      "Claim lifecycle distribution",
+      "Lifecycle state comes from the governed Delay / Claims model. Commercial amount status does not invent claim status.",
       renderVisualBars([
-        {label:"Claimed",value:list.reduce((sum,row)=>sum+(typeof row.claimedAmount==="number"?row.claimedAmount:0),0),tone:"danger"},
-        {label:"Assessed",value:list.reduce((sum,row)=>sum+(typeof row.assessedAmount==="number"?row.assessedAmount:0),0),tone:"purple"}
-      ],currency)
-    )).join("")+'</div>';
-    const rows=(registers.claims||[]).map(row=>'<tr><td><b>'+escapeHtml(row.claimId)+'</b></td><td>'+escapeHtml(fmt(row.claimedAmount))+'</td><td>'+escapeHtml(fmt(row.assessedAmount))+'</td><td>'+escapeHtml(row.currency)+'</td><td>'+escapeHtml((row.sourceRefs||[]).join(", "))+'</td></tr>');
-    detail='<section class="planning-panel"><div class="planning-panel-head"><div><h4>Commercial claim register</h4><p>Amounts use the same claim identities linked to delay-event and EOT evidence.</p></div></div><div class="planning-panel-body">'+table(["Claim","Claimed","Assessed","Currency","Source"],rows,"No governed commercial claim amounts are established.")+'</div></section>';
+        {label:"Draft",value:stateCounts.draft??0,tone:"neutral"},
+        {label:"Submitted",value:stateCounts.submitted??0,tone:"accent"},
+        {label:"Under review",value:stateCounts.under_review??0,tone:"warning"},
+        {label:"Determined",value:stateCounts.determined??0,tone:"success"},
+        {label:"Rejected",value:stateCounts.rejected??0,tone:"danger"},
+        {label:"Withdrawn",value:stateCounts.withdrawn??0,tone:"graphite"},
+        {label:"Unknown",value:stateCounts.unknown??0,tone:"neutral"}
+      ],"claims")
+    );
+    const noticeTimelinessVisual=renderVisualPanel(
+      "Notice timeliness position",
+      "Timeliness reuses governed contract notice requirements, event dates and actual notice issue dates. Missing requirements or dates remain explicit.",
+      renderVisualBars([
+        {label:"Timely",value:timeliness.timely??0,tone:"success"},
+        {label:"Late",value:timeliness.late??0,tone:"danger"},
+        {label:"Not issued",value:timeliness.not_issued??0,tone:"warning"},
+        {label:"Requirement missing",value:timeliness.requirement_missing??0,tone:"neutral"},
+        {label:"Event date missing",value:timeliness.event_date_missing??0,tone:"neutral"},
+        {label:"Notice date missing",value:timeliness.notice_date_missing??0,tone:"neutral"}
+      ],"events")
+    );
+    const noticeKindVisual=renderVisualPanel(
+      "Notice / correspondence lifecycle",
+      "Notice types stay distinct from claims and determinations.",
+      renderVisualBars([
+        {label:"Notice",value:kindCounts.notice??0,tone:"graphite"},
+        {label:"Early warning",value:kindCounts.early_warning??0,tone:"accent"},
+        {label:"EOT notice",value:kindCounts.eot_notice??0,tone:"warning"},
+        {label:"Claim notice",value:kindCounts.claim_notice??0,tone:"purple"},
+        {label:"Detailed claim",value:kindCounts.detailed_claim??0,tone:"danger"},
+        {label:"Response",value:kindCounts.response??0,tone:"accent"},
+        {label:"Determination",value:kindCounts.determination??0,tone:"success"}
+      ],"records")
+    );
+    const financialRows=(registers.claims||[]).map(row=>'<tr><td><b>'+escapeHtml(row.claimId)+'</b></td><td>'+escapeHtml(row.claimedAmount===null||row.claimedAmount===undefined?"Not established":fmt(row.claimedAmount))+'</td><td>'+escapeHtml(row.assessedAmount===null||row.assessedAmount===undefined?"Not established":fmt(row.assessedAmount))+'</td><td>'+escapeHtml(row.currency||"Not established")+'</td><td>'+escapeHtml((row.sourceRefs||[]).join(", "))+'</td></tr>');
+    const lifecycleRows=(cn.claims||[]).map(row=>'<tr><td><b>'+escapeHtml(row.claimId)+'</b></td><td>'+escapeHtml(row.title||"")+'</td><td>'+escapeHtml(humanizeKey(row.state))+'</td><td>'+escapeHtml(planningShortDate(row.submittedAt))+'</td><td>'+escapeHtml(row.claimedDays===null||row.claimedDays===undefined?"Not established":fmt(row.claimedDays)+" d")+'</td><td>'+escapeHtml(row.assessedDays===null||row.assessedDays===undefined?"Not established":fmt(row.assessedDays)+" d")+'</td><td>'+escapeHtml(humanizeKey(row.assessedDaysState||"missing"))+'</td><td>'+escapeHtml((row.eventIds||[]).join(", ")||"Not linked")+'</td><td>'+escapeHtml((row.clauseIdentifiers||[]).join(", ")||"—")+'</td><td>'+escapeHtml((row.sourceRefs||[]).join(", "))+'</td></tr>');
+    const assessmentRows=(cn.noticeAssessments||[]).map(row=>'<tr><td><b>'+escapeHtml(row.eventId)+'</b></td><td>'+escapeHtml(row.eventTitle||"")+'</td><td>'+escapeHtml(row.requirementId||"Not established")+'</td><td>'+escapeHtml(row.requiredNoticeDays===null||row.requiredNoticeDays===undefined?"Not established":fmt(row.requiredNoticeDays)+" d")+'</td><td>'+escapeHtml(planningShortDate(row.eventStartIso))+'</td><td>'+escapeHtml(row.noticeId||"Not issued")+'</td><td>'+escapeHtml(planningShortDate(row.noticeIssuedAt))+'</td><td>'+escapeHtml(row.elapsedDays===null||row.elapsedDays===undefined?"Not established":fmt(row.elapsedDays)+" d")+'</td><td>'+escapeHtml(humanizeKey(row.timeliness))+'</td><td>'+escapeHtml(humanizeKey(row.requirementState||"missing"))+'</td></tr>');
+    const noticeRows=(cn.notices||[]).map(row=>'<tr><td><b>'+escapeHtml(row.noticeId)+'</b></td><td>'+escapeHtml(humanizeKey(row.kind))+'</td><td>'+escapeHtml(row.eventId||"—")+'</td><td>'+escapeHtml(row.claimId||"—")+'</td><td>'+escapeHtml(planningShortDate(row.actualIssuedAt))+'</td><td>'+escapeHtml(planningShortDate(row.actualReceivedAt))+'</td><td>'+escapeHtml(row.subject||"")+'</td><td>'+escapeHtml((row.clauseIdentifiers||[]).join(", ")||"—")+'</td><td>'+escapeHtml((row.sourceRefs||[]).join(", "))+'</td></tr>');
+    detail='<section class="planning-panel primary commercial-claims-management"><div class="planning-panel-head"><div><h4>Commercial Claims & Notices Management Position</h4><p>Claim lifecycle, contractual notice compliance and financial exposure reuse governed identities. Missing amounts or links remain unknown rather than zero.</p></div></div><div class="planning-panel-body">'+
+      planningKpis([
+        ["Lifecycle claims",cn.lifecycleClaimCount||0,"governed claims model"],
+        ["Commercial claim rows",cn.commercialClaimCount||0,"currency-specific money register"],
+        ["Events",cn.eventCount||0,"governed delay events"],
+        ["Notices",cn.noticeCount||0,"governed notice records"],
+        ["Money ↔ lifecycle linkage",cn.commercialLifecycleLinkCoveragePercent===null||cn.commercialLifecycleLinkCoveragePercent===undefined?"Not established":fmt(cn.commercialLifecycleLinkCoveragePercent)+"%","claim ID correspondence"],
+        ["Evidence revision",cn.evidenceRevisionId||"Not established",humanizeKey(cn.state||"not_submitted")]
+      ])+
+      '<div class="commercial-visual-grid claims-lifecycle-grid">'+claimLifecycleVisual+noticeTimelinessVisual+noticeKindVisual+'</div>'+
+      '<div class="section-heading compact"><div><h5>Commercial claim money register</h5><p>Amounts are shown from the controlled currency register; partial coverage is not promoted to a complete total.</p></div><span class="badge">'+escapeHtml(fmt((registers.claims||[]).length))+' records</span></div>'+
+      table(["Claim","Claimed","Assessed","Currency","Source"],financialRows,"No governed commercial claim money rows are established.")+
+      '<div class="section-heading compact"><div><h5>Claim lifecycle</h5><p>Claim state and time entitlement evidence remain distinct from financial valuation.</p></div><span class="badge">'+escapeHtml(fmt((cn.claims||[]).length))+' claims</span></div>'+
+      table(["Claim","Title","State","Submitted","Claimed days","Assessed days","Assessment authority","Events","Clauses","Evidence"],lifecycleRows,"No governed claim lifecycle is established.")+
+      '<div class="section-heading compact"><div><h5>Notice compliance assessment</h5><p>One governed assessment per delay event using the applicable requirement and earliest qualifying notice.</p></div><span class="badge">'+escapeHtml(fmt((cn.noticeAssessments||[]).length))+' events</span></div>'+
+      table(["Event","Title","Requirement","Required","Event start","Notice","Issued","Elapsed","Timeliness","Requirement authority"],assessmentRows,"No governed notice compliance assessments are established.")+
+      '<div class="section-heading compact"><div><h5>Notice register</h5><p>Actual issue/receipt timestamps and claim/event links remain traceable.</p></div><span class="badge">'+escapeHtml(fmt((cn.notices||[]).length))+' notices</span></div>'+
+      table(["Notice","Type","Event","Claim","Issued","Received","Subject","Clauses","Evidence"],noticeRows,"No governed notice register is established.")+
+      ((cn.diagnostics||[]).length?'<div class="notice info">'+escapeHtml(cn.diagnostics.map(humanizeKey).join("; "))+'</div>':"")+
+      '</div></section>';
   }
   if(key==="contract-particulars-bonds"&&!contractControls){
     const bondStates=(registers.bonds||[]).reduce((map,row)=>{const state=humanizeKey(row.status||"unknown");map.set(state,(map.get(state)||0)+1);return map},new Map());
@@ -3185,6 +3308,27 @@ function renderCommercialVisual(key,data){
       cashNote+
       foundationDetail+
       ledgerDetail+
+      evidencePanel+
+      '</section>';
+  }
+  if(key==="commercial-claims-notices"){
+    return '<section class="planning-view commercial-view commercial-claims-enterprise">'+
+      detail+
+      commercialSummaryPanel('Claim Financial Exposure by Currency','Known claimed and assessed values come from the controlled financial register. Partial amount coverage remains explicitly partial.')+
+      commercialCharts+
+      time+
+      evidencePanel+
+      '</section>';
+  }
+  if(key==="contract-particulars-bonds"){
+    return '<section class="planning-view commercial-view contract-particulars-enterprise">'+
+      contractControlDetail+
+      foundationDetail+
+      commercialSummaryPanel('Contract Value & Security Position by Currency','Contract and security values remain currency-isolated and source-authority labelled.')+
+      commercialCharts+
+      time+
+      registerVisual+
+      detail+
       evidencePanel+
       '</section>';
   }
