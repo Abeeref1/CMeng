@@ -98,6 +98,13 @@ try:
                       contract_risk['authority'] == 'unavailable' and
                       'contract risk' in body.lower() and
                       'not established' in body.lower())
+                check('Master Dashboard renders human management dates instead of raw ISO timestamps',
+                      re.search(r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z', body) is None)
+                forecast_badges = page.locator('.management-metric-card').first.locator('.management-metric-badges .badge').all_inner_texts()
+                check('Master Dashboard does not show duplicate state and authority pills',
+                      len(forecast_badges) == len(set(forecast_badges)))
+                check('Master Dashboard consequence text does not expose engineering decimal noise',
+                      re.search(r'\d+\.\d{4,}\s+calendar days', body) is None)
             if key == 'command-center':
                 body = page.locator('#moduleContent').inner_text()
                 check('Command Center presents priorities decisions evidence gaps and commercial position',
@@ -150,6 +157,23 @@ try:
             if key == 'payments':
                 check('Payment reconciliation panel is rendered', page.get_by_text('Cash allocation and balance reconciliation', exact=True).count() > 0)
                 check('Reported and calculated balances stay separate in the view', page.get_by_text('Reported outstanding', exact=True).count() > 0 and page.get_by_text('Calculated outstanding', exact=True).count() > 0)
+            if key == 'cash-flow':
+                body = page.locator('#moduleContent').inner_text()
+                check('Cash Flow leads with one defensible cash position and explicit prerequisites',
+                      page.locator('.cash-flow-hero').count() >= 1 and
+                      page.locator('.cash-readiness-grid').count() >= 1 and
+                      ('current cash position' in body.lower() or 'current evidenced net cash' in body.lower()))
+                check('Cash Flow no longer dumps the generic Commercial currency summary into the main canvas',
+                      page.locator('.commercial-management-summary').count() == 0 and
+                      'Cash & Certification Position by Currency' not in body)
+                check('Cash Flow source register is drill-down detail rather than the primary management canvas',
+                      page.locator('.cash-flow-register-detail').count() == 0 or
+                      page.locator('.cash-flow-register-detail').first.evaluate('(node) => !node.open'))
+                if page.locator('.cash-flow-curve-withheld').count() > 0:
+                    check('Cash Flow does not draw a fake curve when dated cash evidence is insufficient',
+                          page.locator('.cash-flow-primary .visual-chart').count() == 0)
+                check('Overall Detailed review context is compact before specialist analysis',
+                      page.locator('.role-lens-compact-strip').count() == 1)
         stage = 'management report popup'
         page.locator('.nav-item[data-key="master-dashboard"]').click()
         page.wait_for_function('currentModuleResult?.key === "master-dashboard" && document.getElementById("moduleBadge").textContent !== "Updating"', timeout=90000)

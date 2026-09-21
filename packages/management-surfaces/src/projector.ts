@@ -22,6 +22,19 @@ function healthForSignedVariance(
   return "good";
 }
 
+function managementDays(
+  value: number,
+): string {
+  const rounded =
+    Math.round(value * 10) / 10;
+  return rounded.toLocaleString(
+    "en-US",
+    {
+      maximumFractionDigits: 1,
+    },
+  );
+}
+
 function metric(
   value: Partial<ManagementMetric> &
     Pick<
@@ -411,6 +424,10 @@ function dashboardMetrics(
   input: ManagementSurfacesInput,
 ): ManagementMetric[] {
   const d = input.director;
+  const forecastVariance =
+    d?.schedule
+      .varianceDaysToOfficialAdjustedCompletion ??
+    null;
   const metrics:
     ManagementMetric[] = [];
 
@@ -440,30 +457,35 @@ function dashboardMetrics(
             : "unavailable",
       health:
         healthForSignedVariance(
-          d?.schedule
-            .varianceDaysToOfficialAdjustedCompletion ??
-          null,
+          forecastVariance,
         ),
       basis:
         "Independent Forecast",
       consequence:
-        d?.schedule
-          .varianceDaysToOfficialAdjustedCompletion ===
+        forecastVariance ===
         null
           ? null
-          : "Variance to official adjusted completion: " +
-            String(
-              d?.schedule
-                .varianceDaysToOfficialAdjustedCompletion,
-            ) +
-            " days.",
+          : forecastVariance ===
+              0
+            ? "Independent forecast aligns with the official adjusted completion date."
+            : "Independent forecast is " +
+              managementDays(
+                Math.abs(
+                  forecastVariance,
+                ),
+              ) +
+              " calendar days " +
+              (
+                forecastVariance >
+                0
+                  ? "later than"
+                  : "earlier than"
+              ) +
+              " the official adjusted completion date.",
       action:
-        d?.schedule
-          .varianceDaysToOfficialAdjustedCompletion !==
+        forecastVariance !==
           null &&
-        (d?.schedule
-          .varianceDaysToOfficialAdjustedCompletion ?? 0) >
-          0
+        forecastVariance > 0
           ? "Open Independent Forecast and EOT Position."
           : null,
       owningModule:
