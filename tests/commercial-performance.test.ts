@@ -537,6 +537,22 @@ test("C2B1 Cash Flow readiness explains certified-only source evidence without r
         row.metric,
       ),
   );
+  value.costMetrics.push({
+    metric: "ac",
+    value: 4_800_000,
+    currency: "AED",
+    taxBasis: "exclusive",
+    asOf: "2026-08-31",
+    state: "official",
+    sourceStatus: "Actual",
+    amountBasis:
+      "project cumulative",
+    cbsId: null,
+    wbsId: null,
+    sourceRefs: [
+      "evidence-document:COST:row:ac",
+    ],
+  });
 
   const result =
     buildCommercialPerformance(
