@@ -415,3 +415,101 @@ test("C2B1 Cost S-Curve uses source cumulative positions and preserves currency/
     6_200_000,
   );
 });
+
+
+test("C2B1 project-cumulative payment series are converted to deltas before cash aggregation", () => {
+  const value = input();
+  value.payments = [
+    {
+      paymentId: "IPC-01",
+      periodEnd: "2026-07-31",
+      certificationDate: "2026-08-01",
+      paymentDate: "2026-08-05",
+      currency: "AED",
+      certifiedAmount: 600_000,
+      certifiedAmountBasis: "project_cumulative",
+      paidAmount: 500_000,
+      paidAmountBasis: "project_cumulative",
+      sourceRefs: ["evidence-document:IPC:row:2"],
+    },
+    {
+      paymentId: "IPC-02",
+      periodEnd: "2026-08-31",
+      certificationDate: "2026-08-20",
+      paymentDate: "2026-08-25",
+      currency: "AED",
+      certifiedAmount: 1_000_000,
+      certifiedAmountBasis: "project_cumulative",
+      paidAmount: 900_000,
+      paidAmountBasis: "project_cumulative",
+      sourceRefs: ["evidence-document:IPC:row:3"],
+    },
+  ];
+  const result = buildCommercialPerformance(value);
+  const cash = result.cashFlow.currencies.find(row => row.currency === "AED")!;
+  assert.equal(cash.certifiedIncome.value, 1_000_000);
+  assert.equal(cash.paidIncome.value, 900_000);
+  const paidEntries = cash.entries.filter(row => row.kind === "paid_income");
+  assert.deepEqual(paidEntries.map(row => row.amount.value), [500_000, 400_000]);
+  assert.ok(paidEntries.every(row => row.amount.basis.method === "project_cumulative_payment_delta"));
+});
+
+test("C2B1 unknown or certificate-cumulative payment basis fails closed instead of creating project cash totals", () => {
+  const value = input();
+  value.payments = [
+    {
+      paymentId: "IPC-01",
+      periodEnd: "2026-08-31",
+      certificationDate: "2026-08-20",
+      paymentDate: "2026-08-25",
+      currency: "AED",
+      certifiedAmount: 1_000_000,
+      certifiedAmountBasis: "certificate_cumulative",
+      paidAmount: 900_000,
+      paidAmountBasis: "unknown",
+      sourceRefs: ["evidence-document:IPC:row:2"],
+    },
+  ];
+  value.costMetrics = value.costMetrics.map(row =>
+    /expenditure/i.test(row.metric)
+      ? {...row, amountBasis: "unknown"}
+      : row
+  );
+  const result = buildCommercialPerformance(value);
+  const cash = result.cashFlow.currencies.find(row => row.currency === "AED")!;
+  assert.equal(cash.certifiedIncome.value, null);
+  assert.equal(cash.paidIncome.value, null);
+  assert.equal(cash.actualExpenditure.value, null);
+  assert.equal(cash.netCashPosition.value, null);
+  assert.ok(cash.diagnostics.some(code => code.includes("CERTIFIED_SERIES_CERTIFICATE_CUMULATIVE_NOT_AGGREGATED")));
+  assert.ok(cash.diagnostics.some(code => code.includes("PAID_SERIES_UNKNOWN_NOT_AGGREGATED")));
+  assert.ok(cash.diagnostics.some(code => code.includes("ACTUAL_EXPENDITURE_UNKNOWN_NOT_AGGREGATED")));
+});
+
+test("C2B1 unknown tax basis withholds derived cost arithmetic while retaining source values", () => {
+  const value = input();
+  value.costSnapshots = value.costSnapshots.map(snapshot => ({
+    ...snapshot,
+    taxBasis: "unknown",
+  }));
+  value.costMetrics = value.costMetrics.map(row => ({
+    ...row,
+    taxBasis: "unknown",
+  }));
+  const result = buildCommercialPerformance(value);
+  const position = result.costControl.positions[0]!;
+  assert.equal(position.bac.value, 10_000_000);
+  assert.equal(position.ev.value, 4_500_000);
+  assert.equal(position.ac.value, 4_800_000);
+  assert.equal(position.sourceEac.value, 11_000_000);
+  assert.equal(position.spi.value, null);
+  assert.equal(position.cpi.value, null);
+  assert.equal(position.sv.value, null);
+  assert.equal(position.cv.value, null);
+  assert.equal(position.calculatedVac.value, null);
+  assert.ok(position.diagnostics.includes("UNKNOWN_TAX_BASIS_DERIVED_COST_ARITHMETIC_WITHHELD"));
+  const evm = result.evmPerformance.series[0]!;
+  assert.ok(evm.points.every(point => point.spi.value === null && point.cpi.value === null));
+  const curve = result.costScurve.series[0]!;
+  assert.ok(curve.points.every(point => point.remainingCost.value === null));
+});
