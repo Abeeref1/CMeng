@@ -148,6 +148,31 @@ try {
   }
   check('All 29 Project Control pages are traced', modules.size === 29);
 
+  const commercialCapabilityIndex = await json('/api/commercial/capabilities');
+  check('C2A exposes four Tier-1 Commercial capabilities',
+    commercialCapabilityIndex?.phase === 'C2A' &&
+    commercialCapabilityIndex?.capabilityCount === 4 &&
+    Array.isArray(commercialCapabilityIndex?.capabilities) &&
+    commercialCapabilityIndex.capabilities.map(item => item.key).join('|') ===
+      'commercial-terms|cost-register|payment-register|cbs-breakdown');
+  const commercialCapabilityKeys = [
+    'commercial-terms','cost-register','payment-register','cbs-breakdown'
+  ];
+  const commercialCapabilities = new Map();
+  for (const key of commercialCapabilityKeys) {
+    const result = await json(prefix + '/commercial/capabilities/' + key);
+    commercialCapabilities.set(key, result);
+    check(key + ': live Commercial capability resolves',
+      result?.key === key && result?.status !== 'blocked' && result?.data?.capabilityKey === key);
+    check(key + ': live Commercial capability has no non-finite serialization marker',
+      !/NaN|Infinity/.test(JSON.stringify(result?.data)));
+  }
+  check('Commercial management views consume commercial-foundation-v1',
+    modules.get('commercial-overview')?.data?.position?.foundation?.producerVersion === 'commercial-foundation-v1' &&
+    modules.get('cost-forecast')?.data?.position?.foundation?.producerVersion === 'commercial-foundation-v1' &&
+    modules.get('payments')?.data?.position?.foundation?.producerVersion === 'commercial-foundation-v1' &&
+    modules.get('contract-particulars-bonds')?.data?.position?.foundation?.producerVersion === 'commercial-foundation-v1');
+
   const overview = await json(prefix + '/overview');
   check('Current programme Data Date is 31 Aug 2026', String(overview.latestDataDateIso ?? '').startsWith('2026-08-31'));
   for (const [key, result] of modules) {
