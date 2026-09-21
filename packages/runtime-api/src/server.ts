@@ -2614,6 +2614,30 @@ export function createCmengServer(): Server {
 
 if (require.main === module) {
   void (async () => {
+    const semanticRefresh =
+      await runtimeProjects
+        .refreshSemanticEvidenceSegments();
+    if (
+      semanticRefresh.refreshedDocumentCount > 0 ||
+      semanticRefresh.diagnostics.length > 0
+    ) {
+      process.stdout.write(
+        JSON.stringify({
+          event:
+            "semantic_evidence_refresh",
+          refreshedDocumentCount:
+            semanticRefresh.refreshedDocumentCount,
+          segmentCount:
+            semanticRefresh.segmentCount,
+          diagnosticCodes:
+            semanticRefresh.diagnostics.map(
+              (item) =>
+                item.split(":")[0],
+            ),
+        }) + "\n",
+      );
+    }
+
     const refresh =
       await runtimeProjects
         .refreshScheduleControlBasisAssertions();
