@@ -2674,6 +2674,8 @@ export class RuntimeProjectStore {
             [];
           const foundAnchors =
             new Set<string>();
+          let documentUnresolvedAnchorCount =
+            0;
 
           for (
             let pageNumber = 1;
@@ -2882,7 +2884,7 @@ export class RuntimeProjectStore {
                 ),
               )
             ) {
-              unresolvedAnchorCount +=
+              documentUnresolvedAnchorCount +=
                 1;
               diagnostics.push(
                 "CORRESPONDENCE_ANCHOR_NOT_FOUND:" +
@@ -2892,6 +2894,9 @@ export class RuntimeProjectStore {
               );
             }
           }
+
+          unresolvedAnchorCount +=
+            documentUnresolvedAnchorCount;
 
           const deduped = [
             ...new Map(
