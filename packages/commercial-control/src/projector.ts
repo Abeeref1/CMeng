@@ -772,6 +772,8 @@ export function buildCommercialControlPosition(
               },
               sourceStatus:
                 row.sourceStatus,
+              amountBasis:
+                row.amount.amountBasis,
               cbsId:
                 row.cbsId,
               cbsDescription:
