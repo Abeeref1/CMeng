@@ -220,7 +220,12 @@ function prefilterIndexedActivities(
   index: ClaimActivityScheduleIndex,
   narrative: string,
   extraction: ClaimActivityCorrespondenceResolution["extraction"],
-): IndexedActivity[] {
+): {
+  items: IndexedActivity[];
+  rawCandidateCount: number;
+  queryTokenCount: number;
+  queryCodeCount: number;
+} {
   const queryTokens = new Set([
     ...tokens(narrative),
     ...extraction.nouns,
@@ -244,11 +249,7 @@ function prefilterIndexedActivities(
     }
   }
 
-  if (candidateIndexes.size === 0) {
-    return [];
-  }
-
-  return [...candidateIndexes]
+  const items = [...candidateIndexes]
     .map((activityIndex) => index.indexed[activityIndex]!)
     .map((item) => {
       let overlap = 0;
@@ -277,6 +278,13 @@ function prefilterIndexedActivities(
     )
     .slice(0, 96)
     .map((entry) => entry.item);
+
+  return {
+    items,
+    rawCandidateCount: candidateIndexes.size,
+    queryTokenCount: queryTokens.size,
+    queryCodeCount: queryCodes.size,
+  };
 }
 
 function scheduleRefs(
@@ -599,6 +607,16 @@ export function resolveClaimActivityCorrespondence(
   );
   const extraction = extract(input.narrative);
   const index = scheduleIndex(input.schedule);
+  const signalTokens = new Set([
+    ...tokens(input.narrative),
+    ...extraction.nouns,
+    ...extraction.locations.flatMap((value) => tokens(value)),
+    ...extraction.disciplines,
+    ...extraction.trades,
+  ]);
+  const signalCodes = new Set(
+    extraction.codes.map((value) => value.toUpperCase()),
+  );
   const explicit = new Set(input.explicitActivityIds ?? []);
 
   const validExplicit = [...explicit].filter(
@@ -631,6 +649,10 @@ export function resolveClaimActivityCorrespondence(
 
     return {
       resolverVersion: "claim-activity-correspondence-v1",
+      activityPoolCount: index.indexed.length,
+      claimSignalTokenCount: signalTokens.size,
+      claimSignalCodeCount: signalCodes.size,
+      prefilterRawCandidateCount: candidates.length,
       extraction,
       preFilterCandidateCount: candidates.length,
       boundedCandidateCount: candidates.length,
@@ -645,11 +667,12 @@ export function resolveClaimActivityCorrespondence(
     };
   }
 
-  const ranked = prefilterIndexedActivities(
+  const prefilter = prefilterIndexedActivities(
     index,
     input.narrative,
     extraction,
-  )
+  );
+  const ranked = prefilter.items
     .map((indexedActivity) => {
       const scored = activitySignals(
         input.narrative,
@@ -861,6 +884,10 @@ export function resolveClaimActivityCorrespondence(
 
   return {
     resolverVersion: "claim-activity-correspondence-v1",
+    activityPoolCount: index.indexed.length,
+    claimSignalTokenCount: prefilter.queryTokenCount,
+    claimSignalCodeCount: prefilter.queryCodeCount,
+    prefilterRawCandidateCount: prefilter.rawCandidateCount,
     extraction,
     preFilterCandidateCount: ranked.length,
     boundedCandidateCount: bounded.length,
