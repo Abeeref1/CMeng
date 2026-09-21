@@ -624,6 +624,60 @@ test("CMeng workspace keeps the active module primary and browser script parseab
     "Cost & Forecast must use its specialist management hierarchy",
   );
 
+  for (
+    const finalCommercialVisual of [
+      "Commercial Claims & Notices Management Position",
+      "Claim lifecycle distribution",
+      "Notice timeliness position",
+      "Notice / correspondence lifecycle",
+      "Contract Particulars, Securities & Obligations Management Position",
+      "Contract obligation control",
+      "Security & insurance monitoring",
+      "Retention release control",
+      "LD scenario exposure",
+    ]
+  ) {
+    assert.equal(
+      html.includes(
+        finalCommercialVisual,
+      ),
+      true,
+      "Final Commercial management view must expose: " +
+        finalCommercialVisual,
+    );
+  }
+
+  for (
+    const enterpriseClass of [
+      "commercial-claims-enterprise",
+      "contract-particulars-enterprise",
+    ]
+  ) {
+    assert.equal(
+      html.includes(
+        enterpriseClass,
+      ),
+      true,
+      "Final Commercial specialist page must have deliberate hierarchy: " +
+        enterpriseClass,
+    );
+  }
+
+  assert.equal(
+    html.includes(
+      "claimGroups",
+    ),
+    false,
+    "Commercial Claims must not aggregate raw financial claim rows in the browser",
+  );
+  assert.equal(
+    html.includes(
+      "(terms.clauses||[]).slice(0,100)",
+    ),
+    false,
+    "Contract Particulars must not silently hide clauses after row 100",
+  );
+
   const costCurvePosition =
     html.indexOf(
       "Cost S-Curve & Forecast Position",
