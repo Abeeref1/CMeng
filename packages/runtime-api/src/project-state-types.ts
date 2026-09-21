@@ -250,6 +250,18 @@ export interface EvidenceTextSegment {
   sourceHashSha256: string;
 }
 
+export interface CorrespondenceNarrativeRefreshReceipt {
+  producerVersion: string;
+  sourceHashSha256: string;
+  anchorSetHashSha256: string;
+  totalPages: number;
+  nativePages: number;
+  ocrPages: number;
+  ocrFailedPages: number;
+  unresolvedAnchorCount: number;
+  completedAt: string;
+}
+
 export interface StoredEvidenceDocument {
   documentId: string;
   category: EvidenceCategory;
@@ -270,6 +282,7 @@ export interface StoredEvidenceDocument {
   lineage: EvidenceLineage;
   assertions: DocumentAssertion[];
   textSegments?: EvidenceTextSegment[];
+  correspondenceNarrativeRefresh?: CorrespondenceNarrativeRefreshReceipt;
   uploadIntent: EvidenceUploadIntent;
   familyKey: string;
   logicalDocumentKey: string;

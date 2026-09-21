@@ -2086,7 +2086,7 @@ export class RuntimeProjectStore {
   }> {
     const diagnostics: string[] = [];
     const correspondenceSegmentProducerVersion =
-      "correspondence-linked-context-v2";
+      "correspondence-linked-context-v3";
     let refreshedDocumentCount = 0;
     let segmentCount = 0;
     let unresolvedAnchorCount = 0;
@@ -2199,6 +2199,17 @@ export class RuntimeProjectStore {
         continue;
       }
 
+      const anchorSetHashSha256 =
+        createHash("sha256")
+          .update(
+            [...anchors]
+              .map(normalizeAnchor)
+              .filter(Boolean)
+              .sort()
+              .join("\n"),
+          )
+          .digest("hex");
+
       let projectChanged = false;
 
       const documents =
@@ -2252,6 +2263,30 @@ export class RuntimeProjectStore {
               document.documentId,
           );
         }
+
+        const refreshReceipt =
+          document.correspondenceNarrativeRefresh;
+        if (
+          refreshReceipt?.producerVersion ===
+            correspondenceSegmentProducerVersion &&
+          refreshReceipt.sourceHashSha256 ===
+            document.sourceHashSha256 &&
+          refreshReceipt.anchorSetHashSha256 ===
+            anchorSetHashSha256 &&
+          refreshReceipt.ocrFailedPages ===
+            0
+        ) {
+          segmentCount +=
+            currentExisting.length;
+          unresolvedAnchorCount +=
+            refreshReceipt.unresolvedAnchorCount;
+          diagnostics.push(
+            "CORRESPONDENCE_REFRESH_RECEIPT_REUSED:" +
+              document.documentId,
+          );
+          continue;
+        }
+
         const existingAnchors =
           new Set(
             currentExisting
@@ -2313,94 +2348,106 @@ export class RuntimeProjectStore {
                 (a.num ?? 0) -
                 (b.num ?? 0),
             );
-
-          if (
-            process.env
-              .CMENG_CORRESPONDENCE_OCR_DIAGNOSTICS ===
-            "1"
-          ) {
-            const pageTextByNumber =
-              new Map(
-                pages.map(
+          const totalPages =
+            typeof parsed.total ===
+            "number"
+              ? parsed.total
+              : pages.length;
+          const meaningfulCount = (
+            value: string,
+          ): number =>
+            [...value].filter(
+              (character) =>
+                /[\p{L}\p{N}]/u.test(
+                  character,
+                ),
+            ).length;
+          const nativeTextByPage =
+            new Map<number, string>(
+              pages
+                .filter(
+                  (page) =>
+                    typeof page.num ===
+                    "number",
+                )
+                .map(
                   (page) => [
-                    page.num ?? 0,
+                    page.num!,
                     page.text ?? "",
                   ],
                 ),
-              );
-            const totalPages =
-              typeof parsed.total ===
-              "number"
-                ? parsed.total
-                : pages.length;
-            const meaningfulCount = (
-              value: string,
-            ): number =>
-              [...value].filter(
-                (character) =>
-                  /[\p{L}\p{N}]/u.test(
-                    character,
-                  ),
-              ).length;
-            const lowNativePages =
-              Array.from(
-                {
-                  length:
-                    totalPages,
-                },
-                (_, index) =>
-                  index + 1,
-              ).filter(
-                (pageNumber) =>
-                  meaningfulCount(
-                    pageTextByNumber.get(
-                      pageNumber,
-                    ) ?? "",
-                  ) < 12,
-              );
-            process.stdout.write(
-              JSON.stringify({
-                event:
-                  "correspondence_ocr_diagnostic",
-                part:
-                  "native_coverage",
-                documentId:
-                  document.documentId,
-                totalPages,
-                nativePageCount:
-                  totalPages -
-                  lowNativePages.length,
-                lowNativePageCount:
-                  lowNativePages.length,
-                sampleLowNativePages:
-                  lowNativePages.slice(
-                    0,
-                    12,
-                  ),
-              }) + "\n",
             );
+          const effectiveTextByPage =
+            new Map<number, string>();
+          const methodByPage =
+            new Map<
+              number,
+              EvidenceTextSegment["method"]
+            >();
+          const lowNativePages:
+            number[] = [];
 
-            const selected =
-              lowNativePages.slice(
-                0,
-                4,
-              );
+          for (
+            let pageNumber = 1;
+            pageNumber <= totalPages;
+            pageNumber += 1
+          ) {
+            const nativeText =
+              nativeTextByPage.get(
+                pageNumber,
+              ) ?? "";
+            effectiveTextByPage.set(
+              pageNumber,
+              nativeText,
+            );
+            methodByPage.set(
+              pageNumber,
+              "native_pdf_text",
+            );
             if (
-              selected.length > 0
+              meaningfulCount(
+                nativeText,
+              ) < 12
             ) {
-              const screenshots:
-                any =
-                await parser.getScreenshot({
-                  partial:
-                    selected,
-                  scale: 1.75,
-                  imageBuffer: true,
-                  imageDataUrl:
-                    false,
-                });
-              const provider =
-                this.createOcrProvider();
-              try {
+              lowNativePages.push(
+                pageNumber,
+              );
+            }
+          }
+
+          let ocrPageCount = 0;
+          let ocrFailureCount = 0;
+          if (
+            lowNativePages.length >
+            0
+          ) {
+            const provider =
+              this.createOcrProvider();
+            const batchSize = 8;
+            try {
+              for (
+                let offset = 0;
+                offset <
+                lowNativePages.length;
+                offset += batchSize
+              ) {
+                const selected =
+                  lowNativePages.slice(
+                    offset,
+                    offset +
+                      batchSize,
+                  );
+                const screenshots:
+                  any =
+                  await parser.getScreenshot({
+                    partial:
+                      selected,
+                    scale: 1.75,
+                    imageBuffer:
+                      true,
+                    imageDataUrl:
+                      false,
+                  });
                 for (
                   let index = 0;
                   index <
@@ -2410,12 +2457,12 @@ export class RuntimeProjectStore {
                   ).length;
                   index += 1
                 ) {
-                  const page =
+                  const screenshot =
                     screenshots.pages[
                       index
                     ];
                   const image =
-                    page?.data;
+                    screenshot?.data;
                   const pageNumber =
                     selected[
                       index
@@ -2426,67 +2473,209 @@ export class RuntimeProjectStore {
                     pageNumber ===
                       null
                   ) {
+                    ocrFailureCount +=
+                      1;
+                    diagnostics.push(
+                      "CORRESPONDENCE_OCR_SCREENSHOT_MISSING:" +
+                        document.documentId +
+                        ":" +
+                        String(
+                          pageNumber ??
+                            "unknown",
+                        ),
+                    );
                     continue;
                   }
-                  const ocr =
-                    await provider.recognize(
-                      image instanceof
-                        Uint8Array
-                        ? image
-                        : Buffer.from(
-                            image,
-                          ),
-                      pageNumber,
+                  try {
+                    const ocr =
+                      await provider.recognize(
+                        image instanceof
+                          Uint8Array
+                          ? image
+                          : Buffer.from(
+                              image,
+                            ),
+                        pageNumber,
+                      );
+                    const ocrText =
+                      ocr.text ??
+                      "";
+                    diagnostics.push(
+                      ...ocr.diagnostics.map(
+                        (item) =>
+                          "CORRESPONDENCE_OCR:" +
+                          document.documentId +
+                          ":" +
+                          String(
+                            pageNumber,
+                          ) +
+                          ":" +
+                          item,
+                      ),
                     );
-                  const rawText =
-                    ocr.text ??
-                    "";
-                  const textSample =
-                    [...rawText]
-                      .slice(
-                        0,
-                        1400,
+                    if (
+                      meaningfulCount(
+                        ocrText,
+                      ) >
+                      meaningfulCount(
+                        effectiveTextByPage.get(
+                          pageNumber,
+                        ) ?? "",
                       )
-                      .join("");
-                  process.stdout.write(
-                    JSON.stringify({
-                      event:
-                        "correspondence_ocr_diagnostic",
-                      part:
-                        "ocr_sample",
-                      documentId:
-                        document.documentId,
-                      pageNumber,
-                      ocrConfidence:
-                        ocr.confidence,
-                      rawTextLength:
-                        [...rawText]
-                          .length,
-                      rawTextHexFirst64:
-                        Buffer.from(
-                          [...rawText]
-                            .slice(
-                              0,
-                              64,
-                            )
-                            .join(""),
-                          "utf8",
-                        ).toString(
-                          "hex",
+                    ) {
+                      effectiveTextByPage.set(
+                        pageNumber,
+                        ocrText,
+                      );
+                      methodByPage.set(
+                        pageNumber,
+                        "ocr_text",
+                      );
+                      ocrPageCount +=
+                        1;
+                    }
+
+                    if (
+                      process.env
+                        .CMENG_CORRESPONDENCE_OCR_DIAGNOSTICS ===
+                      "1" &&
+                      offset === 0 &&
+                      index < 4
+                    ) {
+                      const rawText =
+                        ocrText;
+                      process.stdout.write(
+                        JSON.stringify({
+                          event:
+                            "correspondence_ocr_diagnostic",
+                          part:
+                            "ocr_sample",
+                          documentId:
+                            document.documentId,
+                          pageNumber,
+                          ocrConfidence:
+                            ocr.confidence,
+                          rawTextLength:
+                            [...rawText]
+                              .length,
+                          rawTextHexFirst64:
+                            Buffer.from(
+                              [...rawText]
+                                .slice(
+                                  0,
+                                  64,
+                                )
+                                .join(
+                                  "",
+                                ),
+                              "utf8",
+                            ).toString(
+                              "hex",
+                            ),
+                          rawText:
+                            [...rawText]
+                              .slice(
+                                0,
+                                1400,
+                              )
+                              .join(
+                                "",
+                              ),
+                        }) +
+                          "\n",
+                      );
+                    }
+                  } catch (error) {
+                    ocrFailureCount +=
+                      1;
+                    diagnostics.push(
+                      "CORRESPONDENCE_OCR_FAILURE:" +
+                        document.documentId +
+                        ":" +
+                        String(
+                          pageNumber,
+                        ) +
+                        ":" +
+                        (
+                          error instanceof
+                            Error
+                            ? error.message
+                            : String(
+                                error,
+                              )
                         ),
-                      rawText:
-                        textSample,
-                    }) + "\n",
-                  );
-                }
-              } finally {
-                if (
-                  provider.close
-                ) {
-                  await provider.close();
+                    );
+                  }
                 }
               }
+            } finally {
+              if (
+                provider.close
+              ) {
+                await provider.close();
+              }
             }
+          }
+
+          const nativePageCount =
+            Array.from(
+              {
+                length:
+                  totalPages,
+              },
+              (_, index) =>
+                index + 1,
+            ).filter(
+              (pageNumber) =>
+                methodByPage.get(
+                  pageNumber,
+                ) ===
+                "native_pdf_text" &&
+                meaningfulCount(
+                  effectiveTextByPage.get(
+                    pageNumber,
+                  ) ?? "",
+                ) >= 12,
+            ).length;
+
+          diagnostics.push(
+            "CORRESPONDENCE_TEXT_COVERAGE:" +
+              document.documentId +
+              ":native=" +
+              nativePageCount +
+              ":ocr=" +
+              ocrPageCount +
+              ":ocrFailed=" +
+              ocrFailureCount +
+              ":total=" +
+              totalPages,
+          );
+
+          if (
+            process.env
+              .CMENG_CORRESPONDENCE_OCR_DIAGNOSTICS ===
+            "1"
+          ) {
+            process.stdout.write(
+              JSON.stringify({
+                event:
+                  "correspondence_ocr_diagnostic",
+                part:
+                  "native_coverage",
+                documentId:
+                  document.documentId,
+                totalPages,
+                nativePageCount,
+                lowNativePageCount:
+                  lowNativePages.length,
+                ocrPageCount,
+                sampleLowNativePages:
+                  lowNativePages.slice(
+                    0,
+                    12,
+                  ),
+              }) + "\n",
+            );
           }
 
           const segments:
@@ -2494,10 +2683,18 @@ export class RuntimeProjectStore {
             [];
           const foundAnchors =
             new Set<string>();
+          let documentUnresolvedAnchorCount =
+            0;
 
-          for (const page of pages) {
+          for (
+            let pageNumber = 1;
+            pageNumber <= totalPages;
+            pageNumber += 1
+          ) {
             const pageText =
-              page.text ??
+              effectiveTextByPage.get(
+                pageNumber,
+              ) ??
               "";
             if (!pageText) {
               continue;
@@ -2628,16 +2825,10 @@ export class RuntimeProjectStore {
                 continue;
               }
 
-              const pageNumber =
-                typeof page.num ===
-                  "number"
-                  ? page.num
-                  : null;
               const locator =
                 "page:" +
                 String(
-                  pageNumber ??
-                    "unknown",
+                  pageNumber,
                 ) +
                 ":anchor:" +
                 occurrence.anchor;
@@ -2679,6 +2870,9 @@ export class RuntimeProjectStore {
                 text,
                 locator,
                 method:
+                  methodByPage.get(
+                    pageNumber,
+                  ) ??
                   "native_pdf_text",
                 sourceHashSha256:
                   document.sourceHashSha256,
@@ -2699,7 +2893,7 @@ export class RuntimeProjectStore {
                 ),
               )
             ) {
-              unresolvedAnchorCount +=
+              documentUnresolvedAnchorCount +=
                 1;
               diagnostics.push(
                 "CORRESPONDENCE_ANCHOR_NOT_FOUND:" +
@@ -2709,6 +2903,9 @@ export class RuntimeProjectStore {
               );
             }
           }
+
+          unresolvedAnchorCount +=
+            documentUnresolvedAnchorCount;
 
           const deduped = [
             ...new Map(
@@ -2761,20 +2958,60 @@ export class RuntimeProjectStore {
               .digest(
                 "hex",
               );
+          const nextRefreshReceipt = {
+            producerVersion:
+              correspondenceSegmentProducerVersion,
+            sourceHashSha256:
+              document.sourceHashSha256,
+            anchorSetHashSha256,
+            totalPages,
+            nativePages:
+              nativePageCount,
+            ocrPages:
+              ocrPageCount,
+            ocrFailedPages:
+              ocrFailureCount,
+            unresolvedAnchorCount:
+              documentUnresolvedAnchorCount,
+            completedAt:
+              new Date()
+                .toISOString(),
+          };
+          const previousReceiptFingerprint =
+            createHash("sha256")
+              .update(
+                JSON.stringify(
+                  document.correspondenceNarrativeRefresh ??
+                    null,
+                ),
+              )
+              .digest("hex");
+          const nextReceiptFingerprint =
+            createHash("sha256")
+              .update(
+                JSON.stringify(
+                  nextRefreshReceipt,
+                ),
+              )
+              .digest("hex");
 
           if (
             previousFingerprint !==
-            nextFingerprint
+              nextFingerprint ||
+            previousReceiptFingerprint !==
+              nextReceiptFingerprint
           ) {
             document.textSegments =
               deduped;
+            document.correspondenceNarrativeRefresh =
+              nextRefreshReceipt;
             if (
               !document.diagnostics.includes(
-                "CORRESPONDENCE_LINKED_CONTEXT_REFRESH_V1",
+                "CORRESPONDENCE_LINKED_CONTEXT_REFRESH_V2",
               )
             ) {
               document.diagnostics.push(
-                "CORRESPONDENCE_LINKED_CONTEXT_REFRESH_V1",
+                "CORRESPONDENCE_LINKED_CONTEXT_REFRESH_V2",
               );
             }
             refreshedDocumentCount +=
