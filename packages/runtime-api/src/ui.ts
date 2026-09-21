@@ -152,6 +152,7 @@ details:not(.workspace-drawer){border:1px solid var(--line);border-radius:9px;ba
 .commercial-visual-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:18px}
 .commercial-currency-chart{border:1px solid #d9e4ef;border-radius:14px;background:#fff;padding:15px}.commercial-currency-chart h5{margin:0 0 12px;font-size:13px;color:#22364d}
 .visual-chart-actions{display:flex;align-items:center;gap:7px;flex:0 0 auto}.visual-focus-button{border:1px solid #cbd8e5;background:#fff;color:#425b74;border-radius:7px;padding:6px 9px;font-size:10.5px;font-weight:750;cursor:pointer}.visual-focus-button:hover{background:#f3f7fb;border-color:#9fb7ce}.visual-panel-open{overflow:hidden}.visual-chart.visual-focus{position:fixed;inset:24px;z-index:1000;overflow:auto;box-shadow:0 24px 70px rgba(15,23,42,.28);border-color:#aec4da}.visual-chart.visual-focus .visual-chart-head{position:sticky;top:0;z-index:4}.visual-chart.visual-focus .visual-chart-body{padding:24px}.visual-chart.visual-focus .svg-chart{min-height:500px}.cash-flow-primary{display:grid;gap:12px;margin:18px 0}.cash-flow-primary .visual-chart-body{padding:20px}.cash-flow-primary .svg-chart{min-height:390px}.cash-flow-secondary{grid-template-columns:repeat(3,minmax(0,1fr));margin-top:18px}.cash-movement-bars{display:grid;gap:9px}.cash-movement-row{display:grid;grid-template-columns:minmax(90px,.65fr) minmax(190px,1.55fr) 105px;gap:10px;align-items:center}.cash-movement-track{position:relative;height:22px;border-radius:7px;background:#eef3f8}.cash-movement-zero{position:absolute;left:50%;top:0;bottom:0;width:1px;background:#98a2b3}.cash-movement-bar{position:absolute;top:4px;height:14px;border-radius:5px}.cash-movement-bar.positive{background:#2c7a57}.cash-movement-bar.negative{background:#b4483e}.cash-movement-bar.neutral{background:#91a0b0}.cash-register-section{margin-top:20px}.section-heading.compact{align-items:center;margin-bottom:10px}.section-heading.compact h5{margin:0;font-size:14px;color:#22364d}.section-heading.compact p{margin:3px 0 0;font-size:11px;color:#718096}
+.commercial-management-summary{margin-bottom:18px}.commercial-management-summary .currency-card{min-height:100%;box-shadow:0 8px 22px rgba(15,23,42,.05)}.cost-forecast-primary .visual-chart-body{padding:20px}.cost-forecast-primary .svg-chart{min-height:410px}.cost-control-secondary{grid-template-columns:repeat(2,minmax(0,1fr));margin:18px 0}.cost-control-position{border-color:#c9d8e6}.commercial-overview-enterprise>.commercial-visual-grid{margin-bottom:18px}
 @media(max-width:1450px){.planning-kpi-grid{grid-template-columns:repeat(3,minmax(0,1fr))!important}.visual-chart-grid.three{grid-template-columns:1fr 1fr}}
 @media(max-width:1050px){.planning-primary-grid,.visual-chart-grid,.visual-chart-grid.three,.cash-flow-secondary{grid-template-columns:1fr!important}.donut-layout{grid-template-columns:140px minmax(0,1fr)}.role-review-layers{grid-template-columns:1fr 1fr!important}}
 @media(max-width:700px){.planning-kpi-grid{grid-template-columns:1fr 1fr!important}.donut-layout{grid-template-columns:1fr}.donut-ring{margin:auto}.module-panel #moduleContent{padding:18px!important}.role-review-layers{grid-template-columns:1fr!important}}
@@ -2703,7 +2704,25 @@ function renderCommercialVisual(key,data){
           ["Quantity",row.varianceDecomposition?.quantity],
           ["Productivity",row.varianceDecomposition?.productivity]
         ].map(([label,value])=>'<tr><td><b>'+escapeHtml(label)+'</b></td><td>'+escapeHtml(findingValue(value,row.currency))+'</td><td>'+escapeHtml(findingMeta(value))+'</td></tr>');
-        return '<section class="planning-panel"><div class="planning-panel-head"><div><h4>'+escapeHtml(row.currency)+' · Cost Control</h4><p>Tax basis: '+escapeHtml(row.taxBasis)+'. Source EAC stays separate from CMeng scenarios.</p></div></div><div class="planning-panel-body">'+
+        const scenarioVisual=renderVisualPanel(
+          row.currency+' · EAC scenario range',
+          'Source-reported EAC stays visibly separate from CMeng calculation scenarios.',
+          renderVisualBars((row.eacScenarios||[]).map(s=>({
+            label:(s.official?'Source · ':'Scenario · ')+humanizeKey(s.method),
+            value:metricValue(s.value),
+            tone:s.official?'accent':'purple'
+          })),row.currency)
+        );
+        const varianceVisual=renderVisualPanel(
+          row.currency+' · Variance decomposition',
+          'Source price, quantity and productivity drivers remain separate. Negative values are adverse; positive values are favorable.',
+          renderCashMovementBars([
+            {label:'Price',value:metricValue(row.varianceDecomposition?.price)},
+            {label:'Quantity',value:metricValue(row.varianceDecomposition?.quantity)},
+            {label:'Productivity',value:metricValue(row.varianceDecomposition?.productivity)}
+          ],row.currency)
+        );
+        return '<section class="planning-panel cost-control-position"><div class="planning-panel-head"><div><h4>'+escapeHtml(row.currency)+' · Cost Control Management Position</h4><p>Tax basis: '+escapeHtml(row.taxBasis)+'. Source EAC stays separate from CMeng scenarios.</p></div></div><div class="planning-panel-body">'+
           planningKpis([
             ["BAC",findingValue(row.bac,row.currency),findingMeta(row.bac)],
             ["PV",findingValue(row.pv,row.currency),findingMeta(row.pv)],
@@ -2718,6 +2737,7 @@ function renderCommercialVisual(key,data){
             ["TCPI · BAC",findingValue(row.tcpiBudget),findingMeta(row.tcpiBudget)],
             ["TCPI · EAC",findingValue(row.tcpiForecast),findingMeta(row.tcpiForecast)]
           ])+
+          '<div class="commercial-visual-grid cost-control-secondary">'+scenarioVisual+varianceVisual+'</div>'+
           table(["Forecast method","Value","Authority","Methodology"],scenarioRows,"No EAC scenarios are calculable from the established basis.")+
           table(["Variance driver","Value","Evidence state"],varianceRows,"No source variance decomposition is established.")+
           ((row.diagnostics||[]).length?'<div class="notice info">'+escapeHtml(row.diagnostics.map(humanizeKey).join("; "))+'</div>':"")+
@@ -2772,8 +2792,8 @@ function renderCommercialVisual(key,data){
           ])
         );
       }).join("");
-      performanceDetail='<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>EVM Curves & Performance</h4><p>Source and independently calculated positions are explicitly separated.</p></div></div><div class="planning-panel-body">'+evmSections+'</div></section>'+
-        '<section class="planning-panel"><div class="planning-panel-head"><div><h4>Cost S-Curve</h4><p>Current curve uses source cumulative positions, not summed snapshots.</p></div></div><div class="planning-panel-body"><div class="commercial-visual-grid">'+costCurveSections+'</div></div></section>'+
+      performanceDetail='<section class="planning-panel primary cost-forecast-primary"><div class="planning-panel-head"><div><h4>Cost S-Curve & Forecast Position</h4><p>PV, EV, AC and source EAC are the primary cost-control view. Source and calculated positions remain explicitly separated.</p></div></div><div class="planning-panel-body"><div class="commercial-visual-grid">'+costCurveSections+'</div></div></section>'+
+        '<section class="planning-panel"><div class="planning-panel-head"><div><h4>EVM Curves & Performance Indices</h4><p>Time-phased PV / EV / AC and calculated SPI / CPI provide the supporting trend view.</p></div></div><div class="planning-panel-body">'+evmSections+'</div></section>'+
         controlSections;
     }
     if(key==="cash-flow"){
@@ -2958,6 +2978,8 @@ function renderCommercialVisual(key,data){
         '</div></section>';
     }
   }
+  const commercialSummaryPanel=(heading,copy)=>
+    '<section class="planning-panel primary commercial-management-summary"><div class="planning-panel-head"><div><h4>'+escapeHtml(heading)+'</h4><p>'+escapeHtml(copy)+'</p></div></div><div class="planning-panel-body"><div class="grid three">'+cards+'</div></div></section>';
   let detail="";
   let registerVisual="";
   if((key==="variations-change"&&!contractControls)||key==="cost-forecast"||key==="commercial-overview"){
@@ -3020,10 +3042,37 @@ function renderCommercialVisual(key,data){
     if(key==="payments"||key==="cash-flow") ledgerDetail=section("commercial-payment-register",ledger.payments,{effectiveRecordCount:ledger.payments.filter(r=>r.periodEnd&&ledger.dataDateIso&&r.periodEnd<=ledger.dataDateIso).length});
     if(key==="variations-change") ledgerDetail=section("commercial-variations",ledger.variations);
   }
+  const evidencePanel='<section class="planning-panel"><div class="planning-panel-head"><div><h4>Evidence coverage</h4><p>Missing, submitted-but-unparsed and established positions are not interchangeable.</p></div></div><div class="planning-panel-body">'+gates+'</div></section>';
+  if(key==="commercial-overview"){
+    return '<section class="planning-view commercial-view commercial-overview-enterprise">'+
+      commercialSummaryPanel('Executive Commercial Position','Contract, change, certification, cash and claim exposure are shown first, by currency, without cross-currency arithmetic.')+
+      commercialCharts+
+      time+
+      registerVisual+
+      foundationDetail+
+      performanceDetail+
+      contractControlDetail+
+      detail+
+      ledgerDetail+
+      evidencePanel+
+      '</section>';
+  }
+  if(key==="cost-forecast"){
+    return '<section class="planning-view commercial-view cost-forecast-enterprise">'+
+      performanceDetail+
+      commercialSummaryPanel('Cost & Forecast Executive Position','Current contract, change and claim exposure stay isolated by currency while EAC scenarios remain authority-labelled.')+
+      time+
+      registerVisual+
+      foundationDetail+
+      detail+
+      ledgerDetail+
+      evidencePanel+
+      '</section>';
+  }
   return '<section class="planning-view commercial-view">'+time+cashNote+commercialCharts+registerVisual+foundationDetail+performanceDetail+contractControlDetail+ledgerDetail+
-    '<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>'+escapeHtml(names[key]||"Commercial position")+'</h4><p>Values remain isolated by currency and every missing value retains its evidence state.</p></div></div><div class="planning-panel-body"><div class="grid three">'+cards+'</div></div></section>'+
+    commercialSummaryPanel(names[key]||"Commercial position",'Values remain isolated by currency and every missing value retains its evidence state.')+
     detail+
-    '<section class="planning-panel"><div class="planning-panel-head"><div><h4>Evidence coverage</h4><p>Missing, submitted-but-unparsed and established positions are not interchangeable.</p></div></div><div class="planning-panel-body">'+gates+'</div></section>'+
+    evidencePanel+
     '</section>';
 }
 
