@@ -87,8 +87,12 @@ with sync_playwright() as pw:
     page.goto(BASE+"/",wait_until="domcontentloaded",timeout=90000)
     page.wait_for_function('typeof currentModuleResult !== "undefined" && currentModuleResult',timeout=90000)
 
-    audit={"release":EXPECTED,"projectId":pid,"pages":[],"mutationAttempts":[],"pageErrors":[]}
-    for label,key in PAGES:
+    shard=int(os.environ.get("CMENG_AUDIT_SHARD","0"))
+    shard_count=int(os.environ.get("CMENG_AUDIT_SHARD_COUNT","1"))
+    selected=[item for i,item in enumerate(PAGES) if i % shard_count == shard]
+    audit={"release":EXPECTED,"projectId":pid,"shard":shard,"shardCount":shard_count,"pages":[],"mutationAttempts":[],"pageErrors":[]}
+    for label,key in selected:
+        print("CAPTURE_START",label,key,flush=True)
         page.locator(f'.nav-item[data-key="{key}"]').click(timeout=15000)
         page.wait_for_function('key => currentModuleResult?.key === key && document.getElementById("moduleBadge").textContent !== "Updating"',arg=key,timeout=90000)
         page.wait_for_timeout(800)
@@ -131,6 +135,7 @@ with sync_playwright() as pw:
         }""")
         (OUT/f"{label}.json").write_text(json.dumps(data,indent=2),encoding="utf-8")
         audit["pages"].append({"label":label,"key":key,"title":data["title"],"badge":data["badge"],"bodyLength":len(data["body"]),"cards":len(data["cards"]),"tables":len(data["tables"]),"rawIso":data["rawIso"],"document":data["document"]})
+        print("CAPTURE_DONE",label,key,flush=True)
 
     audit["mutationAttempts"]=mutation_attempts
     audit["pageErrors"]=errors
