@@ -532,6 +532,53 @@ test("CMeng workspace keeps the active module primary and browser script parseab
     /renderCashMovementBars/,
     "Cash Flow must use a cash-semantic period movement visual",
   );
+
+  for (
+    const commercialManagementVisual of [
+      "Executive Commercial Position",
+      "Cost S-Curve & Forecast Position",
+      "EVM Curves & Performance Indices",
+      "Cost Control Management Position",
+      "EAC scenario range",
+      "Variance decomposition",
+    ]
+  ) {
+    assert.equal(
+      html.includes(
+        commercialManagementVisual,
+      ),
+      true,
+      "Commercial management presentation must expose: " +
+        commercialManagementVisual,
+    );
+  }
+
+  assert.match(
+    html,
+    /commercial-overview-enterprise/,
+    "Commercial Overview must use its executive information hierarchy",
+  );
+  assert.match(
+    html,
+    /cost-forecast-enterprise/,
+    "Cost & Forecast must use its specialist management hierarchy",
+  );
+
+  const costCurvePosition =
+    html.indexOf(
+      "Cost S-Curve & Forecast Position",
+    );
+  const costExecutivePosition =
+    html.indexOf(
+      "Cost & Forecast Executive Position",
+    );
+  assert.ok(
+    costCurvePosition >= 0 &&
+      costExecutivePosition >= 0 &&
+      costCurvePosition <
+        costExecutivePosition,
+    "Cost & Forecast must lead with the analytical cost S-curve before the supporting executive currency position",
+  );
   assert.match(
     html,
     /planningMilestoneTimeline/,
