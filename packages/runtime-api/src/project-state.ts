@@ -2157,15 +2157,8 @@ export class RuntimeProjectStore {
         parts.map(
           (part) =>
             part.replace(
-              /[.*+?^$()|[\]\\]/g,
-              "\\    const normalizeAnchor = (
-      value: string,
-    ): string =>
-      value
-        .normalize("NFKC")
-        .trim()
-        .toLowerCase();
-",
+              /[.*+?^${}()|[\]\\]/g,
+              "\\$&",
             ),
         );
       return new RegExp(
