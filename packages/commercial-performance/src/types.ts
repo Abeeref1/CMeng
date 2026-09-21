@@ -18,7 +18,8 @@ export interface PerformanceCostSnapshotInput {
     | "official"
     | "candidate"
     | "partial"
-    | "conflicted";
+    | "conflicted"
+    | "missing";
   values: Record<string, number | null>;
   sourceRefs: string[];
   diagnostics: string[];

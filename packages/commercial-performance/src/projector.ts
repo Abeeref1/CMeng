@@ -76,6 +76,12 @@ function authorityForSnapshot(
   ) {
     return "mixed";
   }
+  if (
+    snapshot.state ===
+    "missing"
+  ) {
+    return "missing";
+  }
   return "mixed";
 }
 
@@ -100,6 +106,12 @@ function stateForSnapshot(
     "conflicted"
   ) {
     return "conflicted";
+  }
+  if (
+    snapshot.state ===
+    "missing"
+  ) {
+    return "missing";
   }
   return "partial";
 }
