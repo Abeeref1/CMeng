@@ -45,8 +45,8 @@ export function inferEvidenceCategory(
   const value = lower(path);
   const name = basename(value);
   if (
-    /^(?:rel\d*|res\d*|sch\d*|wbs\d*|obs\d*|pdb\d*)[_-]/.test(name) ||
-    /(?:longest[_ -]?path|schedule[_ -]?comparison|resource[_ -]?register|wbs[_ -]?dictionary)/.test(name)
+    /^(?:rel\d*|res\d*|sch\d*|wbs\d*|obs\d*|pdb\d*|if0?[12])[_-]/.test(name) ||
+    /(?:longest[_ -]?path|schedule[_ -]?comparison|resource[_ -]?register|wbs[_ -]?dictionary|productivity[_ -]?(?:work[_ -]?package|forecast|basis))/i.test(name)
   ) {
     return "schedule_control";
   }
@@ -98,6 +98,8 @@ export function inferDocumentType(
   if (/^wbs/.test(name)) return "wbs_dictionary";
   if (/^obs/.test(name)) return "obs_responsibility_matrix";
   if (/^pdb/.test(name)) return "project_data_book";
+  if (/^if0?1(?:[_\-.]|$)/.test(name) || /productivity[_ -]?work[_ -]?package/.test(name)) return "productivity_work_package_register";
+  if (/^if0?2(?:[_\-.]|$)/.test(name) || /productivity[_ -]?(?:forecast[_ -]?basis|basis[_ -]?forecast|allowance)/.test(name)) return "productivity_forecast_basis";
   if (/recovery/.test(name)) return "schedule_recovery";
   if (/revised[_ -]?baseline/.test(name)) return "schedule_revised_baseline";
   if (/^s01_|baseline/.test(name)) return "schedule_baseline";
