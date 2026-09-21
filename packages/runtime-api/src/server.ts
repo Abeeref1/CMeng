@@ -44,6 +44,10 @@ import {
   commercialPositionForState,
 } from "./commercial-runtime";
 import {
+  commercialFoundationCapabilities,
+  commercialFoundationCapabilityForState,
+} from "./commercial-foundation-runtime";
+import {
   loadCertifiedDemoProject,
 } from "./demo-project";
 import type {
@@ -819,6 +823,33 @@ async function route(
         advanceBalanceIsNotInferredFromBondValue:
           true,
         contractAmendmentsSetTimeBasisBeforeEotDays:
+          true,
+      },
+    });
+    return;
+  }
+
+  if (
+    req.method === "GET" &&
+    url.pathname ===
+      "/api/commercial/capabilities"
+  ) {
+    json(res, 200, {
+      capabilityCount:
+        commercialFoundationCapabilities.length,
+      capabilities:
+        commercialFoundationCapabilities,
+      phase: "C2A",
+      invariants: {
+        universalCommercialFindingContract:
+          true,
+        missingEvidenceIsNotZero:
+          true,
+        currenciesAreNotCrossSummed:
+          true,
+        candidateTermsAreNotAutomaticallyApproved:
+          true,
+        appliedAssessedCertifiedPaidStaySeparate:
           true,
       },
     });
@@ -1943,6 +1974,58 @@ async function route(
     return;
   }
 
+  const commercialCapabilityMatch =
+    /^\/api\/projects\/([^/]+)\/commercial\/capabilities\/([^/]+)$/.exec(
+      url.pathname,
+    );
+
+  if (
+    req.method === "GET" &&
+    commercialCapabilityMatch
+  ) {
+    const projectId =
+      decodeURIComponent(
+        commercialCapabilityMatch[1]!,
+      );
+    const key =
+      decodeURIComponent(
+        commercialCapabilityMatch[2]!,
+      );
+    const state =
+      runtimeProjects.get(
+        projectId,
+      );
+    if (!state) {
+      json(res, 404, {
+        error:
+          "project_not_found",
+      });
+      return;
+    }
+    const result =
+      commercialFoundationCapabilityForState(
+        state,
+        key,
+      );
+    if (!result) {
+      json(res, 404, {
+        error:
+          "commercial_capability_not_found",
+        capabilityKey: key,
+      });
+      return;
+    }
+    json(
+      res,
+      result.status ===
+        "blocked"
+        ? 409
+        : 200,
+      result,
+    );
+    return;
+  }
+
   const moduleReportMatch =
     /^\/api\/projects\/([^/]+)\/(schedule|commercial)\/modules\/([^/]+)\/report\.(xlsx|json)$/.exec(
       url.pathname,
@@ -2586,6 +2669,8 @@ async function route(
         "/api/projects/:projectId/commercial/modules/:moduleKey/report.xlsx",
       commercialModuleReportJson:
         "/api/projects/:projectId/commercial/modules/:moduleKey/report.json",
+      commercialCapability:
+        "/api/projects/:projectId/commercial/capabilities/:capabilityKey",
       contractUpload:
         "/api/projects/:projectId/contract/uploads",
       projectControls:
