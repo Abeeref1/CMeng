@@ -408,6 +408,10 @@ export function commercialFoundationForState(
               row.periodEnd,
             sourceStatus:
               row.sourceStatus,
+            certifiedAmountBasis:
+              row.certifiedAmountBasis,
+            paidAmountBasis:
+              row.paidAmountBasis,
             applicationDate:
               row.applicationDate,
             assessmentDate:
