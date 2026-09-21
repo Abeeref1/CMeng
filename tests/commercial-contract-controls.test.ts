@@ -520,6 +520,11 @@ test("C2B2 Contract Obligations keep explicit compliance separate from clause-de
       .overdueCount,
     1,
   );
+  assert.equal(
+    p.contractObligations
+      .openCount,
+    0,
+  );
   const explicit =
     p.contractObligations
       .rows.find(
