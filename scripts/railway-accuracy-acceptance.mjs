@@ -230,6 +230,11 @@ try {
   check('CL01 governed event population is 350', delay.data?.eventCount === 350 && events.length === 350);
   check('Delay identity populations are complete and consistent', delay.data.eventCount === events.length && new Set(events.map(e => e.eventId)).size === events.length && new Set(events.flatMap(e => e.linkedClaimIds)).size === delay.data.claimCount);
   check('All governed events retain claim linkage', delay.data?.claimLinkedEventCount === 350);
+  const resolverStages = delay.data?.activityCorrespondenceStageCounts;
+  check('Claim resolver receives a non-empty canonical activity pool', resolverStages?.activityPoolCount > 0);
+  check('Claim resolver receives governed semantic signals', resolverStages?.signalBearingEventCount > 0);
+  check('Scored-OR retrieval produces candidates before confidence gates', resolverStages?.retrievedCandidateCount > 0);
+  check('Deterministic prefilter produces bounded candidates without gate relaxation', resolverStages?.preFilterCandidateCount > 0 && resolverStages?.boundedCandidateCount > 0);
   check('Delay-event activities are represented in the canonical chain', delay.data?.activityLinkedEventCount > 0 && events.some(e => Array.isArray(e.relatedActivityIds) && e.relatedActivityIds.length > 0));
   check('Accepted activity correspondence carries bounded provenance and classification',
     delay.data?.activityCorrespondenceAcceptedCount > 0 &&
@@ -367,6 +372,7 @@ try {
       activityCorrespondenceCandidateCount: delay.data?.activityCorrespondenceCandidateCount ?? null,
       activityCorrespondenceAmbiguousCount: delay.data?.activityCorrespondenceAmbiguousCount ?? null,
       activityCorrespondenceUnresolvedCount: delay.data?.activityCorrespondenceUnresolvedCount ?? null,
+      activityCorrespondenceStageCounts: delay.data?.activityCorrespondenceStageCounts ?? null,
       activityCorrespondenceSample: Array.isArray(events)
         ? events.filter(event => event.activityCorrespondence).slice(0,8).map(event => ({
             eventId: event.eventId,
@@ -374,6 +380,9 @@ try {
             aiStage: event.activityCorrespondence?.aiStage ?? null,
             acceptedActivityIds: event.activityCorrespondence?.acceptedActivityIds ?? [],
             candidateActivityIds: event.activityCorrespondence?.candidateActivityIds ?? [],
+            activityPoolCount: event.activityCorrespondence?.activityPoolCount ?? null,
+            claimSignalCount: event.activityCorrespondence?.claimSignalCount ?? null,
+            retrievedCandidateCount: event.activityCorrespondence?.retrievedCandidateCount ?? null,
             preFilterCandidateCount: event.activityCorrespondence?.preFilterCandidateCount ?? null,
             boundedCandidateCount: event.activityCorrespondence?.boundedCandidateCount ?? null,
             topCandidates: Array.isArray(event.activityCorrespondence?.candidates)
