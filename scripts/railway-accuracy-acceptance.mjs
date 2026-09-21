@@ -110,6 +110,15 @@ try {
         : []
     }))
     .filter(item => item.sourceClass !== null);
+  const l01 = before.documents.find(document => sourceClass(document) === 'L01');
+  const l01Refresh = l01?.correspondenceNarrativeRefresh;
+  check('L01 mixed-PDF OCR refresh covers all low-native-text pages without OCR failure',
+    l01Refresh?.totalPages === 180 &&
+    l01Refresh?.nativePages === 144 &&
+    l01Refresh?.ocrPages === 36 &&
+    l01Refresh?.ocrFailedPages === 0);
+  check('L01 unresolved-anchor remainder is recorded as source limitation, not manufactured linkage',
+    l01Refresh?.unresolvedAnchorCount === 232);
   const module = key => json(prefix + '/schedule/modules/' + key);
   const allModuleKeys = [
     'pmo-analysis','schedule-analytics','activity-analytics','lookahead-schedule',
@@ -230,9 +239,18 @@ try {
   check('CL01 governed event population is 350', delay.data?.eventCount === 350 && events.length === 350);
   check('Delay identity populations are complete and consistent', delay.data.eventCount === events.length && new Set(events.map(e => e.eventId)).size === events.length && new Set(events.flatMap(e => e.linkedClaimIds)).size === delay.data.claimCount);
   check('All governed events retain claim linkage', delay.data?.claimLinkedEventCount === 350);
-  check('Delay-event activities are represented in the canonical chain', delay.data?.activityLinkedEventCount > 0 && events.some(e => Array.isArray(e.relatedActivityIds) && e.relatedActivityIds.length > 0));
-  check('Accepted activity correspondence carries bounded provenance and classification',
-    delay.data?.activityCorrespondenceAcceptedCount > 0 &&
+  const activityAccepted = delay.data?.activityCorrespondenceAcceptedCount ?? 0;
+  const activityCandidate = delay.data?.activityCorrespondenceCandidateCount ?? 0;
+  const activityAmbiguous = delay.data?.activityCorrespondenceAmbiguousCount ?? 0;
+  const activityUnresolved = delay.data?.activityCorrespondenceUnresolvedCount ?? 0;
+  const activityLinked = delay.data?.activityLinkedEventCount ?? 0;
+  check('Activity linkage benchmark follows source-supported evidence, not a minimum linkage percentage',
+    activityAccepted + activityCandidate + activityAmbiguous + activityUnresolved === delay.data?.eventCount &&
+    activityLinked === activityAccepted &&
+    events
+      .filter(e => ['ambiguous','candidate','unresolved'].includes(e.activityCorrespondence?.classification))
+      .every(e => !Array.isArray(e.relatedActivityIds) || e.relatedActivityIds.length === 0));
+  check('Accepted activity correspondence, when source-supported, carries bounded provenance and classification',
     events
       .filter(e => Array.isArray(e.relatedActivityIds) && e.relatedActivityIds.length > 0)
       .every(e =>
@@ -254,7 +272,22 @@ try {
   check('Delay-event windows are represented in the canonical chain', delay.data?.windowLinkedEventCount > 0 && events.some(e => Array.isArray(e.overlappingWindowIds) && e.overlappingWindowIds.length > 0));
   check('Delay-event notices are represented in the canonical chain', delay.data?.noticeLinkedEventCount > 0 && events.some(e => Array.isArray(e.noticeIds) && e.noticeIds.length > 0));
   check('All 16 Engineer determinations remain linked to governed events', delay.data?.determinationLinkedEventCount > 0 && new Set(events.flatMap(e => e.determinationIds ?? [])).size === 16);
-  check('Determination chains preserve claim/activity/window/notice/determination where source evidence supports all links', delay.data?.fullDeterminationChainEventCount > 0);
+  const determinationEvents = events.filter(e => Array.isArray(e.determinationIds) && e.determinationIds.length > 0);
+  check('Determination-chain benchmark is evidence-complete and accepts explicit source-limited incompleteness',
+    (delay.data?.fullDeterminationChainEventCount ?? 0) +
+      (delay.data?.determinationChainIncompleteEventCount ?? 0) === determinationEvents.length &&
+    determinationEvents.every(e =>
+      e.evidenceChainState === 'full_determination_chain' ||
+      (e.evidenceChainState === 'determination_chain_incomplete' &&
+        Array.isArray(e.evidenceChainMissingLinks) &&
+        e.evidenceChainMissingLinks.length > 0)));
+  check('When activity evidence is not established, determination chains fail closed instead of fabricating schedule links',
+    activityLinked > 0 ||
+    ((delay.data?.fullDeterminationChainEventCount ?? 0) === 0 &&
+      determinationEvents.every(e =>
+        e.evidenceChainState === 'determination_chain_incomplete' &&
+        Array.isArray(e.evidenceChainMissingLinks) &&
+        e.evidenceChainMissingLinks.includes('activity'))));
   summary.observed = {
     nearCritical: {
       thresholdBasis: near.data?.thresholdBasis ?? null,
@@ -363,6 +396,8 @@ try {
       noticeLinkedEventCount: delay.data?.noticeLinkedEventCount ?? null,
       determinationLinkedEventCount: delay.data?.determinationLinkedEventCount ?? null,
       fullDeterminationChainEventCount: delay.data?.fullDeterminationChainEventCount ?? null,
+      determinationChainIncompleteEventCount: delay.data?.determinationChainIncompleteEventCount ?? null,
+      activityEvidenceInsufficientEventCount: delay.data?.activityEvidenceInsufficientEventCount ?? null,
       activityCorrespondenceAcceptedCount: delay.data?.activityCorrespondenceAcceptedCount ?? null,
       activityCorrespondenceCandidateCount: delay.data?.activityCorrespondenceCandidateCount ?? null,
       activityCorrespondenceAmbiguousCount: delay.data?.activityCorrespondenceAmbiguousCount ?? null,
