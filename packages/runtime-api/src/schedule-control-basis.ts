@@ -110,13 +110,24 @@ function definitionNumber(
 }
 
 function criticalThreshold(raw: string): number | null {
-  const text = raw.normalize("NFKC").replace(/≤/g, "<=");
-  const match =
-    /(?:tf|total\s+float|critical)[^\n]{0,80}?(?:<=|less\s+than\s+or\s+equal\s+to)\s*\+?\s*(-?[0-9]+(?:\.[0-9]+)?)/i.exec(
+  const text = raw.normalize("NFKC").replace(/≤/g, "<=").trim();
+  if (!text) return null;
+
+  const comparator =
+    /(?:tf|total\s+float|critical(?:\s+(?:total\s+)?float)?)[^\n]{0,100}?(?:<=|less\s+than\s+or\s+equal\s+to)\s*\+?\s*(-?[0-9]+(?:\.[0-9]+)?)/i.exec(
       text,
-    ) ??
-    /critical[^\n]{0,80}?(-?[0-9]+(?:\.[0-9]+)?)/i.exec(text);
-  return match ? numberValue(match[1]!) : null;
+    );
+  if (comparator) {
+    return numberValue(comparator[1]!) ?? null;
+  }
+
+  const explicitThreshold =
+    /critical(?:\s+(?:total\s+)?float)?\s+(?:threshold|definition|basis)[^\n]{0,80}?(-?[0-9]+(?:\.[0-9]+)?)(?:\s*(?:hours?|hrs?|hr|h))?/i.exec(
+      text,
+    );
+  return explicitThreshold
+    ? numberValue(explicitThreshold[1]!) ?? null
+    : null;
 }
 
 
@@ -491,16 +502,25 @@ export function projectScheduleControlBasis(
         nearHourReceipts.push(row.receipt);
       }
 
+      const criticalMetricDefinition =
+        !nearCriticalMetric &&
+        /\bcritical\b/i.test(normalizedKey) &&
+        /\b(?:threshold|definition|basis)\b/i.test(normalizedKey);
       const criticalDefinition =
         cell(
           row,
           "critical definition",
           "critical basis",
+          "critical float threshold",
+          "critical total float threshold",
         ) ||
-        (norm(key) === "critical definition" ? rawValue : "") ||
-        (/critical/i.test(rowText) && !/near[- ]?critical/i.test(rowText)
-          ? rowText
-          : "");
+        (
+          criticalMetricDefinition
+            ? [key, rawValue, rawUnit, rawDefinition]
+                .filter(Boolean)
+                .join(" ")
+            : ""
+        );
       const parsedCritical = criticalThreshold(criticalDefinition);
       if (parsedCritical !== null) criticalHours.push(parsedCritical);
 
