@@ -102,8 +102,24 @@ with sync_playwright() as pw:
             overall.first.click()
             page.wait_for_timeout(300)
 
-        page.screenshot(path=str(OUT/f"{label}-viewport.jpg"),type="jpeg",quality=82,full_page=False)
-        page.screenshot(path=str(OUT/f"{label}-full.jpg"),type="jpeg",quality=82,full_page=True)
+        page.evaluate("window.scrollTo(0,0)")
+        page.wait_for_timeout(150)
+        page.screenshot(path=str(OUT/f"{label}-viewport-00.jpg"),type="jpeg",quality=82,full_page=False)
+        doc_h=page.evaluate("document.documentElement.scrollHeight")
+        max_y=max(0,min(doc_h-1200,12000))
+        y=1000
+        shot=1
+        while y <= max_y:
+            page.evaluate("(y)=>window.scrollTo(0,y)",y)
+            page.wait_for_timeout(120)
+            page.screenshot(path=str(OUT/f"{label}-viewport-{shot:02d}.jpg"),type="jpeg",quality=82,full_page=False)
+            shot += 1
+            y += 1000
+        if max_y > 0 and (y-1000) < max_y:
+            page.evaluate("(y)=>window.scrollTo(0,y)",max_y)
+            page.wait_for_timeout(120)
+            page.screenshot(path=str(OUT/f"{label}-viewport-{shot:02d}.jpg"),type="jpeg",quality=82,full_page=False)
+        page.evaluate("window.scrollTo(0,0)")
 
         data=page.evaluate("""() => {
           const root=document.getElementById('moduleContent');
