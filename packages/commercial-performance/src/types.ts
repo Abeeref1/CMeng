@@ -202,6 +202,8 @@ export interface CashFlowCurrencyPosition {
     CommercialFinding<number>;
   peakFundingNeed:
     CommercialFinding<number>;
+  certifiedUnpaid:
+    CommercialFinding<number>;
   cumulativeActualSeries:
     Array<{
       asOf: string;
@@ -210,6 +212,38 @@ export interface CashFlowCurrencyPosition {
       cumulativeExpenditure:
         number | null;
       net:
+        number | null;
+    }>;
+  cumulativePositionSeries:
+    Array<{
+      asOf: string;
+      cumulativeCertifiedIncome:
+        number | null;
+      cumulativePaidIncome:
+        number | null;
+      cumulativeExpenditureBudget:
+        number | null;
+      cumulativeExpenditureForecast:
+        number | null;
+      cumulativeActualExpenditure:
+        number | null;
+      actualNetCash:
+        number | null;
+    }>;
+  periodMovementSeries:
+    Array<{
+      period: string;
+      certifiedIncome:
+        number | null;
+      paidIncome:
+        number | null;
+      expenditureBudget:
+        number | null;
+      expenditureForecast:
+        number | null;
+      actualExpenditure:
+        number | null;
+      actualNetCashMovement:
         number | null;
     }>;
   diagnostics: string[];
