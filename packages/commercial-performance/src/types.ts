@@ -38,6 +38,7 @@ export interface PerformanceCostMetricInput {
     | "partial"
     | "conflicted";
   sourceStatus: string;
+  amountBasis: string;
   cbsId: string | null;
   wbsId: string | null;
   sourceRefs: string[];
