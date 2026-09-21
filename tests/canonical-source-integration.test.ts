@@ -109,7 +109,6 @@ test('linked correspondence PDF narrative is persisted and drives bounded activi
   const page=pdf.addPage([595,842]);
   [
     'PROJECT CORRESPONDENCE',
-    'LONG GENERAL NOTICE LOG AND ADMINISTRATION NOTE',
     'Reference: L / NOTICE / 001',
     'Subject: Late access affecting Tower A structural concrete frame Level 13',
     'The delayed access prevented the Tower A concrete frame works at Level 13.',
@@ -146,6 +145,49 @@ test('linked correspondence PDF narrative is persisted and drives bounded activi
     ),
   );
   assert.ok(event.diagnostics.includes('LINKED_CORRESPONDENCE_NARRATIVE_VERIFIED:L-NOTICE-001'));
+});
+
+
+test('correspondence anchor matching tolerates separators without partial-character false positives',async t=>{
+  const {store,state,csvDoc}=fixture(t);
+  csvDoc(
+    [
+      'Claim ID,Event,Notice Date,Days Claimed,Status,Linked Letter',
+      'CL-ANCHOR,Generic delay event,2026-08-20,1,Submitted,L-NOTICE-001',
+    ].join('\n'),
+    'delay_eot_claims_register',
+    'active',
+    ':cl-anchor',
+  );
+
+  const pdf=await PDFDocument.create();
+  const font=await pdf.embedFont(StandardFonts.Helvetica);
+  const page=pdf.addPage([595,842]);
+  [
+    'PROJECT CORRESPONDENCE',
+    'LONG GENERAL NOTICE LOG AND ADMINISTRATION NOTE',
+    'Reference: L / NOTICE / 001',
+    'Routine correspondence body with no schedule semantics.',
+  ].forEach((line,index)=>page.drawText(line,{x:48,y:780-index*28,size:11,font}));
+  const bytes=await pdf.save();
+  const upload=await store.ingestEvidenceFile({
+    projectId:'CANONICAL',
+    bytes,
+    mediaType:'application/pdf',
+    sourceFilename:'anchor-variants.pdf',
+    sourceRelativePath:'07_Correspondence_MOM/L01_Anchor_Variants.pdf',
+    uploadedAt:stamp,
+    uploadIntent:'add_update',
+  });
+
+  const refreshed=await store.refreshCorrespondenceNarratives('CANONICAL');
+  assert.equal(refreshed.refreshedDocumentCount,1);
+  assert.equal(refreshed.segmentCount,1);
+  assert.equal(refreshed.unresolvedAnchorCount,0);
+  const letter=state.evidenceDocuments.find(doc=>doc.documentId===upload.documentId)!;
+  assert.equal(letter.textSegments?.length,1);
+  assert.equal(letter.textSegments?.[0]?.anchor,'L-NOTICE-001');
+  assert.match(letter.textSegments?.[0]?.text??'',/L \/ NOTICE \/ 001/);
 });
 
 test('source receipt hashes are checked again when stored bytes change',t=>{
