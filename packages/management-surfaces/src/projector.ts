@@ -424,6 +424,10 @@ function dashboardMetrics(
   input: ManagementSurfacesInput,
 ): ManagementMetric[] {
   const d = input.director;
+  const forecastVariance =
+    d?.schedule
+      .varianceDaysToOfficialAdjustedCompletion ??
+    null;
   const metrics:
     ManagementMetric[] = [];
 
@@ -453,56 +457,35 @@ function dashboardMetrics(
             : "unavailable",
       health:
         healthForSignedVariance(
-          d?.schedule
-            .varianceDaysToOfficialAdjustedCompletion ??
-          null,
+          forecastVariance,
         ),
       basis:
         "Independent Forecast",
       consequence:
-        d?.schedule
-          .varianceDaysToOfficialAdjustedCompletion ===
+        forecastVariance ===
         null
           ? null
-          : (
-              d.schedule
-                .varianceDaysToOfficialAdjustedCompletion >
+          : forecastVariance ===
               0
-                ? "Independent forecast is "
-                : d.schedule
-                    .varianceDaysToOfficialAdjustedCompletion <
-                  0
-                  ? "Independent forecast is "
-                  : "Independent forecast aligns with "
-            ) +
-            (
-              d.schedule
-                .varianceDaysToOfficialAdjustedCompletion ===
-              0
-                ? "the official adjusted completion date."
-                : managementDays(
-                    Math.abs(
-                      d.schedule
-                        .varianceDaysToOfficialAdjustedCompletion,
-                    ),
-                  ) +
-                  " calendar days " +
-                  (
-                    d.schedule
-                      .varianceDaysToOfficialAdjustedCompletion >
-                    0
-                      ? "later than"
-                      : "earlier than"
-                  ) +
-                  " the official adjusted completion date."
-            ),
+            ? "Independent forecast aligns with the official adjusted completion date."
+            : "Independent forecast is " +
+              managementDays(
+                Math.abs(
+                  forecastVariance,
+                ),
+              ) +
+              " calendar days " +
+              (
+                forecastVariance >
+                0
+                  ? "later than"
+                  : "earlier than"
+              ) +
+              " the official adjusted completion date.",
       action:
-        d?.schedule
-          .varianceDaysToOfficialAdjustedCompletion !==
+        forecastVariance !==
           null &&
-        (d?.schedule
-          .varianceDaysToOfficialAdjustedCompletion ?? 0) >
-          0
+        forecastVariance > 0
           ? "Open Independent Forecast and EOT Position."
           : null,
       owningModule:
