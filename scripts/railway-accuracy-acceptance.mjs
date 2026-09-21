@@ -29,7 +29,22 @@ const check = (name, condition) => {
 };
 async function get(path) {
   const response = await fetch(base + path, { signal: AbortSignal.timeout(90000) });
-  assert.equal(response.status, 200, 'GET failed: ' + path.replace(/projects\/[^/]+/, 'projects/[redacted]'));
+  if (response.status !== 200) {
+    const raw = await response.text();
+    let safeError = raw;
+    try {
+      const parsed = JSON.parse(raw);
+      safeError = typeof parsed?.error === 'string' ? parsed.error : raw;
+    } catch {}
+    throw new Error(
+      'GET failed: ' +
+      path.replace(/projects\/[^/]+/, 'projects/[redacted]') +
+      '\nHTTP ' +
+      response.status +
+      '\nServer error: ' +
+      String(safeError).slice(0, 1200)
+    );
+  }
   return response;
 }
 async function json(path) { return (await get(path)).json(); }
