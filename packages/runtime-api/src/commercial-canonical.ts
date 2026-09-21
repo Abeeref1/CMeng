@@ -180,7 +180,13 @@ export function commercialCanonical(state:ProjectRuntimeState):CanonicalCommerci
    const unit=cell(r,'unit');if(!/^[A-Z]{3}$/.test(unit))continue;
    costMetrics.push({
     metric:cell(r,'metric'),
-    amount:money(r,cell(r,'value'),cell(r,'metric'),unit,dateValue(cell(r,'as of'))),
+    amount:money(
+      r,
+      cell(r,'value'),
+      cell(r,'amount basis','value basis','series basis','cash basis')||cell(r,'metric'),
+      unit,
+      dateValue(cell(r,'as of'))
+    ),
     sourceStatus:cell(r,'status'),
     cbsId:cell(r,'cbs','cbs id','cost code')||null,
     cbsDescription:cell(r,'cbs description','cost code description','description')||null,
