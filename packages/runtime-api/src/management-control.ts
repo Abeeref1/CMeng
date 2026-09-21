@@ -306,15 +306,15 @@ export function managementControlForProject(
       metric(
         "certified_unpaid_" + currency.currency,
         "Certified unpaid (" + currency.currency + ")",
-        currency.certifiedUnpaid.value,
+        currency.certifiedUnpaidAmount.value,
         currency.currency,
-        currency.certifiedUnpaid.state === "established"
+        currency.certifiedUnpaidAmount.state === "established"
           ? "calculated"
-          : currency.certifiedUnpaid.state === "submitted_unparsed"
+          : currency.certifiedUnpaidAmount.state === "submitted_unparsed"
             ? "partial"
             : "unavailable",
         "Payments",
-        currency.certifiedUnpaid.sourceRefs,
+        currency.certifiedUnpaidAmount.sourceRefs,
       ),
     );
   }
@@ -348,7 +348,7 @@ export function managementControlForProject(
       purpose: "integrated_governance_control",
       revisionAuthority: {
         latestRevisionId: overview.latestRevisionId,
-        latestRevisionLabel: overview.latestRevisionLabel,
+        latestRevisionLabel: overview.latestRevisionLabel ?? null,
         dataDateIso: overview.latestDataDateIso,
         baselineRevisionCount: overview.baselineRevisionCount,
         updateRevisionCount: overview.updateRevisionCount,
