@@ -2670,6 +2670,134 @@ function renderCommercialVisual(key,data){
         '</div></section>';
     }
   }
+  const performance=position.performance||null;
+  let performanceDetail="";
+  if(performance){
+    if(key==="commercial-overview"){
+      performanceDetail='<section class="planning-panel"><div class="planning-panel-head"><div><h4>Tier 2 performance readiness</h4><p>Cost, EVM, cash and curve consumers reuse one canonical Commercial performance producer.</p></div></div><div class="planning-panel-body">'+
+        planningKpis([
+          ["Cost Control",humanizeKey(performance.costControl?.state||"missing"),fmt(performance.costControl?.positions?.length||0)+" currency/tax positions"],
+          ["EVM Curves",humanizeKey(performance.evmPerformance?.state||"missing"),fmt(performance.evmPerformance?.series?.length||0)+" series"],
+          ["Cash Flow",humanizeKey(performance.cashFlow?.state||"missing"),fmt(performance.cashFlow?.currencies?.length||0)+" currencies"],
+          ["Cost S-Curve",humanizeKey(performance.costScurve?.state||"missing"),fmt(performance.costScurve?.series?.length||0)+" series"]
+        ])+'</div></section>';
+    }
+    if(key==="cost-forecast"){
+      const controlSections=(performance.costControl?.positions||[]).map(row=>{
+        const scenarioRows=(row.eacScenarios||[]).map(s=>'<tr><td><b>'+escapeHtml(humanizeKey(s.method))+'</b></td><td>'+escapeHtml(findingValue(s.value,row.currency))+'</td><td>'+escapeHtml(s.official?"Source / governed":"Scenario only")+'</td><td>'+escapeHtml(s.methodology||"")+'</td></tr>');
+        const varianceRows=[
+          ["Price",row.varianceDecomposition?.price],
+          ["Quantity",row.varianceDecomposition?.quantity],
+          ["Productivity",row.varianceDecomposition?.productivity]
+        ].map(([label,value])=>'<tr><td><b>'+escapeHtml(label)+'</b></td><td>'+escapeHtml(findingValue(value,row.currency))+'</td><td>'+escapeHtml(findingMeta(value))+'</td></tr>');
+        return '<section class="planning-panel"><div class="planning-panel-head"><div><h4>'+escapeHtml(row.currency)+' · Cost Control</h4><p>Tax basis: '+escapeHtml(row.taxBasis)+'. Source EAC stays separate from CMeng scenarios.</p></div></div><div class="planning-panel-body">'+
+          planningKpis([
+            ["BAC",findingValue(row.bac,row.currency),findingMeta(row.bac)],
+            ["PV",findingValue(row.pv,row.currency),findingMeta(row.pv)],
+            ["EV",findingValue(row.ev,row.currency),findingMeta(row.ev)],
+            ["AC",findingValue(row.ac,row.currency),findingMeta(row.ac)],
+            ["SPI",findingValue(row.spi),findingMeta(row.spi)],
+            ["CPI",findingValue(row.cpi),findingMeta(row.cpi)],
+            ["CV",findingValue(row.cv,row.currency),findingMeta(row.cv)],
+            ["SV",findingValue(row.sv,row.currency),findingMeta(row.sv)],
+            ["Source EAC",findingValue(row.sourceEac,row.currency),"source forecast"],
+            ["Calculated VAC",findingValue(row.calculatedVac,row.currency),findingMeta(row.calculatedVac)],
+            ["TCPI · BAC",findingValue(row.tcpiBudget),findingMeta(row.tcpiBudget)],
+            ["TCPI · EAC",findingValue(row.tcpiForecast),findingMeta(row.tcpiForecast)]
+          ])+
+          table(["Forecast method","Value","Authority","Methodology"],scenarioRows,"No EAC scenarios are calculable from the established basis.")+
+          table(["Variance driver","Value","Evidence state"],varianceRows,"No source variance decomposition is established.")+
+          ((row.diagnostics||[]).length?'<div class="notice info">'+escapeHtml(row.diagnostics.map(humanizeKey).join("; "))+'</div>':"")+
+          '</div></section>';
+      }).join("");
+      const evmSections=(performance.evmPerformance?.series||[]).map(series=>{
+        const points=(series.points||[]).map(point=>({
+          dateIso:point.asOf,
+          pv:point.pv?.value,
+          ev:point.ev?.value,
+          ac:point.ac?.value,
+          spi:point.spi?.value,
+          cpi:point.cpi?.value
+        }));
+        return '<div class="commercial-visual-grid">'+
+          renderVisualPanel(
+            series.currency+' · PV / EV / AC',
+            'Time-phased source values only. Future-dated positions are excluded from the current series.',
+            renderLineChart(points,[
+              {key:"pv",label:"PV",tone:"graphite"},
+              {key:"ev",label:"EV",tone:"accent"},
+              {key:"ac",label:"AC",tone:"danger"}
+            ])
+          )+
+          renderVisualPanel(
+            series.currency+' · SPI / CPI',
+            'Calculated performance indices remain separate from documented source values.',
+            renderLineChart(points,[
+              {key:"spi",label:"SPI",tone:"accent"},
+              {key:"cpi",label:"CPI",tone:"success"}
+            ])
+          )+
+          '</div>';
+      }).join("");
+      const costCurveSections=(performance.costScurve?.series||[]).map(series=>{
+        const points=(series.points||[]).map(point=>({
+          dateIso:point.asOf,
+          planned:point.plannedCost?.value,
+          earned:point.earnedValue?.value,
+          actual:point.actualCost?.value,
+          eac:point.sourceEac?.value,
+          remaining:point.remainingCost?.value
+        }));
+        return renderVisualPanel(
+          series.currency+' · Cost S-Curve',
+          'PV, EV, AC and source EAC remain partitioned by currency and tax basis.',
+          renderLineChart(points,[
+            {key:"planned",label:"Planned cost / PV",tone:"graphite"},
+            {key:"earned",label:"Earned value",tone:"accent"},
+            {key:"actual",label:"Actual cost",tone:"danger"},
+            {key:"eac",label:"Source EAC",tone:"purple"}
+          ])
+        );
+      }).join("");
+      performanceDetail='<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>EVM Curves & Performance</h4><p>Source and independently calculated positions are explicitly separated.</p></div></div><div class="planning-panel-body">'+evmSections+'</div></section>'+
+        '<section class="planning-panel"><div class="planning-panel-head"><div><h4>Cost S-Curve</h4><p>Current curve uses source cumulative positions, not summed snapshots.</p></div></div><div class="planning-panel-body"><div class="commercial-visual-grid">'+costCurveSections+'</div></div></section>'+
+        controlSections;
+    }
+    if(key==="cash-flow"){
+      const cashSections=(performance.cashFlow?.currencies||[]).map(row=>{
+        const points=(row.cumulativeActualSeries||[]).map(point=>({
+          dateIso:point.asOf,
+          income:point.cumulativeIncome,
+          expenditure:point.cumulativeExpenditure,
+          net:point.net
+        }));
+        const entryRows=(row.entries||[]).slice(0,150).map(entry=>'<tr><td>'+escapeHtml(planningShortDate(entry.periodDate))+'</td><td>'+escapeHtml(humanizeKey(entry.kind))+'</td><td>'+escapeHtml(findingValue(entry.amount,row.currency))+'</td><td>'+escapeHtml(findingMeta(entry.amount))+'</td><td>'+escapeHtml((entry.sourceRefs||[]).join(", "))+'</td></tr>');
+        return '<section class="planning-panel"><div class="planning-panel-head"><div><h4>'+escapeHtml(row.currency)+' · Cash Flow Register</h4><p>Certification and cash receipt stay separate. Funding metrics require dated paid-income and actual-expenditure evidence.</p></div></div><div class="planning-panel-body">'+
+          planningKpis([
+            ["Certified income",findingValue(row.certifiedIncome,row.currency),"not cash"],
+            ["Paid income",findingValue(row.paidIncome,row.currency),"dated cash evidence"],
+            ["Expenditure budget",findingValue(row.expenditureBudget,row.currency),findingMeta(row.expenditureBudget)],
+            ["Expenditure forecast",findingValue(row.expenditureForecast,row.currency),findingMeta(row.expenditureForecast)],
+            ["Actual expenditure",findingValue(row.actualExpenditure,row.currency),findingMeta(row.actualExpenditure)],
+            ["Net cash position",findingValue(row.netCashPosition,row.currency),findingMeta(row.netCashPosition)],
+            ["Peak funding need",findingValue(row.peakFundingNeed,row.currency),findingMeta(row.peakFundingNeed)]
+          ])+
+          renderVisualPanel(
+            row.currency+' · cumulative actual cash',
+            'Income is paid cash only; expenditure is explicit actual expenditure only.',
+            renderLineChart(points,[
+              {key:"income",label:"Cumulative paid income",tone:"success"},
+              {key:"expenditure",label:"Cumulative actual expenditure",tone:"danger"},
+              {key:"net",label:"Net cash",tone:"accent"}
+            ])
+          )+
+          table(["Date","Entry","Amount","Evidence state","Source"],entryRows,"No dated cash-flow entries are established.")+
+          ((row.diagnostics||[]).length?'<div class="notice info">'+escapeHtml(row.diagnostics.map(humanizeKey).join("; "))+'</div>':"")+
+          '</div></section>';
+      }).join("");
+      performanceDetail=cashSections||'<div class="notice warn">No governed cash-flow currency position is established.</div>';
+    }
+  }
   let detail="";
   let registerVisual="";
   if(key==="variations-change"||key==="cost-forecast"||key==="commercial-overview"){
@@ -2732,7 +2860,7 @@ function renderCommercialVisual(key,data){
     if(key==="payments"||key==="cash-flow") ledgerDetail=section("commercial-payment-register",ledger.payments,{effectiveRecordCount:ledger.payments.filter(r=>r.periodEnd&&ledger.dataDateIso&&r.periodEnd<=ledger.dataDateIso).length});
     if(key==="variations-change") ledgerDetail=section("commercial-variations",ledger.variations);
   }
-  return '<section class="planning-view commercial-view">'+time+cashNote+commercialCharts+registerVisual+foundationDetail+ledgerDetail+
+  return '<section class="planning-view commercial-view">'+time+cashNote+commercialCharts+registerVisual+foundationDetail+performanceDetail+ledgerDetail+
     '<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>'+escapeHtml(names[key]||"Commercial position")+'</h4><p>Values remain isolated by currency and every missing value retains its evidence state.</p></div></div><div class="planning-panel-body"><div class="grid three">'+cards+'</div></div></section>'+
     detail+
     '<section class="planning-panel"><div class="planning-panel-head"><div><h4>Evidence coverage</h4><p>Missing, submitted-but-unparsed and established positions are not interchangeable.</p></div></div><div class="planning-panel-body">'+gates+'</div></section>'+
