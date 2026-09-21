@@ -975,3 +975,72 @@ for(const [name,override] of Object.entries({
   const p=paymentFixture(t,override);assert.equal(p.amounts.paidAmount.value,200);
   assert.equal(p.calculatedOutstandingAmount.value,null);
 });
+
+
+test('C2B2 canonical Commercial ingestion distinguishes VO references from standalone SI and ingests obligation insurance retention registers',t=>{
+  const {state,csvDoc}=fixture(t);
+
+  csvDoc(
+    [
+      'Variation ID,Status,Description,Instruction ID,Instruction Date,Approved Amount AED,Approval Date,Claim ID,Certificate No,Activity IDs,Clause',
+      'VO-001,Approved,Design change,SI-REF-001,2026-07-01,400000,2026-07-31,CLM-001,IPC-08,A100;A110,13.3',
+    ].join('\n'),
+    'variation_register',
+  );
+
+  let model=commercialCanonical(state);
+  assert.equal(model.variations.length,1);
+  assert.equal(model.variations[0]?.instructionId,'SI-REF-001');
+  assert.deepEqual(model.variations[0]?.activityIds,['A100','A110']);
+  assert.equal(model.siteInstructions.length,0,'a variation reference must not fabricate a Site Instruction record');
+
+  csvDoc(
+    [
+      'Instruction ID,Issue Date,Status,Instruction Description,Quotation Due Date,Estimated Amount AED,Variation ID,Clause',
+      'SI-002,2026-08-01,Open,Revise drainage route,2026-08-10,100000,,13.1',
+    ].join('\n'),
+    'site_instruction_register',
+    'active',
+    ':si',
+  );
+  csvDoc(
+    [
+      'Policy ID,Status,Insurance Type,Insurer,Inception Date,Expiry Date,Coverage Amount AED,Clause Reference',
+      'POL-01,Active,Third Party Liability,Insurer,2026-01-01,2026-09-15,5000000,18.2',
+    ].join('\n'),
+    'insurance_register',
+    'active',
+    ':insurance',
+  );
+  csvDoc(
+    [
+      'Obligation ID,Status,Clause,Description,Responsible Party,Due Date,Evidence Reference',
+      'OBL-01,Open,4.2,Renew performance security,Contractor,2026-08-15,BG-01',
+    ].join('\n'),
+    'contract_obligations_register',
+    'active',
+    ':obligation',
+  );
+  csvDoc(
+    [
+      'Retention ID,Status,Certificate No,Retention Amount AED,Release Trigger,Release Due Date',
+      'RET-01,Held,IPC-07,200000,Taking Over Certificate,2026-08-15',
+    ].join('\n'),
+    'retention_register',
+    'active',
+    ':retention',
+  );
+
+  model=commercialCanonical(state);
+  assert.equal(model.siteInstructions.length,1);
+  assert.equal(model.siteInstructions[0]?.instructionId,'SI-002');
+  assert.equal(model.siteInstructions[0]?.estimatedAmount.value,100000);
+  assert.equal(model.insurances.length,1);
+  assert.equal(model.insurances[0]?.coverageAmount.value,5000000);
+  assert.equal(model.obligations.length,1);
+  assert.equal(model.obligations[0]?.dueDate,'2026-08-15');
+  assert.equal(model.retentions.length,1);
+  assert.equal(model.retentions[0]?.amount.value,200000);
+  assert.ok(model.siteInstructions[0]?.receipt.locator.startsWith('row:'));
+  assert.ok(model.insurances[0]?.receipt.documentId);
+});

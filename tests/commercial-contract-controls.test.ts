@@ -593,6 +593,11 @@ test("C2B2 Bonds and Insurance expose expiry risk without treating securities as
       input(),
     );
   assert.equal(
+    p.bondsInsurance.state,
+    "partial",
+    "known performance/advance security requirements remain a gap when current valid instruments are not established",
+  );
+  assert.equal(
     p.bondsInsurance
       .expiredBondCount,
     1,
@@ -618,6 +623,18 @@ test("C2B2 Bonds and Insurance expose expiry risk without treating securities as
     p.bondsInsurance
       .diagnostics.includes(
         "BOND_VALUE_IS_NOT_ADVANCE_OR_RETENTION_CASH_BALANCE",
+      ),
+  );
+  assert.ok(
+    p.bondsInsurance
+      .diagnostics.includes(
+        "PERFORMANCE_SECURITY_REQUIREMENT_NOT_SATISFIED_BY_CURRENT_VALID_BOND",
+      ),
+  );
+  assert.ok(
+    p.bondsInsurance
+      .diagnostics.includes(
+        "ADVANCE_PAYMENT_SECURITY_REQUIREMENT_NOT_SATISFIED_BY_CURRENT_VALID_BOND",
       ),
   );
 });
