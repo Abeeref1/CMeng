@@ -79,6 +79,10 @@ import type {
   StoredScheduleRevision,
 } from "./project-state-types";
 import {
+  cell,
+  governedTables,
+} from "../../truth-kernel/src";
+import {
   analyzeCsvEvidence,
   analyzeTextEvidence,
   inferDocumentType,
@@ -825,6 +829,9 @@ function hydrateProject(
           ),
         assertions:
           document.assertions ??
+          [],
+        textSegments:
+          document.textSegments ??
           [],
         uploadIntent:
           document.uploadIntent ??
