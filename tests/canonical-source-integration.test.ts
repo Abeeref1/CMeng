@@ -239,9 +239,17 @@ test('stale correspondence segment producer versions are invalidated and recompu
   assert.equal(refreshed.segmentCount,1);
   assert.ok(refreshed.diagnostics.some(item=>item.startsWith('CORRESPONDENCE_SEGMENTS_STALE_PRODUCER:')));
   assert.equal(letter.textSegments?.length,1);
-  assert.equal(letter.textSegments?.[0]?.producerVersion,'correspondence-linked-context-v2');
+  assert.equal(letter.textSegments?.[0]?.producerVersion,'correspondence-linked-context-v3');
+  assert.equal(letter.correspondenceNarrativeRefresh?.producerVersion,'correspondence-linked-context-v3');
+  assert.equal(letter.correspondenceNarrativeRefresh?.ocrFailedPages,0);
   assert.notEqual(letter.textSegments?.[0]?.text,'STALE DERIVED CONTENT');
   assert.match(letter.textSegments?.[0]?.text??'',/Verified source narrative/);
+
+  const reused=await store.refreshCorrespondenceNarratives('CANONICAL');
+  assert.equal(reused.refreshedDocumentCount,0);
+  assert.equal(reused.segmentCount,1);
+  assert.equal(reused.unresolvedAnchorCount,0);
+  assert.ok(reused.diagnostics.some(item=>item.startsWith('CORRESPONDENCE_REFRESH_RECEIPT_REUSED:')));
 });
 
 test('source receipt hashes are checked again when stored bytes change',t=>{
