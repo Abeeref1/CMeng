@@ -231,7 +231,9 @@ export function commercialCanonical(state:ProjectRuntimeState):CanonicalCommerci
     receipt:r.receipt
    });
   }
-  if((t.headers.includes(norm('instruction id'))||t.headers.includes(norm('site instruction id'))||t.headers.includes(norm('si id')))&&t.headers.includes(norm('status')))for(const r of t.rows){
+  const hasInstructionIdentity=t.headers.includes(norm('instruction id'))||t.headers.includes(norm('site instruction id'))||t.headers.includes(norm('si id'));
+  const hasInstructionRegisterShape=t.headers.includes(norm('issue date'))||t.headers.includes(norm('quotation due date'))||t.headers.includes(norm('instruction description'));
+  if(hasInstructionIdentity&&hasInstructionRegisterShape&&t.headers.includes(norm('status')))for(const r of t.rows){
    const estimateHeader=amountHeader(t.headers,'estimated amount','instruction amount','quotation amount');
    const issueDate=dateValue(cell(r,'issue date','instruction date','site instruction date','si date'));
    siteInstructions.push({

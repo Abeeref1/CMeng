@@ -1524,6 +1524,11 @@ function liquidatedDamages(
           null,
         diagnostics: [
           "LD_SCENARIO_DOES_NOT_ESTABLISH_LEGAL_ENTITLEMENT_OR_DEDUCTION",
+          ...(["claimed_eot","assessed_eot"].includes(scenarioInput.scenario)
+            ? [
+                "AGGREGATE_CLAIM_DAY_SCENARIO_DOES_NOT_RESOLVE_INTER_CLAIM_OVERLAP_OR_CONCURRENCY",
+              ]
+            : []),
           ...(scenarioInput.scenario ===
               "awarded_eot" &&
             input.ldTime
@@ -1739,22 +1744,69 @@ function bondsInsurance(
       },
     );
 
+  const performanceRequired =
+    input.performanceBondRequirement
+      .value !== null;
+  const advanceRequired =
+    input.advancePaymentBondRequirement
+      .value !== null;
+  const insuranceRequired =
+    input.insuranceRequirementCount > 0;
+  const validPerformanceBond =
+    bonds.some(
+      (row) =>
+        row.kind ===
+          "performance" &&
+        row.status ===
+          "active" &&
+        row.expiryState !==
+          "expired",
+    );
+  const validAdvanceBond =
+    bonds.some(
+      (row) =>
+        row.kind ===
+          "advance_payment" &&
+        row.status ===
+          "active" &&
+        row.expiryState !==
+          "expired",
+    );
+  const validInsurance =
+    insurances.some(
+      (row) =>
+        /active|valid|in.force/i.test(
+          row.status,
+        ) &&
+        row.expiryState !==
+          "expired",
+    );
+  const requirementGap =
+    (
+      performanceRequired &&
+      !validPerformanceBond
+    ) ||
+    (
+      advanceRequired &&
+      !validAdvanceBond
+    ) ||
+    (
+      insuranceRequired &&
+      !validInsurance
+    );
+
   return {
     capabilityKey:
       "bonds-insurance",
     state:
       bonds.length ||
       insurances.length
-        ? "established"
-        : input
-              .performanceBondRequirement
-              .value ||
-            input
-              .advancePaymentBondRequirement
-              .value ||
-            input
-              .insuranceRequirementCount >
-              0
+        ? requirementGap
+          ? "partial"
+          : "established"
+        : performanceRequired ||
+          advanceRequired ||
+          insuranceRequired
           ? "partial"
           : "missing",
     performanceBondRequirement:
@@ -1767,7 +1819,9 @@ function bondsInsurance(
       bonds.filter(
         (row) =>
           row.status ===
-          "active",
+            "active" &&
+          row.expiryState !==
+            "expired",
       ).length,
     expiredBondCount:
       bonds.filter(
@@ -1790,7 +1844,9 @@ function bondsInsurance(
         (row) =>
           /active|valid|in.force/i.test(
             row.status,
-          ),
+          ) &&
+          row.expiryState !==
+            "expired",
       ).length,
     expiredInsuranceCount:
       insurances.filter(
@@ -1820,6 +1876,24 @@ function bondsInsurance(
       insurances.length === 0
         ? [
             "INSURANCE_REQUIRED_BY_CONTRACT_BUT_NO_POLICY_REGISTER_ESTABLISHED",
+          ]
+        : []),
+      ...(performanceRequired &&
+      !validPerformanceBond
+        ? [
+            "PERFORMANCE_SECURITY_REQUIREMENT_NOT_SATISFIED_BY_CURRENT_VALID_BOND",
+          ]
+        : []),
+      ...(advanceRequired &&
+      !validAdvanceBond
+        ? [
+            "ADVANCE_PAYMENT_SECURITY_REQUIREMENT_NOT_SATISFIED_BY_CURRENT_VALID_BOND",
+          ]
+        : []),
+      ...(insuranceRequired &&
+      !validInsurance
+        ? [
+            "INSURANCE_REQUIREMENT_NOT_SATISFIED_BY_CURRENT_VALID_POLICY",
           ]
         : []),
     ],

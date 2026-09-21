@@ -2898,7 +2898,7 @@ function renderCommercialVisual(key,data){
   }
   let detail="";
   let registerVisual="";
-  if(key==="variations-change"||key==="cost-forecast"||key==="commercial-overview"){
+  if((key==="variations-change"&&!contractControls)||key==="cost-forecast"||key==="commercial-overview"){
     const variationStates=(registers.variations||[]).reduce((map,row)=>{const state=humanizeKey(row.state||"unknown");map.set(state,(map.get(state)||0)+1);return map},new Map());
     if(variationStates.size)registerVisual=renderVisualPanel(
       "Variation status distribution",
@@ -2936,7 +2936,7 @@ function renderCommercialVisual(key,data){
     const rows=(registers.claims||[]).map(row=>'<tr><td><b>'+escapeHtml(row.claimId)+'</b></td><td>'+escapeHtml(fmt(row.claimedAmount))+'</td><td>'+escapeHtml(fmt(row.assessedAmount))+'</td><td>'+escapeHtml(row.currency)+'</td><td>'+escapeHtml((row.sourceRefs||[]).join(", "))+'</td></tr>');
     detail='<section class="planning-panel"><div class="planning-panel-head"><div><h4>Commercial claim register</h4><p>Amounts use the same claim identities linked to delay-event and EOT evidence.</p></div></div><div class="planning-panel-body">'+table(["Claim","Claimed","Assessed","Currency","Source"],rows,"No governed commercial claim amounts are established.")+'</div></section>';
   }
-  if(key==="contract-particulars-bonds"){
+  if(key==="contract-particulars-bonds"&&!contractControls){
     const bondStates=(registers.bonds||[]).reduce((map,row)=>{const state=humanizeKey(row.status||"unknown");map.set(state,(map.get(state)||0)+1);return map},new Map());
     if(bondStates.size)registerVisual=renderVisualPanel(
       "Security status",
