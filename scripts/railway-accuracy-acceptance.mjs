@@ -241,7 +241,76 @@ try {
       revisionLatestStrictCount: revision.data?.points?.at(-1)?.nearCriticalCount ?? null,
       revisionLatestWatchlistCount: revision.data?.points?.at(-1)?.floatRiskWatchlistCount ?? null,
       varianceLatestStrictCount: variance.data?.points?.at(-1)?.nearCriticalCount ?? null,
-      varianceLatestWatchlistCount: variance.data?.points?.at(-1)?.floatRiskWatchlistCount ?? null
+      varianceLatestWatchlistCount: variance.data?.points?.at(-1)?.floatRiskWatchlistCount ?? null,
+      boundaryAudit: near.data?.boundaryAudit ? {
+        criticalBoundaryHours: near.data.boundaryAudit.criticalBoundaryHours ?? null,
+        belowCriticalBoundaryCount: near.data.boundaryAudit.belowCriticalBoundaryCount ?? null,
+        atCriticalBoundaryCount: near.data.boundaryAudit.atCriticalBoundaryCount ?? null,
+        aboveCriticalBoundaryCount: near.data.boundaryAudit.aboveCriticalBoundaryCount ?? null,
+        nearCriticalUpperInsideCount: near.data.boundaryAudit.nearCriticalUpperInsideCount ?? null,
+        nearCriticalUpperOutsideCount: near.data.boundaryAudit.nearCriticalUpperOutsideCount ?? null,
+        unresolvedCalendarCount: near.data.boundaryAudit.unresolvedCalendarCount ?? null,
+        belowCriticalBoundary: (near.data.boundaryAudit.belowCriticalBoundary ?? []).map(row => ({
+          activityId: row.activityId,
+          totalFloatHours: row.totalFloatHours,
+          calendarId: row.calendarId,
+          calendarWorkingDayHours: row.calendarWorkingDayHours,
+          totalFloatWorkingDays: row.totalFloatWorkingDays,
+          thresholdHours: row.nearCriticalThresholdHours,
+          analysisEligible: row.analysisEligible,
+          exclusionReason: row.exclusionReason,
+          criticality: row.criticality,
+          floatRiskWatchlist: row.floatRiskWatchlist
+        })),
+        atCriticalBoundary: (near.data.boundaryAudit.atCriticalBoundary ?? []).map(row => ({
+          activityId: row.activityId,
+          totalFloatHours: row.totalFloatHours,
+          calendarId: row.calendarId,
+          calendarWorkingDayHours: row.calendarWorkingDayHours,
+          totalFloatWorkingDays: row.totalFloatWorkingDays,
+          thresholdHours: row.nearCriticalThresholdHours,
+          analysisEligible: row.analysisEligible,
+          exclusionReason: row.exclusionReason,
+          criticality: row.criticality,
+          floatRiskWatchlist: row.floatRiskWatchlist
+        })),
+        aboveCriticalBoundary: (near.data.boundaryAudit.aboveCriticalBoundary ?? []).map(row => ({
+          activityId: row.activityId,
+          totalFloatHours: row.totalFloatHours,
+          calendarId: row.calendarId,
+          calendarWorkingDayHours: row.calendarWorkingDayHours,
+          totalFloatWorkingDays: row.totalFloatWorkingDays,
+          thresholdHours: row.nearCriticalThresholdHours,
+          analysisEligible: row.analysisEligible,
+          exclusionReason: row.exclusionReason,
+          criticality: row.criticality,
+          floatRiskWatchlist: row.floatRiskWatchlist
+        })),
+        nearCriticalUpperInside: (near.data.boundaryAudit.nearCriticalUpperInside ?? []).map(row => ({
+          activityId: row.activityId,
+          totalFloatHours: row.totalFloatHours,
+          calendarId: row.calendarId,
+          calendarWorkingDayHours: row.calendarWorkingDayHours,
+          totalFloatWorkingDays: row.totalFloatWorkingDays,
+          thresholdHours: row.nearCriticalThresholdHours,
+          analysisEligible: row.analysisEligible,
+          exclusionReason: row.exclusionReason,
+          criticality: row.criticality,
+          floatRiskWatchlist: row.floatRiskWatchlist
+        })),
+        nearCriticalUpperOutside: (near.data.boundaryAudit.nearCriticalUpperOutside ?? []).map(row => ({
+          activityId: row.activityId,
+          totalFloatHours: row.totalFloatHours,
+          calendarId: row.calendarId,
+          calendarWorkingDayHours: row.calendarWorkingDayHours,
+          totalFloatWorkingDays: row.totalFloatWorkingDays,
+          thresholdHours: row.nearCriticalThresholdHours,
+          analysisEligible: row.analysisEligible,
+          exclusionReason: row.exclusionReason,
+          criticality: row.criticality,
+          floatRiskWatchlist: row.floatRiskWatchlist
+        }))
+      } : null
     },
     forecast: {
       sourceProductivityState: forecast.data?.sourceProductivityForecastState ?? null,
