@@ -7039,6 +7039,60 @@ export function managementSurfacesForProject(
   });
 }
 
+export function managementSurfaceForProject(
+  projectId: string,
+  key: string,
+): ModuleRuntimeResult | null {
+  const surfaces =
+    managementSurfacesForProject(
+      projectId,
+    );
+  if (!surfaces) {
+    return null;
+  }
+  const data =
+    key ===
+    "master-dashboard"
+      ? surfaces.masterDashboard
+      : key ===
+          "command-center"
+        ? surfaces.commandCenter
+        : key ===
+            "master-control-programme"
+          ? surfaces
+              .masterControlProgramme
+          : null;
+  if (!data) {
+    return null;
+  }
+
+  const currentEstablished =
+    surfaces
+      .masterControlProgramme
+      .revisionAuthority
+      .currentRevisionId !==
+    null;
+
+  return {
+    key,
+    status:
+      currentEstablished
+        ? "ready"
+        : "partial",
+    reason:
+      currentEstablished
+        ? null
+        : "A current governed programme is required before the integrated management position can be complete.",
+    dependencies: [
+      "canonical specialist projections",
+      "Project Director position",
+      "governed evidence basis",
+      "Commercial control position",
+    ],
+    data,
+  };
+}
+
 export function overviewForProject(
   projectId: string,
 ): ProjectRuntimeOverview | null {
