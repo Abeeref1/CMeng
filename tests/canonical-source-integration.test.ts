@@ -190,6 +190,60 @@ test('correspondence anchor matching tolerates separators without partial-charac
   assert.match(letter.textSegments?.[0]?.text??'',/L \/ NOTICE \/ 001/);
 });
 
+
+test('stale correspondence segment producer versions are invalidated and recomputed from source bytes',async t=>{
+  const {store,state,csvDoc}=fixture(t);
+  csvDoc(
+    [
+      'Claim ID,Event,Notice Date,Days Claimed,Status,Linked Letter',
+      'CL-STALE,Generic delay event,2026-08-20,1,Submitted,L-STALE-001',
+    ].join('\n'),
+    'delay_eot_claims_register',
+    'active',
+    ':cl-stale',
+  );
+
+  const pdf=await PDFDocument.create();
+  const font=await pdf.embedFont(StandardFonts.Helvetica);
+  const page=pdf.addPage([595,842]);
+  [
+    'PROJECT CORRESPONDENCE',
+    'Reference: L-STALE-001',
+    'Subject: Verified source narrative',
+  ].forEach((line,index)=>page.drawText(line,{x:48,y:780-index*28,size:11,font}));
+  const bytes=await pdf.save();
+  const upload=await store.ingestEvidenceFile({
+    projectId:'CANONICAL',
+    bytes,
+    mediaType:'application/pdf',
+    sourceFilename:'stale-segment.pdf',
+    sourceRelativePath:'07_Correspondence_MOM/L01_Stale_Segment.pdf',
+    uploadedAt:stamp,
+    uploadIntent:'add_update',
+  });
+  const letter=state.evidenceDocuments.find(doc=>doc.documentId===upload.documentId)!;
+  letter.textSegments=[{
+    segmentId:'stale-segment',
+    producerVersion:'correspondence-linked-context-v1',
+    kind:'linked_correspondence_context',
+    anchor:'L-STALE-001',
+    pageNumber:1,
+    text:'STALE DERIVED CONTENT',
+    locator:'page:1:anchor:L-STALE-001',
+    method:'native_pdf_text',
+    sourceHashSha256:letter.sourceHashSha256,
+  }];
+
+  const refreshed=await store.refreshCorrespondenceNarratives('CANONICAL');
+  assert.equal(refreshed.refreshedDocumentCount,1);
+  assert.equal(refreshed.segmentCount,1);
+  assert.ok(refreshed.diagnostics.some(item=>item.startsWith('CORRESPONDENCE_SEGMENTS_STALE_PRODUCER:')));
+  assert.equal(letter.textSegments?.length,1);
+  assert.equal(letter.textSegments?.[0]?.producerVersion,'correspondence-linked-context-v2');
+  assert.notEqual(letter.textSegments?.[0]?.text,'STALE DERIVED CONTENT');
+  assert.match(letter.textSegments?.[0]?.text??'',/Verified source narrative/);
+});
+
 test('source receipt hashes are checked again when stored bytes change',t=>{
   const {csvDoc}=fixture(t);const d=csvDoc(master);assert.equal(sourceTables([d],[]).length,1);
   writeFileSync(d.storedPath,master+'\nchanged');const diagnostics:string[]=[];assert.equal(sourceTables([d],diagnostics).length,0);assert.ok(diagnostics.some(s=>s.startsWith('SOURCE_HASH_MISMATCH')));
