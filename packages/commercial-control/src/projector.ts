@@ -1,3 +1,4 @@
+import { buildCommercialFoundation } from "../../commercial-foundation/src";
 import type {
   CommercialControlInput,
   CommercialControlPosition,
@@ -635,10 +636,301 @@ export function buildCommercialControlPosition(
     }
   }
 
+  const foundation =
+    input.foundation ??
+    buildCommercialFoundation({
+      projectId:
+        input.projectId,
+      generatedAt:
+        input.generatedAt,
+      dataDateIso:
+        input.sourceLedger
+          ?.dataDateIso ??
+        null,
+      contractValue:
+        input.contractValue
+          ? {
+              amount:
+                input
+                  .contractValue
+                  .amount,
+              currency:
+                input
+                  .contractValue
+                  .currency
+                  .trim()
+                  .toUpperCase(),
+              sourceRefs: [
+                ...input
+                  .contractValue
+                  .sourceRefs,
+              ],
+              authority:
+                "approved",
+            }
+          : null,
+      contractValueCandidates:
+        (
+          input
+            .contractValueCandidates ??
+          []
+        ).map(
+          (candidate) => ({
+            amount:
+              candidate.amount,
+            currency:
+              candidate.currency
+                .trim()
+                .toUpperCase(),
+            sourceRefs: [
+              ...candidate
+                .sourceRefs,
+            ],
+            authority:
+              "candidate",
+          }),
+        ),
+      variations:
+        input.variations.map(
+          (variation) => ({
+            variationId:
+              variation
+                .variationId,
+            state:
+              variation.state,
+            amount:
+              variation.amount,
+            currency:
+              variation.currency
+                .trim()
+                .toUpperCase(),
+            sourceRefs: [
+              ...variation
+                .sourceRefs,
+            ],
+          }),
+        ),
+      contractTimeBasis:
+        input.contractTimeBasis
+          ? {
+              contractualCompletionIso:
+                input
+                  .contractTimeBasis
+                  .contractualCompletionIso,
+              contractualCompletionState:
+                input
+                  .contractTimeBasis
+                  .contractualCompletionState,
+              sourceRefs: [
+                ...input
+                  .contractTimeBasis
+                  .sourceRefs,
+              ],
+            }
+          : null,
+      ldTerms: null,
+      contractSections: [],
+      amendments: [],
+      costMetrics:
+        input.sourceLedger
+          ?.costMetrics.map(
+            (row) => ({
+              metric:
+                row.metric,
+              amount: {
+                value:
+                  row.amount
+                    .value,
+                currency:
+                  row.amount
+                    .currency,
+                taxBasis:
+                  row.amount
+                    .taxBasis,
+                amountBasis:
+                  row.amount
+                    .amountBasis,
+                state:
+                  row.amount
+                    .state,
+                asOf:
+                  row.amount
+                    .asOf,
+                sourceRefs:
+                  row.amount
+                    .receipts
+                    .map(
+                      (receipt) =>
+                        "evidence-document:" +
+                        receipt
+                          .documentId +
+                        ":" +
+                        receipt
+                          .locator,
+                    ),
+              },
+              sourceStatus:
+                row.sourceStatus,
+              cbsId:
+                row.cbsId,
+              cbsDescription:
+                row.cbsDescription,
+              parentCbsId:
+                row.parentCbsId,
+              wbsId:
+                row.wbsId,
+              counterparty:
+                row.counterparty,
+              boqItemId:
+                row.boqItemId,
+              paymentId:
+                row.paymentId,
+            }),
+          ) ?? [],
+      payments:
+        input.sourceLedger
+          ?.payments.map(
+            (row) => ({
+              paymentId:
+                row.paymentId,
+              paymentType:
+                row.paymentType,
+              periodEnd:
+                row.periodEnd,
+              sourceStatus:
+                row.sourceStatus,
+              applicationDate:
+                row.applicationDate,
+              assessmentDate:
+                row.assessmentDate,
+              certificationDate:
+                row.certificationDate,
+              certificationDueDate:
+                row
+                  .certificationDueDate,
+              paymentDueDate:
+                row.paymentDueDate,
+              paymentDate:
+                row.paymentDate,
+              paymentTimestamp:
+                row
+                  .paymentTimestamp,
+              retentionReleaseDate:
+                row
+                  .retentionReleaseDate,
+              finalReceiptDate:
+                row
+                  .finalReceiptDate,
+              paymentReference:
+                row
+                  .paymentReference,
+              amounts:
+                Object.fromEntries(
+                  Object.entries(
+                    row.amounts,
+                  ).map(
+                    ([
+                      key,
+                      money,
+                    ]) => [
+                      key,
+                      {
+                        value:
+                          money.value,
+                        currency:
+                          money
+                            .currency,
+                        taxBasis:
+                          money
+                            .taxBasis,
+                        amountBasis:
+                          money
+                            .amountBasis,
+                        state:
+                          money.state,
+                        asOf:
+                          money.asOf,
+                        sourceRefs:
+                          money
+                            .receipts
+                            .map(
+                              (
+                                receipt,
+                              ) =>
+                                "evidence-document:" +
+                                receipt
+                                  .documentId +
+                                ":" +
+                                receipt
+                                  .locator,
+                            ),
+                      },
+                    ],
+                  ),
+                ),
+              calculatedOutstandingAmount:
+                {
+                  value:
+                    row
+                      .calculatedOutstandingAmount
+                      .value,
+                  currency:
+                    row
+                      .calculatedOutstandingAmount
+                      .currency,
+                  taxBasis:
+                    row
+                      .calculatedOutstandingAmount
+                      .taxBasis,
+                  amountBasis:
+                    row
+                      .calculatedOutstandingAmount
+                      .amountBasis,
+                  state:
+                    row
+                      .calculatedOutstandingAmount
+                      .state,
+                  asOf:
+                    row
+                      .calculatedOutstandingAmount
+                      .asOf,
+                  sourceRefs:
+                    row
+                      .calculatedOutstandingAmount
+                      .receipts
+                      .map(
+                        (
+                          receipt,
+                        ) =>
+                          "evidence-document:" +
+                          receipt
+                            .documentId +
+                          ":" +
+                          receipt
+                            .locator,
+                      ),
+                },
+              reconciliation:
+                row.reconciliation,
+              diagnostics: [
+                ...row
+                  .diagnostics,
+              ],
+              sourceRefs: [
+                "evidence-document:" +
+                  row.receipt
+                    .documentId +
+                  ":" +
+                  row.receipt
+                    .locator,
+              ],
+            }),
+          ) ?? [],
+    });
+
   return {
     ...(input.sourceLedger ? {sourceLedger: input.sourceLedger} : {}),
-    foundation:
-      input.foundation,
+    foundation,
     schemaVersion: "1.0",
     projectionKey:
       "commercial_control_position",
