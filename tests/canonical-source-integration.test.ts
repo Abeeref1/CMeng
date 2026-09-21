@@ -67,6 +67,85 @@ test('content schemas distinguish resource capacity and actual registers without
   const second=evidenceFamily({category:'schedule_control',documentType:'resource_register',scheduleRole:null,textSample:weekly,sourceFilename:'same.csv'});
   assert.notEqual(first.familyKey,second.familyKey);
 });
+test('linked correspondence PDF narrative is persisted and drives bounded activity correspondence with page provenance',async t=>{
+  const {store,state,csvDoc}=fixture(t);
+  state.schedules[0]!.revision.model.wbs=[
+    {wbsId:'W-A',parentWbsId:null,name:'Tower A Structural',sourceRefs:[]},
+    {wbsId:'W-B',parentWbsId:null,name:'Tower B Structural',sourceRefs:[]},
+  ];
+  state.schedules[0]!.revision.model.activities=[
+    {
+      projectId:'CANONICAL',activityId:'A-100',nativeId:'100',
+      name:'Tower A concrete frame Level 13',wbsId:'W-A',calendarId:null,
+      activityType:'task',status:'in_progress',
+      baselineStartIso:null,baselineFinishIso:null,currentStartIso:null,currentFinishIso:'2027-04-01',
+      actualStartIso:null,actualFinishIso:null,forecastStartIso:null,forecastFinishIso:'2027-04-01',
+      originalDurationHours:100,remainingDurationHours:50,totalFloatHours:8,freeFloatHours:null,
+      percentComplete:50,sourceRefs:[{source:'xer',locator:'TASK:line:10'}],diagnostics:[],
+    },
+    {
+      projectId:'CANONICAL',activityId:'A-200',nativeId:'200',
+      name:'Tower B concrete frame Level 13',wbsId:'W-B',calendarId:null,
+      activityType:'task',status:'not_started',
+      baselineStartIso:null,baselineFinishIso:null,currentStartIso:null,currentFinishIso:'2027-04-02',
+      actualStartIso:null,actualFinishIso:null,forecastStartIso:null,forecastFinishIso:'2027-04-02',
+      originalDurationHours:100,remainingDurationHours:100,totalFloatHours:16,freeFloatHours:null,
+      percentComplete:0,sourceRefs:[{source:'xer',locator:'TASK:line:20'}],diagnostics:[],
+    },
+  ] as any;
+
+  csvDoc(
+    [
+      'Claim ID,Event,Notice Date,Days Claimed,Status,Linked Letter',
+      'CL-001,Delay event 0001,2026-08-20,12,Submitted,L-NOTICE-001',
+    ].join('\n'),
+    'delay_eot_claims_register',
+    'active',
+    ':cl01',
+  );
+
+  const pdf=await PDFDocument.create();
+  const font=await pdf.embedFont(StandardFonts.Helvetica);
+  const page=pdf.addPage([595,842]);
+  [
+    'PROJECT CORRESPONDENCE',
+    'Reference: L-NOTICE-001',
+    'Subject: Late access affecting Tower A structural concrete frame Level 13',
+    'The delayed access prevented the Tower A concrete frame works at Level 13.',
+  ].forEach((line,index)=>page.drawText(line,{x:48,y:780-index*28,size:11,font}));
+  const bytes=await pdf.save();
+  const upload=await store.ingestEvidenceFile({
+    projectId:'CANONICAL',
+    bytes,
+    mediaType:'application/pdf',
+    sourceFilename:'correspondence.pdf',
+    sourceRelativePath:'07_Correspondence_MOM/L01_Letters_Notices.pdf',
+    uploadedAt:stamp,
+    uploadIntent:'add_update',
+  });
+  assert.equal(upload.documentType,'letters_notices');
+
+  const refreshed=await store.refreshCorrespondenceNarratives('CANONICAL');
+  assert.equal(refreshed.refreshedDocumentCount,1);
+  assert.equal(refreshed.segmentCount,1);
+  const letter=state.evidenceDocuments.find(doc=>doc.documentId===upload.documentId)!;
+  assert.equal(letter.textSegments?.length,1);
+  assert.equal(letter.textSegments?.[0]?.anchor,'L-NOTICE-001');
+  assert.equal(letter.textSegments?.[0]?.pageNumber,1);
+  assert.match(letter.textSegments?.[0]?.locator??'',/^page:1:anchor:L-NOTICE-001$/);
+
+  const canonical=canonicalTimeClaims(state,true);
+  const event=canonical.delayClaims?.events[0]!;
+  assert.deepEqual(event.relatedActivityIds,['A-100']);
+  assert.equal(event.activityCorrespondence?.classification,'accepted_deterministic');
+  assert.ok(
+    event.activityCorrespondence?.claimEvidenceRefs.some(
+      ref=>ref.sourceId===letter.documentId&&ref.locator==='page:1:anchor:L-NOTICE-001'
+    ),
+  );
+  assert.ok(event.diagnostics.includes('LINKED_CORRESPONDENCE_NARRATIVE_VERIFIED:L-NOTICE-001'));
+});
+
 test('source receipt hashes are checked again when stored bytes change',t=>{
   const {csvDoc}=fixture(t);const d=csvDoc(master);assert.equal(sourceTables([d],[]).length,1);
   writeFileSync(d.storedPath,master+'\nchanged');const diagnostics:string[]=[];assert.equal(sourceTables([d],diagnostics).length,0);assert.ok(diagnostics.some(s=>s.startsWith('SOURCE_HASH_MISMATCH')));
