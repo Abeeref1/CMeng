@@ -15,6 +15,7 @@ import { sourceProductivityForecastEvidence } from '../packages/runtime-api/src/
 import { buildNearCriticalProjection } from '../packages/near-critical-analysis/src';
 import { commercialCanonical } from '../packages/runtime-api/src/commercial-canonical';
 import { identifyEvidenceDocument } from '../packages/runtime-api/src/document-identification';
+import { inferEvidenceCategory, inferDocumentType } from '../packages/runtime-api/src/evidence';
 import { buildEotAssessmentProjection } from '../packages/eot-assessment/src';
 import type { ProjectRuntimeState, StoredEvidenceDocument } from '../packages/runtime-api/src/project-state-types';
 import { cmengUatHtml } from '../packages/runtime-api/src/ui';
@@ -345,6 +346,163 @@ test('project near-critical basis comes from SCH01 and uses each activity calend
   assert.equal(p.thresholdBasis,'activity_calendar_working_days');assert.equal(p.nearCriticalThresholdWorkingDays,5);
   assert.deepEqual(p.rows.map(r=>r.activityId),['A40','A45']);assert.equal(p.rows.find(r=>r.activityId==='A45')?.nearCriticalThresholdHours,50);
 });
+test('IF01 and IF02 route to schedule-control productivity evidence',()=>{
+  assert.equal(
+    inferEvidenceCategory('03_Schedule_Control/IF01_Productivity_Work_Packages.csv'),
+    'schedule_control',
+  );
+  assert.equal(
+    inferDocumentType('03_Schedule_Control/IF01_Productivity_Work_Packages.csv'),
+    'productivity_work_package_register',
+  );
+  assert.equal(
+    inferEvidenceCategory('03_Schedule_Control/IF02_Productivity_Forecast_Basis.csv'),
+    'schedule_control',
+  );
+  assert.equal(
+    inferDocumentType('03_Schedule_Control/IF02_Productivity_Forecast_Basis.csv'),
+    'productivity_forecast_basis',
+  );
+});
+
+test('productivity producer calculates work-package completion from remaining quantity measured rate calendar and explicit allowance',t=>{
+  const {state,csvDoc}=fixture(t);
+  state.schedules[0]!.revision.model.calendars=[
+    {
+      calendarId:'CAL8',
+      name:'Standard 8h',
+      semanticComplete:true,
+      standardDayHours:8,
+      standardWeekHours:40,
+      weeklyWorkIntervals:[2,3,4,5,6].map(dayIndex=>({
+        dayIndex,
+        intervals:[{start:'08:00',finish:'16:00',minutes:480}],
+      })),
+      exceptions:[],
+      sourceRefs:[],
+    },
+  ] as any;
+
+  csvDoc(
+    [
+      'Work Package ID,Description,Calendar ID,Total Quantity,Installed Quantity,Remaining Quantity,Actual Hours,As Of',
+      'WP-001,Primary driver,CAL8,100,20,80,10,2026-08-31',
+      'WP-002,Secondary package,CAL8,80,40,40,10,2026-08-31',
+    ].join('\n'),
+    'productivity_work_package_register',
+    'active',
+    ':if01',
+  );
+  csvDoc(
+    [
+      'Work Package ID,Conservative Factor,Interface Allowance Working Days,As Of',
+      'WP-001,0.5,2,2026-08-31',
+      'WP-002,0.5,1,2026-08-31',
+    ].join('\n'),
+    'productivity_forecast_basis',
+    'active',
+    ':if02',
+  );
+
+  const p=sourceProductivityForecastEvidence(state);
+  assert.equal(p.method,'source_evidence_derived_productivity');
+  assert.equal(p.state,'official');
+  assert.equal(p.workPackageCount,2);
+  assert.equal(p.calculatedWorkPackageCount,2);
+  assert.equal(p.calculationCoveragePercent,100);
+  assert.equal(p.driverWorkPackageId,'WP-001');
+  assert.deepEqual(p.driverWorkPackageIds,['WP-001']);
+  assert.equal(p.completionIso,'2026-09-15');
+  assert.equal(p.submittedCompletionIso,null);
+  assert.equal(p.reconciliation.state,'calculated_only');
+
+  const wp1=p.rows.find(row=>row.workPackageId==='WP-001')!;
+  assert.equal(wp1.measuredRatePerHour,2);
+  assert.equal(wp1.conservativeFactor,0.5);
+  assert.equal(wp1.evidencedRatePerHour,1);
+  assert.equal(wp1.rateBasis,'measured_rate_with_conservative_factor');
+  assert.equal(wp1.requiredWorkingHours,80);
+  assert.equal(wp1.allowanceWorkingDays,2);
+  assert.equal(wp1.calendarId,'CAL8');
+  assert.equal(wp1.completionIso,'2026-09-15');
+});
+
+test('productivity producer fails a work package closed when interface allowance is not evidenced',t=>{
+  const {state,csvDoc}=fixture(t);
+  state.schedules[0]!.revision.model.calendars=[
+    {
+      calendarId:'CAL8',
+      name:'Standard 8h',
+      semanticComplete:true,
+      standardDayHours:8,
+      standardWeekHours:40,
+      weeklyWorkIntervals:[2,3,4,5,6].map(dayIndex=>({
+        dayIndex,
+        intervals:[{start:'08:00',finish:'16:00',minutes:480}],
+      })),
+      exceptions:[],
+      sourceRefs:[],
+    },
+  ] as any;
+  csvDoc(
+    [
+      'Work Package ID,Calendar ID,Remaining Quantity,Installed Quantity,Actual Hours,As Of',
+      'WP-001,CAL8,80,20,10,2026-08-31',
+    ].join('\n'),
+    'productivity_work_package_register',
+    'active',
+    ':if01',
+  );
+
+  const p=sourceProductivityForecastEvidence(state);
+  assert.equal(p.completionIso,null);
+  assert.equal(p.state,'missing');
+  assert.equal(p.rows[0]?.state,'unresolved');
+  assert.ok(
+    p.rows[0]?.diagnostics.includes(
+      'PRODUCTIVITY_INTERFACE_ALLOWANCE_NOT_ESTABLISHED',
+    ),
+  );
+});
+
+test('productivity producer excludes future work-package evidence beyond the programme Data Date',t=>{
+  const {state,csvDoc}=fixture(t);
+  state.schedules[0]!.revision.model.calendars=[
+    {
+      calendarId:'CAL8',
+      name:'Standard 8h',
+      semanticComplete:true,
+      standardDayHours:8,
+      standardWeekHours:40,
+      weeklyWorkIntervals:[2,3,4,5,6].map(dayIndex=>({
+        dayIndex,
+        intervals:[{start:'08:00',finish:'16:00',minutes:480}],
+      })),
+      exceptions:[],
+      sourceRefs:[],
+    },
+  ] as any;
+  csvDoc(
+    [
+      'Work Package ID,Calendar ID,Remaining Quantity,Installed Quantity,Actual Hours,Interface Allowance Working Days,As Of',
+      'WP-001,CAL8,80,20,10,0,2026-08-31',
+      'WP-001,CAL8,10,90,10,0,2026-09-30',
+    ].join('\n'),
+    'productivity_work_package_register',
+    'active',
+    ':if01',
+  );
+
+  const p=sourceProductivityForecastEvidence(state);
+  assert.equal(p.workPackageCount,1);
+  assert.equal(p.rows[0]?.installedQuantity,20);
+  assert.ok(
+    p.diagnostics.some(item=>
+      item.startsWith('FUTURE_PRODUCTIVITY_WORK_PACKAGE_ROW_NOT_APPLIED:'),
+    ),
+  );
+});
+
 test('source productivity forecast is an explicit governed position and future evidence cannot leak before the Data Date',t=>{
   const {state,csvDoc}=fixture(t);
   csvDoc('Metric,Value,As Of\nSource Productivity Forecast Completion,2030-08-31,2026-08-31\nSource Productivity Forecast Completion,2031-01-01,2026-09-30','schedule_metric_register');
