@@ -71,7 +71,7 @@ try {
   const sourceClass = document => {
     const value = String(document.sourceRelativePath ?? document.sourceFilename ?? "")
       .split(/[\\/]/).at(-1)?.toUpperCase() ?? "";
-    for (const label of ["SCH01","SCH02","PDB","CL01","EOT01","EOT02","EOT03","L01"]) {
+    for (const label of ["SCH01","SCH02","PDB","IF01","IF02","CL01","EOT01","EOT02","EOT03","L01"]) {
       if (value.startsWith(label)) return label;
     }
     return null;
@@ -87,6 +87,8 @@ try {
   summary.sourceInventory = before.documents
     .map(document => ({
       sourceClass: sourceClass(document),
+      sourceFilename: sourceClass(document) ? (document.sourceFilename ?? null) : null,
+      sourceRelativePath: sourceClass(document) ? (document.sourceRelativePath ?? null) : null,
       category: document.category ?? null,
       documentType: document.documentType ?? null,
       basisState: document.basisState ?? null,
@@ -246,6 +248,30 @@ try {
     forecast: {
       sourceProductivityState: forecast.data?.sourceProductivityForecastState ?? null,
       sourceProductivityCompletionPresent: Boolean(forecast.data?.sourceProductivityForecastCompletionIso),
+      sourceProductivityCompletionIso: forecast.data?.sourceProductivityForecastCompletionIso ?? null,
+      sourceProductivityMethod: forecast.data?.sourceProductivityForecastMethod ?? null,
+      sourceProductivityDriverWorkPackageId: forecast.data?.sourceProductivityForecastDriverWorkPackageId ?? null,
+      sourceProductivityWorkPackageCount: forecast.data?.sourceProductivityForecastWorkPackageCount ?? null,
+      sourceProductivityCalculatedWorkPackageCount: forecast.data?.sourceProductivityForecastCalculatedWorkPackageCount ?? null,
+      sourceProductivityCoveragePercent: forecast.data?.sourceProductivityForecastCoveragePercent ?? null,
+      sourceProductivityReconciliation: forecast.data?.sourceProductivityForecastReconciliation ?? null,
+      sourceProductivityDiagnostics: forecast.data?.sourceProductivityForecastEvidence?.diagnostics ?? [],
+      sourceProductivityRowsSample: Array.isArray(forecast.data?.sourceProductivityForecastEvidence?.rows)
+        ? forecast.data.sourceProductivityForecastEvidence.rows.slice(0, 5).map(row => ({
+            workPackageId: row.workPackageId ?? null,
+            state: row.state ?? null,
+            calendarId: row.calendarId ?? null,
+            remainingQuantity: row.remainingQuantity ?? null,
+            actualHours: row.actualHours ?? null,
+            evidencedRatePerHour: row.evidencedRatePerHour ?? null,
+            rateBasis: row.rateBasis ?? null,
+            allowanceHours: row.allowanceHours ?? null,
+            allowanceWorkingDays: row.allowanceWorkingDays ?? null,
+            allowanceCalendarDays: row.allowanceCalendarDays ?? null,
+            completionIso: row.completionIso ?? null,
+            diagnostics: row.diagnostics ?? []
+          }))
+        : [],
       contractorCompletionPresent: Boolean(forecast.data?.sourceForecastCompletionIso),
       cmengCompletionPresent: forecast.data?.independentForecastCompletionIso !== undefined,
       probabilisticPresent: Boolean(forecast.data?.probabilistic)
