@@ -87,10 +87,15 @@ with sync_playwright() as pw:
     page.goto(BASE+"/",wait_until="domcontentloaded",timeout=90000)
     page.wait_for_function('typeof currentModuleResult !== "undefined" && currentModuleResult',timeout=90000)
 
+    page_index=os.environ.get("CMENG_AUDIT_PAGE_INDEX")
     shard=int(os.environ.get("CMENG_AUDIT_SHARD","0"))
     shard_count=int(os.environ.get("CMENG_AUDIT_SHARD_COUNT","1"))
-    selected=[item for i,item in enumerate(PAGES) if i % shard_count == shard]
-    audit={"release":EXPECTED,"projectId":pid,"shard":shard,"shardCount":shard_count,"pages":[],"mutationAttempts":[],"pageErrors":[]}
+    if page_index is not None:
+        idx=int(page_index)
+        selected=[PAGES[idx]]
+    else:
+        selected=[item for i,item in enumerate(PAGES) if i % shard_count == shard]
+    audit={"release":EXPECTED,"projectId":pid,"pageIndex":page_index,"shard":shard,"shardCount":shard_count,"pages":[],"mutationAttempts":[],"pageErrors":[]}
     for label,key in selected:
         print("CAPTURE_START",label,key,flush=True)
         page.locator(f'.nav-item[data-key="{key}"]').click(timeout=15000)
