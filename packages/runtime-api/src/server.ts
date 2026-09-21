@@ -35,6 +35,7 @@ import {
   boardReportForProject,
   directorForProject,
   invalidateProject,
+  managementSurfaceForProject,
   managementSurfacesForProject,
   moduleForProject,
   overviewForProject,
@@ -2119,6 +2120,97 @@ async function route(
     return;
   }
 
+  const managementReportMatch =
+    /^\/api\/projects\/([^/]+)\/management\/([^/]+)\/report\.(xlsx|json)$/.exec(
+      url.pathname,
+    );
+
+  if (
+    req.method === "GET" &&
+    managementReportMatch
+  ) {
+    const projectId =
+      decodeURIComponent(
+        managementReportMatch[1]!,
+      );
+    const key =
+      decodeURIComponent(
+        managementReportMatch[2]!,
+      );
+    const format =
+      managementReportMatch[3] as
+        | "xlsx"
+        | "json";
+    const result =
+      managementSurfaceForProject(
+        projectId,
+        key,
+      );
+    if (!result) {
+      json(res, 404, {
+        error:
+          "management_surface_not_found",
+        moduleKey: key,
+      });
+      return;
+    }
+    if (
+      result.status ===
+      "blocked"
+    ) {
+      json(res, 409, {
+        error:
+          "module_report_blocked",
+        moduleKey: key,
+        reason:
+          result.reason,
+        dependencies:
+          result.dependencies,
+      });
+      return;
+    }
+
+    if (format === "xlsx") {
+      const workbook =
+        await buildModuleWorkbook(
+          projectId,
+          key,
+          result,
+        );
+      attachment(
+        res,
+        200,
+        workbook,
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        moduleReportFilename(
+          projectId,
+          key,
+          "xlsx",
+        ),
+      );
+      return;
+    }
+
+    const payload =
+      buildModuleJsonDownload(
+        projectId,
+        key,
+        result,
+      );
+    attachment(
+      res,
+      200,
+      payload,
+      "application/json; charset=utf-8",
+      moduleReportFilename(
+        projectId,
+        key,
+        "json",
+      ),
+    );
+    return;
+  }
+
   const moduleReportMatch =
     /^\/api\/projects\/([^/]+)\/(schedule|commercial)\/modules\/([^/]+)\/report\.(xlsx|json)$/.exec(
       url.pathname,
@@ -2411,6 +2503,47 @@ async function route(
     return;
   }
 
+
+  const managementSurfaceMatch =
+    /^\/api\/projects\/([^/]+)\/management\/([^/]+)$/.exec(
+      url.pathname,
+    );
+
+  if (
+    req.method === "GET" &&
+    managementSurfaceMatch
+  ) {
+    const projectId =
+      decodeURIComponent(
+        managementSurfaceMatch[1]!,
+      );
+    const key =
+      decodeURIComponent(
+        managementSurfaceMatch[2]!,
+      );
+    const result =
+      managementSurfaceForProject(
+        projectId,
+        key,
+      );
+    if (!result) {
+      json(res, 404, {
+        error:
+          "management_surface_not_found",
+        moduleKey: key,
+      });
+      return;
+    }
+    json(
+      res,
+      result.status ===
+        "blocked"
+        ? 409
+        : 200,
+      result,
+    );
+    return;
+  }
 
   const managementSurfacesMatch =
     /^\/api\/projects\/([^/]+)\/management-surfaces$/.exec(
@@ -2806,6 +2939,12 @@ async function route(
         "/api/projects/:projectId/director-position",
       managementSurfaces:
         "/api/projects/:projectId/management-surfaces",
+      managementSurface:
+        "/api/projects/:projectId/management/:surfaceKey",
+      managementSurfaceReportExcel:
+        "/api/projects/:projectId/management/:surfaceKey/report.xlsx",
+      managementSurfaceReportJson:
+        "/api/projects/:projectId/management/:surfaceKey/report.json",
       boardReport:
         "/api/projects/:projectId/board-report",
       boardReportHistory:
