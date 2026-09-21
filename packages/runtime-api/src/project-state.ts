@@ -77,6 +77,7 @@ import type {
   ScheduleUploadSummary,
   StoredEvidenceDocument,
   StoredScheduleRevision,
+  EvidenceSemanticSegment,
 } from "./project-state-types";
 import {
   analyzeCsvEvidence,
@@ -1509,6 +1510,152 @@ export class RuntimeProjectStore {
     });
   }
 
+  private async extractSemanticEvidenceSegments(
+    input: {
+      bytes: Uint8Array;
+      mediaType: string;
+      category: EvidenceCategory;
+      documentType: string;
+      textSample: string;
+    },
+  ): Promise<{
+    segments: EvidenceSemanticSegment[];
+    diagnostics: string[];
+  }> {
+    const eligible =
+      input.category === "correspondence" ||
+      input.documentType === "letters_notices";
+    if (!eligible) {
+      return {
+        segments: [],
+        diagnostics: [],
+      };
+    }
+
+    const diagnostics: string[] = [];
+    const segments: EvidenceSemanticSegment[] = [];
+    const maxChars = 6000;
+    const overlap = 600;
+
+    const addText = (
+      raw: string,
+      locator: string,
+      method:
+        EvidenceSemanticSegment["method"],
+    ): void => {
+      const text = raw
+        .replace(/\u0000/g, " ")
+        .replace(/[ \t]+/g, " ")
+        .replace(/\n{3,}/g, "\n\n")
+        .trim();
+      if (!text) return;
+
+      if (text.length <= maxChars) {
+        segments.push({
+          segmentId:
+            locator + ":0",
+          locator,
+          text,
+          method,
+        });
+        return;
+      }
+
+      let start = 0;
+      let part = 0;
+      while (start < text.length) {
+        const end = Math.min(
+          text.length,
+          start + maxChars,
+        );
+        const chunk =
+          text.slice(start, end).trim();
+        if (chunk) {
+          segments.push({
+            segmentId:
+              locator +
+              ":" +
+              part,
+            locator,
+            text: chunk,
+            method,
+          });
+        }
+        if (end >= text.length) break;
+        start = Math.max(
+          start + 1,
+          end - overlap,
+        );
+        part += 1;
+      }
+    };
+
+    try {
+      if (/pdf/i.test(input.mediaType)) {
+        const parser =
+          new PDFParse({
+            data:
+              Buffer.from(
+                input.bytes,
+              ) as any,
+          });
+        try {
+          const parsed =
+            await parser.getText();
+          for (
+            const page of
+              parsed.pages ?? []
+          ) {
+            addText(
+              page.text ?? "",
+              "page:" + page.num,
+              "native_text",
+            );
+          }
+        } finally {
+          await parser.destroy();
+        }
+      } else if (
+        input.mediaType.startsWith(
+          "text/",
+        ) ||
+        input.mediaType.includes(
+          "xml",
+        )
+      ) {
+        addText(
+          Buffer.from(input.bytes)
+            .toString("utf8")
+            .replace(/^\uFEFF/, ""),
+          "document",
+          "tabular_text",
+        );
+      } else if (
+        input.textSample.trim()
+      ) {
+        addText(
+          input.textSample,
+          "document-sample",
+          "office_text",
+        );
+      }
+    } catch (error) {
+      diagnostics.push(
+        "SEMANTIC_EVIDENCE_EXTRACTION_FAILED:" +
+          (
+            error instanceof Error
+              ? error.message
+              : String(error)
+          ),
+      );
+    }
+
+    return {
+      segments,
+      diagnostics,
+    };
+  }
+
   private persistRawUpload(
     input: {
       projectId: string;
@@ -2066,6 +2213,150 @@ export class RuntimeProjectStore {
     } finally {
       await parser.destroy();
     }
+  }
+
+  async refreshSemanticEvidenceSegments(): Promise<{
+    refreshedDocumentCount: number;
+    segmentCount: number;
+    diagnostics: string[];
+  }> {
+    let refreshedDocumentCount = 0;
+    let segmentCount = 0;
+    const diagnostics: string[] = [];
+    let changed = false;
+
+    for (const state of this.projects.values()) {
+      let projectChanged = false;
+      for (
+        const document of
+          state.evidenceDocuments
+      ) {
+        const eligible =
+          (
+            document.category ===
+              "correspondence" ||
+            document.documentType ===
+              "letters_notices"
+          ) &&
+          [
+            "active",
+            "additive",
+            "candidate",
+          ].includes(
+            document.basisState,
+          );
+        if (!eligible) continue;
+        if (
+          (
+            document.semanticSegments ??
+            []
+          ).length > 0
+        ) {
+          segmentCount +=
+            document.semanticSegments!
+              .length;
+          continue;
+        }
+        if (
+          !document.storedPath ||
+          !existsSync(
+            document.storedPath,
+          )
+        ) {
+          diagnostics.push(
+            "SEMANTIC_EVIDENCE_SOURCE_UNAVAILABLE:" +
+              document.documentId,
+          );
+          continue;
+        }
+
+        const bytes =
+          readFileSync(
+            document.storedPath,
+          );
+        if (
+          hashBytes(bytes) !==
+          document.sourceHashSha256
+        ) {
+          diagnostics.push(
+            "SEMANTIC_EVIDENCE_HASH_MISMATCH:" +
+              document.documentId,
+          );
+          continue;
+        }
+
+        const extracted =
+          await this
+            .extractSemanticEvidenceSegments({
+              bytes,
+              mediaType:
+                document.mediaType,
+              category:
+                document.category,
+              documentType:
+                document.documentType,
+              textSample: "",
+            });
+        diagnostics.push(
+          ...extracted.diagnostics.map(
+            (item) =>
+              item +
+              ":" +
+              document.documentId,
+          ),
+        );
+        if (
+          extracted.segments.length ===
+          0
+        ) {
+          diagnostics.push(
+            "SEMANTIC_EVIDENCE_NO_SEGMENTS:" +
+              document.documentId,
+          );
+          continue;
+        }
+
+        document.semanticSegments =
+          extracted.segments;
+        if (
+          !document.diagnostics.includes(
+            "SEMANTIC_EVIDENCE_SEGMENTS_V1",
+          )
+        ) {
+          document.diagnostics.push(
+            "SEMANTIC_EVIDENCE_SEGMENTS_V1",
+          );
+        }
+        refreshedDocumentCount += 1;
+        segmentCount +=
+          extracted.segments.length;
+        projectChanged = true;
+      }
+
+      if (projectChanged) {
+        state.version += 1;
+        synchronizeCanonicalTimeClaims(
+          state,
+          true,
+        );
+        state.lastRerunReceipt =
+          null;
+        this.staleFinalizedBoardPublications(
+          state,
+        );
+        changed = true;
+      }
+    }
+
+    if (changed) {
+      this.persistSnapshot();
+    }
+
+    return {
+      refreshedDocumentCount,
+      segmentCount,
+      diagnostics,
+    };
   }
 
   async refreshScheduleControlBasisAssertions(): Promise<{
@@ -3895,6 +4186,22 @@ export class RuntimeProjectStore {
               ? "parsed" as const
               : "identified" as const;
 
+    const semanticEvidence =
+      await this
+        .extractSemanticEvidenceSegments({
+          bytes:
+            input.bytes,
+          mediaType: media,
+          category,
+          documentType,
+          textSample:
+            identified.textSample,
+        });
+    diagnostics.push(
+      ...semanticEvidence
+        .diagnostics,
+    );
+
     const document:
       StoredEvidenceDocument = {
       documentId,
@@ -3931,6 +4238,12 @@ export class RuntimeProjectStore {
       supersedesDocumentIds:
         [],
       diagnostics,
+      ...(semanticEvidence.segments.length > 0
+        ? {
+            semanticSegments:
+              semanticEvidence.segments,
+          }
+        : {}),
     };
     this.upsertEvidence(
       state,
