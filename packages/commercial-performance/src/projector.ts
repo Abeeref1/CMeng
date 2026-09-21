@@ -1472,118 +1472,231 @@ function cashFlow(
   ) {
     const entries:
       CashFlowEntry[] = [];
+    const cashDiagnostics:
+      string[] = [];
     const payments =
       input.payments.filter(
         (payment) =>
           payment.currency ===
           currency,
       );
-    for (
-      const payment of
+
+    const addPaymentSeries = (
+      kind:
+        "certified_income" |
+        "paid_income",
+    ) => {
+      const isCertified =
+        kind ===
+        "certified_income";
+      const eligible =
         payments
-    ) {
-      if (
-        payment
-          .certifiedAmount !==
-          null &&
-        (
-          payment
-            .certificationDate ??
-          payment.periodEnd
-        )
-      ) {
-        const date =
-          payment
-            .certificationDate ??
-          payment.periodEnd!;
-        if (
-          !input.dataDateIso ||
-          date <=
-            input.dataDateIso
-        ) {
-          entries.push({
-            entryId:
-              payment.paymentId +
-              ":certified",
-            periodDate: date,
-            currency,
-            kind:
-              "certified_income",
-            amount: finding(
-              payment
-                .certifiedAmount,
-              {
-                asOfDate:
-                  date,
-                method:
-                  "source_payment_certificate",
-                sourceRefs:
-                  payment
-                    .sourceRefs,
-                authority:
-                  "source",
-                state:
-                  "established",
-                consequence:
-                  "Certified income is not the same as cash received.",
-                action: null,
-              },
-            ),
-            sourceRefs: [
-              ...payment
-                .sourceRefs,
-            ],
-          });
-        }
-      }
-      if (
-        payment.paidAmount !==
-          null &&
-        payment.paymentDate
-      ) {
-        if (
-          !input.dataDateIso ||
-          payment.paymentDate <=
-            input.dataDateIso
-        ) {
-          entries.push({
-            entryId:
-              payment.paymentId +
-              ":paid",
-            periodDate:
-              payment.paymentDate,
-            currency,
-            kind:
-              "paid_income",
-            amount: finding(
-              payment
-                .paidAmount,
-              {
-                asOfDate:
-                  payment
+          .map(
+            (payment) => ({
+              payment,
+              value: isCertified
+                ? payment
+                    .certifiedAmount
+                : payment
+                    .paidAmount,
+              basis: isCertified
+                ? payment
+                    .certifiedAmountBasis
+                : payment
+                    .paidAmountBasis,
+              date: isCertified
+                ? (
+                    payment
+                      .certificationDate ??
+                    payment.periodEnd
+                  )
+                : payment
                     .paymentDate,
+            }),
+          )
+          .filter(
+            (row) =>
+              row.value !==
+                null &&
+              row.date !==
+                null &&
+              (
+                !input.dataDateIso ||
+                row.date! <=
+                  input.dataDateIso
+              ),
+          )
+          .sort(
+            (a, b) =>
+              a.date!.localeCompare(
+                b.date!,
+              ),
+          );
+
+      if (!eligible.length) {
+        return;
+      }
+
+      const bases =
+        new Set(
+          eligible.map(
+            (row) =>
+              row.basis,
+          ),
+        );
+      if (bases.size !== 1) {
+        cashDiagnostics.push(
+          (
+            isCertified
+              ? "CERTIFIED"
+              : "PAID"
+          ) +
+            "_SERIES_MIXED_AMOUNT_BASIS_NOT_AGGREGATED",
+        );
+        return;
+      }
+
+      const basis =
+        eligible[0]!.basis;
+      if (
+        basis ===
+          "certificate_cumulative" ||
+        basis === "unknown"
+      ) {
+        cashDiagnostics.push(
+          (
+            isCertified
+              ? "CERTIFIED"
+              : "PAID"
+          ) +
+            "_SERIES_" +
+            basis.toUpperCase() +
+            "_NOT_AGGREGATED",
+        );
+        return;
+      }
+
+      if (basis === "incremental") {
+        for (const row of eligible) {
+          entries.push({
+            entryId:
+              row.payment
+                .paymentId +
+              ":" +
+              (
+                isCertified
+                  ? "certified"
+                  : "paid"
+              ),
+            periodDate:
+              row.date!,
+            currency,
+            kind,
+            amount: finding(
+              row.value!,
+              {
+                asOfDate:
+                  row.date!,
                 method:
-                  "source_dated_payment",
+                  isCertified
+                    ? "source_incremental_certification"
+                    : "source_incremental_payment",
                 sourceRefs:
-                  payment
+                  row.payment
                     .sourceRefs,
                 authority:
                   "source",
                 state:
                   "established",
                 consequence:
-                  "Paid income is treated as cash only when a dated payment value exists.",
+                  isCertified
+                    ? "Certified income remains separate from cash received."
+                    : "Paid income is accepted as cash only from an explicit incremental dated payment basis.",
                 action: null,
               },
             ),
             sourceRefs: [
-              ...payment
+              ...row.payment
                 .sourceRefs,
             ],
           });
         }
+        return;
       }
-    }
+
+      // Explicit project-cumulative series are converted to period deltas.
+      let prior = 0;
+      const staged:
+        CashFlowEntry[] = [];
+      for (const row of eligible) {
+        const delta =
+          row.value! - prior;
+        if (delta < -0.01) {
+          cashDiagnostics.push(
+            (
+              isCertified
+                ? "CERTIFIED"
+                : "PAID"
+            ) +
+              "_PROJECT_CUMULATIVE_SERIES_NON_MONOTONIC",
+          );
+          return;
+        }
+        staged.push({
+          entryId:
+            row.payment
+              .paymentId +
+            ":" +
+            (
+              isCertified
+                ? "certified_delta"
+                : "paid_delta"
+            ),
+          periodDate:
+            row.date!,
+          currency,
+          kind,
+          amount: finding(
+            round(delta),
+            {
+              asOfDate:
+                row.date!,
+              method:
+                isCertified
+                  ? "project_cumulative_certification_delta"
+                  : "project_cumulative_payment_delta",
+              sourceRefs:
+                row.payment
+                  .sourceRefs,
+              authority:
+                "calculated",
+              state:
+                "established",
+              submitted:
+                row.value!,
+              independent:
+                round(delta),
+              consequence:
+                "Project-cumulative source positions are converted to period movement before aggregation.",
+              action: null,
+            },
+          ),
+          sourceRefs: [
+            ...row.payment
+              .sourceRefs,
+          ],
+        });
+        prior = row.value!;
+      }
+      entries.push(...staged);
+    };
+
+    addPaymentSeries(
+      "certified_income",
+    );
+    addPaymentSeries(
+      "paid_income",
+    );
 
     const explicit =
       input.costMetrics.filter(
@@ -1598,81 +1711,270 @@ function cashFlow(
               input.dataDateIso
           ),
       );
+
+    const metricSeriesBasis = (
+      value: string,
+    ):
+      | "incremental"
+      | "project_cumulative"
+      | "certificate_cumulative"
+      | "unknown" => {
+      const basis =
+        normalized(value);
+      if (
+        [
+          "incremental",
+          "period",
+          "periodic",
+          "this period",
+          "transaction",
+          "current period",
+          "period amount",
+        ].includes(basis)
+      ) {
+        return "incremental";
+      }
+      if (
+        [
+          "project cumulative",
+          "cumulative project",
+          "cumulative to date",
+          "to date",
+          "project to date",
+          "cumulative total",
+        ].includes(basis)
+      ) {
+        return "project_cumulative";
+      }
+      if (
+        [
+          "cumulative",
+          "certificate total",
+          "cumulative allocated to certificate",
+          "certificate cumulative",
+        ].includes(basis)
+      ) {
+        return "certificate_cumulative";
+      }
+      return "unknown";
+    };
+
     const addMetrics = (
       names:
         readonly string[],
       kind:
-        CashFlowEntry["kind"],
+        "expenditure_budget" |
+        "expenditure_forecast" |
+        "actual_expenditure",
     ) => {
-      for (
-        const metric of
-          explicit.filter(
-            (row) =>
-              names
-                .map(
-                  normalized,
-                )
-                .includes(
-                  normalized(
-                    row.metric,
-                  ),
+      const sourceRows =
+        explicit.filter(
+          (row) =>
+            names
+              .map(
+                normalized,
+              )
+              .includes(
+                normalized(
+                  row.metric,
                 ),
-          )
+              ) &&
+            row.value !==
+              null &&
+            row.asOf !== null,
+        );
+      if (!sourceRows.length) {
+        return;
+      }
+
+      const groups =
+        new Map<
+          string,
+          typeof sourceRows
+        >();
+      for (const row of sourceRows) {
+        const groupKey =
+          row.cbsId ??
+          "__PROJECT__";
+        const list =
+          groups.get(
+            groupKey,
+          ) ?? [];
+        list.push(row);
+        groups.set(
+          groupKey,
+          list,
+        );
+      }
+
+      for (
+        const [
+          groupKey,
+          groupRows,
+        ] of groups
       ) {
-        if (
-          metric.value ===
-            null ||
-          !metric.asOf
-        ) {
+        const ordered =
+          [...groupRows].sort(
+            (a, b) =>
+              a.asOf!.localeCompare(
+                b.asOf!,
+              ),
+          );
+        const bases =
+          new Set(
+            ordered.map(
+              (row) =>
+                metricSeriesBasis(
+                  row.amountBasis,
+                ),
+            ),
+          );
+        if (bases.size !== 1) {
+          cashDiagnostics.push(
+            kind.toUpperCase() +
+              "_MIXED_AMOUNT_BASIS_NOT_AGGREGATED:" +
+              groupKey,
+          );
           continue;
         }
-        entries.push({
-          entryId:
-            kind +
-            ":" +
-            metric.asOf +
-            ":" +
-            (
-              metric.cbsId ??
-              "project"
-            ),
-          periodDate:
-            metric.asOf,
-          currency,
-          kind,
-          amount:
-            finding(
-              metric.value,
-              {
-                asOfDate:
-                  metric.asOf,
-                method:
-                  "explicit_cash_flow_metric",
-                sourceRefs:
-                  metric
-                    .sourceRefs,
-                authority:
-                  metric.state ===
-                  "official"
-                    ? "source"
-                    : "candidate",
-                state:
-                  metric.state ===
-                  "official"
-                    ? "established"
-                    : "candidate",
-                consequence:
-                  "Cash-flow expenditure is accepted only from an explicit compatible source metric.",
-                action: null,
-              },
-            ),
-          sourceRefs: [
-            ...metric
-              .sourceRefs,
-          ],
-        });
+        const basis =
+          metricSeriesBasis(
+            ordered[0]!
+              .amountBasis,
+          );
+        if (
+          basis ===
+            "unknown" ||
+          basis ===
+            "certificate_cumulative"
+        ) {
+          cashDiagnostics.push(
+            kind.toUpperCase() +
+              "_" +
+              basis.toUpperCase() +
+              "_NOT_AGGREGATED:" +
+              groupKey,
+          );
+          continue;
+        }
+
+        if (basis === "incremental") {
+          for (const metric of ordered) {
+            entries.push({
+              entryId:
+                kind +
+                ":" +
+                metric.asOf +
+                ":" +
+                groupKey,
+              periodDate:
+                metric.asOf!,
+              currency,
+              kind,
+              amount:
+                finding(
+                  metric.value!,
+                  {
+                    asOfDate:
+                      metric.asOf,
+                    method:
+                      "explicit_incremental_cash_flow_metric",
+                    sourceRefs:
+                      metric
+                        .sourceRefs,
+                    authority:
+                      metric.state ===
+                      "official"
+                        ? "source"
+                        : "candidate",
+                    state:
+                      metric.state ===
+                      "official"
+                        ? "established"
+                        : "candidate",
+                    consequence:
+                      "Cash-flow expenditure is aggregated only from an explicit incremental series basis.",
+                    action: null,
+                  },
+                ),
+              sourceRefs: [
+                ...metric
+                  .sourceRefs,
+              ],
+            });
+          }
+          continue;
+        }
+
+        let prior = 0;
+        const staged:
+          CashFlowEntry[] = [];
+        let monotonic = true;
+        for (const metric of ordered) {
+          const delta =
+            metric.value! -
+            prior;
+          if (delta < -0.01) {
+            monotonic = false;
+            break;
+          }
+          staged.push({
+            entryId:
+              kind +
+              ":delta:" +
+              metric.asOf +
+              ":" +
+              groupKey,
+            periodDate:
+              metric.asOf!,
+            currency,
+            kind,
+            amount:
+              finding(
+                round(delta),
+                {
+                  asOfDate:
+                    metric.asOf,
+                  method:
+                    "project_cumulative_cash_flow_delta",
+                  sourceRefs:
+                    metric
+                      .sourceRefs,
+                  authority:
+                    "calculated",
+                  state:
+                    "established",
+                  submitted:
+                    metric.value!,
+                  independent:
+                    round(delta),
+                  consequence:
+                    "Project-cumulative expenditure is converted to period movement before aggregation.",
+                  action: null,
+                },
+              ),
+            sourceRefs: [
+              ...metric
+                .sourceRefs,
+            ],
+          });
+          prior =
+            metric.value!;
+        }
+        if (!monotonic) {
+          cashDiagnostics.push(
+            kind.toUpperCase() +
+              "_PROJECT_CUMULATIVE_SERIES_NON_MONOTONIC:" +
+              groupKey,
+          );
+          continue;
+        }
+        entries.push(
+          ...staged,
+        );
       }
     };
+
     addMetrics(
       aliases.expenditureBudget,
       "expenditure_budget",
@@ -1962,6 +2264,8 @@ function cashFlow(
       diagnostics: [
         "CERTIFIED_INCOME_IS_NOT_CASH_RECEIVED",
         "COMMITMENTS_AND_RETENTION_ARE_NOT_CASH_EXPENDITURE",
+        "CASH_SERIES_REQUIRE_EXPLICIT_INCREMENTAL_OR_PROJECT_CUMULATIVE_BASIS",
+        ...cashDiagnostics,
         ...(actualExpenditure
           .value === null
           ? [
