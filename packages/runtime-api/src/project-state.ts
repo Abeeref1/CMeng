@@ -2112,23 +2112,15 @@ export class RuntimeProjectStore {
       value
         .normalize("NFKC")
         .toLowerCase()
-        .replace(/[^\\p{L}\\p{N}]+/gu, "");
+        .replace(/[^\p{L}\p{N}]+/gu, "");
 
     const escapeRegex = (
       value: string,
     ): string =>
       value.replace(
-        /[.*+?^$()|[\\]\\\\]/g,
-        "\\    const normalizeAnchor = (
-      value: string,
-    ): string =>
-      value
-        .normalize("NFKC")
-        .trim()
-        .toLowerCase();
-",
+        /[.*+?^${}()|[\]\\]/g,
+        "\\$&",
       );
-
     const anchorPattern = (
       value: string,
     ): RegExp | null => {
