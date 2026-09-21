@@ -56,11 +56,12 @@ try:
         context.route('**/*', allow_reads_only)
         page = context.new_page()
         page.on('pageerror', lambda error: errors.append(type(error).__name__))
-        context.add_init_script('localStorage.setItem("cmeng-project",' + json.dumps(project_id) + ');localStorage.setItem("cmeng-module","commercial-overview");')
+        context.add_init_script('localStorage.setItem("cmeng-project",' + json.dumps(project_id) + ');localStorage.setItem("cmeng-module","master-dashboard");')
         stage = 'open existing project'
         page.goto(BASE + '/', wait_until='domcontentloaded', timeout=90000)
         page.wait_for_function('typeof overview !== "undefined" && overview && typeof currentModuleResult !== "undefined" && currentModuleResult', timeout=90000)
         keys = [
+            'master-dashboard','command-center','master-control-programme',
             'pmo-analysis','schedule-analytics','activity-analytics','lookahead-schedule',
             'schedule-change-report','revision-trend','milestones','near-critical',
             'resource-utilization','progress-report','variance-trends','progress-scurve',
@@ -70,7 +71,7 @@ try:
             'variations-change','payments','cash-flow','commercial-claims-notices',
             'contract-particulars-bonds'
         ]
-        check('Navigation exposes all 29 Project Control pages', all(page.locator('.nav-item[data-key="' + key + '"]').count() == 1 for key in keys))
+        check('Navigation exposes all 32 Project Control and Management Control pages', all(page.locator('.nav-item[data-key="' + key + '"]').count() == 1 for key in keys))
         for key in keys:
             stage = key
             page.locator('.nav-item[data-key="' + key + '"]').click(timeout=15000)
@@ -78,6 +79,22 @@ try:
             visible = page.evaluate('({key:currentModuleResult.key,status:currentModuleResult.status,bodyLength:document.getElementById("moduleContent").innerText.length,structuredCount:document.getElementById("moduleContent").querySelectorAll("table,svg,canvas,.planning-panel,.chart-card,.position-card,.planning-kpi,.commercial-ledger").length})')
             check(key + ': visible module response without a blocked state', visible['key'] == key and visible['status'] != 'blocked' and visible['bodyLength'] > 100)
             check(key + ': structured management view is rendered', visible['structuredCount'] > 0)
+            if key == 'master-dashboard':
+                body = page.locator('#moduleContent').inner_text()
+                check('Master Dashboard is compact executive position with evidence-safe authority',
+                      all(label in body for label in ['Executive Project Position','Control Readiness','Evidence Snapshot','Commercial Exposure by Currency']))
+                check('Master Dashboard does not fabricate Contract Risk',
+                      'Contract risk' in body and 'Not established' in body)
+            if key == 'command-center':
+                body = page.locator('#moduleContent').inner_text()
+                check('Command Center presents priorities decisions evidence gaps and commercial position',
+                      all(label in body for label in ['Current Programme Position','Management Priorities','Decisions Required','Evidence Gaps','Commercial & Payment Position']))
+            if key == 'master-control-programme':
+                body = page.locator('#moduleContent').inner_text()
+                check('MCP exposes integrated governance revision WBS specialist candidate and history control',
+                      all(label in body for label in ['Integrated Governance Position','WBS & Work-Package Control','Specialist Positions','AI / Extracted Candidate Review Inbox','Control History']))
+                check('MCP explains observed WBS is not automatic official package authority',
+                      'do not become approved work packages' in body)
             if key == 'near-critical':
                 check('Near-Critical page states the 5 working-day governed basis', '5' in page.locator('#moduleContent').inner_text() and ('working' in page.locator('#moduleContent').inner_text().lower() or 'calendar' in page.locator('#moduleContent').inner_text().lower()))
             if key == 'independent-forecast':
@@ -120,6 +137,20 @@ try:
             if key == 'payments':
                 check('Payment reconciliation panel is rendered', page.get_by_text('Cash allocation and balance reconciliation', exact=True).count() > 0)
                 check('Reported and calculated balances stay separate in the view', page.get_by_text('Reported outstanding', exact=True).count() > 0 and page.get_by_text('Calculated outstanding', exact=True).count() > 0)
+        stage = 'management report popup'
+        page.locator('.nav-item[data-key="master-dashboard"]').click()
+        page.wait_for_function('currentModuleResult?.key === "master-dashboard" && document.getElementById("moduleBadge").textContent !== "Updating"', timeout=90000)
+        with page.expect_popup(timeout=15000) as management_popup_info:
+            page.locator('#moduleReport').click()
+        management_report = management_popup_info.value
+        management_report.wait_for_load_state('domcontentloaded')
+        check('Master Dashboard report opens with print and two download controls',
+              management_report.locator('#reportPrint').is_visible() and
+              management_report.locator('a[download]').count() == 2 and
+              'Master Dashboard' in management_report.locator('h1').inner_text())
+        check('Master Dashboard report keeps executive management content',
+              'Executive Project Position' in management_report.locator('body').inner_text())
+
         stage = 'report popup'
         page.locator('.nav-item[data-key="payments"]').click()
         page.wait_for_function('currentModuleResult?.key === "payments" && document.getElementById("moduleBadge").textContent !== "Updating"', timeout=90000)
