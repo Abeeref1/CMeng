@@ -68,6 +68,7 @@ import type {
   EvidenceCategory,
   EvidenceIdentification,
   EvidenceLineage,
+  EvidenceTextSegment,
   EvidenceUploadIntent,
   EvidenceBasisEffect,
   EvidenceUploadSummary,
@@ -78,6 +79,10 @@ import type {
   StoredEvidenceDocument,
   StoredScheduleRevision,
 } from "./project-state-types";
+import {
+  cell,
+  governedTables,
+} from "../../truth-kernel/src";
 import {
   analyzeCsvEvidence,
   analyzeTextEvidence,
@@ -825,6 +830,9 @@ function hydrateProject(
           ),
         assertions:
           document.assertions ??
+          [],
+        textSegments:
+          document.textSegments ??
           [],
         uploadIntent:
           document.uploadIntent ??
@@ -2066,6 +2074,546 @@ export class RuntimeProjectStore {
     } finally {
       await parser.destroy();
     }
+  }
+
+  async refreshCorrespondenceNarratives(
+    projectId?: string,
+  ): Promise<{
+    refreshedDocumentCount: number;
+    segmentCount: number;
+    unresolvedAnchorCount: number;
+    diagnostics: string[];
+  }> {
+    const diagnostics: string[] = [];
+    let refreshedDocumentCount = 0;
+    let segmentCount = 0;
+    let unresolvedAnchorCount = 0;
+    let changed = false;
+
+    const targetStates =
+      projectId
+        ? [
+            this.get(
+              projectId,
+            ),
+          ].filter(
+            (
+              state,
+            ): state is ProjectRuntimeState =>
+              state !== null,
+          )
+        : [
+            ...this.projects.values(),
+          ];
+
+    const normalizeAnchor = (
+      value: string,
+    ): string =>
+      value
+        .normalize("NFKC")
+        .trim()
+        .toLowerCase();
+
+    for (const state of targetStates) {
+      const tableDiagnostics:
+        string[] = [];
+      const tables =
+        governedTables(
+          state.evidenceDocuments,
+          tableDiagnostics,
+        );
+      diagnostics.push(
+        ...tableDiagnostics.map(
+          (item) =>
+            "CORRESPONDENCE_TABLE:" +
+            item,
+        ),
+      );
+
+      const anchors =
+        new Set<string>();
+      for (const table of tables) {
+        for (const row of table.rows) {
+          for (
+            const value of [
+              cell(
+                row,
+                "linked letter",
+              ),
+              cell(
+                row,
+                "source letter",
+              ),
+              cell(
+                row,
+                "letter reference",
+              ),
+            ]
+          ) {
+            const trimmed =
+              value.trim();
+            if (trimmed) {
+              anchors.add(
+                trimmed,
+              );
+            }
+          }
+        }
+      }
+
+      if (
+        anchors.size === 0
+      ) {
+        continue;
+      }
+
+      let projectChanged = false;
+
+      const documents =
+        state.evidenceDocuments.filter(
+          (document) =>
+            document.documentType ===
+              "letters_notices" &&
+            ["active", "additive"].includes(
+              document.basisState,
+            ) &&
+            /pdf/i.test(
+              document.mediaType +
+                " " +
+                document.sourceFilename,
+            ),
+        );
+
+      for (const document of documents) {
+        if (
+          !document.storedPath ||
+          !existsSync(
+            document.storedPath,
+          )
+        ) {
+          diagnostics.push(
+            "CORRESPONDENCE_SOURCE_UNAVAILABLE:" +
+              document.documentId,
+          );
+          continue;
+        }
+
+        const existing =
+          document.textSegments ??
+          [];
+        const existingAnchors =
+          new Set(
+            existing
+              .filter(
+                (segment) =>
+                  segment.kind ===
+                    "linked_correspondence_context" &&
+                  segment.sourceHashSha256 ===
+                    document.sourceHashSha256,
+              )
+              .map(
+                (segment) =>
+                  normalizeAnchor(
+                    segment.anchor,
+                  ),
+              ),
+          );
+        const allAnchorsCovered =
+          [...anchors].every(
+            (anchor) =>
+              existingAnchors.has(
+                normalizeAnchor(
+                  anchor,
+                ),
+              ),
+          );
+        if (
+          allAnchorsCovered &&
+          existing.length > 0
+        ) {
+          segmentCount +=
+            existing.length;
+          continue;
+        }
+
+        const bytes =
+          readFileSync(
+            document.storedPath,
+          );
+        if (
+          hashBytes(bytes) !==
+          document.sourceHashSha256
+        ) {
+          diagnostics.push(
+            "CORRESPONDENCE_REFRESH_HASH_MISMATCH:" +
+              document.documentId,
+          );
+          continue;
+        }
+
+        const parser =
+          new PDFParse({
+            data:
+              Buffer.from(
+                bytes,
+              ) as any,
+          });
+        try {
+          const parsed =
+            await parser.getText();
+          const pages =
+            [
+              ...(parsed.pages ?? []),
+            ].sort(
+              (a, b) =>
+                (a.num ?? 0) -
+                (b.num ?? 0),
+            );
+
+          const segments:
+            EvidenceTextSegment[] =
+            [];
+          const foundAnchors =
+            new Set<string>();
+
+          for (const page of pages) {
+            const pageText =
+              page.text ??
+              "";
+            if (!pageText) {
+              continue;
+            }
+            const lower =
+              pageText
+                .normalize("NFKC")
+                .toLowerCase();
+
+            const occurrences:
+              Array<{
+                anchor: string;
+                index: number;
+                end: number;
+              }> = [];
+
+            for (const anchor of anchors) {
+              const normalized =
+                anchor
+                  .normalize("NFKC")
+                  .toLowerCase();
+              if (!normalized) {
+                continue;
+              }
+              let from = 0;
+              while (
+                from <
+                lower.length
+              ) {
+                const index =
+                  lower.indexOf(
+                    normalized,
+                    from,
+                  );
+                if (index < 0) {
+                  break;
+                }
+                occurrences.push({
+                  anchor,
+                  index,
+                  end:
+                    index +
+                    normalized.length,
+                });
+                from =
+                  index +
+                  Math.max(
+                    1,
+                    normalized.length,
+                  );
+              }
+            }
+
+            occurrences.sort(
+              (a, b) =>
+                a.index -
+                b.index ||
+                a.anchor.localeCompare(
+                  b.anchor,
+                ),
+            );
+
+            for (
+              let occurrenceIndex = 0;
+              occurrenceIndex <
+              occurrences.length;
+              occurrenceIndex += 1
+            ) {
+              const occurrence =
+                occurrences[
+                  occurrenceIndex
+                ]!;
+              const previous =
+                occurrences[
+                  occurrenceIndex -
+                    1
+                ] ??
+                null;
+              const next =
+                occurrences[
+                  occurrenceIndex +
+                    1
+                ] ??
+                null;
+
+              const previousBoundary =
+                previous
+                  ? Math.floor(
+                      (
+                        previous.end +
+                        occurrence.index
+                      ) /
+                        2,
+                    )
+                  : 0;
+              const nextBoundary =
+                next
+                  ? Math.ceil(
+                      (
+                        occurrence.end +
+                        next.index
+                      ) /
+                        2,
+                    )
+                  : pageText.length;
+
+              const start =
+                Math.max(
+                  previousBoundary,
+                  occurrence.index -
+                    1800,
+                );
+              const end =
+                Math.min(
+                  nextBoundary,
+                  occurrence.end +
+                    2400,
+                );
+              const text =
+                pageText
+                  .slice(
+                    start,
+                    end,
+                  )
+                  .replace(
+                    /[\t\r]+/g,
+                    " ",
+                  )
+                  .replace(
+                    /[ ]{2,}/g,
+                    " ",
+                  )
+                  .trim();
+              if (!text) {
+                continue;
+              }
+
+              const pageNumber =
+                typeof page.num ===
+                  "number"
+                  ? page.num
+                  : null;
+              const locator =
+                "page:" +
+                String(
+                  pageNumber ??
+                    "unknown",
+                ) +
+                ":anchor:" +
+                occurrence.anchor;
+              const segmentId =
+                "corrseg_" +
+                createHash(
+                  "sha256",
+                )
+                  .update(
+                    document.documentId,
+                  )
+                  .update("|")
+                  .update(
+                    document.sourceHashSha256,
+                  )
+                  .update("|")
+                  .update(
+                    locator,
+                  )
+                  .update("|")
+                  .update(text)
+                  .digest(
+                    "hex",
+                  )
+                  .slice(
+                    0,
+                    24,
+                  );
+
+              segments.push({
+                segmentId,
+                kind:
+                  "linked_correspondence_context",
+                anchor:
+                  occurrence.anchor,
+                pageNumber,
+                text,
+                locator,
+                method:
+                  "native_pdf_text",
+                sourceHashSha256:
+                  document.sourceHashSha256,
+              });
+              foundAnchors.add(
+                normalizeAnchor(
+                  occurrence.anchor,
+                ),
+              );
+            }
+          }
+
+          for (const anchor of anchors) {
+            if (
+              !foundAnchors.has(
+                normalizeAnchor(
+                  anchor,
+                ),
+              )
+            ) {
+              unresolvedAnchorCount +=
+                1;
+              diagnostics.push(
+                "CORRESPONDENCE_ANCHOR_NOT_FOUND:" +
+                  document.documentId +
+                  ":" +
+                  anchor,
+              );
+            }
+          }
+
+          const deduped = [
+            ...new Map(
+              segments.map(
+                (segment) => [
+                  segment.segmentId,
+                  segment,
+                ],
+              ),
+            ).values(),
+          ].sort(
+            (a, b) =>
+              (
+                a.pageNumber ??
+                Number.MAX_SAFE_INTEGER
+              ) -
+                (
+                  b.pageNumber ??
+                  Number.MAX_SAFE_INTEGER
+                ) ||
+              a.anchor.localeCompare(
+                b.anchor,
+              ) ||
+              a.segmentId.localeCompare(
+                b.segmentId,
+              ),
+          );
+
+          const previousFingerprint =
+            createHash(
+              "sha256",
+            )
+              .update(
+                JSON.stringify(
+                  existing,
+                ),
+              )
+              .digest(
+                "hex",
+              );
+          const nextFingerprint =
+            createHash(
+              "sha256",
+            )
+              .update(
+                JSON.stringify(
+                  deduped,
+                ),
+              )
+              .digest(
+                "hex",
+              );
+
+          if (
+            previousFingerprint !==
+            nextFingerprint
+          ) {
+            document.textSegments =
+              deduped;
+            if (
+              !document.diagnostics.includes(
+                "CORRESPONDENCE_LINKED_CONTEXT_REFRESH_V1",
+              )
+            ) {
+              document.diagnostics.push(
+                "CORRESPONDENCE_LINKED_CONTEXT_REFRESH_V1",
+              );
+            }
+            refreshedDocumentCount +=
+              1;
+            projectChanged =
+              true;
+          }
+          segmentCount +=
+            deduped.length;
+        } catch (error) {
+          diagnostics.push(
+            "CORRESPONDENCE_FULL_DOCUMENT_PARSE_ERROR:" +
+              document.documentId +
+              ":" +
+              (
+                error instanceof
+                  Error
+                  ? error.message
+                  : String(
+                      error,
+                    )
+              ),
+          );
+        } finally {
+          await parser.destroy();
+        }
+      }
+
+      if (projectChanged) {
+        state.version += 1;
+        this.staleFinalizedBoardPublications(
+          state,
+        );
+        state.lastRerunReceipt =
+          null;
+        synchronizeCanonicalTimeClaims(
+          state,
+          true,
+        );
+        changed = true;
+      }
+    }
+
+    if (changed) {
+      this.persistSnapshot();
+    }
+
+    return {
+      refreshedDocumentCount,
+      segmentCount,
+      unresolvedAnchorCount,
+      diagnostics,
+    };
   }
 
   async refreshScheduleControlBasisAssertions(): Promise<{

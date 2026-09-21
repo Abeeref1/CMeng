@@ -729,6 +729,18 @@ export function resolveClaimActivityCorrespondence(
     top?.signals.some((signal) => signal.key === "exact_activity_name") ?? false;
   const exactNarrativeActivityId =
     top?.signals.some((signal) => signal.key === "explicit_activity_id") ?? false;
+  const hasSpecificLocationSignal =
+    top?.signals.some(
+      (signal) =>
+        signal.key === "location" &&
+        signal.score >= 0.18,
+    ) ?? false;
+  const hasLocationConflict =
+    top?.signals.some(
+      (signal) =>
+        signal.key === "location" &&
+        signal.score < 0,
+    ) ?? false;
   const deterministicStrong =
     top !== null &&
     (
@@ -738,6 +750,14 @@ export function resolveClaimActivityCorrespondence(
         exactName &&
         top.prefilterScore >= 0.82 &&
         (margin ?? 0) >= 0.12
+      )
+    ||
+      (
+        hasSpecificLocationSignal &&
+        !hasLocationConflict &&
+        top.prefilterScore >= 0.58 &&
+        deterministicFamilies >= 4 &&
+        (margin ?? 0) >= 0.18
       )
     ||
       (

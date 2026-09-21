@@ -64,20 +64,11 @@ import {
   moduleReportFilename,
 } from "./module-report";
 import {
-  cell,
   governedTables,
 } from "../../truth-kernel/src";
 import {
   projectScheduleControlBasis,
 } from "./schedule-control-basis";
-import {
-  createHash,
-} from "node:crypto";
-import {
-  existsSync,
-  readFileSync,
-} from "node:fs";
-import { PDFParse } from "pdf-parse";
 
 const port = Number.parseInt(
   process.env.PORT ?? "3000",
@@ -1506,6 +1497,10 @@ async function route(
         }
       }
 
+      await runtimeProjects
+        .refreshCorrespondenceNarratives(
+          projectId,
+        );
       invalidateProject(
         projectId,
       );
@@ -1624,6 +1619,10 @@ async function route(
           uploadIntent:
             intent,
         });
+    await runtimeProjects
+      .refreshCorrespondenceNarratives(
+        projectId,
+      );
     invalidateProject(
       projectId,
     );
@@ -2636,6 +2635,32 @@ if (require.main === module) {
       );
     }
 
+    const correspondenceRefresh =
+      await runtimeProjects
+        .refreshCorrespondenceNarratives();
+    if (
+      correspondenceRefresh.refreshedDocumentCount > 0 ||
+      correspondenceRefresh.diagnostics.length > 0
+    ) {
+      process.stdout.write(
+        JSON.stringify({
+          event:
+            "correspondence_narrative_refresh",
+          refreshedDocumentCount:
+            correspondenceRefresh.refreshedDocumentCount,
+          segmentCount:
+            correspondenceRefresh.segmentCount,
+          unresolvedAnchorCount:
+            correspondenceRefresh.unresolvedAnchorCount,
+          diagnosticCodes:
+            correspondenceRefresh.diagnostics.map(
+              (item) =>
+                item.split(":")[0],
+            ),
+        }) + "\n",
+      );
+    }
+
     for (const projectId of runtimeProjects.listProjectIds()) {
       const state = runtimeProjects.get(projectId);
       if (!state) continue;
@@ -2722,229 +2747,6 @@ if (require.main === module) {
             ),
         }) + "\n",
       );
-
-      const current =
-        runtimeProjects.latestSchedule(
-          projectId,
-        );
-      const activityIds =
-        new Set(
-          current?.revision.model.activities
-            .map(
-              (activity) =>
-                activity.activityId,
-            ) ??
-            [],
-        );
-      const claimTables =
-        governedTables(
-          state.evidenceDocuments,
-          [],
-        );
-      const linkedLetters =
-        new Set<string>();
-      for (
-        const table of
-          claimTables
-      ) {
-        for (
-          const row of table.rows
-        ) {
-          for (
-            const value of [
-              cell(
-                row,
-                "linked letter",
-              ),
-              cell(
-                row,
-                "source letter",
-              ),
-            ]
-          ) {
-            if (value) {
-              linkedLetters.add(
-                value,
-              );
-            }
-          }
-        }
-      }
-
-      for (
-        const document of
-          state.evidenceDocuments
-      ) {
-        if (
-          !["active", "additive"].includes(
-            document.basisState,
-          ) ||
-          !/pdf/i.test(
-            document.mediaType +
-              " " +
-              document.sourceFilename,
-          ) ||
-          !document.storedPath ||
-          !existsSync(
-            document.storedPath,
-          )
-        ) {
-          continue;
-        }
-        if (
-          document.documentType !==
-            "letters_notices" &&
-          document.documentType !==
-            "project_data_book" &&
-          document.documentType !==
-            "schedule_control_basis"
-        ) {
-          continue;
-        }
-
-        try {
-          const bytes =
-            readFileSync(
-              document.storedPath,
-            );
-          const hash =
-            createHash("sha256")
-              .update(bytes)
-              .digest("hex");
-          if (
-            hash !==
-            document.sourceHashSha256
-          ) {
-            continue;
-          }
-          const parser =
-            new PDFParse({
-              data:
-                Buffer.from(
-                  bytes,
-                ) as any,
-            });
-          try {
-            const parsed =
-              await parser.getText();
-            const fullText =
-              (parsed.pages ?? [])
-                .map(
-                  (page) =>
-                    page.text ??
-                    "",
-                )
-                .join("\n");
-            const tokens =
-              new Set(
-                fullText.match(
-                  /[A-Za-z0-9][A-Za-z0-9_.:/-]{2,}/g,
-                ) ??
-                  [],
-              );
-            const exactActivityIds =
-              [...activityIds].filter(
-                (activityId) =>
-                  tokens.has(
-                    activityId,
-                  ),
-              );
-
-            let linkedLetterHits = 0;
-            let linkedLetterActivityHits = 0;
-            for (
-              const letter of
-                linkedLetters
-            ) {
-              const index =
-                fullText.indexOf(
-                  letter,
-                );
-              if (
-                index < 0
-              ) {
-                continue;
-              }
-              linkedLetterHits += 1;
-              const context =
-                fullText.slice(
-                  Math.max(
-                    0,
-                    index -
-                      1600,
-                  ),
-                  Math.min(
-                    fullText.length,
-                    index +
-                      letter.length +
-                      2400,
-                  ),
-                );
-              const contextTokens =
-                new Set(
-                  context.match(
-                    /[A-Za-z0-9][A-Za-z0-9_.:/-]{2,}/g,
-                  ) ??
-                    [],
-                );
-              if (
-                [...activityIds].some(
-                  (activityId) =>
-                    contextTokens.has(
-                      activityId,
-                    ),
-                )
-              ) {
-                linkedLetterActivityHits += 1;
-              }
-            }
-
-            const semanticLines =
-              fullText
-                .split(/\r?\n/)
-                .map(
-                  (line) =>
-                    line
-                      .replace(
-                        /\s+/g,
-                        " ",
-                      )
-                      .trim(),
-                )
-                .filter(
-                  (line) =>
-                    /(productiv|latest\s+forecast|forecast\s+(?:completion|finish)|completion\s+forecast|near[- ]?critical|total\s+float)/i.test(
-                      line,
-                    ),
-                )
-                .slice(
-                  0,
-                  20,
-                );
-
-            process.stdout.write(
-              JSON.stringify({
-                event:
-                  "project_control_pdf_semantic_trace",
-                documentType:
-                  document.documentType,
-                exactActivityReferenceCount:
-                  exactActivityIds.length,
-                linkedLetterReferenceCount:
-                  linkedLetterHits,
-                linkedLetterWithExactActivityCount:
-                  linkedLetterActivityHits,
-                keywordLines:
-                  semanticLines,
-              }) + "\n",
-            );
-          } finally {
-            await parser.destroy();
-          }
-        } catch {
-          // Diagnostics only; runtime startup must never depend on this trace.
-        }
-      }
 
       if (catalog.length > 0) {
         process.stdout.write(
