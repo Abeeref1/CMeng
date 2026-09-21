@@ -2675,9 +2675,15 @@ export class RuntimeProjectStore {
           const foundAnchors =
             new Set<string>();
 
-          for (const page of pages) {
+          for (
+            let pageNumber = 1;
+            pageNumber <= totalPages;
+            pageNumber += 1
+          ) {
             const pageText =
-              page.text ??
+              effectiveTextByPage.get(
+                pageNumber,
+              ) ??
               "";
             if (!pageText) {
               continue;
@@ -2808,16 +2814,10 @@ export class RuntimeProjectStore {
                 continue;
               }
 
-              const pageNumber =
-                typeof page.num ===
-                  "number"
-                  ? page.num
-                  : null;
               const locator =
                 "page:" +
                 String(
-                  pageNumber ??
-                    "unknown",
+                  pageNumber,
                 ) +
                 ":anchor:" +
                 occurrence.anchor;
@@ -2859,6 +2859,9 @@ export class RuntimeProjectStore {
                 text,
                 locator,
                 method:
+                  methodByPage.get(
+                    pageNumber,
+                  ) ??
                   "native_pdf_text",
                 sourceHashSha256:
                   document.sourceHashSha256,
