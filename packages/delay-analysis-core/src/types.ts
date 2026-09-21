@@ -39,6 +39,82 @@ export interface DelayEvidenceRef {
   locator: string | null;
 }
 
+export type DelayActivityCorrespondenceClassification =
+  | "accepted_explicit"
+  | "accepted_deterministic"
+  | "accepted_ai_corroborated"
+  | "candidate"
+  | "ambiguous"
+  | "unresolved";
+
+export type DelayActivityCorrespondenceAuthority =
+  | "governed_explicit"
+  | "deterministically_confirmed"
+  | "ai_corroborated_candidate"
+  | "candidate_only"
+  | "unresolved";
+
+export interface DelayActivityCorrespondenceSignal {
+  key:
+    | "explicit_activity_id"
+    | "exact_activity_name"
+    | "name_similarity"
+    | "wbs_similarity"
+    | "location"
+    | "discipline"
+    | "trade"
+    | "code_token"
+    | "narrative_token";
+  score: number;
+  detail: string;
+}
+
+export interface DelayActivityCorrespondenceCandidate {
+  activityId: string;
+  activityName: string | null;
+  wbsId: string | null;
+  prefilterScore: number;
+  aiScore: number | null;
+  finalScore: number;
+  marginToNext: number | null;
+  classification:
+    | "accepted"
+    | "candidate"
+    | "ambiguous"
+    | "rejected";
+  authority: DelayActivityCorrespondenceAuthority;
+  signals: DelayActivityCorrespondenceSignal[];
+  activitySourceRefs: string[];
+  diagnostics: string[];
+}
+
+export interface DelayActivityCorrespondence {
+  resolverVersion: "claim-activity-correspondence-v1";
+  extraction: {
+    nouns: string[];
+    locations: string[];
+    disciplines: string[];
+    trades: string[];
+    codes: string[];
+  };
+  preFilterCandidateCount: number;
+  boundedCandidateCount: number;
+  aiStage:
+    | "not_configured"
+    | "not_required"
+    | "scored"
+    | "invalid_scores";
+  classification:
+    DelayActivityCorrespondenceClassification;
+  acceptedActivityIds: string[];
+  candidateActivityIds: string[];
+  candidates:
+    DelayActivityCorrespondenceCandidate[];
+  scheduleRevisionId: string;
+  claimEvidenceRefs: DelayEvidenceRef[];
+  diagnostics: string[];
+}
+
 export interface CanonicalDelayEvent {
   eventId: string;
   title: string;
@@ -50,6 +126,7 @@ export interface CanonicalDelayEvent {
   describedImpactDays: number | null;
   describedImpactState: GovernanceState;
   relatedActivityIds: string[];
+  activityCorrespondence?: DelayActivityCorrespondence;
   /**
    * Explicit source window references only. These remain distinct from
    * calculated date-overlap links and are resolved against canonical windows
