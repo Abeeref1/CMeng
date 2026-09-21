@@ -2776,7 +2776,8 @@ async function loadModule(key){
   setBusy("Updating "+moduleName);
   el("moduleContent").innerHTML='<div class="view-state-bar"><span class="spinner"></span><strong>Updating '+escapeHtml(moduleName)+'</strong><span>Preparing the latest project position.</span></div>';
   try{
-    const result=await api("/api/projects/"+encodeURIComponent(project())+"/schedule/modules/"+encodeURIComponent(key));
+    const moduleArea=groups["Commercial"].includes(key)?"commercial":"schedule";
+    const result=await api("/api/projects/"+encodeURIComponent(project())+"/"+moduleArea+"/modules/"+encodeURIComponent(key));
     if(requestSeq!==moduleRequestSeq)return;
     renderModuleResult(result);
   }catch(e){
@@ -3306,7 +3307,8 @@ el("openLibraryQuick").onclick=openEvidenceLibrary;
 function setFocusMode(enabled){document.body.classList.toggle("focus-module",enabled);el("focusMode").classList.toggle("active",enabled);el("focusMode").setAttribute("aria-pressed",String(enabled));el("focusMode").textContent=enabled?"Exit focus":"Focus view";localStorage.setItem("cmeng-focus",enabled?"1":"0")}
 el("focusMode").onclick=()=>setFocusMode(!document.body.classList.contains("focus-module"));
 function reportDownloadUrl(format){
-  return "/api/projects/"+encodeURIComponent(project())+"/schedule/modules/"+encodeURIComponent(selected)+"/report."+format;
+  const moduleArea=groups["Commercial"].includes(selected)?"commercial":"schedule";
+  return "/api/projects/"+encodeURIComponent(project())+"/"+moduleArea+"/modules/"+encodeURIComponent(selected)+"/report."+format;
 }
 function reportSafeFilename(value){
   return String(value||"report").replace(/[^A-Za-z0-9._-]+/g,"_").replace(/^_+|_+$/g,"").slice(0,120)||"report";

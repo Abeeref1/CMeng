@@ -119,7 +119,14 @@ try {
     l01Refresh?.ocrFailedPages === 0);
   check('L01 unresolved-anchor remainder is recorded as source limitation, not manufactured linkage',
     l01Refresh?.unresolvedAnchorCount === 232);
-  const module = key => json(prefix + '/schedule/modules/' + key);
+  const commercialModuleKeys = new Set([
+    'commercial-overview','cost-forecast','variations-change','payments',
+    'cash-flow','commercial-claims-notices','contract-particulars-bonds'
+  ]);
+  const moduleArea = key => commercialModuleKeys.has(key) ? 'commercial' : 'schedule';
+  const modulePath = key => prefix + '/' + moduleArea(key) + '/modules/' + key;
+  const moduleReportPath = (key, format) => modulePath(key) + '/report.' + format;
+  const module = key => json(modulePath(key));
   const allModuleKeys = [
     'pmo-analysis','schedule-analytics','activity-analytics','lookahead-schedule',
     'schedule-change-report','revision-trend','milestones','near-critical',
@@ -136,7 +143,7 @@ try {
     modules.set(key, result);
     check(key + ': live page resolves', result?.key === key && result?.status !== 'blocked' && result?.data !== null);
     check(key + ': live JSON has no non-finite serialization marker', !/NaN|Infinity/.test(JSON.stringify(result?.data)));
-    const report = await json(prefix + '/schedule/modules/' + key + '/report.json');
+    const report = await json(moduleReportPath(key, 'json'));
     check(key + ': report is generated from the same live governed result', report?.result?.key === key && comparableDigest(report.result.data) === comparableDigest(result.data));
   }
   check('All 29 Project Control pages are traced', modules.size === 29);
@@ -449,13 +456,13 @@ try {
     check(key + ': canonical source ledger is connected', ledger?.producerVersion === 'commercial-canonical-v1');
     sourceDigest ??= digest(ledger);
     check(key + ': shared position agrees across modules', digest(ledger) === sourceDigest);
-    const report = await json(prefix + '/schedule/modules/' + key + '/report.json');
+    const report = await json(moduleReportPath(key, 'json'));
     check(key + ': JSON export matches the live position', digest(report.result?.data?.position?.sourceLedger) === sourceDigest);
     if (key === 'payments') {
       check('Payment stages preserve missing cash as unknown', ledger.payments.length > 0 && ledger.payments.every(p => p.amounts.paidAmount.value !== null || p.calculatedOutstandingAmount?.value === null));
     }
     if (['cost-forecast','payments','variations-change'].includes(key)) {
-      const response = await get(prefix + '/schedule/modules/' + key + '/report.xlsx');
+      const response = await get(moduleReportPath(key, 'xlsx'));
       check(key + ': downloadable Excel content type', (response.headers.get('content-type') ?? '').includes('spreadsheetml'));
       const workbook = new ExcelJS.Workbook();
       await workbook.xlsx.load(Buffer.from(await response.arrayBuffer()));

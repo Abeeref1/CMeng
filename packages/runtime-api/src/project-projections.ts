@@ -1,9 +1,8 @@
-import { canonicalCommercialModule, commercialPositionForState } from "./commercial-runtime";
+import { canonicalCommercialModule } from "./commercial-runtime";
 import { projectControlSchedule } from "./canonical-time-claims";
 import { projectScheduleControlBasis } from "./schedule-control-basis";
 import { sourceProductivityForecastEvidence } from "./source-productivity-forecast";
 import { canonicalResourceModule } from "./canonical-resource-runtime";
-import { commercialCanonical } from "./commercial-canonical";
 import { createHash } from "node:crypto";
 import {
   analyzeSchedule,
@@ -18,10 +17,6 @@ import {
   extractContractLdTerms,
   extractContractValue,
 } from "../../contract-commercial/src";
-import {
-  buildCommercialControlPosition,
-  buildCommercialModuleProjection,
-} from "../../commercial-control/src";
 import {
   buildDelayClaimsProjection,
 } from "../../delay-claims/src";
@@ -2151,108 +2146,18 @@ function buildBundle(
         )
       : null;
 
-  const commercialPosition = commercialPositionForState(state, generatedAt);
-
-  const commercialModuleSpecs = [
-    [
-      "commercial-overview",
-      "commercial_overview",
-    ],
-    [
-      "cost-forecast",
-      "cost_forecast",
-    ],
-    [
-      "variations-change",
-      "variations_change",
-    ],
-    [
-      "payments",
-      "payments",
-    ],
-    [
-      "cash-flow",
-      "cash_flow",
-    ],
-    [
-      "commercial-claims-notices",
-      "commercial_claims_notices",
-    ],
-    [
-      "contract-particulars-bonds",
-      "contract_particulars_bonds",
-    ],
-  ] as const;
-
-  for (
-    const [
-      moduleKey,
-      projectionKey,
-    ] of commercialModuleSpecs
-  ) {
-    const projection =
-      buildCommercialModuleProjection(
-        projectionKey,
-        commercialPosition,
+  for (const module of commercialModules) {
+    const commercial =
+      canonicalCommercialModule(
+        state,
+        module.key,
       );
-    const relevantState =
-      moduleKey ===
-        "variations-change"
-        ? commercialPosition
-            .evidence.variations
-        : moduleKey ===
-            "payments" ||
-          moduleKey ===
-            "cash-flow"
-          ? commercialPosition
-              .evidence.payments
-          : moduleKey ===
-              "commercial-claims-notices"
-            ? commercialPosition
-                .evidence.claims
-            : moduleKey ===
-                "contract-particulars-bonds"
-              ? (
-                  commercialPosition
-                    .evidence.commercial ===
-                    "established" ||
-                  commercialPosition
-                    .evidence.bonds ===
-                    "established"
-                    ? "established"
-                    : commercialPosition
-                        .evidence.commercial
-                )
-              : commercialPosition
-                  .evidence.commercial;
-
-    modules.set(
-      moduleKey,
-      available(
-        moduleKey,
-        projection,
-        [
-          "governed commercial evidence",
-          "contract time basis",
-        ],
-        relevantState ===
-          "established"
-          ? "ready"
-          : "partial",
-        relevantState ===
-          "established"
-          ? null
-          : relevantState ===
-              "submitted_unparsed"
-            ? "Relevant evidence is submitted but not yet structurally established. CMeng preserves it as missing/partial rather than zero."
-            : "Relevant commercial evidence has not been submitted. CMeng does not infer zero exposure.",
-      ),
-    );
-  }
-
-  for (const [moduleKey] of commercialModuleSpecs) {
-    const canonicalCommercial = canonicalCommercialModule(state, moduleKey);
-    if (canonicalCommercial) modules.set(moduleKey, canonicalCommercial);
+    if (commercial) {
+      modules.set(
+        module.key,
+        commercial,
+      );
+    }
   }
 
   if (state.contract) {

@@ -40,6 +40,10 @@ import {
   rerunProject,
 } from "./project-projections";
 import {
+  canonicalCommercialModule,
+  commercialPositionForState,
+} from "./commercial-runtime";
+import {
   loadCertifiedDemoProject,
 } from "./demo-project";
 import type {
@@ -538,33 +542,56 @@ async function route(
                 ],
               ),
             );
-          let readyModules = 0;
-          let partialModules = 0;
-          let blockedModules = 0;
-          for (
-            const module of
-              scheduleModules
-          ) {
-            const status =
-              receiptStates.get(
-                module.key,
-              ) ??
-              (
-                programmeSchedules
-                  .length > 0
-                  ? "partial"
-                  : "blocked"
-              );
-            if (status === "ready") {
-              readyModules += 1;
-            } else if (
-              status === "partial"
-            ) {
-              partialModules += 1;
-            } else {
-              blockedModules += 1;
-            }
-          }
+          const moduleStatuses = [
+            ...scheduleModules.map(
+              (module) => ({
+                key: module.key,
+                status:
+                  receiptStates.get(
+                    module.key,
+                  ) ??
+                  (
+                    programmeSchedules
+                      .length > 0
+                      ? "partial"
+                      : "blocked"
+                  ),
+              }),
+            ),
+            ...commercialModules.map(
+              (module) => ({
+                key: module.key,
+                status:
+                  canonicalCommercialModule(
+                    state,
+                    module.key,
+                  )?.status ??
+                  "partial",
+              }),
+            ),
+          ];
+          const readyModules =
+            moduleStatuses.filter(
+              (module) =>
+                module.status ===
+                "ready",
+            ).length;
+          const partialModules =
+            moduleStatuses.filter(
+              (module) =>
+                module.status ===
+                "partial",
+            ).length;
+          const blockedModules =
+            moduleStatuses.filter(
+              (module) =>
+                module.status ===
+                "blocked",
+            ).length;
+          const commercialPosition =
+            commercialPositionForState(
+              state,
+            );
 
           const minimumEvidenceReady =
             programmeSchedules.length >
@@ -592,6 +619,12 @@ async function route(
             revisionCount:
               programmeSchedules.length,
             minimumEvidenceReady,
+            moduleCount:
+              moduleStatuses.length,
+            scheduleModuleCount:
+              scheduleModules.length,
+            commercialModuleCount:
+              commercialModules.length,
             readyModules,
             partialModules,
             blockedModules,
@@ -622,7 +655,8 @@ async function route(
               0,
             managementActions: [],
             commercialCurrencyCount:
-              0,
+              commercialPosition
+                .currencies.length,
             analysisError: null,
           };
         })
@@ -1910,7 +1944,7 @@ async function route(
   }
 
   const moduleReportMatch =
-    /^\/api\/projects\/([^/]+)\/schedule\/modules\/([^/]+)\/report\.(xlsx|json)$/.exec(
+    /^\/api\/projects\/([^/]+)\/(schedule|commercial)\/modules\/([^/]+)\/report\.(xlsx|json)$/.exec(
       url.pathname,
     );
 
@@ -1922,14 +1956,32 @@ async function route(
       decodeURIComponent(
         moduleReportMatch[1]!,
       );
+    const moduleArea =
+      moduleReportMatch[2]!;
     const key =
       decodeURIComponent(
-        moduleReportMatch[2]!,
+        moduleReportMatch[3]!,
       );
     const format =
-      moduleReportMatch[3] as
+      moduleReportMatch[4] as
         | "xlsx"
         | "json";
+
+    if (
+      moduleArea ===
+        "commercial" &&
+      !commercialModules.some(
+        (module) =>
+          module.key === key,
+      )
+    ) {
+      json(res, 404, {
+        error:
+          "commercial_module_not_found",
+        moduleKey: key,
+      });
+      return;
+    }
 
     const result =
       moduleForProject(
@@ -1995,7 +2047,7 @@ async function route(
   }
 
   const moduleMatch =
-    /^\/api\/projects\/([^/]+)\/schedule\/modules\/([^/]+)$/.exec(
+    /^\/api\/projects\/([^/]+)\/(schedule|commercial)\/modules\/([^/]+)$/.exec(
       url.pathname,
     );
 
@@ -2007,10 +2059,27 @@ async function route(
       decodeURIComponent(
         moduleMatch[1]!,
       );
+    const moduleArea =
+      moduleMatch[2]!;
     const key =
       decodeURIComponent(
-        moduleMatch[2]!,
+        moduleMatch[3]!,
       );
+    if (
+      moduleArea ===
+        "commercial" &&
+      !commercialModules.some(
+        (module) =>
+          module.key === key,
+      )
+    ) {
+      json(res, 404, {
+        error:
+          "commercial_module_not_found",
+        moduleKey: key,
+      });
+      return;
+    }
     const result =
       moduleForProject(
         projectId,
@@ -2511,6 +2580,12 @@ async function route(
         "/api/projects/:projectId/schedule/modules/:moduleKey/report.xlsx",
       moduleReportJson:
         "/api/projects/:projectId/schedule/modules/:moduleKey/report.json",
+      commercialModule:
+        "/api/projects/:projectId/commercial/modules/:moduleKey",
+      commercialModuleReportExcel:
+        "/api/projects/:projectId/commercial/modules/:moduleKey/report.xlsx",
+      commercialModuleReportJson:
+        "/api/projects/:projectId/commercial/modules/:moduleKey/report.json",
       contractUpload:
         "/api/projects/:projectId/contract/uploads",
       projectControls:

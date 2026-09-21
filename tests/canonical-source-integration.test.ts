@@ -874,11 +874,29 @@ test('legacy typed-family migration is audited, durable and does not modify sour
   assert.notEqual(restored.evidenceDocuments[0]!.familyKey,restored.evidenceDocuments[1]!.familyKey);assert.ok(restored.evidenceDocuments.every(d=>d.basisState==='active'));assert.deepEqual(restored.evidenceDocuments.map(d=>d.sourceHashSha256),hashes);assert.ok(restored.evidenceDocuments[1]!.diagnostics.some(d=>d.startsWith('SOURCE_ROLE_FAMILY_MIGRATION_V1')));
   const version=restored.version;const again=new RuntimeProjectStore({dataDir:dir,durable:false}).get('CANONICAL')!;assert.equal(again.version,version);
 });
-test('seven commercial views reuse the identical source-ledger position rather than page calculators',t=>{
+test('seven commercial views are real canonical projections with evidence-driven module status',t=>{
   const {state,csvDoc}=fixture(t);csvDoc('Metric,Value,Unit,Status,As Of,VAT Basis\nBAC,100,USD,Approved,2026-08-31,Exclusive','cost_evm_report');
   const keys=['commercial-overview','cost-forecast','variations-change','payments','cash-flow','commercial-claims-notices','contract-particulars-bonds'];
-  const positions=keys.map(key=>{const m=canonicalCommercialModule(state,key)!;assert.equal(m.key,key);assert.equal(m.status,'partial');return (m.data as {position:{sourceLedger:{costPosition:Array<{values:Record<string,number>}>}}}).position;});
-  assert.ok(positions.every(p=>p===positions[0]));assert.equal(positions[0]!.sourceLedger.costPosition[0]!.values.bac,100);
+  const expectedStatus:Record<string,string>={
+    'commercial-overview':'ready',
+    'cost-forecast':'ready',
+    'variations-change':'partial',
+    'payments':'partial',
+    'cash-flow':'partial',
+    'commercial-claims-notices':'partial',
+    'contract-particulars-bonds':'ready',
+  };
+  const positions=keys.map(key=>{
+    const m=canonicalCommercialModule(state,key)!;
+    assert.equal(m.key,key);
+    assert.equal(m.status,expectedStatus[key]);
+    const data=m.data as {projectionKey:string;position:{sourceLedger:{producerVersion:string;costPosition:Array<{values:Record<string,number>}>}}};
+    assert.ok(data.projectionKey);
+    assert.equal(data.position.sourceLedger.producerVersion,'commercial-canonical-v1');
+    return data.position;
+  });
+  assert.ok(positions.every(p=>p===positions[0]));
+  assert.equal(positions[0]!.sourceLedger.costPosition[0]!.values.bac,100);
 });
 
 test('amendment overlap cannot add the full determination total twice',t=>{
