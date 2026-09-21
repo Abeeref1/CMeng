@@ -226,21 +226,34 @@ interface MatchCandidate<T> {
 function uniqueCandidates<T>(
   values: MatchCandidate<T>[],
 ): MatchCandidate<T>[] {
-  const seen =
-    new Set<string>();
-  return values.filter(
-    (candidate) => {
-      const key =
-        JSON.stringify(
-          candidate.value,
-        );
-      if (seen.has(key)) {
-        return false;
-      }
-      seen.add(key);
-      return true;
-    },
-  );
+  const byValue =
+    new Map<
+      string,
+      MatchCandidate<T>
+    >();
+  for (const candidate of values) {
+    const key =
+      JSON.stringify(
+        candidate.value,
+      );
+    const existing =
+      byValue.get(key);
+    if (
+      !existing ||
+      (
+        candidate.approved &&
+        !existing.approved
+      )
+    ) {
+      byValue.set(
+        key,
+        candidate,
+      );
+    }
+  }
+  return [
+    ...byValue.values(),
+  ];
 }
 
 function candidateFinding<T>(
