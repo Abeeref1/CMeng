@@ -729,10 +729,10 @@ function clauseLooksObligatory(
   text: string,
 ): boolean {
   return (
-    /(?:shall|must|required to|is required to)/i.test(
+    /\b(?:shall|must|required to|is required to)\b/i.test(
       text,
     ) &&
-    /(?:submit|provide|maintain|notify|insur|bond|guarantee|certificate|record|report|approve|pay|deliver)w*/i.test(
+    /\b(?:submit|provide|maintain|notify|insur|bond|guarantee|certificate|record|report|approve|pay|deliver)\w*/i.test(
       text,
     )
   );
