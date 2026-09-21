@@ -127,8 +127,105 @@ function sourceScheduleBoundary(
     : new Date(latest).toISOString();
 }
 
+function coverage(
+  known: number,
+  total: number,
+): number | null {
+  if (total <= 0) return null;
+  return Number(
+    ((known / total) * 100).toFixed(4),
+  );
+}
+
+function activityFinishMovementStats(
+  comparison: ReturnType<typeof compareScheduleRevisions>,
+): {
+  matchedActivityCount: number;
+  comparableCount: number;
+  coveragePercent: number | null;
+  strongestPositiveDays: number | null;
+  strongestPositiveActivityId: string | null;
+  strongestNegativeDays: number | null;
+  strongestNegativeActivityId: string | null;
+  averagePositiveDays: number | null;
+  averageNegativeDays: number | null;
+} {
+  const comparable = comparison.activityChanges
+    .filter(
+      (change) =>
+        change.fromActivityId !== null &&
+        change.toActivityId !== null &&
+        change.finishShiftDays !== null,
+    )
+    .map((change) => ({
+      activityId: change.activityId,
+      days: change.finishShiftDays!,
+    }));
+
+  const positive = comparable
+    .filter((item) => item.days > 0)
+    .sort(
+      (a, b) =>
+        b.days - a.days ||
+        a.activityId.localeCompare(
+          b.activityId,
+          undefined,
+          { numeric: true },
+        ),
+    );
+  const negative = comparable
+    .filter((item) => item.days < 0)
+    .sort(
+      (a, b) =>
+        a.days - b.days ||
+        a.activityId.localeCompare(
+          b.activityId,
+          undefined,
+          { numeric: true },
+        ),
+    );
+
+  const average = (
+    values: readonly { days: number }[],
+  ): number | null =>
+    values.length === 0
+      ? null
+      : Number(
+          (
+            values.reduce(
+              (sum, item) => sum + item.days,
+              0,
+            ) / values.length
+          ).toFixed(6),
+        );
+
+  return {
+    matchedActivityCount:
+      comparison.matchedActivityCount,
+    comparableCount: comparable.length,
+    coveragePercent: coverage(
+      comparable.length,
+      comparison.matchedActivityCount,
+    ),
+    strongestPositiveDays:
+      positive[0]?.days ?? null,
+    strongestPositiveActivityId:
+      positive[0]?.activityId ?? null,
+    strongestNegativeDays:
+      negative[0]?.days ?? null,
+    strongestNegativeActivityId:
+      negative[0]?.activityId ?? null,
+    averagePositiveDays:
+      average(positive),
+    averageNegativeDays:
+      average(negative),
+  };
+}
+
 function strongestMovement(
   input: {
+    activityPositive: number | null;
+    activityNegative: number | null;
     independent: number | null;
     sourceForecast: number | null;
     sourceBoundary: number | null;
@@ -138,6 +235,35 @@ function strongestMovement(
   basis:
     ScheduleWindowResult["strongestProgrammeMovementBasis"];
 } {
+  const activityPositiveIsDistinct =
+    input.activityPositive !== null &&
+    (
+      input.sourceForecast === null ||
+      Math.abs(
+        input.activityPositive -
+          input.sourceForecast,
+      ) > 0.000001
+    );
+
+  if (activityPositiveIsDistinct) {
+    return {
+      days: input.activityPositive,
+      basis:
+        "matched_activity_finish_shift",
+    };
+  }
+  if (
+    input.activityNegative !== null &&
+    input.independent === null &&
+    input.sourceForecast === null &&
+    input.sourceBoundary === null
+  ) {
+    return {
+      days: input.activityNegative,
+      basis:
+        "matched_activity_finish_shift",
+    };
+  }
   if (input.independent !== null) {
     return {
       days: input.independent,
@@ -309,6 +435,10 @@ export function buildWindowsAnalysisProjection(
     const to = ordered[index]!;
     const comparison =
       compareScheduleRevisions(from, to);
+    const activityMovement =
+      activityFinishMovementStats(
+        comparison,
+      );
 
     const fromForecast =
       input.forecastResolver
@@ -408,6 +538,10 @@ export function buildWindowsAnalysisProjection(
       );
     const strongest =
       strongestMovement({
+        activityPositive:
+          activityMovement.strongestPositiveDays,
+        activityNegative:
+          activityMovement.strongestNegativeDays,
         independent:
           independentMovement,
         sourceForecast:
@@ -442,6 +576,23 @@ export function buildWindowsAnalysisProjection(
         "WINDOW_TO_INDEPENDENT_FORECAST_INCOMPLETE",
       );
     }
+    if (
+      activityMovement.comparableCount === 0
+    ) {
+      windowDiagnostics.push(
+        "WINDOW_ACTIVITY_FINISH_MOVEMENT_NOT_DERIVABLE",
+      );
+    } else if (
+      activityMovement.coveragePercent !== 100
+    ) {
+      windowDiagnostics.push(
+        "WINDOW_ACTIVITY_FINISH_MOVEMENT_PARTIAL_COVERAGE:" +
+          activityMovement.comparableCount +
+          "/" +
+          activityMovement.matchedActivityCount,
+      );
+    }
+
     if (
       strongest.basis ===
       "source_forecast"
@@ -547,6 +698,24 @@ export function buildWindowsAnalysisProjection(
         strongest.days,
       strongestProgrammeMovementBasis:
         strongest.basis,
+      matchedActivityCount:
+        activityMovement.matchedActivityCount,
+      comparableActivityFinishShiftCount:
+        activityMovement.comparableCount,
+      activityFinishShiftCoveragePercent:
+        activityMovement.coveragePercent,
+      strongestPositiveActivityMovementDays:
+        activityMovement.strongestPositiveDays,
+      strongestPositiveActivityId:
+        activityMovement.strongestPositiveActivityId,
+      strongestNegativeActivityMovementDays:
+        activityMovement.strongestNegativeDays,
+      strongestNegativeActivityId:
+        activityMovement.strongestNegativeActivityId,
+      averagePositiveActivityMovementDays:
+        activityMovement.averagePositiveDays,
+      averageNegativeActivityMovementDays:
+        activityMovement.averageNegativeDays,
 
       fromProgressPercent: fromProgress,
       toProgressPercent: toProgress,
@@ -691,8 +860,13 @@ export function buildWindowsAnalysisProjection(
               sum +
               Math.max(
                 0,
-                window.strongestProgrammeMovementDays ??
-                  0,
+                window.strongestPositiveActivityMovementDays ??
+                  (
+                    window.strongestProgrammeMovementBasis ===
+                      "matched_activity_finish_shift"
+                      ? window.strongestProgrammeMovementDays ?? 0
+                      : 0
+                  ),
               ),
             0,
           )
@@ -706,7 +880,7 @@ export function buildWindowsAnalysisProjection(
               sum +
               Math.min(
                 0,
-                window.strongestProgrammeMovementDays ??
+                window.strongestNegativeActivityMovementDays ??
                   0,
               ),
             0,

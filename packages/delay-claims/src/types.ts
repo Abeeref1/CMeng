@@ -31,6 +31,7 @@ export interface DelayClaimEventAssessmentRow {
   observedNetProgrammeMovementDays: number;
   observedPositiveProgrammeMovementDays: number;
   programmeMovementBasis:
+    | "matched_activity_finish_shift"
     | "independent_cpm"
     | "source_forecast"
     | "source_schedule_boundary"
