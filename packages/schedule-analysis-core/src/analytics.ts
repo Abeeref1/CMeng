@@ -538,6 +538,9 @@ export function analyzeSchedule(
   config: ScheduleAnalysisConfig =
     DEFAULT_SCHEDULE_ANALYSIS_CONFIG,
 ): ScheduleAnalyticsResult {
+  // The elapsed-hour upper bound is a legacy alternative basis. Once a
+  // working-day rule is active, each activity calendar supplies the operative
+  // hour-equivalent threshold, so the legacy hour value must not invalidate it.
   const usesWorkingDayNearCriticalRule =
     config.nearCriticalWorkingDays !== undefined &&
     config.nearCriticalWorkingDays !== null;
