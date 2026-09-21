@@ -3,6 +3,8 @@ export interface NearCriticalBoundaryAuditRow {
   name: string | null;
   calendarId: string | null;
   calendarSemanticComplete: boolean | null;
+  totalFloatSourceRefs: string[];
+  calendarSourceRefs: string[];
   totalFloatHours: number;
   calendarWorkingDayHours: number | null;
   totalFloatWorkingDays: number | null;
@@ -23,6 +25,9 @@ export interface NearCriticalBoundaryAuditRow {
 
 export interface NearCriticalBoundaryAudit {
   sampleLimitPerSide: number;
+  sourceRevisionId: string;
+  totalFloatSourceField: "TASK.total_float_hr_cnt";
+  calendarJoinField: "TASK.clndr_id -> CALENDAR.clndr_id";
   criticalBoundary: {
     thresholdHours: number;
     below: NearCriticalBoundaryAuditRow[];
