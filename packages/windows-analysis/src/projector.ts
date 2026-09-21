@@ -747,7 +747,7 @@ export function buildWindowsAnalysisProjection(
         netCompletionMovement,
       netCompletionMovementBasis,
       grossAnalyticalMovementDays:
-        grossAnalyticalMovement,
+        grossAnalyticalPositive,
       grossAnalyticalPositiveMovementDays:
         grossAnalyticalPositive,
       analyticalRecoveryMovementDays:
