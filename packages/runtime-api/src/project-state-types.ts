@@ -238,6 +238,17 @@ export interface EvidenceMappingSummary {
   coveragePercent: number | null;
 }
 
+export interface EvidenceSemanticSegment {
+  segmentId: string;
+  locator: string;
+  text: string;
+  method:
+    | "native_text"
+    | "ocr_text"
+    | "office_text"
+    | "tabular_text";
+}
+
 export interface StoredEvidenceDocument {
   documentId: string;
   category: EvidenceCategory;
@@ -264,6 +275,12 @@ export interface StoredEvidenceDocument {
   supersededByDocumentId: string | null;
   supersedesDocumentIds: string[];
   diagnostics: string[];
+  /**
+   * Evidence-only text segments retained for bounded semantic correspondence.
+   * They never establish authority by themselves; downstream resolvers must
+   * retain provenance and fail closed on ambiguous matches.
+   */
+  semanticSegments?: EvidenceSemanticSegment[];
 }
 
 export interface EvidenceUploadSummary {
