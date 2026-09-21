@@ -43,6 +43,12 @@ export interface PerformanceCostMetricInput {
   sourceRefs: string[];
 }
 
+export type PerformancePaymentSeriesBasis =
+  | "incremental"
+  | "project_cumulative"
+  | "certificate_cumulative"
+  | "unknown";
+
 export interface PerformancePaymentInput {
   paymentId: string;
   periodEnd: string | null;
@@ -50,7 +56,9 @@ export interface PerformancePaymentInput {
   paymentDate: string | null;
   currency: string | null;
   certifiedAmount: number | null;
+  certifiedAmountBasis: PerformancePaymentSeriesBasis;
   paidAmount: number | null;
+  paidAmountBasis: PerformancePaymentSeriesBasis;
   sourceRefs: string[];
 }
 
