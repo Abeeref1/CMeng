@@ -2314,6 +2314,181 @@ export class RuntimeProjectStore {
                 (b.num ?? 0),
             );
 
+          if (
+            process.env
+              .CMENG_CORRESPONDENCE_OCR_DIAGNOSTICS ===
+            "1"
+          ) {
+            const pageTextByNumber =
+              new Map(
+                pages.map(
+                  (page) => [
+                    page.num ?? 0,
+                    page.text ?? "",
+                  ],
+                ),
+              );
+            const totalPages =
+              typeof parsed.total ===
+              "number"
+                ? parsed.total
+                : pages.length;
+            const meaningfulCount = (
+              value: string,
+            ): number =>
+              [...value].filter(
+                (character) =>
+                  /[\p{L}\p{N}]/u.test(
+                    character,
+                  ),
+              ).length;
+            const lowNativePages =
+              Array.from(
+                {
+                  length:
+                    totalPages,
+                },
+                (_, index) =>
+                  index + 1,
+              ).filter(
+                (pageNumber) =>
+                  meaningfulCount(
+                    pageTextByNumber.get(
+                      pageNumber,
+                    ) ?? "",
+                  ) < 12,
+              );
+            process.stdout.write(
+              JSON.stringify({
+                event:
+                  "correspondence_ocr_diagnostic",
+                part:
+                  "native_coverage",
+                documentId:
+                  document.documentId,
+                totalPages,
+                nativePageCount:
+                  totalPages -
+                  lowNativePages.length,
+                lowNativePageCount:
+                  lowNativePages.length,
+                sampleLowNativePages:
+                  lowNativePages.slice(
+                    0,
+                    12,
+                  ),
+              }) + "\n",
+            );
+
+            const selected =
+              lowNativePages.slice(
+                0,
+                4,
+              );
+            if (
+              selected.length > 0
+            ) {
+              const screenshots:
+                any =
+                await parser.getScreenshot({
+                  partial:
+                    selected,
+                  scale: 1.75,
+                  imageBuffer: true,
+                  imageDataUrl:
+                    false,
+                });
+              const provider =
+                this.createOcrProvider();
+              try {
+                for (
+                  let index = 0;
+                  index <
+                  (
+                    screenshots.pages ??
+                    []
+                  ).length;
+                  index += 1
+                ) {
+                  const page =
+                    screenshots.pages[
+                      index
+                    ];
+                  const image =
+                    page?.data;
+                  const pageNumber =
+                    selected[
+                      index
+                    ] ??
+                    null;
+                  if (
+                    !image ||
+                    pageNumber ===
+                      null
+                  ) {
+                    continue;
+                  }
+                  const ocr =
+                    await provider.recognize(
+                      image instanceof
+                        Uint8Array
+                        ? image
+                        : Buffer.from(
+                            image,
+                          ),
+                      pageNumber,
+                    );
+                  const rawText =
+                    ocr.text ??
+                    "";
+                  const textSample =
+                    [...rawText]
+                      .slice(
+                        0,
+                        1400,
+                      )
+                      .join("");
+                  process.stdout.write(
+                    JSON.stringify({
+                      event:
+                        "correspondence_ocr_diagnostic",
+                      part:
+                        "ocr_sample",
+                      documentId:
+                        document.documentId,
+                      pageNumber,
+                      ocrConfidence:
+                        ocr.confidence,
+                      rawTextLength:
+                        [...rawText]
+                          .length,
+                      rawTextHexFirst64:
+                        Buffer.from(
+                          [...rawText]
+                            .slice(
+                              0,
+                              64,
+                            )
+                            .join(""),
+                          "utf8",
+                        ).toString(
+                          "hex",
+                        ),
+                      rawText:
+                        textSample,
+                    }) + "\n",
+                  );
+                }
+              } finally {
+                if (
+                  provider.close
+                ) {
+                  await provider.close();
+                }
+              }
+            }
+          }
+
           const segments:
             EvidenceTextSegment[] =
             [];
