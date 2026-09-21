@@ -301,6 +301,23 @@ export interface VariationsProjection {
   rejectedCount: number;
   lifecycleCoveragePercent:
     number | null;
+  lifecycleStageCounts: {
+    instruction: number;
+    submitted: number;
+    quoted: number;
+    assessed: number;
+    agreed: number;
+    approved: number;
+    rejected: number;
+    unknown: number;
+  };
+  pendingAgeBands: {
+    upTo30Days: number;
+    days31To60: number;
+    days61To90: number;
+    over90Days: number;
+    unknown: number;
+  };
   scheduleLinkCoveragePercent:
     number | null;
   claimLinkCoveragePercent:
