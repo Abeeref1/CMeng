@@ -6,6 +6,7 @@ import {
   type CommercialEvidenceState,
 } from "../../commercial-control/src";
 import { commercialCanonical } from "./commercial-canonical";
+import { commercialFoundationForState } from "./commercial-foundation-runtime";
 import type {
   ProjectRuntimeState,
   ModuleRuntimeResult,
@@ -37,6 +38,11 @@ export function commercialPositionForState(
     buildCommercialControlPosition({
       sourceLedger:
         commercialCanonical(state),
+      foundation:
+        commercialFoundationForState(
+          state,
+          generatedAt,
+        ),
       generatedAt,
       projectId:
         state.projectId,
