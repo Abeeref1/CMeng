@@ -1634,6 +1634,10 @@ function buildPaymentRegister(
             payment.paymentId,
           paymentType:
             payment.paymentType,
+          certifiedAmountBasis:
+            payment.certifiedAmountBasis,
+          paidAmountBasis:
+            payment.paidAmountBasis,
           periodEnd:
             payment.periodEnd,
           sourceStatus:
