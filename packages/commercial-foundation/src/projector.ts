@@ -952,7 +952,8 @@ function buildCommercialTerms(
     explicitPercent(
       input,
       [
-        /retention(?:\s+percentage|\s+rate)?[^\n.%]{0,100}?(\d+(?:\.\d+)?)\s*%/gi,
+        /retention\s+(?:percentage|rate)\s*(?:is|shall\s+be|of|:|=)?\s*(\d+(?:\.\d+)?)\s*%/gi,
+        /(?:deduct|withhold)(?:ed|ing)?[^\n.]{0,60}?retention[^\n.%]{0,40}?(\d+(?:\.\d+)?)\s*%/gi,
       ],
       "explicit_retention_percentage",
       "Retention terms control deductions, cap monitoring and release forecasts.",
