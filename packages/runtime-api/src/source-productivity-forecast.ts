@@ -1790,8 +1790,6 @@ function buildWorkPackageRows(
           "available from",
         ),
       );
-    const sourceAvailableStartIso =
-      explicitStart;
     const startIso =
       explicitStart !== null &&
       explicitStart > cutoff
