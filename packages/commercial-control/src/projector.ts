@@ -1,6 +1,10 @@
 import { buildCommercialFoundation } from "../../commercial-foundation/src";
 import { buildCommercialPerformance } from "../../commercial-performance/src";
+import {
+  assessAllEventNotices,
+} from "../../delay-analysis-core/src";
 import type {
+  CommercialClaimsNoticesPosition,
   CommercialControlInput,
   CommercialControlPosition,
   CommercialEvidenceState,
@@ -78,6 +82,315 @@ function sum(
     (total, value) => total + value,
     0,
   );
+}
+
+function delayEvidenceRef(
+  ref: {
+    sourceType: string;
+    sourceId: string;
+    locator: string | null;
+  },
+): string {
+  return [
+    ref.sourceType,
+    ref.sourceId,
+    ref.locator,
+  ]
+    .filter(
+      (value) =>
+        Boolean(value),
+    )
+    .join(":");
+}
+
+function commercialClaimsNotices(
+  input: CommercialControlInput,
+): CommercialClaimsNoticesPosition {
+  const lifecycle =
+    input.delayClaims ?? null;
+  const hasLifecycle =
+    Boolean(
+      lifecycle &&
+      (
+        lifecycle.events.length > 0 ||
+        lifecycle.notices.length > 0 ||
+        lifecycle.claims.length > 0
+      ),
+    );
+  const commercialIds =
+    new Set(
+      input.claimCommercials.map(
+        (row) => row.claimId,
+      ),
+    );
+  const lifecycleIds =
+    new Set(
+      lifecycle?.claims.map(
+        (row) => row.claimId,
+      ) ?? [],
+    );
+  const linkedCommercialCount =
+    input.claimCommercials.filter(
+      (row) =>
+        lifecycleIds.has(
+          row.claimId,
+        ),
+    ).length;
+  const linkCoverage =
+    input.claimCommercials.length
+      ? Number(
+          (
+            (
+              linkedCommercialCount /
+              input.claimCommercials.length
+            ) *
+            100
+          ).toFixed(6),
+        )
+      : null;
+
+  const claimStateCounts:
+    CommercialClaimsNoticesPosition["claimStateCounts"] = {
+      draft: 0,
+      submitted: 0,
+      under_review: 0,
+      determined: 0,
+      rejected: 0,
+      withdrawn: 0,
+      unknown: 0,
+    };
+  for (
+    const claim of
+      lifecycle?.claims ?? []
+  ) {
+    claimStateCounts[
+      claim.state
+    ] += 1;
+  }
+
+  const noticeKindCounts:
+    CommercialClaimsNoticesPosition["noticeKindCounts"] = {
+      notice: 0,
+      early_warning: 0,
+      eot_notice: 0,
+      claim_notice: 0,
+      detailed_claim: 0,
+      response: 0,
+      determination: 0,
+    };
+  for (
+    const notice of
+      lifecycle?.notices ?? []
+  ) {
+    noticeKindCounts[
+      notice.kind
+    ] += 1;
+  }
+
+  const assessments =
+    lifecycle
+      ? assessAllEventNotices(
+          lifecycle,
+        )
+      : [];
+  const noticeTimelinessCounts:
+    CommercialClaimsNoticesPosition["noticeTimelinessCounts"] = {
+      timely: 0,
+      late: 0,
+      not_issued: 0,
+      requirement_missing: 0,
+      event_date_missing: 0,
+      notice_date_missing: 0,
+    };
+  for (
+    const assessment of
+      assessments
+  ) {
+    noticeTimelinessCounts[
+      assessment.timeliness
+    ] += 1;
+  }
+
+  const eventTitles =
+    new Map(
+      (
+        lifecycle?.events ??
+        []
+      ).map(
+        (event) => [
+          event.eventId,
+          event.title,
+        ],
+      ),
+    );
+
+  const diagnostics = [
+    "COMMERCIAL_CLAIM_MONEY_AND_CLAIM_LIFECYCLE_LINK_BY_CLAIM_ID_ONLY",
+    "NOTICE_TIMELINESS_REUSES_GOVERNED_DELAY_CLAIMS_REQUIREMENTS_AND_ACTUAL_DATES",
+  ];
+  if (
+    input.claimCommercials
+      .some(
+        (row) =>
+          !lifecycleIds.has(
+            row.claimId,
+          ),
+      )
+  ) {
+    diagnostics.push(
+      "COMMERCIAL_CLAIM_ROWS_WITHOUT_LIFECYCLE_LINK_REMAIN_VISIBLE_AND_UNMERGED",
+    );
+  }
+  if (
+    lifecycle?.claims.some(
+      (row) =>
+        !commercialIds.has(
+          row.claimId,
+        ),
+    )
+  ) {
+    diagnostics.push(
+      "LIFECYCLE_CLAIMS_WITHOUT_COMMERCIAL_MONEY_REMAIN_VISIBLE_WITH_MONEY_UNKNOWN",
+    );
+  }
+
+  return {
+    state:
+      hasLifecycle
+        ? "established"
+        : input.claimCommercials
+              .length > 0 ||
+            input
+              .claimEvidenceSubmitted
+          ? "submitted_unparsed"
+          : "not_submitted",
+    evidenceRevisionId:
+      lifecycle
+        ?.evidenceRevisionId ??
+      null,
+    eventCount:
+      lifecycle?.events.length ??
+      0,
+    noticeCount:
+      lifecycle?.notices.length ??
+      0,
+    lifecycleClaimCount:
+      lifecycle?.claims.length ??
+      0,
+    commercialClaimCount:
+      input.claimCommercials
+        .length,
+    commercialLifecycleLinkCoveragePercent:
+      linkCoverage,
+    claimStateCounts,
+    noticeKindCounts,
+    noticeTimelinessCounts,
+    claims:
+      (
+        lifecycle?.claims ??
+        []
+      ).map(
+        (claim) => ({
+          claimId:
+            claim.claimId,
+          title:
+            claim.title,
+          state:
+            claim.state,
+          submittedAt:
+            claim.submittedAt,
+          claimedDays:
+            claim.claimedDays,
+          claimedAmount:
+            claim.claimedAmount,
+          assessedDays:
+            claim.assessedDays,
+          assessedDaysState:
+            claim
+              .assessedDaysState,
+          assessedAmount:
+            claim.assessedAmount,
+          assessedAmountState:
+            claim
+              .assessedAmountState,
+          eventIds: [
+            ...claim.eventIds,
+          ],
+          clauseIdentifiers: [
+            ...claim
+              .clauseIdentifiers,
+          ],
+          sourceRefs:
+            claim.evidenceRefs.map(
+              delayEvidenceRef,
+            ),
+        }),
+      ),
+    notices:
+      (
+        lifecycle?.notices ??
+        []
+      ).map(
+        (notice) => ({
+          noticeId:
+            notice.noticeId,
+          kind:
+            notice.kind,
+          eventId:
+            notice.eventId,
+          claimId:
+            notice.claimId,
+          actualIssuedAt:
+            notice.actualIssuedAt,
+          actualReceivedAt:
+            notice.actualReceivedAt,
+          subject:
+            notice.subject,
+          clauseIdentifiers: [
+            ...notice
+              .clauseIdentifiers,
+          ],
+          sourceRefs:
+            notice.evidenceRefs.map(
+              delayEvidenceRef,
+            ),
+        }),
+      ),
+    noticeAssessments:
+      assessments.map(
+        (assessment) => ({
+          eventId:
+            assessment.eventId,
+          eventTitle:
+            eventTitles.get(
+              assessment.eventId,
+            ) ?? null,
+          requirementId:
+            assessment
+              .requirementId,
+          requiredNoticeDays:
+            assessment
+              .requiredNoticeDays,
+          eventStartIso:
+            assessment
+              .eventStartIso,
+          noticeId:
+            assessment.noticeId,
+          noticeIssuedAt:
+            assessment
+              .noticeIssuedAt,
+          elapsedDays:
+            assessment
+              .elapsedDays,
+          timeliness:
+            assessment.timeliness,
+          requirementState:
+            assessment
+              .requirementState,
+        }),
+      ),
+    diagnostics,
+  };
 }
 
 function currenciesOf(
@@ -266,6 +579,14 @@ export function buildCommercialControlPosition(
             row.assessedAmount !==
             null,
         );
+      const completeClaimedCoverage =
+        claims.length > 0 &&
+        claimed.length ===
+          claims.length;
+      const completeAssessedCoverage =
+        claims.length > 0 &&
+        assessed.length ===
+          claims.length;
 
       const variationRefs =
         variations.flatMap(
@@ -548,12 +869,20 @@ export function buildCommercialControlPosition(
                   ),
                 )
               : null,
-            stateFor(
-              claimed.length > 0,
-              input
-                .claimEvidenceSubmitted,
-            ),
+            completeClaimedCoverage
+              ? "established"
+              : claims.length > 0 ||
+                  input
+                    .claimEvidenceSubmitted
+                ? "submitted_unparsed"
+                : "not_submitted",
             claimRefs,
+            claims.length > 0 &&
+            !completeClaimedCoverage
+              ? [
+                  "CLAIMED_AMOUNT_COVERAGE_PARTIAL_MISSING_AMOUNTS_ARE_NOT_ZERO",
+                ]
+              : [],
           ),
         assessedClaimAmount:
           moneyMetric(
@@ -565,12 +894,20 @@ export function buildCommercialControlPosition(
                   ),
                 )
               : null,
-            stateFor(
-              assessed.length > 0,
-              input
-                .claimEvidenceSubmitted,
-            ),
+            completeAssessedCoverage
+              ? "established"
+              : claims.length > 0 ||
+                  input
+                    .claimEvidenceSubmitted
+                ? "submitted_unparsed"
+                : "not_submitted",
             claimRefs,
+            claims.length > 0 &&
+            !completeAssessedCoverage
+              ? [
+                  "ASSESSED_CLAIM_AMOUNT_COVERAGE_PARTIAL_MISSING_AMOUNTS_ARE_NOT_ZERO",
+                ]
+              : [],
           ),
       };
     });
@@ -603,6 +940,34 @@ export function buildCommercialControlPosition(
       .flatMap(
         (row) => row.sourceRefs,
       ),
+    ...(
+      input.delayClaims
+        ? [
+            ...input.delayClaims.events
+              .flatMap(
+                (row) =>
+                  row.evidenceRefs,
+              ),
+            ...input.delayClaims.notices
+              .flatMap(
+                (row) =>
+                  row.evidenceRefs,
+              ),
+            ...input.delayClaims.claims
+              .flatMap(
+                (row) =>
+                  row.evidenceRefs,
+              ),
+            ...input.delayClaims.noticeRequirements
+              .flatMap(
+                (row) =>
+                  row.evidenceRefs,
+              ),
+          ].map(
+            delayEvidenceRef,
+          )
+        : []
+    ),
     ...timeRefs,
   ]);
 
@@ -1070,6 +1435,11 @@ export function buildCommercialControlPosition(
           ) ?? [],
     });
 
+  const claimsNotices =
+    commercialClaimsNotices(
+      input,
+    );
+
   return {
     ...(input.sourceLedger ? {sourceLedger: input.sourceLedger} : {}),
     foundation,
@@ -1150,6 +1520,7 @@ export function buildCommercialControlPosition(
     claimCommercialCount:
       input
         .claimCommercials.length,
+    claimsNotices,
     registers: {
       variations:
         input.variations.map(
@@ -1271,7 +1642,9 @@ export function buildCommercialControlPosition(
         stateFor(
           input
             .claimCommercials.length >
-            0,
+            0 ||
+            claimsNotices.state ===
+              "established",
           input
             .claimEvidenceSubmitted,
         ),
@@ -1593,6 +1966,8 @@ export function buildCommercialModuleProjection(
       claimCommercialCount:
         position
           .claimCommercialCount,
+      claimsNotices:
+        position.claimsNotices,
       timeExposure:
         position.timeExposure,
       currencies:
