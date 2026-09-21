@@ -802,6 +802,10 @@ export function buildCommercialControlPosition(
                 row.periodEnd,
               sourceStatus:
                 row.sourceStatus,
+              certifiedAmountBasis:
+                row.certifiedAmountBasis,
+              paidAmountBasis:
+                row.paidAmountBasis,
               applicationDate:
                 row.applicationDate,
               assessmentDate:
@@ -993,6 +997,8 @@ export function buildCommercialControlPosition(
                 row.amount.state,
               sourceStatus:
                 row.sourceStatus,
+              amountBasis:
+                row.amount.amountBasis,
               cbsId:
                 row.cbsId,
               wbsId:
