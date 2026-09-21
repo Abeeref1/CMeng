@@ -1032,9 +1032,13 @@ export function buildCommercialControlPosition(
                     .paidAmount.currency,
                 certifiedAmount:
                   certifiedMoney.value,
+                certifiedAmountBasis:
+                  row.certifiedAmountBasis,
                 paidAmount:
                   row.amounts
                     .paidAmount.value,
+                paidAmountBasis:
+                  row.paidAmountBasis,
                 sourceRefs: [
                   ...certifiedMoney.receipts.map(
                     (receipt) =>
