@@ -144,11 +144,19 @@ export interface FoundationCostMetricInput {
   paymentId: string | null;
 }
 
+export type FoundationPaymentSeriesBasis =
+  | "incremental"
+  | "project_cumulative"
+  | "certificate_cumulative"
+  | "unknown";
+
 export interface FoundationPaymentInput {
   paymentId: string;
   paymentType: string | null;
   periodEnd: string | null;
   sourceStatus: string;
+  certifiedAmountBasis: FoundationPaymentSeriesBasis;
+  paidAmountBasis: FoundationPaymentSeriesBasis;
   applicationDate: string | null;
   assessmentDate: string | null;
   certificationDate: string | null;
@@ -267,6 +275,8 @@ export interface CostRegisterProjection {
 export interface PaymentRegisterRecord {
   paymentId: string;
   paymentType: string | null;
+  certifiedAmountBasis: FoundationPaymentSeriesBasis;
+  paidAmountBasis: FoundationPaymentSeriesBasis;
   periodEnd: string | null;
   sourceStatus: string;
   lifecycle: {
