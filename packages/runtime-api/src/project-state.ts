@@ -82,6 +82,7 @@ import type {
 import {
   cell,
   governedTables,
+  has,
 } from "../../truth-kernel/src";
 import {
   analyzeCsvEvidence,
