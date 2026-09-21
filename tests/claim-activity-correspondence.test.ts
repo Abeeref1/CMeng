@@ -157,6 +157,40 @@ test("strong multi-signal semantic correspondence is deterministically accepted"
   assert.ok((result.candidates[0]!.marginToNext ?? 0) >= 0.16);
 });
 
+
+test("Unicode narrative and activity names participate in the same general resolver", () => {
+  const inputSchedule = schedule();
+  inputSchedule.wbs = [{
+    wbsId: "W-AR",
+    parentWbsId: null,
+    name: "البرج أ الهيكل الإنشائي",
+    sourceRefs: [],
+  }];
+  inputSchedule.activities = [{
+    ...inputSchedule.activities[0]!,
+    activityId: "AR-100",
+    nativeId: "AR100",
+    name: "البرج أ أعمال الخرسانة الطابق 13",
+    wbsId: "W-AR",
+  }];
+
+  const result = resolveClaimActivityCorrespondence({
+    claimId: "C-AR",
+    eventId: "E-AR",
+    narrative:
+      "تأخر الوصول وأثر على البرج أ أعمال الخرسانة الطابق 13.",
+    claimEvidenceRefs: refs,
+    schedule: inputSchedule,
+  });
+
+  assert.equal(result.activityPoolCount, 1);
+  assert.ok(result.claimSignalTokenCount > 0);
+  assert.ok(result.prefilterRawCandidateCount > 0);
+  assert.ok(result.preFilterCandidateCount > 0);
+  assert.equal(result.classification, "accepted_deterministic");
+  assert.deepEqual(result.acceptedActivityIds, ["AR-100"]);
+});
+
 test("similar candidates fail closed when margin is too small", () => {
   const result = resolveClaimActivityCorrespondence({
     claimId: "C3",
