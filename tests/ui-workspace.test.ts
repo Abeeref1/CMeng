@@ -514,7 +514,7 @@ test("CMeng workspace keeps the active module primary and browser script parseab
       "Cash Flow & Funding",
       "Current evidenced net cash",
       "Current cash position",
-      "Missing cash is not treated as zero.",
+      "Missing cash is never treated as zero",
       "Actual cash receipts",
       "Actual cash expenditure",
       "Cash-flow S-curve & funding position",
