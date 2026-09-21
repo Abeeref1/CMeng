@@ -2949,20 +2949,58 @@ export class RuntimeProjectStore {
               .digest(
                 "hex",
               );
+          const nextRefreshReceipt = {
+            producerVersion:
+              correspondenceSegmentProducerVersion,
+            sourceHashSha256:
+              document.sourceHashSha256,
+            anchorSetHashSha256,
+            totalPages,
+            nativePages:
+              nativePageCount,
+            ocrPages:
+              ocrPageCount,
+            unresolvedAnchorCount:
+              documentUnresolvedAnchorCount,
+            completedAt:
+              new Date()
+                .toISOString(),
+          };
+          const previousReceiptFingerprint =
+            createHash("sha256")
+              .update(
+                JSON.stringify(
+                  document.correspondenceNarrativeRefresh ??
+                    null,
+                ),
+              )
+              .digest("hex");
+          const nextReceiptFingerprint =
+            createHash("sha256")
+              .update(
+                JSON.stringify(
+                  nextRefreshReceipt,
+                ),
+              )
+              .digest("hex");
 
           if (
             previousFingerprint !==
-            nextFingerprint
+              nextFingerprint ||
+            previousReceiptFingerprint !==
+              nextReceiptFingerprint
           ) {
             document.textSegments =
               deduped;
+            document.correspondenceNarrativeRefresh =
+              nextRefreshReceipt;
             if (
               !document.diagnostics.includes(
-                "CORRESPONDENCE_LINKED_CONTEXT_REFRESH_V1",
+                "CORRESPONDENCE_LINKED_CONTEXT_REFRESH_V2",
               )
             ) {
               document.diagnostics.push(
-                "CORRESPONDENCE_LINKED_CONTEXT_REFRESH_V1",
+                "CORRESPONDENCE_LINKED_CONTEXT_REFRESH_V2",
               );
             }
             refreshedDocumentCount +=
