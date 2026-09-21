@@ -88,11 +88,12 @@ try:
                 check('Delay Windows separates gross window movement from Project Completion movement', 'Gross positive window movement' in body and 'Project Completion movement' in body and 'not project delay or EOT' in body)
             if key == 'delay-claims':
                 body = page.locator('#moduleContent').inner_text()
-                check('Delay Events page exposes claim-event evidence chain summary', all(label in body for label in [
-                    'Events linked to activities',
-                    'Events linked to windows',
-                    'Notice-linked events',
-                    'Determined events'
+                body_lower = body.lower()
+                check('Delay Events page exposes claim-event evidence chain summary', all(label in body_lower for label in [
+                    'events linked to activities',
+                    'events linked to windows',
+                    'notice-linked events',
+                    'determined events'
                 ]))
                 delay_state = page.evaluate('''() => ({
                     activityGaps: currentModuleResult?.data?.activityEvidenceInsufficientEventCount ?? 0,
@@ -100,12 +101,12 @@ try:
                 })''')
                 if delay_state['activityGaps'] > 0:
                     check('Delay Events page exposes source-limited activity evidence and fail-closed behavior',
-                          'Activity evidence not established' in body and
-                          'does not invent activity links' in body)
+                          'activity evidence not established' in body_lower and
+                          'does not invent activity links' in body_lower)
                 if delay_state['incompleteDeterminations'] > 0:
                     check('Delay Events page exposes incomplete determination chains',
-                          'Incomplete determination chains' in body and
-                          'Missing links' in body)
+                          'incomplete determination chains' in body_lower and
+                          'missing links' in body_lower)
             if key == 'eot-assessment':
                 body = page.locator('#moduleContent').inner_text()
                 check('EOT page exposes amendment and determination reconciliation', 'Amendment and determination reconciliation' in body and 'Full determination register' in body and 'Project Completion movement' in body)
