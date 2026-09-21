@@ -131,7 +131,7 @@ function scheduleRefs(
 ): string[] {
   return [
     "schedule-revision:" + schedule.sourceRevisionId,
-    ...activity.sourceRefs.map(
+    ...(activity.sourceRefs ?? []).map(
       (ref) => ref.source + ":" + ref.locator,
     ),
   ];
@@ -242,7 +242,7 @@ function activitySignals(
   if (nameSimilarity > 0) {
     signals.push({
       key: "name_similarity",
-      score: Math.min(0.46, nameSimilarity * 0.62),
+      score: Math.min(0.36, nameSimilarity * 0.42),
       detail: "Narrative/activity-name token similarity=" + nameSimilarity.toFixed(4),
     });
   }
@@ -252,7 +252,7 @@ function activitySignals(
   if (nounCoverage > 0) {
     signals.push({
       key: "narrative_token",
-      score: Math.min(0.22, nounCoverage * 0.28),
+      score: Math.min(0.14, nounCoverage * 0.16),
       detail: "Extracted narrative noun coverage=" + nounCoverage.toFixed(4),
     });
   }
@@ -270,29 +270,77 @@ function activitySignals(
   if (wbsSimilarity > 0) {
     signals.push({
       key: "wbs_similarity",
-      score: Math.min(0.22, wbsSimilarity * 0.32),
+      score: Math.min(0.14, wbsSimilarity * 0.16),
       detail: "Extracted claim features overlap the WBS hierarchy=" + wbsSimilarity.toFixed(4),
     });
   }
 
-  for (const [key, values, weight] of [
-    ["location", extraction.locations, 0.18],
-    ["discipline", extraction.disciplines, 0.14],
-    ["trade", extraction.trades, 0.18],
-  ] as const) {
-    let matched = 0;
-    if (key === "location" && values.length > 0) {
-      const corpusNorm = norm(activityCorpus);
-      const matchedLocations = values.filter(
-        (value) =>
-          norm(value).length > 0 &&
-          corpusNorm.includes(norm(value)),
+  const corpusNorm = norm(activityCorpus);
+  const specificLocations = extraction.locations.filter(
+    (value) => norm(value).includes(" "),
+  );
+  const genericLocations = extraction.locations.filter(
+    (value) => !norm(value).includes(" "),
+  );
+  if (specificLocations.length > 0 || genericLocations.length > 0) {
+    const specificMatched = specificLocations.filter(
+      (value) => corpusNorm.includes(norm(value)),
+    );
+    const genericMatched = genericLocations.filter(
+      (value) => corpusNorm.includes(norm(value)),
+    );
+    const specificCoverage =
+      specificLocations.length === 0
+        ? 0
+        : specificMatched.length / specificLocations.length;
+    const genericCoverage =
+      genericLocations.length === 0
+        ? 0
+        : genericMatched.length / genericLocations.length;
+    const locationScore =
+      Math.min(
+        0.22,
+        specificCoverage * 0.20 +
+          genericCoverage * 0.04,
       );
-      matched = matchedLocations.length / values.length;
-    } else {
-      const valueSet = new Set(values.flatMap((value) => tokens(value)));
-      matched = coverageOf(valueSet, activityTokens);
+    if (locationScore > 0) {
+      signals.push({
+        key: "location",
+        score: locationScore,
+        detail:
+          "Specific location coverage=" +
+          specificCoverage.toFixed(4) +
+          "; generic location coverage=" +
+          genericCoverage.toFixed(4),
+      });
     }
+
+    const conflictingSpecific = specificLocations.filter((value) => {
+      const normalized = norm(value);
+      const [kind] = normalized.split(" ");
+      return (
+        kind &&
+        corpusNorm.includes(kind + " ") &&
+        !corpusNorm.includes(normalized)
+      );
+    });
+    if (conflictingSpecific.length > 0) {
+      signals.push({
+        key: "location",
+        score: -0.18,
+        detail:
+          "Specific location conflict: " +
+          conflictingSpecific.join(", "),
+      });
+    }
+  }
+
+  for (const [key, values, weight] of [
+    ["discipline", extraction.disciplines, 0.08],
+    ["trade", extraction.trades, 0.08],
+  ] as const) {
+    const valueSet = new Set(values.flatMap((value) => tokens(value)));
+    const matched = coverageOf(valueSet, activityTokens);
     if (matched > 0) {
       signals.push({
         key,
@@ -308,7 +356,7 @@ function activitySignals(
   if (codeSimilarity > 0) {
     signals.push({
       key: "code_token",
-      score: Math.min(0.30, codeSimilarity * 0.35),
+      score: Math.min(0.25, codeSimilarity * 0.30),
       detail: "Claim/activity code token overlap=" + codeSimilarity.toFixed(4),
     });
   }
@@ -397,11 +445,11 @@ export function resolveClaimActivityCorrespondence(
   );
   const extraction = extract(input.narrative);
   const wbsById = new Map(
-    input.schedule.wbs.map((node) => [node.wbsId, node]),
+    (input.schedule.wbs ?? []).map((node) => [node.wbsId, node]),
   );
   const explicit = new Set(input.explicitActivityIds ?? []);
   const activityById = new Map(
-    input.schedule.activities.map((activity) => [activity.activityId, activity]),
+    (input.schedule.activities ?? []).map((activity) => [activity.activityId, activity]),
   );
 
   const validExplicit = [...explicit].filter((activityId) => activityById.has(activityId));
@@ -446,7 +494,7 @@ export function resolveClaimActivityCorrespondence(
     };
   }
 
-  const ranked = input.schedule.activities
+  const ranked = (input.schedule.activities ?? [])
     .filter(
       (activity) =>
         activity.activityType !== "wbs_summary" &&
@@ -543,8 +591,8 @@ export function resolveClaimActivityCorrespondence(
       )
     ||
       (
-        top.prefilterScore >= 0.90 &&
-        deterministicFamilies >= 3 &&
+        top.prefilterScore >= 0.78 &&
+        deterministicFamilies >= 4 &&
         (margin ?? 0) >= 0.16
       )
     );
@@ -552,9 +600,9 @@ export function resolveClaimActivityCorrespondence(
     top !== null &&
     top.aiScore !== null &&
     top.aiScore >= 0.80 &&
-    top.prefilterScore >= 0.52 &&
-    top.finalScore >= 0.82 &&
-    deterministicFamilies >= 2 &&
+    top.prefilterScore >= 0.45 &&
+    top.finalScore >= 0.72 &&
+    deterministicFamilies >= 3 &&
     (margin ?? 0) >= 0.12 &&
     ai.stage === "scored";
 
