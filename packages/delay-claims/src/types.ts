@@ -2,6 +2,7 @@ import type {
   DelayResponsibility,
   GovernanceState,
   NoticeTimeliness,
+  DelayActivityCorrespondence,
 } from "../../delay-analysis-core/src";
 
 export type DelayCandidateClass =
@@ -18,6 +19,7 @@ export interface DelayClaimEventAssessmentRow {
   noticeTimeliness: NoticeTimeliness;
   linkedClaimIds: string[];
   relatedActivityIds: string[];
+  activityCorrespondence: DelayActivityCorrespondence | null;
   overlappingWindowIds: string[];
   noticeIds: string[];
   determinationIds: string[];
@@ -63,6 +65,10 @@ export interface DelayClaimsProjection {
   noticeLinkedEventCount: number;
   determinationLinkedEventCount: number;
   fullDeterminationChainEventCount: number;
+  activityCorrespondenceAcceptedCount: number;
+  activityCorrespondenceCandidateCount: number;
+  activityCorrespondenceAmbiguousCount: number;
+  activityCorrespondenceUnresolvedCount: number;
 
   observedPositiveIndependentMovementDays: number;
   /** Gross positive analytical movement summed across windows. Not project delay or EOT. */
