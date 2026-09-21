@@ -4756,7 +4756,7 @@ function claimsFastContext(
             "windows-fast-v3",
           forecastResolver:
             (revision) =>
-              sourceOnlyForecast(
+              cachedIndependentForecast(
                 revision.model,
                 generatedAt,
               ),
