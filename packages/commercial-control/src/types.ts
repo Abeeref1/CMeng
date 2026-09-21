@@ -1,4 +1,5 @@
 import type { CanonicalCommercialModel } from "../../runtime-api/src/commercial-canonical";
+import type { CommercialFoundationProjection } from "../../commercial-foundation/src";
 import type {
   BondRecord,
   ClaimCommercialRecord,
@@ -58,6 +59,7 @@ export interface CommercialMoneyPosition {
 
 export interface CommercialControlInput {
   sourceLedger?: CanonicalCommercialModel;
+  foundation: CommercialFoundationProjection;
   generatedAt: string;
   projectId: string;
   contractValue: MoneyValue | null;
@@ -77,6 +79,7 @@ export interface CommercialControlInput {
 
 export interface CommercialControlPosition {
   sourceLedger?: CanonicalCommercialModel;
+  foundation: CommercialFoundationProjection;
   schemaVersion: "1.0";
   projectionKey: "commercial_control_position";
   generatedAt: string;
