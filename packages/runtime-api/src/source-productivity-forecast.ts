@@ -27,6 +27,7 @@ import { inferDocumentType } from "./evidence";
 
 export type ProductivityForecastMethod =
   | "source_evidence_derived_productivity"
+  | "source_work_package_productivity_model"
   | "source_declared_productivity_date"
   | "missing";
 
@@ -34,6 +35,7 @@ export interface ProductivityWorkPackageForecastRow {
   workPackageId: string;
   description: string | null;
   unit: string | null;
+  discipline: string | null;
   linkedActivityId: string | null;
   calendarId: string | null;
   asOfIso: string | null;
@@ -42,12 +44,23 @@ export interface ProductivityWorkPackageForecastRow {
   installedQuantity: number | null;
   remainingQuantity: number | null;
   actualHours: number | null;
+  recentAchievedRatePerDay: number | null;
+  conservativeAchievableRatePerDay: number | null;
+  calculatedProductiveDays: number | null;
+  sourceProductiveDays: number | null;
+  productiveDaysReconciliation:
+    | "reconciled"
+    | "different"
+    | "missing";
+  sourceInterfaceAllowanceDays: number | null;
+  sourceIndependentForecastFinishIso: string | null;
   measuredRatePerHour: number | null;
   conservativeFactor: number | null;
   evidencedRatePerHour: number | null;
   rateBasis:
     | "explicit_hourly_rate"
     | "explicit_working_day_rate"
+    | "explicit_productive_day_rate"
     | "measured_installed_per_actual_hour"
     | "measured_rate_with_conservative_factor"
     | "missing";
@@ -56,6 +69,10 @@ export interface ProductivityWorkPackageForecastRow {
   allowanceCalendarDays: number | null;
   requiredWorkingHours: number | null;
   completionIso: string | null;
+  completionBasis:
+    | "calendar_calculated"
+    | "source_model_finish"
+    | "unresolved";
   state: "official" | "candidate" | "unresolved";
   sourceRefs: string[];
   receipts: SourceReceipt[];
@@ -74,6 +91,8 @@ export interface SourceProductivityForecastEvidence {
   driverWorkPackageIds: string[];
   workPackageCount: number;
   calculatedWorkPackageCount: number;
+  calendarCalculatedWorkPackageCount: number;
+  sourceModelWorkPackageCount: number;
   calculationCoveragePercent: number | null;
   receipts: SourceReceipt[];
   sourceRefs: string[];
@@ -1269,7 +1288,9 @@ function ratePerHour(
     firstNumber(
       rows,
       "conservative achievable rate per day",
+      "conservative achievable rate day",
       "achievable rate per day",
+      "achievable rate day",
       "conservative rate per day",
       "production rate per day",
       "productivity rate per day",
@@ -1563,6 +1584,14 @@ function buildWorkPackageRows(
         "scope description",
       ) ||
       null;
+    const discipline =
+      firstCell(
+        rows,
+        "discipline",
+        "trade",
+        "work package discipline",
+      ) ||
+      null;
     const unit =
       firstCell(
         rows,
@@ -1669,6 +1698,71 @@ function buildWorkPackageRows(
         "actual work hours",
       );
 
+    const recentAchievedRatePerDay =
+      firstNumber(
+        rows,
+        "recent achieved rate per day",
+        "recent achieved rate day",
+        "recent production rate per day",
+        "recent production rate day",
+      );
+    const conservativeAchievableRatePerDay =
+      firstNumber(
+        rows,
+        "conservative achievable rate per day",
+        "conservative achievable rate day",
+        "achievable rate per day",
+        "achievable rate day",
+      );
+    const sourceProductiveDays =
+      firstNumber(
+        rows,
+        "productive days",
+        "production days",
+      );
+    const sourceInterfaceAllowanceDays =
+      firstNumber(
+        rows,
+        "interface allowance days",
+        "interface days",
+      );
+    const sourceIndependentForecastFinishIso =
+      dateValue(
+        firstCell(
+          rows,
+          "independent forecast finish",
+          "independent forecast completion",
+          "productivity forecast finish",
+          "productivity forecast completion",
+        ),
+      );
+
+    const calculatedProductiveDays =
+      remaining !== null &&
+      conservativeAchievableRatePerDay !== null &&
+      conservativeAchievableRatePerDay > 0
+        ? remaining /
+          conservativeAchievableRatePerDay
+        : null;
+    const productiveDaysReconciliation =
+      calculatedProductiveDays === null ||
+      sourceProductiveDays === null
+        ? "missing" as const
+        : (
+            Math.abs(
+              sourceProductiveDays -
+              calculatedProductiveDays,
+            ) <= 0.02 ||
+            Math.abs(
+              sourceProductiveDays -
+              Math.ceil(
+                calculatedProductiveDays,
+              ),
+            ) <= 0.02
+          )
+          ? "reconciled" as const
+          : "different" as const;
+
     const asOfIso =
       rows
         .map(
@@ -1692,6 +1786,7 @@ function buildWorkPackageRows(
           "forecast start",
           "productivity start",
           "start date",
+          "available start",
           "available from",
         ),
       );
@@ -1707,7 +1802,8 @@ function buildWorkPackageRows(
         globals,
       );
     if (
-      !allowanceValue.explicit
+      !allowanceValue.explicit &&
+      sourceInterfaceAllowanceDays === null
     ) {
       rowDiagnostics.push(
         "PRODUCTIVITY_INTERFACE_ALLOWANCE_NOT_ESTABLISHED",
@@ -1716,6 +1812,9 @@ function buildWorkPackageRows(
 
     let completionIso:
       string | null = null;
+    let completionBasis:
+      ProductivityWorkPackageForecastRow["completionBasis"] =
+      "unresolved";
     let requiredWorkingHours:
       number | null = null;
     let evidencedRatePerHour:
@@ -1827,6 +1926,8 @@ function buildWorkPackageRows(
                     0,
                     10,
                   );
+              completionBasis =
+                "calendar_calculated";
             } catch (error) {
               rowDiagnostics.push(
                 "PRODUCTIVITY_CALENDAR_CALCULATION_FAILED:" +
@@ -1842,6 +1943,38 @@ function buildWorkPackageRows(
           }
         }
       }
+    }
+
+    if (
+      completionIso === null &&
+      sourceIndependentForecastFinishIso !== null &&
+      remaining !== null &&
+      conservativeAchievableRatePerDay !== null &&
+      conservativeAchievableRatePerDay > 0 &&
+      sourceProductiveDays !== null &&
+      sourceInterfaceAllowanceDays !== null &&
+      productiveDaysReconciliation ===
+        "reconciled"
+    ) {
+      completionIso =
+        sourceIndependentForecastFinishIso;
+      completionBasis =
+        "source_model_finish";
+      rateBasis =
+        "explicit_productive_day_rate";
+      rowDiagnostics.push(
+        "PRODUCTIVITY_SOURCE_MODEL_ARITHMETIC_RECONCILED",
+      );
+      rowDiagnostics.push(
+        "PRODUCTIVITY_SOURCE_FINISH_RETAINED_CALENDAR_BASIS_NOT_INDEPENDENTLY_RECALCULATED",
+      );
+    } else if (
+      productiveDaysReconciliation ===
+        "different"
+    ) {
+      rowDiagnostics.push(
+        "PRODUCTIVITY_SOURCE_PRODUCTIVE_DAYS_ARITHMETIC_MISMATCH",
+      );
     }
 
     const receipts =
@@ -1884,6 +2017,7 @@ function buildWorkPackageRows(
       workPackageId,
       description,
       unit,
+      discipline,
       linkedActivityId,
       calendarId:
         calendarResolved.calendarId,
@@ -1896,6 +2030,20 @@ function buildWorkPackageRows(
       remainingQuantity:
         remaining,
       actualHours,
+      recentAchievedRatePerDay,
+      conservativeAchievableRatePerDay,
+      calculatedProductiveDays:
+        calculatedProductiveDays === null
+          ? null
+          : Number(
+              calculatedProductiveDays.toFixed(
+                6,
+              ),
+            ),
+      sourceProductiveDays,
+      productiveDaysReconciliation,
+      sourceInterfaceAllowanceDays,
+      sourceIndependentForecastFinishIso,
       measuredRatePerHour:
         measuredRatePerHour ===
         null
@@ -1932,6 +2080,7 @@ function buildWorkPackageRows(
               ),
             ),
       completionIso,
+      completionBasis,
       state:
         completionIso ===
         null
@@ -1988,6 +2137,18 @@ export function sourceProductivityForecastEvidence(
       (row) =>
         row.completionIso !==
         null,
+    );
+  const calendarCalculated =
+    calculated.filter(
+      (row) =>
+        row.completionBasis ===
+        "calendar_calculated",
+    );
+  const sourceModelCalculated =
+    calculated.filter(
+      (row) =>
+        row.completionBasis ===
+        "source_model_finish",
     );
 
   const latestIso =
@@ -2049,7 +2210,12 @@ export function sourceProductivityForecastEvidence(
   const method:
     ProductivityForecastMethod =
     useDerived
-      ? "source_evidence_derived_productivity"
+      ? (
+          sourceModelCalculated.length >
+          0
+            ? "source_work_package_productivity_model"
+            : "source_evidence_derived_productivity"
+        )
       : submitted.completionIso !==
           null
         ? "source_declared_productivity_date"
@@ -2145,6 +2311,10 @@ export function sourceProductivityForecastEvidence(
       rows.length,
     calculatedWorkPackageCount:
       calculated.length,
+    calendarCalculatedWorkPackageCount:
+      calendarCalculated.length,
+    sourceModelWorkPackageCount:
+      sourceModelCalculated.length,
     calculationCoveragePercent:
       coverage(
         calculated.length,
