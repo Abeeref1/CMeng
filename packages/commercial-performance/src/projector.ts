@@ -856,32 +856,46 @@ function costControl(
         "Source VAC is retained and reconciled against BAC minus source EAC.",
       );
 
+    const compatibleMoneyBasis =
+      snapshot.taxBasis !==
+      "unknown";
     const spiValue =
-      safeRatio(
-        ev.value,
-        pv.value,
-      );
+      compatibleMoneyBasis
+        ? safeRatio(
+            ev.value,
+            pv.value,
+          )
+        : null;
     const cpiValue =
-      safeRatio(
-        ev.value,
-        ac.value,
-      );
+      compatibleMoneyBasis
+        ? safeRatio(
+            ev.value,
+            ac.value,
+          )
+        : null;
     const svValue =
-      safeSubtract(
-        ev.value,
-        pv.value,
-      );
+      compatibleMoneyBasis
+        ? safeSubtract(
+            ev.value,
+            pv.value,
+          )
+        : null;
     const cvValue =
-      safeSubtract(
-        ev.value,
-        ac.value,
-      );
+      compatibleMoneyBasis
+        ? safeSubtract(
+            ev.value,
+            ac.value,
+          )
+        : null;
     const calculatedVacValue =
-      safeSubtract(
-        bac.value,
-        sourceEac.value,
-      );
+      compatibleMoneyBasis
+        ? safeSubtract(
+            bac.value,
+            sourceEac.value,
+          )
+        : null;
     const tcpiBudgetValue =
+      compatibleMoneyBasis &&
       bac.value !== null &&
       ev.value !== null &&
       bac.value !== null &&
@@ -894,6 +908,7 @@ function costControl(
           )
         : null;
     const tcpiForecastValue =
+      compatibleMoneyBasis &&
       bac.value !== null &&
       ev.value !== null &&
       sourceEac.value !==
@@ -1025,10 +1040,18 @@ function costControl(
     const scenarios =
       eacScenarios(
         snapshot,
-        bac.value,
-        ev.value,
-        ac.value,
-        cpi.value,
+        compatibleMoneyBasis
+          ? bac.value
+          : null,
+        compatibleMoneyBasis
+          ? ev.value
+          : null,
+        compatibleMoneyBasis
+          ? ac.value
+          : null,
+        compatibleMoneyBasis
+          ? cpi.value
+          : null,
         sourceEac,
         sourceEtc,
       );
@@ -1095,6 +1118,11 @@ function costControl(
         ...snapshot
           .diagnostics,
         "SOURCE_REPORTED_EAC_REMAINS_SEPARATE_FROM_CMENG_SCENARIOS",
+        ...(snapshot.taxBasis === "unknown"
+          ? [
+              "UNKNOWN_TAX_BASIS_DERIVED_COST_ARITHMETIC_WITHHELD",
+            ]
+          : []),
         ...(ac.value === null
           ? [
               "ACTUAL_COST_NOT_ESTABLISHED_COST_PERFORMANCE_QUALIFIED",
@@ -1275,6 +1303,9 @@ function evmPerformance(
               "ac",
               "AC is the source actual-cost curve point.",
             );
+          const compatibleMoneyBasis =
+            snapshot.taxBasis !==
+            "unknown";
           return {
             asOf:
               snapshot.asOf,
@@ -1282,10 +1313,12 @@ function evmPerformance(
             ev,
             ac,
             spi: calc(
-              safeRatio(
-                ev.value,
-                pv.value,
-              ),
+              compatibleMoneyBasis
+                ? safeRatio(
+                    ev.value,
+                    pv.value,
+                  )
+                : null,
               {
                 asOf:
                   snapshot.asOf,
@@ -1299,10 +1332,12 @@ function evmPerformance(
               },
             ),
             cpi: calc(
-              safeRatio(
-                ev.value,
-                ac.value,
-              ),
+              compatibleMoneyBasis
+                ? safeRatio(
+                    ev.value,
+                    ac.value,
+                  )
+                : null,
               {
                 asOf:
                   snapshot.asOf,
@@ -1316,10 +1351,12 @@ function evmPerformance(
               },
             ),
             sv: calc(
-              safeSubtract(
-                ev.value,
-                pv.value,
-              ),
+              compatibleMoneyBasis
+                ? safeSubtract(
+                    ev.value,
+                    pv.value,
+                  )
+                : null,
               {
                 asOf:
                   snapshot.asOf,
@@ -1333,10 +1370,12 @@ function evmPerformance(
               },
             ),
             cv: calc(
-              safeSubtract(
-                ev.value,
-                ac.value,
-              ),
+              compatibleMoneyBasis
+                ? safeSubtract(
+                    ev.value,
+                    ac.value,
+                  )
+                : null,
               {
                 asOf:
                   snapshot.asOf,
@@ -2422,14 +2461,17 @@ function costScurve(
               ),
             remainingCost:
               calc(
-                eac !== null &&
-                ac !== null
-                  ? eac - ac
-                  : bac !==
-                        null &&
+                snapshot.taxBasis ===
+                  "unknown"
+                  ? null
+                  : eac !== null &&
                       ac !== null
-                    ? bac - ac
-                    : null,
+                    ? eac - ac
+                    : bac !==
+                          null &&
+                        ac !== null
+                      ? bac - ac
+                      : null,
                 {
                   asOf:
                     snapshot.asOf,
