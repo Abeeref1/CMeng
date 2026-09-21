@@ -387,6 +387,84 @@ test("C2B2 Variations preserve claimed assessed agreed approved cost and schedul
     row.linkageCoveragePercent,
     100,
   );
+  assert.equal(
+    p.variations
+      .lifecycleStageCounts
+      .approved,
+    1,
+  );
+  assert.deepEqual(
+    p.variations
+      .pendingAgeBands,
+    {
+      upTo30Days: 0,
+      days31To60: 0,
+      days61To90: 0,
+      over90Days: 0,
+      unknown: 0,
+    },
+  );
+});
+
+test("C2B2 Variations publish pending lifecycle age bands from governed lifecycle dates", () => {
+  const value = input();
+  const approved =
+    value.variations[0]!;
+  value.variations.push({
+    ...approved,
+    variationId:
+      "VO-002",
+    status: "Submitted",
+    instructionId:
+      "SI-002",
+    instructionDate:
+      "2026-07-01",
+    submittedDate:
+      "2026-08-20",
+    quotationDate: null,
+    assessedDate: null,
+    agreedDate: null,
+    approvalDate: null,
+    scheduleImpactDays: null,
+    claimId: null,
+    paymentId: null,
+    activityIds: [],
+    claimedAmount:
+      money(250_000),
+    assessedAmount:
+      money(null),
+    agreedAmount:
+      money(null),
+    approvedAmount:
+      money(null),
+    sourceRefs: [
+      "test:vo-002",
+    ],
+  });
+  const variations =
+    buildContractControls(
+      value,
+    ).variations;
+  assert.equal(
+    variations
+      .lifecycleStageCounts
+      .submitted,
+    1,
+  );
+  assert.equal(
+    variations.pendingCount,
+    1,
+  );
+  assert.deepEqual(
+    variations.pendingAgeBands,
+    {
+      upTo30Days: 1,
+      days31To60: 0,
+      days61To90: 0,
+      over90Days: 0,
+      unknown: 0,
+    },
+  );
 });
 
 test("C2B2 Site Instructions age open quotations without turning instructions into variations", () => {

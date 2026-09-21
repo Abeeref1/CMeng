@@ -1714,6 +1714,89 @@ function buildPaymentRegister(
     );
   const stageTotal =
     rows.length * 4;
+  const lifecycleCounts = {
+    applied:
+      rows.filter(
+        (row) =>
+          Boolean(
+            row.lifecycle
+              .applicationDate,
+          ),
+      ).length,
+    assessed:
+      rows.filter(
+        (row) =>
+          Boolean(
+            row.lifecycle
+              .assessmentDate,
+          ),
+      ).length,
+    certified:
+      rows.filter(
+        (row) =>
+          Boolean(
+            row.lifecycle
+              .certificationDate,
+          ),
+      ).length,
+    paid:
+      rows.filter(
+        (row) =>
+          Boolean(
+            row.lifecycle
+              .paymentDate,
+          ),
+      ).length,
+  };
+  const slaCounts = {
+    paidOnTime:
+      rows.filter(
+        (row) =>
+          Boolean(
+            row.lifecycle
+              .paymentDate,
+          ) &&
+          row.lifecycle
+            .slaState ===
+            "on_time",
+      ).length,
+    paidLate:
+      rows.filter(
+        (row) =>
+          Boolean(
+            row.lifecycle
+              .paymentDate,
+          ) &&
+          row.lifecycle
+            .slaState ===
+            "late",
+      ).length,
+    overdueUnpaid:
+      rows.filter(
+        (row) =>
+          !row.lifecycle
+            .paymentDate &&
+          row.lifecycle
+            .slaState ===
+            "late",
+      ).length,
+    openUnpaid:
+      rows.filter(
+        (row) =>
+          !row.lifecycle
+            .paymentDate &&
+          row.lifecycle
+            .slaState ===
+            "open",
+      ).length,
+    notEstablished:
+      rows.filter(
+        (row) =>
+          row.lifecycle
+            .slaState ===
+            "not_established",
+      ).length,
+  };
   return {
     capabilityKey:
       "payment-register",
@@ -1731,6 +1814,8 @@ function buildPaymentRegister(
         stageKnown,
         stageTotal,
       ).percent,
+    lifecycleCounts,
+    slaCounts,
     rows,
     diagnostics: [
       "APPLIED_ASSESSED_CERTIFIED_AND_PAID_STAGES_REMAIN_SEPARATE",

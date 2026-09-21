@@ -307,6 +307,19 @@ export interface PaymentRegisterProjection {
   state: CommercialFindingState;
   recordCount: number;
   stageCoveragePercent: number | null;
+  lifecycleCounts: {
+    applied: number;
+    assessed: number;
+    certified: number;
+    paid: number;
+  };
+  slaCounts: {
+    paidOnTime: number;
+    paidLate: number;
+    overdueUnpaid: number;
+    openUnpaid: number;
+    notEstablished: number;
+  };
   rows: PaymentRegisterRecord[];
   diagnostics: string[];
 }

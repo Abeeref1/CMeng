@@ -558,6 +558,66 @@ test("CMeng workspace keeps the active module primary and browser script parseab
     /commercial-overview-enterprise/,
     "Commercial Overview must use its executive information hierarchy",
   );
+
+  for (
+    const changePaymentVisual of [
+      "Variations & Change Management Position",
+      "Variation lifecycle distribution",
+      "Pending variation aging",
+      "Contract value & change bridge",
+      "Site Instruction conversion & quotation pressure",
+      "Payments & IPC Management Position",
+      "IPC lifecycle completion",
+      "Payment SLA & aging position",
+      "Source certificate rows remain available beneath the governed payment lifecycle; values are not re-summed in the browser.",
+    ]
+  ) {
+    assert.equal(
+      html.includes(
+        changePaymentVisual,
+      ),
+      true,
+      "Variations / Payments enterprise view must expose: " +
+        changePaymentVisual,
+    );
+  }
+
+  for (
+    const enterpriseClass of [
+      "variations-enterprise",
+      "payments-enterprise",
+      "cash-flow-enterprise",
+    ]
+  ) {
+    assert.equal(
+      html.includes(
+        enterpriseClass,
+      ),
+      true,
+      "Commercial specialist page must have deliberate hierarchy: " +
+        enterpriseClass,
+    );
+  }
+
+  assert.match(
+    html,
+    /renderCommercialValueBridge/,
+    "Variation value movement must use a dedicated producer-fed contract bridge",
+  );
+  assert.equal(
+    html.includes(
+      "invoiceGroups",
+    ),
+    false,
+    "Payments and Cash Flow must not re-sum raw invoice rows in the browser",
+  );
+  assert.equal(
+    html.includes(
+      "(foundation.paymentRegister?.rows||[]).slice(0,100)",
+    ),
+    false,
+    "Payment lifecycle drill-down must not have a hidden 100-row presentation cap",
+  );
   assert.match(
     html,
     /cost-forecast-enterprise/,
