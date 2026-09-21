@@ -13,6 +13,13 @@ import type {
 import type {
   ContractTimeBasis,
 } from "../../eot-assessment/src";
+import type {
+  ClaimState,
+  DelayClaimsModel,
+  GovernanceState,
+  NoticeKind,
+  NoticeTimeliness,
+} from "../../delay-analysis-core/src";
 
 export type CommercialEvidenceState =
   | "established"
@@ -59,6 +66,61 @@ export interface CommercialMoneyPosition {
     CommercialMetric<number>;
 }
 
+export interface CommercialClaimsNoticesPosition {
+  state: CommercialEvidenceState;
+  evidenceRevisionId: string | null;
+  eventCount: number;
+  noticeCount: number;
+  lifecycleClaimCount: number;
+  commercialClaimCount: number;
+  commercialLifecycleLinkCoveragePercent:
+    number | null;
+  claimStateCounts: Record<ClaimState, number>;
+  noticeKindCounts: Record<NoticeKind, number>;
+  noticeTimelinessCounts:
+    Record<NoticeTimeliness, number>;
+  claims: Array<{
+    claimId: string;
+    title: string;
+    state: ClaimState;
+    submittedAt: string | null;
+    claimedDays: number | null;
+    claimedAmount: number | null;
+    assessedDays: number | null;
+    assessedDaysState: GovernanceState;
+    assessedAmount: number | null;
+    assessedAmountState: GovernanceState;
+    eventIds: string[];
+    clauseIdentifiers: string[];
+    sourceRefs: string[];
+  }>;
+  notices: Array<{
+    noticeId: string;
+    kind: NoticeKind;
+    eventId: string | null;
+    claimId: string | null;
+    actualIssuedAt: string | null;
+    actualReceivedAt: string | null;
+    subject: string | null;
+    clauseIdentifiers: string[];
+    sourceRefs: string[];
+  }>;
+  noticeAssessments: Array<{
+    eventId: string;
+    eventTitle: string | null;
+    requirementId: string | null;
+    requiredNoticeDays: number | null;
+    eventStartIso: string | null;
+    noticeId: string | null;
+    noticeIssuedAt: string | null;
+    elapsedDays: number | null;
+    timeliness: NoticeTimeliness;
+    requirementState:
+      GovernanceState | null;
+  }>;
+  diagnostics: string[];
+}
+
 export interface CommercialControlInput {
   sourceLedger?: CanonicalCommercialModel;
   foundation?: CommercialFoundationProjection;
@@ -73,6 +135,7 @@ export interface CommercialControlInput {
   retentions: RetentionRecord[];
   bonds: BondRecord[];
   claimCommercials: ClaimCommercialRecord[];
+  delayClaims?: DelayClaimsModel | null;
   contractTimeBasis: ContractTimeBasis | null;
   commercialEvidenceSubmitted: boolean;
   paymentEvidenceSubmitted: boolean;
@@ -104,6 +167,8 @@ export interface CommercialControlPosition {
   retentionRecordCount: number;
   bondCount: number;
   claimCommercialCount: number;
+  claimsNotices:
+    CommercialClaimsNoticesPosition;
   registers: {
     variations: VariationRecord[];
     invoices: InvoiceRecord[];
