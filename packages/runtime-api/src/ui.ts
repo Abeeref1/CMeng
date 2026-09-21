@@ -365,6 +365,7 @@ details:not(.workspace-drawer){border:1px solid var(--line);border-radius:9px;ba
 </div>
 <script>
 const groups={
+  "Management Control":["master-dashboard","command-center","master-control-programme"],
   "Programme & Planning":["pmo-analysis","schedule-analytics","activity-analytics","lookahead-schedule","schedule-change-report","revision-trend","milestones","near-critical"],
   "Progress & Resources":["resource-utilization","progress-report","variance-trends","progress-scurve","quantity-scurve","progress-breakdown","manhour-scurve"],
   "Forecast & Finish":["forecast-history","independent-forecast"],
@@ -372,9 +373,13 @@ const groups={
   "Commercial":["commercial-overview","cost-forecast","variations-change","payments","cash-flow","commercial-claims-notices","contract-particulars-bonds"]
 };
 const names={
+"master-dashboard":"Master Dashboard","command-center":"Command Center","master-control-programme":"Master Control Programme",
 "pmo-analysis":"Management Position","schedule-analytics":"Programme Review","activity-analytics":"Activity Review","resource-utilization":"Resources","lookahead-schedule":"Look-Ahead","progress-report":"Progress Position","schedule-change-report":"Programme Changes","revision-trend":"Revision History","variance-trends":"Variance Trend","progress-scurve":"Progress S-Curve","quantity-scurve":"Installed Quantities","progress-breakdown":"WBS Progress","milestones":"Milestones","near-critical":"Near-Critical & Float Risk","manhour-scurve":"Man-Hour S-Curve","forecast-history":"Forecast History","independent-forecast":"Independent Forecast","delay-claims":"Delay Events & Claims","notices-claims":"Notices, EOT & Claims","windows-analysis":"Delay Windows","eot-assessment":"EOT Position","challenge-contract":"Challenge the Contract","commercial-overview":"Commercial Overview","cost-forecast":"Cost & Forecast","variations-change":"Variations & Change","payments":"Payments","cash-flow":"Cash Flow","commercial-claims-notices":"Claims & Notices","contract-particulars-bonds":"Contract Particulars & Bonds"
 };
 const descriptions={
+"master-dashboard":"Executive KPI position with authority, owning module and evidence-safe status.",
+"command-center":"Operational control room for current programme position, priorities, evidence gaps and immediate management action.",
+"master-control-programme":"Integrated governance view for revision authority, evidence basis, specialist positions and official control status.",
 "pmo-analysis":"Finish-date outlook, schedule pressure and decisions requiring management attention.",
 "schedule-analytics":"Programme health, logic quality, float and finish dates.",
 "activity-analytics":"Activities driving delay, float pressure and logic exceptions.",
@@ -3339,7 +3344,56 @@ function renderCommercialVisual(key,data){
     '</section>';
 }
 
+function managementAuthorityBadge(authority){
+  const label=String(authority||"unavailable").replaceAll("_"," ");
+  const cls=authority==="governed"||authority==="source_current"||authority==="calculated"?"ready":authority==="provisional"||authority==="partial"||authority==="conflicted"||authority==="stale"?"partial":"blocked";
+  return '<span class="badge '+cls+'">'+escapeHtml(label)+'</span>';
+}
+function renderManagementMetricGrid(metrics){
+  if(!Array.isArray(metrics)||!metrics.length)return'<div class="empty">No governed management metrics are available yet.</div>';
+  return '<div class="planning-kpi-grid">'+metrics.map(m=>'<div class="planning-kpi"><span>'+escapeHtml(m.label)+'</span><strong>'+escapeHtml(fmt(m.value))+(m.unit?' <small>'+escapeHtml(m.unit)+'</small>':'')+'</strong><div style="margin-top:8px">'+managementAuthorityBadge(m.authority)+'</div><small>Owner: '+escapeHtml(m.owningModule||"—")+'</small></div>').join("")+'</div>';
+}
+function renderManagementControlVisual(key,data){
+  if(key==="master-dashboard"){
+    const states=Array.isArray(data.moduleStatus)?data.moduleStatus:[];
+    return '<div class="planning-view management-view">'+
+      renderPlanningPanel("Executive Project Position","Fast current position. Every value retains its authority and owning module.",renderManagementMetricGrid(data.metrics||[]),"primary")+
+      renderPlanningPanel("Specialist module status","Open the owning module for the detailed calculation, register and evidence.",'<div class="table-wrap"><table><thead><tr><th>Module</th><th>Status</th><th>Reason</th></tr></thead><tbody>'+states.map(r=>'<tr><td>'+escapeHtml(names[r.key]||humanizeKey(r.key))+'</td><td><span class="badge '+statusClass(r.status)+'">'+escapeHtml(statusLabel(r.status))+'</span></td><td>'+escapeHtml(r.reason||"Current")+'</td></tr>').join("")+'</tbody></table></div>')+
+      '</div>';
+  }
+  if(key==="command-center"){
+    const priorities=Array.isArray(data.priorities)?data.priorities:[];
+    const gaps=Array.isArray(data.evidenceGaps)?data.evidenceGaps:[];
+    const money=Array.isArray(data.commercialByCurrency)?data.commercialByCurrency:[];
+    return '<div class="planning-view management-view">'+
+      renderPlanningPanel("Current Programme Position","The operational schedule/time position used for management attention.",renderManagementMetricGrid(data.programme||[]),"primary")+
+      renderPlanningPanel("Management Priorities","Actions are recommendations and alerts. They do not approve or rewrite the governed project position.",priorities.length?'<div class="role-action-list">'+priorities.map((p,i)=>'<div class="role-action-row"><i>'+escapeHtml(i+1)+'</i><div><b>'+escapeHtml(p.action)+'</b><div class="muted">Owner: '+escapeHtml(p.owningModule)+' · '+escapeHtml(p.priority)+' priority'+(p.approvalRequired?' · approval required':'')+'</div></div></div>').join("")+'</div>':'<div class="empty">No current management actions generated.</div>')+
+      renderPlanningPanel("Evidence Gaps","Missing or partial information is shown as a correction requirement, never as a healthy zero.",gaps.length?'<div class="table-wrap"><table><thead><tr><th>Domain</th><th>State</th><th>Correction path</th></tr></thead><tbody>'+gaps.map(g=>'<tr><td>'+escapeHtml(g.domain)+'</td><td>'+managementAuthorityBadge(g.state)+'</td><td>'+escapeHtml(g.correctionPath)+'</td></tr>').join("")+'</tbody></table></div>':'<div class="notice info">No current evidence gaps identified by the management-control projection.</div>')+
+      renderPlanningPanel("Commercial Exposure by Currency","Currencies remain separate. No FX conversion or cross-currency total is inferred.",money.length?'<div class="table-wrap"><table><thead><tr><th>Currency</th><th>Pending variations</th><th>Approved variations</th><th>Certified unpaid</th><th>Retention held</th><th>Active bonds</th><th>Claimed</th><th>Assessed</th><th>LD scenario</th></tr></thead><tbody>'+money.map(r=>'<tr><td><b>'+escapeHtml(r.currency)+'</b></td><td>'+escapeHtml(fmt(r.pendingVariationAmount))+'</td><td>'+escapeHtml(fmt(r.approvedVariationAmount))+'</td><td>'+escapeHtml(fmt(r.certifiedUnpaidAmount))+'</td><td>'+escapeHtml(fmt(r.retentionHeldAmount))+'</td><td>'+escapeHtml(fmt(r.activeBondAmount))+'</td><td>'+escapeHtml(fmt(r.claimClaimedAmount))+'</td><td>'+escapeHtml(fmt(r.claimAssessedAmount))+'</td><td>'+escapeHtml(fmt(r.ldScenarioAmount))+'</td></tr>').join("")+'</tbody></table></div>':'<div class="empty">Commercial position not established.</div>')+
+      '</div>';
+  }
+  if(key==="master-control-programme"){
+    const r=data.revisionAuthority||{};
+    const positions=Array.isArray(data.specialistPositions)?data.specialistPositions:[];
+    const inv=data.invariants||{};
+    return '<div class="planning-view management-view">'+
+      renderPlanningPanel("Integrated Governance Position","MCP governs how specialist positions fit together. Corrections remain in the owning module.",'<div class="planning-kpi-grid">'+
+        '<div class="planning-kpi"><span>Current programme</span><strong>'+escapeHtml(r.latestRevisionLabel||"—")+'</strong><small>'+escapeHtml(r.latestRevisionId||"No governed revision")+'</small></div>'+
+        '<div class="planning-kpi"><span>Data date</span><strong>'+escapeHtml(fmt(r.dataDateIso))+'</strong></div>'+
+        '<div class="planning-kpi"><span>Baseline revisions</span><strong>'+escapeHtml(fmt(r.baselineRevisionCount))+'</strong></div>'+
+        '<div class="planning-kpi"><span>Updates</span><strong>'+escapeHtml(fmt(r.updateRevisionCount))+'</strong></div>'+
+        '<div class="planning-kpi"><span>Recovery scenarios</span><strong>'+escapeHtml(fmt(r.recoveryRevisionCount))+'</strong><small>Never silently promoted to current programme</small></div>'+
+        '<div class="planning-kpi"><span>Board publication</span><strong>'+escapeHtml(data.boardPublication?.state||"none")+'</strong><small>'+escapeHtml(data.boardPublication?.finalizedAt||"Not finalized")+'</small></div>'+
+        '</div>',"primary")+
+      renderPlanningPanel("Specialist Workstream Position","One integrated view, but each specialist module remains the correction authority.",'<div class="table-wrap"><table><thead><tr><th>Workstream</th><th>Health</th><th>Authority</th><th>Correction path</th></tr></thead><tbody>'+positions.map(p=>'<tr><td>'+escapeHtml(names[p.key]||humanizeKey(p.key))+'</td><td><span class="badge '+statusClass(p.health)+'">'+escapeHtml(statusLabel(p.health))+'</span></td><td>'+managementAuthorityBadge(p.authority)+'</td><td>'+escapeHtml(names[p.correctionPath]||humanizeKey(p.correctionPath))+'</td></tr>').join("")+'</tbody></table></div>')+
+      renderPlanningPanel("Governance Rules","These rules are enforced by the management-control projection.",'<div class="role-review-layers">'+Object.entries(inv).map(([k,v])=>'<div class="role-review-layer"><b>'+escapeHtml(humanizeKey(k))+'</b><span>'+escapeHtml(v===true?"Enforced":"Not established")+'</span></div>').join("")+'</div>')+
+      '<details class="role-supporting-detail"><summary>Current evidence basis <span>Audit detail</span></summary><div class="role-supporting-detail-body"><pre class="technical-payload">'+escapeHtml(JSON.stringify(data.evidenceBasis||{},null,2))+'</pre></div></details>'+
+      '</div>';
+  }
+  return"";
+}
 function renderSpecializedModule(key,data){
+  if(["master-dashboard","command-center","master-control-programme"].includes(key))return renderManagementControlVisual(key,data);
   if(key==="pmo-analysis")return renderPmoVisual(data);
   if(key==="schedule-analytics")return renderScheduleAnalyticsVisual(data);
   if(key==="activity-analytics")return renderActivityAnalyticsVisual(data);
@@ -3443,6 +3497,12 @@ function renderModuleResult(result){
   el("moduleContent").innerHTML=context+renderRoleContent(result.key,data,primaryView,challengeHtml,Boolean(specialized));
 }
 let moduleRequestSeq=0;
+const managementSurfaceKeysForApi=new Set(["master-dashboard","command-center","master-control-programme"]);
+const managementSurfacePath={
+  "master-dashboard":"dashboard",
+  "command-center":"command-center",
+  "master-control-programme":"master-control-programme"
+};
 const commercialModuleKeysForApi=new Set([
   "commercial-overview",
   "cost-forecast",
@@ -3464,8 +3524,14 @@ async function loadModule(key){
   setBusy("Updating "+moduleName);
   el("moduleContent").innerHTML='<div class="view-state-bar"><span class="spinner"></span><strong>Updating '+escapeHtml(moduleName)+'</strong><span>Preparing the latest project position.</span></div>';
   try{
-    const moduleArea=commercialModuleKeysForApi.has(key)?"commercial":"schedule";
-    const result=await api("/api/projects/"+encodeURIComponent(project())+"/"+moduleArea+"/modules/"+encodeURIComponent(key));
+    let result;
+    if(managementSurfaceKeysForApi.has(key)){
+      const data=await api("/api/projects/"+encodeURIComponent(project())+"/management-control/"+managementSurfacePath[key]);
+      result={key,status:"ready",reason:null,dependencies:["governed project position"],data};
+    }else{
+      const moduleArea=commercialModuleKeysForApi.has(key)?"commercial":"schedule";
+      result=await api("/api/projects/"+encodeURIComponent(project())+"/"+moduleArea+"/modules/"+encodeURIComponent(key));
+    }
     if(requestSeq!==moduleRequestSeq)return;
     renderModuleResult(result);
   }catch(e){
