@@ -148,6 +148,94 @@ try {
   }
   check('All 29 Project Control pages are traced', modules.size === 29);
 
+  const managementKeys = [
+    'master-dashboard',
+    'command-center',
+    'master-control-programme'
+  ];
+  const managementViews = new Map();
+  for (const key of managementKeys) {
+    const result = await json(prefix + '/management/' + key);
+    managementViews.set(key, result);
+    check(key + ': live management page resolves',
+      result?.key === key &&
+      result?.status !== 'blocked' &&
+      result?.data !== null);
+    check(key + ': live management JSON has no non-finite serialization marker',
+      !/NaN|Infinity/.test(JSON.stringify(result?.data)));
+    const report = await json(prefix + '/management/' + key + '/report.json');
+    check(key + ': management report is generated from the same governed result',
+      report?.result?.key === key &&
+      comparableDigest(report.result.data) === comparableDigest(result.data));
+  }
+  check('All three Management Control surfaces are traced', managementViews.size === 3);
+
+  const managementBundle = await json(prefix + '/management-surfaces');
+  check('Management Control bundle exposes three distinct canonical projections',
+    managementBundle?.projectionKey === 'management_surfaces' &&
+    managementBundle?.masterDashboard?.projectionKey === 'master_dashboard' &&
+    managementBundle?.commandCenter?.projectionKey === 'command_center' &&
+    managementBundle?.masterControlProgramme?.projectionKey === 'master_control_programme');
+  check('Master Dashboard bundle and first-class page share the same governed data',
+    comparableDigest(managementBundle?.masterDashboard) ===
+    comparableDigest(managementViews.get('master-dashboard')?.data));
+  check('Command Center bundle and first-class page share the same governed data',
+    comparableDigest(managementBundle?.commandCenter) ===
+    comparableDigest(managementViews.get('command-center')?.data));
+  check('MCP bundle and first-class page share the same governed data',
+    comparableDigest(managementBundle?.masterControlProgramme) ===
+    comparableDigest(managementViews.get('master-control-programme')?.data));
+
+  const masterDashboard = managementViews.get('master-dashboard')?.data;
+  const dashboardMetrics = Array.isArray(masterDashboard?.metrics)
+    ? masterDashboard.metrics
+    : [];
+  check('Master Dashboard metrics retain state authority basis and owning correction route',
+    dashboardMetrics.length > 0 &&
+    dashboardMetrics.every(metric =>
+      typeof metric.key === 'string' &&
+      typeof metric.label === 'string' &&
+      typeof metric.state === 'string' &&
+      typeof metric.authority === 'string' &&
+      typeof metric.basis === 'string' &&
+      Object.prototype.hasOwnProperty.call(metric, 'owningModule')));
+  const contractRiskMetric = dashboardMetrics.find(metric => metric.key === 'contract-risk');
+  check('Master Dashboard withholds fabricated Contract Risk score until governed capability exists',
+    contractRiskMetric?.value === null &&
+    contractRiskMetric?.state === 'unavailable' &&
+    contractRiskMetric?.authority === 'unavailable');
+
+  const commandCenter = managementViews.get('command-center')?.data;
+  check('Command Center exposes programme priorities decisions evidence gaps and commercial position',
+    Array.isArray(commandCenter?.programmePosition) &&
+    Array.isArray(commandCenter?.alerts) &&
+    Array.isArray(commandCenter?.decisions) &&
+    Array.isArray(commandCenter?.evidenceGaps) &&
+    Array.isArray(commandCenter?.commercialByCurrency));
+  check('Command Center does not invent action ownership or approval authority',
+    (commandCenter?.decisions ?? []).every(decision =>
+      decision.source === 'project_director' &&
+      (decision.accountableOwner === null || typeof decision.accountableOwner === 'string') &&
+      (decision.requiredAuthority === null || typeof decision.requiredAuthority === 'string')));
+
+  const mcp = managementViews.get('master-control-programme')?.data;
+  check('MCP preserves observed WBS as evidence rather than approved work-package authority',
+    mcp?.wbsControl?.officialWorkPackageState === 'not_established' &&
+    mcp?.wbsControl?.officialWorkPackageCoveragePercent === null);
+  check('MCP exposes all 29 specialist correction owners',
+    Array.isArray(mcp?.specialistPositions) &&
+    mcp.specialistPositions.length === 29 &&
+    mcp.specialistPositions.every(position =>
+      typeof position.key === 'string' &&
+      ['ready','partial','blocked'].includes(position.status)));
+  check('MCP candidate inbox never auto-promotes extracted evidence',
+    Array.isArray(mcp?.candidateInbox) &&
+    mcp.candidateInbox.every(candidate => candidate.status !== 'promoted'));
+  check('MCP records revision authority without treating recovery scenarios as current programme',
+    typeof mcp?.revisionAuthority?.governedRevisionCount === 'number' &&
+    typeof mcp?.revisionAuthority?.recoveryScenarioCount === 'number' &&
+    typeof mcp?.revisionAuthority?.correctionModule === 'string');
+
   const commercialCapabilityIndex = await json('/api/commercial/capabilities');
   check('C2B2 exposes fourteen controlled Commercial capabilities',
     commercialCapabilityIndex?.phase === 'C2B2' &&
