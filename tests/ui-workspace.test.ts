@@ -59,6 +59,16 @@ test("CMeng workspace keeps the active module primary and browser script parseab
   );
   assert.match(
     html,
+    /class="visual-focus-button"/,
+    "every primary visual panel must expose a section-level expand control",
+  );
+  assert.match(
+    html,
+    /function setVisualPanelFocus/,
+    "section focus must be implemented as a controlled analysis workspace rather than browser zoom",
+  );
+  assert.match(
+    html,
     /id="moduleReport"/,
     "every submodule must expose a report-generation control",
   );
@@ -485,6 +495,42 @@ test("CMeng workspace keeps the active module primary and browser script parseab
     html,
     /class="reconciliation-panel"/,
     "submitted-vs-CMeng reconciliation must be secondary to the specialist visual",
+  );
+  for (
+    const cashFlowVisual of [
+      "Cash Flow & Funding Position",
+      "Cash-flow S-curve & funding position",
+      "Cumulative expenditure budget",
+      "Cumulative expenditure forecast",
+      "Cumulative actual expenditure",
+      "Cumulative certified income",
+      "Cumulative paid income",
+      "Actual net cash",
+      "Certified unpaid",
+      "Period actual cash movement",
+      "Full governed dated register; no presentation-only row cap.",
+    ]
+  ) {
+    assert.equal(
+      html.includes(
+        cashFlowVisual,
+      ),
+      true,
+      "Cash Flow enterprise view must expose: " +
+        cashFlowVisual,
+    );
+  }
+  assert.equal(
+    html.includes(
+      "(row.entries||[]).slice(0,150)",
+    ),
+    false,
+    "Cash Flow must not silently cap the governed register at 150 rows",
+  );
+  assert.match(
+    html,
+    /renderCashMovementBars/,
+    "Cash Flow must use a cash-semantic period movement visual",
   );
   assert.match(
     html,

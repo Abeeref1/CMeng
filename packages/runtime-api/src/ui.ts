@@ -151,8 +151,9 @@ details:not(.workspace-drawer){border:1px solid var(--line);border-radius:9px;ba
 .chart-insight{display:flex;align-items:flex-start;gap:9px;margin-top:12px;padding:10px 12px;border-radius:9px;background:#f6f9fc;color:#607086;font-size:10.5px;line-height:1.45}.chart-insight b{color:#344054}
 .commercial-visual-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:18px}
 .commercial-currency-chart{border:1px solid #d9e4ef;border-radius:14px;background:#fff;padding:15px}.commercial-currency-chart h5{margin:0 0 12px;font-size:13px;color:#22364d}
+.visual-chart-actions{display:flex;align-items:center;gap:7px;flex:0 0 auto}.visual-focus-button{border:1px solid #cbd8e5;background:#fff;color:#425b74;border-radius:7px;padding:6px 9px;font-size:10.5px;font-weight:750;cursor:pointer}.visual-focus-button:hover{background:#f3f7fb;border-color:#9fb7ce}.visual-panel-open{overflow:hidden}.visual-chart.visual-focus{position:fixed;inset:24px;z-index:1000;overflow:auto;box-shadow:0 24px 70px rgba(15,23,42,.28);border-color:#aec4da}.visual-chart.visual-focus .visual-chart-head{position:sticky;top:0;z-index:4}.visual-chart.visual-focus .visual-chart-body{padding:24px}.visual-chart.visual-focus .svg-chart{min-height:500px}.cash-flow-primary{display:grid;gap:12px;margin:18px 0}.cash-flow-primary .visual-chart-body{padding:20px}.cash-flow-primary .svg-chart{min-height:390px}.cash-flow-secondary{grid-template-columns:repeat(3,minmax(0,1fr));margin-top:18px}.cash-movement-bars{display:grid;gap:9px}.cash-movement-row{display:grid;grid-template-columns:minmax(90px,.65fr) minmax(190px,1.55fr) 105px;gap:10px;align-items:center}.cash-movement-track{position:relative;height:22px;border-radius:7px;background:#eef3f8}.cash-movement-zero{position:absolute;left:50%;top:0;bottom:0;width:1px;background:#98a2b3}.cash-movement-bar{position:absolute;top:4px;height:14px;border-radius:5px}.cash-movement-bar.positive{background:#2c7a57}.cash-movement-bar.negative{background:#b4483e}.cash-movement-bar.neutral{background:#91a0b0}.cash-register-section{margin-top:20px}.section-heading.compact{align-items:center;margin-bottom:10px}.section-heading.compact h5{margin:0;font-size:14px;color:#22364d}.section-heading.compact p{margin:3px 0 0;font-size:11px;color:#718096}
 @media(max-width:1450px){.planning-kpi-grid{grid-template-columns:repeat(3,minmax(0,1fr))!important}.visual-chart-grid.three{grid-template-columns:1fr 1fr}}
-@media(max-width:1050px){.planning-primary-grid,.visual-chart-grid,.visual-chart-grid.three{grid-template-columns:1fr!important}.donut-layout{grid-template-columns:140px minmax(0,1fr)}.role-review-layers{grid-template-columns:1fr 1fr!important}}
+@media(max-width:1050px){.planning-primary-grid,.visual-chart-grid,.visual-chart-grid.three,.cash-flow-secondary{grid-template-columns:1fr!important}.donut-layout{grid-template-columns:140px minmax(0,1fr)}.role-review-layers{grid-template-columns:1fr 1fr!important}}
 @media(max-width:700px){.planning-kpi-grid{grid-template-columns:1fr 1fr!important}.donut-layout{grid-template-columns:1fr}.donut-ring{margin:auto}.module-panel #moduleContent{padding:18px!important}.role-review-layers{grid-template-columns:1fr!important}}
 
 </style>
@@ -1043,7 +1044,7 @@ function chartToneColor(tone){
   return colors[tone]||tone||colors.accent;
 }
 function renderVisualPanel(title,description,body,badge=""){
-  return '<section class="visual-chart"><div class="visual-chart-head"><div><h5>'+escapeHtml(title)+'</h5>'+(description?'<p>'+escapeHtml(description)+'</p>':'')+'</div>'+(badge?'<span class="badge">'+escapeHtml(badge)+'</span>':'')+'</div><div class="visual-chart-body">'+body+'</div></section>';
+  return '<section class="visual-chart" data-visual-panel><div class="visual-chart-head"><div><h5>'+escapeHtml(title)+'</h5>'+(description?'<p>'+escapeHtml(description)+'</p>':'')+'</div><div class="visual-chart-actions">'+(badge?'<span class="badge">'+escapeHtml(badge)+'</span>':'')+'<button class="visual-focus-button" type="button" aria-label="Expand '+escapeHtml(title)+'">Expand</button></div></div><div class="visual-chart-body">'+body+'</div></section>';
 }
 function renderDonutChart(items,centerLabel="Total"){
   const known=(items||[]).filter(item=>typeof item.value==="number"&&Number.isFinite(item.value)&&item.value>=0);
@@ -1081,6 +1082,18 @@ function renderWaterfallChart(items,unit=""){
     const tone=item.value>0?"positive":item.value<0?"negative":"neutral";
     const text=(item.value>0?"+":"")+fmt(item.value)+(unit?" "+unit:"");
     return '<div class="waterfall-row"><div class="visual-bar-label" title="'+escapeHtml(item.label)+'">'+escapeHtml(item.label)+'</div><div class="waterfall-track"><span class="waterfall-zero"></span><span class="waterfall-bar '+tone+'" style="left:'+left.toFixed(2)+'%;width:'+width.toFixed(2)+'%"></span></div><div class="visual-bar-value">'+escapeHtml(text)+'</div></div>';
+  }).join("")+'</div>';
+}
+function renderCashMovementBars(items,unit=""){
+  const rows=(items||[]).filter(item=>typeof item.value==="number"&&Number.isFinite(item.value));
+  if(!rows.length)return '<div class="empty-visual">No evidenced actual cash movement is established.</div>';
+  const max=Math.max(1,...rows.map(item=>Math.abs(item.value)));
+  return '<div class="cash-movement-bars">'+rows.map(item=>{
+    const width=Math.min(49,(Math.abs(item.value)/max)*48);
+    const left=item.value<0?50-width:50;
+    const tone=item.value>0?"positive":item.value<0?"negative":"neutral";
+    const text=(item.value>0?"+":"")+fmt(item.value)+(unit?" "+unit:"");
+    return '<div class="cash-movement-row"><div class="visual-bar-label" title="'+escapeHtml(item.label)+'">'+escapeHtml(item.label)+'</div><div class="cash-movement-track"><span class="cash-movement-zero"></span><span class="cash-movement-bar '+tone+'" style="left:'+left.toFixed(2)+'%;width:'+width.toFixed(2)+'%"></span></div><div class="visual-bar-value">'+escapeHtml(text)+'</div></div>';
   }).join("")+'</div>';
 }
 function metricValue(metric){
@@ -2765,38 +2778,87 @@ function renderCommercialVisual(key,data){
     }
     if(key==="cash-flow"){
       const cashSections=(performance.cashFlow?.currencies||[]).map(row=>{
-        const points=(row.cumulativeActualSeries||[]).map(point=>({
+        const points=(row.cumulativePositionSeries||row.cumulativeActualSeries||[]).map(point=>({
           dateIso:point.asOf,
-          income:point.cumulativeIncome,
-          expenditure:point.cumulativeExpenditure,
-          net:point.net
+          certified:point.cumulativeCertifiedIncome,
+          paid:point.cumulativePaidIncome??point.cumulativeIncome,
+          budget:point.cumulativeExpenditureBudget,
+          forecast:point.cumulativeExpenditureForecast,
+          actual:point.cumulativeActualExpenditure??point.cumulativeExpenditure,
+          net:point.actualNetCash??point.net
         }));
-        const entryRows=(row.entries||[]).slice(0,150).map(entry=>'<tr><td>'+escapeHtml(planningShortDate(entry.periodDate))+'</td><td>'+escapeHtml(humanizeKey(entry.kind))+'</td><td>'+escapeHtml(findingValue(entry.amount,row.currency))+'</td><td>'+escapeHtml(findingMeta(entry.amount))+'</td><td>'+escapeHtml((entry.sourceRefs||[]).join(", "))+'</td></tr>');
-        return '<section class="planning-panel"><div class="planning-panel-head"><div><h4>'+escapeHtml(row.currency)+' · Cash Flow Register</h4><p>Certification and cash receipt stay separate. Funding metrics require dated paid-income and actual-expenditure evidence.</p></div></div><div class="planning-panel-body">'+
+        const periodMovements=(row.periodMovementSeries||[]).map(point=>({
+          label:point.period,
+          value:point.actualNetCashMovement
+        }));
+        const entryRows=(row.entries||[]).map(entry=>'<tr><td>'+escapeHtml(planningShortDate(entry.periodDate))+'</td><td>'+escapeHtml(humanizeKey(entry.kind))+'</td><td>'+escapeHtml(findingValue(entry.amount,row.currency))+'</td><td>'+escapeHtml(findingMeta(entry.amount))+'</td><td>'+escapeHtml((entry.sourceRefs||[]).join(", "))+'</td></tr>');
+        const netValue=metricValue(row.netCashPosition);
+        const peakValue=metricValue(row.peakFundingNeed);
+        const fundingNarrative=netValue===null
+          ? 'Current net cash is not established because both dated paid income and actual expenditure are required.'
+          : netValue<0
+            ? 'Current evidenced cash deficit is '+fmt(Math.abs(netValue))+' '+row.currency+'. Peak evidenced funding need is '+(peakValue===null?'not established':fmt(peakValue)+' '+row.currency)+'.'
+            : 'Current evidenced net cash is '+fmt(netValue)+' '+row.currency+'. Peak evidenced funding need is '+(peakValue===null?'not established':fmt(peakValue)+' '+row.currency)+'.';
+        return '<section class="planning-panel primary cash-flow-position"><div class="planning-panel-head"><div><h4>'+escapeHtml(row.currency)+' · Cash Flow & Funding Position</h4><p>Cash, certification and expenditure plans remain separate. Missing cash evidence is never treated as zero.</p></div></div><div class="planning-panel-body">'+
           planningKpis([
-            ["Certified income",findingValue(row.certifiedIncome,row.currency),"not cash"],
-            ["Paid income",findingValue(row.paidIncome,row.currency),"dated cash evidence"],
+            ["Certified income",findingValue(row.certifiedIncome,row.currency),"earned/certified, not cash"],
+            ["Paid income",findingValue(row.paidIncome,row.currency),"dated cash receipt"],
+            ["Certified unpaid",findingValue(row.certifiedUnpaid,row.currency),findingMeta(row.certifiedUnpaid)],
             ["Expenditure budget",findingValue(row.expenditureBudget,row.currency),findingMeta(row.expenditureBudget)],
             ["Expenditure forecast",findingValue(row.expenditureForecast,row.currency),findingMeta(row.expenditureForecast)],
             ["Actual expenditure",findingValue(row.actualExpenditure,row.currency),findingMeta(row.actualExpenditure)],
             ["Net cash position",findingValue(row.netCashPosition,row.currency),findingMeta(row.netCashPosition)],
             ["Peak funding need",findingValue(row.peakFundingNeed,row.currency),findingMeta(row.peakFundingNeed)]
           ])+
+          '<div class="cash-flow-primary">'+
           renderVisualPanel(
-            row.currency+' · cumulative actual cash',
-            'Income is paid cash only; expenditure is explicit actual expenditure only.',
+            row.currency+' · Cash-flow S-curve & funding position',
+            'Cumulative certified and paid income are shown separately from budget, forecast and actual expenditure. Net cash uses paid income less actual expenditure only.',
             renderLineChart(points,[
-              {key:"income",label:"Cumulative paid income",tone:"success"},
-              {key:"expenditure",label:"Cumulative actual expenditure",tone:"danger"},
-              {key:"net",label:"Net cash",tone:"accent"}
+              {key:"budget",label:"Cumulative expenditure budget",tone:"graphite"},
+              {key:"forecast",label:"Cumulative expenditure forecast",tone:"purple"},
+              {key:"actual",label:"Cumulative actual expenditure",tone:"danger"},
+              {key:"certified",label:"Cumulative certified income",tone:"warning"},
+              {key:"paid",label:"Cumulative paid income",tone:"success"},
+              {key:"net",label:"Actual net cash",tone:"accent"}
             ])
           )+
+          '<div class="chart-insight"><div><b>Funding position</b><br>'+escapeHtml(fundingNarrative)+'</div></div>'+
+          '</div>'+
+          '<div class="commercial-visual-grid cash-flow-secondary">'+
+          renderVisualPanel(
+            row.currency+' · Income position',
+            'Certification is not cash. Certified-but-unpaid remains visible as a separate management exposure.',
+            renderVisualBars([
+              {label:"Certified income",value:metricValue(row.certifiedIncome),tone:"warning"},
+              {label:"Paid income",value:metricValue(row.paidIncome),tone:"success"},
+              {label:"Certified unpaid",value:metricValue(row.certifiedUnpaid),tone:"accent"}
+            ],row.currency)
+          )+
+          renderVisualPanel(
+            row.currency+' · Expenditure position',
+            'Budget, current forecast and actual expenditure are not merged.',
+            renderVisualBars([
+              {label:"Budget",value:metricValue(row.expenditureBudget),tone:"graphite"},
+              {label:"Forecast",value:metricValue(row.expenditureForecast),tone:"purple"},
+              {label:"Actual",value:metricValue(row.actualExpenditure),tone:"danger"}
+            ],row.currency)
+          )+
+          renderVisualPanel(
+            row.currency+' · Period actual cash movement',
+            'Positive movement means paid cash exceeded actual expenditure in that period; negative movement means a cash draw.',
+            renderCashMovementBars(periodMovements,row.currency)
+          )+
+          '</div>'+
+          '<section class="cash-register-section"><div class="section-heading compact"><div><h5>Cash-flow register</h5><p>Full governed dated register; no presentation-only row cap.</p></div><span class="badge">'+escapeHtml(fmt((row.entries||[]).length))+' entries</span></div>'+
           table(["Date","Entry","Amount","Evidence state","Source"],entryRows,"No dated cash-flow entries are established.")+
+          '</section>'+
           ((row.diagnostics||[]).length?'<div class="notice info">'+escapeHtml(row.diagnostics.map(humanizeKey).join("; "))+'</div>':"")+
           '</div></section>';
       }).join("");
       performanceDetail=cashSections||'<div class="notice warn">No governed cash-flow currency position is established.</div>';
     }
+
   }
   const contractControls=position.contractControls||null;
   let contractControlDetail="";
@@ -3620,6 +3682,34 @@ el("openEvidenceTop").onclick=openEvidenceWorkspace;
 el("openLibraryQuick").onclick=openEvidenceLibrary;
 function setFocusMode(enabled){document.body.classList.toggle("focus-module",enabled);el("focusMode").classList.toggle("active",enabled);el("focusMode").setAttribute("aria-pressed",String(enabled));el("focusMode").textContent=enabled?"Exit focus":"Focus view";localStorage.setItem("cmeng-focus",enabled?"1":"0")}
 el("focusMode").onclick=()=>setFocusMode(!document.body.classList.contains("focus-module"));
+function setVisualPanelFocus(panel,enabled){
+  if(!panel)return;
+  document.querySelectorAll(".visual-chart.visual-focus").forEach(node=>{
+    if(node!==panel){
+      node.classList.remove("visual-focus");
+      const other=node.querySelector(".visual-focus-button");
+      if(other)other.textContent="Expand";
+    }
+  });
+  panel.classList.toggle("visual-focus",enabled);
+  document.body.classList.toggle("visual-panel-open",enabled);
+  const button=panel.querySelector(".visual-focus-button");
+  if(button){
+    button.textContent=enabled?"Close":"Expand";
+    button.setAttribute("aria-expanded",String(enabled));
+  }
+}
+document.addEventListener("click",event=>{
+  const button=event.target.closest?.(".visual-focus-button");
+  if(!button)return;
+  const panel=button.closest("[data-visual-panel]");
+  setVisualPanelFocus(panel,!panel?.classList.contains("visual-focus"));
+});
+document.addEventListener("keydown",event=>{
+  if(event.key!=="Escape")return;
+  const panel=document.querySelector(".visual-chart.visual-focus");
+  if(panel)setVisualPanelFocus(panel,false);
+});
 function reportDownloadUrl(format){
   const moduleArea=commercialModuleKeysForApi.has(selected)?"commercial":"schedule";
   return "/api/projects/"+encodeURIComponent(project())+"/"+moduleArea+"/modules/"+encodeURIComponent(selected)+"/report."+format;
@@ -3654,7 +3744,7 @@ function openModuleReport(){
   const jsonUrl=reportDownloadUrl("json");
   const filename=reportSafeFilename(project()+"_"+moduleName+"_"+roleLabel+"_"+new Date().toISOString().slice(0,10));
   const report='<html><head><meta charset="utf-8"><title>'+escapeHtml(project()+" · "+moduleName)+'</title><style>'+styles+
-    '.report-shell{max-width:1180px;margin:0 auto;padding:28px;background:#fff}.report-header{display:flex;justify-content:space-between;gap:24px;border-bottom:2px solid #315f8a;padding-bottom:16px;margin-bottom:16px}.report-brand{font-size:13px;font-weight:900;letter-spacing:.08em;color:#315f8a}.report-header h1{font-size:26px;margin:5px 0 4px;color:#22364d}.report-header p{margin:0;color:#667085}.report-meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin:14px 0 20px}.report-meta div{padding:10px 12px;border:1px solid #dce5ef;border-radius:8px;background:#f8fbff}.report-meta span{display:block;font-size:9px;text-transform:uppercase;font-weight:800;letter-spacing:.05em;color:#7b8795}.report-meta b{display:block;margin-top:3px;font-size:12px;color:#22364d}.report-toolbar{position:sticky;top:0;z-index:100;display:flex;gap:8px;justify-content:flex-end;padding:10px 0 14px;background:#fff}.report-toolbar a,.report-toolbar button{border:1px solid #bfd0e1;background:#fff;color:#22364d;border-radius:7px;padding:8px 12px;font:600 12px Arial;cursor:pointer;text-decoration:none}.report-toolbar .primary{background:#315f8a;color:#fff;border-color:#315f8a}.module-workspace,.module-panel{box-shadow:none!important;border:0!important}.reconciliation-panel{break-inside:avoid}.planning-panel,.chart-card,.card{break-inside:avoid}@media print{body{background:#fff!important}.report-shell{max-width:none;padding:0}.report-toolbar{display:none!important}.planning-view .table-wrap{max-height:none!important;overflow:visible!important}.lookahead-timeline,.milestone-timeline{max-height:none!important;overflow:visible!important}.auxiliary-drawer{display:none!important}}'+
+    '.report-shell{max-width:1180px;margin:0 auto;padding:28px;background:#fff}.report-header{display:flex;justify-content:space-between;gap:24px;border-bottom:2px solid #315f8a;padding-bottom:16px;margin-bottom:16px}.report-brand{font-size:13px;font-weight:900;letter-spacing:.08em;color:#315f8a}.report-header h1{font-size:26px;margin:5px 0 4px;color:#22364d}.report-header p{margin:0;color:#667085}.report-meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin:14px 0 20px}.report-meta div{padding:10px 12px;border:1px solid #dce5ef;border-radius:8px;background:#f8fbff}.report-meta span{display:block;font-size:9px;text-transform:uppercase;font-weight:800;letter-spacing:.05em;color:#7b8795}.report-meta b{display:block;margin-top:3px;font-size:12px;color:#22364d}.report-toolbar{position:sticky;top:0;z-index:100;display:flex;gap:8px;justify-content:flex-end;padding:10px 0 14px;background:#fff}.report-toolbar a,.report-toolbar button{border:1px solid #bfd0e1;background:#fff;color:#22364d;border-radius:7px;padding:8px 12px;font:600 12px Arial;cursor:pointer;text-decoration:none}.report-toolbar .primary{background:#315f8a;color:#fff;border-color:#315f8a}.visual-focus-button{display:none!important}.module-workspace,.module-panel{box-shadow:none!important;border:0!important}.reconciliation-panel{break-inside:avoid}.planning-panel,.chart-card,.card{break-inside:avoid}@media print{body{background:#fff!important}.report-shell{max-width:none;padding:0}.report-toolbar{display:none!important}.planning-view .table-wrap{max-height:none!important;overflow:visible!important}.lookahead-timeline,.milestone-timeline{max-height:none!important;overflow:visible!important}.auxiliary-drawer{display:none!important}}'+
     '</style></head><body><div class="report-shell"><div class="report-toolbar"><button id="reportPrint" class="primary">Save PDF / Print</button><a href="'+escapeHtml(excelUrl)+'" download>Download Excel</a><a href="'+escapeHtml(jsonUrl)+'" download>Download data</a></div>'+
     '<header class="report-header"><div><div class="report-brand">CMENG · PROJECT CONTROL INTELLIGENCE</div><h1>'+escapeHtml(moduleName)+'</h1><p>'+escapeHtml(subtitle)+'</p></div><div><b>'+escapeHtml(project())+'</b></div></header>'+
     '<div class="report-meta"><div><span>Project</span><b>'+escapeHtml(project())+'</b></div><div><span>Review lens</span><b>'+escapeHtml(roleLabel)+'</b></div><div><span>Programme basis</span><b>'+escapeHtml(programme)+'</b></div><div><span>Data date</span><b>'+escapeHtml(dataDate)+'</b></div><div><span>Report generated</span><b>'+escapeHtml(generated)+'</b></div><div><span>View status</span><b>'+escapeHtml(status)+'</b></div></div>'+
