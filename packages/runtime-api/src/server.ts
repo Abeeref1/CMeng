@@ -48,6 +48,10 @@ import {
   commercialFoundationCapabilityForState,
 } from "./commercial-foundation-runtime";
 import {
+  commercialPerformanceCapabilities,
+  commercialPerformanceCapabilityForState,
+} from "./commercial-performance-runtime";
+import {
   loadCertifiedDemoProject,
 } from "./demo-project";
 import type {
@@ -836,10 +840,13 @@ async function route(
   ) {
     json(res, 200, {
       capabilityCount:
-        commercialFoundationCapabilities.length,
-      capabilities:
-        commercialFoundationCapabilities,
-      phase: "C2A",
+        commercialFoundationCapabilities.length +
+        commercialPerformanceCapabilities.length,
+      capabilities: [
+        ...commercialFoundationCapabilities,
+        ...commercialPerformanceCapabilities,
+      ],
+      phase: "C2B1",
       invariants: {
         universalCommercialFindingContract:
           true,
@@ -2004,6 +2011,10 @@ async function route(
     }
     const result =
       commercialFoundationCapabilityForState(
+        state,
+        key,
+      ) ??
+      commercialPerformanceCapabilityForState(
         state,
         key,
       );
