@@ -85,6 +85,9 @@ export function commercialPositionForState(
       claimCommercials:
         state.controls
           .claimCommercials,
+      delayClaims:
+        state.controls
+          .delayClaims,
       contractTimeBasis:
         state.controls
           .contractTimeBasis,

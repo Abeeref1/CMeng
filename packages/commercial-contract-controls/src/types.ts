@@ -398,6 +398,7 @@ export interface ContractObligationsProjection {
   explicitRecordCount: number;
   clauseCandidateCount: number;
   overdueCount: number;
+  openCount: number;
   completeCount: number;
   rows: ObligationRecord[];
   diagnostics: string[];

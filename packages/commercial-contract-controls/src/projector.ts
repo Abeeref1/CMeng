@@ -1023,6 +1023,12 @@ function obligations(
           row.status ===
           "overdue",
       ).length,
+    openCount:
+      explicit.filter(
+        (row) =>
+          row.status ===
+          "open",
+      ).length,
     completeCount:
       explicit.filter(
         (row) =>
