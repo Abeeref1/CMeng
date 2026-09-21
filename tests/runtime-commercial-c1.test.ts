@@ -228,6 +228,108 @@ test("C1 exposes real Commercial routes, evidence-driven status and portfolio in
         404,
       );
 
+      const capabilityIndex =
+        await (
+          await fetch(
+            base +
+              "/api/commercial/capabilities",
+          )
+        ).json() as {
+          capabilityCount: number;
+          phase: string;
+          capabilities: Array<{
+            key: string;
+          }>;
+        };
+      assert.equal(
+        capabilityIndex
+          .capabilityCount,
+        4,
+      );
+      assert.equal(
+        capabilityIndex.phase,
+        "C2A",
+      );
+      assert.deepEqual(
+        capabilityIndex
+          .capabilities
+          .map(
+            (capability) =>
+              capability.key,
+          ),
+        [
+          "commercial-terms",
+          "cost-register",
+          "payment-register",
+          "cbs-breakdown",
+        ],
+      );
+
+      const commercialTerms =
+        await (
+          await fetch(
+            base +
+              "/api/projects/" +
+              encodeURIComponent(
+                project,
+              ) +
+              "/commercial/capabilities/commercial-terms",
+          )
+        ).json() as {
+          key: string;
+          status: string;
+          data: {
+            capabilityKey:
+              string;
+            originalContractValueByCurrency:
+              Array<{
+                currency:
+                  string;
+                original: {
+                  value:
+                    number | null;
+                };
+              }>;
+          };
+        };
+      assert.equal(
+        commercialTerms.key,
+        "commercial-terms",
+      );
+      assert.equal(
+        commercialTerms
+          .data.capabilityKey,
+        "commercial-terms",
+      );
+      assert.equal(
+        commercialTerms
+          .data
+          .originalContractValueByCurrency[0]
+          ?.currency,
+        "USD",
+      );
+      assert.equal(
+        commercialTerms
+          .data
+          .originalContractValueByCurrency[0]
+          ?.original.value,
+        100,
+      );
+
+      const invalidCapability =
+        await fetch(
+          base +
+            "/api/projects/" +
+            encodeURIComponent(
+              project,
+            ) +
+            "/commercial/capabilities/not-real",
+        );
+      assert.equal(
+        invalidCapability.status,
+        404,
+      );
+
       const portfolio =
         await (
           await fetch(
