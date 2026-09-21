@@ -109,7 +109,11 @@ try:
                           'missing links' in body_lower)
             if key == 'eot-assessment':
                 body = page.locator('#moduleContent').inner_text()
-                check('EOT page exposes amendment and determination reconciliation', 'Amendment and determination reconciliation' in body and 'Full determination register' in body and 'Project Completion movement' in body)
+                body_lower = body.lower()
+                check('EOT page exposes amendment and determination reconciliation',
+                      'amendment and determination reconciliation' in body_lower and
+                      'full determination register' in body_lower and
+                      'project completion movement' in body_lower)
             if key == 'resource-utilization':
                 body = page.locator('#moduleContent').inner_text()
                 check('Resources page exposes measured source utilization', 'capacity' in body.lower() and 'planned' in body.lower() and 'actual' in body.lower())
