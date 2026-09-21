@@ -193,10 +193,14 @@ export function commercialPerformanceForState(
                   .currency,
               certifiedAmount:
                 certified,
+              certifiedAmountBasis:
+                row.certifiedAmountBasis,
               paidAmount:
                 row.amounts
                   .paidAmount
                   .value,
+              paidAmountBasis:
+                row.paidAmountBasis,
               sourceRefs:
                 [
                   ...moneyRefs(
