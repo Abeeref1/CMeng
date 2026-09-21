@@ -71,6 +71,9 @@ import {
   answerProjectQuestion,
 } from "./project-intelligence";
 import {
+  managementControlForProject,
+} from "./management-control";
+import {
   identifyEvidenceDocument,
   type EvidenceIdentificationResult,
 } from "./document-identification";
@@ -795,6 +798,74 @@ async function route(
       return;
     }
     json(res, 200, answer);
+    return;
+  }
+
+  const managementControlMatch =
+    /^\/api\/projects\/([^/]+)\/management-control$/.exec(
+      url.pathname,
+    );
+
+  if (
+    req.method === "GET" &&
+    managementControlMatch
+  ) {
+    const projectId =
+      decodeURIComponent(
+        managementControlMatch[1]!,
+      );
+    const position =
+      managementControlForProject(
+        projectId,
+      );
+    if (!position) {
+      json(res, 404, {
+        error:
+          "management_control_not_available",
+        message:
+          "The project does not yet have enough governed evidence to establish the management-control surfaces.",
+      });
+      return;
+    }
+    json(res, 200, position);
+    return;
+  }
+
+  const managementSurfaceMatch =
+    /^\/api\/projects\/([^/]+)\/management-control\/(dashboard|command-center|master-control-programme)$/.exec(
+      url.pathname,
+    );
+
+  if (
+    req.method === "GET" &&
+    managementSurfaceMatch
+  ) {
+    const projectId =
+      decodeURIComponent(
+        managementSurfaceMatch[1]!,
+      );
+    const surface =
+      managementSurfaceMatch[2]!;
+    const position =
+      managementControlForProject(
+        projectId,
+      );
+    if (!position) {
+      json(res, 404, {
+        error:
+          "management_control_not_available",
+      });
+      return;
+    }
+    json(
+      res,
+      200,
+      surface === "dashboard"
+        ? position.dashboard
+        : surface === "command-center"
+          ? position.commandCenter
+          : position.masterControlProgramme,
+    );
     return;
   }
 
