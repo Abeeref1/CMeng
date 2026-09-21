@@ -114,6 +114,19 @@ test("CMeng workspace keeps the active module primary and browser script parseab
     /Complete truth · same governed calculations/,
     "Overall Detailed must remain the authoritative master review rather than a separate calculation",
   );
+
+  assert.match(
+    html,
+    /role-lens-compact-strip/,
+    "Overall Detailed review context must stay compact instead of consuming a six-card preamble before the actual module.",
+  );
+  assert.equal(
+    html.includes(
+      "Open all technical charts, registers and supporting detail for this module",
+    ),
+    false,
+    "leadership lenses must not duplicate the same full module a second time inside another details panel.",
+  );
   assert.match(
     html,
     /Save PDF \/ Print/,
