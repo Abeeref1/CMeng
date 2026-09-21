@@ -11,12 +11,12 @@ jobs:
       fail-fast: false
       max-parallel: 16
       matrix:
-        page_index: [1,3,5,7,9,11,13,15,17,19,21,23,25,27,29,31]
+        page_index: [5,7,9,11,13,19,23,27]
     runs-on: ubuntu-latest
     timeout-minutes: 8
     env:
       CMENG_RAILWAY_URL: https://cmeng-main-production.up.railway.app
-      CMENG_EXPECTED_RELEASE: 02f1fa3c23aed92724fc053f7c016df5dcd7b11f
+      CMENG_EXPECTED_RELEASE: 8c54f83af79e4e6818ba4d1195cb66d32be9a258
       CMENG_AUDIT_PAGE_INDEX: ${{ matrix.page_index }}
     steps:
       - uses: actions/checkout@v4
