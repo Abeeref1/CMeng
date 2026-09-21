@@ -579,6 +579,103 @@ test("semantic claim activity correspondence is accepted only with a unique high
   );
 });
 
+
+test("multilingual correspondence evidence enriches generic claim registers without project tuning", (t) => {
+  const dir = mkdtempSync(join(tmpdir(), "cmeng-semantic-correspondence-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+
+  const claim = [
+    "Claim ID,Event,Notice Date,Days Claimed,Status,Linked Letter",
+    "CL-GENERIC-001,Delay event 0001,2026-06-02,12,Submitted,L-AR-001",
+  ].join("\n");
+  const claimDoc = storedDocument(
+    dir,
+    "CL-GENERIC",
+    "CL01_Claims.csv",
+    "risk_claims_procurement",
+    "delay_eot_claims_register",
+    claim,
+  );
+  const correspondenceDoc = storedDocument(
+    dir,
+    "L-GENERIC",
+    "L01_Letters.csv",
+    "correspondence",
+    "letters_notices",
+    "Letter ID,Subject\nL-AR-001,Correspondence body retained separately",
+  );
+  correspondenceDoc.basisState = "active";
+  correspondenceDoc.semanticSegments = [
+    {
+      segmentId: "page:1:0",
+      locator: "page:1",
+      method: "native_text",
+      text:
+        "L-AR-001 إشعار تأخير: أعمال خرسانة البرج أ المستوى 13 بسبب تأخر الوصول.",
+    },
+  ];
+
+  const state = stateWithDocuments([
+    claimDoc,
+    correspondenceDoc,
+  ]);
+  state.schedules[0].revision.model.wbs = [
+    {
+      wbsId: "W-AR",
+      parentWbsId: null,
+      name: "البرج أ",
+      sourceRefs: [],
+    },
+  ];
+  state.schedules[0].revision.model.activities = [
+    {
+      ...activity("A-AR-100", "CAL10", 48),
+      name: "أعمال خرسانة البرج أ المستوى 13",
+      wbsId: "W-AR",
+      sourceRefs: [
+        {
+          source: "xer",
+          locator: "TASK:line:100",
+        },
+      ],
+    },
+  ];
+
+  const canonical =
+    canonicalTimeClaims(state, true);
+  const event =
+    canonical.delayClaims?.events[0]!;
+  assert.equal(
+    event.activityCorrespondence?.activityPoolCount,
+    1,
+  );
+  assert.ok(
+    (event.activityCorrespondence?.claimSignalCount ?? 0) > 0,
+  );
+  assert.ok(
+    (event.activityCorrespondence?.retrievedCandidateCount ?? 0) > 0,
+  );
+  assert.ok(
+    (event.activityCorrespondence?.preFilterCandidateCount ?? 0) > 0,
+  );
+  assert.equal(
+    event.activityCorrespondence?.classification,
+    "accepted_deterministic",
+  );
+  assert.deepEqual(
+    event.relatedActivityIds,
+    ["A-AR-100"],
+  );
+  assert.ok(
+    event.evidenceRefs.some(
+      (ref) =>
+        ref.sourceType === "correspondence" &&
+        ref.sourceId === "L-GENERIC" &&
+        ref.locator === "page:1",
+    ),
+  );
+});
+
 function addDays(days: number): string {
   const start = Date.parse("2030-01-01T00:00:00.000Z");
   return new Date(start + days * 86_400_000).toISOString();
