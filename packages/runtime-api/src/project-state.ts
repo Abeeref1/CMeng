@@ -2124,25 +2124,21 @@ export class RuntimeProjectStore {
     const anchorPattern = (
       value: string,
     ): RegExp | null => {
-      const characters = [
-        ...value.normalize("NFKC"),
-      ]
-        .filter((character) =>
-          /[\\p{L}\\p{N}]/u.test(
-            character,
-          ),
-        )
-        .map((character) =>
-          escapeRegex(
-            character.toLowerCase(),
-          ),
-        );
-      if (characters.length === 0) {
+      const runs =
+        value
+          .normalize("NFKC")
+          .match(/[\p{L}\p{N}]+/gu)
+          ?.map((run) =>
+            escapeRegex(
+              run.toLowerCase(),
+            ),
+          ) ?? [];
+      if (runs.length === 0) {
         return null;
       }
       return new RegExp(
-        characters.join(
-          "[^\\p{L}\\p{N}]*",
+        runs.join(
+          "[^\\p{L}\\p{N}]+",
         ),
         "giu",
       );
