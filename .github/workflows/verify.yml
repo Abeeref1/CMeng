@@ -16,7 +16,7 @@ concurrency:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -53,4 +53,25 @@ jobs:
         with:
           name: cmeng-verification-${{ github.run_id }}
           path: /tmp/cmeng-verification/
+          retention-days: 7
+
+      - name: Install browser for manual live audit
+        if: always()
+        run: |
+          python -m pip install playwright==1.57.0
+          python -m playwright install --with-deps chromium
+
+      - name: Capture all live pages and visible figures
+        if: always()
+        env:
+          CMENG_RAILWAY_URL: https://cmeng-main-production.up.railway.app
+          CMENG_EXPECTED_RELEASE: b978af587b5380a2083c28d0287d8e69a7cb8d76
+        run: python scripts/manual-live-page-audit.py
+
+      - name: Preserve live page audit
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cmeng-live-page-audit-${{ github.run_id }}
+          path: live-page-audit/
           retention-days: 7
