@@ -599,6 +599,11 @@ export function resolveClaimActivityCorrespondence(
   );
   const extraction = extract(input.narrative);
   const index = scheduleIndex(input.schedule);
+  const claimSignalCount =
+    new Set([
+      ...tokens(input.narrative),
+      ...extraction.codes,
+    ]).size;
   const explicit = new Set(input.explicitActivityIds ?? []);
 
   const validExplicit = [...explicit].filter(
@@ -632,6 +637,9 @@ export function resolveClaimActivityCorrespondence(
     return {
       resolverVersion: "claim-activity-correspondence-v1",
       extraction,
+      activityPoolCount: index.indexed.length,
+      claimSignalCount,
+      retrievedCandidateCount: candidates.length,
       preFilterCandidateCount: candidates.length,
       boundedCandidateCount: candidates.length,
       aiStage: "not_required",
@@ -645,11 +653,15 @@ export function resolveClaimActivityCorrespondence(
     };
   }
 
-  const ranked = prefilterIndexedActivities(
+  // Candidate retrieval is deliberately scored-OR: any shared narrative
+  // token or code can admit an activity to the cheap stage. Downstream
+  // confidence and ambiguity gates remain unchanged and fail closed.
+  const retrieved = prefilterIndexedActivities(
     index,
     input.narrative,
     extraction,
-  )
+  );
+  const ranked = retrieved
     .map((indexedActivity) => {
       const scored = activitySignals(
         input.narrative,
@@ -842,6 +854,9 @@ export function resolveClaimActivityCorrespondence(
   return {
     resolverVersion: "claim-activity-correspondence-v1",
     extraction,
+    activityPoolCount: index.indexed.length,
+    claimSignalCount,
+    retrievedCandidateCount: retrieved.length,
     preFilterCandidateCount: ranked.length,
     boundedCandidateCount: bounded.length,
     aiStage: ai.stage,
