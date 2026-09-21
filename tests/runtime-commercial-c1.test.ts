@@ -244,11 +244,11 @@ test("C1 exposes real Commercial routes, evidence-driven status and portfolio in
       assert.equal(
         capabilityIndex
           .capabilityCount,
-        4,
+        8,
       );
       assert.equal(
         capabilityIndex.phase,
-        "C2A",
+        "C2B1",
       );
       assert.deepEqual(
         capabilityIndex
@@ -262,6 +262,10 @@ test("C1 exposes real Commercial routes, evidence-driven status and portfolio in
           "cost-register",
           "payment-register",
           "cbs-breakdown",
+          "cost-control",
+          "evm-performance",
+          "cash-flow-register",
+          "cost-scurve",
         ],
       );
 
@@ -314,6 +318,55 @@ test("C1 exposes real Commercial routes, evidence-driven status and portfolio in
           .originalContractValueByCurrency[0]
           ?.original.value,
         100,
+      );
+
+      const costControl =
+        await (
+          await fetch(
+            base +
+              "/api/projects/" +
+              encodeURIComponent(
+                project,
+              ) +
+              "/commercial/capabilities/cost-control",
+          )
+        ).json() as {
+          key: string;
+          status: string;
+          data: {
+            capabilityKey: string;
+          };
+        };
+      assert.equal(
+        costControl.key,
+        "cost-control",
+      );
+      assert.equal(
+        costControl.data
+          .capabilityKey,
+        "cost-control",
+      );
+
+      const costScurve =
+        await (
+          await fetch(
+            base +
+              "/api/projects/" +
+              encodeURIComponent(
+                project,
+              ) +
+              "/commercial/capabilities/cost-scurve",
+          )
+        ).json() as {
+          key: string;
+          data: {
+            capabilityKey: string;
+          };
+        };
+      assert.equal(
+        costScurve.data
+          .capabilityKey,
+        "cost-scurve",
       );
 
       const invalidCapability =
