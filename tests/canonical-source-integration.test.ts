@@ -136,8 +136,12 @@ test('linked correspondence PDF narrative is persisted and drives bounded activi
 
   const canonical=canonicalTimeClaims(state,true);
   const event=canonical.delayClaims?.events[0]!;
+  assert.equal(
+    event.activityCorrespondence?.classification,
+    'accepted_deterministic',
+    JSON.stringify(event.activityCorrespondence),
+  );
   assert.deepEqual(event.relatedActivityIds,['A-100']);
-  assert.equal(event.activityCorrespondence?.classification,'accepted_deterministic');
   assert.ok(
     event.activityCorrespondence?.claimEvidenceRefs.some(
       ref=>ref.sourceId===letter.documentId&&ref.locator==='page:1:anchor:L-NOTICE-001'
