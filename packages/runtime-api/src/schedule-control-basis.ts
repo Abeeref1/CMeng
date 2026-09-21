@@ -110,13 +110,60 @@ function definitionNumber(
 }
 
 function criticalThreshold(raw: string): number | null {
-  const text = raw.normalize("NFKC").replace(/≤/g, "<=");
-  const match =
-    /(?:tf|total\s+float|critical)[^\n]{0,80}?(?:<=|less\s+than\s+or\s+equal\s+to)\s*\+?\s*(-?[0-9]+(?:\.[0-9]+)?)/i.exec(
+  const text = raw.normalize("NFKC").replace(/≤/g, "<=").trim();
+  if (!text) return null;
+
+  // A critical-float threshold must describe total float / TF or an explicit
+  // critical threshold rule. Metrics such as "Critical Path Length = 1200"
+  // are schedule measures, not float-classification thresholds.
+  const hasFloatSemantics =
+    /\b(?:tf|total\s+float|float\s+threshold|critical\s+float)\b/i.test(
       text,
-    ) ??
-    /critical[^\n]{0,80}?(-?[0-9]+(?:\.[0-9]+)?)/i.exec(text);
-  return match ? numberValue(match[1]!) : null;
+    );
+  const hasExplicitThresholdSemantics =
+    /\bcritical\s+(?:threshold|definition|basis|criteria|criterion)\b/i.test(
+      text,
+    );
+  if (
+    !hasFloatSemantics &&
+    !hasExplicitThresholdSemantics
+  ) {
+    return null;
+  }
+
+  const bounded =
+    /(?:tf|total\s+float|critical(?:\s+float|\s+threshold|\s+definition|\s+basis|\s+criteria|\s+criterion)?)[^\n]{0,120}?(?:<=|less\s+than\s+or\s+equal\s+to)\s*\+?\s*(-?[0-9]+(?:\.[0-9]+)?)/i.exec(
+      text,
+    );
+  if (bounded) {
+    return numberValue(bounded[1]!) ?? null;
+  }
+
+  // Permit a numeric value only when the row/cell itself is explicitly a
+  // critical threshold/definition/basis field. Do not infer from arbitrary
+  // text containing the word "critical".
+  if (hasExplicitThresholdSemantics) {
+    const values = [
+      ...text.matchAll(
+        /(-?[0-9]+(?:\.[0-9]+)?)/g,
+      ),
+    ]
+      .map(
+        (match) =>
+          numberValue(
+            match[1] ?? "",
+          ),
+      )
+      .filter(
+        (value): value is number =>
+          value !== null,
+      );
+    return values.length === 1
+      ? values[0]!
+      : null;
+  }
+
+  return null;
 }
 
 
@@ -491,16 +538,27 @@ export function projectScheduleControlBasis(
         nearHourReceipts.push(row.receipt);
       }
 
-      const criticalDefinition =
+      const explicitCriticalDefinition =
         cell(
           row,
           "critical definition",
           "critical basis",
-        ) ||
-        (norm(key) === "critical definition" ? rawValue : "") ||
-        (/critical/i.test(rowText) && !/near[- ]?critical/i.test(rowText)
-          ? rowText
-          : "");
+          "critical threshold",
+          "critical float threshold",
+        );
+      const criticalMetricKey =
+        /^(?:critical\s+(?:definition|basis|threshold|float\s+threshold)|critical\s+total\s+float\s+threshold|tf\s+critical\s+threshold)$/i.test(
+          normalizedKey,
+        );
+      const criticalDefinition =
+        explicitCriticalDefinition ||
+        (
+          criticalMetricKey
+            ? [key, rawValue, rawUnit]
+                .filter(Boolean)
+                .join(" ")
+            : ""
+        );
       const parsedCritical = criticalThreshold(criticalDefinition);
       if (parsedCritical !== null) criticalHours.push(parsedCritical);
 
