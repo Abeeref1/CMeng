@@ -219,6 +219,13 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
   const sourceTablesForClaims=tables.filter(t=>has(t,'claim id','event')&&has(t,'notice date'));
   const claimNarratives=new Map<string,string[]>();
   const explicitActivitiesByClaim=new Map<string,string[]>();
+  const semanticNarrativeValues=(row:SourceRow):string[] =>
+    Object.entries(row.cells)
+      .filter(([key,value]) =>
+        value.trim() !== "" &&
+        /(?:event|title|description|subject|location|discipline|trade|scope|area|zone|wbs|work package|cause|reason|impact|activity name|affected work)/i.test(key),
+      )
+      .map(([,value])=>value);
   const addClaimNarrative=(claimId:string,values:readonly string[]):void=>{
     const existing=claimNarratives.get(claimId)??[];
     claimNarratives.set(claimId,[...existing,...values.filter(Boolean)]);
@@ -263,7 +270,7 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
     addClaimNarrative(
       claimId,
       [
-        ...Object.values(r.cells),
+        ...semanticNarrativeValues(r),
         linkedCorrespondence?.subject??"",
       ],
     );
@@ -326,7 +333,7 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
       'critical activity','critical activity id','critical activity ids',
       'activity reference','activity references'
     );
-    addClaimNarrative(claimId,Object.values(r.cells));
+    addClaimNarrative(claimId,semanticNarrativeValues(r));
     const mappedExplicitActivities=mapActivityRefs(activityRefs,claimId);
     addExplicitActivities(claimId,mappedExplicitActivities);
     const mappedActivities=uniq([
