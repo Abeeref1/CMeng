@@ -7,6 +7,7 @@ import {
 } from "../../commercial-control/src";
 import { commercialCanonical } from "./commercial-canonical";
 import { commercialFoundationForState } from "./commercial-foundation-runtime";
+import { commercialPerformanceForState } from "./commercial-performance-runtime";
 import type {
   ProjectRuntimeState,
   ModuleRuntimeResult,
@@ -40,6 +41,11 @@ export function commercialPositionForState(
         commercialCanonical(state),
       foundation:
         commercialFoundationForState(
+          state,
+          generatedAt,
+        ),
+      performance:
+        commercialPerformanceForState(
           state,
           generatedAt,
         ),

@@ -1,4 +1,5 @@
 import { buildCommercialFoundation } from "../../commercial-foundation/src";
+import { buildCommercialPerformance } from "../../commercial-performance/src";
 import type {
   CommercialControlInput,
   CommercialControlPosition,
@@ -928,9 +929,139 @@ export function buildCommercialControlPosition(
           ) ?? [],
     });
 
+  const performance =
+    input.performance ??
+    buildCommercialPerformance({
+      projectId:
+        input.projectId,
+      generatedAt:
+        input.generatedAt,
+      dataDateIso:
+        input.sourceLedger
+          ?.dataDateIso ??
+        null,
+      foundation,
+      costSnapshots:
+        input.sourceLedger
+          ?.costPosition.map(
+            (snapshot) => ({
+              currency:
+                snapshot.currency,
+              taxBasis:
+                snapshot.taxBasis as
+                  | "exclusive"
+                  | "inclusive"
+                  | "unknown",
+              asOf:
+                snapshot.asOf,
+              state:
+                snapshot.state,
+              values: {
+                ...snapshot.values,
+              },
+              sourceRefs:
+                snapshot.receipts.map(
+                  (receipt) =>
+                    "evidence-document:" +
+                    receipt.documentId +
+                    ":" +
+                    receipt.locator,
+                ),
+              diagnostics: [
+                ...snapshot
+                  .diagnostics,
+              ],
+            }),
+          ) ?? [],
+      costMetrics:
+        input.sourceLedger
+          ?.costMetrics.map(
+            (row) => ({
+              metric:
+                row.metric,
+              value:
+                row.amount.value,
+              currency:
+                row.amount.currency,
+              taxBasis:
+                row.amount.taxBasis,
+              asOf:
+                row.amount.asOf,
+              state:
+                row.amount.state,
+              sourceStatus:
+                row.sourceStatus,
+              cbsId:
+                row.cbsId,
+              wbsId:
+                row.wbsId,
+              sourceRefs:
+                row.amount.receipts.map(
+                  (receipt) =>
+                    "evidence-document:" +
+                    receipt.documentId +
+                    ":" +
+                    receipt.locator,
+                ),
+            }),
+          ) ?? [],
+      payments:
+        input.sourceLedger
+          ?.payments.map(
+            (row) => {
+              const certifiedMoney =
+                row.amounts
+                  .employerCertifiedAmount
+                  .value !== null
+                  ? row.amounts
+                      .employerCertifiedAmount
+                  : row.amounts
+                      .netCertifiedAmount;
+              return {
+                paymentId:
+                  row.paymentId,
+                periodEnd:
+                  row.periodEnd,
+                certificationDate:
+                  row.certificationDate,
+                paymentDate:
+                  row.paymentDate,
+                currency:
+                  certifiedMoney.currency ??
+                  row.amounts
+                    .paidAmount.currency,
+                certifiedAmount:
+                  certifiedMoney.value,
+                paidAmount:
+                  row.amounts
+                    .paidAmount.value,
+                sourceRefs: [
+                  ...certifiedMoney.receipts.map(
+                    (receipt) =>
+                      "evidence-document:" +
+                      receipt.documentId +
+                      ":" +
+                      receipt.locator,
+                  ),
+                  ...row.amounts
+                    .paidAmount
+                    .receipts.map(
+                      (receipt) =>
+                        "evidence-document:" +
+                        receipt.documentId +
+                        ":" +
+                        receipt.locator,
+                    ),
+                ],
+              };
+            },
+          ) ?? [],
+    });
+
   return {
     ...(input.sourceLedger ? {sourceLedger: input.sourceLedger} : {}),
     foundation,
+    performance,
     schemaVersion: "1.0",
     projectionKey:
       "commercial_control_position",
@@ -1196,6 +1327,42 @@ export function buildCommercialModuleProjection(
             .cbsBreakdown
             .mappingCoveragePercent,
       },
+      costControlSummary: {
+        state:
+          position.performance
+            .costControl.state,
+        positionCount:
+          position.performance
+            .costControl
+            .positions.length,
+      },
+      evmPerformanceSummary: {
+        state:
+          position.performance
+            .evmPerformance.state,
+        seriesCount:
+          position.performance
+            .evmPerformance
+            .series.length,
+      },
+      cashFlowSummary: {
+        state:
+          position.performance
+            .cashFlow.state,
+        currencyCount:
+          position.performance
+            .cashFlow
+            .currencies.length,
+      },
+      costScurveSummary: {
+        state:
+          position.performance
+            .costScurve.state,
+        seriesCount:
+          position.performance
+            .costScurve
+            .series.length,
+      },
     };
   } else if (
     key === "cost_forecast"
@@ -1207,6 +1374,15 @@ export function buildCommercialModuleProjection(
       cbsBreakdown:
         position.foundation
           .cbsBreakdown,
+      costControl:
+        position.performance
+          .costControl,
+      evmPerformance:
+        position.performance
+          .evmPerformance,
+      costScurve:
+        position.performance
+          .costScurve,
       currencies:
         position.currencies.map(
           (row) => ({
@@ -1332,6 +1508,9 @@ export function buildCommercialModuleProjection(
       paymentRegister:
         position.foundation
           .paymentRegister,
+      cashFlowRegister:
+        position.performance
+          .cashFlow,
       currencies:
         position.currencies.map(
           (row) => ({

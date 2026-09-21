@@ -1,5 +1,6 @@
 import type { CanonicalCommercialModel } from "../../runtime-api/src/commercial-canonical";
 import type { CommercialFoundationProjection } from "../../commercial-foundation/src";
+import type { CommercialPerformanceProjection } from "../../commercial-performance/src";
 import type {
   BondRecord,
   ClaimCommercialRecord,
@@ -60,6 +61,7 @@ export interface CommercialMoneyPosition {
 export interface CommercialControlInput {
   sourceLedger?: CanonicalCommercialModel;
   foundation?: CommercialFoundationProjection;
+  performance?: CommercialPerformanceProjection;
   generatedAt: string;
   projectId: string;
   contractValue: MoneyValue | null;
@@ -80,6 +82,7 @@ export interface CommercialControlInput {
 export interface CommercialControlPosition {
   sourceLedger?: CanonicalCommercialModel;
   foundation: CommercialFoundationProjection;
+  performance: CommercialPerformanceProjection;
   schemaVersion: "1.0";
   projectionKey: "commercial_control_position";
   generatedAt: string;
