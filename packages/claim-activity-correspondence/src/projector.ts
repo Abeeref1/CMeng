@@ -141,16 +141,18 @@ function extract(
   narrative: string,
 ): ClaimActivityCorrespondenceResolution["extraction"] {
   const all = tokens(narrative);
-  const set = new Set(all);
+  const rawTokens = norm(narrative)
+    .split(" ")
+    .filter(Boolean);
   const disciplines = all.filter((token) => DISCIPLINES.has(token));
   const trades = all.filter((token) => TRADES.has(token));
 
   const locations: string[] = [];
-  for (let index = 0; index < all.length; index += 1) {
-    const token = all[index]!;
+  for (let index = 0; index < rawTokens.length; index += 1) {
+    const token = rawTokens[index]!;
     if (!LOCATION_WORDS.has(token)) continue;
     locations.push(token);
-    const next = all[index + 1];
+    const next = rawTokens[index + 1];
     if (next && /^(?:[a-z]?\d+[a-z]?|[a-z])$/i.test(next)) {
       locations.push(token + " " + next);
     }
@@ -278,8 +280,19 @@ function activitySignals(
     ["discipline", extraction.disciplines, 0.14],
     ["trade", extraction.trades, 0.18],
   ] as const) {
-    const valueSet = new Set(values.flatMap((value) => tokens(value)));
-    const matched = coverageOf(valueSet, activityTokens);
+    let matched = 0;
+    if (key === "location" && values.length > 0) {
+      const corpusNorm = norm(activityCorpus);
+      const matchedLocations = values.filter(
+        (value) =>
+          norm(value).length > 0 &&
+          corpusNorm.includes(norm(value)),
+      );
+      matched = matchedLocations.length / values.length;
+    } else {
+      const valueSet = new Set(values.flatMap((value) => tokens(value)));
+      matched = coverageOf(valueSet, activityTokens);
+    }
     if (matched > 0) {
       signals.push({
         key,
