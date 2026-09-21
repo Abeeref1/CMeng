@@ -2272,7 +2272,9 @@ export class RuntimeProjectStore {
           refreshReceipt.sourceHashSha256 ===
             document.sourceHashSha256 &&
           refreshReceipt.anchorSetHashSha256 ===
-            anchorSetHashSha256
+            anchorSetHashSha256 &&
+          refreshReceipt.ocrFailedPages ===
+            0
         ) {
           segmentCount +=
             currentExisting.length;
@@ -2414,6 +2416,7 @@ export class RuntimeProjectStore {
           }
 
           let ocrPageCount = 0;
+          let ocrFailureCount = 0;
           if (
             lowNativePages.length >
             0
@@ -2470,6 +2473,8 @@ export class RuntimeProjectStore {
                     pageNumber ===
                       null
                   ) {
+                    ocrFailureCount +=
+                      1;
                     diagnostics.push(
                       "CORRESPONDENCE_OCR_SCREENSHOT_MISSING:" +
                         document.documentId +
@@ -2581,6 +2586,8 @@ export class RuntimeProjectStore {
                       );
                     }
                   } catch (error) {
+                    ocrFailureCount +=
+                      1;
                     diagnostics.push(
                       "CORRESPONDENCE_OCR_FAILURE:" +
                         document.documentId +
@@ -2638,6 +2645,8 @@ export class RuntimeProjectStore {
               nativePageCount +
               ":ocr=" +
               ocrPageCount +
+              ":ocrFailed=" +
+              ocrFailureCount +
               ":total=" +
               totalPages,
           );
@@ -2960,6 +2969,8 @@ export class RuntimeProjectStore {
               nativePageCount,
             ocrPages:
               ocrPageCount,
+            ocrFailedPages:
+              ocrFailureCount,
             unresolvedAnchorCount:
               documentUnresolvedAnchorCount,
             completedAt:
