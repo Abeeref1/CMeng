@@ -2111,8 +2111,42 @@ export class RuntimeProjectStore {
     ): string =>
       value
         .normalize("NFKC")
-        .trim()
-        .toLowerCase();
+        .toLowerCase()
+        .replace(/[^\p{L}\p{N}]+/gu, "");
+
+    const escapeRegex = (
+      value: string,
+    ): string =>
+      value.replace(
+        /[.*+?^${}()|[\]\\]/g,
+        "\\$&",
+      );
+    const anchorPattern = (
+      value: string,
+    ): RegExp | null => {
+      const characters = [
+        ...value.normalize("NFKC"),
+      ]
+        .filter((character) =>
+          /[\\p{L}\\p{N}]/u.test(
+            character,
+          ),
+        )
+        .map((character) =>
+          escapeRegex(
+            character.toLowerCase(),
+          ),
+        );
+      if (characters.length === 0) {
+        return null;
+      }
+      return new RegExp(
+        characters.join(
+          "[^\\p{L}\\p{N}]*",
+        ),
+        "giu",
+      );
+    };
 
     for (const state of targetStates) {
       const tableDiagnostics:
@@ -2283,10 +2317,8 @@ export class RuntimeProjectStore {
             if (!pageText) {
               continue;
             }
-            const lower =
-              pageText
-                .normalize("NFKC")
-                .toLowerCase();
+            const searchablePageText =
+              pageText.normalize("NFKC");
 
             const occurrences:
               Array<{
@@ -2296,39 +2328,34 @@ export class RuntimeProjectStore {
               }> = [];
 
             for (const anchor of anchors) {
-              const normalized =
-                anchor
-                  .normalize("NFKC")
-                  .toLowerCase();
-              if (!normalized) {
+              const matcher =
+                anchorPattern(anchor);
+              if (!matcher) {
                 continue;
               }
-              let from = 0;
-              while (
-                from <
-                lower.length
-              ) {
-                const index =
-                  lower.indexOf(
-                    normalized,
-                    from,
+              matcher.lastIndex = 0;
+              for (
+                let match =
+                  matcher.exec(
+                    searchablePageText,
                   );
-                if (index < 0) {
-                  break;
-                }
+                match;
+                match =
+                  matcher.exec(
+                    searchablePageText,
+                  )
+              ) {
                 occurrences.push({
                   anchor,
-                  index,
+                  index:
+                    match.index,
                   end:
-                    index +
-                    normalized.length,
+                    match.index +
+                    match[0].length,
                 });
-                from =
-                  index +
-                  Math.max(
-                    1,
-                    normalized.length,
-                  );
+                if (match[0].length === 0) {
+                  matcher.lastIndex += 1;
+                }
               }
             }
 
@@ -2398,7 +2425,7 @@ export class RuntimeProjectStore {
                     2400,
                 );
               const text =
-                pageText
+                searchablePageText
                   .slice(
                     start,
                     end,

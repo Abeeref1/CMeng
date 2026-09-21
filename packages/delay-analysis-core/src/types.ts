@@ -90,6 +90,10 @@ export interface DelayActivityCorrespondenceCandidate {
 
 export interface DelayActivityCorrespondence {
   resolverVersion: "claim-activity-correspondence-v1";
+  activityPoolCount: number;
+  claimSignalTokenCount: number;
+  claimSignalCodeCount: number;
+  prefilterRawCandidateCount: number;
   extraction: {
     nouns: string[];
     locations: string[];

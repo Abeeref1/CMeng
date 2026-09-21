@@ -374,6 +374,10 @@ try {
             aiStage: event.activityCorrespondence?.aiStage ?? null,
             acceptedActivityIds: event.activityCorrespondence?.acceptedActivityIds ?? [],
             candidateActivityIds: event.activityCorrespondence?.candidateActivityIds ?? [],
+            activityPoolCount: event.activityCorrespondence?.activityPoolCount ?? null,
+            claimSignalTokenCount: event.activityCorrespondence?.claimSignalTokenCount ?? null,
+            claimSignalCodeCount: event.activityCorrespondence?.claimSignalCodeCount ?? null,
+            prefilterRawCandidateCount: event.activityCorrespondence?.prefilterRawCandidateCount ?? null,
             preFilterCandidateCount: event.activityCorrespondence?.preFilterCandidateCount ?? null,
             boundedCandidateCount: event.activityCorrespondence?.boundedCandidateCount ?? null,
             topCandidates: Array.isArray(event.activityCorrespondence?.candidates)
