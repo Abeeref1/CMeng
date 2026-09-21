@@ -65,6 +65,19 @@ interface ClaimActivityScheduleIndex {
 const scheduleIndexCache =
   new WeakMap<CanonicalScheduleModel, ClaimActivityScheduleIndex>();
 
+let rawDiagnosticCount = 0;
+const RAW_DIAGNOSTIC_LIMIT = 4;
+
+function hexFirst64Characters(value: string): string {
+  return Buffer.from(
+    [...value].slice(0, 64).join(""),
+    "utf8",
+  ).toString("hex");
+}
+
+function characterCount(value: string): number {
+  return [...value].length;
+}
 
 function norm(value: string | null | undefined): string {
   return (value ?? "")
@@ -672,7 +685,7 @@ export function resolveClaimActivityCorrespondence(
     input.narrative,
     extraction,
   );
-  const ranked = prefilter.items
+  const prefilterScored = prefilter.items
     .map((indexedActivity) => {
       const scored = activitySignals(
         input.narrative,
@@ -681,11 +694,130 @@ export function resolveClaimActivityCorrespondence(
         indexedActivity.wbs,
       );
       return {
+        indexedActivity,
         activity: indexedActivity.activity,
         prefilterScore: Number(scored.score.toFixed(4)),
         signals: scored.signals,
       };
-    })
+    });
+
+  if (
+    process.env.CMENG_CLAIM_RESOLVER_RAW_DIAGNOSTICS === "1" &&
+    rawDiagnosticCount < RAW_DIAGNOSTIC_LIMIT
+  ) {
+    rawDiagnosticCount += 1;
+    const candidateSamples =
+      prefilterScored.slice(0, 4).map((candidate) => {
+        const queryTokens = new Set([
+          ...tokens(input.narrative),
+          ...extraction.nouns,
+          ...extraction.locations.flatMap((value) => tokens(value)),
+          ...extraction.disciplines,
+          ...extraction.trades,
+        ]);
+        const queryCodes = new Set(
+          extraction.codes.map((value) => value.toUpperCase()),
+        );
+        const matchedTokens = [...queryTokens].filter((token) =>
+          candidate.indexedActivity.tokens.has(token),
+        );
+        const matchedCodes = [...queryCodes].filter((code) =>
+          candidate.indexedActivity.codes.has(code),
+        );
+        return {
+          activityId: candidate.activity.activityId,
+          nativeId: candidate.activity.nativeId ?? null,
+          nameRaw: candidate.activity.name ?? "",
+          nameHexFirst64:
+            hexFirst64Characters(candidate.activity.name ?? ""),
+          nameLength:
+            characterCount(candidate.activity.name ?? ""),
+          wbsRaw: candidate.indexedActivity.wbs,
+          wbsHexFirst64:
+            hexFirst64Characters(candidate.indexedActivity.wbs),
+          corpusRaw: candidate.indexedActivity.corpus,
+          corpusHexFirst64:
+            hexFirst64Characters(candidate.indexedActivity.corpus),
+          normalizedCorpus:
+            norm(candidate.indexedActivity.corpus),
+          matchedQueryTokens: matchedTokens,
+          matchedQueryCodes: matchedCodes,
+          cheapTokenOverlapCount: matchedTokens.length,
+          cheapCodeOverlapCount: matchedCodes.length,
+          exactComparison: {
+            narrativeNormalized: norm(input.narrative),
+            activityNameNormalized: norm(candidate.activity.name),
+            activityTokenSet: [...candidate.indexedActivity.tokens],
+            activityCodeSet: [...candidate.indexedActivity.codes],
+            prefilterScore: candidate.prefilterScore,
+            signals: candidate.signals,
+            gateResult:
+              candidate.prefilterScore >= 0.18
+                ? "retained_at_prefilter_floor"
+                : "rejected_below_prefilter_floor_0.18",
+          },
+        };
+      });
+
+    const firstCandidate = candidateSamples[0] ?? null;
+    const source = input.diagnosticSource ?? null;
+    const extractedSignalCount =
+      extraction.nouns.length +
+      extraction.locations.length +
+      extraction.disciplines.length +
+      extraction.trades.length +
+      extraction.codes.length;
+
+    process.stdout.write(
+      JSON.stringify({
+        event: "claim_activity_raw_diagnostic",
+        diagnosticOrdinal: rawDiagnosticCount,
+        claimId: input.claimId,
+        eventId: input.eventId,
+        sourceTableDocumentId:
+          source?.tableDocumentId ?? null,
+        sourceTableFilename:
+          source?.tableSourceFilename ?? null,
+        sourceLocator:
+          source?.sourceLocator ?? null,
+        sourceColumns:
+          source?.columns ?? [],
+        sourceRawFragments:
+          source?.rawFragments ?? [],
+        claimRawText: input.narrative,
+        claimRawTextHexFirst64:
+          hexFirst64Characters(input.narrative),
+        claimRawTextLength:
+          characterCount(input.narrative),
+        extraction,
+        extractedSignalCount,
+        activityPoolCount: index.indexed.length,
+        claimSignalTokenCount: prefilter.queryTokenCount,
+        claimSignalCodeCount: prefilter.queryCodeCount,
+        prefilterRawCandidateCount: prefilter.rawCandidateCount,
+        prefilterScoredCandidateCount:
+          prefilterScored.length,
+        activitySamples: candidateSamples,
+        firstCandidateCompared:
+          firstCandidate === null
+            ? {
+                activityId: null,
+                comparisonResult:
+                  "no_candidate_reached_candidate_union",
+                exactComparisonPerformed: null,
+              }
+            : {
+                activityId: firstCandidate.activityId,
+                comparisonResult:
+                  firstCandidate.exactComparison.prefilterScore,
+                exactComparisonPerformed:
+                  firstCandidate.exactComparison,
+              },
+      }) + "\n",
+    );
+  }
+
+  const ranked = prefilterScored
     .filter((item) => item.prefilterScore >= 0.18)
     .sort(
       (a, b) =>
