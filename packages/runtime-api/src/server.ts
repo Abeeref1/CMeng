@@ -2638,28 +2638,25 @@ if (require.main === module) {
     const correspondenceRefresh =
       await runtimeProjects
         .refreshCorrespondenceNarratives();
-    if (
-      correspondenceRefresh.refreshedDocumentCount > 0 ||
-      correspondenceRefresh.diagnostics.length > 0
-    ) {
-      process.stdout.write(
-        JSON.stringify({
-          event:
-            "correspondence_narrative_refresh",
-          refreshedDocumentCount:
-            correspondenceRefresh.refreshedDocumentCount,
-          segmentCount:
-            correspondenceRefresh.segmentCount,
-          unresolvedAnchorCount:
-            correspondenceRefresh.unresolvedAnchorCount,
-          diagnosticCodes:
-            correspondenceRefresh.diagnostics.map(
-              (item) =>
-                item.split(":")[0],
-            ),
-        }) + "\n",
-      );
-    }
+    process.stdout.write(
+      JSON.stringify({
+        event:
+          "correspondence_narrative_refresh",
+        refreshedDocumentCount:
+          correspondenceRefresh.refreshedDocumentCount,
+        anchorCount:
+          correspondenceRefresh.anchorCount,
+        segmentCount:
+          correspondenceRefresh.segmentCount,
+        unresolvedAnchorCount:
+          correspondenceRefresh.unresolvedAnchorCount,
+        diagnosticCodes:
+          correspondenceRefresh.diagnostics.map(
+            (item) =>
+              item.split(":")[0],
+          ),
+      }) + "\n",
+    );
 
     for (const projectId of runtimeProjects.listProjectIds()) {
       const state = runtimeProjects.get(projectId);
