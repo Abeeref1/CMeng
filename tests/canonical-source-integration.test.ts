@@ -220,6 +220,26 @@ test('legacy SCH01 misclassified before schedule-control rules is recovered from
   assert.equal(projectScheduleControlBasis(restored).nearCriticalWorkingDays,5);
 });
 
+test('Critical Path Length is never interpreted as a critical total-float threshold',t=>{
+  const {state,csvDoc}=fixture(t);
+  csvDoc(
+    [
+      'Metric,Value,Unit,Source',
+      'Critical Path Length,1200,working_day,Control basis',
+      'Near Critical,629,count,TASK',
+      'Negative Float,378,count,TASK',
+    ].join('\n'),
+    'schedule_metric_register',
+  );
+  const basis=projectScheduleControlBasis(state);
+  assert.equal(basis.analysisConfig.criticalFloatThresholdHours,0);
+  assert.equal(basis.criticalFloatThresholdHours,0);
+  assert.equal(basis.nearCriticalSourceCount,629);
+  assert.ok(
+    !basis.diagnostics.includes('CONFLICTING_CRITICAL_FLOAT_DEFINITIONS'),
+  );
+});
+
 test('project near-critical basis can be corroborated from governed SCH02 or Project Data Book when SCH01 text is not machine-readable',t=>{
   const {state,csvDoc}=fixture(t);
   csvDoc(
