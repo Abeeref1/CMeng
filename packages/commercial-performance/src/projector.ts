@@ -70,6 +70,12 @@ function authorityForSnapshot(
   ) {
     return "candidate";
   }
+  if (
+    snapshot.state ===
+    "conflicted"
+  ) {
+    return "mixed";
+  }
   return "mixed";
 }
 
@@ -88,6 +94,12 @@ function stateForSnapshot(
     "candidate"
   ) {
     return "candidate";
+  }
+  if (
+    snapshot.state ===
+    "conflicted"
+  ) {
+    return "conflicted";
   }
   return "partial";
 }
@@ -1404,10 +1416,10 @@ function sumKnown(
   ) {
     return null;
   }
-  return values.reduce(
+  return values.reduce<number>(
     (sum, value) =>
       sum +
-      (value ?? 0),
+      (value as number),
     0,
   );
 }

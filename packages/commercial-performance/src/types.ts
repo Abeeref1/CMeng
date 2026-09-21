@@ -17,7 +17,8 @@ export interface PerformanceCostSnapshotInput {
   state:
     | "official"
     | "candidate"
-    | "partial";
+    | "partial"
+    | "conflicted";
   values: Record<string, number | null>;
   sourceRefs: string[];
   diagnostics: string[];
