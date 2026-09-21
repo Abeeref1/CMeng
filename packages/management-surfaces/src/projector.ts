@@ -22,6 +22,19 @@ function healthForSignedVariance(
   return "good";
 }
 
+function managementDays(
+  value: number,
+): string {
+  const rounded =
+    Math.round(value * 10) / 10;
+  return rounded.toLocaleString(
+    "en-US",
+    {
+      maximumFractionDigits: 1,
+    },
+  );
+}
+
 function metric(
   value: Partial<ManagementMetric> &
     Pick<
@@ -451,12 +464,38 @@ function dashboardMetrics(
           .varianceDaysToOfficialAdjustedCompletion ===
         null
           ? null
-          : "Variance to official adjusted completion: " +
-            String(
-              d?.schedule
-                .varianceDaysToOfficialAdjustedCompletion,
+          : (
+              d.schedule
+                .varianceDaysToOfficialAdjustedCompletion >
+              0
+                ? "Independent forecast is "
+                : d.schedule
+                    .varianceDaysToOfficialAdjustedCompletion <
+                  0
+                  ? "Independent forecast is "
+                  : "Independent forecast aligns with "
             ) +
-            " days.",
+            (
+              d.schedule
+                .varianceDaysToOfficialAdjustedCompletion ===
+              0
+                ? "the official adjusted completion date."
+                : managementDays(
+                    Math.abs(
+                      d.schedule
+                        .varianceDaysToOfficialAdjustedCompletion,
+                    ),
+                  ) +
+                  " calendar days " +
+                  (
+                    d.schedule
+                      .varianceDaysToOfficialAdjustedCompletion >
+                    0
+                      ? "later than"
+                      : "earlier than"
+                  ) +
+                  " the official adjusted completion date."
+            ),
       action:
         d?.schedule
           .varianceDaysToOfficialAdjustedCompletion !==
