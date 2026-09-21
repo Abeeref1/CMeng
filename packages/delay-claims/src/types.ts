@@ -25,9 +25,17 @@ export interface DelayClaimEventAssessmentRow {
   determinationIds: string[];
   evidenceChainState:
     | "full_determination_chain"
+    | "determination_chain_incomplete"
     | "notice_chain"
     | "schedule_chain"
     | "claim_event_only";
+  evidenceChainMissingLinks: Array<
+    | "claim"
+    | "activity"
+    | "window"
+    | "notice"
+    | "determination"
+  >;
   observedNetIndependentMovementDays: number;
   observedPositiveIndependentMovementDays: number;
   observedNetProgrammeMovementDays: number;
@@ -65,6 +73,8 @@ export interface DelayClaimsProjection {
   noticeLinkedEventCount: number;
   determinationLinkedEventCount: number;
   fullDeterminationChainEventCount: number;
+  determinationChainIncompleteEventCount: number;
+  activityEvidenceInsufficientEventCount: number;
   activityCorrespondenceAcceptedCount: number;
   activityCorrespondenceCandidateCount: number;
   activityCorrespondenceAmbiguousCount: number;
