@@ -1317,14 +1317,13 @@ function liquidatedDamages(
           contractValue.value,
         );
       const capped =
-        uncapped === null
+        uncapped === null ||
+        capValue === null
           ? null
-          : capValue === null
-            ? uncapped
-            : Math.min(
-                uncapped,
-                capValue,
-              );
+          : Math.min(
+              uncapped,
+              capValue,
+            );
       const rateRefs =
         rate?.sourceRefs ??
         [];
@@ -1383,11 +1382,13 @@ function liquidatedDamages(
         exposureDays,
         currency:
           rate?.currency ??
-          contractValue.currency ===
+          (
+            contractValue.currency ===
             "UNRESOLVED"
-            ? null
-            : contractValue
-                .currency,
+              ? null
+              : contractValue
+                  .currency
+          ),
         uncappedExposure:
           uncapped === null
             ? missingNumber(
@@ -1486,9 +1487,7 @@ function liquidatedDamages(
                 ),
                 {
                   method:
-                    capValue === null
-                      ? "uncapped_ld_no_cap_established"
-                      : "min(uncapped_ld, ld_cap)",
+                    "min(uncapped_ld, ld_cap)",
                   refs: uniq([
                     ...rateRefs,
                     ...capRefs,
