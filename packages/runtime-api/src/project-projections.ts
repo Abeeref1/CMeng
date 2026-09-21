@@ -1,4 +1,7 @@
-import { canonicalCommercialModule } from "./commercial-runtime";
+import {
+  canonicalCommercialModule,
+  commercialPositionForState,
+} from "./commercial-runtime";
 import { projectControlSchedule } from "./canonical-time-claims";
 import { projectScheduleControlBasis } from "./schedule-control-basis";
 import { sourceProductivityForecastEvidence } from "./source-productivity-forecast";
@@ -121,6 +124,13 @@ import {
 import {
   resolveProjectControlNumberMetric,
 } from "./project-control-source-metrics";
+import {
+  buildManagementSurfaces,
+  type ManagementEvidenceGapInput,
+  type ManagementHistoryInput,
+  type ManagementModuleInput,
+  type ManagementSurfacesProjection,
+} from "../../management-surfaces/src";
 
 interface ProjectionBundle {
   version: number;
@@ -6415,6 +6425,672 @@ export function boardReportForProject(
   if (!state) return null;
   return buildBundle(state)
     .boardReport;
+}
+
+function managementModuleGroup(
+  key: string,
+  category: string,
+): string {
+  if (
+    category === "commercial"
+  ) {
+    return "Commercial";
+  }
+  if (
+    category === "progress"
+  ) {
+    return "Progress & Resources";
+  }
+  if (
+    category === "forecast"
+  ) {
+    return "Forecast & Finish";
+  }
+  if (
+    category === "claims" ||
+    category === "contract"
+  ) {
+    return "Claims & Commercial";
+  }
+  return "Programme & Planning";
+}
+
+function gapState(
+  established: boolean,
+  partial = false,
+): ManagementEvidenceGapInput["state"] {
+  return established
+    ? "established"
+    : partial
+      ? "partial"
+      : "missing";
+}
+
+export function managementSurfacesForProject(
+  projectId: string,
+): ManagementSurfacesProjection | null {
+  const state =
+    runtimeProjects.get(projectId);
+  if (!state) return null;
+
+  const bundle =
+    buildBundle(state);
+  const generatedAt =
+    bundle.generatedAt;
+  const director =
+    bundle.director;
+  const commercial =
+    commercialPositionForState(
+      state,
+      generatedAt,
+    );
+  const current =
+    projectControlSchedule(state);
+  const baselineCandidates =
+    state.schedules
+      .filter(
+        (item) =>
+          item.role ===
+            "baseline" ||
+          item.role ===
+            "revised_baseline",
+      )
+      .sort(
+        (a, b) =>
+          a.revision.sequence -
+          b.revision.sequence,
+      );
+  const baseline =
+    baselineCandidates.at(-1) ??
+    null;
+
+  const scheduleInputs:
+    ManagementModuleInput[] =
+    scheduleModules.map(
+      (descriptor) => {
+        const result =
+          bundle.modules.get(
+            descriptor.key,
+          );
+        return {
+          key: descriptor.key,
+          label:
+            descriptor.title,
+          group:
+            managementModuleGroup(
+              descriptor.key,
+              descriptor.category,
+            ),
+          status:
+            result?.status ??
+            "blocked",
+          reason:
+            result?.reason ??
+            "Current specialist position is not established.",
+        };
+      },
+    );
+
+  const commercialInputs:
+    ManagementModuleInput[] =
+    commercialModules.map(
+      (descriptor) => {
+        const result =
+          canonicalCommercialModule(
+            state,
+            descriptor.key,
+          );
+        return {
+          key: descriptor.key,
+          label:
+            descriptor.title,
+          group: "Commercial",
+          status:
+            result?.status ??
+            "blocked",
+          reason:
+            result?.reason ??
+            "Current Commercial position is not established.",
+        };
+      },
+    );
+
+  const terms =
+    commercial.foundation
+      .commercialTerms;
+  const cost =
+    commercial.foundation
+      .costRegister;
+  const payments =
+    commercial.foundation
+      .paymentRegister;
+  const riskState =
+    director?.controls
+      .riskEvidenceState ??
+    "not_submitted";
+
+  const evidenceGaps:
+    ManagementEvidenceGapInput[] = [
+      {
+        key:
+          "current-programme",
+        label:
+          "Current programme",
+        state: gapState(
+          current !== null,
+        ),
+        action:
+          "Upload or select the governed current programme in the programme revision workflow.",
+        owningModule:
+          "schedule-analytics",
+      },
+      {
+        key:
+          "controlled-baseline",
+        label:
+          "Controlled baseline",
+        state: gapState(
+          baseline !== null,
+        ),
+        action:
+          "Upload or select the governed baseline/revised baseline.",
+        owningModule:
+          "revision-trend",
+      },
+      {
+        key:
+          "contract-completion",
+        label:
+          "Contract completion date",
+        state: gapState(
+          terms
+            .contractualCompletionDate
+            .value !== null,
+          terms
+            .contractualCompletionDate
+            .state ===
+            "candidate",
+        ),
+        action:
+          "Review and govern the contractual completion term in Commercial Terms.",
+        owningModule:
+          "contract-particulars-bonds",
+      },
+      {
+        key:
+          "cost-evidence",
+        label:
+          "Cost evidence",
+        state: gapState(
+          cost.state ===
+            "established",
+          cost.state ===
+            "partial" ||
+            cost.recordCount > 0,
+        ),
+        action:
+          "Provide or reconcile the governed cost register and CBS mappings.",
+        owningModule:
+          "cost-forecast",
+      },
+      {
+        key:
+          "payment-dates",
+        label:
+          "Payment lifecycle dates",
+        state: gapState(
+          payments.recordCount >
+            0 &&
+          payments
+            .stageCoveragePercent ===
+            100,
+          payments.recordCount >
+            0,
+        ),
+        action:
+          "Complete the application, assessment, certification and payment event dates in the Payment Register.",
+        owningModule:
+          "payments",
+      },
+      {
+        key:
+          "risk-information",
+        label:
+          "Governed risk information",
+        state:
+          riskState ===
+          "established"
+            ? "established"
+            : riskState ===
+                "submitted_unparsed"
+              ? "partial"
+              : "missing",
+        action:
+          "Establish the governed Risk Register before relying on project-wide risk KPIs.",
+        owningModule: null,
+      },
+      {
+        key:
+          "commercial-terms",
+        label:
+          "Commercial terms",
+        state:
+          terms.state ===
+            "established"
+            ? "established"
+            : terms.state ===
+                "partial" ||
+                terms.state ===
+                  "candidate"
+              ? "partial"
+              : "missing",
+        action:
+          "Review contract facts, amendments and provisional terms in Commercial Terms.",
+        owningModule:
+          "contract-particulars-bonds",
+      },
+    ];
+
+  const currentPublication =
+    state.boardPublicationHistory
+      .filter(
+        (item) =>
+          !item.stale,
+      )
+      .sort(
+        (a, b) =>
+          a.finalizedAt.localeCompare(
+            b.finalizedAt,
+          ),
+      )
+      .at(-1) ??
+    null;
+  const stalePublication =
+    state.boardPublicationHistory
+      .filter(
+        (item) =>
+          item.stale,
+      )
+      .sort(
+        (a, b) =>
+          a.finalizedAt.localeCompare(
+            b.finalizedAt,
+          ),
+      )
+      .at(-1) ??
+    null;
+  const boardPublicationState =
+    currentPublication
+      ? "current" as const
+      : stalePublication
+        ? "stale" as const
+        : "none" as const;
+
+  if (
+    boardPublicationState !==
+    "current"
+  ) {
+    evidenceGaps.push({
+      key:
+        "board-publication",
+      label:
+        "Board publication",
+      state:
+        boardPublicationState ===
+          "stale"
+          ? "stale"
+          : "missing",
+      action:
+        "Finalize a current board report after the management position is certified.",
+      owningModule: null,
+    });
+  }
+
+  const candidates = [
+    ...state.evidenceDocuments
+      .filter(
+        (document) =>
+          document.basisState ===
+          "candidate",
+      )
+      .map(
+        (document) => ({
+          candidateId:
+            "document:" +
+            document.documentId,
+          type:
+            document.documentType,
+          label:
+            document.sourceFilename,
+          sourceRef:
+            "evidence-document:" +
+            document.documentId,
+          status:
+            "pending_review" as const,
+          owningModule: null,
+        }),
+      ),
+    ...terms.clauses
+      .filter(
+        (clause) =>
+          clause.governanceState !==
+          "effective",
+      )
+      .map(
+        (clause) => ({
+          candidateId:
+            "contract-clause:" +
+            clause.clauseKey,
+          type:
+            "contract_clause",
+          label:
+            (
+              clause.identifier ??
+              clause.clauseKey
+            ) +
+            (
+              clause.heading
+                ? " · " +
+                  clause.heading
+                : ""
+            ),
+          sourceRef:
+            clause.sourceRef,
+          status:
+            "pending_review" as const,
+          owningModule:
+            "contract-particulars-bonds",
+        }),
+      ),
+  ];
+
+  const history:
+    ManagementHistoryInput[] = [
+      ...state.evidenceDocuments.map(
+        (document) => ({
+          eventId:
+            "evidence-upload:" +
+            document.documentId,
+          occurredAt:
+            document.uploadedAt,
+          entity:
+            document.sourceFilename,
+          action:
+            "Project evidence added or updated",
+          actor: null,
+          state:
+            document.basisState,
+          sourceRef:
+            "evidence-document:" +
+            document.documentId,
+        }),
+      ),
+      ...state.boardPublicationHistory.map(
+        (publication) => ({
+          eventId:
+            "board-publication:" +
+            publication.publicationId,
+          occurredAt:
+            publication.finalizedAt,
+          entity:
+            publication.publicationId,
+          action:
+            publication.stale
+              ? "Board publication became stale"
+              : "Board publication finalized",
+          actor: null,
+          state:
+            publication.stale
+              ? "stale"
+              : "finalized",
+          sourceRef:
+            publication.sourceManifestId
+              ? "source-manifest:" +
+                publication.sourceManifestId
+              : null,
+        }),
+      ),
+      ...(state.lastRerunReceipt
+        ? [
+            {
+              eventId:
+                state.lastRerunReceipt
+                  .receiptId,
+              occurredAt:
+                state.lastRerunReceipt
+                  .generatedAt,
+              entity:
+                "Project control position",
+              action:
+                "Project position recalculated and cross-module certification executed",
+              actor: null,
+              state:
+                state.lastRerunReceipt
+                  .certification
+                  .state,
+              sourceRef:
+                "rerun-receipt:" +
+                state.lastRerunReceipt
+                  .receiptId,
+            },
+          ]
+        : []),
+    ].sort(
+      (a, b) =>
+        b.occurredAt.localeCompare(
+          a.occurredAt,
+        ),
+    );
+
+  const model =
+    current?.revision.model ??
+    null;
+  const observedWbsLabels =
+    model
+      ? [
+          ...new Set(
+            model.wbs.map(
+              (node) =>
+                node.name ??
+                node.wbsId,
+            ),
+          ),
+        ].sort()
+      : [];
+  const activitiesWithWbs =
+    model
+      ? model.activities.filter(
+          (activity) =>
+            Boolean(
+              activity.wbsId,
+            ),
+        ).length
+      : 0;
+  const observedCoveragePercent =
+    model &&
+    model.activities.length >
+      0
+      ? Number(
+          (
+            (
+              activitiesWithWbs /
+              model.activities.length
+            ) *
+            100
+          ).toFixed(2),
+        )
+      : null;
+
+  const evmByCurrency =
+    commercial.performance
+      .costControl.positions
+      .map(
+        (position) => ({
+          currency:
+            position.currency,
+          cv:
+            position.cv.value,
+          spi:
+            position.spi.value,
+          cpi:
+            position.cpi.value,
+          state:
+            position.spi.value !==
+              null &&
+            position.cpi.value !==
+              null
+              ? "established" as const
+              : (
+                    position.spi.value !==
+                      null ||
+                    position.cpi.value !==
+                      null ||
+                    position.cv.value !==
+                      null
+                  )
+                ? "partial" as const
+                : "missing" as const,
+        }),
+      );
+
+  return buildManagementSurfaces({
+    schemaVersion: "1.0",
+    projectId,
+    generatedAt,
+    director,
+    modules: [
+      ...scheduleInputs,
+      ...commercialInputs,
+    ],
+    evidenceDocumentCount:
+      state.evidenceDocuments.length,
+    evidenceGaps,
+    candidates,
+    history,
+    revisionAuthority: {
+      baselineRevisionId:
+        baseline?.revision
+          .revisionId ??
+        null,
+      baselineLabel:
+        baseline?.revision.label ??
+        baseline?.sourceFilename ??
+        null,
+      currentRevisionId:
+        current?.revision
+          .revisionId ??
+        null,
+      currentLabel:
+        current?.revision.label ??
+        current?.sourceFilename ??
+        null,
+      currentDataDateIso:
+        current?.revision.model
+          .dataDateIso ??
+        null,
+      governedRevisionCount:
+        state.schedules.filter(
+          (item) =>
+            item.role !==
+            "recovery",
+        ).length,
+      recoveryScenarioCount:
+        state.schedules.filter(
+          (item) =>
+            item.role ===
+            "recovery",
+        ).length,
+      correctionModule:
+        "revision-trend",
+    },
+    wbsControl: {
+      observedWbsCount:
+        model?.wbs.length ??
+        0,
+      observedWbsLabels,
+      activityCount:
+        model?.activities.length ??
+        0,
+      activitiesWithWbs,
+      observedCoveragePercent,
+      officialWorkPackageCoveragePercent:
+        null,
+      officialWorkPackageState:
+        "not_established",
+    },
+    commercial: {
+      overdueUnpaidPayments:
+        payments.slaCounts
+          .overdueUnpaid,
+      paidLatePayments:
+        payments.slaCounts
+          .paidLate,
+      lateNotices:
+        commercial.claimsNotices
+          .noticeTimelinessCounts
+          .late,
+      notIssuedNotices:
+        commercial.claimsNotices
+          .noticeTimelinessCounts
+          .not_issued,
+      evmByCurrency,
+    },
+    boardPublicationState,
+  });
+}
+
+export function managementSurfaceForProject(
+  projectId: string,
+  key: string,
+): ModuleRuntimeResult | null {
+  const surfaces =
+    managementSurfacesForProject(
+      projectId,
+    );
+  if (!surfaces) {
+    return null;
+  }
+  const data =
+    key ===
+    "master-dashboard"
+      ? surfaces.masterDashboard
+      : key ===
+          "command-center"
+        ? surfaces.commandCenter
+        : key ===
+            "master-control-programme"
+          ? surfaces
+              .masterControlProgramme
+          : null;
+  if (!data) {
+    return null;
+  }
+
+  const currentEstablished =
+    surfaces
+      .masterControlProgramme
+      .revisionAuthority
+      .currentRevisionId !==
+    null;
+
+  return {
+    key,
+    status:
+      currentEstablished
+        ? "ready"
+        : "partial",
+    reason:
+      currentEstablished
+        ? null
+        : "A current governed programme is required before the integrated management position can be complete.",
+    dependencies: [
+      "canonical specialist projections",
+      "Project Director position",
+      "governed evidence basis",
+      "Commercial control position",
+    ],
+    data,
+  };
 }
 
 export function overviewForProject(

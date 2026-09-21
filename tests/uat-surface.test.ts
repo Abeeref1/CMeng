@@ -243,6 +243,170 @@ test("certified demo exposes all 22 schedule modules plus 7 commercial modules, 
         b.evidenceReceiptIds
           .length > 0,
       );
+
+      const surfaces =
+        await fetch(
+          base +
+            "/api/projects/" +
+            project +
+            "/management-surfaces",
+        );
+      assert.equal(
+        surfaces.status,
+        200,
+      );
+      const management =
+        await surfaces.json() as {
+          projectionKey: string;
+          masterDashboard: {
+            projectionKey: string;
+            metrics:
+              Array<{
+                key: string;
+                state: string;
+              }>;
+          };
+          commandCenter: {
+            projectionKey: string;
+          };
+          masterControlProgramme: {
+            projectionKey: string;
+            wbsControl: {
+              officialWorkPackageState:
+                string;
+            };
+          };
+        };
+      assert.equal(
+        management.projectionKey,
+        "management_surfaces",
+      );
+      assert.equal(
+        management.masterDashboard
+          .projectionKey,
+        "master_dashboard",
+      );
+      assert.equal(
+        management.commandCenter
+          .projectionKey,
+        "command_center",
+      );
+      assert.equal(
+        management.masterControlProgramme
+          .projectionKey,
+        "master_control_programme",
+      );
+      assert.equal(
+        management
+          .masterControlProgramme
+          .wbsControl
+          .officialWorkPackageState,
+        "not_established",
+        "observed schedule WBS labels must not auto-establish the official work-package hierarchy",
+      );
+
+      for (
+        const key of [
+          "master-dashboard",
+          "command-center",
+          "master-control-programme",
+        ]
+      ) {
+        const response =
+          await fetch(
+            base +
+              "/api/projects/" +
+              project +
+              "/management/" +
+              key,
+          );
+        assert.equal(
+          response.status,
+          200,
+          key,
+        );
+        const result =
+          await response.json() as {
+            key: string;
+            status: string;
+            data: unknown;
+          };
+        assert.equal(
+          result.key,
+          key,
+        );
+        assert.notEqual(
+          result.status,
+          "blocked",
+        );
+        assert.notEqual(
+          result.data,
+          null,
+        );
+
+        const jsonReport =
+          await fetch(
+            base +
+              "/api/projects/" +
+              project +
+              "/management/" +
+              key +
+              "/report.json",
+          );
+        assert.equal(
+          jsonReport.status,
+          200,
+          key + " JSON report",
+        );
+        const report =
+          await jsonReport.json() as {
+            report: {
+              moduleKey: string;
+            };
+            result: {
+              key: string;
+            };
+          };
+        assert.equal(
+          report.report.moduleKey,
+          key,
+        );
+        assert.equal(
+          report.result.key,
+          key,
+        );
+      }
+
+      const managementExcel =
+        await fetch(
+          base +
+            "/api/projects/" +
+            project +
+            "/management/master-dashboard/report.xlsx",
+        );
+      assert.equal(
+        managementExcel.status,
+        200,
+      );
+      assert.match(
+        managementExcel.headers.get(
+          "content-type",
+        ) ?? "",
+        /spreadsheetml/,
+      );
+      const managementExcelBytes =
+        new Uint8Array(
+          await managementExcel.arrayBuffer(),
+        );
+      assert.equal(
+        String.fromCharCode(
+          managementExcelBytes[0] ??
+            0,
+          managementExcelBytes[1] ??
+            0,
+        ),
+        "PK",
+      );
     },
   );
 });
