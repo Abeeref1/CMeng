@@ -498,17 +498,17 @@ test("CMeng workspace keeps the active module primary and browser script parseab
   );
   for (
     const cashFlowVisual of [
-      "Cash Flow & Funding Position",
+      "Cash Flow & Funding",
+      "Current evidenced net cash",
+      "Current cash position",
+      "Missing cash is not treated as zero.",
+      "Paid cash receipts",
+      "Actual expenditure",
       "Cash-flow S-curve & funding position",
-      "Cumulative expenditure budget",
-      "Cumulative expenditure forecast",
-      "Cumulative actual expenditure",
-      "Cumulative certified income",
-      "Cumulative paid income",
-      "Actual net cash",
-      "Certified unpaid",
-      "Period actual cash movement",
-      "Full governed dated register; no presentation-only row cap.",
+      "A management S-curve requires at least two defensible dated points.",
+      "Governed dated cash-flow register",
+      "Calculation trace",
+      "Evidence & governance",
     ]
   ) {
     assert.equal(
@@ -516,10 +516,24 @@ test("CMeng workspace keeps the active module primary and browser script parseab
         cashFlowVisual,
       ),
       true,
-      "Cash Flow enterprise view must expose: " +
+      "Cash Flow evidence-first view must expose: " +
         cashFlowVisual,
     );
   }
+  assert.equal(
+    html.includes(
+      "Cash & Certification Position by Currency",
+    ),
+    false,
+    "Cash Flow must not lead with the generic Commercial summary after the dedicated cash position.",
+  );
+  assert.equal(
+    html.includes(
+      "Full governed dated register; no presentation-only row cap.",
+    ),
+    false,
+    "Cash Flow register must be collapsed into source drill-down rather than consume the main management canvas.",
+  );
   assert.equal(
     html.includes(
       "(row.entries||[]).slice(0,150)",
@@ -531,6 +545,30 @@ test("CMeng workspace keeps the active module primary and browser script parseab
     html,
     /renderCashMovementBars/,
     "Cash Flow must use a cash-semantic period movement visual",
+  );
+
+  assert.match(
+    html,
+    /function managementMetricDisplay/,
+    "Master Dashboard must use presentation-safe value formatting instead of dumping raw machine values.",
+  );
+  assert.match(
+    html,
+    /planningShortDate\(value\)/,
+    "ISO management dates must render as human dates rather than raw timestamps.",
+  );
+  assert.match(
+    html,
+    /if\(state===authority\)return managementAuthorityBadge\(state\)/,
+    "identical state and authority must collapse to one badge instead of duplicate CALCULATED pills.",
+  );
+  assert.equal(
+    html.includes(
+      '<div class="management-metric-value date">'+
+      '2033-05-15T16:00:00.000Z',
+    ),
+    false,
+    "management cards must never hard-code or display raw ISO timestamps as their primary value.",
   );
 
   for (
