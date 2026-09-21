@@ -942,6 +942,99 @@ try {
     costScurveSeriesCount: costScurveSeries.length
   };
 
+  // Non-monetary Cash Flow source trace. This intentionally records only
+  // schema/state/basis coverage so CI artifacts can diagnose mapping gaps
+  // without publishing project values or source filenames.
+  const countBy = (rows, getter) => {
+    const counts = {};
+    for (const row of rows) {
+      const key = String(getter(row) ?? 'missing');
+      counts[key] = (counts[key] ?? 0) + 1;
+    }
+    return counts;
+  };
+  const certifiedMoneyFor = payment =>
+    payment?.amounts?.employerCertifiedAmount?.value !== null &&
+    payment?.amounts?.employerCertifiedAmount?.value !== undefined
+      ? payment.amounts.employerCertifiedAmount
+      : payment?.amounts?.netCertifiedAmount;
+  const sourceCommercialSchemas = before.documents
+    .filter(document => {
+      const headers = Array.isArray(document.schemaHeaders)
+        ? document.schemaHeaders.map(normalMetric)
+        : [];
+      return headers.some(header =>
+        /(certificate|payment|paid|certified|cash|expenditure|cost|metric|amount|series basis|value basis)/.test(header)
+      );
+    })
+    .map(document => ({
+      category: document.category ?? null,
+      documentType: document.documentType ?? null,
+      basisState: document.basisState ?? null,
+      parserState: document.parserState ?? null,
+      mediaClass: mediaClass(document),
+      schemaHeaders: Array.isArray(document.schemaHeaders)
+        ? document.schemaHeaders.map(normalMetric)
+        : []
+    }));
+
+  const paymentDiagnostics = sourcePayments.flatMap(payment =>
+    Array.isArray(payment.diagnostics) ? payment.diagnostics : []
+  );
+  const cashEntryCounts = cashCurrencies.map(cash => ({
+    currency: cash.currency,
+    entryKinds: countBy(cash.entries ?? [], entry => entry.kind),
+    findingStates: {
+      certifiedIncome: cash.certifiedIncome?.state ?? 'missing',
+      paidIncome: cash.paidIncome?.state ?? 'missing',
+      certifiedUnpaid: cash.certifiedUnpaid?.state ?? 'missing',
+      expenditureBudget: cash.expenditureBudget?.state ?? 'missing',
+      expenditureForecast: cash.expenditureForecast?.state ?? 'missing',
+      actualExpenditure: cash.actualExpenditure?.state ?? 'missing',
+      netCashPosition: cash.netCashPosition?.state ?? 'missing',
+      peakFundingNeed: cash.peakFundingNeed?.state ?? 'missing'
+    },
+    diagnostics: Array.isArray(cash.diagnostics)
+      ? [...new Set(cash.diagnostics)].sort()
+      : []
+  }));
+
+  summary.cashFlowSourceTrace = {
+    paymentRows: {
+      recordCount: sourcePayments.length,
+      withPeriodEnd: sourcePayments.filter(row => Boolean(row.periodEnd)).length,
+      withCertificationDate: sourcePayments.filter(row => Boolean(row.certificationDate)).length,
+      withPaymentDate: sourcePayments.filter(row => Boolean(row.paymentDate)).length,
+      withEmployerCertifiedAmount: sourcePayments.filter(row => row.amounts?.employerCertifiedAmount?.value !== null && row.amounts?.employerCertifiedAmount?.value !== undefined).length,
+      withNetCertifiedAmount: sourcePayments.filter(row => row.amounts?.netCertifiedAmount?.value !== null && row.amounts?.netCertifiedAmount?.value !== undefined).length,
+      withAnyCertifiedAmount: sourcePayments.filter(row => {
+        const amount = certifiedMoneyFor(row);
+        return amount?.value !== null && amount?.value !== undefined;
+      }).length,
+      withPaidAmount: sourcePayments.filter(row => row.amounts?.paidAmount?.value !== null && row.amounts?.paidAmount?.value !== undefined).length,
+      withPaidAmountAndPaymentDate: sourcePayments.filter(row =>
+        row.amounts?.paidAmount?.value !== null &&
+        row.amounts?.paidAmount?.value !== undefined &&
+        Boolean(row.paymentDate)
+      ).length,
+      paidBasisCounts: countBy(sourcePayments, row => row.paidAmountBasis),
+      certifiedBasisCounts: countBy(sourcePayments, row => row.certifiedAmountBasis),
+      safePaidBasisRows: sourcePayments.filter(row => safePaymentBasis(row.paidAmountBasis)).length,
+      safeCertifiedBasisRows: sourcePayments.filter(row => safePaymentBasis(row.certifiedAmountBasis)).length,
+      diagnostics: countBy(paymentDiagnostics, value => value)
+    },
+    costRows: {
+      recordCount: sourceCostRows.length,
+      withAsOf: sourceCostRows.filter(row => Boolean(row.amount?.asOf)).length,
+      withCurrency: sourceCostRows.filter(row => Boolean(row.amount?.currency)).length,
+      states: countBy(sourceCostRows, row => row.amount?.state),
+      amountBases: countBy(sourceCostRows, row => normalMetric(row.amount?.amountBasis)),
+      metrics: [...new Set(sourceCostRows.map(row => normalMetric(row.metric)).filter(Boolean))].sort()
+    },
+    cashPositions: cashEntryCounts,
+    sourceSchemas: sourceCommercialSchemas
+  };
+
   const after = await json(prefix + '/evidence/documents');
   check('All original source identities and hashes remain unchanged', sourceBefore === evidenceDigest(after.documents));
   const finalHealth = await json('/health');
