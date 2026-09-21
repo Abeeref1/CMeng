@@ -214,6 +214,36 @@ test("missing float is not treated as zero or critical", () => {
   assert.equal(result.float.nearCriticalCount, 1);
 });
 
+test("working-day near-critical basis does not validate against the unused legacy hour threshold", () => {
+  const input = model();
+  input.calendars[0] = {
+    ...input.calendars[0]!,
+    standardDayHours: 8,
+    standardWeekHours: 40,
+  };
+
+  const result = analyzeSchedule(input, {
+    criticalFloatThresholdHours: 48,
+    nearCriticalFloatThresholdHours: 40,
+    nearCriticalWorkingDays: 5,
+    floatRiskWatchlistIncludesCriticalThreshold: true,
+    varianceLateThresholdDays: 0,
+  });
+
+  assert.equal(
+    result.float.nearCriticalThresholdBasis,
+    "activity_working_days",
+  );
+  assert.equal(
+    result.float.nearCriticalWorkingDays,
+    5,
+  );
+  assert.equal(
+    result.float.nearCriticalThresholdHours,
+    null,
+  );
+});
+
 test("missing percent complete is excluded from averages and coverage", () => {
   const input = model();
   input.activities[1]!.percentComplete = null;
