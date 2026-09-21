@@ -380,6 +380,76 @@ export function buildDelayClaimsProjection(
           !row.activityCorrespondence ||
           row.activityCorrespondence.classification === "unresolved",
       ).length,
+    activityCorrespondenceStageCounts: {
+      activityPoolCount:
+        rows.reduce(
+          (max, row) =>
+            Math.max(
+              max,
+              row.activityCorrespondence?.activityPoolCount ?? 0,
+            ),
+          0,
+        ),
+      eventCount: rows.length,
+      signalBearingEventCount:
+        rows.filter(
+          (row) =>
+            (row.activityCorrespondence?.claimSignalCount ?? 0) > 0,
+        ).length,
+      retrievedCandidateCount:
+        rows.reduce(
+          (sum, row) =>
+            sum +
+            (row.activityCorrespondence?.retrievedCandidateCount ?? 0),
+          0,
+        ),
+      preFilterCandidateCount:
+        rows.reduce(
+          (sum, row) =>
+            sum +
+            (row.activityCorrespondence?.preFilterCandidateCount ?? 0),
+          0,
+        ),
+      boundedCandidateCount:
+        rows.reduce(
+          (sum, row) =>
+            sum +
+            (row.activityCorrespondence?.boundedCandidateCount ?? 0),
+          0,
+        ),
+      aiScoredCandidateCount:
+        rows.reduce(
+          (sum, row) =>
+            sum +
+            (
+              row.activityCorrespondence?.candidates.filter(
+                (candidate) => candidate.aiScore !== null,
+              ).length ?? 0
+            ),
+          0,
+        ),
+      acceptedEventCount:
+        rows.filter(
+          (row) =>
+            (row.activityCorrespondence?.acceptedActivityIds.length ?? 0) > 0,
+        ).length,
+      candidateEventCount:
+        rows.filter(
+          (row) =>
+            row.activityCorrespondence?.classification === "candidate",
+        ).length,
+      ambiguousEventCount:
+        rows.filter(
+          (row) =>
+            row.activityCorrespondence?.classification === "ambiguous",
+        ).length,
+      unresolvedEventCount:
+        rows.filter(
+          (row) =>
+            !row.activityCorrespondence ||
+            row.activityCorrespondence.classification === "unresolved",
+        ).length,
+    },
 
     observedPositiveIndependentMovementDays:
       Number(
