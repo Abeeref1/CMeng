@@ -238,6 +238,17 @@ export interface EvidenceMappingSummary {
   coveragePercent: number | null;
 }
 
+export interface EvidenceTextSegment {
+  segmentId: string;
+  kind: "linked_correspondence_context";
+  anchor: string;
+  pageNumber: number | null;
+  text: string;
+  locator: string;
+  method: "native_pdf_text" | "ocr_text";
+  sourceHashSha256: string;
+}
+
 export interface StoredEvidenceDocument {
   documentId: string;
   category: EvidenceCategory;
@@ -257,6 +268,7 @@ export interface StoredEvidenceDocument {
   identification: EvidenceIdentification;
   lineage: EvidenceLineage;
   assertions: DocumentAssertion[];
+  textSegments?: EvidenceTextSegment[];
   uploadIntent: EvidenceUploadIntent;
   familyKey: string;
   logicalDocumentKey: string;
