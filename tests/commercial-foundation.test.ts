@@ -290,6 +290,8 @@ function input(): CommercialFoundationInput {
         paymentType: "IPC",
         periodEnd: "2026-08-31",
         sourceStatus: "Certified",
+        certifiedAmountBasis: "incremental",
+        paidAmountBasis: "incremental",
         applicationDate: "2026-08-01",
         assessmentDate: "2026-08-05",
         certificationDate: "2026-08-10",
