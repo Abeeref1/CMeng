@@ -269,64 +269,111 @@ function applyGovernedWindowMovementMetrics(
       "gross_negative_programme_movement",
     );
 
-  let positiveDays =
-    projection.positiveProgrammeMovementDays;
-  let negativeDays =
-    projection.negativeProgrammeMovementDays;
   const diagnostics = [
     ...projection.diagnostics,
     ...positive.diagnostics,
     ...negative.diagnostics,
   ];
 
-  if (
+  const sourcePositive =
     positive.value !== null &&
-    !["missing", "conflicted"].includes(positive.state)
-  ) {
-    positiveDays = positive.value;
-    diagnostics.push(
-      "GROSS_POSITIVE_PROGRAMME_MOVEMENT_FROM_GOVERNED_CONTROL_REGISTER",
-    );
-
-    if (
-      negative.value === null &&
-      projection.projectCompletionMovementDays !== null
-    ) {
-      const reconciledNegative = Number(
-        (
-          projection.projectCompletionMovementDays -
-          positive.value
-        ).toFixed(6),
-      );
-      if (reconciledNegative <= 0) {
-        negativeDays = reconciledNegative;
-        diagnostics.push(
-          "GROSS_NEGATIVE_PROGRAMME_MOVEMENT_RECONCILED_FROM_GROSS_POSITIVE_AND_NET_COMPLETION",
-        );
-      }
-    }
-  }
-
-  if (
+    !["missing", "conflicted"].includes(
+      positive.state,
+    )
+      ? positive.value
+      : null;
+  const sourceNegative =
     negative.value !== null &&
-    !["missing", "conflicted"].includes(negative.state)
-  ) {
-    negativeDays =
-      negative.value > 0
-        ? -negative.value
-        : negative.value;
+    !["missing", "conflicted"].includes(
+      negative.state,
+    )
+      ? (
+          negative.value > 0
+            ? -negative.value
+            : negative.value
+        )
+      : null;
+
+  const calculatedPositive =
+    projection.grossAnalyticalMovementDays;
+  const calculatedNegative =
+    projection.analyticalRecoveryMovementDays;
+  const analyticalAvailable =
+    projection.analyticalMovementAvailableWindowCount > 0;
+
+  const positiveGap =
+    sourcePositive === null ||
+    !analyticalAvailable
+      ? null
+      : Number(
+          (
+            calculatedPositive -
+            sourcePositive
+          ).toFixed(6),
+        );
+  const negativeGap =
+    sourceNegative === null ||
+    !analyticalAvailable
+      ? null
+      : Number(
+          (
+            calculatedNegative -
+            sourceNegative
+          ).toFixed(6),
+        );
+
+  const sourceRefs = [
+    ...new Set([
+      ...positive.sourceRefs,
+      ...negative.sourceRefs,
+    ]),
+  ];
+
+  const stateValue:
+    ReturnType<
+      typeof buildWindowsAnalysisProjection
+    >["sourceMovementReconciliation"]["state"] =
+    sourcePositive === null &&
+    sourceNegative === null
+      ? "source_not_reported"
+      : !analyticalAvailable
+        ? "calculation_unavailable"
+        : (
+            (positiveGap === null ||
+              Math.abs(positiveGap) <= 0.02) &&
+            (negativeGap === null ||
+              Math.abs(negativeGap) <= 0.02)
+          )
+          ? "reconciled"
+          : "different";
+
+  if (sourcePositive !== null) {
     diagnostics.push(
-      "GROSS_NEGATIVE_PROGRAMME_MOVEMENT_FROM_GOVERNED_CONTROL_REGISTER",
+      "SOURCE_GROSS_POSITIVE_PROGRAMME_MOVEMENT_RECONCILED_NOT_APPLIED",
+    );
+  }
+  if (sourceNegative !== null) {
+    diagnostics.push(
+      "SOURCE_GROSS_NEGATIVE_PROGRAMME_MOVEMENT_RECONCILED_NOT_APPLIED",
     );
   }
 
   return {
     ...projection,
-    positiveProgrammeMovementDays:
-      positiveDays,
-    negativeProgrammeMovementDays:
-      negativeDays,
-    diagnostics: [...new Set(diagnostics)],
+    sourceReportedGrossPositiveMovementDays:
+      sourcePositive,
+    sourceReportedGrossNegativeMovementDays:
+      sourceNegative,
+    sourceMovementReconciliation: {
+      state: stateValue,
+      positiveGapDays:
+        positiveGap,
+      negativeGapDays:
+        negativeGap,
+      sourceRefs,
+    },
+    diagnostics:
+      [...new Set(diagnostics)],
   };
 }
 
