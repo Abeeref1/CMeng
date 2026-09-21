@@ -262,6 +262,33 @@ test("P1-1 project control basis applies 0..+5 working days per activity calenda
   assert.equal(projection.nearCriticalCount, 1);
   assert.equal(projection.floatRiskWatchlistCount, 2);
   assert.equal(projection.zeroFloatCount, 1);
+  assert.deepEqual(
+    projection.boundaryAudit.criticalBoundary.at.map(
+      (row) => row.activityId,
+    ),
+    ["A0"],
+  );
+  assert.deepEqual(
+    projection.boundaryAudit.nearCriticalUpperBoundary.outside.map(
+      (row) => row.activityId,
+    ),
+    ["A8"],
+  );
+  assert.equal(
+    projection.boundaryAudit.nearCriticalUpperBoundary.outside[0]
+      ?.calendarWorkingDayHours,
+    8,
+  );
+  assert.equal(
+    projection.boundaryAudit.nearCriticalUpperBoundary.outside[0]
+      ?.totalFloatWorkingDays,
+    5.125,
+  );
+  assert.equal(
+    projection.boundaryAudit.nearCriticalUpperBoundary.outside[0]
+      ?.inclusionReason,
+    "above_near_critical_upper_boundary",
+  );
 });
 
 test("P1-1 includes legacy SCH02 control evidence by verified source identity", (t) => {
