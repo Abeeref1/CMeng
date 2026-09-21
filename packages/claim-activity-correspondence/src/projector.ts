@@ -529,16 +529,24 @@ export function resolveClaimActivityCorrespondence(
 
   const exactName =
     top?.signals.some((signal) => signal.key === "exact_activity_name") ?? false;
+  const exactNarrativeActivityId =
+    top?.signals.some((signal) => signal.key === "explicit_activity_id") ?? false;
   const deterministicStrong =
     top !== null &&
     (
-      exactName &&
-      top.prefilterScore >= 0.82 &&
-      (margin ?? 0) >= 0.12
+      exactNarrativeActivityId
     ||
-      top.prefilterScore >= 0.90 &&
-      deterministicFamilies >= 3 &&
-      (margin ?? 0) >= 0.16
+      (
+        exactName &&
+        top.prefilterScore >= 0.82 &&
+        (margin ?? 0) >= 0.12
+      )
+    ||
+      (
+        top.prefilterScore >= 0.90 &&
+        deterministicFamilies >= 3 &&
+        (margin ?? 0) >= 0.16
+      )
     );
   const aiCorroborated =
     top !== null &&
