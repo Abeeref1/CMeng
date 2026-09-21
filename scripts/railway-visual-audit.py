@@ -100,8 +100,8 @@ with sync_playwright() as pw:
             page.wait_for_timeout(300)
 
         # Capture exactly what a user sees plus the entire scrollable page.
-        page.screenshot(path=str(OUT/f"{label}-viewport.png"),full_page=False)
-        page.screenshot(path=str(OUT/f"{label}-full.png"),full_page=True)
+        page.screenshot(path=str(OUT/f"{label}-viewport.jpg"),type="jpeg",quality=82,full_page=False)
+        page.screenshot(path=str(OUT/f"{label}-full.jpg"),type="jpeg",quality=82,full_page=True)
 
         data=page.evaluate("""() => {
           const root=document.getElementById('moduleContent');
