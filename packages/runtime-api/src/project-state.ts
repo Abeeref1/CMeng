@@ -2080,12 +2080,14 @@ export class RuntimeProjectStore {
     projectId?: string,
   ): Promise<{
     refreshedDocumentCount: number;
+    anchorCount: number;
     segmentCount: number;
     unresolvedAnchorCount: number;
     diagnostics: string[];
   }> {
     const diagnostics: string[] = [];
     let refreshedDocumentCount = 0;
+    let anchorCount = 0;
     let segmentCount = 0;
     let unresolvedAnchorCount = 0;
     let changed = false;
@@ -2260,6 +2262,9 @@ export class RuntimeProjectStore {
           }
         }
       }
+
+      anchorCount +=
+        anchors.size;
 
       if (
         anchors.size === 0
@@ -2720,6 +2725,7 @@ export class RuntimeProjectStore {
 
     return {
       refreshedDocumentCount,
+      anchorCount,
       segmentCount,
       unresolvedAnchorCount,
       diagnostics,
