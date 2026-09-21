@@ -4,6 +4,7 @@ import type { CanonicalClaimRecord, CanonicalDelayEvent, CanonicalNoticeRecord, 
 import type { ContractTimeBasis } from '../../eot-assessment/src';
 import type { ProjectRuntimeState } from './project-state-types';
 import { inferDocumentType } from './evidence';
+import { resolveClaimActivityCorrespondence } from '../../claim-activity-correspondence/src';
 export interface DeterminationRecord {
   determinationId: string; claimId: string; awardedDays: number | null; determinationDate: string | null;
   state: 'source_immutable' | 'candidate' | 'conflicted'; authority: string; sourceLetter: string | null;
@@ -216,6 +217,26 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
   };
   const correspondence = correspondenceLinks(tables, diagnostics);
   const sourceTablesForClaims=tables.filter(t=>has(t,'claim id','event')&&has(t,'notice date'));
+  const claimNarratives=new Map<string,string[]>();
+  const explicitActivitiesByClaim=new Map<string,string[]>();
+  const semanticNarrativeValues=(row:SourceRow):string[] =>
+    Object.entries(row.cells)
+      .filter(([key,value]) =>
+        value.trim() !== "" &&
+        /(?:event|title|description|subject|location|discipline|trade|scope|area|zone|wbs|work package|cause|reason|impact|activity name|affected work)/i.test(key),
+      )
+      .map(([,value])=>value);
+  const addClaimNarrative=(claimId:string,values:readonly string[]):void=>{
+    const existing=claimNarratives.get(claimId)??[];
+    claimNarratives.set(claimId,[...existing,...values.filter(Boolean)]);
+  };
+  const addExplicitActivities=(claimId:string,activityIds:readonly string[]):void=>{
+    if(!activityIds.length)return;
+    explicitActivitiesByClaim.set(
+      claimId,
+      uniq([...(explicitActivitiesByClaim.get(claimId)??[]),...activityIds]).sort(),
+    );
+  };
   const claims:CanonicalClaimRecord[]=[],events:CanonicalDelayEvent[]=[],notices:CanonicalNoticeRecord[]=[];
   const claimIds=new Set<string>();
   for(const table of sourceTablesForClaims) for(const r of table.rows){
@@ -246,11 +267,18 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
       'window','window reference','window references','analysis window','analysis window id','time window'
     );
     const registerIssued=dateValue(cell(r,'notice date'));
-    const narrativeActivities=narrativeActivityRefs(Object.values(r.cells),claimId);
+    addClaimNarrative(
+      claimId,
+      [
+        ...semanticNarrativeValues(r),
+        linkedCorrespondence?.subject??"",
+      ],
+    );
+    const governedExplicitActivities=mapActivityRefs(explicitActivities,claimId);
+    addExplicitActivities(claimId,governedExplicitActivities);
     const temporalWindows=programmeWindowReference(registerIssued);
     const relatedActivities=uniq([
-      ...mapActivityRefs(explicitActivities,claimId),
-      ...narrativeActivities,
+      ...governedExplicitActivities,
     ]).sort();
     const relatedWindows=uniq([
       ...explicitWindows,
@@ -265,7 +293,7 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
       relatedClauseIdentifiers:clauseIdentifiers,evidenceRefs,
       diagnostics:[
         'SOURCE_REGISTER_EVENT_NOT_PROVEN_CAUSATION',
-        ...(narrativeActivities.length?['ACTIVITY_LINK_DERIVED_FROM_EXACT_SCHEDULE_REFERENCE_OR_UNIQUE_ACTIVITY_NAME']:[]),
+        ...(governedExplicitActivities.length?['ACTIVITY_LINK_FROM_GOVERNED_EXPLICIT_SCHEDULE_REFERENCE']:[]),
         ...(temporalWindows.length?['WINDOW_ASSOCIATION_FROM_VERIFIED_NOTICE_DATE_NOT_CAUSATION']:[]),
         ...(sourceLetter&&!linkedCorrespondence?['LINKED_CORRESPONDENCE_NOT_FOUND:'+sourceLetter]:sourceLetter&&!semanticLinkVerified?['LINKED_CORRESPONDENCE_SEMANTIC_MISMATCH:'+sourceLetter]:semanticLinkVerified?['LINKED_CORRESPONDENCE_VERIFIED:'+sourceLetter]:[])
       ],});
@@ -305,9 +333,11 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
       'critical activity','critical activity id','critical activity ids',
       'activity reference','activity references'
     );
+    addClaimNarrative(claimId,semanticNarrativeValues(r));
+    const mappedExplicitActivities=mapActivityRefs(activityRefs,claimId);
+    addExplicitActivities(claimId,mappedExplicitActivities);
     const mappedActivities=uniq([
-      ...mapActivityRefs(activityRefs,claimId),
-      ...narrativeActivityRefs(Object.values(r.cells),claimId),
+      ...mappedExplicitActivities,
     ]);
     if(mappedActivities.length){
       event.relatedActivityIds=uniq([...event.relatedActivityIds,...mappedActivities]).sort();
@@ -366,6 +396,56 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
     c.evidenceRefs.push(evref(r));
     const event=events.find(e=>e.eventId===c.eventIds[0]);if(event)event.evidenceRefs.push(evref(r));
   }
+  if(controlSchedule){
+    const claimsByEventId=new Map<string,CanonicalClaimRecord[]>();
+    for(const claim of claims){
+      for(const eventId of claim.eventIds){
+        const list=claimsByEventId.get(eventId)??[];
+        list.push(claim);
+        claimsByEventId.set(eventId,list);
+      }
+    }
+
+    for(const event of events){
+      const eventClaims=claimsByEventId.get(event.eventId)??[];
+      const narrative=[
+        event.title,
+        ...eventClaims.map(claim=>claim.title),
+        ...eventClaims.flatMap(claim=>claimNarratives.get(claim.claimId)??[]),
+      ].filter(Boolean).join(" | ");
+      const explicitActivityIds=uniq(
+        eventClaims.flatMap(claim=>explicitActivitiesByClaim.get(claim.claimId)??[]),
+      );
+      const resolution=resolveClaimActivityCorrespondence({
+        claimId:eventClaims[0]?.claimId??event.eventId,
+        eventId:event.eventId,
+        narrative,
+        claimEvidenceRefs:event.evidenceRefs,
+        schedule:controlSchedule.revision.model,
+        explicitActivityIds,
+        aiScores:null,
+        maxCandidates:8,
+      });
+      event.activityCorrespondence=resolution;
+      if(resolution.acceptedActivityIds.length){
+        event.relatedActivityIds=uniq([
+          ...event.relatedActivityIds,
+          ...resolution.acceptedActivityIds,
+        ]).sort();
+        event.diagnostics.push(
+          "ACTIVITY_CORRESPONDENCE_ACCEPTED:"+resolution.classification,
+          "ACTIVITY_CORRESPONDENCE_IS_ASSOCIATION_NOT_CAUSATION_OR_ENTITLEMENT",
+        );
+      }else{
+        event.diagnostics.push(
+          "ACTIVITY_CORRESPONDENCE_WITHHELD:"+resolution.classification,
+        );
+      }
+    }
+  }else{
+    diagnostics.push("CLAIM_ACTIVITY_CORRESPONDENCE_REQUIRES_ACTIVE_PROGRAMME");
+  }
+
   const determinations:DeterminationRecord[]=[],determinationById=new Map<string,DeterminationRecord>();
   for(const table of tables.filter(t=>has(t,'determination id','claim id','awarded eot days')))for(const r of table.rows){
     const record:DeterminationRecord={determinationId:cell(r,'determination id'),claimId:cell(r,'claim id'),awardedDays:n(r,'awarded eot days'),determinationDate:dateValue(cell(r,'determination date')),

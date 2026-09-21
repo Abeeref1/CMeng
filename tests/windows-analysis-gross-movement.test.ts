@@ -100,9 +100,15 @@ const revisions: ScheduleRevision[] = [
 ];
 
 const sourceForecasts = new Map([
-  ["S01", "2029-12-31"],
-  ["S02", "2030-04-30"],
-  ["S03", "2030-06-30"],
+  ["S01", "2029-12-31T00:00:00Z"],
+  ["S02", "2030-04-30T00:00:00Z"],
+  ["S03", "2030-06-30T00:00:00Z"],
+]);
+
+const independentForecasts = new Map([
+  ["S01", "2029-12-31T00:00:00Z"],
+  ["S02", "2030-05-22T22:04:48Z"],
+  ["S03", "2030-07-22T04:04:48Z"],
 ]);
 
 test("windows keep strongest activity movement separate from net project completion movement", () => {
@@ -131,7 +137,9 @@ test("windows keep strongest activity movement separate from net project complet
                   item.revisionId,
                 ) ?? null,
               independentForecastCompletionIso:
-                null,
+                independentForecasts.get(
+                  item.revisionId,
+                ) ?? null,
               criticalActivityIds: [],
               assumptions: [],
               complete: false,
@@ -143,7 +151,7 @@ test("windows keep strongest activity movement separate from net project complet
   assert.equal(
     projection.windows[0]!
       .strongestProgrammeMovementBasis,
-    "matched_activity_finish_shift",
+    "independent_cpm",
   );
   assert.equal(
     projection.windows[0]!
@@ -164,6 +172,58 @@ test("windows keep strongest activity movement separate from net project complet
     projection.windows[1]!
       .strongestPositiveActivityId,
     "B",
+  );
+  assert.equal(
+    projection.windows[0]!
+      .netCompletionMovementDays,
+    120,
+  );
+  assert.equal(
+    projection.windows[0]!
+      .grossAnalyticalMovementDays,
+    142.92,
+  );
+  assert.equal(
+    projection.windows[0]!
+      .analyticalVsNetDeltaDays,
+    22.92,
+  );
+  assert.equal(
+    projection.windows[0]!
+      .overlapCandidateDays,
+    22.92,
+  );
+  assert.equal(
+    projection.windows[1]!
+      .netCompletionMovementDays,
+    61,
+  );
+  assert.equal(
+    projection.windows[1]!
+      .grossAnalyticalMovementDays,
+    60.25,
+  );
+  assert.equal(
+    projection.windows[1]!
+      .analyticalVsNetDeltaDays,
+    -0.75,
+  );
+  assert.equal(
+    projection.windows[1]!
+      .overlapCandidateDays,
+    0,
+  );
+  assert.equal(
+    projection.grossAnalyticalMovementDays,
+    203.17,
+  );
+  assert.equal(
+    projection.analyticalVsNetDeltaDays,
+    22.17,
+  );
+  assert.equal(
+    projection.overlapCandidateDays,
+    22.17,
   );
   assert.equal(
     projection.positiveProgrammeMovementDays,

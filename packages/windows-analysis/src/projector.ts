@@ -235,6 +235,13 @@ function strongestMovement(
   basis:
     ScheduleWindowResult["strongestProgrammeMovementBasis"];
 } {
+  if (input.independent !== null) {
+    return {
+      days: input.independent,
+      basis:
+        "independent_cpm",
+    };
+  }
   const activityPositiveIsDistinct =
     input.activityPositive !== null &&
     (
@@ -254,7 +261,6 @@ function strongestMovement(
   }
   if (
     input.activityNegative !== null &&
-    input.independent === null &&
     input.sourceForecast === null &&
     input.sourceBoundary === null
   ) {
@@ -264,13 +270,7 @@ function strongestMovement(
         "matched_activity_finish_shift",
     };
   }
-  if (input.independent !== null) {
-    return {
-      days: input.independent,
-      basis:
-        "independent_cpm",
-    };
-  }
+
   if (input.sourceForecast !== null) {
     return {
       days:
@@ -536,6 +536,60 @@ export function buildWindowsAnalysisProjection(
         fromScheduleBoundaryIso,
         toScheduleBoundaryIso,
       );
+    const netCompletionMovement =
+      sourceForecastMovement ??
+      scheduleBoundaryMovement;
+    const netCompletionMovementBasis:
+      ScheduleWindowResult["netCompletionMovementBasis"] =
+      sourceForecastMovement !== null
+        ? "source_forecast"
+        : scheduleBoundaryMovement !== null
+          ? "source_schedule_boundary"
+          : "unavailable";
+    const grossAnalyticalMovement =
+      independentMovement;
+    const grossAnalyticalPositive =
+      independentMovement === null
+        ? null
+        : Number(
+            Math.max(
+              0,
+              independentMovement,
+            ).toFixed(6),
+          );
+    const analyticalRecovery =
+      independentMovement === null
+        ? null
+        : Number(
+            Math.min(
+              0,
+              independentMovement,
+            ).toFixed(6),
+          );
+    const analyticalVsNetDelta =
+      independentMovement === null ||
+      netCompletionMovement === null
+        ? null
+        : Number(
+            (
+              independentMovement -
+              netCompletionMovement
+            ).toFixed(6),
+          );
+    const overlapCandidate =
+      grossAnalyticalPositive === null ||
+      netCompletionMovement === null
+        ? null
+        : Number(
+            Math.max(
+              0,
+              grossAnalyticalPositive -
+                Math.max(
+                  0,
+                  netCompletionMovement,
+                ),
+            ).toFixed(6),
+          );
     const strongest =
       strongestMovement({
         activityPositive:
@@ -689,6 +743,19 @@ export function buildWindowsAnalysisProjection(
         toForecast.independentForecastCompletionIso,
       independentForecastMovementDays:
         independentMovement,
+      netCompletionMovementDays:
+        netCompletionMovement,
+      netCompletionMovementBasis,
+      grossAnalyticalMovementDays:
+        grossAnalyticalPositive,
+      grossAnalyticalPositiveMovementDays:
+        grossAnalyticalPositive,
+      analyticalRecoveryMovementDays:
+        analyticalRecovery,
+      analyticalVsNetDeltaDays:
+        analyticalVsNetDelta,
+      overlapCandidateDays:
+        overlapCandidate,
 
       fromScheduleBoundaryIso,
       toScheduleBoundaryIso,
@@ -828,10 +895,9 @@ export function buildWindowsAnalysisProjection(
           .reduce(
             (sum, window) =>
               sum +
-              Math.max(
-                0,
-                window.independentForecastMovementDays ??
-                  0,
+              (
+                window.grossAnalyticalPositiveMovementDays ??
+                0
               ),
             0,
           )
@@ -843,15 +909,96 @@ export function buildWindowsAnalysisProjection(
           .reduce(
             (sum, window) =>
               sum +
-              Math.min(
-                0,
-                window.independentForecastMovementDays ??
-                  0,
+              (
+                window.analyticalRecoveryMovementDays ??
+                0
               ),
             0,
           )
           .toFixed(6),
       ),
+    grossAnalyticalMovementDays:
+      Number(
+        windows
+          .reduce(
+            (sum, window) =>
+              sum +
+              (
+                window.grossAnalyticalPositiveMovementDays ??
+                0
+              ),
+            0,
+          )
+          .toFixed(6),
+      ),
+    analyticalRecoveryMovementDays:
+      Number(
+        windows
+          .reduce(
+            (sum, window) =>
+              sum +
+              (
+                window.analyticalRecoveryMovementDays ??
+                0
+              ),
+            0,
+          )
+          .toFixed(6),
+      ),
+    analyticalMovementAvailableWindowCount:
+      windows.filter(
+        (window) =>
+          window.grossAnalyticalMovementDays !== null,
+      ).length,
+    analyticalVsNetDeltaDays:
+      projectCompletionMovementDays === null ||
+      windows.every(
+        (window) =>
+          window.grossAnalyticalMovementDays === null,
+      )
+        ? null
+        : Number(
+            (
+              windows.reduce(
+                (sum, window) =>
+                  sum +
+                  (
+                    window.grossAnalyticalPositiveMovementDays ??
+                    0
+                  ),
+                0,
+              ) -
+              Math.max(
+                0,
+                projectCompletionMovementDays,
+              )
+            ).toFixed(6),
+          ),
+    overlapCandidateDays:
+      projectCompletionMovementDays === null ||
+      windows.every(
+        (window) =>
+          window.grossAnalyticalMovementDays === null,
+      )
+        ? null
+        : Number(
+            Math.max(
+              0,
+              windows.reduce(
+                (sum, window) =>
+                  sum +
+                  (
+                    window.grossAnalyticalPositiveMovementDays ??
+                    0
+                  ),
+                0,
+              ) -
+                Math.max(
+                  0,
+                  projectCompletionMovementDays,
+                ),
+            ).toFixed(6),
+          ),
     positiveProgrammeMovementDays:
       Number(
         windows
@@ -860,13 +1007,9 @@ export function buildWindowsAnalysisProjection(
               sum +
               Math.max(
                 0,
-                window.strongestPositiveActivityMovementDays ??
-                  (
-                    window.strongestProgrammeMovementBasis ===
-                      "matched_activity_finish_shift"
-                      ? window.strongestProgrammeMovementDays ?? 0
-                      : 0
-                  ),
+                window.grossAnalyticalMovementDays ??
+                  window.strongestProgrammeMovementDays ??
+                  0,
               ),
             0,
           )
@@ -880,7 +1023,8 @@ export function buildWindowsAnalysisProjection(
               sum +
               Math.min(
                 0,
-                window.strongestNegativeActivityMovementDays ??
+                window.grossAnalyticalMovementDays ??
+                  window.strongestNegativeActivityMovementDays ??
                   0,
               ),
             0,
@@ -898,6 +1042,17 @@ export function buildWindowsAnalysisProjection(
             .strongestProgrammeMovementDays !==
           null,
       ).length,
+    sourceReportedGrossPositiveMovementDays:
+      null,
+    sourceReportedGrossNegativeMovementDays:
+      null,
+    sourceMovementReconciliation: {
+      state:
+        "source_not_reported",
+      positiveGapDays: null,
+      negativeGapDays: null,
+      sourceRefs: [],
+    },
     windows,
     diagnostics,
   };

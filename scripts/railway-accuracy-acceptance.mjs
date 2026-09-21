@@ -193,6 +193,25 @@ try {
   check('Gross positive window movement reconciles to 203.17 days', Math.abs(windows.data?.positiveProgrammeMovementDays - 203.17) <= 0.02);
   check('Net Project Completion movement reconciles to 181 days', Math.abs(windows.data?.projectCompletionMovementDays - 181) <= 0.02);
   check('Window gross and net measures remain distinct', Math.abs(windows.data?.positiveProgrammeMovementDays - windows.data?.projectCompletionMovementDays) > 0.1);
+  check('Every controlled delay window publishes net completion and independent analytical movement',
+    Array.isArray(windows.data?.windows) &&
+    windows.data.windows.length > 0 &&
+    windows.data.windows.every(window =>
+      Object.prototype.hasOwnProperty.call(window,'netCompletionMovementDays') &&
+      Object.prototype.hasOwnProperty.call(window,'netCompletionMovementBasis') &&
+      Object.prototype.hasOwnProperty.call(window,'grossAnalyticalMovementDays') &&
+      Object.prototype.hasOwnProperty.call(window,'analyticalRecoveryMovementDays') &&
+      Object.prototype.hasOwnProperty.call(window,'analyticalVsNetDeltaDays') &&
+      Object.prototype.hasOwnProperty.call(window,'overlapCandidateDays')));
+  check('Cumulative gross analytical movement is calculated and source values are reconciliation-only',
+    windows.data?.grossAnalyticalMovementDays === windows.data?.positiveProgrammeMovementDays &&
+    windows.data?.sourceMovementReconciliation?.state !== undefined);
+  check('Cumulative overlap reconciles analytical gross to positive net completion movement',
+    windows.data?.overlapCandidateDays !== null &&
+    Math.abs(
+      windows.data.overlapCandidateDays -
+      Math.max(0, windows.data.grossAnalyticalMovementDays - Math.max(0, windows.data.projectCompletionMovementDays))
+    ) <= 0.000001);
 
   const eot = modules.get('eot-assessment');
   const time = eot.data?.timeBasisReconciliation;
@@ -212,6 +231,26 @@ try {
   check('Delay identity populations are complete and consistent', delay.data.eventCount === events.length && new Set(events.map(e => e.eventId)).size === events.length && new Set(events.flatMap(e => e.linkedClaimIds)).size === delay.data.claimCount);
   check('All governed events retain claim linkage', delay.data?.claimLinkedEventCount === 350);
   check('Delay-event activities are represented in the canonical chain', delay.data?.activityLinkedEventCount > 0 && events.some(e => Array.isArray(e.relatedActivityIds) && e.relatedActivityIds.length > 0));
+  check('Accepted activity correspondence carries bounded provenance and classification',
+    delay.data?.activityCorrespondenceAcceptedCount > 0 &&
+    events
+      .filter(e => Array.isArray(e.relatedActivityIds) && e.relatedActivityIds.length > 0)
+      .every(e =>
+        e.activityCorrespondence &&
+        Array.isArray(e.activityCorrespondence.acceptedActivityIds) &&
+        e.activityCorrespondence.acceptedActivityIds.length > 0 &&
+        e.activityCorrespondence.boundedCandidateCount <= 12 &&
+        typeof e.activityCorrespondence.scheduleRevisionId === 'string' &&
+        Array.isArray(e.activityCorrespondence.claimEvidenceRefs) &&
+        e.activityCorrespondence.claimEvidenceRefs.length > 0 &&
+        Array.isArray(e.activityCorrespondence.candidates) &&
+        e.activityCorrespondence.candidates
+          .filter(candidate => e.activityCorrespondence.acceptedActivityIds.includes(candidate.activityId))
+          .every(candidate => Array.isArray(candidate.activitySourceRefs) && candidate.activitySourceRefs.length > 0)));
+  check('Ambiguous candidate or unresolved correspondence fails closed',
+    events
+      .filter(e => ['ambiguous','candidate','unresolved'].includes(e.activityCorrespondence?.classification))
+      .every(e => !Array.isArray(e.relatedActivityIds) || e.relatedActivityIds.length === 0));
   check('Delay-event windows are represented in the canonical chain', delay.data?.windowLinkedEventCount > 0 && events.some(e => Array.isArray(e.overlappingWindowIds) && e.overlappingWindowIds.length > 0));
   check('Delay-event notices are represented in the canonical chain', delay.data?.noticeLinkedEventCount > 0 && events.some(e => Array.isArray(e.noticeIds) && e.noticeIds.length > 0));
   check('All 16 Engineer determinations remain linked to governed events', delay.data?.determinationLinkedEventCount > 0 && new Set(events.flatMap(e => e.determinationIds ?? [])).size === 16);
@@ -286,12 +325,29 @@ try {
       projectCompletionMovementBasis: windows.data?.projectCompletionMovementBasis ?? null,
       positiveIndependentDays: windows.data?.positiveIndependentMovementDays ?? null,
       negativeIndependentDays: windows.data?.negativeIndependentMovementDays ?? null,
+      grossAnalyticalMovementDays: windows.data?.grossAnalyticalMovementDays ?? null,
+      analyticalRecoveryMovementDays: windows.data?.analyticalRecoveryMovementDays ?? null,
+      analyticalVsNetDeltaDays: windows.data?.analyticalVsNetDeltaDays ?? null,
+      overlapCandidateDays: windows.data?.overlapCandidateDays ?? null,
+      analyticalMovementAvailableWindowCount: windows.data?.analyticalMovementAvailableWindowCount ?? null,
+      sourceReportedGrossPositiveMovementDays: windows.data?.sourceReportedGrossPositiveMovementDays ?? null,
+      sourceReportedGrossNegativeMovementDays: windows.data?.sourceReportedGrossNegativeMovementDays ?? null,
+      sourceMovementReconciliation: windows.data?.sourceMovementReconciliation ?? null,
       perWindow: Array.isArray(windows.data?.windows)
         ? windows.data.windows.map(window => ({
             sequence: window.sequence,
             sourceForecastMovementDays: window.sourceForecastMovementDays ?? null,
             independentForecastMovementDays: window.independentForecastMovementDays ?? null,
+            netCompletionMovementDays: window.netCompletionMovementDays ?? null,
+            netCompletionMovementBasis: window.netCompletionMovementBasis ?? null,
+            grossAnalyticalMovementDays: window.grossAnalyticalMovementDays ?? null,
+            analyticalRecoveryMovementDays: window.analyticalRecoveryMovementDays ?? null,
+            analyticalVsNetDeltaDays: window.analyticalVsNetDeltaDays ?? null,
+            overlapCandidateDays: window.overlapCandidateDays ?? null,
             scheduleBoundaryMovementDays: window.scheduleBoundaryMovementDays ?? null,
+            strongestPositiveActivityMovementDays: window.strongestPositiveActivityMovementDays ?? null,
+            strongestPositiveActivityId: window.strongestPositiveActivityId ?? null,
+            activityFinishShiftCoveragePercent: window.activityFinishShiftCoveragePercent ?? null,
             strongestProgrammeMovementDays: window.strongestProgrammeMovementDays ?? null,
             strongestProgrammeMovementBasis: window.strongestProgrammeMovementBasis ?? null,
             linkedDelayEventCount: Array.isArray(window.delayEvents) ? window.delayEvents.length : 0
@@ -306,7 +362,33 @@ try {
       windowLinkedEventCount: delay.data?.windowLinkedEventCount ?? null,
       noticeLinkedEventCount: delay.data?.noticeLinkedEventCount ?? null,
       determinationLinkedEventCount: delay.data?.determinationLinkedEventCount ?? null,
-      fullDeterminationChainEventCount: delay.data?.fullDeterminationChainEventCount ?? null
+      fullDeterminationChainEventCount: delay.data?.fullDeterminationChainEventCount ?? null,
+      activityCorrespondenceAcceptedCount: delay.data?.activityCorrespondenceAcceptedCount ?? null,
+      activityCorrespondenceCandidateCount: delay.data?.activityCorrespondenceCandidateCount ?? null,
+      activityCorrespondenceAmbiguousCount: delay.data?.activityCorrespondenceAmbiguousCount ?? null,
+      activityCorrespondenceUnresolvedCount: delay.data?.activityCorrespondenceUnresolvedCount ?? null,
+      activityCorrespondenceSample: Array.isArray(events)
+        ? events.filter(event => event.activityCorrespondence).slice(0,8).map(event => ({
+            eventId: event.eventId,
+            classification: event.activityCorrespondence?.classification ?? null,
+            aiStage: event.activityCorrespondence?.aiStage ?? null,
+            acceptedActivityIds: event.activityCorrespondence?.acceptedActivityIds ?? [],
+            candidateActivityIds: event.activityCorrespondence?.candidateActivityIds ?? [],
+            preFilterCandidateCount: event.activityCorrespondence?.preFilterCandidateCount ?? null,
+            boundedCandidateCount: event.activityCorrespondence?.boundedCandidateCount ?? null,
+            topCandidates: Array.isArray(event.activityCorrespondence?.candidates)
+              ? event.activityCorrespondence.candidates.slice(0,3).map(candidate => ({
+                  activityId: candidate.activityId,
+                  prefilterScore: candidate.prefilterScore,
+                  aiScore: candidate.aiScore,
+                  finalScore: candidate.finalScore,
+                  marginToNext: candidate.marginToNext,
+                  classification: candidate.classification,
+                  authority: candidate.authority
+                }))
+              : []
+          }))
+        : []
     },
     eot: {
       contractualCompletionPresent: Boolean(eot.data?.contractualCompletionIso),
