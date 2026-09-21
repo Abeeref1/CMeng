@@ -256,7 +256,7 @@ function candidateFinding<T>(
   const unique =
     uniqueCandidates(candidates);
   if (!unique.length) {
-    return finding(null, {
+    return finding<T>(null, {
       method:
         options.method,
       authority: "missing",
@@ -269,7 +269,7 @@ function candidateFinding<T>(
     });
   }
   if (unique.length > 1) {
-    return finding(null, {
+    return finding<T>(null, {
       method:
         options.method,
       sourceRefs:
@@ -1250,7 +1250,7 @@ function buildCostRegister(
         1
       ) {
         metrics[metric] =
-          finding(null, {
+          finding<number>(null, {
             method:
               "latest_cost_metric_by_cost_code",
             sourceRefs:
