@@ -2086,7 +2086,7 @@ export class RuntimeProjectStore {
   }> {
     const diagnostics: string[] = [];
     const correspondenceSegmentProducerVersion =
-      "correspondence-linked-context-v2";
+      "correspondence-linked-context-v3";
     let refreshedDocumentCount = 0;
     let segmentCount = 0;
     let unresolvedAnchorCount = 0;
@@ -2199,6 +2199,17 @@ export class RuntimeProjectStore {
         continue;
       }
 
+      const anchorSetHashSha256 =
+        createHash("sha256")
+          .update(
+            [...anchors]
+              .map(normalizeAnchor)
+              .filter(Boolean)
+              .sort()
+              .join("\n"),
+          )
+          .digest("hex");
+
       let projectChanged = false;
 
       const documents =
@@ -2252,6 +2263,28 @@ export class RuntimeProjectStore {
               document.documentId,
           );
         }
+
+        const refreshReceipt =
+          document.correspondenceNarrativeRefresh;
+        if (
+          refreshReceipt?.producerVersion ===
+            correspondenceSegmentProducerVersion &&
+          refreshReceipt.sourceHashSha256 ===
+            document.sourceHashSha256 &&
+          refreshReceipt.anchorSetHashSha256 ===
+            anchorSetHashSha256
+        ) {
+          segmentCount +=
+            currentExisting.length;
+          unresolvedAnchorCount +=
+            refreshReceipt.unresolvedAnchorCount;
+          diagnostics.push(
+            "CORRESPONDENCE_REFRESH_RECEIPT_REUSED:" +
+              document.documentId,
+          );
+          continue;
+        }
+
         const existingAnchors =
           new Set(
             currentExisting
