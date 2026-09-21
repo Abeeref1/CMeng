@@ -489,6 +489,25 @@ test("C2A Payment Register keeps application, assessment, certification and paym
     register.stageCoveragePercent,
     100,
   );
+  assert.deepEqual(
+    register.lifecycleCounts,
+    {
+      applied: 1,
+      assessed: 1,
+      certified: 1,
+      paid: 1,
+    },
+  );
+  assert.deepEqual(
+    register.slaCounts,
+    {
+      paidOnTime: 1,
+      paidLate: 0,
+      overdueUnpaid: 0,
+      openUnpaid: 0,
+      notEstablished: 0,
+    },
+  );
   assert.equal(
     row.amounts
       .applicationAmount
@@ -527,6 +546,74 @@ test("C2A Payment Register keeps application, assessment, certification and paym
   assert.equal(
     row.lifecycle.slaState,
     "on_time",
+  );
+});
+
+test("C2A Payment Register distinguishes overdue unpaid cash from paid-late and open items", () => {
+  const value = input();
+  const base =
+    value.payments[0]!;
+  value.payments = [
+    {
+      ...base,
+      paymentId:
+        "IPC-OVERDUE",
+      paymentDate: null,
+      paymentTimestamp: null,
+      paymentDueDate:
+        "2026-08-20",
+      amounts: {
+        ...base.amounts,
+        paidAmount:
+          money(null),
+      },
+      calculatedOutstandingAmount:
+        money(1_100_000),
+    },
+    {
+      ...base,
+      paymentId:
+        "IPC-LATE-PAID",
+      paymentDate:
+        "2026-09-10",
+      paymentTimestamp:
+        "2026-09-10T10:00:00+04:00",
+      paymentDueDate:
+        "2026-09-01",
+    },
+    {
+      ...base,
+      paymentId:
+        "IPC-OPEN",
+      paymentDate: null,
+      paymentTimestamp: null,
+      paymentDueDate:
+        "2026-09-15",
+      amounts: {
+        ...base.amounts,
+        paidAmount:
+          money(null),
+      },
+    },
+  ];
+  const register =
+    buildCommercialFoundation(
+      value,
+    ).paymentRegister;
+  assert.deepEqual(
+    register.slaCounts,
+    {
+      paidOnTime: 0,
+      paidLate: 1,
+      overdueUnpaid: 1,
+      openUnpaid: 1,
+      notEstablished: 0,
+    },
+  );
+  assert.equal(
+    register.lifecycleCounts
+      .paid,
+    1,
   );
 });
 
