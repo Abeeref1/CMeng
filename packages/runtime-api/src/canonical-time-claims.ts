@@ -83,6 +83,12 @@ function correspondenceRef(link: CorrespondenceLink) {
     locator: link.receipt.locator,
   };
 }
+function correspondenceAnchorKey(value:string):string {
+  return value
+    .normalize("NFKC")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu,"");
+}
 function correspondenceNarrativeSegments(
   state: ProjectRuntimeState,
 ): Map<
@@ -133,7 +139,7 @@ function correspondenceNarrativeSegments(
       }
 
       const key =
-        norm(
+        correspondenceAnchorKey(
           segment.anchor,
         );
       const list =
@@ -227,7 +233,7 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
     return uniq(mapped);
   };
   const normalizeNarrative=(value:string):string=>
-    value.normalize("NFKC").toLowerCase().replace(/[^a-z0-9]+/g," ").replace(/\s+/g," ").trim();
+    value.normalize("NFKC").toLowerCase().replace(/[^\p{L}\p{N}]+/gu," ").replace(/\s+/g," ").trim();
   const activityNameCandidates=new Map<string,string>();
   const duplicateActivityNames=new Set<string>();
   for(const activity of controlSchedule?.revision.model.activities??[]){
@@ -244,7 +250,7 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
   const narrativeActivityRefs=(values:readonly string[],context:string):string[]=>{
     const mapped:string[]=[];
     const joined=values.filter(Boolean).join(" | ");
-    const tokens=joined.match(/[A-Za-z0-9][A-Za-z0-9_.:/-]{2,}/g)??[];
+    const tokens=joined.match(/[\p{L}\p{N}][\p{L}\p{N}_.:/-]{2,}/gu)??[];
     for(const token of tokens){
       const folded=token.normalize("NFKC").trim().toLowerCase();
       const resolved=activityByFolded.get(folded);
@@ -294,16 +300,43 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
   };
   const correspondence = correspondenceLinks(tables, diagnostics);
   const correspondenceNarratives=correspondenceNarrativeSegments(state);
+  const correspondenceKey=(value:string):string=>
+    value.normalize("NFKC").toLowerCase().replace(/[^\p{L}\p{N}]+/gu,"");
+  const referenceLikeTokens=(value:string):string[]=>[
+    ...new Set(
+      (value.normalize("NFKC").match(/[\p{L}\p{N}][\p{L}\p{N}_.:/-]{2,79}/gu)??[])
+        .filter(token=>/\p{L}/u.test(token)&&/\p{N}/u.test(token)),
+    ),
+  ];
+  const narrativesForRow=(row:SourceRow)=>{
+    const keys=new Set<string>();
+    for(const value of Object.values(row.cells)){
+      const direct=correspondenceKey(value.trim());
+      if(direct&&correspondenceNarratives.has(direct))keys.add(direct);
+      for(const token of referenceLikeTokens(value)){
+        const key=correspondenceKey(token);
+        if(key&&correspondenceNarratives.has(key))keys.add(key);
+      }
+    }
+    const deduped=new Map<string,{text:string;ref:{sourceType:"correspondence";sourceId:string;locator:string|null}}>();
+    for(const key of keys){
+      for(const item of correspondenceNarratives.get(key)??[]){
+        deduped.set(item.ref.sourceId+"|"+String(item.ref.locator)+"|"+item.text,item);
+      }
+    }
+    return [...deduped.values()];
+  };
   const sourceTablesForClaims=tables.filter(t=>has(t,'claim id','event')&&has(t,'notice date'));
   const claimNarratives=new Map<string,string[]>();
   const explicitActivitiesByClaim=new Map<string,string[]>();
   const semanticNarrativeValues=(row:SourceRow):string[] =>
-    Object.entries(row.cells)
-      .filter(([key,value]) =>
-        value.trim() !== "" &&
-        /(?:event|title|description|subject|location|discipline|trade|scope|area|zone|wbs|work package|cause|reason|impact|activity name|affected work)/i.test(key),
+    Object.values(row.cells)
+      .map(value=>value.trim())
+      .filter(value=>
+        value.length>=2 &&
+        !/^[+\-]?[\d\s.,:%/]+$/u.test(value)
       )
-      .map(([,value])=>value);
+      .slice(0,80);
   const addClaimNarrative=(claimId:string,values:readonly string[]):void=>{
     const existing=claimNarratives.get(claimId)??[];
     claimNarratives.set(claimId,[...existing,...values.filter(Boolean)]);
@@ -324,12 +357,13 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
     const clause=cell(r,'clause'),clauseIdentifiers=clause?[clause]:[];
     const sourceLetter=cell(r,'linked letter');
     const linkedCorrespondence=sourceLetter?correspondence.get(norm(sourceLetter))??null:null;
-    const linkedNarratives=sourceLetter?correspondenceNarratives.get(norm(sourceLetter))??[]:[];
+    const linkedNarratives=narrativesForRow(r);
+    const sourceLetterNarratives=sourceLetter?correspondenceNarratives.get(correspondenceKey(sourceLetter))??[]:[];
     const semanticLinkVerified=!!linkedCorrespondence&&(
       (!linkedCorrespondence.claimId||norm(linkedCorrespondence.claimId)===norm(claimId)) &&
       (!linkedCorrespondence.eventId||norm(linkedCorrespondence.eventId)===norm(eventId))
     );
-    const anchoredCorrespondenceVerified=linkedNarratives.length>0;
+    const anchoredCorrespondenceVerified=sourceLetterNarratives.length>0;
     const evidenceRefs=[
       evref(r),
       ...(linkedCorrespondence?[correspondenceRef(linkedCorrespondence)]:[]),
@@ -424,13 +458,7 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
       'activity reference','activity references'
     );
     addClaimNarrative(claimId,semanticNarrativeValues(r));
-    const supplementalLetters=splitRefs(
-      r,
-      'linked letter','source letter','letter reference','correspondence reference'
-    );
-    const supplementalNarratives=supplementalLetters.flatMap(
-      letter=>correspondenceNarratives.get(norm(letter))??[],
-    );
+    const supplementalNarratives=narrativesForRow(r);
     addClaimNarrative(
       claimId,
       supplementalNarratives.map(item=>item.text),
@@ -519,7 +547,7 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
     const c=byClaim.get(record.claimId);
     const event=c?events.find(e=>e.eventId===c.eventIds[0]):null;
     const determinationLetter=record.sourceLetter?correspondence.get(norm(record.sourceLetter))??null:null;
-    const determinationNarratives=record.sourceLetter?correspondenceNarratives.get(norm(record.sourceLetter))??[]:[];
+    const determinationNarratives=narrativesForRow(r);
     const determinationRefs=[
       evref(r),
       ...(determinationLetter?[correspondenceRef(determinationLetter)]:[]),

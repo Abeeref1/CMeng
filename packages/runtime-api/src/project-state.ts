@@ -82,6 +82,7 @@ import type {
 import {
   cell,
   governedTables,
+  has,
 } from "../../truth-kernel/src";
 import {
   analyzeCsvEvidence,
@@ -2080,12 +2081,14 @@ export class RuntimeProjectStore {
     projectId?: string,
   ): Promise<{
     refreshedDocumentCount: number;
+    anchorCount: number;
     segmentCount: number;
     unresolvedAnchorCount: number;
     diagnostics: string[];
   }> {
     const diagnostics: string[] = [];
     let refreshedDocumentCount = 0;
+    let anchorCount = 0;
     let segmentCount = 0;
     let unresolvedAnchorCount = 0;
     let changed = false;
@@ -2111,8 +2114,61 @@ export class RuntimeProjectStore {
     ): string =>
       value
         .normalize("NFKC")
-        .trim()
-        .toLowerCase();
+        .toLowerCase()
+        .replace(
+          /[^\p{L}\p{N}]+/gu,
+          "",
+        );
+
+    const referenceLikeTokens = (
+      value: string,
+    ): string[] => {
+      const tokens =
+        value
+          .normalize("NFKC")
+          .match(
+            /[\p{L}\p{N}][\p{L}\p{N}_.:/-]{2,79}/gu,
+          ) ??
+        [];
+      return [
+        ...new Set(
+          tokens.filter(
+            (token) =>
+              /\p{L}/u.test(token) &&
+              /\p{N}/u.test(token),
+          ),
+        ),
+      ];
+    };
+
+    const anchorPattern = (
+      anchor: string,
+    ): RegExp | null => {
+      const parts =
+        anchor
+          .normalize("NFKC")
+          .split(
+            /[^\p{L}\p{N}]+/u,
+          )
+          .filter(Boolean);
+      if (parts.length === 0) {
+        return null;
+      }
+      const escaped =
+        parts.map(
+          (part) =>
+            part.replace(
+              /[.*+?^${}()|[\]\\]/g,
+              "\\$&",
+            ),
+        );
+      return new RegExp(
+        escaped.join(
+          "[\\s\\p{P}\\p{S}_]*",
+        ),
+        "giu",
+      );
+    };
 
     for (const state of targetStates) {
       const tableDiagnostics:
@@ -2133,23 +2189,42 @@ export class RuntimeProjectStore {
       const anchors =
         new Set<string>();
       for (const table of tables) {
+        if (
+          !has(
+            table,
+            "claim id",
+          ) &&
+          !has(
+            table,
+            "determination id",
+          ) &&
+          !has(
+            table,
+            "event",
+          )
+        ) {
+          continue;
+        }
         for (const row of table.rows) {
-          for (
-            const value of [
-              cell(
-                row,
-                "linked letter",
-              ),
-              cell(
-                row,
-                "source letter",
-              ),
-              cell(
-                row,
-                "letter reference",
-              ),
-            ]
-          ) {
+          const preferred = [
+            cell(
+              row,
+              "linked letter",
+            ),
+            cell(
+              row,
+              "source letter",
+            ),
+            cell(
+              row,
+              "letter reference",
+            ),
+            cell(
+              row,
+              "correspondence reference",
+            ),
+          ];
+          for (const value of preferred) {
             const trimmed =
               value.trim();
             if (trimmed) {
@@ -2158,8 +2233,32 @@ export class RuntimeProjectStore {
               );
             }
           }
+
+          // Schema/language-neutral bridge: any reference-like code in a
+          // governed claim/EOT row may anchor correspondence evidence. The
+          // later claim resolver still applies the unchanged fail-closed gates.
+          for (
+            const value of
+              Object.values(
+                row.cells,
+              )
+          ) {
+            for (
+              const token of
+                referenceLikeTokens(
+                  value,
+                )
+            ) {
+              anchors.add(
+                token,
+              );
+            }
+          }
         }
       }
+
+      anchorCount +=
+        anchors.size;
 
       if (
         anchors.size === 0
@@ -2283,11 +2382,6 @@ export class RuntimeProjectStore {
             if (!pageText) {
               continue;
             }
-            const lower =
-              pageText
-                .normalize("NFKC")
-                .toLowerCase();
-
             const occurrences:
               Array<{
                 anchor: string;
@@ -2296,39 +2390,54 @@ export class RuntimeProjectStore {
               }> = [];
 
             for (const anchor of anchors) {
-              const normalized =
-                anchor
-                  .normalize("NFKC")
-                  .toLowerCase();
-              if (!normalized) {
+              const pattern =
+                anchorPattern(
+                  anchor,
+                );
+              if (!pattern) {
                 continue;
               }
-              let from = 0;
-              while (
-                from <
-                lower.length
+              for (
+                const match of
+                  pageText.matchAll(
+                    pattern,
+                  )
               ) {
                 const index =
-                  lower.indexOf(
-                    normalized,
-                    from,
-                  );
+                  match.index ?? -1;
                 if (index < 0) {
-                  break;
+                  continue;
+                }
+                const matched =
+                  match[0] ?? "";
+                const before =
+                  index > 0
+                    ? pageText[
+                        index - 1
+                      ] ?? ""
+                    : "";
+                const after =
+                  pageText[
+                    index +
+                      matched.length
+                  ] ?? "";
+                if (
+                  /[\p{L}\p{N}]/u.test(
+                    before,
+                  ) ||
+                  /[\p{L}\p{N}]/u.test(
+                    after,
+                  )
+                ) {
+                  continue;
                 }
                 occurrences.push({
                   anchor,
                   index,
                   end:
                     index +
-                    normalized.length,
+                    matched.length,
                 });
-                from =
-                  index +
-                  Math.max(
-                    1,
-                    normalized.length,
-                  );
               }
             }
 
@@ -2610,6 +2719,7 @@ export class RuntimeProjectStore {
 
     return {
       refreshedDocumentCount,
+      anchorCount,
       segmentCount,
       unresolvedAnchorCount,
       diagnostics,

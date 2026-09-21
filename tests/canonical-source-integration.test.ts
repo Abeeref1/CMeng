@@ -109,7 +109,7 @@ test('linked correspondence PDF narrative is persisted and drives bounded activi
   const page=pdf.addPage([595,842]);
   [
     'PROJECT CORRESPONDENCE',
-    'Reference: L-NOTICE-001',
+    'Reference: L - NOTICE - 001',
     'Subject: Late access affecting Tower A structural concrete frame Level 13',
     'The delayed access prevented the Tower A concrete frame works at Level 13.',
   ].forEach((line,index)=>page.drawText(line,{x:48,y:780-index*28,size:11,font}));

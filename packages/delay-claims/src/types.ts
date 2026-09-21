@@ -69,6 +69,19 @@ export interface DelayClaimsProjection {
   activityCorrespondenceCandidateCount: number;
   activityCorrespondenceAmbiguousCount: number;
   activityCorrespondenceUnresolvedCount: number;
+  activityCorrespondenceStageCounts: {
+    activityPoolCount: number;
+    eventCount: number;
+    signalBearingEventCount: number;
+    retrievedCandidateCount: number;
+    preFilterCandidateCount: number;
+    boundedCandidateCount: number;
+    aiScoredCandidateCount: number;
+    acceptedEventCount: number;
+    candidateEventCount: number;
+    ambiguousEventCount: number;
+    unresolvedEventCount: number;
+  };
 
   observedPositiveIndependentMovementDays: number;
   /** Gross positive analytical movement summed across windows. Not project delay or EOT. */

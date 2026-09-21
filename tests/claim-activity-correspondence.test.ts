@@ -225,3 +225,55 @@ test("bounded AI score may corroborate but never replace deterministic evidence"
     ),
   );
 });
+
+
+test("multilingual Unicode narratives use the same bounded fail-closed resolver", () => {
+  const input = schedule();
+  input.wbs = [
+    {
+      wbsId: "W-AR-A",
+      parentWbsId: null,
+      name: "البرج أ إنشائي",
+      sourceRefs: [],
+    },
+    {
+      wbsId: "W-AR-B",
+      parentWbsId: null,
+      name: "البرج ب إنشائي",
+      sourceRefs: [],
+    },
+  ];
+  input.activities = [
+    {
+      ...input.activities[0]!,
+      activityId: "AR-100",
+      nativeId: "AR-100",
+      name: "أعمال خرسانة البرج أ المستوى 13",
+      wbsId: "W-AR-A",
+    },
+    {
+      ...input.activities[1]!,
+      activityId: "AR-200",
+      nativeId: "AR-200",
+      name: "أعمال خرسانة البرج ب المستوى 13",
+      wbsId: "W-AR-B",
+    },
+  ];
+
+  const result = resolveClaimActivityCorrespondence({
+    claimId: "C-AR",
+    eventId: "E-AR",
+    narrative:
+      "إشعار تأخير بسبب عدم إتاحة الوصول إلى أعمال خرسانة البرج أ المستوى 13 واستمرار أثر التأخير.",
+    claimEvidenceRefs: refs,
+    schedule: input,
+  });
+
+  assert.equal(result.activityPoolCount, 2);
+  assert.ok(result.claimSignalCount > 0);
+  assert.ok(result.retrievedCandidateCount > 0);
+  assert.ok(result.preFilterCandidateCount > 0);
+  assert.ok(result.boundedCandidateCount > 0);
+  assert.equal(result.classification, "accepted_deterministic");
+  assert.deepEqual(result.acceptedActivityIds, ["AR-100"]);
+});

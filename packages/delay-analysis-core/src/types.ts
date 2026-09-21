@@ -59,6 +59,7 @@ export interface DelayActivityCorrespondenceSignal {
     | "explicit_activity_id"
     | "exact_activity_name"
     | "name_similarity"
+    | "name_coverage"
     | "wbs_similarity"
     | "location"
     | "discipline"
@@ -97,6 +98,13 @@ export interface DelayActivityCorrespondence {
     trades: string[];
     codes: string[];
   };
+  /** Current canonical schedule activity population available to the resolver. */
+  activityPoolCount: number;
+  /** Distinct Unicode narrative/code signals extracted from governed evidence. */
+  claimSignalCount: number;
+  /** Activities admitted by scored-OR retrieval before confidence scoring. */
+  retrievedCandidateCount: number;
+  /** Candidates surviving deterministic prefilter scoring. */
   preFilterCandidateCount: number;
   boundedCandidateCount: number;
   aiStage:
