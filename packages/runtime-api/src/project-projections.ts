@@ -2972,6 +2972,61 @@ function buildBundle(
             ],
           };
 
+    const canonicalCommercial =
+      commercialPositionForState(
+        state,
+        generatedAt,
+      );
+    const directorCommercialByCurrency =
+      canonicalCommercial.currencies.map(
+        (row) => ({
+          currency: row.currency,
+          pendingVariationAmount: {
+            ...row.pendingVariationAmount,
+            sourceRefs: [...row.pendingVariationAmount.sourceRefs],
+            diagnostics: [...row.pendingVariationAmount.diagnostics],
+          },
+          approvedVariationAmount: {
+            ...row.approvedVariationAmount,
+            sourceRefs: [...row.approvedVariationAmount.sourceRefs],
+            diagnostics: [...row.approvedVariationAmount.diagnostics],
+          },
+          certifiedUnpaidAmount: {
+            ...row.certifiedUnpaidAmount,
+            sourceRefs: [...row.certifiedUnpaidAmount.sourceRefs],
+            diagnostics: [...row.certifiedUnpaidAmount.diagnostics],
+          },
+          retentionHeldAmount: {
+            ...row.retentionHeldAmount,
+            sourceRefs: [...row.retentionHeldAmount.sourceRefs],
+            diagnostics: [...row.retentionHeldAmount.diagnostics],
+          },
+          activeBondAmount: {
+            ...row.activeBondAmount,
+            sourceRefs: [...row.activeBondAmount.sourceRefs],
+            diagnostics: [...row.activeBondAmount.diagnostics],
+          },
+          claimClaimedAmount: {
+            ...row.claimedAmount,
+            sourceRefs: [...row.claimedAmount.sourceRefs],
+            diagnostics: [...row.claimedAmount.diagnostics],
+          },
+          claimAssessedAmount: {
+            ...row.assessedClaimAmount,
+            sourceRefs: [...row.assessedClaimAmount.sourceRefs],
+            diagnostics: [...row.assessedClaimAmount.diagnostics],
+          },
+          ldScenarioAmount: {
+            value: null,
+            state: "not_applicable" as const,
+            sourceRefs: [] as string[],
+            diagnostics: [
+              "LD_SCENARIO_IS_OWNED_BY_PROJECT_DIRECTOR_TIME_BASIS",
+            ],
+          },
+        }),
+      );
+
     director =
       buildProjectDirectorPosition({
         generatedAt,
@@ -3030,6 +3085,8 @@ function buildBundle(
         claimCommercials:
           state.controls
             .claimCommercials,
+        commercialByCurrency:
+          directorCommercialByCurrency,
         hseIncidents:
           state.controls
             .hseIncidents,
