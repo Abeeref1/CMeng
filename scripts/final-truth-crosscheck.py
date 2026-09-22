@@ -30,7 +30,7 @@ with sync_playwright() as pw:
   p.locator(f'.nav-item[data-key="{key}"]').click(timeout=20000)
   p.wait_for_function('key=>currentModuleResult?.key===key&&document.getElementById("moduleBadge").textContent!=="Updating"',arg=key,timeout=90000)
   p.wait_for_timeout(350)
-  out[name]=p.evaluate("""key=>{const r=window.currentModuleResult;const d=r?.data||{};const root=document.getElementById('moduleContent');const body=String(root?.innerText||'').replace(/\s+/g,' ').trim();const base={status:r?.status,badge:document.getElementById('moduleBadge')?.innerText.trim(),body};
+  out[name]=p.evaluate("""key=>{const r=currentModuleResult;const d=r?.data||{};const root=document.getElementById('moduleContent');const body=String(root?.innerText||'').replace(/\s+/g,' ').trim();const base={status:r?.status,badge:document.getElementById('moduleBadge')?.innerText.trim(),body};
     if(key==='pmo-analysis')return {...base,source:d.schedule?.sourceActivityCount,executable:d.schedule?.executableActivityCount,excluded:d.schedule?.excludedActivityCount,completed:d.progress?.completedCount,inProgress:d.progress?.inProgressCount,notStarted:d.progress?.notStartedCount,unknown:d.progress?.unknownStatusCount,assigned:d.resources?.assignedResourceCount,weeklyExceedance:d.resources?.overloadedResourceCount,movement:d.claims?.observedProgrammeMovementDays,variance:d.forecast?.varianceDays};
     if(key==='schedule-analytics'){const x=d.result||d;return {...base,source:x.population?.sourceActivityCount,executable:x.population?.executableActivityCount,excluded:x.population?.excludedActivityCount,completed:x.status?.completed,inProgress:x.status?.inProgress,notStarted:x.status?.notStarted,unknown:x.status?.unknown};}
     if(key==='activity-analytics')return {...base,source:d.population?.sourceActivityCount,executable:d.population?.executableActivityCount,excluded:d.population?.excludedActivityCount};
@@ -43,7 +43,7 @@ with sync_playwright() as pw:
  b.close()
 
 checks={}
-def eq(name,a,b): checks[name]={"pass":a==b,"left":a,"right":b}
+def eq(name,a,b): checks[name]={"pass":a is not None and b is not None and a==b,"left":a,"right":b}
 eq("source population PMO vs Programme",out["pmo"]["source"],out["programme"]["source"])
 eq("source population PMO vs Activity",out["pmo"]["source"],out["activity"]["source"])
 eq("executable population PMO vs Programme",out["pmo"]["executable"],out["programme"]["executable"])
