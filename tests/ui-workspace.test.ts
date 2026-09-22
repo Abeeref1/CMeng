@@ -981,7 +981,7 @@ test("CMeng workspace keeps the active module primary and browser script parseab
       "MILESTONE DATE SCALE",
       "Controlled baseline",
       "Current forecast",
-      "Red ring = critical path",
+      "Red ring = submitted float critical",
       "true calendar-date scale",
       "FLOAT / DUE",
     ]

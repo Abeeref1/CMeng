@@ -1215,9 +1215,7 @@ function metricsFor(
     }
 
     case "quantity-scurve": {
-      const itemCount = numberOrNull(quantity?.boqItemCount);
-      const mapped = itemCount === null ? null : itemCount - (quantity?.unmappedItemIds?.length ?? itemCount);
-      const mappingCoverage = itemCount && mapped !== null ? mapped / itemCount * 100 : null;
+      const mappingCoverage = numberOrNull(quantity?.itemLinkCoveragePercent);
       return [spec("quantity_mapping_coverage", "BOQ item-to-schedule link coverage", mappingCoverage, "%",
         quantity?.mappingBasis === "candidate_scenario" ? "scenario" : mappingCoverage === null ? "not_derivable" : "derived",
         ["BOQ", sourceRef], {

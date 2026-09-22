@@ -3323,12 +3323,21 @@ function canonicalQuantityModule(state: ProjectRuntimeState, model: ProjectRunti
   const basis = { ...quantities, scheduleRevisionId: model.sourceRevisionId, allocations,
     installedSnapshots: quantities.installedSnapshots.filter(row => model.dataDateIso !== null && row.asOfIso.slice(0,10) <= model.dataDateIso.slice(0,10)) };
   const projection = buildQuantityScurveProjection(basis, model, { generatedAt, producerVersion: "quantity-shared-evidence-v1" });
+  const activityIds = new Set(model.activities.map(activity => activity.activityId));
+  const itemIds = new Set(quantities.items.map(item => item.quantityItemId));
+  const mappedItemIds = new Set(allocations.filter(allocation => itemIds.has(allocation.quantityItemId)
+    && activityIds.has(allocation.activityId) && Number.isFinite(allocation.allocatedQuantity)
+    && allocation.allocatedQuantity >= 0).map(allocation => allocation.quantityItemId));
   const mappingBasis = !sameRevision ? "revision_mismatch" : scenario ? "candidate_scenario" : quantities.allocations.length ? "governed" : "missing";
   const result = available("quantity-scurve", {
     ...projection, allocationState: scenario ? "partial" : projection.allocationState,
     mappingBasis, candidateMappingState: sameRevision ? "evaluated" : "revision_mismatch", inferredMapping,
     boqState: "loaded", boqItemCount: quantities.items.length,
-    knownQuantityItemCount: quantities.items.filter(item => item.contractQuantity !== null).length,
+    knownQuantityItemCount: quantities.items.filter(item => item.contractQuantity !== null && Number.isFinite(item.contractQuantity) && item.contractQuantity >= 0).length,
+    allocatedItemCount: mappedItemIds.size,
+    itemLinkCoveragePercent: quantities.items.length ? mappedItemIds.size / quantities.items.length * 100 : null,
+    unmappedKnownQuantityItemIds: projection.unmappedItemIds,
+    unmappedItemIds: quantities.items.filter(item => !mappedItemIds.has(item.quantityItemId)).map(item => item.quantityItemId),
     actualAuthority: "measured_installed_quantities", actualIndependentOfScheduleMapping: true,
     series: projection.series.map(series => ({ ...series, authority: scenario ? "scenario_mapping" : "governed_mapping",
       actualAuthority: "measured_installed_quantities",
@@ -6837,6 +6846,7 @@ function resolveProjectModule(state: ProjectRuntimeState, key: string): ModuleRu
     const data = result.data as Record<string, any>;
     result.data = { ...data, controlBasis,
       ...(key === "milestones" ? { movementDistribution: numericDistribution((data.rows ?? []).map((row: any)=>row.varianceDays)) } : {}),
+      ...(key === "activity-analytics" ? { movementDistribution: numericDistribution((data.rows ?? []).map((row: any)=>row.finishVarianceDays)) } : {}),
     };
   }
   return checkProjectionIntegrity(result, model, controlBasis.analysisConfig);
@@ -8056,4 +8066,3 @@ export function invalidateProject(
     projectId,
   );
 }
-

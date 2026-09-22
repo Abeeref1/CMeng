@@ -151,6 +151,8 @@ test('runtime consistency gate exposes a wrong count rather than certifying it',
 });
 test('distribution reports concentration without asserting causality',()=>{
   const result=numericDistribution([10,10,10,40,null]); assert.equal(result.median,10); assert.equal(result.dominantCount,3); assert.equal(result.unknownCount,1); assert.match(result.interpretation,/not evidence/);
+  const secondary=numericDistribution([0,0,0,0,1,2,3,50,50,null]);
+  assert.equal(secondary.dominantValue,0); assert.equal(secondary.maximum,50); assert.equal(secondary.maximumCount,2);
 });
 test('zone-less P6 timestamps have identical epoch meaning across server timezones',()=>{
   const before=process.env.TZ;
@@ -176,4 +178,21 @@ test('initial quantity page and full management synthesis use the same unit popu
   assert.equal(initial.boqState,'loaded'); assert.equal(initial.candidateMappingState,'evaluated');
   assert.equal(initial.series.find((s:any)=>s.unit==='m2').points.find((p:any)=>p.actualInstalledQuantity!==null).actualInstalledQuantity,7);
   assert.equal(state.quantities.allocations.length,0,'scenario evaluation must not govern a crosswalk');
+});
+
+test('unknown contract quantities cannot appear as allocated items when no crosswalk exists',async()=>{
+  const {runtimeProjects}=await import('../packages/runtime-api/src/project-state');
+  const {moduleForProject}=await import('../packages/runtime-api/src/project-projections');
+  const id='QUANTITY-UNKNOWN-'+Date.now(), state=runtimeProjects.getOrCreate(id), schedule=model();
+  schedule.projectId=id;
+  state.schedules.push({role:'update',format:'xer',sourceFilename:'source.xer',sourceHashSha256:'fixture',uploadedAt:options.generatedAt,
+    revision:{revisionId:'R2',label:'Update',sequence:1,effectiveAt:schedule.dataDateIso,model:schedule}} as typeof state.schedules[number]);
+  state.quantities={projectId:id,boqRevisionId:'BOQ',scheduleRevisionId:'R2',items:[{quantityItemId:'Q',itemNumber:'1',section:null,
+    description:'Quantity unknown',unit:null,contractQuantity:null,sourceRefs:[],diagnostics:[]}],allocations:[],installedSnapshots:[],diagnostics:[]};
+  state.version++;
+  const result=moduleForProject(id,'quantity-scurve').data as any;
+  assert.equal(result.boqItemCount,1); assert.equal(result.knownQuantityItemCount,0);
+  assert.equal(result.allocatedItemCount,0); assert.equal(result.itemLinkCoveragePercent,0);
+  assert.deepEqual(result.unmappedItemIds,['Q']); assert.equal(result.mappingBasis,'missing');
+  assert.equal(result.challenge.items[0].independent.value,0);
 });

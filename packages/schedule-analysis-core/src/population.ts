@@ -68,8 +68,11 @@ export function numericDistribution(values: readonly (number | null)[]) {
     const index = (known.length - 1) * p, low = Math.floor(index), high = Math.ceil(index);
     return known[low]! + (known[high]! - known[low]!) * (index - low);
   };
+  const maximum = known.at(-1) ?? null;
+  const maximumCount = maximum === null ? 0 : counts.get(Number(maximum.toFixed(6))) ?? 0;
   return { totalCount: values.length, knownCount: known.length, unknownCount: values.length - known.length,
-    median: percentile(0.5), p90: percentile(0.9), maximum: known.at(-1) ?? null, groups: groups.slice(0,10),
+    median: percentile(0.5), p90: percentile(0.9), maximum, maximumCount,
+    maximumPercent: known.length ? 100 * maximumCount / known.length : null, groups: groups.slice(0,10),
     dominantValue: groups[0]?.value ?? null, dominantCount: groups[0]?.count ?? 0,
     dominantPercent: known.length ? 100 * (groups[0]?.count ?? 0) / known.length : null,
     interpretation: "Repeated values are a concentration pattern, not evidence of a shared cause or separate delay entitlement." };
