@@ -6629,6 +6629,87 @@ function applyProfessionalModuleState(
 
   if (
     result.key ===
+    "commercial-overview"
+  ) {
+    const position =
+      data?.position ??
+      data;
+    const paymentCoverage =
+      position?.foundation
+        ?.paymentRegister
+        ?.stageCoveragePercent ??
+      null;
+    const cashState =
+      position?.performance
+        ?.cashFlow
+        ?.state ??
+      "missing";
+    const claimMoneyLink =
+      position?.claimsNotices
+        ?.commercialLifecycleLinkCoveragePercent ??
+      null;
+    const bondEvidence =
+      position?.evidence
+        ?.bonds ??
+      "not_submitted";
+    if (
+      paymentCoverage !== 100 ||
+      cashState !== "established" ||
+      claimMoneyLink !== 100 ||
+      bondEvidence !== "established"
+    ) {
+      review(
+        "Contract value and approved change are established, but payment lifecycle, cash, commercial-claim valuation or security evidence remains incomplete. The overview is not a complete commercial position.",
+      );
+    }
+  }
+
+  if (
+    result.key ===
+    "commercial-claims-notices"
+  ) {
+    const position =
+      data?.position ??
+      data;
+    const claims =
+      position?.claimsNotices ??
+      {};
+    const moneyLink =
+      claims
+        .commercialLifecycleLinkCoveragePercent ??
+      null;
+    const timeliness =
+      claims
+        .noticeTimelinessCounts ??
+      {};
+    const unresolvedNoticeBasis =
+      Number(
+        timeliness
+          .requirement_missing ??
+        0,
+      ) +
+      Number(
+        timeliness
+          .event_date_missing ??
+        0,
+      ) +
+      Number(
+        timeliness
+          .notice_date_missing ??
+        0,
+      );
+    if (
+      moneyLink !== 100 ||
+      unresolvedNoticeBasis > 0
+    ) {
+      review(
+        "Claim lifecycle evidence exists, but commercial amount linkage and/or contractual notice timeliness basis is incomplete; the claims position requires review.",
+      );
+    }
+  }
+
+  if (
+    result.key ===
     "variations-change"
   ) {
     const control =
