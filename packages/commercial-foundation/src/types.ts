@@ -313,11 +313,15 @@ export interface PaymentRegisterProjection {
     certified: number;
     paid: number;
   };
+  slaAssessmentState:
+    | "established"
+    | "partial"
+    | "not_assessable";
   slaCounts: {
-    paidOnTime: number;
-    paidLate: number;
-    overdueUnpaid: number;
-    openUnpaid: number;
+    paidOnTime: number | null;
+    paidLate: number | null;
+    overdueUnpaid: number | null;
+    openUnpaid: number | null;
     notEstablished: number;
   };
   rows: PaymentRegisterRecord[];
