@@ -161,6 +161,10 @@ function blocked(
   return {
     key,
     status: "blocked",
+    engineState: "blocked",
+    evidenceState: "missing",
+    professionalState:
+      "not_defensible",
     reason,
     dependencies,
     data: null,
@@ -179,6 +183,15 @@ function available(
   return {
     key,
     status,
+    engineState: "ready",
+    evidenceState:
+      status === "ready"
+        ? "established"
+        : "partial",
+    professionalState:
+      status === "ready"
+        ? "defensible"
+        : "review_required",
     reason,
     dependencies,
     data,
@@ -6452,6 +6465,236 @@ function buildSpecialistModuleFast(
   return result;
 }
 
+function applyProfessionalModuleState(
+  result: ModuleRuntimeResult,
+): ModuleRuntimeResult {
+  if (
+    result.status === "blocked" ||
+    result.data === null
+  ) {
+    return {
+      ...result,
+      engineState:
+        result.engineState ??
+        "blocked",
+      evidenceState:
+        result.evidenceState ??
+        "missing",
+      professionalState:
+        "not_defensible",
+      status: "blocked",
+    };
+  }
+
+  const data = result.data as any;
+  let evidenceState =
+    result.evidenceState ??
+    (
+      result.status === "ready"
+        ? "established"
+        : "partial"
+    );
+  let professionalState =
+    result.professionalState ??
+    (
+      result.status === "ready"
+        ? "defensible"
+        : "review_required"
+    );
+  let reason = result.reason;
+
+  const review = (
+    message: string,
+    state:
+      | "partial"
+      | "missing" =
+      "partial",
+  ) => {
+    evidenceState = state;
+    professionalState =
+      state === "missing"
+        ? "not_defensible"
+        : "review_required";
+    reason = message;
+  };
+
+  if (
+    result.key === "delay-claims"
+  ) {
+    const eventCount =
+      Number(
+        data.eventCount ?? 0,
+      );
+    const activityLinked =
+      Number(
+        data.activityLinkedEventCount ??
+          0,
+      );
+    if (
+      eventCount > 0 &&
+      activityLinked < eventCount
+    ) {
+      review(
+        String(activityLinked) +
+          " of " +
+          String(eventCount) +
+          " delay events are linked to governed schedule activities; causation is not fully defensible.",
+      );
+    }
+  }
+
+  if (
+    result.key === "payments"
+  ) {
+    const register =
+      data?.focus?.paymentRegister ??
+      data?.position?.foundation
+        ?.paymentRegister ??
+      null;
+    const count =
+      Number(
+        register?.recordCount ?? 0,
+      );
+    const coverage =
+      register
+        ?.stageCoveragePercent ??
+      null;
+    if (
+      count > 0 &&
+      coverage !== 100
+    ) {
+      review(
+        "Payment lifecycle dates are incomplete; overdue and late-payment outcomes are not fully assessable.",
+      );
+    }
+  }
+
+  if (
+    result.key === "cash-flow"
+  ) {
+    const currencies =
+      data?.focus
+        ?.cashFlowRegister
+        ?.currencies ??
+      data?.position
+        ?.performance
+        ?.cashFlow
+        ?.currencies ??
+      [];
+    const cashReady =
+      currencies.length > 0 &&
+      currencies.every(
+        (row: any) =>
+          row.sourceReadiness
+            ?.netCashReady ===
+          true,
+      );
+    if (!cashReady) {
+      review(
+        "Dated cash receipts and expenditure evidence are incomplete; current cash position remains withheld.",
+      );
+    }
+  }
+
+  if (
+    result.key ===
+    "variations-change"
+  ) {
+    const control =
+      data?.focus
+        ?.variationControl ??
+      null;
+    if (
+      control &&
+      (
+        control
+          .scheduleLinkCoveragePercent !==
+          100 ||
+        control
+          .claimLinkCoveragePercent !==
+          100 ||
+        control
+          .paymentLinkCoveragePercent !==
+          100
+      )
+    ) {
+      review(
+        "Variation final status is available, but cross-domain schedule/claim/payment lifecycle linkage is incomplete.",
+      );
+    }
+  }
+
+  if (
+    result.key ===
+    "eot-assessment"
+  ) {
+    if (
+      data
+        ?.officialAdjustedCompletionIso ===
+        null ||
+      data
+        ?.officialAdjustedCompletionIso ===
+        undefined
+    ) {
+      review(
+        "Official adjusted completion is not established; observed movement and analytical scenarios remain separate from contractual entitlement.",
+      );
+    }
+  }
+
+  if (
+    result.key ===
+    "challenge-contract" &&
+    (
+      data?.physicalComplete ===
+        false ||
+      data?.semanticComplete ===
+        false
+    )
+  ) {
+    review(
+      "The contract challenge position is not yet supportable from a complete governed contract evidence basis.",
+    );
+  }
+
+  if (
+    result.key ===
+    "contract-particulars-bonds"
+  ) {
+    const bonds =
+      data?.focus
+        ?.bondsInsurance ??
+      null;
+    if (
+      bonds &&
+      bonds.state !==
+        "established"
+    ) {
+      review(
+        "Contract terms may be available, but the bond/security or insurance evidence basis is incomplete.",
+      );
+    }
+  }
+
+  return {
+    ...result,
+    engineState:
+      result.engineState ??
+      "ready",
+    evidenceState,
+    professionalState,
+    status:
+      professionalState ===
+        "defensible"
+        ? "ready"
+        : professionalState ===
+            "review_required"
+          ? "partial"
+          : "blocked",
+    reason,
+  };
+}
+
 function resolveProjectModule(
   state: ProjectRuntimeState,
   key: string,
@@ -6459,13 +6702,16 @@ function resolveProjectModule(
   const sourceResource = canonicalResourceModule(state, key) ?? canonicalCommercialModule(state, key);
   if (sourceResource) {
     const current = projectControlSchedule(state);
-    if (!current) return sourceResource;
+    if (!current) return applyProfessionalModuleState(sourceResource);
     const generatedAt = new Date().toISOString();
     const context = specialistChallengeContext(state, current.revision.model, generatedAt);
     const modules = new Map([[key, sourceResource]]);
     applyUniversalModuleChallenges({state, generatedAt, model:current.revision.model,
       independentForecast:context.forecast, deliveryChallenge:context.delivery, modules});
-    return modules.get(key) ?? sourceResource;
+    return applyProfessionalModuleState(
+      modules.get(key) ??
+        sourceResource,
+    );
   }
 
   const planning =
@@ -6474,7 +6720,9 @@ function resolveProjectModule(
       key,
     );
   if (planning) {
-    return planning;
+    return applyProfessionalModuleState(
+      planning,
+    );
   }
 
   const specialist =
@@ -6483,18 +6731,20 @@ function resolveProjectModule(
       key,
     );
   if (specialist) {
-    return specialist;
+    return applyProfessionalModuleState(
+      specialist,
+    );
   }
 
   const bundle =
     buildBundle(state);
-  return (
+  return applyProfessionalModuleState(
     bundle.modules.get(key) ??
-    blocked(
-      key,
-      "Unknown Schedule module.",
-      [],
-    )
+      blocked(
+        key,
+        "Unknown Schedule module.",
+        [],
+      ),
   );
 }
 
@@ -7400,37 +7650,17 @@ export function overviewForProject(
         ...commercialModules,
       ].map(
         (module) => {
-          const receiptStatus =
-            receiptStates.get(
+          const resolved =
+            resolveProjectModule(
+              state,
               module.key,
             );
           return {
             key: module.key,
             status:
-              receiptStatus ??
-              (
-                commercialModules.some(
-                  (item) =>
-                    item.key ===
-                    module.key,
-                )
-                  ? "partial"
-                  : scheduleEstablished
-                    ? "partial"
-                    : "blocked"
-              ),
+              resolved.status,
             reason:
-              receiptStatus
-                ? null
-                : commercialModules.some(
-                    (item) =>
-                      item.key ===
-                      module.key,
-                  )
-                  ? "Open the commercial view to calculate the current governed position. Missing evidence will remain missing, not zero."
-                  : scheduleEstablished
-                    ? "Open the view to calculate the latest specialist position."
-                    : "Programme evidence has not been established.",
+              resolved.reason,
           };
         },
       ),
@@ -7451,12 +7681,27 @@ export function rerunProject(
     new Date().toISOString();
   const bundle =
     buildBundle(state);
+  const resolvedModules =
+    new Map(
+      [
+        ...scheduleModules,
+        ...commercialModules,
+      ].map(
+        (module) => [
+          module.key,
+          resolveProjectModule(
+            state,
+            module.key,
+          ),
+        ],
+      ),
+    );
   const certification =
     certifyCrossModuleConsistency({
       generatedAt,
       state,
       modules:
-        bundle.modules,
+        resolvedModules,
       director:
         bundle.director,
       boardReport:
@@ -7561,7 +7806,7 @@ export function rerunProject(
         }),
       ),
     moduleCount:
-      bundle.modules.size,
+      resolvedModules.size,
     moduleResults: [
       ...bundle.modules.entries(),
     ]
