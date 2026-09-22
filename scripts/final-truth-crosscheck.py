@@ -57,7 +57,7 @@ checks["PMO execution status reconciles"]={"pass":sum([out["pmo"].get("completed
 contract=out["contract"]["body"];pmo=out["pmo"]["body"];challenge=out["challenge"]["body"];claims=out["claims"]
 checks["contract no false bond zero"]={"pass":not bool(re.search(r"Active bonds\s+0\b|Expired bonds\s+0\b|Expiring bonds\s+0\b",contract))}
 checks["contract no false obligation zero"]={"pass":not bool(re.search(r"(?:Open obligations|Overdue obligations|Controlled obligation records)\s+0\b",contract))}
-checks["retention overdue not assessable"]={"pass":"Retention overdue Not assessable" in contract and not bool(re.search(r"Retention overdue\s+0\b",contract))}
+checks["retention overdue not assessable"]={"pass":bool(re.search(r"RETENTION OVERDUE\s+Not assessable",contract,re.I)) and not bool(re.search(r"Retention overdue\s+0\b",contract,re.I))}
 checks["PMO whole-day variance"]={"pass":"1,050 days" in pmo and "1050.333333" not in pmo}
 checks["PMO weekly exceedance wording"]={"pass":"Resources with weekly exceedance" in pmo and "Overloaded 210" not in pmo}
 checks["Challenge no raw ISO"]={"pass":not bool(re.search(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}",challenge))}
