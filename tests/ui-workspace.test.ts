@@ -931,8 +931,8 @@ test("CMeng workspace keeps the active module primary and browser script parseab
     "Cash Flow source summary must describe an absent payment basis instead of presenting it as zero",
   );
   for (const disclosure of [
-    "complete governed population remains available in the module report/export",
-    "complete population remains available in the module report/export",
+    "complete governed population is available through Download Excel / Download data",
+    "complete population is available through Download Excel / Download data",
   ]) {
     assert.equal(
       html.includes(disclosure),
