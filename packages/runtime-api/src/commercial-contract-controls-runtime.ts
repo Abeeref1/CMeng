@@ -93,67 +93,6 @@ function moneyInput(
   };
 }
 
-function sumKnownDays(
-  values:
-    Array<number | null>,
-): {
-  value: number | null;
-  coveragePercent: number | null;
-} {
-  if (!values.length) {
-    return {
-      value: null,
-      coveragePercent: null,
-    };
-  }
-  const known =
-    values.filter(
-      (
-        value,
-      ): value is number =>
-        value !== null,
-    );
-  return {
-    value:
-      known.length ===
-      values.length
-        ? Number(
-            known
-              .reduce(
-                (
-                  sum,
-                  value,
-                ) =>
-                  sum + value,
-                0,
-              )
-              .toFixed(6),
-          )
-        : known.length
-          ? Number(
-              known
-                .reduce(
-                  (
-                    sum,
-                    value,
-                  ) =>
-                    sum + value,
-                  0,
-                )
-                .toFixed(6),
-            )
-          : null,
-    coveragePercent:
-      Number(
-        (
-          (known.length /
-            values.length) *
-          100
-        ).toFixed(2),
-      ),
-  };
-}
-
 function currentProgrammeCompletion(
   state: ProjectRuntimeState,
 ): {
@@ -270,24 +209,6 @@ export function commercialContractControlsForState(
     );
   const timeClaims =
     canonicalTimeClaims(state);
-  const claims =
-    timeClaims.delayClaims
-      ?.claims ??
-    [];
-  const claimed =
-    sumKnownDays(
-      claims.map(
-        (claim) =>
-          claim.claimedDays,
-      ),
-    );
-  const assessed =
-    sumKnownDays(
-      claims.map(
-        (claim) =>
-          claim.assessedDays,
-      ),
-    );
   const programme =
     currentProgrammeCompletion(
       state,
@@ -696,14 +617,6 @@ export function commercialContractControlsForState(
           ...programme
             .sourceRefs,
         ],
-        claimedEotDays:
-          claimed.value,
-        claimedEotCoveragePercent:
-          claimed.coveragePercent,
-        assessedEotDays:
-          assessed.value,
-        assessedEotCoveragePercent:
-          assessed.coveragePercent,
         awardedEotDays:
           awardedDays,
         awardedEotState:
