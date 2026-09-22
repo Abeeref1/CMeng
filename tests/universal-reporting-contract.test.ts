@@ -130,3 +130,20 @@ test('changing dated evidence propagates automatically to all management surface
    assert.equal(single.metrics.find((m:any)=>m.key==='claims-linkage').value,'0 / '+expectedClaims);
  }
 });
+
+
+test('all specialist and management status surfaces use the same fail-closed readiness result',t=>{
+ const {state}=fixture(t);
+ const overview=overviewForProject(state.projectId)!;
+ const surfaces=managementSurfacesForProject(state.projectId)!;
+ for (const specialist of surfaces.masterControlProgramme.specialistPositions) {
+   const resolved=moduleForProject(state.projectId,specialist.key);
+   if(resolved.data) {
+     const gate=(resolved.data as any).moduleReadiness;
+     assert.ok(gate, specialist.key);
+     if(gate.calculation!=='checked'||gate.evidence!=='established'||gate.consistency!=='pass') assert.notEqual(resolved.status,'ready',specialist.key);
+     assert.equal(specialist.status,resolved.status,specialist.key);
+   }
+ }
+ assert.ok(overview);
+});

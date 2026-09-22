@@ -1,3 +1,4 @@
+import { enforceModuleReadiness } from "./module-readiness";
 import { documentClassificationForReview } from "./document-identification";
 import { reportingScope } from "../../truth-kernel/src";
 import { attachReportingContract, reportingData, managementReportingData } from "./reporting-contract";
@@ -6838,7 +6839,7 @@ function resolveProjectModuleUncertified(
   );
 }
 
-function resolveProjectModule(state: ProjectRuntimeState, key: string): ModuleRuntimeResult {
+function resolveProjectModuleCandidate(state: ProjectRuntimeState, key: string): ModuleRuntimeResult {
   state = reportingState(state);
   const result = resolveProjectModuleUncertified(state, key);
   const model = projectControlSchedule(state)?.revision.model;
@@ -6893,6 +6894,22 @@ function resolveProjectModule(state: ProjectRuntimeState, key: string): ModuleRu
     result.reason='Milestones use submitted float and a '+controlBasis.nearCriticalThresholdMethod.replaceAll('_',' ')+' threshold. Contractual threshold authority and independent driving-path validation remain separate.';
   }
   return attachReportingContract(state,checkProjectionIntegrity(result, model, controlBasis.analysisConfig));
+}
+
+const resolvedProjectCache = new Map<string, {version: number; modules: Map<string, ModuleRuntimeResult>}>();
+
+function resolveProjectModule(state: ProjectRuntimeState, key: string): ModuleRuntimeResult {
+  const cached = resolvedProjectCache.get(state.projectId);
+  if (cached?.version === state.version) return cached.modules.get(key) ?? blocked(key, "Unknown module.", []);
+  const scoped = reportingState(state);
+  const bundle = buildBundle(scoped);
+  const candidates = new Map([...scheduleModules, ...commercialModules].map(descriptor =>
+    [descriptor.key, resolveProjectModuleCandidate(scoped, descriptor.key)]));
+  const consistency = certifyCrossModuleConsistency({generatedAt: bundle.generatedAt, state: scoped,
+    modules: candidates, director: bundle.director, boardReport: bundle.boardReport});
+  const modules = new Map([...candidates].map(([key, result]) => [key, enforceModuleReadiness(result, consistency)]));
+  resolvedProjectCache.set(state.projectId, {version: state.version, modules});
+  return modules.get(key) ?? blocked(key, "Unknown module.", []);
 }
 
 export function moduleForProject(
@@ -8053,6 +8070,7 @@ export function invalidateProject(
   projectId: string,
 ): void {
   bundleCache.delete(projectId);
+  resolvedProjectCache.delete(projectId);
   for (
     const key of
       planningModuleCache.keys()

@@ -11,6 +11,7 @@ import { buildScheduleChangeReportProjection } from '../packages/schedule-change
 import { buildVarianceTrendsProjection } from '../packages/variance-trends/src';
 import { resolveRevisionActivityCorrespondence } from '../packages/schedule-revision-core/src';
 import { checkProjectionIntegrity } from '../packages/runtime-api/src/projection-integrity';
+import { enforceModuleReadiness } from '../packages/runtime-api/src/module-readiness';
 import { parseScheduleInstant } from '../packages/schedule-cpm/src/calendar';
 
 const options = { generatedAt: '2030-01-09T12:00:00Z', producerVersion: 'system-regression' };
@@ -156,6 +157,17 @@ test('baseline mutations and unique relationship type/lag modifications remain a
 test('runtime consistency gate exposes a wrong count rather than certifying it',()=>{
   const input=model(); const result=checkProjectionIntegrity({key:'near-critical',status:'ready',reason:null,dependencies:[],data:{nearCriticalCount:999}},input,DEFAULT_SCHEDULE_ANALYSIS_CONFIG);
   assert.equal(result.status,'partial'); assert.equal((result.data as any).systemEvidenceContract.state,'failed');
+});
+test('the universal module resolver never promotes pending, missing or failed gates to green',()=>{
+  const base = {key:'fixture',status:'ready' as const,engineState:'ready' as const,evidenceState:'established' as const,
+    professionalState:'defensible' as const,reason:null,dependencies:[],data:{challenge:{reconciliationState:'within_tolerance'},systemEvidenceContract:{state:'verified_for_checked_metrics',checks:[{passed:true}]}}};
+  const pass = {state:'pass' as const,failedCheckIds:[],checkCount:6};
+  assert.equal(enforceModuleReadiness(base,pass).status,'ready');
+  assert.equal(enforceModuleReadiness({...base,data:{systemEvidenceContract:{state:'not_checked',checks:[]}}},pass).status,'partial');
+  assert.equal(enforceModuleReadiness({...base,evidenceState:'missing'},pass).status,'partial');
+  assert.equal(enforceModuleReadiness({...base,professionalState:'review_required'},pass).status,'partial');
+  assert.equal(enforceModuleReadiness({...base,data:{...base.data,challenge:{reconciliationState:'material_difference'}}},pass).status,'partial');
+  assert.equal(enforceModuleReadiness(base,{...pass,state:'fail',failedCheckIds:['POPULATION_MISMATCH']}).status,'partial');
 });
 test('distribution reports concentration without asserting causality',()=>{
   const result=numericDistribution([10,10,10,40,null]); assert.equal(result.median,10); assert.equal(result.dominantCount,3); assert.equal(result.unknownCount,1); assert.match(result.interpretation,/not evidence/);
