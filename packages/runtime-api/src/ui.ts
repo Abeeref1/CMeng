@@ -469,7 +469,7 @@ const fmtExecutive=v=>{
   return new Intl.NumberFormat(undefined,{maximumFractionDigits:2}).format(v);
 };
 const statusClass=s=>s==="ready"?"ready":s==="partial"?"partial":"blocked";
-const statusLabel=s=>s==="ready"?"Ready":s==="partial"?"Review needed":"More information needed";
+const statusLabel=s=>s==="ready"?"Evidence sufficient":s==="partial"?"Evidence review required":"Evidence not sufficient";
 function moduleGroupForRole(key){
   for(const [group,keys] of Object.entries(groups)){
     if(keys.includes(key))return group;
@@ -3734,9 +3734,9 @@ function renderManagementControlVisual(key,data){
   if(key==="master-dashboard"){
     const r=data.readiness||{};
     const readinessDonut=renderDonutChart([
-      {label:"Ready",value:r.ready??0,tone:"success"},
-      {label:"Review needed",value:r.partial??0,tone:"warning"},
-      {label:"Needs information",value:r.blocked??0,tone:"danger"}
+      {label:"Evidence sufficient",value:r.ready??0,tone:"success"},
+      {label:"Evidence review",value:r.partial??0,tone:"warning"},
+      {label:"Evidence missing",value:r.blocked??0,tone:"danger"}
     ],"Control views");
     return '<div class="planning-view management-view master-dashboard-view">'+
       managementPanel("Executive Project Position","Compact management position only. Every KPI retains state, authority, basis and an owning specialist route.",renderManagementMetricGrid(data.metrics||[]),true)+
