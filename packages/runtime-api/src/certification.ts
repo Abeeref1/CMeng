@@ -109,6 +109,48 @@ function equalityCheck(
   };
 }
 
+function requiredEqualityCheck(
+  checkId: string,
+  detail: string,
+  values: Array<{
+    source: string;
+    value: unknown;
+  }>,
+): CrossModuleCertificationCheck {
+  const sourceValue =
+    values[0]?.value;
+  if (
+    sourceValue === null ||
+    sourceValue === undefined
+  ) {
+    return {
+      checkId,
+      state:
+        "not_applicable",
+      detail,
+      values,
+    };
+  }
+  const sourceKey =
+    normalized(sourceValue);
+  const ok =
+    values.every(
+      (item) =>
+        item.value !== null &&
+        item.value !== undefined &&
+        normalized(item.value) ===
+          sourceKey,
+    );
+  return {
+    checkId,
+    state: ok
+      ? "pass"
+      : "fail",
+    detail,
+    values,
+  };
+}
+
 function booleanCheck(
   checkId: string,
   ok: boolean,
@@ -267,7 +309,7 @@ export function certifyCrossModuleConsistency(
   );
 
   checks.push(
-    equalityCheck(
+    requiredEqualityCheck(
       "SOURCE_ACTIVITY_POPULATION_CONSISTENCY",
       "All schedule/activity/progress/PMO consumers must agree on the all-source activity population.",
       [
@@ -301,7 +343,7 @@ export function certifyCrossModuleConsistency(
   );
 
   checks.push(
-    equalityCheck(
+    requiredEqualityCheck(
       "EXECUTABLE_ACTIVITY_POPULATION_CONSISTENCY",
       "Execution-status metrics must use the same executable activity population everywhere.",
       [
@@ -402,7 +444,7 @@ export function certifyCrossModuleConsistency(
   );
 
   checks.push(
-    equalityCheck(
+    requiredEqualityCheck(
       "RESOURCE_COUNT_CONSISTENCY",
       "PMO and Resources must use the same distinct-resource population.",
       [
@@ -421,7 +463,7 @@ export function certifyCrossModuleConsistency(
     ),
   );
   checks.push(
-    equalityCheck(
+    requiredEqualityCheck(
       "ASSIGNED_RESOURCE_COUNT_CONSISTENCY",
       "Assigned-resource count must mean distinct assigned resources, never assignment rows.",
       [
@@ -441,7 +483,7 @@ export function certifyCrossModuleConsistency(
     ),
   );
   checks.push(
-    equalityCheck(
+    requiredEqualityCheck(
       "RESOURCE_ASSIGNMENT_RECORD_COUNT_CONSISTENCY",
       "Resource assignment records must remain separate from distinct resource counts.",
       [
@@ -518,7 +560,7 @@ export function certifyCrossModuleConsistency(
   );
 
   checks.push(
-    equalityCheck(
+    requiredEqualityCheck(
       "PROGRAMME_MOVEMENT_PROPAGATION",
       "Programme movement calculated in Windows must propagate to Delay, EOT, Director and Board without disappearing.",
       [
@@ -803,7 +845,7 @@ export function certifyCrossModuleConsistency(
   );
 
   checks.push(
-    equalityCheck(
+    requiredEqualityCheck(
       "FORECAST_COVERAGE_CONSISTENCY",
       "Independent forecast activity coverage must remain consistent from Forecast through Progress, PMO, Director and Board.",
       [
@@ -850,7 +892,7 @@ export function certifyCrossModuleConsistency(
   );
 
   checks.push(
-    equalityCheck(
+    requiredEqualityCheck(
       "FORECAST_AUTHORITY_CONSISTENCY",
       "Independent forecast authority must remain consistent from Progress through PMO, Director and Board.",
       [
@@ -890,7 +932,7 @@ export function certifyCrossModuleConsistency(
   );
 
   checks.push(
-    equalityCheck(
+    requiredEqualityCheck(
       "CONTRACT_COMPLETION_BASIS_CONSISTENCY",
       "Contract completion must remain explicit and consistent between EOT and Project Director.",
       [
@@ -910,7 +952,7 @@ export function certifyCrossModuleConsistency(
     ),
   );
   checks.push(
-    equalityCheck(
+    requiredEqualityCheck(
       "OFFICIAL_ADJUSTED_COMPLETION_BASIS_CONSISTENCY",
       "Official adjusted completion must never silently fall back to contract completion.",
       [
@@ -930,7 +972,7 @@ export function certifyCrossModuleConsistency(
     ),
   );
   checks.push(
-    equalityCheck(
+    requiredEqualityCheck(
       "SUBMITTED_PROGRAMME_COMPLETION_BASIS_CONSISTENCY",
       "Submitted programme/source finish must remain separate from independent and contractual finishes.",
       [
