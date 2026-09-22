@@ -783,6 +783,52 @@ test("CMeng workspace keeps the active module primary and browser script parseab
 
   assert.equal(
     html.includes(
+      "No controlled obligation register is established. Open, overdue and complete counts are not established.",
+    ),
+    true,
+    "Contract Particulars must not render zero compliance counts when the controlled obligation register is absent",
+  );
+  assert.equal(
+    html.includes(
+      "Overdue retention is not assessable until release due dates or contractual release triggers are established.",
+    ),
+    true,
+    "Retention overdue must be explicitly unassessable when release timing evidence is incomplete",
+  );
+  assert.equal(
+    html.includes(
+      "Resources with weekly exceedance",
+    ),
+    true,
+    "PMO must label weekly resource-capacity exceedance precisely",
+  );
+  assert.equal(
+    html.includes(
+      "Evidence & technical trace",
+    ),
+    true,
+    "Claims & Notices must move technical evidence references behind a trace drawer",
+  );
+  assert.equal(
+    html.includes(
+      'table(["Claim","Title","State","Submitted","Claimed days","Assessed days","Assessment authority","Events","Clauses","Evidence"]',
+    ),
+    false,
+    "Claims & Notices main lifecycle table must not expose evidence hashes",
+  );
+  assert.match(
+    html,
+    /humanizeIsoText/,
+    "Challenge the Contract must humanize ISO timestamps in user-facing text",
+  );
+  assert.match(
+    html,
+    /maximumFractionDigits:0\}\)\.format\(variance\)\+" days"/,
+    "PMO forecast variance must use whole-day management precision",
+  );
+
+  assert.equal(
+    html.includes(
       "claimGroups",
     ),
     false,
