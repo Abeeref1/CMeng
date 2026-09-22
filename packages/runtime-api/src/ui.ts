@@ -457,6 +457,17 @@ let selectedEvidenceDocuments=new Set();
 const el=id=>document.getElementById(id);
 const project=()=>el("projectId").value.trim();
 const fmt=v=>v===null||v===undefined?"—":typeof v==="number"?new Intl.NumberFormat(undefined,{maximumFractionDigits:2}).format(v):String(v);
+const fmtExecutive=v=>{
+  if(v===null||v===undefined)return"—";
+  if(typeof v!=="number"||!Number.isFinite(v))return String(v);
+  const a=Math.abs(v);
+  if(a>=1000000000)return new Intl.NumberFormat(undefined,{maximumFractionDigits:2}).format(v/1000000000)+"B";
+  if(a>=1000000)return new Intl.NumberFormat(undefined,{maximumFractionDigits:2}).format(v/1000000)+"M";
+  if(a>=1000)return new Intl.NumberFormat(undefined,{maximumFractionDigits:1}).format(v/1000)+"k";
+  if(a>=100)return new Intl.NumberFormat(undefined,{maximumFractionDigits:0}).format(v);
+  if(a>=10)return new Intl.NumberFormat(undefined,{maximumFractionDigits:1}).format(v);
+  return new Intl.NumberFormat(undefined,{maximumFractionDigits:2}).format(v);
+};
 const statusClass=s=>s==="ready"?"ready":s==="partial"?"partial":"blocked";
 const statusLabel=s=>s==="ready"?"Ready":s==="partial"?"Review needed":"More information needed";
 function moduleGroupForRole(key){
@@ -1132,9 +1143,12 @@ function renderLineChart(points,series,yMaxHint=null){
   if(!numeric.length)return '<div class="empty-visual">No numeric series points available.</div>';
   const width=1080,height=330,left=66,right=28,top=24,bottom=54;
   const plotW=width-left-right,plotH=height-top-bottom;
-  const rawMin=Math.min(...numeric,0),rawMax=Math.max(...numeric,1);
-  const minY=yMaxHint!==null?0:Math.min(0,rawMin-(rawMax-rawMin)*.08);
-  const maxY=yMaxHint!==null?yMaxHint:Math.max(1,rawMax+(rawMax-rawMin||1)*.1);
+  const observedMin=Math.min(...numeric),observedMax=Math.max(...numeric);
+  const rawMin=Math.min(observedMin,0),rawMax=Math.max(observedMax,1);
+  const signed=observedMin<0;
+  const range=Math.max(1,observedMax-observedMin);
+  const minY=yMaxHint!==null?0:signed?Math.min(0,observedMin-range*.08):0;
+  const maxY=yMaxHint!==null?yMaxHint:Math.max(1,observedMax+range*.1);
   const span=Math.max(.0001,maxY-minY);
   const x=index=>left+(points.length===1?plotW/2:(index/(points.length-1))*plotW);
   const y=value=>top+plotH-((Math.max(minY,Math.min(maxY,value))-minY)/span)*plotH;
@@ -1150,7 +1164,7 @@ function renderLineChart(points,series,yMaxHint=null){
   };
   const grid=[0,.25,.5,.75,1].map(ratio=>{
     const value=minY+(span*ratio),yy=y(value);
-    return '<line x1="'+left+'" y1="'+yy.toFixed(1)+'" x2="'+(width-right)+'" y2="'+yy.toFixed(1)+'" stroke="#e6edf4" stroke-width="1"/><text x="'+(left-10)+'" y="'+(yy+4).toFixed(1)+'" text-anchor="end" font-size="10" fill="#738399">'+escapeHtml(fmt(value))+'</text>';
+    return '<line x1="'+left+'" y1="'+yy.toFixed(1)+'" x2="'+(width-right)+'" y2="'+yy.toFixed(1)+'" stroke="#e6edf4" stroke-width="1"/><text x="'+(left-10)+'" y="'+(yy+4).toFixed(1)+'" text-anchor="end" font-size="10" fill="#738399">'+escapeHtml(fmtExecutive(value))+'</text>';
   }).join("");
   const zero=minY<0&&maxY>0?'<line x1="'+left+'" y1="'+y(0).toFixed(1)+'" x2="'+(width-right)+'" y2="'+y(0).toFixed(1)+'" stroke="#98a2b3" stroke-width="1.2" stroke-dasharray="4 4"/>':'';
   const plots=series.map((item,seriesIndex)=>{
@@ -1161,7 +1175,7 @@ function renderLineChart(points,series,yMaxHint=null){
       const area=seriesIndex===0&&minY>=0&&seg.length>1
         ? '<polygon points="'+seg[0].x.toFixed(1)+","+y(minY).toFixed(1)+" "+seg.map(p=>p.x.toFixed(1)+","+p.y.toFixed(1)).join(" ")+" "+seg.at(-1).x.toFixed(1)+","+y(minY).toFixed(1)+'" fill="'+color+'" fill-opacity=".07"/>'
         : '';
-      const dots=seg.length<=36?seg.map(p=>'<circle cx="'+p.x.toFixed(1)+'" cy="'+p.y.toFixed(1)+'" r="3.5" fill="#fff" stroke="'+color+'" stroke-width="2"><title>'+escapeHtml(item.label+": "+fmt(p.value))+'</title></circle>').join(""):'';
+      const dots=seg.length<=36?seg.map(p=>'<circle cx="'+p.x.toFixed(1)+'" cy="'+p.y.toFixed(1)+'" r="3.5" fill="#fff" stroke="'+color+'" stroke-width="2"><title>'+escapeHtml(item.label+": "+fmtExecutive(p.value))+'</title></circle>').join(""):'';
       return area+poly+dots;
     }).join("");
   }).join("");
@@ -1589,7 +1603,7 @@ function planningDateTrend(points,series){
     return '<circle cx="'+x(i).toFixed(1)+'" cy="'+y(v).toFixed(1)+'" r="3.5" fill="'+s.color+'"><title>'+escapeHtml(s.label+" · "+planningShortDate(new Date(v).toISOString())+" · "+p.label)+'</title></circle>';
   }).join("")).join("");
   const labelIndexes=[0,Math.floor((prepared.length-1)/2),prepared.length-1].filter((v,i,a)=>a.indexOf(v)===i);
-  const labels=labelIndexes.map(i=>'<text x="'+x(i).toFixed(1)+'" y="'+(height-15)+'" text-anchor="'+(i===0?"start":i===prepared.length-1?"end":"middle")+'" font-size="10" fill="#75849a">'+escapeHtml(prepared[i].label)+'</text>').join("");
+  const labels=labelIndexes.map(i=>{const raw=prepared[i].label;const label=planningDateMs(raw)!==null?planningShortDate(raw):planningRevisionLabel(raw);return'<text x="'+x(i).toFixed(1)+'" y="'+(height-15)+'" text-anchor="'+(i===0?"start":i===prepared.length-1?"end":"middle")+'" font-size="10" fill="#75849a">'+escapeHtml(label)+'</text>'}).join("");
   const legend='<div class="chart-legend">'+series.map(s=>'<span class="legend-item"><span class="legend-dot" style="background:'+s.color+'"></span>'+escapeHtml(s.label)+'</span>').join("")+'</div>';
   return legend+'<div class="chart-scroll"><svg class="svg-chart" viewBox="0 0 '+width+' '+height+'">'+ticks+paths+pointsSvg+labels+'</svg></div>';
 }
@@ -2419,20 +2433,20 @@ function renderManhourVisual(data){
     const scenarioTable=scenarios.length?'<div class="table-wrap"><table><thead><tr><th>Crew size</th><th>Average manpower</th><th>Peak manpower</th><th>Remaining scenario hours</th><th>Basis</th></tr></thead><tbody>'+scenarios.map(s=>'<tr><td>'+escapeHtml(fmt(s.crewSize))+'</td><td>'+escapeHtml(fmt(s.averageManpower))+'</td><td>'+escapeHtml(fmt(s.peakManpower))+'</td><td>'+escapeHtml(fmt(s.remainingScenarioHours))+'</td><td>'+escapeHtml(s.basis||"—")+'</td></tr>').join("")+'</tbody></table></div>':'';
     return '<section class="planning-view manhour-view"><div class="notice warn"><b>Measured labor-assignment history is not established.</b> Any values below are programme-derived scenarios and are not presented as actual man-hours.</div>'+scenarioTable+'</section>';
   }
-  const actualEstablished=typeof p.actualHoursKnownCurrent==="number"&&p.actualAssignmentCoveragePercent>0;
-  const actualHistoryEstablished=p.actualHistoryMethod==="stored_financial_period_actuals";
+  const actualEstablished=typeof p.actualHoursKnownCurrent==="number"&&Number.isFinite(p.actualHoursKnownCurrent);
+  const actualHistoryEstablished=["stored_financial_period_actuals","source_approved_weekly_usage"].includes(p.actualHistoryMethod);
   const top=planningKpis([
     ["Planned labor hours",p.plannedHoursKnown===null?"—":fmt(p.plannedHoursKnown)+" h","assignment plan"],
     ["Planned coverage",p.plannedAssignmentCoveragePercent===null?"—":fmt(p.plannedAssignmentCoveragePercent)+"%","labor assignments"],
     ["Actual labor hours",p.actualHoursKnownCurrent===null?"Not provided":fmt(p.actualHoursKnownCurrent)+" h",p.actualHoursKnownCurrent===null?"missing, not zero":"current known total",p.actualHoursKnownCurrent===null?"warning":"success"],
-    ["Actual coverage",p.actualAssignmentCoveragePercent===null?"—":fmt(p.actualAssignmentCoveragePercent)+"%","labor assignments",p.actualAssignmentCoveragePercent<100?"warning":""],
+    ["Actual coverage",p.actualAssignmentCoveragePercent===null||p.actualAssignmentCoveragePercent===undefined?"Not established":fmt(p.actualAssignmentCoveragePercent)+"%","assignment coverage if available",p.actualAssignmentCoveragePercent!==null&&p.actualAssignmentCoveragePercent!==undefined&&p.actualAssignmentCoveragePercent<100?"warning":""],
     ["Remaining labor hours",p.remainingHoursKnown===null?"—":fmt(p.remainingHoursKnown)+" h","assignment remainder"],
     ["Actual history",actualHistoryEstablished?"Financial-period history":"Not established",actualHistoryEstablished?"stored periods":"no fabricated history",actualHistoryEstablished?"success":"warning"]
   ]);
   const note=!actualEstablished
-    ? '<div class="notice warn"><b>Actual man-hours are missing, not zero.</b> Planned and remaining labor hours are available, but no current actual-hours population is established. CMeng therefore withholds the actual and forecast cumulative curves.</div>'
+    ? '<div class="notice warn"><b>Actual man-hours are not established.</b> Planned and remaining labor hours may exist, but no current actual-hours total is evidenced. CMeng therefore withholds the actual curve.</div>'
     : !actualHistoryEstablished
-      ? '<div class="notice warn">A current actual-hours snapshot exists, but historical period actuals are not established. CMeng does not backfill an artificial historical actual curve.</div>'
+      ? '<div class="notice warn"><b>Actual total is established but periodized actual history is not.</b> CMeng keeps the known total and withholds a historical actual curve instead of fabricating time phasing.</div>'
       : '';
   const series=[
     {key:"plannedCumulativeHours",label:"Planned labor hours",color:"#506579"},
@@ -3432,7 +3446,7 @@ function managementMetricDisplay(metric){
     return{text:planningShortDate(value),kind:"date"};
   }
   if(typeof value==="number"){
-    return{text:fmt(value)+(metric?.unit?" "+metric.unit:""),kind:"number"};
+    return{text:fmtExecutive(value)+(metric?.unit?" "+metric.unit:""),kind:"number"};
   }
   return{text:String(value)+(metric?.unit?" "+metric.unit:""),kind:"text"};
 }
@@ -3464,9 +3478,9 @@ function renderManagementMetricGrid(metrics){
 }
 function commercialFindingText(metric){
   if(metric==null)return"Not established";
-  if(typeof metric!=="object")return fmt(metric);
+  if(typeof metric!=="object")return typeof metric==="number"?fmtExecutive(metric):fmt(metric);
   if(metric.value===null||metric.value===undefined)return"Not established";
-  return fmt(metric.value);
+  return fmtExecutive(metric.value);
 }
 function commercialFindingTitle(metric){
   if(!metric||typeof metric!=="object")return"";
@@ -3521,11 +3535,11 @@ function renderManagementControlVisual(key,data){
       ["Expiring bonds",ctrl.bondEvidenceState==="established"?ctrl.expiringBondCount30Days:"Not established","next 30 days",ctrl.expiringBondCount30Days?"warning":""]
     ]):'<div class="empty">Project Director control position is not established.</div>';
     return '<div class="planning-view management-view command-center-view">'+
-      managementPanel("Current Programme Position","The operational control position used to determine what needs attention now.",renderManagementMetricGrid(data.programmePosition||[]),true)+
-      managementPanel("Management Priorities","Alerts are produced from governed specialist positions and evidence gaps. They do not approve decisions or rewrite source records.",renderManagementAlerts(data.alerts||[]))+
-      managementPanel("Decisions Required","Project Director actions remain recommendations until a responsible authority assigns, approves or closes them.",decisionBody)+
+      managementPanel("Decisions Required","Decisions and accountable actions are the first operational control surface. Recommendations remain unapproved until responsible authority acts.",decisionBody,true)+
+      managementPanel("Management Priorities","Current blockers and escalations from governed specialist positions, ordered before supporting KPIs.",renderManagementAlerts(data.alerts||[]))+
       managementPanel("Immediate Control Signals","Only established source populations are counted. Unavailable source domains remain explicitly unavailable.",controlsBody)+
-      managementPanel("Evidence Gaps","Each gap tells the user what must be supplied or corrected and routes back to the owning specialist module.",renderManagementEvidenceGaps(data.evidenceGaps||[]))+
+      managementPanel("Current Programme Position","Supporting completion and programme facts used to understand the actions above.",renderManagementMetricGrid(data.programmePosition||[]))+
+      managementPanel("Evidence Gaps","Each gap states what is missing and routes directly to the correction source.",renderManagementEvidenceGaps(data.evidenceGaps||[]))+
       managementPanel("Commercial & Payment Position","Compact exposure only; detailed valuation remains in Commercial.",renderManagementCommercial(data.commercialByCurrency||[]))+
       '</div>';
   }
