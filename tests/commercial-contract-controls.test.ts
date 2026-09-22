@@ -318,12 +318,6 @@ function input():
       programmeSourceRefs: [
         "test:schedule",
       ],
-      claimedEotDays: 10,
-      claimedEotCoveragePercent:
-        100,
-      assessedEotDays: 15,
-      assessedEotCoveragePercent:
-        100,
       awardedEotDays: null,
       awardedEotState:
         "official",
@@ -553,7 +547,7 @@ test("C2B2 Contract Obligations keep explicit compliance separate from clause-de
   );
 });
 
-test("C2B2 LD scenarios separate no-EOT claimed assessed and awarded positions and fail closed on unresolved award overlap", () => {
+test("C2B2 LD scenarios only use no-EOT and governed awarded-EOT time bases and fail closed on unresolved award overlap", () => {
   const p =
     buildContractControls(
       input(),
@@ -562,25 +556,13 @@ test("C2B2 LD scenarios separate no-EOT claimed assessed and awarded positions a
     p.liquidatedDamages;
   assert.equal(
     ld.scenarios.length,
-    4,
+    2,
   );
   const noEot =
     ld.scenarios.find(
       (row) =>
         row.scenario ===
         "no_eot",
-    )!;
-  const claimed =
-    ld.scenarios.find(
-      (row) =>
-        row.scenario ===
-        "claimed_eot",
-    )!;
-  const assessed =
-    ld.scenarios.find(
-      (row) =>
-        row.scenario ===
-        "assessed_eot",
     )!;
   const awarded =
     ld.scenarios.find(
@@ -607,23 +589,16 @@ test("C2B2 LD scenarios separate no-EOT claimed assessed and awarded positions a
       .value,
     200_000,
   );
-  assert.equal(
-    claimed.exposureDays.value,
-    10,
+  assert.deepEqual(
+    ld.scenarios.map(
+      (row) => row.scenario,
+    ),
+    ["no_eot", "awarded_eot"],
   );
-  assert.equal(
-    claimed.cappedExposure
-      .value,
-    100_000,
-  );
-  assert.equal(
-    assessed.exposureDays.value,
-    5,
-  );
-  assert.equal(
-    assessed.cappedExposure
-      .value,
-    50_000,
+  assert.ok(
+    ld.diagnostics.includes(
+      "CLAIM_REGISTER_DAY_SUMS_ARE_NOT_PROJECT_EOT_AND_NEVER_ADJUST_COMPLETION",
+    ),
   );
   assert.equal(
     awarded.eotDays.value,
