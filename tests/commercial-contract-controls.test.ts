@@ -716,7 +716,8 @@ test("C2B2 Retention Calendar never invents release dates from percentages or de
   );
   assert.equal(
     calendar.overdueCount,
-    1,
+    null,
+    "aggregate overdue retention must be withheld when some unreleased retention rows have no governed due date",
   );
   const controlled =
     calendar.rows.find(
@@ -741,6 +742,11 @@ test("C2B2 Retention Calendar never invents release dates from percentages or de
   assert.ok(
     calendar.diagnostics.includes(
       "RELEASE_DATE_IS_NEVER_INFERRED_FROM_PERCENTAGE_WITHOUT_A_TRIGGER_EVENT",
+    ),
+  );
+  assert.ok(
+    calendar.diagnostics.includes(
+      "RETENTION_OVERDUE_NOT_ASSESSABLE_WITHOUT_RELEASE_DUE_DATES",
     ),
   );
 });

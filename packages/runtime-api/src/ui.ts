@@ -796,9 +796,13 @@ function renderNav(){
   nav.querySelectorAll(".nav-item").forEach(b=>b.onclick=()=>{selected=b.dataset.key;localStorage.setItem("cmeng-module",selected);renderNav();loadModule(selected)});
 }
 function scalarPairs(obj){if(!obj||typeof obj!=="object")return[];return Object.entries(obj).filter(([k,v])=>["string","number","boolean"].includes(typeof v)||v===null).slice(0,12)}
+function humanizeIsoText(value){
+  if(value===null||value===undefined)return"";
+  return String(value).replace(/\b\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z?\b/g,match=>planningShortDate(match));
+}
 function renderUniversalChallenge(challenge){
   if(!challenge||!Array.isArray(challenge.items))return"";
-  const show=v=>v===null||v===undefined?"—":fmt(v);
+  const show=v=>v===null||v===undefined?"—":typeof v==="string"?humanizeIsoText(v):fmt(v);
   const withUnit=(v,u)=>show(v)+(u?" "+u:"");
   const conflictPanel=(item)=>{
     const sub=item.submitted||{};
@@ -921,7 +925,7 @@ function renderDeliveryChallenge(data,reason){
     ["Unmapped BOQ items",q.unmappedItemCount,"items",q.unmappedItemCount?"warning":""],
     ["Productivity evidence",p.productivityEvidenceState?humanizeKey(p.productivityEvidenceState):"Not established",""]
   ])+(quantityRows?'<div class="table-wrap" style="margin-top:12px"><table><thead><tr><th>Unit</th><th>Contract qty</th><th>Mapped qty</th><th>Installed</th><th>Remaining</th><th>Required/day</th><th>Map coverage</th></tr></thead><tbody>'+quantityRows+'</tbody></table></div>':'')+'</div></section>';
-  const findings=(d.findings||[]).map(x=>'<tr><td>'+escapeHtml(x.topic)+'</td><td>'+escapeHtml(humanizeKey(x.state))+'</td><td>'+escapeHtml(x.contractorAssumption||"—")+'</td><td>'+escapeHtml(x.independentCalculation||"—")+'</td><td>'+escapeHtml(x.difference||"—")+'</td><td>'+escapeHtml(x.milestoneConsequence||"—")+'</td><td>'+escapeHtml(x.requiredResponse||"—")+'</td></tr>').join("");
+  const findings=(d.findings||[]).map(x=>'<tr><td>'+escapeHtml(x.topic)+'</td><td>'+escapeHtml(humanizeKey(x.state))+'</td><td>'+escapeHtml(humanizeIsoText(x.contractorAssumption||"—"))+'</td><td>'+escapeHtml(humanizeIsoText(x.independentCalculation||"—"))+'</td><td>'+escapeHtml(humanizeIsoText(x.difference||"—"))+'</td><td>'+escapeHtml(humanizeIsoText(x.milestoneConsequence||"—"))+'</td><td>'+escapeHtml(humanizeIsoText(x.requiredResponse||"—"))+'</td></tr>').join("");
   const contractCategoryCounts=contract?(contract.signals||[]).reduce((map,signal)=>{const label=humanizeKey(signal.category||"other");map.set(label,(map.get(label)||0)+1);return map},new Map()):new Map();
   const contractCategoryItems=[...contractCategoryCounts.entries()].sort((a,b)=>b[1]-a[1]).map(([label,value])=>({label,value,tone:"accent"}));
   const contractCategoryBars=renderVisualBars(contractCategoryItems);
@@ -1913,11 +1917,11 @@ function renderPmoVisual(data){
     {label:"Scenario finish date",date:p.claims?.scenarioAdjustedCompletionIso,tone:"scenario"}
   ],null);
   const attention=planningAttention([
-    variance!==null&&variance>0?{title:"Independent forecast is later than the submitted finish date",text:"Review remaining durations, logic and delivery assumptions.",value:variance+" days",tone:"danger"}:null,
+    variance!==null&&variance>0?{title:"Independent forecast is later than the submitted finish date",text:"Review remaining durations, logic and delivery assumptions.",value:new Intl.NumberFormat(undefined,{maximumFractionDigits:0}).format(variance)+" days",tone:"danger"}:null,
     p.schedule.negativeFloatCount>0?{title:"Negative float requires attention",text:"Activities are carrying schedule pressure against the current dates.",value:p.schedule.negativeFloatCount,tone:"danger"}:null,
     p.progress.lateMilestoneCount>0?{title:"Milestones are overdue",text:"Open milestone commitments have passed the current data date.",value:p.progress.lateMilestoneCount,tone:"danger"}:null,
     p.progress.lookAheadOverdueCount>0?{title:"Look-ahead contains overdue work",text:"Review overdue activities and immediate recovery actions.",value:p.progress.lookAheadOverdueCount,tone:"watch"}:null,
-    p.resources.overloadedResourceCount>0?{title:"Resource overload identified",text:"Assigned demand exceeds known capacity for some resources.",value:p.resources.overloadedResourceCount,tone:"watch"}:null,
+    p.resources.overloadedResourceCount>0?{title:"Weekly resource capacity exceedance identified",text:"Weekly source evidence shows demand above known capacity for these distinct resources. This is separate from P6 per-hour overload assessment.",value:p.resources.overloadedResourceCount,tone:"watch"}:null,
     p.contract.challengeSignalCount>0?{title:"Contract items need review",text:"CMeng found contract points that may affect the programme position.",value:p.contract.challengeSignalCount,tone:"watch"}:null
   ]);
   const visualOverview='<div class="visual-chart-grid">'+
@@ -1941,7 +1945,7 @@ function renderPmoVisual(data){
       ["Weighted progress",p.progress.durationWeightedProgressPercent===null?"—":fmt(p.progress.durationWeightedProgressPercent)+"%"],["Progress coverage",p.progress.progressCoveragePercent===null?"—":fmt(p.progress.progressCoveragePercent)+"%"],["Completed",p.progress.completedCount],["In progress",p.progress.inProgressCount]
     ]],
     ["Delivery",[
-      ["Assigned resources",p.resources.assignedResourceCount],["Capacity coverage",p.resources.capacityCoveragePercent===null?"—":fmt(p.resources.capacityCoveragePercent)+"%"],["Overloaded",p.resources.overloadedResourceCount],["BOQ/activity link",planningStateLabel(p.quantities.allocationState)]
+      ["Assigned resources",p.resources.assignedResourceCount],["Capacity coverage",p.resources.capacityCoveragePercent===null?"—":fmt(p.resources.capacityCoveragePercent)+"%"],["Resources with weekly exceedance",p.resources.overloadedResourceCount],["BOQ/activity link",planningStateLabel(p.quantities.allocationState)]
     ]],
     ["Claims & time",[
       ["Delay events",p.claims.eventCount],["Claims",p.claims.claimCount],["Programme movement",fmt(p.claims.observedProgrammeMovementDays)+" days"],["Approved EOT",p.claims.officialApprovedEotDays===null?"—":fmt(p.claims.officialApprovedEotDays)+" days"]
@@ -3112,27 +3116,39 @@ function renderCommercialVisual(key,data){
       const ld=contractControls.liquidatedDamages||{};
       const bi=contractControls.bondsInsurance||{};
       const ret=contractControls.retentionCalendar||{};
+      const obligationsEstablished=Number(obl.explicitRecordCount??0)>0;
+      const bondsEstablished=Array.isArray(bi.bonds)&&bi.bonds.length>0;
+      const insuranceEstablished=Array.isArray(bi.insurances)&&bi.insurances.length>0;
+      const retentionOverdueDisplay=ret.overdueCount===null||ret.overdueCount===undefined?"Not assessable":ret.overdueCount;
       const obligationVisual=renderVisualPanel(
         "Contract obligation control",
         "Only explicit controlled obligations receive compliance status. Clause-derived requirements stay candidates until mapped.",
-        renderVisualBars([
-          {label:"Open",value:obl.openCount??0,tone:"accent"},
-          {label:"Overdue",value:obl.overdueCount??0,tone:"danger"},
-          {label:"Complete",value:obl.completeCount??0,tone:"success"},
-          {label:"Clause candidates",value:obl.clauseCandidateCount??0,tone:"warning"}
-        ],"items")
+        obligationsEstablished
+          ? renderVisualBars([
+              {label:"Open",value:obl.openCount??0,tone:"accent"},
+              {label:"Overdue",value:obl.overdueCount??0,tone:"danger"},
+              {label:"Complete",value:obl.completeCount??0,tone:"success"},
+              {label:"Clause candidates",value:obl.clauseCandidateCount??0,tone:"warning"}
+            ],"items")
+          : '<div class="empty-visual">No controlled obligation register is established. Open, overdue and complete counts are not established.</div>'
       );
       const securityVisual=renderVisualPanel(
         "Security & insurance monitoring",
         "Active, expiring and expired counts are monitoring indicators; expiring instruments may also be active.",
-        renderVisualBars([
-          {label:"Active bonds",value:bi.activeBondCount??0,tone:"success"},
-          {label:"Expiring bonds",value:bi.expiringBondCount??0,tone:"warning"},
-          {label:"Expired bonds",value:bi.expiredBondCount??0,tone:"danger"},
-          {label:"Active policies",value:bi.activeInsuranceCount??0,tone:"accent"},
-          {label:"Expiring policies",value:bi.expiringInsuranceCount??0,tone:"warning"},
-          {label:"Expired policies",value:bi.expiredInsuranceCount??0,tone:"danger"}
-        ],"instruments")
+        (bondsEstablished||insuranceEstablished)
+          ? renderVisualBars([
+              ...(bondsEstablished?[
+                {label:"Active bonds",value:bi.activeBondCount??0,tone:"success"},
+                {label:"Expiring bonds",value:bi.expiringBondCount??0,tone:"warning"},
+                {label:"Expired bonds",value:bi.expiredBondCount??0,tone:"danger"}
+              ]:[]),
+              ...(insuranceEstablished?[
+                {label:"Active policies",value:bi.activeInsuranceCount??0,tone:"accent"},
+                {label:"Expiring policies",value:bi.expiringInsuranceCount??0,tone:"warning"},
+                {label:"Expired policies",value:bi.expiredInsuranceCount??0,tone:"danger"}
+              ]:[])
+            ],"instruments")
+          : '<div class="empty-visual">No bond/security or insurance register is established. Instrument counts are not established.</div>'
       );
       const retentionVisual=renderVisualPanel(
         "Retention release control",
@@ -3141,8 +3157,9 @@ function renderCommercialVisual(key,data){
           {label:"Held",value:ret.heldCount??0,tone:"warning"},
           {label:"Released",value:ret.releasedCount??0,tone:"success"},
           {label:"Release date established",value:ret.dueCount??0,tone:"accent"},
-          {label:"Overdue unreleased",value:ret.overdueCount??0,tone:"danger"}
-        ],"records")
+          ...(typeof ret.overdueCount==="number"?[{label:"Overdue unreleased",value:ret.overdueCount,tone:"danger"}]:[])
+        ],"records")+
+        (typeof ret.overdueCount==="number"?"":'<div class="notice info" style="margin-top:10px">Overdue retention is not assessable until release due dates or contractual release triggers are established.</div>')
       );
       const ldCurrencies=[...new Set((ld.scenarios||[]).map(row=>row.currency).filter(Boolean))];
       const ldVisuals=ldCurrencies.map(currency=>renderVisualPanel(
@@ -3173,25 +3190,25 @@ function renderCommercialVisual(key,data){
       contractControlDetail=
         '<section class="planning-panel primary contract-particulars-management"><div class="planning-panel-head"><div><h4>Contract Particulars, Securities & Obligations Management Position</h4><p>Contract value, obligations, LD scenarios, securities, insurance and retention are controlled as separate evidence-backed positions.</p></div></div><div class="planning-panel-body">'+
         planningKpis([
-          ["Controlled obligation records",obl.state==="missing"?"Not established":(obl.explicitRecordCount??0),"explicit register"],
-          ["Open obligations",obl.state==="missing"?"Not assessable":(obl.openCount??0),"not overdue / not complete"],
-          ["Overdue obligations",obl.state==="missing"?"Not assessable":(obl.overdueCount??0),"requires attention"],
-          ["Active bonds",bi.state==="missing"?"Not established":(bi.activeBondCount??0),"security register instruments"],
-          ["Expiring bonds",bi.state==="missing"?"Not assessable":(bi.expiringBondCount??0),"within 90 days"],
-          ["Expired bonds",bi.state==="missing"?"Not assessable":(bi.expiredBondCount??0),"requires attention"],
-          ["Retention held",ret.heldCount||0,"explicit held state"],
-          ["Retention overdue",ret.overdueCount||0,"past due and unreleased"]
+          ["Controlled obligation records",obligationsEstablished?(obl.explicitRecordCount??0):"Not established","explicit register"],
+          ["Open obligations",obligationsEstablished?(obl.openCount??0):"Not established","controlled obligation register"],
+          ["Overdue obligations",obligationsEstablished?(obl.overdueCount??0):"Not established","controlled obligation register"],
+          ["Active bonds",bondsEstablished?(bi.activeBondCount??0):"Not established","security register instruments"],
+          ["Expiring bonds",bondsEstablished?(bi.expiringBondCount??0):"Not established","security register instruments"],
+          ["Expired bonds",bondsEstablished?(bi.expiredBondCount??0):"Not established","security register instruments"],
+          ["Retention held",ret.heldCount||0,"retention evidence rows"],
+          ["Retention overdue",retentionOverdueDisplay,"requires release due dates"]
         ])+
         (contractBridgeVisuals?'<div class="commercial-visual-grid contract-bridge-grid">'+contractBridgeVisuals+'</div>':"")+
         '<div class="commercial-visual-grid contract-control-grid">'+obligationVisual+securityVisual+retentionVisual+ldVisuals+'</div>'+
         '</div></section>'+
         '<section class="planning-panel"><div class="planning-panel-head"><div><h4>Contract Obligations</h4><p>Explicit obligation controls remain separate from clause-derived candidates. A clause does not invent compliance status.</p></div></div><div class="planning-panel-body">'+
         planningKpis([
-          ["Controlled obligation records",obl.state==="missing"?"Not established":(obl.explicitRecordCount??0),"explicit register"],
+          ["Controlled obligation records",obligationsEstablished?(obl.explicitRecordCount??0):"Not established","explicit register"],
           ["Clause candidates",obl.clauseCandidateCount||0,"not yet mapped"],
-          ["Open",obl.state==="missing"?"Not assessable":(obl.openCount??0),"controlled and not overdue"],
-          ["Overdue",obl.state==="missing"?"Not assessable":(obl.overdueCount??0),"explicit dated obligations"],
-          ["Complete",obl.state==="missing"?"Not assessable":(obl.completeCount??0),"evidenced completion"]
+          ["Open",obligationsEstablished?(obl.openCount??0):"Not established","controlled obligation register"],
+          ["Overdue",obligationsEstablished?(obl.overdueCount??0):"Not established","controlled obligation register"],
+          ["Complete",obligationsEstablished?(obl.completeCount??0):"Not established","controlled obligation register"]
         ])+
         table(["Obligation","Origin","Clause","Requirement","Responsible","Due","Completed","Status","Days to due","Evidence"],obligationRows,"No obligation controls or clause candidates are established.")+
         '</div></section>'+
@@ -3206,12 +3223,12 @@ function renderCommercialVisual(key,data){
         '</div></section>'+
         '<section class="planning-panel"><div class="planning-panel-head"><div><h4>Bonds & Insurance</h4><p>Security values, cash balances, contractual requirements and expiry status remain distinct.</p></div></div><div class="planning-panel-body">'+
         planningKpis([
-          ["Active bonds",bi.state==="missing"?"Not established":(bi.activeBondCount??0),"security register records"],
-          ["Expired bonds",bi.state==="missing"?"Not assessable":(bi.expiredBondCount??0),"requires action"],
-          ["Expiring bonds",bi.state==="missing"?"Not assessable":(bi.expiringBondCount??0),"within 90 days"],
-          ["Active policies",bi.state==="missing"?"Not established":(bi.activeInsuranceCount??0),"insurance register records"],
-          ["Expired policies",bi.state==="missing"?"Not assessable":(bi.expiredInsuranceCount??0),"requires action"],
-          ["Expiring policies",bi.state==="missing"?"Not assessable":(bi.expiringInsuranceCount??0),"within 90 days"]
+          ["Active bonds",bondsEstablished?(bi.activeBondCount??0):"Not established","security register records"],
+          ["Expired bonds",bondsEstablished?(bi.expiredBondCount??0):"Not established","security register records"],
+          ["Expiring bonds",bondsEstablished?(bi.expiringBondCount??0):"Not established","security register records"],
+          ["Active policies",insuranceEstablished?(bi.activeInsuranceCount??0):"Not established","insurance register records"],
+          ["Expired policies",insuranceEstablished?(bi.expiredInsuranceCount??0):"Not established","insurance register records"],
+          ["Expiring policies",insuranceEstablished?(bi.expiringInsuranceCount??0):"Not established","insurance register records"]
         ])+
         '<div class="notice info"><b>Performance requirement:</b> '+escapeHtml(findingValue(bi.performanceBondRequirement))+' · '+escapeHtml(findingMeta(bi.performanceBondRequirement))+'<br><b>Advance-payment requirement:</b> '+escapeHtml(findingValue(bi.advancePaymentBondRequirement))+' · '+escapeHtml(findingMeta(bi.advancePaymentBondRequirement))+'<br><b>Contract insurance requirements:</b> '+escapeHtml(bi.insuranceRequirementCount||0)+'</div>'+
         table(["Bond","Type","Status","Amount","Expiry","Days","Expiry state"],bondRows,"No bond/security register is established.")+
@@ -3225,7 +3242,7 @@ function renderCommercialVisual(key,data){
           ["Held",ret.heldCount||0,"explicit held state"],
           ["Released",ret.releasedCount||0,"explicit release state"],
           ["Dated",ret.dueCount||0,"release date/trigger established"],
-          ["Overdue",ret.overdueCount||0,"past due and unreleased"]
+          ["Overdue",retentionOverdueDisplay,"requires release due dates"]
         ])+
         table(["Retention","Origin","Certificate","State","Trigger","Amount","Due","Released","Days to due"],retentionRows,"No retention calendar records are established.")+
         '</div></section>';
@@ -3292,10 +3309,16 @@ function renderCommercialVisual(key,data){
         {label:"Determination",value:kindCounts.determination??0,tone:"success"}
       ],"records")
     );
-    const financialRows=(registers.claims||[]).map(row=>'<tr><td><b>'+escapeHtml(row.claimId)+'</b></td><td>'+escapeHtml(row.claimedAmount===null||row.claimedAmount===undefined?"Not established":fmt(row.claimedAmount))+'</td><td>'+escapeHtml(row.assessedAmount===null||row.assessedAmount===undefined?"Not established":fmt(row.assessedAmount))+'</td><td>'+escapeHtml(row.currency||"Not established")+'</td><td>'+escapeHtml((row.sourceRefs||[]).join(", "))+'</td></tr>');
-    const lifecycleRows=(cn.claims||[]).map(row=>'<tr><td><b>'+escapeHtml(row.claimId)+'</b></td><td>'+escapeHtml(row.title||"")+'</td><td>'+escapeHtml(humanizeKey(row.state))+'</td><td>'+escapeHtml(planningShortDate(row.submittedAt))+'</td><td>'+escapeHtml(row.claimedDays===null||row.claimedDays===undefined?"Not established":fmt(row.claimedDays)+" d")+'</td><td>'+escapeHtml(row.assessedDays===null||row.assessedDays===undefined?"Not established":fmt(row.assessedDays)+" d")+'</td><td>'+escapeHtml(humanizeKey(row.assessedDaysState||"missing"))+'</td><td>'+escapeHtml((row.eventIds||[]).join(", ")||"Not linked")+'</td><td>'+escapeHtml((row.clauseIdentifiers||[]).join(", ")||"—")+'</td><td>'+escapeHtml((row.sourceRefs||[]).join(", "))+'</td></tr>');
+    const financialRows=(registers.claims||[]).map(row=>'<tr><td><b>'+escapeHtml(row.claimId)+'</b></td><td>'+escapeHtml(row.claimedAmount===null||row.claimedAmount===undefined?"Not established":fmt(row.claimedAmount))+'</td><td>'+escapeHtml(row.assessedAmount===null||row.assessedAmount===undefined?"Not established":fmt(row.assessedAmount))+'</td><td>'+escapeHtml(row.currency||"Not established")+'</td></tr>');
+    const lifecycleRows=(cn.claims||[]).map(row=>'<tr><td><b>'+escapeHtml(row.claimId)+'</b></td><td>'+escapeHtml(row.title||"")+'</td><td>'+escapeHtml(humanizeKey(row.state))+'</td><td>'+escapeHtml(planningShortDate(row.submittedAt))+'</td><td>'+escapeHtml(row.claimedDays===null||row.claimedDays===undefined?"Not established":fmt(row.claimedDays)+" d")+'</td><td>'+escapeHtml(row.assessedDays===null||row.assessedDays===undefined?"Not established":fmt(row.assessedDays)+" d")+'</td><td>'+escapeHtml(humanizeKey(row.assessedDaysState||"missing"))+'</td><td>'+escapeHtml((row.eventIds||[]).join(", ")||"Not linked")+'</td><td>'+escapeHtml((row.clauseIdentifiers||[]).join(", ")||"—")+'</td></tr>');
     const assessmentRows=(cn.noticeAssessments||[]).map(row=>'<tr><td><b>'+escapeHtml(row.eventId)+'</b></td><td>'+escapeHtml(row.eventTitle||"")+'</td><td>'+escapeHtml(row.requirementId||"Not established")+'</td><td>'+escapeHtml(row.requiredNoticeDays===null||row.requiredNoticeDays===undefined?"Not established":fmt(row.requiredNoticeDays)+" d")+'</td><td>'+escapeHtml(planningShortDate(row.eventStartIso))+'</td><td>'+escapeHtml(row.noticeId||"Not issued")+'</td><td>'+escapeHtml(planningShortDate(row.noticeIssuedAt))+'</td><td>'+escapeHtml(row.elapsedDays===null||row.elapsedDays===undefined?"Not established":fmt(row.elapsedDays)+" d")+'</td><td>'+escapeHtml(humanizeKey(row.timeliness))+'</td><td>'+escapeHtml(humanizeKey(row.requirementState||"missing"))+'</td></tr>');
-    const noticeRows=(cn.notices||[]).map(row=>'<tr><td><b>'+escapeHtml(row.noticeId)+'</b></td><td>'+escapeHtml(humanizeKey(row.kind))+'</td><td>'+escapeHtml(row.eventId||"—")+'</td><td>'+escapeHtml(row.claimId||"—")+'</td><td>'+escapeHtml(planningShortDate(row.actualIssuedAt))+'</td><td>'+escapeHtml(planningShortDate(row.actualReceivedAt))+'</td><td>'+escapeHtml(row.subject||"")+'</td><td>'+escapeHtml((row.clauseIdentifiers||[]).join(", ")||"—")+'</td><td>'+escapeHtml((row.sourceRefs||[]).join(", "))+'</td></tr>');
+    const noticeRows=(cn.notices||[]).map(row=>'<tr><td><b>'+escapeHtml(row.noticeId)+'</b></td><td>'+escapeHtml(humanizeKey(row.kind))+'</td><td>'+escapeHtml(row.eventId||"—")+'</td><td>'+escapeHtml(row.claimId||"—")+'</td><td>'+escapeHtml(planningShortDate(row.actualIssuedAt))+'</td><td>'+escapeHtml(planningShortDate(row.actualReceivedAt))+'</td><td>'+escapeHtml(row.subject||"")+'</td><td>'+escapeHtml((row.clauseIdentifiers||[]).join(", ")||"—")+'</td></tr>');
+    const evidenceTraceRows=[
+      ...(registers.claims||[]).map(row=>({type:"Commercial claim",id:row.claimId,refs:row.sourceRefs||[]})),
+      ...(cn.claims||[]).map(row=>({type:"Claim lifecycle",id:row.claimId,refs:row.sourceRefs||[]})),
+      ...(cn.notices||[]).map(row=>({type:"Notice",id:row.noticeId,refs:row.sourceRefs||[]}))
+    ].filter(row=>row.refs.length).map(row=>'<tr><td>'+escapeHtml(row.type)+'</td><td><b>'+escapeHtml(row.id)+'</b></td><td>'+escapeHtml(row.refs.join(", "))+'</td></tr>');
+    const evidenceTrace='<details class="management-detail"><summary>Evidence & technical trace <span>'+escapeHtml(fmt(evidenceTraceRows.length))+' linked records</span></summary><div class="planning-panel-body">'+table(["Record type","Record","Evidence references"],evidenceTraceRows,"No technical evidence references are attached.")+'</div></details>';
     detail='<section class="planning-panel primary commercial-claims-management"><div class="planning-panel-head"><div><h4>Commercial Claims & Notices Management Position</h4><p>Claim lifecycle, contractual notice compliance and financial exposure reuse governed identities. Missing amounts or links remain unknown rather than zero.</p></div></div><div class="planning-panel-body">'+
       planningKpis([
         ["Lifecycle claims",cn.lifecycleClaimCount||0,"governed claims model"],
@@ -3307,13 +3330,14 @@ function renderCommercialVisual(key,data){
       ])+
       '<div class="commercial-visual-grid claims-lifecycle-grid">'+claimLifecycleVisual+noticeTimelinessVisual+noticeKindVisual+'</div>'+
       '<div class="section-heading compact"><div><h5>Commercial claim money register</h5><p>Amounts are shown from the controlled currency register; partial coverage is not promoted to a complete total.</p></div><span class="badge">'+escapeHtml(fmt((registers.claims||[]).length))+' records</span></div>'+
-      table(["Claim","Claimed","Assessed","Currency","Source"],financialRows,"No governed commercial claim money rows are established.")+
+      table(["Claim","Claimed","Assessed","Currency"],financialRows,"No governed commercial claim money rows are established.")+
       '<div class="section-heading compact"><div><h5>Claim lifecycle</h5><p>Claim state and time entitlement evidence remain distinct from financial valuation.</p></div><span class="badge">'+escapeHtml(fmt((cn.claims||[]).length))+' claims</span></div>'+
-      table(["Claim","Title","State","Submitted","Claimed days","Assessed days","Assessment authority","Events","Clauses","Evidence"],lifecycleRows,"No governed claim lifecycle is established.")+
+      table(["Claim","Title","State","Submitted","Claimed days","Assessed days","Assessment authority","Events","Clauses"],lifecycleRows,"No governed claim lifecycle is established.")+
       '<div class="section-heading compact"><div><h5>Notice compliance assessment</h5><p>One governed assessment per delay event using the applicable requirement and earliest qualifying notice.</p></div><span class="badge">'+escapeHtml(fmt((cn.noticeAssessments||[]).length))+' events</span></div>'+
       table(["Event","Title","Requirement","Required","Event start","Notice","Issued","Elapsed","Timeliness","Requirement authority"],assessmentRows,"No governed notice compliance assessments are established.")+
       '<div class="section-heading compact"><div><h5>Notice register</h5><p>Actual issue/receipt timestamps and claim/event links remain traceable.</p></div><span class="badge">'+escapeHtml(fmt((cn.notices||[]).length))+' notices</span></div>'+
-      table(["Notice","Type","Event","Claim","Issued","Received","Subject","Clauses","Evidence"],noticeRows,"No governed notice register is established.")+
+      table(["Notice","Type","Event","Claim","Issued","Received","Subject","Clauses"],noticeRows,"No governed notice register is established.")+
+      evidenceTrace+
       ((cn.diagnostics||[]).length?'<div class="notice info">'+escapeHtml(cn.diagnostics.map(humanizeKey).join("; "))+'</div>':"")+
       '</div></section>';
   }
