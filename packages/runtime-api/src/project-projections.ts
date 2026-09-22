@@ -1924,6 +1924,17 @@ function buildBundle(
           versions.delay,
       },
     );
+  const linkedClaimCount =
+    analyticalDelayModel.claims.filter(
+      (claim) =>
+        claim.eventIds.length > 0,
+    ).length;
+  const unlinkedClaimCount =
+    Math.max(
+      0,
+      analyticalDelayModel.claims.length -
+        linkedClaimCount,
+    );
   modules.set(
     "delay-claims",
     available(
@@ -1934,19 +1945,34 @@ function buildBundle(
           delayModel !== null,
         independentScheduleMovementAvailable:
           windows.windowCount > 0,
+        linkedClaimCount,
+        unlinkedClaimCount,
+        eventLinkageState:
+          delayClaims.events.length > 0 &&
+          linkedClaimCount > 0
+            ? "linked"
+            : "not_established",
       },
-      ["schedule windows"],
-      delayModel &&
+      [
+        "schedule windows",
+        "delay events",
+        "claim-event linkage",
+      ],
+      delayClaims.events.length > 0 &&
+      linkedClaimCount > 0 &&
       windows.windowCount > 0
         ? "ready"
         : "partial",
-      delayModel
-        ? windows.windowCount > 0
-          ? null
-          : "Claim evidence exists, but a second schedule revision is required to independently test movement."
-        : windows.windowCount > 0
-          ? "No contractor claim was submitted. CMeng still reports observed schedule movement without assigning legal causation."
-          : "No contractor claim was submitted and only one schedule revision exists. CMeng preserves the claim gap and states the evidence needed to test it.",
+      analyticalDelayModel.claims.length > 0 &&
+      delayClaims.events.length === 0
+        ? analyticalDelayModel.claims.length +
+          " claim records are available, but no governed delay events are established. Programme movement cannot be attributed to those claims."
+        : linkedClaimCount === 0 &&
+            analyticalDelayModel.claims.length > 0
+          ? "Claim records are not linked to governed delay events, so causation and entitlement remain unassessed."
+          : windows.windowCount === 0
+            ? "Claim and event evidence exists, but a second controlled programme revision is required to independently test movement."
+            : null,
     ),
   );
 
@@ -1959,6 +1985,9 @@ function buildBundle(
           versions.notices,
       },
     );
+  const noticeAssessable =
+    noticesClaims.eventCount > 0 &&
+    analyticalDelayModel.noticeRequirements.length > 0;
   modules.set(
     "notices-claims",
     available(
@@ -1967,14 +1996,28 @@ function buildBundle(
         ...noticesClaims,
         contractorNoticeClaimEvidenceSubmitted:
           delayModel !== null,
+        noticeAssessmentState:
+          noticeAssessable
+            ? "assessed"
+            : "not_assessable_without_delay_events_and_requirements",
+        linkedClaimCount,
+        unlinkedClaimCount,
       },
-      ["notices", "claims"],
-      delayModel
+      [
+        "delay events",
+        "notice requirements",
+        "notices",
+        "claims",
+      ],
+      noticeAssessable
         ? "ready"
         : "partial",
-      delayModel
+      noticeAssessable
         ? null
-        : "No contractor notices/claims were submitted. CMeng does not turn missing records into zero entitlement; it preserves the submission gap for reconciliation.",
+        : noticesClaims.claimCount > 0
+          ? noticesClaims.claimCount +
+            " claim records are available, but notice timeliness is not assessable until governed delay events and applicable notice requirements are linked."
+          : "Notice compliance is not assessable until governed delay events, applicable notice requirements and actual notice evidence are established.",
     ),
   );
 
@@ -1994,6 +2037,90 @@ function buildBundle(
             versions.eot,
         },
       );
+    const contractBasis =
+      state.controls
+        .contractTimeBasis;
+    const contractReady =
+      contractBasis
+        .contractualCompletionIso !==
+        null &&
+      contractBasis
+        .contractualCompletionState !==
+        "missing" &&
+      contractBasis
+        .eotDayBasis !==
+        "unknown" &&
+      contractBasis
+        .eotDayBasisState !==
+        "missing";
+    const hasCausalEvents =
+      analyticalDelayModel
+        .events.length > 0;
+    const eligibleCausalEvents =
+      eotAssessment.windowCandidates.some(
+        (window) =>
+          window.eligibleEventIds
+            .length > 0,
+      );
+    const analyticalSupport =
+      contractReady &&
+      hasCausalEvents &&
+      eligibleCausalEvents;
+
+    if (!analyticalSupport) {
+      eotAssessment = {
+        ...eotAssessment,
+        analyticalTimeImpactCandidateDays:
+          null,
+        attributableCandidateEotDays:
+          null,
+        candidateAdditionalEotDays:
+          null,
+        scenarioAdjustedCompletionIso:
+          null,
+        timeImpactScenarioAdjustedCompletionIso:
+          null,
+        includedWindowCount: 0,
+        reviewWindowCount:
+          eotAssessment
+            .windowCandidates.length,
+        windowCandidates:
+          eotAssessment
+            .windowCandidates.map(
+              (window) => ({
+                ...window,
+                analyticalTimeImpactCandidateDays:
+                  null,
+                includedCandidateDays:
+                  0,
+                state:
+                  "review" as const,
+                reasons: [
+                  ...new Set([
+                    ...window.reasons,
+                    ...(!contractReady
+                      ? [
+                          "CONTRACT_TIME_BASIS_NOT_ESTABLISHED",
+                        ]
+                      : []),
+                    ...(!hasCausalEvents
+                      ? [
+                          "CAUSAL_DELAY_EVENT_BASIS_NOT_ESTABLISHED",
+                        ]
+                      : []),
+                    ...(hasCausalEvents &&
+                    !eligibleCausalEvents
+                      ? [
+                          "NO_EOT_ELIGIBLE_CAUSAL_EVENT_ESTABLISHED",
+                        ]
+                      : []),
+                  ]),
+                ],
+              }),
+            ),
+      };
+    }
+
     modules.set(
       "eot-assessment",
       available(
@@ -2002,17 +2129,28 @@ function buildBundle(
           ...eotAssessment,
           contractorEotEvidenceSubmitted:
             delayModel !== null,
+          causalEventEvidenceEstablished:
+            hasCausalEvents,
+          eligibleCausalEventEvidenceEstablished:
+            eligibleCausalEvents,
+          contractTimeBasisEstablished:
+            contractReady,
         },
-        ["schedule windows", "contract time basis"],
-        delayModel &&
-        windows.windowCount > 0
+        [
+          "contract time basis",
+          "schedule windows",
+          "causal delay events",
+        ],
+        analyticalSupport
           ? "ready"
           : "partial",
-        delayModel
-          ? windows.windowCount > 0
-            ? null
-            : "Contract/EOT basis is available, but at least two schedule revisions are required for a window-based independent movement assessment."
-          : "Contract time basis is available and schedule movement is independently calculated where possible, but no contractor EOT/event case was submitted.",
+        !contractReady
+          ? "Observed programme movement is shown separately, but a contractual EOT position cannot be calculated without an established contract finish and EOT day basis."
+          : !hasCausalEvents
+            ? "Observed programme movement is shown separately, but no EOT time-impact candidate is stated because causal delay events are not established."
+            : !eligibleCausalEvents
+              ? "Delay events exist, but no EOT-eligible employer/neutral causal event is established for the observed movement."
+              : null,
       ),
     );
   } else {

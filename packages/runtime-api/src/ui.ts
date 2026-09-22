@@ -900,7 +900,7 @@ function renderDeliveryChallenge(data,reason){
     {label:"Contractor manpower plan",value:submittedManpower?"Submitted":"Not submitted",state:submittedManpower?"ready":"missing"},
     {label:"Measured remaining labor hours",value:measuredHours?fmt(m.evidenceRemainingLaborHours)+" h":"Not established",state:measuredHours?"ready":"missing"},
     {label:"BOQ / programme mapping",value:mappingCoverage===null?"Not established":fmt(mappingCoverage)+"%",state:mappingCoverage!==null&&mappingCoverage>0?"ready":"missing"},
-    {label:"Independent forecast",value:independentDeferred?"Reviewed in separate view":s.independentCompletionIso?planningShortDate(s.independentCompletionIso):"Not established",state:s.independentCompletionIso?"ready":"missing"}
+    {label:"Independent forecast",value:independentDeferred?"Reviewed in separate view":s.independentCompletionIso?planningShortDate(s.independentCompletionIso):"Not established",state:independentDeferred||s.independentCompletionIso?"ready":"missing"}
   ]);
   const scheduleCards=planningKpis([
     ["Submitted finish",planningShortDate(s.contractorSubmittedCompletionIso),"current programme"],
@@ -929,7 +929,7 @@ function renderDeliveryChallenge(data,reason){
   const contractCategoryCounts=contract?(contract.signals||[]).reduce((map,signal)=>{const label=humanizeKey(signal.category||"other");map.set(label,(map.get(label)||0)+1);return map},new Map()):new Map();
   const contractCategoryItems=[...contractCategoryCounts.entries()].sort((a,b)=>b[1]-a[1]).map(([label,value])=>({label,value,tone:"accent"}));
   const contractCategoryBars=renderVisualBars(contractCategoryItems);
-  const readyGateCount=[contract,submittedManpower,measuredHours,mappingCoverage!==null&&mappingCoverage>0,s.independentCompletionIso].filter(Boolean).length;
+  const readyGateCount=[contract,submittedManpower,measuredHours,mappingCoverage!==null&&mappingCoverage>0,independentDeferred||s.independentCompletionIso].filter(Boolean).length;
   const challengeVisuals='<div class="visual-chart-grid">'+
     renderVisualPanel("Evidence readiness","What is established before CMeng challenges the submitted delivery position.",renderDonutChart([
       {label:"Established",value:readyGateCount,tone:"success"},
@@ -1223,8 +1223,15 @@ function renderQuantityScurveVisual(data){
   if(!Array.isArray(p.series))return"";
   const mappingLabel=p.mappingBasis==="governed"?"Governed mapping":p.mappingBasis==="candidate_scenario"?"Candidate links only":"Mapping not established";
   const mappedSeries=p.series.filter(series=>(series.points||[]).length>0);
+  const seriesItemCount=p.series.reduce((sum,series)=>sum+(Number.isFinite(Number(series.itemCount))?Number(series.itemCount):0),0);
+  const unmappedCount=(p.unmappedItemIds||[]).length;
+  const boqItemCount=seriesItemCount>0?seriesItemCount:(unmappedCount>0?unmappedCount:null);
+  const mappedItemCount=boqItemCount===null?null:Math.max(0,boqItemCount-unmappedCount);
+  const itemLinkCoverage=boqItemCount&&mappedItemCount!==null?Number(((mappedItemCount/boqItemCount)*100).toFixed(2)):null;
   const top=planningKpis([
-    ["BOQ items",p.inferredMapping?.itemCount??p.unmappedItemIds?.length??"—","quantity basis"],
+    ["BOQ items",boqItemCount===null?"Not established":boqItemCount,"quantity basis"],
+    ["Items with any allocation",mappedItemCount===null?"Not established":mappedItemCount,"governed or scenario links"],
+    ["Item-link coverage",itemLinkCoverage===null?"Not established":fmt(itemLinkCoverage)+"%","BOQ items with an allocation"],
     ["Mapping basis",mappingLabel,""],
     ["Unit series",p.series.length,"units kept separate"],
     ["Unmapped items",(p.unmappedItemIds||[]).length,"items",p.unmappedItemIds?.length?"warning":""],
@@ -1233,7 +1240,8 @@ function renderQuantityScurveVisual(data){
   ]);
   if(mappedSeries.length===0){
     const candidates=p.inferredMapping?.selectedScenarioLinks?.length||0;
-    return '<section class="planning-view quantity-view">'+top+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Installed Quantities</h4><p>A quantity S-curve is not drawn until BOQ quantities are linked to programme activities on a governed basis.</p></div></div><div class="planning-panel-body"><div class="notice warn"><b>No governed quantity curve is available.</b> '+escapeHtml(candidates?candidates+" candidate link(s) were found, but they remain scenarios and are not used as project facts.":"No defensible BOQ-to-activity crosswalk is established.")+'</div>'+moduleEvidenceGate([
+    const mappingSummary=boqItemCount===null?"BOQ item population is not established.":fmt(mappedItemCount||0)+" of "+fmt(boqItemCount)+" BOQ items currently have an allocation.";
+    return '<section class="planning-view quantity-view">'+top+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Installed Quantities</h4><p>The BOQ population is retained, but a quantity S-curve is withheld until BOQ quantities are linked to programme activities on a governed basis.</p></div></div><div class="planning-panel-body"><div class="notice warn"><b>No governed quantity curve is available.</b> '+escapeHtml(candidates?candidates+" candidate link(s) were found, but they remain scenarios and are not used as project facts.":"No defensible BOQ-to-activity crosswalk is established.")+" "+escapeHtml(mappingSummary)+'</div>'+moduleEvidenceGate([
       {label:"BOQ quantity basis",value:p.boqRevisionId?"Loaded":"Not established",state:p.boqRevisionId?"ready":"missing"},
       {label:"Governed BOQ/activity mapping",value:p.mappingBasis==="governed"?"Established":"Not established",state:p.mappingBasis==="governed"?"ready":"missing"},
       {label:"Installed quantity history",value:"Cannot be time-phased until mapping is governed",state:"missing"}
@@ -1386,7 +1394,9 @@ function delayClaimsProjectionFor(data){
 function renderDelayClaimsVisual(data){
   const p=delayClaimsProjectionFor(data);
   const events=Array.isArray(p.events)?p.events:[];
-  const linked=p.linkedClaimCount??p.claimLinkedEventCount??0,unlinked=p.unlinkedClaimCount??Math.max(0,(p.claimCount||0)-linked);
+  const linkedClaimIds=new Set(events.flatMap(event=>event.linkedClaimIds||[]));
+  const linked=p.linkedClaimCount??linkedClaimIds.size;
+  const unlinked=p.unlinkedClaimCount??Math.max(0,(p.claimCount||0)-linked);
   const activityGapCount=p.activityEvidenceInsufficientEventCount??events.filter(e=>(e.relatedActivityIds||[]).length===0).length;
   const incompleteDeterminationCount=p.determinationChainIncompleteEventCount??events.filter(e=>e.evidenceChainState==="determination_chain_incomplete").length;
   const kpis=planningKpis([
@@ -2179,15 +2189,17 @@ function renderProgressReportVisual(data){
   const certified=p.progressBases.certified;
   const planMovement=typeof current?.valuePercent==="number"&&typeof baseline?.valuePercent==="number"?Number((current.valuePercent-baseline.valuePercent).toFixed(2)):null;
   const progressMovement=typeof physical?.valuePercent==="number"&&typeof baseline?.valuePercent==="number"?Number((physical.valuePercent-baseline.valuePercent).toFixed(2)):null;
+  const progressVarianceLabel=physical?.authority==="source_evidence"?"Physical progress vs baseline":"Schedule % complete vs baseline";
   const sourceProgressEstablished=typeof contractor?.valuePercent==="number"||typeof certified?.valuePercent==="number"||(physical?.authority==="source_evidence"&&typeof physical?.valuePercent==="number");
   const physicalLabel=physical?.authority==="source_evidence"?"Physical progress":"Schedule % complete";
   const kpis=planningKpis([
     ["Baseline planned",baseline?.valuePercent==null?"—":fmt(baseline.valuePercent)+"%","planned by data date"],
     ["Current programme plan",current?.valuePercent==null?"—":fmt(current.valuePercent)+"%","re-phased programme expectation","accent"],
+    ["Current plan vs baseline",planMovement===null?"—":(planMovement>0?"+":"")+fmt(planMovement)+" pp","programme plan movement",planMovement!==null&&planMovement<0?"danger":planMovement!==null&&planMovement>0?"success":""],
     [physicalLabel,physical?.valuePercent==null?"—":fmt(physical.valuePercent)+"%",physical?.authority==="source_evidence"?"source physical record":"activity percentage-complete snapshot",physical?.valuePercent===null?"warning":"accent"],
-    ["Progress vs baseline",progressMovement===null?"—":(progressMovement>0?"+":"")+fmt(progressMovement)+" pp","percentage-complete snapshot minus baseline",progressMovement!==null&&progressMovement<0?"danger":progressMovement!==null&&progressMovement>0?"success":""],
-    ["Contractor reported",contractor?.valuePercent==null?"Not provided":fmt(contractor.valuePercent)+"%","source record",contractor?.valuePercent==null?"warning":"accent"],
-    ["Certified progress",certified?.valuePercent==null?"Not provided":fmt(certified.valuePercent)+"%","source record",certified?.valuePercent==null?"warning":"success"]
+    [progressVarianceLabel,progressMovement===null?"—":(progressMovement>0?"+":"")+fmt(progressMovement)+" pp",physical?.authority==="source_evidence"?"source physical progress minus baseline plan":"activity percentage-complete snapshot minus baseline plan",progressMovement!==null&&progressMovement<0?"danger":progressMovement!==null&&progressMovement>0?"success":""],
+    ["Contractor reported",contractor?.valuePercent==null?"Not established":fmt(contractor.valuePercent)+"%","source record",contractor?.valuePercent==null?"warning":"accent"],
+    ["Certified progress",certified?.valuePercent==null?"Not established":fmt(certified.valuePercent)+"%","source record",certified?.valuePercent==null?"warning":"success"]
   ]);
   const warning=!sourceProgressEstablished?'<div class="notice warn"><b>The programme contains a percentage-complete snapshot, but certified/contractor physical progress is not established.</b> CMeng keeps the schedule snapshot separate from certified or independently sourced physical progress.</div>':'';
   const status=planningStatusBand([
@@ -2415,9 +2427,10 @@ function renderNearCriticalVisual(data){
         ?"The submitted label “Near Critical” reconciles to CMeng's strict Near-Critical classification."
         :"The submitted population does not reconcile to either CMeng classification and remains a visible gap.";
 
+  const criticalThreshold=p.criticalThresholdHours??0;
   const kpis=planningKpis([
-    ["Near-critical",p.nearCriticalCount,"0 < TF ≤ "+limitValue,"warning"],
-    ["Float-risk watchlist",p.floatRiskWatchlistCount,"0 ≤ TF ≤ "+limitValue,"accent"],
+    ["Strict near-critical",p.nearCriticalCount,"TF > "+fmt(criticalThreshold)+" h and ≤ "+limitValue,"warning"],
+    ["Float-risk watchlist",p.floatRiskWatchlistCount,"critical boundary through "+limitValue,"accent"],
     ["Zero float",p.zeroFloatCount??"—","critical boundary","danger"],
     ["Negative float",p.negativeFloatCount??"—","TF < 0","danger"],
     ["Source reported",sourceCount===null?"—":sourceCount,p.sourceReportedLabel||"Near Critical"],
@@ -2429,9 +2442,8 @@ function renderNearCriticalVisual(data){
   const histogram=planningFloatHistogram(riskRows,maxThreshold);
   const finishPeriods=planningFinishPeriodBars(riskRows);
   const watch=[...riskRows].map(r=>({...r,varianceDays:planningDaysBetween(r.baselineFinishIso,r.currentFinishIso)})).sort((a,b)=>a.totalFloatHours-b.totalFloatHours||((b.varianceDays||0)-(a.varianceDays||0))).slice(0,150);
-  const criticalThreshold=p.criticalThresholdHours??0;
   const rows=watch.map(r=>{
-    const classLabel=r.totalFloatHours===criticalThreshold?"Zero-float boundary":"Near-critical";
+    const classLabel=r.totalFloatHours===criticalThreshold?(criticalThreshold===0?"Zero-float boundary":"Critical boundary"):"Strict near-critical";
     return '<tr><td><b>'+escapeHtml(r.activityId)+'</b><br><span class="muted">'+escapeHtml(r.name||"")+'</span></td><td>'+escapeHtml(classLabel)+'</td><td>'+escapeHtml(planningStateLabel(r.status))+'</td><td>'+escapeHtml(fmt(r.totalFloatHours))+'</td><td>'+escapeHtml(r.nearCriticalThresholdHours===null||r.nearCriticalThresholdHours===undefined?"—":fmt(r.nearCriticalThresholdHours))+'</td><td>'+escapeHtml(r.calendarId||"—")+'</td><td>'+escapeHtml(planningShortDate(r.baselineFinishIso))+'</td><td>'+escapeHtml(planningShortDate(r.currentFinishIso))+'</td><td class="'+((r.varianceDays||0)>0?"late-text":(r.varianceDays||0)<0?"early-text":"")+'">'+escapeHtml(r.varianceDays===null?"—":((r.varianceDays>0?"+":"")+fmt(r.varianceDays)))+'</td><td>'+escapeHtml(r.percentComplete===null?"—":fmt(r.percentComplete)+"%")+'</td></tr>';
   }).join("");
   const basis='<div class="notice info"><b>CMeng schedule taxonomy:</b> Critical = TF ≤ '+escapeHtml(fmt(criticalThreshold))+' h; Near-Critical = TF > '+escapeHtml(fmt(criticalThreshold))+' h and ≤ '+escapeHtml(limitValue)+'; Float-Risk Watchlist also includes the zero-float boundary. Working-day limits use each activity\'s own programme calendar.</div>';
@@ -2452,10 +2464,11 @@ function renderManhourVisual(data){
   const top=planningKpis([
     ["Planned labor hours",p.plannedHoursKnown===null?"—":fmt(p.plannedHoursKnown)+" h","assignment plan"],
     ["Planned coverage",p.plannedAssignmentCoveragePercent===null?"—":fmt(p.plannedAssignmentCoveragePercent)+"%","labor assignments"],
-    ["Actual labor hours",p.actualHoursKnownCurrent===null?"Not provided":fmt(p.actualHoursKnownCurrent)+" h",p.actualHoursKnownCurrent===null?"missing, not zero":"current known total",p.actualHoursKnownCurrent===null?"warning":"success"],
+    ["Actual labor hours",p.actualHoursKnownCurrent===null?"Not established":fmt(p.actualHoursKnownCurrent)+" h",p.actualHoursKnownCurrent===null?"missing, not zero":"current known total",p.actualHoursKnownCurrent===null?"warning":"success"],
     ["Actual coverage",p.actualAssignmentCoveragePercent===null||p.actualAssignmentCoveragePercent===undefined?"Not established":fmt(p.actualAssignmentCoveragePercent)+"%","assignment coverage if available",p.actualAssignmentCoveragePercent!==null&&p.actualAssignmentCoveragePercent!==undefined&&p.actualAssignmentCoveragePercent<100?"warning":""],
     ["Remaining labor hours",p.remainingHoursKnown===null?"—":fmt(p.remainingHoursKnown)+" h","assignment remainder"],
-    ["Actual history",actualHistoryLabel,actualHistoryBasis,actualHistoryEstablished?"success":"warning"]
+    ["Actual history",actualHistoryLabel,actualHistoryBasis,actualHistoryEstablished?"success":"warning"],
+    ["Period actual coverage",p.periodActualAssignmentCoveragePercent===null||p.periodActualAssignmentCoveragePercent===undefined?"Not established":fmt(p.periodActualAssignmentCoveragePercent)+"%","labor assignments with period actuals",p.periodActualAssignmentCoveragePercent!==null&&p.periodActualAssignmentCoveragePercent!==undefined&&p.periodActualAssignmentCoveragePercent<100?"warning":""]
   ]);
   const note=!actualEstablished
     ? '<div class="notice warn"><b>Actual man-hours are not established.</b> Planned and remaining labor hours may exist, but no current actual-hours total is evidenced. CMeng therefore withholds the actual curve.</div>'
@@ -2464,7 +2477,7 @@ function renderManhourVisual(data){
       : '';
   const series=[
     {key:"plannedCumulativeHours",label:"Planned labor hours",color:"#506579"},
-    ...(actualEstablished?[{key:"actualCumulativeHours",label:"Actual labor hours",color:"#2c7a57"}]:[]),
+    ...(actualHistoryEstablished?[{key:"actualCumulativeHours",label:"Actual labor hours",color:"#2c7a57"}]:[]),
     ...(actualEstablished?[{key:"forecastCumulativeHours",label:"Forecast labor hours",color:"#4f7fb4"}]:[])
   ];
   return '<section class="planning-view manhour-view">'+top+note+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Man-Hour S-Curve</h4><p>Labor only. Missing actual history never becomes a zero line.</p></div></div><div class="planning-panel-body">'+renderLineChart(p.points,series)+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Evidence coverage</h4><p>The curve only uses hours that are actually present in resource assignments and an approved period or weekly-usage history.</p></div></div><div class="planning-panel-body">'+moduleEvidenceGate([
@@ -2525,10 +2538,12 @@ function renderNoticesClaimsVisual(data){
   const kpis=planningKpis([
     ["Claims",p.claimCount,"records"],
     ["Delay events",p.eventCount,"notice assessment basis",p.eventCount?"":"warning"],
-    ["Timely notices",assessable?p.timelyNoticeCount:"Not assessed",assessable?"events":"event + requirement needed"],
-    ["Late notices",assessable?p.lateNoticeCount:"Not assessed",assessable?"events":"event + requirement needed"],
-    ["Missing notices",assessable?p.missingNoticeCount:"Not assessed",assessable?"events":"event + requirement needed"],
-    ["Requirements missing",assessable?p.noticeRequirementMissingCount:"Not assessed",assessable?"events":"governed requirement needed"]
+    ["Official assessed days",p.officialAssessedDaysTotal==null?"Not established":fmt(p.officialAssessedDaysTotal)+" d","official determination authority",p.officialAssessedDaysTotal==null?"warning":"success"],
+    ["Provisional / candidate days",p.provisionalOrCandidateAssessedDaysTotal==null?"Not established":fmt(p.provisionalOrCandidateAssessedDaysTotal)+" d","not an award"],
+    ["Timely notices",assessable?p.timelyNoticeCount:"Not assessable",assessable?"events":"event + requirement needed"],
+    ["Late notices",assessable?p.lateNoticeCount:"Not assessable",assessable?"events":"event + requirement needed"],
+    ["Missing notices",assessable?p.missingNoticeCount:"Not assessable",assessable?"events":"event + requirement needed"],
+    ["Requirements missing",assessable?p.noticeRequirementMissingCount:"Not assessable",assessable?"events":"governed requirement needed"]
   ]);
   const warning=!assessable?'<div class="notice warn"><b>Notice performance is not zero; it is not assessable.</b> A claim row or notice date by itself does not prove notice compliance. CMeng needs a governed delay event and the applicable contractual notice requirement before classifying notice as timely, late or missing.</div>':'';
   const noticeBand=assessable?planningStatusBand([
@@ -3312,6 +3327,7 @@ function renderCommercialVisual(key,data){
     const lifecyclePopulationEstablished=Array.isArray(cn.claims)&&cn.claims.length>0;
     const noticeAssessmentPopulationEstablished=Array.isArray(cn.noticeAssessments)&&cn.noticeAssessments.length>0;
     const noticePopulationEstablished=Array.isArray(cn.notices)&&cn.notices.length>0;
+    const noticeEvidenceGapCount=(timeliness.requirement_missing??0)+(timeliness.event_date_missing??0)+(timeliness.notice_date_missing??0);
     const claimLifecycleVisual=renderVisualPanel(
       "Claim lifecycle distribution",
       "Lifecycle state comes from the governed Delay / Claims model. Commercial amount status does not invent claim status.",
@@ -3366,9 +3382,11 @@ function renderCommercialVisual(key,data){
         ["Commercial claim rows",countPosition(cn.state,cn.commercialClaimCount,"rows"),"currency-specific money register"],
         ["Events",countPosition(cn.state,cn.eventCount,"events"),"governed delay events"],
         ["Notices",countPosition(cn.state,cn.noticeCount,"notices"),"governed notice records"],
+        ["Notice evidence gaps",noticeAssessmentPopulationEstablished?noticeEvidenceGapCount:"Not assessable","requirement / event date / notice date",noticeEvidenceGapCount?"warning":""],
         ["Money ↔ lifecycle linkage",cn.commercialLifecycleLinkCoveragePercent===null||cn.commercialLifecycleLinkCoveragePercent===undefined?"Not established":fmt(cn.commercialLifecycleLinkCoveragePercent)+"%","claim ID correspondence"],
         ["Evidence revision",cn.evidenceRevisionId||"Not established",humanizeKey(cn.state||"not_submitted")]
       ])+
+      (noticeEvidenceGapCount?'<div class="notice warn"><b>Notice compliance is partially assessable.</b> '+escapeHtml(fmt(noticeEvidenceGapCount))+' event assessment(s) are missing the applicable requirement, event date or notice date. These remain evidence gaps rather than zero or compliant outcomes.</div>':'')+
       '<div class="commercial-visual-grid claims-lifecycle-grid">'+claimLifecycleVisual+noticeTimelinessVisual+noticeKindVisual+'</div>'+
       '<div class="section-heading compact"><div><h5>Commercial claim money register</h5><p>Amounts are shown from the controlled currency register; partial coverage is not promoted to a complete total.</p></div><span class="badge">'+escapeHtml(fmt((registers.claims||[]).length))+' records</span></div>'+
       table(["Claim","Claimed","Assessed","Currency"],financialRows,"No governed commercial claim money rows are established.")+

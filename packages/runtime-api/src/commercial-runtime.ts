@@ -220,37 +220,87 @@ export function commercialEvidenceStateForModule(
     return null;
   }
 
-  if (
-    key ===
-    "variations-change"
-  ) {
-    return position.evidence
-      .variations;
+  if (key === "variations-change") {
+    return position.evidence.variations;
   }
-  if (
-    key === "payments" ||
-    key === "cash-flow"
-  ) {
-    return position.evidence
-      .payments;
+
+  if (key === "payments") {
+    if (
+      position.foundation
+        .paymentRegister.state ===
+      "established"
+    ) {
+      return "established";
+    }
+    return position.evidence.payments ===
+      "not_submitted"
+      ? "not_submitted"
+      : position.evidence.payments ===
+          "candidate"
+        ? "candidate"
+        : "submitted_unparsed";
   }
+
+  if (key === "cash-flow") {
+    if (
+      position.performance
+        .cashFlow.state ===
+      "established"
+    ) {
+      return "established";
+    }
+    return position.evidence.payments ===
+      "not_submitted"
+      ? "not_submitted"
+      : position.evidence.payments ===
+          "candidate"
+        ? "candidate"
+        : "submitted_unparsed";
+  }
+
   if (
     key ===
     "commercial-claims-notices"
   ) {
-    return position.evidence
-      .claims;
+    if (
+      position.evidence.claims !==
+      "established"
+    ) {
+      return position.evidence
+        .claims;
+    }
+    const counts =
+      position.claimsNotices
+        .noticeTimelinessCounts;
+    const unresolvedNoticeEvidence =
+      (counts.requirement_missing ??
+        0) +
+      (counts.event_date_missing ??
+        0) +
+      (counts.notice_date_missing ??
+        0);
+    return position.claimsNotices
+        .state === "established" &&
+      unresolvedNoticeEvidence === 0
+      ? "established"
+      : "submitted_unparsed";
   }
+
   if (
     key ===
     "contract-particulars-bonds"
   ) {
-    return strongestEvidenceState([
+    if (
       position.evidence
-        .commercial,
-      position.evidence.bonds,
-    ]);
+        .commercial !==
+      "established"
+    ) {
+      return position.evidence
+        .commercial;
+    }
+    return position.evidence.bonds;
   }
+
   return position.evidence
     .commercial;
 }
@@ -316,9 +366,32 @@ export function canonicalCommercialModule(
         ? "ready"
         : "partial",
     reason:
-      statusReason(
-        evidenceState,
-      ),
+      evidenceState ===
+      "established"
+        ? null
+        : key === "cash-flow" &&
+            position.evidence
+              .payments ===
+              "established"
+          ? "Payment evidence is established, but Cash Flow remains under review until dated paid-cash and actual cash-expenditure series support a defensible funding position."
+          : key ===
+                "contract-particulars-bonds" &&
+              position.evidence
+                .commercial ===
+                "established" &&
+              position.evidence
+                .bonds !==
+                "established"
+            ? "Contract particulars are established, but the bond/security register is not established. Security counts and expiry status remain unavailable rather than zero."
+            : key ===
+                  "commercial-claims-notices" &&
+                position.evidence
+                  .claims ===
+                  "established"
+              ? "Claims evidence is established, but notice compliance remains under review where contractual requirements or event/notice dates are incomplete."
+              : statusReason(
+                  evidenceState,
+                ),
     dependencies: [
       "governed commercial source ledger",
       "programme Data Date",
