@@ -27,9 +27,9 @@ jobs:
             local name="$1"
             local path="$2"
             local code
-            code=$(curl -L -sS --retry 3 --retry-all-errors --connect-timeout 20 --max-time 120 -w "%{http_code}" -o "audit/json/\${name}.json" "\${BASE}/\${path}")
-            echo "\${name} \${code}" | tee -a audit/http-status.txt
-            test "\${code}" = "200"
+            code=$(curl -L -sS --retry 3 --retry-all-errors --connect-timeout 20 --max-time 120 -w "%{http_code}" -o "audit/json/${name}.json" "${BASE}/${path}")
+            echo "${name} ${code}" | tee -a audit/http-status.txt
+            test "${code}" = "200"
           }
 
           fetch_json overview overview
