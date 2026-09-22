@@ -2686,23 +2686,28 @@ function renderCommercialVisual(key,data){
           {label:"Paid",value:lifecycleCounts.paid??0,tone:"success"}
         ],"records")
       );
+      const slaAssessable=paymentRegister.slaAssessmentState==="established";
       const slaVisual=renderVisualPanel(
         "Payment SLA & aging position",
-        "Paid-late, overdue-unpaid and open-not-due positions remain distinct and use actual event dates.",
-        renderDonutChart([
-          {label:"Paid on time",value:slaCounts.paidOnTime??0,tone:"success"},
-          {label:"Paid late",value:slaCounts.paidLate??0,tone:"warning"},
-          {label:"Overdue unpaid",value:slaCounts.overdueUnpaid??0,tone:"danger"},
-          {label:"Open · not due",value:slaCounts.openUnpaid??0,tone:"accent"},
-          {label:"SLA not established",value:slaCounts.notEstablished??0,tone:"neutral"}
-        ],"Payments")
+        slaAssessable
+          ?"Paid-late, overdue-unpaid and open-not-due positions use governed actual/due dates."
+          :"Payment SLA outcomes are withheld because due/payment date coverage is incomplete.",
+        slaAssessable
+          ?renderDonutChart([
+              {label:"Paid on time",value:slaCounts.paidOnTime??0,tone:"success"},
+              {label:"Paid late",value:slaCounts.paidLate??0,tone:"warning"},
+              {label:"Overdue unpaid",value:slaCounts.overdueUnpaid??0,tone:"danger"},
+              {label:"Open · not due",value:slaCounts.openUnpaid??0,tone:"accent"}
+            ],"Assessable payments")
+          :'<div class="notice warning"><b>Not assessable</b><p>'+escapeHtml(fmt(slaCounts.notEstablished??0))+' payment record(s) do not have sufficient governed SLA event dates.</p></div>'
       );
       foundationDetail='<section class="planning-panel primary payment-management-position"><div class="planning-panel-head"><div><h4>Payments & IPC Management Position</h4><p>Application, assessment, certification and payment remain separate. Due dates and SLA states come from evidenced event dates and contractual periods.</p></div></div><div class="planning-panel-body">'+
         planningKpis([
           ["Payment records",paymentRegister.recordCount||0,"source register"],
           ["Stage coverage",paymentRegister.stageCoveragePercent==null?"Not established":fmt(paymentRegister.stageCoveragePercent)+"%","application / assessment / certification / payment dates"],
-          ["Overdue unpaid",slaCounts.overdueUnpaid||0,"past governed payment due date"],
-          ["Paid late",slaCounts.paidLate||0,"actual payment after due date"],
+          ["Overdue unpaid",slaCounts.overdueUnpaid===null||slaCounts.overdueUnpaid===undefined?"Not assessable":slaCounts.overdueUnpaid,"past governed payment due date"],
+          ["Paid late",slaCounts.paidLate===null||slaCounts.paidLate===undefined?"Not assessable":slaCounts.paidLate,"actual payment after due date"],
+          ["SLA not established",slaCounts.notEstablished??0,"records without assessable due/payment dates",slaCounts.notEstablished?"warning":""],
           ["Payment period",findingValue(terms.paymentPeriodDays,"days"),findingMeta(terms.paymentPeriodDays)],
           ["Certification period",findingValue(terms.certificationPeriodDays,"days"),findingMeta(terms.certificationPeriodDays)]
         ])+
