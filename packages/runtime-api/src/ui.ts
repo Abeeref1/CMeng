@@ -796,9 +796,13 @@ function renderNav(){
   nav.querySelectorAll(".nav-item").forEach(b=>b.onclick=()=>{selected=b.dataset.key;localStorage.setItem("cmeng-module",selected);renderNav();loadModule(selected)});
 }
 function scalarPairs(obj){if(!obj||typeof obj!=="object")return[];return Object.entries(obj).filter(([k,v])=>["string","number","boolean"].includes(typeof v)||v===null).slice(0,12)}
+function humanizeIsoText(value){
+  if(value===null||value===undefined)return"";
+  return String(value).replace(/\b\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z?\b/g,match=>planningShortDate(match));
+}
 function renderUniversalChallenge(challenge){
   if(!challenge||!Array.isArray(challenge.items))return"";
-  const show=v=>v===null||v===undefined?"—":fmt(v);
+  const show=v=>v===null||v===undefined?"—":typeof v==="string"?humanizeIsoText(v):fmt(v);
   const withUnit=(v,u)=>show(v)+(u?" "+u:"");
   const conflictPanel=(item)=>{
     const sub=item.submitted||{};
@@ -921,7 +925,7 @@ function renderDeliveryChallenge(data,reason){
     ["Unmapped BOQ items",q.unmappedItemCount,"items",q.unmappedItemCount?"warning":""],
     ["Productivity evidence",p.productivityEvidenceState?humanizeKey(p.productivityEvidenceState):"Not established",""]
   ])+(quantityRows?'<div class="table-wrap" style="margin-top:12px"><table><thead><tr><th>Unit</th><th>Contract qty</th><th>Mapped qty</th><th>Installed</th><th>Remaining</th><th>Required/day</th><th>Map coverage</th></tr></thead><tbody>'+quantityRows+'</tbody></table></div>':'')+'</div></section>';
-  const findings=(d.findings||[]).map(x=>'<tr><td>'+escapeHtml(x.topic)+'</td><td>'+escapeHtml(humanizeKey(x.state))+'</td><td>'+escapeHtml(x.contractorAssumption||"—")+'</td><td>'+escapeHtml(x.independentCalculation||"—")+'</td><td>'+escapeHtml(x.difference||"—")+'</td><td>'+escapeHtml(x.milestoneConsequence||"—")+'</td><td>'+escapeHtml(x.requiredResponse||"—")+'</td></tr>').join("");
+  const findings=(d.findings||[]).map(x=>'<tr><td>'+escapeHtml(x.topic)+'</td><td>'+escapeHtml(humanizeKey(x.state))+'</td><td>'+escapeHtml(humanizeIsoText(x.contractorAssumption||"—"))+'</td><td>'+escapeHtml(humanizeIsoText(x.independentCalculation||"—"))+'</td><td>'+escapeHtml(humanizeIsoText(x.difference||"—"))+'</td><td>'+escapeHtml(humanizeIsoText(x.milestoneConsequence||"—"))+'</td><td>'+escapeHtml(humanizeIsoText(x.requiredResponse||"—"))+'</td></tr>').join("");
   const contractCategoryCounts=contract?(contract.signals||[]).reduce((map,signal)=>{const label=humanizeKey(signal.category||"other");map.set(label,(map.get(label)||0)+1);return map},new Map()):new Map();
   const contractCategoryItems=[...contractCategoryCounts.entries()].sort((a,b)=>b[1]-a[1]).map(([label,value])=>({label,value,tone:"accent"}));
   const contractCategoryBars=renderVisualBars(contractCategoryItems);
@@ -1913,11 +1917,11 @@ function renderPmoVisual(data){
     {label:"Scenario finish date",date:p.claims?.scenarioAdjustedCompletionIso,tone:"scenario"}
   ],null);
   const attention=planningAttention([
-    variance!==null&&variance>0?{title:"Independent forecast is later than the submitted finish date",text:"Review remaining durations, logic and delivery assumptions.",value:variance+" days",tone:"danger"}:null,
+    variance!==null&&variance>0?{title:"Independent forecast is later than the submitted finish date",text:"Review remaining durations, logic and delivery assumptions.",value:new Intl.NumberFormat(undefined,{maximumFractionDigits:0}).format(variance)+" days",tone:"danger"}:null,
     p.schedule.negativeFloatCount>0?{title:"Negative float requires attention",text:"Activities are carrying schedule pressure against the current dates.",value:p.schedule.negativeFloatCount,tone:"danger"}:null,
     p.progress.lateMilestoneCount>0?{title:"Milestones are overdue",text:"Open milestone commitments have passed the current data date.",value:p.progress.lateMilestoneCount,tone:"danger"}:null,
     p.progress.lookAheadOverdueCount>0?{title:"Look-ahead contains overdue work",text:"Review overdue activities and immediate recovery actions.",value:p.progress.lookAheadOverdueCount,tone:"watch"}:null,
-    p.resources.overloadedResourceCount>0?{title:"Resource overload identified",text:"Assigned demand exceeds known capacity for some resources.",value:p.resources.overloadedResourceCount,tone:"watch"}:null,
+    p.resources.overloadedResourceCount>0?{title:"Weekly resource capacity exceedance identified",text:"Weekly source evidence shows demand above known capacity for these distinct resources. This is separate from P6 per-hour overload assessment.",value:p.resources.overloadedResourceCount,tone:"watch"}:null,
     p.contract.challengeSignalCount>0?{title:"Contract items need review",text:"CMeng found contract points that may affect the programme position.",value:p.contract.challengeSignalCount,tone:"watch"}:null
   ]);
   const visualOverview='<div class="visual-chart-grid">'+
@@ -1941,7 +1945,7 @@ function renderPmoVisual(data){
       ["Weighted progress",p.progress.durationWeightedProgressPercent===null?"—":fmt(p.progress.durationWeightedProgressPercent)+"%"],["Progress coverage",p.progress.progressCoveragePercent===null?"—":fmt(p.progress.progressCoveragePercent)+"%"],["Completed",p.progress.completedCount],["In progress",p.progress.inProgressCount]
     ]],
     ["Delivery",[
-      ["Assigned resources",p.resources.assignedResourceCount],["Capacity coverage",p.resources.capacityCoveragePercent===null?"—":fmt(p.resources.capacityCoveragePercent)+"%"],["Overloaded",p.resources.overloadedResourceCount],["BOQ/activity link",planningStateLabel(p.quantities.allocationState)]
+      ["Assigned resources",p.resources.assignedResourceCount],["Capacity coverage",p.resources.capacityCoveragePercent===null?"—":fmt(p.resources.capacityCoveragePercent)+"%"],["Resources with weekly exceedance",p.resources.overloadedResourceCount],["BOQ/activity link",planningStateLabel(p.quantities.allocationState)]
     ]],
     ["Claims & time",[
       ["Delay events",p.claims.eventCount],["Claims",p.claims.claimCount],["Programme movement",fmt(p.claims.observedProgrammeMovementDays)+" days"],["Approved EOT",p.claims.officialApprovedEotDays===null?"—":fmt(p.claims.officialApprovedEotDays)+" days"]
