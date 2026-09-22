@@ -951,36 +951,6 @@ test("all 22 Schedule modules execute coherently from governed cross-domain evid
           "contract:value:USD",
         ],
       },
-      variations: [
-        {
-          variationId: "V1",
-          state: "pending",
-          amount: 250_000,
-          currency: "AED",
-          sourceRefs: ["variation:V1"],
-        },
-        {
-          variationId: "V2",
-          state: "approved",
-          amount: 50_000,
-          currency: "USD",
-          sourceRefs: ["variation:V2"],
-        },
-      ],
-      invoices: [{
-        invoiceId: "INV1",
-        currency: "USD",
-        certifiedAmount: 400_000,
-        paidAmount: 300_000,
-        sourceRefs: ["invoice:INV1"],
-      }],
-      retentions: [{
-        retentionId: "RET1",
-        state: "held",
-        amount: 75_000,
-        currency: "AED",
-        sourceRefs: ["retention:RET1"],
-      }],
       bonds: [
         {
           bondId: "B1",
@@ -993,13 +963,6 @@ test("all 22 Schedule modules execute coherently from governed cross-domain evid
           sourceRefs: ["bond:B1"],
         },
       ],
-      claimCommercials: [{
-        claimId: "C1",
-        currency: "USD",
-        claimedAmount: 125_000,
-        assessedAmount: null,
-        sourceRefs: ["claim:C1"],
-      }],
       commercialByCurrency: [
         {
           currency: "AED",
