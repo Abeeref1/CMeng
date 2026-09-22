@@ -194,6 +194,8 @@ details:not(.workspace-drawer){border:1px solid var(--line);border-radius:9px;ba
 .planning-primary-grid:has(.pressure-matrix),.planning-primary-grid:has(.float-histogram){grid-template-columns:minmax(0,1fr)!important}
 .planning-kpi strong,.planning-kpi small{overflow-wrap:anywhere;min-width:0}
 .contract-challenge-view .planning-primary-grid{grid-template-columns:minmax(0,1fr)!important}
+
+.module-live-dot{background:#8a99a8!important;box-shadow:none!important}
 </style>
 </head>
 <body>
@@ -506,7 +508,7 @@ const fmtExecutive=v=>{
   return new Intl.NumberFormat(undefined,{maximumFractionDigits:2}).format(v);
 };
 const statusClass=s=>s==="ready"?"ready":s==="partial"?"partial":"blocked";
-const statusLabel=s=>s==="ready"?"Calculation available":s==="partial"?"Review required":"Calculation blocked";
+const statusLabel=s=>s==="ready"?"Listed checks passed":s==="partial"?"Review required":"Calculation blocked";
 function moduleGroupForRole(key){
   for(const [group,keys] of Object.entries(groups)){
     if(keys.includes(key))return group;
@@ -852,7 +854,7 @@ function renderNav(){
   if(appView!=="project"||!overview){nav.innerHTML="";return}
   const states=new Map((overview?.moduleStates||[]).map(x=>[x.key,x]));
   let html='<div class="nav-group"><div class="nav-group-title">Project Controls</div>'+
-    '<div class="nav-state-legend"><span><i class="module-live-dot"></i>Module live</span><span><i class="evidence-flag partial">!</i>Evidence gap</span></div>';
+    '<div class="nav-state-legend"><span><i class="module-live-dot"></i>View available</span><span><i class="evidence-flag partial">!</i>Evidence gap</span></div>';
   Object.entries(groups).forEach(([group,keys])=>{
     html+='<div class="nav-group-title" style="padding-top:10px">'+group+'</div>';
     keys.forEach(key=>{
@@ -862,8 +864,8 @@ function renderNav(){
       const evidenceFlag=st==="ready"
         ?""
         :'<span class="evidence-flag '+statusClass(st)+'" title="'+escapeHtml((st==="partial"?"Evidence gap: ":"Required evidence missing: ")+reason)+'">'+(st==="partial"?"!":"?")+'</span>';
-      const title=names[key]+' · Module live · '+(st==="ready"?"Evidence sufficient":st==="partial"?"Evidence gap: "+reason:"Required evidence missing: "+reason);
-      html+='<button class="nav-item '+(selected===key?"active":"")+'" data-key="'+key+'" title="'+escapeHtml(title)+'"><span class="nav-label">'+names[key]+'</span><span class="nav-state"><span class="module-live-dot" title="Module live"></span>'+evidenceFlag+'</span></button>';
+      const title=names[key]+' · Module live · '+(st==="ready"?"Listed checks and reconciliation passed":st==="partial"?"Evidence gap: "+reason:"Required evidence missing: "+reason);
+      html+='<button class="nav-item '+(selected===key?"active":"")+'" data-key="'+key+'" title="'+escapeHtml(title)+'"><span class="nav-label">'+names[key]+'</span><span class="nav-state"><span class="module-live-dot" title="View available — check evidence status"></span>'+evidenceFlag+'</span></button>';
     });
   });
   html+='</div>';
@@ -1029,7 +1031,7 @@ function renderDeliveryChallenge(data,reason,status){
     ])+'</div></section>';
   }
   html+=reconciliation+'</section>';
-  const basisHtml=renderModuleBasis(data);
+  const basisHtml=renderModuleReadiness(data)+renderModuleBasis(data);
   const reviewState=status==="ready"?"":'<div class="view-state-bar"><span class="view-state-review">Evidence review required</span><strong>Challenge the Contract</strong></div>';
   el("moduleContent").innerHTML=reviewState+basisHtml+renderRoleContent("challenge-contract",data,html,"",true);
   return true;
@@ -3776,7 +3778,7 @@ function managementMetricDisplay(metric){
     return{text:planningShortDate(value),kind:"date"};
   }
   if(typeof value==="number"){
-    return{text:fmtExecutive(value)+(metric?.unit?" "+metric.unit:""),kind:"number"};
+    return{text:(metric?.unit==="calendar days"?new Intl.NumberFormat("en-US",{maximumFractionDigits:0}).format(value):fmtExecutive(value))+(metric?.unit?" "+metric.unit:""),kind:"number"};
   }
   return{text:String(value)+(metric?.unit?" "+metric.unit:""),kind:"text"};
 }
@@ -3958,6 +3960,11 @@ function renderClaimsReporting(r){
   const details=(label,rows)=>'<details><summary>'+escapeHtml(label)+' · '+fmt(rows.length)+' records</summary><div class="table-wrap"><table><thead><tr><th>Record</th><th>Subject</th><th>Source date</th><th>Source state</th></tr></thead><tbody>'+rows.map(n=>'<tr><td>'+escapeHtml(n.noticeId||n.claimId||n.eventId)+'</td><td>'+escapeHtml(n.subject||n.title||"")+'</td><td>'+escapeHtml(planningShortDate(n.actualIssuedAt||n.submittedAt||n.startIso))+'</td><td>'+escapeHtml(humanizeKey(n.state||n.kind||"source"))+'</td></tr>').join("")+'</tbody></table></div></details>';
   return '<section class="planning-panel reporting-scope"><div class="planning-panel-head"><div><h4>Current position and excluded source records</h4><p>Only dated evidence available by the programme Data Date enters current totals. Source final statuses do not establish historical decisions.</p></div></div><div class="planning-panel-body">'+counts+details("Notices after Data Date",r.notices.future)+details("Undated notices",r.notices.undated)+details("Claims after Data Date",r.claims.future)+details("Undated claims",r.claims.undated)+'</div></section>';
 }
+function renderModuleReadiness(data){
+  const r=data?.moduleReadiness;
+  if(!r)return "";
+  return '<div class="notice '+(r.state==="checked"?"info":"warn")+'"><b>'+escapeHtml(r.state==="checked"?"Listed module checks passed":"Review required — overall readiness not established")+'</b><p>Calculation checks: '+escapeHtml(r.calculation)+' · Evidence: '+escapeHtml(humanizeKey(r.evidence))+' · Cross-module consistency: '+escapeHtml(r.consistency)+' · Submitted/independent reconciliation: '+escapeHtml(humanizeKey(r.reconciliation))+'</p><small>'+escapeHtml(r.scope)+'</small></div>';
+}
 function renderModuleBasis(data){
   const root=findProjectionRoot(data);
   const revision=root.sourceRevisionId||root.evidenceRevisionId||root.scheduleRevisionId||root.boqRevisionId||root.basisRevisionId||root.forecast?.basisRevisionId||null;
@@ -3990,15 +3997,7 @@ function renderStructuredSections(data){
 }
 function userFacingModuleReason(key,reason){
   if(!reason)return"";
-  const messages={
-    "schedule-analytics":"Programme health is available from the submitted schedule. The independent path check still needs review before it can be confirmed.",
-    "activity-analytics":"Activity dates, progress and float are available. The independent path check still needs review.",
-    "near-critical":"The near-critical watchlist is based on the submitted programme float while the independent path check is still under review.",
-    "revision-trend":"Only one controlled programme revision is available, so movement over time cannot yet be compared.",
-    "schedule-change-report":"A second controlled programme revision is needed before CMeng can compare programme changes.",
-    "forecast-history":"Only one controlled forecast point is available, so a trend cannot yet be shown."
-  };
-  return messages[key]||String(reason)
+  return String(reason)
     .replace(/independent CPM/gi,"independent path check")
     .replace(/driving-path/gi,"driving path")
     .replace(/projection/gi,"analysis")
@@ -4015,7 +4014,7 @@ function renderModuleResult(result){
   el("moduleSubtitle").textContent=(descriptions[result.key]||"Current position, key changes and actions requiring attention.")+(managementSurface?"":" · "+roleLabel);
   el("topbarModule").textContent=moduleName;
   el("moduleBadge").className="badge "+(result.status==="ready"?"ready":"partial");
-  el("moduleBadge").textContent=result.status==="ready"?"Available":"Review required";
+  el("moduleBadge").textContent=result.status==="ready"?"Listed checks passed":"Review required";
   if(result.status==="blocked"){
     const blockedBody='<div class="view-state-bar"><span class="view-state-review">Evidence not sufficient</span><strong>'+escapeHtml(moduleName)+'</strong><span>The module is live, but the project evidence is not sufficient for a defensible calculation.</span></div><div class="notice warn"><b>Project evidence required</b><br>'+escapeHtml(result.reason||"Required project information is not yet available.")+'</div><div class="scalar-grid">'+(result.dependencies||[]).map(x=>'<div class="scalar"><b>Required information</b><span>'+escapeHtml(humanizeKey(x))+'</span></div>').join("")+'</div>';
     el("moduleContent").innerHTML=renderRoleContent(result.key,{},blockedBody,"",false);
@@ -4023,7 +4022,7 @@ function renderModuleResult(result){
   }
   const data=result.data||{};
   if(result.key==="challenge-contract"&&renderDeliveryChallenge(data,result.reason,result.status))return;
-  const basisHtml=renderModuleBasis(data);
+  const basisHtml=renderModuleReadiness(data)+renderModuleBasis(data);
   const challengeBody=renderUniversalChallenge(data.challenge);
   const challengeHtml=challengeBody?'<details class="reconciliation-panel"><summary><span>Reconciliation with submitted position</span><b>'+escapeHtml(reconciliationSummary(data.challenge))+'</b></summary><div class="reconciliation-body">'+challengeBody+'</div></details>':'';
   const specialized=renderSpecializedModule(result.key,data);

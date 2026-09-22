@@ -504,7 +504,8 @@ test("real XER upload creates isolated project revision and usable schedule modu
         };
       assert.equal(
         a.status,
-        "ready",
+        "partial",
+        "A parsed schedule remains usable but incomplete project evidence must not be a green readiness verdict",
       );
       assert.equal(
         a.data.result

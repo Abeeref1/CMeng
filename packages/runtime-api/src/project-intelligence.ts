@@ -144,7 +144,7 @@ function scalarFacts(
     return Object.entries(
       value as Record<string, unknown>,
     )
-      .filter(([key])=>!['schemaVersion','projectionKey','producerVersion','generatedAt','sourceRevisionId','sourceProjections','sourceLedger','source','futureRows','undatedRows','claimsReporting','reportingContract','diagnostics','receipts','basis','sourceRefs','controlBasis','population','populationContract','challenge','systemEvidenceContract'].includes(key))
+      .filter(([key])=>!['schemaVersion','projectionKey','producerVersion','generatedAt','sourceRevisionId','sourceProjections','sourceLedger','source','futureRows','undatedRows','claimsReporting','reportingContract','diagnostics','receipts','basis','sourceRefs','controlBasis','population','populationContract','challenge','systemEvidenceContract','moduleReadiness'].includes(key))
       .slice(0, 24)
       .flatMap(([key, child]) =>
         scalarFacts(
