@@ -6,7 +6,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "build": "tsc",
-    "start": "node scripts/apply-credibility-hotfix.mjs && node dist/packages/runtime-api/src/server.js",
+    "start": "node dist/packages/runtime-api/src/server.js",
     "test:unit": "npm run build && node --test $(find dist/tests -name '*.test.js' ! -name '*-scale.test.js')",
     "test:stress": "npm run build && node --test dist/tests/*-scale.test.js",
     "test": "npm run test:unit",
