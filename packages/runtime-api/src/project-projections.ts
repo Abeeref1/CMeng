@@ -4943,11 +4943,7 @@ function independentForecastReviewReason(
   ) {
     return (
       "Independent forecast differs from the submitted finish by " +
-      Math.abs(
-        Number(
-          variance.toFixed(1),
-        ),
-      ) +
+      Math.round(Math.abs(variance)).toLocaleString("en-US") +
       " days. Reconcile calendars, remaining durations, logic and constraints before treating the independent date as a management forecast."
     );
   }
@@ -6580,7 +6576,7 @@ function applyProfessionalModuleState(
         undefined
     ) {
       review(
-        "Official adjusted completion is not established; observed movement and analytical scenarios remain separate from contractual entitlement.",
+        "Further completion adjustment after the current amended contract date is not established; determination overlap and causal entitlement require reconciliation.",
       );
     }
   }
@@ -6602,6 +6598,8 @@ function applyProfessionalModuleState(
         .physicalComplete === false ||
       contractIntelligence
         .semanticComplete === false ||
+      data?.independentForecastState === "review_required" ||
+      data?.deliveryChallenge?.findings?.some((finding: any) => ["missing_evidence", "scenario"].includes(finding.state)) ||
       deliveryPosition ===
         "not_yet_supportable" ||
       deliveryPosition ===
@@ -6618,6 +6616,15 @@ function applyProfessionalModuleState(
               ? "The delivery challenge cannot yet be supported by the available measured evidence."
               : "The contract challenge position is not yet supportable from a complete governed contract evidence basis.",
       );
+    }
+  }
+
+  if (result.key === "cost-forecast") {
+    const position = data?.position;
+    const cost = position?.performance?.costControl;
+    const conflicts = (position?.sourceLedger?.costPosition ?? []).some((row: any) => (row.diagnostics ?? []).some((issue: string) => /CONFLICT|UNRESOLVED/.test(issue)));
+    if (conflicts || cost?.state !== "established" || position?.foundation?.costRegister?.mappingCoveragePercent !== 100) {
+      review("Cost snapshots are available, but reconciliation, source authority or CBS mapping requires review. A single observation does not establish a trend.");
     }
   }
 
@@ -6668,7 +6675,7 @@ function applyProfessionalModuleState(
       incompleteMoney
     ) {
       review(
-        "The contract-value position is established, but certification, payment, held-retention, claim or security evidence remains incomplete; the integrated Commercial Overview requires review.",
+        "Contract-value reconciliation, certification, payment, held-retention, claim or security evidence requires review; source availability does not establish the integrated commercial position.",
       );
     }
   }

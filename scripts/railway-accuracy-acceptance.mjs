@@ -280,7 +280,7 @@ try {
   check('RES01–RES07 utilization-applicable population is 210', resource.data?.utilizationApplicableResourceCount === 210);
   check('RES01–RES07 weekly population is 19,110 rows', weekly?.rowCount === 19110);
   check('RES01–RES07 approved actual-usage population is 4,620 rows', weekly?.approvedActualUsageRowCount === 4620);
-  check('Resource capacity coverage is established, not zero', resource.data?.capacityCoveragePercent > 0);
+  check('Weekly capacity coverage uses its own source population', weekly?.capacityCoveragePercent > 0 && weekly.capacityCoveragePercent <= 100 && weekly.comparableRowCount > 0 && Math.abs(weekly.capacityCoveragePercent - weekly.comparableRowCount / weekly.rowCount * 100) < 0.001);
   check('Planned utilization reconciles to source 84.47%', Math.abs(resource.data?.plannedUtilizationPercent - 84.47) <= 0.02);
   check('Actual utilization reconciles to source 76.97%', Math.abs(resource.data?.actualUtilizationPercent - 76.97) <= 0.02);
   check('Resource arithmetic remains class/unit partitioned', Array.isArray(weekly?.weeklyTotals) && weekly.weeklyTotals.every(row => row.resourceClass !== 'material' && typeof row.unit === 'string' && row.unit.length > 0));
@@ -397,7 +397,13 @@ try {
       .every(e => !Array.isArray(e.relatedActivityIds) || e.relatedActivityIds.length === 0));
   check('Delay-event windows are represented in the canonical chain', delay.data?.windowLinkedEventCount > 0 && events.some(e => Array.isArray(e.overlappingWindowIds) && e.overlappingWindowIds.length > 0));
   check('Delay-event notices are represented in the canonical chain', delay.data?.noticeLinkedEventCount > 0 && events.some(e => Array.isArray(e.noticeIds) && e.noticeIds.length > 0));
-  check('All 16 Engineer determinations remain linked to governed events', delay.data?.determinationLinkedEventCount > 0 && new Set(events.flatMap(e => e.determinationIds ?? [])).size === 16);
+  const fullDeterminations = (modules.get('commercial-claims-notices')?.data?.position?.claimsNotices?.notices ?? []).filter(n => n.kind === 'determination');
+  const currentDeterminationIds = fullDeterminations.filter(n => n.actualIssuedAt && time?.dataDateIso && String(n.actualIssuedAt).slice(0,10) <= time.dataDateIso.slice(0,10)).map(n => n.noticeId).sort();
+  const linkedDeterminationIds = [...new Set(events.flatMap(e => e.determinationIds ?? []))].sort();
+  check('Determination links include exactly the effective Data-Date population and retain the full source register',
+    fullDeterminations.length === time?.registerDeterminationCount &&
+    currentDeterminationIds.length === time?.effectiveDeterminationCount &&
+    JSON.stringify(linkedDeterminationIds) === JSON.stringify(currentDeterminationIds));
   const determinationEvents = events.filter(e => Array.isArray(e.determinationIds) && e.determinationIds.length > 0);
   check('Determination-chain benchmark is evidence-complete and accepts explicit source-limited incompleteness',
     (delay.data?.fullDeterminationChainEventCount ?? 0) +
@@ -801,10 +807,16 @@ try {
   // Cash: only explicit incremental or project-cumulative source bases may create project totals.
   const cashCurrencies = Array.isArray(performance?.cashFlow?.currencies) ? performance.cashFlow.currencies : [];
   const safePaymentBasis = value => value === 'incremental' || value === 'project_cumulative';
+  const asOfDate = date => Boolean(date && commercialLedger?.dataDateIso && String(date).slice(0,10) <= commercialLedger.dataDateIso.slice(0,10));
+  const certifiedMoney = payment => payment.amounts?.employerCertifiedAmount?.value != null ? payment.amounts.employerCertifiedAmount : payment.amounts?.netCertifiedAmount;
+  const paymentInCashPartition = (payment, cash) =>
+    (certifiedMoney(payment)?.currency ?? payment.amounts?.paidAmount?.currency ?? null) === cash.currency &&
+    (certifiedMoney(payment)?.taxBasis ?? 'unknown') === cash.taxBasis &&
+    asOfDate(payment.periodEnd ?? payment.paymentDate);
   const cashBasisPass = cashCurrencies.every(cash => {
     const paidSource = sourcePayments
       .filter(payment =>
-        (payment.amounts?.paidAmount?.currency ?? null) === cash.currency &&
+        paymentInCashPartition(payment, cash) &&
         payment.amounts?.paidAmount?.value !== null &&
         payment.paymentDate &&
         (!commercialLedger?.dataDateIso || payment.paymentDate <= commercialLedger.dataDateIso)
@@ -818,12 +830,12 @@ try {
         return { payment, amount };
       })
       .filter(({payment, amount}) =>
-        (amount?.currency ?? null) === cash.currency &&
+        paymentInCashPartition(payment, cash) &&
         amount?.value !== null &&
-        (payment.certificationDate ?? payment.periodEnd) &&
-        (!commercialLedger?.dataDateIso || String(payment.certificationDate ?? payment.periodEnd) <= commercialLedger.dataDateIso)
+        payment.certificationDate &&
+        (!commercialLedger?.dataDateIso || String(payment.certificationDate) <= commercialLedger.dataDateIso)
       )
-      .sort((a,b) => String(a.payment.certificationDate ?? a.payment.periodEnd).localeCompare(String(b.payment.certificationDate ?? b.payment.periodEnd)));
+      .sort((a,b) => String(a.payment.certificationDate).localeCompare(String(b.payment.certificationDate)));
 
     const paidBases = new Set(paidSource.map(payment => payment.paidAmountBasis));
     const certifiedBases = new Set(certifiedSource.map(({payment}) => payment.certifiedAmountBasis));
@@ -832,11 +844,15 @@ try {
 
     const checkSeries = (sources, bases, entries, totalFinding, basisGetter, valueGetter) => {
       if (!sources.length) return findingValue(totalFinding) === null && entries.length === 0;
+      if (cash.taxBasis === 'unknown') return findingValue(totalFinding) === null;
       if (bases.size !== 1 || !safePaymentBasis([...bases][0])) {
         return findingValue(totalFinding) === null && entries.length === 0;
       }
       const basis = [...bases][0];
       const sourceValues = sources.map(valueGetter);
+      if (basis === 'project_cumulative' && (sourceValues[0] !== 0 || sourceValues.length < 2 || sourceValues.some((value, index) => index > 0 && value < sourceValues[index - 1] - 0.01))) {
+        return findingValue(totalFinding) === null && entries.length === 0;
+      }
       const expectedTotal = basis === 'incremental'
         ? sourceValues.reduce((sum, value) => sum + value, 0)
         : sourceValues.at(-1);
@@ -898,8 +914,8 @@ try {
         paymentCertifiedMoney(payment)?.currency ??
         payment.amounts?.paidAmount?.currency ??
         null;
-      const payments = sourcePayments.filter(payment => paymentCurrency(payment) === cash.currency);
-      const costRows = sourceCostRows.filter(row => row.amount?.currency === cash.currency);
+      const payments = sourcePayments.filter(payment => paymentInCashPartition(payment, cash));
+      const costRows = sourceCostRows.filter(row => row.amount?.currency === cash.currency && row.amount?.taxBasis === cash.taxBasis && asOfDate(row.amount?.asOf));
       const certifiedRows = payments.filter(payment => {
         const amount = paymentCertifiedMoney(payment);
         return amount?.value !== null && amount?.value !== undefined;
@@ -908,7 +924,7 @@ try {
         payment.amounts?.paidAmount?.value !== null &&
         payment.amounts?.paidAmount?.value !== undefined
       );
-      const certifiedDated = certifiedRows.filter(payment => Boolean(payment.certificationDate ?? payment.periodEnd));
+      const certifiedDated = certifiedRows.filter(payment => Boolean(payment.certificationDate));
       const paidDated = paidRows.filter(payment => Boolean(payment.paymentDate));
       const budgetRows = cashAliasRows(costRows, ['expenditure budget','cash expenditure budget','cash budget']);
       const forecastRows = cashAliasRows(costRows, ['expenditure forecast','cash expenditure forecast','cash forecast']);

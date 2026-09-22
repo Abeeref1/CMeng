@@ -1433,10 +1433,8 @@ export function buildDeliveryChallengeProjection(
         contractorVsIndependent ===
         null
           ? null
-          : contractorVsIndependent.toFixed(
-              2,
-            ) +
-            " day(s) independent minus contractor forecast.",
+          : Math.round(contractorVsIndependent).toLocaleString("en-US") +
+            " calendar days independent minus contractor forecast.",
       evidenceBasis: [
         "Current contractor programme",
         "Independent deterministic forecast",
@@ -1510,7 +1508,7 @@ export function buildDeliveryChallengeProjection(
               fronts.average ===
               null
                 ? null
-                : "Schedule-derived work-front scenarios use crew sizes " +
+                : "Illustrative concurrent-task sensitivities use assumed people multipliers " +
                   crewSizes.join(
                     "/",
                   ) +
@@ -1542,7 +1540,7 @@ export function buildDeliveryChallengeProjection(
           : null,
       requiredResponse:
         submitted.average === null
-          ? "Provide the periodised manpower plan by trade/work front, or confirm the schedule-derived scenario assumptions."
+          ? "Provide the periodised manpower plan by trade/work front, or validate the concurrent-task staffing assumptions."
           : manpowerGapPercent !==
                 null &&
               manpowerGapPercent <
@@ -1637,7 +1635,7 @@ export function buildDeliveryChallengeProjection(
           : null,
       requiredResponse:
         measuredRows.length === 0
-          ? "Provide certified installed quantities and actual labor hours to substantiate productivity."
+          ? "Provide certified installed quantities and approved labor hours mapped to the same work-package and quantity scope to substantiate productivity."
           : maxProductivityRequirement !==
                 null &&
               maxProductivityRequirement >
@@ -1744,6 +1742,7 @@ export function buildDeliveryChallengeProjection(
         fronts.activityCount,
     },
     quantityChallenge: {
+      mappingPopulationEstablished: (input.quantities?.items.length ?? 0) > 0,
       totalKnownQuantity:
         singleUnit
           ?.contractQuantity ??

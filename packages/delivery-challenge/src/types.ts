@@ -136,6 +136,7 @@ export interface DeliveryChallengeProjection {
   };
 
   quantityChallenge: {
+    mappingPopulationEstablished: boolean;
     totalKnownQuantity: number | null;
     mappedQuantity: number | null;
     mappingCoveragePercent:

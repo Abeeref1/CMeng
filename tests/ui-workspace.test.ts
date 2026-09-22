@@ -681,7 +681,7 @@ test("CMeng workspace keeps the active module primary and browser script parseab
     const changePaymentVisual of [
       "Variations & Change Management Position",
       "Variation lifecycle distribution",
-      "Pending variation aging",
+      "Pending and unknown-stage aging",
       "Contract value & change bridge",
       "Site Instruction conversion & quotation pressure",
       "Payments & IPC Management Position",

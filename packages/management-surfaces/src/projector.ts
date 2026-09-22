@@ -26,11 +26,11 @@ function managementDays(
   value: number,
 ): string {
   const rounded =
-    Math.round(value * 10) / 10;
+    Math.round(value);
   return rounded.toLocaleString(
     "en-US",
     {
-      maximumFractionDigits: 1,
+      maximumFractionDigits: 0,
     },
   );
 }
@@ -390,7 +390,7 @@ function buildAlerts(
           : "medium",
       title:
         gap.label +
-        " evidence needs attention",
+        " requires evidence review",
       consequence:
         gap.state ===
           "stale"
@@ -541,11 +541,11 @@ function dashboardMetrics(
     ),
     finishMetric(
       "official-adjusted-finish",
-      "Official adjusted completion",
+      "Further finish after amendment",
       d?.schedule
         .officialAdjustedCompletionIso ??
       null,
-      "Contract completion plus governed net awarded EOT",
+      "Current amended completion plus reconciled additional EOT",
       "source",
     ),
     finishMetric(

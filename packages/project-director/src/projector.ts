@@ -26,8 +26,8 @@ function positiveDelayDays(
   contractual: string | null,
   forecast: string | null,
 ): number | null {
-  const contractMs = ms(contractual);
-  const forecastMs = ms(forecast);
+  const contractMs = ms(contractual?.slice(0, 10) ?? null);
+  const forecastMs = ms(forecast?.slice(0, 10) ?? null);
   if (
     contractMs === null ||
     forecastMs === null
