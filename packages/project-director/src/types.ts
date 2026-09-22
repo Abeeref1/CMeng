@@ -178,6 +178,7 @@ export interface CurrencyCommercialPosition {
   pendingVariationAmount: DirectorCommercialMetric;
   approvedVariationAmount: DirectorCommercialMetric;
   certifiedUnpaidAmount: DirectorCommercialMetric;
+  retentionDeductedAmount: DirectorCommercialMetric;
   retentionHeldAmount: DirectorCommercialMetric;
   activeBondAmount: DirectorCommercialMetric;
   claimClaimedAmount: DirectorCommercialMetric;
