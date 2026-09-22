@@ -4439,7 +4439,6 @@ function buildPlanningModuleFast(
 const specialistFastModuleKeys =
   new Set([
     "resource-utilization",
-    "progress-report",
     "variance-trends",
     "progress-scurve",
     "quantity-scurve",
