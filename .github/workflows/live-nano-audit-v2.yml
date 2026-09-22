@@ -1,0 +1,253 @@
+name: CMeng Live Nano Audit V2
+
+on:
+  push:
+    branches:
+      - nano-audit-live-20260922
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Capture live module JSON
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://cmeng-main-production.up.railway.app/api/projects/ORBIT-JED-PLH-P3"
+          mkdir -p audit/json audit/screens
+          : > audit/http-status.txt
+
+          fetch_json() {
+            local name="$1"
+            local path="$2"
+            local code
+            code=$(curl -L -sS --retry 3 --retry-all-errors --connect-timeout 20 --max-time 120 -w "%{http_code}" -o "audit/json/${name}.json" "${BASE}/${path}")
+            echo "${name} ${code}" | tee -a audit/http-status.txt
+            test "${code}" = "200"
+          }
+
+          fetch_json overview overview
+
+          fetch_json master-dashboard management/master-dashboard
+          fetch_json command-center management/command-center
+          fetch_json master-control-programme management/master-control-programme
+
+          fetch_json pmo-analysis schedule/modules/pmo-analysis
+          fetch_json schedule-analytics schedule/modules/schedule-analytics
+          fetch_json activity-analytics schedule/modules/activity-analytics
+          fetch_json lookahead-schedule schedule/modules/lookahead-schedule
+          fetch_json schedule-change-report schedule/modules/schedule-change-report
+          fetch_json revision-trend schedule/modules/revision-trend
+          fetch_json milestones schedule/modules/milestones
+          fetch_json near-critical schedule/modules/near-critical
+
+          fetch_json resource-utilization schedule/modules/resource-utilization
+          fetch_json progress-report schedule/modules/progress-report
+          fetch_json variance-trends schedule/modules/variance-trends
+          fetch_json progress-scurve schedule/modules/progress-scurve
+          fetch_json quantity-scurve schedule/modules/quantity-scurve
+          fetch_json progress-breakdown schedule/modules/progress-breakdown
+          fetch_json manhour-scurve schedule/modules/manhour-scurve
+
+          fetch_json forecast-history schedule/modules/forecast-history
+          fetch_json independent-forecast schedule/modules/independent-forecast
+
+          fetch_json delay-claims schedule/modules/delay-claims
+          fetch_json notices-claims schedule/modules/notices-claims
+          fetch_json windows-analysis schedule/modules/windows-analysis
+          fetch_json eot-assessment schedule/modules/eot-assessment
+          fetch_json challenge-contract schedule/modules/challenge-contract
+
+          fetch_json commercial-overview commercial/modules/commercial-overview
+          fetch_json cost-forecast commercial/modules/cost-forecast
+          fetch_json variations-change commercial/modules/variations-change
+          fetch_json payments commercial/modules/payments
+          fetch_json cash-flow commercial/modules/cash-flow
+          fetch_json commercial-claims-notices commercial/modules/commercial-claims-notices
+          fetch_json contract-particulars-bonds commercial/modules/contract-particulars-bonds
+
+      - name: Build compact live-data diagnostics
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, os, math
+          from collections import Counter
+
+          root = "audit/json"
+          report = {}
+
+          def walk(obj, path=""):
+              if isinstance(obj, dict):
+                  for k,v in obj.items():
+                      yield from walk(v, f"{path}.{k}" if path else k)
+              elif isinstance(obj, list):
+                  if obj and all(isinstance(x, dict) for x in obj):
+                      keys = sorted(set().union(*(x.keys() for x in obj)))
+                      for key in keys:
+                          vals = [x.get(key) for x in obj if key in x]
+                          nums = [v for v in vals if isinstance(v,(int,float)) and not isinstance(v,bool) and math.isfinite(v)]
+                          strs = [v for v in vals if isinstance(v,str)]
+                          if len(nums) >= 4:
+                              counts = Counter(nums)
+                              common, n = counts.most_common(1)[0]
+                              if n >= 4 and n / len(nums) >= .45:
+                                  yield {
+                                      "path": f"{path}[].{key}",
+                                      "kind": "repeated_numeric",
+                                      "population": len(nums),
+                                      "value": common,
+                                      "count": n,
+                                      "share": round(n/len(nums), 4)
+                                  }
+                          if len(strs) >= 4:
+                              counts = Counter(strs)
+                              common, n = counts.most_common(1)[0]
+                              if common and n >= 4 and n / len(strs) >= .55:
+                                  yield {
+                                      "path": f"{path}[].{key}",
+                                      "kind": "repeated_text",
+                                      "population": len(strs),
+                                      "value": common[:160],
+                                      "count": n,
+                                      "share": round(n/len(strs), 4)
+                                  }
+                  for i,v in enumerate(obj[:250]):
+                      yield from walk(v, f"{path}[{i}]")
+              return
+
+          for fn in sorted(os.listdir(root)):
+              if not fn.endswith(".json"):
+                  continue
+              with open(os.path.join(root,fn),encoding="utf-8") as f:
+                  data=json.load(f)
+              report[fn[:-5]] = {
+                  "status": data.get("status") if isinstance(data,dict) else None,
+                  "reason": data.get("reason") if isinstance(data,dict) else None,
+                  "patterns": list(walk(data))[:100]
+              }
+
+          with open("audit/diagnostics.json","w",encoding="utf-8") as f:
+              json.dump(report,f,ensure_ascii=False,indent=2)
+
+          print("=== COMPACT DIAGNOSTICS ===")
+          for key, item in report.items():
+              pats=item["patterns"]
+              print(f"\\n[{key}] status={item['status']} reason={item['reason']}")
+              for p in pats[:12]:
+                  print(json.dumps(p,ensure_ascii=False))
+          PY
+
+      - name: Install browser for visual capture
+        shell: bash
+        run: |
+          npm init -y >/dev/null 2>&1
+          npm install --no-save playwright@1.55.0
+          npx playwright install chromium
+
+      - name: Capture full-page screenshots
+        shell: bash
+        run: |
+          cat > audit/capture.mjs <<'JS'
+          import { chromium } from "playwright";
+          import fs from "fs";
+
+          const base = "https://cmeng-main-production.up.railway.app";
+          const project = "ORBIT-JED-PLH-P3";
+          const modules = [
+            ["master-dashboard","Master Dashboard"],
+            ["command-center","Command Center"],
+            ["master-control-programme","Master Control Programme"],
+            ["pmo-analysis","Management Position"],
+            ["schedule-analytics","Programme Review"],
+            ["activity-analytics","Activity Review"],
+            ["lookahead-schedule","Look-Ahead"],
+            ["schedule-change-report","Programme Changes"],
+            ["revision-trend","Revision History"],
+            ["milestones","Milestones"],
+            ["near-critical","Near-Critical & Float Risk"],
+            ["resource-utilization","Resources"],
+            ["progress-report","Progress Position"],
+            ["variance-trends","Variance Trend"],
+            ["progress-scurve","Progress S-Curve"],
+            ["quantity-scurve","Installed Quantities"],
+            ["progress-breakdown","WBS Progress"],
+            ["manhour-scurve","Man-Hour S-Curve"],
+            ["forecast-history","Forecast History"],
+            ["independent-forecast","Independent Forecast"],
+            ["delay-claims","Delay Events & Claims"],
+            ["notices-claims","Notices, EOT & Claims"],
+            ["windows-analysis","Delay Windows"],
+            ["eot-assessment","EOT Position"],
+            ["challenge-contract","Challenge the Contract"],
+            ["commercial-overview","Commercial Overview"],
+            ["cost-forecast","Cost & Forecast"],
+            ["variations-change","Variations & Change"],
+            ["payments","Payments"],
+            ["cash-flow","Cash Flow"],
+            ["commercial-claims-notices","Claims & Notices"],
+            ["contract-particulars-bonds","Contract Particulars & Bonds"]
+          ];
+
+          const browser = await chromium.launch({headless:true});
+          const context = await browser.newContext({
+            viewport:{width:1536,height:960},
+            deviceScaleFactor:1
+          });
+          const page = await context.newPage();
+          const errors = [];
+          page.on("console", msg => {
+            if (msg.type()==="error") errors.push("console: "+msg.text());
+          });
+          page.on("pageerror", err => errors.push("pageerror: "+String(err)));
+
+          await page.goto(base,{waitUntil:"domcontentloaded",timeout:120000});
+          await page.evaluate(({project})=>{
+            localStorage.setItem("cmeng-project",project);
+            localStorage.setItem("cmeng-role-view","overall");
+            localStorage.setItem("cmeng-focus","0");
+          },{project});
+
+          for (const [key,title] of modules) {
+            await page.evaluate(({key})=>localStorage.setItem("cmeng-module",key),{key});
+            await page.reload({waitUntil:"domcontentloaded",timeout:120000});
+            try {
+              await page.waitForFunction(
+                ({title}) => {
+                  const node=document.querySelector("#moduleTitle");
+                  return node && node.textContent.trim()===title;
+                },
+                {title},
+                {timeout:60000}
+              );
+              await page.waitForTimeout(1200);
+            } catch (e) {
+              errors.push(key+": "+String(e));
+            }
+            await page.screenshot({
+              path:"audit/screens/"+key+".jpg",
+              fullPage:true,
+              type:"jpeg",
+              quality:72
+            });
+            console.log("captured",key,title);
+          }
+
+          await browser.close();
+          fs.writeFileSync("audit/browser-errors.txt",errors.join("\\n"));
+          JS
+
+          node audit/capture.mjs
+
+      - name: Upload nano-audit artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cmeng-live-nano-audit
+          path: audit
+          if-no-files-found: error
+          retention-days: 7
