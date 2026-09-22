@@ -2660,6 +2660,20 @@ function buildBundle(
             complete:
               independentForecast
                 .complete,
+            basisRevisionId:
+              independentForecast
+                .sourceRevisionId,
+            activityCoveragePercent:
+              independentForecast
+                .activityCoveragePercent,
+            authority:
+              independentForecast.origin ===
+                "deterministic_source_calendar"
+                ? "deterministic"
+                : independentForecast.origin ===
+                    "scenario_with_assumptions"
+                  ? "scenario"
+                  : "unresolved",
           },
           resources: resourceUtilization
             ? {
