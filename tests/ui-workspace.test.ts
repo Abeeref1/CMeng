@@ -901,6 +901,45 @@ test("CMeng workspace keeps the active module primary and browser script parseab
     /planningShortDate\(p\.latestDataDateIso\)/,
     "Portfolio must render the project data date as a human date",
   );
+
+  assert.equal(
+    html.includes(
+      'fmt(foundation.costRegister?.recordCount||0)+" records"',
+    ),
+    false,
+    "Commercial Foundation must not pair a missing source state with a false zero record count",
+  );
+  assert.equal(
+    html.includes(
+      "No governed claim lifecycle population is established. Lifecycle counts are not established.",
+    ),
+    true,
+    "Commercial Claims must not render an all-zero lifecycle chart when no governed claim population exists",
+  );
+  assert.equal(
+    html.includes(
+      "Notice timeliness is not assessable until governed event, requirement and notice-date evidence is established.",
+    ),
+    true,
+    "Notice timeliness must remain unassessable when its evidence population is absent",
+  );
+  assert.equal(
+    html.includes(
+      "payment register not established",
+    ),
+    true,
+    "Cash Flow source summary must describe an absent payment basis instead of presenting it as zero",
+  );
+  for (const disclosure of [
+    "complete governed population remains available in the module report/export",
+    "complete population remains available in the module report/export",
+  ]) {
+    assert.equal(
+      html.includes(disclosure),
+      true,
+      "Capped detail surfaces must disclose that the full population remains available: " + disclosure,
+    );
+  }
   assert.equal(
     html.includes(
       "(terms.clauses||[]).slice(0,100)",
