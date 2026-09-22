@@ -1748,7 +1748,7 @@ function buildPaymentRegister(
           ),
       ).length,
   };
-  const slaCounts = {
+  const rawSlaCounts = {
     paidOnTime:
       rows.filter(
         (row) =>
@@ -1797,6 +1797,45 @@ function buildPaymentRegister(
             "not_established",
       ).length,
   };
+  const slaAssessmentState:
+    PaymentRegisterProjection[
+      "slaAssessmentState"
+    ] =
+    rows.length === 0 ||
+    rawSlaCounts.notEstablished ===
+      rows.length
+      ? "not_assessable"
+      : rawSlaCounts.notEstablished >
+          0
+        ? "partial"
+        : "established";
+  const slaCounts:
+    PaymentRegisterProjection[
+      "slaCounts"
+    ] = {
+    paidOnTime:
+      slaAssessmentState ===
+        "established"
+        ? rawSlaCounts.paidOnTime
+        : null,
+    paidLate:
+      slaAssessmentState ===
+        "established"
+        ? rawSlaCounts.paidLate
+        : null,
+    overdueUnpaid:
+      slaAssessmentState ===
+        "established"
+        ? rawSlaCounts.overdueUnpaid
+        : null,
+    openUnpaid:
+      slaAssessmentState ===
+        "established"
+        ? rawSlaCounts.openUnpaid
+        : null,
+    notEstablished:
+      rawSlaCounts.notEstablished,
+  };
   return {
     capabilityKey:
       "payment-register",
@@ -1815,6 +1854,7 @@ function buildPaymentRegister(
         stageTotal,
       ).percent,
     lifecycleCounts,
+    slaAssessmentState,
     slaCounts,
     rows,
     diagnostics: [
