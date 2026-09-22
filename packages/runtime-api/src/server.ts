@@ -594,6 +594,25 @@ async function route(
               .state ??
             null;
 
+          const director =
+            directorForProject(
+              projectId,
+            );
+          const windowsResult =
+            moduleForProject(
+              projectId,
+              "windows-analysis",
+            );
+          const windowsData =
+            windowsResult.data &&
+            typeof windowsResult.data ===
+              "object"
+              ? windowsResult.data as {
+                  projectCompletionMovementDays?:
+                    number | null;
+                }
+              : null;
+
           return {
             projectId,
             demo: false,
@@ -627,23 +646,39 @@ async function route(
                   ? "current"
                   : "needs_review",
             forecastCompletionIso:
+              director?.schedule
+                .independentForecastCompletionIso ??
               null,
             officialCompletionIso:
+              director?.schedule
+                .officialAdjustedCompletionIso ??
               null,
             programmeMovementDays:
+              windowsData
+                ?.projectCompletionMovementDays ??
               null,
             approvedEotDays:
+              director?.claims
+                .officialApprovedEotDays ??
               null,
             claimCount:
-              state.controls
-                .delayClaims
-                ?.claims.length ??
+              director?.claims
+                .claimCount ??
               null,
             fullyLinkedClaimCount:
+              director?.claims
+                .fullyLinkedClaimCount ??
               null,
             managementActionCount:
-              0,
-            managementActions: [],
+              director
+                ? director
+                    .managementActions
+                    .length
+                : null,
+            managementActions:
+              director
+                ?.managementActions ??
+              [],
             commercialCurrencyCount:
               commercialPosition
                 .currencies.length,

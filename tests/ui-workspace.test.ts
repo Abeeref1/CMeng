@@ -834,6 +834,73 @@ test("CMeng workspace keeps the active module primary and browser script parseab
     false,
     "Commercial Claims must not aggregate raw financial claim rows in the browser",
   );
+
+  assert.equal(
+    html.includes(
+      "weeklyComparable||weeklyRows",
+    ),
+    false,
+    "Resources must never relabel all weekly rows as rows with both capacity and demand",
+  );
+  assert.equal(
+    html.includes(
+      "Approved weekly usage history",
+    ),
+    true,
+    "Man-Hour must label approved weekly actual usage by its real source basis",
+  );
+  assert.equal(
+    html.includes(
+      "p.nearCriticalFloatThresholdHours??40",
+    ),
+    false,
+    "Milestones must not explain a calendar-aware near-critical rule with a hard-coded 40-hour fallback",
+  );
+  assert.equal(
+    html.includes(
+      '{label:"Unknown",value:unknownCriticality',
+    ),
+    true,
+    "Activity Review must keep unknown criticality separate from non-critical activities",
+  );
+  assert.equal(
+    html.includes(
+      '?p.observedProgrammeMovementDays:0',
+    ),
+    false,
+    "EOT bridge must not plot a missing analytical value as zero",
+  );
+  assert.equal(
+    html.includes(
+      '?variance:0',
+    ),
+    false,
+    "Independent Forecast bridge must omit missing comparison values instead of plotting zero",
+  );
+  assert.equal(
+    html.includes(
+      "No retention register or governed balance records are established.",
+    ),
+    true,
+    "Contract Particulars must not render retention held/released/due zeros without a retention population",
+  );
+  assert.equal(
+    html.includes(
+      "Payment register is not established. Lifecycle counts are not established.",
+    ),
+    true,
+    "Payments must not render lifecycle zeros when the payment register is absent",
+  );
+  assert.match(
+    html,
+    /Project completion movement/,
+    "Portfolio must distinguish net project completion movement from gross window movement",
+  );
+  assert.match(
+    html,
+    /planningShortDate\(p\.latestDataDateIso\)/,
+    "Portfolio must render the project data date as a human date",
+  );
   assert.equal(
     html.includes(
       "(terms.clauses||[]).slice(0,100)",
