@@ -6544,7 +6544,7 @@ function applyProfessionalModuleState(
       );
     if (!externalEstablished) {
       review(
-        "Schedule-derived progress is available, but contractor-reported, certified or independently sourced physical progress is not established.",
+        "Schedule-derived progress is available, but contractor-reported, certified or independently sourced physical progress is not established. The schedule snapshot is not treated as certified physical progress.",
       );
     }
   }
