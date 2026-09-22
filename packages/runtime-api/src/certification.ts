@@ -117,8 +117,20 @@ function requiredEqualityCheck(
     value: unknown;
   }>,
 ): CrossModuleCertificationCheck {
+  const requiredValues =
+    values.filter(
+      (item) =>
+        !(
+          item.source ===
+            "board-report" &&
+          (
+            item.value === null ||
+            item.value === undefined
+          )
+        ),
+    );
   const sourceValue =
-    values[0]?.value;
+    requiredValues[0]?.value;
   if (
     sourceValue === null ||
     sourceValue === undefined
@@ -134,7 +146,7 @@ function requiredEqualityCheck(
   const sourceKey =
     normalized(sourceValue);
   const ok =
-    values.every(
+    requiredValues.every(
       (item) =>
         item.value !== null &&
         item.value !== undefined &&
