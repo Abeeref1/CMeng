@@ -2245,7 +2245,7 @@ function renderScheduleChangeVisual(data){
   const floatMoves=[...p.changedActivities].filter(a=>typeof a.floatShiftHours==="number"&&a.floatShiftHours!==0).sort((a,b)=>Math.abs(b.floatShiftHours)-Math.abs(a.floatShiftHours)).slice(0,15).map(a=>({label:a.activityId,value:-a.floatShiftHours}));
   const detail=[...p.changedActivities].sort((a,b)=>Math.abs(b.finishShiftDays||0)-Math.abs(a.finishShiftDays||0)).slice(0,250);
   const rows=detail.map(a=>'<tr><td><b>'+escapeHtml(a.activityId)+'</b></td><td>'+escapeHtml(planningStateLabel(a.changeKind))+'</td><td class="'+((a.finishShiftDays||0)>0?"late-text":(a.finishShiftDays||0)<0?"early-text":"")+'">'+escapeHtml(a.finishShiftDays===null?"—":((a.finishShiftDays>0?"+":"")+fmt(a.finishShiftDays)))+'</td><td>'+escapeHtml(fmt(a.floatShiftHours))+'</td><td>'+escapeHtml(fmt(a.progressShiftPercent))+'</td><td>'+escapeHtml((a.fieldChanges||[]).length)+'</td></tr>').join("");
-  return '<section class="planning-view changes-view">'+comparisonRibbon+kpis+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>What changed</h4><p>Activity changes between the two controlled programme revisions.</p></div></div><div class="planning-panel-body">'+composition+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Logic changes</h4><p>Relationships added or removed between the revisions.</p></div></div><div class="planning-panel-body">'+planningKpis([["Added links",p.addedRelationshipCount,"relationships","accent"],["Removed links",p.removedRelationshipCount,"relationships","warning"]])+'</div></section></div><div class="planning-primary-grid"><section class="planning-panel"><div class="planning-panel-head"><div><h4>Largest finish movements</h4><p>Left means earlier. Right means later.</p></div></div><div class="planning-panel-body">'+planningSignedBars(movements,"days")+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Largest float deterioration</h4><p>Bars to the right indicate the largest loss of float.</p></div></div><div class="planning-panel-body">'+planningSignedBars(floatMoves,"hours lost")+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Changed activity detail</h4><p>Largest finish movements first. Showing '+escapeHtml(fmt(detail.length))+' changed activities.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Activity</th><th>Change</th><th>Finish shift d</th><th>Float shift h</th><th>Progress shift pp</th><th>Fields changed</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></section></section>';
+  return '<section class="planning-view changes-view">'+comparisonRibbon+kpis+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>What changed</h4><p>Activity changes between the two controlled programme revisions.</p></div></div><div class="planning-panel-body">'+composition+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Logic changes</h4><p>Relationships added or removed between the revisions.</p></div></div><div class="planning-panel-body">'+planningKpis([["Added links",p.addedRelationshipCount,"relationships","accent"],["Removed links",p.removedRelationshipCount,"relationships","warning"]])+'</div></section></div><div class="planning-primary-grid"><section class="planning-panel"><div class="planning-panel-head"><div><h4>Largest finish movements</h4><p>Left means earlier. Right means later.</p></div></div><div class="planning-panel-body">'+planningSignedBars(movements,"days")+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Largest float deterioration</h4><p>Bars to the right indicate the largest loss of float.</p></div></div><div class="planning-panel-body">'+planningSignedBars(floatMoves,"hours lost")+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Changed activity detail</h4><p>Largest finish movements first. Showing '+escapeHtml(fmt(detail.length))+' of '+escapeHtml(fmt(p.changedActivities.length))+' changed activities. The complete governed population remains available in the module report/export.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Activity</th><th>Change</th><th>Finish shift d</th><th>Float shift h</th><th>Progress shift pp</th><th>Fields changed</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></section></section>';
 }
 function renderRevisionTrendVisual(data){
   const p=projectionFor(data,"revision_trend");
@@ -2390,7 +2390,7 @@ function renderMilestonesVisual(data){
     '<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Milestone movement & criticality</h4><p>Professional milestone control chart with a true calendar axis, controlled-baseline movement, current forecast, float, due position and criticality.</p></div></div><div class="planning-panel-body">'+timeline+'</div></section>'+
     '<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Critical path & key milestone watchlist</h4><p>Open milestones are ranked by criticality, negative float, date urgency and baseline movement so management sees what requires action first.</p></div></div><div class="planning-panel-body">'+priorityBoard+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Management alerts</h4><p>Exceptions requiring intervention or protection.</p></div></div><div class="planning-panel-body">'+attention+'</div></section></div>'+
     '<div class="planning-primary-grid"><section class="planning-panel"><div class="planning-panel-head"><div><h4>Milestone status</h4><p>Completed, open and overdue commitments.</p></div></div><div class="planning-panel-body">'+statusBand+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Management priority</h4><p>Open milestones grouped by required level of attention.</p></div></div><div class="planning-panel-body">'+priorityBand+'</div></section></div>'+
-    '<section class="planning-panel"><div class="planning-panel-head"><div><h4>Milestone control register</h4><p>Criticality, status, due position, baseline movement, float, flags and required management action for each milestone.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Priority</th><th>Milestone / WBS</th><th>Status</th><th>Criticality</th><th>Baseline</th><th>Current / actual</th><th>Vs baseline d</th><th>Total float h</th><th>Flags</th><th>Required attention</th></tr></thead><tbody>'+detail+'</tbody></table></div></div></section></section>';
+    '<section class="planning-panel"><div class="planning-panel-head"><div><h4>Milestone control register</h4><p>Criticality, status, due position, baseline movement, float, flags and required management action. Showing '+escapeHtml(fmt(Math.min(500,p.rows.length)))+' of '+escapeHtml(fmt(p.rows.length))+' milestones; the complete population remains available in the module report/export.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Priority</th><th>Milestone / WBS</th><th>Status</th><th>Criticality</th><th>Baseline</th><th>Current / actual</th><th>Vs baseline d</th><th>Total float h</th><th>Flags</th><th>Required attention</th></tr></thead><tbody>'+detail+'</tbody></table></div></div></section></section>';
 }
 function renderNearCriticalVisual(data){
   const p=projectionFor(data,"near_critical");
@@ -2436,7 +2436,7 @@ function renderNearCriticalVisual(data){
   }).join("");
   const basis='<div class="notice info"><b>CMeng schedule taxonomy:</b> Critical = TF ≤ '+escapeHtml(fmt(criticalThreshold))+' h; Near-Critical = TF > '+escapeHtml(fmt(criticalThreshold))+' h and ≤ '+escapeHtml(limitValue)+'; Float-Risk Watchlist also includes the zero-float boundary. Working-day limits use each activity\'s own programme calendar.</div>';
   const reconciliation='<div class="notice '+(sourceMatch==="float_risk_watchlist"||sourceMatch==="strict_near_critical"?"good":"warn")+'"><b>Submitted vs independent:</b> '+escapeHtml(reconciliationText)+'</div>';
-  return '<section class="planning-view nearcritical-view">'+kpis+basis+reconciliation+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Float-risk distribution</h4><p>Submitted total float is assessed independently against CMeng/project-control taxonomy using each activity calendar.</p></div></div><div class="planning-panel-body">'+histogram+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Where float-risk work finishes</h4><p>Current finish-month concentration for the full float-risk watchlist.</p></div></div><div class="planning-panel-body">'+finishPeriods+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Float-Risk Watchlist</h4><p>Zero-float boundary activities and strict near-critical activities are shown together for management attention, while their taxonomy remains separate.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Activity</th><th>Risk class</th><th>Status</th><th>Total float h</th><th>Threshold h</th><th>Calendar</th><th>Baseline finish</th><th>Current finish</th><th>Vs baseline d</th><th>Progress</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></section></section>';
+  return '<section class="planning-view nearcritical-view">'+kpis+basis+reconciliation+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Float-risk distribution</h4><p>Submitted total float is assessed independently against CMeng/project-control taxonomy using each activity calendar.</p></div></div><div class="planning-panel-body">'+histogram+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Where float-risk work finishes</h4><p>Current finish-month concentration for the full float-risk watchlist.</p></div></div><div class="planning-panel-body">'+finishPeriods+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Float-Risk Watchlist</h4><p>Zero-float boundary activities and strict near-critical activities are shown together for management attention, while their taxonomy remains separate. Showing '+escapeHtml(fmt(watch.length))+' of '+escapeHtml(fmt(riskRows.length))+' watchlist activities; the complete population remains available in the module report/export.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Activity</th><th>Risk class</th><th>Status</th><th>Total float h</th><th>Threshold h</th><th>Calendar</th><th>Baseline finish</th><th>Current finish</th><th>Vs baseline d</th><th>Progress</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></section></section>';
 }
 function renderManhourVisual(data){
   const p=projectionFor(data,"manhour_scurve");
@@ -2609,9 +2609,9 @@ function renderCommercialVisual(key,data){
     ["Contract completion",t.contractualCompletion?.value?planningShortDate(t.contractualCompletion.value):"Not established",humanizeKey(t.contractualCompletion?.state||"not_submitted")],
     ["Approved EOT",t.approvedEotDays?.value===null||t.approvedEotDays?.value===undefined?"Not established":fmt(t.approvedEotDays.value)+" d",humanizeKey(t.approvedEotDays?.state||"not_submitted")],
     ["Adjusted completion",t.officialAdjustedCompletion?.value?planningShortDate(t.officialAdjustedCompletion.value):"Not established",humanizeKey(t.officialAdjustedCompletion?.state||"not_submitted")],
-    ["Variations",position.variationCount,"records"],
+    ["Variations",countPosition(position.contractControls?.variations?.state,position.variationCount,"records"),"governed change population"],
     ["Payment / IPC rows",countPosition(foundation?.paymentRegister?.state,foundation?.paymentRegister?.recordCount,"rows"),"source register population"],
-    ["Commercial claims",position.claimCommercialCount,"money-linked claim rows"]
+    ["Commercial claims",countPosition(position.claimsNotices?.state,position.claimCommercialCount,"rows"),"money-linked claim population"]
   ]);
   const colsByKey={
     "commercial-overview":[["Committed","committedContractValue"],["Current contract","currentContractValue"],["Pending variations","pendingVariationAmount"],["Certified","grossCertifiedAmount"],["Paid","paidAmount"],["Retention deducted","retentionDeductedAmount"],["Held balance","retentionHeldAmount"],["Claims","claimedAmount"],["Active bonds","activeBondAmount"]],
@@ -2675,9 +2675,9 @@ function renderCommercialVisual(key,data){
       foundationDetail='<section class="planning-panel"><div class="planning-panel-head"><div><h4>Commercial foundation readiness</h4><p>Tier 1 capabilities share one governed evidence-safe contract. Missing evidence stays distinct from zero.</p></div></div><div class="planning-panel-body">'+
         planningKpis([
           ["Commercial Terms",humanizeKey(terms.state||"missing"),"contract facts, clauses and amendments"],
-          ["Cost Register",humanizeKey(foundation.costRegister?.state||"missing"),fmt(foundation.costRegister?.recordCount||0)+" records"],
-          ["Payment Register",humanizeKey(foundation.paymentRegister?.state||"missing"),fmt(foundation.paymentRegister?.recordCount||0)+" records"],
-          ["CBS Breakdown",humanizeKey(foundation.cbsBreakdown?.state||"missing"),fmt(foundation.cbsBreakdown?.nodeCount||0)+" nodes"]
+          ["Cost Register",humanizeKey(foundation.costRegister?.state||"missing"),countPosition(foundation.costRegister?.state,foundation.costRegister?.recordCount,"records")],
+          ["Payment Register",humanizeKey(foundation.paymentRegister?.state||"missing"),countPosition(foundation.paymentRegister?.state,foundation.paymentRegister?.recordCount,"records")],
+          ["CBS Breakdown",humanizeKey(foundation.cbsBreakdown?.state||"missing"),countPosition(foundation.cbsBreakdown?.state,foundation.cbsBreakdown?.nodeCount,"nodes")]
         ])+'</div></section>';
     }
     if(key==="cost-forecast"){
@@ -2688,16 +2688,16 @@ function renderCommercialVisual(key,data){
       });
       const cbsRows=(foundation.cbsBreakdown?.nodes||[]).slice(0,100).map(node=>'<tr><td><b>'+escapeHtml(node.costCode)+'</b></td><td>'+escapeHtml(node.description||"")+'</td><td>'+escapeHtml(node.parentCostCode||"Root")+'</td><td>'+escapeHtml((node.childCostCodes||[]).join(", ")||"—")+'</td><td>'+escapeHtml((node.wbsIds||[]).join(", ")||"—")+'</td><td>'+escapeHtml((node.boqItemIds||[]).join(", ")||"—")+'</td><td>'+escapeHtml((node.paymentIds||[]).join(", ")||"—")+'</td></tr>');
       foundationDetail=
-        '<section class="planning-panel"><div class="planning-panel-head"><div><h4>Cost Register</h4><p>CBS/WBS/currency/tax/date/source authority remain explicit. Unmapped rows are retained, never discarded.</p></div></div><div class="planning-panel-body">'+
+        '<section class="planning-panel"><div class="planning-panel-head"><div><h4>Cost Register</h4><p>CBS/WBS/currency/tax/date/source authority remain explicit. Showing '+escapeHtml(fmt(costRows.length))+' of '+escapeHtml(fmt((foundation.costRegister?.rows||[]).length))+' rows; the complete population remains available in the module report/export.</p></div></div><div class="planning-panel-body">'+
         planningKpis([
           ["Cost records",countPosition(foundation.costRegister?.state,foundation.costRegister?.recordCount,"records"),"canonical grouped register"],
           ["CBS mapping",foundation.costRegister?.mappingCoveragePercent==null?"Not established":fmt(foundation.costRegister.mappingCoveragePercent)+"%","source rows mapped"],
           ["CBS nodes",countPosition(foundation.cbsBreakdown?.state,foundation.cbsBreakdown?.nodeCount,"nodes"),"hierarchy population"],
-          ["Unmapped",foundation.cbsBreakdown?.unmappedCostMetricCount||0,"retained for correction"]
+          ["Unmapped",countPosition(foundation.cbsBreakdown?.state,foundation.cbsBreakdown?.unmappedCostMetricCount,"metrics"),"retained for correction"]
         ])+
         table(["Cost code","Description","Parent","WBS","Currency","Tax basis","Current metrics","State"],costRows,"No cost-register source metrics are established.")+
         '</div></section>'+
-        '<section class="planning-panel"><div class="planning-panel-head"><div><h4>CBS Breakdown</h4><p>Parent-child structure, WBS/BOQ/payment mappings and currency-isolated metric positions.</p></div></div><div class="planning-panel-body">'+
+        '<section class="planning-panel"><div class="planning-panel-head"><div><h4>CBS Breakdown</h4><p>Parent-child structure, WBS/BOQ/payment mappings and currency-isolated metric positions. Showing '+escapeHtml(fmt(cbsRows.length))+' of '+escapeHtml(fmt((foundation.cbsBreakdown?.nodes||[]).length))+' nodes; the complete population remains available in the module report/export.</p></div></div><div class="planning-panel-body">'+
         table(["CBS","Description","Parent","Children","WBS","BOQ links","Payment links"],cbsRows,"No CBS hierarchy is established.")+
         '</div></section>';
     }
@@ -2764,7 +2764,7 @@ function renderCommercialVisual(key,data){
           ["LD rate",findingValue(terms.ldRate),findingMeta(terms.ldRate)],
           ["LD cap",findingValue(terms.ldCap),findingMeta(terms.ldCap)]
         ])+
-        '<div class="notice info"><b>Performance security:</b> '+escapeHtml(findingValue(terms.performanceBondRequirement))+' · '+escapeHtml(findingMeta(terms.performanceBondRequirement))+'<br><b>Advance-payment security:</b> '+escapeHtml(findingValue(terms.advancePaymentBondRequirement))+' · '+escapeHtml(findingMeta(terms.advancePaymentBondRequirement))+'<br><b>Insurance clauses:</b> '+escapeHtml((terms.insuranceRequirements||[]).length)+' · <b>Precedence clauses:</b> '+escapeHtml((terms.hierarchyAndPrecedenceClauses||[]).length)+'</div>'+
+        '<div class="notice info"><b>Performance security:</b> '+escapeHtml(findingValue(terms.performanceBondRequirement))+' · '+escapeHtml(findingMeta(terms.performanceBondRequirement))+'<br><b>Advance-payment security:</b> '+escapeHtml(findingValue(terms.advancePaymentBondRequirement))+' · '+escapeHtml(findingMeta(terms.advancePaymentBondRequirement))+'<br><b>Insurance clauses:</b> '+escapeHtml(countPosition(terms.state,(terms.insuranceRequirements||[]).length,"clauses"))+' · <b>Precedence clauses:</b> '+escapeHtml(countPosition(terms.state,(terms.hierarchyAndPrecedenceClauses||[]).length,"clauses"))+'</div>'+
         table(["Clause","Heading","Document role","Governance","Page","Source text"],clauseRows,"No parsed contract clauses are established.")+
         table(["Amendment","Effective","Revised completion","Incorporated EOT","State","Clause actions"],amendmentRows,"No contract amendments are established.")+
         '</div></section>';
@@ -2916,6 +2916,11 @@ function renderCommercialVisual(key,data){
         const readinessStateLabel=state=>state==="ready"?"Ready":state==="not_aggregable"?"Needs series basis":state==="partial"?"Partial":"Missing";
         const readinessTone=state=>state==="ready"?"ready":state==="not_aggregable"?"partial":"blocked";
         const basisLabel=basis=>basis==="no_rows"?"No source rows":basis==="project_cumulative"?"Project cumulative":basis==="certificate_cumulative"?"Certificate cumulative":basis==="incremental"?"Incremental":basis==="mixed"?"Mixed":"Unknown";
+        const readinessCoverage=(domain,observed,total,noun)=>{
+          if(!domain)return"Not established";
+          if(domain.state==="missing"&&Number(total??0)===0)return"Not established";
+          return fmt(observed)+" / "+fmt(total)+" "+noun;
+        };
         const readinessDomain=(title,domain,coverage,owner)=>{
           if(!domain)return"";
           return '<div class="cash-readiness-item '+escapeHtml(domain.state==="ready"?"established":"missing")+'">'+
@@ -2927,11 +2932,25 @@ function renderCommercialVisual(key,data){
             '</div>';
         };
         const sourceSummary=sourceReadiness
-          ? fmt(sourceReadiness.paymentRecordCount)+' payment records · '+
-            fmt(sourceReadiness.certification.observedCount)+' certified values · '+
-            fmt(sourceReadiness.receipts.observedCount)+' paid amounts · '+
-            fmt(sourceReadiness.receipts.paymentDateCount)+' payment dates · '+
-            fmt(sourceReadiness.expenditure.observedCount)+' actual cash-expenditure rows'
+          ? [
+              sourceReadiness.paymentRecordCount>0
+                ? fmt(sourceReadiness.paymentRecordCount)+" payment records"
+                : sourceReadiness.certification.state==="missing"&&sourceReadiness.receipts.state==="missing"
+                  ? "payment register not established"
+                  : "0 payment records",
+              sourceReadiness.certification.state==="missing"&&sourceReadiness.certification.observedCount===0
+                ? "certified values not established"
+                : fmt(sourceReadiness.certification.observedCount)+" certified values",
+              sourceReadiness.receipts.state==="missing"&&sourceReadiness.receipts.observedCount===0
+                ? "paid amounts not established"
+                : fmt(sourceReadiness.receipts.observedCount)+" paid amounts",
+              sourceReadiness.receipts.state==="missing"&&sourceReadiness.receipts.paymentDateCount===0
+                ? "payment dates not established"
+                : fmt(sourceReadiness.receipts.paymentDateCount)+" payment dates",
+              sourceReadiness.expenditure.state==="missing"&&sourceReadiness.expenditure.observedCount===0
+                ? "actual cash expenditure not established"
+                : fmt(sourceReadiness.expenditure.observedCount)+" actual cash-expenditure rows"
+            ].join(" · ")
           : null;
         const actualCostContext=sourceReadiness&&sourceReadiness.expenditure.actualCostRecordCount>0&&sourceReadiness.expenditure.observedCount===0
           ? ' '+fmt(sourceReadiness.expenditure.actualCostRecordCount)+' Actual Cost row(s) exist, but AC/accrual cost is not relabelled as cash expenditure.'
@@ -2944,24 +2963,24 @@ function renderCommercialVisual(key,data){
               readinessDomain(
                 "Certification series",
                 sourceReadiness.certification,
-                fmt(sourceReadiness.certification.observedCount)+" / "+fmt(sourceReadiness.certification.totalCount)+" amounts",
+                readinessCoverage(sourceReadiness.certification,sourceReadiness.certification.observedCount,sourceReadiness.certification.totalCount,"amounts"),
                 "payments"
               )+
               readinessDomain(
                 "Actual cash receipts",
                 sourceReadiness.receipts,
-                fmt(sourceReadiness.receipts.observedCount)+" / "+fmt(sourceReadiness.receipts.totalCount)+" paid",
+                readinessCoverage(sourceReadiness.receipts,sourceReadiness.receipts.observedCount,sourceReadiness.receipts.totalCount,"paid"),
                 "payments"
               )+
               readinessDomain(
                 "Actual cash expenditure",
                 sourceReadiness.expenditure,
-                fmt(sourceReadiness.expenditure.observedCount)+" cash rows",
+                sourceReadiness.expenditure.state==="missing"&&sourceReadiness.expenditure.observedCount===0?"Not established":fmt(sourceReadiness.expenditure.observedCount)+" cash rows",
                 "cost-forecast"
               )+
               '<div class="cash-readiness-item '+escapeHtml(sourceReadiness.forwardPlan.state==="ready"?"established":"missing")+'">'+
                 '<div><span>Forward cash plan</span><b>'+escapeHtml(readinessStateLabel(sourceReadiness.forwardPlan.state))+'</b></div>'+
-                '<span class="badge '+readinessTone(sourceReadiness.forwardPlan.state)+'">'+escapeHtml(fmt(sourceReadiness.forwardPlan.budgetRecordCount)+" budget · "+fmt(sourceReadiness.forwardPlan.forecastRecordCount)+" forecast")+'</span>'+
+                '<span class="badge '+readinessTone(sourceReadiness.forwardPlan.state)+'">'+escapeHtml(sourceReadiness.forwardPlan.state==="missing"&&sourceReadiness.forwardPlan.budgetRecordCount===0&&sourceReadiness.forwardPlan.forecastRecordCount===0?"Not established":fmt(sourceReadiness.forwardPlan.budgetRecordCount)+" budget · "+fmt(sourceReadiness.forwardPlan.forecastRecordCount)+" forecast")+'</span>'+
                 '<small>'+escapeHtml(sourceReadiness.forwardPlan.consequence||"")+'</small>'+
                 '<div class="cash-readiness-basis"><span>Budget / forecast basis</span><b>'+escapeHtml(basisLabel(sourceReadiness.forwardPlan.budgetBasis)+" / "+basisLabel(sourceReadiness.forwardPlan.forecastBasis))+'</b></div>'+
                 managementModuleLink("cost-forecast",sourceReadiness.forwardPlan.state==="ready"?"Open source":"Resolve source")+
@@ -3290,10 +3309,13 @@ function renderCommercialVisual(key,data){
     const stateCounts=cn.claimStateCounts||{};
     const timeliness=cn.noticeTimelinessCounts||{};
     const kindCounts=cn.noticeKindCounts||{};
+    const lifecyclePopulationEstablished=Array.isArray(cn.claims)&&cn.claims.length>0;
+    const noticeAssessmentPopulationEstablished=Array.isArray(cn.noticeAssessments)&&cn.noticeAssessments.length>0;
+    const noticePopulationEstablished=Array.isArray(cn.notices)&&cn.notices.length>0;
     const claimLifecycleVisual=renderVisualPanel(
       "Claim lifecycle distribution",
       "Lifecycle state comes from the governed Delay / Claims model. Commercial amount status does not invent claim status.",
-      renderVisualBars([
+      lifecyclePopulationEstablished?renderVisualBars([
         {label:"Draft",value:stateCounts.draft??0,tone:"neutral"},
         {label:"Submitted",value:stateCounts.submitted??0,tone:"accent"},
         {label:"Under review",value:stateCounts.under_review??0,tone:"warning"},
@@ -3301,24 +3323,24 @@ function renderCommercialVisual(key,data){
         {label:"Rejected",value:stateCounts.rejected??0,tone:"danger"},
         {label:"Withdrawn",value:stateCounts.withdrawn??0,tone:"graphite"},
         {label:"Unknown",value:stateCounts.unknown??0,tone:"neutral"}
-      ],"claims")
+      ],"claims"):'<div class="empty-visual">No governed claim lifecycle population is established. Lifecycle counts are not established.</div>'
     );
     const noticeTimelinessVisual=renderVisualPanel(
       "Notice timeliness position",
       "Timeliness reuses governed contract notice requirements, event dates and actual notice issue dates. Missing requirements or dates remain explicit.",
-      renderVisualBars([
+      noticeAssessmentPopulationEstablished?renderVisualBars([
         {label:"Timely",value:timeliness.timely??0,tone:"success"},
         {label:"Late",value:timeliness.late??0,tone:"danger"},
         {label:"Not issued",value:timeliness.not_issued??0,tone:"warning"},
         {label:"Requirement missing",value:timeliness.requirement_missing??0,tone:"neutral"},
         {label:"Event date missing",value:timeliness.event_date_missing??0,tone:"neutral"},
         {label:"Notice date missing",value:timeliness.notice_date_missing??0,tone:"neutral"}
-      ],"events")
+      ],"events"):'<div class="empty-visual">Notice timeliness is not assessable until governed event, requirement and notice-date evidence is established.</div>'
     );
     const noticeKindVisual=renderVisualPanel(
       "Notice / correspondence lifecycle",
       "Notice types stay distinct from claims and determinations.",
-      renderVisualBars([
+      noticePopulationEstablished?renderVisualBars([
         {label:"Notice",value:kindCounts.notice??0,tone:"graphite"},
         {label:"Early warning",value:kindCounts.early_warning??0,tone:"accent"},
         {label:"EOT notice",value:kindCounts.eot_notice??0,tone:"warning"},
@@ -3326,7 +3348,7 @@ function renderCommercialVisual(key,data){
         {label:"Detailed claim",value:kindCounts.detailed_claim??0,tone:"danger"},
         {label:"Response",value:kindCounts.response??0,tone:"accent"},
         {label:"Determination",value:kindCounts.determination??0,tone:"success"}
-      ],"records")
+      ],"records"):'<div class="empty-visual">No governed notice/correspondence register is established. Type counts are not established.</div>'
     );
     const financialRows=(registers.claims||[]).map(row=>'<tr><td><b>'+escapeHtml(row.claimId)+'</b></td><td>'+escapeHtml(row.claimedAmount===null||row.claimedAmount===undefined?"Not established":fmt(row.claimedAmount))+'</td><td>'+escapeHtml(row.assessedAmount===null||row.assessedAmount===undefined?"Not established":fmt(row.assessedAmount))+'</td><td>'+escapeHtml(row.currency||"Not established")+'</td></tr>');
     const lifecycleRows=(cn.claims||[]).map(row=>'<tr><td><b>'+escapeHtml(row.claimId)+'</b></td><td>'+escapeHtml(row.title||"")+'</td><td>'+escapeHtml(humanizeKey(row.state))+'</td><td>'+escapeHtml(planningShortDate(row.submittedAt))+'</td><td>'+escapeHtml(row.claimedDays===null||row.claimedDays===undefined?"Not established":fmt(row.claimedDays)+" d")+'</td><td>'+escapeHtml(row.assessedDays===null||row.assessedDays===undefined?"Not established":fmt(row.assessedDays)+" d")+'</td><td>'+escapeHtml(humanizeKey(row.assessedDaysState||"missing"))+'</td><td>'+escapeHtml((row.eventIds||[]).join(", ")||"Not linked")+'</td><td>'+escapeHtml((row.clauseIdentifiers||[]).join(", ")||"—")+'</td></tr>');
