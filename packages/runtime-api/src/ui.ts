@@ -1399,9 +1399,10 @@ function renderDelayClaimsVisual(data){
   const unlinked=p.unlinkedClaimCount??Math.max(0,(p.claimCount||0)-linked);
   const activityGapCount=p.activityEvidenceInsufficientEventCount??events.filter(e=>(e.relatedActivityIds||[]).length===0).length;
   const incompleteDeterminationCount=p.determinationChainIncompleteEventCount??events.filter(e=>e.evidenceChainState==="determination_chain_incomplete").length;
+  const movementEstablished=p.independentScheduleMovementAvailable===true;
   const kpis=planningKpis([
     ["Delay events",p.eventCount,"governed events",p.eventCount?"":"warning"],
-    ["Claims",p.claimCount,"claim records"],
+    ["Claims",p.contractorClaimEvidenceSubmitted===false&&p.claimCount===0?"Not established":p.claimCount,"claim records"],
     ["Claims linked to events",linked,"causal linkage",linked?"success":"warning"],
     ["Unlinked claims",unlinked,"cannot be attributed",unlinked?"warning":""],
     ["Events linked to activities",p.activityLinkedEventCount??0,"schedule linkage"],
@@ -1410,8 +1411,8 @@ function renderDelayClaimsVisual(data){
     ["Notice-linked events",p.noticeLinkedEventCount??0,"notice evidence"],
     ["Determined events",p.determinationLinkedEventCount??0,"Engineer determination linkage"],
     ["Incomplete determination chains",incompleteDeterminationCount,"required links missing",incompleteDeterminationCount?"warning":""],
-    ["Gross positive window movement",fmt(p.observedPositiveProgrammeMovementDays)+" d","analytical window sum; not entitlement",p.observedPositiveProgrammeMovementDays?"warning":""],
-    ["Project Completion movement",p.projectCompletionMovementDays===null||p.projectCompletionMovementDays===undefined?"—":(p.projectCompletionMovementDays>0?"+":"")+fmt(p.projectCompletionMovementDays)+" d","net submitted completion movement"]
+    ["Gross positive window movement",movementEstablished?fmt(p.observedPositiveProgrammeMovementDays)+" d":"Not established","analytical window sum; not entitlement",movementEstablished&&p.observedPositiveProgrammeMovementDays?"warning":""],
+    ["Project Completion movement",!movementEstablished||p.projectCompletionMovementDays===null||p.projectCompletionMovementDays===undefined?"Not established":(p.projectCompletionMovementDays>0?"+":"")+fmt(p.projectCompletionMovementDays)+" d","net submitted completion movement"]
   ]);
   const noEventWarning=p.eventCount===0&&p.claimCount>0?'<div class="notice warn"><b>'+escapeHtml(fmt(p.claimCount))+' claim records are present, but no governed delay events are established.</b> CMeng will not attribute schedule movement, responsibility or EOT entitlement to those claims until event linkage exists.</div>':'';
   const activityEvidenceWarning=activityGapCount>0?'<div class="notice warn"><b>Activity evidence not established for '+escapeHtml(fmt(activityGapCount))+' delay event'+(activityGapCount===1?'':'s')+'.</b> The available claim/correspondence sources do not establish a defensible activity-level relationship for these events. CMeng fails closed and does not invent activity links. Determination chains remain explicitly incomplete where the activity link is required.</div>':'';
@@ -1428,8 +1429,8 @@ function renderDelayClaimsVisual(data){
     {label:"Determination-linked events",value:p.determinationLinkedEventCount??0,tone:"purple"}
   ],"events");
   const movementChart=renderWaterfallChart([
-    {label:"Gross positive window movement",value:typeof p.observedPositiveProgrammeMovementDays==="number"?p.observedPositiveProgrammeMovementDays:null},
-    {label:"Net Project Completion movement",value:typeof p.projectCompletionMovementDays==="number"?p.projectCompletionMovementDays:null}
+    {label:"Gross positive window movement",value:movementEstablished&&typeof p.observedPositiveProgrammeMovementDays==="number"?p.observedPositiveProgrammeMovementDays:null},
+    {label:"Net Project Completion movement",value:movementEstablished&&typeof p.projectCompletionMovementDays==="number"?p.projectCompletionMovementDays:null}
   ],"d");
   const visualOverview='<div class="visual-chart-grid">'+
     renderVisualPanel("Evidence-chain coverage","How far the governed claim/event population is connected into schedule, windows, notices and determinations.",chainChart)+
@@ -1447,16 +1448,17 @@ function renderEotVisual(data){
   const contractReady=p.contractTimeBasisEstablished===true;
   const causalReady=p.eligibleCausalEventEvidenceEstablished===true;
   const analytical=p.analyticalTimeImpactCandidateDays;
+  const movementEstablished=p.windowCandidates.length>0;
   const kpis=planningKpis([
-    ["Contract finish",planningShortDate(p.contractualCompletionIso),p.contractualCompletionState,contractReady?"":"warning"],
-    ["Determinations by Data Date",p.officialApprovedEotDays===null?"—":fmt(p.officialApprovedEotDays)+" d",p.officialApprovedEotState],
-    ["Official adjusted finish",planningShortDate(p.officialAdjustedCompletionIso),"governed only"],
-    ["Gross positive window movement",fmt(p.observedProgrammeMovementDays)+" d","schedule observation only; not EOT",p.observedProgrammeMovementDays>0?"warning":""],
-    ["Project Completion movement",p.projectCompletionMovementDays===null||p.projectCompletionMovementDays===undefined?"—":(p.projectCompletionMovementDays>0?"+":"")+fmt(p.projectCompletionMovementDays)+" d","net first-to-latest submitted completion"],
+    ["Contract finish",p.contractualCompletionIso?planningShortDate(p.contractualCompletionIso):"Not established",p.contractualCompletionState,contractReady?"":"warning"],
+    ["Determinations by Data Date",p.officialApprovedEotDays===null?"Not established":fmt(p.officialApprovedEotDays)+" d",p.officialApprovedEotState],
+    ["Official adjusted finish",p.officialAdjustedCompletionIso?planningShortDate(p.officialAdjustedCompletionIso):"Not established","governed only"],
+    ["Gross positive window movement",movementEstablished?fmt(p.observedProgrammeMovementDays)+" d":"Not established","schedule observation only; not EOT",movementEstablished&&p.observedProgrammeMovementDays>0?"warning":""],
+    ["Project Completion movement",!movementEstablished||p.projectCompletionMovementDays===null||p.projectCompletionMovementDays===undefined?"Not established":(p.projectCompletionMovementDays>0?"+":"")+fmt(p.projectCompletionMovementDays)+" d","net first-to-latest submitted completion"],
     ["Time-impact candidate",analytical===null?"Not established":fmt(analytical)+" d","requires causation",analytical===null?"warning":"accent"],
     ["Attributable EOT candidate",p.attributableCandidateEotDays===null?"Not established":fmt(p.attributableCandidateEotDays)+" d","not an award",p.attributableCandidateEotDays===null?"warning":"accent"]
   ]);
-  const warning=analytical===null&&p.observedProgrammeMovementDays>0?'<div class="notice warn"><b>Gross positive window movement is not project delay and is not EOT.</b> Schedule movement is not an EOT time-impact assessment. CMeng observes '+escapeHtml(fmt(p.observedProgrammeMovementDays))+' days when positive window shifts are summed, while net Project Completion movement is shown separately. No entitlement is stated until causation, notice and the contract time basis support it.</div>':'';
+  const warning=movementEstablished&&analytical===null&&p.observedProgrammeMovementDays>0?'<div class="notice warn"><b>Gross positive window movement is not project delay and is not EOT.</b> Schedule movement is not an EOT time-impact assessment. CMeng observes '+escapeHtml(fmt(p.observedProgrammeMovementDays))+' days when positive window shifts are summed, while net Project Completion movement is shown separately. No entitlement is stated until causation, notice and the contract time basis support it.</div>':'';
   const labels=p.revisionLabels||{};
   const movementBars=p.windowCandidates.map((w,index)=>({
     label:"Window "+(index+1)+" · "+readableWindow(w.windowId,labels),
@@ -1470,8 +1472,8 @@ function renderEotVisual(data){
     {label:"After Data Date",value:Math.max(0,(recon.registerDeterminationCount||0)-(recon.effectiveDeterminationCount||0)),tone:"neutral"}
   ],"Determinations"):'<div class="empty-visual">Determination population is not established.</div>';
   const movementVisual=renderWaterfallChart([
-    {label:"Gross positive window movement",value:typeof p.observedProgrammeMovementDays==="number"?p.observedProgrammeMovementDays:null},
-    {label:"Net Project Completion movement",value:typeof p.projectCompletionMovementDays==="number"?p.projectCompletionMovementDays:null},
+    {label:"Gross positive window movement",value:movementEstablished&&typeof p.observedProgrammeMovementDays==="number"?p.observedProgrammeMovementDays:null},
+    {label:"Net Project Completion movement",value:movementEstablished&&typeof p.projectCompletionMovementDays==="number"?p.projectCompletionMovementDays:null},
     {label:"Analytical time-impact candidate",value:typeof analytical==="number"?analytical:null},
     {label:"Attributable EOT candidate",value:typeof p.attributableCandidateEotDays==="number"?p.attributableCandidateEotDays:null}
   ],"d");
@@ -2534,9 +2536,11 @@ function renderForecastHistoryVisual(data){
 function renderNoticesClaimsVisual(data){
   const p=projectionFor(data,"notices_claims");
   if(!Array.isArray(p.events)||!Array.isArray(p.claims))return"";
-  const assessable=p.noticeAssessmentState==="assessed";
+  const fullyAssessable=p.noticeAssessmentState==="assessed";
+  const partiallyAssessable=p.noticeAssessmentState==="partially_assessable";
+  const assessable=fullyAssessable||partiallyAssessable;
   const kpis=planningKpis([
-    ["Claims",p.claimCount,"records"],
+    ["Claims",p.contractorNoticeClaimEvidenceSubmitted===false&&p.claimCount===0?"Not established":p.claimCount,"records"],
     ["Delay events",p.eventCount,"notice assessment basis",p.eventCount?"":"warning"],
     ["Official assessed days",p.officialAssessedDaysTotal==null?"Not established":fmt(p.officialAssessedDaysTotal)+" d","official determination authority",p.officialAssessedDaysTotal==null?"warning":"success"],
     ["Provisional / candidate days",p.provisionalOrCandidateAssessedDaysTotal==null?"Not established":fmt(p.provisionalOrCandidateAssessedDaysTotal)+" d","not an award"],
@@ -2545,7 +2549,7 @@ function renderNoticesClaimsVisual(data){
     ["Missing notices",assessable?p.missingNoticeCount:"Not assessable",assessable?"events":"event + requirement needed"],
     ["Requirements missing",assessable?p.noticeRequirementMissingCount:"Not assessable",assessable?"events":"governed requirement needed"]
   ]);
-  const warning=!assessable?'<div class="notice warn"><b>Notice performance is not zero; it is not assessable.</b> A claim row or notice date by itself does not prove notice compliance. CMeng needs a governed delay event and the applicable contractual notice requirement before classifying notice as timely, late or missing.</div>':'';
+  const warning=!assessable?'<div class="notice warn"><b>Notice performance is not zero; it is not assessable.</b> A claim row or notice date by itself does not prove notice compliance. CMeng needs a governed delay event and the applicable contractual notice requirement before classifying notice as timely, late or missing.</div>':partiallyAssessable?'<div class="notice warn"><b>Notice compliance is only partially assessable.</b> Established event/requirement pairs are assessed below, while events without an applicable governed notice requirement remain explicit evidence gaps.</div>':'';
   const noticeBand=assessable?planningStatusBand([
     ["Timely",p.timelyNoticeCount,"success"],
     ["Late",p.lateNoticeCount,"danger"],
@@ -3291,10 +3295,10 @@ function renderCommercialVisual(key,data){
         planningKpis([
           ["Retention rate",findingValue(ret.retentionPercent,"%"),findingMeta(ret.retentionPercent)],
           ["Retention cap",findingValue(ret.retentionCapPercent,"%"),findingMeta(ret.retentionCapPercent)],
-          ["Records",ret.recordCount||0,"all evidence origins"],
-          ["Held",ret.heldCount||0,"explicit held state"],
-          ["Released",ret.releasedCount||0,"explicit release state"],
-          ["Dated",ret.dueCount||0,"release date/trigger established"],
+          ["Records",retentionRecordsEstablished?(ret.recordCount??0):"Not established","all evidence origins"],
+          ["Held",retentionRecordsEstablished?(ret.heldCount??0):"Not established","explicit held state"],
+          ["Released",retentionRecordsEstablished?(ret.releasedCount??0):"Not established","explicit release state"],
+          ["Dated",retentionRecordsEstablished?(ret.dueCount??0):"Not established","release date/trigger established"],
           ["Overdue",retentionOverdueDisplay,"requires release due dates"]
         ])+
         table(["Retention","Origin","Certificate","State","Trigger","Amount","Due","Released","Days to due"],retentionRows,"No retention calendar records are established.")+

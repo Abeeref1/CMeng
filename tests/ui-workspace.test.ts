@@ -797,6 +797,13 @@ test("CMeng workspace keeps the active module primary and browser script parseab
   );
   assert.equal(
     html.includes(
+      '["Records",ret.recordCount||0,"all evidence origins"]',
+    ),
+    false,
+    "Retention detail must not reintroduce zero counts when no retention register is established",
+  );
+  assert.equal(
+    html.includes(
       "Resources with weekly exceedance",
     ),
     true,

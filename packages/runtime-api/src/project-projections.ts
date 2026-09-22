@@ -1985,9 +1985,12 @@ function buildBundle(
           versions.notices,
       },
     );
-  const noticeAssessable =
+  const noticeAssessmentAvailable =
     noticesClaims.eventCount > 0 &&
     analyticalDelayModel.noticeRequirements.length > 0;
+  const noticeAssessable =
+    noticeAssessmentAvailable &&
+    noticesClaims.noticeRequirementMissingCount === 0;
   modules.set(
     "notices-claims",
     available(
@@ -1999,7 +2002,9 @@ function buildBundle(
         noticeAssessmentState:
           noticeAssessable
             ? "assessed"
-            : "not_assessable_without_delay_events_and_requirements",
+            : noticeAssessmentAvailable
+              ? "partially_assessable"
+              : "not_assessable_without_delay_events_and_requirements",
         linkedClaimCount,
         unlinkedClaimCount,
       },
@@ -2014,10 +2019,14 @@ function buildBundle(
         : "partial",
       noticeAssessable
         ? null
-        : noticesClaims.claimCount > 0
-          ? noticesClaims.claimCount +
-            " claim records are available, but notice timeliness is not assessable until governed delay events and applicable notice requirements are linked."
-          : "Notice compliance is not assessable until governed delay events, applicable notice requirements and actual notice evidence are established.",
+        : noticeAssessmentAvailable &&
+            noticesClaims.noticeRequirementMissingCount > 0
+          ? noticesClaims.noticeRequirementMissingCount +
+            " governed delay event(s) do not have an applicable notice requirement. Assessed events remain visible, but the page stays under review."
+          : noticesClaims.claimCount > 0
+            ? noticesClaims.claimCount +
+              " claim records are available, but notice timeliness is not assessable until governed delay events and applicable notice requirements are linked."
+            : "Notice compliance is not assessable until governed delay events, applicable notice requirements and actual notice evidence are established.",
     ),
   );
 
