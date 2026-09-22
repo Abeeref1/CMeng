@@ -3296,7 +3296,6 @@ function buildBundle(
 
 const planningModuleKeys =
   new Set([
-    "pmo-analysis",
     "schedule-analytics",
     "activity-analytics",
     "lookahead-schedule",
@@ -7797,7 +7796,7 @@ export function rerunProject(
     moduleCount:
       resolvedModules.size,
     moduleResults: [
-      ...bundle.modules.entries(),
+      ...resolvedModules.entries(),
     ]
       .map(
         ([key, value]) => ({
@@ -7813,7 +7812,7 @@ export function rerunProject(
           ),
       ),
     pmoRecalculated:
-      bundle.modules.has(
+      resolvedModules.has(
         "pmo-analysis",
       ),
     directorRecalculated:
