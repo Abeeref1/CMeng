@@ -196,6 +196,21 @@ export function certifyCrossModuleConsistency(
       modules,
       "quantity-scurve",
     );
+  const activity =
+    data(
+      modules,
+      "activity-analytics",
+    );
+  const resources =
+    data(
+      modules,
+      "resource-utilization",
+    );
+  const commercialOverview =
+    data(
+      modules,
+      "commercial-overview",
+    );
 
   const checks:
     CrossModuleCertificationCheck[] =
@@ -248,6 +263,201 @@ export function certifyCrossModuleConsistency(
             ",",
           ),
       }],
+    ),
+  );
+
+  checks.push(
+    equalityCheck(
+      "SOURCE_ACTIVITY_POPULATION_CONSISTENCY",
+      "All schedule/activity/progress/PMO consumers must agree on the all-source activity population.",
+      [
+        {
+          source: "schedule-analytics",
+          value:
+            scheduleAnalytics?.result
+              ?.population
+              ?.sourceActivityCount,
+        },
+        {
+          source: "activity-analytics",
+          value:
+            activity?.population
+              ?.sourceActivityCount,
+        },
+        {
+          source: "progress-report",
+          value:
+            progress?.activityPopulation
+              ?.sourceActivityCount,
+        },
+        {
+          source: "pmo-analysis",
+          value:
+            pmo?.schedule
+              ?.sourceActivityCount,
+        },
+      ],
+    ),
+  );
+
+  checks.push(
+    equalityCheck(
+      "EXECUTABLE_ACTIVITY_POPULATION_CONSISTENCY",
+      "Execution-status metrics must use the same executable activity population everywhere.",
+      [
+        {
+          source: "schedule-analytics",
+          value:
+            scheduleAnalytics?.result
+              ?.population
+              ?.executableActivityCount,
+        },
+        {
+          source: "activity-analytics",
+          value:
+            activity?.population
+              ?.executableActivityCount,
+        },
+        {
+          source: "progress-report",
+          value:
+            progress?.activityPopulation
+              ?.executableActivityCount,
+        },
+        {
+          source: "pmo-analysis",
+          value:
+            pmo?.schedule
+              ?.executableActivityCount,
+        },
+      ],
+    ),
+  );
+
+  const scheduleStatusTotal =
+    scheduleAnalytics?.result
+      ? (
+          Number(
+            scheduleAnalytics.result
+              .status?.completed ?? 0,
+          ) +
+          Number(
+            scheduleAnalytics.result
+              .status?.inProgress ?? 0,
+          ) +
+          Number(
+            scheduleAnalytics.result
+              .status?.notStarted ?? 0,
+          ) +
+          Number(
+            scheduleAnalytics.result
+              .status?.unknown ?? 0,
+          )
+        )
+      : null;
+  checks.push(
+    equalityCheck(
+      "EXECUTION_STATUS_RECONCILIATION",
+      "Completed, in-progress, not-started and unknown execution states must reconcile exactly to the executable population.",
+      [
+        {
+          source:
+            "schedule-analytics.executable-population",
+          value:
+            scheduleAnalytics?.result
+              ?.population
+              ?.executableActivityCount,
+        },
+        {
+          source:
+            "schedule-analytics.status-total",
+          value:
+            scheduleStatusTotal,
+        },
+        {
+          source:
+            "pmo.progress.status-total",
+          value:
+            pmo
+              ? Number(
+                  pmo.progress
+                    ?.completedCount ?? 0,
+                ) +
+                Number(
+                  pmo.progress
+                    ?.inProgressCount ?? 0,
+                ) +
+                Number(
+                  pmo.progress
+                    ?.notStartedCount ?? 0,
+                ) +
+                Number(
+                  pmo.progress
+                    ?.unknownStatusCount ?? 0,
+                )
+              : null,
+        },
+      ],
+    ),
+  );
+
+  checks.push(
+    equalityCheck(
+      "RESOURCE_COUNT_CONSISTENCY",
+      "PMO and Resources must use the same distinct-resource population.",
+      [
+        {
+          source: "resource-utilization",
+          value:
+            resources?.resourceCount,
+        },
+        {
+          source: "pmo-analysis",
+          value:
+            pmo?.resources
+              ?.resourceCount,
+        },
+      ],
+    ),
+  );
+  checks.push(
+    equalityCheck(
+      "ASSIGNED_RESOURCE_COUNT_CONSISTENCY",
+      "Assigned-resource count must mean distinct assigned resources, never assignment rows.",
+      [
+        {
+          source: "resource-utilization",
+          value:
+            resources
+              ?.assignedResourceCount,
+        },
+        {
+          source: "pmo-analysis",
+          value:
+            pmo?.resources
+              ?.assignedResourceCount,
+        },
+      ],
+    ),
+  );
+  checks.push(
+    equalityCheck(
+      "RESOURCE_ASSIGNMENT_RECORD_COUNT_CONSISTENCY",
+      "Resource assignment records must remain separate from distinct resource counts.",
+      [
+        {
+          source: "resource-utilization",
+          value:
+            resources
+              ?.assignmentRecordCount,
+        },
+        {
+          source: "pmo-analysis",
+          value:
+            pmo?.resources
+              ?.assignmentRecordCount,
+        },
+      ],
     ),
   );
 
@@ -331,6 +541,13 @@ export function certifyCrossModuleConsistency(
             "eot-assessment",
           value:
             eot
+              ?.observedProgrammeMovementDays,
+        },
+        {
+          source:
+            "pmo-analysis",
+          value:
+            pmo?.claims
               ?.observedProgrammeMovementDays,
         },
         {
@@ -669,6 +886,256 @@ export function certifyCrossModuleConsistency(
               .independentForecastAuthority,
         },
       ],
+    ),
+  );
+
+  checks.push(
+    equalityCheck(
+      "CONTRACT_COMPLETION_BASIS_CONSISTENCY",
+      "Contract completion must remain explicit and consistent between EOT and Project Director.",
+      [
+        {
+          source: "eot-assessment",
+          value:
+            eot
+              ?.contractualCompletionIso,
+        },
+        {
+          source: "director",
+          value:
+            director?.schedule
+              .contractualCompletionIso,
+        },
+      ],
+    ),
+  );
+  checks.push(
+    equalityCheck(
+      "OFFICIAL_ADJUSTED_COMPLETION_BASIS_CONSISTENCY",
+      "Official adjusted completion must never silently fall back to contract completion.",
+      [
+        {
+          source: "eot-assessment",
+          value:
+            eot
+              ?.officialAdjustedCompletionIso,
+        },
+        {
+          source: "director",
+          value:
+            director?.schedule
+              .officialAdjustedCompletionIso,
+        },
+      ],
+    ),
+  );
+  checks.push(
+    equalityCheck(
+      "SUBMITTED_PROGRAMME_COMPLETION_BASIS_CONSISTENCY",
+      "Submitted programme/source finish must remain separate from independent and contractual finishes.",
+      [
+        {
+          source:
+            "independent-forecast.source",
+          value:
+            forecast
+              ?.sourceForecastCompletionIso,
+        },
+        {
+          source: "director",
+          value:
+            director?.schedule
+              .submittedProgrammeCompletionIso,
+        },
+      ],
+    ),
+  );
+
+  checks.push(
+    booleanCheck(
+      "OFFICIAL_ADJUSTED_VARIANCE_REQUIRES_OFFICIAL_ADJUSTED_DATE",
+      !director ||
+      director.schedule
+        .officialAdjustedCompletionIso !==
+        null ||
+      director.schedule
+        .varianceDaysToOfficialAdjustedCompletion ===
+        null,
+      "Variance to official adjusted completion must be null whenever official adjusted completion is not established.",
+      [
+        {
+          source:
+            "director.officialAdjustedCompletion",
+          value:
+            director?.schedule
+              .officialAdjustedCompletionIso,
+        },
+        {
+          source:
+            "director.varianceToOfficialAdjusted",
+          value:
+            director?.schedule
+              .varianceDaysToOfficialAdjustedCompletion,
+        },
+      ],
+    ),
+  );
+
+  const directorCurrencies =
+    director?.commercialByCurrency ??
+    [];
+  const canonicalCurrencies =
+    commercialOverview?.position
+      ?.currencies ??
+    commercialOverview?.focus
+      ?.currencies ??
+    commercialOverview?.currencies ??
+    [];
+  const canonicalByCurrency =
+    new Map(
+      canonicalCurrencies.map(
+        (row: any) => [
+          row.currency,
+          row,
+        ],
+      ),
+    );
+  const commercialFields = [
+    "pendingVariationAmount",
+    "approvedVariationAmount",
+    "certifiedUnpaidAmount",
+    "retentionDeductedAmount",
+    "retentionHeldAmount",
+    "activeBondAmount",
+  ] as const;
+  const commercialMismatches:
+    string[] = [];
+  const falseZeroCommercial:
+    string[] = [];
+  for (
+    const row of
+      directorCurrencies
+  ) {
+    const canonical =
+      canonicalByCurrency.get(
+        row.currency,
+      ) as any;
+    if (!canonical) {
+      commercialMismatches.push(
+        row.currency +
+          ":currency_missing_from_canonical",
+      );
+      continue;
+    }
+    for (
+      const field of
+        commercialFields
+    ) {
+      const management =
+        (row as any)[field];
+      const source =
+        canonical[field];
+      if (
+        normalized(
+          management?.value,
+        ) !==
+          normalized(
+            source?.value,
+          ) ||
+        normalized(
+          management?.state,
+        ) !==
+          normalized(
+            source?.state,
+          )
+      ) {
+        commercialMismatches.push(
+          row.currency +
+            ":" +
+            field,
+        );
+      }
+      if (
+        management?.value === 0 &&
+        management?.state !==
+          "established"
+      ) {
+        falseZeroCommercial.push(
+          row.currency +
+            ":" +
+            field,
+        );
+      }
+    }
+  }
+  checks.push(
+    booleanCheck(
+      "DIRECTOR_COMMERCIAL_REUSES_CANONICAL_POSITION",
+      commercialMismatches.length ===
+        0,
+      "Project Director commercial values/states must reuse canonical Commercial position without duplicate aggregation.",
+      [{
+        source:
+          "commercial_mismatches",
+        value:
+          commercialMismatches.join(
+            ",",
+          ),
+      }],
+    ),
+  );
+  checks.push(
+    booleanCheck(
+      "MISSING_COMMERCIAL_IS_NOT_ZERO",
+      falseZeroCommercial.length ===
+        0,
+      "A non-established commercial finding must never be exposed as numeric zero.",
+      [{
+        source:
+          "false_zero_commercial_fields",
+        value:
+          falseZeroCommercial.join(
+            ",",
+          ),
+      }],
+    ),
+  );
+
+  const invalidProfessionalStates =
+    [...modules.entries()]
+      .filter(
+        ([, result]) =>
+          (
+            result.status ===
+              "ready" &&
+            result.professionalState &&
+            result.professionalState !==
+              "defensible"
+          ) ||
+          (
+            result.professionalState ===
+              "defensible" &&
+            result.status !==
+              "ready"
+          ),
+      )
+      .map(
+        ([key]) => key,
+      );
+  checks.push(
+    booleanCheck(
+      "MODULE_STATUS_MATCHES_PROFESSIONAL_DEFENSIBILITY",
+      invalidProfessionalStates
+        .length === 0,
+      "Visible ready/partial/blocked status must be derived from professional defensibility, not merely producer execution.",
+      [{
+        source:
+          "invalid_module_states",
+        value:
+          invalidProfessionalStates.join(
+            ",",
+          ),
+      }],
     ),
   );
 
