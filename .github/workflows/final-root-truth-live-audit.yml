@@ -1,0 +1,33 @@
+name: CMeng Final Root Truth Live Audit
+on:
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  capture:
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1,2,3,4,5,6,7,8]
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    env:
+      CMENG_RAILWAY_URL: https://cmeng-main-production.up.railway.app
+      CMENG_EXPECTED_RELEASE: 0d7b392a6e6416514dfa2115e64a021fa7acc4ac
+      CMENG_AUDIT_SHARD: ${{ matrix.shard }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: |
+          python -m pip install playwright==1.57.0
+          python -m playwright install --with-deps chromium
+      - run: python scripts/final-root-truth-live-audit.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cmeng-final-root-truth-audit-${{ matrix.shard }}
+          path: root-truth-audit-${{ matrix.shard }}
+          retention-days: 7
