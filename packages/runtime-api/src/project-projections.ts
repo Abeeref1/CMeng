@@ -2996,6 +2996,11 @@ function buildBundle(
             sourceRefs: [...row.certifiedUnpaidAmount.sourceRefs],
             diagnostics: [...row.certifiedUnpaidAmount.diagnostics],
           },
+          retentionDeductedAmount: {
+            ...row.retentionDeductedAmount,
+            sourceRefs: [...row.retentionDeductedAmount.sourceRefs],
+            diagnostics: [...row.retentionDeductedAmount.diagnostics],
+          },
           retentionHeldAmount: {
             ...row.retentionHeldAmount,
             sourceRefs: [...row.retentionHeldAmount.sourceRefs],
