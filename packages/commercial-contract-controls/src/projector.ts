@@ -1600,11 +1600,6 @@ function liquidatedDamages(
           null,
         diagnostics: [
           "LD_SCENARIO_DOES_NOT_ESTABLISH_LEGAL_ENTITLEMENT_OR_DEDUCTION",
-          ...(["claimed_eot","assessed_eot"].includes(scenarioInput.scenario)
-            ? [
-                "AGGREGATE_CLAIM_DAY_SCENARIO_DOES_NOT_RESOLVE_INTER_CLAIM_OVERLAP_OR_CONCURRENCY",
-              ]
-            : []),
           ...(scenarioInput.scenario ===
               "awarded_eot" &&
             input.ldTime
@@ -1645,9 +1640,8 @@ function liquidatedDamages(
     scenarios,
     diagnostics: [
       "CLAIM_REGISTER_DAY_SUMS_ARE_NOT_PROJECT_EOT_AND_NEVER_ADJUST_COMPLETION",
-      ...[
       "SCHEDULE_MOVEMENT_EOT_POSITION_AND_LD_AMOUNT_REMAIN_SEPARATE",
-      "NO_EOT_CLAIMED_ASSESSED_AND_AWARDED_SCENARIOS_ARE_NOT_INTERCHANGEABLE",
+      "ONLY_NO_EOT_AND_GOVERNED_AWARDED_EOT_SCENARIOS_MAY_ADJUST_PROJECT_COMPLETION",
       "LD_IS_NEVER_AUTOMATICALLY_DEDUCTED_FROM_PAYMENTS",
     ],
   };
