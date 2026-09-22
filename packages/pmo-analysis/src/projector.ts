@@ -222,6 +222,15 @@ export function buildPmoAnalysisProjection(
       assignedResourceCount:
         input.resourceUtilization
           .assignedResourceCount,
+      resourceCount:
+        input.resourceUtilization
+          .resourceCount,
+      assignmentRecordCount:
+        input.resourceUtilization
+          .assignmentRecordCount,
+      resourcePopulationBasis:
+        input.resourceUtilization
+          .resourcePopulationBasis,
       capacityCoveragePercent:
         input.resourceUtilization
           .capacityCoveragePercent,
