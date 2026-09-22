@@ -53,6 +53,10 @@ export interface ResourceUtilizationProjection {
   dataDateIso: string | null;
   resourceCount: number;
   assignedResourceCount: number;
+  assignmentRecordCount: number;
+  resourcePopulationBasis:
+    | "p6_resource_master"
+    | "weekly_resource_evidence";
   capacityBasedResourceCount: number;
   capacityCoveragePercent: number | null;
   overloadedResourceCount: number;
