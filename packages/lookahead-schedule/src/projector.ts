@@ -36,6 +36,7 @@ const READINESS_KEYS: readonly ReadinessDimensionKey[] = [
 
 function readinessForActivity(
   model: CanonicalScheduleModel,
+  activityStartIso: string | null,
   predecessorIds: readonly string[],
   externalEvidence:
     | Partial<Record<ReadinessDimensionKey, ReadinessEvidence>>
@@ -60,23 +61,65 @@ function readinessForActivity(
           };
         }
 
+        const activityById = new Map(
+          model.activities.map((item) => [
+            item.activityId,
+            item,
+          ]),
+        );
+        const successorStartMs = ms(activityStartIso);
         const incomplete = predecessorIds.filter(
           (id) => statusById.get(id) !== "completed",
         );
+        const missingFinish: string[] = [];
+        const threatening: string[] = [];
+        const sequenced: string[] = [];
+
+        for (const id of incomplete) {
+          const predecessor = activityById.get(id);
+          const predecessorFinish =
+            predecessor
+              ? effectiveFinish(predecessor)
+              : null;
+          const predecessorFinishMs =
+            ms(predecessorFinish);
+          if (
+            predecessorFinishMs === null ||
+            successorStartMs === null
+          ) {
+            missingFinish.push(id);
+          } else if (
+            predecessorFinishMs >
+            successorStartMs
+          ) {
+            threatening.push(id);
+          } else {
+            sequenced.push(id);
+          }
+        }
 
         return {
           key,
           state:
-            incomplete.length === 0
-              ? "ready" as const
-              : "blocked" as const,
+            threatening.length > 0
+              ? "blocked" as const
+              : missingFinish.length > 0
+                ? "unknown" as const
+                : "ready" as const,
           sourceRefs: predecessorIds.map(
             (id) => "schedule-activity:" + id,
           ),
           note:
-            incomplete.length === 0
-              ? "All linked predecessors are complete."
-              : "Incomplete predecessors: " + incomplete.join(", "),
+            threatening.length > 0
+              ? "Predecessor forecast threatens activity start: " +
+                threatening.join(", ")
+              : missingFinish.length > 0
+                ? "Predecessor finish evidence is incomplete: " +
+                  missingFinish.join(", ")
+                : incomplete.length > 0
+                  ? "Incomplete predecessors are sequenced to finish before this activity starts: " +
+                    sequenced.join(", ")
+                  : "All linked predecessors are complete.",
         };
       }
 
@@ -267,6 +310,7 @@ export function buildLookAheadProjection(
         activityLogic?.successorIds ?? [],
       readiness: readinessForActivity(
         model,
+        startIso,
         activityLogic?.predecessorIds ?? [],
         input.readinessEvidence?.[activity.activityId],
       ),
