@@ -17,9 +17,15 @@ export function canonicalResourceModule(state:ProjectRuntimeState,key:string):Mo
  let data:unknown;
  if(key==='resource-utilization'){
   const hourly=resourceModel&&current?buildResourceUtilizationProjection(resourceModel,current.revision.model,{generatedAt,producerVersion:'p6-hourly-capacity-v1'}):null;
-  data={...(hourly??{schemaVersion:'1.0',projectionKey:'resource_utilization',rows:[],assignedResourceCount:0}),
+  const weeklyAssignedResourceCount=new Set(summary.points.map(p=>p.resourceId).filter(Boolean)).size;
+  const distinctResourceCount=summary.masterResources.length||summary.observedResourceCount||hourly?.resourceCount||summary.resourceCount;
+  const distinctAssignedResourceCount=weeklyAssignedResourceCount||hourly?.assignedResourceCount||0;
+  data={...(hourly??{schemaVersion:'1.0',projectionKey:'resource_utilization',rows:[],assignedResourceCount:0,assignmentRecordCount:0,resourcePopulationBasis:'weekly_resource_evidence'}),
    producerVersion:'resource-source-integration-v1',generatedAt,projectId:state.projectId,sourceRevisionId:current?.revision.revisionId??null,dataDateIso:summary.dataDateIso,
-   utilizationBasis:'weekly_source_evidence',resourceCount:summary.masterResources.length||summary.resourceCount,
+   utilizationBasis:'weekly_source_evidence',resourcePopulationBasis:'weekly_resource_evidence',
+   resourceCount:distinctResourceCount,assignedResourceCount:distinctAssignedResourceCount,
+   assignmentRecordCount:resourceModel?.assignments.length??0,
+   resourcePeriodRowCount:summary.rowCount,comparableResourcePeriodRowCount:summary.comparableRowCount,
    utilizationApplicableResourceCount:summary.resourceCount,capacityBasedResourceCount:summary.resourceCount,
    capacityCoveragePercent:summary.capacityCoveragePercent,perHourCapacityBasedResourceCount:hourly?.capacityBasedResourceCount??0,
    perHourCapacityCoveragePercent:hourly?.capacityCoveragePercent??null,perHourOverloadedResourceCount:hourly?.overloadedResourceCount??null,

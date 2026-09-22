@@ -89,7 +89,35 @@ function buildAlerts(
   } else {
     const variance =
       director.schedule
-        .varianceDaysToOfficialAdjustedCompletion;
+        .forecastComparisonBasis ===
+        "official_adjusted_completion"
+        ? director.schedule
+            .varianceDaysToOfficialAdjustedCompletion
+        : director.schedule
+            .forecastComparisonBasis ===
+            "contractual_completion"
+          ? director.schedule
+              .varianceDaysToContractualCompletion
+          : director.schedule
+              .forecastComparisonBasis ===
+              "submitted_programme"
+            ? director.schedule
+                .varianceDaysToSubmittedProgrammeCompletion
+            : null;
+    const varianceBasisLabel =
+      director.schedule
+        .forecastComparisonBasis ===
+        "official_adjusted_completion"
+        ? "official adjusted completion"
+        : director.schedule
+            .forecastComparisonBasis ===
+            "contractual_completion"
+          ? "contract completion"
+          : director.schedule
+              .forecastComparisonBasis ===
+              "submitted_programme"
+            ? "submitted programme finish"
+            : "governed completion basis";
     if (
       variance !== null &&
       variance > 0
@@ -99,9 +127,11 @@ function buildAlerts(
           "forecast-beyond-contract",
         severity: "high",
         title:
-          "Forecast completion is beyond the governed contractual position",
+          "Forecast completion is beyond the current comparison basis",
         consequence:
-          "The current independent finish is later than the official adjusted completion position.",
+          "The current independent finish is later than the " +
+          varianceBasisLabel +
+          ".",
         action:
           "Review the driving path, recovery options and EOT position.",
         owningModule:
@@ -424,17 +454,112 @@ function dashboardMetrics(
   input: ManagementSurfacesInput,
 ): ManagementMetric[] {
   const d = input.director;
-  const forecastVariance =
+  const comparisonBasis =
     d?.schedule
-      .varianceDaysToOfficialAdjustedCompletion ??
-    null;
+      .forecastComparisonBasis ??
+    "none";
+  const forecastVariance =
+    comparisonBasis ===
+      "official_adjusted_completion"
+      ? d?.schedule
+          .varianceDaysToOfficialAdjustedCompletion ??
+        null
+      : comparisonBasis ===
+          "contractual_completion"
+        ? d?.schedule
+            .varianceDaysToContractualCompletion ??
+          null
+        : comparisonBasis ===
+            "submitted_programme"
+          ? d?.schedule
+              .varianceDaysToSubmittedProgrammeCompletion ??
+            null
+          : null;
+  const comparisonLabel =
+    comparisonBasis ===
+      "official_adjusted_completion"
+      ? "official adjusted completion"
+      : comparisonBasis ===
+          "contractual_completion"
+        ? "contract completion"
+        : comparisonBasis ===
+            "submitted_programme"
+          ? "submitted programme finish"
+          : "no established comparison basis";
   const metrics:
     ManagementMetric[] = [];
 
+  const finishMetric = (
+    key: string,
+    label: string,
+    value: string | null,
+    basis: string,
+    authority:
+      | "source"
+      | "calculated"
+      | "provisional"
+      | "unavailable",
+  ) =>
+    metric({
+      key,
+      label,
+      value,
+      state:
+        value
+          ? authority === "source"
+            ? "source_current"
+            : authority ===
+                "calculated"
+              ? "calculated"
+              : "provisional"
+          : "unavailable",
+      authority:
+        value
+          ? authority
+          : "unavailable",
+      health: "unavailable",
+      basis,
+      owningModule:
+        key ===
+          "independent-forecast-finish"
+          ? "independent-forecast"
+          : key ===
+              "official-adjusted-finish"
+            ? "eot-assessment"
+            : "schedule-analytics",
+    });
+
   metrics.push(
+    finishMetric(
+      "contract-finish",
+      "Contract completion",
+      d?.schedule
+        .contractualCompletionIso ??
+      null,
+      "Governed contractual completion term",
+      "source",
+    ),
+    finishMetric(
+      "official-adjusted-finish",
+      "Official adjusted completion",
+      d?.schedule
+        .officialAdjustedCompletionIso ??
+      null,
+      "Contract completion plus governed net awarded EOT",
+      "source",
+    ),
+    finishMetric(
+      "submitted-programme-finish",
+      "Submitted programme finish",
+      d?.schedule
+        .submittedProgrammeCompletionIso ??
+      null,
+      "Current submitted programme/source forecast",
+      "source",
+    ),
     metric({
       key:
-        "programme-completion",
+        "independent-forecast-finish",
       label:
         "Independent forecast finish",
       value:
@@ -464,10 +589,11 @@ function dashboardMetrics(
       consequence:
         forecastVariance ===
         null
-          ? null
-          : forecastVariance ===
-              0
-            ? "Independent forecast aligns with the official adjusted completion date."
+          ? "No comparison variance is stated because the required governed basis is not established."
+          : forecastVariance === 0
+            ? "Independent forecast aligns with the " +
+              comparisonLabel +
+              "."
             : "Independent forecast is " +
               managementDays(
                 Math.abs(
@@ -476,12 +602,13 @@ function dashboardMetrics(
               ) +
               " calendar days " +
               (
-                forecastVariance >
-                0
+                forecastVariance > 0
                   ? "later than"
                   : "earlier than"
               ) +
-              " the official adjusted completion date.",
+              " the " +
+              comparisonLabel +
+              ".",
       action:
         forecastVariance !==
           null &&

@@ -171,6 +171,33 @@ export function buildActivityAnalyticsProjection(
     sourceRevisionId:
       model.sourceRevisionId,
     activityCount: rows.length,
+    population: {
+      sourceActivityCount: rows.length,
+      executableActivityCount:
+        rows.filter(
+          (row) =>
+            row.activityType !== "wbs_summary" &&
+            row.activityType !== "level_of_effort",
+        ).length,
+      excludedActivityCount:
+        rows.filter(
+          (row) =>
+            row.activityType === "wbs_summary" ||
+            row.activityType === "level_of_effort",
+        ).length,
+      excludedByType: {
+        wbsSummaryCount:
+          rows.filter(
+            (row) => row.activityType === "wbs_summary",
+          ).length,
+        levelOfEffortCount:
+          rows.filter(
+            (row) => row.activityType === "level_of_effort",
+          ).length,
+        otherExcludedCount: 0,
+      },
+      rowPopulation: "all_source_activities",
+    },
     floatCoveragePercent: coverage(
       rows.filter(
         (row) => row.totalFloatHours !== null,

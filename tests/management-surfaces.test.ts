@@ -9,6 +9,25 @@ import type {
   ProjectDirectorPosition,
 } from "../packages/project-director/src";
 
+function commercialMetric(
+  value: number | null,
+  state:
+    ProjectDirectorPosition["commercialByCurrency"][number]["pendingVariationAmount"]["state"] =
+    value === null
+      ? "not_submitted"
+      : "established",
+) {
+  return {
+    value,
+    state,
+    sourceRefs:
+      value === null
+        ? []
+        : ["test:commercial"],
+    diagnostics: [],
+  };
+}
+
 function director():
   ProjectDirectorPosition {
   return {
@@ -23,6 +42,8 @@ function director():
         "2030-03-31",
       officialAdjustedCompletionIso:
         "2030-04-26",
+      submittedProgrammeCompletionIso:
+        "2030-05-01",
       independentForecastCompletionIso:
         "2030-06-30",
       independentForecastBasisRevisionId:
@@ -31,8 +52,14 @@ function director():
         100,
       independentForecastAuthority:
         "deterministic",
+      varianceDaysToContractualCompletion:
+        91,
       varianceDaysToOfficialAdjustedCompletion:
         65,
+      varianceDaysToSubmittedProgrammeCompletion:
+        60,
+      forecastComparisonBasis:
+        "official_adjusted_completion",
       criticalCount: 503,
       nearCriticalCount: 504,
       criticalityBasis:
@@ -85,6 +112,8 @@ function director():
     },
     ld: {
       delayDays: 65,
+      delayBasis:
+        "official_adjusted_completion",
       state:
         "scenario_candidate",
       currency: "AED",
@@ -107,21 +136,23 @@ function director():
       {
         currency: "AED",
         pendingVariationAmount:
-          500_000,
+          commercialMetric(500_000),
         approvedVariationAmount:
-          400_000,
+          commercialMetric(400_000),
         certifiedUnpaidAmount:
-          100_000,
+          commercialMetric(100_000),
+        retentionDeductedAmount:
+          commercialMetric(50_000),
         retentionHeldAmount:
-          50_000,
+          commercialMetric(null),
         activeBondAmount:
-          1_000_000,
+          commercialMetric(1_000_000),
         claimClaimedAmount:
-          250_000,
+          commercialMetric(250_000),
         claimAssessedAmount:
-          200_000,
+          commercialMetric(200_000),
         ldScenarioAmount:
-          650_000,
+          commercialMetric(650_000,"candidate"),
       },
     ],
     controls: {

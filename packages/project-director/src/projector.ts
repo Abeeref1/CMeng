@@ -211,7 +211,7 @@ export function buildLdScenario(
   contractValue: MoneyValue | undefined,
   contractValueCandidates:
     MoneyValue[] = [],
-): ProjectDirectorPosition["ld"] {
+): Omit<ProjectDirectorPosition["ld"], "delayBasis"> {
   const rateCandidates =
     terms.rateState ===
       "candidate" &&
@@ -667,35 +667,6 @@ export function buildLdScenario(
   };
 }
 
-function positionMap() {
-  return new Map<
-    string,
-    CurrencyCommercialPosition
-  >();
-}
-
-function rowFor(
-  map: Map<string, CurrencyCommercialPosition>,
-  currency: string,
-): CurrencyCommercialPosition {
-  const code = upperCurrency(currency);
-  const existing = map.get(code);
-  if (existing) return existing;
-  const row: CurrencyCommercialPosition = {
-    currency: code,
-    pendingVariationAmount: 0,
-    approvedVariationAmount: 0,
-    certifiedUnpaidAmount: 0,
-    retentionHeldAmount: 0,
-    activeBondAmount: 0,
-    claimClaimedAmount: 0,
-    claimAssessedAmount: 0,
-    ldScenarioAmount: null,
-  };
-  map.set(code, row);
-  return row;
-}
-
 export function buildProjectDirectorPosition(
   input: DirectorPositionInput,
 ): ProjectDirectorPosition {
@@ -710,18 +681,37 @@ export function buildProjectDirectorPosition(
     );
   }
 
-  const officialCompletion =
-    input.eotAssessment
-      .officialAdjustedCompletionIso ??
+  const contractualCompletion =
     input.eotAssessment
       .contractualCompletionIso;
+  const officialAdjustedCompletion =
+    input.eotAssessment
+      .officialAdjustedCompletionIso;
+  const submittedProgrammeCompletion =
+    input.independentForecast
+      .sourceForecastCompletionIso;
   const forecast =
     input.independentForecast
       .independentForecastCompletionIso;
-  const delayDays = positiveDelayDays(
-    officialCompletion,
-    forecast,
-  );
+
+  const varianceDaysToContractualCompletion =
+    positiveDelayDays(
+      contractualCompletion,
+      forecast,
+    );
+  const varianceDaysToOfficialAdjustedCompletion =
+    positiveDelayDays(
+      officialAdjustedCompletion,
+      forecast,
+    );
+  const varianceDaysToSubmittedProgrammeCompletion =
+    positiveDelayDays(
+      submittedProgrammeCompletion,
+      forecast,
+    );
+
+  const delayDays =
+    varianceDaysToOfficialAdjustedCompletion;
   const ld = buildLdScenario(
     input.ldTerms,
     delayDays,
@@ -730,111 +720,138 @@ export function buildProjectDirectorPosition(
       [],
   );
 
-  const positions = positionMap();
-  const evidenceRefs: string[] = [];
+  const missingCommercialMetric = () => ({
+    value: null,
+    state: "not_submitted" as const,
+    sourceRefs: [] as string[],
+    diagnostics: [
+      "COMMERCIAL_VALUE_NOT_ESTABLISHED",
+    ],
+  });
+  const cloneCommercialMetric = (
+    metric:
+      CurrencyCommercialPosition[
+        "pendingVariationAmount"
+      ],
+  ) => ({
+    value: metric.value,
+    state: metric.state,
+    sourceRefs: [
+      ...metric.sourceRefs,
+    ],
+    diagnostics: [
+      ...metric.diagnostics,
+    ],
+  });
 
-  for (const variation of input.variations) {
-    const row = rowFor(
-      positions,
-      variation.currency,
+  const positions:
+    CurrencyCommercialPosition[] =
+    input.commercialByCurrency.map(
+      (row) => ({
+        currency:
+          upperCurrency(
+            row.currency,
+          ),
+        pendingVariationAmount:
+          cloneCommercialMetric(
+            row.pendingVariationAmount,
+          ),
+        approvedVariationAmount:
+          cloneCommercialMetric(
+            row.approvedVariationAmount,
+          ),
+        certifiedUnpaidAmount:
+          cloneCommercialMetric(
+            row.certifiedUnpaidAmount,
+          ),
+        retentionDeductedAmount:
+          cloneCommercialMetric(
+            row.retentionDeductedAmount,
+          ),
+        retentionHeldAmount:
+          cloneCommercialMetric(
+            row.retentionHeldAmount,
+          ),
+        activeBondAmount:
+          cloneCommercialMetric(
+            row.activeBondAmount,
+          ),
+        claimClaimedAmount:
+          cloneCommercialMetric(
+            row.claimClaimedAmount,
+          ),
+        claimAssessedAmount:
+          cloneCommercialMetric(
+            row.claimAssessedAmount,
+          ),
+        ldScenarioAmount:
+          cloneCommercialMetric(
+            row.ldScenarioAmount,
+          ),
+      }),
     );
-    if (variation.state === "pending") {
-      row.pendingVariationAmount +=
-        variation.amount;
-    } else if (
-      variation.state === "approved"
-    ) {
-      row.approvedVariationAmount +=
-        variation.amount;
-    }
-    evidenceRefs.push(
-      ...variation.sourceRefs,
-    );
-  }
-
-  for (const invoice of input.invoices) {
-    if (
-      invoice.certifiedAmount === null
-    ) {
-      continue;
-    }
-    const row = rowFor(
-      positions,
-      invoice.currency,
-    );
-    if (invoice.paidAmount !== null) {
-      row.certifiedUnpaidAmount +=
-        Math.max(
-          0,
-          invoice.certifiedAmount -
-            invoice.paidAmount,
-        );
-    }
-    evidenceRefs.push(
-      ...invoice.sourceRefs,
-    );
-  }
-
-  for (const retention of input.retentions) {
-    if (retention.state !== "held") {
-      continue;
-    }
-    rowFor(
-      positions,
-      retention.currency,
-    ).retentionHeldAmount +=
-      retention.amount;
-    evidenceRefs.push(
-      ...retention.sourceRefs,
-    );
-  }
-
-  for (const bond of input.bonds) {
-    if (bond.status === "active") {
-      rowFor(
-        positions,
-        bond.currency,
-      ).activeBondAmount += bond.amount;
-    }
-    evidenceRefs.push(...bond.sourceRefs);
-  }
-
-  for (
-    const claim of input.claimCommercials
-  ) {
-    const row = rowFor(
-      positions,
-      claim.currency,
-    );
-    if (claim.claimedAmount !== null) {
-      row.claimClaimedAmount +=
-        claim.claimedAmount;
-    }
-    if (claim.assessedAmount !== null) {
-      row.claimAssessedAmount +=
-        claim.assessedAmount;
-    }
-    evidenceRefs.push(
-      ...claim.sourceRefs,
-    );
-  }
 
   if (
-    (
-      ld.state ===
-        "scenario_candidate" ||
-      ld.state ===
-        "multi_scenario"
-    ) &&
     ld.currency &&
     ld.cappedAmount !== null
   ) {
-    rowFor(
-      positions,
-      ld.currency,
-    ).ldScenarioAmount =
-      ld.cappedAmount;
+    const code =
+      upperCurrency(ld.currency);
+    let row =
+      positions.find(
+        (item) =>
+          item.currency === code,
+      );
+    if (!row) {
+      row = {
+        currency: code,
+        pendingVariationAmount:
+          missingCommercialMetric(),
+        approvedVariationAmount:
+          missingCommercialMetric(),
+        certifiedUnpaidAmount:
+          missingCommercialMetric(),
+        retentionDeductedAmount:
+          missingCommercialMetric(),
+        retentionHeldAmount:
+          missingCommercialMetric(),
+        activeBondAmount:
+          missingCommercialMetric(),
+        claimClaimedAmount:
+          missingCommercialMetric(),
+        claimAssessedAmount:
+          missingCommercialMetric(),
+        ldScenarioAmount:
+          missingCommercialMetric(),
+      };
+      positions.push(row);
+    }
+    row.ldScenarioAmount = {
+      value: ld.cappedAmount,
+      state: "candidate",
+      sourceRefs: [
+        ...ld.sourceRefs,
+      ],
+      diagnostics: [
+        "LD_EXPOSURE_IS_SCENARIO_NOT_AWARD_OR_ACCRUAL",
+      ],
+    };
   }
+
+  const evidenceRefs: string[] =
+    positions.flatMap(
+      (row) => [
+        ...row.pendingVariationAmount.sourceRefs,
+        ...row.approvedVariationAmount.sourceRefs,
+        ...row.certifiedUnpaidAmount.sourceRefs,
+        ...row.retentionDeductedAmount.sourceRefs,
+        ...row.retentionHeldAmount.sourceRefs,
+        ...row.activeBondAmount.sourceRefs,
+        ...row.claimClaimedAmount.sourceRefs,
+        ...row.claimAssessedAmount.sourceRefs,
+        ...row.ldScenarioAmount.sourceRefs,
+      ],
+    );
 
   if (input.contractValue) {
     evidenceRefs.push(
@@ -1115,11 +1132,11 @@ export function buildProjectDirectorPosition(
       dataDateIso:
         schedule.dataDateIso,
       contractualCompletionIso:
-        input.eotAssessment
-          .contractualCompletionIso,
+        contractualCompletion,
       officialAdjustedCompletionIso:
-        input.eotAssessment
-          .officialAdjustedCompletionIso,
+        officialAdjustedCompletion,
+      submittedProgrammeCompletionIso:
+        submittedProgrammeCompletion,
       independentForecastCompletionIso:
         forecast,
       independentForecastBasisRevisionId:
@@ -1136,8 +1153,17 @@ export function buildProjectDirectorPosition(
               "scenario_with_assumptions"
             ? "scenario"
             : "unresolved",
-      varianceDaysToOfficialAdjustedCompletion:
-        delayDays,
+      varianceDaysToContractualCompletion,
+      varianceDaysToOfficialAdjustedCompletion,
+      varianceDaysToSubmittedProgrammeCompletion,
+      forecastComparisonBasis:
+        varianceDaysToOfficialAdjustedCompletion !== null
+          ? "official_adjusted_completion"
+          : varianceDaysToContractualCompletion !== null
+            ? "contractual_completion"
+            : varianceDaysToSubmittedProgrammeCompletion !== null
+              ? "submitted_programme"
+              : "none",
       criticalCount:
         schedule.float.criticalCount,
       nearCriticalCount:
@@ -1206,47 +1232,15 @@ export function buildProjectDirectorPosition(
         input.eotAssessment
           .officialApprovedEotDays,
     },
-    ld,
+    ld: {
+      ...ld,
+      delayBasis:
+        delayDays === null
+          ? "unavailable"
+          : "official_adjusted_completion",
+    },
     commercialByCurrency:
-      [...positions.values()]
-        .map((row) => ({
-          ...row,
-          pendingVariationAmount:
-            Number(
-              row.pendingVariationAmount
-                .toFixed(6),
-            ),
-          approvedVariationAmount:
-            Number(
-              row.approvedVariationAmount
-                .toFixed(6),
-            ),
-          certifiedUnpaidAmount:
-            Number(
-              row.certifiedUnpaidAmount
-                .toFixed(6),
-            ),
-          retentionHeldAmount:
-            Number(
-              row.retentionHeldAmount
-                .toFixed(6),
-            ),
-          activeBondAmount:
-            Number(
-              row.activeBondAmount
-                .toFixed(6),
-            ),
-          claimClaimedAmount:
-            Number(
-              row.claimClaimedAmount
-                .toFixed(6),
-            ),
-          claimAssessedAmount:
-            Number(
-              row.claimAssessedAmount
-                .toFixed(6),
-            ),
-        }))
+      positions
         .sort(
           (a, b) =>
             a.currency.localeCompare(

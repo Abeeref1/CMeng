@@ -132,6 +132,15 @@ export function buildPmoAnalysisProjection(
 
     schedule: {
       activityCount: schedule.activityCount,
+      sourceActivityCount:
+        schedule.population.sourceActivityCount,
+      executableActivityCount:
+        schedule.population.executableActivityCount,
+      excludedActivityCount:
+        schedule.population.excludedActivityCount,
+      excludedByType: {
+        ...schedule.population.excludedByType,
+      },
       relationshipCount:
         schedule.relationshipCount,
       graphComplete:
@@ -169,6 +178,10 @@ export function buildPmoAnalysisProjection(
         input.progressReport.progress.completedCount,
       inProgressCount:
         input.progressReport.progress.inProgressCount,
+      notStartedCount:
+        input.progressReport.progress.notStartedCount,
+      unknownStatusCount:
+        input.progressReport.progress.unknownStatusCount,
       lookAheadOverdueCount:
         input.progressReport.lookAhead.overdueCount,
       lateMilestoneCount:
@@ -209,6 +222,15 @@ export function buildPmoAnalysisProjection(
       assignedResourceCount:
         input.resourceUtilization
           .assignedResourceCount,
+      resourceCount:
+        input.resourceUtilization
+          .resourceCount,
+      assignmentRecordCount:
+        input.resourceUtilization
+          .assignmentRecordCount,
+      resourcePopulationBasis:
+        input.resourceUtilization
+          .resourcePopulationBasis,
       capacityCoveragePercent:
         input.resourceUtilization
           .capacityCoveragePercent,

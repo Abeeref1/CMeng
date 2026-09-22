@@ -191,14 +191,6 @@ export interface LdTimePositionInput {
     string;
   programmeSourceRefs:
     string[];
-  claimedEotDays:
-    number | null;
-  claimedEotCoveragePercent:
-    number | null;
-  assessedEotDays:
-    number | null;
-  assessedEotCoveragePercent:
-    number | null;
   awardedEotDays:
     number | null;
   awardedEotState:
@@ -299,7 +291,11 @@ export interface VariationsProjection {
   approvedCount: number;
   pendingCount: number;
   rejectedCount: number;
-  lifecycleCoveragePercent:
+  /** Coverage that a current/final lifecycle stage can be identified. */
+  finalStageCoveragePercent:
+    number | null;
+  /** Coverage that the full required variation lifecycle dates are evidenced. */
+  fullLifecycleCoveragePercent:
     number | null;
   lifecycleStageCounts: {
     instruction: number;
@@ -407,8 +403,6 @@ export interface ContractObligationsProjection {
 export interface LdScenario {
   scenario:
     | "no_eot"
-    | "claimed_eot"
-    | "assessed_eot"
     | "awarded_eot";
   eotDays:
     CommercialFinding<number>;

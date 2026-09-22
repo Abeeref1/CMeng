@@ -142,11 +142,10 @@ export interface DirectorPositionInput {
   contractValue?: MoneyValue;
   contractValueCandidates?:
     MoneyValue[];
-  variations: VariationRecord[];
-  invoices: InvoiceRecord[];
-  retentions: RetentionRecord[];
+  /** Bonds remain an operational-control input for expiry/security counts only. */
   bonds: BondRecord[];
-  claimCommercials: ClaimCommercialRecord[];
+  commercialByCurrency:
+    CurrencyCommercialPosition[];
   hseIncidents: HseIncidentRecord[];
   ncrs: NcrRecord[];
   rfis: RfiRecord[];
@@ -157,16 +156,31 @@ export interface DirectorPositionInput {
     DirectorEvidenceAvailability;
 }
 
+export type DirectorCommercialEvidenceState =
+  | "established"
+  | "candidate"
+  | "submitted_unparsed"
+  | "not_submitted"
+  | "not_applicable";
+
+export interface DirectorCommercialMetric {
+  value: number | null;
+  state: DirectorCommercialEvidenceState;
+  sourceRefs: string[];
+  diagnostics: string[];
+}
+
 export interface CurrencyCommercialPosition {
   currency: string;
-  pendingVariationAmount: number;
-  approvedVariationAmount: number;
-  certifiedUnpaidAmount: number;
-  retentionHeldAmount: number;
-  activeBondAmount: number;
-  claimClaimedAmount: number;
-  claimAssessedAmount: number;
-  ldScenarioAmount: number | null;
+  pendingVariationAmount: DirectorCommercialMetric;
+  approvedVariationAmount: DirectorCommercialMetric;
+  certifiedUnpaidAmount: DirectorCommercialMetric;
+  retentionDeductedAmount: DirectorCommercialMetric;
+  retentionHeldAmount: DirectorCommercialMetric;
+  activeBondAmount: DirectorCommercialMetric;
+  claimClaimedAmount: DirectorCommercialMetric;
+  claimAssessedAmount: DirectorCommercialMetric;
+  ldScenarioAmount: DirectorCommercialMetric;
 }
 
 export interface ProjectDirectorPosition {
@@ -177,6 +191,7 @@ export interface ProjectDirectorPosition {
     dataDateIso: string | null;
     contractualCompletionIso: string | null;
     officialAdjustedCompletionIso: string | null;
+    submittedProgrammeCompletionIso: string | null;
     independentForecastCompletionIso: string | null;
     independentForecastBasisRevisionId: string;
     independentForecastCoveragePercent: number | null;
@@ -184,7 +199,14 @@ export interface ProjectDirectorPosition {
       | "deterministic"
       | "scenario"
       | "unresolved";
+    varianceDaysToContractualCompletion: number | null;
     varianceDaysToOfficialAdjustedCompletion: number | null;
+    varianceDaysToSubmittedProgrammeCompletion: number | null;
+    forecastComparisonBasis:
+      | "official_adjusted_completion"
+      | "contractual_completion"
+      | "submitted_programme"
+      | "none";
     criticalCount: number;
     nearCriticalCount: number;
     criticalityBasis:
@@ -219,6 +241,9 @@ export interface ProjectDirectorPosition {
   };
   ld: {
     delayDays: number | null;
+    delayBasis:
+      | "official_adjusted_completion"
+      | "unavailable";
     state:
       | "scenario_candidate"
       | "multi_scenario"

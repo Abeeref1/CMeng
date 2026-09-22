@@ -525,6 +525,36 @@ export function buildCommercialControlPosition(
               currency &&
             row.state === "held",
         );
+      const sourcePaymentRows =
+        input.sourceLedger
+          ?.payments.filter(
+            (row) =>
+              row.amounts
+                .retentionDeduction
+                .currency ===
+              currency,
+          ) ?? [];
+      const sourceRetentionDeductions =
+        sourcePaymentRows.filter(
+          (row) =>
+            row.amounts
+              .retentionDeduction
+              .value !== null,
+        );
+      const retentionDeductedRefs =
+        sourceRetentionDeductions
+          .flatMap(
+            (row) =>
+              row.amounts
+                .retentionDeduction
+                .receipts.map(
+                  (receipt) =>
+                    "evidence-document:" +
+                    receipt.documentId +
+                    ":" +
+                    receipt.locator,
+                ),
+          );
       const explicitAdvanceBalances =
         invoices
           .filter(
@@ -803,6 +833,38 @@ export function buildCommercialControlPosition(
                   "CERTIFIED_UNPAID_REQUIRES_PAID_AMOUNT_FOR_EVERY_CERTIFICATE",
                 ],
           ),
+        retentionDeductedAmount:
+          moneyMetric(
+            sourceRetentionDeductions.length > 0
+              ? sum(
+                  sourceRetentionDeductions.map(
+                    (row) =>
+                      row.amounts
+                        .retentionDeduction
+                        .value!,
+                  ),
+                )
+              : null,
+            sourceRetentionDeductions.length > 0 &&
+            sourceRetentionDeductions.length ===
+              sourcePaymentRows.length
+              ? "established"
+              : sourcePaymentRows.length > 0
+                ? "submitted_unparsed"
+                : input.paymentEvidenceSubmitted
+                  ? "submitted_unparsed"
+                  : "not_submitted",
+            retentionDeductedRefs,
+            sourcePaymentRows.length > 0 &&
+            sourceRetentionDeductions.length !==
+              sourcePaymentRows.length
+              ? [
+                  "RETENTION_DEDUCTION_COVERAGE_PARTIAL",
+                ]
+              : [
+                  "RETENTION_DEDUCTION_IS_NOT_CURRENT_HELD_BALANCE",
+                ],
+          ),
         retentionHeldAmount:
           moneyMetric(
             retained.length > 0
@@ -997,7 +1059,9 @@ export function buildCommercialControlPosition(
         position.netCertifiedAmount=unestablished("INCREMENTAL_VERSUS_CUMULATIVE_BASIS_REQUIRED_FOR_AGGREGATION");
         position.paidAmount=unestablished("DATED_PAYMENT_RECEIPT_AND_ALLOCATION_REQUIRED");
         position.certifiedUnpaidAmount=unestablished("UNKNOWN_PAID_AMOUNT_IS_NOT_ZERO");
-        position.retentionHeldAmount=unestablished("RETENTION_DEDUCTION_IS_NOT_A_RECONCILED_HELD_BALANCE");
+        if(position.retentionHeldAmount.value===null){
+          position.retentionHeldAmount=unestablished("RETENTION_DEDUCTION_IS_NOT_A_RECONCILED_HELD_BALANCE");
+        }
       }
     }
   }
@@ -1488,6 +1552,7 @@ export function buildCommercialControlPosition(
       officialAdjustedCompletion:
         dateMetric(
           adjusted,
+          adjusted !== null &&
           contractual &&
           approvedEot !== null &&
           contractTime
@@ -1495,11 +1560,18 @@ export function buildCommercialControlPosition(
             "official" &&
           contractTime
             ?.officialApprovedEotState ===
-            "official"
+            "official" &&
+          contractTime
+            ?.overlapResolution !==
+            "unresolved"
             ? "established"
             : adjusted
               ? "candidate"
-              : "not_submitted",
+              : contractTime
+                  ?.overlapResolution ===
+                  "unresolved"
+                ? "submitted_unparsed"
+                : "not_submitted",
           timeRefs,
           adjusted
             ? []

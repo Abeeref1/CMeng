@@ -878,7 +878,7 @@ test("CMeng workspace keeps the active module primary and browser script parseab
       "Per-hour overload is not 0; it is not assessable.",
       "The programme contains a percentage-complete snapshot, but certified/contractor physical progress is not established.",
       "schedule-revision progress history",
-      "Actual man-hours are missing, not zero.",
+      "Actual man-hours are not established.",
       "No governed quantity curve is available.",
       "Notice performance is not zero; it is not assessable.",
       "Schedule movement is not an EOT time-impact assessment.",

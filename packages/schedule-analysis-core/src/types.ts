@@ -226,6 +226,18 @@ export interface ActivityStatusSummary {
   unknown: number;
 }
 
+export interface ScheduleActivityPopulation {
+  sourceActivityCount: number;
+  executableActivityCount: number;
+  excludedActivityCount: number;
+  excludedByType: {
+    wbsSummaryCount: number;
+    levelOfEffortCount: number;
+    otherExcludedCount: number;
+  };
+  basis: "execution_control_population";
+}
+
 export interface FloatSummary {
   criticalCount: number;
   nearCriticalCount: number;
@@ -291,6 +303,7 @@ export interface ScheduleAnalyticsResult {
   dataDateIso: string | null;
 
   graph: ScheduleGraphAnalysis;
+  population: ScheduleActivityPopulation;
   status: ActivityStatusSummary;
   progress: ProgressSummary;
   float: FloatSummary;

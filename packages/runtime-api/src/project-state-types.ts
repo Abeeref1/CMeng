@@ -469,10 +469,24 @@ export interface ScheduleUploadSummary {
 
 export interface ModuleRuntimeResult {
   key: string;
+  /** Compatibility status derived from professional defensibility. */
   status:
     | "ready"
     | "partial"
     | "blocked";
+  engineState?:
+    | "ready"
+    | "blocked"
+    | "failed";
+  evidenceState?:
+    | "established"
+    | "partial"
+    | "missing"
+    | "conflicted";
+  professionalState?:
+    | "defensible"
+    | "review_required"
+    | "not_defensible";
   reason: string | null;
   dependencies: string[];
   data: unknown | null;

@@ -619,6 +619,10 @@ export function buildResourceUtilizationProjection(
     resourceCount: rows.length,
     assignedResourceCount:
       assigned.length,
+    assignmentRecordCount:
+      resources.assignments.length,
+    resourcePopulationBasis:
+      "p6_resource_master",
     capacityBasedResourceCount:
       capacityBased.length,
     capacityCoveragePercent:

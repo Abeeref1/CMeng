@@ -71,12 +71,27 @@ export function buildBoardReadyReport(
         independentForecastAuthority:
           position.schedule
             .independentForecastAuthority,
+        contractualCompletionIso:
+          position.schedule
+            .contractualCompletionIso,
         officialAdjustedCompletionIso:
           position.schedule
             .officialAdjustedCompletionIso,
-        varianceDays:
+        submittedProgrammeCompletionIso:
+          position.schedule
+            .submittedProgrammeCompletionIso,
+        varianceDaysToContractualCompletion:
+          position.schedule
+            .varianceDaysToContractualCompletion,
+        varianceDaysToOfficialAdjustedCompletion:
           position.schedule
             .varianceDaysToOfficialAdjustedCompletion,
+        varianceDaysToSubmittedProgrammeCompletion:
+          position.schedule
+            .varianceDaysToSubmittedProgrammeCompletion,
+        forecastComparisonBasis:
+          position.schedule
+            .forecastComparisonBasis,
         managementActions: [
           ...position.managementActions,
         ],

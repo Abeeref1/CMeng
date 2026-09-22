@@ -54,6 +54,8 @@ export interface CommercialMoneyPosition {
     CommercialMetric<number>;
   certifiedUnpaidAmount:
     CommercialMetric<number>;
+  retentionDeductedAmount:
+    CommercialMetric<number>;
   retentionHeldAmount:
     CommercialMetric<number>;
   advanceBalance:

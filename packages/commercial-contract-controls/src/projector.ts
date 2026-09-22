@@ -455,6 +455,36 @@ function variations(
         row.lifecycleStage !==
         "unknown",
     ).length;
+  const fullLifecycleKnown =
+    rows.filter(
+      (row) => {
+        const terminal =
+          row.lifecycleStage ===
+            "approved" ||
+          row.lifecycleStage ===
+            "rejected";
+        if (!terminal) {
+          return false;
+        }
+        const commonDates = [
+          row.dates.instruction,
+          row.dates.submitted,
+          row.dates.assessed,
+        ];
+        const terminalDate =
+          row.lifecycleStage ===
+            "approved"
+            ? row.dates.approved
+            : (
+                row.dates.agreed ??
+                row.dates.approved
+              );
+        return (
+          commonDates.every(Boolean) &&
+          Boolean(terminalDate)
+        );
+      },
+    ).length;
   const lifecycleStageCounts = {
     instruction:
       rows.filter(
@@ -600,9 +630,14 @@ function variations(
           row.lifecycleStage ===
           "rejected",
       ).length,
-    lifecycleCoveragePercent:
+    finalStageCoveragePercent:
       coverage(
         lifecycleKnown,
+        rows.length,
+      ),
+    fullLifecycleCoveragePercent:
+      coverage(
+        fullLifecycleKnown,
         rows.length,
       ),
     lifecycleStageCounts,
@@ -1197,42 +1232,6 @@ function liquidatedDamages(
     },
     {
       scenario:
-        "claimed_eot" as const,
-      days:
-        input.ldTime
-          .claimedEotDays,
-      coverage:
-        input.ldTime
-          .claimedEotCoveragePercent,
-      state:
-        input.ldTime
-          .claimedEotDays ===
-        null
-          ? "missing" as const
-          : "candidate" as const,
-      method:
-        "aggregate_submitted_claim_days_scenario",
-    },
-    {
-      scenario:
-        "assessed_eot" as const,
-      days:
-        input.ldTime
-          .assessedEotDays,
-      coverage:
-        input.ldTime
-          .assessedEotCoveragePercent,
-      state:
-        input.ldTime
-          .assessedEotDays ===
-        null
-          ? "missing" as const
-          : "candidate" as const,
-      method:
-        "aggregate_assessed_claim_days_scenario",
-    },
-    {
-      scenario:
         "awarded_eot" as const,
       days:
         input.ldTime
@@ -1636,11 +1635,6 @@ function liquidatedDamages(
           null,
         diagnostics: [
           "LD_SCENARIO_DOES_NOT_ESTABLISH_LEGAL_ENTITLEMENT_OR_DEDUCTION",
-          ...(["claimed_eot","assessed_eot"].includes(scenarioInput.scenario)
-            ? [
-                "AGGREGATE_CLAIM_DAY_SCENARIO_DOES_NOT_RESOLVE_INTER_CLAIM_OVERLAP_OR_CONCURRENCY",
-              ]
-            : []),
           ...(scenarioInput.scenario ===
               "awarded_eot" &&
             input.ldTime
@@ -1680,8 +1674,9 @@ function liquidatedDamages(
     capState,
     scenarios,
     diagnostics: [
+      "CLAIM_REGISTER_DAY_SUMS_ARE_NOT_PROJECT_EOT_AND_NEVER_ADJUST_COMPLETION",
       "SCHEDULE_MOVEMENT_EOT_POSITION_AND_LD_AMOUNT_REMAIN_SEPARATE",
-      "NO_EOT_CLAIMED_ASSESSED_AND_AWARDED_SCENARIOS_ARE_NOT_INTERCHANGEABLE",
+      "ONLY_NO_EOT_AND_GOVERNED_AWARDED_EOT_SCENARIOS_MAY_ADJUST_PROJECT_COMPLETION",
       "LD_IS_NEVER_AUTOMATICALLY_DEDUCTED_FROM_PAYMENTS",
     ],
   };

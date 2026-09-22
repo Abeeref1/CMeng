@@ -556,6 +556,14 @@ export function analyzeSchedule(
   }
 
   const activities = executableActivities(model);
+  const wbsSummaryCount = model.activities.filter(
+    (activity) => activity.activityType === "wbs_summary",
+  ).length;
+  const levelOfEffortCount = model.activities.filter(
+    (activity) => activity.activityType === "level_of_effort",
+  ).length;
+  const excludedActivityCount =
+    model.activities.length - activities.length;
   const graph = analyzeScheduleGraph(model);
   const diagnostics = [
     ...model.diagnostics,
@@ -567,6 +575,23 @@ export function analyzeSchedule(
     sourceRevisionId: model.sourceRevisionId,
     dataDateIso: model.dataDateIso,
     graph,
+    population: {
+      sourceActivityCount: model.activities.length,
+      executableActivityCount: activities.length,
+      excludedActivityCount,
+      excludedByType: {
+        wbsSummaryCount,
+        levelOfEffortCount,
+        otherExcludedCount:
+          Math.max(
+            0,
+            excludedActivityCount -
+              wbsSummaryCount -
+              levelOfEffortCount,
+          ),
+      },
+      basis: "execution_control_population",
+    },
     status: statusSummary(activities),
     progress: progressSummary(activities),
     float: floatSummary(model, activities, config),

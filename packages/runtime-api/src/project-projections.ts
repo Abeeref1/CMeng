@@ -161,6 +161,10 @@ function blocked(
   return {
     key,
     status: "blocked",
+    engineState: "blocked",
+    evidenceState: "missing",
+    professionalState:
+      "not_defensible",
     reason,
     dependencies,
     data: null,
@@ -179,6 +183,15 @@ function available(
   return {
     key,
     status,
+    engineState: "ready",
+    evidenceState:
+      status === "ready"
+        ? "established"
+        : "partial",
+    professionalState:
+      status === "ready"
+        ? "defensible"
+        : "review_required",
     reason,
     dependencies,
     data,
@@ -2535,6 +2548,27 @@ function buildBundle(
               scheduleAnalytics
                 .result
                 .activityCount,
+            sourceActivityCount:
+              scheduleAnalytics
+                .result
+                .population
+                .sourceActivityCount,
+            executableActivityCount:
+              scheduleAnalytics
+                .result
+                .population
+                .executableActivityCount,
+            excludedActivityCount:
+              scheduleAnalytics
+                .result
+                .population
+                .excludedActivityCount,
+            excludedByType: {
+              ...scheduleAnalytics
+                .result
+                .population
+                .excludedByType,
+            },
             relationshipCount:
               scheduleAnalytics
                 .result
@@ -2593,6 +2627,14 @@ function buildBundle(
               progressReport
                 .progress
                 .inProgressCount,
+            notStartedCount:
+              progressReport
+                .progress
+                .notStartedCount,
+            unknownStatusCount:
+              progressReport
+                .progress
+                .unknownStatusCount,
             lookAheadOverdueCount:
               progressReport
                 .lookAhead
@@ -2618,6 +2660,20 @@ function buildBundle(
             complete:
               independentForecast
                 .complete,
+            basisRevisionId:
+              independentForecast
+                .sourceRevisionId,
+            activityCoveragePercent:
+              independentForecast
+                .activityCoveragePercent,
+            authority:
+              independentForecast.origin ===
+                "deterministic_source_calendar"
+                ? "deterministic"
+                : independentForecast.origin ===
+                    "scenario_with_assumptions"
+                  ? "scenario"
+                  : "unresolved",
           },
           resources: resourceUtilization
             ? {
@@ -2626,6 +2682,15 @@ function buildBundle(
                 assignedResourceCount:
                   resourceUtilization
                     .assignedResourceCount,
+                resourceCount:
+                  resourceUtilization
+                    .resourceCount,
+                assignmentRecordCount:
+                  resourceUtilization
+                    .assignmentRecordCount,
+                resourcePopulationBasis:
+                  resourceUtilization
+                    .resourcePopulationBasis,
                 capacityCoveragePercent:
                   resourceUtilization
                     .capacityCoveragePercent,
@@ -2934,6 +2999,66 @@ function buildBundle(
             ],
           };
 
+    const canonicalCommercial =
+      commercialPositionForState(
+        state,
+        generatedAt,
+      );
+    const directorCommercialByCurrency =
+      canonicalCommercial.currencies.map(
+        (row) => ({
+          currency: row.currency,
+          pendingVariationAmount: {
+            ...row.pendingVariationAmount,
+            sourceRefs: [...row.pendingVariationAmount.sourceRefs],
+            diagnostics: [...row.pendingVariationAmount.diagnostics],
+          },
+          approvedVariationAmount: {
+            ...row.approvedVariationAmount,
+            sourceRefs: [...row.approvedVariationAmount.sourceRefs],
+            diagnostics: [...row.approvedVariationAmount.diagnostics],
+          },
+          certifiedUnpaidAmount: {
+            ...row.certifiedUnpaidAmount,
+            sourceRefs: [...row.certifiedUnpaidAmount.sourceRefs],
+            diagnostics: [...row.certifiedUnpaidAmount.diagnostics],
+          },
+          retentionDeductedAmount: {
+            ...row.retentionDeductedAmount,
+            sourceRefs: [...row.retentionDeductedAmount.sourceRefs],
+            diagnostics: [...row.retentionDeductedAmount.diagnostics],
+          },
+          retentionHeldAmount: {
+            ...row.retentionHeldAmount,
+            sourceRefs: [...row.retentionHeldAmount.sourceRefs],
+            diagnostics: [...row.retentionHeldAmount.diagnostics],
+          },
+          activeBondAmount: {
+            ...row.activeBondAmount,
+            sourceRefs: [...row.activeBondAmount.sourceRefs],
+            diagnostics: [...row.activeBondAmount.diagnostics],
+          },
+          claimClaimedAmount: {
+            ...row.claimedAmount,
+            sourceRefs: [...row.claimedAmount.sourceRefs],
+            diagnostics: [...row.claimedAmount.diagnostics],
+          },
+          claimAssessedAmount: {
+            ...row.assessedClaimAmount,
+            sourceRefs: [...row.assessedClaimAmount.sourceRefs],
+            diagnostics: [...row.assessedClaimAmount.diagnostics],
+          },
+          ldScenarioAmount: {
+            value: null,
+            state: "not_applicable" as const,
+            sourceRefs: [] as string[],
+            diagnostics: [
+              "LD_SCENARIO_IS_OWNED_BY_PROJECT_DIRECTOR_TIME_BASIS",
+            ],
+          },
+        }),
+      );
+
     director =
       buildProjectDirectorPosition({
         generatedAt,
@@ -2979,19 +3104,10 @@ function buildBundle(
               }
             : {}
         ),
-        variations:
-          state.controls
-            .variations,
-        invoices:
-          state.controls.invoices,
-        retentions:
-          state.controls
-            .retentions,
         bonds:
           state.controls.bonds,
-        claimCommercials:
-          state.controls
-            .claimCommercials,
+        commercialByCurrency:
+          directorCommercialByCurrency,
         hseIncidents:
           state.controls
             .hseIncidents,
@@ -3194,7 +3310,6 @@ function buildBundle(
 
 const planningModuleKeys =
   new Set([
-    "pmo-analysis",
     "schedule-analytics",
     "activity-analytics",
     "lookahead-schedule",
@@ -4338,7 +4453,6 @@ function buildPlanningModuleFast(
 const specialistFastModuleKeys =
   new Set([
     "resource-utilization",
-    "progress-report",
     "variance-trends",
     "progress-scurve",
     "quantity-scurve",
@@ -6352,6 +6466,319 @@ function buildSpecialistModuleFast(
   return result;
 }
 
+function applyProfessionalModuleState(
+  result: ModuleRuntimeResult,
+): ModuleRuntimeResult {
+  if (
+    result.status === "blocked" ||
+    result.data === null
+  ) {
+    return {
+      ...result,
+      engineState:
+        result.engineState ??
+        "blocked",
+      evidenceState:
+        result.evidenceState ??
+        "missing",
+      professionalState:
+        "not_defensible",
+      status: "blocked",
+    };
+  }
+
+  const data = result.data as any;
+  let evidenceState =
+    result.evidenceState ??
+    (
+      result.status === "ready"
+        ? "established"
+        : "partial"
+    );
+  let professionalState =
+    result.professionalState ??
+    (
+      result.status === "ready"
+        ? "defensible"
+        : "review_required"
+    );
+  let reason = result.reason;
+
+  const review = (
+    message: string,
+    state:
+      | "partial"
+      | "missing" =
+      "partial",
+  ) => {
+    evidenceState = state;
+    professionalState =
+      state === "missing"
+        ? "not_defensible"
+        : "review_required";
+    reason = message;
+  };
+
+  if (
+    result.key === "progress-report"
+  ) {
+    const bases =
+      data?.progressBases;
+    const externalEstablished =
+      bases?.contractorReported
+        ?.valuePercent !== null &&
+      bases?.contractorReported
+        ?.valuePercent !== undefined ||
+      bases?.certified
+        ?.valuePercent !== null &&
+      bases?.certified
+        ?.valuePercent !== undefined ||
+      (
+        bases?.physical
+          ?.valuePercent !== null &&
+        bases?.physical
+          ?.valuePercent !== undefined &&
+        bases?.physical
+          ?.authority ===
+          "source_evidence"
+      );
+    if (!externalEstablished) {
+      review(
+        "Schedule-derived progress is available, but contractor-reported, certified or independently sourced physical progress is not established. The schedule snapshot is not treated as certified physical progress.",
+      );
+    }
+  }
+
+  if (
+    result.key === "delay-claims"
+  ) {
+    const eventCount =
+      Number(
+        data.eventCount ?? 0,
+      );
+    const activityLinked =
+      Number(
+        data.activityLinkedEventCount ??
+          0,
+      );
+    if (
+      eventCount > 0 &&
+      activityLinked < eventCount
+    ) {
+      review(
+        String(activityLinked) +
+          " of " +
+          String(eventCount) +
+          " delay events are linked to governed schedule activities; causation is not fully defensible.",
+      );
+    }
+  }
+
+  if (
+    result.key === "payments"
+  ) {
+    const register =
+      data?.focus?.paymentRegister ??
+      data?.position?.foundation
+        ?.paymentRegister ??
+      null;
+    const count =
+      Number(
+        register?.recordCount ?? 0,
+      );
+    const coverage =
+      register
+        ?.stageCoveragePercent ??
+      null;
+    if (
+      count > 0 &&
+      coverage !== 100
+    ) {
+      review(
+        "Payment lifecycle dates are incomplete; overdue and late-payment outcomes are not fully assessable.",
+      );
+    }
+  }
+
+  if (
+    result.key === "cash-flow"
+  ) {
+    const currencies =
+      data?.focus
+        ?.cashFlowRegister
+        ?.currencies ??
+      data?.position
+        ?.performance
+        ?.cashFlow
+        ?.currencies ??
+      [];
+    const cashReady =
+      currencies.length > 0 &&
+      currencies.every(
+        (row: any) =>
+          row.sourceReadiness
+            ?.netCashReady ===
+          true,
+      );
+    if (!cashReady) {
+      review(
+        "Dated cash receipts and expenditure evidence are incomplete; current cash position remains withheld.",
+      );
+    }
+  }
+
+  if (
+    result.key ===
+    "variations-change"
+  ) {
+    const control =
+      data?.focus
+        ?.variationControl ??
+      null;
+    if (
+      control &&
+      (
+        control
+          .scheduleLinkCoveragePercent !==
+          100 ||
+        control
+          .claimLinkCoveragePercent !==
+          100 ||
+        control
+          .paymentLinkCoveragePercent !==
+          100
+      )
+    ) {
+      review(
+        "Variation final status is available, but cross-domain schedule/claim/payment lifecycle linkage is incomplete.",
+      );
+    }
+  }
+
+  if (
+    result.key ===
+    "eot-assessment"
+  ) {
+    if (
+      data
+        ?.officialAdjustedCompletionIso ===
+        null ||
+      data
+        ?.officialAdjustedCompletionIso ===
+        undefined
+    ) {
+      review(
+        "Official adjusted completion is not established; observed movement and analytical scenarios remain separate from contractual entitlement.",
+      );
+    }
+  }
+
+  if (
+    result.key ===
+    "challenge-contract" &&
+    (
+      data?.physicalComplete ===
+        false ||
+      data?.semanticComplete ===
+        false
+    )
+  ) {
+    review(
+      "The contract challenge position is not yet supportable from a complete governed contract evidence basis.",
+    );
+  }
+
+  if (
+    result.key ===
+    "contract-particulars-bonds"
+  ) {
+    const bonds =
+      data?.focus
+        ?.bondsInsurance ??
+      null;
+    if (
+      bonds &&
+      bonds.state !==
+        "established"
+    ) {
+      review(
+        "Contract terms may be available, but the bond/security or insurance evidence basis is incomplete.",
+      );
+    }
+  }
+
+  return {
+    ...result,
+    engineState:
+      result.engineState ??
+      "ready",
+    evidenceState,
+    professionalState,
+    status:
+      professionalState ===
+        "defensible"
+        ? "ready"
+        : professionalState ===
+            "review_required"
+          ? "partial"
+          : "blocked",
+    reason,
+  };
+}
+
+function resolveProjectModule(
+  state: ProjectRuntimeState,
+  key: string,
+): ModuleRuntimeResult {
+  const sourceResource = canonicalResourceModule(state, key) ?? canonicalCommercialModule(state, key);
+  if (sourceResource) {
+    const current = projectControlSchedule(state);
+    if (!current) return applyProfessionalModuleState(sourceResource);
+    const generatedAt = new Date().toISOString();
+    const context = specialistChallengeContext(state, current.revision.model, generatedAt);
+    const modules = new Map([[key, sourceResource]]);
+    applyUniversalModuleChallenges({state, generatedAt, model:current.revision.model,
+      independentForecast:context.forecast, deliveryChallenge:context.delivery, modules});
+    return applyProfessionalModuleState(
+      modules.get(key) ??
+        sourceResource,
+    );
+  }
+
+  const planning =
+    buildPlanningModuleFast(
+      state,
+      key,
+    );
+  if (planning) {
+    return applyProfessionalModuleState(
+      planning,
+    );
+  }
+
+  const specialist =
+    buildSpecialistModuleFast(
+      state,
+      key,
+    );
+  if (specialist) {
+    return applyProfessionalModuleState(
+      specialist,
+    );
+  }
+
+  const bundle =
+    buildBundle(state);
+  return applyProfessionalModuleState(
+    bundle.modules.get(key) ??
+      blocked(
+        key,
+        "Unknown Schedule module.",
+        [],
+      ),
+  );
+}
+
 export function moduleForProject(
   projectId: string,
   key: string,
@@ -6365,47 +6792,7 @@ export function moduleForProject(
       ["project"],
     );
   }
-
-  const sourceResource = canonicalResourceModule(state, key) ?? canonicalCommercialModule(state, key);
-  if (sourceResource) {
-    const current = projectControlSchedule(state);
-    if (!current) return sourceResource;
-    const generatedAt = new Date().toISOString();
-    const context = specialistChallengeContext(state, current.revision.model, generatedAt);
-    const modules = new Map([[key, sourceResource]]);
-    applyUniversalModuleChallenges({state, generatedAt, model:current.revision.model,
-      independentForecast:context.forecast, deliveryChallenge:context.delivery, modules});
-    return modules.get(key) ?? sourceResource;
-  }
-
-  const planning =
-    buildPlanningModuleFast(
-      state,
-      key,
-    );
-  if (planning) {
-    return planning;
-  }
-
-  const specialist =
-    buildSpecialistModuleFast(
-      state,
-      key,
-    );
-  if (specialist) {
-    return specialist;
-  }
-
-  const bundle =
-    buildBundle(state);
-  return (
-    bundle.modules.get(key) ??
-    blocked(
-      key,
-      "Unknown Schedule module.",
-      [],
-    )
-  );
+  return resolveProjectModule(state, key);
 }
 
 export function directorForProject(
@@ -6509,7 +6896,8 @@ export function managementSurfacesForProject(
     scheduleModules.map(
       (descriptor) => {
         const result =
-          bundle.modules.get(
+          resolveProjectModule(
+            state,
             descriptor.key,
           );
         return {
@@ -6536,7 +6924,7 @@ export function managementSurfacesForProject(
     commercialModules.map(
       (descriptor) => {
         const result =
-          canonicalCommercialModule(
+          resolveProjectModule(
             state,
             descriptor.key,
           );
@@ -7293,37 +7681,17 @@ export function overviewForProject(
         ...commercialModules,
       ].map(
         (module) => {
-          const receiptStatus =
-            receiptStates.get(
+          const resolved =
+            resolveProjectModule(
+              state,
               module.key,
             );
           return {
             key: module.key,
             status:
-              receiptStatus ??
-              (
-                commercialModules.some(
-                  (item) =>
-                    item.key ===
-                    module.key,
-                )
-                  ? "partial"
-                  : scheduleEstablished
-                    ? "partial"
-                    : "blocked"
-              ),
+              resolved.status,
             reason:
-              receiptStatus
-                ? null
-                : commercialModules.some(
-                    (item) =>
-                      item.key ===
-                      module.key,
-                  )
-                  ? "Open the commercial view to calculate the current governed position. Missing evidence will remain missing, not zero."
-                  : scheduleEstablished
-                    ? "Open the view to calculate the latest specialist position."
-                    : "Programme evidence has not been established.",
+              resolved.reason,
           };
         },
       ),
@@ -7344,12 +7712,27 @@ export function rerunProject(
     new Date().toISOString();
   const bundle =
     buildBundle(state);
+  const resolvedModules =
+    new Map(
+      [
+        ...scheduleModules,
+        ...commercialModules,
+      ].map(
+        (module) => [
+          module.key,
+          resolveProjectModule(
+            state,
+            module.key,
+          ),
+        ],
+      ),
+    );
   const certification =
     certifyCrossModuleConsistency({
       generatedAt,
       state,
       modules:
-        bundle.modules,
+        resolvedModules,
       director:
         bundle.director,
       boardReport:
@@ -7454,9 +7837,9 @@ export function rerunProject(
         }),
       ),
     moduleCount:
-      bundle.modules.size,
+      resolvedModules.size,
     moduleResults: [
-      ...bundle.modules.entries(),
+      ...resolvedModules.entries(),
     ]
       .map(
         ([key, value]) => ({
@@ -7472,7 +7855,7 @@ export function rerunProject(
           ),
       ),
     pmoRecalculated:
-      bundle.modules.has(
+      resolvedModules.has(
         "pmo-analysis",
       ),
     directorRecalculated:
