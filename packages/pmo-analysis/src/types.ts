@@ -15,6 +15,14 @@ export interface PmoAnalysisProjection {
 
   schedule: {
     activityCount: number;
+    sourceActivityCount: number;
+    executableActivityCount: number;
+    excludedActivityCount: number;
+    excludedByType: {
+      wbsSummaryCount: number;
+      levelOfEffortCount: number;
+      otherExcludedCount: number;
+    };
     relationshipCount: number;
     graphComplete: boolean;
     criticalCount: number;
@@ -36,6 +44,8 @@ export interface PmoAnalysisProjection {
     progressCoveragePercent: number | null;
     completedCount: number;
     inProgressCount: number;
+    notStartedCount: number;
+    unknownStatusCount: number;
     lookAheadOverdueCount: number;
     lateMilestoneCount: number;
   };
