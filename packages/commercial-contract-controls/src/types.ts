@@ -526,7 +526,8 @@ export interface RetentionCalendarProjection {
   heldCount: number;
   releasedCount: number;
   dueCount: number;
-  overdueCount: number;
+  /** Null when release-due dates are insufficient to assess overdue status. */
+  overdueCount: number | null;
   rows:
     RetentionCalendarRecord[];
   diagnostics: string[];
