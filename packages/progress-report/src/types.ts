@@ -40,6 +40,12 @@ export interface ProgressReportProjection {
   sourceRevisionId: string;
   dataDateIso: string | null;
   sourceProjections: ProgressReportProjectionRef[];
+  /** True when only schedule-derived progress is available; never treat it as certified physical progress. */
+  scheduleSnapshotOnly: boolean;
+  externalProgressEvidenceState:
+    | "established"
+    | "missing";
+
   activityPopulation: {
     sourceActivityCount: number;
     executableActivityCount: number;
