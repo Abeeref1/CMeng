@@ -508,11 +508,12 @@ test("C1 exposes real Commercial routes, evidence-driven status and portfolio in
       );
       assert.equal(
         item.readyModules,
-        2,
+        1,
+        "Portfolio readiness must use the same professional-state resolver as the module pages.",
       );
       assert.equal(
         item.partialModules,
-        5,
+        6,
       );
       assert.equal(
         item.blockedModules,
