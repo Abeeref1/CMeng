@@ -69,6 +69,10 @@ export interface CommercialMoneyPosition {
 }
 
 export interface CommercialClaimsNoticesPosition {
+  asOfNoticeCount: number;
+  futureNoticeCount: number;
+  undatedNoticeCount: number;
+  dimensionalEvidenceGaps: {requirementMissing:number;eventDateMissing:number;noticeDateMissing:number};
   state: CommercialEvidenceState;
   evidenceRevisionId: string | null;
   eventCount: number;

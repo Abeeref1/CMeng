@@ -185,6 +185,7 @@ function input():
         paymentDate:
           "2026-08-20",
         currency: "AED",
+        taxBasis: "exclusive",
         certifiedAmount:
           1_000_000,
         certifiedAmountBasis:
@@ -355,12 +356,12 @@ test("C2B1 Cash Flow keeps certification separate from cash and computes funding
   );
   assert.equal(
     cash.peakFundingNeed.value,
-    1_200_000,
+    null,
   );
   assert.equal(
     cash.cumulativeActualSeries
       .at(-1)?.net,
-    -300_000,
+    null,
   );
   assert.equal(
     cash.certifiedUnpaid.value,
@@ -372,17 +373,17 @@ test("C2B1 Cash Flow keeps certification separate from cash and computes funding
     {
       asOf: "2026-08-20",
       cumulativeCertifiedIncome:
-        1_000_000,
+        null,
       cumulativePaidIncome:
-        900_000,
+        null,
       cumulativeExpenditureBudget:
-        2_000_000,
+        null,
       cumulativeExpenditureForecast:
-        1_800_000,
+        null,
       cumulativeActualExpenditure:
-        1_200_000,
+        null,
       actualNetCash:
-        -300_000,
+        null,
     },
   );
   assert.deepEqual(
@@ -517,6 +518,7 @@ test("C2B1 Cash Flow readiness explains certified-only source evidence without r
       certificationDate: null,
       paymentDate: null,
       currency: "AED",
+      taxBasis: "exclusive" as const,
       certifiedAmount:
         100_000 +
         index,
@@ -579,7 +581,7 @@ test("C2B1 Cash Flow readiness explains certified-only source evidence without r
   assert.equal(
     cash.sourceReadiness
       .certification.datedAmountCount,
-    18,
+    0,
   );
   assert.equal(
     cash.sourceReadiness
@@ -589,7 +591,7 @@ test("C2B1 Cash Flow readiness explains certified-only source evidence without r
   assert.equal(
     cash.sourceReadiness
       .certification.state,
-    "not_aggregable",
+    "missing",
   );
   assert.equal(
     cash.sourceReadiness
@@ -706,12 +708,14 @@ test("C2B1 Cost S-Curve uses source cumulative positions and preserves currency/
 test("C2B1 project-cumulative payment series are converted to deltas before cash aggregation", () => {
   const value = input();
   value.payments = [
+    {paymentId:'opening',periodEnd:'2026-07-01',certificationDate:'2026-07-01',paymentDate:'2026-07-01',currency:'AED',taxBasis:'exclusive',certifiedAmount:0,paidAmount:0,certifiedAmountBasis:'project_cumulative',paidAmountBasis:'project_cumulative',sourceRefs:['evidence-document:opening']},
     {
       paymentId: "IPC-01",
       periodEnd: "2026-07-31",
       certificationDate: "2026-08-01",
       paymentDate: "2026-08-05",
       currency: "AED",
+      taxBasis: "exclusive",
       certifiedAmount: 600_000,
       certifiedAmountBasis: "project_cumulative",
       paidAmount: 500_000,
@@ -724,6 +728,7 @@ test("C2B1 project-cumulative payment series are converted to deltas before cash
       certificationDate: "2026-08-20",
       paymentDate: "2026-08-25",
       currency: "AED",
+      taxBasis: "exclusive",
       certifiedAmount: 1_000_000,
       certifiedAmountBasis: "project_cumulative",
       paidAmount: 900_000,
@@ -749,6 +754,7 @@ test("C2B1 unknown or certificate-cumulative payment basis fails closed instead 
       certificationDate: "2026-08-20",
       paymentDate: "2026-08-25",
       currency: "AED",
+      taxBasis: "exclusive",
       certifiedAmount: 1_000_000,
       certifiedAmountBasis: "certificate_cumulative",
       paidAmount: 900_000,
@@ -798,4 +804,34 @@ test("C2B1 unknown tax basis withholds derived cost arithmetic while retaining s
   assert.ok(evm.points.every(point => point.spi.value === null && point.cpi.value === null));
   const curve = result.costScurve.series[0]!;
   assert.ok(curve.points.every(point => point.remainingCost.value === null));
+});
+
+
+test('Cash cannot merge tax partitions or invent an opening cumulative transaction',()=>{
+ const v=input(); const base=v.payments[0]!;
+ v.payments=[{...base,taxBasis:'exclusive',paidAmountBasis:'project_cumulative'},{...base,paymentId:'inclusive',taxBasis:'inclusive',paidAmount:7}];
+ const result=buildCommercialPerformance(v).cashFlow.currencies;
+ const exclusive=result.find(r=>r.currency==='AED'&&r.taxBasis==='exclusive')!;
+ const inclusive=result.find(r=>r.currency==='AED'&&r.taxBasis==='inclusive')!;
+ assert.equal(exclusive.paidIncome.value,null);
+ assert.ok(exclusive.diagnostics.includes('CUMULATIVE_OPENING_BASIS_REQUIRED'));
+ assert.equal(inclusive.paidIncome.value,7);assert.equal(inclusive.actualExpenditure.value,null);
+});
+
+test('BAC over CPI uses the unrounded source ratio',()=>{
+ const v=input();v.costSnapshots=[{...v.costSnapshots[0]!,values:{bac:7800000000,ev:740000000,ac:825000000}}];
+ const p=buildCommercialPerformance(v).costControl.positions[0]!;
+ const eac=p.eacScenarios.find(s=>s.method==='bac_over_cpi')!;
+ assert.ok(Math.abs(eac.value.value!-7800000000/(740000000/825000000))<0.01);
+});
+
+
+test('Unknown cash tax basis withholds combined cash arithmetic',()=>{
+  const data=input();
+  data.payments=data.payments.map(row=>({...row,taxBasis:'unknown'}));
+  data.costMetrics=data.costMetrics.map(row=>({...row,taxBasis:'unknown'}));
+  const cash=buildCommercialPerformance(data).cashFlow.currencies;
+  assert.ok(cash.length>0);
+  assert.ok(cash.every(row=>row.netCashPosition.value===null&&row.certifiedUnpaid.value===null));
+  assert.ok(cash.every(row=>row.sourceReadiness.netCashReady===false));
 });

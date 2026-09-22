@@ -3,6 +3,7 @@ import {
   DEFAULT_SCHEDULE_ANALYSIS_CONFIG,
   nearCriticalThresholdBasis,
   sourceFloatCriticality,
+  activityNearCriticalThresholdHours,
   type CanonicalScheduleActivity,
   type CanonicalScheduleModel,
   type ScheduleAnalysisConfig,
@@ -329,6 +330,8 @@ export function buildMilestonesProjection(
 
         const base: MilestoneRow = {
           activityId: activity.activityId,
+          calendarId: activity.calendarId,
+          nearCriticalThresholdHours: activityNearCriticalThresholdHours(model,activity,config),
           name: activity.name,
           wbsId: activity.wbsId,
           wbsName: activity.wbsId

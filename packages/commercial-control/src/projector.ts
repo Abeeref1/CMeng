@@ -1,3 +1,4 @@
+import { reportingScope } from "../../truth-kernel/src";
 import { buildCommercialFoundation } from "../../commercial-foundation/src";
 import { buildCommercialPerformance } from "../../commercial-performance/src";
 import {
@@ -264,6 +265,10 @@ function commercialClaimsNotices(
               .claimEvidenceSubmitted
           ? "submitted_unparsed"
           : "not_submitted",
+    asOfNoticeCount:(lifecycle?.notices??[]).filter(n=>n.kind!=='determination'&&reportingScope(n.actualIssuedAt,input.sourceLedger?.dataDateIso??lifecycle?.dataDateIso)==='as_of').length,
+    futureNoticeCount:(lifecycle?.notices??[]).filter(n=>n.kind!=='determination'&&reportingScope(n.actualIssuedAt,input.sourceLedger?.dataDateIso??lifecycle?.dataDateIso)==='future').length,
+    undatedNoticeCount:(lifecycle?.notices??[]).filter(n=>n.kind!=='determination'&&reportingScope(n.actualIssuedAt,input.sourceLedger?.dataDateIso??lifecycle?.dataDateIso)==='undated').length,
+    dimensionalEvidenceGaps:{requirementMissing:assessments.filter(a=>!a.requirementId).length,eventDateMissing:assessments.filter(a=>!a.eventStartIso).length,noticeDateMissing:assessments.filter(a=>!a.noticeIssuedAt).length},
     evidenceRevisionId:
       lifecycle
         ?.evidenceRevisionId ??
@@ -272,7 +277,7 @@ function commercialClaimsNotices(
       lifecycle?.events.length ??
       0,
     noticeCount:
-      lifecycle?.notices.length ??
+      lifecycle?.notices.filter(notice=>notice.kind!=="determination").length ??
       0,
     lifecycleClaimCount:
       lifecycle?.claims.length ??
@@ -532,7 +537,7 @@ export function buildCommercialControlPosition(
               row.amounts
                 .retentionDeduction
                 .currency ===
-              currency,
+              currency && reportingScope(row.periodEnd,input.sourceLedger?.dataDateIso)==='as_of',
           ) ?? [];
       const sourceRetentionDeductions =
         sourcePaymentRows.filter(
@@ -1044,7 +1049,7 @@ export function buildCommercialControlPosition(
       if(applicable.length===1){
         const source=applicable[0]!;
         const refs=source.receipts.map(r=>"evidence-document:"+r.documentId+":"+r.locator);
-        const metric=(name:string)=>moneyMetric(source.values[name]??null,source.values[name]==null?"submitted_unparsed":"established",refs,["EXPLICIT_SOURCE_SNAPSHOT_NOT_RECALCULATED_FROM_VARIATIONS"]);
+        const metric=(name:string)=>moneyMetric(source.values[name]??null,source.values[name]==null?"submitted_unparsed":source.diagnostics.some(d=>/CONFLICT|UNRESOLVED/.test(d))?"candidate":"established",refs,["EXPLICIT_SOURCE_SNAPSHOT_NOT_RECALCULATED_FROM_VARIATIONS",...source.diagnostics]);
         if("original contract value" in source.values)position.committedContractValue=metric("original contract value");
         if("current contract value" in source.values)position.currentContractValue=metric("current contract value");
         if("approved variations" in source.values)position.approvedVariationAmount=metric("approved variations");

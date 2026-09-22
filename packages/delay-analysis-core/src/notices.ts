@@ -1,3 +1,4 @@
+import { reportingScope } from "../../truth-kernel/src";
 import type {
   CanonicalDelayEvent,
   CanonicalNoticeRecord,
@@ -179,7 +180,7 @@ export function assessAllEventNotices(
   return model.events.map((event) =>
     assessEventNotice(
       event,
-      model.notices,
+      model.dataDateIso ? model.notices.filter(n=>reportingScope(n.actualIssuedAt,model.dataDateIso)==='as_of') : model.notices,
       model.noticeRequirements,
     ),
   );

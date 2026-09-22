@@ -102,3 +102,9 @@ export function governedTables(documents: readonly EvidenceDocument[], diagnosti
     return true;
   });
 }
+
+/** Date-only reporting cutoff. Missing dates never acquire current-period authority. */
+export function reportingScope(date: string | null | undefined, dataDate: string | null | undefined): 'as_of' | 'future' | 'undated' {
+  const d=dateValue(date??''),cutoff=dateValue(dataDate??'');
+  return !d||!cutoff?'undated':d<=cutoff?'as_of':'future';
+}

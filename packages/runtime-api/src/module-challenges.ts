@@ -1714,12 +1714,9 @@ function metricsFor(
         spec(
           "official_awarded_eot_days",
           "Official awarded EOT",
-          officialAward,
+          null,
           "days",
-          officialAward !==
-            null
-            ? "calculated"
-            : "not_derivable",
+          "not_derivable",
           state.controls
             .contractTimeBasis
             ?.sourceRefs ??
@@ -1738,6 +1735,7 @@ function metricsFor(
                     "Governed official EOT award/determination.",
                   )
                 : undefined,
+            note: "Source determination retained; no independent award is calculated or self-reconciled.",
             consequenceMissing:
               "CMeng cannot manufacture an official contractual award. Analytical time impact and EOT candidates remain visible separately.",
             actionMissing:

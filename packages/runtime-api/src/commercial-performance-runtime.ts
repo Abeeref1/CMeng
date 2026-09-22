@@ -179,6 +179,7 @@ export function commercialPerformanceForState(
                 : row.amounts
                     .netCertifiedAmount;
             return {
+              taxBasis: certifiedMoney.taxBasis,
               paymentId:
                 row.paymentId,
               periodEnd:

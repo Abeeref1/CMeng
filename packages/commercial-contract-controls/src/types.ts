@@ -238,6 +238,9 @@ export interface ContractControlsInput {
 }
 
 export interface VariationLifecycleRecord {
+  reportingScope: 'as_of' | 'future' | 'undated';
+  approvalScope: 'as_of' | 'future' | 'undated';
+  sourceLifecycleStage: string;
   variationId: string;
   description: string;
   lifecycleStage:
@@ -285,6 +288,10 @@ export interface VariationLifecycleRecord {
 }
 
 export interface VariationsProjection {
+  asOfRecordCount: number;
+  futureRecordCount: number;
+  undatedRecordCount: number;
+  unknownAsOfStageCount: number;
   capabilityKey: "variations";
   state: CommercialFindingState;
   recordCount: number;
@@ -523,7 +530,7 @@ export interface RetentionCalendarProjection {
   retentionCapPercent:
     CommercialFinding<number>;
   recordCount: number;
-  heldCount: number;
+  heldCount: number | null;
   releasedCount: number;
   dueCount: number;
   /** Null when release-due dates are insufficient to assess overdue status. */
