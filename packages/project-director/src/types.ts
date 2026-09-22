@@ -142,11 +142,8 @@ export interface DirectorPositionInput {
   contractValue?: MoneyValue;
   contractValueCandidates?:
     MoneyValue[];
-  variations: VariationRecord[];
-  invoices: InvoiceRecord[];
-  retentions: RetentionRecord[];
+  /** Bonds remain an operational-control input for expiry/security counts only. */
   bonds: BondRecord[];
-  claimCommercials: ClaimCommercialRecord[];
   commercialByCurrency:
     CurrencyCommercialPosition[];
   hseIncidents: HseIncidentRecord[];
