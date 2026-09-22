@@ -58,11 +58,18 @@ export function weeklyResourceCapacityEvidence(documents: readonly StoredEvidenc
     const expectedClass = unit ? unitClass(unit) : 'unknown';
     const unitConflict = !!definition && definition.unit !== unit || expectedClass !== 'unknown' && resolvedClass !== expectedClass;
     if (unitConflict) diagnostics.push('RESOURCE_UNIT_CLASS_CONFLICT:' + id);
-    const approved = actual.get(key(r)); let usage = n(r,'actual approved usage');
+    const approved = actual.get(key(r));
+    const embeddedUsage = n(r,'actual approved usage');
+    let usage: number | null = null;
     if (approved) {
       const measured = n(approved,'actual approved usage');
-      if (usage !== null && measured !== null && Math.abs(usage - measured) > 0.000001) { usage = null; diagnostics.push('ACTUAL_USAGE_RECONCILIATION_CONFLICT:' + key(r)); }
-      else usage = measured;
+      if (embeddedUsage !== null && measured !== null && Math.abs(embeddedUsage - measured) > 0.000001) {
+        diagnostics.push('ACTUAL_USAGE_RECONCILIATION_CONFLICT:' + key(r));
+      } else {
+        usage = measured;
+      }
+    } else if (embeddedUsage !== null && embeddedUsage !== 0) {
+      diagnostics.push('UNAPPROVED_EMBEDDED_ACTUAL_USAGE_WITHHELD:' + key(r));
     }
     const capacity = n(r,'available capacity'), demand = n(r,'planned demand');
     const valid = !unitConflict && unit !== null && resolvedClass !== 'unknown';
