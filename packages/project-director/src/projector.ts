@@ -764,6 +764,10 @@ export function buildProjectDirectorPosition(
           cloneCommercialMetric(
             row.certifiedUnpaidAmount,
           ),
+        retentionDeductedAmount:
+          cloneCommercialMetric(
+            row.retentionDeductedAmount,
+          ),
         retentionHeldAmount:
           cloneCommercialMetric(
             row.retentionHeldAmount,
@@ -807,6 +811,8 @@ export function buildProjectDirectorPosition(
           missingCommercialMetric(),
         certifiedUnpaidAmount:
           missingCommercialMetric(),
+        retentionDeductedAmount:
+          missingCommercialMetric(),
         retentionHeldAmount:
           missingCommercialMetric(),
         activeBondAmount:
@@ -838,6 +844,7 @@ export function buildProjectDirectorPosition(
         ...row.pendingVariationAmount.sourceRefs,
         ...row.approvedVariationAmount.sourceRefs,
         ...row.certifiedUnpaidAmount.sourceRefs,
+        ...row.retentionDeductedAmount.sourceRefs,
         ...row.retentionHeldAmount.sourceRefs,
         ...row.activeBondAmount.sourceRefs,
         ...row.claimClaimedAmount.sourceRefs,
