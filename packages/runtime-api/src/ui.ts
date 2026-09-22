@@ -3116,27 +3116,39 @@ function renderCommercialVisual(key,data){
       const ld=contractControls.liquidatedDamages||{};
       const bi=contractControls.bondsInsurance||{};
       const ret=contractControls.retentionCalendar||{};
+      const obligationsEstablished=Number(obl.explicitRecordCount??0)>0;
+      const bondsEstablished=Array.isArray(bi.bonds)&&bi.bonds.length>0;
+      const insuranceEstablished=Array.isArray(bi.insurances)&&bi.insurances.length>0;
+      const retentionOverdueDisplay=ret.overdueCount===null||ret.overdueCount===undefined?"Not assessable":ret.overdueCount;
       const obligationVisual=renderVisualPanel(
         "Contract obligation control",
         "Only explicit controlled obligations receive compliance status. Clause-derived requirements stay candidates until mapped.",
-        renderVisualBars([
-          {label:"Open",value:obl.openCount??0,tone:"accent"},
-          {label:"Overdue",value:obl.overdueCount??0,tone:"danger"},
-          {label:"Complete",value:obl.completeCount??0,tone:"success"},
-          {label:"Clause candidates",value:obl.clauseCandidateCount??0,tone:"warning"}
-        ],"items")
+        obligationsEstablished
+          ? renderVisualBars([
+              {label:"Open",value:obl.openCount??0,tone:"accent"},
+              {label:"Overdue",value:obl.overdueCount??0,tone:"danger"},
+              {label:"Complete",value:obl.completeCount??0,tone:"success"},
+              {label:"Clause candidates",value:obl.clauseCandidateCount??0,tone:"warning"}
+            ],"items")
+          : '<div class="empty-visual">No controlled obligation register is established. Open, overdue and complete counts are not established.</div>'
       );
       const securityVisual=renderVisualPanel(
         "Security & insurance monitoring",
         "Active, expiring and expired counts are monitoring indicators; expiring instruments may also be active.",
-        renderVisualBars([
-          {label:"Active bonds",value:bi.activeBondCount??0,tone:"success"},
-          {label:"Expiring bonds",value:bi.expiringBondCount??0,tone:"warning"},
-          {label:"Expired bonds",value:bi.expiredBondCount??0,tone:"danger"},
-          {label:"Active policies",value:bi.activeInsuranceCount??0,tone:"accent"},
-          {label:"Expiring policies",value:bi.expiringInsuranceCount??0,tone:"warning"},
-          {label:"Expired policies",value:bi.expiredInsuranceCount??0,tone:"danger"}
-        ],"instruments")
+        (bondsEstablished||insuranceEstablished)
+          ? renderVisualBars([
+              ...(bondsEstablished?[
+                {label:"Active bonds",value:bi.activeBondCount??0,tone:"success"},
+                {label:"Expiring bonds",value:bi.expiringBondCount??0,tone:"warning"},
+                {label:"Expired bonds",value:bi.expiredBondCount??0,tone:"danger"}
+              ]:[]),
+              ...(insuranceEstablished?[
+                {label:"Active policies",value:bi.activeInsuranceCount??0,tone:"accent"},
+                {label:"Expiring policies",value:bi.expiringInsuranceCount??0,tone:"warning"},
+                {label:"Expired policies",value:bi.expiredInsuranceCount??0,tone:"danger"}
+              ]:[])
+            ],"instruments")
+          : '<div class="empty-visual">No bond/security or insurance register is established. Instrument counts are not established.</div>'
       );
       const retentionVisual=renderVisualPanel(
         "Retention release control",
@@ -3145,8 +3157,9 @@ function renderCommercialVisual(key,data){
           {label:"Held",value:ret.heldCount??0,tone:"warning"},
           {label:"Released",value:ret.releasedCount??0,tone:"success"},
           {label:"Release date established",value:ret.dueCount??0,tone:"accent"},
-          {label:"Overdue unreleased",value:ret.overdueCount??0,tone:"danger"}
-        ],"records")
+          ...(typeof ret.overdueCount==="number"?[{label:"Overdue unreleased",value:ret.overdueCount,tone:"danger"}]:[])
+        ],"records")+
+        (typeof ret.overdueCount==="number"?"":'<div class="notice info" style="margin-top:10px">Overdue retention is not assessable until release due dates or contractual release triggers are established.</div>')
       );
       const ldCurrencies=[...new Set((ld.scenarios||[]).map(row=>row.currency).filter(Boolean))];
       const ldVisuals=ldCurrencies.map(currency=>renderVisualPanel(
@@ -3177,25 +3190,25 @@ function renderCommercialVisual(key,data){
       contractControlDetail=
         '<section class="planning-panel primary contract-particulars-management"><div class="planning-panel-head"><div><h4>Contract Particulars, Securities & Obligations Management Position</h4><p>Contract value, obligations, LD scenarios, securities, insurance and retention are controlled as separate evidence-backed positions.</p></div></div><div class="planning-panel-body">'+
         planningKpis([
-          ["Controlled obligation records",obl.state==="missing"?"Not established":(obl.explicitRecordCount??0),"explicit register"],
-          ["Open obligations",obl.state==="missing"?"Not assessable":(obl.openCount??0),"not overdue / not complete"],
-          ["Overdue obligations",obl.state==="missing"?"Not assessable":(obl.overdueCount??0),"requires attention"],
-          ["Active bonds",bi.state==="missing"?"Not established":(bi.activeBondCount??0),"security register instruments"],
-          ["Expiring bonds",bi.state==="missing"?"Not assessable":(bi.expiringBondCount??0),"within 90 days"],
-          ["Expired bonds",bi.state==="missing"?"Not assessable":(bi.expiredBondCount??0),"requires attention"],
-          ["Retention held",ret.heldCount||0,"explicit held state"],
-          ["Retention overdue",ret.overdueCount||0,"past due and unreleased"]
+          ["Controlled obligation records",obligationsEstablished?(obl.explicitRecordCount??0):"Not established","explicit register"],
+          ["Open obligations",obligationsEstablished?(obl.openCount??0):"Not established","controlled obligation register"],
+          ["Overdue obligations",obligationsEstablished?(obl.overdueCount??0):"Not established","controlled obligation register"],
+          ["Active bonds",bondsEstablished?(bi.activeBondCount??0):"Not established","security register instruments"],
+          ["Expiring bonds",bondsEstablished?(bi.expiringBondCount??0):"Not established","security register instruments"],
+          ["Expired bonds",bondsEstablished?(bi.expiredBondCount??0):"Not established","security register instruments"],
+          ["Retention held",ret.heldCount||0,"retention evidence rows"],
+          ["Retention overdue",retentionOverdueDisplay,"requires release due dates"]
         ])+
         (contractBridgeVisuals?'<div class="commercial-visual-grid contract-bridge-grid">'+contractBridgeVisuals+'</div>':"")+
         '<div class="commercial-visual-grid contract-control-grid">'+obligationVisual+securityVisual+retentionVisual+ldVisuals+'</div>'+
         '</div></section>'+
         '<section class="planning-panel"><div class="planning-panel-head"><div><h4>Contract Obligations</h4><p>Explicit obligation controls remain separate from clause-derived candidates. A clause does not invent compliance status.</p></div></div><div class="planning-panel-body">'+
         planningKpis([
-          ["Controlled obligation records",obl.state==="missing"?"Not established":(obl.explicitRecordCount??0),"explicit register"],
+          ["Controlled obligation records",obligationsEstablished?(obl.explicitRecordCount??0):"Not established","explicit register"],
           ["Clause candidates",obl.clauseCandidateCount||0,"not yet mapped"],
-          ["Open",obl.state==="missing"?"Not assessable":(obl.openCount??0),"controlled and not overdue"],
-          ["Overdue",obl.state==="missing"?"Not assessable":(obl.overdueCount??0),"explicit dated obligations"],
-          ["Complete",obl.state==="missing"?"Not assessable":(obl.completeCount??0),"evidenced completion"]
+          ["Open",obligationsEstablished?(obl.openCount??0):"Not established","controlled obligation register"],
+          ["Overdue",obligationsEstablished?(obl.overdueCount??0):"Not established","controlled obligation register"],
+          ["Complete",obligationsEstablished?(obl.completeCount??0):"Not established","controlled obligation register"]
         ])+
         table(["Obligation","Origin","Clause","Requirement","Responsible","Due","Completed","Status","Days to due","Evidence"],obligationRows,"No obligation controls or clause candidates are established.")+
         '</div></section>'+
@@ -3210,12 +3223,12 @@ function renderCommercialVisual(key,data){
         '</div></section>'+
         '<section class="planning-panel"><div class="planning-panel-head"><div><h4>Bonds & Insurance</h4><p>Security values, cash balances, contractual requirements and expiry status remain distinct.</p></div></div><div class="planning-panel-body">'+
         planningKpis([
-          ["Active bonds",bi.state==="missing"?"Not established":(bi.activeBondCount??0),"security register records"],
-          ["Expired bonds",bi.state==="missing"?"Not assessable":(bi.expiredBondCount??0),"requires action"],
-          ["Expiring bonds",bi.state==="missing"?"Not assessable":(bi.expiringBondCount??0),"within 90 days"],
-          ["Active policies",bi.state==="missing"?"Not established":(bi.activeInsuranceCount??0),"insurance register records"],
-          ["Expired policies",bi.state==="missing"?"Not assessable":(bi.expiredInsuranceCount??0),"requires action"],
-          ["Expiring policies",bi.state==="missing"?"Not assessable":(bi.expiringInsuranceCount??0),"within 90 days"]
+          ["Active bonds",bondsEstablished?(bi.activeBondCount??0):"Not established","security register records"],
+          ["Expired bonds",bondsEstablished?(bi.expiredBondCount??0):"Not established","security register records"],
+          ["Expiring bonds",bondsEstablished?(bi.expiringBondCount??0):"Not established","security register records"],
+          ["Active policies",insuranceEstablished?(bi.activeInsuranceCount??0):"Not established","insurance register records"],
+          ["Expired policies",insuranceEstablished?(bi.expiredInsuranceCount??0):"Not established","insurance register records"],
+          ["Expiring policies",insuranceEstablished?(bi.expiringInsuranceCount??0):"Not established","insurance register records"]
         ])+
         '<div class="notice info"><b>Performance requirement:</b> '+escapeHtml(findingValue(bi.performanceBondRequirement))+' · '+escapeHtml(findingMeta(bi.performanceBondRequirement))+'<br><b>Advance-payment requirement:</b> '+escapeHtml(findingValue(bi.advancePaymentBondRequirement))+' · '+escapeHtml(findingMeta(bi.advancePaymentBondRequirement))+'<br><b>Contract insurance requirements:</b> '+escapeHtml(bi.insuranceRequirementCount||0)+'</div>'+
         table(["Bond","Type","Status","Amount","Expiry","Days","Expiry state"],bondRows,"No bond/security register is established.")+
@@ -3229,7 +3242,7 @@ function renderCommercialVisual(key,data){
           ["Held",ret.heldCount||0,"explicit held state"],
           ["Released",ret.releasedCount||0,"explicit release state"],
           ["Dated",ret.dueCount||0,"release date/trigger established"],
-          ["Overdue",ret.overdueCount||0,"past due and unreleased"]
+          ["Overdue",retentionOverdueDisplay,"requires release due dates"]
         ])+
         table(["Retention","Origin","Certificate","State","Trigger","Amount","Due","Released","Days to due"],retentionRows,"No retention calendar records are established.")+
         '</div></section>';
