@@ -193,7 +193,7 @@ details:not(.workspace-drawer){border:1px solid var(--line);border-radius:9px;ba
 
 .planning-primary-grid:has(.pressure-matrix),.planning-primary-grid:has(.float-histogram){grid-template-columns:minmax(0,1fr)!important}
 .planning-kpi strong,.planning-kpi small{overflow-wrap:anywhere;min-width:0}
-.contract-challenge-view .planning-primary-grid{grid-template-columns:minmax(0,1fr)}
+.contract-challenge-view .planning-primary-grid{grid-template-columns:minmax(0,1fr)!important}
 </style>
 </head>
 <body>
@@ -960,7 +960,7 @@ function renderUniversalChallenge(challenge){
     '</div>'+attentionHtml+
     '<div class="table-wrap challenge-table-wrap"><table><thead><tr><th>Metric</th><th>Submitted</th><th>CMeng independent check</th><th>Gap</th><th>Consequence</th><th>Action</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';
 }
-function renderDeliveryChallenge(data,reason){
+function renderDeliveryChallenge(data,reason,status){
   const d=data?.deliveryChallenge;
   if(!d)return false;
   const s=d.scheduleChallenge||{},m=d.manpowerChallenge||{},q=d.quantityChallenge||{},p=d.productivityChallenge||{};
@@ -1030,7 +1030,8 @@ function renderDeliveryChallenge(data,reason){
   }
   html+=reconciliation+'</section>';
   const basisHtml=renderModuleBasis(data);
-  el("moduleContent").innerHTML=basisHtml+renderRoleContent("challenge-contract",data,html,"",true);
+  const reviewState=status==="ready"?"":'<div class="view-state-bar"><span class="view-state-review">Evidence review required</span><strong>Challenge the Contract</strong></div>';
+  el("moduleContent").innerHTML=reviewState+basisHtml+renderRoleContent("challenge-contract",data,html,"",true);
   return true;
 }
 function humanizeKey(key){
@@ -3979,7 +3980,7 @@ function renderModuleResult(result){
     return;
   }
   const data=result.data||{};
-  if(result.key==="challenge-contract"&&renderDeliveryChallenge(data,result.reason))return;
+  if(result.key==="challenge-contract"&&renderDeliveryChallenge(data,result.reason,result.status))return;
   const basisHtml=renderModuleBasis(data);
   const challengeBody=renderUniversalChallenge(data.challenge);
   const challengeHtml=challengeBody?'<details class="reconciliation-panel"><summary><span>Reconciliation with submitted position</span><b>'+escapeHtml(reconciliationSummary(data.challenge))+'</b></summary><div class="reconciliation-body">'+challengeBody+'</div></details>':'';
