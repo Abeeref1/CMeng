@@ -211,7 +211,7 @@ export function buildLdScenario(
   contractValue: MoneyValue | undefined,
   contractValueCandidates:
     MoneyValue[] = [],
-): ProjectDirectorPosition["ld"] {
+): Omit<ProjectDirectorPosition["ld"], "delayBasis"> {
   const rateCandidates =
     terms.rateState ===
       "candidate" &&
