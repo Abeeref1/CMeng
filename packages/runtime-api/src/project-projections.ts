@@ -3090,19 +3090,8 @@ function buildBundle(
               }
             : {}
         ),
-        variations:
-          state.controls
-            .variations,
-        invoices:
-          state.controls.invoices,
-        retentions:
-          state.controls
-            .retentions,
         bonds:
           state.controls.bonds,
-        claimCommercials:
-          state.controls
-            .claimCommercials,
         commercialByCurrency:
           directorCommercialByCurrency,
         hseIncidents:
