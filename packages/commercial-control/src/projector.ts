@@ -1552,6 +1552,7 @@ export function buildCommercialControlPosition(
       officialAdjustedCompletion:
         dateMetric(
           adjusted,
+          adjusted !== null &&
           contractual &&
           approvedEot !== null &&
           contractTime
@@ -1559,11 +1560,18 @@ export function buildCommercialControlPosition(
             "official" &&
           contractTime
             ?.officialApprovedEotState ===
-            "official"
+            "official" &&
+          contractTime
+            ?.overlapResolution !==
+            "unresolved"
             ? "established"
             : adjusted
               ? "candidate"
-              : "not_submitted",
+              : contractTime
+                  ?.overlapResolution ===
+                  "unresolved"
+                ? "submitted_unparsed"
+                : "not_submitted",
           timeRefs,
           adjusted
             ? []
