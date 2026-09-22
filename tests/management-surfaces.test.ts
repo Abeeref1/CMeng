@@ -414,3 +414,53 @@ test("management surfaces stay evidence-safe and do not invent authority", () =>
     "candidate evidence must not auto-promote into the official MCP position",
   );
 });
+
+
+test("management dashboard uses defensibility wording for claim linkage", () => {
+  const result =
+    buildManagementSurfaces(
+      input(),
+    );
+  const linkage =
+    result.masterDashboard
+      .metrics.find(
+        (item) =>
+          item.key ===
+          "claims-linkage",
+      );
+  assert.equal(
+    linkage?.label,
+    "Fully defensible claim chain",
+  );
+  assert.equal(
+    linkage?.basis,
+    "Full chain: claim → event → activity",
+  );
+  assert.equal(
+    linkage?.value,
+    "1 / 2",
+  );
+});
+
+test("MCP preserves null reason for a ready specialist position", () => {
+  const result =
+    buildManagementSurfaces(
+      input(),
+    );
+  const ready =
+    result.masterControlProgramme
+      .specialistPositions.find(
+        (item) =>
+          item.key ===
+          "schedule-analytics",
+      );
+  assert.equal(
+    ready?.status,
+    "ready",
+  );
+  assert.equal(
+    ready?.reason,
+    null,
+    "a ready specialist position must not carry a contradictory not-established reason",
+  );
+});
