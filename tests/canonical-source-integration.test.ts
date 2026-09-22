@@ -884,7 +884,7 @@ test('seven commercial views are real canonical projections with evidence-driven
     'payments':'partial',
     'cash-flow':'partial',
     'commercial-claims-notices':'partial',
-    'contract-particulars-bonds':'ready',
+    'contract-particulars-bonds':'partial',
   };
   const positions=keys.map(key=>{
     const m=canonicalCommercialModule(state,key)!;
