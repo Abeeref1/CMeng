@@ -1202,12 +1202,9 @@ function costControl(
           ? "conflicted" as const
           : positions.every(
                 (position) =>
-                  position.bac
-                    .value !==
-                    null &&
-                  position.ev
-                    .value !==
-                    null,
+                  position.bac.state === "established" &&
+                  position.ev.state === "established" &&
+                  position.sourceEac.state === "established",
               )
             ? "established" as const
             : "partial" as const,
@@ -1441,8 +1438,7 @@ function evmPerformance(
         ? "missing" as const
         : series.every(
               (item) =>
-                item.coveragePercent ===
-                100,
+                item.coveragePercent === 100 && item.points.length >= 2 && item.taxBasis !== "unknown",
             )
           ? "established" as const
           : "partial" as const,
@@ -3127,10 +3123,8 @@ function costScurve(
     state:
       series.length === 0
         ? "missing" as const
-        : series.some(
-              (item) =>
-                item.points
-                  .length > 0,
+        : series.every(
+              (item) => item.points.length >= 2 && item.taxBasis !== "unknown",
             )
           ? "established" as const
           : "partial" as const,

@@ -835,3 +835,15 @@ test('Unknown cash tax basis withholds combined cash arithmetic',()=>{
   assert.ok(cash.every(row=>row.netCashPosition.value===null&&row.certifiedUnpaid.value===null));
   assert.ok(cash.every(row=>row.sourceReadiness.netCashReady===false));
 });
+
+
+test('A qualified single cost snapshot remains available without certifying trend readiness', () => {
+  const data = input();
+  data.costSnapshots = [{...data.costSnapshots[0]!, state: 'partial'}];
+  const result = buildCommercialPerformance(data);
+  assert.equal(result.costControl.state, 'partial');
+  assert.equal(result.evmPerformance.state, 'partial');
+  assert.equal(result.costScurve.state, 'partial');
+  assert.ok(result.costControl.positions[0]!.sourceEac.value !== null);
+  assert.equal(result.costScurve.series[0]!.points.length, 1);
+});

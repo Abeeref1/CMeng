@@ -1610,6 +1610,9 @@ function metricsFor(
                     "Movement of the contractor/source forecast across the same window.",
                   )
                 : undefined,
+            note: "Numeric equality is a diagnostic only. No approved window materiality tolerance or common calendar basis is established by this comparison.",
+            consequenceDifferent: "Source and independent window movement differ; materiality and causation require review against an approved tolerance and common time basis.",
+            actionDifferent: "Reconcile the source and independent window time bases and establish the approved materiality tolerance before accepting or rejecting the submitted movement.",
             consequenceMissing:
               "A comparative window cannot be calculated until at least two schedule revisions exist.",
             actionMissing:

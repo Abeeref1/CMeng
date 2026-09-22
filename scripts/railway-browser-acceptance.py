@@ -119,7 +119,9 @@ try:
                 check('Near-Critical page states the 5 working-day governed basis', '5' in page.locator('#moduleContent').inner_text() and ('working' in page.locator('#moduleContent').inner_text().lower() or 'calendar' in page.locator('#moduleContent').inner_text().lower()))
             if key == 'independent-forecast':
                 body = page.locator('#moduleContent').inner_text()
-                check('Independent Forecast shows the four distinct forecast positions', all(label in body for label in ['Contractor Programme Forecast','Source Productivity Forecast','CMeng Independent CPM Forecast','P50 probabilistic forecast']))
+                check('Independent Forecast distinguishes source, CPM, contract and limited sensitivity', all(label in body.lower() for label in ['contractor programme forecast','source productivity forecast','cmeng independent cpm forecast','p50 duration sensitivity','required finish']))
+                if 'requires reconciliation' in body.lower():
+                    check('Unreconciled deterministic forecast suppresses sensitivity dates', 'Suppressed' in body and 'values are intentionally suppressed' in body)
             if key == 'windows-analysis':
                 body = page.locator('#moduleContent').inner_text()
                 check('Delay Windows separates gross window movement from Project Completion movement', 'Gross positive window movement' in body and 'Project Completion movement' in body and 'not project delay or EOT' in body)
