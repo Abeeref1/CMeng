@@ -26,8 +26,14 @@ export interface BoardReadyReport {
         | "deterministic"
         | "scenario"
         | "unresolved";
+      contractualCompletionIso: string | null;
       officialAdjustedCompletionIso: string | null;
-      varianceDays: number | null;
+      submittedProgrammeCompletionIso: string | null;
+      varianceDaysToContractualCompletion: number | null;
+      varianceDaysToOfficialAdjustedCompletion: number | null;
+      varianceDaysToSubmittedProgrammeCompletion: number | null;
+      forecastComparisonBasis:
+        ProjectDirectorPosition["schedule"]["forecastComparisonBasis"];
       managementActions: string[];
     };
     progress: ProjectDirectorPosition["schedule"]["progressBases"];
