@@ -291,7 +291,11 @@ export interface VariationsProjection {
   approvedCount: number;
   pendingCount: number;
   rejectedCount: number;
-  lifecycleCoveragePercent:
+  /** Coverage that a current/final lifecycle stage can be identified. */
+  finalStageCoveragePercent:
+    number | null;
+  /** Coverage that the full required variation lifecycle dates are evidenced. */
+  fullLifecycleCoveragePercent:
     number | null;
   lifecycleStageCounts: {
     instruction: number;
