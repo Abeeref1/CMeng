@@ -309,6 +309,12 @@ export function buildProgressReportProjection(
     dataDateIso:
       schedule.dataDateIso,
     progressBases,
+    activityPopulation: {
+      ...schedule.population,
+      excludedByType: {
+        ...schedule.population.excludedByType,
+      },
+    },
     sourceProjections: [
       {
         projectionKey:
