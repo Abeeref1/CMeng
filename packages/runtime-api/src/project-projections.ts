@@ -1585,6 +1585,10 @@ function buildBundle(
     const weeklyCapacity =
       weeklyResourceCapacityEvidence(
         state.evidenceDocuments,
+        {
+          dataDateIso:
+            model.dataDateIso,
+        },
       );
     modules.set(
       "resource-utilization",
@@ -5361,6 +5365,10 @@ function buildSpecialistModuleFast(
             weeklyCapacityEvidence:
               weeklyResourceCapacityEvidence(
                 state.evidenceDocuments,
+                {
+                  dataDateIso:
+                    model.dataDateIso,
+                },
               ),
             diagnostics: [
               "RESOURCE_ASSIGNMENTS_NOT_SUBMITTED_SCENARIO_DERIVED_FROM_WORKFRONTS",
