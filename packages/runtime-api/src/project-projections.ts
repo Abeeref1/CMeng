@@ -5472,6 +5472,10 @@ function buildSpecialistModuleFast(
       const weeklyCapacity =
         weeklyResourceCapacityEvidence(
           state.evidenceDocuments,
+          {
+            dataDateIso:
+              model.dataDateIso,
+          },
         );
       const capacityKnown =
         projection
