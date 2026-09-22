@@ -2903,7 +2903,8 @@ function renderCommercialVisual(key,data){
   const findingMeta=(finding)=>{
     if(!finding)return"Missing";
     const bits=[humanizeKey(finding.state||"missing"),humanizeKey(finding.authority||"missing")];
-    if(finding.coverage?.percent!==null&&finding.coverage?.percent!==undefined)bits.push(fmt(finding.coverage.percent)+"% coverage");
+    if(finding.coverage)bits.push((key==="cost-forecast"?"Snapshot metric evidence: ":"Finding evidence: ")+fmt(finding.coverage.known)+" / "+fmt(finding.coverage.total)+(finding.coverage.percent==null?"":" ("+fmt(finding.coverage.percent)+"%)"));
+    if(finding.basis?.asOfDate)bits.push("as of "+planningShortDate(finding.basis.asOfDate));
     return bits.join(" · ");
   };
   let foundationDetail="";
@@ -2977,12 +2978,14 @@ function renderCommercialVisual(key,data){
         planningKpis([
           ["Payments by Data Date",paymentPopulationEstablished?(paymentRegister.asOfRecordCount??0):"Not established","certificate periods on or before cutoff"],["Future / undated periods",fmt(paymentRegister.futureRecordCount??0)+" / "+fmt(paymentRegister.undatedRecordCount??0),fmt(paymentRegister.recordCount??0)+" full source records retained"],
           ["Stage coverage",paymentRegister.stageCoveragePercent==null?"Not established":fmt(paymentRegister.stageCoveragePercent)+"%","application / assessment / certification / payment dates"],
+          ["Component reconciliation",paymentPopulationEstablished?fmt((paymentRegister.rows||[]).filter(row=>row.reportingScope==="as_of"&&row.reconciliation==="matched").length)+" / "+fmt(paymentRegister.asOfRecordCount??0):"Not established","current certificates with evidenced gross, variation, retention, recovery, other deduction and tax basis"],
           ["Overdue unpaid",slaCounts.overdueUnpaid===null||slaCounts.overdueUnpaid===undefined?"Not assessable":slaCounts.overdueUnpaid,"past governed payment due date"],
           ["Paid late",slaCounts.paidLate===null||slaCounts.paidLate===undefined?"Not assessable":slaCounts.paidLate,"actual payment after due date"],
           ["SLA not established",paymentPopulationEstablished?(slaCounts.notEstablished??0):"Not established","records without assessable due/payment dates",slaCounts.notEstablished?"warning":""],
           ["Payment period",findingValue(terms.paymentPeriodDays,"days"),findingMeta(terms.paymentPeriodDays)],
           ["Certification period",findingValue(terms.certificationPeriodDays,"days"),findingMeta(terms.certificationPeriodDays)]
         ])+
+        ((paymentRegister.rows||[]).some(row=>row.reportingScope==="as_of"&&row.reconciliation!=="matched")?'<div class="notice warn"><b>Certificate component reconciliation requires review.</b> Source net-certified amounts are retained. Missing or conflicting gross-work, variation, deduction, recovery or tax evidence prevents an independently reconciled certificate amount; see Certificate component checks below.</div>':'')+
         '<div class="commercial-visual-grid payment-lifecycle-grid">'+lifecycleVisual+slaVisual+'</div>'+
         '<div class="section-heading compact"><div><h5>Payment register / IPC lifecycle</h5><p>Full source register retained. Current summaries exclude future and undated certificate periods; event dates shown here are restricted to the Data Date.</p></div><span class="badge">'+escapeHtml(fmt((paymentRegister.rows||[]).length))+' records</span></div>'+
         table(["Payment","Type","Period","Applied","Assessed","Certified","Certification due","Payment due","Paid","SLA","Applied amount","Assessed amount","Certified amount","Paid amount"],paymentRows,"No payment register is established.")+

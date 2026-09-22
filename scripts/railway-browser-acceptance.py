@@ -172,8 +172,16 @@ try:
                 check('Cash Flow UI is driven by producer-owned source readiness',
                       readiness is not None and
                       str(readiness['paymentRecordCount']) + ' payment records' in body and
-                      str(readiness['receipts']['observedCount']) + ' paid amounts' in body and
-                      str(readiness['receipts']['paymentDateCount']) + ' payment dates' in body)
+                      (
+                          ('paid amounts not established' in body.lower())
+                          if readiness['receipts']['state'] == 'missing' and readiness['receipts']['observedCount'] == 0
+                          else str(readiness['receipts']['observedCount']) + ' paid amounts' in body
+                      ) and
+                      (
+                          ('payment dates not established' in body.lower())
+                          if readiness['receipts']['state'] == 'missing' and readiness['receipts']['paymentDateCount'] == 0
+                          else str(readiness['receipts']['paymentDateCount']) + ' payment dates' in body
+                      ))
                 if readiness is not None and readiness['expenditure']['actualCostRecordCount'] > 0 and readiness['expenditure']['observedCount'] == 0:
                     check('Cash Flow explicitly keeps Actual Cost separate from cash expenditure',
                           'ac/accrual cost is not relabelled as cash expenditure' in body.lower() or
