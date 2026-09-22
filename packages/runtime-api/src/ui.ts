@@ -3466,7 +3466,7 @@ function renderManagementMetricGrid(metrics){
   return '<div class="management-metric-grid">'+metrics.map(m=>{
     const display=managementMetricDisplay(m);
     return '<article class="management-metric-card '+escapeHtml(m.health||"unavailable")+'">'+
-      '<div class="management-metric-head"><span>'+escapeHtml(m.label)+'</span>'+managementHealthBadge(m.health)+'</div>'+
+      '<div class="management-metric-head"><span>'+escapeHtml(m.label)+'</span>'+((m.health==="unavailable"&&display.kind!=="missing")?"":managementHealthBadge(m.health))+'</div>'+
       '<div class="management-metric-value '+escapeHtml(display.kind)+'">'+escapeHtml(display.text)+'</div>'+
       '<div class="management-metric-badges">'+managementMetricBadges(m)+'</div>'+
       '<div class="management-metric-basis"><span>Basis</span><b>'+escapeHtml(m.basis||"Not established")+'</b></div>'+
@@ -3550,7 +3550,7 @@ function renderManagementControlVisual(key,data){
     const positions=Array.isArray(data.specialistPositions)?data.specialistPositions:[];
     const candidates=Array.isArray(data.candidateInbox)?data.candidateInbox:[];
     const history=Array.isArray(data.controlHistory)?data.controlHistory:[];
-    const positionRows=positions.map(p=>'<tr><td><b>'+escapeHtml(p.group)+'</b></td><td>'+escapeHtml(p.label)+'</td><td><span class="badge '+statusClass(p.status)+'">'+escapeHtml(statusLabel(p.status))+'</span></td><td>'+escapeHtml(p.reason||"Current")+'</td><td>'+managementModuleLink(p.key,"Open owner")+'</td></tr>').join("");
+    const positionRows=positions.map(p=>'<tr><td><b>'+escapeHtml(p.group)+'</b></td><td>'+escapeHtml(p.label)+'</td><td><span class="badge '+statusClass(p.status)+'">'+escapeHtml(statusLabel(p.status))+'</span></td><td>'+escapeHtml(p.reason||(p.status==="ready"?"Current governed position established.":"Current position requires review."))+'</td><td>'+managementModuleLink(p.key,"Open owner")+'</td></tr>').join("");
     const candidateRows=candidates.map(item=>'<tr><td><b>'+escapeHtml(item.label)+'</b></td><td>'+escapeHtml(humanizeKey(item.type))+'</td><td>'+managementAuthorityBadge(item.status)+'</td><td>'+escapeHtml(item.sourceRef)+'</td><td>'+managementModuleLink(item.owningModule,"Open owner")+'</td></tr>').join("");
     const historyRows=history.map(item=>'<tr><td>'+escapeHtml(formatDocumentTime(item.occurredAt))+'</td><td><b>'+escapeHtml(item.entity)+'</b></td><td>'+escapeHtml(item.action)+'</td><td>'+escapeHtml(item.actor||"System / not recorded")+'</td><td>'+managementAuthorityBadge(item.state)+'</td><td>'+escapeHtml(item.sourceRef||"—")+'</td></tr>').join("");
     return '<div class="planning-view management-view master-control-view">'+

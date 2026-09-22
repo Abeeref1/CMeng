@@ -748,7 +748,7 @@ function dashboardMetrics(
       key:
         "claims-linkage",
       label:
-        "Claims fully linked",
+        "Fully defensible claim chain",
       value:
         d?.claims
           .claimCount ===
@@ -787,7 +787,7 @@ function dashboardMetrics(
             ? "good"
             : "unavailable",
       basis:
-        "Claim → event → activity correspondence",
+        "Full chain: claim → event → activity",
       owningModule:
         "delay-claims",
     }),

@@ -6690,6 +6690,92 @@ function applyProfessionalModuleState(
 
   if (
     result.key ===
+    "commercial-overview"
+  ) {
+    const position =
+      data?.position ?? null;
+    const evidence =
+      position?.evidence ?? null;
+    const currencies =
+      Array.isArray(
+        position?.currencies,
+      )
+        ? position.currencies
+        : [];
+    const incompleteEvidence =
+      [
+        evidence?.payments,
+        evidence?.claims,
+        evidence?.bonds,
+      ].some(
+        (state) =>
+          state !== undefined &&
+          state !== "established" &&
+          state !== "not_applicable",
+      );
+    const incompleteMoney =
+      currencies.some(
+        (row: any) =>
+          [
+            row.grossCertifiedAmount,
+            row.paidAmount,
+            row.retentionHeldAmount,
+            row.claimedAmount,
+            row.activeBondAmount,
+          ].some(
+            (finding: any) =>
+              finding &&
+              finding.value === null &&
+              finding.state !==
+                "not_applicable",
+          ),
+      );
+    if (
+      incompleteEvidence ||
+      incompleteMoney
+    ) {
+      review(
+        "The contract-value position is established, but certification, payment, held-retention, claim or security evidence remains incomplete; the integrated Commercial Overview requires review.",
+      );
+    }
+  }
+
+  if (
+    result.key ===
+    "commercial-claims-notices"
+  ) {
+    const claims =
+      data?.position
+        ?.claimsNotices ??
+      data?.focus
+        ?.claimsNotices ??
+      null;
+    if (
+      claims &&
+      claims.lifecycleClaimCount > 0 &&
+      (
+        claims
+          .commercialLifecycleLinkCoveragePercent !==
+          100 ||
+        claims.commercialClaimCount <
+          claims.lifecycleClaimCount
+      )
+    ) {
+      review(
+        String(
+          claims.commercialClaimCount,
+        ) +
+          " of " +
+          String(
+            claims.lifecycleClaimCount,
+          ) +
+          " lifecycle claims have governed commercial-money linkage; Claims & Notices is not yet fully commercially defensible.",
+      );
+    }
+  }
+
+  if (
+    result.key ===
     "contract-particulars-bonds"
   ) {
     const bonds =
@@ -6913,8 +6999,11 @@ export function managementSurfacesForProject(
             result?.status ??
             "blocked",
           reason:
-            result?.reason ??
-            "Current specialist position is not established.",
+            result.status ===
+            "ready"
+              ? null
+              : result.reason ??
+                "Current specialist position requires review.",
         };
       },
     );
@@ -6937,8 +7026,11 @@ export function managementSurfacesForProject(
             result?.status ??
             "blocked",
           reason:
-            result?.reason ??
-            "Current Commercial position is not established.",
+            result.status ===
+            "ready"
+              ? null
+              : result.reason ??
+                "Current Commercial position requires review.",
         };
       },
     );
@@ -7460,17 +7552,54 @@ export function managementSurfaceForProject(
       .revisionAuthority
       .currentRevisionId !==
     null;
+  const readiness =
+    surfaces.masterDashboard
+      .readiness;
+  const specialistReviewCount =
+    readiness.partial +
+    readiness.blocked;
+  const evidenceGapCount =
+    surfaces.commandCenter
+      .evidenceGaps.filter(
+        (gap) =>
+          gap.state !==
+          "established",
+      ).length;
+  const managementReviewRequired =
+    specialistReviewCount > 0 ||
+    evidenceGapCount > 0;
 
   return {
     key,
     status:
-      currentEstablished
-        ? "ready"
-        : "partial",
+      !currentEstablished
+        ? "partial"
+        : managementReviewRequired
+          ? "partial"
+          : "ready",
     reason:
-      currentEstablished
-        ? null
-        : "A current governed programme is required before the integrated management position can be complete.",
+      !currentEstablished
+        ? "A current governed programme is required before the integrated management position can be complete."
+        : managementReviewRequired
+          ? String(
+              specialistReviewCount,
+            ) +
+            " specialist control view(s) and " +
+            String(
+              evidenceGapCount,
+            ) +
+            " management evidence gap(s) require review; the management surface is usable but is not a fully defensible all-clear."
+          : null,
+    engineState:
+      "ready",
+    evidenceState:
+      managementReviewRequired
+        ? "partial"
+        : "established",
+    professionalState:
+      managementReviewRequired
+        ? "review_required"
+        : "defensible",
     dependencies: [
       "canonical specialist projections",
       "Project Director position",

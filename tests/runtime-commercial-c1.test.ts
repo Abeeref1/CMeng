@@ -135,11 +135,12 @@ test("C1 exposes real Commercial routes, evidence-driven status and portfolio in
       );
       assert.equal(
         overview.status,
-        "ready",
+        "partial",
+        "Commercial Overview must remain under review when only contract value is established and payment/claim/security domains are incomplete.",
       );
-      assert.equal(
-        overview.reason,
-        null,
+      assert.match(
+        overview.reason ?? "",
+        /incomplete|review/i,
       );
       assert.equal(
         overview.data
@@ -507,11 +508,12 @@ test("C1 exposes real Commercial routes, evidence-driven status and portfolio in
       );
       assert.equal(
         item.readyModules,
-        3,
+        1,
+        "Portfolio readiness must use the same professional-state resolver as the module pages.",
       );
       assert.equal(
         item.partialModules,
-        4,
+        6,
       );
       assert.equal(
         item.blockedModules,
