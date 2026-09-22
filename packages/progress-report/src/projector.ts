@@ -296,9 +296,27 @@ export function buildProgressReportProjection(
       },
     ),
   };
+  const externalProgressEvidenceEstablished =
+    progressBases.contractorReported
+      .valuePercent !== null ||
+    progressBases.certified
+      .valuePercent !== null ||
+    (
+      progressBases.physical
+        .valuePercent !== null &&
+      progressBases.physical
+        .authority ===
+        "source_evidence"
+    );
 
   return {
     schemaVersion: "1.0",
+    scheduleSnapshotOnly:
+      !externalProgressEvidenceEstablished,
+    externalProgressEvidenceState:
+      externalProgressEvidenceEstablished
+        ? "established"
+        : "missing",
     projectionKey: "progress_report",
     generatedAt: input.generatedAt,
     producerVersion: input.producerVersion,
