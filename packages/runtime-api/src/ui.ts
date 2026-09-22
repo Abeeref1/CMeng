@@ -1910,7 +1910,8 @@ function renderPmoVisual(data){
     renderVisualPanel("Activity status","Current programme population by execution state.",renderDonutChart([
       {label:"Completed",value:p.progress.completedCount||0,tone:"success"},
       {label:"In progress",value:p.progress.inProgressCount||0,tone:"accent"},
-      {label:"Not started",value:Math.max(0,(p.schedule.activityCount||0)-(p.progress.completedCount||0)-(p.progress.inProgressCount||0)),tone:"neutral"}
+      {label:"Not started",value:p.progress.notStartedCount||0,tone:"neutral"},
+      {label:"Unknown",value:p.progress.unknownStatusCount||0,tone:"neutral"}
     ],"Activities"))+
     renderVisualPanel("Schedule pressure","Criticality and negative-float populations that require management attention.",renderDonutChart([
       {label:"Critical",value:p.schedule.criticalCount||0,tone:"danger"},
@@ -1920,7 +1921,7 @@ function renderPmoVisual(data){
   '</div>';
   const health='<div class="management-health-grid">'+[
     ["Programme",[
-      ["Activities",p.schedule.activityCount],["Relationships",p.schedule.relationshipCount],["Logic density",p.schedule.logicDensity],["Path check",planningStateLabel(p.schedule.independentCpmState)]
+      ["Source activities",p.schedule.sourceActivityCount??p.schedule.activityCount],["Execution population",p.schedule.executableActivityCount??p.schedule.activityCount],["Excluded",p.schedule.excludedActivityCount??0],["Relationships",p.schedule.relationshipCount],["Logic density",p.schedule.logicDensity],["Path check",planningStateLabel(p.schedule.independentCpmState)]
     ]],
     ["Progress",[
       ["Weighted progress",p.progress.durationWeightedProgressPercent===null?"—":fmt(p.progress.durationWeightedProgressPercent)+"%"],["Progress coverage",p.progress.progressCoveragePercent===null?"—":fmt(p.progress.progressCoveragePercent)+"%"],["Completed",p.progress.completedCount],["In progress",p.progress.inProgressCount]
