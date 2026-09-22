@@ -1306,7 +1306,7 @@ function renderProgressScurveVisual(data){
       {key:"baselinePlannedPercent",label:"Controlled baseline planned",color:"#506579"},
       {key:"currentForecastPercent",label:"Current forecast",color:"#4f7fb4"},
       {key:"actualProgressPercent",label:snapshotLabel,color:"#d97706"}
-    ],100)+
+    ],100,{unit:"%",yLabel:"Progress",xLabel:"Reporting date",dataDateIso:p.dataDateIso,ariaLabel:"Progress S-Curve"})+
   '</div></section></section>';
 }
 function renderQuantityScurveVisual(data){
@@ -2412,7 +2412,7 @@ function renderRevisionTrendVisual(data){
     ["Latest forecast finish",planningShortDate(latest.forecastCompletionIso),"date"]
   ]);
   const values=planningRevisionValues(p.points);
-  const progress=renderLineChart(points,[{key:"durationWeightedProgressPercent",label:"Weighted progress %",color:"#4f7fb4"}],100);
+  const progress=renderLineChart(points,[{key:"durationWeightedProgressPercent",label:"Weighted progress",color:"#4f7fb4"}],100,{unit:"%",yLabel:"Progress",xLabel:"Reporting date"});
   const completion=planningDateTrend(points,[
     {key:"programmeCompletionIso",label:"Programme finish",color:"#506579"},
     {key:"forecastCompletionIso",label:"Forecast finish",color:"#4f7fb4"}
@@ -2421,7 +2421,7 @@ function renderRevisionTrendVisual(data){
     {key:"criticalCount",label:"Critical",color:"#b4483e"},
     {key:"nearCriticalCount",label:"Near-critical",color:"#b57922"},
     {key:"negativeFloatCount",label:"Negative float",color:"#7a4b46"}
-  ]);
+  ],null,{unit:"activities",yLabel:"Activity count",xLabel:"Reporting date"});
   const changeBars=planningStatusBand([
     ["Added",latest.addedVsPrevious||0,"accent"],["Removed",latest.removedVsPrevious||0,"neutral"],["Modified",latest.modifiedVsPrevious||0,"warning"]
   ]);
@@ -2439,7 +2439,7 @@ function renderVarianceTrendVisual(data){
   const pressure=renderLineChart(points,[
     {key:"negativeFloatCount",label:"Negative float",color:"#b4483e"},
     {key:"criticalCount",label:"Critical",color:"#7a4b46"}
-  ]);
+  ],null,{unit:"activities",yLabel:"Activity count",xLabel:"Reporting date"});
   const cards=p.points.map(x=>'<div class="revision-value-card"><div class="revision-value-head"><b>'+escapeHtml(shortRevision(x.revisionId,labels))+'</b><span>'+escapeHtml(planningShortDate(x.dataDateIso))+'</span></div><div class="revision-value-lines"><span>Average vs baseline <b>'+escapeHtml(x.averageFinishVarianceDays===null?"—":fmt(x.averageFinishVarianceDays)+" d")+'</b></span><span>Maximum delay <b>'+escapeHtml(x.maximumDelayDays===null?"—":fmt(x.maximumDelayDays)+" d")+'</b></span><span>Late activities <b>'+escapeHtml(fmt(x.lateActivityCount))+'</b></span><span>Project finish vs baseline <b>'+escapeHtml(x.projectCompletionVarianceDays===null?"—":fmt(x.projectCompletionVarianceDays)+" d")+'</b></span></div></div>').join("");
   const rows=p.points.map(x=>'<tr><td>'+escapeHtml(x.sequence)+'</td><td><b>'+escapeHtml(shortRevision(x.revisionId,labels))+'</b></td><td>'+escapeHtml(planningShortDate(x.dataDateIso))+'</td><td>'+escapeHtml(x.averageFinishVarianceDays===null?"—":fmt(x.averageFinishVarianceDays))+'</td><td>'+escapeHtml(x.maximumDelayDays===null?"—":fmt(x.maximumDelayDays))+'</td><td>'+escapeHtml(x.lateActivityCount)+'</td><td>'+escapeHtml(x.earlyActivityCount)+'</td><td>'+escapeHtml(x.onTimeActivityCount)+'</td><td>'+escapeHtml(x.negativeFloatCount)+'</td><td>'+escapeHtml(x.criticalCount)+'</td><td>'+escapeHtml(x.projectCompletionVarianceDays===null?"—":fmt(x.projectCompletionVarianceDays))+'</td></tr>').join("");
   return '<section class="planning-view variance-view">'+planningKpis([
@@ -2619,7 +2619,7 @@ function renderManhourVisual(data){
     ...(actualHistoryEstablished?[{key:"actualCumulativeHours",label:"Actual labor hours",color:"#2c7a57"}]:[]),
     ...(actualEstablished?[{key:"forecastCumulativeHours",label:"Forecast labor hours",color:"#4f7fb4"}]:[])
   ];
-  return '<section class="planning-view manhour-view">'+top+note+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Man-Hour S-Curve</h4><p>Labor only. Missing actual history never becomes a zero line.</p></div></div><div class="planning-panel-body">'+renderLineChart(p.points,series)+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Evidence coverage</h4><p>The curve only uses hours that are actually present in resource assignments and an approved period or weekly-usage history.</p></div></div><div class="planning-panel-body">'+moduleEvidenceGate([
+  return '<section class="planning-view manhour-view">'+top+note+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Man-Hour S-Curve</h4><p>Labor only. Missing actual history never becomes a zero line.</p></div></div><div class="planning-panel-body">'+renderLineChart(p.points,series,null,{unit:"h",yLabel:"Labor hours",xLabel:"Reporting date",dataDateIso:p.dataDateIso,ariaLabel:"Man-Hour S-Curve"})+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Evidence coverage</h4><p>The curve only uses hours that are actually present in resource assignments and an approved period or weekly-usage history.</p></div></div><div class="planning-panel-body">'+moduleEvidenceGate([
     {label:"Labor resources",value:fmt(p.laborResourceCount),state:p.laborResourceCount>0?"ready":"missing"},
     {label:"Labor assignments",value:fmt(p.laborAssignmentCount),state:p.laborAssignmentCount>0?"ready":"missing"},
     {label:"Planned hours",value:p.plannedHoursKnown===null?"Not established":fmt(p.plannedHoursKnown)+" h",state:p.plannedHoursKnown===null?"missing":"ready"},
@@ -3002,7 +3002,7 @@ function renderCommercialVisual(key,data){
               {key:"pv",label:"PV",tone:"graphite"},
               {key:"ev",label:"EV",tone:"accent"},
               {key:"ac",label:"AC",tone:"danger"}
-            ])
+            ],null,{unit:series.currency,yLabel:"Value",xLabel:"Reporting date"})
           )+
           renderVisualPanel(
             series.currency+' · SPI / CPI',
@@ -3010,7 +3010,7 @@ function renderCommercialVisual(key,data){
             renderLineChart(points,[
               {key:"spi",label:"SPI",tone:"accent"},
               {key:"cpi",label:"CPI",tone:"success"}
-            ])
+            ],null,{yLabel:"Index",xLabel:"Reporting date"})
           )+
           '</div>';
       }).join("");
@@ -3031,7 +3031,7 @@ function renderCommercialVisual(key,data){
             {key:"earned",label:"Earned value",tone:"accent"},
             {key:"actual",label:"Actual cost",tone:"danger"},
             {key:"eac",label:"Source EAC",tone:"purple"}
-          ])
+          ],null,{unit:series.currency,yLabel:"Cost",xLabel:"Reporting date"})
         );
       }).join("");
       performanceDetail='<section class="planning-panel primary cost-forecast-primary"><div class="planning-panel-head"><div><h4>Cost S-Curve & Forecast Position</h4><p>PV, EV, AC and source EAC are the primary cost-control view. Source and calculated positions remain explicitly separated.</p></div></div><div class="planning-panel-body"><div class="commercial-visual-grid">'+costCurveSections+'</div></div></section>'+
@@ -3154,7 +3154,7 @@ function renderCommercialVisual(key,data){
                 {key:"certified",label:"Certified income",tone:"warning"},
                 {key:"paid",label:"Paid income",tone:"success"},
                 {key:"net",label:"Net cash",tone:"accent"}
-              ])
+              ],null,{unit:series.currency,yLabel:"Cash",xLabel:"Reporting date"})
             )+'</div>'
           : '<div class="cash-flow-curve-withheld"><div><span>Funding S-curve</span><b>Not plotted</b></div><p>A funding curve requires at least two producer-certified net-cash points. Certification-only, planned-cost or missing-cash data cannot create a funding curve.</p></div>';
         const secondary=[];
