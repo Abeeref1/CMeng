@@ -1076,6 +1076,9 @@ function renderDonutChart(items,centerLabel="Total"){
   const known=(items||[]).filter(item=>typeof item.value==="number"&&Number.isFinite(item.value)&&item.value>=0);
   const total=known.reduce((sum,item)=>sum+item.value,0);
   if(!known.length||total<=0)return '<div class="empty-visual">No established distribution is available for this chart.</div>';
+  if(known.length>6){
+    return renderVisualBars(known.map(item=>({label:item.label,value:item.value,tone:item.tone||"accent"})));
+  }
   let cursor=0;
   const stops=[];
   known.forEach(item=>{
@@ -1085,7 +1088,10 @@ function renderDonutChart(items,centerLabel="Total"){
     const color=chartToneColor(item.tone||"neutral");
     stops.push(color+" "+from.toFixed(3)+"% "+to.toFixed(3)+"%");
   });
-  const legend=known.map(item=>'<div class="donut-legend-row"><i style="background:'+chartToneColor(item.tone||"neutral")+'"></i><span>'+escapeHtml(item.label)+'</span><b>'+escapeHtml(fmt(item.value))+'</b></div>').join("");
+  const legend=known.map(item=>{
+    const percent=total>0?(item.value/total)*100:0;
+    return '<div class="donut-legend-row"><i style="background:'+chartToneColor(item.tone||"neutral")+'"></i><span>'+escapeHtml(item.label)+'</span><b>'+escapeHtml(fmt(item.value)+" · "+fmt(percent)+"%")+'</b></div>';
+  }).join("");
   return '<div class="donut-layout"><div class="donut-ring" style="background:conic-gradient('+stops.join(",")+')"><div class="donut-center"><b>'+escapeHtml(fmt(total))+'</b><span>'+escapeHtml(centerLabel)+'</span></div></div><div class="donut-legend">'+legend+'</div></div>';
 }
 function renderVisualBars(items,unit=""){
@@ -1342,7 +1348,7 @@ function renderQuantityScurveVisual(data){
     {key:"baselinePlannedQuantity",label:"Baseline planned",color:"#506579"},
     {key:"currentForecastQuantity",label:"Current forecast",color:"#4f7fb4"},
     {key:"actualInstalledQuantity",label:"Actual installed",color:"#2c7a57"}
-  ])+'</div></section>').join("");
+  ],null,{unit:series.unit||series.unitKey||"",yLabel:"Cumulative quantity",xLabel:"Reporting date",dataDateIso:p.dataDateIso,ariaLabel:(series.unit||series.unitKey||"Quantity")+" S-Curve"})+'</div></section>').join("");
   return '<section class="planning-view quantity-view">'+top+charts+'</section>';
 }
 function renderLookAheadVisual(data){
@@ -1432,7 +1438,7 @@ function renderWindowsVisual(data){
   }).join("");
   const note='<div class="notice info"><b>Window movement and Project Completion movement are different measures.</b> Gross positive window movement sums only positive revision-to-revision shifts. Project Completion movement is the net first-to-latest submitted completion shift. Neither is automatically delay entitlement or EOT.</div>'+(p.windows.some(w=>w.independentForecastMovementDays===null)?'<div class="notice info">Independent CPM is not silently substituted where it has not been calculated.</div>':'');
   const visualOverview='<div class="visual-chart-grid">'+
-    renderVisualPanel("Window movement waterfall","Every revision-to-revision submitted finish movement is signed. Right is later; left is earlier.",renderWaterfallChart(bars,"d"))+
+    renderVisualPanel("Window movement by interval","Every revision-to-revision submitted finish movement is signed. Right is later; left is earlier.",renderWaterfallChart(bars,"d"))+
     renderVisualPanel("Window completeness","Complete and partial analytical windows remain visibly separate.",renderDonutChart([
       {label:"Complete",value:p.completeWindowCount||0,tone:"success"},
       {label:"Partial",value:p.partialWindowCount||0,tone:"warning"},
@@ -2305,7 +2311,7 @@ function renderResourceVisual(data){
         {key:"availableCapacity",label:"Available capacity",color:"#506579"},
         {key:"plannedDemand",label:"Planned demand",color:"#b57922"},
         {key:"actualApprovedUsage",label:"Approved actual usage",color:"#2c7a57"}
-      ])+'</div></section>').join("")
+      ],null,{unit:unit,yLabel:"Capacity / demand",xLabel:"Week"})+'</div></section>').join("")
     : '';
 
   const demandPanel='<section class="planning-panel"><div class="planning-panel-head"><div><h4>Per-hour demand concentration</h4><p>Only resources with an established planned or remaining demand rate are charted. Assignment counts are not used as a substitute for demand.</p></div></div><div class="planning-panel-body">'+moduleBarList(comparableDemand)+'</div></section>';
