@@ -661,7 +661,7 @@ test('Payment periods never substitute for certification events, and future peri
  const value=input(); const base=value.payments[0]!;
  value.payments=[{...base,certificationDate:null,paymentDate:null},{...base,paymentId:'future',periodEnd:'2026-09-30'}];
  const p=buildCommercialFoundation(value).paymentRegister;
- assert.equal(p.recordCount,2);assert.equal(p.asOfRecordCount,1);assert.equal(p.futureRecordCount,1);
+ assert.equal(p.recordCount,1);assert.equal(p.sourceRecordCount,2);assert.equal(p.futureRows.length,1);assert.equal(p.asOfRecordCount,1);assert.equal(p.futureRecordCount,1);
  assert.equal(p.rows[0]!.lifecycle.paymentDueDate.value,null);
  assert.equal(p.slaCounts.notEstablished,1);
 });

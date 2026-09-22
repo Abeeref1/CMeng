@@ -775,9 +775,7 @@ function costControl(
       input.costSnapshots
   ) {
     if (
-      input.dataDateIso &&
-      snapshot.asOf >
-        input.dataDateIso
+      reportingScope(snapshot.asOf,input.dataDateIso)!=='as_of'
     ) {
       continue;
     }
@@ -1234,9 +1232,7 @@ function evmPerformance(
       input.costSnapshots
   ) {
     if (
-      input.dataDateIso &&
-      snapshot.asOf >
-        input.dataDateIso
+      reportingScope(snapshot.asOf,input.dataDateIso)!=='as_of'
     ) {
       futureExcluded +=
         1;
@@ -1639,11 +1635,7 @@ function cashFlow(
                 null &&
               row.date !==
                 null &&
-              (
-                !input.dataDateIso ||
-                row.date! <=
-                  input.dataDateIso
-              ),
+              reportingScope(row.date,input.dataDateIso)==='as_of',
           )
           .sort(
             (a, b) =>
@@ -1827,11 +1819,7 @@ function cashFlow(
             currency &&
           metric.asOf !==
             null &&
-          (
-            !input.dataDateIso ||
-            metric.asOf <=
-              input.dataDateIso
-          ),
+          reportingScope(metric.asOf,input.dataDateIso)==='as_of',
       );
 
     const certifiedAmountRows =
@@ -2931,9 +2919,7 @@ function costScurve(
       snapshot.taxBasis,
     ].join("|");
     if (
-      input.dataDateIso &&
-      snapshot.asOf >
-        input.dataDateIso
+      reportingScope(snapshot.asOf,input.dataDateIso)!=='as_of'
     ) {
       futureByKey.set(
         key,
@@ -3064,15 +3050,7 @@ function costScurve(
             currency &&
           row.taxBasis ===
             taxBasis &&
-          (
-            !input.dataDateIso ||
-            (
-              row.asOf !==
-                null &&
-              row.asOf <=
-                input.dataDateIso
-            )
-          ),
+          reportingScope(row.asOf,input.dataDateIso)==='as_of',
       );
     series.push({
       currency,

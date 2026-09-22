@@ -18,6 +18,7 @@ import type {
 import {
   canonicalTimeClaims,
   projectDataDate,
+  projectControlSchedule,
 } from "./canonical-time-claims";
 import {
   commercialCanonical,
@@ -100,25 +101,8 @@ function currentProgrammeCompletion(
   method: string;
   sourceRefs: string[];
 } {
-  const revisions =
-    orderScheduleRevisionsChronologically(
-      state.schedules
-        .filter(
-          isProgrammeScheduleRevision,
-        )
-        .filter(
-          (item) =>
-            item.role !==
-            "recovery",
-        )
-        .map(
-          (item) =>
-            item.revision,
-        ),
-    );
-  const current =
-    revisions.at(-1);
-  if (!current) {
+  const current = projectControlSchedule(state)?.revision;
+  if (!current || !Array.isArray(current.model.activities) || !Array.isArray(current.model.relationships) || !Array.isArray(current.model.calendars) || !Array.isArray(current.model.wbs)) {
     return {
       dateIso: null,
       method:

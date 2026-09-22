@@ -111,7 +111,7 @@ function scalarFacts(
   value: string | number | boolean | null;
 }> {
   if (
-    depth > 3 ||
+    depth > 6 ||
     value === undefined
   ) {
     return [];
@@ -144,6 +144,7 @@ function scalarFacts(
     return Object.entries(
       value as Record<string, unknown>,
     )
+      .filter(([key])=>!['schemaVersion','projectionKey','producerVersion','generatedAt','sourceRevisionId','sourceProjections','sourceLedger','source','futureRows','undatedRows','claimsReporting','reportingContract','diagnostics','receipts','basis','sourceRefs','controlBasis','population','populationContract','challenge','systemEvidenceContract'].includes(key))
       .slice(0, 24)
       .flatMap(([key, child]) =>
         scalarFacts(
@@ -348,9 +349,10 @@ export function answerProjectQuestion(
           projectId,
           key,
         );
-      return result.data
+      const data=result.data as Record<string,unknown>|null;
+      return data
         ? scalarFacts(
-            result.data,
+            data.focus??data,
             key,
           )
         : [];
@@ -385,8 +387,8 @@ export function answerProjectQuestion(
       value:
         overview.minimumEvidenceBasis.ready,
     },
-    ...directorFacts,
     ...moduleFacts,
+    ...directorFacts,
   ].filter(
     (fact) =>
       fact.value !== undefined,
@@ -426,6 +428,13 @@ export function answerProjectQuestion(
       ),
     relevantModules: modules,
     facts: uniqueFacts,
+    reportingContexts:keys.map(key=>{
+      const data=moduleForProject(projectId,key).data as any;
+      const c=data?.reportingContract;
+      return {moduleKey:key,dataDateIso:c?.dataDateIso??null,programmeRevisionId:c?.programmeRevisionId??null,
+        populations:Object.values(c?.populations??{}).map((p:any)=>({populationId:p.populationId,name:p.name,denominator:p.denominator,sourceCount:p.sourceCount,excludedCount:p.exclusions.length,authority:p.authority,dateBasis:p.dateBasis})),
+        metricContracts:c?.metricContracts??{}};
+    }),
     managementActions: actions,
     sources: [
       "Project overview",

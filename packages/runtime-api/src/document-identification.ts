@@ -13,6 +13,7 @@ import {
 import type {
   EvidenceCategory,
   EvidenceIdentification,
+  StoredEvidenceDocument,
 } from "./project-state-types";
 import {
   inferDocumentType,
@@ -1881,6 +1882,20 @@ function classifyText(
   const normalized =
     normalizeText(text);
 
+  // Method narratives and productivity tables also contain quantity/rate words.
+  // Recognize their semantic structure before scoring broad commercial signals.
+  if (/\b(?:independent|productivity)\s+forecast\s+(?:method(?:ology)?\s+)?basis\b/i.test(normalized) &&
+      /\b(?:remaining\s+quantity|production\s+rate|productivity|achievable\s+rate)\b/i.test(normalized)) {
+    return { category: "schedule_control", documentType: "productivity_forecast_basis", confidence: 0.98,
+      signals: ["Forecast method basis with productivity / remaining-work semantics"] };
+  }
+  if (/\bwork\s+package\b/i.test(normalized) && /\bremaining\s+quantity\b/i.test(normalized) &&
+      /\b(?:conservative\s+achievable|recent\s+achieved)\s+rate\b/i.test(normalized) &&
+      /\bindependent\s+forecast\s+finish\b/i.test(normalized)) {
+    return { category: "schedule_control", documentType: "productivity_work_package_register", confidence: 0.98,
+      signals: ["Remaining-work productivity forecast table structure"] };
+  }
+
   if (/csv|text\/plain/.test(mediaType)) {
     for (const type of ["resource_register", "delay_eot_claims_register"]) {
       const role = typedEvidenceRoleFromText(type, text);
@@ -2049,7 +2064,9 @@ function classifyText(
     )
       .filter(
         (entry) =>
-          entry.score > 0,
+          entry.score > 0 && (entry.rule.documentType !== "boq" ||
+            /\b(?:bill\s+of\s+quantities|boq)\b/i.test(normalized) ||
+            /\bitem\s+(?:no\.?|number)\b/i.test(normalized) && /\b(?:quantity|qty)\b/i.test(normalized)),
       )
       .sort(
         (a, b) =>
@@ -2106,6 +2123,19 @@ function classifyText(
           signal.label,
       ),
   };
+}
+
+/** Correct a legacy display classification from retained content, without promoting
+ * the document, replacing its evidence family, or changing any official facts. */
+export function documentClassificationForReview(document: StoredEvidenceDocument) {
+  const text = [document.identification?.detectedTitle ?? "", ...document.assertions.map(a => a.sourceText)].join("\n");
+  const detected = classifyText(text, document.mediaType);
+  const changed = detected && detected.confidence >= 0.9 && detected.documentType !== document.documentType;
+  return { documentType: changed ? detected.documentType : document.documentType,
+    category: changed ? detected.category : document.category,
+    recordedDocumentType: document.documentType,
+    reviewRequired: Boolean(changed),
+    reason: changed ? "Content classification differs from the stored type. Review the document mapping; evidence authority and active basis are unchanged." : null };
 }
 
 function firstTitle(

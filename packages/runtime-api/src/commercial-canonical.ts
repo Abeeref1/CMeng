@@ -1,3 +1,4 @@
+import { partitionAsOf } from "../../truth-kernel/src";
 import { cell, has, norm, numberValue, dateValue, governedTables, sumKnown, ratio, round, type SourceReceipt, type SourceRow, type FactState, reportingScope } from '../../truth-kernel/src';
 import { reconcilePaymentEvidence } from './payment-reconciliation';
 import { canonicalTimeClaims, projectDataDate } from './canonical-time-claims';
@@ -123,6 +124,7 @@ export interface CanonicalCommercialModel {
   obligations:CommercialObligationRecord[];
   retentions:CommercialRetentionRecord[];
   costPosition:Array<{ currency:string;taxBasis:string;asOf:string;state:FactState;values:Record<string,number|null>;receipts:SourceReceipt[];diagnostics:string[] }>;
+  populations: { payments: import("../../truth-kernel/src").PopulationContract; variations: import("../../truth-kernel/src").PopulationContract; retentionDeductions: import("../../truth-kernel/src").PopulationContract };
   temporalPosition?: {
     payments: {asOfCount:number;futureCount:number;undatedCount:number};
     variations: {asOfApprovedCount:number;futureApprovalCount:number;undatedApprovalCount:number};
@@ -291,7 +293,7 @@ export function commercialCanonical(state:ProjectRuntimeState):CanonicalCommerci
     status:cell(r,'status'),
     inceptionDate:dateValue(cell(r,'inception date','start date','effective date')),
     expiryDate,
-    coverageAmount:moneyFromHeader(r,coverageHeader,'insurance coverage',cell(r,'currency')||inheritedCurrency,expiryDate),
+    coverageAmount:moneyFromHeader(r,coverageHeader,'insurance coverage',cell(r,'currency')||inheritedCurrency,dateValue(cell(r,'inception date','start date','effective date'))),
     sourceRequirement:cell(r,'contract requirement','clause','clause reference')||null,
     receipt:r.receipt
    });
@@ -319,7 +321,7 @@ export function commercialCanonical(state:ProjectRuntimeState):CanonicalCommerci
     trigger:cell(r,'trigger','release trigger')||null,
     dueDate,
     releaseDate:dateValue(cell(r,'release date','released date')),
-    amount:moneyFromHeader(r,amountH,'retention balance',cell(r,'currency')||inheritedCurrency,dueDate),
+    amount:moneyFromHeader(r,amountH,'retention balance',cell(r,'currency')||inheritedCurrency,dateValue(cell(r,'as of','as of date','balance date','record date','period end'))),
     receipt:r.receipt
    });
   }
@@ -357,6 +359,11 @@ export function commercialCanonical(state:ProjectRuntimeState):CanonicalCommerci
    variations:{asOfApprovedCount:variations.filter(r=>/approved/i.test(r.status)&&reportingScope(r.approvalDate,dataDateIso)==='as_of').length,futureApprovalCount:variations.filter(r=>/approved/i.test(r.status)&&reportingScope(r.approvalDate,dataDateIso)==='future').length,undatedApprovalCount:variations.filter(r=>/approved/i.test(r.status)&&reportingScope(r.approvalDate,dataDateIso)==='undated').length},
    money:[...temporalMoney].map(([key,rows])=>{const [currency,taxBasis,kind]=key.split('|') as [string,string,string];const asOf=rows.filter(r=>reportingScope(r.date,dataDateIso)==='as_of'),future=rows.filter(r=>reportingScope(r.date,dataDateIso)==='future');return {currency,taxBasis,kind,asOfValue:sumKnown(asOf.map(r=>r.value)),futureValue:sumKnown(future.map(r=>r.value)),fullValue:sumKnown(rows.map(r=>r.value)),asOfCount:asOf.length,futureCount:future.length,undatedCount:rows.length-asOf.length-future.length};}),
  };
- const model:CanonicalCommercialModel={schemaVersion:'1.0',producerVersion:'commercial-canonical-v1',dataDateIso,costMetrics,payments,variations,siteInstructions,insurances,obligations,retentions,costPosition,temporalPosition,diagnostics};
+ const populationOptions={dataDateIso,sourceRevisionId:'evidence-version:'+state.version,authority:'source' as const};
+ const paymentPopulation=partitionAsOf(payments,{...populationOptions,name:'Certificate periods by Data Date',entity:'certificate',dateBasis:'periodEnd',id:r=>r.paymentId,date:r=>r.periodEnd}).population;
+ const variationPopulation=partitionAsOf(variations.filter(r=>/approved/i.test(r.status)),{...populationOptions,name:'Variation approvals by Data Date',entity:'variation',dateBasis:'approvalDate',id:r=>r.variationId,date:r=>r.approvalDate}).population;
+ const retentionPopulation=partitionAsOf(payments,{...populationOptions,name:'Retention deductions by certificate period',entity:'retention_deduction',dateBasis:'periodEnd, not cash release',id:r=>r.paymentId,date:r=>r.periodEnd}).population;
+ const populations={payments:paymentPopulation,variations:variationPopulation,retentionDeductions:retentionPopulation};
+ const model:CanonicalCommercialModel={populations,schemaVersion:'1.0',producerVersion:'commercial-canonical-v1',dataDateIso,costMetrics,payments,variations,siteInstructions,insurances,obligations,retentions,costPosition,temporalPosition,diagnostics};
  cache.set(state,{version:state.version,value:model});return model;
 }

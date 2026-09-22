@@ -137,8 +137,7 @@ function flattenRecord(
               "object",
         )
       ) {
-        out[prefix] =
-          value
+        const joined = value
             .map(
               (item) =>
                 item === null ||
@@ -148,6 +147,7 @@ function flattenRecord(
                   : String(item),
             )
             .join("; ");
+        out[prefix] = joined.length<=32000?joined:'['+value.length+' records; complete values are in the array worksheet]';
       } else {
         out[prefix] =
           "[" +
@@ -187,8 +187,7 @@ function flattenRecord(
               "object",
         )
       ) {
-        out[path] =
-          child
+        const joined=child
             .map(
               (item) =>
                 item === null ||
@@ -198,6 +197,7 @@ function flattenRecord(
                   : String(item),
             )
             .join("; ");
+        out[path]=joined.length<=32000?joined:'['+child.length+' records; complete values are in the array worksheet]';
       } else {
         out[path] =
           "[" +
@@ -591,7 +591,6 @@ export async function buildModuleWorkbook(
   for (
     const [key, value] of
       Object.entries(flat)
-        .slice(0, 1200)
   ) {
     summary.addRow([
       key,

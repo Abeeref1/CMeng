@@ -1,8 +1,10 @@
+import { populationContract } from "../../truth-kernel/src";
 import type { CanonicalScheduleActivity, CanonicalScheduleModel } from "./types";
 
 export type ActivityPopulationBasis = "source_records" | "execution_control" | "duration_weighted_progress" | "milestones";
 
 export interface ActivityPopulationContract {
+  populationId: string;
   basis: ActivityPopulationBasis;
   sourceCount: number;
   denominator: number;
@@ -32,14 +34,16 @@ export function activityPopulation(model: CanonicalScheduleModel, basis: Activit
     : basis === "milestones" ? isMilestoneActivity : isExecutionActivity;
   const activities = model.activities.filter(include);
   const excluded = model.activities.filter(activity => !include(activity));
-  const contract: ActivityPopulationContract = {
+  const reporting=populationContract({name:basis,entity:'activity',dataDateIso:model.dataDateIso,dateBasis:'programme snapshot; future planned finishes retained',sourceRevisionId:model.sourceRevisionId,authority:'submitted',sourceCount:model.activities.length,memberIds:activities.map(a=>a.activityId),exclusions:excluded.map(a=>({id:a.activityId,reason:a.activityType}))});
+  const populationId=reporting.populationId;
+  const contract: ActivityPopulationContract = { populationId,
     basis, sourceCount: model.activities.length, denominator: activities.length,
     excludedCount: excluded.length,
     exclusions: excluded.map(activity => ({ activityId: activity.activityId, reason: activity.activityType })),
     unknownActivityTypeCount: activities.filter(activity => activity.activityType === "unknown").length,
     authority: "submitted_schedule", sourceRevisionId: model.sourceRevisionId, asOfIso: model.dataDateIso,
   };
-  return { activities, excluded, contract };
+  return { activities, excluded, contract, reporting };
 }
 
 /** Partial progress is a known-population estimate, never zero-filled missing progress. */

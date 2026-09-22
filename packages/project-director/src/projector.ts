@@ -887,7 +887,7 @@ export function buildProjectDirectorPosition(
       .sort();
 
   const generatedMs =
-    Date.parse(input.generatedAt);
+    Date.parse(input.progressReport.dataDateIso ?? "");
   const overdue = (
     dueIso: string | null,
   ) => {
@@ -952,8 +952,14 @@ export function buildProjectDirectorPosition(
     );
   }
   if (unlinkedClaimIds.length > 0) {
+    const unlinked = input.noticesClaims.claims.filter(claim => unlinkedClaimIds.includes(claim.claimId));
+    const missingEvents = unlinked.filter(claim => !claim.eventIds.some(id => eventById.has(id))).length;
+    const missingActivities = unlinked.filter(claim => claim.eventIds.some(id => eventById.has(id)) &&
+      !claim.eventIds.some(id => (eventById.get(id)?.relatedActivityIds.length ?? 0) > 0)).length;
     actions.push(
-      "Link open claims to governed delay events and affected schedule activities.",
+      [missingEvents ? String(missingEvents) + " current claim(s) need a governed event link." : "",
+        missingActivities ? String(missingActivities) + " current claim(s) have event links but need affected activity linkage." : "",
+        "Review the incomplete chains and their notice and causation evidence."].filter(Boolean).join(" "),
     );
   }
   if (
@@ -1051,48 +1057,17 @@ export function buildProjectDirectorPosition(
     );
 
   const controls = {
-    hseEvidenceState,
-    qualityEvidenceState,
-    rfiEvidenceState,
-    permitEvidenceState,
-    bondEvidenceState,
-    riskEvidenceState,
-    openRiskCount:
-      riskEvidenceState ===
-        "established"
-        ? input.openRiskCount ??
-          0
-        : null,
-    openHseIncidentCount:
-      openHse.length,
-    openLtiOrWorseCount:
-      openHse.filter(
-        (item) =>
-          item.severity === "fatality" ||
-          item.severity === "lti",
-      ).length,
-    openCriticalMajorNcrCount:
-      openNcrs.length,
-    openRfiCount: openRfis.length,
-    overdueRfiCount:
-      openRfis.filter((item) =>
-        overdue(item.dueIso),
-      ).length,
-    openPermitCount:
-      openPermits.length,
-    overduePermitCount:
-      openPermits.filter(
-        (item) =>
-          item.status === "expired" ||
-          overdue(item.dueIso),
-      ).length,
-    expiredBondCount:
-      input.bonds.filter(
-        (bond) =>
-          bond.status === "expired",
-      ).length,
-    expiringBondCount30Days:
-      expiring30,
+    hseEvidenceState, qualityEvidenceState, rfiEvidenceState, permitEvidenceState, bondEvidenceState, riskEvidenceState,
+    openRiskCount: riskEvidenceState === "established" ? input.openRiskCount ?? null : null,
+    openHseIncidentCount: hseEvidenceState === "established" ? openHse.length : null,
+    openLtiOrWorseCount: hseEvidenceState === "established" ? openHse.filter(item=>item.severity==="fatality"||item.severity==="lti").length : null,
+    openCriticalMajorNcrCount: qualityEvidenceState === "established" ? openNcrs.length : null,
+    openRfiCount: rfiEvidenceState === "established" ? openRfis.length : null,
+    overdueRfiCount: rfiEvidenceState === "established" ? openRfis.filter(item=>overdue(item.dueIso)).length : null,
+    openPermitCount: permitEvidenceState === "established" ? openPermits.length : null,
+    overduePermitCount: permitEvidenceState === "established" ? openPermits.filter(item=>item.status==="expired"||overdue(item.dueIso)).length : null,
+    expiredBondCount: input.bondMonitoring ? input.bondMonitoring.expiredCount : bondEvidenceState === "established" ? input.bonds.filter(bond=>bond.status==="expired").length : null,
+    expiringBondCount30Days: input.bondMonitoring ? input.bondMonitoring.expiring30Count : bondEvidenceState === "established" ? expiring30 : null,
   };
 
   for (const item of [

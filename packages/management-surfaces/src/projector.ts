@@ -192,8 +192,7 @@ function buildAlerts(
     }
 
     if (
-      director.controls
-        .openCriticalMajorNcrCount >
+      (director.controls.openCriticalMajorNcrCount ?? 0) >
       0
     ) {
       add({
@@ -210,14 +209,13 @@ function buildAlerts(
           " major/critical NCR item(s) remain open.",
         action:
           "Escalate closure, accountable ownership and evidence of correction.",
-        owningModule: null,
+        owningModule: "documents",
         state: "open",
       });
     }
 
     if (
-      director.controls
-        .overdueRfiCount >
+      (director.controls.overdueRfiCount ?? 0) >
       0
     ) {
       add({
@@ -234,14 +232,13 @@ function buildAlerts(
           " RFI(s) are overdue.",
         action:
           "Escalate the overdue RFI and confirm affected activities.",
-        owningModule: null,
+        owningModule: "documents",
         state: "open",
       });
     }
 
     if (
-      director.controls
-        .overduePermitCount >
+      (director.controls.overduePermitCount ?? 0) >
       0
     ) {
       add({
@@ -258,14 +255,13 @@ function buildAlerts(
           " permit item(s) are overdue or expired.",
         action:
           "Resolve permit ownership, due dates and delivery dependencies.",
-        owningModule: null,
+        owningModule: "documents",
         state: "open",
       });
     }
 
     if (
-      director.controls
-        .expiredBondCount >
+      (director.controls.expiredBondCount ?? 0) >
       0
     ) {
       add({
@@ -388,11 +384,11 @@ function buildAlerts(
           "conflicted"
           ? "high"
           : "medium",
-      title:
-        gap.label +
-        " requires evidence review",
+      title: gap.label + (gap.key === "board-publication" ? " requires governance review" : " requires evidence review"),
       consequence:
-        gap.state ===
+        gap.key === "board-publication"
+          ? "Board publication cannot be finalized until management evidence review is completed. This output state does not invalidate the underlying source facts."
+          : gap.state ===
           "stale"
           ? "The management position relies on an older evidence basis."
           : gap.state ===
@@ -496,6 +492,8 @@ function dashboardMetrics(
     basis: string,
     authority:
       | "source"
+      | "official"
+      | "submitted"
       | "calculated"
       | "provisional"
       | "unavailable",
@@ -506,7 +504,7 @@ function dashboardMetrics(
       value,
       state:
         value
-          ? authority === "source"
+          ? authority === "official" ? "governed" : authority === "source" || authority === "submitted"
             ? "source_current"
             : authority ===
                 "calculated"
@@ -536,17 +534,17 @@ function dashboardMetrics(
       d?.schedule
         .contractualCompletionIso ??
       null,
-      "Governed contractual completion term",
-      "source",
+      "Current contractual completion, including effective amendments; authority follows the governed term",
+      input.contractualCompletionAuthority ?? "source",
     ),
     finishMetric(
       "official-adjusted-finish",
-      "Further finish after amendment",
+      "Further adjusted contractual completion",
       d?.schedule
         .officialAdjustedCompletionIso ??
       null,
-      "Current amended completion plus reconciled additional EOT",
-      "source",
+      "Additional adjustment after the current governed amendment; absence does not invalidate the current contract completion",
+      "official",
     ),
     finishMetric(
       "submitted-programme-finish",
@@ -555,7 +553,7 @@ function dashboardMetrics(
         .submittedProgrammeCompletionIso ??
       null,
       "Current submitted programme/source forecast",
-      "source",
+      "submitted",
     ),
     metric({
       key:
@@ -636,20 +634,29 @@ function dashboardMetrics(
       authority: d
         ? "source"
         : "unavailable",
-      health:
-        d &&
-        d.schedule
-          .criticalCount > 0
-          ? "attention"
-          : d
-            ? "good"
-            : "unavailable",
+      health: (input.negativeFloatCount ?? 0) > 0 ? "attention" : "unavailable",
       basis:
-        "Current programme total float",
+        "Execution activities with source total float ≤ 0; critical-path presence alone is not adverse health",
+      consequence: input.negativeFloatCount == null ? "Negative-float exposure is not established; the critical count is inventory only."
+        : String(input.negativeFloatCount) + " activities have negative float. Zero-float critical activities are not automatically adverse.",
       owningModule:
         "near-critical",
     }),
   );
+
+  const submitted = d?.schedule.submittedProgrammeCompletionIso;
+  const contractual = d?.schedule.contractualCompletionIso;
+  const submittedVariance = submitted && contractual
+    ? (Date.parse(submitted.slice(0, 10)) - Date.parse(contractual.slice(0, 10))) / 86_400_000 : null;
+  for (const [key, label, value, basis] of [
+    ["independent-vs-contract", "Independent forecast vs contract", d?.schedule.varianceDaysToContractualCompletion ?? null, "Independent forecast finish minus current governed contract completion"],
+    ["independent-vs-submitted", "Independent forecast vs submitted programme", d?.schedule.varianceDaysToSubmittedProgrammeCompletion ?? null, "Independent forecast finish minus current submitted programme finish"],
+    ["submitted-vs-contract", "Submitted programme vs contract", Number.isFinite(submittedVariance) ? submittedVariance : null, "Current submitted programme finish minus current governed contract completion"],
+  ] as const) {
+    metrics.push(metric({ key, label, value, unit: "calendar days", state: value === null ? "unavailable" : "calculated",
+      authority: value === null ? "unavailable" : "calculated", health: healthForSignedVariance(value), basis,
+      consequence: "Date variance is not attributable delay or EOT entitlement.", owningModule: "independent-forecast" }));
+  }
 
   metrics.push(
     metric({
@@ -667,16 +674,10 @@ function dashboardMetrics(
       authority: d
         ? "calculated"
         : "unavailable",
-      health:
-        d &&
-        d.schedule
-          .nearCriticalCount > 0
-          ? "attention"
-          : d
-            ? "good"
-            : "unavailable",
+      health: "unavailable",
       basis:
-        "Governed near-critical threshold",
+        "Strict positive float within the governed near-critical threshold; inventory, not a health score",
+      consequence: "Review float erosion, upcoming work and driving-path evidence before assigning risk severity.",
       owningModule:
         "near-critical",
     }),
@@ -751,7 +752,7 @@ function dashboardMetrics(
         "Fully defensible claim chain",
       value:
         d?.claims
-          .claimCount ===
+          .claimCount ==
           null
           ? null
           : String(
@@ -818,18 +819,7 @@ function dashboardMetrics(
         "established"
           ? "source"
           : "unavailable",
-      health:
-        d?.controls
-          .riskEvidenceState !==
-        "established"
-          ? "unavailable"
-          : (
-                d.controls
-                  .openRiskCount ??
-                0
-              ) > 0
-            ? "attention"
-            : "good",
+      health: "unavailable",
       basis:
         "Governed risk evidence only",
       consequence:
@@ -837,14 +827,14 @@ function dashboardMetrics(
           .riskEvidenceState !==
         "established"
           ? "Overall risk is not scored because a governed risk population is not established."
-          : null,
+          : "Open-risk inventory does not establish severity. Overall risk severity is not established without governed ratings and mitigation status.",
       action:
         d?.controls
           .riskEvidenceState !==
         "established"
           ? "Establish the governed Risk Register before using an overall risk KPI."
           : null,
-      owningModule: null,
+      owningModule: "documents",
     }),
   );
 
@@ -855,7 +845,7 @@ function dashboardMetrics(
   metrics.push(
     metric({
       key: "schedule-spi",
-      label: "Schedule SPI",
+      label: "EVM Schedule Performance Index (SPI)",
       value:
         input.commercial
           .evmByCurrency.length ===
@@ -893,7 +883,7 @@ function dashboardMetrics(
             ? "attention"
             : "good",
       basis:
-        "Governed EVM position; no cross-currency aggregation",
+        "EV / PV from Cost & Forecast; earned-value schedule efficiency, not critical-path delay; no cross-currency aggregation",
       consequence:
         input.commercial
           .evmByCurrency.length >
@@ -918,12 +908,12 @@ function dashboardMetrics(
       health:
         "unavailable",
       basis:
-        "Dedicated Contract Risk capability",
+        "Dedicated governed contract-risk assessment",
       consequence:
         "CMeng does not fabricate a composite contract-risk score from unrelated controls.",
       action:
-        "Implement the governed Contract Risk capability before exposing this KPI.",
-      owningModule: null,
+        "A dedicated governed contract-risk assessment is not established. Review contract terms and documented exposures.",
+      owningModule: "contract-particulars-bonds",
     }),
   );
 
@@ -933,27 +923,41 @@ function dashboardMetrics(
 export function buildManagementSurfaces(
   input: ManagementSurfacesInput,
 ): ManagementSurfacesProjection {
+  const consistency = input.consistency ?? { state: "pending" as const, checkCount: 0, failedCheckIds: [],
+    scope: "Cross-module values, populations, Data Date, authority, configuration and version have not been checked." };
+  const modules = input.modules.map(item => {
+    const validated = item.calculationState === "checked" && item.consistencyState === "pass" &&
+      item.evidenceState === "established" && item.professionalState === "defensible" && consistency.state === "pass";
+    return { ...item, status: item.status === "blocked" ? "blocked" as const : item.status === "ready" && validated ? "ready" as const : "partial" as const,
+      reason: item.reason ?? (validated ? null : "Calculation, evidence and consistency must all be checked before management readiness is established.") };
+  });
+  const evidenceCoverage = input.evidenceGaps.filter(item => item.key !== "board-publication");
+  const evidenceGaps = evidenceCoverage.filter(item => item.state !== "established");
+  const governanceGaps = input.evidenceGaps.filter(item => item.key === "board-publication" && item.state !== "established");
   const readiness = {
     ready:
-      input.modules.filter(
+      modules.filter(
         (item) =>
           item.status ===
           "ready",
       ).length,
     partial:
-      input.modules.filter(
+      modules.filter(
         (item) =>
           item.status ===
           "partial",
       ).length,
     blocked:
-      input.modules.filter(
+      modules.filter(
         (item) =>
           item.status ===
           "blocked",
       ).length,
     total:
       input.modules.length,
+    calculationAvailable: input.modules.filter(item => item.status !== "blocked").length,
+    evidenceGapCount: evidenceGaps.length,
+    governanceGapCount: governanceGaps.length,
   };
   const alerts =
     buildAlerts(input);
@@ -973,6 +977,8 @@ export function buildManagementSurfaces(
       input.projectId,
     metrics,
     readiness,
+    consistency,
+    variationReconciliation: input.commercial.variationReconciliation ?? [],
     commercialByCurrency:
       input.director
         ?.commercialByCurrency ??
@@ -990,7 +996,13 @@ export function buildManagementSurfaces(
     metrics.filter(
       (item) =>
         [
-          "programme-completion",
+          "contract-finish",
+          "official-adjusted-finish",
+          "submitted-programme-finish",
+          "independent-forecast-finish",
+          "independent-vs-contract",
+          "independent-vs-submitted",
+          "submitted-vs-contract",
           "critical-activities",
           "near-critical",
           "progress-position",
@@ -1012,12 +1024,11 @@ export function buildManagementSurfaces(
     programmePosition,
     alerts,
     decisions,
-    evidenceGaps:
-      input.evidenceGaps.map(
-        (item) => ({
-          ...item,
-        }),
-      ),
+    evidenceGaps,
+    governanceGaps,
+    evidenceCoverage,
+    consistency,
+    variationReconciliation: input.commercial.variationReconciliation ?? [],
     commercialByCurrency:
       input.director
         ?.commercialByCurrency ??
@@ -1064,7 +1075,7 @@ export function buildManagementSurfaces(
       ],
     },
     specialistPositions:
-      input.modules.map(
+      modules.map(
         (item) => ({
           ...item,
         }),
@@ -1082,12 +1093,10 @@ export function buildManagementSurfaces(
           ...item,
         }),
       ),
-    evidenceGaps:
-      input.evidenceGaps.map(
-        (item) => ({
-          ...item,
-        }),
-      ),
+    evidenceGaps,
+    governanceGaps,
+    evidenceCoverage,
+    consistency,
     diagnostics: [
       "MCP_IS_A_GOVERNANCE_LAYER_NOT_A_SECOND_SOURCE_OF_TRUTH",
       "OBSERVED_WBS_LABELS_DO_NOT_ESTABLISH_OFFICIAL_WORK_PACKAGES",

@@ -15,6 +15,8 @@ export type ManagementHealth =
 
 export type ManagementAuthority =
   | "source"
+  | "submitted"
+  | "official"
   | "calculated"
   | "governed"
   | "provisional"
@@ -39,6 +41,17 @@ export interface ManagementModuleInput {
     | "partial"
     | "blocked";
   reason: string | null;
+  calculationState?: "checked" | "pending" | "failed";
+  evidenceState?: string;
+  consistencyState?: "pass" | "fail" | "pending";
+  professionalState?: string;
+}
+
+export interface ManagementConsistency {
+  state: "pass" | "fail" | "pending";
+  checkCount: number;
+  failedCheckIds: string[];
+  scope: string;
 }
 
 export interface ManagementEvidenceGapInput {
@@ -65,6 +78,7 @@ export interface ManagementCandidateInput {
     | "rejected"
     | "deferred";
   owningModule: string | null;
+  classification?: { recordedDocumentType: string; reviewRequired: boolean; reason: string | null };
 }
 
 export interface ManagementHistoryInput {
@@ -101,6 +115,17 @@ export interface WbsControlInput {
 }
 
 export interface CommercialManagementInput {
+  variationReconciliation?: Array<{
+    currency: string;
+    taxBasis: string;
+    sourceAggregate: number | null;
+    sourceState: string;
+    datedApprovedAmount: number | null;
+    datedApprovedCount: number;
+    futureCount: number;
+    undatedCount: number;
+    state: "consistent" | "conflicted" | "not_established";
+  }>;
   overdueUnpaidPayments: number | null;
   paidLatePayments: number | null;
   lateNotices: number | null;
@@ -123,6 +148,9 @@ export interface ManagementSurfacesInput {
   generatedAt: string;
   director: ProjectDirectorPosition | null;
   modules: ManagementModuleInput[];
+  consistency?: ManagementConsistency;
+  negativeFloatCount?: number | null;
+  contractualCompletionAuthority?: "official" | "source" | "provisional";
   evidenceDocumentCount: number;
   evidenceGaps: ManagementEvidenceGapInput[];
   candidates: ManagementCandidateInput[];
@@ -193,7 +221,12 @@ export interface MasterDashboardProjection {
     partial: number;
     blocked: number;
     total: number;
+    calculationAvailable: number;
+    evidenceGapCount: number;
+    governanceGapCount: number;
   };
+  consistency: ManagementConsistency;
+  variationReconciliation: NonNullable<CommercialManagementInput["variationReconciliation"]>;
   commercialByCurrency:
     ProjectDirectorPosition["commercialByCurrency"];
   evidenceDocumentCount: number;
@@ -209,6 +242,10 @@ export interface CommandCenterProjection {
   alerts: ManagementAlert[];
   decisions: ManagementDecision[];
   evidenceGaps: ManagementEvidenceGapInput[];
+  governanceGaps: ManagementEvidenceGapInput[];
+  evidenceCoverage: ManagementEvidenceGapInput[];
+  consistency: ManagementConsistency;
+  variationReconciliation: NonNullable<CommercialManagementInput["variationReconciliation"]>;
   commercialByCurrency:
     ProjectDirectorPosition["commercialByCurrency"];
   controls:
@@ -244,6 +281,9 @@ export interface MasterControlProgrammeProjection {
     ManagementHistoryInput[];
   evidenceGaps:
     ManagementEvidenceGapInput[];
+  governanceGaps: ManagementEvidenceGapInput[];
+  evidenceCoverage: ManagementEvidenceGapInput[];
+  consistency: ManagementConsistency;
   diagnostics: string[];
 }
 

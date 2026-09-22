@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { readFileSync, statSync } from 'node:fs';
+export * from './reporting';
 
 export type FactState = 'official' | 'candidate' | 'missing' | 'partial' | 'conflicted';
 export interface SourceReceipt {

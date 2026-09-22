@@ -494,6 +494,7 @@ export interface ModuleRuntimeResult {
 
 export interface ProjectRuntimeOverview {
   projectId: string;
+  releaseCommitSha?: string | null;
   version: number;
   demo: boolean;
   revisionCount: number;

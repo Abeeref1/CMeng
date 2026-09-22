@@ -144,6 +144,7 @@ export interface DirectorPositionInput {
     MoneyValue[];
   /** Bonds remain an operational-control input for expiry/security counts only. */
   bonds: BondRecord[];
+  bondMonitoring?: {expiredCount:number|null;expiring30Count:number|null};
   commercialByCurrency:
     CurrencyCommercialPosition[];
   hseIncidents: HseIncidentRecord[];
@@ -299,15 +300,15 @@ export interface ProjectDirectorPosition {
     riskEvidenceState:
       EvidenceCoverageState;
     openRiskCount: number | null;
-    openHseIncidentCount: number;
-    openLtiOrWorseCount: number;
-    openCriticalMajorNcrCount: number;
-    openRfiCount: number;
-    overdueRfiCount: number;
-    openPermitCount: number;
-    overduePermitCount: number;
-    expiredBondCount: number;
-    expiringBondCount30Days: number;
+    openHseIncidentCount: number | null;
+    openLtiOrWorseCount: number | null;
+    openCriticalMajorNcrCount: number | null;
+    openRfiCount: number | null;
+    overdueRfiCount: number | null;
+    openPermitCount: number | null;
+    overduePermitCount: number | null;
+    expiredBondCount: number | null;
+    expiringBondCount30Days: number | null;
   };
   boardEvidence: BoardEvidenceRecord | null;
   managementActions: string[];

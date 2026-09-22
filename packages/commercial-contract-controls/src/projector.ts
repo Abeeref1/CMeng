@@ -1,3 +1,4 @@
+import { partitionAsOf } from "../../truth-kernel/src";
 import { reportingScope } from "../../truth-kernel/src";
 import type {
   CommercialFinding,
@@ -289,13 +290,14 @@ function variationStage(
 function variations(
   input: ContractControlsInput,
 ): VariationsProjection {
-  const rows =
+  const sourceRows =
     input.variations.map(
       (sourceRow): VariationLifecycleRecord => {
         const row={...sourceRow};
         const stageDates=[row.instructionDate,row.submittedDate,row.quotationDate,row.assessedDate,row.agreedDate,row.approvalDate];
         const scope = stageDates.some(d=>reportingScope(d,input.dataDateIso)==='as_of')?'as_of':stageDates.some(d=>reportingScope(d,input.dataDateIso)==='future')?'future':'undated';
         const approvalScope=reportingScope(row.approvalDate,input.dataDateIso);
+        for (const [amountKey,dateKey] of [['claimedAmount','submittedDate'],['assessedAmount','assessedDate'],['agreedAmount','agreedDate'],['approvedAmount','approvalDate']] as const) if(reportingScope(row[dateKey],input.dataDateIso)!=='as_of') row[amountKey]={...row[amountKey],value:null,state:'missing'};
         for(const key of ['instructionDate','submittedDate','quotationDate','assessedDate','agreedDate','approvalDate'] as const)if(reportingScope(row[key],input.dataDateIso)!=='as_of')row[key]=null;
         // Amounts and final status alone cannot reconstruct a historical lifecycle stage.
         const stage: VariationLifecycleRecord["lifecycleStage"] = row.approvalDate?'approved':row.agreedDate?'agreed':row.assessedDate?'assessed':row.quotationDate?'quoted':row.submittedDate?'submitted':row.instructionDate?'instruction':'unknown';
@@ -457,6 +459,7 @@ function variations(
         };
       },
     );
+  const rows = sourceRows.filter(row=>row.reportingScope==='as_of');
   const lifecycleKnown =
     rows.filter(
       (row) =>
@@ -616,8 +619,12 @@ function variations(
             : "partial",
     recordCount: rows.length,
     asOfRecordCount: rows.filter(r=>r.reportingScope==='as_of').length,
-    futureRecordCount: rows.filter(r=>r.reportingScope==='future').length,
-    undatedRecordCount: rows.filter(r=>r.reportingScope==='undated').length,
+    sourceRecordCount: sourceRows.length,
+    population: partitionAsOf(input.variations,{name:'Variations evidenced by Data Date',entity:'variation',dataDateIso:input.dataDateIso,dateBasis:'earliest dated lifecycle event',id:r=>r.variationId,date:r=>[r.instructionDate,r.submittedDate,r.quotationDate,r.assessedDate,r.agreedDate,r.approvalDate].filter((d):d is string=>!!d).sort()[0]??null}).population,
+    futureRows: sourceRows.filter(r=>r.reportingScope==='future'),
+    undatedRows: sourceRows.filter(r=>r.reportingScope==='undated'),
+    futureRecordCount: sourceRows.filter(r=>r.reportingScope==='future').length,
+    undatedRecordCount: sourceRows.filter(r=>r.reportingScope==='undated').length,
     unknownAsOfStageCount: rows.filter(r=>r.lifecycleStage==='unknown').length,
     approvedCount:
       rows.filter(
@@ -697,10 +704,12 @@ function variations(
 function siteInstructions(
   input: ContractControlsInput,
 ): SiteInstructionsProjection {
+  const scoped=partitionAsOf(input.siteInstructions,{name:'Instructions issued by Data Date',entity:'site_instruction',dataDateIso:input.dataDateIso,dateBasis:'actual instruction issue date',id:r=>r.instructionId,date:r=>r.issueDate});
   const rows:
     SiteInstructionRecord[] =
-    input.siteInstructions.map(
-      (row) => {
+    scoped.asOf.map(
+      (source) => {
+        const row={...source,quotationDate:reportingScope(source.quotationDate,input.dataDateIso)==='as_of'?source.quotationDate:null};
         const quotationTimeliness:
           SiteInstructionRecord["quotationTimeliness"] =
           row.quotationDueDate
@@ -845,6 +854,10 @@ function siteInstructions(
   return {
     capabilityKey:
       "site-instructions",
+    population:scoped.population,
+    futureRows:scoped.future,
+    undatedRows:scoped.undated,
+    sourceRecordCount:input.siteInstructions.length,
     state:
       rows.length
         ? "established"
@@ -899,12 +912,7 @@ function obligations(
     input.obligations.map(
       (row) => {
         const completed =
-          Boolean(
-            row.completedDate,
-          ) ||
-          /complete|closed|fulfilled|complied/i.test(
-            row.status,
-          );
+          reportingScope(row.completedDate,input.dataDateIso)==='as_of';
         const overdue =
           !completed &&
           Boolean(
@@ -1065,23 +1073,23 @@ function obligations(
     clauseCandidateCount:
       candidates.length,
     overdueCount:
-      explicit.filter(
+      explicit.length ? explicit.filter(
         (row) =>
           row.status ===
           "overdue",
-      ).length,
+      ).length : null,
     openCount:
-      explicit.filter(
+      explicit.length ? explicit.filter(
         (row) =>
           row.status ===
           "open",
-      ).length,
+      ).length : null,
     completeCount:
-      explicit.filter(
+      explicit.length ? explicit.filter(
         (row) =>
           row.status ===
           "complete",
-      ).length,
+      ).length : null,
     rows,
     diagnostics: [
       "CONTRACT_CLAUSES_CAN_PROPOSE_OBLIGATIONS_BUT_CANNOT_INVENT_COMPLIANCE_STATUS",
@@ -1823,9 +1831,10 @@ function bondsInsurance(
         };
       },
     );
+  const insuranceScope=partitionAsOf(input.insurances,{name:'Insurance effective by Data Date',entity:'insurance_policy',dataDateIso:input.dataDateIso,dateBasis:'policy inception date; expiration does not prove inception',id:r=>r.policyId,date:r=>r.inceptionDate});
   const insurances:
     InsurancePosition[] =
-    input.insurances.map(
+    insuranceScope.asOf.map(
       (row) => {
         const expiry =
           expiryPosition(
@@ -1863,6 +1872,8 @@ function bondsInsurance(
       },
     );
 
+  const bondDatesEstablished=bonds.length>0&&bonds.every(row=>row.expiryState!=='date_missing');
+  const insuranceDatesEstablished=insurances.length>0&&insurances.every(row=>row.expiryState!=='date_missing');
   const performanceRequired =
     input.performanceBondRequirement
       .value !== null;
@@ -1917,6 +1928,9 @@ function bondsInsurance(
   return {
     capabilityKey:
       "bonds-insurance",
+    insurancePopulation:insuranceScope.population,
+    futureInsurances:insuranceScope.future,
+    undatedInsurances:insuranceScope.undated,
     state:
       bonds.length ||
       insurances.length
@@ -1935,55 +1949,55 @@ function bondsInsurance(
     insuranceRequirementCount:
       input.insuranceRequirementCount,
     activeBondCount:
-      bonds.filter(
+      bondDatesEstablished ? bonds.filter(
         (row) =>
           row.status ===
             "active" &&
           row.expiryState !==
             "expired",
-      ).length,
+      ).length : null,
     expiredBondCount:
-      bonds.filter(
+      bondDatesEstablished ? bonds.filter(
         (row) =>
           row.expiryState ===
           "expired" ||
           row.status ===
             "expired",
-      ).length,
+      ).length : null,
     expiringBondCount:
-      bonds.filter(
+      bondDatesEstablished ? bonds.filter(
         (row) =>
           row.expiryState ===
             "expiring_30" ||
           row.expiryState ===
             "expiring_90",
-      ).length,
+      ).length : null,
     activeInsuranceCount:
-      insurances.filter(
+      insuranceDatesEstablished ? insurances.filter(
         (row) =>
           /active|valid|in.force/i.test(
             row.status,
           ) &&
           row.expiryState !==
             "expired",
-      ).length,
+      ).length : null,
     expiredInsuranceCount:
-      insurances.filter(
+      insuranceDatesEstablished ? insurances.filter(
         (row) =>
           row.expiryState ===
             "expired" ||
           /expired/i.test(
             row.status,
           ),
-      ).length,
+      ).length : null,
     expiringInsuranceCount:
-      insurances.filter(
+      insuranceDatesEstablished ? insurances.filter(
         (row) =>
           row.expiryState ===
             "expiring_30" ||
           row.expiryState ===
             "expiring_90",
-      ).length,
+      ).length : null,
     bonds,
     insurances,
     diagnostics: [
@@ -2037,8 +2051,9 @@ function retentionCalendar(
       row.retentionId;
     if (seen.has(key)) continue;
     seen.add(key);
+    const released=reportingScope(row.releaseDate,input.dataDateIso)==='as_of';
     const overdue =
-      !row.releaseDate &&
+      !released &&
       Boolean(
         row.dueDate &&
           input.dataDateIso &&
@@ -2053,7 +2068,7 @@ function retentionCalendar(
       certificateNo:
         row.certificateNo,
       state:
-        row.releaseDate
+        released
           ? "released"
           : overdue
             ? "overdue"
@@ -2102,7 +2117,7 @@ function retentionCalendar(
               },
             ),
       releaseDate:
-        row.releaseDate,
+        released ? row.releaseDate : null,
       daysToDue:
         row.dueDate &&
         input.dataDateIso
@@ -2234,8 +2249,7 @@ function retentionCalendar(
       certificateNo:
         payment.paymentId,
       state:
-        payment
-          .retentionReleaseDate
+        reportingScope(payment.retentionReleaseDate,input.dataDateIso)==='as_of'
           ? "release_date_recorded"
           : "deduction_unreconciled",
       trigger: null,
@@ -2325,6 +2339,9 @@ function retentionCalendar(
     });
   }
 
+  const sourceRows = [...rows];
+  const scoped=partitionAsOf(sourceRows,{name:'Retention records dated by Data Date',entity:'retention_record',dataDateIso:input.dataDateIso,dateBasis:'payment period or explicit balance as-of date; due dates are never used as balance dates',id:r=>r.origin+':'+r.retentionId,date:r=>r.origin==='payment_deduction'?input.paymentRetentions.find(p=>p.paymentId===r.certificateNo)?.periodEnd:r.origin==='explicit_register'?input.retentions.find(p=>p.retentionId===r.retentionId)?.amount.asOf:null});
+  rows.splice(0,rows.length,...scoped.asOf);
   const overdueAssessable =
     rows.length > 0 &&
     rows.every(
@@ -2370,6 +2387,10 @@ function retentionCalendar(
               .value !== null
           ? "partial"
           : "missing",
+    sourceRecordCount: sourceRows.length,
+    population:scoped.population,
+    futureRows:scoped.future,
+    undatedRows:scoped.undated,
     retentionPercent:
       input.retentionPercent,
     retentionCapPercent:
@@ -2378,12 +2399,12 @@ function retentionCalendar(
       rows.length,
     heldCount: rows.every(row=>row.origin==='payment_deduction')?null:rows.filter(row=>row.state==='held').length,
     releasedCount:
-      rows.filter(
+      rows.length ? rows.filter(
         (row) =>
           /released/i.test(
             row.state,
           ),
-      ).length,
+      ).length : null,
     dueCount:
       rows.filter(
         (row) =>
