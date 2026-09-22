@@ -2313,19 +2313,31 @@ function retentionCalendar(
     });
   }
 
-  const overdue =
-    rows.filter(
+  const overdueAssessable =
+    rows.length > 0 &&
+    rows.every(
       (row) =>
-        row.state ===
-        "overdue" ||
-        (
-          row.daysToDue
-            .value !== null &&
-          row.daysToDue
-            .value < 0 &&
-          !row.releaseDate
-        ),
-    ).length;
+        /released|release_date_recorded/i.test(
+          row.state,
+        ) ||
+        row.dueDate.value !==
+          null,
+    );
+  const overdue =
+    overdueAssessable
+      ? rows.filter(
+          (row) =>
+            row.state ===
+              "overdue" ||
+            (
+              row.daysToDue
+                .value !== null &&
+              row.daysToDue
+                .value < 0 &&
+              !row.releaseDate
+            ),
+        ).length
+      : null;
 
   return {
     capabilityKey:
@@ -2378,6 +2390,11 @@ function retentionCalendar(
     diagnostics: [
       "RETENTION_PERCENTAGE_CAP_DEDUCTION_HELD_BALANCE_RELEASE_DUE_AND_ACTUAL_RELEASE_REMAIN_SEPARATE",
       "RELEASE_DATE_IS_NEVER_INFERRED_FROM_PERCENTAGE_WITHOUT_A_TRIGGER_EVENT",
+      ...(overdueAssessable
+        ? []
+        : [
+            "RETENTION_OVERDUE_NOT_ASSESSABLE_WITHOUT_RELEASE_DUE_DATES",
+          ]),
     ],
   };
 }
