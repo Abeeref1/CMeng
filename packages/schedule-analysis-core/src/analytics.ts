@@ -1,3 +1,5 @@
+import { parseScheduleTime } from "./date-time";
+import { activityPopulation, scheduleProgress } from "./population";
 import { analyzeScheduleGraph } from "./graph";
 import {
   activityNearCriticalThresholdHours,
@@ -29,7 +31,7 @@ function coveragePercent(
 
 function validIsoDate(value: string | null): number | null {
   if (!value) return null;
-  const ms = Date.parse(value);
+  const ms = parseScheduleTime(value);
   return Number.isFinite(ms) ? ms : null;
 }
 
@@ -77,16 +79,6 @@ function maxDate(
         activityId: null,
         sourceRef: null,
       };
-}
-
-function executableActivities(
-  model: CanonicalScheduleModel,
-): CanonicalScheduleActivity[] {
-  return model.activities.filter(
-    (activity) =>
-      activity.activityType !== "wbs_summary" &&
-      activity.activityType !== "level_of_effort",
-  );
 }
 
 function statusSummary(
@@ -140,54 +132,8 @@ function averagePercentComplete(
   };
 }
 
-function durationWeightedPercentComplete(
-  activities: readonly CanonicalScheduleActivity[],
-): AverageMetric {
-  const eligible = activities.filter(
-    (activity) =>
-      activity.activityType !== "start_milestone" &&
-      activity.activityType !== "finish_milestone" &&
-      activity.activityType !== "milestone",
-  );
-
-  const known = eligible.filter(
-    (activity) =>
-      activity.originalDurationHours !== null &&
-      activity.originalDurationHours > 0 &&
-      activity.percentComplete !== null &&
-      activity.percentComplete >= 0 &&
-      activity.percentComplete <= 100,
-  );
-
-  const duration = known.reduce(
-    (sum, activity) =>
-      sum + activity.originalDurationHours!,
-    0,
-  );
-
-  const weighted =
-    duration > 0
-      ? known.reduce(
-          (sum, activity) =>
-            sum +
-            activity.originalDurationHours! *
-              activity.percentComplete!,
-          0,
-        ) / duration
-      : null;
-
-  return {
-    value:
-      weighted === null
-        ? null
-        : Number(weighted.toFixed(6)),
-    knownCount: known.length,
-    totalCount: eligible.length,
-    coveragePercent: coveragePercent(
-      known.length,
-      eligible.length,
-    ),
-  };
+function durationWeightedPercentComplete(activities: readonly CanonicalScheduleActivity[]): AverageMetric {
+  return scheduleProgress(activities);
 }
 
 function progressSummary(
@@ -555,7 +501,7 @@ export function analyzeSchedule(
     );
   }
 
-  const activities = executableActivities(model);
+  const activities = activityPopulation(model).activities;
   const wbsSummaryCount = model.activities.filter(
     (activity) => activity.activityType === "wbs_summary",
   ).length;
@@ -565,6 +511,22 @@ export function analyzeSchedule(
   const excludedActivityCount =
     model.activities.length - activities.length;
   const graph = analyzeScheduleGraph(model);
+  const executionIds = new Set(activities.map(a => a.activityId));
+  const executableIds = (ids: string[]) => ids.filter(id => executionIds.has(id));
+  const executionOpenStarts = executableIds(graph.openStartActivityIds);
+  const executionOpenFinishes = executableIds(graph.openFinishActivityIds);
+  const boundaryCandidates = activities.filter(a =>
+    a.activityType === "start_milestone" && executionOpenStarts.includes(a.activityId) ||
+    a.activityType === "finish_milestone" && executionOpenFinishes.includes(a.activityId)).map(a=>a.activityId);
+  const logicQuality = {
+    state: executionOpenStarts.length || executionOpenFinishes.length || !graph.complete ? "review_required" as const : "no_detected_exceptions" as const,
+    executionOpenStartActivityIds: executionOpenStarts, executionOpenFinishActivityIds: executionOpenFinishes,
+    executionIsolatedActivityIds: executableIds(graph.isolatedActivityIds),
+    excludedIsolatedActivityIds: graph.isolatedActivityIds.filter(id => !executionIds.has(id)),
+    boundaryCandidateActivityIds: boundaryCandidates,
+    boundaryApprovalState: "not_established" as const,
+    interpretation: "Computational graph integrity does not establish adequate sequencing. Boundary candidates require governed confirmation; source records remain auditable.",
+  };
   const diagnostics = [
     ...model.diagnostics,
     ...graph.diagnostics,
@@ -575,6 +537,7 @@ export function analyzeSchedule(
     sourceRevisionId: model.sourceRevisionId,
     dataDateIso: model.dataDateIso,
     graph,
+    logicQuality,
     population: {
       sourceActivityCount: model.activities.length,
       executableActivityCount: activities.length,

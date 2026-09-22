@@ -24,7 +24,7 @@ export type MilestoneManagementPriority =
   | "normal";
 
 export type MilestoneManagementFlag =
-  | "CRITICAL_PATH"
+  | "SOURCE_FLOAT_CRITICAL"
   | "NEGATIVE_FLOAT"
   | "NEAR_CRITICAL"
   | "OVERDUE"
@@ -74,7 +74,7 @@ export interface MilestonesProjection {
   nearCriticalThresholdWorkingDays: number | null;
   nearCriticalThresholdBasis: "activity_calendar_working_days" | "explicit_hours" | "unresolved";
   floatCoveragePercent: number | null;
-  criticalPathState:
+  sourceFloatState:
     | "source_float_established"
     | "source_float_partial"
     | "not_established";
@@ -89,7 +89,7 @@ export interface MilestonesProjection {
   due90Count: number;
   criticalPriorityCount: number;
   highPriorityCount: number;
-  criticalPathMilestoneIds: string[];
+  sourceFloatCriticalMilestoneIds: string[];
   terminalCriticalMilestoneIds: string[];
   rows: MilestoneRow[];
 }

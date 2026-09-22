@@ -1,3 +1,4 @@
+import { parseScheduleTime } from "../../schedule-analysis-core/src";
 import type {
   CanonicalScheduleActivity,
   CanonicalScheduleRelationship,
@@ -17,7 +18,7 @@ function dateMs(
 ): number | null {
   if (!value) return null;
   const parsed =
-    Date.parse(value);
+    parseScheduleTime(value);
   return Number.isFinite(parsed)
     ? parsed
     : null;
@@ -425,7 +426,7 @@ function compositeKey(
   ].join("|");
 }
 
-function identityMatches(
+export function resolveRevisionActivityCorrespondence(
   fromActivities:
     readonly CanonicalScheduleActivity[],
   toActivities:
@@ -649,7 +650,7 @@ export function compareScheduleRevisions(
   to: ScheduleRevision,
 ): ScheduleRevisionComparison {
   const identity =
-    identityMatches(
+    resolveRevisionActivityCorrespondence(
       from.model.activities,
       to.model.activities,
     );

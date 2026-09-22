@@ -1,3 +1,4 @@
+import { ELAPSED_24H_CALENDAR } from "../packages/schedule-cpm/src/calendar";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { performance } from "node:perf_hooks";
@@ -65,7 +66,7 @@ function largeModel(
       nativeId: String(index + 1),
       name: "Activity " + (index + 1),
       wbsId: "W1",
-      calendarId: null,
+      calendarId: "SCALE-24H",
       activityType: "task",
       status: "not_started",
       baselineStartIso: "2026-01-01",
@@ -123,7 +124,7 @@ function largeModel(
         sourceRefs: [],
       },
     ],
-    calendars: [],
+    calendars: [{ ...ELAPSED_24H_CALENDAR, calendarId: "SCALE-24H", name: "Explicit scale-fixture 24-hour calendar" }],
     diagnostics: [],
   };
 }

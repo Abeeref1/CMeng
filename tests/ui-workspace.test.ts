@@ -111,8 +111,8 @@ test("CMeng workspace keeps the active module primary and browser script parseab
   );
   assert.match(
     html,
-    /Complete truth · same governed calculations/,
-    "Overall Detailed must remain the authoritative master review rather than a separate calculation",
+    /Displayed metric checks passed/,
+    "The role lens must report the checked consistency state without claiming complete truth",
   );
 
   assert.match(
@@ -323,7 +323,7 @@ test("CMeng workspace keeps the active module primary and browser script parseab
       "Scenario only",
       "Reading result",
       "Full OCR required",
-      "Missing comparisons",
+      "Missing submitted values",
       "Other scenarios",
       "What needs attention",
       "Updated",

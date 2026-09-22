@@ -1,5 +1,10 @@
+import { schedulePlanPositions } from "../../progress-scurve/src/projector";
+import { resolveRevisionActivityCorrespondence } from "../../schedule-revision-core/src";
 import {
   DEFAULT_SCHEDULE_ANALYSIS_CONFIG,
+  isExecutionActivity,
+  scheduleProgress,
+  activityPopulation,
   sourceFloatCriticality,
   type CanonicalScheduleActivity,
   type CanonicalScheduleModel,
@@ -44,35 +49,6 @@ function buildRow(
       activity.percentComplete <= 100,
   );
 
-  const weightedKnown = activities.filter(
-    (activity) =>
-      activity.percentComplete !== null &&
-      activity.percentComplete >= 0 &&
-      activity.percentComplete <= 100 &&
-      activity.originalDurationHours !== null &&
-      activity.originalDurationHours > 0 &&
-      activity.activityType !== "milestone" &&
-      activity.activityType !== "start_milestone" &&
-      activity.activityType !== "finish_milestone",
-  );
-
-  const weightedDuration = weightedKnown.reduce(
-    (sum, activity) =>
-      sum + activity.originalDurationHours!,
-    0,
-  );
-
-  const weightedProgress =
-    weightedDuration > 0
-      ? weightedKnown.reduce(
-          (sum, activity) =>
-            sum +
-            activity.originalDurationHours! *
-              activity.percentComplete!,
-          0,
-        ) / weightedDuration
-      : null;
-
   const floatKnown = activities.filter(
     (activity) =>
       activity.totalFloatHours !== null,
@@ -103,19 +79,8 @@ function buildRow(
       pctKnown.length,
       activities.length,
     ),
-    durationWeightedProgressPercent:
-      weightedProgress === null
-        ? null
-        : Number(weightedProgress.toFixed(6)),
-    durationWeightedCoveragePercent: coverage(
-      weightedKnown.length,
-      activities.filter(
-        (activity) =>
-          activity.activityType !== "milestone" &&
-          activity.activityType !== "start_milestone" &&
-          activity.activityType !== "finish_milestone",
-      ).length,
-    ),
+    durationWeightedProgressPercent: scheduleProgress(activities).value,
+    durationWeightedCoveragePercent: scheduleProgress(activities).coveragePercent,
     originalDurationHoursKnown:
       activities.reduce(
         (sum, activity) =>
@@ -157,6 +122,8 @@ export function buildProgressBreakdownProjection(
     generatedAt: string;
     producerVersion: string;
     config?: ScheduleAnalysisConfig;
+    baselineModel?: CanonicalScheduleModel | null;
+    previousModel?: CanonicalScheduleModel | null;
   },
 ): ProgressBreakdownProjection {
   const config =
@@ -176,7 +143,7 @@ export function buildProgressBreakdownProjection(
 
   for (const activity of model.activities) {
     if (
-      activity.activityType === "wbs_summary"
+      !isExecutionActivity(activity)
     ) {
       continue;
     }
@@ -188,9 +155,35 @@ export function buildProgressBreakdownProjection(
     groups.set(key, group);
   }
 
+
+  const plan = schedulePlanPositions(model, input.baselineModel ?? null);
+  const baselineMatches = input.baselineModel ? resolveRevisionActivityCorrespondence(input.baselineModel.activities, model.activities) : null;
+  const baselineId = new Map(baselineMatches?.matches.map(match=>[match.toActivityId,match.fromActivityId]) ?? model.activities.map(a=>[a.activityId,a.activityId]));
+  const previousMatches = input.previousModel ? resolveRevisionActivityCorrespondence(input.previousModel.activities, model.activities) : null;
+  const previousById = new Map(input.previousModel?.activities.map(a=>[a.activityId,a]) ?? []);
+  const previous = new Map(previousMatches?.matches.map(match=>[match.toActivityId,previousById.get(match.fromActivityId)!]) ?? []);
+  const enrich = (row: ProgressBreakdownRow, activities: readonly CanonicalScheduleActivity[]) => {
+    const eligibleCount = scheduleProgress(activities).totalCount;
+    const weighted = (basis: "baseline" | "current") => {
+      const values = activities.flatMap(a=>{ const pos = plan[basis].get(basis === "baseline" ? baselineId.get(a.activityId) ?? "" : a.activityId); return pos?.value !== null && pos?.value !== undefined ? [pos] : []; });
+      const weight = values.reduce((n,x)=>n+x.weight,0);
+      return { value: weight ? Number((values.reduce((n,x)=>n+x.value!*x.weight,0)/weight).toFixed(6)) : null, coverage: coverage(values.length,eligibleCount) };
+    };
+    const baseline = weighted("baseline"), current = weighted("current");
+    const prior = activities.flatMap(a=>previous.has(a.activityId)?[previous.get(a.activityId)!]:[]);
+    const priorProgress = scheduleProgress(prior);
+    return { ...row, baselinePlannedPercent: baseline.value, currentPlanPercent: current.value,
+      baselinePlanCoveragePercent: baseline.coverage, currentPlanCoveragePercent: current.coverage,
+      scheduleMinusCurrentPlanPercentagePoints: row.durationWeightedProgressPercent !== null && current.value !== null ? Number((row.durationWeightedProgressPercent-current.value).toFixed(6)) : null,
+      scheduleMinusBaselinePercentagePoints: row.durationWeightedProgressPercent !== null && baseline.value !== null ? Number((row.durationWeightedProgressPercent-baseline.value).toFixed(6)) : null,
+      previousScheduleProgressPercent: priorProgress.value, previousComparisonCoveragePercent: coverage(prior.length,activities.length),
+      scheduleProgressMovementPercentagePoints: priorProgress.value !== null && prior.length === activities.length && row.durationWeightedProgressPercent !== null ? Number((row.durationWeightedProgressPercent-priorProgress.value).toFixed(6)) : null,
+      contractorReportedPercent: null, certifiedPhysicalPercent: null,
+    };
+  };
   const rows = [...groups.entries()]
     .map(([wbsId, activities]) =>
-      buildRow(
+      enrich(buildRow(
         model,
         wbsId,
         wbsId === "__UNASSIGNED__"
@@ -198,7 +191,7 @@ export function buildProgressBreakdownProjection(
           : wbsNames.get(wbsId) ?? null,
         activities,
         config,
-      ),
+      ), activities),
     )
     .sort(
       (a, b) =>
@@ -209,6 +202,35 @@ export function buildProgressBreakdownProjection(
           { numeric: true },
         ),
     );
+
+  // Ancestor rollups are a separate population from direct assignments. Each
+  // activity contributes once to each ancestor and once to the project total.
+  const nodes = new Map(model.wbs.map(node => [node.wbsId, node]));
+  const descendants = new Map<string, CanonicalScheduleActivity[]>();
+  const diagnostics: string[] = [...plan.diagnostics];
+  for (const [directId, activities] of groups) {
+    let id: string | null = directId;
+    const seen = new Set<string>();
+    while (id !== null) {
+      if (seen.has(id)) { diagnostics.push("WBS_HIERARCHY_CYCLE:" + directId); break; }
+      seen.add(id);
+      const list = descendants.get(id) ?? []; list.push(...activities); descendants.set(id, list);
+      const node = nodes.get(id);
+      if (!node && id !== "__UNASSIGNED__") diagnostics.push("WBS_NODE_UNRESOLVED:" + id);
+      id = node?.parentWbsId ?? null;
+    }
+  }
+  const hierarchyRows = [...descendants].map(([id, activities]) => {
+    const node = nodes.get(id); let depth = 0, parent = node?.parentWbsId ?? null;
+    const seen = new Set([id]);
+    while (parent !== null && !seen.has(parent)) { seen.add(parent); depth++; parent = nodes.get(parent)?.parentWbsId ?? null; }
+    return { ...enrich(buildRow(model, id, node?.name ?? null, activities, config), activities),
+      parentWbsId: node?.parentWbsId ?? null, depth,
+      directActivityCount: groups.get(id)?.length ?? 0,
+      progressAuthority: "submitted_schedule" as const,
+      contractorReportedPercent: null, certifiedPhysicalPercent: null,
+      basisNote: "Plans use working-calendar date phasing. Schedule snapshots remain separate from missing contractor-reported and certified physical measurements." };
+  }).sort((a, b) => a.depth - b.depth || a.wbsId.localeCompare(b.wbsId, undefined, { numeric: true }));
 
   return {
     schemaVersion: "1.0",
@@ -223,5 +245,9 @@ export function buildProgressBreakdownProjection(
       0,
     ),
     rows,
+    hierarchyRows,
+    population: activityPopulation(model).contract,
+    hierarchyState: diagnostics.length ? "review_required" : "established",
+    diagnostics: [...new Set(diagnostics)],
   };
 }

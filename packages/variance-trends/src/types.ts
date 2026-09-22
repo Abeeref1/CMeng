@@ -1,4 +1,11 @@
 export interface VarianceTrendPoint {
+  sourceActivityCount?: number;
+  executionActivityCount?: number;
+  variancePopulationBasis?: "source_records";
+  unmatchedActivityCount?: number;
+  movementDistribution?: ReturnType<typeof import("../../schedule-analysis-core/src").numericDistribution>;
+  identityCoveragePercent?: number | null;
+  ambiguousIdentityCount?: number;
   revisionId: string;
   sequence: number;
   dataDateIso: string | null;

@@ -181,15 +181,15 @@ export function buildProgressReportProjection(
   const physicalPercent =
     input.progressEvidence?.physical
       ?.valuePercent ??
-    latestActual?.progressPercent ??
     null;
   const physicalRefs =
     input.progressEvidence?.physical
       ?.sourceRefs ??
-    latestActual?.sourceRefs ??
     [];
 
   const progressBases = {
+    scheduleSnapshot: progressBasis(latestActual?.progressPercent ?? null, "progress_snapshot", latestActual?.sourceRefs ?? [], baselinePercent,
+      { asOfIso: latestActual?.asOfIso ?? null, coveragePercent: input.progressScurve.actualSnapshotCoveragePercent }),
     baselinePlanned: progressBasis(
       baselinePercent,
       "deterministic_schedule",
@@ -230,9 +230,7 @@ export function buildProgressReportProjection(
       physicalPercent,
       input.progressEvidence?.physical
         ? "source_evidence"
-        : latestActual
-          ? "progress_snapshot"
-          : "missing",
+        : "missing",
       physicalRefs,
       baselinePercent,
       {
@@ -240,15 +238,12 @@ export function buildProgressReportProjection(
           input.progressEvidence
             ?.physical
             ?.asOfIso ??
-          latestActual
-            ?.asOfIso ??
           schedule.dataDateIso,
         coveragePercent:
           input.progressEvidence
             ?.physical
             ?.coveragePercent ??
-          input.progressScurve
-            .actualSnapshotCoveragePercent,
+          null,
       },
     ),
     contractorReported: progressBasis(

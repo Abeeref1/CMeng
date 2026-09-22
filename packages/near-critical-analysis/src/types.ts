@@ -1,3 +1,4 @@
+import type { ActivityPopulationContract, numericDistribution } from "../../schedule-analysis-core/src";
 export interface NearCriticalBoundaryAuditRow {
   activityId: string;
   name: string | null;
@@ -72,6 +73,8 @@ export interface NearCriticalProjection {
   zeroFloatCount: number;
   negativeFloatCount: number;
   floatRiskWatchlistIncludesCriticalThreshold: boolean;
+  population?: ActivityPopulationContract;
+  floatDistribution?: ReturnType<typeof numericDistribution>;
   rows: NearCriticalRow[];
   watchlistRows: NearCriticalRow[];
   boundaryAudit: NearCriticalBoundaryAudit;

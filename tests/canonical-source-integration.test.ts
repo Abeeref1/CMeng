@@ -9,7 +9,7 @@ import { dateValue, numberValue, sumKnown, ratio, sourceTables, fact } from '../
 import { RuntimeProjectStore } from '../packages/runtime-api/src/project-state';
 import { evidenceFamily } from '../packages/runtime-api/src/evidence-control';
 import { canonicalTimeClaims, projectDataDate, synchronizeCanonicalTimeClaims } from '../packages/runtime-api/src/canonical-time-claims';
-import { canonicalResources } from '../packages/runtime-api/src/canonical-resource-runtime';
+import { canonicalResourceModule, canonicalResources } from '../packages/runtime-api/src/canonical-resource-runtime';
 import { projectScheduleControlBasis } from '../packages/runtime-api/src/schedule-control-basis';
 import { sourceProductivityForecastEvidence } from '../packages/runtime-api/src/source-productivity-forecast';
 import { buildNearCriticalProjection } from '../packages/near-critical-analysis/src';
@@ -261,7 +261,7 @@ test('malformed row widths and duplicate normalized headers are not silently rep
   assert.equal(sourceTables([a,b],d).length,0);assert.ok(d.some(s=>s.startsWith('CSV_ROW_WIDTH_MISMATCH')));assert.ok(d.some(s=>s.startsWith('DUPLICATE_NORMALIZED_HEADERS')));
 });
 test('resource quantities are partitioned by class and unit; materials never enter utilization',t=>{
-  const {state,csvDoc}=fixture(t);csvDoc(master);csvDoc(weekly);const r=canonicalResources(state);
+  const {state,csvDoc}=fixture(t);csvDoc(master);csvDoc(weekly);csvDoc("Resource ID,Week Start,Actual Approved Usage,Source Status,Unit\nL,2026-08-24,80,Approved,labor_hour\nE,2026-08-24,30,Approved,equipment_hour");const r=canonicalResources(state);
   assert.equal(r.resourceCount,2);assert.equal(r.rowCount,2);assert.equal(r.capacityCoveragePercent,100);
   assert.equal(r.plannedAverageToDataDate,100);assert.equal(r.actualAverageToDataDate,70);assert.equal(r.overloadedRowCount,1);
   assert.deepEqual(r.weeklyTotals.map(p=>p.unit).sort(),['equipment_hour','labor_hour']);assert.ok(!r.points.some(p=>p.resourceId==='M'));
@@ -1043,4 +1043,24 @@ test('C2B2 canonical Commercial ingestion distinguishes VO references from stand
   assert.equal(model.retentions[0]?.amount.value,200000);
   assert.ok(model.siteInstructions[0]?.receipt.locator.startsWith('row:'));
   assert.ok(model.insurances[0]?.receipt.documentId);
+});
+
+
+test('embedded usage cannot become approved actuals without its approved source register',t=>{
+  const {state,csvDoc}=fixture(t);csvDoc(master);csvDoc(weekly);const summary=canonicalResources(state);
+  assert.equal(summary.actualAverageToDataDate,null);
+  assert.ok(summary.points.every(row=>row.actualApprovedUsage===null));
+  assert.ok(summary.diagnostics.some(d=>d.startsWith('UNAPPROVED_EMBEDDED_ACTUAL_USAGE_WITHHELD')));
+});
+test('weekly actuals stop at Data Date in both resource and manhour views, with same-period plan variance',t=>{
+  const {state,csvDoc}=fixture(t);csvDoc(master);
+  csvDoc('Resource ID,Week Start,Available Capacity,Planned Demand,Actual Approved Usage,Unit\nL,2026-08-24,100,120,80,labor_hour\nL,2026-09-07,100,150,50,labor_hour');
+  csvDoc('Resource ID,Week Start,Actual Approved Usage,Source Status,Unit\nL,2026-08-24,80,Approved,labor_hour\nL,2026-09-07,50,Approved,labor_hour');
+  const resources=canonicalResourceModule(state,'resource-utilization')!.data as any;
+  const hours=canonicalResourceModule(state,'manhour-scurve')!.data as any;
+  assert.equal(resources.assignedResourceCount,0,'weekly resources do not manufacture P6 assignments');
+  assert.equal(resources.weeklyObservedResourceCount,1);assert.equal(resources.capacityBasedResourceCount,0);
+  assert.equal(resources.weeklyCapacityEvidence.points[1].actualApprovedUsage,null);
+  assert.equal(hours.points[1].actualCumulativeHours,null);assert.equal(hours.plannedHoursToDataDate,120);assert.equal(hours.actualHoursToDataDate,80);
+  assert.equal(hours.actualMinusPlannedHoursToDataDate,-40);assert.equal(hours.plannedHoursKnown,270);assert.equal(hours.actualPeriodCoveragePercent,100);
 });

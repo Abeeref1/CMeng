@@ -79,7 +79,7 @@ details:not(.workspace-drawer){border:1px solid var(--line);border-radius:9px;ba
 .milestone-timeline{display:grid;gap:8px;max-height:680px;overflow-y:auto;padding-right:4px}.milestone-row{display:grid;grid-template-columns:285px minmax(420px,1fr) 92px;gap:10px;align-items:center;padding:5px 6px;border-radius:8px}.milestone-row.priority-critical{background:#fff7f6}.milestone-row.priority-high{background:#fffbf2}.milestone-label{min-width:0}.milestone-label-line{display:flex;align-items:center;gap:7px;min-width:0}.milestone-label b{font-size:11.5px;color:#344054;white-space:nowrap}.milestone-label>span{display:block;font-size:10.5px;color:#7b8795;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.milestone-label small{display:block;font-size:9.8px;color:#8793a3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.milestone-priority-pill{display:inline-flex!important;align-items:center;width:max-content;padding:2px 6px;border-radius:999px;font-size:8.8px!important;font-weight:850;text-transform:uppercase;letter-spacing:.045em;line-height:1.4}.milestone-priority-pill.critical{background:#fef0ef;color:#b42318}.milestone-priority-pill.high{background:#fff4d8;color:#a15c00}.milestone-priority-pill.watch{background:#edf4fb;color:#3d6897}.milestone-priority-pill.normal{background:#f2f4f7;color:#667085}.milestone-track{position:relative;height:22px;background:#f6f8fb;border:1px solid #e5eaf0;border-radius:5px}.milestone-row.priority-critical .milestone-track{border-color:#efb5b0}.milestone-row.priority-high .milestone-track{border-color:#e6cf9c}.milestone-point{position:absolute;top:50%;width:11px;height:11px;border-radius:50%;transform:translate(-50%,-50%);border:2px solid #fff;z-index:2}.milestone-point.baseline{background:#68788b}.milestone-point.current{background:#4f7fb4}.milestone-point.actual{background:#2c7a57}.milestone-shift{position:absolute;top:9px;height:3px;background:#9aa7b5}.milestone-shift.late{background:#b4483e}.milestone-dd{position:absolute;top:-4px;bottom:-4px;width:1px;background:#1f2937;opacity:.35}.milestone-row-meta{text-align:right;min-width:0}.milestone-row-meta b{display:block;font-size:11px}.milestone-row-meta small{display:block;font-size:9.5px;color:#7b8795;margin-top:2px}.milestone-basis-note{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;padding:10px 12px;border:1px solid #dce5ef;border-radius:9px;background:#f8fbff;margin-bottom:12px;font-size:11px;color:#667085}.milestone-basis-note b{color:#344054}.milestone-priority-board{display:grid;gap:8px}.milestone-priority-row{display:grid;grid-template-columns:78px minmax(205px,1.25fr) 105px 112px 92px 90px minmax(235px,1.35fr);gap:10px;align-items:center;padding:10px 11px;border:1px solid #e2e8f0;border-radius:9px;background:#fff}.milestone-priority-row.critical{border-left:4px solid #b4483e;background:#fff8f7}.milestone-priority-row.high{border-left:4px solid #b57922;background:#fffaf2}.milestone-priority-row.watch{border-left:4px solid #4f7fb4}.milestone-priority-main{min-width:0}.milestone-priority-main b{display:block;font-size:11.5px;color:#344054}.milestone-priority-main span{display:block;font-size:10.5px;color:#667085;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.milestone-priority-main small{display:block;font-size:9.5px;color:#98a2b3;margin-top:2px}.milestone-priority-metric span{display:block;font-size:9px;text-transform:uppercase;letter-spacing:.045em;color:#98a2b3;font-weight:800}.milestone-priority-metric b{display:block;margin-top:2px;font-size:11px;color:#344054}.milestone-priority-action{font-size:10.5px;color:#475467;line-height:1.35}.milestone-flags{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}.milestone-flag{display:inline-flex;padding:2px 5px;border-radius:999px;background:#eef3f8;color:#596b7f;font-size:8.7px;font-weight:750;text-transform:uppercase;letter-spacing:.025em}.milestone-flag.danger{background:#fef0ef;color:#b42318}.milestone-flag.warning{background:#fff4d8;color:#a15c00}.milestone-criticality{font-weight:800}.milestone-criticality.critical{color:#b42318}.milestone-criticality.near_critical{color:#b54708}.milestone-criticality.positive_float{color:#2f6b57}.milestone-criticality.unknown{color:#667085}.milestone-chart-shell{border:1px solid #dce5ef;border-radius:12px;background:#fff;overflow:hidden}.milestone-chart-head{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:16px;align-items:start;padding:13px 15px 11px;border-bottom:1px solid #e5ebf2;background:#fbfdff}.milestone-chart-head h5{margin:0;font-size:13px;color:#22364d}.milestone-chart-head p{margin:4px 0 0;font-size:11px;color:#6f7f92}.milestone-chart-legend{display:flex;flex-wrap:wrap;gap:10px;justify-content:flex-end;font-size:10px;color:#667085}.milestone-chart-legend span{display:inline-flex;align-items:center;gap:5px}.milestone-chart-legend i{display:inline-block;width:9px;height:9px}.milestone-chart-legend i.baseline{border:2px solid #68788b;border-radius:50%;background:#fff}.milestone-chart-legend i.current{background:#4f7fb4;transform:rotate(45deg);border-radius:2px}.milestone-chart-legend i.actual{background:#2c7a57;border-radius:2px}.milestone-chart-legend i.data{width:2px;height:12px;background:#344054}.milestone-chart-scroll{overflow-x:auto}.milestone-control-svg{display:block;width:100%;min-width:1080px;height:auto;background:#fff}.milestone-control-svg text{font-family:Inter,"Segoe UI",sans-serif}.milestone-control-svg .axis-label{fill:#7b8795;font-size:10px}.milestone-control-svg .axis-title{fill:#667085;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.06em}.milestone-control-svg .row-id{fill:#344054;font-size:10.5px;font-weight:800}.milestone-control-svg .row-name{fill:#667085;font-size:9.5px}.milestone-control-svg .row-meta{fill:#7b8795;font-size:8.8px}.milestone-control-svg .priority-text{font-size:8.5px;font-weight:850;text-transform:uppercase}.milestone-control-svg .value-main{fill:#344054;font-size:10.5px;font-weight:800}.milestone-control-svg .value-sub{fill:#7b8795;font-size:9px}.milestone-control-svg .late-value{fill:#b42318}.milestone-control-svg .early-value{fill:#067647}.milestone-control-svg .critical-value{fill:#b42318}.milestone-control-svg .near-value{fill:#b54708}.milestone-control-svg .grid-line{stroke:#e7edf3;stroke-width:1}.milestone-control-svg .row-line{stroke:#eef2f6;stroke-width:1}.milestone-control-svg .data-line{stroke:#344054;stroke-width:1.4;stroke-dasharray:5 4;opacity:.75}.milestone-control-svg .movement-late{stroke:#c35d54;stroke-width:3;stroke-linecap:round}.milestone-control-svg .movement-early{stroke:#4a8a6d;stroke-width:3;stroke-linecap:round}.milestone-control-svg .movement-neutral{stroke:#9aa7b5;stroke-width:2.5;stroke-linecap:round}.milestone-control-svg .baseline-point{fill:#fff;stroke:#68788b;stroke-width:2}.milestone-control-svg .current-point{fill:#4f7fb4;stroke:#fff;stroke-width:1.5}.milestone-control-svg .actual-point{fill:#2c7a57;stroke:#fff;stroke-width:1.5}.milestone-control-svg .critical-ring{fill:none;stroke:#b42318;stroke-width:2}.milestone-control-svg .near-ring{fill:none;stroke:#b57922;stroke-width:2}.milestone-chart-foot{display:flex;justify-content:space-between;gap:12px;padding:9px 14px;border-top:1px solid #edf1f5;background:#fbfdff;font-size:10px;color:#7b8795}
 .float-histogram{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;height:230px;align-items:end}.float-bin{height:100%;display:grid;grid-template-rows:1fr auto auto;gap:4px;text-align:center}.float-bar-wrap{display:flex;align-items:flex-end;justify-content:center;border-bottom:1px solid #d0d5dd}.float-bar{width:65%;min-height:2px;background:#b57922;border-radius:5px 5px 0 0}.float-bin b{font-size:11px;color:#344054}.float-bin small{font-size:10.5px;color:#7b8795}
 .empty-visual{padding:28px;text-align:center;color:#7b8795;background:#f8fafc;border:1px dashed #dce5ef;border-radius:9px}.reconciliation-panel{margin-top:14px;border:1px solid #dce5ef;border-radius:12px;background:#fff;overflow:hidden}.reconciliation-panel>summary{list-style:none;display:flex;justify-content:space-between;gap:12px;padding:13px 15px;cursor:pointer;font-size:12px;font-weight:750;color:#344054;background:#fbfdff}.reconciliation-panel>summary::-webkit-details-marker{display:none}.reconciliation-panel>summary b{font-size:10.5px;color:#7b8795}.reconciliation-body{padding:0 0 2px}.reconciliation-body>.challenge-card{border:0!important;border-radius:0!important;margin:0!important;box-shadow:none!important}
-.chart-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid var(--line);background:#faf9f6}.chart-card-head h4{margin:0;font-size:14px}.chart-card-head p{margin:3px 0 0;color:var(--muted);font-size:12px}.chart-body{padding:14px 16px}.svg-chart{width:100%;min-width:720px;height:auto;display:block}.chart-scroll{overflow-x:auto;padding-bottom:2px}.chart-legend{display:flex;flex-wrap:wrap;gap:12px;margin:0 0 10px}.chart-canvas{position:relative;min-width:0}.chart-canvas-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 9px;color:#7b8795;font-size:9.5px;font-weight:750}.chart-canvas-focus-button{border:1px solid #cbd8e5;background:#fff;color:#425b74;border-radius:7px;padding:5px 8px;font-size:10px;font-weight:800;cursor:pointer}.chart-canvas-focus-button:hover{background:#f3f7fb;border-color:#9fb7ce}.visual-chart .chart-canvas-focus-button{display:none}.chart-canvas.chart-focus{position:fixed;inset:24px;z-index:1100;background:#fff;border:1px solid #aec4da;border-radius:16px;padding:20px;overflow:auto;box-shadow:0 24px 70px rgba(15,23,42,.28)}.chart-canvas.chart-focus .chart-canvas-toolbar{position:sticky;top:-20px;z-index:3;background:#fff;padding:10px 0;border-bottom:1px solid #e5ecf3}.chart-canvas.chart-focus .chart-scroll{overflow:auto}.chart-canvas.chart-focus .svg-chart{min-width:1200px;min-height:620px}.chart-canvas-open{overflow:hidden}.chart-hit-point{cursor:crosshair;outline:none}.chart-hit-point:focus{stroke:#22364d;stroke-width:1.5;fill:rgba(79,127,180,.08)}.legend-item{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:#506579}.legend-dot{width:9px;height:9px;border-radius:50%}.domain-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:11px}.domain-card{border:1px solid var(--line);border-radius:11px;background:#fff;padding:14px}.domain-card h5{margin:0 0 10px;font-size:14px}.domain-metric{display:flex;justify-content:space-between;gap:12px;padding:5px 0;border-bottom:1px solid #edf1f5;font-size:12px;color:#5a687b}.domain-metric:last-child{border-bottom:0}.domain-metric strong{color:#2e3a46;text-align:right}.position-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px}.position-card{border:1px solid #dfe7ef;border-radius:10px;background:#fff;padding:13px}.position-card .position-label{font-size:10.5px;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:.05em}.position-card .position-value{font-size:19px;font-weight:780;margin:5px 0 3px;letter-spacing:-.02em}.position-card .position-sub{font-size:11.5px;color:var(--muted)}.readiness-table td{vertical-align:middle}.state-pill{display:inline-flex;border-radius:999px;padding:4px 7px;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.035em}.state-pill.ready,.state-pill.included{background:#ecfdf3;color:#067647}.state-pill.blocked,.state-pill.excluded{background:#fef3f2;color:#b42318}.state-pill.conditional,.state-pill.review,.state-pill.unknown{background:#fffaeb;color:#b54708}.state-pill.not_applicable{background:#f2f4f7;color:#667085}.window-strip{display:grid;gap:10px}.window-card{display:grid;grid-template-columns:minmax(170px,.55fr) minmax(0,1fr) minmax(180px,.6fr);gap:13px;border:1px solid var(--line);border-radius:10px;padding:13px;background:#fff}.window-id{font-size:13px;font-weight:800}.window-dates{font-size:11.5px;color:var(--muted);margin-top:4px}.movement-value{font-size:22px;font-weight:780;letter-spacing:-.03em}.movement-label{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:750}.event-tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px}.event-tag{font-size:10.5px;border:1px solid #ded8cf;border-radius:999px;padding:3px 6px;background:#fbfdff;color:#506579}.data-section{margin-top:14px;border:1px solid var(--line);border-radius:12px;background:#fff;overflow:hidden}.data-section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid var(--line);background:#fbfdff}.data-section-head h4{margin:0;font-size:14px;letter-spacing:-.01em}.data-section-body{padding:14px 16px}.value-list{display:flex;flex-wrap:wrap;gap:7px}.value-chip{display:inline-flex;padding:6px 9px;border:1px solid #ded8cf;border-radius:8px;background:#fbfdff;font-size:12px;color:#506579}.nested-block{margin-top:12px}.nested-block:first-child{margin-top:0}.nested-title{font-size:12px;font-weight:800;color:#506579;margin:0 0 8px;text-transform:uppercase;letter-spacing:.045em}.cell-details summary{padding:4px 0!important;border:0!important;background:transparent!important}.cell-details pre{max-height:320px}.technical-payload{margin-top:16px}.footer-note{font-size:12px;color:var(--muted);margin-top:22px;padding:0 2px}.muted{color:var(--muted)}
+.chart-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid var(--line);background:#faf9f6}.chart-card-head h4{margin:0;font-size:14px}.chart-card-head p{margin:3px 0 0;color:var(--muted);font-size:12px}.chart-body{padding:14px 16px}.svg-chart{width:100%;min-width:0;height:auto;display:block}.chart-scroll{overflow-x:auto;padding-bottom:2px}.chart-legend{display:flex;flex-wrap:wrap;gap:12px;margin:0 0 10px}.chart-canvas{position:relative;min-width:0}.chart-canvas-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 9px;color:#7b8795;font-size:9.5px;font-weight:750}.chart-canvas-focus-button{border:1px solid #cbd8e5;background:#fff;color:#425b74;border-radius:7px;padding:5px 8px;font-size:10px;font-weight:800;cursor:pointer}.chart-canvas-focus-button:hover{background:#f3f7fb;border-color:#9fb7ce}.visual-chart .chart-canvas-focus-button{display:none}.chart-canvas.chart-focus{position:fixed;inset:24px;z-index:1100;background:#fff;border:1px solid #aec4da;border-radius:16px;padding:20px;overflow:auto;box-shadow:0 24px 70px rgba(15,23,42,.28)}.chart-canvas.chart-focus .chart-canvas-toolbar{position:sticky;top:-20px;z-index:3;background:#fff;padding:10px 0;border-bottom:1px solid #e5ecf3}.chart-canvas.chart-focus .chart-scroll{overflow:auto}.chart-canvas.chart-focus .svg-chart{min-width:1200px;min-height:620px}.chart-canvas-open{overflow:hidden}.chart-hit-point{cursor:crosshair;outline:none}.chart-hit-point:focus{stroke:#22364d;stroke-width:1.5;fill:rgba(79,127,180,.08)}.legend-item{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:#506579}.legend-dot{width:9px;height:9px;border-radius:50%}.domain-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:11px}.domain-card{border:1px solid var(--line);border-radius:11px;background:#fff;padding:14px}.domain-card h5{margin:0 0 10px;font-size:14px}.domain-metric{display:flex;justify-content:space-between;gap:12px;padding:5px 0;border-bottom:1px solid #edf1f5;font-size:12px;color:#5a687b}.domain-metric:last-child{border-bottom:0}.domain-metric strong{color:#2e3a46;text-align:right}.position-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px}.position-card{border:1px solid #dfe7ef;border-radius:10px;background:#fff;padding:13px}.position-card .position-label{font-size:10.5px;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:.05em}.position-card .position-value{font-size:19px;font-weight:780;margin:5px 0 3px;letter-spacing:-.02em}.position-card .position-sub{font-size:11.5px;color:var(--muted)}.readiness-table td{vertical-align:middle}.state-pill{display:inline-flex;border-radius:999px;padding:4px 7px;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.035em}.state-pill.ready,.state-pill.included{background:#ecfdf3;color:#067647}.state-pill.blocked,.state-pill.excluded{background:#fef3f2;color:#b42318}.state-pill.conditional,.state-pill.review,.state-pill.unknown{background:#fffaeb;color:#b54708}.state-pill.not_applicable{background:#f2f4f7;color:#667085}.window-strip{display:grid;gap:10px}.window-card{display:grid;grid-template-columns:minmax(170px,.55fr) minmax(0,1fr) minmax(180px,.6fr);gap:13px;border:1px solid var(--line);border-radius:10px;padding:13px;background:#fff}.window-id{font-size:13px;font-weight:800}.window-dates{font-size:11.5px;color:var(--muted);margin-top:4px}.movement-value{font-size:22px;font-weight:780;letter-spacing:-.03em}.movement-label{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:750}.event-tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px}.event-tag{font-size:10.5px;border:1px solid #ded8cf;border-radius:999px;padding:3px 6px;background:#fbfdff;color:#506579}.data-section{margin-top:14px;border:1px solid var(--line);border-radius:12px;background:#fff;overflow:hidden}.data-section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid var(--line);background:#fbfdff}.data-section-head h4{margin:0;font-size:14px;letter-spacing:-.01em}.data-section-body{padding:14px 16px}.value-list{display:flex;flex-wrap:wrap;gap:7px}.value-chip{display:inline-flex;padding:6px 9px;border:1px solid #ded8cf;border-radius:8px;background:#fbfdff;font-size:12px;color:#506579}.nested-block{margin-top:12px}.nested-block:first-child{margin-top:0}.nested-title{font-size:12px;font-weight:800;color:#506579;margin:0 0 8px;text-transform:uppercase;letter-spacing:.045em}.cell-details summary{padding:4px 0!important;border:0!important;background:transparent!important}.cell-details pre{max-height:320px}.technical-payload{margin-top:16px}.footer-note{font-size:12px;color:var(--muted);margin-top:22px;padding:0 2px}.muted{color:var(--muted)}
 .spinner{width:14px;height:14px;border:2px solid #d0d5dd;border-top-color:var(--accent);border-radius:50%;display:inline-block;animation:spin .7s linear infinite;vertical-align:-2px}@keyframes spin{to{transform:rotate(360deg)}}
 @media(max-width:1280px){.planning-kpi-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.planning-primary-grid{grid-template-columns:1fr}.management-health-grid{grid-template-columns:1fr 1fr}.app{grid-template-columns:238px minmax(0,1fr)}.grid.three{grid-template-columns:1fr 1fr}.upload-row{grid-template-columns:1fr}.evidence-control-grid{grid-template-columns:1fr}.evidence-status-card{position:static}}
 @media(max-width:900px){.app{display:block}.sidebar{position:relative;height:auto}.topbar{position:relative;flex-wrap:wrap;padding:13px 18px}.content{padding:20px 18px 48px}.project-input{min-width:0;width:100%;flex-wrap:wrap}.workspace-header{align-items:center}.grid.two,.grid.three{grid-template-columns:1fr}.module-panel #moduleContent{padding:16px}.module-panel>.module-head{padding:17px}.candidate-grid{grid-template-columns:1fr}.auxiliary-drawer{right:12px;top:12px;width:calc(100vw - 24px);max-height:calc(100vh - 24px)}}
@@ -112,7 +112,7 @@ details:not(.workspace-drawer){border:1px solid var(--line);border-radius:9px;ba
 .chart-card-head{padding:17px 20px!important;background:linear-gradient(180deg,#fff,#fbfdff)!important}
 .chart-body{padding:20px!important}
 .chart-scroll{overflow:auto hidden!important;padding:4px 0 2px}
-.svg-chart{width:100%!important;min-width:760px!important;max-height:360px!important;background:#fff;border-radius:10px}
+.svg-chart{width:100%!important;min-width:0!important;max-height:360px!important;background:#fff;border-radius:10px}
 .chart-legend{gap:9px!important;margin-bottom:14px!important}
 .legend-item{padding:5px 8px;border:1px solid #e1e8ef;border-radius:999px;background:#fbfdff;font-size:10.5px!important;font-weight:700}
 .position-grid{grid-template-columns:repeat(auto-fit,minmax(210px,1fr))!important;gap:12px!important}
@@ -125,7 +125,7 @@ details:not(.workspace-drawer){border:1px solid var(--line);border-radius:9px;ba
 .table-wrap tbody tr:hover{background:#f2f7fc}
 .table-wrap td{border-bottom:1px solid #edf2f6!important;vertical-align:top}
 .module-bar-row{grid-template-columns:minmax(145px,.9fr) minmax(260px,1.8fr) 110px!important;gap:12px!important}
-.module-bar-row>div{height:17px!important;border-radius:999px!important;background:#eef3f8!important;overflow:hidden}
+.module-bar-row>span{white-space:normal!important;overflow:visible!important;text-overflow:clip!important;overflow-wrap:anywhere}.module-bar-row>div{height:17px!important;border-radius:999px!important;background:#eef3f8!important;overflow:hidden}
 .module-bar-row i{height:100%!important;border-radius:999px!important;box-shadow:inset 0 0 0 1px rgba(255,255,255,.25)}
 .signed-track{height:18px!important;border-radius:999px!important;background:#eef3f8!important}
 .signed-bar{top:3px!important;height:12px!important;border-radius:999px!important}
@@ -414,7 +414,7 @@ const roleViews={
   overall:{
     label:"Overall Detailed",
     short:"Overall",
-    eyebrow:"Authoritative master review",
+    eyebrow:"Detailed evidence review",
     question:"What is the complete governed project-control position, from management signal through technical detail and source evidence?"
   },
   planning:{
@@ -679,6 +679,18 @@ function renderRoleViewSelector(){
     };
   });
 }
+function reconciliationSummary(challenge){
+  const labels={within_tolerance:"Reconciled within tolerance",material_difference:"Material difference",independent_unavailable:"Independent check unavailable",submitted_missing:"Comparable submitted value missing",conflicting_evidence:"Conflicting evidence",incomparable:"Comparison bases differ",scenario:"Scenario comparison",comparison_pending:"Comparison pending"};
+  return labels[challenge?.reconciliationState]||"Comparison pending";
+}
+function consistencyLabel(data){
+  const c=data?.systemEvidenceContract;
+  return c?.state==="verified_for_checked_metrics"?"Displayed metric checks passed":c?.state==="failed"?"Calculation consistency requires review":"Consistency checks pending";
+}
+function distributionSummary(d,unit="days"){
+  if(!d)return "";
+  return '<div class="domain-card"><h5>Value distribution</h5>'+metricLine("Median",d.median===null?"Not established":fmt(d.median)+" "+unit)+metricLine("90th percentile",d.p90===null?"Not established":fmt(d.p90)+" "+unit)+metricLine("Most repeated value",d.dominantValue===null?"Not established":fmt(d.dominantValue)+" "+unit)+metricLine("Rows at that value",fmt(d.dominantCount)+(d.dominantPercent===null?"":" · "+fmt(d.dominantPercent)+"% of known values"))+'<p class="muted">Repeated values identify concentration. They do not establish a shared cause or separate entitlement.</p></div>';
+}
 function renderRoleLens(key,data,role){
   const profile=roleViews[role]||roleViews.overall;
   const focus=roleFocusItems(key,role);
@@ -689,11 +701,11 @@ function renderRoleLens(key,data,role){
       ["Exceptions","Variance, gaps and exposure"],
       ["Decision path","Consequence, action and evidence"]
     ];
-    return '<section class="role-lens role-lens-compact"><div class="role-lens-head"><div><span class="section-kicker">'+escapeHtml(profile.eyebrow)+'</span><h4>'+escapeHtml(names[key]||humanizeKey(key))+' · Overall Detailed Review</h4><p>'+escapeHtml(question)+'</p></div><span class="role-lens-badge">Complete truth · same governed calculations</span></div><div class="role-lens-compact-strip">'+layers.map(([title,text])=>'<div><b>'+escapeHtml(title)+'</b><span>'+escapeHtml(text)+'</span></div>').join("")+'</div></section>';
+    return '<section class="role-lens role-lens-compact"><div class="role-lens-head"><div><span class="section-kicker">'+escapeHtml(profile.eyebrow)+'</span><h4>'+escapeHtml(names[key]||humanizeKey(key))+' · Overall Detailed Review</h4><p>'+escapeHtml(question)+'</p></div><span class="role-lens-badge">'+escapeHtml(consistencyLabel(data))+'</span></div><div class="role-lens-compact-strip">'+layers.map(([title,text])=>'<div><b>'+escapeHtml(title)+'</b><span>'+escapeHtml(text)+'</span></div>').join("")+'</div></section>';
   }
   const signals=roleTopSignals(data,role);
   const actions=collectRoleActions(data,role);
-  return '<section class="role-lens"><div class="role-lens-head"><div><span class="section-kicker">'+escapeHtml(profile.eyebrow)+'</span><h4>'+escapeHtml(profile.label)+' lens · '+escapeHtml(names[key]||humanizeKey(key))+'</h4><p>'+escapeHtml(question)+'</p></div><span class="role-lens-badge">Same governed project position</span></div><div class="role-lens-body"><div class="role-focus-grid">'+focus.map((text,index)=>'<div class="role-focus-card"><span>Focus '+(index+1)+'</span><b>'+escapeHtml(text)+'</b></div>').join("")+'</div>'+(signals.length?'<div class="role-signal-grid">'+signals.map(item=>'<div class="role-signal '+escapeHtml(roleSignalTone(item))+'" title="'+escapeHtml((item.path||[]).join(" · "))+'"><span>'+escapeHtml(roleSignalLabel(item))+'</span><b>'+escapeHtml(roleSignalValue(item))+'</b></div>').join("")+'</div>':'')+(actions.length?'<div class="role-action-panel"><strong>'+(role==="executive"?"Executive attention":role==="project-director"?"Leadership actions":role==="program-director"?"Programme actions":"Control actions")+'</strong><div class="role-action-list">'+actions.map((item,index)=>'<div class="role-action-row"><i>'+(index+1)+'</i><span><b>'+escapeHtml(item.kind)+':</b> '+escapeHtml(item.text)+'</span></div>').join("")+'</div></div>':'')+'</div></section>';
+  return '<section class="role-lens"><div class="role-lens-head"><div><span class="section-kicker">'+escapeHtml(profile.eyebrow)+'</span><h4>'+escapeHtml(profile.label)+' lens · '+escapeHtml(names[key]||humanizeKey(key))+'</h4><p>'+escapeHtml(question)+'</p></div><span class="role-lens-badge">'+escapeHtml(consistencyLabel(data))+'</span></div><div class="role-lens-body"><div class="role-focus-grid">'+focus.map((text,index)=>'<div class="role-focus-card"><span>Focus '+(index+1)+'</span><b>'+escapeHtml(text)+'</b></div>').join("")+'</div>'+(signals.length?'<div class="role-signal-grid">'+signals.map(item=>'<div class="role-signal '+escapeHtml(roleSignalTone(item))+'" title="'+escapeHtml((item.path||[]).join(" · "))+'"><span>'+escapeHtml(roleSignalLabel(item))+'</span><b>'+escapeHtml(roleSignalValue(item))+'</b></div>').join("")+'</div>':'')+(actions.length?'<div class="role-action-panel"><strong>'+(role==="executive"?"Executive attention":role==="project-director"?"Leadership actions":role==="program-director"?"Programme actions":"Control actions")+'</strong><div class="role-action-list">'+actions.map((item,index)=>'<div class="role-action-row"><i>'+(index+1)+'</i><span><b>'+escapeHtml(item.kind)+':</b> '+escapeHtml(item.text)+'</span></div>').join("")+'</div></div>':'')+'</div></section>';
 }
 function renderRoleContent(key,data,primaryView,challengeHtml="",includeTechnical=false){
   const role=selectedRoleView;
@@ -883,11 +895,11 @@ function renderUniversalChallenge(challenge){
   const reviewStateLabels={derived:"Calculated",calculated:"Calculated",partial:"Partial",complete:"Complete",established:"Confirmed",missing:"Missing",not_submitted:"Not provided"};
   const submittedState=reviewStateLabels[challenge.submittedEvidenceState]||humanizeKey(challenge.submittedEvidenceState);
   const independentState=reviewStateLabels[challenge.independentState]||humanizeKey(challenge.independentState);
-  return '<div class="card challenge-card" style="margin-bottom:14px"><div class="module-head challenge-head"><h3>Submitted position vs CMeng review</h3><span class="badge '+(challenge.challengedCount?"partial":"ready")+'">'+escapeHtml(challenge.challengedCount)+(challenge.challengedCount===1?" item needs attention":" items need attention")+'</span></div>'+
+  return '<div class="card challenge-card" style="margin-bottom:14px"><div class="module-head challenge-head"><h3>Submitted position vs CMeng review</h3><span class="badge '+(challenge.challengedCount?"partial":"ready")+'">'+escapeHtml(reconciliationSummary(challenge))+'</span></div>'+
     '<div class="scalar-grid challenge-summary">'+
       '<div class="scalar"><b>Submitted position</b><span>'+escapeHtml(submittedState)+'</span></div>'+
       '<div class="scalar"><b>CMeng review</b><span>'+escapeHtml(independentState)+'</span></div>'+
-      '<div class="scalar"><b>Missing comparisons</b><span>'+escapeHtml(challenge.notSubmittedCount)+'</span></div>'+
+      '<div class="scalar"><b>Missing submitted values</b><span>'+escapeHtml(challenge.notSubmittedCount)+'</span></div>'+'<div class="scalar"><b>Unavailable independent checks</b><span>'+escapeHtml(challenge.unavailableCheckCount??0)+'</span></div>'+
       '<div class="scalar"><b>Other scenarios</b><span>'+escapeHtml(challenge.scenarioCount)+'</span></div>'+
     '</div>'+attentionHtml+
     '<div class="table-wrap challenge-table-wrap"><table><thead><tr><th>Metric</th><th>Submitted</th><th>CMeng independent check</th><th>Gap</th><th>Consequence</th><th>Action</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';
@@ -949,7 +961,7 @@ function renderDeliveryChallenge(data,reason){
     ["Notice candidates",contract.noticeRequirementCandidates?.length??0,"candidate clauses"],
     ["Categories",(contract.categoriesPresent||[]).length,"identified"]
   ])+(contractCategoryCounts.size?'<div class="nested-title" style="margin-top:14px">Signals by contract topic</div>'+contractCategoryBars:'')+'</div></section>':'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Contract review</h4></div></div><div class="planning-panel-body"><div class="notice warn">A parsed contract is required before CMeng can challenge clauses, notice obligations or contractual time provisions.</div></div></section>';
-  const reconciliation=challengeBody?'<details class="reconciliation-panel"><summary><span>Reconciliation with submitted position</span><b>'+escapeHtml(data.challenge?.challengedCount||0)+' needs attention</b></summary><div class="reconciliation-body">'+challengeBody+'</div></details>':'';
+  const reconciliation=challengeBody?'<details class="reconciliation-panel"><summary><span>Reconciliation with submitted position</span><b>'+escapeHtml(reconciliationSummary(data.challenge))+'</b></summary><div class="reconciliation-body">'+challengeBody+'</div></details>':'';
   let html='<section class="planning-view contract-challenge-view">'+(reason?'<div class="notice info">'+escapeHtml(reason)+'</div>':'')+challengeVisuals+'<section class="planning-panel"><div class="planning-panel-head"><div><h4>Evidence readiness</h4><p>CMeng does not present a scenario as an official project fact.</p></div><span class="badge '+(d.position==="challenged"||d.position==="material_delivery_gap"?"partial":"")+'">'+escapeHtml(humanizeKey(d.position))+'</span></div><div class="planning-panel-body">'+gates+'</div></section>'+scheduleCards+'<div class="planning-primary-grid">'+contractSummary+manpower+'</div>'+quantity;
   if(findings)html+='<section class="planning-panel"><div class="planning-panel-head"><div><h4>Delivery challenge findings</h4><p>Management issues, consequence and required response.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Topic</th><th>State</th><th>Contractor position</th><th>CMeng analysis</th><th>Gap</th><th>Consequence</th><th>Required response</th></tr></thead><tbody>'+findings+'</tbody></table></div></div></section>';
   if(data.contractValueEvidence){
@@ -1154,6 +1166,7 @@ function renderCommercialMetricBars(row,fields){
   return renderVisualBars(items,row?.currency||"");
 }
 function renderLineChart(points,series,yMaxHint=null,options={}){
+  series=series.filter(item=>Array.isArray(points)&&points.some(point=>typeof point?.[item.key]==="number"&&Number.isFinite(point[item.key])));
   if(!Array.isArray(points)||!points.length)return '<div class="empty-visual">No series points available.</div>';
   const numeric=[];
   points.forEach(point=>series.forEach(item=>{
@@ -1225,7 +1238,8 @@ function renderLineChart(points,series,yMaxHint=null,options={}){
   const plots=series.map((item,seriesIndex)=>{
     const color=item.color||chartToneColor(item.tone||"accent");
     return segments(item.key).map(seg=>{
-      const poly='<polyline points="'+seg.map(p=>p.x.toFixed(1)+","+p.y.toFixed(1)).join(" ")+'" fill="none" stroke="'+color+'" stroke-width="'+(seriesIndex===0?3:2.4)+'" stroke-linecap="round" stroke-linejoin="round"/>';
+      const pathPoints=item.step?seg.flatMap((p,index)=>index?[{x:p.x,y:seg[index-1].y},p]:[p]):seg;
+      const poly='<polyline points="'+pathPoints.map(p=>p.x.toFixed(1)+","+p.y.toFixed(1)).join(" ")+'" fill="none" stroke="'+color+'" stroke-width="'+(seriesIndex===0?3:2.4)+'" stroke-linecap="round" stroke-linejoin="round"/>';
       const area=seriesIndex===0&&minY>=0&&seg.length>1
         ? '<polygon points="'+seg[0].x.toFixed(1)+","+y(minY).toFixed(1)+" "+seg.map(p=>p.x.toFixed(1)+","+p.y.toFixed(1)).join(" ")+" "+seg.at(-1).x.toFixed(1)+","+y(minY).toFixed(1)+'" fill="'+color+'" fill-opacity=".055"/>'
         : '';
@@ -1279,11 +1293,11 @@ function renderLineChart(points,series,yMaxHint=null,options={}){
     const values=points.map(point=>point?.[item.key]).filter(value=>typeof value==="number"&&Number.isFinite(value));
     const latest=values.length?values.at(-1):null;
     return '<span class="legend-item"><span class="legend-dot" style="background:'+(item.color||chartToneColor(item.tone||"accent"))+'"></span>'+
-      escapeHtml(item.label)+(latest===null?'':' · '+escapeHtml(valueText(latest)))+'</span>';
+      escapeHtml(item.label)+'</span>';
   }).join("")+'</div>';
 
   const scaleNote=useDateScale?"True date spacing":"Ordered "+(options.categoryLabel||"period")+" spacing";
-  const toolbar='<div class="chart-canvas-toolbar"><span>'+escapeHtml(scaleNote)+' · '+escapeHtml(points.length)+' points'+
+  const toolbar='<div class="chart-canvas-toolbar"><span>'+escapeHtml(scaleNote)+' · '+escapeHtml(points.length)+' plot points'+(options.observationCount!==undefined?' · '+escapeHtml(options.observationCount)+' source observations':'')+
     (unit?' · '+escapeHtml(unit):'')+'</span><button class="chart-canvas-focus-button" type="button" aria-label="Expand chart">Expand chart</button></div>';
 
   return '<div class="chart-canvas" data-chart-canvas>'+toolbar+legend+
@@ -1295,25 +1309,25 @@ function renderProgressScurveVisual(data){
   if(!Array.isArray(p.points))return"";
   const snapshotLabel=p.actualHistoryMode==="snapshot_history"?"Schedule snapshot progress":p.actualHistoryMode==="current_snapshot_only"?"Current schedule snapshot":"Progress snapshot";
   const note=p.actualHistoryMode==="snapshot_history"
-    ? '<div class="notice info"><b>The orange series is schedule-revision progress history.</b> It is not contractor-certified or independently measured physical progress unless separate source evidence establishes that authority.</div>'
+    ? '<div class="notice info"><b>The orange steps show schedule-revision progress history from source observations.</b> It is not contractor-certified or independently measured physical progress unless separate source evidence establishes that authority.</div>'
     : p.actualHistoryMode==="current_snapshot_only"
       ? '<div class="notice warn">Only one schedule progress snapshot is available. CMeng does not fabricate an earlier actual history from that single point.</div>'
       : '<div class="notice warn">No historical progress snapshots are established. Baseline and current planned curves can still be compared.</div>';
   const latest=[...p.points].filter(point=>point.dateIso&&p.dataDateIso&&Date.parse(point.dateIso)<=Date.parse(p.dataDateIso)).at(-1)||null;
   const kpis=planningKpis([
     ["Baseline planned",latest?.baselinePlannedPercent===null||latest?.baselinePlannedPercent===undefined?"—":fmt(latest.baselinePlannedPercent)+"%","at data date"],
-    ["Current forecast",latest?.currentForecastPercent===null||latest?.currentForecastPercent===undefined?"—":fmt(latest.currentForecastPercent)+"%","at data date"],
+    ["Current plan",latest?.currentForecastPercent===null||latest?.currentForecastPercent===undefined?"—":fmt(latest.currentForecastPercent)+"%","at data date"],
     ["Schedule snapshot",latest?.actualProgressPercent===null||latest?.actualProgressPercent===undefined?"—":fmt(latest.actualProgressPercent)+"%","not certified physical"],
-    ["Baseline coverage",p.baselineCoveragePercent===null?"—":fmt(p.baselineCoveragePercent)+"%","eligible baseline activities"],
-    ["Current coverage",p.currentCoveragePercent===null?"—":fmt(p.currentCoveragePercent)+"%","eligible current activities"],
-    ["Snapshot coverage",p.actualSnapshotCoveragePercent===null?"—":fmt(p.actualSnapshotCoveragePercent)+"%","schedule progress fields"]
+    ["Baseline coverage",p.baselineCoveragePercent===null?"—":fmt(p.baselineCoveragePercent)+"%",fmt(p.populationContracts?.baseline?.denominator)+" eligible baseline activities"],
+    ["Current coverage",p.currentCoveragePercent===null?"—":fmt(p.currentCoveragePercent)+"%",fmt(p.populationContracts?.current?.denominator)+" eligible current activities"],
+    ["Snapshot coverage",p.actualSnapshotCoveragePercent===null?"—":fmt(p.actualSnapshotCoveragePercent)+"%",fmt(p.populationContracts?.snapshot?.denominator)+" eligible schedule progress records"]
   ]);
-  return '<section class="planning-view progress-scurve-view">'+kpis+note+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Progress S-Curve</h4><p>Controlled baseline plan, current forecast and schedule-revision progress snapshots on the same time axis.</p></div><span class="badge '+(p.actualHistoryMode==="snapshot_history"?"ready":"partial")+'">'+escapeHtml(humanizeKey(p.actualHistoryMode||"missing"))+'</span></div><div class="planning-panel-body">'+
+  return '<section class="planning-view progress-scurve-view">'+kpis+note+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Progress S-Curve</h4><p>Plans are derived from activity dates, duration weights and working calendars. Snapshot steps end at the last supported observation.</p></div><span class="badge '+(p.actualHistoryMode==="snapshot_history"?"ready":"partial")+'">'+escapeHtml(humanizeKey(p.actualHistoryMode||"missing"))+'</span></div><div class="planning-panel-body">'+
     renderLineChart(p.points,[
-      {key:"baselinePlannedPercent",label:"Controlled baseline planned",color:"#506579"},
-      {key:"currentForecastPercent",label:"Current forecast",color:"#4f7fb4"},
-      {key:"actualProgressPercent",label:snapshotLabel,color:"#d97706"}
-    ],100,{unit:"%",yLabel:"Progress",xLabel:"Reporting date",dataDateIso:p.dataDateIso,ariaLabel:"Progress S-Curve"})+
+      {key:"baselinePlannedPercent",label:"CMeng derived baseline plan",color:"#506579"},
+      {key:"currentForecastPercent",label:"CMeng derived current plan",color:"#4f7fb4"},
+      {key:"actualProgressPercent",label:snapshotLabel,color:"#d97706",step:true}
+    ],100,{unit:"%",yLabel:"Progress",xLabel:"Reporting date",dataDateIso:p.dataDateIso,ariaLabel:"Progress S-Curve",observationCount:p.observationCount??p.actualSnapshots?.length})+
   '</div></section></section>';
 }
 function renderQuantityScurveVisual(data){
@@ -1336,34 +1350,37 @@ function renderQuantityScurveVisual(data){
     ["Partially mapped",(p.partiallyAllocatedItemIds||[]).length,"items",p.partiallyAllocatedItemIds?.length?"warning":""],
     ["Over-allocated",(p.overAllocatedItemIds||[]).length,"items",p.overAllocatedItemIds?.length?"danger":""]
   ]);
+  const diagnostics='<div class="notice info">BOQ loaded: '+escapeHtml(fmt(p.boqItemCount??boqItemCount))+' items; known contract quantities: '+escapeHtml(fmt(p.knownQuantityItemCount))+'. Candidate mapping: '+escapeHtml(humanizeKey(p.candidateMappingState||"not_established"))+'. Actual installations are independent of schedule mapping. Scenario plans do not become governed facts.</div>';
   if(mappedSeries.length===0){
     const candidates=p.inferredMapping?.selectedScenarioLinks?.length||0;
     const mappingSummary=boqItemCount===null?"BOQ item population is not established.":fmt(mappedItemCount||0)+" of "+fmt(boqItemCount)+" BOQ items currently have an allocation.";
-    return '<section class="planning-view quantity-view">'+top+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Installed Quantities</h4><p>The BOQ population is retained, but a quantity S-curve is withheld until BOQ quantities are linked to programme activities on a governed basis.</p></div></div><div class="planning-panel-body"><div class="notice warn"><b>No governed quantity curve is available.</b> '+escapeHtml(candidates?candidates+" candidate link(s) were found, but they remain scenarios and are not used as project facts.":"No defensible BOQ-to-activity crosswalk is established.")+" "+escapeHtml(mappingSummary)+'</div>'+moduleEvidenceGate([
+    return '<section class="planning-view quantity-view">'+top+diagnostics+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Installed Quantities</h4><p>The BOQ population remains visible by unit. Schedule mapping is required for planned curves; measured installed quantities require dated quantity evidence.</p></div></div><div class="planning-panel-body"><div class="notice warn"><b>No governed quantity curve is available.</b> '+escapeHtml(candidates?candidates+" candidate link(s) were found, but they remain scenarios and are not used as project facts.":"No defensible BOQ-to-activity crosswalk is established.")+" "+escapeHtml(mappingSummary)+'</div>'+moduleEvidenceGate([
       {label:"BOQ quantity basis",value:p.boqRevisionId?"Loaded":"Not established",state:p.boqRevisionId?"ready":"missing"},
       {label:"Governed BOQ/activity mapping",value:p.mappingBasis==="governed"?"Established":"Not established",state:p.mappingBasis==="governed"?"ready":"missing"},
-      {label:"Installed quantity history",value:"Cannot be time-phased until mapping is governed",state:"missing"}
+      {label:"Installed quantity history",value:"Dated installed measurements not established",state:"missing"}
     ])+'</div></section></section>';
   }
-  const charts=mappedSeries.map(series=>'<section class="planning-panel"><div class="planning-panel-head"><div><h4>'+escapeHtml(series.unit||series.unitKey||"Unit")+' quantity curve</h4><p>'+escapeHtml(fmt(series.itemCount))+' BOQ item(s) in this unit · mapping coverage '+escapeHtml(series.mappingCoveragePercent===null?"—":fmt(series.mappingCoveragePercent)+"%")+'</p></div><span class="badge '+(series.authority==="governed_mapping"?"ready":"partial")+'">'+escapeHtml(series.authority==="governed_mapping"?"Governed":"Scenario")+'</span></div><div class="planning-panel-body">'+renderLineChart(series.points||[],[
-    {key:"baselinePlannedQuantity",label:"Baseline planned",color:"#506579"},
-    {key:"currentForecastQuantity",label:"Current forecast",color:"#4f7fb4"},
-    {key:"actualInstalledQuantity",label:"Actual installed",color:"#2c7a57"}
+
+  const charts=mappedSeries.map(series=>'<section class="planning-panel"><div class="planning-panel-head"><div><h4>'+escapeHtml(series.unit||series.unitKey||"Unit")+' quantity curve</h4><p>'+escapeHtml(fmt(series.itemCount))+' BOQ item(s) in this unit · mapping coverage '+escapeHtml(series.mappingCoveragePercent===null?"—":fmt(series.mappingCoveragePercent)+"%")+'</p></div><span class="badge '+(p.mappingBasis==="governed"?"ready":"partial")+'">'+escapeHtml(p.mappingBasis==="governed"?"Governed mapped plan":p.mappingBasis==="candidate_scenario"?"Scenario plan; measured actual separate":"Measured actual; plan mapping missing")+'</span></div><div class="planning-panel-body">'+renderLineChart(series.points||[],[
+    {key:"baselinePlannedQuantity",label:series.authority==="scenario_mapping"?"Scenario baseline plan":"Mapped baseline plan",color:"#506579"},
+    {key:"currentForecastQuantity",label:series.authority==="scenario_mapping"?"Scenario current plan":"Mapped current plan",color:"#4f7fb4"},
+    {key:"actualInstalledQuantity",label:"Measured installed quantities",step:true,color:"#2c7a57"}
   ],null,{unit:series.unit||series.unitKey||"",yLabel:"Cumulative quantity",xLabel:"Reporting date",dataDateIso:p.dataDateIso,ariaLabel:(series.unit||series.unitKey||"Quantity")+" S-Curve"})+'</div></section>').join("");
-  return '<section class="planning-view quantity-view">'+top+charts+'</section>';
+  return '<section class="planning-view quantity-view">'+top+diagnostics+charts+'</section>';
 }
 function renderLookAheadVisual(data){
   const p=projectionFor(data,"lookahead_schedule");
   if(!Array.isArray(p.rows))return"";
   const inWindow=p.rows.length;
   const kpis=planningKpis([
-    ["Look-ahead",p.windowDays+" days",planningShortDate(p.dataDateIso)+" → "+planningShortDate(p.windowEndIso)],
+    ["Look-ahead",p.windowDays+" calendar days",planningShortDate(p.dataDateIso)+" → "+planningShortDate(p.windowEndIso)],
     ["Activities",inWindow,"in look-ahead"],
-    ["Overdue",p.overdueCount,"activities","danger"],
-    ["Ready to proceed",p.readyCount,"all known requirements ready","success"],
-    ["Evidence gaps",p.conditionalCount,"no known blocker, information incomplete","warning"],
+    ["Finish overdue",p.overdueCount,"open execution activities","danger"],["Missed planned starts",p.missedStartCount,"not started by planned start","warning"],
+    ["Ready to proceed",p.readyCount,"all required dimensions evidenced","success"],
+    ["Activities with evidence gaps",p.evidenceGapActivityCount,"includes blocked activities","warning"],["Blocked with evidence gaps",p.blockedWithEvidenceGapCount,"overlapping diagnostic","warning"],["Blocker occurrences",p.blockerOccurrenceCount,"may include several per activity","warning"],
     ["Known blocker",p.blockedCount,"at least one explicit blocker","danger"]
   ]);
+  const coverageHtml=moduleBarList((p.readinessCoverage||[]).map(row=>({label:humanizeKey(row.key)+" · "+fmt(row.knownCount)+" / "+fmt(row.denominator),value:row.coveragePercent})),"accent","%");
   const timeline=planningLookAheadTimeline(p);
   const dimensions=["predecessor","procurement_material","design_submittal","permit","resource","quality","commercial","risk","access"];
   const labels={predecessor:"Predecessors",procurement_material:"Materials",design_submittal:"Design",permit:"Permit",resource:"Resources",quality:"Quality",commercial:"Commercial",risk:"Risk",access:"Access"};
@@ -1379,7 +1396,7 @@ function renderLookAheadVisual(data){
   }).join("");
   const readiness=planningStatusBand([["Ready",p.readyCount,"success"],["Evidence gaps",p.conditionalCount,"warning"],["Known blocker",p.blockedCount,"danger"]]);
   const blockers=planningLookAheadBlockers(p.rows);
-  return '<section class="planning-view lookahead-view">'+kpis+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>6-week execution view</h4><p>Showing the 36 highest-priority activities from '+escapeHtml(fmt(inWindow))+' activities. The label at right states the actual blocker or whether evidence is still missing.</p></div></div><div class="planning-panel-body">'+timeline+'</div></section><div class="planning-primary-grid"><section class="planning-panel"><div class="planning-panel-head"><div><h4>Readiness position</h4><p>A known blocker is different from missing readiness evidence.</p></div></div><div class="planning-panel-body">'+readiness+'<div class="coverage-line"><span>Date coverage</span><b>'+escapeHtml(p.currentDateCoveragePercent===null?"—":fmt(p.currentDateCoveragePercent)+"%")+'</b></div></div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Why work is blocked</h4><p>Counts by explicit blocker. An incomplete predecessor is a sequencing blocker.</p></div></div><div class="planning-panel-body">'+blockers+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Readiness matrix</h4><p>Showing the 80 highest-attention activities. ✓ ready · ! explicit blocker · ? evidence missing · — not applicable.</p></div></div><div class="planning-panel-body"><div class="table-wrap readiness-table"><table><thead><tr><th>Activity</th><th>Start</th><th>Finish</th><th>Overall</th>'+dimensions.map(key=>'<th>'+escapeHtml(labels[key])+'</th>').join("")+'</tr></thead><tbody>'+rows+'</tbody></table></div></div></section></section>';
+  return '<section class="planning-view lookahead-view">'+kpis+coverageHtml+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>6-week execution view</h4><p>Showing the 36 highest-priority activities from '+escapeHtml(fmt(inWindow))+' activities. The label at right states the actual blocker or whether evidence is still missing.</p></div></div><div class="planning-panel-body">'+timeline+'</div></section><div class="planning-primary-grid"><section class="planning-panel"><div class="planning-panel-head"><div><h4>Readiness position</h4><p>A known blocker is different from missing readiness evidence.</p></div></div><div class="planning-panel-body">'+readiness+'<div class="coverage-line"><span>Date coverage</span><b>'+escapeHtml(p.currentDateCoveragePercent===null?"—":fmt(p.currentDateCoveragePercent)+"%")+'</b></div></div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Why work is blocked</h4><p>Counts by explicit blocker. An incomplete predecessor is a sequencing blocker.</p></div></div><div class="planning-panel-body">'+blockers+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Readiness matrix</h4><p>Showing the 80 highest-attention activities. ✓ ready · ! explicit blocker · ? evidence missing · — not applicable.</p></div></div><div class="planning-panel-body"><div class="table-wrap readiness-table"><table><thead><tr><th>Activity</th><th>Start</th><th>Finish</th><th>Overall</th>'+dimensions.map(key=>'<th>'+escapeHtml(labels[key])+'</th>').join("")+'</tr></thead><tbody>'+rows+'</tbody></table></div></div></section></section>';
 }
 function renderForecastVisual(data){
   const p=projectionFor(data,"independent_forecast");
@@ -1595,14 +1612,15 @@ function metricLine(label,value){
 
 function planningDateMs(value){
   if(!value)return null;
-  const n=Date.parse(value);
+  const text=String(value).trim().replace(/^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2})/,"$1T$2");
+  const n=Date.parse(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?$/.test(text)?text+"Z":text);
   return Number.isFinite(n)?n:null;
 }
 function planningShortDate(value){
   if(!value)return "—";
-  const d=new Date(value);
-  if(Number.isNaN(d.getTime()))return String(value);
-  return new Intl.DateTimeFormat(undefined,{day:"2-digit",month:"short",year:"numeric"}).format(d);
+  const at=planningDateMs(value);
+  if(at===null)return String(value);
+  return new Intl.DateTimeFormat(undefined,{day:"2-digit",month:"short",year:"numeric",timeZone:"UTC"}).format(new Date(at));
 }
 function planningDaysBetween(a,b){
   const am=planningDateMs(a),bm=planningDateMs(b);
@@ -1768,29 +1786,27 @@ function planningDateTrend(points,series){
     ticks+paths+pointsSvg+labels+'</svg></div></div>';
 }
 function planningActivityPressure(rows){
-  const candidates=(rows||[]).filter(r=>typeof r.finishVarianceDays==="number"&&Number.isFinite(r.finishVarianceDays)&&typeof r.totalFloatHours==="number"&&Number.isFinite(r.totalFloatHours));
-  if(!candidates.length)return '<div class="empty-visual">Baseline variance and float are not both available for enough activities.</div>';
+  const candidates=rows||[];
+  if(!candidates.length)return '<div class="empty-visual">No source activities are available.</div>';
   const columns=[
-    {label:"On / early",match:v=>v<=0},
-    {label:"1–30 d late",match:v=>v>0&&v<=30},
-    {label:"31–90 d late",match:v=>v>30&&v<=90},
-    {label:"91–180 d late",match:v=>v>90&&v<=180},
-    {label:">180 d late",match:v=>v>180}
+    {label:"On / early",match:v=>typeof v==="number"&&v<=0},
+    {label:"1–30 d late",match:v=>typeof v==="number"&&v>0&&v<=30},
+    {label:"31–90 d late",match:v=>typeof v==="number"&&v>30&&v<=90},
+    {label:"91–180 d late",match:v=>typeof v==="number"&&v>90&&v<=180},
+    {label:">180 d late",match:v=>typeof v==="number"&&v>180},
+    {label:"Baseline unknown",match:v=>typeof v!=="number"||!Number.isFinite(v)}
   ];
   const bands=[
-    {label:"Negative float",tone:"danger",match:r=>r.totalFloatHours<0},
-    {label:"Zero float",tone:"danger-soft",match:r=>r.totalFloatHours===0},
-    {label:"Near-critical",tone:"warning",match:r=>r.totalFloatHours>0&&r.totalFloatHours<=40},
-    {label:"Other positive",tone:"accent",match:r=>r.totalFloatHours>40}
+    {label:"Critical",tone:"danger",match:r=>r.criticality==="critical"},
+    {label:"Near-critical",tone:"warning",match:r=>r.criticality==="near_critical"},
+    {label:"Non-critical",tone:"accent",match:r=>r.criticality==="noncritical"},
+    {label:"Float classification unknown",tone:"neutral",match:r=>!["critical","near_critical","noncritical"].includes(r.criticality)}
   ];
   const counts=bands.map(band=>columns.map(col=>candidates.filter(r=>band.match(r)&&col.match(r.finishVarianceDays)).length));
   const max=Math.max(1,...counts.flat());
-  const head='<div class="pressure-matrix-head"><span>Float position</span>'+columns.map(col=>'<b>'+escapeHtml(col.label)+'</b>').join("")+'</div>';
-  const body=bands.map((band,rowIndex)=>'<div class="pressure-matrix-row"><strong>'+escapeHtml(band.label)+'</strong>'+counts[rowIndex].map(count=>{
-    const intensity=count/max;
-    return '<span class="pressure-cell '+escapeHtml(band.tone)+'" style="--cell-alpha:'+Math.max(.08,intensity).toFixed(3)+'" title="'+escapeHtml(band.label+" · "+fmt(count))+'"><b>'+escapeHtml(fmt(count))+'</b></span>';
-  }).join("")+'</div>').join("");
-  return '<div class="pressure-matrix">'+head+body+'</div><div class="pressure-note">Counts use the controlled-baseline finish movement and submitted programme total float. Missing values are excluded, not treated as zero.</div>';
+  const head='<div class="pressure-matrix-head" style="grid-template-columns:150px repeat(6,minmax(55px,1fr))"><span>Governed float class</span>'+columns.map(col=>'<b>'+escapeHtml(col.label)+'</b>').join("")+'</div>';
+  const body=bands.map((band,i)=>'<div class="pressure-matrix-row" style="grid-template-columns:150px repeat(6,minmax(55px,1fr))"><strong>'+escapeHtml(band.label)+'</strong>'+counts[i].map(count=>'<span class="pressure-cell '+band.tone+'" style="--cell-alpha:'+Math.max(.08,count/max).toFixed(3)+'"><b>'+escapeHtml(fmt(count))+'</b></span>').join("")+'</div>').join("");
+  return '<div class="pressure-matrix">'+head+body+'</div><div class="pressure-note">All '+escapeHtml(fmt(candidates.length))+' source records are reconciled, including excluded execution types. Governed activity-calendar thresholds apply. Unknown dates and classifications remain visible.</div>';
 }
 function planningLookAheadTimeline(p){
   const labelMap={predecessor:"Predecessor",procurement_material:"Material",design_submittal:"Design",permit:"Permit",resource:"Resource",quality:"Quality",commercial:"Commercial",risk:"Risk",access:"Access"};
@@ -1844,7 +1860,7 @@ function planningMilestoneDueLabel(row){
 }
 function planningMilestoneFlagLabel(flag){
   const labels={
-    CRITICAL_PATH:"Critical path",
+    SOURCE_FLOAT_CRITICAL:"Submitted float critical",
     NEGATIVE_FLOAT:"Negative float",
     NEAR_CRITICAL:"Near-critical",
     OVERDUE:"Overdue",
@@ -1857,9 +1873,10 @@ function planningMilestoneFlagLabel(flag){
   return labels[flag]||humanizeKey(flag);
 }
 function planningMilestoneFlagTone(flag){
-  return ["NEGATIVE_FLOAT","OVERDUE","CRITICAL_PATH","TERMINAL_CRITICAL_MILESTONE"].includes(flag)?"danger":["NEAR_CRITICAL","DUE_WITHIN_30_DAYS","DUE_WITHIN_90_DAYS","LATER_THAN_BASELINE"].includes(flag)?"warning":"";
+  return ["NEGATIVE_FLOAT","OVERDUE","SOURCE_FLOAT_CRITICAL","TERMINAL_CRITICAL_MILESTONE"].includes(flag)?"danger":["NEAR_CRITICAL","DUE_WITHIN_30_DAYS","DUE_WITHIN_90_DAYS","LATER_THAN_BASELINE"].includes(flag)?"warning":"";
 }
 function planningMilestonePriorityBoard(p){
+  const representedMovements=new Set();
   const candidates=[...(p.rows||[])]
     .filter(r=>r.status!=="completed")
     .sort((a,b)=>{
@@ -1874,6 +1891,7 @@ function planningMilestonePriorityBoard(p){
       return (b.varianceDays||0)-(a.varianceDays||0);
     })
     .filter((r,index)=>r.managementPriority!=="normal"||index<10)
+    .filter(r=>{if(r.managementPriority!=="watch"||typeof r.varianceDays!=="number")return true;const k=r.varianceDays.toFixed(6);if(representedMovements.has(k))return false;representedMovements.add(k);return true;})
     .slice(0,20);
   if(!candidates.length)return '<div class="attention-clear"><b>No open milestone currently meets the critical/high/watch criteria.</b></div>';
   return '<div class="milestone-priority-board">'+candidates.map(r=>{
@@ -2047,7 +2065,7 @@ function planningFinishPeriodBars(rows){
     const key=date.toISOString().slice(0,7);
     counts.set(key,(counts.get(key)||0)+1);
   }
-  const entries=[...counts.entries()].sort((a,b)=>a[0].localeCompare(b[0])).slice(0,12);
+  const entries=[...counts.entries()].sort((a,b)=>a[0].localeCompare(b[0]));
   if(!entries.length)return '<div class="empty-visual">Current finish dates are not available.</div>';
   const max=Math.max(1,...entries.map(x=>x[1]));
   return '<div class="finish-period-bars">'+entries.map(([month,count])=>'<div class="finish-period-row"><span>'+escapeHtml(new Intl.DateTimeFormat(undefined,{month:"short",year:"numeric"}).format(new Date(month+"-01T00:00:00Z")))+'</span><div><i style="width:'+((count/max)*100).toFixed(2)+'%"></i></div><b>'+escapeHtml(fmt(count))+'</b></div>').join("")+'</div>';
@@ -2063,9 +2081,10 @@ function renderPmoVisual(data){
     ["Critical",p.schedule.criticalCount,"activities","danger"],
     ["Near-critical",p.schedule.nearCriticalCount,"activities","warning"],
     ["Negative float",p.schedule.negativeFloatCount,"activities","danger"],
-    ["Overdue milestones",p.progress.lateMilestoneCount,"past the data date","danger"]
+    ["Overdue milestones",p.progress.lateMilestoneCount,"past the data date","danger"],["Missed planned starts",p.progress.lookAheadMissedStartCount,"execution activities","warning"]
   ]);
   const completion=planningDateLadder([
+    {label:"Governed contractual finish",date:p.claims?.contractualCompletionIso,tone:"baseline"},
     {label:"Controlled baseline finish",date:p.programmeBaselineCompletionIso,tone:"baseline"},
     {label:"Submitted finish",date:p.forecast.sourceCompletionIso,tone:"current"},
     {label:"Independent forecast finish",date:p.forecast.independentCompletionIso,tone:"cmeng"},
@@ -2077,7 +2096,7 @@ function renderPmoVisual(data){
     p.schedule.negativeFloatCount>0?{title:"Negative float requires attention",text:"Activities are carrying schedule pressure against the current dates.",value:p.schedule.negativeFloatCount,tone:"danger"}:null,
     p.progress.lateMilestoneCount>0?{title:"Milestones are overdue",text:"Open milestone commitments have passed the current data date.",value:p.progress.lateMilestoneCount,tone:"danger"}:null,
     p.progress.lookAheadOverdueCount>0?{title:"Look-ahead contains overdue work",text:"Review overdue activities and immediate recovery actions.",value:p.progress.lookAheadOverdueCount,tone:"watch"}:null,
-    p.resources.overloadedResourceCount>0?{title:"Weekly resource capacity exceedance identified",text:"Weekly source evidence shows demand above known capacity for these distinct resources. This is separate from P6 per-hour overload assessment.",value:p.resources.overloadedResourceCount,tone:"watch"}:null,
+    p.resources.weeklyOverloadedResourceCount>0?{title:"Weekly resource capacity exceedance identified",text:"Weekly source evidence shows demand above known capacity for these distinct resources. This is separate from P6 per-hour overload assessment.",value:p.resources.weeklyOverloadedResourceCount,tone:"watch"}:null,
     p.contract.challengeSignalCount>0?{title:"Contract items need review",text:"CMeng found contract points that may affect the programme position.",value:p.contract.challengeSignalCount,tone:"watch"}:null
   ]);
   const visualOverview='<div class="visual-chart-grid">'+
@@ -2087,27 +2106,26 @@ function renderPmoVisual(data){
       {label:"Not started",value:p.progress.notStartedCount||0,tone:"neutral"},
       {label:"Unknown",value:p.progress.unknownStatusCount||0,tone:"neutral"}
     ],"Activities"))+
-    renderVisualPanel("Schedule pressure","Criticality and negative-float populations that require management attention.",renderDonutChart([
+    renderVisualPanel("Schedule pressure","Disjoint critical and near-critical populations. Negative float is a separate KPI.",renderDonutChart([
       {label:"Critical",value:p.schedule.criticalCount||0,tone:"danger"},
-      {label:"Near-critical",value:p.schedule.nearCriticalCount||0,tone:"warning"},
-      {label:"Negative float",value:p.schedule.negativeFloatCount||0,tone:"purple"}
-    ],"Pressure signals"))+
+      {label:"Near-critical",value:p.schedule.nearCriticalCount||0,tone:"warning"}
+    ],"Critical + near-critical"))+
   '</div>';
   const health='<div class="management-health-grid">'+[
     ["Programme",[
-      ["Source activities",p.schedule.sourceActivityCount??p.schedule.activityCount],["Execution population",p.schedule.executableActivityCount??p.schedule.activityCount],["Excluded",p.schedule.excludedActivityCount??0],["Relationships",p.schedule.relationshipCount],["Logic density",p.schedule.logicDensity],["Path check",planningStateLabel(p.schedule.independentCpmState)]
+      ["Source activities",p.schedule.sourceActivityCount??p.schedule.activityCount],["Execution population",p.schedule.executableActivityCount??p.schedule.activityCount],["Excluded",p.schedule.excludedActivityCount??0],["Relationships",p.schedule.relationshipCount],["Logic density",p.schedule.logicDensity],["Independent CPM calculation",planningStateLabel(p.schedule.independentCpmState)]
     ]],
     ["Progress",[
-      ["Weighted progress",p.progress.durationWeightedProgressPercent===null?"—":fmt(p.progress.durationWeightedProgressPercent)+"%"],["Progress coverage",p.progress.progressCoveragePercent===null?"—":fmt(p.progress.progressCoveragePercent)+"%"],["Completed",p.progress.completedCount],["In progress",p.progress.inProgressCount]
+      ["Weighted progress",p.progress.durationWeightedProgressPercent===null?"—":fmt(p.progress.durationWeightedProgressPercent)+"%"],["Schedule progress-field coverage",p.progress.progressCoveragePercent===null?"—":fmt(p.progress.progressCoveragePercent)+"%"],["Completed",p.progress.completedCount],["In progress",p.progress.inProgressCount]
     ]],
     ["Delivery",[
-      ["Assigned resources",p.resources.assignedResourceCount],["Capacity coverage",p.resources.capacityCoveragePercent===null?"—":fmt(p.resources.capacityCoveragePercent)+"%"],["Resources with weekly exceedance",p.resources.overloadedResourceCount],["BOQ/activity link",planningStateLabel(p.quantities.allocationState)]
+      ["Assigned resources",p.resources.assignedResourceCount],["Weekly capacity evidence coverage",p.resources.weeklyCapacityCoveragePercent===null?"—":fmt(p.resources.weeklyCapacityCoveragePercent)+"%"],["Resources with weekly exceedance",p.resources.weeklyOverloadedResourceCount],["BOQ/activity link",planningStateLabel(p.quantities.allocationState)]
     ]],
     ["Claims & time",[
-      ["Delay events",p.claims.eventCount],["Claims",p.claims.claimCount],["Programme movement",fmt(p.claims.observedProgrammeMovementDays)+" days"],["Approved EOT",p.claims.officialApprovedEotDays===null?"—":fmt(p.claims.officialApprovedEotDays)+" days"]
+      ["Delay events",p.claims.eventCount],["Claims",p.claims.claimCount],["Gross positive analytical movement",fmt(p.claims.grossPositiveAnalyticalMovementDays)+" days"],["Net submitted finish movement",fmt(p.claims.netSubmittedFinishMovementDays)+" days"],["Effective approved determinations at Data Date",fmt(p.claims.effectiveDeterminationDays)+" days"],["EOT incorporated in amendment",fmt(p.claims.incorporatedEotDays)+" days"],["Determination register total",fmt(p.claims.registerDeterminationDays)+" days"]
     ]]
   ].map(group=>'<div class="domain-card"><h5>'+escapeHtml(group[0])+'</h5>'+group[1].map(m=>metricLine(m[0],m[1])).join("")+'</div>').join("")+'</div>';
-  return '<section class="planning-view management-view">'+kpis+visualOverview+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Finish-date position</h4><p>Controlled baseline, submitted finish date and any independently calculated, approved or scenario finish dates.</p></div></div><div class="planning-panel-body">'+completion+'</div></section><section class="planning-panel attention"><div class="planning-panel-head"><div><h4>What needs attention</h4><p>Items that can change the current programme position.</p></div></div><div class="planning-panel-body">'+attention+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Programme health</h4><p>Schedule, progress, delivery and time position at a glance.</p></div></div><div class="planning-panel-body">'+health+'</div></section></section>';
+  return '<section class="planning-view management-view">'+kpis+visualOverview+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Finish-date position</h4><p>Controlled baseline, submitted finish date and any independently calculated, approved or scenario finish dates.</p></div></div><div class="planning-panel-body">'+completion+'</div></section><section class="planning-panel attention"><div class="planning-panel-head"><div><h4>What needs attention</h4><p>Items that can change the current programme position.</p></div></div><div class="planning-panel-body">'+attention+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Programme health</h4><p>Schedule coverage is field coverage, not physical progress. Gross and net time movements have different bases; their difference is not proven overlap.</p></div></div><div class="planning-panel-body">'+health+'</div></section></section>';
 }
 function renderScheduleAnalyticsVisual(data){
   const p=projectionFor(data,"schedule_analytics");
@@ -2117,39 +2135,26 @@ function renderScheduleAnalyticsVisual(data){
   const broken=(r.graph.brokenPredecessorActivityIds||[]).length+(r.graph.brokenSuccessorActivityIds||[]).length;
   const cycles=(r.graph.cyclicActivityIds||[]).length,isolated=(r.graph.isolatedActivityIds||[]).length;
   const kpis=planningKpis([
-    ["Activities",r.activityCount,"current programme"],
+    ["Source records",r.activityCount,"full auditable population"],["Execution activities",r.population?.executableActivityCount,"shared control population"],["Excluded types",r.population?.excludedActivityCount,"LOE and WBS summaries"],
     ["Relationships",r.relationshipCount,"logic links"],
-    ["Logic density",r.graph.logicDensity,"links per activity"],
+    ["Logic density",r.graph.logicDensity,"links per source activity"],
     ["Open starts",openStarts,"activities","warning"],
     ["Open finishes",openFinishes,"activities","warning"],
     ["Negative float",r.float.negativeFloatCount,"activities","danger"]
   ]);
-  const pressure='<div class="planning-split"><div><h5>Schedule pressure</h5>'+planningStatusBand([
-    ["Negative float",r.float.negativeFloatCount,"danger"],
-    ["Zero float",Math.max(0,r.float.criticalCount-r.float.negativeFloatCount),"danger"],
-    ["Near-critical",r.float.nearCriticalCount,"warning"],
-    ["Other positive",Math.max(0,r.float.positiveFloatCount-r.float.nearCriticalCount),"accent"],
-    ["Float unknown",r.float.unknownFloatCount,"neutral"]
-  ])+'<div class="coverage-line"><span>Float coverage</span><b>'+escapeHtml(r.float.coveragePercent===null?"—":fmt(r.float.coveragePercent)+"%")+'</b></div></div><div><h5>Activity status</h5>'+planningStatusBand([
-    ["Completed",r.status.completed,"success"],["In progress",r.status.inProgress,"accent"],["Not started",r.status.notStarted,"neutral"],["Unknown",r.status.unknown,"warning"]
-  ])+'</div></div>';
-  const visualOverview='<div class="visual-chart-grid">'+
-    renderVisualPanel("Activity status mix","Execution status across the full programme population.",renderDonutChart([
-      {label:"Completed",value:r.status.completed||0,tone:"success"},
-      {label:"In progress",value:r.status.inProgress||0,tone:"accent"},
-      {label:"Not started",value:r.status.notStarted||0,tone:"neutral"},
-      {label:"Unknown",value:r.status.unknown||0,tone:"warning"}
-    ],"Activities"))+
-    renderVisualPanel("Float classification","Submitted programme float separated into critical, near-critical and other populations.",renderDonutChart([
-      {label:"Negative float",value:r.float.negativeFloatCount||0,tone:"danger"},
-      {label:"Zero float",value:Math.max(0,(r.float.criticalCount||0)-(r.float.negativeFloatCount||0)),tone:"purple"},
-      {label:"Near-critical",value:r.float.nearCriticalCount||0,tone:"warning"},
-      {label:"Other positive",value:Math.max(0,(r.float.positiveFloatCount||0)-(r.float.nearCriticalCount||0)),tone:"accent"},
-      {label:"Unknown",value:r.float.unknownFloatCount||0,tone:"neutral"}
-    ],"Float population"))+
-  '</div>';
+  const classes=[
+    {label:"Critical",value:r.float.criticalCount,tone:"danger"},
+    {label:"Near-critical",value:r.float.nearCriticalCount,tone:"warning"},
+    {label:"Non-critical",value:Math.max(0,r.float.totalActivities-r.float.criticalCount-r.float.nearCriticalCount-r.float.unknownFloatCount-(r.float.nearCriticalThresholdUnresolvedCount||0)),tone:"accent"},
+    {label:"Classification unknown",value:r.float.unknownFloatCount+(r.float.nearCriticalThresholdUnresolvedCount||0),tone:"neutral"}
+  ];
+  const pressure=planningStatusBand(classes.map(x=>[x.label,x.value,x.tone]))+'<p>Negative float: '+escapeHtml(fmt(r.float.negativeFloatCount))+' (separate overlapping indicator). Float-field coverage: '+escapeHtml(fmt(r.float.coveragePercent))+'% of execution activities.</p>';
+  const visualOverview='<div class="visual-chart-grid">'+renderVisualPanel("Execution status","Shared execution population",renderDonutChart([
+    {label:"Completed",value:r.status.completed,tone:"success"},{label:"In progress",value:r.status.inProgress,tone:"accent"},
+    {label:"Not started",value:r.status.notStarted,tone:"neutral"},{label:"Unknown",value:r.status.unknown,tone:"warning"}
+  ],"Execution activities"))+renderVisualPanel("Submitted float classification","Disjoint governed classifications; independent path validation is separate.",renderDonutChart(classes,"Execution activities"))+'</div>';
   const integrity='<div class="integrity-grid">'+[
-    ["Cycles",cycles,cycles?"danger":"success"],["Broken links",broken,broken?"danger":"success"],["Open starts",openStarts,openStarts?"warning":"success"],["Open finishes",openFinishes,openFinishes?"warning":"success"],["Isolated activities",isolated,isolated?"warning":"success"],["Programme logic",r.graph.complete?"Complete":"Review needed",r.graph.complete?"success":"danger"]
+    ["Cycles",cycles,cycles?"danger":"success"],["Broken links",broken,broken?"danger":"success"],["Open starts",openStarts,openStarts?"warning":"success"],["Open finishes",openFinishes,openFinishes?"warning":"success"],["Isolated activities",isolated,isolated?"warning":"success"],["Graph computational integrity",r.graph.complete?"Complete":"Review needed",r.graph.complete?"success":"danger"]
   ].map(x=>'<div class="integrity-card '+escapeHtml(x[2])+'"><span>'+escapeHtml(x[0])+'</span><b>'+escapeHtml(fmt(x[1]))+'</b></div>').join("")+'</div>';
   const completion=planningDateLadder((r.completionBases||[]).map(b=>({
     label:b.basis==="programme"?"Controlled baseline finish":b.basis==="forecast"?"Current forecast finish":"Actual finish",
@@ -2157,25 +2162,28 @@ function renderScheduleAnalyticsVisual(data){
     tone:b.basis==="forecast"?"cmeng":b.basis==="actual"?"actual":"current"
   })),r.dataDateIso);
   const variance=r.finishVariance||{};
+  const logic=r.logicQuality||{};
+  const quality='<div class="notice info"><b>Logic quality: '+escapeHtml(humanizeKey(logic.state||"not_established"))+'</b><br>Execution open starts: '+escapeHtml(fmt(logic.executionOpenStartActivityIds?.length))+'; open finishes: '+escapeHtml(fmt(logic.executionOpenFinishActivityIds?.length))+'; isolated: '+escapeHtml(fmt(logic.executionIsolatedActivityIds?.length))+'. Excluded isolated source records: '+escapeHtml(fmt(logic.excludedIsolatedActivityIds?.length))+'. Boundary candidates: '+escapeHtml(fmt(logic.boundaryCandidateActivityIds?.length))+' require governed review.</div>';
   const varianceBand=planningStatusBand([
     ["Late",variance.lateActivities||0,"danger"],["On time",variance.onTimeActivities||0,"success"],["Early",variance.earlyActivities||0,"accent"],["Unknown",variance.unknownActivities||0,"neutral"]
   ]);
-  return '<section class="planning-view programme-review">'+kpis+visualOverview+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Programme health</h4><p>Float, progress and logic quality across the current programme.</p></div></div><div class="planning-panel-body">'+pressure+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Logic checks</h4><p>Issues that reduce confidence in schedule sequencing.</p></div></div><div class="planning-panel-body">'+integrity+'</div></section></div><div class="planning-primary-grid"><section class="planning-panel"><div class="planning-panel-head"><div><h4>Finish dates</h4><p>Baseline, current forecast and actual finish dates are kept separate so one is not mistaken for another.</p></div></div><div class="planning-panel-body">'+completion+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Finish variance</h4><p>Activities finishing later, on time or earlier than their comparison date.</p></div></div><div class="planning-panel-body">'+varianceBand+'<div class="coverage-line"><span>Variance coverage</span><b>'+escapeHtml(variance.coveragePercent===null||variance.coveragePercent===undefined?"—":fmt(variance.coveragePercent)+"%")+'</b></div></div></section></div></section>';
+  return '<section class="planning-view programme-review">'+kpis+visualOverview+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Programme health</h4><p>Float, progress and logic quality across the current programme.</p></div></div><div class="planning-panel-body">'+pressure+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Logic checks</h4><p>Issues that reduce confidence in schedule sequencing.</p></div></div><div class="planning-panel-body">'+integrity+quality+'<p>Submitted Near Critical label: '+escapeHtml(fmt(p.controlBasis?.sourceReportedNearCriticalLabelCount))+'; strict governed near-critical: '+escapeHtml(fmt(r.float.nearCriticalCount))+'; float-risk watchlist: '+escapeHtml(fmt(r.float.floatRiskWatchlistCount))+'. These definitions are reconciled separately.</p></div></section></div><div class="planning-primary-grid"><section class="planning-panel"><div class="planning-panel-head"><div><h4>Finish dates</h4><p>Baseline, current forecast and actual finish dates are kept separate so one is not mistaken for another.</p></div></div><div class="planning-panel-body">'+completion+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Finish variance</h4><p>Controlled-baseline comparison by '+escapeHtml(humanizeKey(variance.populationBasis||'execution_control'))+'. Denominator: '+escapeHtml(fmt(variance.denominator??r.population?.executableActivityCount))+'.</p></div></div><div class="planning-panel-body">'+varianceBand+distributionSummary(variance.distribution)+'<div class="coverage-line"><span>Variance coverage</span><b>'+escapeHtml(variance.coveragePercent===null||variance.coveragePercent===undefined?"—":fmt(variance.coveragePercent)+"%")+'</b></div></div></section></div></section>';
 }
 function renderActivityAnalyticsVisual(data){
   const p=projectionFor(data,"activity_analytics");
   if(!Array.isArray(p.rows))return"";
+  const executionRows=p.rows.filter(row=>!["level_of_effort","wbs_summary"].includes(row.activityType));
   const status={completed:0,in_progress:0,not_started:0,unknown:0};
-  p.rows.forEach(r=>{status[r.status]=(status[r.status]||0)+1});
-  const critical=p.rows.filter(r=>r.criticality==="critical").length;
-  const near=p.rows.filter(r=>r.criticality==="near_critical").length;
-  const unknownCriticality=p.rows.filter(r=>r.criticality==="unknown").length;
-  const noncritical=p.rows.filter(r=>r.criticality==="noncritical").length;
-  const floatRisk=p.rows.filter(r=>r.floatRiskWatchlist===true).length;
+  executionRows.forEach(r=>{status[r.status]=(status[r.status]||0)+1});
+  const critical=executionRows.filter(r=>r.criticality==="critical").length;
+  const near=executionRows.filter(r=>r.criticality==="near_critical").length;
+  const unknownCriticality=executionRows.filter(r=>r.criticality==="unknown").length;
+  const noncritical=executionRows.filter(r=>r.criticality==="noncritical").length;
+  const floatRisk=executionRows.filter(r=>r.floatRiskWatchlist===true).length;
   const late=p.rows.filter(r=>typeof r.finishVarianceDays==="number"&&r.finishVarianceDays>0).length;
-  const openLogic=p.rows.filter(r=>r.openStart||r.openFinish||r.isolated).length;
+  const openLogic=executionRows.filter(r=>r.openStart||r.openFinish||r.isolated).length;
   const kpis=planningKpis([
-    ["Activities",p.activityCount,"current programme"],
+    ["Source records",p.rows.length,"full auditable register"],["Execution activities",executionRows.length,"excludes LOE and WBS summaries"],["Excluded execution types",p.rows.length-executionRows.length,"retained in source register"],
     ["Completed",status.completed,"activities","success"],
     ["In progress",status.in_progress,"activities","accent"],
     ["Critical",critical,"activities","danger"],
@@ -2186,7 +2194,7 @@ function renderActivityAnalyticsVisual(data){
 const movementClusters=new Map();
   p.rows.forEach(row=>{const value=typeof row.finishVarianceDays==="number"?Number(row.finishVarianceDays.toFixed(6)):null;if(value===null)return;movementClusters.set(value,(movementClusters.get(value)||0)+1)});
   const dominantMovement=[...movementClusters.entries()].sort((a,b)=>b[1]-a[1])[0]||null;
-  const repeatedMovementWarning=dominantMovement&&dominantMovement[1]>=5&&dominantMovement[1]/Math.max(1,p.rows.length)>=0.2?'<div class="notice warn"><b>Common movement pattern detected.</b> '+escapeHtml(fmt(dominantMovement[1]))+' of '+escapeHtml(fmt(p.rows.length))+' displayed/source rows share exactly '+escapeHtml((dominantMovement[0]>0?"+":"")+fmt(dominantMovement[0]))+' days. CMeng is showing the source-derived date difference, but this concentration must be read as a common schedule shift, not as independent evidence of '+escapeHtml(fmt(dominantMovement[1]))+' separate delay causes.</div>':'';
+  const repeatedMovementWarning=dominantMovement&&dominantMovement[1]>=5&&dominantMovement[1]/Math.max(1,p.rows.length)>=0.2?'<div class="notice warn"><b>Common movement pattern detected.</b> '+escapeHtml(fmt(dominantMovement[1]))+' of '+escapeHtml(fmt(p.rows.length))+' displayed/source rows share exactly '+escapeHtml((dominantMovement[0]>0?"+":"")+fmt(dominantMovement[0]))+' days. CMeng is showing the source-derived date difference, but this is a repeated numerical pattern requiring investigation; it does not establish a common cause or '+escapeHtml(fmt(dominantMovement[1]))+' separate delay causes.</div>':'';
   const topLate=[...p.rows].filter(r=>typeof r.finishVarianceDays==="number").sort((a,b)=>b.finishVarianceDays-a.finishVarianceDays).slice(0,15).map(r=>({label:r.activityId+" · "+(r.name||""),value:r.finishVarianceDays}));
   const pressure=planningActivityPressure(p.rows);
   const visualOverview='<div class="visual-chart-grid">'+
@@ -2212,7 +2220,7 @@ const movementClusters=new Map();
     return bs-as;
   }).slice(0,250);
   const rows=ranked.map(a=>'<tr><td><b>'+escapeHtml(a.activityId)+'</b><br><span class="muted">'+escapeHtml(a.name||"")+'</span></td><td>'+escapeHtml(planningStateLabel(a.status))+'</td><td><span class="state-pill '+(a.criticality==="critical"?"blocked":a.criticality==="near_critical"?"review":"ready")+'">'+escapeHtml(planningStateLabel(a.criticality))+'</span></td><td>'+escapeHtml(planningShortDate(a.currentFinishIso))+'</td><td>'+escapeHtml(a.percentComplete===null?"—":fmt(a.percentComplete)+"%")+'</td><td>'+escapeHtml(fmt(a.totalFloatHours))+'</td><td>'+escapeHtml(a.finishVarianceDays===null?"—":fmt(a.finishVarianceDays))+'</td><td>'+escapeHtml(a.openStart||a.openFinish||a.isolated?"Check":"—")+'</td></tr>').join("");
-  return '<section class="planning-view activity-review">'+kpis+repeatedMovementWarning+visualOverview+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Delay & float matrix</h4><p>Activity counts by controlled-baseline finish movement and submitted programme total float.</p></div></div><div class="planning-panel-body">'+pressure+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Activity status</h4><p>'+escapeHtml(fmt(openLogic))+' activities also have an open or isolated logic condition.</p></div></div><div class="planning-panel-body">'+statusBand+'<div class="coverage-stack"><span>Progress coverage <b>'+escapeHtml(p.percentCompleteCoveragePercent===null?"—":fmt(p.percentCompleteCoveragePercent)+"%")+'</b></span><span>Float coverage <b>'+escapeHtml(p.floatCoveragePercent===null?"—":fmt(p.floatCoveragePercent)+"%")+'</b></span><span>Baseline comparison coverage <b>'+escapeHtml(p.finishVarianceCoveragePercent===null?"—":fmt(p.finishVarianceCoveragePercent)+"%")+'</b></span></div></div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Largest finish movements</h4><p>Activities furthest later than the controlled baseline finish.</p></div></div><div class="planning-panel-body">'+planningSignedBars(topLate,"days")+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Activity watchlist</h4><p>Highest-attention activities first. Showing '+escapeHtml(fmt(ranked.length))+' of '+escapeHtml(fmt(p.activityCount))+'.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Activity</th><th>Status</th><th>Criticality</th><th>Current finish</th><th>Progress</th><th>Total float h</th><th>Vs baseline d</th><th>Logic</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></section></section>';
+  return '<section class="planning-view activity-review">'+kpis+repeatedMovementWarning+visualOverview+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Delay & float matrix</h4><p>Activity counts by controlled-baseline finish movement and submitted programme total float.</p></div></div><div class="planning-panel-body">'+pressure+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Activity status</h4><p>'+escapeHtml(fmt(openLogic))+' activities also have an open or isolated logic condition.</p></div></div><div class="planning-panel-body">'+statusBand+'<div class="coverage-stack"><span>Source progress-field coverage <b>'+escapeHtml(p.percentCompleteCoveragePercent===null?"—":fmt(p.percentCompleteCoveragePercent)+"%")+'</b></span><span>Source float-field coverage <b>'+escapeHtml(p.floatCoveragePercent===null?"—":fmt(p.floatCoveragePercent)+"%")+'</b></span><span>Source baseline-comparison coverage <b>'+escapeHtml(p.finishVarianceCoveragePercent===null?"—":fmt(p.finishVarianceCoveragePercent)+"%")+'</b></span></div></div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Largest finish movements</h4><p>Activities furthest later than the controlled baseline finish.</p></div></div><div class="planning-panel-body">'+planningSignedBars(topLate,"days")+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Activity watchlist</h4><p>Source activity names do not establish contractual authority. Highest-attention source records first. Showing '+escapeHtml(fmt(ranked.length))+' of '+escapeHtml(fmt(p.activityCount))+'.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Activity</th><th>Status</th><th>Criticality</th><th>Current finish</th><th>Progress</th><th>Total float h</th><th>Vs baseline d</th><th>Logic</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></section></section>';
 }
 
 function moduleBarList(items,tone="accent",unit=""){
@@ -2224,7 +2232,8 @@ function moduleBarList(items,tone="accent",unit=""){
 function progressBasisDisplay(key,basis){
   if(key==="baselinePlanned")return "Baseline planned";
   if(key==="currentSchedule")return "Current programme plan";
-  if(key==="physical")return basis?.authority==="progress_snapshot"?"Schedule progress snapshot":"Physical progress";
+  if(key==="physical")return "Physical progress";
+  if(key==="scheduleSnapshot")return "Schedule progress snapshot";
   if(key==="contractorReported")return "Contractor reported";
   if(key==="certified")return "Certified progress";
   return humanizeKey(key);
@@ -2288,18 +2297,18 @@ function renderResourceVisual(data){
   }).filter(Boolean).sort((a,b)=>b.value-a.value).slice(0,12);
 
   const kpis=planningKpis([
-    ["Resources",p.resourceCount,"current programme"],
+    ["P6 resource master",p.p6ResourceMasterCount??p.resourceCount,"schedule resource definitions"],["Weekly observed resources",p.weeklyObservedResourceCount,"capacity register population"],
     ["Assigned",p.assignedResourceCount,"with schedule assignments"],
     ["Weekly capacity coverage",weekly?.capacityCoveragePercent==null?"Not established":fmt(weekly.capacityCoveragePercent)+"%","applicable resource-week rows"],
     ["Planned utilization",weekly?.plannedAverageToDataDate==null?"Not established":fmt(weekly.plannedAverageToDataDate)+"%","mean resource-week ratio to Data Date"],
     ["Actual utilization",weekly?.actualAverageToDataDate==null?"Not established":fmt(weekly.actualAverageToDataDate)+"%","approved usage to Data Date"],
     ["Per-hour capacity",perHourCapacityText,"resources with comparable rate",capacityKnown?"accent":"warning"],
     ["Weekly comparable checks",weeklyRows?fmt(weeklyComparable)+" / "+fmt(weeklyRows):"Not established","rows with established capacity and demand",weeklyComparable?"accent":"warning"],
-    ["Weekly demand > capacity",weeklyComparable?weeklyOver:"Not assessable",weeklyComparable?"source-row checks":"weekly evidence required",weeklyOver?"danger":weeklyComparable?"success":"warning"],
+    ["Weekly demand > capacity",weeklyComparable?weeklyOver:"Not assessable",weeklyComparable?"occurrences over full source horizon":"weekly evidence required",weeklyOver?"danger":weeklyComparable?"success":"warning"],
     ["Capacity units",weeklyUnits.length?weeklyUnits.join(" / "):"Not established","kept separate by source unit",weeklyUnits.length?"":"warning"]
   ]);
 
-  const rows=p.rows.map(r=>'<tr><td><b>'+escapeHtml(r.resourceId)+'</b><br><span class="muted">'+escapeHtml(r.resourceName||"")+'</span></td><td>'+escapeHtml(r.resourceType)+'</td><td>'+escapeHtml(r.assignmentCount)+'</td><td>'+escapeHtml(fmt(r.capacityUnitsPerHour))+'</td><td>'+escapeHtml(fmt(r.peakPlannedUnitsPerHour))+'</td><td>'+escapeHtml(fmt(r.peakRemainingUnitsPerHour))+'</td><td>'+escapeHtml(r.plannedUtilizationPercent===null?"—":fmt(r.plannedUtilizationPercent)+"%")+'</td><td>'+escapeHtml(r.remainingUtilizationPercent===null?"—":fmt(r.remainingUtilizationPercent)+"%")+'</td><td><span class="state-pill '+(r.overloaded===true?"blocked":r.state==="capacity_based"?"ready":"review")+'">'+escapeHtml(r.overloaded===true?"Overloaded":r.state==="capacity_based"?"Capacity assessed":"Capacity not set")+'</span></td></tr>').join("");
+  const rows=[...p.rows].sort((a,b)=>(a.overloaded===true?0:a.state!=="capacity_based"?1:2)-(b.overloaded===true?0:b.state!=="capacity_based"?1:2)).map(r=>'<tr><td><b>'+escapeHtml(r.resourceId)+'</b><br><span class="muted">'+escapeHtml(r.resourceName||"")+'</span></td><td>'+escapeHtml(r.resourceType)+'</td><td>'+escapeHtml(r.assignmentCount)+'</td><td>'+escapeHtml(fmt(r.capacityUnitsPerHour))+'</td><td>'+escapeHtml(fmt(r.peakPlannedUnitsPerHour))+'</td><td>'+escapeHtml(fmt(r.peakRemainingUnitsPerHour))+'</td><td>'+escapeHtml(r.plannedUtilizationPercent===null?"—":fmt(r.plannedUtilizationPercent)+"%")+'</td><td>'+escapeHtml(r.remainingUtilizationPercent===null?"—":fmt(r.remainingUtilizationPercent)+"%")+'</td><td><span class="state-pill '+(r.overloaded===true?"blocked":r.state==="capacity_based"?"ready":"review")+'">'+escapeHtml(r.overloaded===true?"Overloaded":r.state==="capacity_based"?"Capacity assessed":"Capacity not set")+'</span></td></tr>').join("");
 
   const perHourNote=capacityKnown===0
     ? '<div class="notice warn"><b>Per-hour overload is not 0; it is not assessable.</b> The XER contains resource assignments but no usable max-units-per-hour capacity for the assigned resources. CMeng therefore leaves utilization blank instead of assuming zero or unlimited capacity.</div>'
@@ -2308,7 +2317,7 @@ function renderResourceVisual(data){
       : '';
 
   const weeklyNote=weeklyComparable
-    ? '<div class="notice info"><b>Separate weekly capacity evidence is available.</b> CMeng found '+escapeHtml(fmt(weeklyOver))+' demand-above-capacity row checks out of '+escapeHtml(fmt(weeklyComparable))+' comparable weekly rows. These checks remain in their original units and are not converted into P6 per-hour utilization.</div>'
+    ? '<div class="notice info"><b>Separate weekly capacity evidence is available.</b> CMeng found '+escapeHtml(fmt(weeklyOver))+' demand-above-capacity row checks out of '+escapeHtml(fmt(weeklyComparable))+' comparable weekly rows. Occurrences are not distinct resources. '+escapeHtml(fmt(p.weeklyOverloadedResourceCount))+' distinct resources have an exceedance. These checks retain their source units and full planned horizon; actual ratios stop at the Data Date.</div>'
     : '';
 
   const weeklyChart=weeklyGroups.size
@@ -2321,33 +2330,38 @@ function renderResourceVisual(data){
 
   const demandPanel='<section class="planning-panel"><div class="planning-panel-head"><div><h4>Per-hour demand concentration</h4><p>Only resources with an established planned or remaining demand rate are charted. Assignment counts are not used as a substitute for demand.</p></div></div><div class="planning-panel-body">'+moduleBarList(comparableDemand)+'</div></section>';
 
-  const weeklyDetail=weekly?.resourceSummaries?.length?'<section class="planning-panel"><div class="planning-panel-head"><div><h4>Weekly resource utilization detail</h4><p>Means of comparable resource-week ratios on or before '+escapeHtml(planningShortDate(weekly.dataDateIso))+'. Source units and resource classes stay separate.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Resource</th><th>Class</th><th>Unit</th><th>Periods</th><th>Planned utilization</th><th>Actual utilization</th></tr></thead><tbody>'+weekly.resourceSummaries.map(r=>'<tr><td><b>'+escapeHtml(r.resourceId)+'</b><br>'+escapeHtml(r.resourceName||"")+'</td><td>'+escapeHtml(r.resourceClass)+'</td><td>'+escapeHtml(r.unit||"Not established")+'</td><td>'+escapeHtml(fmt(r.periodCount))+'</td><td>'+escapeHtml(r.plannedUtilizationPercent===null?"Not established":fmt(r.plannedUtilizationPercent)+"%")+'</td><td>'+escapeHtml(r.actualUtilizationPercent===null?"Not established":fmt(r.actualUtilizationPercent)+"%")+'</td></tr>').join("")+'</tbody></table></div></div></section>':"";
+  const weeklyDetail=weekly?.resourceSummaries?.length?'<section class="planning-panel"><div class="planning-panel-head"><div><h4>Weekly resource utilization detail</h4><p>Means of comparable resource-week ratios on or before '+escapeHtml(planningShortDate(weekly.dataDateIso))+'. Source units and resource classes stay separate.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Resource</th><th>Class</th><th>Unit</th><th>Full-horizon periods</th><th>Plan periods to Data Date</th><th>Actual periods to Data Date</th><th>Planned utilization</th><th>Actual utilization</th></tr></thead><tbody>'+weekly.resourceSummaries.map(r=>'<tr><td><b>'+escapeHtml(r.resourceId)+'</b><br>'+escapeHtml(r.resourceName||"")+'</td><td>'+escapeHtml(r.resourceClass)+'</td><td>'+escapeHtml(r.unit||"Not established")+'</td><td>'+escapeHtml(fmt(r.periodCount))+'</td><td>'+escapeHtml(fmt(r.plannedPeriodCountToDataDate))+'</td><td>'+escapeHtml(fmt(r.actualPeriodCountToDataDate))+'</td><td>'+escapeHtml(r.plannedUtilizationPercent===null?"Not established":fmt(r.plannedUtilizationPercent)+"%")+'</td><td>'+escapeHtml(r.actualUtilizationPercent===null?"Not established":fmt(r.actualUtilizationPercent)+"%")+'</td></tr>').join("")+'</tbody></table></div></div></section>':"";
   return '<section class="planning-view resource-view">'+kpis+perHourNote+weeklyNote+weeklyChart+weeklyDetail+'<div class="planning-primary-grid">'+demandPanel+'<section class="planning-panel"><div class="planning-panel-head"><div><h4>Capacity evidence</h4><p>Per-hour schedule capacity and weekly register capacity are shown as separate evidence bases.</p></div></div><div class="planning-panel-body">'+moduleEvidenceGate([
     {label:"Schedule assignments",value:p.assignedResourceCount+" resources",state:p.assignedResourceCount>0?"ready":"missing"},
     {label:"P6 max-units/hour capacity",value:capacityKnown>0?capacityKnown+" resources":"Not established",state:capacityKnown>0?"ready":"missing"},
     {label:"Weekly capacity register",value:weeklyComparable?fmt(weeklyComparable)+" comparable rows":"Not established",state:weeklyComparable?"ready":"missing"},
     {label:"Per-hour overload assessment",value:overloadValue,state:assessed>0?"ready":"missing"}
-  ])+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Resource detail</h4><p>Capacity and utilization remain blank when they are not established.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Resource</th><th>Type</th><th>Assignments</th><th>Capacity/hr</th><th>Peak planned/hr</th><th>Peak remaining/hr</th><th>Planned util.</th><th>Remaining util.</th><th>Assessment</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></section></section>';
+  ])+'</div></section></div><details class="planning-panel"><summary class="planning-panel-head"><div><h4>Complete P6 resource register</h4><p>Overloaded and unassessed resources appear first. Capacity and utilization remain blank when not established; assignment, headcount and hour units are not interchangeable.</p></div></summary><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Resource</th><th>Type</th><th>Assignments</th><th>Capacity/hr</th><th>Peak planned/hr</th><th>Peak remaining/hr</th><th>Planned util.</th><th>Remaining util.</th><th>Assessment</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></details></section>';
 }
 function renderProgressReportVisual(data){
   const p=projectionFor(data,"progress_report");
   if(!p.progressBases)return"";
+  const snapshot=p.progressBases.scheduleSnapshot;
+  const displayDifference=(a,b)=>typeof a==="number"&&typeof b==="number"?Number((Number(a.toFixed(2))-Number(b.toFixed(2))).toFixed(2)):null;
+  const snapshotGap=displayDifference(snapshot?.valuePercent,p.progressBases.currentSchedule?.valuePercent);
   const current=p.progressBases.currentSchedule;
   const baseline=p.progressBases.baselinePlanned;
   const physical=p.progressBases.physical;
   const contractor=p.progressBases.contractorReported;
   const certified=p.progressBases.certified;
-  const planMovement=typeof current?.valuePercent==="number"&&typeof baseline?.valuePercent==="number"?Number((current.valuePercent-baseline.valuePercent).toFixed(2)):null;
-  const progressMovement=typeof physical?.valuePercent==="number"&&typeof baseline?.valuePercent==="number"?Number((physical.valuePercent-baseline.valuePercent).toFixed(2)):null;
-  const progressVarianceLabel=physical?.authority==="source_evidence"?"Physical progress vs baseline":"Schedule % complete vs baseline";
+  const planMovement=displayDifference(current?.valuePercent,baseline?.valuePercent);
+  const progressMovement=displayDifference(physical?.valuePercent,baseline?.valuePercent);
+  const progressVarianceLabel="Physical progress vs baseline";
   const sourceProgressEstablished=typeof contractor?.valuePercent==="number"||typeof certified?.valuePercent==="number"||(physical?.authority==="source_evidence"&&typeof physical?.valuePercent==="number");
-  const physicalLabel=physical?.authority==="source_evidence"?"Physical progress":"Schedule % complete";
+  const physicalLabel="Physical progress";
   const kpis=planningKpis([
     ["Baseline planned",baseline?.valuePercent==null?"—":fmt(baseline.valuePercent)+"%","planned by data date"],
     ["Current programme plan",current?.valuePercent==null?"—":fmt(current.valuePercent)+"%","re-phased programme expectation","accent"],
     ["Current plan vs baseline",planMovement===null?"—":(planMovement>0?"+":"")+fmt(planMovement)+" pp","programme plan movement",planMovement!==null&&planMovement<0?"danger":planMovement!==null&&planMovement>0?"success":""],
-    [physicalLabel,physical?.valuePercent==null?"—":fmt(physical.valuePercent)+"%",physical?.authority==="source_evidence"?"source physical record":"activity percentage-complete snapshot",physical?.valuePercent===null?"warning":"accent"],
-    [progressVarianceLabel,progressMovement===null?"—":(progressMovement>0?"+":"")+fmt(progressMovement)+" pp",physical?.authority==="source_evidence"?"source physical progress minus baseline plan":"activity percentage-complete snapshot minus baseline plan",progressMovement!==null&&progressMovement<0?"danger":progressMovement!==null&&progressMovement>0?"success":""],
+    ["Schedule snapshot",snapshot?.valuePercent==null?"Not established":fmt(snapshot.valuePercent)+"%","duration-weighted activity percent complete"],
+    ["Snapshot vs current plan",snapshotGap===null?"Not established":fmt(snapshotGap)+" pp","schedule snapshot minus current plan"],
+    [physicalLabel,physical?.valuePercent==null?"Not established":fmt(physical.valuePercent)+"%","separate physical evidence",physical?.valuePercent===null?"warning":"accent"],
+    [progressVarianceLabel,progressMovement===null?"—":(progressMovement>0?"+":"")+fmt(progressMovement)+" pp","physical evidence minus baseline plan",progressMovement!==null&&progressMovement<0?"danger":progressMovement!==null&&progressMovement>0?"success":""],
     ["Contractor reported",contractor?.valuePercent==null?"Not established":fmt(contractor.valuePercent)+"%","source record",contractor?.valuePercent==null?"warning":"accent"],
     ["Certified progress",certified?.valuePercent==null?"Not established":fmt(certified.valuePercent)+"%","source record",certified?.valuePercent==null?"warning":"success"]
   ]);
@@ -2360,18 +2374,18 @@ function renderProgressReportVisual(data){
   ]);
   const pressure=planningStatusBand([
     ["Critical",p.schedule?.criticalCount||0,"danger"],
-    ["Near-critical",p.schedule?.nearCriticalCount||0,"warning"],
-    ["Negative float",p.schedule?.negativeFloatCount||0,"danger-soft"]
+    ["Near-critical",p.schedule?.nearCriticalCount||0,"warning"]
   ]);
   const progressChart=renderVisualBars([
     {label:"Baseline planned",value:typeof baseline?.valuePercent==="number"?baseline.valuePercent:null,tone:"graphite"},
     {label:"Current programme plan",value:typeof current?.valuePercent==="number"?current.valuePercent:null,tone:"accent"},
+    {label:"Schedule snapshot",value:snapshot?.valuePercent??null,tone:"warning"},
     {label:physicalLabel,value:typeof physical?.valuePercent==="number"?physical.valuePercent:null,tone:"teal"},
     {label:"Contractor reported",value:typeof contractor?.valuePercent==="number"?contractor.valuePercent:null,tone:"warning"},
     {label:"Certified progress",value:typeof certified?.valuePercent==="number"?certified.valuePercent:null,tone:"success"}
   ].filter(item=>item.value!==null),"%");
   const visualOverview='<div class="visual-chart-grid">'+
-    renderVisualPanel("Progress basis comparison","Five progress positions remain visually separate so schedule progress cannot be mistaken for certified progress.",progressChart)+
+    renderVisualPanel("Progress basis comparison","Six progress positions remain visually separate so schedule progress cannot be mistaken for certified progress.",progressChart)+
     renderVisualPanel("Activity status","Current programme execution status.",renderDonutChart([
       {label:"Completed",value:p.progress?.completedCount||0,tone:"success"},
       {label:"In progress",value:p.progress?.inProgressCount||0,tone:"accent"},
@@ -2379,11 +2393,11 @@ function renderProgressReportVisual(data){
       {label:"Unknown",value:p.progress?.unknownStatusCount||0,tone:"warning"}
     ],"Activities"))+
   '</div>';
-  return '<section class="planning-view progress-position-view">'+kpis+warning+visualOverview+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Progress bases</h4><p>Baseline plan, current re-phased plan, activity percentage-complete snapshot, contractor-reported and certified values remain separate.</p></div></div><div class="planning-panel-body">'+progressBasisBars(p.progressBases)+'</div></section><div class="planning-primary-grid"><section class="planning-panel"><div class="planning-panel-head"><div><h4>Activity status</h4><p>Current programme population.</p></div></div><div class="planning-panel-body">'+status+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Schedule pressure</h4><p>Float classifications are schedule indicators, not progress evidence.</p></div></div><div class="planning-panel-body">'+pressure+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Near-term delivery</h4><p>Milestones and look-ahead indicators tied to the current data date.</p></div></div><div class="planning-panel-body">'+planningKpis([
+  return '<section class="planning-view progress-position-view">'+kpis+warning+visualOverview+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Progress bases</h4><p>Baseline plan, current re-phased plan, activity percentage-complete snapshot, contractor-reported and certified values remain separate.</p></div></div><div class="planning-panel-body">'+progressBasisBars(p.progressBases)+'</div></section><div class="planning-primary-grid"><section class="planning-panel"><div class="planning-panel-head"><div><h4>Activity status</h4><p>Current programme population.</p></div></div><div class="planning-panel-body">'+status+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Schedule pressure</h4><p>Critical and near-critical are disjoint classes. Negative float is an overlapping diagnostic, not an additional population.</p></div></div><div class="planning-panel-body">'+pressure+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Near-term delivery</h4><p>Milestones and look-ahead indicators tied to the current data date.</p></div></div><div class="planning-panel-body">'+planningKpis([
     ["Milestones",p.milestones?.milestoneCount,"total"],
     ["Open milestones",p.milestones?.openCount,"open"],
     ["Overdue milestones",p.milestones?.lateOpenCount,"past data date",p.milestones?.lateOpenCount?"danger":""],
-    ["Look-ahead incomplete",p.lookAhead?.incompleteActivityCount,p.lookAhead?.windowDays+" day horizon"],
+    ["Incomplete execution population",p.lookAhead?.incompleteActivityCount,"full schedule; window selection shown in Look-Ahead"],
     ["Look-ahead overdue",p.lookAhead?.overdueCount,"activities",p.lookAhead?.overdueCount?"danger":""],
     ["Date coverage",p.lookAhead?.currentDateCoveragePercent===null?"—":fmt(p.lookAhead?.currentDateCoveragePercent)+"%","look-ahead"]
   ])+'</div></section></section>';
@@ -2397,21 +2411,23 @@ function renderScheduleChangeVisual(data){
     ["Population match",p.populationMatchPercent===null?"—":fmt(p.populationMatchPercent)+"%","comparison coverage"],
     ["Added",p.addedActivityCount,"activities","accent"],
     ["Removed",p.removedActivityCount,"activities","neutral"],
-    ["Modified",p.modifiedActivityCount,"activities","warning"],
-    ["Logic changes",(p.addedRelationshipCount||0)+(p.removedRelationshipCount||0),"relationships","warning"]
+    ["Any tracked field changed",p.modifiedActivityCount,"overlapping categories below","warning"],["Execution records modified",p.executionModifiedActivityCount,"eligible for execution analysis"],["Excluded records modified",p.excludedModifiedActivityCount,"LOE / WBS summaries retained for audit"],
+    ["Gross relationship churn",p.grossRelationshipChurn??((p.addedRelationshipCount||0)+(p.removedRelationshipCount||0)),"added + removed signatures","warning"],["Net relationship change",p.netRelationshipCountChange,"count difference"],["Type / lag modifications",p.modifiedRelationships?.length,"unique matched endpoints"],["Baseline fields changed",p.baselineMutationActivityCount,"requires governance review","warning"]
   ]);
+  const categoryHtml=moduleBarList((p.changeCategories||[]).map(row=>({label:humanizeKey(row.category),value:row.activityCount})));
+  const identityHtml='<div class="notice info">Source record comparison. Identity coverage: '+escapeHtml(fmt(p.identityCoveragePercent))+'%. Ambiguous identities: '+escapeHtml(fmt((p.ambiguousFromActivityIds?.length||0)+(p.ambiguousToActivityIds?.length||0)))+'. Categories overlap and must not be summed. Baseline field changes require review of the baseline authority.</div>';
   const composition=planningStatusBand([
     ["Added",p.addedActivityCount,"accent"],["Removed",p.removedActivityCount,"neutral"],["Modified",p.modifiedActivityCount,"warning"],["Unchanged",p.unchangedActivityCount,"success"]
   ]);
 const movementClusters=new Map();
   p.changedActivities.forEach(row=>{const value=typeof row.finishShiftDays==="number"?Number(row.finishShiftDays.toFixed(6)):null;if(value===null)return;movementClusters.set(value,(movementClusters.get(value)||0)+1)});
   const dominantMovement=[...movementClusters.entries()].sort((a,b)=>b[1]-a[1])[0]||null;
-  const repeatedMovementWarning=dominantMovement&&dominantMovement[1]>=5&&dominantMovement[1]/Math.max(1,p.changedActivities.length)>=0.2?'<div class="notice warn"><b>Common movement pattern detected.</b> '+escapeHtml(fmt(dominantMovement[1]))+' of '+escapeHtml(fmt(p.changedActivities.length))+' displayed/source rows share exactly '+escapeHtml((dominantMovement[0]>0?"+":"")+fmt(dominantMovement[0]))+' days. CMeng is showing the source-derived date difference, but this concentration must be read as a common schedule shift, not as independent evidence of '+escapeHtml(fmt(dominantMovement[1]))+' separate delay causes.</div>':'';
+  const repeatedMovementWarning=dominantMovement&&dominantMovement[1]>=5&&dominantMovement[1]/Math.max(1,p.changedActivities.length)>=0.2?'<div class="notice warn"><b>Common movement pattern detected.</b> '+escapeHtml(fmt(dominantMovement[1]))+' of '+escapeHtml(fmt(p.changedActivities.length))+' displayed/source rows share exactly '+escapeHtml((dominantMovement[0]>0?"+":"")+fmt(dominantMovement[0]))+' days. CMeng is showing the source-derived date difference, but this repeated pattern requires investigation and does not establish a common cause or '+escapeHtml(fmt(dominantMovement[1]))+' separate delay causes.</div>':'';
   const movements=[...p.changedActivities].filter(a=>typeof a.finishShiftDays==="number"&&a.finishShiftDays!==0).sort((a,b)=>Math.abs(b.finishShiftDays)-Math.abs(a.finishShiftDays)).slice(0,15).map(a=>({label:a.activityId,value:a.finishShiftDays}));
   const floatMoves=[...p.changedActivities].filter(a=>typeof a.floatShiftHours==="number"&&a.floatShiftHours!==0).sort((a,b)=>Math.abs(b.floatShiftHours)-Math.abs(a.floatShiftHours)).slice(0,15).map(a=>({label:a.activityId,value:-a.floatShiftHours}));
   const detail=[...p.changedActivities].sort((a,b)=>Math.abs(b.finishShiftDays||0)-Math.abs(a.finishShiftDays||0)).slice(0,250);
-  const rows=detail.map(a=>'<tr><td><b>'+escapeHtml(a.activityId)+'</b></td><td>'+escapeHtml(planningStateLabel(a.changeKind))+'</td><td class="'+((a.finishShiftDays||0)>0?"late-text":(a.finishShiftDays||0)<0?"early-text":"")+'">'+escapeHtml(a.finishShiftDays===null?"—":((a.finishShiftDays>0?"+":"")+fmt(a.finishShiftDays)))+'</td><td>'+escapeHtml(fmt(a.floatShiftHours))+'</td><td>'+escapeHtml(fmt(a.progressShiftPercent))+'</td><td>'+escapeHtml((a.fieldChanges||[]).length)+'</td></tr>').join("");
-  return '<section class="planning-view changes-view">'+comparisonRibbon+kpis+repeatedMovementWarning+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>What changed</h4><p>Activity changes between the two controlled programme revisions.</p></div></div><div class="planning-panel-body">'+composition+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Logic changes</h4><p>Relationships added or removed between the revisions.</p></div></div><div class="planning-panel-body">'+planningKpis([["Added links",p.addedRelationshipCount,"relationships","accent"],["Removed links",p.removedRelationshipCount,"relationships","warning"]])+'</div></section></div><div class="planning-primary-grid"><section class="planning-panel"><div class="planning-panel-head"><div><h4>Largest finish movements</h4><p>Left means earlier. Right means later.</p></div></div><div class="planning-panel-body">'+planningSignedBars(movements,"days")+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Largest float deterioration</h4><p>Bars to the right indicate the largest loss of float.</p></div></div><div class="planning-panel-body">'+planningSignedBars(floatMoves,"hours lost")+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Changed activity detail</h4><p>Largest finish movements first. Showing '+escapeHtml(fmt(detail.length))+' of '+escapeHtml(fmt(p.changedActivities.length))+' changed activities. The complete governed population is available through Download Excel / Download data.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Activity</th><th>Change</th><th>Finish shift d</th><th>Float shift h</th><th>Progress shift pp</th><th>Fields changed</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></section></section>';
+  const rows=detail.map(a=>'<tr><td><b>'+escapeHtml(a.activityId)+'</b></td><td>'+escapeHtml(planningStateLabel(a.changeKind))+'</td><td class="'+((a.finishShiftDays||0)>0?"late-text":(a.finishShiftDays||0)<0?"early-text":"")+'">'+escapeHtml(a.finishShiftDays===null?"—":((a.finishShiftDays>0?"+":"")+fmt(a.finishShiftDays)))+'</td><td>'+escapeHtml(fmt(a.floatShiftHours))+'</td><td>'+escapeHtml(fmt(a.progressShiftPercent))+'</td><td>'+escapeHtml((a.fieldChanges||[]).length)+'</td><td>'+escapeHtml(a.identityMethod?humanizeKey(a.identityMethod):'Not matched')+(typeof a.identityConfidence==='number'?' · '+escapeHtml(fmt(a.identityConfidence*100))+'%':'')+'</td></tr>').join("");
+  return '<section class="planning-view changes-view">'+comparisonRibbon+kpis+identityHtml+categoryHtml+repeatedMovementWarning+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>What changed</h4><p>Activity changes between the two controlled programme revisions.</p></div></div><div class="planning-panel-body">'+composition+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Logic changes</h4><p>Relationships added or removed between the revisions.</p></div></div><div class="planning-panel-body">'+planningKpis([["Added links",p.addedRelationshipCount,"relationships","accent"],["Removed links",p.removedRelationshipCount,"relationships","warning"]])+'</div></section></div><div class="planning-primary-grid"><section class="planning-panel"><div class="planning-panel-head"><div><h4>Largest finish movements</h4><p>Left means earlier. Right means later.</p></div></div><div class="planning-panel-body">'+planningSignedBars(movements,"days")+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Largest float deterioration</h4><p>Bars to the right indicate the largest loss of float.</p></div></div><div class="planning-panel-body">'+planningSignedBars(floatMoves,"hours lost")+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Changed activity detail</h4><p>Largest finish movements first. Showing '+escapeHtml(fmt(detail.length))+' of '+escapeHtml(fmt(p.changedActivities.length))+' changed activities. The complete governed population is available through Download Excel / Download data.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Activity</th><th>Change</th><th>Finish shift d</th><th>Float shift h</th><th>Progress shift pp</th><th>Fields changed</th><th>Identity basis</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></section></section>';
 }
 function renderRevisionTrendVisual(data){
   const p=projectionFor(data,"revision_trend");
@@ -2420,28 +2436,28 @@ function renderRevisionTrendVisual(data){
   const latest=p.points.at(-1)||{};
   const kpis=planningKpis([
     ["Revisions",p.revisionCount,"controlled programmes"],
-    ["Latest progress",latest.durationWeightedProgressPercent===null||latest.durationWeightedProgressPercent===undefined?"—":fmt(latest.durationWeightedProgressPercent)+"%","weighted"],
+    ["Latest schedule progress",latest.durationWeightedProgressPercent===null||latest.durationWeightedProgressPercent===undefined?"—":fmt(latest.durationWeightedProgressPercent)+"%","weighted"],
     ["Latest critical",latest.criticalCount,"activities","danger"],
     ["Latest near-critical",latest.nearCriticalCount,"activities","warning"],
     ["Latest negative float",latest.negativeFloatCount,"activities","danger"],
-    ["Latest forecast finish",planningShortDate(latest.forecastCompletionIso),"date"]
+    ["Latest submitted forecast",planningShortDate(latest.forecastCompletionIso),"date"]
   ]);
   const values=planningRevisionValues(p.points);
-  const progress=renderLineChart(points,[{key:"durationWeightedProgressPercent",label:"Weighted progress",color:"#4f7fb4"}],100,{unit:"%",yLabel:"Progress",xLabel:"Reporting date"});
+  const progress=renderLineChart(points,[{key:"durationWeightedProgressPercent",label:"Duration-weighted schedule progress",color:"#4f7fb4"}],100,{unit:"%",yLabel:"Progress",xLabel:"Reporting date"});
   const completion=planningDateTrend(points,[
     {key:"programmeCompletionIso",label:"Programme finish",color:"#506579"},
-    {key:"forecastCompletionIso",label:"Forecast finish",color:"#4f7fb4"}
+    {key:"forecastCompletionIso",label:"Submitted forecast finish",color:"#4f7fb4"}
   ]);
   const pressure=renderLineChart(points,[
     {key:"criticalCount",label:"Critical",color:"#b4483e"},
     {key:"nearCriticalCount",label:"Near-critical",color:"#b57922"},
     {key:"negativeFloatCount",label:"Negative float",color:"#7a4b46"}
   ],null,{unit:"activities",yLabel:"Activity count",xLabel:"Reporting date"});
-  const changeBars=planningStatusBand([
+  const changeBars=latest.addedVsPrevious===null?'<div class="empty-visual">N/A: no preceding revision.</div>':planningStatusBand([
     ["Added",latest.addedVsPrevious||0,"accent"],["Removed",latest.removedVsPrevious||0,"neutral"],["Modified",latest.modifiedVsPrevious||0,"warning"]
   ]);
-  const rows=p.points.map(x=>'<tr><td>'+escapeHtml(x.sequence)+'</td><td><b>'+escapeHtml(planningRevisionLabel(x.label)||("Revision "+x.sequence))+'</b><br><span class="muted">'+escapeHtml(planningShortDate(x.dataDateIso))+'</span></td><td>'+escapeHtml(x.durationWeightedProgressPercent===null?"—":fmt(x.durationWeightedProgressPercent)+"%")+'</td><td>'+escapeHtml(x.activityCount)+'</td><td>'+escapeHtml(x.criticalCount)+'</td><td>'+escapeHtml(x.nearCriticalCount)+'</td><td>'+escapeHtml(x.negativeFloatCount)+'</td><td>'+escapeHtml(planningShortDate(x.forecastCompletionIso))+'</td><td>'+escapeHtml(fmt((x.addedVsPrevious||0)+(x.removedVsPrevious||0)+(x.modifiedVsPrevious||0)))+'</td></tr>').join("");
-  return '<section class="planning-view revision-view">'+kpis+'<section class="planning-panel"><div class="planning-panel-head"><div><h4>Revision values</h4><p>Exact values are shown here so the trend charts do not require guessing from a line.</p></div></div><div class="planning-panel-body">'+values+'</div></section><div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Finish-date movement</h4><p>How the programme and forecast finish dates have moved across revisions.</p></div></div><div class="planning-panel-body">'+completion+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Progress evolution</h4><p>Weighted schedule progress by revision.</p></div></div><div class="planning-panel-body">'+progress+'</div></section></div><div class="planning-primary-grid"><section class="planning-panel"><div class="planning-panel-head"><div><h4>Schedule pressure trend</h4><p>Critical, near-critical and negative-float activity counts by revision.</p></div></div><div class="planning-panel-body">'+pressure+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Latest revision change volume</h4><p>Activity additions, removals and modifications in the latest revision.</p></div></div><div class="planning-panel-body">'+changeBars+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Revision history</h4><p>Controlled programme revisions in chronological order.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Seq</th><th>Revision</th><th>Progress</th><th>Activities</th><th>Critical</th><th>Near-critical</th><th>Negative float</th><th>Forecast finish</th><th>Change volume</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></section></section>';
+  const rows=p.points.map(x=>'<tr><td>'+escapeHtml(x.sequence)+'</td><td><b>'+escapeHtml(planningRevisionLabel(x.label)||("Revision "+x.sequence))+'</b><br><span class="muted">'+escapeHtml(planningShortDate(x.dataDateIso))+'</span></td><td>'+escapeHtml(x.durationWeightedProgressPercent===null?"—":fmt(x.durationWeightedProgressPercent)+"%")+'</td><td>'+escapeHtml(x.activityCount)+'</td><td>'+escapeHtml(x.criticalCount)+'</td><td>'+escapeHtml(x.nearCriticalCount)+'</td><td>'+escapeHtml(x.negativeFloatCount)+'</td><td>'+escapeHtml(planningShortDate(x.forecastCompletionIso))+'</td><td>'+escapeHtml(x.addedVsPrevious===null||x.removedVsPrevious===null||x.modifiedVsPrevious===null?"N/A: first revision":fmt(x.addedVsPrevious+x.removedVsPrevious+x.modifiedVsPrevious))+'</td></tr>').join("");
+  return '<section class="planning-view revision-view">'+kpis+'<section class="planning-panel"><div class="planning-panel-head"><div><h4>Revision values</h4><p>Exact values are shown here so the trend charts do not require guessing from a line.</p></div></div><div class="planning-panel-body">'+values+'</div></section><div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Finish-date movement</h4><p>How the programme and forecast finish dates have moved across revisions.</p></div></div><div class="planning-panel-body">'+completion+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Progress evolution</h4><p>Weighted schedule progress by revision.</p></div></div><div class="planning-panel-body">'+progress+'</div></section></div><div class="planning-primary-grid"><section class="planning-panel"><div class="planning-panel-head"><div><h4>Submitted total-float trend</h4><p>Critical, near-critical and negative-float activity counts by revision.</p></div></div><div class="planning-panel-body">'+pressure+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Latest any-field record change volume</h4><p>Activity additions, removals and modifications in the latest revision.</p></div></div><div class="planning-panel-body">'+changeBars+moduleBarList((latest.changeCategories||[]).map(row=>({label:humanizeKey(row.category)+' (overlapping)',value:row.activityCount})))+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Revision history</h4><p>Controlled programme revisions in chronological order.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Seq</th><th>Revision</th><th>Schedule progress</th><th>Activities</th><th>Critical</th><th>Near-critical</th><th>Negative float</th><th>Submitted forecast finish</th><th>Added + removed + any-field modified</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></section></section>';
 }
 function renderVarianceTrendVisual(data){
   const p=projectionFor(data,"variance_trends");
@@ -2453,28 +2469,32 @@ function renderVarianceTrendVisual(data){
   const projectMovement=planningSignedBars(p.points.map(x=>({label:shortRevision(x.revisionId,labels),value:typeof x.projectCompletionVarianceDays==="number"?x.projectCompletionVarianceDays:null})),"days");
   const pressure=renderLineChart(points,[
     {key:"negativeFloatCount",label:"Negative float",color:"#b4483e"},
-    {key:"criticalCount",label:"Critical",color:"#7a4b46"}
+    {key:"criticalCount",label:"Critical",color:"#7a4b46"},
+    {key:"nearCriticalCount",label:"Near-critical",color:"#b57922"}
   ],null,{unit:"activities",yLabel:"Activity count",xLabel:"Reporting date"});
-  const cards=p.points.map(x=>'<div class="revision-value-card"><div class="revision-value-head"><b>'+escapeHtml(shortRevision(x.revisionId,labels))+'</b><span>'+escapeHtml(planningShortDate(x.dataDateIso))+'</span></div><div class="revision-value-lines"><span>Average vs baseline <b>'+escapeHtml(x.averageFinishVarianceDays===null?"—":fmt(x.averageFinishVarianceDays)+" d")+'</b></span><span>Maximum delay <b>'+escapeHtml(x.maximumDelayDays===null?"—":fmt(x.maximumDelayDays)+" d")+'</b></span><span>Late activities <b>'+escapeHtml(fmt(x.lateActivityCount))+'</b></span><span>Project finish vs baseline <b>'+escapeHtml(x.projectCompletionVarianceDays===null?"—":fmt(x.projectCompletionVarianceDays)+" d")+'</b></span></div></div>').join("");
+  const cards=p.points.map(x=>'<div class="revision-value-card"><div class="revision-value-head"><b>'+escapeHtml(shortRevision(x.revisionId,labels))+'</b><span>'+escapeHtml(planningShortDate(x.dataDateIso))+'</span></div><div class="revision-value-lines"><span>Source activities compared <b>'+escapeHtml(fmt(x.comparableActivities))+' / '+escapeHtml(fmt(x.sourceActivityCount))+'</b></span><span>Unknown or unmatched <b>'+escapeHtml(fmt(x.unmatchedActivityCount))+'</b></span><span>Average activity finish movement <b>'+escapeHtml(x.averageFinishVarianceDays===null?"—":fmt(x.averageFinishVarianceDays)+" d")+'</b></span><span>Maximum activity movement <b>'+escapeHtml(x.maximumDelayDays===null?"—":fmt(x.maximumDelayDays)+" d")+'</b></span><span>Late activities <b>'+escapeHtml(fmt(x.lateActivityCount))+'</b></span><span>Project finish vs baseline <b>'+escapeHtml(x.projectCompletionVarianceDays===null?"—":fmt(x.projectCompletionVarianceDays)+" d")+'</b></span></div></div>').join("");
   const rows=p.points.map(x=>'<tr><td>'+escapeHtml(x.sequence)+'</td><td><b>'+escapeHtml(shortRevision(x.revisionId,labels))+'</b></td><td>'+escapeHtml(planningShortDate(x.dataDateIso))+'</td><td>'+escapeHtml(x.averageFinishVarianceDays===null?"—":fmt(x.averageFinishVarianceDays))+'</td><td>'+escapeHtml(x.maximumDelayDays===null?"—":fmt(x.maximumDelayDays))+'</td><td>'+escapeHtml(x.lateActivityCount)+'</td><td>'+escapeHtml(x.earlyActivityCount)+'</td><td>'+escapeHtml(x.onTimeActivityCount)+'</td><td>'+escapeHtml(x.negativeFloatCount)+'</td><td>'+escapeHtml(x.criticalCount)+'</td><td>'+escapeHtml(x.projectCompletionVarianceDays===null?"—":fmt(x.projectCompletionVarianceDays))+'</td></tr>').join("");
   return '<section class="planning-view variance-view">'+planningKpis([
     ["Revisions",p.revisionCount,"controlled"],
     ["Latest avg movement",latest.averageFinishVarianceDays===null?"—":fmt(latest.averageFinishVarianceDays)+" d","vs controlled baseline",latest.averageFinishVarianceDays>0?"warning":""],
-    ["Latest max delay",latest.maximumDelayDays===null?"—":fmt(latest.maximumDelayDays)+" d","activity level",latest.maximumDelayDays>0?"danger":""],
+    ["Latest max activity movement",latest.maximumDelayDays===null?"—":fmt(latest.maximumDelayDays)+" d","activity level",latest.maximumDelayDays>0?"danger":""],
     ["Late activities",latest.lateActivityCount,"vs controlled baseline",latest.lateActivityCount?"danger":""],
     ["Project finish movement",latest.projectCompletionVarianceDays===null?"—":fmt(latest.projectCompletionVarianceDays)+" d","vs controlled baseline",latest.projectCompletionVarianceDays>0?"danger":""]
-  ])+'<section class="planning-panel"><div class="planning-panel-head"><div><h4>Revision values</h4><p>Exact controlled-baseline movements, so zero is only shown when the values are actually equal.</p></div></div><div class="planning-panel-body"><div class="revision-value-grid">'+cards+'</div></div></section><div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Finish movement by revision</h4><p>Signed movement from the controlled baseline. Left means earlier, right means later.</p></div></div><div class="planning-panel-body"><div class="nested-title">Average activity finish movement</div>'+averageMovement+'<div class="nested-title" style="margin-top:16px">Project finish movement</div>'+projectMovement+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Float pressure trend</h4><p>Negative-float and critical populations by revision.</p></div></div><div class="planning-panel-body">'+pressure+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Revision detail</h4></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Seq</th><th>Revision</th><th>Data date</th><th>Avg vs baseline d</th><th>Max delay d</th><th>Late</th><th>Early</th><th>On time</th><th>Neg. float</th><th>Critical</th><th>Project finish vs baseline d</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></section></section>';
+  ])+'<section class="planning-panel"><div class="planning-panel-head"><div><h4>Revision values</h4><p>Source activity finish movements use the shared identity resolver. Unknown baseline and ambiguous identity remain visible. Movement alone does not establish delay causation.</p></div></div><div class="planning-panel-body"><div class="revision-value-grid">'+cards+'</div>'+distributionSummary(latest.movementDistribution)+'</div></section><div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Finish movement by revision</h4><p>Signed movement from the controlled baseline. Left means earlier, right means later.</p></div></div><div class="planning-panel-body"><div class="nested-title">Average activity finish movement</div>'+averageMovement+'<div class="nested-title" style="margin-top:16px">Project finish movement</div>'+projectMovement+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Float pressure trend</h4><p>Execution-population float indicators by revision. Negative float overlaps criticality; these lines are not additive.</p></div></div><div class="planning-panel-body">'+pressure+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Revision detail</h4></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Seq</th><th>Revision</th><th>Data date</th><th>Avg vs baseline d</th><th>Max movement d</th><th>Late</th><th>Early</th><th>On time</th><th>Neg. float</th><th>Critical</th><th>Project finish vs baseline d</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></section></section>';
 }
 function renderProgressBreakdownVisual(data){
   const p=projectionFor(data,"progress_breakdown");
-  if(!Array.isArray(p.rows))return"";
-  const ranked=[...p.rows].sort((a,b)=>(b.activityCount||0)-(a.activityCount||0)).slice(0,15);
-  const progressBars=ranked.map(r=>({label:(r.wbsName||r.wbsId),value:typeof r.durationWeightedProgressPercent==="number"?r.durationWeightedProgressPercent:null,tone:(r.negativeFloatCount||0)>0?"warning":"accent"})).filter(r=>r.value!==null);
-  const rows=p.rows.map(r=>'<tr><td><b>'+escapeHtml(r.wbsId)+'</b><br><span class="muted">'+escapeHtml(r.wbsName||"")+'</span></td><td>'+escapeHtml(r.activityCount)+'</td><td>'+escapeHtml(r.completedCount)+'</td><td>'+escapeHtml(r.inProgressCount)+'</td><td>'+escapeHtml(r.notStartedCount)+'</td><td>'+escapeHtml(r.durationWeightedProgressPercent===null?"—":fmt(r.durationWeightedProgressPercent)+"%")+'</td><td>'+escapeHtml(r.durationWeightedCoveragePercent===null?"—":fmt(r.durationWeightedCoveragePercent)+"%")+'</td><td>'+escapeHtml(r.criticalCount)+'</td><td>'+escapeHtml(r.nearCriticalCount)+'</td><td>'+escapeHtml(r.negativeFloatCount)+'</td></tr>').join("");
+  if(!Array.isArray(p.rows))return "";
+  const percent=value=>typeof value==="number"?fmt(value)+"%":"Not established";
+  const delta=value=>typeof value==="number"?fmt(value)+" pp":"Not established";
+  const hierarchy=p.hierarchyRows||p.rows;
+  const ranked=[...p.rows].sort((a,b)=>b.activityCount-a.activityCount).slice(0,15);
+  const progressBars=ranked.map(r=>({label:r.wbsName||r.wbsId,value:r.durationWeightedProgressPercent}));
+  const pressure=[...p.rows].filter(r=>r.negativeFloatCount>0).sort((a,b)=>b.negativeFloatCount-a.negativeFloatCount).slice(0,12).map(r=>({label:r.wbsName||r.wbsId,value:r.negativeFloatCount,tone:"danger"}));
+  const rows=hierarchy.map(r=>'<tr><td style="min-width:220px;padding-left:'+((r.depth||0)*14+8)+'px"><b>'+escapeHtml(r.wbsName||r.wbsId)+'</b><br><span class="muted">'+escapeHtml(r.wbsId)+(r.parentWbsId?' · Parent '+escapeHtml(r.parentWbsId):' · Root')+'</span></td><td>'+escapeHtml(fmt(r.activityCount))+'</td><td>'+escapeHtml(fmt(r.directActivityCount??r.activityCount))+'</td><td>'+escapeHtml(percent(r.baselinePlannedPercent))+'<br><small>Coverage '+escapeHtml(percent(r.baselinePlanCoveragePercent))+'</small></td><td>'+escapeHtml(percent(r.currentPlanPercent))+'<br><small>Coverage '+escapeHtml(percent(r.currentPlanCoveragePercent))+'</small></td><td>'+escapeHtml(percent(r.durationWeightedProgressPercent))+'<br><small>Coverage '+escapeHtml(percent(r.durationWeightedCoveragePercent))+'</small></td><td>'+escapeHtml(delta(r.scheduleMinusCurrentPlanPercentagePoints))+'</td><td>'+escapeHtml(delta(r.scheduleProgressMovementPercentagePoints))+'</td><td>'+escapeHtml(percent(r.contractorReportedPercent))+'</td><td>'+escapeHtml(percent(r.certifiedPhysicalPercent))+'</td><td>'+escapeHtml(fmt(r.criticalCount))+'</td><td>'+escapeHtml(fmt(r.nearCriticalCount))+'</td><td>'+escapeHtml(fmt(r.negativeFloatCount))+'</td></tr>').join("");
   return '<section class="planning-view wbs-view">'+planningKpis([
-    ["Activities",p.totalActivityCount,"current programme"],
-    ["WBS groups",p.rows.length,"groups"]
-  ])+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>WBS progress</h4><p>Largest WBS groups by activity population. Bars show duration-weighted progress.</p></div></div><div class="planning-panel-body">'+moduleBarList(progressBars,"accent","%")+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Schedule pressure by WBS</h4><p>Highest negative-float populations.</p></div></div><div class="planning-panel-body">'+moduleBarList([...p.rows].sort((a,b)=>(b.negativeFloatCount||0)-(a.negativeFloatCount||0)).slice(0,12).map(r=>({label:r.wbsName||r.wbsId,value:r.negativeFloatCount||0,tone:"danger"})))+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>WBS detail</h4></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>WBS</th><th>Activities</th><th>Complete</th><th>In progress</th><th>Not started</th><th>Weighted progress</th><th>Coverage</th><th>Critical</th><th>Near-critical</th><th>Neg. float</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></section></section>';
+    ["Execution activities",p.totalActivityCount,"each counted once at project level"],["Direct WBS groups",p.rows.length,"direct assignments"],["Hierarchy rows",hierarchy.length,"ancestor rollups are not additive"]
+  ])+'<div class="notice info">LOE and WBS summary records are excluded from execution progress. Parent rows include descendants; direct assignment counts reconcile to the project total. Schedule snapshots, derived plans and certified physical progress have separate authorities. Trend is withheld when identity coverage is incomplete.</div><div class="planning-primary-grid">'+renderVisualPanel("Direct WBS progress","Duration-weighted schedule snapshot for the largest direct assignment groups",moduleBarList(progressBars,"accent","%"))+renderVisualPanel("WBS negative-float exceptions","Groups with a nonzero negative-float population",moduleBarList(pressure))+'</div><section class="planning-panel"><div class="planning-panel-head"><h4>WBS hierarchy and progress bases</h4></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>WBS</th><th>Rollup activities</th><th>Direct activities</th><th>Baseline plan</th><th>Current plan</th><th>Schedule snapshot</th><th>Snapshot vs current</th><th>Snapshot vs previous</th><th>Contractor reported</th><th>Certified physical</th><th>Critical</th><th>Near-critical</th><th>Negative float</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></section></section>';
 }
 function renderMilestonesVisual(data){
   const p=projectionFor(data,"milestones");
@@ -2491,26 +2511,26 @@ function renderMilestonesVisual(data){
   const topPriority=priorityRows[0]||null;
   const kpis=planningKpis([
     ["Open milestones",p.openCount,"of "+fmt(p.milestoneCount)+" total"],
-    ["Critical path",criticalCount,"open milestones · submitted float",criticalCount?"danger":""],
+    ["Submitted float critical",criticalCount,"open milestones · submitted float",criticalCount?"danger":""],
     ["Negative float",negativeFloatCount,"open milestones",negativeFloatCount?"danger":""],
     ["Near-critical",nearCriticalCount,"open milestones",nearCriticalCount?"warning":""],
     ["Urgent dates",urgentDates,(p.lateOpenCount||0)+" overdue · "+due30+" due ≤30d",urgentDates?"warning":""],
     ["Largest movement",largest?fmt(largest)+" days":"—","vs controlled baseline",largest?"danger":""]
   ]);
-  const basisState=p.criticalPathState==="source_float_established"
+  const basisState=p.sourceFloatState==="source_float_established"
     ?"Float coverage complete for milestone population"
-    : p.criticalPathState==="source_float_partial"
+    : p.sourceFloatState==="source_float_partial"
       ?"Float coverage is partial; milestones without float are not silently treated as non-critical"
-      :"Critical-path status is not established because milestone float is unavailable";
+      :"Source-float classification is not established because milestone float is unavailable";
   const nearCriticalRule=p.nearCriticalThresholdBasis==="activity_calendar_working_days"&&p.nearCriticalThresholdWorkingDays!==null&&p.nearCriticalThresholdWorkingDays!==undefined
     ?"near-critical > "+fmt(p.criticalFloatThresholdHours??0)+" h through +"+fmt(p.nearCriticalThresholdWorkingDays)+" working days using each activity calendar"
     : typeof p.nearCriticalFloatThresholdHours==="number"
       ?"near-critical > "+fmt(p.criticalFloatThresholdHours??0)+" h to "+fmt(p.nearCriticalFloatThresholdHours)+" h"
       :"near-critical threshold not established";
-  const basis='<div class="milestone-basis-note"><span><b>Critical-path basis:</b> current submitted programme total float. Critical ≤ '+escapeHtml(fmt(p.criticalFloatThresholdHours??0))+' h; '+escapeHtml(nearCriticalRule)+'.</span><span><b>'+escapeHtml(basisState)+'</b>'+(p.floatCoveragePercent===null||p.floatCoveragePercent===undefined?'':' · '+escapeHtml(fmt(p.floatCoveragePercent))+'% coverage')+'</span></div>';
+  const basis='<div class="milestone-basis-note"><span><b>Source-float classification basis:</b> current submitted programme total float. Critical ≤ '+escapeHtml(fmt(p.criticalFloatThresholdHours??0))+' h; '+escapeHtml(nearCriticalRule)+'. Threshold authority: '+escapeHtml(humanizeKey(p.controlBasis?.state||'missing'))+'; method: '+escapeHtml(humanizeKey(p.controlBasis?.nearCriticalThresholdMethod||'unresolved'))+'; '+escapeHtml(fmt(p.controlBasis?.sourceRefs?.length))+' source reference(s) in evidence detail.</span><span><b>'+escapeHtml(basisState)+'</b>'+(p.floatCoveragePercent===null||p.floatCoveragePercent===undefined?'':' · '+escapeHtml(fmt(p.floatCoveragePercent))+'% coverage')+'</span></div>';
   const attention=planningAttention([
-    negativeFloatCount?{title:"Negative-float milestones require immediate recovery",text:"These milestones have already consumed available float on the submitted programme.",value:negativeFloatCount,tone:"danger"}:null,
-    criticalCount?{title:"Critical-path milestones need protection",text:"Any further delay to these open milestones can move programme completion or another critical commitment.",value:criticalCount,tone:"danger"}:null,
+    negativeFloatCount?{title:"Investigate negative-float milestones",text:"Validate constraints, dates and driving logic before selecting recovery actions.",value:negativeFloatCount,tone:"danger"}:null,
+    criticalCount?{title:"Review source-float critical milestones",text:"Independent driving-path evidence is required before claiming an effect on project completion.",value:criticalCount,tone:"danger"}:null,
     p.lateOpenCount?{title:"Overdue milestone commitments",text:"Current milestone dates are before the data date and need status/recovery confirmation.",value:p.lateOpenCount,tone:"danger"}:null,
     due30?{title:"Milestones due within 30 days",text:"Confirm predecessor completion, approvals, access, materials and responsible owner now.",value:due30,tone:"watch"}:null,
     nearCriticalCount?{title:"Near-critical milestones",text:"These milestones retain limited float and should be protected before they become critical.",value:nearCriticalCount,tone:"watch"}:null,
@@ -2520,7 +2540,7 @@ function renderMilestonesVisual(data){
 const movementClusters=new Map();
   p.rows.forEach(row=>{const value=typeof row.varianceDays==="number"?Number(row.varianceDays.toFixed(6)):null;if(value===null)return;movementClusters.set(value,(movementClusters.get(value)||0)+1)});
   const dominantMovement=[...movementClusters.entries()].sort((a,b)=>b[1]-a[1])[0]||null;
-  const repeatedMovementWarning=dominantMovement&&dominantMovement[1]>=5&&dominantMovement[1]/Math.max(1,p.rows.length)>=0.2?'<div class="notice warn"><b>Common movement pattern detected.</b> '+escapeHtml(fmt(dominantMovement[1]))+' of '+escapeHtml(fmt(p.rows.length))+' displayed/source rows share exactly '+escapeHtml((dominantMovement[0]>0?"+":"")+fmt(dominantMovement[0]))+' days. CMeng is showing the source-derived date difference, but this concentration must be read as a common schedule shift, not as independent evidence of '+escapeHtml(fmt(dominantMovement[1]))+' separate delay causes.</div>':'';
+  const repeatedMovementWarning=dominantMovement&&dominantMovement[1]>=5&&dominantMovement[1]/Math.max(1,p.rows.length)>=0.2?'<div class="notice warn"><b>Common movement pattern detected.</b> '+escapeHtml(fmt(dominantMovement[1]))+' of '+escapeHtml(fmt(p.rows.length))+' displayed/source rows share exactly '+escapeHtml((dominantMovement[0]>0?"+":"")+fmt(dominantMovement[0]))+' days. CMeng is showing the source-derived date difference, but this repeated pattern requires investigation; it does not establish a common cause or '+escapeHtml(fmt(dominantMovement[1]))+' separate delay causes.</div>':'';
   const timeline=planningMilestoneTimeline(p);
   const priorityBoard=planningMilestonePriorityBoard(p);
   const statusBand=planningStatusBand([
@@ -2556,17 +2576,18 @@ const movementClusters=new Map();
       '<td>'+escapeHtml(r.managementAction||"Monitor against the current programme and controlled baseline.")+'</td>'+
     '</tr>';
   }).join("");
-  return '<section class="planning-view milestone-view">'+kpis+basis+repeatedMovementWarning+
+  return '<section class="planning-view milestone-view">'+kpis+basis+repeatedMovementWarning+distributionSummary(p.movementDistribution)+
     '<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Milestone movement & criticality</h4><p>Professional milestone control chart with a true calendar axis, controlled-baseline movement, current forecast, float, due position and criticality.</p></div></div><div class="planning-panel-body">'+timeline+'</div></section>'+
-    '<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Critical path & key milestone watchlist</h4><p>Open milestones are ranked by criticality, negative float, date urgency and baseline movement so management sees what requires action first.</p></div></div><div class="planning-panel-body">'+priorityBoard+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Management alerts</h4><p>Exceptions requiring intervention or protection.</p></div></div><div class="planning-panel-body">'+attention+'</div></section></div>'+
+    '<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Source-float & key milestone watchlist</h4><p>Open milestones are ranked by urgency and submitted float. Repeated watch-level movements are represented once here; the complete source register remains below.</p></div></div><div class="planning-panel-body">'+priorityBoard+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Management alerts</h4><p>Exceptions requiring intervention or protection.</p></div></div><div class="planning-panel-body">'+attention+'</div></section></div>'+
     '<div class="planning-primary-grid"><section class="planning-panel"><div class="planning-panel-head"><div><h4>Milestone status</h4><p>Completed, open and overdue commitments.</p></div></div><div class="planning-panel-body">'+statusBand+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Management priority</h4><p>Open milestones grouped by required level of attention.</p></div></div><div class="planning-panel-body">'+priorityBand+'</div></section></div>'+
-    '<section class="planning-panel"><div class="planning-panel-head"><div><h4>Milestone control register</h4><p>Criticality, status, due position, baseline movement, float, flags and required management action. Showing '+escapeHtml(fmt(Math.min(500,p.rows.length)))+' of '+escapeHtml(fmt(p.rows.length))+' milestones; the complete population is available through Download Excel / Download data.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Priority</th><th>Milestone / WBS</th><th>Status</th><th>Criticality</th><th>Baseline</th><th>Current / actual</th><th>Vs baseline d</th><th>Total float h</th><th>Flags</th><th>Required attention</th></tr></thead><tbody>'+detail+'</tbody></table></div></div></section></section>';
+    '<section class="planning-panel"><div class="planning-panel-head"><div><h4>Milestone control register</h4><p>Source activity names are descriptive and do not establish contractual authority. Current/actual dates, baseline movement and source-float classifications remain separate. Showing '+escapeHtml(fmt(Math.min(500,p.rows.length)))+' of '+escapeHtml(fmt(p.rows.length))+' milestones; the complete population is available through Download Excel / Download data.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Priority</th><th>Milestone / WBS</th><th>Status</th><th>Criticality</th><th>Baseline</th><th>Current / actual</th><th>Vs baseline d</th><th>Total float h</th><th>Flags</th><th>Required attention</th></tr></thead><tbody>'+detail+'</tbody></table></div></div></section></section>';
 }
 function renderNearCriticalVisual(data){
   const p=projectionFor(data,"near_critical");
   if(!Array.isArray(p.rows))return"";
   const strictRows=p.rows||[];
-  const riskRows=Array.isArray(p.watchlistRows)?p.watchlistRows:strictRows;
+  const statusRank={in_progress:0,not_started:1,unknown:2,completed:3};
+  const riskRows=[...(Array.isArray(p.watchlistRows)?p.watchlistRows:strictRows)].sort((a,b)=>(statusRank[a.status]??2)-(statusRank[b.status]??2)||a.totalFloatHours-b.totalFloatHours);
   const inProgress=riskRows.filter(r=>r.status==="in_progress").length;
   const notStarted=riskRows.filter(r=>r.status==="not_started").length;
   const slipped=riskRows.filter(r=>planningDaysBetween(r.baselineFinishIso,r.currentFinishIso)>0).length;
@@ -2592,7 +2613,7 @@ function renderNearCriticalVisual(data){
     ["Zero float",p.zeroFloatCount??"—","critical boundary","danger"],
     ["Negative float",p.negativeFloatCount??"—","TF < 0","danger"],
     ["Source reported",sourceCount===null?"—":sourceCount,p.sourceReportedLabel||"Near Critical"],
-    ["Float coverage",p.floatCoveragePercent===null?"—":fmt(p.floatCoveragePercent)+"%","current programme"],
+    ["Float coverage",p.floatCoveragePercent===null?"—":fmt(p.floatCoveragePercent)+"%","execution population"],
     ["Classification coverage",p.classificationCoveragePercent===null||p.classificationCoveragePercent===undefined?"—":fmt(p.classificationCoveragePercent)+"%","calendar-aware",unresolved?"warning":""]
   ]);
 
@@ -2603,14 +2624,14 @@ function renderNearCriticalVisual(data){
   const floatConcentrationWarning=dominantFloat&&dominantFloat[1]>=25&&dominantFloat[1]/Math.max(1,riskRows.length)>=0.15?'<div class="notice info"><b>Concentrated submitted float values.</b> '+escapeHtml(fmt(dominantFloat[1]))+' activities share exactly '+escapeHtml(fmt(dominantFloat[0]))+' h total float. This is preserved from the submitted programme, not generated by CMeng. Review calendar/logic conventions if that concentration is unexpected.</div>':'';
   const histogram=planningFloatHistogram(riskRows,maxThreshold);
   const finishPeriods=planningFinishPeriodBars(riskRows);
-  const watch=[...riskRows].map(r=>({...r,varianceDays:planningDaysBetween(r.baselineFinishIso,r.currentFinishIso)})).sort((a,b)=>a.totalFloatHours-b.totalFloatHours||((b.varianceDays||0)-(a.varianceDays||0))).slice(0,150);
+  const watch=[...riskRows].map(r=>({...r,varianceDays:planningDaysBetween(r.baselineFinishIso,r.currentFinishIso)})).sort((a,b)=>(statusRank[a.status]??2)-(statusRank[b.status]??2)||a.totalFloatHours-b.totalFloatHours||((b.varianceDays||0)-(a.varianceDays||0))).slice(0,150);
   const rows=watch.map(r=>{
     const classLabel=r.totalFloatHours===criticalThreshold?(criticalThreshold===0?"Zero-float boundary":"Critical boundary"):"Strict near-critical";
     return '<tr><td><b>'+escapeHtml(r.activityId)+'</b><br><span class="muted">'+escapeHtml(r.name||"")+'</span></td><td>'+escapeHtml(classLabel)+'</td><td>'+escapeHtml(planningStateLabel(r.status))+'</td><td>'+escapeHtml(fmt(r.totalFloatHours))+'</td><td>'+escapeHtml(r.nearCriticalThresholdHours===null||r.nearCriticalThresholdHours===undefined?"—":fmt(r.nearCriticalThresholdHours))+'</td><td>'+escapeHtml(r.calendarId||"—")+'</td><td>'+escapeHtml(planningShortDate(r.baselineFinishIso))+'</td><td>'+escapeHtml(planningShortDate(r.currentFinishIso))+'</td><td class="'+((r.varianceDays||0)>0?"late-text":(r.varianceDays||0)<0?"early-text":"")+'">'+escapeHtml(r.varianceDays===null?"—":((r.varianceDays>0?"+":"")+fmt(r.varianceDays)))+'</td><td>'+escapeHtml(r.percentComplete===null?"—":fmt(r.percentComplete)+"%")+'</td></tr>';
   }).join("");
-  const basis='<div class="notice info"><b>CMeng schedule taxonomy:</b> Critical = TF ≤ '+escapeHtml(fmt(criticalThreshold))+' h; Near-Critical = TF > '+escapeHtml(fmt(criticalThreshold))+' h and ≤ '+escapeHtml(limitValue)+'; Float-Risk Watchlist also includes the zero-float boundary. Working-day limits use each activity\'s own programme calendar.</div>';
-  const reconciliation='<div class="notice '+(sourceMatch==="float_risk_watchlist"||sourceMatch==="strict_near_critical"?"good":"warn")+'"><b>Submitted vs independent:</b> '+escapeHtml(reconciliationText)+'</div>';
-  return '<section class="planning-view nearcritical-view">'+kpis+basis+reconciliation+floatConcentrationWarning+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Float-risk distribution</h4><p>Submitted total float is assessed independently against CMeng/project-control taxonomy using each activity calendar.</p></div></div><div class="planning-panel-body">'+histogram+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Where float-risk work finishes</h4><p>Current finish-month concentration for the full float-risk watchlist.</p></div></div><div class="planning-panel-body">'+finishPeriods+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Float-Risk Watchlist</h4><p>Zero-float boundary activities and strict near-critical activities are shown together for management attention, while their taxonomy remains separate. Showing '+escapeHtml(fmt(watch.length))+' of '+escapeHtml(fmt(riskRows.length))+' watchlist activities; the complete population is available through Download Excel / Download data.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Activity</th><th>Risk class</th><th>Status</th><th>Total float h</th><th>Threshold h</th><th>Calendar</th><th>Baseline finish</th><th>Current finish</th><th>Vs baseline d</th><th>Progress</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></section></section>';
+  const basis='<div class="notice info"><b>CMeng schedule taxonomy:</b> Critical = TF ≤ '+escapeHtml(fmt(criticalThreshold))+' h; Near-Critical = TF > '+escapeHtml(fmt(criticalThreshold))+' h and ≤ '+escapeHtml(limitValue)+'; Float-Risk Watchlist boundary inclusion: '+(p.floatRiskWatchlistIncludesCriticalThreshold?'Included':'Excluded')+'. Working-day limits use each activity\'s own programme calendar.</div>';
+  const reconciliation='<div class="notice '+(sourceMatch==="float_risk_watchlist"||sourceMatch==="strict_near_critical"?"good":"warn")+'"><b>Submitted label vs governed taxonomy:</b> '+escapeHtml(reconciliationText)+'</div>';
+  return '<section class="planning-view nearcritical-view">'+kpis+basis+reconciliation+floatConcentrationWarning+distributionSummary(p.floatDistribution,'hours')+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Float-risk distribution</h4><p>Submitted total float is classified against the governed project-control taxonomy using each activity calendar.</p></div></div><div class="planning-panel-body">'+histogram+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Where float-risk work finishes</h4><p>Current finish-month concentration for the full float-risk watchlist.</p></div></div><div class="planning-panel-body">'+finishPeriods+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Float-Risk Watchlist</h4><p>Governed critical-boundary inclusion and strict near-critical membership are shown separately. Open activities appear before completed history. Showing '+escapeHtml(fmt(watch.length))+' of '+escapeHtml(fmt(riskRows.length))+' watchlist activities; the complete population is available through Download Excel / Download data.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Activity</th><th>Risk class</th><th>Status</th><th>Total float h</th><th>Threshold h</th><th>Calendar</th><th>Baseline finish</th><th>Current finish</th><th>Vs baseline d</th><th>Progress</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></section></section>';
 }
 function renderManhourVisual(data){
   const p=projectionFor(data,"manhour_scurve");
@@ -2619,18 +2640,23 @@ function renderManhourVisual(data){
     const scenarioTable=scenarios.length?'<div class="table-wrap"><table><thead><tr><th>Crew size</th><th>Average manpower</th><th>Peak manpower</th><th>Remaining scenario hours</th><th>Basis</th></tr></thead><tbody>'+scenarios.map(s=>'<tr><td>'+escapeHtml(fmt(s.crewSize))+'</td><td>'+escapeHtml(fmt(s.averageManpower))+'</td><td>'+escapeHtml(fmt(s.peakManpower))+'</td><td>'+escapeHtml(fmt(s.remainingScenarioHours))+'</td><td>'+escapeHtml(s.basis||"—")+'</td></tr>').join("")+'</tbody></table></div>':'';
     return '<section class="planning-view manhour-view"><div class="notice warn"><b>Measured labor-assignment history is not established.</b> Any values below are programme-derived scenarios and are not presented as actual man-hours.</div>'+scenarioTable+'</section>';
   }
+  const weekly=p.actualHistoryMethod==="source_approved_weekly_usage";
+  const planCoverage=weekly?p.plannedPeriodCoveragePercent:p.plannedAssignmentCoveragePercent;
+  const actualCoverage=weekly?p.actualPeriodCoveragePercent:p.actualAssignmentCoveragePercent;
+  const periodCoverage=weekly?p.actualPeriodCoveragePercent:p.periodActualAssignmentCoveragePercent;
   const actualEstablished=typeof p.actualHoursKnownCurrent==="number"&&Number.isFinite(p.actualHoursKnownCurrent);
   const actualHistoryEstablished=["stored_financial_period_actuals","source_approved_weekly_usage"].includes(p.actualHistoryMethod);
   const actualHistoryLabel=p.actualHistoryMethod==="stored_financial_period_actuals"?"Financial-period history":p.actualHistoryMethod==="source_approved_weekly_usage"?"Approved weekly usage history":"Not established";
   const actualHistoryBasis=p.actualHistoryMethod==="stored_financial_period_actuals"?"stored financial periods":p.actualHistoryMethod==="source_approved_weekly_usage"?"governed weekly actuals":"no fabricated history";
   const top=planningKpis([
-    ["Planned labor hours",p.plannedHoursKnown===null?"—":fmt(p.plannedHoursKnown)+" h","assignment plan"],
-    ["Planned coverage",p.plannedAssignmentCoveragePercent===null?"—":fmt(p.plannedAssignmentCoveragePercent)+"%","labor assignments"],
-    ["Actual labor hours",p.actualHoursKnownCurrent===null?"Not established":fmt(p.actualHoursKnownCurrent)+" h",p.actualHoursKnownCurrent===null?"missing, not zero":"current known total",p.actualHoursKnownCurrent===null?"warning":"success"],
-    ["Actual coverage",p.actualAssignmentCoveragePercent===null||p.actualAssignmentCoveragePercent===undefined?"Not established":fmt(p.actualAssignmentCoveragePercent)+"%","assignment coverage if available",p.actualAssignmentCoveragePercent!==null&&p.actualAssignmentCoveragePercent!==undefined&&p.actualAssignmentCoveragePercent<100?"warning":""],
+    ["Planned labor hours",p.plannedHoursKnown===null?"—":fmt(p.plannedHoursKnown)+" h",weekly?"weekly demand over source horizon":"assignment plan"],
+    ["Planned coverage",planCoverage==null?"Not established":fmt(planCoverage)+"%",weekly?"source labor-resource periods":"labor assignments"],
+    ["Actual labor hours",p.actualHoursKnownCurrent===null?"Not established":fmt(p.actualHoursKnownCurrent)+" h",p.actualHoursKnownCurrent===null?"missing, not zero":weekly?"approved usage through Data Date":"current known total",p.actualHoursKnownCurrent===null?"warning":"success"],
+    ["Actual coverage",actualCoverage==null?"Not established":fmt(actualCoverage)+"%",weekly?"approved source periods through Data Date":"assignment coverage",p.actualAssignmentCoveragePercent!==null&&p.actualAssignmentCoveragePercent!==undefined&&p.actualAssignmentCoveragePercent<100?"warning":""],
     ["Remaining labor hours",p.remainingHoursKnown===null?"—":fmt(p.remainingHoursKnown)+" h","assignment remainder"],
+    ...(weekly?[["Planned to Data Date",p.plannedHoursToDataDate==null?"Not established":fmt(p.plannedHoursToDataDate)+" h","same source weeks as actual"],["Actual minus plan",p.actualMinusPlannedHoursToDataDate==null?"Not established":fmt(p.actualMinusPlannedHoursToDataDate)+" h","same reporting horizon"]]:[]),
     ["Actual history",actualHistoryLabel,actualHistoryBasis,actualHistoryEstablished?"success":"warning"],
-    ["Period actual coverage",p.periodActualAssignmentCoveragePercent===null||p.periodActualAssignmentCoveragePercent===undefined?"Not established":fmt(p.periodActualAssignmentCoveragePercent)+"%","labor assignments with period actuals",p.periodActualAssignmentCoveragePercent!==null&&p.periodActualAssignmentCoveragePercent!==undefined&&p.periodActualAssignmentCoveragePercent<100?"warning":""]
+    ["Period actual coverage",periodCoverage==null?"Not established":fmt(periodCoverage)+"%",weekly?"source labor-resource periods through Data Date":"labor assignments with period actuals",p.periodActualAssignmentCoveragePercent!==null&&p.periodActualAssignmentCoveragePercent!==undefined&&p.periodActualAssignmentCoveragePercent<100?"warning":""]
   ]);
   const note=!actualEstablished
     ? '<div class="notice warn"><b>Actual man-hours are not established.</b> Planned and remaining labor hours may exist, but no current actual-hours total is evidenced. CMeng therefore withholds the actual curve.</div>'
@@ -2640,11 +2666,11 @@ function renderManhourVisual(data){
   const series=[
     {key:"plannedCumulativeHours",label:"Planned labor hours",color:"#506579"},
     ...(actualHistoryEstablished?[{key:"actualCumulativeHours",label:"Actual labor hours",color:"#2c7a57"}]:[]),
-    ...(actualEstablished?[{key:"forecastCumulativeHours",label:"Forecast labor hours",color:"#4f7fb4"}]:[])
+    ...(p.points.some(point=>typeof point.forecastCumulativeHours==="number")?[{key:"forecastCumulativeHours",label:"Forecast labor hours",color:"#4f7fb4"}]:[])
   ];
-  return '<section class="planning-view manhour-view">'+top+note+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Man-Hour S-Curve</h4><p>Labor only. Missing actual history never becomes a zero line.</p></div></div><div class="planning-panel-body">'+renderLineChart(p.points,series,null,{unit:"h",yLabel:"Labor hours",xLabel:"Reporting date",dataDateIso:p.dataDateIso,ariaLabel:"Man-Hour S-Curve"})+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Evidence coverage</h4><p>The curve only uses hours that are actually present in resource assignments and an approved period or weekly-usage history.</p></div></div><div class="planning-panel-body">'+moduleEvidenceGate([
+  return '<section class="planning-view manhour-view">'+top+note+(weekly?'<div class="notice info">Weekly staffing hours describe input usage, not physical productivity. Periods are included by source week start. The planned total spans the full source horizon; actuals stop at the Data Date. Remaining-hours forecast is not established.</div>':'')+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Man-Hour S-Curve</h4><p>Labor only. Missing actual history never becomes a zero line.</p></div></div><div class="planning-panel-body">'+renderLineChart(p.points,series,null,{unit:"h",yLabel:"Labor hours",xLabel:"Reporting date",dataDateIso:p.dataDateIso,ariaLabel:"Man-Hour S-Curve"})+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Evidence coverage</h4><p>The curve only uses hours that are actually present in resource assignments and an approved period or weekly-usage history.</p></div></div><div class="planning-panel-body">'+moduleEvidenceGate([
     {label:"Labor resources",value:fmt(p.laborResourceCount),state:p.laborResourceCount>0?"ready":"missing"},
-    {label:"Labor assignments",value:fmt(p.laborAssignmentCount),state:p.laborAssignmentCount>0?"ready":"missing"},
+    {label:weekly?"Related P6 labor assignments (separate basis)":"Labor assignments",value:fmt(p.laborAssignmentCount),state:p.laborAssignmentCount>0?"ready":"missing"},
     {label:"Planned hours",value:p.plannedHoursKnown===null?"Not established":fmt(p.plannedHoursKnown)+" h",state:p.plannedHoursKnown===null?"missing":"ready"},
     {label:"Actual hours",value:p.actualHoursKnownCurrent===null?"Not established":fmt(p.actualHoursKnownCurrent)+" h",state:p.actualHoursKnownCurrent===null?"missing":"ready"},
     {label:"Period actual history",value:actualHistoryEstablished?"Established":"Not established",state:actualHistoryEstablished?"ready":"missing"}
@@ -2686,7 +2712,7 @@ function renderForecastHistoryVisual(data){
   ]);
   const cards=p.points.map(x=>'<div class="revision-value-card"><div class="revision-value-head"><b>'+escapeHtml(shortRevision(x.sourceRevisionId,labels))+'</b><span>'+escapeHtml(planningShortDate(x.dataDateIso))+'</span></div><div class="revision-value-lines"><span>Submitted finish <b>'+escapeHtml(planningShortDate(x.sourceForecastCompletionIso))+'</b></span><span>Independent finish <b>'+escapeHtml(planningShortDate(x.independentForecastCompletionIso))+'</b></span><span>Independent move vs prior <b>'+escapeHtml(x.movementDaysVsPrevious===null?"—":fmt(x.movementDaysVsPrevious)+" d")+'</b></span></div></div>').join("");
   const rows=p.points.map(x=>'<tr><td>'+escapeHtml(planningShortDate(x.dataDateIso))+'</td><td><b>'+escapeHtml(shortRevision(x.sourceRevisionId,labels))+'</b></td><td>'+escapeHtml(planningShortDate(x.sourceForecastCompletionIso))+'</td><td>'+escapeHtml(planningShortDate(x.independentForecastCompletionIso))+'</td><td>'+escapeHtml(x.movementDaysVsPrevious===null?"—":fmt(x.movementDaysVsPrevious))+'</td><td>'+escapeHtml(x.movementDaysVsFirst===null?"—":fmt(x.movementDaysVsFirst))+'</td><td>'+escapeHtml(x.independentForecastCompletionIso?humanizeKey(x.origin):"Not calculated in history view")+'</td></tr>').join("");
-  const note=independentCount===0?'<div class="notice info"><b>Source forecast history is available.</b> Independent CPM is not recalculated across every historical revision just to open this view. Open Independent Forecast for a governed current-revision calculation.</div>':'';
+  const note=independentCount===0?'<div class="notice info"><b>Source forecast history is available.</b> An independent CPM date could not be established for these source revisions. Review the stated calculation diagnostics.</div>':'';
   return '<section class="planning-view forecast-history-view">'+planningKpis([
     ["Revisions",p.snapshotCount,"controlled"],
     ["Source forecasts",sourceCount,"established"],
@@ -3918,7 +3944,7 @@ function renderModuleResult(result){
   if(result.key==="challenge-contract"&&renderDeliveryChallenge(data,result.reason))return;
   const basisHtml=renderModuleBasis(data);
   const challengeBody=renderUniversalChallenge(data.challenge);
-  const challengeHtml=challengeBody?'<details class="reconciliation-panel"><summary><span>Reconciliation with submitted position</span><b>'+(data.challenge?.challengedCount?escapeHtml(data.challenge.challengedCount)+' needs attention':'No material difference')+'</b></summary><div class="reconciliation-body">'+challengeBody+'</div></details>':'';
+  const challengeHtml=challengeBody?'<details class="reconciliation-panel"><summary><span>Reconciliation with submitted position</span><b>'+escapeHtml(reconciliationSummary(data.challenge))+'</b></summary><div class="reconciliation-body">'+challengeBody+'</div></details>':'';
   const specialized=renderSpecializedModule(result.key,data);
   const scalars=scalarPairs(data).filter(([k])=>k!=="challenge").map(([k,v])=>'<div class="scalar"><b>'+escapeHtml(humanizeKey(k))+'</b><span>'+escapeHtml(fmt(v))+'</span></div>').join("");
   const structured=specialized?"":renderStructuredSections(data);

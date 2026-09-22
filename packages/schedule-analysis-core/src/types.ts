@@ -267,6 +267,9 @@ export interface MilestoneSummary {
 }
 
 export interface VarianceSummary {
+  populationBasis?: "source_records" | "execution_control";
+  denominator?: number;
+  distribution?: { median: number | null; p90: number | null; dominantValue: number | null; dominantCount: number; dominantPercent: number | null; interpretation: string };
   method: string;
   comparableActivities: number;
   lateActivities: number;
@@ -308,6 +311,10 @@ export interface ScheduleAnalyticsResult {
   progress: ProgressSummary;
   float: FloatSummary;
   milestones: MilestoneSummary;
+  logicQuality?: { state: "review_required" | "no_detected_exceptions";
+    executionOpenStartActivityIds: string[]; executionOpenFinishActivityIds: string[];
+    executionIsolatedActivityIds: string[]; excludedIsolatedActivityIds: string[];
+    boundaryCandidateActivityIds: string[]; boundaryApprovalState: "not_established"; interpretation: string };
   finishVariance: VarianceSummary;
   completionBases: CompletionBasisValue[];
 

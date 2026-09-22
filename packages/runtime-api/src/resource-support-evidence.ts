@@ -869,6 +869,8 @@ export function weeklyResourceCapacityEvidence(
                 0,
               )
             : null;
+        const actualCapacity = actualRows.reduce((sum, point) => sum + point.availableCapacity!, 0);
+        const plannedCapacity = plannedRows.reduce((sum, point) => sum + point.availableCapacity!, 0);
         const actualApprovedUsage =
           actualRows.length > 0
             ? actualRows.reduce(
@@ -904,27 +906,27 @@ export function weeklyResourceCapacityEvidence(
                   ),
                 ),
           plannedUtilizationPercent:
-            availableCapacity > 0 &&
+            plannedCapacity > 0 &&
             plannedDemand !== null
               ? Number(
                   (
                     (
                       plannedDemand /
-                      availableCapacity
+                      plannedCapacity
                     ) *
                     100
                   ).toFixed(4),
                 )
               : null,
           actualUtilizationPercent:
-            availableCapacity > 0 &&
+            actualCapacity > 0 &&
             actualApprovedUsage !==
               null
               ? Number(
                   (
                     (
                       actualApprovedUsage /
-                      availableCapacity
+                      actualCapacity
                     ) *
                     100
                   ).toFixed(4),

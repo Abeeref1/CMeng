@@ -38,6 +38,8 @@ export interface IndependentMetricSpec {
     string;
   actionWhenDifferent: string;
   actionWhenMissing: string;
+  consequenceWhenIndependentUnavailable?: string;
+  actionWhenIndependentUnavailable?: string;
   tolerance?: number;
   submittedOverride?:
     ChallengeValue;
@@ -583,6 +585,11 @@ function gapValue(
       note:
         "The independent value cannot be defensibly derived from current evidence.",
     };
+  }
+
+  if (!compatibleUnit(submitted.unit, independent.unit)) {
+    return { ...independent, state: "not_derivable", value: null, diagnostics: ["INCOMPATIBLE_COMPARISON_UNITS"],
+      note: "Comparison withheld because units differ and no governed conversion is established." };
   }
 
   if (
@@ -1276,7 +1283,7 @@ function itemFor(
   }
 
   const independent =
-    independentValue(spec);
+    independentValue({ ...spec, state: spec.value === null ? "not_derivable" : spec.state });
   const gap =
     gapValue(
       submitted,
@@ -1305,10 +1312,10 @@ function itemFor(
     independent.state ===
       "not_derivable"
   ) {
-    consequence =
-      spec.consequenceWhenMissing;
-    action =
-      spec.actionWhenMissing;
+    consequence = spec.consequenceWhenIndependentUnavailable ??
+      "CMeng has not established an independent comparison for this metric. Available submitted evidence is retained; no agreement or discrepancy is concluded.";
+    action = spec.actionWhenIndependentUnavailable ??
+      "Establish the independent calculation and its evidence basis, then rerun the comparison.";
   } else if (
     submitted.state ===
       "not_submitted"
@@ -1329,6 +1336,24 @@ function itemFor(
       "Submitted and independent positions are within the configured tolerance.";
     action =
       "No reconciliation action is required for this metric unless newer evidence changes the basis.";
+  }
+
+  const reconciliationState: ModuleChallengeItem["reconciliationState"] =
+    submitted.state === "conflicted" ? "conflicting_evidence"
+    : independent.state === "not_derivable" || independent.value === null ? "independent_unavailable"
+    : submitted.state === "not_submitted" || submitted.value === null ? "submitted_missing"
+    : gap.state === "not_derivable" || gap.value === null ? "incomparable"
+    : independent.state === "scenario" ? "scenario"
+    : different ? "material_difference" : "within_tolerance";
+  if (reconciliationState === "incomparable") {
+    consequence = "The submitted and calculated values do not have a comparable measurement basis.";
+    action = "Reconcile units, population, authority and time basis before interpreting a difference.";
+  } else if (reconciliationState === "scenario") {
+    consequence = "The comparison uses a scenario. Numeric agreement does not establish an approved or independently verified position.";
+    action = "Validate and govern the scenario assumptions before using the comparison as an official position.";
+  } else if (reconciliationState === "conflicting_evidence") {
+    consequence = "Submitted evidence contains unresolved competing positions; no single reconciled result is established.";
+    action = "Resolve the source authority and reporting basis of the competing evidence, retaining the alternatives for audit.";
   }
 
   const evidenceState:
@@ -1368,6 +1393,9 @@ function itemFor(
     independent,
     gap,
     evidenceState,
+    reconciliationState,
+    materialDifference: reconciliationState === "material_difference",
+    tolerance,
     consequence,
     action,
     candidateComparisons:
@@ -1479,28 +1507,10 @@ export function buildModuleChallenge(
           ? "derived"
           : "calculated";
 
-  const challengedCount =
-    items.filter(
-      (item) =>
-        item.submitted.state ===
-          "not_submitted" ||
-        item.submitted.state ===
-          "conflicted" ||
-        (
-          typeof item.gap
-            .value ===
-            "number" &&
-          Math.abs(
-            item.gap.value,
-          ) > 0
-        ) ||
-        (
-          typeof item.gap
-            .value ===
-            "string" &&
-          item.gap.value !== "0"
-        ),
-    ).length;
+  const challengedCount = items.filter(item => item.reconciliationState !== "within_tolerance").length;
+  const priority: ModuleChallengeItem["reconciliationState"][] = ["conflicting_evidence", "material_difference", "independent_unavailable", "submitted_missing", "incomparable", "scenario"];
+  const reconciliationState = priority.find(state => items.some(item => item.reconciliationState === state))
+    ?? (items.length ? "within_tolerance" : "comparison_pending");
 
   return {
     schemaVersion: "1.0",
@@ -1513,6 +1523,10 @@ export function buildModuleChallenge(
     itemCount:
       items.length,
     challengedCount,
+    materialDifferenceCount: items.filter(item => item.materialDifference).length,
+    unavailableCheckCount: items.filter(item => item.reconciliationState === "independent_unavailable").length,
+    reconciledCount: items.filter(item => item.reconciliationState === "within_tolerance").length,
+    reconciliationState,
     notSubmittedCount:
       items.filter(
         (item) =>
