@@ -40,6 +40,17 @@ export interface ProgressReportProjection {
   sourceRevisionId: string;
   dataDateIso: string | null;
   sourceProjections: ProgressReportProjectionRef[];
+  activityPopulation: {
+    sourceActivityCount: number;
+    executableActivityCount: number;
+    excludedActivityCount: number;
+    excludedByType: {
+      wbsSummaryCount: number;
+      levelOfEffortCount: number;
+      otherExcludedCount: number;
+    };
+    basis: "execution_control_population";
+  };
 
   schedule: {
     activityCount: number;
