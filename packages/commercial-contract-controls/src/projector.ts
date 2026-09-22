@@ -455,6 +455,36 @@ function variations(
         row.lifecycleStage !==
         "unknown",
     ).length;
+  const fullLifecycleKnown =
+    rows.filter(
+      (row) => {
+        const terminal =
+          row.lifecycleStage ===
+            "approved" ||
+          row.lifecycleStage ===
+            "rejected";
+        if (!terminal) {
+          return false;
+        }
+        const commonDates = [
+          row.dates.instruction,
+          row.dates.submitted,
+          row.dates.assessed,
+        ];
+        const terminalDate =
+          row.lifecycleStage ===
+            "approved"
+            ? row.dates.approved
+            : (
+                row.dates.agreed ??
+                row.dates.approved
+              );
+        return (
+          commonDates.every(Boolean) &&
+          Boolean(terminalDate)
+        );
+      },
+    ).length;
   const lifecycleStageCounts = {
     instruction:
       rows.filter(
@@ -600,9 +630,14 @@ function variations(
           row.lifecycleStage ===
           "rejected",
       ).length,
-    lifecycleCoveragePercent:
+    finalStageCoveragePercent:
       coverage(
         lifecycleKnown,
+        rows.length,
+      ),
+    fullLifecycleCoveragePercent:
+      coverage(
+        fullLifecycleKnown,
         rows.length,
       ),
     lifecycleStageCounts,
