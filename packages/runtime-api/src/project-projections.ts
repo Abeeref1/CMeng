@@ -2535,6 +2535,27 @@ function buildBundle(
               scheduleAnalytics
                 .result
                 .activityCount,
+            sourceActivityCount:
+              scheduleAnalytics
+                .result
+                .population
+                .sourceActivityCount,
+            executableActivityCount:
+              scheduleAnalytics
+                .result
+                .population
+                .executableActivityCount,
+            excludedActivityCount:
+              scheduleAnalytics
+                .result
+                .population
+                .excludedActivityCount,
+            excludedByType: {
+              ...scheduleAnalytics
+                .result
+                .population
+                .excludedByType,
+            },
             relationshipCount:
               scheduleAnalytics
                 .result
@@ -2593,6 +2614,14 @@ function buildBundle(
               progressReport
                 .progress
                 .inProgressCount,
+            notStartedCount:
+              progressReport
+                .progress
+                .notStartedCount,
+            unknownStatusCount:
+              progressReport
+                .progress
+                .unknownStatusCount,
             lookAheadOverdueCount:
               progressReport
                 .lookAhead
@@ -2626,6 +2655,15 @@ function buildBundle(
                 assignedResourceCount:
                   resourceUtilization
                     .assignedResourceCount,
+                resourceCount:
+                  resourceUtilization
+                    .resourceCount,
+                assignmentRecordCount:
+                  resourceUtilization
+                    .assignmentRecordCount,
+                resourcePopulationBasis:
+                  resourceUtilization
+                    .resourcePopulationBasis,
                 capacityCoveragePercent:
                   resourceUtilization
                     .capacityCoveragePercent,
@@ -6352,20 +6390,10 @@ function buildSpecialistModuleFast(
   return result;
 }
 
-export function moduleForProject(
-  projectId: string,
+function resolveProjectModule(
+  state: ProjectRuntimeState,
   key: string,
 ): ModuleRuntimeResult {
-  const state =
-    runtimeProjects.get(projectId);
-  if (!state) {
-    return blocked(
-      key,
-      "Project has not been created.",
-      ["project"],
-    );
-  }
-
   const sourceResource = canonicalResourceModule(state, key) ?? canonicalCommercialModule(state, key);
   if (sourceResource) {
     const current = projectControlSchedule(state);
@@ -6406,6 +6434,22 @@ export function moduleForProject(
       [],
     )
   );
+}
+
+export function moduleForProject(
+  projectId: string,
+  key: string,
+): ModuleRuntimeResult {
+  const state =
+    runtimeProjects.get(projectId);
+  if (!state) {
+    return blocked(
+      key,
+      "Project has not been created.",
+      ["project"],
+    );
+  }
+  return resolveProjectModule(state, key);
 }
 
 export function directorForProject(
@@ -6509,7 +6553,8 @@ export function managementSurfacesForProject(
     scheduleModules.map(
       (descriptor) => {
         const result =
-          bundle.modules.get(
+          resolveProjectModule(
+            state,
             descriptor.key,
           );
         return {
@@ -6536,7 +6581,7 @@ export function managementSurfacesForProject(
     commercialModules.map(
       (descriptor) => {
         const result =
-          canonicalCommercialModule(
+          resolveProjectModule(
             state,
             descriptor.key,
           );
