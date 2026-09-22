@@ -6762,7 +6762,7 @@ function applyProfessionalModuleState(
               requirementMissing,
             ) +
               " delay event(s) do not have a governed applicable notice requirement; assessed events remain visible but the page is only partially assessable."
-          : "Notice compliance is not fully assessable until governed delay events, applicable notice requirements and actual notice dates are established.",
+          : "Notice compliance is not assessable as a complete population until governed delay events, applicable notice requirements and actual notice dates are established.",
       );
     }
   }
