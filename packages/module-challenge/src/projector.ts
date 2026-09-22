@@ -530,7 +530,7 @@ function gapValue(
 ): ChallengeValue {
   if (
     submitted.state ===
-      "not_submitted"
+      "not_submitted" && independent.state !== "not_derivable" && independent.value !== null
   ) {
     return {
       state: "derived",
@@ -583,7 +583,7 @@ function gapValue(
           .confidence,
       diagnostics: [],
       note:
-        "The independent value cannot be defensibly derived from current evidence.",
+        "Independent comparison not established. CMeng cannot defensibly derive the independent value from current evidence.",
     };
   }
 
@@ -1530,9 +1530,7 @@ export function buildModuleChallenge(
     notSubmittedCount:
       items.filter(
         (item) =>
-          item.submitted
-            .state ===
-          "not_submitted",
+          item.reconciliationState === "submitted_missing",
       ).length,
     scenarioCount:
       items.filter(

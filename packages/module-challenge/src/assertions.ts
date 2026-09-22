@@ -27,7 +27,7 @@ function numberValue(
       .replace(/%/g, "")
       .trim();
   const value =
-    Number(cleaned);
+    cleaned && /\d/.test(cleaned) ? Number(cleaned) : NaN;
   return Number.isFinite(value)
     ? value
     : null;

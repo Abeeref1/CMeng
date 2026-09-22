@@ -288,6 +288,10 @@ export interface VariationLifecycleRecord {
 }
 
 export interface VariationsProjection {
+  sourceRecordCount: number;
+  population: import("../../truth-kernel/src").PopulationContract;
+  futureRows: VariationLifecycleRecord[];
+  undatedRows: VariationLifecycleRecord[];
   asOfRecordCount: number;
   futureRecordCount: number;
   undatedRecordCount: number;
@@ -359,6 +363,10 @@ export interface SiteInstructionRecord {
 }
 
 export interface SiteInstructionsProjection {
+  population:import('../../truth-kernel/src').PopulationContract;
+  sourceRecordCount:number;
+  futureRows:SiteInstructionControlInput[];
+  undatedRows:SiteInstructionControlInput[];
   capabilityKey:
     "site-instructions";
   state: CommercialFindingState;
@@ -400,9 +408,9 @@ export interface ContractObligationsProjection {
   recordCount: number;
   explicitRecordCount: number;
   clauseCandidateCount: number;
-  overdueCount: number;
-  openCount: number;
-  completeCount: number;
+  overdueCount: number | null;
+  openCount: number | null;
+  completeCount: number | null;
   rows: ObligationRecord[];
   diagnostics: string[];
 }
@@ -482,6 +490,9 @@ export interface InsurancePosition {
 }
 
 export interface BondsInsuranceProjection {
+  insurancePopulation:import('../../truth-kernel/src').PopulationContract;
+  futureInsurances:InsuranceControlInput[];
+  undatedInsurances:InsuranceControlInput[];
   capabilityKey:
     "bonds-insurance";
   state: CommercialFindingState;
@@ -490,12 +501,12 @@ export interface BondsInsuranceProjection {
   advancePaymentBondRequirement:
     CommercialFinding<string>;
   insuranceRequirementCount: number;
-  activeBondCount: number;
-  expiredBondCount: number;
-  expiringBondCount: number;
-  activeInsuranceCount: number;
-  expiredInsuranceCount: number;
-  expiringInsuranceCount: number;
+  activeBondCount: number | null;
+  expiredBondCount: number | null;
+  expiringBondCount: number | null;
+  activeInsuranceCount: number | null;
+  expiredInsuranceCount: number | null;
+  expiringInsuranceCount: number | null;
   bonds: BondPosition[];
   insurances: InsurancePosition[];
   diagnostics: string[];
@@ -522,6 +533,10 @@ export interface RetentionCalendarRecord {
 }
 
 export interface RetentionCalendarProjection {
+  population:import('../../truth-kernel/src').PopulationContract;
+  sourceRecordCount: number;
+  futureRows: RetentionCalendarRecord[];
+  undatedRows: RetentionCalendarRecord[];
   capabilityKey:
     "retention-calendar";
   state: CommercialFindingState;
@@ -531,7 +546,7 @@ export interface RetentionCalendarProjection {
     CommercialFinding<number>;
   recordCount: number;
   heldCount: number | null;
-  releasedCount: number;
+  releasedCount: number | null;
   dueCount: number;
   /** Null when release-due dates are insufficient to assess overdue status. */
   overdueCount: number | null;

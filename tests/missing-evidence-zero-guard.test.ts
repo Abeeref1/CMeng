@@ -74,11 +74,10 @@ test("missing control evidence is not presented as an established zero", () => {
     null,
   );
 
-  // Raw array counts may be zero internally, but the evidence state
-  // prevents management UI from presenting them as established zero.
+  // The shared payload itself carries missingness, so every consumer is safe.
   assert.equal(
     director.controls
       .openHseIncidentCount,
-    0,
+    null,
   );
 });

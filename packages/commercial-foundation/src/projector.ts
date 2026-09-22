@@ -1,3 +1,4 @@
+import { partitionAsOf } from "../../truth-kernel/src";
 import { reportingScope } from "../../truth-kernel/src";
 import type {
   CbsBreakdownProjection,
@@ -1860,7 +1861,11 @@ function buildPaymentRegister(
             stageTotal
           ? "established"
           : "partial",
-    recordCount: sourceRows.length,
+    recordCount: rows.length,
+    sourceRecordCount: sourceRows.length,
+    population: partitionAsOf(input.payments,{name:"Certificate periods by Data Date",entity:"certificate",dataDateIso:input.dataDateIso,dateBasis:"periodEnd (source period, not certification or payment)",id:r=>r.paymentId,date:r=>r.periodEnd}).population,
+    futureRows: sourceRows.filter(row=>row.reportingScope==='future'),
+    undatedRows: sourceRows.filter(row=>row.reportingScope==='undated'),
     asOfRecordCount: rows.length,
     futureRecordCount: sourceRows.filter(row=>row.reportingScope==='future').length,
     undatedRecordCount: sourceRows.filter(row=>row.reportingScope==='undated').length,
@@ -1872,7 +1877,7 @@ function buildPaymentRegister(
     lifecycleCounts,
     slaAssessmentState,
     slaCounts,
-    rows: sourceRows,
+    rows,
     diagnostics: [
       "APPLIED_ASSESSED_CERTIFIED_AND_PAID_STAGES_REMAIN_SEPARATE",
       "PAYMENT_SLA_USES_ACTUAL_EVENT_DATES_NOT_PLANNED_DATES",

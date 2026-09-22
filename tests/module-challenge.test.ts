@@ -308,3 +308,8 @@ test("contradictory submitted values stay visible, each is calculated, and the s
     -1.6,
   );
 });
+
+
+test("narrative punctuation after a rate never becomes submitted zero", () => {
+  assert.equal(extractDocumentAssertions("Use the recent production rate, conservative production rate, and productivity.", "narrative").filter(a => a.metric === "productivity").length, 0);
+});

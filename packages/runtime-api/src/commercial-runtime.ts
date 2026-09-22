@@ -1,3 +1,5 @@
+import { reportingScope } from "../../truth-kernel/src";
+import { reportingState } from "./reporting-state";
 import { extractContractValue } from "../../contract-commercial/src";
 import {
   buildCommercialControlPosition,
@@ -26,6 +28,7 @@ export function commercialPositionForState(
   state: ProjectRuntimeState,
   generatedAt = new Date().toISOString(),
 ): CommercialControlPosition {
+  state = reportingState(state);
   const prior = cache.get(state);
   if (prior?.version === state.version) {
     return prior.position;
@@ -36,6 +39,7 @@ export function commercialPositionForState(
       ? extractContractValue(state.contract)
       : null;
 
+  const ledger=commercialCanonical(state);
   const position =
     buildCommercialControlPosition({
       sourceLedger:
@@ -75,16 +79,16 @@ export function commercialPositionForState(
             }),
           ) ?? [],
       variations:
-        state.controls.variations,
+        state.controls.variations.filter(row=>reportingScope(ledger.variations.find(v=>v.variationId===row.variationId)?.approvalDate,ledger.dataDateIso)==='as_of'),
       invoices:
-        state.controls.invoices,
+        state.controls.invoices.filter(row=>reportingScope(row.certificateDateIso,ledger.dataDateIso)==='as_of').map(row=>({...row,paidAmount:reportingScope(row.paymentDateIso,ledger.dataDateIso)==='as_of'?row.paidAmount:null})),
       retentions:
         state.controls.retentions,
       bonds:
         state.controls.bonds,
       claimCommercials:
         state.controls
-          .claimCommercials,
+          .claimCommercials.filter(row=>state.controls.delayClaims?.claims.some(c=>c.claimId===row.claimId&&reportingScope(c.submittedAt,ledger.dataDateIso)==='as_of')).map(row=>({...row,assessedAmount:null})),
       delayClaims:
         state.controls
           .delayClaims,

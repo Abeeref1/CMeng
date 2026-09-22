@@ -10,6 +10,7 @@ import type {
 } from "../packages/pdf-document-parser/src";
 import {
   identifyEvidenceDocument,
+  documentClassificationForReview,
 } from "../packages/runtime-api/src/document-identification";
 
 class FakeOcrProvider
@@ -247,4 +248,17 @@ test("low-confidence OCR never becomes silently trusted", async () => {
         "DOCUMENT_OCR_LOW_CONFIDENCE",
       ),
   );
+});
+
+
+test("forecast method narratives do not become BOQ from quantity and rate words", async () => {
+  const text = "Independent forecast method basis. Remaining quantity divided by conservative achievable rate defines productivity duration. This is a methodology, not a priced bill.";
+  const result = await identifyEvidenceDocument({bytes: Buffer.from(text), sourceFilename: "unrelated-evidence.txt", sourceRelativePath: null});
+  assert.equal(result.identification.detectedDocumentType, "productivity_forecast_basis");
+  const legacy = {documentType: "boq", category: "boq_cost", mediaType: "text/plain", identification: {detectedTitle: "Independent forecast method basis"}, assertions: [{sourceText: text}], basisState: "candidate"} as any;
+  const review = documentClassificationForReview(legacy);
+  assert.equal(review.documentType, "productivity_forecast_basis"); assert.equal(review.reviewRequired, true);
+  assert.equal(legacy.documentType, "boq"); assert.equal(legacy.basisState, "candidate");
+  const generic = await identifyEvidenceDocument({bytes: Buffer.from("Quantity and rate are used to estimate a forecast."), sourceFilename: "unrelated.txt", sourceRelativePath: null});
+  assert.notEqual(generic.identification.detectedDocumentType, "boq");
 });

@@ -198,6 +198,7 @@ function input():
     generatedAt:
       "2026-09-21T19:00:00.000Z",
     director: director(),
+    consistency: {state: "pass", checkCount: 3, failedCheckIds: [], scope: "Test checked metrics"},
     modules: [
       {
         key:
@@ -207,6 +208,7 @@ function input():
         group:
           "Programme & Planning",
         status: "ready",
+        calculationState: "checked", evidenceState: "established", consistencyState: "pass", professionalState: "defensible",
         reason: null,
       },
       {
@@ -463,4 +465,38 @@ test("MCP preserves null reason for a ready specialist position", () => {
     null,
     "a ready specialist position must not carry a contradictory not-established reason",
   );
+});
+
+
+test("readiness never promotes an unchecked or inconsistent producer", () => {
+  for (const gate of ["calculationState", "evidenceState", "consistencyState", "professionalState"] as const) {
+    const source = input();
+    (source.modules[0] as any)[gate] = "pending";
+    const result = buildManagementSurfaces(source);
+    assert.equal(result.masterDashboard.readiness.ready, 0, gate);
+    assert.equal(result.masterControlProgramme.specialistPositions[0]!.status, "partial", gate);
+  }
+  const source = input(); source.consistency!.state = "fail";
+  assert.equal(buildManagementSurfaces(source).masterDashboard.readiness.ready, 0);
+});
+
+test("management date ladder and gap categories propagate from shared evidence without invented health", () => {
+  const source = input();
+  source.director!.schedule.criticalCount = 9; source.director!.schedule.nearCriticalCount = 13;
+  source.director!.controls.riskEvidenceState = "established"; source.director!.controls.openRiskCount = 17;
+  source.negativeFloatCount = 0;
+  source.evidenceGaps.push({key: "current-programme", label: "Current programme", state: "established", action: "Upload programme", owningModule: "schedule-analytics"},
+    {key: "board-publication", label: "Board publication", state: "missing", action: "Review before publishing", owningModule: "pmo-analysis"});
+  const result = buildManagementSurfaces(source);
+  assert.equal(result.commandCenter.evidenceGaps.length, 1);
+  assert.equal(result.commandCenter.governanceGaps.length, 1);
+  assert.equal(result.masterDashboard.readiness.evidenceGapCount, 1);
+  assert.equal(result.masterDashboard.readiness.governanceGapCount, 1);
+  assert.equal(result.commandCenter.programmePosition.find(m => m.key === "contract-finish")?.value, source.director!.schedule.contractualCompletionIso);
+  assert.equal(result.commandCenter.programmePosition.find(m => m.key === "submitted-vs-contract")?.value, 31);
+  for (const key of ["critical-activities", "near-critical", "open-risk"]) assert.equal(result.masterDashboard.metrics.find(m => m.key === key)?.health, "unavailable");
+  source.negativeFloatCount = 2;
+  assert.equal(buildManagementSurfaces(source).masterDashboard.metrics.find(m => m.key === "critical-activities")?.health, "attention");
+  assert.match(result.commandCenter.alerts.find(a => a.alertId === "evidence-gap:board-publication")!.consequence, /cannot be finalized until/);
+  assert.equal(result.commandCenter.alerts.find(a => a.alertId === "overdue-rfi")?.owningModule, "documents");
 });

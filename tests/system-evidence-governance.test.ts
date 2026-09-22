@@ -111,6 +111,14 @@ test('independent unavailability never becomes missing contractor evidence or ag
   const result=challenge(null,submitted(9)); assert.equal(result.items[0]?.submitted.value,9); assert.equal(result.reconciliationState,'independent_unavailable'); assert.equal(result.unavailableCheckCount,1); assert.equal(result.notSubmittedCount,0);
   assert.doesNotMatch(result.items[0]!.action,/supply source/i); assert.equal(result.reconciledCount,0);
 });
+test('both comparison sides missing never blames contractor for an unavailable CMeng calculation',()=>{
+  const result=challenge(null,{...submitted(0),value:null,state:'not_submitted'});
+  assert.equal(result.reconciliationState,'independent_unavailable');
+  assert.equal(result.notSubmittedCount,0);
+  assert.equal(result.items[0]!.gap.state,'not_derivable');
+  assert.match(result.items[0]!.gap.note!,/Independent comparison not established/);
+  assert.doesNotMatch(result.items[0]!.gap.note!,/contractor did not submit/);
+});
 test('configured tolerance controls material-difference counts',()=>{
   assert.equal(challenge(10.4,submitted(10),0.5).materialDifferenceCount,0);
   assert.equal(challenge(10.4,submitted(10),0.5).reconciliationState,'within_tolerance');

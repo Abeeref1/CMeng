@@ -609,7 +609,7 @@ test("CMeng workspace keeps the active module primary and browser script parseab
       "Master Control Programme",
       "Executive Project Position",
       "Management Priorities",
-      "Decisions Required",
+      "Action Suggestions — Awaiting Assignment",
       "Integrated Governance Position",
       "WBS & Work-Package Control",
       "AI / Extracted Candidate Review Inbox",

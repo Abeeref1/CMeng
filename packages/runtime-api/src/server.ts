@@ -74,6 +74,7 @@ import {
 } from "./project-intelligence";
 import {
   identifyEvidenceDocument,
+  documentClassificationForReview,
   type EvidenceIdentificationResult,
 } from "./document-identification";
 import {
@@ -960,6 +961,7 @@ async function route(
           .evidence(projectId)
           .map((document) => ({
             ...document,
+            classificationReview: documentClassificationForReview(document),
             schemaHeaders:
               schemaByDocument.get(
                 document.documentId,

@@ -11,6 +11,7 @@ import type {
 import {
   isProgrammeScheduleRevision,
 } from "./project-state";
+import { projectControlSchedule } from "./canonical-time-claims";
 
 export interface CrossModuleCertificationCheck {
   checkId: string;
@@ -269,6 +270,39 @@ export function certifyCrossModuleConsistency(
   const checks:
     CrossModuleCertificationCheck[] =
     [];
+
+  const reporting = [...modules].map(([source, result]) => ({ source, contract: (result.data as any)?.reportingContract }));
+  checks.push(booleanCheck("REPORTING_CONTRACT_ALL_MODULES", reporting.every(r => Boolean(r.contract)),
+    "Every resolved module carries the shared reporting contract."));
+  for (const field of ["dataDateIso", "projectVersion", "programmeRevisionId", "configurationId"] as const) {
+    checks.push(requiredEqualityCheck("REPORTING_CONTEXT_" + field.toUpperCase(),
+      "All module payloads use the same " + field + ".", reporting.map(r => ({ source: r.source, value: r.contract?.[field] }))));
+  }
+  const families = new Map<string, Array<{ source: string; value: unknown }>>();
+  const invalidContracts: string[] = [];
+  for (const { source, contract } of reporting) {
+    for (const [name, population] of Object.entries(contract?.populations ?? {}) as Array<[string, any]>) {
+      if (!["series_points", "windows"].includes(name)) {
+        const group = families.get(name) ?? [];
+        group.push({ source, value: population.populationId }); families.set(name, group);
+      }
+      if (population.denominator !== population.memberIds?.length ||
+          population.sourceCount !== population.denominator + population.exclusions?.length ||
+          population.dataDateIso?.slice(0, 10) !== contract.dataDateIso?.slice(0, 10)) invalidContracts.push(source + ":" + name);
+    }
+    for (const [path, metric] of Object.entries(contract?.metricContracts ?? {}) as Array<[string, any]>) {
+      const p = Object.values(contract.populations).find((p: any) => p.populationId === metric.populationId) as any;
+      if (!p || p.denominator !== metric.denominator || metric.dataDateIso !== contract.dataDateIso ||
+          !["source", "submitted", "calculated", "adjusted", "official", "scenario"].includes(metric.authority)) {
+        invalidContracts.push(source + ":" + path);
+      }
+    }
+  }
+  for (const [name, values] of families) {
+    checks.push(requiredEqualityCheck("POPULATION_ID_" + name.toUpperCase(), "The same named population must have the same members and exclusions in every consumer.", values));
+  }
+  checks.push(booleanCheck("POPULATION_DENOMINATOR_AUTHORITY_CONTRACT", invalidContracts.length === 0,
+    "Population denominators, exclusions, Data Dates and metric authorities must reconcile.", [{ source: "invalid_contracts", value: invalidContracts.join(",") }]));
 
   checks.push(
     booleanCheck(
@@ -628,31 +662,7 @@ export function certifyCrossModuleConsistency(
     state.schedules.filter(
       isProgrammeScheduleRevision,
     );
-  const latest =
-    programmeSchedules
-      .filter(
-        (item) =>
-          item.role !==
-          "recovery",
-      )
-      .sort(
-        (a, b) =>
-          (
-            a.revision.model
-              .dataDateIso ??
-            a.revision
-              .effectiveAt ??
-            ""
-          ).localeCompare(
-            b.revision.model
-              .dataDateIso ??
-            b.revision
-              .effectiveAt ??
-            "",
-          ),
-      )
-      .at(-1) ??
-    null;
+  const latest = projectControlSchedule(state);
 
   checks.push(
     equalityCheck(

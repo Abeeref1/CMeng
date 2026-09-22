@@ -720,7 +720,7 @@ test("C2B2 Retention Calendar never invents release dates from percentages or de
     "aggregate overdue retention must be withheld when some unreleased retention rows have no governed due date",
   );
   const controlled =
-    calendar.rows.find(
+    calendar.undatedRows.find(
       (row) =>
         row.origin ===
         "governed_control",

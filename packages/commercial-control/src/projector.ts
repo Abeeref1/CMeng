@@ -401,7 +401,11 @@ function commercialClaimsNotices(
 function currenciesOf(
   input: CommercialControlInput,
 ): string[] {
-  const values = new Set<string>((input.sourceLedger?.costPosition ?? []).map(p => p.currency));
+  const values = new Set<string>([
+    ...(input.sourceLedger?.costPosition ?? []).map(p => p.currency),
+    ...(input.sourceLedger?.payments ?? []).map(p => p.amounts.netCertifiedAmount.currency),
+    ...(input.sourceLedger?.variations ?? []).map(p => p.approvedAmount.currency),
+  ].filter((v):v is string=>Boolean(v)));
   if (input.contractValue) {
     values.add(
       input.contractValue.currency
@@ -1043,7 +1047,7 @@ export function buildCommercialControlPosition(
   if(input.sourceLedger){
     const ledger=input.sourceLedger;
     for(const position of positions){
-      const reported=ledger.costPosition.filter(p=>p.currency===position.currency&&p.state!=="candidate");
+      const reported=ledger.costPosition.filter(p=>p.currency===position.currency&&p.state!=="candidate"&&reportingScope(p.asOf,ledger.dataDateIso)==='as_of');
       const latest=reported.map(p=>p.asOf).sort().at(-1);
       const applicable=reported.filter(p=>p.asOf===latest);
       if(applicable.length===1){
@@ -1587,16 +1591,16 @@ export function buildCommercialControlPosition(
     },
     currencies: positions,
     variationCount:
-      input.variations.length,
+      input.contractControls&&input.contractControls.variations.sourceRecordCount>0?input.contractControls.variations.recordCount:input.variations.length||null,
     invoiceCount:
-      input.invoices.length,
+      input.invoices.length||null,
     retentionRecordCount:
-      input.retentions.length,
+      input.retentions.length||null,
     bondCount:
-      input.bonds.length,
+      input.bonds.length||null,
     claimCommercialCount:
       input
-        .claimCommercials.length,
+        .claimCommercials.length||null,
     claimsNotices,
     registers: {
       variations:

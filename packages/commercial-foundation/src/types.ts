@@ -306,6 +306,10 @@ export interface PaymentRegisterRecord {
 }
 
 export interface PaymentRegisterProjection {
+  sourceRecordCount: number;
+  population: import("../../truth-kernel/src").PopulationContract;
+  futureRows: PaymentRegisterRecord[];
+  undatedRows: PaymentRegisterRecord[];
   asOfRecordCount: number;
   futureRecordCount: number;
   undatedRecordCount: number;

@@ -1,3 +1,8 @@
+import { documentClassificationForReview } from "./document-identification";
+import { reportingScope } from "../../truth-kernel/src";
+import { attachReportingContract, reportingData, managementReportingData } from "./reporting-contract";
+import { activityMovementAnalysis } from "../../activity-analytics/src/movement";
+import { reportingState, claimsReporting } from "./reporting-state";
 import { commercialFoundationForState } from "./commercial-foundation-runtime";
 import { parseScheduleTime } from "../../schedule-analysis-core/src";
 import { checkProjectionIntegrity } from "./projection-integrity";
@@ -251,10 +256,8 @@ function revisionChronology(
 function analyticalHistory(
   state: ProjectRuntimeState,
 ): ProjectRuntimeState["schedules"] {
-  const programmeSchedules =
-    state.schedules.filter(
-      isProgrammeScheduleRevision,
-    );
+  const cutoff=projectControlSchedule(state)?.revision.model.dataDateIso??null;
+  const programmeSchedules = state.schedules.filter(isProgrammeScheduleRevision).filter(item=>reportingScope(item.revision.model.dataDateIso??item.revision.effectiveAt,cutoff)==='as_of');
   const official =
     programmeSchedules.filter(
       (item) =>
@@ -450,6 +453,7 @@ function actualHistory(
 function buildBundle(
   state: ProjectRuntimeState,
 ): ProjectionBundle {
+  state = reportingState(state);
   const cached =
     bundleCache.get(
       state.projectId,
@@ -484,9 +488,7 @@ function buildBundle(
   const ordered =
     analyticalHistory(state);
   const current =
-    runtimeProjects.latestSchedule(
-      state.projectId,
-    );
+    projectControlSchedule(state);
 
   let director:
     ProjectionBundle["director"] =
@@ -3099,6 +3101,7 @@ function buildBundle(
         ),
         bonds:
           state.controls.bonds,
+        bondMonitoring:{expiredCount:canonicalCommercial.contractControls?.bondsInsurance.expiredBondCount??null,expiring30Count:canonicalCommercial.contractControls?.bondsInsurance.expiringBondCount==null?null:canonicalCommercial.contractControls.bondsInsurance.bonds.filter(row=>row.expiryState==='expiring_30').length},
         commercialByCurrency:
           directorCommercialByCurrency,
         hseIncidents:
@@ -3396,9 +3399,7 @@ function buildPlanningModuleFast(
   }
 
   const current =
-    runtimeProjects.latestSchedule(
-      state.projectId,
-    );
+    projectControlSchedule(state);
   if (!current) {
     return blocked(
       key,
@@ -4980,9 +4981,7 @@ function buildSpecialistModuleFast(
   }
 
   const current =
-    runtimeProjects.latestSchedule(
-      state.projectId,
-    );
+    projectControlSchedule(state);
   if (!current) {
     return blocked(
       key,
@@ -6840,9 +6839,10 @@ function resolveProjectModuleUncertified(
 }
 
 function resolveProjectModule(state: ProjectRuntimeState, key: string): ModuleRuntimeResult {
+  state = reportingState(state);
   const result = resolveProjectModuleUncertified(state, key);
   const model = projectControlSchedule(state)?.revision.model;
-  if (!model) return result;
+  if (!model) return attachReportingContract(state,result);
   const controlBasis = projectScheduleControlBasis(state);
   if (result.data && typeof result.data === "object") {
     const data = result.data as Record<string, any>;
@@ -6850,6 +6850,7 @@ function resolveProjectModule(state: ProjectRuntimeState, key: string): ModuleRu
     const forecast = ["milestones", "independent-forecast"].includes(key) ? cachedIndependentForecast(model, new Date().toISOString()) : null;
     const forecastReview = forecast ? independentForecastReviewReason(forecast) : null;
     result.data = { ...data, controlBasis,
+      ...(["pmo-analysis","delay-claims","notices-claims","eot-assessment","windows-analysis","commercial-claims-notices"].includes(key) ? { claimsReporting: claimsReporting(state) } : {}),
       ...(key==='eot-assessment'?{sourceForecastCompletionIso:sourceOnlyForecast(model,new Date().toISOString()).sourceForecastCompletionIso}:{}),
       ...(key==='notices-claims'?{contractNoticePeriod:commercialFoundationForState(state).commercialTerms.noticePeriodDays}:{}),
       ...(["milestones", "independent-forecast", "notices-claims"].includes(key) ? {
@@ -6879,7 +6880,10 @@ function resolveProjectModule(state: ProjectRuntimeState, key: string): ModuleRu
         },
       } : {}),
       ...(key === "milestones" ? { movementDistribution: numericDistribution((data.rows ?? []).map((row: any)=>row.varianceDays)) } : {}),
-      ...(key === "activity-analytics" ? { movementDistribution: numericDistribution((data.rows ?? []).map((row: any)=>row.finishVarianceDays)) } : {}),
+      ...(key === "activity-analytics" ? {
+        movementDistribution: numericDistribution((data.rows ?? []).map((row: any)=>row.finishVarianceDays)),
+        movementAnalysis: (()=>{const history=analyticalHistory(state);const current=projectControlSchedule(state)!;const index=history.findIndex(r=>r.revision.revisionId===current.revision.revisionId);const previous=index>0?history[index-1]:null;const baseline=state.schedules.find(r=>r.revision.revisionId===data.controlledBaselineRevisionId);return activityMovementAnalysis(data.rows??[],{dataDateIso:model.dataDateIso,currentRevisionId:current.revision.revisionId,currentLabel:current.revision.label??current.sourceFilename??current.revision.revisionId,baselineRevisionId:data.controlledBaselineRevisionId??null,baselineLabel:baseline?.revision.label??null,previousRevisionId:previous?.revision.revisionId??null,previousLabel:previous?.revision.label??null,previousRows:previous?.revision.model.activities??[]});})(),
+      } : {}),
     };
   }
   if(key==='milestones'&&controlBasis.state!=='official'){
@@ -6888,7 +6892,7 @@ function resolveProjectModule(state: ProjectRuntimeState, key: string): ModuleRu
     result.evidenceState='partial';
     result.reason='Milestones use submitted float and a '+controlBasis.nearCriticalThresholdMethod.replaceAll('_',' ')+' threshold. Contractual threshold authority and independent driving-path validation remain separate.';
   }
-  return checkProjectionIntegrity(result, model, controlBasis.analysisConfig);
+  return attachReportingContract(state,checkProjectionIntegrity(result, model, controlBasis.analysisConfig));
 }
 
 export function moduleForProject(
@@ -6913,7 +6917,8 @@ export function directorForProject(
   const state =
     runtimeProjects.get(projectId);
   if (!state) return null;
-  return buildBundle(state).director;
+  const data=buildBundle(state).director;
+  return data?reportingData(state,'project-director',data):null;
 }
 
 export function boardReportForProject(
@@ -6922,8 +6927,8 @@ export function boardReportForProject(
   const state =
     runtimeProjects.get(projectId);
   if (!state) return null;
-  return buildBundle(state)
-    .boardReport;
+  const data=buildBundle(state).boardReport;
+  return data?reportingData(state,'board-report',data):null;
 }
 
 function managementModuleGroup(
@@ -7003,63 +7008,25 @@ export function managementSurfacesForProject(
     baselineCandidates.at(-1) ??
     null;
 
-  const scheduleInputs:
-    ManagementModuleInput[] =
-    scheduleModules.map(
-      (descriptor) => {
-        const result =
-          resolveProjectModule(
-            state,
-            descriptor.key,
-          );
-        return {
-          key: descriptor.key,
-          label:
-            descriptor.title,
-          group:
-            managementModuleGroup(
-              descriptor.key,
-              descriptor.category,
-            ),
-          status:
-            result?.status ??
-            "blocked",
-          reason:
-            result.status ===
-            "ready"
-              ? null
-              : result.reason ??
-                "Current specialist position requires review.",
-        };
-      },
-    );
-
-  const commercialInputs:
-    ManagementModuleInput[] =
-    commercialModules.map(
-      (descriptor) => {
-        const result =
-          resolveProjectModule(
-            state,
-            descriptor.key,
-          );
-        return {
-          key: descriptor.key,
-          label:
-            descriptor.title,
-          group: "Commercial",
-          status:
-            result?.status ??
-            "blocked",
-          reason:
-            result.status ===
-            "ready"
-              ? null
-              : result.reason ??
-                "Current Commercial position requires review.",
-        };
-      },
-    );
+  const resolvedModules = new Map([...scheduleModules, ...commercialModules].map(descriptor =>
+    [descriptor.key, resolveProjectModule(state, descriptor.key)]));
+  const certification = certifyCrossModuleConsistency({ generatedAt, state: reportingState(state), modules: resolvedModules,
+    director, boardReport: bundle.boardReport });
+  const consistency = { state: certification.state, checkCount: certification.checkCount,
+    failedCheckIds: certification.failedCheckIds,
+    scope: "Checked cross-module values, shared population IDs and denominators, Data Date, authority, configuration and project version. Evidence completeness is a separate gate." };
+  const moduleInput = (descriptor: {key: string; title: string; category: string}, commercialModule = false): ManagementModuleInput => {
+    const result = resolvedModules.get(descriptor.key)!;
+    const integrity = (result.data as any)?.systemEvidenceContract;
+    return { key: descriptor.key, label: descriptor.title,
+      group: commercialModule ? "Commercial" : managementModuleGroup(descriptor.key, descriptor.category),
+      status: result.status, reason: result.reason ?? null,
+      calculationState: integrity?.state === "verified_for_checked_metrics" ? "checked" : integrity?.state === "failed" ? "failed" : "pending",
+      evidenceState: result.evidenceState ?? "not_established", professionalState: result.professionalState ?? "review_required",
+      consistencyState: certification.state };
+  };
+  const scheduleInputs = scheduleModules.map(descriptor => moduleInput(descriptor));
+  const commercialInputs = commercialModules.map(descriptor => moduleInput(descriptor, true));
 
   const terms =
     commercial.foundation
@@ -7173,7 +7140,7 @@ export function managementSurfacesForProject(
               : "missing",
         action:
           "Establish the governed Risk Register before relying on project-wide risk KPIs.",
-        owningModule: null,
+        owningModule: "documents",
       },
       {
         key:
@@ -7247,8 +7214,8 @@ export function managementSurfacesForProject(
           ? "stale"
           : "missing",
       action:
-        "Finalize a current board report after the management position is certified.",
-      owningModule: null,
+        "Review the management position, resolve evidence gaps, then finalize a current board report through the governed publication workflow.",
+      owningModule: "pmo-analysis",
     });
   }
 
@@ -7265,7 +7232,8 @@ export function managementSurfacesForProject(
             "document:" +
             document.documentId,
           type:
-            document.documentType,
+            documentClassificationForReview(document).documentType,
+          classification: documentClassificationForReview(document),
           label:
             document.sourceFilename,
           sourceRef:
@@ -7273,7 +7241,7 @@ export function managementSurfacesForProject(
             document.documentId,
           status:
             "pending_review" as const,
-          owningModule: null,
+          owningModule: "documents",
         }),
       ),
     ...terms.clauses
@@ -7459,11 +7427,14 @@ export function managementSurfacesForProject(
         }),
       );
 
-  return buildManagementSurfaces({
+  const surfaces = buildManagementSurfaces({
     schemaVersion: "1.0",
     projectId,
     generatedAt,
     director,
+    consistency,
+    contractualCompletionAuthority: terms.contractualCompletionDate.state === "established" ? "official" : terms.contractualCompletionDate.state === "candidate" ? "provisional" : "source",
+    negativeFloatCount: (resolvedModules.get("schedule-analytics")?.data as any)?.result?.float?.negativeFloatCount ?? null,
     modules: [
       ...scheduleInputs,
       ...commercialInputs,
@@ -7525,6 +7496,18 @@ export function managementSurfacesForProject(
         "not_established",
     },
     commercial: {
+      variationReconciliation: (commercial.sourceLedger?.temporalPosition?.money ?? [])
+        .filter(row => row.kind === "Approved variation source values")
+        .map(row => {
+          const source = commercial.currencies.find(item => item.currency === row.currency)?.approvedVariationAmount;
+          const partitions = (commercial.sourceLedger?.temporalPosition?.money ?? []).filter(item => item.kind === row.kind && item.currency === row.currency);
+          const aggregate = partitions.length === 1 ? source?.value ?? null : null;
+          return { currency: row.currency, taxBasis: row.taxBasis, sourceAggregate: aggregate,
+            sourceState: source?.state ?? "not_established", datedApprovedAmount: row.asOfValue,
+            datedApprovedCount: row.asOfCount, futureCount: row.futureCount, undatedCount: row.undatedCount,
+            state: aggregate === null || row.asOfValue === null ? "not_established" as const :
+              Math.abs(aggregate - row.asOfValue) > 0.01 ? "conflicted" as const : "consistent" as const };
+        }),
       overdueUnpaidPayments:
         payments.slaCounts
           .overdueUnpaid,
@@ -7543,6 +7526,10 @@ export function managementSurfacesForProject(
     },
     boardPublicationState,
   });
+  return { ...surfaces,
+    masterDashboard: managementReportingData(state, surfaces.masterDashboard, resolvedModules),
+    commandCenter: managementReportingData(state, surfaces.commandCenter, resolvedModules),
+    masterControlProgramme: managementReportingData(state, surfaces.masterControlProgramme, resolvedModules) };
 }
 
 export function managementSurfaceForProject(
@@ -7593,7 +7580,8 @@ export function managementSurfaceForProject(
       ).length;
   const managementReviewRequired =
     specialistReviewCount > 0 ||
-    evidenceGapCount > 0;
+    evidenceGapCount > 0 || surfaces.commandCenter.governanceGaps.length > 0 ||
+    surfaces.masterDashboard.consistency.state !== "pass";
 
   return {
     key,
@@ -7644,13 +7632,8 @@ export function overviewForProject(
   if (!state) return null;
 
   const latest =
-    runtimeProjects.latestSchedule(
-      projectId,
-    );
-  const programmeSchedules =
-    state.schedules.filter(
-      isProgrammeScheduleRevision,
-    );
+    projectControlSchedule(state);
+  const programmeSchedules = state.schedules.filter(isProgrammeScheduleRevision);
   const receiptStates =
     new Map(
       (
@@ -7669,6 +7652,7 @@ export function overviewForProject(
 
   return {
     projectId,
+    releaseCommitSha: process.env.RAILWAY_GIT_COMMIT_SHA ?? process.env.GIT_COMMIT_SHA ?? null,
     version: state.version,
     demo: state.demo,
     revisionCount:

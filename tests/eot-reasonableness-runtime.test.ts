@@ -154,7 +154,7 @@ test("multiple absurd claimed-EOT values cannot become the project EOT and do no
                       "submitted",
                     eventIds: [],
                     submittedAt:
-                      "2026-07-02",
+                      "2026-06-28",
                     claimedDays:
                       8000,
                     claimedAmount:
@@ -180,7 +180,7 @@ test("multiple absurd claimed-EOT values cannot become the project EOT and do no
                       "submitted",
                     eventIds: [],
                     submittedAt:
-                      "2026-07-03",
+                      "2026-06-29",
                     claimedDays:
                       6503,
                     claimedAmount:

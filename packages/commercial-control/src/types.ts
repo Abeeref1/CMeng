@@ -168,11 +168,11 @@ export interface CommercialControlPosition {
       CommercialMetric<string>;
   };
   currencies: CommercialMoneyPosition[];
-  variationCount: number;
-  invoiceCount: number;
-  retentionRecordCount: number;
-  bondCount: number;
-  claimCommercialCount: number;
+  variationCount: number | null;
+  invoiceCount: number | null;
+  retentionRecordCount: number | null;
+  bondCount: number | null;
+  claimCommercialCount: number | null;
   claimsNotices:
     CommercialClaimsNoticesPosition;
   registers: {
