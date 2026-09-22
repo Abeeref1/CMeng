@@ -886,6 +886,34 @@ test("CMeng workspace keeps the active module primary and browser script parseab
   );
   assert.equal(
     html.includes(
+      '["Records",ret.recordCount||0,"all evidence origins"]',
+    ),
+    false,
+    "Retention detail KPIs must not reintroduce false zeros below the management position",
+  );
+  assert.equal(
+    html.includes(
+      '["Clause candidates",obl.clauseCandidateCount||0,"not yet mapped"]',
+    ),
+    false,
+    "Obligation detail must not show zero clause candidates when the population is not established",
+  );
+  assert.equal(
+    html.includes(
+      '["Scenarios",(ld.scenarios||[]).length,"time positions"]',
+    ),
+    false,
+    "LD detail must not show zero scenarios when the scenario basis is not established",
+  );
+  assert.equal(
+    html.includes(
+      "Contract insurance requirements:</b> '+escapeHtml(bi.insuranceRequirementCount||0)",
+    ),
+    false,
+    "Insurance requirement detail must distinguish missing evidence from a known zero",
+  );
+  assert.equal(
+    html.includes(
       "Payment register is not established. Lifecycle counts are not established.",
     ),
     true,
