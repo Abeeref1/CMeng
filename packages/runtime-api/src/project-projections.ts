@@ -6075,20 +6075,29 @@ function buildSpecialistModuleFast(
         analyticalDelayModel
           .claims.length -
         linkedClaimCount;
-      const assessable =
+      const noticeAssessmentAvailable =
         notices.eventCount > 0 &&
         analyticalDelayModel
           .noticeRequirements
           .length > 0;
+      const noticeAssessable =
+        noticeAssessmentAvailable &&
+        notices
+          .noticeRequirementMissingCount ===
+          0;
 
       result = available(
         key,
         {
           ...notices,
+          contractorNoticeClaimEvidenceSubmitted:
+            delayModel !== null,
           noticeAssessmentState:
-            assessable
+            noticeAssessable
               ? "assessed"
-              : "not_assessable_without_delay_events_and_requirements",
+              : noticeAssessmentAvailable
+                ? "partially_assessable"
+                : "not_assessable_without_delay_events_and_requirements",
           linkedClaimCount,
           unlinkedClaimCount,
         },
@@ -6098,13 +6107,22 @@ function buildSpecialistModuleFast(
           "notices",
           "claims",
         ],
-        assessable
+        noticeAssessable
           ? "ready"
           : "partial",
-        assessable
+        noticeAssessable
           ? null
-          : notices.claimCount +
-            " claim records are available, but notice timeliness is not assessable until governed delay events and applicable notice requirements are linked.",
+          : noticeAssessmentAvailable &&
+              notices
+                .noticeRequirementMissingCount >
+                0
+            ? notices
+                .noticeRequirementMissingCount +
+              " governed delay event(s) do not have an applicable notice requirement. Assessed events remain visible, but the page stays under review."
+            : notices.claimCount > 0
+              ? notices.claimCount +
+                " claim records are available, but notice timeliness is not assessable until governed delay events and applicable notice requirements are linked."
+              : "Notice compliance is not assessable until governed delay events, applicable notice requirements and actual notice evidence are established.",
       );
     } else {
       const context =
@@ -6722,6 +6740,34 @@ function applyProfessionalModuleState(
   }
 
   if (
+    result.key === "notices-claims"
+  ) {
+    const assessmentState =
+      data?.noticeAssessmentState ??
+      null;
+    const requirementMissing =
+      Number(
+        data
+          ?.noticeRequirementMissingCount ??
+          0,
+      );
+    if (
+      assessmentState !==
+        "assessed" ||
+      requirementMissing > 0
+    ) {
+      review(
+        requirementMissing > 0
+          ? String(
+              requirementMissing,
+            ) +
+              " delay event(s) do not have a governed applicable notice requirement; assessed events remain visible but the page is only partially assessable."
+          : "Notice compliance is not fully assessable until governed delay events, applicable notice requirements and actual notice dates are established.",
+      );
+    }
+  }
+
+  if (
     result.key === "payments"
   ) {
     const register =
@@ -6822,17 +6868,38 @@ function applyProfessionalModuleState(
 
   if (
     result.key ===
-    "challenge-contract" &&
-    (
-      data?.physicalComplete ===
-        false ||
-      data?.semanticComplete ===
-        false
-    )
+    "challenge-contract"
   ) {
-    review(
-      "The contract challenge position is not yet supportable from a complete governed contract evidence basis.",
-    );
+    const contractIntelligence =
+      data?.contractIntelligence ??
+      null;
+    const deliveryPosition =
+      data?.deliveryChallenge
+        ?.position ??
+      null;
+    if (
+      contractIntelligence === null ||
+      contractIntelligence
+        .physicalComplete === false ||
+      contractIntelligence
+        .semanticComplete === false ||
+      deliveryPosition ===
+        "not_yet_supportable" ||
+      deliveryPosition ===
+        "scenario_only"
+    ) {
+      review(
+        contractIntelligence === null
+          ? "Contract clause intelligence is not established; delivery scenarios remain separate from contractual findings."
+          : deliveryPosition ===
+                "scenario_only"
+            ? "Delivery challenge contains programme-derived scenarios because measured manpower/productivity evidence is incomplete; scenario values are not project facts."
+            : deliveryPosition ===
+                  "not_yet_supportable"
+              ? "The delivery challenge cannot yet be supported by the available measured evidence."
+              : "The contract challenge position is not yet supportable from a complete governed contract evidence basis.",
+      );
+    }
   }
 
   if (
@@ -6897,27 +6964,61 @@ function applyProfessionalModuleState(
       data?.focus
         ?.claimsNotices ??
       null;
-    if (
-      claims &&
-      claims.lifecycleClaimCount > 0 &&
-      (
+    if (claims) {
+      const noticeCounts =
         claims
-          .commercialLifecycleLinkCoveragePercent !==
-          100 ||
-        claims.commercialClaimCount <
-          claims.lifecycleClaimCount
-      )
-    ) {
-      review(
-        String(
-          claims.commercialClaimCount,
+          .noticeTimelinessCounts ??
+        {};
+      const noticeEvidenceGaps =
+        Number(
+          noticeCounts
+            .requirement_missing ??
+            0,
         ) +
-          " of " +
-          String(
-            claims.lifecycleClaimCount,
-          ) +
-          " lifecycle claims have governed commercial-money linkage; Claims & Notices is not yet fully commercially defensible.",
-      );
+        Number(
+          noticeCounts
+            .event_date_missing ??
+            0,
+        ) +
+        Number(
+          noticeCounts
+            .notice_date_missing ??
+            0,
+        );
+      const moneyLinkGap =
+        claims.lifecycleClaimCount >
+          0 &&
+        (
+          claims
+            .commercialLifecycleLinkCoveragePercent !==
+            100 ||
+          claims
+            .commercialClaimCount <
+            claims
+              .lifecycleClaimCount
+        );
+      if (
+        moneyLinkGap ||
+        noticeEvidenceGaps > 0
+      ) {
+        review(
+          moneyLinkGap
+            ? String(
+                claims
+                  .commercialClaimCount,
+              ) +
+                " of " +
+                String(
+                  claims
+                    .lifecycleClaimCount,
+                ) +
+                " lifecycle claims have governed commercial-money linkage; Claims & Notices is not yet fully commercially defensible."
+            : String(
+                noticeEvidenceGaps,
+              ) +
+                " notice assessment(s) are missing a governed requirement, event date or notice date; Claims & Notices remains under review.",
+        );
+      }
     }
   }
 
