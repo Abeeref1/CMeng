@@ -3071,7 +3071,8 @@ function renderCommercialVisual(key,data){
           ["Approved",vo.approvedCount||0,"governed approval"],
           ["Pending",vo.pendingCount||0,"not approved"],
           ["Rejected",vo.rejectedCount||0,"closed without approval"],
-          ["Lifecycle coverage",vo.lifecycleCoveragePercent==null?"Not established":fmt(vo.lifecycleCoveragePercent)+"%","stage identified"],
+          ["Final-stage coverage",vo.finalStageCoveragePercent==null?"Not established":fmt(vo.finalStageCoveragePercent)+"%","current/final stage identified"],
+          ["Full lifecycle coverage",vo.fullLifecycleCoveragePercent==null?"Not established":fmt(vo.fullLifecycleCoveragePercent)+"%","instruction / submission / assessment / closure dates"],
           ["Schedule linkage",vo.scheduleLinkCoveragePercent==null?"Not established":fmt(vo.scheduleLinkCoveragePercent)+"%","time/activity evidence"],
           ["Claim linkage",vo.claimLinkCoveragePercent==null?"Not established":fmt(vo.claimLinkCoveragePercent)+"%","claim IDs"],
           ["Payment linkage",vo.paymentLinkCoveragePercent==null?"Not established":fmt(vo.paymentLinkCoveragePercent)+"%","certificate/payment IDs"]
