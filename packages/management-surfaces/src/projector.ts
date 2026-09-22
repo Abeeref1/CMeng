@@ -511,7 +511,7 @@ function dashboardMetrics(
             : authority ===
                 "calculated"
               ? "calculated"
-              : "candidate"
+              : "provisional"
           : "unavailable",
       authority:
         value
