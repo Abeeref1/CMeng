@@ -155,7 +155,12 @@ export interface CandidateGapComparison {
   note: string;
 }
 
+export type ReconciliationState = "within_tolerance" | "material_difference" | "submitted_missing" | "independent_unavailable" | "conflicting_evidence" | "incomparable" | "scenario" | "comparison_pending";
+
 export interface ModuleChallengeItem {
+  reconciliationState: ReconciliationState;
+  materialDifference: boolean;
+  tolerance: number;
   itemId: string;
   metric: string;
   label: string;
@@ -193,6 +198,10 @@ export interface ModuleChallengeEnvelope {
     | "partial";
   itemCount: number;
   challengedCount: number;
+  materialDifferenceCount: number;
+  unavailableCheckCount: number;
+  reconciledCount: number;
+  reconciliationState: ReconciliationState;
   notSubmittedCount: number;
   scenarioCount: number;
   items: ModuleChallengeItem[];

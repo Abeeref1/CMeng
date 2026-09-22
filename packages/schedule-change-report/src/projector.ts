@@ -1,3 +1,4 @@
+import { isExecutionActivity } from "../../schedule-analysis-core/src";
 import {
   compareScheduleRevisions,
   orderScheduleRevisionsChronologically,
@@ -16,6 +17,7 @@ export function buildScheduleChangeReportProjection(
   },
 ): ScheduleChangeReportProjection {
   const comparison = compareScheduleRevisions(from, to);
+  const currentExecution = new Set(to.model.activities.filter(isExecutionActivity).map(a=>a.activityId));
 
   const changedActivities =
     comparison.activityChanges
@@ -25,6 +27,8 @@ export function buildScheduleChangeReportProjection(
       )
       .map((change) => ({
         activityId: change.activityId,
+        fromActivityId: change.fromActivityId, toActivityId: change.toActivityId,
+        identityMethod: change.identityMethod, identityConfidence: change.identityConfidence,
         changeKind: change.kind as
           | "added"
           | "removed"
@@ -39,6 +43,24 @@ export function buildScheduleChangeReportProjection(
           ...change.fieldChanges,
         ],
       }));
+
+  const categoryFields: Record<string, string[]> = {
+    structural: ["activityType", "wbsId", "calendarId", "originalDurationHours"],
+    forecast: ["currentStartIso", "currentFinishIso", "forecastStartIso", "forecastFinishIso", "totalFloatHours", "freeFloatHours"],
+    progress: ["status", "actualStartIso", "actualFinishIso", "remainingDurationHours", "percentComplete"],
+    metadata: ["name"], baseline: ["baselineStartIso", "baselineFinishIso"],
+  };
+  const changeCategories = Object.entries(categoryFields).map(([category, fields]) => ({ category,
+    activityCount: changedActivities.filter(row => row.fieldChanges.some(change => fields.includes(change.field))).length }));
+  const endpoint = (link: { predecessorActivityId: string; successorActivityId: string }) => JSON.stringify([link.predecessorActivityId, link.successorActivityId]);
+  const added = new Map<string, typeof comparison.addedRelationships>();
+  const removed = new Map<string, typeof comparison.removedRelationships>();
+  for (const link of comparison.addedRelationships) { const k = endpoint(link); const rows = added.get(k) ?? []; rows.push(link); added.set(k, rows); }
+  for (const link of comparison.removedRelationships) { const k = endpoint(link); const rows = removed.get(k) ?? []; rows.push(link); removed.set(k, rows); }
+  // Pair only unique endpoint signatures. Parallel links are not guessed.
+  const modifiedRelationships = [...added].flatMap(([key, after]) => {
+    const before = removed.get(key); return after.length === 1 && before?.length === 1 ? [{ before: before[0]!, after: after[0]! }] : [];
+  });
 
   return {
     schemaVersion: "1.0",
@@ -69,7 +91,21 @@ export function buildScheduleChangeReportProjection(
     removedRelationships:
       comparison.removedRelationships,
     changedActivities,
-    diagnostics: [],
+    executionModifiedActivityCount: comparison.modifiedActivityIds.filter(id=>currentExecution.has(id)).length,
+    excludedModifiedActivityCount: comparison.modifiedActivityIds.filter(id=>!currentExecution.has(id)).length,
+    populationBasis: "source_records",
+    fromActivityCount: comparison.fromActivityCount, toActivityCount: comparison.toActivityCount,
+    changeCategories, modifiedRelationships,
+    grossRelationshipChurn: comparison.addedRelationships.length + comparison.removedRelationships.length,
+    netRelationshipCountChange: comparison.addedRelationships.length - comparison.removedRelationships.length,
+    identityCoveragePercent: comparison.identityCoveragePercent,
+    ambiguousFromActivityIds: comparison.ambiguousFromActivityIds,
+    ambiguousToActivityIds: comparison.ambiguousToActivityIds,
+    baselineMutationActivityCount: changeCategories.find(row => row.category === "baseline")!.activityCount,
+    diagnostics: [
+      ...(comparison.ambiguousFromActivityIds.length || comparison.ambiguousToActivityIds.length ? ["AMBIGUOUS_ACTIVITY_IDENTITY_REQUIRES_REVIEW"] : []),
+      ...(changeCategories.some(row => row.category === "baseline" && row.activityCount > 0) ? ["BASELINE_FIELDS_CHANGED_REQUIRES_GOVERNANCE_REVIEW"] : []),
+    ],
   };
 }
 

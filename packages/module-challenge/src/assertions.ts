@@ -1,3 +1,4 @@
+import { parseScheduleDate } from "../../schedule-values/src/date";
 import {
   stableFingerprint,
 } from "../../analysis-runtime/src";
@@ -32,18 +33,9 @@ function numberValue(
     : null;
 }
 
-function dateValue(
-  raw: string,
-): string | null {
-  const value =
-    raw.trim();
-  const parsed =
-    Date.parse(value);
-  return Number.isFinite(parsed)
-    ? new Date(parsed)
-        .toISOString()
-        .slice(0, 10)
-    : null;
+function dateValue(raw: string): string | null {
+  const parsed = parseScheduleDate(raw.trim().replace(/\//g, "-"));
+  return parsed.status === "valid" ? parsed.iso!.slice(0, 10) : null;
 }
 
 const SOURCE_PRODUCTIVITY_DATE =

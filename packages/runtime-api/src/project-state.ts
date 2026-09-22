@@ -1157,6 +1157,10 @@ function fileExtension(
     : "";
 }
 
+// A process ID can be recycled between test runs, especially in containers.
+// Keep stores in one test process compatible without restoring a previous run.
+const testRuntimeSessionId = String(process.pid) + "-" + randomUUID();
+
 export class RuntimeProjectStore {
   private readonly projects =
     new Map<
@@ -1188,7 +1192,7 @@ export class RuntimeProjectStore {
       join(
         process.cwd(),
         ".cmeng-test-runtime",
-        String(process.pid),
+        testRuntimeSessionId,
       );
 
     this.dataDir =

@@ -71,6 +71,7 @@ export interface ProgressReportProjection {
   };
 
   progressBases: {
+    scheduleSnapshot?: ProgressBasisValue;
     baselinePlanned: ProgressBasisValue;
     currentSchedule: ProgressBasisValue;
     physical: ProgressBasisValue;

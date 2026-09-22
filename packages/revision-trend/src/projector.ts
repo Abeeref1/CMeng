@@ -54,6 +54,15 @@ export function buildRevisionTrendProjection(
       : null;
 
     points.push({
+      changeCategories: comparison ? [
+        ["structural", ["activityType", "wbsId", "calendarId", "originalDurationHours"]],
+        ["forecast", ["currentStartIso", "currentFinishIso", "forecastStartIso", "forecastFinishIso", "totalFloatHours", "freeFloatHours"]],
+        ["progress", ["status", "actualStartIso", "actualFinishIso", "remainingDurationHours", "percentComplete"]],
+        ["metadata", ["name"]], ["baseline", ["baselineStartIso", "baselineFinishIso"]],
+      ].map(([category, fields])=>({category:category as string,activityCount:comparison.activityChanges.filter(row=>row.fieldChanges.some(change=>(fields as string[]).includes(change.field))).length})) : null,
+      executionActivityCount: analytics.population.executableActivityCount,
+      sourceActivityCount: analytics.activityCount,
+      scheduleProgressCoveragePercent: analytics.progress.durationWeightedPercentComplete.coveragePercent,
       revisionId: revision.revisionId,
       label: revision.label,
       sequence: revision.sequence,

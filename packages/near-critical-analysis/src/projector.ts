@@ -1,5 +1,7 @@
 import {
   DEFAULT_SCHEDULE_ANALYSIS_CONFIG,
+  activityPopulation,
+  numericDistribution,
   activityNearCriticalThresholdHours,
   calendarWorkingDayHours,
   nearCriticalThresholdBasis,
@@ -32,7 +34,8 @@ export function buildNearCriticalProjection(
     input.config ??
     DEFAULT_SCHEDULE_ANALYSIS_CONFIG;
 
-  const known = model.activities.filter(
+  const population = activityPopulation(model);
+  const known = population.activities.filter(
     (activity) =>
       activity.totalFloatHours !== null,
   );
@@ -395,7 +398,7 @@ export function buildNearCriticalProjection(
         : "explicit_hours",
     floatCoveragePercent: coverage(
       known.length,
-      model.activities.length,
+      population.activities.length,
     ),
     classificationCoveragePercent: coverage(
       classified.filter(
@@ -404,7 +407,7 @@ export function buildNearCriticalProjection(
             config.criticalFloatThresholdHours ||
           threshold !== null,
       ).length,
-      model.activities.length,
+      population.activities.length,
     ),
     nearCriticalCount: rows.length,
     floatRiskWatchlistCount:
@@ -420,6 +423,8 @@ export function buildNearCriticalProjection(
     ).length,
     floatRiskWatchlistIncludesCriticalThreshold:
       config.floatRiskWatchlistIncludesCriticalThreshold === true,
+    population: population.contract,
+    floatDistribution: numericDistribution(known.map(activity => activity.totalFloatHours)),
     rows,
     watchlistRows,
     boundaryAudit,

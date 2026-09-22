@@ -99,6 +99,7 @@ export function normalizeResourceType(
 
   if (
     value === "rt mat" ||
+    value === "mat" ||
     value === "material" ||
     value === "materials"
   ) {

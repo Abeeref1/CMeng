@@ -5,6 +5,7 @@ import type {
 
 export type LookAheadClassification =
   | "overdue"
+  | "missed_start"
   | "ongoing"
   | "upcoming"
   | "finishing_in_window"
@@ -63,6 +64,8 @@ export interface LookAheadActivityRow {
   percentComplete: number | null;
   totalFloatHours: number | null;
   classification: LookAheadClassification;
+  missedPlannedStart?: boolean;
+  finishOverdue?: boolean;
   predecessorIds: string[];
   successorIds: string[];
   daysToStart: number | null;
@@ -84,6 +87,11 @@ export interface LookAheadProjection {
   datedIncompleteActivityCount: number;
   currentDateCoveragePercent: number | null;
   overdueCount: number;
+  missedStartCount?: number;
+  evidenceGapActivityCount?: number;
+  blockedWithEvidenceGapCount?: number;
+  blockerOccurrenceCount?: number;
+  readinessCoverage?: Array<{ key: ReadinessDimensionKey; denominator: number; knownCount: number; coveragePercent: number | null }>;
   readyCount: number;
   conditionalCount: number;
   blockedCount: number;

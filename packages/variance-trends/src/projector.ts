@@ -1,10 +1,13 @@
+import { parseScheduleTime } from "../../schedule-analysis-core/src";
 import {
   analyzeSchedule,
+  numericDistribution,
   type CanonicalScheduleActivity,
   type ScheduleAnalysisConfig,
 } from "../../schedule-analysis-core/src";
 import {
   orderScheduleRevisionsChronologically,
+  resolveRevisionActivityCorrespondence,
   type ScheduleRevision,
 } from "../../schedule-revision-core/src";
 import type {
@@ -15,7 +18,7 @@ import type {
 
 function ms(value: string | null): number | null {
   if (!value) return null;
-  const parsed = Date.parse(value);
+  const parsed = parseScheduleTime(value);
   return Number.isFinite(parsed)
     ? parsed
     : null;
@@ -104,18 +107,15 @@ export function buildVarianceTrendsProjection(
           ),
         )
       : null;
-  const baselineProjectFinish =
-    baselineRevision
-      ? analyzeSchedule(
-          baselineRevision.model,
-          input.config,
-        ).completionBases.find(
-          (item) =>
-            item.basis === "forecast" ||
-            item.basis === "programme",
-        )?.dateIso ?? null
-      : null;
+  const baselineProjectFinish = baselineRevision ? baselineRevision.model.activities
+    .map(activity => activity.baselineFinishIso ?? activity.currentFinishIso)
+    .filter((value): value is string => value !== null && ms(value) !== null)
+    .sort((a, b) => ms(a)! - ms(b)!).at(-1) ?? null : null;
 
+  const points: VarianceTrendPoint[] =
+    ordered.map((revision) => {
+      const correspondence = baselineRevision ? resolveRevisionActivityCorrespondence(baselineRevision.model.activities, revision.model.activities) : null;
+      const baselineIdentity = new Map(correspondence?.matches.map(match => [match.toActivityId, match.fromActivityId]) ?? []);
   const controlledVarianceDays = (
     activity: CanonicalScheduleActivity,
   ): number | null => {
@@ -123,18 +123,15 @@ export function buildVarianceTrendsProjection(
       return varianceDays(activity);
     }
     const baseline =
-      baselineByActivity.get(
-        activity.activityId,
-      );
+      baselineByActivity.get(baselineIdentity.get(activity.activityId) ?? "");
     if (!baseline) return null;
     return projectVariance(
-      finish(baseline),
+      baseline.baselineFinishIso ?? baseline.currentFinishIso,
       finish(activity),
     );
   };
 
-  const points: VarianceTrendPoint[] =
-    ordered.map((revision) => {
+
       const analytics = analyzeSchedule(
         revision.model,
         input.config,
@@ -193,6 +190,13 @@ export function buildVarianceTrendsProjection(
         revision.model.activities.length;
 
       return {
+        sourceActivityCount: totalActivities,
+        executionActivityCount: analytics.population.executableActivityCount,
+        variancePopulationBasis: "source_records" as const,
+        unmatchedActivityCount: totalActivities - comparable,
+        movementDistribution: numericDistribution(controlledValues),
+        identityCoveragePercent: correspondence ? (totalActivities ? correspondence.matches.length / totalActivities * 100 : null) : null,
+        ambiguousIdentityCount: correspondence?.ambiguousTo.size ?? 0,
         revisionId: revision.revisionId,
         sequence: revision.sequence,
         dataDateIso:

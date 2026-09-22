@@ -2,7 +2,7 @@ export type ScurveWeightingMethod =
   | "original_duration_hours";
 
 export type ScurveTimePhasingMethod =
-  | "linear_between_activity_dates";
+  | "linear_between_activity_dates" | "working_calendar_between_activity_dates";
 
 export interface ProgressScurvePoint {
   dateIso: string;
@@ -29,6 +29,8 @@ export interface ProgressScurveProjection {
   weightingMethod: ScurveWeightingMethod;
   timePhasingMethod: ScurveTimePhasingMethod;
   intervalDays: number;
+  populationContracts?: Record<string, import("../../schedule-analysis-core/src").ActivityPopulationContract>;
+  observationCount?: number;
   seriesContract: {
     seriesKey:
       "progress_percent";

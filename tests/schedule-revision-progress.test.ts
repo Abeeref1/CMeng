@@ -517,7 +517,7 @@ test("Progress S-Curve derives planned curves but never fabricates actual histor
   );
   assert.equal(
     projection.timePhasingMethod,
-    "linear_between_activity_dates",
+    "working_calendar_between_activity_dates",
   );
   assert.equal(
     projection.actualHistoryMode,

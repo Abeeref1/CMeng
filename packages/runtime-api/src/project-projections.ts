@@ -1,8 +1,12 @@
+import { parseScheduleTime } from "../../schedule-analysis-core/src";
+import { checkProjectionIntegrity } from "./projection-integrity";
+import { resolveRevisionActivityCorrespondence } from "../../schedule-revision-core/src";
+import { activityPopulation, isExecutionActivity, numericDistribution } from "../../schedule-analysis-core/src";
 import {
   canonicalCommercialModule,
   commercialPositionForState,
 } from "./commercial-runtime";
-import { projectControlSchedule } from "./canonical-time-claims";
+import { canonicalTimeClaims, projectControlSchedule } from "./canonical-time-claims";
 import { projectScheduleControlBasis } from "./schedule-control-basis";
 import { sourceProductivityForecastEvidence } from "./source-productivity-forecast";
 import { canonicalResourceModule } from "./canonical-resource-runtime";
@@ -522,20 +526,9 @@ function buildBundle(
       )
       .at(-1) ??
     null;
-  const baselineByActivity =
-    new Map(
-      (
-        controlledBaseline
-          ?.revision.model
-          .activities ??
-        []
-      ).map(
-        (activity) => [
-          activity.activityId,
-          activity,
-        ],
-      ),
-    );
+  const baselineSourceById = new Map((controlledBaseline?.revision.model.activities ?? []).map(activity => [activity.activityId, activity]));
+  const baselineCorrespondence = resolveRevisionActivityCorrespondence(controlledBaseline?.revision.model.activities ?? [], model.activities);
+  const baselineByActivity = new Map(baselineCorrespondence.matches.map(match => [match.toActivityId, baselineSourceById.get(match.fromActivityId)!]));
   const currentByActivity =
     new Map(
       model.activities.map(
@@ -550,10 +543,7 @@ function buildBundle(
       activity:
         ProjectRuntimeState["schedules"][number]["revision"]["model"]["activities"][number],
     ): string | null =>
-      activity.baselineFinishIso ??
-      activity.forecastFinishIso ??
-      activity.currentFinishIso ??
-      activity.actualFinishIso;
+      activity.baselineFinishIso ?? activity.currentFinishIso;
   const currentEffectiveFinish =
     (
       activity:
@@ -593,7 +583,7 @@ function buildBundle(
         } =>
           item.dateIso !== null &&
           Number.isFinite(
-            Date.parse(
+            parseScheduleTime(
               item.dateIso,
             ),
           ),
@@ -619,9 +609,9 @@ function buildBundle(
       return null;
     }
     const before =
-      Date.parse(baselineIso);
+      parseScheduleTime(baselineIso);
     const after =
-      Date.parse(currentIso);
+      parseScheduleTime(currentIso);
     if (
       !Number.isFinite(before) ||
       !Number.isFinite(after)
@@ -797,9 +787,12 @@ function buildBundle(
                       : basis,
                 ),
             finishVariance: {
+              distribution: numericDistribution(knownControlledVariances),
               ...scheduleAnalyticsRaw
                 .result
                 .finishVariance,
+              populationBasis: "source_records" as const,
+              denominator: model.activities.length,
               method:
                 "controlled baseline programme versus current/forecast finish",
               comparableActivities:
@@ -1006,6 +999,7 @@ function buildBundle(
     buildMilestonesProjection(
       model,
       {
+          config: scheduleAnalysisConfig,
         generatedAt,
         producerVersion:
           versions.milestones,
@@ -1150,6 +1144,9 @@ function buildBundle(
     buildProgressBreakdownProjection(
       model,
       {
+      baselineModel: controlledBaseline?.revision.model ?? null,
+      previousModel: ordered.at(-2)?.revision.model ?? null,
+          config: scheduleAnalysisConfig,
         generatedAt,
         producerVersion:
           versions.breakdown,
@@ -1163,15 +1160,7 @@ function buildBundle(
     ),
   );
 
-  const independentForecast =
-    buildIndependentForecastProjection(
-      model,
-      {
-        generatedAt,
-        producerVersion:
-          versions.forecast,
-      },
-    );
+  const independentForecast = cachedIndependentForecast(model, generatedAt);
   const productivityForecast =
     sourceProductivityForecastEvidence(state);
   const forecastTaxonomy = {
@@ -1662,182 +1651,9 @@ function buildBundle(
     );
   }
 
-  let quantityScurve:
-    ReturnType<
-      typeof buildQuantityScurveProjection
-    > | null = null;
-
-  if (
-    state.quantities &&
-    state.quantities
-      .scheduleRevisionId ===
-      current.revision
-        .revisionId
-  ) {
-    const inferredMapping =
-      buildQuantityScheduleMapping(
-        state.quantities,
-        model,
-      );
-    const useScenarioMapping =
-      state.quantities
-        .allocations.length ===
-        0 &&
-      inferredMapping
-        .selectedScenarioLinks
-        .length > 0;
-
-    const quantityBasis =
-      useScenarioMapping
-        ? {
-            ...state.quantities,
-            allocations:
-              inferredMapping
-                .selectedScenarioLinks
-                .filter(
-                  (link) =>
-                    link
-                      .allocatedQuantity !==
-                    null,
-                )
-                .map(
-                  (link) => ({
-                    allocationId:
-                      "scenario-" +
-                      link.candidateId,
-                    quantityItemId:
-                      link.quantityItemId,
-                    activityId:
-                      link.activityId,
-                    allocatedQuantity:
-                      link
-                        .allocatedQuantity!,
-                    sourceRefs: [
-                      ...link.sourceRefs,
-                      {
-                        source:
-                          "governed_mapping" as const,
-                        locator:
-                          "candidate-scenario:" +
-                          link.candidateId,
-                      },
-                    ],
-                  }),
-                ),
-          }
-        : state.quantities;
-
-    quantityScurve =
-      buildQuantityScurveProjection(
-        quantityBasis,
-        model,
-        {
-          generatedAt,
-          producerVersion:
-            versions.quantity,
-        },
-      );
-
-    if (useScenarioMapping) {
-      quantityScurve = {
-        ...quantityScurve,
-        allocationState:
-          "partial",
-        series:
-          quantityScurve.series.map(
-            (series) => ({
-              ...series,
-              authority:
-                "scenario_mapping" as const,
-            }),
-          ),
-        diagnostics: [
-          ...quantityScurve
-            .diagnostics,
-          "QUANTITY_SCURVE_USES_INFERRED_MAPPING_SCENARIO_NOT_GOVERNED_ALLOCATION",
-        ],
-      };
-    }
-
-    modules.set(
-      "quantity-scurve",
-      available(
-        "quantity-scurve",
-        {
-          ...quantityScurve,
-          mappingBasis:
-            useScenarioMapping
-              ? "candidate_scenario"
-              : state.quantities
-                    .allocations
-                    .length > 0
-                ? "governed"
-                : "missing",
-          inferredMapping,
-        },
-        ["BOQ", "quantity-to-activity mapping"],
-        state.quantities
-          .allocations.length > 0
-          ? "ready"
-          : "partial",
-        state.quantities
-          .allocations.length > 0
-          ? null
-          : useScenarioMapping
-            ? "No governed BOQ/activity crosswalk was submitted. CMeng generated an evidence-scored scenario mapping and uses it only as a scenario."
-            : "BOQ is loaded but no defensible quantity-to-activity allocation can yet be established.",
-      ),
-    );
-  } else {
-    modules.set(
-      "quantity-scurve",
-      available(
-        "quantity-scurve",
-        {
-          schemaVersion: "1.0",
-          projectionKey:
-            "quantity_scurve",
-          generatedAt,
-          producerVersion:
-            versions.quantity,
-          projectId:
-            state.projectId,
-          boqRevisionId:
-            state.quantities
-              ?.boqRevisionId ??
-            null,
-          scheduleRevisionId:
-            current.revision
-              .revisionId,
-          dataDateIso:
-            model.dataDateIso,
-          unitKeyed: true,
-          allocationState:
-            "missing",
-          series: [],
-          unmappedItemIds:
-            state.quantities
-              ?.items.map(
-                (item) =>
-                  item
-                    .quantityItemId,
-              ) ?? [],
-          partiallyAllocatedItemIds:
-            [],
-          overAllocatedItemIds:
-            [],
-          mappingBasis:
-            "missing",
-          diagnostics: [
-            "QUANTITY_BASIS_NOT_ESTABLISHED_FOR_CURRENT_REVISION",
-          ],
-        },
-        ["BOQ"],
-        "partial",
-        "No current BOQ quantity basis is established. CMeng keeps the module active and states exactly what evidence is needed rather than returning an unavailable page.",
-      ),
-    );
-  }
+  const quantityResult = canonicalQuantityModule(state, model, generatedAt);
+  modules.set("quantity-scurve", quantityResult);
+  const quantityScurve = quantityResult.data as ReturnType<typeof buildQuantityScurveProjection>;
 
   for (const resourceKey of ["resource-utilization", "manhour-scurve"]) {
     const sourceResource = canonicalResourceModule(state, resourceKey);
@@ -3100,6 +2916,29 @@ function buildBundle(
     );
   }
 
+  const pmoResult = modules.get("pmo-analysis");
+  if (pmoResult?.data && typeof pmoResult.data === "object") {
+    const pmo = pmoResult.data as Record<string, any>;
+    const time = canonicalTimeClaims(state);
+    const netMovement = windows?.projectCompletionMovementDays ?? null;
+    const resourceData = modules.get("resource-utilization")?.data as Record<string, any> | null;
+    pmo.claims = { ...pmo.claims,
+      contractualCompletionIso: time.contractTimeBasis?.contractualCompletionIso ?? null,
+      effectiveDeterminationDays: time.effectiveDeterminationDays,
+      incorporatedEotDays: time.contractTimeBasis?.incorporatedEotDays ?? null,
+      registerDeterminationDays: time.registerDeterminationDays,
+      officialApprovedEotDays: time.contractTimeBasis?.officialApprovedEotDays ?? null,
+      officialAdjustedCompletionIso: eotAssessment?.officialAdjustedCompletionIso ?? null,
+      scenarioAdjustedCompletionIso: eotAssessment?.scenarioAdjustedCompletionIso ?? null,
+      netSubmittedFinishMovementDays: netMovement,
+      grossPositiveAnalyticalMovementDays: windows?.positiveProgrammeMovementDays ?? null,
+      movementInterpretation: "Gross positive activity movement and net submitted project-finish movement have different bases. Their difference does not prove overlap, concurrency or entitlement.",
+    };
+    pmo.resources = { ...pmo.resources, weeklyCapacityCoveragePercent: resourceData?.weeklyCapacityEvidence?.capacityCoveragePercent ?? null,
+      weeklyOverloadedResourceCount: resourceData?.weeklyOverloadedResourceCount ?? null };
+    pmo.progress = { ...pmo.progress, lookAheadMissedStartCount: lookAhead.missedStartCount ?? null };
+  }
+
   applyUniversalModuleChallenges({
     state,
     generatedAt,
@@ -3108,6 +2947,8 @@ function buildBundle(
     deliveryChallenge,
     modules,
   });
+
+  for (const [key, result] of modules) modules.set(key, checkProjectionIntegrity(result, model, scheduleAnalysisConfig));
 
   const latestBoardPublicationRecord =
     state.boardPublicationHistory
@@ -3459,6 +3300,46 @@ function buildBundle(
 }
 
 
+
+const quantityModuleCache = new WeakMap<ProjectRuntimeState, { version: number; result: ModuleRuntimeResult }>();
+function canonicalQuantityModule(state: ProjectRuntimeState, model: ProjectRuntimeState["schedules"][number]["revision"]["model"], generatedAt: string): ModuleRuntimeResult {
+  const cached = quantityModuleCache.get(state);
+  if (cached?.version === state.version) return cached.result;
+  const quantities = state.quantities;
+  if (!quantities) return available("quantity-scurve", {
+    schemaVersion: "1.0", projectionKey: "quantity_scurve", projectId: state.projectId,
+    scheduleRevisionId: model.sourceRevisionId, dataDateIso: model.dataDateIso,
+    allocationState: "missing", mappingBasis: "missing", boqState: "not_established", series: [],
+    unmappedItemIds: [], partiallyAllocatedItemIds: [], overAllocatedItemIds: [],
+    diagnostics: ["BOQ_QUANTITY_BASIS_NOT_ESTABLISHED"],
+  }, ["BOQ"], "partial", "BOQ quantities have not been established.");
+  const sameRevision = quantities.scheduleRevisionId === model.sourceRevisionId;
+  const inferredMapping = sameRevision ? buildQuantityScheduleMapping(quantities, model) : null;
+  const scenario = sameRevision && quantities.allocations.length === 0 && (inferredMapping?.selectedScenarioLinks.length ?? 0) > 0;
+  const allocations = !sameRevision ? [] : scenario ? inferredMapping!.selectedScenarioLinks.filter(link => link.allocatedQuantity !== null).map(link => ({
+    allocationId: "scenario-" + link.candidateId, quantityItemId: link.quantityItemId, activityId: link.activityId,
+    allocatedQuantity: link.allocatedQuantity!, sourceRefs: link.sourceRefs,
+  })) : quantities.allocations;
+  const basis = { ...quantities, scheduleRevisionId: model.sourceRevisionId, allocations,
+    installedSnapshots: quantities.installedSnapshots.filter(row => model.dataDateIso !== null && row.asOfIso.slice(0,10) <= model.dataDateIso.slice(0,10)) };
+  const projection = buildQuantityScurveProjection(basis, model, { generatedAt, producerVersion: "quantity-shared-evidence-v1" });
+  const mappingBasis = !sameRevision ? "revision_mismatch" : scenario ? "candidate_scenario" : quantities.allocations.length ? "governed" : "missing";
+  const result = available("quantity-scurve", {
+    ...projection, allocationState: scenario ? "partial" : projection.allocationState,
+    mappingBasis, candidateMappingState: sameRevision ? "evaluated" : "revision_mismatch", inferredMapping,
+    boqState: "loaded", boqItemCount: quantities.items.length,
+    knownQuantityItemCount: quantities.items.filter(item => item.contractQuantity !== null).length,
+    actualAuthority: "measured_installed_quantities", actualIndependentOfScheduleMapping: true,
+    series: projection.series.map(series => ({ ...series, authority: scenario ? "scenario_mapping" : "governed_mapping",
+      actualAuthority: "measured_installed_quantities",
+      points: series.points.map(point => ({ ...point, actualInstalledQuantity: model.dataDateIso !== null && point.dateIso.slice(0,10) <= model.dataDateIso.slice(0,10) ? point.actualInstalledQuantity : null })) })),
+    diagnostics: [...projection.diagnostics, ...(scenario ? ["QUANTITY_PLAN_IS_CANDIDATE_SCENARIO_NOT_GOVERNED"] : []), ...(!sameRevision ? ["QUANTITY_MAPPING_REVISION_MISMATCH_PLANS_WITHHELD"] : [])],
+  }, ["BOQ", "quantity-to-activity mapping", "installed quantity measurements"],
+    sameRevision && !scenario && projection.allocationState === "complete" ? "ready" : "partial",
+    mappingBasis === "governed" ? null : "BOQ and measured installations remain visible by unit. Planned quantities require a governed schedule mapping; any candidate plan is a scenario.");
+  quantityModuleCache.set(state, { version: state.version, result }); return result;
+}
+
 const planningModuleKeys =
   new Set([
     "schedule-analytics",
@@ -3538,20 +3419,9 @@ function buildPlanningModuleFast(
       .at(-1) ??
     null;
 
-  const baselineByActivity =
-    new Map(
-      (
-        controlledBaseline
-          ?.revision.model
-          .activities ??
-        []
-      ).map(
-        (activity) => [
-          activity.activityId,
-          activity,
-        ],
-      ),
-    );
+  const baselineSourceById = new Map((controlledBaseline?.revision.model.activities ?? []).map(activity => [activity.activityId, activity]));
+  const baselineCorrespondence = resolveRevisionActivityCorrespondence(controlledBaseline?.revision.model.activities ?? [], model.activities);
+  const baselineByActivity = new Map(baselineCorrespondence.matches.map(match => [match.toActivityId, baselineSourceById.get(match.fromActivityId)!]));
   const currentByActivity =
     new Map(
       model.activities.map(
@@ -3566,10 +3436,7 @@ function buildPlanningModuleFast(
     activity:
       ProjectRuntimeState["schedules"][number]["revision"]["model"]["activities"][number],
   ): string | null =>
-    activity.baselineFinishIso ??
-    activity.forecastFinishIso ??
-    activity.currentFinishIso ??
-    activity.actualFinishIso;
+    activity.baselineFinishIso ?? activity.currentFinishIso;
 
   const currentFinish = (
     activity:
@@ -3592,8 +3459,8 @@ function buildPlanningModuleFast(
     if (!from || !to) {
       return null;
     }
-    const a = Date.parse(from);
-    const b = Date.parse(to);
+    const a = parseScheduleTime(from);
+    const b = parseScheduleTime(to);
     if (
       !Number.isFinite(a) ||
       !Number.isFinite(b)
@@ -3636,7 +3503,7 @@ function buildPlanningModuleFast(
         } =>
           item.dateIso !== null &&
           Number.isFinite(
-            Date.parse(
+            parseScheduleTime(
               item.dateIso,
             ),
           ),
@@ -3756,8 +3623,11 @@ function buildPlanningModuleFast(
                       : basis,
                 ),
             finishVariance: {
+              distribution: numericDistribution(knownVariances),
               ...scheduleRaw.result
                 .finishVariance,
+              populationBasis: "source_records" as const,
+              denominator: model.activities.length,
               method:
                 "controlled baseline programme versus current/forecast finish",
               comparableActivities:
@@ -3834,37 +3704,7 @@ function buildPlanningModuleFast(
       )?.dateIso ??
     null;
 
-  const independentForecast =
-    {
-      schemaVersion: "1.0",
-      projectionKey:
-        "independent_forecast",
-      generatedAt,
-      producerVersion:
-        "planning-fast:forecast-deferred-v1",
-      projectId:
-        model.projectId,
-      sourceRevisionId:
-        model.sourceRevisionId,
-      dataDateIso:
-        model.dataDateIso,
-      origin: "unresolved",
-      sourceForecastCompletionIso,
-      independentForecastCompletionIso:
-        null,
-      forecastVarianceDays: null,
-      requiredFinishIso: null,
-      requiredFinishVarianceDays:
-        null,
-      activities: [],
-      criticalActivityIds: [],
-      complete: false,
-      diagnostics: [
-        "INDEPENDENT_CPM_DEFERRED_FOR_FAST_PROGRAMME_VIEW",
-      ],
-    } as unknown as ReturnType<
-      typeof buildIndependentForecastProjection
-    >;
+  const independentForecast = cachedIndependentForecast(model, generatedAt);
 
   const minimalDeliveryChallenge =
     buildDeliveryChallengeProjection({
@@ -4049,6 +3889,7 @@ function buildPlanningModuleFast(
       buildMilestonesProjection(
         model,
         {
+          config: scheduleAnalysisConfig,
           generatedAt,
           producerVersion:
             "planning-fast:milestones-v1",
@@ -4076,8 +3917,6 @@ function buildPlanningModuleFast(
                             .baselineFinishIso ??
                           baseline
                             .baselineStartIso ??
-                          baseline
-                            .forecastFinishIso ??
                           baseline
                             .currentFinishIso
                         )
@@ -4334,6 +4173,7 @@ function buildPlanningModuleFast(
       buildMilestonesProjection(
         model,
         {
+          config: scheduleAnalysisConfig,
           generatedAt,
           producerVersion:
             "planning-fast:milestones-v1",
@@ -4357,8 +4197,6 @@ function buildPlanningModuleFast(
                             .baselineFinishIso ??
                           baseline
                             .baselineStartIso ??
-                          baseline
-                            .forecastFinishIso ??
                           baseline
                             .currentFinishIso
                         )
@@ -4629,8 +4467,8 @@ const specialistModuleCache =
   >();
 
 const independentForecastCache =
-  new Map<
-    string,
+  new WeakMap<
+    ProjectRuntimeState["schedules"][number]["revision"]["model"],
     ReturnType<
       typeof buildIndependentForecastProjection
     >
@@ -4679,7 +4517,7 @@ function specialistChallengeContext(
   }
 
   const forecast =
-    sourceOnlyForecast(
+    cachedIndependentForecast(
       model,
       generatedAt,
     );
@@ -4782,7 +4620,7 @@ function sourceOnlyForecast(
 
     if (!finish) continue;
     const finishMs =
-      Date.parse(finish);
+      parseScheduleTime(finish);
     if (
       !Number.isFinite(
         finishMs,
@@ -4883,7 +4721,7 @@ function cachedIndependentForecast(
   generatedAt: string,
 ) {
   const key =
-    model.sourceRevisionId;
+    model;
   const cached =
     independentForecastCache.get(
       key,
@@ -5062,11 +4900,11 @@ function independentForecastReviewReason(
   }
 
   const dataDate =
-    Date.parse(
+    parseScheduleTime(
       forecast.dataDateIso,
     );
   const sourceFinish =
-    Date.parse(
+    parseScheduleTime(
       forecast
         .sourceForecastCompletionIso,
     );
@@ -5222,6 +5060,9 @@ function buildSpecialistModuleFast(
       buildProgressBreakdownProjection(
         model,
         {
+      baselineModel: controlledBaseline?.revision.model ?? null,
+      previousModel: ordered.at(-2)?.revision.model ?? null,
+          config: scheduleAnalysisConfig,
           generatedAt,
           producerVersion:
             "progress-breakdown-fast-v1",
@@ -5596,146 +5437,7 @@ function buildSpecialistModuleFast(
     key ===
       "quantity-scurve"
   ) {
-    const quantities =
-      state.quantities;
-    if (
-      !quantities ||
-      quantities
-        .scheduleRevisionId !==
-        current.revision
-          .revisionId
-    ) {
-      result = available(
-        key,
-        {
-          schemaVersion:
-            "1.0",
-          projectionKey:
-            "quantity_scurve",
-          generatedAt,
-          projectId:
-            state.projectId,
-          boqRevisionId:
-            quantities
-              ?.boqRevisionId ??
-            null,
-          scheduleRevisionId:
-            current.revision
-              .revisionId,
-          dataDateIso:
-            model.dataDateIso,
-          unitKeyed: true,
-          allocationState:
-            "missing",
-          mappingBasis:
-            "missing",
-          series: [],
-          unmappedItemIds:
-            quantities
-              ?.items.map(
-                (item) =>
-                  item
-                    .quantityItemId,
-              ) ??
-            [],
-          partiallyAllocatedItemIds:
-            [],
-          overAllocatedItemIds:
-            [],
-          diagnostics: [
-            "CURRENT_BOQ_QUANTITY_BASIS_NOT_ESTABLISHED",
-          ],
-        },
-        ["BOQ", "quantity mapping"],
-        "partial",
-        "A current BOQ quantity basis and schedule crosswalk are required before an Installed Quantities curve can be calculated.",
-      );
-    } else if (
-      quantities
-        .allocations.length ===
-      0
-    ) {
-      result = available(
-        key,
-        {
-          schemaVersion:
-            "1.0",
-          projectionKey:
-            "quantity_scurve",
-          generatedAt,
-          projectId:
-            state.projectId,
-          boqRevisionId:
-            quantities
-              .boqRevisionId,
-          scheduleRevisionId:
-            current.revision
-              .revisionId,
-          dataDateIso:
-            model.dataDateIso,
-          unitKeyed: true,
-          allocationState:
-            "missing",
-          mappingBasis:
-            "missing",
-          candidateMappingState:
-            "not_run_in_initial_view",
-          series: [],
-          unmappedItemIds:
-            quantities.items.map(
-              (item) =>
-                item.quantityItemId,
-            ),
-          partiallyAllocatedItemIds:
-            [],
-          overAllocatedItemIds:
-            [],
-          diagnostics: [
-            "NO_GOVERNED_QUANTITY_TO_ACTIVITY_ALLOCATION",
-            "INFERRED_MAPPING_NOT_RUN_IN_INITIAL_VIEW",
-          ],
-        },
-        [
-          "BOQ",
-          "governed quantity-to-activity mapping",
-        ],
-        "partial",
-        "BOQ items are available, but no governed quantity-to-activity allocation is established. CMeng does not run an expensive inferred crosswalk or publish a quantity curve as if the mapping were approved.",
-      );
-    } else {
-      const projection =
-        buildQuantityScurveProjection(
-          quantities,
-          model,
-          {
-            generatedAt,
-            producerVersion:
-              "quantity-scurve-fast-v3",
-          },
-        );
-      result = available(
-        key,
-        {
-          ...projection,
-          mappingBasis:
-            "governed",
-        },
-        [
-          "BOQ",
-          "governed quantity-to-activity mapping",
-        ],
-        projection
-          .allocationState ===
-          "complete"
-          ? "ready"
-          : "partial",
-        projection
-            .allocationState ===
-          "complete"
-          ? null
-          : "The governed quantity allocation is incomplete or conflicted. CMeng keeps unit series separate and reports mapping coverage.",
-      );
-    }
+    result = canonicalQuantityModule(state, model, generatedAt);
   } else if (
     key ===
       "independent-forecast"
@@ -5857,11 +5559,11 @@ function buildSpecialistModuleFast(
           const cachedForecast =
             independentForecastCache.get(
               stored.revision
-                .revisionId,
+                .model,
             );
           return forecastSnapshotFromProjection(
             cachedForecast ??
-              sourceOnlyForecast(
+              cachedIndependentForecast(
                 stored.revision
                   .model,
                 generatedAt,
@@ -5943,6 +5645,7 @@ function buildSpecialistModuleFast(
       buildMilestonesProjection(
         model,
         {
+          config: scheduleAnalysisConfig,
           generatedAt,
           producerVersion:
             "progress-position:milestones-v1",
@@ -5976,7 +5679,7 @@ function buildSpecialistModuleFast(
         },
       );
     const sourceForecast =
-      sourceOnlyForecast(
+      cachedIndependentForecast(
         model,
         generatedAt,
       );
@@ -6467,7 +6170,7 @@ function buildSpecialistModuleFast(
       "challenge-contract"
   ) {
     const sourceForecast =
-      sourceOnlyForecast(
+      cachedIndependentForecast(
         model,
         generatedAt,
       );
@@ -7072,7 +6775,7 @@ function applyProfessionalModuleState(
   };
 }
 
-function resolveProjectModule(
+function resolveProjectModuleUncertified(
   state: ProjectRuntimeState,
   key: string,
 ): ModuleRuntimeResult {
@@ -7123,6 +6826,20 @@ function resolveProjectModule(
         [],
       ),
   );
+}
+
+function resolveProjectModule(state: ProjectRuntimeState, key: string): ModuleRuntimeResult {
+  const result = resolveProjectModuleUncertified(state, key);
+  const model = projectControlSchedule(state)?.revision.model;
+  if (!model) return result;
+  const controlBasis = projectScheduleControlBasis(state);
+  if (result.data && typeof result.data === "object") {
+    const data = result.data as Record<string, any>;
+    result.data = { ...data, controlBasis,
+      ...(key === "milestones" ? { movementDistribution: numericDistribution((data.rows ?? []).map((row: any)=>row.varianceDays)) } : {}),
+    };
+  }
+  return checkProjectionIntegrity(result, model, controlBasis.analysisConfig);
 }
 
 export function moduleForProject(

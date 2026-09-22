@@ -157,6 +157,7 @@ test("Progress Position does not relabel schedule progress as certified physical
             scheduleSnapshotOnly:
               boolean;
             progressBases: {
+              scheduleSnapshot: { authority: string; valuePercent: number | null };
               physical: {
                 authority:
                   string;
@@ -188,7 +189,7 @@ test("Progress Position does not relabel schedule progress as certified physical
         result.data
           .progressBases
           .physical.authority,
-        "progress_snapshot",
+        "missing",
       );
       assert.equal(
         result.data
@@ -204,6 +205,9 @@ test("Progress Position does not relabel schedule progress as certified physical
           .valuePercent,
         null,
       );
+      assert.equal(result.data.progressBases.physical.valuePercent, null);
+      assert.equal(result.data.progressBases.scheduleSnapshot.authority, "progress_snapshot");
+      assert.equal(typeof result.data.progressBases.scheduleSnapshot.valuePercent, "number");
       assert.match(
         result.reason ?? "",
         /not treated as certified physical progress/i,

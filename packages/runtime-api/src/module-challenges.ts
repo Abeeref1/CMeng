@@ -1,3 +1,5 @@
+import { activityNearCriticalThresholdHours, isExecutionActivity, scheduleProgress } from "../../schedule-analysis-core/src";
+import { projectScheduleControlBasis } from "./schedule-control-basis";
 import type {
   ChallengeValue,
   DocumentAssertion,
@@ -320,14 +322,14 @@ function spec(
       (
         "The submitted " +
         label.toLowerCase() +
-        " is not supported by the independent calculation."
+        " differs from the calculation on the stated comparison basis; investigate the source and method before deciding which position is supportable."
       ),
     consequenceWhenMissing:
       input.consequenceMissing ??
       (
-        "The contractor has not provided a comparable " +
+        "No separate submitted report value is established for " +
         label.toLowerCase() +
-        ", so the independent position cannot be reconciled against a submitted assumption."
+        ". Available source records and the derived result remain valid on their stated basis; a like-for-like report comparison is pending."
       ),
     actionWhenDifferent:
       input.actionDifferent ??
@@ -339,9 +341,9 @@ function spec(
     actionWhenMissing:
       input.actionMissing ??
       (
-        "Submit the contractor basis for " +
+        "Reconcile the source fields, population, definition and reporting date for " +
         label.toLowerCase() +
-        " with traceable supporting evidence."
+        ". Obtain a separate report value only if an external comparison is required."
       ),
   };
 }
@@ -681,6 +683,7 @@ function metricsFor(
 ): IndependentMetricSpec[] {
   const {
     state,
+    model,
     modules,
     independentForecast:
       forecast,
@@ -883,12 +886,7 @@ function metricsFor(
         spec(
           "progress_percent",
           "Duration-weighted activity progress",
-          numberOrNull(
-            schedule?.result
-              ?.progress
-              ?.durationWeightedPercentComplete
-              ?.value,
-          ),
+          scheduleProgress(model.activities).value,
           "%",
           "derived",
           [sourceRef],
@@ -1000,6 +998,8 @@ function metricsFor(
           "calculated",
           [sourceRef],
           {
+            consequenceMissing: "The schedule-derived look-ahead is established; a separate submitted look-ahead register is not available for an identity-level comparison.",
+            actionMissing: "If a submitted look-ahead register is required, reconcile its activity IDs, window dates and readiness evidence with this view.",
             consequenceDifferent:
               "The contractor look-ahead does not represent the same activity population as the schedule-derived look-ahead.",
             actionDifferent:
@@ -1183,27 +1183,11 @@ function metricsFor(
     }
 
     case "progress-scurve": {
-      const points =
-        scurve?.points;
-      const latest =
-        Array.isArray(points) &&
-        points.length > 0
-          ? points[
-              points.length - 1
-            ]
-          : null;
       return [
         spec(
           "progress_percent",
-          "Latest progress",
-          numberOrNull(
-            latest
-              ?.actualProgressPercent,
-          ) ??
-          numberOrNull(
-            progress?.progress
-              ?.durationWeightedProgressPercent,
-          ),
+          "Duration-weighted schedule snapshot",
+          scheduleProgress(model.activities).value,
           "%",
           "derived",
           [
@@ -1231,37 +1215,15 @@ function metricsFor(
     }
 
     case "quantity-scurve": {
-      const mappingCoverage =
-        delivery.mapping
-          ?.quantityCoveragePercent ??
-        delivery.mapping
-          ?.itemCoveragePercent ??
-        null;
-      return [
-        spec(
-          "quantity_mapping_coverage",
-          "BOQ-to-schedule mapping coverage",
-          mappingCoverage,
-          "%",
-          delivery.mapping
-            ? delivery.mapping
-                .scenarioLinkCount >
-              0
-              ? "scenario"
-              : "derived"
-            : "not_derivable",
-          [
-            "BOQ",
-            sourceRef,
-          ],
-          {
-            consequenceMissing:
-              "Quantity-based progress cannot be fully substantiated until a BOQ/quantity basis exists, but this does not suppress the rest of the project analysis.",
-            actionMissing:
-              "Provide the BOQ/quantity evidence or confirm the inferred BOQ-to-activity crosswalk.",
-          },
-        ),
-      ];
+      const itemCount = numberOrNull(quantity?.boqItemCount);
+      const mapped = itemCount === null ? null : itemCount - (quantity?.unmappedItemIds?.length ?? itemCount);
+      const mappingCoverage = itemCount && mapped !== null ? mapped / itemCount * 100 : null;
+      return [spec("quantity_mapping_coverage", "BOQ item-to-schedule link coverage", mappingCoverage, "%",
+        quantity?.mappingBasis === "candidate_scenario" ? "scenario" : mappingCoverage === null ? "not_derivable" : "derived",
+        ["BOQ", sourceRef], {
+          consequenceMissing: state.quantities ? "BOQ quantities are loaded. A separate submitted crosswalk coverage statement is absent; candidate links remain scenarios." : "A BOQ quantity basis is not established.",
+          actionMissing: state.quantities ? "Review candidate links and govern a quantity-to-activity crosswalk. Dated installed measurements may be assessed independently of that mapping." : "Provide the BOQ quantity ledger and its source units.",
+        })];
     }
 
     case "progress-breakdown":
@@ -1269,16 +1231,13 @@ function metricsFor(
         spec(
           "progress_percent",
           "Project progress represented by WBS breakdown",
-          numberOrNull(
-            schedule?.result
-              ?.progress
-              ?.durationWeightedPercentComplete
-              ?.value,
-          ),
+          scheduleProgress(model.activities).value,
           "%",
           "derived",
           [sourceRef],
           {
+            consequenceMissing: "The WBS schedule snapshot is calculated from submitted activities. A separate WBS progress report is not established.",
+            actionMissing: "Obtain a separate WBS progress report only for an external comparison; retain its measurement, coverage and authority separately from schedule progress.",
             submittedOverride:
               contractorProgress
                 ?.state ===
@@ -1324,37 +1283,14 @@ function metricsFor(
       ];
 
     case "near-critical": {
-      const threshold =
-        numberOrNull(
-          nearCritical
-            ?.nearCriticalThresholdHours,
-        ) ?? 40;
-      const criticalThreshold =
-        numberOrNull(
-          nearCritical
-            ?.criticalThresholdHours,
-        ) ?? 0;
-      const forecastDeferred =
-        forecast.diagnostics
-          ?.includes(
-            "INDEPENDENT_CPM_DEFERRED_FOR_FAST_PROGRAMME_VIEW",
-          ) ??
-        false;
-      const independentCount =
-        forecastDeferred
-          ? null
-          : forecast.activities.filter(
-              (activity) =>
-                activity
-                  .independentTotalFloatHours !==
-                  null &&
-                activity
-                  .independentTotalFloatHours >
-                  criticalThreshold &&
-                activity
-                  .independentTotalFloatHours <=
-                  threshold,
-            ).length;
+      const config = projectScheduleControlBasis(state).analysisConfig;
+      const sourceById = new Map(model.activities.filter(isExecutionActivity).map(a=>[a.activityId,a]));
+      const independentRows = forecast.activities.filter(row=>sourceById.has(row.activityId));
+      const independentCount = !forecast.complete || !independentRows.length ? null : independentRows.filter(row=>{
+        const activity = sourceById.get(row.activityId)!;
+        const threshold = activityNearCriticalThresholdHours(model, activity, config);
+        return threshold !== null && row.independentTotalFloatHours !== null && row.independentTotalFloatHours > config.criticalFloatThresholdHours && row.independentTotalFloatHours <= threshold;
+      }).length;
       return [
         spec(
           "near_critical_count",
@@ -1368,9 +1304,11 @@ function metricsFor(
             "independent-cpm",
           ],
           {
+            submittedOverride: submitted(numberOrNull(nearCritical?.nearCriticalCount), "activities", [sourceRef],
+              "Strict near-critical count recalculated from submitted float under the governed threshold. The source-labelled watchlist is reconciled separately.", { authority: "derived", basisRevisionId: model.sourceRevisionId, asOfIso: model.dataDateIso }),
             note:
               independentCount === null
-                ? "Independent CPM is deferred from the initial fast view; submitted programme float remains visible without being relabelled as an independent result."
+                ? "An independently comparable CPM classification is not established; submitted float remains visible."
                 : undefined,
           },
         ),
@@ -1892,12 +1830,7 @@ function metricsFor(
             pmo?.progress
               ?.durationWeightedProgressPercent,
           ) ??
-          numberOrNull(
-            schedule?.result
-              ?.progress
-              ?.durationWeightedPercentComplete
-              ?.value,
-          ),
+          scheduleProgress(model.activities).value,
           "%",
           "derived",
           [sourceRef],

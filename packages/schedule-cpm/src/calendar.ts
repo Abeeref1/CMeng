@@ -1,3 +1,4 @@
+import { parseScheduleTime } from "../../schedule-analysis-core/src/date-time";
 import type {
   CanonicalCalendar,
 } from "../../schedule-analysis-core/src";
@@ -291,7 +292,7 @@ export function parseScheduleInstant(
       : null;
   }
 
-  const parsed = Date.parse(value);
+  const parsed = parseScheduleTime(value);
   return Number.isFinite(parsed)
     ? parsed
     : null;

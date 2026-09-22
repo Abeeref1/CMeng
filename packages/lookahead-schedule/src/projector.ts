@@ -1,7 +1,10 @@
+import { addWorkingHours, resolveWorkingCalendar, parseScheduleInstant } from "../../schedule-cpm/src/calendar";
 import {
   buildScheduleActivityLogicIndex,
+  isExecutionActivity,
   type CanonicalScheduleActivity,
   type CanonicalScheduleModel,
+  type CanonicalScheduleRelationship,
 } from "../../schedule-analysis-core/src";
 import type {
   LookAheadActivityRow,
@@ -13,8 +16,8 @@ import type {
 
 function ms(value: string | null): number | null {
   if (!value) return null;
-  const parsed = Date.parse(value);
-  return Number.isFinite(parsed) ? parsed : null;
+  const parsed = parseScheduleInstant(value);
+  return parsed !== null && Number.isFinite(parsed) ? parsed : null;
 }
 
 function dateOnly(msValue: number): string {
@@ -34,102 +37,57 @@ const READINESS_KEYS: readonly ReadinessDimensionKey[] = [
   "access",
 ];
 
+export function assessPredecessorRequirement(model: CanonicalScheduleModel, relation: CanonicalScheduleRelationship,
+  predecessor: CanonicalScheduleActivity | undefined, successor: CanonicalScheduleActivity) {
+  const unknown = (reason: string) => ({ state: "unknown" as const, requiredIso: null, note: relation.relationshipId + ": " + reason });
+  if (!predecessor || relation.external) return unknown("Predecessor evidence is not established in this controlled programme.");
+  if (relation.type === "unknown" || relation.lagHours === null || !Number.isFinite(relation.lagHours)) return unknown("Relationship type or lag is not established.");
+  const predecessorAnchor = relation.type === "FS" || relation.type === "FF" ? effectiveFinish(predecessor) : effectiveStart(predecessor);
+  const successorAnchor = relation.type === "FS" || relation.type === "SS" ? effectiveStart(successor) : effectiveFinish(successor);
+  const from = parseScheduleInstant(predecessorAnchor), target = parseScheduleInstant(successorAnchor);
+  if (from === null || target === null) return unknown("Required relationship date evidence is incomplete.");
+  let required = from;
+  if (relation.lagHours !== 0) {
+    const calendar = resolveWorkingCalendar(successor.calendarId, model.calendars, false);
+    if (!calendar) return unknown("Successor working calendar is unresolved; lag cannot be evaluated.");
+    try { required = addWorkingHours(calendar.calendar, from, relation.lagHours); }
+    catch { return unknown("Working-calendar lag calculation is unresolved."); }
+  }
+  return { state: required > target ? "blocked" as const : "ready" as const,
+    requiredIso: new Date(required).toISOString(),
+    note: relation.relationshipId + ": " + relation.type + ", lag " + relation.lagHours + " working hours (successor calendar); " +
+      (required > target ? "predecessor requirement is later than the successor target." : "relationship requirement fits the submitted dates; physical readiness is assessed separately.") };
+}
+
 function readinessForActivity(
   model: CanonicalScheduleModel,
-  activityStartIso: string | null,
-  predecessorIds: readonly string[],
+  activity: CanonicalScheduleActivity,
+  predecessors: readonly CanonicalScheduleRelationship[],
+  activityById: ReadonlyMap<string, CanonicalScheduleActivity>,
   externalEvidence:
     | Partial<Record<ReadinessDimensionKey, ReadinessEvidence>>
     | undefined,
 ) {
-  const statusById = new Map(
-    model.activities.map((activity) => [
-      activity.activityId,
-      activity.status,
-    ]),
-  );
-
   const dimensions: ReadinessDimension[] =
     READINESS_KEYS.map((key) => {
       if (key === "predecessor") {
-        if (predecessorIds.length === 0) {
-          return {
-            key,
-            state: "not_applicable" as const,
-            sourceRefs: [],
-            note: "No predecessor activities.",
-          };
-        }
-
-        const activityById = new Map(
-          model.activities.map((item) => [
-            item.activityId,
-            item,
-          ]),
-        );
-        const successorStartMs = ms(activityStartIso);
-        const incomplete = predecessorIds.filter(
-          (id) => statusById.get(id) !== "completed",
-        );
-        const missingFinish: string[] = [];
-        const threatening: string[] = [];
-        const sequenced: string[] = [];
-
-        for (const id of incomplete) {
-          const predecessor = activityById.get(id);
-          const predecessorFinish =
-            predecessor
-              ? effectiveFinish(predecessor)
-              : null;
-          const predecessorFinishMs =
-            ms(predecessorFinish);
-          if (
-            predecessorFinishMs === null ||
-            successorStartMs === null
-          ) {
-            missingFinish.push(id);
-          } else if (
-            predecessorFinishMs >
-            successorStartMs
-          ) {
-            threatening.push(id);
-          } else {
-            sequenced.push(id);
-          }
-        }
-
+        if (predecessors.length === 0) return { key, state: "not_applicable" as const, sourceRefs: [], note: "No incoming schedule relationships; review open-end logic separately." };
+        const checks = predecessors.map(relation => assessPredecessorRequirement(model, relation, activityById.get(relation.predecessorActivityId), activity));
         return {
-          key,
-          state:
-            threatening.length > 0
-              ? "blocked" as const
-              : missingFinish.length > 0
-                ? "unknown" as const
-                : "ready" as const,
-          sourceRefs: predecessorIds.map(
-            (id) => "schedule-activity:" + id,
-          ),
-          note:
-            threatening.length > 0
-              ? "Predecessor forecast threatens activity start: " +
-                threatening.join(", ")
-              : missingFinish.length > 0
-                ? "Predecessor finish evidence is incomplete: " +
-                  missingFinish.join(", ")
-                : incomplete.length > 0
-                  ? "Incomplete predecessors are sequenced to finish before this activity starts: " +
-                    sequenced.join(", ")
-                  : "All linked predecessors are complete.",
+          key, state: checks.some(check => check.state === "blocked") ? "blocked" as const
+            : checks.some(check => check.state === "unknown") ? "unknown" as const : "ready" as const,
+          sourceRefs: predecessors.flatMap(relation => ["schedule-relationship:" + relation.relationshipId, "schedule-activity:" + relation.predecessorActivityId]),
+          note: checks.map(check => check.note).join("; "),
         };
       }
 
       const evidence = externalEvidence?.[key];
-      if (!evidence) {
+      if (!evidence || evidence.state === "ready" && evidence.sourceRefs.length === 0) {
         return {
           key,
           state: "unknown" as const,
           sourceRefs: [],
-          note: null,
+          note: evidence ? "Readiness assertion has no supporting evidence reference." : null,
         };
       }
 
@@ -231,10 +189,13 @@ export function buildLookAheadProjection(
   const logic =
     buildScheduleActivityLogicIndex(model);
 
+  const activityById = new Map(model.activities.map(activity => [activity.activityId, activity]));
+  const incoming = new Map<string, CanonicalScheduleRelationship[]>();
+  for (const relation of model.relationships) { const rows = incoming.get(relation.successorActivityId) ?? []; rows.push(relation); incoming.set(relation.successorActivityId, rows); }
   const incomplete = model.activities.filter(
     (activity) =>
       activity.status !== "completed" &&
-      activity.activityType !== "wbs_summary",
+      isExecutionActivity(activity),
   );
 
   const missingCurrentDateActivityIds: string[] = [];
@@ -257,8 +218,9 @@ export function buildLookAheadProjection(
       continue;
     }
 
-    const isOverdue =
-      finishMs < dataDateMs;
+    const isOverdue = finishMs < dataDateMs;
+    const plannedStartMs = ms(activity.currentStartIso ?? activity.forecastStartIso);
+    const missedStart = activity.status === "not_started" && !activity.actualStartIso && plannedStartMs !== null && plannedStartMs < dataDateMs;
     const overlapsWindow =
       startMs <= windowEndMs! &&
       finishMs >= dataDateMs;
@@ -272,6 +234,8 @@ export function buildLookAheadProjection(
 
     if (isOverdue) {
       classification = "overdue";
+    } else if (missedStart) {
+      classification = "missed_start";
     } else if (
       startMs <= dataDateMs &&
       finishMs >= dataDateMs
@@ -304,14 +268,17 @@ export function buildLookAheadProjection(
       totalFloatHours:
         activity.totalFloatHours,
       classification,
+      missedPlannedStart: missedStart,
+      finishOverdue: isOverdue,
       predecessorIds:
         activityLogic?.predecessorIds ?? [],
       successorIds:
         activityLogic?.successorIds ?? [],
       readiness: readinessForActivity(
         model,
-        startIso,
-        activityLogic?.predecessorIds ?? [],
+        activity,
+        incoming.get(activity.activityId) ?? [],
+        activityById,
         input.readinessEvidence?.[activity.activityId],
       ),
       daysToStart: Number(
@@ -369,6 +336,14 @@ export function buildLookAheadProjection(
     overdueCount: rows.filter(
       (row) => row.classification === "overdue",
     ).length,
+    missedStartCount: rows.filter(row => row.missedPlannedStart).length,
+    evidenceGapActivityCount: rows.filter(row => row.readiness.unknownCount > 0).length,
+    blockedWithEvidenceGapCount: rows.filter(row => row.readiness.state === "blocked" && row.readiness.unknownCount > 0).length,
+    blockerOccurrenceCount: rows.reduce((sum, row) => sum + row.readiness.blockedCount, 0),
+    readinessCoverage: READINESS_KEYS.map(key => ({ key, denominator: rows.length,
+      knownCount: rows.filter(row => row.readiness.dimensions.find(d => d.key === key)?.state !== "unknown").length,
+      coveragePercent: coverage(rows.filter(row => row.readiness.dimensions.find(d => d.key === key)?.state !== "unknown").length, rows.length),
+    })),
     readyCount: rows.filter(
       (row) => row.readiness.state === "ready",
     ).length,

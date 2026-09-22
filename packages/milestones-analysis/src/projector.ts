@@ -1,3 +1,4 @@
+import { parseScheduleTime } from "../../schedule-analysis-core/src";
 import {
   DEFAULT_SCHEDULE_ANALYSIS_CONFIG,
   nearCriticalThresholdBasis,
@@ -17,7 +18,7 @@ import type {
 
 function dateMs(value: string | null): number | null {
   if (!value) return null;
-  const ms = Date.parse(value);
+  const ms = parseScheduleTime(value);
   return Number.isFinite(ms) ? ms : null;
 }
 
@@ -94,7 +95,7 @@ function managementFlags(
 
   if (row.status !== "completed") {
     if (row.criticality === "critical") {
-      flags.push("CRITICAL_PATH");
+      flags.push("SOURCE_FLOAT_CRITICAL");
     }
     if (row.negativeFloat) {
       flags.push("NEGATIVE_FLOAT");
@@ -183,7 +184,7 @@ function managementAction(
   }
 
   if (row.negativeFloat) {
-    return "Immediate recovery required: validate driving logic, remove constraints, recover time and protect downstream milestones.";
+    return "Investigate submitted negative float and constraints. Validate the driving path and cause before deciding whether recovery is required.";
   }
 
   if (row.criticality === "critical") {
@@ -191,8 +192,8 @@ function managementAction(
       typeof row.varianceDays === "number" &&
       row.varianceDays > 0
     )
-      ? "Critical-path recovery: validate the driving cause, recover lost time and confirm downstream milestone protection."
-      : "Protect the critical path: confirm predecessors, resources, interfaces and approvals before the milestone date.";
+      ? "Investigate baseline movement and submitted critical float; establish the driving logic and cause before selecting mitigation."
+      : "Review submitted critical float: validate predecessors, resources, interfaces and approvals; independent path impact remains to be established.";
   }
 
   if (row.dueState === "overdue") {
@@ -403,14 +404,14 @@ export function buildMilestonesProjection(
     knownFloat,
     rows.length,
   );
-  const criticalPathState =
+  const sourceFloatState =
     knownFloat === 0
       ? "not_established"
       : knownFloat === rows.length
         ? "source_float_established"
         : "source_float_partial";
 
-  const criticalPathRows = open
+  const sourceFloatCriticalRows = open
     .filter(
       (row) => row.criticality === "critical",
     )
@@ -455,7 +456,7 @@ export function buildMilestonesProjection(
         ? "activity_calendar_working_days"
         : "explicit_hours",
     floatCoveragePercent,
-    criticalPathState,
+    sourceFloatState,
     milestoneCount: rows.length,
     completedCount: completed.length,
     openCount: open.length,
@@ -465,7 +466,7 @@ export function buildMilestonesProjection(
         row.daysFromDataDate < 0,
     ).length,
     criticalMilestoneCount:
-      criticalPathRows.length,
+      sourceFloatCriticalRows.length,
     nearCriticalMilestoneCount:
       open.filter(
         (row) =>
@@ -495,12 +496,12 @@ export function buildMilestonesProjection(
         (row) =>
           row.managementPriority === "high",
       ).length,
-    criticalPathMilestoneIds:
-      criticalPathRows.map(
+    sourceFloatCriticalMilestoneIds:
+      sourceFloatCriticalRows.map(
         (row) => row.activityId,
       ),
     terminalCriticalMilestoneIds:
-      criticalPathRows
+      sourceFloatCriticalRows
         .filter(
           (row) => row.terminalMilestone,
         )
