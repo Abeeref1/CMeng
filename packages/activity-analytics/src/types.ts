@@ -55,6 +55,17 @@ export interface ActivityAnalyticsProjection {
   projectId: string | null;
   sourceRevisionId: string;
   activityCount: number;
+  population: {
+    sourceActivityCount: number;
+    executableActivityCount: number;
+    excludedActivityCount: number;
+    excludedByType: {
+      wbsSummaryCount: number;
+      levelOfEffortCount: number;
+      otherExcludedCount: number;
+    };
+    rowPopulation: "all_source_activities";
+  };
   floatCoveragePercent: number | null;
   percentCompleteCoveragePercent: number | null;
   finishVarianceCoveragePercent: number | null;
