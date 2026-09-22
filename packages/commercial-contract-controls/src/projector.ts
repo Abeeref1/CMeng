@@ -1,3 +1,4 @@
+import { reportingScope } from "../../truth-kernel/src";
 import type {
   CommercialFinding,
   CommercialFindingAuthority,
@@ -290,7 +291,14 @@ function variations(
 ): VariationsProjection {
   const rows =
     input.variations.map(
-      (row) => {
+      (sourceRow): VariationLifecycleRecord => {
+        const row={...sourceRow};
+        const stageDates=[row.instructionDate,row.submittedDate,row.quotationDate,row.assessedDate,row.agreedDate,row.approvalDate];
+        const scope = stageDates.some(d=>reportingScope(d,input.dataDateIso)==='as_of')?'as_of':stageDates.some(d=>reportingScope(d,input.dataDateIso)==='future')?'future':'undated';
+        const approvalScope=reportingScope(row.approvalDate,input.dataDateIso);
+        for(const key of ['instructionDate','submittedDate','quotationDate','assessedDate','agreedDate','approvalDate'] as const)if(reportingScope(row[key],input.dataDateIso)!=='as_of')row[key]=null;
+        // Amounts and final status alone cannot reconstruct a historical lifecycle stage.
+        const stage: VariationLifecycleRecord["lifecycleStage"] = row.approvalDate?'approved':row.agreedDate?'agreed':row.assessedDate?'assessed':row.quotationDate?'quoted':row.submittedDate?'submitted':row.instructionDate?'instruction':'unknown';
         const lastOpenDate =
           row.agreedDate ??
           row.assessedDate ??
@@ -301,9 +309,7 @@ function variations(
           Boolean(
             row.approvalDate,
           ) ||
-          /approved|rejected/i.test(
-            row.status,
-          );
+          (stage === 'approved');
         const linkageCount =
           [
             row.instructionId,
@@ -320,8 +326,10 @@ function variations(
             row.variationId,
           description:
             row.description,
-          lifecycleStage:
-            variationStage(row),
+          reportingScope: scope as 'as_of' | 'future' | 'undated',
+          approvalScope,
+          sourceLifecycleStage: variationStage(sourceRow),
+          lifecycleStage: stage,
           status: row.status,
           authority:
             row.authority,
@@ -337,7 +345,7 @@ function variations(
             agreed:
               row.agreedDate,
             approved:
-              row.approvalDate,
+              sourceRow.approvalDate,
           },
           ageDays:
             closed
@@ -606,8 +614,11 @@ function variations(
               rows.length
             ? "established"
             : "partial",
-    recordCount:
-      rows.length,
+    recordCount: rows.length,
+    asOfRecordCount: rows.filter(r=>r.reportingScope==='as_of').length,
+    futureRecordCount: rows.filter(r=>r.reportingScope==='future').length,
+    undatedRecordCount: rows.filter(r=>r.reportingScope==='undated').length,
+    unknownAsOfStageCount: rows.filter(r=>r.lifecycleStage==='unknown').length,
     approvedCount:
       rows.filter(
         (row) =>
@@ -620,6 +631,7 @@ function variations(
           ![
             "approved",
             "rejected",
+            "unknown",
           ].includes(
             row.lifecycleStage,
           ),
@@ -2225,7 +2237,7 @@ function retentionCalendar(
         payment
           .retentionReleaseDate
           ? "release_date_recorded"
-          : "held_unreconciled",
+          : "deduction_unreconciled",
       trigger: null,
       amount:
         moneyFinding(
@@ -2364,13 +2376,7 @@ function retentionCalendar(
       input.retentionCapPercent,
     recordCount:
       rows.length,
-    heldCount:
-      rows.filter(
-        (row) =>
-          /held/i.test(
-            row.state,
-          ),
-      ).length,
+    heldCount: rows.every(row=>row.origin==='payment_deduction')?null:rows.filter(row=>row.state==='held').length,
     releasedCount:
       rows.filter(
         (row) =>

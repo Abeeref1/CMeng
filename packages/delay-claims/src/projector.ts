@@ -1,3 +1,4 @@
+import { reportingScope } from "../../truth-kernel/src";
 import {
   assessAllEventNotices,
   type DelayClaimsModel,
@@ -66,7 +67,7 @@ export function buildDelayClaimsProjection(
     new Map<string, string[]>();
 
   for (const notice of model.notices) {
-    if (!notice.eventId) continue;
+    if (!notice.eventId || (model.dataDateIso && reportingScope(notice.actualIssuedAt,model.dataDateIso)!=='as_of')) continue;
     const target =
       notice.kind === "determination"
         ? determinationsByEvent
@@ -292,17 +293,13 @@ export function buildDelayClaimsProjection(
                 : "claim_event_only",
         evidenceChainMissingLinks,
         observedNetIndependentMovementDays:
-          Number(net.toFixed(6)),
+          overlapping.some(w=>w.independentForecastMovementDays!==null)?Number(net.toFixed(6)):null,
         observedPositiveIndependentMovementDays:
-          Number(positive.toFixed(6)),
+          overlapping.some(w=>w.independentForecastMovementDays!==null)?Number(positive.toFixed(6)):null,
         observedNetProgrammeMovementDays:
-          Number(
-            programmeNet.toFixed(6),
-          ),
+          programmeMovementBasis==='unavailable'?null:Number(programmeNet.toFixed(6)),
         observedPositiveProgrammeMovementDays:
-          Number(
-            programmePositive.toFixed(6),
-          ),
+          programmeMovementBasis==='unavailable'?null:Number(programmePositive.toFixed(6)),
         programmeMovementBasis,
         concurrencyCandidate,
         candidateClass: classify(
@@ -465,11 +462,11 @@ export function buildDelayClaimsProjection(
         unattributed.toFixed(6),
       ),
     employerOrNeutralCandidateWindowMovementDays:
-      Number(employerOrNeutral.toFixed(6)),
+      rows.some(r=>r.responsibility!=='unknown'&&r.responsibilityState==='official')?Number(employerOrNeutral.toFixed(6)):null,
     contractorRiskWindowMovementDays:
-      Number(contractor.toFixed(6)),
+      rows.some(r=>r.responsibility!=='unknown'&&r.responsibilityState==='official')?Number(contractor.toFixed(6)):null,
     concurrentReviewWindowMovementDays:
-      Number(concurrent.toFixed(6)),
+      rows.some(r=>r.responsibility!=='unknown'&&r.responsibilityState==='official')?Number(concurrent.toFixed(6)):null,
 
     events: rows,
     diagnostics: [

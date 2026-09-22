@@ -45,6 +45,8 @@ export interface MilestoneRow {
   currentDateIso: string | null;
   actualDateIso: string | null;
   totalFloatHours: number | null;
+  calendarId: string | null;
+  nearCriticalThresholdHours: number | null;
   varianceDays: number | null;
   daysFromDataDate: number | null;
   dueState: MilestoneDueState;

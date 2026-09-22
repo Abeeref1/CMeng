@@ -215,7 +215,7 @@ export function buildNoticesClaimsProjection(
     eventCount: events.length,
     claimCount: claims.length,
     noticeCount:
-      model.notices.length,
+      model.notices.filter(n=>n.kind!=='determination').length,
 
     timelyNoticeCount:
       events.filter(

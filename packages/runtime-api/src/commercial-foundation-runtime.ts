@@ -256,6 +256,7 @@ export function commercialFoundationForState(
       variations:
         state.controls.variations.map(
           (variation) => ({
+            approvalDate: ledger.variations.find(row=>row.variationId===variation.variationId)?.approvalDate ?? null,
             variationId:
               variation.variationId,
             state:

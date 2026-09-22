@@ -46,6 +46,7 @@ function input(): CommercialFoundationInput {
     variations: [
       {
         variationId: "VO-001",
+        approvalDate: "2026-08-15",
         state: "approved",
         amount: 500_000,
         currency: "AED",
@@ -487,7 +488,7 @@ test("C2A Payment Register keeps application, assessment, certification and paym
   );
   assert.equal(
     register.stageCoveragePercent,
-    100,
+    75,
   );
   assert.deepEqual(
     register.lifecycleCounts,
@@ -495,16 +496,16 @@ test("C2A Payment Register keeps application, assessment, certification and paym
       applied: 1,
       assessed: 1,
       certified: 1,
-      paid: 1,
+      paid: 0,
     },
   );
   assert.deepEqual(
     register.slaCounts,
     {
-      paidOnTime: 1,
+      paidOnTime: 0,
       paidLate: 0,
       overdueUnpaid: 0,
-      openUnpaid: 0,
+      openUnpaid: 1,
       notEstablished: 0,
     },
   );
@@ -543,9 +544,11 @@ test("C2A Payment Register keeps application, assessment, certification and paym
       .paymentDueDate.value,
     "2026-09-07",
   );
+  assert.equal(row.sourceLifecycle.paymentDate,"2026-09-05");
+  assert.equal(row.lifecycle.paymentDate,null,"future payment is retained as source history, not paid at the data date");
   assert.equal(
     row.lifecycle.slaState,
-    "on_time",
+    "open",
   );
 });
 
@@ -575,11 +578,10 @@ test("C2A Payment Register distinguishes overdue unpaid cash from paid-late and 
       paymentId:
         "IPC-LATE-PAID",
       paymentDate:
-        "2026-09-10",
+        "2026-08-25",
       paymentTimestamp:
-        "2026-09-10T10:00:00+04:00",
-      paymentDueDate:
-        "2026-09-01",
+        "2026-08-25T10:00:00+04:00",
+      paymentDueDate: "2026-08-20",
     },
     {
       ...base,
@@ -652,4 +654,14 @@ test("C2A missing CBS mappings stay explicit rather than disappearing or becomin
       "UNMAPPED_COST_ROWS_REMAIN_VISIBLE",
     ),
   );
+});
+
+
+test('Payment periods never substitute for certification events, and future periods stay outside current coverage',()=>{
+ const value=input(); const base=value.payments[0]!;
+ value.payments=[{...base,certificationDate:null,paymentDate:null},{...base,paymentId:'future',periodEnd:'2026-09-30'}];
+ const p=buildCommercialFoundation(value).paymentRegister;
+ assert.equal(p.recordCount,2);assert.equal(p.asOfRecordCount,1);assert.equal(p.futureRecordCount,1);
+ assert.equal(p.rows[0]!.lifecycle.paymentDueDate.value,null);
+ assert.equal(p.slaCounts.notEstablished,1);
 });

@@ -109,6 +109,7 @@ export interface ContractValueInput {
 }
 
 export interface VariationInput {
+  approvalDate?: string | null;
   variationId: string;
   state: "pending" | "approved" | "rejected";
   amount: number;
@@ -273,6 +274,8 @@ export interface CostRegisterProjection {
 }
 
 export interface PaymentRegisterRecord {
+  reportingScope: 'as_of' | 'future' | 'undated';
+  sourceLifecycle: {applicationDate:string|null;assessmentDate:string|null;certificationDate:string|null;paymentDate:string|null};
   paymentId: string;
   paymentType: string | null;
   certifiedAmountBasis: FoundationPaymentSeriesBasis;
@@ -303,6 +306,9 @@ export interface PaymentRegisterRecord {
 }
 
 export interface PaymentRegisterProjection {
+  asOfRecordCount: number;
+  futureRecordCount: number;
+  undatedRecordCount: number;
   capabilityKey: "payment-register";
   state: CommercialFindingState;
   recordCount: number;

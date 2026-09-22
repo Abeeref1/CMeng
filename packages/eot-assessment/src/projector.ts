@@ -68,7 +68,7 @@ function noticeBlocksEvent(
     event.noticeTimeliness ===
       "notice_date_missing"
   ) {
-    return false;
+    return true;
   }
 
   return (

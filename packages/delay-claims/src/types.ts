@@ -36,10 +36,10 @@ export interface DelayClaimEventAssessmentRow {
     | "notice"
     | "determination"
   >;
-  observedNetIndependentMovementDays: number;
-  observedPositiveIndependentMovementDays: number;
-  observedNetProgrammeMovementDays: number;
-  observedPositiveProgrammeMovementDays: number;
+  observedNetIndependentMovementDays: number | null;
+  observedPositiveIndependentMovementDays: number | null;
+  observedNetProgrammeMovementDays: number | null;
+  observedPositiveProgrammeMovementDays: number | null;
   programmeMovementBasis:
     | "matched_activity_finish_shift"
     | "independent_cpm"
@@ -90,9 +90,9 @@ export interface DelayClaimsProjection {
     | "source_schedule_boundary"
     | "unavailable";
   unattributedProgrammeMovementDays: number;
-  employerOrNeutralCandidateWindowMovementDays: number;
-  contractorRiskWindowMovementDays: number;
-  concurrentReviewWindowMovementDays: number;
+  employerOrNeutralCandidateWindowMovementDays: number | null;
+  contractorRiskWindowMovementDays: number | null;
+  concurrentReviewWindowMovementDays: number | null;
 
   events: DelayClaimEventAssessmentRow[];
   diagnostics: string[];

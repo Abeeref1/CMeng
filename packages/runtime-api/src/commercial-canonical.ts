@@ -1,4 +1,4 @@
-import { cell, has, norm, numberValue, dateValue, governedTables, sumKnown, ratio, round, type SourceReceipt, type SourceRow, type FactState } from '../../truth-kernel/src';
+import { cell, has, norm, numberValue, dateValue, governedTables, sumKnown, ratio, round, type SourceReceipt, type SourceRow, type FactState, reportingScope } from '../../truth-kernel/src';
 import { reconcilePaymentEvidence } from './payment-reconciliation';
 import { canonicalTimeClaims, projectDataDate } from './canonical-time-claims';
 import type { ProjectRuntimeState, ModuleRuntimeResult } from './project-state-types';
@@ -123,6 +123,11 @@ export interface CanonicalCommercialModel {
   obligations:CommercialObligationRecord[];
   retentions:CommercialRetentionRecord[];
   costPosition:Array<{ currency:string;taxBasis:string;asOf:string;state:FactState;values:Record<string,number|null>;receipts:SourceReceipt[];diagnostics:string[] }>;
+  temporalPosition?: {
+    payments: {asOfCount:number;futureCount:number;undatedCount:number};
+    variations: {asOfApprovedCount:number;futureApprovalCount:number;undatedApprovalCount:number};
+    money: Array<{currency:string;taxBasis:string;kind:string;asOfValue:number|null;futureValue:number|null;fullValue:number|null;asOfCount:number;futureCount:number;undatedCount:number}>;
+  };
   diagnostics:string[];
 }
 const moneyNames=['applicationAmount','engineerAssessedAmount','employerCertifiedAmount','grossWork','variations','retentionDeduction','advanceRecovery','otherDeduction','taxAmount','netCertifiedAmount','paidAmount','outstandingAmount'] as const;
@@ -335,9 +340,23 @@ export function commercialCanonical(state:ProjectRuntimeState):CanonicalCommerci
   if(get('vac')!==null&&values['calculated vac']!==null&&Math.abs(get('vac')!-values['calculated vac']!)>0.01)issues.push('SOURCE_VAC_DOES_NOT_RECONCILE');
   const orig=get('original contract value'),change=get('approved variations'),current=get('current contract value');
   if(compatible&&orig!==null&&change!==null&&current!==null&&Math.abs(orig+change-current)>0.01)issues.push('CONTRACT_VARIATION_RECONCILIATION_CONFLICT');
+  const variationRows=variations.filter(v=>v.approvedAmount.currency===rows[0]!.amount.currency&&v.approvedAmount.taxBasis===rows[0]!.amount.taxBasis);
+  const datedApproved=variationRows.filter(v=>reportingScope(v.approvalDate,rows[0]!.amount.asOf)==='as_of'&&/approved/i.test(v.status)&&v.approvedAmount.state==='official');
+  const lineTotal=sumKnown(datedApproved.map(v=>v.approvedAmount.value));
+  if(variationRows.length&&lineTotal!==null&&change!==null&&Math.abs(lineTotal-change)>.01)issues.push('DATED_VARIATION_LEDGER_VS_SOURCE_AGGREGATE_CONFLICT');
+  if(variations.some(v=>v.approvedAmount.currency===rows[0]!.amount.currency&&v.approvedAmount.taxBasis!==rows[0]!.amount.taxBasis))issues.push('VARIATION_RECONCILIATION_TAX_BASIS_UNRESOLVED');
   if(!compatible)issues.push('TAX_BASIS_UNKNOWN_DERIVED_METRICS_WITHHELD');
   return {state:rows.some(r=>r.amount.state==='candidate')?'candidate' as const:issues.length?'partial' as const:'official' as const,currency:rows[0]!.amount.currency!,taxBasis:rows[0]!.amount.taxBasis,asOf:rows[0]!.amount.asOf!,values,receipts:rows.flatMap(r=>r.amount.receipts),diagnostics:issues};
  });
- const model:CanonicalCommercialModel={schemaVersion:'1.0',producerVersion:'commercial-canonical-v1',dataDateIso,costMetrics,payments,variations,siteInstructions,insurances,obligations,retentions,costPosition,diagnostics};
+ const temporalMoney = new Map<string,Array<{value:number|null;date:string|null}>>();
+ const collect=(kind:string,amount:CommercialMoney,date:string|null)=>{const key=[amount.currency??'Unknown',amount.taxBasis,kind].join('|');const group=temporalMoney.get(key)??[];group.push({value:amount.value,date});temporalMoney.set(key,group);};
+ for(const row of payments)collect('Retention deductions',row.amounts.retentionDeduction,row.periodEnd);
+ for(const row of variations)if(/approved/i.test(row.status))collect('Approved variation source values',row.approvedAmount,row.approvalDate);
+ const temporalPosition={
+   payments:{asOfCount:payments.filter(r=>reportingScope(r.periodEnd,dataDateIso)==='as_of').length,futureCount:payments.filter(r=>reportingScope(r.periodEnd,dataDateIso)==='future').length,undatedCount:payments.filter(r=>reportingScope(r.periodEnd,dataDateIso)==='undated').length},
+   variations:{asOfApprovedCount:variations.filter(r=>/approved/i.test(r.status)&&reportingScope(r.approvalDate,dataDateIso)==='as_of').length,futureApprovalCount:variations.filter(r=>/approved/i.test(r.status)&&reportingScope(r.approvalDate,dataDateIso)==='future').length,undatedApprovalCount:variations.filter(r=>/approved/i.test(r.status)&&reportingScope(r.approvalDate,dataDateIso)==='undated').length},
+   money:[...temporalMoney].map(([key,rows])=>{const [currency,taxBasis,kind]=key.split('|') as [string,string,string];const asOf=rows.filter(r=>reportingScope(r.date,dataDateIso)==='as_of'),future=rows.filter(r=>reportingScope(r.date,dataDateIso)==='future');return {currency,taxBasis,kind,asOfValue:sumKnown(asOf.map(r=>r.value)),futureValue:sumKnown(future.map(r=>r.value)),fullValue:sumKnown(rows.map(r=>r.value)),asOfCount:asOf.length,futureCount:future.length,undatedCount:rows.length-asOf.length-future.length};}),
+ };
+ const model:CanonicalCommercialModel={schemaVersion:'1.0',producerVersion:'commercial-canonical-v1',dataDateIso,costMetrics,payments,variations,siteInstructions,insurances,obligations,retentions,costPosition,temporalPosition,diagnostics};
  cache.set(state,{version:state.version,value:model});return model;
 }

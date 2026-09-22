@@ -1,3 +1,4 @@
+import { reportingScope } from "../../truth-kernel/src";
 import type {
   CbsBreakdownProjection,
   CbsNode,
@@ -565,7 +566,7 @@ function contractValueRows(
               variation.currency ===
                 currency &&
               variation.state ===
-                "approved",
+                "approved" && reportingScope(variation.approvalDate,input.dataDateIso)==='as_of',
           );
       const approvedValue =
         approvedRows.length
@@ -610,8 +611,12 @@ function contractValueRows(
               1,
           },
         );
+      const approvalDatesMissing = input.variations.some(
+        variation => variation.currency === currency && variation.state === "approved" &&
+          reportingScope(variation.approvalDate, input.dataDateIso) === "undated",
+      );
       const currentValue =
-        original.value !== null
+        original.value !== null && !approvalDatesMissing
           ? original.value +
             (
               approvedValue ??
@@ -1046,7 +1051,7 @@ function buildCommercialTerms(
             .incorporatedEotDays,
         state: amendment.state,
         actions:
-          amendment.actions.map(
+          amendment.actions.filter((action,index,rows)=>rows.findIndex(other=>other.targetIdentifier===action.targetIdentifier&&other.action===action.action&&other.status===action.status)===index).map(
             (action) => ({
               ...action,
             }),
@@ -1582,9 +1587,17 @@ function buildPaymentRegister(
   terms:
     CommercialTermsProjection,
 ): PaymentRegisterProjection {
-  const rows =
+  const sourceRows =
     input.payments.map(
-      (payment) => {
+      (sourcePayment) => {
+        const scope = reportingScope(sourcePayment.periodEnd, input.dataDateIso);
+        const currentDate = (date: string | null) => reportingScope(date,input.dataDateIso)==='as_of'?date:null;
+        const payment = {...sourcePayment,
+          applicationDate:currentDate(sourcePayment.applicationDate),
+          assessmentDate:currentDate(sourcePayment.assessmentDate),
+          certificationDate:currentDate(sourcePayment.certificationDate),
+          paymentDate:currentDate(sourcePayment.paymentDate),
+        };
         const certificationDueDate =
           dateDueFinding(
             payment
@@ -1598,9 +1611,7 @@ function buildPaymentRegister(
         const paymentDueDate =
           dateDueFinding(
             payment.paymentDueDate,
-            payment
-              .certificationDate ??
-              payment.periodEnd,
+            payment.certificationDate,
             terms
               .paymentPeriodDays,
             "certification_date_plus_contract_payment_period",
@@ -1630,6 +1641,8 @@ function buildPaymentRegister(
           ].filter(Boolean)
             .length;
         return {
+          reportingScope: scope,
+          sourceLifecycle: {applicationDate:sourcePayment.applicationDate,assessmentDate:sourcePayment.assessmentDate,certificationDate:sourcePayment.certificationDate,paymentDate:sourcePayment.paymentDate},
           paymentId:
             payment.paymentId,
           paymentType:
@@ -1695,6 +1708,7 @@ function buildPaymentRegister(
         };
       },
     );
+  const rows = sourceRows.filter(row=>row.reportingScope==='as_of');
   const stageKnown =
     rows.reduce(
       (sum, row) =>
@@ -1846,8 +1860,10 @@ function buildPaymentRegister(
             stageTotal
           ? "established"
           : "partial",
-    recordCount:
-      rows.length,
+    recordCount: sourceRows.length,
+    asOfRecordCount: rows.length,
+    futureRecordCount: sourceRows.filter(row=>row.reportingScope==='future').length,
+    undatedRecordCount: sourceRows.filter(row=>row.reportingScope==='undated').length,
     stageCoveragePercent:
       coverage(
         stageKnown,
@@ -1856,7 +1872,7 @@ function buildPaymentRegister(
     lifecycleCounts,
     slaAssessmentState,
     slaCounts,
-    rows,
+    rows: sourceRows,
     diagnostics: [
       "APPLIED_ASSESSED_CERTIFIED_AND_PAID_STAGES_REMAIN_SEPARATE",
       "PAYMENT_SLA_USES_ACTUAL_EVENT_DATES_NOT_PLANNED_DATES",

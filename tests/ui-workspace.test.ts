@@ -512,13 +512,13 @@ test("CMeng workspace keeps the active module primary and browser script parseab
   for (
     const cashFlowVisual of [
       "Cash Flow & Funding",
-      "Current evidenced net cash",
-      "Current cash position",
+      "Observed receipts less expenditure",
+      "Observed receipts less expenditure",
       "Missing cash is never treated as zero",
       "Actual cash receipts",
       "Actual cash expenditure",
-      "Cash-flow S-curve & funding position",
-      "A funding curve requires at least two producer-certified net-cash points.",
+      "Observed cash history",
+      "A historical cash curve requires at least two comparable observed receipt/expenditure points.",
       "Governed dated cash-flow register",
       "Calculation trace",
       "Evidence & governance",
@@ -654,7 +654,7 @@ test("CMeng workspace keeps the active module primary and browser script parseab
   for (
     const commercialManagementVisual of [
       "Executive Commercial Position",
-      "Cost S-Curve & Forecast Position",
+      "Cost Snapshot & Forecast Position",
       "EVM Curves & Performance Indices",
       "Cost Control Management Position",
       "EAC scenario range",
@@ -745,7 +745,7 @@ test("CMeng workspace keeps the active module primary and browser script parseab
   for (
     const finalCommercialVisual of [
       "Commercial Claims & Notices Management Position",
-      "Claim lifecycle distribution",
+      "Source claim lifecycle distribution",
       "Notice timeliness position",
       "Notice / correspondence lifecycle",
       "Contract Particulars, Securities & Obligations Management Position",
@@ -957,7 +957,7 @@ test("CMeng workspace keeps the active module primary and browser script parseab
 
   const costCurvePosition =
     html.indexOf(
-      "Cost S-Curve & Forecast Position",
+      "Cost Snapshot & Forecast Position",
     );
   const costExecutivePosition =
     html.indexOf(
@@ -977,13 +977,13 @@ test("CMeng workspace keeps the active module primary and browser script parseab
   );
   for (
     const milestoneChartFeature of [
-      "Milestone movement & criticality control chart",
-      "MILESTONE DATE SCALE",
+      "Milestone movement & criticality",
+      "common calendar axis",
       "Controlled baseline",
       "Current forecast",
-      "Red ring = submitted float critical",
-      "true calendar-date scale",
-      "FLOAT / DUE",
+      "Submitted float critical",
+      "priority representatives from",
+      "All milestone records remain below.",
     ]
   ) {
     assert.equal(

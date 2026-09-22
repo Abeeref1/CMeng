@@ -202,6 +202,7 @@ export interface NoticeRequirement {
 }
 
 export interface DelayClaimsModel {
+  dataDateIso?: string | null;
   projectId: string;
   evidenceRevisionId: string;
   events: CanonicalDelayEvent[];

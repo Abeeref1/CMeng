@@ -1,3 +1,4 @@
+import { reportingScope } from "../../truth-kernel/src";
 import type {
   CommercialFinding,
   CommercialFindingAuthority,
@@ -1051,7 +1052,7 @@ function costControl(
           ? ac.value
           : null,
         compatibleMoneyBasis
-          ? cpi.value
+          ? cpiValue
           : null,
         sourceEac,
         sourceEtc,
@@ -1581,19 +1582,28 @@ function cashFlow(
   const currencies:
     CashFlowCurrencyPosition[] =
     [];
-  for (
-    const currency of
-      [...currencySet].sort()
-  ) {
+  const partitions=[...new Set([
+    ...input.payments.filter(p=>p.currency).map(p=>p.currency+'|'+(p.taxBasis??'unknown')),
+    ...input.costMetrics.filter(m=>m.currency).map(m=>m.currency+'|'+m.taxBasis),
+  ])].sort();
+  const fullInput=input;
+  for (const partition of partitions) {
+    const [currency,tax]=partition.split('|') as [string,'exclusive'|'inclusive'|'unknown'];
+    const taxBasis=tax;
+    const knownTaxBasis=taxBasis!=='unknown';
+    const input={...fullInput,
+      payments:fullInput.payments.filter(p=>p.currency===currency&&(p.taxBasis??'unknown')===taxBasis),
+      costMetrics:fullInput.costMetrics.filter(m=>m.currency===currency&&m.taxBasis===taxBasis),
+    };
     const entries:
       CashFlowEntry[] = [];
     const cashDiagnostics:
-      string[] = [];
+      string[] = knownTaxBasis ? [] : ['TAX_BASIS_UNKNOWN_CASH_AGGREGATION_WITHHELD'];
     const payments =
       input.payments.filter(
         (payment) =>
           payment.currency ===
-          currency,
+          currency && reportingScope(payment.periodEnd??payment.paymentDate,input.dataDateIso)==='as_of',
       );
 
     const addPaymentSeries = (
@@ -1621,9 +1631,7 @@ function cashFlow(
                     .paidAmountBasis,
               date: isCertified
                 ? (
-                    payment
-                      .certificationDate ??
-                    payment.periodEnd
+                    payment.certificationDate
                   )
                 : payment
                     .paymentDate,
@@ -1739,11 +1747,14 @@ function cashFlow(
         return;
       }
 
-      // Explicit project-cumulative series are converted to period deltas.
-      let prior = 0;
+      // A nonzero first cumulative observation is a balance, not a period transaction.
+      if(eligible[0]!.value!==0){cashDiagnostics.push('CUMULATIVE_OPENING_BASIS_REQUIRED');return;}
+      // Convert only after an explicit zero opening observation.
+      let prior: number | null = null;
       const staged:
         CashFlowEntry[] = [];
       for (const row of eligible) {
+        if(prior===null){prior=row.value!;cashDiagnostics.push('OPENING_CUMULATIVE_OBSERVATION_IS_NOT_PERIOD_CASH');continue;}
         const delta =
           row.value! - prior;
         if (delta < -0.01) {
@@ -1837,8 +1848,7 @@ function cashFlow(
       certifiedAmountRows.filter(
         (payment) =>
           Boolean(
-            payment.certificationDate ??
-            payment.periodEnd,
+            payment.certificationDate,
           ),
       );
     const paidAmountRows =
@@ -2075,6 +2085,7 @@ function cashFlow(
           continue;
         }
 
+        if(ordered[0]?.value!==0){cashDiagnostics.push('CUMULATIVE_OPENING_BASIS_REQUIRED');continue;}
         let prior = 0;
         const staged:
           CashFlowEntry[] = [];
@@ -2169,6 +2180,7 @@ function cashFlow(
       kind:
         CashFlowEntry["kind"],
     ) => {
+      if (!knownTaxBasis) return null;
       const rows =
         entries.filter(
           (entry) =>
@@ -2367,6 +2379,7 @@ function cashFlow(
       kind:
         CashFlowEntry["kind"],
     ): number | null => {
+      if (!knownTaxBasis) return null;
       const rows =
         entries.filter(
           (entry) =>
@@ -2375,7 +2388,7 @@ function cashFlow(
             entry.kind === kind,
         );
       if (!rows.length) {
-        return 0;
+        return null;
       }
       return sumKnown(
         rows.map(
@@ -2531,6 +2544,7 @@ function cashFlow(
       });
     }
 
+    if(cumulativeActualSeries.some(point=>point.net===null))peakNeed=null;
     const periods =
       uniq(
         dates.map(
@@ -2549,7 +2563,7 @@ function cashFlow(
               boolean,
           ):
             number | null => {
-            if (!established) {
+            if (!established || !knownTaxBasis) {
               return null;
             }
             const rows =
@@ -2563,7 +2577,7 @@ function cashFlow(
                     ),
               );
             if (!rows.length) {
-              return 0;
+              return null;
             }
             return sumKnown(
               rows.map(
@@ -2612,7 +2626,7 @@ function cashFlow(
             actualNetCashMovement:
               paid !== null &&
               actual !== null
-                ? paid - actual
+                && knownTaxBasis ? paid - actual
                 : null,
           };
         },
@@ -2653,7 +2667,7 @@ function cashFlow(
       certifiedDatedRows.length ===
         0
         ? "missing" as const
-        : isAggregableCashBasis(
+        : knownTaxBasis && hasCertifiedIncome && isAggregableCashBasis(
               certifiedBasis,
             )
           ? "ready" as const
@@ -2664,7 +2678,7 @@ function cashFlow(
       paidDatedRows.length ===
         0
         ? "missing" as const
-        : isAggregableCashBasis(
+        : knownTaxBasis && hasPaidIncome && isAggregableCashBasis(
               paidBasis,
             )
           ? "ready" as const
@@ -2673,7 +2687,7 @@ function cashFlow(
       actualExpenditureRows.length ===
         0
         ? "missing" as const
-        : isAggregableCashBasis(
+        : knownTaxBasis && hasActualExpenditure && isAggregableCashBasis(
               actualExpenditureBasis,
             )
           ? "ready" as const
@@ -2682,7 +2696,7 @@ function cashFlow(
       expenditureBudgetRows.length ===
         0
         ? "missing" as const
-        : isAggregableCashBasis(
+        : knownTaxBasis && hasBudget && isAggregableCashBasis(
               expenditureBudgetBasis,
             )
           ? "ready" as const
@@ -2691,7 +2705,7 @@ function cashFlow(
       expenditureForecastRows.length ===
         0
         ? "missing" as const
-        : isAggregableCashBasis(
+        : knownTaxBasis && hasForecast && isAggregableCashBasis(
               expenditureForecastBasis,
             )
           ? "ready" as const
@@ -2823,8 +2837,8 @@ function cashFlow(
         consequence:
           forwardPlanState ===
           "ready"
-            ? "Budget and forecast cash-expenditure series are both available for forward funding analysis."
-            : "Forward funding cannot be fully analysed until explicit dated cash budget and cash forecast series are established.",
+            ? "Budget and forecast expenditure series are available. Forward funding still requires planned receipts, opening cash and facilities."
+            : "Dated expenditure plans are incomplete. Forward funding also requires planned receipts, opening cash and facilities.",
         action:
           forwardPlanState ===
           "ready"
@@ -2844,6 +2858,7 @@ function cashFlow(
 
     currencies.push({
       currency,
+      taxBasis,
       entries,
       certifiedIncome,
       paidIncome,

@@ -1,3 +1,4 @@
+import { commercialFoundationForState } from "./commercial-foundation-runtime";
 import { parseScheduleTime } from "../../schedule-analysis-core/src";
 import { checkProjectionIntegrity } from "./projection-integrity";
 import { resolveRevisionActivityCorrespondence } from "../../schedule-revision-core/src";
@@ -6195,12 +6196,7 @@ function buildSpecialistModuleFast(
         producerVersion:
           "delivery-challenge-fast-v2",
         schedule: model,
-        quantities:
-          state.quantities &&
-          state.quantities
-            .allocations.length > 0
-            ? state.quantities
-            : null,
+        quantities: state.quantities,
         resources:
           resources &&
           resources.assignments
@@ -6271,8 +6267,7 @@ function buildSpecialistModuleFast(
               ? "Governed contract value is established."
               : "Contract value evidence remains ungoverned until confirmed.",
         },
-        independentForecastState:
-          "deferred",
+        independentForecastState: independentForecastReviewReason(sourceForecast) ? "review_required" : "calculated",
       },
       [
         "current programme",
@@ -6844,10 +6839,47 @@ function resolveProjectModule(state: ProjectRuntimeState, key: string): ModuleRu
   const controlBasis = projectScheduleControlBasis(state);
   if (result.data && typeof result.data === "object") {
     const data = result.data as Record<string, any>;
+    const time = canonicalTimeClaims(state);
+    const forecast = ["milestones", "independent-forecast"].includes(key) ? cachedIndependentForecast(model, new Date().toISOString()) : null;
+    const forecastReview = forecast ? independentForecastReviewReason(forecast) : null;
     result.data = { ...data, controlBasis,
+      ...(key==='eot-assessment'?{sourceForecastCompletionIso:sourceOnlyForecast(model,new Date().toISOString()).sourceForecastCompletionIso}:{}),
+      ...(key==='notices-claims'?{contractNoticePeriod:commercialFoundationForState(state).commercialTerms.noticePeriodDays}:{}),
+      ...(["milestones", "independent-forecast", "notices-claims"].includes(key) ? {
+        contractualCompletionIso: time.contractTimeBasis?.contractualCompletionIso ?? null,
+        effectiveDeterminationDays: time.effectiveDeterminationDays,
+        registerDeterminationDays: time.registerDeterminationDays,
+        futureDeterminationCount: time.futureDeterminationCount,
+      } : {}),
+      ...(key === "milestones" ? {
+        independentDrivingPathState: forecastReview ? "review_required" : forecast?.complete ? "calculated_requires_path_validation" : "not_established",
+        independentDrivingPathReason: forecastReview ?? "CPM calculation coverage does not by itself validate a milestone driving path.",
+        rows: (data.rows ?? []).map((row: any) => {
+          const activity = model.activities.find(a => a.activityId === row.activityId);
+          return {...row, calendarId: activity?.calendarId ?? null};
+        }),
+      } : {}),
+      ...(key === "independent-forecast" ? {
+        requiredFinishIso: time.contractTimeBasis?.contractualCompletionIso ?? data.requiredFinishIso ?? null,
+        probabilistic: {...data.probabilistic,
+          ...(forecastReview ? {status:"unavailable",p50CompletionIso:null,p80CompletionIso:null,p90CompletionIso:null} : {}),
+          suppressionReason: forecastReview,
+        },
+        forecastTaxonomy: {...data.forecastTaxonomy,
+          probabilistic: {...data.forecastTaxonomy?.probabilistic,
+            ...(forecastReview ? {state:"suppressed",p50CompletionIso:null,p80CompletionIso:null,p90CompletionIso:null} : {}),
+          },
+        },
+      } : {}),
       ...(key === "milestones" ? { movementDistribution: numericDistribution((data.rows ?? []).map((row: any)=>row.varianceDays)) } : {}),
       ...(key === "activity-analytics" ? { movementDistribution: numericDistribution((data.rows ?? []).map((row: any)=>row.finishVarianceDays)) } : {}),
     };
+  }
+  if(key==='milestones'&&controlBasis.state!=='official'){
+    result.status='partial';
+    result.professionalState='review_required';
+    result.evidenceState='partial';
+    result.reason='Milestones use submitted float and a '+controlBasis.nearCriticalThresholdMethod.replaceAll('_',' ')+' threshold. Contractual threshold authority and independent driving-path validation remain separate.';
   }
   return checkProjectionIntegrity(result, model, controlBasis.analysisConfig);
 }
