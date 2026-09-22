@@ -6520,6 +6520,36 @@ function applyProfessionalModuleState(
   };
 
   if (
+    result.key === "progress-report"
+  ) {
+    const bases =
+      data?.progressBases;
+    const externalEstablished =
+      bases?.contractorReported
+        ?.valuePercent !== null &&
+      bases?.contractorReported
+        ?.valuePercent !== undefined ||
+      bases?.certified
+        ?.valuePercent !== null &&
+      bases?.certified
+        ?.valuePercent !== undefined ||
+      (
+        bases?.physical
+          ?.valuePercent !== null &&
+        bases?.physical
+          ?.valuePercent !== undefined &&
+        bases?.physical
+          ?.authority ===
+          "source_evidence"
+      );
+    if (!externalEstablished) {
+      review(
+        "Schedule-derived progress is available, but contractor-reported, certified or independently sourced physical progress is not established.",
+      );
+    }
+  }
+
+  if (
     result.key === "delay-claims"
   ) {
     const eventCount =
