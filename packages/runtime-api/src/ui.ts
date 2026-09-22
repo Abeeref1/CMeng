@@ -1181,9 +1181,10 @@ function renderLineChart(points,series,yMaxHint=null,options={}){
   const plotW=width-left-right,plotH=height-top-bottom;
   const observedMin=Math.min(...numeric),observedMax=Math.max(...numeric);
   const signed=observedMin<0;
-  const range=Math.max(1,observedMax-observedMin);
-  const minY=yMaxHint!==null?0:signed?Math.min(0,observedMin-range*.08):0;
-  const maxY=yMaxHint!==null?yMaxHint:Math.max(1,observedMax+range*.1);
+  const range=Math.max(observedMax-observedMin,Math.max(0.01,Math.abs(observedMax)*0.02));
+  const zeroBaseline=options.zeroBaseline!==false;
+  const minY=yMaxHint!==null?0:signed?Math.min(0,observedMin-range*.08):zeroBaseline?0:Math.max(0,observedMin-range*.12);
+  const maxY=yMaxHint!==null?yMaxHint:Math.max(minY+.0001,observedMax+range*.12);
   const span=Math.max(.0001,maxY-minY);
 
   const x=index=>{
@@ -1575,7 +1576,7 @@ function renderEotVisual(data){
     {label:"Attributable EOT candidate",value:typeof p.attributableCandidateEotDays==="number"?p.attributableCandidateEotDays:null}
   ],"d");
   const visualOverview='<div class="visual-chart-grid">'+
-    renderVisualPanel("Time-position bridge","Schedule movement, time-impact analysis and EOT candidate remain separate measures.",movementVisual)+
+    renderVisualPanel("Time-position comparison","Schedule movement, time-impact analysis and EOT candidate remain separate measures.",movementVisual)+
     renderVisualPanel("Determination timing","Engineer determinations split by the current programme Data Date.",determinationVisual)+
   '</div>';
   const reconciliation=recon?'<section class="planning-panel"><div class="planning-panel-head"><div><h4>Amendment and determination reconciliation</h4><p>As-of date: '+escapeHtml(planningShortDate(recon.dataDateIso))+'.</p></div></div><div class="planning-panel-body">'+planningKpis([["EOT incorporated in amendment",fmt(recon.incorporatedEotDays)+" d","already inside revised completion"],["Full determination register",fmt(recon.registerDeterminationDays)+" d",(recon.registerDeterminationCount===null||recon.registerDeterminationCount===undefined?"population not stated":fmt(recon.registerDeterminationCount)+" immutable determination(s)")],["Determinations by Data Date",recon.effectiveDeterminationCount===null||recon.effectiveDeterminationCount===undefined?"—":fmt(recon.effectiveDeterminationCount),"cutoff-controlled population"],["Additional approved EOT",recon.additionalApprovedEotDays===null?"Unresolved":fmt(recon.additionalApprovedEotDays)+" d","never register total plus amendment"]])+'<div class="notice warn">'+(recon.overlapResolution==="unresolved"?"Amendment incorporation has not been reconciled to the determination register. No additional days are applied to the revised contractual completion.":"Additional awards have an explicit incorporation reconciliation.")+'</div></div></section>':"";
@@ -3016,7 +3017,7 @@ function renderCommercialVisual(key,data){
             renderLineChart(points,[
               {key:"spi",label:"SPI",tone:"accent"},
               {key:"cpi",label:"CPI",tone:"success"}
-            ],null,{yLabel:"Index",xLabel:"Reporting date"})
+            ],null,{yLabel:"Index",xLabel:"Reporting date",zeroBaseline:false})
           )+
           '</div>';
       }).join("");
