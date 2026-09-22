@@ -543,47 +543,23 @@ async function route(
             runtimeProjects.latestSchedule(
               projectId,
             );
-          const receiptStates =
-            new Map(
-              (
-                state.lastRerunReceipt
-                  ?.moduleResults ??
-                []
-              ).map(
-                (item) => [
-                  item.key,
-                  item.status,
-                ],
-              ),
-            );
           const moduleStatuses = [
-            ...scheduleModules.map(
-              (module) => ({
+            ...scheduleModules,
+            ...commercialModules,
+          ].map(
+            (module) => {
+              const resolved =
+                moduleForProject(
+                  projectId,
+                  module.key,
+                );
+              return {
                 key: module.key,
                 status:
-                  receiptStates.get(
-                    module.key,
-                  ) ??
-                  (
-                    programmeSchedules
-                      .length > 0
-                      ? "partial"
-                      : "blocked"
-                  ),
-              }),
-            ),
-            ...commercialModules.map(
-              (module) => ({
-                key: module.key,
-                status:
-                  canonicalCommercialModule(
-                    state,
-                    module.key,
-                  )?.status ??
-                  "partial",
-              }),
-            ),
-          ];
+                  resolved.status,
+              };
+            },
+          );
           const readyModules =
             moduleStatuses.filter(
               (module) =>
