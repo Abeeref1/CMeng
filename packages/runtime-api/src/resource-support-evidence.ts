@@ -17,6 +17,10 @@ export interface WeeklyResourceCapacityPoint {
   sourceRef: string;
 }
 
+export interface WeeklyResourceCapacityOptions {
+  dataDateIso?: string | null;
+}
+
 export interface WeeklyResourceCapacitySummary {
   state:
     | "available"
@@ -230,10 +234,18 @@ function iso(
 export function weeklyResourceCapacityEvidence(
   documents:
     readonly StoredEvidenceDocument[],
+  options:
+    WeeklyResourceCapacityOptions = {},
 ): WeeklyResourceCapacitySummary {
   const diagnostics: string[] = [];
   const points:
     WeeklyResourceCapacityPoint[] = [];
+  const dataDateMs =
+    options.dataDateIso
+      ? Date.parse(options.dataDateIso)
+      : Number.NaN;
+  let futureActualUsageWithheldCount =
+    0;
 
   const candidates =
     documents.filter(
@@ -384,6 +396,35 @@ export function weeklyResourceCapacityEvidence(
       if (!resourceId) {
         continue;
       }
+      const weekStartIso =
+        iso(
+          cell(
+            row,
+            weekIndex,
+          ),
+        );
+      const sourceActualApprovedUsage =
+        numeric(
+          cell(
+            row,
+            actualIndex,
+          ),
+        );
+      const weekStartMs =
+        weekStartIso
+          ? Date.parse(weekStartIso)
+          : Number.NaN;
+      const futureActual =
+        sourceActualApprovedUsage !==
+          null &&
+        Number.isFinite(dataDateMs) &&
+        Number.isFinite(weekStartMs) &&
+        weekStartMs > dataDateMs;
+      if (futureActual) {
+        futureActualUsageWithheldCount +=
+          1;
+      }
+
       points.push({
         resourceId,
         resourceName:
@@ -391,13 +432,7 @@ export function weeklyResourceCapacityEvidence(
             row,
             resourceNameIndex,
           ) || null,
-        weekStartIso:
-          iso(
-            cell(
-              row,
-              weekIndex,
-            ),
-          ),
+        weekStartIso,
         availableCapacity:
           numeric(
             cell(
@@ -413,12 +448,9 @@ export function weeklyResourceCapacityEvidence(
             ),
           ),
         actualApprovedUsage:
-          numeric(
-            cell(
-              row,
-              actualIndex,
-            ),
-          ),
+          futureActual
+            ? null
+            : sourceActualApprovedUsage,
         unit:
           cell(
             row,
@@ -431,6 +463,16 @@ export function weeklyResourceCapacityEvidence(
           (rowIndex + 1),
       });
     }
+  }
+
+  if (
+    futureActualUsageWithheldCount >
+    0
+  ) {
+    diagnostics.push(
+      "FUTURE_RESOURCE_ACTUAL_USAGE_WITHHELD_AFTER_DATA_DATE:" +
+        futureActualUsageWithheldCount,
+    );
   }
 
   const rawByResourceWeek =
