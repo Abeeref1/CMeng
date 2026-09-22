@@ -1676,43 +1676,89 @@ function planningSignedBars(items,unit){
   }).join("")+'</div>';
 }
 function planningDateTrend(points,series){
-  const width=960,height=290,left=112,right=24,top=22,bottom=48;
+  const width=960,height=308,left=118,right=26,top=24,bottom=58;
   const prepared=points.map((point,index)=>{
-    const result={label:point.dateIso||("Revision "+(index+1)),values:{}};
-    series.forEach(s=>{result.values[s.key]=planningDateMs(point[s.key]);});
-    return result;
+    const raw=point.dateIso||null;
+    const values={};
+    series.forEach(item=>{values[item.key]=planningDateMs(point[item.key]);});
+    return {label:raw||("Revision "+(index+1)),xMs:raw?planningDateMs(raw):null,values};
   });
   const vals=[];
-  prepared.forEach(p=>series.forEach(s=>{const v=p.values[s.key];if(typeof v==="number")vals.push(v)}));
+  prepared.forEach(point=>series.forEach(item=>{
+    const value=point.values[item.key];
+    if(typeof value==="number")vals.push(value);
+  }));
   if(!vals.length)return '<div class="empty-visual">No completion-date trend is available.</div>';
+
   let min=Math.min(...vals),max=Math.max(...vals);
   if(min===max){min-=14*86400000;max+=14*86400000}
-  const pad=Math.max(7*86400000,(max-min)*.08);min-=pad;max+=pad;
+  const pad=Math.max(7*86400000,(max-min)*.08);
+  min-=pad;max+=pad;
+
+  const validX=prepared.filter(point=>typeof point.xMs==="number");
+  const useDateScale=validX.length===prepared.length&&new Set(validX.map(point=>point.xMs)).size>1;
+  const xMin=useDateScale?Math.min(...validX.map(point=>point.xMs)):0;
+  const xMax=useDateScale?Math.max(...validX.map(point=>point.xMs)):Math.max(1,prepared.length-1);
   const pw=width-left-right,ph=height-top-bottom;
-  const x=i=>left+(prepared.length===1?pw/2:(i/(prepared.length-1))*pw);
-  const y=v=>top+ph-((v-min)/(max-min))*ph;
-  const ticks=[0,.25,.5,.75,1].map(r=>{
-    const ms=min+r*(max-min),yy=y(ms);
-    return '<line x1="'+left+'" y1="'+yy.toFixed(1)+'" x2="'+(width-right)+'" y2="'+yy.toFixed(1)+'" stroke="#e4eaf1"/><text x="'+(left-9)+'" y="'+(yy+4).toFixed(1)+'" text-anchor="end" font-size="10" fill="#75849a">'+escapeHtml(planningShortDate(new Date(ms).toISOString()))+'</text>';
+  const x=index=>useDateScale
+    ? left+(((prepared[index].xMs-xMin)/Math.max(1,xMax-xMin))*pw)
+    : left+(prepared.length===1?pw/2:(index/Math.max(1,prepared.length-1))*pw);
+  const y=value=>top+ph-((value-min)/(max-min))*ph;
+
+  const ticks=[0,.25,.5,.75,1].map(ratio=>{
+    const ms=min+ratio*(max-min),yy=y(ms);
+    return '<line x1="'+left+'" y1="'+yy.toFixed(1)+'" x2="'+(width-right)+'" y2="'+yy.toFixed(1)+'" stroke="#e4eaf1"/>'+
+      '<text x="'+(left-9)+'" y="'+(yy+4).toFixed(1)+'" text-anchor="end" font-size="10" fill="#75849a">'+escapeHtml(planningShortDate(new Date(ms).toISOString()))+'</text>';
   }).join("");
-  const paths=series.map(s=>{
-    let segments=[],current=[];
-    prepared.forEach((p,i)=>{
-      const v=p.values[s.key];
-      if(typeof v==="number"){current.push(x(i).toFixed(1)+","+y(v).toFixed(1))}
-      else if(current.length){segments.push(current);current=[]}
+
+  const paths=series.map(item=>{
+    const segments=[];
+    let current=[];
+    prepared.forEach((point,index)=>{
+      const value=point.values[item.key];
+      if(typeof value==="number"){
+        current.push(x(index).toFixed(1)+","+y(value).toFixed(1));
+      }else if(current.length){
+        segments.push(current);
+        current=[];
+      }
     });
     if(current.length)segments.push(current);
-    return segments.map(seg=>'<polyline points="'+seg.join(" ")+'" fill="none" stroke="'+s.color+'" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>').join("");
+    return segments.map(segment=>'<polyline points="'+segment.join(" ")+'" fill="none" stroke="'+item.color+'" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>').join("");
   }).join("");
-  const pointsSvg=series.map(s=>prepared.map((p,i)=>{
-    const v=p.values[s.key];if(typeof v!=="number")return"";
-    return '<circle cx="'+x(i).toFixed(1)+'" cy="'+y(v).toFixed(1)+'" r="3.5" fill="'+s.color+'"><title>'+escapeHtml(s.label+" · "+planningShortDate(new Date(v).toISOString())+" · "+p.label)+'</title></circle>';
+
+  const pointsSvg=series.map(item=>prepared.map((point,index)=>{
+    const value=point.values[item.key];
+    if(typeof value!=="number")return "";
+    return '<circle cx="'+x(index).toFixed(1)+'" cy="'+y(value).toFixed(1)+'" r="3.5" fill="'+item.color+'" tabindex="0"><title>'+
+      escapeHtml(item.label+" · "+planningShortDate(new Date(value).toISOString())+" · "+point.label)+'</title></circle>';
   }).join("")).join("");
-  const labelIndexes=[0,Math.floor((prepared.length-1)/2),prepared.length-1].filter((v,i,a)=>a.indexOf(v)===i);
-  const labels=labelIndexes.map(i=>{const raw=prepared[i].label;const label=planningDateMs(raw)!==null?planningShortDate(raw):planningRevisionLabel(raw);return'<text x="'+x(i).toFixed(1)+'" y="'+(height-15)+'" text-anchor="'+(i===0?"start":i===prepared.length-1?"end":"middle")+'" font-size="10" fill="#75849a">'+escapeHtml(label)+'</text>'}).join("");
-  const legend='<div class="chart-legend">'+series.map(s=>'<span class="legend-item"><span class="legend-dot" style="background:'+s.color+'"></span>'+escapeHtml(s.label)+'</span>').join("")+'</div>';
-  return legend+'<div class="chart-scroll"><svg class="svg-chart" viewBox="0 0 '+width+' '+height+'">'+ticks+paths+pointsSvg+labels+'</svg></div>';
+
+  let labels="";
+  if(useDateScale){
+    labels=[0,.5,1].map((ratio,index)=>{
+      const ms=xMin+((xMax-xMin)*ratio);
+      const xx=left+(pw*ratio);
+      return '<text x="'+xx.toFixed(1)+'" y="'+(height-20)+'" text-anchor="'+(index===0?"start":index===2?"end":"middle")+'" font-size="10" fill="#75849a">'+
+        escapeHtml(planningShortDate(new Date(ms).toISOString()))+'</text>';
+    }).join("");
+  }else{
+    const labelIndexes=[0,Math.floor((prepared.length-1)/2),prepared.length-1].filter((value,index,array)=>array.indexOf(value)===index);
+    labels=labelIndexes.map(index=>
+      '<text x="'+x(index).toFixed(1)+'" y="'+(height-20)+'" text-anchor="'+(index===0?"start":index===prepared.length-1?"end":"middle")+'" font-size="10" fill="#75849a">'+
+      escapeHtml(planningRevisionLabel(prepared[index].label))+'</text>'
+    ).join("");
+  }
+
+  const legend='<div class="chart-legend">'+series.map(item=>
+    '<span class="legend-item"><span class="legend-dot" style="background:'+item.color+'"></span>'+escapeHtml(item.label)+'</span>'
+  ).join("")+'</div>';
+  const toolbar='<div class="chart-canvas-toolbar"><span>'+(useDateScale?'True reporting-date spacing':'Ordered revision spacing')+' · '+escapeHtml(prepared.length)+' revisions</span>'+
+    '<button class="chart-canvas-focus-button" type="button">Expand chart</button></div>';
+
+  return '<div class="chart-canvas" data-chart-canvas>'+toolbar+legend+
+    '<div class="chart-scroll"><svg class="svg-chart" viewBox="0 0 '+width+' '+height+'" role="img" aria-label="Forecast completion trend">'+
+    ticks+paths+pointsSvg+labels+'</svg></div></div>';
 }
 function planningActivityPressure(rows){
   const candidates=(rows||[]).filter(r=>typeof r.finishVarianceDays==="number"&&Number.isFinite(r.finishVarianceDays)&&typeof r.totalFloatHours==="number"&&Number.isFinite(r.totalFloatHours));
@@ -4468,6 +4514,34 @@ document.addEventListener("keydown",event=>{
   if(event.key!=="Escape")return;
   const panel=document.querySelector(".visual-chart.visual-focus");
   if(panel)setVisualPanelFocus(panel,false);
+});
+function setChartCanvasFocus(canvas,enabled){
+  if(!canvas)return;
+  document.querySelectorAll(".chart-canvas.chart-focus").forEach(node=>{
+    if(node!==canvas){
+      node.classList.remove("chart-focus");
+      const other=node.querySelector(".chart-canvas-focus-button");
+      if(other)other.textContent="Expand chart";
+    }
+  });
+  canvas.classList.toggle("chart-focus",enabled);
+  document.body.classList.toggle("chart-canvas-open",enabled);
+  const button=canvas.querySelector(".chart-canvas-focus-button");
+  if(button){
+    button.textContent=enabled?"Close chart":"Expand chart";
+    button.setAttribute("aria-expanded",String(enabled));
+  }
+}
+document.addEventListener("click",event=>{
+  const button=event.target.closest?.(".chart-canvas-focus-button");
+  if(!button)return;
+  const canvas=button.closest("[data-chart-canvas]");
+  setChartCanvasFocus(canvas,!canvas?.classList.contains("chart-focus"));
+});
+document.addEventListener("keydown",event=>{
+  if(event.key!=="Escape")return;
+  const canvas=document.querySelector(".chart-canvas.chart-focus");
+  if(canvas)setChartCanvasFocus(canvas,false);
 });
 document.addEventListener("click",event=>{
   const button=event.target.closest?.(".management-module-link");
