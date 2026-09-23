@@ -970,6 +970,7 @@ function renderDeliveryChallenge(data,reason,status){
   const s=d.scheduleChallenge||{},m=d.manpowerChallenge||{},q=d.quantityChallenge||{},p=d.productivityChallenge||{};
   const contract=data.contractIntelligence||null;
   const independentDeferred=data.independentForecastState==="deferred";
+  const forecastReview=data.independentForecastReviewReason?'<div class="notice warn"><b>Independent calculation requires review</b><p>'+escapeHtml(data.independentForecastReviewReason)+'</p></div>':'';
   const submittedManpower=m.submittedAverageManpower!==null&&m.submittedAverageManpower!==undefined;
   const measuredHours=m.evidenceRemainingLaborHours!==null&&m.evidenceRemainingLaborHours!==undefined;
   const mappingCoverage=typeof q.mappingCoveragePercent==="number"?q.mappingCoveragePercent:null;
@@ -981,7 +982,7 @@ function renderDeliveryChallenge(data,reason,status){
     {label:"BOQ / programme mapping",value:mappingCoverage===null?"Not established":fmt(mappingCoverage)+"%",state:mappingCoverage!==null&&mappingCoverage>0?"ready":"missing"},
     {label:"Independent forecast",value:independentDeferred?"Reviewed in separate view":s.independentCompletionIso?planningShortDate(s.independentCompletionIso):"Not established",state:data.independentForecastState==="review_required"?"partial":s.independentCompletionIso?"ready":"missing"}
   ]);
-  const scheduleCards=planningKpis([
+  const scheduleCards=forecastReview+planningKpis([
     ["Submitted finish",planningShortDate(s.contractorSubmittedCompletionIso),"current programme"],
     ["Contract finish",planningShortDate(s.contractualCompletionIso),"governed if established"],["Submitted vs contract",s.contractorSubmittedCompletionIso&&s.contractualCompletionIso?fmt(planningCalendarDaysBetween(s.contractualCompletionIso,s.contractorSubmittedCompletionIso))+" calendar days":"Not established","submitted finish minus contractual completion"],
     ["Independent finish",independentDeferred?"Separate review":planningShortDate(s.independentCompletionIso),independentDeferred?"not repeated here":"CMeng calculation",independentDeferred?"warning":""],
@@ -1515,7 +1516,7 @@ function renderForecastVisual(data){
     ].map(c=>'<div class="position-card '+(review?"review":"")+'"><div class="position-label">'+escapeHtml(c[0])+'</div><div class="position-value">'+escapeHtml(c[1])+'</div><div class="position-sub">'+escapeHtml(c[2])+'</div></div>').join("")+'</div>'+
     (review?'<div class="notice info" style="margin-top:12px">P50/P80/P90 values are intentionally suppressed while the deterministic independent finish is under reconciliation. The forecast taxonomy remains visible without publishing unsupported dates.</div>':'');
   const forecastDrivers=(p.activities||[]).filter(r=>typeof r.finishVarianceDays==='number').sort((a,b)=>Math.abs(b.finishVarianceDays)-Math.abs(a.finishVarianceDays)).slice(0,10);
-  const diagnostics='<section class="planning-panel"><div class="planning-panel-head"><div><h4>Independent CPM reconciliation evidence</h4><p>Largest calculated finish differences identify rows to investigate. They do not establish the cause of the project forecast gap.</p></div></div><div class="planning-panel-body"><div class="notice info">'+escapeHtml((p.diagnostics||[]).map(humanizeKey).join('; ')||'No producer diagnostic was supplied.')+'<br>'+escapeHtml((p.assumptions||[]).join('; '))+'</div><div class="table-wrap"><table><thead><tr><th>Activity</th><th>Submitted finish</th><th>Independent finish</th><th>Elapsed movement d</th><th>Calendar mode</th><th>Calculation state</th></tr></thead><tbody>'+forecastDrivers.map(r=>'<tr><td>'+escapeHtml(r.activityId)+'</td><td>'+escapeHtml(planningShortDate(r.sourceFinishIso))+'</td><td>'+escapeHtml(planningShortDate(r.independentEarlyFinishIso))+'</td><td>'+escapeHtml(fmt(r.finishVarianceDays))+'</td><td>'+escapeHtml(humanizeKey(r.calendarMode))+'</td><td>'+escapeHtml(humanizeKey(r.status))+'</td></tr>').join('')+'</tbody></table></div></div></section>';
+  const diagnostics='<section class="planning-panel"><div class="planning-panel-head"><div><h4>Independent CPM reconciliation evidence</h4><p>Largest calculated finish differences identify rows to investigate. They do not establish the cause of the project forecast gap.</p></div></div><div class="planning-panel-body"><div class="notice info">'+escapeHtml((p.diagnostics||[]).map(humanizeKey).join('; ')||'No producer diagnostic was supplied.')+'<br>'+escapeHtml((p.assumptions||[]).map(humanizeKey).join('; '))+'</div><div class="table-wrap"><table><thead><tr><th>Activity</th><th>Submitted finish</th><th>Independent finish</th><th>Elapsed movement d</th><th>Calendar mode</th><th>Calculation state</th></tr></thead><tbody>'+forecastDrivers.map(r=>'<tr><td>'+escapeHtml(r.activityId)+'</td><td>'+escapeHtml(planningShortDate(r.sourceFinishIso))+'</td><td>'+escapeHtml(planningShortDate(r.independentEarlyFinishIso))+'</td><td>'+escapeHtml(fmt(r.finishVarianceDays))+'</td><td>'+escapeHtml(humanizeKey(r.calendarMode))+'</td><td>'+escapeHtml(humanizeKey(r.status))+'</td></tr>').join('')+'</tbody></table></div></div></section>';
   return '<section class="planning-view independent-forecast-view">'+kpis+warning+visualOverview+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Completion positions and contractual target</h4><p>Contractor programme, source productivity, CMeng deterministic CPM and the contractual target remain separate.</p></div><span class="badge '+(review?"partial":"ready")+'">'+escapeHtml(review?"Reconciliation required":"Calculated")+'</span></div><div class="planning-panel-body">'+dateLadder+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Limited duration sensitivity</h4><p>Global triangular duration-factor sensitivity (0.9 / 1.0 / 1.25), not a network risk model. Requires a reconciled deterministic basis.</p></div></div><div class="planning-panel-body">'+probPanel+'</div></section>'+diagnostics+'</section>';
 }
 function renderWindowsVisual(data){
@@ -3599,13 +3600,14 @@ function renderCommercialVisual(key,data){
         {label:"Unknown",value:stateCounts.unknown??0,tone:"neutral"}
       ],"claims"):'<div class="empty-visual">No governed claim lifecycle population is established. Lifecycle counts are not established.</div>'
     );
+    const assessableNoticeCount=(timeliness.timely??0)+(timeliness.late??0)+(timeliness.not_issued??0);
     const noticeTimelinessVisual=renderVisualPanel(
       "Notice timeliness position",
       "Compliance outcomes and independent evidence gaps are separate. Missing requirement, event-date and notice-date counts can overlap.",
-      noticeAssessmentPopulationEstablished?renderVisualBars([
-        {label:"Timely",value:timeliness.timely??0,tone:"success"},
+      noticeAssessmentPopulationEstablished?(assessableNoticeCount===0?'<div class="empty-visual">No event has an assessable notice outcome. Timely, late and not-issued counts are not established; the bars below identify evidence gaps.</div>':'')+renderVisualBars([
+        ...(assessableNoticeCount>0?[{label:"Timely",value:timeliness.timely??0,tone:"success"},
         {label:"Late",value:timeliness.late??0,tone:"danger"},
-        {label:"Not issued",value:timeliness.not_issued??0,tone:"warning"},
+        {label:"Not issued",value:timeliness.not_issued??0,tone:"warning"}]:[]),
         {label:"Requirement missing",value:cn.dimensionalEvidenceGaps?.requirementMissing??timeliness.requirement_missing??0,tone:"neutral"},
         {label:"Event date missing",value:cn.dimensionalEvidenceGaps?.eventDateMissing??timeliness.event_date_missing??0,tone:"neutral"},
         {label:"Notice date missing",value:cn.dimensionalEvidenceGaps?.noticeDateMissing??timeliness.notice_date_missing??0,tone:"neutral"}

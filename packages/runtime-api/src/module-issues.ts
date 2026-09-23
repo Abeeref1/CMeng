@@ -54,11 +54,11 @@ export function assessModuleIssues(result: ModuleRuntimeResult, consistency: Con
   const walk=(value:any,path:string,depth:number)=>{
     if(!value||typeof value!=='object'||depth>9||visited.has(value))return;
     visited.add(value);
-    if(Array.isArray(value)){for(const item of value)walk(item,path+'[*]',depth+1);return;}
+    if(Array.isArray(value)){for(const item of value)walk(item,path+'['+(typeof item?.topic==='string'?'topic='+item.topic:'*')+']',depth+1);return;}
     const diagnostics=(Array.isArray(value.diagnostics)?value.diagnostics:[]).filter((s:unknown)=>typeof s==='string') as string[];
-    const rawRefs=value.sourceRefs??value.basis?.sourceRefs;
+    const rawRefs=value.sourceRefs??value.basis?.sourceRefs??value.evidenceRefs;
     const refs=(Array.isArray(rawRefs)?rawRefs:[]).filter((s:unknown)=>typeof s==='string') as string[];
-    const field=path.replace(/\[\*\]/g,'').split('.').slice(-2).join(' · ').replace(/([a-z])([A-Z])/g,'$1 $2');
+    const field=path.replace(/\[\*\]/g,'').split('.').slice(-2).join(' · ').replace(/([a-z])([A-Z])/g,'$1 $2')+(typeof value.topic==='string'?' · '+value.topic:'');
     const conflict=diagnostics.filter(s=>/(?:^|_)(CONFLICT|CONFLICTING|CONFLICTED)(?:_|:|$)/.test(s));
     const invalid=diagnostics.filter(s=>/(?:^|_)(INVALID|MALFORMED|DUPLICATE|AMBIGUOUS|BROKEN|MISMATCH)(?:_|:|$)|CLOSURE_BEFORE_RAISED_DATE/.test(s));
     const missingInput=diagnostics.filter(s=>/REQUIRED|NOT_A_RECONCILED|IS_NOT_GROSS|UNKNOWN_PAID_AMOUNT|NOT_DERIVED_FROM/.test(s));
@@ -66,8 +66,8 @@ export function assessModuleIssues(result: ModuleRuntimeResult, consistency: Con
       'Reconcile the retained source records; do not replace them with a silent default.',path,'Project evidence owner',refs);
     else if(['invalid','stale'].includes(value.state)||invalid.length) add('data_quality','SOURCE_QUALITY',field+' · data quality',invalid.join('; ')||'The supplied record is invalid or stale for this position.',
       'Correct or govern the specific source record, then rerun the same validation.',path,'Project evidence owner',refs);
-    else if(['missing','not_submitted'].includes(value.state)||missingInput.length) add('missing_information','MISSING_SOURCE_VALUE',field+' · information missing',
-      missingInput.join('; ')||value.consequence||'The required source value is not established.','Supply or identify the specific missing input; an existing register does not establish every field or calculation. Do not substitute zero.',path,'Project evidence owner',refs);
+    else if(['missing','not_submitted','missing_evidence'].includes(value.state)||missingInput.length) add('missing_information','MISSING_SOURCE_VALUE',field+' · information missing',
+      missingInput.join('; ')||value.consequence||'The required source value is not established.',value.action||'Supply or identify the specific missing input; an existing register does not establish every field or calculation. Do not substitute zero.',path,'Project evidence owner',refs);
     else if(value.state==='submitted_unparsed') add('verification_pending','SUBMITTED_NOT_INTERPRETED',field+' · submitted evidence not interpreted',
       'A source exists, but CMeng has not established its structured meaning. Its presence is not proof of absence or bad data.',
       'CMeng must inspect the supported source format and parsing result; identify a concrete source error only if validation proves one.',path,'CMeng',refs);
@@ -95,6 +95,12 @@ export function assessModuleIssues(result: ModuleRuntimeResult, consistency: Con
   if(typeof d?.activityEvidenceInsufficientEventCount==='number'&&d.activityEvidenceInsufficientEventCount>0)
     add('missing_information','EVENT_ACTIVITY_LINKAGE_INCOMPLETE','Event-to-activity links incomplete',d.activityEvidenceInsufficientEventCount+' current event(s) lack established affected-activity links.',
       'Reconcile source identities and record evidenced activity links; do not infer causation from date movement.','activityEvidenceInsufficientEventCount');
+  if(typeof d?.noticeRequirementMissingCount==='number'&&d.noticeRequirementMissingCount>0)
+    add('missing_information','NOTICE_APPLICABILITY_MISSING','Applicable notice requirements not established',d.noticeRequirementMissingCount+' event(s) lack an established applicable notice trigger and requirement.',
+      'Link each event to its applicable contract clause, trigger, day basis and notice evidence before assessing timeliness.','noticeRequirementMissingCount');
+  if(d?.eligibleCausalEventEvidenceEstablished===false)
+    add('missing_information','CAUSAL_ENTITLEMENT_EVIDENCE_MISSING','Causal entitlement evidence not established','The current events do not establish eligible causal time impact.',
+      'Establish event responsibility, affected activities, notice applicability and causal time impact before assessing entitlement.','eligibleCausalEventEvidenceEstablished','Project controls reviewer');
   if(result.evidenceState==='partial'&&!issues.some(i=>['missing_information','data_quality','source_conflict','governance_review'].includes(i.kind)))
     add('verification_pending','EVIDENCE_ASSESSMENT_INCOMPLETE','Evidence assessment incomplete',result.reason??'The evidence producer has not established a complete position.',
       'Identify and classify the specific evidence dependency before treating the result as complete.','evidenceState','CMeng');

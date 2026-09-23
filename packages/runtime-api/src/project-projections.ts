@@ -6254,6 +6254,7 @@ function buildSpecialistModuleFast(
               : "Contract value evidence remains ungoverned until confirmed.",
         },
         independentForecastState: independentForecastReviewReason(sourceForecast) ? "review_required" : "calculated",
+        independentForecastReviewReason: independentForecastReviewReason(sourceForecast),
       },
       [
         "current programme",

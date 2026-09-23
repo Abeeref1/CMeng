@@ -60,6 +60,11 @@ test('NCR and RFI lifecycles reconstruct the Data Date across director, dashboar
   const p=moduleForProject(state.projectId,key).data as any;
   assert.equal(p.operationalReporting.counts.openCriticalMajorNcrCount,2);assert.equal(p.reportingContract.populations.ncrs.populationId,r.quality.population.populationId);
  }
+ const answer=answerProjectQuestion(state.projectId,'What are the current NCR, RFI and risk register counts?')!;
+ assert.match(answer.answer,/Confirmed open major\/critical NCRs · known subset: 2/);
+ assert.match(answer.answer,/Open RFIs at Data Date: 1/);
+ assert.match(answer.answer,/Overdue RFIs at Data Date: 1/);
+ assert.match(answer.answer,/Open risks at Data Date · requires dated status: Not established/);
  state.schedules[0]!.revision.model.dataDateIso='2031-04-16';state.version++;
  assert.equal(directorForProject(state.projectId)!.controls.openCriticalMajorNcrCount,2);
  assert.equal(operationalReporting(state).quality.current.find(r=>r.ncrId==='N1')!.status,'closed');
