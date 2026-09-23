@@ -204,6 +204,7 @@ function strongestEvidenceState(
     CommercialEvidenceState[] = [
       "established",
       "candidate",
+      "missing_information",
       "submitted_unparsed",
       "not_submitted",
       "not_applicable",
@@ -237,6 +238,7 @@ export function commercialEvidenceStateForModule(
     ) {
       return "established";
     }
+    if(position.foundation.paymentRegister.sourceRecordCount>0)return 'missing_information';
     return position.evidence.payments ===
       "not_submitted"
       ? "not_submitted"
@@ -254,6 +256,7 @@ export function commercialEvidenceStateForModule(
     ) {
       return "established";
     }
+    if(position.foundation.paymentRegister.sourceRecordCount>0)return 'missing_information';
     return position.evidence.payments ===
       "not_submitted"
       ? "not_submitted"
@@ -288,7 +291,7 @@ export function commercialEvidenceStateForModule(
         .state === "established" &&
       unresolvedNoticeEvidence === 0
       ? "established"
-      : "submitted_unparsed";
+      : "missing_information";
   }
 
   if (
@@ -320,6 +323,7 @@ function statusReason(
   if (state === "candidate") {
     return "Relevant commercial evidence exists only as a candidate and is not promoted to the governed project position.";
   }
+  if(state==='missing_information')return 'Source records have been read, but required values, dates or reconciled balances are not established. Review the identified field-level evidence gaps.';
   if (
     state ===
     "submitted_unparsed"

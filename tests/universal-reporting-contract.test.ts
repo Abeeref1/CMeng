@@ -170,6 +170,9 @@ test('certificate, retention, report payload and capability populations use the 
  assert.equal(data.reportingContract.metricContracts['position.foundation.paymentRegister.futureRecordCount'].denominator,1);
  assert.equal(data.position.currencies[0].retentionDeductedAmount.value,100);
  assert.equal(data.position.currencies[0].paidAmount.value,null);
+ assert.equal(data.position.currencies[0].paidAmount.state,'missing_information');
+ assert.equal(data.position.currencies[0].retentionHeldAmount.state,'missing_information');
+ assert.equal(data.position.foundation.paymentRegister.sourceRecordCount,3,'a parsed register with absent cash dates is not an unparsed submission');
  assert.equal(module.status,'partial');
 });
 
