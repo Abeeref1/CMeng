@@ -1,6 +1,9 @@
 import {
   readFileSync,
 } from "node:fs";
+import {createHash} from 'node:crypto';
+import {dateValue} from '../../truth-kernel/src';
+import {projectDataDate} from './canonical-time-claims';
 
 import type {
   ReadinessDimensionKey,
@@ -21,6 +24,13 @@ type ReadinessByActivity =
       >
     >
   >;
+
+function combineReadiness(a:ReadinessEvidence|undefined,b:ReadinessEvidence):ReadinessEvidence {
+  if(!a)return b;
+  const order={blocked:3,unknown:2,ready:1,not_applicable:0};
+  return {state:order[a.state]>=order[b.state]?a.state:b.state,sourceRefs:[...new Set([...a.sourceRefs,...b.sourceRefs])],
+    note:[a.note,b.note].filter(Boolean).join('; ')};
+}
 
 function parseCsv(
   text: string,
@@ -326,6 +336,7 @@ export function deriveReadinessFromCsv(
     document:
       StoredEvidenceDocument;
     bytes: Uint8Array;
+    dataDateIso?: string | null;
   },
 ): ReadinessByActivity {
   const dimension =
@@ -400,33 +411,14 @@ export function deriveReadinessFromCsv(
           string
         >();
 
-  const dataDateIso =
-    input.state.schedules
-      .filter(
-        (item) =>
-          item.role !==
-          "recovery",
-      )
-      .sort(
-        (a, b) =>
-          (
-            a.revision.model
-              .dataDateIso ??
-            a.revision
-              .effectiveAt ??
-            ""
-          ).localeCompare(
-            b.revision.model
-              .dataDateIso ??
-            b.revision
-              .effectiveAt ??
-            "",
-          ),
-      )
-      .at(-1)
-      ?.revision.model
-      .dataDateIso ??
-    null;
+  const dataDateIso = input.dataDateIso===undefined?projectDataDate(input.state):input.dataDateIso;
+  const cutoff=dateValue(dataDateIso??'');
+  /* Historical status requires actual lifecycle dates or an explicit dated
+   * status snapshot. Due/planned dates cannot establish an actual approval. */
+  const openedIndex=headerIndex(headers,['raised date','opened date','issue date','submitted date']);
+  const closedIndex=headerIndex(headers,['close date','closed date','response date','actual issue','approval date','actual delivery','delivered date']);
+  const snapshotIndex=headerIndex(headers,['status as of','status date','as of','as of date','snapshot date']);
+
 
   const result:
     ReadinessByActivity = {};
@@ -482,11 +474,26 @@ export function deriveReadinessFromCsv(
         row,
         dueIndex,
       );
+    const opened=dateValue(valueAt(row,openedIndex)),closed=dateValue(valueAt(row,closedIndex)),snapshot=dateValue(valueAt(row,snapshotIndex));
+    if(cutoff&&opened&&opened>cutoff)continue;
+    let currentStatus=status,scopeNote='';
+    if(!cutoff){currentStatus='';scopeNote='Data Date not established';}
+    else if(closed&&opened&&closed<opened){currentStatus='';scopeNote='Invalid closure before raised/submitted date';}
+    else if(closed){
+      if(closed<=cutoff){
+        if(/rejected|blocked|hold|failed/i.test(status)){currentStatus=snapshot===cutoff?status:'';scopeNote='Terminal date and adverse source status require lifecycle reconciliation';}
+        else currentStatus=input.document.documentType==='quality_ncr_register'?'closed':'approved';
+      }
+      else {currentStatus=opened?'open':'';scopeNote='Future closure/approval excluded from the current position';}
+    }else if(snapshot!==cutoff){
+      const isOpen=opened&&/^(open|pending|active|overdue)$/.test(status.toLowerCase());
+      if(!isOpen){currentStatus='';scopeNote='Actual status date not established; source final status is not an as-of assertion';}
+    }
     const state =
       readinessState(
         input.document
           .documentType,
-        status,
+        currentStatus,
         dueIso,
         dataDateIso,
       );
@@ -495,7 +502,7 @@ export function deriveReadinessFromCsv(
       {};
     result[activityId]![
       dimension
-    ] = {
+    ] = combineReadiness(result[activityId]![dimension],{
       state,
       sourceRefs: [
         "evidence-document:" +
@@ -505,6 +512,7 @@ export function deriveReadinessFromCsv(
           (index + 1),
       ],
       note:
+        (scopeNote?scopeNote+'; ':'')+
         input.document
           .documentType +
         " status=" +
@@ -518,7 +526,7 @@ export function deriveReadinessFromCsv(
               dueIso
             : ""
         ),
-    };
+    });
   }
 
   return result;
@@ -643,7 +651,7 @@ export function rebuildReadinessEvidence(
         }
         merged[activityId]![
           key
-        ] = evidence;
+        ] = combineReadiness(merged[activityId]![key],evidence);
       }
     }
   }
@@ -651,4 +659,19 @@ export function rebuildReadinessEvidence(
   state.controls
     .readinessEvidence =
     merged;
+}
+
+/** Rebuild a read-only Data-Date view from verified retained source bytes.
+ * Persisted import-time statuses cannot survive as a separate authority. */
+export function reportingReadinessEvidence(state:ProjectRuntimeState,dataDateIso:string|null):ReadinessByActivity {
+  const derived:ProjectRuntimeState['derivedReadinessByDocument']={};
+  for(const document of state.evidenceDocuments.filter(d=>['active','additive'].includes(d.basisState)&&dimensionFor(d.documentType)&&d.mediaType==='text/csv')){
+    try {
+      const bytes=readFileSync(document.storedPath);
+      if(createHash('sha256').update(bytes).digest('hex')!==document.sourceHashSha256)continue;
+      derived[document.documentId]=deriveReadinessFromCsv({state,document,bytes,dataDateIso});
+    }catch { /* No verified source means no derived ready assertion. */ }
+  }
+  const view={...state,derivedReadinessByDocument:derived,controls:{...state.controls,readinessEvidence:{...state.controls.readinessEvidence}}};
+  rebuildReadinessEvidence(view);return view.controls.readinessEvidence;
 }

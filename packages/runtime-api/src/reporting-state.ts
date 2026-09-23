@@ -7,6 +7,7 @@ import {operationalControlsAsOf,type OperationalReporting} from './operational-r
 import {resolveBoqSource} from './boq-source';
 import {refreshContractSegmentation} from '../../contract-parser/src';
 import {refreshScheduleConstraints} from './schedule-source-refresh';
+import {reportingReadinessEvidence} from './evidence-readiness';
 
 const cache = new WeakMap<ProjectRuntimeState,{version:number;date:string|null;value:ProjectRuntimeState}>();
 const views = new WeakSet<ProjectRuntimeState>();
@@ -45,7 +46,7 @@ export function reportingState(state: ProjectRuntimeState): ProjectRuntimeState 
   const view={...state,schedules,boq:boqSource.boq,quantities:boqSource.quantities,
     contract:state.contract?refreshContractSegmentation(state.contract):null,
     contractDocuments:state.contractDocuments.map(doc=>({...doc,result:refreshContractSegmentation(doc.result)})),
-    controls:{...state.controls,delayClaims:source?delayClaimsAsOf(source,date).current:null,
+    controls:{...state.controls,readinessEvidence:reportingReadinessEvidence(state,date),delayClaims:source?delayClaimsAsOf(source,date).current:null,
     ncrs:ops.quality.current as typeof state.controls.ncrs,rfis:ops.rfi.current as typeof state.controls.rfis,risks:ops.risk.current as typeof state.controls.risks}};
   views.add(view);origins.set(view,state);cache.set(state,{version:state.version,date,value:view});return view;
 }
