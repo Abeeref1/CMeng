@@ -1,7 +1,7 @@
 /** Shared presentation only. Values remain owned by the module resolvers. */
 export const experienceStyles = String.raw`
 :root{--bg:#f3f5f8;--ivory:#fff;--ink:#1b2c43;--muted:#526479;--line:#dce3ec;--accent:#316ba6;--accent-strong:#245783;--shadow:0 3px 12px rgba(22,42,67,.035)}
-.badge.ready{background:#eaf2fb!important;color:#245e93!important}.badge.blocked{background:#edf1f6!important;color:#586c82!important}#moduleBadge:empty{display:none}
+.badge.ready{background:#eaf2fb!important;color:#245e93!important}.badge.blocked{background:#edf1f6!important;color:#586c82!important}#moduleBadge:empty{display:none}#moduleContent{text-align:left}.badge{text-transform:none!important;letter-spacing:0!important}.management-metric-head>span{font-size:13px!important;text-transform:none!important;letter-spacing:0!important;color:#526479!important;max-width:100%}.management-metric-head{align-items:flex-start;gap:8px}.experience-brief p,.experience-fact,.experience-review{text-align:left}
 body{font-size:15px;line-height:1.55;background:var(--bg)}
 h1,h2,h3,h4,h5,.kpi-value,.position-value{font-family:Inter,"Segoe UI",system-ui,sans-serif;letter-spacing:-.02em}
 .app{grid-template-columns:260px minmax(0,1fr)}
@@ -26,13 +26,13 @@ export const experienceScript = String.raw`
 function experienceDisclosure(title,body,note='',className=''){
   return '<details class="experience-disclosure '+className+'"><summary>'+escapeHtml(title)+(note?'<span>'+escapeHtml(note)+'</span>':'')+'</summary><div class="experience-disclosure-body">'+body+'</div></details>';
 }
-function experienceReviewSummary(a){
+function experienceReviewSummary(a,management=false){
   if(!a)return '';
-  const c=a.counts||{};
+  const c=(management?a.affectedModuleCounts:a.counts)||{};
   const labels={system_defect:'Calculation errors',source_conflict:'Sources disagree',data_quality:'Source corrections',missing_information:'Inputs needed',comparison_difference:'Positions to compare',governance_review:'Approvals needed'};
   const tags=Object.entries(labels).filter(([k])=>c[k]>0).map(([k,label])=>'<span class="review-tag">'+escapeHtml(label)+' <b>'+fmt(c[k])+'</b></span>').join('');
-  if(!tags)return '<p class="experience-scope-note"><a href="#moduleReviewDetail">Source and calculation detail</a> · '+escapeHtml(a.systemCheckState==='unverified'?'Verification coverage is incomplete.':'View the checks completed for this position.')+'</p>';
-  return '<div class="experience-notes '+(c.system_defect>0?'error':'')+'">'+tags+'<span class="review-spacer"></span><a href="#moduleReviewDetail">Review details</a></div>';
+  if(!tags)return '<p class="experience-scope-note"><a href="#moduleReviewDetail">View source notes and calculation coverage</a></p>';
+  return '<div class="experience-notes '+(c.system_defect>0?'error':'')+'">'+(management?'<small>Affected views</small>':'')+tags+'<span class="review-spacer"></span><a href="#moduleReviewDetail">Review details</a></div>';
 }
 function experienceValue(value,unit=''){
   const v=value&&typeof value==='object'&&'value' in value?value.value:value;
@@ -192,7 +192,7 @@ function experienceRoleReview(role,brief,key,data){
 }
 function experiencePreview(primaryView,limit=2){
   const host=document.createElement('template');host.innerHTML=primaryView;
-  const charts=[...host.content.querySelectorAll('[data-visual-panel]')].filter(n=>n.querySelector('svg,.visual-bars,.donut-ring,.certificate-columns'));
+  const charts=[...host.content.querySelectorAll('[data-visual-panel]')].filter(n=>n.querySelector('svg,.visual-bars,.donut-ring,.certificate-columns,.date-ladder,.cash-movement-bars,.waterfall-chart'));
   return charts.length?'<div class="experience-preview">'+charts.slice(0,limit).map(n=>n.outerHTML).join('')+'</div>':'';
 }
 function experienceRoleContent(key,data,primaryView,challengeHtml='',includeTechnical=false){

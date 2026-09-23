@@ -120,8 +120,10 @@ test('calculation failures remain visible while zero-count diagnostic cards stay
   assert.match(fail,/Calculation errors/);assert.match(fail,/experience-notes error/);
   assert.doesNotMatch(fail,/Inputs needed|System defect0|CMeng verification/);
   const pending=runInNewContext(render+';experienceReviewSummary(a)',{...common,a:{counts:{system_defect:0},systemCheckState:'unverified'}});
-  assert.match(pending,/Verification coverage is incomplete/);
+  assert.match(pending,/View source notes and calculation coverage/);
   assert.doesNotMatch(pending,/passed|green|ready/i);
+  const management=runInNewContext(render+';experienceReviewSummary(a,true)',{...common,a:{counts:{source_conflict:25},affectedModuleCounts:{source_conflict:5}}});
+  assert.match(management,/Affected views/);assert.match(management,/<b>5<\/b>/);assert.doesNotMatch(management,/>25</);
   assert.doesNotMatch(script,/function flattenRoleScalars|function roleSignalScore|function collectRoleActions/);
   assert.doesNotMatch(script,/querySelectorAll\("details"\)\.forEach\(node=>node.open=true\)/);
 });
