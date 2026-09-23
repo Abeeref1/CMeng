@@ -37,7 +37,7 @@ export function partitionAsOf<T>(rows: readonly T[], input: {
   rows.forEach((row,index)=>{
     const scope = reportingScope(input.date(row),input.dataDateIso), id = input.id(row,index);
     if(scope==='as_of'){asOf.push(row);memberIds.push(id);}
-    else { (scope==='future'?future:undated).push(row); exclusions.push({id,reason:scope==='future'?'after_data_date':!dateValue(input.dataDateIso??'')?'data_date_missing':'record_date_missing_or_invalid'}); }
+    else { (scope==='future'?future:undated).push(row); exclusions.push({id,reason:scope==='future'?'after_data_date':!dateValue(input.dataDateIso??'')?'data_date_missing':String(input.date(row)??'').trim()?'record_date_invalid':'record_date_missing'}); }
   });
   return { asOf, future, undated, population: populationContract({ name:input.name, entity:input.entity,
     dataDateIso:input.dataDateIso, dateBasis:input.dateBasis, sourceRevisionId:input.sourceRevisionId??null,

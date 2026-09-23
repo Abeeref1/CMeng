@@ -117,6 +117,15 @@ function detectIgnoredSpans(
   spans: ContractIgnoredSpan[];
 } {
   const lines = blocks.flatMap(blockLines);
+  const pageLines=new Map<number,LineRecord[]>();
+  for(const line of lines)if(line.page!==null&&line.text.trim()){
+    const page=pageLines.get(line.page)??[];page.push(line);pageLines.set(line.page,page);
+  }
+  const boundary=(line:LineRecord)=>{
+    const page=line.page===null?[]:pageLines.get(line.page)??[];
+    return line===page[0]||line===page.at(-1);
+  };
+  const substantive=(text:string)=>/[.!?]\s*$/.test(text)||/\b(shall|must|required|entitled|entitlement|notice|claim|insurance|contractor\s+to|employer\s+to)\b/i.test(text);
   const pdfPages = new Set(
     blocks
       .map((block) => block.page)
@@ -132,6 +141,7 @@ function detectIgnoredSpans(
       line.page === null ||
       !text ||
       text.length > 180 ||
+      !boundary(line) || substantive(text) ||
       detectContractHeading(text)
     ) {
       continue;
@@ -167,9 +177,9 @@ function detectIgnoredSpans(
     if (!text || line.page === null) continue;
 
     let reason: ContractIgnoredSpan["reason"] | null = null;
-    if (looksLikePageNumber(text)) {
+    if (boundary(line)&&looksLikePageNumber(text)&&!substantive(text)) {
       reason = "page_number";
-    } else if (repeated.has(normalizedNoise(text))) {
+    } else if (boundary(line)&&!substantive(text)&&repeated.has(normalizedNoise(text))) {
       reason =
         /controlled|distribution|watermark/i.test(text)
           ? "watermark"
@@ -315,6 +325,7 @@ function rawIdentifierKey(section: ContractSection): string | null {
 function looksHeadingCandidate(value: string): boolean {
   const line = value.trim();
   if (!line || line.length > 220) return false;
+  if(/^clause\s+[\d.]+\s+(?:is|shall\s+be)\s+(?:amended|deleted|replaced|supplemented)/i.test(line)||/^amendment\s+(?:value|date|amount)\b/i.test(line))return false;
   return /^(?:clause|article|section|appendix|annex|schedule|amendment|المادة|البند|القسم|ملحق|المرفق|جدول)\b/i.test(
     line,
   );
@@ -781,6 +792,7 @@ export function segmentContractTextBlocks(
     );
 
   return {
+    segmentationVersion: 'boundary-noise-v3',
     sourceType: options.sourceType,
     pdf: null,
     docx: null,

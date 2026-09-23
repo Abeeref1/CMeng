@@ -384,6 +384,10 @@ export function canonicalScheduleFromXer(
           activityId,
           nativeId,
           name: xerField(row, "task_name"),
+          sourceConstraints: [
+            {type:xerField(row,'cstr_type'),dateIso:xerDate(xerField(row,'cstr_date'))},
+            {type:xerField(row,'cstr_type2'),dateIso:xerDate(xerField(row,'cstr_date2'))},
+          ].filter((c):c is {type:string;dateIso:string|null}=>Boolean(c.type)),
           wbsId: xerField(row, "wbs_id"),
           calendarId: xerField(row, "clndr_id"),
           activityType: type.type,

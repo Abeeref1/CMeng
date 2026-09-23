@@ -5,6 +5,7 @@ import {
 } from "./project-projections";
 
 type ModuleSelection = {
+  issueAssessment?: import('../../truth-kernel/src').ControlIssueAssessment | undefined;
   key: string;
   status: "ready" | "partial" | "blocked";
   reason: string | null;
@@ -57,7 +58,7 @@ function relevantKeys(
     );
   }
   if (
-    /critical|near critical|float|driving path/.test(q)
+    /critical|near[- ]critical|float|driving path/.test(q)
   ) {
     add(
       "schedule-analytics",
@@ -66,7 +67,7 @@ function relevantKeys(
     );
   }
   if (
-    /resource|manpower|labou?r|man[- ]?hour|crew/.test(q)
+    /resource|assignment|manpower|labou?r|man[- ]?hour|crew/.test(q)
   ) {
     add(
       "resource-utilization",
@@ -74,15 +75,14 @@ function relevantKeys(
       "lookahead-schedule",
     );
   }
-  if (
-    /contract|commercial|ld|liquidated|exposure|variation/.test(q)
-  ) {
-    add(
-      "challenge-contract",
-      "notices-claims",
-      "eot-assessment",
-    );
-  }
+  if (/commercial|exposure/.test(q)) add("commercial-overview");
+  if (/variation|change order/.test(q)) add("variations-change");
+  if (/payment|certificate|certified|retention/.test(q)) add("payments");
+  if (/cash/.test(q)) add("cash-flow");
+  if (/cost|budget|earned value|\bspi\b|\bcpi\b/.test(q)) add("cost-forecast");
+  if (/contract|bond|insurance|obligation|liquidated|\bld\b/.test(q)) add("contract-particulars-bonds");
+  if (/challenge/.test(q)) add("challenge-contract");
+  if (/\bncr\b|\brfi\b|quality|risk register/.test(q))add('command-center');
   if (
     /lookahead|readiness|permit|material|submittal|rfi/.test(q)
   ) {
@@ -144,7 +144,7 @@ function scalarFacts(
     return Object.entries(
       value as Record<string, unknown>,
     )
-      .filter(([key])=>!['schemaVersion','projectionKey','producerVersion','generatedAt','sourceRevisionId','sourceProjections','sourceLedger','source','futureRows','undatedRows','claimsReporting','reportingContract','diagnostics','receipts','basis','sourceRefs','controlBasis','population','populationContract','challenge','systemEvidenceContract','moduleReadiness'].includes(key))
+      .filter(([key])=>!['issueAssessment','projectId','evidenceRevisionId','schemaVersion','projectionKey','producerVersion','generatedAt','sourceRevisionId','sourceProjections','sourceLedger','source','futureRows','undatedRows','claimsReporting','reportingContract','diagnostics','receipts','basis','sourceRefs','controlBasis','population','populationContract','challenge','systemEvidenceContract','moduleReadiness'].includes(key) && !/Ids?$/.test(key))
       .slice(0, 24)
       .flatMap(([key, child]) =>
         scalarFacts(
@@ -280,22 +280,102 @@ function factLabel(
     );
 }
 
+type AnswerFact = {path: string; value: string | number | boolean | null; label?: string;
+  populationId?: string; dataDateIso?: string | null; authority?: string; state?: string; unit?: string};
+
+/** Answer the requested metric from the same resolved population used by pages
+ * and exports. Never infer dated approvals or cash from an aggregate source. */
+function requestedFacts(question: string, projectId: string): AnswerFact[] {
+  const q = question.toLowerCase(), facts: AnswerFact[] = [];
+  const data = (key: string) => moduleForProject(projectId, key).data as any;
+  const add = (path: string, label: string, value: AnswerFact['value'], context: Partial<AnswerFact> = {}) =>
+    facts.push({path, label, value: value ?? null, ...context});
+  const population = (key: string, name: string, label: string, established = true) => {
+    const p = data(key)?.reportingContract?.populations?.[name];
+    const context = {populationId: p?.populationId, dataDateIso: p?.dataDateIso, authority: 'calculated'};
+    add(key + '.reportingContract.populations.' + name + '.denominator', label + ' on/before Data Date', established ? p?.denominator ?? null : null, context);
+    add(key + '.reportingContract.populations.' + name + '.afterDataDate', label + ' after Data Date (excluded)', established && p ? p.exclusions.filter((e:any)=>e.reason==='after_data_date').length : null, context);
+    add(key + '.reportingContract.populations.' + name + '.undated', label + ' without a usable date (excluded)', established && p ? p.exclusions.filter((e:any)=>/date_missing|date_invalid/.test(e.reason)).length : null, context);
+  };
+  if (/claim|notice/.test(q)) {
+    const d = data('notices-claims');
+    const submitted = d?.contractorNoticeClaimEvidenceSubmitted === true;
+    if (/claim/.test(q)) population('notices-claims','claims','Claim identities',submitted);
+    if (/notice/.test(q)) population('notices-claims','claim_notices','Claim notices, excluding determinations',submitted);
+  }
+  if(/\bncr\b|\brfi\b|quality|risk register/.test(q)){
+    const d=data('command-center'),r=d?.operationalReporting;
+    const context={dataDateIso:r?.dataDateIso,authority:'calculated'};
+    if(/\bncr\b|quality/.test(q)){
+      add('command-center.operationalReporting.counts.openCriticalMajorNcrCount','Complete open major/critical NCR count at Data Date',r?.counts?.openCriticalMajorNcrCount,context);
+      add('command-center.operationalReporting.knownCounts.openCriticalMajorNcrCount','Confirmed open major/critical NCRs · known subset',r?.knownCounts?.openCriticalMajorNcrCount,context);
+      add('command-center.operationalReporting.knownCounts.uncertainCriticalMajorNcrCount','Current major/critical NCRs with unresolved status or severity',r?.knownCounts?.uncertainCriticalMajorNcrCount,context);
+      population('command-center','ncrs','NCR records');
+    }
+    if(/\brfi\b/.test(q)){
+      add('command-center.operationalReporting.counts.openRfiCount','Open RFIs at Data Date',r?.counts?.openRfiCount,context);
+      add('command-center.operationalReporting.counts.overdueRfiCount','Overdue RFIs at Data Date',r?.counts?.overdueRfiCount,context);
+      population('command-center','rfis','RFI records');
+    }
+    if(/risk register/.test(q)){
+      add('command-center.operationalReporting.counts.openRiskCount','Open risks at Data Date · requires dated status',r?.counts?.openRiskCount,context);
+      population('command-center','risks','Risk records');
+    }
+  }
+  if (/variation|retention|payment|certificate/.test(q)) {
+    const key = /variation/.test(q) ? 'variations-change' : 'payments';
+    const d = data(key), ledger = d?.position?.sourceLedger, temporal = ledger?.temporalPosition;
+    const context = {dataDateIso: d?.reportingContract?.dataDateIso, authority: 'calculated'};
+    if (/variation/.test(q)) {
+      const established = (d?.position?.contractControls?.variations?.sourceRecordCount ?? 0) > 0;
+      add(key+'.position.sourceLedger.temporalPosition.variations.asOfApprovedCount','Dated approved variations on/before Data Date',established ? temporal?.variations?.asOfApprovedCount : null,context);
+      add(key+'.position.sourceLedger.temporalPosition.variations.futureApprovalCount','Approvals after Data Date (excluded)',established ? temporal?.variations?.futureApprovalCount : null,context);
+      add(key+'.position.sourceLedger.temporalPosition.variations.undatedApprovalCount','Approvals without a usable date (excluded)',established ? temporal?.variations?.undatedApprovalCount : null,context);
+    }
+    if (/payment|certificate/.test(q)) population('payments','certificate_periods','Certificate periods (not certification/payment events)',(d?.position?.foundation?.paymentRegister?.sourceRecordCount??0)>0);
+    for (const [i,m] of (temporal?.money ?? []).entries()) {
+      if (!( /variation/.test(q) && m.kind==='Approved variation source values' || /retention/.test(q) && m.kind==='Retention deductions')) continue;
+      const label = m.kind + ' · ' + m.currency + ' · tax ' + m.taxBasis;
+      const p = d?.reportingContract?.populations?.[m.kind==='Retention deductions'?'retentionDeductions':'variations'];
+      for (const [field,scope] of [['asOfValue','on/before Data Date'],['futureValue','after Data Date (excluded)']] as const)
+        add(key+'.position.sourceLedger.temporalPosition.money['+i+'].'+field,label+' · '+scope,m[field],{...context,populationId:p?.populationId,unit:m.currency});
+    }
+    for (const [i,c] of (d?.position?.currencies ?? []).entries()) {
+      if (/variation/.test(q)) add(key+'.position.currencies['+i+'].approvedVariationAmount.value','Source aggregate approved variations · '+c.currency+' · separate authority, reconcile with dated approvals',c.approvedVariationAmount?.value,{...context,authority:'source',state:c.approvedVariationAmount?.state,unit:c.currency});
+      if (/retention/.test(q)) add(key+'.position.currencies['+i+'].retentionHeldAmount.value','Retention held balance · '+c.currency,c.retentionHeldAmount?.value,{...context,state:c.retentionHeldAmount?.state,unit:c.currency});
+      if (/payment|certificate/.test(q)) for (const field of ['certifiedAmount','paidAmount'] as const) add(key+'.position.currencies['+i+'].'+field+'.value',factLabel(field)+' · dated events · '+c.currency,c[field]?.value,{...context,state:c[field]?.state,unit:c.currency});
+    }
+  }
+  if (/critical|float/.test(q)) {
+    const d = data('near-critical');
+    const p = d?.reportingContract?.populations?.execution_control;
+    add('schedule-analytics.result.float.criticalCount','Critical execution activities',data('schedule-analytics')?.result?.float?.criticalCount,{populationId:p?.populationId,dataDateIso:p?.dataDateIso,authority:'calculated'});
+    for (const [field,label] of [['nearCriticalCount','Strict near-critical execution activities'],['negativeFloatCount','Negative-float execution activities']] as const)
+      add('near-critical.'+field,label,d?.[field],{populationId:p?.populationId,dataDateIso:p?.dataDateIso,authority:'calculated'});
+  }
+  if (/resource|assignment/.test(q)) {
+    const d = data('resource-utilization');
+    for (const [field,name,label] of [['resourceCount','resources','P6 resource identities'],['assignmentRecordCount','assignments','P6 resource assignment records']] as const) {
+      const p=d?.reportingContract?.populations?.[name];
+      add('resource-utilization.'+field,label,d?.[field],{populationId:p?.populationId,dataDateIso:p?.dataDateIso,authority:'source'});
+    }
+  }
+  return facts;
+}
+
 function summarizeFacts(
-  facts: Array<{
-    path: string;
-    value: string | number | boolean | null;
-  }>,
+  facts: AnswerFact[],
 ): string {
   if (facts.length === 0) {
     return "CMeng needs more project information before it can answer this reliably.";
   }
   const lines = facts
-    .slice(0, 8)
+    .slice(0, 24)
     .map(
       (fact) =>
-        factLabel(
+        (fact.label ?? factLabel(
           fact.path,
-        ) +
+        )) +
         ": " +
         (
           typeof fact.value ===
@@ -303,10 +383,8 @@ function summarizeFacts(
             ? fact.value
               ? "Yes"
               : "No"
-            : String(
-                fact.value,
-              )
-        ),
+            : fact.value === null ? 'Not established' : typeof fact.value === 'number' ? fact.value.toLocaleString('en-US',{maximumFractionDigits:6}) : String(fact.value)
+        ) + (fact.state && fact.state !== 'established' ? ' ('+fact.state.replaceAll('_',' ')+')' : ''),
     );
   return (
     "Current project position:\n" +
@@ -337,6 +415,7 @@ export function answerProjectQuestion(
         );
       return {
         key,
+        issueAssessment: result.issueAssessment,
         status: result.status,
         reason: result.reason,
       };
@@ -381,12 +460,7 @@ export function answerProjectQuestion(
       value:
         overview.evidenceDocumentCount,
     },
-    {
-      path:
-        "overview.minimumEvidenceBasis.ready",
-      value:
-        overview.minimumEvidenceBasis.ready,
-    },
+    ...requestedFacts(question, projectId),
     ...moduleFacts,
     ...directorFacts,
   ].filter(
@@ -422,10 +496,9 @@ export function answerProjectQuestion(
       "cmeng_grounded_project_intelligence_v1",
     modelBacked: false,
     authority: "advisory_only",
-    answer:
-      summarizeFacts(
-        uniqueFacts,
-      ),
+    answer: summarizeFacts(uniqueFacts.filter((fact:any)=>fact.label || fact.path === 'overview.latestDataDateIso').length > 1
+      ? uniqueFacts.filter((fact:any)=>fact.label || fact.path === 'overview.latestDataDateIso') : uniqueFacts.slice(0,10)) +
+      (modules.some(m=>m.status!=='ready') ? '\n\nReview required: one or more referenced modules have unresolved evidence, calculation or reconciliation checks. These figures are not an overall all-clear.' : ''),
     relevantModules: modules,
     facts: uniqueFacts,
     reportingContexts:keys.map(key=>{

@@ -1,5 +1,5 @@
 import { reportingScope } from "../../truth-kernel/src";
-import { reportingState } from "./reporting-state";
+import { reportingState,claimsReporting } from "./reporting-state";
 import { extractContractValue } from "../../contract-commercial/src";
 import {
   buildCommercialControlPosition,
@@ -42,6 +42,7 @@ export function commercialPositionForState(
   const ledger=commercialCanonical(state);
   const position =
     buildCommercialControlPosition({
+      sourceDelayClaims:claimsReporting(state)?.source??null,
       sourceLedger:
         commercialCanonical(state),
       foundation:

@@ -1,5 +1,6 @@
 import {
   analyzeScheduleGraph,
+  activityPopulation,
   type CanonicalRelationshipType,
   type CanonicalScheduleActivity,
   type CanonicalScheduleModel,
@@ -352,12 +353,21 @@ function fixedCompletedDates(
 }
 
 export function calculateCpm(
-  model: CanonicalScheduleModel,
+  sourceModel: CanonicalScheduleModel,
   input?: Partial<CpmConfig>,
 ): CpmResult {
+  // LOE and WBS summaries describe a span; their stored duration is not an
+  // independent execution task. Keep exclusions explicit for every consumer.
+  const population=activityPopulation(sourceModel,'execution_control');
+  const excludedIds=new Set(population.excluded.map(a=>a.activityId));
+  const model:CanonicalScheduleModel={...sourceModel,activities:population.activities,
+    relationships:sourceModel.relationships.filter(r=>!excludedIds.has(r.predecessorActivityId)&&!excludedIds.has(r.successorActivityId))};
   const config = mergeConfig(input);
   const graph = analyzeScheduleGraph(model);
   const assumptions: string[] = [];
+  const constrainedActivities=model.activities.filter(a=>a.sourceConstraints?.length);
+  if(constrainedActivities.length)assumptions.push('SOURCE_CONSTRAINTS_RETAINED_NOT_APPLIED_TO_UNCONSTRAINED_NETWORK:'+constrainedActivities.length);
+  if(model.diagnostics.includes('SOURCE_CONSTRAINT_RECOVERY_NOT_ESTABLISHED'))assumptions.push('SOURCE_CONSTRAINT_RECOVERY_NOT_ESTABLISHED');
   const diagnostics = [
     ...model.diagnostics,
     ...graph.diagnostics,
@@ -504,6 +514,7 @@ export function calculateCpm(
       );
 
     return {
+      activityPopulation:population.contract,
       projectId: model.projectId,
       sourceRevisionId:
         model.sourceRevisionId,
@@ -991,6 +1002,7 @@ export function calculateCpm(
       );
 
   return {
+    activityPopulation:population.contract,
     projectId: model.projectId,
     sourceRevisionId:
       model.sourceRevisionId,
@@ -1020,6 +1032,7 @@ export function calculateCpm(
     diagnostics:
       uniqueSorted(diagnostics),
     complete:
+      activities.length > 0 &&
       unresolvedActivityIds.length === 0 &&
       graph.duplicateActivityIds.length === 0 &&
       graph.cyclicActivityIds.length === 0 &&

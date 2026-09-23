@@ -1,9 +1,11 @@
+import {contractChallengeForState} from './contract-challenge-runtime';
 import { enforceModuleReadiness } from "./module-readiness";
+import {assessModuleIssues} from './module-issues';
 import { documentClassificationForReview } from "./document-identification";
-import { reportingScope } from "../../truth-kernel/src";
+import { reportingScope, summarizeControlIssues, type ControlIssue } from "../../truth-kernel/src";
 import { attachReportingContract, reportingData, managementReportingData } from "./reporting-contract";
 import { activityMovementAnalysis } from "../../activity-analytics/src/movement";
-import { reportingState, claimsReporting } from "./reporting-state";
+import { reportingState, claimsReporting, operationalReporting, boqSourceReporting } from "./reporting-state";
 import { commercialFoundationForState } from "./commercial-foundation-runtime";
 import { parseScheduleTime } from "../../schedule-analysis-core/src";
 import { checkProjectionIntegrity } from "./projection-integrity";
@@ -2156,14 +2158,7 @@ function buildBundle(
 
   if (state.contract) {
     challengeContract =
-      buildChallengeContractProjection(
-        state.contract,
-        {
-          generatedAt,
-          producerVersion:
-            versions.challenge,
-        },
-      );
+      contractChallengeForState(state,generatedAt);
   }
 
   modules.set(
@@ -3057,6 +3052,7 @@ function buildBundle(
 
     director =
       buildProjectDirectorPosition({
+        operationalReporting: operationalReporting(state),
         generatedAt,
         projectId:
           state.projectId,
@@ -3337,7 +3333,7 @@ function canonicalQuantityModule(state: ProjectRuntimeState, model: ProjectRunti
   const result = available("quantity-scurve", {
     ...projection, allocationState: scenario ? "partial" : projection.allocationState,
     mappingBasis, candidateMappingState: sameRevision ? "evaluated" : "revision_mismatch", inferredMapping,
-    boqState: "loaded", boqItemCount: quantities.items.length,
+    boqState: "loaded", boqSource: boqSourceReporting(state), boqItemCount: quantities.items.length,
     knownQuantityItemCount: quantities.items.filter(item => item.contractQuantity !== null && Number.isFinite(item.contractQuantity) && item.contractQuantity >= 0).length,
     allocatedItemCount: mappedItemIds.size,
     itemLinkCoveragePercent: quantities.items.length ? mappedItemIds.size / quantities.items.length * 100 : null,
@@ -4899,6 +4895,9 @@ function independentForecastReviewReason(
   if (!forecast.complete) {
     return "Independent forecast requires review because one or more CPM inputs are unresolved.";
   }
+  if(forecast.assumptions.some(a=>a.startsWith('SOURCE_CONSTRAINTS_RETAINED_NOT_APPLIED'))){
+    return 'This is an unconstrained execution-network calculation. Source constraints are retained but are not applied by this calculation; their effect must be reconciled before adopting a management forecast.';
+  }
 
   const variance =
     forecast.forecastVarianceDays;
@@ -6208,16 +6207,7 @@ function buildSpecialistModuleFast(
           state.submittedManpowerPlan,
       });
     const contractIntelligence =
-      state.contract
-        ? buildChallengeContractProjection(
-            state.contract,
-            {
-              generatedAt,
-              producerVersion:
-                "challenge-contract-fast-v2",
-            },
-          )
-        : null;
+      contractChallengeForState(state,generatedAt);
     const contractValueExtraction =
       state.contract
         ? extractContractValue(
@@ -6850,7 +6840,14 @@ function resolveProjectModuleCandidate(state: ProjectRuntimeState, key: string):
     const time = canonicalTimeClaims(state);
     const forecast = ["milestones", "independent-forecast"].includes(key) ? cachedIndependentForecast(model, new Date().toISOString()) : null;
     const forecastReview = forecast ? independentForecastReviewReason(forecast) : null;
+    const laborEvidence=key==='challenge-contract'?canonicalResourceModule(state,'manhour-scurve')?.data as any:null;
     result.data = { ...data, controlBasis,
+      ...(key==='challenge-contract'?{sourceLaborEvidence:laborEvidence?{
+        state:'source',laborResourceCount:laborEvidence.laborResourceCount,plannedHours:laborEvidence.plannedHoursKnown,
+        plannedHoursToDataDate:laborEvidence.plannedHoursToDataDate,actualHoursToDataDate:laborEvidence.actualHoursToDataDate,
+        sourcePeriodCount:laborEvidence.plannedSourcePeriodCount,dataDateIso:laborEvidence.dataDateIso,
+        basis:'Weekly labor demand and approved usage; source hours do not by themselves establish a submitted headcount plan or measured productivity.'
+      }:null,boqSource:boqSourceReporting(state)}:{}),
       ...(["pmo-analysis","delay-claims","notices-claims","eot-assessment","windows-analysis","commercial-claims-notices"].includes(key) ? { claimsReporting: claimsReporting(state) } : {}),
       ...(key==='eot-assessment'?{sourceForecastCompletionIso:sourceOnlyForecast(model,new Date().toISOString()).sourceForecastCompletionIso}:{}),
       ...(key==='notices-claims'?{contractNoticePeriod:commercialFoundationForState(state).commercialTerms.noticePeriodDays}:{}),
@@ -6870,6 +6867,8 @@ function resolveProjectModuleCandidate(state: ProjectRuntimeState, key: string):
       } : {}),
       ...(key === "independent-forecast" ? {
         requiredFinishIso: time.contractTimeBasis?.contractualCompletionIso ?? data.requiredFinishIso ?? null,
+        requiredFinishVarianceDays: (()=>{const required=time.contractTimeBasis?.contractualCompletionIso??data.requiredFinishIso;return required&&data.independentForecastCompletionIso?(parseScheduleTime(data.independentForecastCompletionIso)-parseScheduleTime(required))/86400000:null;})(),
+        sourceConstraints: model.activities.filter(a=>a.sourceConstraints?.length).map(a=>({activityId:a.activityId,constraints:a.sourceConstraints})),
         probabilistic: {...data.probabilistic,
           ...(forecastReview ? {status:"unavailable",p50CompletionIso:null,p80CompletionIso:null,p90CompletionIso:null} : {}),
           suppressionReason: forecastReview,
@@ -6925,8 +6924,13 @@ export function moduleForProject(
       ["project"],
     );
   }
+  if (managementModuleKeys.includes(key)) {
+    return managementSurfaceForProject(projectId, key) ?? blocked(key, "Management position is not established.", []);
+  }
   return resolveProjectModule(state, key);
 }
+
+const managementModuleKeys = ["master-dashboard", "command-center", "master-control-programme"];
 
 export function directorForProject(
   projectId: string,
@@ -6987,12 +6991,17 @@ function gapState(
       : "missing";
 }
 
+const managementProjectionCache = new Map<string, {version: number; data: ManagementSurfacesProjection}>();
+
 export function managementSurfacesForProject(
   projectId: string,
 ): ManagementSurfacesProjection | null {
   const state =
     runtimeProjects.get(projectId);
   if (!state) return null;
+
+  const cached = managementProjectionCache.get(projectId);
+  if (cached?.version === state.version) return cached.data;
 
   const bundle =
     buildBundle(state);
@@ -7035,7 +7044,7 @@ export function managementSurfacesForProject(
   const moduleInput = (descriptor: {key: string; title: string; category: string}, commercialModule = false): ManagementModuleInput => {
     const result = resolvedModules.get(descriptor.key)!;
     const integrity = (result.data as any)?.systemEvidenceContract;
-    return { key: descriptor.key, label: descriptor.title,
+    return { key: descriptor.key, label: descriptor.title, issueAssessment: result.issueAssessment,
       group: commercialModule ? "Commercial" : managementModuleGroup(descriptor.key, descriptor.category),
       status: result.status, reason: result.reason ?? null,
       calculationState: integrity?.state === "verified_for_checked_metrics" ? "checked" : integrity?.state === "failed" ? "failed" : "pending",
@@ -7543,10 +7552,22 @@ export function managementSurfacesForProject(
     },
     boardPublicationState,
   });
-  return { ...surfaces,
-    masterDashboard: managementReportingData(state, surfaces.masterDashboard, resolvedModules),
-    commandCenter: managementReportingData(state, surfaces.commandCenter, resolvedModules),
-    masterControlProgramme: managementReportingData(state, surfaces.masterControlProgramme, resolvedModules) };
+  const issues = [...resolvedModules.values()].flatMap(r=>r.issueAssessment?.issues??[]);
+  const governanceIssues:ControlIssue[] = surfaces.commandCenter.governanceGaps.map(g=>({kind:'governance_review',code:'MANAGEMENT_GOVERNANCE_'+g.key,
+    summary:g.label+' requires governance review',detail:'Publication and approval readiness is separate from source completeness and software correctness.',
+    action:g.action,owner:'Project controls reviewer',moduleKeys:['master-dashboard','command-center','master-control-programme'],
+    evidencePaths:['governanceGaps.'+g.key],sourceRefs:[],checkIds:[]}));
+  const operations=operationalReporting(state);
+  const operationalIssues=assessModuleIssues({key:'command-center',status:'partial',reason:null,dependencies:['dated operational registers'],
+    engineState:'ready',evidenceState:'partial',professionalState:'review_required',data:{operationalReporting:operations}},certification).issues
+    .map(issue=>({...issue,moduleKeys:[...managementModuleKeys]}));
+  const issueAssessment=summarizeControlIssues([...issues,...governanceIssues,...operationalIssues]);
+  const result = { ...surfaces,
+    masterDashboard: {...managementReportingData(state, surfaces.masterDashboard, resolvedModules),issueAssessment,operationalReporting:operationalReporting(state)},
+    commandCenter: {...managementReportingData(state, surfaces.commandCenter, resolvedModules),issueAssessment,operationalReporting:operationalReporting(state)},
+    masterControlProgramme: {...managementReportingData(state, surfaces.masterControlProgramme, resolvedModules),issueAssessment} };
+  managementProjectionCache.set(projectId, {version: state.version, data: result});
+  return result;
 }
 
 export function managementSurfaceForProject(
@@ -7602,6 +7623,7 @@ export function managementSurfaceForProject(
 
   return {
     key,
+    issueAssessment: data.issueAssessment,
     status:
       !currentEstablished
         ? "partial"
@@ -7831,6 +7853,10 @@ export function overviewForProject(
             ],
           }),
         ),
+    managementStates: managementModuleKeys.map(key => {
+      const resolved = moduleForProject(projectId, key);
+      return {key, status: resolved.status, reason: resolved.reason, issueAssessment: resolved.issueAssessment};
+    }),
     moduleStates:
       [
         ...scheduleModules,
@@ -7844,6 +7870,7 @@ export function overviewForProject(
             );
           return {
             key: module.key,
+            issueAssessment: resolved.issueAssessment,
             status:
               resolved.status,
             reason:
@@ -8071,6 +8098,7 @@ export function invalidateProject(
 ): void {
   bundleCache.delete(projectId);
   resolvedProjectCache.delete(projectId);
+  managementProjectionCache.delete(projectId);
   for (
     const key of
       planningModuleCache.keys()

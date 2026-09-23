@@ -1,3 +1,4 @@
+import {quantityModelFromBoq} from './boq-source';
 import { synchronizeCanonicalTimeClaims } from "./canonical-time-claims";
 import { migrateTypedEvidenceFamilies } from "./typed-evidence-families";
 import {
@@ -536,82 +537,7 @@ function summary(
   };
 }
 
-function quantityModelFromBoq(
-  result: BoqIngestionResult,
-  scheduleRevisionId: string,
-  existing:
-    CanonicalQuantityProgressModel | null,
-): CanonicalQuantityProgressModel {
-  const source =
-    result.sourceFormat === "pdf"
-      ? "boq_pdf" as const
-      : result.sourceFormat ===
-          "csv"
-        ? "boq_csv" as const
-        : "boq_xlsx" as const;
 
-  const items = result.canonicalItems.map(
-    (item) => ({
-      quantityItemId: item.itemId,
-      itemNumber: item.itemNumber,
-      section: item.section,
-      description: item.description,
-      unit: item.unit,
-      contractQuantity:
-        item.quantity,
-      sourceRefs: [{
-        source,
-        locator:
-          item.sourceRefs[0] ??
-          "evidence-receipt:" +
-            result.evidenceReceipt
-              .receiptId,
-      }],
-      diagnostics: [
-        ...item.diagnostics,
-        ...(item.status ===
-        "unresolved"
-          ? [
-              "QUANTITY_ITEM_SOURCE_UNRESOLVED",
-            ]
-          : []),
-      ],
-    }),
-  );
-
-  const itemIds = new Set(
-    items.map(
-      (item) =>
-        item.quantityItemId,
-    ),
-  );
-
-  return {
-    projectId: result.projectId,
-    boqRevisionId:
-      result.evidenceReceipt
-        .revisionId,
-    scheduleRevisionId,
-    items,
-    allocations:
-      existing?.allocations.filter(
-        (allocation) =>
-          itemIds.has(
-            allocation.quantityItemId,
-          ),
-      ) ?? [],
-    installedSnapshots:
-      existing?.installedSnapshots.filter(
-        (snapshot) =>
-          itemIds.has(
-            snapshot.quantityItemId,
-          ),
-      ) ?? [],
-    diagnostics: [
-      ...result.diagnostics,
-    ],
-  };
-}
 
 
 interface SerializedProjectState

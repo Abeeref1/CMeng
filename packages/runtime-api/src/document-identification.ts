@@ -2130,7 +2130,8 @@ function classifyText(
 export function documentClassificationForReview(document: StoredEvidenceDocument) {
   const text = [document.identification?.detectedTitle ?? "", ...document.assertions.map(a => a.sourceText)].join("\n");
   const detected = classifyText(text, document.mediaType);
-  const changed = detected && detected.confidence >= 0.9 && detected.documentType !== document.documentType;
+  const compatibleScheduleRole=detected?.documentType==='schedule_file'&&/^schedule_(baseline|update|recovery)$/.test(document.documentType);
+  const changed = detected && detected.confidence >= 0.9 && detected.documentType !== document.documentType&&!compatibleScheduleRole;
   return { documentType: changed ? detected.documentType : document.documentType,
     category: changed ? detected.category : document.category,
     recordedDocumentType: document.documentType,

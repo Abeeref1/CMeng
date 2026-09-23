@@ -3,10 +3,20 @@ import { projectDataDate, canonicalTimeClaims } from './canonical-time-claims';
 import type { ProjectRuntimeState } from './project-state-types';
 import { reportingScope,partitionAsOf } from '../../truth-kernel/src';
 import { projectControlSchedule } from './canonical-time-claims';
+import {operationalControlsAsOf,type OperationalReporting} from './operational-reporting';
+import {resolveBoqSource} from './boq-source';
+import {refreshContractSegmentation} from '../../contract-parser/src';
+import {refreshScheduleConstraints} from './schedule-source-refresh';
 
 const cache = new WeakMap<ProjectRuntimeState,{version:number;date:string|null;value:ProjectRuntimeState}>();
 const views = new WeakSet<ProjectRuntimeState>();
 const origins = new WeakMap<ProjectRuntimeState,ProjectRuntimeState>();
+const operationalCache = new WeakMap<ProjectRuntimeState,{version:number;date:string|null;value:OperationalReporting}>();
+export function operationalReporting(state:ProjectRuntimeState) {
+  state=origins.get(state)??state;const date=projectDataDate(state),cached=operationalCache.get(state);
+  if(cached?.version===state.version&&cached.date===date)return cached.value;
+  const value=operationalControlsAsOf(state,date);operationalCache.set(state,{version:state.version,date,value});return value;
+}
 /** Read-only reporting view. Never truncates or overwrites persisted evidence. */
 export function reportingState(state: ProjectRuntimeState): ProjectRuntimeState {
   if(views.has(state))return state;
@@ -15,10 +25,10 @@ export function reportingState(state: ProjectRuntimeState): ProjectRuntimeState 
   const governed=state.controls.delayClaims;
   const source=governed&&!/^(canonical-evidence|evidence-document):/.test(governed.evidenceRevisionId)?governed:canonicalTimeClaims(state).delayClaims??governed;
   const schedules=state.schedules.map(stored=>{
-    const model=stored.revision.model;
+    const model=refreshScheduleConstraints(state,stored);
     if(!Array.isArray(model.activities))return stored;
     const cutoff=model.dataDateIso??date;
-    let changed=false;
+    let changed=model!==stored.revision.model;
     const activities=model.activities.map(row=>{
       const invalidStart=Boolean(row.actualStartIso)&&reportingScope(row.actualStartIso,cutoff)!=='as_of';
       const invalidFinish=Boolean(row.actualFinishIso)&&reportingScope(row.actualFinishIso,cutoff)!=='as_of';
@@ -30,8 +40,19 @@ export function reportingState(state: ProjectRuntimeState): ProjectRuntimeState 
     });
     return changed?{...stored,revision:{...stored.revision,model:{...model,activities}}}:stored;
   });
-  const view={...state,schedules,controls:{...state.controls,delayClaims:source?delayClaimsAsOf(source,date).current:null}};
+  const ops=operationalReporting(state);
+  const boqSource=resolveBoqSource(state,projectControlSchedule(state)?.revision.revisionId??'');
+  const view={...state,schedules,boq:boqSource.boq,quantities:boqSource.quantities,
+    contract:state.contract?refreshContractSegmentation(state.contract):null,
+    contractDocuments:state.contractDocuments.map(doc=>({...doc,result:refreshContractSegmentation(doc.result)})),
+    controls:{...state.controls,delayClaims:source?delayClaimsAsOf(source,date).current:null,
+    ncrs:ops.quality.current as typeof state.controls.ncrs,rfis:ops.rfi.current as typeof state.controls.rfis,risks:ops.risk.current as typeof state.controls.risks}};
   views.add(view);origins.set(view,state);cache.set(state,{version:state.version,date,value:view});return view;
+}
+
+export function boqSourceReporting(state:ProjectRuntimeState) {
+  const raw=origins.get(state)??state;
+  return resolveBoqSource(raw,projectControlSchedule(raw)?.revision.revisionId??'').selection;
 }
 
 export function scheduleActualReporting(state:ProjectRuntimeState){

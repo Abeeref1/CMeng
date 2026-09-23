@@ -346,6 +346,10 @@ export interface StoredContractDocument {
 
 export interface RiskControlRecord {
   riskId: string;
+  raisedIso?: string | null;
+  closedIso?: string | null;
+  statusAsOfIso?: string | null;
+  sourceStatus?: string;
   status:
     | "open"
     | "closed"
@@ -468,6 +472,7 @@ export interface ScheduleUploadSummary {
 }
 
 export interface ModuleRuntimeResult {
+  issueAssessment?: import('../../truth-kernel/src').ControlIssueAssessment | undefined;
   key: string;
   /** Compatibility status derived from professional defensibility. */
   status:
@@ -539,7 +544,14 @@ export interface ProjectRuntimeOverview {
     EvidenceRerunReceipt | null;
   boardPublicationHistory:
     PublishedBoardReportRecord[];
+  managementStates: Array<{
+    issueAssessment?: import('../../truth-kernel/src').ControlIssueAssessment | undefined;
+    key: string;
+    status: "ready" | "partial" | "blocked";
+    reason: string | null;
+  }>;
   moduleStates: Array<{
+    issueAssessment?: import('../../truth-kernel/src').ControlIssueAssessment | undefined;
     key: string;
     status:
       | "ready"

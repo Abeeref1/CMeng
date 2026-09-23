@@ -1,4 +1,6 @@
-import { isExecutionActivity } from "../../schedule-analysis-core/src";
+import { isExecutionActivity,parseScheduleTime } from "../../schedule-analysis-core/src";
+import {scheduleActivityFinish} from '../../schedule-revision-core/src/compare';
+import {dateValue,populationContract} from '../../truth-kernel/src';
 import {
   compareScheduleRevisions,
   orderScheduleRevisionsChronologically,
@@ -18,6 +20,21 @@ export function buildScheduleChangeReportProjection(
 ): ScheduleChangeReportProjection {
   const comparison = compareScheduleRevisions(from, to);
   const currentExecution = new Set(to.model.activities.filter(isExecutionActivity).map(a=>a.activityId));
+  const before=new Map(from.model.activities.map(a=>[a.activityId,a])),after=new Map(to.model.activities.map(a=>[a.activityId,a]));
+  const finishRows=comparison.activityChanges.flatMap(change=>{
+    const a=before.get(change.fromActivityId??''),b=after.get(change.toActivityId??'');
+    const fromFinishIso=a?scheduleActivityFinish(a):null,toFinishIso=b?scheduleActivityFinish(b):null;
+    return fromFinishIso&&toFinishIso&&dateValue(fromFinishIso)&&dateValue(toFinishIso)&&change.finishShiftDays!==null?[{activityId:change.activityId,fromFinishIso,toFinishIso,movementDays:change.finishShiftDays}]:[];
+  });
+  const maximumDays=finishRows.length?finishRows.reduce((max,r)=>Math.max(max,r.movementDays),-Infinity):null;
+  const maximumRows=finishRows.filter(r=>r.movementDays===maximumDays);
+  const knownIds=new Set(finishRows.map(r=>r.activityId));
+  const finishMovementAnalysis={fromLabel:from.label??from.revisionId,toLabel:to.label??to.revisionId,
+    population:populationContract({name:'Revision-comparable source activity finish dates',entity:'activity',dataDateIso:to.model.dataDateIso,
+      dateBasis:'source finish elapsed days (24 hours) for each matched activity; unchanged matched records included',sourceRevisionId:from.revisionId+'->'+to.revisionId,
+      authority:'calculated',sourceCount:comparison.activityChanges.length,memberIds:[...knownIds],exclusions:comparison.activityChanges.filter(r=>!knownIds.has(r.activityId)).map(r=>({id:r.activityId,reason:'unmatched_or_finish_date_missing'}))}),
+    maximumDays,maximumCount:maximumRows.length,maximumPercent:finishRows.length?maximumRows.length/finishRows.length*100:null,
+    sourcePairVerifiedCount:maximumRows.filter(r=>Math.abs((parseScheduleTime(r.toFinishIso)-parseScheduleTime(r.fromFinishIso))/86_400_000-r.movementDays)<0.000001).length,maximumRows,causation:'not_established' as const};
 
   const changedActivities =
     comparison.activityChanges
@@ -91,6 +108,7 @@ export function buildScheduleChangeReportProjection(
     removedRelationships:
       comparison.removedRelationships,
     changedActivities,
+    finishMovementAnalysis,
     executionModifiedActivityCount: comparison.modifiedActivityIds.filter(id=>currentExecution.has(id)).length,
     excludedModifiedActivityCount: comparison.modifiedActivityIds.filter(id=>!currentExecution.has(id)).length,
     populationBasis: "source_records",

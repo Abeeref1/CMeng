@@ -147,6 +147,28 @@ function chainModel(
   };
 }
 
+test('execution CPM excludes LOE and WBS durations and retains the source population',()=>{
+  const base=chainModel();
+  const expected=calculateCpm(base);
+  const extended=chainModel({activities:[...base.activities,
+    activity('ADMIN',{activityType:'level_of_effort',remainingDurationHours:100000}),
+    activity('SUMMARY',{activityType:'wbs_summary',remainingDurationHours:200000})]});
+  const result=calculateCpm(extended);
+  assert.equal(result.projectFinishIso,expected.projectFinishIso);
+  assert.equal(result.activityPopulation.sourceCount,4);
+  assert.equal(result.activityPopulation.denominator,2);
+  assert.deepEqual(result.activityPopulation.exclusions,[{activityId:'ADMIN',reason:'level_of_effort'},{activityId:'SUMMARY',reason:'wbs_summary'}]);
+  assert.ok(!result.criticalActivityIds.includes('ADMIN'));
+  assert.equal(calculateCpm(chainModel({activities:[extended.activities[2]!],relationships:[]})).complete,false);
+});
+test('source constraints remain explicit limitations of the unconstrained network calculation',()=>{
+  const model=chainModel();
+  model.activities[1]!.sourceConstraints=[{type:'CS_MEO',dateIso:'2026-01-06T16:00:00'}];
+  const result=calculateCpm(model);
+  assert.ok(result.assumptions.includes('SOURCE_CONSTRAINTS_RETAINED_NOT_APPLIED_TO_UNCONSTRAINED_NETWORK:1'));
+  assert.equal(model.activities[1]!.sourceConstraints[0]!.dateIso,'2026-01-06T16:00:00');
+});
+
 test("working-time arithmetic crosses weekends and non-working exceptions exactly", () => {
   const calendar = fiveDayCalendar([
     {

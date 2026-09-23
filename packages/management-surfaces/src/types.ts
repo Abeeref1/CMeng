@@ -33,6 +33,7 @@ export type ManagementValueState =
   | "unavailable";
 
 export interface ManagementModuleInput {
+  issueAssessment?: import('../../truth-kernel/src').ControlIssueAssessment | undefined;
   key: string;
   label: string;
   group: string;
@@ -211,6 +212,7 @@ export interface ManagementDecision {
 }
 
 export interface MasterDashboardProjection {
+  issueAssessment?: import('../../truth-kernel/src').ControlIssueAssessment | undefined;
   schemaVersion: "1.0";
   projectionKey: "master_dashboard";
   generatedAt: string;
@@ -234,6 +236,7 @@ export interface MasterDashboardProjection {
 }
 
 export interface CommandCenterProjection {
+  issueAssessment?: import('../../truth-kernel/src').ControlIssueAssessment | undefined;
   schemaVersion: "1.0";
   projectionKey: "command_center";
   generatedAt: string;
@@ -254,6 +257,7 @@ export interface CommandCenterProjection {
 }
 
 export interface MasterControlProgrammeProjection {
+  issueAssessment?: import('../../truth-kernel/src').ControlIssueAssessment | undefined;
   schemaVersion: "1.0";
   projectionKey:
     "master_control_programme";
