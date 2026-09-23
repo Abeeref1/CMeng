@@ -459,6 +459,41 @@ export function buildQuantityScheduleMapping(
   const ambiguousItemIds: string[] = [];
   const unmappedItemIds: string[] = [];
 
+  // Generate an exact candidate superset from the scoring features. Previously
+  // every BOQ item re-tokenized every activity and created a fingerprint even
+  // for a zero score, making real source registers block the whole resolver.
+  const eligible=schedule.activities.filter(a=>a.activityType==='task'&&a.status!=='completed');
+  const wbsByActivity=new Map(eligible.map(a=>[a,wbsText(a,wbsById)]));
+  type Posting=Map<string,Set<CanonicalScheduleActivity>>;
+  const descriptions:Posting=new Map(),sections:Posting=new Map(),codes:Posting=new Map(),nameGrams:Posting=new Map(),namePrefixes:Posting=new Map();
+  const explicit=new Map(eligible.filter(a=>/^[A-Za-z0-9_.-]+$/.test(a.activityId)).map(a=>[a.activityId.toUpperCase(),a]));
+  const unusualIds=eligible.filter(a=>!/^[A-Za-z0-9_.-]+$/.test(a.activityId));
+  const index=(map:Posting,key:string,a:CanonicalScheduleActivity)=>{const list=map.get(key)??new Set();list.add(a);map.set(key,list);};
+  const grams=(s:string)=>Array.from({length:Math.max(0,s.length-4)},(_,i)=>s.slice(i,i+5));
+  for(const a of eligible){
+    for(const token of tokens(a.name))index(descriptions,token,a);
+    const wbs=wbsByActivity.get(a)!;
+    for(const token of tokens(wbs))index(sections,token,a);
+    for(const token of codeTokens([a.activityId,a.wbsId??'',wbs].join(' ')))index(codes,token,a);
+    const name=norm(a.name);if(name.length>=5){index(namePrefixes,name.slice(0,5),a);for(const gram of grams(name))index(nameGrams,gram,a);}
+  }
+  const candidatesFor=(item:CanonicalQuantityItem)=>{
+    const found=new Set<CanonicalScheduleActivity>();
+    const collect=(map:Posting,keys:Iterable<string>,target=found)=>{for(const key of keys)for(const a of map.get(key)??[])target.add(a);};
+    collect(descriptions,tokens(item.description));
+    const description=norm(item.description);
+    if(description.length>=5){collect(nameGrams,[description.slice(0,5)]);collect(namePrefixes,grams(description));}
+    const sectionMatches=new Set<CanonicalScheduleActivity>(),codeMatches=new Set<CanonicalScheduleActivity>();
+    collect(sections,tokens(item.section),sectionMatches);
+    const corpus=[item.itemNumber??'',item.section??'',item.description].join(' ');
+    collect(codes,codeTokens(corpus),codeMatches);
+    // Section or code evidence alone cannot reach the 0.34 candidate threshold.
+    for(const a of sectionMatches)if(codeMatches.has(a))found.add(a);
+    for(const token of corpus.toUpperCase().match(/[A-Z0-9_.-]+/g)??[]){const a=explicit.get(token);if(a)found.add(a);}
+    for(const a of unusualIds)if(containsExplicitActivityId(item,a))found.add(a);
+    return [...found];
+  };
+
   for (const item of quantities.items) {
     const governed =
       governedByItem.get(
@@ -476,25 +511,16 @@ export function buildQuantityScheduleMapping(
     }
 
     const ranked =
-      schedule.activities
-        .filter(
-          (activity) =>
-            activity.activityType ===
-              "task" &&
-            activity.status !==
-              "completed",
-        )
-        .map((activity) => {
+      candidatesFor(item)
+        .flatMap((activity) => {
           const resolved =
             score(
               item,
               activity,
-              wbsText(
-                activity,
-                wbsById,
-              ),
+              wbsByActivity.get(activity)!,
             );
-          return {
+          if(Number(resolved.value.toFixed(4))<0.34)return [];
+          return [{
             candidateId:
               candidateId(
                 item.quantityItemId,
@@ -522,7 +548,7 @@ export function buildQuantityScheduleMapping(
               ...item.sourceRefs,
             ],
             diagnostics: [],
-          };
+          }];
         })
         .filter(
           (candidate) =>

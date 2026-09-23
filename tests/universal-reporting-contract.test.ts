@@ -79,6 +79,21 @@ test('an impossible supplied closure is data quality while confirmed open NCRs r
  const result=moduleForProject(state.projectId,'command-center').data as any;
  assert.ok(result.issueAssessment.issues.some((i:any)=>i.kind==='data_quality'&&i.detail.includes('CLOSURE_BEFORE_RAISED_DATE')));
 });
+test('Look-Ahead shares dated lifecycles, excludes future NCRs and retains every current blocker',t=>{
+ const {state,csv}=fixture(t);
+ csv('NCR ID,Linked Activity,Raised Date,Close Date,Severity,Status\nN1,WORK,2031-04-01,2031-04-16,Major,Closed\nN2,WORK,2031-04-01,2031-04-15,Minor,Closed\nN3,FUTURE,2031-04-16,,Major,Open','quality_ncr_register');
+ csv('Package ID,Linked Activity,Status,Required On Site\nP1,WORK,Delivered,2031-04-01','procurement_register');
+ const view=reportingState(state);
+ assert.equal(view.controls.readinessEvidence.WORK!.quality!.state,'blocked');
+ assert.equal(view.controls.readinessEvidence.WORK!.quality!.sourceRefs.length,2);
+ assert.equal(view.controls.readinessEvidence.FUTURE,undefined);
+ assert.equal(view.controls.readinessEvidence.WORK!.procurement_material!.state,'unknown');
+ const row=(moduleForProject(state.projectId,'lookahead-schedule').data as any).rows.find((r:any)=>r.activityId==='WORK');
+ assert.equal(row.readiness.dimensions.find((d:any)=>d.key==='quality').state,'blocked');
+ assert.equal(state.controls.readinessEvidence.WORK,undefined,'read-only reporting must not rewrite stored controls');
+ state.schedules[0]!.revision.model.dataDateIso='2031-04-16';state.version++;
+ assert.equal(reportingState(state).controls.readinessEvidence.WORK!.quality!.state,'ready');
+});
 
 test('legacy productivity classification cannot displace a BOQ; the sole source candidate stays explicitly unadopted',async t=>{
  const {state,csv}=fixture(t);

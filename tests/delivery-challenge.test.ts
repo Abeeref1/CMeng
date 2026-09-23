@@ -410,6 +410,21 @@ test("BOQ activity mapping can infer a strong link when IDs do not match", () =>
     ),
   );
 });
+test('indexed quantity mapping retains explicit IDs, containment and combined section/code candidates',()=>{
+ const s=schedule(),q=quantities();const first=s.activities[0]!;
+ s.activities=[{...first,activityId:'X-81',name:'Unrelated',wbsId:'81'},
+  {...first,activityId:'TARGET',name:'installation',wbsId:'81'},
+  {...first,activityId:'DIRECT',name:'Other',wbsId:null}];
+ s.wbs=[{wbsId:'81',name:'Concrete',parentWbsId:null,sourceRefs:[]}];
+ const item=q.items[0]!;
+ q.items=[{...item,quantityItemId:'EXPLICIT',description:'Specified DIRECT',section:null,itemNumber:null},
+  {...item,quantityItemId:'COMBINED',description:'Unconnected',section:'Concrete 81',itemNumber:'X-81'},
+  {...item,quantityItemId:'CONTAINS',description:'installation work',section:'Concrete 81',itemNumber:null}];
+ const result=buildQuantityScheduleMapping(q,s);
+ assert.ok(result.candidates.some(c=>c.quantityItemId==='EXPLICIT'&&c.activityId==='DIRECT'&&c.confidence===0.99));
+ assert.ok(result.candidates.some(c=>c.quantityItemId==='COMBINED'&&c.activityId==='X-81'));
+ assert.ok(result.candidates.some(c=>c.quantityItemId==='CONTAINS'&&c.activityId==='TARGET'));
+});
 
 test("delivery challenge uses inferred quantity mapping for productivity without promoting it to official", () => {
   const result =
