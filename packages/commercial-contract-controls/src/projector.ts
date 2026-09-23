@@ -297,6 +297,15 @@ function variations(
         const stageDates=[row.instructionDate,row.submittedDate,row.quotationDate,row.assessedDate,row.agreedDate,row.approvalDate];
         const scope = stageDates.some(d=>reportingScope(d,input.dataDateIso)==='as_of')?'as_of':stageDates.some(d=>reportingScope(d,input.dataDateIso)==='future')?'future':'undated';
         const approvalScope=reportingScope(row.approvalDate,input.dataDateIso);
+        const stageMoney = (money: ContractControlMoney, date: string | null, method: string, consequence: string): CommercialFinding<number> => {
+          const scope=reportingScope(date,input.dataDateIso);
+          const result=moneyFinding(money,method,consequence);
+          if(scope==='as_of'||money.value===null)return {...result,reportingScope:scope};
+          return {...result,reportingScope:scope,value:null,submitted:money.value,state:'partial',
+            consequence:scope==='future'?'Source amount is dated after the Data Date and excluded from current totals.':'Source amount is retained, but its event date is not established for the current position.',
+            action:scope==='future'?null:'Establish the lifecycle event date before including this source amount in current totals.',
+            diagnostics:[scope==='future'?'SOURCE_AMOUNT_AFTER_DATA_DATE':'SOURCE_AMOUNT_EVENT_DATE_NOT_ESTABLISHED']};
+        };
         for (const [amountKey,dateKey] of [['claimedAmount','submittedDate'],['assessedAmount','assessedDate'],['agreedAmount','agreedDate'],['approvedAmount','approvalDate']] as const) if(reportingScope(row[dateKey],input.dataDateIso)!=='as_of') row[amountKey]={...row[amountKey],value:null,state:'missing'};
         for(const key of ['instructionDate','submittedDate','quotationDate','assessedDate','agreedDate','approvalDate'] as const)if(reportingScope(row[key],input.dataDateIso)!=='as_of')row[key]=null;
         // Amounts and final status alone cannot reconstruct a historical lifecycle stage.
@@ -324,6 +333,7 @@ function variations(
           ].filter(Boolean)
             .length;
         return {
+          source: structuredClone(sourceRow),
           variationId:
             row.variationId,
           description:
@@ -379,26 +389,26 @@ function variations(
                 ),
           cost: {
             claimed:
-              moneyFinding(
-                row.claimedAmount,
+              stageMoney(
+                sourceRow.claimedAmount, sourceRow.submittedDate,
                 "variation_claimed_amount",
                 "Claimed variation value remains separate from assessment, agreement and approval.",
               ),
             assessed:
-              moneyFinding(
-                row.assessedAmount,
+              stageMoney(
+                sourceRow.assessedAmount, sourceRow.assessedDate,
                 "variation_assessed_amount",
                 "Assessed variation value does not equal approved entitlement.",
               ),
             agreed:
-              moneyFinding(
-                row.agreedAmount,
+              stageMoney(
+                sourceRow.agreedAmount, sourceRow.agreedDate,
                 "variation_agreed_amount",
                 "Agreed value remains distinct until contractual approval is evidenced.",
               ),
             approved:
-              moneyFinding(
-                row.approvedAmount,
+              stageMoney(
+                sourceRow.approvedAmount, sourceRow.approvalDate,
                 "variation_approved_amount",
                 "Approved value is the only variation value eligible to change the governed contract sum.",
               ),

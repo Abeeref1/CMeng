@@ -643,17 +643,20 @@ async function route(
               !minimumEvidenceReady
                 ? "needs_information"
                 : lastRerunState ===
-                    "pass"
+                    "pass" && readyModules === moduleStatuses.length
                   ? "current"
                   : "needs_review",
             forecastCompletionIso:
               director?.schedule
                 .independentForecastCompletionIso ??
               null,
+            forecastAuthority: director?.schedule.independentForecastAuthority ?? 'unresolved',
             officialCompletionIso:
               director?.schedule
-                .officialAdjustedCompletionIso ??
+                .contractualCompletionIso ??
               null,
+            contractualCompletionState: commercialPosition.foundation.commercialTerms.contractualCompletionDate.state,
+            furtherAdjustedCompletionIso: director?.schedule.officialAdjustedCompletionIso ?? null,
             programmeMovementDays:
               windowsData
                 ?.projectCompletionMovementDays ??
@@ -662,6 +665,7 @@ async function route(
               director?.claims
                 .officialApprovedEotDays ??
               null,
+            approvedEotBasis: 'Gross source-approved determinations through the Data Date; overlap and further contractual adjustment require reconciliation.',
             claimCount:
               director?.claims
                 .claimCount ??
