@@ -3870,6 +3870,8 @@ async function loadModule(key){
   if(!overview){el("moduleContent").innerHTML='<div class="empty">Load a project first.</div>';return}
   const moduleName=names[key]||key;
   const requestSeq=++moduleRequestSeq;
+  currentModuleResult=null;
+  el("moduleContent").classList.remove("empty");
   el("moduleTitle").textContent=moduleName;
   el("moduleSubtitle").textContent=descriptions[key]||"Current position, key changes and actions requiring attention.";
   el("topbarModule").textContent=moduleName;
@@ -3890,7 +3892,14 @@ async function loadModule(key){
   }catch(e){
     if(requestSeq!==moduleRequestSeq)return;
     const d=e.data||{};
-    renderModuleResult({key,status:"blocked",reason:d.reason||d.error||e.message,dependencies:d.dependencies||[]});
+    if(d.key===key&&d.status==="blocked"&&d.issueAssessment){
+      renderModuleResult(d);
+    }else{
+      el("moduleBadge").className="badge";
+      el("moduleBadge").textContent="Not loaded";
+      el("moduleContent").innerHTML='<section class="notice error" role="alert"><h4>Unable to load '+escapeHtml(moduleName)+'</h4><p>The latest position has not been retrieved. Try this view again.</p><button class="btn" id="retryModule">Try again</button><details><summary>Request details</summary><p>'+escapeHtml(d.reason||d.error||e.message||"The request did not complete.")+'</p></details></section>';
+      el("retryModule").onclick=()=>loadModule(key);
+    }
   }finally{
     if(requestSeq===moduleRequestSeq)setBusy("");
   }

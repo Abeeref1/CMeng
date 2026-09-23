@@ -47,8 +47,8 @@ function navigationHarness(){
   const start=script!.indexOf('let moduleRequestSeq=');
   const end=script!.indexOf('\nfunction kpi(',start);
   assert.ok(start>=0&&end>start);
-  const nodes=new Map<string,{textContent:string;innerHTML:string;className:string}>();
-  const el=(id:string)=>{let n=nodes.get(id);if(!n){n={textContent:'',innerHTML:'',className:''};nodes.set(id,n);}return n;};
+  const nodes=new Map<string,{textContent:string;innerHTML:string;className:string;classList:{remove:(name:string)=>void}}>();
+  const el=(id:string)=>{let n=nodes.get(id);if(!n){n={textContent:'',innerHTML:'',className:'',classList:{remove:()=>{}}};nodes.set(id,n);}return n;};
   const requests:Array<{resolve:(value:unknown)=>void;reject:(value:unknown)=>void}>=[];
   const rendered:unknown[]=[];const busy:string[]=[];
   const load=runInNewContext(script!.slice(start,end)+'\nloadModule',{

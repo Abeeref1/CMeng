@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { runInNewContext } from 'node:vm';
+import { runInNewContext, createContext, runInContext } from 'node:vm';
 import { createSourceFile, ScriptTarget, isFunctionDeclaration, isCallExpression, isIdentifier, forEachChild, Node } from 'typescript';
 import { cmengUatHtml } from '../packages/runtime-api/src/ui';
 
@@ -126,4 +126,43 @@ test('calculation failures remain visible while zero-count diagnostic cards stay
   assert.match(management,/Affected views/);assert.match(management,/<b>5<\/b>/);assert.doesNotMatch(management,/>25</);
   assert.doesNotMatch(script,/function flattenRoleScalars|function roleSignalScore|function collectRoleActions/);
   assert.doesNotMatch(script,/querySelectorAll\("details"\)\.forEach\(node=>node.open=true\)/);
+});
+
+function moduleLoader(api:(route:string)=>Promise<unknown>) {
+  const elements=new Map<string,any>();
+  const el=(id:string)=>{if(!elements.has(id))elements.set(id,{innerHTML:'',classList:{remove(){}},textContent:'',onclick:null});return elements.get(id);};
+  const rendered:any[]=[];
+  const context=createContext({...common,el,api,overview:{},names:{cash:'Cash',progress:'Progress'},descriptions:{},project:()=> 'unrelated-project',moduleRequestSeq:0,currentModuleResult:{key:'old',data:{value:999}},managementSurfaceKeysForApi:new Set(),commercialModuleKeysForApi:new Set(),setBusy:()=>{},renderModuleResult:(r:any)=>{rendered.push(r);context.currentModuleResult=r;el('moduleContent').innerHTML='Rendered '+r.key;}});
+  runInContext(functions(['loadModule']),context);
+  return {context,elements,rendered,load:(key:string)=>{context.requestedKey=key;return runInContext('loadModule(requestedKey)',context) as Promise<void>;}};
+}
+
+test('a failed view request clears the old position, offers retry and does not invent a calculation failure',async()=>{
+  let reject:(e:unknown)=>void=()=>{},calls=0;
+  const first=new Promise((_,r)=>{reject=r;});
+  const h=moduleLoader(async()=>{calls++;return calls===1?first:{key:'cash',status:'partial',data:{paid:0}};});
+  const pending=h.load('cash');
+  assert.equal(h.context.currentModuleResult,null,'old values cannot be exported or rendered by a lens while the new view loads');
+  reject(Object.assign(new Error('Service unavailable'),{status:503}));await pending;
+  assert.equal(h.rendered.length,0,'a transport failure is not a classified module result');
+  assert.match(h.elements.get('moduleContent').innerHTML,/Unable to load Cash/);
+  assert.doesNotMatch(h.elements.get('moduleContent').innerHTML,/Unverified|calculation is unavailable|missing information/i);
+  assert.equal(h.elements.get('moduleBadge').textContent,'Not loaded');
+  await h.elements.get('retryModule').onclick();
+  assert.equal(h.rendered[0].key,'cash');assert.equal(h.rendered[0].data.paid,0);
+});
+
+test('a classified blocked module response retains its real assessment',async()=>{
+  const blocked={key:'cash',status:'blocked',reason:'Invalid supplied dates',issueAssessment:{primaryKind:'data_quality'}};
+  const h=moduleLoader(async()=>{throw Object.assign(new Error('Unavailable'),{data:blocked});});
+  await h.load('cash');assert.equal(h.rendered[0],blocked);
+});
+
+test('an obsolete view request cannot replace the current page with an error',async()=>{
+  let reject:(e:unknown)=>void=()=>{};
+  const h=moduleLoader(async route=>route.endsWith('/cash')?new Promise((_,r)=>{reject=r;}):{key:'progress',status:'ready'});
+  const first=h.load('cash');await h.load('progress');reject(new Error('Late old request'));await first;
+  assert.deepEqual(h.rendered.map(r=>r.key),['progress']);
+  assert.equal(h.elements.get('moduleContent').innerHTML,'Rendered progress');
+  assert.equal(h.context.currentModuleResult.key,'progress');
 });
