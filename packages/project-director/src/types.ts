@@ -191,6 +191,7 @@ export interface DirectorPositionInput {
 export type DirectorCommercialEvidenceState =
   | "established"
   | "candidate"
+  | "missing_information"
   | "submitted_unparsed"
   | "not_submitted"
   | "not_applicable";

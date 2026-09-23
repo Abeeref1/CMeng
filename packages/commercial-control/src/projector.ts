@@ -1065,7 +1065,7 @@ export function buildCommercialControlPosition(
       const payments=ledger.payments.filter(p=>p.amounts.netCertifiedAmount.currency===position.currency);
       if(payments.length){
         const refs=payments.flatMap(p=>p.amounts.netCertifiedAmount.receipts.map(r=>"evidence-document:"+r.documentId+":"+r.locator));
-        const unestablished=(reason:string)=>moneyMetric(null,"submitted_unparsed",refs,[reason]);
+        const unestablished=(reason:string)=>moneyMetric(null,"missing_information",refs,[reason]);
         position.grossCertifiedAmount=unestablished("NET_CERTIFICATE_IS_NOT_GROSS_CERTIFICATION");
         position.netCertifiedAmount=unestablished("INCREMENTAL_VERSUS_CUMULATIVE_BASIS_REQUIRED_FOR_AGGREGATION");
         position.paidAmount=unestablished("DATED_PAYMENT_RECEIPT_AND_ALLOCATION_REQUIRED");
