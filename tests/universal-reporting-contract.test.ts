@@ -17,6 +17,8 @@ import {buildScheduleChangeReportProjection} from '../packages/schedule-change-r
 import {buildActivityAnalyticsProjection} from '../packages/activity-analytics/src';
 import {activityMovementAnalysis} from '../packages/activity-analytics/src/movement';
 import {answerProjectQuestion} from '../packages/runtime-api/src/project-intelligence';
+import {createCmengServer} from '../packages/runtime-api/src/server';
+import type {AddressInfo} from 'node:net';
 import type {ProjectRuntimeState,StoredEvidenceDocument} from '../packages/runtime-api/src/project-state-types';
 import type {CanonicalScheduleModel} from '../packages/schedule-analysis-core/src';
 
@@ -145,7 +147,13 @@ test('future approvals are separated and never contaminate pending aging or curr
  assert.equal(vo.sourceRecordCount,3);assert.equal(vo.recordCount,1);assert.equal(vo.futureRecordCount,1);assert.equal(vo.undatedRecordCount,1);
  assert.equal(vo.approvedCount,0);assert.equal(vo.pendingCount,1);assert.equal(vo.unknownAsOfStageCount,0);assert.equal(vo.pendingAgeBands.unknown,0);
  assert.equal(vo.rows[0]!.lifecycleStage,'submitted');assert.equal(vo.rows[0]!.cost.approved.value,null);assert.equal(source.variations[0]!.approvedAmount.value,900);
+ assert.equal(vo.rows[0]!.cost.approved.reportingScope,'future');assert.equal(vo.rows[0]!.cost.approved.submitted,900);assert.equal(vo.rows[0]!.cost.approved.state,'partial');assert.equal(vo.rows[0]!.cost.approved.action,null);
+ assert.equal(vo.futureRows[0]!.source.approvedAmount.value,1200);assert.equal(vo.futureRows[0]!.source.submittedDate,'2031-04-22');assert.equal(vo.futureRows[0]!.cost.approved.value,null);
+ assert.equal(vo.undatedRows[0]!.source.approvedAmount.value,400);assert.match(vo.undatedRows[0]!.cost.approved.action!,/event date/);
  assert.equal(vo.population.denominator,vo.rows.length);
+ state.schedules[0]!.revision.model.dataDateIso='2031-05-01';state.version++;
+ const advanced=commercialContractControlsForState(state).variations;
+ assert.equal(advanced.futureRecordCount,0);assert.equal(advanced.approvedCount,2);assert.equal(advanced.rows.find(r=>r.variationId==='V2')!.cost.approved.value,1200);
 });
 
 test('certificate, retention, report payload and capability populations use the same cutoff',t=>{
@@ -181,6 +189,24 @@ test('missing registers stay null in director and contract controls payloads',t=
  const {state}=fixture(t);const director=directorForProject(state.projectId)!;
  assert.equal(director.controls.expiredBondCount,null);assert.equal(director.controls.openHseIncidentCount,null);assert.equal(director.controls.overdueRfiCount,null);
  const controls=commercialContractControlsForState(state);assert.equal(controls.bondsInsurance.activeBondCount,null);assert.equal(controls.bondsInsurance.activeInsuranceCount,null);assert.equal(controls.contractObligations.completeCount,null);
+});
+
+test('portfolio retains the shared current contract, separate further adjustment and scenario authority',async t=>{
+ const {state}=fixture(t);
+ state.controls.contractTimeBasis={contractualCompletionIso:'2031-12-31',contractualCompletionState:'official',officialApprovedEotDays:null,officialApprovedEotState:'missing',eotDayBasis:'calendar_days',eotDayBasisState:'official',sourceRefs:['governed-contract']};
+ state.version++;
+ const director=directorForProject(state.projectId)!;
+ assert.equal(director.schedule.contractualCompletionIso,'2031-12-31');
+ assert.equal(director.schedule.officialAdjustedCompletionIso,null);
+ const server=createCmengServer();await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));
+ try {
+  const port=(server.address() as AddressInfo).port;
+  const response=await fetch('http://127.0.0.1:'+port+'/api/portfolio');assert.equal(response.status,200);
+  const body=await response.json() as any, item=body.projects.find((p:any)=>p.projectId===state.projectId);
+  assert.equal(item.officialCompletionIso,'2031-12-31');assert.equal(item.furtherAdjustedCompletionIso,null);
+  assert.equal(item.forecastAuthority,director.schedule.independentForecastAuthority);
+  assert.equal(item.approvedEotDays,null);assert.match(item.approvedEotBasis,/overlap.*reconciliation/);
+ } finally {await new Promise<void>((resolve,reject)=>server.close(e=>e?reject(e):resolve()));}
 });
 
 test('a future actual finish cannot establish historical completion or progress; source dates remain intact',t=>{

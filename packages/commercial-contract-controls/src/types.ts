@@ -238,6 +238,8 @@ export interface ContractControlsInput {
 }
 
 export interface VariationLifecycleRecord {
+  /** Complete source stages, retained separately from the historical as-of view. */
+  source: VariationControlInput;
   reportingScope: 'as_of' | 'future' | 'undated';
   approvalScope: 'as_of' | 'future' | 'undated';
   sourceLifecycleStage: string;

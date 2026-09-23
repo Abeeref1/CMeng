@@ -26,6 +26,8 @@ export interface CommercialFindingCoverage {
 }
 
 export interface CommercialFinding<T> {
+  /** Scope of the underlying event; a retained future value is not missing evidence. */
+  reportingScope?: 'as_of' | 'future' | 'undated';
   value: T | null;
   basis: CommercialFindingBasis;
   coverage: CommercialFindingCoverage;
