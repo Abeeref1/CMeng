@@ -42,6 +42,9 @@ export interface ScheduleChangeReportProjection {
   identityCoveragePercent?: number | null;
   ambiguousFromActivityIds?: string[]; ambiguousToActivityIds?: string[];
   baselineMutationActivityCount?: number;
+  sourceTargetDateChangeCount?: number;
+  sourceTargetEqualsCurrentCount?: number;
+  targetDateInterpretation?: string;
   finishMovementAnalysis?: {
     fromLabel:string;toLabel:string;population:import('../../truth-kernel/src').PopulationContract;
     maximumDays:number|null;maximumCount:number;maximumPercent:number|null;sourcePairVerifiedCount:number;

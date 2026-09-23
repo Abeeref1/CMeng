@@ -1,4 +1,4 @@
-import {cell,dateValue,norm,partitionAsOf,sourceTables,type SourceRow} from '../../truth-kernel/src';
+import {cell,dateValue,norm,numberValue,partitionAsOf,sourceTables,type SourceRow} from '../../truth-kernel/src';
 import type {NcrRecord,RfiRecord} from '../../project-director/src';
 import type {ProjectRuntimeState,RiskControlRecord} from './project-state-types';
 
@@ -56,9 +56,27 @@ export function operationalControlsAsOf(state:ProjectRuntimeState,date:string|nu
   const quality=scope(ncrs,'NCR register',r=>r.ncrId,date,docs.some(d=>d.documentType==='quality_ncr_register')||ncrs.length>0,prepare(ncrs,'quality_ncr_register',r=>r.ncrId));
   const rfi=scope(rfis,'RFI register',r=>r.rfiId,date,docs.some(d=>d.documentType==='rfi_register')||rfis.length>0,prepare(rfis,'rfi_register',r=>r.rfiId));
   const risk=scope(risks,'Risk register',r=>r.riskId,date,docs.some(d=>d.documentType==='risk_register')||risks.length>0,prepare(risks,'risk_register',r=>r.riskId));
+  const scoreRows=rows('risk_register').map(row=>{
+    const probability=numberValue(cell(row,'probability')),impact=numberValue(cell(row,'impact'));
+    return {riskId:cell(row,'risk id'),probability,impact,score:probability!==null&&impact!==null&&probability>=0&&impact>=0?Number((probability*impact).toFixed(6)):null,
+      rating:cell(row,'rating')||null,dueIso:dateValue(cell(row,'due date')),sourceRefs:refs(row)};
+  });
+  const scoreGroups=[...new Set(scoreRows.map(r=>r.score).filter((n):n is number=>n!==null))].sort((a,b)=>a-b).map(score=>{
+    const members=scoreRows.filter(r=>r.score===score);return {score,recordCount:members.length,ratings:[...new Set(members.map(r=>r.rating).filter(Boolean))],counts:[...new Set(members.map(r=>r.rating))].map(rating=>({rating,count:members.filter(r=>r.rating===rating).length})),riskIds:members.map(r=>r.riskId)};
+  });
+  const ratingInconsistencyGroups=scoreGroups.filter(g=>g.ratings.length>1);
+  const riskValidation={state:ratingInconsistencyGroups.length?'conflicted':scoreRows.length&&scoreRows.every(r=>r.score!==null&&r.rating!==null)?'consistent_in_checked_scores':'review_required',sourceRecordCount:risks.length,
+    scoreBasis:'Source probability × impact; no rating thresholds are invented. Identical scores with different supplied ratings require a documented rating method.',
+    ratingInconsistencyGroups,scoreGroups,scoreRows,
+    statusDateMissingCount:risk.undatedRecordCount,
+    dueAfterDataDateCount:scoreRows.filter(r=>dateValue(date??'')&&r.dueIso&&r.dueIso>dateValue(date??'')!).length,
+    sourceRefs:scoreRows.flatMap(r=>r.sourceRefs),
+    diagnostics:ratingInconsistencyGroups.length?['RISK_RATING_SCORE_CONFLICT']:[],
+    explanation:risks.length+' risk records are present. '+(ratingInconsistencyGroups.length?ratingInconsistencyGroups.length+' probability × impact scores have inconsistent supplied ratings. ':'')+
+      risk.undatedRecordCount+' records lack an identified/status-as-of date. Action due dates do not establish when the risk was open.'};
   const severityKnown=quality.current.every(r=>r.status!=='open'||r.severity!=='unknown');
   const dueKnown=rfi.current.every(r=>r.status!=='open'||r.dueIso!==null);
-  return {dataDateIso:dateValue(date??''),quality,rfi,risk,knownCounts:{
+  return {dataDateIso:dateValue(date??''),quality,rfi,risk:{...risk,validation:riskValidation},knownCounts:{
     openCriticalMajorNcrCount:quality.current.filter(r=>r.status==='open'&&['critical','major'].includes(r.severity)).length,
     uncertainCriticalMajorNcrCount:quality.current.filter(r=>r.status==='unknown'&&r.severity!=='minor'||r.status==='open'&&r.severity==='unknown').length,
   },counts:{

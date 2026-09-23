@@ -1,3 +1,4 @@
+import {certificateProfile} from "./certificate-profile";
 import { reportingScope } from "../../truth-kernel/src";
 import { reportingState,claimsReporting } from "./reporting-state";
 import { extractContractValue } from "../../contract-commercial/src";
@@ -164,6 +165,7 @@ export function commercialPositionForState(
           ),
     });
 
+  position.certificateProfile=certificateProfile(ledger);
   cache.set(
     state,
     {

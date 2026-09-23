@@ -217,6 +217,7 @@ export interface CurrencyCommercialPosition {
 }
 
 export interface ProjectDirectorPosition {
+  sourceInterpretation?: import("../../runtime-api/src/source-interpretation").SourceInterpretation;
   schemaVersion: "1.0";
   generatedAt: string;
   projectId: string;

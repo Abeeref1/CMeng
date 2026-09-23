@@ -40,6 +40,7 @@ export interface ScheduleWindowResult {
   fromIndependentForecastCompletionIso: string | null;
   toIndependentForecastCompletionIso: string | null;
   independentForecastMovementDays: number | null;
+  independentReconciliationRequired?: boolean;
 
   /** Submitted/control-programme completion movement within this window. */
   netCompletionMovementDays: number | null;

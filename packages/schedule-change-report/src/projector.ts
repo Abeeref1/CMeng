@@ -67,8 +67,13 @@ export function buildScheduleChangeReportProjection(
     progress: ["status", "actualStartIso", "actualFinishIso", "remainingDurationHours", "percentComplete"],
     metadata: ["name"], baseline: ["baselineStartIso", "baselineFinishIso"],
   };
+  const isSourceTarget = (row: typeof changedActivities[number]) =>
+    before.get(row.fromActivityId ?? row.activityId)?.baselineDateBasis === 'xer_target_dates' ||
+    after.get(row.toActivityId ?? row.activityId)?.baselineDateBasis === 'xer_target_dates';
+  const targetChanges = changedActivities.filter(row => isSourceTarget(row) && row.fieldChanges.some(c=>categoryFields.baseline!.includes(c.field)));
   const changeCategories = Object.entries(categoryFields).map(([category, fields]) => ({ category,
-    activityCount: changedActivities.filter(row => row.fieldChanges.some(change => fields.includes(change.field))).length }));
+    activityCount: changedActivities.filter(row => (category !== 'baseline' || !isSourceTarget(row)) && row.fieldChanges.some(change => fields.includes(change.field))).length }));
+  changeCategories.push({category:'source_target',activityCount:targetChanges.length});
   const endpoint = (link: { predecessorActivityId: string; successorActivityId: string }) => JSON.stringify([link.predecessorActivityId, link.successorActivityId]);
   const added = new Map<string, typeof comparison.addedRelationships>();
   const removed = new Map<string, typeof comparison.removedRelationships>();
@@ -120,6 +125,9 @@ export function buildScheduleChangeReportProjection(
     ambiguousFromActivityIds: comparison.ambiguousFromActivityIds,
     ambiguousToActivityIds: comparison.ambiguousToActivityIds,
     baselineMutationActivityCount: changeCategories.find(row => row.category === "baseline")!.activityCount,
+    sourceTargetDateChangeCount: targetChanges.length,
+    sourceTargetEqualsCurrentCount: to.model.activities.filter(a=>a.baselineDateBasis==='xer_target_dates' && a.baselineStartIso!==null && a.baselineFinishIso!==null && a.baselineStartIso===a.currentStartIso && a.baselineFinishIso===a.currentFinishIso).length,
+    targetDateInterpretation: 'Changes to XER target dates describe source planning fields. They do not establish a change to a separately controlled baseline file.',
     diagnostics: [
       ...(comparison.ambiguousFromActivityIds.length || comparison.ambiguousToActivityIds.length ? ["AMBIGUOUS_ACTIVITY_IDENTITY_REQUIRES_REVIEW"] : []),
       ...(changeCategories.some(row => row.category === "baseline" && row.activityCount > 0) ? ["BASELINE_FIELDS_CHANGED_REQUIRES_GOVERNANCE_REVIEW"] : []),

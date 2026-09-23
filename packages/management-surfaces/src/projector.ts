@@ -127,13 +127,13 @@ function buildAlerts(
           "forecast-beyond-contract",
         severity: "high",
         title:
-          "Forecast completion is beyond the current comparison basis",
+          "Calendar recalculation needs reconciliation",
         consequence:
-          "The current independent finish is later than the " +
+          "Submitted logic recalculated on its own calendars finishes later than the " +
           varianceBasisLabel +
           ".",
         action:
-          "Review the driving path, recovery options and EOT position.",
+          "Reconcile source dates, duration units, calendars and unapplied constraints. This scenario is not attributable delay or EOT.",
         owningModule:
           "independent-forecast",
         state: "open",
@@ -559,7 +559,7 @@ function dashboardMetrics(
       key:
         "independent-forecast-finish",
       label:
-        "Independent forecast finish",
+        "Calendar recalculation finish",
       value:
         d?.schedule
           .independentForecastCompletionIso ??
@@ -578,12 +578,9 @@ function dashboardMetrics(
               .independentForecastCompletionIso
             ? "provisional"
             : "unavailable",
-      health:
-        healthForSignedVariance(
-          forecastVariance,
-        ),
+      health: "unavailable",
       basis:
-        "Independent Forecast",
+        "Submitted logic recalculated on its own calendars; model reconciliation, not delay",
       consequence:
         forecastVariance ===
         null
@@ -611,7 +608,7 @@ function dashboardMetrics(
         forecastVariance !==
           null &&
         forecastVariance > 0
-          ? "Open Independent Forecast and EOT Position."
+          ? "Open the calendar and source-duration reconciliation."
           : null,
       owningModule:
         "independent-forecast",
@@ -649,12 +646,12 @@ function dashboardMetrics(
   const submittedVariance = submitted && contractual
     ? (Date.parse(submitted.slice(0, 10)) - Date.parse(contractual.slice(0, 10))) / 86_400_000 : null;
   for (const [key, label, value, basis] of [
-    ["independent-vs-contract", "Independent forecast vs contract", d?.schedule.varianceDaysToContractualCompletion ?? null, "Independent forecast finish minus current governed contract completion"],
-    ["independent-vs-submitted", "Independent forecast vs submitted programme", d?.schedule.varianceDaysToSubmittedProgrammeCompletion ?? null, "Independent forecast finish minus current submitted programme finish"],
+    ["independent-vs-contract", "Calendar scenario vs contract", d?.schedule.varianceDaysToContractualCompletion ?? null, "Independent forecast finish minus current governed contract completion"],
+    ["independent-vs-submitted", "Calendar scenario vs submitted programme", d?.schedule.varianceDaysToSubmittedProgrammeCompletion ?? null, "Independent forecast finish minus current submitted programme finish"],
     ["submitted-vs-contract", "Submitted programme vs contract", Number.isFinite(submittedVariance) ? submittedVariance : null, "Current submitted programme finish minus current governed contract completion"],
   ] as const) {
     metrics.push(metric({ key, label, value, unit: "calendar days", state: value === null ? "unavailable" : "calculated",
-      authority: value === null ? "unavailable" : "calculated", health: healthForSignedVariance(value), basis,
+      authority: value === null ? "unavailable" : "calculated", health: key.startsWith("independent-") ? "unavailable" : healthForSignedVariance(value), basis,
       consequence: "Date variance is not attributable delay or EOT entitlement.", owningModule: "independent-forecast" }));
   }
 
@@ -683,66 +680,14 @@ function dashboardMetrics(
     }),
   );
 
-  const current =
-    d?.schedule
-      .progressBases
-      .currentSchedule
-      .valuePercent ??
-    null;
-  const certified =
-    d?.schedule
-      .progressBases
-      .certified
-      .valuePercent ??
-    null;
-  metrics.push(
-    metric({
-      key:
-        "progress-position",
-      label:
-        "Progress vs current plan",
-      value:
-        current !== null &&
-        certified !== null
-          ? Number(
-              (
-                certified -
-                current
-              ).toFixed(2),
-            )
-          : null,
-      unit: "pp",
-      state:
-        current !== null &&
-        certified !== null
-          ? "calculated"
-          : "unavailable",
-      authority:
-        current !== null &&
-        certified !== null
-          ? "calculated"
-          : "unavailable",
-      health:
-        current !== null &&
-        certified !== null
-          ? certified < current
-            ? "attention"
-            : "good"
-          : "unavailable",
-      basis:
-        "Certified progress minus current programme plan",
-      consequence:
-        certified === null
-          ? "Certified progress is not established."
-          : null,
-      action:
-        certified === null
-          ? "Provide governed certified progress evidence."
-          : null,
-      owningModule:
-        "progress-report",
-    }),
-  );
+  const current=d?.schedule.progressBases.baselinePlanned.valuePercent??null;
+  const snapshot=d?.schedule.progressBases.scheduleSnapshot?.valuePercent??null;
+  metrics.push(metric({key:"progress-position",label:"Schedule snapshot vs baseline plan",value:current!==null&&snapshot!==null?Number((snapshot-current).toFixed(4)):null,
+    unit:"pp",state:current!==null&&snapshot!==null?"calculated":"unavailable",authority:"calculated",health:"unavailable",
+    basis:"Duration-weighted snapshot minus time-phased baseline plan; respective source populations retained. This is not physical progress or EVM SPI.",owningModule:"progress-report"}));
+  const productivity=d?.sourceInterpretation?.productivityForecast;
+  metrics.push(finishMetric("productivity-forecast-finish","Source productivity forecast",productivity?.completionIso??null,
+    productivity?.interpretation??"Source productivity model has not been established","source"));
 
   metrics.push(
     metric({
@@ -826,13 +771,13 @@ function dashboardMetrics(
         d?.controls
           .riskEvidenceState !==
         "established"
-          ? "Overall risk is not scored because a governed risk population is not established."
+          ? d?.sourceInterpretation?.riskValidation.explanation ?? "Dated risk status and a rating method are not established."
           : "Open-risk inventory does not establish severity. Overall risk severity is not established without governed ratings and mitigation status.",
       action:
         d?.controls
           .riskEvidenceState !==
         "established"
-          ? "Establish the governed Risk Register before using an overall risk KPI."
+          ? d?.sourceInterpretation?.riskValidation.sourceRecordCount ? "Reconcile the supplied ratings and establish status dates; the register is already loaded." : "Provide a risk register with dated status and a documented rating method."
           : null,
       owningModule: "documents",
     }),

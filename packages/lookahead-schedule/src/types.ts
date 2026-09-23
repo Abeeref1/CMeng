@@ -91,7 +91,7 @@ export interface LookAheadProjection {
   evidenceGapActivityCount?: number;
   blockedWithEvidenceGapCount?: number;
   blockerOccurrenceCount?: number;
-  readinessCoverage?: Array<{ key: ReadinessDimensionKey; denominator: number; knownCount: number; coveragePercent: number | null }>;
+  readinessCoverage?: Array<{ key: ReadinessDimensionKey; denominator: number; knownCount: number; coveragePercent: number | null; linkedActivityCount?:number; linkedSourceRecordCount?:number; unresolvedLinkedActivityCount?:number }>;
   readyCount: number;
   conditionalCount: number;
   blockedCount: number;

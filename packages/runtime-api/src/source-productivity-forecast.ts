@@ -89,6 +89,7 @@ export interface SourceProductivityForecastEvidence {
   submittedState: "official" | "candidate" | "missing" | "conflicted";
   driverWorkPackageId: string | null;
   driverWorkPackageIds: string[];
+  concentration?: {driverCount:number;nextLatestCompletionIso:string|null;separationCalendarDays:number|null};
   workPackageCount: number;
   calculatedWorkPackageCount: number;
   calendarCalculatedWorkPackageCount: number;
@@ -2307,6 +2308,7 @@ export function sourceProductivityForecastEvidence(
         (row) =>
           row.workPackageId,
       ),
+    concentration:(()=>{const next=calculated.map(r=>r.completionIso).filter((v):v is string=>Boolean(v)&&v!==latestIso).sort().at(-1)??null;return {driverCount:drivers.length,nextLatestCompletionIso:next,separationCalendarDays:daysBetween(next,latestIso)};})(),
     workPackageCount:
       rows.length,
     calculatedWorkPackageCount:

@@ -87,6 +87,8 @@ export interface CanonicalScheduleActivity {
 
   baselineStartIso: string | null;
   baselineFinishIso: string | null;
+  /** XER target dates are source planning fields, not proof of a controlled baseline. */
+  baselineDateBasis?: "xer_target_dates" | "source_declared_baseline" | "controlled_baseline";
   currentStartIso: string | null;
   currentFinishIso: string | null;
   actualStartIso: string | null;

@@ -478,7 +478,7 @@ test("CMeng workspace keeps the active module primary and browser script parseab
     const planningVisual of [
       "Finish-date position",
       "Programme health",
-      "Delay & float matrix",
+      "Finish movement & float matrix",
       "6-week execution view",
       "Readiness matrix",
       "Largest finish movements",
@@ -519,7 +519,7 @@ test("CMeng workspace keeps the active module primary and browser script parseab
       "Actual cash expenditure",
       "Observed cash history",
       "Actual cash history needs at least two comparable receipt and expenditure observations.",
-      "Certificate values by reporting period",
+      "Certificate reconciliation · ",
       "Governed dated cash-flow register",
       "Calculation trace",
       "Evidence & governance",
@@ -805,7 +805,7 @@ test("CMeng workspace keeps the active module primary and browser script parseab
   );
   assert.equal(
     html.includes(
-      "Resources with weekly exceedance",
+      "Actual overloads through DD",
     ),
     true,
     "PMO must label weekly resource-capacity exceedance precisely",
@@ -831,8 +831,8 @@ test("CMeng workspace keeps the active module primary and browser script parseab
   );
   assert.match(
     html,
-    /maximumFractionDigits:0\}\)\.format\(variance\)\+" days"/,
-    "PMO forecast variance must use whole-day management precision",
+    /planningShortDate\(p\.forecast\.independentCompletionIso\)/,
+    "PMO must show calendar recalculation as a dated model review",
   );
 
   assert.equal(

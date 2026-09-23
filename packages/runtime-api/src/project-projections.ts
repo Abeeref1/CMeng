@@ -1,3 +1,4 @@
+import {sourceInterpretation} from "./source-interpretation";
 import {contractChallengeForState} from './contract-challenge-runtime';
 import { enforceModuleReadiness } from "./module-readiness";
 import {assessModuleIssues} from './module-issues';
@@ -18,6 +19,7 @@ import {
 import { canonicalTimeClaims, projectControlSchedule } from "./canonical-time-claims";
 import { projectScheduleControlBasis } from "./schedule-control-basis";
 import { sourceProductivityForecastEvidence } from "./source-productivity-forecast";
+import { reviewScheduleCalendarBasis } from './schedule-calendar-review';
 import { canonicalResourceModule } from "./canonical-resource-runtime";
 import { createHash } from "node:crypto";
 import {
@@ -1718,6 +1720,7 @@ function buildBundle(
           generatedAt,
           producerVersion:
             versions.windows,
+          forecastResolver: revision => cachedIndependentForecast(revision.model,generatedAt),
         },
       ),
     );
@@ -2930,11 +2933,16 @@ function buildBundle(
       officialAdjustedCompletionIso: eotAssessment?.officialAdjustedCompletionIso ?? null,
       scenarioAdjustedCompletionIso: eotAssessment?.scenarioAdjustedCompletionIso ?? null,
       netSubmittedFinishMovementDays: netMovement,
-      grossPositiveAnalyticalMovementDays: windows?.positiveProgrammeMovementDays ?? null,
+      grossPositiveAnalyticalMovementDays: windows?.grossAnalyticalMovementDays ?? null,
+      windowMovementTrace:windows?.windows.map(w=>({fromRevisionId:w.fromRevisionId,toRevisionId:w.toRevisionId,sourceDays:w.netCompletionMovementDays,calculatedDays:w.grossAnalyticalMovementDays}))??[],
       movementInterpretation: "Gross positive activity movement and net submitted project-finish movement have different bases. Their difference does not prove overlap, concurrency or entitlement.",
     };
+    const riskReport=operationalReporting(state).risk;
+    pmo.risk={...pmo.risk,evidenceState:riskReport.state,openRiskCount:operationalReporting(state).counts.openRiskCount,validation:riskReport.validation,note:riskReport.validation.explanation};
     pmo.resources = { ...pmo.resources, weeklyCapacityCoveragePercent: resourceData?.weeklyCapacityEvidence?.capacityCoveragePercent ?? null,
-      weeklyOverloadedResourceCount: resourceData?.weeklyOverloadedResourceCount ?? null };
+      weeklyOverloadedResourceCount: resourceData?.weeklyOverloadedResourceCount ?? null,
+      capacityChecksToDataDate:resourceData?.weeklyCapacityEvidence?.capacityChecksToDataDate??null };
+    pmo.contract={...pmo.contract,uniqueWordingSignalCount:challengeContract?.uniqueWordingSignalCount??null,repeatedSignalOccurrenceCount:challengeContract?.repeatedSignalOccurrenceCount??null};
     pmo.progress = { ...pmo.progress, lookAheadMissedStartCount: lookAhead.missedStartCount ?? null };
   }
 
@@ -3249,6 +3257,8 @@ function buildBundle(
             ),
         },
       });
+
+    director.sourceInterpretation=sourceInterpretation(state,director.schedule.progressBases,director.schedule.independentForecastCompletionIso);
 
     if (
       state.controls
@@ -4746,6 +4756,11 @@ function cachedIndependentForecast(
           "independent-forecast-fast-v1",
       },
     );
+  const calendarReview=reviewScheduleCalendarBasis(model);
+  if(calendarReview.state==='calendar_basis_difference'){
+    projection.origin='scenario_with_assumptions';
+    projection.assumptions.push('SOURCE_DURATION_ELAPSED_DAY_PATTERN_REQUIRES_CALENDAR_RECONCILIATION');
+  }
   independentForecastCache.set(
     key,
     projection,
@@ -6843,6 +6858,10 @@ function resolveProjectModuleCandidate(state: ProjectRuntimeState, key: string):
     const forecastReview = forecast ? independentForecastReviewReason(forecast) : null;
     const laborEvidence=key==='challenge-contract'?canonicalResourceModule(state,'manhour-scurve')?.data as any:null;
     result.data = { ...data, controlBasis,
+      ...(['pmo-analysis','schedule-analytics','independent-forecast'].includes(key)?{
+        calendarBasisReview:(()=>{const review=reviewScheduleCalendarBasis(model);return {...review,rows:key==='independent-forecast'?review.rows:undefined};})(),
+        sourceProductivityForecast:(()=>{const p=sourceProductivityForecastEvidence(state);return {completionIso:p.completionIso,state:p.state,method:p.method,workPackageCount:p.workPackageCount,coveragePercent:p.calculationCoveragePercent,driverWorkPackageIds:p.driverWorkPackageIds,concentration:p.concentration,sourceRefs:p.sourceRefs};})(),
+      }:{}),
       ...(key==='challenge-contract'?{sourceLaborEvidence:laborEvidence?{
         state:'source',laborResourceCount:laborEvidence.laborResourceCount,plannedHours:laborEvidence.plannedHoursKnown,
         plannedHoursToDataDate:laborEvidence.plannedHoursToDataDate,actualHoursToDataDate:laborEvidence.actualHoursToDataDate,
@@ -6892,6 +6911,9 @@ function resolveProjectModuleCandidate(state: ProjectRuntimeState, key: string):
     result.professionalState='review_required';
     result.evidenceState='partial';
     result.reason='Milestones use submitted float and a '+controlBasis.nearCriticalThresholdMethod.replaceAll('_',' ')+' threshold. Contractual threshold authority and independent driving-path validation remain separate.';
+  }
+  if(result.data&&typeof result.data==='object'&&['pmo-analysis','schedule-analytics','independent-forecast','progress-report','cash-flow'].includes(key)) {
+    (result.data as any).sourceInterpretation=buildBundle(state).director?.sourceInterpretation??sourceInterpretation(state);
   }
   return attachReportingContract(state,checkProjectionIntegrity(result, model, controlBasis.analysisConfig));
 }
@@ -7064,6 +7086,7 @@ export function managementSurfacesForProject(
   const payments =
     commercial.foundation
       .paymentRegister;
+  const riskValidation=operationalReporting(state).risk.validation;
   const riskState =
     director?.controls
       .riskEvidenceState ??
@@ -7158,7 +7181,7 @@ export function managementSurfacesForProject(
         label:
           "Governed risk information",
         state:
-          riskState ===
+          riskValidation.sourceRecordCount > 0 ? (operationalReporting(state).risk.complete&&riskValidation.state==="consistent_in_checked_scores"?"established":"partial") : riskState ===
           "established"
             ? "established"
             : riskState ===
@@ -7166,7 +7189,7 @@ export function managementSurfacesForProject(
               ? "partial"
               : "missing",
         action:
-          "Establish the governed Risk Register before relying on project-wide risk KPIs.",
+          riskValidation.sourceRecordCount>0 ? riskValidation.explanation : "Provide a risk register with dated status and a documented rating method.",
         owningModule: "documents",
       },
       {
@@ -7564,9 +7587,9 @@ export function managementSurfacesForProject(
     .map(issue=>({...issue,moduleKeys:[...managementModuleKeys]}));
   const issueAssessment=summarizeControlIssues([...issues,...governanceIssues,...operationalIssues]);
   const result = { ...surfaces,
-    masterDashboard: {...managementReportingData(state, surfaces.masterDashboard, resolvedModules),issueAssessment,operationalReporting:operationalReporting(state)},
-    commandCenter: {...managementReportingData(state, surfaces.commandCenter, resolvedModules),issueAssessment,operationalReporting:operationalReporting(state)},
-    masterControlProgramme: {...managementReportingData(state, surfaces.masterControlProgramme, resolvedModules),issueAssessment} };
+    masterDashboard: {...managementReportingData(state, surfaces.masterDashboard, resolvedModules),issueAssessment,operationalReporting:operationalReporting(state),sourceInterpretation:director?.sourceInterpretation},
+    commandCenter: {...managementReportingData(state, surfaces.commandCenter, resolvedModules),issueAssessment,operationalReporting:operationalReporting(state),sourceInterpretation:director?.sourceInterpretation},
+    masterControlProgramme: {...managementReportingData(state, surfaces.masterControlProgramme, resolvedModules),issueAssessment,sourceInterpretation:director?.sourceInterpretation} };
   managementProjectionCache.set(projectId, {version: state.version, data: result});
   return result;
 }

@@ -707,8 +707,8 @@ export function buildProjectDirectorPosition(
       forecast,
     );
 
-  const delayDays =
-    varianceDaysToOfficialAdjustedCompletion;
+  const delayDays = input.independentForecast.origin === "deterministic_source_calendar"
+    ? varianceDaysToOfficialAdjustedCompletion : null;
   const ld = buildLdScenario(
     input.ldTerms,
     delayDays,

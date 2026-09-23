@@ -154,6 +154,7 @@ export interface CommercialControlInput {
 }
 
 export interface CommercialControlPosition {
+  certificateProfile?: import("../../runtime-api/src/certificate-profile").ReturnCertificateProfile;
   sourceLedger?: CanonicalCommercialModel;
   foundation: CommercialFoundationProjection;
   performance: CommercialPerformanceProjection;

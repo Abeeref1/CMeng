@@ -3,7 +3,7 @@ import {
 } from "node:fs";
 import {createHash} from 'node:crypto';
 import {dateValue} from '../../truth-kernel/src';
-import {projectDataDate} from './canonical-time-claims';
+import {projectDataDate,projectControlSchedule} from './canonical-time-claims';
 
 import type {
   ReadinessDimensionKey,
@@ -418,6 +418,8 @@ export function deriveReadinessFromCsv(
   const openedIndex=headerIndex(headers,['raised date','opened date','issue date','submitted date']);
   const closedIndex=headerIndex(headers,['close date','closed date','response date','actual issue','approval date','actual delivery','delivered date']);
   const snapshotIndex=headerIndex(headers,['status as of','status date','as of','as of date','snapshot date']);
+  const activityById=new Map((projectControlSchedule(input.state)?.revision.model.activities??[]).map(a=>[a.activityId,a]));
+  const recordIdIndex=headerIndex(headers,['deliverable id','package id','ncr id','rfi id','submittal id']);
 
 
   const result:
@@ -489,7 +491,7 @@ export function deriveReadinessFromCsv(
       const isOpen=opened&&/^(open|pending|active|overdue)$/.test(status.toLowerCase());
       if(!isOpen){currentStatus='';scopeNote='Actual status date not established; source final status is not an as-of assertion';}
     }
-    const state =
+    let state =
       readinessState(
         input.document
           .documentType,
@@ -497,6 +499,18 @@ export function deriveReadinessFromCsv(
         dueIso,
         dataDateIso,
       );
+    const due=dateValue(dueIso);
+    if(input.document.documentType==='design_deliverables'&&cutoff&&due&&(!closed||closed>cutoff)){
+      if(due<cutoff){state='blocked';scopeNote='Planned issue date has passed; no issue is recorded on/before the Data Date'+(closed?'; actual issue is after the Data Date':'');}
+      else if(!/rejected|blocked|hold|failed/i.test(currentStatus)){
+        state='unknown';scopeNote='Planned issue is not yet due; readiness is not established'+(/overdue|late|delayed/i.test(status)?'; source overdue label conflicts with the planned date':'');
+      }
+    }
+    if(input.document.documentType==='procurement_register'){
+      const activity=activityById.get(activityId);
+      const finish=dateValue(activity?.forecastFinishIso??activity?.currentFinishIso??'');
+      if(due&&finish&&due>finish){state='unknown';scopeNote='Source package is linked, but required-on-site date '+due+' is after activity finish '+finish+'; confirm the link and required date before assessing material readiness';}
+    }
 
     result[activityId] ??=
       {};
@@ -512,7 +526,7 @@ export function deriveReadinessFromCsv(
           (index + 1),
       ],
       note:
-        (scopeNote?scopeNote+'; ':'')+
+        (valueAt(row,recordIdIndex)?valueAt(row,recordIdIndex)+'; ':'')+(scopeNote?scopeNote+'; ':'')+
         input.document
           .documentType +
         " status=" +

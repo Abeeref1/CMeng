@@ -9,7 +9,7 @@ const cache=new WeakMap<CanonicalScheduleModel,CanonicalScheduleModel>();
  * governed identities, source dates, durations or project controls. */
 export function refreshScheduleConstraints(state:ProjectRuntimeState,stored:StoredScheduleRevision) {
   const model=stored.revision.model;
-  if(stored.format!=='xer'||model.activities.every(a=>a.sourceConstraints!==undefined))return model;
+  if(stored.format!=='xer'||model.activities.every(a=>a.sourceConstraints!==undefined&&a.baselineDateBasis!==undefined))return model;
   const old=cache.get(model);if(old)return old;
   const source=state.evidenceDocuments.find(d=>d.sourceHashSha256===stored.sourceHashSha256);
   if(!source)return model;
@@ -18,8 +18,9 @@ export function refreshScheduleConstraints(state:ProjectRuntimeState,stored:Stor
     const bytes=readFileSync(source.storedPath);
     if(createHash('sha256').update(bytes).digest('hex')!==source.sourceHashSha256)throw new Error('Source hash mismatch');
     const recovered=canonicalScheduleFromXer(parseXerBytes(bytes),{sourceRevisionId:model.sourceRevisionId});
-    const byId=new Map(recovered.activities.map(a=>[a.activityId,a.sourceConstraints]));
-    result={...model,activities:model.activities.map(a=>({...a,sourceConstraints:byId.get(a.activityId)??[]}))};
+    const byId=new Map(recovered.activities.map(a=>[a.activityId,a]));
+    result={...model,activities:model.activities.map(a=>({...a,sourceConstraints:byId.get(a.activityId)?.sourceConstraints??[],
+      ...(byId.has(a.activityId)?{baselineDateBasis:byId.get(a.activityId)!.baselineDateBasis!}:{})}))};
   }catch{
     result={...model,diagnostics:[...model.diagnostics,'SOURCE_CONSTRAINT_RECOVERY_NOT_ESTABLISHED']};
   }

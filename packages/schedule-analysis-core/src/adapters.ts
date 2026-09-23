@@ -402,6 +402,7 @@ export function canonicalScheduleFromXer(
           baselineFinishIso: xerDate(
             xerField(row, "target_end_date"),
           ),
+          baselineDateBasis: "xer_target_dates" as const,
           currentStartIso: xerDate(
             firstXerField(row, [
               "early_start_date",

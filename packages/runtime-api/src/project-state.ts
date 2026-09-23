@@ -1,3 +1,4 @@
+import {refreshHseSummary} from "./hse-report-evidence";
 import {quantityModelFromBoq} from './boq-source';
 import { synchronizeCanonicalTimeClaims } from "./canonical-time-claims";
 import { migrateTypedEvidenceFamilies } from "./typed-evidence-families";
@@ -2004,6 +2005,18 @@ export class RuntimeProjectStore {
     } finally {
       await parser.destroy();
     }
+  }
+
+  async refreshHseReports(projectId?:string) {
+    let refreshedDocumentCount=0;const diagnostics:string[]=[];
+    for(const state of this.projects.values()){
+      if(projectId&&state.projectId!==projectId)continue;
+      let changed=false;
+      for(const document of state.evidenceDocuments){try{if(await refreshHseSummary(document)){changed=true;refreshedDocumentCount++;}}catch(error){diagnostics.push('HSE_SUMMARY_REFRESH_FAILED:'+document.documentId+':'+String(error));}}
+      if(changed){state.version++;state.lastRerunReceipt=null;this.staleFinalizedBoardPublications(state);}
+    }
+    if(refreshedDocumentCount)this.persistSnapshot();
+    return {refreshedDocumentCount,diagnostics};
   }
 
   async refreshCorrespondenceNarratives(
