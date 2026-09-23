@@ -83,6 +83,26 @@ test('a certificate with ambiguous currency metadata stays in its own unknown-cu
   assert.equal(groups[0].as_of[0].value,10);
 });
 
+test('cash chart labels use the same rounding as tooltips and credit amounts stay inside the plot',()=>{
+  const rows=[{id:'C1',date:'2032-01-01',value:76925000},{id:'C2',date:'2032-02-01',value:-92500000},{id:'C3',date:'2032-03-01',value:122335000}];
+  const html=runInNewContext(certificateFunctions+';experienceCertificateChart(rows,"EUR",false,"2032-02-15")',{...common,rows});
+  assert.match(html,/76\.93M EUR/);assert.match(html,/certificate-value">76\.93</);assert.match(html,/certificate-value">122\.34</);
+  assert.match(html,/certificate-value">-92\.50</);assert.match(html,/Data Date · 2032-02-15/);
+  for(const rect of html.matchAll(/<rect[^>]* y="([^"]+)"[^>]* height="([^"]+)"/g)){
+    assert.ok(Number(rect[1])>=38);assert.ok(Number(rect[1])+Number(rect[2])<=266,'negative certificates fit the scaled chart');
+  }
+});
+
+test('calendar source context changes with the evidence rather than applying one project warning everywhere',()=>{
+  const render=functions(['experienceSourceContext']);
+  const ctx={...common,data:{sourceInterpretation:{calendarReview:{state:'no_pattern_detected',population:{denominator:4},elapsedDayMatchCount:0,assignedCalendarMismatchCount:0}}},managementModuleLink:()=>''};
+  const healthy=runInNewContext(render+';experienceSourceContext("independent-forecast",data)',ctx);
+  assert.match(healthy,/No elapsed-day duration pattern was detected/);assert.doesNotMatch(healthy,/This date is excluded/);
+  ctx.data.sourceInterpretation.calendarReview.state='calendar_basis_difference';
+  const review=runInNewContext(render+';experienceSourceContext("independent-forecast",data)',ctx);
+  assert.match(review,/This date is excluded from delay and entitlement/);
+});
+
 test('fully evidenced actual cash renders its currency-specific chart; incomplete funding evidence cannot enable that chart',()=>{
   const names=new Set<string>();
   const node=source.statements.filter(isFunctionDeclaration).find(n=>n.name?.text==='renderCommercialVisual')!;

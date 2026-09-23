@@ -372,7 +372,7 @@ function requestedFacts(question: string, projectId: string): AnswerFact[] {
   if(/forecast|calendar|completion|finish/.test(q)){
     const d=data('independent-forecast'),c=d?.sourceInterpretation;
     add('independent-forecast.sourceInterpretation.productivityForecast.completionIso','Source productivity forecast · not contractual amendment',c?.productivityForecast?.completionIso,{authority:'source'});
-    add('independent-forecast.independentForecastCompletionIso','Submitted logic recalculated on its own calendars · model reconciliation, not delay',d?.independentForecastCompletionIso,{authority:'calculated'});
+    add('independent-forecast.independentForecastCompletionIso',c?.calendarReview?.state==='calendar_basis_difference'?'Submitted logic recalculated on its own calendars · model reconciliation, not delay':'Source-calendar completion calculation · review its assumptions and authority',d?.independentForecastCompletionIso,{authority:'calculated'});
     add('independent-forecast.sourceInterpretation.calendarReview.elapsedDayMatchCount','Completed tasks matching elapsed-day duration convention',c?.calendarReview?.elapsedDayMatchCount,{authority:'calculated'});
   }
   if(/cash|certificate/.test(q)){
@@ -386,6 +386,10 @@ function requestedFacts(question: string, projectId: string): AnswerFact[] {
     const h=data('command-center')?.sourceInterpretation?.hse;
     add('command-center.sourceInterpretation.hse.metrics.lostTimeInjuries','Reported lost-time injuries · period total, not open incidents',h?.metrics?.lostTimeInjuries,{authority:'source',dataDateIso:h?.periodEndIso});
     add('command-center.sourceInterpretation.hse.metrics.trir','Source TRIR · method reconciliation required',h?.metrics?.trir,{authority:'source',dataDateIso:h?.periodEndIso});
+    add('command-center.sourceInterpretation.hse.metrics.manHours','Reported exposure hours · period and coverage require reconciliation',h?.metrics?.manHours,{authority:'source',dataDateIso:h?.periodEndIso});
+    add('command-center.sourceInterpretation.hse.rates.recordableCasesFromLtiAndMedical','Reported LTI plus medical-treatment cases',h?.rates?.recordableCasesFromLtiAndMedical,{authority:'calculated'});
+    for(const [i,r] of (h?.rates?.comparisons??[]).entries())add('command-center.sourceInterpretation.hse.rates.comparisons['+i+'].fromReportedCases','Rate from those cases per '+r.basisHours+' hours · definition not assumed',r.fromReportedCases,{authority:'calculated'});
+    add('command-center.sourceInterpretation.hse.laborComparison.approvedLaborHoursToDataDate','Approved labor hours through DD · different source population',h?.laborComparison?.approvedLaborHoursToDataDate,{authority:'calculated'});
   }
   return facts;
 }

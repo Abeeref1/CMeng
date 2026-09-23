@@ -333,10 +333,15 @@ test('design prerequisites use planned dates and actual issue dates, not a futur
  csv(text,'design_deliverables');const document=state.evidenceDocuments.at(-1)!;
  const r=deriveReadinessFromCsv({state,document,bytes:Buffer.from(text)});
  assert.equal(r.A!.design_submittal!.state,'unknown');assert.match(r.A!.design_submittal!.note!,/not yet due.*source overdue label conflicts/);
+ assert.deepEqual(r.A!.design_submittal!.diagnostics,['DESIGN_STATUS_DATE_CONFLICT']);
  assert.equal(r.B!.design_submittal!.state,'blocked');assert.equal(r.C!.design_submittal!.state,'ready');assert.equal(r.D!.design_submittal!.state,'blocked');
  const material='Package ID,Linked Activity,Required On Site,Status\nP1,A,2031-06-01,Delivered';csv(material,'procurement_register');
  const m=deriveReadinessFromCsv({state,document:state.evidenceDocuments.at(-1)!,bytes:Buffer.from(material)});
  assert.equal(m.A!.procurement_material!.state,'unknown');assert.match(m.A!.procurement_material!.note!,/after activity finish/);
+ assert.deepEqual(m.A!.procurement_material!.diagnostics,['MATERIAL_LINK_TIMING_MISMATCH']);
+ const projection=moduleForProject(state.projectId,'lookahead-schedule');
+ assert.ok(projection.issueAssessment!.issues.some(i=>i.kind==='source_conflict'&&i.detail.includes('DESIGN_STATUS_DATE_CONFLICT')));
+ assert.ok(projection.issueAssessment!.issues.some(i=>i.kind==='data_quality'&&i.detail.includes('MATERIAL_LINK_TIMING_MISMATCH')));
 });
 
 test('certificate source profile exposes components and future plans without manufacturing confirmed certification or cash',async t=>{
@@ -349,6 +354,8 @@ test('certificate source profile exposes components and future plans without man
  assert.deepEqual(g.futureSourceStatusConflictIds,['C3']);assert.equal(g.advanceRecoverySourceTotal,30);
  const before=JSON.stringify(ledger.payments);certificateProfile(ledger);assert.equal(JSON.stringify(ledger.payments),before);
  ledger.payments[0]!.certifiedAmountBasis='project_cumulative';assert.equal(certificateProfile(ledger).groups[0]!.totals,null,'project cumulative balances cannot be added');
+ ledger.payments.forEach(r=>r.certifiedAmountBasis='incremental');ledger.payments.push(structuredClone(ledger.payments[0]!));
+ const duplicate=certificateProfile(ledger).groups[0]!;assert.equal(duplicate.totals,null);assert.equal(duplicate.cumulativeBasis,'not_aggregable','duplicate incremental records cannot enable a cumulative chart');
 });
 
 test('HSE report totals are not open incidents; inconsistent rates retain source values and comparison bases',async t=>{

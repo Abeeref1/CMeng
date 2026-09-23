@@ -29,7 +29,7 @@ function combineReadiness(a:ReadinessEvidence|undefined,b:ReadinessEvidence):Rea
   if(!a)return b;
   const order={blocked:3,unknown:2,ready:1,not_applicable:0};
   return {state:order[a.state]>=order[b.state]?a.state:b.state,sourceRefs:[...new Set([...a.sourceRefs,...b.sourceRefs])],
-    note:[a.note,b.note].filter(Boolean).join('; ')};
+    note:[a.note,b.note].filter(Boolean).join('; '),diagnostics:[...new Set([...(a.diagnostics??[]),...(b.diagnostics??[])])]};
 }
 
 function parseCsv(
@@ -479,8 +479,9 @@ export function deriveReadinessFromCsv(
     const opened=dateValue(valueAt(row,openedIndex)),closed=dateValue(valueAt(row,closedIndex)),snapshot=dateValue(valueAt(row,snapshotIndex));
     if(cutoff&&opened&&opened>cutoff)continue;
     let currentStatus=status,scopeNote='';
+    const diagnostics:string[]=[];
     if(!cutoff){currentStatus='';scopeNote='Data Date not established';}
-    else if(closed&&opened&&closed<opened){currentStatus='';scopeNote='Invalid closure before raised/submitted date';}
+    else if(closed&&opened&&closed<opened){currentStatus='';scopeNote='Invalid closure before raised/submitted date';diagnostics.push('CLOSURE_BEFORE_RAISED_DATE');}
     else if(closed){
       if(closed<=cutoff){
         if(/rejected|blocked|hold|failed/i.test(status)){currentStatus=snapshot===cutoff?status:'';scopeNote='Terminal date and adverse source status require lifecycle reconciliation';}
@@ -504,12 +505,13 @@ export function deriveReadinessFromCsv(
       if(due<cutoff){state='blocked';scopeNote='Planned issue date has passed; no issue is recorded on/before the Data Date'+(closed?'; actual issue is after the Data Date':'');}
       else if(!/rejected|blocked|hold|failed/i.test(currentStatus)){
         state='unknown';scopeNote='Planned issue is not yet due; readiness is not established'+(/overdue|late|delayed/i.test(status)?'; source overdue label conflicts with the planned date':'');
+        if(/overdue|late|delayed/i.test(status))diagnostics.push('DESIGN_STATUS_DATE_CONFLICT');
       }
     }
     if(input.document.documentType==='procurement_register'){
       const activity=activityById.get(activityId);
       const finish=dateValue(activity?.forecastFinishIso??activity?.currentFinishIso??'');
-      if(due&&finish&&due>finish){state='unknown';scopeNote='Source package is linked, but required-on-site date '+due+' is after activity finish '+finish+'; confirm the link and required date before assessing material readiness';}
+      if(due&&finish&&due>finish){state='unknown';scopeNote='Source package is linked, but required-on-site date '+due+' is after activity finish '+finish+'; confirm the link and required date before assessing material readiness';diagnostics.push('MATERIAL_LINK_TIMING_MISMATCH');}
     }
 
     result[activityId] ??=
@@ -518,6 +520,7 @@ export function deriveReadinessFromCsv(
       dimension
     ] = combineReadiness(result[activityId]![dimension],{
       state,
+      diagnostics,
       sourceRefs: [
         "evidence-document:" +
           input.document

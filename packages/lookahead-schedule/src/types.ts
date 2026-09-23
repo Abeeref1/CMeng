@@ -35,6 +35,7 @@ export interface ReadinessEvidence {
   >;
   sourceRefs: string[];
   note?: string | null;
+  diagnostics?: string[];
 }
 
 export interface ReadinessDimension {
@@ -42,6 +43,7 @@ export interface ReadinessDimension {
   state: ReadinessDimensionState;
   sourceRefs: string[];
   note: string | null;
+  diagnostics?: string[];
 }
 
 export interface LookAheadReadiness {

@@ -2935,7 +2935,7 @@ function buildBundle(
       netSubmittedFinishMovementDays: netMovement,
       grossPositiveAnalyticalMovementDays: windows?.grossAnalyticalMovementDays ?? null,
       windowMovementTrace:windows?.windows.map(w=>({fromRevisionId:w.fromRevisionId,toRevisionId:w.toRevisionId,sourceDays:w.netCompletionMovementDays,calculatedDays:w.grossAnalyticalMovementDays}))??[],
-      movementInterpretation: "Gross positive activity movement and net submitted project-finish movement have different bases. Their difference does not prove overlap, concurrency or entitlement.",
+      movementInterpretation: "Positive recalculated project-finish movement summed across revision windows and net submitted project-finish movement have different bases. The window trace retains both values. Their difference does not prove delay, overlap, concurrency or entitlement.",
     };
     const riskReport=operationalReporting(state).risk;
     pmo.risk={...pmo.risk,evidenceState:riskReport.state,openRiskCount:operationalReporting(state).counts.openRiskCount,validation:riskReport.validation,note:riskReport.validation.explanation};

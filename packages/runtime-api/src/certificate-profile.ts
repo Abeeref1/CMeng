@@ -27,7 +27,7 @@ export function certificateProfile(ledger:CanonicalCommercialModel){
       const summable=!duplicateIds&&!cumulative&&Boolean(currency)&&taxBasis!=='unknown';
       const totals=summable?total(asOf):null,futureTotals=summable?total(future):null;
       return {currency,taxBasis,as_of:asOf,future,undated,population:partition.population,totals,futureTotals,
-        cumulativeBasis:incremental?'incremental_confirmed':summable?'source_row_sum_only':'not_aggregable',
+        cumulativeBasis:!summable?'not_aggregable':incremental?'incremental_confirmed':'source_row_sum_only',
         totalLabel:incremental?'Cumulative certificate amounts by period':'Sum of source certificate-period values',
         certificationUnconfirmedIds:asOf.filter(r=>!r.certificationConfirmedByDataDate).map(r=>r.id),
         latestPeriod:asOf.at(-1)??null,beforeLatestTotals:summable?total(asOf.slice(0,-1)):null,
