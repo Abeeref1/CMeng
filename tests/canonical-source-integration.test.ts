@@ -1064,3 +1064,20 @@ test('weekly actuals stop at Data Date in both resource and manhour views, with 
   assert.equal(hours.points[1].actualCumulativeHours,null);assert.equal(hours.plannedHoursToDataDate,120);assert.equal(hours.actualHoursToDataDate,80);
   assert.equal(hours.actualMinusPlannedHoursToDataDate,-40);assert.equal(hours.plannedHoursKnown,270);assert.equal(hours.actualPeriodCoveragePercent,100);
 });
+
+test('resource-week overload position stops at the Data Date and remains distinct from resources ever overloaded',t=>{
+ const {state,csvDoc}=fixture(t);
+ csvDoc('Resource ID,Week Start,Available Capacity,Planned Demand,Unit,Class\nL,2026-08-24,100,110,labor_hour,Labor\nL,2026-08-31,100,90,labor_hour,Labor\nL,2026-09-07,100,200,labor_hour,Labor');
+ csvDoc('Resource ID,Week Start,Actual Approved Usage,Source Status,Unit\nL,2026-08-24,120,Approved,labor_hour\nL,2026-08-31,80,Approved,labor_hour\nL,2026-09-07,300,Approved,labor_hour');
+ const r=canonicalResources(state);assert.deepEqual(r.capacityChecksToDataDate?.actual,{comparableCount:2,exceededCount:1,resourceCount:1});
+ assert.deepEqual(r.capacityChecksToDataDate?.planned,{comparableCount:2,exceededCount:1,resourceCount:1});assert.equal(r.overloadedRowCount,2);
+});
+
+test('HSE text PDF summaries refresh for any project, preserve source hashes, and never fabricate incident closure',async t=>{
+ const {store,state}=fixture(t);const pdf=await PDFDocument.create();const page=pdf.addPage([600,800]);
+ page.drawText('Reporting Month August 2026\nTotal Manhours 250000\nLost Time Injuries 3\nMedical Treatment Cases 2\nFirst Aid Cases 17\nNear Misses 31\nLTIFR 12\nTRIR 4',{x:30,y:750,size:12});
+ const bytes=Buffer.from(await pdf.save());const hash=createHash('sha256').update(bytes).digest('hex');const dir=mkdtempSync(join(tmpdir(),'hse-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));const path=join(dir,'unrelated-name.pdf');writeFileSync(path,bytes);
+ const doc={documentId:'unrelated-hse',documentType:'hse_report',sourceFilename:'unrelated-name.pdf',mediaType:'application/pdf',storedPath:path,sourceHashSha256:hash,basisState:'active'} as StoredEvidenceDocument;state.evidenceDocuments.push(doc);
+ const result=await store.refreshHseReports(state.projectId);assert.equal(result.refreshedDocumentCount,1);assert.equal(doc.hseSummary?.metrics.lostTimeInjuries,3);assert.equal(doc.hseSummary?.periodEndIso,'2026-08-31');assert.equal(doc.hseSummary?.sourceHashSha256,hash);
+ assert.equal((await store.refreshHseReports(state.projectId)).refreshedDocumentCount,0);
+});

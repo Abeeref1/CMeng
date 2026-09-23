@@ -1594,6 +1594,7 @@ async function route(
         }
       }
 
+      await runtimeProjects.refreshHseReports(projectId);
       await runtimeProjects
         .refreshCorrespondenceNarratives(
           projectId,
@@ -1716,6 +1717,7 @@ async function route(
           uploadIntent:
             intent,
         });
+    await runtimeProjects.refreshHseReports(projectId);
     await runtimeProjects
       .refreshCorrespondenceNarratives(
         projectId,
@@ -3006,6 +3008,9 @@ if (require.main === module) {
         }) + "\n",
       );
     }
+
+    const hseRefresh = await runtimeProjects.refreshHseReports();
+    if(hseRefresh.refreshedDocumentCount || hseRefresh.diagnostics.length) process.stdout.write(JSON.stringify({event:"hse_summary_refresh",...hseRefresh})+"\n");
 
     const correspondenceRefresh =
       await runtimeProjects

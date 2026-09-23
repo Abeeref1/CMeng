@@ -314,3 +314,58 @@ test('claim, notice and event-count metadata and AI answers preserve distinct po
  assert.match(answer.answer,/Claim notices, excluding determinations on\/before Data Date: 1/);
  assert.match(answer.answer,/without a usable date \(excluded\): 1/);
 });
+
+test('loaded risks retain the source population and distinguish rating conflicts from missing historical dates',t=>{
+ const {state,csv}=fixture(t);
+ csv('Risk ID,Probability,Impact,Rating,Status,Due Date\nA,0.2,2,Extreme,Open,2031-05-01\nB,0.2,2,Low,Open,2031-05-01\nC,0.8,5,Low,Open,2031-05-01','risk_register');
+ const r=operationalReporting(state);assert.equal(r.risk.sourceRecordCount,3);assert.equal(r.counts.openRiskCount,null);
+ assert.equal(r.risk.validation.ratingInconsistencyGroups.length,1);assert.equal(r.risk.validation.ratingInconsistencyGroups[0]!.score,.4);
+ const surfaces=managementSurfacesForProject(state.projectId)!;
+ const gap=surfaces.commandCenter.evidenceGaps.find(g=>g.key==='risk-information')!;
+ assert.equal(gap.state,'partial');assert.match(gap.action,/3 risk records are present/);assert.doesNotMatch(gap.action,/Establish the governed Risk Register/);
+ assert.equal(surfaces.masterDashboard.metrics.find(m=>m.key==='open-risk')!.value,null);
+});
+
+test('design prerequisites use planned dates and actual issue dates, not a future overdue status label',async t=>{
+ const {deriveReadinessFromCsv}=await import('../packages/runtime-api/src/evidence-readiness');
+ const {state,model,csv}=fixture(t);model.activities[0]!.activityId='A';model.activities[0]!.currentFinishIso='2031-04-30';
+ const text='Deliverable ID,Linked Activity,Planned Issue,Actual Issue,Status\nD1,A,2031-05-01,,Overdue\nD2,B,2031-04-14,,Pending\nD3,C,2031-04-10,2031-04-14,Issued\nD4,D,2031-04-10,2031-04-16,Issued';
+ csv(text,'design_deliverables');const document=state.evidenceDocuments.at(-1)!;
+ const r=deriveReadinessFromCsv({state,document,bytes:Buffer.from(text)});
+ assert.equal(r.A!.design_submittal!.state,'unknown');assert.match(r.A!.design_submittal!.note!,/not yet due.*source overdue label conflicts/);
+ assert.equal(r.B!.design_submittal!.state,'blocked');assert.equal(r.C!.design_submittal!.state,'ready');assert.equal(r.D!.design_submittal!.state,'blocked');
+ const material='Package ID,Linked Activity,Required On Site,Status\nP1,A,2031-06-01,Delivered';csv(material,'procurement_register');
+ const m=deriveReadinessFromCsv({state,document:state.evidenceDocuments.at(-1)!,bytes:Buffer.from(material)});
+ assert.equal(m.A!.procurement_material!.state,'unknown');assert.match(m.A!.procurement_material!.note!,/after activity finish/);
+});
+
+test('certificate source profile exposes components and future plans without manufacturing confirmed certification or cash',async t=>{
+ const {certificateProfile}=await import('../packages/runtime-api/src/certificate-profile');const {state,csv}=fixture(t);
+ csv('Certificate No,Period End,Currency,VAT Basis,Gross Work,Variations,Retention,Advance Recovery,Net Certified,Status\nC1,2031-03-31,EUR,Exclusive of VAT,100,20,6,10,104,Certified\nC2,2031-04-15,EUR,Exclusive of VAT,200,20,11,10,199,Certified\nC3,2031-05-31,EUR,Exclusive of VAT,300,20,16,10,294,Certified','payment_register');
+ const ledger=commercialCanonical(state),p=certificateProfile(ledger),g=p.groups[0]!;
+ assert.equal(g.as_of.length,2);assert.equal(g.future.length,1);assert.equal(g.totals!.netCertifiedAmount,303);assert.equal(g.totals!.retentionDeduction,17);
+ assert.equal(g.futureTotals!.netCertifiedAmount,294);assert.equal(g.beforeLatestTotals!.netCertifiedAmount,104);
+ assert.deepEqual(g.certificationUnconfirmedIds,['C1','C2']);assert.equal(g.cumulativeBasis,'source_row_sum_only');
+ assert.deepEqual(g.futureSourceStatusConflictIds,['C3']);assert.equal(g.advanceRecoverySourceTotal,30);
+ const before=JSON.stringify(ledger.payments);certificateProfile(ledger);assert.equal(JSON.stringify(ledger.payments),before);
+ ledger.payments[0]!.certifiedAmountBasis='project_cumulative';assert.equal(certificateProfile(ledger).groups[0]!.totals,null,'project cumulative balances cannot be added');
+});
+
+test('HSE report totals are not open incidents; inconsistent rates retain source values and comparison bases',async t=>{
+ const {parseHseSummary,hseReportPosition}=await import('../packages/runtime-api/src/hse-report-evidence');const {state}=fixture(t);
+ const report=parseHseSummary('Reporting Month March 2031\nTotal Manhours 1,000,000\nLost Time Injuries 2\nMedical Treatment Cases 3\nFirst Aid Cases 8\nNear Misses 19\nLTIFR 0.4\nTRIR 7.0','hash','summary-page-1');
+ state.evidenceDocuments.push({documentId:'hse',documentType:'hse_report',sourceFilename:'monthly.pdf',sourceRelativePath:null,mediaType:'application/pdf',sourceHashSha256:'hash',category:'hse_quality_fm',basisState:'active',hseSummary:report,assertions:[],diagnostics:[]} as unknown as StoredEvidenceDocument);state.version++;
+ const p=hseReportPosition(state,'2031-04-15');assert.equal(p.metrics.lostTimeInjuries,2);assert.equal(p.periodEndIso,'2031-03-31');
+ assert.deepEqual(p.rates.comparisons.map(r=>r.fromReportedCases),[1,5]);assert.ok(p.diagnostics.includes('HSE_TRIR_RECONCILIATION_REQUIRED'));
+ assert.equal(directorForProject(state.projectId)!.controls.openHseIncidentCount,null);
+ assert.equal(hseReportPosition(state,'2031-03-30').periodEndIso,null,'future monthly totals do not enter the current position');
+ const conflict=parseHseSummary('Reporting Month March 2031\nLost Time Injuries 2\nLost Time Injuries 4','hash','page');assert.equal(conflict.metrics.lostTimeInjuries,null);
+});
+
+test('a coherent dated risk register is established for current counts without asserting universal rating verification',t=>{
+ const {state,csv}=fixture(t);
+ csv('Risk ID,Probability,Impact,Rating,Status,Raised Date,Status As Of,Due Date\nA,0.2,2,Low,Open,2031-04-01,2031-04-15,2031-05-01\nB,0.8,5,Extreme,Open,2031-04-03,2031-04-15,2031-06-01','risk_register');
+ const r=operationalReporting(state);assert.equal(r.counts.openRiskCount,2);assert.equal(r.risk.validation.state,'consistent_in_checked_scores');
+ const surfaces=managementSurfacesForProject(state.projectId)!;assert.ok(!surfaces.commandCenter.evidenceGaps.some(g=>g.key==='risk-information'));
+ assert.equal(surfaces.masterDashboard.metrics.find(m=>m.key==='open-risk')!.value,2);
+});

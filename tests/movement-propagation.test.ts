@@ -381,3 +381,16 @@ test("gross positive window movement never replaces net Project Completion movem
   assert.equal(eot.observedProgrammeMovementDays,19);
   assert.equal(eot.projectCompletionMovementDays,14);
 });
+
+test('unreconciled calendar scenarios cannot become EOT time-impact days',()=>{
+ const windows=buildWindowsAnalysisProjection([
+  revision('A',1,'2031-01-01','2031-05-01'),revision('B',2,'2031-02-01','2031-05-20')],emptyDelay,{generatedAt:'2031-02-01',producerVersion:'test'});
+ windows.windows[0]!.independentReconciliationRequired=true;
+ windows.windows[0]!.independentForecastMovementDays=400;
+ windows.windows[0]!.strongestProgrammeMovementDays=400;
+ const delay=buildDelayClaimsProjection(windows,emptyDelay,{generatedAt:'2031-02-01',producerVersion:'test'});
+ const eot=buildEotAssessmentProjection(windows,delay,contractTime,{generatedAt:'2031-02-01',producerVersion:'test'});
+ const row=eot.windowCandidates[0]!;assert.equal(row.analyticalTimeImpactCandidateDays,null);assert.equal(row.includedCandidateDays,0);
+ assert.equal(row.positiveProgrammeMovementDays,19);assert.equal(row.positiveIndependentMovementDays,400);
+ assert.ok(row.reasons.includes('CALENDAR_LOGIC_RECALCULATION_REQUIRES_RECONCILIATION_NOT_DELAY'));
+});

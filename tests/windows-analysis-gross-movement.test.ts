@@ -227,7 +227,7 @@ test("windows keep strongest activity movement separate from net project complet
   );
   assert.equal(
     projection.positiveProgrammeMovementDays,
-    203.17,
+    181,
   );
   assert.equal(
     projection.projectCompletionMovementDays,

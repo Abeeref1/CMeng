@@ -282,6 +282,7 @@ export interface StoredEvidenceDocument {
   lineage: EvidenceLineage;
   assertions: DocumentAssertion[];
   textSegments?: EvidenceTextSegment[];
+  hseSummary?: import("./hse-report-evidence").HseReportSummary;
   correspondenceNarrativeRefresh?: CorrespondenceNarrativeRefreshReceipt;
   uploadIntent: EvidenceUploadIntent;
   familyKey: string;

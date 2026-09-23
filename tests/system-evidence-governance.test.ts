@@ -216,3 +216,14 @@ test('unknown contract quantities cannot appear as allocated items when no cross
   assert.deepEqual(result.unmappedItemIds,['Q']); assert.equal(result.mappingBasis,'missing');
   assert.equal(result.challenge.items[0].independent.value,0);
 });
+
+test('XER target date changes do not assert that the controlled baseline changed',()=>{
+  const before=model([activity('A',{baselineDateBasis:'xer_target_dates'})]);
+  const after=model([activity('A',{baselineDateBasis:'xer_target_dates',currentFinishIso:'2030-01-15T16:00:00',baselineFinishIso:'2030-01-15T16:00:00'})]);
+  const revision=(id:string,m:CanonicalScheduleModel,sequence:number)=>({revisionId:id,label:id,sequence,effectiveAt:m.dataDateIso,model:m});
+  const p=buildScheduleChangeReportProjection(revision('update-1',before,1),revision('update-2',after,2),options);
+  assert.equal(p.baselineMutationActivityCount,0);assert.equal(p.sourceTargetDateChangeCount,1);
+  const governedBefore=model([activity('A',{baselineDateBasis:'controlled_baseline'})]);
+  const governedAfter=model([activity('A',{baselineDateBasis:'controlled_baseline',baselineFinishIso:'2030-01-15T16:00:00'})]);
+  assert.equal(buildScheduleChangeReportProjection(revision('base-1',governedBefore,1),revision('base-2',governedAfter,2),options).baselineMutationActivityCount,1);
+});

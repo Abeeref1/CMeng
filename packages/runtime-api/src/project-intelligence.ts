@@ -319,6 +319,8 @@ function requestedFacts(question: string, projectId: string): AnswerFact[] {
     }
     if(/risk register/.test(q)){
       add('command-center.operationalReporting.counts.openRiskCount','Open risks at Data Date · requires dated status',r?.counts?.openRiskCount,context);
+      add('command-center.operationalReporting.risk.sourceRecordCount','Risk records loaded',r?.risk?.sourceRecordCount,context);
+      add('command-center.operationalReporting.risk.validation.explanation','Risk validation',r?.risk?.validation?.explanation,context);
       population('command-center','risks','Risk records');
     }
   }
@@ -359,6 +361,31 @@ function requestedFacts(question: string, projectId: string): AnswerFact[] {
       const p=d?.reportingContract?.populations?.[name];
       add('resource-utilization.'+field,label,d?.[field],{populationId:p?.populationId,dataDateIso:p?.dataDateIso,authority:'source'});
     }
+  }
+  if(/progress|spi|earned value/.test(q)){
+    const c=data('command-center')?.sourceInterpretation?.progressMeasures;
+    add('command-center.sourceInterpretation.progressMeasures.scheduleSnapshotPercent','Duration-weighted schedule snapshot (%)',c?.scheduleSnapshotPercent,{authority:'calculated'});
+    add('command-center.sourceInterpretation.progressMeasures.baselinePlannedPercent','Time-phased baseline plan at Data Date (%)',c?.baselinePlannedPercent,{authority:'calculated'});
+    add('command-center.sourceInterpretation.progressMeasures.scheduleIndicativeRatio','Indicative schedule snapshot / baseline ratio · not EVM SPI',c?.scheduleIndicativeRatio,{authority:'calculated'});
+    for(const [i,r] of (c?.evm??[]).entries())add('command-center.sourceInterpretation.progressMeasures.evm['+i+'].spi','EVM SPI · '+r.currency+' · EV / PV',r.spi,{authority:'calculated'});
+  }
+  if(/forecast|calendar|completion|finish/.test(q)){
+    const d=data('independent-forecast'),c=d?.sourceInterpretation;
+    add('independent-forecast.sourceInterpretation.productivityForecast.completionIso','Source productivity forecast · not contractual amendment',c?.productivityForecast?.completionIso,{authority:'source'});
+    add('independent-forecast.independentForecastCompletionIso','Submitted logic recalculated on its own calendars · model reconciliation, not delay',d?.independentForecastCompletionIso,{authority:'calculated'});
+    add('independent-forecast.sourceInterpretation.calendarReview.elapsedDayMatchCount','Completed tasks matching elapsed-day duration convention',c?.calendarReview?.elapsedDayMatchCount,{authority:'calculated'});
+  }
+  if(/cash|certificate/.test(q)){
+    const d=data('cash-flow');
+    for(const [i,g] of (d?.position?.certificateProfile?.groups??[]).entries()){
+      add('cash-flow.position.certificateProfile.groups['+i+'].totals.netCertifiedAmount','Sum of certificate-period source values through DD · '+g.currency+' · certification dates and accounting basis separately qualified',g.totals?.netCertifiedAmount,{authority:'calculated',dataDateIso:d?.reportingContract?.dataDateIso});
+      add('cash-flow.position.certificateProfile.groups['+i+'].futureTotals.netCertifiedAmount','Future certificate-period plan values · '+g.currency+' · excluded from current totals',g.futureTotals?.netCertifiedAmount,{authority:'source'});
+    }
+  }
+  if(/hse|injur|ltifr|trir/.test(q)){
+    const h=data('command-center')?.sourceInterpretation?.hse;
+    add('command-center.sourceInterpretation.hse.metrics.lostTimeInjuries','Reported lost-time injuries · period total, not open incidents',h?.metrics?.lostTimeInjuries,{authority:'source',dataDateIso:h?.periodEndIso});
+    add('command-center.sourceInterpretation.hse.metrics.trir','Source TRIR · method reconciliation required',h?.metrics?.trir,{authority:'source',dataDateIso:h?.periodEndIso});
   }
   return facts;
 }

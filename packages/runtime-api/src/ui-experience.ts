@@ -20,6 +20,11 @@ h1,h2,h3,h4,h5,.kpi-value,.position-value{font-family:Inter,"Segoe UI",system-ui
 @media(max-width:900px){.app{display:block}.sidebar{height:auto;max-height:290px;position:relative}.brand{position:relative;top:0}.content{padding:16px}.module-panel #moduleContent{padding:18px!important}.module-workspace>.module-head{padding:20px!important}.topbar{position:relative}.workspace-actions{justify-content:flex-start}.role-view-selector{padding-inline:18px}.experience-preview{grid-template-columns:1fr}.management-two-column{grid-template-columns:1fr}.management-metric-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}.planning-panel-body,.management-panel-body{padding:15px!important}}
 @media(max-width:600px){.module-head{display:block}.module-head-actions{justify-content:flex-start;margin-top:15px;max-width:none}.experience-facts{grid-template-columns:1fr 1fr}.experience-fact{padding:14px}.experience-fact>strong{font-size:22px}.experience-brief-heading{display:block}.cash-readiness-grid{grid-template-columns:1fr}.experience-disclosure>summary{flex-wrap:wrap}.experience-disclosure>summary span{margin-left:0}.visual-bar-row{grid-template-columns:1fr 1fr;gap:8px}.visual-bar-value{grid-column:2;text-align:right}.visual-bar-label{grid-row:span 2}.certificate-columns{gap:12px}.workspace-actions .btn{font-size:11px}.planning-kpi-grid{grid-template-columns:1fr 1fr!important}}
 @media print{.experience-disclosure:not([open]),.experience-notes,.experience-audit,.visual-focus-button{display:none!important}.experience-facts{grid-template-columns:repeat(4,1fr)}.role-primary-analysis .table-wrap{max-height:none!important;overflow:visible!important}.experience-preview{display:block}.experience-preview>.visual-chart{margin-bottom:16px}.planning-panel,.visual-chart,.experience-brief{break-inside:avoid}.report-shell .experience-disclosure[open]>.experience-disclosure-body{padding:0}}
+
+.certificate-profile-chart{width:100%;min-width:760px;display:block;font:12px Inter,system-ui;fill:#526479}.certificate-profile-chart .certificate-value{font-size:10px;font-weight:650}.certificate-component-totals{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin:16px 0}.certificate-component-totals span{display:block;font-size:12px;color:#526479}.certificate-component-totals b{font-size:19px;color:#254363}.certificate-period-position p{font-size:13px;line-height:1.6}.readiness-reason summary{cursor:pointer;font-size:12px;padding:5px;color:#315f8a}.readiness-reason p{min-width:210px;max-width:330px;white-space:normal;font-size:12px;line-height:1.5}.planning-kpi-grid{grid-template-columns:repeat(4,minmax(0,1fr))!important}.planning-primary-grid,.management-two-column{align-items:start}.planning-panel-body{min-height:0!important}.planning-panel-head p{line-height:1.6}.source-context-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}.source-context-card{border:1px solid #dce4ee;border-radius:9px;padding:18px}.source-context-card h4{font-size:16px;margin:0 0 8px}.source-context-card p{font-size:13px;margin:7px 0;color:#526479}.source-context-card strong{font-size:22px;color:#254363}.source-context{margin:0 0 20px}#directorDrawer .grid.kpi{grid-template-columns:repeat(4,minmax(0,1fr))}#directorDrawer .grid.two{grid-template-columns:1fr}#directorDrawer .currency-card{max-width:none}.source-measure-table td small{display:block;color:#526479}
+@media(max-width:900px){.planning-kpi-grid{grid-template-columns:repeat(3,minmax(0,1fr))!important}.certificate-component-totals{grid-template-columns:repeat(3,minmax(0,1fr))}.source-context-grid{grid-template-columns:1fr}}
+@media(max-width:600px){.planning-kpi-grid{grid-template-columns:1fr 1fr!important}.certificate-component-totals{grid-template-columns:1fr 1fr}}
+.readiness-table{max-height:620px;overflow:auto}.readiness-table thead{position:sticky;top:0;z-index:1;background:#f7f9fc}.register-search{display:flex;align-items:center;gap:14px;font-size:13px;margin-bottom:8px}.register-search input{min-width:300px;max-width:100%;padding:10px 12px;border:1px solid #bdcbdc;border-radius:7px;font:inherit}.register-search-count{font-size:12px;color:#526479;display:block;margin-bottom:10px}tr[hidden]{display:none!important}
 `;
 
 export const experienceScript = String.raw`
@@ -53,7 +58,7 @@ function experienceBrief(key,data){
     add('Critical activities',d.schedule?.criticalCount,'Source float; execution population');
     add('Near-critical activities',d.schedule?.nearCriticalCount,'Source float; strict near-critical band');
     note='Programme, progress and resource positions share the reporting date shown above.';
-    if(d.forecast?.origin==='scenario_with_assumptions')review='The independent finish is a scenario. Review its unapplied constraints before adopting it as a delivery commitment.';
+    if(d.sourceProductivityForecast?.completionIso)review='Source productivity outlook: '+planningShortDate(d.sourceProductivityForecast.completionIso)+'. Calendar recalculation remains a separate model reconciliation.';
   }else if(key==='schedule-analytics'){
     add('Execution activities',s.population?.executableActivityCount,'LOE and summary records excluded');
     add('Critical activities',s.float?.criticalCount,'Source total float');
@@ -129,8 +134,8 @@ function experienceBrief(key,data){
     note='Read each point on its own revision and reporting date. A change in population can affect the comparison.';
   }else if(key==='independent-forecast'){
     add('Contract completion',d.contractualCompletionIso,'Contract authority','date');add('Submitted completion',d.sourceForecastCompletionIso,'Current programme','date');
-    add('Independent scenario',d.independentForecastCompletionIso,'Calculated, subject to assumptions','date');add('Scenario vs submitted',d.forecastVarianceDays,'Calendar days','d');
-    note='Submitted dates and independent scenarios have different authority.';
+    add('Source productivity outlook',d.sourceProductivityForecastCompletionIso,'Governed source model; not contract authority','date');add('Calendar recalculation',d.independentForecastCompletionIso,'Submitted logic on its own calendars; not delay','date');
+    note='Keep the source productivity outlook separate from calendar recalculation. Neither establishes attributable delay or EOT.';
     if(d.managementReviewState==='review_required')review=d.managementReviewReason||'Review calculation assumptions before adopting the independent date.';
   }else if(['notices-claims','delay-claims','windows-analysis','eot-assessment'].includes(key)){
     if(key==='eot-assessment'){
@@ -206,7 +211,7 @@ function experienceRoleContent(key,data,primaryView,challengeHtml='',includeTech
   // Leadership gets a short overview, with every chart and record reachable in one disclosure.
   const analysis='<div class="role-primary-analysis">'+primaryView+'</div>';
   const content=leadership?experiencePreview(primaryView,role==='executive'?1:2)+experienceDisclosure('Complete module analysis',analysis,'All charts, registers and source records'):analysis;
-  return '<div class="role-view-'+role+'">'+briefHtml+content+challengeHtml+'</div>';
+  return '<div class="role-view-'+role+'">'+briefHtml+experienceSourceContext(key,data)+content+challengeHtml+'</div>';
 }
 function experienceCertificateGroups(position){
   const register=position?.foundation?.paymentRegister||{},source=position?.sourceLedger?.payments||[];
@@ -224,22 +229,67 @@ function experienceCertificateGroups(position){
   }
   return [...groups.values()];
 }
-function experienceCertificateChart(rows,currency,future=false){
+function certificateMoney(value,currency){return value===null||value===undefined?'Not available':Number(value/1000000).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})+'M'+(currency?' '+currency:'');}
+function experienceCertificateChart(rows,currency,future=false,dataDate=null,basis='source_row_sum_only'){
   const dated=rows.filter(r=>r.date&&typeof r.value==='number'&&Number.isFinite(r.value)).sort((a,b)=>a.date.localeCompare(b.date)||a.id.localeCompare(b.id));
   if(!dated.length)return '<div class="empty-visual">No dated certificate-period amounts are available for this group.</div>';
-  const max=Math.max(1,...dated.map(r=>Math.abs(r.value)));
-  const columns=dated.map(r=>'<div class="certificate-column" title="'+escapeHtml(r.id+' · '+r.date+' · '+fmt(r.value)+' '+(currency||'currency unknown'))+'"><span class="amount">'+escapeHtml(fmtExecutive(r.value))+'</span><i class="bar '+(r.value<0?'negative':'')+'" style="height:'+Math.max(2,Math.abs(r.value)/max*170).toFixed(1)+'px"></i><span class="period"><b>'+escapeHtml(r.id)+'</b>'+escapeHtml(planningShortDate(r.date))+'</span></div>').join('');
-  const chart='<div class="certificate-columns '+(future?'certificate-future':'')+'" role="img" aria-label="Net certificate values by reporting period; '+escapeHtml(currency||'currency unknown')+'; individual records, not cash receipts">'+columns+'</div>';
-  return chart+'<p class="certificate-footnote">'+fmt(dated.length)+' of '+fmt(rows.length)+' records plotted · '+escapeHtml(currency||'Currency not established')+'. Individual source values; no cumulative sum. A reporting period is not a certification or payment event date.</p>';
+  const width=1000,height=340,left=75,right=85,top=38,bottom=75,w=width-left-right,h=height-top-bottom;
+  const dates=dated.map(r=>Date.parse(r.date));const dd=dataDate?Date.parse(dataDate):null;
+  const minDate=Math.min(...dates),maxDate=Math.max(...dates,minDate+86400000);const margin=(maxDate-minDate)/Math.max(2,dated.length-1)*.6;
+  const x=d=>left+(Date.parse(d)-minDate+margin)/(maxDate-minDate+margin*2)*w;
+  const canSum=basis!=='not_aggregable';let total=0;
+  const prepared=dated.map(r=>({...r,running:canSum?(total+=r.value):null,future:r.scope==='future'||future}));
+  const maximum=Math.max(1,...dated.map(r=>Math.abs(r.value))),step=Math.pow(10,Math.floor(Math.log10(maximum)))/2;
+  const ymax=Math.ceil(maximum/step)*step;const cmax=Math.max(1,...prepared.map(r=>Math.abs(r.running??0)))*1.08;
+  const y=v=>top+h-v/ymax*h,cy=v=>top+h-v/cmax*h;
+  const ticks=Array.from({length:5},(_,i)=>{const v=ymax*i/4,yy=y(v);return '<line x1="'+left+'" x2="'+(width-right)+'" y1="'+yy+'" y2="'+yy+'" stroke="#dce4ed"/><text x="'+(left-10)+'" y="'+(yy+4)+'" text-anchor="end">'+(v/1e6).toFixed(1)+'</text>'+(canSum?'<text x="'+(width-right+12)+'" y="'+(yy+4)+'">'+(cmax*i/4/1e6).toFixed(1)+'</text>':'');}).join('');
+  const barWidth=Math.max(5,Math.min(42,w/dated.length*.5));
+  const bars=prepared.map((r,i)=>{const xx=x(r.date),yy=y(Math.max(0,r.value)),hh=Math.max(1,Math.abs(y(r.value)-y(0)));return '<g><title>'+escapeHtml(r.id+' · '+r.date+' · '+certificateMoney(r.value,currency)+(r.future?' · prospective source value':r.certificationConfirmedByDataDate?' · certification dated by DD':' · certification date unconfirmed'))+'</title><rect x="'+(xx-barWidth/2)+'" y="'+yy+'" width="'+barWidth+'" height="'+hh+'" fill="'+(r.future?'#b8c8d9':'#4276aa')+'" stroke="'+(r.future?'#7e99b5':'#ac792d')+'"'+(r.future?' stroke-dasharray="4 3"':'')+'/><text x="'+xx+'" y="'+(yy-8)+'" text-anchor="middle" class="certificate-value">'+(r.value/1e6).toFixed(2)+'</text><text x="'+xx+'" y="'+(top+h+22)+'" text-anchor="middle" transform="rotate(-40 '+xx+' '+(top+h+22)+')">'+escapeHtml(r.id)+'</text></g>';}).join('');
+  const line=canSum?prepared.map((r,i)=>i?'<line x1="'+x(prepared[i-1].date)+'" y1="'+cy(prepared[i-1].running)+'" x2="'+x(r.date)+'" y2="'+cy(r.running)+'" stroke="#4d6687" stroke-width="2.5"'+(r.future?' stroke-dasharray="5 4"':'')+'/>':'').join(''):'';
+  const marker=dd!==null&&dd>=minDate-margin&&dd<=maxDate+margin?'<line x1="'+x(dataDate)+'" x2="'+x(dataDate)+'" y1="'+top+'" y2="'+(top+h)+'" stroke="#b67621" stroke-width="2" stroke-dasharray="6 4"/><text x="'+(x(dataDate)+5)+'" y="20" fill="#8b5917">Data Date · '+escapeHtml(planningShortDate(dataDate))+'</text>':'';
+  return '<div class="chart-legend"><span>Solid bars: source periods through DD · certification dates checked separately</span><span>Outlined pale bars: future plan values</span><span>'+(canSum?'Line: '+(basis==='incremental_confirmed'?'cumulative source amounts':'running source-row sum; accounting basis unconfirmed'):'Cumulative sum withheld: incompatible amount basis')+'</span></div><div class="chart-scroll"><svg class="certificate-profile-chart" viewBox="0 0 '+width+' '+height+'" role="img" aria-label="Certificate period amounts and running source values, with Data Date marker; not actual cash"><text x="'+left+'" y="20">Period · '+escapeHtml(currency||'?')+' million</text>'+(canSum?'<text x="'+(width-right)+'" y="20" text-anchor="end">Running sum · million</text>':'')+ticks+bars+line+marker+'</svg></div><p class="certificate-footnote">'+fmt(dated.length)+' of '+fmt(rows.length)+' records plotted. All values use the source period end; neither the bars nor the line prove cash receipt.</p>';
 }
 function experienceCertificatePanels(position){
-  return experienceCertificateGroups(position).map(g=>{
-    const title='Certificate values by reporting period';
-    const subtitle=(g.currency||'Currency not established')+' · '+humanizeKey(g.taxBasis)+' tax basis. Source net certificate amounts, separate from actual cash.';
-    const current=renderVisualPanel(title,subtitle,experienceCertificateChart(g.as_of,g.currency));
-    const future=g.future.length?experienceDisclosure('Future certificate periods',experienceCertificateChart(g.future,g.currency,true),fmt(g.future.length)+' records excluded from current position'):'';
-    const undated=g.undated.length?'<p class="certificate-footnote">'+fmt(g.undated.length)+' undated records are retained in Payments and excluded from both charts.</p>':'';
-    return '<section class="certificate-period-position">'+current+future+undated+'</section>';
+  const profile=position?.certificateProfile;
+  const groups=profile?.groups||experienceCertificateGroups(position);
+  return groups.map(g=>{
+    const current=g.as_of||[],future=g.future||[],all=[...current.map(r=>({...r,scope:'as_of'})),...future.map(r=>({...r,scope:'future'}))];
+    const components=[['Gross work','grossWork'],['Variations','variations'],['Retention deductions','retentionDeduction'],['Advance recovery','advanceRecovery'],['Net certificate values','netCertifiedAmount']];
+    const totals=g.totals?'<div class="certificate-component-totals">'+components.map(([label,key])=>'<div><span>'+escapeHtml(label)+'</span><b>'+escapeHtml(certificateMoney(g.totals[key],g.currency))+'</b></div>').join('')+'</div>':'';
+    const unconfirmed=g.certificationUnconfirmedIds||[];
+    const latest=g.latestPeriod;
+    const confirmation=unconfirmed.length?'<div class="experience-review"><b>Certification dates unconfirmed · '+fmt(unconfirmed.length)+' of '+fmt(current.length)+' current-period records</b><p>'+escapeHtml(unconfirmed.join(', '))+'. These are source period values through the Data Date, not a confirmed certification-event balance.'+(latest?'<br>Latest period: '+escapeHtml(latest.id+' · '+planningShortDate(latest.date))+'. '+(g.beforeLatestTotals?'Excluding this period: net '+escapeHtml(certificateMoney(g.beforeLatestTotals.netCertifiedAmount,g.currency))+'; retention '+escapeHtml(certificateMoney(g.beforeLatestTotals.retentionDeduction,g.currency))+'.':''):'')+'</p></div>':'';
+    const futureNote=future.length?'<p><b>Forward source profile:</b> '+fmt(future.length)+' future periods'+(g.futureTotals?', net '+escapeHtml(certificateMoney(g.futureTotals.netCertifiedAmount,g.currency)):'')+' through '+escapeHtml(planningShortDate(g.profileEndIso))+'. Future source statuses such as “Certified” are not accepted as certification at the Data Date. No values are extrapolated beyond this source horizon.</p>':'';
+    const chart=experienceCertificateChart(all,g.currency,false,profile?.dataDateIso,g.cumulativeBasis||'not_aggregable');
+    const componentPoints=all.map(r=>({dateIso:r.date,...r.components}));
+    const componentChart=all.some(r=>r.components)?renderLineChart(componentPoints,[{key:'grossWork',label:'Gross work',tone:'accent'},{key:'variations',label:'Variations',tone:'success'},{key:'retentionDeduction',label:'Retention',tone:'warning'},{key:'advanceRecovery',label:'Advance recovery',tone:'purple'}],null,{unit:g.currency,yLabel:'Source component value',xLabel:'Certificate period end',dataDateIso:profile?.dataDateIso}):'';
+    const rows=all.map(r=>'<tr><td>'+escapeHtml(r.id)+'</td><td>'+escapeHtml(planningShortDate(r.date))+'</td><td>'+escapeHtml(r.scope==='future'?'Future plan value':r.certificationConfirmedByDataDate?'Certification dated by DD':'Certification date unconfirmed')+'</td>'+components.map(([,key])=>'<td>'+escapeHtml(certificateMoney(r.components?.[key]??(key==='netCertifiedAmount'?r.value:null),null))+'</td>').join('')+'</tr>').join('');
+    const details='<div class="table-wrap"><table><thead><tr><th>Record</th><th>Period end</th><th>Authority</th>'+components.map(([label])=>'<th>'+escapeHtml(label+' · million')+'</th>').join('')+'</tr></thead><tbody>'+rows+'</tbody></table></div>';
+    return '<section class="certificate-period-position">'+renderVisualPanel('Certificate reconciliation · '+(g.currency||'currency unknown'),(g.totalLabel||'Source period values')+' through '+planningShortDate(profile?.dataDateIso)+' · '+humanizeKey(g.taxBasis)+' tax basis. Accounting series basis and certification dates remain separate.',totals+confirmation+chart+futureNote+experienceDisclosure('Gross work, variations and deductions',componentChart+details,'All '+fmt(all.length)+' period records'))+'<p class="certificate-footnote">Advance recoveries'+(g.advanceRecoverySourceTotal!==null&&g.advanceRecoverySourceTotal!==undefined?' total '+escapeHtml(certificateMoney(g.advanceRecoverySourceTotal,g.currency))+' across the source profile':' are recorded by period')+'. The original advance payment, receipt dates and actual expenditure are needed to establish cash.</p>'+(g.undated?.length?'<p>'+fmt(g.undated.length)+' undated records remain outside both dated profiles.</p>':'')+'</section>';
   }).join('');
+}
+function experienceSourceContext(key,data){
+  const c=data.sourceInterpretation;if(!c)return '';
+  const p=c.productivityForecast||{},cal=c.calendarReview,risk=c.riskValidation,hse=c.hse,measures=c.progressMeasures;
+  let html='';
+  if(['master-dashboard','command-center','master-control-programme','pmo-analysis','independent-forecast'].includes(key)){
+    const contract=(data.metrics||data.programmePosition||[]).find(m=>m.key==='contract-finish')?.value||data.claims?.contractualCompletionIso||data.contractualCompletionIso;
+    const variance=contract&&p.completionIso?Math.round((Date.parse(p.completionIso)-Date.parse(contract))/86400000):null;
+    html+='<div class="source-context-grid"><div class="source-context-card"><h4>Source productivity outlook</h4><strong>'+escapeHtml(planningShortDate(p.completionIso))+'</strong><p>'+escapeHtml(humanizeKey(p.authority||'not_established'))+(variance!==null?' · '+(variance>0?'+':'')+fmt(variance)+' calendar days vs contract':'')+'. This is a delivery forecast, not an amendment.</p>'+(p.driverWorkPackageIds?.length?'<p>Latest finish: '+escapeHtml(p.driverWorkPackageIds.join(', '))+' · '+fmt(p.concentration?.driverCount??p.driverWorkPackageIds.length)+' of '+fmt(p.workPackageCount)+' work packages. Next latest: '+escapeHtml(planningShortDate(p.concentration?.nextLatestCompletionIso))+'.</p>':'')+managementModuleLink('independent-forecast','Review productivity basis')+'</div><div class="source-context-card"><h4>Calendar model reconciliation</h4><strong>'+escapeHtml(planningShortDate(c.calendarRecalculatedFinishIso))+'</strong><p>Submitted logic recalculated on its own calendars. This date is excluded from delay and entitlement conclusions.</p>'+(cal?'<p>'+fmt(cal.elapsedDayMatchCount)+' / '+fmt(cal.population?.denominator)+' completed tasks match duration ÷ standard-day hours as elapsed days; '+fmt(cal.assignedCalendarMismatchCount)+' differ from assigned-calendar working hours.</p>':'')+managementModuleLink('independent-forecast','Review calendars and assumptions')+'</div></div>';
+  }
+  if(['master-dashboard','command-center','master-control-programme','pmo-analysis'].includes(key)&&risk?.sourceRecordCount){
+    const matrix=(risk.scoreGroups||[]).map(g=>'<tr><td>'+escapeHtml(fmt(g.score))+'</td><td>'+escapeHtml(g.counts.map(r=>r.rating+': '+fmt(r.count)).join(' · '))+'</td><td>'+fmt(g.recordCount)+'</td></tr>').join('');
+    html+=experienceDisclosure('Risk register · '+fmt(risk.sourceRecordCount)+' records loaded','<p>'+escapeHtml(risk.explanation)+'</p><div class="table-wrap"><table><thead><tr><th>Probability × impact</th><th>Supplied ratings</th><th>Records</th></tr></thead><tbody>'+matrix+'</tbody></table></div><p>Confirm the rating matrix or documented overrides. Future action due dates are not evidence of when a risk was raised.</p>',risk.ratingInconsistencyGroups?.length?fmt(risk.ratingInconsistencyGroups.length)+' scores with inconsistent ratings':'Rating method review');
+  }
+  if(['master-dashboard','command-center','pmo-analysis','progress-report'].includes(key)&&measures){
+    const ev=(measures.evm||[]).map(r=>'<tr><td>Earned value / budget</td><td>'+escapeHtml(experienceValue(r.earnedValuePercentOfBac,'%'))+'</td><td>'+escapeHtml(certificateMoney(r.ev,r.currency))+' / '+escapeHtml(certificateMoney(r.bac,r.currency))+'<small>EVM SPI: '+escapeHtml(fmt(r.spi))+' · '+escapeHtml(humanizeKey(r.taxBasis))+'</small></td></tr>').join('');
+    const cert=(measures.certificatePeriods||[]).map(r=>'<tr><td>Gross work in current certificate periods</td><td>'+escapeHtml(certificateMoney(r.grossWork,r.currency))+'</td><td>'+fmt(r.count)+' source periods; '+fmt(r.certificationUnconfirmedCount)+' certification dates unconfirmed<small>'+escapeHtml(r.basis)+'</small></td></tr>').join('');
+    html+=experienceDisclosure('Progress measures and their bases','<div class="table-wrap"><table class="source-measure-table"><thead><tr><th>Measure</th><th>Value</th><th>Meaning</th></tr></thead><tbody><tr><td>Schedule snapshot</td><td>'+escapeHtml(experienceValue(measures.scheduleSnapshotPercent,'%'))+'</td><td>Duration-weighted source progress</td></tr><tr><td>Baseline plan at Data Date</td><td>'+escapeHtml(experienceValue(measures.baselinePlannedPercent,'%'))+'</td><td>Time-phased controlled baseline</td></tr><tr><td>Indicative schedule ratio</td><td>'+escapeHtml(fmt(measures.scheduleIndicativeRatio))+'</td><td>Snapshot ÷ baseline plan; different revision populations, not EVM SPI</td></tr>'+ev+cert+'</tbody></table></div><p>'+escapeHtml(measures.interpretation)+'</p>','Schedule progress, EVM and certificate values are distinct');
+  }
+  if(['master-dashboard','command-center','cash-flow','pmo-analysis'].includes(key)&&hse?.periodEndIso){
+    const m=hse.metrics||{},rates=hse.rates||{};
+    html+=experienceDisclosure('HSE reported position · '+planningShortDate(hse.periodEndIso),planningKpis([['Lost-time injuries',m.lostTimeInjuries,'reported period; not open-case status'],['Medical treatment',m.medicalTreatmentCases,'source report'],['First aid',m.firstAidCases,'source report'],['Near misses',m.nearMisses,'source report']])+'<p>Reported LTIFR '+escapeHtml(fmt(m.ltifr))+' · TRIR '+escapeHtml(fmt(m.trir))+' · exposure '+escapeHtml(fmt(m.manHours))+' hours. Open HSE cases are not established by these totals.</p><p>From LTI + medical treatment = '+escapeHtml(fmt(rates.recordableCasesFromLtiAndMedical))+' cases: '+escapeHtml((rates.comparisons||[]).map(r=>fmt(r.fromReportedCases)+' on '+fmt(r.basisHours)+' hours').join('; '))+'. The supplied rate and method require reconciliation.</p><p>Approved labor usage through DD: '+escapeHtml(fmt(hse.laborComparison?.approvedLaborHoursToDataDate))+' hours. '+escapeHtml(hse.laborComparison?.basis||'')+'</p>','LTI '+fmt(m.lostTimeInjuries)+' · rate and hours reconciliation');
+  }
+  return html?'<section class="source-context">'+html+'</section>':'';
 }
 `;

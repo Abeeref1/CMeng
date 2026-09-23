@@ -341,6 +341,17 @@ export function buildChallengeContractProjection(
     eligibleSections.flatMap(
       signalsForSection,
     );
+  // Group identical clause wording for analysis while retaining every clause and
+  // source occurrence. Different clause identities are not silently merged.
+  const wordingBySection=new Map(eligibleSections.map(section=>{
+    const lines=section.text.split(/\r?\n/);
+    if(section.identifier&&['section','clause','article'].some(label=>lines[0]?.trim().toLowerCase()===label+' '+section.identifier!.toLowerCase()))lines.shift();
+    return [section.sectionKey,lines.join('\n').normalize('NFKC').replace(/\s+/g,' ').trim()];
+  }));
+  const grouped=new Map<string,ContractChallengeSignal[]>();
+  for(const signal of signals){const key=stableFingerprint({category:signal.category,wording:wordingBySection.get(signal.sectionKey)});const rows=grouped.get(key)??[];rows.push(signal);grouped.set(key,rows);}
+  const wordingGroups=[...grouped].map(([groupId,rows])=>({groupId,category:rows[0]!.category,occurrenceCount:rows.length,
+    clauseIdentifiers:rows.map(r=>r.clauseIdentifier),sourceRefs:[...new Set(rows.flatMap(r=>r.sourceRefs))],textSnippet:rows[0]!.textSnippet}));
 
   const noticeRequirementCandidates =
     eligibleSections.flatMap(
@@ -385,6 +396,9 @@ export function buildChallengeContractProjection(
       contract.clauses.length,
     signalCount:
       signals.length,
+    uniqueWordingSignalCount:wordingGroups.length,
+    repeatedSignalOccurrenceCount:signals.length-wordingGroups.length,
+    wordingGroups,
     categoriesPresent,
     signals,
     noticeRequirementCandidates,

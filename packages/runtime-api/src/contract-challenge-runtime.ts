@@ -16,9 +16,11 @@ export function contractChallengeForState(state:ProjectRuntimeState,generatedAt:
     documentRole:doc.role,sourceFilename:doc.sourceFilename,basisState:basis,sourceRefs:s.sourceRefs.map(ref=>'evidence-document:'+doc.documentId+':'+ref)})));
   const notices=analyzed.flatMap(({doc,basis,review})=>review.noticeRequirementCandidates.map(n=>({...n,candidateId:doc.documentId+':'+n.candidateId,
     documentId:doc.documentId,documentRole:doc.role,sourceFilename:doc.sourceFilename,basisState:basis,sourceRefs:n.sourceRefs.map(ref=>'evidence-document:'+doc.documentId+':'+ref)})));
+  const wordingGroups=analyzed.flatMap(({doc,review})=>(review.wordingGroups??[]).map(g=>({...g,groupId:doc.documentId+':'+g.groupId,
+    sourceRefs:g.sourceRefs.map(ref=>'evidence-document:'+doc.documentId+':'+ref)})));
   return {...analyzed[0]!.review,physicalComplete:analyzed.every(a=>a.review.physicalComplete),semanticComplete:analyzed.every(a=>a.review.semanticComplete),
     sectionCount:analyzed.reduce((n,a)=>n+a.review.sectionCount,0),clauseCount:analyzed.reduce((n,a)=>n+a.review.clauseCount,0),
-    signalCount:signals.length,signals,noticeRequirementCandidates:notices,categoriesPresent:[...new Set(signals.map(s=>s.category))].sort(),
+    signalCount:signals.length,signals,uniqueWordingSignalCount:wordingGroups.length,repeatedSignalOccurrenceCount:signals.length-wordingGroups.length,wordingGroups,noticeRequirementCandidates:notices,categoriesPresent:[...new Set(signals.map(s=>s.category))].sort(),
     sourceDocuments:analyzed.map(({doc,basis,review})=>({documentId:doc.documentId,sourceFilename:doc.sourceFilename,role:doc.role,basisState:basis,
       clauseCount:review.clauseCount,signalCount:review.signalCount,noticeCandidateCount:review.noticeRequirementCandidates.length})),
     diagnostics:[...new Set(analyzed.flatMap(a=>a.review.diagnostics)),'CONTRACT_FAMILY_SOURCE_ROLES_RETAINED_NOT_MERGED_AUTHORITY']};

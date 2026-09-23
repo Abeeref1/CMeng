@@ -50,6 +50,9 @@ export interface ChallengeContractProjection {
   sectionCount: number;
   clauseCount: number;
   signalCount: number;
+  uniqueWordingSignalCount?: number;
+  repeatedSignalOccurrenceCount?: number;
+  wordingGroups?: Array<{groupId:string;category:ContractChallengeCategory;occurrenceCount:number;clauseIdentifiers:Array<string|null>;sourceRefs:string[];textSnippet:string}>;
   categoriesPresent: ContractChallengeCategory[];
   signals: ContractChallengeSignal[];
   noticeRequirementCandidates: ContractNoticeRequirementCandidate[];

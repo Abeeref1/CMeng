@@ -112,6 +112,13 @@ function assessWindow(
   const reasons: string[] = [];
   const assumptions: string[] = [];
 
+  if(window.independentReconciliationRequired){
+    return {windowId:window.windowId,positiveIndependentMovementDays:positiveIndependentMovement,
+      positiveProgrammeMovementDays:Math.max(0,window.netCompletionMovementDays??0),programmeMovementBasis:window.netCompletionMovementBasis,
+      analyticalTimeImpactCandidateDays:null,state:'review',eligibleEventIds:eligible.map(e=>e.eventId),contractorEventIds:contractor.map(e=>e.eventId),
+      reasons:['CALENDAR_LOGIC_RECALCULATION_REQUIRES_RECONCILIATION_NOT_DELAY'],assumptions:[...window.assumptions],includedCandidateDays:0};
+  }
+
   if (positiveProgrammeMovement <= 0) {
     reasons.push(
       "NO_POSITIVE_INDEPENDENT_FORECAST_MOVEMENT",

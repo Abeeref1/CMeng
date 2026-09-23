@@ -49,11 +49,11 @@ test('cost summaries preserve partial authority and never aggregate multiple cur
   assert.equal(multi.facts.length,0,'separate currency positions are available in the full analysis, not summed');
 });
 
-const certificateFunctions=functions(['experienceCertificateGroups','experienceCertificateChart','experienceCertificatePanels','experienceDisclosure']);
+const certificateFunctions=functions(['certificateMoney','experienceCertificateGroups','experienceCertificateChart','experienceCertificatePanels','experienceDisclosure']);
 function certificate(id:string,date:string|null,value:number|null,currency:string,taxBasis:string) {
   return {paymentId:id,periodEnd:date,certifiedAmountBasis:'unknown',amounts:{netCertifiedAmount:{value,currency,taxBasis}}};
 }
-test('certificate charts retain producer scope, separate currencies and tax bases, and never invent cash or cumulative values',()=>{
+test('certificate charts retain producer scope, separate currencies and tax bases, and never invent cash or confirmed cumulative balances',()=>{
   const a=certificate('A','2031-02-01',10,'EUR','exclusive'),b=certificate('B','2031-03-01',90,'EUR','exclusive');
   const c=certificate('C','2031-02-01',20,'USD','exclusive'),d=certificate('D','2031-02-01',30,'EUR','inclusive');
   const missing=certificate('E','2031-02-01',null,'EUR','exclusive'),undated=certificate('U',null,40,'EUR','exclusive');
@@ -66,10 +66,12 @@ test('certificate charts retain producer scope, separate currencies and tax base
   assert.deepEqual(Array.from(eur.future,(r:any)=>r.id),['B']);
   const current=runInNewContext(certificateFunctions+';experienceCertificateChart(rows,"EUR")',{...common,rows:eur.as_of});
   assert.match(current,/1 of 2 records plotted/);
-  assert.match(current,/no cumulative sum/);
+  assert.match(current,/running source-row sum; accounting basis unconfirmed/);
+  assert.match(current,/<line.*stroke="#dce4ed"/);
+  assert.match(current,/Period · EUR million/);
   assert.doesNotMatch(current,/>B<|>90<|NaN|undefined/);
   const whole=runInNewContext(certificateFunctions+';experienceCertificatePanels(position)',ctx);
-  assert.match(whole,/Future certificate periods/);
+  assert.match(whole,/Forward source profile/);
   assert.match(whole,/1 undated records/);
   assert.equal(position.foundation.paymentRegister.rows.length,4,'presentation never mutates the source population');
 });
@@ -105,7 +107,7 @@ test('all six lenses retain access to the full module and leadership does not in
   const roleViews=Object.fromEntries(roles.map(r=>[r,{label:r}]));
   for(const role of roles){
     const html=runInNewContext(functions(['experienceRoleContent','experienceDisclosure','experienceRoleReview'])+';experienceRoleContent("test",{},"<table>evidence-row</table>","<aside>comparison</aside>",true)',{
-      ...common,selectedRoleView:role,roleViews,experienceBrief:()=>({facts:[{label:'Known value',value:17,display:'17',basis:'Source'}],note:'Current position',review:'Review one specific issue.'}),experiencePreview:()=>'<svg>chart</svg>'
+      ...common,selectedRoleView:role,roleViews,experienceBrief:()=>({facts:[{label:'Known value',value:17,display:'17',basis:'Source'}],note:'Current position',review:'Review one specific issue.'}),experienceSourceContext:()=>'',experiencePreview:()=>'<svg>chart</svg>'
     });
     assert.equal((html.match(/evidence-row/g)||[]).length,1,role);
     assert.match(html,/comparison/,role);

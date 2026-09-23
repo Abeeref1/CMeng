@@ -743,6 +743,7 @@ export function buildWindowsAnalysisProjection(
         toForecast.independentForecastCompletionIso,
       independentForecastMovementDays:
         independentMovement,
+      independentReconciliationRequired: [fromForecast,toForecast].some(f=>f.assumptions.includes("SOURCE_DURATION_ELAPSED_DAY_PATTERN_REQUIRES_CALENDAR_RECONCILIATION")),
       netCompletionMovementDays:
         netCompletionMovement,
       netCompletionMovementBasis,
@@ -1007,8 +1008,7 @@ export function buildWindowsAnalysisProjection(
               sum +
               Math.max(
                 0,
-                window.grossAnalyticalMovementDays ??
-                  window.strongestProgrammeMovementDays ??
+                window.netCompletionMovementDays ??
                   0,
               ),
             0,
@@ -1023,8 +1023,7 @@ export function buildWindowsAnalysisProjection(
               sum +
               Math.min(
                 0,
-                window.grossAnalyticalMovementDays ??
-                  window.strongestNegativeActivityMovementDays ??
+                window.netCompletionMovementDays ??
                   0,
               ),
             0,
