@@ -628,7 +628,7 @@ function renderNav(){
       const attention=Object.entries(issues).filter(([kind])=>kind!=='verification_pending').reduce((n,[,count])=>n+Number(count||0),0);
       const pending=issues.verification_pending||0;
       const title=names[key]+(errors?' · Calculation error':attention?' · '+attention+' review findings':pending?' · Verification coverage incomplete':'');
-      const count=attention?'<span class="nav-count '+(errors?'error':'attention')+'" aria-label="'+attention+' review findings">'+attention+'</span>':pending?'<span class="nav-count" aria-label="Verification coverage incomplete">i</span>':'';
+      const count=attention?'<span class="nav-count '+(errors?'error':'attention')+'" aria-label="'+attention+' review findings">'+(managementSurfaceKeysForApi.has(key)?'Review':attention)+'</span>':pending?'<span class="nav-count" aria-label="Verification coverage incomplete">i</span>':'';
       html+='<button class="nav-item '+(selected===key?"active":"")+'" data-key="'+key+'" title="'+escapeHtml(title)+'" aria-current="'+(selected===key?'page':'false')+'"><span class="nav-label">'+names[key]+'</span>'+count+'</button>';
     });
   });
@@ -3566,6 +3566,7 @@ function managementMetricBadges(metric){
   const state=metric?.state||"unavailable";
   const authority=metric?.authority||"unavailable";
   if(state===authority)return managementAuthorityBadge(state);
+  if(["source_current","governed","calculated"].includes(state)&&authority!=="unavailable")return managementAuthorityBadge(authority);
   const badge=(prefix,value)=>{
     const label=String(value||"unavailable").replaceAll("_"," ");
     const cls=["official","submitted","governed","source","source_current","calculated"].includes(value)?"ready":["provisional","partial","conflicted","stale","candidate"].includes(value)?"partial":"blocked";
@@ -3578,7 +3579,7 @@ function renderManagementMetricGrid(metrics){
   return '<div class="management-metric-grid">'+metrics.map(m=>{
     const display=managementMetricDisplay(m);
     return '<article class="management-metric-card '+escapeHtml(m.health||"unavailable")+'">'+
-      '<div class="management-metric-head"><span>'+escapeHtml(m.label)+'</span>'+((m.health==="unavailable"&&display.kind!=="missing")?"":managementHealthBadge(m.health))+'</div>'+
+      '<div class="management-metric-head"><span>'+escapeHtml(m.key==='independent-forecast-finish'&&['provisional','scenario'].includes(m.authority)?'Independent scenario finish':m.label)+'</span>'+((m.health==="unavailable"&&display.kind!=="missing")?"":managementHealthBadge(m.health))+'</div>'+
       '<div class="management-metric-value '+escapeHtml(display.kind)+'">'+escapeHtml(display.text)+'</div>'+
       '<div class="management-metric-badges">'+managementMetricBadges(m)+'</div>'+
       '<details class="metric-interpretation"><summary>Basis and interpretation</summary><div class="management-metric-basis"><span>Basis</span><b>'+escapeHtml(m.basis||"Not established")+'</b></div>'+
@@ -3821,6 +3822,7 @@ function userFacingModuleReason(key,reason){
 }
 function renderModuleResult(result){
   currentModuleResult=result;
+  el("moduleContent").classList.remove("empty");
   renderRoleViewSelector();
   const managementSurface=managementSurfaceKeysForApi.has(result.key);
   el("roleViewSelector").style.display=managementSurface?"none":"";
@@ -3838,7 +3840,7 @@ function renderModuleResult(result){
   }
   const data=result.data||{};
   if(result.key==="challenge-contract"&&renderDeliveryChallenge(data,result.reason,result.status))return;
-  const basisHtml=renderModuleBasis(data)+experienceReviewSummary(data.issueAssessment);
+  const basisHtml=renderModuleBasis(data)+experienceReviewSummary(data.issueAssessment,managementSurface);
   const challengeBody=renderUniversalChallenge(data.challenge);
   const challengeHtml=challengeBody?'<details class="reconciliation-panel"><summary><span>Reconciliation with submitted position</span><b>'+escapeHtml(reconciliationSummary(data.challenge))+'</b></summary><div class="reconciliation-body">'+challengeBody+'</div></details>':'';
   const specialized=renderSpecializedModule(result.key,data);
