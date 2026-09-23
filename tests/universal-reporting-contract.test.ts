@@ -104,10 +104,13 @@ test('legacy productivity classification cannot displace a BOQ; the sole source 
  const make=(text:string,name:string)=>ingestBoq({projectId:state.projectId,bytes:Buffer.from(text),verifiedMediaType:'text/csv',receivedAt:'2031-04-20',sourceFilename:name});
  const invalid=await make(wrongText,'productivity.csv'),valid=await make(actualText,'scope.csv');
  wrong.linkedArtifactId=invalid.ingestionId;actual.linkedArtifactId=valid.ingestionId;
+ state.activeEvidenceBasis['boq:quantity']={activeArtifactId:invalid.ingestionId} as any;
  state.boq=invalid;state.boqRevisions=[invalid,valid];state.quantities=quantityModelFromBoq(invalid,'CURRENT',null);state.version++;
  const p=moduleForProject(state.projectId,'quantity-scurve').data as any;
  assert.equal(p.boqItemCount,2);assert.equal(p.knownQuantityItemCount,2);assert.equal(p.boqSource.state,'candidate');assert.equal(p.boqSource.adoptedSource,false);
  assert.equal(p.boqSource.excludedMisclassifiedDocuments.length,1);assert.equal(state.boq.ingestionId,invalid.ingestionId);assert.equal(actual.basisState,'candidate');
+ assert.ok(!p.moduleReadiness.failedConsistencyCheckIds.includes('BOQ_ACTIVE_DOCUMENT_CONSISTENCY'));
+ assert.equal(state.activeEvidenceBasis['boq:quantity']!.activeArtifactId,invalid.ingestionId,'candidate reporting must not mutate the adoption slot');
  const q=(moduleForProject(state.projectId,'challenge-contract').data as any).deliveryChallenge.quantityChallenge;
  assert.equal(q.unmappedItemCount,2);
 });

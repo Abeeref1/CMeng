@@ -569,7 +569,7 @@ function roleFocusItems(key,role){
   const group=moduleGroupForRole(key);
   const byGroup={
     "Programme & Planning":{
-      overall:["Current governed position","Critical exceptions and date movement","Cause, consequence and required action"],
+      overall:["Current reported position","Critical exceptions and date movement","Cause, consequence and required action"],
       planning:["Logic, dates, float and path","Revision movement and schedule integrity","Driving activities, assumptions and evidence"],
       controls:["Baseline/current variance and trend","Critical/near-critical pressure and coverage","Cross-control consistency and escalation"],
       "project-director":["Delivery threats and recovery","Accountable owner and decision date","Impact on completion and key commitments"],
@@ -756,7 +756,7 @@ function renderRoleLens(key,data,role){
   const question=rolePrimaryQuestion(key,role);
   if(role==="overall"){
     const layers=[
-      ["Position","Current governed position"],
+      ["Position","Current reported position"],
       ["Exceptions","Variance, gaps and exposure"],
       ["Decision path","Consequence, action and evidence"]
     ];
@@ -1000,12 +1000,12 @@ function renderDeliveryChallenge(data,reason,status){
     ["Required average to contract",m.requiredAverageManpowerToContract===null||m.requiredAverageManpowerToContract===undefined?"Not derivable":fmt(m.requiredAverageManpowerToContract),"scenario unless measured basis supports it",m.requiredAverageManpowerToContract===null||m.requiredAverageManpowerToContract===undefined?"warning":"accent"]
   ])+(manpowerScenarios?'<div class="nested-title" style="margin-top:14px">Task-concurrency sensitivity · unvalidated staffing assumption</div>'+manpowerScenarioBars+'<details style="margin-top:10px"><summary>Scenario detail</summary><div class="table-wrap" style="margin-top:8px"><table><thead><tr><th>Assumed multiplier per concurrent task</th><th>Average manpower</th><th>Peak manpower</th><th>Authority</th></tr></thead><tbody>'+manpowerScenarios+'</tbody></table></div></details>':'')+'</div></section>';
   const quantityRows=(q.byUnit||[]).map(x=>'<tr><td>'+escapeHtml(x.unit)+'</td><td>'+escapeHtml(fmt(x.contractQuantity))+'</td><td>'+escapeHtml(fmt(x.mappedContractQuantity))+'</td><td>'+escapeHtml(fmt(x.installedQuantity))+'</td><td>'+escapeHtml(fmt(x.remainingQuantity))+'</td><td>'+escapeHtml(fmt(x.requiredPerDayToContract))+'</td><td>'+escapeHtml(x.mappingCoveragePercent===null?"—":fmt(x.mappingCoveragePercent)+"%")+'</td></tr>').join("");
-  const quantity='<section class="planning-panel"><div class="planning-panel-head"><div><h4>Quantity and productivity basis</h4><p>Productivity conclusions depend on governed mapping and measured installed quantities.</p></div></div><div class="planning-panel-body">'+planningKpis([
+  const quantity=(data.boqSource?.state==='candidate'?'<div class="notice info"><b>BOQ source candidate</b><p>'+escapeHtml(data.boqSource.sourceFilename||'Source BOQ')+' · unadopted source quantities; this does not establish an approved contract quantity basis or installed progress.</p></div>':'')+'<section class="planning-panel"><div class="planning-panel-head"><div><h4>Quantity and productivity basis</h4><p>Productivity conclusions depend on governed mapping and measured installed quantities.</p></div></div><div class="planning-panel-body">'+planningKpis([
     ["Known quantity mapping coverage",mappingCoverage===null?"Not established":fmt(mappingCoverage)+"%","known quantities only; item gaps counted separately",mappingCoverage===null?"warning":""],
     ["Ambiguous BOQ items",q.mappingPopulationEstablished?fmt(q.ambiguousMappingItemCount):"Not assessable","items",q.ambiguousMappingItemCount?"warning":""],
     ["Unmapped BOQ items",q.mappingPopulationEstablished?fmt(q.unmappedItemCount):"Not assessable","items",q.unmappedItemCount?"warning":""],
     ["Productivity evidence",p.productivityEvidenceState?humanizeKey(p.productivityEvidenceState):"Not established",""]
-  ])+(quantityRows?'<div class="table-wrap" style="margin-top:12px"><table><thead><tr><th>Unit</th><th>Contract qty</th><th>Mapped qty</th><th>Installed</th><th>Remaining</th><th>Required/day</th><th>Map coverage</th></tr></thead><tbody>'+quantityRows+'</tbody></table></div>':'')+'</div></section>';
+  ])+(quantityRows?'<div class="table-wrap" style="margin-top:12px"><table><thead><tr><th>Unit</th><th>Source BOQ qty</th><th>Mapped qty</th><th>Installed</th><th>Remaining</th><th>Required/day</th><th>Map coverage</th></tr></thead><tbody>'+quantityRows+'</tbody></table></div>':'')+'</div></section>';
   const findings=(d.findings||[]).map(x=>'<tr><td>'+escapeHtml(x.topic)+'</td><td>'+escapeHtml(humanizeKey(x.state))+'</td><td>'+escapeHtml(humanizeIsoText(x.contractorAssumption||"—"))+'</td><td>'+escapeHtml(humanizeIsoText(x.independentCalculation||"—"))+'</td><td>'+escapeHtml(humanizeIsoText(x.difference||"—"))+'</td><td>'+escapeHtml(humanizeIsoText(x.milestoneConsequence||"—"))+'</td><td>'+escapeHtml(humanizeIsoText(x.requiredResponse||"—"))+'</td></tr>').join("");
   const contractCategoryCounts=contract?(contract.signals||[]).reduce((map,signal)=>{const label=humanizeKey(signal.category||"other");map.set(label,(map.get(label)||0)+1);return map},new Map()):new Map();
   const contractCategoryItems=[...contractCategoryCounts.entries()].sort((a,b)=>b[1]-a[1]).map(([label,value])=>({label,value,tone:"accent"}));
@@ -3921,7 +3921,7 @@ function renderManagementControlVisual(key,data){
     const positions=Array.isArray(data.specialistPositions)?data.specialistPositions:[];
     const candidates=Array.isArray(data.candidateInbox)?data.candidateInbox:[];
     const history=Array.isArray(data.controlHistory)?data.controlHistory:[];
-    const positionRows=positions.map(p=>'<tr><td><b>'+escapeHtml(p.group)+'</b></td><td>'+escapeHtml(p.label)+'</td><td>'+issueBadge(p.issueAssessment)+'</td><td>'+escapeHtml(p.reason||(p.status==="ready"?"Current governed position established.":"Current position requires review."))+'</td><td>'+managementModuleLink(p.key,"Open owner")+'</td></tr>').join("");
+    const positionRows=positions.map(p=>'<tr><td><b>'+escapeHtml(p.group)+'</b></td><td>'+escapeHtml(p.label)+'</td><td>'+issueBadge(p.issueAssessment)+'</td><td>'+escapeHtml(p.reason||(p.status==="ready"?"Current reported position established.":"Current position requires review."))+'</td><td>'+managementModuleLink(p.key,"Open owner")+'</td></tr>').join("");
     const candidateRows=candidates.map(item=>'<tr><td><b>'+escapeHtml(item.label)+'</b></td><td>'+escapeHtml(humanizeKey(item.type))+'</td><td>'+managementAuthorityBadge(item.status)+'</td><td>'+escapeHtml(item.sourceRef)+'</td><td>'+managementModuleLink(item.owningModule,"Open owner")+'</td></tr>').join("");
     const historyRows=history.map(item=>'<tr><td>'+escapeHtml(formatDocumentTime(item.occurredAt))+'</td><td><b>'+escapeHtml(item.entity)+'</b></td><td>'+escapeHtml(item.action)+'</td><td>'+escapeHtml(item.actor||"System / not recorded")+'</td><td>'+managementAuthorityBadge(item.state)+'</td><td>'+escapeHtml(item.sourceRef||"—")+'</td></tr>').join("");
     return '<div class="planning-view management-view master-control-view">'+

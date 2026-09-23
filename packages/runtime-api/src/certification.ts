@@ -12,6 +12,7 @@ import {
   isProgrammeScheduleRevision,
 } from "./project-state";
 import { projectControlSchedule } from "./canonical-time-claims";
+import {resolveBoqSource} from './boq-source';
 
 export interface CrossModuleCertificationCheck {
   checkId: string;
@@ -1317,10 +1318,14 @@ export function certifyCrossModuleConsistency(
     ),
   );
 
+  const boqSelection=resolveBoqSource(state,state.quantities?.scheduleRevisionId??'').selection;
+  const candidateBoq=boqSelection.state==='candidate'&&!boqSelection.adoptedSource;
   checks.push(
-    equalityCheck(
+    candidateBoq?{checkId:'BOQ_ACTIVE_DOCUMENT_CONSISTENCY',state:'not_applicable',
+      detail:'The displayed BOQ is explicitly an unadopted source candidate. No match with the adopted BOQ slot is asserted; rejected legacy classifications remain excluded.',
+      values:[{source:'quantity-scurve.boqSource',value:boqSelection}]}:equalityCheck(
       "BOQ_ACTIVE_DOCUMENT_CONSISTENCY",
-      "The active BOQ evidence artifact must match the runtime BOQ ingestion that owns the current quantity basis.",
+      "An adopted runtime BOQ must match the active evidence artifact. Candidate source quantities are checked separately without promoting authority.",
       [
         {
           source:
@@ -1341,6 +1346,11 @@ export function certifyCrossModuleConsistency(
       ],
     ),
   );
+
+  checks.push(equalityCheck('BOQ_SELECTED_SOURCE_CONSISTENCY','The resolved source document must own the BOQ ingestion used by quantity calculations.',[
+    {source:'validated-boq-source',value:state.evidenceDocuments.find(d=>d.documentId===boqSelection.sourceDocumentId)?.linkedArtifactId??null},
+    {source:'boq-runtime-ingestion',value:state.boq?.ingestionId??null},
+  ]));
 
   checks.push(
     equalityCheck(
