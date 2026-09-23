@@ -50,6 +50,9 @@ export function detectContractHeading(
     .trim();
 
   if (!line || line.length > 220) return null;
+  // An amendment sentence is body evidence referring to a clause, not a new
+  // clause heading. Repeated instructions must not become deduplicated headers.
+  if(/^clause\s+[\d.]+\s+(?:is|shall\s+be)\s+(?:amended|deleted|replaced|supplemented)/i.test(line))return null;
 
   // Table-of-contents entries often look like clause headings but end
   // with dot leaders and a page number. Preserve them as source text,

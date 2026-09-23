@@ -1,0 +1,71 @@
+import {cell,dateValue,norm,partitionAsOf,sourceTables,type SourceRow} from '../../truth-kernel/src';
+import type {NcrRecord,RfiRecord} from '../../project-director/src';
+import type {ProjectRuntimeState,RiskControlRecord} from './project-state-types';
+
+type Lifecycle = {raisedIso?:string|null;closedIso?:string|null;statusAsOfIso?:string|null;sourceRefs:string[]};
+const derived=(row:{sourceRefs:string[]})=>row.sourceRefs.some(ref=>ref.startsWith('evidence-document:'));
+const refs=(row:SourceRow)=>['evidence-document:'+row.receipt.documentId+':'+row.receipt.locator];
+const dates=(row:SourceRow)=>({raisedIso:dateValue(cell(row,'raised date','opened date','issue date','identified date')),
+  closedIso:dateValue(cell(row,'close date','closed date','response date','answered date')),
+  statusAsOfIso:dateValue(cell(row,'status as of','status date','snapshot date','as of date'))});
+const ncrStatus=(raw:string):NcrRecord['status']=>/^(closed|complete|completed|resolved)$/.test(norm(raw))?'closed':/^(open|active|in progress|overdue)$/.test(norm(raw))?'open':'unknown';
+const rfiStatus=(raw:string):RfiRecord['status']=>/^(closed|complete|completed)$/.test(norm(raw))?'closed':/^(answered|responded)$/.test(norm(raw))?'answered':/^(open|active|pending|overdue)$/.test(norm(raw))?'open':'unknown';
+
+/** Reconstruct lifecycle status from actual dates. A future closure never closes
+ * an earlier reporting position; an undated final status never backdates itself.
+ * Original source rows and excluded IDs are retained for inspection. */
+function scope<T extends Lifecycle & {status:string}>(rows:T[],name:string,id:(row:T)=>string,date:string|null,hasSource:boolean,diagnostics:string[]) {
+  const cutoff=dateValue(date??'');
+  const partition=partitionAsOf(rows,{name,entity:name,dataDateIso:date,dateBasis:'raised date, with dated closure/response and explicit status snapshot',id,date:r=>r.raisedIso??r.statusAsOfIso});
+  const current=partition.asOf.map(row=>{
+    const closed=dateValue(row.closedIso??''),raised=dateValue(row.raisedIso??'');
+    let status=row.status;
+    if(closed&&raised&&closed<raised){status='unknown';diagnostics.push('CLOSURE_BEFORE_RAISED_DATE:'+id(row));}
+    else if(closed&&cutoff)status=closed<=cutoff?(row.status==='answered'?'answered':'closed'):'open';
+    else if(row.status!=='open'&&(!row.statusAsOfIso||row.statusAsOfIso!==cutoff))status='unknown';
+    return {...row,status};
+  });
+  const unknownStatusCount=current.filter(r=>r.status==='unknown').length;
+  return {...partition,current,sourceRows:rows,sourceRecordCount:rows.length,currentRecordCount:current.length,
+    futureRecordCount:partition.future.length,undatedRecordCount:partition.undated.length,unknownStatusCount,
+    state:!hasSource?'missing':partition.undated.length||unknownStatusCount||diagnostics.length?'partial':'established',
+    diagnostics:[...diagnostics],complete:hasSource&&Boolean(cutoff)&&partition.undated.length===0&&unknownStatusCount===0&&diagnostics.length===0};
+}
+
+export function operationalControlsAsOf(state:ProjectRuntimeState,date:string|null) {
+  const docs=state.evidenceDocuments.filter(d=>['quality_ncr_register','rfi_register','risk_register'].includes(d.documentType)&&['active','additive'].includes(d.basisState));
+  const diagnostics:string[]=[];
+  const tables=sourceTables(docs,diagnostics);
+  const docIds=(type:string)=>new Set(docs.filter(d=>d.documentType===type).map(d=>d.documentId));
+  const rows=(type:string)=>tables.filter(t=>docIds(type).has(t.document.documentId)).flatMap(t=>t.rows);
+  const manual=<T extends {sourceRefs:string[]}>(items:T[]|undefined,type:string)=>(items??[]).filter(r=>!derived(r)||docIds(type).size===0);
+  const ncrs:NcrRecord[]=[...manual(state.controls.ncrs,'quality_ncr_register'),...rows('quality_ncr_register').map(row=>({
+    ncrId:cell(row,'ncr id'),severity:(/^(critical)$/.test(norm(cell(row,'severity')))?'critical':/^(major|high)$/.test(norm(cell(row,'severity')))?'major':/^(minor|low)$/.test(norm(cell(row,'severity')))?'minor':'unknown') as NcrRecord['severity'],
+    status:ncrStatus(cell(row,'status')),...dates(row),sourceRefs:refs(row)}))];
+  const rfis:RfiRecord[]=[...manual(state.controls.rfis,'rfi_register'),...rows('rfi_register').map(row=>({rfiId:cell(row,'rfi id'),
+    status:rfiStatus(cell(row,'status')),dueIso:dateValue(cell(row,'required response','due date')),...dates(row),sourceRefs:refs(row)}))];
+  const risks:RiskControlRecord[]=[...manual(state.controls.risks,'risk_register'),...rows('risk_register').map(row=>({riskId:cell(row,'risk id'),
+    status:(/^(open|active|mitigating|in progress)$/.test(norm(cell(row,'status')))?'open':/^(closed|resolved)$/.test(norm(cell(row,'status')))?'closed':'unknown') as RiskControlRecord['status'],
+    sourceStatus:cell(row,'status'),rating:cell(row,'rating')||null,owner:cell(row,'owner')||null,dueIso:dateValue(cell(row,'due date')),...dates(row),sourceRefs:refs(row)}))];
+  const prepare=<T>(items:T[],type:string,id:(r:T)=>string)=>{
+    const ds=diagnostics.filter(d=>[...docIds(type)].some(key=>d.includes(key)));
+    const ids=items.map(id);if(ids.some(x=>!x))ds.push('RECORD_ID_MISSING');
+    if(new Set(ids).size!==ids.length)ds.push('DUPLICATE_RECORD_ID');
+    return ds;
+  };
+  const quality=scope(ncrs,'NCR register',r=>r.ncrId,date,docs.some(d=>d.documentType==='quality_ncr_register')||ncrs.length>0,prepare(ncrs,'quality_ncr_register',r=>r.ncrId));
+  const rfi=scope(rfis,'RFI register',r=>r.rfiId,date,docs.some(d=>d.documentType==='rfi_register')||rfis.length>0,prepare(rfis,'rfi_register',r=>r.rfiId));
+  const risk=scope(risks,'Risk register',r=>r.riskId,date,docs.some(d=>d.documentType==='risk_register')||risks.length>0,prepare(risks,'risk_register',r=>r.riskId));
+  const severityKnown=quality.current.every(r=>r.status!=='open'||r.severity!=='unknown');
+  const dueKnown=rfi.current.every(r=>r.status!=='open'||r.dueIso!==null);
+  return {dataDateIso:dateValue(date??''),quality,rfi,risk,knownCounts:{
+    openCriticalMajorNcrCount:quality.current.filter(r=>r.status==='open'&&['critical','major'].includes(r.severity)).length,
+    uncertainCriticalMajorNcrCount:quality.current.filter(r=>r.status==='unknown'&&r.severity!=='minor'||r.status==='open'&&r.severity==='unknown').length,
+  },counts:{
+    openCriticalMajorNcrCount:quality.complete&&severityKnown?quality.current.filter(r=>r.status==='open'&&['critical','major'].includes(r.severity)).length:null,
+    openRfiCount:rfi.complete?rfi.current.filter(r=>r.status==='open').length:null,
+    overdueRfiCount:rfi.complete&&dueKnown?rfi.current.filter(r=>r.status==='open'&&r.dueIso!<dateValue(date??'')!).length:null,
+    openRiskCount:risk.complete?risk.current.filter(r=>r.status==='open').length:null,
+  }};
+}
+export type OperationalReporting = ReturnType<typeof operationalControlsAsOf>;

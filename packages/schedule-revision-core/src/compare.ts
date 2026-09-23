@@ -24,7 +24,7 @@ function dateMs(
     : null;
 }
 
-function finishDate(
+export function scheduleActivityFinish(
   activity:
     CanonicalScheduleActivity,
 ): string | null {
@@ -248,8 +248,8 @@ function compareActivity(
     fieldChanges,
     finishShiftDays:
       dateDeltaDays(
-        finishDate(before),
-        finishDate(after),
+        scheduleActivityFinish(before),
+        scheduleActivityFinish(after),
       ),
     floatShiftHours:
       numericDelta(

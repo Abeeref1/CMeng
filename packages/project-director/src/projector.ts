@@ -5,6 +5,7 @@ import type {
 } from "../../contract-commercial/src";
 import type {
   CurrencyCommercialPosition,
+  EvidenceCoverageState,
   DirectorPositionInput,
   MoneyValue,
   ProjectDirectorPosition,
@@ -52,13 +53,9 @@ function upperCurrency(
 }
 
 function evidenceState(
-  explicit:
-    | "established"
-    | "submitted_unparsed"
-    | "not_submitted"
-    | undefined,
+  explicit: EvidenceCoverageState | undefined,
   hasStructuredRows: boolean,
-): "established" | "submitted_unparsed" | "not_submitted" {
+): EvidenceCoverageState {
   if (explicit) return explicit;
   return hasStructuredRows
     ? "established"
@@ -1022,14 +1019,14 @@ export function buildProjectDirectorPosition(
       input.hseIncidents.length >
         0,
     );
-  const qualityEvidenceState =
-    evidenceState(
+  const qualityEvidenceState: EvidenceCoverageState =
+    input.operationalReporting ? (input.operationalReporting.quality.state==='missing'?'not_submitted':input.operationalReporting.quality.complete?'established':'partial') : evidenceState(
       input.evidenceAvailability
         ?.quality,
       input.ncrs.length > 0,
     );
-  const rfiEvidenceState =
-    evidenceState(
+  const rfiEvidenceState: EvidenceCoverageState =
+    input.operationalReporting ? (input.operationalReporting.rfi.state==='missing'?'not_submitted':input.operationalReporting.rfi.complete?'established':'partial') : evidenceState(
       input.evidenceAvailability
         ?.rfi,
       input.rfis.length > 0,
@@ -1046,8 +1043,8 @@ export function buildProjectDirectorPosition(
         ?.bonds,
       input.bonds.length > 0,
     );
-  const riskEvidenceState =
-    evidenceState(
+  const riskEvidenceState: EvidenceCoverageState =
+    input.operationalReporting ? (input.operationalReporting.risk.state==='missing'?'not_submitted':input.operationalReporting.risk.complete?'established':'partial') : evidenceState(
       input.evidenceAvailability
         ?.risk,
       input.openRiskCount !==
@@ -1057,6 +1054,7 @@ export function buildProjectDirectorPosition(
     );
 
   const controls = {
+    ...(input.operationalReporting?{reporting:input.operationalReporting}:{}),
     hseEvidenceState, qualityEvidenceState, rfiEvidenceState, permitEvidenceState, bondEvidenceState, riskEvidenceState,
     openRiskCount: riskEvidenceState === "established" ? input.openRiskCount ?? null : null,
     openHseIncidentCount: hseEvidenceState === "established" ? openHse.length : null,
@@ -1068,6 +1066,7 @@ export function buildProjectDirectorPosition(
     overduePermitCount: permitEvidenceState === "established" ? openPermits.filter(item=>item.status==="expired"||overdue(item.dueIso)).length : null,
     expiredBondCount: input.bondMonitoring ? input.bondMonitoring.expiredCount : bondEvidenceState === "established" ? input.bonds.filter(bond=>bond.status==="expired").length : null,
     expiringBondCount30Days: input.bondMonitoring ? input.bondMonitoring.expiring30Count : bondEvidenceState === "established" ? expiring30 : null,
+    ...(input.operationalReporting?.counts??{}),
   };
 
   for (const item of [

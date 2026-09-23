@@ -9,6 +9,7 @@ import {
   parseContractDocx,
   parseContractPdf,
   segmentContractPages,
+  refreshContractSegmentation,
 } from "../packages/contract-parser/src";
 import type {
   ContractAiResolver,
@@ -69,6 +70,24 @@ function pdfResult(
     diagnostics: [],
   };
 }
+
+test('repeated legal paragraphs remain clause evidence and old header-only parses are repaired from retained pages',()=>{
+ const body='The Contractor shall give notice within 17 days after becoming aware of the event.\nAll contract values are stated in USD.';
+ const pdf=pdfResult(Array.from({length:12},(_,i)=>page(i+1,'Example contract | Page '+(i+1)+' of 12\nSection '+String(i+1).padStart(3,'0')+'\n'+body+'\nClient Example')));
+ const parsed=segmentContractPages(pdf);
+ assert.equal(parsed.clauses.length,12);assert.ok(parsed.clauses.every(c=>c.text.includes(body)));
+ assert.ok(parsed.ignoredSpans.every(s=>!s.sourceSpan.text.includes('shall give notice')));
+ const legacy={...parsed,segmentationVersion:'old',clauses:parsed.clauses.map(c=>({...c,text:'Section '+c.identifier})),pdf};
+ const repaired=refreshContractSegmentation(legacy);assert.ok(repaired.clauses.every(c=>c.text.includes(body)));
+ assert.ok(legacy.clauses.every(c=>!c.text.includes(body)));
+});
+test('amendment prose and repeated final body sentences never become discarded headings',()=>{
+ const body='Clause 7.3 is amended so that notice shall be given within 19 days.\nExcept as amended herein, all other provisions remain unchanged.';
+ const parsed=segmentContractPages(pdfResult(Array.from({length:12},(_,i)=>page(i+1,'Example | Page '+(i+1)+' of 12\nSection '+(i+1)+'\n'+body+'\n'+body))));
+ assert.equal(parsed.clauses.length,12);
+ for(const c of parsed.clauses)assert.equal(c.text.split('within 19 days').length-1,2);
+ assert.ok(parsed.ignoredSpans.every(s=>!s.sourceSpan.text.includes('provisions remain unchanged')));
+});
 
 function xmlEscape(value: string): string {
   return value

@@ -175,6 +175,7 @@ export interface ContractParseOptions {
 }
 
 export interface ContractDocumentResult {
+  segmentationVersion?: string;
   sourceType: ContractSourceType;
   pdf: PdfDocumentResult | null;
   docx: ContractDocxSource | null;

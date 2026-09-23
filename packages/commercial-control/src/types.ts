@@ -69,6 +69,7 @@ export interface CommercialMoneyPosition {
 }
 
 export interface CommercialClaimsNoticesPosition {
+  sourceNoticeCount: number;
   asOfNoticeCount: number;
   futureNoticeCount: number;
   undatedNoticeCount: number;
@@ -142,6 +143,7 @@ export interface CommercialControlInput {
   bonds: BondRecord[];
   claimCommercials: ClaimCommercialRecord[];
   delayClaims?: DelayClaimsModel | null;
+  sourceDelayClaims?: DelayClaimsModel | null;
   contractTimeBasis: ContractTimeBasis | null;
   commercialEvidenceSubmitted: boolean;
   paymentEvidenceSubmitted: boolean;

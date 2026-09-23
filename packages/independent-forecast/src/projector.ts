@@ -272,7 +272,7 @@ export function buildIndependentForecastProjection(
   );
 
   const activities: IndependentForecastActivityRow[] =
-    model.activities.map((activity) => {
+    model.activities.filter(activity=>cpmById.has(activity.activityId)).map((activity) => {
       const calculated =
         cpmById.get(activity.activityId);
       const sourceFinishIso =
@@ -325,6 +325,7 @@ export function buildIndependentForecastProjection(
 
   return {
     schemaVersion: "1.0",
+    activityPopulation:cpm.activityPopulation,
     projectionKey: "independent_forecast",
     generatedAt: input.generatedAt,
     producerVersion: input.producerVersion,

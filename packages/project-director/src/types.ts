@@ -82,14 +82,20 @@ export interface HseIncidentRecord {
 
 export interface NcrRecord {
   ncrId: string;
-  severity: "critical" | "major" | "minor";
-  status: "open" | "closed";
+  severity: "critical" | "major" | "minor" | "unknown";
+  status: "open" | "closed" | "unknown";
+  raisedIso?: string | null;
+  closedIso?: string | null;
+  statusAsOfIso?: string | null;
   sourceRefs: string[];
 }
 
 export interface RfiRecord {
   rfiId: string;
-  status: "open" | "answered" | "closed";
+  status: "open" | "answered" | "closed" | "unknown";
+  raisedIso?: string | null;
+  closedIso?: string | null;
+  statusAsOfIso?: string | null;
   dueIso: string | null;
   sourceRefs: string[];
 }
@@ -116,6 +122,7 @@ export interface BoardEvidenceRecord {
 
 export type EvidenceCoverageState =
   | "established"
+  | "partial"
   | "submitted_unparsed"
   | "not_submitted";
 
@@ -129,6 +136,29 @@ export interface DirectorEvidenceAvailability {
   claims?: EvidenceCoverageState;
 }
 
+export interface OperationalControlReporting {
+  knownCounts: {openCriticalMajorNcrCount:number;uncertainCriticalMajorNcrCount:number};
+  dataDateIso: string | null;
+  quality: OperationalRegisterReporting;
+  rfi: OperationalRegisterReporting;
+  risk: OperationalRegisterReporting;
+  counts: {openCriticalMajorNcrCount:number|null;openRfiCount:number|null;overdueRfiCount:number|null;openRiskCount:number|null};
+}
+export interface OperationalRegisterReporting {
+  state: string;
+  complete: boolean;
+  sourceRecordCount: number;
+  currentRecordCount: number;
+  futureRecordCount: number;
+  undatedRecordCount: number;
+  unknownStatusCount: number;
+  population: import('../../truth-kernel/src').PopulationContract;
+  sourceRows: object[];
+  current: object[];
+  future: object[];
+  undated: object[];
+  diagnostics: string[];
+}
 export interface DirectorPositionInput {
   generatedAt: string;
   projectId: string;
@@ -152,6 +182,7 @@ export interface DirectorPositionInput {
   rfis: RfiRecord[];
   permits: PermitRecord[];
   openRiskCount?: number | null;
+  operationalReporting?: OperationalControlReporting;
   boardEvidence: BoardEvidenceRecord | null;
   evidenceAvailability?:
     DirectorEvidenceAvailability;
@@ -287,6 +318,7 @@ export interface ProjectDirectorPosition {
   };
   commercialByCurrency: CurrencyCommercialPosition[];
   controls: {
+    reporting?: OperationalControlReporting;
     hseEvidenceState:
       EvidenceCoverageState;
     qualityEvidenceState:

@@ -1036,6 +1036,9 @@ export function deriveControlsFromCsv(
               statusIndex,
             ),
           ),
+        raisedIso: iso(value(row,indexOf(headers,["raised date","opened date","issue date","identified date"]))),
+        closedIso: iso(value(row,indexOf(headers,["close date","closed date","response date","answered date"]))),
+        statusAsOfIso: iso(value(row,indexOf(headers,["status as of","status date","snapshot date","as of date"]))),
         sourceRefs: [
           evidenceRef(
             input.document,
@@ -1104,6 +1107,9 @@ export function deriveControlsFromCsv(
               dueIndex,
             ),
           ),
+        raisedIso: iso(value(row,indexOf(headers,["raised date","opened date","issue date","identified date"]))),
+        closedIso: iso(value(row,indexOf(headers,["close date","closed date","response date","answered date"]))),
+        statusAsOfIso: iso(value(row,indexOf(headers,["status as of","status date","snapshot date","as of date"]))),
         sourceRefs: [
           evidenceRef(
             input.document,
@@ -1189,6 +1195,9 @@ export function deriveControlsFromCsv(
               dueIndex,
             ),
           ),
+        raisedIso: iso(value(row,indexOf(headers,["raised date","opened date","issue date","identified date"]))),
+        closedIso: iso(value(row,indexOf(headers,["close date","closed date","response date","answered date"]))),
+        statusAsOfIso: iso(value(row,indexOf(headers,["status as of","status date","snapshot date","as of date"]))),
         sourceRefs: [
           evidenceRef(
             input.document,

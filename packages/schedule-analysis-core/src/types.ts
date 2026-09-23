@@ -94,6 +94,9 @@ export interface CanonicalScheduleActivity {
   forecastStartIso: string | null;
   forecastFinishIso: string | null;
 
+  /** Explicit source constraints are retained separately from network logic. */
+  sourceConstraints?: Array<{type:string;dateIso:string|null}>;
+
   originalDurationHours: number | null;
   remainingDurationHours: number | null;
   totalFloatHours: number | null;

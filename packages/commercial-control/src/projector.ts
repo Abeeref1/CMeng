@@ -109,6 +109,7 @@ function commercialClaimsNotices(
 ): CommercialClaimsNoticesPosition {
   const lifecycle =
     input.delayClaims ?? null;
+  const sourceLifecycle=input.sourceDelayClaims??lifecycle;
   const hasLifecycle =
     Boolean(
       lifecycle &&
@@ -266,8 +267,9 @@ function commercialClaimsNotices(
           ? "submitted_unparsed"
           : "not_submitted",
     asOfNoticeCount:(lifecycle?.notices??[]).filter(n=>n.kind!=='determination'&&reportingScope(n.actualIssuedAt,input.sourceLedger?.dataDateIso??lifecycle?.dataDateIso)==='as_of').length,
-    futureNoticeCount:(lifecycle?.notices??[]).filter(n=>n.kind!=='determination'&&reportingScope(n.actualIssuedAt,input.sourceLedger?.dataDateIso??lifecycle?.dataDateIso)==='future').length,
-    undatedNoticeCount:(lifecycle?.notices??[]).filter(n=>n.kind!=='determination'&&reportingScope(n.actualIssuedAt,input.sourceLedger?.dataDateIso??lifecycle?.dataDateIso)==='undated').length,
+    sourceNoticeCount:(sourceLifecycle?.notices??[]).filter(n=>n.kind!=='determination').length,
+    futureNoticeCount:(sourceLifecycle?.notices??[]).filter(n=>n.kind!=='determination'&&reportingScope(n.actualIssuedAt,input.sourceLedger?.dataDateIso??lifecycle?.dataDateIso)==='future').length,
+    undatedNoticeCount:(sourceLifecycle?.notices??[]).filter(n=>n.kind!=='determination'&&reportingScope(n.actualIssuedAt,input.sourceLedger?.dataDateIso??lifecycle?.dataDateIso)==='undated').length,
     dimensionalEvidenceGaps:{requirementMissing:assessments.filter(a=>!a.requirementId).length,eventDateMissing:assessments.filter(a=>!a.eventStartIso).length,noticeDateMissing:assessments.filter(a=>!a.noticeIssuedAt).length},
     evidenceRevisionId:
       lifecycle

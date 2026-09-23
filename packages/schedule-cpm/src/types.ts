@@ -1,5 +1,6 @@
 import type {
   CanonicalScheduleModel,
+  ActivityPopulationContract,
 } from "../../schedule-analysis-core/src";
 
 export type CpmCalculationMode =
@@ -50,6 +51,7 @@ export interface CpmActivityResult {
 }
 
 export interface CpmResult {
+  activityPopulation: ActivityPopulationContract;
   projectId: string | null;
   sourceRevisionId: string;
   dataDateIso: string | null;

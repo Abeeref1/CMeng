@@ -37,6 +37,7 @@ export interface IndependentForecastActivityRow {
 }
 
 export interface IndependentForecastProjection {
+  activityPopulation?: import('../../schedule-analysis-core/src').ActivityPopulationContract;
   schemaVersion: "1.0";
   projectionKey: "independent_forecast";
   generatedAt: string;

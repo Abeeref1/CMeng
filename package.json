@@ -7,7 +7,7 @@
     "typecheck": "tsc --noEmit",
     "build": "tsc",
     "start": "node dist/packages/runtime-api/src/server.js",
-    "test:unit": "npm run build && node --test $(find dist/tests -name '*.test.js' ! -name '*-scale.test.js')",
+    "test:unit": "npm run build && node --test --test-concurrency=4 $(find dist/tests -name '*.test.js' ! -name '*-scale.test.js')",
     "test:stress": "npm run build && node --test dist/tests/*-scale.test.js",
     "test": "npm run test:unit",
     "verify": "npm run typecheck && npm run test:unit",
