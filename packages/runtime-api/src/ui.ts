@@ -1,3 +1,5 @@
+import { experienceStyles, experienceScript } from './ui-experience';
+
 export function cmengUatHtml(): string {
   return String.raw`<!doctype html>
 <html lang="en">
@@ -50,7 +52,7 @@ button,input,select{font:inherit}button{cursor:pointer}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);padding:18px}.card h3{font-size:16px;line-height:1.25;margin:0 0 13px;letter-spacing:-.01em}.kpi-card{padding:17px 18px;min-height:112px}.kpi-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.055em;margin-bottom:9px;font-weight:750}.kpi-value{font-size:25px;font-weight:780;letter-spacing:-.035em;line-height:1.08}.kpi-sub{font-size:12px;color:var(--muted);margin-top:8px;line-height:1.35}
 .badge{display:inline-flex;align-items:center;border-radius:999px;padding:5px 9px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.045em;background:#ece9e4;color:#55616d;white-space:nowrap}.badge.ready{background:#edf7f1;color:var(--ok)}.badge.partial{background:#fff5df;color:var(--warn)}.badge.blocked{background:#fbeeed;color:var(--danger)}
 .module-panel{padding:0;margin:0;overflow:hidden;border-radius:12px;box-shadow:var(--shadow-strong);min-height:560px;border-color:#dfdbd4}.module-panel>.module-head{padding:20px 22px 18px;border-bottom:1px solid var(--line);margin:0;background:linear-gradient(180deg,#fff,#faf9f7)}.module-workspace-head>div{min-width:0}.module-workspace-head h3{font-size:24px;margin:0 0 4px;letter-spacing:-.025em}.module-workspace-head p{margin:0;color:var(--muted);font-size:13px}.module-panel #moduleContent{padding:22px;min-height:470px;background:#faf9f7}
-.module-head{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:13px}.module-head-actions{display:flex;align-items:center;gap:8px}.module-head-actions #moduleReport{white-space:nowrap}.module-head h3{font-size:18px;margin:0}.role-view-selector{display:flex;align-items:center;gap:7px;padding:11px 18px;border-bottom:1px solid #dce5ef;background:#f7f9fc;overflow-x:auto;scrollbar-width:thin}.role-view-selector-label{flex:0 0 auto;font-size:9.5px;font-weight:850;letter-spacing:.075em;text-transform:uppercase;color:#7b8795;margin-right:4px}.role-view-button{flex:0 0 auto;border:1px solid #ced9e5;background:#fff;color:#506579;border-radius:8px;padding:7px 10px;font-size:10.5px;font-weight:760;white-space:nowrap;transition:.15s ease}.role-view-button:hover{border-color:#9fb7ce;color:#2f5f8d}.role-view-button.active{background:#315f8a;color:#fff;border-color:#315f8a;box-shadow:0 3px 10px rgba(49,95,138,.14)}.role-view-button small{display:none}.role-lens{margin:0 0 14px;border:1px solid #d7e2ed;border-radius:12px;background:#fff;overflow:hidden;box-shadow:0 5px 18px rgba(34,54,77,.035)}.role-lens-head{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:16px;align-items:start;padding:14px 16px;border-bottom:1px solid #e5ebf2;background:#fbfdff}.role-lens-head .section-kicker{margin-bottom:4px}.role-lens-head h4{margin:0;font-size:17px;color:#22364d;letter-spacing:-.015em}.role-lens-head p{margin:5px 0 0;font-size:12px;color:#667085;max-width:900px}.role-lens-badge{display:inline-flex;align-items:center;padding:5px 8px;border-radius:999px;background:#edf4fb;color:#315f8a;font-size:9.5px;font-weight:850;text-transform:uppercase;letter-spacing:.045em;white-space:nowrap}.role-lens-body{padding:14px 16px}.role-focus-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin-bottom:12px}.role-focus-card{border:1px solid #e0e7ef;border-radius:9px;padding:11px 12px;background:#fff}.role-focus-card span{display:block;font-size:9px;color:#8a97a7;text-transform:uppercase;letter-spacing:.055em;font-weight:850}.role-focus-card b{display:block;margin-top:4px;font-size:11.5px;line-height:1.35;color:#344054}.role-signal-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px}.role-signal{min-width:0;border:1px solid #e1e7ee;border-radius:9px;padding:10px 11px;background:#f9fbfd}.role-signal.danger{border-top:3px solid #b4483e;background:#fff8f7}.role-signal.warning{border-top:3px solid #b57922;background:#fffaf2}.role-signal.success{border-top:3px solid #2c7a57;background:#f7fbf8}.role-signal span{display:block;font-size:9px;text-transform:uppercase;letter-spacing:.045em;color:#8491a2;font-weight:850;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.role-signal b{display:block;margin-top:5px;font-size:14px;color:#22364d;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.role-action-panel{margin-top:12px;border-top:1px solid #edf1f5;padding-top:11px}.role-action-panel>strong{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:#7b8795;margin-bottom:7px}.role-action-list{display:grid;gap:6px}.role-action-row{display:grid;grid-template-columns:20px minmax(0,1fr);gap:8px;align-items:start;padding:7px 9px;border-radius:7px;background:#fff8ed;font-size:11px;color:#596777}.role-action-row i{font-style:normal;width:20px;height:20px;border-radius:50%;display:grid;place-items:center;background:#f4e6c7;color:#8a5a14;font-size:9px;font-weight:850}.role-review-layers{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px}.role-review-layer{padding:10px;border:1px solid #dfe7ef;border-radius:9px;background:#f9fbfd;min-width:0}.role-review-layer b{display:block;font-size:10.5px;color:#344054}.role-review-layer span{display:block;margin-top:3px;font-size:9.5px;color:#7b8795;line-height:1.3}.role-lens-compact .role-lens-head{border-bottom:0;padding-bottom:10px}.role-lens-compact-strip{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0;border-top:1px solid #edf1f5;background:#fbfcfe}.role-lens-compact-strip>div{padding:9px 14px;border-right:1px solid #edf1f5}.role-lens-compact-strip>div:last-child{border-right:0}.role-lens-compact-strip b{display:block;font-size:10px;color:#344054}.role-lens-compact-strip span{display:block;margin-top:2px;font-size:9.5px;color:#7b8795}.role-primary-analysis{min-width:0}.role-supporting-detail{margin-top:14px;border:1px solid #dce5ef;border-radius:11px;background:#fff;overflow:hidden}.role-supporting-detail>summary{list-style:none;display:flex;justify-content:space-between;gap:12px;padding:12px 14px;background:#fbfdff;cursor:pointer;font-size:11px;font-weight:800;color:#344054}.role-supporting-detail>summary::-webkit-details-marker{display:none}.role-supporting-detail>summary span{font-weight:600;color:#7b8795}.role-supporting-detail-body{padding:14px}.role-view-project-director .role-primary-analysis .table-wrap,.role-view-program-director .role-primary-analysis .table-wrap,.role-view-executive .role-primary-analysis .table-wrap{display:none}.role-view-project-director .role-primary-analysis .technical-payload,.role-view-program-director .role-primary-analysis .technical-payload,.role-view-executive .role-primary-analysis .technical-payload{display:none}.role-view-executive .role-primary-analysis details,.role-view-executive .role-primary-analysis .reconciliation-panel{display:none}.role-view-executive .role-primary-analysis .planning-kpi-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.role-view-executive .role-primary-analysis .planning-panel:has(.table-wrap){display:none}.role-view-project-director .role-primary-analysis .planning-panel:has(.table-wrap),.role-view-program-director .role-primary-analysis .planning-panel:has(.table-wrap){display:none}.role-view-planning .role-lens{border-left:4px solid #566e99}.role-view-controls .role-lens{border-left:4px solid #4f7fb4}.role-view-project-director .role-lens{border-left:4px solid #3f7f76}.role-view-program-director .role-lens{border-left:4px solid #6d628e}.role-view-executive .role-lens{border-left:4px solid #315f8a}.role-view-overall .role-lens{border-left:4px solid #22364d}@media(max-width:1280px){.role-signal-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.role-review-layers{grid-template-columns:repeat(3,minmax(0,1fr))}}@media(max-width:900px){.role-focus-grid{grid-template-columns:1fr}.role-signal-grid{grid-template-columns:1fr 1fr}.role-review-layers{grid-template-columns:1fr 1fr}.role-lens-compact-strip{grid-template-columns:1fr}.role-lens-compact-strip>div{border-right:0;border-bottom:1px solid #edf1f5}.role-lens-compact-strip>div:last-child{border-bottom:0}.role-lens-head{grid-template-columns:1fr}.role-view-selector{padding:9px 12px}}
+.module-head{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:13px}.module-head-actions{display:flex;align-items:center;gap:8px}.module-head-actions #moduleReport{white-space:nowrap}.module-head h3{font-size:18px;margin:0}.role-view-selector{display:flex;align-items:center;gap:7px;padding:11px 18px;border-bottom:1px solid #dce5ef;background:#f7f9fc;overflow-x:auto;scrollbar-width:thin}.role-view-selector-label{flex:0 0 auto;font-size:9.5px;font-weight:850;letter-spacing:.075em;text-transform:uppercase;color:#7b8795;margin-right:4px}.role-view-button{flex:0 0 auto;border:1px solid #ced9e5;background:#fff;color:#506579;border-radius:8px;padding:7px 10px;font-size:10.5px;font-weight:760;white-space:nowrap;transition:.15s ease}.role-view-button:hover{border-color:#9fb7ce;color:#2f5f8d}.role-view-button.active{background:#315f8a;color:#fff;border-color:#315f8a;box-shadow:0 3px 10px rgba(49,95,138,.14)}.role-view-button small{display:none}.role-lens{margin:0 0 14px;border:1px solid #d7e2ed;border-radius:12px;background:#fff;overflow:hidden;box-shadow:0 5px 18px rgba(34,54,77,.035)}.role-lens-head{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:16px;align-items:start;padding:14px 16px;border-bottom:1px solid #e5ebf2;background:#fbfdff}.role-lens-head .section-kicker{margin-bottom:4px}.role-lens-head h4{margin:0;font-size:17px;color:#22364d;letter-spacing:-.015em}.role-lens-head p{margin:5px 0 0;font-size:12px;color:#667085;max-width:900px}.role-lens-badge{display:inline-flex;align-items:center;padding:5px 8px;border-radius:999px;background:#edf4fb;color:#315f8a;font-size:9.5px;font-weight:850;text-transform:uppercase;letter-spacing:.045em;white-space:nowrap}.role-lens-body{padding:14px 16px}.role-focus-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin-bottom:12px}.role-focus-card{border:1px solid #e0e7ef;border-radius:9px;padding:11px 12px;background:#fff}.role-focus-card span{display:block;font-size:9px;color:#8a97a7;text-transform:uppercase;letter-spacing:.055em;font-weight:850}.role-focus-card b{display:block;margin-top:4px;font-size:11.5px;line-height:1.35;color:#344054}.role-signal-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px}.role-signal{min-width:0;border:1px solid #e1e7ee;border-radius:9px;padding:10px 11px;background:#f9fbfd}.role-signal.danger{border-top:3px solid #b4483e;background:#fff8f7}.role-signal.warning{border-top:3px solid #b57922;background:#fffaf2}.role-signal.success{border-top:3px solid #2c7a57;background:#f7fbf8}.role-signal span{display:block;font-size:9px;text-transform:uppercase;letter-spacing:.045em;color:#8491a2;font-weight:850;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.role-signal b{display:block;margin-top:5px;font-size:14px;color:#22364d;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.role-action-panel{margin-top:12px;border-top:1px solid #edf1f5;padding-top:11px}.role-action-panel>strong{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:#7b8795;margin-bottom:7px}.role-action-list{display:grid;gap:6px}.role-action-row{display:grid;grid-template-columns:20px minmax(0,1fr);gap:8px;align-items:start;padding:7px 9px;border-radius:7px;background:#fff8ed;font-size:11px;color:#596777}.role-action-row i{font-style:normal;width:20px;height:20px;border-radius:50%;display:grid;place-items:center;background:#f4e6c7;color:#8a5a14;font-size:9px;font-weight:850}.role-review-layers{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px}.role-review-layer{padding:10px;border:1px solid #dfe7ef;border-radius:9px;background:#f9fbfd;min-width:0}.role-review-layer b{display:block;font-size:10.5px;color:#344054}.role-review-layer span{display:block;margin-top:3px;font-size:9.5px;color:#7b8795;line-height:1.3}.role-lens-compact .role-lens-head{border-bottom:0;padding-bottom:10px}.role-lens-compact-strip{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0;border-top:1px solid #edf1f5;background:#fbfcfe}.role-lens-compact-strip>div{padding:9px 14px;border-right:1px solid #edf1f5}.role-lens-compact-strip>div:last-child{border-right:0}.role-lens-compact-strip b{display:block;font-size:10px;color:#344054}.role-lens-compact-strip span{display:block;margin-top:2px;font-size:9.5px;color:#7b8795}.role-primary-analysis{min-width:0}.role-supporting-detail{margin-top:14px;border:1px solid #dce5ef;border-radius:11px;background:#fff;overflow:hidden}.role-supporting-detail>summary{list-style:none;display:flex;justify-content:space-between;gap:12px;padding:12px 14px;background:#fbfdff;cursor:pointer;font-size:11px;font-weight:800;color:#344054}.role-supporting-detail>summary::-webkit-details-marker{display:none}.role-supporting-detail>summary span{font-weight:600;color:#7b8795}.role-supporting-detail-body{padding:14px}.role-view-executive .role-primary-analysis .planning-kpi-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.role-view-planning .role-lens{border-left:4px solid #566e99}.role-view-controls .role-lens{border-left:4px solid #4f7fb4}.role-view-project-director .role-lens{border-left:4px solid #3f7f76}.role-view-program-director .role-lens{border-left:4px solid #6d628e}.role-view-executive .role-lens{border-left:4px solid #315f8a}.role-view-overall .role-lens{border-left:4px solid #22364d}@media(max-width:1280px){.role-signal-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.role-review-layers{grid-template-columns:repeat(3,minmax(0,1fr))}}@media(max-width:900px){.role-focus-grid{grid-template-columns:1fr}.role-signal-grid{grid-template-columns:1fr 1fr}.role-review-layers{grid-template-columns:1fr 1fr}.role-lens-compact-strip{grid-template-columns:1fr}.role-lens-compact-strip>div{border-right:0;border-bottom:1px solid #edf1f5}.role-lens-compact-strip>div:last-child{border-bottom:0}.role-lens-head{grid-template-columns:1fr}.role-view-selector{padding:9px 12px}}
 .director-section{margin-top:24px}.section-heading{display:flex;justify-content:space-between;align-items:end;gap:14px;margin:0 0 12px}.section-heading h3{font-size:20px;margin:0 0 3px;letter-spacing:-.02em}.section-heading p{font-size:13px;color:var(--muted);margin:0}
 .scalar-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(175px,1fr));gap:11px;margin-bottom:14px}.scalar{background:#f7f5f1;padding:13px 14px;border-radius:9px;border:1px solid #e8e3db;min-width:0}.scalar b{display:block;font-size:11.5px;color:var(--muted);margin-bottom:6px;overflow:hidden;text-overflow:ellipsis;font-weight:750}.scalar span{font-size:15px;font-weight:680;word-break:break-word}
 .table-wrap{overflow:auto;border:1px solid var(--line);border-radius:10px;max-height:min(66vh,680px);background:#fff;scrollbar-color:#c7d2df transparent;scrollbar-width:thin}table{border-collapse:separate;border-spacing:0;width:100%;font-size:13px;font-variant-numeric:tabular-nums}th,td{padding:11px 12px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}th{background:#f1eee9;color:#55616d;font-weight:780;position:sticky;top:0;z-index:2;font-size:11.5px;letter-spacing:.025em;white-space:nowrap;text-transform:none}td{color:#27364a}tbody tr:nth-child(even) td{background:#fbfaf8}tbody tr:hover td{background:#f5f2ed}tr:last-child td{border-bottom:0}.kpi-value,.position-value,.scalar span,.currency-line strong,.movement-value,.candidate-value{font-variant-numeric:tabular-nums}.module-panel{position:relative}.module-panel:before{content:"";position:absolute;left:0;right:0;top:0;height:3px;background:linear-gradient(90deg,#4f7fb4,#a9c1da);z-index:3}.module-basis{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 14px}.basis-chip{display:inline-flex;align-items:center;gap:7px;min-height:32px;padding:6px 9px;border:1px solid #dbe4ee;border-radius:9px;background:#fff;font-size:11.5px;color:#506579}.basis-chip b{font-size:10.5px;color:#738198;text-transform:uppercase;letter-spacing:.05em}.basis-chip strong{font-size:12.5px;color:#2e3a46;font-weight:780}.focus-module .director-section,.focus-module .workspace-drawer,.focus-module .footer-note,.focus-module .workspace-header,.focus-module .quick-upload-bar{display:none}.focus-module .content{padding-top:18px}.focus-module .module-panel{min-height:calc(100vh - 112px)}.focus-module .module-panel #moduleContent{min-height:calc(100vh - 190px)}
@@ -197,6 +199,7 @@ details:not(.workspace-drawer){border:1px solid var(--line);border-radius:9px;ba
 
 .module-live-dot{background:#8a99a8!important;box-shadow:none!important}
 .issue-badge{display:inline-block;border-radius:5px;padding:3px 6px;font-size:10px;font-weight:800;white-space:nowrap;background:#eef1f5;color:#596779}.issue-badge.system_defect{background:#fde8e7;color:#a42822}.issue-badge.source_conflict{background:#f1e8fa;color:#75429b}.issue-badge.data_quality{background:#fff0db;color:#976018}.issue-badge.missing_information{background:#fff8dc;color:#7b671c}.issue-badge.comparison_difference{background:#e6f0fc;color:#2d6099}.issue-badge.governance_review{background:#edeaf6;color:#65538a}.issue-badge.checked{background:#edf7f1;color:#286748}.issue-category-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px;margin:12px 0}.issue-category{border:1px solid #dce4ee;border-radius:8px;padding:10px;background:white}.issue-category b{display:block;font-size:19px;margin:6px 0}.issue-category small{display:block;color:#5d6c7d;line-height:1.4}.issue-assessment{padding:14px;border:1px solid #dce4ee;border-radius:9px;background:#f7f9fc;margin-bottom:14px}.issue-assessment h4{margin:0 0 6px}.issue-assessment .table-wrap{max-height:400px}.nav-state .issue-badge{font-size:8px;padding:2px 4px}.issue-assessment details summary{cursor:pointer;font-weight:700;padding:9px 0}
+${experienceStyles}
 </style>
 </head>
 <body>
@@ -295,9 +298,8 @@ details:not(.workspace-drawer){border:1px solid var(--line);border-radius:9px;ba
       <div class="workspace-header">
         <div class="page-title">
           <span class="eyebrow">Current project</span>
-          <h2>Project Controls</h2>
+          <h2>Project workspace</h2>
           <p id="workspaceProjectMeta">No project selected</p>
-          <p>Current programme, progress, resources, forecast, claims and commercial position based on the latest project records. Choose a project-control view from the left.</p>
         </div>
         <div class="workspace-actions">
           <button class="btn" id="openLibraryQuick">Documents</button>
@@ -405,6 +407,7 @@ details:not(.workspace-drawer){border:1px solid var(--line);border-radius:9px;ba
   </main>
 </div>
 <script>
+${experienceScript}
 const groups={
   "Management Control":["master-dashboard","command-center","master-control-programme"],
   "Programme & Planning":["pmo-analysis","schedule-analytics","activity-analytics","lookahead-schedule","schedule-change-report","revision-trend","milestones","near-critical"],
@@ -418,18 +421,18 @@ const names={
 "pmo-analysis":"Management Position","schedule-analytics":"Programme Review","activity-analytics":"Activity Review","resource-utilization":"Resources","lookahead-schedule":"Look-Ahead","progress-report":"Progress Position","schedule-change-report":"Programme Changes","revision-trend":"Revision History","variance-trends":"Variance Trend","progress-scurve":"Progress S-Curve","quantity-scurve":"Installed Quantities","progress-breakdown":"WBS Progress","milestones":"Milestones","near-critical":"Near-Critical & Float Risk","manhour-scurve":"Man-Hour S-Curve","forecast-history":"Forecast History","independent-forecast":"Independent Forecast","delay-claims":"Delay Events & Claims","notices-claims":"Notices, EOT & Claims","windows-analysis":"Delay Windows","eot-assessment":"EOT Position","challenge-contract":"Challenge the Contract","commercial-overview":"Commercial Overview","cost-forecast":"Cost & Forecast","variations-change":"Variations & Change","payments":"Payments","cash-flow":"Cash Flow","commercial-claims-notices":"Claims & Notices","contract-particulars-bonds":"Contract Particulars & Bonds"
 };
 const descriptions={
-"master-dashboard":"Executive KPI position with authority, owning module and evidence-safe status.",
-"command-center":"Current programme position, management priorities, evidence gaps and action suggestions awaiting assignment.",
-"master-control-programme":"Integrated governance view for revision authority, evidence basis, specialist positions and official control status.",
+"master-dashboard":"Completion commitments, programme pressure and commercial position.",
+"command-center":"Delivery priorities, suggested follow-up and decisions awaiting assignment.",
+"master-control-programme":"Controlled revisions, project structure, specialist positions and review history.",
 "pmo-analysis":"Finish-date outlook, schedule pressure and decisions requiring management attention.",
 "schedule-analytics":"Programme health, logic quality, float and finish dates.",
-"activity-analytics":"Activities driving delay, float pressure and logic exceptions.",
+"activity-analytics":"Activity finish movement, float and programme comparisons.",
 "lookahead-schedule":"The next six weeks, readiness blockers and overdue work.",
 "schedule-change-report":"What changed between the latest controlled programme submissions.",
 "revision-trend":"How progress, forecast finish and schedule pressure have moved over time.",
 "milestones":"Milestone status, submitted float, due dates, baseline movement and required management review.",
 "near-critical":"Strict near-critical activities and the wider float-risk watchlist, kept separate and reconciled to the submitted source position.",
-"resource-utilization":"Resource demand, capacity and overload position. Missing capacity is never treated as zero.",
+"resource-utilization":"Weekly demand, actual usage and available capacity by resource.",
 "progress-report":"Baseline, current schedule, physical, contractor-reported and certified progress kept separate.",
 "variance-trends":"Activity finish movement and schedule pressure across controlled programme revisions.",
 "progress-scurve":"Derived baseline/current plans and schedule snapshot history on one time axis.",
@@ -511,206 +514,10 @@ const fmtExecutive=v=>{
 };
 const statusClass=s=>s==="ready"?"ready":s==="partial"?"partial":"blocked";
 const statusLabel=s=>s==="ready"?"Listed checks passed":s==="partial"?"Review required":"Calculation blocked";
-function moduleGroupForRole(key){
-  for(const [group,keys] of Object.entries(groups)){
-    if(keys.includes(key))return group;
-  }
-  return "Project Controls";
-}
-function rolePrimaryQuestion(key,role){
-  const moduleName=names[key]||humanizeKey(key);
-  const group=moduleGroupForRole(key);
-  const specific={
-    milestones:{
-      overall:"What is the complete milestone position, including criticality, movement, due status, recovery priority, full register and evidence?",
-      planning:"Which milestones are truly critical or near-critical, what is driving their dates and how have they moved across revisions?",
-      controls:"Which milestone commitments are deteriorating, overdue or consuming float, and what control action is required?",
-      "project-director":"Which milestone commitments can prevent delivery, who owns them and what recovery decision is required now?",
-      "program-director":"Which project milestones threaten programme interfaces, downstream packages, handovers or strategic dates?",
-      executive:"Which strategic commitments are at risk and does any milestone require executive intervention?"
-    },
-    "lookahead-schedule":{
-      planning:"Which activities enter the next six weeks, what readiness evidence exists and which constraints are technically driving non-readiness?",
-      controls:"Which near-term activities are blocked, conditional or overdue, and are owners clearing constraints fast enough?",
-      "project-director":"What can stop execution in the next six weeks and which blockers require leadership intervention?",
-      "program-director":"Which near-term constraints can disrupt interfaces, shared resources or downstream programme commitments?",
-      executive:"Are any near-term blockers capable of moving a strategic commitment?"
-    },
-    "independent-forecast":{
-      planning:"How does the independent CPM result differ from the submitted programme and which activities create the difference?",
-      controls:"Is the submitted finish credible, what assumptions remain, and what forecast variance needs control action?",
-      "project-director":"What completion date should delivery leadership plan against and what recovery is required?",
-      "program-director":"How does the project forecast affect downstream programme dates and contingency?",
-      executive:"Is the committed completion date still credible and what is the exposure if it is not?"
-    },
-    "eot-assessment":{
-      planning:"What schedule movement is analytically established and which windows/events support or weaken the time-impact case?",
-      controls:"What is observed movement versus attributable time impact, entitlement and officially approved EOT?",
-      "project-director":"What time exposure exists, what is defensible and what management action is required on the EOT position?",
-      "program-director":"How does the time-entitlement position affect programme commitments, interfaces and commercial strategy?",
-      executive:"What is the material time/commercial exposure and is an executive decision required?"
-    }
-  };
-  if(specific[key]?.[role])return specific[key][role];
-  const generic={
-    overall:"What is the complete governed "+moduleName+" position, including current status, exceptions, trends, consequences, full register and evidence?",
-    planning:"What technical detail in "+moduleName+" explains the current position and what source or calculation needs validation?",
-    controls:"Where is "+moduleName+" outside the controlled position, how material is the variance and what requires reconciliation?",
-    "project-director":"What in "+moduleName+" can threaten delivery, who needs to act and what leadership decision is required?",
-    "program-director":"How can "+moduleName+" affect strategic interfaces, downstream packages and the wider programme?",
-    executive:"Does "+moduleName+" threaten a strategic commitment, material exposure or require executive intervention?"
-  };
-  if(group==="Progress & Resources"&&role==="planning")return "What do the time-phased progress/resource records actually establish, where is coverage incomplete and what explains the variance?";
-  if(group==="Forecast & Finish"&&role==="controls")return "How credible is the completion outlook, how has it moved and which assumptions or drivers require control action?";
-  if(group==="Claims & Commercial"&&role==="project-director")return "What contractual, delay or claim exposure can affect delivery, entitlement or negotiation strategy and what decision is required?";
-  return generic[role]||roleViews[role]?.question||generic.overall;
-}
-function roleFocusItems(key,role){
-  const group=moduleGroupForRole(key);
-  const byGroup={
-    "Programme & Planning":{
-      overall:["Current reported position","Critical exceptions and date movement","Cause, consequence and required action"],
-      planning:["Logic, dates, float and path","Revision movement and schedule integrity","Driving activities, assumptions and evidence"],
-      controls:["Baseline/current variance and trend","Critical/near-critical pressure and coverage","Cross-control consistency and escalation"],
-      "project-director":["Delivery threats and recovery","Accountable owner and decision date","Impact on completion and key commitments"],
-      "program-director":["Strategic milestones and interfaces","Cascading downstream impact","Programme buffer and cross-project exposure"],
-      executive:["Strategic commitment status","Material delivery exposure","Executive intervention / decision"]
-    },
-    "Progress & Resources":{
-      overall:["Progress/resource position and source authority","Variance, productivity and coverage","Full time-phased records and evidence"],
-      planning:["Time phasing and assignment basis","Coverage, units and source history","Schedule/resource consistency"],
-      controls:["Plan vs actual/certified position","Resource overload/productivity exception","Forecast consequence and recovery"],
-      "project-director":["Delivery output versus plan","Resource constraint requiring intervention","Recovery capacity and owner"],
-      "program-director":["Shared resource / package pressure","Interface and downstream production impact","Programme-level capacity risk"],
-      executive:["Delivery performance","Material capacity or progress exposure","Strategic recovery requirement"]
-    },
-    "Forecast & Finish":{
-      overall:["Submitted and independent finish position","Forecast movement, assumptions and confidence","Activity-level basis and evidence"],
-      planning:["CPM logic and calendars","Driving activities and float","Assumptions, unresolved activities and reconciliation"],
-      controls:["Forecast credibility and variance","Trend and change since prior updates","Required recovery / governance"],
-      "project-director":["Likely delivery date","Main drivers and recovery options","Leadership decision required"],
-      "program-director":["Impact on programme milestones","Contingency / interface consumption","Downstream exposure"],
-      executive:["Commitment credibility","Schedule exposure","Executive recovery or stakeholder decision"]
-    },
-    "Claims & Commercial":{
-      overall:["Governed contractual/claim position","Time and commercial exposure","Event, notice, entitlement and evidence chain"],
-      planning:["Schedule-event linkage","Window movement and time impact","Causation evidence and chronology"],
-      controls:["Claim status, notice and authority","Observed vs attributable movement","Exposure, gaps and required response"],
-      "project-director":["Delivery / entitlement exposure","Negotiation and response priority","Decision, owner and deadline"],
-      "program-director":["Cross-project/contract interface exposure","Programme time and commercial consequence","Strategic claim coordination"],
-      executive:["Material time/commercial exposure","Stakeholder / contractual risk","Executive decision or escalation"]
-    },
-    "Project Controls":{
-      overall:["Complete current position","Exceptions and consequences","Full evidence and calculation basis"],
-      planning:["Technical basis","Data quality and calculations","Detailed reconciliation"],
-      controls:["Variance and trend","Control integrity","Required corrective action"],
-      "project-director":["Delivery threat","Accountability","Decision / recovery"],
-      "program-director":["Programme interface","Cascading impact","Strategic coordination"],
-      executive:["Commitment","Exposure","Executive intervention"]
-    }
-  };
-  const items=byGroup[group]||byGroup["Project Controls"];
-  return items[role]||items.overall;
-}
-function flattenRoleScalars(value,path=[],depth=0,out=[]){
-  if(out.length>220||depth>4||value===undefined)return out;
-  if(value===null||["string","number","boolean"].includes(typeof value)){
-    if(path.length)out.push({path:[...path],key:path.at(-1),value});
-    return out;
-  }
-  if(Array.isArray(value)){
-    if(value.length&&value.length<=6&&value.every(v=>v===null||["string","number","boolean"].includes(typeof v))){
-      out.push({path:[...path],key:path.at(-1),value:value.join(", ")});
-    }
-    return out;
-  }
-  if(typeof value!=="object")return out;
-  if(['candidate','provisional','conflicted','missing','not_established'].includes(value.state))return out;
-  for(const [key,child] of Object.entries(value)){
-    if(/^(evidenceRevisionId|sourceHash|sourceRefs|receipts|sourceLedger)$/.test(key))continue;
-    flattenRoleScalars(child,[...path,key],depth+1,out);
-    if(out.length>220)break;
-  }
-  return out;
-}
-function roleSignalScore(item,role){
-  const key=(item.path||[]).join(" ").toLowerCase().replace(/[_-]/g," ");
-  const skip=["schema","producer","generated","source revision","project id","revision id","manifest","receipt","fingerprint","hash","method","diagnostic","assumption"];
-  if(skip.some(word=>key.includes(word)))return -100;
-  const common=["critical","overdue","variance","forecast","finish","completion","progress","delay","claim","float","coverage","due","open","risk","movement","blocked","unmapped","exposure","amount","count","state","status"];
-  const roleWords={
-    overall:["critical","overdue","variance","forecast","completion","progress","delay","claim","float","coverage","movement","amount"],
-    planning:["activity","relationship","logic","float","critical","calendar","duration","finish","start","variance","coverage","milestone","revision","progress"],
-    controls:["variance","progress","forecast","critical","near critical","negative float","coverage","overdue","resource","claim","delay","mapping","amount","movement"],
-    "project-director":["forecast","critical","overdue","delay","completion","due","variance","risk","negative float","progress","blocked","claim"],
-    "program-director":["completion","milestone","forecast","delay","interface","critical","due","handover","opening","program","claim","movement"],
-    executive:["completion","forecast","overdue","critical","claim","amount","exposure","progress","delay","milestone","risk","movement"]
-  };
-  let score=0;
-  for(const word of common)if(key.includes(word))score+=1;
-  for(const word of (roleWords[role]||roleWords.overall))if(key.includes(word))score+=3;
-  if(typeof item.value==="number"&&Number.isFinite(item.value))score+=1;
-  if(typeof item.value==="string"&&/\d{4}-\d{2}-\d{2}/.test(item.value))score+=1;
-  if(key.includes("count")&&item.value===0)score-=1;
-  if(key.includes("coverage"))score+=role==="planning"||role==="controls"?2:0;
-  return score;
-}
-function roleSignalLabel(item){
-  const meaningful=(item.path||[]).filter(key=>!["result","data","schedule","progress","forecast"].includes(String(key).toLowerCase()));
-  return meaningful.slice(-2).map(humanizeKey).join(" · ")||humanizeKey(item.key||"Value");
-}
-function roleSignalValue(item){
-  const key=(item.path||[]).join(" ").toLowerCase();
-  const value=item.value;
-  if(typeof value==="string"&&/\d{4}-\d{2}-\d{2}/.test(value)&&/(date|finish|start|completion|submitted|actual|forecast)/.test(key)){
-    return planningShortDate(value);
-  }
-  return fmt(value);
-}
-function roleSignalTone(item){
-  const key=(item.path||[]).join(" ").toLowerCase().replace(/[_-]/g," ");
-  const numeric=typeof item.value==="number"?item.value:null;
-  const text=String(item.value??"").toLowerCase();
-  if((/(critical|overdue|negative float|late|blocked|failed|unmapped|delay)/.test(key)&&numeric!==0)||(text.includes("critical")&&!text.includes("noncritical"))||text.includes("blocked")||text.includes("overdue"))return"danger";
-  if((/(near critical|due|variance|risk|partial|review|movement)/.test(key)&&numeric!==0)||text.includes("partial")||text.includes("review"))return"warning";
-  if(text.includes("complete")||text.includes("ready")||text.includes("established"))return"success";
-  return"";
-}
-function roleTopSignals(data,role){
-  const seen=new Set();
-  return flattenRoleScalars(data).map(item=>({...item,score:roleSignalScore(item,role)}))
-    .filter(item=>item.score>0&&item.value!==null&&item.value!==undefined&&String(item.value)!=="")
-    .sort((a,b)=>b.score-a.score)
-    .filter(item=>{const label=roleSignalLabel(item);if(seen.has(label))return false;seen.add(label);return true})
-    .slice(0,6);
-}
-function collectRoleActions(data,role){
-  const actions=[];
-  const add=(text,kind="Action")=>{const clean=String(text||"").trim();if(clean&&clean!=="—"&&!actions.some(x=>x.text===clean))actions.push({text:clean,kind})};
-  const challenge=data?.challenge;
-  for(const item of challenge?.items||[]){
-    if(item.action)add(item.action,"Control action");
-    else if(item.consequence&&(role==="project-director"||role==="program-director"||role==="executive"))add(item.consequence,"Consequence");
-  }
-  const walk=(value,depth=0)=>{
-    if(depth>4||actions.length>=8||!value)return;
-    if(Array.isArray(value)){for(const child of value.slice(0,40))walk(child,depth+1);return}
-    if(typeof value!=="object")return;
-    for(const [key,child] of Object.entries(value)){
-      const k=key.toLowerCase();
-      if(typeof child==="string"&&(/action|requiredresponse|managementaction|recommendation|consequence|mitigation/.test(k)))add(child,/consequence/.test(k)?"Consequence":/mitigation/.test(k)?"Mitigation":"Action");
-      else if(Array.isArray(child)&&(/actions|recommendations/.test(k)))child.slice(0,6).forEach(x=>typeof x==="string"&&add(x,"Action"));
-      else if(typeof child==="object")walk(child,depth+1);
-      if(actions.length>=8)break;
-    }
-  };
-  walk(data);
-  return actions.slice(0,role==="executive"?3:role==="project-director"||role==="program-director"?5:6);
-}
 function renderRoleViewSelector(){
   const host=el("roleViewSelector");
   if(!host)return;
-  host.innerHTML='<span class="role-view-selector-label">Review as</span>'+roleViewOrder.map(key=>'<button class="role-view-button '+(selectedRoleView===key?"active":"")+'" data-role-view="'+key+'" aria-pressed="'+String(selectedRoleView===key)+'">'+escapeHtml(roleViews[key].label)+'</button>').join("");
+  host.innerHTML='<span class="role-view-selector-label">View</span>'+roleViewOrder.map(key=>'<button class="role-view-button '+(selectedRoleView===key?"active":"")+'" data-role-view="'+key+'" title="'+escapeHtml(roleViews[key].label)+'" aria-pressed="'+String(selectedRoleView===key)+'">'+escapeHtml(roleViews[key].short)+'</button>').join("");
   host.querySelectorAll("[data-role-view]").forEach(button=>{
     button.onclick=()=>{
       const next=button.dataset.roleView;
@@ -737,52 +544,8 @@ function distributionSummary(d,unit="days",title="Value distribution"){
   if(!d)return "";
   return '<div class="domain-card"><h5>'+escapeHtml(title)+'</h5>'+metricLine("Median",d.median===null?"Not established":fmt(d.median)+" "+unit)+metricLine("90th percentile",d.p90===null?"Not established":fmt(d.p90)+" "+unit)+metricLine("Maximum",d.maximum===null?"Not established":fmt(d.maximum)+" "+unit)+metricLine("Rows at maximum",fmt(d.maximumCount)+(d.maximumPercent===null?"":" · "+fmt(d.maximumPercent)+"% of known values"))+metricLine("Most repeated value",d.dominantValue===null?"Not established":fmt(d.dominantValue)+" "+unit)+metricLine("Rows at that value",fmt(d.dominantCount)+(d.dominantPercent===null?"":" · "+fmt(d.dominantPercent)+"% of known values"))+'<p class="muted">Repeated values identify concentration. They do not establish a shared cause or separate entitlement.</p></div>';
 }
-function commercialRoleScope(key,data){
-  const p=data?.position||data;
-  if(!p||!Array.isArray(p.currencies))return data;
-  const partitions=rows=>Object.fromEntries((rows||[]).map((row,index)=>[(row.currency||'Unknown')+' '+(row.taxBasis||'')+' '+index,row]));
-  const f=p.foundation||{},c=p.contractControls||{},performance=p.performance||{};
-  if(key==='cash-flow')return {cash:partitions(performance.cashFlow?.currencies),reportingScope:p.sourceLedger?.temporalPosition?.payments};
-  if(key==='payments')return {paymentLifecycle:f.paymentRegister,reportingScope:p.sourceLedger?.temporalPosition?.payments};
-  if(key==='variations-change')return {variationLifecycle:c.variations,siteInstructions:c.siteInstructions,reportingScope:p.sourceLedger?.temporalPosition?.variations};
-  if(key==='cost-forecast')return {cost:partitions(performance.costControl?.currencies),costSnapshot:f.costRegister,detailedBreakdown:f.cbsBreakdown};
-  if(key==='commercial-claims-notices')return {claimsAndNotices:p.claimsNotices,contractNoticePeriod:f.commercialTerms?.noticePeriodDays};
-  if(key==='contract-particulars-bonds')return {contractTerms:f.commercialTerms,contractControls:c};
-  return data;
-}
-function renderRoleLens(key,data,role){
-  const profile=roleViews[role]||roleViews.overall;
-  const focus=roleFocusItems(key,role);
-  const question=rolePrimaryQuestion(key,role);
-  if(role==="overall"){
-    const layers=[
-      ["Position","Current reported position"],
-      ["Exceptions","Variance, gaps and exposure"],
-      ["Decision path","Consequence, action and evidence"]
-    ];
-    return '<section class="role-lens role-lens-compact"><div class="role-lens-head"><div><span class="section-kicker">'+escapeHtml(profile.eyebrow)+'</span><h4>'+escapeHtml(names[key]||humanizeKey(key))+' · Overall Detailed Review</h4><p>'+escapeHtml(question)+'</p></div><span class="role-lens-badge">'+escapeHtml(consistencyLabel(data))+'</span></div><div class="role-lens-compact-strip">'+layers.map(([title,text])=>'<div><b>'+escapeHtml(title)+'</b><span>'+escapeHtml(text)+'</span></div>').join("")+'</div></section>';
-  }
-  const reviewData=commercialRoleScope(key,data);
-  const signals=roleTopSignals(reviewData,role);
-  const actions=collectRoleActions(reviewData,role);
-  return '<section class="role-lens"><div class="role-lens-head"><div><span class="section-kicker">'+escapeHtml(profile.eyebrow)+'</span><h4>'+escapeHtml(profile.label)+' lens · '+escapeHtml(names[key]||humanizeKey(key))+'</h4><p>'+escapeHtml(question)+'</p></div><span class="role-lens-badge">'+escapeHtml(consistencyLabel(data))+'</span></div><div class="role-lens-body"><div class="role-focus-grid">'+focus.map((text,index)=>'<div class="role-focus-card"><span>Focus '+(index+1)+'</span><b>'+escapeHtml(text)+'</b></div>').join("")+'</div>'+(signals.length?'<div class="role-signal-grid">'+signals.map(item=>'<div class="role-signal '+escapeHtml(roleSignalTone(item))+'" title="'+escapeHtml((item.path||[]).join(" · "))+'"><span>'+escapeHtml(roleSignalLabel(item))+'</span><b>'+escapeHtml(roleSignalValue(item))+'</b></div>').join("")+'</div>':'')+(actions.length?'<div class="role-action-panel"><strong>'+(role==="executive"?"Executive attention":role==="project-director"?"Leadership actions":role==="program-director"?"Programme actions":"Control actions")+'</strong><div class="role-action-list">'+actions.map((item,index)=>'<div class="role-action-row"><i>'+(index+1)+'</i><span><b>'+escapeHtml(item.kind)+':</b> '+escapeHtml(item.text)+'</span></div>').join("")+'</div></div>':'')+'</div></section>';
-}
 function renderRoleContent(key,data,primaryView,challengeHtml="",includeTechnical=false){
-  const role=selectedRoleView;
-  const lens=renderRoleLens(key,data,role);
-  const className="role-view-"+role;
-  const technical=includeTechnical?renderStructuredSections(data):"";
-  if(role==="overall"){
-    return '<div class="'+className+'">'+lens+'<div class="role-primary-analysis">'+primaryView+'</div>'+challengeHtml+(technical?'<details class="role-supporting-detail"><summary><b>Full calculation & evidence detail</b><span>Open the complete structured module payload</span></summary><div class="role-supporting-detail-body">'+technical+'</div></details>':'')+'</div>';
-  }
-  if(role==="planning"){
-    return '<div class="'+className+'">'+lens+'<div class="role-primary-analysis">'+primaryView+'</div>'+challengeHtml+(technical?'<details class="role-supporting-detail"><summary><b>Technical calculation & source detail</b><span>Fields, coverage and supporting records</span></summary><div class="role-supporting-detail-body">'+technical+'</div></details>':'')+'</div>';
-  }
-  if(role==="controls"){
-    return '<div class="'+className+'">'+lens+'<div class="role-primary-analysis">'+primaryView+'</div>'+challengeHtml+'</div>';
-  }
-  const supporting=technical||challengeHtml;
-  return '<div class="'+className+'">'+lens+'<div class="role-primary-analysis">'+primaryView+'</div>'+(challengeHtml?'<details class="role-supporting-detail"><summary><b>Submitted position reconciliation</b><span>Open detailed comparison</span></summary><div class="role-supporting-detail-body">'+challengeHtml+'</div></details>':'')+(supporting?'<details class="role-supporting-detail"><summary><b>Technical evidence detail</b><span>Open fields, coverage and source trace</span></summary><div class="role-supporting-detail-body">'+technical+'</div></details>':'')+'</div>';
+  return experienceRoleContent(key,data,primaryView,challengeHtml,includeTechnical);
 }
 
 function setBusy(text){el("globalStatus").innerHTML=text?'<span class="spinner"></span> '+text:"";}
@@ -855,19 +618,18 @@ function renderNav(){
   const nav=el("nav");
   if(appView!=="project"||!overview){nav.innerHTML="";return}
   const states=new Map([...(overview?.moduleStates||[]),...(overview?.managementStates||[])].map(x=>[x.key,x]));
-  let html='<div class="nav-group"><div class="nav-group-title">Project Controls</div>'+
-    '<div class="nav-state-legend">Labels identify the issue type. Open a view for all findings and their owners.</div>';
+  let html='<div class="nav-group">';
   Object.entries(groups).forEach(([group,keys])=>{
     html+='<div class="nav-group-title" style="padding-top:10px">'+group+'</div>';
     keys.forEach(key=>{
       const state=states.get(key)||{};
-      const st=state.status||"blocked";
-      const reason=state.reason||"Required project evidence is not established.";
-      const evidenceFlag=st==="ready"
-        ?""
-        :'<span class="evidence-flag '+statusClass(st)+'" title="'+escapeHtml((st==="partial"?"Review required: ":"Required evidence missing: ")+reason)+'">'+(st==="partial"?"!":"?")+'</span>';
-      const title=names[key]+' · View available · '+(st==="ready"?"Listed checks and reconciliation passed":st==="partial"?"Review required: "+reason:"Required evidence missing: "+reason);
-      html+='<button class="nav-item '+(selected===key?"active":"")+'" data-key="'+key+'" title="'+escapeHtml(title)+'"><span class="nav-label">'+names[key]+'</span><span class="nav-state">'+issueBadge(state.issueAssessment)+'</span></button>';
+      const issues=state.issueAssessment?.counts||{};
+      const errors=issues.system_defect||0;
+      const attention=Object.entries(issues).filter(([kind])=>kind!=='verification_pending').reduce((n,[,count])=>n+Number(count||0),0);
+      const pending=issues.verification_pending||0;
+      const title=names[key]+(errors?' · Calculation error':attention?' · '+attention+' review findings':pending?' · Verification coverage incomplete':'');
+      const count=attention?'<span class="nav-count '+(errors?'error':'attention')+'" aria-label="'+attention+' review findings">'+attention+'</span>':pending?'<span class="nav-count" aria-label="Verification coverage incomplete">i</span>':'';
+      html+='<button class="nav-item '+(selected===key?"active":"")+'" data-key="'+key+'" title="'+escapeHtml(title)+'" aria-current="'+(selected===key?'page':'false')+'"><span class="nav-label">'+names[key]+'</span>'+count+'</button>';
     });
   });
   html+='</div>';
@@ -1040,9 +802,9 @@ function renderDeliveryChallenge(data,reason,status){
     ])+'</div></section>';
   }
   html+=reconciliation+'</section>';
-  const basisHtml=renderModuleReadiness(data)+renderModuleBasis(data);
-  const reviewState=status==="ready"?"":'<div class="view-state-bar">'+issueBadge(data.issueAssessment)+'<strong>Challenge the Contract</strong></div>';
-  el("moduleContent").innerHTML=reviewState+basisHtml+renderRoleContent("challenge-contract",data,html,"",true);
+  const basisHtml=renderModuleBasis(data)+experienceReviewSummary(data.issueAssessment);
+
+  el("moduleContent").innerHTML=basisHtml+renderRoleContent("challenge-contract",data,html,"",true)+renderModuleReadiness(data,reason);
   return true;
 }
 function humanizeKey(key){
@@ -3230,8 +2992,8 @@ function renderCommercialVisual(key,data){
           ? ' '+fmt(sourceReadiness.expenditure.actualCostRecordCount)+' Actual Cost row(s) exist, but AC/accrual cost is not relabelled as cash expenditure.'
           : '';
         const hero=netReady
-          ? '<div class="cash-flow-hero established"><div><span>Observed receipts less expenditure</span><strong>'+escapeHtml(fmt(netValue)+" "+row.currency)+'</strong><p>Paid income less actual cash expenditure. Certification is not treated as cash.</p></div><div class="cash-flow-hero-stats"><div><span>Peak evidenced cash deficit</span><b>'+escapeHtml(peakValue===null?"Not established":fmt(peakValue)+" "+row.currency)+'</b></div><div><span>Paid cash</span><b>'+escapeHtml(fmt(paidValue)+" "+row.currency)+'</b></div><div><span>Actual cash expenditure</span><b>'+escapeHtml(fmt(actualValue)+" "+row.currency)+'</b></div><div><span>Certified unpaid</span><b>'+escapeHtml(unpaidValue===null?"Not established":fmt(unpaidValue)+" "+row.currency)+'</b></div></div></div>'
-          : '<div class="cash-flow-hero withheld"><div><span>Observed receipts less expenditure</span><strong>Withheld</strong><p>'+escapeHtml(sourceSummary?sourceSummary+".":"The required dated cash series is incomplete.")+escapeHtml(actualCostContext)+'</p></div><div class="cash-flow-hero-rule"><b>Why CMeng withholds the total</b><p>Net cash requires both actual paid cash and actual cash expenditure on defensible dated series. Missing cash is never treated as zero, and certified value or AC is never silently converted into cash.</p></div></div>';
+          ? '<div class="cash-flow-hero established"><div><span>Net cash movement</span><strong>'+escapeHtml(fmtExecutive(netValue)+" "+row.currency)+'</strong><p>Actual receipts less actual expenditure. Opening cash and facilities are excluded.</p></div><div class="cash-flow-hero-stats"><div><span>Cash received</span><b>'+escapeHtml(experienceValue(paidValue,row.currency))+'</b></div><div><span>Cash spent</span><b>'+escapeHtml(experienceValue(actualValue,row.currency))+'</b></div><div><span>Peak observed deficit</span><b>'+escapeHtml(experienceValue(peakValue,row.currency))+'</b></div></div></div>'
+          : '<div class="cash-flow-hero withheld"><div><span>Actual cash position</span><strong>Cash records incomplete</strong><p>Net cash requires dated receipts and expenditure. '+escapeHtml(sourceReadiness?.receipts?.observedCount>0?fmt(sourceReadiness.receipts.observedCount)+" paid amounts are available.":"Receipt amounts and dates are not established.")+' '+escapeHtml(actualCostContext)+'</p></div></div>';
         const readinessGrid=sourceReadiness
           ? '<div class="cash-readiness-grid">'+
               readinessDomain(
@@ -3272,9 +3034,9 @@ function renderCommercialVisual(key,data){
                 {key:"certified",label:"Certified income",tone:"warning"},
                 {key:"paid",label:"Paid income",tone:"success"},
                 {key:"net",label:"Observed net movement",tone:"accent"}
-              ],null,{unit:series.currency,yLabel:"Cash",xLabel:"Reporting date"})
+              ],null,{unit:row.currency,yLabel:"Cash",xLabel:"Reporting date"})
             )+'</div>'
-          : '<div class="cash-flow-curve-withheld"><div><span>Funding S-curve</span><b>Not plotted</b></div><p>A historical cash curve requires at least two comparable observed receipt/expenditure points. Certification-only, planned-cost or missing-cash data cannot create a funding curve.</p></div>';
+          : '<p class="certificate-footnote">Actual cash history needs at least two comparable receipt and expenditure observations. Certificate-period values are shown separately above.</p>';
         const secondary=[];
         if([certifiedValue,paidValue,unpaidValue].some(value=>value!==null)){
           secondary.push(renderVisualPanel(
@@ -3313,14 +3075,16 @@ function renderCommercialVisual(key,data){
           : '';
         return '<section class="planning-panel primary cash-flow-position"><div class="planning-panel-head"><div><h4>'+escapeHtml(row.currency+' · '+humanizeKey(row.taxBasis||'unknown')+' tax basis')+' · Cash Flow & Funding</h4><p>Observed receipts less expenditure excludes opening cash, facilities and unrecorded cash movements. Certification and plans remain separate.</p></div><span class="badge '+(netReady?"ready":"partial")+'">'+escapeHtml(netReady?"Cash established":"Cash incomplete")+'</span></div><div class="planning-panel-body">'+
           hero+
-          readinessGrid+
           curve+
+          experienceDisclosure("Cash inputs and coverage",readinessGrid,"Receipts, expenditure and plan")+
           (secondary.length?'<div class="commercial-visual-grid cash-flow-secondary">'+secondary.join("")+'</div>':'')+
           register+
           diagnostics+
           '</div></section>';
       }).join("");
-      performanceDetail=cashSections||'<section class="planning-panel primary cash-flow-position"><div class="planning-panel-body"><div class="cash-flow-hero withheld"><div><span>Cash Flow</span><strong>Not established</strong><p>No governed cash-flow currency position can be produced from the current evidence. CMeng will not manufacture a cash curve from payment or cost values without a defensible dated cash basis.</p></div></div><div class="cash-flow-related-actions">'+managementModuleLink("payments","Open Payments")+managementModuleLink("cost-forecast","Open Cost & Forecast")+'</div></div></section>';
+      const certificatePanels=experienceCertificatePanels(position);
+      const anyCashCurve=(performance.cashFlow?.currencies||[]).some(r=>r.sourceReadiness?.fundingCurveReady===true);
+      performanceDetail=(anyCashCurve?cashSections+certificatePanels:certificatePanels+cashSections)||'<section class="planning-panel primary cash-flow-position"><div class="planning-panel-body"><div class="cash-flow-hero withheld"><div><span>Cash Flow</span><strong>Not established</strong><p>No governed cash-flow currency position can be produced from the current evidence. CMeng will not manufacture a cash curve from payment or cost values without a defensible dated cash basis.</p></div></div><div class="cash-flow-related-actions">'+managementModuleLink("payments","Open Payments")+managementModuleLink("cost-forecast","Open Cost & Forecast")+'</div></div></section>';
     }
 
   }
@@ -3736,8 +3500,8 @@ function renderCommercialVisual(key,data){
       '</section>';
   }
   if(key==="cash-flow"){
-    return '<section class="planning-view commercial-view cash-flow-enterprise">'+temporalWarning+
-      performanceDetail+temporalScope+
+    return '<section class="planning-view commercial-view cash-flow-enterprise">'+
+      performanceDetail+experienceDisclosure("Source payment register and reporting scope",temporalScope+ledgerDetail,"Current, future and undated records")+
       '<details class="cash-flow-evidence-detail"><summary><div><b>Evidence & governance</b><span>Source coverage and authority</span></div></summary><div class="cash-flow-evidence-body">'+gates+'</div></details>'+
       '</section>';
   }
@@ -3817,10 +3581,10 @@ function renderManagementMetricGrid(metrics){
       '<div class="management-metric-head"><span>'+escapeHtml(m.label)+'</span>'+((m.health==="unavailable"&&display.kind!=="missing")?"":managementHealthBadge(m.health))+'</div>'+
       '<div class="management-metric-value '+escapeHtml(display.kind)+'">'+escapeHtml(display.text)+'</div>'+
       '<div class="management-metric-badges">'+managementMetricBadges(m)+'</div>'+
-      '<div class="management-metric-basis"><span>Basis</span><b>'+escapeHtml(m.basis||"Not established")+'</b></div>'+
+      '<details class="metric-interpretation"><summary>Basis and interpretation</summary><div class="management-metric-basis"><span>Basis</span><b>'+escapeHtml(m.basis||"Not established")+'</b></div>'+
       (m.consequence?'<div class="management-metric-note"><span>Consequence</span><p>'+escapeHtml(m.consequence)+'</p></div>':'')+
       (m.action?'<div class="management-metric-note action"><span>Action</span><p>'+escapeHtml(m.action)+'</p></div>':'')+
-      '<div class="management-metric-owner">'+managementModuleLink(m.owningModule)+'</div>'+
+      '</details><div class="management-metric-owner">'+managementModuleLink(m.owningModule,'Open analysis')+'</div>'+
       '</article>';
   }).join("")+'</div>';
 }
@@ -3870,15 +3634,18 @@ function renderOperationalReporting(report){
 function renderManagementControlVisual(key,data){
   if(key==="master-dashboard"){
     const r=data.readiness||{};
+    const priorityKeys=['contract-finish','submitted-programme-finish','independent-forecast-finish','critical-activities','submitted-vs-contract','schedule-spi'];
+    const mainMetrics=priorityKeys.map(key=>(data.metrics||[]).find(m=>m.key===key)).filter(Boolean);
+    const otherMetrics=(data.metrics||[]).filter(m=>!priorityKeys.includes(m.key));
     const readinessDonut=renderDonutChart([
       {label:"Checked specialist views",value:r.ready??0,tone:"success"},
       {label:"Specialist views requiring review",value:r.partial??0,tone:"warning"},
       {label:"Blocked specialist views",value:r.blocked??0,tone:"danger"}
     ],"Control views");
     return '<div class="planning-view management-view master-dashboard-view">'+
-      renderOperationalReporting(data.operationalReporting)+
-      managementPanel("Executive Project Position","Compact management position only. Every KPI retains state, authority, basis and an owning specialist route.",renderManagementMetricGrid(data.metrics||[]),true)+
-      '<div class="management-two-column">'+
+      managementPanel("Project position","Current programme, progress and delivery exposure. Open a measure for its supporting analysis.",renderManagementMetricGrid(mainMetrics),true)+
+      experienceDisclosure("Additional project measures",renderManagementMetricGrid(otherMetrics),fmt(otherMetrics.length)+" measures")+
+      experienceDisclosure("Specialist coverage and evidence",'<div class="management-two-column">'+
         managementPanel("Control Readiness","Calculation checks, evidence and cross-module consistency are separate gates. A usable page does not establish management readiness.",readinessDonut+renderManagementConsistency(data.consistency))+
         managementPanel("Evidence Snapshot","The dashboard is a view of the current governed project evidence, not an independent data store.",planningKpis([
           ["Project documents",data.evidenceDocumentCount??0,"current evidence library"],
@@ -3888,7 +3655,8 @@ function renderManagementControlVisual(key,data){
           ["Evidence gaps",r.evidenceGapCount??0,"missing, partial, stale or conflicted evidence","warning"],
           ["Governance gaps",r.governanceGapCount??0,"publication / output readiness","warning"]
         ]))+
-      '</div>'+
+      '</div>',"Calculation availability and source coverage")+
+      experienceDisclosure("Operational source review",renderOperationalReporting(data.operationalReporting),"Quality, RFI and risk records")+
       managementPanel("Commercial Exposure by Currency","Currency values are never cross-summed without a governed FX basis.",renderManagementCommercial(data.commercialByCurrency||[])+renderManagementVariationReconciliation(data.variationReconciliation||[]))+
       '<div class="notice info"><b>Dashboard rule:</b> a missing or ungoverned KPI remains unavailable. CMeng does not manufacture Overall Risk or Contract Risk scores from unrelated signals.</div>'+
       '</div>';
@@ -3896,7 +3664,10 @@ function renderManagementControlVisual(key,data){
   if(key==="command-center"){
     const d=data.decisions||[];
     const ctrl=data.controls||null;
-    const decisionBody=d.length?'<div class="management-decision-list">'+d.map((item,i)=>'<article class="management-decision"><i>'+escapeHtml(i+1)+'</i><div><b>'+escapeHtml(item.description)+'</b><div class="management-decision-meta"><span>Owner: '+escapeHtml(item.accountableOwner||"Not assigned")+'</span><span>Due: '+escapeHtml(item.dueDate?planningShortDate(item.dueDate):"Not assigned")+'</span><span>Authority: '+escapeHtml(item.requiredAuthority||"Not assigned")+'</span><span>Dependency: '+escapeHtml(item.dependencyParty||"Not assigned")+'</span></div><small>Suggestion only; ownership and completion tracking are not established.</small></div></article>').join("")+'</div>':'<div class="notice info">No management decision/action is currently generated.</div>';
+    const decisionBody=d.length?'<div class="management-decision-list">'+d.map((item,i)=>{
+      const meta=[['Owner',item.accountableOwner],['Due',item.dueDate?planningShortDate(item.dueDate):null],['Authority',item.requiredAuthority],['Dependency',item.dependencyParty]].filter(([,v])=>v);
+      return '<article class="management-decision"><i>'+escapeHtml(i+1)+'</i><div><b>'+escapeHtml(item.description)+'</b>'+(meta.length?'<div class="management-decision-meta">'+meta.map(([label,value])=>'<span>'+escapeHtml(label+': '+value)+'</span>').join('')+'</div>':'')+'</div></article>';
+    }).join("")+'</div>':'<div class="notice info">No suggested follow-up is currently generated.</div>';
     const controlsBody=ctrl?planningKpis([
       ["Open risks",ctrl.riskEvidenceState==="established"?ctrl.openRiskCount:"Not established","governed risk source",ctrl.riskEvidenceState==="established"?"":"warning"],
       ["Major / critical NCR",ctrl.openCriticalMajorNcrCount??(data.operationalReporting?.knownCounts?.openCriticalMajorNcrCount!==undefined?fmt(data.operationalReporting.knownCounts.openCriticalMajorNcrCount)+" confirmed":"Not established"),ctrl.openCriticalMajorNcrCount===null?"Known subset; full total not established":"quality evidence",ctrl.openCriticalMajorNcrCount?"danger":""],
@@ -3906,10 +3677,10 @@ function renderManagementControlVisual(key,data){
       ["Expiring bonds",ctrl.bondEvidenceState==="established"?ctrl.expiringBondCount30Days:"Not established","next 30 days",ctrl.expiringBondCount30Days?"warning":""]
     ]):'<div class="empty">Project Director control position is not established.</div>';
     return '<div class="planning-view management-view command-center-view">'+
-      renderOperationalReporting(data.operationalReporting||ctrl?.reporting)+
-      managementPanel("Action Suggestions — Awaiting Assignment","These suggestions are not a controlled action register. Accountable owner, due date, authority, status and closure evidence must be established in the project action workflow.",decisionBody,true)+
+      managementPanel("Immediate Control Signals","Confirmed subsets are labelled separately from complete totals. Unavailable source domains remain explicitly unavailable.",controlsBody,true)+
+      managementPanel("Action Suggestions — Awaiting Assignment","Suggested follow-up only. Assignment, due dates and closure tracking are not yet established in CMeng.",decisionBody,true)+
       managementPanel("Management Priorities","Current blockers and escalations from governed specialist positions, ordered before supporting KPIs.",renderManagementAlerts(data.alerts||[]))+
-      managementPanel("Immediate Control Signals","Confirmed subsets are labelled separately from complete totals. Unavailable source domains remain explicitly unavailable.",controlsBody)+
+      experienceDisclosure("Operational source review",renderOperationalReporting(data.operationalReporting||ctrl?.reporting),"Quality, RFI and risk records")+
       managementPanel("Current Programme Position","Supporting completion and programme facts used to understand the actions above.",renderManagementMetricGrid(data.programmePosition||[]))+
       managementPanel("Evidence Gaps","Only missing, partial, stale or conflicted source evidence requires correction.",renderManagementEvidenceGaps(data.evidenceGaps||[]))+
       managementPanel("Governance Readiness","Publication readiness is separate from source evidence coverage.",renderManagementEvidenceGaps(data.governanceGaps||[])+renderManagementConsistency(data.consistency))+
@@ -3927,7 +3698,7 @@ function renderManagementControlVisual(key,data){
     const candidateRows=candidates.map(item=>'<tr><td><b>'+escapeHtml(item.label)+'</b></td><td>'+escapeHtml(humanizeKey(item.type))+'</td><td>'+managementAuthorityBadge(item.status)+'</td><td>'+escapeHtml(item.sourceRef)+'</td><td>'+managementModuleLink(item.owningModule,"Open owner")+'</td></tr>').join("");
     const historyRows=history.map(item=>'<tr><td>'+escapeHtml(formatDocumentTime(item.occurredAt))+'</td><td><b>'+escapeHtml(item.entity)+'</b></td><td>'+escapeHtml(item.action)+'</td><td>'+escapeHtml(item.actor||"System / not recorded")+'</td><td>'+managementAuthorityBadge(item.state)+'</td><td>'+escapeHtml(item.sourceRef||"—")+'</td></tr>').join("");
     return '<div class="planning-view management-view master-control-view">'+
-      managementPanel("Integrated Governance Position","MCP is the control layer joining revision authority, observed structure, specialist positions, evidence gaps and review history. It is not a second source of truth.",planningKpis([
+      managementPanel("Programme control","Current programme, controlled baseline and project structure.",planningKpis([
         ["Project",s.project||data.projectId,"selected management scope"],
         ["Programme membership",humanizeKey(s.programmeMembershipState||"not_established"),s.programme||"not established",s.programmeMembershipState==="established"?"":"warning"],
         ["Current programme",r.currentLabel?planningRevisionLabel(r.currentLabel):"Not established",r.currentDataDateIso?planningShortDate(r.currentDataDateIso):"no Data Date",r.currentRevisionId?"success":"warning"],
@@ -3941,7 +3712,7 @@ function renderManagementControlVisual(key,data){
         ["WBS activity coverage",w.observedCoveragePercent===null||w.observedCoveragePercent===undefined?"Not established":fmt(w.observedCoveragePercent)+"%","observed mapping"],
         ["Official package coverage",w.officialWorkPackageCoveragePercent===null||w.officialWorkPackageCoveragePercent===undefined?"Not established":fmt(w.officialWorkPackageCoveragePercent)+"%",humanizeKey(w.officialWorkPackageState||"not_established"),w.officialWorkPackageState==="established"?"success":"warning"]
       ])+(w.observedWbsLabels?.length?'<details class="management-detail"><summary>Observed WBS labels <span>'+escapeHtml(fmt(w.observedWbsLabels.length))+' labels</span></summary><div class="management-tag-list">'+w.observedWbsLabels.map(label=>'<span>'+escapeHtml(label)+'</span>').join("")+'</div></details>':""))+
-      managementPanel("Specialist Positions","MCP displays the current specialist position and correction route. Users correct the owning source, not the MCP row.",positionRows?'<div class="table-wrap"><table><thead><tr><th>Workstream</th><th>Position</th><th>Status</th><th>Reason</th><th>Correction source</th></tr></thead><tbody>'+positionRows+'</tbody></table></div>':'<div class="empty">No specialist positions are established.</div>')+
+      managementPanel("Specialist positions","Open each module to review its current position and supporting evidence.",positionRows?'<div class="table-wrap"><table><thead><tr><th>Workstream</th><th>Position</th><th>Status</th><th>Reason</th><th>Correction source</th></tr></thead><tbody>'+positionRows+'</tbody></table></div>':'<div class="empty">No specialist positions are established.</div>')+
       managementPanel("Live Alert Feed","The same governed alert set used by Command Center is shown here for integrated control.",renderManagementAlerts(data.alerts||[]))+
       managementPanel("AI / Extracted Candidate Review Inbox","Candidates are visible with their source evidence, but this release is read-only: no candidate can directly author the official MCP position. Promotion/rejection/defer must use the controlled owning-module workflow.",candidateRows?'<div class="table-wrap"><table><thead><tr><th>Candidate</th><th>Type</th><th>Status</th><th>Source evidence</th><th>Owning module</th></tr></thead><tbody>'+candidateRows+'</tbody></table></div>':'<div class="notice info">No current candidate is waiting for review.</div>')+
       managementPanel("Evidence Gaps","Only missing, stale, partial and conflicted source evidence is listed.",renderManagementEvidenceGaps(data.evidenceGaps||[]))+
@@ -3994,20 +3765,22 @@ function renderClaimsReporting(r){
 function issueLabel(kind){return ({system_defect:"System defect",source_conflict:"Source conflict",data_quality:"Data quality",missing_information:"Missing information",comparison_difference:"Comparison difference",governance_review:"Approval / governance",verification_pending:"Unverified",checked:"Listed checks passed"})[kind]||"Unverified"}
 function issueBadge(assessment){const kind=assessment?.primaryKind||"verification_pending";return '<span class="issue-badge '+escapeHtml(kind)+'">'+escapeHtml(issueLabel(kind))+'</span>'}
 function renderIssueAssessment(a,management=false){
-  if(!a)return '<div class="notice info">Issue classification has not been established for this view.</div>';
-  const descriptions={system_defect:"Failed CMeng calculation or same-basis consistency check.",source_conflict:"Incompatible assertions in the supplied evidence.",data_quality:"A supplied record has an invalid field or invalid supplied link.",missing_information:"A required value or source is not established.",comparison_difference:"Different submitted and independent positions require explanation.",governance_review:"Approval or authority has not been established.",verification_pending:"CMeng has not completed the necessary verification."};
+  if(!a)return '<p>Review classification is not yet available.</p>';
+  const descriptions={system_defect:"A CMeng calculation or same-basis check failed.",source_conflict:"Supplied sources make incompatible assertions.",data_quality:"A supplied field or link needs correction.",missing_information:"An input required for this conclusion is unavailable.",comparison_difference:"Two positions differ on the stated comparison basis.",governance_review:"An approval or authority is not established.",verification_pending:"CMeng verification coverage is incomplete."};
   const counts=management?a.affectedModuleCounts:a.counts;
-  const cards=Object.entries(descriptions).map(([kind,description])=>'<div class="issue-category"><span class="issue-badge '+kind+'">'+escapeHtml(issueLabel(kind))+'</span><b>'+fmt(counts?.[kind]??0)+'</b><small>'+escapeHtml(description)+'</small></div>').join('');
-  const rows=(a.issues||[]).map(i=>'<tr><td>'+issueBadge({primaryKind:i.kind})+'</td><td><b>'+escapeHtml(i.summary)+'</b><br>'+escapeHtml(i.detail)+'</td><td>'+escapeHtml(i.owner)+'<br>'+escapeHtml(i.action)+'</td><td>'+escapeHtml((i.moduleKeys||[]).map(k=>names[k]||k).join(', '))+'<details><summary>Trace evidence</summary>'+escapeHtml([...(i.evidencePaths||[]),...(i.checkIds||[]),...(i.sourceRefs||[])].join(' · '))+'</details></td></tr>').join('');
-  return '<section class="issue-assessment"><h4>What requires attention and who must resolve it</h4><p>'+escapeHtml(management?'Counts show affected views, not unique defects. A view can have several issue types.':'Counts show distinct classified findings in this view; they are not a project performance score.')+'</p><p><b>CMeng verification: '+escapeHtml(a.systemCheckState==="failed"?"Failed checks detected":a.systemCheckState==="unverified"?"Incomplete verification":"Listed checks passed")+'</b>. Zero detected failures does not certify unchecked calculations.</p><div class="issue-category-grid">'+cards+'</div><details><summary>Finding register · '+fmt(a.issues?.length??0)+' findings</summary><div class="table-wrap"><table><thead><tr><th>Type</th><th>Finding and evidence</th><th>Owner and correction</th><th>Affected view</th></tr></thead><tbody>'+rows+'</tbody></table></div></details><small>'+escapeHtml(a.scope)+'</small></section>';
+  const countRows=Object.entries(descriptions).map(([kind,description])=>'<tr><td>'+issueBadge({primaryKind:kind})+'</td><td>'+fmt(counts?.[kind]??0)+'</td><td>'+escapeHtml(description)+'</td></tr>').join('');
+  const rows=(a.issues||[]).map(i=>'<tr><td>'+issueBadge({primaryKind:i.kind})+'</td><td><b>'+escapeHtml(i.summary)+'</b><br>'+escapeHtml(i.detail)+'</td><td>'+escapeHtml(i.owner)+'<br>'+escapeHtml(i.action)+'</td><td>'+escapeHtml((i.moduleKeys||[]).map(k=>names[k]||k).join(', '))+'<details><summary>Source trace</summary>'+escapeHtml([...(i.evidencePaths||[]),...(i.checkIds||[]),...(i.sourceRefs||[])].join(' · '))+'</details></td></tr>').join('');
+  const scope=a.systemCheckState==='failed'?'Calculation failures require correction before reliance.':a.systemCheckState==='unverified'?'Verification coverage is incomplete.':'The listed checks passed. Other calculations may remain outside their scope.';
+  return '<section class="issue-assessment"><h4>Review findings</h4><p>'+escapeHtml(scope)+'</p><p>'+escapeHtml(management?'Counts below identify affected views; one view may have several issue types.':'Counts below identify classified findings, not a project performance score.')+'</p>'+(rows?'<div class="table-wrap"><table><thead><tr><th>Type</th><th>Finding</th><th>Owner and next step</th><th>Source</th></tr></thead><tbody>'+rows+'</tbody></table></div>':'<p>No classified findings in the completed check scope.</p>')+experienceDisclosure('Classification counts','<div class="table-wrap"><table><thead><tr><th>Type</th><th>Count</th><th>Meaning</th></tr></thead><tbody>'+countRows+'</tbody></table></div>')+'<small>'+escapeHtml(a.scope||'')+'</small></section>';
 }
-function renderModuleReadiness(data){
-  const classification=renderIssueAssessment(data?.issueAssessment,['master_dashboard','command_center','master_control_programme'].includes(data?.projectionKey));
+function renderModuleReadiness(data,reason=''){
   const r=data?.moduleReadiness;
-  if(!r)return classification;
-  return classification+'<details class="notice info"><summary>Calculation and comparison check scope</summary><p>Calculation checks: '+escapeHtml(r.calculation)+' · Evidence: '+escapeHtml(humanizeKey(r.evidence))+' · Cross-module consistency: '+escapeHtml(r.consistency)+' · Submitted/independent reconciliation: '+escapeHtml(humanizeKey(r.reconciliation))+'</p><small>'+escapeHtml(r.scope)+'</small></details>';
+  const classification=renderIssueAssessment(data?.issueAssessment,['master_dashboard','command_center','master_control_programme'].includes(data?.projectionKey));
+  const checks=r?'<p>Calculation: '+escapeHtml(r.calculation)+' · Evidence: '+escapeHtml(humanizeKey(r.evidence))+' · Consistency: '+escapeHtml(r.consistency)+' · Comparison: '+escapeHtml(humanizeKey(r.reconciliation))+'</p><p>'+escapeHtml(r.scope)+'</p>':'';
+  const notes=reason?'<p>'+escapeHtml(reason)+'</p>':'';
+  return '<details id="moduleReviewDetail" class="experience-disclosure experience-audit"><summary>Source and calculation detail<span>Findings, coverage and reporting basis</span></summary><div class="experience-disclosure-body">'+classification+checks+notes+renderModuleBasis(data,true)+'<p><a href="'+escapeHtml(reportDownloadUrl('json'))+'" download>Download complete calculation data</a> · <a href="'+escapeHtml(reportDownloadUrl('xlsx'))+'" download>Download the full register</a></p></div></details>';
 }
-function renderModuleBasis(data){
+function renderModuleBasis(data,detail=false){
   const root=findProjectionRoot(data);
   const revision=root.sourceRevisionId||root.evidenceRevisionId||root.scheduleRevisionId||root.boqRevisionId||root.basisRevisionId||root.forecast?.basisRevisionId||null;
   const asOf=data?.reportingContract?.dataDateIso||root.dataDateIso||root.asOfIso||overview?.latestDataDateIso||null;
@@ -4026,7 +3799,8 @@ function renderModuleBasis(data){
   const excludedActuals=[...(contract?.excludedScheduleActualEvents?.future||[]),...(contract?.excludedScheduleActualEvents?.undated||[])];
   const actualScopeHtml=excludedActuals.length?'<details class="notice warn"><summary>'+fmt(excludedActuals.length)+' schedule actual events excluded from the Data Date position</summary><p>Historical completion and progress are withheld for affected records. Source evidence and planned dates are retained.</p><table><thead><tr><th>Activity</th><th>Actual event</th><th>Source date</th></tr></thead><tbody>'+excludedActuals.map(r=>'<tr><td>'+escapeHtml(r.activityId)+'</td><td>'+escapeHtml(humanizeKey(r.event))+'</td><td>'+escapeHtml(r.dateIso)+'</td></tr>').join('')+'</tbody></table></details>':'';
   const authorityHtml=completion&&['eot_assessment','commercial_claims_notices','contract_particulars_bonds'].includes(root.projectionKey)?'<div class="notice info"><b>Completion authority.</b> Governed contractual finish: '+escapeHtml(planningShortDate(completion.governedContractualFinish))+' ('+escapeHtml(humanizeKey(completion.authority))+'). '+escapeHtml(completion.explanation)+'</div>':'';
-  return '<div class="module-basis">'+values.map(([label,value])=>'<span class="basis-chip"><b>'+escapeHtml(label)+'</b><strong title="'+escapeHtml(label==="Programme basis"&&revision?revision:value)+'">'+escapeHtml(value)+'</strong></span>').join("")+'</div>'+authorityHtml+actualScopeHtml+scopeHtml+populationHtml;
+  if(detail)return authorityHtml+actualScopeHtml+scopeHtml+populationHtml;
+  return '<div class="module-basis">'+values.map(([label,value])=>'<span class="basis-chip"><b>'+escapeHtml(label)+'</b><strong title="'+escapeHtml(label==="Programme basis"&&revision?revision:value)+'">'+escapeHtml(value)+'</strong></span>').join("")+'</div>';
 }
 function renderStructuredSections(data){
   if(!data||typeof data!=="object")return"";
@@ -4056,15 +3830,15 @@ function renderModuleResult(result){
   el("moduleSubtitle").textContent=(descriptions[result.key]||"Current position, key changes and actions requiring attention.")+(managementSurface?"":" · "+roleLabel);
   el("topbarModule").textContent=moduleName;
   el("moduleBadge").className="issue-badge "+(result.issueAssessment?.primaryKind||"verification_pending");
-  el("moduleBadge").textContent=issueLabel(result.issueAssessment?.primaryKind);
+  el("moduleBadge").textContent=result.issueAssessment?.counts?.system_defect>0?"Calculation error":"";
   if(result.status==="blocked"){
     const blockedBody='<div class="view-state-bar">'+issueBadge(result.issueAssessment)+'<strong>'+escapeHtml(moduleName)+'</strong><span>The calculation is unavailable. The classified findings identify the reason and responsible action.</span></div><div class="notice warn">'+escapeHtml(result.reason||"The required calculation is not established.")+'</div><div class="scalar-grid">'+(result.dependencies||[]).map(x=>'<div class="scalar"><b>Calculation dependency</b><span>'+escapeHtml(humanizeKey(x))+'</span></div>').join("")+'</div>';
-    el("moduleContent").innerHTML=renderIssueAssessment(result.issueAssessment)+renderRoleContent(result.key,{},blockedBody,"",false);
+    el("moduleContent").innerHTML=blockedBody+renderModuleReadiness({issueAssessment:result.issueAssessment},result.reason);
     return;
   }
   const data=result.data||{};
   if(result.key==="challenge-contract"&&renderDeliveryChallenge(data,result.reason,result.status))return;
-  const basisHtml=renderModuleReadiness(data)+renderModuleBasis(data);
+  const basisHtml=renderModuleBasis(data)+experienceReviewSummary(data.issueAssessment);
   const challengeBody=renderUniversalChallenge(data.challenge);
   const challengeHtml=challengeBody?'<details class="reconciliation-panel"><summary><span>Reconciliation with submitted position</span><b>'+escapeHtml(reconciliationSummary(data.challenge))+'</b></summary><div class="reconciliation-body">'+challengeBody+'</div></details>':'';
   const specialized=renderSpecializedModule(result.key,data);
@@ -4076,8 +3850,8 @@ function renderModuleResult(result){
   const viewState=result.status==="ready"?"":'<div class="view-state-bar">'+issueBadge(result.issueAssessment)+'<strong>'+escapeHtml(moduleName)+'</strong>'+(generated?'<span>Updated '+escapeHtml(formatDocumentTime(generated))+'</span>':'')+'</div>';
   el("directorDrawer").open=false;
   const userReason=userFacingModuleReason(result.key,result.reason);
-  const context=viewState+basisHtml+(userReason?'<div class="notice info">'+escapeHtml(userReason)+'</div>':'');
-  el("moduleContent").innerHTML=managementSurface?context+primaryView:context+renderRoleContent(result.key,data,primaryView,challengeHtml,Boolean(specialized));
+  const context=basisHtml;
+  el("moduleContent").innerHTML=context+(managementSurface?primaryView:renderRoleContent(result.key,data,primaryView,challengeHtml,Boolean(specialized)))+renderModuleReadiness(data,userReason);
 }
 let moduleRequestSeq=0;
 const managementSurfaceKeysForApi=new Set(["master-dashboard","command-center","master-control-programme"]);
@@ -4772,7 +4546,7 @@ function openModuleReport(){
   const programme=overview?.latestRevisionLabel?planningRevisionLabel(overview.latestRevisionLabel):"—";
   const dataDate=overview?.latestDataDateIso?planningShortDate(overview.latestDataDateIso):"—";
   const generated=new Intl.DateTimeFormat(undefined,{year:"numeric",month:"short",day:"2-digit",hour:"2-digit",minute:"2-digit"}).format(new Date());
-  const status=statusLabel(currentModuleResult.status);
+  const status=currentModuleResult.issueAssessment?.counts?.system_defect>0?"Calculation correction required":"See source and calculation detail";
   const styles=[...document.querySelectorAll("style")].map(node=>node.textContent||"").join("\n");
   const body=el("moduleContent").innerHTML;
   const excelUrl=reportDownloadUrl("xlsx");
@@ -4787,12 +4561,15 @@ function openModuleReport(){
   reportWindow.document.open();
   reportWindow.document.write(report);
   reportWindow.document.close();
-  if(["overall","planning","controls"].includes(selectedRoleView))reportWindow.document.querySelectorAll("details").forEach(node=>node.open=true);else reportWindow.document.querySelectorAll("details:not(.role-supporting-detail)").forEach(node=>node.open=true);
+  // Preserve the selected lens and open disclosures; do not expand every technical payload in reports.
   const printButton=reportWindow.document.getElementById("reportPrint");
   if(printButton)printButton.onclick=()=>reportWindow.print();
   reportWindow.document.title=filename;
 }
 
+document.addEventListener('click',event=>{
+  if(event.target.closest?.('a[href="#moduleReviewDetail"]')){const detail=el('moduleReviewDetail');if(detail)detail.open=true;}
+});
 el("moduleReport").onclick=openModuleReport;
 async function loadRelease(){try{await api("/health");el("releaseStatus").textContent="Live"}catch{el("releaseStatus").textContent="Connection issue"}}
 
