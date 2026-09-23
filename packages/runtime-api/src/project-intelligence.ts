@@ -469,14 +469,13 @@ export function answerProjectQuestion(
   );
 
   const uniqueFacts = [
-    ...new Map(
-      facts.map((fact) => [
-        fact.path +
-          "|" +
-          String(fact.value),
-        fact,
-      ]),
-    ).values(),
+    ...facts.reduce((unique, fact) => {
+      const id=fact.path+'|'+String(fact.value);
+      // Requested facts precede raw scalar discovery and carry the intended
+      // population, authority and label. A duplicate must not erase them.
+      if(!unique.has(id))unique.set(id,fact);
+      return unique;
+    },new Map<string,AnswerFact>()).values(),
   ].slice(0, 40);
 
   const actions =

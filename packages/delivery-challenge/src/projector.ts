@@ -1182,6 +1182,9 @@ export function buildDeliveryChallengeProjection(
   const independentCompletion =
     input.independentForecast
       .independentForecastCompletionIso;
+  const independentRequiresReview =
+    input.independentForecast.origin === 'scenario_with_assumptions' ||
+    input.independentForecast.assumptions.length > 0;
   const contractualCompletion =
     input.contractTimeBasis
       ?.contractualCompletionIso ??
@@ -1421,6 +1424,8 @@ export function buildDeliveryChallengeProjection(
         contractorVsIndependent ===
         null
           ? "missing_evidence"
+          : independentRequiresReview
+            ? "scenario"
           : contractorVsIndependent >
               0
             ? "challenged"
@@ -1447,7 +1452,9 @@ export function buildDeliveryChallengeProjection(
           ? "Independent forecast is later than the current contractual completion basis."
           : null,
       requiredResponse:
-        contractorVsIndependent !==
+        independentRequiresReview
+          ? "CMeng must reconcile the independent calculation assumptions and source constraints before treating this difference as a substantiated challenge to the submitted forecast."
+          : contractorVsIndependent !==
           null &&
         contractorVsIndependent >
           0
@@ -1669,6 +1676,8 @@ export function buildDeliveryChallengeProjection(
   ) {
     position =
       "not_yet_supportable";
+  } else if (independentRequiresReview && !materialManpowerGap && !materialProductivityGap) {
+    position = "scenario_only";
   } else if (
     independentVsContractual !==
       null &&

@@ -33,6 +33,15 @@ test('submitted but uninterpreted sources and missing CMeng comparisons belong t
  assert.ok(r.issues.some(i=>i.summary==='Independent comparison not established'));
  assert.equal(r.systemCheckState,'unverified');
 });
+test('explicit delivery evidence gaps reach shared issue totals and retain their distinct topics and correction evidence',()=>{
+ const r=assessModuleIssues(input({deliveryChallenge:{findings:[
+  {topic:'mapping',state:'missing_evidence',consequence:'Quantity denominator lacks links.',action:'Establish source links.',evidenceRefs:['source-one']},
+  {topic:'productivity',state:'missing_evidence',consequence:'Measured output is absent.',action:'Provide measured output.',evidenceRefs:['source-two']}
+ ]}}),pass);
+ assert.equal(r.counts.missing_information,2);assert.equal(r.counts.system_defect,0);
+ assert.ok(r.issues.some(i=>i.summary.includes('mapping')&&i.sourceRefs.includes('source-one')&&i.action==='Establish source links.'));
+ assert.ok(r.issues.some(i=>i.summary.includes('productivity')&&i.sourceRefs.includes('source-two')));
+});
 test('cross-module contradictions retain failed check IDs, independent of source quality findings',()=>{
  const r=assessModuleIssues(input({focus:{bond:{state:'missing'}}}),{state:'fail',checkCount:2,failedCheckIds:['SAME_POPULATION_DIFFERENT_TOTAL']});
  assert.equal(r.primaryKind,'system_defect');assert.equal(r.counts.system_defect,1);assert.equal(r.counts.missing_information,1);
@@ -52,4 +61,8 @@ test('missing inputs and absent links are distinct from malformed supplied dates
  assert.equal(r.counts.data_quality,1);
  assert.equal(r.counts.missing_information,3);
  assert.ok(r.issues.find(i=>i.kind==='data_quality')?.summary.includes('invalid event dates'));
+});
+test('known notice applicability and causal evidence gaps are not hidden behind calculation verification',()=>{
+ const r=assessModuleIssues(input({noticeRequirementMissingCount:3,eligibleCausalEventEvidenceEstablished:false,challenge:{reconciliationState:'independent_unavailable'}}),pass);
+ assert.equal(r.counts.missing_information,2);assert.equal(r.counts.verification_pending,1);assert.equal(r.counts.system_defect,0);
 });

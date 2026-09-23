@@ -491,6 +491,14 @@ test("delivery challenge uses inferred quantity mapping for productivity without
   );
 });
 
+test('an assumption-qualified independent finish remains a scenario and assigns calculation reconciliation to CMeng',()=>{
+ const f=forecast();f.origin='scenario_with_assumptions';f.assumptions=['SOURCE_CONSTRAINTS_RETAINED_NOT_APPLIED_TO_UNCONSTRAINED_NETWORK:1'];
+ const result=buildDeliveryChallengeProjection({generatedAt:'2031-04-01T00:00:00Z',producerVersion:'test',schedule:schedule(),quantities:null,resources:null,independentForecast:f,contractTimeBasis:contractTime,submittedManpowerPlan:null});
+ const programme=result.findings.find(x=>x.topic==='programme')!;
+ assert.equal(programme.state,'scenario');assert.equal(programme.independent.authority,'scenario');
+ assert.match(programme.requiredResponse!,/^CMeng must reconcile/);assert.equal(result.position,'scenario_only');
+});
+
 test("submitted manpower is compared with independently required manpower when available", () => {
   const result =
     buildDeliveryChallengeProjection({
