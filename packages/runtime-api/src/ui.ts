@@ -2066,6 +2066,7 @@ function renderResourceVisual(data){
     return visualSection("Resources","Resource demand and capacity are kept separate so missing capacity is never treated as zero.","Review needed",'<div class="notice warn">Resource assignments or capacity evidence are not established for the current programme.</div>');
   }
   const weekly=p.weeklyCapacityEvidence||null;
+  const checks=weekly?.capacityChecksToDataDate;
   const weeklyGroups=weekly?.weeklyTotals?.reduce((map,row)=>{
     const unit=row.unit||"UNSPECIFIED";
     const list=map.get(unit)||[];
@@ -2104,7 +2105,8 @@ function renderResourceVisual(data){
     ["Actual utilization",weekly?.actualAverageToDataDate==null?"Not established":fmt(weekly.actualAverageToDataDate)+"%","approved usage to Data Date"],
     ["Per-hour capacity",perHourCapacityText,"resources with comparable rate",capacityKnown?"accent":"warning"],
     ["Weekly comparable checks",weeklyRows?fmt(weeklyComparable)+" / "+fmt(weeklyRows):"Not established","rows with established capacity and demand",weeklyComparable?"accent":"warning"],
-    ["Weekly demand > capacity",weeklyComparable?weeklyOver:"Not assessable",weeklyComparable?"occurrences over full source horizon":"weekly evidence required",weeklyOver?"danger":weeklyComparable?"success":"warning"],
+    ["Actual over capacity",checks?.actual?.comparableCount?fmt(checks.actual.exceededCount)+" / "+fmt(checks.actual.comparableCount):"Not assessable","comparable resource-weeks through Data Date",checks?.actual?.exceededCount?"warning":""],
+    ["Planned over capacity",checks?.planned?.comparableCount?fmt(checks.planned.exceededCount)+" / "+fmt(checks.planned.comparableCount):"Not assessable","comparable resource-weeks through Data Date",checks?.planned?.exceededCount?"warning":""],
     ["Capacity units",weeklyUnits.length?weeklyUnits.join(" / "):"Not established","kept separate by source unit",weeklyUnits.length?"":"warning"]
   ]);
 
@@ -2117,7 +2119,7 @@ function renderResourceVisual(data){
       : '';
 
   const weeklyNote=weeklyComparable
-    ? '<div class="notice info"><b>Separate weekly capacity evidence is available.</b> CMeng found '+escapeHtml(fmt(weeklyOver))+' demand-above-capacity row checks out of '+escapeHtml(fmt(weeklyComparable))+' comparable weekly rows. Occurrences are not distinct resources. '+escapeHtml(fmt(p.weeklyOverloadedResourceCount))+' distinct resources have an exceedance. These checks retain their source units and full planned horizon; actual ratios stop at the Data Date.</div>'
+    ? '<div class="notice info"><b>Full source horizon, including future planned weeks:</b> '+escapeHtml(fmt(weeklyOver))+' demand-above-capacity row checks out of '+escapeHtml(fmt(weeklyComparable))+' comparable weekly rows. '+escapeHtml(fmt(p.weeklyOverloadedResourceCount))+' distinct resources have at least one exceedance. Use the separate through-Data-Date figures above for the current position; future planned weeks are excluded from those figures.</div>'
     : '';
 
   const weeklyChart=weeklyGroups.size
@@ -3646,6 +3648,7 @@ function renderManagementControlVisual(key,data){
     ],"Control views");
     return '<div class="planning-view management-view master-dashboard-view">'+
       managementPanel("Project position","Current programme, progress and delivery exposure. Open a measure for its supporting analysis.",renderManagementMetricGrid(mainMetrics),true)+
+      experienceSourceContext(key,data)+
       experienceDisclosure("Additional project measures",renderManagementMetricGrid(otherMetrics),fmt(otherMetrics.length)+" measures")+
       experienceDisclosure("Specialist coverage and evidence",'<div class="management-two-column">'+
         managementPanel("Control Readiness","Calculation checks, evidence and cross-module consistency are separate gates. A usable page does not establish management readiness.",readinessDonut+renderManagementConsistency(data.consistency))+
@@ -3680,6 +3683,7 @@ function renderManagementControlVisual(key,data){
     ]):'<div class="empty">Project Director control position is not established.</div>';
     return '<div class="planning-view management-view command-center-view">'+
       managementPanel("Immediate Control Signals","Confirmed subsets are labelled separately from complete totals. Unavailable source domains remain explicitly unavailable.",controlsBody,true)+
+      experienceSourceContext(key,data)+
       managementPanel("Action Suggestions — Awaiting Assignment","Suggested follow-up only. Assignment, due dates and closure tracking are not yet established in CMeng.",decisionBody,true)+
       managementPanel("Management Priorities","Current blockers and escalations from governed specialist positions, ordered before supporting KPIs.",renderManagementAlerts(data.alerts||[]))+
       experienceDisclosure("Operational source review",renderOperationalReporting(data.operationalReporting||ctrl?.reporting),"Quality, RFI and risk records")+
@@ -3708,6 +3712,7 @@ function renderManagementControlVisual(key,data){
         ["Governed revisions",r.governedRevisionCount??0,"non-recovery revisions"],
         ["Recovery scenarios",r.recoveryScenarioCount??0,"never auto-promoted"]
       ]),true)+
+      experienceSourceContext(key,data)+
       managementPanel("WBS & Work-Package Control","Observed WBS labels are schedule evidence. They do not become approved work packages unless a governed package hierarchy establishes them.",planningKpis([
         ["Observed WBS",w.observedWbsCount??0,"source labels"],
         ["Activities",w.activityCount??0,"current programme"],
@@ -3854,7 +3859,7 @@ function renderModuleResult(result){
   el("directorDrawer").open=false;
   const userReason=userFacingModuleReason(result.key,result.reason);
   const context=basisHtml;
-  el("moduleContent").innerHTML=context+(managementSurface?experienceSourceContext(result.key,data)+primaryView:renderRoleContent(result.key,data,primaryView,challengeHtml,Boolean(specialized)))+renderModuleReadiness(data,userReason);
+  el("moduleContent").innerHTML=context+(managementSurface?primaryView:renderRoleContent(result.key,data,primaryView,challengeHtml,Boolean(specialized)))+renderModuleReadiness(data,userReason);
 }
 let moduleRequestSeq=0;
 const managementSurfaceKeysForApi=new Set(["master-dashboard","command-center","master-control-programme"]);

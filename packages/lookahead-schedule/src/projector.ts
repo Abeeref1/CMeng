@@ -96,6 +96,7 @@ function readinessForActivity(
         state: evidence.state,
         sourceRefs: [...evidence.sourceRefs],
         note: evidence.note ?? null,
+        diagnostics: [...(evidence.diagnostics??[])],
       };
     });
 

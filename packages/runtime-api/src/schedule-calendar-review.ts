@@ -27,7 +27,7 @@ function calculateCalendarReview(model:CanonicalScheduleModel) {
   });
   const comparable=rows.filter(r=>r.assignedCalendarWorkingHours!==null&&r.standardDayHours!==null);
   const patterned=comparable.filter(r=>r.matchesElapsedDayConvention&&!r.matchesAssignedCalendar);
-  return {state:patterned.length?'calendar_basis_difference':'no_pattern_detected',sourceRevisionId:model.sourceRevisionId,
+  return {state:patterned.length?'calendar_basis_difference':comparable.length?'no_pattern_detected':'not_established',sourceRevisionId:model.sourceRevisionId,
     population:{...populationContract({name:'Completed execution tasks with positive source duration',entity:'activity',dataDateIso:model.dataDateIso,dateBasis:'Recorded actual start/finish span and original duration; calendar-pattern reconciliation only',sourceRevisionId:model.sourceRevisionId,authority:'calculated',sourceCount:completed.length,memberIds:comparable.map(r=>r.activityId),exclusions:rows.filter(r=>!comparable.includes(r)).map(r=>({id:r.activityId,reason:'calendar_or_actual_span_unresolved'}))}),excludedCount:completed.length-comparable.length},
     elapsedDayMatchCount:comparable.filter(r=>r.matchesElapsedDayConvention).length,assignedCalendarMismatchCount:comparable.filter(r=>!r.matchesAssignedCalendar).length,
     elapsedDayMismatchCount:patterned.length,
