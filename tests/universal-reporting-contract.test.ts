@@ -395,6 +395,10 @@ test('global page values and JSON reports agree for distinct projects, and consu
   const checks=checkPageValues(pages);assert.deepEqual(checks.filter(c=>c.state==='failed'),[]);
   const reports=new Map(keys.map(key=>[key,JSON.parse(buildModuleJsonDownload(state.projectId,key,pages.get(key)!).toString()).result]));
   assert.deepEqual(checkPageValues(reports),checks,'every exported page retains the same cross-page values');
+  const noticeVerdict=reports.get('commercial-claims-notices').data.positionVerdict;
+  noticeVerdict.facts.noticeEventDateMissingCount++;
+  assert.ok(checkPageValues(reports).some(c=>c.metric==='Assessed missing-event dates and verdicts'&&c.state==='failed'),'verdict-only event population drift fails the global gate');
+  noticeVerdict.facts.noticeEventDateMissingCount--;
   const cash=reports.get('cash-flow').data;cash.position.certificateProfile.groups[0].as_of[0].value++;
   assert.ok(checkPageValues(reports).some(c=>c.metric==='Certificate components and time partitions'&&c.state==='failed'),'a page-only amount error fails the global gate');
   const quality=moduleForProject(state.projectId,'source-quality').data as any;

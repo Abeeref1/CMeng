@@ -24,3 +24,16 @@ Live acceptance found two further shared presentation problems: record-level ref
 The verification review also added count, identity, partition and date-arithmetic checks for Programme Changes, Revision History, Variance Trend, Installed Quantities, Milestones, Forecast History, Independent Forecast and Contract Particulars. Operational source partitions are checked explicitly. Missing independent comparisons retain a precise evidence dependency; genuinely unexplained calculation gaps remain assigned to CMeng. An official award remains a source authority, never a manufactured independent award. Submitted float and unconstrained calendar calculations retain explicit adoption review.
 
 A live Update position check found that its receipt certified raw state while normal pages certified the data-date reporting view. Rerun certification now consumes the same reporting view. The persistence layer also records actors against evidence, publication and rerun source records, so their secondary history rows use the captured request actor; existing unattributed history remains explicitly legacy. A future-dated NCR fixture verifies receipt/page consistency and actor retention without mutating the raw controls.
+
+### Live review follow-up: verdict population
+
+The deployed Claims & Notices table showed 143 missing event dates while its
+verdict showed 145. The summary independently counted correspondence records,
+including two determinations. It now consumes the same assessed-event count as
+the table. The global page-value gate additionally compares both claims pages'
+assessed counts and verdict facts, and an intentional verdict-only mutation must
+fail. Synthetic three- and seven-event cases include extra determinations.
+
+The same review found that a shared source interpretation could replace a
+commercial verdict with a schedule-progress sentence. Progress verdicts now only
+apply to progress and management pages; other domains keep their own verdict.
