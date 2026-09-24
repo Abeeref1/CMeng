@@ -17,6 +17,7 @@ export function issueCounters(a?:ControlIssueAssessment) {
 const number=(v:unknown):v is number=>typeof v==='number'&&Number.isFinite(v);
 export function positionVerdict(result:ModuleRuntimeResult) {
   const d:any=result.data??{},p=d.result??d,a=result.issueAssessment??d.issueAssessment,counts=issueCounters(a);
+  const facts:{noticeEventDateMissingCount?:number}={};
   let text='Review the source exceptions and required actions before using this position.',rag:'red'|'amber'|'green'|'unknown'='amber';
   if(result.status==='blocked'){text='This position cannot yet be calculated. The missing inputs are listed below.';rag='unknown';}
   else if(result.key==='master-dashboard'){
@@ -26,7 +27,10 @@ export function positionVerdict(result:ModuleRuntimeResult) {
     if(number(days)){rag=days>0?'red':'green';text=days>0?'Submitted completion is '+Math.round(days)+' calendar days after the contract date.':'Submitted completion is within the contract date.';}
     else {rag='unknown';text='Completion against the contract date cannot yet be compared.';}
   } else if(['notices-claims','commercial-claims-notices'].includes(result.key)) {
-    const missing=p.noticeEventDateMissingCount??d.claimsReporting?.notices?.asOf?.filter((r:any)=>!r.eventStartIso).length;
+    // Use the assessed event population. Correspondence also includes determinations
+    // and can contain several letters for one event; it is not an event counter.
+    const missing=p.noticeEventDateMissingCount??p.position?.claimsNotices?.noticeTimelinessCounts?.event_date_missing;
+    if(number(missing))facts.noticeEventDateMissingCount=missing;
     text=number(missing)&&missing>0?missing+' events lack the event dates needed to assess notice timing. Reported claim values remain visible.':'Notice timing, reported claim values and dated determinations have separate evidence bases.';
   } else if(result.key==='windows-analysis') {
     const days=p.projectCompletionMovementDays;
@@ -42,11 +46,11 @@ export function positionVerdict(result:ModuleRuntimeResult) {
   }
   else if(result.key==='resource-utilization'||result.key==='manhour-scurve')text='Resource conclusions apply to the supplied register horizon. Review the hours, capacity and programme coverage bases below.';
   const metrics=p.scopeComparison??p.sourceInterpretation?.progressMeasures?.scopeComparison;
-  if(metrics&&number(metrics.gapPercentagePoints)){const v=metrics.gapPercentagePoints;rag=rag==='red'||v<0?'red':'green';const progressText=v===0?'Matched-scope schedule progress matches baseline plan.':'Matched-scope schedule progress is '+Math.abs(v).toFixed(2)+' percentage points '+(v<0?'behind':'ahead of')+' baseline plan.';text=result.key==='master-dashboard'?text+' '+progressText:progressText;}
+  if(['progress-scurve','progress-report','master-dashboard','command-center','pmo-analysis'].includes(result.key)&&metrics&&number(metrics.gapPercentagePoints)){const v=metrics.gapPercentagePoints;rag=rag==='red'||v<0?'red':'green';const progressText=v===0?'Matched-scope schedule progress matches baseline plan.':'Matched-scope schedule progress is '+Math.abs(v).toFixed(2)+' percentage points '+(v<0?'behind':'ahead of')+' baseline plan.';text=result.key==='master-dashboard'?text+' '+progressText:progressText;}
   if(counts.system){rag='red';text='System checks failed. Do not rely on the affected values until the listed failures are corrected.';}
   else if(rag==='green'&&(counts.source||counts.pending||counts.review))rag='amber';
   const first=(a?.issues??[]).find((i:ControlIssue)=>i.kind==='system_defect')??(a?.issues??[]).find((i:ControlIssue)=>['source_conflict','data_quality','missing_information'].includes(i.kind))??(a?.issues??[])[0];
-  return {schemaVersion:'1.0',rag,label:rag==='red'?'Action required':rag==='green'?'Within the checked target':rag==='unknown'?'Not assessable':'Review needed',text,
+  return {schemaVersion:'1.0',facts,rag,label:rag==='red'?'Action required':rag==='green'?'Within the checked target':rag==='unknown'?'Not assessable':'Review needed',text,
     nextAction:result.key==='master-dashboard'&&rag==='red'&&!counts.system?'Agree a recovery decision for the reported completion gap and assign the dated delivery exceptions below.':first?.action??'Review the detailed position and its source references.',owner:result.key==='master-dashboard'&&rag==='red'&&!counts.system?'Project director — assignment required':first?.owner??'Project controls reviewer',
     basis:'Red: a reported target is exceeded or a system check failed. Amber: evidence or review is incomplete. Green: the stated target and listed checks pass. No composite risk score is implied.'};
 }
