@@ -284,3 +284,22 @@ test('delivery leadership summaries use the BOQ assessment and preserve unresolv
  const missing=runInNewContext(briefFunctions+';experienceBrief("challenge-contract",data)',{...common,data:{boqFeasibility:{overallStatus:'Unable to assess',rows:[],activityChecks:[],requiredLaborHours:null,programmePc:{movementDays:null},reason:'Productivity evidence is missing.'}}});
  assert.ok(missing.facts.every((f:any)=>f.display==='Unresolved'));assert.match(missing.review,/Productivity evidence/);
 });
+
+test('supplied BOQ rows are visible, searchable and pageable without schedule or productivity',()=>{
+ const boq={sourceFilename:'priced.xlsx',itemCount:102,rows:Array.from({length:102},(_,i)=>({itemId:'Q'+i,itemNumber:String(i),description:'Supplied concrete '+i,unit:'m3',quantity:i,rate:i===0?0:null,amount:i===0?0:null,currency:'SAR'}))};
+ const code=functions(['renderSuppliedBoqRows','renderSuppliedBoq']);
+ const first=runInNewContext(code+';renderSuppliedBoq(boq)',{...common,boq});
+ assert.match(first,/Supplied BOQ figures/);assert.match(first,/Supplied concrete 0/);assert.match(first,/<td>0<\/td><td>0<\/td><td>0<\/td>/);
+ assert.match(first,/Unresolved: not read from BOQ/);assert.match(first,/Items 1–100 of 102/);assert.doesNotMatch(first,/Supplied concrete 101/);
+ const second=runInNewContext(code+';renderSuppliedBoqRows(boq,1)',{...common,boq});
+ assert.match(second,/Supplied concrete 101/);assert.match(second,/Items 101–102 of 102/);
+ const found=runInNewContext(code+';renderSuppliedBoqRows(boq,0,"concrete 101")',{...common,boq});
+ assert.match(found,/Items 1–1 of 1 matching items/);assert.match(found,/Supplied concrete 101/);
+ const content={innerHTML:''};
+ runInNewContext(code+';'+functions(['renderDeliveryChallenge'])+';renderDeliveryChallenge({suppliedBoq:boq},"Schedule missing","blocked")',{
+  ...common,boq,el:()=>content,renderModuleBasis:()=>'',renderRoleContent:(_key:any,_data:any,html:any)=>html,
+  planningKpis:()=>'',renderBasisReviews:()=>'',experienceReviewSummary:()=>'',renderModuleReadiness:()=>'',
+ });
+ assert.match(content.innerHTML,/Supplied concrete 0/);assert.match(content.innerHTML,/Manpower and duration check: Unable to assess/);
+ assert.ok(content.innerHTML.indexOf('Supplied BOQ figures')<content.innerHTML.indexOf('Unable to assess'));
+});

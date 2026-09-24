@@ -158,6 +158,32 @@ test("runtime API accepts Excel BOQ upload and returns retrievable governed stat
           ),
         ),
     );
+
+    // No schedule, mapping, installed progress or productivity has been supplied.
+    // The calculation may be unavailable, but the BOQ's own figures must survive.
+    const challenge = await fetch(base + "/api/projects/P-HTTP/schedule/modules/challenge-contract");
+    assert.equal(challenge.status, 200);
+    const challengeResult = await challenge.json() as any;
+    const supplied = challengeResult.data.suppliedBoq;
+    assert.equal(supplied.sourceFilename, "priced-boq.xlsx");
+    assert.equal(supplied.itemCount, 1);
+    assert.equal(supplied.rows[0].quantity, 100);
+    assert.equal(supplied.rows[0].rate, 20);
+    assert.equal(supplied.rows[0].amount, 2000);
+    assert.equal(supplied.rows[0].currency, "AED");
+    for(const format of ['json','xlsx']){
+      const download=await fetch(base + '/api/projects/P-HTTP/schedule/modules/challenge-contract/report.' + format);
+      assert.equal(download.status,200,'BOQ downloads need no schedule approval');
+      if(format==='json')assert.equal((await download.json() as any).result.data.suppliedBoq.rows[0].quantity,100);
+      else {
+        const book=new ExcelJS.Workbook();await book.xlsx.load(Buffer.from(await download.arrayBuffer()) as any);
+        const sheet=book.worksheets.find(s=>{const headers=Array.from(s.getRow(1).values as any[]);return ['quantity','rate','amount','currency'].every(h=>headers.includes(h));});
+        assert.ok(sheet,'the spreadsheet retains the supplied BOQ rows');assert.equal(sheet.rowCount,2);
+        const headers=Array.from(sheet.getRow(1).values as any[]);
+        assert.equal(sheet.getRow(2).getCell(headers.indexOf('quantity')).value,100);
+        assert.equal(sheet.getRow(2).getCell(headers.indexOf('amount')).value,2000);
+      }
+    }
   } finally {
     await new Promise<void>(
       (resolve, reject) => {

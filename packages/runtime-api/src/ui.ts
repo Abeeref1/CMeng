@@ -709,8 +709,25 @@ function renderContractSourceContext(contract){
   ])+(contract.countingBasis?'<p>'+escapeHtml(contract.countingBasis)+'</p>':'')+contractSources+contractTrace+(contractCategoryCounts.size?'<div class="nested-title" style="margin-top:14px">Signals by contract topic</div>'+contractCategoryBars:'')+'</div></section>':'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Contract review</h4></div></div><div class="planning-panel-body"><div class="notice warn">Contract context is unresolved: provide readable contract terms for milestone and obligation references. Delivery review can use the available schedule and resource evidence.</div></div></section>';
   return contractSummary;
 }
+function renderSuppliedBoqRows(boq,page=0,query=''){
+  const term=String(query).trim().toLowerCase();
+  const rows=(boq?.rows||[]).filter(r=>!term||[r.itemNumber,r.itemId,r.section,r.description,r.unit].some(v=>String(v??'').toLowerCase().includes(term)));
+  const pageCount=Math.max(1,Math.ceil(rows.length/100)),index=Math.max(0,Math.min(pageCount-1,page)),start=index*100;
+  const field=v=>v===null||v===undefined||v===''?'Unresolved: not read from BOQ':typeof v==='number'?fmt(v):String(v);
+  const body=rows.slice(start,start+100).map(r=>'<tr>'+[r.itemNumber||r.itemId,r.description,r.unit,r.quantity,r.rate,r.amount,r.currency].map(v=>'<td>'+escapeHtml(field(v))+'</td>').join('')+'</tr>').join('');
+  return '<p>'+escapeHtml(rows.length?'Items '+fmt(start+1)+'–'+fmt(Math.min(start+100,rows.length))+' of '+fmt(rows.length)+(term?' matching items':''):'No matching BOQ items')+' · Page '+(index+1)+' of '+pageCount+'. Every item is available through these pages and in the Excel and data downloads.</p>'+
+    '<div class="actions"><button type="button" '+(index===0?'disabled ':'')+'onclick="updateSuppliedBoq('+(index-1)+')">Previous BOQ items</button><button type="button" '+(index+1===pageCount?'disabled ':'')+'onclick="updateSuppliedBoq('+(index+1)+')">Next BOQ items</button></div>'+
+    '<div class="table-wrap" style="max-height:420px;overflow:auto"><table><thead><tr><th>BOQ item</th><th>Description</th><th>Unit</th><th>Quantity</th><th>Rate</th><th>Amount</th><th>Currency</th></tr></thead><tbody>'+(body||'<tr><td colspan="7">No matching BOQ items.</td></tr>')+'</tbody></table></div>';
+}
+function updateSuppliedBoq(page,query){
+  const target=el('suppliedBoqRows');if(target)target.innerHTML=renderSuppliedBoqRows(currentModuleResult?.data?.suppliedBoq,page,query??el('suppliedBoqSearch')?.value??'');
+}
+function renderSuppliedBoq(boq){
+  if(!boq?.rows?.length)return '';
+  return '<section class="planning-panel supplied-boq-panel"><div class="planning-panel-head"><div><h4>Supplied BOQ figures</h4><p>'+escapeHtml(boq.sourceFilename||'Uploaded BOQ')+' · '+fmt(boq.itemCount)+' items. Quantities, rates and amounts are shown as read. Missing calculation inputs do not block these figures.</p></div></div><div class="planning-panel-body"><label for="suppliedBoqSearch">Find BOQ item</label><input id="suppliedBoqSearch" type="search" placeholder="Item number, description, section or unit" oninput="updateSuppliedBoq(0,this.value)"><div id="suppliedBoqRows">'+renderSuppliedBoqRows(boq)+'</div></div></section>';
+}
 function renderDeliveryChallenge(data,reason,status){
-  const d=data?.deliveryChallenge;if(!d)return false;
+  const d=data?.deliveryChallenge||{};if(!data?.deliveryChallenge&&!data?.suppliedBoq?.rows?.length)return false;
   const f=data.boqFeasibility||{rows:[],activityChecks:[],overallStatus:"Unable to assess",reason:"Current quantity and productivity assessment is unresolved."};
   const pc=f.programmePc||{},s=d.scheduleChallenge||{};
   const value=x=>x===null||x===undefined?"Unresolved":fmt(x);
@@ -720,7 +737,7 @@ function renderDeliveryChallenge(data,reason,status){
   const sourceHours=data.sourceLaborEvidence;
   const hours=sourceHours?planningKpis([["Submitted planned labor hours",sourceHours.plannedHours,"supplied register period"],["Recorded hours through reporting date",sourceHours.actualHoursToDataDate,"labor source; not automatically certified utilization"]]):'';
   const manpower=panel('1. Challenge manpower plan','Remaining quantities × supported labor hours per unit, distributed over each activity’s source-calendar working time. Supplied resource loading is compared on that same basis.',
-    planningKpis([["Independent remaining labor requirement",value(f.requiredLaborHours),"labor hours; entire BOQ only when all item calculations are established"],["Items requiring information",f.unresolvedCount??'Unresolved',f.reason]])+hours+
+    planningKpis([["Independent remaining labor requirement",value(f.requiredLaborHours),"labor hours; requires quantities, productivity and scheduled working time"],["Manpower calculations unresolved",f.unresolvedCount??'Unresolved',f.reason]])+hours+
     table(['Activity','Required labor hours','Available working hours','Required average people','Submitted people','Submitted minus required','Assessment'],activities.slice(0,100).map(r=>[r.activityId,value(r.requiredLaborHours),value(r.availableWorkingHours),value(r.requiredAveragePeople),value(r.submittedPeople),value(r.manpowerGap),r.scheduleState==='exceeds'?'Insufficient for the planned period':r.scheduleState==='fits'?'Adequate for this activity calculation':'Unresolved: '+r.reason]),'Unresolved: confirm BOQ-to-activity links, remaining quantities, productivity and resource loading.'));
   const programme=panel('2. Challenge current schedule','Programme PC compares the same explicit milestone in baseline and current revisions. Quantity-driven finish checks use supported production rates and resource capacity.',
     planningKpis([["Baseline Programme PC",pc.baseline?.dateIso?planningShortDate(pc.baseline.dateIso):'Unresolved',pc.baseline?.reason||pc.reason||'Baseline milestone not established'],["Current Programme PC",pc.current?.dateIso?planningShortDate(pc.current.dateIso):'Unresolved',pc.current?.reason||'Current milestone not established'],["Baseline-to-current PC movement",pc.movementDays==null?'Unresolved':fmt(pc.movementDays)+' calendar days',pc.reason||'Comparable milestones not established'],["Submitted completion",s.contractorSubmittedCompletionIso?planningShortDate(s.contractorSubmittedCompletionIso):'Unresolved','separate from the Programme PC milestone comparison'],["Independent calendar calculation",s.independentCompletionIso?planningShortDate(s.independentCompletionIso):'Unresolved',data.independentForecastReviewReason||'Uses the current programme logic and readable calendars']])+
@@ -729,8 +746,8 @@ function renderDeliveryChallenge(data,reason,status){
   const combined=panel('3. Combined delivery challenge','Submitted → Independent → Gap → Consequence → Action. Whole-programme feasibility also depends on sequencing and resources shared between activities.',table(['Activity','Submitted','Independent','Gap','Consequence','Action'],findings,'Unable to assess: the evidence needed for an independent production comparison is not established.'));
   const calculations=panel('Quantity and productivity calculations','Each BOQ item retains its quantity unit and evidence basis. Inferred mappings, missing actual quantities and missing productivity are unresolved.',table(['BOQ item','Activity','Remaining quantity','Unit','Labor hours per unit','Rate basis','Required labor hours','Reason'],(f.rows||[]).slice(0,100).map(r=>[r.quantityItemId,r.activityId||'Unresolved',value(r.remainingQuantity),r.unit||'Unresolved',value(r.laborHoursPerUnit),humanizeKey(r.productivityBasis),value(r.requiredLaborHours),r.reason]),f.reason));
   const scope='<p>Showing up to 100 activity and BOQ rows in each table. All '+fmt(activities.length)+' activity checks and '+fmt((f.rows||[]).length)+' BOQ item records remain in the Excel and data downloads.</p>';
-  const html='<section class="planning-view contract-challenge-view"><div class="notice info"><b>'+escapeHtml(f.overallStatus)+'</b><p>'+escapeHtml(f.reason)+'</p><p>This tests delivery assumptions. It does not interpret legal clauses, establish causation or EOT, or create a replacement programme. Missing evidence remains unresolved.</p></div>'+manpower+programme+combined+'<details class="management-detail"><summary>Supporting quantities, productivity and source evidence</summary>'+scope+calculations+renderBasisReviews({...data,contractValueBasisReview:null},'challenge-contract')+'</details></section>';
-  el('moduleContent').innerHTML=renderModuleBasis(data)+renderRoleContent('challenge-contract',data,html,'',true)+experienceReviewSummary(data.issueAssessment)+renderModuleReadiness(data,reason);
+  const html='<section class="planning-view contract-challenge-view"><div class="notice info"><b>Manpower and duration check: '+escapeHtml(f.overallStatus)+'</b><p>'+escapeHtml(f.reason)+'</p><p>This tests delivery assumptions. It does not interpret legal clauses, establish causation or EOT, or create a replacement programme.</p></div>'+manpower+programme+combined+'<details class="management-detail"><summary>Calculation inputs and supporting detail</summary>'+scope+calculations+renderBasisReviews({...data,contractValueBasisReview:null},'challenge-contract')+'</details></section>';
+  el('moduleContent').innerHTML=renderModuleBasis(data)+renderSuppliedBoq(data.suppliedBoq)+renderRoleContent('challenge-contract',data,html,'',true)+experienceReviewSummary(data.issueAssessment)+renderModuleReadiness(data,reason);
   return true;
 }
 function resourceUnitLabel(unit){
@@ -3776,6 +3793,7 @@ function renderModuleResult(result){
   el("topbarModule").textContent=moduleName;
   el("moduleBadge").className="issue-badge "+(result.issueAssessment?.primaryKind||"verification_pending");
   el("moduleBadge").textContent=result.issueAssessment?.counts?.system_defect>0?"Calculation error":"";
+  if(result.key==='challenge-contract'&&result.data?.suppliedBoq?.rows?.length&&renderDeliveryChallenge(result.data,result.reason,result.status))return;
   if(result.status==="blocked"){
     const blockedBody='<div class="view-state-bar">'+issueBadge(result.issueAssessment)+'<strong>'+escapeHtml(moduleName)+'</strong><span>The calculation is unavailable. The classified findings identify the reason and responsible action.</span></div><div class="notice warn">'+escapeHtml(result.reason||"The required calculation is not confirmed.")+'</div><div class="scalar-grid">'+(result.dependencies||[]).map(x=>'<div class="scalar"><b>Calculation dependency</b><span>'+escapeHtml(humanizeKey(x))+'</span></div>').join("")+'</div>';
     el("moduleContent").innerHTML=blockedBody+renderModuleReadiness({issueAssessment:result.issueAssessment},result.reason);
@@ -4535,6 +4553,11 @@ function openModuleReport(){
   reportWindow.document.open();
   reportWindow.document.write(report);
   reportWindow.document.close();
+  const reportBoq=currentModuleResult.data?.suppliedBoq;
+  if(reportBoq)reportWindow.updateSuppliedBoq=(page,query)=>{
+    const target=reportWindow.document.getElementById('suppliedBoqRows');
+    if(target)target.innerHTML=renderSuppliedBoqRows(reportBoq,page,query??reportWindow.document.getElementById('suppliedBoqSearch')?.value??'');
+  };
   // Preserve the selected lens and open disclosures; do not expand every technical payload in reports.
   const printButton=reportWindow.document.getElementById("reportPrint");
   if(printButton)printButton.onclick=()=>reportWindow.print();

@@ -3,6 +3,23 @@ import type {CanonicalQuantityProgressModel} from '../../quantity-progress-core/
 import type {ProjectRuntimeState} from './project-state-types';
 import {documentClassificationForReview} from './document-identification';
 
+/** Display supplied figures independently of schedule links, progress, productivity
+ * or approval. A missing field does not suppress the other fields in its row. */
+export function suppliedBoqFigures(boq:BoqIngestionResult|null,quantities:CanonicalQuantityProgressModel|null) {
+  const rows=boq?boq.canonicalItems.map(item=>({
+    itemId:item.itemId,itemNumber:item.itemNumber,section:item.section,description:item.description,
+    unit:item.unit,quantity:item.quantity,rate:item.rate,amount:item.amount,currency:item.currency,
+    sourceRefs:item.sourceRefs,
+  })):(quantities?.items??[]).map(item=>({
+    itemId:item.quantityItemId,itemNumber:item.itemNumber,section:item.section,description:item.description,
+    unit:item.unit,quantity:item.contractQuantity,rate:null,amount:null,currency:null,
+    sourceRefs:item.sourceRefs.map(ref=>ref.source+':'+ref.locator),
+  }));
+  return {sourceFilename:boq?.sourceFilename??null,revisionId:boq?.evidenceReceipt.revisionId??quantities?.boqRevisionId??null,
+    itemCount:rows.length,readableQuantityCount:rows.filter(row=>row.quantity!==null&&Number.isFinite(row.quantity)).length,
+    basis:'Figures as read from the supplied BOQ. Schedule links and calculation inputs do not block these figures.',rows};
+}
+
 /** Source-family validation is shared by all consumers, including restored
  * projects. A rejected legacy classification cannot hide valid source quantities.
  * A sole usable candidate is visible as a candidate; this does not adopt it. */

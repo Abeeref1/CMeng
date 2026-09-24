@@ -1,4 +1,5 @@
 import {deliveryFeasibilityForState} from './delivery-feasibility';
+import {suppliedBoqFigures} from './boq-source';
 import {registerReadIssuesForModule} from './register-read-issues';
 import {checkPageValues} from './page-value-checks';
 import {sourceQualityPosition,withPositionVerdict} from './position-review';
@@ -6794,6 +6795,14 @@ function resolveProjectModuleCandidate(state: ProjectRuntimeState, key: string):
     data:{...(value.data&&typeof value.data==='object'?value.data:{}),state:'unresolved',recordCount:null,registerReadIssues:readIssues},
   }:value;
   const result = resolveProjectModuleUncertified(state, key);
+  if(key==='challenge-contract'){
+    const suppliedBoq=suppliedBoqFigures(state.boq,state.quantities);
+    result.data={...(result.data&&typeof result.data==='object'?result.data:{}),suppliedBoq};
+    if(suppliedBoq.itemCount&&result.status==='blocked'){
+      result.status='partial';result.engineState='ready';result.evidenceState='partial';result.professionalState='review_required';
+      result.reason='Supplied BOQ figures are available. Manpower and duration calculations need the missing schedule and production inputs.';
+    }
+  }
   const model = projectControlSchedule(state)?.revision.model;
   if (!model) return attachReportingContract(state,discloseReadIssues(result));
   const controlBasis = projectScheduleControlBasis(state);
