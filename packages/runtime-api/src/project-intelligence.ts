@@ -1,3 +1,4 @@
+import {titleForModule} from "./registry";
 import {
   directorForProject,
   moduleForProject,
@@ -162,53 +163,7 @@ function scalarFacts(
 function projectControlName(
   key: string,
 ): string {
-  const names: Record<string, string> = {
-    "pmo-analysis":
-      "Management Position",
-    "schedule-analytics":
-      "Programme Review",
-    "activity-analytics":
-      "Activity Review",
-    "resource-utilization":
-      "Resources",
-    "lookahead-schedule":
-      "Look-Ahead",
-    "progress-report":
-      "Progress Position",
-    "schedule-change-report":
-      "Programme Changes",
-    "revision-trend":
-      "Revision History",
-    "variance-trends":
-      "Variance Trend",
-    "progress-scurve":
-      "Progress S-Curve",
-    "quantity-scurve":
-      "Installed Quantities",
-    "progress-breakdown":
-      "WBS Progress",
-    milestones:
-      "Milestones",
-    "near-critical":
-      "Near-Critical Activities",
-    "manhour-scurve":
-      "Man-Hour S-Curve",
-    "forecast-history":
-      "Completion Forecast History",
-    "independent-forecast":
-      "CMeng Completion Forecast",
-    "delay-claims":
-      "Delay Events & Claims",
-    "notices-claims":
-      "Notices, EOT & Claims",
-    "windows-analysis":
-      "Delay Windows",
-    "eot-assessment":
-      "EOT Position",
-    "challenge-contract":
-      "Challenge the Contract",
-  };
-  return names[key] ?? key;
+  return titleForModule(key);
 }
 
 function factLabel(

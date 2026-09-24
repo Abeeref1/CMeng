@@ -3,8 +3,7 @@ import type {
   ModuleRuntimeResult,
 } from "./project-state-types";
 import {
-  scheduleModules,
-  commercialModules,
+  titleForModule,
 } from "./registry";
 
 type FlatValue =
@@ -16,18 +15,6 @@ type FlatValue =
 interface ArraySection {
   path: string;
   rows: unknown[];
-}
-
-function titleForModule(
-  moduleKey: string,
-): string {
-  return (
-    [...scheduleModules, ...commercialModules].find(
-      (item) =>
-        item.key === moduleKey,
-    )?.title ??
-    moduleKey
-  );
 }
 
 function safeFilenamePart(

@@ -745,7 +745,7 @@ test("CMeng workspace keeps the active module primary and browser script parseab
 
   for (
     const finalCommercialVisual of [
-      "Commercial Claims & Notices Management Position",
+      "Financial claim review",
       "Source claim lifecycle distribution",
       "Notice timeliness position",
       "Notice / correspondence lifecycle",
@@ -827,7 +827,7 @@ test("CMeng workspace keeps the active module primary and browser script parseab
   assert.match(
     html,
     /humanizeIsoText/,
-    "Challenge the Contract must humanize ISO timestamps in user-facing text",
+    "Delivery Challenge must humanize ISO timestamps in user-facing text",
   );
   assert.match(
     html,
@@ -962,7 +962,7 @@ test("CMeng workspace keeps the active module primary and browser script parseab
     );
   const costExecutivePosition =
     html.indexOf(
-      "Cost & Forecast Executive Position",
+      "Cost outlook summary",
     );
   assert.ok(
     costCurvePosition >= 0 &&
@@ -1030,7 +1030,7 @@ test("CMeng workspace keeps the active module primary and browser script parseab
   assert.match(
     html,
     /key==="challenge-contract"&&renderDeliveryChallenge/,
-    "Challenge the Contract keeps its specialist renderer",
+    "Delivery Challenge keeps its specialist renderer",
   );
 
   for (
@@ -1061,14 +1061,14 @@ test("CMeng workspace keeps the active module primary and browser script parseab
       "CMeng Completion Forecast",
     ),
     false,
-    "the navigation must use Independent Forecast rather than ambiguous CMeng Completion Forecast wording",
+    "the navigation must use Completion Forecast rather than ambiguous CMeng Completion Forecast wording",
   );
   assert.equal(
     html.includes(
       "Completion Forecast History",
     ),
     false,
-    "the navigation must use Forecast History rather than ambiguous completion wording",
+    "the navigation must use Completion History rather than ambiguous completion wording",
   );
 
   const script =
