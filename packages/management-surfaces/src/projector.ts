@@ -185,7 +185,7 @@ function buildAlerts(
           ) +
           " claim(s) lack the complete event/activity chain required for defensible time analysis.",
         action:
-          "Reconcile claim, event, notice and activity identities without weakening linkage gates.",
+          "Confirm each claim, event, notice and affected activity against the supporting records.",
         owningModule:
           "delay-claims",
         state: "open",

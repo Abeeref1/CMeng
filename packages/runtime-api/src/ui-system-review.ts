@@ -7,7 +7,9 @@ export const systemReviewStyles=String.raw`
 export const systemReviewScript=String.raw`
 function renderPositionVerdict(data,includeGeneral=false){
   const v=data?.positionVerdict;if(!v)return '';
-  const next='<p><b>Next step:</b> '+escapeHtml(v.nextAction)+' <b>Owner:</b> '+escapeHtml(v.owner)+'</p><p>'+escapeHtml(v.basis)+'</p>';
+  const issue=(data.issueAssessment?.issues||[]).find(i=>i.action===v.nextAction);
+  const request=issue?readerIssue(issue):null;
+  const next='<p><b>Next step:</b> '+escapeHtml(request?.action||v.nextAction)+' <b>Owner:</b> '+escapeHtml(request?.owner||v.owner)+'</p><p>'+escapeHtml(v.basis)+'</p>';
   if(v.specific===false)return includeGeneral?'<details class="page-review-summary"><summary>About this view</summary><p>'+escapeHtml(v.text)+'</p>'+next+'</details>':'';
   return '<section class="position-verdict '+escapeHtml(v.rag)+'" aria-label="Position verdict"><h4>'+escapeHtml(v.label)+'</h4><p>'+escapeHtml(v.text)+'</p><details><summary>Next step and status</summary>'+next+'</details></section>';
 }
@@ -40,16 +42,24 @@ function readerIssue(i){
     CAUSAL_ENTITLEMENT_EVIDENCE_MISSING:['Delay responsibility needs supporting records','Identify the responsible party, affected activities, applicable notice and time impact for each event.'],
     SUBMITTED_NOT_INTERPRETED:['A document has not yet been read','CMeng must check the document and extract the information it contains.'],
     DATED_VARIATION_LEDGER_VS_SOURCE_AGGREGATE_CONFLICT:['Reported variations differ from dated approvals','Compare the amendment and cost report with the dated variation approvals in Variations & Change.'],
+    RISK_RATING_SCORE_CONFLICT:['Risk ratings do not match their scores','Confirm the rating matrix or documented overrides, then check the affected risk ratings and status dates.'],
+    DESIGN_STATUS_DATE_CONFLICT:['Design status and dates disagree','Confirm the approval status and dates for the listed design records.'],
+    MATERIAL_LINK_TIMING_MISMATCH:['Material delivery dates need checking','Check the required delivery dates against the linked activities and correct the dates or activity links.'],
+    CLOSURE_BEFORE_RAISED_DATE:['Closure dates precede raised dates','Confirm when each listed record was raised and closed, then correct the inconsistent dates.'],
+    HSE_TRIR_RECONCILIATION_REQUIRED:['HSE rate and exposure hours need reconciliation','Confirm the incident count, exposure hours and calculation method used for the reported HSE rate.'],
   };
   const words=s=>String(s||'').replace(/([a-z])([A-Z])/g,'$1 $2').replace(/[_]/g,' ').replace(/\bsource\b/gi,'record').replace(/\bgoverned\b/gi,'confirmed').replace(/\bauthority review\b/gi,'approval needed').replace(/\bnot established\b/gi,'not confirmed').replace(/\bdata quality\b/gi,'record needs correction').replace(/\bpopulation\b/gi,'record group');
   const fields={hse:'HSE hours and incident figures',physical:'Measured physical progress',contractorReported:'Contractor-reported progress',certified:'Certified progress',finishMovementAnalysis:'Activity finish dates',mapping:'Programme activity links',manpower:'Staffing plan',productivity:'Productivity assumptions',pendingVariationAmount:'Pending variation amount',interimCertificateCount:'Interim certificates',grossCertifiedAmount:'Gross certified amount',paidAmount:'Paid amount and date',certifiedUnpaidAmount:'Certified amount still unpaid',retentionHeldAmount:'Retention still held',advanceBalance:'Advance payment balance',activeBondAmount:'Active bond amount',claimedAmount:'Claimed amount',assessedClaimAmount:'Assessed claim amount',netCertifiedAmount:'Net certified amount',ldRate:'Delay damages rate',ldCap:'Delay damages cap',retentionPercent:'Contract retention rate',retentionCapPercent:'Contract retention cap',certificationPeriodDays:'Certificate assessment period',paymentPeriodDays:'Contract payment period',performanceBondRequirement:'Performance bond requirement',advancePaymentBondRequirement:'Advance payment bond requirement',cbsBreakdownSummary:'Cost breakdown',cashFlowSummary:'Cash flow',cbsBreakdown:'Cost breakdown',price:'Price variance',quantity:'Quantity variance',claimed:'Claimed cost',assessed:'Assessed cost',agreed:'Agreed cost',scheduleImpactDays:'Time impact of variations',siteInstructions:'Site instructions',pending:'Pending variations',certificationDueDate:'Certificate due date',paymentDueDate:'Payment due date',applicationAmount:'Payment application amount',engineerAssessedAmount:'Engineer-assessed amount',employerCertifiedAmount:'Employer-certified amount',otherDeduction:'Other certificate deductions',taxAmount:'Tax amount',outstandingAmount:'Outstanding amount',calculatedOutstandingAmount:'Outstanding balance calculation',cashFlowRegister:'Cash movement register',certifiedIncome:'Certified income',paidIncome:'Cash received',expenditureBudget:'Expenditure budget',expenditureForecast:'Expenditure forecast',actualExpenditure:'Actual cash expenditure',netCashPosition:'Net cash position',peakFundingNeed:'Peak funding requirement',certifiedUnpaid:'Unpaid certificates',certification:'Certificate amounts and dates',expenditure:'Cash expenditure records',forwardPlan:'Future cash plan',bondsInsurance:'Bonds and insurance',retention:'Retention',noticeRequirements:'Notice requirements',obligations:'Contract obligations'};
   const parts=String(i.summary||'').split(' · '),field=parts.length>1?parts[parts.length-2]:'';
   const clean=s=>String(s).replace(/([a-z])([A-Z])/g,'$1 $2').replace(/[_]/g,' ').replace(/\b(?:focus|data|currencies|amounts|rows|lifecycle|sourceReadiness)\b/g,'').replace(/\s+/g,' ').trim();
-  const subject=fields[field]||clean(field);
+  const fieldKey=Object.keys(fields).find(k=>k.toLowerCase()===field.replace(/\s+/g,'').toLowerCase());
+  const subject=fields[fieldKey]||clean(field);
+  const diagnostic=['SOURCE_CONFLICT','SOURCE_QUALITY','MISSING_SOURCE_VALUE'].includes(i.code)?String(i.detail||'').split(';').map(s=>s.trim().split(':')[0]).find(s=>known[s]):null;
+  const description=known[i.code]||known[diagnostic];
   const suffix={missing_information:'information needed',source_conflict:'records disagree',data_quality:'record needs correction',governance_review:'approval needed',verification_pending:'check pending'}[i.kind]||'review needed';
-  const title=known[i.code]?.[0]||(subject?subject.charAt(0).toUpperCase()+subject.slice(1)+' · '+suffix:words(i.summary));
+  const title=description?.[0]||(subject?subject.charAt(0).toUpperCase()+subject.slice(1)+' · '+suffix:words(i.summary));
   const path=(i.evidencePaths||[]).join(' ').toLowerCase();
-  let action=known[i.code]?.[1];
+  let action=description?.[1];
   if(!action&&i.kind==='missing_information'){
     if(/advance/.test(path))action='Provide the advance payment record, receipt date and recovery deductions.';
     else if(/retention/.test(path))action='Confirm the retention deducted, released and still held, with the release dates or contract conditions.';
@@ -60,6 +70,9 @@ function readerIssue(i){
     else if(/quantity|installed/.test(path))action='Provide dated installed quantities by unit and link each item to its programme activity.';
     else if(/liquidated|ldrate|ldcap/.test(path))action='Provide the contract clause stating the delay damages rate and cap.';
   }
+  if(!action&&i.action==='Reconcile the retained source records; do not replace them with a silent default.')action='Compare the conflicting records, confirm the applicable value and document the reason for the decision.';
+  if(!action&&i.action==='Correct or govern the specific source record, then rerun the same validation.')action='Check the records listed below, correct the inconsistent details and repeat the check.';
+  if(!action&&i.action==='Supply or identify the specific missing input; an existing register does not establish every field or calculation. Do not substitute zero.')action='Provide '+(subject?subject.toLowerCase():'the missing information')+' with the applicable date and supporting record. Leave the value unconfirmed until it is available.';
   action=action||words(i.action);
   return {title,action,owner:i.owner==='Project evidence owner'?'Document owner (assign a person)':i.owner};
 }
