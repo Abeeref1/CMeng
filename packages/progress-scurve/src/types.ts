@@ -31,6 +31,7 @@ export interface ProgressScurveProjection {
   intervalDays: number;
   populationContracts?: Record<string, import("../../schedule-analysis-core/src").ActivityPopulationContract>;
   observationCount?: number;
+  scopeComparison?: ReturnType<typeof import('./projector').compareProgressScopes> | null;
   seriesContract: {
     seriesKey:
       "progress_percent";

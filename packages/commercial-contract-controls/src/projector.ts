@@ -1053,8 +1053,10 @@ function obligations(
           evidenceReference:
             null,
           sourceRefs: [
-            clause.sourceRef,
+            ...(clause.sourceRefs??[clause.sourceRef]),
           ],
+          occurrenceCount:clause.occurrenceCount??1,
+          referencedClauseIdentifiers:clause.referencedClauseIdentifiers??[],
           diagnostics: [
             "CLAUSE_OBLIGATION_IS_CANDIDATE_UNTIL_MAPPED_TO_A_CONTROLLED_OBLIGATION",
           ],
@@ -2409,7 +2411,7 @@ function retentionCalendar(
       rows.length,
     heldCount: rows.every(row=>row.origin==='payment_deduction')?null:rows.filter(row=>row.state==='held').length,
     releasedCount:
-      rows.length ? rows.filter(
+      rows.length && !rows.every(row=>row.origin==='payment_deduction') ? rows.filter(
         (row) =>
           /released/i.test(
             row.state,

@@ -29,6 +29,7 @@ function combineReadiness(a:ReadinessEvidence|undefined,b:ReadinessEvidence):Rea
   if(!a)return b;
   const order={blocked:3,unknown:2,ready:1,not_applicable:0};
   return {state:order[a.state]>=order[b.state]?a.state:b.state,sourceRefs:[...new Set([...a.sourceRefs,...b.sourceRefs])],
+    records:[...(a.records??[]),...(b.records??[])],
     note:[a.note,b.note].filter(Boolean).join('; '),diagnostics:[...new Set([...(a.diagnostics??[]),...(b.diagnostics??[])])]};
 }
 
@@ -521,6 +522,8 @@ export function deriveReadinessFromCsv(
     ] = combineReadiness(result[activityId]![dimension],{
       state,
       diagnostics,
+      records:[{recordId:valueAt(row,recordIdIndex)||null,documentType:input.document.documentType,state,dueIso:dateValue(dueIso),
+        note:scopeNote||'Source status: '+(status||'not stated'),sourceRefs:['evidence-document:'+input.document.documentId+':row:'+(index+1)]}],
       sourceRefs: [
         "evidence-document:" +
           input.document

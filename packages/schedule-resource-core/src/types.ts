@@ -56,6 +56,7 @@ export interface CanonicalResource {
   unitAbbreviation: string | null;
   calendarId: string | null;
   priceTimeUnit: string | null;
+  defaultUnitsPerHour?: number | null;
   rates: CanonicalResourceRate[];
   sourceRefs: ResourceSourceRef[];
 }
@@ -74,6 +75,10 @@ export interface CanonicalResourceAssignment {
   actualOvertimeUnits: number | null;
   remainingUnits: number | null;
   atCompletionUnits: number | null;
+  plannedCost?: number | null;
+  actualRegularCost?: number | null;
+  actualOvertimeCost?: number | null;
+  remainingCost?: number | null;
 
   plannedUnitsPerHour: number | null;
   remainingUnitsPerHour: number | null;

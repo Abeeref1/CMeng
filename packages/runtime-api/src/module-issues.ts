@@ -8,6 +8,9 @@ type Consistency = Pick<CrossModuleCertification,'state'|'failedCheckIds'|'check
  * desired result, record count or traffic-light colour. */
 export function assessModuleIssues(result: ModuleRuntimeResult, consistency: Consistency) {
   const d=result.data as any, issues:ControlIssue[]=[];
+  const variationGroups=d?.position?.variationBasisReview?.groups??[];
+  const variationConflictCode='DATED_VARIATION_LEDGER_VS_SOURCE_AGGREGATE_CONFLICT';
+  const ownsVariationReview=['cost-forecast','commercial-overview','variations-change','contract-particulars-bonds'].includes(result.key);
   const add=(kind:ControlIssueKind,code:string,summary:string,detail:string,action:string,path:string,
     owner:ControlIssue['owner']='Project evidence owner',sourceRefs:string[]=[],checkIds:string[]=[])=>{
     issues.push({kind,code,summary,detail,action,owner,moduleKeys:[result.key],evidencePaths:[path],sourceRefs,checkIds});
@@ -59,7 +62,7 @@ export function assessModuleIssues(result: ModuleRuntimeResult, consistency: Con
     const rawRefs=value.sourceRefs??value.basis?.sourceRefs??value.evidenceRefs;
     const refs=(Array.isArray(rawRefs)?rawRefs:[]).filter((s:unknown)=>typeof s==='string') as string[];
     const field=path.replace(/\[\*\]/g,'').split('.').slice(-2).join(' · ').replace(/([a-z])([A-Z])/g,'$1 $2')+(typeof value.topic==='string'?' · '+value.topic:'');
-    const conflict=diagnostics.filter(s=>/(?:^|_)(CONFLICT|CONFLICTING|CONFLICTED)(?:_|:|$)/.test(s));
+    const conflict=diagnostics.filter(s=>/(?:^|_)(CONFLICT|CONFLICTING|CONFLICTED)(?:_|:|$)/.test(s)&&!(variationGroups.length&&s===variationConflictCode));
     const invalid=diagnostics.filter(s=>/(?:^|_)(INVALID|MALFORMED|DUPLICATE|AMBIGUOUS|BROKEN|MISMATCH)(?:_|:|$)|CLOSURE_BEFORE_RAISED_DATE/.test(s));
     const missingInput=diagnostics.filter(s=>/REQUIRED|NOT_A_RECONCILED|IS_NOT_GROSS|UNKNOWN_PAID_AMOUNT|NOT_DERIVED_FROM|SOURCE_AMOUNT_EVENT_DATE_NOT_ESTABLISHED/.test(s));
     if(value.state==='conflicted'||conflict.length) add('source_conflict','SOURCE_CONFLICT',field+' · source conflict',conflict.join('; ')||'The source resolver found conflicting assertions.',
@@ -90,6 +93,17 @@ export function assessModuleIssues(result: ModuleRuntimeResult, consistency: Con
     }
   };
   walk(d?.focus??d,'data'+(d?.focus?'.focus':''),0);
+  // A source discrepancy propagated into many metrics is one discrepancy.
+  // Build it from its dated money population; keep every affected metric path.
+  if(ownsVariationReview)for(const [i,g] of variationGroups.entries())for(const [j,a] of (g.aggregates??[]).entries()){
+    if(a.difference===null||Math.abs(a.difference)<=.01)continue;
+    add('source_conflict',variationConflictCode,'Reported changes and dated approvals differ',
+      g.currency+' / '+g.taxBasis+' at '+a.asOf+': source aggregate '+a.amount+'; '+a.datedApprovals.count+' dated approvals total '+a.datedApprovals.amount+'; difference '+a.difference+'. '+g.future.count+' future approvals total '+g.future.amount+'.',
+      'Reconcile the amendment and cost total to dated variation IDs, amounts and authority in Variations & Change.',
+      'position.variationBasisReview.groups['+i+'].aggregates['+j+']','Project evidence owner',
+      (a.sourceRefs??[]).map((r:any)=>'evidence-document:'+r.documentId+':'+r.locator));
+    issues.at(-1)!.evidencePaths.push('position.currencies.approvedVariationAmount','position.currencies.currentContractValue','position.performance.costControl','position.performance.evmPerformance','position.performance.costScurve');
+  }
   // Absence of a link is missing information. A broken supplied ID is separately
   // classified by its validation diagnostic; absence alone is not bad data.
   if(typeof d?.activityEvidenceInsufficientEventCount==='number'&&d.activityEvidenceInsufficientEventCount>0)

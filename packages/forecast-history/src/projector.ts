@@ -116,6 +116,7 @@ export function buildForecastHistoryProjection(
 
       return {
         ...snapshot,
+        calendarVersusSubmittedDays:movementDays(snapshot.sourceForecastCompletionIso,snapshot.independentForecastCompletionIso),
         assumptions: [
           ...snapshot.assumptions,
         ],

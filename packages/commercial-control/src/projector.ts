@@ -201,6 +201,7 @@ function commercialClaimsNotices(
       late: 0,
       not_issued: 0,
       requirement_missing: 0,
+      requirement_conflicted: 0,
       event_date_missing: 0,
       notice_date_missing: 0,
     };
@@ -298,6 +299,7 @@ function commercialClaimsNotices(
         []
       ).map(
         (claim) => ({
+          ...(claim.sourceRegister?{sourceRegister:claim.sourceRegister}:{}),
           claimId:
             claim.claimId,
           title:
@@ -713,7 +715,7 @@ export function buildCommercialControlPosition(
 
       return {
         currency,
-        committedContractValue:
+        originalContractValue:
           moneyMetric(
             committedValue,
             committedState,
@@ -1056,7 +1058,7 @@ export function buildCommercialControlPosition(
         const source=applicable[0]!;
         const refs=source.receipts.map(r=>"evidence-document:"+r.documentId+":"+r.locator);
         const metric=(name:string)=>moneyMetric(source.values[name]??null,source.values[name]==null?"submitted_unparsed":source.diagnostics.some(d=>/CONFLICT|UNRESOLVED/.test(d))?"candidate":"established",refs,["EXPLICIT_SOURCE_SNAPSHOT_NOT_RECALCULATED_FROM_VARIATIONS",...source.diagnostics]);
-        if("original contract value" in source.values)position.committedContractValue=metric("original contract value");
+        if("original contract value" in source.values)position.originalContractValue=metric("original contract value");
         if("current contract value" in source.values)position.currentContractValue=metric("current contract value");
         if("approved variations" in source.values)position.approvedVariationAmount=metric("approved variations");
       }else if(applicable.length>1){
@@ -1882,9 +1884,9 @@ export function buildCommercialModuleProjection(
           (row) => ({
             currency:
               row.currency,
-            committedContractValue:
+            originalContractValue:
               row
-                .committedContractValue,
+                .originalContractValue,
             approvedVariationAmount:
               row
                 .approvedVariationAmount,
@@ -2096,9 +2098,9 @@ export function buildCommercialModuleProjection(
           (row) => ({
             currency:
               row.currency,
-            committedContractValue:
+            originalContractValue:
               row
-                .committedContractValue,
+                .originalContractValue,
             currentContractValue:
               row
                 .currentContractValue,

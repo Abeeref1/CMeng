@@ -26,7 +26,7 @@ test('S-Curve headline selects the exact Data Date observation in different brow
       let kpis: any[]=[];
       runInNewContext(script+';renderProgressScurveVisual(data);',{
         data,projectionFor:(value: unknown)=>value,planningKpis:(rows:any[])=>{kpis=rows;return '';},
-        fmt:String,escapeHtml:String,humanizeKey:String,renderLineChart:()=>'',
+        fmt:String,percent2:String,escapeHtml:String,humanizeKey:String,renderLineChart:()=>'',renderProgressScope:()=>'',renderVisualPanel:()=>'',
       });
       assert.equal(kpis[0][1],'57.61%',zone); assert.equal(kpis[1][1],'56.21%',zone); assert.equal(kpis[2][1],'55.03%',zone);
     }
@@ -49,7 +49,7 @@ test('Forecast review suppresses probability dates in every chart, not only the 
  });
  assert.ok(bars[0]!.every(r=>!/P50|P80|P90/.test(r.label)));
  assert.equal(bars[1]!.find(r=>r.label==='P80 vs CMeng CPM').value,null);
- assert.ok(!/2034|2035|2036/.test(html));assert.match(html,/Suppressed/);
+ assert.ok(!/2034|2035|2036/.test(html));assert.match(html,/P50, P80 and P90 are withheld/);
 });
 
 test('Milestone chart retains priority exceptions and represents repeated watch movement once',()=>{

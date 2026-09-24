@@ -51,6 +51,7 @@ export interface NearCriticalRow {
   totalFloatHours: number;
   nearCriticalThresholdHours: number | null;
   baselineFinishIso: string | null;
+  sourceTargetFinishIso?: string | null;
   currentFinishIso: string | null;
   percentComplete: number | null;
 }
@@ -62,6 +63,7 @@ export interface NearCriticalProjection {
   producerVersion: string;
   projectId: string | null;
   sourceRevisionId: string;
+  controlledBaselineRevisionId?: string | null;
   criticalThresholdHours: number;
   nearCriticalThresholdHours: number | null;
   nearCriticalThresholdWorkingDays: number | null;

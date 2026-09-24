@@ -1,3 +1,7 @@
+import {contractValueBasisReview} from '../packages/runtime-api/src/source-basis-review';
+import {contractNoticeRules} from '../packages/runtime-api/src/contract-notice-rules';
+import {claimsReporting} from '../packages/runtime-api/src/reporting-state';
+import {certificateProfile} from '../packages/runtime-api/src/certificate-profile';
 import { canonicalCommercialModule } from "../packages/runtime-api/src/commercial-runtime";
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -20,6 +24,10 @@ import { buildEotAssessmentProjection } from '../packages/eot-assessment/src';
 import type { ProjectRuntimeState, StoredEvidenceDocument } from '../packages/runtime-api/src/project-state-types';
 import { cmengUatHtml } from '../packages/runtime-api/src/ui';
 import { PDFDocument, StandardFonts } from 'pdf-lib';
+
+// These fixtures exercise native PDF/text ingestion. OCR providers have separate tests;
+// do not make native extraction depend on downloading language models.
+process.env.CMENG_OCR_ENABLED='0';
 
 const stamp='2026-09-20T10:00:00.000Z';
 function fixture(t: { after(fn:()=>void): unknown }) {
@@ -794,7 +802,10 @@ test('L01 correspondence is resolved to source rows and determination evidence r
   assert.ok(event.diagnostics.some(d=>d==='LINKED_CORRESPONDENCE_VERIFIED:L1'));
   assert.ok(event.evidenceRefs.some(ref=>ref.sourceType==='correspondence'&&ref.locator==='row:2'));
   assert.ok(event.evidenceRefs.some(ref=>ref.locator==='row:2'&&ref.sourceId!==m.evidenceRevisionId));
-  assert.ok(m.notices.some(n=>n.kind==='determination'&&n.diagnostics.includes('DETERMINATION_CORRESPONDENCE_LINK_VERIFIED')));
+  const determination=m.notices.find(n=>n.kind==='determination')!;
+  assert.ok(determination.evidenceRefs.some(ref=>ref.sourceType==='correspondence'&&ref.locator==='row:3'));
+  assert.ok(determination.diagnostics.includes('DETERMINATION_LETTER_IDENTITY_FOUND_CONTENT_REQUIRES_REVIEW'));
+  assert.ok(!determination.diagnostics.includes('DETERMINATION_CORRESPONDENCE_LINK_VERIFIED'));
 });
 
 test('programme Data Date comes from the active revision, not a future candidate',t=>{
@@ -1080,4 +1091,61 @@ test('HSE text PDF summaries refresh for any project, preserve source hashes, an
  const doc={documentId:'unrelated-hse',documentType:'hse_report',sourceFilename:'unrelated-name.pdf',mediaType:'application/pdf',storedPath:path,sourceHashSha256:hash,basisState:'active'} as StoredEvidenceDocument;state.evidenceDocuments.push(doc);
  const result=await store.refreshHseReports(state.projectId);assert.equal(result.refreshedDocumentCount,1);assert.equal(doc.hseSummary?.metrics.lostTimeInjuries,3);assert.equal(doc.hseSummary?.periodEndIso,'2026-08-31');assert.equal(doc.hseSummary?.sourceHashSha256,hash);
  assert.equal((await store.refreshHseReports(state.projectId)).refreshedDocumentCount,0);
+});
+
+
+test('source claim reporting preserves granted and assessed values separately across all claim consumers',t=>{
+ const {state,csvDoc}=fixture(t);
+ csvDoc('Claim ID,Event,Notice Date,Days Claimed,Source Granted Days,Status\nXX-A,Access,2026-07-02,31,11,Determined','delay_eot_claims_register');
+ csvDoc('Claim ID,Assessed Days,Employer Delay Days,Contractor Delay Days\nXX-A,7,5,2','delay_eot_claims_register','active',':assessment');
+ const source=canonicalTimeClaims(state).delayClaims!;
+ const report=claimsReporting(state)!;
+ assert.equal(source.claims[0]!.sourceRegister!.registerGrantedDays,11);
+ assert.equal(report.reported.claimedDays.value,31);assert.equal(report.reported.assessedDays.value,7);
+ assert.equal(report.reported.employerDelayDays.value,5);assert.equal(report.reported.contractorDelayDays.value,2);
+ assert.equal(report.current.claims[0]!.assessedDays,null);assert.ok(report.reported.conflictingRows[0]!.diagnostics.includes('REGISTER_DETERMINED_STATUS_NOT_IN_DETERMINATION_REGISTER'));
+});
+
+test('certificate source sums retain current and future values without certification or cash authority',t=>{
+ const {state,csvDoc}=fixture(t);amendment(state);
+ csvDoc('Certificate No,Period End,Gross Work,Variations,Retention,Advance Recovery,Net Certified,Currency,VAT Basis,Status\nOTHER-1,2026-08-01,100,20,6,10,104,AED,Exclusive of VAT,Certified\nOTHER-2,2026-09-01,200,10,8,10,192,AED,Exclusive of VAT,Certified','payment_certificate');
+ const p=certificateProfile(commercialCanonical(state));const g=p.groups[0]!;
+ assert.equal(g.as_of.length,1);assert.equal(g.future.length,1);assert.equal(g.totals!.netCertifiedAmount,104);assert.equal(g.futureTotals!.netCertifiedAmount,192);
+ assert.deepEqual(g.certificationUnconfirmedIds,['OTHER-1']);assert.deepEqual(g.futureSourceStatusConflictIds,['OTHER-2']);assert.equal(g.cumulativeBasis,'source_row_sum_only');
+});
+
+test('individual resource overload survives aggregation below total capacity',t=>{
+ const {state,csvDoc}=fixture(t);csvDoc('Resource ID,Resource Name,Class,Unit,Utilization Applicable\nA,Trade A,Labor,labor_hour,Yes\nB,Trade B,Labor,labor_hour,Yes');
+ csvDoc('Resource ID,Week Start,Available Capacity,Planned Demand,Actual Approved Usage,Unit\nA,2026-08-24,100,150,120,labor_hour\nB,2026-08-24,100,10,10,labor_hour','resource_register','active',':capacity');
+ csvDoc('Resource ID,Week Start,Actual Approved Usage,Unit,Source Status\nA,2026-08-24,120,labor_hour,Approved\nB,2026-08-24,10,labor_hour,Approved','resource_register','active',':approved');
+ const p=canonicalResourceModule(state,'resource-utilization')!.data as any;
+ const w=p.basisComparison.capacityExceptionTrend[0];assert.equal(w.plannedExceeded,1);assert.equal(w.actualExceeded,1);assert.equal(w.comparableCount,2);
+});
+
+test('contract amount selection respects version dates without borrowing the budget',t=>{
+ const {state}=fixture(t);
+ function contract(id:string,role:'main'|'amendment',text:string){
+  state.evidenceDocuments.push({documentId:id,basisState:role==='main'?'active':'additive'} as StoredEvidenceDocument);
+  state.contractDocuments.push({documentId:id,role,sourceFilename:id+'.pdf',result:{sections:[{text,startPage:2,sourceMode:'deterministic',sectionKey:'cover'}],pdf:{pages:[]}}} as unknown as ProjectRuntimeState['contractDocuments'][number]);
+ }
+ contract('ORIGINAL','main','Accepted Contract Amount AED 1,000 excluding VAT');
+ contract('AMENDED','amendment','Effective Date 1 July 2026\nrevised contract value aed 1,250 excluding VAT');
+ contract('FUTURE','amendment','Effective Date 1 January 2027\nRevised Contract Value AED 1,800 excluding VAT');
+ contract('UNDATED','amendment','Revised Contract Value AED 9,000 excluding VAT');
+ const r=contractValueBasisReview(state);
+ assert.equal(r.current!.amount,1250);assert.equal(r.current!.currency,'AED');
+ assert.equal(r.rows.find(r=>r.documentId==='FUTURE')!.scope,'future');assert.equal(r.rows.find(r=>r.documentId==='UNDATED')!.scope,'undated');
+ contract('CONFLICT','amendment','Effective Date 1 July 2026\nRevised Contract Value AED 1,260 excluding VAT');
+ assert.equal(contractValueBasisReview(state).current,null);assert.equal(contractValueBasisReview(state).state,'conflicted');
+});
+
+test('notice cover-table period remains a source rule with its unknown trigger visible',t=>{
+ const {state}=fixture(t);
+ for(const [id,role,text] of [['ORIG','main','Initial Claim Notice 40 days'],['AMEND','amendment','Effective Date 1 July 2026\nInitial notice of claim shall be given within 18 days after the Contractor became aware']] as const){
+  state.evidenceDocuments.push({documentId:id,basisState:'active'} as StoredEvidenceDocument);
+  state.contractDocuments.push({documentId:id,role,result:{sections:[{text,startPage:1,sectionKey:'cover',sourceMode:'deterministic'}],pdf:{pages:[]}}} as unknown as ProjectRuntimeState['contractDocuments'][number]);
+ }
+ const rules=contractNoticeRules(state);
+ assert.equal(rules[0]!.noticePeriodDays,40);assert.equal(rules[0]!.triggerBasis,'not_stated');assert.equal(rules[0]!.effectiveToIso,'2026-07-01');
+ assert.equal(rules[1]!.noticePeriodDays,18);assert.equal(rules[1]!.triggerBasis,'awareness');
 });

@@ -37,6 +37,25 @@ const READINESS_KEYS: readonly ReadinessDimensionKey[] = [
   "access",
 ];
 
+/** Preserve the source record type when several registers feed one readiness dimension. */
+export function summarizeReadinessBlockers(rows: readonly LookAheadActivityRow[]) {
+  const groups = new Map<string, { activities: Set<string>; records: Set<string>; recordIds: Set<string> }>();
+  for (const row of rows) for (const dimension of row.readiness.dimensions) {
+    if (dimension.state !== "blocked") continue;
+    const records = (dimension.records ?? []).filter(record => record.state === "blocked");
+    for (const record of records.length ? records : [{ documentType: dimension.key, recordId: null, sourceRefs: dimension.sourceRefs }]) {
+      const group = groups.get(record.documentType) ?? { activities: new Set<string>(), records: new Set<string>(), recordIds: new Set<string>() };
+      group.activities.add(row.activityId);
+      group.records.add(record.recordId ?? (record.sourceRefs.join("|") || row.activityId + ":" + dimension.key));
+      if (record.recordId) group.recordIds.add(record.recordId);
+      groups.set(record.documentType, group);
+    }
+  }
+  return [...groups].map(([documentType, group]) => ({ documentType, activityCount: group.activities.size,
+    recordCount: group.records.size, recordIds: [...group.recordIds].sort() }))
+    .sort((a, b) => b.activityCount - a.activityCount || a.documentType.localeCompare(b.documentType));
+}
+
 export function assessPredecessorRequirement(model: CanonicalScheduleModel, relation: CanonicalScheduleRelationship,
   predecessor: CanonicalScheduleActivity | undefined, successor: CanonicalScheduleActivity) {
   const unknown = (reason: string) => ({ state: "unknown" as const, requiredIso: null, note: relation.relationshipId + ": " + reason });
@@ -97,6 +116,7 @@ function readinessForActivity(
         sourceRefs: [...evidence.sourceRefs],
         note: evidence.note ?? null,
         diagnostics: [...(evidence.diagnostics??[])],
+        records:[...(evidence.records??[])],
       };
     });
 
@@ -341,6 +361,7 @@ export function buildLookAheadProjection(
     evidenceGapActivityCount: rows.filter(row => row.readiness.unknownCount > 0).length,
     blockedWithEvidenceGapCount: rows.filter(row => row.readiness.state === "blocked" && row.readiness.unknownCount > 0).length,
     blockerOccurrenceCount: rows.reduce((sum, row) => sum + row.readiness.blockedCount, 0),
+    blockerTypes: summarizeReadinessBlockers(rows),
     readinessCoverage: READINESS_KEYS.map(key => ({ key, denominator: rows.length,
       linkedActivityCount: rows.filter(row=>(row.readiness.dimensions.find(d=>d.key===key)?.sourceRefs.length??0)>0).length,
       linkedSourceRecordCount: new Set(rows.flatMap(row=>row.readiness.dimensions.find(d=>d.key===key)?.sourceRefs??[])).size,

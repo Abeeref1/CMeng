@@ -322,6 +322,7 @@ export function buildProgressReportProjection(
     dataDateIso:
       schedule.dataDateIso,
     progressBases,
+    scopeComparison:input.progressScurve.scopeComparison??null,
     activityPopulation: {
       ...schedule.population,
       excludedByType: {

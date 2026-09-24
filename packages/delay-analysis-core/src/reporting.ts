@@ -1,5 +1,27 @@
 import { partitionAsOf, reportingScope } from '../../truth-kernel/src';
-import type { DelayClaimsModel } from './types';
+import type { CanonicalClaimRecord, ClaimRegisterSnapshot, DelayClaimsModel } from './types';
+
+export function reportedClaim(claim: CanonicalClaimRecord): ClaimRegisterSnapshot {
+  return claim.sourceRegister ?? {
+    state: claim.state, sourceStatus: claim.state, claimedDays: claim.claimedDays,
+    assessedDays: claim.assessedDays, claimedAmount: claim.claimedAmount, assessedAmount: claim.assessedAmount,
+    employerDelayDays: null, contractorDelayDays: null,
+    evidenceRefs: [...claim.evidenceRefs], diagnostics: [...claim.diagnostics],
+  };
+}
+
+export function reportedClaimSummary(claims: readonly CanonicalClaimRecord[]) {
+  const rows=claims.map(claim=>({claimId:claim.claimId,...reportedClaim(claim)}));
+  const sum=(key:'claimedDays'|'assessedDays'|'employerDelayDays'|'contractorDelayDays')=>{
+    const known=rows.map(r=>r[key]).filter((n):n is number=>n!==null);
+    return {value:known.length?known.reduce((a,b)=>a+b,0):null,knownCount:known.length,recordCount:rows.length};
+  };
+  return {recordCount:rows.length,claimedDays:sum('claimedDays'),assessedDays:sum('assessedDays'),
+    employerDelayDays:sum('employerDelayDays'),contractorDelayDays:sum('contractorDelayDays'),
+    states:[...new Set(rows.map(r=>r.sourceStatus))].map(status=>({status,count:rows.filter(r=>r.sourceStatus===status).length})),
+    conflictingRows:rows.filter(r=>r.diagnostics.some(d=>/CONFLICT|DIFFER|NOT_IN_DETERMINATION_REGISTER/.test(d))),
+    rows,basis:'Source register values for claim identities known by the Data Date. Undated values and statuses are not confirmed historical decisions; claim-day sums are not project delay or EOT.'};
+}
 
 /** Reconstruct only what the dated evidence establishes at the reporting cutoff.
  * Notice dates establish that an item was known, never its event start or causation.
@@ -17,7 +39,7 @@ export function delayClaimsAsOf(source: DelayClaimsModel, dataDateIso: string | 
     date:r=>earliest([r.submittedAt,...source.notices.filter(n=>n.claimId===r.claimId&&n.kind!=='determination').map(n=>n.actualIssuedAt)])});
   const current: DelayClaimsModel = {...source,dataDateIso,
     events:events.asOf.map(r=>({...r,endIso:reportingScope(r.endIso,dataDateIso)==='as_of'?r.endIso:null})),
-    claims:claims.asOf.map(r=>({...r,submittedAt:reportingScope(r.submittedAt,dataDateIso)==='as_of'?r.submittedAt:null,
+    claims:claims.asOf.map(r=>({...r,sourceRegister:reportedClaim(r),submittedAt:reportingScope(r.submittedAt,dataDateIso)==='as_of'?r.submittedAt:null,
       state:reportingScope(r.submittedAt,dataDateIso)==='as_of'?'submitted':'unknown',
       claimedDays:reportingScope(r.submittedAt,dataDateIso)==='as_of'?r.claimedDays:null,
       claimedAmount:reportingScope(r.submittedAt,dataDateIso)==='as_of'?r.claimedAmount:null,
@@ -26,5 +48,5 @@ export function delayClaimsAsOf(source: DelayClaimsModel, dataDateIso: string | 
     notices:notices.asOf,
     diagnostics:[...source.diagnostics,'POST_DATA_DATE_AND_UNDATED_RECORDS_RETAINED_OUTSIDE_CURRENT_POSITION'],
   };
-  return {current,source,events,claims,notices};
+  return {current,source,events,claims,notices,reported:reportedClaimSummary(claims.asOf)};
 }

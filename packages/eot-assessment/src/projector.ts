@@ -116,7 +116,7 @@ function assessWindow(
     return {windowId:window.windowId,positiveIndependentMovementDays:positiveIndependentMovement,
       positiveProgrammeMovementDays:Math.max(0,window.netCompletionMovementDays??0),programmeMovementBasis:window.netCompletionMovementBasis,
       analyticalTimeImpactCandidateDays:null,state:'review',eligibleEventIds:eligible.map(e=>e.eventId),contractorEventIds:contractor.map(e=>e.eventId),
-      reasons:['CALENDAR_LOGIC_RECALCULATION_REQUIRES_RECONCILIATION_NOT_DELAY'],assumptions:[...window.assumptions],includedCandidateDays:0};
+      reasons:['SUBMITTED_DATE_MOVEMENT_RECORDED_NO_CAUSAL_EVENT_ESTABLISHED','SEPARATE_CALENDAR_MODEL_MOVEMENT_REQUIRES_RECONCILIATION'],assumptions:[...window.assumptions],includedCandidateDays:0};
   }
 
   if (positiveProgrammeMovement <= 0) {

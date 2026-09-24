@@ -124,6 +124,8 @@ export interface CanonicalDelayEvent {
   title: string;
   category: DelayEventCategory;
   startIso: string | null;
+  /** An awareness trigger is not inferred from a notice date or event start. */
+  awarenessIso?: string | null;
   endIso: string | null;
   responsibility: DelayResponsibility;
   responsibilityState: GovernanceState;
@@ -163,6 +165,13 @@ export interface CanonicalNoticeRecord {
   clauseIdentifiers: string[];
   evidenceRefs: DelayEvidenceRef[];
   diagnostics: string[];
+  correspondenceEvidence?: {
+    sourceLetter: string;
+    identityFound: boolean;
+    mentionedOnly: boolean;
+    noticeContentLinked: boolean;
+    evidenceRefs: DelayEvidenceRef[];
+  };
 }
 
 export type ClaimState =
@@ -189,6 +198,22 @@ export interface CanonicalClaimRecord {
   clauseIdentifiers: string[];
   evidenceRefs: DelayEvidenceRef[];
   diagnostics: string[];
+  /** What the register reports; distinct from a dated, authorised decision. */
+  sourceRegister?: ClaimRegisterSnapshot;
+}
+
+export interface ClaimRegisterSnapshot {
+  registerGrantedDays?: number | null;
+  state: ClaimState;
+  sourceStatus: string;
+  claimedDays: number | null;
+  assessedDays: number | null;
+  claimedAmount: number | null;
+  assessedAmount: number | null;
+  employerDelayDays: number | null;
+  contractorDelayDays: number | null;
+  evidenceRefs: DelayEvidenceRef[];
+  diagnostics: string[];
 }
 
 export interface NoticeRequirement {
@@ -196,6 +221,10 @@ export interface NoticeRequirement {
   noticeKind: NoticeKind;
   eventCategories: DelayEventCategory[];
   noticePeriodDays: number;
+  effectiveFromIso?: string | null;
+  effectiveToIso?: string | null;
+  triggerBasis?: "event_start" | "awareness" | "not_stated";
+  applicabilityNote?: string;
   state: GovernanceState;
   clauseIdentifiers: string[];
   evidenceRefs: DelayEvidenceRef[];
@@ -217,6 +246,7 @@ export type NoticeTimeliness =
   | "late"
   | "not_issued"
   | "requirement_missing"
+  | "requirement_conflicted"
   | "event_date_missing"
   | "notice_date_missing";
 
@@ -230,4 +260,5 @@ export interface EventNoticeAssessment {
   elapsedDays: number | null;
   timeliness: NoticeTimeliness;
   requirementState: GovernanceState | null;
+  applicabilityNote?: string;
 }

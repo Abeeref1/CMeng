@@ -6,7 +6,7 @@ export function reconcilePaymentEvidence(
   row: SourceRow,
   amounts: PaymentStageRecord['amounts'],
   dataDateIso: string | null,
-): Pick<PaymentStageRecord, 'reconciliation' | 'diagnostics' | 'calculatedOutstandingAmount' | 'paymentDate' | 'paymentReference'> {
+): Pick<PaymentStageRecord, 'reconciliation' | 'componentArithmetic' | 'diagnostics' | 'calculatedOutstandingAmount' | 'paymentDate' | 'paymentReference'> {
   const diagnostics: string[] = [];
   const parseTax = (s: string): CommercialMoney['taxBasis'] =>
     /excl/i.test(s) ? 'exclusive' : /incl/i.test(s) ? 'inclusive' : 'unknown';
@@ -38,6 +38,26 @@ export function reconcilePaymentEvidence(
     Math.abs(calculatedNet - net.value!) > 0.01 ? 'conflicted' as const : 'matched' as const;
   if (reconciliation === 'conflicted') diagnostics.push('CERTIFICATE_NET_COMPONENTS_CONFLICT');
 
+  // Check the stated equation even when optional columns are absent. This is
+  // not evidence that an omitted deduction is zero, or that cash was received.
+  const stated = components.slice(0, 4);
+  const statedComparable = net.currency !== null && net.taxBasis !== 'unknown' &&
+    stated.every(a => a.value !== null && a.currency === net.currency && a.taxBasis === net.taxBasis);
+  const optionalKnown = amounts.otherDeduction.value !== null;
+  const optionalComparable = !optionalKnown ||
+    (amounts.otherDeduction.currency === net.currency && amounts.otherDeduction.taxBasis === net.taxBasis);
+  const statedNet = statedComparable && optionalComparable && net.value !== null
+    ? amounts.grossWork.value! + amounts.variations.value! - amounts.retentionDeduction.value! -
+      amounts.advanceRecovery.value! - (amounts.otherDeduction.value ?? 0) : calculatedNet;
+  const componentArithmetic = {
+    state: statedNet === null ? 'unresolved' as const : Math.abs(statedNet - net.value!) <= 0.01 ? 'matched' as const : 'conflicted' as const,
+    calculatedNet: statedNet,
+    difference: statedNet !== null && net.value !== null ? round(statedNet - net.value, 6) : null,
+    omittedComponents: optionalKnown ? [] : ['other deductions'],
+    basis: optionalKnown ? 'Stated gross work + variations − retention − advance recovery − other deductions.' :
+      'Stated gross work + variations − retention − advance recovery. Other deductions are not supplied; equality checks this equation only.',
+  };
+
   const paymentDate = dateValue(cell(row, 'payment as of', 'paid date', 'payment date'));
   const paymentReference = cell(row, 'payment reference', 'receipt reference') || null;
   const allocatedBasis = /^(cumulative|certificate total|cumulative allocated to certificate)$/i.test(
@@ -63,5 +83,5 @@ export function reconcilePaymentEvidence(
     calculatedOutstandingAmount.state = 'conflicted';
     diagnostics.push('REPORTED_OUTSTANDING_DIFFERS_FROM_RECONCILIATION');
   }
-  return {reconciliation, diagnostics, calculatedOutstandingAmount, paymentDate, paymentReference};
+  return {reconciliation, componentArithmetic, diagnostics, calculatedOutstandingAmount, paymentDate, paymentReference};
 }

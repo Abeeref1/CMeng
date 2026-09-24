@@ -81,6 +81,10 @@ export interface HseIncidentRecord {
 }
 
 export interface NcrRecord {
+  owner?: string | null;
+  dueIso?: string | null;
+  linkedActivityId?: string | null;
+  subject?: string | null;
   ncrId: string;
   severity: "critical" | "major" | "minor" | "unknown";
   status: "open" | "closed" | "unknown";
@@ -91,6 +95,9 @@ export interface NcrRecord {
 }
 
 export interface RfiRecord {
+  owner?: string | null;
+  linkedActivityId?: string | null;
+  subject?: string | null;
   rfiId: string;
   status: "open" | "answered" | "closed" | "unknown";
   raisedIso?: string | null;

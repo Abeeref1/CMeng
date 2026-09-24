@@ -1,4 +1,6 @@
 import {certificateProfile} from "./certificate-profile";
+import {amendmentAmounts,variationBasisReview,costBasisReview} from "./commercial-basis-review";
+import {contractNoticeRules} from "./contract-notice-rules";
 import { reportingScope } from "../../truth-kernel/src";
 import { reportingState,claimsReporting } from "./reporting-state";
 import { extractContractValue } from "../../contract-commercial/src";
@@ -166,6 +168,10 @@ export function commercialPositionForState(
     });
 
   position.certificateProfile=certificateProfile(ledger);
+  position.variationBasisReview=variationBasisReview(ledger,amendmentAmounts(state));
+  position.costBasisReview=costBasisReview(ledger,position.certificateProfile);
+  position.contractNoticeRules=[...contractNoticeRules(state),...contractNoticeRules(state,'detailed_claim')];
+  position.foundation.commercialTerms.noticeVersions=position.contractNoticeRules;
   cache.set(
     state,
     {

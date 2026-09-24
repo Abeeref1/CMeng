@@ -1,3 +1,5 @@
+import {scheduleBasisReview,durationEditReview} from './schedule-basis-review';
+import {quantityBasisReview,contractValueBasisReview} from './source-basis-review';
 import {sourceInterpretation} from "./source-interpretation";
 import {contractChallengeForState} from './contract-challenge-runtime';
 import { enforceModuleReadiness } from "./module-readiness";
@@ -1070,6 +1072,7 @@ function buildBundle(
         producerVersion:
           versions.nearCritical,
         config: scheduleAnalysisConfig,
+        controlledBaseline: controlledBaseline ? { revisionId: controlledBaseline.revision.revisionId, finishByActivity: new Map([...baselineByActivity].map(([id,a]) => [id,controlledBaselineFinish(a)])) } : null,
       },
     );
   const nearCriticalBase = {
@@ -1113,33 +1116,7 @@ function buildBundle(
           : "governed critical threshold < TF <= N activity-calendar working days",
     },
   };
-  const nearCritical =
-    controlledBaseline
-      ? {
-          ...nearCriticalBase,
-          controlledBaselineRevisionId:
-            controlledBaseline
-              .revision.revisionId,
-          rows:
-            nearCriticalBase.rows.map(
-              (row) => {
-                const baseline =
-                  baselineByActivity.get(
-                    row.activityId,
-                  );
-                return {
-                  ...row,
-                  baselineFinishIso:
-                    baseline
-                      ? controlledBaselineFinish(
-                          baseline,
-                        )
-                      : null,
-                };
-              },
-            ),
-        }
-      : nearCriticalBase;
+  const nearCritical = nearCriticalBase;
   modules.set(
     "near-critical",
     available(
@@ -2122,6 +2099,7 @@ function buildBundle(
 
   deliveryChallenge =
     buildDeliveryChallengeProjection({
+      sourceProductivityForecast:sourceProductivityForecastEvidence(state),
       generatedAt,
       producerVersion:
         "uat-delivery-challenge-v1",
@@ -3258,7 +3236,7 @@ function buildBundle(
         },
       });
 
-    director.sourceInterpretation=sourceInterpretation(state,director.schedule.progressBases,director.schedule.independentForecastCompletionIso);
+    director.sourceInterpretation=sourceInterpretation(state,director.schedule.progressBases,director.schedule.independentForecastCompletionIso,progressReport.scopeComparison);
 
     if (
       state.controls
@@ -3726,6 +3704,7 @@ function buildPlanningModuleFast(
 
   const minimalDeliveryChallenge =
     buildDeliveryChallengeProjection({
+      sourceProductivityForecast:sourceProductivityForecastEvidence(state),
       generatedAt,
       producerVersion:
         "planning-fast:delivery-v1",
@@ -3970,6 +3949,7 @@ function buildPlanningModuleFast(
           producerVersion:
             "planning-fast:near-critical-v1",
           config: scheduleAnalysisConfig,
+          controlledBaseline: controlledBaseline ? { revisionId: controlledBaseline.revision.revisionId, finishByActivity: new Map([...baselineByActivity].map(([id,a]) => [id,baselineFinish(a)])) } : null,
         },
       );
     const nearCriticalBase = {
@@ -4013,34 +3993,7 @@ function buildPlanningModuleFast(
             : "governed critical threshold < TF <= N activity-calendar working days",
       },
     };
-    const nearCritical =
-      controlledBaseline
-        ? {
-            ...nearCriticalBase,
-            controlledBaselineRevisionId:
-              controlledBaseline
-                .revision
-                .revisionId,
-            rows:
-              raw.rows.map(
-                (row) => {
-                  const baseline =
-                    baselineByActivity.get(
-                      row.activityId,
-                    );
-                  return {
-                    ...row,
-                    baselineFinishIso:
-                      baseline
-                        ? baselineFinish(
-                            baseline,
-                          )
-                        : null,
-                  };
-                },
-              ),
-          }
-        : nearCriticalBase;
+    const nearCritical = nearCriticalBase;
     modules.set(
       key,
       available(
@@ -4546,6 +4499,7 @@ function specialistChallengeContext(
     null;
   const delivery =
     buildDeliveryChallengeProjection({
+      sourceProductivityForecast:sourceProductivityForecastEvidence(state),
       generatedAt,
       producerVersion:
         "specialist-challenge-fast-v1",
@@ -6202,6 +6156,7 @@ function buildSpecialistModuleFast(
       null;
     const delivery =
       buildDeliveryChallengeProjection({
+      sourceProductivityForecast:sourceProductivityForecastEvidence(state),
         generatedAt,
         producerVersion:
           "delivery-challenge-fast-v2",
@@ -6854,11 +6809,17 @@ function resolveProjectModuleCandidate(state: ProjectRuntimeState, key: string):
   if (result.data && typeof result.data === "object") {
     const data = result.data as Record<string, any>;
     const time = canonicalTimeClaims(state);
-    const forecast = ["milestones", "independent-forecast"].includes(key) ? cachedIndependentForecast(model, new Date().toISOString()) : null;
+    const forecast = ["milestones", "independent-forecast", "near-critical", "schedule-analytics"].includes(key) ? cachedIndependentForecast(model, new Date().toISOString()) : null;
     const forecastReview = forecast ? independentForecastReviewReason(forecast) : null;
-    const laborEvidence=key==='challenge-contract'?canonicalResourceModule(state,'manhour-scurve')?.data as any:null;
+    const laborEvidence=['challenge-contract','cost-forecast','progress-report'].includes(key)?canonicalResourceModule(state,'manhour-scurve')?.data as any:null;
+    const contractReview = ['challenge-contract','cost-forecast','commercial-overview','contract-particulars-bonds'].includes(key) ? contractValueBasisReview(state) : null;
     result.data = { ...data, controlBasis,
-      ...(['pmo-analysis','schedule-analytics','independent-forecast'].includes(key)?{
+      ...(forecast?{scheduleBasisReview:scheduleBasisReview(model,forecast,time.contractTimeBasis?.contractualCompletionIso??null)}:{}),
+      ...(['variance-trends','schedule-change-report'].includes(key)?{durationEditReview:(()=>{const first=analyticalHistory(state)[0]?.revision.model;return first&&first!==model?durationEditReview(first,model):null;})()}:{}),
+      ...(['quantity-scurve','independent-forecast','challenge-contract'].includes(key)?{quantityBasisReview:quantityBasisReview(state)}:{}),
+      ...(contractReview ? { contractValueBasisReview: contractReview, ...(data.contractValueEvidence ? {contractValueEvidence: { ...data.contractValueEvidence, extractionScope: 'original_contract_only', currentSource: contractReview.current, currentSourceState: contractReview.state, note: 'The original-contract extraction is historical. Read currentSource for the explicit value from the contract version effective at the data date; formal approval remains separate.' }} : {}) } : {}),
+      ...(laborEvidence?{basisComparison:laborEvidence.basisComparison}:{}),
+      ...(['pmo-analysis','schedule-analytics','independent-forecast','challenge-contract'].includes(key)?{
         calendarBasisReview:(()=>{const review=reviewScheduleCalendarBasis(model);return {...review,rows:key==='independent-forecast'?review.rows:undefined};})(),
         sourceProductivityForecast:(()=>{const p=sourceProductivityForecastEvidence(state);return {completionIso:p.completionIso,state:p.state,method:p.method,workPackageCount:p.workPackageCount,coveragePercent:p.calculationCoveragePercent,driverWorkPackageIds:p.driverWorkPackageIds,concentration:p.concentration,sourceRefs:p.sourceRefs};})(),
       }:{}),
@@ -6869,7 +6830,12 @@ function resolveProjectModuleCandidate(state: ProjectRuntimeState, key: string):
         basis:'Weekly labor demand and approved usage; source hours do not by themselves establish a submitted headcount plan or measured productivity.'
       }:null,boqSource:boqSourceReporting(state)}:{}),
       ...(["pmo-analysis","delay-claims","notices-claims","eot-assessment","windows-analysis","commercial-claims-notices"].includes(key) ? { claimsReporting: claimsReporting(state) } : {}),
-      ...(key==='eot-assessment'?{sourceForecastCompletionIso:sourceOnlyForecast(model,new Date().toISOString()).sourceForecastCompletionIso}:{}),
+      ...(key==='eot-assessment'?{sourceForecastCompletionIso:sourceOnlyForecast(model,new Date().toISOString()).sourceForecastCompletionIso,
+        determinationOverlapScenario:(()=>{const finish=sourceOnlyForecast(model,new Date().toISOString()).sourceForecastCompletionIso,contract=time.contractTimeBasis?.contractualCompletionIso;
+          if(!finish||!contract||time.effectiveDeterminationDays===null||data.timeBasisReconciliation?.overlapResolution!=='unresolved')return null;
+          const late=(Date.parse(finish.slice(0,10))-Date.parse(contract.slice(0,10)))/86400000;
+          return {allIncludedLatenessDays:late,noneIncludedLatenessDays:late-time.effectiveDeterminationDays,determinedDays:time.effectiveDeterminationDays,
+            basis:'Conditional arithmetic only: if all effective register determinations are already inside the amendment, no further days apply; if none are incorporated and all can be applied on a calendar-day basis, the alternative subtracts those days. Award-letter evidence, overlap and entitlement still require confirmation.'};})()}:{}),
       ...(key==='notices-claims'?{contractNoticePeriod:commercialFoundationForState(state).commercialTerms.noticePeriodDays}:{}),
       ...(["milestones", "independent-forecast", "notices-claims"].includes(key) ? {
         contractualCompletionIso: time.contractTimeBasis?.contractualCompletionIso ?? null,
@@ -6912,8 +6878,11 @@ function resolveProjectModuleCandidate(state: ProjectRuntimeState, key: string):
     result.evidenceState='partial';
     result.reason='Milestones use submitted float and a '+controlBasis.nearCriticalThresholdMethod.replaceAll('_',' ')+' threshold. Contractual threshold authority and independent driving-path validation remain separate.';
   }
-  if(result.data&&typeof result.data==='object'&&['pmo-analysis','schedule-analytics','independent-forecast','progress-report','cash-flow'].includes(key)) {
-    (result.data as any).sourceInterpretation=buildBundle(state).director?.sourceInterpretation??sourceInterpretation(state);
+  if(result.data&&typeof result.data==='object'&&['pmo-analysis','schedule-analytics','independent-forecast','progress-report','cash-flow','cost-forecast','commercial-overview'].includes(key)) {
+    const interpretation=buildBundle(state).director?.sourceInterpretation??sourceInterpretation(state);
+    const fields=key==='pmo-analysis'?Object.keys(interpretation):['progress-report','cost-forecast','commercial-overview'].includes(key)?['progressMeasures']:
+      ['schedule-analytics','independent-forecast'].includes(key)?['calendarRecalculatedFinishIso','calendarReview','productivityForecast']:[];
+    if(fields.length)(result.data as any).sourceInterpretation=Object.fromEntries(fields.map(field=>[field,(interpretation as any)[field]]));
   }
   return attachReportingContract(state,checkProjectionIntegrity(result, model, controlBasis.analysisConfig));
 }
@@ -6998,7 +6967,7 @@ function managementModuleGroup(
     category === "claims" ||
     category === "contract"
   ) {
-    return "Claims & Commercial";
+    return "Delay & Time Entitlement";
   }
   return "Programme & Planning";
 }
@@ -7553,7 +7522,7 @@ export function managementSurfacesForProject(
           const partitions = (commercial.sourceLedger?.temporalPosition?.money ?? []).filter(item => item.kind === row.kind && item.currency === row.currency);
           const aggregate = partitions.length === 1 ? source?.value ?? null : null;
           return { currency: row.currency, taxBasis: row.taxBasis, sourceAggregate: aggregate,
-            sourceState: source?.state ?? "not_established", datedApprovedAmount: row.asOfValue,
+            sourceState: source?.value!==null&&source?.value!==undefined?"reported_source_value":source?.state ?? "not_established", datedApprovedAmount: row.asOfValue,
             datedApprovedCount: row.asOfCount, futureCount: row.futureCount, undatedCount: row.undatedCount,
             state: aggregate === null || row.asOfValue === null ? "not_established" as const :
               Math.abs(aggregate - row.asOfValue) > 0.01 ? "conflicted" as const : "consistent" as const };

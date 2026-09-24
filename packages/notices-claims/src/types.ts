@@ -2,6 +2,7 @@ import type {
   ClaimState,
   GovernanceState,
   NoticeTimeliness,
+  ClaimRegisterSnapshot,
 } from "../../delay-analysis-core/src";
 
 export interface NoticeClaimEventRow {
@@ -34,6 +35,7 @@ export interface NoticeClaimRecordRow {
   assessedAmount: number | null;
   assessedAmountState: GovernanceState;
   noticeIds: string[];
+  sourceRegister?: ClaimRegisterSnapshot;
 }
 
 export interface NoticesClaimsProjection {
@@ -52,6 +54,8 @@ export interface NoticesClaimsProjection {
   lateNoticeCount: number;
   missingNoticeCount: number;
   noticeRequirementMissingCount: number;
+  noticeEventDateMissingCount: number;
+  noticeRequirementConflictCount: number;
 
   officialAssessedDaysTotal: number | null;
   provisionalOrCandidateAssessedDaysTotal: number | null;

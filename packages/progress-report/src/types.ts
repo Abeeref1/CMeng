@@ -78,6 +78,7 @@ export interface ProgressReportProjection {
     contractorReported: ProgressBasisValue;
     certified: ProgressBasisValue;
   };
+  scopeComparison?: import('../../progress-scurve/src').ProgressScurveProjection['scopeComparison'];
 
   progress: {
     completedCount: number;

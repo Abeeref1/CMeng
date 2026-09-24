@@ -3,6 +3,7 @@ import { parseScheduleTime, activityPopulation, isProgressActivity, scheduleProg
 } from "../../schedule-analysis-core/src";
 import { resolveWorkingCalendar, workingHoursBetween } from "../../schedule-cpm/src/calendar";
 import type { ActualProgressSnapshot, ProgressScurvePoint, ProgressScurveProjection } from "./types";
+import {resolveRevisionActivityCorrespondence} from '../../schedule-revision-core/src';
 
 const DAY = 86_400_000;
 const ms = (value: string | null): number | null => {
@@ -113,7 +114,61 @@ export function buildProgressScurveProjection(model: CanonicalScheduleModel, inp
     actualSnapshotCoveragePercent: snapshot.coveragePercent,
     actualHistoryMode: snapshots.length > 1 ? "snapshot_history" : snapshots.length === 1 ? "current_snapshot_only" : "missing",
     points, actualSnapshots: snapshots, diagnostics,
+    scopeComparison:input.baselineModel?compareProgressScopes(model,input.baselineModel):null,
   };
+}
+
+const scopeCache=new WeakMap<CanonicalScheduleModel,WeakMap<CanonicalScheduleModel,ReturnType<typeof calculateProgressScope>>>();
+export function compareProgressScopes(model:CanonicalScheduleModel,baseline:CanonicalScheduleModel){
+  let cache=scopeCache.get(model);if(!cache){cache=new WeakMap();scopeCache.set(model,cache);}
+  const existing=cache.get(baseline);if(existing)return existing;
+  const result=calculateProgressScope(model,baseline);cache.set(baseline,result);return result;
+}
+function calculateProgressScope(model:CanonicalScheduleModel,baseline:CanonicalScheduleModel){
+  const before=baseline.activities.filter(isProgressActivity),after=model.activities.filter(isProgressActivity);
+  const identity=resolveRevisionActivityCorrespondence(before,after);
+  const beforeById=new Map(before.map(a=>[a.activityId,a])),afterById=new Map(after.map(a=>[a.activityId,a]));
+  const positions=schedulePlanPositions(model,baseline);
+  const matched=identity.matches.map(m=>({before:beforeById.get(m.fromActivityId)!,after:afterById.get(m.toActivityId)!,
+    baselinePlan:positions.baseline.get(m.fromActivityId),currentPlan:positions.current.get(m.toActivityId)}));
+  const comparable=matched.filter(r=>r.baselinePlan?.value!=null&&r.currentPlan?.value!=null&&
+    r.after.originalDurationHours!==null&&r.after.originalDurationHours>0&&
+    r.after.percentComplete!==null&&Number.isFinite(r.after.percentComplete)&&r.after.percentComplete>=0&&r.after.percentComplete<=100);
+  const weighted=(value:(r:typeof comparable[number])=>number,weight:(r:typeof comparable[number])=>number)=>{
+    const denominator=comparable.reduce((n,r)=>n+weight(r),0);
+    return denominator?comparable.reduce((n,r)=>n+value(r)*weight(r),0)/denominator:null;
+  };
+  const baselineWeight=(r:typeof comparable[number])=>r.baselinePlan!.weight;
+  const currentWeight=(r:typeof comparable[number])=>r.after.originalDurationHours!;
+  const baselinePlan=weighted(r=>r.baselinePlan!.value!,baselineWeight);
+  const snapshot=weighted(r=>r.after.percentComplete!,baselineWeight);
+  const currentPlan=weighted(r=>r.currentPlan!.value!,baselineWeight);
+  const snapshotCurrentWeights=weighted(r=>r.after.percentComplete!,currentWeight);
+  const currentPlanCurrentWeights=weighted(r=>r.currentPlan!.value!,currentWeight);
+  const matchedIds=new Set(identity.matches.map(m=>m.toActivityId));
+  const added=after.filter(a=>!matchedIds.has(a.activityId)&&!identity.ambiguousTo.has(a.activityId));
+  const matchedBeforeIds=new Set(identity.matches.map(m=>m.fromActivityId));
+  const removed=before.filter(a=>!matchedBeforeIds.has(a.activityId)&&!identity.ambiguousFrom.has(a.activityId));
+  const positiveWeight=(rows:typeof after)=>rows.reduce((n,a)=>n+(a.originalDurationHours!==null&&a.originalDurationHours>0?a.originalDurationHours:0),0);
+  const full=scheduleProgress(after),weight=positiveWeight(after);
+  const delta=(a:number|null,b:number|null)=>a!==null&&b!==null?a-b:null;
+  const addedStarts=added.map(a=>a.forecastStartIso??a.currentStartIso).filter((v):v is string=>Boolean(v)).sort();
+  return {state:comparable.length===matched.length&&comparable.length>0?'complete':'partial',
+    baselineRevisionId:baseline.sourceRevisionId,currentRevisionId:model.sourceRevisionId,dataDateIso:model.dataDateIso,
+    baselineActivityCount:before.length,currentActivityCount:after.length,matchedActivityCount:matched.length,comparableActivityCount:comparable.length,
+    addedActivityCount:added.length,removedActivityCount:removed.length,ambiguousIdentityCount:identity.ambiguousFrom.size+identity.ambiguousTo.size,
+    baselinePlannedPercent:baselinePlan,snapshotPercent:snapshot,currentPlanPercent:currentPlan,
+    snapshotCurrentWeightsPercent:snapshotCurrentWeights,currentPlanCurrentWeightsPercent:currentPlanCurrentWeights,
+    gapPercentagePoints:delta(snapshot,baselinePlan),ratio:baselinePlan!==null&&baselinePlan>0&&snapshot!==null?snapshot/baselinePlan:null,
+    currentWeightGapPercentagePoints:delta(snapshotCurrentWeights,baselinePlan),
+    currentWeightRatio:baselinePlan!==null&&baselinePlan>0&&snapshotCurrentWeights!==null?snapshotCurrentWeights/baselinePlan:null,
+    durationWeightEffectPercentagePoints:delta(snapshotCurrentWeights,snapshot),
+    scopeDilutionPercentagePoints:comparable.length===matched.length?delta(full.value,snapshotCurrentWeights):null,
+    addedDurationWeightPercent:weight?positiveWeight(added)/weight*100:null,
+    addedNotStartedCount:added.filter(a=>a.status==='not_started').length,addedEarliestStartIso:addedStarts[0]??null,
+    addedStartDateCoverage:addedStarts.length,fullScopeSnapshotPercent:full.value,
+    sourceRefs:['schedule:'+baseline.sourceRevisionId,'schedule:'+model.sourceRevisionId],
+    interpretation:'The headline compares the same activities with fixed baseline duration weights. The current-weight comparison separates changed duration weights from added scope. Current programme dates can include actuals, so agreement with the current plan is not independent evidence of performance. Schedule percentages do not reconcile earned value without a shared work/cost basis.'};
 }
 
 /** Shared per-activity working-calendar positions for WBS aggregation at the same Data Date. */
