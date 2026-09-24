@@ -3,9 +3,9 @@ import type {ProjectRuntimeState} from './project-state-types';
 export type ContractTermKey='ldRate'|'ldCap'|'retentionPercent'|'retentionCapPercent'|'paymentPeriodDays'|'noticePeriodDays'|'performanceSecurity'|'advanceSecurity';
 export interface ContractTermVersion {term:ContractTermKey;value:number;unit:string;effectiveFromIso:string|null;effectiveToIso:string|null;documentId:string;role:string;sourceRefs:string[];clauseIdentifier:string|null;applicability:'prospective'|'unresolved';}
 const labels:Array<[ContractTermKey,RegExp]>=[
- ['ldCap',/(?:delay damages|liquidated damages|LD)\s*(?:maximum|cap|limit)/i],['ldRate',/(?:delay damages|liquidated damages|LD)\s*(?:rate)?/i],
- ['retentionCapPercent',/retention\s*(?:cap|maximum|limit)/i],['retentionPercent',/retention\s*(?:percent(?:age)?|rate)/i],
- ['paymentPeriodDays',/payment\s*(?:period|time|deadline)/i],['noticePeriodDays',/(?:initial\s+(?:claim\s+)?notice|notice\s*(?:period|of claim)|claim notice)/i],
+ ['ldCap',/(?:(?:maximum|cap on|limit of)\s+(?:delay damages|liquidated damages|LD)|(?:delay damages|liquidated damages|LD)\s*(?:maximum|cap|limit))/i],['ldRate',/(?:delay damages|liquidated damages|LD)\s*(?:rate)?/i],
+ ['retentionCapPercent',/(?:limit of retention(?: money)?|retention\s*(?:cap|maximum|limit))/i],['retentionPercent',/retention\s*(?:percent(?:age)?|rate)?/i],
+ ['paymentPeriodDays',/payment\s*(?:period|time|deadline)/i],['noticePeriodDays',/(?:initial\s+notice\s+of\s+claim(?:\s*\/\s*compensation\s+event)?\s*(?:notification\s*)?period|notice\s+of\s+delay\s+event\s+period(?:\s*\(Article\s+[\d.]+\))?|initial\s+(?:claim\s+)?notice|notice\s*(?:period|of claim)|claim notice)/i],
  ['performanceSecurity',/performance\s*(?:security|bond|guarantee)(?:\s*amount)?/i],['advanceSecurity',/advance[- ]payment\s*(?:security|bond|guarantee)(?:\s*amount)?/i],
 ];
 /** Only labelled contract values become terms. Document dates and clause numbers
@@ -14,15 +14,29 @@ export function contractTermVersions(state:ProjectRuntimeState):ContractTermVers
  const versions:ContractTermVersion[]=[];
  for(const doc of state.contractDocuments){
   if(!['main','replacement','amendment'].includes(doc.role)||!state.evidenceDocuments.some(d=>d.documentId===doc.documentId&&['active','additive'].includes(d.basisState)))continue;
-  const fragments=[...(doc.result.pdf?.pages??[]).filter(p=>p.method==='native').map(p=>({text:p.text,page:p.pageNumber})),...(doc.result.sections??[]).filter(s=>s.sourceMode==='deterministic').map(s=>({text:[s.heading??'',s.text].join('\n'),page:s.startPage}))];
+  const nativePages=(doc.result.pdf?.pages??[]).filter(p=>p.method==='native');
+  const fragments=nativePages.length?nativePages.map(p=>({text:p.text,page:p.pageNumber})):(doc.result.sections??[]).filter(s=>s.sourceMode==='deterministic').map(s=>({text:[s.heading??'',s.text].join('\n'),page:s.startPage}));
   const whole=fragments.map(f=>f.text).join('\n');
   const from=registerDate(/(?:effective\s+date|effective\s+from)\s*[:|]?\s*(\d{4}-\d{2}-\d{2}|\d{1,2}[/.\-]\d{1,2}[/.\-]\d{4}|\d{1,2}\s+[A-Za-z]+\s+\d{4})/i.exec(whole)?.[1]??'');
   const applicability=doc.role==='amendment'&&(!from||/retrospective|retroactive/i.test(whole))?'unresolved':'prospective';
-  for(const f of fragments)for(const line of f.text.split(/[\r\n]+/)){
+  for(const f of fragments){
+  const lines=f.text.split(/[\r\n]+/).map(s=>s.trim()).filter(Boolean);
+  const oldNewTable=doc.role==='amendment'&&/\bOriginal\s+(?:As\s+amended|Amended|Revised)\b/i.test(f.text);
+  for(let index=0;index<lines.length;index++){
+   // PDF table cells are often separate lines. Join a wrapped label and its
+   // immediately adjacent numeric value, never unrelated prose further away.
+   let line=lines[index]!;
+   if(/(?:claim\s*\/\s*compensation event|\(Article)$/i.test(line))line+=' '+(lines[++index]??'');
    const entry=labels.find(([,label])=>label.test(line));if(!entry)continue;
    const [term,label]=entry,match=label.exec(line)!;
-   const suffix=line.slice(match.index+match[0].length).replace(/^\s*(?:is|shall be)?\s*[:|=]?\s*/i,'');
-   const amount=/^(?:([A-Z]{3})\s*)?([\d,]+(?:\.\d+)?)\s*(%|percent|(?:calendar\s+|working\s+)?days|[A-Z]{3}\b)?(?:\s*(?:per|\/)\s*(?:calendar\s+)?(day|week))?/.exec(suffix);
+   let suffix=line.slice(match.index+match[0].length).replace(/^\s*(?:is|shall be)?\s*[:|=]?\s*/i,'');
+   if(!suffix&&/^(?:[A-Z]{3}\s*)?[\d,]+(?:\.\d+)?\s*(?:%|percent|(?:calendar\s+|working\s+)?days|\b)/.test(lines[index+1]??'')){
+    suffix=lines[index+1]!;
+    if(oldNewTable&&/^(?:[A-Z]{3}\s*)?[\d,]+(?:\.\d+)?\s*(?:%|percent|(?:calendar\s+|working\s+)?days|\b)/.test(lines[index+2]??''))suffix=lines[index+2]!;
+   }
+   const amountPattern=/^(?:([A-Z]{3})\s*)?([\d,]+(?:\.\d+)?)\s*(%|percent|(?:calendar\s+|working\s+)?days|[A-Z]{3}\b)?(?:\s*(?:per|\/)\s*(?:calendar\s+)?(day|week))?/;
+   let amount=amountPattern.exec(suffix);
+   if(oldNewTable&&amount){const amended=amountPattern.exec(suffix.slice(amount[0].length).trim());if(amended)amount=amended;}
    if(!amount)continue;const value=numberValue(amount[2]!);if(value===null)continue;
    let unit=amount[1]?.toUpperCase()??amount[3]?.toLowerCase()??'';
    if(unit==='percent')unit='%';if(/^[a-z]{3}$/.test(unit)&&unit!=='day')unit=unit.toUpperCase();
@@ -34,6 +48,7 @@ export function contractTermVersions(state:ProjectRuntimeState):ContractTermVers
    const prior=versions.find(v=>v.documentId===doc.documentId&&v.term===term&&v.value===value&&v.unit===unit&&v.effectiveFromIso===from);
    if(prior){if(!prior.sourceRefs.includes(sourceRef))prior.sourceRefs.push(sourceRef);continue;}
    versions.push({term,value,unit,effectiveFromIso:from,effectiveToIso:null,documentId:doc.documentId,role:doc.role,sourceRefs:[sourceRef],clauseIdentifier:clause,applicability});
+  }
   }
  }
  for(const v of versions)v.effectiveToIso=versions.filter(x=>x.term===v.term&&x.applicability==='prospective'&&x.effectiveFromIso&&(!v.effectiveFromIso||x.effectiveFromIso>v.effectiveFromIso)).map(x=>x.effectiveFromIso!).sort()[0]??null;

@@ -19,6 +19,7 @@ import {moduleForProject,directorForProject,boardReportForProject} from '../pack
 import {buildIndependentForecastProjection} from '../packages/independent-forecast/src';
 import {buildNearCriticalProjection} from '../packages/near-critical-analysis/src';
 import {DEFAULT_SCHEDULE_ANALYSIS_CONFIG} from '../packages/schedule-analysis-core/src';
+import {identifyEvidenceDocument} from '../packages/runtime-api/src/document-identification';
 process.env.CMENG_OCR_ENABLED='0';
 const stamp='2031-07-01T12:00:00Z';
 let fixtureSequence=0;
@@ -28,6 +29,44 @@ const cal='(0||CalendarData()((0||DaysOfWeek()('+Array.from({length:7},(_,i)=>'(
 function xer(date:string,finish='2031-07-02 16:00',bad=false){return ['ERMHDR\t23.12','%T\tPROJECT','%F\tproj_id\tproj_short_name\tlast_recalc_date','%R\t1\tGENERIC\t'+date,'%T\tCALENDAR','%F\tclndr_id\tclndr_name\tclndr_data','%R\t1\tEight hours\t'+(bad?'(BROKEN':cal),'%T\tTASK','%F\ttask_id\tproj_id\tclndr_id\ttask_code\ttask_name\tstatus_code\tearly_start_date\tearly_end_date\ttarget_drtn_hr_cnt\tremain_drtn_hr_cnt\ttotal_float_hr_cnt','%R\t1\t1\t1\tA1\tActivity one\tTK_NotStart\t2031-07-01 08:00\t'+finish+'\t9\t9\t5','%E'].join('\n');}
 async function schedule(store:any,date:string,name:string,finish?:string,bad=false){return store.ingestEvidenceFile({projectId:store.listProjectIds()[0]!,bytes:Buffer.from(xer(date,finish,bad)),mediaType:'text/plain',sourceFilename:name,uploadedAt:stamp});}
 async function register(store:any,text:string,type:string,name='register.csv'){return store.ingestEvidenceFile({projectId:store.listProjectIds()[0]!,bytes:Buffer.from(text),mediaType:'text/csv',sourceFilename:name,category:/payment|variation|bond/.test(type)?'boq_cost':'risk_claims_procurement',documentType:type,uploadedAt:stamp});}
+
+test('mixed claim lifecycle registers retain their claim identity and payment components',async t=>{
+ const {store,state}=fixture(t);await schedule(store,'2031-07-01','programme.xer');
+ const text='Claim Ref,Event Description,Notice Date,Event Date,Days Claimed,Determination Ref,Determination Date,Awarded Days,Status\nC1,Access restriction,03/06/2031,01/06/2031,7,D1,20/06/2031,3,Determined\nC2,Late drawing,04/06/2031,02/06/2031,4,,,,Submitted';
+ const identification=await identifyEvidenceDocument({bytes:Buffer.from(text),sourceFilename:'records.csv',sourceRelativePath:null});
+ assert.equal(identification.identification.detectedDocumentType,'delay_eot_claims_register');
+ await store.ingestEvidenceFile({projectId:state.projectId,bytes:Buffer.from(text),mediaType:'text/csv',sourceFilename:'claims.csv',uploadedAt:stamp});
+ const claims=canonicalTimeClaims(state).delayClaims;assert.equal(claims?.claims.length,2);assert.equal(claims?.events[0]?.title,'Access restriction');
+ await register(store,'Certificate No,Type,Period End,Gross Work Done (period),Variations,Retention Deducted,Advance Recovery,Net Certified,Currency,VAT Basis\nIPC1,Interim,30/06/2031,1000,0,50,0,950,USD,Exclusive','payment_certificates','payments.csv');
+ const profile=certificateProfile(commercialCanonical(state));assert.equal(profile.groups[0]?.totals?.grossWork,1000);assert.equal(profile.groups[0]?.totals?.retentionDeduction,50);
+});
+test('completion amendment tables select As amended and retain genuine conflicts',t=>{
+ const {state}=fixture(t);contract(state,'Original Completion Date\n07 September 2031');
+ contract(state,'Effective date: 01 February 2031\nAMENDMENT PARTICULARS\nItem\nOriginal\nAs amended\nOriginal Completion Date\n07 September 2031\n27 September 2031\nRevised Completion Date is 27 September 2031','amendment','AMD');
+ assert.equal(contractCompletionPosition(state,'2031-01-31').value,'2031-09-07');
+ assert.equal(contractCompletionPosition(state,'2031-07-01').value,'2031-09-27');
+ contract(state,'Effective date: 01 February 2031\nRevised Completion Date: 28 September 2031','amendment','CONFLICT');
+ assert.equal(contractCompletionPosition(state,'2031-07-01').state,'conflicted');
+});
+test('vertical contract data cells produce dated terms with page references',t=>{
+ const {state}=fixture(t);contract(state,'CONTRACT DATA\nItem\nParticulars\nDelay Damages\nAED 500 per day\nMaximum Delay Damages\n10% of accepted amount\nRetention\n5% of each certificate\nLimit of Retention Money\n3% of accepted amount\nPayment period\n30 days after certification\nInitial notice of claim / compensation event\nnotification period\n56 days\nPerformance Security\nAED 100000');
+ contract(state,'Effective date: 01 June 2031\nItem Original As amended\nNotice of delay event period (Article\n23.1)\n56 days 21 days','amendment','AMD');
+ const versions=contractTermVersions(state);
+ for(const [term,value] of [['ldRate',500],['ldCap',10],['retentionPercent',5],['retentionCapPercent',3],['paymentPeriodDays',30],['performanceSecurity',100000]] as const){assert.equal(termAtEvent(versions,term,'2031-05-01').value,value,term);}
+ assert.equal(termAtEvent(versions,'noticePeriodDays','2031-05-31').value,56);
+ assert.equal(termAtEvent(versions,'noticePeriodDays','2031-06-01').value,21);
+ assert.ok(versions.every(v=>v.sourceRefs.some(r=>r.endsWith('page:4'))));
+});
+test('a mixed currency label preserves source amounts without creating a summable currency',async t=>{
+ const {store,state}=fixture(t);await schedule(store,'2031-07-01','programme.xer');
+ await register(store,'Certificate No,Period End,Net Certified,Currency,VAT Basis\nIPC1,30/06/2031,950,SAR / USD,Exclusive','payment_certificates');
+ const ledger=commercialCanonical(state);assert.equal(ledger.payments[0]?.amounts.netCertifiedAmount.value,950);assert.equal(ledger.payments[0]?.amounts.netCertifiedAmount.currency,null);
+ assert.equal(certificateProfile(ledger).groups[0]?.totals,null);
+});
+test('bilingual approval headers retain the explicit variation lifecycle date',t=>{
+ const read=prepareRegisterRows([['Variation No / رقم أمر التغيير','Approval Date / تاريخ الاعتماد','Approved Amount USD','Status'],['V1','09/03/2031','50000','Approved']],'variation_register');
+ assert.equal(read.headers[1],'approval date');assert.equal(read.rows[0]?.[1],'2031-03-09');
+});
 
 test('1 completion labels exclude signing/commencement/effective dates and conflicts stay unresolved',t=>{const {state}=fixture(t);contract(state,'Signing date: 2030-01-01\nCommencement date: 2030-02-01\nContract completion date | 31 July 2031');let p=contractCompletionPosition(state,'2031-07-01');assert.equal(p.value,'2031-07-31');assert.equal(p.state,'official');assert.match(p.sourceRefs[0]!,/page:4/);contract(state,'Completion date: 2031-08-31','main','SECOND');p=contractCompletionPosition(state,'2031-07-01');assert.equal(p.value,null);assert.equal(p.state,'conflicted');assert.match(p.reason!,/Conflicting/);});
 test('1 prospective completion amendment switches on effective date, never to that date',t=>{const {state}=fixture(t);contract(state,'Completion date: 2031-07-31');contract(state,'Effective Date: 2031-06-01\nRevised contractual completion: 30 September 2031','amendment','AMD');assert.equal(contractCompletionPosition(state,'2031-05-31').value,'2031-07-31');assert.equal(contractCompletionPosition(state,'2031-06-01').value,'2031-09-30');});

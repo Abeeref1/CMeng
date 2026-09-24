@@ -303,7 +303,7 @@ function parseHumanReadableCalendar(
 ): P6CalendarDataResult | null {
   const trimmed = source.trim();
 
-  if (/^All\s+days\s+24h$/i.test(trimmed)) {
+  if (/^(?:All\s+days\s+24h|24\s*\/\s*7)$/i.test(trimmed)) {
     const interval: P6CalendarInterval = {
       start: "00:00",
       finish: "24:00",
@@ -324,7 +324,7 @@ function parseHumanReadableCalendar(
   }
 
   const allDays = trimmed.match(
-    /^All\s+days\s+(\d{1,2}:\d{2})-(\d{1,2}:\d{2})$/i,
+    /^(?:All|7)\s+days\s+(\d{1,2}:\d{2})-(\d{1,2}:\d{2})$/i,
   );
   if (allDays) {
     const interval = humanInterval(allDays[1]!, allDays[2]!);

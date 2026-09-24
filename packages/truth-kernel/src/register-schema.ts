@@ -2,6 +2,7 @@
 export const normalizeHeader=(v:string)=>v.normalize('NFKC').replace(/^\uFEFF/,'').toLowerCase().replace(/[^\p{L}\p{N}]+/gu,' ').trim();
 const groups:Record<string,string[]>={
   'claim id':['claim ref','claim reference','claim no','claim number','رقم المطالبة','مرجع المطالبة'],
+  'event':['event description','delay event','delay description','وصف الحدث'],
   'notice date':['date of notice','notice issued date','تاريخ الإشعار','تاريخ الاشعار'],
   'event start':['event date','event start date','date of event','تاريخ الحدث'],
   'variation id':['variation no','variation number','variation ref','vo no','vo id','change order no','رقم التغيير'],
@@ -14,9 +15,9 @@ const groups:Record<string,string[]>={
   'determination id':['determination no','determination ref','decision no','award no','رقم القرار'],
   'reference':['ref','reference no','reference number','المرجع'],
   'status':['state','الحالة'], 'description':['details','الوصف'], 'currency':['العملة'],
-  'gross work':['gross certified','gross amount','gross certified amount','قيمة الأعمال','اجمالي الاعمال'],
+  'gross work':['gross certified','gross amount','gross certified amount','gross work done','gross work done (period)','gross work (period)','قيمة الأعمال','اجمالي الاعمال'],
   'net certified':['net certified amount','net amount','net certificate value','صافي المستخلص'],
-  'retention':['retention amount','retention deduction','مبلغ الاستقطاع'],
+  'retention':['retention amount','retention deduction','retention deducted','مبلغ الاستقطاع'],
   'advance recovery':['advance payment recovery','advance deduction','استرداد الدفعة المقدمة'],
   'period end':['period ending','period end date','نهاية الفترة'],
   'certificate date':['date of certification','certification date','تاريخ الاعتماد'],
@@ -40,7 +41,11 @@ const aliases=new Map(Object.entries(groups).flatMap(([key,values])=>[key,...val
 export function canonicalHeader(value:string,documentType=''):string {
   const normalized=normalizeHeader(value);
   let key=aliases.get(normalized);
-  if(!key){const parts=value.split(/[|/\n]+/).map(normalizeHeader).filter(Boolean);const matches=[...new Set(parts.map(p=>aliases.get(p)).filter(Boolean))];if(matches.length===1)key=matches[0];}
+  if(!key){const parts=value.split(/[|/\n]+/).map(normalizeHeader).filter(Boolean);const matches=[...new Set(parts.map(p=>aliases.get(p)).filter(Boolean))];if(matches.length===1)key=matches[0];
+    // A bilingual translation can use a broader Arabic word (for example
+    // approval/certification). Retain the single explicit English field name.
+    if(!key&&parts.some(p=>/[\u0600-\u06ff]/.test(p))){const english=parts.filter(p=>/^[a-z0-9 ]+$/.test(p)).map(p=>aliases.get(p)).filter(Boolean);if(english.length===1)key=english[0];}
+  }
   if(!key){const currency=/\b([A-Z]{3})\b/.exec(value)?.[1];if(currency){const base=aliases.get(normalizeHeader(value.replace(currency,'')));if(base)return base+' '+currency.toLowerCase();}}
   key=key??normalized;
   if(key==='reference'){

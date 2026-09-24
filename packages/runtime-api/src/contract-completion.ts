@@ -14,7 +14,8 @@ export function contractCompletionPosition(state:ProjectRuntimeState,asOf:string
   const candidates:CompletionCandidate[]=[];
   const documents=state.contractDocuments.filter(c=>['main','amendment','replacement'].includes(c.role)&&state.evidenceDocuments.some(d=>d.documentId===c.documentId&&['active','additive'].includes(d.basisState)));
   for(const doc of documents){
-    const sections=[...(doc.result.sections??[]),...(doc.result.pdf?.pages??[]).filter(p=>p.method==='native').map(p=>({text:p.text,heading:null,startPage:p.pageNumber,sectionKey:'page:'+p.pageNumber,sourceSpans:[]}))];
+    const nativePages=(doc.result.pdf?.pages??[]).filter(p=>p.method==='native');
+    const sections=[...(doc.result.sections??[]),...nativePages.map(p=>({text:p.text,heading:null,startPage:p.pageNumber,sectionKey:'page:'+p.pageNumber,sourceSpans:[]}))];
     const whole=sections.map(s=>s.text).join('\n');
     const effective=new RegExp('(?:effective\\s+date|effective\\s+from)\\s*[:|\\t]?\\s*('+dateToken+')','i').exec(whole);
     const effectiveFrom=effective?explicitDate(effective[1]!):null;
@@ -23,9 +24,16 @@ export function contractCompletionPosition(state:ProjectRuntimeState,asOf:string
     for(const section of sections){
       const text=[section.heading??'',section.text].join('\n');
       for(const match of text.matchAll(pattern)){
-        const date=explicitDate(match[1]!);if(!date)continue;
-        const span=section.sourceSpans?.find(s=>s.text.includes(match[1]!));
-        const page=span?.page??section.startPage;
+        // In an explicitly labelled Original / As amended table the second
+        // adjacent date replaces the first. Do not treat the historical cell
+        // as a competing current assertion or use an amendment's effective date.
+        const oldNewTable=doc.role==='amendment'&&/\bOriginal\s+(?:As\s+amended|Amended|Revised)\b/i.test(text);
+        const following=oldNewTable?new RegExp('^\\s*[|\\t]?\\s*('+dateToken+')').exec(text.slice((match.index??0)+match[0].length)):null;
+        const dateText=following?.[1]??match[1]!;
+        const date=explicitDate(dateText);if(!date)continue;
+        const span=section.sourceSpans?.find(s=>s.text.includes(dateText));
+        const nativePage=nativePages.find(p=>p.text.includes(dateText));
+        const page=span?.page??nativePage?.pageNumber??section.startPage;
         candidates.push({date,documentId:doc.documentId,role:doc.role,effectiveFrom,sourceRef:'evidence-document:'+doc.documentId+':contract-completion:'+(page?'page:'+page:section.sectionKey)});
       }
     }

@@ -179,3 +179,11 @@ test("human-readable 24-hour calendar is parsed exactly", () => {
     168 * 60,
   );
 });
+
+test('explicit 24/7 and seven-day shift labels retain their actual hours',()=>{
+ const continuous=parseP6CalendarData('24/7');
+ assert.equal(continuous.status,'valid');assert.deepEqual(continuous.days.map(d=>d.workMinutes),Array(7).fill(1440));
+ const shift=parseP6CalendarData('7 days 07:00-17:00');
+ assert.equal(shift.status,'valid');assert.deepEqual(shift.days.map(d=>d.workMinutes),Array(7).fill(600));
+ assert.notEqual(parseP6CalendarData('Night').status,'valid');
+});
