@@ -212,7 +212,7 @@ function experiencePreview(primaryView,limit=2){
 function experienceRoleContent(key,data,primaryView,challengeHtml='',includeTechnical=false){
   const role=selectedRoleView,brief=experienceBrief(key,data),leadership=['project-director','program-director','executive'].includes(role);
   const facts=brief.facts.slice(0,4);
-  const factHtml=facts.length?'<div class="experience-facts">'+facts.map(f=>'<div class="experience-fact"><span>'+escapeHtml(f.label)+'</span><strong'+(f.display==='Unresolved'?' class="unavailable"':'')+' title="'+escapeHtml(f.value?.value??f.value??'Not available')+'">'+escapeHtml(f.display)+'</strong><small>'+escapeHtml(f.basis)+'</small></div>').join('')+'</div>':'';
+  const factHtml=facts.length?'<div class="experience-facts">'+facts.map(f=>'<div class="experience-fact"><span>'+escapeHtml(f.label)+'</span><strong'+(f.display==='Unresolved'?' class="unavailable"':'')+' title="'+escapeHtml(f.value?.value??f.value??'Unresolved')+'">'+escapeHtml(f.display)+'</strong><small>'+escapeHtml(f.basis)+'</small></div>').join('')+'</div>':'';
   const briefHtml=role==='overall'?'':'<section class="experience-brief"><div class="experience-brief-heading"><h4>'+escapeHtml(leadership?'Position at a glance':'Review focus')+'</h4><span>'+escapeHtml(roleViews[role].label)+'</span></div>'+(leadership?factHtml:'')+(brief.note?'<p>'+escapeHtml(brief.note)+'</p>':'')+experienceRoleReview(role,brief,key,data)+'</section>';
   // Leadership gets a short overview, with every chart and record reachable in one disclosure.
   const analysis='<div class="role-primary-analysis">'+primaryView+'</div>';
@@ -237,7 +237,7 @@ function experienceCertificateGroups(position){
   return [...groups.values()];
 }
 function certificateMoney(value,currency){
-  if(value===null||value===undefined||!Number.isFinite(value))return 'Not available';
+  if(value===null||value===undefined||!Number.isFinite(value))return 'Unresolved';
   const millions=value/1000000,absolute=Math.abs(millions);
   const rounded=Math.sign(millions)*Math.round((absolute+Number.EPSILON*Math.max(1,absolute))*100)/100;
   return rounded.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})+'M'+(currency?' '+currency:'');
