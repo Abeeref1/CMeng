@@ -156,11 +156,13 @@ function experienceBrief(key,data){
     }
     note='Schedule movement, event attribution, notice compliance and awarded EOT are separate conclusions.';
   }else if(key==='challenge-contract'){
-    const q=d.deliveryChallenge?.scheduleChallenge||{};
-    add('Contract completion',q.contractualCompletionIso,'Contract authority','date');add('Submitted completion',q.contractorSubmittedCompletionIso,'Source programme','date');
-    add('Calendar recalculation',q.independentCompletionIso,'Source-calendar scenario; not a delivery forecast','date');add('Calendar vs submitted difference',q.contractorVsIndependentDays,'Different calculation bases; not delay','d');
-    note='Delivery review tests schedule and resource evidence. It does not determine EOT or entitlement.';
-    review=d.independentForecastReviewReason||'';
+    const f=d.boqFeasibility,checks=f?.activityChecks||[];
+    add('Independent labor requirement',f?.requiredLaborHours,'BOQ quantities and supported productivity; labor hours');
+    add('Programme PC movement',f?.programmePc?.movementDays,'Same explicit baseline and current milestone','d');
+    add('Activities exceeding planned duration',checks.length?checks.filter(r=>r.scheduleState==='exceeds').length:null,'Quantity-driven checks with supplied resource capacity');
+    add('BOQ items requiring information',f?.rows?.length?f.unresolvedCount:null,'Mapping, progress, productivity or calendar evidence');
+    note=(f?.overallStatus||'Unable to assess')+'. Tests required manpower and achievable duration against the submitted programme. It does not determine causation or EOT.';
+    review=f?.reason||'Current BOQ, productivity and resource assessment is unresolved.';
   }else if(key==='cash-flow'){
     const rows=p.performance?.cashFlow?.currencies||[];
     if(rows.length===1){const r=rows[0];add('Cash received',r.paidIncome,'Actual dated receipts',r.currency);add('Cash spent',r.actualExpenditure,'Actual dated expenditure',r.currency);add('Net cash movement',r.netCashPosition,'Receipts less expenditure; opening cash excluded',r.currency);}
