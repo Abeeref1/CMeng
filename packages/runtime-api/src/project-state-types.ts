@@ -410,6 +410,7 @@ export interface ProjectControlState {
 
 export interface ProjectRuntimeState {
   auditHistory?: import('./audit-context').AuditEvent[];
+  auditSourceActors?: Record<string,import('./audit-context').AuditActor>;
   sourceIntegrationVersion?: string;
   projectId: string;
   version: number;

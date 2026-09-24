@@ -7304,7 +7304,7 @@ export function managementSurfacesForProject(
             document.sourceFilename,
           action:
             "Project evidence added or updated",
-          actor: "Actor not recorded (legacy)",
+          actor: state.auditSourceActors?.['evidence:'+document.documentId]?.label??"Actor not recorded (legacy)",
           state:
             document.basisState,
           sourceRef:
@@ -7325,7 +7325,7 @@ export function managementSurfacesForProject(
             publication.stale
               ? "Board publication became stale"
               : "Board publication finalized",
-          actor: "Actor not recorded (legacy)",
+          actor: state.auditSourceActors?.['publication:'+publication.publicationId]?.label??"Actor not recorded (legacy)",
           state:
             publication.stale
               ? "stale"
@@ -7350,7 +7350,7 @@ export function managementSurfacesForProject(
                 "Project control position",
               action:
                 "Project position recalculated and cross-module certification executed",
-              actor: "Actor not recorded (legacy)",
+              actor: state.auditSourceActors?.['rerun:'+state.lastRerunReceipt.receiptId]?.label??"Actor not recorded (legacy)",
               state:
                 state.lastRerunReceipt
                   .certification
@@ -7918,7 +7918,7 @@ export function rerunProject(
   const certification =
     certifyCrossModuleConsistency({
       generatedAt,
-      state,
+      state: reportingState(state),
       modules:
         resolvedModules,
       director:
