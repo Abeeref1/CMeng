@@ -34,9 +34,12 @@ export interface CommercialMetric<T> {
   state: CommercialEvidenceState;
   sourceRefs: string[];
   diagnostics: string[];
+  consequence?: string;
+  action?: string;
 }
 
 export interface CommercialMoneyPosition {
+  sourceCertificatePeriodCount?: CommercialMetric<number>;
   currency: string;
   netCertifiedAmount?: CommercialMetric<number>;
   originalContractValue:
@@ -131,6 +134,9 @@ export interface CommercialClaimsNoticesPosition {
 }
 
 export interface CommercialControlInput {
+  /** Read status before currency, date and value filtering. An empty eligible
+   * subset does not mean the supplied document was never read. */
+  sourceRead?: Partial<Record<"commercial" | "payments" | "variations" | "bonds" | "claims", boolean>>;
   sourceLedger?: CanonicalCommercialModel;
   foundation?: CommercialFoundationProjection;
   performance?: CommercialPerformanceProjection;

@@ -1,5 +1,6 @@
 import { activityPopulation, scheduleProgress, sourceFloatCriticality, type CanonicalScheduleModel, type ScheduleAnalysisConfig } from '../../schedule-analysis-core/src';
 import type { ModuleRuntimeResult } from './project-state-types';
+import {commercialIntegrityChecks} from './commercial-integrity';
 
 /** Certifies only the metrics actually checked, never the completeness of project evidence. */
 export function checkProjectionIntegrity(result: ModuleRuntimeResult, model: CanonicalScheduleModel, config: ScheduleAnalysisConfig): ModuleRuntimeResult {
@@ -53,11 +54,12 @@ export function checkProjectionIntegrity(result: ModuleRuntimeResult, model: Can
   for (const item of data.challenge?.items ?? []) {
     if (item.independent?.value === null) compare('missing_independent_never_reconciled:' + item.metric, item.reconciliationState !== 'within_tolerance', true);
   }
+  if(data.position?.projectionKey==='commercial_control_position')checks.push(...commercialIntegrityChecks(result.key,data.position));
   const failures = checks.filter(check => !check.passed);
   const contract = { schemaVersion: '1.0', state: failures.length ? 'failed' : checks.length ? 'verified_for_checked_metrics' : 'not_checked',
     sourceRevisionId: model.sourceRevisionId, dataDateIso: model.dataDateIso,
     population: execution.contract, checks, failureCount: failures.length,
-    scope: 'Population, threshold, coverage and time-boundary checks listed here. Evidence completeness and causal or contractual conclusions are not certified.' };
+    scope: 'Only the listed population, arithmetic, coverage and time-boundary checks are certified. Source truth, evidence completeness and causal or contractual conclusions are not certified.' };
   return { ...result, data: { ...data, systemEvidenceContract: contract },
     ...(failures.length ? { status: 'partial' as const, professionalState: 'review_required' as const,
       reason: 'Shared calculation consistency failed: ' + failures.map(x => x.metric).join(', ') } : {}) };

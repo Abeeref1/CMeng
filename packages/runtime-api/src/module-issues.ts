@@ -69,14 +69,14 @@ export function assessModuleIssues(result: ModuleRuntimeResult, consistency: Con
       'Reconcile the retained source records; do not replace them with a silent default.',path,'Project evidence owner',refs);
     else if(['invalid','stale'].includes(value.state)||invalid.length) add('data_quality','SOURCE_QUALITY',field+' · data quality',invalid.join('; ')||'The supplied record is invalid or stale for this position.',
       'Correct or govern the specific source record, then rerun the same validation.',path,'Project evidence owner',refs);
-    else if(['missing','not_submitted','missing_evidence','missing_information'].includes(value.state)||missingInput.length) add('missing_information','MISSING_SOURCE_VALUE',field+' · information missing',
-      missingInput.join('; ')||value.consequence||'The required source value is not established.',value.action||'Supply or identify the specific missing input; an existing register does not establish every field or calculation. Do not substitute zero.',path,'Project evidence owner',refs);
+    else if(value.state!=='submitted_unparsed'&&(['missing','not_submitted','missing_evidence','missing_information'].includes(value.state)||missingInput.length)) add('missing_information','MISSING_SOURCE_VALUE',field+' · information missing',
+      value.consequence||missingInput.join('; ')||'The required source value is not established.',value.action||'Supply or identify the specific missing input; an existing register does not establish every field or calculation. Do not substitute zero.',path,'Project evidence owner',refs);
     else if(value.state==='submitted_unparsed') add('verification_pending','SUBMITTED_NOT_INTERPRETED',field+' · submitted evidence not interpreted',
       'A source exists, but CMeng has not established its structured meaning. Its presence is not proof of absence or bad data.',
       'CMeng must inspect the supported source format and parsing result; identify a concrete source error only if validation proves one.',path,'CMeng',refs);
-    else if(['candidate','provisional','pending_review'].includes(value.state)) add('governance_review','AUTHORITY_REVIEW',field+' · authority review',
+    else if(['candidate','provisional','pending_review'].includes(value.state)&&!diagnostics.includes('EXPLICIT_SOURCE_SNAPSHOT_NOT_RECALCULATED_FROM_VARIATIONS')) add('governance_review','AUTHORITY_REVIEW',field+' · authority review',
       value.consequence??'The value is provisional or awaiting governance; it is not an official approval.',
-      'Review the source and approve or reject the proposed authority through the governed workflow.',path,'Project controls reviewer',refs);
+      value.action||'Review the source and approve or reject the proposed authority through the governed workflow.',path,'Project controls reviewer',refs);
     if(value.population?.exclusions) {
       const missing=value.population.exclusions.filter((e:any)=>/date_missing/.test(e.reason));
       const invalidDates=value.population.exclusions.filter((e:any)=>/^(record_)?date_invalid$|^invalid_date$/.test(e.reason));

@@ -760,7 +760,7 @@ test("C1 Commercial claims and notices reuse governed lifecycle, notice timeline
   );
   assert.equal(
     aed.claimedAmount.state,
-    "submitted_unparsed",
+    "missing_information",
     "known claim money may remain visible but partial amount coverage must not be promoted as established total exposure",
   );
   assert.ok(
@@ -777,6 +777,6 @@ test("C1 Commercial claims and notices reuse governed lifecycle, notice timeline
   assert.equal(
     aed.assessedClaimAmount
       .state,
-    "submitted_unparsed",
+    "missing_information",
   );
 });

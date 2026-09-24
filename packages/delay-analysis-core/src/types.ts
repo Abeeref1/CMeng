@@ -218,6 +218,7 @@ export interface ClaimRegisterSnapshot {
 
 export interface NoticeRequirement {
   requirementId: string;
+  sourceFilename?: string;
   noticeKind: NoticeKind;
   eventCategories: DelayEventCategory[];
   noticePeriodDays: number;
@@ -251,6 +252,7 @@ export type NoticeTimeliness =
   | "notice_date_missing";
 
 export interface EventNoticeAssessment {
+  evidenceGaps: {requirementMissing: boolean; eventDateMissing: boolean; noticeDateMissing: boolean};
   eventId: string;
   requirementId: string | null;
   requiredNoticeDays: number | null;

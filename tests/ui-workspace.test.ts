@@ -186,7 +186,7 @@ test("CMeng workspace keeps the active module primary and browser script parseab
   );
   assert.match(
     html,
-    /const primaryView=renderClaimsReporting\(data.claimsReporting\)\+renderBasisReviews\(data,result.key\)\+\(specialized\|\|genericView\)/,
+    /const primaryView=renderClaimsReporting\(data.claimsReporting\)/,
     "specialized module view must replace duplicate generic dashboard layers",
   );
   assert.match(

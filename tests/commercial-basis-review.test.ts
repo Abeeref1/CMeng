@@ -10,6 +10,9 @@ import {assessModuleIssues} from '../packages/runtime-api/src/module-issues';
 import type {CommercialMoney,CanonicalCommercialModel,CommercialVariation,PaymentStageRecord} from '../packages/runtime-api/src/commercial-canonical';
 import type {ProjectRuntimeState,ModuleRuntimeResult} from '../packages/runtime-api/src/project-state-types';
 import type {SourceRow} from '../packages/truth-kernel/src';
+import {buildCommercialControlPosition, type CommercialControlInput} from '../packages/commercial-control/src';
+import {assessEventNotice, type CanonicalDelayEvent, type NoticeRequirement} from '../packages/delay-analysis-core/src';
+import {commercialIntegrityChecks} from '../packages/runtime-api/src/commercial-integrity';
 
 const receipt={documentId:'new-project-register',sourceHash:'hash',revision:'R',locator:'row:2',basisState:'active',authority:'source_record'} as const;
 const money=(value:number|null,currency='AED'):CommercialMoney=>({value,currency,taxBasis:'exclusive',amountBasis:'source',state:value===null?'missing':'official',asOf:'2028-04-30',receipts:[receipt]});
@@ -18,6 +21,34 @@ const variation=(id:string,value:number|null,date:string|null,currency='AED'):Co
 const foundationInput=(sections:CommercialFoundationInput['contractSections']=[]):CommercialFoundationInput=>({projectId:'NEW-PORT',generatedAt:'2028-04-30',dataDateIso:'2028-04-30',contractValue:null,contractValueCandidates:[],variations:[],contractTimeBasis:null,ldTerms:null,contractSections:sections,amendments:[],costMetrics:[],payments:[]});
 const amounts=():PaymentStageRecord['amounts']=>({applicationAmount:money(null),engineerAssessedAmount:money(null),employerCertifiedAmount:money(null),grossWork:money(800),variations:money(200),retentionDeduction:money(70),advanceRecovery:money(100),otherDeduction:money(null),taxAmount:money(null),netCertifiedAmount:money(830),paidAmount:money(null),outstandingAmount:money(null)});
 const sourceRow={receipt,cells:{},raw:{}} as unknown as SourceRow;
+
+test('source read status survives missing fields, currency partitions and reporting exclusions in every project',()=>{
+  const input:CommercialControlInput={projectId:'UNRELATED-HARBOUR',generatedAt:'2028-04-30',contractValue:{amount:900,currency:'AED',sourceRefs:[]},variations:[],invoices:[],retentions:[],bonds:[],claimCommercials:[],contractTimeBasis:null,commercialEvidenceSubmitted:true,paymentEvidenceSubmitted:true,variationEvidenceSubmitted:true,bondEvidenceSubmitted:true,claimEvidenceSubmitted:true};
+  const unread=buildCommercialControlPosition(input);
+  for(const metric of ['pendingVariationAmount','advanceBalance','claimedAmount','activeBondAmount'] as const)assert.equal(unread.currencies[0]![metric].state,'submitted_unparsed');
+  const read=buildCommercialControlPosition({...input,sourceRead:{payments:true,variations:true,claims:true,bonds:true}});
+  for(const metric of ['pendingVariationAmount','advanceBalance','claimedAmount','activeBondAmount'] as const){assert.equal(read.currencies[0]![metric].state,'missing_information');assert.equal(read.currencies[0]![metric].value,null);}
+  const mixed=buildCommercialControlPosition({...input,variations:[{variationId:'V-new',state:'approved',amount:25,currency:'USD',sourceRefs:[]}],claimCommercials:[{claimId:'C-new',currency:'AED',claimedAmount:12,assessedAmount:null,sourceRefs:[]} ]});
+  assert.equal(mixed.currencies.find(p=>p.currency==='AED')!.approvedVariationAmount.state,'missing_information');
+  assert.equal(mixed.currencies.find(p=>p.currency==='USD')!.approvedVariationAmount.value,25);
+  assert.equal(mixed.currencies.find(p=>p.currency==='AED')!.assessedClaimAmount.state,'missing_information');
+  const issues=(metric:unknown)=>assessModuleIssues({key:'payments',data:{focus:metric,systemEvidenceContract:{state:'verified_for_checked_metrics'},challenge:{reconciliationState:'within_tolerance'}}} as ModuleRuntimeResult,{state:'pass',failedCheckIds:[],checkCount:1});
+  assert.equal(issues(read.currencies[0]!.advanceBalance).issues[0]!.owner,'Project evidence owner');
+  assert.equal(issues(unread.currencies[0]!.advanceBalance).issues[0]!.owner,'CMeng');
+});
+
+test('notice rules present but awaiting trigger dates are not counted as missing requirements',()=>{
+  const event={eventId:'E-new',category:'late_access',startIso:null,awarenessIso:null} as CanonicalDelayEvent;
+  const rules:NoticeRequirement[]=[{requirementId:'old',noticeKind:'claim_notice',eventCategories:[],noticePeriodDays:32,effectiveFromIso:null,effectiveToIso:'2028-03-20',triggerBasis:'awareness',state:'official',clauseIdentifiers:[],evidenceRefs:[]},{requirementId:'new',noticeKind:'claim_notice',eventCategories:[],noticePeriodDays:14,effectiveFromIso:'2028-03-20',triggerBasis:'awareness',state:'official',clauseIdentifiers:[],evidenceRefs:[]}];
+  const missingTrigger=assessEventNotice(event,[],rules);
+  assert.equal(missingTrigger.requirementId,null);assert.equal(missingTrigger.timeliness,'event_date_missing');
+  assert.deepEqual(missingTrigger.evidenceGaps,{requirementMissing:false,eventDateMissing:true,noticeDateMissing:true});
+  assert.equal(assessEventNotice(event,[],[]).evidenceGaps.requirementMissing,true);
+  const awareness=assessEventNotice({...event,awarenessIso:'2028-04-01'},[],rules);
+  assert.equal(awareness.requiredNoticeDays,14);assert.equal(awareness.evidenceGaps.eventDateMissing,false);
+  const conflict=assessEventNotice({...event,awarenessIso:'2028-04-01'},[],[rules[1]!,{...rules[1]!,requirementId:'conflict',noticePeriodDays:19}]);
+  assert.equal(conflict.timeliness,'requirement_conflicted');assert.equal(conflict.evidenceGaps.requirementMissing,false);
+});
 
 test('variation exceptions use arbitrary amounts, dated cutoffs and isolated currencies',()=>{
   const rows=[variation('alpha',10,'2028-03-01'),variation('beta',11,'2028-03-15'),variation('gamma',12,'2028-04-02'),variation('delta',13,'2028-04-03'),variation('large',1000,'2028-05-02'),variation('dollar',5000,'2028-03-01','USD')];
@@ -49,6 +80,15 @@ test('certificate source sums and observed rate are separate from certification 
   assert.equal(g.totals!.netCertifiedAmount,830);assert.equal(g.futureTotals!.netCertifiedAmount,830);
   assert.deepEqual(g.observedRetentionRates,[7]);assert.deepEqual(g.certificationUnconfirmedIds,['CERT-X']);assert.equal(g.cumulativeBasis,'source_row_sum_only');
   assert.deepEqual(g.arithmetic,{matched:1,total:1,allMatched:2,allTotal:2});
+  const position=buildCommercialControlPosition({projectId:'NEW-PORT',generatedAt:'2028-04-30',sourceLedger:l,contractValue:null,variations:[],invoices:[],retentions:[],bonds:[],claimCommercials:[],contractTimeBasis:null,commercialEvidenceSubmitted:true,paymentEvidenceSubmitted:true,variationEvidenceSubmitted:false,bondEvidenceSubmitted:false,claimEvidenceSubmitted:false});
+  position.certificateProfile=certificateProfile(l);
+  assert.equal(position.currencies[0]!.sourceCertificatePeriodCount!.value,1);
+  assert.equal(position.currencies[0]!.interimCertificateCount.value,null,'Period dates do not become certification dates');
+  assert.ok(commercialIntegrityChecks('payments',position).every(c=>c.passed));
+  position.certificateProfile.groups[0]!.totals!.netCertifiedAmount=831;
+  assert.deepEqual(commercialIntegrityChecks('payments',position).filter(c=>!c.passed).map(c=>c.metric),['certificate_component_sum:AED:exclusive:netCertifiedAmount']);
+  position.certificateProfile.groups[0]!.as_of.push(position.certificateProfile.groups[0]!.future[0]!);
+  assert.ok(commercialIntegrityChecks('payments',position).some(c=>!c.passed&&c.metric==='certificate_current_cutoff:AED:exclusive'));
   const snapshots=[{currency:'AED',taxBasis:'exclusive',asOf:'2028-04-30',state:'official' as const,values:{bac:10000,pv:3000,ev:2700,ac:2500},receipts:[receipt],diagnostics:[]}];
   const review=costBasisReview(ledger({payments:l.payments,costPosition:snapshots}),certificateProfile(l))[0]!;
   assert.equal(review.earnedPercentOfBudget,27);assert.equal(review.spi,.9);assert.equal(review.actualCostToCertificateRatio,2500/830);

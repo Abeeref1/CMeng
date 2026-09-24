@@ -55,7 +55,7 @@ test('management counts affected views without treating multiple findings in a v
  assert.equal(m.counts.source_conflict,1);assert.equal(m.counts.system_defect,0);
 });
 test('missing inputs and absent links are distinct from malformed supplied dates and unparsed documents',()=>{
- const r=assessModuleIssues(input({focus:{paid:{state:'submitted_unparsed',diagnostics:['DATED_PAYMENT_RECEIPT_AND_ALLOCATION_REQUIRED']},
+ const r=assessModuleIssues(input({focus:{paid:{state:'missing_information',diagnostics:['DATED_PAYMENT_RECEIPT_AND_ALLOCATION_REQUIRED']},
   notices:{population:{dateBasis:'notice',exclusions:[{reason:'record_date_missing'},{reason:'record_date_invalid'}]}}},activityEvidenceInsufficientEventCount:2}),pass);
  assert.equal(r.counts.verification_pending,0);
  assert.equal(r.counts.data_quality,1);

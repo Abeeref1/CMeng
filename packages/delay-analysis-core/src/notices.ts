@@ -89,9 +89,14 @@ export function assessEventNotice(
 
   const candidateRules=requirements.filter(r=>r.eventCategories.length===0||r.eventCategories.includes(event.category));
   const triggerDatesMissing=candidateRules.length>0&&candidateRules.every(r=>ms(r.triggerBasis==='awareness'?event.awarenessIso??null:event.startIso)===null);
+  const evidenceGaps = {
+    requirementMissing: candidateRules.length === 0,
+    eventDateMissing: candidateRules.length > 0 ? triggerDatesMissing : ms(event.startIso) === null,
+    noticeDateMissing: ms(notice?.actualIssuedAt ?? null) === null,
+  };
 
   if(triggerDatesMissing){
-    return {eventId:event.eventId,requirementId:requirement?.requirementId??null,
+    return {evidenceGaps,eventId:event.eventId,requirementId:requirement?.requirementId??null,
       requiredNoticeDays:requirement?.noticePeriodDays??null,eventStartIso:event.startIso,
       noticeId:notice?.noticeId??null,noticeIssuedAt:notice?.actualIssuedAt??null,elapsedDays:null,
       timeliness:'event_date_missing',requirementState:requirement?.state??null,
@@ -100,6 +105,7 @@ export function assessEventNotice(
 
   if (!requirement) {
     return {
+      evidenceGaps,
       eventId: event.eventId,
       requirementId: null,
       requiredNoticeDays: null,
@@ -117,6 +123,7 @@ export function assessEventNotice(
   const eventStart = ms(requirement.triggerBasis==='awareness'?event.awarenessIso??null:event.startIso);
   if (eventStart === null) {
     return {
+      evidenceGaps,
       eventId: event.eventId,
       requirementId:
         requirement.requirementId,
@@ -135,6 +142,7 @@ export function assessEventNotice(
 
   if (!notice) {
     return {
+      evidenceGaps,
       eventId: event.eventId,
       requirementId:
         requirement.requirementId,
@@ -153,6 +161,7 @@ export function assessEventNotice(
   const issued = ms(notice.actualIssuedAt);
   if (issued === null) {
     return {
+      evidenceGaps,
       eventId: event.eventId,
       requirementId:
         requirement.requirementId,
@@ -177,6 +186,7 @@ export function assessEventNotice(
   );
 
   return {
+    evidenceGaps,
     eventId: event.eventId,
     requirementId:
       requirement.requirementId,

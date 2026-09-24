@@ -3,7 +3,7 @@ import type {CanonicalCommercialModel, CommercialVariation} from './commercial-c
 import type {ProjectRuntimeState} from './project-state-types';
 import type {ReturnCertificateProfile} from './certificate-profile';
 
-export interface AmendmentAmount {documentId:string;effectiveDate:string|null;currency:string;taxBasis:string;amount:number;sourceRefs:string[]}
+export interface AmendmentAmount {documentId:string;sourceFilename?:string;effectiveDate:string|null;currency:string;taxBasis:string;amount:number;sourceRefs:string[]}
 
 /** Explicit amendment amounts retain their effective date, currency and source.
  * Neither a budget delta nor a future approval is substituted for this evidence. */
@@ -18,7 +18,7 @@ export function amendmentAmounts(state:ProjectRuntimeState):AmendmentAmount[]{
       const key=[currency,amount,taxBasis].join('|'),ref='evidence-document:'+d.documentId+':'+f.locator;
       const prior=groups.get(key);
       if(prior){if(!prior.sourceRefs.includes(ref))prior.sourceRefs.push(ref);}
-      else groups.set(key,{documentId:d.documentId,effectiveDate:effective?dateValue(effective[1]!):null,currency,taxBasis,amount,sourceRefs:[ref]});
+      else groups.set(key,{documentId:d.documentId,sourceFilename:state.evidenceDocuments.find(e=>e.documentId===d.documentId)?.sourceFilename??d.documentId,effectiveDate:effective?dateValue(effective[1]!):null,currency,taxBasis,amount,sourceRefs:[ref]});
     }
     return [...groups.values()];
   });
