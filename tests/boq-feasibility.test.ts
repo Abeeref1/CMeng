@@ -6,6 +6,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {buildBoqFeasibility} from '../packages/delivery-challenge/src/boq-feasibility';
 import {programmePcMilestone,deliveryFeasibilityForState} from '../packages/runtime-api/src/delivery-feasibility';
+import {suppliedBoqFigures} from '../packages/runtime-api/src/boq-source';
 
 function fixture(){
  const calendar={calendarId:'CAL',name:'Eight hour source calendar',semanticComplete:true,standardDayHours:8,standardWeekHours:56,weeklyWorkMinutes:Array(7).fill(480),weeklyWorkIntervals:[1,2,3,4,5,6,7].map(dayIndex=>({dayIndex,intervals:[{start:'08:00',finish:'16:00',minutes:480}]})),exceptions:[],sourceRefs:[]};
@@ -16,6 +17,14 @@ function fixture(){
  const rates=[{quantityItemId:'Q',activityId:'A',unit:'m3',laborHoursPerUnit:2,sourceRefs:['productivity-rate:row:2']}];
  return {schedule,quantities,resources,rates};
 }
+test('supplied BOQ figures preserve readable fields and zero without calculation or approval inputs',()=>{
+ const boq:any={sourceFilename:'priced.xlsx',evidenceReceipt:{revisionId:'BOQ-1'},state:'partial_candidate',canonicalItems:[{itemId:'Q',itemNumber:'10',description:'Concrete',unit:'m3',quantity:100,rate:0,amount:0,currency:'SAR',status:'unresolved',sourceRefs:['row:4']},{itemId:'Q2',itemNumber:'20',description:'Steel',unit:'kg',quantity:50,rate:null,amount:null,currency:null,status:'unresolved',sourceRefs:['row:5']}]};
+ const figures=suppliedBoqFigures(boq,null);
+ assert.equal(figures.itemCount,2);assert.equal(figures.readableQuantityCount,2);
+ assert.deepEqual(figures.rows.map(r=>[r.quantity,r.rate,r.amount,r.currency]),[[100,0,0,'SAR'],[50,null,null,null]]);
+ const quantities=fixture().quantities;quantities.allocations=[];quantities.installedSnapshots=[];
+ assert.equal(suppliedBoqFigures(null,quantities).rows[0]!.quantity,100);
+});
 test('BOQ and calendar establish required manpower, then supplied capacity tests duration',()=>{
  const result=buildBoqFeasibility(fixture()),row=result.rows[0]!,activity=result.activityChecks[0]!;
  assert.equal(row.remainingQuantity,80);assert.equal(row.requiredLaborHours,160);assert.equal(row.availableWorkingHours,16);assert.equal(row.requiredAveragePeople,10);

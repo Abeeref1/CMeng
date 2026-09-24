@@ -160,7 +160,7 @@ function experienceBrief(key,data){
     add('Independent labor requirement',f?.requiredLaborHours,'BOQ quantities and supported productivity; labor hours');
     add('Programme PC movement',f?.programmePc?.movementDays,'Same explicit baseline and current milestone','d');
     add('Activities exceeding planned duration',checks.length?checks.filter(r=>r.scheduleState==='exceeds').length:null,'Quantity-driven checks with supplied resource capacity');
-    add('BOQ items requiring information',f?.rows?.length?f.unresolvedCount:null,'Mapping, progress, productivity or calendar evidence');
+    add('Manpower calculations unresolved',f?.rows?.length?f.unresolvedCount:null,'Missing calculation inputs; supplied BOQ figures remain available');
     note=(f?.overallStatus||'Unable to assess')+'. Tests required manpower and achievable duration against the submitted programme. It does not determine causation or EOT.';
     review=f?.reason||'Current BOQ, productivity and resource assessment is unresolved.';
   }else if(key==='cash-flow'){
