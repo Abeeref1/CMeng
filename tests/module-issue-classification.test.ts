@@ -66,3 +66,18 @@ test('known notice applicability and causal evidence gaps are not hidden behind 
  const r=assessModuleIssues(input({noticeRequirementMissingCount:3,eligibleCausalEventEvidenceEstablished:false,challenge:{reconciliationState:'independent_unavailable'}}),pass);
  assert.equal(r.counts.missing_information,2);assert.equal(r.counts.verification_pending,1);assert.equal(r.counts.system_defect,0);
 });
+test('identical source requests retain every record reference across pages without inflating the counter',()=>{
+ const a=assessModuleIssues(input({focus:{paid:{state:'missing',sourceRefs:['DOC:row:1']}}}),pass);
+ const b=assessModuleIssues({...input({focus:{paid:{state:'missing',sourceRefs:['DOC:row:2']}}}),key:'second-page'},pass);
+ const summary=summarizeControlIssues([...a.issues,...b.issues]);
+ assert.equal(summary.counts.missing_information,1);
+ assert.deepEqual(summary.issues[0]?.sourceRefs,['DOC:row:1','DOC:row:2']);
+ assert.deepEqual(summary.issues[0]?.moduleKeys,['arbitrary-control','second-page']);
+});
+test('explicit comparison input dependencies are source requests, while unexplained missing calculations stay with CMeng',()=>{
+ const item={metric:'independent_hours',label:'Independent hours',reconciliationState:'independent_unavailable',consequence:'Quantity links are absent.',action:'Provide quantity links.',independent:{diagnostics:['COMPARISON_INPUT_REQUIRED:Quantity links are absent.'],sourceRefs:['SCHEDULE']}};
+ const r=assessModuleIssues(input({challenge:{reconciliationState:'independent_unavailable',items:[item]}}),pass);
+ assert.equal(r.counts.verification_pending,0);assert.equal(r.counts.missing_information,1);assert.match(r.issues[0]!.detail,/Quantity links/);
+ const unknown=assessModuleIssues(input({challenge:{reconciliationState:'independent_unavailable',items:[{...item,independent:{diagnostics:[]}}]}}),pass);
+ assert.equal(unknown.counts.verification_pending,1);assert.equal(unknown.issues[0]!.owner,'CMeng');
+});

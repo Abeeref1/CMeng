@@ -201,3 +201,13 @@ test('delay and float matrix visibly reconciles excluded LOE and WBS records',()
  const render=functions(['planningActivityPressure']);const html=runInNewContext(render+';planningActivityPressure(rows)',{...common,rows:[{activityType:'task',criticality:'critical',finishVarianceDays:4},{activityType:'level_of_effort',criticality:'critical',finishVarianceDays:4},{activityType:'wbs_summary',finishVarianceDays:null}]});
  assert.match(html,/LOE \/ WBS summaries/);assert.match(html,/2 source records excluded/);assert.match(html,/All 1 execution activities/);
 });
+test('source quality and date scope preserve record evidence behind concise disclosures',()=>{
+ const render=functions(['renderSourceQuality','renderRegisterScope','experienceDisclosure']);
+ const ctx={...common,names:{one:'One'},managementModuleLink:(k:string,label:string)=>label,managementPanel:(t:string,s:string,b:string)=>t+s+b,basisTable:()=>'',formatDocumentTime:String,
+ data:{sourceIssues:[{kind:'missing_information',summary:'Receipt dates missing',detail:'Two records',action:'Supply dates',owner:'Evidence owner',sourceRefs:['A:1','A:2'],moduleKeys:['one']}],systemFailures:[],reviewActions:[],pendingChecks:[],coverage:[],documents:[],pageValueChecks:[],scope:'Checked scope'}};
+ const html=runInNewContext(render+';renderSourceQuality(data)',ctx);
+ assert.match(html,/Identical requests are counted once/);assert.match(html,/<details class="source-request">/);assert.match(html,/Source references<\/summary><ul><li>A:1<\/li><li>A:2/);
+ const populations=Object.fromEntries(Array.from({length:8},(_,n)=>[n,{populationId:'P'+n,name:'Register '+n,entity:'record',denominator:2,sourceCount:3,exclusions:[{reason:'after_data_date'}],dateBasis:'Actual date'}]));
+ const scope=runInNewContext(render+';renderRegisterScope(data)',{...ctx,data:{reportingContract:{populations,dataDateIso:'2031-06-30'}}});
+ assert.match(scope,/<summary>8 register populations contain future or undated records/);assert.equal((scope.match(/<tr><td>Register /g)||[]).length,8);
+});

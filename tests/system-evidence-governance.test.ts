@@ -227,3 +227,16 @@ test('XER target date changes do not assert that the controlled baseline changed
   const governedAfter=model([activity('A',{baselineDateBasis:'controlled_baseline',baselineFinishIso:'2030-01-15T16:00:00'})]);
   assert.equal(buildScheduleChangeReportProjection(revision('base-1',governedBefore,1),revision('base-2',governedAfter,2),options).baselineMutationActivityCount,1);
 });
+test('runtime certification detects corrupted date movement and source populations across previously unchecked projections',()=>{
+ const m=model([activity('A'),activity('LOE',{activityType:'level_of_effort'})]);
+ const checked=(key:string,data:any)=>checkProjectionIntegrity({key,status:'ready',reason:null,dependencies:[],data},m,DEFAULT_SCHEDULE_ANALYSIS_CONFIG).data as any;
+ const revision={revisionCount:1,points:[{revisionId:'R2',activityCount:2,executionActivityCount:1,completedCount:0,inProgressCount:1,notStartedCount:0,unknownStatusCount:0,criticalCount:1,nearCriticalCount:0}]};
+ assert.equal(checked('revision-trend',revision).systemEvidenceContract.state,'verified_for_checked_metrics');
+ assert.equal(checked('revision-trend',{...revision,revisionCount:2}).systemEvidenceContract.state,'failed');
+ const forecast={activities:[{activityId:'A',status:'calculated',sourceFinishIso:'2030-01-08',independentEarlyFinishIso:'2030-01-10',finishVarianceDays:2}],calculatedActivityCount:1,unresolvedActivityCount:0,sourceForecastCompletionIso:'2030-01-08',independentForecastCompletionIso:'2030-01-10',forecastVarianceDays:2,requiredFinishIso:null,requiredFinishVarianceDays:null};
+ assert.equal(checked('independent-forecast',forecast).systemEvidenceContract.failureCount,0);
+ assert.equal(checked('independent-forecast',{...forecast,forecastVarianceDays:4}).systemEvidenceContract.state,'failed');
+ assert.equal(checked('quantity-scurve',{unitKeyed:true,series:[{seriesKey:'m',points:[{dateIso:'2030-01-08',actualInstalledQuantity:1}]}]}).systemEvidenceContract.state,'failed');
+ const history={snapshotCount:2,establishedForecastCount:1,points:[{snapshotId:'missing',independentForecastCompletionIso:null,movementDaysVsPrevious:null,movementDaysVsFirst:null},{snapshotId:'known',independentForecastCompletionIso:'2030-01-10',movementDaysVsPrevious:null,movementDaysVsFirst:0}]};
+ assert.equal(checked('forecast-history',history).systemEvidenceContract.failureCount,0);
+});

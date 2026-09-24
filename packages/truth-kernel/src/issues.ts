@@ -26,8 +26,10 @@ export interface ControlIssueAssessment {
 export function summarizeControlIssues(issues: readonly ControlIssue[]): ControlIssueAssessment {
   const grouped=new Map<string,ControlIssue>();
   for(const issue of issues){
-    const key=JSON.stringify([issue.kind,issue.code,issue.summary,issue.detail,issue.action,issue.owner,[...issue.sourceRefs].sort()]);
-    const old=grouped.get(key);grouped.set(key,old?{...old,moduleKeys:[...new Set([...old.moduleKeys,...issue.moduleKeys])],evidencePaths:[...new Set([...old.evidencePaths,...issue.evidencePaths])],checkIds:[...new Set([...old.checkIds,...issue.checkIds])]}:{...issue});
+    // One identical correction request may affect many records and pages.
+    // Preserve every reference while counting the request once.
+    const key=JSON.stringify([issue.kind,issue.code,issue.summary,issue.detail,issue.action,issue.owner]);
+    const old=grouped.get(key);grouped.set(key,old?{...old,moduleKeys:[...new Set([...old.moduleKeys,...issue.moduleKeys])],sourceRefs:[...new Set([...old.sourceRefs,...issue.sourceRefs])],evidencePaths:[...new Set([...old.evidencePaths,...issue.evidencePaths])],checkIds:[...new Set([...old.checkIds,...issue.checkIds])]}:{...issue});
   }
   const unique=[...grouped.values()];
   const counts = Object.fromEntries(CONTROL_ISSUE_KINDS.map(kind=>[kind,unique.filter(i=>i.kind===kind).length])) as Record<ControlIssueKind,number>;

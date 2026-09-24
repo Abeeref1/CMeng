@@ -226,6 +226,17 @@ function spec(
       string[] | undefined;
   } = {},
 ): IndependentMetricSpec {
+  const requirements:Record<string,string>={
+    manpower_average:'A periodised headcount plan, confirmed hours per person and a reconciled remaining-work scope are needed for an independent manpower requirement.',
+    manpower_peak:'A periodised headcount and shift plan is needed to establish peak people. Resource hours alone do not establish people.',
+    remaining_manhours:'Remaining quantities, unit productivity and schedule links on a common scope are needed for an independent remaining-hours estimate. XER and weekly-register source hours remain separate.',
+    certified_progress_percent:'An independent certified quantity and valuation basis is needed. Schedule percentage is not a certification measurement.',
+    claimed_delay_days:'Event dates, affected-activity links, responsibility and causal time impact are needed to independently assess the submitted claimed days.',
+    claimed_eot_days:'Event dates, affected-activity links, responsibility and the applicable contract evidence are needed for an independent time-impact assessment.',
+    attributable_eot_candidate_days:'Eligible causal events, affected activities, notice evidence and responsibility are needed before time impact can be attributed.',
+  };
+  const dependency=state==='not_derivable'&&value===null?requirements[metric]:undefined;
+  const sourceAuthorityOnly=state==='not_derivable'&&metric==='official_awarded_eot_days';
   return {
     metric,
     ...(input.comparisonBasisEstablished!==undefined?{comparisonBasisEstablished:input.comparisonBasisEstablished}:{}),
@@ -276,13 +287,7 @@ function spec(
             input.confidence,
         }
       : {}),
-    ...(input.diagnostics
-      ? {
-          diagnostics: [
-            ...input.diagnostics,
-          ],
-        }
-      : {}),
+    diagnostics:[...(input.diagnostics??[]),...(dependency?['COMPARISON_INPUT_REQUIRED:'+dependency]:[]),...(sourceAuthorityOnly?['SOURCE_AUTHORITY_ONLY']:[])],
     ...(input.submittedOverride
       ? {
           submittedOverride:

@@ -47,7 +47,7 @@ export function positionVerdict(result:ModuleRuntimeResult) {
   else if(rag==='green'&&(counts.source||counts.pending||counts.review))rag='amber';
   const first=(a?.issues??[]).find((i:ControlIssue)=>i.kind==='system_defect')??(a?.issues??[]).find((i:ControlIssue)=>['source_conflict','data_quality','missing_information'].includes(i.kind))??(a?.issues??[])[0];
   return {schemaVersion:'1.0',rag,label:rag==='red'?'Action required':rag==='green'?'Within the checked target':rag==='unknown'?'Not assessable':'Review needed',text,
-    nextAction:first?.action??'Review the detailed position and its source references.',owner:first?.owner??'Project controls reviewer',
+    nextAction:result.key==='master-dashboard'&&rag==='red'&&!counts.system?'Agree a recovery decision for the reported completion gap and assign the dated delivery exceptions below.':first?.action??'Review the detailed position and its source references.',owner:result.key==='master-dashboard'&&rag==='red'&&!counts.system?'Project director — assignment required':first?.owner??'Project controls reviewer',
     basis:'Red: a reported target is exceeded or a system check failed. Amber: evidence or review is incomplete. Green: the stated target and listed checks pass. No composite risk score is implied.'};
 }
 export function withPositionVerdict(result:ModuleRuntimeResult):ModuleRuntimeResult {

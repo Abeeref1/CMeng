@@ -413,3 +413,17 @@ test('operational exceptions sort by severity, overdue days and age, with source
  assert.equal(r.actions[0]!.ageDays,45);assert.equal(r.actions[0]!.overdueDays,31);assert.equal(r.actions[0]!.owner,'Bob');
  assert.deepEqual(r.actions[2]!.missingActionFields,['Owner','Due date']);
 });
+test('manual rerun certifies the same dated population as pages and retains its request actor in both history rows',async t=>{
+ const {state,csv}=fixture(t);
+ csv('NCR ID,Raised Date,Close Date,Severity,Status\nBEFORE,2031-04-01,2031-04-20,Major,Closed\nFUTURE,2031-05-01,,Critical,Open','quality_ncr_register');
+ const {withRequestAudit}=await import('../packages/runtime-api/src/audit-context');
+ const req={method:'POST',url:'/api/projects/'+state.projectId+'/evidence/rerun',headers:{}} as import('node:http').IncomingMessage;
+ const res={setHeader(){}} as unknown as import('node:http').ServerResponse;
+ const receipt=withRequestAudit(req,res,()=>rerunProject(state.projectId))!;
+ assert.equal(receipt.certification.state,'pass',receipt.certification.failedCheckIds.join(','));
+ const actor=state.auditSourceActors?.['rerun:'+receipt.receiptId];assert.equal(actor?.kind,'anonymous_session');
+ const surface=managementSurfaceForProject(state.projectId,'master-control-programme')!.data as any;
+ const history=surface.history??surface.controlHistory;
+ assert.ok(history.some((r:any)=>r.eventId===receipt.receiptId&&r.actor===actor!.label));
+ assert.equal(state.controls.ncrs.length,0,'reporting view must not overwrite original controls');
+});

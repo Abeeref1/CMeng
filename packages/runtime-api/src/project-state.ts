@@ -1,4 +1,4 @@
-import {appendAuditEvent} from './audit-context';
+import {appendAuditEvent,auditContext} from './audit-context';
 import {refreshHseSummary} from "./hse-report-evidence";
 import {refreshDeferredPdfRead} from './document-read-review';
 import {quantityModelFromBoq} from './boq-source';
@@ -1366,7 +1366,7 @@ export class RuntimeProjectStore {
           state.projectId,
           state,
         );
-      for(const restored of this.projects.values()) if(!this.auditWatermarks.has(restored.projectId)) this.auditWatermarks.set(restored.projectId,{fingerprint:this.auditFingerprint(restored),version:restored.version});
+      for(const restored of this.projects.values()) if(!this.auditWatermarks.has(restored.projectId)) {this.auditWatermarks.set(restored.projectId,{fingerprint:this.auditFingerprint(restored),version:restored.version});this.auditSourceFingerprints.set(restored.projectId,this.auditSources(restored));}
       }
       this.persistSnapshot();
     } catch (error) {
@@ -1382,13 +1382,24 @@ export class RuntimeProjectStore {
   }
 
   private auditWatermarks = new Map<string,{fingerprint:string;version:number}>();
+  private auditSourceFingerprints=new Map<string,Map<string,string>>();
+  private auditSources(state:ProjectRuntimeState):Map<string,string>{return new Map([
+    ...state.evidenceDocuments.map(d=>['evidence:'+d.documentId,d.uploadedAt] as [string,string]),
+    ...state.boardPublicationHistory.map(p=>['publication:'+p.publicationId,JSON.stringify([p.finalizedAt,p.stale,!!p.reportSnapshot])] as [string,string]),
+    ...(state.lastRerunReceipt?[['rerun:'+state.lastRerunReceipt.receiptId,state.lastRerunReceipt.generatedAt] as [string,string]]:[]),
+  ]);}
   private auditFingerprint(state:ProjectRuntimeState):string {
     return JSON.stringify([state.version,state.evidenceDocuments.map(d=>[d.documentId,d.uploadedAt]),state.boardPublicationHistory.map(p=>[p.publicationId,p.finalizedAt,p.stale,!!p.reportSnapshot]),state.lastRerunReceipt]);
   }
   private persistSnapshot(): void {
     for(const state of this.projects.values()) {
       const fingerprint=this.auditFingerprint(state),old=this.auditWatermarks.get(state.projectId);
-      if(old?.fingerprint!==fingerprint){appendAuditEvent(state,old?.version??null);this.auditWatermarks.set(state.projectId,{fingerprint,version:state.version});}
+      if(old?.fingerprint!==fingerprint){
+        const sources=this.auditSources(state),previous=this.auditSourceFingerprints.get(state.projectId);
+        for(const [key,value] of sources)if(previous?.get(key)!==value)(state.auditSourceActors??={})[key]=auditContext().actor;
+        this.auditSourceFingerprints.set(state.projectId,sources);
+        appendAuditEvent(state,old?.version??null);this.auditWatermarks.set(state.projectId,{fingerprint,version:state.version});
+      }
     }
     const snapshot:
       RuntimeStateSnapshot = {

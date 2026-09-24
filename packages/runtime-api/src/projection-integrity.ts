@@ -18,6 +18,58 @@ export function checkProjectionIntegrity(result: ModuleRuntimeResult, model: Can
     checks.push({ metric, expected, actual: actual ?? null, passed });
   };
   const totals = data.result ?? data;
+  const days = (a:unknown,b:unknown) => typeof a==='string'&&typeof b==='string'&&Number.isFinite(Date.parse(a))&&Number.isFinite(Date.parse(b))?(Date.parse(b)-Date.parse(a))/86400000:null;
+  if(result.key==='schedule-change-report') {
+    const rows=data.changedActivities??[];
+    for(const [kind,key] of [['added','addedActivityCount'],['removed','removedActivityCount'],['modified','modifiedActivityCount']])compare('changed_register_'+kind,data[key!],rows.filter((r:any)=>r.changeKind===kind).length);
+    if(data.state==='ready'){
+      compare('current_source_population',data.toActivityCount,model.activities.length);
+      compare('matched_activity_partition',data.matchedActivityCount,data.modifiedActivityCount+data.unchangedActivityCount);
+      compare('current_activity_partition',data.toActivityCount,data.matchedActivityCount+data.addedActivityCount);
+    }
+    compare('added_relationship_count',data.addedRelationshipCount,data.addedRelationships?.length);
+    compare('removed_relationship_count',data.removedRelationshipCount,data.removedRelationships?.length);
+  }
+  if(result.key==='revision-trend'||result.key==='variance-trends') {
+    const rows=data.points??[];
+    compare('revision_count',data.revisionCount,rows.length);
+    compare('unique_revision_ids',new Set(rows.map((r:any)=>r.revisionId)).size,rows.length);
+    for(const row of rows){
+      if(result.key==='revision-trend')compare('execution_status_partition:'+row.revisionId,row.completedCount+row.inProgressCount+row.notStartedCount+row.unknownStatusCount,row.executionActivityCount);
+      else compare('variance_partition:'+row.revisionId,row.lateActivityCount+row.earlyActivityCount+row.onTimeActivityCount,row.comparableActivities);
+      if(row.revisionId===model.sourceRevisionId){compare('current_revision_critical',row.criticalCount,expectedCritical);compare('current_revision_near_critical',row.nearCriticalCount,expectedNear);}
+    }
+  }
+  if(result.key==='milestones'){
+    const source=model.activities.filter(a=>['milestone','start_milestone','finish_milestone'].includes(a.activityType)),rows=data.rows??[];
+    compare('source_milestone_ids',rows.map((r:any)=>r.activityId).sort().join('\n'),source.map(r=>r.activityId).sort().join('\n'));
+    compare('milestone_count',data.milestoneCount,source.length);
+    compare('completed_milestone_count',data.completedCount,source.filter(a=>a.status==='completed').length);
+    compare('open_milestone_count',data.openCount,source.filter(a=>a.status!=='completed').length);
+    for(const row of rows)compare('milestone_date_variance:'+row.activityId,row.varianceDays,days(row.baselineDateIso,row.currentDateIso));
+  }
+  if(result.key==='forecast-history'){
+    const rows=data.points??[];
+    compare('forecast_snapshot_count',data.snapshotCount,rows.length);
+    compare('established_forecast_count',data.establishedForecastCount,rows.filter((r:any)=>r.independentForecastCompletionIso!==null).length);
+    rows.forEach((r:any,i:number)=>{
+      compare('movement_previous:'+r.snapshotId,r.movementDaysVsPrevious,i?days(rows[i-1].independentForecastCompletionIso,r.independentForecastCompletionIso):null);
+      compare('movement_first:'+r.snapshotId,r.movementDaysVsFirst,days(rows.find((p:any)=>p.independentForecastCompletionIso&&Number.isFinite(Date.parse(p.independentForecastCompletionIso)))?.independentForecastCompletionIso,r.independentForecastCompletionIso));
+    });
+  }
+  if(result.key==='independent-forecast'){
+    const rows=data.activities??[];
+    compare('calculated_activity_count',data.calculatedActivityCount,rows.filter((r:any)=>r.status==='calculated').length);
+    compare('forecast_population_partition',data.calculatedActivityCount+data.unresolvedActivityCount,rows.length);
+    compare('forecast_date_variance',data.forecastVarianceDays,days(data.sourceForecastCompletionIso,data.independentForecastCompletionIso));
+    compare('required_finish_date_variance',data.requiredFinishVarianceDays,days(data.requiredFinishIso,data.independentForecastCompletionIso));
+    compare('activity_forecast_date_variances',rows.every((r:any)=>{const expected=days(r.sourceFinishIso,r.independentEarlyFinishIso);return expected===null?r.finishVarianceDays===null:typeof r.finishVarianceDays==='number'&&Math.abs(r.finishVarianceDays-expected)<=.00001;}),true);
+  }
+  if(result.key==='quantity-scurve'){
+    compare('quantities_separated_by_unit',data.unitKeyed,true);
+    compare('unique_quantity_series',new Set((data.series??[]).map((r:any)=>r.seriesKey)).size,data.series?.length??0);
+    compare('quantity_history_stops_at_data_date',(data.series??[]).every((s:any)=>(s.points??[]).every((p:any)=>p.actualInstalledQuantity===null||Boolean(model.dataDateIso&&p.dateIso.slice(0,10)<=model.dataDateIso.slice(0,10)))),true);
+  }
   if (result.key === 'schedule-analytics') {
     compare('source_activity_count', totals.activityCount, model.activities.length);
     compare('execution_population', totals.population?.executableActivityCount, execution.activities.length);

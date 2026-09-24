@@ -7304,7 +7304,7 @@ export function managementSurfacesForProject(
             document.sourceFilename,
           action:
             "Project evidence added or updated",
-          actor: "Actor not recorded (legacy)",
+          actor: state.auditSourceActors?.['evidence:'+document.documentId]?.label??"Actor not recorded (legacy)",
           state:
             document.basisState,
           sourceRef:
@@ -7325,7 +7325,7 @@ export function managementSurfacesForProject(
             publication.stale
               ? "Board publication became stale"
               : "Board publication finalized",
-          actor: "Actor not recorded (legacy)",
+          actor: state.auditSourceActors?.['publication:'+publication.publicationId]?.label??"Actor not recorded (legacy)",
           state:
             publication.stale
               ? "stale"
@@ -7350,7 +7350,7 @@ export function managementSurfacesForProject(
                 "Project control position",
               action:
                 "Project position recalculated and cross-module certification executed",
-              actor: "Actor not recorded (legacy)",
+              actor: state.auditSourceActors?.['rerun:'+state.lastRerunReceipt.receiptId]?.label??"Actor not recorded (legacy)",
               state:
                 state.lastRerunReceipt
                   .certification
@@ -7545,8 +7545,13 @@ export function managementSurfacesForProject(
     action:g.action,owner:'Project controls reviewer',moduleKeys:['master-dashboard','command-center','master-control-programme'],
     evidencePaths:['governanceGaps.'+g.key],sourceRefs:[],checkIds:[]}));
   const operations=operationalReporting(state);
+  const operationChecks=([['NCR',operations.quality],['RFI',operations.rfi],['Risk',operations.risk]] as const).map(([name,r])=>{
+    const actual=r.currentRecordCount+r.futureRecordCount+r.undatedRecordCount,expected=r.sourceRecordCount;
+    return {metric:name+' dated source partition',expected,actual,passed:actual===expected};
+  });
   const operationalIssues=assessModuleIssues({key:'command-center',status:'partial',reason:null,dependencies:['dated operational registers'],
-    engineState:'ready',evidenceState:'partial',professionalState:'review_required',data:{operationalReporting:operations}},certification).issues
+    engineState:'ready',evidenceState:'partial',professionalState:'review_required',data:{operationalReporting:operations,
+      challenge:{reconciliationState:'not_applicable'},systemEvidenceContract:{state:operationChecks.every(c=>c.passed)?'verified_for_checked_metrics':'failed',checks:operationChecks}}},certification).issues
     .map(issue=>({...issue,moduleKeys:[...managementModuleKeys]}));
   const issueAssessment=summarizeControlIssues([...issues,...governanceIssues,...operationalIssues]);
   const result = { ...surfaces,
@@ -7913,7 +7918,7 @@ export function rerunProject(
   const certification =
     certifyCrossModuleConsistency({
       generatedAt,
-      state,
+      state: reportingState(state),
       modules:
         resolvedModules,
       director:

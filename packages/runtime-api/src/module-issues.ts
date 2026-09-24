@@ -46,7 +46,14 @@ export function assessModuleIssues(result: ModuleRuntimeResult, consistency: Con
   if(noticeInputsMissing)add('missing_information','NOTICE_TRIGGER_DATES_MISSING','Event dates are needed for notice assessment',
     d.noticeEventDateMissingCount+' events have no event/awareness date. Population, claimed-day retention and assessable timing arithmetic have passed the listed checks.',
     'Supply the dated event/awareness evidence and dated claim assessments, then assess each applicable contract rule.','events.eventStartIso');
-  if(!noticeInputsMissing&&(reconciliation==='independent_unavailable'||reconciliation==='not_checked'||!reconciliation)) add('verification_pending','INDEPENDENT_COMPARISON_NOT_ESTABLISHED','Independent comparison not established',
+  const unavailableItems=(d?.challenge?.items??[]).filter((i:any)=>i.reconciliationState==='independent_unavailable');
+  const classifiedUnavailable=unavailableItems.filter((i:any)=>i.independent?.diagnostics?.some((s:string)=>s.startsWith('COMPARISON_INPUT_REQUIRED:')||s==='SOURCE_AUTHORITY_ONLY'));
+  for(const item of classifiedUnavailable){
+    const sourceOnly=item.independent.diagnostics.includes('SOURCE_AUTHORITY_ONLY');
+    add(sourceOnly?'governance_review':'missing_information',sourceOnly?'SOURCE_AUTHORITY_COMPARISON':'INDEPENDENT_COMPARISON_INPUT',item.label+' · '+(sourceOnly?'source authority review':'specific evidence needed'),item.consequence,item.action,'challenge.items.'+item.metric,sourceOnly?'Project controls reviewer':'Project evidence owner',item.independent.sourceRefs??[]);
+  }
+  const dependenciesExplained=unavailableItems.length>0&&classifiedUnavailable.length===unavailableItems.length;
+  if(!noticeInputsMissing&&!dependenciesExplained&&(reconciliation==='independent_unavailable'||reconciliation==='not_checked'||!reconciliation)) add('verification_pending','INDEPENDENT_COMPARISON_NOT_ESTABLISHED','Independent comparison not established',
     'CMeng has not established an independent value for this comparison.',
     'Establish the independent calculation and identify any specific input dependency. Do not blame a missing contractor submission.','challenge','CMeng');
   if(result.evidenceState==='missing'||!d) add('missing_information','REQUIRED_EVIDENCE_MISSING','Required information not established',
@@ -119,6 +126,9 @@ export function assessModuleIssues(result: ModuleRuntimeResult, consistency: Con
   if(d?.eligibleCausalEventEvidenceEstablished===false)
     add('missing_information','CAUSAL_ENTITLEMENT_EVIDENCE_MISSING','Causal entitlement evidence not established','The current events do not establish eligible causal time impact.',
       'Establish event responsibility, affected activities, notice applicability and causal time impact before assessing entitlement.','eligibleCausalEventEvidenceEstablished','Project controls reviewer');
+  const explicitBasisReview=integrity?.state==='verified_for_checked_metrics'&&((d?.classificationBasis==='source_total_float'&&d?.independentCpmState==='established')||d?.managementReviewState==='review_required');
+  if(explicitBasisReview)add('governance_review','CALCULATION_BASIS_REVIEW','Calculated basis requires review',d.managementReviewReason??'Submitted float and independently recalculated criticality are both available on their stated bases.',
+    'Review the calendar, constraints and comparison basis before adopting a management conclusion.','calculationBasis','Project controls reviewer');
   if(result.evidenceState==='partial'&&!issues.some(i=>['missing_information','data_quality','source_conflict','governance_review'].includes(i.kind)))
     add('verification_pending','EVIDENCE_ASSESSMENT_INCOMPLETE','Evidence assessment incomplete',result.reason??'The evidence producer has not established a complete position.',
       'Identify and classify the specific evidence dependency before treating the result as complete.','evidenceState','CMeng');
