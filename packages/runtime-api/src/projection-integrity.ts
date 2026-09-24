@@ -1,4 +1,4 @@
-import { activityPopulation, activityNearCriticalThresholdHours, scheduleProgress, sourceFloatCriticality, type CanonicalScheduleModel, type ScheduleAnalysisConfig } from '../../schedule-analysis-core/src';
+import { parseScheduleTime, activityPopulation, activityNearCriticalThresholdHours, scheduleProgress, sourceFloatCriticality, type CanonicalScheduleModel, type ScheduleAnalysisConfig } from '../../schedule-analysis-core/src';
 import type { ModuleRuntimeResult } from './project-state-types';
 import {commercialIntegrityChecks} from './commercial-integrity';
 
@@ -18,7 +18,7 @@ export function checkProjectionIntegrity(result: ModuleRuntimeResult, model: Can
     checks.push({ metric, expected, actual: actual ?? null, passed });
   };
   const totals = data.result ?? data;
-  const days = (a:unknown,b:unknown) => typeof a==='string'&&typeof b==='string'&&Number.isFinite(Date.parse(a))&&Number.isFinite(Date.parse(b))?(Date.parse(b)-Date.parse(a))/86400000:null;
+  const days = (a:unknown,b:unknown) => typeof a==='string'&&typeof b==='string'&&Number.isFinite(parseScheduleTime(a))&&Number.isFinite(parseScheduleTime(b))?(parseScheduleTime(b)-parseScheduleTime(a))/86400000:null;
   if(result.key==='schedule-change-report') {
     const rows=data.changedActivities??[];
     for(const [kind,key] of [['added','addedActivityCount'],['removed','removedActivityCount'],['modified','modifiedActivityCount']])compare('changed_register_'+kind,data[key!],rows.filter((r:any)=>r.changeKind===kind).length);
@@ -54,7 +54,7 @@ export function checkProjectionIntegrity(result: ModuleRuntimeResult, model: Can
     compare('established_forecast_count',data.establishedForecastCount,rows.filter((r:any)=>r.independentForecastCompletionIso!==null).length);
     rows.forEach((r:any,i:number)=>{
       compare('movement_previous:'+r.snapshotId,r.movementDaysVsPrevious,i?days(rows[i-1].independentForecastCompletionIso,r.independentForecastCompletionIso):null);
-      compare('movement_first:'+r.snapshotId,r.movementDaysVsFirst,days(rows.find((p:any)=>p.independentForecastCompletionIso&&Number.isFinite(Date.parse(p.independentForecastCompletionIso)))?.independentForecastCompletionIso,r.independentForecastCompletionIso));
+      compare('movement_first:'+r.snapshotId,r.movementDaysVsFirst,days(rows.find((p:any)=>p.independentForecastCompletionIso&&Number.isFinite(parseScheduleTime(p.independentForecastCompletionIso)))?.independentForecastCompletionIso,r.independentForecastCompletionIso));
     });
   }
   if(result.key==='independent-forecast'){
@@ -110,7 +110,7 @@ export function checkProjectionIntegrity(result: ModuleRuntimeResult, model: Can
     compare('event_date_missing_count',data.noticeEventDateMissingCount,count('event_date_missing'));
     compare('requirement_missing_count',data.noticeRequirementMissingCount,count('requirement_missing'));
     for(const row of events.filter((r:any)=>['timely','late'].includes(r.noticeTimeliness))){
-      const elapsed=row.eventStartIso&&row.noticeIssuedAt?(Date.parse(row.noticeIssuedAt)-Date.parse(row.eventStartIso))/86400000:null;
+      const elapsed=row.eventStartIso&&row.noticeIssuedAt?(parseScheduleTime(row.noticeIssuedAt)-parseScheduleTime(row.eventStartIso))/86400000:null;
       compare('notice_dates_required:'+row.eventId,elapsed!==null&&Number.isFinite(elapsed)&&row.requiredNoticeDays!==null,true);
       if(elapsed!==null&&Number.isFinite(elapsed)&&row.requiredNoticeDays!==null)compare('notice_rule:'+row.eventId,row.noticeTimeliness,elapsed<=row.requiredNoticeDays?'timely':'late');
     }
@@ -121,7 +121,7 @@ export function checkProjectionIntegrity(result: ModuleRuntimeResult, model: Can
     const windows=data.windows??[];
     compare('window_headline_matches_register',data.windowCount,windows.length);
     compare('unique_windows',new Set(windows.map((r:any)=>r.windowId)).size,windows.length);
-    const diff=(a:any,b:any)=>a&&b?(Date.parse(b)-Date.parse(a))/86400000:null;
+    const diff=(a:any,b:any)=>a&&b?(parseScheduleTime(b)-parseScheduleTime(a))/86400000:null;
     for(const row of windows){
       compare('submitted_date_movement:'+row.windowId,row.sourceForecastMovementDays,diff(row.fromSourceForecastCompletionIso,row.toSourceForecastCompletionIso));
       compare('calendar_date_movement:'+row.windowId,row.independentForecastMovementDays,diff(row.fromIndependentForecastCompletionIso,row.toIndependentForecastCompletionIso));

@@ -1,3 +1,4 @@
+import { parseScheduleTime } from "../../schedule-analysis-core/src";
 import type {CanonicalScheduleModel} from '../../schedule-analysis-core/src';
 import type {CanonicalQuantityProgressModel} from '../../quantity-progress-core/src';
 import type {CanonicalResourceModel} from '../../schedule-resource-core/src';
@@ -20,7 +21,7 @@ export interface BoqFeasibilityRow {
   manpowerState: 'calculated' | 'unresolved'; scheduleState: 'fits' | 'exceeds' | 'unresolved';
   reason: string; scheduleReason: string; sourceRefs: string[];
 }
-const instant=(s:string|null)=>s&&Number.isFinite(Date.parse(s))?Date.parse(s):null;
+const instant=(s:string|null)=>s&&Number.isFinite(parseScheduleTime(s))?parseScheduleTime(s):null;
 const rounded=(n:number)=>Number(n.toFixed(6));
 const positive=(n:unknown):n is number=>typeof n==='number'&&Number.isFinite(n)&&n>0;
 
@@ -53,7 +54,7 @@ export function buildBoqFeasibility(input:{schedule:CanonicalScheduleModel;quant
     row.sourceRefs.push(...link.sourceRefs.map(r=>r.source+':'+r.locator));
     if(!activity){fail('The linked activity is absent from the current programme.');continue;}
     row.submittedFinishIso=activity.forecastFinishIso??activity.currentFinishIso;
-    const history=(snapshots.get(item.quantityItemId)??[]).sort((a,b)=>Date.parse(b.asOfIso)-Date.parse(a.asOfIso));
+    const history=(snapshots.get(item.quantityItemId)??[]).sort((a,b)=>parseScheduleTime(b.asOfIso)-parseScheduleTime(a.asOfIso));
     const latest=history[0],sameDate=history.filter(s=>s.asOfIso===latest?.asOfIso);
     if(!latest||latest.asOfIso.slice(0,10)!==schedule.dataDateIso?.slice(0,10)||new Set(sameDate.map(s=>s.installedQuantity)).size!==1||latest.installedQuantity<0||latest.installedQuantity>item.contractQuantity){fail('Installed quantity at the reporting date is missing, stale or conflicting.');continue;}
     row.remainingQuantity=rounded(item.contractQuantity-latest.installedQuantity);
@@ -91,7 +92,7 @@ export function buildBoqFeasibility(input:{schedule:CanonicalScheduleModel;quant
     if(requiredLaborHours!==null&&positive(submittedPeople)&&activity&&dataDate!==null){
       const calendar=resolveWorkingCalendar(activity.calendarId,schedule.calendars,false)?.calendar;
       const start=instant(activity.forecastStartIso??activity.currentStartIso),finish=instant(first.submittedFinishIso);
-      if(calendar&&start!==null&&finish!==null)try{productionFinishIso=new Date(addWorkingHours(calendar,Math.max(start,dataDate),requiredLaborHours/submittedPeople)).toISOString();scheduleState=Date.parse(productionFinishIso)>finish?'exceeds':'fits';reason='All linked BOQ items are included at the supplied activity crew capacity on its calendar. This local check does not resolve project-wide resource sharing, sequence or EOT.';}catch{reason='The quantity-driven duration exceeds the supported calendar calculation range.';}
+      if(calendar&&start!==null&&finish!==null)try{productionFinishIso=new Date(addWorkingHours(calendar,Math.max(start,dataDate),requiredLaborHours/submittedPeople)).toISOString();scheduleState=parseScheduleTime(productionFinishIso)>finish?'exceeds':'fits';reason='All linked BOQ items are included at the supplied activity crew capacity on its calendar. This local check does not resolve project-wide resource sharing, sequence or EOT.';}catch{reason='The quantity-driven duration exceeds the supported calendar calculation range.';}
     }
     return {activityId,itemCount:items.length,requiredLaborHours,availableWorkingHours,requiredAveragePeople,submittedPeople,manpowerGap:requiredAveragePeople!==null&&submittedPeople!==null?rounded(submittedPeople-requiredAveragePeople):null,submittedFinishIso:first.submittedFinishIso,productionFinishIso,scheduleState,reason,sourceRefs:[...new Set(items.flatMap(r=>r.sourceRefs))]};
   });

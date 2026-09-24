@@ -1,3 +1,4 @@
+import { parseScheduleTime } from "../../schedule-analysis-core/src";
 import {
   analyzeSchedule,
   type CanonicalScheduleActivity,
@@ -15,7 +16,7 @@ import type {
 
 function dateMs(value: string | null): number | null {
   if (!value) return null;
-  const parsed = Date.parse(value);
+  const parsed = parseScheduleTime(value);
   return Number.isFinite(parsed)
     ? parsed
     : null;

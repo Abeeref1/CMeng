@@ -161,3 +161,22 @@ test('10 graph reuse detects in-place broken links cycles external links and ide
  const {store,state}=fixture(t);await schedule(store,'2031-07-01','a.xer');const model=state.schedules[0]!.revision.model;const {analyzeScheduleGraph}=await import('../packages/schedule-analysis-core/src');const first=analyzeScheduleGraph(model);first.topologicalOrder?.push('fake');assert.deepEqual(analyzeScheduleGraph(model).topologicalOrder,['A1']);
  model.relationships.push({relationshipId:'R1',predecessorActivityId:'A1',successorActivityId:'MISSING',type:'FS',lagHours:0,external:false,sourceRefs:[],diagnostics:[]});assert.deepEqual(analyzeScheduleGraph(model).brokenSuccessorActivityIds,['MISSING']);model.relationships[0]!.successorActivityId='A1';assert.deepEqual(analyzeScheduleGraph(model).selfLoops,['A1']);model.relationships[0]!.external=true;assert.equal(analyzeScheduleGraph(model).externalRelationshipCount,1);assert.equal(analyzeScheduleGraph(model).selfLoops.length,0);model.activities[0]!.activityId='renamed';assert.deepEqual(analyzeScheduleGraph(model).topologicalOrder,['renamed']);
 });
+
+
+test('clean identical civil and calculated finish dates have no timezone-induced challenge',async t=>{
+ const previous=process.env.TZ;
+ try {
+  for(const zone of ['UTC','Asia/Dubai','Asia/Tokyo','America/Los_Angeles']){
+   process.env.TZ=zone;
+   const {store,state}=fixture(t);await schedule(store,'2031-07-01','programme.xer','2031-07-02 09:00');runtimeProjects.replace(state);
+   const result=moduleForProject(state.projectId,'independent-forecast');const data=result.data as any;
+   assert.equal(data.forecastVarianceDays,0,zone);
+   assert.ok(data.activities.every((a:any)=>a.finishVarianceDays===0),zone);
+   const comparison=data.challenge.items.find((i:any)=>i.metric==='completion_date');
+   assert.equal(comparison.gap.value,0,zone);assert.equal(comparison.materialDifference,false,zone);
+   assert.equal(data.systemEvidenceContract.failureCount,0,zone);
+   const history=moduleForProject(state.projectId,'forecast-history').data as any;
+   assert.ok(history.points.every((p:any)=>p.calendarVersusSubmittedDays===null||p.calendarVersusSubmittedDays===0),zone);
+  }
+ } finally { if(previous===undefined)delete process.env.TZ;else process.env.TZ=previous; }
+});
