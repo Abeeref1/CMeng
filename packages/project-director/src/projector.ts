@@ -971,7 +971,7 @@ export function buildProjectDirectorPosition(
   const sourceActions=input.operationalReporting?.actions;
   if(sourceActions){
     for(const row of sourceActions.slice(0,10))actions.push(`${row.type} ${row.recordId}: ${row.action} Owner: ${row.owner??'not recorded'}; due: ${row.dueIso??'not recorded'}${row.linkedActivityId?'; activity: '+row.linkedActivityId:''}.`);
-    if(sourceActions.length>10)actions.push(`${sourceActions.length} source actions in total; the first 10 are listed here. Open Command Center for every record, owner and date.`);
+    if(sourceActions.length>10)actions.push(`${sourceActions.length} delivery actions in total; the first 10 are listed here. Open Command Center for every record, owner and date.`);
   }else{
     for(const row of openNcrs.slice(0,10))actions.push(`Resolve ${row.severity} NCR ${row.ncrId} and record closure evidence. Owner and due date need confirmation.`);
     for(const row of openRfis.filter(item=>overdue(item.dueIso)).slice(0,10))actions.push(`Obtain the response for RFI ${row.rfiId}; source due date: ${row.dueIso}. Confirm the responsible owner.`);
@@ -992,7 +992,7 @@ export function buildProjectDirectorPosition(
       "finalized"
   ) {
     actions.push(
-      "Finalize a current board report with evidence receipts.",
+      "Prepare the current board report with supporting documents.",
     );
   }
 

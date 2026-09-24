@@ -22,7 +22,7 @@ export function sourceInterpretation(state:ProjectRuntimeState,progress?:Progres
     calendarReview:calendar?{...calendar,rows:undefined}:null,
     productivityForecast:{completionIso:p.completionIso,authority:p.state==='official'?'governed_source':p.state,method:p.method,
       driverWorkPackageIds:p.driverWorkPackageIds,workPackageCount:p.workPackageCount,coveragePercent:p.calculationCoveragePercent,concentration:p.concentration??null,sourceRefs:p.sourceRefs,
-      interpretation:'Source productivity forecast; approval of the model does not amend contractual completion. Calendar-calculated rows and supplied model finish dates retain their own method.'},
+      interpretation:'Productivity forecast; approval of the model does not amend contractual completion. Calendar-calculated rows and supplied model finish dates retain their own method.'},
     riskValidation:{...risk,scoreRows:undefined},
     actions:operationalReporting(state).actions,
     availability:evidenceAvailabilityReview(state),

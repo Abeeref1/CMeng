@@ -406,7 +406,7 @@ ${systemReviewStyles}
         </div>
       </details>
 
-      <div class="footer-note">CMeng keeps every project document traceable, treats missing information separately from zero, keeps recovery programmes separate from the current programme, and requires approval before changing the adopted project position.</div>
+      <div class="footer-note">Project documents, decisions and revisions remain in the audit history.</div>
       </div>
     </div>
   </main>
@@ -424,11 +424,11 @@ const groups={
   "Commercial":["commercial-overview","cost-forecast","variations-change","payments","cash-flow","commercial-claims-notices","contract-particulars-bonds"]
 };
 const names={
-"source-quality":"Source Quality","master-dashboard":"Master Dashboard","command-center":"Command Center","master-control-programme":"Master Control Programme",
+"source-quality":"Information & Actions","master-dashboard":"Master Dashboard","command-center":"Command Center","master-control-programme":"Master Control Programme",
 "pmo-analysis":"Management Position","schedule-analytics":"Programme Review","activity-analytics":"Activity Review","resource-utilization":"Resources","lookahead-schedule":"Look-Ahead","progress-report":"Progress Position","schedule-change-report":"Programme Changes","revision-trend":"Revision History","variance-trends":"Variance Trend","progress-scurve":"Progress S-Curve","quantity-scurve":"Installed Quantities","progress-breakdown":"WBS Progress","milestones":"Milestones","near-critical":"Near-Critical & Float Risk","manhour-scurve":"Man-Hour S-Curve","forecast-history":"Forecast History","independent-forecast":"Independent Forecast","delay-claims":"Delay Events & Claims","notices-claims":"Notices, EOT & Claims","windows-analysis":"Delay Windows","eot-assessment":"EOT Position","challenge-contract":"Challenge the Contract","commercial-overview":"Commercial Overview","cost-forecast":"Cost & Forecast","variations-change":"Variations & Change","payments":"Payments","cash-flow":"Cash Flow","commercial-claims-notices":"Claims & Notices","contract-particulars-bonds":"Contract Particulars & Bonds"
 };
 const descriptions={
-"source-quality":"Source requests, system failures and verification coverage with responsible actions.",
+"source-quality":"Documents to confirm, information to provide and actions to assign.",
 "master-dashboard":"Completion commitments, programme pressure and commercial position.",
 "command-center":"Delivery priorities, suggested follow-up and decisions awaiting assignment.",
 "master-control-programme":"Controlled revisions, project structure, specialist positions and review history.",
@@ -448,17 +448,17 @@ const descriptions={
 "progress-breakdown":"Duration-weighted progress and schedule pressure by WBS.",
 "manhour-scurve":"Planned, actual and forecast labor hours, with history coverage stated explicitly.",
 "forecast-history":"How submitted finishes and calendar recalculations move across programme revisions.",
-"independent-forecast":"Submitted finish compared with CMeng CPM, with reconciliation warnings before management use.",
-"delay-claims":"Claim records linked to governed delay events and observed programme movement.",
+"independent-forecast":"Submitted finish compared with the calendar calculation and productivity forecast.",
+"delay-claims":"Claim records linked to recorded delay events and observed programme movement.",
 "notices-claims":"Notice timeliness and claim assessment authority, only where the required evidence exists.",
 "windows-analysis":"Revision-to-revision programme movement kept separate from causation and entitlement.",
 "eot-assessment":"Observed movement, time impact, contractual entitlement and official EOT award kept separate.",
-"challenge-contract":"Contract clause intelligence and delivery assumptions reviewed against the available project evidence.",
+"challenge-contract":"Contract requirements and delivery assumptions reviewed against the available project evidence.",
 "commercial-overview":"Integrated contract value, change, payment, retention, bond, claim and time position by currency.",
 "cost-forecast":"Original and current contract value, approved/pending change and claim exposure without cross-currency arithmetic.",
-"variations-change":"Approved and pending variation exposure with governed source state.",
+"variations-change":"Approved and pending variation exposure with approval status and dates.",
 "payments":"Interim certificates, certified value, payments, unpaid certified balance, retention and advance evidence.",
-"cash-flow":"Actual cash availability, certificate reconciliation and the forward source profile.",
+"cash-flow":"Actual cash availability, certificate reconciliation and the future certificate plan.",
 "commercial-claims-notices":"Commercial claim exposure reconciled with contractual time and EOT position.",
 "contract-particulars-bonds":"Contract value, contractual completion, approved EOT and active security position."
 }
@@ -467,7 +467,7 @@ const roleViews={
     label:"Overall Detailed",
     short:"Overall",
     eyebrow:"Detailed evidence review",
-    question:"What is the complete governed project-control position, from management signal through technical detail and source evidence?"
+    question:"What is the project position, with its supporting calculations and documents?"
   },
   planning:{
     label:"Planning Engineer",
@@ -538,7 +538,7 @@ function renderRoleViewSelector(){
   });
 }
 function reconciliationSummary(challenge){
-  const labels={within_tolerance:"Reconciled within tolerance",material_difference:"Difference requires review",independent_unavailable:"Independent comparison not established",submitted_missing:"Source value needed for comparison",conflicting_evidence:"Conflicting evidence",incomparable:"Comparison bases differ",scenario:"Scenario comparison",comparison_pending:"Comparison pending"};
+  const labels={within_tolerance:"Reconciled within tolerance",material_difference:"Difference requires review",independent_unavailable:"Independent comparison not confirmed",submitted_missing:"Source value needed for comparison",conflicting_evidence:"Conflicting evidence",incomparable:"Comparison bases differ",scenario:"Scenario comparison",comparison_pending:"Comparison pending"};
   return labels[challenge?.reconciliationState]||"Comparison pending";
 }
 function consistencyLabel(data){
@@ -550,7 +550,7 @@ function displayPercentDifference(a,b){
 }
 function distributionSummary(d,unit="days",title="Value distribution"){
   if(!d)return "";
-  return '<div class="domain-card"><h5>'+escapeHtml(title)+'</h5>'+metricLine("Median",d.median===null?"Not established":fmt(d.median)+" "+unit)+metricLine("90th percentile",d.p90===null?"Not established":fmt(d.p90)+" "+unit)+metricLine("Maximum",d.maximum===null?"Not established":fmt(d.maximum)+" "+unit)+metricLine("Rows at maximum",fmt(d.maximumCount)+(d.maximumPercent===null?"":" · "+fmt(d.maximumPercent)+"% of known values"))+metricLine("Most repeated value",d.dominantValue===null?"Not established":fmt(d.dominantValue)+" "+unit)+metricLine("Rows at that value",fmt(d.dominantCount)+(d.dominantPercent===null?"":" · "+fmt(d.dominantPercent)+"% of known values"))+'<p class="muted">Repeated values identify concentration. They do not establish a shared cause or separate entitlement.</p></div>';
+  return '<div class="domain-card"><h5>'+escapeHtml(title)+'</h5>'+metricLine("Median",d.median===null?"Not confirmed":fmt(d.median)+" "+unit)+metricLine("90th percentile",d.p90===null?"Not confirmed":fmt(d.p90)+" "+unit)+metricLine("Maximum",d.maximum===null?"Not confirmed":fmt(d.maximum)+" "+unit)+metricLine("Rows at maximum",fmt(d.maximumCount)+(d.maximumPercent===null?"":" · "+fmt(d.maximumPercent)+"% of known values"))+metricLine("Most repeated value",d.dominantValue===null?"Not confirmed":fmt(d.dominantValue)+" "+unit)+metricLine("Rows at that value",fmt(d.dominantCount)+(d.dominantPercent===null?"":" · "+fmt(d.dominantPercent)+"% of known values"))+'<p class="muted">Repeated values identify concentration. They do not establish a shared cause or separate entitlement.</p></div>';
 }
 function renderRoleContent(key,data,primaryView,challengeHtml="",includeTechnical=false){
   return experienceRoleContent(key,data,primaryView,challengeHtml,includeTechnical);
@@ -628,15 +628,17 @@ function renderNav(){
   const states=new Map([...(overview?.moduleStates||[]),...(overview?.managementStates||[])].map(x=>[x.key,x]));
   const overall=states.get('master-dashboard')?.issueAssessment?.counts||{};
   const sourceTotal=(overall.source_conflict||0)+(overall.data_quality||0)+(overall.missing_information||0);
-  let html='<div class="nav-review-totals"><div>Source issues<b>'+fmt(sourceTotal)+'</b></div><div>System failures<b>'+fmt(overall.system_defect||0)+'</b></div></div><div class="nav-group">';
+  let html='<div class="nav-review-totals"><div>Information items<b>'+fmt(sourceTotal)+'</b></div><div>System failures<b>'+fmt(overall.system_defect||0)+'</b></div></div><div class="nav-group">';
   Object.entries(groups).forEach(([group,keys])=>{
     html+='<div class="nav-group-title" style="padding-top:10px">'+group+'</div>';
     keys.forEach(key=>{
       const state=states.get(key)||{};
       const issues=state.issueAssessment?.counts||{};
       const errors=issues.system_defect||0,source=(issues.source_conflict||0)+(issues.data_quality||0)+(issues.missing_information||0),review=(issues.comparison_difference||0)+(issues.governance_review||0),pending=issues.verification_pending||0;
-      const title=names[key]+' · Source issues: '+source+' · System failures: '+errors+' · Reviews: '+review+' · Pending checks: '+pending;
-      const count='<span class="nav-counts">'+(source?'<span class="nav-count attention" aria-label="'+source+' source issues">Source '+source+'</span>':'')+(errors?'<span class="nav-count error" aria-label="'+errors+' system failures">System '+errors+'</span>':'')+'</span>';
+      const title=names[key]+' · Information items: '+source+' · System failures: '+errors+' · Reviews: '+review+' · Pending checks: '+pending;
+      // Keep the full counts on Information & Actions. Repeating the same
+      // propagated requests on every destination makes navigation look broken.
+      const count='<span class="nav-counts">'+(errors?'<span class="nav-count error" aria-label="'+errors+' system failures">Error '+errors+'</span>':'')+'</span>';
       html+='<button class="nav-item '+(selected===key?"active":"")+'" data-key="'+key+'" title="'+escapeHtml(title)+'" aria-current="'+(selected===key?'page':'false')+'"><span class="nav-label">'+names[key]+'</span>'+count+'</button>';
     });
   });
@@ -746,18 +748,18 @@ function renderDeliveryChallenge(data,reason,status){
   const mappingCoverage=typeof q.mappingCoveragePercent==="number"?q.mappingCoveragePercent:null;
   const challengeBody=renderUniversalChallenge(data?.challenge);
   const gates=moduleEvidenceGate([
-    {label:"Read contract sections",value:contract?fmt(contract.clauseCount||0)+" source sections":"Not established",state:contract?.semanticComplete===true&&contract?.signalCount>0?"ready":"partial"},
-    {label:"Explicit headcount plan",value:submittedManpower?"Established":"Headcount not established",state:submittedManpower?"ready":"missing"},
-    {label:"Measured remaining labor hours",value:measuredHours?fmt(m.evidenceRemainingLaborHours)+" h":"Not established",state:measuredHours?"ready":"missing"},
-    {label:"BOQ / programme mapping",value:mappingCoverage===null?"Not established":fmt(mappingCoverage)+"%",state:mappingCoverage!==null&&mappingCoverage>0?"ready":"missing"},
-    {label:"Calendar calculation",value:independentDeferred?"Reviewed in separate view":s.independentCompletionIso?planningShortDate(s.independentCompletionIso):"Not established",state:data.independentForecastState==="review_required"?"partial":s.independentCompletionIso?"ready":"missing"}
+    {label:"Read contract sections",value:contract?fmt(contract.clauseCount||0)+" source sections":"Not confirmed",state:contract?.semanticComplete===true&&contract?.signalCount>0?"ready":"partial"},
+    {label:"Explicit headcount plan",value:submittedManpower?"Established":"Headcount not confirmed",state:submittedManpower?"ready":"missing"},
+    {label:"Measured remaining labor hours",value:measuredHours?fmt(m.evidenceRemainingLaborHours)+" h":"Not confirmed",state:measuredHours?"ready":"missing"},
+    {label:"BOQ / programme mapping",value:mappingCoverage===null?"Not confirmed":fmt(mappingCoverage)+"%",state:mappingCoverage!==null&&mappingCoverage>0?"ready":"missing"},
+    {label:"Calendar calculation",value:independentDeferred?"Reviewed in separate view":s.independentCompletionIso?planningShortDate(s.independentCompletionIso):"Not confirmed",state:data.independentForecastState==="review_required"?"partial":s.independentCompletionIso?"ready":"missing"}
   ]);
   const scheduleCards=forecastReview+planningKpis([
     ["Submitted finish",planningShortDate(s.contractorSubmittedCompletionIso),"current programme"],
-    ["Contract finish",planningShortDate(s.contractualCompletionIso),"governed if established"],["Submitted vs contract",s.contractorSubmittedCompletionIso&&s.contractualCompletionIso?fmt(planningCalendarDaysBetween(s.contractualCompletionIso,s.contractorSubmittedCompletionIso))+" calendar days":"Not established","submitted finish minus contractual completion"],
+    ["Contract finish",planningShortDate(s.contractualCompletionIso),"governed if established"],["Submitted vs contract",s.contractorSubmittedCompletionIso&&s.contractualCompletionIso?fmt(planningCalendarDaysBetween(s.contractualCompletionIso,s.contractorSubmittedCompletionIso))+" calendar days":"Not confirmed","submitted finish minus contractual completion"],
     ["Calendar-calculated finish",independentDeferred?"Separate review":planningShortDate(s.independentCompletionIso),independentDeferred?"not repeated here":"CMeng calculation",independentDeferred?"warning":""],
-    ["Average concurrent activities",s.averageConcurrentWorkFronts,"task concurrency; work fronts not established"],
-    ["Peak concurrent activities",s.peakConcurrentWorkFronts,"task concurrency; work fronts not established"]
+    ["Average concurrent activities",s.averageConcurrentWorkFronts,"task concurrency; work fronts not confirmed"],
+    ["Peak concurrent activities",s.peakConcurrentWorkFronts,"task concurrency; work fronts not confirmed"]
   ]);
   const manpowerScenarioRows=m.scheduleDerivedScenarios||[];
   const manpowerScenarios=manpowerScenarioRows.map(x=>'<tr><td>'+escapeHtml(x.crewSize)+'</td><td>'+escapeHtml(fmt(x.averageManpower))+'</td><td>'+escapeHtml(fmt(x.peakManpower))+'</td><td><span class="state-pill review">Scenario</span></td></tr>').join("");
@@ -765,14 +767,14 @@ function renderDeliveryChallenge(data,reason,status){
   const labor=data.sourceLaborEvidence;
   const laborSummary=labor?'<div class="notice info"><b>Supplied labor evidence is available</b><p>'+escapeHtml(labor.basis)+'</p>'+planningKpis([["Labor resources",labor.laborResourceCount,"source identities"],["Planned labor hours",fmt(labor.plannedHours)+" h","full source horizon"],["Planned hours through DD",fmt(labor.plannedHoursToDataDate)+" h","weekly source periods"],["Approved actual hours through DD",fmt(labor.actualHoursToDataDate)+" h","weekly source periods"]])+'</div>':'';
   const manpower=laborSummary+'<section class="planning-panel"><div class="planning-panel-head"><div><h4>Manpower evidence and illustrative sensitivity</h4><p>Activity concurrency does not establish crews or executable work fronts. Task-to-person multipliers are shown only when explicitly supplied. Source-hour headcount comparisons are shown below.</p></div></div><div class="planning-panel-body">'+planningKpis([
-    ["Submitted average headcount",submittedManpower?fmt(m.submittedAverageManpower):"Not established","people",submittedManpower?"":"warning"],
-    ["Submitted peak headcount",m.submittedPeakManpower===null||m.submittedPeakManpower===undefined?"Not established":fmt(m.submittedPeakManpower),"people",m.submittedPeakManpower===null||m.submittedPeakManpower===undefined?"warning":""],
-    ["Measured remaining hours",measuredHours?fmt(m.evidenceRemainingLaborHours)+" h":"Not established","",measuredHours?"":"warning"],
+    ["Submitted average headcount",submittedManpower?fmt(m.submittedAverageManpower):"Not confirmed","people",submittedManpower?"":"warning"],
+    ["Submitted peak headcount",m.submittedPeakManpower===null||m.submittedPeakManpower===undefined?"Not confirmed":fmt(m.submittedPeakManpower),"people",m.submittedPeakManpower===null||m.submittedPeakManpower===undefined?"warning":""],
+    ["Measured remaining hours",measuredHours?fmt(m.evidenceRemainingLaborHours)+" h":"Not confirmed","",measuredHours?"":"warning"],
     ["Required average to contract",m.requiredAverageManpowerToContract===null||m.requiredAverageManpowerToContract===undefined?"Not derivable":fmt(m.requiredAverageManpowerToContract),"scenario unless measured basis supports it",m.requiredAverageManpowerToContract===null||m.requiredAverageManpowerToContract===undefined?"warning":"accent"]
   ])+(manpowerScenarios?'<details style="margin-top:10px"><summary>Optional task-concurrency staffing assumptions</summary>'+manpowerScenarioBars+'<div class="table-wrap" style="margin-top:8px"><table><thead><tr><th>Assumed multiplier per concurrent task</th><th>Average manpower</th><th>Peak manpower</th><th>Authority</th></tr></thead><tbody>'+manpowerScenarios+'</tbody></table></div></details>':'')+'</div></section>';
   const quantityRows=(q.byUnit||[]).map(x=>'<tr><td>'+escapeHtml(x.unit)+'</td><td>'+escapeHtml(fmt(x.contractQuantity))+'</td><td>'+escapeHtml(fmt(x.mappedContractQuantity))+'</td><td>'+escapeHtml(fmt(x.installedQuantity))+'</td><td>'+escapeHtml(fmt(x.remainingQuantity))+'</td><td>'+escapeHtml(fmt(x.requiredPerDayToContract))+'</td><td>'+escapeHtml(x.mappingCoveragePercent===null?"—":fmt(x.mappingCoveragePercent)+"%")+'</td></tr>').join("");
   const quantity=(data.boqSource?.state==='candidate'?'<div class="notice info"><b>BOQ source candidate</b><p>'+escapeHtml(data.boqSource.sourceFilename||'Source BOQ')+' · unadopted source quantities; this does not establish an approved contract quantity basis or installed progress.</p></div>':'')+'<section class="planning-panel"><div class="planning-panel-head"><div><h4>Quantity and productivity basis</h4><p>Productivity conclusions depend on governed mapping and measured installed quantities.</p></div></div><div class="planning-panel-body">'+planningKpis([
-    ["Known quantity mapping coverage",mappingCoverage===null?"Not established":fmt(mappingCoverage)+"%","known quantities only; item gaps counted separately",mappingCoverage===null?"warning":""],
+    ["Known quantity mapping coverage",mappingCoverage===null?"Not confirmed":fmt(mappingCoverage)+"%","known quantities only; item gaps counted separately",mappingCoverage===null?"warning":""],
     ["Ambiguous BOQ items",q.mappingPopulationEstablished?fmt(q.ambiguousMappingItemCount):"Not assessable","items",q.ambiguousMappingItemCount?"warning":""],
     ["Unmapped BOQ items",q.mappingPopulationEstablished?fmt(q.unmappedItemCount):"Not assessable","items",q.unmappedItemCount?"warning":""],
     ["Productivity source forecast",data.sourceProductivityForecast?.completionIso?planningShortDate(data.sourceProductivityForecast.completionIso):"Not in the data","schedule and quantity links require review"]
@@ -787,7 +789,7 @@ function renderDeliveryChallenge(data,reason,status){
       {label:"Established",value:readyGateCount,tone:"success"},
       {label:"Missing / review",value:5-readyGateCount,tone:"warning"}
     ],"Evidence gates"))+
-    renderVisualPanel("Contract review signals","Contract topic occurrences require review; repeated wording is grouped below.",contractCategoryCounts.size?renderDonutChart(contractCategoryItems,"Signals"):'<div class="empty-visual">Contract review signals are not established.</div>')+
+    renderVisualPanel("Contract review signals","Contract topic occurrences require review; repeated wording is grouped below.",contractCategoryCounts.size?renderDonutChart(contractCategoryItems,"Signals"):'<div class="empty-visual">Contract review signals are not confirmed.</div>')+
   '</div>';
   const contractSources=contract?.sourceDocuments?.length?'<div class="table-wrap"><table><thead><tr><th>Source document</th><th>Role / authority</th><th>Clauses</th><th>Topic occurrences</th><th>Notice-pattern matches</th><th>Initial-claim period read</th></tr></thead><tbody>'+contract.sourceDocuments.map(x=>'<tr><td>'+escapeHtml(x.sourceFilename)+'</td><td>'+escapeHtml(humanizeKey(x.role))+' / '+escapeHtml(humanizeKey(x.basisState))+'</td><td>'+escapeHtml(fmt(x.clauseCount))+'</td><td>'+escapeHtml(fmt(x.signalCount))+'</td><td>'+escapeHtml(fmt(x.noticeCandidateCount))+'</td><td>'+escapeHtml((x.initialClaimPeriods||[]).map(n=>fmt(n)+' days').join('; ')||'Not read')+'</td></tr>').join('')+'</tbody></table></div>':'';
   const signalGroups=new Map();
@@ -798,21 +800,21 @@ function renderDeliveryChallenge(data,reason,status){
     ["Notice-pattern matches",contract.noticeRequirementCandidates?.length??0,"pattern hits; several may occur in one clause"],
     ["Categories",(contract.categoriesPresent||[]).length,"identified"]
   ])+(contract.countingBasis?'<p>'+escapeHtml(contract.countingBasis)+'</p>':'')+contractSources+contractTrace+(contractCategoryCounts.size?'<div class="nested-title" style="margin-top:14px">Signals by contract topic</div>'+contractCategoryBars:'')+'</div></section>':'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Contract review</h4></div></div><div class="planning-panel-body"><div class="notice warn">A parsed contract is required before CMeng can challenge clauses, notice obligations or contractual time provisions.</div></div></section>';
-  const reconciliation=challengeBody?'<details class="reconciliation-panel"><summary><span>Reconciliation with submitted position</span><b>'+escapeHtml(reconciliationSummary(data.challenge))+'</b></summary><div class="reconciliation-body">'+challengeBody+'</div></details>':'';
+  const reconciliation=challengeBody?'<details class="reconciliation-panel"><summary><span>Comparison with the submitted position</span><b>'+escapeHtml(reconciliationSummary(data.challenge))+'</b></summary><div class="reconciliation-body">'+challengeBody+'</div></details>':'';
   let html='<section class="planning-view contract-challenge-view">'+renderBasisReviews(data,"challenge-contract")+(reason?'<div class="notice info">'+escapeHtml(reason)+'</div>':'')+challengeVisuals+'<section class="planning-panel"><div class="planning-panel-head"><div><h4>Evidence readiness</h4><p>CMeng does not present a scenario as an official project fact.</p></div><span class="badge '+(d.position==="challenged"||d.position==="material_delivery_gap"?"partial":"")+'">'+escapeHtml(humanizeKey(d.position))+'</span></div><div class="planning-panel-body">'+gates+'</div></section>'+scheduleCards+'<div class="planning-primary-grid">'+contractSummary+manpower+'</div>'+quantity;
   if(findings)html+='<section class="planning-panel"><div class="planning-panel-head"><div><h4>Delivery challenge findings</h4><p>Management issues, consequence and required response.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Topic</th><th>State</th><th>Contractor position</th><th>CMeng analysis</th><th>Gap</th><th>Consequence</th><th>Required response</th></tr></thead><tbody>'+findings+'</tbody></table></div></div></section>';
   if(data.contractValueEvidence&&!data.contractValueBasisReview){
     const cv=data.contractValueEvidence,governed=cv.governed,candidate=cv.extraction?.value;
-    html+='<section class="planning-panel"><div class="planning-panel-head"><div><h4>Contract value</h4><p>Governed value is separate from extracted candidates.</p></div></div><div class="planning-panel-body">'+planningKpis([
+    html+='<section class="planning-panel"><div class="planning-panel-head"><div><h4>Contract value</h4><p>Confirmed amount is separate from extracted candidates.</p></div></div><div class="planning-panel-body">'+planningKpis([
       ["State",humanizeKey(cv.state||"missing"),""],
-      ["Governed value",governed?fmt(governed.amount)+" "+(governed.currency||""):"Not established",""],
+      ["Confirmed amount",governed?fmt(governed.amount)+" "+(governed.currency||""):"Not confirmed",""],
       ["Extracted candidate",candidate?fmt(candidate.amount)+" "+(candidate.currency||""):"—","candidate only"]
     ])+'</div></section>';
   }
   html+=reconciliation+'</section>';
-  const basisHtml=renderModuleBasis(data)+experienceReviewSummary(data.issueAssessment);
+  const basisHtml=renderModuleBasis(data);
 
-  el("moduleContent").innerHTML=renderPositionVerdict(data)+renderRegisterScope(data)+basisHtml+renderRoleContent("challenge-contract",data,html,"",true)+renderModuleReadiness(data,reason);
+  el("moduleContent").innerHTML=renderPositionVerdict(data)+renderRegisterScope(data)+basisHtml+renderRoleContent("challenge-contract",data,html,"",true)+experienceReviewSummary(data.issueAssessment)+renderModuleReadiness(data,reason);
   return true;
 }
 function humanizeKey(key){
@@ -986,7 +988,7 @@ function renderCommercialValueBridge(base,approved,current,pending,unit=""){
   const cell=(label,metric,tone)=>{
     const value=metricValue(metric);
     const state=commercialSourceState(metric);
-    return '<div class="value-bridge-cell '+escapeHtml(tone)+'"><span>'+escapeHtml(label)+'</span><b>'+escapeHtml(value===null?"Not established":fmt(value)+(unit?" "+unit:""))+'</b><small>'+escapeHtml(state)+'</small></div>';
+    return '<div class="value-bridge-cell '+escapeHtml(tone)+'"><span>'+escapeHtml(label)+'</span><b>'+escapeHtml(value===null?"Not confirmed":fmt(value)+(unit?" "+unit:""))+'</b><small>'+escapeHtml(state)+'</small></div>';
   };
   return '<div class="value-bridge">'+
     cell(sourceSnapshot?"Source original contract":"Original contract",base,"base")+
@@ -1008,7 +1010,7 @@ function renderCommercialMetricBars(row,fields){
   return renderVisualBars(items,row?.currency||"");
 }
 function renderLineChart(points,series,yMaxHint=null,options={}){
-  if(points.length===1){const point=points[0];return '<div class="notice info"><b>Single observation · trend not established</b><p>'+escapeHtml(planningShortDate(point.dateIso||point.asOf))+'</p>'+series.filter(item=>typeof point[item.key]==='number').map(item=>'<div class="currency-line"><span>'+escapeHtml(item.label)+'</span><strong>'+escapeHtml(fmt(point[item.key])+(options.unit?' '+options.unit:''))+'</strong></div>').join('')+'</div>';}
+  if(points.length===1){const point=points[0];return '<div class="notice info"><b>Single observation · trend not confirmed</b><p>'+escapeHtml(planningShortDate(point.dateIso||point.asOf))+'</p>'+series.filter(item=>typeof point[item.key]==='number').map(item=>'<div class="currency-line"><span>'+escapeHtml(item.label)+'</span><strong>'+escapeHtml(fmt(point[item.key])+(options.unit?' '+options.unit:''))+'</strong></div>').join('')+'</div>';}
 
   series=series.filter(item=>Array.isArray(points)&&points.some(point=>typeof point?.[item.key]==="number"&&Number.isFinite(point[item.key])));
   if(!Array.isArray(points)||!points.length)return '<div class="empty-visual">No series points available.</div>';
@@ -1189,7 +1191,7 @@ function renderProgressScurveVisual(data){
 function renderQuantityScurveVisual(data){
   const p=projectionFor(data,"quantity_scurve");
   if(!Array.isArray(p.series))return"";
-  const mappingLabel=p.mappingBasis==="governed"?"Governed mapping":p.mappingBasis==="candidate_scenario"?"Candidate links only":"Mapping not established";
+  const mappingLabel=p.mappingBasis==="governed"?"Confirmed links":p.mappingBasis==="candidate_scenario"?"Suggested links for review":"Activities not yet linked";
   const mappedSeries=p.series.filter(series=>(series.points||[]).length>0);
   const seriesItemCount=p.series.reduce((sum,series)=>sum+(Number.isFinite(Number(series.itemCount))?Number(series.itemCount):0),0);
   const unmappedCount=(p.unmappedItemIds||[]).length;
@@ -1197,9 +1199,9 @@ function renderQuantityScurveVisual(data){
   const mappedItemCount=typeof p.allocatedItemCount==="number"?p.allocatedItemCount:null;
   const itemLinkCoverage=typeof p.itemLinkCoveragePercent==="number"?p.itemLinkCoveragePercent:null;
   const top=planningKpis([
-    ["BOQ items",boqItemCount===null?"Not established":boqItemCount,"quantity basis"],
-    ["Items with any allocation",mappedItemCount===null?"Not established":mappedItemCount,"governed or scenario links"],
-    ["Item-link coverage",itemLinkCoverage===null?"Not established":fmt(itemLinkCoverage)+"%","BOQ items with an allocation"],
+    ["BOQ items",boqItemCount===null?"Not confirmed":boqItemCount,"quantity basis"],
+    ["Items with any allocation",mappedItemCount===null?"Not confirmed":mappedItemCount,"governed or scenario links"],
+    ["Item-link coverage",itemLinkCoverage===null?"Not confirmed":fmt(itemLinkCoverage)+"%","BOQ items with an allocation"],
     ["Mapping basis",mappingLabel,""],
     ["Unit groups",p.series.length,"unknown units remain separate"],
     ["Unmapped items",(p.unmappedItemIds||[]).length,"items",p.unmappedItemIds?.length?"warning":""],
@@ -1209,11 +1211,11 @@ function renderQuantityScurveVisual(data){
   const diagnostics='<div class="notice info"><b>BOQ source: '+escapeHtml(p.boqSource?.sourceFilename||"Source reference in calculation detail")+'</b> · '+escapeHtml(humanizeKey(p.boqSource?.state||"source"))+'<p>'+escapeHtml(p.boqSource?.explanation||"")+'</p>BOQ loaded: '+escapeHtml(fmt(p.boqItemCount??boqItemCount))+' items; known contract quantities: '+escapeHtml(fmt(p.knownQuantityItemCount))+'. Candidate mapping: '+escapeHtml(humanizeKey(p.candidateMappingState||"not_established"))+'. Actual installations are independent of schedule mapping. Scenario plans do not become governed facts.</div>';
   if(mappedSeries.length===0){
     const candidates=p.inferredMapping?.selectedScenarioLinks?.length||0;
-    const mappingSummary=boqItemCount===null?"BOQ item population is not established.":fmt(mappedItemCount||0)+" of "+fmt(boqItemCount)+" BOQ items currently have an allocation.";
+    const mappingSummary=boqItemCount===null?"BOQ item population is not confirmed.":fmt(mappedItemCount||0)+" of "+fmt(boqItemCount)+" BOQ items currently have an allocation.";
     return '<section class="planning-view quantity-view">'+top+diagnostics+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Installed Quantities</h4><p>The BOQ population remains visible by unit. Schedule mapping is required for planned curves; measured installed quantities require dated quantity evidence.</p></div></div><div class="planning-panel-body"><div class="notice warn"><b>No governed quantity curve is available.</b> '+escapeHtml(candidates?candidates+" candidate link(s) were found, but they remain scenarios and are not used as project facts.":"No defensible BOQ-to-activity crosswalk is established.")+" "+escapeHtml(mappingSummary)+'</div>'+moduleEvidenceGate([
-      {label:"BOQ quantity basis",value:p.boqRevisionId?"Loaded":"Not established",state:p.boqRevisionId?"ready":"missing"},
-      {label:"Governed BOQ/activity mapping",value:p.mappingBasis==="governed"?"Established":"Not established",state:p.mappingBasis==="governed"?"ready":"missing"},
-      {label:"Installed quantity history",value:"Dated installed measurements not established",state:"missing"}
+      {label:"BOQ quantity basis",value:p.boqRevisionId?"Loaded":"Not confirmed",state:p.boqRevisionId?"ready":"missing"},
+      {label:"Confirmed BOQ-to-activity links",value:p.mappingBasis==="governed"?"Established":"Not confirmed",state:p.mappingBasis==="governed"?"ready":"missing"},
+      {label:"Installed quantity history",value:"Dated installed measurements not confirmed",state:"missing"}
     ])+'</div></section></section>';
   }
 
@@ -1263,13 +1265,13 @@ function renderForecastVisual(data){
   const variance=planningCalendarDaysBetween(p.sourceForecastCompletionIso,p.independentForecastCompletionIso);
   const kpis=planningKpis([
     ["Contractor Programme Forecast",planningShortDate(p.sourceForecastCompletionIso),"submitted programme"],
-    ["Source Productivity Forecast",planningShortDate(p.sourceProductivityForecastCompletionIso),p.sourceProductivityForecastCompletionIso?"source evidence / derived forecast":"Not established",p.sourceProductivityForecastState==="conflicted"?"danger":p.sourceProductivityForecastState==="candidate"?"warning":""],
+    ["Source Productivity Forecast",planningShortDate(p.sourceProductivityForecastCompletionIso),p.sourceProductivityForecastCompletionIso?"source evidence / derived forecast":"Not confirmed",p.sourceProductivityForecastState==="conflicted"?"danger":p.sourceProductivityForecastState==="candidate"?"warning":""],
     ["Calendar recalculation",planningShortDate(p.independentForecastCompletionIso),review?"requires reconciliation":"deterministic CMeng calculation",review?"warning":"accent"],
     ["Calendar scenario vs submitted",variance===null?"—":(variance>0?"+":"")+fmt(variance)+" days","model reconciliation; not delay",""],
     ["CPM activity coverage",p.activityCoveragePercent===null?"—":fmt(p.activityCoveragePercent)+"%",p.activityPopulation?fmt(p.calculatedActivityCount)+" / "+fmt(p.activityPopulation.denominator)+" execution activities; "+fmt(p.activityPopulation.excludedCount)+" LOE / WBS records excluded":"calculated schedule inputs; not resource or quantity coverage"],
     ["Required finish",planningShortDate(p.requiredFinishIso),"contract/target if established"]
   ]);
-  const constraintTrace=p.sourceConstraints?.length?'<details class="notice info"><summary>'+escapeHtml(fmt(p.sourceConstraints.length))+' activities have source constraints · unconstrained calculation</summary><p>Retained source constraints have not been applied to this execution-network result. This is a calculation scope limitation requiring reconciliation, not a request for missing contractor documents.</p><div class="table-wrap"><table><thead><tr><th>Activity</th><th>Source constraint</th><th>Date</th></tr></thead><tbody>'+p.sourceConstraints.flatMap(a=>(a.constraints||[]).map(c=>'<tr><td>'+escapeHtml(a.activityId)+'</td><td>'+escapeHtml(c.type)+'</td><td>'+escapeHtml(c.dateIso||'Not established')+'</td></tr>')).join('')+'</tbody></table></div></details>':'';
+  const constraintTrace=p.sourceConstraints?.length?'<details class="notice info"><summary>'+escapeHtml(fmt(p.sourceConstraints.length))+' activities have source constraints · unconstrained calculation</summary><p>Retained source constraints have not been applied to this execution-network result. This is a calculation scope limitation requiring reconciliation, not a request for missing contractor documents.</p><div class="table-wrap"><table><thead><tr><th>Activity</th><th>Source constraint</th><th>Date</th></tr></thead><tbody>'+p.sourceConstraints.flatMap(a=>(a.constraints||[]).map(c=>'<tr><td>'+escapeHtml(a.activityId)+'</td><td>'+escapeHtml(c.type)+'</td><td>'+escapeHtml(c.dateIso||'Not confirmed')+'</td></tr>')).join('')+'</tbody></table></div></details>':'';
   const warning=constraintTrace+(review?'<div class="notice warn"><b>Independent forecast requires reconciliation before management use.</b><br>'+escapeHtml(p.managementReviewReason||"The deterministic CPM basis contains unresolved evidence.")+'</div>':'');
   const forecastDistance=[
     {label:"Contractor Programme Forecast",value:planningCalendarDaysBetween(p.dataDateIso,p.sourceForecastCompletionIso),tone:"graphite"},
@@ -1330,7 +1332,7 @@ function renderWindowsVisual(data){
     ["Gross positive window movement",fmt(p.positiveProgrammeMovementDays)+" d","positive submitted finish changes; not project delay or EOT",p.positiveProgrammeMovementDays>0?"warning":""],
     ["Project Completion movement",p.projectCompletionMovementDays===null||p.projectCompletionMovementDays===undefined?"—":(p.projectCompletionMovementDays>0?"+":"")+fmt(p.projectCompletionMovementDays)+" d","first controlled → latest controlled · "+humanizeKey(p.projectCompletionMovementBasis||"unavailable"),p.projectCompletionMovementDays>0?"danger":""],
     ["Window-associated events",p.windows.reduce((sum,w)=>sum+(w.delayEvents||[]).length,0),"window references"]
-  ])+note+visualOverview+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Programme movement by window</h4><p>Source forecast movement is shown first. It is schedule movement, not automatic delay entitlement.</p></div></div><div class="planning-panel-body">'+planningSignedBars(bars,"days")+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Window detail</h4></div></div><div class="planning-panel-body"><div class="window-strip">'+cards+'</div></div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Window comparison evidence</h4><p>Matching coverage and network edits qualify the schedule comparison. They do not establish causation or an approved materiality tolerance.</p></div></div><div class="planning-panel-body">'+p.windows.map(w=>'<details><summary>Window '+escapeHtml(w.sequence)+' · matched '+escapeHtml(fmt(w.matchedActivityCount))+' activities · comparable finishes '+escapeHtml(fmt(w.comparableActivityFinishShiftCount))+' ('+escapeHtml(w.activityFinishShiftCoveragePercent==null?'Not established':fmt(w.activityFinishShiftCoveragePercent)+'%')+')</summary><p>Activities added / removed / modified: '+escapeHtml(fmt(w.addedActivityCount)+' / '+fmt(w.removedActivityCount)+' / '+fmt(w.modifiedActivityCount))+'. Relationships added / removed: '+escapeHtml(fmt(w.addedRelationshipCount)+' / '+fmt(w.removedRelationshipCount))+'.</p><p>'+escapeHtml((w.diagnostics||[]).map(humanizeKey).join('; ')||'No calculation diagnostic was supplied.')+'</p><p>'+escapeHtml((w.assumptions||[]).join('; '))+'</p></details>').join('')+'</div></section></section>';
+  ])+note+visualOverview+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Programme movement by window</h4><p>Source forecast movement is shown first. It is schedule movement, not automatic delay entitlement.</p></div></div><div class="planning-panel-body">'+planningSignedBars(bars,"days")+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Window detail</h4></div></div><div class="planning-panel-body"><div class="window-strip">'+cards+'</div></div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Window comparison evidence</h4><p>Matching coverage and network edits qualify the schedule comparison. They do not establish causation or an approved materiality tolerance.</p></div></div><div class="planning-panel-body">'+p.windows.map(w=>'<details><summary>Window '+escapeHtml(w.sequence)+' · matched '+escapeHtml(fmt(w.matchedActivityCount))+' activities · comparable finishes '+escapeHtml(fmt(w.comparableActivityFinishShiftCount))+' ('+escapeHtml(w.activityFinishShiftCoveragePercent==null?'Not confirmed':fmt(w.activityFinishShiftCoveragePercent)+'%')+')</summary><p>Activities added / removed / modified: '+escapeHtml(fmt(w.addedActivityCount)+' / '+fmt(w.removedActivityCount)+' / '+fmt(w.modifiedActivityCount))+'. Relationships added / removed: '+escapeHtml(fmt(w.addedRelationshipCount)+' / '+fmt(w.removedRelationshipCount))+'.</p><p>'+escapeHtml((w.diagnostics||[]).map(humanizeKey).join('; ')||'No calculation diagnostic was supplied.')+'</p><p>'+escapeHtml((w.assumptions||[]).join('; '))+'</p></details>').join('')+'</div></section></section>';
 }
 function delayClaimsProjectionFor(data){
   const direct=projectionFor(data,"delay_claims");
@@ -1377,7 +1379,7 @@ function renderDelayClaimsVisual(data){
   const movementEstablished=p.windowCount>0&&typeof p.observedPositiveProgrammeMovementDays==="number";
   const kpis=planningKpis([
     ["Delay events",p.eventCount,"governed events",p.eventCount?"":"warning"],
-    ["Claims",p.contractorClaimEvidenceSubmitted===false&&p.claimCount===0?"Not established":p.claimCount,"claim records"],
+    ["Claims",p.contractorClaimEvidenceSubmitted===false&&p.claimCount===0?"Not confirmed":p.claimCount,"claim records"],
     ["Claims linked to events",linked,"identity association; causation unproven",linked?"accent":"warning"],
     ["Claims without event links",unlinked,"identity gap; linked claims still need causation",unlinked?"warning":""],
     ["Events linked to activities",p.activityLinkedEventCount??0,"schedule linkage"],
@@ -1386,11 +1388,11 @@ function renderDelayClaimsVisual(data){
     ["Events with register notice references",p.noticeLinkedEventCount??0,"letter identity and contents require separate checks"],
     ["Determined events",p.determinationLinkedEventCount??0,"Engineer determination linkage"],
     ["Incomplete determination chains",incompleteDeterminationCount,"required links missing",incompleteDeterminationCount?"warning":""],
-    ["Gross positive window movement",movementEstablished?fmt(p.observedPositiveProgrammeMovementDays)+" d":"Not established","submitted programme window context; not event attribution",movementEstablished&&p.observedPositiveProgrammeMovementDays?"warning":""],
-    ["Project Completion movement",!movementEstablished||p.projectCompletionMovementDays===null||p.projectCompletionMovementDays===undefined?"Not established":(p.projectCompletionMovementDays>0?"+":"")+fmt(p.projectCompletionMovementDays)+" d","net submitted completion movement"]
+    ["Gross positive window movement",movementEstablished?fmt(p.observedPositiveProgrammeMovementDays)+" d":"Not confirmed","submitted programme window context; not event attribution",movementEstablished&&p.observedPositiveProgrammeMovementDays?"warning":""],
+    ["Project Completion movement",!movementEstablished||p.projectCompletionMovementDays===null||p.projectCompletionMovementDays===undefined?"Not confirmed":(p.projectCompletionMovementDays>0?"+":"")+fmt(p.projectCompletionMovementDays)+" d","net submitted completion movement"]
   ]);
-  const noEventWarning=p.eventCount===0&&p.claimCount>0?'<div class="notice warn"><b>'+escapeHtml(fmt(p.claimCount))+' claim records are present, but no governed delay events are established.</b> CMeng will not attribute schedule movement, responsibility or EOT entitlement to those claims until event linkage exists.</div>':'';
-  const activityEvidenceWarning=activityGapCount>0?'<div class="notice warn"><b>Activity evidence not established for '+escapeHtml(fmt(activityGapCount))+' delay event'+(activityGapCount===1?'':'s')+'.</b> The available claim/correspondence sources do not establish a defensible activity-level relationship for these events. CMeng fails closed and does not invent activity links. Determination chains remain explicitly incomplete where the activity link is required.</div>':'';
+  const noEventWarning=p.eventCount===0&&p.claimCount>0?'<div class="notice warn"><b>'+escapeHtml(fmt(p.claimCount))+' claim records are present, but no recorded delay events are established.</b> CMeng will not attribute schedule movement, responsibility or EOT entitlement to those claims until event linkage exists.</div>':'';
+  const activityEvidenceWarning=activityGapCount>0?'<div class="notice warn"><b>Activity evidence not confirmed for '+escapeHtml(fmt(activityGapCount))+' delay event'+(activityGapCount===1?'':'s')+'.</b> The available claim/correspondence sources do not establish a defensible activity-level relationship for these events. The affected activities must be identified before assigning delay responsibility. Determination chains remain explicitly incomplete where the activity link is required.</div>':'';
   const warning=noEventWarning+activityEvidenceWarning;
   const linkage=planningStatusBand([
     ["Linked to delay events",linked,"success"],
@@ -1425,14 +1427,14 @@ function renderEotVisual(data){
   const analytical=p.analyticalTimeImpactCandidateDays;
   const movementEstablished=p.windowCandidates.length>0;
   const kpis=planningKpis([
-    ["Contract finish",p.contractualCompletionIso?planningShortDate(p.contractualCompletionIso):"Not established",p.contractualCompletionState,contractReady?"":"warning"],
-    ["Submitted finish vs contract",planningCalendarDaysBetween(p.contractualCompletionIso,p.sourceForecastCompletionIso)===null?"Not established":fmt(planningCalendarDaysBetween(p.contractualCompletionIso,p.sourceForecastCompletionIso))+" calendar days","submitted programme minus current amended contract","warning"],
-    ["Gross determinations by Data Date",p.officialApprovedEotDays===null?"Not established":fmt(p.officialApprovedEotDays)+" d","may already be incorporated in the amendment"],
-    ["Further adjusted contractual completion",p.officialAdjustedCompletionIso?planningShortDate(p.officialAdjustedCompletionIso):"Not established","governed only"],
-    ["Gross positive window movement",movementEstablished?fmt(p.observedProgrammeMovementDays)+" d":"Not established","submitted programme window context; not EOT",movementEstablished&&p.observedProgrammeMovementDays>0?"warning":""],
-    ["Project Completion movement",!movementEstablished||p.projectCompletionMovementDays===null||p.projectCompletionMovementDays===undefined?"Not established":(p.projectCompletionMovementDays>0?"+":"")+fmt(p.projectCompletionMovementDays)+" d","net first-to-latest submitted completion"],
-    ["Time-impact candidate",analytical===null?"Not established":fmt(analytical)+" d","requires causation",analytical===null?"warning":"accent"],
-    ["Attributable EOT candidate",p.attributableCandidateEotDays===null?"Not established":fmt(p.attributableCandidateEotDays)+" d","not an award",p.attributableCandidateEotDays===null?"warning":"accent"]
+    ["Contract finish",p.contractualCompletionIso?planningShortDate(p.contractualCompletionIso):"Not confirmed",p.contractualCompletionState,contractReady?"":"warning"],
+    ["Submitted finish vs contract",planningCalendarDaysBetween(p.contractualCompletionIso,p.sourceForecastCompletionIso)===null?"Not confirmed":fmt(planningCalendarDaysBetween(p.contractualCompletionIso,p.sourceForecastCompletionIso))+" calendar days","submitted programme minus current amended contract","warning"],
+    ["Gross determinations by Data Date",p.officialApprovedEotDays===null?"Not confirmed":fmt(p.officialApprovedEotDays)+" d","may already be incorporated in the amendment"],
+    ["Further adjusted contractual completion",p.officialAdjustedCompletionIso?planningShortDate(p.officialAdjustedCompletionIso):"Not confirmed","governed only"],
+    ["Gross positive window movement",movementEstablished?fmt(p.observedProgrammeMovementDays)+" d":"Not confirmed","submitted programme window context; not EOT",movementEstablished&&p.observedProgrammeMovementDays>0?"warning":""],
+    ["Project Completion movement",!movementEstablished||p.projectCompletionMovementDays===null||p.projectCompletionMovementDays===undefined?"Not confirmed":(p.projectCompletionMovementDays>0?"+":"")+fmt(p.projectCompletionMovementDays)+" d","net first-to-latest submitted completion"],
+    ["Time-impact candidate",analytical===null?"Not confirmed":fmt(analytical)+" d","requires causation",analytical===null?"warning":"accent"],
+    ["Attributable EOT candidate",p.attributableCandidateEotDays===null?"Not confirmed":fmt(p.attributableCandidateEotDays)+" d","not an award",p.attributableCandidateEotDays===null?"warning":"accent"]
   ]);
   const warning=movementEstablished&&analytical===null&&p.observedProgrammeMovementDays>0?'<div class="notice warn"><b>Gross positive window movement is not project delay and is not EOT.</b> Schedule movement is not an EOT time-impact assessment. CMeng observes '+escapeHtml(fmt(p.observedProgrammeMovementDays))+' days when positive window shifts are summed, while net Project Completion movement is shown separately. No entitlement is stated until causation, notice and the contract time basis support it.</div>':'';
   const labels=p.revisionLabels||{};
@@ -1446,7 +1448,7 @@ function renderEotVisual(data){
   const determinationVisual=recon?renderDonutChart([
     {label:"Effective by Data Date",value:recon.effectiveDeterminationCount||0,tone:"success"},
     {label:"After Data Date",value:Math.max(0,(recon.registerDeterminationCount||0)-(recon.effectiveDeterminationCount||0)),tone:"neutral"}
-  ],"Determinations"):'<div class="empty-visual">Determination population is not established.</div>';
+  ],"Determinations"):'<div class="empty-visual">Determination population is not confirmed.</div>';
   const movementVisual=renderWaterfallChart([
     {label:"Gross positive window movement",value:movementEstablished&&typeof p.observedProgrammeMovementDays==="number"?p.observedProgrammeMovementDays:null},
     {label:"Net Project Completion movement",value:movementEstablished&&typeof p.projectCompletionMovementDays==="number"?p.projectCompletionMovementDays:null},
@@ -1459,9 +1461,9 @@ function renderEotVisual(data){
   '</div>';
   const reconciliation=recon?'<section class="planning-panel"><div class="planning-panel-head"><div><h4>Amendment and determination reconciliation</h4><p>As-of date: '+escapeHtml(planningShortDate(recon.dataDateIso))+'.</p></div></div><div class="planning-panel-body">'+planningKpis([["EOT incorporated in amendment",fmt(recon.incorporatedEotDays)+" d","already inside revised completion"],["Full determination register",fmt(recon.registerDeterminationDays)+" d",(recon.registerDeterminationCount===null||recon.registerDeterminationCount===undefined?"population not stated":fmt(recon.registerDeterminationCount)+" immutable determination(s)")],["Determinations by Data Date",recon.effectiveDeterminationCount===null||recon.effectiveDeterminationCount===undefined?"—":fmt(recon.effectiveDeterminationCount),"cutoff-controlled population"],["Additional approved EOT",recon.additionalApprovedEotDays===null?"Unresolved":fmt(recon.additionalApprovedEotDays)+" d","never register total plus amendment"]])+'<div class="notice warn">'+(recon.overlapResolution==="unresolved"?"Amendment incorporation has not been reconciled to the determination register. No additional days are applied to the revised contractual completion.":"Additional awards have an explicit incorporation reconciliation.")+'</div></div></section>':"";
   return '<section class="planning-view eot-view">'+kpis+reconciliation+warning+visualOverview+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Independent CPM movement by window</h4><p>Analytical revision-to-revision CPM movement; not submitted movement or EOT entitlement.</p></div></div><div class="planning-panel-body">'+planningSignedBars(movementBars,"days")+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>EOT evidence gates</h4><p>All gates remain distinct before schedule movement can become an entitlement position.</p></div></div><div class="planning-panel-body">'+moduleEvidenceGate([
-    {label:"Contract time basis",value:contractReady?"Established":"Not established",state:contractReady?"ready":"missing"},
-    {label:"Causally attributable EOT-eligible events",value:causalReady?"Established":"Not established",state:causalReady?"ready":"missing"},
-    {label:"Gross determined days by Data Date",value:p.officialApprovedEotState==="official"?"Established":"Not established",state:p.officialApprovedEotState==="official"?"ready":"missing"}
+    {label:"Contract time basis",value:contractReady?"Established":"Not confirmed",state:contractReady?"ready":"missing"},
+    {label:"Causally attributable EOT-eligible events",value:causalReady?"Established":"Not confirmed",state:causalReady?"ready":"missing"},
+    {label:"Gross determined days by Data Date",value:p.officialApprovedEotState==="official"?"Established":"Not confirmed",state:p.officialApprovedEotState==="official"?"ready":"missing"}
   ])+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Window assessment</h4><p>Observed movement, candidate time impact and included entitlement days remain separate.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Window</th><th>Observed movement d</th><th>Movement basis</th><th>Time-impact candidate d</th><th>State</th><th>Included days</th><th>Reason</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></section></section>';
 }
 function visualSection(title,description,badge,body){
@@ -1510,7 +1512,7 @@ function planningStateLabel(value){
     completed:"Completed",in_progress:"In progress",not_started:"Not started",unknown:"Unknown",
     critical:"Critical",near_critical:"Near-critical",noncritical:"Other",
     available:"Available",missing:"Not provided",conditional:"Conditional",
-    true:"Yes",false:"No",established:"Established",not_established:"Not established",
+    true:"Yes",false:"No",established:"Established",not_established:"Not confirmed",
     deterministic:"Calculated",scenario:"Scenario",unresolved:"Needs review"
   };
   const key=String(value);
@@ -1525,7 +1527,7 @@ function planningKpis(items){
 function planningStatusBand(items){
   const known=(items||[]).filter(item=>typeof item[1]==="number"&&Number.isFinite(item[1])&&item[1]>=0);
   const total=known.reduce((sum,item)=>sum+item[1],0);
-  if(!known.length)return '<div class="empty-visual">This distribution is not established from the available project information.</div>';
+  if(!known.length)return '<div class="empty-visual">This distribution is not confirmed from the available project information.</div>';
   if(total<=0)return '<div class="empty-visual">The established population is zero for this distribution.</div>';
   const segments=known.filter(item=>item[1]>0).map(item=>{
     const value=item[1];
@@ -1671,10 +1673,10 @@ function planningActivityPressure(rows){
   ];
   const counts=bands.map(band=>columns.map(col=>candidates.filter(r=>band.match(r)&&col.match(r.finishVarianceDays)).length));
   const max=Math.max(1,...counts.flat());
-  const head='<div class="pressure-matrix-head" style="grid-template-columns:150px repeat(6,minmax(55px,1fr))"><span>Governed float class</span>'+columns.map(col=>'<b>'+escapeHtml(col.label)+'</b>').join("")+'</div>';
+  const head='<div class="pressure-matrix-head" style="grid-template-columns:150px repeat(6,minmax(55px,1fr))"><span>Float class</span>'+columns.map(col=>'<b>'+escapeHtml(col.label)+'</b>').join("")+'</div>';
   const body=bands.map((band,i)=>'<div class="pressure-matrix-row" style="grid-template-columns:150px repeat(6,minmax(55px,1fr))"><strong>'+escapeHtml(band.label)+'</strong>'+counts[i].map(count=>'<span class="pressure-cell '+band.tone+'" style="--cell-alpha:'+Math.max(.08,count/max).toFixed(3)+'"><b>'+escapeHtml(fmt(count))+'</b></span>').join("")+'</div>').join("");
   const excludedRow='<div class="pressure-matrix-row" style="grid-template-columns:150px repeat(6,minmax(55px,1fr))"><strong>LOE / WBS summaries</strong><span class="pressure-cell neutral" style="grid-column:span 6">'+fmt(excluded.length)+' source records excluded from execution float bands</span></div>';
-  return '<div class="pressure-matrix">'+head+body+excludedRow+'</div><div class="pressure-note">All '+escapeHtml(fmt(candidates.length))+' execution activities are reconciled; LOE and WBS summaries are excluded. Governed activity-calendar thresholds apply. Unknown dates and classifications remain visible.</div>';
+  return '<div class="pressure-matrix">'+head+body+excludedRow+'</div><div class="pressure-note">All '+escapeHtml(fmt(candidates.length))+' execution activities are reconciled; LOE and WBS summaries are excluded. Thresholds use each activity calendar. Unknown dates and classifications remain visible.</div>';
 }
 function planningLookAheadTimeline(p){
   const labelMap={predecessor:"Predecessor",procurement_material:"Material",design_submittal:"Design / RFIs / Submittals",permit:"Permit",resource:"Resource",quality:"Quality",commercial:"Commercial",risk:"Risk",access:"Access"};
@@ -1684,7 +1686,7 @@ function planningLookAheadTimeline(p){
     return ar-br||String(a.startIso||"").localeCompare(String(b.startIso||""));
   }).slice(0,36);
   const start=planningDateMs(p.dataDateIso),end=planningDateMs(p.windowEndIso);
-  if(start===null||end===null||end<=start)return '<div class="empty-visual">The look-ahead date window is not established.</div>';
+  if(start===null||end===null||end<=start)return '<div class="empty-visual">The look-ahead date window is not confirmed.</div>';
   const x=ms=>Math.max(0,Math.min(100,((ms-start)/(end-start))*100));
   const weekMarks=[];
   for(let i=0;i<=6;i++)weekMarks.push('<span style="left:'+((i/6)*100).toFixed(2)+'%">'+(i===0?"Data date":"W"+i)+'</span>');
@@ -1715,7 +1717,7 @@ function planningMilestoneCriticalityLabel(row){
   if(row.criticality==="critical")return row.negativeFloat?"Submitted float critical · negative float":"Submitted float critical";
   if(row.criticality==="near_critical")return "Near-critical";
   if(row.criticality==="positive_float")return "Positive float";
-  return "Float not established";
+  return "Float not confirmed";
 }
 function planningMilestoneDueLabel(row){
   const labels={
@@ -1824,10 +1826,10 @@ function planningMilestoneTimeline(p){
   const x=v=>{const at=planningDateMs(v);return at===null?null:100*(at-min)/(max-min)};
   const axis='<div class="milestone-date-axis">'+[0,.25,.5,.75,1].map(f=>'<span>'+escapeHtml(planningShortDate(new Date(min+(max-min)*f).toISOString()))+'</span>').join('')+'</div>';
   return '<div class="milestone-date-legend"><span>○ Controlled baseline</span><span><b>◆ Current forecast</b></span><span>Open milestones only · Data Date '+escapeHtml(planningShortDate(p.dataDateIso))+'</span></div><div class="milestone-date-chart">'+rows.map(r=>{
-    const bx=x(r.baselineDateIso),cx=x(r.currentDateIso),variance=typeof r.varianceDays==='number'?(r.varianceDays>0?'+':'')+fmt(r.varianceDays)+' d':'Not established';
+    const bx=x(r.baselineDateIso),cx=x(r.currentDateIso),variance=typeof r.varianceDays==='number'?(r.varianceDays>0?'+':'')+fmt(r.varianceDays)+' d':'Not confirmed';
     const count=source.filter(a=>a.managementPriority==='watch'&&a.varianceDays===r.varianceDays).length;
     const track=(bx!==null&&cx!==null?'<span class="date-span" style="left:'+Math.min(bx,cx)+'%;width:'+Math.abs(cx-bx)+'%"></span>':'')+(bx===null?'':'<span class="date-baseline" style="left:'+bx+'%"></span>')+(cx===null?'':'<span class="date-current" style="left:'+cx+'%"></span>');
-    return '<div class="milestone-date-row"><div class="milestone-date-name"><b>'+escapeHtml(r.activityId)+' · '+escapeHtml(r.name||'')+'</b><span>'+escapeHtml(planningMilestoneCriticalityLabel(r))+' · '+escapeHtml(planningMilestoneDueLabel(r))+'</span><small>'+escapeHtml(r.wbsName||r.wbsId||'')+'</small>'+(r.managementPriority==='watch'&&count>1?'<small>Representative of '+escapeHtml(fmt(count))+' watch milestones with the same movement. This does not establish a common cause.</small>':'')+'</div><div>'+axis+'<div class="milestone-date-track">'+track+'</div><div class="milestone-date-values"><span>Baseline <b>'+escapeHtml(planningShortDate(r.baselineDateIso))+'</b></span><span>Current <b>'+escapeHtml(planningShortDate(r.currentDateIso))+'</b></span><span>Movement <b>'+escapeHtml(variance)+'</b></span><span>Float <b>'+escapeHtml(r.totalFloatHours==null?'Not established':fmt(r.totalFloatHours)+' h')+'</b></span></div></div></div>';
+    return '<div class="milestone-date-row"><div class="milestone-date-name"><b>'+escapeHtml(r.activityId)+' · '+escapeHtml(r.name||'')+'</b><span>'+escapeHtml(planningMilestoneCriticalityLabel(r))+' · '+escapeHtml(planningMilestoneDueLabel(r))+'</span><small>'+escapeHtml(r.wbsName||r.wbsId||'')+'</small>'+(r.managementPriority==='watch'&&count>1?'<small>Representative of '+escapeHtml(fmt(count))+' watch milestones with the same movement. This does not establish a common cause.</small>':'')+'</div><div>'+axis+'<div class="milestone-date-track">'+track+'</div><div class="milestone-date-values"><span>Baseline <b>'+escapeHtml(planningShortDate(r.baselineDateIso))+'</b></span><span>Current <b>'+escapeHtml(planningShortDate(r.currentDateIso))+'</b></span><span>Movement <b>'+escapeHtml(variance)+'</b></span><span>Float <b>'+escapeHtml(r.totalFloatHours==null?'Not confirmed':fmt(r.totalFloatHours)+' h')+'</b></span></div></div></div>';
   }).join('')+'</div><p class="muted">'+escapeHtml(fmt(rows.length))+' priority representatives from '+escapeHtml(fmt(source.length))+' open milestones. All milestone records remain below.</p>';
 }
 function planningFloatHistogram(rows,limitHours){
@@ -1898,10 +1900,10 @@ function renderPmoVisual(data){
     ["Overdue milestones",p.progress.lateMilestoneCount,"past the data date","danger"],["Missed planned starts",p.progress.lookAheadMissedStartCount,"execution activities","warning"]
   ]);
   const completion=planningDateLadder([
-    {label:"Governed contractual finish",date:p.claims?.contractualCompletionIso,tone:"baseline"},
+    {label:"Contract completion",date:p.claims?.contractualCompletionIso,tone:"baseline"},
     {label:"Controlled baseline finish",date:p.programmeBaselineCompletionIso,tone:"baseline"},
     {label:"Submitted finish",date:p.forecast.sourceCompletionIso,tone:"current"},
-    {label:"Source productivity forecast",date:p.sourceProductivityForecast?.completionIso,tone:"current"},
+    {label:"Productivity forecast",date:p.sourceProductivityForecast?.completionIso,tone:"current"},
     {label:"Approved finish date",date:p.claims?.officialAdjustedCompletionIso,tone:"baseline"},
     {label:"Scenario finish date",date:p.claims?.scenarioAdjustedCompletionIso,tone:"scenario"}
   ],null);
@@ -1927,13 +1929,13 @@ function renderPmoVisual(data){
   '</div>';
   const health='<div class="management-health-grid">'+[
     ["Programme",[
-      ["Source activities",p.schedule.sourceActivityCount??p.schedule.activityCount],["Execution population",p.schedule.executableActivityCount??p.schedule.activityCount],["Excluded",p.schedule.excludedActivityCount??0],["Relationships",p.schedule.relationshipCount],["Logic density",p.schedule.logicDensity],["Network calculation",p.schedule.independentCpmState==="established"?"Computed; source float unverified":"Not established"]
+      ["Source activities",p.schedule.sourceActivityCount??p.schedule.activityCount],["Execution population",p.schedule.executableActivityCount??p.schedule.activityCount],["Excluded",p.schedule.excludedActivityCount??0],["Relationships",p.schedule.relationshipCount],["Logic density",p.schedule.logicDensity],["Network calculation",p.schedule.independentCpmState==="established"?"Computed; source float unverified":"Not confirmed"]
     ]],
     ["Progress",[
       ["Weighted progress",p.progress.durationWeightedProgressPercent===null?"—":fmt(p.progress.durationWeightedProgressPercent)+"%"],["Schedule progress-field coverage",p.progress.progressCoveragePercent===null?"—":fmt(p.progress.progressCoveragePercent)+"%"],["Completed",p.progress.completedCount],["In progress",p.progress.inProgressCount]
     ]],
     ["Delivery",[
-      ["Assigned resources",p.resources.assignedResourceCount],["Capacity field coverage · supplied resource-week rows",p.resources.weeklyCapacityCoveragePercent===null?"—":fmt(p.resources.weeklyCapacityCoveragePercent)+"%"],["Actual overloads through DD",p.resources.capacityChecksToDataDate?fmt(p.resources.capacityChecksToDataDate.actual.exceededCount)+" / "+fmt(p.resources.capacityChecksToDataDate.actual.comparableCount)+" resource-weeks":"Not established"],["BOQ/activity link",planningStateLabel(p.quantities.allocationState)]
+      ["Assigned resources",p.resources.assignedResourceCount],["Capacity field coverage · supplied resource-week rows",p.resources.weeklyCapacityCoveragePercent===null?"—":fmt(p.resources.weeklyCapacityCoveragePercent)+"%"],["Actual overloads through DD",p.resources.capacityChecksToDataDate?fmt(p.resources.capacityChecksToDataDate.actual.exceededCount)+" / "+fmt(p.resources.capacityChecksToDataDate.actual.comparableCount)+" resource-weeks":"Not confirmed"],["BOQ/activity link",planningStateLabel(p.quantities.allocationState)]
     ]],
     ["Claims & time",[
       ["Delay events",p.claims.eventCount],["Claims",p.claims.claimCount],["Recalculated window movement",fmt(p.claims.grossPositiveAnalyticalMovementDays)+" days · "+(p.claims.windowMovementTrace||[]).map(w=>fmt(w.calculatedDays)).join(" + ")],["Net submitted finish movement",fmt(p.claims.netSubmittedFinishMovementDays)+" days"],["Effective approved determinations at Data Date",fmt(p.claims.effectiveDeterminationDays)+" days"],["EOT incorporated in amendment",fmt(p.claims.incorporatedEotDays)+" days"],["Determination register total",fmt(p.claims.registerDeterminationDays)+" days"]
@@ -1985,12 +1987,12 @@ function renderScheduleAnalyticsVisual(data){
 }
 function renderMovementConcentration(m,fallback){
   if(!m)return planningSignedBars(fallback,"calendar days");
-  const signed=v=>v==null?"Not established":(v>0?"+":"")+fmt(v)+" d";
+  const signed=v=>v==null?"Not confirmed":(v>0?"+":"")+fmt(v)+" d";
   const c=m.comparison||{},pop=m.population||{},all=m.maximumRows||[];
   const rows=all.map(r=>'<tr><td><b>'+escapeHtml(r.activityId)+'</b><br>'+escapeHtml(r.name||"")+'</td><td>'+escapeHtml(humanizeKey(r.activityType))+'</td><td>'+escapeHtml(planningShortDate(r.baselineFinishIso))+'</td><td>'+escapeHtml(planningShortDate(r.previousFinishIso))+'</td><td>'+escapeHtml(planningShortDate(r.currentFinishIso))+'</td><td>'+escapeHtml(signed(r.baselineMovementDays))+'</td><td>'+escapeHtml(signed(r.previousMovementDays))+'</td><td>'+escapeHtml(r.sourcePairVerified?"Date pair reconciles":"Review required")+'</td></tr>').join("");
   return '<div class="notice info"><b>Comparison: '+escapeHtml(c.baselineLabel||"Controlled baseline")+' → '+escapeHtml(c.currentLabel||"Current programme")+'</b><br>Baseline-comparable population: '+escapeHtml(fmt(pop.denominator))+' / '+escapeHtml(fmt(pop.sourceCount))+' source records · '+escapeHtml(fmt(m.coveragePercent))+'% coverage.</div>'+planningKpis([
-    ["Maximum movement",signed(m.distribution?.maximum),"calendar days vs each activity baseline"],["Activities sharing maximum",all.length,fmt(m.distribution?.maximumPercent)+"% of baseline-comparable population"],["Verified date pairs",m.sourcePairVerifiedCount,fmt(all.length)+" maximum rows inspected"],["Causation","Not established","movement is not attributable delay or EOT"]
-  ])+'<div class="notice warn">'+escapeHtml(m.interpretation)+'</div><p><b>Activity types:</b> '+escapeHtml((m.activityTypes||[]).map(t=>fmt(t.count)+" "+humanizeKey(t.value)).join("; "))+'. <b>Baseline date patterns:</b> '+escapeHtml(fmt((m.baselineDatePatterns||[]).length))+'. <b>Current date patterns:</b> '+escapeHtml(fmt((m.currentDatePatterns||[]).length))+'. <b>WBS groups:</b> '+escapeHtml(fmt((m.wbsPatterns||[]).length))+'. Systematic revision shift: review required.</p>'+planningSignedBars((m.representatives||[]).map(r=>({label:r.activityId+" · "+(r.name||""),value:r.baselineMovementDays})),"calendar days")+'<p>Showing '+escapeHtml(fmt((m.representatives||[]).length))+' representatives of '+escapeHtml(fmt(all.length))+' at the maximum. Previous-revision comparison: '+escapeHtml(c.previousLabel||"Not established")+' → '+escapeHtml(c.currentLabel||"Current programme")+'.</p><details class="movement-cohort"><summary>View all '+escapeHtml(fmt(all.length))+' maximum-movement activities and date pairs</summary><div class="table-wrap"><table><thead><tr><th>Activity</th><th>Type</th><th>Controlled baseline finish</th><th>Previous revision finish</th><th>Current finish</th><th>Vs baseline</th><th>Vs previous revision</th><th>Source dates</th></tr></thead><tbody>'+rows+'</tbody></table></div></details>';
+    ["Maximum movement",signed(m.distribution?.maximum),"calendar days vs each activity baseline"],["Activities sharing maximum",all.length,fmt(m.distribution?.maximumPercent)+"% of baseline-comparable population"],["Verified date pairs",m.sourcePairVerifiedCount,fmt(all.length)+" maximum rows inspected"],["Causation","Not confirmed","movement is not attributable delay or EOT"]
+  ])+'<div class="notice warn">'+escapeHtml(m.interpretation)+'</div><p><b>Activity types:</b> '+escapeHtml((m.activityTypes||[]).map(t=>fmt(t.count)+" "+humanizeKey(t.value)).join("; "))+'. <b>Baseline date patterns:</b> '+escapeHtml(fmt((m.baselineDatePatterns||[]).length))+'. <b>Current date patterns:</b> '+escapeHtml(fmt((m.currentDatePatterns||[]).length))+'. <b>WBS groups:</b> '+escapeHtml(fmt((m.wbsPatterns||[]).length))+'. Systematic revision shift: review required.</p>'+planningSignedBars((m.representatives||[]).map(r=>({label:r.activityId+" · "+(r.name||""),value:r.baselineMovementDays})),"calendar days")+'<p>Showing '+escapeHtml(fmt((m.representatives||[]).length))+' representatives of '+escapeHtml(fmt(all.length))+' at the maximum. Previous-revision comparison: '+escapeHtml(c.previousLabel||"Not confirmed")+' → '+escapeHtml(c.currentLabel||"Current programme")+'.</p><details class="movement-cohort"><summary>View all '+escapeHtml(fmt(all.length))+' maximum-movement activities and date pairs</summary><div class="table-wrap"><table><thead><tr><th>Activity</th><th>Type</th><th>Controlled baseline finish</th><th>Previous revision finish</th><th>Current finish</th><th>Vs baseline</th><th>Vs previous revision</th><th>Source dates</th></tr></thead><tbody>'+rows+'</tbody></table></div></details>';
 }
 function renderActivityAnalyticsVisual(data){
   const p=projectionFor(data,"activity_analytics");
@@ -2089,7 +2091,7 @@ function renderResourceBasisReview(b){
 function renderResourceVisual(data){
   const p=projectionFor(data,"resource_utilization");
   if(!Array.isArray(p.rows)){
-    return visualSection("Resources","Resource demand and capacity are kept separate so missing capacity is never treated as zero.","Review needed",'<div class="notice warn">Resource assignments or capacity evidence are not established for the current programme.</div>');
+    return visualSection("Resources","Resource demand and capacity are kept separate so missing capacity is never treated as zero.","Review needed",'<div class="notice warn">Resource assignments or capacity evidence are not confirmed for the current programme.</div>');
   }
   const weekly=p.weeklyCapacityEvidence||null;
   const checks=weekly?.capacityChecksToDataDate;
@@ -2107,7 +2109,7 @@ function renderResourceVisual(data){
   const weeklyComparable=Number(weekly?.comparableRowCount||0);
   const weeklyOver=Number(weekly?.overloadedRowCount||0);
   const weeklyUnits=Array.isArray(weekly?.unitLabels)?weekly.unitLabels:[];
-  const perHourCapacityText=capacityKnown>0?fmt(capacityKnown)+" / "+fmt(p.assignedResourceCount):"Not established";
+  const perHourCapacityText=capacityKnown>0?fmt(capacityKnown)+" / "+fmt(p.assignedResourceCount):"Not confirmed";
   const overloadValue=assessed>0?fmt(p.perHourOverloadedResourceCount??p.overloadedResourceCount):"Not assessable";
 
   const comparableDemand=[...p.rows].map(r=>{
@@ -2126,14 +2128,14 @@ function renderResourceVisual(data){
   const kpis=planningKpis([
     ["P6 resource master",p.p6ResourceMasterCount??p.resourceCount,"schedule resource definitions"],["Weekly observed resources",p.weeklyObservedResourceCount,"capacity register population"],
     ["Assigned",p.assignedResourceCount,"with schedule assignments"],
-    ["Weekly register-row coverage",weekly?.capacityCoveragePercent==null?"Not established":fmt(weekly.capacityCoveragePercent)+"%","applicable resource-week rows"],
-    ["Planned utilization",weekly?.plannedAverageToDataDate==null?"Not established":fmt(weekly.plannedAverageToDataDate)+"%","mean resource-week ratio to Data Date"],
-    ["Actual utilization",weekly?.actualAverageToDataDate==null?"Not established":fmt(weekly.actualAverageToDataDate)+"%","approved usage to Data Date"],
+    ["Weekly register-row coverage",weekly?.capacityCoveragePercent==null?"Not confirmed":fmt(weekly.capacityCoveragePercent)+"%","applicable resource-week rows"],
+    ["Planned utilization",weekly?.plannedAverageToDataDate==null?"Not confirmed":fmt(weekly.plannedAverageToDataDate)+"%","mean resource-week ratio to Data Date"],
+    ["Actual utilization",weekly?.actualAverageToDataDate==null?"Not confirmed":fmt(weekly.actualAverageToDataDate)+"%","approved usage to Data Date"],
     ["Per-hour capacity",perHourCapacityText,"resources with comparable rate",capacityKnown?"accent":"warning"],
-    ["Weekly comparable checks",weeklyRows?fmt(weeklyComparable)+" / "+fmt(weeklyRows):"Not established","rows with established capacity and demand",weeklyComparable?"accent":"warning"],
+    ["Weekly comparable checks",weeklyRows?fmt(weeklyComparable)+" / "+fmt(weeklyRows):"Not confirmed","rows with established capacity and demand",weeklyComparable?"accent":"warning"],
     ["Actual over capacity",checks?.actual?.comparableCount?fmt(checks.actual.exceededCount)+" / "+fmt(checks.actual.comparableCount):"Not assessable","comparable resource-weeks through Data Date",checks?.actual?.exceededCount?"warning":""],
     ["Planned over capacity",checks?.planned?.comparableCount?fmt(checks.planned.exceededCount)+" / "+fmt(checks.planned.comparableCount):"Not assessable","comparable resource-weeks through Data Date",checks?.planned?.exceededCount?"warning":""],
-    ["Capacity units",weeklyUnits.length?weeklyUnits.join(" / "):"Not established","kept separate by source unit",weeklyUnits.length?"":"warning"]
+    ["Capacity units",weeklyUnits.length?weeklyUnits.join(" / "):"Not confirmed","kept separate by source unit",weeklyUnits.length?"":"warning"]
   ]);
 
   const rows=[...p.rows].sort((a,b)=>(a.overloaded===true?0:a.state!=="capacity_based"?1:2)-(b.overloaded===true?0:b.state!=="capacity_based"?1:2)).map(r=>'<tr><td><b>'+escapeHtml(r.resourceId)+'</b><br><span class="muted">'+escapeHtml(r.resourceName||"")+'</span></td><td>'+escapeHtml(r.resourceType)+'</td><td>'+escapeHtml(r.assignmentCount)+'</td><td>'+escapeHtml(fmt(r.capacityUnitsPerHour))+'</td><td>'+escapeHtml(fmt(r.peakPlannedUnitsPerHour))+'</td><td>'+escapeHtml(fmt(r.peakRemainingUnitsPerHour))+'</td><td>'+escapeHtml(r.plannedUtilizationPercent===null?"—":fmt(r.plannedUtilizationPercent)+"%")+'</td><td>'+escapeHtml(r.remainingUtilizationPercent===null?"—":fmt(r.remainingUtilizationPercent)+"%")+'</td><td><span class="state-pill '+(r.overloaded===true?"blocked":r.state==="capacity_based"?"ready":"review")+'">'+escapeHtml(r.overloaded===true?"Overloaded":r.state==="capacity_based"?"Capacity assessed":"Capacity not set")+'</span></td></tr>').join("");
@@ -2159,15 +2161,15 @@ function renderResourceVisual(data){
   const weeklyChart=p.basisComparison?.capacityExceptionTrend?.length?renderVisualPanel("Resources exceeding their own capacity each week","Counts of individual resource exceptions. Spare capacity in other resources cannot offset these checks; future planned counts remain a plan.",renderLineChart(p.basisComparison.capacityExceptionTrend,[{key:"plannedExceeded",label:"Planned exceptions",color:"#b57922"},{key:"actualExceeded",label:"Approved usage exceptions through DD",color:"#b4483e"}],null,{unit:"resources",yLabel:"Resources above capacity",xLabel:"Week",dataDateIso:p.dataDateIso,ariaLabel:"Individual resource capacity exceptions"}))+ '<details class="source-scope"><summary>Aggregate capacity and demand by unit</summary>'+aggregateCharts+'</details>':aggregateCharts;
   const demandPanel='<section class="planning-panel"><div class="planning-panel-head"><div><h4>Per-hour demand concentration</h4><p>Only resources with an established planned or remaining demand rate are charted. Assignment counts are not used as a substitute for demand.</p></div></div><div class="planning-panel-body">'+moduleBarList(comparableDemand)+'</div></section>';
 
-  const fullWeeklyDetail=weekly?.resourceSummaries?.length?'<section class="planning-panel"><div class="planning-panel-head"><div><h4>Weekly resource utilization detail</h4><p>Means of comparable resource-week ratios on or before '+escapeHtml(planningShortDate(weekly.dataDateIso))+'. Source units and resource classes stay separate.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Resource</th><th>Class</th><th>Unit</th><th>Full-horizon periods</th><th>Plan periods to Data Date</th><th>Actual periods to Data Date</th><th>Planned utilization</th><th>Actual utilization</th></tr></thead><tbody>'+weekly.resourceSummaries.map(r=>'<tr><td><b>'+escapeHtml(r.resourceId)+'</b><br>'+escapeHtml(r.resourceName||"")+'</td><td>'+escapeHtml(r.resourceClass)+'</td><td>'+escapeHtml(r.unit||"Not established")+'</td><td>'+escapeHtml(fmt(r.periodCount))+'</td><td>'+escapeHtml(fmt(r.plannedPeriodCountToDataDate))+'</td><td>'+escapeHtml(fmt(r.actualPeriodCountToDataDate))+'</td><td>'+escapeHtml(r.plannedUtilizationPercent===null?"Not established":fmt(r.plannedUtilizationPercent)+"%")+'</td><td>'+escapeHtml(r.actualUtilizationPercent===null?"Not established":fmt(r.actualUtilizationPercent)+"%")+'</td></tr>').join("")+'</tbody></table></div></div></section>':"";
+  const fullWeeklyDetail=weekly?.resourceSummaries?.length?'<section class="planning-panel"><div class="planning-panel-head"><div><h4>Weekly resource utilization detail</h4><p>Means of comparable resource-week ratios on or before '+escapeHtml(planningShortDate(weekly.dataDateIso))+'. Source units and resource classes stay separate.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Resource</th><th>Class</th><th>Unit</th><th>Full-horizon periods</th><th>Plan periods to Data Date</th><th>Actual periods to Data Date</th><th>Planned utilization</th><th>Actual utilization</th></tr></thead><tbody>'+weekly.resourceSummaries.map(r=>'<tr><td><b>'+escapeHtml(r.resourceId)+'</b><br>'+escapeHtml(r.resourceName||"")+'</td><td>'+escapeHtml(r.resourceClass)+'</td><td>'+escapeHtml(r.unit||"Not confirmed")+'</td><td>'+escapeHtml(fmt(r.periodCount))+'</td><td>'+escapeHtml(fmt(r.plannedPeriodCountToDataDate))+'</td><td>'+escapeHtml(fmt(r.actualPeriodCountToDataDate))+'</td><td>'+escapeHtml(r.plannedUtilizationPercent===null?"Not confirmed":fmt(r.plannedUtilizationPercent)+"%")+'</td><td>'+escapeHtml(r.actualUtilizationPercent===null?"Not confirmed":fmt(r.actualUtilizationPercent)+"%")+'</td></tr>').join("")+'</tbody></table></div></div></section>':"";
   const exceptions=[...(weekly?.resourceSummaries||[])].sort((a,b)=>b.actualOverloadOccurrencesToDataDate-a.actualOverloadOccurrencesToDataDate||(b.peakActualPercentToDataDate??-1)-(a.peakActualPercentToDataDate??-1)||b.plannedOverloadOccurrences-a.plannedOverloadOccurrences);
   const weeklyDetail=exceptions.length?'<section class="planning-panel"><div class="planning-panel-head"><div><h4>Resources with the most capacity exceptions first</h4><p>Actual exceptions stop at the Data Date. Planned exceptions cover the supplied register horizon. Means and repeated period columns remain in the complete register below.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Resource</th><th>Actual weeks above capacity</th><th>Peak actual</th><th>Worst actual week</th><th>Planned weeks above capacity</th><th>Peak plan</th></tr></thead><tbody>'+exceptions.map(r=>'<tr><td>'+escapeHtml(r.resourceId+' · '+(r.resourceName||''))+'</td><td>'+fmt(r.actualOverloadOccurrencesToDataDate)+'</td><td>'+percent2(r.peakActualPercentToDataDate)+'%</td><td>'+escapeHtml(planningShortDate(r.worstActualWeekIso))+'</td><td>'+fmt(r.plannedOverloadOccurrences)+'</td><td>'+percent2(r.peakPlannedPercent)+'%</td></tr>').join('')+'</tbody></table></div><details><summary>Complete source resource summary and period coverage</summary>'+fullWeeklyDetail+'</details></div></section>':'';
   return '<section class="planning-view resource-view">'+kpis+renderResourceBasisReview(p.basisComparison)+perHourNote+weeklyNote+weeklyChart+weeklyDetail+'<div class="planning-primary-grid">'+demandPanel+'<section class="planning-panel"><div class="planning-panel-head"><div><h4>Capacity evidence</h4><p>Per-hour schedule capacity and weekly register capacity are shown as separate evidence bases.</p></div></div><div class="planning-panel-body">'+moduleEvidenceGate([
     {label:"Schedule assignments",value:p.assignedResourceCount+" resources",state:p.assignedResourceCount>0?"ready":"missing"},
-    {label:"P6 max-units/hour capacity",value:capacityKnown>0?capacityKnown+" resources":"Not established",state:capacityKnown>0?"ready":"missing"},
-    {label:"Weekly capacity register",value:weeklyComparable?fmt(weeklyComparable)+" comparable rows":"Not established",state:weeklyComparable?"ready":"missing"},
+    {label:"P6 max-units/hour capacity",value:capacityKnown>0?capacityKnown+" resources":"Not confirmed",state:capacityKnown>0?"ready":"missing"},
+    {label:"Weekly capacity register",value:weeklyComparable?fmt(weeklyComparable)+" comparable rows":"Not confirmed",state:weeklyComparable?"ready":"missing"},
     {label:"Per-hour overload assessment",value:overloadValue,state:assessed>0?"ready":"missing"}
-  ])+'</div></section></div><details class="planning-panel"><summary class="planning-panel-head"><div><h4>Complete P6 resource register</h4><p>Overloaded and unassessed resources appear first. Capacity and utilization remain blank when not established; assignment, headcount and hour units are not interchangeable.</p></div></summary><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Resource</th><th>Type</th><th>Assignments</th><th>Capacity/hr</th><th>Peak planned/hr</th><th>Peak remaining/hr</th><th>Planned util.</th><th>Remaining util.</th><th>Assessment</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></details></section>';
+  ])+'</div></section></div><details class="planning-panel"><summary class="planning-panel-head"><div><h4>Complete P6 resource register</h4><p>Overloaded and unassessed resources appear first. Capacity and utilization remain blank when not confirmed; assignment, headcount and hour units are not interchangeable.</p></div></summary><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Resource</th><th>Type</th><th>Assignments</th><th>Capacity/hr</th><th>Peak planned/hr</th><th>Peak remaining/hr</th><th>Planned util.</th><th>Remaining util.</th><th>Assessment</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></details></section>';
 }
 function renderProgressReportVisual(data){
   const p=projectionFor(data,"progress_report");
@@ -2191,7 +2193,7 @@ function renderProgressReportVisual(data){
     ["Snapshot · current scope",snapshot?.valuePercent==null?"—":percent2(snapshot.valuePercent)+"%","duration-weighted source percent complete"],
     ...[[physicalLabel,physical],["Contractor reported",contractor],["Certified progress",certified]].filter(x=>typeof x[1]?.valuePercent==="number").map(x=>[x[0],percent2(x[1].valuePercent)+"%","separate source basis"])
   ]);
-  const warning=!sourceProgressEstablished?'<div class="notice warn"><b>The programme contains a percentage-complete snapshot, but certified/contractor physical progress is not established.</b> CMeng keeps the schedule snapshot separate from certified or independently sourced physical progress.</div>':'';
+  const warning=!sourceProgressEstablished?'<div class="notice warn"><b>The programme contains a percentage-complete snapshot, but certified/contractor physical progress is not confirmed.</b> CMeng keeps the schedule snapshot separate from certified or independently sourced physical progress.</div>':'';
   const status=planningStatusBand([
     ["Completed",p.progress?.completedCount||0,"success"],
     ["In progress",p.progress?.inProgressCount||0,"accent"],
@@ -2312,8 +2314,8 @@ function renderVarianceTrendVisual(data){
 function renderProgressBreakdownVisual(data){
   const p=projectionFor(data,"progress_breakdown");
   if(!Array.isArray(p.rows))return "";
-  const percent=value=>typeof value==="number"?percent2(value)+"%":"Not established";
-  const delta=value=>typeof value==="number"?percent2(value)+" pp":"Not established";
+  const percent=value=>typeof value==="number"?percent2(value)+"%":"Not confirmed";
+  const delta=value=>typeof value==="number"?percent2(value)+" pp":"Not confirmed";
   const hierarchy=p.hierarchyRows||p.rows;
   const ranked=[...p.rows].filter(r=>r.activityCount>0&&r.durationWeightedProgressPercent!=null).sort((a,b)=>a.durationWeightedProgressPercent-b.durationWeightedProgressPercent||String(a.wbsId).localeCompare(String(b.wbsId))).slice(0,15);
   const progressBars=ranked.map(r=>({label:r.wbsName||r.wbsId,value:r.durationWeightedProgressPercent}));
@@ -2351,12 +2353,12 @@ function renderMilestonesVisual(data){
     ?"Float coverage complete for milestone population"
     : p.sourceFloatState==="source_float_partial"
       ?"Float coverage is partial; milestones without float are not silently treated as non-critical"
-      :"Source-float classification is not established because milestone float is unavailable";
+      :"Source-float classification is not confirmed because milestone float is unavailable";
   const nearCriticalRule=p.nearCriticalThresholdBasis==="activity_calendar_working_days"&&p.nearCriticalThresholdWorkingDays!==null&&p.nearCriticalThresholdWorkingDays!==undefined
     ?"near-critical > "+fmt(p.criticalFloatThresholdHours??0)+" h through +"+fmt(p.nearCriticalThresholdWorkingDays)+" working days using each activity calendar"
     : typeof p.nearCriticalFloatThresholdHours==="number"
       ?"near-critical > "+fmt(p.criticalFloatThresholdHours??0)+" h to "+fmt(p.nearCriticalFloatThresholdHours)+" h"
-      :"near-critical threshold not established";
+      :"near-critical threshold not confirmed";
   const basis='<div class="milestone-basis-note"><span><b>Source-float classification basis:</b> current submitted programme total float. Critical ≤ '+escapeHtml(fmt(p.criticalFloatThresholdHours??0))+' h; '+escapeHtml(nearCriticalRule)+'. Threshold authority: '+escapeHtml(humanizeKey(p.controlBasis?.state||'missing'))+'; method: '+escapeHtml(humanizeKey(p.controlBasis?.nearCriticalThresholdMethod||'unresolved'))+'; '+escapeHtml(fmt(p.controlBasis?.sourceRefs?.length))+' source reference(s) in evidence detail.</span><span><b>'+escapeHtml(basisState)+'</b>'+(p.floatCoveragePercent===null||p.floatCoveragePercent===undefined?'':' · '+escapeHtml(fmt(p.floatCoveragePercent))+'% coverage')+'</span></div>';
   const attention=planningAttention([
     negativeFloatCount?{title:"Investigate negative-float milestones",text:"Validate constraints, dates and driving logic before selecting recovery actions.",value:negativeFloatCount,tone:"danger"}:null,
@@ -2374,7 +2376,7 @@ const movementClusters=new Map();
   const movementGroups='<section class="planning-panel"><div class="planning-panel-head"><h4>Open milestone movement groups</h4></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Movement vs baseline</th><th>Open milestones</th><th>Share of open population</th></tr></thead><tbody>'+[...movementClusters.entries()].sort((a,b)=>b[1]-a[1]).map(([value,count])=>'<tr><td>'+escapeHtml((value>0?'+':'')+fmt(value)+' d')+'</td><td>'+escapeHtml(fmt(count))+'</td><td>'+escapeHtml(fmt(count/Math.max(1,p.openCount)*100)+'%')+'</td></tr>').join('')+'</tbody></table></div><p>Equal date movements do not prove a shared cause. Completed milestones are excluded from these groups.</p></div></section>';
   const authority=planningKpis([
     ["Threshold authority",humanizeKey(p.controlBasis?.state||"missing"),humanizeKey(p.controlBasis?.nearCriticalThresholdMethod||"unresolved"),p.controlBasis?.state==='official'?'':'warning'],
-    ["Governed contract completion",planningShortDate(p.contractualCompletionIso),"contract evidence, separate from activity names"],
+    ["Contract completion",planningShortDate(p.contractualCompletionIso),"contract evidence, separate from activity names"],
     ["Independent driving path",humanizeKey(p.independentDrivingPathState||"not_established"),p.independentDrivingPathReason||"Independent CPM evidence required","warning"]
   ]);
   const timeline=planningMilestoneTimeline(p);
@@ -2407,7 +2409,7 @@ const movementClusters=new Map();
       '<td>'+escapeHtml(planningShortDate(r.baselineDateIso))+'</td>'+
       '<td>'+escapeHtml(planningShortDate(currentOrActual))+'<br><span class="muted">'+escapeHtml(planningMilestoneDueLabel(r))+'</span></td>'+
       '<td class="'+((r.varianceDays||0)>0?"late-text":(r.varianceDays||0)<0?"early-text":"")+'">'+escapeHtml(variance)+'</td>'+
-      '<td>'+escapeHtml(floatText)+'<br><span class="muted">Near-critical limit: '+escapeHtml(r.nearCriticalThresholdHours==null?'Not established':fmt(r.nearCriticalThresholdHours)+' h')+' · Calendar '+escapeHtml(r.calendarId||'Not established')+'</span></td>'+
+      '<td>'+escapeHtml(floatText)+'<br><span class="muted">Near-critical limit: '+escapeHtml(r.nearCriticalThresholdHours==null?'Not confirmed':fmt(r.nearCriticalThresholdHours)+' h')+' · Calendar '+escapeHtml(r.calendarId||'Not confirmed')+'</span></td>'+
       '<td>'+flags+'</td>'+
       '<td>'+escapeHtml(r.managementAction||"Monitor against the current programme and controlled baseline.")+'</td>'+
     '</tr>';
@@ -2429,7 +2431,7 @@ function renderNearCriticalVisual(data){
   const slipped=riskRows.filter(r=>planningDaysBetween(r.baselineFinishIso,r.currentFinishIso)>0).length;
   const workingDays=p.nearCriticalThresholdWorkingDays??p.nearCriticalWorkingDays??null;
   const calendarBasis=p.thresholdBasis==="activity_calendar_working_days"||p.nearCriticalThresholdBasis==="activity_working_days";
-  const limitValue=calendarBasis&&workingDays!==null?fmt(workingDays)+" working days":p.nearCriticalThresholdHours===null||p.nearCriticalThresholdHours===undefined?"Not established":fmt(p.nearCriticalThresholdHours)+" h";
+  const limitValue=calendarBasis&&workingDays!==null?fmt(workingDays)+" working days":p.nearCriticalThresholdHours===null||p.nearCriticalThresholdHours===undefined?"Not confirmed":fmt(p.nearCriticalThresholdHours)+" h";
   const limitSub=calendarBasis?"each activity calendar":"explicit hour threshold";
   const unresolved=p.thresholdUnresolvedActivityCount??Math.max(0,riskRows.filter(r=>r.nearCriticalThresholdHours===null).length);
   const sourceCount=p.sourceReportedNearCriticalLabelCount??p.reconciliation?.sourceReportedCount??null;
@@ -2467,14 +2469,14 @@ function renderNearCriticalVisual(data){
   }).join("");
   const basis='<div class="notice info"><b>CMeng schedule taxonomy:</b> Critical = TF ≤ '+escapeHtml(fmt(criticalThreshold))+' h; Near-Critical = TF > '+escapeHtml(fmt(criticalThreshold))+' h and ≤ '+escapeHtml(limitValue)+'; Float-Risk Watchlist boundary inclusion: '+(p.floatRiskWatchlistIncludesCriticalThreshold?'Included':'Excluded')+'. Working-day limits use each activity\'s own programme calendar.</div>';
   const reconciliation='<div class="notice '+(sourceMatch==="float_risk_watchlist"||sourceMatch==="strict_near_critical"?"good":"warn")+'"><b>Submitted label vs governed taxonomy:</b> '+escapeHtml(reconciliationText)+'</div>';
-  return '<section class="planning-view nearcritical-view">'+kpis+basis+reconciliation+floatConcentrationWarning+distributionSummary(p.floatDistribution,'hours','All execution activity float values')+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Float-risk distribution</h4><p>Submitted total float is classified against the governed project-control taxonomy using each activity calendar.</p></div></div><div class="planning-panel-body">'+histogram+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Where float-risk work finishes</h4><p>Current finish-month concentration for the full float-risk watchlist.</p></div></div><div class="planning-panel-body">'+finishPeriods+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Float-Risk Watchlist</h4><p>Governed critical-boundary inclusion and strict near-critical membership are shown separately. Open activities appear before completed history. Showing '+escapeHtml(fmt(watch.length))+' of '+escapeHtml(fmt(riskRows.length))+' watchlist activities; the complete population is available through Download Excel / Download data.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Activity</th><th>Risk class</th><th>Status</th><th>Total float h</th><th>Threshold h</th><th>Calendar</th><th>Controlled baseline finish</th><th>Current finish</th><th>Vs controlled baseline d</th><th>Progress</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></section></section>';
+  return '<section class="planning-view nearcritical-view">'+kpis+basis+reconciliation+floatConcentrationWarning+distributionSummary(p.floatDistribution,'hours','All execution activity float values')+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Float-risk distribution</h4><p>Submitted total float is classified against the project float thresholds using each activity calendar.</p></div></div><div class="planning-panel-body">'+histogram+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Where float-risk work finishes</h4><p>Current finish-month concentration for the full float-risk watchlist.</p></div></div><div class="planning-panel-body">'+finishPeriods+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Float-Risk Watchlist</h4><p>Critical and near-critical activities are shown separately. Open activities appear before completed history. Showing '+escapeHtml(fmt(watch.length))+' of '+escapeHtml(fmt(riskRows.length))+' watchlist activities; the complete population is available through Download Excel / Download data.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Activity</th><th>Risk class</th><th>Status</th><th>Total float h</th><th>Threshold h</th><th>Calendar</th><th>Controlled baseline finish</th><th>Current finish</th><th>Vs controlled baseline d</th><th>Progress</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></section></section>';
 }
 function renderManhourVisual(data){
   const p=projectionFor(data,"manhour_scurve");
   if(!Array.isArray(p.points)){
     const scenarios=Array.isArray(p.scenarios)?p.scenarios:[];
     const scenarioTable=scenarios.length?'<div class="table-wrap"><table><thead><tr><th>Crew size</th><th>Average manpower</th><th>Peak manpower</th><th>Remaining scenario hours</th><th>Basis</th></tr></thead><tbody>'+scenarios.map(s=>'<tr><td>'+escapeHtml(fmt(s.crewSize))+'</td><td>'+escapeHtml(fmt(s.averageManpower))+'</td><td>'+escapeHtml(fmt(s.peakManpower))+'</td><td>'+escapeHtml(fmt(s.remainingScenarioHours))+'</td><td>'+escapeHtml(s.basis||"—")+'</td></tr>').join("")+'</tbody></table></div>':'';
-    return '<section class="planning-view manhour-view"><div class="notice warn"><b>Measured labor-assignment history is not established.</b> Any values below are programme-derived scenarios and are not presented as actual man-hours.</div>'+scenarioTable+'</section>';
+    return '<section class="planning-view manhour-view"><div class="notice warn"><b>Measured labor-assignment history is not confirmed.</b> Any values below are programme-derived scenarios and are not presented as actual man-hours.</div>'+scenarioTable+'</section>';
   }
   const weekly=p.actualHistoryMethod==="source_approved_weekly_usage";
   const planCoverage=weekly?p.plannedPeriodCoveragePercent:p.plannedAssignmentCoveragePercent;
@@ -2482,20 +2484,20 @@ function renderManhourVisual(data){
   const periodCoverage=weekly?p.actualPeriodCoveragePercent:p.periodActualAssignmentCoveragePercent;
   const actualEstablished=typeof p.actualHoursKnownCurrent==="number"&&Number.isFinite(p.actualHoursKnownCurrent);
   const actualHistoryEstablished=["stored_financial_period_actuals","source_approved_weekly_usage"].includes(p.actualHistoryMethod);
-  const actualHistoryLabel=p.actualHistoryMethod==="stored_financial_period_actuals"?"Financial-period history":p.actualHistoryMethod==="source_approved_weekly_usage"?"Approved weekly usage history":"Not established";
+  const actualHistoryLabel=p.actualHistoryMethod==="stored_financial_period_actuals"?"Financial-period history":p.actualHistoryMethod==="source_approved_weekly_usage"?"Approved weekly usage history":"Not confirmed";
   const actualHistoryBasis=p.actualHistoryMethod==="stored_financial_period_actuals"?"stored financial periods":p.actualHistoryMethod==="source_approved_weekly_usage"?"governed weekly actuals":"no fabricated history";
   const top=planningKpis([
     ["Planned labor hours",p.plannedHoursKnown===null?"—":fmt(p.plannedHoursKnown)+" h",weekly?"weekly demand over source horizon":"assignment plan"],
-    ["Planned register-row coverage",planCoverage==null?"Not established":fmt(planCoverage)+"%",weekly?"source labor-resource periods":"labor assignments"],
-    ["Actual labor hours",p.actualHoursKnownCurrent===null?"Not established":fmt(p.actualHoursKnownCurrent)+" h",p.actualHoursKnownCurrent===null?"missing, not zero":weekly?"approved usage through Data Date":"current known total",p.actualHoursKnownCurrent===null?"warning":"success"],
-    ["Actual register-row coverage",actualCoverage==null?"Not established":fmt(actualCoverage)+"%",weekly?"approved source periods through Data Date":"assignment coverage",p.actualAssignmentCoveragePercent!==null&&p.actualAssignmentCoveragePercent!==undefined&&p.actualAssignmentCoveragePercent<100?"warning":""],
+    ["Planned register-row coverage",planCoverage==null?"Not confirmed":fmt(planCoverage)+"%",weekly?"source labor-resource periods":"labor assignments"],
+    ["Actual labor hours",p.actualHoursKnownCurrent===null?"Not confirmed":fmt(p.actualHoursKnownCurrent)+" h",p.actualHoursKnownCurrent===null?"missing, not zero":weekly?"approved usage through Data Date":"current known total",p.actualHoursKnownCurrent===null?"warning":"success"],
+    ["Actual register-row coverage",actualCoverage==null?"Not confirmed":fmt(actualCoverage)+"%",weekly?"approved source periods through Data Date":"assignment coverage",p.actualAssignmentCoveragePercent!==null&&p.actualAssignmentCoveragePercent!==undefined&&p.actualAssignmentCoveragePercent<100?"warning":""],
     [weekly?"Weekly remaining-work forecast":"Remaining labor hours",p.remainingHoursKnown===null?"Not in the data":fmt(p.remainingHoursKnown)+" h",weekly?"remaining productive work not supplied":"assignment remainder"],
-    ...(weekly?[["Planned to Data Date",p.plannedHoursToDataDate==null?"Not established":fmt(p.plannedHoursToDataDate)+" h","same source weeks as actual"],["Actual minus plan",p.actualMinusPlannedHoursToDataDate==null?"Not established":fmt(p.actualMinusPlannedHoursToDataDate)+" h","same reporting horizon"]]:[]),
+    ...(weekly?[["Planned to Data Date",p.plannedHoursToDataDate==null?"Not confirmed":fmt(p.plannedHoursToDataDate)+" h","same source weeks as actual"],["Actual minus plan",p.actualMinusPlannedHoursToDataDate==null?"Not confirmed":fmt(p.actualMinusPlannedHoursToDataDate)+" h","same reporting horizon"]]:[]),
     ["Actual history",actualHistoryLabel,actualHistoryBasis,actualHistoryEstablished?"success":"warning"],
-    ["Period actual coverage",periodCoverage==null?"Not established":fmt(periodCoverage)+"%",weekly?"source labor-resource periods through Data Date":"labor assignments with period actuals",p.periodActualAssignmentCoveragePercent!==null&&p.periodActualAssignmentCoveragePercent!==undefined&&p.periodActualAssignmentCoveragePercent<100?"warning":""]
+    ["Period actual coverage",periodCoverage==null?"Not confirmed":fmt(periodCoverage)+"%",weekly?"source labor-resource periods through Data Date":"labor assignments with period actuals",p.periodActualAssignmentCoveragePercent!==null&&p.periodActualAssignmentCoveragePercent!==undefined&&p.periodActualAssignmentCoveragePercent<100?"warning":""]
   ]);
   const note=!actualEstablished
-    ? '<div class="notice warn"><b>Actual man-hours are not established.</b> Planned and remaining labor hours may exist, but no current actual-hours total is evidenced. CMeng therefore withholds the actual curve.</div>'
+    ? '<div class="notice warn"><b>Actual man-hours are not confirmed.</b> Planned and remaining labor hours may exist, but no current actual-hours total is evidenced. CMeng therefore withholds the actual curve.</div>'
     : !actualHistoryEstablished
       ? '<div class="notice warn"><b>Actual total is established but periodized actual history is not.</b> CMeng keeps the known total and withholds a historical actual curve instead of fabricating time phasing.</div>'
       : '';
@@ -2504,20 +2506,20 @@ function renderManhourVisual(data){
     ...(actualHistoryEstablished?[{key:"actualCumulativeHours",label:"Actual labor hours",color:"#2c7a57"}]:[]),
     ...(p.points.some(point=>typeof point.forecastCumulativeHours==="number")?[{key:"forecastCumulativeHours",label:"Forecast labor hours",color:"#4f7fb4"}]:[])
   ];
-  return '<section class="planning-view manhour-view">'+top+renderResourceBasisReview(p.basisComparison)+note+(weekly?'<div class="notice info">Weekly staffing hours describe input usage, not physical productivity. Periods are included by source week start. The planned total spans the full source horizon; actuals stop at the Data Date. Remaining-hours forecast is not established.</div>':'')+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Man-Hour S-Curve</h4><p>Labor only. Missing actual history never becomes a zero line.</p></div></div><div class="planning-panel-body">'+renderLineChart(p.points,series,null,{unit:"h",yLabel:"Labor hours",xLabel:"Reporting date",dataDateIso:p.dataDateIso,ariaLabel:"Man-Hour S-Curve"})+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Evidence coverage</h4><p>The curve uses weekly planned-demand and approved actual-usage evidence. Related P6 assignments are a separate supporting population.</p></div></div><div class="planning-panel-body">'+moduleEvidenceGate([
+  return '<section class="planning-view manhour-view">'+top+renderResourceBasisReview(p.basisComparison)+note+(weekly?'<div class="notice info">Weekly staffing hours describe input usage, not physical productivity. Periods are included by source week start. The planned total spans the full source horizon; actuals stop at the Data Date. Remaining-hours forecast is not confirmed.</div>':'')+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Man-Hour S-Curve</h4><p>Labor only. Missing actual history never becomes a zero line.</p></div></div><div class="planning-panel-body">'+renderLineChart(p.points,series,null,{unit:"h",yLabel:"Labor hours",xLabel:"Reporting date",dataDateIso:p.dataDateIso,ariaLabel:"Man-Hour S-Curve"})+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Evidence coverage</h4><p>The curve uses weekly planned-demand and approved actual-usage evidence. Related P6 assignments are a separate supporting population.</p></div></div><div class="planning-panel-body">'+moduleEvidenceGate([
     {label:"Labor resources",value:fmt(p.laborResourceCount),state:p.laborResourceCount>0?"ready":"missing"},
     {label:weekly?"Related P6 labor assignments (separate basis)":"Labor assignments",value:fmt(p.laborAssignmentCount),state:p.laborAssignmentCount>0?"ready":"missing"},
-    {label:"Planned hours · register horizon",value:p.plannedHoursKnown===null?"Not established":fmt(p.plannedHoursKnown)+" h",state:p.plannedHoursKnown===null?"missing":"ready"},
-    {label:"Actual hours",value:p.actualHoursKnownCurrent===null?"Not established":fmt(p.actualHoursKnownCurrent)+" h",state:p.actualHoursKnownCurrent===null?"missing":"ready"},
-    {label:"Period actual history",value:actualHistoryEstablished?"Established":"Not established",state:actualHistoryEstablished?"ready":"missing"}
+    {label:"Planned hours · register horizon",value:p.plannedHoursKnown===null?"Not confirmed":fmt(p.plannedHoursKnown)+" h",state:p.plannedHoursKnown===null?"missing":"ready"},
+    {label:"Actual hours",value:p.actualHoursKnownCurrent===null?"Not confirmed":fmt(p.actualHoursKnownCurrent)+" h",state:p.actualHoursKnownCurrent===null?"missing":"ready"},
+    {label:"Period actual history",value:actualHistoryEstablished?"Established":"Not confirmed",state:actualHistoryEstablished?"ready":"missing"}
   ])+'</div></section></section>';
 }
 
 function managementReason(value){
   const labels={
-    CONTRACT_TIME_BASIS_NOT_SUBMITTED:"Contract time basis not established",
-    CONTRACT_TIME_BASIS_NOT_ESTABLISHED:"Contract finish and EOT day basis are not established",
-    CAUSAL_DELAY_EVENT_BASIS_NOT_ESTABLISHED:"Causal delay-event basis not established",
+    CONTRACT_TIME_BASIS_NOT_SUBMITTED:"Contract time basis not confirmed",
+    CONTRACT_TIME_BASIS_NOT_ESTABLISHED:"Contract finish and EOT day basis are not confirmed",
+    CAUSAL_DELAY_EVENT_BASIS_NOT_ESTABLISHED:"Causal delay-event basis not confirmed",
     NO_EOT_ELIGIBLE_CAUSAL_EVENT_ESTABLISHED:"No employer/neutral causal event is established for EOT assessment",
     NO_ELIGIBLE_EVENT_IN_WINDOW:"No eligible delay event is linked to this window",
     CONCURRENT_WINDOW_REQUIRES_REVIEW:"Concurrent delay requires review",
@@ -2575,10 +2577,10 @@ function renderNoticesClaimsVisual(data){
   return '<section class="planning-view notices-view">'+summary+'<div class="notice warn"><b>'+escapeHtml(assessable.length?fmt(assessable.length)+" events can be assessed on the stated rules.":"Notice performance is not zero; it is not assessable.")+'</b> Contract rules, event/awareness dates and notice evidence are separate inputs. Claim-day sums are register statistics, not project delay or an EOT award.</div>'+renderVisualPanel("What the claim register reports","Reported statuses for the current identity cohort. They are not backdated decisions.",renderDonutChart(claimStateCounts(values).map(r=>({...r,tone:"accent"})),"Claims"))+'<details class="source-scope"><summary>Review all '+fmt(p.events.length)+' notice assessments</summary>'+eventRows+'</details><details class="source-scope"><summary>Review all '+fmt(p.claims.length)+' source claim records</summary>'+claimRows+'</details></section>';
 }
 function commercialMetricHtml(metric,currency=""){
-  if(!metric)return'<span class="muted">Not established</span>';
+  if(!metric)return'<span class="muted">Not confirmed</span>';
   const state=commercialSourceState(metric);
   const value=metric.value===null||metric.value===undefined
-    ? "Not established"
+    ? "Not confirmed"
     : (typeof metric.value==="number"?fmt(metric.value)+(currency?" "+currency:""):planningShortDate(metric.value));
   return '<b>'+escapeHtml(value)+'</b><br><span class="muted">'+escapeHtml(state)+'</span>';
 }
@@ -2590,10 +2592,10 @@ function renderCommercialLedgerVisual(data,scoped=false){
     const future=rows.filter(r=>date(r)&&p.dataDateIso&&date(r).slice(0,10)>p.dataDateIso.slice(0,10));
     const undated=rows.filter(r=>!date(r)||!p.dataDateIso);
     const group=(label,list,scope)=>'<details class="source-scope"><summary>'+escapeHtml(label)+' · '+String(list.length)+' source records</summary>'+renderCommercialLedgerVisual({...p,rows:list,scope,summary:{effectiveRecordCount:scope==="as_of"?list.length:0}},true)+'</details>';
-    return renderCommercialLedgerVisual({...p,rows:current,scope:"as_of",summary:{...p.summary,effectiveRecordCount:current.length}},true)+group("After Data Date, excluded from current totals",future,"future")+group("Date not established, excluded from current totals",undated,"undated");
+    return renderCommercialLedgerVisual({...p,rows:current,scope:"as_of",summary:{...p.summary,effectiveRecordCount:current.length}},true)+group("After Data Date, excluded from current totals",future,"future")+group("Date not confirmed, excluded from current totals",undated,"undated");
   }
-  const num=v=>v===null||v===undefined?"Not established":new Intl.NumberFormat(undefined,{maximumFractionDigits:6}).format(v);
-  const amount=a=>a?'<b>'+escapeHtml(num(a.value))+'</b>'+(a.value===null?"":' <small>'+escapeHtml(a.currency||"Currency unresolved")+'</small>'):"Not established";
+  const num=v=>v===null||v===undefined?"Not confirmed":new Intl.NumberFormat(undefined,{maximumFractionDigits:6}).format(v);
+  const amount=a=>a?'<b>'+escapeHtml(num(a.value))+'</b>'+(a.value===null?"":' <small>'+escapeHtml(a.currency||"Currency unresolved")+'</small>'):"Not confirmed";
   const period=d=>escapeHtml(planningShortDate(d))+(d&&p.dataDateIso&&d>p.dataDateIso?'<br><span class="state-pill review">After Data Date</span>':"");
   const table=(heads,body)=>'<div class="table-wrap"><table><thead><tr>'+heads.map(h=>'<th>'+escapeHtml(h)+'</th>').join("")+'</tr></thead><tbody>'+body.map(r=>'<tr>'+r.map(v=>'<td>'+v+'</td>').join("")+'</tr>').join("")+'</tbody></table></div>';
   const evidence=list=>'<details><summary>Source evidence ('+(list||[]).length+')</summary>'+table(["Document","Location","Revision / hash","Basis"],(list||[]).map(r=>[escapeHtml(r.documentId),escapeHtml(r.locator),escapeHtml(r.revision||r.sourceHash),escapeHtml(r.basisState)]))+'</details>';
@@ -2601,14 +2603,14 @@ function renderCommercialLedgerVisual(data,scoped=false){
   let content="";
   if(key==="commercial-cost-position"){
     content=rows.map(r=>{
-      const v=r.values||{}, money=k=>v[k]==null?"Not established":num(v[k])+" "+r.currency;
+      const v=r.values||{}, money=k=>v[k]==null?"Not confirmed":num(v[k])+" "+r.currency;
       const metrics=planningKpis([["Control budget / BAC",money("bac"),"source control budget"],["Source EAC",money("eac"),"source forecast, not CPI scenario"],["Variance at completion",money("calculated vac"),"BAC minus source EAC",v["calculated vac"]<0?"danger":""],["SPI",num(v.spi),"EV / PV"],["CPI",num(v.cpi),"EV / AC"],["CPI scenario EAC",money("cpi scenario eac"),"separate scenario; BAC / CPI"]]);
       const bars=moduleBarList([["PV · planned value","pv"],["EV · earned value","ev"],["AC · actual cost","ac"]].map(([label,k])=>({label,value:v[k]})),"accent",r.currency);
       const changes=planningSignedBars([["Schedule variance","calculated sv"],["Cost variance","calculated cv"],["Variance at completion","calculated vac"]].map(([label,k])=>({label,value:v[k]})),r.currency);
       return panel(r.currency+" · "+planningShortDate(r.asOf),"Tax basis: "+r.taxBasis+". Values from this reporting period only.",metrics+'<div class="planning-primary-grid">'+panel("Earned value position","Comparable values in one currency and tax basis.",bars)+panel("Variance position","Negative values are adverse; missing values are not zero.",changes)+'</div>'+table(["Original contract","Approved variations","Current contract","Remaining cost / ETC"],[[money("original contract value"),money("approved variations"),money("current contract value"),money("etc")]])+(r.diagnostics?.length?'<div class="notice warn">'+escapeHtml(r.diagnostics.map(humanizeKey).join("; "))+'</div>':"")+evidence(r.receipts));
     }).join("");
   } else if(key==="commercial-cost-register"){
-    content=panel("Cost evidence register","Source values retain their reporting period, tax basis, approval description and provenance.",table(["Metric","Value","As of","Tax basis","Source status","CBS / WBS","Evidence"],rows.map(r=>[escapeHtml(r.metric),amount(r.amount),period(r.amount.asOf),escapeHtml(r.amount.taxBasis),escapeHtml(r.sourceStatus||"Not established"),escapeHtml([r.cbsId,r.wbsId].filter(Boolean).join(" / ")||"Not allocated"),evidence(r.amount.receipts)])));
+    content=panel("Cost evidence register","Source values retain their reporting period, tax basis, approval description and provenance.",table(["Metric","Value","As of","Tax basis","Source status","CBS / WBS","Evidence"],rows.map(r=>[escapeHtml(r.metric),amount(r.amount),period(r.amount.asOf),escapeHtml(r.amount.taxBasis),escapeHtml(r.sourceStatus||"Not confirmed"),escapeHtml([r.cbsId,r.wbsId].filter(Boolean).join(" / ")||"Not allocated"),evidence(r.amount.receipts)])));
   } else if(key==="commercial-payment-register"){
     content=planningKpis([["Certificate source records",rows.length,p.scope==="as_of"?"on or before Data Date":"outside current position"],["On / before Data Date",p.summary?.effectiveRecordCount,"dated certificate periods"],["Recorded paid amounts",rows.filter(r=>r.amounts.paidAmount.value!==null).length,"source figures, not verified receipt count"],["Reconciled balances",rows.filter(r=>r.calculatedOutstandingAmount?.state==="official").length,"dated, governed cash allocations"]])+panel("Payment stages and certificates","A certificate does not prove an employer approval or a bank receipt. No payment stage is copied into another.",table(["Certificate","Period","Source status","Application","Engineer assessment","Employer certification","Net certified","Paid","Outstanding","Evidence"],rows.map(r=>[escapeHtml(r.paymentId),period(r.periodEnd),escapeHtml(r.sourceStatus),amount(r.amounts.applicationAmount),amount(r.amounts.engineerAssessedAmount),amount(r.amounts.employerCertifiedAmount),amount(r.amounts.netCertifiedAmount),amount(r.amounts.paidAmount),amount(r.amounts.outstandingAmount),evidence(r.amounts.netCertifiedAmount.receipts)])))+panel("Certificate component checks","Gross work plus variations less retention, advance recovery and other deductions. The displayed check tests the stated equation; it does not treat omitted deduction fields as confirmed zero. Certification dates, complete accounting and cash are checked separately.",table(["Certificate","Gross work","Variations","Retention","Advance recovery","Other deductions","Tax","Component check"],rows.map(r=>[escapeHtml(r.paymentId),amount(r.amounts.grossWork),amount(r.amounts.variations),amount(r.amounts.retentionDeduction),amount(r.amounts.advanceRecovery),amount(r.amounts.otherDeduction),amount(r.amounts.taxAmount),escapeHtml(humanizeKey(r.componentArithmetic?.state||r.reconciliation)+(r.componentArithmetic?.state==="matched"?" · stated equation only":""))])));
     content+=panel("Cash allocation and balance reconciliation","Reported outstanding is retained unchanged. A calculated balance requires a dated, approved cumulative receipt allocated to this certificate on or before the Data Date.",table(["Certificate","Payment as of","Payment reference","Reported outstanding","Calculated outstanding","Balance state","Diagnostics","Evidence"],rows.map(r=>[escapeHtml(r.paymentId),period(r.paymentDate),escapeHtml(r.paymentReference||"Not provided"),amount(r.amounts.outstandingAmount),amount(r.calculatedOutstandingAmount),escapeHtml(humanizeKey(r.calculatedOutstandingAmount?.state||"missing")),escapeHtml((r.diagnostics||[]).map(humanizeKey).join("; ")||"No conflict in the checked fields"),evidence(r.calculatedOutstandingAmount?.receipts||[])])));
@@ -2627,7 +2629,7 @@ function renderCommercialLedgerVisual(data,scoped=false){
 
 function renderCommercialTemporalPosition(ledger){
   const p=ledger?.temporalPosition;if(!p)return '';
-  const money=v=>v==null?'Not established':fmt(v);
+  const money=v=>v==null?'Not confirmed':fmt(v);
   return '<section class="planning-panel"><div class="planning-panel-head"><div><h4>Reporting scope and source reconciliation</h4><p>Data Date '+escapeHtml(planningShortDate(ledger.dataDateIso))+'. Source sums retain their own currency and tax basis. They do not prove a held balance or a reconciled contract value.</p></div></div><div class="planning-panel-body">'+planningKpis([
     ["Certificate periods by Data Date",p.payments.asOfCount,p.payments.futureCount+' future · '+p.payments.undatedCount+' undated'],
     ["Approvals by Data Date",p.variations.asOfApprovedCount,p.variations.futureApprovalCount+' future · '+p.variations.undatedApprovalCount+' undated'],
@@ -2641,23 +2643,23 @@ function renderCommercialVisual(key,data){
   const countPosition=(state,count,noun)=>{
     const n=Number(count??0);
     if(n>0||state==="established")return fmt(n)+" "+noun;
-    return "Not established";
+    return "Not confirmed";
   };
   const t=position.timeExposure||{};
   const time=planningKpis([
-    ["Contract completion",t.contractualCompletion?.value?planningShortDate(t.contractualCompletion.value):"Not established",humanizeKey(t.contractualCompletion?.state||"not_submitted")],
-    ["Gross determined days",t.approvedEotDays?.value===null||t.approvedEotDays?.value===undefined?"Not established":fmt(t.approvedEotDays.value)+" d",humanizeKey(t.approvedEotDays?.state||"not_submitted")],
-    ["Further adjusted contractual completion",t.officialAdjustedCompletion?.value?planningShortDate(t.officialAdjustedCompletion.value):"Not established",commercialSourceState(t.officialAdjustedCompletion)],
+    ["Contract completion",t.contractualCompletion?.value?planningShortDate(t.contractualCompletion.value):"Not confirmed",humanizeKey(t.contractualCompletion?.state||"not_submitted")],
+    ["Gross determined days",t.approvedEotDays?.value===null||t.approvedEotDays?.value===undefined?"Not confirmed":fmt(t.approvedEotDays.value)+" d",humanizeKey(t.approvedEotDays?.state||"not_submitted")],
+    ["Further adjusted contractual completion",t.officialAdjustedCompletion?.value?planningShortDate(t.officialAdjustedCompletion.value):"Not confirmed",commercialSourceState(t.officialAdjustedCompletion)],
     ["Variations",countPosition(position.contractControls?.variations?.state,position.variationCount,"records"),"governed change population"],
     ["Payment / IPC rows",countPosition(foundation?.paymentRegister?.state,foundation?.paymentRegister?.recordCount,"rows"),"source register population"],
     ["Commercial claims",countPosition(position.claimsNotices?.state,position.claimCommercialCount,"rows"),"money-linked claim population"]
   ]);
   const colsByKey={
-    "commercial-overview":[["Original contract","originalContractValue"],["Current contract","currentContractValue"],["Pending variations","pendingVariationAmount"],["Dated gross certification","grossCertifiedAmount"],["Paid","paidAmount"],["Retention deductions evidenced through DD","retentionDeductedAmount"],["Held balance","retentionHeldAmount"],["Claims","claimedAmount"],["Active bonds","activeBondAmount"]],
+    "commercial-overview":[["Original contract","originalContractValue"],["Current contract","currentContractValue"],["Pending variations","pendingVariationAmount"],["Dated gross certification","grossCertifiedAmount"],["Paid","paidAmount"],["Retention deducted through DD","retentionDeductedAmount"],["Held balance","retentionHeldAmount"],["Claims","claimedAmount"],["Active bonds","activeBondAmount"]],
     "cost-forecast":[["Original contract","originalContractValue"],["Approved variations","approvedVariationAmount"],["Pending variations","pendingVariationAmount"],["Current contract","currentContractValue"],["Claimed","claimedAmount"],["Assessed claims","assessedClaimAmount"]],
     "variations-change":[["Approved variations","approvedVariationAmount"],["Pending variations","pendingVariationAmount"],["Current contract","currentContractValue"]],
-    "payments":[["Source certificate periods","sourceCertificatePeriodCount"],["Dated gross certification","grossCertifiedAmount"],["Paid","paidAmount"],["Certified unpaid","certifiedUnpaidAmount"],["Retention deductions evidenced through DD","retentionDeductedAmount"],["Held balance","retentionHeldAmount"],["Advance balance","advanceBalance"]],
-    "cash-flow":[["Dated gross certification","grossCertifiedAmount"],["Paid","paidAmount"],["Certified unpaid","certifiedUnpaidAmount"],["Retention deductions evidenced through DD","retentionDeductedAmount"],["Held balance","retentionHeldAmount"],["Advance balance","advanceBalance"]],
+    "payments":[["Source certificate periods","sourceCertificatePeriodCount"],["Dated gross certification","grossCertifiedAmount"],["Paid","paidAmount"],["Certified unpaid","certifiedUnpaidAmount"],["Retention deducted through DD","retentionDeductedAmount"],["Held balance","retentionHeldAmount"],["Advance balance","advanceBalance"]],
+    "cash-flow":[["Dated gross certification","grossCertifiedAmount"],["Paid","paidAmount"],["Certified unpaid","certifiedUnpaidAmount"],["Retention deducted through DD","retentionDeductedAmount"],["Held balance","retentionHeldAmount"],["Advance balance","advanceBalance"]],
     "commercial-claims-notices":[["Claimed","claimedAmount"],["Assessed","assessedClaimAmount"],["Pending variations","pendingVariationAmount"]],
     "contract-particulars-bonds":[["Original contract","originalContractValue"],["Current contract","currentContractValue"],["Active bonds","activeBondAmount"]]
   };
@@ -2698,7 +2700,7 @@ function renderCommercialVisual(key,data){
     ? '<div class="table-wrap"><table><thead><tr>'+headers.map(h=>'<th>'+escapeHtml(h)+'</th>').join("")+'</tr></thead><tbody>'+rows.join("")+'</tbody></table></div>'
     : '<div class="empty-visual">'+escapeHtml(emptyMessage)+'</div>';
   const findingValue=(finding,unit="")=>{
-    if(!finding||finding.value===null||finding.value===undefined)return"Not established";
+    if(!finding||finding.value===null||finding.value===undefined)return"Not confirmed";
     return fmt(finding.value)+(unit?" "+unit:"");
   };
   const findingMeta=(finding)=>{
@@ -2731,7 +2733,7 @@ function renderCommercialVisual(key,data){
         '<section class="planning-panel"><div class="planning-panel-head"><div><h4>Cost Register</h4><p>CBS/WBS/currency/tax/date/source authority remain explicit. Showing '+escapeHtml(fmt(costRows.length))+' of '+escapeHtml(fmt((foundation.costRegister?.rows||[]).length))+' rows; the complete population is available through Download Excel / Download data.</p></div></div><div class="planning-panel-body">'+
         planningKpis([
           ["Cost records",countPosition(foundation.costRegister?.state,foundation.costRegister?.recordCount,"records"),"canonical grouped register"],
-          ["CBS mapping",foundation.costRegister?.mappingCoveragePercent==null?"Not established":fmt(foundation.costRegister.mappingCoveragePercent)+"%","source rows mapped"],
+          ["CBS mapping",foundation.costRegister?.mappingCoveragePercent==null?"Not confirmed":fmt(foundation.costRegister.mappingCoveragePercent)+"%","source rows mapped"],
           ["CBS nodes",countPosition(foundation.cbsBreakdown?.state,foundation.cbsBreakdown?.nodeCount,"nodes"),"hierarchy population"],
           ["Unmapped",countPosition(foundation.cbsBreakdown?.state,foundation.cbsBreakdown?.unmappedCostMetricCount,"metrics"),"retained for correction"]
         ])+
@@ -2758,7 +2760,7 @@ function renderCommercialVisual(key,data){
           {label:"Assessed",value:lifecycleCounts.assessed??0,tone:"purple"},
           {label:"Certified",value:lifecycleCounts.certified??0,tone:"accent"},
           {label:"Paid",value:lifecycleCounts.paid??0,tone:"success"}
-        ],"records"):'<div class="empty-visual">Payment register is not established. Lifecycle counts are not established.</div>'
+        ],"records"):'<div class="empty-visual">Payment register is not confirmed. Lifecycle counts are not confirmed.</div>'
       );
       const slaAssessable=paymentRegister.slaAssessmentState==="established";
       const slaVisual=renderVisualPanel(
@@ -2773,16 +2775,16 @@ function renderCommercialVisual(key,data){
               {label:"Overdue unpaid",value:slaCounts.overdueUnpaid??0,tone:"danger"},
               {label:"Open · not due",value:slaCounts.openUnpaid??0,tone:"accent"}
             ],"Assessable payments")
-          :paymentPopulationEstablished?'<div class="notice warning"><b>Not assessable</b><p>'+escapeHtml(fmt(slaCounts.notEstablished??0))+' payment record(s) do not have sufficient governed SLA event dates.</p></div>':'<div class="empty-visual">Payment register is not established. SLA counts are not established.</div>'
+          :paymentPopulationEstablished?'<div class="notice warning"><b>Not assessable</b><p>'+escapeHtml(fmt(slaCounts.notEstablished??0))+' payment record(s) do not have sufficient governed SLA event dates.</p></div>':'<div class="empty-visual">Payment register is not confirmed. SLA counts are not confirmed.</div>'
       );
       foundationDetail='<section class="planning-panel primary payment-management-position"><div class="planning-panel-head"><div><h4>Payments & IPC Management Position</h4><p>Application, assessment, certification and payment remain separate. Due dates and SLA states come from evidenced event dates and contractual periods.</p></div></div><div class="planning-panel-body">'+
         planningKpis([
-          ["Certificate periods by Data Date",paymentPopulationEstablished?(paymentRegister.asOfRecordCount??0):"Not established","certificate periods on or before cutoff"],["Future / undated periods",fmt(paymentRegister.futureRecordCount??0)+" / "+fmt(paymentRegister.undatedRecordCount??0),fmt(paymentRegister.sourceRecordCount??paymentRegister.recordCount??0)+" full source records retained"],
-          ["Stage coverage",paymentRegister.stageCoveragePercent==null?"Not established":fmt(paymentRegister.stageCoveragePercent)+"%","application / assessment / certification / payment dates"],
-          ["Stated component arithmetic",paymentPopulationEstablished?fmt((paymentRegister.rows||[]).filter(row=>row.reportingScope==="as_of"&&row.componentArithmetic?.state==="matched").length)+" / "+fmt(paymentRegister.asOfRecordCount??0):"Not established","gross work + variations − retention − advance recovery; omitted fields remain unconfirmed"],
+          ["Certificate periods by Data Date",paymentPopulationEstablished?(paymentRegister.asOfRecordCount??0):"Not confirmed","certificate periods on or before cutoff"],["Future / undated periods",fmt(paymentRegister.futureRecordCount??0)+" / "+fmt(paymentRegister.undatedRecordCount??0),fmt(paymentRegister.sourceRecordCount??paymentRegister.recordCount??0)+" full source records retained"],
+          ["Stage coverage",paymentRegister.stageCoveragePercent==null?"Not confirmed":fmt(paymentRegister.stageCoveragePercent)+"%","application / assessment / certification / payment dates"],
+          ["Stated component arithmetic",paymentPopulationEstablished?fmt((paymentRegister.rows||[]).filter(row=>row.reportingScope==="as_of"&&row.componentArithmetic?.state==="matched").length)+" / "+fmt(paymentRegister.asOfRecordCount??0):"Not confirmed","gross work + variations − retention − advance recovery; omitted fields remain unconfirmed"],
           ["Overdue unpaid",slaCounts.overdueUnpaid===null||slaCounts.overdueUnpaid===undefined?"Not assessable":slaCounts.overdueUnpaid,"past governed payment due date"],
           ["Paid late",slaCounts.paidLate===null||slaCounts.paidLate===undefined?"Not assessable":slaCounts.paidLate,"actual payment after due date"],
-          ["SLA not established",paymentPopulationEstablished?(slaCounts.notEstablished??0):"Not established","records without assessable due/payment dates",slaCounts.notEstablished?"warning":""],
+          ["SLA not confirmed",paymentPopulationEstablished?(slaCounts.notEstablished??0):"Not confirmed","records without assessable due/payment dates",slaCounts.notEstablished?"warning":""],
           ["Payment period",findingValue(terms.paymentPeriodDays,"days"),findingMeta(terms.paymentPeriodDays)],
           ["Certification period",findingValue(terms.certificationPeriodDays,"days"),findingMeta(terms.certificationPeriodDays)]
         ])+
@@ -2794,11 +2796,11 @@ function renderCommercialVisual(key,data){
     }
     if(key==="contract-particulars-bonds"){
       const clauseRows=(terms.clauses||[]).map(row=>'<tr><td><b>'+escapeHtml(row.identifier?"Clause "+row.identifier:(row.referencedClauseIdentifiers||[]).length?"References clause "+row.referencedClauseIdentifiers.join(", "):"Source section; clause not identified")+'</b></td><td>'+escapeHtml(row.heading||"")+'</td><td>'+escapeHtml(row.documentRole)+'</td><td>'+escapeHtml(humanizeKey(row.governanceState))+'</td><td>'+escapeHtml(row.startPage||"—")+'</td><td>'+"<details><summary>Read complete wording · "+fmt(row.occurrenceCount??1)+" source sections</summary><p>"+escapeHtml(row.textPreview||"")+"</p><p>"+escapeHtml((row.sourceRefs||[row.sourceRef]).join("; "))+"</p></details>"+'</td></tr>');
-      const amendmentRows=(terms.amendments||[]).map(row=>'<tr><td><b>'+escapeHtml(row.documentId)+'</b></td><td>'+escapeHtml(planningShortDate(row.effectiveDate))+'</td><td>'+escapeHtml(planningShortDate(row.completionIso))+'</td><td>'+escapeHtml(row.incorporatedEotDays===null?"Not established":fmt(row.incorporatedEotDays)+" d")+'</td><td>'+escapeHtml(humanizeKey(row.state))+'</td><td>'+escapeHtml((row.actions||[]).map(a=>a.action+" "+a.targetIdentifier).join("; ")||"No parsed clause actions")+'</td></tr>');
+      const amendmentRows=(terms.amendments||[]).map(row=>'<tr><td><b>'+escapeHtml(row.documentId)+'</b></td><td>'+escapeHtml(planningShortDate(row.effectiveDate))+'</td><td>'+escapeHtml(planningShortDate(row.completionIso))+'</td><td>'+escapeHtml(row.incorporatedEotDays===null?"Not confirmed":fmt(row.incorporatedEotDays)+" d")+'</td><td>'+escapeHtml(humanizeKey(row.state))+'</td><td>'+escapeHtml((row.actions||[]).map(a=>a.action+" "+a.targetIdentifier).join("; ")||"No parsed clause actions")+'</td></tr>');
       foundationDetail='<section class="planning-panel"><div class="planning-panel-head"><div><h4>Commercial Terms</h4><p>Contract facts, clauses, amendments and candidate terms remain source-backed and are never auto-promoted.</p></div></div><div class="planning-panel-body">'+
         planningKpis([
           ["Contract currency",findingValue(terms.contractCurrency),findingMeta(terms.contractCurrency)],
-          ["Contract completion",terms.contractualCompletionDate?.value?planningShortDate(terms.contractualCompletionDate.value):"Not established",findingMeta(terms.contractualCompletionDate)],
+          ["Contract completion",terms.contractualCompletionDate?.value?planningShortDate(terms.contractualCompletionDate.value):"Not confirmed",findingMeta(terms.contractualCompletionDate)],
           ["Retention",findingValue(terms.retentionPercent,"%"),findingMeta(terms.retentionPercent)],
           ["Retention cap",findingValue(terms.retentionCapPercent,"%"),findingMeta(terms.retentionCapPercent)],
           ["Payment period",findingValue(terms.paymentPeriodDays,"days"),findingMeta(terms.paymentPeriodDays)],
@@ -2959,8 +2961,8 @@ function renderCommercialVisual(key,data){
         const readinessTone=state=>state==="ready"?"ready":state==="not_aggregable"?"partial":"blocked";
         const basisLabel=basis=>basis==="no_rows"?"No source rows":basis==="project_cumulative"?"Project cumulative":basis==="certificate_cumulative"?"Certificate cumulative":basis==="incremental"?"Incremental":basis==="mixed"?"Mixed":"Unknown";
         const readinessCoverage=(domain,observed,total,noun)=>{
-          if(!domain)return"Not established";
-          if(domain.state==="missing"&&Number(total??0)===0)return"Not established";
+          if(!domain)return"Not confirmed";
+          if(domain.state==="missing"&&Number(total??0)===0)return"Not confirmed";
           return fmt(observed)+" / "+fmt(total)+" "+noun;
         };
         const readinessDomain=(title,domain,coverage,owner)=>{
@@ -2978,19 +2980,19 @@ function renderCommercialVisual(key,data){
               sourceReadiness.paymentRecordCount>0
                 ? fmt(sourceReadiness.paymentRecordCount)+" payment records"
                 : sourceReadiness.certification.state==="missing"&&sourceReadiness.receipts.state==="missing"
-                  ? "payment register not established"
+                  ? "payment register not confirmed"
                   : "0 payment records",
               sourceReadiness.certification.state==="missing"&&sourceReadiness.certification.observedCount===0
-                ? "certified values not established"
+                ? "certified values not confirmed"
                 : fmt(sourceReadiness.certification.observedCount)+" certified values",
               sourceReadiness.receipts.state==="missing"&&sourceReadiness.receipts.observedCount===0
-                ? "paid amounts not established"
+                ? "paid amounts not confirmed"
                 : fmt(sourceReadiness.receipts.observedCount)+" paid amounts",
               sourceReadiness.receipts.state==="missing"&&sourceReadiness.receipts.paymentDateCount===0
-                ? "payment dates not established"
+                ? "payment dates not confirmed"
                 : fmt(sourceReadiness.receipts.paymentDateCount)+" payment dates",
               sourceReadiness.expenditure.state==="missing"&&sourceReadiness.expenditure.observedCount===0
-                ? "actual cash expenditure not established"
+                ? "actual cash expenditure not confirmed"
                 : fmt(sourceReadiness.expenditure.observedCount)+" actual cash-expenditure rows"
             ].join(" · ")
           : null;
@@ -2999,7 +3001,7 @@ function renderCommercialVisual(key,data){
           : '';
         const hero=netReady
           ? '<div class="cash-flow-hero established"><div><span>Net cash movement</span><strong>'+escapeHtml(fmtExecutive(netValue)+" "+row.currency)+'</strong><p>Actual receipts less actual expenditure. Opening cash and facilities are excluded.</p></div><div class="cash-flow-hero-stats"><div><span>Cash received</span><b>'+escapeHtml(experienceValue(paidValue,row.currency))+'</b></div><div><span>Cash spent</span><b>'+escapeHtml(experienceValue(actualValue,row.currency))+'</b></div><div><span>Peak observed deficit</span><b>'+escapeHtml(experienceValue(peakValue,row.currency))+'</b></div></div></div>'
-          : '<div class="cash-flow-hero withheld"><div><span>Actual cash position</span><strong>Cash records incomplete</strong><p>Net cash requires dated receipts and expenditure. '+escapeHtml(sourceReadiness?.receipts?.observedCount>0?fmt(sourceReadiness.receipts.observedCount)+" paid amounts are available.":"Receipt amounts and dates are not established.")+' '+escapeHtml(actualCostContext)+'</p></div></div>';
+          : '<div class="cash-flow-hero withheld"><div><span>Actual cash position</span><strong>Cash records incomplete</strong><p>Net cash requires dated receipts and expenditure. '+escapeHtml(sourceReadiness?.receipts?.observedCount>0?fmt(sourceReadiness.receipts.observedCount)+" paid amounts are available.":"Receipt amounts and dates are not confirmed.")+' '+escapeHtml(actualCostContext)+'</p></div></div>';
         const readinessGrid=sourceReadiness
           ? '<div class="cash-readiness-grid">'+
               readinessDomain(
@@ -3017,12 +3019,12 @@ function renderCommercialVisual(key,data){
               readinessDomain(
                 "Actual cash expenditure",
                 sourceReadiness.expenditure,
-                sourceReadiness.expenditure.state==="missing"&&sourceReadiness.expenditure.observedCount===0?"Not established":fmt(sourceReadiness.expenditure.observedCount)+" cash rows",
+                sourceReadiness.expenditure.state==="missing"&&sourceReadiness.expenditure.observedCount===0?"Not confirmed":fmt(sourceReadiness.expenditure.observedCount)+" cash rows",
                 "cost-forecast"
               )+
               '<div class="cash-readiness-item '+escapeHtml(sourceReadiness.forwardPlan.state==="ready"?"established":"missing")+'">'+
                 '<div><span>Expenditure plan coverage</span><b>'+escapeHtml(readinessStateLabel(sourceReadiness.forwardPlan.state))+'</b></div>'+
-                '<span class="badge '+readinessTone(sourceReadiness.forwardPlan.state)+'">'+escapeHtml(sourceReadiness.forwardPlan.state==="missing"&&sourceReadiness.forwardPlan.budgetRecordCount===0&&sourceReadiness.forwardPlan.forecastRecordCount===0?"Not established":fmt(sourceReadiness.forwardPlan.budgetRecordCount)+" budget · "+fmt(sourceReadiness.forwardPlan.forecastRecordCount)+" forecast")+'</span>'+
+                '<span class="badge '+readinessTone(sourceReadiness.forwardPlan.state)+'">'+escapeHtml(sourceReadiness.forwardPlan.state==="missing"&&sourceReadiness.forwardPlan.budgetRecordCount===0&&sourceReadiness.forwardPlan.forecastRecordCount===0?"Not confirmed":fmt(sourceReadiness.forwardPlan.budgetRecordCount)+" budget · "+fmt(sourceReadiness.forwardPlan.forecastRecordCount)+" forecast")+'</span>'+
                 '<small>'+escapeHtml(sourceReadiness.forwardPlan.consequence||"")+'</small>'+
                 '<div class="cash-readiness-basis"><span>Budget / forecast basis</span><b>'+escapeHtml(basisLabel(sourceReadiness.forwardPlan.budgetBasis)+" / "+basisLabel(sourceReadiness.forwardPlan.forecastBasis))+'</b></div>'+
                 managementModuleLink("cost-forecast",sourceReadiness.forwardPlan.state==="ready"?"Open source":"Resolve source")+
@@ -3032,7 +3034,7 @@ function renderCommercialVisual(key,data){
         const curve=hasCurve
           ? '<div class="cash-flow-primary">'+renderVisualPanel(
               row.currency+' · Observed cash history',
-              'Cumulative observed receipts and expenditure remain separate. Opening liquidity, facilities and future receipts are not established by this history.',
+              'Cumulative observed receipts and expenditure remain separate. Opening liquidity, facilities and future receipts are not confirmed by this history.',
               renderLineChart(points,[
                 {key:"budget",label:"Expenditure budget",tone:"graphite"},
                 {key:"forecast",label:"Expenditure forecast",tone:"purple"},
@@ -3074,7 +3076,7 @@ function renderCommercialVisual(key,data){
           ));
         }
         const register=entries.length
-          ? '<details class="cash-flow-register-detail"><summary><div><b>Governed dated cash-flow register</b><span>'+escapeHtml(fmt(entries.length))+' entries</span></div><small>Open source-level cash movements and evidence trace</small></summary><div class="cash-flow-register-body">'+table(["Date","Entry","Amount","Evidence state","Source"],entryRows,"No dated cash-flow entries are established.")+'</div></details>'
+          ? '<details class="cash-flow-register-detail"><summary><div><b>Confirmed dated cash-flow register</b><span>'+escapeHtml(fmt(entries.length))+' entries</span></div><small>Receipts, payments and document references</small></summary><div class="cash-flow-register-body">'+table(["Date","Entry","Amount","Evidence state","Source"],entryRows,"No dated cash-flow entries are established.")+'</div></details>'
           : '';
         const diagnostics=(row.diagnostics||[]).length
           ? '<details class="cash-flow-trace"><summary><b>Calculation trace</b><span>'+escapeHtml(fmt(row.diagnostics.length))+' controls</span></summary><div>'+row.diagnostics.map(code=>'<div class="cash-trace-row">'+escapeHtml(humanizeKey(code))+'</div>').join("")+'</div></details>'
@@ -3090,7 +3092,7 @@ function renderCommercialVisual(key,data){
       }).join("");
       const certificatePanels=experienceCertificatePanels(position);
       const anyCashCurve=(performance.cashFlow?.currencies||[]).some(r=>r.sourceReadiness?.fundingCurveReady===true);
-      performanceDetail=(cashSections+certificatePanels)||'<section class="planning-panel primary cash-flow-position"><div class="planning-panel-body"><div class="cash-flow-hero withheld"><div><span>Cash Flow</span><strong>Not established</strong><p>No governed cash-flow currency position can be produced from the current evidence. CMeng will not manufacture a cash curve from payment or cost values without a defensible dated cash basis.</p></div></div><div class="cash-flow-related-actions">'+managementModuleLink("payments","Open Payments")+managementModuleLink("cost-forecast","Open Cost & Forecast")+'</div></div></section>';
+      performanceDetail=(cashSections+certificatePanels)||'<section class="planning-panel primary cash-flow-position"><div class="planning-panel-body"><div class="cash-flow-hero withheld"><div><span>Cash Flow</span><strong>Not confirmed</strong><p>No governed cash-flow currency position can be produced from the current evidence. CMeng will not manufacture a cash curve from payment or cost values without a defensible dated cash basis.</p></div></div><div class="cash-flow-related-actions">'+managementModuleLink("payments","Open Payments")+managementModuleLink("cost-forecast","Open Cost & Forecast")+'</div></div></section>';
     }
 
   }
@@ -3125,7 +3127,7 @@ function renderCommercialVisual(key,data){
           {label:"Approved",value:stageCounts.approved??0,tone:"success"},
           {label:"Rejected",value:stageCounts.rejected??0,tone:"danger"},
           {label:"Unknown",value:stageCounts.unknown??0,tone:"neutral"}
-        ],"items"):'<div class="empty-visual">Variation register is not established. Lifecycle counts are not established.</div>'
+        ],"items"):'<div class="empty-visual">Variation register is not confirmed. Lifecycle counts are not confirmed.</div>'
       );
       const agingVisual=renderVisualPanel(
         "Pending and unknown-stage aging",
@@ -3135,7 +3137,7 @@ function renderCommercialVisual(key,data){
           {label:"31–60 days",value:ageBands.days31To60??0,tone:"accent"},
           {label:"61–90 days",value:ageBands.days61To90??0,tone:"warning"},
           {label:">90 days",value:ageBands.over90Days??0,tone:"danger"},
-          {label:"Age not established",value:ageBands.unknown??0,tone:"neutral"}
+          {label:"Age not confirmed",value:ageBands.unknown??0,tone:"neutral"}
         ],"items"):'<div class="empty-visual">Variation aging is not assessable until a governed variation population is established.</div>'
       );
       const bridgeVisuals=(position.currencies||[]).map(row=>renderVisualPanel(
@@ -3160,21 +3162,21 @@ function renderCommercialVisual(key,data){
           {label:"Unquoted",value:si.unquotedCount||0,tone:"warning"},
           {label:"Overdue quotations",value:si.overdueQuotationCount||0,tone:"danger"},
           {label:"Converted to VO",value:si.convertedVariationCount||0,tone:"success"}
-        ],"items"):'<div class="empty-visual">Site Instruction register is not established. Conversion and quotation counts are not established.</div>'
+        ],"items"):'<div class="empty-visual">Site Instruction register is not confirmed. Conversion and quotation counts are not confirmed.</div>'
       );
       const siRows=(si.rows||[]).map(row=>'<tr><td><b>'+escapeHtml(row.instructionId)+'</b></td><td>'+escapeHtml(planningShortDate(row.issueDate))+'</td><td>'+escapeHtml(row.description||"")+'</td><td>'+escapeHtml(humanizeKey(row.status))+'</td><td>'+escapeHtml(planningShortDate(row.quotationDueDate?.value))+'</td><td>'+escapeHtml(planningShortDate(row.quotationDate))+'</td><td>'+escapeHtml(humanizeKey(row.quotationTimeliness))+'</td><td>'+escapeHtml(findingValue(row.openAgeDays,"d"))+'</td><td>'+escapeHtml(findingValue(row.estimatedAmount))+'</td><td>'+escapeHtml(row.variationId||"Not linked")+'</td><td>'+escapeHtml([row.claimId,row.paymentId,(row.activityIds||[]).join("; ")].filter(Boolean).join(" · ")||"—")+'</td></tr>');
       contractControlDetail=
         '<section class="planning-panel primary variation-management-position"><div class="planning-panel-head"><div><h4>Variations & Change Management Position</h4><p>Lifecycle, aging, contract-value effect and schedule/claim/payment links remain controlled separately.</p></div></div><div class="planning-panel-body">'+
         planningKpis([
-          ["Variations by Data Date",variationPopulationEstablished?(vo.recordCount??0):"Not established",fmt(vo.sourceRecordCount??vo.recordCount)+" full source records retained"],
-          ["Approved by Data Date",variationPopulationEstablished?(vo.approvedCount??0):"Not established","dated approval event"],["Future / undated records",fmt(vo.futureRecordCount??0)+" / "+fmt(vo.undatedRecordCount??0),"retained outside current stage totals"],["Stage unknown at Data Date",vo.unknownAsOfStageCount??"Not established","future approval does not prove a prior pending stage"],
-          ["Known pending",variationPopulationEstablished?(vo.pendingCount??0):"Not established","dated pre-approval stages only"],
-          ["Rejected",variationPopulationEstablished?(vo.rejectedCount??0):"Not established","closed without approval"],
-          ["Final-stage coverage",vo.finalStageCoveragePercent==null?"Not established":fmt(vo.finalStageCoveragePercent)+"%","stage evidenced on or before Data Date"],
-          ["Full lifecycle coverage",vo.fullLifecycleCoveragePercent==null?"Not established":fmt(vo.fullLifecycleCoveragePercent)+"%","instruction / submission / assessment / closure dates"],
-          ["Schedule linkage",vo.scheduleLinkCoveragePercent==null?"Not established":fmt(vo.scheduleLinkCoveragePercent)+"%","time/activity evidence"],
-          ["Claim linkage",vo.claimLinkCoveragePercent==null?"Not established":fmt(vo.claimLinkCoveragePercent)+"%","claim IDs"],
-          ["Payment linkage",vo.paymentLinkCoveragePercent==null?"Not established":fmt(vo.paymentLinkCoveragePercent)+"%","certificate/payment IDs"]
+          ["Variations by Data Date",variationPopulationEstablished?(vo.recordCount??0):"Not confirmed",fmt(vo.sourceRecordCount??vo.recordCount)+" full source records retained"],
+          ["Approved by Data Date",variationPopulationEstablished?(vo.approvedCount??0):"Not confirmed","dated approval event"],["Future / undated records",fmt(vo.futureRecordCount??0)+" / "+fmt(vo.undatedRecordCount??0),"retained outside current stage totals"],["Stage unknown at Data Date",vo.unknownAsOfStageCount??"Not confirmed","future approval does not prove a prior pending stage"],
+          ["Known pending",variationPopulationEstablished?(vo.pendingCount??0):"Not confirmed","dated pre-approval stages only"],
+          ["Rejected",variationPopulationEstablished?(vo.rejectedCount??0):"Not confirmed","closed without approval"],
+          ["Final-stage coverage",vo.finalStageCoveragePercent==null?"Not confirmed":fmt(vo.finalStageCoveragePercent)+"%","stage evidenced on or before Data Date"],
+          ["Full lifecycle coverage",vo.fullLifecycleCoveragePercent==null?"Not confirmed":fmt(vo.fullLifecycleCoveragePercent)+"%","instruction / submission / assessment / closure dates"],
+          ["Schedule linkage",vo.scheduleLinkCoveragePercent==null?"Not confirmed":fmt(vo.scheduleLinkCoveragePercent)+"%","time/activity evidence"],
+          ["Claim linkage",vo.claimLinkCoveragePercent==null?"Not confirmed":fmt(vo.claimLinkCoveragePercent)+"%","claim IDs"],
+          ["Payment linkage",vo.paymentLinkCoveragePercent==null?"Not confirmed":fmt(vo.paymentLinkCoveragePercent)+"%","certificate/payment IDs"]
         ])+
         '<div class="commercial-visual-grid variation-control-grid">'+lifecycleVisual+agingVisual+'</div>'+
         (bridgeVisuals?'<div class="commercial-visual-grid change-bridge-grid">'+bridgeVisuals+'</div>':"")+
@@ -3183,10 +3185,10 @@ function renderCommercialVisual(key,data){
         '</div></section>'+
         '<section class="planning-panel"><div class="planning-panel-head"><div><h4>Site Instructions</h4><p>An instruction is not automatically a variation or entitlement. Quotation aging uses actual issue and due dates.</p></div></div><div class="planning-panel-body">'+
         planningKpis([
-          ["Instructions",siteInstructionPopulationEstablished?(si.recordCount??0):"Not established","source records"],
-          ["Unquoted",siteInstructionPopulationEstablished?(si.unquotedCount??0):"Not established","quotation missing"],
-          ["Overdue quotations",siteInstructionPopulationEstablished?(si.overdueQuotationCount??0):"Not established","past due"],
-          ["Converted to VO",siteInstructionPopulationEstablished?(si.convertedVariationCount??0):"Not established","explicit link only"]
+          ["Instructions",siteInstructionPopulationEstablished?(si.recordCount??0):"Not confirmed","source records"],
+          ["Unquoted",siteInstructionPopulationEstablished?(si.unquotedCount??0):"Not confirmed","quotation missing"],
+          ["Overdue quotations",siteInstructionPopulationEstablished?(si.overdueQuotationCount??0):"Not confirmed","past due"],
+          ["Converted to VO",siteInstructionPopulationEstablished?(si.convertedVariationCount??0):"Not confirmed","explicit link only"]
         ])+
         instructionPressure+
         table(["Instruction","Issued","Description","Status","Quote due","Quoted","Timeliness","Open age","Estimate","Variation","Other links"],siRows,"No Site Instruction register is established.")+
@@ -3212,7 +3214,7 @@ function renderCommercialVisual(key,data){
               {label:"Complete",value:obl.completeCount??0,tone:"success"},
               {label:"Requirement wording groups",value:obl.clauseCandidateCount??0,tone:"warning"}
             ],"items")
-          : '<div class="empty-visual">No controlled obligation register is established. Open, overdue and complete counts are not established.</div>'
+          : '<div class="empty-visual">No controlled obligation register is established. Open, overdue and complete counts are not confirmed.</div>'
       );
       const securityVisual=renderVisualPanel(
         "Security & insurance monitoring",
@@ -3230,7 +3232,7 @@ function renderCommercialVisual(key,data){
                 {label:"Expired policies",value:bi.expiredInsuranceCount,tone:"danger"}
               ]:[])
             ],"instruments")
-          : '<div class="empty-visual">No bond/security or insurance register is established. Instrument counts are not established.</div>'
+          : '<div class="empty-visual">No bond/security or insurance register is established. Instrument counts are not confirmed.</div>'
       );
       const retentionVisual=renderVisualPanel(
         "Retention release control",
@@ -3241,7 +3243,7 @@ function renderCommercialVisual(key,data){
           {label:"Release date established",value:ret.dueCount??0,tone:"accent"},
           ...(typeof ret.overdueCount==="number"?[{label:"Overdue unreleased",value:ret.overdueCount,tone:"danger"}]:[])
         ],"records")+
-        (typeof ret.overdueCount==="number"?"":'<div class="notice info" style="margin-top:10px">Deduction rows do not establish held or released balances. Overdue retention is not assessable until release due dates or contractual release triggers are established.</div>'):'<div class="empty-visual">No retention register or governed balance records are established. Held, released and due counts are not established.</div>'
+        (typeof ret.overdueCount==="number"?"":'<div class="notice info" style="margin-top:10px">Deduction rows do not establish held or released balances. Overdue retention is not assessable until release due dates or contractual release triggers are established.</div>'):'<div class="empty-visual">No retention register or governed balance records are established. Held, released and due counts are not confirmed.</div>'
       );
       const ldCurrencies=[...new Set((ld.scenarios||[]).map(row=>row.currency).filter(Boolean))];
       const ldVisuals=ldCurrencies.map(currency=>renderVisualPanel(
@@ -3264,21 +3266,21 @@ function renderCommercialVisual(key,data){
           row.currency
         )
       )).join("");
-      const obligationRows=(obl.rows||[]).map((row,index)=>'<tr><td><b>'+escapeHtml(row.origin==='contract_clause_candidate'?'Requirement wording group '+(index+1):row.obligationId)+'</b></td><td>'+escapeHtml(humanizeKey(row.origin))+'</td><td>'+escapeHtml(row.clauseIdentifier||(row.referencedClauseIdentifiers||[]).map(id=>"References "+id).join(", ")||"Not identified")+'</td><td>'+'<details><summary>Read requirement · '+fmt(row.occurrenceCount??1)+' source occurrences</summary><p>'+escapeHtml(row.description||"")+'</p></details></td><td>'+escapeHtml(row.responsibleParty||"Not mapped")+'</td><td>'+escapeHtml(planningShortDate(row.dueDate))+'</td><td>'+escapeHtml(planningShortDate(row.completedDate))+'</td><td>'+escapeHtml(humanizeKey(row.status))+'</td><td>'+escapeHtml(findingValue(row.daysToDue,"d"))+'</td><td>'+'<details><summary>'+fmt((row.sourceRefs||[]).length)+' source references</summary><p>'+escapeHtml(row.obligationId)+'</p><ul>'+(row.sourceRefs||[]).map(ref=>'<li>'+escapeHtml(ref)+'</li>').join('')+'</ul></details>'+'</td></tr>');
-      const ldRows=(ld.scenarios||[]).map(row=>'<tr><td><b>'+escapeHtml(row.scenario==="no_eot"?"No additional EOT beyond amendment":row.scenario==="awarded_eot"?"Reconciled additional EOT":humanizeKey(row.scenario))+'</b></td><td>'+escapeHtml(findingValue(row.eotDays,"d"))+'</td><td>'+escapeHtml(row.adjustedCompletion?.value?planningShortDate(row.adjustedCompletion.value):"Not established")+'</td><td>'+escapeHtml(row.forecastCompletion?.value?planningShortDate(row.forecastCompletion.value):"Not established")+'</td><td>'+escapeHtml(findingValue(row.exposureDays,"d"))+'</td><td>'+escapeHtml(findingValue(row.uncappedExposure,row.currency||""))+'</td><td>'+escapeHtml(findingValue(row.capAmount,row.currency||""))+'</td><td>'+escapeHtml(findingValue(row.cappedExposure,row.currency||""))+'</td><td>'+escapeHtml(findingMeta(row.cappedExposure))+'</td></tr>');
+      const obligationRows=(obl.rows||[]).map((row,index)=>'<tr><td><b>'+escapeHtml(row.origin==='contract_clause_candidate'?'Requirement wording group '+(index+1):row.obligationId)+'</b></td><td>'+escapeHtml(humanizeKey(row.origin))+'</td><td>'+escapeHtml(row.clauseIdentifier||(row.referencedClauseIdentifiers||[]).map(id=>"References "+id).join(", ")||"Not identified")+'</td><td>'+'<details><summary>Read requirement · '+fmt(row.occurrenceCount??1)+' source occurrences</summary><p>'+escapeHtml(row.description||"")+'</p></details></td><td>'+escapeHtml(row.responsibleParty||"Not mapped")+'</td><td>'+escapeHtml(planningShortDate(row.dueDate))+'</td><td>'+escapeHtml(planningShortDate(row.completedDate))+'</td><td>'+escapeHtml(humanizeKey(row.status))+'</td><td>'+escapeHtml(findingValue(row.daysToDue,"d"))+'</td><td>'+'<details><summary>'+fmt((row.sourceRefs||[]).length)+' document references</summary><p>'+escapeHtml(row.obligationId)+'</p><ul>'+(row.sourceRefs||[]).map(ref=>'<li>'+escapeHtml(ref)+'</li>').join('')+'</ul></details>'+'</td></tr>');
+      const ldRows=(ld.scenarios||[]).map(row=>'<tr><td><b>'+escapeHtml(row.scenario==="no_eot"?"No additional EOT beyond amendment":row.scenario==="awarded_eot"?"Reconciled additional EOT":humanizeKey(row.scenario))+'</b></td><td>'+escapeHtml(findingValue(row.eotDays,"d"))+'</td><td>'+escapeHtml(row.adjustedCompletion?.value?planningShortDate(row.adjustedCompletion.value):"Not confirmed")+'</td><td>'+escapeHtml(row.forecastCompletion?.value?planningShortDate(row.forecastCompletion.value):"Not confirmed")+'</td><td>'+escapeHtml(findingValue(row.exposureDays,"d"))+'</td><td>'+escapeHtml(findingValue(row.uncappedExposure,row.currency||""))+'</td><td>'+escapeHtml(findingValue(row.capAmount,row.currency||""))+'</td><td>'+escapeHtml(findingValue(row.cappedExposure,row.currency||""))+'</td><td>'+escapeHtml(findingMeta(row.cappedExposure))+'</td></tr>');
       const bondRows=(bi.bonds||[]).map(row=>'<tr><td><b>'+escapeHtml(row.bondId)+'</b></td><td>'+escapeHtml(humanizeKey(row.kind))+'</td><td>'+escapeHtml(humanizeKey(row.status))+'</td><td>'+escapeHtml(findingValue(row.amount))+'</td><td>'+escapeHtml(planningShortDate(row.expiryDate))+'</td><td>'+escapeHtml(findingValue(row.daysToExpiry,"d"))+'</td><td>'+escapeHtml(humanizeKey(row.expiryState))+'</td></tr>');
       const insuranceRows=(bi.insurances||[]).map(row=>'<tr><td><b>'+escapeHtml(row.policyId)+'</b></td><td>'+escapeHtml(humanizeKey(row.kind))+'</td><td>'+escapeHtml(row.insurer||"Not stated")+'</td><td>'+escapeHtml(humanizeKey(row.status))+'</td><td>'+escapeHtml(findingValue(row.coverageAmount))+'</td><td>'+escapeHtml(planningShortDate(row.expiryDate))+'</td><td>'+escapeHtml(findingValue(row.daysToExpiry,"d"))+'</td><td>'+escapeHtml(humanizeKey(row.expiryState))+'</td><td>'+escapeHtml(row.sourceRequirement||"Not linked")+'</td></tr>');
-      const retentionRows=(ret.rows||[]).map(row=>'<tr><td><b>'+escapeHtml(row.retentionId)+'</b></td><td>'+escapeHtml(humanizeKey(row.origin))+'</td><td>'+escapeHtml(row.certificateNo||"—")+'</td><td>'+escapeHtml(humanizeKey(row.state))+'</td><td>'+escapeHtml(row.trigger||"Not established")+'</td><td>'+escapeHtml(findingValue(row.amount))+'</td><td>'+escapeHtml(row.dueDate?.value?planningShortDate(row.dueDate.value):"Not established")+'</td><td>'+escapeHtml(planningShortDate(row.releaseDate))+'</td><td>'+escapeHtml(findingValue(row.daysToDue,"d"))+'</td></tr>');
+      const retentionRows=(ret.rows||[]).map(row=>'<tr><td><b>'+escapeHtml(row.retentionId)+'</b></td><td>'+escapeHtml(humanizeKey(row.origin))+'</td><td>'+escapeHtml(row.certificateNo||"—")+'</td><td>'+escapeHtml(humanizeKey(row.state))+'</td><td>'+escapeHtml(row.trigger||"Not confirmed")+'</td><td>'+escapeHtml(findingValue(row.amount))+'</td><td>'+escapeHtml(row.dueDate?.value?planningShortDate(row.dueDate.value):"Not confirmed")+'</td><td>'+escapeHtml(planningShortDate(row.releaseDate))+'</td><td>'+escapeHtml(findingValue(row.daysToDue,"d"))+'</td></tr>');
       contractControlDetail=
         '<section class="planning-panel primary contract-particulars-management"><div class="planning-panel-head"><div><h4>Contract Particulars, Securities & Obligations Management Position</h4><p>Contract value, obligations, LD scenarios, securities, insurance and retention are controlled as separate evidence-backed positions.</p></div></div><div class="planning-panel-body">'+
         planningKpis([
-          ["Controlled obligation records",obligationsEstablished?(obl.explicitRecordCount??0):"Not established","explicit register"],
-          ["Open obligations",obligationsEstablished?(obl.openCount??0):"Not established","controlled obligation register"],
-          ["Overdue obligations",obligationsEstablished?(obl.overdueCount??0):"Not established","controlled obligation register"],
-          ["Active bonds",bondsEstablished?(bi.activeBondCount??"Not established"):"Not established","security register instruments"],
-          ["Expiring bonds",bondsEstablished?(bi.expiringBondCount??"Not established"):"Not established","security register instruments"],
-          ["Expired bonds",bondsEstablished?(bi.expiredBondCount??"Not established"):"Not established","security register instruments"],
-          ["Reconciled held records",retentionRecordsEstablished&&(ret.rows||[]).some(r=>r.origin!=="payment_deduction")?(ret.heldCount??0):"Not established","deduction records do not prove held balances"],
+          ["Controlled obligation records",obligationsEstablished?(obl.explicitRecordCount??0):"Not confirmed","explicit register"],
+          ["Open obligations",obligationsEstablished?(obl.openCount??0):"Not confirmed","controlled obligation register"],
+          ["Overdue obligations",obligationsEstablished?(obl.overdueCount??0):"Not confirmed","controlled obligation register"],
+          ["Active bonds",bondsEstablished?(bi.activeBondCount??"Not confirmed"):"Not confirmed","security register instruments"],
+          ["Expiring bonds",bondsEstablished?(bi.expiringBondCount??"Not confirmed"):"Not confirmed","security register instruments"],
+          ["Expired bonds",bondsEstablished?(bi.expiredBondCount??"Not confirmed"):"Not confirmed","security register instruments"],
+          ["Reconciled held records",retentionRecordsEstablished&&(ret.rows||[]).some(r=>r.origin!=="payment_deduction")?(ret.heldCount??0):"Not confirmed","deduction records do not prove held balances"],
           ["Retention overdue",retentionOverdueDisplay,"requires release due dates"]
         ])+
         (contractBridgeVisuals?'<div class="commercial-visual-grid contract-bridge-grid">'+contractBridgeVisuals+'</div>':"")+
@@ -3286,11 +3288,11 @@ function renderCommercialVisual(key,data){
         '</div></section>'+
         '<section class="planning-panel"><div class="planning-panel-head"><div><h4>Contract Obligations</h4><p>Explicit obligation controls remain separate from clause-derived candidates. A clause does not invent compliance status.</p></div></div><div class="planning-panel-body">'+
         planningKpis([
-          ["Controlled obligation records",obligationsEstablished?(obl.explicitRecordCount??0):"Not established","explicit register"],
+          ["Controlled obligation records",obligationsEstablished?(obl.explicitRecordCount??0):"Not confirmed","explicit register"],
           ["Requirement wording groups",obl.clauseCandidateCount||0,"repeated source sections grouped; requires review"],
-          ["Open",obligationsEstablished?(obl.openCount??0):"Not established","controlled obligation register"],
-          ["Overdue",obligationsEstablished?(obl.overdueCount??0):"Not established","controlled obligation register"],
-          ["Complete",obligationsEstablished?(obl.completeCount??0):"Not established","controlled obligation register"]
+          ["Open",obligationsEstablished?(obl.openCount??0):"Not confirmed","controlled obligation register"],
+          ["Overdue",obligationsEstablished?(obl.overdueCount??0):"Not confirmed","controlled obligation register"],
+          ["Complete",obligationsEstablished?(obl.completeCount??0):"Not confirmed","controlled obligation register"]
         ])+
         table(["Obligation","Origin","Clause","Requirement","Responsible","Due","Completed","Status","Days to due","Evidence"],obligationRows,"No controlled obligation register or promoted clause candidates are established. This does not mean the contract contains no obligations.")+
         '</div></section>'+
@@ -3305,14 +3307,14 @@ function renderCommercialVisual(key,data){
         '</div></section>'+
         '<section class="planning-panel"><div class="planning-panel-head"><div><h4>Bonds & Insurance</h4><p>Security values, cash balances, contractual requirements and expiry status remain distinct.</p></div></div><div class="planning-panel-body">'+
         planningKpis([
-          ["Active bonds",bondsEstablished?(bi.activeBondCount??"Not established"):"Not established","security register records"],
-          ["Expired bonds",bondsEstablished?(bi.expiredBondCount??"Not established"):"Not established","security register records"],
-          ["Expiring bonds",bondsEstablished?(bi.expiringBondCount??"Not established"):"Not established","security register records"],
-          ["Active policies",insuranceEstablished?(bi.activeInsuranceCount??"Not established"):"Not established","insurance register records"],
-          ["Expired policies",insuranceEstablished?(bi.expiredInsuranceCount??"Not established"):"Not established","insurance register records"],
-          ["Expiring policies",insuranceEstablished?(bi.expiringInsuranceCount??"Not established"):"Not established","insurance register records"]
+          ["Active bonds",bondsEstablished?(bi.activeBondCount??"Not confirmed"):"Not confirmed","security register records"],
+          ["Expired bonds",bondsEstablished?(bi.expiredBondCount??"Not confirmed"):"Not confirmed","security register records"],
+          ["Expiring bonds",bondsEstablished?(bi.expiringBondCount??"Not confirmed"):"Not confirmed","security register records"],
+          ["Active policies",insuranceEstablished?(bi.activeInsuranceCount??"Not confirmed"):"Not confirmed","insurance register records"],
+          ["Expired policies",insuranceEstablished?(bi.expiredInsuranceCount??"Not confirmed"):"Not confirmed","insurance register records"],
+          ["Expiring policies",insuranceEstablished?(bi.expiringInsuranceCount??"Not confirmed"):"Not confirmed","insurance register records"]
         ])+
-        '<div class="notice info"><b>Performance requirement:</b> '+escapeHtml(findingValue(bi.performanceBondRequirement))+' · '+escapeHtml(findingMeta(bi.performanceBondRequirement))+'<br><b>Advance-payment requirement:</b> '+escapeHtml(findingValue(bi.advancePaymentBondRequirement))+' · '+escapeHtml(findingMeta(bi.advancePaymentBondRequirement))+'<br><b>Contract insurance requirements:</b> '+escapeHtml(bi.insuranceRequirementCount>0?bi.insuranceRequirementCount:'Not established')+'</div>'+
+        '<div class="notice info"><b>Performance requirement:</b> '+escapeHtml(findingValue(bi.performanceBondRequirement))+' · '+escapeHtml(findingMeta(bi.performanceBondRequirement))+'<br><b>Advance-payment requirement:</b> '+escapeHtml(findingValue(bi.advancePaymentBondRequirement))+' · '+escapeHtml(findingMeta(bi.advancePaymentBondRequirement))+'<br><b>Contract insurance requirements:</b> '+escapeHtml(bi.insuranceRequirementCount>0?bi.insuranceRequirementCount:'Not confirmed')+'</div>'+
         table(["Bond","Type","Status","Amount","Expiry","Days","Expiry state"],bondRows,"No bond/security register is established.")+
         table(["Policy","Type","Insurer","Status","Coverage","Expiry","Days","Expiry state","Requirement"],insuranceRows,"No insurance-policy register is established.")+'<div class="notice info">Policy records outside the current population: '+fmt(bi.futureInsurances?.length??0)+' future · '+fmt(bi.undatedInsurances?.length??0)+' undated. These remain in the source register.</div>'+
         '</div></section>'+
@@ -3320,10 +3322,10 @@ function renderCommercialVisual(key,data){
         planningKpis([
           ["Retention rate",findingValue(ret.retentionPercent,"%"),findingMeta(ret.retentionPercent)],
           ["Retention cap",findingValue(ret.retentionCapPercent,"%"),findingMeta(ret.retentionCapPercent)],
-          ["Records by Data Date",retentionRecordsEstablished?(ret.recordCount??0):"Not established",fmt(ret.sourceRecordCount??ret.recordCount)+" full source records"],["Future / undated records",fmt(ret.futureRows?.length??0)+" / "+fmt(ret.undatedRows?.length??0),"excluded from current totals"],
-          ["Reconciled held records",retentionRecordsEstablished&&(ret.rows||[]).some(r=>r.origin!=="payment_deduction")?(ret.heldCount??0):"Not established","deductions excluded from held count"],
-          ["Released",retentionRecordsEstablished?(ret.releasedCount??null):"Not established","explicit release state"],
-          ["Dated",retentionRecordsEstablished?(ret.dueCount??0):"Not established","release date/trigger established"],
+          ["Records by Data Date",retentionRecordsEstablished?(ret.recordCount??0):"Not confirmed",fmt(ret.sourceRecordCount??ret.recordCount)+" full source records"],["Future / undated records",fmt(ret.futureRows?.length??0)+" / "+fmt(ret.undatedRows?.length??0),"excluded from current totals"],
+          ["Reconciled held records",retentionRecordsEstablished&&(ret.rows||[]).some(r=>r.origin!=="payment_deduction")?(ret.heldCount??0):"Not confirmed","deductions excluded from held count"],
+          ["Released",retentionRecordsEstablished?(ret.releasedCount??null):"Not confirmed","explicit release state"],
+          ["Dated",retentionRecordsEstablished?(ret.dueCount??0):"Not confirmed","release date/trigger established"],
           ["Overdue",retentionOverdueDisplay,"requires release due dates"]
         ])+
         table(["Retention","Origin","Certificate","State","Trigger","Amount","Due","Released","Days to due"],retentionRows,"No retention calendar records are established.")+
@@ -3368,13 +3370,13 @@ function renderCommercialVisual(key,data){
         {label:"Rejected",value:stateCounts.rejected??0,tone:"danger"},
         {label:"Withdrawn",value:stateCounts.withdrawn??0,tone:"graphite"},
         {label:"Unknown",value:stateCounts.unknown??0,tone:"neutral"}
-      ],"claims"):'<div class="empty-visual">No governed claim lifecycle population is established. Lifecycle counts are not established.</div>'
+      ],"claims"):'<div class="empty-visual">No governed claim lifecycle population is established. Lifecycle counts are not confirmed.</div>'
     );
     const assessableNoticeCount=(timeliness.timely??0)+(timeliness.late??0)+(timeliness.not_issued??0);
     const noticeTimelinessVisual=renderVisualPanel(
       "Notice timeliness position",
       "Compliance outcomes and independent evidence gaps are separate. Missing requirement, event-date and notice-date counts can overlap.",
-      noticeAssessmentPopulationEstablished?(assessableNoticeCount===0?'<div class="empty-visual">No event has an assessable notice outcome. Timely, late and not-issued counts are not established; the bars below identify evidence gaps.</div>':'')+renderVisualBars([
+      noticeAssessmentPopulationEstablished?(assessableNoticeCount===0?'<div class="empty-visual">No event has an assessable notice outcome. Timely, late and not-issued counts are not confirmed; the bars below identify evidence gaps.</div>':'')+renderVisualBars([
         ...(assessableNoticeCount>0?[{label:"Timely",value:timeliness.timely??0,tone:"success"},
         {label:"Late",value:timeliness.late??0,tone:"danger"},
         {label:"Not issued",value:timeliness.not_issued??0,tone:"warning"}]:[]),
@@ -3394,11 +3396,11 @@ function renderCommercialVisual(key,data){
         {label:"Detailed claim",value:kindCounts.detailed_claim??0,tone:"danger"},
         {label:"Response",value:kindCounts.response??0,tone:"accent"},
         {label:"Determination",value:kindCounts.determination??0,tone:"success"}
-      ],"records"):'<div class="empty-visual">No governed notice/correspondence register is established. Type counts are not established.</div>'
+      ],"records"):'<div class="empty-visual">No governed notice/correspondence register is established. Type counts are not confirmed.</div>'
     );
-    const financialRows=(registers.claims||[]).map(row=>'<tr><td><b>'+escapeHtml(row.claimId)+'</b></td><td>'+escapeHtml(row.claimedAmount===null||row.claimedAmount===undefined?"Not established":fmt(row.claimedAmount))+'</td><td>'+escapeHtml(row.assessedAmount===null||row.assessedAmount===undefined?"Not established":fmt(row.assessedAmount))+'</td><td>'+escapeHtml(row.currency||"Not established")+'</td></tr>');
-    const lifecycleRows=(cn.claims||[]).map(row=>({...row,...(row.sourceRegister||{}),state:row.sourceRegister?.sourceStatus||row.state})).map(row=>'<tr><td><b>'+escapeHtml(row.claimId)+'</b></td><td>'+escapeHtml(row.title||"")+'</td><td>'+escapeHtml(humanizeKey(row.state))+'</td><td>'+escapeHtml(planningShortDate(row.submittedAt))+'</td><td>'+escapeHtml(row.claimedDays===null||row.claimedDays===undefined?"Not established":fmt(row.claimedDays)+" d")+'</td><td>'+escapeHtml(row.assessedDays===null||row.assessedDays===undefined?"Not established":fmt(row.assessedDays)+" d")+'</td><td>'+escapeHtml(humanizeKey(row.assessedDaysState||"missing"))+'</td><td>'+escapeHtml((row.eventIds||[]).join(", ")||"Not linked")+'</td><td>'+escapeHtml((row.clauseIdentifiers||[]).join(", ")||"—")+'</td></tr>');
-    const assessmentRows=(cn.noticeAssessments||[]).map(row=>'<tr><td><b>'+escapeHtml(row.eventId)+'</b></td><td>'+escapeHtml(row.eventTitle||"")+'</td><td>'+escapeHtml(row.requirementId||"Not established")+'</td><td>'+escapeHtml(row.requiredNoticeDays===null||row.requiredNoticeDays===undefined?"Not established":fmt(row.requiredNoticeDays)+" d")+'</td><td>'+escapeHtml(planningShortDate(row.eventStartIso))+'</td><td>'+escapeHtml(row.noticeId||"Not issued")+'</td><td>'+escapeHtml(planningShortDate(row.noticeIssuedAt))+'</td><td>'+escapeHtml(row.elapsedDays===null||row.elapsedDays===undefined?"Not established":fmt(row.elapsedDays)+" d")+'</td><td>'+escapeHtml(humanizeKey(row.timeliness))+'</td><td>'+escapeHtml(humanizeKey(row.requirementState||"missing"))+'</td></tr>');
+    const financialRows=(registers.claims||[]).map(row=>'<tr><td><b>'+escapeHtml(row.claimId)+'</b></td><td>'+escapeHtml(row.claimedAmount===null||row.claimedAmount===undefined?"Not confirmed":fmt(row.claimedAmount))+'</td><td>'+escapeHtml(row.assessedAmount===null||row.assessedAmount===undefined?"Not confirmed":fmt(row.assessedAmount))+'</td><td>'+escapeHtml(row.currency||"Not confirmed")+'</td></tr>');
+    const lifecycleRows=(cn.claims||[]).map(row=>({...row,...(row.sourceRegister||{}),state:row.sourceRegister?.sourceStatus||row.state})).map(row=>'<tr><td><b>'+escapeHtml(row.claimId)+'</b></td><td>'+escapeHtml(row.title||"")+'</td><td>'+escapeHtml(humanizeKey(row.state))+'</td><td>'+escapeHtml(planningShortDate(row.submittedAt))+'</td><td>'+escapeHtml(row.claimedDays===null||row.claimedDays===undefined?"Not confirmed":fmt(row.claimedDays)+" d")+'</td><td>'+escapeHtml(row.assessedDays===null||row.assessedDays===undefined?"Not confirmed":fmt(row.assessedDays)+" d")+'</td><td>'+escapeHtml(humanizeKey(row.assessedDaysState||"missing"))+'</td><td>'+escapeHtml((row.eventIds||[]).join(", ")||"Not linked")+'</td><td>'+escapeHtml((row.clauseIdentifiers||[]).join(", ")||"—")+'</td></tr>');
+    const assessmentRows=(cn.noticeAssessments||[]).map(row=>'<tr><td><b>'+escapeHtml(row.eventId)+'</b></td><td>'+escapeHtml(row.eventTitle||"")+'</td><td>'+escapeHtml(row.requirementId||"Not confirmed")+'</td><td>'+escapeHtml(row.requiredNoticeDays===null||row.requiredNoticeDays===undefined?"Not confirmed":fmt(row.requiredNoticeDays)+" d")+'</td><td>'+escapeHtml(planningShortDate(row.eventStartIso))+'</td><td>'+escapeHtml(row.noticeId||"Not issued")+'</td><td>'+escapeHtml(planningShortDate(row.noticeIssuedAt))+'</td><td>'+escapeHtml(row.elapsedDays===null||row.elapsedDays===undefined?"Not confirmed":fmt(row.elapsedDays)+" d")+'</td><td>'+escapeHtml(humanizeKey(row.timeliness))+'</td><td>'+escapeHtml(humanizeKey(row.requirementState||"missing"))+'</td></tr>');
     const noticeRows=(cn.notices||[]).map(row=>'<tr><td><b>'+escapeHtml(row.noticeId)+'</b></td><td>'+escapeHtml(humanizeKey(row.kind))+'</td><td>'+escapeHtml(row.eventId||"—")+'</td><td>'+escapeHtml(row.claimId||"—")+'</td><td>'+escapeHtml(planningShortDate(row.actualIssuedAt))+'</td><td>'+escapeHtml(planningShortDate(row.actualReceivedAt))+'</td><td>'+escapeHtml(row.subject||"")+'</td><td>'+escapeHtml((row.clauseIdentifiers||[]).join(", ")||"—")+'</td></tr>');
     const evidenceTraceRows=[
       ...(registers.claims||[]).map(row=>({type:"Commercial claim",id:row.claimId,refs:row.sourceRefs||[]})),
@@ -3410,13 +3412,13 @@ function renderCommercialVisual(key,data){
       planningKpis([
         ["Lifecycle claims by Data Date",countPosition(cn.state,cn.lifecycleClaimCount,"claims"),"current population; historical stage dates incomplete"],
         ["Commercial claim rows",countPosition(cn.state,cn.commercialClaimCount,"rows"),"currency-specific money register"],
-        ["Events",countPosition(cn.state,cn.eventCount,"events"),"governed delay events"],
-        ["Notices by Data Date",cn.asOfNoticeCount??"Not established","full source: "+fmt(cn.sourceNoticeCount)+" · determinations separate"],["Future / undated notices",fmt(cn.futureNoticeCount??0)+" / "+fmt(cn.undatedNoticeCount??0),"excluded from current notice assessment"],["Event dates missing",cn.dimensionalEvidenceGaps?.eventDateMissing??"Not established","overlaps other evidence gaps"],
+        ["Events",countPosition(cn.state,cn.eventCount,"events"),"recorded delay events"],
+        ["Notices by Data Date",cn.asOfNoticeCount??"Not confirmed","full source: "+fmt(cn.sourceNoticeCount)+" · determinations separate"],["Future / undated notices",fmt(cn.futureNoticeCount??0)+" / "+fmt(cn.undatedNoticeCount??0),"excluded from current notice assessment"],["Event dates missing",cn.dimensionalEvidenceGaps?.eventDateMissing??"Not confirmed","overlaps other evidence gaps"],
         ["Notice evidence gaps",noticeAssessmentPopulationEstablished?noticeEvidenceGapCount:"Not assessable","requirement / event date / notice date",noticeEvidenceGapCount?"warning":""],
-        ["Money ↔ lifecycle linkage",cn.commercialLifecycleLinkCoveragePercent===null||cn.commercialLifecycleLinkCoveragePercent===undefined?"Not established":fmt(cn.commercialLifecycleLinkCoveragePercent)+"%","claim ID correspondence"],
-        ["Financial exposure",position.currencies.some(r=>r.claimedAmount?.value!=null)?"See currency positions":"Not established","claim amounts and cost linkage required"],["Determination records",kindCounts.determination??0,"separate from notice count"]
+        ["Money ↔ lifecycle linkage",cn.commercialLifecycleLinkCoveragePercent===null||cn.commercialLifecycleLinkCoveragePercent===undefined?"Not confirmed":fmt(cn.commercialLifecycleLinkCoveragePercent)+"%","claim ID correspondence"],
+        ["Financial exposure",position.currencies.some(r=>r.claimedAmount?.value!=null)?"See currency positions":"Not confirmed","claim amounts and cost linkage required"],["Determination records",kindCounts.determination??0,"separate from notice count"]
       ])+
-      '<div class="notice info"><b>Latest extracted notice period: '+escapeHtml(foundation?.commercialTerms?.noticePeriodDays?.value==null?'Not established':fmt(foundation.commercialTerms.noticePeriodDays.value)+' days')+'</b>. Earlier contract versions can have different periods. Review the dated rule groups above; event or awareness dates, day basis and retrospective effect remain to be confirmed. Evidence gaps are independent and can overlap. Source claim final stages and determination records have different identities and dates. Final source stages are not reconstructed historical stages at the Data Date.</div>'+
+      '<div class="notice info"><b>Latest extracted notice period: '+escapeHtml(foundation?.commercialTerms?.noticePeriodDays?.value==null?'Not confirmed':fmt(foundation.commercialTerms.noticePeriodDays.value)+' days')+'</b>. Earlier contract versions can have different periods. Review the dated rule groups above; event or awareness dates, day basis and retrospective effect remain to be confirmed. Evidence gaps are independent and can overlap. Source claim final stages and determination records have different identities and dates. Final source stages are not reconstructed historical stages at the Data Date.</div>'+
       (noticeEvidenceGapCount?'<div class="notice warn"><b>Notice compliance requires evidence review.</b> '+escapeHtml(fmt(noticeEvidenceGapCount))+' event assessment(s) are missing the applicable requirement, event date or notice date. These remain evidence gaps rather than zero or compliant outcomes.</div>':'')+
       '<div class="commercial-visual-grid claims-lifecycle-grid">'+claimLifecycleVisual+noticeTimelinessVisual+noticeKindVisual+'</div>'+
       '<div class="section-heading compact"><div><h5>Commercial claim money register</h5><p>Amounts are shown from the controlled currency register; partial coverage is not promoted to a complete total.</p></div><span class="badge">'+escapeHtml(fmt((registers.claims||[]).length))+' records</span></div>'+
@@ -3515,7 +3517,7 @@ function renderCommercialVisual(key,data){
     return '<section class="planning-view commercial-view contract-particulars-enterprise">'+temporalWarning+temporalScope+
       commercialSummaryPanel('Contract Value & Security Position by Currency','Contract and security values remain currency-isolated and source-authority labelled.')+
       '<div class="notice info"><b>'+fmt(contractControls?.contractObligations?.candidateCount??contractControls?.contractObligations?.rows?.filter(r=>r.origin==='contract_clause_candidate').length??0)+' requirement wording groups</b><p>Source wording is available for review. Obligation owners, due dates, compliance and security instruments require their own records.</p></div>'+
-      experienceDisclosure('Contract wording, obligations and securities',contractControlDetail+foundationDetail+detail,'Complete wording, source references and missing records')+
+      experienceDisclosure('Contract wording, obligations and securities',contractControlDetail+foundationDetail+detail,'Complete wording, document references and missing records')+
       time+
       evidencePanel+
       '</section>';
@@ -3547,7 +3549,7 @@ function managementPanel(title,description,body,primary=false){
 }
 function managementMetricDisplay(metric){
   const value=metric?.value;
-  if(value===null||value===undefined)return{text:"Not established",kind:"missing"};
+  if(value===null||value===undefined)return{text:"Not confirmed",kind:"missing"};
   if(typeof value==="string"&&/^\d{4}-\d{2}-\d{2}(?:T|$)/.test(value)){
     return{text:planningShortDate(value),kind:"date"};
   }
@@ -3569,14 +3571,14 @@ function managementMetricBadges(metric){
   return badge("State",state)+badge("Authority",authority);
 }
 function renderManagementMetricGrid(metrics){
-  if(!Array.isArray(metrics)||!metrics.length)return'<div class="empty">No governed management metrics are available yet.</div>';
+  if(!Array.isArray(metrics)||!metrics.length)return'<div class="empty">No management figures are available yet.</div>';
   return '<div class="management-metric-grid">'+metrics.map(m=>{
     const display=managementMetricDisplay(m);
     return '<article class="management-metric-card '+escapeHtml(m.health||"unavailable")+'">'+
       '<div class="management-metric-head"><span>'+escapeHtml(m.key==='independent-forecast-finish'&&['provisional','scenario'].includes(m.authority)?'Calendar recalculation':m.label)+'</span>'+((m.health==="unavailable"&&display.kind!=="missing")?"":managementHealthBadge(m.health))+'</div>'+
       '<div class="management-metric-value '+escapeHtml(display.kind)+'">'+escapeHtml(display.text)+'</div>'+
       '<div class="management-metric-badges">'+managementMetricBadges(m)+'</div>'+
-      '<details class="metric-interpretation"><summary>Basis and interpretation</summary><div class="management-metric-basis"><span>Basis</span><b>'+escapeHtml(m.basis||"Not established")+'</b></div>'+
+      '<details class="metric-interpretation"><summary>What this figure means</summary><div class="management-metric-basis"><span>Basis</span><b>'+escapeHtml(m.basis||"Not confirmed")+'</b></div>'+
       (m.consequence?'<div class="management-metric-note"><span>Consequence</span><p>'+escapeHtml(m.consequence)+'</p></div>':'')+
       (m.action?'<div class="management-metric-note action"><span>Action</span><p>'+escapeHtml(m.action)+'</p></div>':'')+
       '</details><div class="management-metric-owner">'+managementModuleLink(m.owningModule,'Open analysis')+'</div>'+
@@ -3584,9 +3586,9 @@ function renderManagementMetricGrid(metrics){
   }).join("")+'</div>';
 }
 function commercialFindingText(metric){
-  if(metric==null)return"Not established";
+  if(metric==null)return"Not confirmed";
   if(typeof metric!=="object")return typeof metric==="number"?fmtExecutive(metric):fmt(metric);
-  if(metric.value===null||metric.value===undefined)return"Not established";
+  if(metric.value===null||metric.value===undefined)return"Not confirmed";
   return fmtExecutive(metric.value)+((metric.diagnostics||[]).includes('EXPLICIT_SOURCE_SNAPSHOT_NOT_RECALCULATED_FROM_VARIATIONS')?' · '+commercialSourceState(metric):metric.state&&metric.state!=="established"?" · "+humanizeKey(metric.state):"");
 }
 function commercialFindingTitle(metric){
@@ -3596,7 +3598,7 @@ function commercialFindingTitle(metric){
 function renderManagementCommercial(rows){
   if(!Array.isArray(rows)||!rows.length)return '<div class="empty">No governed commercial currency position is established.</div>';
   const cell=m=>'<td title="'+escapeHtml(commercialFindingTitle(m))+'">'+escapeHtml(commercialFindingText(m))+'</td>';
-  return '<div class="table-wrap"><table><thead><tr><th>Currency</th><th>Pending variations</th><th>Approved variations — source aggregate</th><th>Certified unpaid</th><th>Retention deductions evidenced through DD</th><th>Held balance</th><th>Active bonds</th><th>Claimed</th><th>Assessed</th><th>LD scenario</th></tr></thead><tbody>'+rows.map(r=>'<tr><td><b>'+escapeHtml(r.currency)+'</b></td>'+cell(r.pendingVariationAmount)+cell(r.approvedVariationAmount)+cell(r.certifiedUnpaidAmount)+cell(r.retentionDeductedAmount)+cell(r.retentionHeldAmount)+cell(r.activeBondAmount)+cell(r.claimClaimedAmount)+cell(r.claimAssessedAmount)+cell(r.ldScenarioAmount)+'</tr>').join("")+'</tbody></table></div>';
+  return '<div class="table-wrap"><table><thead><tr><th>Currency</th><th>Pending variations</th><th>Approved variations in the report</th><th>Certified unpaid</th><th>Retention deducted through DD</th><th>Held balance</th><th>Active bonds</th><th>Claimed</th><th>Assessed</th><th>LD scenario</th></tr></thead><tbody>'+rows.map(r=>'<tr><td><b>'+escapeHtml(r.currency)+'</b></td>'+cell(r.pendingVariationAmount)+cell(r.approvedVariationAmount)+cell(r.certifiedUnpaidAmount)+cell(r.retentionDeductedAmount)+cell(r.retentionHeldAmount)+cell(r.activeBondAmount)+cell(r.claimClaimedAmount)+cell(r.claimAssessedAmount)+cell(r.ldScenarioAmount)+'</tr>').join("")+'</tbody></table></div>';
 }
 function renderManagementAlerts(alerts){
   if(!Array.isArray(alerts)||!alerts.length)return '<div class="notice info">No current management alert is generated from the governed project position.</div>';
@@ -3612,7 +3614,7 @@ function renderManagementConsistency(c){
 }
 function renderManagementVariationReconciliation(rows){
   if(!rows.length)return "";
-  return '<div class="notice info"><b>Variation basis reconciliation</b><p>The source aggregate and dated line-item approvals are separate authorities. Future approvals do not enter the as-of-DD amount. Reconciliation is required before an aggregate can be treated as the dated approved position.</p></div><div class="table-wrap"><table><thead><tr><th>Currency / tax basis</th><th>Source aggregate / state</th><th>Dated approvals through DD</th><th>Current / future / undated records</th><th>Reconciliation</th><th>Review</th></tr></thead><tbody>'+rows.map(r=>'<tr><td>'+escapeHtml(r.currency+' / '+r.taxBasis)+'</td><td>'+escapeHtml(fmtExecutive(r.sourceAggregate)+' · '+humanizeKey(r.sourceState))+'</td><td>'+escapeHtml(fmtExecutive(r.datedApprovedAmount))+'</td><td>'+escapeHtml(r.datedApprovedCount+' / '+r.futureCount+' / '+r.undatedCount)+'</td><td>'+escapeHtml(humanizeKey(r.state))+'</td><td>'+managementModuleLink("variations-change","Open dated ledger")+'</td></tr>').join("")+'</tbody></table></div>';
+  return '<div class="notice info"><b>Reported variations versus dated approvals</b><p>The source aggregate and dated line-item approvals are separate authorities. Future approvals do not enter the as-of-DD amount. Reconciliation is required before an aggregate can be treated as the dated approved position.</p></div><div class="table-wrap"><table><thead><tr><th>Currency / tax basis</th><th>Source aggregate / state</th><th>Dated approvals through DD</th><th>Current / future / undated records</th><th>Reconciliation</th><th>Review</th></tr></thead><tbody>'+rows.map(r=>'<tr><td>'+escapeHtml(r.currency+' / '+r.taxBasis)+'</td><td>'+escapeHtml(fmtExecutive(r.sourceAggregate)+' · '+humanizeKey(r.sourceState))+'</td><td>'+escapeHtml(fmtExecutive(r.datedApprovedAmount))+'</td><td>'+escapeHtml(r.datedApprovedCount+' / '+r.futureCount+' / '+r.undatedCount)+'</td><td>'+escapeHtml(humanizeKey(r.state))+'</td><td>'+managementModuleLink("variations-change","Open dated ledger")+'</td></tr>').join("")+'</tbody></table></div>';
 }
 function renderOperationalReporting(report){
   if(!report)return "";
@@ -3620,10 +3622,10 @@ function renderOperationalReporting(report){
   const rows=groups.map(([name,g])=>'<tr><td>'+escapeHtml(name)+'</td><td>'+escapeHtml(fmt(g.sourceRecordCount))+'</td><td>'+escapeHtml(fmt(g.currentRecordCount))+'</td><td>'+escapeHtml(fmt(g.futureRecordCount))+'</td><td>'+escapeHtml(fmt(g.undatedRecordCount))+'</td><td>'+escapeHtml(fmt(g.unknownStatusCount))+'</td><td>'+escapeHtml(humanizeKey(g.state))+'</td></tr>').join("");
   const risks=report.risk.sourceRows||[];const riskStates={};risks.forEach(r=>{const key=r.sourceStatus||r.status||"Unknown";riskStates[key]=(riskStates[key]||0)+1});
   return '<section class="planning-panel"><div class="planning-panel-head"><div><h4>Operational register date coverage</h4><p>Raised dates and closure/response dates reconstruct the position at '+escapeHtml(planningShortDate(report.dataDateIso))+'. Later closures cannot close earlier records.</p></div></div><div class="planning-panel-body">'+planningKpis([
-    ["Major / critical NCRs open at DD",report.counts.openCriticalMajorNcrCount??(report.knownCounts?.openCriticalMajorNcrCount!==undefined?fmt(report.knownCounts.openCriticalMajorNcrCount)+" confirmed":"Not established"),report.counts.openCriticalMajorNcrCount===null?fmt(report.knownCounts?.uncertainCriticalMajorNcrCount??0)+" current records uncertain; full count not established":"dated NCR lifecycle"],
-    ["RFIs open at DD",report.counts.openRfiCount??"Not established","dated RFI lifecycle"],
-    ["RFIs overdue at DD",report.counts.overdueRfiCount??"Not established","open with due date before DD"],
-    ["Risks open at DD",report.counts.openRiskCount??"Not established","dated risk lifecycle or status snapshot"]
+    ["Major / critical NCRs open at DD",report.counts.openCriticalMajorNcrCount??(report.knownCounts?.openCriticalMajorNcrCount!==undefined?fmt(report.knownCounts.openCriticalMajorNcrCount)+" confirmed":"Not confirmed"),report.counts.openCriticalMajorNcrCount===null?fmt(report.knownCounts?.uncertainCriticalMajorNcrCount??0)+" current records uncertain; full count not confirmed":"dated NCR lifecycle"],
+    ["RFIs open at DD",report.counts.openRfiCount??"Not confirmed","dated RFI lifecycle"],
+    ["RFIs overdue at DD",report.counts.overdueRfiCount??"Not confirmed","open with due date before DD"],
+    ["Risks open at DD",report.counts.openRiskCount??"Not confirmed","dated risk lifecycle or status snapshot"]
   ])+'<div class="table-wrap"><table><thead><tr><th>Register</th><th>Source records</th><th>Known by DD</th><th>Future</th><th>Date missing</th><th>Status unresolved at DD</th><th>Evidence state</th></tr></thead><tbody>'+rows+'</tbody></table></div>'+(report.risk.undatedRecordCount?'<p>Undated risk snapshot, excluded from current totals: '+escapeHtml(Object.entries(riskStates).map(([key,n])=>key+' '+fmt(n)).join(' · '))+'. A due date does not establish when a risk was raised or its historical status.</p>':'')+'</div></section>';
 }
 function renderManagementControlVisual(key,data){
@@ -3643,7 +3645,7 @@ function renderManagementControlVisual(key,data){
       renderDashboardExceptions(data)+renderDashboardTrend(data)+renderDashboardDecisions(data)+
       experienceSourceContext(key,data)+
       experienceDisclosure("Additional project measures",renderManagementMetricGrid(otherMetrics),fmt(otherMetrics.length)+" measures")+
-      experienceDisclosure("Specialist coverage and evidence",'<div class="management-two-column">'+
+      experienceDisclosure("Further analysis",'<div class="management-two-column">'+
         managementPanel("Control Readiness","Calculation checks, evidence and cross-module consistency are separate gates. A usable page does not establish management readiness.",readinessDonut+renderManagementConsistency(data.consistency))+
         managementPanel("Evidence Snapshot","The dashboard is a view of the current governed project evidence, not an independent data store.",planningKpis([
           ["Project documents",data.evidenceDocumentCount??0,"current evidence library"],
@@ -3653,9 +3655,9 @@ function renderManagementControlVisual(key,data){
           ["Evidence gaps",r.evidenceGapCount??0,"missing, partial, stale or conflicted evidence","warning"],
           ["Governance gaps",r.governanceGapCount??0,"publication / output readiness","warning"]
         ]))+
-      '</div>',"Calculation availability and source coverage")+
-      experienceDisclosure("Operational source review",renderOperationalReporting(data.operationalReporting),"Quality, RFI and risk records")+
-      managementPanel("Commercial Exposure by Currency","Currency values are never cross-summed without a governed FX basis.",renderManagementCommercial(data.commercialByCurrency||[])+renderManagementVariationReconciliation(data.variationReconciliation||[]))+
+      '</div>',"Available results and supporting documents")+
+      experienceDisclosure("NCR, RFI and risk records",renderOperationalReporting(data.operationalReporting),"Quality, RFI and risk records")+
+      managementPanel("Commercial Exposure by Currency","Amounts are shown separately for each currency.",renderManagementCommercial(data.commercialByCurrency||[])+renderManagementVariationReconciliation(data.variationReconciliation||[]))+
       '<div class="notice info"><b>Dashboard rule:</b> a missing or ungoverned KPI remains unavailable. CMeng does not manufacture Overall Risk or Contract Risk scores from unrelated signals.</div>'+
       '</div>';
   }
@@ -3667,19 +3669,19 @@ function renderManagementControlVisual(key,data){
       return '<article class="management-decision"><i>'+escapeHtml(i+1)+'</i><div><b>'+escapeHtml(item.description)+'</b>'+(meta.length?'<div class="management-decision-meta">'+meta.map(([label,value])=>'<span>'+escapeHtml(label+': '+value)+'</span>').join('')+'</div>':'')+'</div></article>';
     }).join("")+'</div>':'<div class="notice info">No suggested follow-up is currently generated.</div>';
     const controlsBody=ctrl?planningKpis([
-      ["Open risks",ctrl.riskEvidenceState==="established"?ctrl.openRiskCount:"Not established","governed risk source",ctrl.riskEvidenceState==="established"?"":"warning"],
-      ["Major / critical NCR",ctrl.openCriticalMajorNcrCount??(data.operationalReporting?.knownCounts?.openCriticalMajorNcrCount!==undefined?fmt(data.operationalReporting.knownCounts.openCriticalMajorNcrCount)+" confirmed":"Not established"),ctrl.openCriticalMajorNcrCount===null?"Known subset; full total not established":"quality evidence",ctrl.openCriticalMajorNcrCount?"danger":""],
-      ["Overdue RFI",ctrl.rfiEvidenceState==="established"?ctrl.overdueRfiCount:"Not established","RFI evidence",ctrl.overdueRfiCount?"danger":""],
-      ["Permit issues",ctrl.permitEvidenceState==="established"?ctrl.overduePermitCount:"Not established","permit evidence",ctrl.overduePermitCount?"danger":""],
-      ["Expired bonds",ctrl.bondEvidenceState==="established"?ctrl.expiredBondCount:"Not established","security evidence",ctrl.expiredBondCount?"danger":""],
-      ["Expiring bonds",ctrl.bondEvidenceState==="established"?ctrl.expiringBondCount30Days:"Not established","next 30 days",ctrl.expiringBondCount30Days?"warning":""]
-    ]):'<div class="empty">Project Director control position is not established.</div>';
+      ["Open risks",ctrl.riskEvidenceState==="established"?ctrl.openRiskCount:"Not confirmed","governed risk source",ctrl.riskEvidenceState==="established"?"":"warning"],
+      ["Major / critical NCR",ctrl.openCriticalMajorNcrCount??(data.operationalReporting?.knownCounts?.openCriticalMajorNcrCount!==undefined?fmt(data.operationalReporting.knownCounts.openCriticalMajorNcrCount)+" confirmed":"Not confirmed"),ctrl.openCriticalMajorNcrCount===null?"Known subset; full total not confirmed":"quality evidence",ctrl.openCriticalMajorNcrCount?"danger":""],
+      ["Overdue RFI",ctrl.rfiEvidenceState==="established"?ctrl.overdueRfiCount:"Not confirmed","RFI evidence",ctrl.overdueRfiCount?"danger":""],
+      ["Permit issues",ctrl.permitEvidenceState==="established"?ctrl.overduePermitCount:"Not confirmed","permit evidence",ctrl.overduePermitCount?"danger":""],
+      ["Expired bonds",ctrl.bondEvidenceState==="established"?ctrl.expiredBondCount:"Not confirmed","security evidence",ctrl.expiredBondCount?"danger":""],
+      ["Expiring bonds",ctrl.bondEvidenceState==="established"?ctrl.expiringBondCount30Days:"Not confirmed","next 30 days",ctrl.expiringBondCount30Days?"warning":""]
+    ]):'<div class="empty">Project Director control position is not confirmed.</div>';
     return '<div class="planning-view management-view command-center-view">'+
       managementPanel("Immediate Control Signals","Confirmed subsets are labelled separately from complete totals. Unavailable source domains remain explicitly unavailable.",controlsBody,true)+
       experienceSourceContext(key,data)+
       ((data.sourceInterpretation?.actions||[]).length?"":managementPanel("Action Suggestions — Awaiting Assignment","Suggested follow-up only. Assignment, due dates and closure tracking are not yet established in CMeng.",decisionBody,true))+
       managementPanel("Management Priorities","Current blockers and escalations from governed specialist positions, ordered before supporting KPIs.",renderManagementAlerts(data.alerts||[]))+
-      experienceDisclosure("Operational source review",renderOperationalReporting(data.operationalReporting||ctrl?.reporting),"Quality, RFI and risk records")+
+      experienceDisclosure("NCR, RFI and risk records",renderOperationalReporting(data.operationalReporting||ctrl?.reporting),"Quality, RFI and risk records")+
       managementPanel("Current Programme Position","Supporting completion and programme facts used to understand the actions above.",renderManagementMetricGrid(data.programmePosition||[]))+
       managementPanel("Evidence Gaps","Only missing, partial, stale or conflicted source evidence requires correction.",renderManagementEvidenceGaps(data.evidenceGaps||[]))+
       managementPanel("Governance Readiness","Publication readiness is separate from source evidence coverage.",renderManagementEvidenceGaps(data.governanceGaps||[])+renderManagementConsistency(data.consistency))+
@@ -3699,9 +3701,9 @@ function renderManagementControlVisual(key,data){
     return '<div class="planning-view management-view master-control-view">'+
       managementPanel("Programme control","Current programme, controlled baseline and project structure.",planningKpis([
         ["Project",s.project||data.projectId,"selected management scope"],
-        ["Programme membership",humanizeKey(s.programmeMembershipState||"not_established"),s.programme||"not established",s.programmeMembershipState==="established"?"":"warning"],
-        ["Current programme",r.currentLabel?planningRevisionLabel(r.currentLabel):"Not established",r.currentDataDateIso?planningShortDate(r.currentDataDateIso):"no Data Date",r.currentRevisionId?"success":"warning"],
-        ["Controlled baseline",r.baselineLabel?planningRevisionLabel(r.baselineLabel):"Not established",r.baselineRevisionId?"controlled revision; full identity in evidence detail":"no governed baseline",r.baselineRevisionId?"success":"warning"],
+        ["Programme membership",humanizeKey(s.programmeMembershipState||"not_established"),s.programme||"not confirmed",s.programmeMembershipState==="established"?"":"warning"],
+        ["Current programme",r.currentLabel?planningRevisionLabel(r.currentLabel):"Not confirmed",r.currentDataDateIso?planningShortDate(r.currentDataDateIso):"no Data Date",r.currentRevisionId?"success":"warning"],
+        ["Controlled baseline",r.baselineLabel?planningRevisionLabel(r.baselineLabel):"Not confirmed",r.baselineRevisionId?"controlled revision; full identity in evidence detail":"no governed baseline",r.baselineRevisionId?"success":"warning"],
         ["Governed revisions",r.governedRevisionCount??0,"non-recovery revisions"],
         ["Recovery scenarios",r.recoveryScenarioCount??0,"never auto-promoted"]
       ]),true)+
@@ -3709,8 +3711,8 @@ function renderManagementControlVisual(key,data){
       managementPanel("WBS & Work-Package Control","Observed WBS labels are schedule evidence. They do not become approved work packages unless a governed package hierarchy establishes them.",planningKpis([
         ["Observed WBS",w.observedWbsCount??0,"source labels"],
         ["Activities",w.activityCount??0,"current programme"],
-        ["WBS activity coverage",w.observedCoveragePercent===null||w.observedCoveragePercent===undefined?"Not established":fmt(w.observedCoveragePercent)+"%","observed mapping"],
-        ["Official package coverage",w.officialWorkPackageCoveragePercent===null||w.officialWorkPackageCoveragePercent===undefined?"Not established":fmt(w.officialWorkPackageCoveragePercent)+"%",humanizeKey(w.officialWorkPackageState||"not_established"),w.officialWorkPackageState==="established"?"success":"warning"]
+        ["WBS activity coverage",w.observedCoveragePercent===null||w.observedCoveragePercent===undefined?"Not confirmed":fmt(w.observedCoveragePercent)+"%","observed mapping"],
+        ["Official package coverage",w.officialWorkPackageCoveragePercent===null||w.officialWorkPackageCoveragePercent===undefined?"Not confirmed":fmt(w.officialWorkPackageCoveragePercent)+"%",humanizeKey(w.officialWorkPackageState||"not_established"),w.officialWorkPackageState==="established"?"success":"warning"]
       ])+(w.observedWbsLabels?.length?'<details class="management-detail"><summary>Observed WBS labels <span>'+escapeHtml(fmt(w.observedWbsLabels.length))+' labels</span></summary><div class="management-tag-list">'+w.observedWbsLabels.map(label=>'<span>'+escapeHtml(label)+'</span>').join("")+'</div></details>':""))+
       managementPanel("Specialist positions","Open each module to review its current position and supporting evidence.",positionRows?'<div class="table-wrap"><table><thead><tr><th>Workstream</th><th>Position</th><th>Status</th><th>Reason</th><th>Correction source</th></tr></thead><tbody>'+positionRows+'</tbody></table></div>':'<div class="empty">No specialist positions are established.</div>')+
       managementPanel("Live Alert Feed","The same governed alert set used by Command Center is shown here for integrated control.",renderManagementAlerts(data.alerts||[]))+
@@ -3759,35 +3761,35 @@ function findProjectionRoot(data){
 function renderClaimsReporting(r,key){
   if(!r)return "";
   const reported=r.reported;
-  const sourceSummary=reported?'<div class="notice info"><b>Register position for '+fmt(reported.recordCount)+' claim identities known through DD</b><p>'+escapeHtml(fmt(reported.claimedDays.value)+' days claimed · '+fmt(reported.assessedDays.value)+' assessed ('+fmt(reported.employerDelayDays.value)+' employer / '+fmt(reported.contractorDelayDays.value)+' contractor).')+'</p><p>'+escapeHtml(reported.states.map(x=>x.count+' '+x.status).join(' · '))+'</p><p>'+escapeHtml(reported.basis)+'</p></div>':'';
+  const sourceSummary=reported?'<div class="notice info"><b>Register position for '+fmt(reported.recordCount)+' claims recorded through DD</b><p>'+escapeHtml(fmt(reported.claimedDays.value)+' days claimed · '+fmt(reported.assessedDays.value)+' assessed ('+fmt(reported.employerDelayDays.value)+' employer / '+fmt(reported.contractorDelayDays.value)+' contractor).')+'</p><p>'+escapeHtml(reported.states.map(x=>x.count+' '+x.status).join(' · '))+'</p><p>'+escapeHtml(reported.basis)+'</p></div>':'';
   const conflicts=reported?.conflictingRows?.length?'<details open><summary>Register conflicts requiring review · '+fmt(reported.conflictingRows.length)+'</summary><ul>'+reported.conflictingRows.map(c=>'<li><b>'+escapeHtml(c.claimId)+'</b>: '+escapeHtml(c.sourceStatus)+'; claimed '+fmt(c.claimedDays)+' d; assessed '+fmt(c.assessedDays)+' d; source-register granted '+fmt(c.registerGrantedDays)+' d (separate from assessment). '+escapeHtml(c.diagnostics.filter(d=>/CONFLICT|DIFFER|NOT_IN_DETERMINATION_REGISTER/.test(d)).map(humanizeKey).join('; '))+'</li>').join('')+'</ul></details>':'';
   const versions=r.noticeRuleVersions?.length?'<div class="notice info"><b>Notice rules in the contract</b><ul>'+r.noticeRuleVersions.map(v=>'<li>'+fmt(v.noticePeriodDays)+' days · '+escapeHtml(v.effectiveFromIso?'from '+planningShortDate(v.effectiveFromIso):'original contract')+escapeHtml(v.effectiveToIso?' until '+planningShortDate(v.effectiveToIso):'')+' · '+fmt(v.noticeCount)+' notices dated in this period.</li>').join('')+'</ul><p>These are notice-date cohorts, not confirmed compliance groups. Supply event/awareness dates and confirm amendment applicability and any retrospective effect.</p></div>':'';
   const cr=r.correspondenceReview;
-  const letters=cr?'<div class="notice warn"><b>Register references are not verified notice contents</b><p>'+fmt(cr.registerNoticeCount)+' register notice references; '+fmt(cr.documentIdentityCount)+' matching letter identities in extracted pages; '+fmt(cr.noticeContentLinkedCount)+' contents explicitly linked to the event and notice date. '+escapeHtml(cr.interpretation)+'</p>'+basisTable(['Document','Pages','Native text pages','OCR pages','OCR failed pages'],(cr.documentCoverage||[]).map(d=>[d.sourceFilename,d.totalPages,d.nativePages,d.ocrPages,d.ocrFailedPages]))+'<p>Unread pages must be checked before an unconfirmed reference is called missing.</p><details><summary>Determination letters and register awards</summary>'+basisTable(['Determination','Claim','Register award','Register date','DD scope','Letter','Letter review'],cr.determinations.map(d=>[d.determinationId,d.claimId,fmt(d.awardedDays)+' d',planningShortDate(d.determinationDate),humanizeKey(d.reportingScope),d.sourceLetter,d.correspondenceReview?.basis||'Letter content not checked']))+'</details></div>':'';
+  const letters=cr?'<div class="notice warn"><b>Check the letters behind the register references</b><p>'+fmt(cr.registerNoticeCount)+' register notice references; '+fmt(cr.documentIdentityCount)+' matching letter identities in extracted pages; '+fmt(cr.noticeContentLinkedCount)+' contents explicitly linked to the event and notice date. '+escapeHtml(cr.interpretation)+'</p>'+basisTable(['Document','Pages','Native text pages','OCR pages','OCR failed pages'],(cr.documentCoverage||[]).map(d=>[d.sourceFilename,d.totalPages,d.nativePages,d.ocrPages,d.ocrFailedPages]))+'<p>Unread pages must be checked before an unconfirmed reference is called missing.</p><details><summary>Determination letters and register awards</summary>'+basisTable(['Determination','Claim','Register award','Register date','DD scope','Letter','Letter review'],cr.determinations.map(d=>[d.determinationId,d.claimId,fmt(d.awardedDays)+' d',planningShortDate(d.determinationDate),humanizeKey(d.reportingScope),d.sourceLetter,d.correspondenceReview?.basis||'Letter content not checked']))+'</details></div>':'';
   const countNotices=(rows,determination)=>rows.filter(n=>(n.kind==="determination")===determination).length;
   const counts=planningKpis([["Claims known by Data Date",r.claims.asOf.length,fmt(r.claims.future.length)+" future · "+fmt(r.claims.undated.length)+" undated"],["Claim notices by Data Date",countNotices(r.notices.asOf,false),fmt(countNotices(r.notices.future,false))+" future · "+fmt(countNotices(r.notices.undated,false))+" undated · determinations excluded"],["Determinations by Data Date",countNotices(r.notices.asOf,true),fmt(countNotices(r.notices.future,true))+" future · "+fmt(countNotices(r.notices.undated,true))+" undated"],["Events evidenced by Data Date",r.events.asOf.length,"Notice dates establish existence, never event start or causation"]]);
   const details=(label,rows)=>'<details><summary>'+escapeHtml(label)+' · '+fmt(rows.length)+' records</summary><div class="table-wrap"><table><thead><tr><th>Record</th><th>Subject</th><th>Source date</th><th>Source state</th></tr></thead><tbody>'+rows.map(n=>'<tr><td>'+escapeHtml(n.noticeId||n.claimId||n.eventId)+'</td><td>'+escapeHtml(n.subject||n.title||"")+'</td><td>'+escapeHtml(planningShortDate(n.actualIssuedAt||n.submittedAt||n.startIso))+'</td><td>'+escapeHtml(humanizeKey(n.state||n.kind||"source"))+'</td></tr>').join("")+'</tbody></table></div></details>';
-  const full='<section class="planning-panel reporting-scope"><div class="planning-panel-head"><div><h4>Current position and excluded source records</h4><p>Only dated evidence available by the programme Data Date enters current totals. Source final statuses do not establish historical decisions.</p></div></div><div class="planning-panel-body">'+sourceSummary+conflicts+versions+letters+counts+details("Notices after Data Date",r.notices.future)+details("Undated notices",r.notices.undated)+details("Claims after Data Date",r.claims.future)+details("Undated claims",r.claims.undated)+'</div></section>';
+  const full='<section class="planning-panel reporting-scope"><div class="planning-panel-head"><div><h4>Claims through the reporting date and later records</h4><p>Only dated evidence available by the programme Data Date enters current totals. Source final statuses do not establish historical decisions.</p></div></div><div class="planning-panel-body">'+sourceSummary+conflicts+versions+letters+counts+details("Notices after Data Date",r.notices.future)+details("Undated notices",r.notices.undated)+details("Claims after Data Date",r.claims.future)+details("Undated claims",r.claims.undated)+'</div></section>';
   if(!key||key==='delay-claims')return full;
-  return '<div class="notice info"><b>'+fmt(r.claims.asOf.length)+' claims known by Data Date'+(reported?' · '+fmt(reported.claimedDays.value)+' days claimed · '+fmt(reported.assessedDays.value)+' assessed':'')+'</b><p>Claim-day totals are separate from programme movement and EOT. '+fmt(reported?.conflictingRows?.length??0)+' register conflicts need review.</p>'+experienceDisclosure('Claim records, notice versions and letter evidence',full,'Open shared evidence')+'</div>';
+  return '<div class="notice info"><b>'+fmt(r.claims.asOf.length)+' claims known by Data Date'+(reported?' · '+fmt(reported.claimedDays.value)+' days claimed · '+fmt(reported.assessedDays.value)+' assessed':'')+'</b><p>Claim-day totals are separate from programme movement and EOT. '+fmt(reported?.conflictingRows?.length??0)+' register conflicts need review.</p>'+experienceDisclosure('Claim records, notice versions and letter evidence',full,'Claim amounts, dates and letters')+'</div>';
 }
 function issueLabel(kind){return humanizeKey(kind||'verification_pending')}
 function issueBadge(assessment){const kind=assessment?.primaryKind||"verification_pending";return '<span class="issue-badge '+escapeHtml(kind)+'">'+escapeHtml(issueLabel(kind))+'</span>'}
 function renderIssueAssessment(a,management=false){
   if(!a)return '<p>Review classification is not yet available.</p>';
-  const descriptions={system_defect:"A CMeng calculation or same-basis check failed.",source_conflict:"Supplied sources make incompatible assertions.",data_quality:"A supplied field or link needs correction.",missing_information:"An input required for this conclusion is unavailable.",comparison_difference:"Two positions differ on the stated comparison basis.",governance_review:"An approval or authority is not established.",verification_pending:"CMeng verification coverage is incomplete."};
+  const descriptions={system_defect:"A CMeng calculation or same-basis check failed.",source_conflict:"Supplied sources make incompatible assertions.",data_quality:"A supplied field or link needs correction.",missing_information:"An input required for this conclusion is unavailable.",comparison_difference:"Two positions differ on the stated comparison basis.",governance_review:"An approval or authority is not confirmed.",verification_pending:"CMeng verification coverage is incomplete."};
   const counts=management?a.affectedModuleCounts:a.counts;
   const countRows=Object.entries(descriptions).map(([kind,description])=>'<tr><td>'+issueBadge({primaryKind:kind})+'</td><td>'+fmt(counts?.[kind]??0)+'</td><td>'+escapeHtml(description)+'</td></tr>').join('');
-  const rows=(a.issues||[]).map(i=>'<tr><td>'+issueBadge({primaryKind:i.kind})+'</td><td><b>'+escapeHtml(i.summary)+'</b><br>'+escapeHtml(i.detail)+'</td><td>'+escapeHtml(i.owner)+'<br>'+escapeHtml(i.action)+'</td><td>'+escapeHtml((i.moduleKeys||[]).map(k=>names[k]||k).join(', '))+'<details><summary>Source trace</summary>'+escapeHtml([...(i.evidencePaths||[]),...(i.checkIds||[]),...(i.sourceRefs||[])].join(' · '))+'</details></td></tr>').join('');
+  const rows=(a.issues||[]).map(i=>'<tr><td>'+issueBadge({primaryKind:i.kind})+'</td><td><b>'+escapeHtml(i.summary)+'</b><br>'+escapeHtml(i.detail)+'</td><td>'+escapeHtml(i.owner)+'<br>'+escapeHtml(i.action)+'</td><td>'+escapeHtml((i.moduleKeys||[]).map(k=>names[k]||k).join(', '))+'<details><summary>Document references and calculation details</summary>'+escapeHtml([...(i.evidencePaths||[]),...(i.checkIds||[]),...(i.sourceRefs||[])].join(' · '))+'</details></td></tr>').join('');
   const scope=a.systemCheckState==='failed'?'Calculation failures require correction before reliance.':a.systemCheckState==='unverified'?'Verification coverage is incomplete.':'The listed checks passed. Other calculations may remain outside their scope.';
-  return '<section class="issue-assessment"><h4>Review findings</h4><p>'+escapeHtml(scope)+'</p><p>'+escapeHtml(management?'Counts below identify affected views; one view may have several issue types.':'Counts below identify classified findings, not a project performance score.')+'</p>'+(rows?'<div class="table-wrap"><table><thead><tr><th>Type</th><th>Finding</th><th>Owner and next step</th><th>Source</th></tr></thead><tbody>'+rows+'</tbody></table></div>':'<p>No classified findings in the completed check scope.</p>')+experienceDisclosure('Classification counts','<div class="table-wrap"><table><thead><tr><th>Type</th><th>Count</th><th>Meaning</th></tr></thead><tbody>'+countRows+'</tbody></table></div>')+'<small>'+escapeHtml(a.scope||'')+'</small></section>';
+  return '<section class="issue-assessment"><h4>Review findings</h4><p>'+escapeHtml(scope)+'</p><p>'+escapeHtml(management?'A page may have more than one type of follow-up.':'Each item below has its own action and supporting records.')+'</p>'+(rows?'<div class="table-wrap"><table><thead><tr><th>Type</th><th>Finding</th><th>Owner and next step</th><th>Source</th></tr></thead><tbody>'+rows+'</tbody></table></div>':'<p>No issues identified by the listed checks.</p>')+experienceDisclosure('Classification counts','<div class="table-wrap"><table><thead><tr><th>Type</th><th>Count</th><th>Meaning</th></tr></thead><tbody>'+countRows+'</tbody></table></div>')+'<small>'+escapeHtml(a.scope||'')+'</small></section>';
 }
 function renderModuleReadiness(data,reason=''){
   const r=data?.moduleReadiness;
   const classification=renderIssueAssessment(data?.issueAssessment,['master_dashboard','command_center','master_control_programme'].includes(data?.projectionKey));
   const checks=r?'<p>Calculation: '+escapeHtml(r.calculation)+' · Evidence: '+escapeHtml(humanizeKey(r.evidence))+' · Consistency: '+escapeHtml(r.consistency)+' · Comparison: '+escapeHtml(humanizeKey(r.reconciliation))+'</p><p>'+escapeHtml(r.scope)+'</p>':'';
   const notes=reason?'<p>'+escapeHtml(reason)+'</p>':'';
-  return '<details id="moduleReviewDetail" class="experience-disclosure experience-audit"><summary>Source and calculation detail<span>Findings, coverage and reporting basis</span></summary><div class="experience-disclosure-body">'+classification+checks+notes+renderModuleBasis(data,true)+'<p><a href="'+escapeHtml(reportDownloadUrl('json'))+'" download>Download complete calculation data</a> · <a href="'+escapeHtml(reportDownloadUrl('xlsx'))+'" download>Download the full register</a></p></div></details>';
+  return '<details id="moduleReviewDetail" class="experience-disclosure experience-audit"><summary>Actions and supporting details<span>Documents, date rules and calculation checks</span></summary><div class="experience-disclosure-body">'+classification+checks+notes+renderModuleBasis(data,true)+'<p><a href="'+escapeHtml(reportDownloadUrl('json'))+'" download>Download complete calculation data</a> · <a href="'+escapeHtml(reportDownloadUrl('xlsx'))+'" download>Download the full register</a></p></div></details>';
 }
 function renderModuleBasis(data,detail=false){
   const root=findProjectionRoot(data);
@@ -3807,7 +3809,7 @@ function renderModuleBasis(data,detail=false){
   const completion=contract?.completionAuthority;
   const excludedActuals=[...(contract?.excludedScheduleActualEvents?.future||[]),...(contract?.excludedScheduleActualEvents?.undated||[])];
   const actualScopeHtml=excludedActuals.length?'<details class="notice warn"><summary>'+fmt(excludedActuals.length)+' schedule actual events excluded from the Data Date position</summary><p>Historical completion and progress are withheld for affected records. Source evidence and planned dates are retained.</p><table><thead><tr><th>Activity</th><th>Actual event</th><th>Source date</th></tr></thead><tbody>'+excludedActuals.map(r=>'<tr><td>'+escapeHtml(r.activityId)+'</td><td>'+escapeHtml(humanizeKey(r.event))+'</td><td>'+escapeHtml(r.dateIso)+'</td></tr>').join('')+'</tbody></table></details>':'';
-  const authorityHtml=completion&&['eot_assessment','commercial_claims_notices','contract_particulars_bonds'].includes(root.projectionKey)?'<div class="notice info"><b>Completion authority.</b> Governed contractual finish: '+escapeHtml(planningShortDate(completion.governedContractualFinish))+' ('+escapeHtml(humanizeKey(completion.authority))+'). '+escapeHtml(completion.explanation)+'</div>':'';
+  const authorityHtml=completion&&['eot_assessment','commercial_claims_notices','contract_particulars_bonds'].includes(root.projectionKey)?'<div class="notice info"><b>Completion authority.</b> Contract completion: '+escapeHtml(planningShortDate(completion.governedContractualFinish))+' ('+escapeHtml(humanizeKey(completion.authority))+'). '+escapeHtml(completion.explanation)+'</div>':'';
   if(detail)return authorityHtml+actualScopeHtml+populationHtml;
   return '<div class="module-basis">'+values.map(([label,value])=>'<span class="basis-chip"><b>'+escapeHtml(label)+'</b><strong title="'+escapeHtml(label==="Programme basis"&&revision?revision:value)+'">'+escapeHtml(value)+'</strong></span>').join("")+'</div>';
 }
@@ -3842,7 +3844,7 @@ function renderModuleResult(result){
   el("moduleBadge").className="issue-badge "+(result.issueAssessment?.primaryKind||"verification_pending");
   el("moduleBadge").textContent=result.issueAssessment?.counts?.system_defect>0?"Calculation error":"";
   if(result.status==="blocked"){
-    const blockedBody='<div class="view-state-bar">'+issueBadge(result.issueAssessment)+'<strong>'+escapeHtml(moduleName)+'</strong><span>The calculation is unavailable. The classified findings identify the reason and responsible action.</span></div><div class="notice warn">'+escapeHtml(result.reason||"The required calculation is not established.")+'</div><div class="scalar-grid">'+(result.dependencies||[]).map(x=>'<div class="scalar"><b>Calculation dependency</b><span>'+escapeHtml(humanizeKey(x))+'</span></div>').join("")+'</div>';
+    const blockedBody='<div class="view-state-bar">'+issueBadge(result.issueAssessment)+'<strong>'+escapeHtml(moduleName)+'</strong><span>The calculation is unavailable. The classified findings identify the reason and responsible action.</span></div><div class="notice warn">'+escapeHtml(result.reason||"The required calculation is not confirmed.")+'</div><div class="scalar-grid">'+(result.dependencies||[]).map(x=>'<div class="scalar"><b>Calculation dependency</b><span>'+escapeHtml(humanizeKey(x))+'</span></div>').join("")+'</div>';
     el("moduleContent").innerHTML=blockedBody+renderModuleReadiness({issueAssessment:result.issueAssessment},result.reason);
     return;
   }
@@ -3850,9 +3852,9 @@ function renderModuleResult(result){
   el("directorDrawer").open=false;
   el("directorDrawer").hidden=result.key!=="pmo-analysis";
   if(result.key==="challenge-contract"&&renderDeliveryChallenge(data,result.reason,result.status))return;
-  const basisHtml=renderPositionVerdict(data)+renderModuleBasis(data)+renderRegisterScope(data)+experienceReviewSummary(data.issueAssessment,managementSurface);
+  const basisHtml=renderPositionVerdict(data)+renderModuleBasis(data)+renderRegisterScope(data);
   const challengeBody=renderUniversalChallenge(data.challenge);
-  const challengeHtml=challengeBody?'<details class="reconciliation-panel"><summary><span>Reconciliation with submitted position</span><b>'+escapeHtml(reconciliationSummary(data.challenge))+'</b></summary><div class="reconciliation-body">'+challengeBody+'</div></details>':'';
+  const challengeHtml=challengeBody?'<details class="reconciliation-panel"><summary><span>Comparison with the submitted position</span><b>'+escapeHtml(reconciliationSummary(data.challenge))+'</b></summary><div class="reconciliation-body">'+challengeBody+'</div></details>':'';
   const specialized=renderSpecializedModule(result.key,data);
   const scalars=scalarPairs(data).filter(([k])=>k!=="challenge").map(([k,v])=>'<div class="scalar"><b>'+escapeHtml(humanizeKey(k))+'</b><span>'+escapeHtml(fmt(v))+'</span></div>').join("");
   const structured=specialized?"":renderStructuredSections(data);
@@ -3860,14 +3862,14 @@ function renderModuleResult(result){
   const sourceBasis=renderBasisReviews(data,result.key);
   const commercialBasisDetails=['commercial-overview','cost-forecast','progress-report'].includes(result.key);
   const managementLead=['master-dashboard','command-center','pmo-analysis'].includes(result.key);
-  const primaryView=renderClaimsReporting(data.claimsReporting,result.key)+(managementLead?(specialized||genericView)+sourceBasis:commercialBasisDetails?(specialized||genericView)+(sourceBasis?'<details class="reconciliation-panel"><summary><span>Supporting source comparisons and contract versions</span><b>Review the source bases</b></summary><div class="reconciliation-body">'+sourceBasis+'</div></details>':''):sourceBasis+(specialized||genericView));
+  const primaryView=renderClaimsReporting(data.claimsReporting,result.key)+(managementLead?(specialized||genericView)+sourceBasis:commercialBasisDetails?(specialized||genericView)+(sourceBasis?'<details class="reconciliation-panel"><summary><span>Compare documents and contract versions</span><b>Amounts, dates and versions</b></summary><div class="reconciliation-body">'+sourceBasis+'</div></details>':''):sourceBasis+(specialized||genericView));
   const generated=data.challenge?.generatedAt||findProjectionRoot(data)?.generatedAt||data.generatedAt||null;
   const viewState=result.status==="ready"?"":'<div class="view-state-bar">'+issueBadge(result.issueAssessment)+'<strong>'+escapeHtml(moduleName)+'</strong>'+(generated?'<span>Updated '+escapeHtml(formatDocumentTime(generated))+'</span>':'')+'</div>';
   el("directorDrawer").open=false;
   el("directorDrawer").hidden=result.key!=="pmo-analysis";
   const userReason=userFacingModuleReason(result.key,result.reason);
   const context=basisHtml;
-  el("moduleContent").innerHTML=context+(managementSurface?primaryView:renderRoleContent(result.key,data,primaryView,challengeHtml,Boolean(specialized)))+renderModuleReadiness(data,userReason);
+  el("moduleContent").innerHTML=context+(managementSurface?primaryView:renderRoleContent(result.key,data,primaryView,challengeHtml,Boolean(specialized)))+experienceReviewSummary(data.issueAssessment,managementSurface)+renderModuleReadiness(data,userReason);
 }
 let moduleRequestSeq=0;
 const managementSurfaceKeysForApi=new Set(["master-dashboard","command-center","master-control-programme","source-quality"]);
@@ -3922,8 +3924,8 @@ async function loadModule(key){
   }
 }
 function kpi(label,value,sub=""){if(typeof value==="string"&&/^\d{4}-\d{2}-\d{2}$/.test(value))value=planningShortDate(value);return'<div class="card kpi-card"><div class="kpi-label">'+escapeHtml(label)+'</div><div class="kpi-value">'+escapeHtml(fmt(value))+'</div><div class="kpi-sub">'+escapeHtml(sub)+'</div></div>'}
-function evidenceCount(state,value,knownSubset){if(state==="established"&&value!==null&&value!==undefined)return fmt(value);if(typeof knownSubset==="number")return fmt(knownSubset)+" confirmed; full total not established";if(state==="submitted_unparsed")return"Source submitted · count not established";return"Not established"}
-function renderDirector(d){if(!d){el("director").innerHTML='<div class="card"><div class="empty">Open a project to load its management detail.</div></div>';return}const s=d.schedule,c=d.claims,ctrl=d.controls;let html='<div class="grid kpi">'+kpi("Data Date",s.dataDateIso)+kpi("Contract Completion",s.contractualCompletionIso||"Not established")+kpi("Further Adjusted Completion",s.officialAdjustedCompletionIso||"Not established","additional adjustment after the current contract basis")+kpi("Submitted Programme Finish",s.submittedProgrammeCompletionIso||"Not established")+kpi("Calendar recalculation",s.independentForecastCompletionIso||"Not established","Submitted logic on its own calendars; not attributable delay")+kpi("Positive submitted window movement",c.observedProgrammeMovementDays,"sum of positive submitted project-finish changes; not EOT")+kpi("Time-impact candidate",c.analyticalTimeImpactCandidateDays,"analytical, not entitlement")+kpi("Attributable EOT candidate",c.attributableCandidateEotDays,"analytical, not awarded")+kpi("Gross source-approved EOT",c.officialApprovedEotDays,"dated determinations through DD; overlap and further adjustment require reconciliation")+kpi("Network calculation",s.independentCpmState==="established"?"Computed":"Unavailable","Graph/calculation coverage only; source float and calendars require reconciliation")+kpi("Claims linked",c.claimCount===null||c.claimCount===undefined?"Not established":fmt(c.fullyLinkedClaimCount??0)+" / "+fmt(c.claimCount),"claim → event → activity")+kpi("LD Scenario",d.ld.cappedAmount===null?"—":fmt(d.ld.cappedAmount)+" "+(d.ld.currency||""),humanizeKey(d.ld.state))+'</div>';html+='<div class="grid two"><div class="card"><h3>Commercial exposure by currency</h3><div class="grid three">';(d.commercialByCurrency||[]).forEach(r=>{html+='<div class="currency-card"><div class="currency-code">'+escapeHtml(r.currency)+'</div>'+[["Pending variations",r.pendingVariationAmount],["Approved variations · source aggregate",r.approvedVariationAmount],["Certified unpaid",r.certifiedUnpaidAmount],["Retention deductions evidenced through DD",r.retentionDeductedAmount],["Held balance",r.retentionHeldAmount],["Active bonds",r.activeBondAmount],["Claimed",r.claimClaimedAmount],["LD scenario",r.ldScenarioAmount]].map(x=>'<div class="currency-line" title="'+escapeHtml(commercialFindingTitle(x[1]))+'"><span>'+x[0]+'</span><strong>'+escapeHtml(commercialFindingText(x[1]))+'</strong></div>').join("")+'</div>'});html+='</div></div><div class="card"><h3>Management actions</h3><div class="actions">'+((d.managementActions||[]).length?d.managementActions.map(a=>'<div class="action">'+escapeHtml(a)+'</div>').join(""):'<div class="empty">No current actions generated.</div>')+'</div><div style="margin-top:14px" class="scalar-grid">'+'<div class="scalar"><b>Open HSE</b><span>'+escapeHtml(evidenceCount(ctrl.hseEvidenceState,ctrl.openHseIncidentCount))+'</span></div>'+'<div class="scalar"><b>Reported lost-time injuries</b><span>'+escapeHtml(d.sourceInterpretation?.hse?.metrics?.lostTimeInjuries??"Not established")+'</span></div>'+'<div class="scalar"><b>Major / critical NCR</b><span>'+escapeHtml(evidenceCount(ctrl.qualityEvidenceState,ctrl.openCriticalMajorNcrCount,ctrl.reporting?.knownCounts?.openCriticalMajorNcrCount))+'</span></div>'+'<div class="scalar"><b>Overdue RFI</b><span>'+escapeHtml(evidenceCount(ctrl.rfiEvidenceState,ctrl.overdueRfiCount))+'</span></div>'+'<div class="scalar"><b>Permit issues</b><span>'+escapeHtml(evidenceCount(ctrl.permitEvidenceState,ctrl.overduePermitCount))+'</span></div>'+'<div class="scalar"><b>Expiring bonds</b><span>'+escapeHtml(evidenceCount(ctrl.bondEvidenceState,ctrl.expiringBondCount30Days))+'</span></div>'+'<div class="scalar"><b>Open risks</b><span>'+escapeHtml(evidenceCount(ctrl.riskEvidenceState,ctrl.openRiskCount))+'</span></div>'+'</div></div></div>';el("director").innerHTML=html}
+function evidenceCount(state,value,knownSubset){if(state==="established"&&value!==null&&value!==undefined)return fmt(value);if(typeof knownSubset==="number")return fmt(knownSubset)+" confirmed; full total not confirmed";if(state==="submitted_unparsed")return"Source submitted · count not confirmed";return"Not confirmed"}
+function renderDirector(d){if(!d){el("director").innerHTML='<div class="card"><div class="empty">Open a project to load its management detail.</div></div>';return}const s=d.schedule,c=d.claims,ctrl=d.controls;let html='<div class="grid kpi">'+kpi("Data Date",s.dataDateIso)+kpi("Contract Completion",s.contractualCompletionIso||"Not confirmed")+kpi("Further Adjusted Completion",s.officialAdjustedCompletionIso||"Not confirmed","additional adjustment after the current contract basis")+kpi("Submitted Programme Finish",s.submittedProgrammeCompletionIso||"Not confirmed")+kpi("Calendar recalculation",s.independentForecastCompletionIso||"Not confirmed","Submitted logic on its own calendars; not attributable delay")+kpi("Positive submitted window movement",c.observedProgrammeMovementDays,"sum of positive submitted project-finish changes; not EOT")+kpi("Time-impact candidate",c.analyticalTimeImpactCandidateDays,"analytical, not entitlement")+kpi("Attributable EOT candidate",c.attributableCandidateEotDays,"analytical, not awarded")+kpi("Gross source-approved EOT",c.officialApprovedEotDays,"dated determinations through DD; overlap and further adjustment require reconciliation")+kpi("Network calculation",s.independentCpmState==="established"?"Computed":"Unavailable","Graph/calculation coverage only; source float and calendars require reconciliation")+kpi("Claims linked",c.claimCount===null||c.claimCount===undefined?"Not confirmed":fmt(c.fullyLinkedClaimCount??0)+" / "+fmt(c.claimCount),"claim → event → activity")+kpi("LD Scenario",d.ld.cappedAmount===null?"—":fmt(d.ld.cappedAmount)+" "+(d.ld.currency||""),humanizeKey(d.ld.state))+'</div>';html+='<div class="grid two"><div class="card"><h3>Commercial exposure by currency</h3><div class="grid three">';(d.commercialByCurrency||[]).forEach(r=>{html+='<div class="currency-card"><div class="currency-code">'+escapeHtml(r.currency)+'</div>'+[["Pending variations",r.pendingVariationAmount],["Approved variations · source aggregate",r.approvedVariationAmount],["Certified unpaid",r.certifiedUnpaidAmount],["Retention deducted through DD",r.retentionDeductedAmount],["Held balance",r.retentionHeldAmount],["Active bonds",r.activeBondAmount],["Claimed",r.claimClaimedAmount],["LD scenario",r.ldScenarioAmount]].map(x=>'<div class="currency-line" title="'+escapeHtml(commercialFindingTitle(x[1]))+'"><span>'+x[0]+'</span><strong>'+escapeHtml(commercialFindingText(x[1]))+'</strong></div>').join("")+'</div>'});html+='</div></div><div class="card"><h3>Management actions</h3><div class="actions">'+((d.managementActions||[]).length?d.managementActions.map(a=>'<div class="action">'+escapeHtml(a)+'</div>').join(""):'<div class="empty">No current actions generated.</div>')+'</div><div style="margin-top:14px" class="scalar-grid">'+'<div class="scalar"><b>Open HSE</b><span>'+escapeHtml(evidenceCount(ctrl.hseEvidenceState,ctrl.openHseIncidentCount))+'</span></div>'+'<div class="scalar"><b>Reported lost-time injuries</b><span>'+escapeHtml(d.sourceInterpretation?.hse?.metrics?.lostTimeInjuries??"Not confirmed")+'</span></div>'+'<div class="scalar"><b>Major / critical NCR</b><span>'+escapeHtml(evidenceCount(ctrl.qualityEvidenceState,ctrl.openCriticalMajorNcrCount,ctrl.reporting?.knownCounts?.openCriticalMajorNcrCount))+'</span></div>'+'<div class="scalar"><b>Overdue RFI</b><span>'+escapeHtml(evidenceCount(ctrl.rfiEvidenceState,ctrl.overdueRfiCount))+'</span></div>'+'<div class="scalar"><b>Permit issues</b><span>'+escapeHtml(evidenceCount(ctrl.permitEvidenceState,ctrl.overduePermitCount))+'</span></div>'+'<div class="scalar"><b>Expiring bonds</b><span>'+escapeHtml(evidenceCount(ctrl.bondEvidenceState,ctrl.expiringBondCount30Days))+'</span></div>'+'<div class="scalar"><b>Open risks</b><span>'+escapeHtml(evidenceCount(ctrl.riskEvidenceState,ctrl.openRiskCount))+'</span></div>'+'</div></div></div>';el("director").innerHTML=html}
 function renderStatus(o){
   const ready=o.moduleStates.filter(x=>x.status==="ready").length;
   const partial=o.moduleStates.filter(x=>x.status==="partial").length;
@@ -4147,14 +4149,14 @@ function positionText(p){
 }
 function projectCard(p){
   const [positionClass,positionLabel]=positionText(p);
-  const forecast=p.forecastCompletionIso?planningShortDate(p.forecastCompletionIso):"Not established";
-  const official=p.officialCompletionIso?planningShortDate(p.officialCompletionIso):"Not established";
-  const movement=p.programmeMovementDays===null||p.programmeMovementDays===undefined?"Not established":fmt(p.programmeMovementDays)+" days";
-  const claims=p.claimCount===null||p.claimCount===undefined?"Not established":fmt(p.claimCount)+" claim"+(p.claimCount===1?"":"s");
-  const eot=p.approvedEotDays===null||p.approvedEotDays===undefined?"Source-approved EOT not established":fmt(p.approvedEotDays)+" gross source-approved days through DD; further adjustment not inferred";
-  const forecastLabel=p.forecastLabel||"Source productivity forecast";
-  const contractLabel=p.officialCompletionIso?(p.contractualCompletionState==="established"?"Official contract: ":"Contract source / review: ")+official:"Contract completion not established";
-  const adjustmentLabel=p.furtherAdjustedCompletionIso?"Further adjusted: "+planningShortDate(p.furtherAdjustedCompletionIso):"Further adjustment not established";
+  const forecast=p.forecastCompletionIso?planningShortDate(p.forecastCompletionIso):"Not confirmed";
+  const official=p.officialCompletionIso?planningShortDate(p.officialCompletionIso):"Not confirmed";
+  const movement=p.programmeMovementDays===null||p.programmeMovementDays===undefined?"Not confirmed":fmt(p.programmeMovementDays)+" days";
+  const claims=p.claimCount===null||p.claimCount===undefined?"Not confirmed":fmt(p.claimCount)+" claim"+(p.claimCount===1?"":"s");
+  const eot=p.approvedEotDays===null||p.approvedEotDays===undefined?"Source-approved EOT not confirmed":fmt(p.approvedEotDays)+" gross source-approved days through DD; further adjustment not inferred";
+  const forecastLabel=p.forecastLabel||"Productivity forecast";
+  const contractLabel=p.officialCompletionIso?(p.contractualCompletionState==="established"?"Official contract: ":"Contract source / review: ")+official:"Contract completion not confirmed";
+  const adjustmentLabel=p.furtherAdjustedCompletionIso?"Further adjusted: "+planningShortDate(p.furtherAdjustedCompletionIso):"Further adjustment not confirmed";
   const managementCount=p.managementActionCount===null||p.managementActionCount===undefined?null:p.managementActionCount;
   const attention=(p.managementActions||[])[0]||(
     p.positionState==="needs_information"
@@ -4172,7 +4174,7 @@ function projectCard(p){
       '<div class="portfolio-project-metric"><span>'+escapeHtml(forecastLabel)+'</span><strong>'+escapeHtml(forecast)+'</strong><small>'+escapeHtml(contractLabel)+'</small><small>'+escapeHtml(adjustmentLabel)+'</small></div>'+
       '<div class="portfolio-project-metric"><span>Project completion movement</span><strong>'+escapeHtml(movement)+'</strong><small>Net first-to-latest controlled completion movement</small></div>'+
       '<div class="portfolio-project-metric"><span>Claims / EOT</span><strong>'+escapeHtml(claims)+'</strong><small>'+escapeHtml(eot)+'</small></div>'+
-      '<div class="portfolio-project-metric"><span>Management</span><strong>'+escapeHtml(managementCount===null?"Not established":fmt(managementCount)+" action"+(managementCount===1?"":"s"))+'</strong><small>'+escapeHtml(p.commercialCurrencyCount?fmt(p.commercialCurrencyCount)+" commercial currenc"+(p.commercialCurrencyCount===1?"y":"ies"):"No commercial position")+'</small></div>'+
+      '<div class="portfolio-project-metric"><span>Management</span><strong>'+escapeHtml(managementCount===null?"Not confirmed":fmt(managementCount)+" action"+(managementCount===1?"":"s"))+'</strong><small>'+escapeHtml(p.commercialCurrencyCount?fmt(p.commercialCurrencyCount)+" commercial currenc"+(p.commercialCurrencyCount===1?"y":"ies"):"No commercial position")+'</small></div>'+
       '<div class="portfolio-project-open"><button class="btn small open-project" data-project="'+escapeHtml(p.projectId)+'">Open project</button></div>'+
     '</div>'+
     '<div class="'+attentionClass+'"><b>Attention</b><span>'+escapeHtml(attention)+'</span></div>'+

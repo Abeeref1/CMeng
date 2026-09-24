@@ -422,7 +422,7 @@ test("CMeng workspace keeps the active module primary and browser script parseab
       "Management decision required",
       "Current positions",
       "Need attention",
-      "Source productivity forecast",
+      "Productivity forecast",
       "Portfolio attention",
     ]
   ) {
@@ -486,7 +486,7 @@ test("CMeng workspace keeps the active module primary and browser script parseab
       "Milestone movement",
       "Float-risk distribution",
       "Float-Risk Watchlist",
-      "Reconciliation with submitted position",
+      "Comparison with the submitted position",
     ]
   ) {
     assert.equal(
@@ -519,8 +519,8 @@ test("CMeng workspace keeps the active module primary and browser script parseab
       "Actual cash expenditure",
       "Observed cash history",
       "Actual cash history needs at least two comparable receipt and expenditure observations.",
-      "Certificate reconciliation · ",
-      "Governed dated cash-flow register",
+      "Certificate amounts · ",
+      "Confirmed dated cash-flow register",
       "Calculation trace",
       "Evidence & governance",
     ]
@@ -784,7 +784,7 @@ test("CMeng workspace keeps the active module primary and browser script parseab
 
   assert.equal(
     html.includes(
-      "No controlled obligation register is established. Open, overdue and complete counts are not established.",
+      "No controlled obligation register is established. Open, overdue and complete counts are not confirmed.",
     ),
     true,
     "Contract Particulars must not render zero compliance counts when the controlled obligation register is absent",
@@ -894,7 +894,7 @@ test("CMeng workspace keeps the active module primary and browser script parseab
   );
   assert.equal(
     html.includes(
-      "Payment register is not established. Lifecycle counts are not established.",
+      "Payment register is not confirmed. Lifecycle counts are not confirmed.",
     ),
     true,
     "Payments must not render lifecycle zeros when the payment register is absent",
@@ -919,7 +919,7 @@ test("CMeng workspace keeps the active module primary and browser script parseab
   );
   assert.equal(
     html.includes(
-      "No governed claim lifecycle population is established. Lifecycle counts are not established.",
+      "No governed claim lifecycle population is established. Lifecycle counts are not confirmed.",
     ),
     true,
     "Commercial Claims must not render an all-zero lifecycle chart when no governed claim population exists",
@@ -933,7 +933,7 @@ test("CMeng workspace keeps the active module primary and browser script parseab
   );
   assert.equal(
     html.includes(
-      "payment register not established",
+      "payment register not confirmed",
     ),
     true,
     "Cash Flow source summary must describe an absent payment basis instead of presenting it as zero",
@@ -1036,9 +1036,9 @@ test("CMeng workspace keeps the active module primary and browser script parseab
   for (
     const evidenceSafePhrase of [
       "Per-hour overload is not 0; it is not assessable.",
-      "The programme contains a percentage-complete snapshot, but certified/contractor physical progress is not established.",
+      "The programme contains a percentage-complete snapshot, but certified/contractor physical progress is not confirmed.",
       "schedule-revision progress history",
-      "Actual man-hours are not established.",
+      "Actual man-hours are not confirmed.",
       "No governed quantity curve is available.",
       "Notice performance is not zero; it is not assessable.",
       "Schedule movement is not an EOT time-impact assessment.",

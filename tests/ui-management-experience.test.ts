@@ -66,13 +66,13 @@ test('certificate charts retain producer scope, separate currencies and tax base
   assert.deepEqual(Array.from(eur.future,(r:any)=>r.id),['B']);
   const current=runInNewContext(certificateFunctions+';experienceCertificateChart(rows,"EUR")',{...common,rows:eur.as_of});
   assert.match(current,/1 of 2 records plotted/);
-  assert.match(current,/Running source-row sum; accounting basis unconfirmed/);
+  assert.match(current,/Running total of listed amounts; confirm they are not cumulative/);
   assert.match(current,/<line.*stroke="#dce4ed"/);
   assert.equal((current.match(/data-axis-count="1"/g)||[]).length,2,'period and cumulative amounts each have their own single-axis chart');
   assert.match(current,/Certificate period amounts · EUR million/);
   assert.doesNotMatch(current,/>B<|>90<|NaN|undefined/);
   const whole=runInNewContext(certificateFunctions+';experienceCertificatePanels(position)',ctx);
-  assert.match(whole,/Forward source profile/);
+  assert.match(whole,/Future certificate plan/);
   assert.match(whole,/1 undated records/);
   assert.equal(position.foundation.paymentRegister.rows.length,4,'presentation never mutates the source population');
 });
@@ -132,7 +132,7 @@ test('all six lenses retain access to the full module and leadership does not in
     });
     assert.equal((html.match(/evidence-row/g)||[]).length,1,role);
     assert.match(html,/comparison/,role);
-    if(['project-director','program-director','executive'].includes(role))assert.match(html,/Complete module analysis/,role);
+    if(['project-director','program-director','executive'].includes(role))assert.match(html,/All charts and records/,role);
     assert.doesNotMatch(html,/Control action:|Consequence:|Focus 1/,role);
   }
 });
@@ -143,10 +143,10 @@ test('calculation failures remain visible while zero-count diagnostic cards stay
   assert.match(fail,/System failure/);assert.match(fail,/experience-notes error/);
   assert.doesNotMatch(fail,/Inputs needed|System defect0|CMeng verification/);
   const pending=runInNewContext(render+';experienceReviewSummary(a)',{...common,a:{counts:{system_defect:0},systemCheckState:'unverified'}});
-  assert.match(pending,/View source notes and calculation coverage/);
+  assert.match(pending,/Supporting details/);
   assert.doesNotMatch(pending,/passed|green|ready/i);
   const management=runInNewContext(render+';experienceReviewSummary(a,true)',{...common,a:{counts:{source_conflict:25},affectedModuleCounts:{source_conflict:5}}});
-  assert.match(management,/Affected views/);assert.match(management,/<b>5<\/b>/);assert.doesNotMatch(management,/>25</);
+  assert.match(management,/Affected pages/);assert.match(management,/<b>5<\/b>/);assert.doesNotMatch(management,/>25</);
   assert.doesNotMatch(script,/function flattenRoleScalars|function roleSignalScore|function collectRoleActions/);
   assert.doesNotMatch(script,/querySelectorAll\("details"\)\.forEach\(node=>node.open=true\)/);
 });
@@ -194,7 +194,7 @@ test('shared verdict, source scope and Source Quality distinguish source issues 
  const code=functions(['renderPositionVerdict','renderRegisterScope']);
  const html=runInNewContext(code+';renderPositionVerdict(data)+renderRegisterScope(data)',{...common,data:{positionVerdict:{rag:'red',label:'Action required',text:'Submitted completion is 7 days late.',nextAction:'Review recovery',owner:'Project controls reviewer',basis:'Contract comparison'},reportingContract:{dataDateIso:'2031-04-15',populations:{register:{populationId:'x',entity:'claim',name:'Claims',sourceCount:3,denominator:1,dateBasis:'notice date',exclusions:[{id:'F',reason:'after_data_date'},{id:'U',reason:'record_date_missing'}]}}}}});
  assert.match(html,/Position verdict/);assert.match(html,/Future excluded/);assert.match(html,/Date missing \/ invalid/);assert.match(html,/1 \/ 3/);
- assert.match(script,/source issues/);assert.match(script,/system failures/);assert.doesNotMatch(script,/4\/6\/8 multipliers/);
+ assert.match(script,/Information items/);assert.match(script,/system failures/);assert.doesNotMatch(script,/4\/6\/8 multipliers/);
 });
 
 test('delay and float matrix visibly reconciles excluded LOE and WBS records',()=>{
@@ -202,12 +202,46 @@ test('delay and float matrix visibly reconciles excluded LOE and WBS records',()
  assert.match(html,/LOE \/ WBS summaries/);assert.match(html,/2 source records excluded/);assert.match(html,/All 1 execution activities/);
 });
 test('source quality and date scope preserve record evidence behind concise disclosures',()=>{
- const render=functions(['renderSourceQuality','renderRegisterScope','experienceDisclosure']);
+ const render=functions(['renderSourceQuality','renderRegisterScope','experienceDisclosure','readerIssue']);
  const ctx={...common,names:{one:'One'},managementModuleLink:(k:string,label:string)=>label,managementPanel:(t:string,s:string,b:string)=>t+s+b,basisTable:()=>'',formatDocumentTime:String,
  data:{sourceIssues:[{kind:'missing_information',summary:'Receipt dates missing',detail:'Two records',action:'Supply dates',owner:'Evidence owner',sourceRefs:['A:1','A:2'],moduleKeys:['one']}],systemFailures:[],reviewActions:[],pendingChecks:[],coverage:[],documents:[],pageValueChecks:[],scope:'Checked scope'}};
  const html=runInNewContext(render+';renderSourceQuality(data)',ctx);
- assert.match(html,/Identical requests are counted once/);assert.match(html,/<details class="source-request">/);assert.match(html,/Source references<\/summary><ul><li>A:1<\/li><li>A:2/);
+ assert.match(html,/Identical requests are counted once/);assert.match(html,/<details class="source-request">/);assert.match(html,/<li>A:1<\/li><li>A:2/);
  const populations=Object.fromEntries(Array.from({length:8},(_,n)=>[n,{populationId:'P'+n,name:'Register '+n,entity:'record',denominator:2,sourceCount:3,exclusions:[{reason:'after_data_date'}],dateBasis:'Actual date'}]));
  const scope=runInNewContext(render+';renderRegisterScope(data)',{...ctx,data:{reportingContract:{populations,dataDateIso:'2031-06-30'}}});
- assert.match(scope,/<summary>8 register populations contain future or undated records/);assert.equal((scope.match(/<tr><td>Register /g)||[]).length,8);
+ assert.match(scope,/<summary>8 record groups include later or missing dates/);assert.equal((scope.match(/<tr><td>Register /g)||[]).length,8);
+});
+
+test('navigation does not multiply information warnings across page links; calculation failures remain explicit',()=>{
+ const render=functions(['renderNav']);
+ const nav={innerHTML:'',querySelectorAll:()=>[]};
+ const ctx={...common,el:()=>nav,appView:'project',selected:'one',names:{one:'One',two:'Two'},groups:{Planning:['one','two']},overview:{moduleStates:[{key:'one',issueAssessment:{counts:{missing_information:3}}},{key:'two',issueAssessment:{counts:{system_defect:1,source_conflict:4}}}],managementStates:[{key:'master-dashboard',issueAssessment:{counts:{missing_information:7,system_defect:1}}}]}};
+ runInNewContext(render+';renderNav()',ctx);
+ assert.match(nav.innerHTML,/Information items<b>7/);
+ assert.doesNotMatch(nav.innerHTML,/nav-count attention|>Source [0-9]/);
+ assert.match(nav.innerHTML,/aria-label="1 system failures">Error 1/);
+ assert.equal((nav.innerHTML.match(/data-key=/g)||[]).length,2);
+});
+
+test('plain information actions preserve original findings and all document references',()=>{
+ const render=functions(['readerIssue','renderSourceQuality','experienceDisclosure']);
+ const issue={code:'MISSING_SOURCE_VALUE',kind:'missing_information',summary:'cashFlow · information missing',detail:'BANK-SOURCE-required.pdf: row 7; amount 123.45',action:'Original diagnostic action',owner:'Project evidence owner',evidencePaths:['focus.cashFlow.receipts'],sourceRefs:['BANK-SOURCE-required.pdf:row:7'],moduleKeys:['cash-flow']};
+ const original=JSON.stringify(issue);
+ const ctx={...common,names:{'cash-flow':'Cash Flow'},managementModuleLink:(_k:string,label:string)=>label,managementPanel:(_t:string,_s:string,b:string)=>b,basisTable:()=>'',formatDocumentTime:String,data:{sourceIssues:[issue],systemFailures:[],reviewActions:[],pendingChecks:[],coverage:[],documents:[],pageValueChecks:[]}};
+ const html=runInNewContext(render+';renderSourceQuality(data)',ctx);
+ assert.match(html,/Provide the certificate, receipt or payment amount and its actual event date/);
+ assert.match(html,/Document owner \(assign a person\)/);
+ assert.match(html,/Original finding and document references/);
+ assert.match(html,/BANK-SOURCE-required.pdf: row 7; amount 123.45/);
+ assert.match(html,/BANK-SOURCE-required.pdf:row:7/);
+ assert.equal(JSON.stringify(issue),original);
+});
+
+test('routine review counts are expandable while failed checks remain an alert',()=>{
+ const render=functions(['experienceReviewSummary']);
+ const invoke=(counts:object)=>runInNewContext(render+';experienceReviewSummary({counts})',{...common,counts});
+ const routine=invoke({missing_information:9});
+ assert.match(routine,/<details class="page-review-summary">/);assert.match(routine,/<b>9<\/b>/);
+ const failed=invoke({system_defect:1,missing_information:9});
+ assert.match(failed,/role="alert"/);assert.doesNotMatch(failed,/<details/);
 });

@@ -4,7 +4,7 @@ function basisPanel(title,note,body,id){return '<section class="planning-panel"'
 function commercialSourceState(metric){
   if(metric?.consequence)return metric.consequence;
   const diagnostics=metric?.diagnostics||[];
-  if(diagnostics.includes('EXPLICIT_SOURCE_SNAPSHOT_NOT_RECALCULATED_FROM_VARIATIONS'))return diagnostics.some(d=>/CONFLICT|UNRESOLVED/.test(d))?'Reported source value · reconciliation required':'Reported source value';
+  if(diagnostics.includes('EXPLICIT_SOURCE_SNAPSHOT_NOT_RECALCULATED_FROM_VARIATIONS'))return diagnostics.some(d=>/CONFLICT|UNRESOLVED/.test(d))?'Reported amount · confirm against the register':'Reported amount';
   return humanizeKey(metric?.state||'missing');
 }
 function renderCommercialExceptions(position,key,data){
@@ -49,7 +49,7 @@ function renderBasisReviews(data,key){
     html+=basisPanel(s.contractFinishIso?fmt(s.deadline.lateCount)+' of '+fmt(s.packageCount)+' package finishes fall after the contract date':'Package deadlines need a confirmed contract date',s.interpretation,
       (s.contractFinishIso?'<p>Contract finish '+escapeHtml(planningShortDate(s.contractFinishIso))+'. '+fmt(s.deadline.positiveFloatButLateCount)+' late package finishes still have positive submitted float. Dated lateness ranges from '+fmt(s.deadline.latenessDays.min)+' to '+fmt(s.deadline.latenessDays.max)+' calendar days. Submitted criticality is not a contract-compliance test.</p>':'<p>No confirmed contract date is available for this comparison. Submitted float does not establish contractual timeliness.</p>')+
       '<p>'+escapeHtml(s.packageDefinition)+' '+fmt(s.excludedLeafCount)+' leaf WBS excluded.</p>'+
-      (key==='independent-forecast'?'':'<details><summary>Calendar groups, sensitivity and source constraints</summary>')+
+      (key==='independent-forecast'?'':'<details><summary>Calendars and date restrictions</summary>')+
       basisTable(['Assigned calendar','Work days / week','Packages','Calendar movement range (days)','Earliest recalculated finish','Latest recalculated finish'],s.groups.map(g=>[g.calendarName,g.workingDaysPerWeek,g.packageCount,fmt(g.movementDays.min)+' to '+fmt(g.movementDays.max),planningShortDate(g.earliestCalendarFinishIso),planningShortDate(g.latestCalendarFinishIso)]))+
       (s.sensitivity?'<div class="notice info"><b>Calendar sensitivity only: '+escapeHtml(planningShortDate(s.sensitivity.completionIso))+'</b><p>Replacing the assigned five-day calendars with '+escapeHtml(s.sensitivity.toCalendarName||s.sensitivity.toCalendarId)+' changes the calculated finish by '+fmt(s.sensitivity.movementDays)+' calendar days. '+escapeHtml(s.sensitivity.assumptions.join(' '))+'</p></div>':'')+
       '<details><summary>Review package finishes from every calendar group</summary>'+basisTable(['Package','Calendar','Finish milestone','Submitted finish','Calendar-calculated finish','After contract (days)','Submitted float (hours)'],s.rows.map(r=>[r.name,r.calendarName||'Mixed / unresolved',r.activityId,planningShortDate(r.submittedFinishIso),planningShortDate(r.calendarFinishIso),fmt(r.contractLatenessDays),fmt(r.submittedFloatHours)]))+'</details>'+
@@ -62,7 +62,7 @@ function renderBasisReviews(data,key){
     '<details><summary>Inspect the duration arithmetic for each WBS package</summary>'+basisTable(['Package','Baseline days','Current days','Existing-task edit days','Added-task days','Edited tasks','Added tasks','Hours / day'],d.packages.map(r=>[r.name,fmt(r.baselineDurationDays),fmt(r.currentDurationDays),fmt(r.existingChangeDays),fmt(r.addedDays),r.changedExistingCount,r.addedCount,fmt(r.standardDayHours)]))+'</details>');}
   if(q){
     const f=q.forecast;
-    html+=basisPanel('Quantity and productivity sources need a confirmed crosswalk',q.interpretation,
+    html+=basisPanel('Link quantities and productivity work packages to programme activities',q.interpretation,
       (key==='quantity-scurve'?basisTable(['BOQ unit','Items','Known quantities','Quantity in this unit'],q.unitTotals.map(r=>[r.unit,r.itemCount,r.knownQuantityCount,fmt(r.quantity)])):'')+
       '<p>'+fmt(q.uniqueSectionSuggestionCount)+' of '+fmt(q.sections.length)+' BOQ sections have one WBS-parent name match. These suggestions do not allocate any item.</p>'+
       '<details><summary>Review section-to-WBS suggestions</summary>'+basisTable(['BOQ section','Items','WBS suggestions'],q.sections.map(r=>[r.section,r.itemCount,r.suggestions.map(w=>w.wbsId+' · '+w.name).join('; ')||'No name match']))+'</details>'+
@@ -72,7 +72,7 @@ function renderBasisReviews(data,key){
       '<details><summary>Inspect same-number package differences</summary>'+basisTable(['Source package','Source discipline','Schedule package with same number','Name match'],f.numberReview.map(r=>[r.workPackageId,r.sourceDiscipline,r.schedulePackages.map(w=>w.name).join('; ')||'No unique match',r.disciplineMatches?'Yes — review still required':'No']))+'</details>','quantityBasisReview');
   }
   if(v){html+=basisPanel('Contract amounts by version',v.interpretation,
-    (v.current?'<p><b>Current explicit contract value: '+escapeHtml(fmt(v.current.amount)+' '+v.current.currency)+'</b> · '+escapeHtml(v.current.taxBasis)+' tax basis · from '+escapeHtml(v.current.sourceFilename)+'.</p>':'<p>No single current contract value can be selected: '+escapeHtml(humanizeKey(v.state))+'.</p>')+
+    (v.current?'<p><b>Current contract amount: '+escapeHtml(fmt(v.current.amount)+' '+v.current.currency)+'</b> · '+escapeHtml(v.current.taxBasis)+' tax basis · from '+escapeHtml(v.current.sourceFilename)+'.</p>':'<p>No single current contract value can be selected: '+escapeHtml(humanizeKey(v.state))+'.</p>')+
     basisTable(['Source','Contract amount','Currency / tax','Effective date','Reporting scope'],v.rows.map(r=>[r.sourceFilename+' · '+r.label,fmt(r.amount),r.currency+' / '+r.taxBasis,planningShortDate(r.effectiveFromIso),humanizeKey(r.scope)])));}
   const b=data.basisComparison;
   if(b&&['cost-forecast','challenge-contract','progress-report'].includes(key)){
@@ -102,8 +102,8 @@ function renderBasisReviews(data,key){
   if(actions.length&&['command-center','pmo-analysis'].includes(key)){
     html+=basisPanel('Specific records requiring action','Owners and due dates are shown only when supplied. Full source records remain available.',
       '<p>'+fmt(actions.filter(r=>r.type==='NCR').length)+' open major / critical NCRs; '+fmt(actions.filter(r=>r.type==='RFI').length)+' overdue RFIs through DD.</p>'+
-      basisTable(['Record','Priority','Age at DD','Overdue','Owner','Due','Next action'],actions.slice(0,10).map(r=>[r.recordId,r.priority,r.ageDays==null?'Raised date needed':r.ageDays+' d',r.overdueDays==null?'Due date needed':r.overdueDays+' d',r.owner||'Assign owner',r.dueIso?planningShortDate(r.dueIso):'Set due date',r.action]))+
-      '<details><summary>All '+fmt(actions.length)+' action records</summary>'+basisTable(['Record','Subject','Priority','Age at DD','Overdue','Owner','Raised','Due','Next action'],actions.map(r=>[r.recordId,r.subject,r.priority,r.ageDays==null?'Raised date needed':r.ageDays+' d',r.overdueDays==null?'Due date needed':r.overdueDays+' d',r.owner||'Assign owner',planningShortDate(r.raisedIso),planningShortDate(r.dueIso),r.action]))+'</details>');
+      basisTable(['Record','Priority','Age at reporting date','Overdue','Owner','Due','Next action'],actions.slice(0,10).map(r=>[r.recordId,r.priority,r.ageDays==null?'Raised date needed':r.ageDays+' d',r.overdueDays==null?'Due date needed':r.overdueDays+' d',r.owner||'Assign owner',r.dueIso?planningShortDate(r.dueIso):'Set due date',r.action]))+
+      '<details><summary>All '+fmt(actions.length)+' action records</summary>'+basisTable(['Record','Subject','Priority','Age at reporting date','Overdue','Owner','Raised','Due','Next action'],actions.map(r=>[r.recordId,r.subject,r.priority,r.ageDays==null?'Raised date needed':r.ageDays+' d',r.overdueDays==null?'Due date needed':r.overdueDays+' d',r.owner||'Assign owner',planningShortDate(r.raisedIso),planningShortDate(r.dueIso),r.action]))+'</details>');
   }
   return html;
 }
