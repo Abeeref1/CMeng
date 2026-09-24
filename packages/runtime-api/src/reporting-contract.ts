@@ -177,7 +177,8 @@ export function attachReportingContract(state:ProjectRuntimeState,result:ModuleR
     resolver:'moduleForProject',populations,metricContracts,
     excludedScheduleActualEvents:{future:actuals.future,undated:actuals.undated},
     completionAuthority:{governedContractualFinish:time?.contractualCompletionIso??null,authority:time?.contractualCompletionState??'missing',
+      reason:time?.completionReason??null,
       additionalExtensionState:time?.overlapResolution==='unresolved'?'not_established':'separately_assessed',
-      explanation:time?.overlapResolution==='unresolved'?'The governed amendment finish remains valid. A further adjusted finish cannot be established until overlap with determinations is resolved.':'Governed contractual finish and separately evidenced EOT adjustments retain distinct authority.'},
+      explanation:!time?.contractualCompletionIso?(time?.completionReason??'No applicable contract completion date has been established from the supplied contract records.'):time?.overlapResolution==='unresolved'?'The governed amendment finish remains valid. A further adjusted finish cannot be established until overlap with determinations is resolved.':'Governed contractual finish and separately evidenced EOT adjustments retain distinct authority.'},
     authorityDefinitions:{source:'Recorded source assertion',submitted:'Submitted position',calculated:'CMeng calculation',adjusted:'Calculation changing a stated basis',official:'Explicit governed approval',scenario:'Unapproved analytical scenario'}}}};
 }
