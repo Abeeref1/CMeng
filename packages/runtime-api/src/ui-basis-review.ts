@@ -75,7 +75,7 @@ function renderBasisReviews(data,key){
     (v.current?'<p><b>Current contract amount: '+escapeHtml(fmt(v.current.amount)+' '+v.current.currency)+'</b> · '+escapeHtml(v.current.taxBasis)+' tax basis · from '+escapeHtml(v.current.sourceFilename)+'.</p>':'<p>No single current contract value can be selected: '+escapeHtml(humanizeKey(v.state))+'.</p>')+
     basisTable(['Source','Contract amount','Currency / tax','Effective date','Reporting scope'],v.rows.map(r=>[r.sourceFilename+' · '+r.label,fmt(r.amount),r.currency+' / '+r.taxBasis,planningShortDate(r.effectiveFromIso),humanizeKey(r.scope)])));}
   const b=data.basisComparison;
-  if(b&&['cost-forecast','challenge-contract','progress-report'].includes(key)){
+  if(b&&['cost-forecast','progress-report'].includes(key)){
     const cost=b.costReports||[];
     html+=basisPanel('Schedule-loaded cost and cost-report totals use different bases','Request a cost and scope reconciliation before using these figures interchangeably.',
       basisTable(['Source measure','Amount / ratio','Currency basis'],[
@@ -84,12 +84,7 @@ function renderBasisReviews(data,key){
         ...cost.flatMap(r=>['bac','ac','ev','pv'].filter(k=>r.values[k]!=null).map(k=>[({bac:'Cost-report budget',ac:'Cost-report actual cost',ev:'Cost-report earned value',pv:'Cost-report planned value'})[k]+' · '+planningShortDate(r.asOfIso),fmt(r.values[k]),r.currency+' / '+r.taxBasis]))
       ])+'<p>Unreported overtime cost is '+(b.xer.actualOvertimeCost==null?'unknown':fmt(b.xer.actualOvertimeCost))+'. XER loaded cost is not automatically the contract budget.</p>');
   }
-  if(b&&key==='challenge-contract'){
-    html+=renderResourceBasisReview(b)+basisPanel('Headcount implied by the weekly approved hours','Working hours per person are assumptions, not a supplied headcount plan.',
-      '<p>Average approved usage through DD: '+fmt(b.weekly.averageApprovedHoursPerWeek)+' hours per week.</p>'+
-      basisTable(['Assumed hours / person / week','Implied average people'],[40,60].map(h=>[h,b.weekly.averageApprovedHoursPerWeek==null?'Not available':fmt(b.weekly.averageApprovedHoursPerWeek/h)]))+
-      '<p>Remaining XER labor budget: '+fmt(b.xer.remainingLaborHours)+' h. Future weekly planned hours: '+fmt(b.weekly.futurePlannedHours)+' h. Neither establishes measured remaining productive work.</p>');
-  }
+  if(b&&key==='challenge-contract')html+=renderResourceBasisReview(b);
   if(['master-dashboard','command-center','pmo-analysis'].includes(key)){
     const h=data.sourceInterpretation?.hse;
     if(h?.periodEndIso){const m=h.metrics||{};html+=basisPanel('HSE figures reported through '+planningShortDate(h.periodEndIso),'Reported totals are separate from dated open incident cases.',planningKpis([['Lost-time injuries',m.lostTimeInjuries,'reported'],['Medical treatment cases',m.medicalTreatmentCases,'reported'],['First-aid cases',m.firstAidCases,'reported'],['Near misses',m.nearMisses,'reported']])+'<p>Exposure '+fmt(m.manHours)+' hours; reported LTIFR '+percent2(m.ltifr)+'; TRIR '+percent2(m.trir)+'. Confirm the rate method and reconcile the exposure hours with resource sources.</p>');}

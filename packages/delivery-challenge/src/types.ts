@@ -174,6 +174,9 @@ export interface DeliveryChallengeProjection {
   };
 
   manpowerChallenge: {
+    workHoursPerPersonDay: number | null;
+    headcountCalculationState: 'unresolved' | 'scenario';
+    headcountCalculationReason: string;
     submittedPlanAvailable: boolean;
     submittedAverageManpower:
       number | null;

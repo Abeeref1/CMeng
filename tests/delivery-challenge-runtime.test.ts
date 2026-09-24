@@ -63,7 +63,7 @@ function xer(
   ].join("\n");
 }
 
-test("runtime auto-identifies a contractor manpower plan and feeds it into Challenge the Contract", async () => {
+test("runtime auto-identifies a contractor manpower plan and feeds it into Delivery Challenge", async () => {
   await withServer(
     async (base) => {
       const project =

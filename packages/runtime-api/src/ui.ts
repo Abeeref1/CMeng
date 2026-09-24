@@ -1,3 +1,4 @@
+import {moduleRegistry, titleForModule} from './registry';
 import {STATUS_LABELS} from './position-review';
 import {systemReviewScript,systemReviewStyles} from './ui-system-review';
 import {basisReviewScript} from './ui-basis-review';
@@ -249,7 +250,7 @@ ${systemReviewStyles}
         <label>Project</label>
         <input id="projectId" value="" aria-label="Project ID">
       </div>
-      <div class="topbar-context project-only"><span>Current view</span><b id="topbarModule">Management Position</b></div>
+      <div class="topbar-context project-only"><span>Current view</span><b id="topbarModule">${titleForModule("pmo-analysis")}</b></div>
       <div class="topbar-spacer"></div>
       <span id="releaseStatus" class="release-state">Production</span>
       <span id="globalStatus" style="font-size:12px;color:#667085"></span>
@@ -415,53 +416,10 @@ ${systemReviewStyles}
 ${experienceScript}
 ${systemReviewScript}
 ${basisReviewScript}
-const groups={
-  "Management Control":["master-dashboard","command-center","master-control-programme","source-quality"],
-  "Programme & Planning":["pmo-analysis","schedule-analytics","activity-analytics","lookahead-schedule","schedule-change-report","revision-trend","milestones","near-critical"],
-  "Progress & Resources":["resource-utilization","progress-report","variance-trends","progress-scurve","quantity-scurve","progress-breakdown","manhour-scurve"],
-  "Forecast & Finish":["forecast-history","independent-forecast"],
-  "Delay & Time Entitlement":["delay-claims","notices-claims","windows-analysis","eot-assessment","challenge-contract"],
-  "Commercial":["commercial-overview","cost-forecast","variations-change","payments","cash-flow","commercial-claims-notices","contract-particulars-bonds"]
-};
-const names={
-"source-quality":"Information & Actions","master-dashboard":"Master Dashboard","command-center":"Command Center","master-control-programme":"Master Control Programme",
-"pmo-analysis":"Management Position","schedule-analytics":"Programme Review","activity-analytics":"Activity Review","resource-utilization":"Resources","lookahead-schedule":"Look-Ahead","progress-report":"Progress Position","schedule-change-report":"Programme Changes","revision-trend":"Revision History","variance-trends":"Variance Trend","progress-scurve":"Progress S-Curve","quantity-scurve":"Installed Quantities","progress-breakdown":"WBS Progress","milestones":"Milestones","near-critical":"Near-Critical & Float Risk","manhour-scurve":"Man-Hour S-Curve","forecast-history":"Forecast History","independent-forecast":"Independent Forecast","delay-claims":"Delay Events & Claims","notices-claims":"Notices, EOT & Claims","windows-analysis":"Delay Windows","eot-assessment":"EOT Position","challenge-contract":"Challenge the Contract","commercial-overview":"Commercial Overview","cost-forecast":"Cost & Forecast","variations-change":"Variations & Change","payments":"Payments","cash-flow":"Cash Flow","commercial-claims-notices":"Claims & Notices","contract-particulars-bonds":"Contract Particulars & Bonds"
-};
-const descriptions={
-"source-quality":"Documents to confirm, information to provide and actions to assign.",
-"master-dashboard":"Completion commitments, programme pressure and commercial position.",
-"command-center":"Delivery priorities, suggested follow-up and decisions awaiting assignment.",
-"master-control-programme":"Controlled revisions, project structure, specialist positions and review history.",
-"pmo-analysis":"Finish-date outlook, schedule pressure and decisions requiring management attention.",
-"schedule-analytics":"Programme health, logic quality, float and finish dates.",
-"activity-analytics":"Activity finish movement, float and programme comparisons.",
-"lookahead-schedule":"The next six weeks, readiness blockers and overdue work.",
-"schedule-change-report":"What changed between the latest controlled programme submissions.",
-"revision-trend":"How progress, forecast finish and schedule pressure have moved over time.",
-"milestones":"Milestone status, submitted float, due dates, baseline movement and required management review.",
-"near-critical":"Strict near-critical activities and the wider float-risk watchlist, kept separate and reconciled to the submitted source position.",
-"resource-utilization":"Weekly demand, actual usage and available capacity by resource.",
-"progress-report":"Baseline, current schedule, physical, contractor-reported and certified progress kept separate.",
-"variance-trends":"Activity finish movement and schedule pressure across controlled programme revisions.",
-"progress-scurve":"Derived baseline/current plans and schedule snapshot history on one time axis.",
-"quantity-scurve":"BOQ and measured installations by unit; planned quantities require a defensible schedule mapping.",
-"progress-breakdown":"Duration-weighted progress and schedule pressure by WBS.",
-"manhour-scurve":"Planned, actual and forecast labor hours, with history coverage stated explicitly.",
-"forecast-history":"How submitted finishes and calendar recalculations move across programme revisions.",
-"independent-forecast":"Submitted finish compared with the calendar calculation and productivity forecast.",
-"delay-claims":"Claim records linked to recorded delay events and observed programme movement.",
-"notices-claims":"Notice timeliness and claim assessment authority, only where the required evidence exists.",
-"windows-analysis":"Revision-to-revision programme movement kept separate from causation and entitlement.",
-"eot-assessment":"Observed movement, time impact, contractual entitlement and official EOT award kept separate.",
-"challenge-contract":"Contract requirements and delivery assumptions reviewed against the available project evidence.",
-"commercial-overview":"Integrated contract value, change, payment, retention, bond, claim and time position by currency.",
-"cost-forecast":"Original and current contract value, approved/pending change and claim exposure without cross-currency arithmetic.",
-"variations-change":"Approved and pending variation exposure with approval status and dates.",
-"payments":"Interim certificates, certified value, payments, unpaid certified balance, retention and advance evidence.",
-"cash-flow":"Actual cash availability, certificate reconciliation and the future certificate plan.",
-"commercial-claims-notices":"Commercial claim exposure reconciled with contractual time and EOT position.",
-"contract-particulars-bonds":"Contract value, contractual completion, approved EOT and active security position."
-}
+const moduleRegistry=${JSON.stringify(moduleRegistry).replace(/</g, '\u003c')};
+const groups=moduleRegistry.reduce((groups,m)=>{(groups[m.group]??=[]).push(m.key);return groups},{});
+const names=Object.fromEntries(moduleRegistry.map(m=>[m.key,m.title]));
+const descriptions=Object.fromEntries(moduleRegistry.map(m=>[m.key,m.description]));
 const roleViews={
   overall:{
     label:"Overall Detailed",
@@ -736,61 +694,10 @@ function renderUniversalChallenge(challenge){
     '</div>'+attentionHtml+
     '<div class="table-wrap challenge-table-wrap"><table><thead><tr><th>Metric</th><th>Submitted</th><th>CMeng independent check</th><th>Gap</th><th>Consequence</th><th>Action</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';
 }
-function renderDeliveryChallenge(data,reason,status){
-  const d=data?.deliveryChallenge;
-  if(!d)return false;
-  const s=d.scheduleChallenge||{},m=d.manpowerChallenge||{},q=d.quantityChallenge||{},p=d.productivityChallenge||{};
-  const contract=data.contractIntelligence||null;
-  const independentDeferred=data.independentForecastState==="deferred";
-  const forecastReview=data.independentForecastReviewReason?'<div class="notice warn"><b>Calendar calculation requires review</b><p>'+escapeHtml(data.independentForecastReviewReason)+'</p></div>':'';
-  const submittedManpower=m.submittedAverageManpower!==null&&m.submittedAverageManpower!==undefined;
-  const measuredHours=m.evidenceRemainingLaborHours!==null&&m.evidenceRemainingLaborHours!==undefined;
-  const mappingCoverage=typeof q.mappingCoveragePercent==="number"?q.mappingCoveragePercent:null;
-  const challengeBody=renderUniversalChallenge(data?.challenge);
-  const gates=moduleEvidenceGate([
-    {label:"Read contract sections",value:contract?fmt(contract.clauseCount||0)+" source sections":"Unresolved",state:contract?.semanticComplete===true&&contract?.signalCount>0?"ready":"partial"},
-    {label:"Explicit headcount plan",value:submittedManpower?"Established":"Headcount not confirmed",state:submittedManpower?"ready":"missing"},
-    {label:"Measured remaining labor hours",value:measuredHours?fmt(m.evidenceRemainingLaborHours)+" h":"Unresolved",state:measuredHours?"ready":"missing"},
-    {label:"BOQ / programme mapping",value:mappingCoverage===null?"Unresolved":fmt(mappingCoverage)+"%",state:mappingCoverage!==null&&mappingCoverage>0?"ready":"missing"},
-    {label:"Calendar calculation",value:independentDeferred?"Reviewed in separate view":s.independentCompletionIso?planningShortDate(s.independentCompletionIso):"Unresolved",state:data.independentForecastState==="review_required"?"partial":s.independentCompletionIso?"ready":"missing"}
-  ]);
-  const scheduleCards=forecastReview+planningKpis([
-    ["Submitted finish",planningShortDate(s.contractorSubmittedCompletionIso),"current programme"],
-    ["Contract finish",planningShortDate(s.contractualCompletionIso),"Confirmed contract date"],["Submitted vs contract",s.contractorSubmittedCompletionIso&&s.contractualCompletionIso?fmt(planningCalendarDaysBetween(s.contractualCompletionIso,s.contractorSubmittedCompletionIso))+" calendar days":"Unresolved","submitted finish minus contractual completion"],
-    ["Calendar-calculated finish",independentDeferred?"Separate review":planningShortDate(s.independentCompletionIso),independentDeferred?"not repeated here":"CMeng calculation",independentDeferred?"warning":""],
-    ["Average concurrent activities",s.averageConcurrentWorkFronts,"task concurrency; work fronts not confirmed"],
-    ["Peak concurrent activities",s.peakConcurrentWorkFronts,"task concurrency; work fronts not confirmed"]
-  ]);
-  const manpowerScenarioRows=m.scheduleDerivedScenarios||[];
-  const manpowerScenarios=manpowerScenarioRows.map(x=>'<tr><td>'+escapeHtml(x.crewSize)+'</td><td>'+escapeHtml(fmt(x.averageManpower))+'</td><td>'+escapeHtml(fmt(x.peakManpower))+'</td><td><span class="state-pill review">Scenario</span></td></tr>').join("");
-  const manpowerScenarioBars=moduleBarList(manpowerScenarioRows.map(x=>({label:fmt(x.crewSize)+" assumed people / concurrent task",value:typeof x.averageManpower==="number"?x.averageManpower:null,tone:"warning"})).filter(x=>x.value!==null),"warning","people");
-  const labor=data.sourceLaborEvidence;
-  const laborSummary=labor?'<div class="notice info"><b>Supplied labor evidence is available</b><p>'+escapeHtml(labor.basis)+'</p>'+planningKpis([["Labor resources",labor.laborResourceCount,"source identities"],["Planned labor hours",fmt(labor.plannedHours)+" h","Full register period"],["Planned hours through DD",fmt(labor.plannedHoursToDataDate)+" h","weekly source periods"],["Approved actual hours through DD",fmt(labor.actualHoursToDataDate)+" h","weekly source periods"]])+'</div>':'';
-  const manpower=laborSummary+'<section class="planning-panel"><div class="planning-panel-head"><div><h4>Manpower evidence and illustrative sensitivity</h4><p>Activity concurrency does not establish crews or executable work fronts. Task-to-person multipliers are shown only when explicitly supplied. Source-hour headcount comparisons are shown below.</p></div></div><div class="planning-panel-body">'+planningKpis([
-    ["Submitted average headcount",submittedManpower?fmt(m.submittedAverageManpower):"Unresolved","people",submittedManpower?"":"warning"],
-    ["Submitted peak headcount",m.submittedPeakManpower===null||m.submittedPeakManpower===undefined?"Unresolved":fmt(m.submittedPeakManpower),"people",m.submittedPeakManpower===null||m.submittedPeakManpower===undefined?"warning":""],
-    ["Measured remaining hours",measuredHours?fmt(m.evidenceRemainingLaborHours)+" h":"Unresolved","",measuredHours?"":"warning"],
-    ["Required average to contract",m.requiredAverageManpowerToContract===null||m.requiredAverageManpowerToContract===undefined?"Not derivable":fmt(m.requiredAverageManpowerToContract),"scenario unless measured basis supports it",m.requiredAverageManpowerToContract===null||m.requiredAverageManpowerToContract===undefined?"warning":"accent"]
-  ])+(manpowerScenarios?'<details style="margin-top:10px"><summary>Optional task-concurrency staffing assumptions</summary>'+manpowerScenarioBars+'<div class="table-wrap" style="margin-top:8px"><table><thead><tr><th>Assumed multiplier per concurrent task</th><th>Average manpower</th><th>Peak manpower</th><th>Authority</th></tr></thead><tbody>'+manpowerScenarios+'</tbody></table></div></details>':'')+'</div></section>';
-  const quantityRows=(q.byUnit||[]).map(x=>'<tr><td>'+escapeHtml(x.unit)+'</td><td>'+escapeHtml(fmt(x.contractQuantity))+'</td><td>'+escapeHtml(fmt(x.mappedContractQuantity))+'</td><td>'+escapeHtml(fmt(x.installedQuantity))+'</td><td>'+escapeHtml(fmt(x.remainingQuantity))+'</td><td>'+escapeHtml(fmt(x.requiredPerDayToContract))+'</td><td>'+escapeHtml(x.mappingCoveragePercent===null?"—":fmt(x.mappingCoveragePercent)+"%")+'</td></tr>').join("");
-  const quantity=(data.boqSource?.state==='candidate'?'<div class="notice info"><b>BOQ source candidate</b><p>'+escapeHtml(data.boqSource.sourceFilename||'Source BOQ')+' · unadopted BOQ quantities; this does not establish an approved contract quantity basis or installed progress.</p></div>':'')+'<section class="planning-panel"><div class="planning-panel-head"><div><h4>Quantity and productivity basis</h4><p>Productivity conclusions depend on confirmed mapping and measured installed quantities.</p></div></div><div class="planning-panel-body">'+planningKpis([
-    ["Known quantity mapping coverage",mappingCoverage===null?"Unresolved":fmt(mappingCoverage)+"%","known quantities only; item gaps counted separately",mappingCoverage===null?"warning":""],
-    ["Ambiguous BOQ items",q.mappingPopulationEstablished?fmt(q.ambiguousMappingItemCount):"Not assessable","items",q.ambiguousMappingItemCount?"warning":""],
-    ["Unmapped BOQ items",q.mappingPopulationEstablished?fmt(q.unmappedItemCount):"Not assessable","items",q.unmappedItemCount?"warning":""],
-    ["Productivity source forecast",data.sourceProductivityForecast?.completionIso?planningShortDate(data.sourceProductivityForecast.completionIso):"Not in the data","schedule and quantity links require review"]
-  ])+(quantityRows?'<div class="table-wrap" style="margin-top:12px"><table><thead><tr><th>Unit</th><th>Source BOQ qty</th><th>Mapped qty</th><th>Installed</th><th>Remaining</th><th>Required/day</th><th>Map coverage</th></tr></thead><tbody>'+quantityRows+'</tbody></table></div>':'')+'</div></section>';
-  const findings=(d.findings||[]).map(x=>'<tr><td>'+escapeHtml(x.topic)+'</td><td>'+escapeHtml(humanizeKey(x.state))+'</td><td>'+escapeHtml(humanizeIsoText(x.contractorAssumption||"—"))+'</td><td>'+escapeHtml(humanizeIsoText(x.independentCalculation||"—"))+'</td><td>'+escapeHtml(humanizeIsoText(x.difference||"—"))+'</td><td>'+escapeHtml(humanizeIsoText(x.milestoneConsequence||"—"))+'</td><td>'+escapeHtml(humanizeIsoText(x.requiredResponse||"—"))+'</td></tr>').join("");
+function renderContractSourceContext(contract){
   const contractCategoryCounts=contract?(contract.signals||[]).reduce((map,signal)=>{const label=humanizeKey(signal.category||"other");map.set(label,(map.get(label)||0)+1);return map},new Map()):new Map();
   const contractCategoryItems=[...contractCategoryCounts.entries()].sort((a,b)=>b[1]-a[1]).map(([label,value])=>({label,value,tone:"accent"}));
   const contractCategoryBars=renderVisualBars(contractCategoryItems);
-  const readyGateCount=[contract?.semanticComplete===true&&contract?.signalCount>0,submittedManpower,measuredHours,mappingCoverage!==null&&mappingCoverage>0,data.independentForecastState==="calculated"&&!!s.independentCompletionIso].filter(Boolean).length;
-  const challengeVisuals='<div class="visual-chart-grid">'+
-    renderVisualPanel("Information for this assessment","Documents and figures available for the delivery review.",renderDonutChart([
-      {label:"Established",value:readyGateCount,tone:"success"},
-      {label:"Missing / review",value:5-readyGateCount,tone:"warning"}
-    ],"Assessment requirements"))+
-    renderVisualPanel("Contract review signals","Contract topic occurrences require review; repeated wording is grouped below.",contractCategoryCounts.size?renderDonutChart(contractCategoryItems,"Signals"):'<div class="empty-visual">Contract review signals are not confirmed.</div>')+
-  '</div>';
   const contractSources=contract?.sourceDocuments?.length?'<div class="table-wrap"><table><thead><tr><th>Source document</th><th>Role / authority</th><th>Clauses</th><th>Topic occurrences</th><th>Notice-pattern matches</th><th>Initial-claim period read</th></tr></thead><tbody>'+contract.sourceDocuments.map(x=>'<tr><td>'+escapeHtml(x.sourceFilename)+'</td><td>'+escapeHtml(humanizeKey(x.role))+' / '+escapeHtml(humanizeKey(x.basisState))+'</td><td>'+escapeHtml(fmt(x.clauseCount))+'</td><td>'+escapeHtml(fmt(x.signalCount))+'</td><td>'+escapeHtml(fmt(x.noticeCandidateCount))+'</td><td>'+escapeHtml((x.initialClaimPeriods||[]).map(n=>fmt(n)+' days').join('; ')||'Not read')+'</td></tr>').join('')+'</tbody></table></div>':'';
   const signalGroups=new Map();
   for(const signal of contract?.signals||[]){const key=[signal.documentId,signal.category,signal.textSnippet].join('|');const group=signalGroups.get(key)||{...signal,occurrences:0};group.occurrences++;signalGroups.set(key,group);}
@@ -799,22 +706,31 @@ function renderDeliveryChallenge(data,reason,status){
     ["Contract wording groups",contract.uniqueWordingSignalCount??null,"identical text grouped within each document"],["Source topic occurrences",contract.signalCount??contract.signals?.length??0,"retained trace; not separate defects"],
     ["Notice-pattern matches",contract.noticeRequirementCandidates?.length??0,"pattern hits; several may occur in one clause"],
     ["Categories",(contract.categoriesPresent||[]).length,"identified"]
-  ])+(contract.countingBasis?'<p>'+escapeHtml(contract.countingBasis)+'</p>':'')+contractSources+contractTrace+(contractCategoryCounts.size?'<div class="nested-title" style="margin-top:14px">Signals by contract topic</div>'+contractCategoryBars:'')+'</div></section>':'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Contract review</h4></div></div><div class="planning-panel-body"><div class="notice warn">A parsed contract is required before CMeng can challenge clauses, notice obligations or contractual time provisions.</div></div></section>';
-  const reconciliation=challengeBody?'<details class="reconciliation-panel"><summary><span>Comparison with the submitted position</span><b>'+escapeHtml(reconciliationSummary(data.challenge))+'</b></summary><div class="reconciliation-body">'+challengeBody+'</div></details>':'';
-  let html='<section class="planning-view contract-challenge-view">'+renderBasisReviews(data,"challenge-contract")+challengeVisuals+'<section class="planning-panel"><div class="planning-panel-head"><div><h4>Information for this assessment</h4><p>CMeng does not present a scenario as an official project fact.</p></div><span class="badge '+(d.position==="challenged"||d.position==="material_delivery_gap"?"partial":"")+'">'+escapeHtml(humanizeKey(d.position))+'</span></div><div class="planning-panel-body">'+gates+'</div></section>'+scheduleCards+'<div class="planning-primary-grid">'+contractSummary+manpower+'</div>'+quantity;
-  if(findings)html+='<section class="planning-panel"><div class="planning-panel-head"><div><h4>Delivery challenge findings</h4><p>Management issues, consequence and required response.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Topic</th><th>State</th><th>Contractor position</th><th>CMeng analysis</th><th>Gap</th><th>Consequence</th><th>Required response</th></tr></thead><tbody>'+findings+'</tbody></table></div></div></section>';
-  if(data.contractValueEvidence&&!data.contractValueBasisReview){
-    const cv=data.contractValueEvidence,governed=cv.governed,candidate=cv.extraction?.value;
-    html+='<section class="planning-panel"><div class="planning-panel-head"><div><h4>Contract value</h4><p>Confirmed amount is separate from extracted candidates.</p></div></div><div class="planning-panel-body">'+planningKpis([
-      ["State",humanizeKey(cv.state||"missing"),""],
-      ["Confirmed amount",governed?fmt(governed.amount)+" "+(governed.currency||""):"Unresolved",""],
-      ["Extracted candidate",candidate?fmt(candidate.amount)+" "+(candidate.currency||""):"—","candidate only"]
-    ])+'</div></section>';
-  }
-  html+=reconciliation+'</section>';
-  const basisHtml=renderModuleBasis(data);
-
-  el("moduleContent").innerHTML=renderPositionVerdict(data)+renderRegisterScope(data)+basisHtml+renderRoleContent("challenge-contract",data,html,"",true)+experienceReviewSummary(data.issueAssessment)+renderModuleReadiness(data,reason);
+  ])+(contract.countingBasis?'<p>'+escapeHtml(contract.countingBasis)+'</p>':'')+contractSources+contractTrace+(contractCategoryCounts.size?'<div class="nested-title" style="margin-top:14px">Signals by contract topic</div>'+contractCategoryBars:'')+'</div></section>':'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Contract review</h4></div></div><div class="planning-panel-body"><div class="notice warn">Contract context is unresolved: provide readable contract terms for milestone and obligation references. Delivery review can use the available schedule and resource evidence.</div></div></section>';
+  return contractSummary;
+}
+function renderDeliveryChallenge(data,reason,status){
+  const d=data?.deliveryChallenge;if(!d)return false;
+  const f=data.boqFeasibility||{rows:[],activityChecks:[],overallStatus:"Unable to assess",reason:"Current quantity and productivity assessment is unresolved."};
+  const pc=f.programmePc||{},s=d.scheduleChallenge||{};
+  const value=x=>x===null||x===undefined?"Unresolved":fmt(x);
+  const table=(heads,rows,empty)=>'<div class="table-wrap"><table><thead><tr>'+heads.map(h=>'<th>'+escapeHtml(h)+'</th>').join('')+'</tr></thead><tbody>'+(rows.length?rows.map(r=>'<tr>'+r.map(v=>'<td>'+escapeHtml(v)+'</td>').join('')+'</tr>').join(''):'<tr><td colspan="'+heads.length+'">'+escapeHtml(empty)+'</td></tr>')+'</tbody></table></div>';
+  const panel=(title,copy,body)=>'<section class="planning-panel"><div class="planning-panel-head"><div><h4>'+escapeHtml(title)+'</h4><p>'+escapeHtml(copy)+'</p></div></div><div class="planning-panel-body">'+body+'</div></section>';
+  const activities=f.activityChecks||[];
+  const sourceHours=data.sourceLaborEvidence;
+  const hours=sourceHours?planningKpis([["Submitted planned labor hours",sourceHours.plannedHours,"supplied register period"],["Recorded hours through reporting date",sourceHours.actualHoursToDataDate,"labor source; not automatically certified utilization"]]):'';
+  const manpower=panel('1. Challenge manpower plan','Remaining quantities × supported labor hours per unit, distributed over each activity’s source-calendar working time. Supplied resource loading is compared on that same basis.',
+    planningKpis([["Independent remaining labor requirement",value(f.requiredLaborHours),"labor hours; entire BOQ only when all item calculations are established"],["Items requiring information",f.unresolvedCount??'Unresolved',f.reason]])+hours+
+    table(['Activity','Required labor hours','Available working hours','Required average people','Submitted people','Submitted minus required','Assessment'],activities.slice(0,100).map(r=>[r.activityId,value(r.requiredLaborHours),value(r.availableWorkingHours),value(r.requiredAveragePeople),value(r.submittedPeople),value(r.manpowerGap),r.scheduleState==='exceeds'?'Insufficient for the planned period':r.scheduleState==='fits'?'Adequate for this activity calculation':'Unresolved: '+r.reason]),'Unresolved: confirm BOQ-to-activity links, remaining quantities, productivity and resource loading.'));
+  const programme=panel('2. Challenge current schedule','Programme PC compares the same explicit milestone in baseline and current revisions. Quantity-driven finish checks use supported production rates and resource capacity.',
+    planningKpis([["Baseline Programme PC",pc.baseline?.dateIso?planningShortDate(pc.baseline.dateIso):'Unresolved',pc.baseline?.reason||pc.reason||'Baseline milestone not established'],["Current Programme PC",pc.current?.dateIso?planningShortDate(pc.current.dateIso):'Unresolved',pc.current?.reason||'Current milestone not established'],["Baseline-to-current PC movement",pc.movementDays==null?'Unresolved':fmt(pc.movementDays)+' calendar days',pc.reason||'Comparable milestones not established'],["Submitted completion",s.contractorSubmittedCompletionIso?planningShortDate(s.contractorSubmittedCompletionIso):'Unresolved','separate from the Programme PC milestone comparison'],["Independent calendar calculation",s.independentCompletionIso?planningShortDate(s.independentCompletionIso):'Unresolved',data.independentForecastReviewReason||'Uses the current programme logic and readable calendars']])+
+    table(['Activity','Submitted finish','Quantity-driven finish','Assessment','Reason'],activities.slice(0,100).map(r=>[r.activityId,r.submittedFinishIso?planningShortDate(r.submittedFinishIso):'Unresolved',r.productionFinishIso?planningShortDate(r.productionFinishIso):'Unresolved',r.scheduleState==='exceeds'?'Exceeds planned period':r.scheduleState==='fits'?'Fits planned period':'Unresolved',r.reason]),'Unresolved: productivity and activity-linked resource capacity are required.'));
+  const findings=activities.slice(0,100).map(r=>[r.activityId,r.submittedPeople==null?'Unresolved':fmt(r.submittedPeople)+' people',r.requiredAveragePeople==null?'Unresolved':fmt(r.requiredAveragePeople)+' required average people',r.manpowerGap==null?'Unresolved':fmt(r.manpowerGap)+' people',r.scheduleState==='exceeds'?'Quantity-driven finish exceeds the submitted activity finish':r.scheduleState==='fits'?'No contradiction in this activity calculation':'Unresolved: '+r.reason,r.scheduleState==='exceeds'?'Revise activity resources, productivity support or duration and assess the programme effect':r.scheduleState==='fits'?'Confirm trade availability, shared resources and sequencing':r.reason]);
+  const combined=panel('3. Combined delivery challenge','Submitted → Independent → Gap → Consequence → Action. Whole-programme feasibility also depends on sequencing and resources shared between activities.',table(['Activity','Submitted','Independent','Gap','Consequence','Action'],findings,'Unable to assess: the evidence needed for an independent production comparison is not established.'));
+  const calculations=panel('Quantity and productivity calculations','Each BOQ item retains its quantity unit and evidence basis. Inferred mappings, missing actual quantities and missing productivity are unresolved.',table(['BOQ item','Activity','Remaining quantity','Unit','Labor hours per unit','Rate basis','Required labor hours','Reason'],(f.rows||[]).slice(0,100).map(r=>[r.quantityItemId,r.activityId||'Unresolved',value(r.remainingQuantity),r.unit||'Unresolved',value(r.laborHoursPerUnit),humanizeKey(r.productivityBasis),value(r.requiredLaborHours),r.reason]),f.reason));
+  const scope='<p>Showing up to 100 activity and BOQ rows in each table. All '+fmt(activities.length)+' activity checks and '+fmt((f.rows||[]).length)+' BOQ item records remain in the Excel and data downloads.</p>';
+  const html='<section class="planning-view contract-challenge-view"><div class="notice info"><b>'+escapeHtml(f.overallStatus)+'</b><p>'+escapeHtml(f.reason)+'</p><p>This tests delivery assumptions. It does not interpret legal clauses, establish causation or EOT, or create a replacement programme. Missing evidence remains unresolved.</p></div>'+manpower+programme+combined+'<details class="management-detail"><summary>Supporting quantities, productivity and source evidence</summary>'+scope+calculations+renderBasisReviews({...data,contractValueBasisReview:null},'challenge-contract')+'</details></section>';
+  el('moduleContent').innerHTML=renderModuleBasis(data)+renderRoleContent('challenge-contract',data,html,'',true)+experienceReviewSummary(data.issueAssessment)+renderModuleReadiness(data,reason);
   return true;
 }
 function resourceUnitLabel(unit){
@@ -3417,7 +3333,7 @@ function renderCommercialVisual(key,data){
       ...(cn.notices||[]).map(row=>({type:"Notice",id:row.noticeId,refs:row.sourceRefs||[]}))
     ].filter(row=>row.refs.length).map(row=>'<tr><td>'+escapeHtml(row.type)+'</td><td><b>'+escapeHtml(row.id)+'</b></td><td>'+escapeHtml(row.refs.join(", "))+'</td></tr>');
     const evidenceTrace='<details class="management-detail"><summary>Evidence & technical trace <span>'+escapeHtml(fmt(evidenceTraceRows.length))+' linked records</span></summary><div class="planning-panel-body">'+table(["Record type","Record","Evidence references"],evidenceTraceRows,"No technical evidence references are attached.")+'</div></details>';
-    detail='<section class="planning-panel primary commercial-claims-management"><div class="planning-panel-head"><div><h4>Commercial Claims & Notices Management Position</h4><p>This is the financial view of the same claim identities used in Delay & Time Entitlement. Counts are shared, not additional claims; reported register amounts and dated decisions remain separate.</p></div></div><div class="planning-panel-body">'+
+    detail='<section class="planning-panel primary commercial-claims-management"><div class="planning-panel-head"><div><h4>Financial claim review</h4><p>This is the financial view of the same claim identities used in Delay & Time Entitlement. Counts are shared, not additional claims; reported register amounts and dated decisions remain separate.</p></div></div><div class="planning-panel-body">'+
       planningKpis([
         ["Lifecycle claims by Data Date",countPosition(cn.state,cn.lifecycleClaimCount,"claims"),"current population; historical stage dates incomplete"],
         ["Commercial claim rows",countPosition(cn.state,cn.commercialClaimCount,"rows"),"currency-specific money register"],
@@ -3481,7 +3397,7 @@ function renderCommercialVisual(key,data){
   if(key==="cost-forecast"){
     return '<section class="planning-view commercial-view cost-forecast-enterprise">'+temporalWarning+temporalScope+
       performanceDetail+
-      commercialSummaryPanel('Cost & Forecast Executive Position','Original and current contract sums are not procurement commitments. Valued purchase orders or subcontracts are needed for a commitment position. Currency and source status remain separate.')+
+      commercialSummaryPanel('Cost outlook summary','Original and current contract sums are not procurement commitments. Valued purchase orders or subcontracts are needed for a commitment position. Currency and source status remain separate.')+
       time+
       registerVisual+
       experienceDisclosure('Cost register and work breakdown',foundationDetail,'Review source mapping')+
@@ -3529,7 +3445,7 @@ function renderCommercialVisual(key,data){
     return '<section class="planning-view commercial-view contract-particulars-enterprise">'+temporalWarning+temporalScope+
       commercialSummaryPanel('Contract Value & Security Position by Currency','Contract and security amounts are shown by currency, with the status of each supporting record.')+
       '<div class="notice info"><b>'+fmt(contractControls?.contractObligations?.candidateCount??contractControls?.contractObligations?.rows?.filter(r=>r.origin==='contract_clause_candidate').length??0)+' requirement wording groups</b><p>Source wording is available for review. Obligation owners, due dates, compliance and security instruments require their own records.</p></div>'+
-      experienceDisclosure('Contract wording, obligations and securities',contractControlDetail+foundationDetail+detail,'Complete wording, document references and missing records')+
+      experienceDisclosure('Contract wording, obligations and securities',contractControlDetail+foundationDetail+detail+renderContractSourceContext(data.contractSourceContext),'Complete wording, document references and missing records')+
       time+
       evidencePanel+
       '</section>';

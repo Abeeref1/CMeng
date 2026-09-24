@@ -1262,9 +1262,9 @@ export function buildDeliveryChallengeProjection(
           diagnostics: [],
         };
 
-  const workHoursPerPersonDay =
-    input.workHoursPerPersonDay ??
-    8;
+  const workHoursPerPersonDay = typeof input.workHoursPerPersonDay === 'number' &&
+    Number.isFinite(input.workHoursPerPersonDay) && input.workHoursPerPersonDay > 0
+      ? input.workHoursPerPersonDay : null;
   const contractDays =
     days(
       schedule.dataDateIso,
@@ -1281,7 +1281,7 @@ export function buildDeliveryChallengeProjection(
       .remainingLaborHours !==
       null &&
     contractDays !== null &&
-    contractDays > 0
+    contractDays > 0 && workHoursPerPersonDay !== null
       ? Number(
           (
             productivity
@@ -1299,7 +1299,7 @@ export function buildDeliveryChallengeProjection(
       .remainingLaborHours !==
       null &&
     contractorDays !== null &&
-    contractorDays > 0
+    contractorDays > 0 && workHoursPerPersonDay !== null
       ? Number(
           (
             productivity
@@ -1521,8 +1521,8 @@ export function buildDeliveryChallengeProjection(
                   ) +
                   "."
             )
-          : "Required average manpower to contractual completion=" +
-            requiredAverageToContract,
+          : "Hours-based staffing scenario to contractual completion=" +
+            requiredAverageToContract + " people, using " + workHoursPerPersonDay + " working hours per person per calendar day.",
       difference:
         manpowerGapPercent === null
           ? null
@@ -1546,7 +1546,9 @@ export function buildDeliveryChallengeProjection(
           ? "Submitted manpower does not currently support the contractual completion scenario."
           : null,
       requiredResponse:
-        submitted.average === null
+        workHoursPerPersonDay === null && productivity.remainingLaborHours !== null
+          ? "Provide working hours per person per calendar day, including non-working days, before converting remaining assignment hours into headcount."
+          : submitted.average === null
           ? "Provide the periodised manpower plan by trade/work front, or validate the concurrent-task staffing assumptions."
           : manpowerGapPercent !==
                 null &&
@@ -1837,6 +1839,15 @@ export function buildDeliveryChallengeProjection(
         productivity.rows,
     },
     manpowerChallenge: {
+      workHoursPerPersonDay,
+      headcountCalculationState: requiredAverageToContract === null ? 'unresolved' : 'scenario',
+      headcountCalculationReason: productivity.remainingLaborHours === null
+        ? 'Remaining labor assignment hours are not established.'
+        : workHoursPerPersonDay === null
+          ? 'Working hours per person per calendar day have not been supplied.'
+          : contractDays === null || contractDays <= 0
+            ? 'A positive remaining period to contractual completion is not established.'
+            : 'Remaining assignment hours divided by calendar days and the supplied working-hours assumption; this is a staffing scenario, not measured attendance.',
       submittedPlanAvailable:
         input.submittedManpowerPlan !==
         null &&
@@ -1864,6 +1875,9 @@ export function buildDeliveryChallengeProjection(
     mapping,
     findings,
     assumptions: [
+      workHoursPerPersonDay === null
+        ? 'No working-hours assumption was supplied; hours-based headcount remains unresolved.'
+        : 'Headcount scenarios use the supplied ' + workHoursPerPersonDay + ' working hours per person per calendar day, including non-working days.',
       "Inferred BOQ-to-activity links are scenario candidates unless backed by confirmed allocations.",
       "Where a BOQ item has several similarly strong activity candidates, scenario quantity is distributed by remaining duration and remains review-required.",
       crewSizes.length

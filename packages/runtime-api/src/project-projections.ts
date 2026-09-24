@@ -1,3 +1,4 @@
+import {deliveryFeasibilityForState} from './delivery-feasibility';
 import {registerReadIssuesForModule} from './register-read-issues';
 import {checkPageValues} from './page-value-checks';
 import {sourceQualityPosition,withPositionVerdict} from './position-review';
@@ -123,6 +124,7 @@ import {
   runtimeProjects,
 } from "./project-state";
 import {
+  moduleRegistry,
   commercialModules,
   scheduleModules,
 } from "./registry";
@@ -2191,7 +2193,6 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
         "resource/manpower evidence when available",
       ],
       (
-        challengeContract !== null &&
         deliveryChallenge.position !==
           "not_yet_supportable" &&
         deliveryChallenge.position !==
@@ -2199,9 +2200,7 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
       )
         ? "ready"
         : "partial",
-      challengeContract === null
-        ? "Delivery challenge is available, but contractual clause intelligence is unavailable until a contract is loaded."
-        : deliveryChallenge.position ===
+      deliveryChallenge.position ===
             "not_yet_supportable"
           ? "Delivery challenge cannot yet be fully supported by the available evidence."
           : deliveryChallenge.position ===
@@ -2275,7 +2274,7 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
           "contractor manpower plan when available",
         ],
         "partial",
-        "No resource-loaded schedule was submitted. CMeng still derives 4/6/8 crew work-front scenarios and compares any submitted manpower plan instead of returning Unavailable.",
+        "No resource-loaded schedule was submitted. Manpower remains unresolved unless a headcount plan or an explicit staffing assumption is supplied. Concurrent activities alone do not establish crews.",
       ),
     );
 
@@ -2283,6 +2282,7 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
       deliveryChallenge
         .scheduleChallenge
         .remainingDurationDays;
+    const scenarioHoursPerPersonDay = deliveryChallenge.manpowerChallenge.workHoursPerPersonDay;
     const manhourScenarios =
       deliveryChallenge
         .manpowerChallenge
@@ -2299,7 +2299,7 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
           remainingScenarioHours:
             remainingDays !==
               null &&
-            remainingDays > 0 &&
+            remainingDays > 0 && scenarioHoursPerPersonDay !== null &&
             scenario
               .averageManpower !==
               null
@@ -2308,12 +2308,14 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
                     remainingDays *
                     scenario
                       .averageManpower *
-                    8
+                    scenarioHoursPerPersonDay
                   ).toFixed(4),
                 )
               : null,
           basis:
-            "8 hours/person/day",
+            scenarioHoursPerPersonDay === null
+              ? "Unresolved: working hours per person per calendar day have not been supplied."
+              : scenarioHoursPerPersonDay + " supplied working hours/person/calendar day",
           authority:
             "schedule_derived_scenario",
         }));
@@ -2351,7 +2353,7 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
           "labor assignments when available",
         ],
         "partial",
-        "No confirmed labor assignments were submitted. CMeng derives scenario remaining man-hours from concurrent work fronts and clearly labels them as scenarios.",
+        "No confirmed labor assignments were submitted. Remaining man-hours are unresolved unless an explicit staffing and working-hours basis is supplied.",
       ),
     );
   }
@@ -4368,7 +4370,7 @@ function buildPlanningModuleFast(
           "available specialist evidence",
         ],
         "partial",
-        "Management Position is synthesized from the specialist evidence currently available. Missing cross-domain evidence remains visible instead of being treated as zero.",
+        "Management Brief is synthesized from the specialist evidence currently available. Missing cross-domain evidence remains visible instead of being treated as zero.",
       ),
     );
   }
@@ -6225,8 +6227,6 @@ function buildSpecialistModuleFast(
         "resource and quantity evidence when available",
       ],
       (
-        contractIntelligence !==
-          null &&
         delivery.position !==
           "not_yet_supportable" &&
         delivery.position !==
@@ -6234,10 +6234,7 @@ function buildSpecialistModuleFast(
       )
         ? "ready"
         : "partial",
-      contractIntelligence ===
-        null
-        ? "Contract clause intelligence requires a parsed contract."
-        : delivery.position ===
+      delivery.position ===
             "scenario_only"
           ? "Delivery challenge contains scenarios because measured manpower/productivity evidence is incomplete. Scenario values are not treated as project facts."
           : delivery.position ===
@@ -6547,11 +6544,6 @@ function applyProfessionalModuleState(
         ?.position ??
       null;
     if (
-      contractIntelligence === null ||
-      contractIntelligence
-        .physicalComplete === false ||
-      contractIntelligence
-        .semanticComplete === false ||
       data?.independentForecastState === "review_required" ||
       data?.deliveryChallenge?.findings?.some((finding: any) => ["missing_evidence", "scenario"].includes(finding.state)) ||
       deliveryPosition ===
@@ -6560,15 +6552,13 @@ function applyProfessionalModuleState(
         "scenario_only"
     ) {
       review(
-        contractIntelligence === null
-          ? "Contract clause intelligence is not established; delivery scenarios remain separate from contractual findings."
-          : deliveryPosition ===
+        deliveryPosition ===
                 "scenario_only"
             ? "Delivery challenge contains programme-derived scenarios because measured manpower/productivity evidence is incomplete; scenario values are not project facts."
             : deliveryPosition ===
                   "not_yet_supportable"
               ? "The delivery challenge cannot yet be supported by the available measured evidence."
-              : "The contract challenge position is not yet supportable from a complete confirmed contract evidence basis.",
+              : "The delivery comparison has unresolved quantity, productivity, resource or calendar evidence.",
       );
     }
   }
@@ -6692,11 +6682,11 @@ function applyProfessionalModuleState(
                   claims
                     .lifecycleClaimCount,
                 ) +
-                " lifecycle claims have confirmed commercial-money linkage; Claims & Notices is not yet fully commercially defensible."
+                " lifecycle claims have confirmed commercial-money linkage; Financial Claims requires review of its money linkage."
             : String(
                 noticeEvidenceGaps,
               ) +
-                " notice assessment(s) are missing a confirmed requirement, event date or notice date; Claims & Notices remains under review.",
+                " notice assessment(s) are missing a confirmed requirement, event date or notice date; Financial Claims remains under review.",
         );
       }
     }
@@ -6824,7 +6814,8 @@ function resolveProjectModuleCandidate(state: ProjectRuntimeState, key: string):
         calendarBasisReview:(()=>{const review=reviewScheduleCalendarBasis(model);return {...review,rows:key==='independent-forecast'?review.rows:undefined};})(),
         sourceProductivityForecast:(()=>{const p=sourceProductivityForecastEvidence(state);return {completionIso:p.completionIso,state:p.state,method:p.method,workPackageCount:p.workPackageCount,coveragePercent:p.calculationCoveragePercent,driverWorkPackageIds:p.driverWorkPackageIds,concentration:p.concentration,sourceRefs:p.sourceRefs};})(),
       }:{}),
-      ...(key==='challenge-contract'?{sourceLaborEvidence:laborEvidence?{
+      ...(key==='contract-particulars-bonds'?{contractSourceContext:contractChallengeForState(state,new Date().toISOString())}:{}),
+      ...(key==='challenge-contract'?{boqFeasibility:deliveryFeasibilityForState(state),sourceLaborEvidence:laborEvidence?{
         state:'source',laborResourceCount:laborEvidence.laborResourceCount,plannedHours:laborEvidence.plannedHoursKnown,
         plannedHoursToDataDate:laborEvidence.plannedHoursToDataDate,actualHoursToDataDate:laborEvidence.actualHoursToDataDate,
         sourcePeriodCount:laborEvidence.plannedSourcePeriodCount,dataDateIso:laborEvidence.dataDateIso,
@@ -6949,28 +6940,7 @@ function managementModuleGroup(
   key: string,
   category: string,
 ): string {
-  if (
-    category === "commercial"
-  ) {
-    return "Commercial";
-  }
-  if (
-    category === "progress"
-  ) {
-    return "Progress & Resources";
-  }
-  if (
-    category === "forecast"
-  ) {
-    return "Forecast & Finish";
-  }
-  if (
-    category === "claims" ||
-    category === "contract"
-  ) {
-    return "Delay & Time Entitlement";
-  }
-  return "Programme & Planning";
+  return moduleRegistry.find(module => module.key === key)?.group ?? "Programme & Planning";
 }
 
 function gapState(

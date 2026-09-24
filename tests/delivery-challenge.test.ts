@@ -505,6 +505,7 @@ test("submitted manpower is compared with independently required manpower when a
       generatedAt:
         "2026-06-01T00:00:00.000Z",
       producerVersion: "test",
+      workHoursPerPersonDay: 8,
       schedule: schedule(),
       quantities:
         quantities(),
@@ -575,6 +576,27 @@ test("submitted manpower is compared with independently required manpower when a
   );
 });
 
+
+test('hours-based staffing requires a supplied denominator and keeps optional crew scenarios separate', () => {
+  const input = {generatedAt:'2026-06-01T00:00:00.000Z',producerVersion:'test',schedule:schedule(),quantities:quantities(),resources:resources(),independentForecast:forecast(),contractTimeBasis:contractTime,submittedManpowerPlan:null};
+  for (const hours of [undefined, 0, -1, NaN, Infinity]) {
+    const result = buildDeliveryChallengeProjection({...input,...(hours === undefined ? {} : {workHoursPerPersonDay:hours})});
+    assert.ok(result.manpowerChallenge.evidenceRemainingLaborHours! > 0);
+    assert.equal(result.manpowerChallenge.requiredAverageManpowerToContract, null);
+    assert.equal(result.manpowerChallenge.requiredAverageManpowerToContractorForecast, null);
+    assert.equal(result.manpowerChallenge.headcountCalculationState, 'unresolved');
+    assert.match(result.manpowerChallenge.headcountCalculationReason, /Working hours per person/);
+    assert.deepEqual(result.manpowerChallenge.scheduleDerivedScenarios, []);
+  }
+  const result = buildDeliveryChallengeProjection({...input,workHoursPerPersonDay:6,crewScenarios:[4,6,8]});
+  const m = result.manpowerChallenge;
+  const days = (Date.parse(contractTime.contractualCompletionIso!)-Date.parse(input.schedule.dataDateIso!))/86400000;
+  assert.equal(m.requiredAverageManpowerToContract, Number((m.evidenceRemainingLaborHours!/(days*6)).toFixed(4)));
+  assert.equal(m.headcountCalculationState, 'scenario');
+  assert.equal(m.workHoursPerPersonDay, 6);
+  assert.deepEqual(m.scheduleDerivedScenarios.map(s=>s.crewSize), [4,6,8]);
+  assert.ok(result.assumptions.some(s=>s.includes('supplied 6 working hours')));
+});
 
 test("non-hour labor UOM is not silently converted into manpower hours", () => {
   const r =
