@@ -16,19 +16,19 @@ function renderCommercialExceptions(position,key,data){
       a.map(r=>'<p>Reported change total at '+escapeHtml(planningShortDate(r.asOf))+': '+escapeHtml(money(r.amount,g.currency))+'. Difference from approvals dated by that date: <b>'+escapeHtml(money(r.difference,g.currency))+'</b>.</p>').join('');
     const detail=(g.amendments||[]).map(r=>'<p>Amendment '+escapeHtml(r.sourceFilename||r.documentId)+' effective '+escapeHtml(planningShortDate(r.effectiveDate))+' states '+escapeHtml(money(r.amount,g.currency))+'. At that date, '+fmt(r.atEffectiveDate.count)+' approvals total '+escapeHtml(money(r.atEffectiveDate.amount,g.currency))+'. A further '+fmt(r.afterEffectiveThroughDataDate.count)+' approvals total '+escapeHtml(money(r.afterEffectiveThroughDataDate.amount,g.currency))+' through Data Date.</p>').join('')+
       basisTable(['Amount exception','Approval date','Source amount','Other approved rows total','Other amounts range','Reporting scope'],exceptions.map(r=>[r.id,planningShortDate(r.approvalDate),money(r.amount,g.currency),money(r.otherRecordsAmount,g.currency),money(r.otherMin,g.currency)+' to '+money(r.otherMax,g.currency),humanizeKey(r.scope)]))+
-      '<p>'+escapeHtml(g.interpretation)+'</p><p><b>Source-owner action:</b> provide the amendment-to-variation reconciliation and supporting approval for the listed amount exceptions.</p>';
-    html+=basisPanel('Variation amounts need a dated reconciliation · '+(g.currency||'?'),humanizeKey(g.taxBasis)+' tax basis',summary+(key==='variations-change'?detail:managementModuleLink('variations-change','Review amendment dates and amount exceptions')),'variationBasisReview');
+      '<p>'+escapeHtml(g.interpretation)+'</p><p><b>Next step:</b> provide the amendment-to-variation reconciliation and supporting approval for the listed amount exceptions.</p>';
+    html+=basisPanel('Compare variation approvals and reported totals · '+(g.currency||'?'),humanizeKey(g.taxBasis)+' tax basis',summary+(key==='variations-change'?detail:managementModuleLink('variations-change','Review amendment dates and amount exceptions')),'variationBasisReview');
   }
   if(['commercial-overview','cost-forecast'].includes(key))for(const r of position.costBasisReview||[]){
     if(position.sourceLedger?.dataDateIso&&r.asOf>position.sourceLedger.dataDateIso)continue;
     const m=data.sourceInterpretation?.progressMeasures,s=m?.scopeComparison;
-    html+=basisPanel('Cost ratios calculate; the amounts still need reconciliation',r.currency+' · '+planningShortDate(r.asOf)+' · '+r.taxBasis,
+    html+=basisPanel('Cost ratios are available; confirm the amounts behind them',r.currency+' · '+planningShortDate(r.asOf)+' · '+r.taxBasis,
       basisTable(['Measure','Value','Comparison basis'],[
         ['PV / BAC',fmt(r.plannedPercentOfBudget)+'%',money(r.pv,r.currency)+' / '+money(r.bac,r.currency)],
         ['EV / BAC',fmt(r.earnedPercentOfBudget)+'%',money(r.ev,r.currency)+' / '+money(r.bac,r.currency)],
-        ...(m?[['Baseline schedule plan',fmt(m.baselinePlannedPercent)+'%','Duration-weighted baseline population'],['Current schedule snapshot',fmt(m.scheduleSnapshotPercent)+'%','Current duration-weighted population'],['Matched schedule snapshot',fmt(s?.snapshotCurrentWeightsPercent)+'%','Matched tasks using current weights; indicative ratio '+fmt(s?.currentWeightRatio)]]:[]),
+        ...(m?[['Baseline schedule plan',fmt(m.baselinePlannedPercent)+'%','Baseline activities, weighted by duration'],['Current schedule snapshot',fmt(m.scheduleSnapshotPercent)+'%','Current activities, weighted by duration'],['Matched schedule snapshot',fmt(s?.snapshotCurrentWeightsPercent)+'%','Matched tasks using current weights; indicative ratio '+fmt(s?.currentWeightRatio)]]:[]),
         ['Actual cost / source certificate-period net',r.actualCostToCertificateRatio==null?'Comparison not assessable':fmt(r.actualCostToCertificateRatio)+' times',money(r.ac,r.currency)+' / '+money(r.certificatePeriodNet,r.currency)+(r.certificateDateMatches?' · same reporting cutoff':' · reporting dates differ')],
-        ['SPI / CPI',fmt(r.spi)+' / '+fmt(r.cpi),'Arithmetic within cost source; cross-source amounts unreconciled']])+ '<p>'+escapeHtml(r.interpretation)+'</p>'+managementModuleLink('progress-report','Review schedule populations')+managementModuleLink('payments','Review certificate components'));
+        ['SPI / CPI',fmt(r.spi)+' / '+fmt(r.cpi),'Arithmetic within cost source; cross-source amounts unreconciled']])+ '<p>'+escapeHtml(r.interpretation)+'</p>'+managementModuleLink('progress-report','Compare the activities included')+managementModuleLink('payments','Review certificate components'));
   }
   if(key==='commercial-overview')for(const g of position.certificateProfile?.groups||[]){
     const t=g.totals||{};

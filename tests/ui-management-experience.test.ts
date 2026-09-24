@@ -245,3 +245,20 @@ test('routine review counts are expandable while failed checks remain an alert',
  const failed=invoke({system_defect:1,missing_information:9});
  assert.match(failed,/role="alert"/);assert.doesNotMatch(failed,/<details/);
 });
+
+test('information request titles use business terms instead of projection field names',()=>{
+ const read=runInNewContext(functions(['readerIssue'])+';readerIssue');
+ for(const [summary,expected] of [['currencies · advanceBalance · information missing','Advance payment balance'],['sourceReadiness · expenditure · information missing','Cash expenditure records'],['progressBases · physical · information missing','Measured physical progress'],['commercialTerms · ldRate · information missing','Delay damages rate']]){
+  const result=read({kind:'missing_information',code:'MISSING_SOURCE_VALUE',summary,action:'Confirm the record',evidencePaths:[],owner:'Project evidence owner'});
+  assert.ok(result.title.startsWith(expected));assert.doesNotMatch(result.title,/currencies|sourceReadiness|progressBases|commercialTerms|advanceBalance|ldRate/);
+ }
+});
+
+test('generic guidance and complete date counts remain available without preceding the page results',()=>{
+ const code=functions(['renderPositionVerdict','renderRegisterScope']);
+ const data={positionVerdict:{specific:false,rag:'amber',label:'Review needed',text:'General guidance',nextAction:'Review documents',owner:'Reviewer',basis:'Status explanation'},reportingContract:{dataDateIso:'2031-04-15',populations:{one:{populationId:'A',entity:'record',name:'Certificates',denominator:2,sourceCount:2,dateBasis:'Certificate date',exclusions:[]}}}};
+ const context={...common,data};
+ assert.equal(runInNewContext(code+';renderPositionVerdict(data)+renderRegisterScope(data)',context),'');
+ const detail=runInNewContext(code+';renderPositionVerdict(data,true)+renderRegisterScope(data,true)',context);
+ assert.match(detail,/General guidance/);assert.match(detail,/Status explanation/);assert.match(detail,/Certificates/);assert.match(detail,/2 \/ 2/);
+});

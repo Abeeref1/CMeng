@@ -38,7 +38,7 @@ function calculateQuantityReview(state:ProjectRuntimeState){
     forecast:{completionIso:forecast.completionIso,state:forecast.state,workPackageCount:forecast.workPackageCount,driverCount:drivers.length,drivers,units:forecastUnits,
       explicitActivityLinkCount:forecast.rows.filter(r=>r.linkedActivityId&&model?.activities.some(a=>a.activityId===r.linkedActivityId)).length,
       sameNumberReviewedCount:numberReview.filter(r=>r.schedulePackages.length===1).length,sameNumberDisciplineMatches:numberReview.filter(r=>r.disciplineMatches).length,numberReview},
-    interpretation:'Section-name suggestions require source-owner review and do not map any BOQ item. Different units are never summed or equated. Matching package numbers do not establish schedule identity. Request the productivity-to-schedule and BOQ crosswalk, quantities by unit, and an explanation of outlying driver quantities.'};
+    interpretation:'Review the suggested section matches before linking BOQ items to activities. Keep quantities in their own units. Package numbers alone do not prove a match. Provide a table linking productivity work packages, programme activities and BOQ items, and explain unusually large remaining quantities.'};
 }
 
 /** Explicit contract-version amounts, independent of cost budget or variation
