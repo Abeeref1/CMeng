@@ -22,7 +22,7 @@ export function contractTermVersions(state:ProjectRuntimeState):ContractTermVers
    const entry=labels.find(([,label])=>label.test(line));if(!entry)continue;
    const [term,label]=entry,match=label.exec(line)!;
    const suffix=line.slice(match.index+match[0].length).replace(/^\s*(?:is|shall be)?\s*[:|=]?\s*/i,'');
-   const amount=/^(?:([A-Z]{3})\s*)?([\d,]+(?:\.\d+)?)\s*(%|percent|(?:calendar\s+|working\s+)?days|[A-Z]{3}\b)?(?:\s*(?:per|\/)\s*(day|week))?/.exec(suffix);
+   const amount=/^(?:([A-Z]{3})\s*)?([\d,]+(?:\.\d+)?)\s*(%|percent|(?:calendar\s+|working\s+)?days|[A-Z]{3}\b)?(?:\s*(?:per|\/)\s*(?:calendar\s+)?(day|week))?/.exec(suffix);
    if(!amount)continue;const value=numberValue(amount[2]!);if(value===null)continue;
    let unit=amount[1]?.toUpperCase()??amount[3]?.toLowerCase()??'';
    if(unit==='percent')unit='%';if(/^[a-z]{3}$/.test(unit)&&unit!=='day')unit=unit.toUpperCase();

@@ -66,7 +66,8 @@ export function activityNearCriticalThresholdHours(
   activity: CanonicalScheduleActivity,
   config: ScheduleAnalysisConfig,
 ): number | null {
-  if(activity.calendarId!==null){const calendar=model.calendars.find(c=>c.calendarId===activity.calendarId);if(!calendar||calendar.semanticComplete===false)return null;}
+  const calendar=activity.calendarId===null?null:model.calendars.find(c=>c.calendarId===activity.calendarId)??null;
+  if(activity.calendarId!==null&&(!calendar||calendar.semanticComplete===false))return null;
   if (
     config.nearCriticalWorkingDays !== undefined &&
     config.nearCriticalWorkingDays !== null
@@ -78,12 +79,6 @@ export function activityNearCriticalThresholdHours(
       return null;
     }
 
-    const calendar =
-      activity.calendarId === null
-        ? null
-        : model.calendars.find(
-            (candidate) => candidate.calendarId === activity.calendarId,
-          ) ?? null;
     const dayHours = calendarWorkingDayHours(calendar);
     return dayHours === null
       ? null
