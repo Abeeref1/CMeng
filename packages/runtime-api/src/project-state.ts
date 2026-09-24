@@ -1,3 +1,6 @@
+import {projectDataDate,projectControlSchedule} from './canonical-time-claims';
+import {readRegisterWorkbook,registerCsv} from './register-workbook';
+import {contractCompletionPosition} from './contract-completion';
 import {appendAuditEvent,auditContext} from './audit-context';
 import {refreshHseSummary} from "./hse-report-evidence";
 import {refreshDeferredPdfRead} from './document-read-review';
@@ -114,194 +117,17 @@ import {
   rebuildDerivedControls,
 } from "./evidence-control-adapters";
 
-function completionDateFromText(
-  text: string,
-): string | null {
-  if (
-    !/(?:revised\s+)?(?:date\s+for\s+)?completion|time\s+for\s+completion/i.test(
-      text,
-    )
-  ) {
-    return null;
-  }
-
-  const isoMatch =
-    /\b(20\d{2})[-\/.](0?[1-9]|1[0-2])[-\/.](0?[1-9]|[12]\d|3[01])\b/.exec(
-      text,
-    );
-  if (isoMatch) {
-    const [, year, month, day] =
-      isoMatch;
-    return [
-      year,
-      month!.padStart(2, "0"),
-      day!.padStart(2, "0"),
-    ].join("-");
-  }
-
-  const dayMonthYear =
-    /\b(0?[1-9]|[12]\d|3[01])\s+(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+(20\d{2})\b/i.exec(
-      text,
-    );
-  if (dayMonthYear) {
-    const parsed = Date.parse(
-      dayMonthYear[0],
-    );
-    if (Number.isFinite(parsed)) {
-      return new Date(parsed)
-        .toISOString()
-        .slice(0, 10);
-    }
-  }
-
-  const monthDayYear =
-    /\b(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+(0?[1-9]|[12]\d|3[01]),?\s+(20\d{2})\b/i.exec(
-      text,
-    );
-  if (monthDayYear) {
-    const parsed = Date.parse(
-      monthDayYear[0],
-    );
-    if (Number.isFinite(parsed)) {
-      return new Date(parsed)
-        .toISOString()
-        .slice(0, 10);
-    }
-  }
-
-  const numeric =
-    /\b(0?[1-9]|[12]\d|3[01])[\/-](0?[1-9]|1[0-2])[\/-](20\d{2})\b/.exec(
-      text,
-    );
-  if (numeric) {
-    const [, day, month, year] =
-      numeric;
-    return [
-      year,
-      month!.padStart(2, "0"),
-      day!.padStart(2, "0"),
-    ].join("-");
-  }
-
-  return null;
-}
-
-function promoteContractTimeBasis(
-  state: ProjectRuntimeState,
-): void {
-  const candidates =
-    state.contractDocuments
-      .filter((document) => {
-        const evidence =
-          state.evidenceDocuments.find(
-            (item) =>
-              item.documentId ===
-              document.documentId,
-          );
-        return (
-          evidence?.basisState ===
-            "active" ||
-          evidence?.basisState ===
-            "additive"
-        );
-      })
-      .flatMap((document) =>
-        document.result.sections.flatMap(
-          (section) => {
-            const date =
-              completionDateFromText(
-                [
-                  section.heading ?? "",
-                  section.text,
-                ].join("\n"),
-              );
-            return date
-              ? [
-                  {
-                    date,
-                    documentId:
-                      document.documentId,
-                    sectionKey:
-                      section.sectionKey,
-                    uploadedAt:
-                      document.uploadedAt,
-                    role:
-                      document.role,
-                  },
-                ]
-              : [];
-          },
-        ),
-      )
-      .sort((a, b) => {
-        const priority = (
-          role:
-            ProjectRuntimeState["contractDocuments"][number]["role"],
-        ) =>
-          role === "amendment"
-            ? 3
-            : role === "replacement"
-              ? 2
-              : role === "main"
-                ? 1
-                : 0;
-        return (
-          priority(a.role) -
-            priority(b.role) ||
-          a.uploadedAt.localeCompare(
-            b.uploadedAt,
-          )
-        );
-      });
-
-  const selected =
-    candidates.at(-1);
-  if (!selected) return;
-
-  const current =
-    state.controls
-      .contractTimeBasis;
-
-  state.controls
-    .contractTimeBasis = {
-    contractualCompletionIso:
-      selected.date,
-    contractualCompletionState:
-      "official",
-    officialApprovedEotDays:
-      current
-        ?.officialApprovedEotDays ??
-      null,
-    officialApprovedEotState:
-      current
-        ?.officialApprovedEotState ??
-      "missing",
-    eotDayBasis:
-      current
-        ?.eotDayBasis ??
-      "unknown",
-    eotDayBasisState:
-      current
-        ?.eotDayBasisState ??
-      "missing",
-    sourceRefs: [
-      ...new Set([
-        ...(
-          current
-            ?.sourceRefs ??
-          []
-        ).filter(
-          (ref) =>
-            !ref.includes(
-              ":contract-completion:",
-            ),
-        ),
-        "evidence-document:" +
-          selected.documentId +
-          ":contract-completion:" +
-          selected.sectionKey,
-      ]),
-    ],
+function promoteContractTimeBasis(state: ProjectRuntimeState): void {
+  const current=state.controls.contractTimeBasis;
+  const asOf=projectDataDate(state);
+  const resolved=contractCompletionPosition(state,asOf);
+  if(!resolved.hasContractDocuments)return;
+  state.controls.contractTimeBasis={...current,
+    contractualCompletionIso:resolved.value,contractualCompletionState:resolved.state,
+    completionReason:resolved.reason,
+    officialApprovedEotDays:current?.officialApprovedEotDays??null,officialApprovedEotState:current?.officialApprovedEotState??'missing',
+    eotDayBasis:current?.eotDayBasis??'unknown',eotDayBasisState:current?.eotDayBasisState??'missing',
+    sourceRefs:[...new Set([...(current?.sourceRefs??[]).filter(r=>!r.includes(':contract-completion:')),...resolved.sourceRefs])],
   };
 }
 
@@ -2047,6 +1873,24 @@ export class RuntimeProjectStore {
     return {refreshedDocumentCount,diagnostics,changedProjects};
   }
 
+  async refreshSpreadsheetRegisters(projectId?:string){
+    let refreshedDocumentCount=0;const diagnostics:string[]=[];
+    for(const state of this.projects.values()){
+      if(projectId&&state.projectId!==projectId)continue;
+      for(const document of state.evidenceDocuments){
+        if(!/spreadsheetml|macroEnabled/.test(document.mediaType)||document.tabularRead?.producerVersion==='register-workbook-v1'&&document.tabularRead.sourceHashSha256===document.sourceHashSha256)continue;
+        try{
+          const bytes=readFileSync(document.storedPath);if(hashBytes(bytes)!==document.sourceHashSha256)throw new Error('SOURCE_HASH_MISMATCH');
+          document.tabularRead=await readRegisterWorkbook(bytes,document.sourceHashSha256,document.documentType);
+          delete state.derivedControlsByDocument[document.documentId];delete state.derivedReadinessByDocument[document.documentId];
+          for(const sheet of document.tabularRead.sheets){const csvBytes=Buffer.from(registerCsv(sheet.rows));const controls=deriveControlsFromCsv({state,document,bytes:csvBytes});const prior=state.derivedControlsByDocument[document.documentId];state.derivedControlsByDocument[document.documentId]=Object.fromEntries(Object.entries(controls).map(([key,value])=>[key,Array.isArray(value)?[...((prior as any)?.[key]??[]),...value]:value]));state.derivedReadinessByDocument[document.documentId]={...state.derivedReadinessByDocument[document.documentId],...deriveReadinessFromCsv({state,document,bytes:csvBytes})};}
+          document.parserState='parsed';rebuildReadinessEvidence(state);rebuildDerivedControls(state);this.touchEvidence(state);refreshedDocumentCount++;
+        }catch(error){diagnostics.push('WORKBOOK_READ_UNRESOLVED:'+document.documentId+':'+String(error));}
+      }
+    }
+    return {refreshedDocumentCount,diagnostics};
+  }
+
   async refreshHseReports(projectId?:string) {
     let refreshedDocumentCount=0;const diagnostics:string[]=[];
     for(const state of this.projects.values()){
@@ -3555,96 +3399,8 @@ export class RuntimeProjectStore {
     this.persistSnapshot();
   }
 
-  latestSchedule(
-    projectId: string,
-  ): StoredScheduleRevision | null {
-    const state =
-      this.projects.get(projectId);
-    if (
-      !state ||
-      state.schedules.length === 0
-    ) {
-      return null;
-    }
-
-    const programmeSchedules =
-      state.schedules.filter(
-        isProgrammeScheduleRevision,
-      );
-    if (
-      programmeSchedules.length ===
-      0
-    ) {
-      return null;
-    }
-
-    const governedActive =
-      state.activeEvidenceBasis[
-        "schedule:control"
-      ]?.activeArtifactId ??
-      null;
-    if (governedActive) {
-      const active =
-        programmeSchedules.find(
-          (item) =>
-            item.revision
-              .revisionId ===
-            governedActive,
-        );
-      if (active) {
-        return active;
-      }
-    }
-
-    const updates =
-      programmeSchedules.filter(
-        (item) =>
-          item.role === "update",
-      );
-    const revisedBaselines =
-      programmeSchedules.filter(
-        (item) =>
-          item.role ===
-          "revised_baseline",
-      );
-    const baselines =
-      programmeSchedules.filter(
-        (item) =>
-          item.role === "baseline",
-      );
-    const nonRecovery =
-      programmeSchedules.filter(
-        (item) =>
-          item.role !== "recovery",
-      );
-    const candidates =
-      updates.length > 0
-        ? updates
-        : revisedBaselines.length > 0
-          ? revisedBaselines
-          : baselines.length > 0
-            ? baselines
-            : nonRecovery.length > 0
-              ? nonRecovery
-              : programmeSchedules;
-
-    return [...candidates]
-      .sort((a, b) => {
-        const ad =
-          a.revision.model.dataDateIso ??
-          a.revision.effectiveAt ??
-          "";
-        const bd =
-          b.revision.model.dataDateIso ??
-          b.revision.effectiveAt ??
-          "";
-        const byDate = ad.localeCompare(bd);
-        return byDate !== 0
-          ? byDate
-          : a.revision.sequence -
-              b.revision.sequence;
-      })
-      .at(-1) ?? null;
+  latestSchedule(projectId:string):StoredScheduleRevision|null {
+    const state=this.projects.get(projectId);return state?projectControlSchedule(state):null;
   }
 
   evidence(
@@ -4862,6 +4618,7 @@ export class RuntimeProjectStore {
         sourceFilename:
           input.sourceFilename,
       });
+    const tabularRead=/spreadsheetml|ms-excel/.test(media)?await readRegisterWorkbook(input.bytes,hash,documentType):undefined;
     const parserState =
       deferFullOcr
         ? "ocr_pending" as const
@@ -4901,6 +4658,7 @@ export class RuntimeProjectStore {
       identification,
       lineage,
       assertions,
+      tabularRead,
       uploadIntent,
       familyKey:
         family.familyKey,
@@ -4922,15 +4680,14 @@ export class RuntimeProjectStore {
       document,
       uploadIntent,
     );
-    if (
-      media.includes("csv")
-    ) {
+    if (media.includes("csv")||tabularRead) {
+      for(const registerBytes of tabularRead?tabularRead.sheets.map(sheet=>Buffer.from(registerCsv(sheet.rows))):[input.bytes]){
       const derived =
         deriveReadinessFromCsv({
           state,
           document,
           bytes:
-            input.bytes,
+            registerBytes,
         });
       if (
         Object.keys(
@@ -4940,7 +4697,7 @@ export class RuntimeProjectStore {
         state
           .derivedReadinessByDocument[
             document.documentId
-          ] = derived;
+          ] = {...state.derivedReadinessByDocument[document.documentId],...derived};
       }
 
       const derivedControls =
@@ -4948,7 +4705,7 @@ export class RuntimeProjectStore {
           state,
           document,
           bytes:
-            input.bytes,
+            registerBytes,
         });
       if (
         Object.keys(
@@ -4958,9 +4715,11 @@ export class RuntimeProjectStore {
         state
           .derivedControlsByDocument[
             document.documentId
-          ] = derivedControls;
+          ] = Object.fromEntries(Object.entries(derivedControls).map(([key,value])=>[key,Array.isArray(value)?[...((state.derivedControlsByDocument[document.documentId] as any)?.[key]??[]),...value]:value]));
       }
 
+      }
+      if(tabularRead)document.parserState="parsed";
       rebuildReadinessEvidence(
         state,
       );
@@ -4979,6 +4738,7 @@ export class RuntimeProjectStore {
         );
       }
     }
+    if(document.documentType==='hse_report')await refreshHseSummary(document);
     this.touchEvidence(state);
     return {
       documentId,
@@ -5217,9 +4977,7 @@ export class RuntimeProjectStore {
       uploadedAt:
         input.uploadedAt,
       role:
-        scheduleRole(
-          input.role,
-        ),
+        (scheduleRole(input.role)==='other' && model.dataDateIso ? 'update' : scheduleRole(input.role)),
     };
 
     state.schedules.push(

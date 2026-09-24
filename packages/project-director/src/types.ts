@@ -250,7 +250,7 @@ export interface ProjectDirectorPosition {
       | "submitted_programme"
       | "none";
     criticalCount: number;
-    nearCriticalCount: number;
+    nearCriticalCount: number | null;
     criticalityBasis:
       "source_total_float";
     independentCpmState:

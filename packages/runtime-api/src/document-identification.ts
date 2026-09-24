@@ -1,3 +1,4 @@
+import {csv,prepareRegisterRows} from '../../truth-kernel/src';
 import { typedEvidenceRoleFromText } from "./typed-evidence-families";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
@@ -2319,12 +2320,21 @@ export async function identifyEvidenceDocument(
     method = "unreadable";
   }
 
-  const classification =
+  let classification =
     classifyText(
       text,
       mediaType,
     );
 
+  if(method==='tabular_content'){
+    const rows=mediaType.includes('csv')?csv(text):text.split(/\r?\n/).map(line=>line.split('|'));
+    const h=prepareRegisterRows(rows,input.declaredDocumentType??'').headers;
+    const schemas:Array<[string,string,EvidenceCategory]>=[['determination id','determination_register','risk_claims_procurement'],['bond id','bond_register','boq_cost'],['risk id','risk_register','risk_claims_procurement'],['ncr id','quality_ncr_register','hse_quality_fm'],['rfi id','rfi_register','engineering'],['package id','procurement_register','risk_claims_procurement'],['claim id','delay_eot_claims_register','risk_claims_procurement'],['variation id','variation_register','boq_cost']];
+    const found=schemas.find(([id])=>h.includes(id));
+    if(found)classification={documentType:found[1],category:found[2],confidence:0.96,signals:['Recognised register fields: '+h.join(', ')]};
+    else if(h.includes('certificate no')&&h.includes('net certified'))classification={documentType:'payment_certificates',category:'boq_cost',confidence:0.96,signals:['Recognised payment register fields']};
+    else if(h.includes('man hours')&&(h.includes('lost time injuries')||h.includes('trir')))classification={documentType:'hse_report',category:'hse_quality_fm',confidence:0.96,signals:['Recognised HSE table fields']};
+  }
   let detectedCategory:
     EvidenceCategory;
   let detectedDocumentType:

@@ -65,7 +65,7 @@ export interface ProgressReportProjection {
     openStartCount: number;
     openFinishCount: number;
     criticalCount: number;
-    nearCriticalCount: number;
+    nearCriticalCount: number | null;
     negativeFloatCount: number;
     floatCoveragePercent: number | null;
   };

@@ -1,3 +1,4 @@
+import {canonicalHeader} from '../../truth-kernel/src';
 import { partitionAsOf } from "../../truth-kernel/src";
 import { cell, has, norm, numberValue, dateValue, governedTables, sumKnown, ratio, round, type SourceReceipt, type SourceRow, type FactState, reportingScope } from '../../truth-kernel/src';
 import { reconcilePaymentEvidence } from './payment-reconciliation';
@@ -119,6 +120,7 @@ export interface CanonicalCommercialModel {
   schemaVersion:'1.0'; producerVersion:'commercial-canonical-v1'; dataDateIso:string|null;
   costMetrics:CostMetricRecord[];
   payments:PaymentStageRecord[];
+  advancePayments?:PaymentStageRecord[];
   variations:CommercialVariation[];
   siteInstructions:CommercialSiteInstruction[];
   insurances:CommercialInsuranceRecord[];
@@ -155,7 +157,7 @@ function splitList(value:string):string[]{
 }
 function amountHeader(headers:string[],...labels:string[]):string|null{
  for(const label of labels){
-  const n=norm(label);
+  const n=canonicalHeader(label);
   const found=headers.find(h=>h===n||(h.startsWith(n+' ')&&/^[a-z]{3}$/.test(h.slice(n.length+1))));
   if(found)return found;
  }
@@ -327,6 +329,8 @@ export function commercialCanonical(state:ProjectRuntimeState):CanonicalCommerci
    });
   }
  }
+ const advancePayments=payments.filter(r=>/advance|mobilisation|mobilization|دفعة مقدمة/i.test(r.paymentType??''));
+ for(let i=payments.length-1;i>=0;i--)if(advancePayments.includes(payments[i]!))payments.splice(i,1);
  const groups=new Map<string,CostMetricRecord[]>();
  for(const r of costMetrics){if(!dataDateIso||!r.amount.asOf||r.amount.asOf>dataDateIso)continue;
   const k=[r.amount.currency,r.amount.taxBasis,r.amount.asOf].join('|');const list=groups.get(k)??[];list.push(r);groups.set(k,list);}
@@ -365,6 +369,6 @@ export function commercialCanonical(state:ProjectRuntimeState):CanonicalCommerci
  const variationPopulation=partitionAsOf(variations.filter(r=>/approved/i.test(r.status)),{...populationOptions,name:'Variation approvals by Data Date',entity:'variation',dateBasis:'approvalDate',id:r=>r.variationId,date:r=>r.approvalDate}).population;
  const retentionPopulation=partitionAsOf(payments,{...populationOptions,name:'Retention deductions by certificate period',entity:'retention_deduction',dateBasis:'periodEnd, not cash release',id:r=>r.paymentId,date:r=>r.periodEnd}).population;
  const populations={payments:paymentPopulation,variations:variationPopulation,retentionDeductions:retentionPopulation};
- const model:CanonicalCommercialModel={populations,schemaVersion:'1.0',producerVersion:'commercial-canonical-v1',dataDateIso,costMetrics,payments,variations,siteInstructions,insurances,obligations,retentions,costPosition,temporalPosition,diagnostics};
+ const model:CanonicalCommercialModel={populations,schemaVersion:'1.0',producerVersion:'commercial-canonical-v1',dataDateIso,costMetrics,payments,advancePayments,variations,siteInstructions,insurances,obligations,retentions,costPosition,temporalPosition,diagnostics};
  cache.set(state,{version:state.version,value:model});return model;
 }

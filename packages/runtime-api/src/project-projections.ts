@@ -1,3 +1,4 @@
+import {registerReadIssuesForModule} from './register-read-issues';
 import {checkPageValues} from './page-value-checks';
 import {sourceQualityPosition,withPositionVerdict} from './position-review';
 import {scheduleBasisReview,durationEditReview} from './schedule-basis-review';
@@ -6794,6 +6795,8 @@ function resolveProjectModuleUncertified(
 
 function resolveProjectModuleCandidate(state: ProjectRuntimeState, key: string): ModuleRuntimeResult {
   state = reportingState(state);
+  const readIssues=registerReadIssuesForModule(state,key);
+  if(readIssues.length)return attachReportingContract(state,{key,status:'partial',reason:readIssues.map(r=>r.filename+': '+r.message).join('; '),dependencies:[],data:{state:'unresolved',recordCount:null,registerReadIssues:readIssues}});
   const result = resolveProjectModuleUncertified(state, key);
   const model = projectControlSchedule(state)?.revision.model;
   if (!model) return attachReportingContract(state,result);

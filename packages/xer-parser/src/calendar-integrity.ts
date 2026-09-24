@@ -92,11 +92,10 @@ export function verifyXerCalendars(result: XerParseResult): XerCalendarIntegrity
           0,
         ) / 60;
 
-      const declaredWeekHours = Number(
-        field(row, "week_hr_cnt") ?? "",
-      );
+      const rawWeekHours=field(row,'week_hr_cnt');
+      const declaredWeekHours=rawWeekHours===null?null:Number(rawWeekHours);
       if (
-        Number.isFinite(declaredWeekHours) &&
+        declaredWeekHours!==null&&Number.isFinite(declaredWeekHours) &&
         Math.abs(declaredWeekHours - computedWeekHours) > 0.001
       ) {
         diagnostics.push(
@@ -112,11 +111,10 @@ export function verifyXerCalendars(result: XerParseResult): XerCalendarIntegrity
         ),
       ];
 
-      const declaredDayHours = Number(
-        field(row, "day_hr_cnt") ?? "",
-      );
+      const rawDayHours=field(row,'day_hr_cnt');
+      const declaredDayHours=rawDayHours===null?null:Number(rawDayHours);
       if (
-        Number.isFinite(declaredDayHours) &&
+        declaredDayHours!==null&&Number.isFinite(declaredDayHours) &&
         nonzeroDayHours.length === 1 &&
         Math.abs(declaredDayHours - nonzeroDayHours[0]!) > 0.001
       ) {

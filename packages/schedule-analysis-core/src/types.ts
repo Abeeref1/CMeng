@@ -245,7 +245,7 @@ export interface ScheduleActivityPopulation {
 
 export interface FloatSummary {
   criticalCount: number;
-  nearCriticalCount: number;
+  nearCriticalCount: number | null;
   floatRiskWatchlistCount: number;
   zeroFloatCount: number;
   negativeFloatCount: number;

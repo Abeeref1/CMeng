@@ -1600,6 +1600,7 @@ async function route(
       }
 
       await runtimeProjects.refreshDeferredPdfReads(projectId);
+      await runtimeProjects.refreshSpreadsheetRegisters(projectId);
       await runtimeProjects.refreshHseReports(projectId);
       await runtimeProjects
         .refreshCorrespondenceNarratives(
@@ -1724,7 +1725,8 @@ async function route(
             intent,
         });
     await runtimeProjects.refreshDeferredPdfReads(projectId);
-    await runtimeProjects.refreshHseReports(projectId);
+    await runtimeProjects.refreshSpreadsheetRegisters(projectId);
+      await runtimeProjects.refreshHseReports(projectId);
     await runtimeProjects
       .refreshCorrespondenceNarratives(
         projectId,
@@ -3016,6 +3018,7 @@ if (require.main === module) {
       );
     }
 
+    await runtimeProjects.refreshSpreadsheetRegisters();
     const hseRefresh = await runtimeProjects.refreshHseReports();
     if(hseRefresh.refreshedDocumentCount || hseRefresh.diagnostics.length) process.stdout.write(JSON.stringify({event:"hse_summary_refresh",...hseRefresh})+"\n");
 

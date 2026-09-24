@@ -1,4 +1,4 @@
-import { activityPopulation } from '../../schedule-analysis-core/src';
+import { activityPopulation,calendarWorkingDayHours } from '../../schedule-analysis-core/src';
 import { populationContract, partitionAsOf, type PopulationContract, type ReportingAuthority } from '../../truth-kernel/src';
 import { projectControlSchedule, projectDataDate, canonicalTimeClaims } from './canonical-time-claims';
 import { claimsReporting,scheduleActualReporting,operationalReporting } from './reporting-state';
@@ -168,7 +168,9 @@ export function attachReportingContract(state:ProjectRuntimeState,result:ModuleR
   walk(data,'',0);
   const time=canonicalTimeClaims(state).contractTimeBasis??state.controls.contractTimeBasis;
   return {...result,data:{...data,reportingContract:{schemaVersion:'1.0',dataDateIso,projectVersion:state.version,
+    calendarResolution:{unresolvedActivityCount:model?activityPopulation(model).activities.filter(a=>calendarWorkingDayHours(model.calendars.find(c=>c.calendarId===a.calendarId))===null).length:0},
     configurationId:createHash('sha256').update(JSON.stringify(projectScheduleControlBasis(state).analysisConfig)).digest('hex').slice(0,24),
+    newerUnadoptedSchedules:state.schedules.filter(s=>s.role!=='recovery'&&s.revision.revisionId!==current?.revision.revisionId&&s.revision.model.dataDateIso&&(!dataDateIso||s.revision.model.dataDateIso.slice(0,10)>dataDateIso)).map(s=>({dataDateIso:s.revision.model.dataDateIso,filename:s.sourceFilename})),
     programmeRevisionId:current?.revision.revisionId??null,programmeLabel:current?.revision.label??null,
     actualEventPolicy:'Only dated events on or before the Data Date enter current actuals. Future and undated evidence is retained separately.',
     forecastPolicy:'Future planned work and forecast dates remain visible as forecasts, never as actual events.',

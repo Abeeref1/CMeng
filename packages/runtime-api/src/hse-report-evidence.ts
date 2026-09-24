@@ -1,7 +1,7 @@
 import {createHash} from 'node:crypto';
 import {readFileSync} from 'node:fs';
 import {PDFParse} from 'pdf-parse';
-import {dateValue} from '../../truth-kernel/src';
+import {dateValue,sourceTables,cell,numberValue,canonicalHeader} from '../../truth-kernel/src';
 import type {StoredEvidenceDocument,ProjectRuntimeState} from './project-state-types';
 import {weeklyResourceCapacityEvidence} from './canonical-resource-evidence';
 
@@ -28,6 +28,21 @@ export async function refreshHseSummary(document:StoredEvidenceDocument):Promise
   if(document.hseSummary?.producerVersion==='hse-summary-v1'&&document.hseSummary.sourceHashSha256===document.sourceHashSha256)return false;
   const bytes=readFileSync(document.storedPath);
   if(createHash('sha256').update(bytes).digest('hex')!==document.sourceHashSha256)throw new Error('HSE_SOURCE_HASH_MISMATCH');
+  if(/csv|spreadsheetml/.test(document.mediaType)){
+    const tables=sourceTables([document],[]),metrics:Record<string,number|null>={},dates=new Set<string>(),sourceRefs:string[]=[];
+    const names:Record<string,string>={'man hours':'manHours','lost time injuries':'lostTimeInjuries','medical treatment cases':'medicalTreatmentCases','first aid cases':'firstAidCases','near misses':'nearMisses',ltifr:'ltifr',trir:'trir'};
+    const seen=new Map<string,Set<number>>();
+    for(const table of tables)for(const row of table.rows){
+      const date=dateValue(cell(row,'report date','period end','as of'));if(date)dates.add(date);
+      for(const [header,key] of Object.entries(names)){
+        const value=numberValue(canonicalHeader(cell(row,'metric'))===header?cell(row,'value'):cell(row,header));
+        if(value!==null){const values=seen.get(key)??new Set<number>();values.add(value);seen.set(key,values);sourceRefs.push('evidence-document:'+document.documentId+':'+row.receipt.locator);}
+      }
+    }
+    for(const key of Object.values(names)){const values=[...(seen.get(key)??[])];metrics[key]=values.length===1?values[0]!:null;}
+    document.hseSummary={producerVersion:'hse-summary-v1',sourceHashSha256:document.sourceHashSha256,periodEndIso:dates.size===1?[...dates][0]!:null,metrics,sourceRefs:[...new Set(sourceRefs)],diagnostics:dates.size!==1?['HSE_REPORT_PERIOD_UNRESOLVED']:[]};
+    return true;
+  }
   if(!/pdf/i.test(document.mediaType))return false;
   const parser=new PDFParse({data:bytes as any});
   try{const parsed=await parser.getText();document.hseSummary=parseHseSummary(parsed.text,document.sourceHashSha256,'evidence-document:'+document.documentId+':native-pdf-summary');return true;}finally{await parser.destroy();}

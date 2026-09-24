@@ -28,7 +28,7 @@ export function isProgressActivity(activity: Pick<CanonicalScheduleActivity, "ac
   return isExecutionActivity(activity) && !isMilestoneActivity(activity);
 }
 
-export function activityPopulation(model: CanonicalScheduleModel, basis: ActivityPopulationBasis = "execution_control") {
+function calculateActivityPopulation(model: CanonicalScheduleModel, basis: ActivityPopulationBasis = "execution_control") {
   const include = basis === "source_records" ? () => true
     : basis === "duration_weighted_progress" ? isProgressActivity
     : basis === "milestones" ? isMilestoneActivity : isExecutionActivity;
@@ -44,6 +44,19 @@ export function activityPopulation(model: CanonicalScheduleModel, basis: Activit
     authority: "submitted_schedule", sourceRevisionId: model.sourceRevisionId, asOfIso: model.dataDateIso,
   };
   return { activities, excluded, contract, reporting };
+}
+
+type PopulationResult=ReturnType<typeof calculateActivityPopulation>;
+const populationCache=new WeakMap<CanonicalScheduleModel,{date:string|null;revision:string;identities:Array<{activity:CanonicalScheduleActivity;id:string;type:string}>;values:Map<ActivityPopulationBasis,PopulationResult>}>();
+/** Reuse the expensive population hash while validating every source identity and
+ * type. Mutable model edits invalidate the cache; consumers receive fresh lists. */
+export function activityPopulation(model:CanonicalScheduleModel,basis:ActivityPopulationBasis='execution_control'):PopulationResult {
+  let cached=populationCache.get(model);
+  if(!cached||cached.date!==model.dataDateIso||cached.revision!==model.sourceRevisionId||cached.identities.length!==model.activities.length||!model.activities.every((a,i)=>{const old=cached!.identities[i]!;return old.activity===a&&old.id===a.activityId&&old.type===a.activityType;})){
+    cached={date:model.dataDateIso,revision:model.sourceRevisionId,identities:model.activities.map(activity=>({activity,id:activity.activityId,type:activity.activityType})),values:new Map()};populationCache.set(model,cached);
+  }
+  let value=cached.values.get(basis);if(!value){value=calculateActivityPopulation(model,basis);cached.values.set(basis,value);}
+  return {activities:[...value.activities],excluded:[...value.excluded],contract:{...value.contract,exclusions:value.contract.exclusions.map(x=>({...x}))},reporting:{...value.reporting,memberIds:[...value.reporting.memberIds],exclusions:value.reporting.exclusions.map(x=>({...x}))}};
 }
 
 /** Partial progress is a known-population estimate, never zero-filled missing progress. */

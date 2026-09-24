@@ -167,8 +167,6 @@ function floatSummary(
   );
   const thresholdUnresolved = known.filter(
     (activity) =>
-      activity.totalFloatHours! >
-        config.criticalFloatThresholdHours &&
       activityNearCriticalThresholdHours(model, activity, config) === null,
   );
   const floatRiskWatchlist = known.filter(
@@ -182,7 +180,7 @@ function floatSummary(
 
   return {
     criticalCount: critical.length,
-    nearCriticalCount: nearCritical.length,
+    nearCriticalCount: thresholdUnresolved.length?null:nearCritical.length,
     floatRiskWatchlistCount:
       floatRiskWatchlist.length,
     zeroFloatCount: known.filter(

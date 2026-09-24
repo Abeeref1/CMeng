@@ -195,7 +195,7 @@ test("Independent Forecast publishes source-vs-independent completion variance f
   assert.equal(a200.critical, true);
 });
 
-test("Independent Forecast labels missing-calendar calculation as a scenario rather than deterministic source CPM", () => {
+test("Independent Forecast withholds missing-calendar finish and reports unresolved activities", () => {
   const input = model({
     calendars: [],
     activities: [
@@ -221,7 +221,7 @@ test("Independent Forecast labels missing-calendar calculation as a scenario rat
 
   assert.equal(
     projection.origin,
-    "scenario_with_assumptions",
+    "unresolved",
   );
   assert.equal(
     projection.calculationMode,
@@ -232,6 +232,9 @@ test("Independent Forecast labels missing-calendar calculation as a scenario rat
       "ACTIVITY_CALENDAR_MISSING_ASSUMED_24H_ELAPSED",
     ),
   );
+  assert.equal(projection.independentForecastCompletionIso,null);
+  assert.equal(projection.unresolvedActivityCount,1);
+  assert.equal(projection.calculatedActivityCount,0);
 });
 
 test("Forecast History uses stored forecast snapshots and measures movement between them", () => {

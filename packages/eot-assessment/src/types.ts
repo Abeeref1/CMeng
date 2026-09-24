@@ -9,6 +9,7 @@ export type EotDayBasis =
   | "unknown";
 
 export interface ContractTimeBasis {
+  completionReason?: string | null;
   incorporatedEotDays?: number | null;
   additionalApprovedEotDays?: number | null;
   overlapResolution?: "resolved" | "unresolved";

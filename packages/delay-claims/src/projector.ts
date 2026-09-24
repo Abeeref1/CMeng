@@ -441,18 +441,8 @@ export function buildDelayClaimsProjection(
           row.activityCorrespondence.classification === "unresolved",
       ).length,
 
-    observedPositiveIndependentMovementDays:
-      Number(
-        windows.positiveIndependentMovementDays.toFixed(
-          6,
-        ),
-      ),
-    observedPositiveProgrammeMovementDays:
-      Number(
-        windows.positiveProgrammeMovementDays.toFixed(
-          6,
-        ),
-      ),
+    observedPositiveIndependentMovementDays: windows.positiveIndependentMovementDays,
+    observedPositiveProgrammeMovementDays: windows.positiveProgrammeMovementDays,
     projectCompletionMovementDays:
       windows.projectCompletionMovementDays,
     projectCompletionMovementBasis:

@@ -96,6 +96,7 @@ async function upload(
             filename,
           "x-upload-intent":
             intent,
+          "x-schedule-role":filename.startsWith("Recovery_")?"recovery":filename.startsWith("Baseline_")?"baseline":"update",
         },
         body,
       },

@@ -508,19 +508,19 @@ test("ZIP evidence pack routes schedules, BOQ CSV and other project evidence wit
       };
     assert.equal(
       overview.baselineRevisionCount,
-      1,
+      0,
     );
     assert.equal(
       overview.updateRevisionCount,
-      2,
+      4,
     );
     assert.equal(
       overview.recoveryRevisionCount,
-      1,
+      0,
     );
     assert.match(
       overview.latestDataDateIso ?? "",
-      /^2026-11-30/,
+      /^2027-02-28/,
     );
     assert.equal(
       overview.boqState,

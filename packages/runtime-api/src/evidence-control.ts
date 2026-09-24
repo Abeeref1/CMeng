@@ -278,6 +278,9 @@ export function evidenceFamily(
 
   const snapshotTypes =
     new Set([
+      "bond_register",
+      "security_register",
+      "determination_register",
       "risk_register",
       "procurement_register",
       "rfi_register",
@@ -495,19 +498,9 @@ function scheduleComparison(
     );
 
   const before =
-    currentRevision
-      ?.revision.model
-      .dataDateIso ??
-    currentRevision
-      ?.revision.effectiveAt ??
-    null;
+    currentRevision?.revision.model.dataDateIso ?? null;
   const after =
-    incomingRevision
-      ?.revision.model
-      .dataDateIso ??
-    incomingRevision
-      ?.revision.effectiveAt ??
-    null;
+    incomingRevision?.revision.model.dataDateIso ?? null;
 
   if (
     before &&
@@ -518,15 +511,12 @@ function scheduleComparison(
         after > before,
       reason:
         after > before
-          ? "Incoming control schedule has a later Data Date/effective date."
+          ? "Incoming control schedule has a later internal Data Date."
           : "Incoming control schedule is not later than the active control schedule and remains historical/candidate.",
     };
   }
 
-  return snapshotComparison(
-    current,
-    incoming,
-  );
+  return {promote:false,reason:'Unresolved revision order: an internal Data Date is missing.'};
 }
 
 function markSuperseded(
@@ -813,7 +803,9 @@ export function applyEvidenceBasis(
     intent ===
     "replace_current_basis";
 
-  if (!current) {
+  const missingScheduleDate=behavior==='schedule_special'&&!state.schedules.find(s=>s.revision.revisionId===document.linkedArtifactId)?.revision.model.dataDateIso;
+  if(missingScheduleDate){promote=false;reason='Unresolved revision order: the programme has no internal Data Date.';}
+  else if (!current) {
     promote = true;
     reason =
       "First established evidence for this family becomes the active basis.";

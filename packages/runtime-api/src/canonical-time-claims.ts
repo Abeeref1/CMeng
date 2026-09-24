@@ -1,3 +1,4 @@
+import {contractCompletionPosition} from './contract-completion';
 import { createHash } from 'node:crypto';
 import { cell, has, numberValue, dateValue, governedTables, norm, sumKnown, type SourceReceipt, type SourceRow, type SourceTable } from '../../truth-kernel/src';
 import type { CanonicalClaimRecord, CanonicalDelayEvent, CanonicalNoticeRecord, DelayClaimsModel } from '../../delay-analysis-core/src';
@@ -198,7 +199,10 @@ export function projectControlSchedule(state:ProjectRuntimeState) {
   // fail closed. Legacy/misclassified schedule-control support documents must not
   // suppress an otherwise valid programme model.
   if(hasProgrammeEvidence) return null;
-  return state.schedules.filter(s=>s.role!=='recovery').sort((a,b)=>a.revision.sequence-b.revision.sequence).at(-1) ?? null;
+  const eligible=state.schedules.filter(s=>s.role!=='recovery'&&dateValue(s.revision.model.dataDateIso??''));
+  const latest=eligible.map(s=>dateValue(s.revision.model.dataDateIso!)!).sort().at(-1);
+  const newest=eligible.filter(s=>dateValue(s.revision.model.dataDateIso!)===latest);
+  return newest.length===1?newest[0]!:null;
 }
 export function projectDataDate(state:ProjectRuntimeState):string|null {
   return dateValue(projectControlSchedule(state)?.revision.model.dataDateIso ?? '');
@@ -696,6 +700,15 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
     if(determinations.length)diagnostics.push('AMENDMENT_DETERMINATION_OVERLAP_UNRESOLVED_NO_ADDITIONAL_DAYS_APPLIED');
   }
   if(amendmentConflict)diagnostics.push('CONFLICTING_EFFECTIVE_AMENDMENTS');
+  const completion=contractCompletionPosition(state,dataDateIso);
+  if(completion.hasContractDocuments){
+    const previous=contractTimeBasis??state.controls.contractTimeBasis;
+    contractTimeBasis={...previous,contractualCompletionIso:completion.value,contractualCompletionState:completion.state,completionReason:completion.reason,
+      officialApprovedEotDays:previous?.officialApprovedEotDays??null,officialApprovedEotState:previous?.officialApprovedEotState??'missing',
+      eotDayBasis:previous?.eotDayBasis??'unknown',eotDayBasisState:previous?.eotDayBasisState??'missing',sourceRefs:[...new Set([...(previous?.sourceRefs??[]),...completion.sourceRefs])]};
+    if(completion.reason)diagnostics.push('CONTRACT_COMPLETION_UNRESOLVED:'+completion.reason);
+  }
+
   for(const claim of claims){
     const reported=reportedClaim(claim);
     const conflict=reported.state==='determined'&&!determinations.some(d=>d.claimId===claim.claimId);

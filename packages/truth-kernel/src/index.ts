@@ -1,3 +1,5 @@
+import {canonicalHeader,prepareRegisterRows} from './register-schema';
+export * from './register-schema';
 import { createHash } from 'node:crypto';
 import { readFileSync, statSync } from 'node:fs';
 export * from './reporting';
@@ -11,10 +13,11 @@ export interface SourceReceipt {
 export interface EvidenceDocument {
   documentId: string; sourceHashSha256: string; storedPath: string;
   sourceFilename: string; mediaType: string; basisState: string;
-  linkedArtifactId: string | null; uploadedAt: string; familyKey?: string;
+  linkedArtifactId: string | null; uploadedAt: string; familyKey?: string; documentType?: string;
+  tabularRead?: {producerVersion:string;sourceHashSha256:string;sheets:Array<{name:string;rows:string[][]}>} | undefined;
 }
 export interface SourceRow { cells: Readonly<Record<string, string>>; receipt: SourceReceipt }
-export interface SourceTable { headers: string[]; rows: SourceRow[]; document: EvidenceDocument }
+export interface SourceTable { headers: string[]; rows: SourceRow[]; document: EvidenceDocument; recognition?: {headerRow:number;readRowCount:number;recognized:boolean;unknown:string[]}; }
 export interface Fact<T> {
   value: T | null; state: FactState; receipts: SourceReceipt[];
   diagnostics: string[]; method: string; coverage: { known: number; total: number };
@@ -36,7 +39,7 @@ export function csv(text: string): string[][] {
 const headerNames = new Map<string,string>();
 const headerKey = (name:string) => {
   const cached=headerNames.get(name);if(cached!==undefined)return cached;
-  const key=norm(name);if(headerNames.size>=4096)headerNames.clear();headerNames.set(name,key);return key;
+  const key=canonicalHeader(name);if(headerNames.size>=4096)headerNames.clear();headerNames.set(name,key);return key;
 };
 export const cell = (row: SourceRow, ...names: string[]): string => {
   for (const name of names) { const v = row.cells[headerKey(name)]; if (v !== undefined && v.trim() !== '') return v.trim(); }
@@ -72,7 +75,7 @@ const tableCache = new Map<string, SourceTable>();
 export function sourceTables(documents: readonly EvidenceDocument[], diagnostics: string[]): SourceTable[] {
   const result: SourceTable[] = [], hashes = new Set<string>();
   for (const doc of [...documents].sort((a,b)=>Number(b.basisState!=='candidate')-Number(a.basisState!=='candidate'))) {
-    if (!['active','additive','candidate'].includes(doc.basisState) || !/csv/i.test(doc.mediaType + ' ' + doc.sourceFilename)) continue;
+    if (!['active','additive','candidate'].includes(doc.basisState) || (!/csv/i.test(doc.mediaType + ' ' + doc.sourceFilename)&&!doc.tabularRead)) continue;
     const identity = doc.sourceHashSha256;
     if (hashes.has(identity)) continue;
     hashes.add(identity);
@@ -83,15 +86,19 @@ export function sourceTables(documents: readonly EvidenceDocument[], diagnostics
       const bytes = readFileSync(doc.storedPath);
       if (createHash('sha256').update(bytes).digest('hex') !== identity) { diagnostics.push('SOURCE_HASH_MISMATCH:' + doc.documentId); continue; }
       const encoding = bytes[0] === 0xff && bytes[1] === 0xfe ? 'utf16le' : 'utf8';
-      const rows = csv(bytes.toString(encoding)); const headers = (rows.shift() ?? []).map(norm);
-      if (!headers.length || headers.some(h => !h) || new Set(headers).size !== headers.length) { diagnostics.push('DUPLICATE_NORMALIZED_HEADERS:' + doc.documentId); continue; }
-      if (rows.some(r => r.length !== headers.length)) { diagnostics.push('CSV_ROW_WIDTH_MISMATCH:' + doc.documentId); continue; }
-      const table: SourceTable = { headers, document: doc, rows: rows.map((r, i) => ({
-        cells: Object.freeze(Object.fromEntries(headers.map((h,j) => [h, r[j] ?? '']))),
-        receipt: { documentId: doc.documentId, sourceHash: identity, revision: doc.linkedArtifactId ?? identity, locator: 'row:' + (i + 2), basisState: doc.basisState, authority: 'source_record' },
-      })) };
-      if (tableCache.size >= 64) tableCache.delete(tableCache.keys().next().value!);
-      tableCache.set(key, table); result.push(table);
+      const sheets=doc.tabularRead?.sourceHashSha256===identity?doc.tabularRead.sheets:[{name:'CSV',rows:csv(bytes.toString(encoding))}];
+      for(const sheet of sheets){
+        const prepared=prepareRegisterRows(sheet.rows,doc.documentType),{headers,rows}=prepared;
+        if(!headers.length||headers.some(h=>!h)||new Set(headers).size!==headers.length){diagnostics.push('DUPLICATE_NORMALIZED_HEADERS:'+doc.documentId);continue;}
+        if(rows.some(row=>row.length!==headers.length)){diagnostics.push('CSV_ROW_WIDTH_MISMATCH:'+doc.documentId);continue;}
+        if(!prepared.recognized)diagnostics.push('REGISTER_COLUMNS_NOT_RECOGNISED:'+doc.documentId+':'+prepared.rawHeaders.join(', '));
+        const table:SourceTable={headers,document:doc,recognition:{headerRow:prepared.headerRow,readRowCount:prepared.readRowCount,recognized:prepared.recognized,unknown:prepared.unknown},rows:rows.map((r,i)=>({
+          cells:Object.freeze(Object.fromEntries(headers.map((h,j)=>[h,r[j]??'']))),
+          receipt:{documentId:doc.documentId,sourceHash:identity,revision:doc.linkedArtifactId??identity,locator:(sheet.name==='CSV'?'':'sheet:'+sheet.name+':')+'row:'+(i+prepared.headerRow+1),basisState:doc.basisState,authority:'source_record'},
+        }))};
+        // Multi-sheet workbooks remain distinct and retain their sheet/row references.
+        if(sheets.length===1){if(tableCache.size>=64)tableCache.delete(tableCache.keys().next().value!);tableCache.set(key,table);}result.push(table);
+      }
     } catch (error) { diagnostics.push('SOURCE_READ_FAILURE:' + doc.documentId + ':' + (error instanceof Error ? error.message : 'unknown')); }
   }
   return result;

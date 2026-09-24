@@ -1270,8 +1270,8 @@ function renderForecastVisual(data){
   const kpis=planningKpis([
     ["Contractor Programme Forecast",planningShortDate(p.sourceForecastCompletionIso),"submitted programme"],
     ["Source Productivity Forecast",planningShortDate(p.sourceProductivityForecastCompletionIso),p.sourceProductivityForecastCompletionIso?"source evidence / derived forecast":"Not confirmed",p.sourceProductivityForecastState==="conflicted"?"danger":p.sourceProductivityForecastState==="candidate"?"warning":""],
-    ["Calendar recalculation",planningShortDate(p.independentForecastCompletionIso),review?"requires reconciliation":"deterministic CMeng calculation",review?"warning":"accent"],
-    ["Calendar scenario vs submitted",variance===null?"—":(variance>0?"+":"")+fmt(variance)+" days","model reconciliation; not delay",""],
+    ["Calendar recalculation",p.unresolvedActivityCount>0?"Unresolved: "+fmt(p.unresolvedActivityCount)+" activities":planningShortDate(p.independentForecastCompletionIso),review?"requires reconciliation":"deterministic CMeng calculation",review?"warning":"accent"],
+    ["Calendar scenario vs submitted",p.unresolvedActivityCount>0?"Unresolved: "+fmt(p.unresolvedActivityCount)+" activities":variance===null?"Unresolved":(variance>0?"+":"")+fmt(variance)+" days","model reconciliation; not delay",""],
     ["CPM activity coverage",p.activityCoveragePercent===null?"—":fmt(p.activityCoveragePercent)+"%",p.activityPopulation?fmt(p.calculatedActivityCount)+" / "+fmt(p.activityPopulation.denominator)+" execution activities; "+fmt(p.activityPopulation.excludedCount)+" LOE / WBS records excluded":"calculated schedule inputs; not resource or quantity coverage"],
     ["Required finish",planningShortDate(p.requiredFinishIso),"contract/target if established"]
   ]);
@@ -1928,7 +1928,7 @@ function renderPmoVisual(data){
     ],"Activities"))+
     renderVisualPanel("Schedule pressure","Disjoint critical and near-critical populations. Negative float is a separate KPI.",renderDonutChart([
       {label:"Critical",value:p.schedule.criticalCount||0,tone:"danger"},
-      {label:"Near-critical",value:p.schedule.nearCriticalCount||0,tone:"warning"}
+      {label:"Near-critical",value:p.schedule.nearCriticalCount,tone:"warning"}
     ],"Critical + near-critical"))+
   '</div>';
   const health='<div class="management-health-grid">'+[
@@ -2206,7 +2206,7 @@ function renderProgressReportVisual(data){
   ]);
   const pressure=planningStatusBand([
     ["Critical",p.schedule?.criticalCount||0,"danger"],
-    ["Near-critical",p.schedule?.nearCriticalCount||0,"warning"]
+    ["Near-critical",p.schedule?.nearCriticalCount,"warning"]
   ]);
   const progressChart=renderVisualBars([
     {label:"Baseline planned",value:typeof baseline?.valuePercent==="number"?baseline.valuePercent:null,tone:"graphite"},
@@ -2437,7 +2437,7 @@ function renderNearCriticalVisual(data){
   const calendarBasis=p.thresholdBasis==="activity_calendar_working_days"||p.nearCriticalThresholdBasis==="activity_working_days";
   const limitValue=calendarBasis&&workingDays!==null?fmt(workingDays)+" working days":p.nearCriticalThresholdHours===null||p.nearCriticalThresholdHours===undefined?"Not confirmed":fmt(p.nearCriticalThresholdHours)+" h";
   const limitSub=calendarBasis?"each activity calendar":"explicit hour threshold";
-  const unresolved=p.thresholdUnresolvedActivityCount??Math.max(0,riskRows.filter(r=>r.nearCriticalThresholdHours===null).length);
+  const unresolved=p.unresolvedActivityCount??p.thresholdUnresolvedActivityCount??Math.max(0,riskRows.filter(r=>r.nearCriticalThresholdHours===null).length);
   const sourceCount=p.sourceReportedNearCriticalLabelCount??p.reconciliation?.sourceReportedCount??null;
   const sourceMatch=p.reconciliation?.sourceLabelReconcilesTo??null;
   const reconciliationText=sourceCount===null
@@ -2450,7 +2450,7 @@ function renderNearCriticalVisual(data){
 
   const criticalThreshold=p.criticalThresholdHours??0;
   const kpis=planningKpis([
-    ["Strict near-critical",p.nearCriticalCount,"TF > "+fmt(criticalThreshold)+" h and ≤ "+limitValue,"warning"],
+    ["Strict near-critical",p.nearCriticalCount===null?"Unresolved: "+fmt(unresolved)+" activities":p.nearCriticalCount,"TF > "+fmt(criticalThreshold)+" h and ≤ "+limitValue,"warning"],
     ["Float-risk watchlist",p.floatRiskWatchlistCount,"critical boundary through "+limitValue,"accent"],
     ["Zero float",p.zeroFloatCount??"—","critical boundary","danger"],
     ["Negative float",p.negativeFloatCount??"—","TF < 0","danger"],
@@ -2819,6 +2819,11 @@ function renderCommercialVisual(key,data){
     }
   }
   const performance=position.performance||null;
+  if(key==='contract-particulars-bonds'&&foundation?.commercialTerms?.datedTerms?.length){
+    const terms=foundation.commercialTerms.datedTerms;
+    const labels={ldRate:'Delay damages rate',ldCap:'Delay damages cap',retentionPercent:'Retention rate',retentionCapPercent:'Retention cap',paymentPeriodDays:'Payment period',noticePeriodDays:'Initial claim notice',performanceSecurity:'Performance security',advanceSecurity:'Advance payment security'};
+    foundationDetail+='<section class="planning-panel"><h4>Dated contract terms</h4><p>Each event uses the version effective on its event date. An end date is the first date of the next version.</p>'+table(['Term','Value','Effective from','Effective until','Clause / article','Page reference'],terms.map(v=>'<tr><td>'+escapeHtml(labels[v.term]||v.term)+'</td><td>'+escapeHtml(v.applicability==='unresolved'?'Unresolved: amendment applicability':fmt(v.value)+' '+v.unit)+'</td><td>'+escapeHtml(v.effectiveFromIso?planningShortDate(v.effectiveFromIso):'Original contract')+'</td><td>'+escapeHtml(v.effectiveToIso?planningShortDate(v.effectiveToIso):'No later change recorded')+'</td><td>'+escapeHtml(v.clauseIdentifier||'Unresolved: no number stated')+'</td><td>'+escapeHtml(v.sourceRefs.join('; '))+'</td></tr>'),'No dated contract terms were recognised.')+'</section>';
+  }
   let performanceDetail="";
   if(performance){
     if(key==="commercial-overview"){
@@ -3457,6 +3462,9 @@ function renderCommercialVisual(key,data){
     if(key==="payments"||key==="cash-flow") ledgerDetail=section("commercial-payment-register",ledger.payments,{effectiveRecordCount:ledger.payments.filter(r=>r.periodEnd&&ledger.dataDateIso&&r.periodEnd<=ledger.dataDateIso).length});
     if(key==="variations-change") ledgerDetail=experienceDisclosure("Variation source evidence",section("commercial-variations",ledger.variations),"Current, future and undated records");
   }
+  if((key==='payments'||key==='cash-flow')&&ledger?.advancePayments?.length){
+    ledgerDetail+='<section class="planning-panel"><h4>Advance payments</h4><p>These rows are retained separately and excluded from interim certificate totals.</p>'+table(['Reference','Period','Recorded advance','Currency','Recorded status'],ledger.advancePayments.map(r=>'<tr><td>'+escapeHtml(r.paymentId)+'</td><td>'+escapeHtml(planningShortDate(r.periodEnd))+'</td><td>'+escapeHtml(r.amounts.netCertifiedAmount.value===null?'Unresolved: amount not read':fmt(r.amounts.netCertifiedAmount.value))+'</td><td>'+escapeHtml(r.amounts.netCertifiedAmount.currency||'Unresolved: currency not stated')+'</td><td>'+escapeHtml(r.sourceStatus||'Unresolved: status not stated')+'</td></tr>'),'No advance rows were recognised.')+'</section>';
+  }
   const evidencePanel='<section class="planning-panel"><div class="planning-panel-head"><div><h4>Available records</h4><p>Source availability is separate from current lifecycle, reconciliation and analytical readiness shown above.</p></div></div><div class="planning-panel-body">'+gates+'</div></section>';
   if(key==="commercial-overview"){
     return '<section class="planning-view commercial-view commercial-overview-enterprise">'+temporalWarning+temporalScope+
@@ -3815,7 +3823,11 @@ function renderModuleBasis(data,detail=false){
   const actualScopeHtml=excludedActuals.length?'<details class="notice warn"><summary>'+fmt(excludedActuals.length)+' schedule actual events excluded from the Data Date position</summary><p>Historical completion and progress are withheld for affected records. Source evidence and planned dates are retained.</p><table><thead><tr><th>Activity</th><th>Actual event</th><th>Source date</th></tr></thead><tbody>'+excludedActuals.map(r=>'<tr><td>'+escapeHtml(r.activityId)+'</td><td>'+escapeHtml(humanizeKey(r.event))+'</td><td>'+escapeHtml(r.dateIso)+'</td></tr>').join('')+'</tbody></table></details>':'';
   const authorityHtml=completion&&['eot_assessment','commercial_claims_notices','contract_particulars_bonds'].includes(root.projectionKey)?'<div class="notice info"><b>Completion authority.</b> Contract completion: '+escapeHtml(planningShortDate(completion.governedContractualFinish))+' ('+escapeHtml(humanizeKey(completion.authority))+'). '+escapeHtml(completion.explanation)+'</div>':'';
   if(detail)return authorityHtml+actualScopeHtml+populationHtml;
-  return '<div class="module-basis">'+values.map(([label,value])=>'<span class="basis-chip"><b>'+escapeHtml(label)+'</b><strong title="'+escapeHtml(label==="Programme basis"&&revision?revision:value)+'">'+escapeHtml(value)+'</strong></span>').join("")+'</div>';
+  const newer=contract?.newerUnadoptedSchedules||[];
+  const unresolvedCalendar=contract?.calendarResolution?.unresolvedActivityCount||0;
+  const calendarHeadline=unresolvedCalendar&&['independent_forecast','near_critical','pmo_analysis','master_dashboard','command_center','project_director','schedule_analytics'].includes(root.projectionKey)?'<div class="notice warn"><b>Unresolved: '+fmt(unresolvedCalendar)+' activities.</b> Their working calendars could not be read. Calendar recalculation, its comparison with the contract, and the near-critical count are unresolved.</div>':'';
+  const newerHeadline=newer.length?'<div class="notice warn"><b>Newer programme supplied, not adopted.</b> '+newer.map(r=>escapeHtml(planningShortDate(r.dataDateIso))+' · '+escapeHtml(r.filename||'Programme')).join('; ')+'</div>':'';
+  return newerHeadline+calendarHeadline+'<div class="module-basis">'+values.map(([label,value])=>'<span class="basis-chip"><b>'+escapeHtml(label)+'</b><strong title="'+escapeHtml(label==="Programme basis"&&revision?revision:value)+'">'+escapeHtml(value)+'</strong></span>').join("")+'</div>';
 }
 function renderStructuredSections(data){
   if(!data||typeof data!=="object")return"";
@@ -3853,6 +3865,7 @@ function renderModuleResult(result){
     return;
   }
   const data=result.data||{};
+  if(data.registerReadIssues?.length){el('moduleContent').innerHTML='<div class="notice warn"><b>Unresolved register</b>'+data.registerReadIssues.map(r=>'<p>'+escapeHtml(r.filename)+': '+escapeHtml(r.message)+'</p>').join('')+'</div>';return;}
   el("directorDrawer").open=false;
   el("directorDrawer").hidden=result.key!=="pmo-analysis";
   if(result.key==="challenge-contract"&&renderDeliveryChallenge(data,result.reason,result.status))return;

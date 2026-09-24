@@ -20,7 +20,7 @@ export interface ProgressBreakdownRow {
   originalDurationHoursKnown: number;
   remainingDurationHoursKnown: number;
   criticalCount: number;
-  nearCriticalCount: number;
+  nearCriticalCount: number | null;
   negativeFloatCount: number;
   floatCoveragePercent: number | null;
 }

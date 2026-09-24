@@ -150,11 +150,6 @@ export function inferScheduleRole(
     normalized === "revised_baseline"
   ) return normalized;
 
-  const value = lower(path);
-  if (/revised[_ -]?baseline/.test(value)) return "revised_baseline";
-  if (/recovery/.test(value)) return "recovery";
-  if (/baseline|rev0|s01_/.test(value)) return "baseline";
-  if (/update|latest|s0[2-9]_/.test(value)) return "update";
   return "other";
 }
 
