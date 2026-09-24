@@ -43,8 +43,18 @@ export function commercialPositionForState(
       : null;
 
   const ledger=commercialCanonical(state);
+  const parsedSource = (pattern: RegExp) => state.evidenceDocuments.some(document =>
+    document.basisState !== "superseded" && document.parserState === "parsed" &&
+    pattern.test(document.documentType + " " + document.sourceFilename));
   const position =
     buildCommercialControlPosition({
+      sourceRead: {
+        commercial: Boolean(state.contract || state.controls.contractValue),
+        payments: Boolean(state.controls.invoices.length || state.controls.retentions.length || parsedSource(/payment|invoice|certificate|retention|advance/i)),
+        variations: Boolean(state.controls.variations.length || parsedSource(/variation|change/i)),
+        bonds: Boolean(state.controls.bonds.length || parsedSource(/bond|guarantee|security/i)),
+        claims: Boolean(state.controls.claimCommercials.length || state.controls.delayClaims || parsedSource(/claim|eot|notice/i)),
+      },
       sourceDelayClaims:claimsReporting(state)?.source??null,
       sourceLedger:
         commercialCanonical(state),
@@ -247,13 +257,7 @@ export function commercialEvidenceStateForModule(
       return "established";
     }
     if(position.foundation.paymentRegister.sourceRecordCount>0)return 'missing_information';
-    return position.evidence.payments ===
-      "not_submitted"
-      ? "not_submitted"
-      : position.evidence.payments ===
-          "candidate"
-        ? "candidate"
-        : "submitted_unparsed";
+    return position.evidence.payments === "established" ? "missing_information" : position.evidence.payments;
   }
 
   if (key === "cash-flow") {
@@ -265,13 +269,7 @@ export function commercialEvidenceStateForModule(
       return "established";
     }
     if(position.foundation.paymentRegister.sourceRecordCount>0)return 'missing_information';
-    return position.evidence.payments ===
-      "not_submitted"
-      ? "not_submitted"
-      : position.evidence.payments ===
-          "candidate"
-        ? "candidate"
-        : "submitted_unparsed";
+    return position.evidence.payments === "established" ? "missing_information" : position.evidence.payments;
   }
 
   if (
@@ -336,7 +334,7 @@ function statusReason(
     state ===
     "submitted_unparsed"
   ) {
-    return "Relevant evidence is submitted but not yet structurally established. CMeng preserves it as missing/partial rather than zero.";
+    return "A relevant source was provided, but CMeng has not read its structured records. Review the extraction result.";
   }
   if (
     state ===

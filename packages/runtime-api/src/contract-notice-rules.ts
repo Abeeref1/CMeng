@@ -26,6 +26,7 @@ export function contractNoticeRules(state:ProjectRuntimeState,noticeKind:'claim_
     if(document.role==='amendment'&&!from)continue;
     for(const days of periods){
       rules.push({requirementId:document.documentId+':'+noticeKind+':'+days,
+        sourceFilename:evidence?.sourceFilename??document.documentId,
         noticeKind,eventCategories:[],noticePeriodDays:days,
         effectiveFromIso:from,effectiveToIso:null,
         triggerBasis:noticeKind==='detailed_claim'?'not_stated':/became aware|become aware|should have become aware/i.test(text)?'awareness':/after (?:the )?event (?:start|occurr)|from (?:the )?event date/i.test(text)?'event_start':'not_stated',

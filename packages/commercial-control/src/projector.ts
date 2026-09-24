@@ -51,15 +51,33 @@ function dateMetric(
   };
 }
 
-function stateFor(
-  hasRows: boolean,
-  submitted: boolean,
-): CommercialEvidenceState {
-  return hasRows
-    ? "established"
-    : submitted
-      ? "submitted_unparsed"
-      : "not_submitted";
+type SourceAvailability = {submitted: boolean; read: boolean};
+
+function sourceAvailability(input: CommercialControlInput) {
+  const read = {
+    commercial: Boolean(input.contractValue || input.contractValueCandidates?.length || input.contractTimeBasis || input.sourceLedger?.costMetrics.length || input.sourceLedger?.costPosition.length),
+    payments: Boolean(input.invoices.length || input.retentions.length || input.sourceLedger?.payments.length),
+    variations: Boolean(input.variations.length || input.sourceLedger?.variations.length),
+    bonds: input.bonds.length > 0,
+    claims: Boolean(input.claimCommercials.length || input.delayClaims || input.sourceDelayClaims),
+  };
+  return Object.fromEntries(Object.entries(read).map(([key, recordsRead]) => {
+    const domain = key as keyof typeof read;
+    const submitted = {commercial: input.commercialEvidenceSubmitted, payments: input.paymentEvidenceSubmitted, variations: input.variationEvidenceSubmitted, bonds: input.bondEvidenceSubmitted, claims: input.claimEvidenceSubmitted}[domain];
+    return [domain, {submitted, read: recordsRead || input.sourceRead?.[domain] === true}];
+  })) as Record<keyof typeof read, SourceAvailability>;
+}
+
+function stateFor(hasValue: boolean, source: SourceAvailability): CommercialEvidenceState {
+  if (hasValue) return "established";
+  if (source.read) return "missing_information";
+  return source.submitted ? "submitted_unparsed" : "not_submitted";
+}
+
+function explainMissingInformation<T>(metric: CommercialMetric<T>, consequence: string, action: string): void {
+  if (metric.state !== "missing_information") return;
+  metric.consequence = consequence;
+  metric.action = action;
 }
 
 function addDays(
@@ -107,6 +125,7 @@ function delayEvidenceRef(
 function commercialClaimsNotices(
   input: CommercialControlInput,
 ): CommercialClaimsNoticesPosition {
+  const sources = sourceAvailability(input);
   const lifecycle =
     input.delayClaims ?? null;
   const sourceLifecycle=input.sourceDelayClaims??lifecycle;
@@ -261,17 +280,12 @@ function commercialClaimsNotices(
     state:
       hasLifecycle
         ? "established"
-        : input.claimCommercials
-              .length > 0 ||
-            input
-              .claimEvidenceSubmitted
-          ? "submitted_unparsed"
-          : "not_submitted",
+        : stateFor(false, sources.claims),
     asOfNoticeCount:(lifecycle?.notices??[]).filter(n=>n.kind!=='determination'&&reportingScope(n.actualIssuedAt,input.sourceLedger?.dataDateIso??lifecycle?.dataDateIso)==='as_of').length,
     sourceNoticeCount:(sourceLifecycle?.notices??[]).filter(n=>n.kind!=='determination').length,
     futureNoticeCount:(sourceLifecycle?.notices??[]).filter(n=>n.kind!=='determination'&&reportingScope(n.actualIssuedAt,input.sourceLedger?.dataDateIso??lifecycle?.dataDateIso)==='future').length,
     undatedNoticeCount:(sourceLifecycle?.notices??[]).filter(n=>n.kind!=='determination'&&reportingScope(n.actualIssuedAt,input.sourceLedger?.dataDateIso??lifecycle?.dataDateIso)==='undated').length,
-    dimensionalEvidenceGaps:{requirementMissing:assessments.filter(a=>!a.requirementId).length,eventDateMissing:assessments.filter(a=>!a.eventStartIso).length,noticeDateMissing:assessments.filter(a=>!a.noticeIssuedAt).length},
+    dimensionalEvidenceGaps:{requirementMissing:assessments.filter(a=>a.evidenceGaps.requirementMissing).length,eventDateMissing:assessments.filter(a=>a.evidenceGaps.eventDateMissing).length,noticeDateMissing:assessments.filter(a=>a.evidenceGaps.noticeDateMissing).length},
     evidenceRevisionId:
       lifecycle
         ?.evidenceRevisionId ??
@@ -448,6 +462,7 @@ function currenciesOf(
 export function buildCommercialControlPosition(
   input: CommercialControlInput,
 ): CommercialControlPosition {
+  const sources = sourceAvailability(input);
   const contractTime =
     input.contractTimeBasis;
   const timeRefs =
@@ -658,10 +673,7 @@ export function buildCommercialControlPosition(
           ? "established"
           : candidates.length > 0
             ? "candidate"
-            : input
-                .commercialEvidenceSubmitted
-              ? "submitted_unparsed"
-              : "not_submitted";
+            : stateFor(false, sources.commercial);
       const committedValue =
         contract?.amount ??
         (
@@ -736,8 +748,7 @@ export function buildCommercialControlPosition(
             stateFor(
               approvedVariations
                 .length > 0,
-              input
-                .variationEvidenceSubmitted,
+              sources.variations,
             ),
             variationRefs,
           ),
@@ -755,8 +766,7 @@ export function buildCommercialControlPosition(
             stateFor(
               pendingVariations
                 .length > 0,
-              input
-                .variationEvidenceSubmitted,
+              sources.variations,
             ),
             variationRefs,
           ),
@@ -789,8 +799,7 @@ export function buildCommercialControlPosition(
               : null,
             stateFor(
               invoices.length > 0,
-              input
-                .paymentEvidenceSubmitted,
+              sources.payments,
             ),
             invoiceRefs,
           ),
@@ -799,8 +808,7 @@ export function buildCommercialControlPosition(
             grossCertified,
             stateFor(
               certified.length > 0,
-              input
-                .paymentEvidenceSubmitted,
+              sources.payments,
             ),
             invoiceRefs,
           ),
@@ -809,8 +817,7 @@ export function buildCommercialControlPosition(
             paidTotal,
             stateFor(
               paid.length > 0,
-              input
-                .paymentEvidenceSubmitted,
+              sources.payments,
             ),
             invoiceRefs,
             invoices.length > 0 &&
@@ -835,10 +842,7 @@ export function buildCommercialControlPosition(
             paidTotal !== null &&
             completePaidCoverage
               ? "established"
-              : input
-                  .paymentEvidenceSubmitted
-                ? "submitted_unparsed"
-                : "not_submitted",
+              : stateFor(false, sources.payments),
             invoiceRefs,
             completePaidCoverage
               ? []
@@ -862,11 +866,7 @@ export function buildCommercialControlPosition(
             sourceRetentionDeductions.length ===
               sourcePaymentRows.length
               ? "established"
-              : sourcePaymentRows.length > 0
-                ? "submitted_unparsed"
-                : input.paymentEvidenceSubmitted
-                  ? "submitted_unparsed"
-                  : "not_submitted",
+              : stateFor(false, sources.payments),
             retentionDeductedRefs,
             sourcePaymentRows.length > 0 &&
             sourceRetentionDeductions.length !==
@@ -890,8 +890,7 @@ export function buildCommercialControlPosition(
               : null,
             stateFor(
               retained.length > 0,
-              input
-                .paymentEvidenceSubmitted,
+              sources.payments,
             ),
             retentionRefs,
           ),
@@ -902,10 +901,7 @@ export function buildCommercialControlPosition(
               null,
             latestAdvanceBalance
               ? "established"
-              : input
-                  .paymentEvidenceSubmitted
-                ? "submitted_unparsed"
-                : "not_submitted",
+              : stateFor(false, sources.payments),
             latestAdvanceBalance
               ?.sourceRefs ??
               [],
@@ -929,8 +925,7 @@ export function buildCommercialControlPosition(
               : null,
             stateFor(
               activeBonds.length > 0,
-              input
-                .bondEvidenceSubmitted,
+              sources.bonds,
             ),
             bondRefs,
           ),
@@ -946,11 +941,7 @@ export function buildCommercialControlPosition(
               : null,
             completeClaimedCoverage
               ? "established"
-              : claims.length > 0 ||
-                  input
-                    .claimEvidenceSubmitted
-                ? "submitted_unparsed"
-                : "not_submitted",
+              : stateFor(false, sources.claims),
             claimRefs,
             claims.length > 0 &&
             !completeClaimedCoverage
@@ -971,11 +962,7 @@ export function buildCommercialControlPosition(
               : null,
             completeAssessedCoverage
               ? "established"
-              : claims.length > 0 ||
-                  input
-                    .claimEvidenceSubmitted
-                ? "submitted_unparsed"
-                : "not_submitted",
+              : stateFor(false, sources.claims),
             claimRefs,
             claims.length > 0 &&
             !completeAssessedCoverage
@@ -1057,16 +1044,18 @@ export function buildCommercialControlPosition(
       if(applicable.length===1){
         const source=applicable[0]!;
         const refs=source.receipts.map(r=>"evidence-document:"+r.documentId+":"+r.locator);
-        const metric=(name:string)=>moneyMetric(source.values[name]??null,source.values[name]==null?"submitted_unparsed":source.diagnostics.some(d=>/CONFLICT|UNRESOLVED/.test(d))?"candidate":"established",refs,["EXPLICIT_SOURCE_SNAPSHOT_NOT_RECALCULATED_FROM_VARIATIONS",...source.diagnostics]);
+        const metric=(name:string)=>moneyMetric(source.values[name]??null,source.values[name]==null?"missing_information":source.diagnostics.some(d=>/CONFLICT|UNRESOLVED/.test(d))?"candidate":"established",refs,["EXPLICIT_SOURCE_SNAPSHOT_NOT_RECALCULATED_FROM_VARIATIONS",...source.diagnostics]);
         if("original contract value" in source.values)position.originalContractValue=metric("original contract value");
         if("current contract value" in source.values)position.currentContractValue=metric("current contract value");
         if("approved variations" in source.values)position.approvedVariationAmount=metric("approved variations");
       }else if(applicable.length>1){
-        position.currentContractValue=moneyMetric(null,"submitted_unparsed",[],["MIXED_TAX_BASES_USE_PARTITIONED_SOURCE_LEDGER"]);
+        position.currentContractValue=moneyMetric(null,"candidate",[],["MIXED_TAX_BASES_USE_PARTITIONED_SOURCE_LEDGER"]);
       }
       const payments=ledger.payments.filter(p=>p.amounts.netCertifiedAmount.currency===position.currency);
       if(payments.length){
         const refs=payments.flatMap(p=>p.amounts.netCertifiedAmount.receipts.map(r=>"evidence-document:"+r.documentId+":"+r.locator));
+        const periods=payments.filter(p=>reportingScope(p.periodEnd,ledger.dataDateIso)==='as_of');
+        position.sourceCertificatePeriodCount={...moneyMetric(periods.length,"established",refs,["SOURCE_CERTIFICATE_PERIOD_COUNT_NOT_DATED_CERTIFICATION_COUNT"]),consequence:"Source certificate periods through Data Date; certification dates checked separately."};
         const unestablished=(reason:string)=>moneyMetric(null,"missing_information",refs,[reason]);
         position.grossCertifiedAmount=unestablished("NET_CERTIFICATE_IS_NOT_GROSS_CERTIFICATION");
         position.netCertifiedAmount=unestablished("INCREMENTAL_VERSUS_CUMULATIVE_BASIS_REQUIRED_FOR_AGGREGATION");
@@ -1077,6 +1066,21 @@ export function buildCommercialControlPosition(
         }
       }
     }
+  }
+
+  // A parsed register without the requested field is different from unread evidence.
+  // Apply the distinction once so pages, reports and issue ownership agree.
+  for(const position of positions){
+    explainMissingInformation(position.approvedVariationAmount,"Approved amount not supported for this currency and cutoff.","Review the approved variation amounts, currency and effective dates in the supplied register.");
+    explainMissingInformation(position.pendingVariationAmount,"Pending-variation amount not in the current data.","Confirm the pending variation register and supply its dated amounts; an empty subset is not proof of zero exposure.");
+    explainMissingInformation(position.claimedAmount,"Claimed money is missing or incomplete for this currency; reported claim days remain separate.","Supply the monetary claim valuation by claim ID, currency and reporting date.");
+    explainMissingInformation(position.assessedClaimAmount,"Assessed money is missing or incomplete for this currency; assessed days remain separate.","Supply the monetary assessment by claim ID, currency and reporting date.");
+    explainMissingInformation(position.interimCertificateCount,"Dated certification count is not supported by the source periods.","Supply the certification dates and retain the source-period count separately.");
+    explainMissingInformation(position.grossCertifiedAmount,"Dated gross certification is not supported by the supplied event dates.","Confirm the certification date and gross certified amount for each certificate; gross work remains available in the source profile.");
+    explainMissingInformation(position.paidAmount,"Actual payment amounts and receipt dates are not confirmed.","Supply dated payments or receipts, references and certificate allocations.");
+    explainMissingInformation(position.certifiedUnpaidAmount,"Unpaid balance needs confirmed certification and payment records.","Reconcile dated certificates with their allocated payments; missing payments are not zero.");
+    explainMissingInformation(position.retentionHeldAmount,"Held balance needs opening retention and release records.","Reconcile the retention deductions with opening balances and dated releases.");
+    explainMissingInformation(position.advanceBalance,"Advance balance is not supported by the current records.","Supply the original advance payment, receipt date and recovery allocation.");
   }
 
   const foundation =
@@ -1541,10 +1545,7 @@ export function buildCommercialControlPosition(
             ? "established"
             : contractual
               ? "candidate"
-              : input
-                  .commercialEvidenceSubmitted
-                ? "submitted_unparsed"
-                : "not_submitted",
+              : stateFor(false, sources.commercial),
           timeRefs,
         ),
       approvedEotDays:
@@ -1556,14 +1557,11 @@ export function buildCommercialControlPosition(
             ? "established"
             : approvedEot !== null
               ? "candidate"
-              : input
-                  .claimEvidenceSubmitted
-                ? "submitted_unparsed"
-                : "not_submitted",
+              : stateFor(false, sources.claims),
           timeRefs,
         ),
       officialAdjustedCompletion:
-        dateMetric(
+        {...dateMetric(
           adjusted,
           adjusted !== null &&
           contractual &&
@@ -1583,15 +1581,20 @@ export function buildCommercialControlPosition(
               : contractTime
                   ?.overlapResolution ===
                   "unresolved"
-                ? "submitted_unparsed"
+                ? "candidate"
                 : "not_submitted",
           timeRefs,
           adjusted
             ? []
+            : contractTime?.overlapResolution === "unresolved"
+              ? ["AMENDMENT_DETERMINATION_OVERLAP_NOT_CONFIRMED"]
             : [
                 "ADJUSTED_COMPLETION_REQUIRES_CONTRACTUAL_COMPLETION_AND_APPROVED_EOT",
               ],
-        ),
+        ),...(contractTime?.overlapResolution === "unresolved" ? {
+          consequence:"Amendment and determination overlap needs review.",
+          action:"Confirm which dated determinations are already incorporated in the amendment before applying additional days."
+        } : {})},
     },
     currencies: positions,
     variationCount:
@@ -1687,8 +1690,7 @@ export function buildCommercialControlPosition(
               )
             )
           ),
-          input
-            .commercialEvidenceSubmitted,
+          sources.commercial,
         ),
       payments:
         stateFor(
@@ -1701,8 +1703,7 @@ export function buildCommercialControlPosition(
               0
             ) >
               0,
-          input
-            .paymentEvidenceSubmitted,
+          sources.payments,
         ),
       variations:
         stateFor(
@@ -1714,14 +1715,12 @@ export function buildCommercialControlPosition(
               0
             ) >
               0,
-          input
-            .variationEvidenceSubmitted,
+          sources.variations,
         ),
       bonds:
         stateFor(
           input.bonds.length > 0,
-          input
-            .bondEvidenceSubmitted,
+          sources.bonds,
         ),
       claims:
         stateFor(
@@ -1730,8 +1729,7 @@ export function buildCommercialControlPosition(
             0 ||
             claimsNotices.state ===
               "established",
-          input
-            .claimEvidenceSubmitted,
+          sources.claims,
         ),
     },
     sourceRefs: allRefs,
@@ -1952,6 +1950,7 @@ export function buildCommercialModuleProjection(
             interimCertificateCount:
               row
                 .interimCertificateCount,
+            sourceCertificatePeriodCount: row.sourceCertificatePeriodCount,
             grossCertifiedAmount:
               row
                 .grossCertifiedAmount,
