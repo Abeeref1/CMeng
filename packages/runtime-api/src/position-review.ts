@@ -7,6 +7,7 @@ export const STATUS_LABELS: Record<string,string> = {
   missing_information:'Information needed',comparison_difference:'Positions differ',governance_review:'Approval needed',
   verification_pending:'Check pending',checked:'Checked',established:'Confirmed',not_established:'Not confirmed',
   candidate:'Needs review',governed:'Confirmed',governed_source:'Reported forecast',source:'Reported',source_current:'Current record',source_report:'Reported',unknown:'Not known',partial:'Partly confirmed',
+  reported_source_value:'Reported amount',cmeng_policy_default:'Default rule',conditions_present_status_register_missing:'Conditions present; permit status needed',validation_failed:'Records need correction',
   unavailable:'Not available',not_checked:'Not checked',review_required:'Review needed',conflicted:'Records disagree',
   verified_for_checked_metrics:'Listed checks passed',submitted_unparsed:'Document not yet read',
 };
