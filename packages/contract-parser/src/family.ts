@@ -1,3 +1,4 @@
+import {naturalCompare} from '../../shared/src/natural-order';
 import type {
   ContractDocumentResult,
   ContractFamilyResult,
@@ -51,9 +52,7 @@ export function groupLogicalClauses(
       consistentHeading: group.headings.size <= 1,
     }))
     .sort((a, b) =>
-      a.identifier.localeCompare(b.identifier, undefined, {
-        numeric: true,
-      }),
+      naturalCompare(a.identifier, b.identifier),
     );
 }
 

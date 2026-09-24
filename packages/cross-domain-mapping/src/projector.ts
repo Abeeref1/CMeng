@@ -477,18 +477,23 @@ export function buildQuantityScheduleMapping(
     for(const token of codeTokens([a.activityId,a.wbsId??'',wbs].join(' ')))index(codes,token,a);
     const name=norm(a.name);if(name.length>=5){index(namePrefixes,name.slice(0,5),a);for(const gram of grams(name))index(nameGrams,gram,a);}
   }
+  const sectionMatchCache=new Map<string,Set<CanonicalScheduleActivity>>();
   const candidatesFor=(item:CanonicalQuantityItem)=>{
     const found=new Set<CanonicalScheduleActivity>();
     const collect=(map:Posting,keys:Iterable<string>,target=found)=>{for(const key of keys)for(const a of map.get(key)??[])target.add(a);};
     collect(descriptions,tokens(item.description));
     const description=norm(item.description);
     if(description.length>=5){collect(nameGrams,[description.slice(0,5)]);collect(namePrefixes,grams(description));}
-    const sectionMatches=new Set<CanonicalScheduleActivity>(),codeMatches=new Set<CanonicalScheduleActivity>();
-    collect(sections,tokens(item.section),sectionMatches);
+    const codeMatches=new Set<CanonicalScheduleActivity>();
     const corpus=[item.itemNumber??'',item.section??'',item.description].join(' ');
     collect(codes,codeTokens(corpus),codeMatches);
     // Section or code evidence alone cannot reach the 0.34 candidate threshold.
-    for(const a of sectionMatches)if(codeMatches.has(a))found.add(a);
+    if(codeMatches.size){
+      const sectionKey=item.section??'';
+      let sectionMatches=sectionMatchCache.get(sectionKey);
+      if(!sectionMatches){sectionMatches=new Set();collect(sections,tokens(item.section),sectionMatches);sectionMatchCache.set(sectionKey,sectionMatches);}
+      for(const a of codeMatches)if(sectionMatches.has(a))found.add(a);
+    }
     for(const token of corpus.toUpperCase().match(/[A-Z0-9_.-]+/g)??[]){const a=explicit.get(token);if(a)found.add(a);}
     for(const a of unusualIds)if(containsExplicitActivityId(item,a))found.add(a);
     return [...found];

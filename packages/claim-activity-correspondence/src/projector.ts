@@ -1,3 +1,4 @@
+import {naturalCompare} from '../../shared/src/natural-order';
 import type {
   DelayActivityCorrespondenceCandidate,
   DelayActivityCorrespondenceSignal,
@@ -54,6 +55,7 @@ interface IndexedActivity {
 }
 
 interface ClaimActivityScheduleIndex {
+  naturalOrder: number[];
   scheduleRevisionId: string;
   wbsById: Map<string, CanonicalWbsNode>;
   activityById: Map<string, CanonicalScheduleActivity>;
@@ -79,17 +81,22 @@ function characterCount(value: string): number {
   return [...value].length;
 }
 
+const normalizedText=new Map<string,string>();
+const textTokens=new Map<string,string[]>();
 function norm(value: string | null | undefined): string {
-  return (value ?? "")
+  const key=value??'',cached=normalizedText.get(key);if(cached!==undefined)return cached;
+  const result = key
     .normalize("NFKC")
     .toLowerCase()
     .replace(/[^\p{L}\p{N}]+/gu, " ")
     .replace(/\s+/g, " ")
     .trim();
+  if(normalizedText.size>=32768)normalizedText.clear();normalizedText.set(key,result);return result;
 }
 
 function tokens(value: string | null | undefined): string[] {
-  return norm(value)
+  const key=value??'',cached=textTokens.get(key);if(cached)return cached;
+  const result=norm(value)
     .split(" ")
     .map((token) => token.trim())
     .filter(
@@ -97,6 +104,7 @@ function tokens(value: string | null | undefined): string[] {
         token.length >= 2 &&
         !STOP.has(token),
     );
+  if(textTokens.size>=32768)textTokens.clear();textTokens.set(key,result);return result;
 }
 
 function tokenSet(value: string | null | undefined): Set<string> {
@@ -218,6 +226,7 @@ function scheduleIndex(
   });
 
   const value = {
+    naturalOrder:indexed.map((_,i)=>i).sort((a,b)=>naturalCompare(indexed[a]!.activity.activityId,indexed[b]!.activity.activityId)),
     scheduleRevisionId: schedule.sourceRevisionId,
     wbsById,
     activityById,
@@ -250,51 +259,19 @@ function prefilterIndexedActivities(
     extraction.codes.map((value) => value.toUpperCase()),
   );
 
-  const candidateIndexes = new Set<number>();
-  for (const token of queryTokens) {
-    for (const activityIndex of index.byToken.get(token) ?? []) {
-      candidateIndexes.add(activityIndex);
-    }
-  }
-  for (const code of queryCodes) {
-    for (const activityIndex of index.byCode.get(code) ?? []) {
-      candidateIndexes.add(activityIndex);
-    }
-  }
-
-  const items = [...candidateIndexes]
-    .map((activityIndex) => index.indexed[activityIndex]!)
-    .map((item) => {
-      let overlap = 0;
-      for (const token of queryTokens) {
-        if (item.tokens.has(token)) overlap += 1;
-      }
-      let codeOverlap = 0;
-      for (const code of queryCodes) {
-        if (item.codes.has(code)) codeOverlap += 1;
-      }
-      return {
-        item,
-        cheapScore:
-          overlap +
-          codeOverlap * 4,
-      };
-    })
-    .sort(
-      (a, b) =>
-        b.cheapScore - a.cheapScore ||
-        a.item.activity.activityId.localeCompare(
-          b.item.activity.activityId,
-          undefined,
-          { numeric: true },
-        ),
-    )
-    .slice(0, 96)
-    .map((entry) => entry.item);
+  // Accumulate the exact former overlap score from the inverted index. Stable
+  // natural order within score buckets preserves the same top 96 candidates.
+  const scores=new Uint32Array(index.indexed.length);
+  for(const token of queryTokens)for(const i of index.byToken.get(token)??[])scores[i]!+=1;
+  for(const code of queryCodes)for(const i of index.byCode.get(code)??[])scores[i]!+=4;
+  const buckets=new Map<number,IndexedActivity[]>();let rawCandidateCount=0;
+  for(const i of index.naturalOrder){const score=scores[i]!;if(!score)continue;rawCandidateCount++;
+    const bucket=buckets.get(score)??[];if(bucket.length<96)bucket.push(index.indexed[i]!);buckets.set(score,bucket);}
+  const items=[...buckets.keys()].sort((a,b)=>b-a).flatMap(score=>buckets.get(score)!).slice(0,96);
 
   return {
     items,
-    rawCandidateCount: candidateIndexes.size,
+    rawCandidateCount,
     queryTokenCount: queryTokens.size,
     queryCodeCount: queryCodes.size,
   };
@@ -829,11 +806,7 @@ export function resolveClaimActivityCorrespondence(
     .sort(
       (a, b) =>
         b.prefilterScore - a.prefilterScore ||
-        a.activity.activityId.localeCompare(
-          b.activity.activityId,
-          undefined,
-          { numeric: true },
-        ),
+        naturalCompare(a.activity.activityId, b.activity.activityId),
     );
 
   const bounded = ranked.slice(0, maxCandidates);
@@ -866,11 +839,7 @@ export function resolveClaimActivityCorrespondence(
       (a, b) =>
         b.finalScore - a.finalScore ||
         b.prefilterScore - a.prefilterScore ||
-        a.activity.activityId.localeCompare(
-          b.activity.activityId,
-          undefined,
-          { numeric: true },
-        ),
+        naturalCompare(a.activity.activityId, b.activity.activityId),
     );
 
   const top = scoredCandidates[0] ?? null;

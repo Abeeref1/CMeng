@@ -1,3 +1,4 @@
+import {naturalCompare} from '../../shared/src/natural-order';
 import { addWorkingHours, resolveWorkingCalendar, parseScheduleInstant } from "../../schedule-cpm/src/calendar";
 import {
   buildScheduleActivityLogicIndex,
@@ -322,11 +323,7 @@ export function buildLookAheadProjection(
     const bDate = b.finishIso ?? "9999";
     return (
       aDate.localeCompare(bDate) ||
-      a.activityId.localeCompare(
-        b.activityId,
-        undefined,
-        { numeric: true },
-      )
+      naturalCompare(a.activityId, b.activityId)
     );
   });
 

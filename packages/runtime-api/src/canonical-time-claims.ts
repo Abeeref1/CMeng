@@ -705,6 +705,16 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
   const result:CanonicalTimeClaims={producerVersion:'canonical-time-claims-v1',dataDateIso,delayClaims,contractTimeBasis,determinations,amendments,registerDeterminationDays,effectiveDeterminationDays,futureDeterminationCount:eligible.filter(d=>dataDateIso!==null&&d.determinationDate!==null&&d.determinationDate>dataDateIso).length,diagnostics};
   cache.set(state,{version:state.version,value:result});return result;
 }
+/** A reporting view may reuse source extraction only when every extraction
+ * input is identical. Sanitized schedule models or refreshed contract text
+ * force a new calculation; project/version alone is never sufficient. */
+export function inheritTimeClaimsCache(source:ProjectRuntimeState,target:ProjectRuntimeState):void {
+  const old=cache.get(source);
+  if(old?.version!==target.version||source.evidenceDocuments!==target.evidenceDocuments||source.activeEvidenceBasis!==target.activeEvidenceBasis)return;
+  if(source.schedules.length!==target.schedules.length||source.schedules.some((s,i)=>s!==target.schedules[i]))return;
+  if(source.contractDocuments.length!==target.contractDocuments.length||source.contractDocuments.some((d,i)=>d.result!==target.contractDocuments[i]?.result))return;
+  cache.set(target,old);
+}
 export function synchronizeCanonicalTimeClaims(state:ProjectRuntimeState,force=false):void{
   const model=canonicalTimeClaims(state,force),existing=state.controls.delayClaims;
   if(model.delayClaims && (!existing||/^(canonical-evidence|evidence-document):/.test(existing.evidenceRevisionId))){

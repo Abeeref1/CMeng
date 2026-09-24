@@ -1,5 +1,5 @@
 import { delayClaimsAsOf } from '../../delay-analysis-core/src/reporting';
-import { projectDataDate, canonicalTimeClaims } from './canonical-time-claims';
+import { projectDataDate, canonicalTimeClaims, inheritTimeClaimsCache } from './canonical-time-claims';
 import type { ProjectRuntimeState } from './project-state-types';
 import { reportingScope,partitionAsOf } from '../../truth-kernel/src';
 import { projectControlSchedule } from './canonical-time-claims';
@@ -49,6 +49,7 @@ export function reportingState(state: ProjectRuntimeState): ProjectRuntimeState 
     contractDocuments:state.contractDocuments.map(doc=>({...doc,result:refreshContractSegmentation(doc.result)})),
     controls:{...state.controls,readinessEvidence:reportingReadinessEvidence(state,date),delayClaims:source?delayClaimsAsOf(source,date).current:null,
     ncrs:ops.quality.current as typeof state.controls.ncrs,rfis:ops.rfi.current as typeof state.controls.rfis,risks:ops.risk.current as typeof state.controls.risks}};
+  inheritTimeClaimsCache(state,view);
   views.add(view);origins.set(view,state);cache.set(state,{version:state.version,date,value:view});return view;
 }
 

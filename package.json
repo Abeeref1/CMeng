@@ -13,7 +13,9 @@
     "verify": "npm run typecheck && npm run test:unit",
     "test:stress:schedule": "npm run build && node --test dist/tests/schedule-modules-scale.test.js",
     "test:stress:boq": "npm run build && node --test dist/tests/boq-scale.test.js",
-    "test:stress:xer": "npm run build && node --test dist/tests/xer-scale.test.js"
+    "test:stress:xer": "npm run build && node --test dist/tests/xer-scale.test.js",
+    "test:release:latency": "npm run build && node scripts/release-latency.cjs",
+    "test:release": "npm run verify && npm run test:release:latency"
   },
   "dependencies": {
     "iconv-lite": "0.6.3",

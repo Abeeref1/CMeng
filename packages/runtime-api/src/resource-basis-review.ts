@@ -7,7 +7,12 @@ import {commercialCanonical} from './commercial-canonical';
 import type {ProjectRuntimeState} from './project-state-types';
 import type {WeeklyResourceCapacitySummary} from './canonical-resource-evidence';
 
+const reviews=new WeakMap<ProjectRuntimeState,{version:number;weekly:WeeklyResourceCapacitySummary;value:ReturnType<typeof calculateResourceBasisReview>}>();
 export function resourceBasisReview(state:ProjectRuntimeState,weekly:WeeklyResourceCapacitySummary){
+  const cached=reviews.get(state);if(cached?.version===state.version&&cached.weekly===weekly)return cached.value;
+  const value=calculateResourceBasisReview(state,weekly);reviews.set(state,{version:state.version,weekly,value});return value;
+}
+function calculateResourceBasisReview(state:ProjectRuntimeState,weekly:WeeklyResourceCapacitySummary){
   const current=projectControlSchedule(state),date=projectDataDate(state);
   const stored=current?state.resourcesByRevision.get(current.revision.revisionId):null;
   const model=stored?refreshResourceSourceFields(state,stored):null;

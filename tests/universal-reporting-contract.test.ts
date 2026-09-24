@@ -275,7 +275,7 @@ test('all specialist and management status surfaces use the same fail-closed rea
    }
  }
  assert.ok(overview);
- assert.equal(overview.managementStates.length,3);
+ assert.equal(overview.managementStates.length,4);
  for (const item of [...overview.moduleStates,...overview.managementStates]) {
    const resolved=moduleForProject(state.projectId,item.key);
    assert.equal(item.status,resolved.status,item.key+' navigation status');
@@ -380,4 +380,36 @@ test('a coherent dated risk register is established for current counts without a
  const r=operationalReporting(state);assert.equal(r.counts.openRiskCount,2);assert.equal(r.risk.validation.state,'consistent_in_checked_scores');
  const surfaces=managementSurfacesForProject(state.projectId)!;assert.ok(!surfaces.commandCenter.evidenceGaps.some(g=>g.key==='risk-information'));
  assert.equal(surfaces.masterDashboard.metrics.find(m=>m.key==='open-risk')!.value,2);
+});
+
+test('global page values and JSON reports agree for distinct projects, and consumer drift is detected',async t=>{
+ const {checkPageValues}=await import('../packages/runtime-api/src/page-value-checks');
+ const {scheduleModules,commercialModules}=await import('../packages/runtime-api/src/registry');
+ const {buildModuleJsonDownload}=await import('../packages/runtime-api/src/module-report');
+ for(const amount of [1437,2891]){
+  const {state,model,csv}=fixture(t);model.activities[0]!.percentComplete=amount/100;
+  csv('Certificate No,Period End,Gross Work,Variations,Retention,Advance Recovery,Net Certified,Currency,Tax Basis,Status\nIPC-X,2031-04-15,'+amount+',20,10,5,'+(amount+5)+',EUR,exclusive,Certified\nIPC-F,2031-04-16,300,0,0,0,300,EUR,exclusive,Certified');
+  csv('Claim ID,Event,Notice Date,Days Claimed,Status\nCASE-X,Access record,2031-04-15,8,Under Assessment\nCASE-F,Later event,2031-04-16,10,Rejected','delay_eot_claims_register');
+  const keys=[...scheduleModules,...commercialModules].map(m=>m.key).concat(['master-dashboard','command-center','master-control-programme']);
+  const pages=new Map(keys.map(key=>[key,moduleForProject(state.projectId,key)]));
+  const checks=checkPageValues(pages);assert.deepEqual(checks.filter(c=>c.state==='failed'),[]);
+  const reports=new Map(keys.map(key=>[key,JSON.parse(buildModuleJsonDownload(state.projectId,key,pages.get(key)!).toString()).result]));
+  assert.deepEqual(checkPageValues(reports),checks,'every exported page retains the same cross-page values');
+  const cash=reports.get('cash-flow').data;cash.position.certificateProfile.groups[0].as_of[0].value++;
+  assert.ok(checkPageValues(reports).some(c=>c.metric==='Certificate components and time partitions'&&c.state==='failed'),'a page-only amount error fails the global gate');
+  const quality=moduleForProject(state.projectId,'source-quality').data as any;
+  assert.equal(quality.systemFailures.length,0,JSON.stringify(quality.systemFailures));assert.equal(quality.coverage.length,29);
+  const notice=pages.get('notices-claims')!.data as any,windows=pages.get('windows-analysis')!.data as any;
+  assert.equal(notice.systemEvidenceContract.state,'verified_for_checked_metrics');assert.equal(windows.systemEvidenceContract.state,'verified_for_checked_metrics');
+  assert.ok(!pages.get('notices-claims')!.issueAssessment?.issues.some(i=>i.kind==='verification_pending'&&i.code==='CALCULATION_NOT_VERIFIED'));
+  for(const key of keys)assert.ok((pages.get(key)!.data as any).positionVerdict?.text,key+' has a shared verdict');
+ }
+});
+
+test('operational exceptions sort by severity, overdue days and age, with source owners retained',t=>{
+ const {state,csv}=fixture(t);
+ csv('NCR ID,Raised Date,Severity,Status,Owner,Due Date\nN-A,2031-04-10,Major,Open,Alice,2031-04-12\nN-Z,2031-03-01,Critical,Open,Bob,2031-03-15\nN-M,2031-04-01,Major,Open,,','quality_ncr_register');
+ const r=operationalReporting(state);assert.deepEqual(r.actions.map(a=>a.recordId),['N-Z','N-A','N-M']);
+ assert.equal(r.actions[0]!.ageDays,45);assert.equal(r.actions[0]!.overdueDays,31);assert.equal(r.actions[0]!.owner,'Bob');
+ assert.deepEqual(r.actions[2]!.missingActionFields,['Owner','Due date']);
 });

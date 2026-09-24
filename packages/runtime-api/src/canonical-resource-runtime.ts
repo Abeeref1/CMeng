@@ -9,7 +9,13 @@ export function canonicalResources(state:ProjectRuntimeState):WeeklyResourceCapa
  const cached=cache.get(state);if(cached?.version===state.version)return cached.summary;
  const summary=weeklyResourceCapacityEvidence(state.evidenceDocuments,projectDataDate(state));cache.set(state,{version:state.version,summary});return summary;
 }
+const moduleCache=new WeakMap<ProjectRuntimeState,{version:number;values:Map<string,ModuleRuntimeResult|null>}>();
 export function canonicalResourceModule(state:ProjectRuntimeState,key:string):ModuleRuntimeResult|null{
+ let cached=moduleCache.get(state);if(cached?.version!==state.version){cached={version:state.version,values:new Map()};moduleCache.set(state,cached);}
+ if(cached.values.has(key))return cached.values.get(key)!;
+ const value=calculateResourceModule(state,key);cached.values.set(key,value);return value;
+}
+function calculateResourceModule(state:ProjectRuntimeState,key:string):ModuleRuntimeResult|null{
  if(key!=='resource-utilization'&&key!=='manhour-scurve')return null;
  const summary=canonicalResources(state);if(summary.state==='not_found')return null;
  const generatedAt=new Date().toISOString();

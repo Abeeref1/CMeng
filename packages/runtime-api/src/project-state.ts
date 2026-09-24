@@ -1,3 +1,4 @@
+import {appendAuditEvent} from './audit-context';
 import {refreshHseSummary} from "./hse-report-evidence";
 import {refreshDeferredPdfRead} from './document-read-review';
 import {quantityModelFromBoq} from './boq-source';
@@ -1365,6 +1366,7 @@ export class RuntimeProjectStore {
           state.projectId,
           state,
         );
+      for(const restored of this.projects.values()) if(!this.auditWatermarks.has(restored.projectId)) this.auditWatermarks.set(restored.projectId,{fingerprint:this.auditFingerprint(restored),version:restored.version});
       }
       this.persistSnapshot();
     } catch (error) {
@@ -1379,7 +1381,15 @@ export class RuntimeProjectStore {
     }
   }
 
+  private auditWatermarks = new Map<string,{fingerprint:string;version:number}>();
+  private auditFingerprint(state:ProjectRuntimeState):string {
+    return JSON.stringify([state.version,state.evidenceDocuments.map(d=>[d.documentId,d.uploadedAt]),state.boardPublicationHistory.map(p=>[p.publicationId,p.finalizedAt,p.stale,!!p.reportSnapshot]),state.lastRerunReceipt]);
+  }
   private persistSnapshot(): void {
+    for(const state of this.projects.values()) {
+      const fingerprint=this.auditFingerprint(state),old=this.auditWatermarks.get(state.projectId);
+      if(old?.fingerprint!==fingerprint){appendAuditEvent(state,old?.version??null);this.auditWatermarks.set(state.projectId,{fingerprint,version:state.version});}
+    }
     const snapshot:
       RuntimeStateSnapshot = {
       schemaVersion: 1,

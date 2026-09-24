@@ -1,3 +1,4 @@
+import {naturalCompare} from '../../shared/src/natural-order';
 import { parseScheduleTime } from "../../schedule-analysis-core/src";
 import type {
   CanonicalScheduleActivity,
@@ -926,13 +927,7 @@ export function compareScheduleRevisions(
     activityChanges:
       changes.sort(
         (a, b) =>
-          a.activityId.localeCompare(
-            b.activityId,
-            undefined,
-            {
-              numeric: true,
-            },
-          ),
+          naturalCompare(a.activityId, b.activityId),
       ),
     addedRelationships,
     removedRelationships,

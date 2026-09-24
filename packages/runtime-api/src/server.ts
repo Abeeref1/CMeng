@@ -1,3 +1,5 @@
+import {prepareRuntimePositions,COLD_DASHBOARD_TARGET_MS} from './release-latency';
+import {withRequestAudit} from './audit-context';
 import {managementForecastPosition} from '../../management-surfaces/src';
 import {documentReadReview} from './document-read-review';
 import JSZip from "jszip";
@@ -267,6 +269,7 @@ function json(
 ): void {
   const payload = JSON.stringify(body);
   res.writeHead(statusCode, {
+    "cache-control": "no-store",
     "content-type":
       "application/json; charset=utf-8",
     "content-length":
@@ -2916,7 +2919,7 @@ async function route(
 
 export function createCmengServer(): Server {
   return createServer((req, res) => {
-    void route(req, res).catch((error) => {
+    void withRequestAudit(req,res,()=>route(req, res)).catch((error) => {
       const uploadId =
         header(
           req,
@@ -3142,15 +3145,16 @@ if (require.main === module) {
       }
     }
 
+    const deferred=await runtimeProjects.refreshDeferredPdfReads();
+    for(const projectId of deferred.changedProjects)invalidateProject(projectId);
+    const preparations=prepareRuntimePositions();
+    process.stdout.write(JSON.stringify({event:'positions_ready',coldDashboardTargetMs:COLD_DASHBOARD_TARGET_MS,projectCount:preparations.length,preparationMs:preparations.map(p=>p.preparationMs)})+'\n');
     const server = createCmengServer();
     server.listen(port, host, () => {
       process.stdout.write(
         `CMeng runtime listening on ${host}:${port}\n`,
       );
-      void runtimeProjects.refreshDeferredPdfReads().then(result=>{
-        for(const projectId of result.changedProjects)invalidateProject(projectId);
-        if(result.refreshedDocumentCount||result.diagnostics.length)process.stdout.write(JSON.stringify({event:'deferred_pdf_read_refresh',refreshedDocumentCount:result.refreshedDocumentCount,diagnosticCodes:result.diagnostics.map(x=>x.split(':')[0])})+'\n');
-      }).catch(error=>process.stderr.write('DEFERRED_PDF_READ_REFRESH_FAILED:'+String(error)+'\n'));
+
     });
   })().catch((error) => {
     process.stderr.write(

@@ -1,3 +1,4 @@
+import {naturalCompare} from '../../shared/src/natural-order';
 import { parseScheduleTime } from "../../schedule-analysis-core/src";
 import {
   DEFAULT_SCHEDULE_ANALYSIS_CONFIG,
@@ -426,11 +427,7 @@ export function buildMilestonesProjection(
         dateMs(b.currentDateIso) ??
         Number.MAX_SAFE_INTEGER;
       return ad - bd ||
-        a.activityId.localeCompare(
-          b.activityId,
-          undefined,
-          { numeric: true },
-        );
+        naturalCompare(a.activityId, b.activityId);
     });
 
   return {

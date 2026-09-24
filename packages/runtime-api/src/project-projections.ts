@@ -1,3 +1,5 @@
+import {checkPageValues} from './page-value-checks';
+import {sourceQualityPosition,withPositionVerdict} from './position-review';
 import {scheduleBasisReview,durationEditReview} from './schedule-basis-review';
 import {quantityBasisReview,contractValueBasisReview} from './source-basis-review';
 import {sourceInterpretation} from "./source-interpretation";
@@ -1471,17 +1473,7 @@ function buildBundle(
   const forecastSnapshots =
     ordered.map((stored) =>
       forecastSnapshotFromProjection(
-        buildIndependentForecastProjection(
-          stored.revision.model,
-          {
-            generatedAt,
-            producerVersion:
-              versions.forecast +
-              ":" +
-              stored.revision
-                .revisionId,
-          },
-        ),
+cachedIndependentForecast(stored.revision.model,generatedAt),
         "forecast-" +
           stored.revision
             .revisionId,
@@ -3298,7 +3290,7 @@ function canonicalQuantityModule(state: ProjectRuntimeState, model: ProjectRunti
   if (!quantities) return available("quantity-scurve", {
     schemaVersion: "1.0", projectionKey: "quantity_scurve", projectId: state.projectId,
     scheduleRevisionId: model.sourceRevisionId, dataDateIso: model.dataDateIso,
-    allocationState: "missing", mappingBasis: "missing", boqState: "not_established", series: [],
+    allocationState: "missing", mappingBasis: "missing", boqState: "not_established", unitKeyed: true, generatedAt, producerVersion:"quantity-source-integration-v1", boqRevisionId:null, series: [],
     unmappedItemIds: [], partiallyAllocatedItemIds: [], overAllocatedItemIds: [],
     diagnostics: ["BOQ_QUANTITY_BASIS_NOT_ESTABLISHED"],
   }, ["BOQ"], "partial", "BOQ quantities have not been established.");
@@ -6884,7 +6876,7 @@ function resolveProjectModuleCandidate(state: ProjectRuntimeState, key: string):
       ['schedule-analytics','independent-forecast'].includes(key)?['calendarRecalculatedFinishIso','calendarReview','productivityForecast']:[];
     if(fields.length)(result.data as any).sourceInterpretation=Object.fromEntries(fields.map(field=>[field,(interpretation as any)[field]]));
   }
-  return attachReportingContract(state,checkProjectionIntegrity(result, model, controlBasis.analysisConfig));
+  return attachReportingContract(state,checkProjectionIntegrity(result, model, controlBasis.analysisConfig, state.controls.delayClaims));
 }
 
 const resolvedProjectCache = new Map<string, {version: number; modules: Map<string, ModuleRuntimeResult>}>();
@@ -6922,7 +6914,7 @@ export function moduleForProject(
   return resolveProjectModule(state, key);
 }
 
-const managementModuleKeys = ["master-dashboard", "command-center", "master-control-programme"];
+const managementModuleKeys = ["master-dashboard", "command-center", "master-control-programme", "source-quality"];
 
 export function directorForProject(
   projectId: string,
@@ -6983,11 +6975,11 @@ function gapState(
       : "missing";
 }
 
-const managementProjectionCache = new Map<string, {version: number; data: ManagementSurfacesProjection}>();
+const managementProjectionCache = new Map<string, {version: number; data: ManagementSurfacesProjection & {sourceQuality: ReturnType<typeof sourceQualityPosition>}}>();
 
 export function managementSurfacesForProject(
   projectId: string,
-): ManagementSurfacesProjection | null {
+): (ManagementSurfacesProjection & {sourceQuality: ReturnType<typeof sourceQualityPosition>}) | null {
   const state =
     runtimeProjects.get(projectId);
   if (!state) return null;
@@ -7299,6 +7291,8 @@ export function managementSurfacesForProject(
 
   const history:
     ManagementHistoryInput[] = [
+      ...(state.auditHistory??[]).map(event=>({eventId:event.eventId,occurredAt:event.occurredAt,entity:'Project version '+event.projectVersion,
+        action:event.operation,actor:event.actor.label,state:event.actor.identityVerified?'attributed_system':'session_identity_unverified',sourceRef:'audit-request:'+event.requestId})),
       ...state.evidenceDocuments.map(
         (document) => ({
           eventId:
@@ -7310,7 +7304,7 @@ export function managementSurfacesForProject(
             document.sourceFilename,
           action:
             "Project evidence added or updated",
-          actor: null,
+          actor: "Actor not recorded (legacy)",
           state:
             document.basisState,
           sourceRef:
@@ -7331,7 +7325,7 @@ export function managementSurfacesForProject(
             publication.stale
               ? "Board publication became stale"
               : "Board publication finalized",
-          actor: null,
+          actor: "Actor not recorded (legacy)",
           state:
             publication.stale
               ? "stale"
@@ -7356,7 +7350,7 @@ export function managementSurfacesForProject(
                 "Project control position",
               action:
                 "Project position recalculated and cross-module certification executed",
-              actor: null,
+              actor: "Actor not recorded (legacy)",
               state:
                 state.lastRerunReceipt
                   .certification
@@ -7556,9 +7550,22 @@ export function managementSurfacesForProject(
     .map(issue=>({...issue,moduleKeys:[...managementModuleKeys]}));
   const issueAssessment=summarizeControlIssues([...issues,...governanceIssues,...operationalIssues]);
   const result = { ...surfaces,
-    masterDashboard: {...managementReportingData(state, surfaces.masterDashboard, resolvedModules),issueAssessment,operationalReporting:operationalReporting(state),sourceInterpretation:director?.sourceInterpretation},
+    sourceQuality: sourceQualityPosition(resolvedModules,issueAssessment,state.evidenceDocuments,current?.revision.model.dataDateIso??null),
+    masterDashboard: {...managementReportingData(state, surfaces.masterDashboard, resolvedModules),decisions:surfaces.commandCenter.decisions,trend:(resolvedModules.get("forecast-history")?.data as any)??null,issueAssessment,operationalReporting:operationalReporting(state),sourceInterpretation:director?.sourceInterpretation},
     commandCenter: {...managementReportingData(state, surfaces.commandCenter, resolvedModules),issueAssessment,operationalReporting:operationalReporting(state),sourceInterpretation:director?.sourceInterpretation},
     masterControlProgramme: {...managementReportingData(state, surfaces.masterControlProgramme, resolvedModules),issueAssessment,sourceInterpretation:director?.sourceInterpretation} };
+  const allPages=new Map(resolvedModules);
+  allPages.set('master-dashboard',{key:'master-dashboard',status:'partial',reason:null,dependencies:[],data:result.masterDashboard});
+  allPages.set('command-center',{key:'command-center',status:'partial',reason:null,dependencies:[],data:result.commandCenter});
+  allPages.set('master-control-programme',{key:'master-control-programme',status:'partial',reason:null,dependencies:[],data:result.masterControlProgramme});
+  const pageChecks=checkPageValues(allPages);
+  Object.assign(result.sourceQuality,{pageValueChecks:pageChecks});
+  const pageFailures=pageChecks.filter(c=>c.state==='failed');
+  if(pageFailures.length){
+    const failures:ControlIssue[]=pageFailures.map(c=>({kind:'system_defect',code:'CROSS_PAGE_VALUE_MISMATCH',summary:c.metric+' differs across pages',detail:JSON.stringify(c.values),action:'Correct the shared producer or consumer and rerun the cross-page release checks.',owner:'CMeng',moduleKeys:c.values.map(v=>v.page),evidencePaths:[],sourceRefs:[],checkIds:[c.metric]}));
+    result.sourceQuality.systemFailures.push(...failures);
+    for(const surface of [result.masterDashboard,result.commandCenter,result.masterControlProgramme,result.sourceQuality])surface.issueAssessment=summarizeControlIssues([...issueAssessment.issues,...failures]);
+  }
   managementProjectionCache.set(projectId, {version: state.version, data: result});
   return result;
 }
@@ -7585,7 +7592,7 @@ export function managementSurfaceForProject(
             "master-control-programme"
           ? surfaces
               .masterControlProgramme
-          : null;
+          : key === "source-quality" ? surfaces.sourceQuality : null;
   if (!data) {
     return null;
   }
@@ -7614,7 +7621,7 @@ export function managementSurfaceForProject(
     evidenceGapCount > 0 || surfaces.commandCenter.governanceGaps.length > 0 ||
     surfaces.masterDashboard.consistency.state !== "pass";
 
-  return {
+  return withPositionVerdict({
     key,
     issueAssessment: data.issueAssessment,
     status:
@@ -7653,7 +7660,7 @@ export function managementSurfaceForProject(
       "Commercial control position",
     ],
     data,
-  };
+  });
 }
 
 export function overviewForProject(

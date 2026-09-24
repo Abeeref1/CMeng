@@ -1,3 +1,4 @@
+import {naturalCompare} from '../../shared/src/natural-order';
 import {
   compareScheduleRevisions,
   orderScheduleRevisionsChronologically,
@@ -167,22 +168,14 @@ function activityFinishMovementStats(
     .sort(
       (a, b) =>
         b.days - a.days ||
-        a.activityId.localeCompare(
-          b.activityId,
-          undefined,
-          { numeric: true },
-        ),
+        naturalCompare(a.activityId, b.activityId),
     );
   const negative = comparable
     .filter((item) => item.days < 0)
     .sort(
       (a, b) =>
         a.days - b.days ||
-        a.activityId.localeCompare(
-          b.activityId,
-          undefined,
-          { numeric: true },
-        ),
+        naturalCompare(a.activityId, b.activityId),
     );
 
   const average = (

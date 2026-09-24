@@ -479,7 +479,7 @@ test("delivery challenge uses inferred quantity mapping for productivity without
       .scheduleDerivedScenarios.map(
         (row) => row.crewSize,
       ),
-    [4, 6, 8],
+    [],
   );
   assert.equal(
     result.authority,
@@ -623,6 +623,6 @@ test("non-hour labor UOM is not silently converted into manpower hours", () => {
     result.manpowerChallenge
       .scheduleDerivedScenarios
       .map((row) => row.crewSize),
-    [4, 6, 8],
+    [],
   );
 });

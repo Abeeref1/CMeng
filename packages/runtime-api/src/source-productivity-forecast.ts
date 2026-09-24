@@ -1,3 +1,4 @@
+import {naturalCompare} from '../../shared/src/natural-order';
 import {
   cell,
   dateValue,
@@ -430,10 +431,7 @@ function settingValue(
   };
 }
 
-function dateFromProductivityRow(
-  row: { cells: Readonly<Record<string, string>> },
-): string | null {
-  const direct = [
+const productivityDateColumns = [
     "source productivity forecast",
     "source productivity forecast completion",
     "productivity forecast",
@@ -442,10 +440,15 @@ function dateFromProductivityRow(
     "productivity based completion",
     "productivity-based completion",
     "productivity finish",
-  ]
+  ].map(norm);
+
+function dateFromProductivityRow(
+  row: { cells: Readonly<Record<string, string>> },
+): string | null {
+  const direct = productivityDateColumns
     .map(
       (name) =>
-        row.cells[norm(name)] ??
+        row.cells[name] ??
         "",
     )
     .find(
@@ -514,7 +517,7 @@ function dateFromProductivityRow(
   ]
     .map(
       (name) =>
-        row.cells[norm(name)] ??
+        row.cells[name] ??
         "",
     )
     .filter(Boolean)
@@ -2101,11 +2104,7 @@ function buildWorkPackageRows(
 
   return output.sort(
     (a, b) =>
-      a.workPackageId.localeCompare(
-        b.workPackageId,
-        undefined,
-        { numeric: true },
-      ),
+      naturalCompare(a.workPackageId, b.workPackageId),
   );
 }
 
