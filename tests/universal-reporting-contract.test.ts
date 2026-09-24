@@ -67,6 +67,11 @@ test('NCR and RFI lifecycles reconstruct the Data Date across director, dashboar
  assert.match(answer.answer,/Open RFIs at Data Date: 1/);
  assert.match(answer.answer,/Overdue RFIs at Data Date: 1/);
  assert.match(answer.answer,/Open risks at Data Date · requires dated status: Not established/);
+ assert.ok(answer.managementActions.some(action=>action.includes('NCR N1')));
+ assert.ok(answer.managementActions.some(action=>action.includes('RFI R1')&&action.includes('2031-04-10')));
+ assert.ok(!answer.managementActions.some(action=>action.includes('NCR N3')),'future records cannot enter current actions');
+ const forecastAnswer=answerProjectQuestion(state.projectId,'What drives the completion forecast?')!;
+ assert.ok(!forecastAnswer.managementActions.some(action=>action.includes('NCR')),'forecast answers use forecast evidence actions');
  state.schedules[0]!.revision.model.dataDateIso='2031-04-16';state.version++;
  assert.equal(directorForProject(state.projectId)!.controls.openCriticalMajorNcrCount,2);
  assert.equal(operationalReporting(state).quality.current.find(r=>r.ncrId==='N1')!.status,'closed');

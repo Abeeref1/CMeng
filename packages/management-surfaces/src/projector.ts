@@ -946,6 +946,7 @@ export function buildManagementSurfaces(
           "official-adjusted-finish",
           "submitted-programme-finish",
           "independent-forecast-finish",
+          "productivity-forecast-finish",
           "independent-vs-contract",
           "independent-vs-submitted",
           "submitted-vs-contract",

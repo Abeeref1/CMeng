@@ -968,19 +968,13 @@ export function buildProjectDirectorPosition(
       "Reconcile the quantified programme movement to dated delay events, notices, clauses and affected activities so causation and EOT eligibility can be tested without discarding the calculated movement.",
     );
   }
-  if (openNcrs.length > 0) {
-    actions.push(
-      "Close critical/major NCRs.",
-    );
-  }
-  if (
-    openRfis.some((item) =>
-      overdue(item.dueIso),
-    )
-  ) {
-    actions.push(
-      "Escalate overdue RFIs affecting delivery.",
-    );
+  const sourceActions=input.operationalReporting?.actions;
+  if(sourceActions){
+    for(const row of sourceActions.slice(0,10))actions.push(`${row.type} ${row.recordId}: ${row.action} Owner: ${row.owner??'not recorded'}; due: ${row.dueIso??'not recorded'}${row.linkedActivityId?'; activity: '+row.linkedActivityId:''}.`);
+    if(sourceActions.length>10)actions.push(`${sourceActions.length} source actions in total; the first 10 are listed here. Open Command Center for every record, owner and date.`);
+  }else{
+    for(const row of openNcrs.slice(0,10))actions.push(`Resolve ${row.severity} NCR ${row.ncrId} and record closure evidence. Owner and due date need confirmation.`);
+    for(const row of openRfis.filter(item=>overdue(item.dueIso)).slice(0,10))actions.push(`Obtain the response for RFI ${row.rfiId}; source due date: ${row.dueIso}. Confirm the responsible owner.`);
   }
   if (
     openPermits.some((item) =>

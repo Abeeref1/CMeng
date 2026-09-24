@@ -283,6 +283,7 @@ export interface StoredEvidenceDocument {
   assertions: DocumentAssertion[];
   textSegments?: EvidenceTextSegment[];
   hseSummary?: import("./hse-report-evidence").HseReportSummary;
+  fullTextRead?: {producerVersion:'full-page-read-v1';sourceHashSha256:string;completedAt:string;result:import('../../pdf-document-parser/src').PdfDocumentResult};
   correspondenceNarrativeRefresh?: CorrespondenceNarrativeRefreshReceipt;
   uploadIntent: EvidenceUploadIntent;
   familyKey: string;

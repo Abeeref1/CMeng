@@ -144,6 +144,7 @@ export interface DirectorEvidenceAvailability {
 }
 
 export interface OperationalControlReporting {
+  actions?: Array<{recordId:string;type:string;priority:string;owner:string|null;dueIso:string|null;action:string;linkedActivityId:string|null;sourceRefs:string[]}>;
   knownCounts: {openCriticalMajorNcrCount:number;uncertainCriticalMajorNcrCount:number};
   dataDateIso: string | null;
   quality: OperationalRegisterReporting;

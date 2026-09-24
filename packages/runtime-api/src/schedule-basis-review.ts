@@ -84,7 +84,7 @@ export function durationEditReview(before:CanonicalScheduleModel,after:Canonical
       baselineHours,existingChangeHours:existingHours-baselineHours,addedHours,standardDayHours:day,
       baselineDurationDays:day?baselineHours/day:null,currentDurationDays:day&&addedHours!==null?(existingHours+addedHours)/day:null,
       existingChangeDays:day?(existingHours-baselineHours)/day:null,addedDays:day&&addedHours!==null?addedHours/day:null}];});
-  return {fromRevisionId:before.sourceRevisionId,toRevisionId:after.sourceRevisionId,matchedCount:matches.length,comparableCount:comparable.length,
+  return {fromRevisionId:before.sourceRevisionId,toRevisionId:after.sourceRevisionId,fromDataDateIso:before.dataDateIso,toDataDateIso:after.dataDateIso,matchedCount:matches.length,comparableCount:comparable.length,
     addedCount:added.length,ambiguousCount:identity.ambiguousFrom.size+identity.ambiguousTo.size,distribution,packages,
     interpretation:'This decomposes original-duration edits and added task budgets. Summed durations are not elapsed delay; concurrency, logic, calendars and cause must be examined separately. Repeated identical edits are a question for the programme owner, not proof of many separate delay events.'};
 }
