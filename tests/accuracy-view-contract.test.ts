@@ -52,7 +52,7 @@ function navigationHarness(){
   const requests:Array<{resolve:(value:unknown)=>void;reject:(value:unknown)=>void}>=[];
   const rendered:unknown[]=[];const busy:string[]=[];
   const load=runInNewContext(script!.slice(start,end)+'\nloadModule',{
-    overview:{},el,names:{payments:'Payments','cost-forecast':'Cost Forecast'},descriptions:{},
+    document:{body:{classList:{remove(){}}},querySelectorAll:()=>[]},overview:{},el,names:{payments:'Payments','cost-forecast':'Cost Forecast'},descriptions:{},
     setBusy:(value:string)=>busy.push(value),escapeHtml:(value:unknown)=>String(value),project:()=> 'TEST',
     api:()=>new Promise((resolve,reject)=>requests.push({resolve,reject})),renderModuleResult:(result:unknown)=>rendered.push(result),
   }) as (key:string)=>Promise<void>;

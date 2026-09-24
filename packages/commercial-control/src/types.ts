@@ -39,7 +39,7 @@ export interface CommercialMetric<T> {
 export interface CommercialMoneyPosition {
   currency: string;
   netCertifiedAmount?: CommercialMetric<number>;
-  committedContractValue:
+  originalContractValue:
     CommercialMetric<number>;
   approvedVariationAmount:
     CommercialMetric<number>;
@@ -88,6 +88,7 @@ export interface CommercialClaimsNoticesPosition {
   noticeTimelinessCounts:
     Record<NoticeTimeliness, number>;
   claims: Array<{
+    sourceRegister?: import("../../delay-analysis-core/src").ClaimRegisterSnapshot;
     claimId: string;
     title: string;
     state: ClaimState;
@@ -155,6 +156,9 @@ export interface CommercialControlInput {
 
 export interface CommercialControlPosition {
   certificateProfile?: import("../../runtime-api/src/certificate-profile").ReturnCertificateProfile;
+  variationBasisReview?: ReturnType<typeof import("../../runtime-api/src/commercial-basis-review").variationBasisReview>;
+  costBasisReview?: ReturnType<typeof import("../../runtime-api/src/commercial-basis-review").costBasisReview>;
+  contractNoticeRules?: import("../../delay-analysis-core/src").NoticeRequirement[];
   sourceLedger?: CanonicalCommercialModel;
   foundation: CommercialFoundationProjection;
   performance: CommercialPerformanceProjection;

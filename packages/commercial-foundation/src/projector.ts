@@ -177,6 +177,8 @@ function clauseRecord(
   section:
     CommercialFoundationInput["contractSections"][number],
 ): CommercialClauseRecord {
+  const sectionHeading=/^\s*Section\s+([\d.]+)\b[^\n]*\n/i.exec(section.text);
+  const referencedClauseIdentifiers=[...new Set([...section.text.matchAll(/\b(?:Clause|Article)\s+(\d+(?:\.\d+)*)\b/gi)].map(m=>m[1]!))];
   const effective =
     (
       section.basisState ===
@@ -190,13 +192,13 @@ function clauseRecord(
       "verified";
   return {
     clauseKey:
-      section.sectionKey,
+      section.documentId + ':' + section.sectionKey,
     documentId:
       section.documentId,
     documentRole:
       section.documentRole,
     identifier:
-      section.identifier,
+      sectionHeading ? null : section.identifier,
     parentIdentifier:
       section.parentIdentifier,
     heading: section.heading,
@@ -214,8 +216,11 @@ function clauseRecord(
     sourceRef:
       sectionRef(section),
     textPreview:
-      text(section.text)
-        .slice(0, 360),
+      text(sectionHeading?section.text.slice(sectionHeading[0].length):section.text),
+    sectionIdentifiers:sectionHeading?[sectionHeading[1]!]:[],
+    referencedClauseIdentifiers,
+    sourceRefs:[sectionRef(section)],
+    occurrenceCount:1,
   };
 }
 
@@ -683,7 +688,7 @@ function buildCommercialTerms(
   input:
     CommercialFoundationInput,
 ): CommercialTermsProjection {
-  const clauses =
+  const rawClauses =
     input.contractSections
       .filter(
         (section) =>
@@ -693,6 +698,16 @@ function buildCommercialTerms(
             null,
       )
       .map(clauseRecord);
+  // Group identical complete wording within a document/authority. Source
+  // section numbers locate text; they are not relabelled as contract clauses.
+  const clauseGroups=new Map<string,CommercialClauseRecord>();
+  for(const row of rawClauses){
+    const key=JSON.stringify([row.documentId,row.governanceState,row.identifier,row.textPreview]);
+    const prior=clauseGroups.get(key);
+    if(prior){prior.occurrenceCount=(prior.occurrenceCount??1)+1;prior.sourceRefs=uniq([...(prior.sourceRefs??[]),row.sourceRef]);prior.sectionIdentifiers=uniq([...(prior.sectionIdentifiers??[]),...(row.sectionIdentifiers??[])]);}
+    else clauseGroups.set(key,row);
+  }
+  const clauses=[...clauseGroups.values()];
   const activeClauses =
     clauses.filter(
       (clause) =>
@@ -1693,6 +1708,7 @@ function buildPaymentRegister(
             ),
           reconciliation:
             payment.reconciliation,
+          componentArithmetic: payment.componentArithmetic,
           sourceRefs: uniq(
             payment.sourceRefs,
           ),

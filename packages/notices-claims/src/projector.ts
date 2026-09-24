@@ -5,6 +5,7 @@ import {
 import type {
   NoticesClaimsProjection,
 } from "./types";
+import {reportedClaim} from '../../delay-analysis-core/src/reporting';
 
 function sumByState(
   values: Array<{
@@ -135,6 +136,7 @@ export function buildNoticesClaimsProjection(
       claimId: claim.claimId,
       title: claim.title,
       state: claim.state,
+      sourceRegister:reportedClaim(claim),
       submittedAt: claim.submittedAt,
       eventIds: [...claim.eventIds],
       claimedDays: claim.claimedDays,
@@ -245,6 +247,8 @@ export function buildNoticesClaimsProjection(
       ).length,
 
     officialAssessedDaysTotal,
+    noticeEventDateMissingCount:events.filter(e=>e.noticeTimeliness==='event_date_missing').length,
+    noticeRequirementConflictCount:events.filter(e=>e.noticeTimeliness==='requirement_conflicted').length,
     provisionalOrCandidateAssessedDaysTotal,
     officialAssessedAmountTotal,
     provisionalOrCandidateAssessedAmountTotal,

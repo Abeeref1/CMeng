@@ -1,3 +1,4 @@
+import {evidenceAvailabilityReview} from './evidence-availability-review';
 import type {ProjectRuntimeState} from './project-state-types';
 import type {ProgressReportProjection} from '../../progress-report/src';
 import {projectControlSchedule,projectDataDate} from './canonical-time-claims';
@@ -8,7 +9,7 @@ import {hseReportPosition} from './hse-report-evidence';
 import {commercialPositionForState} from './commercial-runtime';
 
 /** Shared source meaning accompanies API, management, reporting and AI results. */
-export function sourceInterpretation(state:ProjectRuntimeState,progress?:ProgressReportProjection['progressBases'],calendarCompletionIso:string|null=null){
+export function sourceInterpretation(state:ProjectRuntimeState,progress?:ProgressReportProjection['progressBases'],calendarCompletionIso:string|null=null,scopeComparison:ProgressReportProjection['scopeComparison']=null){
   const model=projectControlSchedule(state)?.revision.model;
   const calendar=model?reviewScheduleCalendarBasis(model):null;
   const p=sourceProductivityForecastEvidence(state);
@@ -23,11 +24,15 @@ export function sourceInterpretation(state:ProjectRuntimeState,progress?:Progres
       driverWorkPackageIds:p.driverWorkPackageIds,workPackageCount:p.workPackageCount,coveragePercent:p.calculationCoveragePercent,concentration:p.concentration??null,sourceRefs:p.sourceRefs,
       interpretation:'Source productivity forecast; approval of the model does not amend contractual completion. Calendar-calculated rows and supplied model finish dates retain their own method.'},
     riskValidation:{...risk,scoreRows:undefined},
+    actions:operationalReporting(state).actions,
+    availability:evidenceAvailabilityReview(state),
     hse:hseReportPosition(state,projectDataDate(state)),
     progressMeasures:{baselinePlannedPercent:baseline,scheduleSnapshotPercent:snapshot,
-      snapshotMinusBaselinePercentagePoints:baseline!==null&&snapshot!==null?snapshot-baseline:null,
-      scheduleIndicativeRatio:baseline!==null&&baseline>0&&snapshot!==null?snapshot/baseline:null,
-      evm:(commercial.performance.costControl?.positions??[]).map(r=>({currency:r.currency,taxBasis:r.taxBasis,bac:r.bac.value,ev:r.ev.value,pv:r.pv.value,
+      scopeComparison,
+      snapshotMinusBaselinePercentagePoints:scopeComparison?.gapPercentagePoints??null,
+      scheduleIndicativeRatio:scopeComparison?.ratio??null,
+      mixedScopeDifferencePercentagePoints:baseline!==null&&snapshot!==null?snapshot-baseline:null,
+      evm:(commercial.performance.costControl?.positions??[]).map(r=>({currency:r.currency,taxBasis:r.taxBasis,bac:r.bac.value,ev:r.ev.value,pv:r.pv.value,ac:r.ac.value,
         earnedValuePercentOfBac:r.ev.value!==null&&r.bac.value!==null&&r.bac.value>0?r.ev.value/r.bac.value*100:null,spi:r.spi.value})),
       certificatePeriods:certificateGroups.map(g=>({currency:g.currency,taxBasis:g.taxBasis,grossWork:g.totals?.grossWork??null,net:g.totals?.netCertifiedAmount??null,
         count:g.as_of.length,basis:g.totalLabel,certificationUnconfirmedCount:g.certificationUnconfirmedIds.length})),

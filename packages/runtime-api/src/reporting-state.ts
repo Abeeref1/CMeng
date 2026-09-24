@@ -8,6 +8,7 @@ import {resolveBoqSource} from './boq-source';
 import {refreshContractSegmentation} from '../../contract-parser/src';
 import {refreshScheduleConstraints} from './schedule-source-refresh';
 import {reportingReadinessEvidence} from './evidence-readiness';
+import {noticeVersionCohorts} from './contract-notice-rules';
 
 const cache = new WeakMap<ProjectRuntimeState,{version:number;date:string|null;value:ProjectRuntimeState}>();
 const views = new WeakSet<ProjectRuntimeState>();
@@ -70,5 +71,16 @@ export function claimsReporting(state: ProjectRuntimeState) {
   state=origins.get(state)??state;
   const governed=state.controls.delayClaims;
   const source=governed&&!/^(canonical-evidence|evidence-document):/.test(governed.evidenceRevisionId)?governed:canonicalTimeClaims(state).delayClaims??governed;
-  return source?delayClaimsAsOf(source,projectDataDate(state)):null;
+  if(!source)return null;
+  const reporting=delayClaimsAsOf(source,projectDataDate(state));
+  const notices=reporting.notices.asOf.filter(n=>n.kind!=='determination');
+  const determinations=canonicalTimeClaims(state).determinations;
+  return {...reporting,noticeRuleVersions:noticeVersionCohorts(reporting.notices.asOf,source.noticeRequirements),
+    correspondenceReview:{registerNoticeCount:notices.length,
+      documentCoverage:state.evidenceDocuments.filter(d=>d.correspondenceNarrativeRefresh).map(d=>({sourceFilename:d.sourceFilename,...d.correspondenceNarrativeRefresh})),
+      documentIdentityCount:notices.filter(n=>n.correspondenceEvidence?.identityFound).length,
+      noticeContentLinkedCount:notices.filter(n=>n.correspondenceEvidence?.noticeContentLinked).length,
+      unconfirmedLetterIds:notices.filter(n=>!n.correspondenceEvidence?.identityFound).map(n=>n.correspondenceEvidence?.sourceLetter??n.noticeId),
+      determinations:determinations.map(d=>({...d,reportingScope:reportingScope(d.determinationDate,projectDataDate(state))})),
+      interpretation:'A register notice date establishes a reported notice, not delivery or its contents. A matching letter ID alone does not prove an event-specific notice or award.'}};
 }

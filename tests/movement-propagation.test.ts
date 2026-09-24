@@ -392,5 +392,7 @@ test('unreconciled calendar scenarios cannot become EOT time-impact days',()=>{
  const eot=buildEotAssessmentProjection(windows,delay,contractTime,{generatedAt:'2031-02-01',producerVersion:'test'});
  const row=eot.windowCandidates[0]!;assert.equal(row.analyticalTimeImpactCandidateDays,null);assert.equal(row.includedCandidateDays,0);
  assert.equal(row.positiveProgrammeMovementDays,19);assert.equal(row.positiveIndependentMovementDays,400);
- assert.ok(row.reasons.includes('CALENDAR_LOGIC_RECALCULATION_REQUIRES_RECONCILIATION_NOT_DELAY'));
+ assert.ok(row.reasons.includes('SUBMITTED_DATE_MOVEMENT_RECORDED_NO_CAUSAL_EVENT_ESTABLISHED'));
+ assert.ok(row.reasons.includes('SEPARATE_CALENDAR_MODEL_MOVEMENT_REQUIRES_RECONCILIATION'));
+ assert.ok(!row.reasons.includes('CALENDAR_LOGIC_RECALCULATION_REQUIRES_RECONCILIATION_NOT_DELAY'));
 });

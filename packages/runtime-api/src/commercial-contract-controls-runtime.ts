@@ -395,6 +395,9 @@ export function commercialContractControlsForState(
                 clause.textPreview,
               sourceRef:
                 clause.sourceRef,
+              sourceRefs:clause.sourceRefs??[clause.sourceRef],
+              occurrenceCount:clause.occurrenceCount??1,
+              referencedClauseIdentifiers:clause.referencedClauseIdentifiers??[],
             }),
           ),
       bonds:

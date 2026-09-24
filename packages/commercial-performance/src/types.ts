@@ -79,7 +79,8 @@ export interface EacScenario {
     | "source_reported"
     | "bac_over_cpi"
     | "ac_plus_remaining_budget"
-    | "bottom_up_etc";
+    | "ac_plus_source_etc";
+  sameValueAs?: EacScenario['method'];
   value: CommercialFinding<number>;
   methodology:
     string;

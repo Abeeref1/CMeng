@@ -36,6 +36,12 @@ export interface ReadinessEvidence {
   sourceRefs: string[];
   note?: string | null;
   diagnostics?: string[];
+  records?:ReadinessRecord[];
+}
+
+export interface ReadinessRecord {
+  recordId:string|null;documentType:string;state:ReadinessDimensionState;
+  dueIso:string|null;note:string;sourceRefs:string[];
 }
 
 export interface ReadinessDimension {
@@ -44,6 +50,7 @@ export interface ReadinessDimension {
   sourceRefs: string[];
   note: string | null;
   diagnostics?: string[];
+  records?:ReadinessRecord[];
 }
 
 export interface LookAheadReadiness {
@@ -93,6 +100,7 @@ export interface LookAheadProjection {
   evidenceGapActivityCount?: number;
   blockedWithEvidenceGapCount?: number;
   blockerOccurrenceCount?: number;
+  blockerTypes?: Array<{ documentType: string; activityCount: number; recordCount: number; recordIds: string[] }>;
   readinessCoverage?: Array<{ key: ReadinessDimensionKey; denominator: number; knownCount: number; coveragePercent: number | null; linkedActivityCount?:number; linkedSourceRecordCount?:number; unresolvedLinkedActivityCount?:number }>;
   readyCount: number;
   conditionalCount: number;

@@ -279,7 +279,7 @@ function calc(
   const submitted =
     options.submitted ??
     null;
-  return finding(
+  const result = finding(
     round(value),
     {
       asOfDate:
@@ -307,6 +307,7 @@ function calc(
       action: null,
     },
   );
+  return {...result, validationScope:'arithmetic_only'};
 }
 
 function safeRatio(
@@ -623,7 +624,7 @@ function eacScenarios(
       : null;
   values.push({
     method:
-      "bottom_up_etc",
+      "ac_plus_source_etc",
     value: calc(
       bottomUp,
       {
@@ -638,15 +639,23 @@ function eacScenarios(
             .sourceRefs,
         ]),
         consequence:
-          "Bottom-up EAC uses the submitted ETC and stays distinct from other forecast methods.",
+          "AC plus submitted ETC is a source-forecast arithmetic check; no bottom-up estimating method is evidenced by this formula.",
         missingAction:
-          "Actual cost and source ETC are required for bottom-up EAC.",
+          "Actual cost and source ETC are required for this forecast arithmetic check.",
       },
     ),
     methodology:
-      "Combines actual cost to date with the source bottom-up estimate to complete.",
+      "Adds actual cost to the reported estimate to complete. The source estimating method is not inferred.",
     official: false,
   });
+  // Equal values are one position in the range. Preserve every method and its
+  // provenance in the detail, including the source-EAC arithmetic check.
+  for(let i=0;i<values.length;i++){
+    const row=values[i]!;
+    if(row.value.value===null)continue;
+    const earlier=values.slice(0,i).find(v=>v.value.value!==null&&Math.abs(v.value.value-row.value.value!)<=0.01);
+    if(earlier)row.sameValueAs=earlier.method;
+  }
   return values;
 }
 

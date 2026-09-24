@@ -26,6 +26,8 @@ export interface CommercialFindingCoverage {
 }
 
 export interface CommercialFinding<T> {
+  /** Calculation validity does not certify reconciliation to other sources. */
+  validationScope?: 'arithmetic_only';
   /** Scope of the underlying event; a retained future value is not missing evidence. */
   reportingScope?: 'as_of' | 'future' | 'undated';
   value: T | null;
@@ -173,6 +175,7 @@ export interface FoundationPaymentInput {
   amounts: Record<string, FoundationMoneyInput>;
   calculatedOutstandingAmount: FoundationMoneyInput;
   reconciliation: "matched" | "conflicted" | "unresolved";
+  componentArithmetic?: import("../../runtime-api/src/commercial-canonical").PaymentStageRecord['componentArithmetic'];
   diagnostics: string[];
   sourceRefs: string[];
 }
@@ -208,6 +211,10 @@ export interface CommercialClauseRecord {
   sourceMode: ContractSectionInput["sourceMode"];
   sourceRef: string;
   textPreview: string;
+  sourceRefs?: string[];
+  occurrenceCount?: number;
+  sectionIdentifiers?: string[];
+  referencedClauseIdentifiers?: string[];
 }
 
 export interface CommercialAmendmentRecord {
@@ -221,6 +228,7 @@ export interface CommercialAmendmentRecord {
 }
 
 export interface CommercialTermsProjection {
+  noticeVersions?: import("../../delay-analysis-core/src").NoticeRequirement[];
   capabilityKey: "commercial-terms";
   state: CommercialFindingState;
   originalContractValueByCurrency: Array<{
@@ -303,6 +311,7 @@ export interface PaymentRegisterRecord {
   amounts: Record<string, CommercialFinding<number>>;
   calculatedOutstandingAmount: CommercialFinding<number>;
   reconciliation: "matched" | "conflicted" | "unresolved";
+  componentArithmetic?: import("../../runtime-api/src/commercial-canonical").PaymentStageRecord['componentArithmetic'];
   sourceRefs: string[];
   diagnostics: string[];
 }

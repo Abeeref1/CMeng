@@ -30,6 +30,7 @@ export interface PaymentStageRecord {
   paidAmountBasis: PaymentSeriesBasis;
   amounts: Record<'applicationAmount'|'engineerAssessedAmount'|'employerCertifiedAmount'|'grossWork'|'variations'|'retentionDeduction'|'advanceRecovery'|'otherDeduction'|'taxAmount'|'netCertifiedAmount'|'paidAmount'|'outstandingAmount',CommercialMoney>;
   receipt: SourceReceipt; reconciliation: 'matched'|'conflicted'|'unresolved';
+  componentArithmetic?: {state:'matched'|'conflicted'|'unresolved';calculatedNet:number|null;difference:number|null;omittedComponents:string[];basis:string};
   diagnostics: string[]; calculatedOutstandingAmount: CommercialMoney;
   paymentType: string | null;
   applicationDate: string | null;

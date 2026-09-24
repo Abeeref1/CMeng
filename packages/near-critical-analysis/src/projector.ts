@@ -28,6 +28,7 @@ export function buildNearCriticalProjection(
     generatedAt: string;
     producerVersion: string;
     config?: ScheduleAnalysisConfig;
+    controlledBaseline?: { revisionId: string; finishByActivity: ReadonlyMap<string, string | null> } | null;
   },
 ): NearCriticalProjection {
   const config =
@@ -63,7 +64,9 @@ export function buildNearCriticalProjection(
     nearCriticalThresholdHours:
       threshold,
     baselineFinishIso:
-      activity.baselineFinishIso,
+      input.controlledBaseline ? input.controlledBaseline.finishByActivity.get(activity.activityId) ?? null
+        : activity.baselineDateBasis === "controlled_baseline" ? activity.baselineFinishIso : null,
+    sourceTargetFinishIso: activity.baselineDateBasis === "xer_target_dates" ? activity.baselineFinishIso : null,
     currentFinishIso:
       activity.forecastFinishIso ??
       activity.currentFinishIso ??
@@ -382,6 +385,7 @@ export function buildNearCriticalProjection(
     projectId: model.projectId,
     sourceRevisionId:
       model.sourceRevisionId,
+    controlledBaselineRevisionId: input.controlledBaseline?.revisionId ?? null,
     criticalThresholdHours:
       config.criticalFloatThresholdHours,
     nearCriticalThresholdHours:

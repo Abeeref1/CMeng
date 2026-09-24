@@ -10,6 +10,7 @@ import type {
 
 export interface IndependentMetricSpec {
   metric: string;
+  comparisonBasisEstablished?: boolean;
   label: string;
   value:
     | number
@@ -1343,9 +1344,13 @@ function itemFor(
     : independent.state === "not_derivable" || independent.value === null ? "independent_unavailable"
     : submitted.state === "not_submitted" || submitted.value === null ? "submitted_missing"
     : gap.state === "not_derivable" || gap.value === null ? "incomparable"
+    : spec.comparisonBasisEstablished === false ? "comparison_pending"
     : independent.state === "scenario" ? "scenario"
     : different ? "material_difference" : "within_tolerance";
-  if (reconciliationState === "incomparable") {
+  if (reconciliationState === "comparison_pending") {
+    consequence = "The numbers can be calculated, but a common scope, calendar and approved comparison basis have not been confirmed. Equality alone does not establish reconciliation.";
+    action = "Confirm the comparison basis and materiality tolerance before interpreting agreement or difference.";
+  } else if (reconciliationState === "incomparable") {
     consequence = "The submitted and calculated values do not have a comparable measurement basis.";
     action = "Reconcile units, population, authority and time basis before interpreting a difference.";
   } else if (reconciliationState === "scenario") {
@@ -1358,7 +1363,7 @@ function itemFor(
 
   const evidenceState:
     ModuleChallengeItem["evidenceState"] =
-    submitted.state ===
+    spec.comparisonBasisEstablished === false ? "partial" : submitted.state ===
       "conflicted"
       ? "conflicted"
       : independent.state ===
@@ -1508,7 +1513,7 @@ export function buildModuleChallenge(
           : "calculated";
 
   const challengedCount = items.filter(item => item.reconciliationState !== "within_tolerance").length;
-  const priority: ModuleChallengeItem["reconciliationState"][] = ["conflicting_evidence", "material_difference", "independent_unavailable", "submitted_missing", "incomparable", "scenario"];
+  const priority: ModuleChallengeItem["reconciliationState"][] = ["conflicting_evidence", "material_difference", "independent_unavailable", "submitted_missing", "incomparable", "scenario", "comparison_pending"];
   const reconciliationState = priority.find(state => items.some(item => item.reconciliationState === state))
     ?? (items.length ? "within_tolerance" : "comparison_pending");
 

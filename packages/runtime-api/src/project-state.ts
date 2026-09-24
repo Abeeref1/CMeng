@@ -1108,7 +1108,7 @@ export class RuntimeProjectStore {
     const testMode =
       process.env
         .CMENG_TEST_MODE
-        ?.trim() === "1";
+        ?.trim() === "1" || Boolean(process.env.NODE_TEST_CONTEXT);
     const railwayMount =
       testMode
         ? undefined
@@ -1410,6 +1410,7 @@ export class RuntimeProjectStore {
 
   private createOcrProvider():
     TesseractOcrProvider {
+    if(process.env.CMENG_OCR_ENABLED?.trim()==='0')throw new Error('OCR_DISABLED');
     const cachePath =
       join(
         this.dataDir,
@@ -2362,7 +2363,7 @@ export class RuntimeProjectStore {
           let ocrFailureCount = 0;
           if (
             lowNativePages.length >
-            0
+            0 && process.env.CMENG_OCR_ENABLED?.trim()!=='0'
           ) {
             const provider =
               this.createOcrProvider();
@@ -4448,8 +4449,7 @@ export class RuntimeProjectStore {
           media.includes("pdf")
             ? {
                 pdf: {
-                  ocrProvider:
-                    this.createOcrProvider(),
+                  ...(process.env.CMENG_OCR_ENABLED?.trim()==='0'?{}:{ocrProvider:this.createOcrProvider()}),
                 },
               }
             : {},
@@ -5625,8 +5625,7 @@ export class RuntimeProjectStore {
       ? await parseContractPdf(
           input.bytes,
           {
-            ocrProvider:
-              this.createOcrProvider(),
+            ...(process.env.CMENG_OCR_ENABLED?.trim()==='0'?{}:{ocrProvider:this.createOcrProvider()}),
           },
         )
       : await parseContractDocx(

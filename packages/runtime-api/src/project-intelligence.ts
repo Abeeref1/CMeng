@@ -225,7 +225,7 @@ function factLabel(
       "director.schedule.dataDateIso":
         "Programme data date",
       "director.schedule.independentForecastCompletionIso":
-        "CMeng forecast completion",
+        "Calendar recalculation completion; not the delivery forecast",
       "director.schedule.officialAdjustedCompletionIso":
         "Official completion",
       "director.schedule.contractualCompletionIso":

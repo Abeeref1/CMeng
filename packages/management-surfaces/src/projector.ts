@@ -9,6 +9,7 @@ import type {
   MasterControlProgrammeProjection,
   MasterDashboardProjection,
 } from "./types";
+import {managementForecastPosition} from './forecast-position';
 
 function healthForSignedVariance(
   value: number | null,
@@ -586,10 +587,10 @@ function dashboardMetrics(
         null
           ? "No comparison variance is stated because the required governed basis is not established."
           : forecastVariance === 0
-            ? "Independent forecast aligns with the " +
+            ? "Calendar-calculated finish aligns with the " +
               comparisonLabel +
               "."
-            : "Independent forecast is " +
+            : "Calendar-calculated finish is " +
               managementDays(
                 Math.abs(
                   forecastVariance,
@@ -646,8 +647,8 @@ function dashboardMetrics(
   const submittedVariance = submitted && contractual
     ? (Date.parse(submitted.slice(0, 10)) - Date.parse(contractual.slice(0, 10))) / 86_400_000 : null;
   for (const [key, label, value, basis] of [
-    ["independent-vs-contract", "Calendar scenario vs contract", d?.schedule.varianceDaysToContractualCompletion ?? null, "Independent forecast finish minus current governed contract completion"],
-    ["independent-vs-submitted", "Calendar scenario vs submitted programme", d?.schedule.varianceDaysToSubmittedProgrammeCompletion ?? null, "Independent forecast finish minus current submitted programme finish"],
+    ["independent-vs-contract", "Calendar scenario vs contract", d?.schedule.varianceDaysToContractualCompletion ?? null, "Calendar-calculated finish minus current confirmed contract completion"],
+    ["independent-vs-submitted", "Calendar scenario vs submitted programme", d?.schedule.varianceDaysToSubmittedProgrammeCompletion ?? null, "Calendar-calculated finish minus current submitted programme finish"],
     ["submitted-vs-contract", "Submitted programme vs contract", Number.isFinite(submittedVariance) ? submittedVariance : null, "Current submitted programme finish minus current governed contract completion"],
   ] as const) {
     metrics.push(metric({ key, label, value, unit: "calendar days", state: value === null ? "unavailable" : "calculated",
@@ -682,12 +683,12 @@ function dashboardMetrics(
 
   const current=d?.schedule.progressBases.baselinePlanned.valuePercent??null;
   const snapshot=d?.schedule.progressBases.scheduleSnapshot?.valuePercent??null;
-  metrics.push(metric({key:"progress-position",label:"Schedule snapshot vs baseline plan",value:current!==null&&snapshot!==null?Number((snapshot-current).toFixed(4)):null,
-    unit:"pp",state:current!==null&&snapshot!==null?"calculated":"unavailable",authority:"calculated",health:"unavailable",
-    basis:"Duration-weighted snapshot minus time-phased baseline plan; respective source populations retained. This is not physical progress or EVM SPI.",owningModule:"progress-report"}));
-  const productivity=d?.sourceInterpretation?.productivityForecast;
-  metrics.push(finishMetric("productivity-forecast-finish","Source productivity forecast",productivity?.completionIso??null,
-    productivity?.interpretation??"Source productivity model has not been established","source"));
+  const comparable=d?.sourceInterpretation?.progressMeasures.scopeComparison;
+  metrics.push(metric({key:"progress-position",label:"Progress gap · same tasks, fixed weights",value:comparable?.gapPercentagePoints??null,
+    unit:"pp",state:comparable?.gapPercentagePoints!=null?"calculated":"unavailable",authority:"calculated",health:"unavailable",
+    basis:comparable?.interpretation??"A matched activity population and common weights are needed before stating a progress gap.",owningModule:"progress-report"}));
+  const productivity=managementForecastPosition(d);
+  metrics.push(finishMetric("productivity-forecast-finish",productivity.label,productivity.completionIso,productivity.interpretation,"source"));
 
   metrics.push(
     metric({

@@ -314,6 +314,7 @@ export function canonicalResourcesFromXer(
               : null,
           calendarId:
             field(row, "clndr_id"),
+          defaultUnitsPerHour:numberField(row,'def_qty_per_hr'),
           priceTimeUnit:
             field(
               row,
@@ -414,6 +415,10 @@ export function canonicalResourcesFromXer(
               row,
               "target_qty",
             ),
+          plannedCost:numberField(row,'target_cost'),
+          actualRegularCost:numberField(row,'act_reg_cost'),
+          actualOvertimeCost:numberField(row,'act_ot_cost'),
+          remainingCost:numberField(row,'remain_cost'),
           actualRegularUnits:
             numberField(
               row,

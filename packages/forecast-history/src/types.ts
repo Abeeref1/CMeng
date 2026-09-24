@@ -18,6 +18,7 @@ export interface ForecastHistoryPoint
   extends ForecastHistorySnapshot {
   movementDaysVsPrevious: number | null;
   movementDaysVsFirst: number | null;
+  calendarVersusSubmittedDays?:number|null;
 }
 
 export interface ForecastHistoryProjection {

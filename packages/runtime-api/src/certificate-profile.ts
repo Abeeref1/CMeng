@@ -17,6 +17,10 @@ export function certificateProfile(ledger:CanonicalCommercialModel){
         certificationDate:r.certificationDate,certificationConfirmedByDataDate:Boolean(cutoff&&r.certificationDate&&r.certificationDate<=cutoff),
         components:Object.fromEntries(components.map(k=>[k,r.amounts[k].currency===currency&&r.amounts[k].taxBasis===taxBasis?r.amounts[k].value:null])),sourceRefs:r.amounts.netCertifiedAmount.receipts,
         sourceStatus:r.sourceStatus,
+        componentArithmetic:r.componentArithmetic,
+        observedRetentionPercent:r.amounts.grossWork.value!==null&&r.amounts.variations.value!==null&&r.amounts.retentionDeduction.value!==null&&
+          [r.amounts.grossWork,r.amounts.variations,r.amounts.retentionDeduction].every(a=>a.currency===currency&&a.taxBasis===taxBasis)&&r.amounts.grossWork.value+r.amounts.variations.value>0
+          ?r.amounts.retentionDeduction.value/(r.amounts.grossWork.value+r.amounts.variations.value)*100:null,
       }));
       const asOf=project(partition.asOf),future=project(partition.future),undated=project(partition.undated);
       const total=(rows:typeof asOf)=>Object.fromEntries(components.map(k=>[k,rows.length&&rows.every(r=>r.components[k]!==null)?rows.reduce((n,r)=>n+r.components[k]!,0):null]));
@@ -29,6 +33,9 @@ export function certificateProfile(ledger:CanonicalCommercialModel){
       return {currency,taxBasis,as_of:asOf,future,undated,population:partition.population,totals,futureTotals,
         cumulativeBasis:!summable?'not_aggregable':incremental?'incremental_confirmed':'source_row_sum_only',
         totalLabel:incremental?'Cumulative certificate amounts by period':'Sum of source certificate-period values',
+        arithmetic:{matched:asOf.filter(r=>r.componentArithmetic?.state==='matched').length,total:asOf.length,
+          allMatched:[...asOf,...future,...undated].filter(r=>r.componentArithmetic?.state==='matched').length,allTotal:records.length},
+        observedRetentionRates:[...new Set([...asOf,...future,...undated].map(r=>r.observedRetentionPercent).filter((r):r is number=>r!==null).map(r=>Math.round(r*1e8)/1e8))],
         certificationUnconfirmedIds:asOf.filter(r=>!r.certificationConfirmedByDataDate).map(r=>r.id),
         latestPeriod:asOf.at(-1)??null,beforeLatestTotals:summable?total(asOf.slice(0,-1)):null,
         futureSourceStatusConflictIds:future.filter(r=>/certified|approved|paid/i.test(r.sourceStatus??'')).map(r=>r.id),

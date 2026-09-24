@@ -3,6 +3,7 @@ import { projectDataDate, projectControlSchedule } from './canonical-time-claims
 import { buildResourceUtilizationProjection } from '../../resource-utilization/src';
 import { sumKnown, round } from '../../truth-kernel/src';
 import type { ProjectRuntimeState, ModuleRuntimeResult } from './project-state-types';
+import {resourceBasisReview} from './resource-basis-review';
 const cache=new WeakMap<ProjectRuntimeState,{version:number;summary:WeeklyResourceCapacitySummary}>();
 export function canonicalResources(state:ProjectRuntimeState):WeeklyResourceCapacitySummary{
  const cached=cache.get(state);if(cached?.version===state.version)return cached.summary;
@@ -69,5 +70,6 @@ export function canonicalResourceModule(state:ProjectRuntimeState,key:string):Mo
    receipts:summary.points.filter(p=>p.resourceClass==='labor').flatMap(p=>p.receipts),
   };
  }
+ data={...(data as object),basisComparison:resourceBasisReview(state,summary)};
  return {key,status:summary.state==='available'&&key==='resource-utilization'?'ready':'partial',reason:key==='manhour-scurve'?'Measured weekly labor history; remaining-hours forecast not established.':summary.state==='available'?null:'Source candidate or reconciliation gaps require review.',dependencies:['resource master','weekly capacity','approved usage','programme Data Date'],data};
 }

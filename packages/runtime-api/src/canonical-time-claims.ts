@@ -5,10 +5,13 @@ import type { ContractTimeBasis } from '../../eot-assessment/src';
 import type { ProjectRuntimeState } from './project-state-types';
 import { inferDocumentType } from './evidence';
 import { resolveClaimActivityCorrespondence } from '../../claim-activity-correspondence/src';
+import { contractNoticeRules } from './contract-notice-rules';
+import { reportedClaim } from '../../delay-analysis-core/src/reporting';
 export interface DeterminationRecord {
   determinationId: string; claimId: string; awardedDays: number | null; determinationDate: string | null;
   state: 'source_immutable' | 'candidate' | 'conflicted'; authority: string; sourceLetter: string | null;
   supersedes: string | null; incorporatedInAmendment: string | null; receipt: SourceReceipt;
+  correspondenceReview?: {identityFound:boolean;awardTextDays:number|null;awardMatchesRegister:boolean|null;basis:string};
 }
 export interface AmendmentTimeRecord {
   documentId: string; effectiveDate: string | null; completionIso: string; incorporatedEotDays: number | null;
@@ -30,6 +33,12 @@ const splitRefs = (r:SourceRow,...names:string[]):string[] =>
     .map(value=>value.trim())
     .filter(Boolean);
 const uniq = (values:readonly string[]):string[] => [...new Set(values)];
+const correspondenceIdentity=(text:string)=>text.normalize('NFKC').replace(/[^\p{L}\p{N}]+/gu,'').toLowerCase();
+/** A reference in another letter's body does not make that letter the notice. */
+function ownLetterReference(text:string,reference:string){
+  const header=/\bReference\s*:\s*([^\n\r]+)/i.exec(text)?.[1]?.trim();
+  return Boolean(header)&&correspondenceIdentity(header!)===correspondenceIdentity(reference);
+}
 
 interface CorrespondenceLink {
   logicalId: string;
@@ -346,7 +355,8 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
       (!linkedCorrespondence.claimId||norm(linkedCorrespondence.claimId)===norm(claimId)) &&
       (!linkedCorrespondence.eventId||norm(linkedCorrespondence.eventId)===norm(eventId))
     );
-    const anchoredCorrespondenceVerified=linkedNarratives.length>0;
+    const identityNarratives=linkedNarratives.filter(item=>ownLetterReference(item.text,sourceLetter));
+    const anchoredCorrespondenceVerified=identityNarratives.length>0;
     const evidenceRefs=[
       evref(r),
       ...(linkedCorrespondence?[correspondenceRef(linkedCorrespondence)]:[]),
@@ -410,7 +420,15 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
     claims.push({claimId,title,state:claimStatus(cell(r,'status')),eventIds:[eventId],submittedAt:dateValue(cell(r,'submitted date','submission date')),
       claimedDays:n(r,'days claimed','claimed days'),claimedAmount:n(r,'claimed amount'),assessedDays:n(r,'source granted days','days granted'),assessedDaysState:n(r,'source granted days','days granted')===null?'missing':'candidate',
       assessedAmount:null,assessedAmountState:'missing',clauseIdentifiers,evidenceRefs,diagnostics:['REGISTER_ASSESSMENT_IS_NOT_ENGINEER_DETERMINATION']});
+    const claim=claims.at(-1)!;
+    claim.sourceRegister={...reportedClaim(claim),sourceStatus:cell(r,'status')||'Not stated',registerGrantedDays:n(r,'source granted days','days granted')};
     if(issued)notices.push({noticeId:sourceLetter||claimId+':notice',kind:'claim_notice',eventId,claimId,actualIssuedAt:issued,actualReceivedAt:null,plannedAt:null,subject:title,clauseIdentifiers,evidenceRefs:[evref(r,'notice')],diagnostics:['NOTICE_DATE_FROM_REGISTER_NOT_EVENT_START_DATE']});
+    if(issued&&sourceLetter){
+      notices.at(-1)!.correspondenceEvidence={sourceLetter,identityFound:Boolean(linkedCorrespondence)||anchoredCorrespondenceVerified,
+        mentionedOnly:linkedNarratives.length>0&&!anchoredCorrespondenceVerified&&!linkedCorrespondence,
+        noticeContentLinked:Boolean(linkedCorrespondence&&(linkedCorrespondence.claimId||linkedCorrespondence.eventId)&&semanticLinkVerified&&linkedCorrespondence.issuedAt),
+        evidenceRefs:[...(linkedCorrespondence?[correspondenceRef(linkedCorrespondence)]:[]),...identityNarratives.map(n=>n.ref)]};
+    }
   }
   const byClaim=new Map(claims.map(c=>[c.claimId,c]));
   const eventById=new Map(events.map(event=>[event.eventId,event]));
@@ -520,6 +538,9 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
     if(c.assessedDays!==null&&assessed!==null&&c.assessedDays!==assessed){c.diagnostics.push('PARALLEL_ASSESSMENT_VALUES_DIFFER');}
     if(has(table,'assessed days')||c.assessedDays===null){c.assessedDays=assessed;c.assessedDaysState=assessed===null?'missing':'candidate';}
     c.evidenceRefs.push(evref(r));
+    c.sourceRegister={...reportedClaim(c),assessedDays:c.assessedDays,
+      employerDelayDays:n(r,'employer delay days'),contractorDelayDays:n(r,'contractor delay days'),
+      evidenceRefs:[...c.evidenceRefs],diagnostics:[...c.diagnostics]};
     const event=events.find(e=>e.eventId===c.eventIds[0]);if(event)event.evidenceRefs.push(evref(r));
   }
 
@@ -537,21 +558,28 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
     const event=c?events.find(e=>e.eventId===c.eventIds[0]):null;
     const determinationLetter=record.sourceLetter?correspondence.get(norm(record.sourceLetter))??null:null;
     const determinationNarratives=record.sourceLetter?correspondenceNarratives.get(norm(record.sourceLetter))??[]:[];
+    const ownDeterminationNarratives=determinationNarratives.filter(n=>ownLetterReference(n.text,record.sourceLetter!));
+    const ownDeterminationText=ownDeterminationNarratives.map(n=>n.text).join('\n');
+    const awards=[...new Set([...ownDeterminationText.matchAll(/(?:determines\s+that|awards?)\s+(\d+(?:\.\d+)?)\s+(?:calendar\s+)?days(?:\s+of\s+extension\s+of\s+time)?/gi)].map(m=>Number(m[1])))];
+    record.correspondenceReview={identityFound:Boolean(determinationLetter)||Boolean(ownDeterminationText),
+      awardTextDays:awards.length===1?awards[0]!:null,
+      awardMatchesRegister:awards.length===1&&record.awardedDays!==null?awards[0]===record.awardedDays:null,
+      basis:ownDeterminationText?'Letter identity found; compare its award, date and claim reference with the register.':'Register award only; matching determination letter not confirmed in extracted pages. Check unread pages and original letter identities.'};
     const determinationRefs=[
       evref(r),
       ...(determinationLetter?[correspondenceRef(determinationLetter)]:[]),
-      ...determinationNarratives.map(item=>item.ref),
+      ...ownDeterminationNarratives.map(item=>item.ref),
     ];
     if(c){
       c.evidenceRefs.push(...determinationRefs);
       addClaimNarrative(
         record.claimId,
-        determinationNarratives.map(item=>item.text),
+        ownDeterminationNarratives.map(item=>item.text),
       );
     }else diagnostics.push('ORPHAN_DETERMINATION:'+record.determinationId);
     if(event)event.evidenceRefs.push(...determinationRefs);
-    if(record.sourceLetter&&!determinationLetter&&!determinationNarratives.length)diagnostics.push('DETERMINATION_CORRESPONDENCE_NOT_FOUND:'+record.determinationId+':'+record.sourceLetter);
-    notices.push({noticeId:record.determinationId,kind:'determination',eventId:c?.eventIds[0]??null,claimId:record.claimId,actualIssuedAt:record.determinationDate,actualReceivedAt:null,plannedAt:null,subject:'Engineer determination '+record.determinationId,clauseIdentifiers:[],evidenceRefs:[evref(r,'notice'),...(determinationLetter?[correspondenceRef(determinationLetter)]:[]),...determinationNarratives.map(item=>item.ref)],diagnostics:(determinationLetter||determinationNarratives.length)?['DETERMINATION_CORRESPONDENCE_LINK_VERIFIED',...(determinationNarratives.length?['DETERMINATION_CORRESPONDENCE_NARRATIVE_VERIFIED']:[]),...(record.sourceLetter?['SOURCE_LETTER:'+record.sourceLetter]:[])]:record.sourceLetter?['DETERMINATION_CORRESPONDENCE_UNVERIFIED','SOURCE_LETTER:'+record.sourceLetter]:[]});
+    if(record.sourceLetter&&!determinationLetter&&!ownDeterminationNarratives.length)diagnostics.push('DETERMINATION_LETTER_NOT_CONFIRMED_IN_READ_PAGES:'+record.determinationId+':'+record.sourceLetter);
+    notices.push({noticeId:record.determinationId,kind:'determination',eventId:c?.eventIds[0]??null,claimId:record.claimId,actualIssuedAt:record.determinationDate,actualReceivedAt:null,plannedAt:null,subject:'Engineer determination '+record.determinationId,clauseIdentifiers:[],evidenceRefs:[evref(r,'notice'),...(determinationLetter?[correspondenceRef(determinationLetter)]:[]),...ownDeterminationNarratives.map(item=>item.ref)],diagnostics:(determinationLetter||ownDeterminationNarratives.length)?['DETERMINATION_LETTER_IDENTITY_FOUND_CONTENT_REQUIRES_REVIEW',...(ownDeterminationNarratives.length?['DETERMINATION_LETTER_HEADER_MATCHED']:[]),...(record.sourceLetter?['SOURCE_LETTER:'+record.sourceLetter]:[])]:record.sourceLetter?['DETERMINATION_CORRESPONDENCE_UNVERIFIED','SOURCE_LETTER:'+record.sourceLetter]:[]});
   }
   if(controlSchedule){
     const claimsByEventId=new Map<string,CanonicalClaimRecord[]>();
@@ -668,7 +696,12 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
     if(determinations.length)diagnostics.push('AMENDMENT_DETERMINATION_OVERLAP_UNRESOLVED_NO_ADDITIONAL_DAYS_APPLIED');
   }
   if(amendmentConflict)diagnostics.push('CONFLICTING_EFFECTIVE_AMENDMENTS');
-  const delayClaims:DelayClaimsModel|null=claims.length?{dataDateIso,projectId:state.projectId,evidenceRevisionId:'canonical-evidence:'+createHash('sha256').update(JSON.stringify(tables.filter(t=>has(t,'claim id')).map(t=>[t.document.documentId,t.document.sourceHashSha256,t.document.basisState]))).digest('hex'),events,claims,notices,noticeRequirements:[],diagnostics:['EVENT_IDENTITIES_ESTABLISHED_FROM_SOURCE_REGISTER_CAUSATION_REMAINS_UNPROVEN',...diagnostics]}:null;
+  for(const claim of claims){
+    const reported=reportedClaim(claim);
+    const conflict=reported.state==='determined'&&!determinations.some(d=>d.claimId===claim.claimId);
+    claim.sourceRegister={...reported,evidenceRefs:[...claim.evidenceRefs],diagnostics:[...new Set([...reported.diagnostics,...claim.diagnostics,...(conflict?['REGISTER_DETERMINED_STATUS_NOT_IN_DETERMINATION_REGISTER']:[])])]};
+  }
+  const delayClaims:DelayClaimsModel|null=claims.length?{dataDateIso,projectId:state.projectId,evidenceRevisionId:'canonical-evidence:'+createHash('sha256').update(JSON.stringify(tables.filter(t=>has(t,'claim id')).map(t=>[t.document.documentId,t.document.sourceHashSha256,t.document.basisState]))).digest('hex'),events,claims,notices,noticeRequirements:contractNoticeRules(state),diagnostics:['EVENT_IDENTITIES_ESTABLISHED_FROM_SOURCE_REGISTER_CAUSATION_REMAINS_UNPROVEN',...diagnostics]}:null;
   const result:CanonicalTimeClaims={producerVersion:'canonical-time-claims-v1',dataDateIso,delayClaims,contractTimeBasis,determinations,amendments,registerDeterminationDays,effectiveDeterminationDays,futureDeterminationCount:eligible.filter(d=>dataDateIso!==null&&d.determinationDate!==null&&d.determinationDate>dataDateIso).length,diagnostics};
   cache.set(state,{version:state.version,value:result});return result;
 }

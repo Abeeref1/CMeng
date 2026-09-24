@@ -1,3 +1,4 @@
+import {managementForecastPosition} from '../../management-surfaces/src';
 import JSZip from "jszip";
 import {
   createServer,
@@ -646,11 +647,10 @@ async function route(
                     "pass" && readyModules === moduleStatuses.length
                   ? "current"
                   : "needs_review",
-            forecastCompletionIso:
-              director?.schedule
-                .independentForecastCompletionIso ??
-              null,
-            forecastAuthority: director?.schedule.independentForecastAuthority ?? 'unresolved',
+            forecastCompletionIso:managementForecastPosition(director).completionIso,
+            forecastAuthority:managementForecastPosition(director).authority,
+            forecastLabel:managementForecastPosition(director).label,
+            calendarRecalculationIso:managementForecastPosition(director).calendarRecalculationIso,
             officialCompletionIso:
               director?.schedule
                 .contractualCompletionIso ??

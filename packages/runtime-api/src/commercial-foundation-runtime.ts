@@ -15,6 +15,7 @@ import {
   commercialCanonical,
   type CommercialMoney,
 } from "./commercial-canonical";
+import {contractNoticeRules} from "./contract-notice-rules";
 import type {
   ModuleRuntimeResult,
   ProjectRuntimeState,
@@ -500,6 +501,7 @@ export function commercialFoundationForState(
               },
             reconciliation:
               row.reconciliation,
+            componentArithmetic: row.componentArithmetic,
             diagnostics: [
               ...row.diagnostics,
             ],
@@ -512,6 +514,7 @@ export function commercialFoundationForState(
         ),
     });
 
+  foundation.commercialTerms.noticeVersions=[...contractNoticeRules(state),...contractNoticeRules(state,"detailed_claim")];
   cache.set(state, {
     version: state.version,
     value: foundation,

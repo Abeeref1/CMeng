@@ -207,7 +207,7 @@ test('portfolio retains the shared current contract, separate further adjustment
   const response=await fetch('http://127.0.0.1:'+port+'/api/portfolio');assert.equal(response.status,200);
   const body=await response.json() as any, item=body.projects.find((p:any)=>p.projectId===state.projectId);
   assert.equal(item.officialCompletionIso,'2031-12-31');assert.equal(item.furtherAdjustedCompletionIso,null);
-  assert.equal(item.forecastAuthority,director.schedule.independentForecastAuthority);
+  assert.equal(item.forecastAuthority,'missing');assert.equal(item.forecastCompletionIso,null);assert.equal(item.calendarRecalculationIso,director.schedule.independentForecastCompletionIso);
   assert.equal(item.approvedEotDays,null);assert.match(item.approvedEotBasis,/overlap.*reconciliation/);
  } finally {await new Promise<void>((resolve,reject)=>server.close(e=>e?reject(e):resolve()));}
 });

@@ -1,3 +1,4 @@
+import {classifyScheduleChanges} from "../../schedule-revision-core/src";
 import {
   analyzeSchedule,
   type ScheduleAnalysisConfig,
@@ -54,12 +55,7 @@ export function buildRevisionTrendProjection(
       : null;
 
     points.push({
-      changeCategories: comparison ? [
-        ["structural", ["activityType", "wbsId", "calendarId", "originalDurationHours"]],
-        ["forecast", ["currentStartIso", "currentFinishIso", "forecastStartIso", "forecastFinishIso", "totalFloatHours", "freeFloatHours"]],
-        ["progress", ["status", "actualStartIso", "actualFinishIso", "remainingDurationHours", "percentComplete"]],
-        ["metadata", ["name"]], ["baseline", ["baselineStartIso", "baselineFinishIso"]],
-      ].map(([category, fields])=>({category:category as string,activityCount:comparison.activityChanges.filter(row=>row.fieldChanges.some(change=>(fields as string[]).includes(change.field))).length})) : null,
+      changeCategories: comparison && previous ? classifyScheduleChanges(comparison.activityChanges,previous.model,revision.model) : null,
       executionActivityCount: analytics.population.executableActivityCount,
       sourceActivityCount: analytics.activityCount,
       scheduleProgressCoveragePercent: analytics.progress.durationWeightedPercentComplete.coveragePercent,

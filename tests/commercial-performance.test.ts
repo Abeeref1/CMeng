@@ -273,7 +273,7 @@ test("C2B1 Cost Control keeps source EAC separate from independent forecast scen
       "source_reported",
       "bac_over_cpi",
       "ac_plus_remaining_budget",
-      "bottom_up_etc",
+      "ac_plus_source_etc",
     ],
   );
   assert.equal(

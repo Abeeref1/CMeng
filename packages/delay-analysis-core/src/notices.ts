@@ -22,6 +22,15 @@ function applicableRequirement(
       requirement.eventCategories.length === 0 ||
       requirement.eventCategories.includes(event.category),
     )
+    .filter(requirement=>{
+      if(requirement.triggerBasis==='not_stated')return false;
+      const trigger=requirement.triggerBasis==='awareness'?event.awarenessIso:event.startIso;
+      // Missing trigger dates cannot choose between dated contract versions.
+      if(!trigger)return !requirement.effectiveFromIso&&!requirement.effectiveToIso;
+      const date=trigger.slice(0,10);
+      return (!requirement.effectiveFromIso||date>=requirement.effectiveFromIso)&&
+        (!requirement.effectiveToIso||date<requirement.effectiveToIso);
+    })
     .sort((a, b) => {
       const rank = (state: string) =>
         state === "official"
@@ -32,12 +41,14 @@ function applicableRequirement(
               ? 2
               : 3;
       return (
-        rank(a.state) - rank(b.state) ||
-        a.noticePeriodDays - b.noticePeriodDays
+        rank(a.state) - rank(b.state)
       );
     });
 
-  return applicable[0] ?? null;
+  const first=applicable[0];
+  if(!first)return null;
+  const peers=applicable.filter(r=>r.state===first.state);
+  return new Set(peers.map(r=>[r.noticePeriodDays,r.triggerBasis??'event_start'].join(':'))).size===1?first:null;
 }
 
 function eventNotices(
@@ -76,6 +87,17 @@ export function assessEventNotice(
   const notice =
     eventNotices(event.eventId, notices)[0] ?? null;
 
+  const candidateRules=requirements.filter(r=>r.eventCategories.length===0||r.eventCategories.includes(event.category));
+  const triggerDatesMissing=candidateRules.length>0&&candidateRules.every(r=>ms(r.triggerBasis==='awareness'?event.awarenessIso??null:event.startIso)===null);
+
+  if(triggerDatesMissing){
+    return {eventId:event.eventId,requirementId:requirement?.requirementId??null,
+      requiredNoticeDays:requirement?.noticePeriodDays??null,eventStartIso:event.startIso,
+      noticeId:notice?.noticeId??null,noticeIssuedAt:notice?.actualIssuedAt??null,elapsedDays:null,
+      timeliness:'event_date_missing',requirementState:requirement?.state??null,
+      applicabilityNote:'Contract notice rules are present. Supply the event/awareness date and confirm which contract version applies; a notice date does not establish its trigger.'};
+  }
+
   if (!requirement) {
     return {
       eventId: event.eventId,
@@ -86,12 +108,13 @@ export function assessEventNotice(
       noticeIssuedAt:
         notice?.actualIssuedAt ?? null,
       elapsedDays: null,
-      timeliness: "requirement_missing",
+      timeliness: candidateRules.length?'requirement_conflicted':"requirement_missing",
       requirementState: null,
+      applicabilityNote:candidateRules.length?'No single applicable contract rule is confirmed for this trigger date. Reconcile effective dates and conflicting rules.':'No applicable notice rule has been read from the evidence.',
     };
   }
 
-  const eventStart = ms(event.startIso);
+  const eventStart = ms(requirement.triggerBasis==='awareness'?event.awarenessIso??null:event.startIso);
   if (eventStart === null) {
     return {
       eventId: event.eventId,

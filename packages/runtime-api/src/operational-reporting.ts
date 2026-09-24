@@ -5,6 +5,7 @@ import type {ProjectRuntimeState,RiskControlRecord} from './project-state-types'
 type Lifecycle = {raisedIso?:string|null;closedIso?:string|null;statusAsOfIso?:string|null;sourceRefs:string[]};
 const derived=(row:{sourceRefs:string[]})=>row.sourceRefs.some(ref=>ref.startsWith('evidence-document:'));
 const refs=(row:SourceRow)=>['evidence-document:'+row.receipt.documentId+':'+row.receipt.locator];
+const responsibility=(row:SourceRow)=>({owner:cell(row,'owner','responsible person','assigned to')||null,linkedActivityId:cell(row,'linked activity','activity id')||null,subject:cell(row,'subject','description')||null});
 const dates=(row:SourceRow)=>({raisedIso:dateValue(cell(row,'raised date','opened date','issue date','identified date')),
   closedIso:dateValue(cell(row,'close date','closed date','response date','answered date')),
   statusAsOfIso:dateValue(cell(row,'status as of','status date','snapshot date','as of date'))});
@@ -41,9 +42,9 @@ export function operationalControlsAsOf(state:ProjectRuntimeState,date:string|nu
   const manual=<T extends {sourceRefs:string[]}>(items:T[]|undefined,type:string)=>(items??[]).filter(r=>!derived(r)||docIds(type).size===0);
   const ncrs:NcrRecord[]=[...manual(state.controls.ncrs,'quality_ncr_register'),...rows('quality_ncr_register').map(row=>({
     ncrId:cell(row,'ncr id'),severity:(/^(critical)$/.test(norm(cell(row,'severity')))?'critical':/^(major|high)$/.test(norm(cell(row,'severity')))?'major':/^(minor|low)$/.test(norm(cell(row,'severity')))?'minor':'unknown') as NcrRecord['severity'],
-    status:ncrStatus(cell(row,'status')),...dates(row),sourceRefs:refs(row)}))];
+    status:ncrStatus(cell(row,'status')),dueIso:dateValue(cell(row,'due date','required close date')),...responsibility(row),...dates(row),sourceRefs:refs(row)}))];
   const rfis:RfiRecord[]=[...manual(state.controls.rfis,'rfi_register'),...rows('rfi_register').map(row=>({rfiId:cell(row,'rfi id'),
-    status:rfiStatus(cell(row,'status')),dueIso:dateValue(cell(row,'required response','due date')),...dates(row),sourceRefs:refs(row)}))];
+    status:rfiStatus(cell(row,'status')),...responsibility(row),dueIso:dateValue(cell(row,'required response','due date')),...dates(row),sourceRefs:refs(row)}))];
   const risks:RiskControlRecord[]=[...manual(state.controls.risks,'risk_register'),...rows('risk_register').map(row=>({riskId:cell(row,'risk id'),
     status:(/^(open|active|mitigating|in progress)$/.test(norm(cell(row,'status')))?'open':/^(closed|resolved)$/.test(norm(cell(row,'status')))?'closed':'unknown') as RiskControlRecord['status'],
     sourceStatus:cell(row,'status'),rating:cell(row,'rating')||null,owner:cell(row,'owner')||null,dueIso:dateValue(cell(row,'due date')),...dates(row),sourceRefs:refs(row)}))];
@@ -76,7 +77,11 @@ export function operationalControlsAsOf(state:ProjectRuntimeState,date:string|nu
       risk.undatedRecordCount+' records lack an identified/status-as-of date. Action due dates do not establish when the risk was open.'};
   const severityKnown=quality.current.every(r=>r.status!=='open'||r.severity!=='unknown');
   const dueKnown=rfi.current.every(r=>r.status!=='open'||r.dueIso!==null);
-  return {dataDateIso:dateValue(date??''),quality,rfi,risk:{...risk,validation:riskValidation},knownCounts:{
+  const actionRows=[
+    ...quality.current.filter(r=>r.status==='open'&&['critical','major'].includes(r.severity)).map(r=>({recordId:r.ncrId,type:'NCR',priority:r.severity,owner:r.owner??null,dueIso:r.dueIso??null,raisedIso:r.raisedIso??null,subject:r.subject??null,linkedActivityId:r.linkedActivityId??null,sourceRefs:r.sourceRefs,action:'Resolve the NCR and record closure evidence; confirm the responsible owner and due date where absent.'})),
+    ...rfi.current.filter(r=>r.status==='open'&&r.dueIso&&dateValue(date??'')&&r.dueIso<dateValue(date??'')!).map(r=>({recordId:r.rfiId,type:'RFI',priority:'overdue',owner:r.owner??null,dueIso:r.dueIso,raisedIso:r.raisedIso??null,subject:r.subject??null,linkedActivityId:r.linkedActivityId??null,sourceRefs:r.sourceRefs,action:'Obtain the overdue response; record the decision and linked activity impact.'}))
+  ].sort((a,b)=>Number(b.priority==='critical')-Number(a.priority==='critical')||(a.dueIso??'9999').localeCompare(b.dueIso??'9999')||a.recordId.localeCompare(b.recordId));
+  return {actions:actionRows,dataDateIso:dateValue(date??''),quality,rfi,risk:{...risk,validation:riskValidation},knownCounts:{
     openCriticalMajorNcrCount:quality.current.filter(r=>r.status==='open'&&['critical','major'].includes(r.severity)).length,
     uncertainCriticalMajorNcrCount:quality.current.filter(r=>r.status==='unknown'&&r.severity!=='minor'||r.status==='open'&&r.severity==='unknown').length,
   },counts:{

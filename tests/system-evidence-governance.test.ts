@@ -149,8 +149,8 @@ test('ambiguous fallback identities remain unresolved',()=>{
   assert.equal(matches.matches.length,0); assert.ok(matches.ambiguousFrom.size>0 || matches.ambiguousTo.size>0);
 });
 test('baseline mutations and unique relationship type/lag modifications remain auditable',()=>{
-  const before=model([activity('P'),activity('S')]); before.sourceRevisionId='OLD'; before.relationships=[relation('FS',0)];
-  const after=model([activity('P',{baselineFinishIso:'2030-01-09'}),activity('S')]); after.relationships=[relation('SS',8)];
+  const before=model([activity('P',{baselineDateBasis:'controlled_baseline'}),activity('S')]); before.sourceRevisionId='OLD'; before.relationships=[relation('FS',0)];
+  const after=model([activity('P',{baselineDateBasis:'controlled_baseline',baselineFinishIso:'2030-01-09'}),activity('S')]); after.relationships=[relation('SS',8)];
   const result=buildScheduleChangeReportProjection({revisionId:'OLD',label:null,sequence:1,effectiveAt:null,model:before},{revisionId:'R2',label:null,sequence:2,effectiveAt:null,model:after},options);
   assert.equal(result.baselineMutationActivityCount,1); assert.equal(result.modifiedRelationships?.length,1); assert.equal(result.grossRelationshipChurn,2); assert.equal(result.netRelationshipCountChange,0);
 });

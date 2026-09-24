@@ -70,6 +70,9 @@ export interface ObligationControlInput {
 }
 
 export interface ContractClauseCandidateInput {
+  sourceRefs?: string[];
+  occurrenceCount?: number;
+  referencedClauseIdentifiers?: string[];
   clauseKey: string;
   identifier: string | null;
   heading: string | null;
@@ -381,6 +384,8 @@ export interface SiteInstructionsProjection {
 }
 
 export interface ObligationRecord {
+  occurrenceCount?: number;
+  referencedClauseIdentifiers?: string[];
   obligationId: string;
   origin:
     | "explicit_register"

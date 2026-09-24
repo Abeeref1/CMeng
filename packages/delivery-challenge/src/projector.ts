@@ -1162,6 +1162,7 @@ export function buildDeliveryChallengeProjection(
       ContractTimeBasis | null;
     submittedManpowerPlan?:
       SubmittedManpowerPlan | null;
+    sourceProductivityForecast?: {completionIso:string|null;sourceRefs:string[]} | null;
     workHoursPerPersonDay?:
       number;
     crewScenarios?:
@@ -1439,17 +1440,17 @@ export function buildDeliveryChallengeProjection(
         null
           ? null
           : Math.round(contractorVsIndependent).toLocaleString("en-US") +
-            " calendar days independent minus contractor forecast.",
+            " calendar days calendar-calculated minus submitted forecast; a model comparison, not delay.",
       evidenceBasis: [
         "Current contractor programme",
-        "Independent deterministic forecast",
+        "Unconstrained calendar-calculated schedule",
       ],
       milestoneConsequence:
         independentVsContractual !==
           null &&
         independentVsContractual >
           0
-          ? "Independent forecast is later than the current contractual completion basis."
+          ? independentRequiresReview ? "The calendar-model date requires reconciliation; no delivery consequence is established by this calculation." : "The calculated finish is later than the current contractual completion basis."
           : null,
       requiredResponse:
         independentRequiresReview
@@ -1608,11 +1609,13 @@ export function buildDeliveryChallengeProjection(
             ? "scenario"
             : "missing_evidence",
       contractorAssumption:
-        "Submitted programme assumes remaining output can be achieved within its remaining durations.",
+        "Mapped productivity requires installed output and labor hours on the same quantity and activity scope.",
       independentCalculation:
         maxProductivityRequirement ===
         null
-          ? null
+          ? input.sourceProductivityForecast?.completionIso
+            ? "Source productivity model finish " + input.sourceProductivityForecast.completionIso + "; the BOQ and schedule crosswalk is not confirmed."
+            : null
           : "Highest evidenced required/actual productivity ratio=" +
             maxProductivityRequirement.toFixed(
               2,
@@ -1631,6 +1634,7 @@ export function buildDeliveryChallengeProjection(
         "Mapped BOQ quantities",
         "Installed quantity snapshots where available",
         "Labor resource assignments",
+        ...(input.sourceProductivityForecast?.sourceRefs??[]),
       ],
       milestoneConsequence:
         maxProductivityRequirement !==

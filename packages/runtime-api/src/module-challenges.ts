@@ -191,6 +191,7 @@ function spec(
     IndependentMetricSpec["state"],
   sourceRefs: string[],
   input: {
+    comparisonBasisEstablished?: boolean;
     submittedOverride?:
       ChallengeValue | undefined;
     tolerance?:
@@ -227,6 +228,7 @@ function spec(
 ): IndependentMetricSpec {
   return {
     metric,
+    ...(input.comparisonBasisEstablished!==undefined?{comparisonBasisEstablished:input.comparisonBasisEstablished}:{}),
     label,
     value,
     unit,
@@ -1572,22 +1574,7 @@ function metricsFor(
         spec(
           "window_movement_days",
           "Latest window forecast movement",
-          numberOrNull(
-            latest
-              ?.strongestProgrammeMovementDays,
-          ) ??
-          numberOrNull(
-            latest
-              ?.independentForecastMovementDays,
-          ) ??
-          numberOrNull(
-            latest
-              ?.sourceForecastMovementDays,
-          ) ??
-          numberOrNull(
-            latest
-              ?.scheduleBoundaryMovementDays,
-          ),
+          numberOrNull(latest?.independentForecastMovementDays),
           "days",
           latest
             ? "calculated"
@@ -1596,6 +1583,7 @@ function metricsFor(
             "schedule-revision-history",
           ],
           {
+            comparisonBasisEstablished:false,
             submittedOverride:
               latest
                 ? submitted(
