@@ -37,3 +37,11 @@ fail. Synthetic three- and seven-event cases include extra determinations.
 The same review found that a shared source interpretation could replace a
 commercial verdict with a schedule-progress sentence. Progress verdicts now only
 apply to progress and management pages; other domains keep their own verdict.
+
+## Reader language and repeated warnings
+
+Live review of release 9563dd4 found that `renderNav` repeated propagated information counts beside every page, while `renderModuleResult` placed an issue strip in front of each result. `renderPositionVerdict` also printed a generic source-review instruction for pages without a calculated verdict. The duplication came from the shared presentation layer, so changing a project record would not fix it.
+
+The shared navigation now keeps information and system-failure totals separate without repeating information badges on every destination. Page results lead; routine issue counts, date rules and detailed calculations remain expandable. A failed calculation retains its red verdict, navigation error count and alert. The Information & Actions view gives plain-language requests while preserving the original finding, amounts, document references, and all affected pages. Application-authored vocabulary is updated across role views and report previews; uploaded document wording is never rewritten.
+
+Regression checks exercise arbitrary module names, non-sample dates and amounts, missing payment dates, original document wording, retained references, all six role views and a deliberately failed calculation. The data producers, approval states and accounting rules remain the same. Browser acceptance is required after deployment to check actual page layout and interactions.

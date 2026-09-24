@@ -44,7 +44,7 @@ const SOURCE_PRODUCTIVITY_DATE =
 const RULES: AssertionRule[] = [
   {
     metric: "source_productivity_forecast_completion",
-    label: "Source productivity forecast completion",
+    label: "Productivity forecast completion",
     valueType: "date",
     unit: null,
     patterns: [

@@ -3,11 +3,12 @@ import type { ControlIssueAssessment, ControlIssue } from '../../truth-kernel/sr
 
 /** One reader-facing vocabulary; source authority and project performance stay separate. */
 export const STATUS_LABELS: Record<string,string> = {
-  system_defect:'System failure',source_conflict:'Sources disagree',data_quality:'Source correction needed',
+  system_defect:'System failure',source_conflict:'Records disagree',data_quality:'Record needs correction',
   missing_information:'Information needed',comparison_difference:'Positions differ',governance_review:'Approval needed',
   verification_pending:'Check pending',checked:'Checked',established:'Confirmed',not_established:'Not confirmed',
-  candidate:'Needs review',governed:'Confirmed basis',unknown:'Not known',partial:'Partly confirmed',
-  unavailable:'Not available',not_checked:'Not checked',review_required:'Review needed',conflicted:'Sources disagree',
+  candidate:'Needs review',governed:'Confirmed',governed_source:'Reported forecast',source:'Reported',source_current:'Current record',source_report:'Reported',unknown:'Not known',partial:'Partly confirmed',
+  unavailable:'Not available',not_checked:'Not checked',review_required:'Review needed',conflicted:'Records disagree',
+  verified_for_checked_metrics:'Listed checks passed',submitted_unparsed:'Document not yet read',
 };
 export function issueCounters(a?:ControlIssueAssessment) {
   const c=a?.counts;
@@ -18,7 +19,8 @@ const number=(v:unknown):v is number=>typeof v==='number'&&Number.isFinite(v);
 export function positionVerdict(result:ModuleRuntimeResult) {
   const d:any=result.data??{},p=d.result??d,a=result.issueAssessment??d.issueAssessment,counts=issueCounters(a);
   const facts:{noticeEventDateMissingCount?:number}={};
-  let text='Review the source exceptions and required actions before using this position.',rag:'red'|'amber'|'green'|'unknown'='amber';
+  let text='The results, records and follow-up actions for this view are shown below.',rag:'red'|'amber'|'green'|'unknown'='amber';
+  let specific=false;
   if(result.status==='blocked'){text='This position cannot yet be calculated. The missing inputs are listed below.';rag='unknown';}
   else if(result.key==='master-dashboard'){
     const metrics=d.metrics??[],get=(k:string)=>metrics.find((m:any)=>m.key===k)?.value;
@@ -38,21 +40,22 @@ export function positionVerdict(result:ModuleRuntimeResult) {
   } else if(result.key==='quantity-scurve'){
     const series=p.series??[],hasQuantities=series.length>0||(p.unmappedItemIds?.length??0)>0;
     const installed=series.some((s:any)=>s.points?.some((r:any)=>number(r.actualInstalledQuantity)));
-    text=!hasQuantities?'BOQ source quantities are not available in this position. Supply the quantity register.':installed?'Installed quantity evidence is available by unit. Review mapping coverage and the dated installation history.':'Source quantities are available; installed progress requires confirmed schedule links and dated installation records.';
+    text=!hasQuantities?'BOQ quantities are not available. Provide the quantity register.':installed?'Installed quantities are available by unit. Check the linked activities and dated installation records.':'BOQ quantities are available. Link them to programme activities and provide dated installation records to measure installed progress.';
   } else if(result.key==='cash-flow'){
     const currencies=p.position?.performance?.cashFlow?.currencies??[];
     const ready=currencies.length>0&&currencies.every((r:any)=>r.sourceReadiness?.netCashReady);
-    text=ready?'Actual cash is supported by the dated receipt and expenditure records, separated by currency.':'Certificate values are shown separately from cash. Actual cash requires payment and receipt dates.';
+    text=ready?'Actual cash is supported by the dated receipt and expenditure records, separated by currency.':'Certificate amounts are available. Provide the advance payment record and dated receipts and payments to establish actual cash.';
   }
-  else if(result.key==='resource-utilization'||result.key==='manhour-scurve')text='Resource conclusions apply to the supplied register horizon. Review the hours, capacity and programme coverage bases below.';
+  else if(result.key==='resource-utilization'||result.key==='manhour-scurve')text='Compare demand with capacity for each resource. Hours cover the dates in the register; they may not cover the full programme.';
   const metrics=p.scopeComparison??p.sourceInterpretation?.progressMeasures?.scopeComparison;
-  if(['progress-scurve','progress-report','master-dashboard','command-center','pmo-analysis'].includes(result.key)&&metrics&&number(metrics.gapPercentagePoints)){const v=metrics.gapPercentagePoints;rag=rag==='red'||v<0?'red':'green';const progressText=v===0?'Matched-scope schedule progress matches baseline plan.':'Matched-scope schedule progress is '+Math.abs(v).toFixed(2)+' percentage points '+(v<0?'behind':'ahead of')+' baseline plan.';text=result.key==='master-dashboard'?text+' '+progressText:progressText;}
-  if(counts.system){rag='red';text='System checks failed. Do not rely on the affected values until the listed failures are corrected.';}
+  if(['progress-scurve','progress-report','master-dashboard','command-center','pmo-analysis'].includes(result.key)&&metrics&&number(metrics.gapPercentagePoints)){const v=metrics.gapPercentagePoints;rag=rag==='red'||v<0?'red':'green';const progressText=v===0?'Schedule progress on the same activities matches baseline plan.':'Schedule progress on the same activities is '+Math.abs(v).toFixed(2)+' percentage points '+(v<0?'behind':'ahead of')+' baseline plan.';text=result.key==='master-dashboard'?text+' '+progressText:progressText;}
+  specific=text!=='The results, records and follow-up actions for this view are shown below.';
+  if(counts.system){rag='red';specific=true;text='A CMeng calculation check failed. The affected values need correction before use.';}
   else if(rag==='green'&&(counts.source||counts.pending||counts.review))rag='amber';
   const first=(a?.issues??[]).find((i:ControlIssue)=>i.kind==='system_defect')??(a?.issues??[]).find((i:ControlIssue)=>['source_conflict','data_quality','missing_information'].includes(i.kind))??(a?.issues??[])[0];
-  return {schemaVersion:'1.0',facts,rag,label:rag==='red'?'Action required':rag==='green'?'Within the checked target':rag==='unknown'?'Not assessable':'Review needed',text,
-    nextAction:result.key==='master-dashboard'&&rag==='red'&&!counts.system?'Agree a recovery decision for the reported completion gap and assign the dated delivery exceptions below.':first?.action??'Review the detailed position and its source references.',owner:result.key==='master-dashboard'&&rag==='red'&&!counts.system?'Project director — assignment required':first?.owner??'Project controls reviewer',
-    basis:'Red: a reported target is exceeded or a system check failed. Amber: evidence or review is incomplete. Green: the stated target and listed checks pass. No composite risk score is implied.'};
+  return {schemaVersion:'1.0',facts,specific,rag,label:rag==='red'?'Action required':rag==='green'?'Within the checked target':rag==='unknown'?'Not assessable':'Review needed',text,
+    nextAction:result.key==='master-dashboard'&&rag==='red'&&!counts.system?'Agree the recovery plan and assign the delivery actions below.':first?.action??'Review the figures and supporting documents.',owner:result.key==='master-dashboard'&&rag==='red'&&!counts.system?'Project director (assign a person)':first?.owner??'Project controls reviewer',
+    basis:'Red: a reported target is exceeded or a calculation check failed. Amber: information or review is incomplete. Green: the stated target and listed checks pass. These colours do not represent an overall project risk score.'};
 }
 export function withPositionVerdict(result:ModuleRuntimeResult):ModuleRuntimeResult {
   return {...result,data:{...(result.data as object??{}),positionVerdict:positionVerdict(result)}};
@@ -65,5 +68,5 @@ export function sourceQualityPosition(modules:Map<string,ModuleRuntimeResult>,as
     pendingChecks:issues.filter(i=>i.kind==='verification_pending'),
     coverage:[...modules].map(([key,r])=>({key,state:(r.data as any)?.systemEvidenceContract?.state??'not_checked',checks:(r.data as any)?.systemEvidenceContract?.checks??[]})),
     documents:documents.map(d=>({id:d.documentId,name:d.sourceFilename,type:d.documentType,state:d.basisState,uploadedAt:d.uploadedAt})),
-    scope:'Source requests are not software defects. A passed calculation checks only its listed metrics. Each finding retains its source references, affected pages and next action.'};
+    scope:'Confirm conflicting records, provide missing information and assign the follow-up. Calculation checks are listed separately below.'};
 }
