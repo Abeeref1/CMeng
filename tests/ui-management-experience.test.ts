@@ -262,3 +262,9 @@ test('generic guidance and complete date counts remain available without precedi
  const detail=runInNewContext(code+';renderPositionVerdict(data,true)+renderRegisterScope(data,true)',context);
  assert.match(detail,/General guidance/);assert.match(detail,/Status explanation/);assert.match(detail,/Certificates/);assert.match(detail,/2 \/ 2/);
 });
+
+test('resource unit labels translate known register codes and preserve other project units exactly',()=>{
+ const label=runInNewContext(functions(['resourceUnitLabel'])+';resourceUnitLabel');
+ assert.equal(label('labor_hour'),'Labor hours');assert.equal(label('labour_hour'),'Labor hours');assert.equal(label('equipment_hour'),'Equipment hours');
+ for(const unit of ['kWh','m3','m²','W/m²','custom_unit'])assert.equal(label(unit),unit);
+});

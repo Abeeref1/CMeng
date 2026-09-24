@@ -756,7 +756,7 @@ function renderDeliveryChallenge(data,reason,status){
   ]);
   const scheduleCards=forecastReview+planningKpis([
     ["Submitted finish",planningShortDate(s.contractorSubmittedCompletionIso),"current programme"],
-    ["Contract finish",planningShortDate(s.contractualCompletionIso),"governed if established"],["Submitted vs contract",s.contractorSubmittedCompletionIso&&s.contractualCompletionIso?fmt(planningCalendarDaysBetween(s.contractualCompletionIso,s.contractorSubmittedCompletionIso))+" calendar days":"Not confirmed","submitted finish minus contractual completion"],
+    ["Contract finish",planningShortDate(s.contractualCompletionIso),"Confirmed contract date"],["Submitted vs contract",s.contractorSubmittedCompletionIso&&s.contractualCompletionIso?fmt(planningCalendarDaysBetween(s.contractualCompletionIso,s.contractorSubmittedCompletionIso))+" calendar days":"Not confirmed","submitted finish minus contractual completion"],
     ["Calendar-calculated finish",independentDeferred?"Separate review":planningShortDate(s.independentCompletionIso),independentDeferred?"not repeated here":"CMeng calculation",independentDeferred?"warning":""],
     ["Average concurrent activities",s.averageConcurrentWorkFronts,"task concurrency; work fronts not confirmed"],
     ["Peak concurrent activities",s.peakConcurrentWorkFronts,"task concurrency; work fronts not confirmed"]
@@ -785,7 +785,7 @@ function renderDeliveryChallenge(data,reason,status){
   const contractCategoryBars=renderVisualBars(contractCategoryItems);
   const readyGateCount=[contract?.semanticComplete===true&&contract?.signalCount>0,submittedManpower,measuredHours,mappingCoverage!==null&&mappingCoverage>0,data.independentForecastState==="calculated"&&!!s.independentCompletionIso].filter(Boolean).length;
   const challengeVisuals='<div class="visual-chart-grid">'+
-    renderVisualPanel("Evidence readiness","What is established before CMeng challenges the submitted delivery position.",renderDonutChart([
+    renderVisualPanel("Information for this assessment","Documents and figures available for the delivery review.",renderDonutChart([
       {label:"Established",value:readyGateCount,tone:"success"},
       {label:"Missing / review",value:5-readyGateCount,tone:"warning"}
     ],"Evidence gates"))+
@@ -801,7 +801,7 @@ function renderDeliveryChallenge(data,reason,status){
     ["Categories",(contract.categoriesPresent||[]).length,"identified"]
   ])+(contract.countingBasis?'<p>'+escapeHtml(contract.countingBasis)+'</p>':'')+contractSources+contractTrace+(contractCategoryCounts.size?'<div class="nested-title" style="margin-top:14px">Signals by contract topic</div>'+contractCategoryBars:'')+'</div></section>':'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Contract review</h4></div></div><div class="planning-panel-body"><div class="notice warn">A parsed contract is required before CMeng can challenge clauses, notice obligations or contractual time provisions.</div></div></section>';
   const reconciliation=challengeBody?'<details class="reconciliation-panel"><summary><span>Comparison with the submitted position</span><b>'+escapeHtml(reconciliationSummary(data.challenge))+'</b></summary><div class="reconciliation-body">'+challengeBody+'</div></details>':'';
-  let html='<section class="planning-view contract-challenge-view">'+renderBasisReviews(data,"challenge-contract")+(reason?'<div class="notice info">'+escapeHtml(reason)+'</div>':'')+challengeVisuals+'<section class="planning-panel"><div class="planning-panel-head"><div><h4>Evidence readiness</h4><p>CMeng does not present a scenario as an official project fact.</p></div><span class="badge '+(d.position==="challenged"||d.position==="material_delivery_gap"?"partial":"")+'">'+escapeHtml(humanizeKey(d.position))+'</span></div><div class="planning-panel-body">'+gates+'</div></section>'+scheduleCards+'<div class="planning-primary-grid">'+contractSummary+manpower+'</div>'+quantity;
+  let html='<section class="planning-view contract-challenge-view">'+renderBasisReviews(data,"challenge-contract")+challengeVisuals+'<section class="planning-panel"><div class="planning-panel-head"><div><h4>Information for this assessment</h4><p>CMeng does not present a scenario as an official project fact.</p></div><span class="badge '+(d.position==="challenged"||d.position==="material_delivery_gap"?"partial":"")+'">'+escapeHtml(humanizeKey(d.position))+'</span></div><div class="planning-panel-body">'+gates+'</div></section>'+scheduleCards+'<div class="planning-primary-grid">'+contractSummary+manpower+'</div>'+quantity;
   if(findings)html+='<section class="planning-panel"><div class="planning-panel-head"><div><h4>Delivery challenge findings</h4><p>Management issues, consequence and required response.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Topic</th><th>State</th><th>Contractor position</th><th>CMeng analysis</th><th>Gap</th><th>Consequence</th><th>Required response</th></tr></thead><tbody>'+findings+'</tbody></table></div></div></section>';
   if(data.contractValueEvidence&&!data.contractValueBasisReview){
     const cv=data.contractValueEvidence,governed=cv.governed,candidate=cv.extraction?.value;
@@ -816,6 +816,9 @@ function renderDeliveryChallenge(data,reason,status){
 
   el("moduleContent").innerHTML=renderPositionVerdict(data)+renderRegisterScope(data)+basisHtml+renderRoleContent("challenge-contract",data,html,"",true)+experienceReviewSummary(data.issueAssessment)+renderModuleReadiness(data,reason);
   return true;
+}
+function resourceUnitLabel(unit){
+  return ({labor_hour:"Labor hours",labour_hour:"Labor hours",equipment_hour:"Equipment hours"})[unit]||unit;
 }
 function humanizeKey(key){
   const sharedLabels=${JSON.stringify(STATUS_LABELS)};if(sharedLabels[key])return sharedLabels[key];
@@ -2136,7 +2139,7 @@ function renderResourceVisual(data){
     ["Weekly comparable checks",weeklyRows?fmt(weeklyComparable)+" / "+fmt(weeklyRows):"Not confirmed","rows with established capacity and demand",weeklyComparable?"accent":"warning"],
     ["Actual over capacity",checks?.actual?.comparableCount?fmt(checks.actual.exceededCount)+" / "+fmt(checks.actual.comparableCount):"Not assessable","comparable resource-weeks through Data Date",checks?.actual?.exceededCount?"warning":""],
     ["Planned over capacity",checks?.planned?.comparableCount?fmt(checks.planned.exceededCount)+" / "+fmt(checks.planned.comparableCount):"Not assessable","comparable resource-weeks through Data Date",checks?.planned?.exceededCount?"warning":""],
-    ["Capacity units",weeklyUnits.length?weeklyUnits.map(humanizeKey).join(" / "):"Not confirmed","kept separate by source unit",weeklyUnits.length?"":"warning"]
+    ["Capacity units",weeklyUnits.length?weeklyUnits.map(resourceUnitLabel).join(" / "):"Not confirmed","kept separate by source unit",weeklyUnits.length?"":"warning"]
   ]);
 
   const rows=[...p.rows].sort((a,b)=>(a.overloaded===true?0:a.state!=="capacity_based"?1:2)-(b.overloaded===true?0:b.state!=="capacity_based"?1:2)).map(r=>'<tr><td><b>'+escapeHtml(r.resourceId)+'</b><br><span class="muted">'+escapeHtml(r.resourceName||"")+'</span></td><td>'+escapeHtml(r.resourceType)+'</td><td>'+escapeHtml(r.assignmentCount)+'</td><td>'+escapeHtml(fmt(r.capacityUnitsPerHour))+'</td><td>'+escapeHtml(fmt(r.peakPlannedUnitsPerHour))+'</td><td>'+escapeHtml(fmt(r.peakRemainingUnitsPerHour))+'</td><td>'+escapeHtml(r.plannedUtilizationPercent===null?"—":fmt(r.plannedUtilizationPercent)+"%")+'</td><td>'+escapeHtml(r.remainingUtilizationPercent===null?"—":fmt(r.remainingUtilizationPercent)+"%")+'</td><td><span class="state-pill '+(r.overloaded===true?"blocked":r.state==="capacity_based"?"ready":"review")+'">'+escapeHtml(r.overloaded===true?"Overloaded":r.state==="capacity_based"?"Capacity assessed":"Capacity not set")+'</span></td></tr>').join("");
@@ -2152,7 +2155,7 @@ function renderResourceVisual(data){
     : '';
 
   const aggregateCharts=weeklyGroups.size
-    ? [...weeklyGroups.entries()].map(([unit,points])=>'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Weekly capacity vs demand · '+escapeHtml(humanizeKey(unit))+'</h4><p>Available capacity, planned demand and approved usage from the source register. Different units are never added together.</p></div><span class="badge '+(weekly?.state==="available"?"ready":"partial")+'">'+escapeHtml(weekly?.state==="candidate"?"Source candidate":humanizeKey(weekly?.state||"partial"))+'</span></div><div class="planning-panel-body">'+renderLineChart(points,[
+    ? [...weeklyGroups.entries()].map(([unit,points])=>'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Weekly capacity vs demand · '+escapeHtml(resourceUnitLabel(unit))+'</h4><p>Available capacity, planned demand and approved usage from the source register. Different units are never added together.</p></div><span class="badge '+(weekly?.state==="available"?"ready":"partial")+'">'+escapeHtml(weekly?.state==="candidate"?"Source candidate":humanizeKey(weekly?.state||"partial"))+'</span></div><div class="planning-panel-body">'+renderLineChart(points,[
         {key:"availableCapacity",label:"Available capacity",color:"#506579"},
         {key:"plannedDemand",label:"Planned demand",color:"#b57922"},
         {key:"actualApprovedUsage",label:"Approved actual usage",color:"#2c7a57"}
@@ -2733,7 +2736,7 @@ function renderCommercialVisual(key,data){
       foundationDetail=
         '<section class="planning-panel"><div class="planning-panel-head"><div><h4>Cost Register</h4><p>CBS/WBS/currency/tax/date/source authority remain explicit. Showing '+escapeHtml(fmt(costRows.length))+' of '+escapeHtml(fmt((foundation.costRegister?.rows||[]).length))+' rows; the complete population is available through Download Excel / Download data.</p></div></div><div class="planning-panel-body">'+
         planningKpis([
-          ["Cost records",countPosition(foundation.costRegister?.state,foundation.costRegister?.recordCount,"records"),"canonical grouped register"],
+          ["Cost records",countPosition(foundation.costRegister?.state,foundation.costRegister?.recordCount,"records"),"Cost register, grouped by record"],
           ["CBS mapping",foundation.costRegister?.mappingCoveragePercent==null?"Not confirmed":fmt(foundation.costRegister.mappingCoveragePercent)+"%","source rows mapped"],
           ["CBS nodes",countPosition(foundation.cbsBreakdown?.state,foundation.cbsBreakdown?.nodeCount,"nodes"),"hierarchy population"],
           ["Unmapped",countPosition(foundation.cbsBreakdown?.state,foundation.cbsBreakdown?.unmappedCostMetricCount,"metrics"),"retained for correction"]
