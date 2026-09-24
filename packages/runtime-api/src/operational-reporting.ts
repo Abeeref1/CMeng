@@ -80,7 +80,10 @@ export function operationalControlsAsOf(state:ProjectRuntimeState,date:string|nu
   const actionRows=[
     ...quality.current.filter(r=>r.status==='open'&&['critical','major'].includes(r.severity)).map(r=>({recordId:r.ncrId,type:'NCR',priority:r.severity,owner:r.owner??null,dueIso:r.dueIso??null,raisedIso:r.raisedIso??null,subject:r.subject??null,linkedActivityId:r.linkedActivityId??null,sourceRefs:r.sourceRefs,action:'Resolve the NCR and record closure evidence; confirm the responsible owner and due date where absent.'})),
     ...rfi.current.filter(r=>r.status==='open'&&r.dueIso&&dateValue(date??'')&&r.dueIso<dateValue(date??'')!).map(r=>({recordId:r.rfiId,type:'RFI',priority:'overdue',owner:r.owner??null,dueIso:r.dueIso,raisedIso:r.raisedIso??null,subject:r.subject??null,linkedActivityId:r.linkedActivityId??null,sourceRefs:r.sourceRefs,action:'Obtain the overdue response; record the decision and linked activity impact.'}))
-  ].sort((a,b)=>Number(b.priority==='critical')-Number(a.priority==='critical')||(a.dueIso??'9999').localeCompare(b.dueIso??'9999')||a.recordId.localeCompare(b.recordId));
+  ].map(row=>({...row,ageDays:row.raisedIso&&date?Math.max(0,Math.floor((Date.parse(date.slice(0,10))-Date.parse(row.raisedIso.slice(0,10)))/86400000)):null,
+    overdueDays:row.dueIso&&date?Math.max(0,Math.floor((Date.parse(date.slice(0,10))-Date.parse(row.dueIso.slice(0,10)))/86400000)):null,
+    missingActionFields:[...(!row.owner?['Owner']:[]),...(!row.dueIso?['Due date']:[])]}))
+    .sort((a,b)=>Number(b.priority==='critical')-Number(a.priority==='critical')||(b.overdueDays??-1)-(a.overdueDays??-1)||(b.ageDays??-1)-(a.ageDays??-1)||a.recordId.localeCompare(b.recordId));
   return {actions:actionRows,dataDateIso:dateValue(date??''),quality,rfi,risk:{...risk,validation:riskValidation},knownCounts:{
     openCriticalMajorNcrCount:quality.current.filter(r=>r.status==='open'&&['critical','major'].includes(r.severity)).length,
     uncertainCriticalMajorNcrCount:quality.current.filter(r=>r.status==='unknown'&&r.severity!=='minor'||r.status==='open'&&r.severity==='unknown').length,

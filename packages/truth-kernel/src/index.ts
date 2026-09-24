@@ -33,8 +33,13 @@ export function csv(text: string): string[][] {
   if (field || row.length) { row.push(field.replace(/\r$/, '')); if (row.some(x => x.trim())) rows.push(row); }
   return rows;
 }
+const headerNames = new Map<string,string>();
+const headerKey = (name:string) => {
+  const cached=headerNames.get(name);if(cached!==undefined)return cached;
+  const key=norm(name);if(headerNames.size>=4096)headerNames.clear();headerNames.set(name,key);return key;
+};
 export const cell = (row: SourceRow, ...names: string[]): string => {
-  for (const name of names) { const v = row.cells[norm(name)]; if (v !== undefined && v.trim() !== '') return v.trim(); }
+  for (const name of names) { const v = row.cells[headerKey(name)]; if (v !== undefined && v.trim() !== '') return v.trim(); }
   return '';
 };
 export function numberValue(value: string): number | null {
@@ -91,7 +96,7 @@ export function sourceTables(documents: readonly EvidenceDocument[], diagnostics
   }
   return result;
 }
-export const has = (table: SourceTable, ...headers: string[]): boolean => headers.every(h => table.headers.includes(norm(h)));
+export const has = (table: SourceTable, ...headers: string[]): boolean => headers.every(h => table.headers.includes(headerKey(h)));
 
 /** A pending revision cannot displace an established source of the same role. */
 export function governedTables(documents: readonly EvidenceDocument[], diagnostics: string[]): SourceTable[] {

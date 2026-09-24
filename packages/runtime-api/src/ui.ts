@@ -1,3 +1,5 @@
+import {STATUS_LABELS} from './position-review';
+import {systemReviewScript,systemReviewStyles} from './ui-system-review';
 import {basisReviewScript} from './ui-basis-review';
 import { experienceStyles, experienceScript } from './ui-experience';
 
@@ -201,6 +203,7 @@ details:not(.workspace-drawer){border:1px solid var(--line);border-radius:9px;ba
 .module-live-dot{background:#8a99a8!important;box-shadow:none!important}
 .issue-badge{display:inline-block;border-radius:5px;padding:3px 6px;font-size:10px;font-weight:800;white-space:nowrap;background:#eef1f5;color:#596779}.issue-badge.system_defect{background:#fde8e7;color:#a42822}.issue-badge.source_conflict{background:#f1e8fa;color:#75429b}.issue-badge.data_quality{background:#fff0db;color:#976018}.issue-badge.missing_information{background:#fff8dc;color:#7b671c}.issue-badge.comparison_difference{background:#e6f0fc;color:#2d6099}.issue-badge.governance_review{background:#edeaf6;color:#65538a}.issue-badge.checked{background:#edf7f1;color:#286748}.issue-category-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px;margin:12px 0}.issue-category{border:1px solid #dce4ee;border-radius:8px;padding:10px;background:white}.issue-category b{display:block;font-size:19px;margin:6px 0}.issue-category small{display:block;color:#5d6c7d;line-height:1.4}.issue-assessment{padding:14px;border:1px solid #dce4ee;border-radius:9px;background:#f7f9fc;margin-bottom:14px}.issue-assessment h4{margin:0 0 6px}.issue-assessment .table-wrap{max-height:400px}.nav-state .issue-badge{font-size:8px;padding:2px 4px}.issue-assessment details summary{cursor:pointer;font-weight:700;padding:9px 0}
 ${experienceStyles}
+${systemReviewStyles}
 .planning-kpi.unavailable strong{font-size:16px;font-weight:600;line-height:1.45}.planning-kpi.unavailable{background:#f8fafc}
 </style>
 </head>
@@ -410,9 +413,10 @@ ${experienceStyles}
 </div>
 <script>
 ${experienceScript}
+${systemReviewScript}
 ${basisReviewScript}
 const groups={
-  "Management Control":["master-dashboard","command-center","master-control-programme"],
+  "Management Control":["master-dashboard","command-center","master-control-programme","source-quality"],
   "Programme & Planning":["pmo-analysis","schedule-analytics","activity-analytics","lookahead-schedule","schedule-change-report","revision-trend","milestones","near-critical"],
   "Progress & Resources":["resource-utilization","progress-report","variance-trends","progress-scurve","quantity-scurve","progress-breakdown","manhour-scurve"],
   "Forecast & Finish":["forecast-history","independent-forecast"],
@@ -420,10 +424,11 @@ const groups={
   "Commercial":["commercial-overview","cost-forecast","variations-change","payments","cash-flow","commercial-claims-notices","contract-particulars-bonds"]
 };
 const names={
-"master-dashboard":"Master Dashboard","command-center":"Command Center","master-control-programme":"Master Control Programme",
+"source-quality":"Source Quality","master-dashboard":"Master Dashboard","command-center":"Command Center","master-control-programme":"Master Control Programme",
 "pmo-analysis":"Management Position","schedule-analytics":"Programme Review","activity-analytics":"Activity Review","resource-utilization":"Resources","lookahead-schedule":"Look-Ahead","progress-report":"Progress Position","schedule-change-report":"Programme Changes","revision-trend":"Revision History","variance-trends":"Variance Trend","progress-scurve":"Progress S-Curve","quantity-scurve":"Installed Quantities","progress-breakdown":"WBS Progress","milestones":"Milestones","near-critical":"Near-Critical & Float Risk","manhour-scurve":"Man-Hour S-Curve","forecast-history":"Forecast History","independent-forecast":"Independent Forecast","delay-claims":"Delay Events & Claims","notices-claims":"Notices, EOT & Claims","windows-analysis":"Delay Windows","eot-assessment":"EOT Position","challenge-contract":"Challenge the Contract","commercial-overview":"Commercial Overview","cost-forecast":"Cost & Forecast","variations-change":"Variations & Change","payments":"Payments","cash-flow":"Cash Flow","commercial-claims-notices":"Claims & Notices","contract-particulars-bonds":"Contract Particulars & Bonds"
 };
 const descriptions={
+"source-quality":"Source requests, system failures and verification coverage with responsible actions.",
 "master-dashboard":"Completion commitments, programme pressure and commercial position.",
 "command-center":"Delivery priorities, suggested follow-up and decisions awaiting assignment.",
 "master-control-programme":"Controlled revisions, project structure, specialist positions and review history.",
@@ -621,17 +626,17 @@ function renderNav(){
   const nav=el("nav");
   if(appView!=="project"||!overview){nav.innerHTML="";return}
   const states=new Map([...(overview?.moduleStates||[]),...(overview?.managementStates||[])].map(x=>[x.key,x]));
-  let html='<div class="nav-group">';
+  const overall=states.get('master-dashboard')?.issueAssessment?.counts||{};
+  const sourceTotal=(overall.source_conflict||0)+(overall.data_quality||0)+(overall.missing_information||0);
+  let html='<div class="nav-review-totals"><div>Source issues<b>'+fmt(sourceTotal)+'</b></div><div>System failures<b>'+fmt(overall.system_defect||0)+'</b></div></div><div class="nav-group">';
   Object.entries(groups).forEach(([group,keys])=>{
     html+='<div class="nav-group-title" style="padding-top:10px">'+group+'</div>';
     keys.forEach(key=>{
       const state=states.get(key)||{};
       const issues=state.issueAssessment?.counts||{};
-      const errors=issues.system_defect||0;
-      const attention=Object.entries(issues).filter(([kind])=>kind!=='verification_pending').reduce((n,[,count])=>n+Number(count||0),0);
-      const pending=issues.verification_pending||0;
-      const title=names[key]+(errors?' · Calculation error':attention?' · '+attention+' review findings':pending?' · Verification coverage incomplete':'');
-      const count=attention?'<span class="nav-count '+(errors?'error':'attention')+'" aria-label="'+attention+' review findings">'+(managementSurfaceKeysForApi.has(key)?'Review':attention)+'</span>':pending?'<span class="nav-count" aria-label="Verification coverage incomplete">i</span>':'';
+      const errors=issues.system_defect||0,source=(issues.source_conflict||0)+(issues.data_quality||0)+(issues.missing_information||0),review=(issues.comparison_difference||0)+(issues.governance_review||0),pending=issues.verification_pending||0;
+      const title=names[key]+' · Source issues: '+source+' · System failures: '+errors+' · Reviews: '+review+' · Pending checks: '+pending;
+      const count='<span class="nav-counts">'+(source?'<span class="nav-count attention" aria-label="'+source+' source issues">Source '+source+'</span>':'')+(errors?'<span class="nav-count error" aria-label="'+errors+' system failures">System '+errors+'</span>':'')+'</span>';
       html+='<button class="nav-item '+(selected===key?"active":"")+'" data-key="'+key+'" title="'+escapeHtml(title)+'" aria-current="'+(selected===key?'page':'false')+'"><span class="nav-label">'+names[key]+'</span>'+count+'</button>';
     });
   });
@@ -759,7 +764,7 @@ function renderDeliveryChallenge(data,reason,status){
   const manpowerScenarioBars=moduleBarList(manpowerScenarioRows.map(x=>({label:fmt(x.crewSize)+" assumed people / concurrent task",value:typeof x.averageManpower==="number"?x.averageManpower:null,tone:"warning"})).filter(x=>x.value!==null),"warning","people");
   const labor=data.sourceLaborEvidence;
   const laborSummary=labor?'<div class="notice info"><b>Supplied labor evidence is available</b><p>'+escapeHtml(labor.basis)+'</p>'+planningKpis([["Labor resources",labor.laborResourceCount,"source identities"],["Planned labor hours",fmt(labor.plannedHours)+" h","full source horizon"],["Planned hours through DD",fmt(labor.plannedHoursToDataDate)+" h","weekly source periods"],["Approved actual hours through DD",fmt(labor.actualHoursToDataDate)+" h","weekly source periods"]])+'</div>':'';
-  const manpower=laborSummary+'<section class="planning-panel"><div class="planning-panel-head"><div><h4>Manpower evidence and illustrative sensitivity</h4><p>Activity concurrency does not establish crews or executable work fronts. The 4/6/8 multipliers are illustrative assumptions, not a manpower plan.</p></div></div><div class="planning-panel-body">'+planningKpis([
+  const manpower=laborSummary+'<section class="planning-panel"><div class="planning-panel-head"><div><h4>Manpower evidence and illustrative sensitivity</h4><p>Activity concurrency does not establish crews or executable work fronts. Task-to-person multipliers are shown only when explicitly supplied. Source-hour headcount comparisons are shown below.</p></div></div><div class="planning-panel-body">'+planningKpis([
     ["Submitted average headcount",submittedManpower?fmt(m.submittedAverageManpower):"Not established","people",submittedManpower?"":"warning"],
     ["Submitted peak headcount",m.submittedPeakManpower===null||m.submittedPeakManpower===undefined?"Not established":fmt(m.submittedPeakManpower),"people",m.submittedPeakManpower===null||m.submittedPeakManpower===undefined?"warning":""],
     ["Measured remaining hours",measuredHours?fmt(m.evidenceRemainingLaborHours)+" h":"Not established","",measuredHours?"":"warning"],
@@ -807,10 +812,11 @@ function renderDeliveryChallenge(data,reason,status){
   html+=reconciliation+'</section>';
   const basisHtml=renderModuleBasis(data)+experienceReviewSummary(data.issueAssessment);
 
-  el("moduleContent").innerHTML=basisHtml+renderRoleContent("challenge-contract",data,html,"",true)+renderModuleReadiness(data,reason);
+  el("moduleContent").innerHTML=renderPositionVerdict(data)+renderRegisterScope(data)+basisHtml+renderRoleContent("challenge-contract",data,html,"",true)+renderModuleReadiness(data,reason);
   return true;
 }
 function humanizeKey(key){
+  const sharedLabels=${JSON.stringify(STATUS_LABELS)};if(sharedLabels[key])return sharedLabels[key];
   const labels={rfi_register:"RFI",design_deliverables:"Design deliverable",submittal_register:"Submittal",governed:"Confirmed",established:"Confirmed",candidate:"Needs review",not_established:"Not confirmed",not_submitted:"Not provided",submitted_unparsed:"Provided; not read",independent_cpm:"Calendar calculation",source_forecast:"Submitted forecast",event_date_missing:"Event / awareness date missing",requirement_missing:"Notice rule missing"};
   if(labels[key])return labels[key];
   return String(key)
@@ -1498,6 +1504,7 @@ function planningRevisionLabel(value){
     .trim();
 }
 function planningStateLabel(value){
+  const sharedLabels=${JSON.stringify(STATUS_LABELS)};if(sharedLabels[value])return sharedLabels[value];
   const labels={
     ready:"Ready",partial:"Review needed",blocked:"Blocked",
     completed:"Completed",in_progress:"In progress",not_started:"Not started",unknown:"Unknown",
@@ -1646,8 +1653,8 @@ function planningDateTrend(points,series){
     ticks+paths+pointsSvg+labels+'</svg></div></div>';
 }
 function planningActivityPressure(rows){
-  const candidates=rows||[];
-  if(!candidates.length)return '<div class="empty-visual">No source activities are available.</div>';
+  const all=rows||[],excluded=all.filter(r=>["level_of_effort","wbs_summary"].includes(r.activityType)),candidates=all.filter(r=>!["level_of_effort","wbs_summary"].includes(r.activityType));
+  if(!all.length)return '<div class="empty-visual">No source activities are available.</div>';
   const columns=[
     {label:"On / early",match:v=>typeof v==="number"&&v<=0},
     {label:"1–30 d late",match:v=>typeof v==="number"&&v>0&&v<=30},
@@ -1666,7 +1673,8 @@ function planningActivityPressure(rows){
   const max=Math.max(1,...counts.flat());
   const head='<div class="pressure-matrix-head" style="grid-template-columns:150px repeat(6,minmax(55px,1fr))"><span>Governed float class</span>'+columns.map(col=>'<b>'+escapeHtml(col.label)+'</b>').join("")+'</div>';
   const body=bands.map((band,i)=>'<div class="pressure-matrix-row" style="grid-template-columns:150px repeat(6,minmax(55px,1fr))"><strong>'+escapeHtml(band.label)+'</strong>'+counts[i].map(count=>'<span class="pressure-cell '+band.tone+'" style="--cell-alpha:'+Math.max(.08,count/max).toFixed(3)+'"><b>'+escapeHtml(fmt(count))+'</b></span>').join("")+'</div>').join("");
-  return '<div class="pressure-matrix">'+head+body+'</div><div class="pressure-note">All '+escapeHtml(fmt(candidates.length))+' execution activities are reconciled; LOE and WBS summaries are excluded. Governed activity-calendar thresholds apply. Unknown dates and classifications remain visible.</div>';
+  const excludedRow='<div class="pressure-matrix-row" style="grid-template-columns:150px repeat(6,minmax(55px,1fr))"><strong>LOE / WBS summaries</strong><span class="pressure-cell neutral" style="grid-column:span 6">'+fmt(excluded.length)+' source records excluded from execution float bands</span></div>';
+  return '<div class="pressure-matrix">'+head+body+excludedRow+'</div><div class="pressure-note">All '+escapeHtml(fmt(candidates.length))+' execution activities are reconciled; LOE and WBS summaries are excluded. Governed activity-calendar thresholds apply. Unknown dates and classifications remain visible.</div>';
 }
 function planningLookAheadTimeline(p){
   const labelMap={predecessor:"Predecessor",procurement_material:"Material",design_submittal:"Design / RFIs / Submittals",permit:"Permit",resource:"Resource",quality:"Quality",commercial:"Commercial",risk:"Risk",access:"Access"};
@@ -2008,7 +2016,7 @@ function renderActivityAnalyticsVisual(data){
   ]);
   const repeatedMovementWarning="";
   const topLate=[...p.rows].filter(r=>typeof r.finishVarianceDays==="number").sort((a,b)=>b.finishVarianceDays-a.finishVarianceDays).slice(0,5).map(r=>({label:r.activityId+" · "+(r.name||""),value:r.finishVarianceDays}));
-  const pressure=planningActivityPressure(executionRows);
+  const pressure=planningActivityPressure(p.rows);
   const visualOverview='<div class="visual-chart-grid">'+
     renderVisualPanel("Execution status","Activity population by current execution state.",renderDonutChart([
       {label:"Completed",value:status.completed||0,tone:"success"},
@@ -3520,12 +3528,12 @@ function renderCommercialVisual(key,data){
 }
 
 function managementAuthorityBadge(authority){
-  const label=String(authority||"unavailable").replaceAll("_"," ");
+  const label=humanizeKey(authority||"unavailable");
   const cls=["official","submitted","governed","source","source_current","calculated"].includes(authority)?"ready":["provisional","partial","conflicted","stale","candidate"].includes(authority)?"partial":"blocked";
   return '<span class="badge '+cls+'">'+escapeHtml(label)+'</span>';
 }
 function managementHealthBadge(health){
-  const label=String(health||"unavailable").replaceAll("_"," ");
+  const label=humanizeKey(health||"unavailable");
   const cls=health==="good"?"ready":health==="attention"?"partial":health==="critical"?"blocked":"blocked";
   return '<span class="badge '+cls+'">'+escapeHtml(label)+'</span>';
 }
@@ -3554,7 +3562,7 @@ function managementMetricBadges(metric){
   if(state===authority)return managementAuthorityBadge(state);
   if(["source_current","governed","calculated"].includes(state)&&authority!=="unavailable")return managementAuthorityBadge(authority);
   const badge=(prefix,value)=>{
-    const label=String(value||"unavailable").replaceAll("_"," ");
+    const label=humanizeKey(value||"unavailable");
     const cls=["official","submitted","governed","source","source_current","calculated"].includes(value)?"ready":["provisional","partial","conflicted","stale","candidate"].includes(value)?"partial":"blocked";
     return '<span class="badge '+cls+'">'+escapeHtml(prefix+" · "+label)+'</span>';
   };
@@ -3619,6 +3627,7 @@ function renderOperationalReporting(report){
   ])+'<div class="table-wrap"><table><thead><tr><th>Register</th><th>Source records</th><th>Known by DD</th><th>Future</th><th>Date missing</th><th>Status unresolved at DD</th><th>Evidence state</th></tr></thead><tbody>'+rows+'</tbody></table></div>'+(report.risk.undatedRecordCount?'<p>Undated risk snapshot, excluded from current totals: '+escapeHtml(Object.entries(riskStates).map(([key,n])=>key+' '+fmt(n)).join(' · '))+'. A due date does not establish when a risk was raised or its historical status.</p>':'')+'</div></section>';
 }
 function renderManagementControlVisual(key,data){
+  if(key==="source-quality")return renderSourceQuality(data);
   if(key==="master-dashboard"){
     const r=data.readiness||{};
     const priorityKeys=['contract-finish','submitted-programme-finish','productivity-forecast-finish','critical-activities','progress-position','schedule-spi'];
@@ -3631,6 +3640,7 @@ function renderManagementControlVisual(key,data){
     ],"Control views");
     return '<div class="planning-view management-view master-dashboard-view">'+
       managementPanel("Project position","Current programme, progress and delivery exposure. Open a measure for its supporting analysis.",renderManagementMetricGrid(mainMetrics),true)+
+      renderDashboardExceptions(data)+renderDashboardTrend(data)+renderDashboardDecisions(data)+
       experienceSourceContext(key,data)+
       experienceDisclosure("Additional project measures",renderManagementMetricGrid(otherMetrics),fmt(otherMetrics.length)+" measures")+
       experienceDisclosure("Specialist coverage and evidence",'<div class="management-two-column">'+
@@ -3714,7 +3724,8 @@ function renderManagementControlVisual(key,data){
 }
 
 function renderSpecializedModule(key,data){
-  if(["master-dashboard","command-center","master-control-programme"].includes(key))return renderManagementControlVisual(key,data);
+  if(key==="source-quality")return renderSourceQuality(data);
+  if(["master-dashboard","command-center","master-control-programme","source-quality"].includes(key))return renderManagementControlVisual(key,data);
   if(key==="pmo-analysis")return renderPmoVisual(data);
   if(key==="schedule-analytics")return renderScheduleAnalyticsVisual(data);
   if(key==="activity-analytics")return renderActivityAnalyticsVisual(data);
@@ -3760,7 +3771,7 @@ function renderClaimsReporting(r,key){
   if(!key||key==='delay-claims')return full;
   return '<div class="notice info"><b>'+fmt(r.claims.asOf.length)+' claims known by Data Date'+(reported?' · '+fmt(reported.claimedDays.value)+' days claimed · '+fmt(reported.assessedDays.value)+' assessed':'')+'</b><p>Claim-day totals are separate from programme movement and EOT. '+fmt(reported?.conflictingRows?.length??0)+' register conflicts need review.</p>'+experienceDisclosure('Claim records, notice versions and letter evidence',full,'Open shared evidence')+'</div>';
 }
-function issueLabel(kind){return ({system_defect:"System defect",source_conflict:"Source conflict",data_quality:"Data quality",missing_information:"Missing information",comparison_difference:"Comparison difference",governance_review:"Approval / governance",verification_pending:"Unverified",checked:"Listed checks passed"})[kind]||"Unverified"}
+function issueLabel(kind){return humanizeKey(kind||'verification_pending')}
 function issueBadge(assessment){const kind=assessment?.primaryKind||"verification_pending";return '<span class="issue-badge '+escapeHtml(kind)+'">'+escapeHtml(issueLabel(kind))+'</span>'}
 function renderIssueAssessment(a,management=false){
   if(!a)return '<p>Review classification is not yet available.</p>';
@@ -3839,7 +3850,7 @@ function renderModuleResult(result){
   el("directorDrawer").open=false;
   el("directorDrawer").hidden=result.key!=="pmo-analysis";
   if(result.key==="challenge-contract"&&renderDeliveryChallenge(data,result.reason,result.status))return;
-  const basisHtml=renderModuleBasis(data)+experienceReviewSummary(data.issueAssessment,managementSurface);
+  const basisHtml=renderPositionVerdict(data)+renderModuleBasis(data)+renderRegisterScope(data)+experienceReviewSummary(data.issueAssessment,managementSurface);
   const challengeBody=renderUniversalChallenge(data.challenge);
   const challengeHtml=challengeBody?'<details class="reconciliation-panel"><summary><span>Reconciliation with submitted position</span><b>'+escapeHtml(reconciliationSummary(data.challenge))+'</b></summary><div class="reconciliation-body">'+challengeBody+'</div></details>':'';
   const specialized=renderSpecializedModule(result.key,data);
@@ -3859,7 +3870,7 @@ function renderModuleResult(result){
   el("moduleContent").innerHTML=context+(managementSurface?primaryView:renderRoleContent(result.key,data,primaryView,challengeHtml,Boolean(specialized)))+renderModuleReadiness(data,userReason);
 }
 let moduleRequestSeq=0;
-const managementSurfaceKeysForApi=new Set(["master-dashboard","command-center","master-control-programme"]);
+const managementSurfaceKeysForApi=new Set(["master-dashboard","command-center","master-control-programme","source-quality"]);
 const commercialModuleKeysForApi=new Set([
   "commercial-overview",
   "cost-forecast",

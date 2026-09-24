@@ -1320,7 +1320,7 @@ export function buildDeliveryChallengeProjection(
 
   const crewSizes =
     input.crewScenarios ??
-    [4, 6, 8];
+    [];
   const scheduleDerivedScenarios =
     crewSizes.map(
       (crewSize) => ({
@@ -1492,7 +1492,7 @@ export function buildDeliveryChallengeProjection(
       topic: "manpower",
       state:
         submitted.average === null
-          ? fronts.average !== null
+          ? fronts.average !== null && crewSizes.length > 0
             ? "scenario"
             : "missing_evidence"
           : requiredAverageToContract ===
@@ -1513,8 +1513,7 @@ export function buildDeliveryChallengeProjection(
         requiredAverageToContract ===
         null
           ? (
-              fronts.average ===
-              null
+              fronts.average === null || crewSizes.length === 0
                 ? null
                 : "Illustrative concurrent-task sensitivities use assumed people multipliers " +
                   crewSizes.join(

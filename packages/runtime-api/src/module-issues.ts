@@ -42,7 +42,11 @@ export function assessModuleIssues(result: ModuleRuntimeResult, consistency: Con
   if(reconciliation==='submitted_missing') add('missing_information','COMPARABLE_ASSERTION_MISSING','Comparable submitted assertion not established',
     'The required comparison value is absent or not established. This does not mean the contractor submitted no documents.',
     'Identify the comparable submitted value and its date, population and authority, or explicitly mark this comparison not applicable.','challenge');
-  if(reconciliation==='independent_unavailable'||reconciliation==='not_checked'||!reconciliation) add('verification_pending','INDEPENDENT_COMPARISON_NOT_ESTABLISHED','Independent comparison not established',
+  const noticeInputsMissing=result.key==='notices-claims'&&integrity?.state==='verified_for_checked_metrics'&&d.noticeEventDateMissingCount>0;
+  if(noticeInputsMissing)add('missing_information','NOTICE_TRIGGER_DATES_MISSING','Event dates are needed for notice assessment',
+    d.noticeEventDateMissingCount+' events have no event/awareness date. Population, claimed-day retention and assessable timing arithmetic have passed the listed checks.',
+    'Supply the dated event/awareness evidence and dated claim assessments, then assess each applicable contract rule.','events.eventStartIso');
+  if(!noticeInputsMissing&&(reconciliation==='independent_unavailable'||reconciliation==='not_checked'||!reconciliation)) add('verification_pending','INDEPENDENT_COMPARISON_NOT_ESTABLISHED','Independent comparison not established',
     'CMeng has not established an independent value for this comparison.',
     'Establish the independent calculation and identify any specific input dependency. Do not blame a missing contractor submission.','challenge','CMeng');
   if(result.evidenceState==='missing'||!d) add('missing_information','REQUIRED_EVIDENCE_MISSING','Required information not established',

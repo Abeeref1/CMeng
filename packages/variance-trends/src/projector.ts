@@ -1,3 +1,4 @@
+import {naturalCompare} from '../../shared/src/natural-order';
 import { parseScheduleTime } from "../../schedule-analysis-core/src";
 import {
   analyzeSchedule,
@@ -334,11 +335,7 @@ export function buildVarianceTrendsProjection(
       Number.NEGATIVE_INFINITY;
     return (
       bValue - aValue ||
-      a.activityId.localeCompare(
-        b.activityId,
-        undefined,
-        { numeric: true },
-      )
+      naturalCompare(a.activityId, b.activityId)
     );
   });
 

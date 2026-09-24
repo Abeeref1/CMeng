@@ -99,11 +99,11 @@ function renderBasisReviews(data,key){
   const overlap=data.determinationOverlapScenario;
   if(overlap)html+=basisPanel('Submitted finish: '+fmt(overlap.noneIncludedLatenessDays)+' to '+fmt(overlap.allIncludedLatenessDays)+' days after the adjusted date, conditionally',overlap.basis,'<p>'+fmt(overlap.determinedDays)+' days appear in determinations by DD. No additional days have been applied automatically.</p>');
   const actions=data.operationalReporting?.actions||data.sourceInterpretation?.actions||[];
-  if(actions.length&&['master-dashboard','command-center','pmo-analysis'].includes(key)){
+  if(actions.length&&['command-center','pmo-analysis'].includes(key)){
     html+=basisPanel('Specific records requiring action','Owners and due dates are shown only when supplied. Full source records remain available.',
       '<p>'+fmt(actions.filter(r=>r.type==='NCR').length)+' open major / critical NCRs; '+fmt(actions.filter(r=>r.type==='RFI').length)+' overdue RFIs through DD.</p>'+
-      basisTable(['Record','Priority','Activity','Owner','Due','Next action'],actions.slice(0,10).map(r=>[r.recordId,r.priority,r.linkedActivityId,r.owner||'Assign owner — not in the register',planningShortDate(r.dueIso),r.action]))+
-      '<details><summary>All '+fmt(actions.length)+' action records</summary>'+basisTable(['Record','Subject','Priority','Activity','Owner','Raised','Due','Next action'],actions.map(r=>[r.recordId,r.subject,r.priority,r.linkedActivityId,r.owner||'Not in the register',planningShortDate(r.raisedIso),planningShortDate(r.dueIso),r.action]))+'</details>');
+      basisTable(['Record','Priority','Age at DD','Overdue','Owner','Due','Next action'],actions.slice(0,10).map(r=>[r.recordId,r.priority,r.ageDays==null?'Raised date needed':r.ageDays+' d',r.overdueDays==null?'Due date needed':r.overdueDays+' d',r.owner||'Assign owner',r.dueIso?planningShortDate(r.dueIso):'Set due date',r.action]))+
+      '<details><summary>All '+fmt(actions.length)+' action records</summary>'+basisTable(['Record','Subject','Priority','Age at DD','Overdue','Owner','Raised','Due','Next action'],actions.map(r=>[r.recordId,r.subject,r.priority,r.ageDays==null?'Raised date needed':r.ageDays+' d',r.overdueDays==null?'Due date needed':r.overdueDays+' d',r.owner||'Assign owner',planningShortDate(r.raisedIso),planningShortDate(r.dueIso),r.action]))+'</details>');
   }
   return html;
 }

@@ -66,9 +66,10 @@ test('certificate charts retain producer scope, separate currencies and tax base
   assert.deepEqual(Array.from(eur.future,(r:any)=>r.id),['B']);
   const current=runInNewContext(certificateFunctions+';experienceCertificateChart(rows,"EUR")',{...common,rows:eur.as_of});
   assert.match(current,/1 of 2 records plotted/);
-  assert.match(current,/running source-row sum; accounting basis unconfirmed/);
+  assert.match(current,/Running source-row sum; accounting basis unconfirmed/);
   assert.match(current,/<line.*stroke="#dce4ed"/);
-  assert.match(current,/Period · EUR million/);
+  assert.equal((current.match(/data-axis-count="1"/g)||[]).length,2,'period and cumulative amounts each have their own single-axis chart');
+  assert.match(current,/Certificate period amounts · EUR million/);
   assert.doesNotMatch(current,/>B<|>90<|NaN|undefined/);
   const whole=runInNewContext(certificateFunctions+';experienceCertificatePanels(position)',ctx);
   assert.match(whole,/Forward source profile/);
@@ -137,9 +138,9 @@ test('all six lenses retain access to the full module and leadership does not in
 });
 
 test('calculation failures remain visible while zero-count diagnostic cards stay out of the working overview',()=>{
-  const render=functions(['experienceReviewSummary']);
+  const render=functions(['humanizeKey','experienceReviewSummary']);
   const fail=runInNewContext(render+';experienceReviewSummary(a)',{...common,a:{counts:{system_defect:1,missing_information:0,verification_pending:5}}});
-  assert.match(fail,/Calculation errors/);assert.match(fail,/experience-notes error/);
+  assert.match(fail,/System failure/);assert.match(fail,/experience-notes error/);
   assert.doesNotMatch(fail,/Inputs needed|System defect0|CMeng verification/);
   const pending=runInNewContext(render+';experienceReviewSummary(a)',{...common,a:{counts:{system_defect:0},systemCheckState:'unverified'}});
   assert.match(pending,/View source notes and calculation coverage/);
@@ -187,4 +188,16 @@ test('an obsolete view request cannot replace the current page with an error',as
   assert.deepEqual(h.rendered.map(r=>r.key),['progress']);
   assert.equal(h.elements.get('moduleContent').innerHTML,'Rendered progress');
   assert.equal(h.context.currentModuleResult.key,'progress');
+});
+
+test('shared verdict, source scope and Source Quality distinguish source issues from system failures',()=>{
+ const code=functions(['renderPositionVerdict','renderRegisterScope']);
+ const html=runInNewContext(code+';renderPositionVerdict(data)+renderRegisterScope(data)',{...common,data:{positionVerdict:{rag:'red',label:'Action required',text:'Submitted completion is 7 days late.',nextAction:'Review recovery',owner:'Project controls reviewer',basis:'Contract comparison'},reportingContract:{dataDateIso:'2031-04-15',populations:{register:{populationId:'x',entity:'claim',name:'Claims',sourceCount:3,denominator:1,dateBasis:'notice date',exclusions:[{id:'F',reason:'after_data_date'},{id:'U',reason:'record_date_missing'}]}}}}});
+ assert.match(html,/Position verdict/);assert.match(html,/Future excluded/);assert.match(html,/Date missing \/ invalid/);assert.match(html,/1 \/ 3/);
+ assert.match(script,/source issues/);assert.match(script,/system failures/);assert.doesNotMatch(script,/4\/6\/8 multipliers/);
+});
+
+test('delay and float matrix visibly reconciles excluded LOE and WBS records',()=>{
+ const render=functions(['planningActivityPressure']);const html=runInNewContext(render+';planningActivityPressure(rows)',{...common,rows:[{activityType:'task',criticality:'critical',finishVarianceDays:4},{activityType:'level_of_effort',criticality:'critical',finishVarianceDays:4},{activityType:'wbs_summary',finishVarianceDays:null}]});
+ assert.match(html,/LOE \/ WBS summaries/);assert.match(html,/2 source records excluded/);assert.match(html,/All 1 execution activities/);
 });

@@ -1,3 +1,4 @@
+import {naturalCompare} from '../../shared/src/natural-order';
 import {
   DEFAULT_SCHEDULE_ANALYSIS_CONFIG,
   activityPopulation,
@@ -234,11 +235,7 @@ export function buildNearCriticalProjection(
       (a, b) =>
         a.totalFloatHours -
           b.totalFloatHours ||
-        a.activityId.localeCompare(
-          b.activityId,
-          undefined,
-          { numeric: true },
-        ),
+        naturalCompare(a.activityId, b.activityId),
     );
 
   const watchlistRows = classified
@@ -256,11 +253,7 @@ export function buildNearCriticalProjection(
       (a, b) =>
         a.totalFloatHours -
           b.totalFloatHours ||
-        a.activityId.localeCompare(
-          b.activityId,
-          undefined,
-          { numeric: true },
-        ),
+        naturalCompare(a.activityId, b.activityId),
     );
 
   const boundaryAuditRows =
@@ -278,11 +271,7 @@ export function buildNearCriticalProjection(
       Math.abs(
         b.distanceFromCriticalThresholdHours,
       ) ||
-    a.activityId.localeCompare(
-      b.activityId,
-      undefined,
-      { numeric: true },
-    );
+    naturalCompare(a.activityId, b.activityId);
   const byUpperDistance = (
     a: ReturnType<typeof boundaryAuditRowFor>,
     b: ReturnType<typeof boundaryAuditRowFor>,
@@ -295,11 +284,7 @@ export function buildNearCriticalProjection(
         b.distanceFromNearCriticalUpperBoundaryWorkingDays ??
           Number.POSITIVE_INFINITY,
       ) ||
-    a.activityId.localeCompare(
-      b.activityId,
-      undefined,
-      { numeric: true },
-    );
+    naturalCompare(a.activityId, b.activityId);
 
   const boundaryAudit = {
     sampleLimitPerSide:
@@ -331,11 +316,7 @@ export function buildNearCriticalProjection(
           )
           .sort(
             (a, b) =>
-              a.activityId.localeCompare(
-                b.activityId,
-                undefined,
-                { numeric: true },
-              ),
+              naturalCompare(a.activityId, b.activityId),
           )
           .slice(0, SAMPLE_LIMIT),
       above:

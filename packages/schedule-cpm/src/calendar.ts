@@ -51,12 +51,7 @@ export const ELAPSED_24H_CALENDAR: CanonicalCalendar = {
 };
 
 function utcDayStart(ms: number): number {
-  const date = new Date(ms);
-  return Date.UTC(
-    date.getUTCFullYear(),
-    date.getUTCMonth(),
-    date.getUTCDate(),
-  );
+  return Math.floor(ms / DAY_MS) * DAY_MS;
 }
 
 function isoDay(ms: number): string {

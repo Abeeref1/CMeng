@@ -35,6 +35,12 @@ jobs:
           set -o pipefail
           npm run verify 2>&1 | tee /tmp/cmeng-verify.log
 
+      - name: Cold dashboard release target
+        shell: bash
+        run: |
+          mkdir -p /tmp/cmeng-verification
+          CMENG_LATENCY_RESULT=/tmp/cmeng-verification/cold-dashboard.json npm run test:release:latency
+
       - name: Record tested source identity
         if: always()
         shell: bash

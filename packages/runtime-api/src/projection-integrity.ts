@@ -3,7 +3,7 @@ import type { ModuleRuntimeResult } from './project-state-types';
 import {commercialIntegrityChecks} from './commercial-integrity';
 
 /** Certifies only the metrics actually checked, never the completeness of project evidence. */
-export function checkProjectionIntegrity(result: ModuleRuntimeResult, model: CanonicalScheduleModel, config: ScheduleAnalysisConfig): ModuleRuntimeResult {
+export function checkProjectionIntegrity(result: ModuleRuntimeResult, model: CanonicalScheduleModel, config: ScheduleAnalysisConfig, claimsSource?: import('../../delay-analysis-core/src').DelayClaimsModel | null): ModuleRuntimeResult {
   if (!result.data || typeof result.data !== 'object') return result;
   const data = result.data as Record<string, any>;
   const execution = activityPopulation(model);
@@ -43,6 +43,40 @@ export function checkProjectionIntegrity(result: ModuleRuntimeResult, model: Can
     compare('execution_only_lookahead', data.rows?.every((row: any) => allowed.has(row.activityId)), true);
     compare('unique_lookahead_rows', new Set(data.rows?.map((row: any) => row.activityId)).size, data.rows?.length);
     compare('ready_requires_complete_readiness', data.rows?.every((row: any) => row.readiness?.state !== 'ready' || Object.values(row.readiness?.dimensions ?? {}).every((dimension: any) => dimension.state === 'ready' || dimension.state === 'not_applicable')), true);
+  }
+  if (result.key === 'notices-claims') {
+    const events = data.events ?? [], claims = data.claims ?? [];
+    compare('notice_event_population', events.length, claimsSource?.events.length ?? 0);
+    compare('claim_population', claims.length, claimsSource?.claims.length ?? 0);
+    compare('unique_event_ids', new Set(events.map((r:any)=>r.eventId)).size, events.length);
+    compare('unique_claim_ids', new Set(claims.map((r:any)=>r.claimId)).size, claims.length);
+    compare('claim_headline_matches_register', data.claimCount, claims.length);
+    compare('event_headline_matches_register', data.eventCount, events.length);
+    const count=(state:string)=>events.filter((r:any)=>r.noticeTimeliness===state).length;
+    compare('timely_notice_count',data.timelyNoticeCount,count('timely'));
+    compare('late_notice_count',data.lateNoticeCount,count('late'));
+    compare('event_date_missing_count',data.noticeEventDateMissingCount,count('event_date_missing'));
+    compare('requirement_missing_count',data.noticeRequirementMissingCount,count('requirement_missing'));
+    for(const row of events.filter((r:any)=>['timely','late'].includes(r.noticeTimeliness))){
+      const elapsed=row.eventStartIso&&row.noticeIssuedAt?(Date.parse(row.noticeIssuedAt)-Date.parse(row.eventStartIso))/86400000:null;
+      compare('notice_dates_required:'+row.eventId,elapsed!==null&&Number.isFinite(elapsed)&&row.requiredNoticeDays!==null,true);
+      if(elapsed!==null&&Number.isFinite(elapsed)&&row.requiredNoticeDays!==null)compare('notice_rule:'+row.eventId,row.noticeTimeliness,elapsed<=row.requiredNoticeDays?'timely':'late');
+    }
+    const source=new Map((claimsSource?.claims??[]).map(r=>[r.claimId,r]));
+    for(const row of claims)compare('claimed_days_retained:'+row.claimId,row.claimedDays,source.get(row.claimId)?.claimedDays??null);
+  }
+  if (result.key === 'windows-analysis') {
+    const windows=data.windows??[];
+    compare('window_headline_matches_register',data.windowCount,windows.length);
+    compare('unique_windows',new Set(windows.map((r:any)=>r.windowId)).size,windows.length);
+    const diff=(a:any,b:any)=>a&&b?(Date.parse(b)-Date.parse(a))/86400000:null;
+    for(const row of windows){
+      compare('submitted_date_movement:'+row.windowId,row.sourceForecastMovementDays,diff(row.fromSourceForecastCompletionIso,row.toSourceForecastCompletionIso));
+      compare('calendar_date_movement:'+row.windowId,row.independentForecastMovementDays,diff(row.fromIndependentForecastCompletionIso,row.toIndependentForecastCompletionIso));
+    }
+    compare('net_completion_date_movement',data.projectCompletionMovementDays,diff(data.firstProjectCompletionIso,data.latestProjectCompletionIso));
+    compare('positive_calendar_movement',data.positiveIndependentMovementDays,windows.reduce((n:number,r:any)=>n+Math.max(0,r.independentForecastMovementDays??0),0));
+    compare('negative_calendar_movement',data.negativeIndependentMovementDays,windows.reduce((n:number,r:any)=>n+Math.min(0,r.independentForecastMovementDays??0),0));
   }
   const cutoff = model.dataDateIso?.slice(0, 10) ?? null;
   if (result.key === 'progress-scurve') {

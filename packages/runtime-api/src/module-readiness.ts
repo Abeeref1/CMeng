@@ -1,3 +1,4 @@
+import {withPositionVerdict} from './position-review';
 import type { ModuleRuntimeResult } from './project-state-types';
 import type { CrossModuleCertification } from './certification';
 import { assessModuleIssues } from './module-issues';
@@ -23,8 +24,8 @@ export function enforceModuleReadiness(result: ModuleRuntimeResult, consistency:
     professional, reconciliation, consistency: consistency.state, failedConsistencyCheckIds: consistency.failedCheckIds,
     consistencyCheckCount: consistency.checkCount, calculationCheckCount: integrity?.checks?.length ?? 0,
     scope: 'Only the listed calculation and consistency checks are certified. Missing evidence, causal conclusions and contractual entitlement are not certified by a successful calculation.' };
-  return { ...result, issueAssessment, status: result.status === 'blocked' ? 'blocked' : checked ? 'ready' : 'partial',
+  return withPositionVerdict({ ...result, issueAssessment, status: result.status === 'blocked' ? 'blocked' : checked ? 'ready' : 'partial',
     professionalState: checked ? 'defensible' : 'review_required',
     reason: checked ? result.reason : [result.reason, failures.length ? 'Shared readiness gate: ' + failures.join('; ') + '.' : null].filter(Boolean).join(' '),
-    data: { ...data, moduleReadiness, issueAssessment } };
+    data: { ...data, moduleReadiness, issueAssessment } });
 }

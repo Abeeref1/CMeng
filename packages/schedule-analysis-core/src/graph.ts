@@ -1,3 +1,4 @@
+import {naturalCompare} from '../../shared/src/natural-order';
 import type {
   CanonicalScheduleModel,
   ScheduleGraphAnalysis,
@@ -5,7 +6,7 @@ import type {
 } from "./types";
 
 function sorted(values: Iterable<string>): string[] {
-  return [...values].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  return [...values].sort((a, b) => naturalCompare(a, b));
 }
 
 function duplicates(values: readonly string[]): string[] {
@@ -171,7 +172,7 @@ function connectedComponents(
     components.push({
       componentId: components.length + 1,
       activityIds: members.sort((a, b) =>
-        a.localeCompare(b, undefined, { numeric: true }),
+        naturalCompare(a, b),
       ),
     });
   }
@@ -191,7 +192,7 @@ function topologicalOrder(
 
   const ready = ids
     .filter((id) => (indegree.get(id) ?? 0) === 0)
-    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+    .sort((a, b) => naturalCompare(a, b));
   const order: string[] = [];
   let readyIndex = 0;
 

@@ -1,3 +1,4 @@
+import {naturalCompare} from '../../shared/src/natural-order';
 import type {
   CanonicalScheduleModel,
   ScheduleActivityLogicIndex,
@@ -54,12 +55,12 @@ export function buildScheduleActivityLogicIndex(
     entry.predecessorIds = [
       ...new Set(entry.predecessorIds),
     ].sort((a, b) =>
-      a.localeCompare(b, undefined, { numeric: true }),
+      naturalCompare(a, b),
     );
     entry.successorIds = [
       ...new Set(entry.successorIds),
     ].sort((a, b) =>
-      a.localeCompare(b, undefined, { numeric: true }),
+      naturalCompare(a, b),
     );
     entry.incomingRelationshipIds.sort();
     entry.outgoingRelationshipIds.sort();

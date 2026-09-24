@@ -369,7 +369,7 @@ test("every CMeng module emits Submitted Independent Gap Consequence Action inst
             (row) =>
               row.crewSize,
           ),
-        [4, 6, 8],
+        [],
       );
     },
   );

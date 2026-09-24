@@ -1,3 +1,4 @@
+import {naturalCompare} from '../../shared/src/natural-order';
 import { schedulePlanPositions } from "../../progress-scurve/src/projector";
 import { resolveRevisionActivityCorrespondence } from "../../schedule-revision-core/src";
 import {
@@ -196,11 +197,7 @@ export function buildProgressBreakdownProjection(
     .sort(
       (a, b) =>
         b.activityCount - a.activityCount ||
-        a.wbsId.localeCompare(
-          b.wbsId,
-          undefined,
-          { numeric: true },
-        ),
+        naturalCompare(a.wbsId, b.wbsId),
     );
 
   // Ancestor rollups are a separate population from direct assignments. Each
@@ -230,7 +227,7 @@ export function buildProgressBreakdownProjection(
       progressAuthority: "submitted_schedule" as const,
       contractorReportedPercent: null, certifiedPhysicalPercent: null,
       basisNote: "Plans use working-calendar date phasing. Schedule snapshots remain separate from missing contractor-reported and certified physical measurements." };
-  }).sort((a, b) => a.depth - b.depth || a.wbsId.localeCompare(b.wbsId, undefined, { numeric: true }));
+  }).sort((a, b) => a.depth - b.depth || naturalCompare(a.wbsId, b.wbsId));
 
   return {
     schemaVersion: "1.0",
