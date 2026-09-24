@@ -1109,7 +1109,7 @@ function buildBundle(
     },
     definitions: {
       critical:
-        "TF <= governed critical float threshold",
+        "TF <= confirmed critical float threshold",
       nearCritical:
         "governed critical threshold < TF <= N activity-calendar working days",
       floatRiskWatchlist:
@@ -1597,7 +1597,7 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
           : "partial",
         weeklyCapacity.state ===
             "candidate"
-          ? "Resource support evidence exists only as candidate and is not promoted to governed utilization."
+          ? "Resource support evidence exists only as candidate and is not promoted to confirmed utilization."
           : null,
       ),
     );
@@ -1622,7 +1622,7 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
       "manhour-scurve",
       blocked(
         "manhour-scurve",
-        "The current schedule revision has no governed labour assignment evidence.",
+        "The current schedule revision has no confirmed labour assignment evidence.",
         ["resource-loaded XER"],
       ),
     );
@@ -1764,10 +1764,10 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
       analyticalDelayModel.claims.length > 0 &&
       delayClaims.events.length === 0
         ? analyticalDelayModel.claims.length +
-          " claim records are available, but no governed delay events are established. Programme movement cannot be attributed to those claims."
+          " claim records are available, but no confirmed delay events are established. Programme movement cannot be attributed to those claims."
         : linkedClaimCount === 0 &&
             analyticalDelayModel.claims.length > 0
-          ? "Claim records are not linked to governed delay events, so causation and entitlement remain unassessed."
+          ? "Claim records are not linked to confirmed delay events, so causation and entitlement remain unassessed."
           : windows.windowCount === 0
             ? "Claim and event evidence exists, but a second controlled programme revision is required to independently test movement."
             : null,
@@ -1820,11 +1820,11 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
         : noticeAssessmentAvailable &&
             noticesClaims.noticeRequirementMissingCount > 0
           ? noticesClaims.noticeRequirementMissingCount +
-            " governed delay event(s) do not have an applicable notice requirement. Assessed events remain visible, but the page stays under review."
+            " confirmed delay event(s) do not have an applicable notice requirement. Assessed events remain visible, but the page stays under review."
           : noticesClaims.claimCount > 0
             ? noticesClaims.claimCount +
-              " claim records are available, but notice timeliness is not assessable until governed delay events and applicable notice requirements are linked."
-            : "Notice compliance is not assessable until governed delay events, applicable notice requirements and actual notice evidence are established.",
+              " claim records are available, but notice timeliness is not assessable until confirmed delay events and applicable notice requirements are linked."
+            : "Notice compliance is not assessable until confirmed delay events, applicable notice requirements and actual notice evidence are established.",
     ),
   );
 
@@ -2042,7 +2042,7 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
               "CONTRACT_TIME_BASIS_NOT_SUBMITTED",
             ],
             assumptions: [
-              "Programme movement is retained for analysis but is not treated as EOT entitlement without a governed contract-time basis.",
+              "Programme movement is retained for analysis but is not treated as EOT entitlement without a confirmed contract-time basis.",
             ],
             includedCandidateDays: 0,
           }),
@@ -2050,7 +2050,7 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
       basis:
         "analytical_candidate_not_contractual_determination",
       assumptions: [
-        "Observed programme movement is schedule evidence only. No analytical time-impact candidate is stated without event/causation evidence and a governed contract-time basis.",
+        "Observed programme movement is schedule evidence only. No analytical time-impact candidate is stated without event/causation evidence and a confirmed contract-time basis.",
       ],
       diagnostics: [
         "CONTRACT_TIME_BASIS_NOT_SUBMITTED",
@@ -2170,11 +2170,11 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
           note:
             state.controls
               .contractValue
-              ? "Governed contract value is established."
+              ? "Confirmed contract value is established."
               : contractValueExtraction
                     ?.state ===
                   "candidate"
-                ? "CMeng found a contract value candidate in the contract. It is visible for review but is not used as a governed contract value until promoted."
+                ? "CMeng found a contract value candidate in the contract. It is visible for review but is not used as a confirmed contract value until promoted."
                 : contractValueExtraction
                       ?.state ===
                     "conflicted"
@@ -2350,7 +2350,7 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
           "labor assignments when available",
         ],
         "partial",
-        "No governed labor assignments were submitted. CMeng derives scenario remaining man-hours from concurrent work fronts and clearly labels them as scenarios.",
+        "No confirmed labor assignments were submitted. CMeng derives scenario remaining man-hours from concurrent work fronts and clearly labels them as scenarios.",
       ),
     );
   }
@@ -3326,7 +3326,7 @@ function canonicalQuantityModule(state: ProjectRuntimeState, model: ProjectRunti
     diagnostics: [...projection.diagnostics, ...(scenario ? ["QUANTITY_PLAN_IS_CANDIDATE_SCENARIO_NOT_GOVERNED"] : []), ...(!sameRevision ? ["QUANTITY_MAPPING_REVISION_MISMATCH_PLANS_WITHHELD"] : [])],
   }, ["BOQ", "quantity-to-activity mapping", "installed quantity measurements"],
     sameRevision && !scenario && projection.allocationState === "complete" ? "ready" : "partial",
-    mappingBasis === "governed" ? null : "BOQ and measured installations remain visible by unit. Planned quantities require a governed schedule mapping; any candidate plan is a scenario.");
+    mappingBasis === "governed" ? null : "BOQ and measured installations remain visible by unit. Planned quantities require a confirmed schedule mapping; any candidate plan is a scenario.");
   quantityModuleCache.set(state, { version: state.version, result }); return result;
 }
 
@@ -3976,7 +3976,7 @@ function buildPlanningModuleFast(
       },
       definitions: {
         critical:
-          "TF <= governed critical float threshold",
+          "TF <= confirmed critical float threshold",
         nearCritical:
           "governed critical threshold < TF <= N activity-calendar working days",
         floatRiskWatchlist:
@@ -5799,11 +5799,11 @@ function buildSpecialistModuleFast(
                 0
             ? notices
                 .noticeRequirementMissingCount +
-              " governed delay event(s) do not have an applicable notice requirement. Assessed events remain visible, but the page stays under review."
+              " confirmed delay event(s) do not have an applicable notice requirement. Assessed events remain visible, but the page stays under review."
             : notices.claimCount > 0
               ? notices.claimCount +
-                " claim records are available, but notice timeliness is not assessable until governed delay events and applicable notice requirements are linked."
-              : "Notice compliance is not assessable until governed delay events, applicable notice requirements and actual notice evidence are established.",
+                " claim records are available, but notice timeliness is not assessable until confirmed delay events and applicable notice requirements are linked."
+              : "Notice compliance is not assessable until confirmed delay events, applicable notice requirements and actual notice evidence are established.",
       );
     } else {
       const context =
@@ -5886,9 +5886,9 @@ function buildSpecialistModuleFast(
           delay.events.length === 0
             ? analyticalDelayModel
                 .claims.length +
-              " claim records are available, but no governed delay events are established. Programme movement cannot be attributed to those claims."
+              " claim records are available, but no confirmed delay events are established. Programme movement cannot be attributed to those claims."
             : linkedClaimCount === 0
-              ? "Claim records are not linked to governed delay events, so causation and entitlement remain unassessed."
+              ? "Claim records are not linked to confirmed delay events, so causation and entitlement remain unassessed."
               : null,
         );
       } else {
@@ -6003,7 +6003,7 @@ function buildSpecialistModuleFast(
                 basis:
                   "analytical_candidate_not_contractual_determination" as const,
                 assumptions: [
-                  "Observed programme movement is not an EOT entitlement or time-impact candidate without governed contract and event causation evidence.",
+                  "Observed programme movement is not an EOT entitlement or time-impact candidate without confirmed contract and event causation evidence.",
                 ],
                 diagnostics: [
                   "CONTRACT_TIME_BASIS_NOT_SUBMITTED",
@@ -6212,7 +6212,7 @@ function buildSpecialistModuleFast(
           note:
             state.controls
               .contractValue
-              ? "Governed contract value is established."
+              ? "Confirmed contract value is established."
               : "Contract value evidence remains ungoverned until confirmed.",
         },
         independentForecastState: independentForecastReviewReason(sourceForecast) ? "review_required" : "calculated",
@@ -6402,7 +6402,7 @@ function applyProfessionalModuleState(
         String(activityLinked) +
           " of " +
           String(eventCount) +
-          " delay events are linked to governed schedule activities; causation is not fully defensible.",
+          " delay events are linked to confirmed schedule activities; causation is not fully defensible.",
       );
     }
   }
@@ -6429,8 +6429,8 @@ function applyProfessionalModuleState(
           ? String(
               requirementMissing,
             ) +
-              " delay event(s) do not have a governed applicable notice requirement; assessed events remain visible but the page is only partially assessable."
-          : "Notice compliance is not assessable as a complete population until governed delay events, applicable notice requirements and actual notice dates are established.",
+              " delay event(s) do not have a confirmed applicable notice requirement; assessed events remain visible but the page is only partially assessable."
+          : "Notice compliance is not assessable as a complete population until confirmed delay events, applicable notice requirements and actual notice dates are established.",
       );
     }
   }
@@ -6567,7 +6567,7 @@ function applyProfessionalModuleState(
             : deliveryPosition ===
                   "not_yet_supportable"
               ? "The delivery challenge cannot yet be supported by the available measured evidence."
-              : "The contract challenge position is not yet supportable from a complete governed contract evidence basis.",
+              : "The contract challenge position is not yet supportable from a complete confirmed contract evidence basis.",
       );
     }
   }
@@ -6691,11 +6691,11 @@ function applyProfessionalModuleState(
                   claims
                     .lifecycleClaimCount,
                 ) +
-                " lifecycle claims have governed commercial-money linkage; Claims & Notices is not yet fully commercially defensible."
+                " lifecycle claims have confirmed commercial-money linkage; Claims & Notices is not yet fully commercially defensible."
             : String(
                 noticeEvidenceGaps,
               ) +
-                " notice assessment(s) are missing a governed requirement, event date or notice date; Claims & Notices remains under review.",
+                " notice assessment(s) are missing a confirmed requirement, event date or notice date; Claims & Notices remains under review.",
         );
       }
     }
@@ -7064,7 +7064,7 @@ export function managementSurfacesForProject(
           current !== null,
         ),
         action:
-          "Upload or select the governed current programme in the programme revision workflow.",
+          "Upload or select the confirmed current programme in the programme revision workflow.",
         owningModule:
           "schedule-analytics",
       },
@@ -7077,7 +7077,7 @@ export function managementSurfacesForProject(
           baseline !== null,
         ),
         action:
-          "Upload or select the governed baseline/revised baseline.",
+          "Upload or select the confirmed baseline/revised baseline.",
         owningModule:
           "revision-trend",
       },
@@ -7113,7 +7113,7 @@ export function managementSurfacesForProject(
             cost.recordCount > 0,
         ),
         action:
-          "Provide or reconcile the governed cost register and CBS mappings.",
+          "Confirm the cost register and link its records to the cost breakdown.",
         owningModule:
           "cost-forecast",
       },
@@ -7140,7 +7140,7 @@ export function managementSurfacesForProject(
         key:
           "risk-information",
         label:
-          "Governed risk information",
+          "Risk register figures",
         state:
           riskValidation.sourceRecordCount > 0 ? (operationalReporting(state).risk.complete&&riskValidation.state==="consistent_in_checked_scores"?"established":"partial") : riskState ===
           "established"
@@ -7225,7 +7225,7 @@ export function managementSurfacesForProject(
           ? "stale"
           : "missing",
       action:
-        "Review the management position, resolve evidence gaps, then finalize a current board report through the governed publication workflow.",
+        "Review the management position, resolve outstanding information requests and approve the current board report.",
       owningModule: "pmo-analysis",
     });
   }
@@ -7541,7 +7541,7 @@ export function managementSurfacesForProject(
   });
   const issues = [...resolvedModules.values()].flatMap(r=>r.issueAssessment?.issues??[]);
   const governanceIssues:ControlIssue[] = surfaces.commandCenter.governanceGaps.map(g=>({kind:'governance_review',code:'MANAGEMENT_GOVERNANCE_'+g.key,
-    summary:g.label+' requires governance review',detail:'Publication and approval readiness is separate from source completeness and software correctness.',
+    summary:g.label+' needs approval',detail:'Review and approve the current report before publication.',
     action:g.action,owner:'Project controls reviewer',moduleKeys:['master-dashboard','command-center','master-control-programme'],
     evidencePaths:['governanceGaps.'+g.key],sourceRefs:[],checkIds:[]}));
   const operations=operationalReporting(state);
@@ -7637,7 +7637,7 @@ export function managementSurfaceForProject(
           : "ready",
     reason:
       !currentEstablished
-        ? "A current governed programme is required before the integrated management position can be complete."
+        ? "A current confirmed programme is required before the integrated management position can be complete."
         : managementReviewRequired
           ? String(
               specialistReviewCount,

@@ -75,7 +75,7 @@ test("CMeng workspace keeps the active module primary and browser script parseab
   assert.match(
     html,
     /id="roleViewSelector"/,
-    "every project-control page must expose the governed review-lens selector",
+    "every project-control page must expose the confirmed review-lens selector",
   );
   for (
     const roleView of [
@@ -107,7 +107,7 @@ test("CMeng workspace keeps the active module primary and browser script parseab
   assert.match(
     html,
     /function renderRoleContent/,
-    "all specialist modules must pass through one governed role-presentation layer",
+    "all specialist modules must pass through one confirmed role-presentation layer",
   );
   assert.match(
     html,
@@ -140,7 +140,7 @@ test("CMeng workspace keeps the active module primary and browser script parseab
   assert.match(
     html,
     /reportDownloadUrl\("json"\)/,
-    "module report preview must provide a governed data download",
+    "module report preview must provide a confirmed data download",
   );
   assert.match(
     html,
@@ -522,7 +522,7 @@ test("CMeng workspace keeps the active module primary and browser script parseab
       "Certificate amounts · ",
       "Confirmed dated cash-flow register",
       "Calculation trace",
-      "Evidence & governance",
+      "Documents and approvals",
     ]
   ) {
     assert.equal(
@@ -543,7 +543,7 @@ test("CMeng workspace keeps the active module primary and browser script parseab
   );
   assert.equal(
     html.includes(
-      "Full governed dated register; no presentation-only row cap.",
+      "Full confirmed dated register; no presentation-only row cap.",
     ),
     false,
     "Cash Flow register must be collapsed into source drill-down rather than consume the main management canvas.",
@@ -553,7 +553,7 @@ test("CMeng workspace keeps the active module primary and browser script parseab
       "(row.entries||[]).slice(0,150)",
     ),
     false,
-    "Cash Flow must not silently cap the governed register at 150 rows",
+    "Cash Flow must not silently cap the confirmed register at 150 rows",
   );
   assert.match(
     html,
@@ -613,10 +613,10 @@ test("CMeng workspace keeps the active module primary and browser script parseab
       "Action Suggestions — Awaiting Assignment",
       "Programme control",
       "WBS & Work-Package Control",
-      "AI / Extracted Candidate Review Inbox",
+      "Suggested updates for review",
       "Control History",
-      "Observed WBS labels are schedule evidence.",
-      "no candidate can directly author the official MCP position",
+      "WBS names come from the programme.",
+      "Use the relevant page to approve, reject or defer it before it changes the project position.",
     ]
   ) {
     assert.equal(
@@ -688,7 +688,7 @@ test("CMeng workspace keeps the active module primary and browser script parseab
       "Payments & IPC Management Position",
       "IPC lifecycle completion",
       "Payment SLA & aging position",
-      "Source certificate rows remain available beneath the governed payment lifecycle; values are not re-summed in the browser.",
+      "Source certificate rows remain available beneath the confirmed payment lifecycle; values are not re-summed in the browser.",
     ]
   ) {
     assert.equal(
@@ -887,7 +887,7 @@ test("CMeng workspace keeps the active module primary and browser script parseab
   );
   assert.equal(
     html.includes(
-      "No retention register or governed balance records are established.",
+      "No retention register or confirmed balance records are established.",
     ),
     true,
     "Contract Particulars must not render retention held/released/due zeros without a retention population",
@@ -919,14 +919,14 @@ test("CMeng workspace keeps the active module primary and browser script parseab
   );
   assert.equal(
     html.includes(
-      "No governed claim lifecycle population is established. Lifecycle counts are not confirmed.",
+      "No confirmed claim lifecycle population is established. Lifecycle counts are not confirmed.",
     ),
     true,
-    "Commercial Claims must not render an all-zero lifecycle chart when no governed claim population exists",
+    "Commercial Claims must not render an all-zero lifecycle chart when no confirmed claim population exists",
   );
   assert.equal(
     html.includes(
-      "Notice timeliness is not assessable until governed event, requirement and notice-date evidence is established.",
+      "Notice timeliness is not assessable until confirmed event, requirement and notice-date evidence is established.",
     ),
     true,
     "Notice timeliness must remain unassessable when its evidence population is absent",
@@ -939,7 +939,7 @@ test("CMeng workspace keeps the active module primary and browser script parseab
     "Cash Flow source summary must describe an absent payment basis instead of presenting it as zero",
   );
   for (const disclosure of [
-    "complete governed population is available through Download Excel / Download data",
+    "complete confirmed population is available through Download Excel / Download data",
     "complete population is available through Download Excel / Download data",
   ]) {
     assert.equal(
@@ -1039,7 +1039,7 @@ test("CMeng workspace keeps the active module primary and browser script parseab
       "The programme contains a percentage-complete snapshot, but certified/contractor physical progress is not confirmed.",
       "schedule-revision progress history",
       "Actual man-hours are not confirmed.",
-      "No governed quantity curve is available.",
+      "No confirmed quantity curve is available.",
       "Notice performance is not zero; it is not assessable.",
       "Schedule movement is not an EOT time-impact assessment.",
       "Source forecast history is available.",

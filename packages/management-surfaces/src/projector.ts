@@ -176,7 +176,7 @@ function buildAlerts(
           "claims-linkage-gap",
         severity: "high",
         title:
-          "Claims are not fully linked to governed delay evidence",
+          "Claims need links to the affected activities and delay records",
         consequence:
           String(
             director.claims
@@ -304,7 +304,7 @@ function buildAlerts(
           input.commercial
             .overdueUnpaidPayments,
         ) +
-        " governed payment item(s) are overdue and unpaid.",
+        " confirmed payment item(s) are overdue and unpaid.",
       action:
         "Review payment due dates, certification evidence and payment responsibility.",
       owningModule: "payments",
@@ -330,7 +330,7 @@ function buildAlerts(
           input.commercial
             .lateNotices,
         ) +
-        " event notice assessment(s) are late against the governed requirement.",
+        " event notice assessment(s) are late against the confirmed requirement.",
       action:
         "Review notice evidence, contractual consequence and claim strategy.",
       owningModule:
@@ -357,7 +357,7 @@ function buildAlerts(
           input.commercial
             .notIssuedNotices,
         ) +
-        " event(s) have a governed notice requirement but no qualifying issued notice.",
+        " event(s) have a confirmed notice requirement but no qualifying issued notice.",
       action:
         "Confirm notice evidence and assess time-bar or entitlement consequences.",
       owningModule:
@@ -385,7 +385,7 @@ function buildAlerts(
           "conflicted"
           ? "high"
           : "medium",
-      title: gap.label + (gap.key === "board-publication" ? " requires governance review" : " requires evidence review"),
+      title: gap.label + (gap.key === "board-publication" ? " needs approval" : " requires evidence review"),
       consequence:
         gap.key === "board-publication"
           ? "Board publication cannot be finalized until management evidence review is completed. This output state does not invalidate the underlying source facts."
@@ -535,7 +535,7 @@ function dashboardMetrics(
       d?.schedule
         .contractualCompletionIso ??
       null,
-      "Current contractual completion, including effective amendments; authority follows the governed term",
+      "Current contractual completion, including effective amendments; authority follows the confirmed term",
       input.contractualCompletionAuthority ?? "source",
     ),
     finishMetric(
@@ -544,7 +544,7 @@ function dashboardMetrics(
       d?.schedule
         .officialAdjustedCompletionIso ??
       null,
-      "Additional adjustment after the current governed amendment; absence does not invalidate the current contract completion",
+      "Additional adjustment after the current confirmed amendment; absence does not invalidate the current contract completion",
       "official",
     ),
     finishMetric(
@@ -585,7 +585,7 @@ function dashboardMetrics(
       consequence:
         forecastVariance ===
         null
-          ? "No comparison variance is stated because the required governed basis is not established."
+          ? "No comparison variance is stated because the required confirmed basis is not established."
           : forecastVariance === 0
             ? "Calendar-calculated finish aligns with the " +
               comparisonLabel +
@@ -649,7 +649,7 @@ function dashboardMetrics(
   for (const [key, label, value, basis] of [
     ["independent-vs-contract", "Calendar scenario vs contract", d?.schedule.varianceDaysToContractualCompletion ?? null, "Calendar-calculated finish minus current confirmed contract completion"],
     ["independent-vs-submitted", "Calendar scenario vs submitted programme", d?.schedule.varianceDaysToSubmittedProgrammeCompletion ?? null, "Calendar-calculated finish minus current submitted programme finish"],
-    ["submitted-vs-contract", "Submitted programme vs contract", Number.isFinite(submittedVariance) ? submittedVariance : null, "Current submitted programme finish minus current governed contract completion"],
+    ["submitted-vs-contract", "Submitted programme vs contract", Number.isFinite(submittedVariance) ? submittedVariance : null, "Current submitted programme finish minus current confirmed contract completion"],
   ] as const) {
     metrics.push(metric({ key, label, value, unit: "calendar days", state: value === null ? "unavailable" : "calculated",
       authority: value === null ? "unavailable" : "calculated", health: key.startsWith("independent-") ? "unavailable" : healthForSignedVariance(value), basis,
@@ -674,7 +674,7 @@ function dashboardMetrics(
         : "unavailable",
       health: "unavailable",
       basis:
-        "Strict positive float within the governed near-critical threshold; inventory, not a health score",
+        "Strict positive float within the confirmed near-critical threshold; inventory, not a health score",
       consequence: "Review float erosion, upcoming work and driving-path evidence before assigning risk severity.",
       owningModule:
         "near-critical",
@@ -745,7 +745,7 @@ function dashboardMetrics(
       key:
         "open-risk",
       label:
-        "Open governed risks",
+        "Open confirmed risks",
       value:
         d?.controls
           .riskEvidenceState ===
@@ -767,13 +767,13 @@ function dashboardMetrics(
           : "unavailable",
       health: "unavailable",
       basis:
-        "Governed risk evidence only",
+        "Confirmed risk evidence only",
       consequence:
         d?.controls
           .riskEvidenceState !==
         "established"
           ? d?.sourceInterpretation?.riskValidation.explanation ?? "Dated risk status and a rating method are not established."
-          : "Open-risk inventory does not establish severity. Overall risk severity is not established without governed ratings and mitigation status.",
+          : "Open-risk inventory does not establish severity. Overall risk severity is not established without confirmed ratings and mitigation status.",
       action:
         d?.controls
           .riskEvidenceState !==
@@ -854,11 +854,11 @@ function dashboardMetrics(
       health:
         "unavailable",
       basis:
-        "Dedicated governed contract-risk assessment",
+        "Dedicated confirmed contract-risk assessment",
       consequence:
         "CMeng does not fabricate a composite contract-risk score from unrelated controls.",
       action:
-        "A dedicated governed contract-risk assessment is not established. Review contract terms and documented exposures.",
+        "A dedicated confirmed contract-risk assessment is not established. Review contract terms and documented exposures.",
       owningModule: "contract-particulars-bonds",
     }),
   );

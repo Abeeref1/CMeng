@@ -1,24 +1,30 @@
 export const systemReviewStyles=String.raw`
+.planning-kpi.unavailable strong,.management-metric-value.missing{font-size:16px!important;font-weight:500!important;color:#5b6e80!important}
 .page-review-summary{font-size:12px;color:#526479;margin:8px 0 14px}.page-review-summary summary{cursor:pointer}.page-review-summary p{line-height:1.6}.position-verdict>p{font-size:16px;line-height:1.5}.source-request{padding:12px;border-bottom:1px solid #dce5ef}.source-request summary{cursor:pointer;line-height:1.6}.request-meta{display:block;color:#607188;font-size:12px}.module-basis{font-size:12px}
 
 .nav-review-totals{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;font-size:10px}.nav-review-totals div{padding:9px;background:#f1f5fa;border-radius:7px}.nav-review-totals b{display:block;font-size:18px;color:#284967}.position-verdict{border:1px solid #cfdae7;border-left:5px solid #b57922;border-radius:8px;padding:12px 16px;margin:0 0 12px;background:#fff}.position-verdict.red{border-left-color:#b4483e}.position-verdict.green{border-left-color:#2c7a57}.position-verdict.unknown{border-left-color:#7c8998}.position-verdict h4{margin:0 0 8px;font-size:14px}.position-verdict p{margin:6px 0}.position-verdict small{color:#566c81}.position-verdict details{margin-top:9px;font-size:12px}.nav-counts{display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end}.nav-counts .nav-count{font-size:9px;padding:2px 4px}.source-scope-summary{font-size:12px;margin-bottom:18px;padding:8px 12px;background:#f7f9fc;border-radius:7px}.source-scope-summary summary{cursor:pointer;font-weight:650}.source-quality-counts{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.source-quality-counts div{padding:16px;background:#f4f7fb;border:1px solid #dce5ef;border-radius:8px}.source-quality-counts b{display:block;font-size:25px}.decision-list{display:grid;gap:10px}.decision-list article{padding:15px;border:1px solid #dce5ef;border-radius:8px}.decision-list p{margin:5px 0}.decision-list small{display:block;margin-top:6px;color:#536c85}.future-register-note{margin:8px 0}.single-axis-caption{font-size:14px;font-weight:650;margin:18px 0 0}
 `;
 export const systemReviewScript=String.raw`
-function renderPositionVerdict(data){
+function renderPositionVerdict(data,includeGeneral=false){
   const v=data?.positionVerdict;if(!v)return '';
   const next='<p><b>Next step:</b> '+escapeHtml(v.nextAction)+' <b>Owner:</b> '+escapeHtml(v.owner)+'</p><p>'+escapeHtml(v.basis)+'</p>';
-  if(v.specific===false)return '<details class="page-review-summary"><summary>About this view</summary><p>'+escapeHtml(v.text)+'</p>'+next+'</details>';
+  if(v.specific===false)return includeGeneral?'<details class="page-review-summary"><summary>About this view</summary><p>'+escapeHtml(v.text)+'</p>'+next+'</details>':'';
   return '<section class="position-verdict '+escapeHtml(v.rag)+'" aria-label="Position verdict"><h4>'+escapeHtml(v.label)+'</h4><p>'+escapeHtml(v.text)+'</p><details><summary>Next step and status</summary>'+next+'</details></section>';
 }
-function renderRegisterScope(data){
+function renderRegisterScope(data,includeComplete=false){
   const contract=data?.reportingContract;if(!contract)return '';
   const populations=Object.values(contract.populations||{}).filter(p=>!['activity','execution_activity','series_point','currency_position','resource','assignment','programme_window'].includes(p.entity)&&!p.dateBasis?.startsWith('Full retained source register')&&!p.dateBasis?.startsWith('Source records after')&&!p.dateBasis?.startsWith('Source records without'));
   if(!populations.length)return '';
   const unique=[...new Map(populations.map(p=>[p.populationId,p])).values()];
   const row=p=>{const exclusions=p.exclusions||[],future=exclusions.filter(e=>e.reason==='after_data_date'),undated=exclusions.filter(e=>/date_missing|date_invalid/.test(e.reason));return '<tr><td>'+escapeHtml(p.name)+'</td><td>'+fmt(p.denominator)+' / '+fmt(p.sourceCount)+'</td><td>'+fmt(future.length)+'</td><td>'+fmt(undated.length)+'</td><td>'+escapeHtml(p.dateBasis)+'</td></tr>'};
   const exclusions=unique.map(p=>({p,future:(p.exclusions||[]).filter(e=>e.reason==='after_data_date').length,undated:(p.exclusions||[]).filter(e=>/date_missing|date_invalid/.test(e.reason)).length})).filter(r=>r.future||r.undated);
+  if(!exclusions.length&&!includeComplete)return '';
   const disclosure=exclusions.length?fmt(exclusions.length)+' record groups include later or missing dates. Open counts.':'Records included through '+planningShortDate(contract.dataDateIso);
   return '<details class="source-scope-summary"><summary>'+disclosure+'</summary><p>Reporting date: '+planningShortDate(contract.dataDateIso)+'. Counts are per group and may overlap. Future work remains in the plan. Later actual events are excluded from current totals. A zero means no records were excluded on this date rule; other dates may still be missing.</p><div class="table-wrap"><table><thead><tr><th>Register</th><th>Included / all records</th><th>Future excluded</th><th>Date missing / invalid</th><th>Date used</th></tr></thead><tbody>'+unique.map(row).join('')+'</tbody></table></div></details>';
+}
+function readerModuleSummary(reason){
+  const text=String(reason||'').split('Shared readiness gate:')[0].trim();
+  return text?text.replace(/\bgoverned\b/gi,'confirmed').replace(/\bnot established\b/gi,'not confirmed'):'Open this page for its figures and follow-up actions.';
 }
 function readerIssue(i){
   // Translate CMeng-authored issue descriptions only. The original check text,
@@ -36,7 +42,12 @@ function readerIssue(i){
     DATED_VARIATION_LEDGER_VS_SOURCE_AGGREGATE_CONFLICT:['Reported variations differ from dated approvals','Compare the amendment and cost report with the dated variation approvals in Variations & Change.'],
   };
   const words=s=>String(s||'').replace(/([a-z])([A-Z])/g,'$1 $2').replace(/[_]/g,' ').replace(/\bsource\b/gi,'record').replace(/\bgoverned\b/gi,'confirmed').replace(/\bauthority review\b/gi,'approval needed').replace(/\bnot established\b/gi,'not confirmed').replace(/\bdata quality\b/gi,'record needs correction').replace(/\bpopulation\b/gi,'record group');
-  const title=known[i.code]?.[0]||words(i.summary);
+  const fields={hse:'HSE hours and incident figures',physical:'Measured physical progress',contractorReported:'Contractor-reported progress',certified:'Certified progress',finishMovementAnalysis:'Activity finish dates',mapping:'Programme activity links',manpower:'Staffing plan',productivity:'Productivity assumptions',pendingVariationAmount:'Pending variation amount',interimCertificateCount:'Interim certificates',grossCertifiedAmount:'Gross certified amount',paidAmount:'Paid amount and date',certifiedUnpaidAmount:'Certified amount still unpaid',retentionHeldAmount:'Retention still held',advanceBalance:'Advance payment balance',activeBondAmount:'Active bond amount',claimedAmount:'Claimed amount',assessedClaimAmount:'Assessed claim amount',netCertifiedAmount:'Net certified amount',ldRate:'Delay damages rate',ldCap:'Delay damages cap',retentionPercent:'Contract retention rate',retentionCapPercent:'Contract retention cap',certificationPeriodDays:'Certificate assessment period',paymentPeriodDays:'Contract payment period',performanceBondRequirement:'Performance bond requirement',advancePaymentBondRequirement:'Advance payment bond requirement',cbsBreakdownSummary:'Cost breakdown',cashFlowSummary:'Cash flow',cbsBreakdown:'Cost breakdown',price:'Price variance',quantity:'Quantity variance',claimed:'Claimed cost',assessed:'Assessed cost',agreed:'Agreed cost',scheduleImpactDays:'Time impact of variations',siteInstructions:'Site instructions',pending:'Pending variations',certificationDueDate:'Certificate due date',paymentDueDate:'Payment due date',applicationAmount:'Payment application amount',engineerAssessedAmount:'Engineer-assessed amount',employerCertifiedAmount:'Employer-certified amount',otherDeduction:'Other certificate deductions',taxAmount:'Tax amount',outstandingAmount:'Outstanding amount',calculatedOutstandingAmount:'Outstanding balance calculation',cashFlowRegister:'Cash movement register',certifiedIncome:'Certified income',paidIncome:'Cash received',expenditureBudget:'Expenditure budget',expenditureForecast:'Expenditure forecast',actualExpenditure:'Actual cash expenditure',netCashPosition:'Net cash position',peakFundingNeed:'Peak funding requirement',certifiedUnpaid:'Unpaid certificates',certification:'Certificate amounts and dates',expenditure:'Cash expenditure records',forwardPlan:'Future cash plan',bondsInsurance:'Bonds and insurance',retention:'Retention',noticeRequirements:'Notice requirements',obligations:'Contract obligations'};
+  const parts=String(i.summary||'').split(' · '),field=parts.length>1?parts[parts.length-2]:'';
+  const clean=s=>String(s).replace(/([a-z])([A-Z])/g,'$1 $2').replace(/[_]/g,' ').replace(/\b(?:focus|data|currencies|amounts|rows|lifecycle|sourceReadiness)\b/g,'').replace(/\s+/g,' ').trim();
+  const subject=fields[field]||clean(field);
+  const suffix={missing_information:'information needed',source_conflict:'records disagree',data_quality:'record needs correction',governance_review:'approval needed',verification_pending:'check pending'}[i.kind]||'review needed';
+  const title=known[i.code]?.[0]||(subject?subject.charAt(0).toUpperCase()+subject.slice(1)+' · '+suffix:words(i.summary));
   const path=(i.evidencePaths||[]).join(' ').toLowerCase();
   let action=known[i.code]?.[1];
   if(!action&&i.kind==='missing_information'){
