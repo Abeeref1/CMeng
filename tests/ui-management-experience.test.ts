@@ -31,11 +31,11 @@ test('cash and physical progress summaries keep known zero distinct from missing
     ...common,data:{position:{foundation:{paymentRegister:{recordCount:3}},performance:{cashFlow:{currencies:[{currency:'EUR',paidIncome:{value:0},actualExpenditure:{value:null},netCashPosition:{value:null},sourceReadiness:{netCashReady:false}}]}}}}
   });
   assert.equal(cash.facts[0].display,'0 EUR');
-  assert.equal(cash.facts[1].display,'Not available');
-  assert.equal(cash.facts[2].display,'Not available');
+  assert.equal(cash.facts[1].display,'Unresolved');
+  assert.equal(cash.facts[2].display,'Unresolved');
   const progress=runInNewContext(briefFunctions+';experienceBrief("progress-report",data)',{...common,data:{progressBases:{baselinePlanned:{valuePercent:32},currentSchedule:{valuePercent:30},scheduleSnapshot:{valuePercent:0},physical:{valuePercent:null}}}});
   assert.equal(progress.facts[2].display,'0 %');
-  assert.equal(progress.facts[3].display,'Not available');
+  assert.equal(progress.facts[3].display,'Unresolved');
   assert.match(progress.review,/Measured physical progress is unavailable/);
 });
 
@@ -275,4 +275,12 @@ test('programme summaries separate internal check-state messages from the busine
  assert.equal(read('Shared readiness gate: submitted/independent reconciliation submitted missing.'),'Open this page for its figures and follow-up actions.');
  assert.equal(read('3 events have no governed activity link; 26 days remain under review.'),'3 events have no confirmed activity link; 26 days remain under review.');
  assert.match(script,/Calculation notes<\/summary>'\+escapeHtml\(p.reason\)/,'the original reason remains available');
+});
+
+test('delivery leadership summaries use the BOQ assessment and preserve unresolved calculations',()=>{
+ const data={deliveryChallenge:{scheduleChallenge:{independentCompletionIso:'2099-01-01'}},boqFeasibility:{overallStatus:'Challenge required',requiredLaborHours:160,unresolvedCount:1,rows:[{},{}],activityChecks:[{scheduleState:'exceeds'},{scheduleState:'unresolved'}],programmePc:{movementDays:14},reason:'One item needs evidence.'}};
+ const brief=runInNewContext(briefFunctions+';experienceBrief("challenge-contract",data)',{...common,data});
+ assert.deepEqual(Array.from(brief.facts,(f:any)=>f.value),[160,14,1,1]);assert.match(brief.note,/Challenge required/);assert.ok(!JSON.stringify(brief).includes('2099'));
+ const missing=runInNewContext(briefFunctions+';experienceBrief("challenge-contract",data)',{...common,data:{boqFeasibility:{overallStatus:'Unable to assess',rows:[],activityChecks:[],requiredLaborHours:null,programmePc:{movementDays:null},reason:'Productivity evidence is missing.'}}});
+ assert.ok(missing.facts.every((f:any)=>f.display==='Unresolved'));assert.match(missing.review,/Productivity evidence/);
 });

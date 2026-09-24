@@ -43,7 +43,7 @@ function experienceReviewSummary(a,management=false){
 }
 function experienceValue(value,unit=''){
   const v=value&&typeof value==='object'&&'value' in value?value.value:value;
-  if(v===null||v===undefined||typeof v==='number'&&!Number.isFinite(v))return 'Not available';
+  if(v===null||v===undefined||typeof v==='number'&&!Number.isFinite(v))return 'Unresolved';
   if(unit==='date')return planningShortDate(v);
   const exactUnit=['','%','d','h'].includes(unit);
   return (typeof v==='number'?(exactUnit?fmt(v):fmtExecutive(v)):String(v))+(unit?' '+unit:'');
@@ -156,11 +156,13 @@ function experienceBrief(key,data){
     }
     note='Schedule movement, event attribution, notice compliance and awarded EOT are separate conclusions.';
   }else if(key==='challenge-contract'){
-    const q=d.deliveryChallenge?.scheduleChallenge||{};
-    add('Contract completion',q.contractualCompletionIso,'Contract authority','date');add('Submitted completion',q.contractorSubmittedCompletionIso,'Source programme','date');
-    add('Calendar recalculation',q.independentCompletionIso,'Source-calendar scenario; not a delivery forecast','date');add('Calendar vs submitted difference',q.contractorVsIndependentDays,'Different calculation bases; not delay','d');
-    note='Delivery review tests schedule and resource evidence. It does not determine EOT or entitlement.';
-    review=d.independentForecastReviewReason||'';
+    const f=d.boqFeasibility,checks=f?.activityChecks||[];
+    add('Independent labor requirement',f?.requiredLaborHours,'BOQ quantities and supported productivity; labor hours');
+    add('Programme PC movement',f?.programmePc?.movementDays,'Same explicit baseline and current milestone','d');
+    add('Activities exceeding planned duration',checks.length?checks.filter(r=>r.scheduleState==='exceeds').length:null,'Quantity-driven checks with supplied resource capacity');
+    add('BOQ items requiring information',f?.rows?.length?f.unresolvedCount:null,'Mapping, progress, productivity or calendar evidence');
+    note=(f?.overallStatus||'Unable to assess')+'. Tests required manpower and achievable duration against the submitted programme. It does not determine causation or EOT.';
+    review=f?.reason||'Current BOQ, productivity and resource assessment is unresolved.';
   }else if(key==='cash-flow'){
     const rows=p.performance?.cashFlow?.currencies||[];
     if(rows.length===1){const r=rows[0];add('Cash received',r.paidIncome,'Actual dated receipts',r.currency);add('Cash spent',r.actualExpenditure,'Actual dated expenditure',r.currency);add('Net cash movement',r.netCashPosition,'Receipts less expenditure; opening cash excluded',r.currency);}
@@ -210,7 +212,7 @@ function experiencePreview(primaryView,limit=2){
 function experienceRoleContent(key,data,primaryView,challengeHtml='',includeTechnical=false){
   const role=selectedRoleView,brief=experienceBrief(key,data),leadership=['project-director','program-director','executive'].includes(role);
   const facts=brief.facts.slice(0,4);
-  const factHtml=facts.length?'<div class="experience-facts">'+facts.map(f=>'<div class="experience-fact"><span>'+escapeHtml(f.label)+'</span><strong'+(f.display==='Not available'?' class="unavailable"':'')+' title="'+escapeHtml(f.value?.value??f.value??'Not available')+'">'+escapeHtml(f.display)+'</strong><small>'+escapeHtml(f.basis)+'</small></div>').join('')+'</div>':'';
+  const factHtml=facts.length?'<div class="experience-facts">'+facts.map(f=>'<div class="experience-fact"><span>'+escapeHtml(f.label)+'</span><strong'+(f.display==='Unresolved'?' class="unavailable"':'')+' title="'+escapeHtml(f.value?.value??f.value??'Unresolved')+'">'+escapeHtml(f.display)+'</strong><small>'+escapeHtml(f.basis)+'</small></div>').join('')+'</div>':'';
   const briefHtml=role==='overall'?'':'<section class="experience-brief"><div class="experience-brief-heading"><h4>'+escapeHtml(leadership?'Position at a glance':'Review focus')+'</h4><span>'+escapeHtml(roleViews[role].label)+'</span></div>'+(leadership?factHtml:'')+(brief.note?'<p>'+escapeHtml(brief.note)+'</p>':'')+experienceRoleReview(role,brief,key,data)+'</section>';
   // Leadership gets a short overview, with every chart and record reachable in one disclosure.
   const analysis='<div class="role-primary-analysis">'+primaryView+'</div>';
@@ -235,7 +237,7 @@ function experienceCertificateGroups(position){
   return [...groups.values()];
 }
 function certificateMoney(value,currency){
-  if(value===null||value===undefined||!Number.isFinite(value))return 'Not available';
+  if(value===null||value===undefined||!Number.isFinite(value))return 'Unresolved';
   const millions=value/1000000,absolute=Math.abs(millions);
   const rounded=Math.sign(millions)*Math.round((absolute+Number.EPSILON*Math.max(1,absolute))*100)/100;
   return rounded.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})+'M'+(currency?' '+currency:'');
