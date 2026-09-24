@@ -49,7 +49,8 @@ export function canonicalHeader(value:string,documentType=''):string {
   }
   return key;
 }
-const fields=new Set([...Object.keys(groups),'amount','value','unit','metric','as of','probability','impact','rating','owner','title','event','responsibility','assessment date','notice id','approved amount','submitted amount','payment type','type','bond type','issuer','beneficiary','actual delivery','required on site','supplier','trir','ltifr','reporting month','tax basis','vat basis']);
+const fields=new Set([...Object.keys(groups),'amount','value','unit','metric','as of','probability','impact','rating','owner','title','event','responsibility','assessment date','notice id','approved amount','submitted amount','payment type','type','bond type','issuer','beneficiary','actual delivery','required on site','supplier','trir','ltifr','reporting month','tax basis','vat basis',
+  'calculated critical impact days','concurrency days','mitigation days','net assessed impact days','assessed days','employer delay days','contractor delay days','analysis status','approved']);
 export function registerDate(value:string):string|null {
   const text=value.trim().replace(/[٠-٩]/g,d=>String(d.charCodeAt(0)-0x660));
   const iso=/^(\d{4})-(\d{2})-(\d{2})(?:[T ].*)?$/.exec(text);
