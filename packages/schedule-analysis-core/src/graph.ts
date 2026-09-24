@@ -212,7 +212,7 @@ function topologicalOrder(
   return order.length === ids.length ? order : null;
 }
 
-export function analyzeScheduleGraph(
+function calculateScheduleGraph(
   model: CanonicalScheduleModel,
 ): ScheduleGraphAnalysis {
   const diagnostics: string[] = [];
@@ -376,4 +376,16 @@ export function analyzeScheduleGraph(
     complete,
     diagnostics,
   };
+}
+
+const graphCache=new WeakMap<CanonicalScheduleModel,{activityIds:string[];relationships:Array<{predecessor:string;successor:string;type:string;lag:number|null;external:boolean}>;value:ScheduleGraphAnalysis}>();
+/** Topology is shared across schedule views. Validate every graph input on reuse,
+ * including in-place edits, and keep mutable result arrays isolated. */
+export function analyzeScheduleGraph(model:CanonicalScheduleModel):ScheduleGraphAnalysis {
+  let cached=graphCache.get(model);
+  if(!cached||cached.activityIds.length!==model.activities.length||cached.relationships.length!==model.relationships.length||!model.activities.every((a,i)=>a.activityId===cached!.activityIds[i])||!model.relationships.every((r,i)=>{const old=cached!.relationships[i]!;return old.predecessor===r.predecessorActivityId&&old.successor===r.successorActivityId&&old.type===r.type&&old.lag===r.lagHours&&old.external===r.external;})){
+    cached={activityIds:model.activities.map(a=>a.activityId),relationships:model.relationships.map(r=>({predecessor:r.predecessorActivityId,successor:r.successorActivityId,type:r.type,lag:r.lagHours,external:r.external})),value:calculateScheduleGraph(model)};graphCache.set(model,cached);
+  }
+  const value=cached.value;
+  return {...value,duplicateActivityIds:[...value.duplicateActivityIds],duplicateRelationshipKeys:[...value.duplicateRelationshipKeys],brokenPredecessorActivityIds:[...value.brokenPredecessorActivityIds],brokenSuccessorActivityIds:[...value.brokenSuccessorActivityIds],selfLoops:[...value.selfLoops],cyclicActivityIds:[...value.cyclicActivityIds],openStartActivityIds:[...value.openStartActivityIds],openFinishActivityIds:[...value.openFinishActivityIds],isolatedActivityIds:[...value.isolatedActivityIds],components:value.components.map(c=>({...c,activityIds:[...c.activityIds]})),topologicalOrder:value.topologicalOrder?[...value.topologicalOrder]:null,diagnostics:[...value.diagnostics]};
 }

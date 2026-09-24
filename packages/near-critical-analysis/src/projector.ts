@@ -394,7 +394,8 @@ export function buildNearCriticalProjection(
       ).length,
       population.activities.length,
     ),
-    nearCriticalCount: rows.length,
+    nearCriticalCount: classified.some(r=>r.threshold===null)?null:rows.length,
+    unresolvedActivityCount:classified.filter(r=>r.threshold===null).length,
     floatRiskWatchlistCount:
       watchlistRows.length,
     zeroFloatCount: known.filter(

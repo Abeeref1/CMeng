@@ -7,6 +7,7 @@ import {
   scheduleProgress,
   activityPopulation,
   sourceFloatCriticality,
+  activityNearCriticalThresholdHours,
   type CanonicalScheduleActivity,
   type CanonicalScheduleModel,
   type ScheduleAnalysisConfig,
@@ -101,7 +102,7 @@ function buildRow(
         sourceFloatCriticality(model, activity, config) ===
         "critical",
     ).length,
-    nearCriticalCount: floatKnown.filter(
+    nearCriticalCount: floatKnown.some(a=>activityNearCriticalThresholdHours(model,a,config)===null)?null:floatKnown.filter(
       (activity) =>
         sourceFloatCriticality(model, activity, config) ===
         "near_critical",

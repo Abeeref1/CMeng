@@ -1,6 +1,6 @@
 /* Fresh server process and fresh HTTP requests. Startup analysis is measured
    separately and must complete before readiness. No pre-test dashboard request. */
-const {mkdtempSync,rmSync,writeFileSync}=require('node:fs');
+const {mkdtempSync,rmSync,writeFileSync,readFileSync}=require('node:fs');
 const {tmpdir}=require('node:os');const {join}=require('node:path');
 const {spawn}=require('node:child_process');const {performance}=require('node:perf_hooks');const assert=require('node:assert/strict');
 const root=mkdtempSync(join(tmpdir(),'cmeng-release-latency-'));
@@ -29,8 +29,25 @@ runtimeProjects.touch(state);
   assert.ok(dashboard.data?.positionVerdict,'dashboard is fully calculated, not a loading placeholder');
   assert.ok(overview.moduleStates?.length===29);assert.ok(JSON.stringify(portfolio).includes(projectId));
   const coldRequestMs=performance.now()-cold;
-  const result={scope:'Fresh server; first shell, portfolio, overview and fully calculated dashboard requests',activityCount:12500,revisionCount:3,preparationMs,coldRequestMs,targetMs:COLD_DASHBOARD_TARGET_MS,passed:coldRequestMs<=COLD_DASHBOARD_TARGET_MS};
+  const uploadProject='UPLOAD-20000';
+  const lines=['ERMHDR\t23.12','%T\tPROJECT','%F\tproj_id\tproj_short_name\tlast_recalc_date','%R\t1\tUPLOAD-20000\t2031-04-01','%T\tCALENDAR','%F\tclndr_id\tclndr_name\tclndr_data','%R\t1\tEight hour calendar\tMon-Fri 08:00-16:00','%T\tTASK','%F\ttask_id\tproj_id\tclndr_id\ttask_code\ttask_name\tstatus_code\tearly_start_date\tearly_end_date\ttarget_drtn_hr_cnt\tremain_drtn_hr_cnt\ttotal_float_hr_cnt'];
+  for(let i=0;i<20000;i++)lines.push(['%R',i,1,1,'A'+i,'Work '+i,'TK_NotStart','2031-04-01','2031-06-01',8,8,i%7].join('\t'));
+  lines.push('%E');
+  let peakRssBytes=0;
+  const sampleMemory=()=>{try{const rss=/^VmRSS:\s+(\d+) kB/m.exec(readFileSync('/proc/'+child.pid+'/status','utf8'));if(rss)peakRssBytes=Math.max(peakRssBytes,Number(rss[1])*1024);}catch{}};
+  sampleMemory();const memoryBeforeUploadBytes=peakRssBytes;const sampler=setInterval(sampleMemory,20);
+  let uploadResponseMs,uploadToReadyMs,firstDashboardMs;
+  try{
+    const uploadStart=performance.now();
+    const response=await fetch(base+'/api/projects/'+uploadProject+'/schedule/uploads',{method:'POST',headers:{'content-type':'text/plain','x-source-filename':'misleading-baseline-1990.xer'},body:lines.join('\n')});
+    assert.equal(response.status,201,await response.text());uploadResponseMs=performance.now()-uploadStart;
+    const firstStart=performance.now();
+    const first=await (await fetch(base+'/api/projects/'+uploadProject+'/management/master-dashboard')).json();
+    assert.ok(first.data?.positionVerdict,'20,000-activity dashboard contains resolved analysis');
+    firstDashboardMs=performance.now()-firstStart;uploadToReadyMs=performance.now()-uploadStart;sampleMemory();
+  }finally{clearInterval(sampler);}
+  const result={scope:'Fresh server, actual HTTP upload and first calculated dashboard',activityCount:20000,priorColdGate:{activityCount:12500,revisionCount:3,preparationMs,coldRequestMs},uploadResponseMs,uploadToReadyMs,firstDashboardMs,memoryBeforeUploadBytes,peakRssBytes,peakRssMiB:peakRssBytes/1024/1024,targetMs:COLD_DASHBOARD_TARGET_MS,passed:coldRequestMs<=COLD_DASHBOARD_TARGET_MS&&uploadToReadyMs<=COLD_DASHBOARD_TARGET_MS&&firstDashboardMs<=COLD_DASHBOARD_TARGET_MS};
   console.log(JSON.stringify(result));if(process.env.CMENG_LATENCY_RESULT)writeFileSync(process.env.CMENG_LATENCY_RESULT,JSON.stringify(result,null,2));
-  assert.ok(result.passed,'Cold dashboard request target exceeded');
+  assert.ok(result.passed,'Upload-to-ready or first-dashboard target exceeded');
  }finally{child.kill();}
 })().catch(e=>{console.error(e);process.exitCode=1;}).finally(()=>{rmSync(root,{recursive:true,force:true});});

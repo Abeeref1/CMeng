@@ -14,7 +14,7 @@ function finitePositive(value: number | null | undefined): number | null {
 export function calendarWorkingDayHours(
   calendar: CanonicalCalendar | null | undefined,
 ): number | null {
-  if (!calendar) return null;
+  if (!calendar || calendar.semanticComplete===false) return null;
 
   const standard = finitePositive(calendar.standardDayHours);
   if (standard !== null) return standard;
@@ -66,6 +66,8 @@ export function activityNearCriticalThresholdHours(
   activity: CanonicalScheduleActivity,
   config: ScheduleAnalysisConfig,
 ): number | null {
+  const calendar=activity.calendarId===null?null:model.calendars.find(c=>c.calendarId===activity.calendarId)??null;
+  if(activity.calendarId!==null&&(!calendar||calendar.semanticComplete===false))return null;
   if (
     config.nearCriticalWorkingDays !== undefined &&
     config.nearCriticalWorkingDays !== null
@@ -77,12 +79,6 @@ export function activityNearCriticalThresholdHours(
       return null;
     }
 
-    const calendar =
-      activity.calendarId === null
-        ? null
-        : model.calendars.find(
-            (candidate) => candidate.calendarId === activity.calendarId,
-          ) ?? null;
     const dayHours = calendarWorkingDayHours(calendar);
     return dayHours === null
       ? null

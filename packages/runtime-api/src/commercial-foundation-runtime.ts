@@ -1,3 +1,4 @@
+import {contractTermVersions,termAtEvent,type ContractTermKey} from './contract-term-versions';
 import {
   buildCommercialFoundation,
   type CommercialFoundationProjection,
@@ -210,6 +211,7 @@ export function commercialFoundationForState(
 
   const foundation =
     buildCommercialFoundation({
+      datedTermVersions:contractTermVersions(state),
       projectId:
         state.projectId,
       generatedAt,
@@ -514,6 +516,18 @@ export function commercialFoundationForState(
         ),
     });
 
+  const datedTerms=contractTermVersions(state);
+  foundation.commercialTerms.datedTerms=datedTerms;
+  const termKeys=[...new Set(datedTerms.map(v=>v.term))];
+  foundation.commercialTerms.eventTerms=(timeClaims.delayClaims?.events??[]).map(event=>({eventId:event.eventId,eventDate:event.startIso,terms:Object.fromEntries(termKeys.map(key=>[key,termAtEvent(datedTerms,key,event.startIso)]))}));
+  const mapping:Partial<Record<ContractTermKey,keyof typeof foundation.commercialTerms>>={ldRate:'ldRate',ldCap:'ldCap',retentionPercent:'retentionPercent',retentionCapPercent:'retentionCapPercent',paymentPeriodDays:'paymentPeriodDays',noticePeriodDays:'noticePeriodDays',performanceSecurity:'performanceBondRequirement',advanceSecurity:'advancePaymentBondRequirement'};
+  for(const key of termKeys){
+    const target=mapping[key];if(!target)continue;
+    const selected=termAtEvent(datedTerms,key,projectDataDate(state));
+    const old=(foundation.commercialTerms as any)[target];
+    const stringValue=['ldRate','ldCap','performanceSecurity','advanceSecurity'].includes(key);
+    (foundation.commercialTerms as any)[target]={...old,value:selected.value===null?null:stringValue?selected.value+' '+selected.unit:selected.value,state:selected.state==='established'?'established':'conflicted',authority:selected.state==='established'?'source':'missing',basis:{...old.basis,asOfDate:projectDataDate(state),sourceRefs:selected.sourceRefs,method:'explicit_dated_contract_data'},diagnostics:selected.reason?[selected.reason]:[],action:selected.reason,coverage:{known:selected.value===null?0:1,total:1,percent:selected.value===null?0:100}};
+  }
   foundation.commercialTerms.noticeVersions=[...contractNoticeRules(state),...contractNoticeRules(state,"detailed_claim")];
   cache.set(state, {
     version: state.version,

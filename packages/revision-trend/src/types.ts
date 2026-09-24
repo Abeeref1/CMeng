@@ -15,7 +15,7 @@ export interface RevisionTrendPoint {
   durationWeightedProgressPercent: number | null;
   floatCoveragePercent: number | null;
   criticalCount: number;
-  nearCriticalCount: number;
+  nearCriticalCount: number | null;
   floatRiskWatchlistCount: number;
   zeroFloatCount: number;
   negativeFloatCount: number;

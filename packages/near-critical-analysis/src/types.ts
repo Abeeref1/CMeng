@@ -70,7 +70,8 @@ export interface NearCriticalProjection {
   thresholdBasis: "activity_calendar_working_days" | "explicit_hours" | "unresolved";
   floatCoveragePercent: number | null;
   classificationCoveragePercent: number | null;
-  nearCriticalCount: number;
+  nearCriticalCount: number | null;
+  unresolvedActivityCount?: number;
   floatRiskWatchlistCount: number;
   zeroFloatCount: number;
   negativeFloatCount: number;

@@ -29,6 +29,7 @@ export function documentReadReview(document:StoredEvidenceDocument,state:Project
     return {state:known?'read':'partial',label:known?'Report figures read':'Report figures need review',note:`${known} report figures extracted. Reporting period, rate basis and incident status are assessed separately.`,method:'Native text',pageCount:null,readPageCount:null,complete:false};
   }
   if(table?.document.sourceHashSha256===hash){
+    if(table.recognition?.recognized===false)return {state:'unresolved',label:'Columns not recognised',note:`Read ${table.recognition.readRowCount} rows, columns not recognised: ${table.headers.join(', ')}.`,method:'Tabular content',pageCount:null,readPageCount:null,complete:false};
     return {state:'read',label:'Source rows read',note:`${table.rows.length} rows and ${table.headers.length} fields read from the source. Field completeness, validation, mapping and adoption are checked separately.`,method:'Tabular content',pageCount:null,readPageCount:null,complete:false};
   }
   return {state:document.parserState,label:null,note:null,method:null,pageCount:document.identification?.pageCount??null,readPageCount:null,complete:false};

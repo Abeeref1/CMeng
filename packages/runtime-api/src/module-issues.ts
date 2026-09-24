@@ -65,11 +65,16 @@ export function assessModuleIssues(result: ModuleRuntimeResult, consistency: Con
   // expose their owned evidence in focus; unrelated missing registers must not
   // turn every commercial page into the same warning.
   const visited=new WeakSet<object>();
+  const issueStates=new Set(['conflicted','invalid','stale','missing','not_submitted','missing_evidence','missing_information','submitted_unparsed','candidate','provisional','pending_review']);
+  const excludedKeys=new Set(['source','sourceLedger','futureRows','undatedRows','futureInsurances','undatedInsurances','claimsReporting','challenge','reportingContract','moduleReadiness','issueAssessment','systemEvidenceContract','controlBasis','sourceRefs','diagnostics','receipts','population','populations','model']);
   const walk=(value:any,path:string,depth:number)=>{
     if(!value||typeof value!=='object'||depth>9||visited.has(value))return;
     visited.add(value);
     if(Array.isArray(value)){for(const item of value)walk(item,path+'['+(typeof item?.topic==='string'?'topic='+item.topic:'*')+']',depth+1);return;}
     const diagnostics=(Array.isArray(value.diagnostics)?value.diagnostics:[]).filter((s:unknown)=>typeof s==='string') as string[];
+    // Plain rows still receive full recursive inspection. Construct issue labels
+    // and references only for objects that can actually produce a finding.
+    if(diagnostics.length||issueStates.has(value.state)||value.population?.exclusions?.length){
     const rawRefs=value.sourceRefs??value.basis?.sourceRefs??value.evidenceRefs;
     const refs=(Array.isArray(rawRefs)?rawRefs:[]).filter((s:unknown)=>typeof s==='string') as string[];
     const field=path.replace(/\[\*\]/g,'').split('.').slice(-2).join(' · ').replace(/([a-z])([A-Z])/g,'$1 $2')+(typeof value.topic==='string'?' · '+value.topic:'');
@@ -98,8 +103,10 @@ export function assessModuleIssues(result: ModuleRuntimeResult, consistency: Con
         invalidDates.length+' retained record(s) contain a date that failed date validation.',
         'Correct the invalid event-date values and rerun validation.',path+'.population','Project evidence owner',refs);
     }
-    for(const [key,child] of Object.entries(value)) {
-      if(['source','sourceLedger','futureRows','undatedRows','futureInsurances','undatedInsurances','claimsReporting','challenge','reportingContract','moduleReadiness','issueAssessment','systemEvidenceContract','controlBasis','sourceRefs','diagnostics','receipts','population','populations','model'].includes(key))continue;
+    }
+    for(const key of Object.keys(value)) {
+      const child=value[key];
+      if(!child||typeof child!=='object'||excludedKeys.has(key))continue;
       walk(child,path?path+'.'+key:key,depth+1);
     }
   };

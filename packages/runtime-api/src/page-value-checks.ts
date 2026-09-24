@@ -15,6 +15,8 @@ export function checkPageValues(pages:Map<string,ModuleRuntimeResult>):PageValue
   const all=[...pages.keys()];
   compare('Reporting Data Date',all.filter(k=>k!=='source-quality').map(k=>[k,'reportingContract.dataDateIso']),iso);
   compare('Contract completion',[['notices-claims','contractualCompletionIso'],['milestones','contractualCompletionIso'],['independent-forecast','requiredFinishIso']],iso);
+  compare('Gross positive programme movement',[['windows-analysis','positiveProgrammeMovementDays'],['eot-assessment','observedProgrammeMovementDays'],['delay-claims','observedPositiveProgrammeMovementDays'],['project-director','claims.observedProgrammeMovementDays'],['board-report','sections.claims.observedProgrammeMovementDays']]);
+  compare('Overview and Payments certified state and values',[['commercial-overview','position.currencies'],['payments','position.currencies']]);
   compare('Matched-scope progress gap',[['progress-scurve','scopeComparison.gapPercentagePoints'],['progress-report','scopeComparison.gapPercentagePoints']]);
   compare('Matched-scope schedule ratio',[['progress-scurve','scopeComparison.ratio'],['progress-report','scopeComparison.ratio']]);
   compare('Source productivity finish',[['pmo-analysis','sourceProductivityForecast.completionIso'],['independent-forecast','sourceProductivityForecast.completionIso'],['challenge-contract','sourceProductivityForecast.completionIso'],['master-dashboard','sourceInterpretation.productivityForecast.completionIso'],['command-center','sourceInterpretation.productivityForecast.completionIso']],iso);

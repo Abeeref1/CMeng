@@ -1,3 +1,4 @@
+import {ELAPSED_24H_CALENDAR} from '../packages/schedule-cpm/src/calendar';
 import test from "node:test";
 import assert from "node:assert/strict";
 
@@ -50,7 +51,7 @@ function activity(
     nativeId: null,
     name: "Completion Activity",
     wbsId: "W1",
-    calendarId: null,
+    calendarId: ELAPSED_24H_CALENDAR.calendarId,
     activityType: "task",
     status:
       progress > 0
@@ -103,7 +104,7 @@ function scheduleModel(
     ],
     relationships: [],
     wbs: [],
-    calendars: [],
+    calendars: [ELAPSED_24H_CALENDAR],
     diagnostics: [],
   };
 }

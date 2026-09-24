@@ -1,3 +1,4 @@
+import {canonicalHeader,prepareRegisterRows,registerDate} from '../../truth-kernel/src';
 import {
   readFileSync,
 } from "node:fs";
@@ -123,14 +124,12 @@ function headerIndex(
 ): number {
   const wanted =
     new Set(
-      candidates.map(
-        normHeader,
-      ),
+      candidates.map(c=>canonicalHeader(c)),
     );
   return headers.findIndex(
     (header) =>
       wanted.has(
-        normHeader(header),
+        canonicalHeader(header),
       ),
   );
 }
@@ -358,10 +357,9 @@ export function deriveReadinessFromCsv(
         /^\uFEFF/,
         "",
       );
-  const rows =
-    parseCsv(text);
-  const headers =
-    rows[0] ?? [];
+  const parsedTable=prepareRegisterRows(parseCsv(text),input.document.documentType);
+  const rows=[parsedTable.headers,...parsedTable.rows];
+  const headers=parsedTable.headers;
 
   const activityIndex =
     headerIndex(

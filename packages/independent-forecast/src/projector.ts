@@ -278,7 +278,7 @@ export function buildIndependentForecastProjection(
       const sourceFinishIso =
         sourceFinish(activity);
       const independentEarlyFinishIso =
-        calculated?.earlyFinishIso ?? null;
+        calculated?.calendarMode==='source_calendar'?calculated?.earlyFinishIso??null:null;
 
       return {
         activityId: activity.activityId,
@@ -290,16 +290,14 @@ export function buildIndependentForecastProjection(
             independentEarlyFinishIso,
           ),
         independentTotalFloatHours:
-          calculated?.totalFloatHours ??
-          null,
+          calculated?.calendarMode==='source_calendar'?calculated?.totalFloatHours??null:null,
         critical:
-          calculated?.critical ?? null,
+          calculated?.calendarMode==='source_calendar'?calculated?.critical??null:null,
         calendarMode:
           calculated?.calendarMode ??
           "elapsed_fallback",
         status:
-          calculated?.status ??
-          "unresolved",
+          calculated?.calendarMode==='source_calendar'?calculated?.status??'unresolved':'unresolved',
         diagnostics: [
           ...(calculated?.diagnostics ?? [
             "INDEPENDENT_FORECAST_ACTIVITY_NOT_CALCULATED",
@@ -308,6 +306,8 @@ export function buildIndependentForecastProjection(
       };
     });
 
+  const unresolvedCalendarCount=activities.filter(a=>a.calendarMode==='elapsed_fallback').length;
+  const resolvedFinish=cpm.complete&&unresolvedCalendarCount===0?cpm.projectFinishIso:null;
   const calculatedActivityCount =
     activities.filter(
       (activity) =>
@@ -315,7 +315,7 @@ export function buildIndependentForecastProjection(
     ).length;
 
   const origin =
-    !cpm.complete
+    !cpm.complete || unresolvedCalendarCount>0
       ? "unresolved"
       : cpm.assumptions.length === 0 &&
           cpm.calculationMode ===
@@ -340,23 +340,22 @@ export function buildIndependentForecastProjection(
       cpm.calculationMode,
     sourceForecastCompletionIso,
     independentForecastCompletionIso:
-      cpm.projectFinishIso,
+      resolvedFinish,
     forecastVarianceDays:
       dayVariance(
         sourceForecastCompletionIso,
-        cpm.projectFinishIso,
+        resolvedFinish,
       ),
     requiredFinishIso:
       cpm.requiredFinishIso,
     requiredFinishVarianceDays:
       dayVariance(
         cpm.requiredFinishIso,
-        cpm.projectFinishIso,
+        resolvedFinish,
       ),
     calculatedActivityCount,
     unresolvedActivityCount:
-      activities.length -
-      calculatedActivityCount,
+      Math.max(unresolvedCalendarCount,activities.length-calculatedActivityCount),
     activityCoveragePercent: coverage(
       calculatedActivityCount,
       activities.length,
@@ -368,10 +367,10 @@ export function buildIndependentForecastProjection(
     diagnostics: [...cpm.diagnostics],
     probabilistic: probabilisticComparator(
       model.dataDateIso,
-      cpm.projectFinishIso,
+      resolvedFinish,
       input.probabilisticConfig,
     ),
     activities,
-    complete: cpm.complete,
+    complete: cpm.complete && unresolvedCalendarCount===0,
   };
 }

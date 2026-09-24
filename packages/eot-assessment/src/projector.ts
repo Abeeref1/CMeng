@@ -315,17 +315,7 @@ export function buildEotAssessmentProjection(
         )
       : null;
 
-  const observedProgrammeMovementDays =
-    Number(
-      windowCandidates
-        .reduce(
-          (sum, window) =>
-            sum +
-            window.positiveProgrammeMovementDays,
-          0,
-        )
-        .toFixed(6),
-    );
+  const observedProgrammeMovementDays = windows.positiveProgrammeMovementDays;
 
   const establishedTimeImpacts =
     windowCandidates

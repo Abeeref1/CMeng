@@ -263,6 +263,7 @@ export interface CorrespondenceNarrativeRefreshReceipt {
 }
 
 export interface StoredEvidenceDocument {
+  tabularRead?: import("../../truth-kernel/src").EvidenceDocument["tabularRead"];
   documentId: string;
   category: EvidenceCategory;
   documentType: string;

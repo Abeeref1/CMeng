@@ -16,11 +16,11 @@ export function contractNoticeRules(state:ProjectRuntimeState,noticeKind:'claim_
     const fragments=[...pages.map(p=>({text:p.text,locator:'page:'+p.pageNumber})),
       ...sections.map(s=>({text:s.text,locator:s.startPage?'page:'+s.startPage:s.sectionKey}))];
     const text=fragments.map(f=>f.text).join('\n');
-    const pattern=noticeKind==='claim_notice'?/(?:current\s+)?initial\s+claim\s+notice\s*[:\n]?\s*(\d+)\s+(?:calendar\s+)?days|initial\s+notice\s+of\s+claim\s+shall\s+be\s+given\s+within\s+(\d+)\s+(?:calendar\s+)?days/gi:
+    const pattern=noticeKind==='claim_notice'?/(?:current\s+)?initial\s+claim\s+notice\s*[:|\n]?\s*(\d+)\s+(?:calendar\s+)?days|initial\s+notice\s+of\s+claim\s+shall\s+be\s+given\s+within\s+(\d+)\s+(?:calendar\s+)?days/gi:
       /fully\s+detailed\s+claim\s*[:\n]?\s*(\d+)\s+(?:calendar\s+)?days|(?:fully\s+)?detailed\s+claim[^.]{0,100}?within\s+(\d+)\s+(?:calendar\s+)?days/gi;
     const matches=fragments.flatMap(f=>[...f.text.matchAll(pattern)].map(m=>({days:Number(m[1]??m[2]),locator:f.locator})));
     const periods=[...new Set(matches.map(m=>m.days))];
-    const effective=/Effective Date\s*[:\n]?\s*(\d{1,2}\s+[A-Za-z]+\s+\d{4}|\d{4}-\d{2}-\d{2})/i.exec(text);
+    const effective=/Effective Date\s*[:|\n]?\s*(\d{1,2}\s+[A-Za-z]+\s+\d{4}|\d{4}-\d{2}-\d{2})/i.exec(text);
     const from=effective?dateValue(effective[1]!):null;
     // An undated amendment must not overwrite the original rule.
     if(document.role==='amendment'&&!from)continue;
@@ -31,7 +31,7 @@ export function contractNoticeRules(state:ProjectRuntimeState,noticeKind:'claim_
         effectiveFromIso:from,effectiveToIso:null,
         triggerBasis:noticeKind==='detailed_claim'?'not_stated':/became aware|become aware|should have become aware/i.test(text)?'awareness':/after (?:the )?event (?:start|occurr)|from (?:the )?event date/i.test(text)?'event_start':'not_stated',
         state:periods.length===1&&Boolean(evidence)&&sections.some(s=>s.sourceMode==='deterministic')?'official':'candidate',
-        clauseIdentifiers:[...new Set([...text.matchAll(/Clause\s+(\d+(?:\.\d+)+)\s+is\s+amended/gi)].map(m=>m[1]!))],
+        clauseIdentifiers:[...new Set([...text.matchAll(/(?:Sub[- ]Clause|Clause|Article)\s+(\d+(?:\.\d+)*)/gi)].map(m=>m[1]!))],
         evidenceRefs:[...new Set(matches.filter(m=>m.days===days).map(m=>m.locator))].map(locator=>({sourceType:'contract' as const,sourceId:document.documentId,locator})),
         applicabilityNote:'Version dates assume prospective application. Confirm the contractual trigger, day basis and any retrospective effect before a notice-compliance conclusion.'});
     }

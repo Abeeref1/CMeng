@@ -6,6 +6,7 @@ export type DelayResponsibility =
   | "unknown";
 
 export type GovernanceState =
+  | "conflicted"
   | "official"
   | "provisional"
   | "candidate"

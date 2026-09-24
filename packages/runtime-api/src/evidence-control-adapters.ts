@@ -1,3 +1,4 @@
+import {canonicalHeader,prepareRegisterRows,registerDate} from '../../truth-kernel/src';
 import { numberValue } from "../../truth-kernel/src";
 import type {
   CanonicalClaimRecord,
@@ -158,8 +159,8 @@ function headerCurrency(header: string): string | null {
   return codes.length === 1 ? codes[0]! : null;
 }
 function indexOf(headers: string[], candidates: string[]): number {
-  const wanted = new Set(candidates.map(norm));
-  const exact = headers.findIndex(header => wanted.has(norm(header)));
+  const wanted = new Set(candidates.map(c=>canonicalHeader(c)));
+  const exact = headers.findIndex(header => wanted.has(canonicalHeader(header)));
   if (exact >= 0) return exact;
   // Currency suffixes qualify an amount column; never fuzzy-match unrelated fields.
   const qualified = headers.flatMap((header,index) => {
@@ -184,19 +185,7 @@ function value(
 
 function numeric(raw: string): number | null { return numberValue(raw); }
 
-function iso(
-  raw: string,
-): string | null {
-  const text =
-    raw.trim();
-  if (!text) return null;
-  const parsed =
-    Date.parse(text);
-  return Number.isFinite(parsed)
-    ? new Date(parsed)
-        .toISOString()
-    : null;
-}
+function iso(raw:string):string|null {return registerDate(raw);}
 
 function evidenceRef(
   document:
@@ -419,11 +408,13 @@ export function deriveControlsFromCsv(
         /^\uFEFF/,
         "",
       );
-  const rows =
-    parseCsv(text);
-  const headers =
-    rows[0] ?? [];
+  const parsedTable=prepareRegisterRows(parseCsv(text),input.document.documentType);
+  const rows=[parsedTable.headers,...parsedTable.rows];
+  const headers=parsedTable.headers;
+  const currencyIndex=indexOf(headers,['currency']);
+  const rowCurrencies=[...new Set(rows.slice(1).map(r=>value(r,currencyIndex)).filter(c=>/^[A-Z]{3}$/.test(c)))];
   const sourceCurrency =
+    (rowCurrencies.length===1?rowCurrencies[0]:null)??
     currencyFromHeaders(
       headers,
     ) ??
@@ -546,7 +537,7 @@ export function deriveControlsFromCsv(
         sourceRefs: [
           evidenceRef(
             input.document,
-            rowIndex + 1,
+            rowIndex + parsedTable.headerRow,
           ),
         ],
       });
@@ -673,10 +664,11 @@ export function deriveControlsFromCsv(
           idIndex,
         );
       if (!invoiceId) continue;
+      if(/advance|mobilisation|mobilization|دفعة مقدمة/i.test(value(row,indexOf(headers,['payment type','type']))))continue;
       const sourceRef =
         evidenceRef(
           input.document,
-          rowIndex + 1,
+          rowIndex + parsedTable.headerRow,
         );
       const retentionAmount =
         numeric(
@@ -847,7 +839,7 @@ export function deriveControlsFromCsv(
         sourceRefs: [
           evidenceRef(
             input.document,
-            rowIndex + 1,
+            rowIndex + parsedTable.headerRow,
           ),
         ],
       });
@@ -974,7 +966,7 @@ export function deriveControlsFromCsv(
         sourceRefs: [
           evidenceRef(
             input.document,
-            rowIndex + 1,
+            rowIndex + parsedTable.headerRow,
           ),
         ],
       });
@@ -1042,7 +1034,7 @@ export function deriveControlsFromCsv(
         sourceRefs: [
           evidenceRef(
             input.document,
-            rowIndex + 1,
+            rowIndex + parsedTable.headerRow,
           ),
         ],
       });
@@ -1113,7 +1105,7 @@ export function deriveControlsFromCsv(
         sourceRefs: [
           evidenceRef(
             input.document,
-            rowIndex + 1,
+            rowIndex + parsedTable.headerRow,
           ),
         ],
       });
@@ -1201,7 +1193,7 @@ export function deriveControlsFromCsv(
         sourceRefs: [
           evidenceRef(
             input.document,
-            rowIndex + 1,
+            rowIndex + parsedTable.headerRow,
           ),
         ],
       });
@@ -1651,7 +1643,7 @@ export function deriveControlsFromCsv(
             sourceRefs: [
               evidenceRef(
                 input.document,
-                rowIndex + 1,
+                rowIndex + parsedTable.headerRow,
               ),
             ],
           });
