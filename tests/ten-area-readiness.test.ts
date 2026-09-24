@@ -23,7 +23,7 @@ process.env.CMENG_OCR_ENABLED='0';
 const stamp='2031-07-01T12:00:00Z';
 let fixtureSequence=0;
 function fixture(t:any){const dir=mkdtempSync(join(tmpdir(),'ten-area-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));const store=new RuntimeProjectStore({dataDir:dir,durable:false});const state=store.getOrCreate('GENERIC-'+(++fixtureSequence));return{dir,store,state};}
-function contract(state:any,text:string,role='main',id='MAIN'){state.evidenceDocuments.push({documentId:id,documentType:role==='main'?'main_contract':'contract_amendment',category:'contract',basisState:'active',sourceFilename:id+'.pdf'});state.contractDocuments.push({documentId:id,role,result:{sections:[{sectionKey:'Article 9',heading:'Article 9 Contract data',text,startPage:4,sourceMode:'deterministic',sourceSpans:[]}]}});state.version++;}
+function contract(state:any,text:string,role='main',id='MAIN'){state.evidenceDocuments.push({documentId:id,documentType:role==='main'?'main_contract':'contract_amendment',category:'contract',basisState:'active',uploadedAt:stamp,sourceFilename:id+'.pdf'});state.contractDocuments.push({documentId:id,role,result:{sections:[{sectionKey:'Article 9',heading:'Article 9 Contract data',text,startPage:4,sourceMode:'deterministic',sourceSpans:[]}]}});state.version++;}
 const cal='(0||CalendarData()((0||DaysOfWeek()('+Array.from({length:7},(_,i)=>'(0||'+(i+1)+'()((0||0(s|08:00|f|16:00)())))').join('')+'))(0||Exceptions()())))';
 function xer(date:string,finish='2031-07-02 16:00',bad=false){return ['ERMHDR\t23.12','%T\tPROJECT','%F\tproj_id\tproj_short_name\tlast_recalc_date','%R\t1\tGENERIC\t'+date,'%T\tCALENDAR','%F\tclndr_id\tclndr_name\tclndr_data','%R\t1\tEight hours\t'+(bad?'(BROKEN':cal),'%T\tTASK','%F\ttask_id\tproj_id\tclndr_id\ttask_code\ttask_name\tstatus_code\tearly_start_date\tearly_end_date\ttarget_drtn_hr_cnt\tremain_drtn_hr_cnt\ttotal_float_hr_cnt','%R\t1\t1\t1\tA1\tActivity one\tTK_NotStart\t2031-07-01 08:00\t'+finish+'\t9\t9\t5','%E'].join('\n');}
 async function schedule(store:any,date:string,name:string,finish?:string,bad=false){return store.ingestEvidenceFile({projectId:store.listProjectIds()[0]!,bytes:Buffer.from(xer(date,finish,bad)),mediaType:'text/plain',sourceFilename:name,uploadedAt:stamp});}
@@ -71,8 +71,22 @@ test('7 common risk-date bond and HSE column layouts are extracted',async t=>{
  const hse=state.evidenceDocuments.find(d=>d.documentType==='hse_report')?.hseSummary;assert.equal(hse?.periodEndIso,'2031-06-30');assert.equal(hse?.metrics.manHours,12345);assert.equal(hse?.metrics.lostTimeInjuries,0);assert.ok(hse?.sourceRefs[0]?.includes('row:2'));
 });
 test('2 a read register with missing identity columns does not become a zero-record page',async t=>{
- const {store,state}=fixture(t);await schedule(store,'2031-07-01','a.xer');await register(store,'Status,Description,Odd Column\nOpen,Access,one\nOpen,Design,two','delay_eot_claims_register','claims.csv');runtimeProjects.replace(state);
+ const {store,state}=fixture(t);await schedule(store,'2031-07-01','a.xer');await register(store,'Status,Description,Odd Column\nOpen,Access,one\nOpen,Design,two','delay_eot_claims_register','claims.csv');
+ const {PDFDocument,StandardFonts}=await import('pdf-lib');const pdf=await PDFDocument.create();const pdfPage=pdf.addPage();const font=await pdf.embedFont(StandardFonts.Helvetica);pdfPage.drawText('Contract completion date: 31 July 2031',{x:40,y:700,size:12,font});
+ await store.ingestContract({projectId:state.projectId,bytes:await pdf.save(),mediaType:'application/pdf',sourceFilename:'contract.pdf',role:'main',uploadedAt:stamp});runtimeProjects.replace(state);
  const page:any=moduleForProject(state.projectId,'notices-claims');assert.equal(page.data.recordCount,null);assert.match(page.reason,/Read 2 rows, columns not recognised/);assert.equal(page.data.state,'unresolved');
+ assert.equal(page.data.contractualCompletionIso,'2031-07-31');
+ const keys=['notices-claims','milestones','independent-forecast','delay-claims','windows-analysis','eot-assessment','commercial-overview','payments','cash-flow','commercial-claims-notices'];
+ const checks=checkPageValues(new Map(keys.map(key=>[key,moduleForProject(state.projectId,key)])));
+ for(const metric of ['Contract completion','Current claim identity cohort','Current notice cohort','Current commercial currency positions'])assert.equal(checks.find(c=>c.metric===metric)?.state,'passed',metric);
+});
+test('2 live-style event impact headings remain recognised beside the claims register',async t=>{
+ const {store,state}=fixture(t);await schedule(store,'2031-07-01','a.xer');
+ await register(store,'Claim Ref,Event,Date of Notice,Days Claimed,Status\nC1,Access,03/06/2031,7,Submitted','delay_eot_claims_register','claims.csv');
+ await register(store,'Claim ID,Calculated Critical Impact Days,Concurrency Days,Mitigation Days,Net Assessed Impact Days,Analysis Status,Approved\nC1,7,1,1,5,Complete,Yes','delay_eot_claims_register','impacts.csv');
+ const tables=sourceTables(state.evidenceDocuments,[]);assert.ok(tables.every(table=>table.recognition?.recognized));
+ assert.equal(canonicalTimeClaims(state).delayClaims?.claims.find(c=>c.claimId==='C1')?.assessedDays,5);
+ runtimeProjects.replace(state);const page:any=moduleForProject(state.projectId,'notices-claims');assert.equal(page.data.registerReadIssues,undefined);assert.equal(page.data.claimCount,1);
 });
 test('8 payment due dates select the term effective at each certificate event',async t=>{
  const {store,state}=fixture(t);await schedule(store,'2031-07-01','a.xer');

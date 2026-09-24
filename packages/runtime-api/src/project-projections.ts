@@ -6796,10 +6796,16 @@ function resolveProjectModuleUncertified(
 function resolveProjectModuleCandidate(state: ProjectRuntimeState, key: string): ModuleRuntimeResult {
   state = reportingState(state);
   const readIssues=registerReadIssuesForModule(state,key);
-  if(readIssues.length)return attachReportingContract(state,{key,status:'partial',reason:readIssues.map(r=>r.filename+': '+r.message).join('; '),dependencies:[],data:{state:'unresolved',recordCount:null,registerReadIssues:readIssues}});
+  // A rejected register withholds its count, not the independently established
+  // contract date, current claim cohort or shared commercial position.
+  const discloseReadIssues=(value:ModuleRuntimeResult):ModuleRuntimeResult=>readIssues.length?{
+    ...value,status:'partial',professionalState:'review_required',
+    reason:readIssues.map(r=>r.filename+': '+r.message).join('; '),
+    data:{...(value.data&&typeof value.data==='object'?value.data:{}),state:'unresolved',recordCount:null,registerReadIssues:readIssues},
+  }:value;
   const result = resolveProjectModuleUncertified(state, key);
   const model = projectControlSchedule(state)?.revision.model;
-  if (!model) return attachReportingContract(state,result);
+  if (!model) return attachReportingContract(state,discloseReadIssues(result));
   const controlBasis = projectScheduleControlBasis(state);
   if (result.data && typeof result.data === "object") {
     const data = result.data as Record<string, any>;
@@ -6879,7 +6885,7 @@ function resolveProjectModuleCandidate(state: ProjectRuntimeState, key: string):
       ['schedule-analytics','independent-forecast'].includes(key)?['calendarRecalculatedFinishIso','calendarReview','productivityForecast']:[];
     if(fields.length)(result.data as any).sourceInterpretation=Object.fromEntries(fields.map(field=>[field,(interpretation as any)[field]]));
   }
-  return attachReportingContract(state,checkProjectionIntegrity(result, model, controlBasis.analysisConfig, state.controls.delayClaims));
+  return attachReportingContract(state,discloseReadIssues(checkProjectionIntegrity(result, model, controlBasis.analysisConfig, state.controls.delayClaims)));
 }
 
 const resolvedProjectCache = new Map<string, {version: number; modules: Map<string, ModuleRuntimeResult>}>();
