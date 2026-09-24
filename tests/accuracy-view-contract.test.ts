@@ -13,7 +13,7 @@ function ledgerHtml(row: Record<string, unknown>): string {
     data: {moduleKey:'commercial-payment-register',rows:[row],dataDateIso:'2026-08-31',summary:{effectiveRecordCount:1}},
     projectionFor:(data:unknown)=>data,
     escapeHtml:(value:unknown)=>String(value??'').replace(/[<>&"']/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'}[c]!)),
-    planningShortDate:(date:unknown)=>date??'Not confirmed',
+    planningShortDate:(date:unknown)=>date??'Unresolved',
     humanizeKey:(value:unknown)=>String(value??''),
     planningKpis:(rows:unknown[][])=>JSON.stringify(rows),
   }) as string;
@@ -36,7 +36,7 @@ test('payment view keeps reported and calculated balances visible without doing 
 });
 test('payment view preserves a missing calculated balance rather than deriving it from Paid status',()=>{
   const html=ledgerHtml(sourceRow(null,null,'missing'));
-  assert.match(html,/Not confirmed/);assert.doesNotMatch(html,/<b>820<\/b>/);
+  assert.match(html,/Unresolved/);assert.doesNotMatch(html,/<b>820<\/b>/);
   assert.match(html,/source figures, not verified receipt count/);
 });
 test('payment evidence references are escaped rather than executed as markup',()=>{
