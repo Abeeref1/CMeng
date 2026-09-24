@@ -1378,11 +1378,11 @@ export function buildDeliveryChallengeProjection(
                   ? mapping.quantityCoveragePercent.toFixed(
                       2,
                     ) +
-                    "% of known BOQ quantity has a governed or scenario activity link."
+                    "% of known BOQ quantity has a confirmed or scenario activity link."
                   : mapping.itemCoveragePercent!.toFixed(
                       2,
                     ) +
-                    "% of known BOQ items have a governed or scenario activity link; mixed quantity units are not cross-summed."
+                    "% of known BOQ items have a confirmed or scenario activity link; mixed quantity units are not cross-summed."
               ),
         difference:
           mapping.unmappedItemIds.length +
@@ -1393,7 +1393,7 @@ export function buildDeliveryChallengeProjection(
           "BOQ item description/section",
           "Schedule Activity ID/name",
           "WBS hierarchy",
-          "Governed allocations where available",
+          "Confirmed allocations where available",
         ],
         milestoneConsequence:
           (
@@ -1506,7 +1506,7 @@ export function buildDeliveryChallengeProjection(
               : "supported",
       contractorAssumption:
         submitted.average === null
-          ? "No governed contractor manpower plan available."
+          ? "No confirmed contractor staffing plan is available."
           : "Submitted average manpower=" +
             submitted.average,
       independentCalculation:
@@ -1864,9 +1864,11 @@ export function buildDeliveryChallengeProjection(
     mapping,
     findings,
     assumptions: [
-      "Inferred BOQ-to-activity links are scenario candidates unless backed by governed allocations.",
+      "Inferred BOQ-to-activity links are scenario candidates unless backed by confirmed allocations.",
       "Where a BOQ item has several similarly strong activity candidates, scenario quantity is distributed by remaining duration and remains review-required.",
-      "Crew fallback scenarios use 4/6/8 people per concurrent work front unless configuration states otherwise.",
+      crewSizes.length
+        ? "Staffing scenarios use the explicitly supplied crew sizes of " + crewSizes.join(", ") + " people per concurrent work front; these are assumptions, not a confirmed staffing plan."
+        : "No crew-size scenario has been supplied. Staffing scenarios are not calculated without an explicit crew-size assumption.",
       "Labor resource units are treated as labor-hours only where the resource model supports that interpretation; non-hour UOMs are diagnosed.",
       "Quantities with different units are never cross-summed for productivity.",
     ],

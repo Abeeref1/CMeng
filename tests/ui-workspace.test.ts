@@ -522,7 +522,7 @@ test("CMeng workspace keeps the active module primary and browser script parseab
       "Certificate amounts · ",
       "Confirmed dated cash-flow register",
       "Calculation trace",
-      "Evidence & governance",
+      "Documents and approvals",
     ]
   ) {
     assert.equal(

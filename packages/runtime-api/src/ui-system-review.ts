@@ -22,6 +22,10 @@ function renderRegisterScope(data,includeComplete=false){
   const disclosure=exclusions.length?fmt(exclusions.length)+' record groups include later or missing dates. Open counts.':'Records included through '+planningShortDate(contract.dataDateIso);
   return '<details class="source-scope-summary"><summary>'+disclosure+'</summary><p>Reporting date: '+planningShortDate(contract.dataDateIso)+'. Counts are per group and may overlap. Future work remains in the plan. Later actual events are excluded from current totals. A zero means no records were excluded on this date rule; other dates may still be missing.</p><div class="table-wrap"><table><thead><tr><th>Register</th><th>Included / all records</th><th>Future excluded</th><th>Date missing / invalid</th><th>Date used</th></tr></thead><tbody>'+unique.map(row).join('')+'</tbody></table></div></details>';
 }
+function readerModuleSummary(reason){
+  const text=String(reason||'').split('Shared readiness gate:')[0].trim();
+  return text?text.replace(/\bgoverned\b/gi,'confirmed').replace(/\bnot established\b/gi,'not confirmed'):'Open this page for its figures and follow-up actions.';
+}
 function readerIssue(i){
   // Translate CMeng-authored issue descriptions only. The original check text,
   // document names, values and references remain untouched in the disclosure.

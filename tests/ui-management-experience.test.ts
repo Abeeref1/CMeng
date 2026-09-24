@@ -268,3 +268,11 @@ test('resource unit labels translate known register codes and preserve other pro
  assert.equal(label('labor_hour'),'Labor hours');assert.equal(label('labour_hour'),'Labor hours');assert.equal(label('equipment_hour'),'Equipment hours');
  for(const unit of ['kWh','m3','m²','W/m²','custom_unit'])assert.equal(label(unit),unit);
 });
+
+test('programme summaries separate internal check-state messages from the business explanation',()=>{
+ const read=runInNewContext(functions(['readerModuleSummary'])+';readerModuleSummary');
+ assert.equal(read('Payment dates are missing. Shared readiness gate: evidence partial; comparison pending.'),'Payment dates are missing.');
+ assert.equal(read('Shared readiness gate: submitted/independent reconciliation submitted missing.'),'Open this page for its figures and follow-up actions.');
+ assert.equal(read('3 events have no governed activity link; 26 days remain under review.'),'3 events have no confirmed activity link; 26 days remain under review.');
+ assert.match(script,/Calculation notes<\/summary>'\+escapeHtml\(p.reason\)/,'the original reason remains available');
+});
