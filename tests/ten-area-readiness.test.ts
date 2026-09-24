@@ -63,6 +63,17 @@ test('6 Overview Payments Cash Flow share certificate amounts and states; drift 
  const altered=structuredClone(pages.get('payments'));altered.data.position.currencies=[{currency:'USD',certifiedAmount:{state:'established',value:999}}];pages.set('payments',altered);
  assert.equal(checkPageValues(pages).find(c=>c.metric==='Overview and Payments certified state and values')?.state,'failed');
 });
+test('1 conflicting native completion dates carry an unresolved reason to every date consumer',async t=>{
+ const {store,state}=fixture(t);await schedule(store,'2031-07-01','a.xer');
+ const {PDFDocument,StandardFonts}=await import('pdf-lib');const pdf=await PDFDocument.create();const page=pdf.addPage();const font=await pdf.embedFont(StandardFonts.Helvetica);
+ ['Contract completion date: 31 July 2031','Contract completion date: 31 August 2031'].forEach((line,i)=>page.drawText(line,{x:40,y:700-i*24,size:12,font}));
+ await store.ingestContract({projectId:state.projectId,bytes:await pdf.save(),mediaType:'application/pdf',sourceFilename:'conflicting-contract.pdf',role:'main',uploadedAt:stamp});runtimeProjects.replace(state);
+ for(const key of ['master-dashboard','independent-forecast','milestones','notices-claims','eot-assessment']){
+  const data:any=moduleForProject(state.projectId,key).data;const authority=data.reportingContract.completionAuthority;
+  assert.equal(authority.governedContractualFinish,null,key);assert.equal(authority.authority,'conflicted',key);assert.match(authority.reason,/Conflicting completion dates/,key);assert.equal(authority.explanation,authority.reason,key);
+  if(key==='independent-forecast'){assert.equal(data.requiredFinishIso,null);assert.equal(data.requiredFinishVarianceDays,null);}
+ }
+});
 test('7 common risk-date bond and HSE column layouts are extracted',async t=>{
  const {store,state}=fixture(t);await schedule(store,'2031-07-01','a.xer');await register(store,'Risk Ref,Status,Date Identified,Status Date,Rating,Owner\nR1,Open,03/06/2031,30/06/2031,High,Construction','risk_register');
  await register(store,'Guarantee No,Bond Type,Amount,Currency,Status,Date of Expiry\nB1,Performance,25000,USD,Active,31/12/2031','bond_register');
