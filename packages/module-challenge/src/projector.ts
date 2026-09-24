@@ -1360,6 +1360,11 @@ function itemFor(
     consequence = "Submitted evidence contains unresolved competing positions; no single reconciled result is established.";
     action = "Resolve the source authority and reporting basis of the competing evidence, retaining the alternatives for audit.";
   }
+  if(reconciliationState==='independent_unavailable'){
+    const dependency=independent.diagnostics.find(d=>d.startsWith('COMPARISON_INPUT_REQUIRED:'))?.slice('COMPARISON_INPUT_REQUIRED:'.length);
+    if(dependency){consequence=dependency;action='Supply or confirm this specific evidence basis, then rerun the comparison. Retain each available source value on its own stated scope.';}
+    if(independent.diagnostics.includes('SOURCE_AUTHORITY_ONLY')){consequence='An official award is a source authority; CMeng does not manufacture an independent official award.';action='Confirm the determination authority and amendment overlap. Keep the source award separate from analytical time impact.';}
+  }
 
   const evidenceState:
     ModuleChallengeItem["evidenceState"] =

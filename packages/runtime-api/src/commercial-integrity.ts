@@ -42,5 +42,12 @@ export function commercialIntegrityChecks(key:string, position:CommercialControl
     compare('notice_missing_rules_are_not_unselected_rules',p.dimensionalEvidenceGaps.requirementMissing,p.noticeTimelinessCounts.requirement_missing);
     compare('notice_date_gap_population',p.dimensionalEvidenceGaps.noticeDateMissing,p.noticeAssessments.filter(a=>!a.noticeIssuedAt||!Number.isFinite(Date.parse(a.noticeIssuedAt))).length);
   }
+  if(key==='contract-particulars-bonds'){
+    const p=position.contractControls?.contractObligations;
+    if(p){
+      compare('obligation_population',p.recordCount,p.rows.length);
+      compare('obligation_source_partition',p.explicitRecordCount+p.clauseCandidateCount,p.recordCount);
+    }
+  }
   return checks;
 }
