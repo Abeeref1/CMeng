@@ -2581,7 +2581,7 @@ function renderNoticesClaimsVisual(data){
   return '<section class="planning-view notices-view">'+summary+'<div class="notice warn"><b>'+escapeHtml(assessable.length?fmt(assessable.length)+" events can be assessed on the stated rules.":"Notice performance is not zero; it is not assessable.")+'</b> Contract rules, event/awareness dates and notice evidence are separate inputs. Claim-day sums are register statistics, not project delay or an EOT award.</div>'+renderVisualPanel("What the claim register reports","Reported statuses for the current identity cohort. They are not backdated decisions.",renderDonutChart(claimStateCounts(values).map(r=>({...r,tone:"accent"})),"Claims"))+'<details class="source-scope"><summary>Review all '+fmt(p.events.length)+' notice assessments</summary>'+eventRows+'</details><details class="source-scope"><summary>Review all '+fmt(p.claims.length)+' source claim records</summary>'+claimRows+'</details></section>';
 }
 function commercialMetricHtml(metric,currency=""){
-  if(!metric)return'<span class="muted">Not confirmed</span>';
+  if(!metric)return'<span class="muted">Unresolved</span>';
   const state=commercialSourceState(metric);
   const value=metric.value===null||metric.value===undefined
     ? "Unresolved"
@@ -3101,7 +3101,7 @@ function renderCommercialVisual(key,data){
       }).join("");
       const certificatePanels=experienceCertificatePanels(position);
       const anyCashCurve=(performance.cashFlow?.currencies||[]).some(r=>r.sourceReadiness?.fundingCurveReady===true);
-      performanceDetail=(cashSections+certificatePanels)||'<section class="planning-panel primary cash-flow-position"><div class="planning-panel-body"><div class="cash-flow-hero withheld"><div><span>Cash Flow</span><strong>Not confirmed</strong><p>No confirmed cash-flow currency position can be produced from the current evidence. CMeng will not manufacture a cash curve from payment or cost values without a defensible dated cash basis.</p></div></div><div class="cash-flow-related-actions">'+managementModuleLink("payments","Open Payments")+managementModuleLink("cost-forecast","Open Cost & Forecast")+'</div></div></section>';
+      performanceDetail=(cashSections+certificatePanels)||'<section class="planning-panel primary cash-flow-position"><div class="planning-panel-body"><div class="cash-flow-hero withheld"><div><span>Cash Flow</span><strong>Unresolved</strong><p>No confirmed cash-flow currency position can be produced from the current evidence. CMeng will not manufacture a cash curve from payment or cost values without a defensible dated cash basis.</p></div></div><div class="cash-flow-related-actions">'+managementModuleLink("payments","Open Payments")+managementModuleLink("cost-forecast","Open Cost & Forecast")+'</div></div></section>';
     }
 
   }
@@ -3713,7 +3713,7 @@ function renderManagementControlVisual(key,data){
     return '<div class="planning-view management-view master-control-view">'+
       managementPanel("Programme control","Current programme, controlled baseline and project structure.",planningKpis([
         ["Project",s.project||data.projectId,"Current project"],
-        ["Programme membership",humanizeKey(s.programmeMembershipState||"not_established"),s.programme||"not confirmed",s.programmeMembershipState==="established"?"":"warning"],
+        ["Programme membership",humanizeKey(s.programmeMembershipState||"not_established"),s.programme||"Programme membership is not established in the supplied project records",s.programmeMembershipState==="established"?"":"warning"],
         ["Current programme",r.currentLabel?planningRevisionLabel(r.currentLabel):"Unresolved",r.currentDataDateIso?planningShortDate(r.currentDataDateIso):"no Data Date",r.currentRevisionId?"success":"warning"],
         ["Controlled baseline",r.baselineLabel?planningRevisionLabel(r.baselineLabel):"Unresolved",r.baselineRevisionId?"Baseline revision; full document reference in details":"no confirmed baseline",r.baselineRevisionId?"success":"warning"],
         ["Programme revisions",r.governedRevisionCount??0,"non-recovery revisions"],
