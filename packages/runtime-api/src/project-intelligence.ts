@@ -374,6 +374,14 @@ function requestedFacts(question: string, projectId: string): AnswerFact[] {
     add('independent-forecast.sourceInterpretation.productivityForecast.completionIso','Source productivity forecast · not contractual amendment',c?.productivityForecast?.completionIso,{authority:'source'});
     add('independent-forecast.independentForecastCompletionIso',c?.calendarReview?.state==='calendar_basis_difference'?'Submitted logic recalculated on its own calendars · model reconciliation, not delay':'Source-calendar completion calculation · review its assumptions and authority',d?.independentForecastCompletionIso,{authority:'calculated'});
     add('independent-forecast.sourceInterpretation.calendarReview.elapsedDayMatchCount','Completed tasks matching elapsed-day duration convention',c?.calendarReview?.elapsedDayMatchCount,{authority:'calculated'});
+    const basis=d?.scheduleBasisReview;
+    for(const [i,g] of (basis?.groups??[]).entries())add('independent-forecast.scheduleBasisReview.groups['+i+'].packageCount','Packages using '+g.calendarName+' ('+g.workingDaysPerWeek+' work days/week)',g.packageCount,{authority:'source'});
+    add('independent-forecast.scheduleBasisReview.sensitivity.completionIso','Calendar sensitivity finish · alternative assumption only',basis?.sensitivity?.completionIso,{authority:'scenario'});
+    add('independent-forecast.scheduleBasisReview.sensitivity.movementDays','Calendar sensitivity movement (days) · not delay entitlement',basis?.sensitivity?.movementDays,{authority:'scenario'});
+    add('independent-forecast.sourceInterpretation.productivityForecast.driverWorkPackageIds','Source productivity driver package IDs',(c?.productivityForecast?.driverWorkPackageIds??[]).join(', ')||null,{authority:'source'});
+    const quantity=d?.quantityBasisReview?.forecast;
+    add('independent-forecast.quantityBasisReview.forecast.explicitActivityLinkCount','Productivity rows explicitly linked to schedule activities',quantity?.explicitActivityLinkCount,{authority:'source'});
+    add('independent-forecast.quantityBasisReview.forecast.sameNumberDisciplineMatches','Same-number packages matching discipline · resemblance is not linkage',quantity?.sameNumberDisciplineMatches,{authority:'calculated'});
   }
   if(/cash|certificate/.test(q)){
     const d=data('cash-flow');
@@ -509,13 +517,21 @@ export function answerProjectQuestion(
     },new Map<string,AnswerFact>()).values(),
   ].slice(0, 40);
 
-  const actions =
+  let actions =
     director &&
     Array.isArray(
       director.managementActions,
     )
       ? director.managementActions
       : [];
+  if(/forecast|calendar|completion|finish/i.test(question)&&!/quality|ncr|rfi|claim|eot/i.test(question)){
+    const data=moduleForProject(projectId,'independent-forecast').data as any;
+    actions=[];
+    for(const group of data?.scheduleBasisReview?.groups??[])actions.push('Confirm the assigned '+group.calendarName+' calendar for '+group.packageCount+' packages; '+group.workingDaysPerWeek+' work days per week. Compare the alternative calendar scenario before adopting a finish.');
+    const forecast=data?.quantityBasisReview?.forecast;
+    if(forecast)actions.push('Confirm the productivity-to-schedule crosswalk: '+forecast.explicitActivityLinkCount+' of '+forecast.workPackageCount+' rows have explicit activity links. Review the driver package quantities, units and discipline with the source owner.');
+    if(!actions.length)actions.push('Provide the dated productivity basis, schedule links and applicable work calendars so the forecast drivers can be reviewed.');
+  }
 
   return {
     projectId,

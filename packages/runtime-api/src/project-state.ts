@@ -1,4 +1,5 @@
 import {refreshHseSummary} from "./hse-report-evidence";
+import {refreshDeferredPdfRead} from './document-read-review';
 import {quantityModelFromBoq} from './boq-source';
 import { synchronizeCanonicalTimeClaims } from "./canonical-time-claims";
 import { migrateTypedEvidenceFamilies } from "./typed-evidence-families";
@@ -2006,6 +2007,23 @@ export class RuntimeProjectStore {
     } finally {
       await parser.destroy();
     }
+  }
+
+  async refreshDeferredPdfReads(projectId?:string) {
+    let refreshedDocumentCount=0;const diagnostics:string[]=[];const changedProjects:string[]=[];
+    if(process.env.CMENG_OCR_ENABLED?.trim()==='0')return {refreshedDocumentCount,diagnostics,changedProjects};
+    for(const state of this.projects.values()){
+      if(projectId&&state.projectId!==projectId)continue;
+      for(const document of [...state.evidenceDocuments]){
+        try{
+          if(await refreshDeferredPdfRead(document,()=>this.createOcrProvider())&&state.evidenceDocuments.includes(document)){
+            refreshedDocumentCount++;if(!changedProjects.includes(state.projectId))changedProjects.push(state.projectId);
+            state.version++;state.lastRerunReceipt=null;this.staleFinalizedBoardPublications(state);this.persistSnapshot();
+          }
+        }catch(error){diagnostics.push('DEFERRED_PDF_REFRESH_FAILED:'+document.documentId+':'+String(error));}
+      }
+    }
+    return {refreshedDocumentCount,diagnostics,changedProjects};
   }
 
   async refreshHseReports(projectId?:string) {

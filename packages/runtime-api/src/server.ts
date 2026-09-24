@@ -1,4 +1,5 @@
 import {managementForecastPosition} from '../../management-surfaces/src';
+import {documentReadReview} from './document-read-review';
 import JSZip from "jszip";
 import {
   createServer,
@@ -952,7 +953,7 @@ async function route(
           schemaDiagnostics,
         ).map((table) => [
           table.document.documentId,
-          [...table.headers],
+            table,
         ]),
       );
     json(res, 200, {
@@ -966,10 +967,11 @@ async function route(
           .map((document) => ({
             ...document,
             classificationReview: documentClassificationForReview(document),
+            readReview:documentReadReview(document,state,schemaByDocument.get(document.documentId)),
             schemaHeaders:
               schemaByDocument.get(
                 document.documentId,
-              ) ?? [],
+              )?.headers ?? [],
           })),
     });
     return;
@@ -1594,6 +1596,7 @@ async function route(
         }
       }
 
+      await runtimeProjects.refreshDeferredPdfReads(projectId);
       await runtimeProjects.refreshHseReports(projectId);
       await runtimeProjects
         .refreshCorrespondenceNarratives(
@@ -1717,6 +1720,7 @@ async function route(
           uploadIntent:
             intent,
         });
+    await runtimeProjects.refreshDeferredPdfReads(projectId);
     await runtimeProjects.refreshHseReports(projectId);
     await runtimeProjects
       .refreshCorrespondenceNarratives(
@@ -3143,6 +3147,10 @@ if (require.main === module) {
       process.stdout.write(
         `CMeng runtime listening on ${host}:${port}\n`,
       );
+      void runtimeProjects.refreshDeferredPdfReads().then(result=>{
+        for(const projectId of result.changedProjects)invalidateProject(projectId);
+        if(result.refreshedDocumentCount||result.diagnostics.length)process.stdout.write(JSON.stringify({event:'deferred_pdf_read_refresh',refreshedDocumentCount:result.refreshedDocumentCount,diagnosticCodes:result.diagnostics.map(x=>x.split(':')[0])})+'\n');
+      }).catch(error=>process.stderr.write('DEFERRED_PDF_READ_REFRESH_FAILED:'+String(error)+'\n'));
     });
   })().catch((error) => {
     process.stderr.write(
