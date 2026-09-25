@@ -1,0 +1,43 @@
+name: CMeng ORBIT BOQ Authority Trace
+on:
+  push:
+    branches: [audit/orbit-boq-authority-trace-20260925]
+permissions:
+  contents: read
+jobs:
+  trace:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Inspect live ORBIT BOQ authority read-only
+        env:
+          BASE: https://cmeng-main-production.up.railway.app
+        run: |
+          python - <<'PY'
+          import json, urllib.parse, urllib.request
+          base="https://cmeng-main-production.up.railway.app"
+          pid="ORBIT-JED-PLH-P3"
+          q=urllib.parse.quote(pid,safe="")
+          def get(p):
+              with urllib.request.urlopen(base+p,timeout=180) as r:return json.load(r)
+          ov=get("/api/projects/"+q+"/overview")
+          docs=get("/api/projects/"+q+"/evidence/documents")
+          qty=get("/api/projects/"+q+"/schedule/modules/quantity-scurve")
+          chall=get("/api/projects/"+q+"/schedule/modules/challenge-contract")
+          relevant=[{
+            "documentId":d.get("documentId"),"sourceFilename":d.get("sourceFilename"),
+            "documentType":d.get("documentType"),"familyKey":d.get("familyKey"),
+            "basisState":d.get("basisState"),"linkedArtifactId":d.get("linkedArtifactId"),
+            "classification":(d.get("identification") or {}).get("detectedDocumentType")
+          } for d in docs.get("documents",[]) if d.get("familyKey")=="boq:quantity" or d.get("documentType")=="boq"]
+          print(json.dumps({
+            "activeBasis":(ov.get("activeEvidenceBasis") or {}).get("boq:quantity"),
+            "minimumBoq":(ov.get("minimumEvidenceBasis") or {}).get("boq"),
+            "boqState":ov.get("boqState"),
+            "boqDocuments":relevant,
+            "quantityBoqSource":(qty.get("data") or {}).get("boqSource"),
+            "quantityReadiness":(qty.get("data") or {}).get("moduleReadiness"),
+            "quantityIssues":(qty.get("data") or {}).get("issueAssessment"),
+            "challengeReadiness":(chall.get("data") or {}).get("moduleReadiness"),
+          },indent=2))
+          PY
