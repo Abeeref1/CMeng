@@ -1156,11 +1156,11 @@ function renderQuantityScurveVisual(data){
   if(mappedSeries.length===0){
     const candidates=p.inferredMapping?.selectedScenarioLinks?.length||0;
     const mappingSummary=boqItemCount===null?"BOQ item population is not confirmed.":fmt(mappedItemCount||0)+" of "+fmt(boqItemCount)+" BOQ items currently have an allocation.";
-    return '<section class="planning-view quantity-view">'+top+diagnostics+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Installed Quantities</h4><p>BOQ quantities are shown by unit. Schedule mapping is required for planned curves; measured installed quantities require dated quantity evidence.</p></div></div><div class="planning-panel-body"><div class="notice warn"><b>No confirmed quantity curve is available.</b> '+escapeHtml(candidates?candidates+" candidate link(s) were found, but they remain scenarios and are not used as project facts.":"No defensible BOQ-to-activity crosswalk is established.")+" "+escapeHtml(mappingSummary)+'</div>'+moduleEvidenceGate([
+    return '<section class="planning-view quantity-view">'+top+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Installed Quantities</h4><p>BOQ quantities are shown by unit. Schedule mapping is required for planned curves; measured installed quantities require dated quantity evidence.</p></div></div><div class="planning-panel-body"><div class="notice warn"><b>No confirmed quantity curve is available.</b> '+escapeHtml(candidates?candidates+" candidate link(s) were found, but they remain scenarios and are not used as project facts.":"No defensible BOQ-to-activity crosswalk is established.")+" "+escapeHtml(mappingSummary)+'</div>'+moduleEvidenceGate([
       {label:"BOQ quantity basis",value:p.boqRevisionId?"Loaded":"Unresolved",state:p.boqRevisionId?"ready":"missing"},
       {label:"Confirmed BOQ-to-activity links",value:p.mappingBasis==="governed"?"Established":"Unresolved",state:p.mappingBasis==="governed"?"ready":"missing"},
       {label:"Installed quantity history",value:"Dated installed measurements not confirmed",state:"missing"}
-    ])+'</div></section></section>';
+    ])+'</div></section>'+diagnostics+'</section>';
   }
 
   const charts=mappedSeries.map(series=>'<section class="planning-panel"><div class="planning-panel-head"><div><h4>'+escapeHtml(series.unit||series.unitKey||"Unit")+' quantity curve</h4><p>'+escapeHtml(fmt(series.itemCount))+' BOQ item(s) in this unit · mapping coverage '+escapeHtml(series.mappingCoveragePercent===null?"—":fmt(series.mappingCoveragePercent)+"%")+'</p></div><span class="badge '+(p.mappingBasis==="governed"?"ready":"partial")+'">'+escapeHtml(p.mappingBasis==="governed"?"Confirmed mapped plan":p.mappingBasis==="candidate_scenario"?"Scenario plan; measured actual separate":"Measured actual; plan mapping missing")+'</span></div><div class="planning-panel-body">'+renderLineChart(series.points||[],[
@@ -1168,7 +1168,7 @@ function renderQuantityScurveVisual(data){
     {key:"currentForecastQuantity",label:series.authority==="scenario_mapping"?"Scenario current plan":"Mapped current plan",color:"#4f7fb4"},
     {key:"actualInstalledQuantity",label:"Measured installed quantities",step:true,color:"#2c7a57"}
   ],null,{unit:series.unit||series.unitKey||"",yLabel:"Cumulative quantity",xLabel:"Reporting date",dataDateIso:p.dataDateIso,ariaLabel:(series.unit||series.unitKey||"Quantity")+" S-Curve"})+'</div></section>').join("");
-  return '<section class="planning-view quantity-view">'+top+diagnostics+charts+'</section>';
+  return '<section class="planning-view quantity-view">'+top+charts+diagnostics+'</section>';
 }
 function renderLookAheadVisual(data){
   const p=projectionFor(data,"lookahead_schedule");
