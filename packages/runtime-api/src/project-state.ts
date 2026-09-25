@@ -1526,12 +1526,13 @@ export class RuntimeProjectStore {
           }
         }
 
+        // Active BOQ synchronization is an idempotent invariant repair, not
+        // a version-gated migration. A prior release may already carry the
+        // version marker while retaining a stale legacy runtime BOQ slot.
         const activeBoqMigrated =
-          requiresV6RoleAndBasisMigration
-            ? synchronizeActiveBoq(
-                state,
-              )
-            : false;
+          synchronizeActiveBoq(
+            state,
+          );
 
         const requiresV7ProductivityGovernance =
           priorSourceIntegrationVersion !==
