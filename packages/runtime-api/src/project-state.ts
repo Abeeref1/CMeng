@@ -676,6 +676,151 @@ function synchronizeActiveBoq(
   return true;
 }
 
+function migrateProductivityEvidenceGovernance(
+  state: ProjectRuntimeState,
+): boolean {
+  const productivityTypes =
+    new Set([
+      "productivity_work_package_register",
+      "productivity_forecast_basis",
+    ]);
+  const affectedFamilies =
+    new Set<string>();
+  let changed = false;
+
+  for (const document of state.evidenceDocuments) {
+    const sourcePath =
+      document.sourceRelativePath ??
+      document.sourceFilename;
+    const inferredType =
+      inferDocumentType(
+        sourcePath,
+        null,
+      );
+    const documentType =
+      productivityTypes.has(
+        document.documentType,
+      )
+        ? document.documentType
+        : productivityTypes.has(
+              inferredType,
+            )
+          ? inferredType
+          : null;
+
+    if (!documentType) {
+      continue;
+    }
+
+    affectedFamilies.add(
+      document.familyKey,
+    );
+
+    const family =
+      evidenceFamily({
+        category:
+          "schedule_control",
+        documentType,
+        scheduleRole: null,
+        textSample:
+          document.assertions
+            .map(
+              (assertion) =>
+                assertion.sourceText,
+            )
+            .join("\n"),
+        sourceFilename:
+          document.sourceFilename,
+      });
+
+    const metadataChanged =
+      document.category !==
+        "schedule_control" ||
+      document.documentType !==
+        documentType ||
+      document.familyKey !==
+        family.familyKey ||
+      document.logicalDocumentKey !==
+        family.logicalDocumentKey ||
+      document.scheduleRole !==
+        null;
+
+    if (metadataChanged) {
+      document.category =
+        "schedule_control";
+      document.documentType =
+        documentType;
+      document.familyKey =
+        family.familyKey;
+      document.logicalDocumentKey =
+        family.logicalDocumentKey;
+      document.scheduleRole =
+        null;
+      document.identification = {
+        ...document.identification,
+        detectedCategory:
+          "schedule_control",
+        detectedDocumentType:
+          documentType,
+        filenameHintCategory:
+          "schedule_control",
+        filenameHintDocumentType:
+          documentType,
+        classificationConflict:
+          false,
+      };
+      changed = true;
+    }
+
+    if (
+      document.basisState ===
+        "historical"
+    ) {
+      changed = true;
+    }
+
+    if (
+      !document.diagnostics.includes(
+        "PRODUCTIVITY_SOURCE_GOVERNANCE_MIGRATION_V7",
+      )
+    ) {
+      document.diagnostics.push(
+        "PRODUCTIVITY_SOURCE_GOVERNANCE_MIGRATION_V7",
+      );
+      changed = true;
+    }
+
+    affectedFamilies.add(
+      family.familyKey,
+    );
+  }
+
+  if (!changed) {
+    return false;
+  }
+
+  for (const familyKey of affectedFamilies) {
+    if (
+      state.evidenceDocuments.some(
+        (document) =>
+          document.familyKey ===
+          familyKey,
+      )
+    ) {
+      rebuildEvidenceFamily(
+        state,
+        familyKey,
+      );
+    } else {
+      delete state.activeEvidenceBasis[
+        familyKey
+      ];
+    }
+  }
+
+  return true;
+}
+
 function hydrateProject(
   state: SerializedProjectState,
 ): ProjectRuntimeState {
@@ -1224,7 +1369,9 @@ export class RuntimeProjectStore {
           priorSourceIntegrationVersion !==
             "canonical-source-v5" &&
           priorSourceIntegrationVersion !==
-            "canonical-source-v6";
+            "canonical-source-v6" &&
+          priorSourceIntegrationVersion !==
+            "canonical-source-v7";
 
         if (requiresV5GovernanceMigration) {
           const controlFamily =
@@ -1357,7 +1504,9 @@ export class RuntimeProjectStore {
 
         const requiresV6RoleAndBasisMigration =
           priorSourceIntegrationVersion !==
-          "canonical-source-v6";
+            "canonical-source-v6" &&
+          priorSourceIntegrationVersion !==
+            "canonical-source-v7";
         const roleFamilies =
           new Set<string>();
         const scheduleRoleMigrated =
@@ -1384,16 +1533,28 @@ export class RuntimeProjectStore {
               )
             : false;
 
+        const requiresV7ProductivityGovernance =
+          priorSourceIntegrationVersion !==
+          "canonical-source-v7";
+        const productivityGovernanceMigrated =
+          requiresV7ProductivityGovernance
+            ? migrateProductivityEvidenceGovernance(
+                state,
+              )
+            : false;
+
         if (
           migrated ||
           controlBasisMigrated ||
           scheduleRoleMigrated ||
           activeBoqMigrated ||
+          productivityGovernanceMigrated ||
           requiresV5GovernanceMigration ||
-          requiresV6RoleAndBasisMigration
+          requiresV6RoleAndBasisMigration ||
+          requiresV7ProductivityGovernance
         ) {
           state.sourceIntegrationVersion =
-            "canonical-source-v6";
+            "canonical-source-v7";
           state.version += 1;
           this.staleFinalizedBoardPublications(state);
           state.lastRerunReceipt = null;
