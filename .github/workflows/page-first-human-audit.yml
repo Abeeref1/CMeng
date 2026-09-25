@@ -1,0 +1,33 @@
+name: CMeng Page-First Human Audit
+on:
+  push:
+    branches:
+      - audit/page-first-postfix-20260925
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      CMENG_RAILWAY_URL: https://cmeng-main-production.up.railway.app
+      CMENG_EXPECTED_RELEASE: 1d251e63806a48a0d784cb6e7f80f3d603cc001b
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install browser
+        run: |
+          python -m pip install playwright==1.57.0
+          python -m playwright install --with-deps chromium
+      - name: Run page-first human audit
+        run: python scripts/page-first-human-audit.py
+      - name: Upload audit evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cmeng-page-first-postfix-audit-${{ github.run_id }}
+          path: human-audit/
+          retention-days: 7
