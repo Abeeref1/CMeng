@@ -520,6 +520,10 @@ async function route(
     url.pathname ===
       "/api/portfolio"
   ) {
+    // Portfolio is a selector and summary surface. It must never execute the
+    // full specialist calculation graph for every project simply to list the
+    // projects. Use retained metadata and the latest durable rerun receipt
+    // only; detailed management values are calculated when the project opens.
     const projects =
       runtimeProjects
         .listProjectIds()
@@ -551,23 +555,17 @@ async function route(
             runtimeProjects.latestSchedule(
               projectId,
             );
-          const moduleStatuses = [
-            ...scheduleModules,
-            ...commercialModules,
-          ].map(
-            (module) => {
-              const resolved =
-                moduleForProject(
-                  projectId,
-                  module.key,
-                );
-              return {
-                key: module.key,
-                status:
-                  resolved.status,
-              };
-            },
-          );
+          const currentReceipt =
+            state.lastRerunReceipt &&
+            state.lastRerunReceipt
+              .projectVersion ===
+              state.version
+              ? state.lastRerunReceipt
+              : null;
+          const moduleStatuses =
+            currentReceipt
+              ?.moduleResults ??
+            [];
           const readyModules =
             moduleStatuses.filter(
               (module) =>
@@ -586,10 +584,6 @@ async function route(
                 module.status ===
                 "blocked",
             ).length;
-          const commercialPosition =
-            commercialPositionForState(
-              state,
-            );
 
           const minimumEvidenceReady =
             programmeSchedules.length >
@@ -597,35 +591,32 @@ async function route(
             state.boqRevisions.length >
               0;
           const lastRerunState =
-            state.lastRerunReceipt
+            currentReceipt
               ?.certification
               .state ??
             null;
+          const fullModuleCount =
+            scheduleModules.length +
+            commercialModules.length;
+          const durableStatusComplete =
+            moduleStatuses.length ===
+            fullModuleCount;
+          const allDurableModulesReady =
+            durableStatusComplete &&
+            readyModules ===
+              fullModuleCount;
 
-          const director =
-            directorForProject(
-              projectId,
-            );
-          const windowsResult =
-            moduleForProject(
-              projectId,
-              "windows-analysis",
-            );
-          const windowsData =
-            windowsResult.data &&
-            typeof windowsResult.data ===
-              "object"
-              ? windowsResult.data as {
-                  projectCompletionMovementDays?:
-                    number | null;
-                }
-              : null;
+          const contractTime =
+            state.controls
+              .contractTimeBasis;
 
           return {
             projectId,
             demo: false,
             version:
               state.version,
+            summaryMode:
+              "metadata_only",
             latestDataDateIso:
               latest?.revision.model
                 .dataDateIso ??
@@ -637,62 +628,70 @@ async function route(
               programmeSchedules.length,
             minimumEvidenceReady,
             moduleCount:
-              moduleStatuses.length,
+              fullModuleCount,
             scheduleModuleCount:
               scheduleModules.length,
             commercialModuleCount:
               commercialModules.length,
-            readyModules,
-            partialModules,
-            blockedModules,
+            readyModules:
+              durableStatusComplete
+                ? readyModules
+                : null,
+            partialModules:
+              durableStatusComplete
+                ? partialModules
+                : null,
+            blockedModules:
+              durableStatusComplete
+                ? blockedModules
+                : null,
             lastRerunState,
             positionState:
               !minimumEvidenceReady
                 ? "needs_information"
                 : lastRerunState ===
-                    "pass" && readyModules === moduleStatuses.length
+                    "pass" &&
+                  allDurableModulesReady
                   ? "current"
                   : "needs_review",
-            forecastCompletionIso:managementForecastPosition(director).completionIso,
-            forecastAuthority:managementForecastPosition(director).authority,
-            forecastLabel:managementForecastPosition(director).label,
-            calendarRecalculationIso:managementForecastPosition(director).calendarRecalculationIso,
-            officialCompletionIso:
-              director?.schedule
-                .contractualCompletionIso ??
+            forecastCompletionIso:
               null,
-            contractualCompletionState: commercialPosition.foundation.commercialTerms.contractualCompletionDate.state,
-            furtherAdjustedCompletionIso: director?.schedule.officialAdjustedCompletionIso ?? null,
+            forecastAuthority:
+              "open_project",
+            forecastLabel:
+              "Current forecast",
+            calendarRecalculationIso:
+              null,
+            officialCompletionIso:
+              contractTime
+                ?.contractualCompletionIso ??
+              null,
+            contractualCompletionState:
+              contractTime
+                ?.contractualCompletionState ??
+              "missing",
+            furtherAdjustedCompletionIso:
+              null,
             programmeMovementDays:
-              windowsData
-                ?.projectCompletionMovementDays ??
               null,
             approvedEotDays:
-              director?.claims
-                .officialApprovedEotDays ??
+              contractTime
+                ?.officialApprovedEotDays ??
               null,
-            approvedEotBasis: 'Gross source-approved determinations through the Data Date; overlap and further contractual adjustment require reconciliation.',
+            approvedEotBasis:
+              "Stored contract-time basis only. Open the project for the current integrated EOT assessment.",
             claimCount:
-              director?.claims
-                .claimCount ??
               null,
             fullyLinkedClaimCount:
-              director?.claims
-                .fullyLinkedClaimCount ??
               null,
             managementActionCount:
-              director
-                ? director
-                    .managementActions
-                    .length
-                : null,
+              null,
             managementActions:
-              director
-                ?.managementActions ??
               [],
             commercialCurrencyCount:
-              commercialPosition
-                .currencies.length,
+              null,
+            detailState:
+              "open_project_for_current_position",
             analysisError: null,
           };
         })
