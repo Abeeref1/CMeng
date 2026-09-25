@@ -60,7 +60,7 @@ export function positionVerdict(result:ModuleRuntimeResult) {
   if(d.registerDateReview?.likelyMappingFault&&(!specific||result.key==='source-quality')){rag='amber';specific=true;text=d.registerDateReview.message;nextAction='CMeng must check the date columns and reader before requesting replacement files.';assignTo='CMeng Support';}
   else if(rag==='green'&&(counts.source||counts.pending||counts.review))rag='amber';
   const first=(a?.issues??[]).find((i:ControlIssue)=>i.kind==='system_defect')??(a?.issues??[]).find((i:ControlIssue)=>['source_conflict','data_quality','missing_information'].includes(i.kind))??(a?.issues??[])[0];
-  if(!nextAction&&/baseline plan/.test(text))nextAction='Review the activities behind the progress difference against baseline plan.';
+  if(!nextAction&&/baseline plan/.test(text))nextAction=/matches baseline plan/.test(text)?'Monitor schedule progress against baseline plan.':'Review the activities behind the progress difference against baseline plan.';
   if(!nextAction&&/resource|Hours/.test(text))nextAction='Review resource demand, available capacity and the dates covered by the hours.';
   // Only pair a register action with its own finding. Never attach an arbitrary
   // first issue to a different page headline.
