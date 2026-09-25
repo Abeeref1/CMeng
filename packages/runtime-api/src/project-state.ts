@@ -4395,18 +4395,10 @@ export class RuntimeProjectStore {
           role:
             input.scheduleRole?.trim()
               ? input.scheduleRole
-              : documentType === "schedule_baseline"
-                ? "baseline"
-                : documentType === "schedule_revised_baseline"
-                  ? "revised_baseline"
-                  : documentType === "schedule_recovery"
-                    ? "recovery"
-                    : documentType === "schedule_update"
-                      ? "update"
-                      : inferScheduleRole(
-                          relativePath,
-                          null,
-                        ),
+              : inferScheduleRole(
+                  relativePath,
+                  null,
+                ),
           label:
             input.sourceFilename,
           uploadedAt:
