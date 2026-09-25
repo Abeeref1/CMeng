@@ -1,0 +1,83 @@
+name: CMeng Postfix Readiness Trace
+on:
+  push:
+    branches: [audit/page-first-postfix-20260925]
+permissions:
+  contents: read
+jobs:
+  trace:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Trace live readiness and authority
+        env:
+          BASE: https://cmeng-main-production.up.railway.app
+          EXPECTED: 1d251e63806a48a0d784cb6e7f80f3d603cc001b
+        run: |
+          python - <<'PY'
+          import json, os, urllib.parse, urllib.request
+          base=os.environ["BASE"].rstrip("/")
+          def get(path):
+              with urllib.request.urlopen(base+path,timeout=180) as r:
+                  return json.load(r)
+          health=get("/health")
+          assert health.get("release")==os.environ["EXPECTED"], health
+          portfolio=get("/api/portfolio")
+          keys=[
+            ("schedule","pmo-analysis"),("schedule","schedule-analytics"),("schedule","activity-analytics"),
+            ("schedule","lookahead-schedule"),("schedule","schedule-change-report"),("schedule","revision-trend"),
+            ("schedule","milestones"),("schedule","near-critical"),("schedule","resource-utilization"),
+            ("schedule","progress-report"),("schedule","variance-trends"),("schedule","progress-scurve"),
+            ("schedule","quantity-scurve"),("schedule","progress-breakdown"),("schedule","manhour-scurve"),
+            ("schedule","forecast-history"),("schedule","independent-forecast"),("schedule","delay-claims"),
+            ("schedule","notices-claims"),("schedule","windows-analysis"),("schedule","eot-assessment"),
+            ("schedule","challenge-contract"),("commercial","commercial-overview"),("commercial","cost-forecast"),
+            ("commercial","variations-change"),("commercial","payments"),("commercial","cash-flow"),
+            ("commercial","commercial-claims-notices"),("commercial","contract-particulars-bonds"),
+          ]
+          out=[]
+          for project in portfolio.get("projects",[]):
+              pid=project["projectId"]; q=urllib.parse.quote(pid,safe="")
+              ov=get("/api/projects/"+q+"/overview")
+              revs=get("/api/projects/"+q+"/schedule/revisions")
+              sq=get("/api/projects/"+q+"/management/source-quality")
+              modules=[]
+              for area,key in keys:
+                  path="/api/projects/"+q+"/"+area+"/modules/"+key
+                  m=get(path)
+                  d=m.get("data") or {}
+                  mr=d.get("moduleReadiness") or {}
+                  ia=d.get("issueAssessment") or m.get("issueAssessment") or {}
+                  ch=d.get("challenge") or {}
+                  modules.append({
+                    "key":key,"status":m.get("status"),"reason":m.get("reason"),
+                    "engineState":m.get("engineState"),"evidenceState":m.get("evidenceState"),
+                    "professionalState":m.get("professionalState"),
+                    "calculation":mr.get("calculation"),"consistency":mr.get("consistency"),
+                    "projectConsistency":mr.get("projectConsistency"),
+                    "comparisonState":mr.get("comparisonState"),"comparisonRequired":mr.get("comparisonRequired"),
+                    "blockingIssueCount":mr.get("blockingIssueCount"),"reviewIssueCount":mr.get("reviewIssueCount"),
+                    "failedConsistencyCheckIds":mr.get("failedConsistencyCheckIds"),
+                    "issueCounts":ia.get("counts"),
+                    "primaryIssue":ia.get("primaryKind"),
+                    "challengeItemCount":ch.get("itemCount"),"challengeState":ch.get("reconciliationState"),
+                    "challengeMetrics":[x.get("metric") for x in (ch.get("items") or [])],
+                  })
+              out.append({
+                "projectId":pid,
+                "overview":{
+                  "baselineRevisionCount":ov.get("baselineRevisionCount"),
+                  "updateRevisionCount":ov.get("updateRevisionCount"),
+                  "recoveryRevisionCount":ov.get("recoveryRevisionCount"),
+                  "managementStates":ov.get("managementStates"),
+                },
+                "revisions":[{"sourceFilename":x.get("sourceFilename"),"role":x.get("role"),"dataDateIso":x.get("dataDateIso")} for x in revs],
+                "sourceQuality":{
+                  "status":sq.get("status"),"reason":sq.get("reason"),
+                  "systemFailures":(sq.get("data") or {}).get("systemFailures"),
+                  "pageValueChecks":[x for x in ((sq.get("data") or {}).get("pageValueChecks") or []) if x.get("state")=="failed"],
+                },
+                "modules":modules,
+              })
+          print(json.dumps({"release":health.get("release"),"projects":out},indent=2))
+          PY
