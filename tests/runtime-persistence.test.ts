@@ -12,6 +12,9 @@ import { join } from "node:path";
 import {
   RuntimeProjectStore,
 } from "../packages/runtime-api/src/project-state";
+import {
+  sourceProductivityForecastEvidence,
+} from "../packages/runtime-api/src/source-productivity-forecast";
 
 function xerFixture(): Uint8Array {
   const text = [
@@ -363,7 +366,7 @@ test("restoring legacy baseline-named schedules repairs only strong source roles
     assert.equal(doc.scheduleRole,"baseline");
     assert.equal(doc.documentType,"schedule_baseline");
     assert.equal(doc.familyKey,"schedule:baseline");
-    assert.equal(restored.sourceIntegrationVersion,"canonical-source-v6");
+    assert.equal(restored.sourceIntegrationVersion,"canonical-source-v7");
   } finally {
     rmSync(dataDir,{recursive:true,force:true});
   }
@@ -404,8 +407,159 @@ test("restoring a stale runtime BOQ rebinds it to the governed active artifact",
     const restored=new RuntimeProjectStore({dataDir,durable:true}).get("BOQ-MIGRATION")!;
     assert.equal(restored.boq?.ingestionId,activeId);
     assert.equal(restored.quantities?.boqRevisionId,restored.boq?.evidenceReceipt.revisionId);
-    assert.equal(restored.sourceIntegrationVersion,"canonical-source-v6");
+    assert.equal(restored.sourceIntegrationVersion,"canonical-source-v7");
   } finally {
     rmSync(dataDir,{recursive:true,force:true});
+  }
+});
+
+
+test("restoring legacy productivity evidence promotes its source family without inventing forecast values", async () => {
+  const dataDir =
+    mkdtempSync(
+      join(
+        tmpdir(),
+        "cmeng-productivity-migration-",
+      ),
+    );
+
+  try {
+    const first =
+      new RuntimeProjectStore({
+        dataDir,
+        durable: true,
+      });
+
+    await first.ingestSchedule({
+      projectId:
+        "PRODUCTIVITY-MIGRATION",
+      bytes:
+        new TextEncoder().encode(
+          new TextDecoder()
+            .decode(
+              xerFixture(),
+            )
+            .replace(
+              "PERSIST",
+              "PRODUCTIVITY-MIGRATION",
+            ),
+        ),
+      mediaType: "text/plain",
+      sourceFilename:
+        "S03_Current_U02.xer",
+      role: "update",
+      label: "Current",
+      uploadedAt:
+        "2026-09-18T20:00:00.000Z",
+    });
+
+    const productivity =
+      [
+        "Work Package ID,Remaining Quantity,Conservative Achievable Rate Per Day,Productive Days,Interface Allowance Days,Independent Forecast Finish,As Of",
+        "WP-01,100,10,10,2,2026-10-01,2026-09-18",
+      ].join("\n");
+
+    const upload =
+      await first.ingestEvidenceFile({
+        projectId:
+          "PRODUCTIVITY-MIGRATION",
+        bytes:
+          new TextEncoder().encode(
+            productivity,
+          ),
+        mediaType:
+          "text/csv",
+        sourceFilename:
+          "IF01_Remaining_Quantity_Productivity_Model.csv",
+        sourceRelativePath:
+          "03_Schedule_Control/IF01_Remaining_Quantity_Productivity_Model.csv",
+        uploadedAt:
+          "2026-09-18T20:01:00.000Z",
+      });
+
+    const legacy =
+      first.get(
+        "PRODUCTIVITY-MIGRATION",
+      )!;
+    const document =
+      legacy.evidenceDocuments.find(
+        (item) =>
+          item.documentId ===
+          upload.documentId,
+      )!;
+
+    document.basisState =
+      "historical";
+    delete legacy.activeEvidenceBasis[
+      document.familyKey
+    ];
+    legacy.sourceIntegrationVersion =
+      "canonical-source-v6";
+    first.replace(legacy);
+
+    const restored =
+      new RuntimeProjectStore({
+        dataDir,
+        durable: true,
+      }).get(
+        "PRODUCTIVITY-MIGRATION",
+      )!;
+
+    const restoredDocument =
+      restored.evidenceDocuments.find(
+        (item) =>
+          item.documentId ===
+          upload.documentId,
+      )!;
+
+    assert.equal(
+      restoredDocument.category,
+      "schedule_control",
+    );
+    assert.equal(
+      restoredDocument.documentType,
+      "productivity_work_package_register",
+    );
+    assert.equal(
+      restoredDocument.basisState,
+      "active",
+    );
+    assert.equal(
+      restored.activeEvidenceBasis[
+        restoredDocument.familyKey
+      ]?.activeDocumentId,
+      restoredDocument.documentId,
+    );
+    assert.equal(
+      restored.sourceIntegrationVersion,
+      "canonical-source-v7",
+    );
+
+    const forecast =
+      sourceProductivityForecastEvidence(
+        restored,
+      );
+    assert.equal(
+      forecast.workPackageCount,
+      1,
+      "governed IF01 rows must be visible to the generic productivity producer",
+    );
+    assert.equal(
+      forecast.method,
+      "source_work_package_productivity_model",
+    );
+    assert.equal(
+      forecast.completionIso,
+      "2026-10-01",
+      "source model finish is retained only because its quantity/rate/productive-day arithmetic reconciles",
+    );
+  } finally {
+    rmSync(
+      dataDir,
+      {
+        recursive: true,
+        force: true,
+      },
+    );
   }
 });
