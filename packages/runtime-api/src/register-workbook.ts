@@ -27,6 +27,6 @@ export async function readRegisterWorkbook(bytes:Uint8Array,sourceHashSha256:str
     }
     return {name:sheet.name,rows:compact};
   });
-  return {producerVersion:'register-workbook-v1',sourceHashSha256,sheets};
+  return {producerVersion:'register-workbook-v2',sourceHashSha256,sheets};
 }
 export const registerCsv=(rows:readonly string[][])=>rows.map(row=>row.map(value=>'"'+value.replaceAll('"','""')+'"').join(',')).join('\n');
