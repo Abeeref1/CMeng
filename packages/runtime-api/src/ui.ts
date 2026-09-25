@@ -1309,6 +1309,11 @@ function delayClaimsProjectionFor(data){
 }
 function renderDelayClaimsVisual(data){
   const p=delayClaimsProjectionFor(data);
+  const reporting=data?.claimsReporting||null;
+  const sourceEventCount=reporting?.events?.population?.sourceCount??reporting?.events?.source?.length??null;
+  const currentEventCount=reporting?.events?.asOf?.length??p.eventCount??null;
+  const futureEventCount=reporting?.events?.future?.length??null;
+  const undatedEventCount=reporting?.events?.undated?.length??null;
   const events=Array.isArray(p.events)?p.events:[];
   const linkedClaimIds=new Set(events.flatMap(event=>event.linkedClaimIds||[]));
   const linked=p.linkedClaimCount??linkedClaimIds.size;
@@ -1317,7 +1322,10 @@ function renderDelayClaimsVisual(data){
   const incompleteDeterminationCount=p.determinationChainIncompleteEventCount??events.filter(e=>e.evidenceChainState==="determination_chain_incomplete").length;
   const movementEstablished=p.windowCount>0&&typeof p.observedPositiveProgrammeMovementDays==="number";
   const kpis=planningKpis([
-    ["Delay events",p.eventCount,"confirmed events",p.eventCount?"":"warning"],
+    ["Current delay events",currentEventCount,"evidenced by the Data Date",currentEventCount?"":"warning"],
+    ["Source delay-event rows",sourceEventCount===null?"Unresolved":sourceEventCount,"full retained source population"],
+    ["After Data Date",futureEventCount===null?"Unresolved":futureEventCount,"retained outside current position"],
+    ["Event date missing",undatedEventCount===null?"Unresolved":undatedEventCount,"retained but excluded from current position",undatedEventCount?"warning":""],
     ["Claims",p.contractorClaimEvidenceSubmitted===false&&p.claimCount===0?"Unresolved":p.claimCount,"claim records"],
     ["Claims linked to events",linked,"identity association; causation unproven",linked?"accent":"warning"],
     ["Claims without event links",unlinked,"identity gap; linked claims still need causation",unlinked?"warning":""],
@@ -1333,7 +1341,8 @@ function renderDelayClaimsVisual(data){
   ]);
   const noEventWarning=p.eventCount===0&&p.claimCount>0?'<div class="notice warn"><b>'+escapeHtml(fmt(p.claimCount))+' claim records are present, but no recorded delay events are established.</b> CMeng will not attribute schedule movement, responsibility or EOT entitlement to those claims until event linkage exists.</div>':'';
   const activityEvidenceWarning=activityGapCount>0?'<div class="notice warn"><b>Activity evidence not confirmed for '+escapeHtml(fmt(activityGapCount))+' delay event'+(activityGapCount===1?'':'s')+'.</b> The available claim/correspondence sources do not establish a defensible activity-level relationship for these events. The affected activities must be identified before assigning delay responsibility. Determination chains remain explicitly incomplete where the activity link is required.</div>':'';
-  const warning=noEventWarning+activityEvidenceWarning;
+  const populationNote=reporting?'<div class="notice info"><b>Source population is preserved.</b> Current counts include only delay events evidenced by the project Data Date. Later and undated source rows remain visible as separate populations and are not discarded or promoted into the current position.</div>':'';
+  const warning=populationNote+noEventWarning+activityEvidenceWarning;
   const linkage=planningStatusBand([
     ["Linked to delay events",linked,"success"],
     ["Not linked to delay events",unlinked,"warning"]
