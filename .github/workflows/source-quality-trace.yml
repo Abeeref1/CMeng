@@ -25,6 +25,7 @@ jobs:
                   body=json.load(r)
               data=body.get("data") or {}
               ov=json.load(urllib.request.urlopen(base+"/api/projects/"+urllib.parse.quote(pid,safe="")+"/overview",timeout=120))
+              revs=json.load(urllib.request.urlopen(base+"/api/projects/"+urllib.parse.quote(pid,safe="")+"/schedule/revisions",timeout=120))
               out.append({
                   "projectId":pid,
                   "overview":{
@@ -36,6 +37,7 @@ jobs:
                     "latestRevisionLabel":ov.get("latestRevisionLabel"),
                     "latestDataDateIso":ov.get("latestDataDateIso"),
                     "activeEvidenceBasis":ov.get("activeEvidenceBasis"),
+                    "revisions":[{"label":x.get("label"),"role":x.get("role"),"sourceFilename":x.get("sourceFilename"),"dataDateIso":x.get("dataDateIso")} for x in revs],
                   },
                   "status":body.get("status"),
                   "reason":body.get("reason"),
