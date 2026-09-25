@@ -1115,15 +1115,64 @@ function buildBundle(
             ? "reconciled"
             : "difference",
     },
+    nearCriticalThresholdAuthority:
+
+      scheduleControlBasis.nearCriticalThresholdMethod === "explicit_working_days" ||
+
+      scheduleControlBasis.nearCriticalThresholdMethod === "explicit_hours"
+
+        ? "project_source"
+
+        : scheduleControlBasis.nearCriticalThresholdMethod === "cmeng_policy_default"
+
+          ? "cmeng_screening_policy"
+
+          : "unresolved",
+
+    nearCriticalThresholdExplanation:
+
+      scheduleControlBasis.nearCriticalThresholdMethod === "explicit_working_days" ||
+
+      scheduleControlBasis.nearCriticalThresholdMethod === "explicit_hours"
+
+        ? "The near-critical threshold is explicitly evidenced in the project control basis."
+
+        : scheduleControlBasis.nearCriticalThresholdMethod === "cmeng_policy_default"
+
+          ? "The project documents do not establish a near-critical threshold. CMeng applies its screening policy for analysis only; this is not a project-approved threshold."
+
+          : "A near-critical threshold is not established, so CMeng does not present the screening rule as a project requirement.",
+
     definitions: {
+
       critical:
+
         "TF <= confirmed critical float threshold",
+
       nearCritical:
-        "governed critical threshold < TF <= N activity-calendar working days",
+
+        scheduleControlBasis.nearCriticalThresholdMethod === "explicit_working_days" ||
+
+        scheduleControlBasis.nearCriticalThresholdMethod === "explicit_hours"
+
+          ? "confirmed project critical threshold < TF <= N activity-calendar working days"
+
+          : "CMeng screening threshold applied to source total float; project threshold not established",
+
       floatRiskWatchlist:
-        scheduleAnalysisConfig.floatRiskWatchlistIncludesCriticalThreshold
-          ? "governed critical threshold <= TF <= N activity-calendar working days"
-          : "governed critical threshold < TF <= N activity-calendar working days",
+
+        scheduleControlBasis.nearCriticalThresholdMethod === "explicit_working_days" ||
+
+        scheduleControlBasis.nearCriticalThresholdMethod === "explicit_hours"
+
+          ? scheduleAnalysisConfig.floatRiskWatchlistIncludesCriticalThreshold
+
+            ? "confirmed project critical threshold <= TF <= N activity-calendar working days"
+
+            : "confirmed project critical threshold < TF <= N activity-calendar working days"
+
+          : "CMeng screening watchlist applied to source total float; project threshold not established",
+
     },
   };
   const nearCritical = nearCriticalBase;
@@ -3984,15 +4033,64 @@ function buildPlanningModuleFast(
               ? "reconciled"
               : "difference",
       },
+      nearCriticalThresholdAuthority:
+
+        scheduleControlBasis.nearCriticalThresholdMethod === "explicit_working_days" ||
+
+        scheduleControlBasis.nearCriticalThresholdMethod === "explicit_hours"
+
+          ? "project_source"
+
+          : scheduleControlBasis.nearCriticalThresholdMethod === "cmeng_policy_default"
+
+            ? "cmeng_screening_policy"
+
+            : "unresolved",
+
+      nearCriticalThresholdExplanation:
+
+        scheduleControlBasis.nearCriticalThresholdMethod === "explicit_working_days" ||
+
+        scheduleControlBasis.nearCriticalThresholdMethod === "explicit_hours"
+
+          ? "The near-critical threshold is explicitly evidenced in the project control basis."
+
+          : scheduleControlBasis.nearCriticalThresholdMethod === "cmeng_policy_default"
+
+            ? "The project documents do not establish a near-critical threshold. CMeng applies its screening policy for analysis only; this is not a project-approved threshold."
+
+            : "A near-critical threshold is not established, so CMeng does not present the screening rule as a project requirement.",
+
       definitions: {
+
         critical:
+
           "TF <= confirmed critical float threshold",
+
         nearCritical:
-          "governed critical threshold < TF <= N activity-calendar working days",
+
+          scheduleControlBasis.nearCriticalThresholdMethod === "explicit_working_days" ||
+
+          scheduleControlBasis.nearCriticalThresholdMethod === "explicit_hours"
+
+            ? "confirmed project critical threshold < TF <= N activity-calendar working days"
+
+            : "CMeng screening threshold applied to source total float; project threshold not established",
+
         floatRiskWatchlist:
-          scheduleAnalysisConfig.floatRiskWatchlistIncludesCriticalThreshold
-            ? "governed critical threshold <= TF <= N activity-calendar working days"
-            : "governed critical threshold < TF <= N activity-calendar working days",
+
+          scheduleControlBasis.nearCriticalThresholdMethod === "explicit_working_days" ||
+
+          scheduleControlBasis.nearCriticalThresholdMethod === "explicit_hours"
+
+            ? scheduleAnalysisConfig.floatRiskWatchlistIncludesCriticalThreshold
+
+              ? "confirmed project critical threshold <= TF <= N activity-calendar working days"
+
+              : "confirmed project critical threshold < TF <= N activity-calendar working days"
+
+            : "CMeng screening watchlist applied to source total float; project threshold not established",
+
       },
     };
     const nearCritical = nearCriticalBase;
