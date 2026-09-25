@@ -302,7 +302,8 @@ test('supplied BOQ rows are visible, searchable and pageable without schedule or
   planningKpis:()=>'',renderBasisReviews:()=>'',experienceReviewSummary:()=>'',renderModuleReadiness:()=>'',
  });
  assert.match(content.innerHTML,/Supplied concrete 0/);assert.match(content.innerHTML,/Manpower and duration check: Unable to assess/);
- assert.ok(content.innerHTML.indexOf('Supplied BOQ figures')<content.innerHTML.indexOf('Unable to assess'));
+ assert.ok(content.innerHTML.indexOf('Unable to assess')<content.innerHTML.indexOf('Supplied BOQ figures'),
+   'Challenge position must lead; source BOQ remains searchable supporting evidence below.');
 });
 
 test('primary findings hide internal codes and the banner action needs no click',()=>{
