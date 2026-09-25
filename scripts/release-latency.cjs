@@ -17,7 +17,7 @@ for(let revision=0;revision<3;revision++){
 }
 runtimeProjects.touch(state);
 (async()=>{
- const started=performance.now();const port=18000+Math.floor(Math.random()*10000);const env={...process.env,PORT:String(port),HOST:'127.0.0.1'};
+ const started=performance.now();const port=18000+Math.floor(Math.random()*10000);const env={...process.env,PORT:String(port),HOST:'127.0.0.1',CMENG_PROFILE_PERF:'1'};
  const child=spawn(process.execPath,['dist/packages/runtime-api/src/server.js'],{cwd:process.cwd(),env,stdio:['ignore','pipe','pipe']});let log='',errors='';
  try{
   await new Promise((resolve,reject)=>{const timeout=setTimeout(()=>reject(new Error('Startup preparation exceeded 60 seconds')),60000);child.stdout.on('data',chunk=>{log+=chunk;if(log.includes('CMeng runtime listening')){clearTimeout(timeout);resolve();}});child.stderr.on('data',c=>errors+=c);child.on('exit',code=>{clearTimeout(timeout);reject(new Error('Startup failed '+code+' '+errors));});});
@@ -50,7 +50,8 @@ runtimeProjects.touch(state);
     assert.ok(first.data?.positionVerdict,'20,000-activity dashboard contains resolved analysis');
     firstDashboardMs=performance.now()-firstStart;uploadToReadyMs=performance.now()-uploadStart;sampleMemory();
   }finally{clearInterval(sampler);}
-  const result={scope:'Fresh server, actual HTTP upload and first calculated dashboard',activityCount:20000,priorColdGate:{activityCount:12500,revisionCount:3,preparationMs,coldRequestMs,routeTimings},uploadResponseMs,uploadToReadyMs,firstDashboardMs,memoryBeforeUploadBytes,peakRssBytes,peakRssMiB:peakRssBytes/1024/1024,targetMs:COLD_DASHBOARD_TARGET_MS,passed:coldRequestMs<=COLD_DASHBOARD_TARGET_MS&&uploadToReadyMs<=COLD_DASHBOARD_TARGET_MS&&firstDashboardMs<=COLD_DASHBOARD_TARGET_MS};
+  const profileEvents=log.split('\n').filter(line=>line.includes('"event":"project_resolution_profile"')).map(line=>{try{return JSON.parse(line)}catch{return null}}).filter(Boolean);
+  const result={scope:'Fresh server, actual HTTP upload and first calculated dashboard',activityCount:20000,priorColdGate:{activityCount:12500,revisionCount:3,preparationMs,coldRequestMs,routeTimings},profileEvents,uploadResponseMs,uploadToReadyMs,firstDashboardMs,memoryBeforeUploadBytes,peakRssBytes,peakRssMiB:peakRssBytes/1024/1024,targetMs:COLD_DASHBOARD_TARGET_MS,passed:coldRequestMs<=COLD_DASHBOARD_TARGET_MS&&uploadToReadyMs<=COLD_DASHBOARD_TARGET_MS&&firstDashboardMs<=COLD_DASHBOARD_TARGET_MS};
   console.log(JSON.stringify(result));if(process.env.CMENG_LATENCY_RESULT)writeFileSync(process.env.CMENG_LATENCY_RESULT,JSON.stringify(result,null,2));
   assert.ok(result.passed,'Upload-to-ready or first-dashboard target exceeded');
  }finally{child.kill();}
