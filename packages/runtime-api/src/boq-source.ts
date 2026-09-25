@@ -27,20 +27,72 @@ export function resolveBoqSource(state:ProjectRuntimeState,scheduleRevisionId:st
   const documents=state.evidenceDocuments.filter(d=>d.documentType==='boq'&&['active','additive','candidate'].includes(d.basisState));
   const rejected=documents.filter(d=>documentClassificationForReview(d).documentType!=='boq');
   const usable=documents.filter(d=>!rejected.includes(d));
-  const invalidIds=new Set(rejected.map(d=>d.linkedArtifactId));
-  const recordedDocument=documents.find(d=>d.linkedArtifactId===state.boq?.ingestionId);
-  const validCurrent=state.boq&&!invalidIds.has(state.boq.ingestionId)&&(!recordedDocument||usable.includes(recordedDocument));
+
+  // A runtime ingestion is authoritative only when a usable BOQ evidence
+  // document owns it. Legacy parsed objects with no BOQ owner must never be
+  // treated as an adopted BOQ merely because they occupy state.boq.
+  const recordedDocument=usable.find(d=>d.linkedArtifactId===state.boq?.ingestionId)??null;
+  const validCurrent=Boolean(state.boq&&recordedDocument);
+
+  const activeBasis=state.activeEvidenceBasis['boq:quantity'];
+  const activeArtifactId=activeBasis?.activeArtifactId??null;
+  const activeDocument=activeBasis?.activeDocumentId
+    ? usable.find(d=>d.documentId===activeBasis.activeDocumentId&&d.linkedArtifactId===activeArtifactId)??null
+    : activeArtifactId
+      ? usable.find(d=>d.linkedArtifactId===activeArtifactId)??null
+      : null;
+  const activeRevision=activeArtifactId
+    ? state.boqRevisions.find(b=>b.ingestionId===activeArtifactId)??null
+    : null;
+
   const established=usable.filter(d=>['active','additive'].includes(d.basisState));
   const candidates=established.length?established:usable;
-  const selected=validCurrent?state.boq:candidates.length===1?state.boqRevisions.find(b=>b.ingestionId===candidates[0]!.linkedArtifactId)??null:null;
-  const source=usable.find(d=>d.linkedArtifactId===selected?.ingestionId);
-  const selection={state:selected?(source?.basisState==='candidate'?'candidate':'source'):'missing',
-    sourceDocumentId:source?.documentId??null,sourceFilename:source?.sourceFilename??selected?.sourceFilename??null,
-    authority:'source_quantities_not_certified_installations',adoptedSource:source?['active','additive'].includes(source.basisState):Boolean(selected),
+
+  let selected:BoqIngestionResult|null=null;
+  if(activeArtifactId){
+    // The governed basis wins. Never fall back to another legacy runtime slot.
+    selected=activeDocument?activeRevision:null;
+  }else if(validCurrent){
+    selected=state.boq;
+  }else if(candidates.length===1){
+    selected=state.boqRevisions.find(b=>b.ingestionId===candidates[0]!.linkedArtifactId)??null;
+  }
+
+  const source=usable.find(d=>d.linkedArtifactId===selected?.ingestionId)??null;
+  const candidateSelected=source?.basisState==='candidate';
+  const adoptedSource=Boolean(
+    selected&&source&&
+    ['active','additive'].includes(source.basisState)&&
+    (!activeArtifactId||selected.ingestionId===activeArtifactId)
+  );
+  const diagnostics=[
+    ...(rejected.length?['LEGACY_NON_BOQ_SOURCES_EXCLUDED']:[]),
+    ...(!activeArtifactId&&!validCurrent&&candidates.length>1?['BOQ_SOURCE_SELECTION_AMBIGUOUS']:[]),
+    ...(state.boq&&!recordedDocument?['LEGACY_RUNTIME_BOQ_WITHOUT_VALID_SOURCE_OWNER_EXCLUDED']:[]),
+    ...(activeArtifactId&&!activeDocument?['ACTIVE_BOQ_DOCUMENT_NOT_USABLE']:[]),
+    ...(activeDocument&&!activeRevision?['ACTIVE_BOQ_ARTIFACT_NOT_IN_RUNTIME_REVISIONS']:[]),
+  ];
+  const selection={
+    state:selected?(candidateSelected?'candidate':'source'):'missing',
+    sourceDocumentId:source?.documentId??null,
+    sourceFilename:source?.sourceFilename??selected?.sourceFilename??activeDocument?.sourceFilename??null,
+    authority:'source_quantities_not_certified_installations',
+    adoptedSource,
+    activeArtifactId,
     excludedMisclassifiedDocuments:rejected.map(d=>({documentId:d.documentId,sourceFilename:d.sourceFilename,recordedType:d.documentType,detectedType:documentClassificationForReview(d).documentType})),
-    diagnostics:[...(rejected.length?['LEGACY_NON_BOQ_SOURCES_EXCLUDED']:[]),...(!validCurrent&&candidates.length>1?['BOQ_SOURCE_SELECTION_AMBIGUOUS']:[])],
-    explanation:rejected.length?'Content validation excluded sources from another evidence family. Valid BOQ quantities retain their own source authority.':'BOQ source and measured installation evidence remain separate.'};
-  return {boq:selected,quantities:selected?(selected===state.boq&&state.quantities?state.quantities:quantityModelFromBoq(selected,scheduleRevisionId,state.quantities)):state.boq?null:state.quantities,selection};
+    diagnostics,
+    explanation:diagnostics.length
+      ? 'BOQ authority is resolved from the governed BOQ evidence family. Legacy or unowned runtime ingestions are excluded rather than silently adopted.'
+      : 'BOQ source and measured installation evidence remain separate.'
+  };
+  const quantities=selected
+    ? selected===state.boq&&state.quantities
+      ? state.quantities
+      : quantityModelFromBoq(selected,scheduleRevisionId,state.quantities)
+    : state.boq
+      ? null
+      : state.quantities;
+  return {boq:selected,quantities,selection};
 }
 
 export function quantityModelFromBoq(
