@@ -3589,20 +3589,22 @@ function renderManagementControlVisual(key,data){
       {label:"Blocked specialist views",value:r.blocked??0,tone:"danger"}
     ],"Control views");
     return '<div class="planning-view management-view master-dashboard-view">'+
-      managementPanel("Project position","Current programme, progress and delivery exposure. Open a measure for its supporting analysis.",renderManagementMetricGrid(mainMetrics),true)+
+      managementPanel("Executive Project Position","Current programme, progress and delivery exposure. Open a measure for its supporting analysis.",renderManagementMetricGrid(mainMetrics),true)+
       renderDashboardExceptions(data)+renderDashboardTrend(data)+renderDashboardDecisions(data)+
+      managementPanel("Control Readiness","Calculation, document and comparison readiness for the specialist control views.",readinessDonut+renderManagementConsistency(data.consistency))+
+      managementPanel("Evidence Snapshot","Current evidence coverage. Missing or conflicted evidence remains explicit rather than being converted to zero.",planningKpis([
+        ["Project documents",data.evidenceDocumentCount??0,"current evidence library"],
+        ["Checked specialist views",r.ready??0,"calculation, document and comparison checks"],
+        ["Review needed",r.partial??0,"partial positions","warning"],
+        ["Blocked specialist views",r.blocked??0,"calculation unavailable","danger"],
+        ["Evidence gaps",r.evidenceGapCount??0,"missing, partial, stale or conflicted evidence","warning"],
+        ["Approvals outstanding",r.governanceGapCount??0,"reports and approval steps","warning"]
+      ]))+
       experienceSourceContext(key,data)+
       experienceDisclosure("Additional project measures",renderManagementMetricGrid(otherMetrics),fmt(otherMetrics.length)+" measures")+
       experienceDisclosure("Further analysis",'<div class="management-two-column">'+
-        managementPanel("Analysis available","Check the available analyses, supporting documents and outstanding decisions.",readinessDonut+renderManagementConsistency(data.consistency))+
-        managementPanel("Project documents","Figures come from the current project documents and programme.",planningKpis([
-          ["Project documents",data.evidenceDocumentCount??0,"current evidence library"],
-          ["Checked specialist views",r.ready??0,"calculation, document and comparison checks"],
-          ["Review needed",r.partial??0,"partial positions","warning"],
-          ["Blocked specialist views",r.blocked??0,"calculation unavailable","danger"],
-          ["Evidence gaps",r.evidenceGapCount??0,"missing, partial, stale or conflicted evidence","warning"],
-          ["Approvals outstanding",r.governanceGapCount??0,"Reports and approval steps","warning"]
-        ]))+
+        managementPanel("Analysis available","Open the specialist analysis that supports the executive position.",renderManagementConsistency(data.consistency))+
+        managementPanel("Evidence review","Use Information & Actions for missing, conflicting or unread project evidence.",managementModuleLink("source-quality","Open Information & Actions"))+
       '</div>',"Available results and supporting documents")+
       experienceDisclosure("NCR, RFI and risk records",renderOperationalReporting(data.operationalReporting),"Quality, RFI and risk records")+
       managementPanel("Commercial Exposure by Currency","Amounts are shown separately for each currency.",renderManagementCommercial(data.commercialByCurrency||[])+renderManagementVariationReconciliation(data.variationReconciliation||[]))+
