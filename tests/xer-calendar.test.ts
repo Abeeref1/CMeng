@@ -7,6 +7,9 @@ import {
   verifyXerCalendars,
   verifyXerIntegrity,
 } from "../packages/xer-parser/src";
+import {
+  canonicalScheduleFromXer,
+} from "../packages/schedule-analysis-core/src";
 
 const fiveDay =
   "(0||CalendarData()(" +
@@ -186,4 +189,116 @@ test('explicit 24/7 and seven-day shift labels retain their actual hours',()=>{
  const shift=parseP6CalendarData('7 days 07:00-17:00');
  assert.equal(shift.status,'valid');assert.deepEqual(shift.days.map(d=>d.workMinutes),Array(7).fill(600));
  assert.notEqual(parseP6CalendarData('Night').status,'valid');
+});
+
+
+test("child calendars inherit a verified P6 base working pattern without a synthetic fallback", () => {
+  const source = [
+    "ERMHDR\t23.12",
+    "%T\tPROJECT",
+    "%F\tproj_id\tproj_short_name\tlast_recalc_date",
+    "%R\t1\tBASE-CALENDAR\t2026-09-18",
+    "%T\tPROJWBS",
+    "%F\twbs_id\tproj_id",
+    "%R\t10\t1",
+    "%T\tCALENDAR",
+    "%F\tclndr_id\tbase_clndr_id\tclndr_name\tclndr_data",
+    "%R\t1\t\tBase\t" + fiveDay,
+    "%R\t2\t1\tProject Child\t",
+    "%T\tTASK",
+    "%F\ttask_id\tproj_id\twbs_id\tclndr_id\ttask_code\ttask_name\tstatus_code\ttarget_drtn_hr_cnt\tremain_drtn_hr_cnt\ttotal_float_hr_cnt",
+    "%R\t100\t1\t10\t2\tA100\tInherited calendar task\tTK_NotStart\t16\t16\t8",
+    "%E",
+  ].join("\n");
+
+  const parsed =
+    parseXerBytes(
+      Buffer.from(
+        source,
+        "utf8",
+      ),
+    );
+  const model =
+    canonicalScheduleFromXer(
+      parsed,
+      {
+        sourceRevisionId:
+          "REV-1",
+        projectId:
+          "BASE-CALENDAR",
+      },
+    );
+  const child =
+    model.calendars.find(
+      (calendar) =>
+        calendar.calendarId ===
+        "2",
+    )!;
+
+  assert.equal(
+    child.semanticComplete,
+    true,
+  );
+  assert.equal(
+    child.standardDayHours,
+    8,
+  );
+  assert.ok(
+    child.sourceRefs.some(
+      (ref) =>
+        ref.locator ===
+        "CALENDAR:1",
+    ),
+  );
+  assert.ok(
+    model.diagnostics.includes(
+      "CALENDAR_BASE_PATTERN_INHERITED:2:1",
+    ),
+  );
+});
+
+test("a calendar record with no working pattern stays unresolved and states why", () => {
+  const source = [
+    "ERMHDR\t23.12",
+    "%T\tPROJECT",
+    "%F\tproj_id\tproj_short_name\tlast_recalc_date",
+    "%R\t1\tNO-PATTERN\t2026-09-18",
+    "%T\tPROJWBS",
+    "%F\twbs_id\tproj_id",
+    "%R\t10\t1",
+    "%T\tCALENDAR",
+    "%F\tclndr_id\tclndr_name\tclndr_data",
+    "%R\t77\tProject Calendar\t(0||CalendarData())",
+    "%T\tTASK",
+    "%F\ttask_id\tproj_id\twbs_id\tclndr_id\ttask_code\ttask_name\tstatus_code\ttarget_drtn_hr_cnt\tremain_drtn_hr_cnt\ttotal_float_hr_cnt",
+    "%R\t100\t1\t10\t77\tA100\tNo pattern task\tTK_NotStart\t16\t16\t8",
+    "%E",
+  ].join("\n");
+
+  const model =
+    canonicalScheduleFromXer(
+      parseXerBytes(
+        Buffer.from(
+          source,
+          "utf8",
+        ),
+      ),
+      {
+        sourceRevisionId:
+          "REV-1",
+        projectId:
+          "NO-PATTERN",
+      },
+    );
+
+  assert.equal(
+    model.calendars[0]!
+      .semanticComplete,
+    false,
+  );
+  assert.ok(
+    model.diagnostics.includes(
+      "CALENDAR_WORK_PATTERN_NOT_ESTABLISHED:77",
+    ),
+  );
 });
