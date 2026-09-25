@@ -1254,7 +1254,7 @@ function renderWindowsVisual(data){
     const from=shortRevision(w.fromRevisionId,labels),to=shortRevision(w.toRevisionId,labels);
     return '<div class="window-card clean"><div><div class="window-id">Window '+escapeHtml(w.sequence)+' · '+escapeHtml(from)+' → '+escapeHtml(to)+'</div><div class="window-dates">'+escapeHtml(planningShortDate(w.windowStartIso))+' → '+escapeHtml(planningShortDate(w.windowEndIso))+'</div></div><div><div class="movement-label">Submitted forecast movement</div><div class="movement-value">'+escapeHtml(sourceMove===null?"—":(sourceMove>0?"+":"")+fmt(sourceMove)+" days")+'</div><div class="muted">Progress movement '+escapeHtml(w.progressMovementPercent===null?"—":(w.progressMovementPercent>0?"+":"")+fmt(w.progressMovementPercent)+" pp")+'</div></div><div><div class="movement-label">Programme calendar recalculation movement</div><div class="movement-value small">'+escapeHtml(independent===null?"Not calculated in this view":(independent>0?"+":"")+fmt(independent)+" days")+'</div><div class="muted">'+escapeHtml((w.delayEvents||[]).length+" temporally associated event(s)")+'</div></div></div>';
   }).join("");
-  const note='<div class="notice info"><b>Window movement and Project Completion movement are different measures.</b> Gross positive window movement sums only positive revision-to-revision shifts. Project Completion movement is the net first-to-latest submitted completion shift. Neither is automatically delay entitlement or EOT.</div>'+(p.windows.some(w=>w.independentForecastMovementDays===null)?'<div class="notice info">Programme calendar recalculation is unresolved where the calculation is unavailable.</div>':'');
+  const note='<div class="notice info"><b>Analytical movement, submitted window movement and Project Completion movement are different measures.</b> Gross analytical movement comes from the independent recalculation. Positive submitted window movement sums positive revision-to-revision submitted completion shifts. Project Completion movement is the net first-to-latest submitted completion shift. None is automatically delay entitlement or EOT.</div>'+(p.windows.some(w=>w.independentForecastMovementDays===null)?'<div class="notice info">Programme calendar recalculation is unresolved where the calculation is unavailable.</div>':'');
   const visualOverview='<div class="visual-chart-grid">'+
     renderVisualPanel("Window movement by interval","Every revision-to-revision submitted finish movement is signed. Right is later; left is earlier.",renderWaterfallChart(bars,"d"))+
     renderVisualPanel("Window completeness","Schedule-comparison completion is separate from event linkage, causation and entitlement.",renderDonutChart([
@@ -1267,7 +1267,8 @@ function renderWindowsVisual(data){
     ["Windows",p.windowCount,"revision intervals"],
     ["Schedule-comparison windows",p.completeWindowCount,"calculation complete; causation unproven"],
     ["Partial windows",p.partialWindowCount,"",p.partialWindowCount?"warning":""],
-    ["Gross positive window movement",fmt(p.positiveProgrammeMovementDays)+" d","positive submitted finish changes; not project delay or EOT",p.positiveProgrammeMovementDays>0?"warning":""],
+    ["Gross analytical movement",fmt(p.grossAnalyticalMovementDays)+" d","independent recalculation; not project delay or EOT",p.grossAnalyticalMovementDays>0?"warning":""],
+    ["Positive submitted window movement",fmt(p.positiveProgrammeMovementDays)+" d","sum of positive submitted completion shifts; net Project Completion remains separate",p.positiveProgrammeMovementDays>0?"warning":""],
     ["Project Completion movement",p.projectCompletionMovementDays===null||p.projectCompletionMovementDays===undefined?"—":(p.projectCompletionMovementDays>0?"+":"")+fmt(p.projectCompletionMovementDays)+" d","first controlled → latest controlled · "+humanizeKey(p.projectCompletionMovementBasis||"unavailable"),p.projectCompletionMovementDays>0?"danger":""],
     ["Window-associated events",p.windows.reduce((sum,w)=>sum+(w.delayEvents||[]).length,0),"window references"]
   ])+note+visualOverview+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Programme movement by window</h4><p>Source forecast movement is shown first. It is schedule movement, not automatic delay entitlement.</p></div></div><div class="planning-panel-body">'+planningSignedBars(bars,"days")+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Window detail</h4></div></div><div class="planning-panel-body"><div class="window-strip">'+cards+'</div></div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Window comparison evidence</h4><p>Matching coverage and network edits qualify the schedule comparison. They do not establish causation or an approved materiality tolerance.</p></div></div><div class="planning-panel-body">'+p.windows.map(w=>'<details><summary>Window '+escapeHtml(w.sequence)+' · matched '+escapeHtml(fmt(w.matchedActivityCount))+' activities · comparable finishes '+escapeHtml(fmt(w.comparableActivityFinishShiftCount))+' ('+escapeHtml(w.activityFinishShiftCoveragePercent==null?'Unresolved':fmt(w.activityFinishShiftCoveragePercent)+'%')+')</summary><p>Activities added / removed / modified: '+escapeHtml(fmt(w.addedActivityCount)+' / '+fmt(w.removedActivityCount)+' / '+fmt(w.modifiedActivityCount))+'. Relationships added / removed: '+escapeHtml(fmt(w.addedRelationshipCount)+' / '+fmt(w.removedRelationshipCount))+'.</p><p>'+escapeHtml((w.diagnostics||[]).map(humanizeKey).join('; ')||'No calculation diagnostic was supplied.')+'</p><p>'+escapeHtml((w.assumptions||[]).join('; '))+'</p></details>').join('')+'</div></section></section>';
@@ -1308,6 +1309,11 @@ function delayClaimsProjectionFor(data){
 }
 function renderDelayClaimsVisual(data){
   const p=delayClaimsProjectionFor(data);
+  const reporting=data?.claimsReporting||null;
+  const sourceEventCount=reporting?.events?.population?.sourceCount??reporting?.events?.source?.length??null;
+  const currentEventCount=reporting?.events?.asOf?.length??p.eventCount??null;
+  const futureEventCount=reporting?.events?.future?.length??null;
+  const undatedEventCount=reporting?.events?.undated?.length??null;
   const events=Array.isArray(p.events)?p.events:[];
   const linkedClaimIds=new Set(events.flatMap(event=>event.linkedClaimIds||[]));
   const linked=p.linkedClaimCount??linkedClaimIds.size;
@@ -1316,7 +1322,10 @@ function renderDelayClaimsVisual(data){
   const incompleteDeterminationCount=p.determinationChainIncompleteEventCount??events.filter(e=>e.evidenceChainState==="determination_chain_incomplete").length;
   const movementEstablished=p.windowCount>0&&typeof p.observedPositiveProgrammeMovementDays==="number";
   const kpis=planningKpis([
-    ["Delay events",p.eventCount,"confirmed events",p.eventCount?"":"warning"],
+    ["Current delay events",currentEventCount,"evidenced by the Data Date",currentEventCount?"":"warning"],
+    ["Source delay-event rows",sourceEventCount===null?"Unresolved":sourceEventCount,"full retained source population"],
+    ["After Data Date",futureEventCount===null?"Unresolved":futureEventCount,"retained outside current position"],
+    ["Event date missing",undatedEventCount===null?"Unresolved":undatedEventCount,"retained but excluded from current position",undatedEventCount?"warning":""],
     ["Claims",p.contractorClaimEvidenceSubmitted===false&&p.claimCount===0?"Unresolved":p.claimCount,"claim records"],
     ["Claims linked to events",linked,"identity association; causation unproven",linked?"accent":"warning"],
     ["Claims without event links",unlinked,"identity gap; linked claims still need causation",unlinked?"warning":""],
@@ -1326,12 +1335,14 @@ function renderDelayClaimsVisual(data){
     ["Events with register notice references",p.noticeLinkedEventCount??0,"letter identity and contents require separate checks"],
     ["Determined events",p.determinationLinkedEventCount??0,"Engineer determination linkage"],
     ["Incomplete determination chains",incompleteDeterminationCount,"required links missing",incompleteDeterminationCount?"warning":""],
-    ["Gross positive window movement",movementEstablished?fmt(p.observedPositiveProgrammeMovementDays)+" d":"Unresolved","submitted programme window context; not event attribution",movementEstablished&&p.observedPositiveProgrammeMovementDays?"warning":""],
+    ["Gross analytical movement",movementEstablished?fmt(p.observedPositiveIndependentMovementDays)+" d":"Unresolved","independent window recalculation; not event attribution",movementEstablished&&p.observedPositiveIndependentMovementDays?"warning":""],
+    ["Positive submitted window movement",movementEstablished?fmt(p.observedPositiveProgrammeMovementDays)+" d":"Unresolved","positive submitted programme shifts; not event attribution",movementEstablished&&p.observedPositiveProgrammeMovementDays?"warning":""],
     ["Project Completion movement",!movementEstablished||p.projectCompletionMovementDays===null||p.projectCompletionMovementDays===undefined?"Unresolved":(p.projectCompletionMovementDays>0?"+":"")+fmt(p.projectCompletionMovementDays)+" d","net submitted completion movement"]
   ]);
   const noEventWarning=p.eventCount===0&&p.claimCount>0?'<div class="notice warn"><b>'+escapeHtml(fmt(p.claimCount))+' claim records are present, but no recorded delay events are established.</b> CMeng will not attribute schedule movement, responsibility or EOT entitlement to those claims until event linkage exists.</div>':'';
   const activityEvidenceWarning=activityGapCount>0?'<div class="notice warn"><b>Activity evidence not confirmed for '+escapeHtml(fmt(activityGapCount))+' delay event'+(activityGapCount===1?'':'s')+'.</b> The available claim/correspondence sources do not establish a defensible activity-level relationship for these events. The affected activities must be identified before assigning delay responsibility. Determination chains remain explicitly incomplete where the activity link is required.</div>':'';
-  const warning=noEventWarning+activityEvidenceWarning;
+  const populationNote=reporting?'<div class="notice info"><b>Source population is preserved.</b> Current counts include only delay events evidenced by the project Data Date. Later and undated source rows remain visible as separate populations and are not discarded or promoted into the current position.</div>':'';
+  const warning=populationNote+noEventWarning+activityEvidenceWarning;
   const linkage=planningStatusBand([
     ["Linked to delay events",linked,"success"],
     ["Not linked to delay events",unlinked,"warning"]
@@ -1344,7 +1355,8 @@ function renderDelayClaimsVisual(data){
     {label:"Determination-linked events",value:p.determinationLinkedEventCount??0,tone:"purple"}
   ],"events");
   const movementChart=renderWaterfallChart([
-    {label:"Gross positive window movement",value:movementEstablished&&typeof p.observedPositiveProgrammeMovementDays==="number"?p.observedPositiveProgrammeMovementDays:null},
+    {label:"Gross analytical movement",value:movementEstablished&&typeof p.observedPositiveIndependentMovementDays==="number"?p.observedPositiveIndependentMovementDays:null},
+    {label:"Positive submitted window movement",value:movementEstablished&&typeof p.observedPositiveProgrammeMovementDays==="number"?p.observedPositiveProgrammeMovementDays:null},
     {label:"Net Project Completion movement",value:movementEstablished&&typeof p.projectCompletionMovementDays==="number"?p.projectCompletionMovementDays:null}
   ],"d");
   const visualOverview='<div class="visual-chart-grid">'+
@@ -1369,12 +1381,12 @@ function renderEotVisual(data){
     ["Submitted finish vs contract",planningCalendarDaysBetween(p.contractualCompletionIso,p.sourceForecastCompletionIso)===null?"Unresolved":fmt(planningCalendarDaysBetween(p.contractualCompletionIso,p.sourceForecastCompletionIso))+" calendar days","submitted programme minus current amended contract","warning"],
     ["Gross determinations by Data Date",p.officialApprovedEotDays===null?"Unresolved":fmt(p.officialApprovedEotDays)+" d","may already be incorporated in the amendment"],
     ["Further adjusted contractual completion",p.officialAdjustedCompletionIso?planningShortDate(p.officialAdjustedCompletionIso):"Unresolved","confirmed only"],
-    ["Gross positive window movement",movementEstablished?fmt(p.observedProgrammeMovementDays)+" d":"Unresolved","submitted programme window context; not EOT",movementEstablished&&p.observedProgrammeMovementDays>0?"warning":""],
+    ["Positive submitted window movement",movementEstablished?fmt(p.observedProgrammeMovementDays)+" d":"Unresolved","sum of positive submitted completion shifts; not EOT",movementEstablished&&p.observedProgrammeMovementDays>0?"warning":""],
     ["Project Completion movement",!movementEstablished||p.projectCompletionMovementDays===null||p.projectCompletionMovementDays===undefined?"Unresolved":(p.projectCompletionMovementDays>0?"+":"")+fmt(p.projectCompletionMovementDays)+" d","net first-to-latest submitted completion"],
     ["Time-impact candidate",analytical===null?"Unresolved":fmt(analytical)+" d","requires causation",analytical===null?"warning":"accent"],
     ["Attributable EOT candidate",p.attributableCandidateEotDays===null?"Unresolved":fmt(p.attributableCandidateEotDays)+" d","not an award",p.attributableCandidateEotDays===null?"warning":"accent"]
   ]);
-  const warning=movementEstablished&&analytical===null&&p.observedProgrammeMovementDays>0?'<div class="notice warn"><b>Gross positive window movement is not project delay and is not EOT.</b> Schedule movement is not an EOT time-impact assessment. CMeng observes '+escapeHtml(fmt(p.observedProgrammeMovementDays))+' days when positive window shifts are summed, while net Project Completion movement is shown separately. No entitlement is stated until causation, notice and the contract time basis support it.</div>':'';
+  const warning=movementEstablished&&analytical===null&&p.observedProgrammeMovementDays>0?'<div class="notice warn"><b>Positive submitted window movement is not project delay and is not EOT.</b> Schedule movement is not an EOT time-impact assessment. CMeng observes '+escapeHtml(fmt(p.observedProgrammeMovementDays))+' days when positive window shifts are summed, while net Project Completion movement is shown separately. No entitlement is stated until causation, notice and the contract time basis support it.</div>':'';
   const labels=p.revisionLabels||{};
   const movementBars=p.windowCandidates.map((w,index)=>({
     label:"Window "+(index+1)+" · "+readableWindow(w.windowId,labels),
@@ -1388,7 +1400,7 @@ function renderEotVisual(data){
     {label:"After Data Date",value:Math.max(0,(recon.registerDeterminationCount||0)-(recon.effectiveDeterminationCount||0)),tone:"neutral"}
   ],"Determinations"):'<div class="empty-visual">Determination population is not confirmed.</div>';
   const movementVisual=renderWaterfallChart([
-    {label:"Gross positive window movement",value:movementEstablished&&typeof p.observedProgrammeMovementDays==="number"?p.observedProgrammeMovementDays:null},
+    {label:"Positive submitted window movement",value:movementEstablished&&typeof p.observedProgrammeMovementDays==="number"?p.observedProgrammeMovementDays:null},
     {label:"Net Project Completion movement",value:movementEstablished&&typeof p.projectCompletionMovementDays==="number"?p.projectCompletionMovementDays:null},
     {label:"Analytical time-impact candidate",value:typeof analytical==="number"?analytical:null},
     {label:"Attributable EOT candidate",value:typeof p.attributableCandidateEotDays==="number"?p.attributableCandidateEotDays:null}
@@ -2407,9 +2419,11 @@ function renderNearCriticalVisual(data){
     const classLabel=r.totalFloatHours===criticalThreshold?(criticalThreshold===0?"Zero-float boundary":"Critical boundary"):"Strict near-critical";
     return '<tr><td><b>'+escapeHtml(r.activityId)+'</b><br><span class="muted">'+escapeHtml(r.name||"")+'</span></td><td>'+escapeHtml(classLabel)+'</td><td>'+escapeHtml(planningStateLabel(r.status))+'</td><td>'+escapeHtml(fmt(r.totalFloatHours))+'</td><td>'+escapeHtml(r.nearCriticalThresholdHours===null||r.nearCriticalThresholdHours===undefined?"—":fmt(r.nearCriticalThresholdHours))+'</td><td>'+escapeHtml(r.calendarId||"—")+'</td><td>'+escapeHtml(planningShortDate(r.baselineFinishIso))+'</td><td>'+escapeHtml(planningShortDate(r.currentFinishIso))+'</td><td class="'+((r.varianceDays||0)>0?"late-text":(r.varianceDays||0)<0?"early-text":"")+'">'+escapeHtml(r.varianceDays===null?"Unresolved":((r.varianceDays>0?"+":"")+fmt(r.varianceDays)))+'</td><td>'+escapeHtml(r.percentComplete===null?"—":fmt(r.percentComplete)+"%")+'</td></tr>';
   }).join("");
-  const basis='<div class="notice info"><b>Float rules:</b> Critical = TF ≤ '+escapeHtml(fmt(criticalThreshold))+' h; Near-Critical = TF > '+escapeHtml(fmt(criticalThreshold))+' h and ≤ '+escapeHtml(limitValue)+'; Float-Risk Watchlist boundary inclusion: '+(p.floatRiskWatchlistIncludesCriticalThreshold?'Included':'Excluded')+'. Working-day limits use each activity\'s own programme calendar.</div>';
+  const thresholdAuthority=p.nearCriticalThresholdAuthority==="project_source"?"Project control basis":p.nearCriticalThresholdAuthority==="cmeng_screening_policy"?"CMeng screening policy":"Threshold authority unresolved";
+  const thresholdExplanation=p.nearCriticalThresholdExplanation||"The source of the near-critical threshold is not established.";
+  const basis='<div class="notice info"><b>Float screening basis:</b> '+escapeHtml(thresholdAuthority)+'. Critical = TF ≤ '+escapeHtml(fmt(criticalThreshold))+' h; Near-Critical screening = TF > '+escapeHtml(fmt(criticalThreshold))+' h and ≤ '+escapeHtml(limitValue)+'; Float-Risk Watchlist boundary inclusion: '+(p.floatRiskWatchlistIncludesCriticalThreshold?'Included':'Excluded')+'. Working-day limits use each activity\'s own programme calendar.<p>'+escapeHtml(thresholdExplanation)+'</p></div>';
   const reconciliation='<div class="notice '+(sourceMatch==="float_risk_watchlist"||sourceMatch==="strict_near_critical"?"good":"warn")+'"><b>Submitted label versus the float rules:</b> '+escapeHtml(reconciliationText)+'</div>';
-  return '<section class="planning-view nearcritical-view">'+kpis+basis+reconciliation+floatConcentrationWarning+distributionSummary(p.floatDistribution,'hours','All execution activity float values')+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Float-risk distribution</h4><p>Submitted total float is classified against the project float thresholds using each activity calendar.</p></div></div><div class="planning-panel-body">'+histogram+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Where float-risk work finishes</h4><p>Current finish-month concentration for the full float-risk watchlist.</p></div></div><div class="planning-panel-body">'+finishPeriods+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Float-Risk Watchlist</h4><p>Critical and near-critical activities are shown separately. Open activities appear before completed history. '+(p.floatRiskWatchlistCount===null?'Unresolved: '+escapeHtml(fmt(unresolved))+' activities need readable calendars. Any listed rows are only the confirmed subset.':'Showing '+escapeHtml(fmt(watch.length))+' of '+escapeHtml(fmt(riskRows.length))+' watchlist activities; the complete population is available through Download Excel / Download data.')+'</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Activity</th><th>Risk class</th><th>Status</th><th>Total float h</th><th>Threshold h</th><th>Calendar</th><th>Controlled baseline finish</th><th>Current finish</th><th>Vs controlled baseline d</th><th>Progress</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></section></section>';
+  return '<section class="planning-view nearcritical-view">'+kpis+basis+reconciliation+floatConcentrationWarning+distributionSummary(p.floatDistribution,'hours','All execution activity float values')+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Float-risk distribution</h4><p>Submitted total float is classified against the disclosed screening basis using each activity calendar. A CMeng policy threshold is never presented as a client-approved project rule.</p></div></div><div class="planning-panel-body">'+histogram+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Where float-risk work finishes</h4><p>Current finish-month concentration for the full float-risk watchlist.</p></div></div><div class="planning-panel-body">'+finishPeriods+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Float-Risk Watchlist</h4><p>Critical and near-critical activities are shown separately. Open activities appear before completed history. '+(p.floatRiskWatchlistCount===null?'Unresolved: '+escapeHtml(fmt(unresolved))+' activities need readable calendars. Any listed rows are only the confirmed subset.':'Showing '+escapeHtml(fmt(watch.length))+' of '+escapeHtml(fmt(riskRows.length))+' watchlist activities; the complete population is available through Download Excel / Download data.')+'</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Activity</th><th>Risk class</th><th>Status</th><th>Total float h</th><th>Threshold h</th><th>Calendar</th><th>Controlled baseline finish</th><th>Current finish</th><th>Vs controlled baseline d</th><th>Progress</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></section></section>';
 }
 function renderManhourVisual(data){
   const p=projectionFor(data,"manhour_scurve");
@@ -3589,20 +3603,22 @@ function renderManagementControlVisual(key,data){
       {label:"Blocked specialist views",value:r.blocked??0,tone:"danger"}
     ],"Control views");
     return '<div class="planning-view management-view master-dashboard-view">'+
-      managementPanel("Project position","Current programme, progress and delivery exposure. Open a measure for its supporting analysis.",renderManagementMetricGrid(mainMetrics),true)+
+      managementPanel("Executive Project Position","Current programme, progress and delivery exposure. Open a measure for its supporting analysis.",renderManagementMetricGrid(mainMetrics),true)+
       renderDashboardExceptions(data)+renderDashboardTrend(data)+renderDashboardDecisions(data)+
+      managementPanel("Control Readiness","Calculation, document and comparison readiness for the specialist control views.",readinessDonut+renderManagementConsistency(data.consistency))+
+      managementPanel("Evidence Snapshot","Current evidence coverage. Missing or conflicted evidence remains explicit rather than being converted to zero.",planningKpis([
+        ["Project documents",data.evidenceDocumentCount??0,"current evidence library"],
+        ["Checked specialist views",r.ready??0,"calculation, document and comparison checks"],
+        ["Review needed",r.partial??0,"partial positions","warning"],
+        ["Blocked specialist views",r.blocked??0,"calculation unavailable","danger"],
+        ["Evidence gaps",r.evidenceGapCount??0,"missing, partial, stale or conflicted evidence","warning"],
+        ["Approvals outstanding",r.governanceGapCount??0,"reports and approval steps","warning"]
+      ]))+
       experienceSourceContext(key,data)+
       experienceDisclosure("Additional project measures",renderManagementMetricGrid(otherMetrics),fmt(otherMetrics.length)+" measures")+
       experienceDisclosure("Further analysis",'<div class="management-two-column">'+
-        managementPanel("Analysis available","Check the available analyses, supporting documents and outstanding decisions.",readinessDonut+renderManagementConsistency(data.consistency))+
-        managementPanel("Project documents","Figures come from the current project documents and programme.",planningKpis([
-          ["Project documents",data.evidenceDocumentCount??0,"current evidence library"],
-          ["Checked specialist views",r.ready??0,"calculation, document and comparison checks"],
-          ["Review needed",r.partial??0,"partial positions","warning"],
-          ["Blocked specialist views",r.blocked??0,"calculation unavailable","danger"],
-          ["Evidence gaps",r.evidenceGapCount??0,"missing, partial, stale or conflicted evidence","warning"],
-          ["Approvals outstanding",r.governanceGapCount??0,"Reports and approval steps","warning"]
-        ]))+
+        managementPanel("Analysis available","Open the specialist analysis that supports the executive position.",renderManagementConsistency(data.consistency))+
+        managementPanel("Evidence review","Use Information & Actions for missing, conflicting or unread project evidence.",managementModuleLink("source-quality","Open Information & Actions"))+
       '</div>',"Available results and supporting documents")+
       experienceDisclosure("NCR, RFI and risk records",renderOperationalReporting(data.operationalReporting),"Quality, RFI and risk records")+
       managementPanel("Commercial Exposure by Currency","Amounts are shown separately for each currency.",renderManagementCommercial(data.commercialByCurrency||[])+renderManagementVariationReconciliation(data.variationReconciliation||[]))+
@@ -4264,7 +4280,7 @@ function renderAiSuggestions(){
   document.querySelectorAll(".ai-suggestion").forEach(b=>b.onclick=()=>{el("aiQuestion").value=b.textContent;askCmeng()});
 }
 let directorRequestSeq=0;
-async function loadDirector(projectId=project()){
+async function loadDirector(projectId=project(),attempt=0){
   const requestSeq=++directorRequestSeq;
   el("director").innerHTML='<div class="view-state-bar"><span class="spinner"></span><strong>Loading management detail</strong></div>';
   try{
@@ -4273,6 +4289,17 @@ async function loadDirector(projectId=project()){
     renderDirector(position);
   }catch(e){
     if(requestSeq!==directorRequestSeq||projectId!==project())return;
+    const currentOverview=typeof overview!=="undefined"?overview:null;
+    const programmeEstablished=currentOverview?.minimumEvidenceBasis?.schedule?.established===true;
+    if(e.status===404&&programmeEstablished&&attempt<4){
+      el("director").innerHTML='<div class="view-state-bar"><span class="spinner"></span><strong>Updating management position</strong><span>The project documents are loaded; the management position is being rebuilt from the current evidence.</span></div>';
+      setTimeout(()=>{if(requestSeq===directorRequestSeq&&projectId===project())loadDirector(projectId,attempt+1)},600);
+      return;
+    }
+    if(e.status===404&&!programmeEstablished){
+      el("director").innerHTML='<div class="notice warn"><b>Management position not established.</b> A current programme must be established before CMeng can calculate the integrated management position.</div>';
+      return;
+    }
     el("director").innerHTML='<div class="notice error">CMeng could not load management detail: '+escapeHtml(e.message)+'. This is a loading failure; it does not establish missing project evidence. <button class="btn small" id="retryDirector">Retry management detail</button></div>';
     el("retryDirector").onclick=()=>loadDirector(projectId);
   }

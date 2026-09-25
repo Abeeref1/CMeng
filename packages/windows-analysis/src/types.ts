@@ -123,14 +123,15 @@ export interface WindowsAnalysisProjection {
   /** Gross analytical positive movement less positive net completion movement, floored at zero. */
   overlapCandidateDays: number | null;
   /**
-   * Sum of the strongest positive matched-activity finish shift in each
-   * chronological analysis window. This is an analytical gross movement
-   * metric, not net project delay or EOT.
+   * Sum of positive submitted/control-programme completion movement across
+   * chronological windows. This is not the independent analytical gross and
+   * is not net first-to-latest project completion movement.
    */
   positiveProgrammeMovementDays: number;
   /**
-   * Sum of the strongest negative matched-activity finish shift in each
-   * chronological analysis window. This is an analytical recovery metric.
+   * Sum of negative submitted/control-programme completion movement across
+   * chronological windows. This is submitted recovery movement, not the
+   * independently recalculated analytical recovery.
    */
   negativeProgrammeMovementDays: number;
   /** Net change in project completion from the first to the latest revision. */

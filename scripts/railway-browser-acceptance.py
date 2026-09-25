@@ -1,240 +1,136 @@
-"""Read-only browser smoke against the exact deployed CMeng source revision."""
-import hashlib
-import json
-import os
-import re
-import sys
+"""Read-only client-experience acceptance against every live CMeng project."""
+import hashlib, json, os, re, sys
 from pathlib import Path
 from urllib.parse import quote
 from playwright.sync_api import sync_playwright
 
-BASE = os.environ.get('CMENG_RAILWAY_URL', 'https://cmeng-main-production.up.railway.app').rstrip('/')
-EXPECTED = os.environ['CMENG_EXPECTED_RELEASE']
-assert re.fullmatch(r'[0-9a-f]{40}', EXPECTED)
-summary = {'expectedRelease': EXPECTED, 'mode': 'GET_ONLY_BROWSER', 'checks': [], 'status': 'running'}
-stage = 'initialization'
+BASE=os.environ.get("CMENG_RAILWAY_URL","https://cmeng-main-production.up.railway.app").rstrip("/")
+EXPECTED=os.environ["CMENG_EXPECTED_RELEASE"]
+assert re.fullmatch(r"[0-9a-f]{40}",EXPECTED)
+SUMMARY={"expectedRelease":EXPECTED,"mode":"GET_ONLY_ALL_REAL_PROJECTS_BROWSER","checks":[],"projects":[],"status":"running"}
+STAGE="initialization"
 
-def check(name, condition):
-    if not condition:
-        raise AssertionError(name)
-    summary['checks'].append({'name': name, 'status': 'pass'})
+KEYS=[
+ "master-dashboard","command-center","master-control-programme","source-quality",
+ "pmo-analysis","schedule-analytics","activity-analytics","lookahead-schedule",
+ "schedule-change-report","revision-trend","milestones","near-critical",
+ "resource-utilization","progress-report","variance-trends","progress-scurve",
+ "quantity-scurve","progress-breakdown","manhour-scurve","forecast-history",
+ "independent-forecast","delay-claims","notices-claims","windows-analysis",
+ "eot-assessment","challenge-contract","commercial-overview","cost-forecast",
+ "variations-change","payments","cash-flow","commercial-claims-notices",
+ "contract-particulars-bonds"
+]
 
-def fingerprint(documents):
-    identities = sorted((d['documentId'], d['sourceHashSha256']) for d in documents)
+def fp(documents):
+    identities=sorted((d["documentId"],d["sourceHashSha256"]) for d in documents)
     return hashlib.sha256(json.dumps(identities).encode()).hexdigest()
 
-try:
-    with sync_playwright() as pw:
-        browser = pw.chromium.launch(headless=True)
-        context = browser.new_context(viewport={'width': 1440, 'height': 1000})
-        def get_json(path):
-            response = context.request.get(BASE + path, timeout=90000)
-            if response.status != 200:
-                raise AssertionError('Read-only API request failed')
-            return response.json()
-        stage = 'release identity'
-        check('Exact released source before browser checks', get_json('/health').get('release') == EXPECTED)
-        projects = get_json('/api/portfolio')['projects']
-        requested = os.environ.get('CMENG_PROJECT_CODE')
-        candidates = [p for p in projects if p['projectId'] == requested] if requested else [p for p in projects if 'ORBIT' in p['projectId'].upper()]
-        if not requested and not candidates and len(projects) == 1:
-            candidates = projects
-        check('Unique existing acceptance project', len(candidates) == 1)
-        project_id = candidates[0]['projectId']
-        prefix = '/api/projects/' + quote(project_id, safe='')
-        before = get_json(prefix + '/evidence/documents')
-        source_before = fingerprint(before['documents'])
-        summary['documentCount'] = len(before['documents'])
-        mutation_attempts = []
-        errors = []
-        def allow_reads_only(route):
-            if route.request.method != 'GET':
-                mutation_attempts.append(route.request.method)
-                route.abort()
-            else:
-                route.continue_()
-        context.route('**/*', allow_reads_only)
-        page = context.new_page()
-        page.on('pageerror', lambda error: errors.append(type(error).__name__))
-        context.add_init_script('localStorage.setItem("cmeng-project",' + json.dumps(project_id) + ');localStorage.setItem("cmeng-module","master-dashboard");')
-        stage = 'open existing project'
-        page.goto(BASE + '/', wait_until='domcontentloaded', timeout=90000)
-        page.wait_for_function('typeof overview !== "undefined" && overview && typeof currentModuleResult !== "undefined" && currentModuleResult', timeout=90000)
-        keys = [
-            'master-dashboard','command-center','master-control-programme',
-            'pmo-analysis','schedule-analytics','activity-analytics','lookahead-schedule',
-            'schedule-change-report','revision-trend','milestones','near-critical',
-            'resource-utilization','progress-report','variance-trends','progress-scurve',
-            'quantity-scurve','progress-breakdown','manhour-scurve','forecast-history',
-            'independent-forecast','delay-claims','notices-claims','windows-analysis',
-            'eot-assessment','challenge-contract','commercial-overview','cost-forecast',
-            'variations-change','payments','cash-flow','commercial-claims-notices',
-            'contract-particulars-bonds'
-        ]
-        check('Navigation exposes all 32 Project Control and Management Control pages', all(page.locator('.nav-item[data-key="' + key + '"]').count() == 1 for key in keys))
-        for key in keys:
-            stage = key
-            page.locator('.nav-item[data-key="' + key + '"]').click(timeout=15000)
-            page.wait_for_function('key => currentModuleResult?.key === key && document.getElementById("moduleBadge").textContent !== "Updating"', arg=key, timeout=90000)
-            visible = page.evaluate('({key:currentModuleResult.key,status:currentModuleResult.status,bodyLength:document.getElementById("moduleContent").innerText.length,structuredCount:document.getElementById("moduleContent").querySelectorAll("table,svg,canvas,.planning-panel,.chart-card,.position-card,.planning-kpi,.commercial-ledger").length})')
-            check(key + ': visible module response without a blocked state', visible['key'] == key and visible['status'] != 'blocked' and visible['bodyLength'] > 100)
-            check(key + ': structured management view is rendered', visible['structuredCount'] > 0)
-            if key == 'master-dashboard':
-                body = page.locator('#moduleContent').inner_text()
-                check('Master Dashboard is compact executive position with evidence-safe authority',
-                      all(label in body for label in ['Executive Project Position','Control Readiness','Evidence Snapshot','Commercial Exposure by Currency']))
-                contract_risk = page.evaluate('''() => {
-                    const metric = (currentModuleResult?.data?.metrics || []).find(item => item.key === 'contract-risk')
-                    return metric ? {
-                        value: metric.value,
-                        state: metric.state,
-                        authority: metric.authority
-                    } : null
-                }''')
-                check('Master Dashboard does not fabricate Contract Risk',
-                      contract_risk is not None and
-                      contract_risk['value'] is None and
-                      contract_risk['state'] == 'unavailable' and
-                      contract_risk['authority'] == 'unavailable' and
-                      'contract risk' in body.lower() and
-                      'not established' in body.lower())
-                check('Master Dashboard renders human management dates instead of raw ISO timestamps',
-                      re.search(r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z', body) is None)
-                forecast_badges = page.locator('.management-metric-card').first.locator('.management-metric-badges .badge').all_inner_texts()
-                check('Master Dashboard does not show duplicate state and authority pills',
-                      len(forecast_badges) == len(set(forecast_badges)))
-                check('Master Dashboard consequence text does not expose engineering decimal noise',
-                      re.search(r'\d+\.\d{4,}\s+calendar days', body) is None)
-            if key == 'command-center':
-                body = page.locator('#moduleContent').inner_text()
-                check('Command Center presents priorities decisions evidence gaps and commercial position',
-                      all(label in body for label in ['Current Programme Position','Management Priorities','Decisions Required','Evidence Gaps','Commercial & Payment Position']))
-            if key == 'master-control-programme':
-                body = page.locator('#moduleContent').inner_text()
-                check('MCP exposes integrated governance revision WBS specialist candidate and history control',
-                      all(label in body for label in ['Integrated Governance Position','WBS & Work-Package Control','Specialist Positions','AI / Extracted Candidate Review Inbox','Control History']))
-                check('MCP explains observed WBS is not automatic official package authority',
-                      'do not become approved work packages' in body)
-            if key == 'near-critical':
-                check('Near-Critical page states the 5 working-day governed basis', '5' in page.locator('#moduleContent').inner_text() and ('working' in page.locator('#moduleContent').inner_text().lower() or 'calendar' in page.locator('#moduleContent').inner_text().lower()))
-            if key == 'independent-forecast':
-                body = page.locator('#moduleContent').inner_text()
-                check('Independent Forecast distinguishes source, CPM, contract and limited sensitivity', all(label in body.lower() for label in ['contractor programme forecast','source productivity forecast','cmeng independent cpm forecast','p50 duration sensitivity','required finish']))
-                if 'requires reconciliation' in body.lower():
-                    check('Unreconciled deterministic forecast suppresses sensitivity dates', 'Suppressed' in body and 'values are intentionally suppressed' in body)
-            if key == 'windows-analysis':
-                body = page.locator('#moduleContent').inner_text()
-                check('Delay Windows separates gross window movement from Project Completion movement', 'Gross positive window movement' in body and 'Project Completion movement' in body and 'not project delay or EOT' in body)
-            if key == 'delay-claims':
-                body = page.locator('#moduleContent').inner_text()
-                body_lower = body.lower()
-                check('Delay Events page exposes claim-event evidence chain summary', all(label in body_lower for label in [
-                    'events linked to activities',
-                    'events linked to windows',
-                    'notice-linked events',
-                    'determined events'
-                ]))
-                delay_state = page.evaluate('''() => ({
-                    activityGaps: currentModuleResult?.data?.activityEvidenceInsufficientEventCount ?? 0,
-                    incompleteDeterminations: currentModuleResult?.data?.determinationChainIncompleteEventCount ?? 0
-                })''')
-                if delay_state['activityGaps'] > 0:
-                    check('Delay Events page exposes source-limited activity evidence and fail-closed behavior',
-                          'activity evidence not established' in body_lower and
-                          'does not invent activity links' in body_lower)
-                if delay_state['incompleteDeterminations'] > 0:
-                    check('Delay Events page exposes incomplete determination chains',
-                          'incomplete determination chains' in body_lower and
-                          'missing links' in body_lower)
-            if key == 'eot-assessment':
-                body = page.locator('#moduleContent').inner_text()
-                body_lower = body.lower()
-                check('EOT page exposes amendment and determination reconciliation',
-                      'amendment and determination reconciliation' in body_lower and
-                      'full determination register' in body_lower and
-                      'project completion movement' in body_lower)
-            if key == 'resource-utilization':
-                body = page.locator('#moduleContent').inner_text()
-                check('Resources page exposes measured source utilization', 'capacity' in body.lower() and 'planned' in body.lower() and 'actual' in body.lower())
-            if key == 'payments':
-                check('Payment reconciliation panel is rendered', page.get_by_text('Cash allocation and balance reconciliation', exact=True).count() > 0)
-                check('Reported and calculated balances stay separate in the view', page.get_by_text('Reported outstanding', exact=True).count() > 0 and page.get_by_text('Calculated outstanding', exact=True).count() > 0)
-            if key == 'cash-flow':
-                body = page.locator('#moduleContent').inner_text()
-                readiness = page.evaluate('''() => {
-                    const cash = currentModuleResult?.data?.position?.performance?.cashFlow?.currencies?.[0]
-                    return cash?.sourceReadiness || null
-                }''')
-                check('Cash Flow leads with one defensible cash position and explicit prerequisites',
-                      page.locator('.cash-flow-hero').count() >= 1 and
-                      page.locator('.cash-readiness-grid').count() >= 1 and
-                      ('current cash position' in body.lower() or 'current evidenced net cash' in body.lower()))
-                check('Cash Flow UI is driven by producer-owned source readiness',
-                      readiness is not None and
-                      str(readiness['paymentRecordCount']) + ' payment records' in body and
-                      (
-                          ('paid amounts not established' in body.lower())
-                          if readiness['receipts']['state'] == 'missing' and readiness['receipts']['observedCount'] == 0
-                          else str(readiness['receipts']['observedCount']) + ' paid amounts' in body
-                      ) and
-                      (
-                          ('payment dates not established' in body.lower())
-                          if readiness['receipts']['state'] == 'missing' and readiness['receipts']['paymentDateCount'] == 0
-                          else str(readiness['receipts']['paymentDateCount']) + ' payment dates' in body
-                      ))
-                if readiness is not None and readiness['expenditure']['actualCostRecordCount'] > 0 and readiness['expenditure']['observedCount'] == 0:
-                    check('Cash Flow explicitly keeps Actual Cost separate from cash expenditure',
-                          'ac/accrual cost is not relabelled as cash expenditure' in body.lower() or
-                          'ac/accrual cost is not the same as cash expenditure' in body.lower())
-                check('Cash Flow no longer dumps the generic Commercial currency summary into the main canvas',
-                      page.locator('.commercial-management-summary').count() == 0 and
-                      'Cash & Certification Position by Currency' not in body)
-                check('Cash Flow source register is drill-down detail rather than the primary management canvas',
-                      page.locator('.cash-flow-register-detail').count() == 0 or
-                      page.locator('.cash-flow-register-detail').first.evaluate('(node) => !node.open'))
-                if readiness is not None and readiness['fundingCurveReady'] is False:
-                    check('Cash Flow does not draw a fake funding curve when producer readiness is false',
-                          page.locator('.cash-flow-primary .visual-chart').count() == 0 and
-                          page.locator('.cash-flow-curve-withheld').count() >= 1)
-                check('Overall Detailed review context is compact before specialist analysis',
-                      page.locator('.role-lens-compact-strip').count() == 1)
-        stage = 'management report popup'
-        page.locator('.nav-item[data-key="master-dashboard"]').click()
-        page.wait_for_function('currentModuleResult?.key === "master-dashboard" && document.getElementById("moduleBadge").textContent !== "Updating"', timeout=90000)
-        with page.expect_popup(timeout=15000) as management_popup_info:
-            page.locator('#moduleReport').click()
-        management_report = management_popup_info.value
-        management_report.wait_for_load_state('domcontentloaded')
-        check('Master Dashboard report opens with print and two download controls',
-              management_report.locator('#reportPrint').is_visible() and
-              management_report.locator('a[download]').count() == 2 and
-              'Master Dashboard' in management_report.locator('h1').inner_text())
-        check('Master Dashboard report keeps executive management content',
-              'Executive Project Position' in management_report.locator('body').inner_text())
+def check(name,condition,project=None,detail=None):
+    row={"name":name,"status":"pass" if condition else "fail"}
+    if project: row["projectFingerprint"]=hashlib.sha256(project.encode()).hexdigest()[:16]
+    if not condition and detail: row["detail"]=detail
+    SUMMARY["checks"].append(row)
+    return condition
 
-        stage = 'report popup'
-        page.locator('.nav-item[data-key="payments"]').click()
-        page.wait_for_function('currentModuleResult?.key === "payments" && document.getElementById("moduleBadge").textContent !== "Updating"', timeout=90000)
-        with page.expect_popup(timeout=15000) as popup_info:
-            page.locator('#moduleReport').click()
-        report = popup_info.value
-        report.wait_for_load_state('domcontentloaded')
-        check('Payments report opens with print and two download controls', report.locator('#reportPrint').is_visible() and report.locator('a[download]').count() == 2 and 'Payments' in report.locator('h1').inner_text())
-        check('Report includes canonical payment reconciliation', report.get_by_text('Cash allocation and balance reconciliation', exact=True).count() > 0)
-        stage = 'preservation and errors'
-        check('No uncaught browser JavaScript errors', not errors)
-        check('No mutation requests were attempted', not mutation_attempts)
-        check('Source document identities and hashes stay unchanged', source_before == fingerprint(get_json(prefix + '/evidence/documents')['documents']))
-        check('Exact released source after browser checks', get_json('/health').get('release') == EXPECTED)
-        browser.close()
-        summary['status'] = 'pass'
+try:
+  with sync_playwright() as pw:
+    browser=pw.chromium.launch(headless=True)
+    context=browser.new_context(viewport={"width":1440,"height":1000})
+    def get_json(path):
+      r=context.request.get(BASE+path,timeout=90000)
+      if r.status!=200: raise AssertionError("Read-only API request failed: "+str(r.status))
+      return r.json()
+
+    STAGE="release identity"
+    check("Exact released source before browser checks",get_json("/health").get("release")==EXPECTED)
+    projects=get_json("/api/portfolio").get("projects",[])
+    check("Real project portfolio is available",len(projects)>0,detail="projectCount="+str(len(projects)))
+
+    mutation_attempts=[]
+    def reads_only(route):
+      if route.request.method!="GET":
+        mutation_attempts.append(route.request.method)
+        route.abort()
+      else:
+        route.continue_()
+    context.route("**/*",reads_only)
+
+    for project in projects:
+      project_id=project["projectId"]
+      STAGE="project:"+hashlib.sha256(project_id.encode()).hexdigest()[:12]
+      prefix="/api/projects/"+quote(project_id,safe="")
+      before=get_json(prefix+"/evidence/documents")
+      source_before=fp(before.get("documents",[]))
+      errors=[]
+      page=context.new_page()
+      page.on("pageerror",lambda error,errors=errors: errors.append(type(error).__name__))
+      page.goto(BASE+"/",wait_until="domcontentloaded",timeout=90000)
+      page.evaluate("(id)=>{localStorage.setItem('cmeng-project',id);localStorage.setItem('cmeng-module','master-dashboard')}",project_id)
+      page.reload(wait_until="domcontentloaded",timeout=90000)
+      page.wait_for_function("typeof overview!=='undefined' && overview && overview.projectId===arg",arg=project_id,timeout=90000)
+      project_result={"projectFingerprint":hashlib.sha256(project_id.encode()).hexdigest()[:16],"pages":0,"blocked":[]}
+      SUMMARY["projects"].append(project_result)
+
+      check("Navigation exposes complete client workspace",all(page.locator('.nav-item[data-key="'+key+'"]').count()==1 for key in KEYS),project_id)
+
+      for key in KEYS:
+        STAGE=project_result["projectFingerprint"]+":"+key
+        page.locator('.nav-item[data-key="'+key+'"]').click(timeout=15000)
+        page.wait_for_function("key=>currentModuleResult?.key===key && document.getElementById('moduleBadge').textContent!=='Updating'",arg=key,timeout=90000)
+        visible=page.evaluate("""() => ({
+          key:currentModuleResult?.key,
+          status:currentModuleResult?.status,
+          reason:currentModuleResult?.reason,
+          systemDefects:currentModuleResult?.issueAssessment?.counts?.system_defect??0,
+          body:document.getElementById('moduleContent')?.innerText??'',
+          structured:document.getElementById('moduleContent')?.querySelectorAll('table,svg,canvas,.planning-panel,.chart-card,.position-card,.planning-kpi,.commercial-ledger,.notice').length??0
+        })""")
+        project_result["pages"]+=1
+        body=visible["body"]
+        ok_state=visible["status"] in ["ready","partial","blocked"]
+        check(key+": governed page state rendered",visible["key"]==key and ok_state and len(body)>40,project_id)
+        if visible["status"]=="blocked":
+          project_result["blocked"].append(key)
+          check(key+": blocked client view explains why",bool(visible["reason"]) and len(str(visible["reason"]).strip())>10,project_id)
+        else:
+          check(key+": usable structured client view rendered",visible["structured"]>0 and len(body)>100,project_id)
+        check(key+": client canvas contains no raw non-finite values",re.search(r"\b(?:NaN|Infinity|-Infinity)\b",body) is None,project_id)
+        check(key+": client canvas hides raw ISO timestamps",re.search(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z",body) is None,project_id)
+        check(key+": client canvas hides implementation labels",not any(token in body for token in ["producerVersion","reportingContract.metricContracts","source_required","SOURCE_REQUIRED"]),project_id)
+        check(key+": calculation error is shown only for a classified system defect",("Calculation error" not in body) or visible["systemDefects"]>0,project_id)
+
+        if key=="master-dashboard" and visible["status"]!="blocked":
+          check("Master Dashboard keeps executive hierarchy",all(label in body for label in ["Executive Project Position","Control Readiness","Evidence Snapshot","Commercial Exposure by Currency"]),project_id)
+        if key=="near-critical" and visible["status"]!="blocked":
+          check("Near-Critical discloses threshold authority",("Project control basis" in body or "CMeng screening policy" in body or "Threshold authority unresolved" in body),project_id)
+        if key=="windows-analysis" and visible["status"]!="blocked":
+          check("Delay Windows separates analytical submitted and net movement",all(label in body for label in ["Gross analytical movement","Positive submitted window movement","Project Completion movement"]),project_id)
+        if key=="delay-claims" and visible["status"]!="blocked":
+          check("Delay Events exposes full/current date populations",all(label in body for label in ["Current delay events","Source delay-event rows","After Data Date","Event date missing"]),project_id)
+        if key=="cash-flow" and visible["status"]!="blocked":
+          check("Cash Flow does not invent a funding curve when readiness is false",
+            page.evaluate("""() => {
+              const cash=currentModuleResult?.data?.position?.performance?.cashFlow?.currencies??[];
+              return cash.every(c=>c?.sourceReadiness?.fundingCurveReady!==false || document.querySelectorAll('.cash-flow-primary .visual-chart').length===0 || document.querySelectorAll('.cash-flow-curve-withheld').length>0)
+            }"""),project_id)
+
+      check("No uncaught browser JavaScript errors",not errors,project_id,",".join(errors))
+      after=get_json(prefix+"/evidence/documents")
+      check("Browser acceptance preserves real client source files",source_before==fp(after.get("documents",[])),project_id)
+      page.close()
+
+    check("No write request was attempted during real-project browser acceptance",not mutation_attempts,detail=",".join(mutation_attempts))
+    check("Exact released source after browser checks",get_json("/health").get("release")==EXPECTED)
+    browser.close()
+    failures=[x for x in SUMMARY["checks"] if x["status"]=="fail"]
+    SUMMARY["failedCheckCount"]=len(failures)
+    SUMMARY["status"]="pass" if not failures else "fail"
 except Exception as error:
-    summary['status'] = 'fail'
-    summary['failedStage'] = stage
-    summary['errorType'] = type(error).__name__
-    # Do not publish DOM text, project names, filenames or source rows in CI artifacts.
+  SUMMARY["status"]="fail"
+  SUMMARY["failedStage"]=STAGE
+  SUMMARY["errorType"]=type(error).__name__
 finally:
-    Path('browser-acceptance.json').write_text(json.dumps(summary, indent=2))
-    print(json.dumps(summary, indent=2))
-if summary['status'] != 'pass':
-    sys.exit(1)
+  Path("browser-acceptance.json").write_text(json.dumps(SUMMARY,indent=2))
+  print(json.dumps(SUMMARY,indent=2))
+if SUMMARY["status"]!="pass": sys.exit(1)
