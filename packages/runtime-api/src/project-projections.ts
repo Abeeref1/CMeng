@@ -3344,7 +3344,7 @@ function canonicalQuantityModule(state: ProjectRuntimeState, model: ProjectRunti
   if (!quantities) return available("quantity-scurve", {
     schemaVersion: "1.0", projectionKey: "quantity_scurve", projectId: state.projectId,
     scheduleRevisionId: model.sourceRevisionId, dataDateIso: model.dataDateIso,
-    allocationState: "missing", mappingBasis: "missing", boqState: "not_established", unitKeyed: true, generatedAt, producerVersion:"quantity-source-integration-v1", boqRevisionId:null, series: [],
+    allocationState: "missing", mappingBasis: "missing", boqState: "not_established", boqSource: boqSourceReporting(state), unitKeyed: true, generatedAt, producerVersion:"quantity-source-integration-v1", boqRevisionId:null, series: [],
     boqItemCount:null,knownQuantityItemCount:null,allocatedItemCount:null,unmappedItemCount:null,partiallyAllocatedItemCount:null,overAllocatedItemCount:null,
     unmappedItemIds: [], partiallyAllocatedItemIds: [], overAllocatedItemIds: [],
     diagnostics: ["BOQ_QUANTITY_BASIS_NOT_ESTABLISHED"],

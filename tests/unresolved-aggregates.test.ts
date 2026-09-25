@@ -14,6 +14,49 @@ import {ingestBoq} from '../packages/boq-ingestion/src';
 import {buildCommercialControlPosition} from '../packages/commercial-control/src';
 import {enforceModuleReadiness} from '../packages/runtime-api/src/module-readiness';
 import {cmengUatHtml} from '../packages/runtime-api/src/ui';
+import {numericDistribution} from '../packages/schedule-analysis-core/src/population';
+import {buildScheduleChangeReportProjection} from '../packages/schedule-change-report/src';
+
+test('maximum and modal populations require at least one measured value; measured zero is retained', () => {
+  for (const values of [[], [null, null], [NaN, Infinity]]) {
+    const result=numericDistribution(values);
+    assert.equal(result.maximum,null);
+    assert.equal(result.maximumCount,null);
+    assert.equal(result.dominantCount,null);
+  }
+  const zero=numericDistribution([0,0]);
+  assert.equal(zero.maximum,0);assert.equal(zero.maximumCount,2);assert.equal(zero.maximumPercent,100);
+  assert.equal(numericDistribution([5,null]).maximumCount,1,'a disclosed known-value subset remains available');
+  const model=schedule();model.activities.forEach((r:any)=>{r.currentFinishIso=null;r.baselineFinishIso=null;});
+  const revisions=[0,1].map(i=>({revisionId:'S'+i,label:'S'+i,sequence:i,effectiveAt:'2031-01-0'+(i+1),model:{...model,sourceRevisionId:'S'+i}}));
+  assert.equal(buildScheduleChangeReportProjection(revisions[0]!,revisions[1]!,options).finishMovementAnalysis?.maximumCount,null);
+});
+
+test('empty movement renderers explain unresolved populations without a zero count or unresolved percent', () => {
+  const script=cmengUatHtml().match(/<script>([\s\S]*?)<\/script>/)![1]!;
+  const source=createSourceFile('browser.js',script,ScriptTarget.Latest,true);
+  for(const name of ['renderMovementConcentration','renderRevisionMovementConcentration']) {
+    const fn=source.statements.filter(isFunctionDeclaration).find(n=>n.name?.text===name)!.getText(source);
+    const html=runInNewContext(fn+';'+name+'(data,[])',{data:{distribution:numericDistribution([]),maximumDays:null,maximumRows:[]}});
+    assert.match(html,/Activities sharing maximum: Unresolved/);
+    assert.doesNotMatch(html,/Unresolved%|0 activities|0 at the maximum/);
+  }
+});
+
+test('unreadable BOQ ingestion never establishes an empty quantity population', async () => {
+  const boq=await ingestBoq({projectId:'P',bytes:Buffer.from('Month,Item,Installed Quantity\n2031-01,A,5'),verifiedMediaType:'text/csv',receivedAt:'2031-01-01',sourceFilename:'measurements.csv'});
+  assert.equal(boq.canonicalItems.length,0);
+  assert.equal(boq.complete,false);
+  assert.ok(boq.diagnostics.includes('BOQ_CSV_DESCRIPTION_COLUMN_MISSING'));
+  const stale={projectId:'P',boqRevisionId:boq.evidenceReceipt.revisionId,scheduleRevisionId:'S',items:[],allocations:[],installedSnapshots:[],diagnostics:[]};
+  const state:any={boq,boqRevisions:[boq],quantities:stale,evidenceDocuments:[{documentId:'D',documentType:'boq',basisState:'active',linkedArtifactId:boq.ingestionId,sourceFilename:'measurements.csv',mediaType:'text/csv',assertions:[]}]};
+  const result=resolveBoqSource(state,'S');
+  assert.equal(result.selection.state,'unreadable');
+  assert.equal(result.selection.sourceDocumentId,'D','retain source identity without promoting its failed parse');
+  assert.equal(result.quantities,null);
+  assert.equal(suppliedBoqFigures(result.boq,result.quantities).itemCount,null);
+  assert.equal(state.quantities,stale,'reporting does not alter evidence');
+});
 
 test('aggregate contract preserves zero and known matches without fabricating a complete total', () => {
   for (const [rows, value, known, unresolved] of [

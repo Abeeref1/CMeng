@@ -3,6 +3,11 @@ import type {CanonicalQuantityProgressModel} from '../../quantity-progress-core/
 import type {ProjectRuntimeState} from './project-state-types';
 import {documentClassificationForReview} from './document-identification';
 
+/** An attempted ingestion is not proof of an empty measured population. */
+export function hasReadableBoqPopulation(boq: BoqIngestionResult) {
+  return boq.state !== 'unavailable' && (boq.canonicalItems.length > 0 || boq.complete);
+}
+
 /** Display supplied figures independently of schedule links, progress, productivity
  * or approval. A missing field does not suppress the other fields in its row. */
 export function suppliedBoqFigures(boq:BoqIngestionResult|null,quantities:CanonicalQuantityProgressModel|null) {
@@ -15,8 +20,9 @@ export function suppliedBoqFigures(boq:BoqIngestionResult|null,quantities:Canoni
     unit:item.unit,quantity:item.contractQuantity,rate:null,amount:null,currency:null,
     sourceRefs:item.sourceRefs.map(ref=>ref.source+':'+ref.locator),
   }));
+  const populationKnown = boq ? hasReadableBoqPopulation(boq) : quantities !== null;
   return {sourceFilename:boq?.sourceFilename??null,revisionId:boq?.evidenceReceipt.revisionId??quantities?.boqRevisionId??null,
-    itemCount:boq||quantities?rows.length:null,readableQuantityCount:boq||quantities?rows.filter(row=>row.quantity!==null&&Number.isFinite(row.quantity)).length:null,
+    itemCount:populationKnown?rows.length:null,readableQuantityCount:populationKnown?rows.filter(row=>row.quantity!==null&&Number.isFinite(row.quantity)).length:null,
     basis:'Figures as read from the supplied BOQ. Schedule links and calculation inputs do not block these figures.',rows};
 }
 
@@ -37,13 +43,14 @@ export function resolveBoqSource(state:ProjectRuntimeState,scheduleRevisionId:st
   const candidates=established.length?established:usable;
   const selected=validCurrent?state.boq:candidates.length===1?state.boqRevisions.find(b=>b.ingestionId===candidates[0]!.linkedArtifactId)??null:null;
   const source=usable.find(d=>d.linkedArtifactId===selected?.ingestionId);
-  const selection={state:selected?(source?.basisState==='candidate'?'candidate':'source'):'missing',
+  const readable = selected ? hasReadableBoqPopulation(selected) : false;
+  const selection={state:selected?(!readable?'unreadable':source?.basisState==='candidate'?'candidate':'source'):'missing',
     sourceDocumentId:source?.documentId??null,sourceFilename:source?.sourceFilename??selected?.sourceFilename??null,
     authority:'source_quantities_not_certified_installations',adoptedSource:source?['active','additive'].includes(source.basisState):Boolean(selected),
     excludedMisclassifiedDocuments:rejected.map(d=>({documentId:d.documentId,sourceFilename:d.sourceFilename,recordedType:d.documentType,detectedType:documentClassificationForReview(d).documentType})),
-    diagnostics:[...(rejected.length?['LEGACY_NON_BOQ_SOURCES_EXCLUDED']:[]),...(!validCurrent&&candidates.length>1?['BOQ_SOURCE_SELECTION_AMBIGUOUS']:[])],
-    explanation:rejected.length?'Content validation excluded sources from another evidence family. Valid BOQ quantities retain their own source authority.':'BOQ source and measured installation evidence remain separate.'};
-  return {boq:selected,quantities:selected?(selected===state.boq&&state.quantities?state.quantities:quantityModelFromBoq(selected,scheduleRevisionId,state.quantities)):state.boq?null:state.quantities,selection};
+    diagnostics:[...(selected&&!readable?['BOQ_ITEM_POPULATION_UNREADABLE']:[]),...(rejected.length?['LEGACY_NON_BOQ_SOURCES_EXCLUDED']:[]),...(!validCurrent&&candidates.length>1?['BOQ_SOURCE_SELECTION_AMBIGUOUS']:[])],
+    explanation:selected&&!readable?'The selected source did not yield a readable BOQ item population. Counts and quantity calculations remain unresolved.':rejected.length?'Content validation excluded sources from another evidence family. Valid BOQ quantities retain their own source authority.':'BOQ source and measured installation evidence remain separate.'};
+  return {boq:selected,quantities:selected?(readable?(selected===state.boq&&state.quantities?state.quantities:quantityModelFromBoq(selected,scheduleRevisionId,state.quantities)):null):state.boq?null:state.quantities,selection};
 }
 
 export function quantityModelFromBoq(

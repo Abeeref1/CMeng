@@ -274,7 +274,7 @@ export interface MilestoneSummary {
 export interface VarianceSummary {
   populationBasis?: "source_records" | "execution_control";
   denominator?: number;
-  distribution?: { median: number | null; p90: number | null; dominantValue: number | null; dominantCount: number; dominantPercent: number | null; interpretation: string };
+  distribution?: { median: number | null; p90: number | null; dominantValue: number | null; dominantCount: number | null; dominantPercent: number | null; interpretation: string };
   method: string;
   comparableActivities: number;
   lateActivities: number;

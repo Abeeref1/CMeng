@@ -47,7 +47,7 @@ export interface ScheduleChangeReportProjection {
   targetDateInterpretation?: string;
   finishMovementAnalysis?: {
     fromLabel:string;toLabel:string;population:import('../../truth-kernel/src').PopulationContract;
-    maximumDays:number|null;maximumCount:number;maximumPercent:number|null;sourcePairVerifiedCount:number;
+    maximumDays:number|null;maximumCount:number|null;maximumPercent:number|null;sourcePairVerifiedCount:number;
     maximumRows:Array<{activityId:string;fromFinishIso:string;toFinishIso:string;movementDays:number}>;
     causation:'not_established';
   };
