@@ -1,8 +1,9 @@
 import {segmentContractTextBlocks} from '../packages/contract-parser/src/segmenter';
 import test from 'node:test';import assert from 'node:assert/strict';
-import {createHash,randomUUID} from 'node:crypto';import {mkdtempSync,writeFileSync,rmSync} from 'node:fs';import {tmpdir} from 'node:os';import {join} from 'node:path';
+import {createHash,randomUUID} from 'node:crypto';import {mkdtempSync,writeFileSync,readFileSync,rmSync} from 'node:fs';import {tmpdir} from 'node:os';import {join} from 'node:path';
 import ExcelJS from 'exceljs';import JSZip from 'jszip';
-import {runtimeProjects} from '../packages/runtime-api/src/project-state';
+import {runtimeProjects,RuntimeProjectStore} from '../packages/runtime-api/src/project-state';
+import {rebuildEvidenceFamily} from '../packages/runtime-api/src/evidence-control';
 import {hseReportPosition,refreshHseSummary,parseHseSummary} from '../packages/runtime-api/src/hse-report-evidence';
 import {readRegisterWorkbook} from '../packages/runtime-api/src/register-workbook';
 import {analyzeCsvEvidence,analyzeEvidenceRows} from '../packages/runtime-api/src/evidence';
@@ -53,6 +54,33 @@ test('valid prefixed XLSX namespaces, title rows, bilingual headings and serial 
  const bytes=await zip.generateAsync({type:'nodebuffer'});const read=await readRegisterWorkbook(bytes,hash(bytes),'payment_certificates');const p=prepareRegisterRows(read.sheets[0]!.rows,'payment_certificates');
  assert.equal(p.headerRow,3);assert.equal(p.recognized,true);assert.equal(p.rows.length,2);assert.equal(p.rows[0]![2],'2026-08-31');assert.equal(p.rows[1]![2],'2026-08-31');
  assert.equal(analyzeEvidenceRows(read.sheets[0]!.rows,new Set(['WORK-01'])).mappedActivityCount,2);
+});
+
+test('reader upgrade refreshes existing uploads, repairs false family collisions and preserves real revisions and raw bytes',async t=>{
+ const dir=mkdtempSync(join(tmpdir(),'register-upgrade-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));
+ const store=new RuntimeProjectStore({dataDir:dir,durable:false}),id='EXISTING';
+ const header='Claim Ref,Event Description,Notice Date,Event Date,Days Claimed,Assessed Days,Status,Determination Ref,Awarded Days';
+ for(const [filename,text,date] of [
+   ['Claims_Rev1.csv',header+'\nC1,Access,2031-03-02,2031-03-01,4,2,Submitted,,','2031-03-03'],
+   ['Claims_Rev2.csv',header+'\nC2,Access,2031-04-02,2031-04-01,7,3,Submitted,,','2031-04-03'],
+   ['Decisions.csv','Determination Ref,Claim Ref,Determination Date,Awarded EOT Days\nD1,C2,2031-04-10,3','2031-04-11'],
+ ] as const)await store.ingestEvidenceFile({projectId:id,sourceFilename:filename,mediaType:'text/csv',bytes:Buffer.from(text),uploadedAt:date+'T00:00:00Z',uploadIntent:'replace_current_basis'});
+ const state=store.get(id)!,decision=state.evidenceDocuments.find(d=>d.sourceFilename==='Decisions.csv')!;
+ for(const d of state.evidenceDocuments){
+   delete d.derivedRegisterRead;d.documentType='determination_register';d.familyKey=decision.familyKey;d.logicalDocumentKey=decision.logicalDocumentKey;
+ }
+ rebuildEvidenceFamily(state,decision.familyKey);
+ assert.ok(state.evidenceDocuments.filter(d=>d.sourceFilename.startsWith('Claims')).every(d=>d.basisState==='superseded'));
+ state.derivedControlsByDocument={};state.derivedReadinessByDocument={};state.controls.delayClaims=null;store.touch(state);
+ const before=state.evidenceDocuments.map(d=>({id:d.documentId,hash:d.sourceHashSha256,bytes:readFileSync(d.storedPath).toString('base64'),intent:d.uploadIntent}));
+ const restored=new RuntimeProjectStore({dataDir:dir,durable:false}),upgrade=await restored.refreshSpreadsheetRegisters(id),after=restored.get(id)!;
+ assert.equal(upgrade.refreshedDocumentCount,3);assert.deepEqual(upgrade.diagnostics,[]);
+ assert.equal(after.evidenceDocuments.find(d=>d.sourceFilename==='Claims_Rev1.csv')!.basisState,'superseded','real older claim revision stays superseded');
+ assert.equal(after.evidenceDocuments.find(d=>d.sourceFilename==='Claims_Rev2.csv')!.basisState,'active');
+ assert.equal(after.evidenceDocuments.find(d=>d.sourceFilename==='Decisions.csv')!.basisState,'active','determinations retain their own population');
+ assert.deepEqual(after.controls.delayClaims?.claims.map(c=>c.claimId),['C2']);
+ assert.deepEqual(after.evidenceDocuments.map(d=>({id:d.documentId,hash:d.sourceHashSha256,bytes:readFileSync(d.storedPath).toString('base64'),intent:d.uploadIntent})),before);
+ const version=after.version;assert.equal((await restored.refreshSpreadsheetRegisters(id)).refreshedDocumentCount,0);assert.equal(after.version,version,'current reader does not repeatedly rebuild or duplicate records');
 });
 
 test('page title, navigation definition, export name and public API identity use the same registry',()=>{

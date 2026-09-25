@@ -265,6 +265,7 @@ export interface CorrespondenceNarrativeRefreshReceipt {
 }
 
 export interface StoredEvidenceDocument {
+  derivedRegisterRead?: {producerVersion:string;sourceHashSha256:string};
   tabularRead?: import("../../truth-kernel/src").EvidenceDocument["tabularRead"];
   documentId: string;
   category: EvidenceCategory;

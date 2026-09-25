@@ -81,7 +81,7 @@ export function sourceTables(documents: readonly EvidenceDocument[], diagnostics
     hashes.add(identity);
     try {
       const stat = statSync(doc.storedPath);
-      const key = [doc.documentId, identity, doc.basisState, doc.linkedArtifactId, doc.storedPath, stat.size, stat.mtimeMs, stat.ctimeMs].join(':');
+      const key = [doc.documentId, identity, doc.documentType, doc.tabularRead?.producerVersion, doc.basisState, doc.linkedArtifactId, doc.storedPath, stat.size, stat.mtimeMs, stat.ctimeMs].join(':');
       const cached = tableCache.get(key); if (cached) { result.push(cached); continue; }
       const bytes = readFileSync(doc.storedPath);
       if (createHash('sha256').update(bytes).digest('hex') !== identity) { diagnostics.push('SOURCE_HASH_MISMATCH:' + doc.documentId); continue; }

@@ -1873,19 +1873,49 @@ export class RuntimeProjectStore {
     return {refreshedDocumentCount,diagnostics,changedProjects};
   }
 
+  /** Refresh derived register data after a reader upgrade without changing source
+   * bytes or upload intent. Reclassify only high-confidence tabular schemas;
+   * replay affected families so a false cross-role supersession is corrected
+   * while real revisions and deliberately historical uploads retain their rules.
+   */
   async refreshSpreadsheetRegisters(projectId?:string){
     let refreshedDocumentCount=0;const diagnostics:string[]=[];
     for(const state of this.projects.values()){
       if(projectId&&state.projectId!==projectId)continue;
+      let changed=false;const families=new Set<string>();
       for(const document of state.evidenceDocuments){
-        if(!/spreadsheetml|macroEnabled/.test(document.mediaType)||document.tabularRead?.producerVersion==='register-workbook-v1'&&document.tabularRead.sourceHashSha256===document.sourceHashSha256)continue;
+        const isCsv=/csv/.test(document.mediaType),isWorkbook=/spreadsheetml|macroEnabled/.test(document.mediaType);
+        if(document.category==='schedule'||(!isCsv&&!isWorkbook))continue;
+        if(document.derivedRegisterRead?.producerVersion==='register-derived-v2'&&document.derivedRegisterRead.sourceHashSha256===document.sourceHashSha256&&(!isWorkbook||document.tabularRead?.producerVersion==='register-workbook-v2'))continue;
         try{
           const bytes=readFileSync(document.storedPath);if(hashBytes(bytes)!==document.sourceHashSha256)throw new Error('SOURCE_HASH_MISMATCH');
-          document.tabularRead=await readRegisterWorkbook(bytes,document.sourceHashSha256,document.documentType);
-          delete state.derivedControlsByDocument[document.documentId];delete state.derivedReadinessByDocument[document.documentId];
-          for(const sheet of document.tabularRead.sheets){const csvBytes=Buffer.from(registerCsv(sheet.rows));const controls=deriveControlsFromCsv({state,document,bytes:csvBytes});const prior=state.derivedControlsByDocument[document.documentId];state.derivedControlsByDocument[document.documentId]=Object.fromEntries(Object.entries(controls).map(([key,value])=>[key,Array.isArray(value)?[...((prior as any)?.[key]??[]),...value]:value]));state.derivedReadinessByDocument[document.documentId]={...state.derivedReadinessByDocument[document.documentId],...deriveReadinessFromCsv({state,document,bytes:csvBytes})};}
-          document.parserState='parsed';rebuildReadinessEvidence(state);rebuildDerivedControls(state);this.touchEvidence(state);refreshedDocumentCount++;
-        }catch(error){diagnostics.push('WORKBOOK_READ_UNRESOLVED:'+document.documentId+':'+String(error));}
+          const identified=await identifyEvidenceDocument({bytes,sourceFilename:document.sourceFilename,sourceRelativePath:document.sourceRelativePath,declaredMediaType:document.mediaType});
+          const next={...document};
+          if(identified.identification.method==='tabular_content'&&identified.identification.confidence>=0.95){
+            next.category=identified.identification.detectedCategory;next.documentType=identified.identification.detectedDocumentType;
+            next.identification=identified.identification;
+            const family=evidenceFamily({category:next.category,documentType:next.documentType,scheduleRole:next.scheduleRole,textSample:identified.textSample,sourceFilename:next.sourceFilename});
+            next.familyKey=family.familyKey;next.logicalDocumentKey=family.logicalDocumentKey;
+          }
+          if(isWorkbook)next.tabularRead=await readRegisterWorkbook(bytes,next.sourceHashSha256,next.documentType);
+          if(isCsv)next.mapping=analyzeCsvEvidence(bytes,this.activityIds(state.projectId));
+          let controls:ProjectRuntimeState['derivedControlsByDocument'][string]={},readiness:ProjectRuntimeState['derivedReadinessByDocument'][string]={};
+          for(const registerBytes of isWorkbook?next.tabularRead!.sheets.map(sheet=>Buffer.from(registerCsv(sheet.rows))):[bytes]){
+            const derived=deriveControlsFromCsv({state,document:next,bytes:registerBytes});
+            controls=Object.fromEntries(Object.entries(derived).map(([key,value])=>[key,Array.isArray(value)?[...((controls as any)[key]??[]),...value]:value]));
+            readiness={...readiness,...deriveReadinessFromCsv({state,document:next,bytes:registerBytes})};
+          }
+          if(next.familyKey!==document.familyKey){families.add(document.familyKey);families.add(next.familyKey);next.diagnostics=[...document.diagnostics,'REGISTER_READER_FAMILY_REFRESH:'+document.familyKey+'->'+next.familyKey];}
+          next.derivedRegisterRead={producerVersion:'register-derived-v2',sourceHashSha256:next.sourceHashSha256};
+          if(isWorkbook)next.parserState='parsed';
+          Object.assign(document,next);
+          state.derivedControlsByDocument[document.documentId]=controls;state.derivedReadinessByDocument[document.documentId]=readiness;
+          changed=true;refreshedDocumentCount++;
+        }catch(error){diagnostics.push('REGISTER_REFRESH_UNRESOLVED:'+document.documentId+':'+String(error));}
+      }
+      if(changed){
+        for(const family of families)rebuildEvidenceFamily(state,family);
+        rebuildReadinessEvidence(state);rebuildDerivedControls(state);this.touchEvidence(state);
       }
     }
     return {refreshedDocumentCount,diagnostics};
@@ -4719,6 +4749,7 @@ export class RuntimeProjectStore {
       }
 
       }
+      document.derivedRegisterRead={producerVersion:'register-derived-v2',sourceHashSha256:hash};
       if(tabularRead)document.parserState="parsed";
       rebuildReadinessEvidence(
         state,
