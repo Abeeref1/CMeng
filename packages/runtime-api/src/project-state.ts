@@ -1218,9 +1218,13 @@ export class RuntimeProjectStore {
           );
         const migrated = migrateTypedEvidenceFamilies(state, applyEvidenceBasis);
         let controlBasisMigrated = false;
+        const priorSourceIntegrationVersion =
+          state.sourceIntegrationVersion;
         const requiresV5GovernanceMigration =
-          state.sourceIntegrationVersion !==
-          "canonical-source-v5";
+          priorSourceIntegrationVersion !==
+            "canonical-source-v5" &&
+          priorSourceIntegrationVersion !==
+            "canonical-source-v6";
 
         if (requiresV5GovernanceMigration) {
           const controlFamily =
@@ -1351,13 +1355,45 @@ export class RuntimeProjectStore {
           }
         }
 
+        const requiresV6RoleAndBasisMigration =
+          priorSourceIntegrationVersion !==
+          "canonical-source-v6";
+        const roleFamilies =
+          new Set<string>();
+        const scheduleRoleMigrated =
+          requiresV6RoleAndBasisMigration
+            ? migrateStrongScheduleRoles(
+                state,
+                roleFamilies,
+              )
+            : false;
+
+        if (scheduleRoleMigrated) {
+          for (const familyKey of roleFamilies) {
+            rebuildEvidenceFamily(
+              state,
+              familyKey,
+            );
+          }
+        }
+
+        const activeBoqMigrated =
+          requiresV6RoleAndBasisMigration
+            ? synchronizeActiveBoq(
+                state,
+              )
+            : false;
+
         if (
           migrated ||
           controlBasisMigrated ||
-          requiresV5GovernanceMigration
+          scheduleRoleMigrated ||
+          activeBoqMigrated ||
+          requiresV5GovernanceMigration ||
+          requiresV6RoleAndBasisMigration
         ) {
           state.sourceIntegrationVersion =
-            "canonical-source-v5";
+            "canonical-source-v6";
           state.version += 1;
           this.staleFinalizedBoardPublications(state);
           state.lastRerunReceipt = null;
