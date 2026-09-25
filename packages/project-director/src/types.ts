@@ -249,7 +249,7 @@ export interface ProjectDirectorPosition {
       | "contractual_completion"
       | "submitted_programme"
       | "none";
-    criticalCount: number;
+    criticalCount: number | null;
     nearCriticalCount: number | null;
     criticalityBasis:
       "source_total_float";

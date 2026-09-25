@@ -34,7 +34,7 @@ export function buildScheduleChangeReportProjection(
     population:populationContract({name:'Revision-comparable source activity finish dates',entity:'activity',dataDateIso:to.model.dataDateIso,
       dateBasis:'source finish elapsed days (24 hours) for each matched activity; unchanged matched records included',sourceRevisionId:from.revisionId+'->'+to.revisionId,
       authority:'calculated',sourceCount:comparison.activityChanges.length,memberIds:[...knownIds],exclusions:comparison.activityChanges.filter(r=>!knownIds.has(r.activityId)).map(r=>({id:r.activityId,reason:'unmatched_or_finish_date_missing'}))}),
-    maximumDays,maximumCount:maximumRows.length,maximumPercent:finishRows.length?maximumRows.length/finishRows.length*100:null,
+    maximumDays,maximumCount:maximumDays===null?null:maximumRows.length,maximumPercent:finishRows.length?maximumRows.length/finishRows.length*100:null,
     sourcePairVerifiedCount:maximumRows.filter(r=>Math.abs((parseScheduleTime(r.toFinishIso)-parseScheduleTime(r.fromFinishIso))/86_400_000-r.movementDays)<0.000001).length,maximumRows,causation:'not_established' as const};
 
   const changedActivities =

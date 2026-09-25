@@ -25,9 +25,9 @@ export interface PmoAnalysisProjection {
     };
     relationshipCount: number;
     graphComplete: boolean;
-    criticalCount: number;
+    criticalCount: number | null;
     nearCriticalCount: number | null;
-    negativeFloatCount: number;
+    negativeFloatCount: number | null;
     logicDensity: number | null;
     criticalityBasis:
       "source_total_float";

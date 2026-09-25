@@ -398,12 +398,12 @@ export function buildNearCriticalProjection(
     unresolvedActivityCount:population.activities.length-known.length+classified.filter(r=>r.threshold===null).length,
     floatRiskWatchlistCount:
       known.length!==population.activities.length||classified.some(r => r.threshold === null) ? null : watchlistRows.length,
-    zeroFloatCount: known.filter(
+    zeroFloatCount: known.length!==population.activities.length?null:known.filter(
       (activity) =>
         activity.totalFloatHours ===
         0,
     ).length,
-    negativeFloatCount: known.filter(
+    negativeFloatCount: known.length!==population.activities.length?null:known.filter(
       (activity) =>
         activity.totalFloatHours! < 0,
     ).length,

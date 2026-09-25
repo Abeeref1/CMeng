@@ -19,9 +19,9 @@ export interface ProgressBreakdownRow {
   durationWeightedCoveragePercent: number | null;
   originalDurationHoursKnown: number;
   remainingDurationHoursKnown: number;
-  criticalCount: number;
+  criticalCount: number | null;
   nearCriticalCount: number | null;
-  negativeFloatCount: number;
+  negativeFloatCount: number | null;
   floatCoveragePercent: number | null;
 }
 

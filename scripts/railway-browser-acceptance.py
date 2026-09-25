@@ -60,15 +60,19 @@ try:
       project_id=project["projectId"]
       STAGE="project:"+hashlib.sha256(project_id.encode()).hexdigest()[:12]
       prefix="/api/projects/"+quote(project_id,safe="")
+      STAGE+="/source-before"
       before=get_json(prefix+"/evidence/documents")
       source_before=fp(before.get("documents",[]))
       errors=[]
       page=context.new_page()
       page.on("pageerror",lambda error,errors=errors: errors.append(type(error).__name__))
+      STAGE=hashlib.sha256(project_id.encode()).hexdigest()[:12]+"/open-workspace"
       page.goto(BASE+"/",wait_until="domcontentloaded",timeout=90000)
       page.evaluate("(id)=>{localStorage.setItem('cmeng-project',id);localStorage.setItem('cmeng-module','master-dashboard')}",project_id)
+      STAGE=hashlib.sha256(project_id.encode()).hexdigest()[:12]+"/restore-project"
       page.reload(wait_until="domcontentloaded",timeout=90000)
-      page.wait_for_function("typeof overview!=='undefined' && overview && overview.projectId===arg",arg=project_id,timeout=90000)
+      STAGE=hashlib.sha256(project_id.encode()).hexdigest()[:12]+"/wait-project"
+      page.wait_for_function("id => typeof overview!=='undefined' && overview && overview.projectId===id",arg=project_id,timeout=90000)
       project_result={"projectFingerprint":hashlib.sha256(project_id.encode()).hexdigest()[:16],"pages":0,"blocked":[]}
       SUMMARY["projects"].append(project_result)
 
@@ -130,6 +134,11 @@ except Exception as error:
   SUMMARY["status"]="fail"
   SUMMARY["failedStage"]=STAGE
   SUMMARY["errorType"]=type(error).__name__
+  # Keep the actionable browser error without publishing client identifiers.
+  message=str(error).split("Call log:")[0].replace(BASE,"<application>")
+  for project in locals().get("projects",[]):
+    message=message.replace(project["projectId"],"<project>")
+  SUMMARY["errorMessage"]=message[:1500]
 finally:
   Path("browser-acceptance.json").write_text(json.dumps(SUMMARY,indent=2))
   print(json.dumps(SUMMARY,indent=2))

@@ -9,7 +9,7 @@ export function checkProjectionIntegrity(result: ModuleRuntimeResult, model: Can
   const data = result.data as Record<string, any>;
   const execution = activityPopulation(model);
   const classifications = execution.activities.map(a => sourceFloatCriticality(model, a, config));
-  const expectedCritical = classifications.filter(x => x === 'critical').length;
+  const expectedCritical = execution.activities.some(a=>a.totalFloatHours===null)?null:classifications.filter(x => x === 'critical').length;
   const expectedNear = execution.activities.some(a=>a.totalFloatHours===null||activityNearCriticalThresholdHours(model,a,config)===null)?null:classifications.filter(x => x === 'near_critical').length;
   const progress = scheduleProgress(model.activities);
   const checks: Array<{ metric: string; expected: unknown; actual: unknown; passed: boolean }> = [];
@@ -88,7 +88,7 @@ export function checkProjectionIntegrity(result: ModuleRuntimeResult, model: Can
   } else if (result.key === 'progress-breakdown') {
     compare('execution_population', data.totalActivityCount, execution.activities.length);
     compare('direct_wbs_population_reconciliation', data.rows?.reduce((n: number, r: any) => n + r.activityCount, 0), execution.activities.length);
-    compare('wbs_critical_reconciliation', data.rows?.reduce((n: number, r: any) => n + r.criticalCount, 0), expectedCritical);
+    compare('wbs_critical_reconciliation', data.rows?.some((r:any)=>r.criticalCount===null)?null:data.rows?.reduce((n: number, r: any) => n + r.criticalCount, 0), expectedCritical);
     compare('wbs_near_critical_reconciliation', data.rows?.some((r:any)=>r.nearCriticalCount===null)?null:data.rows?.reduce((n: number, r: any) => n + r.nearCriticalCount, 0), expectedNear);
   } else if (result.key === 'progress-report' || result.key === 'pmo-analysis') {
     compare('source_float_critical_count', data.schedule?.criticalCount, expectedCritical);
