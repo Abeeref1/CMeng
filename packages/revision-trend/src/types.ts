@@ -14,11 +14,11 @@ export interface RevisionTrendPoint {
   unknownStatusCount: number;
   durationWeightedProgressPercent: number | null;
   floatCoveragePercent: number | null;
-  criticalCount: number;
+  criticalCount: number | null;
   nearCriticalCount: number | null;
   floatRiskWatchlistCount: number | null;
-  zeroFloatCount: number;
-  negativeFloatCount: number;
+  zeroFloatCount: number | null;
+  negativeFloatCount: number | null;
   forecastCompletionIso: string | null;
   programmeCompletionIso: string | null;
   logicDensity: number | null;

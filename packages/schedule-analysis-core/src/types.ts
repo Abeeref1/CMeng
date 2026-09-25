@@ -244,12 +244,13 @@ export interface ScheduleActivityPopulation {
 }
 
 export interface FloatSummary {
-  criticalCount: number;
+  knownClassifications: { critical:number;nearCritical:number;noncritical:number;unknown:number };
+  criticalCount: number | null;
   nearCriticalCount: number | null;
   floatRiskWatchlistCount: number | null;
-  zeroFloatCount: number;
-  negativeFloatCount: number;
-  positiveFloatCount: number;
+  zeroFloatCount: number | null;
+  negativeFloatCount: number | null;
+  positiveFloatCount: number | null;
   unknownFloatCount: number;
   knownFloatCount: number;
   totalActivities: number;

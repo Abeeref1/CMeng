@@ -97,7 +97,7 @@ function buildRow(
           (activity.remainingDurationHours ?? 0),
         0,
       ),
-    criticalCount: floatKnown.filter(
+    criticalCount: floatKnown.length!==activities.length?null:floatKnown.filter(
       (activity) =>
         sourceFloatCriticality(model, activity, config) ===
         "critical",
@@ -107,7 +107,7 @@ function buildRow(
         sourceFloatCriticality(model, activity, config) ===
         "near_critical",
     ).length,
-    negativeFloatCount: floatKnown.filter(
+    negativeFloatCount: floatKnown.length!==activities.length?null:floatKnown.filter(
       (activity) =>
         activity.totalFloatHours! < 0,
     ).length,

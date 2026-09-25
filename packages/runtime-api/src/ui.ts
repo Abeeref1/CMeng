@@ -1881,7 +1881,7 @@ function renderPmoVisual(data){
       {label:"Unknown",value:p.progress.unknownStatusCount||0,tone:"neutral"}
     ],"Activities"))+
     renderVisualPanel("Schedule pressure","Disjoint critical and near-critical populations. Negative float is a separate KPI.",renderDonutChart([
-      {label:"Critical",value:p.schedule.criticalCount||0,tone:"danger"},
+      {label:"Critical",value:p.schedule.criticalCount,tone:"danger"},
       {label:"Near-critical",value:p.schedule.nearCriticalCount,tone:"warning"}
     ],"Critical + near-critical"))+
   '</div>';
@@ -1917,10 +1917,10 @@ function renderScheduleAnalyticsVisual(data){
     ["Negative float",r.float.negativeFloatCount,"activities","danger"]
   ]);
   const classes=[
-    {label:"Critical",value:r.float.criticalCount,tone:"danger"},
-    {label:"Near-critical",value:r.float.nearCriticalCount,tone:"warning"},
-    {label:"Non-critical",value:Math.max(0,r.float.totalActivities-r.float.criticalCount-r.float.nearCriticalCount-r.float.unknownFloatCount-(r.float.nearCriticalThresholdUnresolvedCount||0)),tone:"accent"},
-    {label:"Classification unknown",value:r.float.unknownFloatCount+(r.float.nearCriticalThresholdUnresolvedCount||0),tone:"neutral"}
+    {label:"Known critical",value:r.float.knownClassifications?.critical,tone:"danger"},
+    {label:"Known near-critical",value:r.float.knownClassifications?.nearCritical,tone:"warning"},
+    {label:"Known non-critical",value:r.float.knownClassifications?.noncritical,tone:"accent"},
+    {label:"Classification unknown",value:r.float.knownClassifications?.unknown,tone:"neutral"}
   ];
   const pressure=planningStatusBand(classes.map(x=>[x.label,x.value,x.tone]))+'<p>Negative float: '+escapeHtml(fmt(r.float.negativeFloatCount))+' (separate overlapping indicator). Float-field coverage: '+escapeHtml(fmt(r.float.coveragePercent))+'% of execution activities.</p>';
   const visualOverview='<div class="visual-chart-grid">'+renderVisualPanel("Execution status","Execution activities",renderDonutChart([
@@ -2163,7 +2163,7 @@ function renderProgressReportVisual(data){
     ["Unknown",p.progress?.unknownStatusCount||0,"warning"]
   ]);
   const pressure=planningStatusBand([
-    ["Critical",p.schedule?.criticalCount||0,"danger"],
+    ["Critical",p.schedule?.criticalCount,"danger"],
     ["Near-critical",p.schedule?.nearCriticalCount,"warning"]
   ]);
   const progressChart=renderVisualBars([
@@ -2227,7 +2227,7 @@ const movementClusters=new Map();
 }
 function renderFloatPressureTrend(points){
   const fields=[{key:"criticalCount",label:"Critical",color:"#b4483e"},{key:"nearCriticalCount",label:"Strict near-critical",color:"#b57922"},{key:"negativeFloatCount",label:"Negative float",color:"#7a4b46"}];
-  return '<div class="float-small-multiples">'+fields.map(field=>{const values=points.map(p=>p[field.key]).filter(v=>typeof v==='number');return renderVisualPanel(field.label+' · '+fmt(values[0])+' → '+fmt(values.at(-1)),"Separate zoomed count axis; compare the stated values. Negative float can overlap criticality.",renderLineChart(points,[field],null,{unit:"activities",zeroBaseline:false,yLabel:field.label,xLabel:"Reporting date",ariaLabel:field.label+" count change"}));}).join('')+'</div>';
+  return '<div class="float-small-multiples">'+fields.map(field=>{const values=points.map(p=>p[field.key]);return renderVisualPanel(field.label+' · '+fmt(values[0])+' → '+fmt(values.at(-1)),"Separate zoomed count axis; compare the stated values. Negative float can overlap criticality.",renderLineChart(points,[field],null,{unit:"activities",zeroBaseline:false,yLabel:field.label,xLabel:"Reporting date",ariaLabel:field.label+" count change"}));}).join('')+'</div>';
 }
 function renderRevisionTrendVisual(data){
   const p=projectionFor(data,"revision_trend");
@@ -2252,7 +2252,7 @@ function renderRevisionTrendVisual(data){
   const changeBars=latest.addedVsPrevious===null?'<div class="empty-visual">N/A: no preceding revision.</div>':planningStatusBand([
     ["Added",latest.addedVsPrevious||0,"accent"],["Removed",latest.removedVsPrevious||0,"neutral"],["Modified",latest.modifiedVsPrevious||0,"warning"]
   ]);
-  const rows=p.points.map(x=>'<tr><td>'+escapeHtml(x.sequence)+'</td><td><b>'+escapeHtml(planningRevisionLabel(x.label)||("Revision "+x.sequence))+'</b><br><span class="muted">'+escapeHtml(planningShortDate(x.dataDateIso))+'</span></td><td>'+escapeHtml(x.durationWeightedProgressPercent===null?"—":fmt(x.durationWeightedProgressPercent)+"%")+'</td><td>'+escapeHtml(x.activityCount)+'</td><td>'+escapeHtml(x.criticalCount)+'</td><td>'+escapeHtml(x.nearCriticalCount)+'</td><td>'+escapeHtml(x.negativeFloatCount)+'</td><td>'+escapeHtml(planningShortDate(x.forecastCompletionIso))+'</td><td>'+escapeHtml(x.addedVsPrevious===null||x.removedVsPrevious===null||x.modifiedVsPrevious===null?"N/A: first revision":fmt(x.addedVsPrevious+x.removedVsPrevious+x.modifiedVsPrevious))+'</td></tr>').join("");
+  const rows=p.points.map(x=>'<tr><td>'+escapeHtml(x.sequence)+'</td><td><b>'+escapeHtml(planningRevisionLabel(x.label)||("Revision "+x.sequence))+'</b><br><span class="muted">'+escapeHtml(planningShortDate(x.dataDateIso))+'</span></td><td>'+escapeHtml(x.durationWeightedProgressPercent===null?"—":fmt(x.durationWeightedProgressPercent)+"%")+'</td><td>'+escapeHtml(x.activityCount)+'</td><td>'+escapeHtml(fmt(x.criticalCount))+'</td><td>'+escapeHtml(fmt(x.nearCriticalCount))+'</td><td>'+escapeHtml(fmt(x.negativeFloatCount))+'</td><td>'+escapeHtml(planningShortDate(x.forecastCompletionIso))+'</td><td>'+escapeHtml(x.addedVsPrevious===null||x.removedVsPrevious===null||x.modifiedVsPrevious===null?"N/A: first revision":fmt(x.addedVsPrevious+x.removedVsPrevious+x.modifiedVsPrevious))+'</td></tr>').join("");
   return '<section class="planning-view revision-view">'+kpis+'<section class="planning-panel"><div class="planning-panel-head"><div><h4>Revision values</h4><p>Exact values are shown here so the trend charts do not require guessing from a line.</p></div></div><div class="planning-panel-body">'+values+'</div></section><div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Finish-date movement</h4><p>How the programme and forecast finish dates have moved across revisions.</p></div></div><div class="planning-panel-body">'+completion+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Progress evolution</h4><p>Weighted schedule progress by revision.</p></div></div><div class="planning-panel-body">'+progress+'</div></section></div><div class="planning-primary-grid"><section class="planning-panel"><div class="planning-panel-head"><div><h4>Submitted total-float trend</h4><p>Critical, near-critical and negative-float activity counts by revision.</p></div></div><div class="planning-panel-body">'+pressure+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Latest any-field record change volume</h4><p>Activity additions, removals and modifications in the latest revision.</p></div></div><div class="planning-panel-body">'+changeBars+moduleBarList((latest.changeCategories||[]).map(row=>({label:humanizeKey(row.category)+' (overlapping)',value:row.activityCount})))+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Revision history</h4><p>Controlled programme revisions in chronological order.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Seq</th><th>Revision</th><th>Schedule progress</th><th>Activities</th><th>Critical</th><th>Near-critical</th><th>Negative float</th><th>Submitted forecast finish</th><th>Added + removed + any-field modified</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></section></section>';
 }
 function renderVarianceTrendVisual(data){
@@ -2265,7 +2265,7 @@ function renderVarianceTrendVisual(data){
   const projectMovement=planningSignedBars(p.points.map(x=>({label:shortRevision(x.revisionId,labels),value:typeof x.projectCompletionVarianceDays==="number"?x.projectCompletionVarianceDays:null})),"days");
   const pressure=renderFloatPressureTrend(points);
   const cards=p.points.map((x,index)=>'<div class="revision-value-card"><div class="revision-value-head"><b>'+escapeHtml(shortRevision(x.revisionId,labels))+'</b><span>'+escapeHtml(planningShortDate(x.dataDateIso))+'</span></div><div class="revision-value-lines"><span>Source activities compared <b>'+escapeHtml(fmt(x.comparableActivities))+' / '+escapeHtml(fmt(x.sourceActivityCount))+'</b></span><span>Unknown or unmatched <b>'+escapeHtml(fmt(x.unmatchedActivityCount))+'</b></span><span>Average activity finish movement <b>'+escapeHtml(x.averageFinishVarianceDays===null?"Unresolved":fmt(x.averageFinishVarianceDays)+" d")+'</b></span><span>Maximum activity movement <b>'+escapeHtml(x.maximumDelayDays===null?"Unresolved":fmt(x.maximumDelayDays)+" d")+'</b></span><span>Late activities <b>'+escapeHtml(fmt(x.lateActivityCount))+'</b></span><span>Project finish vs baseline <b>'+escapeHtml(x.projectCompletionVarianceDays===null?"Unresolved":fmt(x.projectCompletionVarianceDays)+" d")+'</b></span></div></div>').join("");
-  const rows=p.points.map(x=>'<tr><td>'+escapeHtml(x.sequence)+'</td><td><b>'+escapeHtml(shortRevision(x.revisionId,labels))+'</b></td><td>'+escapeHtml(planningShortDate(x.dataDateIso))+'</td><td>'+escapeHtml(x.averageFinishVarianceDays===null?"Unresolved":fmt(x.averageFinishVarianceDays))+'</td><td>'+escapeHtml(x.maximumDelayDays===null?"Unresolved":fmt(x.maximumDelayDays))+'</td><td>'+escapeHtml(fmt(x.lateActivityCount))+'</td><td>'+escapeHtml(fmt(x.earlyActivityCount))+'</td><td>'+escapeHtml(fmt(x.onTimeActivityCount))+'</td><td>'+escapeHtml(x.negativeFloatCount)+'</td><td>'+escapeHtml(x.criticalCount)+'</td><td>'+escapeHtml(x.projectCompletionVarianceDays===null?"Unresolved":fmt(x.projectCompletionVarianceDays))+'</td></tr>').join("");
+  const rows=p.points.map(x=>'<tr><td>'+escapeHtml(x.sequence)+'</td><td><b>'+escapeHtml(shortRevision(x.revisionId,labels))+'</b></td><td>'+escapeHtml(planningShortDate(x.dataDateIso))+'</td><td>'+escapeHtml(x.averageFinishVarianceDays===null?"Unresolved":fmt(x.averageFinishVarianceDays))+'</td><td>'+escapeHtml(x.maximumDelayDays===null?"Unresolved":fmt(x.maximumDelayDays))+'</td><td>'+escapeHtml(fmt(x.lateActivityCount))+'</td><td>'+escapeHtml(fmt(x.earlyActivityCount))+'</td><td>'+escapeHtml(fmt(x.onTimeActivityCount))+'</td><td>'+escapeHtml(fmt(x.negativeFloatCount))+'</td><td>'+escapeHtml(fmt(x.criticalCount))+'</td><td>'+escapeHtml(x.projectCompletionVarianceDays===null?"Unresolved":fmt(x.projectCompletionVarianceDays))+'</td></tr>').join("");
   return '<section class="planning-view variance-view">'+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Finish movement by revision</h4><p>Signed movement from the controlled baseline. Left means earlier, right means later.</p></div></div><div class="planning-panel-body"><div class="nested-title">Average activity finish movement</div>'+averageMovement+'<div class="nested-title" style="margin-top:16px">Project finish movement</div>'+projectMovement+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Float pressure trend</h4><p>Execution-population float indicators by revision. Negative float overlaps criticality; these lines are not additive.</p></div></div><div class="planning-panel-body">'+pressure+'</div></section></div>'+planningKpis([
     ["Revisions",p.revisionCount,"controlled"],
     ["Latest avg movement",latest.averageFinishVarianceDays===null?"Unresolved":fmt(latest.averageFinishVarianceDays)+" d","vs controlled baseline",latest.averageFinishVarianceDays>0?"warning":""],
@@ -2413,8 +2413,8 @@ function renderNearCriticalVisual(data){
   const kpis=planningKpis([
     ["Strict near-critical",p.nearCriticalCount===null?"Unresolved: "+fmt(unresolved)+" activities":p.nearCriticalCount,"TF > "+fmt(criticalThreshold)+" h and ≤ "+limitValue,"warning"],
     ["Float-risk watchlist",p.floatRiskWatchlistCount===null?"Unresolved: "+fmt(unresolved)+" activities":p.floatRiskWatchlistCount,"critical boundary through "+limitValue,"accent"],
-    ["Zero float",p.zeroFloatCount??"—","critical boundary","danger"],
-    ["Negative float",p.negativeFloatCount??"—","TF < 0","danger"],
+    ["Zero float",p.zeroFloatCount,"critical boundary","danger"],
+    ["Negative float",p.negativeFloatCount,"TF < 0","danger"],
     ["Source reported",sourceCount===null?"—":sourceCount,p.sourceReportedLabel||"Near Critical"],
     ["Float coverage",p.floatCoveragePercent===null?"—":fmt(p.floatCoveragePercent)+"%","execution activities"],
     ["Classification coverage",p.classificationCoveragePercent===null||p.classificationCoveragePercent===undefined?"—":fmt(p.classificationCoveragePercent)+"%","calendar-aware",unresolved?"warning":""]

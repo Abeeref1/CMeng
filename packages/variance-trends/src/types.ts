@@ -16,11 +16,11 @@ export interface VarianceTrendPoint {
   lateActivityCount: number | null;
   earlyActivityCount: number | null;
   onTimeActivityCount: number | null;
-  negativeFloatCount: number;
-  criticalCount: number;
+  negativeFloatCount: number | null;
+  criticalCount: number | null;
   nearCriticalCount: number | null;
   floatRiskWatchlistCount: number | null;
-  zeroFloatCount: number;
+  zeroFloatCount: number | null;
   forecastCompletionIso: string | null;
   programmeCompletionIso: string | null;
   projectCompletionVarianceDays: number | null;

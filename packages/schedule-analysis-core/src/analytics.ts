@@ -179,19 +179,20 @@ function floatSummary(
   );
 
   return {
-    criticalCount: critical.length,
+    criticalCount: known.length===activities.length?critical.length:null,
+    knownClassifications: {critical:critical.length,nearCritical:nearCritical.length,noncritical:known.filter(a=>sourceFloatCriticality(model,a,config)==="noncritical").length,unknown:activities.filter(a=>sourceFloatCriticality(model,a,config)==="unknown").length},
     nearCriticalCount: known.length!==activities.length||thresholdUnresolved.length?null:nearCritical.length,
     floatRiskWatchlistCount:
       known.length!==activities.length||thresholdUnresolved.length ? null : floatRiskWatchlist.length,
-    zeroFloatCount: known.filter(
+    zeroFloatCount: known.length!==activities.length?null:known.filter(
       (activity) =>
         activity.totalFloatHours ===
         0,
     ).length,
-    negativeFloatCount: known.filter(
+    negativeFloatCount: known.length!==activities.length?null:known.filter(
       (activity) => activity.totalFloatHours! < 0,
     ).length,
-    positiveFloatCount: known.filter(
+    positiveFloatCount: known.length!==activities.length?null:known.filter(
       (activity) => activity.totalFloatHours! > 0,
     ).length,
     unknownFloatCount:

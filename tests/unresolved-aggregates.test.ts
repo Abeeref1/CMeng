@@ -16,6 +16,35 @@ import {enforceModuleReadiness} from '../packages/runtime-api/src/module-readine
 import {cmengUatHtml} from '../packages/runtime-api/src/ui';
 import {numericDistribution} from '../packages/schedule-analysis-core/src/population';
 import {buildScheduleChangeReportProjection} from '../packages/schedule-change-report/src';
+import {buildVarianceTrendsProjection} from '../packages/variance-trends/src';
+import {buildRevisionTrendProjection} from '../packages/revision-trend/src';
+import {buildProgressBreakdownProjection} from '../packages/progress-breakdown/src';
+
+test('incomplete float totals stay unresolved through trends and WBS while known classifications remain usable', () => {
+  const model=schedule();model.activities[0].totalFloatHours=0;model.activities[1].totalFloatHours=null;
+  const summary=analyzeSchedule(model,options.config).float;
+  for(const field of ['criticalCount','negativeFloatCount','zeroFloatCount','positiveFloatCount'] as const)assert.equal(summary[field],null,field);
+  assert.equal(summary.knownClassifications.critical,1);
+  assert.equal(summary.knownClassifications.unknown,1);
+  const revisions=[{revisionId:'S',label:'S',sequence:1,effectiveAt:'2031-01-01',model}];
+  for(const projection of [buildVarianceTrendsProjection(revisions,options),buildRevisionTrendProjection(revisions,options)]) {
+    assert.equal(projection.points[0]?.criticalCount,null);
+    assert.equal(projection.points[0]?.negativeFloatCount,null);
+  }
+  const wbs=buildProgressBreakdownProjection(model,options);
+  assert.ok(wbs.rows.some(r=>r.criticalCount===null));
+  assert.equal(buildNearCriticalProjection(model,options).zeroFloatCount,null);
+});
+
+test('trend headings keep the actual first and last revision even when a count is unresolved', () => {
+  const script=cmengUatHtml().match(/<script>([\s\S]*?)<\/script>/)![1]!;
+  const source=createSourceFile('browser.js',script,ScriptTarget.Latest,true);
+  const fn=source.statements.filter(isFunctionDeclaration).find(n=>n.name?.text==='renderFloatPressureTrend')!.getText(source);
+  const html=runInNewContext(fn+';renderFloatPressureTrend([{nearCriticalCount:0},{nearCriticalCount:null}])',{
+    fmt:(v:any)=>v==null?'Unresolved':String(v),renderVisualPanel:(title:string)=>title,renderLineChart:()=>''});
+  assert.match(html,/Strict near-critical · 0 → Unresolved/);
+  assert.doesNotMatch(html,/Strict near-critical · 0 → 0/);
+});
 
 test('maximum and modal populations require at least one measured value; measured zero is retained', () => {
   for (const values of [[], [null, null], [NaN, Infinity]]) {
