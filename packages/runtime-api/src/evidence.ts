@@ -167,7 +167,14 @@ export function inferScheduleRole(
   if (/\brecovery\b/.test(words)) {
     return "recovery";
   }
-  if (/\bbaseline\b/.test(words)) {
+  if (
+    /\bbaseline\b/.test(words) &&
+    (
+      /\brev(?:ision)?\s*0\b/.test(words) ||
+      /\brev0\b/.test(source) ||
+      /(?:^|[\/_-])s0?1(?:[\/_-]|$)/.test(source)
+    )
+  ) {
     return "baseline";
   }
   if (/\bupdate\b/.test(words)) {
