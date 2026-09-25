@@ -1372,12 +1372,12 @@ function renderEotVisual(data){
     ["Submitted finish vs contract",planningCalendarDaysBetween(p.contractualCompletionIso,p.sourceForecastCompletionIso)===null?"Unresolved":fmt(planningCalendarDaysBetween(p.contractualCompletionIso,p.sourceForecastCompletionIso))+" calendar days","submitted programme minus current amended contract","warning"],
     ["Gross determinations by Data Date",p.officialApprovedEotDays===null?"Unresolved":fmt(p.officialApprovedEotDays)+" d","may already be incorporated in the amendment"],
     ["Further adjusted contractual completion",p.officialAdjustedCompletionIso?planningShortDate(p.officialAdjustedCompletionIso):"Unresolved","confirmed only"],
-    ["Gross positive window movement",movementEstablished?fmt(p.observedProgrammeMovementDays)+" d":"Unresolved","submitted programme window context; not EOT",movementEstablished&&p.observedProgrammeMovementDays>0?"warning":""],
+    ["Positive submitted window movement",movementEstablished?fmt(p.observedProgrammeMovementDays)+" d":"Unresolved","sum of positive submitted completion shifts; not EOT",movementEstablished&&p.observedProgrammeMovementDays>0?"warning":""],
     ["Project Completion movement",!movementEstablished||p.projectCompletionMovementDays===null||p.projectCompletionMovementDays===undefined?"Unresolved":(p.projectCompletionMovementDays>0?"+":"")+fmt(p.projectCompletionMovementDays)+" d","net first-to-latest submitted completion"],
     ["Time-impact candidate",analytical===null?"Unresolved":fmt(analytical)+" d","requires causation",analytical===null?"warning":"accent"],
     ["Attributable EOT candidate",p.attributableCandidateEotDays===null?"Unresolved":fmt(p.attributableCandidateEotDays)+" d","not an award",p.attributableCandidateEotDays===null?"warning":"accent"]
   ]);
-  const warning=movementEstablished&&analytical===null&&p.observedProgrammeMovementDays>0?'<div class="notice warn"><b>Gross positive window movement is not project delay and is not EOT.</b> Schedule movement is not an EOT time-impact assessment. CMeng observes '+escapeHtml(fmt(p.observedProgrammeMovementDays))+' days when positive window shifts are summed, while net Project Completion movement is shown separately. No entitlement is stated until causation, notice and the contract time basis support it.</div>':'';
+  const warning=movementEstablished&&analytical===null&&p.observedProgrammeMovementDays>0?'<div class="notice warn"><b>Positive submitted window movement is not project delay and is not EOT.</b> Schedule movement is not an EOT time-impact assessment. CMeng observes '+escapeHtml(fmt(p.observedProgrammeMovementDays))+' days when positive window shifts are summed, while net Project Completion movement is shown separately. No entitlement is stated until causation, notice and the contract time basis support it.</div>':'';
   const labels=p.revisionLabels||{};
   const movementBars=p.windowCandidates.map((w,index)=>({
     label:"Window "+(index+1)+" · "+readableWindow(w.windowId,labels),
@@ -1391,7 +1391,7 @@ function renderEotVisual(data){
     {label:"After Data Date",value:Math.max(0,(recon.registerDeterminationCount||0)-(recon.effectiveDeterminationCount||0)),tone:"neutral"}
   ],"Determinations"):'<div class="empty-visual">Determination population is not confirmed.</div>';
   const movementVisual=renderWaterfallChart([
-    {label:"Gross positive window movement",value:movementEstablished&&typeof p.observedProgrammeMovementDays==="number"?p.observedProgrammeMovementDays:null},
+    {label:"Positive submitted window movement",value:movementEstablished&&typeof p.observedProgrammeMovementDays==="number"?p.observedProgrammeMovementDays:null},
     {label:"Net Project Completion movement",value:movementEstablished&&typeof p.projectCompletionMovementDays==="number"?p.projectCompletionMovementDays:null},
     {label:"Analytical time-impact candidate",value:typeof analytical==="number"?analytical:null},
     {label:"Attributable EOT candidate",value:typeof p.attributableCandidateEotDays==="number"?p.attributableCandidateEotDays:null}
