@@ -4289,7 +4289,8 @@ async function loadDirector(projectId=project(),attempt=0){
     renderDirector(position);
   }catch(e){
     if(requestSeq!==directorRequestSeq||projectId!==project())return;
-    const programmeEstablished=overview?.minimumEvidenceBasis?.schedule?.established===true;
+    const currentOverview=typeof overview!=="undefined"?overview:null;
+    const programmeEstablished=currentOverview?.minimumEvidenceBasis?.schedule?.established===true;
     if(e.status===404&&programmeEstablished&&attempt<4){
       el("director").innerHTML='<div class="view-state-bar"><span class="spinner"></span><strong>Updating management position</strong><span>The project documents are loaded; the management position is being rebuilt from the current evidence.</span></div>';
       setTimeout(()=>{if(requestSeq===directorRequestSeq&&projectId===project())loadDirector(projectId,attempt+1)},600);
