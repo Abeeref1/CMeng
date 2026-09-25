@@ -33,13 +33,11 @@ async function response(path,allowed=[200]){
   return res;
 }
 async function json(path,allowed=[200]){const r=await response(path,allowed);return {status:r.status,body:await r.json()};}
-function structuredProjectIds(value,out=[]){
-  if(Array.isArray(value)){for(const x of value)structuredProjectIds(x,out);return out;}
+function governedProjectionProjectIds(value,out=[]){
+  if(Array.isArray(value)){for(const x of value)governedProjectionProjectIds(x,out);return out;}
   if(!value||typeof value!=="object")return out;
-  for(const [k,v] of Object.entries(value)){
-    if(k==="projectId"&&typeof v==="string")out.push(v);
-    else structuredProjectIds(v,out);
-  }
+  if(typeof value.projectionKey==="string"&&typeof value.projectId==="string")out.push(value.projectId);
+  for(const child of Object.values(value))governedProjectionProjectIds(child,out);
   return out;
 }
 function inventedMissing(value,path="",out=[]){
@@ -94,7 +92,7 @@ try{
       const body=page.body;
       check(key+": page returns a governed result",body&&typeof body==="object"&&typeof body.status==="string",id,"status="+page.status);
       check(key+": no non-finite JSON marker",!/NaN|Infinity/.test(JSON.stringify(body)),id);
-      const foreign=[...new Set(structuredProjectIds(body))].filter(x=>x!==id);
+      const foreign=[...new Set(governedProjectionProjectIds(body))].filter(x=>x!==id);
       check(key+": no structured cross-project contamination",foreign.length===0,id,foreign.join(","));
       const invented=inventedMissing(body);
       check(key+": missing/unavailable values are not populated",invented.length===0,id,invented.slice(0,5).join(","));
@@ -118,7 +116,7 @@ try{
       managementViews.set(key,page.body);
       check(key+": management page returns a governed result",page.body&&typeof page.body==="object"&&typeof page.body.status==="string",id);
       check(key+": no non-finite JSON marker",!/NaN|Infinity/.test(JSON.stringify(page.body)),id);
-      const foreign=[...new Set(structuredProjectIds(page.body))].filter(x=>x!==id);
+      const foreign=[...new Set(governedProjectionProjectIds(page.body))].filter(x=>x!==id);
       check(key+": no structured cross-project contamination",foreign.length===0,id,foreign.join(","));
       const invented=inventedMissing(page.body);
       check(key+": missing/unavailable values are not populated",invented.length===0,id,invented.slice(0,5).join(","));
