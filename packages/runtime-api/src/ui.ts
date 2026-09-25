@@ -748,7 +748,7 @@ function renderDeliveryChallenge(data,reason,status){
   const calculations=panel('Quantity and productivity calculations','Each BOQ item retains its quantity unit and evidence basis. Inferred mappings, missing actual quantities and missing productivity are unresolved.',table(['BOQ item','Activity','Remaining quantity','Unit','Labor hours per unit','Rate basis','Required labor hours','Reason'],(f.rows||[]).slice(0,100).map(r=>[r.quantityItemId,r.activityId||'Unresolved',value(r.remainingQuantity),r.unit||'Unresolved',value(r.laborHoursPerUnit),humanizeKey(r.productivityBasis),value(r.requiredLaborHours),r.reason]),f.reason));
   const scope='<p>Showing up to 100 activity and BOQ rows in each table. All '+fmt(activities.length)+' activity checks and '+fmt((f.rows||[]).length)+' BOQ item records remain in the Excel and data downloads.</p>';
   const html='<section class="planning-view contract-challenge-view"><div class="notice info"><b>Manpower and duration check: '+escapeHtml(f.overallStatus)+'</b><p>'+escapeHtml(f.reason)+'</p><p>This tests delivery assumptions. It does not interpret legal clauses, establish causation or EOT, or create a replacement programme.</p></div>'+manpower+programme+combined+'<details class="management-detail"><summary>Calculation inputs and supporting detail</summary>'+scope+calculations+renderBasisReviews({...data,contractValueBasisReview:null},'challenge-contract')+'</details></section>';
-  el('moduleContent').innerHTML=renderModuleBasis(data)+renderSuppliedBoq(data.suppliedBoq)+renderRoleContent('challenge-contract',data,html,'',true)+experienceReviewSummary(data.issueAssessment)+renderModuleReadiness(data,reason);
+  el('moduleContent').innerHTML=renderModuleBasis(data)+renderRoleContent('challenge-contract',data,html,'',true)+experienceDisclosure('Supplied BOQ evidence',renderSuppliedBoq(data.suppliedBoq),'Source quantities and rates used by the challenge')+experienceReviewSummary(data.issueAssessment)+renderModuleReadiness(data,reason);
   return true;
 }
 function resourceUnitLabel(unit){
@@ -1124,7 +1124,13 @@ function renderProgressScurveVisual(data){
   if(endDate)endDate.setUTCFullYear(endDate.getUTCFullYear()+1);
   const early=p.points.filter(row=>endDate&&planningDateMs(row.dateIso)<=endDate.getTime());
   const options={unit:"%",yLabel:"Schedule progress",xLabel:"Reporting date",dataDateIso:p.dataDateIso,observationCount:p.observationCount??p.actualSnapshots?.length};
-  return '<section class="planning-view progress-scurve-view">'+renderProgressScope(p.scopeComparison)+note+renderVisualPanel("First 12 months · the small progress differences are visible","Source series retain their own revision populations. Use the matched comparison above for a performance gap.",renderLineChart(early,series,null,{...options,ariaLabel:"Progress first 12 months"}))+'<details class="source-scope"><summary>Full programme curve and source-population coverage</summary>'+kpis+renderLineChart(p.points,series,100,{...options,ariaLabel:"Full programme progress"})+'</details></section>';
+  return '<section class="planning-view progress-scurve-view">'+
+    kpis+
+    renderVisualPanel("Progress S-Curve","Baseline plan, current plan and available schedule-progress observations. Missing certified physical progress is never inferred.",renderLineChart(p.points,series,100,{...options,ariaLabel:"Full programme progress"}))+
+    renderProgressScope(p.scopeComparison)+note+
+    '<details class="source-scope"><summary>First 12 months and source-population coverage</summary>'+
+      renderLineChart(early,series,null,{...options,ariaLabel:"Progress first 12 months"})+
+    '</details></section>';
 }
 function renderQuantityScurveVisual(data){
   const p=projectionFor(data,"quantity_scurve");
@@ -2460,7 +2466,7 @@ function renderManhourVisual(data){
     ...(actualHistoryEstablished?[{key:"actualCumulativeHours",label:"Actual labor hours",color:"#2c7a57"}]:[]),
     ...(p.points.some(point=>typeof point.forecastCumulativeHours==="number")?[{key:"forecastCumulativeHours",label:"Forecast labor hours",color:"#4f7fb4"}]:[])
   ];
-  return '<section class="planning-view manhour-view">'+top+renderResourceBasisReview(p.basisComparison)+note+(weekly?'<div class="notice info">Weekly staffing hours describe input usage, not physical productivity. Periods are included by source week start. The planned total spans the Full register period; actuals stop at the Data Date. Remaining-hours forecast is not confirmed.</div>':'')+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Man-Hour S-Curve</h4><p>Labor only. Missing actual history never becomes a zero line.</p></div></div><div class="planning-panel-body">'+renderLineChart(p.points,series,null,{unit:"h",yLabel:"Labor hours",xLabel:"Reporting date",dataDateIso:p.dataDateIso,ariaLabel:"Man-Hour S-Curve"})+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Available records</h4><p>The curve uses weekly planned-demand and approved actual-usage evidence. Related P6 assignments are a separate supporting population.</p></div></div><div class="planning-panel-body">'+moduleEvidenceGate([
+  return '<section class="planning-view manhour-view">'+top+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Man-Hour S-Curve</h4><p>Labor only. Missing actual history never becomes a zero line.</p></div></div><div class="planning-panel-body">'+renderLineChart(p.points,series,null,{unit:"h",yLabel:"Labor hours",xLabel:"Reporting date",dataDateIso:p.dataDateIso,ariaLabel:"Man-Hour S-Curve"})+'</div></section>'+note+(weekly?'<div class="notice info">Weekly staffing hours describe input usage, not physical productivity. Periods are included by source week start. The planned total spans the Full register period; actuals stop at the Data Date. Remaining-hours forecast is not confirmed.</div>':'')+renderResourceBasisReview(p.basisComparison)+'<section class="planning-panel"><div class="planning-panel-head"><div><h4>Available records</h4><p>The curve uses weekly planned-demand and approved actual-usage evidence. Related P6 assignments are a separate supporting population.</p></div></div><div class="planning-panel-body">'+moduleEvidenceGate([
     {label:"Labor resources",value:fmt(p.laborResourceCount),state:p.laborResourceCount>0?"ready":"missing"},
     {label:weekly?"Related P6 labor assignments (separate basis)":"Labor assignments",value:fmt(p.laborAssignmentCount),state:p.laborAssignmentCount>0?"ready":"missing"},
     {label:"Planned hours · register horizon",value:p.plannedHoursKnown===null?"Unresolved":fmt(p.plannedHoursKnown)+" h",state:p.plannedHoursKnown===null?"missing":"ready"},
@@ -3417,10 +3423,11 @@ function renderCommercialVisual(key,data){
   }
   const evidencePanel='<section class="planning-panel"><div class="planning-panel-head"><div><h4>Available records</h4><p>Source availability is separate from current lifecycle, reconciliation and analytical readiness shown above.</p></div></div><div class="planning-panel-body">'+gates+'</div></section>';
   if(key==="commercial-overview"){
-    return '<section class="planning-view commercial-view commercial-overview-enterprise">'+temporalWarning+temporalScope+
+    return '<section class="planning-view commercial-view commercial-overview-enterprise">'+
       commercialSummaryPanel('Executive Commercial Position','Contract, change, certification, cash and claim exposure are shown first, by currency, without cross-currency arithmetic.')+
       commercialCharts+
       time+
+      temporalWarning+temporalScope+
       registerVisual+
       experienceDisclosure('Supporting commercial information',foundationDetail+performanceDetail+contractControlDetail,'Documents, amounts and dates to confirm')+
       detail+
