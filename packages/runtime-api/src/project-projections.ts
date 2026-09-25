@@ -4110,7 +4110,15 @@ function buildPlanningModuleFast(
         },
         [],
         "partial",
-        "The watchlist uses submitted programme float. Independent CPM criticality is calculated separately and is not presented as established here.",
+        independentForecast.complete
+          ? "The watchlist uses submitted programme float. Independent CPM criticality is calculated separately and remains a separate authority."
+          : "The watchlist uses submitted programme float. " +
+            (
+              independentForecastReviewReason(
+                independentForecast,
+              ) ??
+              "Independent CPM criticality is not established."
+            ),
       ),
     );
   } else if (
@@ -4963,6 +4971,44 @@ function independentForecastReviewReason(
   >,
 ): string | null {
   if (!forecast.complete) {
+    const missingPatterns =
+      forecast.diagnostics.filter(
+        (diagnostic) =>
+          diagnostic.startsWith(
+            "CALENDAR_WORK_PATTERN_NOT_ESTABLISHED:",
+          ),
+      );
+    const unresolvedSemantics =
+      forecast.diagnostics.filter(
+        (diagnostic) =>
+          diagnostic.startsWith(
+            "CALENDAR_SEMANTICS_UNRESOLVED:",
+          ),
+      );
+    if (missingPatterns.length > 0) {
+      return (
+        String(
+          forecast.unresolvedActivityCount,
+        ) +
+        " execution activities cannot be recalculated because " +
+        String(
+          missingPatterns.length,
+        ) +
+        " referenced P6 calendar record(s) do not establish a usable working-time pattern. CMeng does not assume a fallback calendar."
+      );
+    }
+    if (unresolvedSemantics.length > 0) {
+      return (
+        String(
+          forecast.unresolvedActivityCount,
+        ) +
+        " execution activities cannot be recalculated because " +
+        String(
+          unresolvedSemantics.length,
+        ) +
+        " referenced P6 calendar record(s) have unresolved source semantics. CMeng keeps the forecast unavailable rather than replacing them with assumed working time."
+      );
+    }
     return "Independent forecast requires review because one or more CPM inputs are unresolved.";
   }
   if(forecast.assumptions.some(a=>a.startsWith('SOURCE_CONSTRAINTS_RETAINED_NOT_APPLIED'))){
