@@ -151,6 +151,29 @@ export function inferScheduleRole(
     normalized === "revised_baseline"
   ) return normalized;
 
+  // When no explicit role is supplied, use only strong, human-readable
+  // filename/path signals. Generic names such as Revision_01 remain unresolved.
+  const source = path
+    .normalize("NFKC")
+    .toLowerCase()
+    .replace(/\\/g, "/");
+  const words = source
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+
+  if (/\brevised\s+baseline\b/.test(words)) {
+    return "revised_baseline";
+  }
+  if (/\brecovery\b/.test(words)) {
+    return "recovery";
+  }
+  if (/\bbaseline\b/.test(words)) {
+    return "baseline";
+  }
+  if (/\bupdate\b/.test(words)) {
+    return "update";
+  }
+
   return "other";
 }
 
