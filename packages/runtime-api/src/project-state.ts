@@ -501,6 +501,181 @@ function legacyIdentification(
   };
 }
 
+function scheduleDocumentTypeForRole(
+  role: StoredScheduleRevision["role"],
+): string {
+  return role === "baseline"
+    ? "schedule_baseline"
+    : role === "revised_baseline"
+      ? "schedule_revised_baseline"
+      : role === "recovery"
+        ? "schedule_recovery"
+        : "schedule_update";
+}
+
+function migrateStrongScheduleRoles(
+  state: ProjectRuntimeState,
+  affectedFamilies: Set<string>,
+): boolean {
+  let changed = false;
+
+  for (const schedule of state.schedules) {
+    if (
+      schedule.role !== "update" &&
+      schedule.role !== "other"
+    ) {
+      continue;
+    }
+
+    const inferred =
+      inferScheduleRole(
+        schedule.sourceFilename ?? "",
+        null,
+      );
+
+    if (
+      inferred !== "baseline" &&
+      inferred !== "revised_baseline" &&
+      inferred !== "recovery"
+    ) {
+      continue;
+    }
+
+    schedule.role = inferred;
+    changed = true;
+
+    const document =
+      state.evidenceDocuments.find(
+        (item) =>
+          item.linkedArtifactId ===
+          schedule.revision.revisionId,
+      );
+    if (!document) continue;
+
+    affectedFamilies.add(
+      document.familyKey,
+    );
+
+    document.scheduleRole =
+      inferred;
+    document.documentType =
+      scheduleDocumentTypeForRole(
+        inferred,
+      );
+
+    const family =
+      evidenceFamily({
+        category: "schedule",
+        documentType:
+          document.documentType,
+        scheduleRole: inferred,
+        textSample:
+          document.assertions
+            .map(
+              (assertion) =>
+                assertion.sourceText,
+            )
+            .join("\n"),
+        sourceFilename:
+          document.sourceFilename,
+      });
+
+    document.familyKey =
+      family.familyKey;
+    document.logicalDocumentKey =
+      family.logicalDocumentKey;
+    document.identification = {
+      ...document.identification,
+      detectedCategory:
+        "schedule",
+      detectedDocumentType:
+        document.documentType,
+      filenameHintCategory:
+        "schedule",
+      filenameHintDocumentType:
+        document.documentType,
+      classificationConflict:
+        false,
+    };
+    document.diagnostics = [
+      ...new Set([
+        ...document.diagnostics,
+        "SCHEDULE_ROLE_STRONG_SOURCE_MIGRATION_V6",
+      ]),
+    ];
+    affectedFamilies.add(
+      family.familyKey,
+    );
+  }
+
+  return changed;
+}
+
+function synchronizeActiveBoq(
+  state: ProjectRuntimeState,
+): boolean {
+  const activeArtifactId =
+    state.activeEvidenceBasis[
+      "boq:quantity"
+    ]?.activeArtifactId ??
+    null;
+
+  if (!activeArtifactId) {
+    return false;
+  }
+
+  const active =
+    state.boqRevisions.find(
+      (item) =>
+        item.ingestionId ===
+        activeArtifactId,
+    ) ??
+    null;
+
+  if (
+    !active ||
+    state.boq?.ingestionId ===
+      activeArtifactId
+  ) {
+    return false;
+  }
+
+  state.boq = active;
+  const latestProgramme =
+    state.schedules
+      .filter(
+        isProgrammeScheduleRevision,
+      )
+      .slice()
+      .sort(
+        (a, b) =>
+          (
+            a.revision.model
+              .dataDateIso ??
+            a.revision.effectiveAt ??
+            ""
+          ).localeCompare(
+            b.revision.model
+              .dataDateIso ??
+            b.revision.effectiveAt ??
+            "",
+          ),
+      )
+      .at(-1) ??
+    null;
+
+  state.quantities =
+    quantityModelFromBoq(
+      active,
+      latestProgramme
+        ?.revision.revisionId ??
+        "",
+      state.quantities,
+    );
+
+  return true;
+}
+
 function hydrateProject(
   state: SerializedProjectState,
 ): ProjectRuntimeState {
