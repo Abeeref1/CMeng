@@ -13,7 +13,30 @@ function functions(names:string[]) {
   return selected.map(n=>n.getText(source)).join('\n');
 }
 const common={apiKeys:{},fmt:String,fmtExecutive:String,escapeHtml:(s:unknown)=>String(s).replace(/[&<>\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]!)),humanizeKey:String,planningShortDate:(s:unknown)=>s==null?'Not available':String(s),planningRevisionLabel:String};
-const briefFunctions=functions(['experienceBrief','experienceValue','findProjectionRoot']);
+const briefFunctions=functions(['aggregateCount','experienceBrief','experienceValue','findProjectionRoot']);
+
+test('named curves and variance trend render their chart before KPI and source detail blocks',()=>{
+  const data={points:[{dateIso:'2031-01-01',dataDateIso:'2031-01-01',revisionId:'S',sequence:1}],dataDateIso:'2031-01-01',revisionCount:1};
+  const ctx={...common,data,projectionFor:(d:any)=>d,planningDateMs:Date.parse,planningKpis:()=>'<div>KPI-BLOCK</div>',
+    renderVisualPanel:(title:string,_copy:string,body:string)=>'<h4>'+title+'</h4>'+body,renderLineChart:()=>'<svg>CHART</svg>',
+    renderProgressScope:()=>'<div>SOURCE-SCOPE</div>',renderResourceBasisReview:()=>'',moduleEvidenceGate:()=>'',
+    shortRevision:String,planningSignedBars:()=>'<svg>TREND</svg>',renderFloatPressureTrend:()=>'<svg>FLOAT</svg>',distributionSummary:()=>''};
+  for(const [name,chart] of [['renderProgressScurveVisual','CHART'],['renderManhourVisual','CHART'],['renderVarianceTrendVisual','TREND']]){
+    const html=runInNewContext(functions([name!])+';'+name+'(data)',ctx);
+    assert.ok(html.indexOf(chart!)>=0&&html.indexOf(chart!)<html.indexOf('KPI-BLOCK'),name);
+  }
+});
+
+test('result-first pages retain source context after their result in every role',()=>{
+  for(const role of ['overall','planning','controls','project-director','program-director','executive']){
+    const html=runInNewContext(functions(['experienceRoleContent','experienceDisclosure','experienceRoleReview'])+';experienceRoleContent("progress-scurve",{},"PRIMARY-CHART")',{
+      ...common,selectedRoleView:role,roleViews:{[role]:{label:role}},experienceBrief:()=>({facts:[],note:'ROLE-NOTE',review:''}),
+      experienceSourceContext:()=>'SOURCE-DETAIL',experiencePreview:()=>'PRIMARY-CHART',
+    });
+    assert.ok(html.indexOf('PRIMARY-CHART')<html.indexOf('SOURCE-DETAIL'),role);
+    assert.match(html,/SOURCE-DETAIL/);
+  }
+});
 
 test('management summaries use the declared module population, not arbitrary high-scoring fields',()=>{
   const facts=runInNewContext(briefFunctions+';experienceBrief("near-critical",data).facts',{
@@ -281,7 +304,7 @@ test('programme summaries separate internal check-state messages from the busine
 test('delivery leadership summaries use the BOQ assessment and preserve unresolved calculations',()=>{
  const data={deliveryChallenge:{scheduleChallenge:{independentCompletionIso:'2099-01-01'}},boqFeasibility:{overallStatus:'Challenge required',requiredLaborHours:160,unresolvedCount:1,rows:[{},{}],activityChecks:[{scheduleState:'exceeds'},{scheduleState:'unresolved'}],programmePc:{movementDays:14},reason:'One item needs evidence.'}};
  const brief=runInNewContext(briefFunctions+';experienceBrief("challenge-contract",data)',{...common,data});
- assert.deepEqual(Array.from(brief.facts,(f:any)=>f.value),[160,14,1,1]);assert.match(brief.note,/Challenge required/);assert.ok(!JSON.stringify(brief).includes('2099'));
+ assert.deepEqual(Array.from(brief.facts,(f:any)=>f.value),[160,14,null,1]);assert.match(brief.note,/Challenge required/);assert.ok(!JSON.stringify(brief).includes('2099'));
  const missing=runInNewContext(briefFunctions+';experienceBrief("challenge-contract",data)',{...common,data:{boqFeasibility:{overallStatus:'Unable to assess',rows:[],activityChecks:[],requiredLaborHours:null,programmePc:{movementDays:null},reason:'Productivity evidence is missing.'}}});
  assert.ok(missing.facts.every((f:any)=>f.display==='Unresolved'));assert.match(missing.review,/Productivity evidence/);
 });

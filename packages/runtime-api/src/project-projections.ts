@@ -35,7 +35,7 @@ import {
   analyzeSchedule,
 } from "../../schedule-analysis-core/src";
 import {
-  buildActivityAnalyticsProjection,
+  buildActivityAnalyticsProjection, activityAnalyticsCounts,
 } from "../../activity-analytics/src";
 import {
   buildChallengeContractProjection,
@@ -344,7 +344,7 @@ function applyGovernedWindowMovementMetrics(
     projection.analyticalMovementAvailableWindowCount > 0;
 
   const positiveGap =
-    sourcePositive === null ||
+    sourcePositive === null || calculatedPositive === null ||
     !analyticalAvailable
       ? null
       : Number(
@@ -354,7 +354,7 @@ function applyGovernedWindowMovementMetrics(
           ).toFixed(6),
         );
   const negativeGap =
-    sourceNegative === null ||
+    sourceNegative === null || calculatedNegative === null ||
     !analyticalAvailable
       ? null
       : Number(
@@ -2112,7 +2112,7 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
       ],
       diagnostics: [
         "CONTRACT_TIME_BASIS_NOT_SUBMITTED",
-        ...(windows
+        ...(windows.positiveProgrammeMovementDays !== null && windows
           .positiveProgrammeMovementDays >
         0
           ? [
@@ -3349,6 +3349,7 @@ function canonicalQuantityModule(state: ProjectRuntimeState, model: ProjectRunti
     schemaVersion: "1.0", projectionKey: "quantity_scurve", projectId: state.projectId,
     scheduleRevisionId: model.sourceRevisionId, dataDateIso: model.dataDateIso,
     allocationState: "missing", mappingBasis: "missing", boqState: "not_established", unitKeyed: true, generatedAt, producerVersion:"quantity-source-integration-v1", boqRevisionId:null, series: [],
+    boqItemCount:null,knownQuantityItemCount:null,allocatedItemCount:null,unmappedItemCount:null,partiallyAllocatedItemCount:null,overAllocatedItemCount:null,
     unmappedItemIds: [], partiallyAllocatedItemIds: [], overAllocatedItemIds: [],
     diagnostics: ["BOQ_QUANTITY_BASIS_NOT_ESTABLISHED"],
   }, ["BOQ"], "partial", "BOQ quantities have not been established.");
@@ -3374,6 +3375,9 @@ function canonicalQuantityModule(state: ProjectRuntimeState, model: ProjectRunti
     boqState: "loaded", boqSource: boqSourceReporting(state), boqItemCount: quantities.items.length,
     knownQuantityItemCount: quantities.items.filter(item => item.contractQuantity !== null && Number.isFinite(item.contractQuantity) && item.contractQuantity >= 0).length,
     allocatedItemCount: mappedItemIds.size,
+    unmappedItemCount: quantities.items.length-mappedItemIds.size,
+    partiallyAllocatedItemCount: projection.partiallyAllocatedItemIds.length,
+    overAllocatedItemCount: projection.overAllocatedItemIds.length,
     itemLinkCoveragePercent: quantities.items.length ? mappedItemIds.size / quantities.items.length * 100 : null,
     unmappedKnownQuantityItemIds: projection.unmappedItemIds,
     unmappedItemIds: quantities.items.filter(item => !mappedItemIds.has(item.quantityItemId)).map(item => item.quantityItemId),
@@ -7019,6 +7023,7 @@ function resolveProjectModuleCandidate(state: ProjectRuntimeState, key: string):
       } : {}),
       ...(key === "milestones" ? { movementDistribution: numericDistribution((data.rows ?? []).map((row: any)=>row.varianceDays)) } : {}),
       ...(key === "activity-analytics" ? {
+        counts: activityAnalyticsCounts(data.rows ?? []),
         movementDistribution: numericDistribution((data.rows ?? []).map((row: any)=>row.finishVarianceDays)),
         movementAnalysis: (()=>{const history=analyticalHistory(state);const current=projectControlSchedule(state)!;const index=history.findIndex(r=>r.revision.revisionId===current.revision.revisionId);const previous=index>0?history[index-1]:null;const baseline=state.schedules.find(r=>r.revision.revisionId===data.controlledBaselineRevisionId);return activityMovementAnalysis(data.rows??[],{dataDateIso:model.dataDateIso,currentRevisionId:current.revision.revisionId,currentLabel:current.revision.label??current.sourceFilename??current.revision.revisionId,baselineRevisionId:data.controlledBaselineRevisionId??null,baselineLabel:baseline?.revision.label??null,previousRevisionId:previous?.revision.revisionId??null,previousLabel:previous?.revision.label??null,previousRows:previous?.revision.model.activities??[]});})(),
       } : {}),

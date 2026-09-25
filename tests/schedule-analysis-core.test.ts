@@ -211,7 +211,7 @@ test("missing float is not treated as zero or critical", () => {
   assert.equal(result.float.unknownFloatCount, 1);
   assert.equal(result.float.coveragePercent, 66.6667);
   assert.equal(result.float.criticalCount, 1);
-  assert.equal(result.float.nearCriticalCount, 1);
+  assert.equal(result.float.nearCriticalCount, null);
 });
 
 test("working-day near-critical basis does not validate against the unused legacy hour threshold", () => {

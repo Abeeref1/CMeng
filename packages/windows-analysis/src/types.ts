@@ -114,10 +114,10 @@ export interface WindowsAnalysisProjection {
   completeWindowCount: number;
   partialWindowCount: number;
   unresolvedWindowCount: number;
-  positiveIndependentMovementDays: number;
-  negativeIndependentMovementDays: number;
-  grossAnalyticalMovementDays: number;
-  analyticalRecoveryMovementDays: number;
+  positiveIndependentMovementDays: number | null;
+  negativeIndependentMovementDays: number | null;
+  grossAnalyticalMovementDays: number | null;
+  analyticalRecoveryMovementDays: number | null;
   analyticalMovementAvailableWindowCount: number;
   analyticalVsNetDeltaDays: number | null;
   /** Gross analytical positive movement less positive net completion movement, floored at zero. */
@@ -127,13 +127,13 @@ export interface WindowsAnalysisProjection {
    * chronological windows. This is not the independent analytical gross and
    * is not net first-to-latest project completion movement.
    */
-  positiveProgrammeMovementDays: number;
+  positiveProgrammeMovementDays: number | null;
   /**
    * Sum of negative submitted/control-programme completion movement across
    * chronological windows. This is submitted recovery movement, not the
    * independently recalculated analytical recovery.
    */
-  negativeProgrammeMovementDays: number;
+  negativeProgrammeMovementDays: number | null;
   /** Net change in project completion from the first to the latest revision. */
   projectCompletionMovementDays: number | null;
   projectCompletionMovementBasis:

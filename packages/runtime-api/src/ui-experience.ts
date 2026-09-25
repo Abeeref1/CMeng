@@ -119,7 +119,7 @@ function experienceBrief(key,data){
     note='Hours compare resource use with plan. They do not measure productivity without installed output.';
   }else if(key==='quantity-scurve'){
     add('BOQ items',d.boqItemCount,'Source quantities');add('Linked items',d.allocatedItemCount,'Confirmed programme links');
-    add('Mapping coverage',d.itemLinkCoveragePercent,'Item coverage, not mixed-unit quantity coverage','%');add('Quantity units',d.series?.length,'Each unit remains separate');
+    add('Mapping coverage',d.itemLinkCoveragePercent,'Item coverage, not mixed-unit quantity coverage','%');add('Quantity units',d.boqItemCount==null?null:d.series?.length,'Each unit remains separate');
     note='Source BOQ quantities remain available independently of schedule mapping. Measured installations require separate evidence.';
     if(d.allocationState!=='established')review='Review the BOQ-to-activity mapping before using a time-phased quantity plan. Keep measured installation evidence on its own dates and units.';
   }else if(key==='progress-breakdown'){
@@ -159,7 +159,7 @@ function experienceBrief(key,data){
     const f=d.boqFeasibility,checks=f?.activityChecks||[];
     add('Independent labor requirement',f?.requiredLaborHours,'BOQ quantities and supported productivity; labor hours');
     add('Programme PC movement',f?.programmePc?.movementDays,'Same explicit baseline and current milestone','d');
-    add('Activities exceeding planned duration',checks.length?checks.filter(r=>r.scheduleState==='exceeds').length:null,'Quantity-driven checks with supplied resource capacity');
+    add('Activities exceeding planned duration',f?.rows?.length?aggregateCount(checks.length?checks:null,r=>r.scheduleState==='unresolved'?null:r.scheduleState==='exceeds').value:null,'Quantity-driven checks with supplied resource capacity');
     add('Manpower calculations unresolved',f?.rows?.length?f.unresolvedCount:null,'Missing calculation inputs; supplied BOQ figures remain available');
     note=(f?.overallStatus||'Unable to assess')+'. Tests required manpower and achievable duration against the submitted programme. It does not determine causation or EOT.';
     review=f?.reason||'Current BOQ, productivity and resource assessment is unresolved.';
@@ -218,6 +218,7 @@ function experienceRoleContent(key,data,primaryView,challengeHtml='',includeTech
   const analysis='<div class="role-primary-analysis">'+primaryView+'</div>';
   const content=leadership?experiencePreview(primaryView,role==='executive'?1:2)+experienceDisclosure('All charts and records',analysis,'Full details for this page'):analysis;
   const sourceContext=experienceSourceContext(key,data);
+  if(['variance-trends','progress-scurve','manhour-scurve','quantity-scurve','commercial-claims-notices','contract-particulars-bonds'].includes(key))return '<div class="role-view-'+role+'">'+content+briefHtml+experienceDisclosure('Source context',sourceContext,'Supporting records and basis')+challengeHtml+'</div>';
   return '<div class="role-view-'+role+'">'+briefHtml+(key==='cash-flow'?'':sourceContext)+content+(key==='cash-flow'?sourceContext:'')+challengeHtml+'</div>';
 }
 function experienceCertificateGroups(position){

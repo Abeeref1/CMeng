@@ -1,3 +1,4 @@
+import {aggregateCount} from '../../truth-kernel/src/aggregates';
 import {
   buildScheduleActivityLogicIndex,
   DEFAULT_SCHEDULE_ANALYSIS_CONFIG,
@@ -74,6 +75,16 @@ function finishVarianceDays(
       86_400_000
     ).toFixed(6),
   );
+}
+
+export function activityAnalyticsCounts(rows: readonly ActivityAnalyticsRow[]) {
+  const executionRows = rows.filter(row => !['level_of_effort', 'wbs_summary'].includes(row.activityType));
+  return {
+    critical: aggregateCount(executionRows, row => row.totalFloatHours === null ? null : row.criticality === 'critical'),
+    nearCritical: aggregateCount(executionRows, row => row.criticality === 'unknown' || row.floatRiskWatchlist === null ? null : row.criticality === 'near_critical'),
+    floatRisk: aggregateCount(executionRows, row => row.floatRiskWatchlist),
+    late: aggregateCount(executionRows, row => row.finishVarianceDays === null ? null : row.finishVarianceDays > 0),
+  };
 }
 
 export function buildActivityAnalyticsProjection(
@@ -162,6 +173,7 @@ export function buildActivityAnalyticsProjection(
       };
     });
 
+  const counts = activityAnalyticsCounts(rows);
   return {
     schemaVersion: "1.0",
     projectionKey: "activity_analytics",
@@ -171,6 +183,7 @@ export function buildActivityAnalyticsProjection(
     sourceRevisionId:
       model.sourceRevisionId,
     activityCount: rows.length,
+    counts,
     population: {
       sourceActivityCount: rows.length,
       executableActivityCount:

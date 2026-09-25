@@ -1,3 +1,4 @@
+import {completeSum} from '../../truth-kernel/src/aggregates';
 import { parseScheduleTime, activityPopulation, activityNearCriticalThresholdHours, scheduleProgress, sourceFloatCriticality, type CanonicalScheduleModel, type ScheduleAnalysisConfig } from '../../schedule-analysis-core/src';
 import type { ModuleRuntimeResult } from './project-state-types';
 import {commercialIntegrityChecks} from './commercial-integrity';
@@ -9,7 +10,7 @@ export function checkProjectionIntegrity(result: ModuleRuntimeResult, model: Can
   const execution = activityPopulation(model);
   const classifications = execution.activities.map(a => sourceFloatCriticality(model, a, config));
   const expectedCritical = classifications.filter(x => x === 'critical').length;
-  const expectedNear = execution.activities.some(a=>a.totalFloatHours!==null&&activityNearCriticalThresholdHours(model,a,config)===null)?null:classifications.filter(x => x === 'near_critical').length;
+  const expectedNear = execution.activities.some(a=>a.totalFloatHours===null||activityNearCriticalThresholdHours(model,a,config)===null)?null:classifications.filter(x => x === 'near_critical').length;
   const progress = scheduleProgress(model.activities);
   const checks: Array<{ metric: string; expected: unknown; actual: unknown; passed: boolean }> = [];
   const compare = (metric: string, actual: unknown, expected: unknown, tolerance = 0.00001) => {
@@ -78,6 +79,10 @@ export function checkProjectionIntegrity(result: ModuleRuntimeResult, model: Can
     compare('duration_weighted_schedule_progress', totals.progress?.durationWeightedPercentComplete?.value, progress.value);
   } else if (result.key === 'activity-analytics') {
     compare('source_register_population', data.rows?.length, model.activities.length);
+    compare('activity_near_critical_total', data.counts?.nearCritical.value, expectedNear);
+    compare('activity_critical_total', data.counts?.critical.value, execution.activities.some(a=>a.totalFloatHours===null)?null:expectedCritical);
+    const datedRows=(data.rows??[]).filter((r:any)=>!['wbs_summary','level_of_effort'].includes(r.activityType));
+    compare('activity_late_total', data.counts?.late.value, datedRows.some((r:any)=>r.finishVarianceDays===null)?null:datedRows.filter((r:any)=>r.finishVarianceDays>0).length);
   } else if (result.key === 'near-critical') {
     compare('strict_near_critical_population', data.nearCriticalCount, expectedNear);
   } else if (result.key === 'progress-breakdown') {
@@ -127,8 +132,8 @@ export function checkProjectionIntegrity(result: ModuleRuntimeResult, model: Can
       compare('calendar_date_movement:'+row.windowId,row.independentForecastMovementDays,diff(row.fromIndependentForecastCompletionIso,row.toIndependentForecastCompletionIso));
     }
     compare('net_completion_date_movement',data.projectCompletionMovementDays,diff(data.firstProjectCompletionIso,data.latestProjectCompletionIso));
-    compare('positive_calendar_movement',data.positiveIndependentMovementDays,windows.reduce((n:number,r:any)=>n+Math.max(0,r.independentForecastMovementDays??0),0));
-    compare('negative_calendar_movement',data.negativeIndependentMovementDays,windows.reduce((n:number,r:any)=>n+Math.min(0,r.independentForecastMovementDays??0),0));
+    compare('positive_calendar_movement',data.positiveIndependentMovementDays,completeSum(windows.map((r:any)=>r.independentForecastMovementDays===null?null:Math.max(0,r.independentForecastMovementDays))));
+    compare('negative_calendar_movement',data.negativeIndependentMovementDays,completeSum(windows.map((r:any)=>r.independentForecastMovementDays===null?null:Math.min(0,r.independentForecastMovementDays))));
   }
   const cutoff = model.dataDateIso?.slice(0, 10) ?? null;
   if (result.key === 'progress-scurve') {

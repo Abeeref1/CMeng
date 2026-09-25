@@ -102,7 +102,7 @@ function buildRow(
         sourceFloatCriticality(model, activity, config) ===
         "critical",
     ).length,
-    nearCriticalCount: floatKnown.some(a=>activityNearCriticalThresholdHours(model,a,config)===null)?null:floatKnown.filter(
+    nearCriticalCount: floatKnown.length!==activities.length||floatKnown.some(a=>activityNearCriticalThresholdHours(model,a,config)===null)?null:floatKnown.filter(
       (activity) =>
         sourceFloatCriticality(model, activity, config) ===
         "near_critical",

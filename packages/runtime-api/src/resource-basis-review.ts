@@ -1,3 +1,4 @@
+import {aggregateCount} from '../../truth-kernel/src/aggregates';
 import {isExecutionActivity,parseScheduleTime} from '../../schedule-analysis-core/src';
 import {sumKnown} from '../../truth-kernel/src';
 import {projectControlSchedule,projectDataDate} from './canonical-time-claims';
@@ -31,8 +32,8 @@ function calculateResourceBasisReview(state:ProjectRuntimeState,weekly:WeeklyRes
   const byWeek=new Map<string,typeof weekly.points>();
   for(const row of weekly.points){if(!row.weekStartIso)continue;const list=byWeek.get(row.weekStartIso)??[];list.push(row);byWeek.set(row.weekStartIso,list);}
   const exceptions=[...byWeek].sort(([a],[b])=>a.localeCompare(b)).map(([dateIso,rows])=>({dateIso,
-    plannedExceeded:rows.filter(r=>r.availableCapacity!==null&&r.plannedDemand!==null&&r.plannedDemand>r.availableCapacity).length,
-    actualExceeded:date&&dateIso<=date?rows.filter(r=>r.availableCapacity!==null&&r.actualApprovedUsage!==null&&r.actualApprovedUsage>r.availableCapacity).length:null,
+    plannedExceeded:aggregateCount(rows,r=>r.availableCapacity===null||r.plannedDemand===null?null:r.plannedDemand>r.availableCapacity).value,
+    actualExceeded:date&&dateIso<=date?aggregateCount(rows,r=>r.availableCapacity===null||r.actualApprovedUsage===null?null:r.actualApprovedUsage>r.availableCapacity).value:null,
     comparableCount:rows.filter(r=>r.availableCapacity!==null&&r.plannedDemand!==null).length}));
   return {dataDateIso:date,weekly:{plannedHours:fullPlan,plannedHoursToDate:planToDate,actualHoursToDate:actualToDate,
     futurePlannedHours:fullPlan!==null&&planToDate!==null?fullPlan-planToDate:null,

@@ -109,7 +109,7 @@ export interface ProgressReportProjection {
     milestoneCount: number;
     completedCount: number;
     openCount: number;
-    lateOpenCount: number;
+    lateOpenCount: number | null;
   };
 
   lookAhead: {

@@ -271,13 +271,13 @@ export interface ProjectDirectorPosition {
     fullyLinkedClaimCount: number | null;
     unlinkedClaimIds: string[];
     observedProgrammeMovementDays:
-      number;
+      number | null;
     analyticalTimeImpactCandidateDays:
       number | null;
     attributableCandidateEotDays:
       number | null;
     unattributedTimeImpactDays:
-      number;
+      number | null;
     candidateAdditionalEotDays: number | null;
     officialApprovedEotDays: number | null;
   };

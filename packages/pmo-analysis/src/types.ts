@@ -47,7 +47,7 @@ export interface PmoAnalysisProjection {
     notStartedCount: number;
     unknownStatusCount: number;
     lookAheadOverdueCount: number;
-    lateMilestoneCount: number;
+    lateMilestoneCount: number | null;
   };
 
   forecast: {
@@ -94,14 +94,14 @@ export interface PmoAnalysisProjection {
     claimCount: number;
     timelyNoticeCount: number;
     lateNoticeCount: number;
-    observedPositiveMovementDays: number;
-    observedProgrammeMovementDays: number;
+    observedPositiveMovementDays: number | null;
+    observedProgrammeMovementDays: number | null;
     analyticalTimeImpactCandidateDays:
       number | null;
     attributableCandidateEotDays:
       number | null;
     unattributedTimeImpactDays:
-      number;
+      number | null;
     candidateAdditionalEotDays: number | null;
     officialApprovedEotDays: number | null;
     officialAdjustedCompletionIso: string | null;

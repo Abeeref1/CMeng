@@ -96,7 +96,7 @@ export function buildBoqFeasibility(input:{schedule:CanonicalScheduleModel;quant
     }
     return {activityId,itemCount:items.length,requiredLaborHours,availableWorkingHours,requiredAveragePeople,submittedPeople,manpowerGap:requiredAveragePeople!==null&&submittedPeople!==null?rounded(submittedPeople-requiredAveragePeople):null,submittedFinishIso:first.submittedFinishIso,productionFinishIso,scheduleState,reason,sourceRefs:[...new Set(items.flatMap(r=>r.sourceRefs))]};
   });
-  const unresolvedCount=rows.filter(r=>r.manpowerState==='unresolved').length;
+  const unresolvedCount=quantities?rows.filter(r=>r.manpowerState==='unresolved').length:null;
   const assessed=activityChecks.filter(r=>r.scheduleState!=='unresolved'),insufficient=assessed.filter(r=>r.scheduleState==='exceeds').length;
   const overallStatus=insufficient?'Challenge required':!assessed.length?'Unable to assess':unresolvedCount||activityChecks.some(r=>r.scheduleState==='unresolved')?'Further evidence required':'No material contradiction found';
   return {method:'boq_quantity_labor_productivity_working_calendar' as const,state:rows.length&&!unresolvedCount?'calculated' as const:'unresolved' as const,overallStatus,reason:!rows.length?'Readable BOQ quantities are needed for the manpower calculation.':unresolvedCount?'Manpower cannot yet be calculated for '+unresolvedCount+' items because schedule links, progress, productivity or working-time inputs are missing. The supplied BOQ figures remain available.':'Item requirements are calculated from the stated production basis. This does not prove whole-programme feasibility.',unresolvedCount,requiredLaborHours:rows.length&&!unresolvedCount?rounded(rows.reduce((sum,r)=>sum+r.requiredLaborHours!,0)):null,rows,activityChecks};

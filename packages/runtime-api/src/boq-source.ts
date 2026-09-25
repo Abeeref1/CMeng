@@ -16,7 +16,7 @@ export function suppliedBoqFigures(boq:BoqIngestionResult|null,quantities:Canoni
     sourceRefs:item.sourceRefs.map(ref=>ref.source+':'+ref.locator),
   }));
   return {sourceFilename:boq?.sourceFilename??null,revisionId:boq?.evidenceReceipt.revisionId??quantities?.boqRevisionId??null,
-    itemCount:rows.length,readableQuantityCount:rows.filter(row=>row.quantity!==null&&Number.isFinite(row.quantity)).length,
+    itemCount:boq||quantities?rows.length:null,readableQuantityCount:boq||quantities?rows.filter(row=>row.quantity!==null&&Number.isFinite(row.quantity)).length:null,
     basis:'Figures as read from the supplied BOQ. Schedule links and calculation inputs do not block these figures.',rows};
 }
 
@@ -28,8 +28,11 @@ export function resolveBoqSource(state:ProjectRuntimeState,scheduleRevisionId:st
   const rejected=documents.filter(d=>documentClassificationForReview(d).documentType!=='boq');
   const usable=documents.filter(d=>!rejected.includes(d));
   const invalidIds=new Set(rejected.map(d=>d.linkedArtifactId));
-  const recordedDocument=documents.find(d=>d.linkedArtifactId===state.boq?.ingestionId);
-  const validCurrent=state.boq&&!invalidIds.has(state.boq.ingestionId)&&(!recordedDocument||usable.includes(recordedDocument));
+  const recordedDocuments=state.evidenceDocuments.filter(d=>d.linkedArtifactId===state.boq?.ingestionId);
+  const hasEstablished=usable.some(d=>['active','additive'].includes(d.basisState));
+  const validCurrent=state.boq&&!invalidIds.has(state.boq.ingestionId)&&(recordedDocuments.length
+    ? recordedDocuments.some(d=>usable.includes(d)&&(!hasEstablished||d.basisState!=='candidate'))
+    : documents.length===0);
   const established=usable.filter(d=>['active','additive'].includes(d.basisState));
   const candidates=established.length?established:usable;
   const selected=validCurrent?state.boq:candidates.length===1?state.boqRevisions.find(b=>b.ingestionId===candidates[0]!.linkedArtifactId)??null:null;
