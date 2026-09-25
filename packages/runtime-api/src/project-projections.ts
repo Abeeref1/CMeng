@@ -7044,13 +7044,22 @@ const resolvedProjectCache = new Map<string, {version: number; modules: Map<stri
 function resolveProjectModule(state: ProjectRuntimeState, key: string): ModuleRuntimeResult {
   const cached = resolvedProjectCache.get(state.projectId);
   if (cached?.version === state.version) return cached.modules.get(key) ?? blocked(key, "Unknown module.", []);
+  const profiling=process.env.CMENG_PROFILE_PERF?.trim()==='1';
+  const p0=profiling?performance.now():0;
   const scoped = reportingState(state);
+  const p1=profiling?performance.now():0;
   const bundle = buildBundle(scoped);
+  const p2=profiling?performance.now():0;
   const candidates = new Map([...scheduleModules, ...commercialModules].map(descriptor =>
     [descriptor.key, resolveProjectModuleCandidate(scoped, descriptor.key)]));
+  const p3=profiling?performance.now():0;
   const consistency = certifyCrossModuleConsistency({generatedAt: bundle.generatedAt, state: scoped,
     modules: candidates, director: bundle.director, boardReport: bundle.boardReport});
+  const p4=profiling?performance.now():0;
   const modules = new Map([...candidates].map(([key, result]) => [key, enforceModuleReadiness(result, consistency)]));
+  const p5=profiling?performance.now():0;
+  if(profiling)process.stdout.write(JSON.stringify({event:'project_resolution_profile',projectId:state.projectId,
+    reportingStateMs:p1-p0,bundleMs:p2-p1,candidatesMs:p3-p2,certificationMs:p4-p3,readinessMs:p5-p4,totalMs:p5-p0})+'\n');
   resolvedProjectCache.set(state.projectId, {version: state.version, modules});
   return modules.get(key) ?? blocked(key, "Unknown module.", []);
 }
