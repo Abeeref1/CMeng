@@ -64,13 +64,17 @@ try:
       before=get_json(prefix+"/evidence/documents")
       source_before=fp(before.get("documents",[]))
       errors=[]
-      page=context.new_page()
+      # Each project gets a clean browser session. A prior project's asynchronous
+      # refresh must not overwrite the next project's saved selection.
+      project_context=browser.new_context(viewport={"width":1440,"height":1000})
+      project_context.route("**/*",reads_only)
+      page=project_context.new_page()
       page.on("pageerror",lambda error,errors=errors: errors.append(type(error).__name__))
       STAGE=hashlib.sha256(project_id.encode()).hexdigest()[:12]+"/open-workspace"
       page.goto(BASE+"/",wait_until="domcontentloaded",timeout=90000)
-      page.evaluate("(id)=>{localStorage.setItem('cmeng-project',id);localStorage.setItem('cmeng-module','master-dashboard')}",project_id)
-      STAGE=hashlib.sha256(project_id.encode()).hexdigest()[:12]+"/restore-project"
-      page.reload(wait_until="domcontentloaded",timeout=90000)
+      STAGE=hashlib.sha256(project_id.encode()).hexdigest()[:12]+"/select-project"
+      page.get_by_role("button",name="◫ Portfolio",exact=True).click()
+      page.get_by_role("article").filter(has=page.get_by_role("heading",name=project_id,exact=True)).get_by_role("button",name="Open project",exact=True).click(timeout=90000)
       STAGE=hashlib.sha256(project_id.encode()).hexdigest()[:12]+"/wait-project"
       page.wait_for_function("id => typeof overview!=='undefined' && overview && overview.projectId===id",arg=project_id,timeout=90000)
       project_result={"projectFingerprint":hashlib.sha256(project_id.encode()).hexdigest()[:16],"pages":0,"blocked":[]}
@@ -123,6 +127,7 @@ try:
       after=get_json(prefix+"/evidence/documents")
       check("Browser acceptance preserves real client source files",source_before==fp(after.get("documents",[])),project_id)
       page.close()
+      project_context.close()
 
     check("No write request was attempted during real-project browser acceptance",not mutation_attempts,detail=",".join(mutation_attempts))
     check("Exact released source after browser checks",get_json("/health").get("release")==EXPECTED)
