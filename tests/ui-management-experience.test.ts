@@ -330,5 +330,14 @@ test('management context has a single owner per topic and calendar naming reache
  const render=(key:string)=>runInNewContext(code+';experienceSourceContext(key,data)',{...ctx,key});
  assert.doesNotMatch(render('master-dashboard'),/source-context-card|Risk register ·|Progress measures and their bases|HSE rate and exposure basis/);
  assert.match(render('independent-forecast'),/source-context-card/);assert.match(render('command-center'),/HSE rate and exposure basis/);assert.match(render('progress-report'),/Progress measures and their bases/);
- assert.doesNotMatch(script,/Calendar-calculated finish|Independent calendar calculation|Programme calendar calculation|own-calendar recalculation/);
+ assert.doesNotMatch(script,/Calendar-calculated finish|Independent calendar calculation|Programme calendar calculation|own-calendar recalculation|Calendar scenario vs|Independent CPM movement/);
+ const basis=functions(['renderBasisReviews','basisPanel','basisTable']);
+ const detailed={sourceInterpretation:{hse:data.sourceInterpretation.hse,availability:[{topic:'Risk dates',state:'missing',detail:'Raised dates absent',action:'Review dates'}]},operationalReporting:{actions:[{type:'RFI',recordId:'R1',priority:'High',owner:null,dueIso:null,action:'Reply to query'}]}};
+ const basisContext={...common,data:detailed,managementModuleLink:(k:string,label:string)=>'<a>'+k+': '+label+'</a>'};
+ for(const key of ['master-dashboard','pmo-analysis']){
+   const html=runInNewContext(basis+';renderBasisReviews(data,key)',{...basisContext,key});
+   assert.doesNotMatch(html,/<table|HSE figures reported/);assert.match(html,/command-center/);
+ }
+ const command=runInNewContext(basis+';renderBasisReviews(data,"command-center")',basisContext);
+ assert.match(command,/Not assigned/);assert.match(command,/Not set/);assert.doesNotMatch(command,/Assign owner|Set due date|HSE figures reported/);
 });

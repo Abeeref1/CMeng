@@ -647,8 +647,8 @@ function dashboardMetrics(
   const submittedVariance = submitted && contractual
     ? (Date.parse(submitted.slice(0, 10)) - Date.parse(contractual.slice(0, 10))) / 86_400_000 : null;
   for (const [key, label, value, basis] of [
-    ["independent-vs-contract", "Calendar scenario vs contract", d?.schedule.varianceDaysToContractualCompletion ?? null, "Programme calendar recalculation minus current confirmed contract completion"],
-    ["independent-vs-submitted", "Calendar scenario vs submitted programme", d?.schedule.varianceDaysToSubmittedProgrammeCompletion ?? null, "Programme calendar recalculation minus current submitted programme finish"],
+    ["independent-vs-contract", "Programme calendar recalculation vs contract", d?.schedule.varianceDaysToContractualCompletion ?? null, "Programme calendar recalculation minus current confirmed contract completion"],
+    ["independent-vs-submitted", "Programme calendar recalculation vs submitted programme", d?.schedule.varianceDaysToSubmittedProgrammeCompletion ?? null, "Programme calendar recalculation minus current submitted programme finish"],
     ["submitted-vs-contract", "Submitted programme vs contract", Number.isFinite(submittedVariance) ? submittedVariance : null, "Current submitted programme finish minus current confirmed contract completion"],
   ] as const) {
     metrics.push(metric({ key, label, value, unit: "calendar days", state: value === null ? "unavailable" : "calculated",

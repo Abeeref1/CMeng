@@ -45,7 +45,8 @@ function renderCommercialExceptions(position,key,data){
 }
 function renderBasisReviews(data,key){
   let html=''; const s=data.scheduleBasisReview,q=data.quantityBasisReview,d=data.durationEditReview,v=data.contractValueBasisReview;
-  if(s){
+  if(s&&key!=='independent-forecast')html+=managementModuleLink('independent-forecast','Review package calendars and date restrictions');
+  if(s&&key==='independent-forecast'){
     html+=basisPanel(s.contractFinishIso?fmt(s.deadline.lateCount)+' of '+fmt(s.packageCount)+' package finishes fall after the contract date':'Package deadlines need a confirmed contract date',s.interpretation,
       (s.contractFinishIso?'<p>Contract finish '+escapeHtml(planningShortDate(s.contractFinishIso))+'. '+fmt(s.deadline.positiveFloatButLateCount)+' late package finishes still have positive submitted float. Dated lateness ranges from '+fmt(s.deadline.latenessDays.min)+' to '+fmt(s.deadline.latenessDays.max)+' calendar days. Submitted criticality is not a contract-compliance test.</p>':'<p>No confirmed contract date is available for this comparison. Submitted float does not establish contractual timeliness.</p>')+
       '<p>'+escapeHtml(s.packageDefinition)+' '+fmt(s.excludedLeafCount)+' leaf WBS excluded.</p>'+
@@ -86,19 +87,19 @@ function renderBasisReviews(data,key){
   }
   if(b&&key==='challenge-contract')html+=renderResourceBasisReview(b);
   if(['master-dashboard','command-center','pmo-analysis'].includes(key)){
-    const h=data.sourceInterpretation?.hse;
-    if(h?.periodEndIso){const m=h.metrics||{};html+=basisPanel('HSE figures reported through '+planningShortDate(h.periodEndIso),'Reported totals are separate from dated open incident cases.',planningKpis([['Lost-time injuries',m.lostTimeInjuries,'reported'],['Medical treatment cases',m.medicalTreatmentCases,'reported'],['First-aid cases',m.firstAidCases,'reported'],['Near misses',m.nearMisses,'reported']])+'<p>Exposure '+fmt(m.manHours)+' hours; reported LTIFR '+percent2(m.ltifr)+'; TRIR '+percent2(m.trir)+'. Confirm the rate method and reconcile the exposure hours with resource sources.</p>');}
     const a=data.sourceInterpretation?.availability;
-    if(a?.length)html+=basisPanel('What information is missing, unread or inconsistent','Each gap has its own next step.',basisTable(['Topic','Specific gap','Evidence','Action'],a.map(r=>[r.topic,humanizeKey(r.state),r.detail,r.action])));
+    if(a?.length&&key!=='command-center')html+=managementModuleLink('command-center','Review missing or unread project information');
+    if(a?.length&&key==='command-center')html+=basisPanel('What information is missing, unread or inconsistent','Each gap has its own next step.',basisTable(['Topic','Specific gap','Evidence','Action'],a.map(r=>[r.topic,humanizeKey(r.state),r.detail,r.action])));
   }
   const overlap=data.determinationOverlapScenario;
   if(overlap)html+=basisPanel('Submitted finish: '+fmt(overlap.noneIncludedLatenessDays)+' to '+fmt(overlap.allIncludedLatenessDays)+' days after the adjusted date, conditionally',overlap.basis,'<p>'+fmt(overlap.determinedDays)+' days appear in determinations by DD. No additional days have been applied automatically.</p>');
   const actions=data.operationalReporting?.actions||data.sourceInterpretation?.actions||[];
-  if(actions.length&&['command-center','pmo-analysis'].includes(key)){
+  if(actions.length&&key==='pmo-analysis')html+=managementModuleLink('command-center','Review delivery action records');
+  if(actions.length&&key==='command-center'){
     html+=basisPanel('Specific records requiring action','Owners and due dates are shown only when supplied. Full source records remain available.',
       '<p>'+fmt(actions.filter(r=>r.type==='NCR').length)+' open major / critical NCRs; '+fmt(actions.filter(r=>r.type==='RFI').length)+' overdue RFIs through DD.</p>'+
-      basisTable(['Record','Priority','Age at reporting date','Overdue','Owner','Due','Next action'],actions.slice(0,10).map(r=>[r.recordId,r.priority,r.ageDays==null?'Raised date needed':r.ageDays+' d',r.overdueDays==null?'Due date needed':r.overdueDays+' d',r.owner||'Assign owner',r.dueIso?planningShortDate(r.dueIso):'Set due date',r.action]))+
-      '<details><summary>All '+fmt(actions.length)+' action records</summary>'+basisTable(['Record','Subject','Priority','Age at reporting date','Overdue','Owner','Raised','Due','Next action'],actions.map(r=>[r.recordId,r.subject,r.priority,r.ageDays==null?'Raised date needed':r.ageDays+' d',r.overdueDays==null?'Due date needed':r.overdueDays+' d',r.owner||'Assign owner',planningShortDate(r.raisedIso),planningShortDate(r.dueIso),r.action]))+'</details>');
+      basisTable(['Record','Priority','Age at reporting date','Overdue','Owner','Due','Next action'],actions.slice(0,10).map(r=>[r.recordId,r.priority,r.ageDays==null?'Raised date needed':r.ageDays+' d',r.overdueDays==null?'Due date needed':r.overdueDays+' d',r.owner||'Not assigned',r.dueIso?planningShortDate(r.dueIso):'Not set',r.action]))+
+      '<details><summary>All '+fmt(actions.length)+' action records</summary>'+basisTable(['Record','Subject','Priority','Age at reporting date','Overdue','Owner','Raised','Due','Next action'],actions.map(r=>[r.recordId,r.subject,r.priority,r.ageDays==null?'Raised date needed':r.ageDays+' d',r.overdueDays==null?'Due date needed':r.overdueDays+' d',r.owner||'Not assigned',planningShortDate(r.raisedIso),planningShortDate(r.dueIso),r.action]))+'</details>');
   }
   return html;
 }
