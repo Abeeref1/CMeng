@@ -1446,14 +1446,17 @@ export function certifyCrossModuleConsistency(
     ),
   );
 
-  const boqSelection=resolveBoqSource(state,state.quantities?.scheduleRevisionId??'').selection;
+  const boqResolution=resolveBoqSource(state,state.quantities?.scheduleRevisionId??'');
+  const boqSelection=boqResolution.selection;
+  const resolvedBoq=boqResolution.boq;
+  const resolvedQuantities=boqResolution.quantities;
   const candidateBoq=boqSelection.state==='candidate'&&!boqSelection.adoptedSource;
   checks.push(
     candidateBoq?{checkId:'BOQ_ACTIVE_DOCUMENT_CONSISTENCY',state:'not_applicable',
       detail:'The displayed BOQ is explicitly an unadopted source candidate. No match with the adopted BOQ slot is asserted; rejected legacy classifications remain excluded.',
       values:[{source:'quantity-scurve.boqSource',value:boqSelection}]}:equalityCheck(
       "BOQ_ACTIVE_DOCUMENT_CONSISTENCY",
-      "An adopted runtime BOQ must match the active evidence artifact. Candidate source quantities are checked separately without promoting authority.",
+      "The BOQ selected by the canonical source resolver must match the governed active evidence artifact. A stale legacy runtime slot is not an authority.",
       [
         {
           source:
@@ -1466,10 +1469,11 @@ export function certifyCrossModuleConsistency(
         },
         {
           source:
-            "boq-runtime-ingestion",
+            "resolved-boq-ingestion",
           value:
-            state.boq
-              ?.ingestionId,
+            resolvedBoq
+              ?.ingestionId ??
+            null,
         },
       ],
     ),
@@ -1477,19 +1481,19 @@ export function certifyCrossModuleConsistency(
 
   checks.push(equalityCheck('BOQ_SELECTED_SOURCE_CONSISTENCY','The resolved source document must own the BOQ ingestion used by quantity calculations.',[
     {source:'validated-boq-source',value:state.evidenceDocuments.find(d=>d.documentId===boqSelection.sourceDocumentId)?.linkedArtifactId??null},
-    {source:'boq-runtime-ingestion',value:state.boq?.ingestionId??null},
+    {source:'resolved-boq-ingestion',value:resolvedBoq?.ingestionId??null},
   ]));
 
   checks.push(
     equalityCheck(
       "BOQ_BASIS_CONSISTENCY",
-      "The canonical quantity model and Quantity S-Curve must use the same BOQ evidence revision as the active runtime BOQ.",
+      "The canonical quantity model and Quantity S-Curve must use the same BOQ evidence revision as the resolved governed BOQ.",
       [
         {
           source:
-            "boq-runtime-revision",
+            "resolved-boq-revision",
           value:
-            state.boq
+            resolvedBoq
               ?.evidenceReceipt
               ?.revisionId,
         },
@@ -1497,8 +1501,9 @@ export function certifyCrossModuleConsistency(
           source:
             "quantity-model",
           value:
-            state.quantities
-              ?.boqRevisionId,
+            resolvedQuantities
+              ?.boqRevisionId ??
+            null,
         },
         {
           source:
