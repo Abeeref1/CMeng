@@ -166,7 +166,10 @@ test('the universal module resolver never promotes pending, missing or failed ga
   assert.equal(enforceModuleReadiness({...base,data:{systemEvidenceContract:{state:'not_checked',checks:[]}}},pass).status,'partial');
   assert.equal(enforceModuleReadiness({...base,evidenceState:'missing'},pass).status,'partial');
   assert.equal(enforceModuleReadiness({...base,professionalState:'review_required'},pass).status,'partial');
-  assert.equal(enforceModuleReadiness({...base,data:{...base.data,challenge:{reconciliationState:'material_difference'}}},pass).status,'partial');
+  const comparisonOnly=enforceModuleReadiness({...base,data:{...base.data,challenge:{reconciliationState:'material_difference',items:[{metric:'completion_date'}]}}},pass);
+  assert.equal(comparisonOnly.status,'ready','a comparison difference remains visible but cannot downgrade a defensible owning projection');
+  assert.equal((comparisonOnly.data as any).moduleReadiness.comparisonState,'material_difference');
+  assert.equal((comparisonOnly.data as any).moduleReadiness.comparisonRequired,true);
   assert.equal(enforceModuleReadiness(base,{...pass,state:'fail',failedCheckIds:['POPULATION_MISMATCH']}).status,'partial');
 });
 test('distribution reports concentration without asserting causality',()=>{
@@ -239,4 +242,31 @@ test('runtime certification detects corrupted date movement and source populatio
  assert.equal(checked('quantity-scurve',{unitKeyed:true,series:[{seriesKey:'m',points:[{dateIso:'2030-01-08',actualInstalledQuantity:1}]}]}).systemEvidenceContract.state,'failed');
  const history={snapshotCount:2,establishedForecastCount:1,points:[{snapshotId:'missing',independentForecastCompletionIso:null,movementDaysVsPrevious:null,movementDaysVsFirst:null},{snapshotId:'known',independentForecastCompletionIso:'2030-01-10',movementDaysVsPrevious:null,movementDaysVsFirst:0}]};
  assert.equal(checked('forecast-history',history).systemEvidenceContract.failureCount,0);
+});
+
+
+test('challenge-only missing comparator is review context, while core missing evidence still blocks readiness',()=>{
+  const pass={state:'pass' as const,failedCheckIds:[],checkCount:3};
+  const challengeOnly:any={
+    key:'activity-analytics',status:'ready',engineState:'ready',evidenceState:'established',professionalState:'defensible',
+    reason:null,dependencies:[],data:{
+      systemEvidenceContract:{state:'verified_for_checked_metrics',checks:[{passed:true}]},
+      challenge:{
+        reconciliationState:'submitted_missing',
+        items:[{
+          metric:'activity_count',reconciliationState:'submitted_missing',
+          submitted:{state:'not_submitted',value:null},
+          independent:{state:'calculated',value:12,diagnostics:[],sourceRefs:['schedule:R1']},
+        }],
+      },
+    },
+  };
+  const result=enforceModuleReadiness(challengeOnly,pass);
+  assert.equal(result.status,'ready');
+  assert.equal((result.data as any).moduleReadiness.comparisonState,'submitted_missing');
+  assert.equal((result.data as any).moduleReadiness.blockingIssueCount,0);
+  assert.ok((result.issueAssessment?.issues??[]).some((i:any)=>i.code==='COMPARABLE_ASSERTION_MISSING'));
+
+  const coreMissing=enforceModuleReadiness({...challengeOnly,evidenceState:'partial',professionalState:'review_required'},pass);
+  assert.equal(coreMissing.status,'partial','the owning producer still controls required evidence readiness');
 });
