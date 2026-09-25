@@ -551,22 +551,28 @@ async function route(
             runtimeProjects.latestSchedule(
               projectId,
             );
-          const moduleStatuses = [
-            ...scheduleModules,
-            ...commercialModules,
-          ].map(
-            (module) => {
-              const resolved =
-                moduleForProject(
-                  projectId,
+          const resolvedModules =
+            new Map(
+              [
+                ...scheduleModules,
+                ...commercialModules,
+              ].map(
+                (module) => [
                   module.key,
-                );
-              return {
-                key: module.key,
-                status:
-                  resolved.status,
-              };
-            },
+                  moduleForProject(
+                    projectId,
+                    module.key,
+                  ),
+                ] as const,
+              ),
+            );
+          const moduleStatuses = [
+            ...resolvedModules,
+          ].map(
+            ([key, resolved]) => ({
+              key,
+              status: resolved.status,
+            }),
           );
           const readyModules =
             moduleStatuses.filter(
@@ -586,7 +592,23 @@ async function route(
                 module.status ===
                 "blocked",
             ).length;
+
+          // Reuse the canonical Commercial Overview projection already resolved
+          // above instead of rebuilding the same commercial position again.
+          const commercialOverviewData =
+            resolvedModules.get(
+              "commercial-overview",
+            )?.data as
+              | {
+                  position?: ReturnType<
+                    typeof commercialPositionForState
+                  >;
+                }
+              | null
+              | undefined;
           const commercialPosition =
+            commercialOverviewData
+              ?.position ??
             commercialPositionForState(
               state,
             );
@@ -606,7 +628,14 @@ async function route(
             directorForProject(
               projectId,
             );
+          const forecastPosition =
+            managementForecastPosition(
+              director,
+            );
           const windowsResult =
+            resolvedModules.get(
+              "windows-analysis",
+            ) ??
             moduleForProject(
               projectId,
               "windows-analysis",
@@ -653,10 +682,14 @@ async function route(
                     "pass" && readyModules === moduleStatuses.length
                   ? "current"
                   : "needs_review",
-            forecastCompletionIso:managementForecastPosition(director).completionIso,
-            forecastAuthority:managementForecastPosition(director).authority,
-            forecastLabel:managementForecastPosition(director).label,
-            calendarRecalculationIso:managementForecastPosition(director).calendarRecalculationIso,
+            forecastCompletionIso:
+              forecastPosition.completionIso,
+            forecastAuthority:
+              forecastPosition.authority,
+            forecastLabel:
+              forecastPosition.label,
+            calendarRecalculationIso:
+              forecastPosition.calendarRecalculationIso,
             officialCompletionIso:
               director?.schedule
                 .contractualCompletionIso ??
