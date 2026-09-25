@@ -4280,7 +4280,7 @@ function renderAiSuggestions(){
   document.querySelectorAll(".ai-suggestion").forEach(b=>b.onclick=()=>{el("aiQuestion").value=b.textContent;askCmeng()});
 }
 let directorRequestSeq=0;
-async function loadDirector(projectId=project()){
+async function loadDirector(projectId=project(),attempt=0){
   const requestSeq=++directorRequestSeq;
   el("director").innerHTML='<div class="view-state-bar"><span class="spinner"></span><strong>Loading management detail</strong></div>';
   try{
@@ -4289,6 +4289,16 @@ async function loadDirector(projectId=project()){
     renderDirector(position);
   }catch(e){
     if(requestSeq!==directorRequestSeq||projectId!==project())return;
+    const programmeEstablished=overview?.minimumEvidenceBasis?.schedule?.established===true;
+    if(e.status===404&&programmeEstablished&&attempt<4){
+      el("director").innerHTML='<div class="view-state-bar"><span class="spinner"></span><strong>Updating management position</strong><span>The project documents are loaded; the management position is being rebuilt from the current evidence.</span></div>';
+      setTimeout(()=>{if(requestSeq===directorRequestSeq&&projectId===project())loadDirector(projectId,attempt+1)},600);
+      return;
+    }
+    if(e.status===404&&!programmeEstablished){
+      el("director").innerHTML='<div class="notice warn"><b>Management position not established.</b> A current programme must be established before CMeng can calculate the integrated management position.</div>';
+      return;
+    }
     el("director").innerHTML='<div class="notice error">CMeng could not load management detail: '+escapeHtml(e.message)+'. This is a loading failure; it does not establish missing project evidence. <button class="btn small" id="retryDirector">Retry management detail</button></div>';
     el("retryDirector").onclick=()=>loadDirector(projectId);
   }
