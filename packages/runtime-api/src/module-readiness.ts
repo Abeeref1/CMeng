@@ -41,6 +41,17 @@ export function enforceModuleReadiness(
   const evidence = result.evidenceState ?? 'not_established';
   const professional = result.professionalState ?? 'review_required';
   const reconciliation = data.challenge?.reconciliationState ?? 'not_checked';
+  const challengeItems = Array.isArray(data.challenge?.items)
+    ? data.challenge.items
+    : [];
+  const advisoryDefaultChallenge =
+    challengeItems.length === 1 &&
+    challengeItems[0]?.metric === 'module_position';
+  const reconciliationRequired =
+    challengeItems.length > 0 &&
+    !advisoryDefaultChallenge;
+  const reconciliationReady =
+    ['within_tolerance', 'not_applicable'].includes(reconciliation);
 
   const blockingIssues = (issueAssessment.issues ?? []).filter((issue:any) => {
     if (
@@ -73,6 +84,10 @@ export function enforceModuleReadiness(
     scopedConsistency.state !== 'pass'
       ? 'affected consistency checks failed'
       : null,
+    reconciliationRequired &&
+    !reconciliationReady
+      ? 'submitted/independent reconciliation ' + String(reconciliation).replaceAll('_', ' ')
+      : null,
     blockingIssues.length > 0
       ? String(blockingIssues.length) + ' blocking information/system issue(s)'
       : null,
@@ -89,6 +104,7 @@ export function enforceModuleReadiness(
     professional,
     reconciliation,
     comparisonState: reconciliation,
+    comparisonRequired: reconciliationRequired,
     consistency: scopedConsistency.state,
     projectConsistency: consistency.state,
     failedConsistencyCheckIds: scopedConsistency.failedCheckIds,
