@@ -492,3 +492,29 @@ test('dated incremental gross and net certificates stay established across money
   assert.equal(c.grossCertifiedAmount.value,300,key);assert.equal(c.netCertifiedAmount.value,270,key);assert.equal(c.netCertifiedAmount.state,'established',key);assert.equal(c.interimCertificateCount.value,2,key);assert.equal(c.paidAmount.value,null,key);
  }
 });
+
+test('shared planning analysis refreshes baseline authority and unresolved counts after a project edit', t => {
+  const {state,model}=fixture(t);
+  const activityBefore:any=moduleForProject(state.projectId,'activity-analytics').data;
+  const scheduleBefore:any=moduleForProject(state.projectId,'schedule-analytics').data;
+  assert.equal(activityBefore.counts.nearCritical.value,1);
+  assert.equal(activityBefore.rows[0].finishVarianceDays,null,'no governed baseline yet');
+  assert.equal(scheduleBefore.result.float.nearCriticalCount,1);
+
+  const baseline=structuredClone(model);
+  baseline.sourceRevisionId='BASE';baseline.dataDateIso='2031-04-01';
+  baseline.activities[0]!.currentFinishIso='2031-05-01';
+  state.schedules.unshift({role:'baseline',format:'xer',sourceFilename:'governed.xer',
+    sourceHashSha256:'baseline',uploadedAt:'2031-04-01',revision:{revisionId:'BASE',
+    label:'Governed baseline',sequence:0,effectiveAt:'2031-04-01',model:baseline}});
+  model.activities[0]!.totalFloatHours=null;
+  runtimeProjects.touch(state);
+
+  const scheduleAfter:any=moduleForProject(state.projectId,'schedule-analytics').data;
+  const activityAfter:any=moduleForProject(state.projectId,'activity-analytics').data;
+  assert.equal(scheduleAfter.result.float.nearCriticalCount,null);
+  assert.equal(activityAfter.counts.nearCritical.value,null);
+  assert.equal(activityAfter.rows[0].finishVarianceDays,8);
+  assert.equal(activityAfter.controlledBaselineRevisionId,'BASE');
+  assert.equal(activityBefore.counts.nearCritical.value,1,'earlier response stays intact');
+});

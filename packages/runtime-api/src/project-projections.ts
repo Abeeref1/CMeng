@@ -32,7 +32,7 @@ import { reviewScheduleCalendarBasis } from './schedule-calendar-review';
 import { canonicalResourceModule } from "./canonical-resource-runtime";
 import { createHash } from "node:crypto";
 import {
-  analyzeSchedule,
+  scheduleProgress,
 } from "../../schedule-analysis-core/src";
 import {
   buildActivityAnalyticsProjection, activityAnalyticsCounts,
@@ -428,11 +428,7 @@ function actualHistory(
     .map((stored) => {
       const model =
         stored.revision.model;
-      const progress =
-        analyzeSchedule(model)
-          .progress
-          .durationWeightedPercentComplete
-          .value;
+      const progress = scheduleProgress(model.activities).value;
       const asOfIso =
         model.dataDateIso ??
         stored.revision.effectiveAt;
@@ -3413,40 +3409,23 @@ const planningModuleCache =
     }
   >();
 
-function buildPlanningModuleFast(
-  state: ProjectRuntimeState,
-  key: string,
-): ModuleRuntimeResult | null {
-  if (!planningModuleKeys.has(key)) {
-    return null;
-  }
+// Planning pages share the same governed schedule analysis within a project
+// version. Keep the context on the reporting view so edits and authority changes
+// create a fresh context; each page still builds and certifies its own result.
+const planningContextCache = new WeakMap<ProjectRuntimeState, {
+  version: number;
+  context: ReturnType<typeof calculatePlanningContext>;
+}>();
 
-  const cacheKey =
-    state.projectId +
-    "::" +
-    key;
-  const cached =
-    planningModuleCache.get(
-      cacheKey,
-    );
-  if (
-    cached &&
-    cached.version ===
-      state.version
-  ) {
-    return cached.result;
-  }
+function planningContextForState(state: ProjectRuntimeState, current: NonNullable<ReturnType<typeof projectControlSchedule>>) {
+  const cached = planningContextCache.get(state);
+  if (cached?.version === state.version) return cached.context;
+  const context = calculatePlanningContext(state, current);
+  planningContextCache.set(state, {version: state.version, context});
+  return context;
+}
 
-  const current =
-    projectControlSchedule(state);
-  if (!current) {
-    return blocked(
-      key,
-      "Programme evidence has not been established.",
-      ["schedule"],
-    );
-  }
-
+function calculatePlanningContext(state: ProjectRuntimeState, current: NonNullable<ReturnType<typeof projectControlSchedule>>) {
   const generatedAt =
     new Date().toISOString();
   const ordered =
@@ -3772,6 +3751,55 @@ function buildPlanningModuleFast(
       submittedManpowerPlan:
         state.submittedManpowerPlan,
     });
+
+  return {
+    generatedAt, ordered, model, scheduleControlBasis, scheduleAnalysisConfig,
+    controlledBaseline, baselineByActivity, currentByActivity, baselineFinish,
+    currentFinish, daysBetween, controlledBaselineCompletion, knownVariances,
+    scheduleAnalytics, independentForecast, minimalDeliveryChallenge,
+  };
+}
+
+function buildPlanningModuleFast(
+  state: ProjectRuntimeState,
+  key: string,
+): ModuleRuntimeResult | null {
+  if (!planningModuleKeys.has(key)) {
+    return null;
+  }
+
+  const cacheKey =
+    state.projectId +
+    "::" +
+    key;
+  const cached =
+    planningModuleCache.get(
+      cacheKey,
+    );
+  if (
+    cached &&
+    cached.version ===
+      state.version
+  ) {
+    return cached.result;
+  }
+
+  const current =
+    projectControlSchedule(state);
+  if (!current) {
+    return blocked(
+      key,
+      "Programme evidence has not been established.",
+      ["schedule"],
+    );
+  }
+
+  const {
+    generatedAt, ordered, model, scheduleControlBasis, scheduleAnalysisConfig,
+    controlledBaseline, baselineByActivity, currentByActivity, baselineFinish,
+    currentFinish, daysBetween, controlledBaselineCompletion, knownVariances,
+    scheduleAnalytics, independentForecast, minimalDeliveryChallenge,
+  } = planningContextForState(state, current);
 
   const modules =
     new Map<

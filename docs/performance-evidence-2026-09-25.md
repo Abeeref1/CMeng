@@ -61,3 +61,37 @@ One local single-user release-gate run (all observations retained):
 
 The gate's 5,000 ms thresholds passed. Peak sampled RSS was 788.01 MiB.
 These are local results, separate from the production log timings above.
+
+## CI failure and follow-up
+
+The first PR verification run, `36184839552` on head `696a8c7`, passed all
+640 correctness tests but failed the cold gate. Separate scale jobs passed.
+The failed result is retained here; the 5,000 ms target is unchanged.
+
+| Measurement | Initial GitHub runner, ms | Follow-up local run, ms |
+| --- | ---: | ---: |
+| Startup preparation | 796.96 | 921.73 |
+| Cold workflow, 12,500 activities across 3 revisions | **5198.70** | 3349.15 |
+| Upload response, 20,000 activities | 531.31 | 427.86 |
+| Upload to calculated dashboard | 4607.33 | 2560.78 |
+| First dashboard after that upload | 4076.02 | 2132.92 |
+| Peak sampled RSS, MiB | 823.15 | 879.25 |
+
+A separate local CPU-profile diagnostic run preceded the follow-up. Its cold,
+upload-response, upload-to-ready and first-dashboard times were 3780.81,
+445.87, 3254.09 and 2808.23 ms; startup was 933.55 ms and peak RSS 863.63 MiB.
+Profiling was enabled, so this observation is diagnostic, not a clean benchmark.
+
+The profile identified repeated schedule analytics and revision correspondence
+work in the planning-page builders. The follow-up shares that analysis within
+the same governed reporting view and project version. It also calculates history
+progress directly with the existing progress function instead of calculating
+unrelated graph and float metrics to obtain that same progress value. Module
+results still undergo their own integrity and cross-module checks. A regression
+test changes baseline authority and makes float unresolved after the first read,
+then checks that both Activity Review and Schedule Analytics refresh correctly.
+
+The local before/after observations are 3837.11 to 3349.15 ms for cold loading,
+and 3272.13 to 2560.78 ms for upload-to-ready. These individual observations are
+not a statistical performance guarantee. The GitHub runner must independently
+pass the existing gate; local and CI timings must not be pooled.
