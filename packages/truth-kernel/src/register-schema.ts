@@ -46,6 +46,7 @@ const groups:Record<string,string[]>={
   'submitted date':['date submitted','submission date'],
   'assessment date':['date assessed','assessed date'],
   'closed date':['date closed','closure date'],
+  'effective date':['date effective','effective from','effective from date'],
 };
 const aliases=new Map(Object.entries(groups).flatMap(([key,values])=>[key,...values].map(value=>[normalizeHeader(value),key] as const)));
 export function canonicalHeader(value:string,documentType=''):string {
@@ -83,7 +84,7 @@ const fields=new Set([...Object.keys(groups),
 const registerDateHeaders=new Set([
   'notice date','event start','period end','certificate date','payment date','raised date','identified date','status as of','due date',
   'expiry date','approval date','determination date','incident date','report date','required on site','forecast delivery','actual delivery',
-  'planned issue','actual issue','planned date','actual date','week start','as of','submitted date','assessment date','closed date',
+  'planned issue','actual issue','planned date','actual date','week start','as of','submitted date','assessment date','closed date','effective date',
 ]);
 export function isRegisterDateHeader(value:string):boolean {
   return registerDateHeaders.has(canonicalHeader(value));
