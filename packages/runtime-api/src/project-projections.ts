@@ -7777,11 +7777,15 @@ export function overviewForProject(
   const latest =
     projectControlSchedule(state);
   const programmeSchedules = state.schedules.filter(isProgrammeScheduleRevision);
+  const currentReceipt =
+    state.lastRerunReceipt &&
+    state.lastRerunReceipt.projectVersion === state.version
+      ? state.lastRerunReceipt
+      : null;
   const receiptStates =
     new Map(
       (
-        state.lastRerunReceipt
-          ?.moduleResults ??
+        currentReceipt?.moduleResults ??
         []
       ).map(
         (item) => [
@@ -7792,6 +7796,43 @@ export function overviewForProject(
     );
   const scheduleEstablished =
     programmeSchedules.length > 0;
+  const passiveModuleState = (
+    key: string,
+  ): {
+    key: string;
+    status: "ready" | "partial" | "blocked";
+    reason: string | null;
+  } => {
+    const certified = receiptStates.get(key);
+    if (certified) {
+      return {
+        key,
+        status: certified,
+        reason:
+          certified === "ready"
+            ? null
+            : certified === "blocked"
+              ? "The latest certified project position records this view as blocked. Open the page for the current reason and required information."
+              : "The latest certified project position records this view as requiring review. Open the page for the current reason and supporting information.",
+      };
+    }
+    if (!scheduleEstablished) {
+      return {
+        key,
+        status: "blocked",
+        reason:
+          "Programme evidence has not been established.",
+      };
+    }
+    return {
+      key,
+      status: "partial",
+      reason:
+        currentReceipt === null
+          ? "The current project version has not yet been fully recalculated. Open the page or update the project position to calculate it."
+          : "Open this page for the current governed position.",
+    };
+  };
 
   return {
     projectId,
@@ -7957,30 +7998,22 @@ export function overviewForProject(
             ],
           }),
         ),
-    managementStates: managementModuleKeys.map(key => {
-      const resolved = moduleForProject(projectId, key);
-      return {key, status: resolved.status, reason: resolved.reason, issueAssessment: resolved.issueAssessment};
-    }),
+    // Overview is navigation metadata, not a hidden full-project recalculation.
+    // It reuses the latest durable rerun statuses when they match this exact
+    // project version and otherwise stays conservative until a page is opened.
+    managementStates:
+      managementModuleKeys.map(
+        (key) => passiveModuleState(key),
+      ),
     moduleStates:
       [
         ...scheduleModules,
         ...commercialModules,
       ].map(
-        (module) => {
-          const resolved =
-            resolveProjectModule(
-              state,
-              module.key,
-            );
-          return {
-            key: module.key,
-            issueAssessment: resolved.issueAssessment,
-            status:
-              resolved.status,
-            reason:
-              resolved.reason,
-          };
-        },
+        (module) =>
+          passiveModuleState(
+            module.key,
+          ),
       ),
   };
 }
