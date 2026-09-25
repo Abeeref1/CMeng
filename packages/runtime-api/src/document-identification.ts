@@ -1,3 +1,4 @@
+import {readableXlsx} from '../../shared/src/xlsx';
 import {csv,prepareRegisterRows} from '../../truth-kernel/src';
 import { typedEvidenceRoleFromText } from "./typed-evidence-families";
 import { mkdirSync } from "node:fs";
@@ -715,7 +716,7 @@ async function extractXlsxSample(
   const workbook =
     new ExcelJS.Workbook();
   await workbook.xlsx.load(
-    Buffer.from(bytes) as any,
+    await readableXlsx(bytes) as any,
   );
 
   const values: string[] = [];

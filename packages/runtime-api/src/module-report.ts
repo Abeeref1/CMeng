@@ -1,3 +1,4 @@
+import {pageApiKey,publicModuleResult} from './registry';
 import ExcelJS from "exceljs";
 import type {
   ModuleRuntimeResult,
@@ -519,7 +520,7 @@ export async function buildModuleWorkbook(
     ],
     [
       "Module key",
-      moduleKey,
+      pageApiKey(moduleKey),
     ],
     [
       "Status",
@@ -642,12 +643,12 @@ export function buildModuleJsonDownload(
             titleForModule(
               moduleKey,
             ),
-          moduleKey,
+          moduleKey:pageApiKey(moduleKey),
           generatedAt:
             new Date()
               .toISOString(),
         },
-        result,
+        result:publicModuleResult(result,pageApiKey(moduleKey)),
       },
       null,
       2,

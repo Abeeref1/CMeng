@@ -1,3 +1,4 @@
+import {readableXlsx} from '../../shared/src/xlsx';
 import ExcelJS from "exceljs";
 import { performance } from "node:perf_hooks";
 import { detectAllBoqHeaders } from "./headers";
@@ -660,6 +661,6 @@ export async function parseBoqWorkbook(
   bytes: Uint8Array,
 ): Promise<BoqParseResult> {
   const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load(Buffer.from(bytes) as any);
+  await workbook.xlsx.load(await readableXlsx(bytes) as any);
   return parseLoadedBoqWorkbook(workbook);
 }

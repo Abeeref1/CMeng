@@ -1,3 +1,4 @@
+import {pageApiKey} from '../packages/runtime-api/src/registry';
 import test from "node:test";
 import assert from "node:assert/strict";
 import type {
@@ -369,11 +370,11 @@ test("certified demo exposes all 22 schedule modules plus 7 commercial modules, 
           };
         assert.equal(
           report.report.moduleKey,
-          key,
+          pageApiKey(key),
         );
         assert.equal(
           report.result.key,
-          key,
+          pageApiKey(key),
         );
       }
 
@@ -663,7 +664,7 @@ test("every schedule submodule exposes downloadable report data", async () => {
     );
     assert.equal(
       payload.report.moduleKey,
-      "schedule-analytics",
+      pageApiKey("schedule-analytics"),
     );
     assert.notEqual(
       payload.result.status,

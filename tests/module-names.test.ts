@@ -45,7 +45,7 @@ test('API catalogues, JSON, Excel headings and filenames retain the same registr
       const result = {key:m.key, status:'partial' as const, reason:'Unresolved: fixture has no project evidence.', dependencies:[], data:{}};
       const json = JSON.parse(buildModuleJsonDownload('TITLE-CHECK',m.key,result).toString());
       assert.equal(json.report.module, m.title);
-      assert.equal(json.report.moduleKey, m.key);
+      assert.equal(json.report.moduleKey, m.apiKey);
       const book = new ExcelJS.Workbook();
       await book.xlsx.load(await buildModuleWorkbook('TITLE-CHECK', m.key, result) as any);
       assert.equal(book.title, 'TITLE-CHECK - ' + m.title);

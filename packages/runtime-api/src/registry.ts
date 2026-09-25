@@ -2,6 +2,7 @@
 export interface ModuleDescriptor {
   key: string;
   title: string;
+  apiKey?:string;
   description: string;
   group: string;
   area: "management" | "schedule" | "commercial";
@@ -44,6 +45,13 @@ export const moduleRegistry: ModuleDescriptor[] = [
   {"key": "contract-particulars-bonds", "title": "Contract Particulars & Bonds", "description": "Contract value, contractual completion, approved EOT and active security position.", "group": "Commercial", "area": "commercial", "category": "commercial"},
 ];
 
+export const pageApiKey=(key:string)=>moduleRegistry.find(m=>m.key===key||m.apiKey===key)?.apiKey??key;
+export const resolveModuleKey=(key:string)=>moduleRegistry.find(m=>m.key===key||m.apiKey===key)?.key??key;
+for(const m of moduleRegistry)m.apiKey=m.title.toLowerCase().replace(/&/g,'and').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+export function publicModuleResult<T extends {key:string}>(result:T,requestedKey:string){
+  const page=moduleRegistry.find(m=>m.key===result.key);
+  return {...result,key:page?.apiKey===requestedKey?requestedKey:result.key,legacyKey:result.key,page:{key:page?.apiKey??result.key,title:page?.title??result.key,group:page?.group??null}};
+}
 export const moduleTitles = Object.fromEntries(moduleRegistry.map(m => [m.key, m.title]));
 export const moduleDescriptions = Object.fromEntries(moduleRegistry.map(m => [m.key, m.description]));
 export const moduleGroups = moduleRegistry.reduce<Record<string, string[]>>((groups, m) => {
@@ -52,7 +60,7 @@ export const moduleGroups = moduleRegistry.reduce<Record<string, string[]>>((gro
 }, {});
 
 export function titleForModule(key: string): string {
-  return moduleTitles[key] ?? key;
+  return moduleTitles[resolveModuleKey(key)] ?? key;
 }
 
 export type ScheduleModuleDescriptor = ModuleDescriptor;

@@ -1,3 +1,5 @@
+import {analyzeEvidenceRows} from './evidence';
+import {resolveModuleKey,publicModuleResult} from './registry';
 import {prepareRuntimePositions,COLD_DASHBOARD_TARGET_MS} from './release-latency';
 import {withRequestAudit} from './audit-context';
 import {managementForecastPosition} from '../../management-surfaces/src';
@@ -969,6 +971,9 @@ async function route(
           .evidence(projectId)
           .map((document) => ({
             ...document,
+            mapping:schemaByDocument.has(document.documentId)?analyzeEvidenceRows(
+              [schemaByDocument.get(document.documentId)!.headers,...schemaByDocument.get(document.documentId)!.rows.map(r=>schemaByDocument.get(document.documentId)!.headers.map(h=>r.cells[h]??''))],
+              new Set(runtimeProjects.latestSchedule(projectId)?.revision.model.activities.map(a=>a.activityId)??[])):document.mapping,
             classificationReview: documentClassificationForReview(document),
             readReview:documentReadReview(document,state,schemaByDocument.get(document.documentId)),
             schemaHeaders:
@@ -2197,7 +2202,7 @@ async function route(
         "commercial" &&
       !commercialModules.some(
         (module) =>
-          module.key === key,
+          module.key === resolveModuleKey(key),
       )
     ) {
       json(res, 404, {
@@ -2295,7 +2300,7 @@ async function route(
         "commercial" &&
       !commercialModules.some(
         (module) =>
-          module.key === key,
+          module.key === resolveModuleKey(key),
       )
     ) {
       json(res, 404, {
@@ -2316,7 +2321,7 @@ async function route(
         "blocked"
         ? 409
         : 200,
-      result,
+      publicModuleResult(result,key),
     );
     return;
   }
@@ -2497,7 +2502,7 @@ async function route(
         "blocked"
         ? 409
         : 200,
-      result,
+      publicModuleResult(result,key),
     );
     return;
   }

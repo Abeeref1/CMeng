@@ -128,7 +128,7 @@ function buildAlerts(
           "forecast-beyond-contract",
         severity: "high",
         title:
-          "Calendar recalculation needs reconciliation",
+          "Programme calendar recalculation needs reconciliation",
         consequence:
           "Submitted logic recalculated on its own calendars finishes later than the " +
           varianceBasisLabel +
@@ -560,7 +560,7 @@ function dashboardMetrics(
       key:
         "independent-forecast-finish",
       label:
-        "Calendar recalculation finish",
+        "Programme calendar recalculation",
       value:
         d?.schedule
           .independentForecastCompletionIso ??
@@ -587,10 +587,10 @@ function dashboardMetrics(
         null
           ? "No comparison variance is stated because the required confirmed basis is not established."
           : forecastVariance === 0
-            ? "Calendar-calculated finish aligns with the " +
+            ? "Programme calendar recalculation aligns with the " +
               comparisonLabel +
               "."
-            : "Calendar-calculated finish is " +
+            : "Programme calendar recalculation is " +
               managementDays(
                 Math.abs(
                   forecastVariance,
@@ -647,8 +647,8 @@ function dashboardMetrics(
   const submittedVariance = submitted && contractual
     ? (Date.parse(submitted.slice(0, 10)) - Date.parse(contractual.slice(0, 10))) / 86_400_000 : null;
   for (const [key, label, value, basis] of [
-    ["independent-vs-contract", "Calendar scenario vs contract", d?.schedule.varianceDaysToContractualCompletion ?? null, "Calendar-calculated finish minus current confirmed contract completion"],
-    ["independent-vs-submitted", "Calendar scenario vs submitted programme", d?.schedule.varianceDaysToSubmittedProgrammeCompletion ?? null, "Calendar-calculated finish minus current submitted programme finish"],
+    ["independent-vs-contract", "Calendar scenario vs contract", d?.schedule.varianceDaysToContractualCompletion ?? null, "Programme calendar recalculation minus current confirmed contract completion"],
+    ["independent-vs-submitted", "Calendar scenario vs submitted programme", d?.schedule.varianceDaysToSubmittedProgrammeCompletion ?? null, "Programme calendar recalculation minus current submitted programme finish"],
     ["submitted-vs-contract", "Submitted programme vs contract", Number.isFinite(submittedVariance) ? submittedVariance : null, "Current submitted programme finish minus current confirmed contract completion"],
   ] as const) {
     metrics.push(metric({ key, label, value, unit: "calendar days", state: value === null ? "unavailable" : "calculated",

@@ -1,3 +1,4 @@
+import {prepareRegisterRows,canonicalHeader} from '../../truth-kernel/src';
 import type {
   EvidenceCategory,
   EvidenceLineage,
@@ -231,7 +232,9 @@ export function analyzeCsvEvidence(
   const text = Buffer.from(bytes)
     .toString("utf8")
     .replace(/^\uFEFF/, "");
-  const rows = parseCsv(text);
+  return analyzeEvidenceRows(parseCsv(text),activityIds);
+}
+export function analyzeEvidenceRows(rows:string[][],activityIds:ReadonlySet<string>):EvidenceMappingSummary {
   if (rows.length === 0) {
     return {
       method: "explicit_column",
@@ -241,14 +244,16 @@ export function analyzeCsvEvidence(
       mappedActivityCount: null,
       unmappedActivityCount: null,
       coveragePercent: null,
+      state:"column_absent",message:"No linkage column supplied",
     };
   }
 
-  const headers = rows[0]!.map(normalizedHeader);
+  const prepared=prepareRegisterRows(rows);
+  const headers = prepared.headers;
   const linkedIndex = headers.findIndex((header) =>
-    LINKED_ACTIVITY_HEADERS.includes(header),
+    header==='linked activity',
   );
-  const rowCount = rows.slice(1).filter((row) =>
+  const rowCount = prepared.rows.filter((row) =>
     row.some((value) => value.trim() !== ""),
   ).length;
 
@@ -261,12 +266,13 @@ export function analyzeCsvEvidence(
       mappedActivityCount: null,
       unmappedActivityCount: null,
       coveragePercent: null,
+      state:"column_absent",message:"No linkage column supplied",
     };
   }
 
   let linkedActivityCount = 0;
   let mappedActivityCount = 0;
-  for (const row of rows.slice(1)) {
+  for (const row of prepared.rows) {
     const value = (row[linkedIndex] ?? "").trim();
     if (!value) continue;
     linkedActivityCount += 1;
@@ -278,9 +284,11 @@ export function analyzeCsvEvidence(
     mappedActivityCount;
   return {
     method: "explicit_column",
+    state:linkedActivityCount===0?"values_empty":mappedActivityCount===0?"no_matches":mappedActivityCount===linkedActivityCount?"linked":"partly_linked",
+    message:linkedActivityCount===0?"Linkage column supplied, values empty":mappedActivityCount===0?"Linkage column supplied but no rows matched":mappedActivityCount+" of "+linkedActivityCount+" activity references linked",
     rowCount,
     linkedActivityField:
-      rows[0]![linkedIndex] ?? null,
+      prepared.rawHeaders[linkedIndex] ?? null,
     linkedActivityCount,
     mappedActivityCount,
     unmappedActivityCount,

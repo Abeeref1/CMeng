@@ -1,3 +1,4 @@
+import {checkPageValues} from '../packages/runtime-api/src/page-value-checks';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createHash,randomUUID} from 'node:crypto';
@@ -430,4 +431,64 @@ test('manual rerun certifies the same dated population as pages and retains its 
  const history=surface.history??surface.controlHistory;
  assert.ok(history.some((r:any)=>r.eventId===receipt.receiptId&&r.actor===actor!.label));
  assert.equal(state.controls.ncrs.length,0,'reporting view must not overwrite original controls');
+});
+
+test('unconfirmed embedded baseline dates cannot become comparisons on any programme page',t=>{
+ const {state,model}=fixture(t);
+ for(const key of ['activity-analytics','milestones','lookahead-schedule','variance-trends','progress-report','progress-scurve','progress-breakdown']){
+  const d=moduleForProject(state.projectId,key).data as any;
+  assert.equal(d.baselineComparison.state,'unresolved',key);
+  assert.equal(d.baselineComparison.revisionId,null,key);
+  for(const row of d.rows??[]){if('baselineFinishIso' in row)assert.equal(row.baselineFinishIso,null,key);if('finishVarianceDays' in row)assert.equal(row.finishVarianceDays,null,key);}
+  if(key==='variance-trends')for(const point of d.points){assert.equal(point.averageFinishVarianceDays,null);assert.equal(point.projectCompletionVarianceDays,null);assert.equal(point.lateActivityCount,null);}
+ }
+ assert.equal(model.activities[0]!.baselineFinishIso,'2031-05-01','raw source is retained');
+ const all=managementSurfacesForProject(state.projectId) as any;
+ assert.equal(all.sourceQuality.pageValueChecks.find((r:any)=>r.metric==='Confirmed baseline authority').state,'passed');
+ assert.equal(all.sourceQuality.pageValueChecks.find((r:any)=>r.metric==='No comparisons without a confirmed baseline').state,'passed');
+ const activityResult=moduleForProject(state.projectId,'activity-analytics');
+ const drift=JSON.parse(JSON.stringify(activityResult));drift.data.rows[0].finishVarianceDays=0;
+ assert.equal(checkPageValues(new Map([['activity-analytics',drift]])).find(c=>c.metric==='No comparisons without a confirmed baseline')?.state,'failed','even an invented zero must fail the cross-page gate');
+});
+
+test('one overdue activity has the same exception on dashboard, command center and Look-Ahead',t=>{
+ const {state,model}=fixture(t);model.activities[0]!.currentFinishIso='2031-04-14';model.activities[0]!.currentStartIso='2031-04-01';state.version++;
+ const look=moduleForProject(state.projectId,'lookahead-schedule').data as any;
+ assert.equal(look.overdueCount,1);
+ for(const key of ['master-dashboard','command-center']){
+  const d=moduleForProject(state.projectId,key).data as any;
+  assert.equal(d.deliveryExceptions.overdueActivityCount,1);assert.equal(d.deliveryExceptions.actions.find((r:any)=>r.type==='Activity').recordId,'WORK');
+ }
+});
+
+test('date headers and populated dates work across registers; empty and absent columns have different diagnoses',t=>{
+ const {state,csv}=fixture(t);
+ csv('RFI Ref,Date Raised,Required Response,Status,Activity Code\nR1,01/04/2031,10/04/2031,Open,WORK','rfi_register');
+ csv('NCR No,Date Raised,Severity,Status,Activity Code\nN1,01/04/2031,Major,Open,WORK','quality_ncr_register');
+ csv('Risk No,Date Identified,Status,Rating\nK1,01/04/2031,Open,High','risk_register');
+ const d=moduleForProject(state.projectId,'master-dashboard').data as any;
+ assert.ok(d.registerDateReview.rows.every((r:any)=>r.missingPercent===0));
+ assert.equal(d.operationalReporting.actions.find((r:any)=>r.recordId==='R1').linkedActivityId,'WORK');
+ const look=moduleForProject(state.projectId,'lookahead-schedule').data as any;
+ assert.equal(look.rows[0].readiness.dimensions.find((r:any)=>r.key==='quality').state,'blocked','real activity reference joins through to readiness');
+ const second=fixture(t);
+ second.csv('RFI ID,Raised Date,Status\nR1,,Open','rfi_register');
+ second.csv('NCR ID,Severity,Status\nN1,Major,Open','quality_ncr_register');
+ second.csv('Risk ID,Status\nK1,Open','risk_register');
+ const gaps=(moduleForProject(second.state.projectId,'master-dashboard').data as any).registerDateReview.rows;
+ assert.match(gaps.find((r:any)=>r.documentType==='rfi_register').message,/Column found, values empty/);
+ assert.match(gaps.find((r:any)=>r.documentType==='quality_ncr_register').message,/Column not found/);
+ second.csv('Certificate No,Net Certified,Status\nC1,12,Certified','payment_certificate_register');
+ const four=moduleForProject(second.state.projectId,'master-dashboard') as any;
+ assert.equal(four.data.registerDateReview.likelyMappingFault,true);
+ assert.ok(four.issueAssessment.issues.some((r:any)=>r.code==='REGISTER_DATE_READING_REVIEW'));
+});
+
+test('dated incremental gross and net certificates stay established across money pages, with advances excluded',t=>{
+ const {state,csv}=fixture(t);
+ csv('Certificate No,Payment Type,Period End,Certificate Date,Gross Work,Variations,Retention,Advance Recovery,Other Deductions,Net Certified,Currency,VAT Basis,Certified Amount Basis\nADV,Advance,2031-03-31,2031-04-01,1000,0,0,0,0,1000,AED,Exclusive,Incremental\nIPC1,Interim,2031-03-31,2031-04-01,100,0,5,5,0,90,AED,Exclusive,Incremental\nIPC2,Interim,2031-04-10,2031-04-11,200,0,10,10,0,180,AED,Exclusive,Incremental\nIPC3,Interim,2031-04-16,2031-04-17,300,0,15,15,0,270,AED,Exclusive,Incremental','payment_certificates');
+ for(const key of ['commercial-overview','payments','cash-flow']){
+  const d=moduleForProject(state.projectId,key).data as any,c=d.position.currencies.find((r:any)=>r.currency==='AED');
+  assert.equal(c.grossCertifiedAmount.value,300,key);assert.equal(c.netCertifiedAmount.value,270,key);assert.equal(c.netCertifiedAmount.state,'established',key);assert.equal(c.interimCertificateCount.value,2,key);assert.equal(c.paidAmount.value,null,key);
+ }
 });

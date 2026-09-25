@@ -1,3 +1,4 @@
+import {readableXlsx} from '../../shared/src/xlsx';
 import ExcelJS from "exceljs";
 import type {
   BoqCell,
@@ -79,7 +80,7 @@ export function readBoqCell(
 
 export async function loadBoqWorkbook(bytes: Uint8Array): Promise<ExcelJS.Workbook> {
   const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load(Buffer.from(bytes) as any);
+  await workbook.xlsx.load(await readableXlsx(bytes) as any);
   return workbook;
 }
 

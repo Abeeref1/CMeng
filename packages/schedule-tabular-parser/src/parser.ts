@@ -1,3 +1,4 @@
+import {readableXlsx} from '../../shared/src/xlsx';
 import ExcelJS from "exceljs";
 import { parseCsv } from "../../tabular-parser/src";
 import { parseStrictNumeric } from "../../boq-parser/src/numeric";
@@ -1147,7 +1148,7 @@ export async function parseScheduleXlsx(
   bytes: Uint8Array,
 ): Promise<ScheduleTabularResult> {
   const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load(Buffer.from(bytes) as any);
+  await workbook.xlsx.load(await readableXlsx(bytes) as any);
   const sets: Array<ReturnType<typeof parseRows>> = [];
   const metadataSheets: ScheduleMetadataSheet[] = [];
   const diagnostics: string[] = [];

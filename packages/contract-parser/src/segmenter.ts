@@ -610,6 +610,14 @@ export function segmentContractTextBlocks(
         );
 
         const prior = priorSectionByBaseKey.get(baseKey);
+        // A contract-data table can have several particulars under one Article
+        // (rate and cap, for example). Adjacent rows extend that Article; they
+        // are not competing copies of a clause. Keep both source spans.
+        if(prior===current&&heading.kind==='clause'&&
+          /\bcontract\s+(?:data|particulars)\b/i.test(block.text)&&/\bvalue\b/i.test(block.text)&&
+          /\breference\b/i.test(block.text)){
+          appendLine(current,line);continue;
+        }
         if (
           prior &&
           normalizedHeading(prior.heading) ===
@@ -792,7 +800,7 @@ export function segmentContractTextBlocks(
     );
 
   return {
-    segmentationVersion: 'boundary-noise-v3',
+    segmentationVersion: 'contract-data-rows-v4',
     sourceType: options.sourceType,
     pdf: null,
     docx: null,

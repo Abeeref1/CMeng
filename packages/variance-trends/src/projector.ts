@@ -121,7 +121,7 @@ export function buildVarianceTrendsProjection(
     activity: CanonicalScheduleActivity,
   ): number | null => {
     if (!baselineByActivity) {
-      return varianceDays(activity);
+      return null;
     }
     const baseline =
       baselineByActivity.get(baselineIdentity.get(activity.activityId) ?? "");
@@ -134,7 +134,7 @@ export function buildVarianceTrendsProjection(
 
 
       const analytics = analyzeSchedule(
-        revision.model,
+        baselineRevision ? revision.model : {...revision.model,activities:revision.model.activities.map(a=>({...a,baselineStartIso:null,baselineFinishIso:null}))},
         input.config,
       );
       const programme =
@@ -253,24 +253,21 @@ export function buildVarianceTrendsProjection(
                 (value) =>
                   value > 0,
               ).length
-            : analytics.finishVariance
-                .lateActivities,
+            : null,
         earlyActivityCount:
           baselineByActivity
             ? controlledValues.filter(
                 (value) =>
                   value < 0,
               ).length
-            : analytics.finishVariance
-                .earlyActivities,
+            : null,
         onTimeActivityCount:
           baselineByActivity
             ? controlledValues.filter(
                 (value) =>
                   value === 0,
               ).length
-            : analytics.finishVariance
-                .onTimeActivities,
+            : null,
         negativeFloatCount:
           analytics.float
             .negativeFloatCount,
@@ -293,10 +290,7 @@ export function buildVarianceTrendsProjection(
                 baselineProjectFinish,
                 forecast,
               )
-            : projectVariance(
-                programme,
-                forecast,
-              ),
+            : null,
       };
     });
 
