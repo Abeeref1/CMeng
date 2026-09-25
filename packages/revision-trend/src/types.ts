@@ -16,7 +16,7 @@ export interface RevisionTrendPoint {
   floatCoveragePercent: number | null;
   criticalCount: number;
   nearCriticalCount: number | null;
-  floatRiskWatchlistCount: number;
+  floatRiskWatchlistCount: number | null;
   zeroFloatCount: number;
   negativeFloatCount: number;
   forecastCompletionIso: string | null;

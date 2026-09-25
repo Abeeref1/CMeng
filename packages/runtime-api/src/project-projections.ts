@@ -1099,14 +1099,16 @@ function buildBundle(
       sourceLabelReconcilesTo:
         scheduleControlBasis.sourceCountReconcilesTo,
       gap:
-        scheduleControlBasis.sourceReportedNearCriticalLabelCount === null
+        scheduleControlBasis.sourceReportedNearCriticalLabelCount === null || nearCriticalRaw.floatRiskWatchlistCount === null
           ? null
           : nearCriticalRaw.floatRiskWatchlistCount -
             scheduleControlBasis.sourceReportedNearCriticalLabelCount,
       status:
         scheduleControlBasis.sourceReportedNearCriticalLabelCount === null
           ? "source_not_reported"
-          : nearCriticalRaw.floatRiskWatchlistCount ===
+          : nearCriticalRaw.floatRiskWatchlistCount === null
+            ? "unresolved"
+            : nearCriticalRaw.floatRiskWatchlistCount ===
               scheduleControlBasis.sourceReportedNearCriticalLabelCount
             ? "reconciled"
             : "difference",
@@ -3966,14 +3968,16 @@ function buildPlanningModuleFast(
         sourceLabelReconcilesTo:
           scheduleControlBasis.sourceCountReconcilesTo,
         gap:
-          scheduleControlBasis.sourceReportedNearCriticalLabelCount === null
+          scheduleControlBasis.sourceReportedNearCriticalLabelCount === null || raw.floatRiskWatchlistCount === null
             ? null
             : raw.floatRiskWatchlistCount -
               scheduleControlBasis.sourceReportedNearCriticalLabelCount,
         status:
           scheduleControlBasis.sourceReportedNearCriticalLabelCount === null
             ? "source_not_reported"
-            : raw.floatRiskWatchlistCount ===
+            : raw.floatRiskWatchlistCount === null
+              ? "unresolved"
+              : raw.floatRiskWatchlistCount ===
                 scheduleControlBasis.sourceReportedNearCriticalLabelCount
               ? "reconciled"
               : "difference",

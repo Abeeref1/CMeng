@@ -182,7 +182,7 @@ function floatSummary(
     criticalCount: critical.length,
     nearCriticalCount: thresholdUnresolved.length?null:nearCritical.length,
     floatRiskWatchlistCount:
-      floatRiskWatchlist.length,
+      thresholdUnresolved.length ? null : floatRiskWatchlist.length,
     zeroFloatCount: known.filter(
       (activity) =>
         activity.totalFloatHours ===

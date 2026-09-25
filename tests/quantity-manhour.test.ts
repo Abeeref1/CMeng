@@ -648,6 +648,36 @@ test("Man-Hour actual history is one current snapshot only when stored financial
   );
 });
 
+test("man-hour actuals stop at the reporting date while the forecast continues, in every host timezone", () => {
+  const originalTz = process.env.TZ;
+  try {
+    for (const history of [true, false]) {
+      let reference: string | undefined;
+      for (const zone of ["UTC", "Asia/Tokyo", "Asia/Dubai", "America/Los_Angeles"]) {
+        process.env.TZ = zone;
+        const input = resources();
+        if (!history) input.periodActuals = [];
+        const model = schedule();
+        model.dataDateIso = "2026-01-12T08:00:00";
+        const projection = buildManhourScurveProjection(input, model, {
+          generatedAt: "2026-09-25T00:00:00Z", producerVersion: "regression", intervalDays: 1,
+        });
+        const future = projection.points.filter(p => p.dateIso > "2026-01-12");
+        assert.ok(future.length > 0);
+        assert.ok(future.every(p => p.actualCumulativeHours === null), zone);
+        assert.ok(future.some(p => p.forecastCumulativeHours !== null), zone);
+        assert.ok(projection.points.some(p => p.dateIso === "2026-01-12" && p.actualCumulativeHours === 25), zone);
+        const serialized = JSON.stringify(projection.points);
+        if (reference) assert.equal(serialized, reference, zone);
+        reference = serialized;
+      }
+    }
+  } finally {
+    if (originalTz === undefined) delete process.env.TZ;
+    else process.env.TZ = originalTz;
+  }
+});
+
 
 test("missing man-hour totals remain null rather than zero", () => {
   const input =

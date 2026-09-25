@@ -72,7 +72,7 @@ export interface NearCriticalProjection {
   classificationCoveragePercent: number | null;
   nearCriticalCount: number | null;
   unresolvedActivityCount?: number;
-  floatRiskWatchlistCount: number;
+  floatRiskWatchlistCount: number | null;
   zeroFloatCount: number;
   negativeFloatCount: number;
   floatRiskWatchlistIncludesCriticalThreshold: boolean;

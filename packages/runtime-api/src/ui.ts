@@ -2373,7 +2373,9 @@ function renderNearCriticalVisual(data){
   const unresolved=p.unresolvedActivityCount??p.thresholdUnresolvedActivityCount??Math.max(0,riskRows.filter(r=>r.nearCriticalThresholdHours===null).length);
   const sourceCount=p.sourceReportedNearCriticalLabelCount??p.reconciliation?.sourceReportedCount??null;
   const sourceMatch=p.reconciliation?.sourceLabelReconcilesTo??null;
-  const reconciliationText=sourceCount===null
+  const reconciliationText=p.floatRiskWatchlistCount===null
+    ?"Comparison unresolved: "+fmt(unresolved)+" activities need readable working calendars."
+    :sourceCount===null
     ?"No submitted Near Critical population is available for reconciliation."
     : sourceMatch==="float_risk_watchlist"
       ?"The submitted label “Near Critical” reconciles to CMeng's Float-Risk Watchlist, not to strict Near-Critical."
@@ -2384,7 +2386,7 @@ function renderNearCriticalVisual(data){
   const criticalThreshold=p.criticalThresholdHours??0;
   const kpis=planningKpis([
     ["Strict near-critical",p.nearCriticalCount===null?"Unresolved: "+fmt(unresolved)+" activities":p.nearCriticalCount,"TF > "+fmt(criticalThreshold)+" h and ≤ "+limitValue,"warning"],
-    ["Float-risk watchlist",p.floatRiskWatchlistCount,"critical boundary through "+limitValue,"accent"],
+    ["Float-risk watchlist",p.floatRiskWatchlistCount===null?"Unresolved: "+fmt(unresolved)+" activities":p.floatRiskWatchlistCount,"critical boundary through "+limitValue,"accent"],
     ["Zero float",p.zeroFloatCount??"—","critical boundary","danger"],
     ["Negative float",p.negativeFloatCount??"—","TF < 0","danger"],
     ["Source reported",sourceCount===null?"—":sourceCount,p.sourceReportedLabel||"Near Critical"],
@@ -2406,7 +2408,7 @@ function renderNearCriticalVisual(data){
   }).join("");
   const basis='<div class="notice info"><b>Float rules:</b> Critical = TF ≤ '+escapeHtml(fmt(criticalThreshold))+' h; Near-Critical = TF > '+escapeHtml(fmt(criticalThreshold))+' h and ≤ '+escapeHtml(limitValue)+'; Float-Risk Watchlist boundary inclusion: '+(p.floatRiskWatchlistIncludesCriticalThreshold?'Included':'Excluded')+'. Working-day limits use each activity\'s own programme calendar.</div>';
   const reconciliation='<div class="notice '+(sourceMatch==="float_risk_watchlist"||sourceMatch==="strict_near_critical"?"good":"warn")+'"><b>Submitted label versus the float rules:</b> '+escapeHtml(reconciliationText)+'</div>';
-  return '<section class="planning-view nearcritical-view">'+kpis+basis+reconciliation+floatConcentrationWarning+distributionSummary(p.floatDistribution,'hours','All execution activity float values')+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Float-risk distribution</h4><p>Submitted total float is classified against the project float thresholds using each activity calendar.</p></div></div><div class="planning-panel-body">'+histogram+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Where float-risk work finishes</h4><p>Current finish-month concentration for the full float-risk watchlist.</p></div></div><div class="planning-panel-body">'+finishPeriods+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Float-Risk Watchlist</h4><p>Critical and near-critical activities are shown separately. Open activities appear before completed history. Showing '+escapeHtml(fmt(watch.length))+' of '+escapeHtml(fmt(riskRows.length))+' watchlist activities; the complete population is available through Download Excel / Download data.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Activity</th><th>Risk class</th><th>Status</th><th>Total float h</th><th>Threshold h</th><th>Calendar</th><th>Controlled baseline finish</th><th>Current finish</th><th>Vs controlled baseline d</th><th>Progress</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></section></section>';
+  return '<section class="planning-view nearcritical-view">'+kpis+basis+reconciliation+floatConcentrationWarning+distributionSummary(p.floatDistribution,'hours','All execution activity float values')+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Float-risk distribution</h4><p>Submitted total float is classified against the project float thresholds using each activity calendar.</p></div></div><div class="planning-panel-body">'+histogram+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Where float-risk work finishes</h4><p>Current finish-month concentration for the full float-risk watchlist.</p></div></div><div class="planning-panel-body">'+finishPeriods+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Float-Risk Watchlist</h4><p>Critical and near-critical activities are shown separately. Open activities appear before completed history. '+(p.floatRiskWatchlistCount===null?'Unresolved: '+escapeHtml(fmt(unresolved))+' activities need readable calendars. Any listed rows are only the confirmed subset.':'Showing '+escapeHtml(fmt(watch.length))+' of '+escapeHtml(fmt(riskRows.length))+' watchlist activities; the complete population is available through Download Excel / Download data.')+'</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Activity</th><th>Risk class</th><th>Status</th><th>Total float h</th><th>Threshold h</th><th>Calendar</th><th>Controlled baseline finish</th><th>Current finish</th><th>Vs controlled baseline d</th><th>Progress</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></section></section>';
 }
 function renderManhourVisual(data){
   const p=projectionFor(data,"manhour_scurve");
@@ -4179,6 +4181,7 @@ async function loadPortfolio(){
 function updateActiveProjectShell(){
   const id=overview?.projectId||project();
   const displayDataDate=overview?.latestDataDateIso?planningShortDate(overview.latestDataDateIso):"No data date";
+  if(appView==="project")el("platformContextTitle").textContent=id;
   el("activeProjectName").textContent=overview?id:"No project selected";
   el("activeProjectMeta").textContent=overview?(displayDataDate+" · "+overview.evidenceDocumentCount+" project documents"+(overview.releaseCommitSha?" · Release "+overview.releaseCommitSha.slice(0,7):"")):"Open a project from Portfolio or Projects";
   el("workspaceProjectMeta").textContent=overview?(id+" · Data Date "+displayDataDate+(overview.releaseCommitSha?" · Release "+overview.releaseCommitSha.slice(0,7):" · Release not supplied")):"No project selected";
@@ -4191,7 +4194,7 @@ function setAppView(view){
   ["portfolio","projects","ai"].forEach(name=>{el(name+"View").hidden=view!==name});
   el("projectWorkspace").hidden=view!=="project";
   document.body.classList.toggle("project-active",view==="project"&&!!overview);
-  const titles={portfolio:"Portfolio",projects:"Projects",ai:"Ask CMeng",project:overview?.projectId||"Project Controls"};
+  const titles={portfolio:"Portfolio",projects:"Projects",ai:"Ask CMeng",project:project()||"Project Controls"};
   el("platformContextTitle").textContent=titles[view]||"CMeng";
   renderPlatformNav();
   renderNav();
