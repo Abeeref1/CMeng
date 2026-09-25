@@ -1,0 +1,36 @@
+name: CMeng Source Quality Trace
+on:
+  push:
+    branches: [audit/source-quality-trace-20260925]
+permissions:
+  contents: read
+jobs:
+  trace:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Read source-quality projections
+        env:
+          BASE: https://cmeng-main-production.up.railway.app
+        run: |
+          python - <<'PY'
+          import json, os, urllib.request
+          base=os.environ["BASE"].rstrip("/")
+          portfolio=json.load(urllib.request.urlopen(base+"/api/portfolio",timeout=60))
+          out=[]
+          for p in portfolio["projects"]:
+              pid=p["projectId"]
+              u=base+"/api/projects/"+urllib.parse.quote(pid,safe="")+"/management/source-quality"
+              with urllib.request.urlopen(u,timeout=120) as r:
+                  body=json.load(r)
+              data=body.get("data") or {}
+              out.append({
+                  "projectId":pid,
+                  "status":body.get("status"),
+                  "reason":body.get("reason"),
+                  "consistency":data.get("consistency"),
+                  "pageValueChecks":[{"metric":x.get("metric"),"state":x.get("state"),"detail":x.get("detail"),"moduleKeys":x.get("moduleKeys")} for x in (data.get("pageValueChecks") or []) if x.get("state")=="failed"],
+                  "systemFailures":[{"code":x.get("code"),"kind":x.get("kind"),"summary":x.get("summary"),"detail":x.get("detail"),"moduleKeys":x.get("moduleKeys")} for x in (data.get("systemFailures") or [])],
+              })
+          print(json.dumps(out,indent=2))
+          PY
