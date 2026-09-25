@@ -3598,18 +3598,19 @@ function renderManagementControlVisual(key,data){
     const mainMetrics=priorityKeys.map(key=>(data.metrics||[]).find(m=>m.key===key)).filter(Boolean);
     const otherMetrics=(data.metrics||[]).filter(m=>!priorityKeys.includes(m.key));
     const readinessDonut=renderDonutChart([
-      {label:"Checked specialist views",value:r.ready??0,tone:"success"},
-      {label:"Specialist views requiring review",value:r.partial??0,tone:"warning"},
+      {label:"Fully defensible views",value:r.ready??0,tone:"success"},
+      {label:"Views requiring review",value:r.partial??0,tone:"warning"},
       {label:"Blocked specialist views",value:r.blocked??0,tone:"danger"}
     ],"Control views");
     return '<div class="planning-view management-view master-dashboard-view">'+
       managementPanel("Executive Project Position","Current programme, progress and delivery exposure. Open a measure for its supporting analysis.",renderManagementMetricGrid(mainMetrics),true)+
       renderDashboardExceptions(data)+renderDashboardTrend(data)+renderDashboardDecisions(data)+
-      managementPanel("Control Readiness","Calculation, document and comparison readiness for the specialist control views.",readinessDonut+renderManagementConsistency(data.consistency))+
+      managementPanel("Control Readiness","Calculation availability, evidence readiness and affected consistency checks are shown separately. A project-wide issue does not automatically make every specialist view defective.",readinessDonut+renderManagementConsistency(data.consistency))+
       managementPanel("Evidence Snapshot","Current evidence coverage. Missing or conflicted evidence remains explicit rather than being converted to zero.",planningKpis([
         ["Project documents",data.evidenceDocumentCount??0,"current evidence library"],
-        ["Checked specialist views",r.ready??0,"calculation, document and comparison checks"],
-        ["Review needed",r.partial??0,"partial positions","warning"],
+        ["Calculated specialist views",r.calculationAvailable??0,"a calculation is available"],
+        ["Fully defensible views",r.ready??0,"calculation, evidence and affected consistency checks passed"],
+        ["Review needed",r.partial??0,"usable positions with a stated evidence/review requirement","warning"],
         ["Blocked specialist views",r.blocked??0,"calculation unavailable","danger"],
         ["Evidence gaps",r.evidenceGapCount??0,"missing, partial, stale or conflicted evidence","warning"],
         ["Approvals outstanding",r.governanceGapCount??0,"reports and approval steps","warning"]
