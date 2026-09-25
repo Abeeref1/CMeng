@@ -37,6 +37,134 @@ export interface CrossModuleCertification {
   checks: CrossModuleCertificationCheck[];
 }
 
+export type CrossModuleConsistencyView =
+  Pick<
+    CrossModuleCertification,
+    "state" |
+    "failedCheckIds" |
+    "checkCount"
+  > &
+  Partial<
+    Pick<
+      CrossModuleCertification,
+      "checks"
+    >
+  >;
+
+const GLOBAL_CONSISTENCY_CHECKS =
+  new Set([
+    "MODULE_COUNT_29",
+    "REPORTING_CONTRACT_ALL_MODULES",
+  ]);
+
+const BOQ_CONSISTENCY_CONSUMERS =
+  new Set([
+    "quantity-scurve",
+    "challenge-contract",
+  ]);
+
+function consistencyCheckAffectsModule(
+  check:
+    CrossModuleCertificationCheck,
+  moduleKey: string,
+): boolean {
+  if (
+    check.state !== "fail"
+  ) {
+    return false;
+  }
+
+  if (
+    GLOBAL_CONSISTENCY_CHECKS.has(
+      check.checkId,
+    )
+  ) {
+    return true;
+  }
+
+  const serialized =
+    check.values
+      .map(
+        (value) =>
+          value.source +
+          " " +
+          JSON.stringify(
+            value.value,
+          ),
+      )
+      .join(" ");
+
+  if (
+    serialized.includes(
+      moduleKey,
+    )
+  ) {
+    return true;
+  }
+
+  if (
+    check.checkId.startsWith(
+      "BOQ_",
+    ) &&
+    BOQ_CONSISTENCY_CONSUMERS.has(
+      moduleKey,
+    )
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+export function consistencyForModule(
+  consistency:
+    CrossModuleConsistencyView,
+  moduleKey: string,
+): CrossModuleConsistencyView {
+  if (
+    consistency.state === "pass"
+  ) {
+    return {
+      ...consistency,
+      failedCheckIds: [],
+      checks:
+        consistency.checks ??
+        [],
+    };
+  }
+
+  const checks =
+    consistency.checks ??
+    [];
+
+  if (checks.length === 0) {
+    return consistency;
+  }
+
+  const failures =
+    checks.filter(
+      (check) =>
+        consistencyCheckAffectsModule(
+          check,
+          moduleKey,
+        ),
+    );
+
+  return {
+    ...consistency,
+    state:
+      failures.length > 0
+        ? "fail"
+        : "pass",
+    failedCheckIds:
+      failures.map(
+        (check) =>
+          check.checkId,
+      ),
+    checks: failures,
+  };
+}
+
 function data(
   modules:
     Map<string, ModuleRuntimeResult>,
