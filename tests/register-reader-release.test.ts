@@ -81,6 +81,10 @@ test('reader upgrade refreshes existing uploads, repairs false family collisions
  assert.deepEqual(after.controls.delayClaims?.claims.map(c=>c.claimId),['C2']);
  assert.deepEqual(after.evidenceDocuments.map(d=>({id:d.documentId,hash:d.sourceHashSha256,bytes:readFileSync(d.storedPath).toString('base64'),intent:d.uploadIntent})),before);
  const version=after.version;assert.equal((await restored.refreshSpreadsheetRegisters(id)).refreshedDocumentCount,0);assert.equal(after.version,version,'current reader does not repeatedly rebuild or duplicate records');
+ const reopened=new RuntimeProjectStore({dataDir:dir,durable:false});
+ await reopened.ingestEvidenceFile({projectId:id,sourceFilename:'Claims_Rev3.csv',mediaType:'text/csv',bytes:Buffer.from(header+'\nC3,Access,2031-05-02,2031-05-01,9,4,Submitted,,'),uploadedAt:'2031-05-03T00:00:00Z',uploadIntent:'replace_current_basis'});
+ assert.deepEqual(reopened.get(id)!.controls.delayClaims?.claims.map(c=>c.claimId),['C3'],'a later upload after restart replaces the same semantic register role');
+ assert.equal(reopened.get(id)!.evidenceDocuments.find(d=>d.sourceFilename==='Claims_Rev2.csv')!.basisState,'superseded');
 });
 
 test('page title, navigation definition, export name and public API identity use the same registry',()=>{

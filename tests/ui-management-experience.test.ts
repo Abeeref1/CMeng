@@ -329,7 +329,7 @@ test('management context has a single owner per topic and calendar naming reache
  const ctx={...common,data,certificateMoney:()=>'',managementModuleLink:(_k:string,label:string)=>'<a>'+label+'</a>'};
  const render=(key:string)=>runInNewContext(code+';experienceSourceContext(key,data)',{...ctx,key});
  assert.doesNotMatch(render('master-dashboard'),/source-context-card|Risk register ·|Progress measures and their bases|HSE rate and exposure basis/);
- assert.match(render('independent-forecast'),/source-context-card/);assert.match(render('command-center'),/HSE rate and exposure basis/);assert.match(render('progress-report'),/Progress measures and their bases/);
+ assert.match(render('independent-forecast'),/source-context-card/);assert.match(render('command-center'),/HSE rate and exposure basis/);assert.match(render('command-center'),/Lost-time injuries:.*medical treatment cases:.*first-aid cases:.*near misses:/);assert.match(render('progress-report'),/Progress measures and their bases/);
  assert.doesNotMatch(script,/Calendar-calculated finish|Independent calendar calculation|Programme calendar calculation|own-calendar recalculation|Calendar scenario vs|Independent CPM movement/);
  const basis=functions(['renderBasisReviews','basisPanel','basisTable']);
  const detailed={sourceInterpretation:{hse:data.sourceInterpretation.hse,availability:[{topic:'Risk dates',state:'missing',detail:'Raised dates absent',action:'Review dates'}]},operationalReporting:{actions:[{type:'RFI',recordId:'R1',priority:'High',owner:null,dueIso:null,action:'Reply to query'}]}};
