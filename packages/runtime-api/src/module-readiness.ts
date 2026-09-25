@@ -7,7 +7,18 @@ import { assessModuleIssues } from './module-issues';
 const NON_BLOCKING_REVIEW_CODES = new Set([
   'INDEPENDENT_COMPARISON_NOT_ESTABLISHED',
   'SOURCE_AUTHORITY_COMPARISON',
+  'COMPARABLE_ASSERTION_MISSING',
+  'INDEPENDENT_COMPARISON_INPUT',
+  'COMPARABLE_SOURCE_CONFLICT',
+  'SUBMITTED_INDEPENDENT_DIFFERENCE',
 ]);
+
+function isChallengeOnlyReview(issue:any):boolean {
+  const paths=Array.isArray(issue?.evidencePaths)?issue.evidencePaths:[];
+  return paths.length>0&&paths.every((path:unknown)=>
+    typeof path==='string'&&(path==='challenge'||path.startsWith('challenge.'))
+  );
+}
 
 /**
  * Readiness is module-scoped.
@@ -54,10 +65,19 @@ export function enforceModuleReadiness(
       challengeItems.length > 0 ||
       reconciliation !== 'not_checked'
     );
-  const reconciliationReady =
-    ['within_tolerance', 'not_applicable'].includes(reconciliation);
-
   const blockingIssues = (issueAssessment.issues ?? []).filter((issue:any) => {
+    // The shared challenge envelope is a comparison/review layer. A missing
+    // comparator, a different submitted value, or an unavailable independent
+    // comparator must remain visible without downgrading an otherwise
+    // defensible owning projection. The owning producer's evidenceState and
+    // professionalState remain the authority for whether evidence is actually
+    // required to use that page.
+    if (
+      NON_BLOCKING_REVIEW_CODES.has(issue.code) ||
+      isChallengeOnlyReview(issue)
+    ) {
+      return false;
+    }
     if (
       issue.kind === 'system_defect' ||
       issue.kind === 'source_conflict' ||
@@ -66,10 +86,7 @@ export function enforceModuleReadiness(
     ) {
       return true;
     }
-    if (
-      issue.kind === 'verification_pending' &&
-      !NON_BLOCKING_REVIEW_CODES.has(issue.code)
-    ) {
+    if (issue.kind === 'verification_pending') {
       return true;
     }
     return false;
@@ -87,10 +104,6 @@ export function enforceModuleReadiness(
       : null,
     scopedConsistency.state !== 'pass'
       ? 'affected consistency checks failed'
-      : null,
-    reconciliationRequired &&
-    !reconciliationReady
-      ? 'submitted/independent reconciliation ' + String(reconciliation).replaceAll('_', ' ')
       : null,
     blockingIssues.length > 0
       ? String(blockingIssues.length) + ' blocking information/system issue(s)'
@@ -117,7 +130,7 @@ export function enforceModuleReadiness(
     reviewIssueCount: issueAssessment.issues?.length ?? 0,
     blockingIssueCount: blockingIssues.length,
     scope:
-      'Readiness is assessed from this module\'s calculation, evidence, professional review and affected consistency checks. Submitted/independent comparison remains a separate review dimension unless the module explicitly depends on it.',
+      'Readiness is assessed from this module\'s calculation, evidence, professional review and affected consistency checks. Submitted/independent comparison is reported separately and does not by itself downgrade the owning module.',
   };
 
   return withPositionVerdict({
