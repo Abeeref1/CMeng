@@ -21,3 +21,13 @@ test('report exports retain large populations and all contract fields without ov
  }));
  assert.equal(found,members.length);assert.ok(maximumCell<=32767);assert.equal(lastContractField,true);
 });
+
+
+test('JSON report preserves the exact page route key used by the live page',()=>{
+ const result={key:'progress-report',status:'ready' as const,reason:null,dependencies:[],data:{value:17}};
+ const json=JSON.parse(buildModuleJsonDownload('CLIENT-PROJECT','progress-report',result).toString());
+ assert.equal(json.result.key,'progress-report');
+ assert.equal(json.result.legacyKey,'progress-report');
+ assert.deepEqual(json.result.data,result.data);
+ assert.equal(json.report.moduleKey,'progress-status');
+});
