@@ -323,3 +323,89 @@ test("local runtime explicitly reports non-durable mode when no Railway volume i
     );
   }
 });
+
+
+test("restoring legacy baseline-named schedules repairs only strong source roles", async () => {
+  const dataDir = mkdtempSync(join(tmpdir(), "cmeng-role-migration-"));
+  try {
+    const first = new RuntimeProjectStore({dataDir, durable:true});
+    await first.ingestSchedule({
+      projectId:"ROLE-MIGRATION",
+      bytes:xerFixture(),
+      mediaType:"text/plain",
+      sourceFilename:"P7_Baseline_Rev0.xer",
+      sourceRelativePath:"Schedules/P7_Baseline_Rev0.xer",
+      role:"update",
+      label:"P7 Baseline Rev0",
+      uploadedAt:"2026-09-18T20:00:00.000Z",
+    });
+    await first.ingestSchedule({
+      projectId:"ROLE-MIGRATION",
+      bytes:new TextEncoder().encode(new TextDecoder().decode(xerFixture()).replace("2026-09-18","2026-09-19")),
+      mediaType:"text/plain",
+      sourceFilename:"CPS_Revision_01.xer",
+      sourceRelativePath:"Schedules/CPS_Revision_01.xer",
+      role:"update",
+      label:"CPS Revision 01",
+      uploadedAt:"2026-09-18T20:01:00.000Z",
+    });
+    const before=first.get("ROLE-MIGRATION")!;
+    before.sourceIntegrationVersion="canonical-source-v5";
+    first.replace(before);
+
+    const second=new RuntimeProjectStore({dataDir,durable:true});
+    const restored=second.get("ROLE-MIGRATION")!;
+    const baseline=restored.schedules.find(s=>s.sourceFilename==="P7_Baseline_Rev0.xer")!;
+    const generic=restored.schedules.find(s=>s.sourceFilename==="CPS_Revision_01.xer")!;
+    assert.equal(baseline.role,"baseline");
+    assert.equal(generic.role,"update","generic Revision_01 must not be guessed as baseline");
+    const doc=restored.evidenceDocuments.find(d=>d.linkedArtifactId===baseline.revision.revisionId)!;
+    assert.equal(doc.scheduleRole,"baseline");
+    assert.equal(doc.documentType,"schedule_baseline");
+    assert.equal(doc.familyKey,"schedule:baseline");
+    assert.equal(restored.sourceIntegrationVersion,"canonical-source-v6");
+  } finally {
+    rmSync(dataDir,{recursive:true,force:true});
+  }
+});
+
+test("restoring a stale runtime BOQ rebinds it to the governed active artifact", async () => {
+  const dataDir = mkdtempSync(join(tmpdir(), "cmeng-boq-migration-"));
+  try {
+    const store=new RuntimeProjectStore({dataDir,durable:true});
+    const base={
+      projectId:"BOQ-MIGRATION",
+      mediaType:"text/csv",
+      uploadedAt:"2026-09-18T20:00:00.000Z",
+      category:"boq_cost",
+      documentType:"boq",
+    };
+    await store.ingestEvidenceFile({
+      ...base,
+      bytes:new TextEncoder().encode("Item,Description,Unit,Quantity,Rate,Amount\n1,Concrete,m3,10,2,20"),
+      sourceFilename:"BOQ_Rev01.csv",
+      uploadIntent:"add_update",
+    });
+    await store.ingestEvidenceFile({
+      ...base,
+      bytes:new TextEncoder().encode("Item,Description,Unit,Quantity,Rate,Amount\n1,Concrete,m3,20,2,40"),
+      sourceFilename:"BOQ_Rev02.csv",
+      uploadedAt:"2026-09-18T20:01:00.000Z",
+      uploadIntent:"replace_current_basis",
+    });
+    const stale=store.get("BOQ-MIGRATION")!;
+    assert.equal(stale.boqRevisions.length,2);
+    const activeId=stale.activeEvidenceBasis["boq:quantity"]!.activeArtifactId!;
+    const old=stale.boqRevisions.find(b=>b.ingestionId!==activeId)!;
+    stale.boq=old;
+    stale.sourceIntegrationVersion="canonical-source-v5";
+    store.replace(stale);
+
+    const restored=new RuntimeProjectStore({dataDir,durable:true}).get("BOQ-MIGRATION")!;
+    assert.equal(restored.boq?.ingestionId,activeId);
+    assert.equal(restored.quantities?.boqRevisionId,restored.boq?.evidenceReceipt.revisionId);
+    assert.equal(restored.sourceIntegrationVersion,"canonical-source-v6");
+  } finally {
+    rmSync(dataDir,{recursive:true,force:true});
+  }
+});
