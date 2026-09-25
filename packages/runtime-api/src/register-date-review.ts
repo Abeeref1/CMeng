@@ -45,6 +45,38 @@ export function reviewRegisterDates(tables:SourceTable[]){
     failed.length?failed.length+' register file(s) need date review; missing source dates remain evidence gaps and are not treated as reader faults.':
     'Register dates were read; review individual gaps below.'};
 }
+
+const claimsDates = ['claims_register','claim_register','delay_eot_claims_register'];
+const paymentDates = ['payment_certificate_register','payment_certificates'];
+const operationalDates = ['quality_ncr_register','rfi_register','risk_register','hse_incident_register','incident_register','hse_report','procurement_register','design_deliverables','testing_commissioning_register'];
+const dateDependencies: Record<string, readonly string[]> = {
+  'payments': paymentDates, 'cash-flow': paymentDates,
+  'variations-change': ['variation_register'],
+  'cost-forecast': [...paymentDates,'variation_register'],
+  'commercial-overview': [...paymentDates,'variation_register',...claimsDates],
+  'contract-particulars-bonds': ['variation_register',...claimsDates],
+  'commercial-claims-notices': claimsDates, 'notices-claims': claimsDates,
+  'delay-claims': claimsDates, 'eot-assessment': claimsDates, 'windows-analysis': claimsDates,
+  'lookahead-schedule': operationalDates,
+};
+const projectReviewOwners = new Set(['management-surfaces','master-dashboard','command-center','source-quality','director','board-report']);
+
+/** Project diagnostics remain available to the project review. Only a module's
+ * actual register dependencies may affect its readiness or primary warning. */
+export function scopeRegisterDateReview(review: ReturnType<typeof reviewRegisterDates>, moduleKey: string) {
+  if (projectReviewOwners.has(moduleKey)) return review;
+  const families = dateDependencies[moduleKey] ?? [];
+  const rows = (review.rows ?? []).filter(row => families.includes(row.documentType ?? ''));
+  const failed = rows.filter(row => row.total > 0 && row.valid === 0);
+  const mapping = failed.filter(row => row.state === 'column_not_found');
+  const count = (items: typeof rows) => new Set(items.map(row => row.documentType)).size;
+  const likelyMappingFault = review.likelyMappingFault && mapping.length > 0;
+  return {...review, rows, likelyMappingFault, releaseReady: !likelyMappingFault,
+    affectedRegisterCount: count(failed), mappingFailureRegisterCount: count(mapping),
+    sourceDateGapRegisterCount: count(failed.filter(row => row.state !== 'column_not_found')),
+    message: likelyMappingFault ? count(mapping)+' required register families have date columns that CMeng could not match. Check the reader for these sources.'
+      : failed.length ? failed.length+' required register file(s) need date review.' : 'No date-reading fault affects this module\'s register dependencies.'};
+}
 const cache=new WeakMap<ProjectRuntimeState,{version:number;value:ReturnType<typeof reviewRegisterDates>}>();
 export function registerDateReview(state:ProjectRuntimeState){
  const old=cache.get(state);if(old?.version===state.version)return old.value;

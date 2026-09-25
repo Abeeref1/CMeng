@@ -1,3 +1,4 @@
+import {aggregateCount} from '../../truth-kernel/src/aggregates';
 import {moduleRegistry, titleForModule} from './registry';
 import {STATUS_LABELS} from './position-review';
 import {systemReviewScript,systemReviewStyles} from './ui-system-review';
@@ -413,6 +414,7 @@ ${systemReviewStyles}
   </main>
 </div>
 <script>
+${aggregateCount.toString()}
 ${experienceScript}
 ${systemReviewScript}
 ${basisReviewScript}
@@ -1125,9 +1127,8 @@ function renderProgressScurveVisual(data){
   const early=p.points.filter(row=>endDate&&planningDateMs(row.dateIso)<=endDate.getTime());
   const options={unit:"%",yLabel:"Schedule progress",xLabel:"Reporting date",dataDateIso:p.dataDateIso,observationCount:p.observationCount??p.actualSnapshots?.length};
   return '<section class="planning-view progress-scurve-view">'+
-    kpis+
     renderVisualPanel("Progress S-Curve","Baseline plan, current plan and available schedule-progress observations. Missing certified physical progress is never inferred.",renderLineChart(p.points,series,100,{...options,ariaLabel:"Full programme progress"}))+
-    renderProgressScope(p.scopeComparison)+note+
+    kpis+renderProgressScope(p.scopeComparison)+note+
     '<details class="source-scope"><summary>First 12 months and source-population coverage</summary>'+
       renderLineChart(early,series,null,{...options,ariaLabel:"Progress first 12 months"})+
     '</details></section>';
@@ -1138,8 +1139,9 @@ function renderQuantityScurveVisual(data){
   const mappingLabel=p.mappingBasis==="governed"?"Confirmed links":p.mappingBasis==="candidate_scenario"?"Suggested links for review":"Activities not yet linked";
   const mappedSeries=p.series.filter(series=>(series.points||[]).length>0);
   const seriesItemCount=p.series.reduce((sum,series)=>sum+(Number.isFinite(Number(series.itemCount))?Number(series.itemCount):0),0);
-  const unmappedCount=(p.unmappedItemIds||[]).length;
-  const boqItemCount=seriesItemCount>0?seriesItemCount:(unmappedCount>0?unmappedCount:null);
+  const populationKnown=typeof p.boqItemCount==="number"||Boolean(p.boqRevisionId);
+  const unmappedCount=populationKnown?p.unmappedItemIds?.length??null:null;
+  const boqItemCount=typeof p.boqItemCount==="number"?p.boqItemCount:populationKnown?seriesItemCount>0?seriesItemCount:unmappedCount:null;
   const mappedItemCount=typeof p.allocatedItemCount==="number"?p.allocatedItemCount:null;
   const itemLinkCoverage=typeof p.itemLinkCoveragePercent==="number"?p.itemLinkCoveragePercent:null;
   const top=planningKpis([
@@ -1147,10 +1149,10 @@ function renderQuantityScurveVisual(data){
     ["Items with any allocation",mappedItemCount===null?"Unresolved":mappedItemCount,"confirmed or scenario links"],
     ["Item-link coverage",itemLinkCoverage===null?"Unresolved":fmt(itemLinkCoverage)+"%","BOQ items with an allocation"],
     ["Mapping basis",mappingLabel,""],
-    ["Unit groups",p.series.length,"unknown units remain separate"],
-    ["Unmapped items",(p.unmappedItemIds||[]).length,"items",p.unmappedItemIds?.length?"warning":""],
-    ["Partially mapped",(p.partiallyAllocatedItemIds||[]).length,"items",p.partiallyAllocatedItemIds?.length?"warning":""],
-    ["Over-allocated",(p.overAllocatedItemIds||[]).length,"items",p.overAllocatedItemIds?.length?"danger":""]
+    ["Unit groups",populationKnown?p.series.length:null,"unknown units remain separate"],
+    ["Unmapped items",populationKnown?p.unmappedItemIds?.length??null:null,"items",p.unmappedItemIds?.length?"warning":""],
+    ["Partially mapped",populationKnown?p.partiallyAllocatedItemIds?.length??null:null,"items",p.partiallyAllocatedItemIds?.length?"warning":""],
+    ["Over-allocated",populationKnown?p.overAllocatedItemIds?.length??null:null,"items",p.overAllocatedItemIds?.length?"danger":""]
   ]);
   const diagnostics='<div class="notice info"><b>BOQ source: '+escapeHtml(p.boqSource?.sourceFilename||"Source reference in calculation detail")+'</b> · '+escapeHtml(humanizeKey(p.boqSource?.state||"source"))+'<p>'+escapeHtml(p.boqSource?.explanation||"")+'</p>BOQ loaded: '+escapeHtml(fmt(p.boqItemCount??boqItemCount))+' items; known contract quantities: '+escapeHtml(fmt(p.knownQuantityItemCount))+'. Candidate mapping: '+escapeHtml(humanizeKey(p.candidateMappingState||"not_established"))+'. Actual installations are independent of schedule mapping. Scenario plans do not become confirmed facts.</div>';
   if(mappedSeries.length===0){
@@ -1956,12 +1958,14 @@ function renderActivityAnalyticsVisual(data){
   const executionRows=p.rows.filter(row=>!["level_of_effort","wbs_summary"].includes(row.activityType));
   const status={completed:0,in_progress:0,not_started:0,unknown:0};
   executionRows.forEach(r=>{status[r.status]=(status[r.status]||0)+1});
-  const critical=executionRows.filter(r=>r.criticality==="critical").length;
-  const near=executionRows.filter(r=>r.criticality==="near_critical").length;
+  const criticalKnown=executionRows.filter(r=>r.criticality==="critical").length;
+  const critical=p.counts?p.counts.critical.value:aggregateCount(executionRows,r=>r.totalFloatHours==null?null:r.criticality==="critical").value;
+  const nearKnown=executionRows.filter(r=>r.criticality==="near_critical").length;
+  const near=p.counts?p.counts.nearCritical.value:aggregateCount(executionRows,r=>r.criticality==="unknown"||r.criticality==null||r.floatRiskWatchlist===null?null:r.criticality==="near_critical").value;
   const unknownCriticality=executionRows.filter(r=>r.criticality==="unknown").length;
   const noncritical=executionRows.filter(r=>r.criticality==="noncritical").length;
-  const floatRisk=executionRows.filter(r=>r.floatRiskWatchlist===true).length;
-  const late=executionRows.filter(r=>typeof r.finishVarianceDays==="number"&&r.finishVarianceDays>0).length;
+  const floatRisk=p.counts?p.counts.floatRisk.value:aggregateCount(executionRows,r=>r.floatRiskWatchlist).value;
+  const late=p.counts?p.counts.late.value:aggregateCount(executionRows,r=>typeof r.finishVarianceDays==="number"?r.finishVarianceDays>0:null).value;
   const openLogic=executionRows.filter(r=>r.openStart||r.openFinish||r.isolated).length;
   const kpis=planningKpis([
     ["Programme records",p.rows.length,"full auditable register"],["Execution activities",executionRows.length,"excludes LOE and WBS summaries"],["Excluded execution types",p.rows.length-executionRows.length,"retained in source register"],
@@ -1970,7 +1974,8 @@ function renderActivityAnalyticsVisual(data){
     ["Critical",critical,"activities","danger"],
     ["Near-critical",near,"Near-critical float band","warning"],
     ["Float-risk watchlist",floatRisk,"includes critical boundary","accent"],
-    ["Later than baseline",late,"activities","danger"]
+    ["Later than baseline",late,"requires comparable dates for every execution activity","danger"],
+    ["Unresolved criticality",unknownCriticality,"execution activities awaiting classification"]
   ]);
   const repeatedMovementWarning="";
   const topLate=[...p.rows].filter(r=>typeof r.finishVarianceDays==="number").sort((a,b)=>b.finishVarianceDays-a.finishVarianceDays).slice(0,5).map(r=>({label:r.activityId+" · "+(r.name||""),value:r.finishVarianceDays}));
@@ -1983,8 +1988,8 @@ function renderActivityAnalyticsVisual(data){
       {label:"Unknown",value:status.unknown||0,tone:"warning"}
     ],"Activities"))+
     renderVisualPanel("Criticality classification","Mutually exclusive critical and near-critical classifications. Float-risk watchlist membership is tracked separately.",renderDonutChart([
-      {label:"Critical",value:critical,tone:"danger"},
-      {label:"Near-critical",value:near,tone:"warning"},
+      {label:"Confirmed critical",value:criticalKnown,tone:"danger"},
+      {label:"Confirmed near-critical",value:nearKnown,tone:"warning"},
       {label:"Non-critical",value:noncritical,tone:"neutral"},
       {label:"Unknown",value:unknownCriticality,tone:"graphite"}
     ],"Activities"))+
@@ -2259,13 +2264,13 @@ function renderVarianceTrendVisual(data){
   const pressure=renderFloatPressureTrend(points);
   const cards=p.points.map((x,index)=>'<div class="revision-value-card"><div class="revision-value-head"><b>'+escapeHtml(shortRevision(x.revisionId,labels))+'</b><span>'+escapeHtml(planningShortDate(x.dataDateIso))+'</span></div><div class="revision-value-lines"><span>Source activities compared <b>'+escapeHtml(fmt(x.comparableActivities))+' / '+escapeHtml(fmt(x.sourceActivityCount))+'</b></span><span>Unknown or unmatched <b>'+escapeHtml(fmt(x.unmatchedActivityCount))+'</b></span><span>Average activity finish movement <b>'+escapeHtml(x.averageFinishVarianceDays===null?"Unresolved":fmt(x.averageFinishVarianceDays)+" d")+'</b></span><span>Maximum activity movement <b>'+escapeHtml(x.maximumDelayDays===null?"Unresolved":fmt(x.maximumDelayDays)+" d")+'</b></span><span>Late activities <b>'+escapeHtml(fmt(x.lateActivityCount))+'</b></span><span>Project finish vs baseline <b>'+escapeHtml(x.projectCompletionVarianceDays===null?"Unresolved":fmt(x.projectCompletionVarianceDays)+" d")+'</b></span></div></div>').join("");
   const rows=p.points.map(x=>'<tr><td>'+escapeHtml(x.sequence)+'</td><td><b>'+escapeHtml(shortRevision(x.revisionId,labels))+'</b></td><td>'+escapeHtml(planningShortDate(x.dataDateIso))+'</td><td>'+escapeHtml(x.averageFinishVarianceDays===null?"Unresolved":fmt(x.averageFinishVarianceDays))+'</td><td>'+escapeHtml(x.maximumDelayDays===null?"Unresolved":fmt(x.maximumDelayDays))+'</td><td>'+escapeHtml(fmt(x.lateActivityCount))+'</td><td>'+escapeHtml(fmt(x.earlyActivityCount))+'</td><td>'+escapeHtml(fmt(x.onTimeActivityCount))+'</td><td>'+escapeHtml(x.negativeFloatCount)+'</td><td>'+escapeHtml(x.criticalCount)+'</td><td>'+escapeHtml(x.projectCompletionVarianceDays===null?"Unresolved":fmt(x.projectCompletionVarianceDays))+'</td></tr>').join("");
-  return '<section class="planning-view variance-view">'+planningKpis([
+  return '<section class="planning-view variance-view">'+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Finish movement by revision</h4><p>Signed movement from the controlled baseline. Left means earlier, right means later.</p></div></div><div class="planning-panel-body"><div class="nested-title">Average activity finish movement</div>'+averageMovement+'<div class="nested-title" style="margin-top:16px">Project finish movement</div>'+projectMovement+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Float pressure trend</h4><p>Execution-population float indicators by revision. Negative float overlaps criticality; these lines are not additive.</p></div></div><div class="planning-panel-body">'+pressure+'</div></section></div>'+planningKpis([
     ["Revisions",p.revisionCount,"controlled"],
     ["Latest avg movement",latest.averageFinishVarianceDays===null?"Unresolved":fmt(latest.averageFinishVarianceDays)+" d","vs controlled baseline",latest.averageFinishVarianceDays>0?"warning":""],
     ["Latest max activity movement",latest.maximumDelayDays===null?"Unresolved":fmt(latest.maximumDelayDays)+" d","activity level",latest.maximumDelayDays>0?"danger":""],
     ["Late activities",latest.lateActivityCount,"vs controlled baseline",latest.lateActivityCount?"danger":""],
     ["Project finish movement",latest.projectCompletionVarianceDays===null?"Unresolved":fmt(latest.projectCompletionVarianceDays)+" d","vs controlled baseline",latest.projectCompletionVarianceDays>0?"danger":""]
-  ])+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Finish movement by revision</h4><p>Signed movement from the controlled baseline. Left means earlier, right means later.</p></div></div><div class="planning-panel-body"><div class="nested-title">Average activity finish movement</div>'+averageMovement+'<div class="nested-title" style="margin-top:16px">Project finish movement</div>'+projectMovement+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Float pressure trend</h4><p>Execution-population float indicators by revision. Negative float overlaps criticality; these lines are not additive.</p></div></div><div class="planning-panel-body">'+pressure+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Revision values</h4><p>Exact values supporting the trend. Source activity finish movements use the shared activity matching; unknown baseline and ambiguous identity remain visible.</p></div></div><div class="planning-panel-body"><div class="revision-value-grid">'+cards+'</div>'+distributionSummary(latest.movementDistribution)+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Revision detail</h4></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Seq</th><th>Revision</th><th>Data date</th><th>Avg vs baseline d</th><th>Max movement d</th><th>Late</th><th>Early</th><th>On time</th><th>Neg. float</th><th>Critical</th><th>Project finish vs baseline d</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></section></section>';
+  ])+'<section class="planning-panel"><div class="planning-panel-head"><div><h4>Revision values</h4><p>Exact values supporting the trend. Source activity finish movements use the shared activity matching; unknown baseline and ambiguous identity remain visible.</p></div></div><div class="planning-panel-body"><div class="revision-value-grid">'+cards+'</div>'+distributionSummary(latest.movementDistribution)+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Revision detail</h4></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Seq</th><th>Revision</th><th>Data date</th><th>Avg vs baseline d</th><th>Max movement d</th><th>Late</th><th>Early</th><th>On time</th><th>Neg. float</th><th>Critical</th><th>Project finish vs baseline d</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></section></section>';
 }
 function renderProgressBreakdownVisual(data){
   const p=projectionFor(data,"progress_breakdown");
@@ -2287,14 +2292,14 @@ function renderMilestonesVisual(data){
   const p=projectionFor(data,"milestones");
   if(!Array.isArray(p.rows))return"";
   const dd=planningDateMs(p.dataDateIso);
-  const due30=p.due30Count??p.rows.filter(r=>r.status!=="completed"&&planningDateMs(r.currentDateIso)!==null&&dd!==null&&planningDateMs(r.currentDateIso)>=dd&&planningDateMs(r.currentDateIso)<=dd+30*86400000).length;
-  const slippedOpen=p.rows.filter(r=>r.status!=="completed"&&typeof r.varianceDays==="number"&&r.varianceDays>0).length;
-  const criticalCount=p.criticalMilestoneCount??p.rows.filter(r=>r.status!=="completed"&&typeof r.totalFloatHours==="number"&&r.totalFloatHours<=0).length;
-  const nearCriticalCount=p.nearCriticalMilestoneCount??p.rows.filter(r=>r.status!=="completed"&&r.criticality==="near_critical").length;
-  const negativeFloatCount=p.negativeFloatMilestoneCount??p.rows.filter(r=>r.status!=="completed"&&typeof r.totalFloatHours==="number"&&r.totalFloatHours<0).length;
+  const due30=p.due30Count;
+  const slippedOpen=aggregateCount(p.rows,r=>r.status==='completed'?false:r.status==='unknown'||r.varianceDays==null?null:r.varianceDays>0).value;
+  const criticalCount=p.criticalMilestoneCount;
+  const nearCriticalCount=p.nearCriticalMilestoneCount;
+  const negativeFloatCount=p.negativeFloatMilestoneCount;
   const movements=p.rows.map(r=>r.varianceDays).filter(v=>typeof v==="number");
   const largest=movements.length?Math.max(...movements):null;
-  const urgentDates=(p.lateOpenCount||0)+due30;
+  const urgentDates=p.lateOpenCount==null||due30==null?null:p.lateOpenCount+due30;
   const priorityRows=[...p.rows].filter(r=>r.status!=="completed").sort((a,b)=>planningMilestonePriorityRank(a.managementPriority)-planningMilestonePriorityRank(b.managementPriority)||((a.daysFromDataDate??Number.MAX_SAFE_INTEGER)-(b.daysFromDataDate??Number.MAX_SAFE_INTEGER))||((b.varianceDays||0)-(a.varianceDays||0)));
   const topPriority=priorityRows[0]||null;
   const kpis=planningKpis([
@@ -2302,7 +2307,7 @@ function renderMilestonesVisual(data){
     ["Submitted float critical",criticalCount,"open milestones · submitted float",criticalCount?"danger":""],
     ["Negative float",negativeFloatCount,"open milestones",negativeFloatCount?"danger":""],
     ["Near-critical",nearCriticalCount,"open milestones",nearCriticalCount?"warning":""],
-    ["Urgent dates",urgentDates,(p.lateOpenCount||0)+" overdue · "+due30+" due ≤30d",urgentDates?"warning":""],
+    ["Urgent dates",urgentDates,fmt(p.lateOpenCount)+" overdue · "+fmt(due30)+" due ≤30d",urgentDates?"warning":""],
     ["Largest movement",largest===null?"—":fmt(largest)+" days","vs controlled baseline",largest?"danger":""]
   ]);
   const basisState=p.sourceFloatState==="source_float_established"
@@ -2393,7 +2398,7 @@ function renderNearCriticalVisual(data){
   const sourceCount=p.sourceReportedNearCriticalLabelCount??p.reconciliation?.sourceReportedCount??null;
   const sourceMatch=p.reconciliation?.sourceLabelReconcilesTo??null;
   const reconciliationText=p.floatRiskWatchlistCount===null
-    ?"Comparison unresolved: "+fmt(unresolved)+" activities need readable working calendars."
+    ?"Comparison unresolved: "+fmt(unresolved)+" activities need resolved float and working-calendar inputs."
     :sourceCount===null
     ?"No submitted Near Critical population is available for reconciliation."
     : sourceMatch==="float_risk_watchlist"
@@ -2466,7 +2471,7 @@ function renderManhourVisual(data){
     ...(actualHistoryEstablished?[{key:"actualCumulativeHours",label:"Actual labor hours",color:"#2c7a57"}]:[]),
     ...(p.points.some(point=>typeof point.forecastCumulativeHours==="number")?[{key:"forecastCumulativeHours",label:"Forecast labor hours",color:"#4f7fb4"}]:[])
   ];
-  return '<section class="planning-view manhour-view">'+top+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Man-Hour S-Curve</h4><p>Labor only. Missing actual history never becomes a zero line.</p></div></div><div class="planning-panel-body">'+renderLineChart(p.points,series,null,{unit:"h",yLabel:"Labor hours",xLabel:"Reporting date",dataDateIso:p.dataDateIso,ariaLabel:"Man-Hour S-Curve"})+'</div></section>'+note+(weekly?'<div class="notice info">Weekly staffing hours describe input usage, not physical productivity. Periods are included by source week start. The planned total spans the Full register period; actuals stop at the Data Date. Remaining-hours forecast is not confirmed.</div>':'')+renderResourceBasisReview(p.basisComparison)+'<section class="planning-panel"><div class="planning-panel-head"><div><h4>Available records</h4><p>The curve uses weekly planned-demand and approved actual-usage evidence. Related P6 assignments are a separate supporting population.</p></div></div><div class="planning-panel-body">'+moduleEvidenceGate([
+  return '<section class="planning-view manhour-view">'+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Man-Hour S-Curve</h4><p>Labor only. Missing actual history never becomes a zero line.</p></div></div><div class="planning-panel-body">'+renderLineChart(p.points,series,null,{unit:"h",yLabel:"Labor hours",xLabel:"Reporting date",dataDateIso:p.dataDateIso,ariaLabel:"Man-Hour S-Curve"})+'</div></section>'+top+note+(weekly?'<div class="notice info">Weekly staffing hours describe input usage, not physical productivity. Periods are included by source week start. The planned total spans the Full register period; actuals stop at the Data Date. Remaining-hours forecast is not confirmed.</div>':'')+renderResourceBasisReview(p.basisComparison)+'<section class="planning-panel"><div class="planning-panel-head"><div><h4>Available records</h4><p>The curve uses weekly planned-demand and approved actual-usage evidence. Related P6 assignments are a separate supporting population.</p></div></div><div class="planning-panel-body">'+moduleEvidenceGate([
     {label:"Labor resources",value:fmt(p.laborResourceCount),state:p.laborResourceCount>0?"ready":"missing"},
     {label:weekly?"Related P6 labor assignments (separate basis)":"Labor assignments",value:fmt(p.laborAssignmentCount),state:p.laborAssignmentCount>0?"ready":"missing"},
     {label:"Planned hours · register horizon",value:p.plannedHoursKnown===null?"Unresolved":fmt(p.plannedHoursKnown)+" h",state:p.plannedHoursKnown===null?"missing":"ready"},
@@ -3474,16 +3479,16 @@ function renderCommercialVisual(key,data){
       '</section>';
   }
   if(key==="commercial-claims-notices"){
-    return '<section class="planning-view commercial-view commercial-claims-enterprise">'+temporalWarning+temporalScope+
-      detail+
+    return '<section class="planning-view commercial-view commercial-claims-enterprise">'+
       commercialSummaryPanel('Claim Financial Exposure by Currency','Known claimed and assessed values come from the controlled financial register. Partial amount coverage remains explicitly partial.')+
-      commercialCharts+
+      commercialCharts+temporalWarning+temporalScope+detail+
       time+
       evidencePanel+
       '</section>';
   }
   if(key==="contract-particulars-bonds"){
-    return '<section class="planning-view commercial-view contract-particulars-enterprise">'+temporalWarning+temporalScope+
+    const bi=contractControls?.bondsInsurance;
+    return '<section class="planning-view commercial-view contract-particulars-enterprise">'+planningKpis([["Active bonds",bi?.activeBondCount,"security register"],["Expired bonds",bi?.expiredBondCount,"at the Data Date"],["Expiring bonds",bi?.expiringBondCount,"security register"],["Active insurance policies",bi?.activeInsuranceCount,"insurance register"]])+temporalWarning+temporalScope+
       commercialSummaryPanel('Contract Value & Security Position by Currency','Contract and security amounts are shown by currency, with the status of each supporting record.')+
       '<div class="notice info"><b>'+fmt(contractControls?.contractObligations?.candidateCount??contractControls?.contractObligations?.rows?.filter(r=>r.origin==='contract_clause_candidate').length??0)+' requirement wording groups</b><p>Source wording is available for review. Obligation owners, due dates, compliance and security instruments require their own records.</p></div>'+
       experienceDisclosure('Contract wording, obligations and securities',contractControlDetail+foundationDetail+detail+renderContractSourceContext(data.contractSourceContext),'Complete wording, document references and missing records')+
@@ -3841,16 +3846,17 @@ function renderModuleResult(result){
   const structured=specialized?"":renderStructuredSections(data);
   const genericView=(scalars?'<div class="scalar-grid">'+scalars+'</div>':'')+structured;
   const sourceBasis=renderBasisReviews(data,result.key);
-  const commercialBasisDetails=['commercial-overview','cost-forecast','progress-report'].includes(result.key);
+  const resultFirst=['variance-trends','progress-scurve','manhour-scurve','quantity-scurve','commercial-claims-notices','contract-particulars-bonds'].includes(result.key);
+  const commercialBasisDetails=resultFirst||['commercial-overview','cost-forecast','progress-report'].includes(result.key);
   const managementLead=['master-dashboard','command-center','pmo-analysis'].includes(result.key);
-  const primaryView=renderClaimsReporting(data.claimsReporting,result.key)+(managementLead?(specialized||genericView)+(sourceBasis?experienceDisclosure('Supporting project analysis',sourceBasis,'Package, record and calculation detail'):''):commercialBasisDetails?(specialized||genericView)+(sourceBasis?'<details class="reconciliation-panel"><summary><span>Compare documents and contract versions</span><b>Amounts, dates and versions</b></summary><div class="reconciliation-body">'+sourceBasis+'</div></details>':''):sourceBasis+(specialized||genericView));
+  const primaryView=(resultFirst?"":renderClaimsReporting(data.claimsReporting,result.key))+(managementLead?(specialized||genericView)+(sourceBasis?experienceDisclosure('Supporting project analysis',sourceBasis,'Package, record and calculation detail'):''):commercialBasisDetails?(specialized||genericView)+(sourceBasis?'<details class="reconciliation-panel"><summary><span>Compare documents and contract versions</span><b>Amounts, dates and versions</b></summary><div class="reconciliation-body">'+sourceBasis+'</div></details>':''):sourceBasis+(specialized||genericView));
   const generated=data.challenge?.generatedAt||findProjectionRoot(data)?.generatedAt||data.generatedAt||null;
   const viewState=result.status==="ready"?"":'<div class="view-state-bar">'+issueBadge(result.issueAssessment)+'<strong>'+escapeHtml(moduleName)+'</strong>'+(generated?'<span>Updated '+escapeHtml(formatDocumentTime(generated))+'</span>':'')+'</div>';
   el("directorDrawer").open=false;
   el("directorDrawer").hidden=result.key!=="pmo-analysis";
   const userReason=userFacingModuleReason(result.key,result.reason);
-  const context=basisHtml;
-  el("moduleContent").innerHTML=context+(managementSurface?primaryView:renderRoleContent(result.key,data,primaryView,challengeHtml,Boolean(specialized)))+experienceReviewSummary(data.issueAssessment,managementSurface)+renderModuleReadiness(data,userReason);
+  const context=resultFirst?viewState:basisHtml;
+  el("moduleContent").innerHTML=context+(managementSurface?primaryView:renderRoleContent(result.key,data,primaryView,challengeHtml,Boolean(specialized)))+(resultFirst?experienceDisclosure("Source basis and reporting scope",basisHtml+renderClaimsReporting(data.claimsReporting,result.key),"Supporting dates, populations and authority"):"")+experienceReviewSummary(data.issueAssessment,managementSurface)+renderModuleReadiness(data,userReason);
 }
 let moduleRequestSeq=0;
 const managementSurfaceKeysForApi=new Set(["master-dashboard","command-center","master-control-programme","source-quality"]);

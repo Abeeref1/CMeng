@@ -476,10 +476,10 @@ export function buildCommercialControlPosition(
       ?.officialApprovedEotDays ??
     null;
   const adjusted =
-    addDays(
+    contractTime?.eotDayBasis === "calendar_days" ? addDays(
       contractual,
       contractTime?.overlapResolution ? (contractTime.additionalApprovedEotDays ?? null) : approvedEot,
-    );
+    ) : null;
 
   const currencies =
     currenciesOf(input);
@@ -1597,7 +1597,7 @@ export function buildCommercialControlPosition(
             ? []
             : contractTime?.overlapResolution === "unresolved"
               ? ["AMENDMENT_DETERMINATION_OVERLAP_NOT_CONFIRMED"]
-            : [
+            : contractTime?.eotDayBasis !== "calendar_days" ? ["OFFICIAL_ADJUSTED_COMPLETION_REQUIRES_SUPPORTED_EOT_DAY_BASIS"] : [
                 "ADJUSTED_COMPLETION_REQUIRES_CONTRACTUAL_COMPLETION_AND_APPROVED_EOT",
               ],
         ),...(contractTime?.overlapResolution === "unresolved" ? {

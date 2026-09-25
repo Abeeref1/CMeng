@@ -3,6 +3,7 @@ import type { ModuleRuntimeResult } from './project-state-types';
 import type { CrossModuleCertification } from './certification';
 import {consistencyForModule} from './certification';
 import { assessModuleIssues } from './module-issues';
+import {comparisonRequirement} from './comparison-requirement';
 
 const NON_BLOCKING_REVIEW_CODES = new Set([
   'INDEPENDENT_COMPARISON_NOT_ESTABLISHED',
@@ -40,20 +41,9 @@ export function enforceModuleReadiness(
         : 'pending';
   const evidence = result.evidenceState ?? 'not_established';
   const professional = result.professionalState ?? 'review_required';
-  const reconciliation = data.challenge?.reconciliationState ?? 'not_checked';
-  const challengeItems = Array.isArray(data.challenge?.items)
-    ? data.challenge.items
-    : [];
-  const advisoryDefaultChallenge =
-    challengeItems.length === 1 &&
-    challengeItems[0]?.metric === 'module_position';
-  const reconciliationRequired =
-    Boolean(data.challenge) &&
-    !advisoryDefaultChallenge &&
-    (
-      challengeItems.length > 0 ||
-      reconciliation !== 'not_checked'
-    );
+  const comparison = comparisonRequirement(data);
+  const reconciliation = comparison.state;
+  const reconciliationRequired = comparison.required;
   const reconciliationReady =
     ['within_tolerance', 'not_applicable'].includes(reconciliation);
 

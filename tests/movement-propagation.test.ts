@@ -225,7 +225,7 @@ test("programme movement survives CPM failure but is not promoted to EOT time im
 
   assert.equal(
     delay.observedPositiveIndependentMovementDays,
-    0,
+    null,
   );
   assert.equal(
     delay.observedPositiveProgrammeMovementDays,

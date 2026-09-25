@@ -80,16 +80,16 @@ export interface DelayClaimsProjection {
   activityCorrespondenceAmbiguousCount: number;
   activityCorrespondenceUnresolvedCount: number;
 
-  observedPositiveIndependentMovementDays: number;
+  observedPositiveIndependentMovementDays: number | null;
   /** Gross positive analytical movement summed across windows. Not project delay or EOT. */
-  observedPositiveProgrammeMovementDays: number;
+  observedPositiveProgrammeMovementDays: number | null;
   /** Net submitted Project Completion movement from first to latest controlled revision. */
   projectCompletionMovementDays: number | null;
   projectCompletionMovementBasis:
     | "source_forecast"
     | "source_schedule_boundary"
     | "unavailable";
-  unattributedProgrammeMovementDays: number;
+  unattributedProgrammeMovementDays: number | null;
   employerOrNeutralCandidateWindowMovementDays: number | null;
   contractorRiskWindowMovementDays: number | null;
   concurrentReviewWindowMovementDays: number | null;

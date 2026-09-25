@@ -83,16 +83,8 @@ function assessWindow(
   delay: DelayClaimsProjection,
   policy: EotScenarioPolicy,
 ): EotWindowCandidate {
-  const positiveIndependentMovement = Math.max(
-    0,
-    window.independentForecastMovementDays ??
-      0,
-  );
-  const positiveProgrammeMovement = Math.max(
-    0,
-    window.strongestProgrammeMovementDays ??
-      0,
-  );
+  const positiveIndependentMovement = window.independentForecastMovementDays === null ? null : Math.max(0, window.independentForecastMovementDays);
+  const positiveProgrammeMovement = window.strongestProgrammeMovementDays === null ? null : Math.max(0, window.strongestProgrammeMovementDays);
   const eventRows =
     eventRowsForWindow(window, delay);
 
@@ -114,12 +106,12 @@ function assessWindow(
 
   if(window.independentReconciliationRequired){
     return {windowId:window.windowId,positiveIndependentMovementDays:positiveIndependentMovement,
-      positiveProgrammeMovementDays:Math.max(0,window.netCompletionMovementDays??0),programmeMovementBasis:window.netCompletionMovementBasis,
+      positiveProgrammeMovementDays:window.netCompletionMovementDays===null?null:Math.max(0,window.netCompletionMovementDays),programmeMovementBasis:window.netCompletionMovementBasis,
       analyticalTimeImpactCandidateDays:null,state:'review',eligibleEventIds:eligible.map(e=>e.eventId),contractorEventIds:contractor.map(e=>e.eventId),
       reasons:['SUBMITTED_DATE_MOVEMENT_RECORDED_NO_CAUSAL_EVENT_ESTABLISHED','SEPARATE_CALENDAR_MODEL_MOVEMENT_REQUIRES_RECONCILIATION'],assumptions:[...window.assumptions],includedCandidateDays:0};
   }
 
-  if (positiveProgrammeMovement <= 0) {
+  if (positiveProgrammeMovement !== null && positiveProgrammeMovement <= 0) {
     reasons.push(
       "NO_POSITIVE_INDEPENDENT_FORECAST_MOVEMENT",
     );
@@ -221,7 +213,7 @@ function assessWindow(
   }
 
   const include =
-    positiveProgrammeMovement > 0 &&
+    positiveProgrammeMovement !== null && positiveProgrammeMovement > 0 &&
     eligibleAfterNotice.length > 0;
 
   const analyticalTimeImpactCandidateDays =
@@ -231,9 +223,7 @@ function assessWindow(
         )
       : null;
 
-  const reviewOnly =
-    positiveProgrammeMovement > 0 &&
-    !include;
+  const reviewOnly = positiveProgrammeMovement === null || (positiveProgrammeMovement > 0 && !include);
 
   return {
     windowId: window.windowId,
@@ -349,9 +339,7 @@ export function buildEotAssessmentProjection(
   const unattributedTimeImpactDays =
     analyticalTimeImpactCandidateDays ===
       null
-      ? Number(
-          observedProgrammeMovementDays.toFixed(6),
-        )
+      ? observedProgrammeMovementDays
       : Number(
           Math.max(
             0,
@@ -371,7 +359,7 @@ export function buildEotAssessmentProjection(
   const diagnostics = [
     ...windows.diagnostics,
     ...delay.diagnostics,
-    ...(windows.positiveProgrammeMovementDays > 0 &&
+    ...(windows.positiveProgrammeMovementDays !== null && windows.positiveProgrammeMovementDays > 0 &&
     analyticalTimeImpactCandidateDays === null
       ? [
           "PROGRAMME_MOVEMENT_OBSERVED_WITHOUT_CAUSAL_TIME_IMPACT_CANDIDATE",

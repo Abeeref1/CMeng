@@ -960,7 +960,7 @@ export function buildProjectDirectorPosition(
     );
   }
   if (
-    input.eotAssessment
+    input.eotAssessment.unattributedTimeImpactDays !== null && input.eotAssessment
       .unattributedTimeImpactDays >
       0
   ) {

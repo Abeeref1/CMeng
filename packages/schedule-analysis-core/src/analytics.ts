@@ -180,9 +180,9 @@ function floatSummary(
 
   return {
     criticalCount: critical.length,
-    nearCriticalCount: thresholdUnresolved.length?null:nearCritical.length,
+    nearCriticalCount: known.length!==activities.length||thresholdUnresolved.length?null:nearCritical.length,
     floatRiskWatchlistCount:
-      thresholdUnresolved.length ? null : floatRiskWatchlist.length,
+      known.length!==activities.length||thresholdUnresolved.length ? null : floatRiskWatchlist.length,
     zeroFloatCount: known.filter(
       (activity) =>
         activity.totalFloatHours ===

@@ -293,13 +293,13 @@ export function buildDelayClaimsProjection(
                 : "claim_event_only",
         evidenceChainMissingLinks,
         observedNetIndependentMovementDays:
-          overlapping.some(w=>w.independentForecastMovementDays!==null)?Number(net.toFixed(6)):null,
+          overlapping.length>0&&overlapping.every(w=>w.independentForecastMovementDays!==null)?Number(net.toFixed(6)):null,
         observedPositiveIndependentMovementDays:
-          overlapping.some(w=>w.independentForecastMovementDays!==null)?Number(positive.toFixed(6)):null,
+          overlapping.length>0&&overlapping.every(w=>w.independentForecastMovementDays!==null)?Number(positive.toFixed(6)):null,
         observedNetProgrammeMovementDays:
-          programmeMovementBasis==='unavailable'?null:Number(programmeNet.toFixed(6)),
+          programmeMovementBasis==='unavailable'||overlapping.some(w=>w.strongestProgrammeMovementDays===null)?null:Number(programmeNet.toFixed(6)),
         observedPositiveProgrammeMovementDays:
-          programmeMovementBasis==='unavailable'?null:Number(programmePositive.toFixed(6)),
+          programmeMovementBasis==='unavailable'||overlapping.some(w=>w.strongestProgrammeMovementDays===null)?null:Number(programmePositive.toFixed(6)),
         programmeMovementBasis,
         concurrencyCandidate,
         candidateClass: classify(
@@ -448,15 +448,15 @@ export function buildDelayClaimsProjection(
     projectCompletionMovementBasis:
       windows.projectCompletionMovementBasis,
     unattributedProgrammeMovementDays:
-      Number(
+      !windows.windows.length||windows.windows.some(w=>w.strongestProgrammeMovementDays===null)?null:Number(
         unattributed.toFixed(6),
       ),
     employerOrNeutralCandidateWindowMovementDays:
-      rows.some(r=>r.responsibility!=='unknown'&&r.responsibilityState==='official')?Number(employerOrNeutral.toFixed(6)):null,
+      windows.windows.length>0&&windows.windows.every(w=>w.strongestProgrammeMovementDays!==null)&&rows.some(r=>r.responsibility!=='unknown'&&r.responsibilityState==='official')?Number(employerOrNeutral.toFixed(6)):null,
     contractorRiskWindowMovementDays:
-      rows.some(r=>r.responsibility!=='unknown'&&r.responsibilityState==='official')?Number(contractor.toFixed(6)):null,
+      windows.windows.length>0&&windows.windows.every(w=>w.strongestProgrammeMovementDays!==null)&&rows.some(r=>r.responsibility!=='unknown'&&r.responsibilityState==='official')?Number(contractor.toFixed(6)):null,
     concurrentReviewWindowMovementDays:
-      rows.some(r=>r.responsibility!=='unknown'&&r.responsibilityState==='official')?Number(concurrent.toFixed(6)):null,
+      windows.windows.length>0&&windows.windows.every(w=>w.strongestProgrammeMovementDays!==null)&&rows.some(r=>r.responsibility!=='unknown'&&r.responsibilityState==='official')?Number(concurrent.toFixed(6)):null,
 
     events: rows,
     diagnostics: [

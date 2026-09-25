@@ -32,10 +32,10 @@ import { reviewScheduleCalendarBasis } from './schedule-calendar-review';
 import { canonicalResourceModule } from "./canonical-resource-runtime";
 import { createHash } from "node:crypto";
 import {
-  analyzeSchedule,
+  scheduleProgress,
 } from "../../schedule-analysis-core/src";
 import {
-  buildActivityAnalyticsProjection,
+  buildActivityAnalyticsProjection, activityAnalyticsCounts,
 } from "../../activity-analytics/src";
 import {
   buildChallengeContractProjection,
@@ -344,7 +344,7 @@ function applyGovernedWindowMovementMetrics(
     projection.analyticalMovementAvailableWindowCount > 0;
 
   const positiveGap =
-    sourcePositive === null ||
+    sourcePositive === null || calculatedPositive === null ||
     !analyticalAvailable
       ? null
       : Number(
@@ -354,7 +354,7 @@ function applyGovernedWindowMovementMetrics(
           ).toFixed(6),
         );
   const negativeGap =
-    sourceNegative === null ||
+    sourceNegative === null || calculatedNegative === null ||
     !analyticalAvailable
       ? null
       : Number(
@@ -428,11 +428,7 @@ function actualHistory(
     .map((stored) => {
       const model =
         stored.revision.model;
-      const progress =
-        analyzeSchedule(model)
-          .progress
-          .durationWeightedPercentComplete
-          .value;
+      const progress = scheduleProgress(model.activities).value;
       const asOfIso =
         model.dataDateIso ??
         stored.revision.effectiveAt;
@@ -2112,7 +2108,7 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
       ],
       diagnostics: [
         "CONTRACT_TIME_BASIS_NOT_SUBMITTED",
-        ...(windows
+        ...(windows.positiveProgrammeMovementDays !== null && windows
           .positiveProgrammeMovementDays >
         0
           ? [
@@ -3349,6 +3345,7 @@ function canonicalQuantityModule(state: ProjectRuntimeState, model: ProjectRunti
     schemaVersion: "1.0", projectionKey: "quantity_scurve", projectId: state.projectId,
     scheduleRevisionId: model.sourceRevisionId, dataDateIso: model.dataDateIso,
     allocationState: "missing", mappingBasis: "missing", boqState: "not_established", unitKeyed: true, generatedAt, producerVersion:"quantity-source-integration-v1", boqRevisionId:null, series: [],
+    boqItemCount:null,knownQuantityItemCount:null,allocatedItemCount:null,unmappedItemCount:null,partiallyAllocatedItemCount:null,overAllocatedItemCount:null,
     unmappedItemIds: [], partiallyAllocatedItemIds: [], overAllocatedItemIds: [],
     diagnostics: ["BOQ_QUANTITY_BASIS_NOT_ESTABLISHED"],
   }, ["BOQ"], "partial", "BOQ quantities have not been established.");
@@ -3374,6 +3371,9 @@ function canonicalQuantityModule(state: ProjectRuntimeState, model: ProjectRunti
     boqState: "loaded", boqSource: boqSourceReporting(state), boqItemCount: quantities.items.length,
     knownQuantityItemCount: quantities.items.filter(item => item.contractQuantity !== null && Number.isFinite(item.contractQuantity) && item.contractQuantity >= 0).length,
     allocatedItemCount: mappedItemIds.size,
+    unmappedItemCount: quantities.items.length-mappedItemIds.size,
+    partiallyAllocatedItemCount: projection.partiallyAllocatedItemIds.length,
+    overAllocatedItemCount: projection.overAllocatedItemIds.length,
     itemLinkCoveragePercent: quantities.items.length ? mappedItemIds.size / quantities.items.length * 100 : null,
     unmappedKnownQuantityItemIds: projection.unmappedItemIds,
     unmappedItemIds: quantities.items.filter(item => !mappedItemIds.has(item.quantityItemId)).map(item => item.quantityItemId),
@@ -3409,40 +3409,23 @@ const planningModuleCache =
     }
   >();
 
-function buildPlanningModuleFast(
-  state: ProjectRuntimeState,
-  key: string,
-): ModuleRuntimeResult | null {
-  if (!planningModuleKeys.has(key)) {
-    return null;
-  }
+// Planning pages share the same governed schedule analysis within a project
+// version. Keep the context on the reporting view so edits and authority changes
+// create a fresh context; each page still builds and certifies its own result.
+const planningContextCache = new WeakMap<ProjectRuntimeState, {
+  version: number;
+  context: ReturnType<typeof calculatePlanningContext>;
+}>();
 
-  const cacheKey =
-    state.projectId +
-    "::" +
-    key;
-  const cached =
-    planningModuleCache.get(
-      cacheKey,
-    );
-  if (
-    cached &&
-    cached.version ===
-      state.version
-  ) {
-    return cached.result;
-  }
+function planningContextForState(state: ProjectRuntimeState, current: NonNullable<ReturnType<typeof projectControlSchedule>>) {
+  const cached = planningContextCache.get(state);
+  if (cached?.version === state.version) return cached.context;
+  const context = calculatePlanningContext(state, current);
+  planningContextCache.set(state, {version: state.version, context});
+  return context;
+}
 
-  const current =
-    projectControlSchedule(state);
-  if (!current) {
-    return blocked(
-      key,
-      "Programme evidence has not been established.",
-      ["schedule"],
-    );
-  }
-
+function calculatePlanningContext(state: ProjectRuntimeState, current: NonNullable<ReturnType<typeof projectControlSchedule>>) {
   const generatedAt =
     new Date().toISOString();
   const ordered =
@@ -3768,6 +3751,55 @@ function buildPlanningModuleFast(
       submittedManpowerPlan:
         state.submittedManpowerPlan,
     });
+
+  return {
+    generatedAt, ordered, model, scheduleControlBasis, scheduleAnalysisConfig,
+    controlledBaseline, baselineByActivity, currentByActivity, baselineFinish,
+    currentFinish, daysBetween, controlledBaselineCompletion, knownVariances,
+    scheduleAnalytics, independentForecast, minimalDeliveryChallenge,
+  };
+}
+
+function buildPlanningModuleFast(
+  state: ProjectRuntimeState,
+  key: string,
+): ModuleRuntimeResult | null {
+  if (!planningModuleKeys.has(key)) {
+    return null;
+  }
+
+  const cacheKey =
+    state.projectId +
+    "::" +
+    key;
+  const cached =
+    planningModuleCache.get(
+      cacheKey,
+    );
+  if (
+    cached &&
+    cached.version ===
+      state.version
+  ) {
+    return cached.result;
+  }
+
+  const current =
+    projectControlSchedule(state);
+  if (!current) {
+    return blocked(
+      key,
+      "Programme evidence has not been established.",
+      ["schedule"],
+    );
+  }
+
+  const {
+    generatedAt, ordered, model, scheduleControlBasis, scheduleAnalysisConfig,
+    controlledBaseline, baselineByActivity, currentByActivity, baselineFinish,
+    currentFinish, daysBetween, controlledBaselineCompletion, knownVariances,
+    scheduleAnalytics, independentForecast, minimalDeliveryChallenge,
+  } = planningContextForState(state, current);
 
   const modules =
     new Map<
@@ -7019,6 +7051,7 @@ function resolveProjectModuleCandidate(state: ProjectRuntimeState, key: string):
       } : {}),
       ...(key === "milestones" ? { movementDistribution: numericDistribution((data.rows ?? []).map((row: any)=>row.varianceDays)) } : {}),
       ...(key === "activity-analytics" ? {
+        counts: activityAnalyticsCounts(data.rows ?? []),
         movementDistribution: numericDistribution((data.rows ?? []).map((row: any)=>row.finishVarianceDays)),
         movementAnalysis: (()=>{const history=analyticalHistory(state);const current=projectControlSchedule(state)!;const index=history.findIndex(r=>r.revision.revisionId===current.revision.revisionId);const previous=index>0?history[index-1]:null;const baseline=state.schedules.find(r=>r.revision.revisionId===data.controlledBaselineRevisionId);return activityMovementAnalysis(data.rows??[],{dataDateIso:model.dataDateIso,currentRevisionId:current.revision.revisionId,currentLabel:current.revision.label??current.sourceFilename??current.revision.revisionId,baselineRevisionId:data.controlledBaselineRevisionId??null,baselineLabel:baseline?.revision.label??null,previousRevisionId:previous?.revision.revisionId??null,previousLabel:previous?.revision.label??null,previousRows:previous?.revision.model.activities??[]});})(),
       } : {}),

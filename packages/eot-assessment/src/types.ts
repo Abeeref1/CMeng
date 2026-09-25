@@ -49,8 +49,8 @@ export type EotWindowCandidateState =
 
 export interface EotWindowCandidate {
   windowId: string;
-  positiveIndependentMovementDays: number;
-  positiveProgrammeMovementDays: number;
+  positiveIndependentMovementDays: number | null;
+  positiveProgrammeMovementDays: number | null;
   programmeMovementBasis:
     | "matched_activity_finish_shift"
     | "independent_cpm"
@@ -91,7 +91,7 @@ export interface EotAssessmentProjection {
   officialAdjustedCompletionIso: string | null;
 
   /** Gross positive analytical window movement only; never an EOT award. */
-  observedProgrammeMovementDays: number;
+  observedProgrammeMovementDays: number | null;
   /** Net submitted Project Completion movement, kept distinct from window sums. */
   projectCompletionMovementDays: number | null;
   projectCompletionMovementBasis:
@@ -100,7 +100,7 @@ export interface EotAssessmentProjection {
     | "unavailable";
   analyticalTimeImpactCandidateDays: number | null;
   attributableCandidateEotDays: number | null;
-  unattributedTimeImpactDays: number;
+  unattributedTimeImpactDays: number | null;
 
   candidateAdditionalEotDays: number | null;
   scenarioAdjustedCompletionIso: string | null;

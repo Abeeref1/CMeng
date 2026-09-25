@@ -292,7 +292,7 @@ test("Near-Critical module excludes critical and unknown-float activities", () =
   );
   assert.equal(
     projection.nearCriticalCount,
-    2,
+    null,
   );
   assert.deepEqual(
     projection.rows.map(

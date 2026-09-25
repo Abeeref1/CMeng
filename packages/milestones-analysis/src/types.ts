@@ -83,12 +83,12 @@ export interface MilestonesProjection {
   milestoneCount: number;
   completedCount: number;
   openCount: number;
-  lateOpenCount: number;
-  criticalMilestoneCount: number;
-  nearCriticalMilestoneCount: number;
-  negativeFloatMilestoneCount: number;
-  due30Count: number;
-  due90Count: number;
+  lateOpenCount: number | null;
+  criticalMilestoneCount: number | null;
+  nearCriticalMilestoneCount: number | null;
+  negativeFloatMilestoneCount: number | null;
+  due30Count: number | null;
+  due90Count: number | null;
   criticalPriorityCount: number;
   highPriorityCount: number;
   sourceFloatCriticalMilestoneIds: string[];

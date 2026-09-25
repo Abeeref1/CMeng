@@ -2,6 +2,8 @@ import { summarizeControlIssues, type ControlIssue, type ControlIssueKind } from
 import type { ModuleRuntimeResult } from './project-state-types';
 import type { CrossModuleCertification } from './certification';
 import {consistencyForModule} from './certification';
+import {comparisonRequirement} from './comparison-requirement';
+import {scopeRegisterDateReview} from './register-date-review';
 
 type Consistency = Pick<CrossModuleCertification,'state'|'failedCheckIds'|'checkCount'> & Partial<Pick<CrossModuleCertification,'checks'>>;
 
@@ -17,7 +19,7 @@ export function assessModuleIssues(result: ModuleRuntimeResult, consistency: Con
     owner:ControlIssue['owner']='Project evidence owner',sourceRefs:string[]=[],checkIds:string[]=[])=>{
     issues.push({kind,code,summary,detail,action,owner,moduleKeys:[result.key],evidencePaths:[path],sourceRefs,checkIds});
   };
-  const dateReview=d?.registerDateReview;
+  const dateReview=d?.registerDateReview ? scopeRegisterDateReview(d.registerDateReview, result.key) : null;
   if(dateReview?.likelyMappingFault)add('verification_pending','REGISTER_DATE_READING_REVIEW','Register dates need a system reading check',dateReview.message,
     'CMeng must compare the supplied date columns with the reader before requesting replacement files.','registerDateReview','CMeng');
   const integrity=d?.systemEvidenceContract;
@@ -37,8 +39,9 @@ export function assessModuleIssues(result: ModuleRuntimeResult, consistency: Con
       failures?.map(c=>c.checkId+': '+c.detail).join('; ')||scopedConsistency.failedCheckIds.join(', '),
       'Reconcile the failed same-basis values or reporting contracts in the shared producers.','crossModuleConsistency','CMeng',[],scopedConsistency.failedCheckIds);
   }
-  const challengeItems=Array.isArray(d?.challenge?.items)?d.challenge.items:[];
-  const advisoryDefaultChallenge=challengeItems.length===1&&challengeItems[0]?.metric==='module_position';
+  const comparison=comparisonRequirement(d);
+  const challengeItems=comparison.items;
+  const advisoryDefaultChallenge=comparison.advisory;
   const reconciliation=advisoryDefaultChallenge?null:d?.challenge?.reconciliationState;
   if(reconciliation==='material_difference') add('comparison_difference','SUBMITTED_INDEPENDENT_DIFFERENCE','Submitted and independent positions differ',
     'The two authorities produce different positions. A difference alone is not a system contradiction or proven source error.',
@@ -60,7 +63,7 @@ export function assessModuleIssues(result: ModuleRuntimeResult, consistency: Con
     add(sourceOnly?'governance_review':'missing_information',sourceOnly?'SOURCE_AUTHORITY_COMPARISON':'INDEPENDENT_COMPARISON_INPUT',item.label+' · '+(sourceOnly?'source authority review':'specific evidence needed'),item.consequence,item.action,'challenge.items.'+item.metric,sourceOnly?'Project controls reviewer':'Project evidence owner',item.independent.sourceRefs??[]);
   }
   const dependenciesExplained=unavailableItems.length>0&&classifiedUnavailable.length===unavailableItems.length;
-  if(!noticeInputsMissing&&!dependenciesExplained&&(reconciliation==='independent_unavailable'||reconciliation==='not_checked'||!reconciliation)) add('verification_pending','INDEPENDENT_COMPARISON_NOT_ESTABLISHED','Independent comparison not established',
+  if(comparison.required&&!noticeInputsMissing&&!dependenciesExplained&&(reconciliation==='independent_unavailable'||reconciliation==='not_checked'||!reconciliation)) add('verification_pending','INDEPENDENT_COMPARISON_NOT_ESTABLISHED','Independent comparison not established',
     'CMeng has not established an independent value for this comparison.',
     'Establish the independent calculation and identify any specific input dependency. Do not blame a missing contractor submission.','challenge','CMeng');
   if(result.evidenceState==='missing'||!d) add('missing_information','REQUIRED_EVIDENCE_MISSING','Required information not established',

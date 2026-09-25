@@ -1,3 +1,4 @@
+import {completeSum} from '../../truth-kernel/src/aggregates';
 import {naturalCompare} from '../../shared/src/natural-order';
 import {
   compareScheduleRevisions,
@@ -858,6 +859,11 @@ export function buildWindowsAnalysisProjection(
         ? lastWindow?.toScheduleBoundaryIso ?? null
         : null;
 
+  const positiveAnalytical = completeSum(windows.map(w => w.grossAnalyticalPositiveMovementDays));
+  const analyticalRecovery = completeSum(windows.map(w => w.analyticalRecoveryMovementDays));
+  const analyticalVsNet = positiveAnalytical === null || projectCompletionMovementDays === null ? null
+    : Number((positiveAnalytical - Math.max(0, projectCompletionMovementDays)).toFixed(6));
+
   return {
     schemaVersion: "1.0",
     projectionKey: "windows_analysis",
@@ -883,146 +889,15 @@ export function buildWindowsAnalysisProjection(
         (window) =>
           window.state === "unresolved",
       ).length,
-    positiveIndependentMovementDays:
-      Number(
-        windows
-          .reduce(
-            (sum, window) =>
-              sum +
-              (
-                window.grossAnalyticalPositiveMovementDays ??
-                0
-              ),
-            0,
-          )
-          .toFixed(6),
-      ),
-    negativeIndependentMovementDays:
-      Number(
-        windows
-          .reduce(
-            (sum, window) =>
-              sum +
-              (
-                window.analyticalRecoveryMovementDays ??
-                0
-              ),
-            0,
-          )
-          .toFixed(6),
-      ),
-    grossAnalyticalMovementDays:
-      Number(
-        windows
-          .reduce(
-            (sum, window) =>
-              sum +
-              (
-                window.grossAnalyticalPositiveMovementDays ??
-                0
-              ),
-            0,
-          )
-          .toFixed(6),
-      ),
-    analyticalRecoveryMovementDays:
-      Number(
-        windows
-          .reduce(
-            (sum, window) =>
-              sum +
-              (
-                window.analyticalRecoveryMovementDays ??
-                0
-              ),
-            0,
-          )
-          .toFixed(6),
-      ),
-    analyticalMovementAvailableWindowCount:
-      windows.filter(
-        (window) =>
-          window.grossAnalyticalMovementDays !== null,
-      ).length,
-    analyticalVsNetDeltaDays:
-      projectCompletionMovementDays === null ||
-      windows.every(
-        (window) =>
-          window.grossAnalyticalMovementDays === null,
-      )
-        ? null
-        : Number(
-            (
-              windows.reduce(
-                (sum, window) =>
-                  sum +
-                  (
-                    window.grossAnalyticalPositiveMovementDays ??
-                    0
-                  ),
-                0,
-              ) -
-              Math.max(
-                0,
-                projectCompletionMovementDays,
-              )
-            ).toFixed(6),
-          ),
-    overlapCandidateDays:
-      projectCompletionMovementDays === null ||
-      windows.every(
-        (window) =>
-          window.grossAnalyticalMovementDays === null,
-      )
-        ? null
-        : Number(
-            Math.max(
-              0,
-              windows.reduce(
-                (sum, window) =>
-                  sum +
-                  (
-                    window.grossAnalyticalPositiveMovementDays ??
-                    0
-                  ),
-                0,
-              ) -
-                Math.max(
-                  0,
-                  projectCompletionMovementDays,
-                ),
-            ).toFixed(6),
-          ),
-    positiveProgrammeMovementDays:
-      Number(
-        windows
-          .reduce(
-            (sum, window) =>
-              sum +
-              Math.max(
-                0,
-                window.netCompletionMovementDays ??
-                  0,
-              ),
-            0,
-          )
-          .toFixed(6),
-      ),
-    negativeProgrammeMovementDays:
-      Number(
-        windows
-          .reduce(
-            (sum, window) =>
-              sum +
-              Math.min(
-                0,
-                window.netCompletionMovementDays ??
-                  0,
-              ),
-            0,
-          )
-          .toFixed(6),
-      ),
+    positiveIndependentMovementDays: positiveAnalytical,
+    negativeIndependentMovementDays: analyticalRecovery,
+    grossAnalyticalMovementDays: positiveAnalytical,
+    analyticalRecoveryMovementDays: analyticalRecovery,
+    analyticalMovementAvailableWindowCount: windows.filter(w => w.grossAnalyticalMovementDays !== null).length,
+    analyticalVsNetDeltaDays: analyticalVsNet,
+    overlapCandidateDays: analyticalVsNet === null ? null : Math.max(0, analyticalVsNet),
+    positiveProgrammeMovementDays: completeSum(windows.map(w => w.netCompletionMovementDays === null ? null : Math.max(0, w.netCompletionMovementDays))),
+    negativeProgrammeMovementDays: completeSum(windows.map(w => w.netCompletionMovementDays === null ? null : Math.min(0, w.netCompletionMovementDays))),
     projectCompletionMovementDays,
     projectCompletionMovementBasis,
     firstProjectCompletionIso,

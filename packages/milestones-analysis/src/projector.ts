@@ -1,3 +1,4 @@
+import {aggregateCount} from '../../truth-kernel/src/aggregates';
 import {naturalCompare} from '../../shared/src/natural-order';
 import { parseScheduleTime } from "../../schedule-analysis-core/src";
 import {
@@ -460,32 +461,12 @@ export function buildMilestonesProjection(
     milestoneCount: rows.length,
     completedCount: completed.length,
     openCount: open.length,
-    lateOpenCount: open.filter(
-      (row) =>
-        row.daysFromDataDate !== null &&
-        row.daysFromDataDate < 0,
-    ).length,
-    criticalMilestoneCount:
-      sourceFloatCriticalRows.length,
-    nearCriticalMilestoneCount:
-      open.filter(
-        (row) =>
-          row.criticality === "near_critical",
-      ).length,
-    negativeFloatMilestoneCount:
-      open.filter(
-        (row) => row.negativeFloat,
-      ).length,
-    due30Count:
-      open.filter(
-        (row) =>
-          row.dueState === "due_30_days",
-      ).length,
-    due90Count:
-      open.filter(
-        (row) =>
-          row.dueState === "due_90_days",
-      ).length,
+    lateOpenCount: aggregateCount(rows, row => row.status === 'completed' ? false : row.status === 'unknown' || row.daysFromDataDate === null ? null : row.daysFromDataDate < 0).value,
+    criticalMilestoneCount: aggregateCount(rows, row => row.status === 'completed' ? false : row.status === 'unknown' || row.totalFloatHours === null ? null : row.criticality === 'critical').value,
+    nearCriticalMilestoneCount: aggregateCount(rows, row => row.status === 'completed' ? false : row.status === 'unknown' || row.criticality === 'unknown' ? null : row.criticality === 'near_critical').value,
+    negativeFloatMilestoneCount: aggregateCount(rows, row => row.status === 'completed' ? false : row.status === 'unknown' || row.totalFloatHours === null ? null : row.totalFloatHours < 0).value,
+    due30Count: aggregateCount(rows, row => row.status === 'completed' ? false : row.status === 'unknown' || row.dueState === 'unknown' ? null : row.dueState === 'due_30_days').value,
+    due90Count: aggregateCount(rows, row => row.status === 'completed' ? false : row.status === 'unknown' || row.dueState === 'unknown' ? null : row.dueState === 'due_90_days').value,
     criticalPriorityCount:
       open.filter(
         (row) =>

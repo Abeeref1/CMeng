@@ -55,6 +55,9 @@ export interface ActivityAnalyticsProjection {
   projectId: string | null;
   sourceRevisionId: string;
   activityCount: number;
+  counts: Record<'critical' | 'nearCritical' | 'floatRisk' | 'late', {
+    value: number | null; knownCount: number | null; unresolvedCount: number | null; populationCount: number | null;
+  }>;
   population: {
     sourceActivityCount: number;
     executableActivityCount: number;
