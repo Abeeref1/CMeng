@@ -227,6 +227,8 @@ export interface EvidenceLineage {
 }
 
 export interface EvidenceMappingSummary {
+  state?:"column_absent"|"values_empty"|"no_matches"|"linked"|"partly_linked";
+  message?:string;
   method:
     | "explicit_column"
     | "exact_text_reference";

@@ -1,4 +1,4 @@
-import { activityNearCriticalThresholdHours, isExecutionActivity, scheduleProgress } from "../../schedule-analysis-core/src";
+import { parseScheduleTime, activityNearCriticalThresholdHours, isExecutionActivity, scheduleProgress } from "../../schedule-analysis-core/src";
 import { projectScheduleControlBasis } from "./schedule-control-basis";
 import type {
   ChallengeValue,
@@ -390,7 +390,7 @@ function scheduleSpanDays(
 
     for (const value of starts) {
       if (!value) continue;
-      const parsed = Date.parse(value);
+      const parsed = parseScheduleTime(value);
       if (!Number.isFinite(parsed)) {
         continue;
       }
@@ -405,7 +405,7 @@ function scheduleSpanDays(
 
     for (const value of finishes) {
       if (!value) continue;
-      const parsed = Date.parse(value);
+      const parsed = parseScheduleTime(value);
       if (!Number.isFinite(parsed)) {
         continue;
       }

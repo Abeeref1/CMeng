@@ -1,3 +1,4 @@
+import { parseScheduleTime } from "../../schedule-analysis-core/src";
 import type {
   IndependentForecastProjection,
 } from "../../independent-forecast/src";
@@ -9,7 +10,7 @@ import type {
 
 function ms(value: string | null): number | null {
   if (!value) return null;
-  const parsed = Date.parse(value);
+  const parsed = parseScheduleTime(value);
   return Number.isFinite(parsed)
     ? parsed
     : null;
@@ -86,10 +87,10 @@ export function buildForecastHistoryProjection(
       }
 
       return (
-        Date.parse(
+        parseScheduleTime(
           a.generatedAt,
         ) -
-          Date.parse(
+          parseScheduleTime(
             b.generatedAt,
           ) ||
         a.snapshotId.localeCompare(

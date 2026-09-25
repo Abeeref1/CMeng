@@ -1,3 +1,4 @@
+import {readableXlsx} from '../../shared/src/xlsx';
 import {csv,prepareRegisterRows} from '../../truth-kernel/src';
 import { typedEvidenceRoleFromText } from "./typed-evidence-families";
 import { mkdirSync } from "node:fs";
@@ -715,7 +716,7 @@ async function extractXlsxSample(
   const workbook =
     new ExcelJS.Workbook();
   await workbook.xlsx.load(
-    Buffer.from(bytes) as any,
+    await readableXlsx(bytes) as any,
   );
 
   const values: string[] = [];
@@ -2330,7 +2331,10 @@ export async function identifyEvidenceDocument(
     const rows=mediaType.includes('csv')?csv(text):text.split(/\r?\n/).map(line=>line.split('|'));
     const h=prepareRegisterRows(rows,input.declaredDocumentType??'').headers;
     const schemas:Array<[string,string,EvidenceCategory]>=[['determination id','determination_register','risk_claims_procurement'],['bond id','bond_register','boq_cost'],['risk id','risk_register','risk_claims_procurement'],['ncr id','quality_ncr_register','hse_quality_fm'],['rfi id','rfi_register','engineering'],['package id','procurement_register','risk_claims_procurement'],['claim id','delay_eot_claims_register','risk_claims_procurement'],['variation id','variation_register','boq_cost']];
-    const found=schemas.find(([id])=>h.includes(id));
+    // A claim register can carry determination references and awards as later
+    // lifecycle columns. Its event and notice fields identify the owning table.
+    const claimLifecycle=h.includes('claim id')&&h.includes('event')&&h.includes('notice date');
+    const found=claimLifecycle?schemas.find(([id])=>id==='claim id'):schemas.find(([id])=>h.includes(id));
     if(found)classification={documentType:found[1],category:found[2],confidence:0.96,signals:['Recognised register fields: '+h.join(', ')]};
     else if(h.includes('certificate no')&&h.includes('net certified'))classification={documentType:'payment_certificates',category:'boq_cost',confidence:0.96,signals:['Recognised payment register fields']};
     else if(h.includes('man hours')&&(h.includes('lost time injuries')||h.includes('trir')))classification={documentType:'hse_report',category:'hse_quality_fm',confidence:0.96,signals:['Recognised HSE table fields']};

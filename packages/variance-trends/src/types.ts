@@ -13,13 +13,13 @@ export interface VarianceTrendPoint {
   finishVarianceCoveragePercent: number | null;
   averageFinishVarianceDays: number | null;
   maximumDelayDays: number | null;
-  lateActivityCount: number;
-  earlyActivityCount: number;
-  onTimeActivityCount: number;
+  lateActivityCount: number | null;
+  earlyActivityCount: number | null;
+  onTimeActivityCount: number | null;
   negativeFloatCount: number;
   criticalCount: number;
   nearCriticalCount: number | null;
-  floatRiskWatchlistCount: number;
+  floatRiskWatchlistCount: number | null;
   zeroFloatCount: number;
   forecastCompletionIso: string | null;
   programmeCompletionIso: string | null;

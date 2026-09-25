@@ -149,6 +149,7 @@ function paymentSeriesBasis(value:string):PaymentSeriesBasis{
  return 'unknown';
 }
 function money(row:SourceRow,value:string,amountBasis:string,currency:string|null,asOf:string|null):CommercialMoney{
+ currency=currency&&/^[A-Za-z]{3}$/.test(currency.trim())?currency.trim().toUpperCase():null;
  const v=numberValue(value);return {value:v,currency,taxBasis:tax(cell(row,'vat basis','tax basis')),amountBasis,
  state:v===null?'missing':currency===null?'partial':['active','additive'].includes(row.receipt.basisState)?'official':'candidate',asOf,receipts:[row.receipt]};
 }

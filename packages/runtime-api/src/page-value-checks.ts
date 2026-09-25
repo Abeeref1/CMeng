@@ -28,5 +28,21 @@ export function checkPageValues(pages:Map<string,ModuleRuntimeResult>):PageValue
   compare('Dated operational actions',[['master-dashboard','operationalReporting.actions'],['command-center','operationalReporting.actions']]);
   compare('HSE reported source figures',[['master-dashboard','sourceInterpretation.hse'],['command-center','sourceInterpretation.hse']]);
   compare('Delivery forecast authority',[['master-dashboard','sourceInterpretation.productivityForecast'],['command-center','sourceInterpretation.productivityForecast']]);
+  compare('Confirmed baseline authority',all.filter(k=>k!=='source-quality').map(k=>[k,'baselineComparison']));
+  const baselineFields:Record<string,string[]>={
+    'activity-analytics':['baselineStartIso','baselineFinishIso','finishVarianceDays'],
+    milestones:['baselineDateIso','varianceDays'],
+    'lookahead-schedule':['baselineFinishIso'],
+    'progress-breakdown':['baselinePlannedPercent','scheduleMinusBaselinePercentagePoints'],
+    'variance-trends':['averageFinishVarianceDays','maximumDelayDays','lateActivityCount','earlyActivityCount','onTimeActivityCount','projectCompletionVarianceDays'],
+  };
+  const unconfirmed=[...pages].filter(([,r])=>(r.data as any)?.baselineComparison?.state==='unresolved');
+  const baselineValues=unconfirmed.filter(([k])=>baselineFields[k]).map(([page,r])=>{
+    const d=r.data as any,rows=page==='variance-trends'?d.points:d.rows;
+    const invalid=(rows??[]).filter((row:any)=>baselineFields[page]!.some(k=>row[k]!==null&&row[k]!==undefined));
+    return {page,value:{state:invalid.length?'fabricated_comparison':'unresolved',affectedRows:invalid.length}};
+  });
+  if(baselineValues.length)checks.push({metric:'No comparisons without a confirmed baseline',state:baselineValues.some(v=>v.value.affectedRows>0)?'failed':'passed',values:baselineValues});
+  compare('Overdue activity exceptions',[['lookahead-schedule','overdueCount'],['master-dashboard','deliveryExceptions.overdueActivityCount'],['command-center','deliveryExceptions.overdueActivityCount']]);
   return checks;
 }

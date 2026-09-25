@@ -638,7 +638,7 @@ test("CMeng workspace keeps the active module primary and browser script parseab
   );
   assert.match(
     html,
-    /\/management\/"\+encodeURIComponent\(key\)/,
+    /\/management\/"\+encodeURIComponent\(apiKeys\[key\]\|\|key\)/,
     "management views must load the server-owned ModuleRuntimeResult",
   );
   assert.match(

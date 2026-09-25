@@ -406,6 +406,7 @@ test("Variance Trends exposes project and activity worsening without mixing revi
       {
         generatedAt:
           "2026-09-18T17:00:00.000Z",
+        controlledBaselineRevision:revisions()[0]!,
         producerVersion:
           "variance-trends-v1",
       },
@@ -420,7 +421,7 @@ test("Variance Trends exposes project and activity worsening without mixing revi
   assert.equal(
     projection.points[1]!
       .projectCompletionVarianceDays,
-    2,
+    4, // Confirmed 8 January baseline to 12 January current finish.
   );
 
   const a200 = projection.activityTrends.find(

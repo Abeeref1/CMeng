@@ -17,7 +17,7 @@ const refreshed=new WeakMap<ContractDocumentResult,ContractDocumentResult>();
 /** Recompute derived segmentation from retained source text. Source bytes and
  * authority are unchanged; legal body repetition is never treated as a header. */
 export function refreshContractSegmentation(contract:ContractDocumentResult):ContractDocumentResult {
-  if(contract.segmentationVersion==='boundary-noise-v3')return contract;
+  if(contract.segmentationVersion==='contract-data-rows-v4')return contract;
   const cached=refreshed.get(contract);if(cached)return cached;
   const blocks=contract.pdf?contractBlocksFromPdf(contract.pdf):contract.docx?contractBlocksFromDocx(contract.docx):null;
   if(!blocks)return contract;

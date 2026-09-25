@@ -1,3 +1,4 @@
+import {readableXlsx} from '../../shared/src/xlsx';
 import ExcelJS from "exceljs";
 import {
   stableFingerprint,

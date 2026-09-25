@@ -15,6 +15,9 @@ export function assessModuleIssues(result: ModuleRuntimeResult, consistency: Con
     owner:ControlIssue['owner']='Project evidence owner',sourceRefs:string[]=[],checkIds:string[]=[])=>{
     issues.push({kind,code,summary,detail,action,owner,moduleKeys:[result.key],evidencePaths:[path],sourceRefs,checkIds});
   };
+  const dateReview=d?.registerDateReview;
+  if(dateReview?.likelyMappingFault)add('verification_pending','REGISTER_DATE_READING_REVIEW','Register dates need a system reading check',dateReview.message,
+    'CMeng must compare the supplied date columns with the reader before requesting replacement files.','registerDateReview','CMeng');
   const integrity=d?.systemEvidenceContract;
   if(result.engineState==='failed'||integrity?.state==='failed') {
     const failed=(integrity?.checks??[]).filter((c:any)=>c.passed===false);
@@ -35,7 +38,7 @@ export function assessModuleIssues(result: ModuleRuntimeResult, consistency: Con
   const reconciliation=d?.challenge?.reconciliationState;
   if(reconciliation==='material_difference') add('comparison_difference','SUBMITTED_INDEPENDENT_DIFFERENCE','Submitted and independent positions differ',
     'The two authorities produce different positions. A difference alone is not a system contradiction or proven source error.',
-    'Compare dates, populations, calendars, assumptions and authority; record the explanation before adoption.','challenge','Project controls reviewer');
+    'Compare the submitted and independent dates, work covered, calendars and assumptions; record the explanation before adoption.','challenge','Project controls reviewer');
   if(reconciliation==='conflicting_evidence') add('source_conflict','COMPARABLE_SOURCE_CONFLICT','Comparable source assertions conflict',
     'The challenge resolver identified incompatible source assertions for the comparison.',
     'Reconcile the conflicting assertions and retain the selected authority and source references.','challenge');

@@ -1,3 +1,5 @@
+import {resolveModuleKey} from './registry';
+import {registerDateReview} from './register-date-review';
 import {deliveryFeasibilityForState} from './delivery-feasibility';
 import {suppliedBoqFigures} from './boq-source';
 import {registerReadIssuesForModule} from './register-read-issues';
@@ -1099,14 +1101,16 @@ function buildBundle(
       sourceLabelReconcilesTo:
         scheduleControlBasis.sourceCountReconcilesTo,
       gap:
-        scheduleControlBasis.sourceReportedNearCriticalLabelCount === null
+        scheduleControlBasis.sourceReportedNearCriticalLabelCount === null || nearCriticalRaw.floatRiskWatchlistCount === null
           ? null
           : nearCriticalRaw.floatRiskWatchlistCount -
             scheduleControlBasis.sourceReportedNearCriticalLabelCount,
       status:
         scheduleControlBasis.sourceReportedNearCriticalLabelCount === null
           ? "source_not_reported"
-          : nearCriticalRaw.floatRiskWatchlistCount ===
+          : nearCriticalRaw.floatRiskWatchlistCount === null
+            ? "unresolved"
+            : nearCriticalRaw.floatRiskWatchlistCount ===
               scheduleControlBasis.sourceReportedNearCriticalLabelCount
             ? "reconciled"
             : "difference",
@@ -3966,14 +3970,16 @@ function buildPlanningModuleFast(
         sourceLabelReconcilesTo:
           scheduleControlBasis.sourceCountReconcilesTo,
         gap:
-          scheduleControlBasis.sourceReportedNearCriticalLabelCount === null
+          scheduleControlBasis.sourceReportedNearCriticalLabelCount === null || raw.floatRiskWatchlistCount === null
             ? null
             : raw.floatRiskWatchlistCount -
               scheduleControlBasis.sourceReportedNearCriticalLabelCount,
         status:
           scheduleControlBasis.sourceReportedNearCriticalLabelCount === null
             ? "source_not_reported"
-            : raw.floatRiskWatchlistCount ===
+            : raw.floatRiskWatchlistCount === null
+              ? "unresolved"
+              : raw.floatRiskWatchlistCount ===
                 scheduleControlBasis.sourceReportedNearCriticalLabelCount
               ? "reconciled"
               : "difference",
@@ -6908,6 +6914,7 @@ export function moduleForProject(
   projectId: string,
   key: string,
 ): ModuleRuntimeResult {
+  key=resolveModuleKey(key);
   const state =
     runtimeProjects.get(projectId);
   if (!state) {
@@ -7538,14 +7545,19 @@ export function managementSurfacesForProject(
     return {metric:name+' dated source partition',expected,actual,passed:actual===expected};
   });
   const operationalIssues=assessModuleIssues({key:'command-center',status:'partial',reason:null,dependencies:['dated operational registers'],
-    engineState:'ready',evidenceState:'partial',professionalState:'review_required',data:{operationalReporting:operations,
+    engineState:'ready',evidenceState:'partial',professionalState:'review_required',data:{operationalReporting:operations,registerDateReview:registerDateReview(state),
       challenge:{reconciliationState:'not_applicable'},systemEvidenceContract:{state:operationChecks.every(c=>c.passed)?'verified_for_checked_metrics':'failed',checks:operationChecks}}},certification).issues
     .map(issue=>({...issue,moduleKeys:[...managementModuleKeys]}));
   const issueAssessment=summarizeControlIssues([...issues,...governanceIssues,...operationalIssues]);
+  const lookahead=(resolvedModules.get('lookahead-schedule')?.data as any);
+  const overdueRows=(lookahead?.rows??[]).filter((r:any)=>r.finishOverdue);
+  const deliveryExceptions={actions:[...operations.actions,...overdueRows.map((r:any)=>({recordId:r.activityId,type:'Activity',priority:'overdue',owner:null,dueIso:r.finishIso,ageDays:null,
+    overdueDays:current?.revision.model.dataDateIso&&r.finishIso?Math.floor((Date.parse(current.revision.model.dataDateIso.slice(0,10))-Date.parse(r.finishIso.slice(0,10)))/86400000):null,
+    action:'Review overdue activity '+r.activityId+' ('+r.name+') and agree its recovery dates.',sourceRefs:[]}))],overdueActivityCount:overdueRows.length};
   const result = { ...surfaces,
-    sourceQuality: sourceQualityPosition(resolvedModules,issueAssessment,state.evidenceDocuments,current?.revision.model.dataDateIso??null),
-    masterDashboard: {...managementReportingData(state, surfaces.masterDashboard, resolvedModules),decisions:surfaces.commandCenter.decisions,trend:(resolvedModules.get("forecast-history")?.data as any)??null,issueAssessment,operationalReporting:operationalReporting(state),sourceInterpretation:director?.sourceInterpretation},
-    commandCenter: {...managementReportingData(state, surfaces.commandCenter, resolvedModules),issueAssessment,operationalReporting:operationalReporting(state),sourceInterpretation:director?.sourceInterpretation},
+    sourceQuality: {...sourceQualityPosition(resolvedModules,issueAssessment,state.evidenceDocuments,current?.revision.model.dataDateIso??null),registerDateReview:registerDateReview(state)},
+    masterDashboard: {deliveryExceptions,...managementReportingData(state, surfaces.masterDashboard, resolvedModules),decisions:surfaces.commandCenter.decisions,trend:(resolvedModules.get("forecast-history")?.data as any)??null,issueAssessment,operationalReporting:operationalReporting(state),sourceInterpretation:director?.sourceInterpretation},
+    commandCenter: {deliveryExceptions,...managementReportingData(state, surfaces.commandCenter, resolvedModules),issueAssessment,operationalReporting:operationalReporting(state),sourceInterpretation:director?.sourceInterpretation},
     masterControlProgramme: {...managementReportingData(state, surfaces.masterControlProgramme, resolvedModules),issueAssessment,sourceInterpretation:director?.sourceInterpretation} };
   const allPages=new Map(resolvedModules);
   allPages.set('master-dashboard',{key:'master-dashboard',status:'partial',reason:null,dependencies:[],data:result.masterDashboard});
@@ -7567,6 +7579,7 @@ export function managementSurfaceForProject(
   projectId: string,
   key: string,
 ): ModuleRuntimeResult | null {
+  key=resolveModuleKey(key);
   const surfaces =
     managementSurfacesForProject(
       projectId,

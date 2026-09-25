@@ -26,6 +26,7 @@ export function reportingState(state: ProjectRuntimeState): ProjectRuntimeState 
   if(old?.version===state.version&&old.date===date)return old.value;
   const governed=state.controls.delayClaims;
   const source=governed&&!/^(canonical-evidence|evidence-document):/.test(governed.evidenceRevisionId)?governed:canonicalTimeClaims(state).delayClaims??governed;
+  const hasBaseline=state.schedules.some(s=>['baseline','revised_baseline'].includes(s.role)&&reportingScope(s.revision.model.dataDateIso??s.revision.effectiveAt,date)==='as_of');
   const schedules=state.schedules.map(stored=>{
     const model=refreshScheduleConstraints(state,stored);
     if(!Array.isArray(model.activities))return stored;
@@ -34,11 +35,12 @@ export function reportingState(state: ProjectRuntimeState): ProjectRuntimeState 
     const activities=model.activities.map(row=>{
       const invalidStart=Boolean(row.actualStartIso)&&reportingScope(row.actualStartIso,cutoff)!=='as_of';
       const invalidFinish=Boolean(row.actualFinishIso)&&reportingScope(row.actualFinishIso,cutoff)!=='as_of';
-      if(!invalidStart&&!invalidFinish)return row;
+      const unconfirmedBaseline=!hasBaseline&&(row.baselineStartIso!==null||row.baselineFinishIso!==null);
+      if(!invalidStart&&!invalidFinish&&!unconfirmedBaseline)return row;
       changed=true;
-      return {...row,actualStartIso:invalidStart?null:row.actualStartIso,actualFinishIso:invalidFinish?null:row.actualFinishIso,
-        status:'unknown' as const,percentComplete:null,
-        diagnostics:[...row.diagnostics,'ACTUAL_EVENT_OUTSIDE_SNAPSHOT_DATA_DATE_STATUS_AND_PROGRESS_WITHHELD']};
+      return {...row,...(!hasBaseline?{baselineStartIso:null,baselineFinishIso:null}:{}),
+        ...(invalidStart||invalidFinish?{actualStartIso:invalidStart?null:row.actualStartIso,actualFinishIso:invalidFinish?null:row.actualFinishIso,
+        status:'unknown' as const,percentComplete:null,diagnostics:[...row.diagnostics,'ACTUAL_EVENT_OUTSIDE_SNAPSHOT_DATA_DATE_STATUS_AND_PROGRESS_WITHHELD']}:{} )};
     });
     return changed?{...stored,revision:{...stored.revision,model:{...model,activities}}}:stored;
   });

@@ -1,24 +1,29 @@
 import {dateValue} from '../../truth-kernel/src';
 import type {NoticeRequirement} from '../../delay-analysis-core/src';
 import type {ProjectRuntimeState} from './project-state-types';
+import {contractTermVersions} from './contract-term-versions';
 
 /** Extract explicit initial-claim periods with their contract version. Never
  * turn a document-wide topic count into a notice rule or apply an amendment
  * retrospectively merely because its period is shorter. */
 export function contractNoticeRules(state:ProjectRuntimeState,noticeKind:'claim_notice'|'detailed_claim'='claim_notice'):NoticeRequirement[] {
   const rules:NoticeRequirement[]=[];
+  const labelledTerms=noticeKind==='claim_notice'?contractTermVersions(state).filter(v=>v.term==='noticePeriodDays'):[];
   for(const document of state.contractDocuments){
     if(!['main','amendment','replacement'].includes(document.role))continue;
     const evidence=state.evidenceDocuments.find(d=>d.documentId===document.documentId);
     if(evidence&&!['active','additive'].includes(evidence.basisState))continue;
     const pages=document.result.pdf?.pages??[];
     const sections=document.result.sections??[];
-    const fragments=[...pages.map(p=>({text:p.text,locator:'page:'+p.pageNumber})),
-      ...sections.map(s=>({text:s.text,locator:s.startPage?'page:'+s.startPage:s.sectionKey}))];
+    const fragments=pages.length?pages.map(p=>({text:p.text,locator:'page:'+p.pageNumber})):
+      sections.map(s=>({text:s.text,locator:s.startPage?'page:'+s.startPage:s.sectionKey}));
     const text=fragments.map(f=>f.text).join('\n');
     const pattern=noticeKind==='claim_notice'?/(?:current\s+)?initial\s+claim\s+notice\s*[:|\n]?\s*(\d+)\s+(?:calendar\s+)?days|initial\s+notice\s+of\s+claim\s+shall\s+be\s+given\s+within\s+(\d+)\s+(?:calendar\s+)?days/gi:
       /fully\s+detailed\s+claim\s*[:\n]?\s*(\d+)\s+(?:calendar\s+)?days|(?:fully\s+)?detailed\s+claim[^.]{0,100}?within\s+(\d+)\s+(?:calendar\s+)?days/gi;
     const matches=fragments.flatMap(f=>[...f.text.matchAll(pattern)].map(m=>({days:Number(m[1]??m[2]),locator:f.locator})));
+    for(const term of labelledTerms.filter(v=>v.documentId===document.documentId)){
+      for(const ref of term.sourceRefs)matches.push({days:term.value,locator:ref.split(':').slice(-2).join(':')});
+    }
     const periods=[...new Set(matches.map(m=>m.days))];
     const effective=/Effective Date\s*[:|\n]?\s*(\d{1,2}\s+[A-Za-z]+\s+\d{4}|\d{4}-\d{2}-\d{2})/i.exec(text);
     const from=effective?dateValue(effective[1]!):null;

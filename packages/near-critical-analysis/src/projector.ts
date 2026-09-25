@@ -397,7 +397,7 @@ export function buildNearCriticalProjection(
     nearCriticalCount: classified.some(r=>r.threshold===null)?null:rows.length,
     unresolvedActivityCount:classified.filter(r=>r.threshold===null).length,
     floatRiskWatchlistCount:
-      watchlistRows.length,
+      classified.some(r => r.threshold === null) ? null : watchlistRows.length,
     zeroFloatCount: known.filter(
       (activity) =>
         activity.totalFloatHours ===

@@ -1,3 +1,4 @@
+import { parseScheduleTime } from "../../schedule-analysis-core/src";
 import {
   stableFingerprint,
 } from "../../analysis-runtime/src";
@@ -37,7 +38,7 @@ const DAY_MS = 86_400_000;
 
 function ms(value: string | null): number | null {
   if (!value) return null;
-  const parsed = Date.parse(value);
+  const parsed = parseScheduleTime(value);
   return Number.isFinite(parsed)
     ? parsed
     : null;

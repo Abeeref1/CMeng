@@ -1,3 +1,4 @@
+import { parseScheduleTime } from "../../schedule-analysis-core/src";
 import {
   stableFingerprint,
 } from "../../analysis-runtime/src";
@@ -516,7 +517,7 @@ function dateMs(
     return null;
   }
   const parsed =
-    Date.parse(value);
+    parseScheduleTime(value);
   return Number.isFinite(parsed)
     ? parsed
     : null;

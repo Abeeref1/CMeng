@@ -1057,8 +1057,17 @@ export function buildCommercialControlPosition(
         const periods=payments.filter(p=>reportingScope(p.periodEnd,ledger.dataDateIso)==='as_of');
         position.sourceCertificatePeriodCount={...moneyMetric(periods.length,"established",refs,["SOURCE_CERTIFICATE_PERIOD_COUNT_NOT_DATED_CERTIFICATION_COUNT"]),consequence:"Source certificate periods through Data Date; certification dates checked separately."};
         const unestablished=(reason:string)=>moneyMetric(null,"missing_information",refs,[reason]);
-        position.grossCertifiedAmount=unestablished("NET_CERTIFICATE_IS_NOT_GROSS_CERTIFICATION");
-        position.netCertifiedAmount=unestablished("INCREMENTAL_VERSUS_CUMULATIVE_BASIS_REQUIRED_FOR_AGGREGATION");
+        const certified=payments.filter(p=>reportingScope(p.certificationDate,ledger.dataDateIso)==='as_of');
+        const undated=payments.some(p=>!p.certificationDate&&reportingScope(p.periodEnd,ledger.dataDateIso)!=='future');
+        const compatible=certified.length>0&&!undated&&new Set(certified.map(p=>p.paymentId)).size===certified.length&&certified.every(p=>p.certifiedAmountBasis==='incremental');
+        const total=(fields:Array<'grossWork'|'variations'|'netCertifiedAmount'>)=>{
+          const amounts=certified.flatMap(p=>fields.map(f=>p.amounts[f]));
+          const known=compatible&&amounts.every(a=>a.value!==null&&a.currency===position.currency&&a.taxBasis!=='unknown'&&a.state==='official')&&new Set(amounts.map(a=>a.taxBasis)).size===1;
+          return known?moneyMetric(Number(amounts.reduce((n,a)=>n+a.value!,0).toFixed(8)),"established",refs):unestablished("DATED_INCREMENTAL_CERTIFICATES_WITH_COMPATIBLE_AMOUNTS_REQUIRED");
+        };
+        position.grossCertifiedAmount=total(['grossWork','variations']);
+        position.netCertifiedAmount=total(['netCertifiedAmount']);
+        position.interimCertificateCount=compatible?moneyMetric(certified.length,"established",refs):unestablished("DATED_INTERIM_CERTIFICATION_COUNT_REQUIRED");
         position.paidAmount=unestablished("DATED_PAYMENT_RECEIPT_AND_ALLOCATION_REQUIRED");
         position.certifiedUnpaidAmount=unestablished("UNKNOWN_PAID_AMOUNT_IS_NOT_ZERO");
         if(position.retentionHeldAmount.value===null){

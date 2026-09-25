@@ -7,11 +7,12 @@ import { cmengUatHtml } from '../packages/runtime-api/src/ui';
 const script=cmengUatHtml().match(/<script>([\s\S]*?)<\/script>/)![1]!;
 const source=createSourceFile('browser.js',script,ScriptTarget.Latest,true);
 function functions(names:string[]) {
+  names=[...new Set([...names,...(names.some(n=>["readerIssue","renderPositionVerdict","renderRegisterScope","renderModuleBasis"].includes(n))?["readerText","uniqueReportingPopulations"]:[])])];
   const selected=source.statements.filter(isFunctionDeclaration).filter(n=>n.name&&names.includes(n.name.text));
   assert.equal(selected.length,names.length);
   return selected.map(n=>n.getText(source)).join('\n');
 }
-const common={fmt:String,fmtExecutive:String,escapeHtml:(s:unknown)=>String(s).replace(/[&<>\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]!)),humanizeKey:String,planningShortDate:(s:unknown)=>s==null?'Not available':String(s),planningRevisionLabel:String};
+const common={apiKeys:{},fmt:String,fmtExecutive:String,escapeHtml:(s:unknown)=>String(s).replace(/[&<>\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]!)),humanizeKey:String,planningShortDate:(s:unknown)=>s==null?'Not available':String(s),planningRevisionLabel:String};
 const briefFunctions=functions(['experienceBrief','experienceValue','findProjectionRoot']);
 
 test('management summaries use the declared module population, not arbitrary high-scoring fields',()=>{
@@ -230,7 +231,7 @@ test('plain information actions preserve original findings and all document refe
  const ctx={...common,names:{'cash-flow':'Cash Flow'},managementModuleLink:(_k:string,label:string)=>label,managementPanel:(_t:string,_s:string,b:string)=>b,basisTable:()=>'',formatDocumentTime:String,data:{sourceIssues:[issue],systemFailures:[],reviewActions:[],pendingChecks:[],coverage:[],documents:[],pageValueChecks:[]}};
  const html=runInNewContext(render+';renderSourceQuality(data)',ctx);
  assert.match(html,/Provide the certificate, receipt or payment amount and its actual event date/);
- assert.match(html,/Document owner \(assign a person\)/);
+ assert.match(html,/Not assigned/);assert.match(html,/Document Owner/);assert.doesNotMatch(html,/assign a person/);
  assert.match(html,/Original finding and document references/);
  assert.match(html,/BANK-SOURCE-required.pdf: row 7; amount 123.45/);
  assert.match(html,/BANK-SOURCE-required.pdf:row:7/);
@@ -260,7 +261,7 @@ test('generic guidance and complete date counts remain available without precedi
  const context={...common,data};
  assert.equal(runInNewContext(code+';renderPositionVerdict(data)+renderRegisterScope(data)',context),'');
  const detail=runInNewContext(code+';renderPositionVerdict(data,true)+renderRegisterScope(data,true)',context);
- assert.match(detail,/General guidance/);assert.match(detail,/Status explanation/);assert.match(detail,/Certificates/);assert.match(detail,/2 \/ 2/);
+ assert.match(detail,/General guidance/);assert.match(detail,/Assign to/);assert.match(detail,/Certificates/);assert.match(detail,/2 \/ 2/);
 });
 
 test('resource unit labels translate known register codes and preserve other project units exactly',()=>{
@@ -302,4 +303,32 @@ test('supplied BOQ rows are visible, searchable and pageable without schedule or
  });
  assert.match(content.innerHTML,/Supplied concrete 0/);assert.match(content.innerHTML,/Manpower and duration check: Unable to assess/);
  assert.ok(content.innerHTML.indexOf('Supplied BOQ figures')<content.innerHTML.indexOf('Unable to assess'));
+});
+
+test('primary findings hide internal codes and the banner action needs no click',()=>{
+ const code=functions(['readerIssue','renderIssueAssessment','renderPositionVerdict','experienceDisclosure']);
+ const issue={kind:'data_quality',summary:'CALENDAR_CYCLE:ACTIVITY_1',detail:'CLAUSE_PARSE_FAILURE:ARTICLE_1',code:'SOURCE_QUALITY',action:'Resolve CALENDAR_CYCLE:ACTIVITY_1',owner:'Project evidence owner',moduleKeys:[]};
+ const html=runInNewContext(code+';renderIssueAssessment({issues:[issue],counts:{}})',{...common,issue,issueBadge:()=>'',names:{},issueLabel:String});
+ const main=html.replace(/<details[\s\S]*?<\/details>/g,'');assert.doesNotMatch(main,/CALENDAR_CYCLE|CLAUSE_PARSE_FAILURE|ACTIVITY_1/);assert.match(html,/CLAUSE_PARSE_FAILURE/,'technical original retained in details');
+ const banner=runInNewContext(code+';renderPositionVerdict(data)',{...common,data:{positionVerdict:{specific:true,rag:'red',label:'Action required',text:'Completion is 53 days late.',nextAction:'Review the recovery plan.',assignTo:'Project Director',owner:'Not assigned',basis:'Completion dates'}}});
+ const first=banner.split('<details')[0];assert.match(first,/Assign to:.*Project Director/);assert.match(first,/Next:.*recovery plan/);assert.doesNotMatch(banner,/assign a person/);
+});
+
+test('executive date rollup has no technical table and normalized population labels occur once',()=>{
+ const code=functions(['renderRegisterScope']);
+ const population={populationId:'P',entity:'record',name:'Risk register',denominator:0,sourceCount:3,dateBasis:'Raised date',exclusions:[{reason:'record_date_missing'}]};
+ const data={projectionKey:'master_dashboard',registerDateReview:{message:'3 registers have no usable dates. CMeng must check the reader.'},reportingContract:{populations:{one:population,two:{...population,populationId:'P2',name:' risk REGISTER '}}}};
+ const ctx={...common,data,managementModuleLink:()=>'<a>Review register dates</a>'};
+ const executive=runInNewContext(code+';renderRegisterScope(data)',ctx);assert.doesNotMatch(executive,/<table|Date used|dateBasis/);assert.match(executive,/3 registers have no usable dates/);
+ const detail=runInNewContext(code+';renderRegisterScope(data,true)',ctx);assert.equal((detail.match(/<tr><td>/g)||[]).length,1);
+});
+
+test('management context has a single owner per topic and calendar naming reaches trends',()=>{
+ const code=functions(['experienceSourceContext','experienceDisclosure','experienceValue']);
+ const data={sourceInterpretation:{productivityForecast:{completionIso:'2031-06-01'},progressMeasures:{},riskValidation:{sourceRecordCount:3,explanation:'risk explanation'},hse:{periodEndIso:'2031-04-01',metrics:{},rates:{}}}};
+ const ctx={...common,data,certificateMoney:()=>'',managementModuleLink:(_k:string,label:string)=>'<a>'+label+'</a>'};
+ const render=(key:string)=>runInNewContext(code+';experienceSourceContext(key,data)',{...ctx,key});
+ assert.doesNotMatch(render('master-dashboard'),/source-context-card|Risk register ·|Progress measures and their bases|HSE rate and exposure basis/);
+ assert.match(render('independent-forecast'),/source-context-card/);assert.match(render('command-center'),/HSE rate and exposure basis/);assert.match(render('progress-report'),/Progress measures and their bases/);
+ assert.doesNotMatch(script,/Calendar-calculated finish|Independent calendar calculation|Programme calendar calculation|own-calendar recalculation/);
 });

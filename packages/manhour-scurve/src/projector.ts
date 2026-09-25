@@ -1,3 +1,4 @@
+import { parseScheduleTime } from "../../schedule-analysis-core/src";
 import type {
   CanonicalScheduleModel,
 } from "../../schedule-analysis-core/src";
@@ -22,7 +23,7 @@ interface PhasedAssignment {
 
 function ms(value: string | null): number | null {
   if (!value) return null;
-  const parsed = Date.parse(value);
+  const parsed = parseScheduleTime(value);
   return Number.isFinite(parsed)
     ? parsed
     : null;
@@ -249,8 +250,8 @@ function actualPeriodHistory(
       }))
       .sort(
         (a, b) =>
-          Date.parse(a.periodEndIso) -
-          Date.parse(b.periodEndIso),
+          parseScheduleTime(a.periodEndIso) -
+          parseScheduleTime(b.periodEndIso),
       ),
     excludedFuturePeriodActualCount,
   };
@@ -466,15 +467,15 @@ export function buildManhourScurveProjection(
           pointMs,
         );
 
-      let actualValue =
-        periodCumulativeAt(
+      let actualValue = dataDateMs !== null && pointMs <= dataDateMs
+        ? periodCumulativeAt(
           periodHistory,
           pointMs,
-        );
+        ) : null;
 
       if (
         dataDateMs !== null &&
-        pointMs >= dataDateMs &&
+        pointMs === dataDateMs &&
         currentActualKnownCount > 0
       ) {
         actualValue =
