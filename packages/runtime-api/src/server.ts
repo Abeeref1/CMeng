@@ -100,6 +100,9 @@ const port = Number.parseInt(
   10,
 );
 const host = process.env.HOST ?? "0.0.0.0";
+// The workspace HTML is static for a release. Building the large string on every
+// GET / costs tens of milliseconds on the cold path without changing content.
+const CMENG_UAT_HTML = cmengUatHtml();
 const MAX_UPLOAD_BYTES = Number.parseInt(
   process.env.CMENG_MAX_UPLOAD_BYTES ??
     String(50 * 1024 * 1024),
@@ -2892,7 +2895,7 @@ async function route(
     html(
       res,
       200,
-      cmengUatHtml(),
+      CMENG_UAT_HTML,
     );
     return;
   }
