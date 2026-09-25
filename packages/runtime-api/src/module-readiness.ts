@@ -48,8 +48,12 @@ export function enforceModuleReadiness(
     challengeItems.length === 1 &&
     challengeItems[0]?.metric === 'module_position';
   const reconciliationRequired =
-    challengeItems.length > 0 &&
-    !advisoryDefaultChallenge;
+    Boolean(data.challenge) &&
+    !advisoryDefaultChallenge &&
+    (
+      challengeItems.length > 0 ||
+      reconciliation !== 'not_checked'
+    );
   const reconciliationReady =
     ['within_tolerance', 'not_applicable'].includes(reconciliation);
 
