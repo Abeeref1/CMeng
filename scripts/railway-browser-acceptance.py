@@ -72,7 +72,7 @@ try:
       STAGE=hashlib.sha256(project_id.encode()).hexdigest()[:12]+"/restore-project"
       page.reload(wait_until="domcontentloaded",timeout=90000)
       STAGE=hashlib.sha256(project_id.encode()).hexdigest()[:12]+"/wait-project"
-      page.wait_for_function("typeof overview!=='undefined' && overview && overview.projectId===arg",arg=project_id,timeout=90000)
+      page.wait_for_function("id => typeof overview!=='undefined' && overview && overview.projectId===id",arg=project_id,timeout=90000)
       project_result={"projectFingerprint":hashlib.sha256(project_id.encode()).hexdigest()[:16],"pages":0,"blocked":[]}
       SUMMARY["projects"].append(project_result)
 
