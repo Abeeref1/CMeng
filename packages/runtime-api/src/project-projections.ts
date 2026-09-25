@@ -1,7 +1,7 @@
 import {resolveModuleKey} from './registry';
 import {registerDateReview} from './register-date-review';
 import {deliveryFeasibilityForState} from './delivery-feasibility';
-import {suppliedBoqFigures} from './boq-source';
+import {resolveBoqSource,suppliedBoqFigures} from './boq-source';
 import {registerReadIssuesForModule} from './register-read-issues';
 import {checkPageValues} from './page-value-checks';
 import {sourceQualityPosition,withPositionVerdict} from './position-review';
@@ -6947,7 +6947,9 @@ function resolveProjectModuleCandidate(state: ProjectRuntimeState, key: string):
   }:value;
   const result = resolveProjectModuleUncertified(state, key);
   if(key==='challenge-contract'){
-    const suppliedBoq=suppliedBoqFigures(state.boq,state.quantities);
+    const scheduleRevisionId=projectControlSchedule(state)?.revision.revisionId??'';
+    const boqResolution=resolveBoqSource(state,scheduleRevisionId);
+    const suppliedBoq=suppliedBoqFigures(boqResolution.boq,boqResolution.quantities);
     result.data={...(result.data&&typeof result.data==='object'?result.data:{}),suppliedBoq};
     if(suppliedBoq.itemCount&&result.status==='blocked'){
       result.status='partial';result.engineState='ready';result.evidenceState='partial';result.professionalState='review_required';
@@ -7848,6 +7850,32 @@ export function overviewForProject(
     );
   const scheduleEstablished =
     programmeSchedules.length > 0;
+  const boqResolution =
+    resolveBoqSource(
+      state,
+      latest?.revision.revisionId ??
+        "",
+    );
+  const governedBoq =
+    boqResolution.boq;
+  const validBoqRevisionCount =
+    state.boqRevisions.filter(
+      (revision) =>
+        state.evidenceDocuments.some(
+          (document) =>
+            document.documentType ===
+              "boq" &&
+            document.linkedArtifactId ===
+              revision.ingestionId &&
+            ["active","additive","candidate"].includes(
+              document.basisState,
+            ) &&
+            documentClassificationForReview(
+              document,
+            ).documentType ===
+              "boq",
+        ),
+    ).length;
 
   return {
     projectId,
@@ -7898,7 +7926,7 @@ export function overviewForProject(
       latest?.revision.model
         .dataDateIso ?? null,
     boqState:
-      state.boq?.state ?? null,
+      governedBoq?.state ?? null,
     contractLoaded:
       state.contract !== null,
     delayClaimsLoaded:
@@ -7921,16 +7949,16 @@ export function overviewForProject(
       boq: {
         required: true,
         established:
-          state.boqRevisions.length > 0,
+          governedBoq !== null,
         revisionCount:
-          state.boqRevisions.length,
+          validBoqRevisionCount,
         currentIngestionId:
-          state.boq
+          governedBoq
             ?.ingestionId ?? null,
       },
       ready:
         scheduleEstablished &&
-        state.boqRevisions.length > 0,
+        governedBoq !== null,
     },
     optionalEvidence:
       [
