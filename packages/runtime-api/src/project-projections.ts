@@ -142,6 +142,7 @@ import type {
 } from "../../delay-analysis-core/src";
 import {
   certifyCrossModuleConsistency,
+  consistencyForModule,
 } from "./certification";
 import {
   weeklyResourceCapacityEvidence,
@@ -7126,7 +7127,7 @@ export function managementSurfacesForProject(
       status: result.status, reason: result.reason ?? null,
       calculationState: integrity?.state === "verified_for_checked_metrics" ? "checked" : integrity?.state === "failed" ? "failed" : "pending",
       evidenceState: result.evidenceState ?? "not_established", professionalState: result.professionalState ?? "review_required",
-      consistencyState: certification.state };
+      consistencyState: consistencyForModule(certification, descriptor.key).state };
   };
   const scheduleInputs = scheduleModules.map(descriptor => moduleInput(descriptor));
   const commercialInputs = commercialModules.map(descriptor => moduleInput(descriptor, true));
