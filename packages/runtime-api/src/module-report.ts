@@ -648,7 +648,10 @@ export function buildModuleJsonDownload(
             new Date()
               .toISOString(),
         },
-        result:publicModuleResult(result,pageApiKey(moduleKey)),
+        // Preserve the route key used by the page so a report is a faithful
+        // serialization of the same governed projection, not a renamed copy.
+        // pageApiKey remains report metadata only.
+        result:publicModuleResult(result,moduleKey),
       },
       null,
       2,
