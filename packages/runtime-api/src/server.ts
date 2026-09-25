@@ -2531,10 +2531,36 @@ async function route(
       });
       return;
     }
+    // The bundle is a transport convenience only. Reuse the exact first-class
+    // management page projections so bundle consumers can never observe a
+    // different governed position from the individual page endpoints.
+    const canonicalManagementPages = {
+      masterDashboard:
+        managementSurfaceForProject(
+          projectId,
+          "master-dashboard",
+        )?.data ??
+        surfaces.masterDashboard,
+      commandCenter:
+        managementSurfaceForProject(
+          projectId,
+          "command-center",
+        )?.data ??
+        surfaces.commandCenter,
+      masterControlProgramme:
+        managementSurfaceForProject(
+          projectId,
+          "master-control-programme",
+        )?.data ??
+        surfaces.masterControlProgramme,
+    };
     json(
       res,
       200,
-      surfaces,
+      {
+        ...surfaces,
+        ...canonicalManagementPages,
+      },
     );
     return;
   }
