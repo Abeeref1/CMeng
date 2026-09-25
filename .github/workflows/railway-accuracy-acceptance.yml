@@ -27,7 +27,7 @@ jobs:
           node-version: '22'
       - run: npm install --ignore-scripts --no-audit --no-fund
       - name: Verify exact release, canonical runtime, reports and source preservation
-        run: node scripts/railway-accuracy-acceptance.mjs
+        run: node scripts/railway-system-acceptance.mjs
       - name: Install isolated browser test tools
         if: always()
         run: |
@@ -41,6 +41,6 @@ jobs:
         with:
           name: cmeng-production-accuracy-${{ github.run_id }}
           path: |
-            accuracy-acceptance.json
+            system-acceptance.json
             browser-acceptance.json
           retention-days: 7
