@@ -382,13 +382,13 @@ test("restoring a stale runtime BOQ rebinds it to the governed active artifact",
     };
     await store.ingestEvidenceFile({
       ...base,
-      bytes:new TextEncoder().encode("Item,Description,Unit,Quantity,Rate,Amount\n1,Concrete,m3,10,2,20"),
+      bytes:new TextEncoder().encode("Item No,Section,Cost Code,Description,Unit,Quantity,Rate SAR,Amount SAR\n1,Civil,CIV-01,Concrete,m3,10,2,20"),
       sourceFilename:"BOQ_Rev01.csv",
       uploadIntent:"add_update",
     });
     await store.ingestEvidenceFile({
       ...base,
-      bytes:new TextEncoder().encode("Item,Description,Unit,Quantity,Rate,Amount\n1,Concrete,m3,20,2,40"),
+      bytes:new TextEncoder().encode("Item No,Section,Cost Code,Description,Unit,Quantity,Rate SAR,Amount SAR\n1,Civil,CIV-01,Concrete,m3,20,2,40"),
       sourceFilename:"BOQ_Rev02.csv",
       uploadedAt:"2026-09-18T20:01:00.000Z",
       uploadIntent:"replace_current_basis",
