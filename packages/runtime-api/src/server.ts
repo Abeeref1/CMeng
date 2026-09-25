@@ -1,6 +1,6 @@
 import {analyzeEvidenceRows} from './evidence';
 import {resolveModuleKey,publicModuleResult} from './registry';
-import {prepareRuntimePosition,COLD_DASHBOARD_TARGET_MS} from './release-latency';
+import {COLD_DASHBOARD_TARGET_MS} from './release-latency';
 import {withRequestAudit} from './audit-context';
 import {managementForecastPosition} from '../../management-surfaces/src';
 import {documentReadReview} from './document-read-review';
@@ -3182,43 +3182,20 @@ if (require.main === module) {
     const deferred=await runtimeProjects.refreshDeferredPdfReads();
     for(const projectId of deferred.changedProjects)invalidateProject(projectId);
 
-    // Bind the production port before warming dashboard caches for the whole
-    // persisted portfolio. A large real portfolio must never fail deployment
-    // simply because every project's management position is being eagerly
-    // recalculated before the health endpoint can answer.
-    const warmupProjectIds=[...runtimeProjects.listProjectIds()];
+    // Start serving immediately. Project positions are versioned and cached
+    // on first real use; do not consume the single Node process by precomputing
+    // the full retained portfolio during service startup.
+    const projectCount=runtimeProjects.listProjectIds().length;
     const server = createCmengServer();
     server.listen(port, host, () => {
       process.stdout.write(
         `CMeng runtime listening on ${host}:${port}\n`,
       );
-
-      const preparations:Array<ReturnType<typeof prepareRuntimePosition>>=[];
-      const warmNext=():void=>{
-        const projectId=warmupProjectIds.shift();
-        if(!projectId){
-          process.stdout.write(JSON.stringify({
-            event:'positions_ready',
-            coldDashboardTargetMs:COLD_DASHBOARD_TARGET_MS,
-            projectCount:preparations.length,
-            preparationMs:preparations.map(item=>item.preparationMs),
-          })+'\n');
-          return;
-        }
-        try{
-          preparations.push(prepareRuntimePosition(projectId));
-        }catch(error){
-          process.stdout.write(JSON.stringify({
-            event:'position_warmup_failed',
-            projectFingerprint:projectId.length,
-            message:error instanceof Error?error.message:String(error),
-          })+'\n');
-        }
-        // Yield between real projects so health checks and client requests are
-        // not starved by a full-portfolio synchronous warmup.
-        setTimeout(warmNext,0);
-      };
-      setTimeout(warmNext,0);
+      process.stdout.write(JSON.stringify({
+        event:'positions_lazy_ready',
+        coldDashboardTargetMs:COLD_DASHBOARD_TARGET_MS,
+        projectCount,
+      })+'\n');
     });
   })().catch((error) => {
     process.stderr.write(
