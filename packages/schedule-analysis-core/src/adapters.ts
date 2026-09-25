@@ -1,6 +1,7 @@
 import {
   parseXerDateStrict,
   verifyXerCalendars,
+  type P6CalendarDataResult,
   type XerParseResult,
   type XerRow,
 } from "../../xer-parser/src";
@@ -565,10 +566,245 @@ export function canonicalScheduleFromXer(
 
   const calendarIntegrity =
     verifyXerCalendars(result);
+  const calendarById =
+    new Map(
+      calendarIntegrity.calendars.map(
+        (calendar) => [
+          calendar.calendarId,
+          calendar,
+        ] as const,
+      ),
+    );
+  const resolvedCalendarData =
+    new Map<
+      string,
+      {
+        data: P6CalendarDataResult;
+        inheritedFrom: string[];
+      } | null
+    >();
+
+  const resolveCalendarData = (
+    calendarId: string,
+    visiting:
+      Set<string> = new Set(),
+  ): {
+    data: P6CalendarDataResult;
+    inheritedFrom: string[];
+  } | null => {
+    if (
+      resolvedCalendarData.has(
+        calendarId,
+      )
+    ) {
+      return (
+        resolvedCalendarData.get(
+          calendarId,
+        ) ?? null
+      );
+    }
+
+    if (visiting.has(calendarId)) {
+      resolvedCalendarData.set(
+        calendarId,
+        null,
+      );
+      return null;
+    }
+
+    const calendar =
+      calendarById.get(
+        calendarId,
+      );
+    if (
+      !calendar ||
+      calendar.status ===
+        "unresolved"
+    ) {
+      resolvedCalendarData.set(
+        calendarId,
+        null,
+      );
+      return null;
+    }
+
+    const own =
+      calendar.data;
+    if (
+      own?.status === "valid" &&
+      own.days.length > 0
+    ) {
+      const resolved = {
+        data: own,
+        inheritedFrom: [],
+      };
+      resolvedCalendarData.set(
+        calendarId,
+        resolved,
+      );
+      return resolved;
+    }
+
+    if (!calendar.baseCalendarId) {
+      resolvedCalendarData.set(
+        calendarId,
+        null,
+      );
+      return null;
+    }
+
+    const next =
+      new Set(visiting);
+    next.add(calendarId);
+    const parent =
+      resolveCalendarData(
+        calendar.baseCalendarId,
+        next,
+      );
+    if (!parent) {
+      resolvedCalendarData.set(
+        calendarId,
+        null,
+      );
+      return null;
+    }
+
+    // P6 base calendars provide the weekly pattern when the child does not
+    // define one. Child exceptions remain authoritative for the same date.
+    const exceptions =
+      new Map(
+        parent.data.exceptions.map(
+          (exception) => [
+            exception.isoDate,
+            exception,
+          ] as const,
+        ),
+      );
+    for (
+      const exception of
+        own?.exceptions ?? []
+    ) {
+      exceptions.set(
+        exception.isoDate,
+        exception,
+      );
+    }
+
+    const inherited: {
+      data: P6CalendarDataResult;
+      inheritedFrom: string[];
+    } = {
+      data: {
+        status: "valid",
+        root:
+          own?.root ??
+          parent.data.root,
+        days:
+          parent.data.days.map(
+            (day) => ({
+              ...day,
+              intervals:
+                day.intervals.map(
+                  (interval) => ({
+                    ...interval,
+                  }),
+                ),
+            }),
+          ),
+        exceptions: [
+          ...exceptions.values(),
+        ].sort(
+          (a, b) =>
+            a.serialDay -
+            b.serialDay,
+        ),
+        unknownTopLevelNodes: [
+          ...new Set([
+            ...parent.data
+              .unknownTopLevelNodes,
+            ...(own
+              ?.unknownTopLevelNodes ??
+              []),
+          ]),
+        ],
+        diagnostics: [
+          ...new Set([
+            ...parent.data
+              .diagnostics,
+            ...(own?.diagnostics ??
+              []),
+          ]),
+        ],
+      },
+      inheritedFrom: [
+        calendar.baseCalendarId,
+        ...parent.inheritedFrom,
+      ],
+    };
+    resolvedCalendarData.set(
+      calendarId,
+      inherited,
+    );
+    return inherited;
+  };
+
+  const calendarDiagnostics =
+    calendarIntegrity.calendars
+      .flatMap(
+        (calendar) => {
+          const resolved =
+            resolveCalendarData(
+              calendar.calendarId,
+            );
+          if (
+            calendar.status ===
+            "unresolved"
+          ) {
+            return (
+              calendar.diagnostics.length
+                ? calendar.diagnostics.map(
+                    (diagnostic) =>
+                      "CALENDAR_SEMANTICS_UNRESOLVED:" +
+                      calendar.calendarId +
+                      ":" +
+                      diagnostic,
+                  )
+                : [
+                    "CALENDAR_SEMANTICS_UNRESOLVED:" +
+                      calendar.calendarId,
+                  ]
+            );
+          }
+          if (!resolved) {
+            return [
+              "CALENDAR_WORK_PATTERN_NOT_ESTABLISHED:" +
+                calendar.calendarId,
+            ];
+          }
+          return resolved
+            .inheritedFrom.length
+            ? [
+                "CALENDAR_BASE_PATTERN_INHERITED:" +
+                  calendar.calendarId +
+                  ":" +
+                  resolved.inheritedFrom.join(
+                    ">",
+                  ),
+              ]
+            : [];
+        },
+      );
+
   const calendars: CanonicalCalendar[] =
     calendarIntegrity.calendars.map(
       (calendar) => {
-        const days = calendar.data?.days ?? [];
+        const resolved =
+          resolveCalendarData(
+            calendar.calendarId,
+          );
+        const days =
+          resolved?.data.days ??
+          [];
         const weeklyWorkMinutes = [
           1, 2, 3, 4, 5, 6, 7,
         ].map(
@@ -600,7 +836,8 @@ export function canonicalScheduleFromXer(
           name: calendar.name,
           semanticComplete:
             calendar.status === "verified" &&
-            calendar.data?.status === "valid" &&
+            resolved !== null &&
+            resolved.data.status === "valid" &&
             days.length > 0,
           weeklyWorkMinutes,
           weeklyWorkIntervals:
@@ -615,7 +852,7 @@ export function canonicalScheduleFromXer(
               ),
             })),
           exceptions:
-            calendar.data?.exceptions.map(
+            resolved?.data.exceptions.map(
               (exception) => ({
                 isoDate: exception.isoDate,
                 nonWorking:
@@ -647,6 +884,17 @@ export function canonicalScheduleFromXer(
               "CALENDAR:" +
                 calendar.calendarId,
             ),
+            ...(
+              resolved?.inheritedFrom ??
+              []
+            ).map(
+              (baseId) =>
+                sourceRef(
+                  "xer",
+                  "CALENDAR:" +
+                    baseId,
+                ),
+            ),
           ],
         };
       },
@@ -668,12 +916,15 @@ export function canonicalScheduleFromXer(
     relationships,
     wbs,
     calendars,
-    diagnostics: result.diagnostics.map(
-      (diagnostic) =>
-        diagnostic.code +
-        ":" +
-        diagnostic.message,
-    ),
+    diagnostics: [
+      ...result.diagnostics.map(
+        (diagnostic) =>
+          diagnostic.code +
+          ":" +
+          diagnostic.message,
+      ),
+      ...calendarDiagnostics,
+    ],
   };
 }
 

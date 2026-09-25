@@ -477,7 +477,13 @@ test("readiness never promotes an unchecked or inconsistent producer", () => {
     assert.equal(result.masterControlProgramme.specialistPositions[0]!.status, "partial", gate);
   }
   const source = input(); source.consistency!.state = "fail";
-  assert.equal(buildManagementSurfaces(source).masterDashboard.readiness.ready, 0);
+  const globalOnly = buildManagementSurfaces(source);
+  assert.equal(
+    globalOnly.masterDashboard.readiness.ready,
+    1,
+    "A project-wide issue remains visible but must not automatically downgrade an unaffected specialist view.",
+  );
+  assert.equal(globalOnly.masterDashboard.consistency.state, "fail");
 });
 
 test("management date ladder and gap categories propagate from shared evidence without invented health", () => {

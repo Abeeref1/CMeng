@@ -1,12 +1,14 @@
 import { summarizeControlIssues, type ControlIssue, type ControlIssueKind } from '../../truth-kernel/src';
 import type { ModuleRuntimeResult } from './project-state-types';
 import type { CrossModuleCertification } from './certification';
+import {consistencyForModule} from './certification';
 
 type Consistency = Pick<CrossModuleCertification,'state'|'failedCheckIds'|'checkCount'> & Partial<Pick<CrossModuleCertification,'checks'>>;
 
 /** Classification uses evidence states and failed checks, never a project name,
  * desired result, record count or traffic-light colour. */
 export function assessModuleIssues(result: ModuleRuntimeResult, consistency: Consistency) {
+  const scopedConsistency=consistencyForModule(consistency,result.key);
   const d=result.data as any, issues:ControlIssue[]=[];
   const variationGroups=d?.position?.variationBasisReview?.groups??[];
   const variationConflictCode='DATED_VARIATION_LEDGER_VS_SOURCE_AGGREGATE_CONFLICT';
@@ -29,13 +31,15 @@ export function assessModuleIssues(result: ModuleRuntimeResult, consistency: Con
       'No completed calculation certification is established for this module. This is a verification gap, not proof that the answer is wrong.',
       'CMeng must complete the relevant calculation checks; do not relabel this as missing contractor data.','systemEvidenceContract','CMeng');
   }
-  if(consistency.state==='fail') {
-    const failures=consistency.checks?.filter(c=>c.state==='fail');
+  if(scopedConsistency.state==='fail') {
+    const failures=scopedConsistency.checks?.filter(c=>c.state==='fail');
     add('system_defect','CROSS_MODULE_CONTRADICTION','CMeng consistency check failed',
-      failures?.map(c=>c.checkId+': '+c.detail).join('; ')||consistency.failedCheckIds.join(', '),
-      'Reconcile the failed same-basis values or reporting contracts in the shared producers.','crossModuleConsistency','CMeng',[],consistency.failedCheckIds);
+      failures?.map(c=>c.checkId+': '+c.detail).join('; ')||scopedConsistency.failedCheckIds.join(', '),
+      'Reconcile the failed same-basis values or reporting contracts in the shared producers.','crossModuleConsistency','CMeng',[],scopedConsistency.failedCheckIds);
   }
-  const reconciliation=d?.challenge?.reconciliationState;
+  const challengeItems=Array.isArray(d?.challenge?.items)?d.challenge.items:[];
+  const advisoryDefaultChallenge=challengeItems.length===1&&challengeItems[0]?.metric==='module_position';
+  const reconciliation=advisoryDefaultChallenge?null:d?.challenge?.reconciliationState;
   if(reconciliation==='material_difference') add('comparison_difference','SUBMITTED_INDEPENDENT_DIFFERENCE','Submitted and independent positions differ',
     'The two authorities produce different positions. A difference alone is not a system contradiction or proven source error.',
     'Compare the submitted and independent dates, work covered, calendars and assumptions; record the explanation before adoption.','challenge','Project controls reviewer');
@@ -49,7 +53,7 @@ export function assessModuleIssues(result: ModuleRuntimeResult, consistency: Con
   if(noticeInputsMissing)add('missing_information','NOTICE_TRIGGER_DATES_MISSING','Event dates are needed for notice assessment',
     d.noticeEventDateMissingCount+' events have no event/awareness date. Population, claimed-day retention and assessable timing arithmetic have passed the listed checks.',
     'Supply the dated event/awareness evidence and dated claim assessments, then assess each applicable contract rule.','events.eventStartIso');
-  const unavailableItems=(d?.challenge?.items??[]).filter((i:any)=>i.reconciliationState==='independent_unavailable');
+  const unavailableItems=advisoryDefaultChallenge?[]:challengeItems.filter((i:any)=>i.reconciliationState==='independent_unavailable');
   const classifiedUnavailable=unavailableItems.filter((i:any)=>i.independent?.diagnostics?.some((s:string)=>s.startsWith('COMPARISON_INPUT_REQUIRED:')||s==='SOURCE_AUTHORITY_ONLY'));
   for(const item of classifiedUnavailable){
     const sourceOnly=item.independent.diagnostics.includes('SOURCE_AUTHORITY_ONLY');

@@ -142,6 +142,7 @@ import type {
 } from "../../delay-analysis-core/src";
 import {
   certifyCrossModuleConsistency,
+  consistencyForModule,
 } from "./certification";
 import {
   weeklyResourceCapacityEvidence,
@@ -4109,7 +4110,15 @@ function buildPlanningModuleFast(
         },
         [],
         "partial",
-        "The watchlist uses submitted programme float. Independent CPM criticality is calculated separately and is not presented as established here.",
+        independentForecast.complete
+          ? "The watchlist uses submitted programme float. Independent CPM criticality is calculated separately and remains a separate authority."
+          : "The watchlist uses submitted programme float. " +
+            (
+              independentForecastReviewReason(
+                independentForecast,
+              ) ??
+              "Independent CPM criticality is not established."
+            ),
       ),
     );
   } else if (
@@ -4962,6 +4971,44 @@ function independentForecastReviewReason(
   >,
 ): string | null {
   if (!forecast.complete) {
+    const missingPatterns =
+      forecast.diagnostics.filter(
+        (diagnostic) =>
+          diagnostic.startsWith(
+            "CALENDAR_WORK_PATTERN_NOT_ESTABLISHED:",
+          ),
+      );
+    const unresolvedSemantics =
+      forecast.diagnostics.filter(
+        (diagnostic) =>
+          diagnostic.startsWith(
+            "CALENDAR_SEMANTICS_UNRESOLVED:",
+          ),
+      );
+    if (missingPatterns.length > 0) {
+      return (
+        String(
+          forecast.unresolvedActivityCount,
+        ) +
+        " execution activities cannot be recalculated because " +
+        String(
+          missingPatterns.length,
+        ) +
+        " referenced P6 calendar record(s) do not establish a usable working-time pattern. CMeng does not assume a fallback calendar."
+      );
+    }
+    if (unresolvedSemantics.length > 0) {
+      return (
+        String(
+          forecast.unresolvedActivityCount,
+        ) +
+        " execution activities cannot be recalculated because " +
+        String(
+          unresolvedSemantics.length,
+        ) +
+        " referenced P6 calendar record(s) have unresolved source semantics. CMeng keeps the forecast unavailable rather than replacing them with assumed working time."
+      );
+    }
     return "Independent forecast requires review because one or more CPM inputs are unresolved.";
   }
   if(forecast.assumptions.some(a=>a.startsWith('SOURCE_CONSTRAINTS_RETAINED_NOT_APPLIED'))){
@@ -6997,13 +7044,22 @@ const resolvedProjectCache = new Map<string, {version: number; modules: Map<stri
 function resolveProjectModule(state: ProjectRuntimeState, key: string): ModuleRuntimeResult {
   const cached = resolvedProjectCache.get(state.projectId);
   if (cached?.version === state.version) return cached.modules.get(key) ?? blocked(key, "Unknown module.", []);
+  const profiling=process.env.CMENG_PROFILE_PERF?.trim()==='1';
+  const p0=profiling?performance.now():0;
   const scoped = reportingState(state);
+  const p1=profiling?performance.now():0;
   const bundle = buildBundle(scoped);
+  const p2=profiling?performance.now():0;
   const candidates = new Map([...scheduleModules, ...commercialModules].map(descriptor =>
     [descriptor.key, resolveProjectModuleCandidate(scoped, descriptor.key)]));
+  const p3=profiling?performance.now():0;
   const consistency = certifyCrossModuleConsistency({generatedAt: bundle.generatedAt, state: scoped,
     modules: candidates, director: bundle.director, boardReport: bundle.boardReport});
+  const p4=profiling?performance.now():0;
   const modules = new Map([...candidates].map(([key, result]) => [key, enforceModuleReadiness(result, consistency)]));
+  const p5=profiling?performance.now():0;
+  if(profiling)process.stdout.write(JSON.stringify({event:'project_resolution_profile',projectId:state.projectId,
+    reportingStateMs:p1-p0,bundleMs:p2-p1,candidatesMs:p3-p2,certificationMs:p4-p3,readinessMs:p5-p4,totalMs:p5-p0})+'\n');
   resolvedProjectCache.set(state.projectId, {version: state.version, modules});
   return modules.get(key) ?? blocked(key, "Unknown module.", []);
 }
@@ -7126,7 +7182,7 @@ export function managementSurfacesForProject(
       status: result.status, reason: result.reason ?? null,
       calculationState: integrity?.state === "verified_for_checked_metrics" ? "checked" : integrity?.state === "failed" ? "failed" : "pending",
       evidenceState: result.evidenceState ?? "not_established", professionalState: result.professionalState ?? "review_required",
-      consistencyState: certification.state };
+      consistencyState: consistencyForModule(certification, descriptor.key).state };
   };
   const scheduleInputs = scheduleModules.map(descriptor => moduleInput(descriptor));
   const commercialInputs = commercialModules.map(descriptor => moduleInput(descriptor, true));

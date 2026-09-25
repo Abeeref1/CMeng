@@ -1,6 +1,6 @@
 import {readableXlsx} from '../../shared/src/xlsx';
 import ExcelJS from 'exceljs';
-import {canonicalHeader,prepareRegisterRows} from '../../truth-kernel/src';
+import {canonicalHeader,isRegisterDateHeader,prepareRegisterRows} from '../../truth-kernel/src';
 import type {StoredEvidenceDocument} from './project-state-types';
 
 export async function readRegisterWorkbook(bytes:Uint8Array,sourceHashSha256:string,documentType:string):Promise<NonNullable<StoredEvidenceDocument['tabularRead']>> {

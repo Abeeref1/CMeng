@@ -508,19 +508,20 @@ test("ZIP evidence pack routes schedules, BOQ CSV and other project evidence wit
       };
     assert.equal(
       overview.baselineRevisionCount,
-      0,
+      1,
     );
     assert.equal(
       overview.updateRevisionCount,
-      4,
+      2,
     );
     assert.equal(
       overview.recoveryRevisionCount,
-      0,
+      1,
     );
     assert.match(
       overview.latestDataDateIso ?? "",
-      /^2027-02-28/,
+      /^2026-11-30/,
+      "Recovery remains a scenario and must not silently become the current programme.",
     );
     assert.equal(
       overview.boqState,

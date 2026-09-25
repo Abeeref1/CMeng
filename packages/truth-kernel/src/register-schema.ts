@@ -22,7 +22,7 @@ const groups:Record<string,string[]>={
   'period end':['period ending','period end date','نهاية الفترة'],
   'certificate date':['date of certification','certification date','تاريخ الاعتماد'],
   'payment date':['date paid','paid date','تاريخ الدفع'],
-  'raised date':['date raised','date opened','opened date','تاريخ الفتح'],
+  'raised date':['raised','date raised','date opened','opened date','تاريخ الفتح'],
   'identified date':['date identified','risk identified date','risk date','تاريخ تحديد الخطر'],
   'status as of':['status date','status as of date','تاريخ الحالة'],
   'due date':['date due','target date','required response','response due','reply due date','تاريخ الاستحقاق'],
@@ -37,6 +37,16 @@ const groups:Record<string,string[]>={
   'lost time injuries':['lti','lost time injury count','إصابات الوقت الضائع'],
   'medical treatment cases':['mtc'], 'first aid cases':['fac'], 'near misses':['near miss count'],
   'report date':['reporting date','as of date','تاريخ التقرير'],
+  'forecast delivery':['forecast delivery date','forecast delivery','expected delivery','expected delivery date','forecast on site'],
+  'planned issue':['planned issue date','planned submission','planned submission date'],
+  'actual issue':['actual issue date','actual submission','actual submission date'],
+  'planned date':['planned test date','target test date'],
+  'actual date':['actual test date','completed date'],
+  'week start':['week commencing','week beginning','week start date'],
+  'submitted date':['date submitted','submission date'],
+  'assessment date':['date assessed','assessed date'],
+  'closed date':['date closed','closure date'],
+  'effective date':['date effective','effective from','effective from date'],
 };
 const aliases=new Map(Object.entries(groups).flatMap(([key,values])=>[key,...values].map(value=>[normalizeHeader(value),key] as const)));
 export function canonicalHeader(value:string,documentType=''):string {
@@ -55,8 +65,31 @@ export function canonicalHeader(value:string,documentType=''):string {
   }
   return key;
 }
-const fields=new Set([...Object.keys(groups),'amount','value','unit','metric','as of','probability','impact','rating','owner','title','event','responsibility','assessment date','notice id','approved amount','submitted amount','payment type','type','bond type','issuer','beneficiary','actual delivery','required on site','supplier','trir','ltifr','reporting month','tax basis','vat basis',
-  'calculated critical impact days','concurrency days','mitigation days','net assessed impact days','assessed days','employer delay days','contractor delay days','analysis status','approved']);
+const fields=new Set([...Object.keys(groups),
+  'amount','value','unit','metric','as of','probability','impact','rating','owner','title','event','responsibility','notice id',
+  'approved amount','submitted amount','payment type','type','bond type','issuer','beneficiary','actual delivery','required on site','supplier',
+  'trir','ltifr','reporting month','tax basis','vat basis',
+  'calculated critical impact days','concurrency days','mitigation days','net assessed impact days','assessed days','employer delay days','contractor delay days','analysis status','approved',
+  // Project-control register schemas. Recognition means the columns were read;
+  // it does not establish lifecycle completeness, mapping or authority.
+  'wbs id','wbs code','wbs name','level','parent wbs id',
+  'resource id','resource uid','resource name','class','trade','trade discipline','utilization applicable','available units',
+  'hours per unit per week','base weekly capacity','available capacity','planned demand','actual approved usage','forecast demand',
+  'planned utilization','actual utilization','planned overallocated','actual overallocated','assignment id','planned quantity','actual quantity','remaining forecast quantity',
+  'deliverable id','discipline','revision',
+  'asset id','system','tag installed','commissioned','o m manual','warranty',
+  'test id','test','authority witness',
+  'work package','work package id','remaining quantity','recent achieved rate day','conservative achievable rate day','independent forecast finish'
+]);
+const registerDateHeaders=new Set([
+  'notice date','event start','period end','certificate date','payment date','raised date','identified date','status as of','due date',
+  'expiry date','approval date','determination date','incident date','report date','required on site','forecast delivery','actual delivery',
+  'planned issue','actual issue','planned date','actual date','week start','as of','submitted date','assessment date','closed date','effective date',
+]);
+export function isRegisterDateHeader(value:string):boolean {
+  return registerDateHeaders.has(canonicalHeader(value));
+}
+
 export function registerDate(value:string):string|null {
   const text=value.trim().replace(/[٠-٩]/g,d=>String(d.charCodeAt(0)-0x660));
   const iso=/^(\d{4})-(\d{2})-(\d{2})(?:[T ].*)?$/.exec(text);
@@ -75,7 +108,7 @@ export function prepareRegisterRows(input:readonly string[][],documentType='') {
   const unknown=rawHeaders.filter((h,i)=>!fields.has(headers[i]!)&&!fields.has(headers[i]!.replace(/ [a-z]{3}$/,'')));
   const rows=input.slice(headerIndex+1).filter(r=>r.some(v=>v.trim())).map(row=>row.map((raw,i)=>{
     const header=headers[i]??'';
-    return /(?:date|period end|as of|event start|event end|week start|raised|closed)$/.test(header)?registerDate(raw)??raw:raw;
+    return isRegisterDateHeader(header)?registerDate(raw)??raw:raw;
   }));
   const required=/claim/.test(documentType)?['claim id']:/variation/.test(documentType)?['variation id']:/payment_cert/.test(documentType)?['certificate no','net certified']:/rfi/.test(documentType)?['rfi id']:/ncr/.test(documentType)?['ncr id']:/risk_register/.test(documentType)?['risk id']:/bond|security_register/.test(documentType)?['bond id']:[];
   const recognized=best>=2&&required.every(key=>headers.includes(key));

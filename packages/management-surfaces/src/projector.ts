@@ -872,10 +872,30 @@ export function buildManagementSurfaces(
   const consistency = input.consistency ?? { state: "pending" as const, checkCount: 0, failedCheckIds: [],
     scope: "Cross-module values, populations, Data Date, authority, configuration and version have not been checked." };
   const modules = input.modules.map(item => {
-    const validated = item.calculationState === "checked" && item.consistencyState === "pass" &&
-      item.evidenceState === "established" && item.professionalState === "defensible" && consistency.state === "pass";
-    return { ...item, status: item.status === "blocked" ? "blocked" as const : item.status === "ready" && validated ? "ready" as const : "partial" as const,
-      reason: item.reason ?? (validated ? null : "Calculation, evidence and consistency must all be checked before management readiness is established.") };
+    // Specialist readiness is module-scoped. The overall project consistency
+    // state remains visible on the management surface, but a failure owned by
+    // another module must not turn every specialist position partial.
+    const validated =
+      item.calculationState === "checked" &&
+      item.consistencyState === "pass" &&
+      item.evidenceState === "established" &&
+      item.professionalState === "defensible";
+    return {
+      ...item,
+      status:
+        item.status === "blocked"
+          ? "blocked" as const
+          : item.status === "ready" && validated
+            ? "ready" as const
+            : "partial" as const,
+      reason:
+        item.reason ??
+        (
+          validated
+            ? null
+            : "This specialist view still has a calculation, evidence, professional-review or affected-consistency requirement."
+        ),
+    };
   });
   const evidenceCoverage = input.evidenceGaps.filter(item => item.key !== "board-publication");
   const evidenceGaps = evidenceCoverage.filter(item => item.state !== "established");

@@ -302,6 +302,8 @@ export function evidenceFamily(
       "wbs_dictionary",
       "obs_responsibility_matrix",
       "project_data_book",
+      "productivity_work_package_register",
+      "productivity_forecast_basis",
       "hse_report",
     ]);
 

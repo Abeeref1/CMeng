@@ -501,6 +501,326 @@ function legacyIdentification(
   };
 }
 
+function scheduleDocumentTypeForRole(
+  role: StoredScheduleRevision["role"],
+): string {
+  return role === "baseline"
+    ? "schedule_baseline"
+    : role === "revised_baseline"
+      ? "schedule_revised_baseline"
+      : role === "recovery"
+        ? "schedule_recovery"
+        : "schedule_update";
+}
+
+function migrateStrongScheduleRoles(
+  state: ProjectRuntimeState,
+  affectedFamilies: Set<string>,
+): boolean {
+  let changed = false;
+
+  for (const schedule of state.schedules) {
+    if (
+      schedule.role !== "update" &&
+      schedule.role !== "other"
+    ) {
+      continue;
+    }
+
+    const inferred =
+      inferScheduleRole(
+        schedule.sourceFilename ?? "",
+        null,
+      );
+
+    if (
+      inferred !== "baseline" &&
+      inferred !== "revised_baseline" &&
+      inferred !== "recovery"
+    ) {
+      continue;
+    }
+
+    schedule.role = inferred;
+    changed = true;
+
+    const document =
+      state.evidenceDocuments.find(
+        (item) =>
+          item.linkedArtifactId ===
+          schedule.revision.revisionId,
+      );
+    if (!document) continue;
+
+    affectedFamilies.add(
+      document.familyKey,
+    );
+
+    document.scheduleRole =
+      inferred;
+    document.documentType =
+      scheduleDocumentTypeForRole(
+        inferred,
+      );
+
+    const family =
+      evidenceFamily({
+        category: "schedule",
+        documentType:
+          document.documentType,
+        scheduleRole: inferred,
+        textSample:
+          document.assertions
+            .map(
+              (assertion) =>
+                assertion.sourceText,
+            )
+            .join("\n"),
+        sourceFilename:
+          document.sourceFilename,
+      });
+
+    document.familyKey =
+      family.familyKey;
+    document.logicalDocumentKey =
+      family.logicalDocumentKey;
+    document.identification = {
+      ...document.identification,
+      detectedCategory:
+        "schedule",
+      detectedDocumentType:
+        document.documentType,
+      filenameHintCategory:
+        "schedule",
+      filenameHintDocumentType:
+        document.documentType,
+      classificationConflict:
+        false,
+    };
+    document.diagnostics = [
+      ...new Set([
+        ...document.diagnostics,
+        "SCHEDULE_ROLE_STRONG_SOURCE_MIGRATION_V6",
+      ]),
+    ];
+    affectedFamilies.add(
+      family.familyKey,
+    );
+  }
+
+  return changed;
+}
+
+function synchronizeActiveBoq(
+  state: ProjectRuntimeState,
+): boolean {
+  const activeArtifactId =
+    state.activeEvidenceBasis[
+      "boq:quantity"
+    ]?.activeArtifactId ??
+    null;
+
+  if (!activeArtifactId) {
+    return false;
+  }
+
+  const active =
+    state.boqRevisions.find(
+      (item) =>
+        item.ingestionId ===
+        activeArtifactId,
+    ) ??
+    null;
+
+  if (
+    !active ||
+    state.boq?.ingestionId ===
+      activeArtifactId
+  ) {
+    return false;
+  }
+
+  state.boq = active;
+  const latestProgramme =
+    state.schedules
+      .filter(
+        isProgrammeScheduleRevision,
+      )
+      .slice()
+      .sort(
+        (a, b) =>
+          (
+            a.revision.model
+              .dataDateIso ??
+            a.revision.effectiveAt ??
+            ""
+          ).localeCompare(
+            b.revision.model
+              .dataDateIso ??
+            b.revision.effectiveAt ??
+            "",
+          ),
+      )
+      .at(-1) ??
+    null;
+
+  state.quantities =
+    quantityModelFromBoq(
+      active,
+      latestProgramme
+        ?.revision.revisionId ??
+        "",
+      state.quantities,
+    );
+
+  return true;
+}
+
+function migrateProductivityEvidenceGovernance(
+  state: ProjectRuntimeState,
+): boolean {
+  const productivityTypes =
+    new Set([
+      "productivity_work_package_register",
+      "productivity_forecast_basis",
+    ]);
+  const affectedFamilies =
+    new Set<string>();
+  let changed = false;
+
+  for (const document of state.evidenceDocuments) {
+    const sourcePath =
+      document.sourceRelativePath ??
+      document.sourceFilename;
+    const inferredType =
+      inferDocumentType(
+        sourcePath,
+        null,
+      );
+    const documentType =
+      productivityTypes.has(
+        document.documentType,
+      )
+        ? document.documentType
+        : productivityTypes.has(
+              inferredType,
+            )
+          ? inferredType
+          : null;
+
+    if (!documentType) {
+      continue;
+    }
+
+    affectedFamilies.add(
+      document.familyKey,
+    );
+
+    const family =
+      evidenceFamily({
+        category:
+          "schedule_control",
+        documentType,
+        scheduleRole: null,
+        textSample:
+          document.assertions
+            .map(
+              (assertion) =>
+                assertion.sourceText,
+            )
+            .join("\n"),
+        sourceFilename:
+          document.sourceFilename,
+      });
+
+    const metadataChanged =
+      document.category !==
+        "schedule_control" ||
+      document.documentType !==
+        documentType ||
+      document.familyKey !==
+        family.familyKey ||
+      document.logicalDocumentKey !==
+        family.logicalDocumentKey ||
+      document.scheduleRole !==
+        null;
+
+    if (metadataChanged) {
+      document.category =
+        "schedule_control";
+      document.documentType =
+        documentType;
+      document.familyKey =
+        family.familyKey;
+      document.logicalDocumentKey =
+        family.logicalDocumentKey;
+      document.scheduleRole =
+        null;
+      document.identification = {
+        ...document.identification,
+        detectedCategory:
+          "schedule_control",
+        detectedDocumentType:
+          documentType,
+        filenameHintCategory:
+          "schedule_control",
+        filenameHintDocumentType:
+          documentType,
+        classificationConflict:
+          false,
+      };
+      changed = true;
+    }
+
+    if (
+      document.basisState ===
+        "historical"
+    ) {
+      changed = true;
+    }
+
+    if (
+      !document.diagnostics.includes(
+        "PRODUCTIVITY_SOURCE_GOVERNANCE_MIGRATION_V7",
+      )
+    ) {
+      document.diagnostics.push(
+        "PRODUCTIVITY_SOURCE_GOVERNANCE_MIGRATION_V7",
+      );
+      changed = true;
+    }
+
+    affectedFamilies.add(
+      family.familyKey,
+    );
+  }
+
+  if (!changed) {
+    return false;
+  }
+
+  for (const familyKey of affectedFamilies) {
+    if (
+      state.evidenceDocuments.some(
+        (document) =>
+          document.familyKey ===
+          familyKey,
+      )
+    ) {
+      rebuildEvidenceFamily(
+        state,
+        familyKey,
+      );
+    } else {
+      delete state.activeEvidenceBasis[
+        familyKey
+      ];
+    }
+  }
+
+  return true;
+}
+
 function hydrateProject(
   state: SerializedProjectState,
 ): ProjectRuntimeState {
@@ -1043,9 +1363,15 @@ export class RuntimeProjectStore {
           );
         const migrated = migrateTypedEvidenceFamilies(state, applyEvidenceBasis);
         let controlBasisMigrated = false;
+        const priorSourceIntegrationVersion =
+          state.sourceIntegrationVersion;
         const requiresV5GovernanceMigration =
-          state.sourceIntegrationVersion !==
-          "canonical-source-v5";
+          priorSourceIntegrationVersion !==
+            "canonical-source-v5" &&
+          priorSourceIntegrationVersion !==
+            "canonical-source-v6" &&
+          priorSourceIntegrationVersion !==
+            "canonical-source-v7";
 
         if (requiresV5GovernanceMigration) {
           const controlFamily =
@@ -1176,13 +1502,59 @@ export class RuntimeProjectStore {
           }
         }
 
+        const requiresV6RoleAndBasisMigration =
+          priorSourceIntegrationVersion !==
+            "canonical-source-v6" &&
+          priorSourceIntegrationVersion !==
+            "canonical-source-v7";
+        const roleFamilies =
+          new Set<string>();
+        const scheduleRoleMigrated =
+          requiresV6RoleAndBasisMigration
+            ? migrateStrongScheduleRoles(
+                state,
+                roleFamilies,
+              )
+            : false;
+
+        if (scheduleRoleMigrated) {
+          for (const familyKey of roleFamilies) {
+            rebuildEvidenceFamily(
+              state,
+              familyKey,
+            );
+          }
+        }
+
+        const activeBoqMigrated =
+          requiresV6RoleAndBasisMigration
+            ? synchronizeActiveBoq(
+                state,
+              )
+            : false;
+
+        const requiresV7ProductivityGovernance =
+          priorSourceIntegrationVersion !==
+          "canonical-source-v7";
+        const productivityGovernanceMigrated =
+          requiresV7ProductivityGovernance
+            ? migrateProductivityEvidenceGovernance(
+                state,
+              )
+            : false;
+
         if (
           migrated ||
           controlBasisMigrated ||
-          requiresV5GovernanceMigration
+          scheduleRoleMigrated ||
+          activeBoqMigrated ||
+          productivityGovernanceMigrated ||
+          requiresV5GovernanceMigration ||
+          requiresV6RoleAndBasisMigration ||
+          requiresV7ProductivityGovernance
         ) {
           state.sourceIntegrationVersion =
-            "canonical-source-v5";
+            "canonical-source-v7";
           state.version += 1;
           this.staleFinalizedBoardPublications(state);
           state.lastRerunReceipt = null;

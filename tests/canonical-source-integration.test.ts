@@ -403,7 +403,7 @@ test('legacy SCH01 misclassified before schedule-control rules is recovered from
 
   const restored=new RuntimeProjectStore({dataDir:dir,durable:false}).get('CANONICAL')!;
   const restoredDoc=restored.evidenceDocuments.find(d=>d.documentId===doc.documentId)!;
-  assert.equal(restored.sourceIntegrationVersion,'canonical-source-v5');
+  assert.equal(restored.sourceIntegrationVersion,'canonical-source-v7');
   assert.equal(restoredDoc.category,'schedule_control');
   assert.equal(restoredDoc.documentType,'schedule_control_basis');
   assert.equal(restoredDoc.familyKey,'schedule_control:schedule_control_basis');
@@ -865,7 +865,7 @@ test('legacy SCH01 reference state migrates once to governed active basis withou
 
   const restored=new RuntimeProjectStore({dataDir:dir,durable:false}).get('CANONICAL')!;
   const restoredDoc=restored.evidenceDocuments.find(d=>d.documentId===doc.documentId)!;
-  assert.equal(restored.sourceIntegrationVersion,'canonical-source-v5');
+  assert.equal(restored.sourceIntegrationVersion,'canonical-source-v7');
   assert.equal(restoredDoc.basisState,'active');
   assert.equal(restoredDoc.sourceHashSha256,hash);
   assert.equal(restored.activeEvidenceBasis['schedule_control:schedule_control_basis']?.activeDocumentId,doc.documentId);
