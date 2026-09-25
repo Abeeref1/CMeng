@@ -993,18 +993,16 @@ export function buildWindowsAnalysisProjection(
                 ),
             ).toFixed(6),
           ),
-    // Legacy fields retain their documented analytical semantics.
-    // Net completion movement is published separately as projectCompletionMovementDays
-    // and on every window as netCompletionMovementDays.
     positiveProgrammeMovementDays:
       Number(
         windows
           .reduce(
             (sum, window) =>
               sum +
-              (
-                window.grossAnalyticalPositiveMovementDays ??
-                0
+              Math.max(
+                0,
+                window.netCompletionMovementDays ??
+                  0,
               ),
             0,
           )
@@ -1016,9 +1014,10 @@ export function buildWindowsAnalysisProjection(
           .reduce(
             (sum, window) =>
               sum +
-              (
-                window.analyticalRecoveryMovementDays ??
-                0
+              Math.min(
+                0,
+                window.netCompletionMovementDays ??
+                  0,
               ),
             0,
           )
