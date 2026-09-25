@@ -4122,14 +4122,17 @@ function positionText(p){
 }
 function projectCard(p){
   const [positionClass,positionLabel]=positionText(p);
-  const forecast=p.forecastCompletionIso?planningShortDate(p.forecastCompletionIso):"Unresolved";
+  const metadataOnly=p.summaryMode==="metadata_only";
+  const forecast=p.forecastCompletionIso?planningShortDate(p.forecastCompletionIso):(metadataOnly?"Open project":"Unresolved");
   const official=p.officialCompletionIso?planningShortDate(p.officialCompletionIso):"Unresolved";
-  const movement=p.programmeMovementDays===null||p.programmeMovementDays===undefined?"Unresolved":fmt(p.programmeMovementDays)+" days";
-  const claims=p.claimCount===null||p.claimCount===undefined?"Unresolved":fmt(p.claimCount)+" claim"+(p.claimCount===1?"":"s");
-  const eot=p.approvedEotDays===null||p.approvedEotDays===undefined?"Source-approved EOT not confirmed":fmt(p.approvedEotDays)+" gross source-approved days through DD; further adjustment not inferred";
-  const forecastLabel=p.forecastLabel||"Productivity forecast";
-  const contractLabel=p.officialCompletionIso?(p.contractualCompletionState==="established"?"Official contract: ":"Contract source / review: ")+official:"Contract completion unresolved";
-  const adjustmentLabel=p.furtherAdjustedCompletionIso?"Further adjusted: "+planningShortDate(p.furtherAdjustedCompletionIso):"Further adjustment not confirmed";
+  const movement=p.programmeMovementDays===null||p.programmeMovementDays===undefined?(metadataOnly?"Open project":"Unresolved"):fmt(p.programmeMovementDays)+" days";
+  const claims=p.claimCount===null||p.claimCount===undefined?(metadataOnly?"Open project":"Unresolved"):fmt(p.claimCount)+" claim"+(p.claimCount===1?"":"s");
+  const eot=p.approvedEotDays===null||p.approvedEotDays===undefined
+    ?(metadataOnly?"Open project for current EOT assessment":"Source-approved EOT not confirmed")
+    :fmt(p.approvedEotDays)+" gross source-approved days through DD; open project for integrated assessment";
+  const forecastLabel=p.forecastLabel||"Current forecast";
+  const contractLabel=p.officialCompletionIso?(p.contractualCompletionState==="official"||p.contractualCompletionState==="established"?"Contract basis: ":"Contract source / review: ")+official:"Contract completion unresolved";
+  const adjustmentLabel=metadataOnly?"Open project for further adjusted completion":p.furtherAdjustedCompletionIso?"Further adjusted: "+planningShortDate(p.furtherAdjustedCompletionIso):"Further adjustment not confirmed";
   const managementCount=p.managementActionCount===null||p.managementActionCount===undefined?null:p.managementActionCount;
   const attention=(p.managementActions||[])[0]||(
     p.positionState==="needs_information"
@@ -4147,7 +4150,7 @@ function projectCard(p){
       '<div class="portfolio-project-metric"><span>'+escapeHtml(forecastLabel)+'</span><strong>'+escapeHtml(forecast)+'</strong><small>'+escapeHtml(contractLabel)+'</small><small>'+escapeHtml(adjustmentLabel)+'</small></div>'+
       '<div class="portfolio-project-metric"><span>Project completion movement</span><strong>'+escapeHtml(movement)+'</strong><small>Net first-to-latest controlled completion movement</small></div>'+
       '<div class="portfolio-project-metric"><span>Claims / EOT</span><strong>'+escapeHtml(claims)+'</strong><small>'+escapeHtml(eot)+'</small></div>'+
-      '<div class="portfolio-project-metric"><span>Management</span><strong>'+escapeHtml(managementCount===null?"Unresolved":fmt(managementCount)+" action"+(managementCount===1?"":"s"))+'</strong><small>'+escapeHtml(p.commercialCurrencyCount?fmt(p.commercialCurrencyCount)+" commercial currenc"+(p.commercialCurrencyCount===1?"y":"ies"):"No commercial position")+'</small></div>'+
+      '<div class="portfolio-project-metric"><span>Management</span><strong>'+escapeHtml(managementCount===null?(metadataOnly?"Open project":"Unresolved"):fmt(managementCount)+" action"+(managementCount===1?"":"s"))+'</strong><small>'+escapeHtml(p.commercialCurrencyCount===null||p.commercialCurrencyCount===undefined?(metadataOnly?"Open project for commercial position":"Commercial position unresolved"):p.commercialCurrencyCount?fmt(p.commercialCurrencyCount)+" commercial currenc"+(p.commercialCurrencyCount===1?"y":"ies"):"No commercial currencies established")+'</small></div>'+
       '<div class="portfolio-project-open"><button class="btn small open-project" data-project="'+escapeHtml(p.projectId)+'">Open project</button></div>'+
     '</div>'+
     '<div class="'+attentionClass+'"><b>Attention</b><span>'+escapeHtml(attention)+'</span></div>'+
