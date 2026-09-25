@@ -24,8 +24,19 @@ jobs:
               with urllib.request.urlopen(u,timeout=120) as r:
                   body=json.load(r)
               data=body.get("data") or {}
+              ov=json.load(urllib.request.urlopen(base+"/api/projects/"+urllib.parse.quote(pid,safe="")+"/overview",timeout=120))
               out.append({
                   "projectId":pid,
+                  "overview":{
+                    "revisionCount":ov.get("revisionCount"),
+                    "baselineRevisionCount":ov.get("baselineRevisionCount"),
+                    "updateRevisionCount":ov.get("updateRevisionCount"),
+                    "recoveryRevisionCount":ov.get("recoveryRevisionCount"),
+                    "latestRevisionId":ov.get("latestRevisionId"),
+                    "latestRevisionLabel":ov.get("latestRevisionLabel"),
+                    "latestDataDateIso":ov.get("latestDataDateIso"),
+                    "activeEvidenceBasis":ov.get("activeEvidenceBasis"),
+                  },
                   "status":body.get("status"),
                   "reason":body.get("reason"),
                   "consistency":data.get("consistency"),
