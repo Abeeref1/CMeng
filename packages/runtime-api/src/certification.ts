@@ -13,6 +13,7 @@ import {
 } from "./project-state";
 import { projectControlSchedule } from "./canonical-time-claims";
 import {resolveBoqSource} from './boq-source';
+import {isScenarioRevision} from './schedule-authority';
 
 export interface CrossModuleCertificationCheck {
   checkId: string;
@@ -54,6 +55,7 @@ export type CrossModuleConsistencyView =
 const GLOBAL_CONSISTENCY_CHECKS =
   new Set([
     "MODULE_COUNT_29",
+    "CURRENT_PROGRAMME_ADOPTION_AUTHORITY",
     "REPORTING_CONTRACT_ALL_MODULES",
   ]);
 
@@ -1446,6 +1448,14 @@ export function certifyCrossModuleConsistency(
     ),
   );
 
+  const scheduleBasis=state.activeEvidenceBasis['schedule:control']??state.activeEvidenceBasis['schedule:baseline'];
+  const scheduleDocument=state.evidenceDocuments.find(d=>d.documentId===scheduleBasis?.activeDocumentId);
+  const selectedSchedule=state.schedules.find(s=>s.revision.revisionId===scheduleBasis?.activeArtifactId);
+  const adoption=scheduleDocument?.scheduleAdoption;
+  checks.push({checkId:'CURRENT_PROGRAMME_ADOPTION_AUTHORITY',
+    state:!scheduleBasis?.activeArtifactId?'not_applicable':selectedSchedule&&!isScenarioRevision(selectedSchedule)&&scheduleDocument?.basisState==='active'&&scheduleDocument.linkedArtifactId===selectedSchedule.revision.revisionId&&selectedSchedule.sourceHashSha256===scheduleDocument.sourceHashSha256&&adoption?.sourceHashSha256===scheduleDocument.sourceHashSha256?'pass':'fail',
+    detail:'The active programme must exclude drafts/scenarios and retain an explicit decision or disclosed pre-upgrade source selection. A later data date is not an adoption decision.',
+    values:[{source:'current-programme-all-schedule-consumers',value:{revisionId:scheduleBasis?.activeArtifactId??null,method:adoption?.method??null}}]});
   const boqSelection=resolveBoqSource(state,state.quantities?.scheduleRevisionId??'').selection;
   const candidateBoq=boqSelection.state==='candidate'&&!boqSelection.adoptedSource;
   checks.push(

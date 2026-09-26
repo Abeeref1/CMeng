@@ -13,6 +13,7 @@ export interface PdfDocumentParserOptions {
   ocrProvider?: OcrProvider;
   aiVerifier?: AiPageVerifier;
   checkpoint?: PdfParseCheckpoint;
+  onPageRead?:(page:PdfPageResult,totalPages:number)=>void;
 }
 
 function meaningfulCharacterCount(text: string): number {
@@ -37,6 +38,7 @@ export async function parsePdfDocument(
   try {
     const textResult = await parser.getText();
     const totalPages = textResult.total;
+    const append=(page:PdfPageResult)=>{pages.push(page);options.onPageRead?.(page,totalPages);};
     const completed = new Set(options.checkpoint?.completedPages ?? []);
     const persistedByPage = new Map(
       (options.checkpoint?.persistedPages ?? []).map((page) => [
@@ -49,7 +51,7 @@ export async function parsePdfDocument(
       if (completed.has(pageNumber)) {
         const persisted = persistedByPage.get(pageNumber);
         if (!persisted) {
-          pages.push({
+          append({
             pageNumber,
             method: "failed",
             text: "",
@@ -61,7 +63,7 @@ export async function parsePdfDocument(
             ],
           });
         } else {
-          pages.push(persisted);
+          append(persisted);
         }
         continue;
       }
@@ -82,7 +84,7 @@ export async function parsePdfDocument(
             })
           : null;
 
-        pages.push({
+        append({
           pageNumber,
           method: "native",
           text: nativeText,
@@ -98,7 +100,7 @@ export async function parsePdfDocument(
       }
 
       if (!options.ocrProvider) {
-        pages.push({
+        append({
           pageNumber,
           method: "failed",
           text: nativeText,
@@ -120,7 +122,7 @@ export async function parsePdfDocument(
 
         const image = screenshot.pages?.[0]?.data;
         if (!image) {
-          pages.push({
+          append({
             pageNumber,
             method: "failed",
             text: "",
@@ -140,7 +142,7 @@ export async function parsePdfDocument(
         const ocrCharacters = meaningfulCharacterCount(ocrText);
 
         if (ocrCharacters === 0) {
-          pages.push({
+          append({
             pageNumber,
             method: "blank",
             text: "",
@@ -161,7 +163,7 @@ export async function parsePdfDocument(
             })
           : null;
 
-        pages.push({
+        append({
           pageNumber,
           method: "ocr",
           text: ocrText,
@@ -176,7 +178,7 @@ export async function parsePdfDocument(
           ],
         });
       } catch (error) {
-        pages.push({
+        append({
           pageNumber,
           method: "failed",
           text: "",

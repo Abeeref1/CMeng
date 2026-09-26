@@ -132,6 +132,7 @@ test("unified evidence intake governs Add Replace and family-specific history", 
             "2026-09-01",
           ),
           "text/plain",
+          "replace_current_basis",
         );
       assert.equal(
         baseline.basisEffect
@@ -154,6 +155,7 @@ test("unified evidence intake governs Add Replace and family-specific history", 
             "2026-09-20",
           ),
           "text/plain",
+          "replace_current_basis",
         );
       assert.equal(
         update.basisEffect

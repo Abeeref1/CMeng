@@ -11,7 +11,7 @@ void (async()=>{
   await runtimeProjects.refreshSpreadsheetRegisters();
   await runtimeProjects.refreshHseReports();
   await runtimeProjects.refreshCorrespondenceNarratives();
-  await runtimeProjects.refreshDeferredPdfReads();
+  await runtimeProjects.refreshDeferredPdfReads(undefined,(pageNumber,totalPages)=>parentPort?.postMessage({type:'initializing',pageNumber,totalPages}));
   let documentVersion:number|null=null;
   const publishDocuments=()=>{
     const state=runtimeProjects.get(id);if(!state||state.version===documentVersion)return;

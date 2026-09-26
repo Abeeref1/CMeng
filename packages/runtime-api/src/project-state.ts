@@ -1,3 +1,5 @@
+import {hasFinancialSecurityContent} from './security-document-content';
+import {scenarioName,migrateScheduleAuthority,explicitScheduleDecision,isScenarioRevision} from './schedule-authority';
 import {parentPort} from 'node:worker_threads';
 import {persistProjectMetadata,projectMetadata} from './project-catalog';
 import {normalizeProjectCode,isProgrammeScheduleRevision} from './project-identity';
@@ -323,7 +325,7 @@ function scheduleRole(
   if (
     normalized === "baseline" ||
     normalized === "update" ||
-    normalized === "recovery" ||
+    normalized === "recovery" || normalized === "scenario" ||
     normalized === "revised_baseline"
   ) {
     return normalized;
@@ -1464,6 +1466,7 @@ export class RuntimeProjectStore {
               )
             : false;
 
+        const scheduleAuthorityMigrated=migrateScheduleAuthority(state,rebuildEvidenceFamily);
         if (scheduleRoleMigrated) {
           for (const familyKey of roleFamilies) {
             rebuildEvidenceFamily(
@@ -1491,7 +1494,7 @@ export class RuntimeProjectStore {
             : false;
 
         if (
-          migrated ||
+          scheduleAuthorityMigrated || migrated ||
           controlBasisMigrated ||
           scheduleRoleMigrated ||
           activeBoqMigrated ||
@@ -1726,6 +1729,7 @@ export class RuntimeProjectStore {
     const state:
       ProjectRuntimeState = {
         projectId: normalized,
+        scheduleAuthorityVersion: 'explicit-adoption-v1',
         version: 1,
         demo: false,
         schedules: [],
@@ -2188,14 +2192,33 @@ export class RuntimeProjectStore {
     }
   }
 
-  async refreshDeferredPdfReads(projectId?:string) {
+  async refreshDeferredPdfReads(projectId?:string,onPageRead?:(pageNumber:number,totalPages:number)=>void) {
     let refreshedDocumentCount=0;const diagnostics:string[]=[];const changedProjects:string[]=[];
-    if(process.env.CMENG_OCR_ENABLED?.trim()==='0')return {refreshedDocumentCount,diagnostics,changedProjects};
     for(const state of this.projects.values()){
       if(projectId&&state.projectId!==projectId)continue;
       for(const document of [...state.evidenceDocuments]){
         try{
-          if(await refreshDeferredPdfRead(document,()=>this.createOcrProvider())&&state.evidenceDocuments.includes(document)){
+          const contractRead=state.contractDocuments.find(d=>d.documentId===document.documentId&&d.sourceHashSha256===document.sourceHashSha256)?.result.pdf;
+          if(contractRead?.complete)continue;
+          if(await refreshDeferredPdfRead(document,()=>process.env.CMENG_OCR_ENABLED?.trim()==='0'?undefined:this.createOcrProvider(),onPageRead)&&state.evidenceDocuments.includes(document)){
+            // Physical reading does not grant authority. Retain per-page facts
+            // with their source locations, including pages beyond identification.
+            const assertions=new Map(document.assertions.map(a=>[a.metric+'|'+String(a.value)+'|'+String(a.unit)+'|'+a.sourceRef,a]));
+            for(const page of document.fullTextRead!.result.pages)for(const assertion of extractDocumentAssertions(page.text,'evidence:'+document.sourceFilename+':page:'+page.pageNumber)){
+              assertions.set(assertion.metric+'|'+String(assertion.value)+'|'+String(assertion.unit)+'|'+assertion.sourceRef,assertion);
+            }
+            document.assertions=[...assertions.values()];
+            if(['bond_register','security_register'].includes(document.documentType)&&document.identification.method==='metadata_fallback'&&!hasFinancialSecurityContent(document.fullTextRead!.result.pages.map(p=>p.text).join('\n'))){
+              const oldFamily=document.familyKey;
+              document.documentType='supporting_document';
+              const family=evidenceFamily({category:document.category,documentType:document.documentType,scheduleRole:null,textSample:'',sourceFilename:document.sourceFilename});
+              document.familyKey=family.familyKey;document.logicalDocumentKey=family.logicalDocumentKey;
+              document.diagnostics.push('SECURITY_FILENAME_CLASSIFICATION_WITHDRAWN_CONTENT_REVIEW_REQUIRED');
+              rebuildEvidenceFamily(state,oldFamily);rebuildEvidenceFamily(state,document.familyKey);
+            }
+            if(['bond_register','security_register'].includes(document.documentType)&&hasFinancialSecurityContent(document.fullTextRead!.result.pages.map(p=>p.text).join('\n'))){
+              document.identification={...document.identification,method:document.fullTextRead!.result.ocrPages?'ocr_sample':'native_text',detectedDocumentType:document.documentType,confidence:0.97};
+            }
             refreshedDocumentCount++;if(!changedProjects.includes(state.projectId))changedProjects.push(state.projectId);
             state.version++;state.lastRerunReceipt=null;this.staleFinalizedBoardPublications(state);this.persistSnapshot();
           }
@@ -2218,7 +2241,7 @@ export class RuntimeProjectStore {
       for(const document of state.evidenceDocuments){
         const isCsv=/csv/.test(document.mediaType)||(/^text\//.test(document.mediaType)&&/\.csv$/i.test(document.sourceFilename)),isWorkbook=/spreadsheetml|macroEnabled/.test(document.mediaType);
         if(document.category==='schedule'||(!isCsv&&!isWorkbook))continue;
-        if(document.derivedRegisterRead?.producerVersion==='register-derived-v3'&&document.derivedRegisterRead.sourceHashSha256===document.sourceHashSha256&&(!isWorkbook||document.tabularRead?.producerVersion==='register-workbook-v2'))continue;
+        if(document.derivedRegisterRead?.producerVersion==='register-derived-v4'&&document.derivedRegisterRead.sourceHashSha256===document.sourceHashSha256&&(!isWorkbook||document.tabularRead?.producerVersion==='register-workbook-v2'))continue;
         try{
           const bytes=readFileSync(document.storedPath);if(hashBytes(bytes)!==document.sourceHashSha256)throw new Error('SOURCE_HASH_MISMATCH');
           const identified=await identifyEvidenceDocument({bytes,sourceFilename:document.sourceFilename,sourceRelativePath:document.sourceRelativePath,declaredMediaType:document.mediaType});
@@ -2238,7 +2261,7 @@ export class RuntimeProjectStore {
             readiness={...readiness,...deriveReadinessFromCsv({state,document:next,bytes:registerBytes})};
           }
           if(next.familyKey!==document.familyKey){families.add(document.familyKey);families.add(next.familyKey);next.diagnostics=[...document.diagnostics,'REGISTER_READER_FAMILY_REFRESH:'+document.familyKey+'->'+next.familyKey];}
-          next.derivedRegisterRead={producerVersion:'register-derived-v3',sourceHashSha256:next.sourceHashSha256};
+          next.derivedRegisterRead={producerVersion:'register-derived-v4',sourceHashSha256:next.sourceHashSha256};
           if(isWorkbook)next.parserState='parsed';
           Object.assign(document,next);
           state.derivedControlsByDocument[document.documentId]=controls;state.derivedReadinessByDocument[document.documentId]=readiness;
@@ -2247,6 +2270,7 @@ export class RuntimeProjectStore {
       }
       if(changed){
         for(const family of families)rebuildEvidenceFamily(state,family);
+        if(families.has('boq:quantity'))synchronizeActiveBoq(state);
         rebuildReadinessEvidence(state);rebuildDerivedControls(state);this.touchEvidence(state);
       }
     }
@@ -5133,6 +5157,21 @@ export class RuntimeProjectStore {
     };
   }
 
+  adoptSchedule(projectId:string,revisionId:string){
+    const state=this.get(projectId);if(!state)throw new Error('PROJECT_NOT_FOUND');
+    const revision=state.schedules.find(s=>s.revision.revisionId===revisionId);
+    const document=state.evidenceDocuments.find(d=>d.linkedArtifactId===revisionId&&d.category==='schedule');
+    if(!revision||!document)throw new Error('SCHEDULE_DOCUMENT_NOT_FOUND');
+    if(isScenarioRevision(revision))throw new Error('DRAFT_OR_SCENARIO_CANNOT_BECOME_CURRENT');
+    if(!revision.revision.model.dataDateIso)throw new Error('SCHEDULE_DATA_DATE_REQUIRED');
+    if(revision.role==='other'){revision.role='update';document.scheduleRole='update';document.documentType='schedule_update';}
+    if(!['baseline','update','revised_baseline'].includes(revision.role))throw new Error('SCHEDULE_ROLE_REQUIRES_REVIEW');
+    explicitScheduleDecision(document,new Date().toISOString());
+    const effect=applyEvidenceBasis(state,document,'replace_current_basis');
+    if(effect.basisState!=='active')throw new Error('SCHEDULE_ADOPTION_NOT_ESTABLISHED');
+    this.touchEvidence(state);return effect;
+  }
+
   async ingestSchedule(
     input: {
       projectId: string;
@@ -5214,6 +5253,7 @@ export class RuntimeProjectStore {
           hash,
       );
     if (existing) {
+      if(uploadIntent==='replace_current_basis'&&!isScenarioRevision(existing))this.adoptSchedule(state.projectId,existing.revision.revisionId);
       return summary(
         existing,
         state.resourcesByRevision,
@@ -5341,7 +5381,7 @@ export class RuntimeProjectStore {
       uploadedAt:
         input.uploadedAt,
       role:
-        (scheduleRole(input.role)==='other' && model.dataDateIso ? 'update' : scheduleRole(input.role)),
+        (scenarioName(input.sourceRelativePath??input.sourceFilename??input.label??'')&&input.role!=='recovery' ? 'scenario' : scheduleRole(input.role)==='other'&&uploadIntent==='replace_current_basis'?'update':scheduleRole(input.role)),
     };
 
     state.schedules.push(
@@ -5404,7 +5444,7 @@ export class RuntimeProjectStore {
       documentId,
       category: "schedule",
       documentType:
-        stored.role === "baseline"
+        stored.role === "scenario" ? "schedule_scenario" : stored.role === "baseline"
           ? "schedule_baseline"
           : stored.role === "recovery"
             ? "schedule_recovery"

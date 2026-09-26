@@ -3,8 +3,19 @@ import assert from 'node:assert/strict';
 import {assessModuleIssues} from '../packages/runtime-api/src/module-issues';
 import {summarizeControlIssues} from '../packages/truth-kernel/src';
 import type {ModuleRuntimeResult} from '../packages/runtime-api/src/project-state-types';
+import {enforceModuleReadiness} from '../packages/runtime-api/src/module-readiness';
 
 const pass={state:'pass' as const,failedCheckIds:[],checkCount:8};
+test('source review pages can be ready without an advisory comparison while real conflicts still block',()=>{
+ const activity={...input({challenge:{reconciliationState:'submitted_missing',items:[{metric:'activity_count'}]}}),key:'activity-analytics'};
+ const result=enforceModuleReadiness(activity,pass);
+ assert.equal(result.status,'ready');
+ assert.equal((result.data as any).moduleReadiness.comparisonRequired,false);
+ assert.ok(!result.issueAssessment?.issues.some(i=>i.code==='COMPARABLE_ASSERTION_MISSING'));
+ const conflict=enforceModuleReadiness({...activity,data:{...(activity.data as any),challenge:{reconciliationState:'conflicting_evidence'}}},pass);
+ assert.equal(conflict.status,'partial');assert.equal(conflict.issueAssessment?.counts.source_conflict,1);
+ assert.equal(enforceModuleReadiness({...activity,key:'independent-forecast'},pass).status,'partial');
+});
 function input(data:Record<string,unknown>={}):ModuleRuntimeResult {
  return {key:'arbitrary-control',status:'ready',engineState:'ready',evidenceState:'established',professionalState:'defensible',reason:null,dependencies:[],
   data:{systemEvidenceContract:{state:'verified_for_checked_metrics',checks:[{metric:'population',passed:true}]},challenge:{reconciliationState:'within_tolerance'},...data}};

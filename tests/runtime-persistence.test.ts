@@ -53,6 +53,7 @@ test("volume-backed project state restores schedule revisions and controls after
 
     const upload =
       await first.ingestSchedule({
+      uploadIntent:"replace_current_basis",
         projectId: "PERSIST",
         bytes: xerFixture(),
         mediaType: "text/plain",
@@ -171,6 +172,7 @@ test("restoring legacy schedule support evidence reclassifies it and removes the
       });
 
     await first.ingestSchedule({
+      uploadIntent:"replace_current_basis",
       projectId:
         "LEGACY-SUPPORT",
       bytes: xerFixture(),
@@ -187,6 +189,7 @@ test("restoring legacy schedule support evidence reclassifies it and removes the
     });
 
     await first.ingestSchedule({
+      uploadIntent:"replace_current_basis",
       projectId:
         "LEGACY-SUPPORT",
       bytes: new TextEncoder()
@@ -333,6 +336,7 @@ test("restoring legacy baseline-named schedules repairs only strong source roles
   try {
     const first = new RuntimeProjectStore({dataDir, durable:true});
     await first.ingestSchedule({
+      uploadIntent:"replace_current_basis",
       projectId:"ROLE-MIGRATION",
       bytes:xerFixture(),
       mediaType:"text/plain",
@@ -343,6 +347,7 @@ test("restoring legacy baseline-named schedules repairs only strong source roles
       uploadedAt:"2026-09-18T20:00:00.000Z",
     });
     await first.ingestSchedule({
+      uploadIntent:"replace_current_basis",
       projectId:"ROLE-MIGRATION",
       bytes:new TextEncoder().encode(new TextDecoder().decode(xerFixture()).replace("2026-09-18","2026-09-19")),
       mediaType:"text/plain",
@@ -431,6 +436,7 @@ test("restoring legacy productivity evidence promotes its source family without 
       });
 
     await first.ingestSchedule({
+      uploadIntent:"replace_current_basis",
       projectId:
         "PRODUCTIVITY-MIGRATION",
       bytes:

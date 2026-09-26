@@ -39,17 +39,17 @@ export function assessModuleIssues(result: ModuleRuntimeResult, consistency: Con
       failures?.map(c=>c.checkId+': '+c.detail).join('; ')||scopedConsistency.failedCheckIds.join(', '),
       'Reconcile the failed same-basis values or reporting contracts in the shared producers.','crossModuleConsistency','CMeng',[],scopedConsistency.failedCheckIds);
   }
-  const comparison=comparisonRequirement(d);
+  const comparison=comparisonRequirement(d,result.key);
   const challengeItems=comparison.items;
   const advisoryDefaultChallenge=comparison.advisory;
-  const reconciliation=advisoryDefaultChallenge?null:d?.challenge?.reconciliationState;
+  const reconciliation=d?.challenge?.reconciliationState;
   if(reconciliation==='material_difference') add('comparison_difference','SUBMITTED_INDEPENDENT_DIFFERENCE','Submitted and independent positions differ',
     'The two authorities produce different positions. A difference alone is not a system contradiction or proven source error.',
     'Compare the submitted and independent dates, work covered, calendars and assumptions; record the explanation before adoption.','challenge','Project controls reviewer');
   if(reconciliation==='conflicting_evidence') add('source_conflict','COMPARABLE_SOURCE_CONFLICT','Comparable source assertions conflict',
     'The challenge resolver identified incompatible source assertions for the comparison.',
     'Reconcile the conflicting assertions and retain the selected authority and source references.','challenge');
-  if(reconciliation==='submitted_missing') add('missing_information','COMPARABLE_ASSERTION_MISSING','Comparable submitted assertion not established',
+  if(comparison.required&&reconciliation==='submitted_missing') add('missing_information','COMPARABLE_ASSERTION_MISSING','Comparable submitted assertion not established',
     'The required comparison value is absent or not established. This does not mean the contractor submitted no documents.',
     'Identify the comparable submitted value and its date, population and authority, or explicitly mark this comparison not applicable.','challenge');
   const noticeInputsMissing=result.key==='notices-claims'&&integrity?.state==='verified_for_checked_metrics'&&d.noticeEventDateMissingCount>0;

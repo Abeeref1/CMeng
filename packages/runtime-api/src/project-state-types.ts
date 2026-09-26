@@ -265,6 +265,7 @@ export interface CorrespondenceNarrativeRefreshReceipt {
 }
 
 export interface StoredEvidenceDocument {
+  scheduleAdoption?:{method:'explicit'|'legacy_retained';sourceHashSha256:string;recordedAt:string;note:string};
   derivedRegisterRead?: {producerVersion:string;sourceHashSha256:string};
   tabularRead?: import("../../truth-kernel/src").EvidenceDocument["tabularRead"];
   documentId: string;
@@ -330,6 +331,7 @@ export interface StoredScheduleRevision {
     | "baseline"
     | "update"
     | "recovery"
+    | "scenario"
     | "revised_baseline"
     | "other";
 }
@@ -413,6 +415,7 @@ export interface ProjectControlState {
 }
 
 export interface ProjectRuntimeState {
+  scheduleAuthorityVersion?: "explicit-adoption-v1";
   auditHistory?: import('./audit-context').AuditEvent[];
   auditSourceActors?: Record<string,import('./audit-context').AuditActor>;
   sourceIntegrationVersion?: string;

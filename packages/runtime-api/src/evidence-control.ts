@@ -1,3 +1,4 @@
+import {scenarioName,explicitScheduleDecision} from './schedule-authority';
 import { typedEvidenceRoleFromText } from "./typed-evidence-families";
 import type {
   EvidenceBasisEffect,
@@ -137,11 +138,16 @@ export function evidenceFamily(
     sourceFilename,
   } = input;
 
+  if(documentType==='installed_measurement_register')return {
+    familyKey:'quantity:measurements',behavior:'additive',
+    logicalDocumentKey:'quantity:measurements:'+norm(sourceFilename.replace(/(?:rev(?:ision)?|r)[-_. ]*\d+\b/gi,'')),
+  };
+
   if (category === "schedule") {
-    if (scheduleRole === "recovery") {
+    if (scheduleRole === "recovery" || scheduleRole === "scenario") {
       return {
         familyKey:
-          "schedule:recovery",
+          "schedule:scenario",
         behavior:
           "schedule_special",
         logicalDocumentKey:
@@ -666,8 +672,7 @@ export function applyEvidenceBasis(
   if (
     behavior ===
       "schedule_special" &&
-    document.scheduleRole ===
-      "recovery"
+    (document.scheduleRole === "recovery" || document.scheduleRole === "scenario" || scenarioName(document.sourceFilename))
   ) {
     document.basisState =
       "scenario";
@@ -807,6 +812,16 @@ export function applyEvidenceBasis(
 
   const missingScheduleDate=behavior==='schedule_special'&&!state.schedules.find(s=>s.revision.revisionId===document.linkedArtifactId)?.revision.model.dataDateIso;
   if(missingScheduleDate){promote=false;reason='Unresolved revision order: the programme has no internal Data Date.';}
+  else if(behavior==='schedule_special'){
+    if(replaceIntent)explicitScheduleDecision(document,document.scheduleAdoption?.recordedAt??document.uploadedAt);
+    const decision=document.scheduleAdoption;
+    if(decision?.sourceHashSha256===document.sourceHashSha256&&decision.method==='explicit'){
+      promote=true;reason='Programme explicitly adopted as the active basis.';
+    }else if(decision?.sourceHashSha256===document.sourceHashSha256&&decision.method==='legacy_retained'){
+      promote=!current||scheduleComparison(state,current,document).promote;
+      reason='Previous non-scenario source selection retained; explicit adoption remains to be confirmed.';
+    }else{promote=false;reason='Programme stored as a candidate. Select Adopt programme to establish the active basis; chronology alone does not grant authority.';}
+  }
   else if (!current) {
     promote = true;
     reason =
@@ -830,54 +845,6 @@ export function applyEvidenceBasis(
       comparison.promote;
     reason =
       comparison.reason;
-  } else if (
-    behavior ===
-      "schedule_special"
-  ) {
-    if (
-      document.scheduleRole ===
-        "update"
-    ) {
-      const comparison =
-        scheduleComparison(
-          state,
-          current,
-          document,
-        );
-      promote =
-        comparison.promote;
-      reason =
-        comparison.reason;
-    } else if (
-      document.scheduleRole ===
-        "revised_baseline"
-    ) {
-      promote =
-        replaceIntent;
-      reason = promote
-        ? "Revised baseline explicitly promoted by Replace intent."
-        : "Revised baseline retained as candidate until explicitly promoted/effective.";
-    } else if (
-      document.scheduleRole ===
-        "baseline"
-    ) {
-      const comparison =
-        scheduleComparison(
-          state,
-          current,
-          document,
-        );
-      promote =
-        familyKey ===
-          "schedule:baseline" &&
-        comparison.promote;
-      reason =
-        comparison.reason;
-    } else {
-      promote = false;
-      reason =
-        "Schedule role is not eligible to replace the active control programme automatically.";
-    }
   } else if (
     behavior ===
       "boq_special"
@@ -962,8 +929,8 @@ export function rebuildEvidenceFamily(
       )
       .sort((a, b) => {
         const byTime =
-          a.uploadedAt.localeCompare(
-            b.uploadedAt,
+          (a.scheduleAdoption?.recordedAt??a.uploadedAt).localeCompare(
+            b.scheduleAdoption?.recordedAt??b.uploadedAt,
           );
         return byTime !== 0
           ? byTime

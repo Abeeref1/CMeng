@@ -36,6 +36,10 @@ export interface InstalledQuantitySnapshot {
 }
 
 export interface CanonicalQuantityProgressModel {
+  measurementReview?: {
+    measuredItemCount:number;boqItemCount:number;sourceRowCount:number;matchedRowCount:number;futureRowCount:number;unresolvedRowCount:number;currentUnresolvedRowCount:number;complete:boolean;
+    unresolvedRows:Array<{documentId:string;locator:string;dateIso:string|null;reason:string}>;diagnostics:string[];basis:string;
+  };
   projectId: string | null;
   boqRevisionId: string;
   scheduleRevisionId: string;

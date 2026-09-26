@@ -46,19 +46,28 @@ export function documentReadReview(document:StoredEvidenceDocument,state:Project
       note:'Document identification or structured extraction is available, but no matching complete page-reading receipt is retained. This does not establish that every page was read or that every fact was extracted.',
       method:document.identification?.method ?? null,pageCount:document.identification?.pageCount ?? null,readPageCount:null,complete:false};
   }
+  if(/^text\//.test(document.mediaType)&&!/csv/.test(document.mediaType)){
+    try{
+      const bytes=readFileSync(document.storedPath);
+      if(createHash('sha256').update(bytes).digest('hex')!==hash)throw new Error('SOURCE_HASH_MISMATCH');
+      const text=bytes.toString(bytes[0]===0xff&&bytes[1]===0xfe?'utf16le':'utf8');
+      return {state:'read',label:'Reference text read',note:`${text.length} characters read from the matching source file. Reference reading does not establish numeric or contractual authority.`,method:'Text',pageCount:null,readPageCount:null,complete:true};
+    }catch{return {state:'unresolved',label:'Reference reading unresolved',note:'The stored source could not be read and matched to its recorded hash.',method:'Text',pageCount:null,readPageCount:null,complete:false};}
+  }
   return {state:document.parserState,label:null,note:null,method:null,pageCount:document.identification?.pageCount??null,readPageCount:null,complete:false};
 }
 
 const running=new WeakMap<StoredEvidenceDocument,Promise<boolean>>();
 /** Finish deferred physical reading without promoting a document or inventing facts. */
-export function refreshDeferredPdfRead(document:StoredEvidenceDocument,createProvider:()=>OcrProvider):Promise<boolean>{
+export function refreshDeferredPdfRead(document:StoredEvidenceDocument,createProvider:()=>OcrProvider|undefined,onPageRead?:(pageNumber:number,totalPages:number)=>void):Promise<boolean>{
   const prior=running.get(document);if(prior)return prior;
   const work=(async()=>{
-    if(document.parserState!=='ocr_pending'||!/pdf/i.test(document.mediaType)||
+    if(!/pdf/i.test(document.mediaType)||
       (document.fullTextRead?.sourceHashSha256===document.sourceHashSha256&&document.fullTextRead.result.complete))return false;
     const hash=document.sourceHashSha256,bytes=readFileSync(document.storedPath);
     if(createHash('sha256').update(bytes).digest('hex')!==hash)throw new Error('DEFERRED_PDF_SOURCE_HASH_MISMATCH');
-    const result=await parsePdfDocument(bytes,{ocrProvider:createProvider()});
+    const provider=createProvider();
+    const result=await parsePdfDocument(bytes,{...(provider?{ocrProvider:provider}:{}),...(onPageRead?{onPageRead:(page,total)=>onPageRead(page.pageNumber,total)}:{})});
     if(document.sourceHashSha256!==hash)throw new Error('DEFERRED_PDF_SOURCE_CHANGED');
     document.fullTextRead={producerVersion:'full-page-read-v1',sourceHashSha256:hash,completedAt:new Date().toISOString(),result};
     return true;

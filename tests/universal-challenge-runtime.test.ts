@@ -85,7 +85,8 @@ test("every CMeng module emits Submitted Independent Gap Consequence Action inst
                 "text/plain",
               "x-source-filename":
                 "current.xer",
-              "x-schedule-role":
+              "x-upload-intent":"replace_current_basis",
+          "x-schedule-role":
                 "update",
             },
             body: xer(project),

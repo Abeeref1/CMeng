@@ -430,7 +430,8 @@ test("real XER upload creates isolated project revision and usable schedule modu
                 "text/plain",
               "x-source-filename":
                 "current.xer",
-              "x-schedule-role":
+              "x-upload-intent":"replace_current_basis",
+          "x-schedule-role":
                 "update",
             },
             body: xerFixture(),
@@ -580,7 +581,8 @@ test("every schedule submodule exposes downloadable report data", async () => {
               "text/plain",
             "x-source-filename":
               "current.xer",
-            "x-schedule-role":
+            "x-upload-intent":"replace_current_basis",
+          "x-schedule-role":
               "update",
           },
           body: xerFixture(),
@@ -713,7 +715,8 @@ test("deleting the current programme document restores the prior update", async 
                   "text/plain",
                 "x-source-filename":
                   filename,
-                "x-schedule-role":
+                "x-upload-intent":"replace_current_basis",
+          "x-schedule-role":
                   "update",
               },
               body,
@@ -884,7 +887,8 @@ test("multiple project documents delete in one bulk action", async () => {
                   "text/plain",
                 "x-source-filename":
                   filename,
-                "x-schedule-role":
+                "x-upload-intent":"replace_current_basis",
+          "x-schedule-role":
                   "update",
               },
               body:

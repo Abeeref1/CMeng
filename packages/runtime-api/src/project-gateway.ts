@@ -49,6 +49,7 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
       lane.ready=new Promise<number>((resolve,reject)=>{
         const timer=setTimeout(()=>{reject(new Error('PROJECT_START_TIMEOUT'));void worker.terminate();},120000);timer.unref();
         worker.on('message',message=>{
+          if(message.type==='initializing')timer.refresh();
           if(message.type==='ready'){clearTimeout(timer);resolve(message.port);}
           if(message.type==='progress')progress.set(id+'::'+message.progress.uploadId,message.progress);
           if(message.type==='documents')documentRegisters.set(id,{version:message.version,documents:message.documents});

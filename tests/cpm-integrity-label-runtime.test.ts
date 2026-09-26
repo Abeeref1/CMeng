@@ -83,7 +83,8 @@ test("failed CPM never relabels source total float as an independent driving pat
                 "text/plain",
               "x-source-filename":
                 "broken.xer",
-              "x-schedule-role":
+              "x-upload-intent":"replace_current_basis",
+          "x-schedule-role":
                 "update",
             },
             body:

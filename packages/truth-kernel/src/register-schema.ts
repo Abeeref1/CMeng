@@ -48,6 +48,9 @@ const groups:Record<string,string[]>={
   'closed date':['date closed','closure date'],
   'effective date':['date effective','effective from','effective from date'],
   'release date':['date released','release issued date'],
+  'measurement date':['measured date','date measured','measurement as of','تاريخ القياس'],
+  'item no':['item number','boq item number','boq item no','رقم البند'],
+  'cumulative installed qty':['cumulative installed quantity','installed quantity to date','cumulative measured quantity'],
 };
 const aliases=new Map(Object.entries(groups).flatMap(([key,values])=>[key,...values].map(value=>[normalizeHeader(value),key] as const)));
 export function canonicalHeader(value:string,documentType=''):string {
@@ -84,12 +87,13 @@ const fields=new Set([...Object.keys(groups),
   'sequence','task uid','float path','float path order','total float days','free float days',
   'baseline start','baseline finish','current start','current finish','baseline status','current status','identity status',
   'obs code','obs name','parent obs','responsible manager','primary wbs',
-  'work package','work package id','remaining quantity','recent achieved rate day','conservative achievable rate day','independent forecast finish'
+  'work package','work package id','remaining quantity','recent achieved rate day','conservative achievable rate day','independent forecast finish',
+  'measured by','filename','file name','file path','relative path','sha256','source hash','document type','purpose','expected role','notes'
 ]);
 const registerDateHeaders=new Set([
   'notice date','event start','period end','certificate date','payment date','raised date','identified date','status as of','due date',
   'release date','expiry date','approval date','determination date','incident date','report date','required on site','forecast delivery','actual delivery',
-  'planned issue','actual issue','planned date','actual date','week start','as of','submitted date','assessment date','closed date','effective date',
+  'planned issue','actual issue','planned date','actual date','week start','as of','submitted date','assessment date','closed date','effective date','measurement date',
 ]);
 export function isRegisterDateHeader(value:string):boolean {
   return registerDateHeaders.has(canonicalHeader(value));

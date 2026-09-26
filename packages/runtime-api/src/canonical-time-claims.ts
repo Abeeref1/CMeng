@@ -1,3 +1,4 @@
+import {isScenarioRevision} from './schedule-authority';
 import {contractCompletionPosition} from './contract-completion';
 import { createHash } from 'node:crypto';
 import { cell, has, numberValue, dateValue, governedTables, norm, sumKnown, type SourceReceipt, type SourceRow, type SourceTable } from '../../truth-kernel/src';
@@ -173,14 +174,14 @@ function correspondenceNarrativeSegments(
 
 export function projectControlSchedule(state:ProjectRuntimeState) {
   const basis=state.activeEvidenceBasis['schedule:control'] ?? state.activeEvidenceBasis['schedule:baseline'];
-  if(basis?.activeArtifactId) return state.schedules.find(s=>s.revision.revisionId===basis.activeArtifactId) ?? null;
+  if(basis?.activeArtifactId) return state.schedules.find(s=>s.revision.revisionId===basis.activeArtifactId&&!isScenarioRevision(s)) ?? null;
 
   const programmeTypes=new Set([
     'schedule_file',
     'schedule_baseline',
     'schedule_update',
     'schedule_revised_baseline',
-    'schedule_recovery',
+    'schedule_recovery', 'schedule_scenario',
   ]);
   const hasProgrammeEvidence=state.evidenceDocuments.some(document=>{
     if(document.category!=='schedule')return false;
@@ -199,7 +200,7 @@ export function projectControlSchedule(state:ProjectRuntimeState) {
   // fail closed. Legacy/misclassified schedule-control support documents must not
   // suppress an otherwise valid programme model.
   if(hasProgrammeEvidence) return null;
-  const eligible=state.schedules.filter(s=>s.role!=='recovery'&&dateValue(s.revision.model.dataDateIso??''));
+  const eligible=state.schedules.filter(s=>!isScenarioRevision(s)&&dateValue(s.revision.model.dataDateIso??''));
   const latest=eligible.map(s=>dateValue(s.revision.model.dataDateIso!)!).sort().at(-1);
   const newest=eligible.filter(s=>dateValue(s.revision.model.dataDateIso!)===latest);
   return newest.length===1?newest[0]!:null;
@@ -282,7 +283,7 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
   };
   const programmeWindowReference=(anchorIso:string|null):string[]=>{
     if(!anchorIso)return[];
-    const programmes=state.schedules.filter(item=>item.role!=="recovery");
+    const programmes=state.schedules.filter(item=>!isScenarioRevision(item));
     const official=programmes.filter(item=>["baseline","revised_baseline","update"].includes(item.role));
     const ordered=[...(official.length?official:programmes)].sort((a,b)=>{
       const ad=a.revision.model.dataDateIso??a.revision.effectiveAt??"";

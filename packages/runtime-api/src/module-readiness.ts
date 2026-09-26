@@ -41,7 +41,7 @@ export function enforceModuleReadiness(
         : 'pending';
   const evidence = result.evidenceState ?? 'not_established';
   const professional = result.professionalState ?? 'review_required';
-  const comparison = comparisonRequirement(data);
+  const comparison = comparisonRequirement(data,result.key);
   const reconciliation = comparison.state;
   const reconciliationRequired = comparison.required;
   const reconciliationReady =

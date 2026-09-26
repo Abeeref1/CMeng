@@ -1,3 +1,4 @@
+import {isAdoptedProgrammeRevision} from './schedule-authority';
 import { delayClaimsAsOf } from '../../delay-analysis-core/src/reporting';
 import { projectDataDate, canonicalTimeClaims, inheritTimeClaimsCache } from './canonical-time-claims';
 import type { ProjectRuntimeState } from './project-state-types';
@@ -9,6 +10,7 @@ import {refreshContractSegmentation} from '../../contract-parser/src';
 import {refreshScheduleConstraints} from './schedule-source-refresh';
 import {reportingReadinessEvidence} from './evidence-readiness';
 import {noticeVersionCohorts} from './contract-notice-rules';
+import {withInstalledMeasurements} from './installed-measurements';
 
 const cache = new WeakMap<ProjectRuntimeState,{version:number;date:string|null;value:ProjectRuntimeState}>();
 const views = new WeakSet<ProjectRuntimeState>();
@@ -26,7 +28,7 @@ export function reportingState(state: ProjectRuntimeState): ProjectRuntimeState 
   if(old?.version===state.version&&old.date===date)return old.value;
   const governed=state.controls.delayClaims;
   const source=governed&&!/^(canonical-evidence|evidence-document):/.test(governed.evidenceRevisionId)?governed:canonicalTimeClaims(state).delayClaims??governed;
-  const hasBaseline=state.schedules.some(s=>['baseline','revised_baseline'].includes(s.role)&&reportingScope(s.revision.model.dataDateIso??s.revision.effectiveAt,date)==='as_of');
+  const hasBaseline=state.schedules.some(s=>isAdoptedProgrammeRevision(state,s)&&['baseline','revised_baseline'].includes(s.role)&&reportingScope(s.revision.model.dataDateIso??s.revision.effectiveAt,date)==='as_of');
   const schedules=state.schedules.map(stored=>{
     const model=refreshScheduleConstraints(state,stored);
     if(!Array.isArray(model.activities))return stored;
@@ -46,7 +48,7 @@ export function reportingState(state: ProjectRuntimeState): ProjectRuntimeState 
   });
   const ops=operationalReporting(state);
   const boqSource=resolveBoqSource(state,projectControlSchedule(state)?.revision.revisionId??'');
-  const view={...state,schedules,boq:boqSource.boq,quantities:boqSource.quantities,
+  const view={...state,schedules,boq:boqSource.boq,quantities:withInstalledMeasurements(state,boqSource.quantities,date),
     contract:state.contract?refreshContractSegmentation(state.contract):null,
     contractDocuments:state.contractDocuments.map(doc=>({...doc,result:refreshContractSegmentation(doc.result)})),
     controls:{...state.controls,readinessEvidence:reportingReadinessEvidence(state,date),delayClaims:source?delayClaimsAsOf(source,date).current:null,

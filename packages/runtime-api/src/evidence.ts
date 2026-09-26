@@ -1,3 +1,4 @@
+import {scenarioName} from './schedule-authority';
 import {csv as parseCsv} from "../../truth-kernel/src";
 import {prepareRegisterRows,canonicalHeader} from '../../truth-kernel/src';
 import type {
@@ -141,6 +142,7 @@ export function inferScheduleRole(
   path: string,
   requested?: string | null,
 ): StoredScheduleRevision["role"] {
+  if(scenarioName(path)&&!/\brecovery\b/i.test(path))return "scenario";
   const normalized = (requested ?? "")
     .trim()
     .toLowerCase()
