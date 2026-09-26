@@ -41,6 +41,11 @@ jobs:
           mkdir -p /tmp/cmeng-verification
           CMENG_LATENCY_RESULT=/tmp/cmeng-verification/cold-dashboard.json npm run test:release:latency
 
+      - name: Large project upload durability and restart
+        shell: bash
+        run: |
+          CMENG_DURABILITY_RESULT=/tmp/cmeng-verification/upload-durability.json node --max-old-space-size=3072 scripts/upload-durability-scale.cjs
+
       - name: Large Delivery calculation and evidence display target
         shell: bash
         run: |
