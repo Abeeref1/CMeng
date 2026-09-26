@@ -23,7 +23,7 @@ test('opening a project loads and renders the canonical Director position with i
     if(path.endsWith('/director-position'))return director;
     throw new Error('Unexpected endpoint');
   };
-  await runInNewContext('let directorRequestSeq=0; let overview=null;'+browserFunctions(['refresh','loadDirector'])+';refresh(false)',{
+  await runInNewContext('let projectRequestSeq=0; let projectLoadState="idle"; let directorRequestSeq=0; let overview=null;'+browserFunctions(['projectRequestIsCurrent','refresh','loadDirector'])+';refresh(false)',{
     api,project:()=> 'OTHER-2032',el:(id:string)=>nodes[id]??(nodes[id]={}),
     selected:'command-center',renderDirector:(data:any)=>rendered.push(data),
     renderStatus:()=>{},renderNav:()=>{},updateActiveProjectShell:()=>{},setBusy:()=>{},
@@ -37,7 +37,7 @@ test('Director request failures are retryable CMeng loading failures, not missin
   const nodes:Record<string,any>={};
   let attempts=0;let rendered:any=null;
   const director={projectId:'SECOND'};
-  await runInNewContext('let directorRequestSeq=0;'+browserFunctions(['loadDirector'])+';loadDirector()',{
+  await runInNewContext('let projectRequestSeq=0; let projectLoadState="idle"; let directorRequestSeq=0;'+browserFunctions(['projectRequestIsCurrent','loadDirector'])+';loadDirector()',{
     api:async()=>{if(++attempts===1)throw new Error('Service unavailable');return director;},
     project:()=> 'SECOND',el:(id:string)=>nodes[id]??(nodes[id]={}),escapeHtml:String,
     renderDirector:(value:any)=>{rendered=value;},
@@ -53,7 +53,7 @@ test('late Director responses cannot put a previous project into the active proj
   let active='FIRST';let rendered=0;
   let resolve!:(value:any)=>void;
   const response=new Promise(done=>{resolve=done;});
-  const pending=runInNewContext('let directorRequestSeq=0;'+browserFunctions(['loadDirector'])+';loadDirector()',{
+  const pending=runInNewContext('let projectRequestSeq=0; let projectLoadState="idle"; let directorRequestSeq=0;'+browserFunctions(['projectRequestIsCurrent','loadDirector'])+';loadDirector()',{
     api:()=>response,project:()=>active,el:()=>({innerHTML:''}),escapeHtml:String,
     renderDirector:()=>{rendered++;},
   });

@@ -51,7 +51,9 @@ function navigationHarness(){
   const el=(id:string)=>{let n=nodes.get(id);if(!n){n={textContent:'',innerHTML:'',className:'',classList:{remove:()=>{}}};nodes.set(id,n);}return n;};
   const requests:Array<{resolve:(value:unknown)=>void;reject:(value:unknown)=>void}>=[];
   const rendered:unknown[]=[];const busy:string[]=[];
-  const load=runInNewContext(script!.slice(start,end)+'\nloadModule',{
+  const projectGuard=script!.slice(script!.indexOf('function projectRequestIsCurrent('),script!.indexOf('function clearProjectWorkspace('));
+  const load=runInNewContext(projectGuard+script!.slice(start,end)+'\nloadModule',{
+    projectRequestSeq:0,
     apiKeys:{},document:{body:{classList:{remove(){}}},querySelectorAll:()=>[]},overview:{},el,names:{payments:'Payments','cost-forecast':'Cost Forecast'},descriptions:{},
     setBusy:(value:string)=>busy.push(value),escapeHtml:(value:unknown)=>String(value),project:()=> 'TEST',
     api:()=>new Promise((resolve,reject)=>requests.push({resolve,reject})),renderModuleResult:(result:unknown)=>rendered.push(result),
