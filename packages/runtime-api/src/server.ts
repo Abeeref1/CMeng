@@ -1,3 +1,5 @@
+import {parentPort} from 'node:worker_threads';
+import {projectResultMap} from './project-api-results';
 import {analyzeEvidenceRows} from './evidence';
 import {resolveModuleKey,publicModuleResult} from './registry';
 import {COLD_DASHBOARD_TARGET_MS} from './release-latency';
@@ -111,10 +113,9 @@ const MAX_UPLOAD_BYTES = Number.parseInt(
 
 const boqIngestions =
   new Map<string, BoqIngestionResult>();
-const directorPositions =
-  new Map<string, ProjectDirectorPosition>();
-const boardReports =
-  new Map<string, BoardReadyReport>();
+const resultDirectory=process.env.CMENG_PROJECT_WORKER==='1'?runtimeProjects.persistenceStatus().dataDir:undefined;
+const directorPositions = projectResultMap<ProjectDirectorPosition>('director-results',resultDirectory);
+const boardReports = projectResultMap<BoardReadyReport>('board-results',resultDirectory);
 
 type EvidenceUploadProgress = {
   uploadId: string;
@@ -252,6 +253,7 @@ function setEvidenceUploadProgress(
     key,
     progress,
   );
+  if(process.env.CMENG_PROJECT_WORKER==="1")parentPort?.postMessage({type:"progress",progress});
   return progress;
 }
 
@@ -2864,7 +2866,8 @@ async function route(
     const ingestionId =
       decodeURIComponent(statusMatch[2]!);
     const result =
-      boqIngestions.get(ingestionId);
+      boqIngestions.get(ingestionId) ??
+      runtimeProjects.get(projectId)?.boqRevisions.find(item=>item.ingestionId===ingestionId);
 
     if (
       !result ||

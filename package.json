@@ -6,7 +6,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "build": "tsc",
-    "start": "node dist/packages/runtime-api/src/server.js",
+    "start": "node dist/packages/runtime-api/src/project-gateway.js",
     "audit:counts": "npm run build && node scripts/audit-aggregate-counts.cjs",
     "test:unit": "npm run build && node --test --test-concurrency=4 $(find dist/tests -name '*.test.js' ! -name '*-scale.test.js')",
     "test:stress": "npm run build && node --test dist/tests/*-scale.test.js",

@@ -1,3 +1,4 @@
+import {uploadWorkScript} from './ui-upload-work';
 import {aggregateCount} from '../../truth-kernel/src/aggregates';
 import {moduleRegistry, titleForModule} from './registry';
 import {STATUS_LABELS} from './position-review';
@@ -261,6 +262,7 @@ ${systemReviewStyles}
       <span id="globalStatus" style="font-size:12px;color:#667085"></span>
     </div>
     <div class="content">
+      <section id="backgroundUploads" aria-label="Project uploads" aria-live="polite" hidden></section>
       <section id="portfolioView" class="platform-view">
         <div class="portfolio-hero">
           <div><span class="section-kicker">Portfolio</span><h2>Portfolio Overview</h2><p>View every project, latest data date, project-document completeness and current control position. Open a project to add or update documents and refresh its position.</p></div>
@@ -471,6 +473,7 @@ let selectedRoleView=roleViewOrder.includes(storedRoleView)?storedRoleView:"over
 let overview=null,selected="master-dashboard",portfolioData=null,appView="portfolio",currentModuleResult=null;
 let projectRequestSeq=0,evidenceRequestSeq=0,aiRequestSeq=0,projectLoadState="idle";
 let scheduleSelection=[],boqSelection=[],contractSelection=[],evidenceSelection=[];
+const projectUploadJobs=new Map();
 let selectedEvidenceDocuments=new Set();
 const el=id=>document.getElementById(id);
 const project=()=>el("projectId").value.trim();
@@ -4145,6 +4148,7 @@ async function loadEvidence(){
   }
 }
 function positionText(p){
+  if(p.positionState==="updating")return["review","Updating project position"];
   if(p.positionState==="current")return["current","Current position"];
   if(p.positionState==="needs_review")return["review","Review required"];
   return["missing","Needs project records"];
@@ -4160,7 +4164,7 @@ function projectCard(p){
   const contractLabel=p.officialCompletionIso?(p.contractualCompletionState==="established"?"Official contract: ":"Contract source / review: ")+official:"Contract completion unresolved";
   const adjustmentLabel=p.furtherAdjustedCompletionIso?"Further adjusted: "+planningShortDate(p.furtherAdjustedCompletionIso):"Further adjustment not confirmed";
   const managementCount=p.managementActionCount===null||p.managementActionCount===undefined?null:p.managementActionCount;
-  const attention=(p.managementActions||[])[0]||(
+  const attention=p.analysisError||(p.managementActions||[])[0]||(
     p.positionState==="needs_information"
       ?"Add the core programme and BOQ records to establish the current position."
       :p.positionState==="needs_review"
@@ -4171,12 +4175,12 @@ function projectCard(p){
   return '<article class="portfolio-project">'+
     '<div class="portfolio-project-main">'+
       '<div class="portfolio-project-title"><h3>'+escapeHtml(p.projectId)+'</h3>'+
-        '<div class="project-meta">'+escapeHtml(p.latestDataDateIso?planningShortDate(p.latestDataDateIso):"No current data date")+' · '+escapeHtml(p.revisionCount)+' programme revision'+(p.revisionCount===1?"":"s")+' · '+escapeHtml(p.evidenceDocumentCount)+' documents</div>'+
+        '<div class="project-meta">'+escapeHtml(p.latestDataDateIso?planningShortDate(p.latestDataDateIso):"No current data date")+' · '+escapeHtml(p.revisionCount??"Unresolved")+' programme revision'+(p.revisionCount===1?"":"s")+' · '+escapeHtml(p.evidenceDocumentCount??"Unresolved")+' documents</div>'+
         '<span class="position-chip '+positionClass+'">'+positionLabel+'</span></div>'+
       '<div class="portfolio-project-metric"><span>'+escapeHtml(forecastLabel)+'</span><strong>'+escapeHtml(forecast)+'</strong><small>'+escapeHtml(contractLabel)+'</small><small>'+escapeHtml(adjustmentLabel)+'</small></div>'+
       '<div class="portfolio-project-metric"><span>Project completion movement</span><strong>'+escapeHtml(movement)+'</strong><small>Net first-to-latest controlled completion movement</small></div>'+
       '<div class="portfolio-project-metric"><span>Claims / EOT</span><strong>'+escapeHtml(claims)+'</strong><small>'+escapeHtml(eot)+'</small></div>'+
-      '<div class="portfolio-project-metric"><span>Management</span><strong>'+escapeHtml(managementCount===null?"Unresolved":fmt(managementCount)+" action"+(managementCount===1?"":"s"))+'</strong><small>'+escapeHtml(p.commercialCurrencyCount?fmt(p.commercialCurrencyCount)+" commercial currenc"+(p.commercialCurrencyCount===1?"y":"ies"):"No commercial position")+'</small></div>'+
+      '<div class="portfolio-project-metric"><span>Management</span><strong>'+escapeHtml(managementCount===null?"Unresolved":fmt(managementCount)+" action"+(managementCount===1?"":"s"))+'</strong><small>'+escapeHtml(p.commercialCurrencyCount===null||p.commercialCurrencyCount===undefined?"Commercial position unresolved":p.commercialCurrencyCount?fmt(p.commercialCurrencyCount)+" commercial currenc"+(p.commercialCurrencyCount===1?"y":"ies"):"No commercial position")+'</small></div>'+
       '<div class="portfolio-project-open"><button class="btn small open-project" data-project="'+escapeHtml(p.projectId)+'">Open project</button></div>'+
     '</div>'+
     '<div class="'+attentionClass+'"><b>Attention</b><span>'+escapeHtml(attention)+'</span></div>'+
@@ -4192,9 +4196,9 @@ function bindPortfolioEmptyActions(){
 function renderPortfolio(){
   const data=portfolioData||{projects:[],projectCount:0};
   const projects=data.projects||[];
-  const current=projects.filter(p=>p.positionState==="current").length;
-  const attention=projects.filter(p=>p.positionState!=="current"||(p.managementActionCount||0)>0).length;
-  const docs=projects.reduce((sum,p)=>sum+(p.evidenceDocumentCount||0),0);
+  const current=projects.some(p=>p.positionState==="updating")?"Unresolved":projects.filter(p=>p.positionState==="current").length;
+  const attention=projects.some(p=>p.positionState==="updating")?"Unresolved":projects.filter(p=>p.positionState!=="current"||(p.managementActionCount||0)>0).length;
+  const docs=projects.some(p=>p.evidenceDocumentCount===null||p.evidenceDocumentCount===undefined)?"Unresolved":projects.reduce((sum,p)=>sum+p.evidenceDocumentCount,0);
 
   el("portfolioStats").innerHTML=[
     ["▣",data.projectCount||0,"Live projects","User projects in this portfolio"],
@@ -4219,7 +4223,7 @@ function renderPortfolio(){
     ?'<section class="portfolio-attention"><div class="portfolio-attention-head"><h3>Portfolio attention</h3><span class="badge partial">'+escapeHtml(attentionRows.length)+' action'+(attentionRows.length===1?"":"s")+'</span></div>'+attentionRows.map(item=>'<div class="attention-row"><b>'+escapeHtml(item.projectId)+'</b><span>'+escapeHtml(item.action)+'</span><button class="btn small open-project" data-project="'+escapeHtml(item.projectId)+'">Open</button></div>').join("")+'</section>'
     :"";
 
-  el("projectRegister").innerHTML='<div class="table-wrap"><table><thead><tr><th>Project</th><th>Data date</th><th>Documents</th><th>Programme revisions</th><th>Current position</th><th>Management actions</th><th></th></tr></thead><tbody>'+projects.map(p=>{const position=positionText(p)[1];return'<tr><td><b>'+escapeHtml(p.projectId)+'</b></td><td>'+escapeHtml(p.latestDataDateIso?planningShortDate(p.latestDataDateIso):"—")+'</td><td>'+escapeHtml(p.evidenceDocumentCount)+'</td><td>'+escapeHtml(p.revisionCount)+'</td><td>'+escapeHtml(position)+'</td><td>'+escapeHtml(p.managementActionCount||0)+'</td><td><button class="btn small open-project" data-project="'+escapeHtml(p.projectId)+'">Open</button></td></tr>'}).join("")+'</tbody></table></div>';
+  el("projectRegister").innerHTML='<div class="table-wrap"><table><thead><tr><th>Project</th><th>Data date</th><th>Documents</th><th>Programme revisions</th><th>Current position</th><th>Management actions</th><th></th></tr></thead><tbody>'+projects.map(p=>{const position=positionText(p)[1];return'<tr><td><b>'+escapeHtml(p.projectId)+'</b></td><td>'+escapeHtml(p.latestDataDateIso?planningShortDate(p.latestDataDateIso):"—")+'</td><td>'+escapeHtml(p.evidenceDocumentCount??"Unresolved")+'</td><td>'+escapeHtml(p.revisionCount??"Unresolved")+'</td><td>'+escapeHtml(position)+'</td><td>'+escapeHtml(p.managementActionCount??"Unresolved")+'</td><td><button class="btn small open-project" data-project="'+escapeHtml(p.projectId)+'">Open</button></td></tr>'}).join("")+'</tbody></table></div>';
 
   bindProjectOpeners();
 }
@@ -4314,16 +4318,20 @@ async function createProject(){
 }
 async function runAnalysis(){
   if(!overview){setAppView("projects");return}
+  const projectId=project(),projectSeq=projectRequestSeq;
+  const current=()=>projectRequestIsCurrent(projectId,projectSeq);
   setBusy("Updating project position");
   try{
-    const receipt=await api("/api/projects/"+encodeURIComponent(project())+"/evidence/rerun",{method:"POST"});
+    const receipt=await api("/api/projects/"+encodeURIComponent(projectId)+"/evidence/rerun",{method:"POST"});
+    if(!current())return;
     el("globalStatus").textContent=receipt.certification.state==="pass"?"Project position updated":"Project position needs review";
     await refresh(false);
   }catch(e){
+    if(!current())return;
     const d=e.data||{};
     el("globalStatus").textContent=d.certification?"Project position needs review":"Project position could not be updated · "+e.message;
     if(d.certification){await refresh(false)}
-  }finally{setBusy("")}
+  }finally{if(project()===projectId)setBusy("")}
 }
 async function afterEvidenceChange(){
   if(el("runAfterUpload")?.checked){await runAnalysis()}else{await refresh(false)}
@@ -4418,13 +4426,11 @@ async function refresh(bootstrapDemo=true){
   }
 }
 async function loadDemo(){setBusy("Loading demonstration project");try{el("projectId").value="UAT-DEMO";localStorage.setItem("cmeng-project","UAT-DEMO");await api("/api/projects/UAT-DEMO/demo",{method:"POST"});selected="pmo-analysis";await refresh(false);el("uploadMessage").innerHTML='<div class="notice info">Demonstration project loaded. Your own projects are not changed.</div>'}catch(e){el("uploadMessage").innerHTML='<div class="notice error">'+escapeHtml(e.message)+'</div>'}finally{setBusy("")}}
-async function uploadSchedules(){if(!scheduleSelection.length)return;setBusy("Adding programme revisions");const roles=[...document.querySelectorAll(".schedule-role")].reduce((a,s)=>{a[Number(s.dataset.index)]=s.value;return a},{});const results=[];try{for(let i=0;i<scheduleSelection.length;i+=1){const file=scheduleSelection[i];const headers={"content-type":fileType(file),"x-source-filename":file.name,"x-source-relative-path":file.name,"x-evidence-category":"schedule","x-upload-intent":el("scheduleIntent").value,"x-schedule-role":roles[i]||inferScheduleRole(file.name)};results.push(await api("/api/projects/"+encodeURIComponent(project())+"/evidence/uploads",{method:"POST",headers,body:file}))}el("uploadMessage").innerHTML='<div class="notice info">'+results.length+'  programme revision(s) added. Baselines and updates remain in the project history; recovery programmes remain separate.</div>';scheduleSelection=[];el("scheduleFiles").value="";renderScheduleQueue();await afterEvidenceChange()}catch(e){el("uploadMessage").innerHTML='<div class="notice error">'+escapeHtml(e.message)+'</div>'}finally{setBusy("")}}
-async function uploadBoqs(){if(!boqSelection.length)return;setBusy("Adding BOQ revisions");let count=0;try{for(const file of boqSelection){await api("/api/projects/"+encodeURIComponent(project())+"/evidence/uploads",{method:"POST",headers:{"content-type":fileType(file),"x-source-filename":file.name,"x-source-relative-path":file.name,"x-evidence-category":"boq_cost","x-document-type":"boq","x-upload-intent":el("boqIntent").value},body:file});count+=1}el("uploadMessage").innerHTML='<div class="notice info">'+count+'  BOQ revision(s) added and retained.</div>';boqSelection=[];el("boqFiles").value="";renderSimpleQueue("boqQueue",boqSelection,"boq");await afterEvidenceChange()}catch(e){el("uploadMessage").innerHTML='<div class="notice error">'+escapeHtml(e.message)+'</div>'}finally{setBusy("")}}
-async function uploadContracts(){if(!contractSelection.length)return;setBusy("Adding contract documents");const roles=[...document.querySelectorAll(".contract-role")].reduce((a,s)=>{a[Number(s.dataset.index)]=s.value;return a},{});let count=0;try{for(let i=0;i<contractSelection.length;i+=1){const file=contractSelection[i];const role=roles[i]||inferContractRole(file.name);const docType=role==="main"?"main_contract":role==="amendment"?"contract_amendment":role==="appendix"?"contract_appendix":role==="tender"?"tender_employer_requirements":role==="replacement"?"contract_replacement":"contract_supporting_document";await api("/api/projects/"+encodeURIComponent(project())+"/evidence/uploads",{method:"POST",headers:{"content-type":fileType(file),"x-source-filename":file.name,"x-source-relative-path":file.name,"x-evidence-category":"contract","x-document-type":docType,"x-upload-intent":el("contractIntent").value},body:file});count+=1}el("uploadMessage").innerHTML='<div class="notice info">'+count+'  contract document(s) added. Amendments remain separate from the main contract.</div>';contractSelection=[];el("contractFiles").value="";renderContractQueue();await afterEvidenceChange()}catch(e){el("uploadMessage").innerHTML='<div class="notice error">'+escapeHtml(e.message)+'</div>'}finally{setBusy("")}}
-function uploadEvidenceFileWithProgress(file,fileIndex,fileTotal){
+${uploadWorkScript}
+function uploadEvidenceFileWithProgress(file,fileIndex,fileTotal,job){
   return new Promise((resolve,reject)=>{
     const id=uploadId();
-    const url="/api/projects/"+encodeURIComponent(project())+"/evidence/uploads";
+    const url="/api/projects/"+encodeURIComponent(job.projectId)+"/evidence/uploads";
     const xhr=new XMLHttpRequest();
     let lastServerProgress=null;
     let pollBusy=false;
@@ -4432,14 +4438,21 @@ function uploadEvidenceFileWithProgress(file,fileIndex,fileTotal){
     xhr.setRequestHeader("content-type",fileType(file));
     xhr.setRequestHeader("x-source-filename",file.name);
     xhr.setRequestHeader("x-source-relative-path",file.webkitRelativePath||file.name);
-    xhr.setRequestHeader("x-upload-intent",el("evidenceIntent").value);
+    xhr.setRequestHeader("x-upload-intent",job.intent);
     xhr.setRequestHeader("x-upload-id",id);
+    if(job.kind==="schedule"){xhr.setRequestHeader("x-evidence-category","schedule");xhr.setRequestHeader("x-schedule-role",job.roles[fileIndex]||inferScheduleRole(file.name));}
+    if(job.kind==="boq"){xhr.setRequestHeader("x-evidence-category","boq_cost");xhr.setRequestHeader("x-document-type","boq");}
+    if(job.kind==="contract"){
+      const role=job.roles[fileIndex]||inferContractRole(file.name);
+      const types={main:"main_contract",amendment:"contract_amendment",appendix:"contract_appendix",tender:"tender_employer_requirements",replacement:"contract_replacement"};
+      xhr.setRequestHeader("x-evidence-category","contract");xhr.setRequestHeader("x-document-type",types[role]||"contract_supporting_document");
+    }
 
     xhr.upload.onprogress=event=>{
       if(!event.lengthComputable)return;
       const transferPercent=Math.max(0,Math.min(100,Math.round((event.loaded/event.total)*100)));
       const serverPercent=Math.max(0,Math.round(transferPercent*0.24));
-      renderEvidenceUploadProgress({
+      updateUploadJob(job,{
         state:"receiving",
         percent:serverPercent,
         message:"Uploading "+file.name,
@@ -4452,13 +4465,13 @@ function uploadEvidenceFileWithProgress(file,fileIndex,fileTotal){
       if(pollBusy)return;
       pollBusy=true;
       try{
-        const response=await fetch("/api/projects/"+encodeURIComponent(project())+"/evidence/upload-progress/"+encodeURIComponent(id),{cache:"no-store"});
+        const response=await fetch("/api/projects/"+encodeURIComponent(job.projectId)+"/evidence/upload-progress/"+encodeURIComponent(id),{cache:"no-store"});
         if(response.ok){
           lastServerProgress=await response.json();
           const transferDetail=lastServerProgress.totalBytes
             ? humanBytes(lastServerProgress.receivedBytes)+" / "+humanBytes(lastServerProgress.totalBytes)
             : "";
-          renderEvidenceUploadProgress(lastServerProgress,fileIndex,fileTotal,transferDetail);
+          updateUploadJob(job,lastServerProgress,fileIndex,fileTotal,transferDetail);
         }
       }catch{}
       finally{pollBusy=false}
@@ -4484,48 +4497,17 @@ function uploadEvidenceFileWithProgress(file,fileIndex,fileTotal){
         reject(Object.assign(new Error(data?.message||data?.reason||data?.error||("HTTP "+xhr.status)),{status:xhr.status,data}));
         return;
       }
-      renderEvidenceUploadProgress(lastServerProgress||{
+      updateUploadJob(job,lastServerProgress||{
         state:"complete",
         percent:100,
-        message:(data?.documentCount||1)+" documents loaded",
-        documentTotal:data?.documentCount||1,
+        message:"File processed · check Documents for the reading result",
+        documentTotal:data?.documentCount??(data?.documentId?1:null),
         currentDocument:null
       },fileIndex,fileTotal,"");
       resolve(data);
     };
     xhr.send(file);
   });
-}
-async function uploadEvidence(){
-  if(!evidenceSelection.length)return;
-  setBusy("Loading project package");
-  let documentCount=0;
-  try{
-    const files=[...evidenceSelection];
-    for(let i=0;i<files.length;i+=1){
-      const result=await uploadEvidenceFileWithProgress(files[i],i,files.length);
-      documentCount+=result.documentCount||1;
-    }
-    renderEvidenceUploadProgress({
-      state:"complete",
-      percent:100,
-      message:documentCount+" project documents loaded",
-      documentTotal:documentCount,
-      identifiedDocuments:documentCount,
-      processedDocuments:documentCount,
-      currentDocument:null
-    },0,1,"");
-    evidenceSelection=[];
-    el("evidenceFiles").value="";
-    renderSimpleQueue("evidenceQueue",evidenceSelection,"evidence");
-    if(el("runAfterUpload")?.checked){
-      el("uploadMessage").insertAdjacentHTML("beforeend",'<div class="notice info" style="margin-top:9px">Package loading is complete. CMeng is now updating the project position.</div>');
-    }
-    await afterEvidenceChange();
-    el("uploadMessage").insertAdjacentHTML("beforeend",'<div class="notice info" style="margin-top:9px">'+documentCount+' project document(s) loaded. The document register shows the upload/update time for every document.</div>');
-  }catch(e){
-    el("uploadMessage").innerHTML='<div class="notice error">'+escapeHtml(e.message)+'</div>';
-  }finally{setBusy("")}
 }
 el("loadDemo").onclick=loadDemo;el("refresh").onclick=()=>refresh(false);el("runAnalysisTop").onclick=runAnalysis;el("openAiTop").onclick=()=>setAppView("ai");el("askAi").onclick=askCmeng;el("createProject").onclick=createProject;el("portfolioNewProject").onclick=()=>setAppView("projects");
 function openEvidenceWorkspace(){
