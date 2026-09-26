@@ -89,6 +89,7 @@ details:not(.workspace-drawer){border:1px solid var(--line);border-radius:9px;ba
 .chart-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid var(--line);background:#faf9f6}.chart-card-head h4{margin:0;font-size:14px}.chart-card-head p{margin:3px 0 0;color:var(--muted);font-size:12px}.chart-body{padding:14px 16px}.svg-chart{width:100%;min-width:0;height:auto;display:block}.chart-scroll{overflow-x:auto;padding-bottom:2px}.chart-legend{display:flex;flex-wrap:wrap;gap:12px;margin:0 0 10px}.chart-canvas{position:relative;min-width:0}.chart-canvas-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 9px;color:#7b8795;font-size:9.5px;font-weight:750}.chart-canvas-focus-button{border:1px solid #cbd8e5;background:#fff;color:#425b74;border-radius:7px;padding:5px 8px;font-size:10px;font-weight:800;cursor:pointer}.chart-canvas-focus-button:hover{background:#f3f7fb;border-color:#9fb7ce}.visual-chart .chart-canvas-focus-button{display:none}.chart-canvas.chart-focus{position:fixed;inset:24px;z-index:1100;background:#fff;border:1px solid #aec4da;border-radius:16px;padding:20px;overflow:auto;box-shadow:0 24px 70px rgba(15,23,42,.28)}.chart-canvas.chart-focus .chart-canvas-toolbar{position:sticky;top:-20px;z-index:3;background:#fff;padding:10px 0;border-bottom:1px solid #e5ecf3}.chart-canvas.chart-focus .chart-scroll{overflow:auto}.chart-canvas.chart-focus .svg-chart{min-width:1200px;min-height:620px}.chart-canvas-open{overflow:hidden}.chart-hit-point{cursor:crosshair;outline:none}.chart-hit-point:focus{stroke:#22364d;stroke-width:1.5;fill:rgba(79,127,180,.08)}.legend-item{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:#506579}.legend-dot{width:9px;height:9px;border-radius:50%}.domain-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:11px}.domain-card{border:1px solid var(--line);border-radius:11px;background:#fff;padding:14px}.domain-card h5{margin:0 0 10px;font-size:14px}.domain-metric{display:flex;justify-content:space-between;gap:12px;padding:5px 0;border-bottom:1px solid #edf1f5;font-size:12px;color:#5a687b}.domain-metric:last-child{border-bottom:0}.domain-metric strong{color:#2e3a46;text-align:right}.position-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px}.position-card{border:1px solid #dfe7ef;border-radius:10px;background:#fff;padding:13px}.position-card .position-label{font-size:10.5px;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:.05em}.position-card .position-value{font-size:19px;font-weight:780;margin:5px 0 3px;letter-spacing:-.02em}.position-card .position-sub{font-size:11.5px;color:var(--muted)}.readiness-table td{vertical-align:middle}.state-pill{display:inline-flex;border-radius:999px;padding:4px 7px;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.035em}.state-pill.ready,.state-pill.included{background:#ecfdf3;color:#067647}.state-pill.blocked,.state-pill.excluded{background:#fef3f2;color:#b42318}.state-pill.conditional,.state-pill.review,.state-pill.unknown{background:#fffaeb;color:#b54708}.state-pill.not_applicable{background:#f2f4f7;color:#667085}.window-strip{display:grid;gap:10px}.window-card{display:grid;grid-template-columns:minmax(170px,.55fr) minmax(0,1fr) minmax(180px,.6fr);gap:13px;border:1px solid var(--line);border-radius:10px;padding:13px;background:#fff}.window-id{font-size:13px;font-weight:800}.window-dates{font-size:11.5px;color:var(--muted);margin-top:4px}.movement-value{font-size:22px;font-weight:780;letter-spacing:-.03em}.movement-label{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:750}.event-tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px}.event-tag{font-size:10.5px;border:1px solid #ded8cf;border-radius:999px;padding:3px 6px;background:#fbfdff;color:#506579}.data-section{margin-top:14px;border:1px solid var(--line);border-radius:12px;background:#fff;overflow:hidden}.data-section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid var(--line);background:#fbfdff}.data-section-head h4{margin:0;font-size:14px;letter-spacing:-.01em}.data-section-body{padding:14px 16px}.value-list{display:flex;flex-wrap:wrap;gap:7px}.value-chip{display:inline-flex;padding:6px 9px;border:1px solid #ded8cf;border-radius:8px;background:#fbfdff;font-size:12px;color:#506579}.nested-block{margin-top:12px}.nested-block:first-child{margin-top:0}.nested-title{font-size:12px;font-weight:800;color:#506579;margin:0 0 8px;text-transform:uppercase;letter-spacing:.045em}.cell-details summary{padding:4px 0!important;border:0!important;background:transparent!important}.cell-details pre{max-height:320px}.technical-payload{margin-top:16px}.footer-note{font-size:12px;color:var(--muted);margin-top:22px;padding:0 2px}.muted{color:var(--muted)}
 .spinner{width:14px;height:14px;border:2px solid #d0d5dd;border-top-color:var(--accent);border-radius:50%;display:inline-block;animation:spin .7s linear infinite;vertical-align:-2px}@keyframes spin{to{transform:rotate(360deg)}}
 @media(max-width:1280px){.planning-kpi-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.planning-primary-grid{grid-template-columns:1fr}.management-health-grid{grid-template-columns:1fr 1fr}.app{grid-template-columns:238px minmax(0,1fr)}.grid.three{grid-template-columns:1fr 1fr}.upload-row{grid-template-columns:1fr}.evidence-control-grid{grid-template-columns:1fr}.evidence-status-card{position:static}}
+.drawer-header-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap;justify-content:flex-end}.drawer-close{white-space:nowrap;flex-shrink:0}
 @media(max-width:900px){.app{display:block}.sidebar{position:relative;height:auto}.topbar{position:relative;flex-wrap:wrap;padding:13px 18px}.content{padding:20px 18px 48px}.project-input{min-width:0;width:100%;flex-wrap:wrap}.workspace-header{align-items:center}.grid.two,.grid.three{grid-template-columns:1fr}.module-panel #moduleContent{padding:16px}.module-panel>.module-head{padding:17px}.candidate-grid{grid-template-columns:1fr}.auxiliary-drawer{right:12px;top:12px;width:calc(100vw - 24px);max-height:calc(100vh - 24px)}}
 @media(max-width:620px){.workspace-header{display:block}.queue-row{grid-template-columns:1fr}.queue-role-control{grid-template-columns:1fr}.queue-remove{justify-self:start}.quick-upload-bar{display:block}.quick-upload-actions{margin-top:10px}.quick-upload-actions .btn{width:100%}.workspace-actions{justify-content:flex-start;margin-top:10px}.workspace-header .badge{margin-top:10px}.grid.kpi{grid-template-columns:1fr 1fr}.scalar-grid{grid-template-columns:1fr}.wide-upload{grid-template-columns:1fr}.queue-row{grid-template-columns:1fr}.recommendation-card{display:block}.decision-pill{display:inline-flex;margin-top:10px}}
 
@@ -334,7 +335,7 @@ ${systemReviewStyles}
       <details class="workspace-drawer auxiliary-drawer" id="evidenceControlDrawer">
         <summary>
           <div><span class="section-kicker">Documents</span><strong>Add or update project documents</strong></div>
-          <span class="drawer-hint">Open</span>
+          <button type="button" class="btn small drawer-close" id="closeEvidenceControl" aria-label="Close add documents">Close ×</button>
         </summary>
         <div class="drawer-body">
           <div class="grid evidence-control-grid">
@@ -401,7 +402,7 @@ ${systemReviewStyles}
       <details class="workspace-drawer auxiliary-drawer" id="evidenceLibraryDrawer">
         <summary>
           <div><span class="section-kicker">Documents</span><strong>Documents and activity links</strong></div>
-          <span id="evidenceBadge" class="badge">0 documents</span>
+          <span class="drawer-header-actions"><span id="evidenceBadge" class="badge">Documents not loaded</span><button type="button" class="btn small drawer-close" id="closeEvidenceLibrary" aria-label="Close documents">Close ×</button></span>
         </summary>
         <div class="drawer-body">
           <div id="evidenceLibrary" class="empty">No project documents have been added.</div>
@@ -465,6 +466,7 @@ const roleViewOrder=["overall","planning","controls","project-director","program
 const storedRoleView=localStorage.getItem("cmeng-role-view");
 let selectedRoleView=roleViewOrder.includes(storedRoleView)?storedRoleView:"overall";
 let overview=null,selected="master-dashboard",portfolioData=null,appView="portfolio",currentModuleResult=null;
+let projectRequestSeq=0,evidenceRequestSeq=0,aiRequestSeq=0,projectLoadState="idle";
 let scheduleSelection=[],boqSelection=[],contractSelection=[],evidenceSelection=[];
 let selectedEvidenceDocuments=new Set();
 const el=id=>document.getElementById(id);
@@ -3818,6 +3820,7 @@ function userFacingModuleReason(key,reason){
 function renderModuleResult(result){
   result={...result,key:result.legacyKey||result.key};
   currentModuleResult=result;
+  el("moduleReport").disabled=false;
   el("moduleContent").classList.remove("empty");
   renderRoleViewSelector();
   const managementSurface=managementSurfaceKeysForApi.has(result.key);
@@ -3878,7 +3881,10 @@ async function loadModule(key){
   if(!overview){el("moduleContent").innerHTML='<div class="empty">Load a project first.</div>';return}
   const moduleName=names[key]||key;
   const requestSeq=++moduleRequestSeq;
+  const projectId=project(),projectSeq=projectRequestSeq;
+  const current=()=>requestSeq===moduleRequestSeq&&projectRequestIsCurrent(projectId,projectSeq);
   currentModuleResult=null;
+  el("moduleReport").disabled=true;
   el("moduleContent").classList.remove("empty");
   el("moduleTitle").textContent=moduleName;
   el("moduleSubtitle").textContent=descriptions[key]||"Current position, key changes and actions requiring attention.";
@@ -3895,10 +3901,10 @@ async function loadModule(key){
       const moduleArea=commercialModuleKeysForApi.has(key)?"commercial":"schedule";
       result=await api("/api/projects/"+encodeURIComponent(project())+"/"+moduleArea+"/modules/"+encodeURIComponent(apiKeys[key]||key));
     }
-    if(requestSeq!==moduleRequestSeq)return;
+    if(!current())return;
     renderModuleResult(result);
   }catch(e){
-    if(requestSeq!==moduleRequestSeq)return;
+    if(!current())return;
     const d=e.data||{};
     if((d.legacyKey||d.key)===key&&d.status==="blocked"&&d.issueAssessment){
       renderModuleResult(d);
@@ -3909,7 +3915,7 @@ async function loadModule(key){
       el("retryModule").onclick=()=>loadModule(key);
     }
   }finally{
-    if(requestSeq===moduleRequestSeq)setBusy("");
+    if(current())setBusy("");
   }
 }
 function kpi(label,value,sub=""){if(typeof value==="string"&&/^\d{4}-\d{2}-\d{2}$/.test(value))value=planningShortDate(value);return'<div class="card kpi-card"><div class="kpi-label">'+escapeHtml(label)+'</div><div class="kpi-value">'+escapeHtml(fmt(value))+'</div><div class="kpi-sub">'+escapeHtml(sub)+'</div></div>'}
@@ -4082,14 +4088,17 @@ async function deleteSelectedDocuments(){
   }finally{setBusy("")}
 }
 async function loadEvidence(){
+  const requestSeq=++evidenceRequestSeq,projectId=project(),projectSeq=projectRequestSeq;
+  const current=()=>requestSeq===evidenceRequestSeq&&projectRequestIsCurrent(projectId,projectSeq);
   if(!overview){
     selectedEvidenceDocuments.clear();
-    el("evidenceBadge").textContent="0 documents";
-    el("evidenceLibrary").innerHTML='<div class="empty">No project documents have been added.</div>';
+    el("evidenceBadge").textContent="Documents not loaded";
+    el("evidenceLibrary").innerHTML='<div class="empty">Open a project to load its documents.</div>';
     return;
   }
   try{
     const data=await api("/api/projects/"+encodeURIComponent(project())+"/evidence/documents");
+    if(!current())return;
     const liveIds=new Set((data.documents||[]).map(document=>document.documentId));
     selectedEvidenceDocuments=new Set([...selectedEvidenceDocuments].filter(id=>liveIds.has(id)));
     el("evidenceBadge").className="badge "+(data.documentCount?"ready":"");
@@ -4128,6 +4137,7 @@ async function loadEvidence(){
     bindDocumentDeletion();
     bindEvidenceSelection();
   }catch(e){
+    if(!current())return;
     el("evidenceLibrary").innerHTML='<div class="notice warn">Document register could not be loaded: '+escapeHtml(e.message)+'</div>';
   }
 }
@@ -4215,20 +4225,23 @@ async function loadPortfolio(){
 }
 function updateActiveProjectShell(){
   const id=overview?.projectId||project();
+  const pending=projectLoadState==="loading";
+  const unloaded=pending?"Loading project information…":id?"Project information could not be loaded":"Open a project from Portfolio or Projects";
   const displayDataDate=overview?.latestDataDateIso?planningShortDate(overview.latestDataDateIso):"No data date";
   if(appView==="project")el("platformContextTitle").textContent=id;
-  el("activeProjectName").textContent=overview?id:"No project selected";
-  el("activeProjectMeta").textContent=overview?(displayDataDate+" · "+overview.evidenceDocumentCount+" project documents"+(overview.releaseCommitSha?" · Release "+overview.releaseCommitSha.slice(0,7):"")):"Open a project from Portfolio or Projects";
-  el("workspaceProjectMeta").textContent=overview?(id+" · Data Date "+displayDataDate+(overview.releaseCommitSha?" · Release "+overview.releaseCommitSha.slice(0,7):" · Release not supplied")):"No project selected";
+  el("activeProjectName").textContent=id||"No project selected";
+  el("activeProjectMeta").textContent=overview?(displayDataDate+" · "+overview.evidenceDocumentCount+" project documents"+(overview.releaseCommitSha?" · Release "+overview.releaseCommitSha.slice(0,7):"")):unloaded;
+  el("workspaceProjectMeta").textContent=overview?(id+" · Data Date "+displayDataDate+(overview.releaseCommitSha?" · Release "+overview.releaseCommitSha.slice(0,7):" · Release not supplied")):id+" · "+unloaded;
   el("aiProjectBadge").className="badge";
-  el("aiProjectBadge").textContent=overview?id:"No active project";
-  el("aiProjectInfo").innerHTML=overview?'<b>'+escapeHtml(id)+'</b><br>'+escapeHtml(overview.evidenceDocumentCount)+' evidence documents<br>'+escapeHtml(overview.revisionCount)+' schedule revisions<br>'+escapeHtml(overview.latestDataDateIso?planningShortDate(overview.latestDataDateIso):"No current data date"):'No project selected.';
+  el("aiProjectBadge").textContent=id||"No active project";
+  el("aiProjectInfo").innerHTML=overview?'<b>'+escapeHtml(id)+'</b><br>'+escapeHtml(overview.evidenceDocumentCount)+' evidence documents<br>'+escapeHtml(overview.revisionCount)+' schedule revisions<br>'+escapeHtml(overview.latestDataDateIso?planningShortDate(overview.latestDataDateIso):"No current data date"):escapeHtml(unloaded);
+  ["openLibraryQuick","openEvidenceTop","runAnalysisTop","askAi"].forEach(key=>{el(key).disabled=!overview});
 }
 function setAppView(view){
   appView=view;
   ["portfolio","projects","ai"].forEach(name=>{el(name+"View").hidden=view!==name});
   el("projectWorkspace").hidden=view!=="project";
-  document.body.classList.toggle("project-active",view==="project"&&!!overview);
+  document.body.classList.toggle("project-active",view==="project"&&!!project());
   const titles={portfolio:"Portfolio",projects:"Projects",ai:"Ask CMeng",project:project()||"Project Controls"};
   el("platformContextTitle").textContent=titles[view]||"CMeng";
   renderPlatformNav();
@@ -4237,15 +4250,48 @@ function setAppView(view){
   if(view==="ai")updateActiveProjectShell();
   window.scrollTo({top:0,behavior:"smooth"});
 }
+function projectRequestIsCurrent(projectId,requestSeq){
+  return projectId===project()&&requestSeq===projectRequestSeq;
+}
+function clearProjectWorkspace(projectId){
+  // Invalidate every read before changing the visible project. An older response
+  // must remain obsolete even if the user switches A → B → A.
+  projectRequestSeq++;moduleRequestSeq++;directorRequestSeq++;evidenceRequestSeq++;aiRequestSeq++;
+  overview=null;currentModuleResult=null;projectLoadState="loading";
+  selectedEvidenceDocuments.clear();
+  scheduleSelection=[];boqSelection=[];contractSelection=[];evidenceSelection=[];
+  ["scheduleFiles","boqFiles","contractFiles","evidenceFiles","aiQuestion"].forEach(id=>{el(id).value=""});
+  ["scheduleQueue","boqQueue","contractQueue","evidenceQueue","uploadMessage"].forEach(id=>{el(id).innerHTML=""});
+  ["evidenceControlDrawer","evidenceLibraryDrawer","directorDrawer"].forEach(id=>{el(id).open=false});
+  el("directorDrawer").hidden=true;
+  document.body.classList.remove("visual-panel-open","chart-canvas-open");
+  document.querySelectorAll(".visual-focus,.chart-focus").forEach(node=>node.classList.remove("visual-focus","chart-focus"));
+  el("projectStatus").textContent="Loading project information…";
+  el("director").textContent="Loading management detail…";
+  el("evidenceBadge").className="badge";
+  el("evidenceBadge").textContent="Documents not loaded";
+  el("evidenceLibrary").textContent="Loading project documents…";
+  el("aiAnswer").textContent="Wait for this project to finish loading, then ask about its position.";
+  el("roleViewSelector").style.display="none";
+  el("moduleReport").disabled=true;
+  el("moduleBadge").className="badge";
+  el("moduleBadge").textContent="Opening project";
+  el("moduleTitle").textContent=names[selected]||"Project Controls";
+  el("moduleSubtitle").textContent=descriptions[selected]||"Current position, key changes and actions requiring attention.";
+  el("topbarModule").textContent=names[selected]||"Project Controls";
+  el("moduleContent").innerHTML='<div class="view-state-bar" role="status"><span class="spinner"></span><strong>Opening '+escapeHtml(projectId)+'</strong><span>Loading the current project position.</span></div>';
+  updateActiveProjectShell();
+}
 async function openProject(projectId){
+  projectId=String(projectId||"").trim();
   if(!projectId)return;
   el("projectId").value=projectId;
   localStorage.setItem("cmeng-project",projectId);
+  clearProjectWorkspace(projectId);
   appView="project";
   setAppView("project");
   el("projectBadge").className="badge";
   el("projectBadge").textContent="OPENING PROJECT";
-  el("moduleContent").innerHTML='<div class="view-state-bar"><span class="spinner"></span><strong>Opening '+escapeHtml(projectId)+'</strong><span>Loading the current project position.</span></div>';
   await refresh(false);
 }
 async function createProject(){
@@ -4283,12 +4329,15 @@ async function askCmeng(){
   if(!overview){el("aiAnswer").textContent="Open a project first.";return}
   const question=el("aiQuestion").value.trim();
   if(!question)return;
+  const projectId=project(),projectSeq=projectRequestSeq,requestSeq=++aiRequestSeq;
+  const current=()=>requestSeq===aiRequestSeq&&projectRequestIsCurrent(projectId,projectSeq);
   el("aiAnswer").textContent="Reviewing the current project position...";
   try{
     const result=await api("/api/projects/"+encodeURIComponent(project())+"/intelligence/ask",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({question})});
+    if(!current())return;
     el("aiAnswer").textContent=result.answer+(result.managementActions?.length?"\n\nManagement actions:\n"+result.managementActions.map(x=>"• "+x).join("\n"):"")+(result.governance?"\n\n"+result.governance:"");
     el("aiProjectInfo").innerHTML='<b>'+escapeHtml(result.projectId)+'</b><br>'+result.relevantModules.map(x=>escapeHtml((names[x.key]||humanizeKey(x.key))+" · "+statusLabel(x.status))).join("<br>");
-  }catch(e){el("aiAnswer").textContent="CMeng AI could not answer: "+e.message}
+  }catch(e){if(current())el("aiAnswer").textContent="CMeng AI could not answer: "+e.message}
 }
 function renderAiSuggestions(){
   const qs=["What changed since the previous schedule update?","What is driving the current completion forecast?","Which delay events have the strongest time impact?","What project information is missing from the look-ahead?","What commercial exposure is linked to schedule delay?"];
@@ -4298,18 +4347,20 @@ function renderAiSuggestions(){
 let directorRequestSeq=0;
 async function loadDirector(projectId=project(),attempt=0){
   const requestSeq=++directorRequestSeq;
+  const projectSeq=projectRequestSeq;
+  const current=()=>requestSeq===directorRequestSeq&&projectRequestIsCurrent(projectId,projectSeq);
   el("director").innerHTML='<div class="view-state-bar"><span class="spinner"></span><strong>Loading management detail</strong></div>';
   try{
     const position=await api("/api/projects/"+encodeURIComponent(projectId)+"/director-position");
-    if(requestSeq!==directorRequestSeq||projectId!==project())return;
+    if(!current())return;
     renderDirector(position);
   }catch(e){
-    if(requestSeq!==directorRequestSeq||projectId!==project())return;
+    if(!current())return;
     const currentOverview=typeof overview!=="undefined"?overview:null;
     const programmeEstablished=currentOverview?.minimumEvidenceBasis?.schedule?.established===true;
     if(e.status===404&&programmeEstablished&&attempt<4){
       el("director").innerHTML='<div class="view-state-bar"><span class="spinner"></span><strong>Updating management position</strong><span>The project documents are loaded; the management position is being rebuilt from the current evidence.</span></div>';
-      setTimeout(()=>{if(requestSeq===directorRequestSeq&&projectId===project())loadDirector(projectId,attempt+1)},600);
+      setTimeout(()=>{if(current())loadDirector(projectId,attempt+1)},600);
       return;
     }
     if(e.status===404&&!programmeEstablished){
@@ -4323,9 +4374,14 @@ async function loadDirector(projectId=project(),attempt=0){
 async function refresh(bootstrapDemo=true){
   setBusy("Refreshing project");
   const projectId=project();
+  const requestSeq=++projectRequestSeq;
+  const current=()=>projectRequestIsCurrent(projectId,requestSeq);
   try{
     const loadedOverview=await api("/api/projects/"+encodeURIComponent(projectId)+"/overview");
+    if(!current())return;
+    if(loadedOverview.projectId!==projectId)throw new Error("The returned information belongs to a different project.");
     overview=loadedOverview;
+    projectLoadState="ready";
     localStorage.setItem("cmeng-project",projectId);
     try{renderStatus(overview)}catch{}
     updateActiveProjectShell();
@@ -4336,19 +4392,26 @@ async function refresh(bootstrapDemo=true){
       loadDirector(projectId)
     ]);
   }catch(e){
+    if(!current())return;
     if(bootstrapDemo&&e.status===404&&projectId==="UAT-DEMO"){
       try{await api("/api/projects/UAT-DEMO/demo",{method:"POST"});return await refresh(false)}catch{}
     }
     overview=null;
+    currentModuleResult=null;projectLoadState="error";
     updateActiveProjectShell();
     renderNav();
     try{renderDirector(null)}catch{}
-    el("projectStatus").innerHTML='<div class="notice warn">Open or create a project, then add project documents.</div>';
+    el("projectStatus").textContent="Project information could not be loaded. Try opening the project again.";
     el("projectBadge").className="badge blocked";
-    el("projectBadge").textContent="NO PROJECT";
-    try{await loadEvidence()}catch{}
+    el("projectBadge").textContent="NOT LOADED";
+    el("moduleBadge").textContent="Not loaded";
+    el("moduleReport").disabled=true;
+    el("moduleContent").innerHTML='<section class="notice error" role="alert"><h4>Unable to open '+escapeHtml(projectId)+'</h4><p>Project information could not be loaded. Try again.</p><button class="btn" id="retryProject">Try again</button></section>';
+    el("retryProject").onclick=()=>openProject(projectId);
+    el("evidenceBadge").textContent="Documents not loaded";
+    el("evidenceLibrary").textContent="Project documents could not be loaded.";
   }finally{
-    setBusy("");
+    if(current())setBusy("");
   }
 }
 async function loadDemo(){setBusy("Loading demonstration project");try{el("projectId").value="UAT-DEMO";localStorage.setItem("cmeng-project","UAT-DEMO");await api("/api/projects/UAT-DEMO/demo",{method:"POST"});selected="pmo-analysis";await refresh(false);el("uploadMessage").innerHTML='<div class="notice info">Demonstration project loaded. Your own projects are not changed.</div>'}catch(e){el("uploadMessage").innerHTML='<div class="notice error">'+escapeHtml(e.message)+'</div>'}finally{setBusy("")}}
@@ -4476,6 +4539,22 @@ function openEvidenceLibrary(){
   const drawer=el("evidenceLibraryDrawer");
   drawer.open=true;
 }
+function closeProjectDrawer(id){
+  const opener=id==="evidenceLibraryDrawer"?"openLibraryQuick":id==="evidenceControlDrawer"?"openEvidenceTop":null;
+  if(!opener)return;
+  el(id).open=false;
+  el(opener).focus();
+}
+function handleProjectDrawerEscape(event){
+  if(event.key!=="Escape")return;
+  const id=["evidenceLibraryDrawer","evidenceControlDrawer"].find(id=>el(id).open);
+  if(!id)return;
+  event.preventDefault();
+  closeProjectDrawer(id);
+}
+el("closeEvidenceLibrary").onclick=event=>{event.preventDefault();event.stopPropagation();closeProjectDrawer("evidenceLibraryDrawer")};
+el("closeEvidenceControl").onclick=event=>{event.preventDefault();event.stopPropagation();closeProjectDrawer("evidenceControlDrawer")};
+document.addEventListener("keydown",handleProjectDrawerEscape);
 el("openEvidenceTop").onclick=openEvidenceWorkspace;
 el("openLibraryQuick").onclick=openEvidenceLibrary;
 function setFocusMode(enabled){document.body.classList.toggle("focus-module",enabled);el("focusMode").classList.toggle("active",enabled);el("focusMode").setAttribute("aria-pressed",String(enabled));el("focusMode").textContent=enabled?"Exit focus":"Focus view";localStorage.setItem("cmeng-focus",enabled?"1":"0")}
@@ -4513,7 +4592,7 @@ document.addEventListener("click",event=>{
   setVisualPanelFocus(panel,!panel?.classList.contains("visual-focus"));
 });
 document.addEventListener("keydown",event=>{
-  if(event.key!=="Escape")return;
+  if(event.defaultPrevented||event.key!=="Escape")return;
   const panel=document.querySelector(".visual-chart.visual-focus");
   if(panel)setVisualPanelFocus(panel,false);
 });
@@ -4542,7 +4621,7 @@ document.addEventListener("click",event=>{
   setChartCanvasFocus(canvas,!canvas?.classList.contains("chart-focus"));
 });
 document.addEventListener("keydown",event=>{
-  if(event.key!=="Escape")return;
+  if(event.defaultPrevented||event.key!=="Escape")return;
   const canvas=document.querySelector(".chart-canvas.chart-focus");
   if(canvas)setChartCanvasFocus(canvas,false);
 });

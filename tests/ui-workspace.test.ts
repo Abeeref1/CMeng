@@ -275,7 +275,7 @@ test("CMeng workspace keeps the active module primary and browser script parseab
   );
   assert.match(
     html,
-    /requestSeq!==moduleRequestSeq/,
+    /requestSeq===moduleRequestSeq&&projectRequestIsCurrent/,
     "only the latest selected module may update the screen",
   );
   assert.match(
@@ -285,7 +285,7 @@ test("CMeng workspace keeps the active module primary and browser script parseab
   );
   assert.match(
     html,
-    /overview=loadedOverview;\s*localStorage\.setItem\("cmeng-project",projectId\)/,
+    /overview=loadedOverview;\s*projectLoadState="ready";\s*localStorage\.setItem\("cmeng-project",projectId\)/,
     "a valid overview must establish the active project before secondary panels load",
   );
   assert.equal(
