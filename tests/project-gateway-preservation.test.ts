@@ -40,7 +40,7 @@ test('worker gateway preserves all module, management, source and audit results 
     const base=await new Promise<string>((resolve,reject)=>{let logs='';const timer=setTimeout(()=>reject(new Error('Original server startup timeout: '+logs)),30000);child.stdout.on('data',d=>{logs+=d;const port=/PORT=(\d+)/.exec(logs)?.[1];if(port){clearTimeout(timer);resolve('http://127.0.0.1:'+port);}});child.stderr.on('data',d=>{logs+=d;});child.once('exit',()=>{clearTimeout(timer);reject(new Error(logs));});});
     await new Promise<void>(resolve=>gateway.server.listen(0,'127.0.0.1',resolve));
     const worker='http://127.0.0.1:'+(gateway.server.address() as AddressInfo).port;
-    const paths=['/overview','/evidence/documents','/schedule/revisions','/director-position','/board-report','/board-report/history?includeReport=true','/management-surfaces',...moduleRegistry.map(m=>'/'+m.area+'/modules/'+m.key),'/schedule/modules/quantity-scurve/report.json'];
+    const paths=['/overview','/evidence/documents','/schedule/revisions','/director-position','/board-report','/board-report/history?includeReport=true','/management-surfaces',...moduleRegistry.map(m=>m.area==='management'?'/management/'+m.key:'/'+m.area+'/modules/'+m.key),'/schedule/modules/quantity-scurve/report.json'];
     for(const path of paths){
       const replies=await Promise.all([base,worker].map(async url=>{const response=await fetch(url+'/api/projects/PRESERVE'+path);return {status:response.status,body:await response.json()};}));
       assert.equal(replies[0]!.status,200,path+' must exercise an existing endpoint');
