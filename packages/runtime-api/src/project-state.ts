@@ -2,6 +2,7 @@ import {hasFinancialSecurityContent} from './security-document-content';
 import {scenarioName,migrateScheduleAuthority,explicitScheduleDecision,isScenarioRevision} from './schedule-authority';
 import {parentPort} from 'node:worker_threads';
 import {persistProjectMetadata,projectMetadata} from './project-catalog';
+import {readSnapshotJson,writeSnapshotJson,writeSourceAtomic} from './snapshot-json';
 import {normalizeProjectCode,isProgrammeScheduleRevision} from './project-identity';
 export {normalizeProjectCode,isProgrammeScheduleRevision} from './project-identity';
 import {projectDataDate,projectControlSchedule} from './canonical-time-claims';
@@ -1195,6 +1196,11 @@ export class RuntimeProjectStore {
   private readonly dataDir: string;
   private readonly stateFile: string;
   private readonly durable: boolean;
+  private restoreFailure:Error|null=null;
+
+  private assertAvailable():void {
+    if(this.restoreFailure)throw this.restoreFailure;
+  }
 
   constructor(
     options: {
@@ -1284,12 +1290,7 @@ export class RuntimeProjectStore {
     }
 
     try {
-      const parsed = JSON.parse(
-        readFileSync(
-          this.stateFile,
-          "utf8",
-        ),
-      ) as RuntimeStateSnapshot;
+      const parsed = readSnapshotJson<RuntimeStateSnapshot>(this.stateFile);
 
       if (
         parsed.schemaVersion !== 1 ||
@@ -1540,6 +1541,8 @@ export class RuntimeProjectStore {
     return JSON.stringify([state.version,state.evidenceDocuments.map(d=>[d.documentId,d.uploadedAt]),state.boardPublicationHistory.map(p=>[p.publicationId,p.finalizedAt,p.stale,!!p.reportSnapshot]),state.lastRerunReceipt]);
   }
   private persistSnapshot(): void {
+    this.assertAvailable();
+    try {
     for(const state of this.projects.values()) {
       const fingerprint=this.auditFingerprint(state),old=this.auditWatermarks.get(state.projectId);
       if(old?.fingerprint!==fingerprint){
@@ -1559,24 +1562,28 @@ export class RuntimeProjectStore {
       ),
     };
 
-    const temporary =
-      this.stateFile +
-      "." +
-      process.pid +
-      "." +
-      randomUUID() +
-      ".tmp";
-
-    writeFileSync(
-      temporary,
-      JSON.stringify(snapshot),
-      "utf8",
-    );
-    renameSync(
-      temporary,
-      this.stateFile,
-    );
+    writeSnapshotJson(this.stateFile,snapshot);
     if(process.env.CMENG_PROJECT_WORKER==='1')for(const state of this.projects.values()){persistProjectMetadata(this.dataDir,state);parentPort?.postMessage({type:'metadata',metadata:projectMetadata(state)});}
+    }catch(cause){this.failSave(cause);}
+  }
+
+  private failSave(cause:unknown):never {
+    const failure=Object.assign(new Error('The project save could not be confirmed. Check the document register before retrying.',{cause}),{statusCode:503,code:'PROJECT_SAVE_NOT_CONFIRMED'});
+    this.restoreSavedPosition(failure);
+    throw failure;
+  }
+
+  // Used for both snapshot and original-file write failures. Failed requests
+  // must never leave uncommitted state in duplicate checks or reporting caches.
+  restoreSavedPosition(failure:Error=Object.assign(new Error('The saved project could not be reopened.'),{statusCode:503})):void {
+    try{
+      const saved=existsSync(this.stateFile)?readSnapshotJson<RuntimeStateSnapshot>(this.stateFile):{schemaVersion:1,projects:[]};
+      if(saved.schemaVersion!==1||!Array.isArray(saved.projects))throw new Error('PROJECT_SNAPSHOT_INVALID');
+      const restored=saved.projects.map(hydrateProject);
+      this.projects.clear();this.auditWatermarks.clear();this.auditSourceFingerprints.clear();
+      for(const state of restored){this.projects.set(state.projectId,state);this.auditWatermarks.set(state.projectId,{fingerprint:this.auditFingerprint(state),version:state.version});this.auditSourceFingerprints.set(state.projectId,this.auditSources(state));}
+      this.restoreFailure=null;
+    }catch{this.projects.clear();this.restoreFailure=failure;}
   }
 
   private createOcrProvider():
@@ -1631,6 +1638,7 @@ export class RuntimeProjectStore {
         | null;
     },
   ): string {
+    try {
     const directory = join(
       this.dataDir,
       "uploads",
@@ -1654,19 +1662,15 @@ export class RuntimeProjectStore {
         ),
     );
 
-    if (!existsSync(path)) {
-      writeFileSync(
-        path,
-        Buffer.from(
-          input.bytes,
-        ),
-      );
+    if (!existsSync(path) || hashBytes(readFileSync(path))!==input.hash) {
+      writeSourceAtomic(path,input.bytes);
     }
-
     return path;
+    }catch(cause){return this.failSave(cause);}
   }
 
   listProjectIds(): string[] {
+    this.assertAvailable();
     return [
       ...this.projects.keys(),
     ].sort((a, b) =>
@@ -1698,6 +1702,7 @@ export class RuntimeProjectStore {
   get(
     projectId: string,
   ): ProjectRuntimeState | null {
+    this.assertAvailable();
     const resolved =
       this.findProjectIdByCode(
         projectId,
@@ -1712,6 +1717,7 @@ export class RuntimeProjectStore {
   getOrCreate(
     projectId: string,
   ): ProjectRuntimeState {
+    this.assertAvailable();
     const normalized =
       normalizeProjectCode(
         projectId,
@@ -4108,6 +4114,8 @@ export class RuntimeProjectStore {
       state,
     );
 
+    // Commit the register change before removing any original source bytes.
+    this.touchEvidence(state);
     for (
       const storedPath of
         storedPaths
@@ -4129,8 +4137,6 @@ export class RuntimeProjectStore {
         }
       }
     }
-
-    this.touchEvidence(state);
 
     return documents.map(
       (document) => ({

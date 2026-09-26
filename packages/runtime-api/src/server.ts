@@ -3018,6 +3018,11 @@ async function route(
 export function createCmengServer(): Server {
   return createServer((req, res) => {
     void withRequestAudit(req,res,()=>route(req, res)).catch((error) => {
+      if(req.method!=='GET'&&req.method!=='HEAD'){
+        if(error?.code!=='PROJECT_SAVE_NOT_CONFIRMED')runtimeProjects.restoreSavedPosition();
+        const match=/^\/api\/projects\/([^/]+)/.exec(new URL(req.url??'/','http://localhost').pathname);
+        if(match)invalidateProject(decodeURIComponent(match[1]!));
+      }
       const uploadId =
         header(
           req,
