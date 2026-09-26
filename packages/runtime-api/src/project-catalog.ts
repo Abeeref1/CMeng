@@ -4,6 +4,7 @@ import {join} from 'node:path';
 import {statSync,writeFileSync,renameSync} from 'node:fs';
 import {isProgrammeScheduleRevision} from './project-identity';
 import type {ProjectRuntimeState} from './project-state-types';
+import {readSnapshotJson,writeSnapshotJson} from './snapshot-json';
 
 export const release=()=>process.env.RAILWAY_GIT_COMMIT_SHA??process.env.GIT_COMMIT_SHA??'local';
 export const projectDirectory=(root:string,id:string)=>join(root,'projects',createHash('sha256').update(id).digest('hex'));
@@ -32,7 +33,7 @@ export async function loadProjectCatalog(root:string):Promise<Map<string,Catalog
   catch(error){
     if((error as NodeJS.ErrnoException).code!=='ENOENT')throw error;
     let legacy:{schemaVersion:number;projects:ProjectRuntimeState[]};
-    try{legacy=JSON.parse(await readFile(join(root,'cmeng-project-state.json'),'utf8'));}
+    try{legacy=readSnapshotJson(join(root,'cmeng-project-state.json'));}
     catch(e){if((e as NodeJS.ErrnoException).code!=='ENOENT')throw e;legacy={schemaVersion:1,projects:[]};}
     if(legacy.schemaVersion!==1||!Array.isArray(legacy.projects))throw new Error('CMENG_STATE_SCHEMA_UNSUPPORTED');
     ids=[];
@@ -40,7 +41,7 @@ export async function loadProjectCatalog(root:string):Promise<Map<string,Catalog
       if(!state.projectId||ids.includes(state.projectId))throw new Error('INVALID_PROJECT_ID_IN_SNAPSHOT');
       const directory=projectDirectory(root,state.projectId);await mkdir(directory,{recursive:true});
       // Copy the complete retained state and all original upload paths. Never remove the legacy snapshot.
-      await atomicJson(join(directory,'cmeng-project-state.json'),{schemaVersion:1,projects:[state]});
+      writeSnapshotJson(join(directory,'cmeng-project-state.json'),{schemaVersion:1,projects:[state]});
       persistProjectMetadata(directory,state);ids.push(state.projectId);
     }
     // Publish only after every project copy succeeds. An interrupted migration is safe to repeat.
