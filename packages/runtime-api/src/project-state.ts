@@ -2203,9 +2203,9 @@ export class RuntimeProjectStore {
       if(projectId&&state.projectId!==projectId)continue;
       let changed=false;const families=new Set<string>();
       for(const document of state.evidenceDocuments){
-        const isCsv=/csv/.test(document.mediaType),isWorkbook=/spreadsheetml|macroEnabled/.test(document.mediaType);
+        const isCsv=/csv/.test(document.mediaType)||(/^text\//.test(document.mediaType)&&/\.csv$/i.test(document.sourceFilename)),isWorkbook=/spreadsheetml|macroEnabled/.test(document.mediaType);
         if(document.category==='schedule'||(!isCsv&&!isWorkbook))continue;
-        if(document.derivedRegisterRead?.producerVersion==='register-derived-v2'&&document.derivedRegisterRead.sourceHashSha256===document.sourceHashSha256&&(!isWorkbook||document.tabularRead?.producerVersion==='register-workbook-v2'))continue;
+        if(document.derivedRegisterRead?.producerVersion==='register-derived-v3'&&document.derivedRegisterRead.sourceHashSha256===document.sourceHashSha256&&(!isWorkbook||document.tabularRead?.producerVersion==='register-workbook-v2'))continue;
         try{
           const bytes=readFileSync(document.storedPath);if(hashBytes(bytes)!==document.sourceHashSha256)throw new Error('SOURCE_HASH_MISMATCH');
           const identified=await identifyEvidenceDocument({bytes,sourceFilename:document.sourceFilename,sourceRelativePath:document.sourceRelativePath,declaredMediaType:document.mediaType});
@@ -2225,7 +2225,7 @@ export class RuntimeProjectStore {
             readiness={...readiness,...deriveReadinessFromCsv({state,document:next,bytes:registerBytes})};
           }
           if(next.familyKey!==document.familyKey){families.add(document.familyKey);families.add(next.familyKey);next.diagnostics=[...document.diagnostics,'REGISTER_READER_FAMILY_REFRESH:'+document.familyKey+'->'+next.familyKey];}
-          next.derivedRegisterRead={producerVersion:'register-derived-v2',sourceHashSha256:next.sourceHashSha256};
+          next.derivedRegisterRead={producerVersion:'register-derived-v3',sourceHashSha256:next.sourceHashSha256};
           if(isWorkbook)next.parserState='parsed';
           Object.assign(document,next);
           state.derivedControlsByDocument[document.documentId]=controls;state.derivedReadinessByDocument[document.documentId]=readiness;
@@ -5068,7 +5068,7 @@ export class RuntimeProjectStore {
       }
 
       }
-      document.derivedRegisterRead={producerVersion:'register-derived-v2',sourceHashSha256:hash};
+      document.derivedRegisterRead={producerVersion:'register-derived-v3',sourceHashSha256:hash};
       if(tabularRead)document.parserState="parsed";
       rebuildReadinessEvidence(
         state,

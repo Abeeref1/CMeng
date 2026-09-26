@@ -296,6 +296,7 @@ async function verifiedMediaType(
     lines.length >= 2 &&
     (
       lines[0]!.includes(",") ||
+      lines[0]!.includes(";") ||
       lines[0]!.includes("\t")
     )
   ) {
@@ -1883,6 +1884,14 @@ function classifyText(
 } | null {
   const normalized =
     normalizeText(text);
+
+  // An access-permission table is not a financial security instrument.
+  if (/\bdocument\s+class\b/i.test(normalized) &&
+      /\b(?:pmo\s+admin|project\s+director)\b/i.test(normalized) &&
+      /\b(?:external\s+viewer|contractor\s+user|access\s+permission)\b/i.test(normalized)) {
+    return {category:'other',documentType:'document_access_matrix',confidence:0.99,
+      signals:['Document classes and user-role permissions']};
+  }
 
   // Method narratives and productivity tables also contain quantity/rate words.
   // Recognize their semantic structure before scoring broad commercial signals.

@@ -32,6 +32,20 @@ export function documentReadReview(document:StoredEvidenceDocument,state:Project
     if(table.recognition?.recognized===false)return {state:'unresolved',label:'Columns not recognised',note:`Read ${table.recognition.readRowCount} rows, columns not recognised: ${table.headers.join(', ')}.`,method:'Tabular content',pageCount:null,readPageCount:null,complete:false};
     return {state:'read',label:'Source rows read',note:`${table.rows.length} rows and ${table.headers.length} fields read from the source. Field completeness, validation, mapping and adoption are checked separately.`,method:'Tabular content',pageCount:null,readPageCount:null,complete:false};
   }
+  const schedule = state.schedules.find(row => row.sourceHashSha256 === hash &&
+    row.revision.revisionId === document.linkedArtifactId);
+  if (schedule) {
+    const model = schedule.revision.model;
+    const unresolvedCalendars = model.calendars.filter(calendar => !calendar.semanticComplete).length;
+    return {state:'read',label:'Schedule rows read',
+      note:`${model.activities.length} activities and ${model.relationships.length} relationships read. ${unresolvedCalendars} calendar definitions need review. Schedule completeness, calendar semantics and comparison authority are assessed separately.`,
+      method:'Schedule parser',pageCount:null,readPageCount:null,complete:false};
+  }
+  if (/pdf/i.test(document.mediaType ?? '') && document.parserState !== 'error') {
+    return {state:'partial',label:'Full-page coverage unresolved',
+      note:'Document identification or structured extraction is available, but no matching complete page-reading receipt is retained. This does not establish that every page was read or that every fact was extracted.',
+      method:document.identification?.method ?? null,pageCount:document.identification?.pageCount ?? null,readPageCount:null,complete:false};
+  }
   return {state:document.parserState,label:null,note:null,method:null,pageCount:document.identification?.pageCount??null,readPageCount:null,complete:false};
 }
 

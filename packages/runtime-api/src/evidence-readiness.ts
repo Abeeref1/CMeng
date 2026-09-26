@@ -1,3 +1,4 @@
+import {csv as parseCsv} from "../../truth-kernel/src";
 import {canonicalHeader,prepareRegisterRows,registerDate} from '../../truth-kernel/src';
 import {
   readFileSync,
@@ -34,76 +35,7 @@ function combineReadiness(a:ReadinessEvidence|undefined,b:ReadinessEvidence):Rea
     note:[a.note,b.note].filter(Boolean).join('; '),diagnostics:[...new Set([...(a.diagnostics??[]),...(b.diagnostics??[])])]};
 }
 
-function parseCsv(
-  text: string,
-): string[][] {
-  const rows: string[][] = [];
-  let row: string[] = [];
-  let field = "";
-  let quoted = false;
 
-  for (
-    let i = 0;
-    i < text.length;
-    i += 1
-  ) {
-    const ch = text[i]!;
-    if (quoted) {
-      if (ch === '"') {
-        if (
-          text[i + 1] ===
-          '"'
-        ) {
-          field += '"';
-          i += 1;
-        } else {
-          quoted = false;
-        }
-      } else {
-        field += ch;
-      }
-      continue;
-    }
-
-    if (ch === '"') {
-      quoted = true;
-    } else if (
-      ch === ","
-    ) {
-      row.push(field);
-      field = "";
-    } else if (
-      ch === "\n"
-    ) {
-      row.push(
-        field.replace(
-          /\r$/,
-          "",
-        ),
-      );
-      rows.push(row);
-      row = [];
-      field = "";
-    } else {
-      field += ch;
-    }
-  }
-
-  if (
-    field.length > 0 ||
-    row.length > 0
-  ) {
-    row.push(
-      field.replace(
-        /\r$/,
-        "",
-      ),
-    );
-    rows.push(row);
-  }
-
-  return rows;
-}
 
 function normHeader(
   value: string,
