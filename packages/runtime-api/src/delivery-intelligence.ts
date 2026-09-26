@@ -1,5 +1,6 @@
 import {canonicalHeader,numberValue,registerDate,sumKnown} from '../../truth-kernel/src';
 import type {DeliveryRecord} from '../../delivery-core/src/types';
+import {deliveryNumericIssues} from './delivery-validation';
 
 const value=(r:DeliveryRecord,key:string)=>String(r.fields[canonicalHeader(key)]??'').trim();
 const number=(r:DeliveryRecord,key:string)=>numberValue(value(r,key));
@@ -26,14 +27,17 @@ export function deliveryHsePosition(records:DeliveryRecord[],cutoff:string|null,
  if(aggregates.length&&incidents.length)diagnostics.push('Aggregate injuries and individual incidents cannot be added together.');
  if(aggregates.length&&aggregates.length!==exposures.length)diagnostics.push('Aggregate report and exposure-only scopes require a single injury basis.');
  const injuryRows=aggregates.length?aggregates:incidents;
+ const invalidSources=new Set(records.filter(r=>deliveryNumericIssues('hse',r.fields).length>0).map(r=>r.recordId));
+ const invalidInjuryRecordIds=injuryRows.filter(r=>r.injuries===null||!Number.isSafeInteger(r.injuries)||r.injuries<0||invalidSources.has(r.recordId)).map(r=>r.recordId);
+ if(invalidInjuryRecordIds.length)diagnostics.push('Each lost-time injury count must be a non-negative whole number. Review the invalid source records; the injury total and frequency rate are withheld.');
  if(incidents.some(r=>!r.scope||!r.when||!exposures.some(e=>e.scope===r.scope&&e.from&&e.to&&r.when!>=e.from&&r.when!<=e.to)))diagnostics.push('An incident is outside the established exposure scopes/periods.');
  const factors=[...new Set(exposures.map(r=>r.factor))];const factor=factors.length===1?factors[0]!:null;
  const hours=sumKnown(exposures.map(r=>r.hours));
- const injuries=injuryRows.length?sumKnown(injuryRows.map(r=>r.injuries)):complete&&exposures.length&&!aggregates.length?0:null;
+ const injuries=invalidInjuryRecordIds.length?null:injuryRows.length?sumKnown(injuryRows.map(r=>r.injuries)):complete&&exposures.length&&!aggregates.length?0:null;
  if(injuries===null||injuries<0)diagnostics.push('Lost-time injury population or counts are unresolved.');
  if(factor===null||factor<=0)diagnostics.push('Frequency-rate basis is unresolved or inconsistent.');
  const rate=diagnostics.length===0&&hours!==null&&hours>0&&injuries!==null&&factor!==null?Number((injuries/hours*factor).toFixed(4)):null;
- return {exposureHours:hours,lostTimeInjuries:injuries,rateBasis:factor,frequencyRate:rate,rows,
+ return {exposureHours:hours,lostTimeInjuries:injuries,rateBasis:factor,frequencyRate:rate,rows,invalidInjuryRecordIds,
   includedRecordIds:current.map(r=>r.recordId),excludedRecordIds:rows.filter(r=>!current.includes(r)).map(r=>r.recordId),diagnostics:[...new Set(diagnostics)],
   explanation:'Rate uses confirmed, dated exposure periods and a matching incident population. Direct source facts remain in the register. '+[...new Set(diagnostics)].join(' ')};
 }
