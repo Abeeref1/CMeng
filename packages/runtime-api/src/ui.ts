@@ -355,7 +355,7 @@ ${systemReviewStyles}
                 <div class="upload-box">
                   <strong>Schedule revisions</strong>
                   <small>Select baseline, updates, revised baseline and recovery files together. CMeng verifies content and chronology; filenames are only hints.</small>
-                  <div class="intent-control"><span>Document action</span><select id="scheduleIntent"><option value="add_update" selected>Add / update</option><option value="replace_current_basis">Replace current document</option></select></div>
+                  <div class="intent-control"><span>Document action</span><select id="scheduleIntent"><option value="add_update" selected>Upload for review</option><option value="replace_current_basis">Adopt uploaded programme</option></select></div>
                   <input type="file" id="scheduleFiles" multiple accept=".xer,.xml,.xlsx,.xlsm,.csv">
                   <div id="scheduleQueue" class="queue"></div>
                   <div class="upload-actions"><button class="btn small primary" id="uploadSchedules">Upload schedule batch</button></div>
@@ -526,10 +526,16 @@ function renderRoleContent(key,data,primaryView,challengeHtml="",includeTechnica
 }
 
 function setBusy(text){el("globalStatus").innerHTML=text?'<span class="spinner"></span> '+text:"";}
-async function api(path,opts={}){const r=await fetch(path,opts);let data=null;try{data=await r.json()}catch{}if(!r.ok){const e=new Error(data?.message||data?.reason||data?.error||("HTTP "+r.status));e.data=data;e.status=r.status;throw e}return data}
+async function api(path,opts={}){
+  const controller=(!opts.method||opts.method==="GET")&&typeof AbortController!=="undefined"?new AbortController():null;
+  const timeout=controller?setTimeout(()=>controller.abort(),60000):null;
+  try{const r=await fetch(path,{...opts,...(controller?{signal:controller.signal}:{})});let data=null;try{data=await r.json()}catch{}if(!r.ok){const e=new Error(data?.message||data?.reason||data?.error||("HTTP "+r.status));e.data=data;e.status=r.status;throw e}if(data===null)throw new Error("The service returned an incomplete response. Please try again.");return data;}
+  catch(error){if(controller?.signal.aborted)throw new Error("The connection took too long. Your documents remain saved. Try opening the project again.");throw error;}
+  finally{if(timeout!==null)clearTimeout(timeout);}
+}
 function escapeHtml(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
 function fileType(file){const n=file.name.toLowerCase();if(n.endsWith(".zip"))return"application/zip";if(n.endsWith(".xer"))return"text/plain";if(n.endsWith(".xml"))return"application/xml";if(n.endsWith(".csv"))return"text/csv";if(n.endsWith(".pdf"))return"application/pdf";if(n.endsWith(".docx"))return"application/vnd.openxmlformats-officedocument.wordprocessingml.document";if(n.endsWith(".png"))return"image/png";if(n.endsWith(".jpg")||n.endsWith(".jpeg"))return"image/jpeg";if(n.endsWith(".tif")||n.endsWith(".tiff"))return"image/tiff";if(n.endsWith(".bmp"))return"image/bmp";if(n.endsWith(".webp"))return"image/webp";if(n.endsWith(".xlsm"))return"application/vnd.ms-excel.sheet.macroEnabled.12";return file.type||"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}
-function inferScheduleRole(name){const n=name.toLowerCase();if(n.includes("revised")&&n.includes("baseline"))return"revised_baseline";if(n.includes("recovery"))return"recovery";if(n.includes("baseline")||n.includes("rev0")||n.startsWith("s01_"))return"baseline";return"update"}
+function inferScheduleRole(name){const n=name.toLowerCase();if(/(?:^|[_ .-])(draft|scenario|proposed)(?:[_ .-]|$)/.test(n))return"scenario";if(n.includes("revised")&&n.includes("baseline"))return"revised_baseline";if(n.includes("recovery"))return"recovery";if(n.includes("baseline")||n.includes("rev0")||n.startsWith("s01_"))return"baseline";return"update"}
 function inferContractRole(name){const n=name.toLowerCase();if(n.includes("replacement")||n.includes("restated")||n.includes("replaced"))return"replacement";if(n.includes("amendment"))return"amendment";if(n.includes("appendix")||n.includes("technical"))return"appendix";if(n.includes("tender")||n.includes("employer_require"))return"tender";if(n.includes("main")||n.startsWith("c01_"))return"main";return"other"}
 function fileDisplayName(file){return file.webkitRelativePath||file.name}
 function humanBytes(value){
@@ -775,6 +781,7 @@ function humanizeKey(key){
     .replace(/\b\w/g,c=>c.toUpperCase());
 }
 function documentUseLabel(state,document=null){
+  if(document?.category==="schedule"&&state==="active"&&document.scheduleAdoption?.method!=="explicit")return"Previous source selection · adoption needs confirmation";
   if(document?.category==="schedule_control"){
     const supportLabels={
       active:"Current supporting record",
@@ -1152,6 +1159,8 @@ function renderQuantityScurveVisual(data){
   const boqItemCount=typeof p.boqItemCount==="number"?p.boqItemCount:populationKnown?seriesItemCount>0?seriesItemCount:unmappedCount:null;
   const mappedItemCount=typeof p.allocatedItemCount==="number"?p.allocatedItemCount:null;
   const itemLinkCoverage=typeof p.itemLinkCoveragePercent==="number"?p.itemLinkCoveragePercent:null;
+  const measurement=p.measurementReview;
+  const measured=measurement?planningKpis([["Items with dated measurements",measurement.measuredItemCount,"of "+measurement.boqItemCount+" BOQ items"],["Measurement rows needing review",measurement.currentUnresolvedRowCount,"through the reporting date"],["Future measurement rows",measurement.futureRowCount,"excluded from current actuals"]])+'<div class="notice info">'+escapeHtml(measurement.basis)+'</div>':"";
   const top=planningKpis([
     ["BOQ items",boqItemCount===null?"Unresolved":boqItemCount,"quantity basis"],
     ["Items with any allocation",mappedItemCount===null?"Unresolved":mappedItemCount,"confirmed or scenario links"],
@@ -1178,7 +1187,7 @@ function renderQuantityScurveVisual(data){
     {key:"currentForecastQuantity",label:series.authority==="scenario_mapping"?"Scenario current plan":"Mapped current plan",color:"#4f7fb4"},
     {key:"actualInstalledQuantity",label:"Measured installed quantities",step:true,color:"#2c7a57"}
   ],null,{unit:series.unit||series.unitKey||"",yLabel:"Cumulative quantity",xLabel:"Reporting date",dataDateIso:p.dataDateIso,ariaLabel:(series.unit||series.unitKey||"Quantity")+" S-Curve"})+'</div></section>').join("");
-  return '<section class="planning-view quantity-view">'+top+charts+diagnostics+'</section>';
+  return '<section class="planning-view quantity-view">'+measured+top+charts+diagnostics+'</section>';
 }
 function renderLookAheadVisual(data){
   const p=projectionFor(data,"lookahead_schedule");
@@ -3806,8 +3815,10 @@ function renderModuleBasis(data,detail=false){
   const screeningHeadline=screening?'<div class="notice '+(screening.broadScreening?'warn':'info')+'"><b>Near-critical screening:</b> '+escapeHtml(screening.basis)+'. '+escapeHtml(screening.explanation)+(screening.broadScreening?'<p>'+escapeHtml(screening.action)+'</p>':'')+'</div>':'';
   const unresolvedCalendar=contract?.calendarResolution?.unresolvedActivityCount||0;
   const calendarHeadline=unresolvedCalendar&&['independent_forecast','near_critical','pmo_analysis','master_dashboard','command_center','project_director','schedule_analytics'].includes(root.projectionKey)?'<div class="notice warn"><b>Unresolved: '+fmt(unresolvedCalendar)+' activities.</b> Their working calendars could not be read. Programme calendar recalculation, its comparison with the contract, and the near-critical count are unresolved.</div>':'';
+  const adoptionReview=data?.scheduleAuthorityReview;
+  const adoptionHeadline=adoptionReview&&adoptionReview.state!=="established"?'<div class="notice warn">'+escapeHtml(adoptionReview.explanation)+'</div>':"";
   const newerHeadline=newer.length?'<div class="notice warn"><b>Newer programme supplied, not adopted.</b> '+newer.map(r=>escapeHtml(planningShortDate(r.dataDateIso))+' · '+escapeHtml(r.filename||'Programme')).join('; ')+'</div>':'';
-  return baselineHeadline+completionHeadline+newerHeadline+calendarHeadline+screeningHeadline+'<div class="module-basis">'+values.map(([label,value])=>'<span class="basis-chip"><b>'+escapeHtml(label)+'</b><strong title="'+escapeHtml(label==="Programme basis"&&revision?revision:value)+'">'+escapeHtml(value)+'</strong></span>').join("")+'</div>';
+  return baselineHeadline+completionHeadline+adoptionHeadline+newerHeadline+calendarHeadline+screeningHeadline+'<div class="module-basis">'+values.map(([label,value])=>'<span class="basis-chip"><b>'+escapeHtml(label)+'</b><strong title="'+escapeHtml(label==="Programme basis"&&revision?revision:value)+'">'+escapeHtml(value)+'</strong></span>').join("")+'</div>';
 }
 function renderStructuredSections(data){
   if(!data||typeof data!=="object")return"";
@@ -3972,7 +3983,7 @@ function renderScheduleQueue(){
   el("scheduleQueue").innerHTML=scheduleSelection.map((file,i)=>{
     const full=fileDisplayName(file);
     const role=inferScheduleRole(file.name);
-    return '<div class="queue-row">'+queueFileHtml(file)+'<div class="queue-role-control"><label>This programme is</label><select class="schedule-role" data-index="'+i+'" title="Select role for '+escapeHtml(full)+'"><option value="baseline" '+(role==="baseline"?"selected":"")+'>Baseline</option><option value="update" '+(role==="update"?"selected":"")+'>Update</option><option value="revised_baseline" '+(role==="revised_baseline"?"selected":"")+'>Revised baseline</option><option value="recovery" '+(role==="recovery"?"selected":"")+'>Recovery</option></select></div><button class="queue-remove" data-type="schedule" data-index="'+i+'">Remove</button></div>';
+    return '<div class="queue-row">'+queueFileHtml(file)+'<div class="queue-role-control"><label>This programme is</label><select class="schedule-role" data-index="'+i+'" title="Select role for '+escapeHtml(full)+'"><option value="baseline" '+(role==="baseline"?"selected":"")+'>Baseline</option><option value="update" '+(role==="update"?"selected":"")+'>Update</option><option value="revised_baseline" '+(role==="revised_baseline"?"selected":"")+'>Revised baseline</option><option value="recovery" '+(role==="recovery"?"selected":"")+'>Recovery</option><option value="scenario" '+(role==="scenario"?"selected":"")+'>Draft / scenario</option></select></div><button class="queue-remove" data-type="schedule" data-index="'+i+'">Remove</button></div>';
   }).join("");
   bindQueueRemoval();
 }
@@ -4144,10 +4155,16 @@ async function loadEvidence(){
       const readLabel=d.readReview?.label||documentReadLabel(d.parserState);
       const readNote=d.readReview?.note||documentReadNote(d.parserState);
       const checked=selectedEvidenceDocuments.has(d.documentId)?" checked":"";
-      return '<tr><td class="select-col"><input type="checkbox" class="evidence-select" data-document-id="'+escapeHtml(d.documentId)+'" data-filename="'+escapeHtml(d.sourceFilename)+'"'+checked+'></td><td class="document-file" title="'+escapeHtml(full)+'"><b>'+escapeHtml(d.sourceFilename)+'</b><span class="muted">'+escapeHtml(full)+'</span></td><td class="document-updated" title="'+escapeHtml(d.uploadedAt||"")+'"><b>'+escapeHtml(formatDocumentTime(d.uploadedAt))+'</b><small>'+escapeHtml(d.uploadedAt||"—")+'</small></td><td><b>'+escapeHtml(humanizeKey(d.classificationReview?.category||d.category))+'</b><br>'+escapeHtml(humanizeKey(d.classificationReview?.documentType||d.documentType))+(d.classificationReview?.reviewRequired?'<br><span class="badge partial">Stored as '+escapeHtml(humanizeKey(d.documentType))+' · mapping review required</span>':'')+title+'</td><td class="document-position"><span class="badge '+positionClass+'">'+escapeHtml(position)+'</span></td><td>'+escapeHtml(humanizeKey(d.lineage?.effect||"unknown"))+(d.lineage?.replacesEntireBasis?'<br><span class="badge partial">replaces current document</span>':d.lineage?.appliesAsDelta?'<br><span class="badge">additional record</span>':'')+'</td><td>'+escapeHtml(confidence)+(i.needsReview?'<br><span class="badge partial">review</span>':'')+'</td><td>'+escapeHtml(humanizeKey(method))+'</td><td>'+escapeHtml(conflict)+'</td><td title="'+escapeHtml(readNote)+'"><b>'+escapeHtml(readLabel)+'</b><br><span class="muted">'+escapeHtml(readNote)+'</span></td><td>'+escapeHtml(d.scheduleRole?humanizeKey(d.scheduleRole):"—")+'</td><td>'+escapeHtml(mapping)+'</td><td><button class="document-delete document-delete-single" data-document-id="'+escapeHtml(d.documentId)+'" data-filename="'+escapeHtml(d.sourceFilename)+'">Delete</button></td></tr>';
+      const adopt=d.category==="schedule"&&d.linkedArtifactId&&!["recovery","scenario"].includes(d.scheduleRole)&&!(d.basisState==="active"&&d.scheduleAdoption?.method==="explicit")?'<button class="btn small adopt-programme" data-revision="'+escapeHtml(d.linkedArtifactId)+'">'+(d.scheduleRole==="baseline"?'Adopt as baseline':'Adopt as current')+'</button>':"";
+      return '<tr><td class="select-col"><input type="checkbox" class="evidence-select" data-document-id="'+escapeHtml(d.documentId)+'" data-filename="'+escapeHtml(d.sourceFilename)+'"'+checked+'></td><td class="document-file" title="'+escapeHtml(full)+'"><b>'+escapeHtml(d.sourceFilename)+'</b><span class="muted">'+escapeHtml(full)+'</span></td><td class="document-updated" title="'+escapeHtml(d.uploadedAt||"")+'"><b>'+escapeHtml(formatDocumentTime(d.uploadedAt))+'</b><small>'+escapeHtml(d.uploadedAt||"—")+'</small></td><td><b>'+escapeHtml(humanizeKey(d.classificationReview?.category||d.category))+'</b><br>'+escapeHtml(humanizeKey(d.classificationReview?.documentType||d.documentType))+(d.classificationReview?.reviewRequired?'<br><span class="badge partial">Stored as '+escapeHtml(humanizeKey(d.documentType))+' · mapping review required</span>':'')+title+'</td><td class="document-position"><span class="badge '+positionClass+'">'+escapeHtml(position)+'</span></td><td>'+escapeHtml(humanizeKey(d.lineage?.effect||"unknown"))+(d.lineage?.replacesEntireBasis?'<br><span class="badge partial">replaces current document</span>':d.lineage?.appliesAsDelta?'<br><span class="badge">additional record</span>':'')+'</td><td>'+escapeHtml(confidence)+(i.needsReview?'<br><span class="badge partial">review</span>':'')+'</td><td>'+escapeHtml(humanizeKey(method))+'</td><td>'+escapeHtml(conflict)+'</td><td title="'+escapeHtml(readNote)+'"><b>'+escapeHtml(readLabel)+'</b><br><span class="muted">'+escapeHtml(readNote)+'</span></td><td>'+escapeHtml(d.scheduleRole?humanizeKey(d.scheduleRole):"—")+'</td><td>'+escapeHtml(mapping)+'</td><td>'+adopt+'<button class="document-delete document-delete-single" data-document-id="'+escapeHtml(d.documentId)+'" data-filename="'+escapeHtml(d.sourceFilename)+'">Delete</button></td></tr>';
     }).join("")+'</tbody></table></div>';
     bindDocumentDeletion();
     bindEvidenceSelection();
+    el("evidenceLibrary").querySelectorAll(".adopt-programme").forEach(button=>button.onclick=async()=>{
+      const selectedProject=projectId,revision=button.dataset.revision;button.disabled=true;
+      try{await api("/api/projects/"+encodeURIComponent(selectedProject)+"/schedule/revisions/"+encodeURIComponent(revision)+"/adopt",{method:"POST"});if(project()===selectedProject)await refresh(false);}
+      catch(error){button.disabled=false;button.title=error.message;el("evidenceBadge").textContent="Programme not adopted: "+error.message;}
+    });
   }catch(e){
     if(!current())return;
     el("evidenceLibrary").innerHTML='<div class="notice warn">Document register could not be loaded: '+escapeHtml(e.message)+'</div>';

@@ -23,7 +23,7 @@ test('two real uploads leave another project, health, portfolio and upload progr
     for(const id of ['UPLOAD-A','UPLOAD-B','WORK-C'])await json('/api/projects',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({projectId:id})});
     await json('/api/projects/WORK-C/overview');
     let pending=2;
-    const uploads=['UPLOAD-A','UPLOAD-B'].map(id=>json('/api/projects/'+id+'/evidence/uploads',{method:'POST',headers:{'content-type':'text/plain','x-source-filename':id+'_baseline.xer','x-evidence-category':'schedule','x-schedule-role':'baseline','x-upload-id':id},body:xer(id,30000)}).finally(()=>{pending--;}));
+    const uploads=['UPLOAD-A','UPLOAD-B'].map(id=>json('/api/projects/'+id+'/evidence/uploads',{method:'POST',headers:{'content-type':'text/plain','x-source-filename':id+'_baseline.xer','x-evidence-category':'schedule','x-upload-intent':'replace_current_basis','x-schedule-role':'baseline','x-upload-id':id},body:xer(id,30000)}).finally(()=>{pending--;}));
     const samples:Array<{path:string,ms:number,uploadsPending:number}>=[];
     for(let round=0;pending>0&&round<150;round++){for(const path of ['/health','/api/portfolio','/api/projects/WORK-C/overview']){
       const start=performance.now();const inFlight=pending;const result=await json(path);samples.push({path,ms:performance.now()-start,uploadsPending:inFlight});
@@ -104,11 +104,14 @@ test('a completed project stays readable after worker eviction and restart; muta
    const r=await fetch(base+'/api/projects',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({projectId:id})});assert.equal(r.status,201);
    await get('/api/projects/'+id+'/overview');await get('/api/projects/'+id+'/overview');
   }
+  const seeded=await fetch(base+'/api/projects/PROJECT-A/evidence/uploads',{method:'POST',headers:{'content-type':'text/plain','x-source-filename':'programme.xer','x-upload-intent':'replace_current_basis','x-schedule-role':'update'},body:xer('PROJECT-A',10)});assert.equal(seeded.status,201);
+  const priorDashboard=await get('/api/projects/PROJECT-A/management/master-dashboard');assert.ok(priorDashboard.data.positionVerdict);
   const prior=await get('/api/projects/PROJECT-A/overview');
   await gateway.close();gateway=await createProjectGateway(root,{maxWorkers:1});base=await listen(gateway);
   const restored=await get('/api/projects/PROJECT-A/overview');assert.deepEqual(restored,prior);
+  assert.deepEqual(await get('/api/projects/PROJECT-A/management/master-dashboard'),priorDashboard,'master dashboard survives eviction and restart with its exact source version');
   assert.equal((await get('/health')).projectWorkers,0,'cache hit must not restart an evicted calculation worker');
-  const upload=await fetch(base+'/api/projects/PROJECT-A/evidence/uploads',{method:'POST',headers:{'content-type':'text/plain','x-source-filename':'programme.xer','x-evidence-category':'schedule','x-schedule-role':'update'},body:xer('PROJECT-A',20)});assert.equal(upload.status,201);
+  const upload=await fetch(base+'/api/projects/PROJECT-A/evidence/uploads',{method:'POST',headers:{'content-type':'text/plain','x-source-filename':'programme.xer','x-evidence-category':'schedule','x-upload-intent':'replace_current_basis','x-schedule-role':'update'},body:xer('PROJECT-A',20)});assert.equal(upload.status,201);
   const after=await get('/api/projects/PROJECT-A/overview');assert.notDeepEqual(after,prior);assert.equal(after.projectId,'PROJECT-A');
   assert.equal((await get('/api/projects/PROJECT-B/overview')).projectId,'PROJECT-B');
  }finally{await gateway.close();await rm(root,{recursive:true,force:true});}

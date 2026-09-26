@@ -95,6 +95,7 @@ async function uploadSchedule(
             "text/plain",
           "x-source-filename":
             filename,
+          "x-upload-intent":"replace_current_basis",
           "x-schedule-role":
             role,
         },
@@ -163,6 +164,9 @@ test("revision analytics follow schedule chronology and recovery never contamina
           95,
         ),
       );
+
+      // Explicitly select the late update after reviewing the out-of-order uploads.
+      await uploadSchedule(base,project,"update","late-update.xer",xer(project,"2026-08-01","2026-10-01",60));
 
       const trend =
         await (

@@ -86,7 +86,8 @@ async function postSchedule(
         "x-source-relative-path":
           "02_Schedules_XER/" +
           filename,
-        "x-schedule-role": role,
+        "x-upload-intent":"replace_current_basis",
+          "x-schedule-role": role,
       },
       body: xer(
         project,
@@ -402,6 +403,7 @@ test("ZIP evidence pack routes schedules, BOQ CSV and other project evidence wit
               "application/zip",
             "x-source-filename":
               "full-evidence.zip",
+            "x-upload-intent":"replace_current_basis",
             "x-upload-id":
               "zip-progress-uat",
           },
@@ -618,7 +620,8 @@ test("runtime activity variance uses the controlled baseline programme", async (
               "x-source-relative-path":
                 "02_Schedules_XER/" +
                 filename,
-              "x-schedule-role":
+              "x-upload-intent":"replace_current_basis",
+          "x-schedule-role":
                 role,
             },
             body: customXer(
@@ -1225,7 +1228,8 @@ test("Primavera content is recognized even when the file is named as a PDF", asy
               "Other/unknown_document.pdf",
             "x-evidence-category":
               "other",
-            "x-schedule-role":
+            "x-upload-intent":"replace_current_basis",
+          "x-schedule-role":
               "update",
           },
           body: xer(
@@ -1316,6 +1320,7 @@ test("ZIP routing identifies a renamed schedule before mapping unrelated filenam
               "application/zip",
             "x-source-filename":
               "misnamed-pack.zip",
+            "x-upload-intent":"replace_current_basis",
           },
           body:
             Buffer.from(bytes),

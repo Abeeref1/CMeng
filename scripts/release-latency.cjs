@@ -43,7 +43,7 @@ runtimeProjects.touch(state);
   let uploadResponseMs,uploadToReadyMs,firstDashboardMs;
   try{
     const uploadStart=performance.now();
-    const response=await fetch(base+'/api/projects/'+uploadProject+'/schedule/uploads',{method:'POST',headers:{'content-type':'text/plain','x-source-filename':'misleading-baseline-1990.xer'},body:lines.join('\n')});
+    const response=await fetch(base+'/api/projects/'+uploadProject+'/schedule/uploads',{method:'POST',headers:{'content-type':'text/plain','x-source-filename':'misleading-baseline-1990.xer','x-upload-intent':'replace_current_basis','x-schedule-role':'update'},body:lines.join('\n')});
     assert.equal(response.status,201,await response.text());uploadResponseMs=performance.now()-uploadStart;
     const firstStart=performance.now();
     const first=await (await fetch(base+'/api/projects/'+uploadProject+'/management/master-dashboard')).json();

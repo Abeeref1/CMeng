@@ -1,3 +1,4 @@
+import {isScenarioRevision} from './schedule-authority';
 import {registerDateReview,scopeRegisterDateReview} from './register-date-review';
 import { activityPopulation,calendarWorkingDayHours } from '../../schedule-analysis-core/src';
 import { populationContract, partitionAsOf, type PopulationContract, type ReportingAuthority } from '../../truth-kernel/src';
@@ -63,7 +64,7 @@ export function attachReportingContract(state:ProjectRuntimeState,result:ModuleR
   if(data.finishMovementAnalysis?.population)populations.revision_comparable=data.finishMovementAnalysis.population;
   if(state.quantities&&['quantity-scurve','challenge-contract'].includes(result.key))register('boq_items','BOQ source quantity items','quantity_item',state.quantities.items,r=>r.quantityItemId,'BOQ source scope, separate from measured installed quantities');
   if(model)register('relationships','Source relationship records','relationship',model.relationships,(r,i)=>String(r.relationshipId??[r.predecessorActivityId,r.successorActivityId,r.type,r.lagHours,i].join(':')));
-  const revisionScope=partitionAsOf(state.schedules.filter(s=>s.role!=='recovery'),{name:'Programme revisions by Data Date',entity:'programme_revision',dataDateIso,dateBasis:'programme Data Date or explicit revision effective date',id:r=>r.revision.revisionId,date:r=>r.revision.model.dataDateIso??r.revision.effectiveAt});
+  const revisionScope=partitionAsOf(state.schedules.filter(s=>!isScenarioRevision(s)),{name:'Programme revisions by Data Date',entity:'programme_revision',dataDateIso,dateBasis:'programme Data Date or explicit revision effective date',id:r=>r.revision.revisionId,date:r=>r.revision.model.dataDateIso??r.revision.effectiveAt});
   populations.revisions=revisionScope.population;
   if(data.windows||data.windowCandidates)register('windows','Compared programme windows','programme_window',data.windows??data.windowCandidates,(r,i)=>String(r.windowId??i),'comparison of dated programme revisions');
   if(data.points)register('series_points','Reported series points','series_point',data.points,(r,i)=>String(r.dateIso??r.periodEnd??r.revisionId??i),'each series retains its stated actual, planned or forecast date basis');
@@ -172,7 +173,7 @@ export function attachReportingContract(state:ProjectRuntimeState,result:ModuleR
   return {...result,data:{...data,registerDateReview:scopeRegisterDateReview(registerDateReview(state),result.key),baselineComparison:{state:baseline?'established':'unresolved',revisionId:baseline?.revision.revisionId??null,reason:baseline?null:'No confirmed baseline'},reportingContract:{schemaVersion:'1.0',dataDateIso,projectVersion:state.version,
     calendarResolution:{unresolvedActivityCount:model?activityPopulation(model).activities.filter(a=>calendarWorkingDayHours(model.calendars.find(c=>c.calendarId===a.calendarId))===null).length:0},
     configurationId:createHash('sha256').update(JSON.stringify(projectScheduleControlBasis(state).analysisConfig)).digest('hex').slice(0,24),
-    newerUnadoptedSchedules:state.schedules.filter(s=>s.role!=='recovery'&&s.revision.revisionId!==current?.revision.revisionId&&s.revision.model.dataDateIso&&(!dataDateIso||s.revision.model.dataDateIso.slice(0,10)>dataDateIso)).map(s=>({dataDateIso:s.revision.model.dataDateIso,filename:s.sourceFilename})),
+    newerUnadoptedSchedules:state.schedules.filter(s=>!isScenarioRevision(s)&&s.revision.revisionId!==current?.revision.revisionId&&s.revision.model.dataDateIso&&(!dataDateIso||s.revision.model.dataDateIso.slice(0,10)>dataDateIso)).map(s=>({dataDateIso:s.revision.model.dataDateIso,filename:s.sourceFilename})),
     programmeRevisionId:current?.revision.revisionId??null,programmeLabel:current?.revision.label??null,
     actualEventPolicy:'Only dated events on or before the Data Date enter current actuals. Future and undated evidence is retained separately.',
     forecastPolicy:'Future planned work and forecast dates remain visible as forecasts, never as actual events.',

@@ -1,3 +1,4 @@
+import {isAdoptedProgrammeRevision,isScenarioRevision,scheduleAuthorityReview} from './schedule-authority';
 import {quantityMappingForState} from "./quantity-mapping-runtime";
 import {nearCriticalScreening} from './near-critical-screening';
 import {resolveModuleKey} from './registry';
@@ -272,7 +273,7 @@ function analyticalHistory(
   state: ProjectRuntimeState,
 ): ProjectRuntimeState["schedules"] {
   const cutoff=projectControlSchedule(state)?.revision.model.dataDateIso??null;
-  const programmeSchedules = state.schedules.filter(isProgrammeScheduleRevision).filter(item=>reportingScope(item.revision.model.dataDateIso??item.revision.effectiveAt,cutoff)==='as_of');
+  const programmeSchedules = state.schedules.filter(isProgrammeScheduleRevision).filter(item=>isAdoptedProgrammeRevision(state,item)).filter(item=>reportingScope(item.revision.model.dataDateIso??item.revision.effectiveAt,cutoff)==='as_of');
   const official =
     programmeSchedules.filter(
       (item) =>
@@ -284,7 +285,7 @@ function analyticalHistory(
   const nonRecovery =
     programmeSchedules.filter(
       (item) =>
-        item.role !== "recovery",
+        !isScenarioRevision(item),
     );
   return [
     ...(official.length > 0
@@ -3377,10 +3378,10 @@ function canonicalQuantityModule(state: ProjectRuntimeState, model: ProjectRunti
     itemLinkCoveragePercent: quantities.items.length ? mappedItemIds.size / quantities.items.length * 100 : null,
     unmappedKnownQuantityItemIds: projection.unmappedItemIds,
     unmappedItemIds: quantities.items.filter(item => !mappedItemIds.has(item.quantityItemId)).map(item => item.quantityItemId),
-    actualAuthority: "measured_installed_quantities", actualIndependentOfScheduleMapping: true,
+    actualAuthority: "measured_installed_quantities", actualIndependentOfScheduleMapping: true, measurementReview:quantities.measurementReview??null,
     series: projection.series.map(series => ({ ...series, authority: scenario ? "scenario_mapping" : "governed_mapping",
       actualAuthority: "measured_installed_quantities",
-      points: series.points.map(point => ({ ...point, actualInstalledQuantity: model.dataDateIso !== null && point.dateIso.slice(0,10) <= model.dataDateIso.slice(0,10) ? point.actualInstalledQuantity : null })) })),
+      points: series.points.map(point => ({ ...point, actualInstalledQuantity: quantities.measurementReview?.complete!==false && model.dataDateIso !== null && point.dateIso.slice(0,10) <= model.dataDateIso.slice(0,10) ? point.actualInstalledQuantity : null })) })),
     diagnostics: [...projection.diagnostics, ...(scenario ? ["QUANTITY_PLAN_IS_CANDIDATE_SCENARIO_NOT_GOVERNED"] : []), ...(!sameRevision ? ["QUANTITY_MAPPING_REVISION_MISMATCH_PLANS_WITHHELD"] : [])],
   }, ["BOQ", "quantity-to-activity mapping", "installed quantity measurements"],
     sameRevision && !scenario && projection.allocationState === "complete" ? "ready" : "partial",
@@ -6999,7 +7000,7 @@ function resolveProjectModuleCandidate(state: ProjectRuntimeState, key: string):
     const forecastReview = forecast ? independentForecastReviewReason(forecast) : null;
     const laborEvidence=['challenge-contract','cost-forecast','progress-report'].includes(key)?canonicalResourceModule(state,'manhour-scurve')?.data as any:null;
     const contractReview = ['challenge-contract','cost-forecast','commercial-overview','contract-particulars-bonds'].includes(key) ? contractValueBasisReview(state) : null;
-    result.data = { ...data, controlBasis,
+    result.data = { ...data, controlBasis, scheduleAuthorityReview:scheduleAuthorityReview(state),
       ...(['pmo-analysis','schedule-analytics','activity-analytics','near-critical','milestones','progress-report','progress-breakdown','revision-trend'].includes(key)?{nearCriticalScreening:nearCriticalScreening(state)}:{}),
       ...(forecast?{scheduleBasisReview:scheduleBasisReview(model,forecast,time.contractTimeBasis?.contractualCompletionIso??null)}:{}),
       ...(['variance-trends','schedule-change-report'].includes(key)?{durationEditReview:(()=>{const first=analyticalHistory(state)[0]?.revision.model;return first&&first!==model?durationEditReview(first,model):null;})()}:{}),
@@ -7667,14 +7668,12 @@ export function managementSurfacesForProject(
       governedRevisionCount:
         state.schedules.filter(
           (item) =>
-            item.role !==
-            "recovery",
+            !isScenarioRevision(item),
         ).length,
       recoveryScenarioCount:
         state.schedules.filter(
           (item) =>
-            item.role ===
-            "recovery",
+            isScenarioRevision(item),
         ).length,
       correctionModule:
         "revision-trend",
@@ -7908,8 +7907,7 @@ export function overviewForProject(
     recoveryRevisionCount:
       programmeSchedules.filter(
         (item) =>
-          item.role ===
-          "recovery",
+          isScenarioRevision(item),
       ).length,
     evidenceDocumentCount:
       state.evidenceDocuments.length,

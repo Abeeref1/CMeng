@@ -112,7 +112,8 @@ test("multiple absurd claimed-EOT values cannot become the project EOT and do no
                   "text/plain",
                 "x-source-filename":
                   upload.filename,
-                "x-schedule-role":
+                "x-upload-intent":"replace_current_basis",
+          "x-schedule-role":
                   upload.role,
               },
               body: upload.body,

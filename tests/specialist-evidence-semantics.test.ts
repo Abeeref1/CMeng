@@ -99,6 +99,7 @@ async function uploadSchedule(
             "text/plain",
           "x-source-filename":
             filename,
+          "x-upload-intent":"replace_current_basis",
           "x-schedule-role":
             role,
         },

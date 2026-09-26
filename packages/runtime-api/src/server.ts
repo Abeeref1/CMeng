@@ -1954,6 +1954,7 @@ async function route(
       await runtimeProjects
         .ingestSchedule({
           projectId,
+          uploadIntent: uploadIntent(req),
           bytes: body,
           mediaType:
             mediaType(req),
@@ -1984,6 +1985,14 @@ async function route(
       projectId,
     );
     json(res, 201, result);
+    return;
+  }
+
+  const adoptionMatch=/^\/api\/projects\/([^/]+)\/schedule\/revisions\/([^/]+)\/adopt$/.exec(url.pathname);
+  if(req.method==='POST'&&adoptionMatch){
+    const projectId=decodeURIComponent(adoptionMatch[1]!),revisionId=decodeURIComponent(adoptionMatch[2]!);
+    try{const effect=runtimeProjects.adoptSchedule(projectId,revisionId);json(res,200,{projectId,revisionId,effect});}
+    catch(error){json(res,409,{error:'programme_adoption_not_completed',message:error instanceof Error?error.message:String(error)});}
     return;
   }
 

@@ -187,8 +187,10 @@ export function commercialCanonical(state:ProjectRuntimeState):CanonicalCommerci
  const inheritedCurrency=contractCurrencies.size===1?[...contractCurrencies][0]!:null;
  const costMetrics:CostMetricRecord[]=[],payments:PaymentStageRecord[]=[],variations:CommercialVariation[]=[],siteInstructions:CommercialSiteInstruction[]=[],insurances:CommercialInsuranceRecord[]=[],obligations:CommercialObligationRecord[]=[],retentions:CommercialRetentionRecord[]=[];
  for(const t of tables){
-  if(has(t,'metric','value','unit','as of'))for(const r of t.rows){
-   const unit=cell(r,'unit');if(!/^[A-Z]{3}$/.test(unit))continue;
+  if(has(t,'metric','value','as of')&&(has(t,'unit')||has(t,'currency')))for(const r of t.rows){
+   const currencies=[cell(r,'currency'),cell(r,'unit')].filter(v=>/^[A-Z]{3}$/.test(v));
+   if(new Set(currencies).size>1){diagnostics.push('COST_ROW_CURRENCY_CONFLICT:'+r.receipt.documentId+':'+r.receipt.locator);continue;}
+   const unit=currencies[0];if(!unit)continue;
    costMetrics.push({
     metric:cell(r,'metric'),
     amount:money(

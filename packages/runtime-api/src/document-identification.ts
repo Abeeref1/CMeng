@@ -1,3 +1,4 @@
+import {hasFinancialSecurityContent} from './security-document-content';
 import {readableXlsx} from '../../shared/src/xlsx';
 import {csv,prepareRegisterRows} from '../../truth-kernel/src';
 import { typedEvidenceRoleFromText } from "./typed-evidence-families";
@@ -2050,6 +2051,11 @@ function classifyText(
     };
   }
 
+  if(hasFinancialSecurityContent(text)&&!/\b(?:contract agreement|conditions of contract|contract data)\b/i.test(normalized.slice(0,1500)))return {
+    category:'boq_cost',documentType:'bond_register',confidence:0.97,
+    signals:['Financial instrument identity, beneficiary or issuer, and security terms found in content'],
+  };
+
   const scored =
     rules.map(
       (rule) => {
@@ -2139,6 +2145,10 @@ function classifyText(
 /** Correct a legacy display classification from retained content, without promoting
  * the document, replacing its evidence family, or changing any official facts. */
 export function documentClassificationForReview(document: StoredEvidenceDocument) {
+  if(['bond_register','security_register'].includes(document.documentType)&&document.identification?.method==='metadata_fallback')return {
+    documentType:'supporting_document',category:document.category,recordedDocumentType:document.documentType,reviewRequired:true,
+    reason:'A filename is not evidence of a bond or guarantee. Retain this document for content review without establishing security authority.',
+  };
   const text = [document.identification?.detectedTitle ?? "", ...document.assertions.map(a => a.sourceText)].join("\n");
   const detected = classifyText(text, document.mediaType);
   const compatibleScheduleRole=detected?.documentType==='schedule_file'&&/^schedule_(baseline|update|recovery)$/.test(document.documentType);
@@ -2344,7 +2354,8 @@ export async function identifyEvidenceDocument(
     // lifecycle columns. Its event and notice fields identify the owning table.
     const claimLifecycle=h.includes('claim id')&&h.includes('event')&&h.includes('notice date');
     const found=claimLifecycle?schemas.find(([id])=>id==='claim id'):schemas.find(([id])=>h.includes(id));
-    if(found)classification={documentType:found[1],category:found[2],confidence:0.96,signals:['Recognised register fields: '+h.join(', ')]};
+    if(['measurement date','item no','cumulative installed qty','unit'].every(key=>h.includes(key)))classification={documentType:'installed_measurement_register',category:'boq_cost',confidence:0.99,signals:['Dated cumulative installed quantities; separate from contract BOQ quantities']};
+    else if(found)classification={documentType:found[1],category:found[2],confidence:0.96,signals:['Recognised register fields: '+h.join(', ')]};
     else if(h.includes('certificate no')&&h.includes('net certified'))classification={documentType:'payment_certificates',category:'boq_cost',confidence:0.96,signals:['Recognised payment register fields']};
     else if(h.includes('man hours')&&(h.includes('lost time injuries')||h.includes('trir')))classification={documentType:'hse_report',category:'hse_quality_fm',confidence:0.96,signals:['Recognised HSE table fields']};
   }
@@ -2384,6 +2395,11 @@ export async function identifyEvidenceDocument(
       method =
         "metadata_fallback";
     }
+  }
+
+  if(['bond_register','security_register'].includes(detectedDocumentType)&&method==='metadata_fallback'){
+    detectedDocumentType='supporting_document';
+    diagnostics.push('SECURITY_CONTENT_NOT_ESTABLISHED_FROM_FILENAME');
   }
 
   const declaredCategory =

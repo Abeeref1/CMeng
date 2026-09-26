@@ -141,7 +141,7 @@ test('shared reader upgrade repairs text/plain CSV ingestion without changing an
  const sourceHash=doc.sourceHashSha256;
  const result=await store.refreshSpreadsheetRegisters('REGISTER-PROJECT');
  assert.equal(result.refreshedDocumentCount,1);assert.deepEqual(result.diagnostics,[]);
- assert.equal(doc.derivedRegisterRead?.producerVersion,'register-derived-v3');
+ assert.equal(doc.derivedRegisterRead?.producerVersion,'register-derived-v4');
  assert.equal(sourceTables([doc],[])[0]!.recognition?.recognized,true);
  assert.equal(doc.sourceHashSha256,sourceHash);assert.deepEqual(readFileSync(doc.storedPath),bytes);
  assert.equal(JSON.stringify(unchanged),beforeOther);
