@@ -1,3 +1,7 @@
+import {parentPort} from 'node:worker_threads';
+import {persistProjectMetadata,projectMetadata} from './project-catalog';
+import {normalizeProjectCode,isProgrammeScheduleRevision} from './project-identity';
+export {normalizeProjectCode,isProgrammeScheduleRevision} from './project-identity';
 import {projectDataDate,projectControlSchedule} from './canonical-time-claims';
 import {readRegisterWorkbook,registerCsv} from './register-workbook';
 import {contractCompletionPosition} from './contract-completion';
@@ -1150,64 +1154,6 @@ function hydrateProject(
   return hydrated;
 }
 
-export function normalizeProjectCode(
-  value: string,
-): string {
-  return value
-    .normalize("NFKC")
-    .trim()
-    .replace(/\s+/g, " ")
-    .toUpperCase();
-}
-
-export function isProgrammeScheduleRevision(
-  item: StoredScheduleRevision,
-): boolean {
-  if (
-    item.revision.model
-      .activities.length === 0
-  ) {
-    return false;
-  }
-
-  const filename =
-    (
-      item.sourceFilename ??
-      ""
-    ).toLowerCase();
-
-  if (
-    /^(?:rel\d*|res\d*|sch\d*|wbs\d*|obs\d*|pdb\d*)[_-]/i.test(
-      filename,
-    ) ||
-    /(?:longest[_ -]?path|baseline[_ -]?to[_ -]?current|schedule[_ -]?comparison|resource[_ -]?register|wbs[_ -]?dictionary)/i.test(
-      filename,
-    )
-  ) {
-    return false;
-  }
-
-  if (
-    item.role === "baseline" ||
-    item.role === "update" ||
-    item.role ===
-      "revised_baseline" ||
-    item.role === "recovery"
-  ) {
-    return true;
-  }
-
-  return (
-    item.format === "xer" ||
-    item.format ===
-      "primavera_xml" ||
-    item.revision.model
-      .dataDateIso !== null ||
-    item.revision.model
-      .relationships.length > 0
-  );
-}
-
 
 function safeSegment(
   value: string,
@@ -1626,6 +1572,7 @@ export class RuntimeProjectStore {
       temporary,
       this.stateFile,
     );
+    if(process.env.CMENG_PROJECT_WORKER==='1')for(const state of this.projects.values()){persistProjectMetadata(this.dataDir,state);parentPort?.postMessage({type:'metadata',metadata:projectMetadata(state)});}
   }
 
   private createOcrProvider():
