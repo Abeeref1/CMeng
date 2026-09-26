@@ -28,3 +28,44 @@ No schedule dates, physical progress, contract value, EOT entitlement or risk sc
 Automated acceptance cases cover first-upload adoption, pending revisions, candidate exclusion, BOQ and installed authority, over-installation, split quantities, missing lead-time basis, scoped readiness, future approvals, rectification versus closure, unknown inspection outcomes, absent HSE exposure, handover population review, weighted chart points, multiple currencies, source mapping, revision history, restart, concurrent edits, project isolation, exports beyond 20 rows and UI filtering.
 
 Before certification, record the final suite result, representative source-project results, browser findings for every page, chart and export checks, live deployment SHA and production project-switching result. A successful build is insufficient.
+
+## Release-candidate evidence — 26 September 2026
+
+- Full verification: 716 tests passed, zero failed/skipped. GitHub verification, BOQ 50k, XER 100k and Schedule 50k plus durable 10k checks passed on review commit `f883d20`.
+- Read-only replay of 11 retained source projects: 242 Delivery page responses, 263,100 extracted candidate records, no project-state mutation and no null metric marked calculated. First Delivery projection took 1.3–7.8 seconds locally; these source-processing timings are not warm page timings or production measurements.
+- Isolated release latency gate: 20,000-activity HTTP upload to first calculated dashboard in 2,867 ms; first dashboard request 2,251 ms. A separate 12,500-activity, three-revision cold gate took 3,778 ms. Earlier concurrently run samples are not the isolated benchmark.
+- Actual JAZ PDF reader run: image-only technical appendix, 12/12 OCR pages; searchable HSE report, 12/12 native pages; zero failed or unresolved pages in those two files. This verifies those page receipts, not every PDF or extraction of every structured fact.
+- Live review fixture: 83 governed test records across 17 kinds, 63 submittals, two currencies and two incompatible quantity units. The browser walkthrough opened every page below. Synthetic review decisions are not client approvals.
+- Browser pagination reached rows 51–63; searching SUB-062 showed one matching row. Excel still contained all 63 submittals in the current rows, source rows and review history sheets.
+- Browser edits retained decisions, rejected a stale concurrent save, and required population confirmation before handover became 100%. Switching to an empty project cleared the previous project's records and values, and switching back restored its own position.
+
+| Page | Inspected behavior |
+| --- | --- |
+| Delivery Control | Cross-package exceptions and separate BOQ currency values |
+| Procurement Packages | Programme need date, dated lifecycle stage and late delivery |
+| Material Tracking | 100 m³ required / 150 installed / −50 remaining, with over-installation flags; metres remain separate |
+| Long Lead | Latest PO 5 September from 30 September need date and 25 governed calendar days |
+| Submittals | 40 approvals through Data Date; 23 later approvals do not improve the current position; 63-row pagination |
+| Procurement S-Curves | Separate count, currency, material and weighted series; actual weighted points 25/50/75% |
+| Suppliers & Subcontractors | Two linked packages, one known late package |
+| RFI & Design | Dated overdue response remains open |
+| Discipline Progress | Existing progress producer and a confirmed material gate blocker |
+| Location / Floor / Zone | Governed location relationships and the same workfront blocker |
+| Construction Readiness | One blocked workfront; complete applicable gate denominator |
+| Procurement Readiness | One ready package and one unresolved package; incomplete gate totals withheld |
+| Quality & Inspections | Rectified NCR stays open; one passed inspection and one unknown outcome disclosed |
+| Permits & Authorities | Issued permit is expired, independently of its later required-by date |
+| Construction HSE | 100,000 exposure hours, one LTI, frequency rate 10 per million matching hours |
+| Testing & Commissioning | Failed test, planned/forecast/performed dates and unknown readiness remain separate |
+| Asset & System Handover | Installation shown; future commissioning and absent taking-over dates withheld |
+| Snag & Closeout | Rectification does not establish verified closure |
+| Spares & Special Tools | Required 5 / delivered 4 / accepted 3 / stored 3 / handed over 2 |
+| Handover Readiness | Unresolved denominator until explicit confirmation; then 1 accepted of 1 verified requirement |
+| Weather / Disruption Evidence | Recorded event and impact hours; no inferred EOT or causation |
+| Delivery Risks | Existing risk score 1.2 and governed Delivery relationships |
+
+Walkthrough corrections include preserving supersession through re-review, rejecting revision cycles, recognizing explicit mixed Delivery schemas, separating per-kind reading coverage, invalidating populations when reading becomes incomplete, withholding unknown gate counts, scoping package chart coverage, putting the named chart first, making expired/failed/overdue actions visible, and keeping absent Notice Compliance populations unresolved across management/commercial consumers.
+
+The separate Railway review environment contains synthetic fixtures only. Automatic approval review declined uploading actual project documents to that separate destination. Production real-project verification must use documents already retained in the existing CMeng production service. No real project is adopted or reclassified by the Delivery walkthrough.
+
+Production acceptance remains a separate record. The 13 non-QA projects currently returned by production were fingerprinted before deployment; this is not a claim that all 15 previously discussed projects were present or tested. This evidence does not claim independent human business sign-off.
