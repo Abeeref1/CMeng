@@ -1,3 +1,4 @@
+import {csv as parseCsv} from "../../truth-kernel/src";
 import {
   readFileSync,
 } from "node:fs";
@@ -68,71 +69,7 @@ export interface WeeklyResourceCapacitySummary {
   diagnostics: string[];
 }
 
-function parseCsv(
-  text: string,
-): string[][] {
-  const rows: string[][] = [];
-  let row: string[] = [];
-  let field = "";
-  let quoted = false;
 
-  for (
-    let index = 0;
-    index < text.length;
-    index += 1
-  ) {
-    const ch = text[index]!;
-    if (quoted) {
-      if (ch === '"') {
-        if (
-          text[index + 1] ===
-          '"'
-        ) {
-          field += '"';
-          index += 1;
-        } else {
-          quoted = false;
-        }
-      } else {
-        field += ch;
-      }
-      continue;
-    }
-
-    if (ch === '"') {
-      quoted = true;
-    } else if (ch === ",") {
-      row.push(field);
-      field = "";
-    } else if (ch === "\n") {
-      row.push(
-        field.replace(
-          /\r$/,
-          "",
-        ),
-      );
-      rows.push(row);
-      row = [];
-      field = "";
-    } else {
-      field += ch;
-    }
-  }
-
-  if (
-    field.length > 0 ||
-    row.length > 0
-  ) {
-    row.push(
-      field.replace(
-        /\r$/,
-        "",
-      ),
-    );
-    rows.push(row);
-  }
-  return rows;
-}
 
 function norm(
   value: string,

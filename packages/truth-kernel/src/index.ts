@@ -1,3 +1,4 @@
+import {parseCsv as parseDelimitedCsv} from "../../tabular-parser/src";
 import {canonicalHeader,prepareRegisterRows} from './register-schema';
 export * from './register-schema';
 import { createHash } from 'node:crypto';
@@ -25,18 +26,11 @@ export interface Fact<T> {
 }
 export const norm = (value: string): string => value.normalize('NFKC').replace(/^\uFEFF/, '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
 export function csv(text: string): string[][] {
-  const rows: string[][] = []; let row: string[] = [], field = '', quoted = false;
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i];
-    if (c === '"') { if (quoted && text[i + 1] === '"') { field += '"'; i++; } else quoted = !quoted; }
-    else if (c === ',' && !quoted) { row.push(field); field = ''; }
-    else if (c === '\n' && !quoted) { row.push(field.replace(/\r$/, '')); if (row.some(x => x.trim())) rows.push(row); row = []; field = ''; }
-    else field += c;
-  }
-  if (quoted) throw new Error('CSV_UNCLOSED_QUOTE');
-  if (field || row.length) { row.push(field.replace(/\r$/, '')); if (row.some(x => x.trim())) rows.push(row); }
-  return rows;
+  const parsed = parseDelimitedCsv(Buffer.from(text, 'utf8'));
+  if (parsed.diagnostics.includes('CSV_UNTERMINATED_QUOTED_FIELD')) throw new Error('CSV_UNCLOSED_QUOTE');
+  return parsed.rows.map(row => row.cells).filter(row => row.some(value => value.trim()));
 }
+
 const headerNames = new Map<string,string>();
 const headerKey = (name:string) => {
   const cached=headerNames.get(name);if(cached!==undefined)return cached;
@@ -73,10 +67,10 @@ export function fact<T>(value: T | null, receipts: SourceReceipt[], method: stri
   return { value, state: value === null ? 'missing' : receipts.length > 0 && receipts.every(r => ['active','additive'].includes(r.basisState)) ? 'official' : 'candidate', receipts, method, diagnostics, coverage: {known: value === null ? 0 : 1, total: 1} };
 }
 const tableCache = new Map<string, SourceTable>();
-export function sourceTables(documents: readonly EvidenceDocument[], diagnostics: string[]): SourceTable[] {
+export function sourceTables(documents: readonly EvidenceDocument[], diagnostics: string[], options: {includeHistorical?: boolean} = {}): SourceTable[] {
   const result: SourceTable[] = [], hashes = new Set<string>();
   for (const doc of [...documents].sort((a,b)=>Number(b.basisState!=='candidate')-Number(a.basisState!=='candidate'))) {
-    if (!['active','additive','candidate'].includes(doc.basisState) || (!/csv/i.test(doc.mediaType + ' ' + doc.sourceFilename)&&!doc.tabularRead)) continue;
+    if ((!options.includeHistorical && !['active','additive','candidate'].includes(doc.basisState)) || (!/csv/i.test(doc.mediaType + ' ' + doc.sourceFilename)&&!doc.tabularRead)) continue;
     const identity = doc.sourceHashSha256;
     if (hashes.has(identity)) continue;
     hashes.add(identity);

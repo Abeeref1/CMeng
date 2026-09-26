@@ -92,6 +92,7 @@ import {
 } from "./module-report";
 import {
   governedTables,
+  sourceTables,
 } from "../../truth-kernel/src";
 import {
   projectScheduleControlBasis,
@@ -102,9 +103,10 @@ export function projectDocumentRegister(projectId:string){
     const schemaDiagnostics: string[] = [];
     const schemaByDocument =
       new Map(
-        governedTables(
+        sourceTables(
           state.evidenceDocuments,
           schemaDiagnostics,
+          {includeHistorical: true},
         ).map((table) => [
           table.document.documentId,
             table,

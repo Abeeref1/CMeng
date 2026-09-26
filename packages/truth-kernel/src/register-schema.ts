@@ -6,7 +6,7 @@ const groups:Record<string,string[]>={
   'notice date':['date of notice','notice issued date','تاريخ الإشعار','تاريخ الاشعار'],
   'event start':['event date','event start date','date of event','تاريخ الحدث'],
   'variation id':['variation no','variation number','variation ref','vo no','vo id','change order no','رقم التغيير'],
-  'certificate no':['certificate number','certificate id','ipc no','ipc number','payment certificate no','رقم المستخلص'],
+  'certificate no':['certificate','certificate number','certificate id','ipc no','ipc number','payment certificate no','رقم المستخلص'],
   'rfi id':['rfi no','rfi number','rfi ref','رقم الاستفسار'],
   'ncr id':['ncr no','ncr number','ncr ref','رقم عدم المطابقة'],
   'risk id':['risk no','risk number','risk ref','رقم الخطر'],
@@ -15,8 +15,8 @@ const groups:Record<string,string[]>={
   'determination id':['determination no','determination ref','decision no','award no','رقم القرار'],
   'reference':['ref','reference no','reference number','المرجع'],
   'status':['state','الحالة'], 'description':['details','الوصف'], 'currency':['العملة'],
-  'gross work':['gross certified','gross amount','gross certified amount','gross work done','gross work done (period)','gross work (period)','قيمة الأعمال','اجمالي الاعمال'],
-  'net certified':['net certified amount','net amount','net certificate value','صافي المستخلص'],
+  'gross work':['gross','gross certified','gross amount','gross certified amount','gross work done','gross work done (period)','gross work (period)','قيمة الأعمال','اجمالي الاعمال'],
+  'net certified':['net','net certified amount','net amount','net certificate value','صافي المستخلص'],
   'retention':['retention amount','retention deduction','retention deducted','مبلغ الاستقطاع'],
   'advance recovery':['advance payment recovery','advance deduction','استرداد الدفعة المقدمة'],
   'period end':['period ending','period end date','نهاية الفترة'],
@@ -47,6 +47,7 @@ const groups:Record<string,string[]>={
   'assessment date':['date assessed','assessed date'],
   'closed date':['date closed','closure date'],
   'effective date':['date effective','effective from','effective from date'],
+  'release date':['date released','release issued date'],
 };
 const aliases=new Map(Object.entries(groups).flatMap(([key,values])=>[key,...values].map(value=>[normalizeHeader(value),key] as const)));
 export function canonicalHeader(value:string,documentType=''):string {
@@ -79,11 +80,15 @@ const fields=new Set([...Object.keys(groups),
   'deliverable id','discipline','revision',
   'asset id','system','tag installed','commissioned','o m manual','warranty',
   'test id','test','authority witness',
+  'document class','pmo admin','project director','planner','commercial manager','engineer','contractor user','external viewer',
+  'sequence','task uid','float path','float path order','total float days','free float days',
+  'baseline start','baseline finish','current start','current finish','baseline status','current status','identity status',
+  'obs code','obs name','parent obs','responsible manager','primary wbs',
   'work package','work package id','remaining quantity','recent achieved rate day','conservative achievable rate day','independent forecast finish'
 ]);
 const registerDateHeaders=new Set([
   'notice date','event start','period end','certificate date','payment date','raised date','identified date','status as of','due date',
-  'expiry date','approval date','determination date','incident date','report date','required on site','forecast delivery','actual delivery',
+  'release date','expiry date','approval date','determination date','incident date','report date','required on site','forecast delivery','actual delivery',
   'planned issue','actual issue','planned date','actual date','week start','as of','submitted date','assessment date','closed date','effective date',
 ]);
 export function isRegisterDateHeader(value:string):boolean {

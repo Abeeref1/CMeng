@@ -102,3 +102,65 @@ test('page title, navigation definition, export name and public API identity use
  assert.ok(!result.diagnostics.some(d=>d.startsWith('CONTRACT_DUPLICATE_SECTION_INSTANCE')));
  const article=result.sections.find(s=>s.identifier==='7')!;assert.match(article.text,/1200/);assert.match(article.text,/10%/);
  });
+
+test('comma, semicolon and tab registers share parsing and preserve quoted fields and unknown dates', async t => {
+ const {csv: document, state} = setup(t);
+ const {csv: rows} = await import('../packages/truth-kernel/src');
+ const header=['Package ID','Description','Required On Site','Forecast Delivery','Status','Currency','Value','Activity ID'];
+ const values=['PK-1','Valve, pump; assembly','2031-04-30','','Ordered','AED','1200','WORK-01'];
+ for (const separator of [',',';','\t']) {
+  const quote=(v:string)=>'"'+v.replaceAll('"','""')+'"';
+  const content=header.map(quote).join(separator)+'\r\n'+values.map(quote).join(separator)+'\r\n';
+  assert.deepEqual(rows(content),[header,values]);
+  const doc=document(content,'procurement_register');
+  const table=sourceTables([doc],[])[0]!;
+  assert.equal(table.recognition?.recognized,true);
+  assert.equal(table.rows[0]!.cells.description,values[1]);
+  assert.equal(table.rows[0]!.cells['forecast delivery'],'');
+  assert.equal(analyzeCsvEvidence(Buffer.from(content),new Set(['WORK-01'])).mappedActivityCount,1);
+ }
+ assert.throws(()=>rows('Reference;Description\n1;"unfinished'),/CSV_UNCLOSED_QUOTE/);
+ const payment=prepareRegisterRows(rows('Certificate,Period End,Gross,Retention,Net,Release Date,Status\nIPC-1,2031-04-30,100,10,90,2031-05-10,Released'),'payment_certificates');
+ assert.equal(payment.recognized,true);
+ assert.deepEqual(payment.headers,['certificate no','period end','gross work','retention','net certified','release date','status']);
+ assert.ok(!payment.headers.includes('payment date'),'release does not establish actual payment');
+ assert.ok(!payment.headers.includes('certificate date'),'release does not establish certification');
+ assert.equal(state.evidenceDocuments.length,3);
+});
+
+test('shared reader upgrade repairs text/plain CSV ingestion without changing another project or source bytes', async t => {
+ const dir=mkdtempSync(join(tmpdir(),'delimiter-upgrade-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));
+ const store=new RuntimeProjectStore({dataDir:dir,durable:false});
+ const unchanged=store.getOrCreate('OTHER-PROJECT');
+ const beforeOther=JSON.stringify(unchanged);
+ const bytes=Buffer.from('Package ID;Description;Required On Site;Forecast Delivery;Status;Currency;Value\nPK-1;Valves;2031-04-30;2031-05-10;Ordered;AED;1200');
+ await store.ingestEvidenceFile({projectId:'REGISTER-PROJECT',sourceFilename:'Source.csv',mediaType:'text/plain',bytes,uploadedAt:'2031-04-01T00:00:00Z'});
+ const state=store.get('REGISTER-PROJECT')!,doc=state.evidenceDocuments[0]!;
+ assert.equal(doc.documentType,'procurement_register');
+ doc.mediaType='text/plain';doc.derivedRegisterRead={producerVersion:'register-derived-v2',sourceHashSha256:doc.sourceHashSha256};
+ const sourceHash=doc.sourceHashSha256;
+ const result=await store.refreshSpreadsheetRegisters('REGISTER-PROJECT');
+ assert.equal(result.refreshedDocumentCount,1);assert.deepEqual(result.diagnostics,[]);
+ assert.equal(doc.derivedRegisterRead?.producerVersion,'register-derived-v3');
+ assert.equal(sourceTables([doc],[])[0]!.recognition?.recognized,true);
+ assert.equal(doc.sourceHashSha256,sourceHash);assert.deepEqual(readFileSync(doc.storedPath),bytes);
+ assert.equal(JSON.stringify(unchanged),beforeOther);
+ assert.equal((await store.refreshSpreadsheetRegisters('REGISTER-PROJECT')).refreshedDocumentCount,0);
+});
+
+test('document permission columns cannot become financial bond evidence through a filename prefix', async () => {
+ const {identifyEvidenceDocument} = await import('../packages/runtime-api/src/document-identification');
+ const result=await identifyEvidenceDocument({sourceFilename:'SEC01_Document_Access_Matrix.csv',sourceRelativePath:null,
+  bytes:Buffer.from('Document Class,PMO Admin,Project Director,Planner,Commercial Manager,Engineer,Contractor User,External Viewer\nContract,Full,Full,Read,Full,Read,None,None'),declaredMediaType:'text/csv'});
+ assert.equal(result.identification.detectedDocumentType,'document_access_matrix');
+ assert.equal(result.identification.detectedCategory,'other');
+});
+
+test('historical inventory reading does not make old rows part of the current calculation basis', t => {
+ const {csv,state}=setup(t);
+ const current=csv('Certificate No,Net Certified\nIPC-1,90','payment_certificates');
+ const old=csv('Certificate No,Net Certified\nIPC-0,70','payment_certificates');old.basisState='superseded';
+ const inventory=sourceTables(state.evidenceDocuments,[],{includeHistorical:true});
+ assert.equal(inventory.length,2);assert.ok(inventory.every(table=>table.recognition?.recognized));
+ assert.deepEqual(sourceTables(state.evidenceDocuments,[]).map(table=>table.document.documentId),[current.documentId]);
+});
