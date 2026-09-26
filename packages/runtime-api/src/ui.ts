@@ -1160,11 +1160,13 @@ function renderQuantityScurveVisual(data){
   const mappedItemCount=typeof p.allocatedItemCount==="number"?p.allocatedItemCount:null;
   const itemLinkCoverage=typeof p.itemLinkCoveragePercent==="number"?p.itemLinkCoveragePercent:null;
   const measurement=p.measurementReview;
+  const installed=p.installedQuantityStatus;
+  const installedSummary=installed?'<div class="notice '+(installed.state==='available'?'info':'warn')+'"><b>Measured installation: '+escapeHtml(humanizeKey(installed.state))+'</b><p>'+escapeHtml(installed.explanation)+'</p></div>':"";
   const measured=measurement?planningKpis([["Items with dated measurements",measurement.measuredItemCount,"of "+measurement.boqItemCount+" BOQ items"],["Measurement rows needing review",measurement.currentUnresolvedRowCount,"through the reporting date"],["Future measurement rows",measurement.futureRowCount,"excluded from current actuals"]])+'<div class="notice info">'+escapeHtml(measurement.basis)+'</div>':"";
   const top=planningKpis([
     ["BOQ items",boqItemCount===null?"Unresolved":boqItemCount,"quantity basis"],
-    ["Items with any allocation",mappedItemCount===null?"Unresolved":mappedItemCount,"confirmed or scenario links"],
-    ["Item-link coverage",itemLinkCoverage===null?"Unresolved":fmt(itemLinkCoverage)+"%","BOQ items with an allocation"],
+    ["Programme-linked items",mappedItemCount===null?"Unresolved":mappedItemCount,"planned quantities; confirmed or scenario links"],
+    ["Programme-link coverage",itemLinkCoverage===null?"Unresolved":fmt(itemLinkCoverage)+"%","separate from installed measurements"],
     ["Mapping basis",mappingLabel,""],
     ["Unit groups",populationKnown?p.series.length:null,"unknown units remain separate"],
     ["Unmapped items",populationKnown?p.unmappedItemIds?.length??null:null,"items",p.unmappedItemIds?.length?"warning":""],
@@ -1175,7 +1177,7 @@ function renderQuantityScurveVisual(data){
   if(mappedSeries.length===0){
     const candidates=p.inferredMapping?.selectedScenarioLinks?.length||0;
     const mappingSummary=boqItemCount===null?"BOQ item population is not confirmed.":fmt(mappedItemCount||0)+" of "+fmt(boqItemCount)+" BOQ items currently have an allocation.";
-    return '<section class="planning-view quantity-view">'+top+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Installed Quantities</h4><p>BOQ quantities are shown by unit. Schedule mapping is required for planned curves; measured installed quantities require dated quantity evidence.</p></div></div><div class="planning-panel-body"><div class="notice warn"><b>No confirmed quantity curve is available.</b> '+escapeHtml(candidates?candidates+" candidate link(s) were found, but they remain scenarios and are not used as project facts.":"No defensible BOQ-to-activity crosswalk is established.")+" "+escapeHtml(mappingSummary)+'</div>'+moduleEvidenceGate([
+    return '<section class="planning-view quantity-view">'+installedSummary+measured+top+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Installed Quantities</h4><p>BOQ quantities are shown by unit. Schedule mapping is required for planned curves; measured installed quantities require dated quantity evidence.</p></div></div><div class="planning-panel-body"><div class="notice warn"><b>No confirmed quantity curve is available.</b> '+escapeHtml(candidates?candidates+" candidate link(s) were found, but they remain scenarios and are not used as project facts.":"No defensible BOQ-to-activity crosswalk is established.")+" "+escapeHtml(mappingSummary)+'</div>'+moduleEvidenceGate([
       {label:"BOQ quantity basis",value:p.boqRevisionId?"Loaded":"Unresolved",state:p.boqRevisionId?"ready":"missing"},
       {label:"Confirmed BOQ-to-activity links",value:p.mappingBasis==="governed"?"Established":"Unresolved",state:p.mappingBasis==="governed"?"ready":"missing"},
       {label:"Installed quantity history",value:"Dated installed measurements not confirmed",state:"missing"}
@@ -1187,7 +1189,7 @@ function renderQuantityScurveVisual(data){
     {key:"currentForecastQuantity",label:series.authority==="scenario_mapping"?"Scenario current plan":"Mapped current plan",color:"#4f7fb4"},
     {key:"actualInstalledQuantity",label:"Measured installed quantities",step:true,color:"#2c7a57"}
   ],null,{unit:series.unit||series.unitKey||"",yLabel:"Cumulative quantity",xLabel:"Reporting date",dataDateIso:p.dataDateIso,ariaLabel:(series.unit||series.unitKey||"Quantity")+" S-Curve"})+'</div></section>').join("");
-  return '<section class="planning-view quantity-view">'+measured+top+charts+diagnostics+'</section>';
+  return '<section class="planning-view quantity-view">'+installedSummary+measured+top+charts+diagnostics+'</section>';
 }
 function renderLookAheadVisual(data){
   const p=projectionFor(data,"lookahead_schedule");
@@ -1910,7 +1912,7 @@ function renderPmoVisual(data){
       ["Weighted progress",p.progress.durationWeightedProgressPercent===null?"—":fmt(p.progress.durationWeightedProgressPercent)+"%"],["Schedule progress-field coverage",p.progress.progressCoveragePercent===null?"—":fmt(p.progress.progressCoveragePercent)+"%"],["Completed",p.progress.completedCount],["In progress",p.progress.inProgressCount]
     ]],
     ["Delivery",[
-      ["Assigned resources",p.resources.assignedResourceCount],["Capacity field coverage · supplied resource-week rows",p.resources.weeklyCapacityCoveragePercent===null?"—":fmt(p.resources.weeklyCapacityCoveragePercent)+"%"],["Actual overloads through DD",p.resources.capacityChecksToDataDate?fmt(p.resources.capacityChecksToDataDate.actual.exceededCount)+" / "+fmt(p.resources.capacityChecksToDataDate.actual.comparableCount)+" resource-weeks":"Unresolved"],["BOQ/activity link",planningStateLabel(p.quantities.allocationState)]
+      ["Assigned resources",p.resources.assignedResourceCount],["Capacity field coverage · supplied resource-week rows",p.resources.weeklyCapacityCoveragePercent===null?"—":fmt(p.resources.weeklyCapacityCoveragePercent)+"%"],["Actual overloads through DD",p.resources.capacityChecksToDataDate?fmt(p.resources.capacityChecksToDataDate.actual.exceededCount)+" / "+fmt(p.resources.capacityChecksToDataDate.actual.comparableCount)+" resource-weeks":"Unresolved"],["Measured installation",p.quantities.installedQuantityStatus?humanizeKey(p.quantities.installedQuantityStatus.state):"Unresolved"],["Programme links for planned quantities",planningStateLabel(p.quantities.allocationState)]
     ]],
     ["Claims & time",[
       ["Delay events",p.claims.eventCount],["Claims",p.claims.claimCount],["Recalculated window movement",fmt(p.claims.grossPositiveAnalyticalMovementDays)+" days · "+(p.claims.windowMovementTrace||[]).map(w=>fmt(w.calculatedDays)).join(" + ")],["Net submitted finish movement",fmt(p.claims.netSubmittedFinishMovementDays)+" days"],["Effective approved determinations at Data Date",fmt(p.claims.effectiveDeterminationDays)+" days"],["EOT incorporated in amendment",fmt(p.claims.incorporatedEotDays)+" days"],["Determination register total",fmt(p.claims.registerDeterminationDays)+" days"]

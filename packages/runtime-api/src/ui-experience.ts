@@ -118,10 +118,11 @@ function experienceBrief(key,data){
     add('Actual less plan',d.actualMinusPlannedHoursToDataDate,'Same reporting periods','h');add('Labor resources',d.laborResourceCount,'Labor only; equipment excluded');
     note='Hours compare resource use with plan. They do not measure productivity without installed output.';
   }else if(key==='quantity-scurve'){
-    add('BOQ items',d.boqItemCount,'Source quantities');add('Linked items',d.allocatedItemCount,'Confirmed programme links');
-    add('Mapping coverage',d.itemLinkCoveragePercent,'Item coverage, not mixed-unit quantity coverage','%');add('Quantity units',d.boqItemCount==null?null:d.series?.length,'Each unit remains separate');
-    note='Source BOQ quantities remain available independently of schedule mapping. Measured installations require separate evidence.';
-    if(d.allocationState!=='established')review='Review the BOQ-to-activity mapping before using a time-phased quantity plan. Keep measured installation evidence on its own dates and units.';
+    add('BOQ items',d.boqItemCount,'Source quantities');add('Items with dated measurements',d.installedQuantityStatus?.measuredItemCount,'Through the reporting date');
+    add('Programme-linked items',d.allocatedItemCount,d.mappingBasis==='candidate_scenario'?'Suggested links; review required':'Programme links for planned quantities');
+    add('Programme-link coverage',d.itemLinkCoveragePercent,'Does not measure installation coverage','%');
+    note=d.installedQuantityStatus?.explanation||'Programme links and dated installed measurements are separate facts.';
+    if(d.allocationState!=='complete'||d.mappingBasis!=='governed')review='Planned quantity curves require confirmed BOQ-to-activity links. This mapping review does not remove available measured installations.';
   }else if(key==='progress-breakdown'){
     add('Execution activities',d.totalActivityCount,'Nonadditive WBS hierarchy');add('Direct WBS groups',d.rows?.length,'Groups owning execution activities');
     add('Hierarchy groups',d.hierarchyRows?.length,'Parents and direct groups');

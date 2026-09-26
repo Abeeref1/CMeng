@@ -2476,6 +2476,7 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
         "pmo-analysis",
         {
           ...pmoAnalysis,
+          quantities:{...pmoAnalysis.quantities,installedQuantityStatus:(quantityResult.data as any).installedQuantityStatus},
           programmeBaselineCompletionIso:
             scheduleAnalytics.result
               .completionBases.find(
@@ -2710,6 +2711,7 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
               },
           quantities: quantityScurve
             ? {
+                installedQuantityStatus:(quantityResult.data as any).installedQuantityStatus,
                 state:
                   quantityScurve
                     .allocationState,
@@ -3347,6 +3349,9 @@ function canonicalQuantityModule(state: ProjectRuntimeState, model: ProjectRunti
     scheduleRevisionId: model.sourceRevisionId, dataDateIso: model.dataDateIso,
     allocationState: "missing", mappingBasis: "missing", boqState: "not_established", boqSource: boqSourceReporting(state), unitKeyed: true, generatedAt, producerVersion:"quantity-source-integration-v1", boqRevisionId:null, series: [],
     boqItemCount:null,knownQuantityItemCount:null,allocatedItemCount:null,unmappedItemCount:null,partiallyAllocatedItemCount:null,overAllocatedItemCount:null,
+    allocationScope:"programme_links_only",
+    programmeMapping:{state:"missing",basis:"missing",allocatedItemCount:null,itemLinkCoveragePercent:null},
+    installedQuantityStatus:{state:"unresolved",measuredItemCount:null,boqItemCount:null,itemCoveragePercent:null,explanation:"Dated installed quantities are unresolved because the BOQ quantity basis is not established."},
     unmappedItemIds: [], partiallyAllocatedItemIds: [], overAllocatedItemIds: [],
     diagnostics: ["BOQ_QUANTITY_BASIS_NOT_ESTABLISHED"],
   }, ["BOQ"], "partial", "BOQ quantities have not been established.");
@@ -3366,12 +3371,25 @@ function canonicalQuantityModule(state: ProjectRuntimeState, model: ProjectRunti
     && activityIds.has(allocation.activityId) && Number.isFinite(allocation.allocatedQuantity)
     && allocation.allocatedQuantity >= 0).map(allocation => allocation.quantityItemId));
   const mappingBasis = !sameRevision ? "revision_mismatch" : scenario ? "candidate_scenario" : quantities.allocations.length ? "governed" : "missing";
+  const series = projection.series.map(series => ({ ...series, authority: scenario ? "scenario_mapping" : "governed_mapping",
+    actualAuthority: "measured_installed_quantities",
+    points: series.points.map(point => ({ ...point, actualInstalledQuantity: quantities.measurementReview?.complete!==false && model.dataDateIso !== null && point.dateIso.slice(0,10) <= model.dataDateIso.slice(0,10) ? point.actualInstalledQuantity : null })) }));
+  const measuredItems = new Set(basis.installedSnapshots.filter(row=>itemIds.has(row.quantityItemId)&&Number.isFinite(row.installedQuantity)&&row.installedQuantity>=0).map(row=>row.quantityItemId));
+  const measurementsPresent = !!quantities.measurementReview || quantities.installedSnapshots.length>0;
+  const hasMeasuredActual = series.some(group=>group.points.some(point=>point.actualInstalledQuantity!==null));
+  const measurementState = !hasMeasuredActual?"unresolved":measuredItems.size===quantities.items.length?"available":"partial";
+  const installedQuantityStatus = {state:measurementState,measuredItemCount:measurementsPresent?measuredItems.size:null,boqItemCount:quantities.items.length,
+    itemCoveragePercent:measurementsPresent&&quantities.items.length?measuredItems.size/quantities.items.length*100:null,
+    explanation:hasMeasuredActual?"Dated installed quantities are available for "+measuredItems.size+" of "+quantities.items.length+" BOQ items. Programme links are a separate requirement for planned curves.":"Dated installed quantities are unresolved. A measurement source label or programme link does not establish measured actuals."};
   const result = available("quantity-scurve", {
     ...projection, allocationState: scenario ? "partial" : projection.allocationState,
     mappingBasis, candidateMappingState: sameRevision ? "evaluated" : "revision_mismatch", inferredMapping,
     boqState: "loaded", boqSource: boqSourceReporting(state), boqItemCount: quantities.items.length,
     knownQuantityItemCount: quantities.items.filter(item => item.contractQuantity !== null && Number.isFinite(item.contractQuantity) && item.contractQuantity >= 0).length,
     allocatedItemCount: mappedItemIds.size,
+    allocationScope:"programme_links_only",
+    programmeMapping:{state:scenario?"partial":projection.allocationState,basis:mappingBasis,allocatedItemCount:mappedItemIds.size,itemLinkCoveragePercent:quantities.items.length?mappedItemIds.size/quantities.items.length*100:null},
+    installedQuantityStatus,
     unmappedItemCount: quantities.items.length-mappedItemIds.size,
     partiallyAllocatedItemCount: projection.partiallyAllocatedItemIds.length,
     overAllocatedItemCount: projection.overAllocatedItemIds.length,
@@ -3379,9 +3397,7 @@ function canonicalQuantityModule(state: ProjectRuntimeState, model: ProjectRunti
     unmappedKnownQuantityItemIds: projection.unmappedItemIds,
     unmappedItemIds: quantities.items.filter(item => !mappedItemIds.has(item.quantityItemId)).map(item => item.quantityItemId),
     actualAuthority: "measured_installed_quantities", actualIndependentOfScheduleMapping: true, measurementReview:quantities.measurementReview??null,
-    series: projection.series.map(series => ({ ...series, authority: scenario ? "scenario_mapping" : "governed_mapping",
-      actualAuthority: "measured_installed_quantities",
-      points: series.points.map(point => ({ ...point, actualInstalledQuantity: quantities.measurementReview?.complete!==false && model.dataDateIso !== null && point.dateIso.slice(0,10) <= model.dataDateIso.slice(0,10) ? point.actualInstalledQuantity : null })) })),
+    series,
     diagnostics: [...projection.diagnostics, ...(scenario ? ["QUANTITY_PLAN_IS_CANDIDATE_SCENARIO_NOT_GOVERNED"] : []), ...(!sameRevision ? ["QUANTITY_MAPPING_REVISION_MISMATCH_PLANS_WITHHELD"] : [])],
   }, ["BOQ", "quantity-to-activity mapping", "installed quantity measurements"],
     sameRevision && !scenario && projection.allocationState === "complete" ? "ready" : "partial",

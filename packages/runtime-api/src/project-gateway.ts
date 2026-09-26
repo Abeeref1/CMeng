@@ -9,9 +9,10 @@ import {normalizeProjectCode} from './project-identity';
 import {loadProjectCatalog,projectDirectory,atomicJson,release,type CatalogEntry} from './project-catalog';
 import {projectWorkerCapacity} from './project-worker-capacity';
 import {ProjectReadCache,cacheableProjectRead,MAX_PROJECT_READ_BYTES} from './project-read-cache';
+import {sendHttpBody,forwardHttpBody} from './http-response';
 
 type Lane={worker:Worker;ready:Promise<number>;tail:Promise<void>;pending:number;lastUsed:number};
-const send=(res:ServerResponse,status:number,body:unknown)=>{if(!res.destroyed&&!res.writableEnded){if(res.headersSent){res.destroy();return;}res.writeHead(status,{'content-type':'application/json','cache-control':'no-store'});res.end(JSON.stringify(body));}};
+const send=(res:ServerResponse,status:number,body:unknown)=>{if(!res.destroyed&&!res.writableEnded){if(res.headersSent){res.destroy();return;}sendHttpBody(res,status,{'content-type':'application/json','cache-control':'no-store'},JSON.stringify(body));}};
 export async function createProjectGateway(root:string,options:{maxWorkers?:number}={}){
   const catalog=await loadProjectCatalog(root),lanes=new Map<string,Lane>(),progress=new Map<string,any>();
   const documentRegisters=new Map<string,{version:number;documents:Record<string,any>}>();
@@ -108,18 +109,17 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
     try{
       await work(id,port=>new Promise<void>((resolve,reject)=>{
         if(req.aborted){reject(new Error('UPLOAD_CONNECTION_CLOSED'));return;}
-        const upstream=request({host:'127.0.0.1',port,path,method:req.method,headers:{...req.headers,host:'127.0.0.1:'+port}},incoming=>{
+        const upstream=request({host:'127.0.0.1',port,path,method:req.method,headers:{...req.headers,host:'127.0.0.1:'+port,'accept-encoding':'identity'}},incoming=>{
           succeeded=(incoming.statusCode??500)<400;
           const version=Number(incoming.headers['x-cmeng-project-version']);
           const retain=cacheableProjectRead(req.method,path)&&incoming.statusCode===200&&Number.isInteger(version)&&version>=0;
           let bytes=0;const chunks:Buffer[]=[];
           if(retain)incoming.on('data',(chunk:Buffer)=>{bytes+=chunk.length;if(bytes<=MAX_PROJECT_READ_BYTES)chunks.push(Buffer.from(chunk));else chunks.length=0;});
-          if(!res.destroyed)res.writeHead(incoming.statusCode??502,incoming.headers);
           incoming.on('error',reject);incoming.on('aborted',()=>reject(new Error('PROJECT_RESPONSE_INTERRUPTED')));
           incoming.on('end',()=>{
             if(retain&&bytes<=MAX_PROJECT_READ_BYTES)void reads(id).put(release(),version,path,Buffer.concat(chunks)).then(resolve,resolve);
             else resolve();
-          });if(res.destroyed)incoming.resume();else incoming.pipe(res);
+          });forwardHttpBody(res,incoming);
         });
         upstream.on('error',reject);req.once('aborted',()=>upstream.destroy(new Error('UPLOAD_CONNECTION_CLOSED')));
         req.pipe(upstream);
@@ -135,7 +135,7 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
   const server=createServer((req,res)=>{void (async()=>{
     const url=new URL(req.url??'/','http://localhost');
     if(req.method==='GET'&&url.pathname==='/health'){send(res,200,{status:'ok',service:'cmeng',release:release(),scheduleModules:scheduleModuleSummary(),commercialModules:commercialModuleSummary(),boqIngestion:{persistence:process.env.RAILWAY_VOLUME_MOUNT_PATH?'railway_volume':'runtime_local',authority:'candidate_only'},projectWorkers:lanes.size});return;}
-    if(req.method==='GET'&&url.pathname==='/'){res.writeHead(200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store'});res.end(html);return;}
+    if(req.method==='GET'&&url.pathname==='/'){sendHttpBody(res,200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store'},html);return;}
     if(req.method==='GET'&&url.pathname==='/api/portfolio'){
       const visible=[...catalog.values()].filter(e=>!e.metadata?.demo&&!e.projectId.toUpperCase().startsWith('PERSISTENCE-SMOKE-'));
       send(res,200,{portfolioId:'default',generatedAt:new Date().toISOString(),projectCount:visible.length,projects:visible.map(portfolioEntry)});
@@ -165,7 +165,7 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
       if(cacheableProjectRead(req.method,projectPath)&&version!==undefined&&!(updating.get(id)??0)){
         const cached=await reads(id).get(release(),version,projectPath);
         if(cached&&catalog.get(id)?.metadata?.version===version&&!(updating.get(id)??0)){
-          res.writeHead(200,{'content-type':'application/json','cache-control':'no-store','x-cmeng-project-version':String(version)});res.end(cached);return;
+          sendHttpBody(res,200,{'content-type':'application/json','cache-control':'no-store','x-cmeng-project-version':String(version)},cached);return;
         }
       }
       if(req.method==='GET'&&req.headers['x-cmeng-async-view']==='1'){

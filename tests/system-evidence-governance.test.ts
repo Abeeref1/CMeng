@@ -197,6 +197,12 @@ test('initial quantity page and full management synthesis use the same unit popu
   assert.equal(initial.series.length,2); assert.equal(pmo.quantities.unitSeriesCount,initial.series.length);
   assert.equal(initial.boqState,'loaded'); assert.equal(initial.candidateMappingState,'evaluated');
   assert.equal(initial.series.find((s:any)=>s.unit==='m2').points.find((p:any)=>p.actualInstalledQuantity!==null).actualInstalledQuantity,7);
+  assert.equal(initial.allocationScope,'programme_links_only');
+  assert.equal(initial.programmeMapping.allocatedItemCount,0);
+  assert.equal(initial.installedQuantityStatus.state,'partial');
+  assert.equal(initial.installedQuantityStatus.measuredItemCount,1);
+  assert.equal(initial.installedQuantityStatus.boqItemCount,2);
+  assert.deepEqual(pmo.quantities.installedQuantityStatus,initial.installedQuantityStatus);
   assert.equal(state.quantities.allocations.length,0,'scenario evaluation must not govern a crosswalk');
 });
 
@@ -215,6 +221,8 @@ test('unknown contract quantities cannot appear as allocated items when no cross
   assert.equal(result.allocatedItemCount,0); assert.equal(result.itemLinkCoveragePercent,0);
   assert.deepEqual(result.unmappedItemIds,['Q']); assert.equal(result.mappingBasis,'missing');
   assert.equal(result.challenge.items[0].independent.value,0);
+  assert.equal(result.installedQuantityStatus.state,'unresolved','a measurement authority label cannot fabricate available actuals');
+  assert.equal(result.installedQuantityStatus.measuredItemCount,null);
 });
 
 test('XER target date changes do not assert that the controlled baseline changed',()=>{
