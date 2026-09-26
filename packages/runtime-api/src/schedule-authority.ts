@@ -14,10 +14,23 @@ export function scheduleAuthorityReview(state:ProjectRuntimeState){
   const revision=state.schedules.find(s=>s.revision.revisionId===basis?.activeArtifactId);
   const decision=document?.scheduleAdoption;
   const validDecision=!!document&&!!revision&&document.linkedArtifactId===revision.revision.revisionId&&decision?.sourceHashSha256===document.sourceHashSha256&&document.sourceHashSha256===revision.sourceHashSha256;
-  return {documentId:document?.documentId??null,sourceHashSha256:document?.sourceHashSha256??null,
+  const dataDateIso=revision?.revision.model.dataDateIso?.slice(0,10)??null;
+  const pendingSchedules=state.schedules.filter(s=>!isScenarioRevision(s)).flatMap(s=>{
+    const source=state.evidenceDocuments.find(d=>d.category==='schedule'&&d.linkedArtifactId===s.revision.revisionId&&d.basisState==='candidate');
+    if(!source)return [];
+    const date=s.revision.model.dataDateIso?.slice(0,10)??null;
+    const dateRelationship=!date?'date_missing':!dataDateIso?'no_current_programme':date>dataDateIso?'later':date===dataDateIso?'same':'earlier';
+    const adoptionBlocker=!date?'The programme Data Date must be established before adoption.':source.sourceHashSha256!==s.sourceHashSha256?'The programme and document source hashes do not agree. Review the source before adoption.':null;
+    return [{documentId:source.documentId,revisionId:s.revision.revisionId,sourceHashSha256:source.sourceHashSha256,
+      filename:source.sourceFilename,dataDateIso:date,uploadedAt:source.uploadedAt,role:s.role,dateRelationship,
+      canAdopt:adoptionBlocker===null,adoptionBlocker,
+      actionPath:'/api/projects/'+encodeURIComponent(state.projectId)+'/schedule/revisions/'+encodeURIComponent(s.revision.revisionId)+'/adopt'}];
+  });
+  return {projectId:state.projectId,currentRevisionId:revision?.revision.revisionId??null,dataDateIso,pendingSchedules,
+    documentId:document?.documentId??null,sourceHashSha256:document?.sourceHashSha256??null,
     state:!revision?'missing':isScenarioRevision(revision)?'invalid':validDecision&&decision?.method==='explicit'?'established':'pending_review',
     method:validDecision?decision?.method:null,
-    explanation:!revision?'Select and adopt a current programme in Documents.':isScenarioRevision(revision)?'A draft or scenario cannot be the current programme.':validDecision&&decision?.method==='explicit'?'Current programme selected by an explicit adoption decision.':'The previous programme selection is retained as a source position. Confirm adoption in Documents; it is not an approved programme.',
+    explanation:!revision?(pendingSchedules.length?'Programme uploaded and awaiting adoption. Review the programme below and select Adopt as current to enable programme-based reporting.':'Upload a programme, then review and adopt it to enable programme-based reporting.'):isScenarioRevision(revision)?'A draft or scenario cannot be the current programme.':validDecision&&decision?.method==='explicit'?'Current programme selected by an explicit adoption decision.':'The previous programme selection is retained as a source position. Confirm adoption in Documents; it is not an approved programme.',
   };
 }
 

@@ -1,3 +1,4 @@
+import {programmeReviewScript} from './ui-programme-review';
 import {uploadWorkScript} from './ui-upload-work';
 import {aggregateCount} from '../../truth-kernel/src/aggregates';
 import {moduleRegistry, titleForModule} from './registry';
@@ -3820,7 +3821,7 @@ function renderModuleBasis(data,detail=false){
   const adoptionReview=data?.scheduleAuthorityReview;
   const adoptionHeadline=adoptionReview&&adoptionReview.state!=="established"?'<div class="notice warn">'+escapeHtml(adoptionReview.explanation)+'</div>':"";
   const newerHeadline=newer.length?'<div class="notice warn"><b>Newer programme supplied, not adopted.</b> '+newer.map(r=>escapeHtml(planningShortDate(r.dataDateIso))+' · '+escapeHtml(r.filename||'Programme')).join('; ')+'</div>':'';
-  return baselineHeadline+completionHeadline+adoptionHeadline+newerHeadline+calendarHeadline+screeningHeadline+'<div class="module-basis">'+values.map(([label,value])=>'<span class="basis-chip"><b>'+escapeHtml(label)+'</b><strong title="'+escapeHtml(label==="Programme basis"&&revision?revision:value)+'">'+escapeHtml(value)+'</strong></span>').join("")+'</div>';
+  return baselineHeadline+completionHeadline+calendarHeadline+screeningHeadline+'<div class="module-basis">'+values.map(([label,value])=>'<span class="basis-chip"><b>'+escapeHtml(label)+'</b><strong title="'+escapeHtml(label==="Programme basis"&&revision?revision:value)+'">'+escapeHtml(value)+'</strong></span>').join("")+'</div>';
 }
 function renderStructuredSections(data){
   if(!data||typeof data!=="object")return"";
@@ -3839,7 +3840,14 @@ function userFacingModuleReason(key,reason){
     .replace(/projection/gi,"analysis")
     .replace(/evidence/gi,"project information");
 }
+${programmeReviewScript()}
 function renderModuleResult(result){
+  renderModuleResultBody(result);
+  const container=el('moduleContent');
+  container.insertAdjacentHTML('afterbegin',renderProgrammeReview(result.scheduleAuthorityReview||result.data?.scheduleAuthorityReview));
+  bindProgrammeReview(container);
+}
+function renderModuleResultBody(result){
   result={...result,key:result.legacyKey||result.key};
   currentModuleResult=result;
   el("moduleReport").disabled=false;

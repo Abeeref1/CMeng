@@ -1,4 +1,4 @@
-import {isScenarioRevision} from './schedule-authority';
+import {isScenarioRevision,scheduleAuthorityReview} from './schedule-authority';
 import {registerDateReview,scopeRegisterDateReview} from './register-date-review';
 import { activityPopulation,calendarWorkingDayHours } from '../../schedule-analysis-core/src';
 import { populationContract, partitionAsOf, type PopulationContract, type ReportingAuthority } from '../../truth-kernel/src';
@@ -44,6 +44,8 @@ export function managementReportingData<T extends object>(state: ProjectRuntimeS
  * Population references are independent of UI pagination and retain excluded IDs.
  */
 export function attachReportingContract(state:ProjectRuntimeState,result:ModuleRuntimeResult):ModuleRuntimeResult {
+  const authorityReview=scheduleAuthorityReview(state);
+  result={...result,scheduleAuthorityReview:authorityReview};
   if(!result.data||typeof result.data!=='object')return result;
   const data=result.data as any, current=projectControlSchedule(state), model=current?.revision.model, dataDateIso=projectDataDate(state);
   const populations:Record<string,PopulationContract>={};
@@ -170,10 +172,11 @@ export function attachReportingContract(state:ProjectRuntimeState,result:ModuleR
   walk(data,'',0);
   const time=canonicalTimeClaims(state).contractTimeBasis??state.controls.contractTimeBasis;
   const baseline=state.schedules.filter(s=>['baseline','revised_baseline'].includes(s.role)&&s.revision.model.dataDateIso&&dataDateIso&&s.revision.model.dataDateIso.slice(0,10)<=dataDateIso).sort((a,b)=>(a.revision.model.dataDateIso??'').localeCompare(b.revision.model.dataDateIso??'')).at(-1);
-  return {...result,data:{...data,registerDateReview:scopeRegisterDateReview(registerDateReview(state),result.key),baselineComparison:{state:baseline?'established':'unresolved',revisionId:baseline?.revision.revisionId??null,reason:baseline?null:'No confirmed baseline'},reportingContract:{schemaVersion:'1.0',dataDateIso,projectVersion:state.version,
+  return {...result,data:{...data,scheduleAuthorityReview:authorityReview,registerDateReview:scopeRegisterDateReview(registerDateReview(state),result.key),baselineComparison:{state:baseline?'established':'unresolved',revisionId:baseline?.revision.revisionId??null,reason:baseline?null:'No confirmed baseline'},reportingContract:{schemaVersion:'1.0',dataDateIso,projectVersion:state.version,
     calendarResolution:{unresolvedActivityCount:model?activityPopulation(model).activities.filter(a=>calendarWorkingDayHours(model.calendars.find(c=>c.calendarId===a.calendarId))===null).length:0},
     configurationId:createHash('sha256').update(JSON.stringify(projectScheduleControlBasis(state).analysisConfig)).digest('hex').slice(0,24),
-    newerUnadoptedSchedules:state.schedules.filter(s=>!isScenarioRevision(s)&&s.revision.revisionId!==current?.revision.revisionId&&s.revision.model.dataDateIso&&(!dataDateIso||s.revision.model.dataDateIso.slice(0,10)>dataDateIso)).map(s=>({dataDateIso:s.revision.model.dataDateIso,filename:s.sourceFilename})),
+    pendingScheduleReviews:authorityReview.pendingSchedules,
+    newerUnadoptedSchedules:authorityReview.pendingSchedules.filter(s=>s.dateRelationship==='later'||s.dateRelationship==='no_current_programme'),
     programmeRevisionId:current?.revision.revisionId??null,programmeLabel:current?.revision.label??null,
     actualEventPolicy:'Only dated events on or before the Data Date enter current actuals. Future and undated evidence is retained separately.',
     forecastPolicy:'Future planned work and forecast dates remain visible as forecasts, never as actual events.',
