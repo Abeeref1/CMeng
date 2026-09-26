@@ -23,7 +23,12 @@ export async function deliveryRequest(req:IncomingMessage,res:ServerResponse,url
   if(match[2]==='sources'){
    const tables=deliverySourceTables(state,[]);send(200,{projectId,projectVersion:state.version,documents:state.evidenceDocuments.map(d=>({documentId:d.documentId,filename:d.sourceFilename,sourceHash:d.sourceHashSha256,basisState:d.basisState,mediaType:d.mediaType,reading:d.fullTextRead?{completedAt:d.fullTextRead.completedAt,sourceHash:d.fullTextRead.sourceHashSha256}:null,headers:[...new Set(tables.filter(t=>t.document.documentId===d.documentId).flatMap(t=>t.headers))]})),readingStates:source.documents});return true;
   }
-  if(match[2]==='records'&&match[3]){const record=source.records.find(r=>r.recordId===decodeURIComponent(match[3]!));if(!record){send(404,{error:'Delivery record not found in this project.'});return true;}send(200,{projectId,projectVersion:state.version,record,history:deliveryStore(state).decisions.filter(d=>d.recordId===record.recordId)});return true;}
+  if(match[2]==='records'&&match[3]){const record=source.records.find(r=>r.recordId===decodeURIComponent(match[3]!));if(!record){send(404,{error:'Delivery record not found in this project.'});return true;}
+   const selected=new Set(Object.values(record.links).flat().filter((id):id is string=>typeof id==='string')),linkLabels:Record<string,string>={};
+   for(const r of source.records)if(selected.has(r.recordId))linkLabels[r.recordId]=[r.reference,r.description].filter(Boolean).join(' · ');
+   if(record.links.activityIds.length)for(const a of projectControlSchedule(state)?.revision.model.activities??[])if(selected.has(a.activityId))linkLabels[a.activityId]=a.activityId+' · '+a.name;
+   if(record.links.boqItemIds.length)for(const i of resolveBoqSource(state,projectControlSchedule(state)?.revision.revisionId??'').quantities?.items??[])if(selected.has(i.quantityItemId))linkLabels[i.quantityItemId]=i.description+' · '+i.unit;
+   send(200,{projectId,projectVersion:state.version,record,linkLabels,history:deliveryStore(state).decisions.filter(d=>d.recordId===record.recordId)});return true;}
   let rows:any[]=source.records.filter(r=>!kind||r.kind===kind);
   if(match[2]==='catalog'){
    if(kind==='activity')rows=projectControlSchedule(state)?.revision.model.activities.map(a=>({id:a.activityId,label:a.activityId+' · '+a.name}))??[];

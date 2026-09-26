@@ -7,6 +7,7 @@ import {deliverySourceTables} from './delivery-sources';
 import {auditContext} from './audit-context';
 import {projectControlSchedule} from './canonical-time-claims';
 import {resolveBoqSource} from './boq-source';
+import {deliveryNumericIssues} from './delivery-validation';
 export const deliveryHash=(value:unknown)=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const split=(value:string)=>value.split(/[;|]/).map(x=>x.trim()).filter(Boolean);
 export const deliveryStore=(state:ProjectRuntimeState):DeliveryStateStore=>state.delivery??{schemaVersion:1,manual:[],decisions:[],populations:[]};
@@ -19,8 +20,17 @@ function kindFor(row:SourceRow,type:string):DeliveryKind|null {
  const explicit=cell(row,'delivery record type') as DeliveryKind;
  if(deliveryKinds.includes(explicit))return explicit;
 
- if(typed[type])return typed[type]!;
  const candidates=deliveryKinds.filter(k=>identityKeys[k].some(id=>Object.hasOwn(row.cells,id)));
+ // Physical PDF pages can describe different registers in one packet. Their
+ // primary identity outranks the classification of the complete document.
+ if(row.receipt.locator.startsWith('page:')){
+  if(typed[type]&&candidates.includes(typed[type]!))return typed[type]!;
+  const first=Object.keys(row.cells)[0];
+  const primary=candidates.find(k=>identityKeys[k].includes(first??''));
+  if(primary)return primary;
+  if(candidates.length===1)return candidates[0]!;
+ }
+ if(typed[type])return typed[type]!;
  if(candidates.length===1)return candidates[0]!;
  const first=Object.keys(row.cells)[0];
  // Ambiguous tables require a mapping decision. Foreign IDs are never promoted by text similarity.
@@ -28,6 +38,7 @@ function kindFor(row:SourceRow,type:string):DeliveryKind|null {
 }
 export function deliveryRecords(state:ProjectRuntimeState){
  const diagnostics:string[]=[];const tables=deliverySourceTables(state,diagnostics);const store=deliveryStore(state);
+ const decidedIds=new Set(store.decisions.map(d=>d.recordId));
  const records:DeliveryRecord[]=[...store.manual.map(r=>({...structuredClone(r),sourceActive:r.receipts.every(receipt=>state.evidenceDocuments.some(d=>d.documentId===receipt.documentId&&d.sourceHashSha256===receipt.sourceHash&&(['active','additive','candidate'].includes(d.basisState)||['supporting_document','delivery_register'].includes(d.documentType)&&d.basisState==='historical'&&!d.supersededByDocumentId)))}))];
  const documents:Array<{documentId:string;filename:string;kind:DeliveryKind|null;rowCount:number;state:string;readingComplete:boolean|null;diagnostics:string[]}>=[];
  for(const t of tables){let count=0,kind:DeliveryKind|null=null;const kindCounts=new Map<DeliveryKind,number>();
@@ -40,9 +51,13 @@ export function deliveryRecords(state:ProjectRuntimeState){
    if(k!=='supplier')links.supplierIds=split(cell(row,'supplier id','subcontractor id'));
    if(k!=='location')links.locationIds=split(cell(row,'location id'));
    if(k!=='asset')links.assetIds=split(cell(row,'asset id','asset tag'));
-   const recordId='delivery:'+deliveryHash([state.projectId,k,t.document.documentId,row.receipt.locator]).slice(0,24);
+   let recordId='delivery:'+deliveryHash([state.projectId,k,t.document.documentId,row.receipt.locator]).slice(0,24);
+   const previousKind=typed[t.document.documentType??''];
+   const previousId=previousKind&&previousKind!==k?'delivery:'+deliveryHash([state.projectId,previousKind,t.document.documentId,row.receipt.locator]).slice(0,24):null;
+   const reclassified=!!previousId&&decidedIds.has(previousId);
+   if(reclassified)recordId=previousId!; // Retain the decision history, but require a fresh review of the corrected kind.
    records.push({recordId,projectId:state.projectId,kind:k,reference,description:cell(row,'description','package name','name','subject','test')||null,
-    revision:deliveryHash([row.receipt.sourceHash,row.receipt.locator,row.cells]),state:'extracted_candidate',fields:{...row.cells},links,receipts:[row.receipt],diagnostics:reference?[]:['Record reference is missing.'],sourceActive:['active','additive','candidate'].includes(t.document.basisState)||['supporting_document','delivery_register'].includes(t.document.documentType??'')&&t.document.basisState==='historical'&&!state.evidenceDocuments.find(d=>d.documentId===t.document.documentId)?.supersededByDocumentId});
+    revision:deliveryHash([row.receipt.sourceHash,row.receipt.locator,row.cells,...(reclassified?[k]:[])]),state:'extracted_candidate',fields:{...row.cells},links,receipts:[row.receipt],diagnostics:[...(reference?[]:['Record reference is missing.']),...(reclassified?['Page identity changed the record type. Review the retained decision against the corrected source identity.']:[])],sourceActive:['active','additive','candidate'].includes(t.document.basisState)||['supporting_document','delivery_register'].includes(t.document.documentType??'')&&t.document.basisState==='historical'&&!state.evidenceDocuments.find(d=>d.documentId===t.document.documentId)?.supersededByDocumentId});
   }
   const read=state.evidenceDocuments.find(d=>d.documentId===t.document.documentId)?.fullTextRead;
   for(const [documentKind,documentCount] of kindCounts.size?[...kindCounts]:[[null,0] as const])documents.push({documentId:t.document.documentId,filename:t.document.sourceFilename,kind:documentKind,rowCount:documentCount,readingComplete:read?.result.complete??null,state:read&&!read.result.complete?'partial_page_reading':count?'parsed_candidates':/^(boq|installed_measurement_register|risk_register|variation_register|payment_certificates)$/.test(t.document.documentType??'')?'existing_authority':t.rows.length?'mapping_required':'parsed_empty',diagnostics:[...(count?[]:[t.rows.length+' source rows; '+(t.rows.length?'Delivery record identity is not mapped.':'the parsed table is empty.')]),...(read&&!read.result.complete?['Physical-page reading is incomplete. Read records do not establish complete register coverage.']:[])]});
@@ -52,7 +67,12 @@ export function deliveryRecords(state:ProjectRuntimeState){
  }
  const latest=new Map(store.decisions.map(d=>[d.recordId,d]));
  for(const r of records){const d=latest.get(r.recordId);if(d){if(d.sourceRevision!==r.revision||!r.sourceActive)r.state='stale';else{r.state=d.state;r.fields={...r.fields,...d.fields};r.links={...emptyLinks(),...structuredClone(d.links)};r.reference=String(r.fields['record reference']??r.reference??'')||null;r.description=String(r.fields.description??r.description??'')||null;}}}
- for(const r of records)r.links={...emptyLinks(),...r.links};
+ for(const r of records){
+  const decision=latest.get(r.recordId);
+  if(decision?.receipts){r.evidenceRevision=deliveryHash(decision.receipts);r.receipts=structuredClone(decision.receipts);r.sourceActive=r.sourceActive&&r.receipts.every(receipt=>state.evidenceDocuments.some(d=>d.documentId===receipt.documentId&&d.sourceHashSha256===receipt.sourceHash&&!d.supersededByDocumentId&&(['active','additive','candidate'].includes(d.basisState)||['supporting_document','delivery_register'].includes(d.documentType)&&d.basisState==='historical')));}
+  r.links={...emptyLinks(),...r.links};
+  r.diagnostics.push(...deliveryNumericIssues(r.kind,r.fields).map(i=>i.message));
+ }
  const superseded=new Set([...latest.values()].filter(d=>['governed','verified'].includes(d.state)).map(d=>d.supersedesId).filter(Boolean));
  for(const r of records){if(!r.sourceActive)r.state='stale';if(superseded.has(r.recordId)||r.receipts.some(receipt=>state.evidenceDocuments.some(d=>d.documentId===receipt.documentId&&d.supersededByDocumentId)))r.state='superseded';}
  const governed=records.filter(r=>['governed','verified'].includes(r.state)),references=new Map<string,DeliveryRecord[]>();
@@ -60,7 +80,7 @@ export function deliveryRecords(state:ProjectRuntimeState){
  for(const group of references.values())if(group.length>1)for(const r of group){r.state='conflicted';r.diagnostics.push('Multiple governed records share this reference; select the current revision explicitly.');}
  return {records,documents,diagnostics};
 }
-export function deliveryPopulationFingerprint(records:DeliveryRecord[]){return deliveryHash(records.map(r=>[r.recordId,r.revision,r.state,r.fields,r.links]).sort((a,b)=>String(a[0]).localeCompare(String(b[0]))));}
+export function deliveryPopulationFingerprint(records:DeliveryRecord[]){return deliveryHash(records.map(r=>[r.recordId,r.revision,r.state,r.fields,r.links,...(r.evidenceRevision?[r.evidenceRevision]:[])]).sort((a,b)=>String(a[0]).localeCompare(String(b[0]))));}
 export function validateDeliveryLinks(state:ProjectRuntimeState,records:DeliveryRecord[],links:DeliveryLinks){
  const model=projectControlSchedule(state)?.revision.model;const boq=resolveBoqSource(state,model?.sourceRevisionId??'').quantities;
  const has=(ids:string[],available:string[],label:string)=>{const set=new Set(available);if(ids.some(id=>!set.has(id)))throw new Error(label+' link is not an established ID in this project.');};
@@ -80,7 +100,7 @@ function cleanLinks(input:unknown,previous:DeliveryLinks):DeliveryLinks {
 function sourceReceipts(state:ProjectRuntimeState,input:any):SourceReceipt[]{
  if(input===undefined)return [];
  if(!Array.isArray(input))throw new Error('Invalid evidence links.');
- return input.map((source:any)=>{const doc=state.evidenceDocuments.find(d=>d.documentId===source.documentId);if(!doc||doc.sourceHashSha256!==source.sourceHash||!String(source.locator??'').trim())throw new Error('Evidence must identify a document in this project, its current source hash and a page/row locator.');return {documentId:doc.documentId,sourceHash:doc.sourceHashSha256,revision:doc.linkedArtifactId??doc.sourceHashSha256,locator:String(source.locator),basisState:doc.basisState,authority:'source_record'};});
+ return input.map((source:any)=>{const doc=state.evidenceDocuments.find(d=>d.documentId===source.documentId);if(!doc||doc.sourceHashSha256!==source.sourceHash||!String(source.locator??'').trim())throw new Error('Evidence must identify a document in this project, its current source hash and a page/row locator.');if(doc.supersededByDocumentId||!(['active','additive','candidate'].includes(doc.basisState)||['supporting_document','delivery_register'].includes(doc.documentType)&&doc.basisState==='historical'))throw new Error('Supporting evidence is no longer current. Select the replacement source.');return {documentId:doc.documentId,sourceHash:doc.sourceHashSha256,revision:doc.linkedArtifactId??doc.sourceHashSha256,locator:String(source.locator),basisState:doc.basisState,authority:'source_record'};});
 }
 function cleanFields(input:unknown):DeliveryFields {
  if(!input||typeof input!=='object'||Array.isArray(input))throw new Error('Record fields must be supplied.');
@@ -100,11 +120,13 @@ export function changeDelivery(state:ProjectRuntimeState,input:any){
   const r=all.find(r=>r.recordId===input.recordId);if(!r||r.revision!==input.sourceRevision)throw new Error('Source revision changed; reload the record.');
   if(!['working','governed','verified','scenario'].includes(input.state))throw new Error('Select a supported review state.');
   const fields={...r.fields,...cleanFields(input.fields??{})};const links=cleanLinks(input.links,r.links);
+  const receipts=[...r.receipts];for(const receipt of sourceReceipts(state,input.receipts))if(!receipts.some(s=>s.documentId===receipt.documentId&&s.sourceHash===receipt.sourceHash&&s.locator===receipt.locator))receipts.push(receipt);
   if(['governed','verified'].includes(input.state)){
    if(!String(fields['record reference']??r.reference??'').trim())throw new Error('Establish the record reference before governing it.');
    if(!r.sourceActive)throw new Error('The source is no longer current. Review the replacement source.');
    validateDeliveryLinks(state,all,links);
-   if(input.state==='verified'&&(!registerDate(String(fields['verification date']??''))||!r.receipts.length))throw new Error('Verification requires a valid verification date and supporting source evidence.');
+   const issues=deliveryNumericIssues(r.kind,fields);if(issues.length)throw new Error(issues.map(i=>i.message).join(' ')+' Retain the source as Working until the input is reconciled.');
+   if(input.state==='verified'&&(!registerDate(String(fields['verification date']??''))||!receipts.length))throw new Error('Verification requires a valid verification date and supporting source evidence.');
    if(r.kind==='location'){
     const seen=new Set([r.recordId]);let parent=String(fields['parent location id']??'');
     while(parent){if(seen.has(parent))throw new Error('Location hierarchy cannot contain a cycle.');seen.add(parent);const row=all.find(x=>x.kind==='location'&&x.recordId===parent&&['governed','verified'].includes(x.state));if(!row)throw new Error('Parent location must be a governed location in this project.');parent=String(row.fields['parent location id']??'');}
@@ -117,7 +139,7 @@ export function changeDelivery(state:ProjectRuntimeState,input:any){
   const old=supersedesId?all.find(x=>x.recordId===supersedesId):null;if(supersedesId&&(!old||old.kind!==r.kind||old.recordId===r.recordId))throw new Error('Select a previous record of the same type.');
   const seen=new Set([r.recordId]);let predecessor=old?.recordId;
   while(predecessor){if(seen.has(predecessor))throw new Error('Record supersession cannot contain a cycle.');seen.add(predecessor);predecessor=latest.get(predecessor)?.supersedesId??undefined;}
-  store.decisions.push({recordId:r.recordId,sourceRevision:r.revision,state:input.state,note:String(input.note),fields,links,supersedesId:old?.recordId??null,actorId,recordedAt});
+  store.decisions.push({recordId:r.recordId,sourceRevision:r.revision,state:input.state,note:String(input.note),fields,links,...(receipts.length?{receipts}:{}),supersedesId:old?.recordId??null,actorId,recordedAt});
  }else if(input.action==='map_document'){
   const doc=state.evidenceDocuments.find(d=>d.documentId===input.documentId);if(!doc||doc.sourceHashSha256!==input.sourceHash||!deliveryKinds.includes(input.kind))throw new Error('Select the current source document and Delivery record type.');
   const columns=cleanFields(input.columns),tables=deliverySourceTables(state,[]).filter(t=>t.document.documentId===doc.documentId);const headers=new Set(tables.flatMap(t=>t.headers));

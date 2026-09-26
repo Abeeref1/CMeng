@@ -86,9 +86,11 @@ test('future approvals and closures do not improve historical position; rectific
  f.create('hse','INCIDENT',{'incident date':'2031-08-01','lost time injuries':0,'frequency rate basis':1000000});f.population('hse');assert.equal(deliveryPosition(f.state).hsePosition.frequencyRate,null);
 });
 
-test('handover completion needs a complete population and dated verification; project readiness can become ready',async t=>{
- const f=await fixture(t);f.create('handover','H1',{'raised date':'2031-08-01','due date':'2031-08-30','verification date':'2031-08-20','acceptance date':'2031-08-21'});
- assert.equal(deliveryPosition(f.state).handover.readinessPercent,null);f.population('handover');assert.equal(deliveryPosition(f.state).handover.readinessPercent,100);assert.equal(deliveryModule(f.state,'handover-readiness').status,'ready');
+test('handover completion needs a complete population and verified source evidence; typed dates alone are insufficient',async t=>{
+ const f=await fixture(t);await f.upload('Handover.csv','Requirement ID,Description,Raised Date,Due Date,Verification Date,Acceptance Date\nH1,Training,2031-08-01,2031-08-30,2031-08-20,2031-08-21');
+ const h=deliveryRecords(f.state).records.find(r=>r.reference==='H1')!;f.review(h);
+ assert.equal(deliveryPosition(f.state).handover.readinessPercent,null);f.population('handover');assert.equal(deliveryPosition(f.state).handover.readinessPercent,null);
+ f.review(h,{}, {state:'verified'});f.population('handover');assert.equal(deliveryPosition(f.state).handover.readinessPercent,100);assert.equal(deliveryModule(f.state,'handover-readiness').status,'ready');
  f.create('handover','H2',{'raised date':'2031-08-10','due date':'2031-09-10',status:'Accepted'});assert.equal(deliveryPosition(f.state).handover.readinessPercent,null);
 });
 
