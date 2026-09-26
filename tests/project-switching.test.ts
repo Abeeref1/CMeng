@@ -5,7 +5,7 @@ import { createSourceFile, ScriptTarget, isFunctionDeclaration } from 'typescrip
 import { cmengUatHtml } from '../packages/runtime-api/src/ui';
 
 const source=createSourceFile('browser.js',cmengUatHtml().match(/<script>([\s\S]*?)<\/script>/)![1]!,ScriptTarget.Latest,true);
-const names=['projectRequestIsCurrent','clearProjectWorkspace','openProject','refresh','updateActiveProjectShell','setAppView','renderNav','loadModule','loadEvidence','loadDirector','askCmeng'];
+const names=['projectRequestIsCurrent','clearProjectWorkspace','openProject','refresh','updateActiveProjectShell','setAppView','renderNav','loadModule','loadEvidence','loadDirector','askCmeng','resetAskWorkspace','askPage'];
 const code=source.statements.filter(isFunctionDeclaration).filter(n=>n.name&&names.includes(n.name.text)).map(n=>n.getText(source)).join('\n');
 const tick=()=>new Promise<void>(resolve=>setImmediate(resolve));
 const overview=(projectId:string,count=7)=>({projectId,evidenceDocumentCount:count,revisionCount:2,latestDataDateIso:'2032-04-30',releaseCommitSha:'release',moduleStates:[],managementStates:[]});
@@ -23,7 +23,7 @@ function harness() {
   const storage=new Map<string,string>();
   const requests:Array<{path:string,resolve:(v:any)=>void,reject:(e:Error)=>void,done:boolean}>=[];
   const context=createContext({
-    el,project:()=>el('projectId').value,overview:overview('OLD-PROJECT',39),selected:'command-center',appView:'project',projectLoadState:'ready',
+    el,askBase:()=>'/api/projects/'+encodeURIComponent(el('projectId').value)+'/intelligence',askAnalysis:null,askConversation:null,askReferences:[],askPageContext:null,askHomeSeq:0,project:()=>el('projectId').value,overview:overview('OLD-PROJECT',39),selected:'command-center',appView:'project',projectLoadState:'ready',
     projectRequestSeq:0,moduleRequestSeq:0,evidenceRequestSeq:0,directorRequestSeq:0,aiRequestSeq:0,currentModuleResult:{key:'command-center',data:'OLD-PROJECT'},
     scheduleSelection:['old.xer'],boqSelection:['old.csv'],contractSelection:[],evidenceSelection:['old.zip'],selectedEvidenceDocuments:new Set(['old-document']),
     names:{'command-center':'Command Center'},descriptions:{},apiKeys:{},groups:{Management:['command-center']},

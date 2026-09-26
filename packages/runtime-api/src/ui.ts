@@ -1,3 +1,4 @@
+import {askAiHtml,askAiStyles,askAiScript} from './ui-ask-ai';
 import {deliveryScript} from './ui-delivery';
 import {programmeReviewScript} from './ui-programme-review';
 import {uploadWorkScript} from './ui-upload-work';
@@ -211,6 +212,7 @@ details:not(.workspace-drawer){border:1px solid var(--line);border-radius:9px;ba
 .module-live-dot{background:#8a99a8!important;box-shadow:none!important}
 .issue-badge{display:inline-block;border-radius:5px;padding:3px 6px;font-size:10px;font-weight:800;white-space:nowrap;background:#eef1f5;color:#596779}.issue-badge.system_defect{background:#fde8e7;color:#a42822}.issue-badge.source_conflict{background:#f1e8fa;color:#75429b}.issue-badge.data_quality{background:#fff0db;color:#976018}.issue-badge.missing_information{background:#fff8dc;color:#7b671c}.issue-badge.comparison_difference{background:#e6f0fc;color:#2d6099}.issue-badge.governance_review{background:#edeaf6;color:#65538a}.issue-badge.checked{background:#edf7f1;color:#286748}.issue-category-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px;margin:12px 0}.issue-category{border:1px solid #dce4ee;border-radius:8px;padding:10px;background:white}.issue-category b{display:block;font-size:19px;margin:6px 0}.issue-category small{display:block;color:#5d6c7d;line-height:1.4}.issue-assessment{padding:14px;border:1px solid #dce4ee;border-radius:9px;background:#f7f9fc;margin-bottom:14px}.issue-assessment h4{margin:0 0 6px}.issue-assessment .table-wrap{max-height:400px}.nav-state .issue-badge{font-size:8px;padding:2px 4px}.issue-assessment details summary{cursor:pointer;font-weight:700;padding:9px 0}
 ${experienceStyles}
+${askAiStyles}
 ${systemReviewStyles}
 .planning-kpi.unavailable strong{font-size:16px;font-weight:600;line-height:1.45}.planning-kpi.unavailable{background:#f8fafc}
 </style>
@@ -289,25 +291,7 @@ ${systemReviewStyles}
         <div id="projectRegister"></div>
       </section>
 
-      <section id="aiView" class="platform-view" hidden>
-        <div class="portfolio-hero">
-          <div><span class="section-kicker">CMeng AI</span><h2>Ask CMeng</h2><p>Ask about the current programme, progress, resources, forecast, claims, contract and project documents.</p></div>
-          <span class="badge" id="aiProjectBadge">No active project</span>
-        </div>
-        <div class="ai-shell">
-          <div class="ai-panel">
-            <h3>Ask about this project</h3>
-            <div class="ai-intro">CMeng AI answers from the current project records and calculated position. Recommendations do not change the current project position unless you approve them.</div>
-            <div class="ai-composer"><textarea id="aiQuestion" placeholder="Ask: What changed since the last update? What is driving the forecast? Which claims have the strongest time impact?"></textarea><button class="btn primary" id="askAi">Ask</button></div>
-            <div class="ai-suggestions" id="aiSuggestions"></div>
-            <div id="aiAnswer" class="ai-answer">Open a project, then ask CMeng about its position.</div>
-          </div>
-          <div class="ai-context">
-            <h3>Project information used</h3>
-            <div id="aiProjectInfo" class="muted">No project selected.</div>
-          </div>
-        </div>
-      </section>
+      ${askAiHtml}
 
       <div id="projectWorkspace" hidden>
       <div class="workspace-header">
@@ -4292,7 +4276,7 @@ function setAppView(view){
   renderPlatformNav();
   renderNav();
   if(view==="portfolio"||view==="projects")loadPortfolio();
-  if(view==="ai")updateActiveProjectShell();
+  if(view==="ai"){updateActiveProjectShell();loadAskHome();}
   window.scrollTo({top:0,behavior:"smooth"});
 }
 function projectRequestIsCurrent(projectId,requestSeq){
@@ -4302,6 +4286,7 @@ function clearProjectWorkspace(projectId){
   // Invalidate every read before changing the visible project. An older response
   // must remain obsolete even if the user switches A → B → A.
   projectRequestSeq++;moduleRequestSeq++;directorRequestSeq++;evidenceRequestSeq++;aiRequestSeq++;
+  resetAskWorkspace();
   overview=null;currentModuleResult=null;projectLoadState="loading";
   selectedEvidenceDocuments.clear();
   scheduleSelection=[];boqSelection=[];contractSelection=[];evidenceSelection=[];
@@ -4374,25 +4359,7 @@ async function runAnalysis(){
 async function afterEvidenceChange(){
   if(el("runAfterUpload")?.checked){await runAnalysis()}else{await refresh(false)}
 }
-async function askCmeng(){
-  if(!overview){el("aiAnswer").textContent="Open a project first.";return}
-  const question=el("aiQuestion").value.trim();
-  if(!question)return;
-  const projectId=project(),projectSeq=projectRequestSeq,requestSeq=++aiRequestSeq;
-  const current=()=>requestSeq===aiRequestSeq&&projectRequestIsCurrent(projectId,projectSeq);
-  el("aiAnswer").textContent="Reviewing the current project position...";
-  try{
-    const result=await api("/api/projects/"+encodeURIComponent(project())+"/intelligence/ask",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({question})});
-    if(!current())return;
-    el("aiAnswer").textContent=result.answer+(result.managementActions?.length?"\n\nManagement actions:\n"+result.managementActions.map(x=>"• "+x).join("\n"):"")+(result.governance?"\n\n"+result.governance:"");
-    el("aiProjectInfo").innerHTML='<b>'+escapeHtml(result.projectId)+'</b><br>'+result.relevantModules.map(x=>escapeHtml((names[x.key]||humanizeKey(x.key))+" · "+statusLabel(x.status))).join("<br>");
-  }catch(e){if(current())el("aiAnswer").textContent="CMeng AI could not answer: "+e.message}
-}
-function renderAiSuggestions(){
-  const qs=["What changed since the previous schedule update?","What is driving the current completion forecast?","Which delay events have the strongest time impact?","What project information is missing from the look-ahead?","What commercial exposure is linked to schedule delay?"];
-  el("aiSuggestions").innerHTML=qs.map(q=>'<button class="ai-suggestion">'+escapeHtml(q)+'</button>').join("");
-  document.querySelectorAll(".ai-suggestion").forEach(b=>b.onclick=()=>{el("aiQuestion").value=b.textContent;askCmeng()});
-}
+${askAiScript}
 let directorRequestSeq=0;
 async function loadDirector(projectId=project(),attempt=0){
   const requestSeq=++directorRequestSeq;
@@ -4569,6 +4536,7 @@ function uploadEvidenceFileWithProgress(file,fileIndex,fileTotal,job){
     xhr.send(file);
   });
 }
+bindAskWorkspace();
 el("loadDemo").onclick=loadDemo;el("refresh").onclick=()=>refresh(false);el("runAnalysisTop").onclick=runAnalysis;el("openAiTop").onclick=()=>setAppView("ai");el("askAi").onclick=askCmeng;el("createProject").onclick=createProject;el("portfolioNewProject").onclick=()=>setAppView("projects");
 function openEvidenceWorkspace(){
   if(!overview){setAppView("projects");el("createProjectMessage").innerHTML='<div class="notice info">Create or open a project before adding documents.</div>';return}

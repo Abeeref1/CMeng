@@ -1,3 +1,4 @@
+import {askAiRequest} from './ask-api';
 import {deliveryExportResult} from './delivery-projections';
 import {deliveryRequest} from './delivery-api';
 import {isDeliveryPage} from '../../delivery-core/src/registry';
@@ -856,50 +857,7 @@ async function route(
     return;
   }
 
-  const intelligenceMatch =
-    /^\/api\/projects\/([^/]+)\/intelligence\/ask$/.exec(
-      url.pathname,
-    );
-
-  if (
-    req.method === "POST" &&
-    intelligenceMatch
-  ) {
-    const projectId =
-      decodeURIComponent(
-        intelligenceMatch[1]!,
-      );
-    const body =
-      await readJsonBody<{
-        question?: string;
-      }>(req);
-    const question =
-      (
-        body.question ??
-        ""
-      ).trim();
-    if (!question) {
-      json(res, 400, {
-        error:
-          "question_required",
-      });
-      return;
-    }
-    const answer =
-      answerProjectQuestion(
-        projectId,
-        question,
-      );
-    if (!answer) {
-      json(res, 404, {
-        error:
-          "project_not_found",
-      });
-      return;
-    }
-    json(res, 200, answer);
-    return;
-  }
+  if(await askAiRequest(req,res,url))return;
 
   if(req.method === "GET" && url.pathname === "/api/delivery/modules"){const modules=moduleRegistry.filter(m=>m.area==="delivery");json(res,200,{moduleCount:modules.length,modules});return;}
 

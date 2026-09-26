@@ -1,4 +1,4 @@
-import {randomBytes} from 'node:crypto';
+import {retainedAuditSessionKey} from './audit-session-key';
 import {createServer,request,type IncomingMessage,type ServerResponse} from 'node:http';
 import {Worker} from 'node:worker_threads';
 import {join} from 'node:path';
@@ -16,7 +16,7 @@ const send=(res:ServerResponse,status:number,body:unknown)=>{if(!res.destroyed&&
 export async function createProjectGateway(root:string,options:{maxWorkers?:number}={}){
   const catalog=await loadProjectCatalog(root),lanes=new Map<string,Lane>(),progress=new Map<string,any>();
   const documentRegisters=new Map<string,{version:number;documents:Record<string,any>}>();
-  const auditSecret=process.env.CMENG_AUDIT_SECRET??randomBytes(32).toString('hex');
+  const auditSecret=await retainedAuditSessionKey(root);
   const configured=options.maxWorkers??Number(process.env.CMENG_PROJECT_WORKERS??4);
   const html=cmengUatHtml(),maxWorkers=projectWorkerCapacity(configured);
   const reads=(id:string)=>new ProjectReadCache(projectDirectory(root,id));
@@ -101,7 +101,7 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
       readyModules:null,partialModules:null,blockedModules:null,managementActions:[]};
   }
   async function proxy(id:string,req:IncomingMessage,res:ServerResponse,path=req.url??'/'){
-    const mutation=req.method!=='GET'&&req.method!=='HEAD';
+    const mutation=req.method!=='GET'&&req.method!=='HEAD'&&!/\/intelligence(?:\/|$)/.test(path);
     if(mutation){updating.set(id,(updating.get(id)??0)+1);const e=catalog.get(id);if(e)e.summaryRelease=null;await reads(id).invalidate();}
     const uploadId=String(req.headers['x-upload-id']??'');
     if(uploadId)progress.set(id+'::'+uploadId,{projectId:id,uploadId,state:'receiving',percent:0,filename:req.headers['x-source-filename']??'project package',message:'Waiting to receive project documents',receivedBytes:0,totalBytes:null,documentTotal:null,processedDocuments:0,identifiedDocuments:0});
@@ -159,7 +159,7 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
       if(!id){send(res,400,{error:'project_id_required'});return;}
       const progressMatch=/^\/evidence\/upload-progress\/([^/]+)$/.exec(match[2]??'');
       if(req.method==='GET'&&progressMatch){const p=progress.get(id+'::'+decodeURIComponent(progressMatch[1]!));send(res,p?200:404,p??{error:'upload_progress_not_found'});return;}
-      if(!catalog.has(id)){if(req.method==='GET'){send(res,404,{error:'project_not_found'});return;}await register(id);}
+      if(!catalog.has(id)){if(req.method==='GET'||(match[2]??'').startsWith('/intelligence')){send(res,404,{error:'project_not_found'});return;}await register(id);}
       const projectPath='/api/projects/'+encodeURIComponent(id)+(match[2]??'')+url.search;
       const version=catalog.get(id)?.metadata?.version;
       if(cacheableProjectRead(req.method,projectPath)&&version!==undefined&&!(updating.get(id)??0)){
