@@ -7,6 +7,7 @@ import {reviewScheduleCalendarBasis} from './schedule-calendar-review';
 import {operationalReporting} from './reporting-state';
 import {hseReportPosition} from './hse-report-evidence';
 import {commercialPositionForState} from './commercial-runtime';
+import {nearCriticalScreening} from './near-critical-screening';
 
 /** Shared source meaning accompanies API, management, reporting and AI results. */
 export function sourceInterpretation(state:ProjectRuntimeState,progress?:ProgressReportProjection['progressBases'],calendarCompletionIso:string|null=null,scopeComparison:ProgressReportProjection['scopeComparison']=null){
@@ -18,6 +19,7 @@ export function sourceInterpretation(state:ProjectRuntimeState,progress?:Progres
   const risk=operationalReporting(state).risk.validation;
   const baseline=progress?.baselinePlanned.valuePercent??null,snapshot=progress?.scheduleSnapshot?.valuePercent??null;
   return {
+    nearCriticalScreening:nearCriticalScreening(state),
     calendarRecalculatedFinishIso:calendarCompletionIso,
     calendarReview:calendar?{...calendar,rows:undefined}:null,
     productivityForecast:{completionIso:p.completionIso,authority:p.state==='official'?'governed_source':p.state,method:p.method,

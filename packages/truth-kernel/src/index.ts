@@ -45,7 +45,14 @@ export function numberValue(value: string): number | null {
   if (!/^[+-]?(?:\d+|\d{1,3}(?:,\d{3})+)(?:\.\d+)?%?$/.test(v)) return null;
   const n = Number(v.replace(/[, %]/g, '')); return Number.isFinite(n) && Math.abs(n) <= Number.MAX_SAFE_INTEGER ? n : null;
 }
+const dateResults=new Map<string,string|null>();
 export function dateValue(value: string): string | null {
+  if(dateResults.has(value))return dateResults.get(value)!;
+  const result=parseDateValue(value);
+  if(dateResults.size>=16384)dateResults.clear();
+  dateResults.set(value,result);return result;
+}
+function parseDateValue(value: string): string | null {
   const s = value.trim(); let y: number, m: number, d: number;
   const iso = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z|[+-](?:0\d|1[0-4]):[0-5]\d)?)?$/.exec(s);
   const words = /^(\d{1,2})\s+(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})$/i.exec(s);

@@ -67,6 +67,7 @@ export function operationalControlsAsOf(state:ProjectRuntimeState,date:string|nu
   });
   const ratingInconsistencyGroups=scoreGroups.filter(g=>g.ratings.length>1);
   const riskValidation={state:ratingInconsistencyGroups.length?'conflicted':scoreRows.length&&scoreRows.every(r=>r.score!==null&&r.rating!==null)?'consistent_in_checked_scores':'review_required',sourceRecordCount:risks.length,
+    sourceFactKey:'RISK_RATING_SCORE_CONFLICT',
     scoreBasis:'Source probability × impact; no rating thresholds are invented. Identical scores with different supplied ratings require a documented rating method.',
     ratingInconsistencyGroups,scoreGroups,scoreRows,
     statusDateMissingCount:risk.undatedRecordCount,

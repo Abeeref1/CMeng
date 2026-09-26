@@ -1,0 +1,157 @@
+{
+  "projectId": "DMM-HDC-P2",
+  "ocrEnabled": true,
+  "scope": "Offline matched-source reader check on available host CPUs. Distinct from the two-CPU latency benchmark. Physical coverage does not certify every extracted fact.",
+  "pageReading": [
+    {
+      "filename": "C03_Mission_Critical_Technical_Appendix_ImageOnly_60_Pages.pdf",
+      "sourceHashSha256": "c2484f6aa3220a24b06c5772bab04b1df9722657094a3af2a4b3d42bb09039f5",
+      "receiptSourceHashSha256": "c2484f6aa3220a24b06c5772bab04b1df9722657094a3af2a4b3d42bb09039f5",
+      "totalPages": 60,
+      "nativePages": 0,
+      "ocrPages": 60,
+      "blankPages": 0,
+      "failedPages": 0,
+      "unresolvedPages": 0,
+      "complete": true
+    },
+    {
+      "filename": "C04_Utility_Grid_Connection_Requirements_ImageOnly_30_Pages.pdf",
+      "sourceHashSha256": "570fda227b5c497c8074606c69092350f9c8cb751fc9c1a289c16a903236835c",
+      "receiptSourceHashSha256": "570fda227b5c497c8074606c69092350f9c8cb751fc9c1a289c16a903236835c",
+      "totalPages": 30,
+      "nativePages": 0,
+      "ocrPages": 30,
+      "blankPages": 0,
+      "failedPages": 0,
+      "unresolvedPages": 0,
+      "complete": true
+    }
+  ],
+  "phases": {
+    "enabled": [
+      {
+        "projectId": "DMM-HDC-P2",
+        "step": "load",
+        "ms": 2594.446241
+      },
+      {
+        "projectId": "DMM-HDC-P2",
+        "step": "refreshScheduleControlBasisAssertions",
+        "ms": 62972.291359999996,
+        "result": {
+          "refreshedDocumentCount": 0,
+          "diagnostics": [
+            "SCHEDULE_CONTROL_BASIS_FULL_DOCUMENT_THRESHOLD_NOT_FOUND:evidence_2f0c94210af47f0b9abd5e46",
+            "SCHEDULE_CONTROL_BASIS_THRESHOLD_NOT_EXTRACTED:evidence_2f0c94210af47f0b9abd5e46",
+            "PROJECT_CONTROL_PRODUCTIVITY:SCHEDULE_CONTROL_BASIS_FULL_DOCUMENT_THRESHOLD_NOT_FOUND:evidence_2f0c94210af47f0b9abd5e46"
+          ]
+        }
+      },
+      {
+        "projectId": "DMM-HDC-P2",
+        "step": "refreshSpreadsheetRegisters",
+        "ms": 0.5212119999923743,
+        "result": {
+          "refreshedDocumentCount": 0,
+          "diagnostics": []
+        }
+      },
+      {
+        "projectId": "DMM-HDC-P2",
+        "step": "refreshHseReports",
+        "ms": 0.3636580000020331,
+        "result": {
+          "refreshedDocumentCount": 0,
+          "diagnostics": []
+        }
+      },
+      {
+        "projectId": "DMM-HDC-P2",
+        "step": "refreshCorrespondenceNarratives",
+        "ms": 33.88048599999456,
+        "result": {
+          "refreshedDocumentCount": 0,
+          "segmentCount": 102,
+          "unresolvedAnchorCount": 132,
+          "diagnostics": [
+            "CORRESPONDENCE_REFRESH_RECEIPT_REUSED:evidence_1260e27c57e825d7d61413eb"
+          ]
+        }
+      },
+      {
+        "projectId": "DMM-HDC-P2",
+        "step": "refreshDeferredPdfReads",
+        "ms": 253778.54952199996,
+        "result": {
+          "refreshedDocumentCount": 2,
+          "diagnostics": [],
+          "changedProjects": [
+            "DMM-HDC-P2"
+          ]
+        }
+      }
+    ],
+    "repeat-enabled": [
+      {
+        "projectId": "DMM-HDC-P2",
+        "step": "load",
+        "ms": 2711.329753
+      },
+      {
+        "projectId": "DMM-HDC-P2",
+        "step": "refreshScheduleControlBasisAssertions",
+        "ms": 99.63396599999987,
+        "result": {
+          "refreshedDocumentCount": 0,
+          "diagnostics": [
+            "SCHEDULE_CONTROL_BASIS_FULL_DOCUMENT_THRESHOLD_NOT_FOUND:evidence_2f0c94210af47f0b9abd5e46",
+            "SCHEDULE_CONTROL_BASIS_THRESHOLD_NOT_EXTRACTED:evidence_2f0c94210af47f0b9abd5e46",
+            "PROJECT_CONTROL_PRODUCTIVITY:SCHEDULE_CONTROL_BASIS_FULL_DOCUMENT_THRESHOLD_NOT_FOUND:evidence_2f0c94210af47f0b9abd5e46"
+          ]
+        }
+      },
+      {
+        "projectId": "DMM-HDC-P2",
+        "step": "refreshSpreadsheetRegisters",
+        "ms": 0.45244999999977153,
+        "result": {
+          "refreshedDocumentCount": 0,
+          "diagnostics": []
+        }
+      },
+      {
+        "projectId": "DMM-HDC-P2",
+        "step": "refreshHseReports",
+        "ms": 0.2871759999998176,
+        "result": {
+          "refreshedDocumentCount": 0,
+          "diagnostics": []
+        }
+      },
+      {
+        "projectId": "DMM-HDC-P2",
+        "step": "refreshCorrespondenceNarratives",
+        "ms": 32.61482399999977,
+        "result": {
+          "refreshedDocumentCount": 0,
+          "segmentCount": 102,
+          "unresolvedAnchorCount": 132,
+          "diagnostics": [
+            "CORRESPONDENCE_REFRESH_RECEIPT_REUSED:evidence_1260e27c57e825d7d61413eb"
+          ]
+        }
+      },
+      {
+        "projectId": "DMM-HDC-P2",
+        "step": "refreshDeferredPdfReads",
+        "ms": 0.3595730000001822,
+        "result": {
+          "refreshedDocumentCount": 0,
+          "diagnostics": [],
+          "changedProjects": []
+        }
+      }
+    ]
+  }
+}

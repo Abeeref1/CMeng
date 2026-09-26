@@ -13,6 +13,8 @@ export interface ControlIssue {
   evidencePaths: string[];
   sourceRefs: string[];
   checkIds: string[];
+  /** Owning producer's semantic rule, independent of the display path. */
+  sourceFactKey?: string;
 }
 export interface ControlIssueAssessment {
   schemaVersion: '1.0';
@@ -28,7 +30,14 @@ export function summarizeControlIssues(issues: readonly ControlIssue[]): Control
   for(const issue of issues){
     // One identical correction request may affect many records and pages.
     // Preserve every reference while counting the request once.
-    const key=JSON.stringify([issue.kind,issue.code,issue.summary,issue.detail,issue.action,issue.owner]);
+    // The same diagnostic over the same source rows may be exposed through
+    // several projection paths. Display labels are not separate causes. Keep
+    // different source populations separate, even if their wording is equal.
+    const sourceIdentity=issue.kind==='source_conflict'&&issue.sourceFactKey&&issue.sourceRefs.length
+      ? [...new Set(issue.sourceRefs)].sort() : null;
+    const key=JSON.stringify(sourceIdentity
+      ? [issue.kind,issue.code,issue.sourceFactKey,issue.detail,issue.action,issue.owner,sourceIdentity]
+      : [issue.kind,issue.code,issue.summary,issue.detail,issue.action,issue.owner]);
     const old=grouped.get(key);grouped.set(key,old?{...old,moduleKeys:[...new Set([...old.moduleKeys,...issue.moduleKeys])],sourceRefs:[...new Set([...old.sourceRefs,...issue.sourceRefs])],evidencePaths:[...new Set([...old.evidencePaths,...issue.evidencePaths])],checkIds:[...new Set([...old.checkIds,...issue.checkIds])]}:{...issue});
   }
   const unique=[...grouped.values()];

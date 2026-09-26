@@ -8,6 +8,7 @@ import {contractCompletionPosition} from './contract-completion';
 import {appendAuditEvent,auditContext} from './audit-context';
 import {refreshHseSummary} from "./hse-report-evidence";
 import {refreshDeferredPdfRead} from './document-read-review';
+import {retainedControlAssertionRead} from './control-assertion-read-cache';
 import {quantityModelFromBoq} from './boq-source';
 import { synchronizeCanonicalTimeClaims } from "./canonical-time-claims";
 import { migrateTypedEvidenceFamilies } from "./typed-evidence-families";
@@ -1846,6 +1847,18 @@ export class RuntimeProjectStore {
     sourceRef: string,
     controlMetrics: ReadonlySet<string>,
     requiredMetrics: ReadonlySet<string> = controlMetrics,
+  ): Promise<{assertions:DocumentAssertion[];diagnostics:string[]}> {
+    return retainedControlAssertionRead(this.dataDir,{
+      bytes,sourceRef,metrics:controlMetrics,requiredMetrics,
+      readerConfig:[process.env.CMENG_OCR_ENABLED?.trim()!=='0',process.env.CMENG_OCR_LANGUAGES??'eng,ara',process.env.CMENG_OCR_LANG_PATH??null,process.env.CMENG_SCHEDULE_CONTROL_OCR_MAX_PAGES??'16'],
+    },()=>this.performFullScheduleControlAssertions(bytes,sourceRef,controlMetrics,requiredMetrics));
+  }
+
+  private async performFullScheduleControlAssertions(
+    bytes: Uint8Array,
+    sourceRef: string,
+    controlMetrics: ReadonlySet<string>,
+    requiredMetrics: ReadonlySet<string> = controlMetrics,
   ): Promise<{
     assertions: DocumentAssertion[];
     diagnostics: string[];
@@ -3651,8 +3664,9 @@ export class RuntimeProjectStore {
         projectReadyForV5
       ) {
         if (
-          state.sourceIntegrationVersion !==
-          "canonical-source-v5"
+          !["canonical-source-v5", "canonical-source-v6", "canonical-source-v7"].includes(
+            state.sourceIntegrationVersion ?? "",
+          )
         ) {
           state.sourceIntegrationVersion =
             "canonical-source-v5";
@@ -4417,7 +4431,7 @@ export class RuntimeProjectStore {
             input.bytes,
             "evidence:" +
               input.sourceFilename +
-              ":full-document:productivity",
+              ":full-document",
             new Set([
               "source_productivity_forecast_completion",
               "completion_date",

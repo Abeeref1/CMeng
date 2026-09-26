@@ -3562,6 +3562,7 @@ function renderManagementMetricGrid(metrics){
       '<div class="management-metric-head"><span>'+escapeHtml(m.key==='independent-forecast-finish'&&['provisional','scenario'].includes(m.authority)?'Programme calendar recalculation':m.label)+'</span>'+((m.health==="unavailable"&&display.kind!=="missing")?"":managementHealthBadge(m.health))+'</div>'+
       '<div class="management-metric-value '+escapeHtml(display.kind)+'">'+escapeHtml(display.text)+'</div>'+
       '<div class="management-metric-badges">'+managementMetricBadges(m)+'</div>'+
+      (m.key==='near-critical'?'<p class="management-metric-note">'+escapeHtml(m.basis)+'. '+escapeHtml(m.consequence||'')+'</p>':'')+
       '<details class="metric-interpretation"><summary>What this figure means</summary><div class="management-metric-basis"><span>Basis</span><b>'+escapeHtml(m.basis||"Unresolved")+'</b></div>'+
       (m.consequence?'<div class="management-metric-note"><span>Consequence</span><p>'+escapeHtml(m.consequence)+'</p></div>':'')+
       (m.action?'<div class="management-metric-note action"><span>Action</span><p>'+escapeHtml(m.action)+'</p></div>':'')+
@@ -3801,10 +3802,12 @@ function renderModuleBasis(data,detail=false){
   const authorityHtml=completion&&['eot_assessment','commercial_claims_notices','contract_particulars_bonds'].includes(root.projectionKey)?'<div class="notice info"><b>Completion authority.</b> Contract completion: '+escapeHtml(planningShortDate(completion.governedContractualFinish))+' ('+escapeHtml(humanizeKey(completion.authority))+'). '+escapeHtml(completion.explanation)+'</div>':'';
   if(detail)return completionHeadline+authorityHtml+actualScopeHtml+populationHtml;
   const newer=contract?.newerUnadoptedSchedules||[];
+  const screening=['near_critical','pmo_analysis','schedule_analytics','activity_analytics'].includes(root.projectionKey)?root.nearCriticalScreening||root.sourceInterpretation?.nearCriticalScreening:null;
+  const screeningHeadline=screening?'<div class="notice '+(screening.broadScreening?'warn':'info')+'"><b>Near-critical screening:</b> '+escapeHtml(screening.basis)+'. '+escapeHtml(screening.explanation)+(screening.broadScreening?'<p>'+escapeHtml(screening.action)+'</p>':'')+'</div>':'';
   const unresolvedCalendar=contract?.calendarResolution?.unresolvedActivityCount||0;
   const calendarHeadline=unresolvedCalendar&&['independent_forecast','near_critical','pmo_analysis','master_dashboard','command_center','project_director','schedule_analytics'].includes(root.projectionKey)?'<div class="notice warn"><b>Unresolved: '+fmt(unresolvedCalendar)+' activities.</b> Their working calendars could not be read. Programme calendar recalculation, its comparison with the contract, and the near-critical count are unresolved.</div>':'';
   const newerHeadline=newer.length?'<div class="notice warn"><b>Newer programme supplied, not adopted.</b> '+newer.map(r=>escapeHtml(planningShortDate(r.dataDateIso))+' · '+escapeHtml(r.filename||'Programme')).join('; ')+'</div>':'';
-  return baselineHeadline+completionHeadline+newerHeadline+calendarHeadline+'<div class="module-basis">'+values.map(([label,value])=>'<span class="basis-chip"><b>'+escapeHtml(label)+'</b><strong title="'+escapeHtml(label==="Programme basis"&&revision?revision:value)+'">'+escapeHtml(value)+'</strong></span>').join("")+'</div>';
+  return baselineHeadline+completionHeadline+newerHeadline+calendarHeadline+screeningHeadline+'<div class="module-basis">'+values.map(([label,value])=>'<span class="basis-chip"><b>'+escapeHtml(label)+'</b><strong title="'+escapeHtml(label==="Programme basis"&&revision?revision:value)+'">'+escapeHtml(value)+'</strong></span>').join("")+'</div>';
 }
 function renderStructuredSections(data){
   if(!data||typeof data!=="object")return"";

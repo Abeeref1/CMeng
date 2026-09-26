@@ -7,6 +7,8 @@ import {cmengUatHtml} from './ui';
 import {scheduleModuleSummary,commercialModuleSummary} from './registry';
 import {normalizeProjectCode} from './project-identity';
 import {loadProjectCatalog,projectDirectory,atomicJson,release,type CatalogEntry} from './project-catalog';
+import {projectWorkerCapacity} from './project-worker-capacity';
+import {ProjectReadCache,cacheableProjectRead,MAX_PROJECT_READ_BYTES} from './project-read-cache';
 
 type Lane={worker:Worker;ready:Promise<number>;tail:Promise<void>;pending:number;lastUsed:number};
 const send=(res:ServerResponse,status:number,body:unknown)=>{if(!res.destroyed&&!res.writableEnded){if(res.headersSent){res.destroy();return;}res.writeHead(status,{'content-type':'application/json','cache-control':'no-store'});res.end(JSON.stringify(body));}};
@@ -15,7 +17,8 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
   const documentRegisters=new Map<string,{version:number;documents:Record<string,any>}>();
   const auditSecret=process.env.CMENG_AUDIT_SECRET??randomBytes(32).toString('hex');
   const configured=options.maxWorkers??Number(process.env.CMENG_PROJECT_WORKERS??4);
-  const html=cmengUatHtml(),maxWorkers=Number.isInteger(configured)?Math.min(8,Math.max(3,configured)):4;
+  const html=cmengUatHtml(),maxWorkers=projectWorkerCapacity(configured);
+  const reads=(id:string)=>new ProjectReadCache(projectDirectory(root,id));
   let closing=false,catalogWrites=Promise.resolve();
   const reservations=new Map<string,Promise<Lane>>();
   const waiters=new Set<()=>void>();
@@ -97,7 +100,7 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
   }
   async function proxy(id:string,req:IncomingMessage,res:ServerResponse,path=req.url??'/'){
     const mutation=req.method!=='GET'&&req.method!=='HEAD';
-    if(mutation){updating.set(id,(updating.get(id)??0)+1);const e=catalog.get(id);if(e)e.summaryRelease=null;}
+    if(mutation){updating.set(id,(updating.get(id)??0)+1);const e=catalog.get(id);if(e)e.summaryRelease=null;await reads(id).invalidate();}
     const uploadId=String(req.headers['x-upload-id']??'');
     if(uploadId)progress.set(id+'::'+uploadId,{projectId:id,uploadId,state:'receiving',percent:0,filename:req.headers['x-source-filename']??'project package',message:'Waiting to receive project documents',receivedBytes:0,totalBytes:null,documentTotal:null,processedDocuments:0,identifiedDocuments:0});
     let succeeded=false;
@@ -106,9 +109,16 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
         if(req.aborted){reject(new Error('UPLOAD_CONNECTION_CLOSED'));return;}
         const upstream=request({host:'127.0.0.1',port,path,method:req.method,headers:{...req.headers,host:'127.0.0.1:'+port}},incoming=>{
           succeeded=(incoming.statusCode??500)<400;
+          const version=Number(incoming.headers['x-cmeng-project-version']);
+          const retain=cacheableProjectRead(req.method,path)&&incoming.statusCode===200&&Number.isInteger(version)&&version>=0;
+          let bytes=0;const chunks:Buffer[]=[];
+          if(retain)incoming.on('data',(chunk:Buffer)=>{bytes+=chunk.length;if(bytes<=MAX_PROJECT_READ_BYTES)chunks.push(Buffer.from(chunk));else chunks.length=0;});
           if(!res.destroyed)res.writeHead(incoming.statusCode??502,incoming.headers);
           incoming.on('error',reject);incoming.on('aborted',()=>reject(new Error('PROJECT_RESPONSE_INTERRUPTED')));
-          incoming.on('end',resolve);if(res.destroyed)incoming.resume();else incoming.pipe(res);
+          incoming.on('end',()=>{
+            if(retain&&bytes<=MAX_PROJECT_READ_BYTES)void reads(id).put(release(),version,path,Buffer.concat(chunks)).then(resolve,resolve);
+            else resolve();
+          });if(res.destroyed)incoming.resume();else incoming.pipe(res);
         });
         upstream.on('error',reject);req.once('aborted',()=>upstream.destroy(new Error('UPLOAD_CONNECTION_CLOSED')));
         req.pipe(upstream);
@@ -149,6 +159,14 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
       const progressMatch=/^\/evidence\/upload-progress\/([^/]+)$/.exec(match[2]??'');
       if(req.method==='GET'&&progressMatch){const p=progress.get(id+'::'+decodeURIComponent(progressMatch[1]!));send(res,p?200:404,p??{error:'upload_progress_not_found'});return;}
       if(!catalog.has(id)){if(req.method==='GET'){send(res,404,{error:'project_not_found'});return;}await register(id);}
+      const projectPath='/api/projects/'+encodeURIComponent(id)+(match[2]??'')+url.search;
+      const version=catalog.get(id)?.metadata?.version;
+      if(cacheableProjectRead(req.method,projectPath)&&version!==undefined&&!(updating.get(id)??0)){
+        const cached=await reads(id).get(release(),version,projectPath);
+        if(cached&&catalog.get(id)?.metadata?.version===version&&!(updating.get(id)??0)){
+          res.writeHead(200,{'content-type':'application/json','cache-control':'no-store','x-cmeng-project-version':String(version)});res.end(cached);return;
+        }
+      }
       if(req.method==='GET'&&req.headers['x-cmeng-async-view']==='1'){
         const entry=catalog.get(id)!;
         if(match[2]==='/evidence/documents'){

@@ -302,3 +302,15 @@ test("a calendar record with no working pattern stays unresolved and states why"
     ),
   );
 });
+
+test('labels and day-only calendars disclose missing intervals without inventing a schedule',()=>{
+ for(const raw of ['Sat-Thu','Sun-Thu','Tidal window','Port access','Authority permit windows','Night shift','LOE','24/7 marine']){
+  const parsed=parseP6CalendarData(raw);
+  assert.equal(parsed.status,'invalid',raw);assert.deepEqual(parsed.days,[]);
+  assert.ok(parsed.diagnostics.some(d=>d.startsWith('CALENDAR_WORKING_INTERVALS_NOT_ESTABLISHED')),raw);
+  assert.ok(!parsed.diagnostics.some(d=>d.includes('SYNTAX_ERROR')),raw);
+ }
+ assert.equal(parseP6CalendarData('Sat-Thu 22:00-06:00').status,'valid');
+ assert.ok(parseP6CalendarData('(broken').diagnostics.some(d=>d.includes('SYNTAX_ERROR')));
+ assert.deepEqual(parseP6CalendarData('').diagnostics,['CALENDAR_DEFINITION_MISSING']);
+});

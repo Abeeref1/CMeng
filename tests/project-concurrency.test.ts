@@ -94,3 +94,22 @@ test('BOQ ingestion status remains retrievable after project worker eviction and
     const restored=await fetch(base+path);assert.equal(restored.status,200);assert.deepEqual(await restored.json(),original);
   }finally{await gateway.close();await rm(root,{recursive:true,force:true});}
 });
+
+test('a completed project stays readable after worker eviction and restart; mutations invalidate its saved analysis only', {timeout:60000},async()=>{
+ const root=await mkdtemp(join(tmpdir(),'cmeng-read-retention-'));
+ let gateway=await createProjectGateway(root,{maxWorkers:1}),base=await listen(gateway);
+ const get=async(path:string,init?:RequestInit)=>{const r=await fetch(base+path,init);assert.equal(r.status,200,await r.clone().text());return r.json() as Promise<any>;};
+ try{
+  for(const id of ['PROJECT-A','PROJECT-B']){
+   const r=await fetch(base+'/api/projects',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({projectId:id})});assert.equal(r.status,201);
+   await get('/api/projects/'+id+'/overview');await get('/api/projects/'+id+'/overview');
+  }
+  const prior=await get('/api/projects/PROJECT-A/overview');
+  await gateway.close();gateway=await createProjectGateway(root,{maxWorkers:1});base=await listen(gateway);
+  const restored=await get('/api/projects/PROJECT-A/overview');assert.deepEqual(restored,prior);
+  assert.equal((await get('/health')).projectWorkers,0,'cache hit must not restart an evicted calculation worker');
+  const upload=await fetch(base+'/api/projects/PROJECT-A/evidence/uploads',{method:'POST',headers:{'content-type':'text/plain','x-source-filename':'programme.xer','x-evidence-category':'schedule','x-schedule-role':'update'},body:xer('PROJECT-A',20)});assert.equal(upload.status,201);
+  const after=await get('/api/projects/PROJECT-A/overview');assert.notDeepEqual(after,prior);assert.equal(after.projectId,'PROJECT-A');
+  assert.equal((await get('/api/projects/PROJECT-B/overview')).projectId,'PROJECT-B');
+ }finally{await gateway.close();await rm(root,{recursive:true,force:true});}
+});

@@ -20,6 +20,14 @@ void (async()=>{
   };
   publishDocuments();
   const server=createCmengServer();server.requestTimeout=0;
+  server.prependListener('request',(_req,res)=>{
+    const writeHead=res.writeHead;
+    res.writeHead=function(...args:any[]){
+      const version=runtimeProjects.get(id)?.version;
+      if(version!==undefined)res.setHeader('x-cmeng-project-version',String(version));
+      return (writeHead as Function).apply(res,args);
+    } as typeof res.writeHead;
+  });
   server.on('request',(_req,res)=>res.on('finish',()=>{
     const state=runtimeProjects.get(id);if(!state)return;
     const metadata={...projectMetadata(state),latestDataDateIso:runtimeProjects.latestSchedule(id)?.revision.model.dataDateIso??null};parentPort?.postMessage({type:'metadata',metadata});

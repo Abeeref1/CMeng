@@ -325,17 +325,14 @@ function norm(
     .trim();
 }
 
-function uniqueIndex(
+function identityIndex(
   activities:
     readonly CanonicalScheduleActivity[],
   key: (
     activity:
       CanonicalScheduleActivity,
   ) => string | null,
-): Map<
-  string,
-  CanonicalScheduleActivity
-> {
+) {
   const buckets =
     new Map<
       string,
@@ -377,40 +374,7 @@ function uniqueIndex(
       );
     }
   }
-  return unique;
-}
-
-function ambiguousKeys(
-  activities:
-    readonly CanonicalScheduleActivity[],
-  key: (
-    activity:
-      CanonicalScheduleActivity,
-  ) => string | null,
-): Set<string> {
-  const counts =
-    new Map<string, number>();
-  for (
-    const activity of
-      activities
-  ) {
-    const value =
-      key(activity);
-    if (!value) continue;
-    counts.set(
-      value,
-      (counts.get(value) ??
-        0) + 1,
-    );
-  }
-  return new Set(
-    [...counts.entries()]
-      .filter(
-        ([, count]) =>
-          count > 1,
-      )
-      .map(([value]) => value),
-  );
+  return {unique,buckets,ambiguous:new Set([...buckets].filter(([,rows])=>rows.length>1).map(([value])=>value))};
 }
 
 function compositeKey(
@@ -427,7 +391,26 @@ function compositeKey(
   ].join("|");
 }
 
-export function resolveRevisionActivityCorrespondence(
+type IdentityFields=Pick<CanonicalScheduleActivity,'activityId'|'nativeId'|'wbsId'|'name'|'activityType'>;
+const identityFields=(a:CanonicalScheduleActivity):IdentityFields=>({activityId:a.activityId,nativeId:a.nativeId,wbsId:a.wbsId,name:a.name,activityType:a.activityType});
+type IdentityResult=ReturnType<typeof calculateRevisionActivityCorrespondence>;
+const correspondenceCache=new WeakMap<readonly CanonicalScheduleActivity[],WeakMap<readonly CanonicalScheduleActivity[],{from:IdentityFields[];to:IdentityFields[];value:IdentityResult}>>();
+function identityFieldsUnchanged(activities:readonly CanonicalScheduleActivity[],saved:IdentityFields[]){
+  return activities.length===saved.length&&activities.every((a,i)=>{const s=saved[i]!;return a.activityId===s.activityId&&a.nativeId===s.nativeId&&a.wbsId===s.wbsId&&a.name===s.name&&a.activityType===s.activityType;});
+}
+/** Identity matching is shared by several views. Validate every identity input
+ * before reuse; neither mutable activities nor a caller's edited result can
+ * preserve an obsolete match. Numeric/date changes are compared separately. */
+export function resolveRevisionActivityCorrespondence(fromActivities:readonly CanonicalScheduleActivity[],toActivities:readonly CanonicalScheduleActivity[]):IdentityResult{
+  let targets=correspondenceCache.get(fromActivities);if(!targets){targets=new WeakMap();correspondenceCache.set(fromActivities,targets);}
+  let saved=targets.get(toActivities);
+  if(!saved||!identityFieldsUnchanged(fromActivities,saved.from)||!identityFieldsUnchanged(toActivities,saved.to)){
+    saved={from:fromActivities.map(identityFields),to:toActivities.map(identityFields),value:calculateRevisionActivityCorrespondence(fromActivities,toActivities)};targets.set(toActivities,saved);
+  }
+  return {matches:saved.value.matches.map(m=>({...m})),ambiguousFrom:new Set(saved.value.ambiguousFrom),ambiguousTo:new Set(saved.value.ambiguousTo)};
+}
+
+function calculateRevisionActivityCorrespondence(
   fromActivities:
     readonly CanonicalScheduleActivity[],
   toActivities:
@@ -487,6 +470,7 @@ export function resolveRevisionActivityCorrespondence(
   ];
 
   for (const step of steps) {
+    if(matchedFrom.size===fromActivities.length&&matchedTo.size===toActivities.length)break;
     const remainingFrom =
       fromActivities.filter(
         (activity) =>
@@ -501,26 +485,18 @@ export function resolveRevisionActivityCorrespondence(
             activity.activityId,
           ),
       );
-    const fromUnique =
-      uniqueIndex(
+    const fromIndex =
+      identityIndex(
         remainingFrom,
         step.key,
       );
-    const toUnique =
-      uniqueIndex(
+    const toIndex =
+      identityIndex(
         remainingTo,
         step.key,
       );
-    const fromAmbiguous =
-      ambiguousKeys(
-        remainingFrom,
-        step.key,
-      );
-    const toAmbiguous =
-      ambiguousKeys(
-        remainingTo,
-        step.key,
-      );
+    const fromUnique=fromIndex.unique,toUnique=toIndex.unique;
+    const fromAmbiguous=fromIndex.ambiguous,toAmbiguous=toIndex.ambiguous;
 
     for (
       const key of
@@ -529,20 +505,8 @@ export function resolveRevisionActivityCorrespondence(
           ...toAmbiguous,
         ])
     ) {
-      const from =
-        remainingFrom.filter(
-          (activity) =>
-            step.key(
-              activity,
-            ) === key,
-        );
-      const to =
-        remainingTo.filter(
-          (activity) =>
-            step.key(
-              activity,
-            ) === key,
-        );
+      const from=fromIndex.buckets.get(key)??[];
+      const to=toIndex.buckets.get(key)??[];
       if (
         from.length > 1 ||
         to.length > 1

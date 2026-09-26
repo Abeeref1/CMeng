@@ -7,6 +7,7 @@ import type {
 } from "../packages/schedule-analysis-core/src";
 import {
   compareScheduleRevisions,
+  resolveRevisionActivityCorrespondence,
   type ScheduleRevision,
 } from "../packages/schedule-revision-core/src";
 import {
@@ -59,6 +60,23 @@ function activity(
     ...overrides,
   };
 }
+
+test('shared activity correspondence is invalidated by every mutable identity field and population change',()=>{
+  const from=[activity('A',{nativeId:'1',name:'Concrete'}),activity('B',{nativeId:'2',name:'Steel'})];
+  const to=from.map(a=>({...a}));
+  const check=()=>assert.deepEqual(resolveRevisionActivityCorrespondence(from,to),resolveRevisionActivityCorrespondence(from.map(a=>({...a})),to.map(a=>({...a}))));
+  check();
+  for(const [field,value] of [['activityId','X'],['nativeId','9'],['name','Renamed'],['wbsId','W2'],['activityType','milestone']] as const){
+    (to[0] as any)[field]=value;check();(from[1] as any)[field]=value;check();
+  }
+  to.push({...to[0]!});check();from.reverse();check();to.splice(0,1);check();
+});
+
+test('one correspondence consumer cannot alter another consumer matching the same source rows',()=>{
+  const from=[activity('A')],to=[activity('A')];
+  const result=resolveRevisionActivityCorrespondence(from,to);result.matches[0]!.toActivityId='invented';result.ambiguousTo.add('A');
+  const next=resolveRevisionActivityCorrespondence(from,to);assert.equal(next.matches[0]!.toActivityId,'A');assert.equal(next.ambiguousTo.size,0);
+});
 
 function revision1Model(): CanonicalScheduleModel {
   return {

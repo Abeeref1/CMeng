@@ -80,9 +80,9 @@ export function activityNearCriticalThresholdHours(
     }
 
     const dayHours = calendarWorkingDayHours(calendar);
-    return dayHours === null
-      ? null
-      : Number((dayHours * config.nearCriticalWorkingDays).toFixed(6));
+    if(dayHours===null)return null;
+    const hours=dayHours*config.nearCriticalWorkingDays;
+    return Number.isInteger(hours)?hours:Number(hours.toFixed(6));
   }
 
   return Number.isFinite(config.nearCriticalFloatThresholdHours)
