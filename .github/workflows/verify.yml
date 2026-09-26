@@ -41,6 +41,11 @@ jobs:
           mkdir -p /tmp/cmeng-verification
           CMENG_LATENCY_RESULT=/tmp/cmeng-verification/cold-dashboard.json npm run test:release:latency
 
+      - name: Large Delivery calculation and evidence display target
+        shell: bash
+        run: |
+          CMENG_DELIVERY_BENCHMARK_OUTPUT=/tmp/cmeng-verification/delivery-latency.json node scripts/delivery-latency.cjs
+
       - name: Record tested source identity
         if: always()
         shell: bash
