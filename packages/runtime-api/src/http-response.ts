@@ -34,8 +34,10 @@ function prepare(res:ServerResponse,status:number,input:OutgoingHttpHeaders,size
   }
   if(encoding){
     headers['content-encoding']=encoding;
-    delete headers['content-length'];delete headers['transfer-encoding'];
-    res.removeHeader('content-length');res.removeHeader('transfer-encoding');
+    delete headers['content-length'];res.removeHeader('content-length');
+    // The compressed length is unknown until the stream ends. Explicit chunking
+    // keeps the response delimited and the connection reusable on Node 22 too.
+    headers['transfer-encoding']='chunked';
   }
   res.writeHead(status,headers);
   return encoding;

@@ -24,7 +24,7 @@ test('HTTP compression preserves exact JSON, negotiates exclusions, and separate
     const result=await raw(url,accept);assert.equal(result.status,200);assert.equal(result.headers['content-encoding'],expected,accept);
     assert.deepEqual(decode(result),body,'all fields, rows, nulls and zeroes survive '+accept);
     assert.equal(result.headers.vary,'Origin, Accept-Encoding');assert.equal(result.headers['x-cmeng-project-version'],'7');
-    if(expected){assert.ok(result.body.length<body.length/4);assert.equal(result.headers['content-length'],undefined);}
+    if(expected){assert.ok(result.body.length<body.length/4);assert.equal(result.headers['content-length'],undefined);assert.equal(result.headers['transfer-encoding'],'chunked');}
     else assert.equal(Number(result.headers['content-length']),body.length);
   }
 });
@@ -57,6 +57,7 @@ test('streamed worker responses and cached bodies share compression without doub
   const url='http://127.0.0.1:'+(server.address() as AddressInfo).port;
   for(const path of ['/worker','/cached'])for(const encoding of ['br','gzip','identity']){
     const result=await raw(url+path,encoding);assert.equal(result.headers['content-encoding'],encoding==='identity'?undefined:encoding);
+    if(encoding!=='identity')assert.equal(result.headers['transfer-encoding'],'chunked');
     assert.deepEqual(decode(result),body);assert.equal(result.headers['x-cmeng-project-version'],'3');
   }
 });
