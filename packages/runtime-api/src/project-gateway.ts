@@ -177,7 +177,7 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
             send(res,202,{projectId:id,processing:true,documentCount:null,documents:[],message:'Updating the document register. The saved files will appear here as soon as processing finishes.'});return;
           }
         }
-        if(match[2]==='/overview'&&((updating.get(id)??0)>0||summaryJobs.has(id)||entry.summaryRelease!==release()||entry.summary?.version!==entry.metadata?.version)){
+        if(match[2]==='/overview'&&!entry.metadata?.demo&&((updating.get(id)??0)>0||summaryJobs.has(id)||entry.summaryRelease!==release()||entry.summary?.version!==entry.metadata?.version)){
           if(!updating.get(id)&&!summaryJobs.has(id)&&summaryFailures.has(id)&&summaryFailures.get(id)===entry.metadata?.version&&Date.now()-(summaryAttempts.get(id)??0)<60000){send(res,503,{error:'project_calculation_failed',message:'The project calculation could not finish. Your saved documents remain available. Try updating the project position again.'});return;}
           if(!(updating.get(id)??0)&&!summaryJobs.has(id))void refreshSummary(id);
           const saved=documentRegisters.get(id);

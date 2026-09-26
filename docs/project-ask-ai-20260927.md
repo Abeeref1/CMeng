@@ -30,3 +30,11 @@ The model boundary is implemented and tested with structured successful, outage,
 The full-package and visual checks found and corrected an empty-register Excel crash and PDF footers creating blank pages. Existing project-switching assertions remain intact, with their harness updated to execute the new reset functions.
 
 Browser review and deployment details are recorded below once performed.
+
+## Browser and export review
+
+On review commit `7deaf6102634953f5d7a485b634c0c95de54f26a`, a fresh governed `ASK-BROWSER-A` project produced CPI 0.8 and materials required 64 / ordered 48 / delivered 52 / coverage 81.25%. Excel, PDF, Word and JSON were downloaded through the actual browser controls and independently compared; the numbers and analysis identity matched. Saving and reopening a personal live view worked without a login prompt.
+
+Browser review found a structured Commercial calculation basis rendering as `[object Object]`; the adapter now retains its method, reporting date and source references as readable text. It also found the old sample-project overview waiting for a portfolio entry from which samples are intentionally excluded; the gateway now opens sample overviews directly. Both corrections have focused regressions. Wide analysis tables now show useful primary columns, with every field expandable and retained in exports. Reference attachments can be removed from the next request.
+
+Two further scenarios verify a mixed native/scanned PDF through real contained OCR, including per-page reading receipts and an inert malicious instruction, and withdrawing a governed package while preserving an independent project's results and the original saved snapshot. The PDF assertion CPI 1.5 remains a reference discrepancy against governed CPI 0.8.

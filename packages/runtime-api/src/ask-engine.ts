@@ -85,10 +85,10 @@ export class ProjectAskEngine {
     if(this.model&&user.allowModel&&!intent.purePresentation&&!precise&&!view&&plan.kind!=='historical'&&plan.kind!=='scenario'){
       try{plan=await this.model.plan(request.question,plan,catalogue);providerStatus='available';}catch{providerStatus='failed';unresolved.push('The AI interpreter is unavailable. The deterministic project analysis below remains usable.');}
     }
-    if(request.attachmentIds){if(!Array.isArray(request.attachmentIds)||request.attachmentIds.length>8||request.attachmentIds.some(id=>typeof id!=='string'))throw new AskError(400,'invalid_attachments','Attach up to eight reference documents.');plan.attachmentIds=[...new Set([...plan.attachmentIds,...request.attachmentIds])];}
+    if(request.attachmentIds){if(!Array.isArray(request.attachmentIds)||request.attachmentIds.length>8||request.attachmentIds.some(id=>typeof id!=='string'))throw new AskError(400,'invalid_attachments','Attach up to eight reference documents.');plan.attachmentIds=[...new Set(request.attachmentIds)];}
     const files:ReferenceFile[]=[];for(const id of plan.attachmentIds)files.push(await this.store.reference(id,projectId,user));
     let sections:AuthorityResult[]=[];
-    if(intent.purePresentation&&previous&&!view){sections=structuredClone(previous.sections);scope.dataDate=previous.scope.dataDate;scope.projectVersion=previous.scope.projectVersion;scope.programmeRevision=previous.scope.programmeRevision;scope.authorityState=previous.scope.authorityState;if(state.version!==scope.projectVersion)unresolved.push('This is the retained analysis snapshot. Re-run the analysis or open a saved live view for the latest position.');}
+    if(intent.purePresentation&&previous&&!view){sections=structuredClone(previous.sections).filter(s=>s.authorityId!=='reference-files');if(files.length)sections.push(referenceSection(scope,files,sections));scope.dataDate=previous.scope.dataDate;scope.projectVersion=previous.scope.projectVersion;scope.programmeRevision=previous.scope.programmeRevision;scope.authorityState=previous.scope.authorityState;if(state.version!==scope.projectVersion)unresolved.push('This is the retained analysis snapshot. Re-run the analysis or open a saved live view for the latest position.');}
     else {
       for(const id of plan.authorities){const authority=askCatalogue.resolve(id,user);
         const result=plan.kind==='historical'&&plan.asOf!==scope.dataDate?historicalAskAuthority(state,scope,plan,authority):await authority.produce({state},scope,plan);

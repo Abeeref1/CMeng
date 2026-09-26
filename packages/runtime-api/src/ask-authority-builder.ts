@@ -2,6 +2,7 @@ import type {AuthorityResult,Column,EvidenceState,ProjectScope,Cell} from '../..
 import {cell,columnsFor,label} from '../../project-ask/src/primitives';
 export const at=(v:any,path:string):any=>path.split('.').reduce((a,k)=>a?.[k],v);
 export const evidenceState=(s:unknown):EvidenceState=>['established','available','ready','verified','governed','source','official','calculated','complete'].includes(String(s))?'established':['candidate','working','extracted_candidate'].includes(String(s))?'candidate':['conflicting','conflicted'].includes(String(s))?'conflicting':s==='stale'?'stale':s==='scenario'?'scenario':['missing','blocked','unavailable','not_established'].includes(String(s))?'unavailable':'partial';
+export function readableBasis(value:unknown):string {if(typeof value==='string')return value;if(value&&typeof value==='object'){const b=value as any;if(typeof b.method==='string')return b.method+(b.asOfDate?' · as of '+b.asOfDate:'');return Object.entries(b).filter(([key])=>key!=='sourceRefs').map(([key,v])=>label(key)+': '+readableBasis(v)).join('; ');}return value==null?'Basis not established':String(value);}
 export class AuthorityBuilder {
   result:AuthorityResult;
   constructor(readonly id:string,readonly title:string,readonly module:string,readonly scope:ProjectScope,state:EvidenceState,explanation:string){this.result={authorityId:id,title,state,explanation,metrics:[],tables:[],charts:[],findings:[],traces:[]};}
@@ -9,9 +10,10 @@ export class AuthorityBuilder {
     const id=this.id+':'+path;
     if(!this.result.traces.some(t=>t.id===id))this.result.traces.push({id,authorityId:this.id,projectId:this.scope.projectId,module:this.module,path,sourceRefs:sourceRefs.map(r=>typeof r==='string'?r:JSON.stringify(r)),dataDate:this.scope.dataDate,basis,exclusions:[],state});return id;
   }
-  metric(id:string,name:string,value:unknown,unit:string|null,basis:string,options:{path?:string;state?:unknown;refs?:unknown[];fact?:boolean}={}){
+  metric(id:string,name:string,value:unknown,unit:string|null,basisInput:unknown,options:{path?:string;state?:unknown;refs?:unknown[];fact?:boolean}={}){
+    const basis=readableBasis(basisInput),sourceBasis=basisInput&&typeof basisInput==='object'?basisInput as {sourceRefs?:unknown[]}:null;
     const v=cell(value),state=v===null?'unavailable':options.state?evidenceState(options.state):this.result.state;
-    this.result.metrics.push({id:this.id+'.'+id,label:name,value:v,unit,state,classification:options.fact?'project_fact':'calculated_intelligence',traceId:this.trace(options.path??id,basis,options.refs??[],state),basis});return this;
+    this.result.metrics.push({id:this.id+'.'+id,label:name,value:v,unit,state,classification:options.fact?'project_fact':'calculated_intelligence',traceId:this.trace(options.path??id,basis,options.refs?.length?options.refs:sourceBasis?.sourceRefs??[],state),basis});return this;
   }
   table(id:string,title:string,source:unknown,basis:string,overrides:Record<string,Partial<Column>>={},mapper?:(row:any)=>Record<string,unknown>){
     const input=Array.isArray(source)?source:[];

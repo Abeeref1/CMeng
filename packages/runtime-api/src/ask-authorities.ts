@@ -106,7 +106,7 @@ function deliveryAuthority(context:AskProducerContext,scope:ProjectScope,key:str
   b.table('rows',title,rows,'Current governed subset at the programme Data Date. '+(d?.population?.basis??''),overrides,(r:any)=>{
     const pack=packages.get(r.recordId);const locationIds=pack?.locationIds??r.links?.locationIds??[];
     const loc=locationIds.map((id:string)=>p.locations.find(l=>l.recordId===id)?.description??null);
-    return {...r,discipline:r.discipline??pack?.discipline??(r.dimension==='discipline'?r.label:null),location:loc.length&&loc.every(Boolean)?loc.join('; '):r.dimension==='location'?r.name??r.label??null:null,
+    return {...r,displayState:r.state??r.currentStatus??r.permitStatus??r.readinessState??r.status??r.scope??null,discipline:r.discipline??pack?.discipline??(r.dimension==='discipline'?r.label:null),location:loc.length&&loc.every(Boolean)?loc.join('; '):r.dimension==='location'?r.name??r.label??null:null,
       critical:pack?.programmeFloat.length?pack.programmeFloat.every(a=>typeof a.totalFloatHours==='number')?pack.programmeFloat.some(a=>a.totalFloatHours!<=projectScheduleControlBasis(context.state).analysisConfig.criticalFloatThresholdHours):null:r.critical??null,
       programmeNeedDate:pack?.programmeNeedDate??r.programmeNeedDate??null,headroomCalendarDays:pack?.headroomCalendarDays??r.headroomCalendarDays??null,
       issueCount:(d?.findings??[]).filter((f:any)=>f.recordId===r.recordId).length};
