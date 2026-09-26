@@ -483,6 +483,7 @@ export interface ScheduleUploadSummary {
 }
 
 export interface ModuleRuntimeResult {
+  scheduleAuthorityReview?: ReturnType<typeof import('./schedule-authority').scheduleAuthorityReview>;
   issueAssessment?: import('../../truth-kernel/src').ControlIssueAssessment | undefined;
   key: string;
   /** Compatibility status derived from professional defensibility. */

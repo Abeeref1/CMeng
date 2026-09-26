@@ -38,7 +38,16 @@ async function startProjectUpload(kind){
       await api("/api/projects/"+encodeURIComponent(projectId)+"/evidence/rerun",{method:"POST"});
     }
     job.state="complete";job.percent=100;job.message=job.rerun?"Documents loaded and project position checked":"Documents loaded · ready to review";
-    if(uploadJobVisible(job))await refresh(false);
+    if(uploadJobVisible(job)){
+      await refresh(false);
+      if(uploadJobVisible(job)){
+        const review=currentModuleResult?.scheduleAuthorityReview||currentModuleResult?.data?.scheduleAuthorityReview;
+        if(review?.pendingSchedules?.length){
+          job.message=review.state==='missing'?'Programme uploaded · adoption required':'Documents loaded · programme revisions await review';
+          el('uploadMessage').innerHTML=renderProgrammeReview(review);bindProgrammeReview(el('uploadMessage'));
+        }
+      }
+    }
   }catch(error){job.state="failed";job.message="Could not finish: "+error.message+". Check Documents before retrying.";if(uploadJobVisible(job))void refresh(false);}
   finally{renderBackgroundUploads();}
 }

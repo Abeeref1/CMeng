@@ -5162,6 +5162,7 @@ export class RuntimeProjectStore {
     const revision=state.schedules.find(s=>s.revision.revisionId===revisionId);
     const document=state.evidenceDocuments.find(d=>d.linkedArtifactId===revisionId&&d.category==='schedule');
     if(!revision||!document)throw new Error('SCHEDULE_DOCUMENT_NOT_FOUND');
+    if(revision.sourceHashSha256!==document.sourceHashSha256)throw new Error('SCHEDULE_SOURCE_HASH_MISMATCH');
     if(isScenarioRevision(revision))throw new Error('DRAFT_OR_SCENARIO_CANNOT_BECOME_CURRENT');
     if(!revision.revision.model.dataDateIso)throw new Error('SCHEDULE_DATA_DATE_REQUIRED');
     if(revision.role==='other'){revision.role='update';document.scheduleRole='update';document.documentType='schedule_update';}
