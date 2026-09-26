@@ -125,8 +125,29 @@ test('exports include every curve point beyond row 20, all parent keys and proje
 });
 
 test('UI pagination, filtering, sorting and chart labels preserve zero and unavailable distinctions',()=>{
- new Script(deliveryScript());const context:any={escapeHtml:(x:any)=>String(x)};runInNewContext(deliveryScript()+';globalThis.deliveryValue=deliveryValue;',context);assert.equal(context.deliveryValue(null),'Unresolved');assert.equal(context.deliveryValue(0),'0');
+ new Script(deliveryScript());const context:any={escapeHtml:(x:any)=>String(x)};runInNewContext(deliveryScript()+';globalThis.deliveryValue=deliveryValue;',context);assert.equal(context.deliveryValue(null),'Not established');assert.equal(context.deliveryValue(0),'0');
  const table={rows:Array.from({length:63},(_,i)=>({reference:'R'+i,state:i%2?'working':'governed',quantity:63-i})),query:'',filter:'governed',sort:'quantity',direction:1};const filtered=context.deliveryFiltered(table);assert.equal(filtered.length,32);assert.equal(filtered[0].quantity,1);table.filter='';table.query='R62';assert.equal(context.deliveryFiltered(table).length,1);
+});
+
+test('Delivery display preserves exact record references and quantities while formatting dates and risk states',()=>{
+ const context:any={escapeHtml:(x:any)=>String(x)};runInNewContext(deliveryScript()+';globalThis.show=deliveryValue;',context);
+ assert.equal(context.show(1450000000),'1,450,000,000');assert.equal(context.show(0.0001),'0.0001');assert.equal(context.show(-50),'-50');
+ assert.equal(context.show('2026-08-31'),'31 Aug 2026');assert.equal(context.show('2031-09-30T08:00:00Z'),'30 Sept 2031 08:00 UTC');
+ assert.equal(context.show('2026-02-31'),'2026-02-31');assert.equal(context.show('S03_2026-08-31.xer'),'S03_2026-08-31.xer');assert.equal(context.show('001200'),'001200');
+ const rows=[{riskId:'R1',status:'open'},{riskId:'R2',status:'closed'}];
+ assert.deepEqual(Array.from(context.deliveryFiltered({rows,query:'',filter:'open',sort:null}), (r:any)=>r.riskId),['R1']);
+ const markup=context.deliveryTable('risk','Risk register',rows,[['riskId','Risk']]);assert.match(markup,/<option value="open">Open<\/option>/);
+ const review=context.deliveryTable('review','Record review',[{state:'extracted_candidate'}],[['state','Review state']]);assert.match(review,/<option value="extracted_candidate">Awaiting review<\/option>/);
+});
+
+test('Delivery Risks uses the existing risk population, not unrelated procurement candidates or population decisions',async t=>{
+ const f=await fixture(t);await f.upload('Procurement.csv','Package ID,Description\nP1,Unrelated package\nP2,Another package');
+ let report=deliveryModule(f.state,'delivery-risks');assert.equal(report.status,'blocked');assert.match(report.reason!,/risk register is not established/);assert.equal((report.data as any).reviewRecords.length,0);
+ await f.upload('Risks.csv','Risk ID,Description,Status,Identified Date,Probability,Impact,Rating\nR1,Current risk,Open,2031-08-01,0.4,3,Medium\nR2,Future risk,Open,2031-09-10,0.2,2,Low');
+ report=deliveryModule(f.state,'delivery-risks');assert.equal(report.status,'ready');assert.match(report.reason!,/2 risk records are supplied: 1 current, 1 after/);
+ assert.equal((report.data as any).population.kind,'risk');assert.equal((report.data as any).population.denominator,1);assert.equal((report.data as any).metrics.find((m:any)=>m.label==='Open risks').value,1);assert.equal((report.data as any).reviewRecords.length,0);
+ const linked=f.create('workfront','WF1',{}, {riskIds:['R1']});report=deliveryModule(f.state,'delivery-risks');assert.deepEqual((report.data as any).reviewRecords.map((r:any)=>r.recordId),[linked.recordId]);
+ assert.equal((report.data as any).rows[0].score,1.2);assert.equal((report.data as any).population.denominator,1);
 });
 
 
