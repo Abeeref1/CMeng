@@ -111,3 +111,19 @@ The separate single-project DMM run took 14.019 seconds before and 10.438 second
 The table records the first patched replay, before the migration-version guard was added. Tracing the EP outlier found its version changed from 46 to 47; the cache correctly rejected the old version. The migration guard and the unchanged-version restart behavior passed focused regression checks afterward. The 7.301-second observation is retained rather than replaced with a favourable estimate.
 
 Full raw observations, including the enabled-OCR failure, are in `project-batch-observations-2026-09-26.json`. OCR remains enabled by default and no production OCR setting was changed. OCR-disabled timings cannot certify reading coverage or total onboarding performance.
+
+## OCR-enabled retained reading check
+
+DMM was separately processed with OCR enabled. Its 60-page technical appendix
+and 30-page utility requirements document both retained matching source hashes
+and complete OCR coverage: 90 OCR pages, zero failed or unresolved pages.
+Control-assertion refresh took 62.972 seconds and found no new governed facts;
+deferred full-page OCR took 253.779 seconds. These are reader-stage observations
+on the available host CPUs, not the two-CPU calculation benchmark.
+
+On restart with OCR still enabled, the same control extraction took 99.634 ms
+and the completed deferred-page check took 0.360 ms, with no documents re-read.
+The load of the retained project state itself took 2.711 seconds. Missing control
+facts remained missing. Full details and file hashes are in
+`ocr-retention-observations-2026-09-26.json`. This demonstrates retained reading
+coverage, not independent certification of every fact extracted by OCR.
