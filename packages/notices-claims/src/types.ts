@@ -46,16 +46,16 @@ export interface NoticesClaimsProjection {
   projectId: string;
   evidenceRevisionId: string;
 
-  eventCount: number;
-  claimCount: number;
-  noticeCount: number;
+  eventCount: number | null;
+  claimCount: number | null;
+  noticeCount: number | null;
 
-  timelyNoticeCount: number;
-  lateNoticeCount: number;
-  missingNoticeCount: number;
-  noticeRequirementMissingCount: number;
-  noticeEventDateMissingCount: number;
-  noticeRequirementConflictCount: number;
+  timelyNoticeCount: number | null;
+  lateNoticeCount: number | null;
+  missingNoticeCount: number | null;
+  noticeRequirementMissingCount: number | null;
+  noticeEventDateMissingCount: number | null;
+  noticeRequirementConflictCount: number | null;
 
   officialAssessedDaysTotal: number | null;
   provisionalOrCandidateAssessedDaysTotal: number | null;

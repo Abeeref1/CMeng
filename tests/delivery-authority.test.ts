@@ -51,6 +51,8 @@ test('material reconciliation uses the same BOQ and installed authority, preserv
  f.create('package','CABLE',{unit:'m'},{boqItemIds:[cable.quantityItemId]});
  let p=deliveryPosition(f.state),q=p.materialRows.find(x=>x.recordId===r.recordId)!;
  assert.equal(q.required,100);assert.equal(q.installed,150);assert.equal(q.remainingToInstall,-50);assert.equal(q.procurementCoveragePercent,110);assert.ok(p.findings.some(f=>f.code==='INSTALLED_ABOVE_REQUIREMENT'));assert.equal(p.boqIntelligence.currencies.length,2);
+ assert.deepEqual(p.boqIntelligence.currencies.map(c=>c.unmappedValue),[0,0]);
+ f.population('package');p=deliveryPosition(f.state);const materialCurve=p.curves.find(c=>c.kind==='material_quantity'&&c.packageId===r.recordId&&c.stage==='installed')!;assert.equal(materialCurve.coveragePercent,100);assert.deepEqual(materialCurve.excludedRecordIds,[]);
  assert.ok(p.curves.filter(c=>c.series==='actual').every(c=>c.points.every((x:any)=>x.dateIso<='2031-08-31')));
  f.create('package','SPLIT',{}, {boqItemIds:[concrete.quantityItemId]});p=deliveryPosition(f.state);q=p.materialRows.find(x=>x.recordId===r.recordId)!;assert.equal(q.required,null);assert.equal(q.installed,null);
  f.review(r,{}, {links:{...r.links,boqAllocations:[{boqItemId:concrete.quantityItemId,quantity:60,unit:'m3'}]}});assert.equal(deliveryPosition(f.state).materialRows.find(x=>x.recordId===r.recordId)!.required,60);
@@ -72,6 +74,7 @@ test('readiness gates use a scoped complete denominator; unrelated unknown gates
  f.create('gate','B-DESIGN',{applicable:'yes'},{recordIds:[b.recordId]});
  assert.equal(deliveryPosition(f.state).readiness[0]!.readinessPercent,null);f.population('gate',a.recordId);
  const rows=deliveryPosition(f.state).readiness;assert.equal(rows.find(r=>r.recordId===a.recordId)!.readinessPercent,100);assert.equal(rows.find(r=>r.recordId===a.recordId)!.state,'ready');assert.equal(rows.find(r=>r.recordId===b.recordId)!.state,'unknown');
+ assert.equal(rows.find(r=>r.recordId===b.recordId)!.unknownCount,null);
 });
 
 test('future approvals and closures do not improve historical position; rectification is not closure; unknown inspection outcomes are excluded',async t=>{
@@ -159,6 +162,9 @@ test('retained native and OCR pages create review candidates with physical page 
  const doc:any={documentId:'PDF-RECEIPT',sourceFilename:'Delivery evidence.pdf',sourceHashSha256:hash,storedPath,mediaType:'application/pdf',basisState:'historical',documentType:'supporting_document',linkedArtifactId:null,uploadedAt:'2031-09-01',supersededByDocumentId:null,fullTextRead:{sourceHashSha256:hash,producerVersion:'full-page-read-v1',completedAt:'2031-09-01',result:{complete:false,pages:[{pageNumber:1,method:'native',text:'Package ID: PK-NATIVE\nDescription: Chiller\nOrdered Quantity: 2'},{pageNumber:2,method:'ocr',text:'Submittal ID: SUB-OCR\nDescription: Technical approval\nActual Issue: 2031-08-15'},{pageNumber:3,method:'failed',text:''}]}}};
  f.state.evidenceDocuments.push(doc);f.store.touch(f.state);let p=deliveryPosition(f.state);const candidate=p.records.find(r=>r.reference==='SUB-OCR')!;assert.equal(candidate.state,'extracted_candidate');assert.equal(candidate.receipts[0]!.locator,'page:2:line:1');assert.equal(candidate.receipts[0]!.sourceHash,hash);assert.ok(p.diagnostics.some(d=>d.includes('PHYSICAL_PAGE_COVERAGE_INCOMPLETE')));assert.equal(p.packageRows.length,0);
  f.review(candidate);assert.equal(deliveryPosition(f.state).registerRows.find(r=>r.reference==='SUB-OCR')!.currentStatus,'performed');
+ assert.throws(()=>f.population('submittal'),/physical-page/);
+ doc.fullTextRead.result.complete=true;f.store.touch(f.state);f.population('submittal');assert.equal(deliveryPosition(f.state).populations.submittal!.denominator,1);
+ doc.fullTextRead.result.complete=false;f.store.touch(f.state);assert.equal(deliveryPosition(f.state).populations.submittal!.denominator,null);
  doc.supersededByDocumentId='NEW-REVISION';f.store.touch(f.state);assert.equal(deliveryRecords(f.state).records.find(r=>r.reference==='SUB-OCR')!.state,'superseded');
 });
 

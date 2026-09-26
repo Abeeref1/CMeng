@@ -1799,8 +1799,8 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
           delayModel !== null,
         independentScheduleMovementAvailable:
           windows.windowCount > 0,
-        linkedClaimCount,
-        unlinkedClaimCount,
+        linkedClaimCount:delayModel?linkedClaimCount:null,
+        unlinkedClaimCount:delayModel?unlinkedClaimCount:null,
         eventLinkageState:
           delayClaims.events.length > 0 &&
           linkedClaimCount > 0
@@ -1837,10 +1837,11 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
         generatedAt,
         producerVersion:
           versions.notices,
+        populationEstablished:delayModel!==null,
       },
     );
   const noticeAssessmentAvailable =
-    noticesClaims.eventCount > 0 &&
+    noticesClaims.eventCount !== null && noticesClaims.eventCount > 0 &&
     analyticalDelayModel.noticeRequirements.length > 0;
   const noticeAssessable =
     noticeAssessmentAvailable &&
@@ -1859,8 +1860,8 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
             : noticeAssessmentAvailable
               ? "partially_assessable"
               : "not_assessable_without_delay_events_and_requirements",
-        linkedClaimCount,
-        unlinkedClaimCount,
+        linkedClaimCount:delayModel?linkedClaimCount:null,
+        unlinkedClaimCount:delayModel?unlinkedClaimCount:null,
       },
       [
         "delay events",
@@ -1874,10 +1875,10 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
       noticeAssessable
         ? null
         : noticeAssessmentAvailable &&
-            noticesClaims.noticeRequirementMissingCount > 0
+            noticesClaims.noticeRequirementMissingCount !== null && noticesClaims.noticeRequirementMissingCount > 0
           ? noticesClaims.noticeRequirementMissingCount +
             " confirmed delay event(s) do not have an applicable notice requirement. Assessed events remain visible, but the page stays under review."
-          : noticesClaims.claimCount > 0
+          : noticesClaims.claimCount !== null && noticesClaims.claimCount > 0
             ? noticesClaims.claimCount +
               " claim records are available, but notice timeliness is not assessable until confirmed delay events and applicable notice requirements are linked."
             : "Notice compliance is not assessable until confirmed delay events, applicable notice requirements and actual notice evidence are established.",
@@ -5951,6 +5952,7 @@ function buildSpecialistModuleFast(
             generatedAt,
             producerVersion:
               "notices-claims-fast-v3",
+            populationEstablished:delayModel!==null,
           },
         );
       const linkedClaimCount =
@@ -5965,7 +5967,7 @@ function buildSpecialistModuleFast(
           .claims.length -
         linkedClaimCount;
       const noticeAssessmentAvailable =
-        notices.eventCount > 0 &&
+        notices.eventCount !== null && notices.eventCount > 0 &&
         analyticalDelayModel
           .noticeRequirements
           .length > 0;
@@ -5987,8 +5989,8 @@ function buildSpecialistModuleFast(
               : noticeAssessmentAvailable
                 ? "partially_assessable"
                 : "not_assessable_without_delay_events_and_requirements",
-          linkedClaimCount,
-          unlinkedClaimCount,
+          linkedClaimCount:delayModel?linkedClaimCount:null,
+          unlinkedClaimCount:delayModel?unlinkedClaimCount:null,
         },
         [
           "delay events",
@@ -6001,14 +6003,14 @@ function buildSpecialistModuleFast(
           : "partial",
         noticeAssessable
           ? null
-          : noticeAssessmentAvailable &&
+          : noticeAssessmentAvailable && notices.noticeRequirementMissingCount !== null &&
               notices
                 .noticeRequirementMissingCount >
                 0
             ? notices
                 .noticeRequirementMissingCount +
               " confirmed delay event(s) do not have an applicable notice requirement. Assessed events remain visible, but the page stays under review."
-            : notices.claimCount > 0
+            : notices.claimCount !== null && notices.claimCount > 0
               ? notices.claimCount +
                 " claim records are available, but notice timeliness is not assessable until confirmed delay events and applicable notice requirements are linked."
               : "Notice compliance is not assessable until confirmed delay events, applicable notice requirements and actual notice evidence are established.",

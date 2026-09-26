@@ -38,6 +38,7 @@ export function buildNoticesClaimsProjection(
   input: {
     generatedAt: string;
     producerVersion: string;
+    populationEstablished?: boolean;
   },
 ): NoticesClaimsProjection {
   const noticeAssessments =
@@ -204,7 +205,7 @@ export function buildNoticesClaimsProjection(
         state === "candidate",
     );
 
-  return {
+  const projection:NoticesClaimsProjection = {
     schemaVersion: "1.0",
     projectionKey: "notices_claims",
     generatedAt: input.generatedAt,
@@ -259,4 +260,6 @@ export function buildNoticesClaimsProjection(
       ...model.diagnostics,
     ],
   };
+  if(input.populationEstablished===false)for(const key of ["eventCount", "claimCount", "noticeCount", "timelyNoticeCount", "lateNoticeCount", "missingNoticeCount", "noticeRequirementMissingCount", "noticeEventDateMissingCount", "noticeRequirementConflictCount"] as const)projection[key]=null;
+  return projection;
 }

@@ -2553,7 +2553,7 @@ function renderNoticesClaimsVisual(data){
   const assessable=p.events.filter(e=>["timely","late","not_issued","notice_date_missing"].includes(e.noticeTimeliness));
   const summary=planningKpis([
     ["Claims known by Data Date",p.claimCount,"identities evidenced by a dated notice or submission"],
-    ["Event / awareness dates missing",p.noticeEventDateMissingCount??p.events.filter(e=>e.noticeTimeliness==="event_date_missing").length,"supply the notice trigger dates","warning"],
+    ["Event / awareness dates missing",p.noticeEventDateMissingCount??"Unresolved","supply the notice trigger dates","warning"],
     ["Notice rules missing",p.noticeRequirementMissingCount,"contract rule not read or linked"],
     ["Notice rules need review",p.noticeRequirementConflictCount??0,"resolve applicability or conflicting versions"],
     ["Determined days through DD",p.effectiveDeterminationDays==null?"Not in the dated evidence":fmt(p.effectiveDeterminationDays)+" d","determination register; amendment overlap unresolved"]

@@ -107,9 +107,9 @@ export function checkProjectionIntegrity(result: ModuleRuntimeResult, model: Can
     compare('claim_population', claims.length, claimsSource?.claims.length ?? 0);
     compare('unique_event_ids', new Set(events.map((r:any)=>r.eventId)).size, events.length);
     compare('unique_claim_ids', new Set(claims.map((r:any)=>r.claimId)).size, claims.length);
-    compare('claim_headline_matches_register', data.claimCount, claims.length);
-    compare('event_headline_matches_register', data.eventCount, events.length);
-    const count=(state:string)=>events.filter((r:any)=>r.noticeTimeliness===state).length;
+    compare('claim_headline_matches_register', data.claimCount, claimsSource?claims.length:null);
+    compare('event_headline_matches_register', data.eventCount, claimsSource?events.length:null);
+    const count=(state:string)=>claimsSource?events.filter((r:any)=>r.noticeTimeliness===state).length:null;
     compare('timely_notice_count',data.timelyNoticeCount,count('timely'));
     compare('late_notice_count',data.lateNoticeCount,count('late'));
     compare('event_date_missing_count',data.noticeEventDateMissingCount,count('event_date_missing'));
