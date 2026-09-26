@@ -1,0 +1,70 @@
+name: Delivery Production Read-Only Verification
+on:
+  push:
+    branches: [audit/delivery-live-20260926]
+permissions:
+  contents: read
+jobs:
+  delivery-production:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify exact release and every existing-project Delivery response
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import {createHash} from 'node:crypto';
+          import {writeFileSync} from 'node:fs';
+          const base='https://cmeng-main-production.up.railway.app';
+          const expected='29bae17de07bcedbe92ec271b83b6a815e988007';
+          const report={expectedRelease:expected,mode:'GET_ONLY_EXISTING_PRODUCTION_PROJECTS',projects:[],failures:[]};
+          const digest=x=>createHash('sha256').update(JSON.stringify(x)).digest('hex');
+          async function get(path){const start=performance.now();const r=await fetch(base+path,{signal:AbortSignal.timeout(120000)});assert.ok([200,409].includes(r.status),'Unexpected HTTP '+r.status);return {data:await r.json(),ms:Math.round(performance.now()-start),encoding:r.headers.get('content-encoding')};}
+          const fingerprint=docs=>digest(docs.map(d=>[d.documentId,d.sourceHashSha256,d.basisState,d.scheduleAdoption]).sort((a,b)=>a[0].localeCompare(b[0])));
+          try {
+           assert.equal((await get('/health')).data.release,expected);
+           const projects=(await get('/api/portfolio')).data.projects.filter(p=>! /^(QA-|UAT-|SYN-)/.test(p.projectId));
+           const modules=(await get('/api/delivery/modules')).data.modules;assert.equal(modules.length,22);
+           for(const project of projects){
+            const id=project.projectId,prefix='/api/projects/'+encodeURIComponent(id),projectFingerprint=digest(id).slice(0,16);
+            const before=(await get(prefix+'/evidence/documents')).data.documents;const pages=[];let revision=null;
+            for(const m of modules){
+             const response=await get(prefix+'/delivery/modules/'+m.key);const p=response.data,d=p.data,errors=[];
+             if(!d||d.projectId!==id)errors.push('project ownership');
+             if((d?.rows??[]).some(r=>r.projectId!==id))errors.push('row ownership');
+             if((d?.metrics??[]).some(m=>m.value===null&&m.state!=='unavailable'))errors.push('null metric incorrectly calculated');
+             if((d?.reviewRecords??[]).some(r=>['governed','verified'].includes(r.state)))errors.push('unexpected automatic Delivery approval');
+             if(revision&&revision!==d?.programmeRevisionId)errors.push('programme inconsistency');
+             revision=d?.programmeRevisionId??revision;
+             for(const c of d?.curves??[])if(c.series==='actual'&&c.points.some(q=>q.dateIso>d.dataDateIso))errors.push('future actual value');
+             if(!['ready','partial','blocked'].includes(p.status))errors.push('invalid module state');
+             if(p.status==='blocked'&&!p.reason)errors.push('unexplained blocked state');
+             const page={key:m.key,status:p.status,httpMs:response.ms,encoding:response.encoding,suppliedRecords:d?.reviewRecords?.length??null,currentRows:d?.rows?.length??null,errors};pages.push(page);
+             for(const error of errors)report.failures.push({projectFingerprint,page:m.key,error});
+            }
+            const after=(await get(prefix+'/evidence/documents')).data.documents;
+            const unchanged=fingerprint(before)===fingerprint(after);if(!unchanged)report.failures.push({projectFingerprint,error:'sources or adoption changed during read-only checks'});
+            const repeat=await get(prefix+'/delivery/modules/delivery-control');
+            report.projects.push({projectFingerprint,documents:after.length,sourceAndAdoptionUnchanged:unchanged,repeatHttpMs:repeat.ms,pages});
+            console.log(JSON.stringify({projectFingerprint,pages:pages.length,sourceAndAdoptionUnchanged:unchanged,firstHttpMs:pages[0].httpMs,repeatHttpMs:repeat.ms,failures:pages.flatMap(p=>p.errors).length}));
+            writeFileSync('delivery-live-acceptance.json',JSON.stringify(report,null,2));
+           }
+           assert.equal((await get('/health')).data.release,expected);
+           report.pageCount=report.projects.reduce((n,p)=>n+p.pages.length,0);
+           report.status=report.failures.length?'fail':'pass';
+          } catch(error) {report.status='fail';report.error=String(error.message).replaceAll(base,'<application>');}
+          writeFileSync('delivery-live-acceptance.json',JSON.stringify(report,null,2));
+          console.log(JSON.stringify({status:report.status,projects:report.projects.length,pages:report.pageCount,failures:report.failures,error:report.error}));
+          if(report.status!=='pass')process.exitCode=1;
+          
+          NODE
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: delivery-production-read-only
+          path: delivery-live-acceptance.json
+          retention-days: 14
