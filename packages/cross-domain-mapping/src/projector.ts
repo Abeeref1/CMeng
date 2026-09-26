@@ -95,145 +95,79 @@ function codeTokens(value: string): Set<string> {
   );
 }
 
-function containsExplicitActivityId(
-  item: CanonicalQuantityItem,
-  activity: CanonicalScheduleActivity,
-): boolean {
+interface ItemFeatures {
+  corpus: string;
+  description: string;
+  descriptionTokens: ReadonlySet<string>;
+  sectionTokens: ReadonlySet<string>;
+  codes: ReadonlySet<string>;
+}
+
+interface ActivityFeatures {
+  name: string;
+  nameTokens: ReadonlySet<string>;
+  wbsTokens: ReadonlySet<string>;
+  codes: ReadonlySet<string>;
+  explicitId: RegExp | null;
+}
+
+function itemFeatures(item: CanonicalQuantityItem): ItemFeatures {
+  const corpus = [item.itemNumber ?? "", item.section ?? "", item.description].join(" ");
+  return {corpus, description: norm(item.description), descriptionTokens: tokens(item.description),
+    sectionTokens: tokens(item.section), codes: codeTokens(corpus)};
+}
+
+function activityFeatures(activity: CanonicalScheduleActivity, wbs: string): ActivityFeatures {
   const id = activity.activityId.trim();
-  if (!id) return false;
-  const corpus = [
-    item.itemNumber ?? "",
-    item.section ?? "",
-    item.description,
-  ].join(" ");
-  const escaped =
-    id.replace(
-      /[.*+?^$()|[\]\\]/g,
-      "\\$&",
-    );
-  return new RegExp(
-    "(^|[^A-Za-z0-9_.-])" +
-      escaped +
-      "([^A-Za-z0-9_.-]|$)",
-    "i",
-  ).test(corpus);
+  const escaped = id.replace(/[.*+?^$()|[\]\\]/g, "\\$&");
+  return {name: norm(activity.name), nameTokens: tokens(activity.name), wbsTokens: tokens(wbs),
+    codes: codeTokens([activity.activityId, activity.wbsId ?? "", wbs].join(" ")),
+    explicitId: id ? new RegExp("(^|[^A-Za-z0-9_.-])" + escaped + "([^A-Za-z0-9_.-]|$)", "i") : null};
 }
 
 function score(
-  item: CanonicalQuantityItem,
-  activity: CanonicalScheduleActivity,
-  wbs: string,
-): {
-  value: number;
-  signals: QuantityActivityMappingSignal[];
-} {
+  item: ItemFeatures,
+  activity: ActivityFeatures,
+  includeSignals = true,
+): {value: number; signals: QuantityActivityMappingSignal[]} {
   const signals: QuantityActivityMappingSignal[] = [];
-
-  if (containsExplicitActivityId(item, activity)) {
-    signals.push({
-      key: "explicit_activity_id",
-      score: 0.99,
-      detail: "BOQ evidence contains the exact schedule Activity ID.",
-    });
-    return { value: 0.99, signals };
+  if (activity.explicitId?.test(item.corpus)) {
+    if (includeSignals) signals.push({key: "explicit_activity_id", score: 0.99,
+      detail: "BOQ evidence contains the exact schedule Activity ID."});
+    return {value: 0.99, signals};
   }
 
-  const itemDescription = tokens(item.description);
-  const activityName = tokens(activity.name);
-  const descriptionSimilarity =
-    jaccard(itemDescription, activityName);
-
+  // Features are prepared once per source row, not for every item/activity pair.
+  // Keep the original component order, thresholds and rounding unchanged.
+  let value = 0;
+  const descriptionSimilarity = jaccard(item.descriptionTokens, activity.nameTokens);
   if (descriptionSimilarity > 0) {
-    const component = Math.min(
-      0.62,
-      descriptionSimilarity * 0.72,
-    );
-    signals.push({
-      key: "description",
-      score: component,
-      detail:
-        "BOQ description and activity name token similarity=" +
-        descriptionSimilarity.toFixed(4),
-    });
+    const component = Math.min(0.62, descriptionSimilarity * 0.72);
+    value += component;
+    if (includeSignals) signals.push({key: "description", score: component,
+      detail: "BOQ description and activity name token similarity=" + descriptionSimilarity.toFixed(4)});
   }
-
-  const ni = norm(item.description);
-  const na = norm(activity.name);
-  if (
-    ni.length >= 5 &&
-    na.length >= 5 &&
-    (ni.includes(na) || na.includes(ni))
-  ) {
-    signals.push({
-      key: "activity_name",
-      score: 0.23,
-      detail: "One normalized description contains the other.",
-    });
+  if (item.description.length >= 5 && activity.name.length >= 5 &&
+    (item.description.includes(activity.name) || activity.name.includes(item.description))) {
+    value += 0.23;
+    if (includeSignals) signals.push({key: "activity_name", score: 0.23,
+      detail: "One normalized description contains the other."});
   }
-
-  const sectionSimilarity =
-    jaccard(
-      tokens(item.section),
-      tokens(wbs),
-    );
+  const sectionSimilarity = jaccard(item.sectionTokens, activity.wbsTokens);
   if (sectionSimilarity > 0) {
-    const component =
-      Math.min(
-        0.24,
-        sectionSimilarity * 0.30,
-      );
-    signals.push({
-      key: "section",
-      score: component,
-      detail:
-        "BOQ section and WBS hierarchy similarity=" +
-        sectionSimilarity.toFixed(4),
-    });
+    const component = Math.min(0.24, sectionSimilarity * 0.30);
+    value += component;
+    if (includeSignals) signals.push({key: "section", score: component,
+      detail: "BOQ section and WBS hierarchy similarity=" + sectionSimilarity.toFixed(4)});
   }
-
-  const itemCodes =
-    codeTokens(
-      [
-        item.itemNumber ?? "",
-        item.section ?? "",
-        item.description,
-      ].join(" "),
-    );
-  const activityCodes =
-    codeTokens(
-      [
-        activity.activityId,
-        activity.wbsId ?? "",
-        wbs,
-      ].join(" "),
-    );
-  const codeSimilarity =
-    jaccard(itemCodes, activityCodes);
+  const codeSimilarity = jaccard(item.codes, activity.codes);
   if (codeSimilarity > 0) {
-    const component =
-      Math.min(
-        0.18,
-        codeSimilarity * 0.22,
-      );
-    signals.push({
-      key: "code_token",
-      score: component,
-      detail:
-        "Code/location token overlap=" +
-        codeSimilarity.toFixed(4),
-    });
+    const component = Math.min(0.18, codeSimilarity * 0.22);
+    value += component;
+    if (includeSignals) signals.push({key: "code_token", score: component,
+      detail: "Code/location token overlap=" + codeSimilarity.toFixed(4)});
   }
-
-  const raw =
-    signals.reduce(
-      (sum, signal) =>
-        sum + signal.score,
-      0,
-    );
-  return {
-    value: Math.min(0.97, raw),
-    signals,
-  };
+  return {value: Math.min(0.97, value), signals};
 }
 
 function candidateId(
@@ -416,6 +350,8 @@ export function buildQuantityScheduleMapping(
   quantities: CanonicalQuantityProgressModel,
   schedule: CanonicalScheduleModel,
 ): QuantityScheduleMappingResult {
+  const startedAt = performance.now();
+  let scoredPairCount = 0;
   const wbsById =
     new Map(
       schedule.wbs.map(
@@ -463,7 +399,7 @@ export function buildQuantityScheduleMapping(
   // every BOQ item re-tokenized every activity and created a fingerprint even
   // for a zero score, making real source registers block the whole resolver.
   const eligible=schedule.activities.filter(a=>a.activityType==='task'&&a.status!=='completed');
-  const wbsByActivity=new Map(eligible.map(a=>[a,wbsText(a,wbsById)]));
+  const featuresByActivity=new Map(eligible.map(a=>[a,activityFeatures(a,wbsText(a,wbsById))]));
   type Posting=Map<string,Set<CanonicalScheduleActivity>>;
   const descriptions:Posting=new Map(),sections:Posting=new Map(),codes:Posting=new Map(),nameGrams:Posting=new Map(),namePrefixes:Posting=new Map();
   const explicit=new Map(eligible.filter(a=>/^[A-Za-z0-9_.-]+$/.test(a.activityId)).map(a=>[a.activityId.toUpperCase(),a]));
@@ -471,31 +407,31 @@ export function buildQuantityScheduleMapping(
   const index=(map:Posting,key:string,a:CanonicalScheduleActivity)=>{const list=map.get(key)??new Set();list.add(a);map.set(key,list);};
   const grams=(s:string)=>Array.from({length:Math.max(0,s.length-4)},(_,i)=>s.slice(i,i+5));
   for(const a of eligible){
-    for(const token of tokens(a.name))index(descriptions,token,a);
-    const wbs=wbsByActivity.get(a)!;
-    for(const token of tokens(wbs))index(sections,token,a);
-    for(const token of codeTokens([a.activityId,a.wbsId??'',wbs].join(' ')))index(codes,token,a);
-    const name=norm(a.name);if(name.length>=5){index(namePrefixes,name.slice(0,5),a);for(const gram of grams(name))index(nameGrams,gram,a);}
+    const features=featuresByActivity.get(a)!;
+    for(const token of features.nameTokens)index(descriptions,token,a);
+    for(const token of features.wbsTokens)index(sections,token,a);
+    for(const token of features.codes)index(codes,token,a);
+    const name=features.name;if(name.length>=5){index(namePrefixes,name.slice(0,5),a);for(const gram of grams(name))index(nameGrams,gram,a);}
   }
   const sectionMatchCache=new Map<string,Set<CanonicalScheduleActivity>>();
-  const candidatesFor=(item:CanonicalQuantityItem)=>{
+  const candidatesFor=(item:CanonicalQuantityItem,features:ItemFeatures)=>{
     const found=new Set<CanonicalScheduleActivity>();
     const collect=(map:Posting,keys:Iterable<string>,target=found)=>{for(const key of keys)for(const a of map.get(key)??[])target.add(a);};
-    collect(descriptions,tokens(item.description));
-    const description=norm(item.description);
+    collect(descriptions,features.descriptionTokens);
+    const description=features.description;
     if(description.length>=5){collect(nameGrams,[description.slice(0,5)]);collect(namePrefixes,grams(description));}
     const codeMatches=new Set<CanonicalScheduleActivity>();
-    const corpus=[item.itemNumber??'',item.section??'',item.description].join(' ');
-    collect(codes,codeTokens(corpus),codeMatches);
+    const corpus=features.corpus;
+    collect(codes,features.codes,codeMatches);
     // Section or code evidence alone cannot reach the 0.34 candidate threshold.
     if(codeMatches.size){
       const sectionKey=item.section??'';
       let sectionMatches=sectionMatchCache.get(sectionKey);
-      if(!sectionMatches){sectionMatches=new Set();collect(sections,tokens(item.section),sectionMatches);sectionMatchCache.set(sectionKey,sectionMatches);}
+      if(!sectionMatches){sectionMatches=new Set();collect(sections,features.sectionTokens,sectionMatches);sectionMatchCache.set(sectionKey,sectionMatches);}
       for(const a of codeMatches)if(sectionMatches.has(a))found.add(a);
     }
     for(const token of corpus.toUpperCase().match(/[A-Z0-9_.-]+/g)??[]){const a=explicit.get(token);if(a)found.add(a);}
-    for(const a of unusualIds)if(containsExplicitActivityId(item,a))found.add(a);
+    for(const a of unusualIds)if(featuresByActivity.get(a)!.explicitId?.test(corpus))found.add(a);
     return [...found];
   };
 
@@ -515,59 +451,31 @@ export function buildQuantityScheduleMapping(
       continue;
     }
 
-    const ranked =
-      candidatesFor(item)
-        .flatMap((activity) => {
-          const resolved =
-            score(
-              item,
-              activity,
-              wbsByActivity.get(activity)!,
-            );
-          if(Number(resolved.value.toFixed(4))<0.34)return [];
-          return [{
-            candidateId:
-              candidateId(
-                item.quantityItemId,
-                activity.activityId,
-                "candidate",
-              ),
-            quantityItemId:
-              item.quantityItemId,
-            activityId:
-              activity.activityId,
-            confidence:
-              Number(
-                resolved.value.toFixed(4),
-              ),
-            method:
-              "composite_similarity" as const,
-            authority:
-              "candidate_scenario" as const,
-            ambiguous: false,
-            allocatedQuantity: null,
-            allocationShare: null,
-            signals:
-              resolved.signals,
-            sourceRefs: [
-              ...item.sourceRefs,
-            ],
-            diagnostics: [],
-          }];
-        })
-        .filter(
-          (candidate) =>
-            candidate.confidence >= 0.34,
-        )
-        .sort(
-          (a, b) =>
-            b.confidence -
-            a.confidence ||
-            a.activityId.localeCompare(
-              b.activityId,
-            ),
-        )
-        .slice(0, 5);
+    const features = itemFeatures(item);
+    const top: Array<{activity: CanonicalScheduleActivity; confidence: number}> = [];
+    for (const activity of candidatesFor(item, features)) {
+      scoredPairCount += 1;
+      const confidence = Number(score(features, featuresByActivity.get(activity)!, false).value.toFixed(4));
+      if (confidence < 0.34) continue;
+      // This is the same stable confidence/Activity-ID sort and top five as
+      // before. Do not fingerprint or copy source evidence for discarded rows.
+      const index = top.findIndex(row => confidence > row.confidence ||
+        (confidence === row.confidence && activity.activityId.localeCompare(row.activity.activityId) < 0));
+      if (index < 0) {
+        if (top.length < 5) top.push({activity, confidence});
+      } else {
+        top.splice(index, 0, {activity, confidence});
+        if (top.length > 5) top.pop();
+      }
+    }
+    const ranked: QuantityActivityMappingCandidate[] = top.map(({activity, confidence}) => ({
+      candidateId: candidateId(item.quantityItemId, activity.activityId, "candidate"),
+      quantityItemId: item.quantityItemId, activityId: activity.activityId, confidence,
+      method: "composite_similarity", authority: "candidate_scenario", ambiguous: false,
+      allocatedQuantity: null, allocationShare: null,
+      signals: score(features, featuresByActivity.get(activity)!).signals,
+      sourceRefs: [...item.sourceRefs], diagnostics: [],
+    }));
 
     if (ranked.length === 0) {
       unmappedItemIds.push(
@@ -702,6 +610,12 @@ export function buildQuantityScheduleMapping(
             100
           ).toFixed(4),
         );
+
+  if (process.env.CMENG_PROFILE_PERF?.trim() === "1") {
+    process.stdout.write(JSON.stringify({event: "quantity_mapping_profile", projectId: quantities.projectId ?? schedule.projectId,
+      itemCount: quantities.items.length, activityCount: eligible.length, scoredPairCount,
+      durationMs: performance.now() - startedAt}) + "\n");
+  }
 
   return {
     schemaVersion: "1.0",
