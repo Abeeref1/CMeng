@@ -354,6 +354,7 @@ export interface StoredContractDocument {
 
 export interface RiskControlRecord {
   riskId: string;
+  subject?:string|null;category?:string|null;linkedActivityId?:string|null;
   raisedIso?: string | null;
   closedIso?: string | null;
   statusAsOfIso?: string | null;
@@ -415,6 +416,7 @@ export interface ProjectControlState {
 }
 
 export interface ProjectRuntimeState {
+  delivery?: import("../../delivery-core/src/types").DeliveryStateStore;
   scheduleAuthorityVersion?: "explicit-adoption-v1";
   auditHistory?: import('./audit-context').AuditEvent[];
   auditSourceActors?: Record<string,import('./audit-context').AuditActor>;

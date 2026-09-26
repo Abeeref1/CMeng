@@ -90,10 +90,10 @@ export interface PmoAnalysisProjection {
   };
 
   claims: {
-    eventCount: number;
-    claimCount: number;
-    timelyNoticeCount: number;
-    lateNoticeCount: number;
+    eventCount: number | null;
+    claimCount: number | null;
+    timelyNoticeCount: number | null;
+    lateNoticeCount: number | null;
     observedPositiveMovementDays: number | null;
     observedProgrammeMovementDays: number | null;
     analyticalTimeImpactCandidateDays:

@@ -1,3 +1,4 @@
+import {moduleRegistry} from '../packages/runtime-api/src/registry';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { runInNewContext, createContext, runInContext } from 'node:vm';
@@ -189,7 +190,7 @@ function moduleLoader(api:(route:string)=>Promise<unknown>) {
   const elements=new Map<string,any>();
   const el=(id:string)=>{if(!elements.has(id))elements.set(id,{innerHTML:'',classList:{remove(){}},textContent:'',onclick:null});return elements.get(id);};
   const rendered:any[]=[];
-  const context=createContext({...common,document:{body:{classList:{remove(){}}},querySelectorAll:()=>[]},el,api,overview:{},names:{cash:'Cash',progress:'Progress'},descriptions:{},project:()=> 'unrelated-project',projectRequestSeq:0,projectLoadState:"ready",moduleRequestSeq:0,currentModuleResult:{key:'old',data:{value:999}},managementSurfaceKeysForApi:new Set(),commercialModuleKeysForApi:new Set(),setBusy:()=>{},renderModuleResult:(r:any)=>{rendered.push(r);context.currentModuleResult=r;el('moduleContent').innerHTML='Rendered '+r.key;}});
+  const context=createContext({...common,moduleRegistry,document:{body:{classList:{remove(){}}},querySelectorAll:()=>[]},el,api,overview:{},names:{cash:'Cash',progress:'Progress'},descriptions:{},project:()=> 'unrelated-project',projectRequestSeq:0,projectLoadState:"ready",moduleRequestSeq:0,currentModuleResult:{key:'old',data:{value:999}},managementSurfaceKeysForApi:new Set(),commercialModuleKeysForApi:new Set(),setBusy:()=>{},renderModuleResult:(r:any)=>{rendered.push(r);context.currentModuleResult=r;el('moduleContent').innerHTML='Rendered '+r.key;}});
   runInContext(functions(['projectRequestIsCurrent','loadModule']),context);
   return {context,elements,rendered,load:(key:string)=>{context.requestedKey=key;return runInContext('loadModule(requestedKey)',context) as Promise<void>;}};
 }

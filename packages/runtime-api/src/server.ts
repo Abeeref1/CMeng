@@ -1,3 +1,6 @@
+import {deliveryExportResult} from './delivery-projections';
+import {deliveryRequest} from './delivery-api';
+import {isDeliveryPage} from '../../delivery-core/src/registry';
 import {parentPort} from 'node:worker_threads';
 import {sendHttpBody} from './http-response';
 import {projectResultMap} from './project-api-results';
@@ -21,6 +24,7 @@ import {
 } from "../../boq-ingestion/src";
 import {
   commercialModules,
+  moduleRegistry,
   commercialModuleSummary,
   scheduleModules,
   scheduleModuleSummary,
@@ -896,6 +900,8 @@ async function route(
     json(res, 200, answer);
     return;
   }
+
+  if(req.method === "GET" && url.pathname === "/api/delivery/modules"){const modules=moduleRegistry.filter(m=>m.area==="delivery");json(res,200,{moduleCount:modules.length,modules});return;}
 
   if (
     req.method === "GET" &&
@@ -2226,8 +2232,10 @@ async function route(
     return;
   }
 
+  if(await deliveryRequest(req,res,url))return;
+
   const moduleReportMatch =
-    /^\/api\/projects\/([^/]+)\/(schedule|commercial)\/modules\/([^/]+)\/report\.(xlsx|json)$/.exec(
+    /^\/api\/projects\/([^/]+)\/(schedule|commercial|delivery)\/modules\/([^/]+)\/report\.(xlsx|json)$/.exec(
       url.pathname,
     );
 
@@ -2266,7 +2274,8 @@ async function route(
       return;
     }
 
-    const result =
+    if(moduleArea==="delivery"&&!isDeliveryPage(resolveModuleKey(key))){json(res,404,{error:"delivery_module_not_found"});return;}
+    let result =
       moduleForProject(
         projectId,
         key,
@@ -2274,7 +2283,7 @@ async function route(
 
     if (
       result.status ===
-      "blocked"
+      "blocked" && moduleArea!=="delivery"
     ) {
       json(res, 409, {
         error:
@@ -2288,6 +2297,7 @@ async function route(
       return;
     }
 
+    if(moduleArea==="delivery"){const state=runtimeProjects.get(projectId);if(state)result=deliveryExportResult(state,result);}
     if (format === "xlsx") {
       const workbook =
         await buildModuleWorkbook(
@@ -2330,7 +2340,7 @@ async function route(
   }
 
   const moduleMatch =
-    /^\/api\/projects\/([^/]+)\/(schedule|commercial)\/modules\/([^/]+)$/.exec(
+    /^\/api\/projects\/([^/]+)\/(schedule|commercial|delivery)\/modules\/([^/]+)$/.exec(
       url.pathname,
     );
 
@@ -2363,6 +2373,7 @@ async function route(
       });
       return;
     }
+    if(moduleArea==="delivery"&&!isDeliveryPage(resolveModuleKey(key))){json(res,404,{error:"delivery_module_not_found"});return;}
     const result =
       moduleForProject(
         projectId,

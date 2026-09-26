@@ -1,3 +1,4 @@
+import {deliveryScript} from './ui-delivery';
 import {programmeReviewScript} from './ui-programme-review';
 import {uploadWorkScript} from './ui-upload-work';
 import {aggregateCount} from '../../truth-kernel/src/aggregates';
@@ -2552,7 +2553,7 @@ function renderNoticesClaimsVisual(data){
   const assessable=p.events.filter(e=>["timely","late","not_issued","notice_date_missing"].includes(e.noticeTimeliness));
   const summary=planningKpis([
     ["Claims known by Data Date",p.claimCount,"identities evidenced by a dated notice or submission"],
-    ["Event / awareness dates missing",p.noticeEventDateMissingCount??p.events.filter(e=>e.noticeTimeliness==="event_date_missing").length,"supply the notice trigger dates","warning"],
+    ["Event / awareness dates missing",p.noticeEventDateMissingCount??"Unresolved","supply the notice trigger dates","warning"],
     ["Notice rules missing",p.noticeRequirementMissingCount,"contract rule not read or linked"],
     ["Notice rules need review",p.noticeRequirementConflictCount??0,"resolve applicability or conflicting versions"],
     ["Determined days through DD",p.effectiveDeterminationDays==null?"Not in the dated evidence":fmt(p.effectiveDeterminationDays)+" d","determination register; amendment overlap unresolved"]
@@ -3638,7 +3639,7 @@ function renderManagementControlVisual(key,data){
       {label:"Blocked specialist views",value:r.blocked??0,tone:"danger"}
     ],"Control views");
     return '<div class="planning-view management-view master-dashboard-view">'+
-      managementPanel("Executive Project Position","Current programme, progress and delivery exposure. Open a measure for its supporting analysis.",renderManagementMetricGrid(mainMetrics),true)+
+      managementPanel("Executive Project Position","Current programme, progress and delivery exposure. Open a measure for its supporting analysis.",renderManagementMetricGrid(mainMetrics),true)+renderDeliveryDashboard(data.delivery)+
       renderDashboardExceptions(data)+renderDashboardTrend(data)+renderDashboardDecisions(data)+
       managementPanel("Control Readiness","Calculation availability, evidence readiness and affected consistency checks are shown separately. A project-wide issue does not automatically make every specialist view defective.",readinessDonut+renderManagementConsistency(data.consistency))+
       managementPanel("Evidence Snapshot","Current evidence coverage. Missing or conflicted evidence remains explicit rather than being converted to zero.",planningKpis([
@@ -3841,6 +3842,7 @@ function userFacingModuleReason(key,reason){
     .replace(/evidence/gi,"project information");
 }
 ${programmeReviewScript()}
+${deliveryScript()}
 function renderModuleResult(result){
   renderModuleResultBody(result);
   const container=el('moduleContent');
@@ -3862,6 +3864,8 @@ function renderModuleResultBody(result){
   el("topbarModule").textContent=moduleName;
   el("moduleBadge").className="issue-badge "+(result.issueAssessment?.primaryKind||"verification_pending");
   el("moduleBadge").textContent=result.issueAssessment?.counts?.system_defect>0?"Calculation error":"";
+  if(renderDelivery(result)){el('roleViewSelector').style.display='none';return;}
+  el('moduleContent').oninput=null;el('moduleContent').onchange=null;el('moduleContent').onclick=null;
   if(result.key==='challenge-contract'&&result.data?.suppliedBoq?.rows?.length&&renderDeliveryChallenge(result.data,result.reason,result.status))return;
   if(result.status==="blocked"){
     const blockedBody='<div class="view-state-bar">'+issueBadge(result.issueAssessment)+'<strong>'+escapeHtml(moduleName)+'</strong><span>The calculation is unavailable. The classified findings identify the reason and responsible action.</span></div><div class="notice warn">'+escapeHtml(result.reason||"The required calculation is not confirmed.")+'</div><div class="scalar-grid">'+(result.dependencies||[]).map(x=>'<div class="scalar"><b>Calculation dependency</b><span>'+escapeHtml(humanizeKey(x))+'</span></div>').join("")+'</div>';
@@ -3929,7 +3933,7 @@ async function loadModule(key){
     if(managementSurfaceKeysForApi.has(key)){
       result=await api("/api/projects/"+encodeURIComponent(project())+"/management/"+encodeURIComponent(apiKeys[key]||key));
     }else{
-      const moduleArea=commercialModuleKeysForApi.has(key)?"commercial":"schedule";
+      const moduleArea=moduleRegistry.find(m=>m.key===key)?.area||"schedule";
       result=await api("/api/projects/"+encodeURIComponent(project())+"/"+moduleArea+"/modules/"+encodeURIComponent(apiKeys[key]||key));
     }
     if(!current())return;
@@ -3937,7 +3941,7 @@ async function loadModule(key){
   }catch(e){
     if(!current())return;
     const d=e.data||{};
-    if((d.legacyKey||d.key)===key&&d.status==="blocked"&&d.issueAssessment){
+    if((d.legacyKey||d.key)===key&&d.status==="blocked"&&(d.issueAssessment||d.data?.projectionKey==="delivery")){
       renderModuleResult(d);
     }else{
       el("moduleBadge").className="badge";
@@ -4706,7 +4710,7 @@ function reportDownloadUrl(format){
   if(managementSurfaceKeysForApi.has(selected)){
     return "/api/projects/"+encodeURIComponent(project())+"/management/"+encodeURIComponent(selected)+"/report."+format;
   }
-  const moduleArea=commercialModuleKeysForApi.has(selected)?"commercial":"schedule";
+  const moduleArea=moduleRegistry.find(m=>m.key===selected)?.area||"schedule";
   return "/api/projects/"+encodeURIComponent(project())+"/"+moduleArea+"/modules/"+encodeURIComponent(selected)+"/report."+format;
 }
 function reportSafeFilename(value){

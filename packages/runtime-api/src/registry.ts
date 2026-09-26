@@ -1,3 +1,4 @@
+import {deliveryPages} from '../../delivery-core/src/registry';
 // Single source of page titles, purpose and navigation. Keys remain stable for saved links and API clients.
 export interface ModuleDescriptor {
   key: string;
@@ -5,8 +6,8 @@ export interface ModuleDescriptor {
   apiKey?:string;
   description: string;
   group: string;
-  area: "management" | "schedule" | "commercial";
-  category: "management" | "analysis" | "progress" | "forecast" | "claims" | "contract" | "commercial";
+  area: "management" | "schedule" | "commercial" | "delivery";
+  category: "management" | "analysis" | "progress" | "forecast" | "claims" | "contract" | "commercial" | "delivery";
 }
 
 export const moduleRegistry: ModuleDescriptor[] = [
@@ -43,6 +44,7 @@ export const moduleRegistry: ModuleDescriptor[] = [
   {"key": "cash-flow", "title": "Cash Flow", "description": "Actual cash availability, certificate reconciliation and the future certificate plan.", "group": "Commercial", "area": "commercial", "category": "commercial"},
   {"key": "commercial-claims-notices", "title": "Financial Claims", "description": "Claimed and assessed money by currency, financial exposure and recovery status, linked to the supporting time and notice records.", "group": "Commercial", "area": "commercial", "category": "commercial"},
   {"key": "contract-particulars-bonds", "title": "Contract Particulars & Bonds", "description": "Contract value, contractual completion, approved EOT and active security position.", "group": "Commercial", "area": "commercial", "category": "commercial"},
+  ...deliveryPages.map(([key,title,description])=>({key,title,description,group:"Delivery",area:"delivery" as const,category:"delivery" as const})),
 ];
 
 export const pageApiKey=(key:string)=>moduleRegistry.find(m=>m.key===key||m.apiKey===key)?.apiKey??key;

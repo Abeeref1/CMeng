@@ -89,7 +89,7 @@ export interface CommercialClaimsNoticesPosition {
   claimStateCounts: Record<ClaimState, number>;
   noticeKindCounts: Record<NoticeKind, number>;
   noticeTimelinessCounts:
-    Record<NoticeTimeliness, number>;
+    Record<NoticeTimeliness, number | null>;
   claims: Array<{
     sourceRegister?: import("../../delay-analysis-core/src").ClaimRegisterSnapshot;
     claimId: string;

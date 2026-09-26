@@ -1,3 +1,5 @@
+import {buildModuleChallenge} from '../../module-challenge/src';
+import {deliveryModule,deliveryDashboard,isDeliveryPage} from './delivery-projections';
 import {isAdoptedProgrammeRevision,isScenarioRevision,scheduleAuthorityReview} from './schedule-authority';
 import {quantityMappingForState} from "./quantity-mapping-runtime";
 import {nearCriticalScreening} from './near-critical-screening';
@@ -1797,8 +1799,8 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
           delayModel !== null,
         independentScheduleMovementAvailable:
           windows.windowCount > 0,
-        linkedClaimCount,
-        unlinkedClaimCount,
+        linkedClaimCount:delayModel?linkedClaimCount:null,
+        unlinkedClaimCount:delayModel?unlinkedClaimCount:null,
         eventLinkageState:
           delayClaims.events.length > 0 &&
           linkedClaimCount > 0
@@ -1835,10 +1837,11 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
         generatedAt,
         producerVersion:
           versions.notices,
+        populationEstablished:delayModel!==null,
       },
     );
   const noticeAssessmentAvailable =
-    noticesClaims.eventCount > 0 &&
+    noticesClaims.eventCount !== null && noticesClaims.eventCount > 0 &&
     analyticalDelayModel.noticeRequirements.length > 0;
   const noticeAssessable =
     noticeAssessmentAvailable &&
@@ -1857,8 +1860,8 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
             : noticeAssessmentAvailable
               ? "partially_assessable"
               : "not_assessable_without_delay_events_and_requirements",
-        linkedClaimCount,
-        unlinkedClaimCount,
+        linkedClaimCount:delayModel?linkedClaimCount:null,
+        unlinkedClaimCount:delayModel?unlinkedClaimCount:null,
       },
       [
         "delay events",
@@ -1872,10 +1875,10 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
       noticeAssessable
         ? null
         : noticeAssessmentAvailable &&
-            noticesClaims.noticeRequirementMissingCount > 0
+            noticesClaims.noticeRequirementMissingCount !== null && noticesClaims.noticeRequirementMissingCount > 0
           ? noticesClaims.noticeRequirementMissingCount +
             " confirmed delay event(s) do not have an applicable notice requirement. Assessed events remain visible, but the page stays under review."
-          : noticesClaims.claimCount > 0
+          : noticesClaims.claimCount !== null && noticesClaims.claimCount > 0
             ? noticesClaims.claimCount +
               " claim records are available, but notice timeliness is not assessable until confirmed delay events and applicable notice requirements are linked."
             : "Notice compliance is not assessable until confirmed delay events, applicable notice requirements and actual notice evidence are established.",
@@ -5949,6 +5952,7 @@ function buildSpecialistModuleFast(
             generatedAt,
             producerVersion:
               "notices-claims-fast-v3",
+            populationEstablished:delayModel!==null,
           },
         );
       const linkedClaimCount =
@@ -5963,7 +5967,7 @@ function buildSpecialistModuleFast(
           .claims.length -
         linkedClaimCount;
       const noticeAssessmentAvailable =
-        notices.eventCount > 0 &&
+        notices.eventCount !== null && notices.eventCount > 0 &&
         analyticalDelayModel
           .noticeRequirements
           .length > 0;
@@ -5985,8 +5989,8 @@ function buildSpecialistModuleFast(
               : noticeAssessmentAvailable
                 ? "partially_assessable"
                 : "not_assessable_without_delay_events_and_requirements",
-          linkedClaimCount,
-          unlinkedClaimCount,
+          linkedClaimCount:delayModel?linkedClaimCount:null,
+          unlinkedClaimCount:delayModel?unlinkedClaimCount:null,
         },
         [
           "delay events",
@@ -5999,14 +6003,14 @@ function buildSpecialistModuleFast(
           : "partial",
         noticeAssessable
           ? null
-          : noticeAssessmentAvailable &&
+          : noticeAssessmentAvailable && notices.noticeRequirementMissingCount !== null &&
               notices
                 .noticeRequirementMissingCount >
                 0
             ? notices
                 .noticeRequirementMissingCount +
               " confirmed delay event(s) do not have an applicable notice requirement. Assessed events remain visible, but the page stays under review."
-            : notices.claimCount > 0
+            : notices.claimCount !== null && notices.claimCount > 0
               ? notices.claimCount +
                 " claim records are available, but notice timeliness is not assessable until confirmed delay events and applicable notice requirements are linked."
               : "Notice compliance is not assessable until confirmed delay events, applicable notice requirements and actual notice evidence are established.",
@@ -7007,7 +7011,11 @@ function resolveProjectModuleCandidate(state: ProjectRuntimeState, key: string):
     }
   }
   const model = projectControlSchedule(state)?.revision.model;
-  if (!model) return attachReportingContract(state,discloseReadIssues(result));
+  if (!model) {
+    const data=result.data&&typeof result.data==='object'?result.data as Record<string,unknown>:{};
+    const challenge=data.challenge??buildModuleChallenge({moduleKey:key,generatedAt:new Date().toISOString(),assertions:[],metrics:[],diagnostics:['Programme comparison unavailable until a programme is adopted.']});
+    return attachReportingContract(state,discloseReadIssues({...result,data:{...data,challenge}}));
+  }
   const controlBasis = projectScheduleControlBasis(state);
   if (result.data && typeof result.data === "object") {
     const data = result.data as Record<string, any>;
@@ -7132,6 +7140,7 @@ export function moduleForProject(
       ["project"],
     );
   }
+  if (isDeliveryPage(key)) return deliveryModule(state,key);
   if (managementModuleKeys.includes(key)) {
     return managementSurfaceForProject(projectId, key) ?? blocked(key, "Management position is not established.", []);
   }
@@ -7759,10 +7768,10 @@ export function managementSurfacesForProject(
   const overdueRows=(lookahead?.rows??[]).filter((r:any)=>r.finishOverdue);
   const deliveryExceptions={actions:[...operations.actions,...overdueRows.map((r:any)=>({recordId:r.activityId,type:'Activity',priority:'overdue',owner:null,dueIso:r.finishIso,ageDays:null,
     overdueDays:current?.revision.model.dataDateIso&&r.finishIso?Math.floor((Date.parse(current.revision.model.dataDateIso.slice(0,10))-Date.parse(r.finishIso.slice(0,10)))/86400000):null,
-    action:'Review overdue activity '+r.activityId+' ('+r.name+') and agree its recovery dates.',sourceRefs:[]}))],overdueActivityCount:overdueRows.length};
+    action:'Review overdue activity '+r.activityId+' ('+r.name+') and agree its recovery dates.',sourceRefs:[]}))],overdueActivityCount:Array.isArray(lookahead?.rows)?overdueRows.length:null};
   const result = { ...surfaces,
     sourceQuality: {...sourceQualityPosition(resolvedModules,issueAssessment,state.evidenceDocuments,current?.revision.model.dataDateIso??null),registerDateReview:registerDateReview(state)},
-    masterDashboard: {deliveryExceptions,...managementReportingData(state, surfaces.masterDashboard, resolvedModules),decisions:surfaces.commandCenter.decisions,trend:(resolvedModules.get("forecast-history")?.data as any)??null,issueAssessment,operationalReporting:operationalReporting(state),sourceInterpretation:director?.sourceInterpretation},
+    masterDashboard: {delivery:deliveryDashboard(state),deliveryExceptions,...managementReportingData(state, surfaces.masterDashboard, resolvedModules),decisions:surfaces.commandCenter.decisions,trend:(resolvedModules.get("forecast-history")?.data as any)??null,issueAssessment,operationalReporting:operationalReporting(state),sourceInterpretation:director?.sourceInterpretation},
     commandCenter: {deliveryExceptions,...managementReportingData(state, surfaces.commandCenter, resolvedModules),issueAssessment,operationalReporting:operationalReporting(state),sourceInterpretation:director?.sourceInterpretation},
     masterControlProgramme: {...managementReportingData(state, surfaces.masterControlProgramme, resolvedModules),issueAssessment,sourceInterpretation:director?.sourceInterpretation} };
   const allPages=new Map(resolvedModules);

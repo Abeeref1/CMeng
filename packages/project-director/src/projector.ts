@@ -1000,8 +1000,7 @@ export function buildProjectDirectorPosition(
     evidenceState(
       input.evidenceAvailability
         ?.claims,
-      input.noticesClaims
-        .claimCount > 0 ||
+      (input.noticesClaims.claimCount !== null && input.noticesClaims.claimCount > 0) ||
       input.delayClaims
         .eventCount > 0,
     );
