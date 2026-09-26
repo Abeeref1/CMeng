@@ -354,6 +354,7 @@ export interface StoredContractDocument {
 
 export interface RiskControlRecord {
   riskId: string;
+  subject?:string|null;category?:string|null;linkedActivityId?:string|null;
   raisedIso?: string | null;
   closedIso?: string | null;
   statusAsOfIso?: string | null;

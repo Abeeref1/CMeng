@@ -3,6 +3,8 @@ import {runtimeProjects} from './project-state';
 import {changeDelivery,deliveryRecords,deliveryStore} from './delivery-records';
 import {projectControlSchedule} from './canonical-time-claims';
 import {resolveBoqSource} from './boq-source';
+import {deliveryAuthorityCatalog} from './delivery-authorities';
+import {deliverySourceTables} from './delivery-sources';
 import {sourceTables} from '../../truth-kernel/src';
 import {sendHttpBody} from './http-response';
 import {deliveryKinds,deliveryLabels,lifecycleExamples} from '../../delivery-core/src/types';
@@ -19,13 +21,14 @@ export async function deliveryRequest(req:IncomingMessage,res:ServerResponse,url
   if(req.method!=='GET'){send(405,{error:'Method not supported.'});return true;}
   const source=deliveryRecords(state),q=(url.searchParams.get('q')??'').toLowerCase(),kind=url.searchParams.get('kind');
   if(match[2]==='sources'){
-   const tables=sourceTables(state.evidenceDocuments,[],{includeHistorical:true});send(200,{projectId,projectVersion:state.version,documents:state.evidenceDocuments.map(d=>({documentId:d.documentId,filename:d.sourceFilename,sourceHash:d.sourceHashSha256,basisState:d.basisState,mediaType:d.mediaType,reading:d.fullTextRead?{completedAt:d.fullTextRead.completedAt,sourceHash:d.fullTextRead.sourceHashSha256}:null,headers:[...new Set(tables.filter(t=>t.document.documentId===d.documentId).flatMap(t=>t.headers))]})),readingStates:source.documents});return true;
+   const tables=deliverySourceTables(state,[]);send(200,{projectId,projectVersion:state.version,documents:state.evidenceDocuments.map(d=>({documentId:d.documentId,filename:d.sourceFilename,sourceHash:d.sourceHashSha256,basisState:d.basisState,mediaType:d.mediaType,reading:d.fullTextRead?{completedAt:d.fullTextRead.completedAt,sourceHash:d.fullTextRead.sourceHashSha256}:null,headers:[...new Set(tables.filter(t=>t.document.documentId===d.documentId).flatMap(t=>t.headers))]})),readingStates:source.documents});return true;
   }
   if(match[2]==='records'&&match[3]){const record=source.records.find(r=>r.recordId===decodeURIComponent(match[3]!));if(!record){send(404,{error:'Delivery record not found in this project.'});return true;}send(200,{projectId,projectVersion:state.version,record,history:deliveryStore(state).decisions.filter(d=>d.recordId===record.recordId)});return true;}
   let rows:any[]=source.records.filter(r=>!kind||r.kind===kind);
   if(match[2]==='catalog'){
    if(kind==='activity')rows=projectControlSchedule(state)?.revision.model.activities.map(a=>({id:a.activityId,label:a.activityId+' · '+a.name}))??[];
    else if(kind==='boq')rows=resolveBoqSource(state,projectControlSchedule(state)?.revision.revisionId??'').quantities?.items.map(i=>({id:i.quantityItemId,label:i.quantityItemId+' · '+i.description+' · '+i.unit,unit:i.unit}))??[];
+   else if(kind&&['risk','claim','notice','variation'].includes(kind))rows=deliveryAuthorityCatalog(state,kind).map(r=>({id:r.id,label:r.label,kind}));
    else rows=rows.filter(r=>['governed','verified'].includes(r.state)).map(r=>({id:r.recordId,label:(r.reference??'')+' · '+(r.description??''),kind:r.kind}));
   }
   if(q)rows=rows.filter(r=>JSON.stringify(r).toLowerCase().includes(q));

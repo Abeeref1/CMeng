@@ -46,6 +46,7 @@ export function operationalControlsAsOf(state:ProjectRuntimeState,date:string|nu
   const rfis:RfiRecord[]=[...manual(state.controls.rfis,'rfi_register'),...rows('rfi_register').map(row=>({rfiId:cell(row,'rfi id'),
     status:rfiStatus(cell(row,'status')),...responsibility(row),dueIso:dateValue(cell(row,'required response','due date')),...dates(row),sourceRefs:refs(row)}))];
   const risks:RiskControlRecord[]=[...manual(state.controls.risks,'risk_register'),...rows('risk_register').map(row=>({riskId:cell(row,'risk id'),
+    ...responsibility(row),category:cell(row,'category','risk category','discipline')||null,
     status:(/^(open|active|mitigating|in progress)$/.test(norm(cell(row,'status')))?'open':/^(closed|resolved)$/.test(norm(cell(row,'status')))?'closed':'unknown') as RiskControlRecord['status'],
     sourceStatus:cell(row,'status'),rating:cell(row,'rating')||null,owner:cell(row,'owner')||null,dueIso:dateValue(cell(row,'due date')),...dates(row),sourceRefs:refs(row)}))];
   const prepare=<T>(items:T[],type:string,id:(r:T)=>string)=>{

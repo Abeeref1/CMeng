@@ -1,6 +1,8 @@
 import test from 'node:test';
+import {createHash} from 'node:crypto';
+import {deliveryAuthorityCatalog} from '../packages/runtime-api/src/delivery-authorities';
 import assert from 'node:assert/strict';
-import {mkdtempSync,rmSync} from 'node:fs';
+import {mkdtempSync,rmSync,writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {Script,runInNewContext} from 'node:vm';
@@ -119,4 +121,40 @@ test('exports include every curve point beyond row 20, all parent keys and proje
 test('UI pagination, filtering, sorting and chart labels preserve zero and unavailable distinctions',()=>{
  new Script(deliveryScript());const context:any={escapeHtml:(x:any)=>String(x)};runInNewContext(deliveryScript()+';globalThis.deliveryValue=deliveryValue;',context);assert.equal(context.deliveryValue(null),'Unresolved');assert.equal(context.deliveryValue(0),'0');
  const table={rows:Array.from({length:63},(_,i)=>({reference:'R'+i,state:i%2?'working':'governed',quantity:63-i})),query:'',filter:'governed',sort:'quantity',direction:1};const filtered=context.deliveryFiltered(table);assert.equal(filtered.length,32);assert.equal(filtered[0].quantity,1);table.filter='';table.query='R62';assert.equal(context.deliveryFiltered(table).length,1);
+});
+
+
+test('HSE rates require matching non-overlapping exposure periods and an explicit complete incident population',async t=>{
+ const f=await fixture(t);f.create('hse','HOURS',{type:'exposure','exposure scope':'All site personnel','period start':'2031-08-01','period end':'2031-08-31','report date':'2031-08-31','man hours':100000,'frequency rate basis':1000000});
+ f.create('hse','LTI',{type:'incident','exposure scope':'All site personnel','incident date':'2031-08-20','lost time injuries':1});
+ assert.equal(deliveryPosition(f.state).hsePosition.frequencyRate,null);f.population('hse');assert.equal(deliveryPosition(f.state).hsePosition.frequencyRate,10);
+ f.create('hse','DUPLICATE-PERIOD',{type:'exposure','exposure scope':'All site personnel','period start':'2031-08-15','period end':'2031-08-31','report date':'2031-08-31','man hours':50000,'frequency rate basis':1000000});f.population('hse');
+ assert.equal(deliveryPosition(f.state).hsePosition.frequencyRate,null);assert.match(deliveryPosition(f.state).hsePosition.explanation,/Overlapping/);
+});
+
+test('BOQ mapping dimensions and installed curves use stable package populations and compatible units',async t=>{
+ const f=await fixture(t);await f.upload('BOQ.csv','Item No,Description,Unit,Quantity,Rate,Amount,Currency\n1,Concrete,m3,100,2,200,USD\n2,Cable,m,50,4,200,AED');
+ await f.upload('Measured.csv','Measurement Date,Item No,Cumulative Installed Qty,Unit\n2031-08-01,1,10,m3\n2031-08-20,1,60,m3');
+ const item=resolveBoqSource(f.state,'').quantities!.items[0]!,location=f.create('location','AREA',{description:'Area'});
+ const pkg=f.create('package','PK',{discipline:'Civil'},{boqItemIds:[item.quantityItemId],locationIds:[location.recordId]});
+ f.create('workfront','WF',{discipline:'Civil'},{boqItemIds:[item.quantityItemId],packageIds:[pkg.recordId]});f.population('package');
+ const p=deliveryPosition(f.state);assert.equal(p.boqIntelligence.mappingCoverage.find(r=>r.dimension==='location')!.percent,50);assert.equal(p.boqIntelligence.valueByDiscipline[0]!.value,200);assert.equal(p.boqIntelligence.quantityPopulations.length,2);
+ const curve=p.curves.find(c=>c.kind==='material_quantity'&&c.stage==='installed')!;assert.equal(curve.coveragePercent,100);assert.deepEqual(curve.includedRecordIds,[pkg.recordId]);assert.deepEqual(curve.points.map((x:any)=>x.value),[10,60]);
+});
+
+test('Delivery reuses existing risk identities and scoring; foreign or invented risk links are rejected',async t=>{
+ const f=await fixture(t);await f.upload('Risks.csv','Risk ID,Description,Category,Status,Identified Date,Probability,Impact,Rating\nR1,Delivery risk,Procurement,Open,2031-08-01,0.4,3,Medium');
+ const risk=deliveryAuthorityCatalog(f.state,'risk');assert.equal(risk[0]!.id,'R1');
+ const activity=projectControlSchedule(f.state)!.revision.model.activities[0]!;
+ const pkg=f.create('package','PK',{description:'Chiller'}, {riskIds:['R1'],activityIds:[activity.activityId]});
+ const rows=deliveryPosition(f.state).riskRows;assert.equal(rows[0]!.score,1.2);assert.deepEqual(rows[0]!.deliveryRecordIds,[pkg.recordId]);assert.equal(rows[0]!.programmeExposure[0]!.criticality,'near_critical');
+ assert.throws(()=>f.review(pkg,{}, {links:{riskIds:['OTHER-PROJECT-RISK']}}),/risk link/);
+});
+
+test('retained native and OCR pages create review candidates with physical page receipts; unread pages stay disclosed',async t=>{
+ const f=await fixture(t),bytes=Buffer.from('Retained PDF byte identity for source-receipt test'),storedPath=join(f.dir,'receipt.pdf');writeFileSync(storedPath,bytes);const hash=createHash('sha256').update(bytes).digest('hex');
+ const doc:any={documentId:'PDF-RECEIPT',sourceFilename:'Delivery evidence.pdf',sourceHashSha256:hash,storedPath,mediaType:'application/pdf',basisState:'historical',documentType:'supporting_document',linkedArtifactId:null,uploadedAt:'2031-09-01',supersededByDocumentId:null,fullTextRead:{sourceHashSha256:hash,producerVersion:'full-page-read-v1',completedAt:'2031-09-01',result:{complete:false,pages:[{pageNumber:1,method:'native',text:'Package ID: PK-NATIVE\nDescription: Chiller\nOrdered Quantity: 2'},{pageNumber:2,method:'ocr',text:'Submittal ID: SUB-OCR\nDescription: Technical approval\nActual Issue: 2031-08-15'},{pageNumber:3,method:'failed',text:''}]}}};
+ f.state.evidenceDocuments.push(doc);f.store.touch(f.state);let p=deliveryPosition(f.state);const candidate=p.records.find(r=>r.reference==='SUB-OCR')!;assert.equal(candidate.state,'extracted_candidate');assert.equal(candidate.receipts[0]!.locator,'page:2:line:1');assert.equal(candidate.receipts[0]!.sourceHash,hash);assert.ok(p.diagnostics.some(d=>d.includes('PHYSICAL_PAGE_COVERAGE_INCOMPLETE')));assert.equal(p.packageRows.length,0);
+ f.review(candidate);assert.equal(deliveryPosition(f.state).registerRows.find(r=>r.reference==='SUB-OCR')!.currentStatus,'performed');
+ doc.supersededByDocumentId='NEW-REVISION';f.store.touch(f.state);assert.equal(deliveryRecords(f.state).records.find(r=>r.reference==='SUB-OCR')!.state,'stale');
 });

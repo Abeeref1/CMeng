@@ -21,7 +21,7 @@ The live new-project walkthrough also exposed unavailable pages missing reportin
 - `ui-delivery`: management position, exceptions, review actions, metric basis, chart points, searchable/sortable/paginated registers, record decisions, stable-ID links, scope allocations, mapping and exports.
 - `delivery-export`: normalized project-scoped Excel tables, including every nested chart point and source/review rows. JSON retains the complete report structure.
 
-No schedule dates, physical progress, contract value, EOT entitlement or risk scores are independently recreated by Delivery. Quantity and currency series stay separate. Narrative/PDF evidence retains the existing document-reading/OCR workflow; structured-record coverage must not be claimed from page-reading coverage alone.
+No schedule dates, physical progress, contract value, EOT entitlement or risk scores are independently recreated by Delivery. Quantity and currency series stay separate. PDF candidates reuse retained native/OCR pages for explicit tables or labelled fields, with physical page/line receipts; unread pages remain disclosed. Unstructured prose still requires reviewed capture. Narrative/PDF evidence retains the existing document-reading/OCR workflow; structured-record coverage must not be claimed from page-reading coverage alone.
 
 ## Verification
 

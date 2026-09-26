@@ -2,6 +2,8 @@ import {createHash,randomUUID} from 'node:crypto';
 import {sourceTables,cell,canonicalHeader,registerDate,type SourceRow,type SourceReceipt} from '../../truth-kernel/src';
 import {deliveryKinds,kindIdentities,emptyLinks,type DeliveryRecord,type DeliveryKind,type DeliveryFields,type DeliveryLinks,type DeliveryStateStore} from '../../delivery-core/src/types';
 import type {ProjectRuntimeState} from './project-state-types';
+import {deliveryAuthorityCatalog} from './delivery-authorities';
+import {deliverySourceTables} from './delivery-sources';
 import {auditContext} from './audit-context';
 import {projectControlSchedule} from './canonical-time-claims';
 import {resolveBoqSource} from './boq-source';
@@ -21,9 +23,9 @@ function kindFor(row:SourceRow,type:string):DeliveryKind|null {
  return candidates.find(k=>kindIdentities[k].some(id=>canonicalHeader(id)===first))??null;
 }
 export function deliveryRecords(state:ProjectRuntimeState){
- const diagnostics:string[]=[];const tables=sourceTables(state.evidenceDocuments,diagnostics,{includeHistorical:true});const store=deliveryStore(state);
- const records:DeliveryRecord[]=[...store.manual.map(r=>({...structuredClone(r),sourceActive:r.receipts.every(receipt=>state.evidenceDocuments.some(d=>d.documentId===receipt.documentId&&d.sourceHashSha256===receipt.sourceHash&&['active','additive','candidate'].includes(d.basisState)))}))];
- const documents:Array<{documentId:string;filename:string;kind:DeliveryKind|null;rowCount:number;state:string;diagnostics:string[]}>=[];
+ const diagnostics:string[]=[];const tables=deliverySourceTables(state,diagnostics);const store=deliveryStore(state);
+ const records:DeliveryRecord[]=[...store.manual.map(r=>({...structuredClone(r),sourceActive:r.receipts.every(receipt=>state.evidenceDocuments.some(d=>d.documentId===receipt.documentId&&d.sourceHashSha256===receipt.sourceHash&&(['active','additive','candidate'].includes(d.basisState)||d.documentType==='supporting_document'&&d.basisState==='historical'&&!d.supersededByDocumentId)))}))];
+ const documents:Array<{documentId:string;filename:string;kind:DeliveryKind|null;rowCount:number;state:string;readingComplete:boolean|null;diagnostics:string[]}>=[];
  for(const t of tables){let count=0,kind:DeliveryKind|null=null;
   const mapping=store.mappings?.filter(m=>m.documentId===t.document.documentId&&m.sourceHash===t.document.sourceHashSha256).at(-1);
   for(const original of t.rows){const row=mapping?{...original,cells:{...original.cells,...Object.fromEntries(Object.entries(mapping.columns).map(([target,source])=>[canonicalHeader(target),original.cells[canonicalHeader(source)]??'']))}}:original;
@@ -36,15 +38,17 @@ export function deliveryRecords(state:ProjectRuntimeState){
    if(k!=='asset')links.assetIds=split(cell(row,'asset id','asset tag'));
    const recordId='delivery:'+deliveryHash([state.projectId,k,t.document.documentId,row.receipt.locator]).slice(0,24);
    records.push({recordId,projectId:state.projectId,kind:k,reference,description:cell(row,'description','package name','name','subject','test')||null,
-    revision:deliveryHash([row.receipt.sourceHash,row.receipt.locator,row.cells]),state:'extracted_candidate',fields:{...row.cells},links,receipts:[row.receipt],diagnostics:reference?[]:['Record reference is missing.'],sourceActive:['active','additive','candidate'].includes(t.document.basisState)||t.document.documentType==='supporting_document'&&t.document.basisState==='historical'});
+    revision:deliveryHash([row.receipt.sourceHash,row.receipt.locator,row.cells]),state:'extracted_candidate',fields:{...row.cells},links,receipts:[row.receipt],diagnostics:reference?[]:['Record reference is missing.'],sourceActive:['active','additive','candidate'].includes(t.document.basisState)||t.document.documentType==='supporting_document'&&t.document.basisState==='historical'&&!state.evidenceDocuments.find(d=>d.documentId===t.document.documentId)?.supersededByDocumentId});
   }
-  documents.push({documentId:t.document.documentId,filename:t.document.sourceFilename,kind,rowCount:count,state:count?'parsed_candidates':t.rows.length?'mapping_required':'parsed_empty',diagnostics:count?[]:[t.rows.length+' source rows; '+(t.rows.length?'Delivery record identity is not mapped.':'the parsed table is empty.')]});
+  const read=state.evidenceDocuments.find(d=>d.documentId===t.document.documentId)?.fullTextRead;
+  documents.push({documentId:t.document.documentId,filename:t.document.sourceFilename,kind,rowCount:count,readingComplete:read?.result.complete??null,state:read&&!read.result.complete?'partial_page_reading':count?'parsed_candidates':t.rows.length?'mapping_required':'parsed_empty',diagnostics:[...(count?[]:[t.rows.length+' source rows; '+(t.rows.length?'Delivery record identity is not mapped.':'the parsed table is empty.')]),...(read&&!read.result.complete?['Physical-page reading is incomplete. Read records do not establish complete register coverage.']:[])]});
  }
  for(const d of state.evidenceDocuments){if(documents.some(r=>r.documentId===d.documentId))continue;
-  if(/procurement|submittal|commissioning|handover|permit|asset|snag|spare|weather|hse|rfi|quality|delivery/.test(d.documentType))documents.push({documentId:d.documentId,filename:d.sourceFilename,kind:null,rowCount:0,state:'submitted_not_interpreted',diagnostics:['Source retained. Structured Delivery records have not been established. Review the reading receipt and field mapping.']});
+  if(/procurement|submittal|commissioning|handover|permit|asset|snag|spare|weather|hse|rfi|quality|delivery/.test(d.documentType))documents.push({documentId:d.documentId,filename:d.sourceFilename,kind:null,rowCount:0,readingComplete:d.fullTextRead?.result.complete??null,state:'submitted_not_interpreted',diagnostics:['Source retained. Structured Delivery records have not been established. Review the reading receipt and field mapping.']});
  }
  const latest=new Map(store.decisions.map(d=>[d.recordId,d]));
- for(const r of records){const d=latest.get(r.recordId);if(d){if(d.sourceRevision!==r.revision||!r.sourceActive)r.state='stale';else{r.state=d.state;r.fields={...r.fields,...d.fields};r.links=structuredClone(d.links);r.reference=String(r.fields['record reference']??r.reference??'')||null;r.description=String(r.fields.description??r.description??'')||null;}}}
+ for(const r of records){const d=latest.get(r.recordId);if(d){if(d.sourceRevision!==r.revision||!r.sourceActive)r.state='stale';else{r.state=d.state;r.fields={...r.fields,...d.fields};r.links={...emptyLinks(),...structuredClone(d.links)};r.reference=String(r.fields['record reference']??r.reference??'')||null;r.description=String(r.fields.description??r.description??'')||null;}}}
+ for(const r of records)r.links={...emptyLinks(),...r.links};
  const superseded=new Set([...latest.values()].filter(d=>['governed','verified'].includes(d.state)).map(d=>d.supersedesId).filter(Boolean));
  for(const r of records)if(superseded.has(r.recordId)||!r.sourceActive)r.state='stale';
  const governed=records.filter(r=>['governed','verified'].includes(r.state)),references=new Map<string,DeliveryRecord[]>();
@@ -60,6 +64,7 @@ export function validateDeliveryLinks(state:ProjectRuntimeState,records:Delivery
  const eligible=records.filter(r=>['governed','verified'].includes(r.state));
  for(const [field,kind] of [['packageIds','package'],['supplierIds','supplier'],['locationIds','location'],['assetIds','asset']] as const)has(links[field],eligible.filter(r=>r.kind===kind).map(r=>r.recordId),kind);
  has(links.recordIds,eligible.map(r=>r.recordId),'Delivery record');
+ for(const [key,kind] of [['riskIds','risk'],['claimIds','claim'],['noticeIds','notice'],['variationIds','variation']] as const)if(links[key].length)has(links[key],deliveryAuthorityCatalog(state,kind).map(r=>r.id),kind);
  const allocated=new Set<string>();for(const allocation of links.boqAllocations){const item=allocation&&boq?.items.find(i=>i.quantityItemId===allocation.boqItemId);if(!item||item.unit!==allocation.unit||!Number.isFinite(allocation.quantity)||allocation.quantity<0||!links.boqItemIds.includes(allocation.boqItemId)||allocated.has(allocation.boqItemId))throw new Error('Scope allocations require one entry per linked BOQ item, its exact unit and a non-negative quantity.');allocated.add(allocation.boqItemId);}
 }
 function cleanLinks(input:unknown,previous:DeliveryLinks):DeliveryLinks {
@@ -81,7 +86,7 @@ function cleanFields(input:unknown):DeliveryFields {
 export function changeDelivery(state:ProjectRuntimeState,input:any){
  if(input.expectedVersion!==state.version)throw new Error('PROJECT_VERSION_CHANGED: Reload this project before saving; another update was received.');
  const store=structuredClone(deliveryStore(state)),actorId=auditContext().actor.id,recordedAt=new Date().toISOString();
- const all=deliveryRecords(state).records;
+ const source=deliveryRecords(state),all=source.records;
  if(input.action==='create'){
   if(!deliveryKinds.includes(input.kind))throw new Error('Unknown Delivery record type.');
   const fields=cleanFields(input.fields);const reference=String(fields['record reference']??'').trim();if(!reference)throw new Error('Enter a record reference.');
@@ -107,12 +112,13 @@ export function changeDelivery(state:ProjectRuntimeState,input:any){
   store.decisions.push({recordId:r.recordId,sourceRevision:r.revision,state:input.state,note:String(input.note),fields,links,supersedesId:old?.recordId??null,actorId,recordedAt});
  }else if(input.action==='map_document'){
   const doc=state.evidenceDocuments.find(d=>d.documentId===input.documentId);if(!doc||doc.sourceHashSha256!==input.sourceHash||!deliveryKinds.includes(input.kind))throw new Error('Select the current source document and Delivery record type.');
-  const columns=cleanFields(input.columns),tables=sourceTables([doc],[],{includeHistorical:true});const headers=new Set(tables.flatMap(t=>t.headers));
+  const columns=cleanFields(input.columns),tables=deliverySourceTables(state,[]).filter(t=>t.document.documentId===doc.documentId);const headers=new Set(tables.flatMap(t=>t.headers));
   if(!Object.keys(columns).length||Object.values(columns).some(v=>typeof v!=='string'||!headers.has(canonicalHeader(v))))throw new Error('Select source columns from the retained table.');
   (store.mappings??=[]).push({documentId:doc.documentId,sourceHash:doc.sourceHashSha256,kind:input.kind,columns:columns as Record<string,string>,actorId,recordedAt});
  }else if(input.action==='confirm_population'){
   if(!deliveryKinds.includes(input.kind)||!String(input.note??'').trim())throw new Error('Select a population and record its completeness basis.');
   const rows=all.filter(r=>r.kind===input.kind&&['governed','verified'].includes(r.state)&&(!input.scopeId||r.links.packageIds.includes(input.scopeId)||r.links.recordIds.includes(input.scopeId)));
+  if(!input.scopeId&&source.documents.some(d=>d.kind===input.kind&&d.readingComplete===false))throw new Error('Complete the physical-page reading before confirming this register population.');
   if(input.scopeId&&!all.some(r=>r.recordId===input.scopeId&&['governed','verified'].includes(r.state)))throw new Error('Population scope must be a governed record in this project.');
   if(all.some(r=>r.kind===input.kind&&(!input.scopeId||r.links.packageIds.includes(input.scopeId)||r.links.recordIds.includes(input.scopeId))&&!['governed','verified','stale','scenario'].includes(r.state)))throw new Error('Review pending or conflicting records before confirming the denominator.');
   store.populations.push({kind:input.kind,scopeId:input.scopeId??null,recordIds:rows.map(r=>r.recordId),fingerprint:deliveryPopulationFingerprint(rows),note:String(input.note),actorId,recordedAt});

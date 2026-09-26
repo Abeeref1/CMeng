@@ -24,6 +24,7 @@ import {
 } from "../../boq-ingestion/src";
 import {
   commercialModules,
+  moduleRegistry,
   commercialModuleSummary,
   scheduleModules,
   scheduleModuleSummary,
@@ -899,6 +900,8 @@ async function route(
     json(res, 200, answer);
     return;
   }
+
+  if(req.method === "GET" && url.pathname === "/api/delivery/modules"){const modules=moduleRegistry.filter(m=>m.area==="delivery");json(res,200,{moduleCount:modules.length,modules});return;}
 
   if (
     req.method === "GET" &&
@@ -2280,7 +2283,7 @@ async function route(
 
     if (
       result.status ===
-      "blocked"
+      "blocked" && moduleArea!=="delivery"
     ) {
       json(res, 409, {
         error:
