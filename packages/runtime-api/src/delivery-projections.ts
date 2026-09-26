@@ -340,7 +340,7 @@ export function deliveryDashboard(state:ProjectRuntimeState){
 }
 export function deliveryExportResult(state:ProjectRuntimeState,result:ModuleRuntimeResult):ModuleRuntimeResult{
  const data=result.data as any;if(data?.projectionKey!=='delivery')return result;
- const p=deliveryPosition(state),kinds=data.deliveryPage==='delivery-control'?deliveryKinds:[data.kind,'lifecycle','gate'];
- const sourceRecords=p.records.filter(r=>kinds.includes(r.kind)),recordIds=new Set(sourceRecords.map(r=>r.recordId));
- return {...result,data:{...data,sourceRecords,reviewHistory:deliveryStore(state).decisions.filter(d=>recordIds.has(d.recordId)),populationDecisions:deliveryStore(state).populations.filter(d=>kinds.includes(d.kind))}};
+ const p=deliveryPosition(state),riskPage=data.deliveryPage==='delivery-risks',kinds=data.deliveryPage==='delivery-control'?deliveryKinds:[data.kind,'lifecycle','gate'];
+ const sourceRecords=p.records.filter(r=>riskPage?r.links.riskIds.length>0:kinds.includes(r.kind)),recordIds=new Set(sourceRecords.map(r=>r.recordId));
+ return {...result,data:{...data,sourceRecords,reviewHistory:deliveryStore(state).decisions.filter(d=>recordIds.has(d.recordId)),populationDecisions:deliveryStore(state).populations.filter(d=>riskPage?d.recordIds.some(id=>recordIds.has(id))||!!d.scopeId&&recordIds.has(d.scopeId):kinds.includes(d.kind))}};
 }

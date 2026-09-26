@@ -85,3 +85,37 @@ This review found and corrected:
 Local verification: 718 tests passed, zero failed or skipped, including focused regression cases for risk scope, future risks, linked workfront records, risk filtering, source-reference preservation and small nonzero quantities. These changes require CI and deployed verification before they are described as live.
 
 The historical 1.3–7.8 second first-calculation observations remain open performance evidence. This display and risk-scope correction does not claim to resolve that work.
+
+
+## Loading and workflow follow-up — 26 September 2026
+
+The live release `adf4652` passed the 13-project / 286-page before-and-after comparison recorded in PR 158. This follow-up addresses measured work inside Delivery and its page display. Network/proxy time is separate: for example, the JBL first Delivery request measured 3,507 ms at the verification client and 1,504 ms in the matching Railway HTTP log. No capacity change is inferred from client elapsed time alone.
+
+A CPU profile of a deterministic multi-register fixture identified repeated canonical-header normalisation in record classification. The identity keys are now normalised once. Explicit per-row record types, foreign-key distinctions, mapping decisions, source receipts and source-file integrity checks are unchanged; there is no new cache of project decisions or source bytes.
+
+The page also rendered the complete contents of closed evidence sections. Those sections now display their nested records when opened, with 25-item pages and a search across the complete set. All nested details and source values remain reachable. Excel and JSON retain the full data. Number/date formatters are reused. The management answer, KPIs and current register still appear immediately.
+
+Clean, sequential local observations using the same 51,700-source-row fixture (21,200 Delivery candidates, 30,000 BOQ rows, 500 risks):
+
+| Measurement | Release adf4652 | Follow-up |
+| --- | ---: | ---: |
+| First Delivery projection | 1,110.75 ms | 318.83 ms |
+| Three subsequent source-record reads | 922.12 / 903.38 / 965.41 ms | 140.86 / 139.84 / 146.96 ms |
+| Initial risk evidence HTML generation | 135.57 ms | 0.82 ms |
+| Initial risk evidence HTML | 1,017,298 bytes | 1,772 bytes |
+| Peak process RSS | 563.41 MiB | 536.88 MiB |
+
+These are isolated synthetic calculation/display observations, not a promise about total browser/network time or a production cold-load measurement. Source preparation is excluded. The earlier profiled diagnostic measured 1,289.82 ms for first projection; the first unprofiled follow-up measured 316.90 ms. The clean comparison above was then run without profiling or concurrent local tests. No failed or slow benchmark sample was removed.
+
+Both clean runs produced exactly the same record fingerprint `1eb1c333423484c3449d9a74d8aee6635a18c5eed59df0083216316a4cae9a12` and complete module fingerprint `b30e77ac2dc1d089485ef600990968440f194b625a8743cc0a7c9ecacb53741c`.
+
+Verification: 721 tests passed, zero failed/skipped. Added coverage checks 50,000 evidence records without eager hidden-field rendering; first/middle/final pages; full-set search and clearing; escaped source text; unchanged source values; and exclusion of previous-project evidence. The existing Delivery tests continue to cover candidate review, programme adoption, BOQ quantities, units/currencies, future dates, lead-time calendars, readiness, HSE exposure, handover evidence, concurrent decisions, restart and exports. A separate CI step preserves the large-Delivery timing artifact and enforces the five-second calculation/read limit plus bounded initial evidence markup.
+
+Review deployment, live workflow checks and final production comparison will be recorded in the follow-up pull request. Functional acceptance is assessed against the specification; no source approval or independent business-owner sign-off is inferred from automated tests.
+
+
+The follow-up browser walkthrough exercised all 22 Delivery pages on a synthetic multi-source project. It verified evidence paging through record 64, full-set search and clear, nested source references, and the chart's actual 18.75 / 25 / 81.25% points. API workflow checks verified separate currencies, 100 required / 150 installed / -50 remaining, exclusion of the later approval, unavailable HSE rates without exposure, and handover withheld until explicit population confirmation.
+
+The workbook check also found that Delivery Risks' extra source/review sheets defaulted to the procurement record family. Exports now select Delivery records explicitly linked to risks, including linked workfronts, and the corresponding review/population history. The complete original risk source and separate future-risk rows remain in the risk basis. Unrelated procurement records remain in their own registers and exports. This is a system-wide export scope correction; it does not change risk scores or any source decision.
+
+Evidence labels now omit date-storage suffixes and display readable chart categories. The live JAZ risk page before this follow-up contained 44,720 elements within its module content; the matching after-deployment observation will be recorded in the pull request.
