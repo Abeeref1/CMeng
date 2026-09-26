@@ -506,3 +506,20 @@ test("management date ladder and gap categories propagate from shared evidence w
   assert.match(result.commandCenter.alerts.find(a => a.alertId === "evidence-gap:board-publication")!.consequence, /cannot be finalized until/);
   assert.equal(result.commandCenter.alerts.find(a => a.alertId === "overdue-rfi")?.owningModule, "documents");
 });
+
+test('unresolved management values never advertise a completed calculation; measured zero remains valid',()=>{
+ const source=input();
+ source.director!.schedule.nearCriticalCount=null;
+ source.director!.schedule.criticalCount=null;
+ source.director!.schedule.independentForecastCompletionIso=null;
+ const result=buildManagementSurfaces(source);
+ for(const rows of [result.masterDashboard.metrics,result.commandCenter.programmePosition]){
+  for(const metric of rows.filter(m=>m.value===null)){
+   assert.equal(metric.state,'unavailable',metric.key);
+   assert.equal(metric.authority,'unavailable',metric.key);
+   assert.equal(metric.health,'unavailable',metric.key);
+  }
+ }
+ source.director!.schedule.nearCriticalCount=0;
+ assert.equal(buildManagementSurfaces(source).masterDashboard.metrics.find(m=>m.key==='near-critical')!.state,'calculated');
+});

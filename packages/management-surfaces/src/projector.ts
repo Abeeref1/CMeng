@@ -55,6 +55,11 @@ function metric(
     action: null,
     owningModule: null,
     ...value,
+    // A completed producer is not evidence that this particular value exists.
+    ...(value.value === null || value.value === undefined ||
+      (typeof value.value === 'number' && !Number.isFinite(value.value))
+      ? {value: null, state: 'unavailable' as const, authority: 'unavailable' as const, health: 'unavailable' as const}
+      : {}),
   };
 }
 
@@ -674,8 +679,9 @@ function dashboardMetrics(
         : "unavailable",
       health: "unavailable",
       basis:
-        "Strict positive float within the confirmed near-critical threshold; inventory, not a health score",
-      consequence: "Review float erosion, upcoming work and driving-path evidence before assigning risk severity.",
+        d?.sourceInterpretation?.nearCriticalScreening?.basis ?? "Source-float screening; project threshold authority unresolved",
+      consequence: d?.sourceInterpretation?.nearCriticalScreening?.explanation ?? "Review float erosion, upcoming work and driving-path evidence before assigning risk severity.",
+      action: d?.sourceInterpretation?.nearCriticalScreening?.action ?? null,
       owningModule:
         "near-critical",
     }),

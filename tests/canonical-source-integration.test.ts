@@ -376,6 +376,34 @@ test('SCH01 threshold beyond classification sample pages is recovered by full-do
   assert.equal(projectScheduleControlBasis(state).nearCriticalWorkingDays,5);
 });
 
+test('ingestion retains an absent control fact across startup and restart without making it official',async t=>{
+  const {store,state,dir}=fixture(t),pdf=await PDFDocument.create(),font=await pdf.embedFont(StandardFonts.Helvetica);
+  const page=pdf.addPage([595,842]);
+  ['SCHEDULE CONTROL BASIS','Data Date: 31 August 2026','Near critical threshold awaits approval.','Productivity forecast awaits confirmation.'].forEach((line,index)=>page.drawText(line,{x:50,y:780-index*24,size:12,font}));
+  let deepReads=0;const original=(store as any).performFullScheduleControlAssertions.bind(store);
+  (store as any).performFullScheduleControlAssertions=(...args:any[])=>{deepReads++;return original(...args);};
+  const result=await store.ingestEvidenceFile({projectId:'CANONICAL',bytes:await pdf.save(),mediaType:'application/pdf',sourceFilename:'SCH01_Schedule_Control_Basis.pdf',uploadedAt:stamp});
+  const doc=state.evidenceDocuments.find(d=>d.documentId===result.documentId)!;
+  assert.equal(doc.documentType,'schedule_control_basis');assert.ok(deepReads>0);const initial=deepReads;
+  await store.refreshScheduleControlBasisAssertions();assert.equal(deepReads,initial);
+  assert.equal(doc.assertions.some(a=>a.metric==='near_critical_working_days'||a.metric==='source_productivity_forecast_completion'),false);
+  assert.notEqual(projectScheduleControlBasis(state).state,'official');
+  const restarted=new RuntimeProjectStore({dataDir:dir,durable:false});
+  (restarted as any).performFullScheduleControlAssertions=()=>{throw new Error('Completed unchanged control read must be retained');};
+  await restarted.refreshScheduleControlBasisAssertions();
+  assert.notEqual(projectScheduleControlBasis(restarted.get('CANONICAL')!).state,'official');
+});
+
+test('control refresh preserves newer source migrations instead of invalidating the project on every restart',async t=>{
+  const {store,state,dir}=fixture(t);
+  state.sourceIntegrationVersion='canonical-source-v7';store.touch(state);const version=state.version;
+  await store.refreshScheduleControlBasisAssertions();
+  assert.equal(state.sourceIntegrationVersion,'canonical-source-v7');assert.equal(state.version,version);
+  const restarted=new RuntimeProjectStore({dataDir:dir,durable:false});
+  assert.equal(restarted.get('CANONICAL')!.sourceIntegrationVersion,'canonical-source-v7');
+  assert.equal(restarted.get('CANONICAL')!.version,version);
+});
+
 test('legacy SCH01 misclassified before schedule-control rules is recovered from its original path without changing source hash',t=>{
   const {store,state,csvDoc,dir}=fixture(t);
   const doc=csvDoc(
@@ -1148,4 +1176,28 @@ test('notice cover-table period remains a source rule with its unknown trigger v
  const rules=contractNoticeRules(state);
  assert.equal(rules[0]!.noticePeriodDays,40);assert.equal(rules[0]!.triggerBasis,'not_stated');assert.equal(rules[0]!.effectiveToIso,'2026-07-01');
  assert.equal(rules[1]!.noticePeriodDays,18);assert.equal(rules[1]!.triggerBasis,'awareness');
+});
+
+test('near-critical screening discloses a broad population and honors source thresholds without changing another project',async t=>{
+ const {nearCriticalScreening}=await import('../packages/runtime-api/src/near-critical-screening');
+ const {canonicalScheduleFromXer}=await import('../packages/schedule-analysis-core/src');
+ const {parseXerBytes}=await import('../packages/xer-parser/src');
+ const {store,state,csvDoc}=fixture(t);
+ const source=['ERMHDR\t23.12','%T\tPROJECT','%F\tproj_id\tproj_short_name\tlast_recalc_date','%R\t1\tCANONICAL\t2026-08-31','%T\tCALENDAR','%F\tclndr_id\tclndr_name\tclndr_data','%R\t1\tWorking week\tMon-Fri 08:00-16:00','%T\tTASK','%F\ttask_id\tproj_id\tclndr_id\ttask_code\ttask_name\ttask_type\ttotal_float_hr_cnt'];
+ for(let i=0;i<6;i++)source.push(['%R',i,1,1,'A'+i,'Work '+i,'TT_Task',i*8].join('\t'));
+ state.schedules[0]!.revision.model=canonicalScheduleFromXer(parseXerBytes(Buffer.from(source.join('\n')+'\n%E')),{sourceRevisionId:'U1'});state.version++;
+ const other=store.getOrCreate('SEPARATE');const preserved=JSON.stringify(other);
+ const first=nearCriticalScreening(state)!;
+ assert.equal(first.authority,'cmeng_screening_policy');assert.equal(first.nearCriticalCount,5);
+ assert.equal(first.nearCriticalPercent,83.3);assert.equal(first.watchlistPercent,100);assert.equal(first.broadScreening,true);
+ assert.match(first.basis,/project threshold unresolved/);assert.match(first.explanation,/cannot serve as a short priority list/);
+ csvDoc('Metric,Value,Unit\nNear Critical Working Days,1,working days','schedule_control_basis');
+ const explicit=nearCriticalScreening(state)!;
+ assert.equal(explicit.authority,'project_evidenced_threshold');assert.equal(explicit.thresholdWorkingDays,1);
+ assert.equal(explicit.nearCriticalCount,1);assert.equal(explicit.broadScreening,false);
+ state.schedules[0]!.revision.model.calendars[0]!.semanticComplete=false;state.version++;
+ const unresolved=nearCriticalScreening(state)!;
+ assert.equal(unresolved.nearCriticalCount,null);assert.equal(unresolved.nearCriticalPercent,null);
+ assert.equal(unresolved.watchlistPercent,null);assert.ok(unresolved.unresolvedActivityCount>0);
+ assert.equal(JSON.stringify(other),preserved);
 });

@@ -81,3 +81,18 @@ test('explicit comparison input dependencies are source requests, while unexplai
  const unknown=assessModuleIssues(input({challenge:{reconciliationState:'independent_unavailable',items:[{...item,independent:{diagnostics:[]}}]}}),pass);
  assert.equal(unknown.counts.verification_pending,1);assert.equal(unknown.issues[0]!.owner,'CMeng');
 });
+
+test('one source conflict keeps all projection paths; different documents and rows remain separate',()=>{
+ const fact={state:'conflicted',sourceFactKey:'RISK_RATING_SCORE_CONFLICT',diagnostics:['RISK_RATING_SCORE_CONFLICT'],sourceRefs:['evidence-document:risk-a:row:2','evidence-document:risk-a:row:3']};
+ const a=assessModuleIssues(input({risk:{validation:fact},sourceInterpretation:{riskValidation:{...fact,sourceRefs:[...fact.sourceRefs].reverse()}}}),pass);
+ assert.equal(a.counts.source_conflict,1);
+ assert.deepEqual(a.issues[0]!.evidencePaths,['data.risk.validation','data.sourceInterpretation.riskValidation']);
+ const b=assessModuleIssues({...input({risk:{validation:{...fact}}}),key:'another-page'},pass);
+ const c=assessModuleIssues(input({risk:{validation:{...fact,sourceRefs:['evidence-document:risk-b:row:2']}}}),pass);
+ const summary=summarizeControlIssues([...a.issues,...b.issues,...c.issues]);
+ assert.equal(summary.counts.source_conflict,2);
+ assert.equal(summary.issues[0]!.moduleKeys.length,2);
+ assert.equal(summary.issues[0]!.sourceRefs.length,2);
+ const distinct=assessModuleIssues(input({amount:{state:'conflicted',sourceRefs:['document:row:1']},currency:{state:'conflicted',sourceRefs:['document:row:1']}}),pass);
+ assert.equal(distinct.counts.source_conflict,2,'same row does not establish that different unresolved facts have the same cause');
+});

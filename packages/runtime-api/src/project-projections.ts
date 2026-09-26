@@ -1,4 +1,5 @@
 import {quantityMappingForState} from "./quantity-mapping-runtime";
+import {nearCriticalScreening} from './near-critical-screening';
 import {resolveModuleKey} from './registry';
 import {registerDateReview} from './register-date-review';
 import {deliveryFeasibilityForState} from './delivery-feasibility';
@@ -6999,6 +7000,7 @@ function resolveProjectModuleCandidate(state: ProjectRuntimeState, key: string):
     const laborEvidence=['challenge-contract','cost-forecast','progress-report'].includes(key)?canonicalResourceModule(state,'manhour-scurve')?.data as any:null;
     const contractReview = ['challenge-contract','cost-forecast','commercial-overview','contract-particulars-bonds'].includes(key) ? contractValueBasisReview(state) : null;
     result.data = { ...data, controlBasis,
+      ...(['pmo-analysis','schedule-analytics','activity-analytics','near-critical','milestones','progress-report','progress-breakdown','revision-trend'].includes(key)?{nearCriticalScreening:nearCriticalScreening(state)}:{}),
       ...(forecast?{scheduleBasisReview:scheduleBasisReview(model,forecast,time.contractTimeBasis?.contractualCompletionIso??null)}:{}),
       ...(['variance-trends','schedule-change-report'].includes(key)?{durationEditReview:(()=>{const first=analyticalHistory(state)[0]?.revision.model;return first&&first!==model?durationEditReview(first,model):null;})()}:{}),
       ...(['quantity-scurve','independent-forecast','challenge-contract'].includes(key)?{quantityBasisReview:quantityBasisReview(state)}:{}),

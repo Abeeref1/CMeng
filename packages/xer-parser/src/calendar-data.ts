@@ -423,6 +423,16 @@ export function parseP6CalendarData(source: string): P6CalendarDataResult {
   const human = parseHumanReadableCalendar(source);
   if (human) return human;
 
+  // A calendar title or day range is not a working-time definition. Do not
+  // describe missing intervals as a broken parenthesised P6 export, or infer
+  // shifts from day_hr_cnt / names / a neighbouring project's calendar.
+  if (!source.trim().startsWith('(')) {
+    return {status:'invalid',root:null,days:[],exceptions:[],unknownTopLevelNodes:[],
+      diagnostics:[source.trim()
+        ? 'CALENDAR_WORKING_INTERVALS_NOT_ESTABLISHED:Supply the calendar working days, shift start/finish times and exceptions; the supplied text does not define them.'
+        : 'CALENDAR_DEFINITION_MISSING']};
+  }
+
   let root: P6StructuredNode;
   try {
     root = parseP6StructuredText(source);

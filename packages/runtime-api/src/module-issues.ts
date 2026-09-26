@@ -91,8 +91,11 @@ export function assessModuleIssues(result: ModuleRuntimeResult, consistency: Con
     const conflict=diagnostics.filter(s=>/(?:^|_)(CONFLICT|CONFLICTING|CONFLICTED)(?:_|:|$)/.test(s)&&!(variationGroups.length&&s===variationConflictCode));
     const invalid=diagnostics.filter(s=>/(?:^|_)(INVALID|MALFORMED|DUPLICATE|AMBIGUOUS|BROKEN|MISMATCH)(?:_|:|$)|CLOSURE_BEFORE_RAISED_DATE/.test(s));
     const missingInput=diagnostics.filter(s=>/REQUIRED|NOT_A_RECONCILED|IS_NOT_GROSS|UNKNOWN_PAID_AMOUNT|NOT_DERIVED_FROM|SOURCE_AMOUNT_EVENT_DATE_NOT_ESTABLISHED/.test(s));
-    if(value.state==='conflicted'||conflict.length) add('source_conflict','SOURCE_CONFLICT',field+' · source conflict',conflict.join('; ')||'The source resolver found conflicting assertions.',
-      'Reconcile the retained source records; do not replace them with a silent default.',path,'Project evidence owner',refs);
+    if(value.state==='conflicted'||conflict.length) {
+      add('source_conflict','SOURCE_CONFLICT',field+' · source conflict',conflict.join('; ')||'The source resolver found conflicting assertions.',
+        'Reconcile the retained source records; do not replace them with a silent default.',path,'Project evidence owner',refs);
+      if(typeof value.sourceFactKey==='string')issues.at(-1)!.sourceFactKey=value.sourceFactKey;
+    }
     else if(['invalid','stale'].includes(value.state)||invalid.length) add('data_quality','SOURCE_QUALITY',field+' · data quality',invalid.join('; ')||'The supplied record is invalid or stale for this position.',
       'Correct or govern the specific source record, then rerun the same validation.',path,'Project evidence owner',refs);
     else if(value.state!=='submitted_unparsed'&&(['missing','not_submitted','missing_evidence','missing_information'].includes(value.state)||missingInput.length)) add('missing_information','MISSING_SOURCE_VALUE',field+' · information missing',

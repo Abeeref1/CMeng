@@ -58,13 +58,13 @@ function experienceBrief(key,data){
     add('Schedule progress',d.progress?.durationWeightedProgressPercent,'Duration weighted schedule snapshot','%');
     add('Submitted completion',d.forecast?.sourceCompletionIso,'Current programme','date');
     add('Critical activities',d.schedule?.criticalCount,'Programme float; execution activities');
-    add('Near-critical activities',d.schedule?.nearCriticalCount,'Source float; strict near-critical band');
+    add('Near-critical activities',d.schedule?.nearCriticalCount,d.nearCriticalScreening?.basis||'Source float; threshold authority unresolved');
     note='Programme, progress and resource positions share the reporting date shown above.';
     if(d.sourceProductivityForecast?.completionIso)review='Productivity forecast: '+planningShortDate(d.sourceProductivityForecast.completionIso)+'. Programme calendar recalculation remains a separate model reconciliation.';
   }else if(key==='schedule-analytics'){
     add('Execution activities',s.population?.executableActivityCount,'LOE and summary records excluded');
     add('Critical activities',s.float?.criticalCount,'Source total float');
-    add('Near-critical activities',s.float?.nearCriticalCount,'Activity-calendar working-day threshold');
+    add('Near-critical activities',s.float?.nearCriticalCount,d.nearCriticalScreening?.basis||'Activity-calendar threshold; authority unresolved');
     add('Open logic starts',s.logicQuality?.executionOpenStartActivityIds?.length,'Execution activities without predecessors');
     note='Float classifications describe the submitted schedule. Open ends require a boundary review before they are treated as logic defects.';
     if(s.logicQuality?.executionOpenStartActivityIds?.length)review='Review the open starts against approved project boundaries. The complete activity list is in the analysis below.';
@@ -77,7 +77,7 @@ function experienceBrief(key,data){
     note='Activity finish movement measures changed source dates. It does not establish causation or EOT.';
     if(dist?.maximumCount>1)review='Review the shared maximum movement with the baseline/current date pairs and previous-revision comparison before attributing a cause.';
   }else if(key==='near-critical'){
-    add('Strict near-critical',d.nearCriticalCount,'Above critical threshold, within near-critical band');
+    add('Strict near-critical',d.nearCriticalCount,d.nearCriticalScreening?.basis||'Above critical threshold, within the disclosed screening band');
     add('Zero float',d.zeroFloatCount,'Included in the wider watchlist');
     add('Negative float',d.negativeFloatCount,'Below the critical threshold');
     add('Wider watchlist',d.floatRiskWatchlistCount,'Includes the critical boundary');
