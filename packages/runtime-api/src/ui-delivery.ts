@@ -16,7 +16,7 @@ function deliveryValue(v){
  return s;
 }
 const deliveryText=v=>escapeHtml(deliveryValue(v));
-const deliveryLabel=s=>({source_evidence:'Source evidence',extracted_candidate:'Awaiting review',working:'Working record',governed:'Reviewed record',verified:'Verified record',not_established:'Not established',conflicted:'Conflicting evidence',stale:'Source changed',at_risk:'At risk',po:'PO',rfq:'RFQ',fat:'FAT',sat:'SAT'})[s]||String(s).replace(/([a-z])([A-Z])/g,'$1 $2').replace(/[_-]/g,' ').replace(/^./,x=>x.toUpperCase());
+const deliveryLabel=s=>({riskId:'Risk ID',recordId:'Record ID',linkedActivityId:'Linked activity',dueIso:'Due date',raisedIso:'Raised date',closedIso:'Closed date',statusAsOfIso:'Status as of',sourceRefs:'Source references',source_evidence:'Source evidence',extracted_candidate:'Awaiting review',working:'Working record',governed:'Reviewed record',verified:'Verified record',not_established:'Not established',conflicted:'Conflicting evidence',stale:'Source changed',at_risk:'At risk',po:'PO',rfq:'RFQ',fat:'FAT',sat:'SAT'})[s]||String(s).replace(/Iso$/,'').replace(/([a-z])([A-Z])/g,'$1 $2').replace(/[_-]/g,' ').replace(/^./,x=>x.toUpperCase());
 const deliveryRowState=r=>r.state||r.currentStatus||r.permitStatus||r.readinessState||r.status||r.scope;
 function deliveryTable(id,title,rows,columns){
  deliveryTables[id]={rows,columns,page:0,query:'',filter:'',sort:null,direction:1,title};
@@ -46,12 +46,12 @@ function deliveryColumns(key){
 }
 function deliveryDetailNode(label,value){
  const id='deliveryEvidence'+(++deliveryDetailSequence);deliveryDetailViews[id]={value,page:0,query:'',projectId:typeof project==='function'?project():null};
- return '<details data-delivery-lazy="'+id+'"><summary>'+escapeHtml(label)+(Array.isArray(value)?' · '+deliveryText(value.length)+' items':'')+'</summary><div data-delivery-detail-content="'+id+'"></div></details>';
+ return '<details data-delivery-lazy="'+id+'"><summary>'+escapeHtml(label)+(Array.isArray(value)?' · '+deliveryText(value.length)+(value.length===1?' item':' items'):'')+'</summary><div data-delivery-detail-content="'+id+'"></div></details>';
 }
 function deliveryObjectDetail(value){
  if(value===null||typeof value!=='object')return deliveryText(value);
  if(Array.isArray(value))return value.length?deliveryDetailNode('View records',value):'<p>None in this set.</p>';
- return '<dl class="delivery-detail">'+Object.entries(value).map(([key,v])=>'<dt>'+escapeHtml(deliveryLabel(key))+'</dt><dd>'+(v&&typeof v==='object'?deliveryDetailNode('Open '+deliveryLabel(key),v):deliveryText(/(?:state|status)$/i.test(key)&&typeof v==='string'?deliveryLabel(v):v))+'</dd>').join('')+'</dl>';
+ return '<dl class="delivery-detail">'+Object.entries(value).map(([key,v])=>'<dt>'+escapeHtml(deliveryLabel(key))+'</dt><dd>'+(v&&typeof v==='object'?deliveryDetailNode('Open '+deliveryLabel(key),v):deliveryText(/(?:state|status|kind|series)$/i.test(key)&&typeof v==='string'?deliveryLabel(v):v))+'</dd>').join('')+'</dl>';
 }
 function deliveryEvidencePage(id){
  const view=deliveryDetailViews[id];if(!view||!Array.isArray(view.value))return '';
