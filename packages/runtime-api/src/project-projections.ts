@@ -1,3 +1,5 @@
+import {buildModuleChallenge} from '../../module-challenge/src';
+import {deliveryModule,deliveryDashboard,isDeliveryPage} from './delivery-projections';
 import {isAdoptedProgrammeRevision,isScenarioRevision,scheduleAuthorityReview} from './schedule-authority';
 import {quantityMappingForState} from "./quantity-mapping-runtime";
 import {nearCriticalScreening} from './near-critical-screening';
@@ -7007,7 +7009,11 @@ function resolveProjectModuleCandidate(state: ProjectRuntimeState, key: string):
     }
   }
   const model = projectControlSchedule(state)?.revision.model;
-  if (!model) return attachReportingContract(state,discloseReadIssues(result));
+  if (!model) {
+    const data=result.data&&typeof result.data==='object'?result.data as Record<string,unknown>:{};
+    const challenge=data.challenge??buildModuleChallenge({moduleKey:key,generatedAt:new Date().toISOString(),assertions:[],metrics:[],diagnostics:['Programme comparison unavailable until a programme is adopted.']});
+    return attachReportingContract(state,discloseReadIssues({...result,data:{...data,challenge}}));
+  }
   const controlBasis = projectScheduleControlBasis(state);
   if (result.data && typeof result.data === "object") {
     const data = result.data as Record<string, any>;
@@ -7132,6 +7138,7 @@ export function moduleForProject(
       ["project"],
     );
   }
+  if (isDeliveryPage(key)) return deliveryModule(state,key);
   if (managementModuleKeys.includes(key)) {
     return managementSurfaceForProject(projectId, key) ?? blocked(key, "Management position is not established.", []);
   }
@@ -7759,10 +7766,10 @@ export function managementSurfacesForProject(
   const overdueRows=(lookahead?.rows??[]).filter((r:any)=>r.finishOverdue);
   const deliveryExceptions={actions:[...operations.actions,...overdueRows.map((r:any)=>({recordId:r.activityId,type:'Activity',priority:'overdue',owner:null,dueIso:r.finishIso,ageDays:null,
     overdueDays:current?.revision.model.dataDateIso&&r.finishIso?Math.floor((Date.parse(current.revision.model.dataDateIso.slice(0,10))-Date.parse(r.finishIso.slice(0,10)))/86400000):null,
-    action:'Review overdue activity '+r.activityId+' ('+r.name+') and agree its recovery dates.',sourceRefs:[]}))],overdueActivityCount:overdueRows.length};
+    action:'Review overdue activity '+r.activityId+' ('+r.name+') and agree its recovery dates.',sourceRefs:[]}))],overdueActivityCount:Array.isArray(lookahead?.rows)?overdueRows.length:null};
   const result = { ...surfaces,
     sourceQuality: {...sourceQualityPosition(resolvedModules,issueAssessment,state.evidenceDocuments,current?.revision.model.dataDateIso??null),registerDateReview:registerDateReview(state)},
-    masterDashboard: {deliveryExceptions,...managementReportingData(state, surfaces.masterDashboard, resolvedModules),decisions:surfaces.commandCenter.decisions,trend:(resolvedModules.get("forecast-history")?.data as any)??null,issueAssessment,operationalReporting:operationalReporting(state),sourceInterpretation:director?.sourceInterpretation},
+    masterDashboard: {delivery:deliveryDashboard(state),deliveryExceptions,...managementReportingData(state, surfaces.masterDashboard, resolvedModules),decisions:surfaces.commandCenter.decisions,trend:(resolvedModules.get("forecast-history")?.data as any)??null,issueAssessment,operationalReporting:operationalReporting(state),sourceInterpretation:director?.sourceInterpretation},
     commandCenter: {deliveryExceptions,...managementReportingData(state, surfaces.commandCenter, resolvedModules),issueAssessment,operationalReporting:operationalReporting(state),sourceInterpretation:director?.sourceInterpretation},
     masterControlProgramme: {...managementReportingData(state, surfaces.masterControlProgramme, resolvedModules),issueAssessment,sourceInterpretation:director?.sourceInterpretation} };
   const allPages=new Map(resolvedModules);

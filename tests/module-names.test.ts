@@ -8,12 +8,13 @@ import {cmengUatHtml} from '../packages/runtime-api/src/ui';
 import {buildModuleWorkbook, buildModuleJsonDownload, moduleReportFilename} from '../packages/runtime-api/src/module-report';
 import {createCmengServer} from '../packages/runtime-api/src/server';
 
-test('all 33 page titles and groups come from one registry, with distinct specialist purposes', () => {
-  assert.equal(moduleRegistry.length, 33);
-  assert.equal(new Set(moduleRegistry.map(m => m.key)).size, 33);
-  assert.equal(new Set(moduleRegistry.map(m => m.title)).size, 33);
+test('all 55 page titles and groups come from one registry, with distinct specialist purposes', () => {
+  assert.equal(moduleRegistry.length, 55);
+  assert.equal(new Set(moduleRegistry.map(m => m.key)).size, 55);
+  assert.equal(new Set(moduleRegistry.map(m => m.title)).size, 55);
   assert.equal(scheduleModules.length, 22);
   assert.equal(commercialModules.length, 7);
+  assert.equal(moduleRegistry.filter(m=>m.area==="delivery").length,22);
   for (const word of ['claims', 'notices', 'eot', 'position', 'forecast']) {
     assert.ok(moduleRegistry.filter(m => new RegExp('\\b' + word + '\\b', 'i').test(m.title)).length <= 1, word);
   }

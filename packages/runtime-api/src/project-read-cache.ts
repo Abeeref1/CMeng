@@ -4,7 +4,7 @@ import {join} from 'node:path';
 
 export const MAX_PROJECT_READ_BYTES=32*1024*1024;
 export function cacheableProjectRead(method:string|undefined,path:string){
-  return method==='GET'&&/^\/api\/projects\/[^/]+\/(?:overview|director-position|(?:schedule|commercial)\/modules\/[a-z-]+|management\/[a-z-]+)$/.test(path);
+  return method==='GET'&&/^\/api\/projects\/[^/]+\/(?:overview|director-position|(?:schedule|commercial|delivery)\/modules\/[a-z-]+|management\/[a-z-]+)$/.test(path);
 }
 /** Derived read results are scoped to exact project, release and source-state
  * version. They survive worker eviction, never substitute an older position,

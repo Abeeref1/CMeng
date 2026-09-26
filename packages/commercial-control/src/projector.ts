@@ -230,8 +230,9 @@ function commercialClaimsNotices(
   ) {
     noticeTimelinessCounts[
       assessment.timeliness
-    ] += 1;
+    ] = (noticeTimelinessCounts[assessment.timeliness] ?? 0) + 1;
   }
+  if(!lifecycle)for(const key of Object.keys(noticeTimelinessCounts) as Array<keyof typeof noticeTimelinessCounts>)noticeTimelinessCounts[key]=null;
 
   const eventTitles =
     new Map(

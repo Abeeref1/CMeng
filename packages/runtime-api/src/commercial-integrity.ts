@@ -38,8 +38,10 @@ export function commercialIntegrityChecks(key:string, position:CommercialControl
   }
   if(key==='commercial-claims-notices'){
     const p=position.claimsNotices;
-    compare('notice_outcome_population',Object.values(p.noticeTimelinessCounts).reduce((n,v)=>n+v,0),p.noticeAssessments.length);
-    compare('notice_missing_rules_are_not_unselected_rules',p.dimensionalEvidenceGaps.requirementMissing,p.noticeTimelinessCounts.requirement_missing);
+    if(p.evidenceRevisionId){
+     compare('notice_outcome_population',Object.values(p.noticeTimelinessCounts).reduce<number>((n,v)=>n+(v??0),0),p.noticeAssessments.length);
+     compare('notice_missing_rules_are_not_unselected_rules',p.dimensionalEvidenceGaps.requirementMissing,p.noticeTimelinessCounts.requirement_missing);
+    }
     compare('notice_date_gap_population',p.dimensionalEvidenceGaps.noticeDateMissing,p.noticeAssessments.filter(a=>!a.noticeIssuedAt||!Number.isFinite(Date.parse(a.noticeIssuedAt))).length);
   }
   if(key==='contract-particulars-bonds'){

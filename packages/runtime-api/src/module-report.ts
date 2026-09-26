@@ -1,3 +1,4 @@
+import {buildDeliveryWorkbook} from './delivery-export';
 import {pageApiKey,publicModuleResult} from './registry';
 import ExcelJS from "exceljs";
 import type {
@@ -466,6 +467,7 @@ export async function buildModuleWorkbook(
   moduleKey: string,
   result: ModuleRuntimeResult,
 ): Promise<Buffer> {
+  if((result.data as any)?.projectionKey==="delivery")return buildDeliveryWorkbook(projectId,result);
   const workbook =
     new ExcelJS.Workbook();
   workbook.creator = "CMeng";

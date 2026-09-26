@@ -415,6 +415,7 @@ export interface ProjectControlState {
 }
 
 export interface ProjectRuntimeState {
+  delivery?: import("../../delivery-core/src/types").DeliveryStateStore;
   scheduleAuthorityVersion?: "explicit-adoption-v1";
   auditHistory?: import('./audit-context').AuditEvent[];
   auditSourceActors?: Record<string,import('./audit-context').AuditActor>;

@@ -1336,6 +1336,7 @@ export function certifyCrossModuleConsistency(
 
   const progressCurveContractOk =
     !progressScurve ||
+    modules.get('progress-scurve')?.status==='blocked' ||
     (
       progressScurve
         .seriesContract
@@ -1394,6 +1395,7 @@ export function certifyCrossModuleConsistency(
     );
   const quantityCurveContractOk =
     !quantity ||
+    modules.get('quantity-scurve')?.status==='blocked' ||
     (
       quantity.unitKeyed ===
         true &&

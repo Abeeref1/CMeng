@@ -46,7 +46,9 @@ export function managementReportingData<T extends object>(state: ProjectRuntimeS
 export function attachReportingContract(state:ProjectRuntimeState,result:ModuleRuntimeResult):ModuleRuntimeResult {
   const authorityReview=scheduleAuthorityReview(state);
   result={...result,scheduleAuthorityReview:authorityReview};
-  if(!result.data||typeof result.data!=='object')return result;
+  // An unavailable calculation still has a project, version and authority context.
+  // Keep its result blocked while publishing that shared context to its consumers.
+  if(!result.data||typeof result.data!=='object')result={...result,data:{}};
   const data=result.data as any, current=projectControlSchedule(state), model=current?.revision.model, dataDateIso=projectDataDate(state);
   const populations:Record<string,PopulationContract>={};
   const operations=operationalReporting(state);
@@ -173,7 +175,7 @@ export function attachReportingContract(state:ProjectRuntimeState,result:ModuleR
   const time=canonicalTimeClaims(state).contractTimeBasis??state.controls.contractTimeBasis;
   const baseline=state.schedules.filter(s=>['baseline','revised_baseline'].includes(s.role)&&s.revision.model.dataDateIso&&dataDateIso&&s.revision.model.dataDateIso.slice(0,10)<=dataDateIso).sort((a,b)=>(a.revision.model.dataDateIso??'').localeCompare(b.revision.model.dataDateIso??'')).at(-1);
   return {...result,data:{...data,scheduleAuthorityReview:authorityReview,registerDateReview:scopeRegisterDateReview(registerDateReview(state),result.key),baselineComparison:{state:baseline?'established':'unresolved',revisionId:baseline?.revision.revisionId??null,reason:baseline?null:'No confirmed baseline'},reportingContract:{schemaVersion:'1.0',dataDateIso,projectVersion:state.version,
-    calendarResolution:{unresolvedActivityCount:model?activityPopulation(model).activities.filter(a=>calendarWorkingDayHours(model.calendars.find(c=>c.calendarId===a.calendarId))===null).length:0},
+    calendarResolution:{unresolvedActivityCount:model?activityPopulation(model).activities.filter(a=>calendarWorkingDayHours(model.calendars.find(c=>c.calendarId===a.calendarId))===null).length:null},
     configurationId:createHash('sha256').update(JSON.stringify(projectScheduleControlBasis(state).analysisConfig)).digest('hex').slice(0,24),
     pendingScheduleReviews:authorityReview.pendingSchedules,
     newerUnadoptedSchedules:authorityReview.pendingSchedules.filter(s=>s.dateRelationship==='later'||s.dateRelationship==='no_current_programme'),

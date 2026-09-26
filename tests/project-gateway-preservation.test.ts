@@ -43,7 +43,7 @@ test('worker gateway preserves all module, management, source and audit results 
     const paths=['/overview','/evidence/documents','/schedule/revisions','/director-position','/board-report','/board-report/history?includeReport=true','/management-surfaces',...moduleRegistry.map(m=>m.area==='management'?'/management/'+m.key:'/'+m.area+'/modules/'+m.key),'/schedule/modules/quantity-scurve/report.json'];
     for(const path of paths){
       const replies=await Promise.all([base,worker].map(async url=>{const response=await fetch(url+'/api/projects/PRESERVE'+path);return {status:response.status,body:await response.json()};}));
-      assert.equal(replies[0]!.status,200,path+' must exercise an existing endpoint');
+      assert.ok(replies[0]!.status===200||path.startsWith('/delivery/')&&replies[0]!.status===409,path+' must return the actual project position, including Delivery blocked without governed records');
       assert.deepEqual(comparable(replies[1]),comparable(replies[0]),path+' must retain exact values, states, dates and retained source identities');
     }
     const before=JSON.parse(await readFile(join(original,'cmeng-project-state.json'),'utf8')).projects[0];
