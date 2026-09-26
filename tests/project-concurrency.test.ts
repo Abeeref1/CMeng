@@ -37,6 +37,15 @@ test('two real uploads leave another project, health, portfolio and upload progr
     await Promise.all(uploads);
     pending=2;
     const reruns=['UPLOAD-A','UPLOAD-B'].map(id=>json('/api/projects/'+id+'/evidence/rerun',{method:'POST'}).finally(()=>{pending--;}));
+    for(const id of ['UPLOAD-A','UPLOAD-B']){
+      const start=performance.now();
+      const docs=await json('/api/projects/'+id+'/evidence/documents',{headers:{'x-cmeng-async-view':'1'}});
+      assert.equal(docs.documentCount,1,'saved documents must remain available during their own project recalculation');
+      assert.ok(performance.now()-start<2500,'document register must not wait behind project calculation');
+      const position=await fetch(base+'/api/projects/'+id+'/overview',{headers:{'x-cmeng-async-view':'1'}});
+      assert.equal(position.status,202);const waiting=await position.json() as any;
+      assert.equal(waiting.state,'updating');assert.equal(waiting.documentCount,1);
+    }
     for(let round=0;pending>0&&round<150;round++){
       for(const path of ['/health','/api/projects/WORK-C/overview']){const start=performance.now(),inFlight=pending;await json(path);samples.push({path:'during recalculation '+path,ms:performance.now()-start,uploadsPending:inFlight});}
       await new Promise(resolve=>setTimeout(resolve,20));

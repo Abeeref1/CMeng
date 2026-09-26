@@ -33,12 +33,13 @@ async function startProjectUpload(kind){
   try{
     for(let i=0;i<files.length;i++)await uploadEvidenceFileWithProgress(files[i],i,files.length,job);
     if(job.rerun){
-      job.state="updating";job.message="Documents loaded · updating project position";renderBackgroundUploads();
+      job.state="updating";job.message="Documents saved · calculating project position";renderBackgroundUploads();
+      if(uploadJobVisible(job)){showProjectUpdating(projectId);void loadEvidence();}
       await api("/api/projects/"+encodeURIComponent(projectId)+"/evidence/rerun",{method:"POST"});
     }
     job.state="complete";job.percent=100;job.message=job.rerun?"Documents loaded and project position checked":"Documents loaded · ready to review";
     if(uploadJobVisible(job))await refresh(false);
-  }catch(error){job.state="failed";job.message="Could not finish: "+error.message+". Check Documents before retrying.";}
+  }catch(error){job.state="failed";job.message="Could not finish: "+error.message+". Check Documents before retrying.";if(uploadJobVisible(job))void refresh(false);}
   finally{renderBackgroundUploads();}
 }
 `;

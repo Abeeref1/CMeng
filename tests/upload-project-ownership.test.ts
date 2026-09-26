@@ -7,7 +7,7 @@ for(const kind of ['schedule','boq','contract','evidence'])test(kind+' upload re
   let selected='FIRST';const nodes=new Map<string,any>();
   const el=(id:string)=>{if(!nodes.has(id))nodes.set(id,{value:'original',checked:true,querySelectorAll:()=>[]});return nodes.get(id);};
   const requests:Array<{file:string,projectId:string,intent:string,resolve:()=>void}>=[];const recalculated:string[]=[];const refreshed:string[]=[];
-  const context=createContext({Map,project:()=>selected,projectUploadJobs:new Map(),el,document:{querySelectorAll:()=>[]},escapeHtml:String,openProject(){},renderEvidenceUploadProgress(){},renderScheduleQueue(){},renderContractQueue(){},renderSimpleQueue(){},
+  const context=createContext({Map,project:()=>selected,projectUploadJobs:new Map(),el,document:{querySelectorAll:()=>[]},escapeHtml:String,openProject(){},showProjectUpdating(){},loadEvidence:async()=>{},renderEvidenceUploadProgress(){},renderScheduleQueue(){},renderContractQueue(){},renderSimpleQueue(){},
     scheduleSelection:[],boqSelection:[],contractSelection:[],evidenceSelection:[],
     uploadEvidenceFileWithProgress:(file:any,_index:number,_total:number,job:any)=>new Promise<void>(resolve=>requests.push({file:file.name,projectId:job.projectId,intent:job.intent,resolve})),
     api:async(path:string)=>{recalculated.push(path);},refresh:async()=>{refreshed.push(selected);}});

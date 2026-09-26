@@ -3884,6 +3884,7 @@ async function loadModule(key){
   document.body.classList.remove("visual-panel-open","chart-canvas-open");
   document.querySelectorAll(".visual-focus,.chart-focus").forEach(node=>node.classList.remove("visual-focus","chart-focus"));
   if(el("directorDrawer"))el("directorDrawer").open=false;
+  if(projectLoadState==="updating"){showProjectUpdating(project());return;}
   if(!overview){el("moduleContent").innerHTML='<div class="empty">Load a project first.</div>';return}
   const moduleName=names[key]||key;
   const requestSeq=++moduleRequestSeq;
@@ -4096,15 +4097,17 @@ async function deleteSelectedDocuments(){
 async function loadEvidence(){
   const requestSeq=++evidenceRequestSeq,projectId=project(),projectSeq=projectRequestSeq;
   const current=()=>requestSeq===evidenceRequestSeq&&projectRequestIsCurrent(projectId,projectSeq);
-  if(!overview){
+  if(!projectId){
     selectedEvidenceDocuments.clear();
     el("evidenceBadge").textContent="Documents not loaded";
     el("evidenceLibrary").innerHTML='<div class="empty">Open a project to load its documents.</div>';
     return;
   }
   try{
-    const data=await api("/api/projects/"+encodeURIComponent(project())+"/evidence/documents");
+    const data=await api("/api/projects/"+encodeURIComponent(projectId)+"/evidence/documents",{headers:{"x-cmeng-async-view":"1"}});
     if(!current())return;
+    if(data.processing){el("evidenceBadge").textContent="Updating documents";el("evidenceLibrary").innerHTML='<div class="notice info" role="status">'+escapeHtml(data.message)+'</div>';return;}
+    if(projectLoadState==="updating")el("activeProjectMeta").textContent=data.documentCount+" saved documents · Calculating project position";
     const liveIds=new Set((data.documents||[]).map(document=>document.documentId));
     selectedEvidenceDocuments=new Set([...selectedEvidenceDocuments].filter(id=>liveIds.has(id)));
     el("evidenceBadge").className="badge "+(data.documentCount?"ready":"");
@@ -4232,7 +4235,7 @@ async function loadPortfolio(){
 }
 function updateActiveProjectShell(){
   const id=overview?.projectId||project();
-  const pending=projectLoadState==="loading";
+  const pending=projectLoadState==="loading"||projectLoadState==="updating";
   const unloaded=pending?"Loading project information…":id?"Project information could not be loaded":"Open a project from Portfolio or Projects";
   const displayDataDate=overview?.latestDataDateIso?planningShortDate(overview.latestDataDateIso):"No data date";
   if(appView==="project")el("platformContextTitle").textContent=id;
@@ -4242,7 +4245,8 @@ function updateActiveProjectShell(){
   el("aiProjectBadge").className="badge";
   el("aiProjectBadge").textContent=id||"No active project";
   el("aiProjectInfo").innerHTML=overview?'<b>'+escapeHtml(id)+'</b><br>'+escapeHtml(overview.evidenceDocumentCount)+' evidence documents<br>'+escapeHtml(overview.revisionCount)+' schedule revisions<br>'+escapeHtml(overview.latestDataDateIso?planningShortDate(overview.latestDataDateIso):"No current data date"):escapeHtml(unloaded);
-  ["openLibraryQuick","openEvidenceTop","runAnalysisTop","askAi"].forEach(key=>{el(key).disabled=!overview});
+  ["runAnalysisTop","askAi"].forEach(key=>{el(key).disabled=!overview});
+  el("openLibraryQuick").disabled=!project();el("openEvidenceTop").disabled=!overview;
 }
 function setAppView(view){
   appView=view;
@@ -4382,13 +4386,35 @@ async function loadDirector(projectId=project(),attempt=0){
     el("retryDirector").onclick=()=>loadDirector(projectId);
   }
 }
+function showProjectUpdating(projectId,documentCount=null,message="Documents saved · calculating the project position"){
+  if(project()!==projectId)return;
+  overview=null;currentModuleResult=null;projectLoadState="updating";
+  updateActiveProjectShell();renderNav();
+  el("projectStatus").textContent=message;
+  el("projectBadge").className="badge partial";el("projectBadge").textContent="UPDATING";
+  el("moduleBadge").textContent="Calculating";el("moduleReport").disabled=true;
+  el("moduleContent").innerHTML='<div class="view-state-bar" role="status"><span class="spinner"></span><strong>'+escapeHtml(message)+'</strong><span>You can review Documents or work in another project. This page updates automatically when the calculation finishes.</span></div>';
+  el("director").textContent="Management calculations are updating.";
+  el("activeProjectMeta").textContent=(documentCount===null?"Document count updating":documentCount+" saved documents")+" · Calculating project position";
+  setBusy("Calculating project position");
+}
 async function refresh(bootstrapDemo=true){
   setBusy("Refreshing project");
   const projectId=project();
   const requestSeq=++projectRequestSeq;
   const current=()=>projectRequestIsCurrent(projectId,requestSeq);
   try{
-    const loadedOverview=await api("/api/projects/"+encodeURIComponent(projectId)+"/overview");
+    let loadedOverview;
+    do{
+      loadedOverview=await api("/api/projects/"+encodeURIComponent(projectId)+"/overview",{headers:{"x-cmeng-async-view":"1"}});
+      if(!current())return;
+      if(loadedOverview.state!=="updating")break;
+      showProjectUpdating(projectId,loadedOverview.documentCount,loadedOverview.message);
+      await loadEvidence();
+      if(!current())return;
+      await new Promise(resolve=>setTimeout(resolve,2000));
+      if(!current())return;
+    }while(true);
     if(!current())return;
     if(loadedOverview.projectId!==projectId)throw new Error("The returned information belongs to a different project.");
     overview=loadedOverview;
@@ -4518,6 +4544,7 @@ function openEvidenceWorkspace(){
   drawer.open=true;
 }
 function openEvidenceLibrary(){
+  void loadEvidence();
   el("evidenceControlDrawer").open=false;
   const drawer=el("evidenceLibraryDrawer");
   drawer.open=true;
