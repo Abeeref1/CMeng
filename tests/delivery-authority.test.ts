@@ -9,7 +9,7 @@ import {Script,runInNewContext} from 'node:vm';
 import ExcelJS from 'exceljs';
 import {RuntimeProjectStore} from '../packages/runtime-api/src/project-state';
 import {changeDelivery,deliveryRecords,deliveryStore} from '../packages/runtime-api/src/delivery-records';
-import {deliveryModule,deliveryPosition,deliveryPages} from '../packages/runtime-api/src/delivery-projections';
+import {deliveryModule,deliveryPosition,deliveryPages,deliveryExportResult} from '../packages/runtime-api/src/delivery-projections';
 import {deliveryScript} from '../packages/runtime-api/src/ui-delivery';
 import {resolveBoqSource} from '../packages/runtime-api/src/boq-source';
 import {projectControlSchedule} from '../packages/runtime-api/src/canonical-time-claims';
@@ -147,6 +147,11 @@ test('Delivery Risks uses the existing risk population, not unrelated procuremen
  report=deliveryModule(f.state,'delivery-risks');assert.equal(report.status,'ready');assert.match(report.reason!,/2 risk records are supplied: 1 current, 1 after/);
  assert.equal((report.data as any).population.kind,'risk');assert.equal((report.data as any).population.denominator,1);assert.equal((report.data as any).metrics.find((m:any)=>m.label==='Open risks').value,1);assert.equal((report.data as any).reviewRecords.length,0);
  const linked=f.create('workfront','WF1',{}, {riskIds:['R1']});report=deliveryModule(f.state,'delivery-risks');assert.deepEqual((report.data as any).reviewRecords.map((r:any)=>r.recordId),[linked.recordId]);
+ const exported=deliveryExportResult(f.state,report).data as any;
+ assert.deepEqual(exported.sourceRecords.map((r:any)=>r.recordId),[linked.recordId]);
+ assert.ok(exported.reviewHistory.every((r:any)=>r.recordId===linked.recordId));
+ assert.equal(exported.riskBasis.sourceRows.length,2,'the complete original risk source remains in the export');
+ assert.equal(exported.riskBasis.future.length,1,'future risk evidence remains separate and available');
  assert.equal((report.data as any).rows[0].score,1.2);assert.equal((report.data as any).population.denominator,1);
 });
 
