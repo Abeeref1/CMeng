@@ -1,3 +1,4 @@
+import {quantityMappingForState} from "./quantity-mapping-runtime";
 import {resolveModuleKey} from './registry';
 import {registerDateReview} from './register-date-review';
 import {deliveryFeasibilityForState} from './delivery-feasibility';
@@ -134,9 +135,6 @@ import {
 import {
   applyUniversalModuleChallenges,
 } from "./module-challenges";
-import {
-  buildQuantityScheduleMapping,
-} from "../../cross-domain-mapping/src";
 import type {
   DelayClaimsModel,
 } from "../../delay-analysis-core/src";
@@ -2152,6 +2150,7 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
       schedule: model,
       quantities:
         state.quantities,
+      quantityMapping: quantityMappingForState(state, model),
       resources:
         usableResources,
       independentForecast,
@@ -3350,7 +3349,7 @@ function canonicalQuantityModule(state: ProjectRuntimeState, model: ProjectRunti
     diagnostics: ["BOQ_QUANTITY_BASIS_NOT_ESTABLISHED"],
   }, ["BOQ"], "partial", "BOQ quantities have not been established.");
   const sameRevision = quantities.scheduleRevisionId === model.sourceRevisionId;
-  const inferredMapping = sameRevision ? buildQuantityScheduleMapping(quantities, model) : null;
+  const inferredMapping = sameRevision ? quantityMappingForState(state, model) : null;
   const scenario = sameRevision && quantities.allocations.length === 0 && (inferredMapping?.selectedScenarioLinks.length ?? 0) > 0;
   const allocations = !sameRevision ? [] : scenario ? inferredMapping!.selectedScenarioLinks.filter(link => link.allocatedQuantity !== null).map(link => ({
     allocationId: "scenario-" + link.candidateId, quantityItemId: link.quantityItemId, activityId: link.activityId,
@@ -4651,6 +4650,8 @@ function specialistChallengeContext(
           .allocations.length > 0
           ? state.quantities
           : null,
+      quantityMapping: state.quantities && state.quantities.allocations.length > 0
+        ? quantityMappingForState(state, model) : null,
       resources:
         resourceModel &&
         resourceModel
@@ -6341,6 +6342,7 @@ function buildSpecialistModuleFast(
           "delivery-challenge-fast-v2",
         schedule: model,
         quantities: state.quantities,
+        quantityMapping: quantityMappingForState(state, model),
         resources:
           resources &&
           resources.assignments

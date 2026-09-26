@@ -648,3 +648,27 @@ test("non-hour labor UOM is not silently converted into manpower hours", () => {
     [],
   );
 });
+
+test('quantity mapping reuse stays within a project version and source models', async () => {
+  const {quantityMappingForState} = await import('../packages/runtime-api/src/quantity-mapping-runtime');
+  const q = quantities(), s = schedule();
+  const first = {projectId: 'P1', version: 1, quantities: q} as import('../packages/runtime-api/src/project-state-types').ProjectRuntimeState;
+  const mapping = quantityMappingForState(first, s);
+  assert.strictEqual(quantityMappingForState(first, s), mapping);
+  const other = {...first, projectId: 'P2', quantities: {...q, projectId: 'P2', items: []}};
+  assert.equal(quantityMappingForState(other, {...s, projectId: 'P2'})?.projectId, 'P2');
+  assert.equal(quantityMappingForState(other, s)?.candidateCount, 0);
+  assert.strictEqual(quantityMappingForState(first, s), mapping);
+  first.quantities = {...q, allocations: [{allocationId: 'new-governed-link',
+    quantityItemId: q.items[0]!.quantityItemId, activityId: s.activities[0]!.activityId,
+    allocatedQuantity: 10, sourceRefs: []}]};
+  assert.equal(quantityMappingForState(first, s)?.governedLinkCount, 1);
+  first.quantities.allocations = [];
+  first.version++;
+  assert.equal(quantityMappingForState(first, s)?.governedLinkCount, 0);
+  const changedSchedule = {...s, activities: []};
+  assert.equal(quantityMappingForState(first, changedSchedule)?.candidateCount, 0);
+  first.quantities = null;
+  first.version++;
+  assert.equal(quantityMappingForState(first, s), null);
+});

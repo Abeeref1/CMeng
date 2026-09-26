@@ -1155,6 +1155,7 @@ export function buildDeliveryChallengeProjection(
     schedule: CanonicalScheduleModel;
     quantities:
       CanonicalQuantityProgressModel | null;
+    quantityMapping?: QuantityScheduleMappingResult | null;
     resources:
       CanonicalResourceModel | null;
     independentForecast:
@@ -1215,10 +1216,9 @@ export function buildDeliveryChallengeProjection(
 
   const mapping =
     input.quantities
-      ? buildQuantityScheduleMapping(
-          input.quantities,
-          schedule,
-        )
+      ? input.quantityMapping !== undefined
+        ? input.quantityMapping
+        : buildQuantityScheduleMapping(input.quantities, schedule)
       : null;
 
   const quantityByUnit =
