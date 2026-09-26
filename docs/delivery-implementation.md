@@ -1,6 +1,6 @@
 # Delivery implementation and release record
 
-Status: development review; production acceptance is not yet complete.
+Status: Delivery deployed in PR 157; production follow-up verification is recorded below. Independent business acceptance and closure of all historical defects are not claimed.
 
 The controlling requirements are in `delivery-specification.md`. This record describes executable work and its verification; it is not a declaration that a navigation entry passes acceptance.
 
@@ -69,3 +69,19 @@ Walkthrough corrections include preserving supersession through re-review, rejec
 The separate Railway review environment contains synthetic fixtures only. Automatic approval review declined uploading actual project documents to that separate destination. Production real-project verification must use documents already retained in the existing CMeng production service. No real project is adopted or reclassified by the Delivery walkthrough.
 
 Production acceptance remains a separate record. The 13 non-QA projects currently returned by production were fingerprinted before deployment; this is not a claim that all 15 previously discussed projects were present or tested. This evidence does not claim independent human business sign-off.
+
+## Production follow-up — 26 September 2026
+
+Confirmed production release `29bae17` and the successful 286-response, 13-project read-only acceptance artifact in workflow run `36253211602`. That artifact compares fingerprints during its own run, not the separate pre-deployment snapshot above.
+
+The resumed live walkthrough opened all 22 Delivery pages on JAZ-RTR-T3 and switched to KWT-TWR1. Candidate procurement, design, commissioning and asset records remained outside approved totals; missing HSE exposure and handover populations remained unavailable. KWT's Excel download contained all 180 current risk rows, independently of 25-row screen pagination.
+
+This review found and corrected:
+
+- Delivery Risks used the procurement-package review count as its management headline. It now consumes the existing risk population and dated status, exposes the source risk basis, and lists only Delivery records linked to risks. Its controls direct risk evidence to Documents rather than offering to create a procurement package as a risk.
+- Status filters omitted the existing risk `status` field. They now use the displayed row status, including workfront readiness, while retaining raw keys for filtering.
+- Delivery tables and chart dates used raw ISO strings and ungrouped amounts. Display formatting preserves source values, record IDs, quantities, dates and machine-readable exports. Review-state labels are readable without changing decision semantics.
+
+Local verification: 718 tests passed, zero failed or skipped, including focused regression cases for risk scope, future risks, linked workfront records, risk filtering, source-reference preservation and small nonzero quantities. These changes require CI and deployed verification before they are described as live.
+
+The historical 1.3–7.8 second first-calculation observations remain open performance evidence. This display and risk-scope correction does not claim to resolve that work.
