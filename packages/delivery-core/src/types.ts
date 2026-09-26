@@ -1,7 +1,7 @@
 import type {SourceReceipt} from '../../truth-kernel/src';
 export const deliveryKinds=['package','supplier','submittal','design','workfront','quality','permit','hse','commissioning','asset','snag','spare','handover','weather','location','lifecycle','gate'] as const;
 export type DeliveryKind=typeof deliveryKinds[number];
-export type DeliveryState='source_evidence'|'extracted_candidate'|'working'|'governed'|'verified'|'calculated'|'scenario'|'conflicted'|'stale'|'not_established';
+export type DeliveryState='source_evidence'|'extracted_candidate'|'working'|'governed'|'verified'|'calculated'|'scenario'|'conflicted'|'stale'|'superseded'|'not_established';
 export type DeliveryFields=Record<string,string|number|null>;
 export interface DeliveryLinks {
  activityIds:string[];boqItemIds:string[];packageIds:string[];supplierIds:string[];locationIds:string[];assetIds:string[];recordIds:string[];riskIds:string[];claimIds:string[];noticeIds:string[];variationIds:string[];

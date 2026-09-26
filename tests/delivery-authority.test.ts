@@ -103,7 +103,10 @@ test('review history persists; partial edits retain prior decisions; collisions 
  const f=await fixture(t);let a=f.create('supplier','S1',{company:'Company'});a=f.review(a,{owner:'Alice'});f.review(a,{contact:'Contact'});assert.equal(deliveryRecords(f.state).records.find(r=>r.recordId===a.recordId)!.fields.owner,'Alice');
  const version=f.state.version;f.create('supplier','S2');assert.throws(()=>f.change({action:'create',kind:'supplier',fields:{'record reference':'STALE'},expectedVersion:version}),/PROJECT_VERSION_CHANGED/);
  const other=f.store.getOrCreate('OTHER');assert.throws(()=>changeDelivery(other,{expectedVersion:other.version,action:'review',recordId:a.recordId,sourceRevision:a.revision,state:'governed',note:'Other project'}),/Source revision/);
- const b=f.create('supplier','S1');assert.equal(deliveryRecords(f.state).records.find(r=>r.recordId===a.recordId)!.state,'conflicted');f.review(b,{}, {supersedesId:a.recordId});assert.equal(deliveryRecords(f.state).records.find(r=>r.recordId===a.recordId)!.state,'stale');
+ const b=f.create('supplier','S1');assert.equal(deliveryRecords(f.state).records.find(r=>r.recordId===a.recordId)!.state,'conflicted');f.review(b,{}, {supersedesId:a.recordId});assert.equal(deliveryRecords(f.state).records.find(r=>r.recordId===a.recordId)!.state,'superseded');
+ f.review(b,{contact:'Updated contact'});assert.equal(deliveryRecords(f.state).records.find(r=>r.recordId===a.recordId)!.state,'superseded');assert.equal(deliveryStore(f.state).decisions.at(-1)!.supersedesId,a.recordId);
+ assert.throws(()=>f.review(a,{}, {supersedesId:b.recordId}),/supersession.*cycle/);
+ f.create('package','LINKED',{}, {supplierIds:[b.recordId]});f.population('supplier');
  const restored=new RuntimeProjectStore({dataDir:f.dir,durable:false}).get(f.state.projectId)!;assert.deepEqual(deliveryStore(restored),deliveryStore(f.state));assert.equal(deliveryRecords(restored).records.find(r=>r.recordId===b.recordId)!.state,'governed');assert.equal(deliveryRecords(other).records.length,0);
 });
 
@@ -156,5 +159,12 @@ test('retained native and OCR pages create review candidates with physical page 
  const doc:any={documentId:'PDF-RECEIPT',sourceFilename:'Delivery evidence.pdf',sourceHashSha256:hash,storedPath,mediaType:'application/pdf',basisState:'historical',documentType:'supporting_document',linkedArtifactId:null,uploadedAt:'2031-09-01',supersededByDocumentId:null,fullTextRead:{sourceHashSha256:hash,producerVersion:'full-page-read-v1',completedAt:'2031-09-01',result:{complete:false,pages:[{pageNumber:1,method:'native',text:'Package ID: PK-NATIVE\nDescription: Chiller\nOrdered Quantity: 2'},{pageNumber:2,method:'ocr',text:'Submittal ID: SUB-OCR\nDescription: Technical approval\nActual Issue: 2031-08-15'},{pageNumber:3,method:'failed',text:''}]}}};
  f.state.evidenceDocuments.push(doc);f.store.touch(f.state);let p=deliveryPosition(f.state);const candidate=p.records.find(r=>r.reference==='SUB-OCR')!;assert.equal(candidate.state,'extracted_candidate');assert.equal(candidate.receipts[0]!.locator,'page:2:line:1');assert.equal(candidate.receipts[0]!.sourceHash,hash);assert.ok(p.diagnostics.some(d=>d.includes('PHYSICAL_PAGE_COVERAGE_INCOMPLETE')));assert.equal(p.packageRows.length,0);
  f.review(candidate);assert.equal(deliveryPosition(f.state).registerRows.find(r=>r.reference==='SUB-OCR')!.currentStatus,'performed');
- doc.supersededByDocumentId='NEW-REVISION';f.store.touch(f.state);assert.equal(deliveryRecords(f.state).records.find(r=>r.reference==='SUB-OCR')!.state,'stale');
+ doc.supersededByDocumentId='NEW-REVISION';f.store.touch(f.state);assert.equal(deliveryRecords(f.state).records.find(r=>r.reference==='SUB-OCR')!.state,'superseded');
+});
+
+
+test('explicit Delivery schemas cannot displace existing BOQ or HSE authority; multi-kind coverage stays per register',async t=>{
+ const f=await fixture(t);await f.upload('Delivery.csv','Delivery Record Type,Record Reference,Description,Man Hours,Lost Time Injuries\npackage,PK1,Chiller,,\nhse,HSE1,Exposure,1000,0');
+ const doc=f.state.evidenceDocuments.find(d=>d.sourceFilename==='Delivery.csv')!;assert.equal(doc.documentType,'delivery_register');
+ const p=deliveryPosition(f.state);assert.equal(p.records.length,2);assert.deepEqual(p.documents.map(d=>d.kind).sort(),['hse','package']);assert.equal(p.hsePosition.frequencyRate,null);
 });

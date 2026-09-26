@@ -10,11 +10,12 @@ import {resolveBoqSource} from './boq-source';
 export const deliveryHash=(value:unknown)=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const split=(value:string)=>value.split(/[;|]/).map(x=>x.trim()).filter(Boolean);
 export const deliveryStore=(state:ProjectRuntimeState):DeliveryStateStore=>state.delivery??{schemaVersion:1,manual:[],decisions:[],populations:[]};
+const typed:Record<string,DeliveryKind>={procurement_register:'package',submittal_register:'submittal',rfi_register:'design',quality_ncr_register:'quality',asset_register:'asset',testing_commissioning_register:'commissioning',hse_report:'hse'};
 function kindFor(row:SourceRow,type:string):DeliveryKind|null {
  // A foreign key (supplier or location ID) does not turn a package into that register.
  const explicit=cell(row,'delivery record type') as DeliveryKind;
  if(deliveryKinds.includes(explicit))return explicit;
- const typed:Record<string,DeliveryKind>={procurement_register:'package',submittal_register:'submittal',rfi_register:'design',quality_ncr_register:'quality',asset_register:'asset',testing_commissioning_register:'commissioning',hse_report:'hse'};
+
  if(typed[type])return typed[type]!;
  const candidates=deliveryKinds.filter(k=>kindIdentities[k].some(id=>Object.hasOwn(row.cells,canonicalHeader(id))));
  if(candidates.length===1)return candidates[0]!;
@@ -24,12 +25,12 @@ function kindFor(row:SourceRow,type:string):DeliveryKind|null {
 }
 export function deliveryRecords(state:ProjectRuntimeState){
  const diagnostics:string[]=[];const tables=deliverySourceTables(state,diagnostics);const store=deliveryStore(state);
- const records:DeliveryRecord[]=[...store.manual.map(r=>({...structuredClone(r),sourceActive:r.receipts.every(receipt=>state.evidenceDocuments.some(d=>d.documentId===receipt.documentId&&d.sourceHashSha256===receipt.sourceHash&&(['active','additive','candidate'].includes(d.basisState)||d.documentType==='supporting_document'&&d.basisState==='historical'&&!d.supersededByDocumentId)))}))];
+ const records:DeliveryRecord[]=[...store.manual.map(r=>({...structuredClone(r),sourceActive:r.receipts.every(receipt=>state.evidenceDocuments.some(d=>d.documentId===receipt.documentId&&d.sourceHashSha256===receipt.sourceHash&&(['active','additive','candidate'].includes(d.basisState)||['supporting_document','delivery_register'].includes(d.documentType)&&d.basisState==='historical'&&!d.supersededByDocumentId)))}))];
  const documents:Array<{documentId:string;filename:string;kind:DeliveryKind|null;rowCount:number;state:string;readingComplete:boolean|null;diagnostics:string[]}>=[];
- for(const t of tables){let count=0,kind:DeliveryKind|null=null;
+ for(const t of tables){let count=0,kind:DeliveryKind|null=null;const kindCounts=new Map<DeliveryKind,number>();
   const mapping=store.mappings?.filter(m=>m.documentId===t.document.documentId&&m.sourceHash===t.document.sourceHashSha256).at(-1);
   for(const original of t.rows){const row=mapping?{...original,cells:{...original.cells,...Object.fromEntries(Object.entries(mapping.columns).map(([target,source])=>[canonicalHeader(target),original.cells[canonicalHeader(source)]??'']))}}:original;
-   const k=mapping?.kind??kindFor(row,t.document.documentType??'');if(!k)continue;kind=k;count++;
+   const k=mapping?.kind??kindFor(row,t.document.documentType??'');if(!k)continue;kind=k;count++;kindCounts.set(k,(kindCounts.get(k)??0)+1);
    const reference=cell(row,'record reference',...kindIdentities[k])||null;
    const links=emptyLinks();links.activityIds=split(cell(row,'linked activity'));links.boqItemIds=split(cell(row,'boq item id'));
    if(k!=='package')links.packageIds=split(cell(row,'package id','procurement package id'));
@@ -38,19 +39,19 @@ export function deliveryRecords(state:ProjectRuntimeState){
    if(k!=='asset')links.assetIds=split(cell(row,'asset id','asset tag'));
    const recordId='delivery:'+deliveryHash([state.projectId,k,t.document.documentId,row.receipt.locator]).slice(0,24);
    records.push({recordId,projectId:state.projectId,kind:k,reference,description:cell(row,'description','package name','name','subject','test')||null,
-    revision:deliveryHash([row.receipt.sourceHash,row.receipt.locator,row.cells]),state:'extracted_candidate',fields:{...row.cells},links,receipts:[row.receipt],diagnostics:reference?[]:['Record reference is missing.'],sourceActive:['active','additive','candidate'].includes(t.document.basisState)||t.document.documentType==='supporting_document'&&t.document.basisState==='historical'&&!state.evidenceDocuments.find(d=>d.documentId===t.document.documentId)?.supersededByDocumentId});
+    revision:deliveryHash([row.receipt.sourceHash,row.receipt.locator,row.cells]),state:'extracted_candidate',fields:{...row.cells},links,receipts:[row.receipt],diagnostics:reference?[]:['Record reference is missing.'],sourceActive:['active','additive','candidate'].includes(t.document.basisState)||['supporting_document','delivery_register'].includes(t.document.documentType??'')&&t.document.basisState==='historical'&&!state.evidenceDocuments.find(d=>d.documentId===t.document.documentId)?.supersededByDocumentId});
   }
   const read=state.evidenceDocuments.find(d=>d.documentId===t.document.documentId)?.fullTextRead;
-  documents.push({documentId:t.document.documentId,filename:t.document.sourceFilename,kind,rowCount:count,readingComplete:read?.result.complete??null,state:read&&!read.result.complete?'partial_page_reading':count?'parsed_candidates':t.rows.length?'mapping_required':'parsed_empty',diagnostics:[...(count?[]:[t.rows.length+' source rows; '+(t.rows.length?'Delivery record identity is not mapped.':'the parsed table is empty.')]),...(read&&!read.result.complete?['Physical-page reading is incomplete. Read records do not establish complete register coverage.']:[])]});
+  for(const [documentKind,documentCount] of kindCounts.size?[...kindCounts]:[[null,0] as const])documents.push({documentId:t.document.documentId,filename:t.document.sourceFilename,kind:documentKind,rowCount:documentCount,readingComplete:read?.result.complete??null,state:read&&!read.result.complete?'partial_page_reading':count?'parsed_candidates':/^(boq|installed_measurement_register|risk_register|variation_register|payment_certificates)$/.test(t.document.documentType??'')?'existing_authority':t.rows.length?'mapping_required':'parsed_empty',diagnostics:[...(count?[]:[t.rows.length+' source rows; '+(t.rows.length?'Delivery record identity is not mapped.':'the parsed table is empty.')]),...(read&&!read.result.complete?['Physical-page reading is incomplete. Read records do not establish complete register coverage.']:[])]});
  }
  for(const d of state.evidenceDocuments){if(documents.some(r=>r.documentId===d.documentId))continue;
-  if(/procurement|submittal|commissioning|handover|permit|asset|snag|spare|weather|hse|rfi|quality|delivery/.test(d.documentType))documents.push({documentId:d.documentId,filename:d.sourceFilename,kind:null,rowCount:0,readingComplete:d.fullTextRead?.result.complete??null,state:'submitted_not_interpreted',diagnostics:['Source retained. Structured Delivery records have not been established. Review the reading receipt and field mapping.']});
+  if(/procurement|submittal|commissioning|handover|permit|asset|snag|spare|weather|hse|rfi|quality|delivery/.test(d.documentType))documents.push({documentId:d.documentId,filename:d.sourceFilename,kind:typed[d.documentType]??null,rowCount:0,readingComplete:d.fullTextRead?.result.complete??null,state:'submitted_not_interpreted',diagnostics:['Source retained. Structured Delivery records have not been established. Review the reading receipt and field mapping.']});
  }
  const latest=new Map(store.decisions.map(d=>[d.recordId,d]));
  for(const r of records){const d=latest.get(r.recordId);if(d){if(d.sourceRevision!==r.revision||!r.sourceActive)r.state='stale';else{r.state=d.state;r.fields={...r.fields,...d.fields};r.links={...emptyLinks(),...structuredClone(d.links)};r.reference=String(r.fields['record reference']??r.reference??'')||null;r.description=String(r.fields.description??r.description??'')||null;}}}
  for(const r of records)r.links={...emptyLinks(),...r.links};
  const superseded=new Set([...latest.values()].filter(d=>['governed','verified'].includes(d.state)).map(d=>d.supersedesId).filter(Boolean));
- for(const r of records)if(superseded.has(r.recordId)||!r.sourceActive)r.state='stale';
+ for(const r of records){if(!r.sourceActive)r.state='stale';if(superseded.has(r.recordId)||r.receipts.some(receipt=>state.evidenceDocuments.some(d=>d.documentId===receipt.documentId&&d.supersededByDocumentId)))r.state='superseded';}
  const governed=records.filter(r=>['governed','verified'].includes(r.state)),references=new Map<string,DeliveryRecord[]>();
  for(const r of governed)if(r.reference){const key=r.kind+'|'+r.reference;const group=references.get(key)??[];group.push(r);references.set(key,group);}
  for(const group of references.values())if(group.length>1)for(const r of group){r.state='conflicted';r.diagnostics.push('Multiple governed records share this reference; select the current revision explicitly.');}
@@ -108,7 +109,11 @@ export function changeDelivery(state:ProjectRuntimeState,input:any){
    if(fields['lifecycle id']&&!all.some(x=>x.kind==='lifecycle'&&x.recordId===fields['lifecycle id']&&['governed','verified'].includes(x.state)))throw new Error('Select a governed lifecycle template in this project.');
   }
   if(!String(input.note??'').trim())throw new Error('Record the reason for this decision.');
-  const old=input.supersedesId?all.find(x=>x.recordId===input.supersedesId):null;if(input.supersedesId&&(!old||old.kind!==r.kind||old.recordId===r.recordId))throw new Error('Select a previous record of the same type.');
+  const latest=new Map(store.decisions.map(d=>[d.recordId,d]));
+  const supersedesId=input.supersedesId===undefined?latest.get(r.recordId)?.supersedesId??null:input.supersedesId;
+  const old=supersedesId?all.find(x=>x.recordId===supersedesId):null;if(supersedesId&&(!old||old.kind!==r.kind||old.recordId===r.recordId))throw new Error('Select a previous record of the same type.');
+  const seen=new Set([r.recordId]);let predecessor=old?.recordId;
+  while(predecessor){if(seen.has(predecessor))throw new Error('Record supersession cannot contain a cycle.');seen.add(predecessor);predecessor=latest.get(predecessor)?.supersedesId??undefined;}
   store.decisions.push({recordId:r.recordId,sourceRevision:r.revision,state:input.state,note:String(input.note),fields,links,supersedesId:old?.recordId??null,actorId,recordedAt});
  }else if(input.action==='map_document'){
   const doc=state.evidenceDocuments.find(d=>d.documentId===input.documentId);if(!doc||doc.sourceHashSha256!==input.sourceHash||!deliveryKinds.includes(input.kind))throw new Error('Select the current source document and Delivery record type.');
@@ -120,7 +125,7 @@ export function changeDelivery(state:ProjectRuntimeState,input:any){
   const rows=all.filter(r=>r.kind===input.kind&&['governed','verified'].includes(r.state)&&(!input.scopeId||r.links.packageIds.includes(input.scopeId)||r.links.recordIds.includes(input.scopeId)));
   if(!input.scopeId&&source.documents.some(d=>d.kind===input.kind&&d.readingComplete===false))throw new Error('Complete the physical-page reading before confirming this register population.');
   if(input.scopeId&&!all.some(r=>r.recordId===input.scopeId&&['governed','verified'].includes(r.state)))throw new Error('Population scope must be a governed record in this project.');
-  if(all.some(r=>r.kind===input.kind&&(!input.scopeId||r.links.packageIds.includes(input.scopeId)||r.links.recordIds.includes(input.scopeId))&&!['governed','verified','stale','scenario'].includes(r.state)))throw new Error('Review pending or conflicting records before confirming the denominator.');
+  if(all.some(r=>r.kind===input.kind&&(!input.scopeId||r.links.packageIds.includes(input.scopeId)||r.links.recordIds.includes(input.scopeId))&&!['governed','verified','superseded','scenario'].includes(r.state)))throw new Error('Review pending or conflicting records before confirming the denominator.');
   store.populations.push({kind:input.kind,scopeId:input.scopeId??null,recordIds:rows.map(r=>r.recordId),fingerprint:deliveryPopulationFingerprint(rows),note:String(input.note),actorId,recordedAt});
  }else throw new Error('Unknown Delivery action.');
  state.delivery=store;return {action:input.action,recordedAt};
