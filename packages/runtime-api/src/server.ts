@@ -97,6 +97,43 @@ import {
   projectScheduleControlBasis,
 } from "./schedule-control-basis";
 
+export function projectDocumentRegister(projectId:string){
+  const state=runtimeProjects.get(projectId);if(!state)return null;
+    const schemaDiagnostics: string[] = [];
+    const schemaByDocument =
+      new Map(
+        governedTables(
+          state.evidenceDocuments,
+          schemaDiagnostics,
+        ).map((table) => [
+          table.document.documentId,
+            table,
+        ]),
+      );
+    return {
+      projectId,
+      documentCount:
+        state.evidenceDocuments
+          .length,
+      documents:
+        runtimeProjects
+          .evidence(projectId)
+          .map((document) => ({
+            ...document,
+            mapping:schemaByDocument.has(document.documentId)?analyzeEvidenceRows(
+              [schemaByDocument.get(document.documentId)!.headers,...schemaByDocument.get(document.documentId)!.rows.map(r=>schemaByDocument.get(document.documentId)!.headers.map(h=>r.cells[h]??''))],
+              new Set(runtimeProjects.latestSchedule(projectId)?.revision.model.activities.map(a=>a.activityId)??[])):document.mapping,
+            classificationReview: documentClassificationForReview(document),
+            readReview:documentReadReview(document,state,schemaByDocument.get(document.documentId)),
+            schemaHeaders:
+              schemaByDocument.get(
+                document.documentId,
+              )?.headers ?? [],
+          })),
+    };
+
+}
+
 const port = Number.parseInt(
   process.env.PORT ?? "3000",
   10,
@@ -988,38 +1025,7 @@ async function route(
       });
       return;
     }
-    const schemaDiagnostics: string[] = [];
-    const schemaByDocument =
-      new Map(
-        governedTables(
-          state.evidenceDocuments,
-          schemaDiagnostics,
-        ).map((table) => [
-          table.document.documentId,
-            table,
-        ]),
-      );
-    json(res, 200, {
-      projectId,
-      documentCount:
-        state.evidenceDocuments
-          .length,
-      documents:
-        runtimeProjects
-          .evidence(projectId)
-          .map((document) => ({
-            ...document,
-            mapping:schemaByDocument.has(document.documentId)?analyzeEvidenceRows(
-              [schemaByDocument.get(document.documentId)!.headers,...schemaByDocument.get(document.documentId)!.rows.map(r=>schemaByDocument.get(document.documentId)!.headers.map(h=>r.cells[h]??''))],
-              new Set(runtimeProjects.latestSchedule(projectId)?.revision.model.activities.map(a=>a.activityId)??[])):document.mapping,
-            classificationReview: documentClassificationForReview(document),
-            readReview:documentReadReview(document,state,schemaByDocument.get(document.documentId)),
-            schemaHeaders:
-              schemaByDocument.get(
-                document.documentId,
-              )?.headers ?? [],
-          })),
-    });
+    json(res,200,projectDocumentRegister(projectId));
     return;
   }
 

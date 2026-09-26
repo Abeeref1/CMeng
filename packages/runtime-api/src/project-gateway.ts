@@ -12,6 +12,7 @@ type Lane={worker:Worker;ready:Promise<number>;tail:Promise<void>;pending:number
 const send=(res:ServerResponse,status:number,body:unknown)=>{if(!res.destroyed&&!res.writableEnded){if(res.headersSent){res.destroy();return;}res.writeHead(status,{'content-type':'application/json','cache-control':'no-store'});res.end(JSON.stringify(body));}};
 export async function createProjectGateway(root:string,options:{maxWorkers?:number}={}){
   const catalog=await loadProjectCatalog(root),lanes=new Map<string,Lane>(),progress=new Map<string,any>();
+  const documentRegisters=new Map<string,{version:number;documents:Record<string,any>}>();
   const auditSecret=process.env.CMENG_AUDIT_SECRET??randomBytes(32).toString('hex');
   const configured=options.maxWorkers??Number(process.env.CMENG_PROJECT_WORKERS??4);
   const html=cmengUatHtml(),maxWorkers=Number.isInteger(configured)?Math.min(8,Math.max(3,configured)):4;
@@ -38,7 +39,7 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
         if(closing)throw new Error('SERVICE_RESTARTING');
       }
       const directory=projectDirectory(root,id);
-      const env:NodeJS.ProcessEnv={...process.env,CMENG_DATA_DIR:directory,CMENG_TEST_MODE:'0',NODE_TEST_CONTEXT:'',CMENG_PROJECT_WORKER:'1',CMENG_AUDIT_SECRET:auditSecret};
+      const env:NodeJS.ProcessEnv={...process.env,CMENG_DATA_DIR:directory,CMENG_TEST_MODE:'0',NODE_TEST_CONTEXT:'',CMENG_PROJECT_WORKER:'1',CMENG_PROFILE_PERF:'1',CMENG_AUDIT_SECRET:auditSecret};
       if(env.RAILWAY_VOLUME_MOUNT_PATH)env.RAILWAY_VOLUME_MOUNT_PATH=directory;
       const worker=new Worker(join(__dirname,'project-http-worker.js'),{workerData:{projectId:id,directory},env});
       const lane:Lane={worker,ready:Promise.resolve(0),tail:Promise.resolve(),pending:1,lastUsed:Date.now()};
@@ -47,6 +48,7 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
         worker.on('message',message=>{
           if(message.type==='ready'){clearTimeout(timer);resolve(message.port);}
           if(message.type==='progress')progress.set(id+'::'+message.progress.uploadId,message.progress);
+          if(message.type==='documents')documentRegisters.set(id,{version:message.version,documents:message.documents});
           if(message.type==='metadata'){
             const entry=catalog.get(id);if(entry){entry.metadata=message.metadata;if(entry.summary?.version!==entry.metadata?.version)entry.summaryRelease=null;}
           }
@@ -67,6 +69,7 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
     try{return await result;}finally{lane.pending--;lane.lastUsed=Date.now();signal();}
   }
   const updating=new Map<string,number>(),summaryJobs=new Map<string,Promise<void>>(),summaryAttempts=new Map<string,number>();
+  const summaryFailures=new Map<string,number|undefined>();
   async function refreshSummary(id:string){
     if(closing)return;
     if(summaryJobs.has(id))return summaryJobs.get(id);
@@ -78,8 +81,9 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
       const entry=catalog.get(id);if(!entry||!summary)return;
       if(entry.metadata&&entry.metadata.version!==summary.version)return;
       entry.summary=summary;entry.summaryRelease=release();
+      summaryFailures.delete(id);
       await atomicJson(join(projectDirectory(root,id),'portfolio.json'),{release:release(),summary});
-    }).catch(()=>{const entry=catalog.get(id);if(entry)entry.summaryRelease=null;}).finally(()=>summaryJobs.delete(id));
+    }).catch(()=>{const entry=catalog.get(id);if(entry){entry.summaryRelease=null;summaryFailures.set(id,entry.metadata?.version);}}).finally(()=>summaryJobs.delete(id));
     summaryJobs.set(id,task);return task;
   }
   function portfolioEntry(entry:CatalogEntry){
@@ -145,6 +149,22 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
       const progressMatch=/^\/evidence\/upload-progress\/([^/]+)$/.exec(match[2]??'');
       if(req.method==='GET'&&progressMatch){const p=progress.get(id+'::'+decodeURIComponent(progressMatch[1]!));send(res,p?200:404,p??{error:'upload_progress_not_found'});return;}
       if(!catalog.has(id)){if(req.method==='GET'){send(res,404,{error:'project_not_found'});return;}await register(id);}
+      if(req.method==='GET'&&req.headers['x-cmeng-async-view']==='1'){
+        const entry=catalog.get(id)!;
+        if(match[2]==='/evidence/documents'){
+          const saved=documentRegisters.get(id);
+          if(saved&&saved.version===entry.metadata?.version){send(res,200,saved.documents);return;}
+          if((updating.get(id)??0)>0||summaryJobs.has(id)){
+            send(res,202,{projectId:id,processing:true,documentCount:null,documents:[],message:'Updating the document register. The saved files will appear here as soon as processing finishes.'});return;
+          }
+        }
+        if(match[2]==='/overview'&&((updating.get(id)??0)>0||summaryJobs.has(id)||entry.summaryRelease!==release()||entry.summary?.version!==entry.metadata?.version)){
+          if(!updating.get(id)&&!summaryJobs.has(id)&&summaryFailures.has(id)&&summaryFailures.get(id)===entry.metadata?.version&&Date.now()-(summaryAttempts.get(id)??0)<60000){send(res,503,{error:'project_calculation_failed',message:'The project calculation could not finish. Your saved documents remain available. Try updating the project position again.'});return;}
+          if(!(updating.get(id)??0)&&!summaryJobs.has(id))void refreshSummary(id);
+          const saved=documentRegisters.get(id);
+          send(res,202,{projectId:id,state:'updating',documentCount:saved?.version===entry.metadata?.version?saved?.documents.documentCount??null:null,releaseCommitSha:release(),message:(updating.get(id)??0)>0?'Processing documents and updating the project position':'Calculating the project position and checking the results'});return;
+        }
+      }
       await proxy(id,req,res,'/api/projects/'+encodeURIComponent(id)+(match[2]??'')+url.search);return;
     }
     if(url.pathname.startsWith('/api/')){await mkdir(projectDirectory(root,'_SYSTEM'),{recursive:true});await proxy('_SYSTEM',req,res);return;}
@@ -156,7 +176,10 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
   const warmer=setInterval(()=>{
     for(const [key,value] of progress)if(value.updatedAt&&Date.now()-Date.parse(value.updatedAt)>6*60*60*1000)progress.delete(key);
     if(closing||warming)return;
-    const entry=[...catalog.values()].find(e=>!e.metadata?.demo&&e.summaryRelease!==release()&&!updating.get(e.projectId)&&Date.now()-(summaryAttempts.get(e.projectId)??0)>60000);
+    // Background portfolio work must not evict a recently used project's expensive
+    // calculation cache. Foreground project requests still use normal LRU capacity.
+    const entry=[...catalog.values()].find(e=>!e.metadata?.demo&&e.summaryRelease!==release()&&!updating.get(e.projectId)&&Date.now()-(summaryAttempts.get(e.projectId)??0)>60000&&
+      (lanes.has(e.projectId)||lanes.size<maxWorkers||[...lanes.values()].some(l=>l.pending===0&&Date.now()-l.lastUsed>15*60*1000)));
     if(entry){warming=true;void refreshSummary(entry.projectId).finally(()=>{warming=false;});}
   },2000);warmer.unref();
   const close=async()=>{closing=true;clearInterval(warmer);signal();server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));await Promise.all([...lanes.values()].map(l=>l.worker.terminate()));await catalogWrites;};
