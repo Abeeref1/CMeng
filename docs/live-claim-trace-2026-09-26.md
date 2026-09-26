@@ -110,6 +110,19 @@ The separate single-project DMM run took 14.019 seconds before and 10.438 second
 
 The table records the first patched replay, before the migration-version guard was added. Tracing the EP outlier found its version changed from 46 to 47; the cache correctly rejected the old version. The migration guard and the unchanged-version restart behavior passed focused regression checks afterward. The 7.301-second observation is retained rather than replaced with a favourable estimate.
 
+The release gate subsequently failed at 5,514 ms and 5,706 ms on two CI runs,
+against its unchanged 5,000-ms limit. Profiling identified repeated activity
+identity indexing across schedule comparisons and repeated conversion of whole
+hour thresholds through decimal strings. Identity matches now reuse results only
+after checking all identity fields and the complete populations; consumers receive
+independent result copies. One index also supplies duplicate groups directly,
+removing repeated full-array scans. No matching rule or threshold changed.
+Mutation and consumer-isolation tests cover the retained identities. The next
+local two-CPU release workflow passed at 4,434 ms (20,000-activity upload-to-ready:
+2,966 ms). These observations are separate from the earlier eleven-project table
+and do not replace either failed CI observation or certify the real-project cold
+target.
+
 Full raw observations, including the enabled-OCR failure, are in `project-batch-observations-2026-09-26.json`. OCR remains enabled by default and no production OCR setting was changed. OCR-disabled timings cannot certify reading coverage or total onboarding performance.
 
 ## OCR-enabled retained reading check
