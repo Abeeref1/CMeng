@@ -1,4 +1,5 @@
 import {parentPort} from 'node:worker_threads';
+import {sendHttpBody} from './http-response';
 import {projectResultMap} from './project-api-results';
 import {analyzeEvidenceRows} from './evidence';
 import {resolveModuleKey,publicModuleResult} from './registry';
@@ -314,14 +315,13 @@ function json(
   body: unknown,
 ): void {
   const payload = JSON.stringify(body);
-  res.writeHead(statusCode, {
+  sendHttpBody(res,statusCode, {
     "cache-control": "no-store",
     "content-type":
       "application/json; charset=utf-8",
     "content-length":
       Buffer.byteLength(payload),
-  });
-  res.end(payload);
+  },payload);
 }
 
 function attachment(
@@ -331,7 +331,7 @@ function attachment(
   contentType: string,
   filename: string,
 ): void {
-  res.writeHead(statusCode, {
+  sendHttpBody(res,statusCode, {
     "content-type":
       contentType,
     "content-length":
@@ -343,8 +343,7 @@ function attachment(
       '"',
     "cache-control":
       "no-store",
-  });
-  res.end(body);
+  },body);
 }
 
 function html(
@@ -352,15 +351,14 @@ function html(
   statusCode: number,
   body: string,
 ): void {
-  res.writeHead(statusCode, {
+  sendHttpBody(res,statusCode, {
     "content-type":
       "text/html; charset=utf-8",
     "content-length":
       Buffer.byteLength(body),
     "cache-control":
       "no-store",
-  });
-  res.end(body);
+  },body);
 }
 
 function uploadIntent(

@@ -74,6 +74,16 @@ test('cost summaries preserve partial authority and never aggregate multiple cur
 });
 
 const certificateFunctions=functions(['certificateMoney','experienceCertificateGroups','experienceCertificateChart','experienceCertificatePanels','experienceDisclosure']);
+test('quantity summaries distinguish measured installation from missing or complete programme mapping',()=>{
+ const data={boqItemCount:12,allocatedItemCount:0,itemLinkCoveragePercent:0,allocationState:'missing',mappingBasis:'missing',actualAuthority:'measured_installed_quantities',
+  installedQuantityStatus:{state:'available',measuredItemCount:12,explanation:'Dated installed quantities are available for 12 of 12 BOQ items. Programme links are a separate requirement for planned curves.'}};
+ const result=runInNewContext(briefFunctions+';experienceBrief("quantity-scurve",data)',{...common,data});
+ assert.equal(result.facts.find((x:any)=>x.label==='Items with dated measurements').value,12);
+ assert.equal(result.facts.find((x:any)=>x.label==='Programme-linked items').value,0);
+ assert.match(result.note,/Dated installed quantities are available/);
+ const mapped=runInNewContext(briefFunctions+';experienceBrief("quantity-scurve",data)',{...common,data:{...data,allocationState:'complete',mappingBasis:'governed',allocatedItemCount:12,itemLinkCoveragePercent:100}});
+ assert.equal(mapped.review,'','complete governed mapping must not trigger the old established/complete mismatch');
+});
 function certificate(id:string,date:string|null,value:number|null,currency:string,taxBasis:string) {
   return {paymentId:id,periodEnd:date,certifiedAmountBasis:'unknown',amounts:{netCertifiedAmount:{value,currency,taxBasis}}};
 }

@@ -332,6 +332,16 @@ test('loaded risks retain the source population and distinguish rating conflicts
  assert.equal(surfaces.masterDashboard.metrics.find(m=>m.key==='open-risk')!.value,null);
 });
 
+test('risk score review names missing probability and impact inputs without inventing scores or non-applicability',t=>{
+ const {state,csv}=fixture(t);
+ csv('Risk ID,Rating,Status\nA,Extreme,Open\nB,Extreme,Closed','risk_register');
+ const review=operationalReporting(state).risk.validation;
+ assert.equal(review.state,'review_required');assert.equal(review.missingProbabilityCount,2);assert.equal(review.missingImpactCount,2);
+ assert.ok(review.scoreRows.every(row=>row.score===null));
+ assert.match(review.explanation,/probability is missing or unreadable in 2 rows; impact is missing or unreadable in 2 rows/);
+ assert.doesNotMatch(review.explanation,/not applicable/i);
+});
+
 test('design prerequisites use planned dates and actual issue dates, not a future overdue status label',async t=>{
  const {deriveReadinessFromCsv}=await import('../packages/runtime-api/src/evidence-readiness');
  const {state,model,csv}=fixture(t);model.activities[0]!.activityId='A';model.activities[0]!.currentFinishIso='2031-04-30';

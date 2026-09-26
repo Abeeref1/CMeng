@@ -105,11 +105,17 @@ test('a completed project stays readable after worker eviction and restart; muta
    await get('/api/projects/'+id+'/overview');await get('/api/projects/'+id+'/overview');
   }
   const seeded=await fetch(base+'/api/projects/PROJECT-A/evidence/uploads',{method:'POST',headers:{'content-type':'text/plain','x-source-filename':'programme.xer','x-upload-intent':'replace_current_basis','x-schedule-role':'update'},body:xer('PROJECT-A',10)});assert.equal(seeded.status,201);
-  const priorDashboard=await get('/api/projects/PROJECT-A/management/master-dashboard');assert.ok(priorDashboard.data.positionVerdict);
+  const firstDashboard=await fetch(base+'/api/projects/PROJECT-A/management/master-dashboard',{headers:{'accept-encoding':'br'}});
+  assert.equal(firstDashboard.headers.get('content-encoding'),'br','uncached worker response is compressed at the public gateway');
+  const priorDashboard=await firstDashboard.json() as any;assert.ok(priorDashboard.data.positionVerdict);
   const prior=await get('/api/projects/PROJECT-A/overview');
   await gateway.close();gateway=await createProjectGateway(root,{maxWorkers:1});base=await listen(gateway);
   const restored=await get('/api/projects/PROJECT-A/overview');assert.deepEqual(restored,prior);
-  assert.deepEqual(await get('/api/projects/PROJECT-A/management/master-dashboard'),priorDashboard,'master dashboard survives eviction and restart with its exact source version');
+  for(const encoding of ['gzip','br','identity']){
+   const cached=await fetch(base+'/api/projects/PROJECT-A/management/master-dashboard',{headers:{'accept-encoding':encoding}});
+   assert.equal(cached.headers.get('content-encoding'),encoding==='identity'?null:encoding);
+   assert.deepEqual(await cached.json(),priorDashboard,'cached dashboard preserves exact JSON across restart and encoding changes');
+  }
   assert.equal((await get('/health')).projectWorkers,0,'cache hit must not restart an evicted calculation worker');
   const upload=await fetch(base+'/api/projects/PROJECT-A/evidence/uploads',{method:'POST',headers:{'content-type':'text/plain','x-source-filename':'programme.xer','x-evidence-category':'schedule','x-upload-intent':'replace_current_basis','x-schedule-role':'update'},body:xer('PROJECT-A',20)});assert.equal(upload.status,201);
   const after=await get('/api/projects/PROJECT-A/overview');assert.notDeepEqual(after,prior);assert.equal(after.projectId,'PROJECT-A');

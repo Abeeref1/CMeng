@@ -66,7 +66,9 @@ export function operationalControlsAsOf(state:ProjectRuntimeState,date:string|nu
     const members=scoreRows.filter(r=>r.score===score);return {score,recordCount:members.length,ratings:[...new Set(members.map(r=>r.rating).filter(Boolean))],counts:[...new Set(members.map(r=>r.rating))].map(rating=>({rating,count:members.filter(r=>r.rating===rating).length})),riskIds:members.map(r=>r.riskId)};
   });
   const ratingInconsistencyGroups=scoreGroups.filter(g=>g.ratings.length>1);
+  const missingProbabilityCount=scoreRows.filter(r=>r.probability===null).length,missingImpactCount=scoreRows.filter(r=>r.impact===null).length;
   const riskValidation={state:ratingInconsistencyGroups.length?'conflicted':scoreRows.length&&scoreRows.every(r=>r.score!==null&&r.rating!==null)?'consistent_in_checked_scores':'review_required',sourceRecordCount:risks.length,
+    missingProbabilityCount,missingImpactCount,
     sourceFactKey:'RISK_RATING_SCORE_CONFLICT',
     scoreBasis:'Source probability × impact; no rating thresholds are invented. Identical scores with different supplied ratings require a documented rating method.',
     ratingInconsistencyGroups,scoreGroups,scoreRows,
@@ -75,6 +77,7 @@ export function operationalControlsAsOf(state:ProjectRuntimeState,date:string|nu
     sourceRefs:scoreRows.flatMap(r=>r.sourceRefs),
     diagnostics:ratingInconsistencyGroups.length?['RISK_RATING_SCORE_CONFLICT']:[],
     explanation:risks.length+' risk records are present. '+(ratingInconsistencyGroups.length?ratingInconsistencyGroups.length+' probability × impact scores have inconsistent supplied ratings. ':'')+
+      (missingProbabilityCount||missingImpactCount?'Risk score validation is unresolved: probability is missing or unreadable in '+missingProbabilityCount+' rows; impact is missing or unreadable in '+missingImpactCount+' rows. Provide those source values to assess the scores. ':'')+
       risk.undatedRecordCount+' records lack an identified/status-as-of date. Action due dates do not establish when the risk was open.'};
   const severityKnown=quality.current.every(r=>r.status!=='open'||r.severity!=='unknown');
   const dueKnown=rfi.current.every(r=>r.status!=='open'||r.dueIso!==null);
