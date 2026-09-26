@@ -58,3 +58,18 @@ test('large snapshot restore is complete and rejects truncation or trailing inva
   fs.truncateSync(path,fs.statSync(path).size-10);assert.throws(()=>readSnapshotJson(path));
  }finally{fs.rmSync(root,{recursive:true,force:true});}
 });
+
+test('new durability boundary: a directory sync failure after replacement reports uncertainty; retry and restart preserve exactly one upload',async t=>{
+ const root=fs.mkdtempSync(join(tmpdir(),'cmeng-postcommit-failure-'));
+ try{
+  const store=new RuntimeProjectStore({dataDir:root});store.getOrCreate('SAVE');store.getOrCreate('UNRELATED');
+  const snapshot=store.persistenceStatus().stateFile,rename=fs.renameSync,sync=fs.fsyncSync;let replaced=false;
+  t.mock.method(fs,'renameSync',(...args:any[])=>{const result=(rename as Function)(...args);if(args[1]===snapshot)replaced=true;return result;});
+  t.mock.method(fs,'fsyncSync',(fd:number)=>{if(replaced&&fs.fstatSync(fd).isDirectory())throw Object.assign(new Error('Directory sync failed'),{code:'EIO'});return sync(fd);});
+  await assert.rejects(store.ingestSchedule(input),(e:any)=>e.statusCode===503&&e.code==='PROJECT_SAVE_NOT_CONFIRMED');
+  assert.equal(store.get('SAVE')!.schedules.length,1,'the visible register reflects what actually reached disk');
+  assert.equal(store.get('UNRELATED')!.schedules.length,0);
+  t.mock.restoreAll();const retry=await store.ingestSchedule(input);assert.equal(store.get('SAVE')!.schedules.length,1);
+  const reopened=new RuntimeProjectStore({dataDir:root});assert.equal(reopened.get('SAVE')!.schedules.length,1);assert.equal(reopened.get('SAVE')!.schedules[0]!.revision.revisionId,retry.revisionId);assert.equal(reopened.get('UNRELATED')!.schedules.length,0);
+ }finally{t.mock.restoreAll();fs.rmSync(root,{recursive:true,force:true});}
+});

@@ -10,11 +10,11 @@ export interface DeliveryLinks {
 export interface DeliveryRecord {
  recordId:string;projectId:string;kind:DeliveryKind;reference:string|null;description:string|null;
  revision:string;state:DeliveryState;fields:DeliveryFields;links:DeliveryLinks;
- receipts:SourceReceipt[];diagnostics:string[];sourceActive:boolean;
+ receipts:SourceReceipt[];diagnostics:string[];sourceActive:boolean;evidenceRevision?:string;
 }
 export interface DeliveryDecision {
  recordId:string;sourceRevision:string;state:'working'|'governed'|'verified'|'scenario';note:string;
- fields:DeliveryFields;links:DeliveryLinks;supersedesId:string|null;actorId:string;recordedAt:string;
+ fields:DeliveryFields;links:DeliveryLinks;receipts?:SourceReceipt[];supersedesId:string|null;actorId:string;recordedAt:string;
 }
 export interface DeliveryPopulation {
  kind:DeliveryKind;scopeId:string|null;recordIds:string[];fingerprint:string;note:string;actorId:string;recordedAt:string;

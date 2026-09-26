@@ -48,3 +48,18 @@ test('a scanned PDF records a failed page when the real OCR worker cannot load i
   assert.equal(result.complete,false);assert.equal(result.failedPages,1);assert.match(result.pages[0]!.diagnostics.join(' '),/403/);
  }finally{server.closeAllConnections();await new Promise<void>(r=>server.close(()=>r()));rmSync(root,{recursive:true,force:true});}
 });
+
+test('new OCR faults: reset connections and corrupt models stay contained, then queued pages recover with their own results', {timeout:30000},async()=>{
+ const root=mkdtempSync(join(tmpdir(),'cmeng-ocr-new-faults-'));let mode='reset',requests=0;
+ const model=readFileSync(join(dirname(require.resolve('@tesseract.js-data/eng/package.json')),'4.0.0_best_int/eng.traineddata.gz'));
+ const server=createServer((req,res)=>{requests++;if(mode==='reset'){req.socket.destroy();return;}res.writeHead(200);res.end(mode==='corrupt'?Buffer.from('broken compressed language data'):model);});
+ await new Promise<void>(r=>server.listen(0,'127.0.0.1',r));
+ const provider=new TesseractOcrProvider({languages:['eng'],cachePath:root,langPath:'http://127.0.0.1:'+(server.address() as AddressInfo).port,timeoutMs:5000});
+ try{
+  const png=await image();await assert.rejects(provider.recognize(png,11),/OCR_READING_FAILED/);
+  mode='corrupt';await assert.rejects(provider.recognize(png,12),/OCR_READING_FAILED/);
+  mode='healthy';const [bad,good]=await Promise.allSettled([provider.recognize(Buffer.from('malformed page'),13),provider.recognize(png,14)]);
+  assert.equal(bad.status,'rejected');assert.equal(good.status,'fulfilled');if(good.status==='fulfilled')assert.match(good.value.text,/CMENG\s+12345/);
+  assert.ok(requests>=3);
+ }finally{await provider.close();server.closeAllConnections();await new Promise<void>(r=>server.close(()=>r()));rmSync(root,{recursive:true,force:true});}
+});
