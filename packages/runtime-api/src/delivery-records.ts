@@ -11,17 +11,20 @@ export const deliveryHash=(value:unknown)=>createHash('sha256').update(JSON.stri
 const split=(value:string)=>value.split(/[;|]/).map(x=>x.trim()).filter(Boolean);
 export const deliveryStore=(state:ProjectRuntimeState):DeliveryStateStore=>state.delivery??{schemaVersion:1,manual:[],decisions:[],populations:[]};
 const typed:Record<string,DeliveryKind>={procurement_register:'package',submittal_register:'submittal',rfi_register:'design',quality_ncr_register:'quality',asset_register:'asset',testing_commissioning_register:'commissioning',hse_report:'hse'};
+// Source-table keys are already canonical. Normalise the finite identity list
+// once, rather than repeating the same alias/Unicode work for every source row.
+const identityKeys=Object.fromEntries(deliveryKinds.map(k=>[k,kindIdentities[k].map(id=>canonicalHeader(id))])) as Record<DeliveryKind,string[]>;
 function kindFor(row:SourceRow,type:string):DeliveryKind|null {
  // A foreign key (supplier or location ID) does not turn a package into that register.
  const explicit=cell(row,'delivery record type') as DeliveryKind;
  if(deliveryKinds.includes(explicit))return explicit;
 
  if(typed[type])return typed[type]!;
- const candidates=deliveryKinds.filter(k=>kindIdentities[k].some(id=>Object.hasOwn(row.cells,canonicalHeader(id))));
+ const candidates=deliveryKinds.filter(k=>identityKeys[k].some(id=>Object.hasOwn(row.cells,id)));
  if(candidates.length===1)return candidates[0]!;
  const first=Object.keys(row.cells)[0];
  // Ambiguous tables require a mapping decision. Foreign IDs are never promoted by text similarity.
- return candidates.find(k=>kindIdentities[k].some(id=>canonicalHeader(id)===first))??null;
+ return candidates.find(k=>identityKeys[k].includes(first??''))??null;
 }
 export function deliveryRecords(state:ProjectRuntimeState){
  const diagnostics:string[]=[];const tables=deliverySourceTables(state,diagnostics);const store=deliveryStore(state);
