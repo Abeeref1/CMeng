@@ -53,7 +53,7 @@ function navigationHarness(){
   const rendered:unknown[]=[];const busy:string[]=[];
   const projectGuard=script!.slice(script!.indexOf('function projectRequestIsCurrent('),script!.indexOf('function clearProjectWorkspace('));
   const load=runInNewContext(projectGuard+script!.slice(start,end)+'\nloadModule',{
-    projectRequestSeq:0,
+    projectRequestSeq:0,projectLoadState:"ready",
     apiKeys:{},document:{body:{classList:{remove(){}}},querySelectorAll:()=>[]},overview:{},el,names:{payments:'Payments','cost-forecast':'Cost Forecast'},descriptions:{},
     setBusy:(value:string)=>busy.push(value),escapeHtml:(value:unknown)=>String(value),project:()=> 'TEST',
     api:()=>new Promise((resolve,reject)=>requests.push({resolve,reject})),renderModuleResult:(result:unknown)=>rendered.push(result),
