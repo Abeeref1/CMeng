@@ -94,7 +94,9 @@ export function classifyScheduleActivity(model:CanonicalScheduleModel,activity:C
   };
   return {activityId:activity.activityId,wbsId:activity.wbsId,wbsPath:hierarchy.path,wbsLevel:hierarchy.level,zone:zone.value,floor:floor.value,level:level.value,tower:tower.value,building:building.value,area:area.value,workFront:workFront.value,discipline,package:packageValue.value,location:spatial.length?spatial.join(' / '):null,classificationBasis:basis};
 }
+const classificationCache=new WeakMap<CanonicalScheduleModel,ScheduleScopeClassification>();
 export function scheduleScopeClassification(model:CanonicalScheduleModel):ScheduleScopeClassification{
+  const cached=classificationCache.get(model);if(cached)return cached;
   const nodes=new Map(model.wbs.map(node=>[node.wbsId,node]));
   const activities=model.activities.filter(activity=>!['level_of_effort','wbs_summary'].includes(activity.activityType));
   const rows=activities.map(activity=>classifyScheduleActivity(model,activity,nodes));
@@ -114,5 +116,5 @@ export function scheduleScopeClassification(model:CanonicalScheduleModel):Schedu
     ['location','Location','Composite of explicit source-derived spatial classifications']
   ];
   const coverage=dimensions.map(([key,label,basis])=>{const classified=rows.filter(row=>row[key]!==null).length;return {key,label,classified,total:rows.length,coveragePercent:rows.length?Number((classified/rows.length*100).toFixed(4)):null,basis};});
-  return {activityCount:rows.length,rows,coverage};
+  const result={activityCount:rows.length,rows,coverage};classificationCache.set(model,result);return result;
 }
