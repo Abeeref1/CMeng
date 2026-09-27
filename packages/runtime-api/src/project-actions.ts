@@ -5,12 +5,13 @@ import {scheduleAuthorityReview} from './schedule-authority';
 import {phaseProgrammeState} from './phase-programmes';
 import {deliveryPosition} from './delivery-projections';
 import {deliveryLabels,deliveryKinds} from '../../delivery-core/src/types';
+import {titleForModule} from './registry';
 import {deliveryPages} from '../../delivery-core/src/registry';
 
 export interface ProjectAction {
   id:string;category:'confirmation'|'review'|'information';title:string;reason:string;recordCount:number;
   target:{type:'schedule'|'document'|'delivery'|'module'|'upload';label:string;documentId?:string;revisionId?:string;phaseId?:string;canConfirm?:boolean;moduleKey?:string;kind?:string;population?:boolean};
-  issue?:ControlIssue;
+  issue?:ControlIssue;requestCount?:number;findingIds?:string[];
 }
 const identity=(value:unknown)=>createHash('sha256').update(JSON.stringify(value)).digest('hex').slice(0,24);
 export function programmeActions(state:ProjectRuntimeState):ProjectAction[]{
@@ -38,6 +39,7 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
     if(pending.length)actions.push({id:'delivery-review:'+kind,category:'review',title:'Review '+deliveryLabels[kind].toLowerCase(),reason:pending.length+' records need a decision or have changed since their previous review. Open the register to review each record and its source.',recordCount:pending.length,target:{type:'delivery',kind,moduleKey,label:'Review records'}});
     else if(delivery.populations[kind]?.state!=='established')actions.push({id:'delivery-population:'+kind,category:'confirmation',title:'Confirm the complete '+deliveryLabels[kind].toLowerCase()+' list',reason:'The records have been reviewed. Confirm whether they cover the complete required scope before percentages are reported.',recordCount:records.length,target:{type:'delivery',kind,moduleKey,population:true,label:'Review and confirm complete list'}});
   }
+  const missingByPage=new Map<string,ControlIssue[]>();
   const systemItems=assessment.issues.filter(i=>i.owner==='CMeng'||['system_defect','verification_pending'].includes(i.kind));
   for(const issue of assessment.issues){
     if(systemItems.includes(issue))continue;
@@ -45,8 +47,10 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
     // An exact adoption finding shares the actual decision above; original findings remain in Information & Actions details.
     if(/PROGRAMME_ADOPTION|CURRENT_PROGRAMME_ADOPTION|SCHEDULE_ADOPTION/.test(issue.code)&&actions.some(a=>a.target.type==='schedule'))continue;
     const moduleKey=issue.moduleKeys.find(k=>!['source-quality','master-dashboard','command-center','master-control-programme','management-surfaces'].includes(k))??'command-center';
+    if(issue.kind==='missing_information'&&!doc){const items=missingByPage.get(moduleKey)??[];items.push(issue);missingByPage.set(moduleKey,items);continue;}
     actions.push({id:'issue:'+identity([issue.kind,issue.code,issue.summary,issue.detail,issue.sourceRefs]),category:issue.kind==='missing_information'?'information':'review',title:issue.summary,reason:issue.action,recordCount:issue.sourceRefs.length,issue:{...issue,sourceRefs:[],checkIds:[],evidencePaths:issue.evidencePaths.slice(0,4)},target:doc?{type:'document',documentId:doc.documentId,label:'Open supporting document'}:{type:'module',moduleKey,label:'Open relevant page'}});
   }
+  for(const [moduleKey,issues]of missingByPage){const title=titleForModule(moduleKey),refs=[...new Set(issues.flatMap(i=>i.sourceRefs))];actions.push({id:'information:'+moduleKey,category:'information',title:'Complete information for '+title,reason:issues.length+' information requests affect this page. Open it to review the missing records, dates or links. All individual findings and source references remain in the supporting details below.',recordCount:refs.length,requestCount:issues.length,findingIds:issues.map(i=>identity([i.kind,i.code,i.summary,i.detail,i.sourceRefs])),target:{type:'module',moduleKey,label:'Open '+title}});}
   const unique=[...new Map(actions.map(a=>[a.id,a])).values()];
   return {projectId:state.projectId,projectVersion:state.version,checkedAt:new Date().toISOString(),actionCount:unique.length,actions:unique,systemCheckCount:systemItems.length,scope:'Pending decisions and information requests from the current project records and available checks. Each grouped action shows its affected record count. Completed decisions are removed after refresh.'};
 }

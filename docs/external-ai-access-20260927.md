@@ -151,3 +151,18 @@ links two real assistant accounts and independently interrogates a live project.
 A genuine paid-model response also remains open until an API key is configured.
 No claim of customer release readiness or defect-free operation is made from the
 automated checks alone.
+
+### Review evidence
+
+The full local suite passed 806 checks before the final presentation refinement;
+44 focused checks then passed, including a new case proving that grouping three
+missing fields into one destination action retains all three finding identities
+and does not count requests as source records. Missing-information actions are
+now grouped by their destination page; schedule/document decisions stay explicit.
+The release performance gate measured 3,786.9 ms for cold opening and 3,089.2 ms
+for a fresh 20,000-activity upload through its first calculated dashboard.
+
+Browser review on the isolated service confirmed the actual schedule action,
+updated reporting date, cleared confirmation and local CPI = 720 / 900 = 0.8.
+The remaining missing/conflicting-evidence qualifications stayed visible with
+the answer. The normal project list kept the other, unadopted project separate.

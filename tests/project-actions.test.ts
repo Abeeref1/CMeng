@@ -38,3 +38,16 @@ test('project action notifications ignore late responses after A to B to A and n
   pending[0]!({projectId:'A',projectVersion:1,actionCount:99,actions:[]});await old;assert.match(button.innerHTML,/>3</);assert.doesNotMatch(button.innerHTML,/99/);
   ctx.api=()=>Promise.reject(new Error('Unavailable'));await ctx.loadProjectActions();assert.match(notice.textContent,/could not be refreshed/);assert.doesNotMatch(button.innerHTML,/>0</);
 });
+
+test('one missing-information action per destination preserves every underlying request',async()=>{
+  const {runtimeProjects}=await import('../packages/runtime-api/src/project-state');
+  const {projectActions}=await import('../packages/runtime-api/src/project-actions');
+  const {summarizeControlIssues}=await import('../packages/truth-kernel/src');
+  const state=runtimeProjects.getOrCreate('GROUPED-ACTION-REVIEW');
+  const items=['currency','retention','paymentPeriod'].map(field=>({code:'MISSING_SOURCE_VALUE',kind:'missing_information' as const,summary:field,detail:'Missing '+field,action:'Provide '+field,owner:'Project evidence owner' as const,moduleKeys:['contract-particulars-bonds'],sourceRefs:[],checkIds:[],evidencePaths:['contract.'+field]}));
+  const result=projectActions(state,summarizeControlIssues([...items,{...items[0]!,summary:'Missing invoice date',moduleKeys:['payments']}]));
+  const contract=result.actions.find(a=>a.id==='information:contract-particulars-bonds')!,payment=result.actions.find(a=>a.id==='information:payments')!;
+  assert.equal(contract.requestCount,3);assert.equal(new Set(contract.findingIds).size,3);assert.equal(contract.recordCount,0,'requests are not invented source records');
+  assert.equal(payment.requestCount,1);assert.equal(contract.target.moduleKey,'contract-particulars-bonds');assert.equal(payment.target.moduleKey,'payments');
+  assert.equal(result.actions.filter(a=>a.id.startsWith('information:')).length,2);
+});

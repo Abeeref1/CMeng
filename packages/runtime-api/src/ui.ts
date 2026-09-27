@@ -602,7 +602,7 @@ function renderNav(){
   let html='<button class="nav-item '+(appView==="ai"?'active':'')+'" id="projectAskNav" aria-current="'+(appView==="ai"?'page':'false')+'" title="Ask about '+escapeHtml(project())+'"><span class="nav-label">✦ Ask CMeng</span></button><button class="nav-item" id="projectActionsNav"><span>Actions required</span><b id="projectActionNavCount">'+(typeof projectActionState!=='undefined'&&projectActionState?.projectId===project()&&projectActionState.status==='ready'?fmt(projectActionState.data.actionCount):'…')+'</b></button><div class="nav-group">';
   Object.entries(groups).forEach(([group,keys])=>{
     html+='<div class="nav-group-title" style="padding-top:10px">'+group+'</div>';
-    keys.forEach(key=>{
+    keys.filter(key=>key!=='source-quality').forEach(key=>{
       const state=states.get(key)||{};
       const issues=state.issueAssessment?.counts||{};
       const errors=issues.system_defect||0,source=(issues.source_conflict||0)+(issues.data_quality||0)+(issues.missing_information||0),review=(issues.comparison_difference||0)+(issues.governance_review||0),pending=issues.verification_pending||0;
@@ -3878,7 +3878,7 @@ function renderModuleResultBody(result){
   el("directorDrawer").open=false;
   el("directorDrawer").hidden=result.key!=="pmo-analysis";
   if(result.key==="challenge-contract"&&renderDeliveryChallenge(data,result.reason,result.status))return;
-  const basisHtml=renderPositionVerdict(data)+renderModuleBasis(data)+renderRegisterScope(data);
+  const basisHtml=result.key==='source-quality'?'':renderPositionVerdict(data)+renderModuleBasis(data)+renderRegisterScope(data);
   const challengeBody=renderUniversalChallenge(data.challenge);
   const challengeHtml=challengeBody?'<details class="reconciliation-panel"><summary><span>Comparison with the submitted position</span><b>'+escapeHtml(reconciliationSummary(data.challenge))+'</b></summary><div class="reconciliation-body">'+challengeBody+'</div></details>':'';
   const specialized=renderSpecializedModule(result.key,data);
