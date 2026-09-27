@@ -48,3 +48,9 @@ The full local suite passed 845 tests before the final scoped-follow-up refineme
 ## Limits
 
 These changes do not approve programme revisions, supply missing contractual dates, infer baseline dates from filenames, validate unsupported delay entitlement, or replace missing measured quantities with schedule progress. Classification of source limitations remains visible. A date difference is not proof that the calendar caused the project's delay. The BOQ fallback does not establish detached quantity alignment, supplier lead times, actual procurement progress or floor-level installation status. Real-provider narrative quality and additional PDF/OCR layouts remain separate acceptance limits.
+
+### Browser acceptance follow-up
+
+The separate review deployment was exercised with a generated 73-activity programme: first programme selection, answer-first completion, driving-network pagination and complete Excel download worked. Browser review caught a WBS drill-down losing a preceding negative-float filter. The drill-down now carries the contributing selection and requests only programme activities; the regression distinguishes one negative-float contributor from two pressure activities in the same WBS. Focused diagnosis scenarios pass after this correction.
+
+The full CI suite on the preceding code tree passed 845 tests. Its unchanged performance gate recorded 4.54 seconds for the cold dashboard and 3.67 seconds from a new 20,000-activity upload to the calculated position. Durability/restart and large schedule/BOQ gates passed. The final follow-up commit is subject to those same CI gates.

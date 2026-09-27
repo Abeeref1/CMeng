@@ -59,7 +59,11 @@ test('ordinary management questions and WBS follow-ups retain the requested acti
  const negative=await f.ask('Show all negative-float activities');
  const explained=await f.ask('Explain these',negative);assert.match(explained.narrative[0]!.text,/2 activities match your preceding selection/);assert.match(explained.narrative[0]!.text,/MEP riser/);assert.equal(explained.plan.authorities.includes('delay'),false);
  const grouped=await f.ask('group by WBS',explained),table=grouped.sections[0]!.tables[0]!;
- assert.equal(table.rows.reduce((n,r)=>n+Number(r.activityCount),0),2);assert.equal(table.rows.reduce((n,r)=>n+Number(r.negativeFloatCount),0),2);
+  assert.equal(table.rows.reduce((n,r)=>n+Number(r.activityCount),0),2);assert.equal(table.rows.reduce((n,r)=>n+Number(r.negativeFloatCount),0),2);
+  const selectedDrill=await f.ask('Show the contributing activities for WBS "STRUCT"',grouped);
+  assert.deepEqual(selectedDrill.plan.authorities,['activities']);assert.deepEqual(selectedDrill.sections[0]!.tables[0]!.rows.map(r=>r.activityId),['A']);
+  const allPressure=await f.ask('Show all schedule pressure activities for WBS "STRUCT"');
+  assert.deepEqual(allPressure.plan.authorities,['activities']);assert.deepEqual(new Set(allPressure.sections[0]!.tables[0]!.rows.map(r=>r.activityId)),new Set(['A','ALT']));
  const drill=await f.ask('Show all schedule pressure activities for WBS "MEP"');
  assert.deepEqual(drill.sections.find(s=>s.authorityId==='activities')!.tables[0]!.rows.map(r=>r.activityId),['B']);
  const path=await f.ask('critical path'),pathGroups=await f.ask('by WBS',path);
