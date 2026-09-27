@@ -15,7 +15,8 @@ export function resolveIntent(question:string,catalogue:AuthorityDescriptor[],pr
     throw new AskError(422,'capability_not_enabled','Capability not enabled. Select one Project for this analysis.');
   const transform=/^(excel|xlsx|pdf|word|docx|csv|json|power ?bi|better|shorter|more detail|ceo|executive|project director|planner detail|commercial manager|only |by |add |remove |put my name|prepared by|our logo|change chart|sar\b|aed\b|usd\b|tower |floor |zone |بالعربي|بالعربية|عربي|مختصر|اكسل|إكسل)/i.test(question.trim());
   const purePresentation=transform&&!/^(only |by |add (?:value|procurement|progress)|remove |tower |floor |zone |sar\b|aed\b|usd\b)/.test(q);
-  const inherited=!!previous&&(transform||fullList||simpleFollowup||/^group by\b|^explain.*\b(?:these|those|they)\b/.test(q));
+  const wbsDrill=previous?.plan.questionRecipe==='wbs_pressure'&&/^show (?:the )?contributing activities for wbs\b/.test(q);
+  const inherited=!!previous&&(wbsDrill||transform||fullList||simpleFollowup||/^group by\b|^explain.*\b(?:these|those|they)\b/.test(q));
   const plan:AnalysisPlan=inherited?structuredClone(previous.plan):defaults(question);
   const presentation:Presentation=inherited?structuredClone(previous.presentation):{
     title:question.slice(0,160),audience:'project',language:/[\u0600-\u06ff]/.test(question)?'ar':'en',detail:'normal',charts:true,
@@ -147,6 +148,14 @@ export function resolveIntent(question:string,catalogue:AuthorityDescriptor[],pr
   if(/\bschedule pressure\b/.test(q)&&plan.authorities.includes('activities'))scopedFilter(['activities'],{field:'schedulePressure',operator:'eq',value:true,upper:null});
   const wbsFilter=/\bfor wbs\s+["']?([^"'?]+)["']?\??$/i.exec(question);
   if(wbsFilter){plan.filters=plan.filters.filter(f=>f.field!=='wbsId');plan.filters.push({field:'wbsId',operator:'eq',value:wbsFilter[1]!.trim(),upper:null});}
+  if(wbsFilter&&(wbsDrill||/^show all schedule pressure activities for wbs\b/.test(q))){
+    // A WBS row represents its preceding selection, not every activity in that WBS.
+    // Keep the contributing filters and avoid generic "pressure" matching other registers.
+    const selection=wbsDrill?previous!.plan.diagnosisActivityFilters:undefined;
+    plan.authorities=['activities'];plan.kind='facts';plan.groupBy=[];plan.rankBy=null;plan.rankings=[];plan.limit=null;plan.criticalOnly=false;
+    plan.authorityFilters={activities:selection?.length?[...selection]:[{field:'schedulePressure',operator:'eq',value:true,upper:null}]};
+    delete plan.questionRecipe;delete plan.diagnosisActivityFilters;
+  }
   const scenario=recipe!=='no_change_outlook'&&/assume|what if|scenario|افترض/.test(q);
   if(scenario){plan.kind='scenario';const lead=/(\d+(?:\.\d+)?)\s*(weeks?|days?)/.exec(q);if(lead)plan.scenario={field:'manufacturingLeadTime',value:Number(lead[1]),unit:lead[2]!.startsWith('week')?'weeks':'days',target:/transformer/.test(q)?'transformer':null};else gaps.push('The scenario assumption needs a numeric duration and its unit.');}
   for(const metric of ['cpi','spi','ev','pv','ac'])if(new RegExp('\\b'+metric+'\\b').test(q))plan.metricIds.push(metric);

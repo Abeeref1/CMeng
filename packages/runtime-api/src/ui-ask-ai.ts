@@ -61,7 +61,7 @@ function renderAskAnalysis(result){
       table.rows=page.rows;table.offset=page.offset;table.totalRows=page.totalRows;renderAskAnalysis(askAnalysis);
     }catch(e){if(project()===owner&&askAnalysis?.id===analysisId){el('askStatus').textContent=e.message;button.disabled=false;}}
   });
-  document.querySelectorAll('[data-ask-wbs]').forEach(button=>button.onclick=()=>{el('aiQuestion').value='Show all schedule pressure activities for WBS '+JSON.stringify(button.dataset.askWbs);askCmeng();});
+  document.querySelectorAll('[data-ask-wbs]').forEach(button=>button.onclick=()=>{el('aiQuestion').value='Show the contributing activities for WBS '+JSON.stringify(button.dataset.askWbs);askCmeng();});
   el('aiProjectInfo').innerHTML='<b>'+escapeHtml(result.scope.projectId)+'</b><p>Data Date: '+escapeHtml(askValue(result.scope.dataDate))+'</p><p>Source version: '+result.scope.projectVersion+'</p><p>'+escapeHtml(result.presentation.confidentiality)+'</p><details class="ask-evidence"><summary>Analysis reference</summary>'+escapeHtml(result.id)+'<br>'+escapeHtml(result.snapshotHash)+'</details>';
   if(result.route==='social'){el('askExports').innerHTML='';el('askSaveView').disabled=true;return;}
   el('askExports').innerHTML=[['xlsx','Excel'],['pdf','PDF'],['docx','Word'],['csv','CSV'],['powerbi','Power BI data'],['json','JSON']].map(([f,label])=>'<a class="btn small" href="'+askBase()+'/results/'+encodeURIComponent(result.id)+'/export?format='+f+'">'+label+'</a>').join('');el('askSaveView').disabled=false;
