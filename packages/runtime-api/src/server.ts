@@ -26,9 +26,11 @@ import {
 } from "../../boq-ingestion/src";
 import {
   commercialModules,
+  commercialPageModules,
   moduleRegistry,
   commercialModuleSummary,
   scheduleModules,
+  schedulePageModules,
   scheduleModuleSummary,
 } from "./registry";
 import {
