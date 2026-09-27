@@ -7100,7 +7100,8 @@ function resolveProjectModuleCandidate(state: ProjectRuntimeState, key: string):
       ...(key === "milestones" ? { movementDistribution: numericDistribution((data.rows ?? []).map((row: any)=>row.varianceDays)) } : {}),
       ...(key === "activity-analytics" ? {
         rows:(()=>{const classification=scheduleScopeClassification(model),byId=new Map(classification.rows.map(row=>[row.activityId,row]));return (data.rows??[]).map((row:any)=>{const scope=byId.get(row.activityId);return {...row,...activityDelayStatus(row),
-          wbsPath:scope?.wbsPath??null,wbsLevel:scope?.wbsLevel??null,location:scope?.location??null,zone:scope?.zone??null,floor:scope?.floor??null,level:scope?.level??null,tower:scope?.tower??null,building:scope?.building??null,area:scope?.area??null,workFront:scope?.workFront??null,discipline:scope?.discipline??null,package:scope?.package??null};});})(),
+          wbsPath:scope?.wbsPath??null,wbsLevel:scope?.wbsLevel??null,location:scope?.location??null,zone:scope?.zone??null,floor:scope?.floor??null,level:scope?.level??null,tower:scope?.tower??null,building:scope?.building??null,area:scope?.area??null,workFront:scope?.workFront??null,
+          phase:scope?.phase??null,section:scope?.section??null,chainage:scope?.chainage??null,discipline:scope?.discipline??null,trade:scope?.trade??null,system:scope?.system??null,package:scope?.package??null,cbs:scope?.cbs??null,contractor:scope?.contractor??null,subcontractor:scope?.subcontractor??null};});})(),
         scopeClassification:scheduleScopeClassification(model),
         counts: activityAnalyticsCounts(data.rows ?? []),
         movementDistribution: numericDistribution((data.rows ?? []).map((row: any)=>row.finishVarianceDays)),
