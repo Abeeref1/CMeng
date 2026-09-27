@@ -86,7 +86,9 @@ function activityAnswer(result:AnalysisResult):NarrativeBlock|null{
   else if(result.unresolved.some(g=>/lack |excluded|missing|unconfirmed/i.test(g)))text+=' Some records need review; the list contains the matches we can confirm.';
   const preview=table.rows.slice(0,result.presentation.detail==='short'?3:5).map(r=>String(r.activityId)+' — '+String(r.name??'Unnamed activity'));
   if(preview.length)text+='\n\n'+preview.join('\n')+(n>preview.length?'\nThe activity table below contains the rest.':'');
-  return {heading:'Answer',text,classification:'calculated_intelligence',traceIds:[table.traceId]};
+  const breakouts=section.tables.slice(1).filter(t=>t.id.includes('-breakout-'));
+  if(breakouts.length)text+='\n\n'+breakouts.map(t=>t.title+': '+String(t.selection?.matching??t.rows.length)+' matching '+((t.selection?.matching??t.rows.length)===1?'activity':'activities')+'.').join('\n');
+  return {heading:'Answer',text,classification:'calculated_intelligence',traceIds:[table.traceId,...breakouts.map(t=>t.traceId)]};
 }
 function narrativeFor(result:AnalysisResult):NarrativeBlock[]{
   const ar=result.presentation.language==='ar';
@@ -188,6 +190,7 @@ export class ProjectAskEngine {
           }
         }
         const countGapTables=new Set<string>();
+        const breakoutSources=result.authorityId==='activities'&&(plan.activityBreakouts?.length??0)>0?result.tables.map(table=>structuredClone(table)):[];
         // Diagnosis has already selected activities and their linked evidence together.
         // Reapplying WBS/activity filters to evidence rows (which lack those dimensions)
         // drops valid linked records and incorrectly invalidates the scoped count.
@@ -198,6 +201,15 @@ export class ProjectAskEngine {
             if(result.authorityId==='float'&&plan.authorityFilters?.activities?.some(f=>f.field==='scheduleDelayed'))queryPlan={...authorityPlan,rankBy:'totalFloatHours',rankDirection:'asc'};
             const queried=queryTable(table,queryPlan);unresolved.push(...queried.gaps);if(queried.gaps.length)countGapTables.add(queried.table.id);return queried.table;});
           if(authorityPlan.filters.length||plan.criticalOnly||plan.issuesOnly||plan.nextDays!==null||plan.deliveryBelowPercent!==null)result.metrics=result.metrics.map(m=>({...m,value:null,state:'unavailable',basis:m.basis+' The project total is not a valid KPI for this filtered subset; see the matching records.'}));
+        }
+        if(result.authorityId==='activities'&&plan.activityBreakouts?.length&&breakoutSources.length){
+          const base=breakoutSources[0]!;
+          for(const [index,breakout] of plan.activityBreakouts.entries()){
+            const breakoutPlan={...plan,filters:[...breakout.filters],authorityFilters:{},groupBy:[],rankBy:null,rankings:[],limit:null,criticalOnly:false,issuesOnly:false,activityBreakouts:undefined};
+            const queried=queryTable(base,breakoutPlan);
+            unresolved.push(...queried.gaps);
+            result.tables.push({...queried.table,id:base.id+'-breakout-'+index,title:breakout.label,basis:queried.table.basis+' This is an independent result set from the same full programme population; it is not intersected with the primary activity request.'});
+          }
         }
         if(plan.countRows)for(const table of result.tables){const missing=countGapTables.has(table.id);result.metrics.push({id:table.id+'.matching-count',label:'Matching '+table.title+' records',value:missing||table.state==='unavailable'?null:table.selection?.matching??table.rows.length,unit:'records',state:missing?'unavailable':table.state,classification:'calculated_intelligence',traceId:table.traceId,basis:'Count after applying all requested filters to the full available population, before Top N selection. '+table.basis});}
         result.charts=presentation.charts?result.tables.map(t=>chooseChart(t,scope.dataDate)).filter((c):c is NonNullable<typeof c>=>c!==null):[];sections.push(result);
