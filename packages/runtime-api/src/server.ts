@@ -1,3 +1,4 @@
+import {readRequestBody as readBody, UploadTooLargeError, configuredUploadLimit} from './request-body';
 import {phaseProgrammePosition} from './phase-programmes';
 import {deliveryExportResult} from './delivery-projections';
 import {deliveryRequest} from './delivery-api';
@@ -151,12 +152,6 @@ const host = process.env.HOST ?? "0.0.0.0";
 // The workspace HTML is static for a release. Building the large string on every
 // GET / costs tens of milliseconds on the cold path without changing content.
 const CMENG_UAT_HTML = cmengUatHtml();
-const MAX_UPLOAD_BYTES = Number.parseInt(
-  process.env.CMENG_MAX_UPLOAD_BYTES ??
-    String(50 * 1024 * 1024),
-  10,
-);
-
 const boqIngestions =
   new Map<string, BoqIngestionResult>();
 const resultDirectory=process.env.CMENG_PROJECT_WORKER==='1'?runtimeProjects.persistenceStatus().dataDir:undefined;
@@ -424,58 +419,6 @@ function header(
     : null;
 }
 
-async function readBody(
-  req: IncomingMessage,
-  onProgress?: (
-    receivedBytes: number,
-    totalBytes: number | null,
-  ) => void,
-): Promise<Uint8Array> {
-  const chunks: Buffer[] = [];
-  let total = 0;
-  const declaredTotal =
-    Number.parseInt(
-      String(
-        req.headers[
-          "content-length"
-        ] ?? "",
-      ),
-      10,
-    );
-  const totalBytes =
-    Number.isFinite(
-      declaredTotal,
-    ) &&
-    declaredTotal > 0
-      ? declaredTotal
-      : null;
-
-  for await (const chunk of req) {
-    const buffer = Buffer.isBuffer(chunk)
-      ? chunk
-      : Buffer.from(chunk);
-    total += buffer.length;
-
-    if (total > MAX_UPLOAD_BYTES) {
-      const error =
-        new Error("UPLOAD_TOO_LARGE");
-      (error as Error & {
-        statusCode?: number;
-      }).statusCode = 413;
-      throw error;
-    }
-
-    chunks.push(buffer);
-    onProgress?.(
-      total,
-      totalBytes,
-    );
-  }
-
-  return Buffer.concat(chunks);
-}
-
-
 async function readJsonBody<T>(
   req: IncomingMessage,
 ): Promise<T> {
@@ -540,6 +483,7 @@ async function route(
     json(res, 200, {
       status: "ok",
       service: "cmeng",
+      uploadLimits: {maxFileBytes: configuredUploadLimit()},
       release:
         process.env.RAILWAY_GIT_COMMIT_SHA ??
         process.env.GIT_COMMIT_SHA ??
@@ -3074,7 +3018,12 @@ export function createCmengServer(): Server {
             ).statusCode
           : 400;
 
-      json(res, statusCode, {
+      json(res, statusCode, error instanceof UploadTooLargeError ? {
+        error: error.code,
+        message: error.message,
+        maxUploadBytes: error.limitBytes,
+        fileBytes: error.fileBytes,
+      } : {
         error:
           error instanceof Error
             ? error.message
