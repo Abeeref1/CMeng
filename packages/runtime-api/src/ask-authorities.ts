@@ -140,6 +140,7 @@ function moduleAuthority(context:AskProducerContext,scope:ProjectScope,key:strin
     const activities=askScheduleActivities(scope);
     b.result.tables=activities.tables.map(t=>({...t,id:'float.rows',authorityId:'float',title:'Activity float',traceId:'float:rows'}));
     b.trace('rows','Programme float in hours; all execution activities are queried before any requested threshold or Top N selection.',activities.traces.flatMap(t=>t.sourceRefs));
+    b.result.explanation='Negative float shows pressure against schedule targets. It does not by itself prove that an activity missed its current start or finish date.';
     return b.result;
   }
   if(registration.id==='lookahead'){

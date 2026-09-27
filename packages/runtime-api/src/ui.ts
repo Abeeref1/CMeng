@@ -3632,7 +3632,10 @@ function renderManagementControlVisual(key,data){
   if(key==="master-dashboard"){
     const r=data.readiness||{};
     const priorityKeys=['contract-finish','submitted-programme-finish','productivity-forecast-finish','critical-activities','progress-position','schedule-spi'];
-    const mainMetrics=priorityKeys.map(key=>(data.metrics||[]).find(m=>m.key===key)).filter(Boolean);
+    const mainMetrics=priorityKeys.map(key=>(data.metrics||[]).find(m=>m.key===key)).filter(Boolean).map(m=>{
+      const known=data.scheduleExceptions?.counts?.critical;
+      return m.key==='critical-activities'&&m.value==null&&known?.knownCount!=null?{...m,value:known.knownCount+' known',state:'partial',authority:'source',basis:'Known critical activities from programme float. The full total is unconfirmed because '+known.unresolvedCount+' activities have no readable float.'}:m;
+    });
     const otherMetrics=(data.metrics||[]).filter(m=>!priorityKeys.includes(m.key));
     const readinessDonut=renderDonutChart([
       {label:"Fully defensible views",value:r.ready??0,tone:"success"},

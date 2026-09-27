@@ -82,7 +82,9 @@ export function resolveIntent(question:string,catalogue:AuthorityDescriptor[],pr
     const starts=/should (?:have )?start|should have started|(?:missed|overdue|late) starts?|start.*(?:did(?:n.?t| not)|ha(?:s|ve)(?:n.?t| not)|not yet)|(?:did(?:n.?t| not)|ha(?:s|ve)(?:n.?t| not)).*start/.test(q);
     const finishes=/should (?:have )?finish|should have finished|(?:overdue|late) finish|finish.*(?:overdue|did(?:n.?t| not)|ha(?:s|ve)(?:n.?t| not))/.test(q);
     const field=starts?'missedPlannedStart':finishes?'finishOverdue':/\b(?:delayed|delay|late|overdue|behind|delaying)\b/.test(q)?'scheduleDelayed':null;
-    if(field){scopedFilter(['activities'],{field,operator:'eq',value:true,upper:null});plan.rankBy=starts?'startOverdueCalendarDays':'finishOverdueCalendarDays';plan.rankDirection='desc';}
+    if(field){scopedFilter(['activities'],{field,operator:'eq',value:true,upper:null});plan.rankBy=starts?'startOverdueCalendarDays':'finishOverdueCalendarDays';plan.rankDirection='desc';
+      if(field==='scheduleDelayed'&&catalogue.some(c=>c.id==='float')){plan.authorities.push('float');scopedFilter(['float'],{field:'totalFloatHours',operator:'lt',value:0,upper:null});}
+    }
     else if(/\bnot started\b/.test(q))scopedFilter(['activities'],{field:'status',operator:'eq',value:'not_started',upper:null});
   }
   if(/near[ -]critical/.test(q))scopedFilter(['activities','float'],{field:'criticality',operator:'eq',value:'near_critical',upper:null});

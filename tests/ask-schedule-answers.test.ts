@@ -43,7 +43,7 @@ const ids=(r:AnalysisResult)=>r.sections.find(s=>s.authorityId==='activities')!.
 test('ordinary schedule questions answer with the hand-checked activity list, not the delay claims register',async t=>{
   const f=await fixture(t);
   for(const q of ['Show delayed activities','What are the delayed activities?','Which activities are late?']){
-    const answer=await f.ask(q);assert.deepEqual(answer.plan.authorities,['activities']);assert.deepEqual(ids(answer),['BOTH','FINISH','NO-FINISH','START']);
+    const answer=await f.ask(q);assert.deepEqual(answer.plan.authorities,['activities','float']);assert.deepEqual(ids(answer),['BOTH','FINISH','NO-FINISH','START']);
     assert.match(answer.narrative[0]!.text,/4 activities/);assert.doesNotMatch(answer.narrative[0]!.text,/Existing .* producer|entitlement|Claim records/);
   }
   for(const q of ['Which activities should have started?','activities should start and didnt','Show missed starts'])assert.deepEqual(ids(await f.ask(q)),['BOTH','NO-FINISH','START'],q);
@@ -56,6 +56,18 @@ test('ordinary schedule questions answer with the hand-checked activity list, no
   assert.equal(source.counts.missedStart.value,null,'unknown and future-actual statuses do not become false zeroes');
   assert.deepEqual(dashboard.scheduleExceptions.rows.map((r:any)=>r.activityId).sort(),['BOTH','FINISH','NO-FINISH','START']);
   assert.deepEqual(dashboard.scheduleExceptions.counts,source.counts);
+});
+
+test('rolled-forward dates never turn no overdue rows into a no-delay-risk answer',async t=>{
+  const f=await fixture(t,[['PRESSURE','TK_NotStart','2026-09-15','2026-09-20','','','-24'],rows[3]!,rows[5]!]);
+  const answer=await f.ask('Show delayed activities');assert.deepEqual(ids(answer),[]);
+  const pressure=answer.sections.find(s=>s.authorityId==='float')!.tables[0]!;assert.deepEqual(pressure.rows.map(r=>r.activityId),['PRESSURE']);
+  assert.match(answer.narrative[0]!.text,/no confirmed missed starts or overdue finishes/);
+  assert.match(answer.narrative[0]!.text,/No baseline has been confirmed/);
+  assert.match(answer.narrative[0]!.text,/1 activity has negative float/);
+  assert.match(answer.narrative[0]!.text,/1 activity still needs its dates or status checked/);
+  const full=await f.ask('full',answer);assert.deepEqual(ids(full),[]);assert.deepEqual(full.sections.find(s=>s.authorityId==='float')!.tables[0]!.rows,pressure.rows);
+  assert.equal(f.paid(),0);
 });
 
 test('critical path exposes named activities while clearly separating source float from an unresolved calculation',async t=>{

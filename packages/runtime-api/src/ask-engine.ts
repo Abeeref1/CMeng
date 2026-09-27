@@ -34,8 +34,16 @@ function activityAnswer(result:AnalysisResult):NarrativeBlock|null{
   let text=n+' '+(n===1?'activity':'activities')+' '+verb+asOf+'.';
   if(n===0)text='No matching activities were found in the available programme records'+asOf+'.';
   if(section.authorityId==='critical-path'&&section.state!=='established')text+=' The independent critical path is not yet confirmed; this is the programme’s known critical-activity list.';
-  if(has('scheduleDelayed'))text+=' These are schedule warning signs. They do not by themselves prove what caused the project delay.';
-  if(result.unresolved.some(g=>/lack |excluded|missing|unconfirmed/i.test(g)))text+=' Some records need review; the list contains the matches we can confirm.';
+  if(has('scheduleDelayed')||has('missedPlannedStart')||has('finishOverdue')){
+    if(n===0)text=has('missedPlannedStart')?'No confirmed missed starts appear in the uploaded programme'+asOf+'.':has('finishOverdue')?'No unfinished activity is confirmed past its current forecast finish'+asOf+'.':'The uploaded programme shows no confirmed missed starts or overdue finishes'+asOf+'.';
+    if(section.explanation.includes('No baseline has been confirmed'))text+=' No baseline has been confirmed, so I cannot measure delay against the original planned dates.';
+    const pressure=result.sections.find(s=>s.authorityId==='float')?.tables[0],pressureCount=pressure?.selection?.matching??pressure?.rows.length??0;
+    if(pressureCount)text+=' However, '+pressureCount+' '+(pressureCount===1?'activity has':'activities have')+' negative float, which shows pressure against schedule targets. These activities are listed separately below.';
+    if(has('scheduleDelayed'))text+=' This does not establish the cause of any project delay.';
+  }
+  const missing=result.unresolved.map(g=>/(\d+) records lack (?:Missed Planned Start|Finish Overdue|Schedule Delayed)/i.exec(g)).find(Boolean);
+  if(missing)text+=' '+missing[1]+(missing[1]==='1'?' activity still needs its':' activities still need their')+' dates or status checked.';
+  else if(result.unresolved.some(g=>/lack |excluded|missing|unconfirmed/i.test(g)))text+=' Some records need review; the list contains the matches we can confirm.';
   const preview=table.rows.slice(0,result.presentation.detail==='short'?3:5).map(r=>String(r.activityId)+' — '+String(r.name??'Unnamed activity'));
   if(preview.length)text+='\n\n'+preview.join('\n')+(n>preview.length?'\nThe activity table below contains the rest.':'');
   return {heading:'Answer',text,classification:'calculated_intelligence',traceIds:[table.traceId]};
@@ -141,7 +149,9 @@ export class ProjectAskEngine {
         const countGapTables=new Set<string>();
         const authorityPlan={...plan,groupBy:result.authorityId==='wbs'?plan.groupBy.filter(g=>g!=='wbsId'):plan.groupBy,filters:[...plan.filters,...(plan.authorityFilters?.[result.authorityId]??[])]};
         if(authorityPlan.filters.length||plan.groupBy.length||plan.criticalOnly||plan.issuesOnly||plan.limit!==null||plan.nextDays!==null||plan.deliveryBelowPercent!==null||plan.countRows){
-          result.tables=result.tables.map(table=>{const ranking=plan.rankings?.find(r=>r.authorityId===result.authorityId);const queryPlan=plan.rankings?.length?{...authorityPlan,rankBy:ranking?.field??null,rankDirection:ranking?.direction??'desc',limit:ranking?.limit??null}:authorityPlan;const queried=queryTable(table,queryPlan);unresolved.push(...queried.gaps);if(queried.gaps.length)countGapTables.add(queried.table.id);return queried.table;});
+          result.tables=result.tables.map(table=>{const ranking=plan.rankings?.find(r=>r.authorityId===result.authorityId);let queryPlan=plan.rankings?.length?{...authorityPlan,rankBy:ranking?.field??null,rankDirection:ranking?.direction??'desc',limit:ranking?.limit??null}:authorityPlan;
+            if(result.authorityId==='float'&&plan.authorityFilters?.activities?.some(f=>f.field==='scheduleDelayed'))queryPlan={...authorityPlan,rankBy:'totalFloatHours',rankDirection:'asc'};
+            const queried=queryTable(table,queryPlan);unresolved.push(...queried.gaps);if(queried.gaps.length)countGapTables.add(queried.table.id);return queried.table;});
           if(authorityPlan.filters.length||plan.criticalOnly||plan.issuesOnly||plan.nextDays!==null||plan.deliveryBelowPercent!==null)result.metrics=result.metrics.map(m=>({...m,value:null,state:'unavailable',basis:m.basis+' The project total is not a valid KPI for this filtered subset; see the matching records.'}));
         }
         if(plan.countRows)for(const table of result.tables){const missing=countGapTables.has(table.id);result.metrics.push({id:table.id+'.matching-count',label:'Matching '+table.title+' records',value:missing||table.state==='unavailable'?null:table.selection?.matching??table.rows.length,unit:'records',state:missing?'unavailable':table.state,classification:'calculated_intelligence',traceId:table.traceId,basis:'Count after applying all requested filters to the full available population, before Top N selection. '+table.basis});}
