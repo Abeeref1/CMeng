@@ -13,8 +13,16 @@ export interface ActivityScopeClassification {
   building:string|null;
   area:string|null;
   workFront:string|null;
+  phase:string|null;
+  section:string|null;
+  chainage:string|null;
   discipline:string|null;
+  trade:string|null;
+  system:string|null;
   package:string|null;
+  cbs:string|null;
+  contractor:string|null;
+  subcontractor:string|null;
   location:string|null;
   classificationBasis:Record<string,ScopeClassificationBasis>;
 }
@@ -84,15 +92,26 @@ export function classifyScheduleActivity(model:CanonicalScheduleModel,activity:C
   const building=pick('Building',[/\b(?:building|bldg|block)\s*[-:#]?\s*([a-z]?\d+[a-z]?|[a-z])\b/i,/\bمبنى\s*[-:#]?\s*([\p{L}\p{N}-]+)/iu]);
   const area=pick('Area',[/\barea\s*[-:#]?\s*([a-z]?\d+[a-z]?|[a-z][a-z0-9 -]{1,30})\b/i]);
   const workFront=pick('Work Front',[/\bwork\s*front\s*[-:#]?\s*([a-z0-9][a-z0-9 _-]{0,30})\b/i,/\bworkfront\s*[-:#]?\s*([a-z0-9][a-z0-9 _-]{0,30})\b/i]);
+  const phase=pick('Phase',[/\bphase\s*[-:#]?\s*([a-z0-9][a-z0-9_.\/-]{0,24})\b/i]);
+  const section=pick('Section',[/\bsection\s*[-:#]?\s*([a-z0-9][a-z0-9_.\/-]{0,24})\b/i]);
+  const chainage=pick('Chainage',[/\b(?:chainage|ch)\s*[-:#]?\s*(\d+\+\d+(?:\.\d+)?)\b/i]);
+  const trade=pick('Trade',[/\btrade\s*[-:#]?\s*([a-z0-9][a-z0-9 _\/-]{0,30})\b/i]);
+  const system=pick('System',[/\bsystem\s*[-:#]?\s*([a-z0-9][a-z0-9 _\/-]{0,30})\b/i]);
   const packageValue=pick('Package',[/\bpackage\s*[-:#]?\s*([a-z0-9][a-z0-9_.\/-]{0,30})\b/i,/\bpkg\s*[-:#]?\s*([a-z0-9][a-z0-9_.\/-]{0,30})\b/i]);
+  const cbs=pick('CBS',[/\bcbs\s*[-:#]?\s*([a-z0-9][a-z0-9_.\/-]{0,30})\b/i,/\bcost\s*code\s*[-:#]?\s*([a-z0-9][a-z0-9_.\/-]{0,30})\b/i]);
+  const subcontractor=pick('Subcontractor',[/\bsubcontractor\s*[-:#]?\s*([a-z0-9][a-z0-9 &_.\/-]{1,40})\b/i]);
+  const contractor=pick('Contractor',[/\b(?<!sub)contractor\s*[-:#]?\s*([a-z0-9][a-z0-9 &_.\/-]{1,40})\b/i]);
   const discipline=derivedDiscipline(sourceText);
-  const spatial=[tower.value,building.value,area.value,zone.value,floor.value,level.value,workFront.value].filter(Boolean) as string[];
+  const spatial=[tower.value,building.value,area.value,zone.value,floor.value,level.value,section.value,chainage.value,workFront.value].filter(Boolean) as string[];
   const basis:Record<string,ScopeClassificationBasis>={
     wbsId:activity.wbsId?'source_wbs':'unavailable',wbsPath:hierarchy.path?'source_wbs':'unavailable',wbsLevel:hierarchy.level?'source_wbs':'unavailable',
     zone:zone.basis,floor:floor.basis,level:level.basis,tower:tower.basis,building:building.basis,area:area.basis,workFront:workFront.basis,
-    discipline:discipline?'source_derived':'unavailable',package:packageValue.basis,location:spatial.length?'source_derived':'unavailable'
+    phase:phase.basis,section:section.basis,chainage:chainage.basis,discipline:discipline?'source_derived':'unavailable',trade:trade.basis,system:system.basis,
+    package:packageValue.basis,cbs:cbs.basis,contractor:contractor.basis,subcontractor:subcontractor.basis,location:spatial.length?'source_derived':'unavailable'
   };
-  return {activityId:activity.activityId,wbsId:activity.wbsId,wbsPath:hierarchy.path,wbsLevel:hierarchy.level,zone:zone.value,floor:floor.value,level:level.value,tower:tower.value,building:building.value,area:area.value,workFront:workFront.value,discipline,package:packageValue.value,location:spatial.length?spatial.join(' / '):null,classificationBasis:basis};
+  return {activityId:activity.activityId,wbsId:activity.wbsId,wbsPath:hierarchy.path,wbsLevel:hierarchy.level,zone:zone.value,floor:floor.value,level:level.value,tower:tower.value,building:building.value,area:area.value,workFront:workFront.value,
+    phase:phase.value,section:section.value,chainage:chainage.value,discipline,trade:trade.value,system:system.value,package:packageValue.value,cbs:cbs.value,contractor:contractor.value,subcontractor:subcontractor.value,
+    location:spatial.length?spatial.join(' / '):null,classificationBasis:basis};
 }
 const classificationCache=new WeakMap<CanonicalScheduleModel,ScheduleScopeClassification>();
 export function scheduleScopeClassification(model:CanonicalScheduleModel):ScheduleScopeClassification{
@@ -111,8 +130,16 @@ export function scheduleScopeClassification(model:CanonicalScheduleModel):Schedu
     ['building','Building','Explicit Building/Block wording found in source WBS or activity text'],
     ['area','Area','Explicit Area wording found in source WBS or activity text'],
     ['workFront','Work front','Explicit Work Front wording found in source WBS or activity text'],
+    ['phase','Phase','Explicit Phase wording found in source WBS or activity text'],
+    ['section','Section','Explicit Section wording found in source WBS or activity text'],
+    ['chainage','Chainage','Explicit Chainage/CH wording found in source WBS or activity text'],
     ['discipline','Discipline','Deterministic source-text classification from WBS/activity terminology; ambiguous multi-discipline rows remain unclassified'],
+    ['trade','Trade','Explicit Trade wording found in source WBS or activity text'],
+    ['system','System','Explicit System wording found in source WBS or activity text'],
     ['package','Package','Explicit Package/PKG wording found in source WBS or activity text'],
+    ['cbs','CBS / cost code','Explicit CBS/Cost Code wording found in source WBS or activity text; no WBS-to-CBS allocation is invented'],
+    ['contractor','Contractor','Explicit Contractor wording found in source WBS or activity text'],
+    ['subcontractor','Subcontractor','Explicit Subcontractor wording found in source WBS or activity text'],
     ['location','Location','Composite of explicit source-derived spatial classifications']
   ];
   const coverage=dimensions.map(([key,label,basis])=>{const classified=rows.filter(row=>row[key]!==null).length;return {key,label,classified,total:rows.length,coveragePercent:rows.length?Number((classified/rows.length*100).toFixed(4)):null,basis};});
