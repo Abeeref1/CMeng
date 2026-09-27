@@ -119,6 +119,17 @@ export function resolveIntent(question:string,catalogue:AuthorityDescriptor[],pr
     }
   }
   if(!/\bfor wbs\b/.test(q)&&/\bmep\b|\bmechanical\b|\belectrical\b|\bcivil\b/.test(q)){const value=/\b(mep|mechanical|electrical|civil)\b/.exec(q)![1]!;plan.filters=plan.filters.filter(f=>f.field!=='discipline');plan.filters.push({field:'discipline',operator:'contains',value,upper:null});}
+  if(!inherited&&!claimsQuestion&&scheduleQuestion&&activityQuestion){
+    const explicitScopes:Array<[string,RegExp]>=[
+      ['phase',/\bphase\s+([a-z0-9_.\/-]+)/i],['section',/\bsection\s+([a-z0-9_.\/-]+)/i],['chainage',/\b(?:chainage|ch)\s+(\d+\+\d+(?:\.\d+)?)/i],
+      ['workFront',/\bwork\s*front\s+([a-z0-9_.\/-]+)/i],['package',/\b(?:package|pkg)\s+([a-z0-9_.\/-]+)/i],['cbs',/\b(?:cbs|cost\s*code)\s+([a-z0-9_.\/-]+)/i],
+      ['contractor',/\bcontractor\s+([a-z0-9][a-z0-9 &_.\/-]{1,40}?)(?=\s+(?:and|with|only|status|activities)|$)/i],
+      ['subcontractor',/\bsubcontractor\s+([a-z0-9][a-z0-9 &_.\/-]{1,40}?)(?=\s+(?:and|with|only|status|activities)|$)/i],
+      ['trade',/\btrade\s+([a-z0-9][a-z0-9 _\/-]{1,30}?)(?=\s+(?:and|with|only|activities)|$)/i],
+      ['system',/\bsystem\s+([a-z0-9][a-z0-9 _\/-]{1,30}?)(?=\s+(?:and|with|only|activities)|$)/i]
+    ];
+    for(const [field,pattern] of explicitScopes){const hit=pattern.exec(question);if(hit?.[1]){plan.filters=plan.filters.filter(f=>f.field!==field);plan.filters.push({field,operator:'contains',value:hit[1].trim(),upper:null});}}
+  }
   const currency=/^(SAR|AED|USD|EUR|GBP)$/i.exec(question.trim());if(currency){plan.filters=plan.filters.filter(f=>f.field!=='currency');plan.filters.push({field:'currency',operator:'eq',value:currency[1]!.toUpperCase(),upper:null});gaps.push('Currency filtering does not convert values. No exchange rate is assumed.');}
   const days=/next\s+(\d+)\s+days|القادمه\s+(\d+)/.exec(q);if(days)plan.nextDays=Math.min(3650,Number(days[1]??days[2]));
   const coverage=/(?:delivery|delivered|التسليم).*?(?:under|below|less than|اقل من)\s+(\d+(?:\.\d+)?)\s*%/.exec(q);if(coverage)plan.deliveryBelowPercent=Number(coverage[1]);
