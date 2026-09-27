@@ -7176,6 +7176,7 @@ export function moduleForProject(
     );
   }
   if (isDeliveryPage(key)) return deliveryModule(state,key);
+  if (key==='scope-classification') return resolveProjectModuleUncertified(reportingState(state),key);
   if (key==='monte-carlo-risk') return scheduleRiskMonteCarlo(reportingState(state));
   if (key==='earned-schedule') return earnedScheduleForState(reportingState(state));
   if (key==='evm-by-wbs') return evmByWbsForState(reportingState(state));
