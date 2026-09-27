@@ -10,6 +10,13 @@ import {loadProjectCatalog,projectDirectory,atomicJson,release,type CatalogEntry
 import {projectWorkerCapacity} from './project-worker-capacity';
 import {ProjectReadCache,cacheableProjectRead,MAX_PROJECT_READ_BYTES} from './project-read-cache';
 import {sendHttpBody,forwardHttpBody} from './http-response';
+import {randomBytes} from 'node:crypto';
+import {ExternalAccess,filePolicy} from '../../external-intelligence/src/access';
+import {ExternalIntelligenceService} from '../../external-intelligence/src/service';
+import {ExternalHttp} from '../../external-intelligence/src/http';
+import {externalAuthorityMetadata} from '../../external-intelligence/src/authority-metadata';
+import {ExternalError,type ExternalBackend,type ExternalPolicy} from '../../external-intelligence/src/types';
+import {readManagedAskSettings} from '../../project-ask/src/settings';
 
 type Lane={worker:Worker;ready:Promise<number>;tail:Promise<void>;pending:number;lastUsed:number};
 const send=(res:ServerResponse,status:number,body:unknown)=>{if(!res.destroyed&&!res.writableEnded){if(res.headersSent){res.destroy();return;}sendHttpBody(res,status,{'content-type':'application/json','cache-control':'no-store'},JSON.stringify(body));}};
@@ -17,6 +24,23 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
   const catalog=await loadProjectCatalog(root),lanes=new Map<string,Lane>(),progress=new Map<string,any>();
   const documentRegisters=new Map<string,{version:number;documents:Record<string,any>}>();
   const auditSecret=await retainedAuditSessionKey(root);
+  const externalWorkerKey=randomBytes(32).toString('hex');
+  const askSettingsPath=process.env.CMENG_ASK_AI_CONFIG_FILE??join(root,'ask-ai-provider.json');
+  let externalHttp:ExternalHttp|undefined;
+  const externalPolicy=():ExternalPolicy|null=>process.env.CMENG_EXTERNAL_POLICY_JSON?JSON.parse(process.env.CMENG_EXTERNAL_POLICY_JSON):filePolicy(process.env.CMENG_EXTERNAL_POLICY_FILE)();
+  function externalController(){
+    if(externalHttp)return externalHttp;
+    const access=new ExternalAccess(join(root,'external-ai'),externalPolicy);
+    const invoke=async(projectId:string,request:Record<string,unknown>)=>{
+      if(!catalog.has(projectId))throw new ExternalError(404,'project_not_found','The authorized project is not available.');
+      return work(projectId,async port=>{
+        const response=await fetch('http://127.0.0.1:'+port+'/internal/external-intelligence',{method:'POST',headers:{'content-type':'application/json','x-cmeng-external-worker-key':externalWorkerKey},body:JSON.stringify({...request,projectId}),signal:AbortSignal.timeout(120000)});
+        const body=await response.json() as any;if(!response.ok)throw new ExternalError(response.status,body.error??'analysis_unavailable',body.message??'The project analysis could not be completed.');return body;
+      });
+    };
+    const backend:ExternalBackend={catalogue:externalAuthorityMetadata,state:(projectId,authorityIds)=>invoke(projectId,{action:'state',authorityIds}),analyse:(projectId,user,plan)=>invoke(projectId,{action:'analyse',user,plan}),retrieve:(projectId,user,session,operation,query,limit)=>invoke(projectId,{action:'retrieve',user,session,operation,query,limit})};
+    externalHttp=new ExternalHttp(access,new ExternalIntelligenceService(access,backend),askSettingsPath);return externalHttp;
+  }
   const configured=options.maxWorkers??Number(process.env.CMENG_PROJECT_WORKERS??4);
   const html=cmengUatHtml(),maxWorkers=projectWorkerCapacity(configured);
   const reads=(id:string)=>new ProjectReadCache(projectDirectory(root,id));
@@ -43,7 +67,7 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
         if(closing)throw new Error('SERVICE_RESTARTING');
       }
       const directory=projectDirectory(root,id);
-      const env:NodeJS.ProcessEnv={...process.env,CMENG_DATA_DIR:directory,CMENG_TEST_MODE:'0',NODE_TEST_CONTEXT:'',CMENG_PROJECT_WORKER:'1',CMENG_PROFILE_PERF:'1',CMENG_AUDIT_SECRET:auditSecret};
+      const env:NodeJS.ProcessEnv={...process.env,CMENG_DATA_DIR:directory,CMENG_TEST_MODE:'0',NODE_TEST_CONTEXT:'',CMENG_PROJECT_WORKER:'1',CMENG_PROFILE_PERF:'1',CMENG_AUDIT_SECRET:auditSecret,CMENG_EXTERNAL_WORKER_KEY:externalWorkerKey,CMENG_ASK_AI_CONFIG_FILE:askSettingsPath};
       if(env.RAILWAY_VOLUME_MOUNT_PATH)env.RAILWAY_VOLUME_MOUNT_PATH=directory;
       const worker=new Worker(join(__dirname,'project-http-worker.js'),{workerData:{projectId:id,directory},env});
       const lane:Lane={worker,ready:Promise.resolve(0),tail:Promise.resolve(),pending:1,lastUsed:Date.now()};
@@ -101,6 +125,10 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
       readyModules:null,partialModules:null,blockedModules:null,managementActions:[]};
   }
   async function proxy(id:string,req:IncomingMessage,res:ServerResponse,path=req.url??'/'){
+    let allowPaidModel='1';
+    if(/\/intelligence(?:\/|$)/.test(path)){
+      try{if(readManagedAskSettings(askSettingsPath)?.ownerOnly){allowPaidModel='0';try{if(externalController().access.identity(req).externalAdmin)allowPaidModel='1';}catch{}}}catch{allowPaidModel='0';}
+    }
     const mutation=req.method!=='GET'&&req.method!=='HEAD'&&!/\/intelligence(?:\/|$)/.test(path);
     if(mutation){updating.set(id,(updating.get(id)??0)+1);const e=catalog.get(id);if(e)e.summaryRelease=null;await reads(id).invalidate();}
     const uploadId=String(req.headers['x-upload-id']??'');
@@ -109,7 +137,7 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
     try{
       await work(id,port=>new Promise<void>((resolve,reject)=>{
         if(req.aborted){reject(new Error('UPLOAD_CONNECTION_CLOSED'));return;}
-        const upstream=request({host:'127.0.0.1',port,path,method:req.method,headers:{...req.headers,host:'127.0.0.1:'+port,'accept-encoding':'identity'}},incoming=>{
+        const upstream=request({host:'127.0.0.1',port,path,method:req.method,headers:{...req.headers,host:'127.0.0.1:'+port,'accept-encoding':'identity','x-cmeng-paid-ai':allowPaidModel}},incoming=>{
           succeeded=(incoming.statusCode??500)<400;
           const version=Number(incoming.headers['x-cmeng-project-version']);
           const retain=cacheableProjectRead(req.method,path)&&incoming.statusCode===200&&Number.isInteger(version)&&version>=0;
@@ -138,6 +166,9 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
   }
   const server=createServer((req,res)=>{void (async()=>{
     const url=new URL(req.url??'/','http://localhost');
+    if(url.pathname.startsWith('/internal/')){send(res,404,{error:'not_found'});return;}
+    if(url.pathname.startsWith('/external-ai')||url.pathname.startsWith('/.well-known/oauth-')||url.pathname==='/settings/ask-ai'){await externalController().handle(req,res);return;}
+    if(/^Bearer\s+cmeng_(ext|refresh)_/i.test(String(req.headers.authorization??''))){send(res,403,{error:'external_route_required',message:'External AI credentials may only call the external read-only gateway.'});return;}
     if(req.method==='GET'&&url.pathname==='/health'){send(res,200,{status:'ok',service:'cmeng',release:release(),scheduleModules:scheduleModuleSummary(),commercialModules:commercialModuleSummary(),boqIngestion:{persistence:process.env.RAILWAY_VOLUME_MOUNT_PATH?'railway_volume':'runtime_local',authority:'candidate_only'},projectWorkers:lanes.size});return;}
     if(req.method==='GET'&&url.pathname==='/'){sendHttpBody(res,200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store'},html);return;}
     if(req.method==='GET'&&url.pathname==='/api/portfolio'){

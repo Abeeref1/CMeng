@@ -252,7 +252,7 @@ test('navigation does not multiply information warnings across page links; calcu
  const nav={innerHTML:'',querySelectorAll:()=>[]};
  const ctx={...common,el:()=>nav,project:()=> 'TEST-PROJECT',appView:'project',selected:'one',names:{one:'One',two:'Two'},groups:{Planning:['one','two']},overview:{moduleStates:[{key:'one',issueAssessment:{counts:{missing_information:3}}},{key:'two',issueAssessment:{counts:{system_defect:1,source_conflict:4}}}],managementStates:[{key:'master-dashboard',issueAssessment:{counts:{missing_information:7,system_defect:1}}}]}};
  runInNewContext(render+';renderNav()',ctx);
- assert.match(nav.innerHTML,/Information items<b>7/);
+ assert.match(nav.innerHTML,/Actions required/);assert.match(nav.innerHTML,/id="projectActionNavCount">…/);assert.doesNotMatch(nav.innerHTML,/Information items<b>7/);
  assert.doesNotMatch(nav.innerHTML,/nav-count attention|>Source [0-9]/);
  assert.match(nav.innerHTML,/aria-label="1 system failures">Error 1/);
  assert.equal((nav.innerHTML.match(/data-key=/g)||[]).length,2);
