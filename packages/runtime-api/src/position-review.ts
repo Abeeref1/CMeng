@@ -1,5 +1,5 @@
 import type { ModuleRuntimeResult } from './project-state-types';
-import type { ControlIssueAssessment, ControlIssue } from '../../truth-kernel/src';
+import type { ControlIssueAssessment } from '../../truth-kernel/src';
 
 /** One reader-facing vocabulary; source authority and project performance stay separate. */
 export const STATUS_LABELS: Record<string,string> = {
@@ -59,12 +59,12 @@ export function positionVerdict(result:ModuleRuntimeResult) {
   if(counts.system){rag='red';specific=true;text='A CMeng calculation check failed. The affected values need correction before use.';nextAction='CMeng must correct the failed calculation and repeat its checks.';assignTo='CMeng Support';}
   if(d.registerDateReview?.likelyMappingFault&&(!specific||result.key==='source-quality')){rag='amber';specific=true;text=d.registerDateReview.message;nextAction='CMeng must check the date columns and reader before requesting replacement files.';assignTo='CMeng Support';}
   else if(rag==='green'&&(counts.source||counts.pending||counts.review))rag='amber';
-  const first=(a?.issues??[]).find((i:ControlIssue)=>i.kind==='system_defect')??(a?.issues??[]).find((i:ControlIssue)=>['source_conflict','data_quality','missing_information'].includes(i.kind))??(a?.issues??[])[0];
   if(!nextAction&&/baseline plan/.test(text))nextAction=/matches baseline plan/.test(text)?'Monitor schedule progress against baseline plan.':'Review the activities behind the progress difference against baseline plan.';
   if(!nextAction&&/resource|Hours/.test(text))nextAction='Review resource demand, available capacity and the dates covered by the hours.';
   // Only pair a register action with its own finding. Never attach an arbitrary
   // first issue to a different page headline.
-  if(!specific&&first){text=first.summary;nextAction=first.action;assignTo=first.owner; specific=true;}
+  // Findings qualify the result in supporting details. An arbitrary first finding
+  // is never a substitute for the question this page answers.
   if(!nextAction)nextAction=result.status==='blocked'?'Provide the missing inputs listed in Information & Actions.':'Review the figures for this page.';
   assignTo=assignTo.replace(/\s*\(assign a person\)/gi,'').trim();
   return {schemaVersion:'1.0',facts,specific,rag,label:rag==='red'?'Action required':rag==='green'?'Within the checked target':rag==='unknown'?'Not assessable':'Review needed',text,

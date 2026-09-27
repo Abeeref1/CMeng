@@ -1,12 +1,13 @@
 import {phaseProgrammePosition} from './phase-programmes';
 import {askScheduleActivities,askCriticalPath} from './ask-schedule';
+import {askProjectDiagnosis} from './ask-diagnosis';
 import {AuthorityCatalogue} from '../../project-ask/src/catalogue';
 import type {AnalysisPlan,AuthorityResult,Column,Domain,ProjectScope} from '../../project-ask/src/types';
 import {cell,label} from '../../project-ask/src/primitives';
 import {AuthorityBuilder,at,evidenceState} from './ask-authority-builder';
 import {moduleRegistry} from './registry';
 import {moduleForProject} from './project-projections';
-import {resolveBoqSource,suppliedBoqFigures} from './boq-source';
+import {resolveBoqSource,suppliedBoqFigures,suppliedBoqReportedTotals} from './boq-source';
 import {projectControlSchedule} from './canonical-time-claims';
 import {deliveryPosition,deliveryModule} from './delivery-projections';
 import {isDeliveryPage} from '../../delivery-core/src/registry';
@@ -84,7 +85,7 @@ const registrations:Record<string,Registration>={
   'delivery-risks':{id:'risks',concepts:['risk','what worry','مخاطر']},
 };
 const analyticFields=['recordId','reference','description','name','itemNumber','activityId','wbsId','discipline','location','floor','zone','supplier','unit','currency','taxBasis','status','state','amount','required','ordered','delivered','installed','deliveryCoveragePercent','totalFloatHours','headroomCalendarDays','programmeNeedDate','percentComplete','score'];
-const scheduleFields=['critical','criticality','floatRiskWatchlist','missedPlannedStart','finishOverdue','scheduleDelayed','startOverdueCalendarDays','finishOverdueCalendarDays','currentStartIso','currentFinishIso','finishVarianceDays','independentTotalFloatHours'];
+const scheduleFields=['schedulePressure','onDrivingNetwork','wbs','critical','criticality','floatRiskWatchlist','missedPlannedStart','finishOverdue','scheduleDelayed','startOverdueCalendarDays','finishOverdueCalendarDays','currentStartIso','currentFinishIso','finishVarianceDays','independentTotalFloatHours'];
 
 function produceBoq({state}:AskProducerContext,scope:ProjectScope){
   const source=resolveBoqSource(state,scope.programmeRevision??''),figures=suppliedBoqFigures(source.boq,source.quantities);
@@ -92,6 +93,12 @@ function produceBoq({state}:AskProducerContext,scope:ProjectScope){
   const b=new AuthorityBuilder('boq','BOQ / Scope','boq',scope,status,source.selection.explanation);
   b.metric('items','Readable BOQ items',figures.itemCount,'items',figures.basis,{fact:true});
   b.table('items','BOQ items',figures.rows,figures.basis,overrides);
+  const reported=suppliedBoqReportedTotals(state,source.selection.sourceDocumentId);
+  if(reported.length){b.table('reported-totals','Source-stated summary totals',reported,'Explicit totals in the selected source. These are not sums of the recovered rows and must not be added to them.',overrides);for(const [i,r]of reported.entries())b.metric('reported-total-'+i,'Source-stated BOQ total · '+r.taxBasis.replaceAll('_',' '),r.amount,r.currency,r.basis,{fact:true,refs:r.sourceRefs});}
+  const groups=new Map<string,{section:string;currency:string|null;itemCount:number;pricedCount:number;readableAmount:number;quantityKnown:number;sourceRefs:string[]}>();
+  for(const row of figures.rows){const key=JSON.stringify([row.section,row.currency]),g=groups.get(key)??{section:row.section??'Section not supplied',currency:row.currency,itemCount:0,pricedCount:0,readableAmount:0,quantityKnown:0,sourceRefs:[]};g.itemCount++;if(typeof row.amount==='number'){g.pricedCount++;g.readableAmount+=row.amount;}if(typeof row.quantity==='number')g.quantityKnown++;g.sourceRefs.push(...row.sourceRefs);groups.set(key,g);}
+  if(groups.size)b.table('scope-cost','Scope and readable cost by section',[...groups.values()].map(g=>({...g,readableAmount:g.pricedCount?Number(g.readableAmount.toFixed(2)):null})), 'Sum of readable line amounts only, separated by source section and currency. Partial coverage is not the complete section value; unpriced or included rows are not zero.',{...overrides,readableAmount:{unit:'row currency'},section:{dimension:true}});
+  if(figures.rows.length)b.result.explanation=figures.rows.length+' BOQ item descriptions are readable; '+figures.rows.filter(r=>r.amount!==null).length+' have stated amounts and '+figures.rows.filter(r=>r.quantity!==null).length+' have aligned quantities. Scope and cost information are available without a programme. '+(!source.boq?.complete?'The complete item population and total reconciliation remain unconfirmed. ':'')+(source.selection.state==='candidate'?'This is a candidate source awaiting selection.':'');
   const currencies=[...new Set(figures.rows.map(r=>r.currency))];
   for(const currency of currencies){const rows=figures.rows.filter(r=>r.currency===currency),known=rows.filter(r=>typeof r.amount==='number');
     const total=currency&&source.selection.adoptedSource&&source.boq?.complete&&known.length===rows.length?known.reduce((n,r)=>n+r.amount!,0):null;
@@ -136,6 +143,18 @@ function moduleAuthority(context:AskProducerContext,scope:ProjectScope,key:strin
   if(registration.id==='activities')return askScheduleActivities(scope);
   const result=moduleForProject(scope.projectId,key),d:any=result.data;
   const b=new AuthorityBuilder(registration.id,title,key,scope,evidenceState(result.status),result.reason??'Existing CMeng authority at the programme Data Date.');
+  if(registration.id==='forecast'&&d?.completionPosition){
+    const p=d.completionPosition;
+    b.result.explanation=p.interpretation+' '+p.contractNote;
+    for(const [id,name,value,unit] of [
+      ['sourceForecastCompletionIso','Submitted programme finish',p.submittedFinishIso,null],['independentForecastCompletionIso','CMeng calendar recalculation',p.independentFinishIso,null],
+      ['difference','Recalculation minus submitted finish',p.differenceElapsedDays,'elapsed calendar days'],['contract','Contractual completion',p.contractualFinishIso,null]
+    ])b.metric(id,name,value,unit,p.differenceBasis,{state:id==='independentForecastCompletionIso'?p.calculationState:undefined,refs:[scope.programmeRevision??'']});
+    for(const [path,name,unit] of registration.metrics??[])if(!b.result.metrics.some(m=>m.id===registration.id+'.'+path))b.metric(path,name,at(d,path),unit,'Existing '+title+' producer.',{path});
+    b.table('position','Completion position',[{submittedFinish:p.submittedFinishIso,calendarRecalculation:p.independentFinishIso,calculationState:p.calculationState,differenceElapsedDays:p.differenceElapsedDays,contractualFinish:p.contractualFinishIso}],p.differenceBasis);
+    for(const l of p.limitations)b.finding(l.key,'Calculation qualification',l.text,'Review this stated calculation assumption with the relevant programme record.');
+    return b.result;
+  }
   if(registration.id==='float'){
     const activities=askScheduleActivities(scope);
     b.result.tables=activities.tables.map(t=>({...t,id:'float.rows',authorityId:'float',title:'Activity float',traceId:'float:rows'}));
@@ -188,6 +207,7 @@ function moduleAuthority(context:AskProducerContext,scope:ProjectScope,key:strin
 }
 export function createAskAuthorityCatalogue(){
   const catalogue=new AuthorityCatalogue<AskProducerContext>();
+  catalogue.register({id:'project-diagnosis',title:'Project diagnosis',description:'Shared programme position, driving network, WBS pressure, revision changes and explicitly linked multi-domain evidence.',module:'pmo-analysis',domains:['schedule','delivery','commercial','claims','evidence'],concepts:['project diagnosis','finish drivers','why are we late'],fields:[...analyticFields,...scheduleFields,'schedulePressure','onDrivingNetwork','wbs'],historical:false,produce:(_context,scope,plan)=>askProjectDiagnosis(scope,plan)});
   catalogue.register({id:'critical-path',title:'Critical activities',description:'Calculated critical activities, or a clearly labelled source-float list when CPM is unavailable.',module:'independent-forecast',domains:['schedule'],concepts:['critical path','driving path'],fields:[...analyticFields,...scheduleFields],historical:false,produce:(_context,scope)=>askCriticalPath(scope)});
   catalogue.register({id:'boq',title:'BOQ / Scope',description:'Selected BOQ source quantities, item values and scope. No cross-currency sum.',module:'boq',domains:['boq','commercial'],concepts:['boq','scope','cost driver','cost distribution','bill of quantities','جدول الكميات'],fields:analyticFields,historical:false,produce:produceBoq});
   for(const module of moduleRegistry){

@@ -1,3 +1,5 @@
+import {completionPosition} from './completion-position';
+import {buildProjectDiagnosis,presentProjectDiagnosis} from './project-diagnosis';
 import {buildModuleChallenge} from '../../module-challenge/src';
 import {deliveryModule,deliveryDashboard,isDeliveryPage} from './delivery-projections';
 import {isAdoptedProgrammeRevision,isScenarioRevision,scheduleAuthorityReview} from './schedule-authority';
@@ -7122,6 +7124,18 @@ function resolveProjectModule(state: ProjectRuntimeState, key: string): ModuleRu
     modules: candidates, director: bundle.director, boardReport: bundle.boardReport});
   const p4=profiling?performance.now():0;
   const modules = new Map([...candidates].map(([key, result]) => [key, enforceModuleReadiness(result, consistency)]));
+  const forecast=modules.get('independent-forecast')?.data as any;
+  const near=modules.get('near-critical')?.data as any;
+  const activityNames=new Map((projectControlSchedule(scoped)?.revision.model.activities??[]).map(a=>[a.activityId,a.name??a.activityId]));
+  for(const key of ['pmo-analysis','independent-forecast']){
+    const result=modules.get(key),data=result?.data as any;
+    if(data&&forecast){data.completionPosition=completionPosition(data,forecast,activityNames);
+      if(key==='pmo-analysis')data.knownScheduleCounts={critical:near?.knownCriticalCount??near?.criticalCount??null,nearCritical:near?.nearCriticalCount??near?.rows?.length??null,negativeFloat:near?.knownNegativeFloatCount??near?.negativeFloatCount??null};
+    }
+  }
+  const diagnosis=buildProjectDiagnosis(scoped,modules);
+  const management=modules.get('pmo-analysis')?.data as any;
+  if(management)management.projectDiagnosis=presentProjectDiagnosis(diagnosis);
   const p5=profiling?performance.now():0;
   if(profiling)process.stdout.write(JSON.stringify({event:'project_resolution_profile',projectId:state.projectId,
     reportingStateMs:p1-p0,bundleMs:p2-p1,candidatesMs:p3-p2,certificationMs:p4-p3,readinessMs:p5-p4,totalMs:p5-p0})+'\n');
@@ -7202,8 +7216,11 @@ export function managementSurfacesForProject(
   const cached = managementProjectionCache.get(projectId);
   if (cached?.version === state.version) return cached.data;
 
+  const profiling=process.env.CMENG_PROFILE_PERF?.trim()==='1';
+  const mp0=profiling?performance.now():0;
   const bundle =
     buildBundle(state);
+  const mp1=profiling?performance.now():0;
   const generatedAt =
     bundle.generatedAt;
   const director =
@@ -7235,8 +7252,10 @@ export function managementSurfacesForProject(
 
   const resolvedModules = new Map([...scheduleModules, ...commercialModules].map(descriptor =>
     [descriptor.key, resolveProjectModule(state, descriptor.key)]));
+  const mp2=profiling?performance.now():0;
   const certification = certifyCrossModuleConsistency({ generatedAt, state: reportingState(state), modules: resolvedModules,
     director, boardReport: bundle.boardReport });
+  const mp3=profiling?performance.now():0;
   const consistency = { state: certification.state, checkCount: certification.checkCount,
     failedCheckIds: certification.failedCheckIds,
     scope: "Checked cross-module values, shared population IDs and denominators, Data Date, authority, configuration and project version. Evidence completeness is a separate gate." };
@@ -7655,6 +7674,7 @@ export function managementSurfacesForProject(
         }),
       );
 
+  const mp4=profiling?performance.now():0;
   const surfaces = buildManagementSurfaces({
     schemaVersion: "1.0",
     projectId,
@@ -7752,6 +7772,7 @@ export function managementSurfacesForProject(
     },
     boardPublicationState,
   });
+  const mp5=profiling?performance.now():0;
   const issues = [...resolvedModules.values()].flatMap(r=>r.issueAssessment?.issues??[]);
   const governanceIssues:ControlIssue[] = surfaces.commandCenter.governanceGaps.map(g=>({kind:'governance_review',code:'MANAGEMENT_GOVERNANCE_'+g.key,
     summary:g.label+' needs approval',detail:'Review and approve the current report before publication.',
@@ -7777,10 +7798,13 @@ export function managementSurfacesForProject(
   const deliveryExceptions={actions:[...operations.actions,...overdueRows.map((r:any)=>({recordId:r.activityId,type:'Activity',priority:'overdue',owner:null,dueIso:r.finishIso,ageDays:null,
     overdueDays:current?.revision.model.dataDateIso&&r.finishIso?Math.floor((Date.parse(current.revision.model.dataDateIso.slice(0,10))-Date.parse(r.finishIso.slice(0,10)))/86400000):null,
     action:'Review overdue activity '+r.activityId+' ('+r.name+') and agree its recovery dates.',sourceRefs:[]}))],overdueActivityCount:Array.isArray(lookahead?.rows)?overdueRows.length:null};
+  const completion=(resolvedModules.get('independent-forecast')?.data as any)?.completionPosition??null;
+  const diagnosis=(resolvedModules.get('pmo-analysis')?.data as any)?.projectDiagnosis??null;
+  const mp6=profiling?performance.now():0;
   const result = { ...surfaces,
     sourceQuality: {...sourceQualityPosition(resolvedModules,issueAssessment,state.evidenceDocuments,current?.revision.model.dataDateIso??null),registerDateReview:registerDateReview(state)},
-    masterDashboard: {delivery:deliveryDashboard(state),scheduleExceptions,deliveryExceptions,...managementReportingData(state, surfaces.masterDashboard, resolvedModules),decisions:surfaces.commandCenter.decisions,trend:(resolvedModules.get("forecast-history")?.data as any)??null,issueAssessment,operationalReporting:operationalReporting(state),sourceInterpretation:director?.sourceInterpretation},
-    commandCenter: {deliveryExceptions,...managementReportingData(state, surfaces.commandCenter, resolvedModules),issueAssessment,operationalReporting:operationalReporting(state),sourceInterpretation:director?.sourceInterpretation},
+    masterDashboard: {projectDiagnosis:diagnosis,completionPosition:completion,delivery:deliveryDashboard(state),scheduleExceptions,deliveryExceptions,...managementReportingData(state, surfaces.masterDashboard, resolvedModules),decisions:surfaces.commandCenter.decisions,trend:(resolvedModules.get("forecast-history")?.data as any)??null,issueAssessment,operationalReporting:operationalReporting(state),sourceInterpretation:director?.sourceInterpretation},
+    commandCenter: {projectDiagnosis:diagnosis,completionPosition:completion,scheduleExceptions,deliveryExceptions,...managementReportingData(state, surfaces.commandCenter, resolvedModules),issueAssessment,operationalReporting:operationalReporting(state),sourceInterpretation:director?.sourceInterpretation},
     masterControlProgramme: {...managementReportingData(state, surfaces.masterControlProgramme, resolvedModules),issueAssessment,sourceInterpretation:director?.sourceInterpretation} };
   const allPages=new Map(resolvedModules);
   allPages.set('master-dashboard',{key:'master-dashboard',status:'partial',reason:null,dependencies:[],data:result.masterDashboard});
@@ -7794,6 +7818,10 @@ export function managementSurfacesForProject(
     result.sourceQuality.systemFailures.push(...failures);
     for(const surface of [result.masterDashboard,result.commandCenter,result.masterControlProgramme,result.sourceQuality])surface.issueAssessment=summarizeControlIssues([...issueAssessment.issues,...failures]);
   }
+  const mp7=profiling?performance.now():0;
+  if(profiling)process.stdout.write(JSON.stringify({event:'management_surface_profile',projectId,
+    bundleMs:mp1-mp0,resolvedModulesMs:mp2-mp1,certificationMs:mp3-mp2,preBuildMs:mp4-mp3,
+    buildSurfacesMs:mp5-mp4,issuesAndExceptionsMs:mp6-mp5,reportingAndChecksMs:mp7-mp6,totalMs:mp7-mp0})+'\\n');
   managementProjectionCache.set(projectId, {version: state.version, data: result});
   return result;
 }

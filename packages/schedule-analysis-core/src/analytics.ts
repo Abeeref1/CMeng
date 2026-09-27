@@ -331,7 +331,7 @@ function finishVariance(
       variances.length === 0
         ? null
         : Number(
-            Math.max(...variances).toFixed(6),
+            variances.reduce((a,b)=>Math.max(a,b),-Infinity).toFixed(6),
           ),
     coveragePercent: coveragePercent(
       variances.length,

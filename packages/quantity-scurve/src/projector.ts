@@ -286,8 +286,8 @@ function timeline(
 
   if (anchors.length === 0) return [];
 
-  const start = Math.min(...anchors);
-  const finish = Math.max(...anchors);
+  const start = anchors.reduce((a,b)=>Math.min(a,b),Infinity);
+  const finish = anchors.reduce((a,b)=>Math.max(a,b),-Infinity);
   const step =
     intervalDays * 86_400_000;
   const points: number[] = [];
@@ -300,7 +300,7 @@ function timeline(
     points.push(point);
   }
 
-  points.push(...anchors);
+  for(const anchor of anchors)points.push(anchor);
 
   return [...new Set(points)].sort(
     (a, b) => a - b,

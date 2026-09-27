@@ -16,6 +16,7 @@ export function routeRequest(question:string,plan:AnalysisPlan,purePresentation=
   if(plan.kind==='historical')return 'historical';
   if(plan.kind==='scenario')return 'scenario';
   if(plan.kind==='document')return 'document_analysis';
+  if(/\btop\s+\d+\b.*\b(?:boq|cost)\b.*\b(?:items?|drivers?)\b/.test(q)&&!/\b(?:why|explain|interpret|report|recommend)\b/.test(q))return 'local_data';
   if(complex.test(q)||plan.kind==='report'&&interpretation.test(q))return 'complex_report';
   if(interpretation.test(q)||plan.kind==='draft')return plan.authorities.length>2?'cross_domain_diagnostic':'ai_explanation';
   if(/\b(chart|graph|dashboard|excel|xlsx|pdf|word|csv|export|power ?bi)\b/.test(q))return 'local_visual_export';

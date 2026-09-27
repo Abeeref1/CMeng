@@ -51,6 +51,14 @@ export interface CpmActivityResult {
 }
 
 export interface CpmResult {
+  /** Binding relationships traced from the calculated finish. Adjacent rows in
+   * topological order need not link; parallel branches remain explicit. */
+  drivingNetwork?: {
+    activityIds: string[];
+    finishActivityIds: string[];
+    relationships: Array<{relationshipId:string;predecessorActivityId:string;successorActivityId:string;type:string;lagHours:number}>;
+    startReasons: Array<{activityId:string;reason:'reporting_anchor_or_calendar'|'fixed_actual_dates'}>;
+  };
   activityPopulation: ActivityPopulationContract;
   projectId: string | null;
   sourceRevisionId: string;

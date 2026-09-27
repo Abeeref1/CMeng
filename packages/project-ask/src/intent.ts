@@ -2,19 +2,21 @@ import type {AnalysisPlan, AnalysisResult, AuthorityDescriptor, PageContext, Pre
 import {AskError} from './catalogue';
 import {normalized} from './primitives';
 import {mentionsConcept,rankedRequests,substantiveQuestion} from './router';
+import {projectQuestionRecipe} from './question-recipes';
 
 const formats: [RegExp,Presentation['format']][]=[[/\bexcel\b|xlsx|اكسل|إكسل/i,'xlsx'],[/\bpdf\b/i,'pdf'],[/\bword\b|docx|وورد/i,'docx'],[/\bcsv\b/i,'csv'],[/power\s?bi|\bpbix\b/i,'powerbi'],[/\bjson\b/i,'json']];
 const defaults=(question:string):AnalysisPlan=>({objective:question,kind:'facts',authorities:[],filters:[],groupBy:[],rankBy:null,rankDirection:'desc',limit:null,metricIds:[],issuesOnly:false,criticalOnly:false,nextDays:null,deliveryBelowPercent:null,asOf:null,scenario:null,attachmentIds:[]});
 const mentions=mentionsConcept;
 export function resolveIntent(question:string,catalogue:AuthorityDescriptor[],principal:AskSession,page:PageContext|null,previous:AnalysisResult|null){
   const q=normalized(substantiveQuestion(question)).replace(/worst(\d)/g,'worst $1').replace(/\bprocument\b/g,'procurement').replace(/\bprogess\b/g,'progress');
-  const fullList=/^(?:(?:show|give|list)(?: me)?\s+)?(?:(?:the|a)\s+)?(?:full|complete|all)(?:\s+(?:the\s+)?(?:list|activities|rows|results|details|of them))?[.!?]*$/.test(q);
+  const fullList=/^(?:(?:show|give|list)(?: me)?\s+)?(?:(?:the|a)\s+)?(?:full|complete|all)(?:\s+(?:the\s+)?(?:list|activities|rows|results|details|path|network|of them|\d+))?[.!?]*$/.test(q);
   const simpleFollowup=/^(?:make (?:it|that) (?:easy|simple|simpler)|(?:in )?(?:plain|simple) (?:english|language)|simpler|explain (?:it )?simply)[.!?]*$/.test(q);
   if(/\b(across|all|compare|other|another)\s+(projects|portfolios|programmes)\b|organization.wide|portfolio.rollup|cross.project|جميع المشاريع|كل المشاريع/.test(q))
     throw new AskError(422,'capability_not_enabled','Capability not enabled. Select one Project for this analysis.');
   const transform=/^(excel|xlsx|pdf|word|docx|csv|json|power ?bi|better|shorter|more detail|ceo|executive|project director|planner detail|commercial manager|only |by |add |remove |put my name|prepared by|our logo|change chart|sar\b|aed\b|usd\b|tower |floor |zone |بالعربي|بالعربية|عربي|مختصر|اكسل|إكسل)/i.test(question.trim());
   const purePresentation=transform&&!/^(only |by |add (?:value|procurement|progress)|remove |tower |floor |zone |sar\b|aed\b|usd\b)/.test(q);
-  const inherited=!!previous&&(transform||fullList||simpleFollowup);
+  const wbsDrill=previous?.plan.questionRecipe==='wbs_pressure'&&/^show (?:the )?contributing activities for wbs\b/.test(q);
+  const inherited=!!previous&&(wbsDrill||transform||fullList||simpleFollowup||/^group by\b|^explain.*\b(?:these|those|they)\b/.test(q));
   const plan:AnalysisPlan=inherited?structuredClone(previous.plan):defaults(question);
   const presentation:Presentation=inherited?structuredClone(previous.presentation):{
     title:question.slice(0,160),audience:'project',language:/[\u0600-\u06ff]/.test(question)?'ar':'en',detail:'normal',charts:true,
@@ -62,7 +64,7 @@ export function resolveIntent(question:string,catalogue:AuthorityDescriptor[],pr
   if(inherited&&/add .*curve/.test(q))for(const c of catalogue.filter(c=>c.concepts.some(k=>mentions(q,k))))if(!plan.authorities.includes(c.id))plan.authorities.push(c.id);
   // Resolve activity questions before generic words such as "delayed" can select a claims register.
   const claimsQuestion=/\b(?:claims?|entitlement|delay events?|time impact|windows analysis)\b/.test(q);
-  const activityQuestion=/\bactivit(?:y|ies)\b|\b(?:critical|driving) path\b|should (?:have )?(?:start|finish)|should have (?:started|finished)|\b(?:missed|overdue|late) starts?\b|\b(?:overdue|late) finishes?\b/.test(q);
+  const activityQuestion=/\bactivit(?:y|ies)\b|\b(?:delayed|late|overdue) (?:items|tasks|work)\b|\b(?:critical|driving) path\b|should (?:have )?(?:start|finish)|should have (?:started|finished)|\b(?:missed|overdue|late) starts?\b|\b(?:overdue|late) finishes?\b/.test(q);
   const scheduleQuestion=activityQuestion||/\b(?:project|programme|schedule)\b.*\b(?:delayed|delay|late|behind)\b|\b(?:delay|delaying)\b.*\bproject\b|^(?:show (?:me )?|what (?:is|are) (?:the )?)?(?:delayed|late|overdue)(?: work)?[.!?]*$/.test(q);
   if(!inherited&&!claimsQuestion&&scheduleQuestion){
     const available=(id:string)=>catalogue.some(c=>c.id===id);
@@ -70,7 +72,12 @@ export function resolveIntent(question:string,catalogue:AuthorityDescriptor[],pr
     // Keep explicitly requested non-schedule domains in a combined question.
     plan.authorities=plan.authorities.filter(id=>!['programme','activities','float','critical-path','forecast','delay','lookahead'].includes(id));
     if(available(path?'critical-path':'activities'))plan.authorities.unshift(path?'critical-path':'activities');
-    if(/\b(?:why|caus\w*|delaying|makes?|making)\b/.test(q)&&available('lookahead'))plan.authorities.push('lookahead');
+    if(/\b(?:why|caus\w*|driv\w*|delaying|makes?|making)\b/.test(q)){
+      // A schedule diagnosis starts from schedule facts and linked blockers.
+      // Optional domains are added only when the question actually names them.
+      plan.authorities=plan.authorities.filter(id=>['activities','critical-path'].includes(id)||catalogue.find(c=>c.id===id)?.concepts.some(c=>mentions(q,c)));
+      for(const id of ['critical-path','lookahead','forecast'])if(available(id)&&!plan.authorities.includes(id))plan.authorities.push(id);
+    }
   }
   if(/only critical|critical.*(?:packages|activities|mep)|الحرجه/.test(q)&&!/negative.float|near[ -]critical|(?:critical|driving) path/.test(q))plan.criticalOnly=true;
   if(/only (problems|bad|issues)|bad material|material problem|only exceptions|المشاكل/.test(q))plan.issuesOnly=true;
@@ -95,9 +102,9 @@ export function resolveIntent(question:string,catalogue:AuthorityDescriptor[],pr
   if(/\bncrs?\b/.test(q))scopedFilter(['quality'],{field:'recordType',operator:'eq',value:'ncr',upper:null});
   if(/\b(?:open|late|overdue)\b/.test(q)){const status=/\b(open|late|overdue)\b/.exec(q)![1]!;scopedFilter(plan.authorities.filter(id=>['quality','milestones','submittals','closeout','handover','permits','risks'].includes(id)),{field:status==='open'?'open':'late',operator:'eq',value:true,upper:null});}
   for(const dimension of ['discipline','location','floor','zone','supplier','wbs','trade','currency'])if(new RegExp('\\bby '+dimension+'\\b').test(q))plan.groupBy=[dimension==='wbs'?'wbsId':dimension==='trade'?'discipline':dimension];
-  const location=/\b(tower\s+[a-z0-9]+|floor\s+\d+|zone\s+[a-z0-9]+)\b/i.exec(question);
+  const location=/\bfor wbs\b/.test(q)?null:/\b(tower\s+[a-z0-9]+|floor\s+\d+|zone\s+[a-z0-9]+)\b/i.exec(question);
   if(location){plan.filters=plan.filters.filter(f=>f.field!=='location');plan.filters.push({field:'location',operator:'contains',value:location[1]!,upper:null});}
-  if(/\bmep\b|\bmechanical\b|\belectrical\b|\bcivil\b/.test(q)){const value=/\b(mep|mechanical|electrical|civil)\b/.exec(q)![1]!;plan.filters=plan.filters.filter(f=>f.field!=='discipline');plan.filters.push({field:'discipline',operator:'contains',value,upper:null});}
+  if(!/\bfor wbs\b/.test(q)&&/\bmep\b|\bmechanical\b|\belectrical\b|\bcivil\b/.test(q)){const value=/\b(mep|mechanical|electrical|civil)\b/.exec(q)![1]!;plan.filters=plan.filters.filter(f=>f.field!=='discipline');plan.filters.push({field:'discipline',operator:'contains',value,upper:null});}
   const currency=/^(SAR|AED|USD|EUR|GBP)$/i.exec(question.trim());if(currency){plan.filters=plan.filters.filter(f=>f.field!=='currency');plan.filters.push({field:'currency',operator:'eq',value:currency[1]!.toUpperCase(),upper:null});gaps.push('Currency filtering does not convert values. No exchange rate is assumed.');}
   const days=/next\s+(\d+)\s+days|القادمه\s+(\d+)/.exec(q);if(days)plan.nextDays=Math.min(3650,Number(days[1]??days[2]));
   const coverage=/(?:delivery|delivered|التسليم).*?(?:under|below|less than|اقل من)\s+(\d+(?:\.\d+)?)\s*%/.exec(q);if(coverage)plan.deliveryBelowPercent=Number(coverage[1]);
@@ -106,7 +113,50 @@ export function resolveIntent(question:string,catalogue:AuthorityDescriptor[],pr
   else if(/what (was|did)|historical|time.machine|position at|as of|at \d{1,2} (?:january|february|march|april|may|june|july|august|september|october|november|december)/.test(q)){
     gaps.push('Confirm the historical cut-off as YYYY-MM-DD. A year or reporting date is missing; current values have not been substituted.');plan.kind='historical';plan.asOf='unresolved';
   }
-  const scenario=/assume|what if|scenario|افترض/.test(q);
+  const groupingPrevious=inherited&&/^(?:group )?by wbs\b/.test(q);
+  const priorSchedule=previous?.plan.authorities.some(id=>['activities','float','critical-path','project-diagnosis'].includes(id));
+  const explainPrevious=inherited&&priorSchedule&&/^explain.*\b(?:these|those|they)\b/.test(q);
+  const recipe=explainPrevious?'delay_diagnosis':groupingPrevious&&!priorSchedule?null:projectQuestionRecipe(q);
+  if(recipe&&catalogue.some(c=>c.id==='project-diagnosis')&&plan.kind!=='historical'&&!/\bphases?\b/.test(q)){
+    plan.questionRecipe=recipe;
+    delete plan.diagnosisActivityFilters;
+    if(recipe==='driving_path')plan.authorities=['critical-path'];
+    else if(recipe==='delay_diagnosis')plan.authorities=['project-diagnosis','critical-path','activities','float'];
+    else plan.authorities=['project-diagnosis'];
+    if(recipe==='delay_diagnosis'){
+      plan.authorityFilters??={};
+      plan.authorityFilters.activities=[{field:'schedulePressure',operator:'eq',value:true,upper:null}];
+      plan.authorityFilters.float=[{field:'totalFloatHours',operator:'lt',value:0,upper:null}];
+      if(explainPrevious&&previous){
+        plan.diagnosisActivityFilters=[...(previous.plan.authorityFilters?.activities??previous.plan.authorityFilters?.float??[])];
+        if(previous.plan.criticalOnly)plan.diagnosisActivityFilters.push({field:'critical',operator:'eq',value:true,upper:null});
+        if(previous.plan.authorities.length===1&&previous.plan.authorities[0]==='critical-path')plan.diagnosisActivityFilters.push({field:'onDrivingNetwork',operator:'eq',value:true,upper:null});
+        plan.authorities=['project-diagnosis','activities'];plan.authorityFilters.activities=[...plan.diagnosisActivityFilters];plan.criticalOnly=false;
+      }
+    }
+    if(recipe==='wbs_pressure'){
+      plan.groupBy=[];
+      if(groupingPrevious&&previous){
+        plan.diagnosisActivityFilters=[...(previous.plan.authorityFilters?.activities??previous.plan.authorityFilters?.float??[])];
+        if(previous.plan.criticalOnly)plan.diagnosisActivityFilters.push({field:'critical',operator:'eq',value:true,upper:null});
+        if(previous.plan.authorities.length===1&&previous.plan.authorities[0]==='critical-path')plan.diagnosisActivityFilters.push({field:'onDrivingNetwork',operator:'eq',value:true,upper:null});
+      }
+      plan.criticalOnly=false;plan.rankBy=null;plan.rankings=[];plan.limit=null;
+    }
+    if(['management_actions','project_position','revision_change','no_change_outlook','milestone_exposure'].includes(recipe)){plan.rankBy=null;plan.rankings=[];plan.limit=null;}
+  }
+  if(/\bschedule pressure\b/.test(q)&&plan.authorities.includes('activities'))scopedFilter(['activities'],{field:'schedulePressure',operator:'eq',value:true,upper:null});
+  const wbsFilter=/\bfor wbs\s+["']?([^"'?]+)["']?\??$/i.exec(question);
+  if(wbsFilter){plan.filters=plan.filters.filter(f=>f.field!=='wbsId');plan.filters.push({field:'wbsId',operator:'eq',value:wbsFilter[1]!.trim(),upper:null});}
+  if(wbsFilter&&(wbsDrill||/^show all schedule pressure activities for wbs\b/.test(q))){
+    // A WBS row represents its preceding selection, not every activity in that WBS.
+    // Keep the contributing filters and avoid generic "pressure" matching other registers.
+    const selection=wbsDrill?previous!.plan.diagnosisActivityFilters:undefined;
+    plan.authorities=['activities'];plan.kind='facts';plan.groupBy=[];plan.rankBy=null;plan.rankings=[];plan.limit=null;plan.criticalOnly=false;
+    plan.authorityFilters={activities:selection?.length?[...selection]:[{field:'schedulePressure',operator:'eq',value:true,upper:null}]};
+    delete plan.questionRecipe;delete plan.diagnosisActivityFilters;
+  }
+  const scenario=recipe!=='no_change_outlook'&&/assume|what if|scenario|افترض/.test(q);
   if(scenario){plan.kind='scenario';const lead=/(\d+(?:\.\d+)?)\s*(weeks?|days?)/.exec(q);if(lead)plan.scenario={field:'manufacturingLeadTime',value:Number(lead[1]),unit:lead[2]!.startsWith('week')?'weeks':'days',target:/transformer/.test(q)?'transformer':null};else gaps.push('The scenario assumption needs a numeric duration and its unit.');}
   for(const metric of ['cpi','spi','ev','pv','ac'])if(new RegExp('\\b'+metric+'\\b').test(q))plan.metricIds.push(metric);
   if(/\bphases?\b/.test(q)&&catalogue.some(c=>c.id==='phase-programmes')){plan.authorities=['phase-programmes'];plan.criticalOnly=false;plan.countRows=false;plan.groupBy=[];plan.rankBy=null;plan.limit=null;gaps.push('Phase requests use separate phase programme positions. Whole-project KPI values are not substituted for phase metrics; combined phase roll-ups are not established.');}

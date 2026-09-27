@@ -3,6 +3,27 @@ import type {BoqIngestionResult} from '../../boq-ingestion/src';
 import type {CanonicalQuantityProgressModel} from '../../quantity-progress-core/src';
 import type {ProjectRuntimeState} from './project-state-types';
 import {documentClassificationForReview} from './document-identification';
+import {parseNativeBoqText,nativeBoqReportedTotals} from '../../boq-pdf-parser/src';
+
+const recoveredSources=new WeakMap<BoqIngestionResult,{reading:object;value:BoqIngestionResult}>();
+/** Restored uploads can use their retained, hash-matched complete page reading.
+ * No source decision or installed quantity changes; this only exposes readable
+ * fields that the legacy ruled-table extraction missed. */
+function readableRetainedSource(boq:BoqIngestionResult|null,document:ProjectRuntimeState['evidenceDocuments'][number]|undefined){
+ const read=document?.fullTextRead;
+ if(!boq||boq.canonicalItems.length||boq.sourceFormat!=='pdf'||!read||read.sourceHashSha256!==boq.sourceHashSha256||read.sourceHashSha256!==document.sourceHashSha256)return boq;
+ const cached=recoveredSources.get(boq);if(cached?.reading===read)return cached.value;
+ const rows=read.result.pages.filter(p=>p.method==='native').flatMap(p=>parseNativeBoqText(p.pageNumber,p.text));
+ if(!rows.length)return boq;
+ const value:BoqIngestionResult={...boq,state:'partial_candidate',complete:false,candidateRows:rows.length,verifiedRows:0,unresolvedRows:rows.length,coveragePercent:null,canonicalItems:rows.map(r=>({itemId:boq.sourceHashSha256+':native:p'+r.page+':l'+r.row,itemNumber:r.itemNumber,section:r.section,description:r.description,unit:r.unit,quantity:r.quantity,rate:r.rate,amount:r.amount,currency:r.currency,sourceFormat:'pdf',status:r.status,diagnostics:r.diagnostics,
+   sourceRefs:['evidence-receipt:'+boq.evidenceReceipt.receiptId,'sha256:'+boq.sourceHashSha256+':pdf:page:'+r.page+':text-line:'+r.row]})),diagnostics:[...boq.diagnostics,'BOQ_RETAINED_NATIVE_TEXT_RECOVERY_PARTIAL']};
+ recoveredSources.set(boq,{reading:read,value});return value;
+}
+export function suppliedBoqReportedTotals(state:ProjectRuntimeState,sourceDocumentId:string|null){
+ const doc=state.evidenceDocuments.find(d=>d.documentId===sourceDocumentId),read=doc?.fullTextRead;
+ if(!doc||!read||read.sourceHashSha256!==doc.sourceHashSha256)return [];
+ return nativeBoqReportedTotals(read.result.pages).map(r=>({...r,sourceRefs:['sha256:'+doc.sourceHashSha256+':pdf:page:'+r.page],basis:'Explicit source summary, not a reconciled sum of the extracted item population or certification of contract value.'}));
+}
 
 /** An attempted ingestion is not proof of an empty measured population. */
 export function hasReadableBoqPopulation(boq: BoqIngestionResult) {
@@ -42,8 +63,9 @@ export function resolveBoqSource(state:ProjectRuntimeState,scheduleRevisionId:st
     : documents.length===0);
   const established=usable.filter(d=>['active','additive'].includes(d.basisState));
   const candidates=established.length?established:usable;
-  const selected=validCurrent?state.boq:candidates.length===1?state.boqRevisions.find(b=>b.ingestionId===candidates[0]!.linkedArtifactId)??null:null;
-  const source=usable.find(d=>d.linkedArtifactId===selected?.ingestionId);
+  const selectedOriginal=validCurrent?state.boq:candidates.length===1?state.boqRevisions.find(b=>b.ingestionId===candidates[0]!.linkedArtifactId)??null:null;
+  const source=usable.find(d=>d.linkedArtifactId===selectedOriginal?.ingestionId);
+  const selected=readableRetainedSource(selectedOriginal,source);
   const readable = selected ? hasReadableBoqPopulation(selected) : false;
   const selection={state:selected?(!readable?'unreadable':source?.basisState==='candidate'?'candidate':'source'):'missing',
     sourceDocumentId:source?.documentId??null,sourceFilename:source?.sourceFilename??selected?.sourceFilename??null,

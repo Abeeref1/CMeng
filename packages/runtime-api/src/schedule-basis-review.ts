@@ -4,7 +4,7 @@ import {resolveRevisionActivityCorrespondence} from '../../schedule-revision-cor
 import type {IndependentForecastProjection} from '../../independent-forecast/src';
 
 const days=(from:string|null,to:string|null)=>from&&to?(Date.parse(to.slice(0,10))-Date.parse(from.slice(0,10)))/86400000:null;
-const range=(values:Array<number|null>)=>{const known=values.filter((v):v is number=>v!==null&&Number.isFinite(v));return {min:known.length?Math.min(...known):null,max:known.length?Math.max(...known):null,knownCount:known.length};};
+const range=(values:Array<number|null>)=>{const known=values.filter((v):v is number=>v!==null&&Number.isFinite(v));return {min:known.length?known.reduce((a,b)=>Math.min(a,b),Infinity):null,max:known.length?known.reduce((a,b)=>Math.max(a,b),-Infinity):null,knownCount:known.length};};
 const sourceFinish=(a:CanonicalScheduleModel['activities'][number])=>a.actualFinishIso??a.forecastFinishIso??a.currentFinishIso;
 const cache=new WeakMap<CanonicalScheduleModel,Map<string,ReturnType<typeof calculateReview>>>();
 
