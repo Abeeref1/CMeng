@@ -18,16 +18,89 @@ import {deliveryRecords} from './delivery-records';
 import type {ProjectRuntimeState} from './project-state-types';
 
 export const askCatalogue=createAskAuthorityCatalogue();
+function diagnosisAnswer(result:AnalysisResult):NarrativeBlock|null{
+  const section=result.sections.find(s=>s.authorityId==='project-diagnosis');if(!section)return null;
+  const actions=section.tables.find(t=>t.id==='project-diagnosis.actions');
+  const previews=(actions?.rows??[]).slice(0,result.presentation.detail==='short'?3:5).map(r=>String(r.activityId)+' — '+String(r.name)+'; '+String(r.reason??'')+(r.previousPredecessorSlippage?' Predecessor change: '+r.previousPredecessorSlippage+'.':'')+(r.linkedEvidence?' '+r.linkedEvidence:''));
+  return {heading:result.plan.questionRecipe==='revision_change'?'What changed':result.plan.questionRecipe==='wbs_pressure'?'WBS pressure':result.plan.questionRecipe==='no_change_outlook'?'If nothing changes':'Project diagnosis',text:section.explanation+(previews.length?'\n\n'+previews.join('\n'):'')+(result.plan.questionRecipe==='delay_diagnosis'?'\n\nThe ordered network, supporting activity lists and linked records are below.':''),classification:'calculated_intelligence',traceIds:section.traces.map(t=>t.id)};
+}
+function drivingPathAnswer(result:AnalysisResult):NarrativeBlock|null{
+  const section=result.sections.find(s=>s.authorityId==='critical-path'),network=section?.tables.find(t=>t.id==='critical-path.network');if(!section||!network)return null;
+  const links=section.tables.find(t=>t.id==='critical-path.relationships');
+  const preview=(links?.rows??[]).slice(0,5).map(r=>r.predecessorActivityId+' → '+r.successorActivityId+' ('+r.type+', '+r.lagHours+' working hours lag)');
+  return {heading:'Driving path to completion',text:section.explanation+'\n\n'+(preview.length?preview.join('\n'):'The maximum calculated finish is reached by the activity or parallel finish activities shown below.')+'\n\nThe ordered table gives names, WBS, dates, remaining hours, float and actual driving links. Adjacent rows may belong to parallel branches; the links show the sequence.',classification:'calculated_intelligence',traceIds:section.traces.map(t=>t.id)};
+}
+function completionAnswer(result:AnalysisResult):NarrativeBlock|null{
+  const section=result.sections.find(s=>s.authorityId==='forecast');
+  if(!section||result.sections.some(s=>['activities','critical-path'].includes(s.authorityId)))return null;
+  const row=section.tables.find(t=>t.id==='forecast.position')?.rows[0];if(!row)return null;
+  const date=(v:unknown)=>typeof v==='string'?v.slice(0,10):'not available';
+  return {heading:'Completion position',text:'Submitted programme finish: '+date(row.submittedFinish)+'.\nCMeng calendar recalculation: '+date(row.calendarRecalculation)+(row.calculationState==='scenario'?' (with assumptions)':'')+'.\n'+section.explanation,
+    classification:'calculated_intelligence',traceIds:section.traces.map(t=>t.id)};
+}
+function delayDriversAnswer(result:AnalysisResult):NarrativeBlock|null{
+  if(!/\b(?:why|caus\w*|driv\w*|delaying|makes?|making)\b/i.test(result.plan.objective)||!result.sections.some(s=>s.authorityId==='activities'))return null;
+  const path=result.sections.find(s=>s.authorityId==='critical-path'),pressure=result.sections.find(s=>s.authorityId==='float');
+  const work=result.sections.find(s=>s.authorityId==='lookahead');
+  const pathTable=path?.tables[0],activitySection=result.sections.find(s=>s.authorityId==='activities');
+  const critical=(pathTable?.rows??[]).filter(r=>['not_started','in_progress'].includes(String(r.status)));
+  const delayed=activitySection?.tables[0];
+  const negative=pressure?.tables[0];
+  const linked=(work?.tables[0]?.rows??[]).filter(r=>typeof r.linkedBlockers==='string'&&r.linkedBlockers!=='No confirmed linked blocker');
+  let text=path&&path.state!=='unavailable'?'The programme identifies '+(pathTable?.selection?.matching??pathTable?.rows.length??0)+' '+(path.state==='established'?'calculated critical':'known source-float critical')+' activities in the requested scope'+(result.scope.dataDate?' at '+result.scope.dataDate.slice(0,10):'')+'.':'A critical-activity position is not available from the selected programme.';
+  if(delayed&&activitySection?.state!=='unavailable')text+=' '+(delayed.selection?.matching??delayed.rows.length)+' activities show missed dates or baseline slippage.';
+  if(negative&&pressure?.state!=='unavailable')text+=' '+(negative.selection?.matching??negative.rows.length)+' have negative float.';
+  if(activitySection?.explanation.includes('No baseline has been confirmed'))text+=' No baseline has been confirmed, so delay against the original planned dates cannot be measured.';
+  const rows=delayed?.selection?.ranked&&delayed.rows.length?delayed.rows:critical.length?critical:(delayed?.rows??[]);
+  if(rows.length)text+='\n\nActivities to focus on:\n'+rows.slice(0,5).map(r=>String(r.activityId)+' — '+String(r.name)+'; finish '+String(r.plannedFinishIso??r.forecastFinishIso??r.currentFinishIso??'not available').slice(0,10)).join('\n')+'\nThe tables below show the matching populations and any requested selection.';
+  if(linked.length)text+='\n\nConfirmed linked work blockers:\n'+linked.slice(0,5).map(r=>String(r.activityId)+' — '+String(r.linkedBlockers)).join('\n');
+  else text+='\n\nNo specific linked work blocker is established in the available look-ahead records.';
+  text+=' These are the schedule pressure points I can identify. A proven cause of project delay requires dated events tied to the controlling path; I cannot infer that from float alone.';
+  return {heading:'What is putting completion under pressure',text,classification:'calculated_intelligence',traceIds:[...new Set([...(path?.traces??[]),...(pressure?.traces??[]),...(work?.traces??[])].map(t=>t.id))]};
+}
+function activityAnswer(result:AnalysisResult):NarrativeBlock|null{
+  const section=result.sections.find(s=>['activities','float','critical-path'].includes(s.authorityId));
+  if(!section||result.plan.groupBy.length)return null;
+  const table=section.tables[0];if(!table)return null;
+  const asOf=result.scope.dataDate?' as of '+result.scope.dataDate.slice(0,10):'';
+  if(section.state==='unavailable')return {heading:'Answer',text:'I cannot list these activities yet because this project has no adopted programme available. Open Documents to review the programme upload.',classification:'project_fact',traceIds:[table.traceId]};
+  const n=table.selection?.matching??table.rows.length,filters=result.plan.authorityFilters?.[section.authorityId]??[];
+  const has=(field:string)=>filters.some(f=>f.field===field);
+  const phrase=section.authorityId==='critical-path'?(section.state==='established'?'are critical in the calendar calculation':'have known critical float in the uploaded programme')
+    :has('missedPlannedStart')?'should have started but have not':has('finishOverdue')?'have passed their finish date and are still unfinished'
+    :has('scheduleDelayed')?'show a missed start, overdue finish or finish later than baseline':has('totalFloatHours')?'match your float limit'
+    :result.plan.criticalOnly?'have critical float':has('floatRiskWatchlist')?'are in the float-risk band':'match your request';
+  const verb=n===1?phrase.replace(/^are /,'is ').replace(/^have /,'has ').replace(/^show /,'shows ').replace(/^match /,'matches '):phrase;
+  let text=n+' '+(n===1?'activity':'activities')+' '+verb+asOf+'.';
+  if(n===0)text='No matching activities were found in the available programme records'+asOf+'.';
+  if(section.authorityId==='critical-path'&&section.state!=='established')text+=' The independent critical path is not yet confirmed; this is the programme’s known critical-activity list.';
+  if(has('scheduleDelayed')||has('missedPlannedStart')||has('finishOverdue')){
+    if(n===0)text=has('missedPlannedStart')?'No confirmed missed starts appear in the uploaded programme'+asOf+'.':has('finishOverdue')?'No unfinished activity is confirmed past its current forecast finish'+asOf+'.':'The uploaded programme shows no confirmed missed starts or overdue finishes'+asOf+'.';
+    if(section.explanation.includes('No baseline has been confirmed'))text+=' No baseline has been confirmed, so I cannot measure delay against the original planned dates.';
+    const pressure=result.sections.find(s=>s.authorityId==='float')?.tables[0],pressureCount=pressure?.selection?.matching??pressure?.rows.length??0;
+    if(pressureCount)text+=' However, '+pressureCount+' '+(pressureCount===1?'activity has':'activities have')+' negative float, which shows pressure against schedule targets. These activities are listed separately below.';
+    if(has('scheduleDelayed'))text+=' This does not establish the cause of any project delay.';
+  }
+  const missing=result.unresolved.map(g=>/(\d+) records lack (?:Missed Planned Start|Finish Overdue|Schedule Delayed)/i.exec(g)).find(Boolean);
+  if(missing)text+=' '+missing[1]+(missing[1]==='1'?' activity still needs its':' activities still need their')+' dates or status checked.';
+  else if(result.unresolved.some(g=>/lack |excluded|missing|unconfirmed/i.test(g)))text+=' Some records need review; the list contains the matches we can confirm.';
+  const preview=table.rows.slice(0,result.presentation.detail==='short'?3:5).map(r=>String(r.activityId)+' — '+String(r.name??'Unnamed activity'));
+  if(preview.length)text+='\n\n'+preview.join('\n')+(n>preview.length?'\nThe activity table below contains the rest.':'');
+  return {heading:'Answer',text,classification:'calculated_intelligence',traceIds:[table.traceId]};
+}
 function narrativeFor(result:AnalysisResult):NarrativeBlock[]{
   const ar=result.presentation.language==='ar';
-  const metrics=result.sections.flatMap(s=>s.metrics);
+  const allMetrics=result.sections.flatMap(s=>s.metrics),knownMetrics=allMetrics.filter(m=>m.value!==null);
+  const metrics=knownMetrics.length?knownMetrics:allMetrics;
   const lines=metrics.slice(0,result.presentation.detail==='short'?6:18).map(m=>m.label+': '+(m.value===null?(ar?'غير مثبت':'Not established'):String(m.value)+(m.unit?' '+m.unit:''))+(m.state==='candidate'?' · candidate source, not governed':''));
-  const blocks:NarrativeBlock[]=[{heading:ar?'الوضع الحالي':'Current position',text:lines.length?lines.join('\n'):result.sections.map(s=>s.title+': '+s.explanation).slice(0,8).join('\n'),classification:'calculated_intelligence',traceIds:metrics.slice(0,18).map(m=>m.traceId)}];
-  const findings=result.sections.flatMap(s=>s.findings).sort((a,b)=>(a.severity==='action'?0:a.severity==='review'?1:2)-(b.severity==='action'?0:b.severity==='review'?1:2)||a.id.localeCompare(b.id));
+  const direct=diagnosisAnswer(result)??drivingPathAnswer(result)??delayDriversAnswer(result)??activityAnswer(result)??completionAnswer(result);
+  const blocks:NarrativeBlock[]=direct?[direct]:[{heading:ar?'الوضع الحالي':'Answer',text:lines.length?lines.join('\n'):result.sections.map(s=>s.tables.length?s.tables.reduce((n,t)=>n+(t.selection?.matching??t.rows.length),0)+' matching records in '+s.title+'.':s.title+': '+s.explanation).slice(0,8).join('\n'),classification:'calculated_intelligence',traceIds:metrics.slice(0,18).map(m=>m.traceId)}];
+  if(direct&&result.sections.some(s=>!['activities','float','critical-path'].includes(s.authorityId))&&lines.length)blocks.push({heading:'Other project figures',text:lines.join('\n'),classification:'calculated_intelligence',traceIds:metrics.slice(0,18).map(m=>m.traceId)});
+  const findings=result.sections.flatMap(s=>s.findings).filter(f=>f.severity==='action').sort((a,b)=>a.id.localeCompare(b.id));
   if(findings.length)blocks.push({heading:ar?'ما يحتاج الى اهتمام':'What requires attention',text:findings.slice(0,8).map(f=>f.title+': '+f.explanation).join('\n'),classification:'calculated_intelligence',traceIds:findings.slice(0,8).flatMap(f=>f.traceIds)});
   if(findings.length)blocks.push({heading:ar?'الاجراءات المقترحة':'Recommended actions',text:[...new Set(findings.map(f=>f.action))].slice(0,8).join('\n'),classification:'professional_guidance',traceIds:findings.slice(0,8).flatMap(f=>f.traceIds)});
   if(findings.length>8)blocks.push({heading:'Finding coverage',text:'The summary highlights 8 of '+findings.length+' findings. Every finding is retained in the detailed sections and exports; this summary is not a complete exception list.',classification:'calculated_intelligence',traceIds:[]});
-  if(result.plan.kind==='analysis')blocks.push({heading:ar?'اساس التفسير':'Why',text:ar?'تظهر الجداول الادلة المتاحة. الارتباط بين السجلات لا يثبت السببية دون روابط وادلة مؤرخة.':'The tables show the available evidence. Correlation across registers does not establish a cause without explicit links and dated supporting records.',classification:'professional_guidance',traceIds:[]});
+  if(result.plan.kind==='analysis'&&!direct)blocks.push({heading:ar?'اساس التفسير':'Interpretation basis',text:ar?'تظهر الجداول الادلة المتاحة. الارتباط بين السجلات لا يثبت السببية دون روابط وادلة مؤرخة.':'The tables show the available evidence. Correlation across registers does not establish a cause without explicit links and dated supporting records.',classification:'professional_guidance',traceIds:[]});
   if(result.plan.kind==='draft')blocks.push({heading:'Draft management response',text:'Please reconcile the reported position against the attached CMeng tables and evidence gaps. Confirm the affected work scope, reporting dates, source records and proposed corrective actions before the next reporting cut-off. Any claim or entitlement requires the applicable contract terms and substantiated causal evidence.',classification:'professional_guidance',traceIds:[]});
   if(result.plan.kind==='proposal')blocks.push({heading:'Proposed change — review required',text:result.plan.objective+'\nNo project record has been changed. Review the current record, proposed value, reason and supporting evidence in its source module.',classification:'professional_guidance',traceIds:[]});
   return blocks;
@@ -117,7 +190,9 @@ export class ProjectAskEngine {
         const countGapTables=new Set<string>();
         const authorityPlan={...plan,groupBy:result.authorityId==='wbs'?plan.groupBy.filter(g=>g!=='wbsId'):plan.groupBy,filters:[...plan.filters,...(plan.authorityFilters?.[result.authorityId]??[])]};
         if(authorityPlan.filters.length||plan.groupBy.length||plan.criticalOnly||plan.issuesOnly||plan.limit!==null||plan.nextDays!==null||plan.deliveryBelowPercent!==null||plan.countRows){
-          result.tables=result.tables.map(table=>{const ranking=plan.rankings?.find(r=>r.authorityId===result.authorityId);const queryPlan=plan.rankings?.length?{...authorityPlan,rankBy:ranking?.field??null,rankDirection:ranking?.direction??'desc',limit:ranking?.limit??null}:authorityPlan;const queried=queryTable(table,queryPlan);unresolved.push(...queried.gaps);if(queried.gaps.length)countGapTables.add(queried.table.id);return queried.table;});
+          result.tables=result.tables.map(table=>{const ranking=plan.rankings?.find(r=>r.authorityId===result.authorityId);let queryPlan=plan.rankings?.length?{...authorityPlan,rankBy:ranking?.field??null,rankDirection:ranking?.direction??'desc',limit:ranking?.limit??null}:authorityPlan;
+            if(result.authorityId==='float'&&plan.authorityFilters?.activities?.some(f=>f.field==='scheduleDelayed'))queryPlan={...authorityPlan,rankBy:'totalFloatHours',rankDirection:'asc'};
+            const queried=queryTable(table,queryPlan);unresolved.push(...queried.gaps);if(queried.gaps.length)countGapTables.add(queried.table.id);return queried.table;});
           if(authorityPlan.filters.length||plan.criticalOnly||plan.issuesOnly||plan.nextDays!==null||plan.deliveryBelowPercent!==null)result.metrics=result.metrics.map(m=>({...m,value:null,state:'unavailable',basis:m.basis+' The project total is not a valid KPI for this filtered subset; see the matching records.'}));
         }
         if(plan.countRows)for(const table of result.tables){const missing=countGapTables.has(table.id);result.metrics.push({id:table.id+'.matching-count',label:'Matching '+table.title+' records',value:missing||table.state==='unavailable'?null:table.selection?.matching??table.rows.length,unit:'records',state:missing?'unavailable':table.state,classification:'calculated_intelligence',traceId:table.traceId,basis:'Count after applying all requested filters to the full available population, before Top N selection. '+table.basis});}

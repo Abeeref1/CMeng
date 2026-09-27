@@ -284,6 +284,7 @@ export function buildIndependentForecastProjection(
       return {
         activityId: activity.activityId,
         sourceFinishIso,
+        independentEarlyStartIso:calculated?.calendarMode==='source_calendar'?calculated?.earlyStartIso??null:null,
         independentEarlyFinishIso,
         finishVarianceDays:
           dayVariance(
@@ -361,6 +362,7 @@ export function buildIndependentForecastProjection(
       calculatedActivityCount,
       activities.length,
     ),
+    drivingNetwork:cpm.complete&&unresolvedCalendarCount===0?cpm.drivingNetwork:undefined,
     criticalActivityIds: [
       ...cpm.criticalActivityIds,
     ],

@@ -39,6 +39,9 @@ function allAssertions(
   state: ProjectRuntimeState,
 ): DocumentAssertion[] {
   return state.evidenceDocuments
+    // Retain historical extraction receipts, but do not compare old free-text
+    // matches from native XER rows against correctly parsed schedule metrics.
+    .filter(document=>!state.schedules.some(s=>s.format==='xer'&&s.revision.revisionId===document.linkedArtifactId))
     .flatMap(
       (document) =>
         (

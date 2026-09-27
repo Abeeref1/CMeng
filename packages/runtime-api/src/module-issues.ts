@@ -80,7 +80,7 @@ export function assessModuleIssues(result: ModuleRuntimeResult, consistency: Con
   const walk=(value:any,path:string,depth:number)=>{
     if(!value||typeof value!=='object'||depth>9||visited.has(value))return;
     visited.add(value);
-    if(Array.isArray(value)){for(const item of value)walk(item,path+'['+(typeof item?.topic==='string'?'topic='+item.topic:'*')+']',depth+1);return;}
+    if(Array.isArray(value)){for(const item of value)walk(item,path+'['+(typeof item?.topic==='string'?'topic='+item.topic:typeof item?.basis==='string'?'basis='+item.basis:'*')+']',depth+1);return;}
     const diagnostics=(Array.isArray(value.diagnostics)?value.diagnostics:[]).filter((s:unknown)=>typeof s==='string') as string[];
     // Plain rows still receive full recursive inspection. Construct issue labels
     // and references only for objects that can actually produce a finding.

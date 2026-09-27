@@ -113,6 +113,14 @@ function renderDashboardExceptions(data){
   const table=rows=>basisTable(['Record','Priority','Age at reporting date','Overdue','Owner','Due','Action'],rows.map(r=>[r.recordId,r.priority,r.ageDays==null?'Raised date needed':r.ageDays+' d',r.overdueDays==null?'Due date needed':r.overdueDays+' d',r.owner||'Not assigned',r.dueIso?planningShortDate(r.dueIso):'Not set',r.action]));
   return managementPanel('Delivery exceptions requiring action','Critical items appear first, then the most overdue and oldest. Assign any missing owner or due date.',actions.length?table(actions.slice(0,5))+experienceDisclosure('All '+fmt(actions.length)+' action records',table(actions),'Complete delivery exceptions'):'<p>No confirmed delivery exceptions in the checked records. Open Look-Ahead for the activity review.</p>',true);
 }
+function renderDashboardScheduleExceptions(data){
+  const p=data.scheduleExceptions;if(!p)return managementPanel('Activities needing attention','Schedule status','<p>Adopt a programme in Documents to see missed starts, overdue finishes and critical activities.</p>',true);
+  const count=key=>{const c=p.counts?.[key];return c?.value??(c?.knownCount!=null?c.knownCount+' known; total unconfirmed':'Not established');};
+  const rows=p.rows||[];
+  const kpis=planningKpis([['Should have started',count('missedStart'),'not started before the Data Date','warning'],['Finish overdue',count('overdueFinish'),'unfinished after the forecast finish','danger'],['Programme critical activities',count('critical'),'source float; see the separate calculated path','warning']]);
+  const table=rows.length?basisTable(['Activity','Work','What needs attention','Planned start','Forecast finish','Progress','Float (hours)'],rows.slice(0,50).map(r=>[r.activityId,r.name,r.delayStatus,planningShortDate(r.currentStartIso),planningShortDate(r.currentFinishIso),r.percentComplete==null?'Not established':fmt(r.percentComplete)+'%',r.totalFloatHours==null?'Not established':fmt(r.totalFloatHours)])):'<p>No confirmed missed starts or overdue finishes were found. Review any missing dates or status before treating the programme as clear.</p>';
+  return managementPanel('Activities needing attention','As of '+planningShortDate(p.dataDate)+'. These are schedule warning signs; they do not by themselves prove the cause of project delay.',kpis+table+'<p>'+(rows.length?'Showing '+Math.min(50,rows.length)+' of '+rows.length+' activities. ':'')+'Ask CMeng “Show delayed activities” for the activity lists and schedule pressure.</p>'+managementModuleLink('activity-analytics','Open Activity Review'),true);
+}
 function renderDashboardTrend(data){
   const rows=data.trend?.points||data.trend?.rows||data.trend?.revisions||[];
   if(!rows.length)return managementPanel('Completion trend','Dated revision history','<p>At least two dated revisions are needed to establish a trend.</p>');

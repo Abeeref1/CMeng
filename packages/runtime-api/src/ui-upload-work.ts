@@ -34,8 +34,10 @@ async function startProjectUpload(kind){
   if(kind==="contract"){contractSelection=[];renderContractQueue()}
   if(kind==="evidence"){evidenceSelection=[];renderSimpleQueue("evidenceQueue",evidenceSelection,"evidence")}
   el(kind+"Files").value="";
+  let documentsSaved=false;
   try{
     for(let i=0;i<files.length;i++)await uploadEvidenceFileWithProgress(files[i],i,files.length,job);
+    documentsSaved=true;
     if(job.rerun){
       job.state="updating";job.message="Documents saved · calculating project position";renderBackgroundUploads();
       if(uploadJobVisible(job)){showProjectUpdating(projectId);void loadEvidence();}
@@ -43,17 +45,21 @@ async function startProjectUpload(kind){
     }
     job.state="complete";job.percent=100;job.message=job.rerun?"Documents loaded and project position checked":"Documents loaded · ready to review";
     if(uploadJobVisible(job)){
+      selected='master-dashboard';localStorage.setItem('cmeng-module',selected);setAppView('project');
+      const drawer=el('evidenceControlDrawer');if(drawer){drawer.open=false;drawer.hidden=true;}
       await refresh(false);
+      if(uploadJobVisible(job))await loadProjectActions();
       if(uploadJobVisible(job)){
         el('uploadMessage').textContent=job.message;
-        const review=currentModuleResult?.scheduleAuthorityReview||currentModuleResult?.data?.scheduleAuthorityReview;
-        if(review?.pendingSchedules?.length){
-          job.message=review.state==='missing'?'Programme uploaded · adoption required':'Documents loaded · programme revisions await review';
-          el('uploadMessage').innerHTML=renderProgrammeReview(review);bindProgrammeReview(el('uploadMessage'));
-        }
+        if(projectActionState?.data?.actions?.some(a=>a.category==='confirmation'))await openProjectActions();
       }
     }
-  }catch(error){job.state="failed";job.message="Could not finish: "+error.message+". Check Documents before retrying.";if(uploadJobVisible(job))void refresh(false);}
+  }catch(error){
+    job.state=documentsSaved?"complete":"failed";
+    if(documentsSaved)job.percent=100;
+    job.message=documentsSaved?"Documents saved. The project view could not refresh: "+error.message+". Use Refresh to retry the analysis; you do not need to upload these files again.":"Could not finish: "+error.message+". Check Documents before retrying.";
+    if(uploadJobVisible(job)){el('uploadMessage').textContent=job.message;if(!documentsSaved)void refresh(false).catch(()=>{});}
+  }
   finally{renderBackgroundUploads();}
 }
 `;

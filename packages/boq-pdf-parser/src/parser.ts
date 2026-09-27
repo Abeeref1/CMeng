@@ -2,6 +2,7 @@ import { detectBoqHeader } from "../../boq-parser/src/headers";
 import { resolveBoqCommercialNumerics } from "../../boq-parser/src/numeric";
 import type { BoqColumnRole } from "../../boq-parser/src/types";
 import { parsePdfDocument } from "../../pdf-document-parser/src";
+import {parseNativeBoqText} from './native-text';
 import type {
   AiBoqCellEvidence,
   AiBoqTableExtraction,
@@ -284,6 +285,7 @@ export async function parseBoqPdf(
         const tables: string[][][] = tablePage?.tables ?? [];
 
         if (tables.length === 0) {
+          items.push(...parseNativeBoqText(page.pageNumber,page.text));
           unresolvedPages.add(page.pageNumber);
           diagnostics.push(
             "BOQ_PDF_NATIVE_PAGE_WITHOUT_STRUCTURED_TABLE:" +
@@ -293,6 +295,7 @@ export async function parseBoqPdf(
         }
 
         nativeTablePages += 1;
+        const pageStart=items.length;
         tables.forEach((rows, index) => {
           const parsed = parseTableRows(
             page.pageNumber,
@@ -315,6 +318,7 @@ export async function parseBoqPdf(
             unresolvedPages.add(page.pageNumber);
           }
         });
+        if(!items.slice(pageStart).some(item=>item.rowKind==='line_item'))items.push(...parseNativeBoqText(page.pageNumber,page.text));
         continue;
       }
 

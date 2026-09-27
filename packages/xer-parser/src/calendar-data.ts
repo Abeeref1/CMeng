@@ -59,7 +59,10 @@ class Cursor {
   }
 
   skipWhitespace(): void {
-    while (/\s/.test(this.peek())) this.index += 1;
+    // P6 XER encodes line breaks inside clndr_data as DEL (0x7f).
+    // Treat it as spacing only between structured records, never strip or
+    // rewrite attribute values, shifts, dates or the retained source bytes.
+    while (!this.done && /[\s\x7f]/.test(this.peek())) this.index += 1;
   }
 }
 
@@ -426,7 +429,7 @@ export function parseP6CalendarData(source: string): P6CalendarDataResult {
   // A calendar title or day range is not a working-time definition. Do not
   // describe missing intervals as a broken parenthesised P6 export, or infer
   // shifts from day_hr_cnt / names / a neighbouring project's calendar.
-  if (!source.trim().startsWith('(')) {
+  if (!source.replace(/^[\s\x7f]+/, '').startsWith('(')) {
     return {status:'invalid',root:null,days:[],exceptions:[],unknownTopLevelNodes:[],
       diagnostics:[source.trim()
         ? 'CALENDAR_WORKING_INTERVALS_NOT_ESTABLISHED:Supply the calendar working days, shift start/finish times and exceptions; the supplied text does not define them.'

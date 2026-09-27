@@ -1,11 +1,13 @@
 import {phaseProgrammePosition} from './phase-programmes';
+import {askScheduleActivities,askCriticalPath} from './ask-schedule';
+import {askProjectDiagnosis} from './ask-diagnosis';
 import {AuthorityCatalogue} from '../../project-ask/src/catalogue';
 import type {AnalysisPlan,AuthorityResult,Column,Domain,ProjectScope} from '../../project-ask/src/types';
 import {cell,label} from '../../project-ask/src/primitives';
 import {AuthorityBuilder,at,evidenceState} from './ask-authority-builder';
 import {moduleRegistry} from './registry';
 import {moduleForProject} from './project-projections';
-import {resolveBoqSource,suppliedBoqFigures} from './boq-source';
+import {resolveBoqSource,suppliedBoqFigures,suppliedBoqReportedTotals} from './boq-source';
 import {projectControlSchedule} from './canonical-time-claims';
 import {deliveryPosition,deliveryModule} from './delivery-projections';
 import {isDeliveryPage} from '../../delivery-core/src/registry';
@@ -27,7 +29,7 @@ const overrides:Record<string,Partial<Column>>={
 type Registration={id:string;concepts:string[];metrics?:[string,string,string|null][];tables?:string[];domains?:Domain[]};
 /** Registration metadata belongs to each producer, not to question-specific branches. */
 const registrations:Record<string,Registration>={
-  'master-dashboard':{id:'master-dashboard',concepts:['kpi dashboard','executive summary','kpi','key figures']},
+  'master-dashboard':{id:'master-dashboard',concepts:['kpi dashboard','executive summary','kpi','key figures','project status','project position'],tables:['scheduleExceptions.rows']},
   'command-center':{id:'command-center',concepts:['management action','director','meeting','what killing','urgent'],tables:['decisions','evidenceGaps']},
   'master-control-programme':{id:'master-control-programme',concepts:['programme control','project history','joined'],tables:['controlHistory','specialistPositions']},
   'source-quality':{id:'source-quality',concepts:['missing evidence','information gaps','evidence gaps'],tables:['sourceIssues','reviewActions','pendingChecks']},
@@ -35,7 +37,7 @@ const registrations:Record<string,Registration>={
   'challenge-contract':{id:'challenge-contract',concepts:['challenge the contract','contract challenge'],tables:['deliveryChallenge.findings','boqFeasibility.rows','contractIntelligence.signals']},
   'schedule-analytics':{id:'programme',concepts:['programme','schedule position','data date','reporting date','program','البرنامج','تاريخ البيانات'],metrics:[['result.activityCount','Execution activities','activities'],['result.float.criticalCount','Critical execution activities','activities']]},
   'activity-analytics':{id:'activities',concepts:['activities','activity','critical activities','انشطه'],tables:['rows']},
-  'near-critical':{id:'float',concepts:['critical','float','worst','حرج'],metrics:[['nearCriticalCount','Strict near-critical activities','activities'],['negativeFloatCount','Negative float activities','activities'],['classificationCoveragePercent','Float classification coverage','%']],tables:['watchlistRows']},
+  'near-critical':{id:'float',concepts:['critical','float','worst','حرج'],metrics:[['nearCriticalCount','Strict near-critical activities','activities'],['negativeFloatCount','Negative float activities','activities'],['classificationCoveragePercent','Float classification coverage','%']],tables:['rows']},
   'progress-report':{id:'progress',concepts:['current completion','completion percentage','progress','behind','slippage','التقدم','انجاز']},
   'progress-breakdown':{id:'wbs',concepts:['wbs','by trade','work breakdown'],tables:['rows']},
   'progress-scurve':{id:'progress-curve',concepts:['progress curve','s-curve','s curve','progress chart'],tables:['points','actualSnapshots']},
@@ -56,7 +58,7 @@ const registrations:Record<string,Registration>={
   'variations-change':{id:'variations',concepts:['variation','change order','تغيير'],domains:['commercial']},
   'commercial-claims-notices':{id:'financial-claims',concepts:['financial claim','claimed amount','money claim'],domains:['claims','commercial']},
   'contract-particulars-bonds':{id:'contract',concepts:['contract particulars','bonds','insurance','retention','العقد','ضمان'],domains:['commercial','claims']},
-  'delay-claims':{id:'delay',concepts:['delay event','delayed','تأخير'],domains:['claims','schedule'],tables:['events','rows']},
+  'delay-claims':{id:'delay',concepts:['delay event','delay claim','تأخير'],domains:['claims','schedule'],tables:['events','rows']},
   'notices-claims':{id:'notices',concepts:['notice','claim notice','اخطار'],domains:['claims'],tables:['claimsReporting.current.notices']},
   'windows-analysis':{id:'windows',concepts:['windows analysis','concurrent','causation','time impact'],domains:['claims','schedule'],tables:['windows','rows']},
   'eot-assessment':{id:'eot',concepts:['eot','extension','claims','entitlement','تمديد'],domains:['claims','schedule'],metrics:[['officialApprovedEotDays','Approved EOT','calendar days'],['analyticalTimeImpactCandidateDays','Analytical time impact candidate — not entitlement','calendar days'],['officialAdjustedCompletionIso','Official adjusted completion',null]],tables:['windowCandidates']},
@@ -83,6 +85,7 @@ const registrations:Record<string,Registration>={
   'delivery-risks':{id:'risks',concepts:['risk','what worry','مخاطر']},
 };
 const analyticFields=['recordId','reference','description','name','itemNumber','activityId','wbsId','discipline','location','floor','zone','supplier','unit','currency','taxBasis','status','state','amount','required','ordered','delivered','installed','deliveryCoveragePercent','totalFloatHours','headroomCalendarDays','programmeNeedDate','percentComplete','score'];
+const scheduleFields=['schedulePressure','onDrivingNetwork','wbs','critical','criticality','floatRiskWatchlist','missedPlannedStart','finishOverdue','scheduleDelayed','startOverdueCalendarDays','finishOverdueCalendarDays','currentStartIso','currentFinishIso','finishVarianceDays','independentTotalFloatHours'];
 
 function produceBoq({state}:AskProducerContext,scope:ProjectScope){
   const source=resolveBoqSource(state,scope.programmeRevision??''),figures=suppliedBoqFigures(source.boq,source.quantities);
@@ -90,6 +93,12 @@ function produceBoq({state}:AskProducerContext,scope:ProjectScope){
   const b=new AuthorityBuilder('boq','BOQ / Scope','boq',scope,status,source.selection.explanation);
   b.metric('items','Readable BOQ items',figures.itemCount,'items',figures.basis,{fact:true});
   b.table('items','BOQ items',figures.rows,figures.basis,overrides);
+  const reported=suppliedBoqReportedTotals(state,source.selection.sourceDocumentId);
+  if(reported.length){b.table('reported-totals','Source-stated summary totals',reported,'Explicit totals in the selected source. These are not sums of the recovered rows and must not be added to them.',overrides);for(const [i,r]of reported.entries())b.metric('reported-total-'+i,'Source-stated BOQ total · '+r.taxBasis.replaceAll('_',' '),r.amount,r.currency,r.basis,{fact:true,refs:r.sourceRefs});}
+  const groups=new Map<string,{section:string;currency:string|null;itemCount:number;pricedCount:number;readableAmount:number;quantityKnown:number;sourceRefs:string[]}>();
+  for(const row of figures.rows){const key=JSON.stringify([row.section,row.currency]),g=groups.get(key)??{section:row.section??'Section not supplied',currency:row.currency,itemCount:0,pricedCount:0,readableAmount:0,quantityKnown:0,sourceRefs:[]};g.itemCount++;if(typeof row.amount==='number'){g.pricedCount++;g.readableAmount+=row.amount;}if(typeof row.quantity==='number')g.quantityKnown++;g.sourceRefs.push(...row.sourceRefs);groups.set(key,g);}
+  if(groups.size)b.table('scope-cost','Scope and readable cost by section',[...groups.values()].map(g=>({...g,readableAmount:g.pricedCount?Number(g.readableAmount.toFixed(2)):null})), 'Sum of readable line amounts only, separated by source section and currency. Partial coverage is not the complete section value; unpriced or included rows are not zero.',{...overrides,readableAmount:{unit:'row currency'},section:{dimension:true}});
+  if(figures.rows.length)b.result.explanation=figures.rows.length+' BOQ item descriptions are readable; '+figures.rows.filter(r=>r.amount!==null).length+' have stated amounts and '+figures.rows.filter(r=>r.quantity!==null).length+' have aligned quantities. Scope and cost information are available without a programme. '+(!source.boq?.complete?'The complete item population and total reconciliation remain unconfirmed. ':'')+(source.selection.state==='candidate'?'This is a candidate source awaiting selection.':'');
   const currencies=[...new Set(figures.rows.map(r=>r.currency))];
   for(const currency of currencies){const rows=figures.rows.filter(r=>r.currency===currency),known=rows.filter(r=>typeof r.amount==='number');
     const total=currency&&source.selection.adoptedSource&&source.boq?.complete&&known.length===rows.length?known.reduce((n,r)=>n+r.amount!,0):null;
@@ -131,8 +140,37 @@ function evmAuthority(b:AuthorityBuilder,d:any){
   for(const [i,series] of (performance?.evmPerformance?.series??[]).entries())b.table('evm-'+i,'EVM · '+series.currency,series.points,'Existing Commercial EVM time series; current and future positions retain their producer labels.',{},r=>Object.fromEntries(Object.entries(r).map(([k,v]:[string,any])=>[k,v&&typeof v==='object'?'value'in v?v.value:null:v])));
 }
 function moduleAuthority(context:AskProducerContext,scope:ProjectScope,key:string,registration:Registration,title:string):AuthorityResult{
+  if(registration.id==='activities')return askScheduleActivities(scope);
   const result=moduleForProject(scope.projectId,key),d:any=result.data;
   const b=new AuthorityBuilder(registration.id,title,key,scope,evidenceState(result.status),result.reason??'Existing CMeng authority at the programme Data Date.');
+  if(registration.id==='forecast'&&d?.completionPosition){
+    const p=d.completionPosition;
+    b.result.explanation=p.interpretation+' '+p.contractNote;
+    for(const [id,name,value,unit] of [
+      ['sourceForecastCompletionIso','Submitted programme finish',p.submittedFinishIso,null],['independentForecastCompletionIso','CMeng calendar recalculation',p.independentFinishIso,null],
+      ['difference','Recalculation minus submitted finish',p.differenceElapsedDays,'elapsed calendar days'],['contract','Contractual completion',p.contractualFinishIso,null]
+    ])b.metric(id,name,value,unit,p.differenceBasis,{state:id==='independentForecastCompletionIso'?p.calculationState:undefined,refs:[scope.programmeRevision??'']});
+    for(const [path,name,unit] of registration.metrics??[])if(!b.result.metrics.some(m=>m.id===registration.id+'.'+path))b.metric(path,name,at(d,path),unit,'Existing '+title+' producer.',{path});
+    b.table('position','Completion position',[{submittedFinish:p.submittedFinishIso,calendarRecalculation:p.independentFinishIso,calculationState:p.calculationState,differenceElapsedDays:p.differenceElapsedDays,contractualFinish:p.contractualFinishIso}],p.differenceBasis);
+    for(const l of p.limitations)b.finding(l.key,'Calculation qualification',l.text,'Review this stated calculation assumption with the relevant programme record.');
+    return b.result;
+  }
+  if(registration.id==='float'){
+    const activities=askScheduleActivities(scope);
+    b.result.tables=activities.tables.map(t=>({...t,id:'float.rows',authorityId:'float',title:'Activity float',traceId:'float:rows'}));
+    b.trace('rows','Programme float in hours; all execution activities are queried before any requested threshold or Top N selection.',activities.traces.flatMap(t=>t.sourceRefs));
+    b.result.explanation='Negative float shows pressure against schedule targets. It does not by itself prove that an activity missed its current start or finish date.';
+    return b.result;
+  }
+  if(registration.id==='lookahead'){
+    b.result.explanation='Upcoming and overdue work, with linked issues that may prevent work. A linked issue is not by itself proof of project delay causation.';
+    b.table('rows','Work and linked issues',d?.rows,b.result.explanation,overrides,r=>({...r,
+      linkedBlockers:(r.readiness?.dimensions??[]).filter((v:any)=>v.state==='blocked').map((v:any)=>v.key.replaceAll('_',' ')+': '+(v.note??'Linked issue needs review')).join('; ')||'No confirmed linked blocker',
+      checksMissing:(r.readiness?.dimensions??[]).filter((v:any)=>v.state==='unknown').map((v:any)=>v.key.replaceAll('_',' ')).join('; '),
+      sourceRefs:(r.readiness?.dimensions??[]).flatMap((v:any)=>v.sourceRefs??[])}));
+    b.result.traces[0]!.sourceRefs=[...new Set<string>((d?.rows??[]).flatMap((r:any)=>(r.readiness?.dimensions??[]).flatMap((v:any)=>v.sourceRefs??[])))];
+    return b.result;
+  }
   for(const [path,name,unit] of registration.metrics??[])b.metric(path,name,at(d,path),unit,'Existing '+title+' producer.',{path});
   for(const path of registration.tables??[])if(Array.isArray(at(d,path)))b.table(path,title+' · '+label(path.split('.').at(-1)!),at(d,path),'Existing '+title+' producer. Its population, exclusions and calculation basis apply.',overrides,r=>({...r,late:typeof r.dueState==='string'&&r.dueState!=='unknown'?r.dueState==='overdue':null,critical:typeof r.critical==='boolean'?r.critical:typeof r.criticality==='string'?r.criticality==='unknown'?null:r.criticality==='critical':typeof r.totalFloatHours==='number'?r.totalFloatHours<=projectScheduleControlBasis(context.state).analysisConfig.criticalFloatThresholdHours:null}));
   if(registration.id==='programme'){
@@ -169,11 +207,13 @@ function moduleAuthority(context:AskProducerContext,scope:ProjectScope,key:strin
 }
 export function createAskAuthorityCatalogue(){
   const catalogue=new AuthorityCatalogue<AskProducerContext>();
+  catalogue.register({id:'project-diagnosis',title:'Project diagnosis',description:'Shared programme position, driving network, WBS pressure, revision changes and explicitly linked multi-domain evidence.',module:'pmo-analysis',domains:['schedule','delivery','commercial','claims','evidence'],concepts:['project diagnosis','finish drivers','why are we late'],fields:[...analyticFields,...scheduleFields,'schedulePressure','onDrivingNetwork','wbs'],historical:false,produce:(_context,scope,plan)=>askProjectDiagnosis(scope,plan)});
+  catalogue.register({id:'critical-path',title:'Critical activities',description:'Calculated critical activities, or a clearly labelled source-float list when CPM is unavailable.',module:'independent-forecast',domains:['schedule'],concepts:['critical path','driving path'],fields:[...analyticFields,...scheduleFields],historical:false,produce:(_context,scope)=>askCriticalPath(scope)});
   catalogue.register({id:'boq',title:'BOQ / Scope',description:'Selected BOQ source quantities, item values and scope. No cross-currency sum.',module:'boq',domains:['boq','commercial'],concepts:['boq','scope','cost driver','cost distribution','bill of quantities','جدول الكميات'],fields:analyticFields,historical:false,produce:produceBoq});
   for(const module of moduleRegistry){
     const registration=registrations[module.key]??{id:module.key,concepts:[module.title.toLowerCase()]};
     const domains:Domain[]=registration.domains??(module.area==='delivery'?['delivery']:module.area==='commercial'?['commercial','claims']:module.area==='management'?['schedule','delivery','boq','commercial','claims','evidence']:module.category==='claims'||module.key==='challenge-contract'?['schedule','claims','commercial']:['schedule']);
-    catalogue.register({id:registration.id,title:module.title,description:module.description,module:module.key,domains,concepts:registration.concepts,fields:analyticFields,historical:false,
+    catalogue.register({id:registration.id,title:module.title,description:module.description,module:module.key,domains,concepts:registration.concepts,fields:['activities','float'].includes(registration.id)?[...analyticFields,...scheduleFields]:analyticFields,historical:false,
       produce:(context,scope)=>isDeliveryPage(module.key)?deliveryAuthority(context,scope,module.key,registration.id,module.title):moduleAuthority(context,scope,module.key,registration,module.title)});
   }
   catalogue.register({id:'productivity',title:'Productivity / Installation Rates',description:'Existing source productivity calculation with explicit scope and activity links.',module:'independent-forecast',domains:['schedule','boq'],concepts:['productivity','installation rate','productivity weak','انتاجيه'],fields:analyticFields,historical:false,produce:(context,scope)=>{

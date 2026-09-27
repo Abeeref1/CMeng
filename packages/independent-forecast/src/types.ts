@@ -26,6 +26,7 @@ export type IndependentForecastOrigin =
 
 export interface IndependentForecastActivityRow {
   activityId: string;
+  independentEarlyStartIso?: string | null;
   sourceFinishIso: string | null;
   independentEarlyFinishIso: string | null;
   finishVarianceDays: number | null;
@@ -37,6 +38,7 @@ export interface IndependentForecastActivityRow {
 }
 
 export interface IndependentForecastProjection {
+  drivingNetwork?: import('../../schedule-cpm/src').CpmResult['drivingNetwork'];
   activityPopulation?: import('../../schedule-analysis-core/src').ActivityPopulationContract;
   schemaVersion: "1.0";
   projectionKey: "independent_forecast";

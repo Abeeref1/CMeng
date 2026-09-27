@@ -728,3 +728,10 @@ test("missing man-hour totals remain null rather than zero", () => {
     ),
   );
 });
+
+test('large resource assignment populations do not overflow the call stack and keep exact hour totals',()=>{
+  const model=resources(),row=model.assignments[0]!,count=70000;
+  model.assignments=Array.from({length:count},(_,i)=>({...row,assignmentId:'LARGE-'+i}));model.periodActuals=[];
+  const p=buildManhourScurveProjection(model,schedule(),{generatedAt:'2026-09-27',producerVersion:'large-population',intervalDays:7});
+  assert.equal(p.laborAssignmentCount,count);assert.equal(p.plannedHoursKnown,80*count);assert.equal(p.actualHoursKnownCurrent,25*count);assert.equal(p.remainingHoursKnown,55*count);assert.equal(p.points.at(-1)?.plannedCumulativeHours,80*count);
+});
