@@ -2338,6 +2338,66 @@ function commercialCapabilityValue(value,unit=""){
   if(value===null||value===undefined)return"Unresolved";
   return typeof value==="string"&&/^\d{4}-\d{2}-\d{2}/.test(value)?planningShortDate(value):fmt(value)+(unit?" "+unit:"");
 }
+function renderEarnedScheduleVisual(data){
+  const p=projectionFor(data,"earned_schedule");
+  if(!Array.isArray(p.series))return"";
+  const established=p.series.filter(s=>s.state==="established");
+  const panels=p.series.map(s=>{
+    const current=s.current;
+    if(s.state!=="established"||!current)return '<section class="planning-panel"><div class="planning-panel-head"><div><h4>'+escapeHtml(s.currency+" · Earned Schedule")+'</h4></div><span class="badge partial">Not established</span></div><div class="planning-panel-body"><p>'+escapeHtml(s.basis)+'</p></div></section>';
+    const chart=(s.points||[]).map(r=>({dateIso:r.asOf,svt:r.scheduleVarianceTimeDays,spit:r.schedulePerformanceIndexTime}));
+    return '<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>'+escapeHtml(s.currency+" · "+humanizeKey(s.taxBasis||"unknown")+" · Earned Schedule")+'</h4><p>Time-based performance from the source PV curve; not value-based EVM SV/SPI.</p></div><span class="badge ready">Established</span></div><div class="planning-panel-body">'+planningKpis([
+      ["Earned Schedule date",planningShortDate(current.earnedScheduleIso),"PV curve date corresponding to EV"],
+      ["Actual time",fmt(current.actualTimeDays)+" d","elapsed from opening PV reference"],
+      ["Earned time",fmt(current.earnedScheduleDays)+" d","elapsed to earned schedule date"],
+      ["SV(t)",fmt(current.scheduleVarianceTimeDays)+" d","ES − AT"],
+      ["SPI(t)",fmt(current.schedulePerformanceIndexTime),"ES / AT"],
+      ["Source points",s.completePvEvPointCount,fmt(s.sourcePointCount)+" total"]
+    ])+renderVisualPanel("Earned Schedule trend","SV(t) in elapsed calendar days. SPI(t) is shown in the exact table below.",renderLineChart(chart,[{key:"svt",label:"SV(t)",tone:"accent"}],null,{unit:"days",yLabel:"SV(t)",xLabel:"Reporting date",zeroBaseline:false}))+basisTable(["As of","PV","EV","ES date","AT d","ES d","SV(t) d","SPI(t)"],(s.points||[]).map(r=>[planningShortDate(r.asOf),r.pv,r.ev,planningShortDate(r.earnedScheduleIso),r.actualTimeDays,r.earnedScheduleDays,r.scheduleVarianceTimeDays,r.schedulePerformanceIndexTime]))+'</div></section>';
+  }).join("");
+  return '<section class="planning-view earned-schedule-view">'+planningKpis([["Established series",established.length,fmt(p.series.length)+" source partitions"],["Data Date",planningShortDate(p.dataDateIso),"programme reporting date"]])+panels+'</section>';
+}
+function renderEvmByWbsVisual(data){
+  const p=projectionFor(data,"evm_by_wbs");
+  if(!Array.isArray(p.rows))return"";
+  const complete=p.rows.filter(r=>r.sourceState==="established").length;
+  const rows=p.rows.map(r=>'<tr><td><b>'+escapeHtml(r.wbsId||"Unmapped")+'</b></td><td>'+escapeHtml(r.currency)+'</td><td>'+escapeHtml(humanizeKey(r.taxBasis))+'</td><td>'+escapeHtml(fmt(r.pv))+'</td><td>'+escapeHtml(fmt(r.ev))+'</td><td>'+escapeHtml(fmt(r.ac))+'</td><td>'+escapeHtml(fmt(r.spi))+'</td><td>'+escapeHtml(fmt(r.cpi))+'</td><td>'+escapeHtml(fmt(r.scheduleVariance))+'</td><td>'+escapeHtml(fmt(r.costVariance))+'</td><td>'+escapeHtml(humanizeKey(r.sourceState))+'</td></tr>').join("");
+  return '<section class="planning-view evm-wbs-view">'+planningKpis([
+    ["WBS positions",p.rowCount,"explicit WBS-linked source metrics"],["Complete PV/EV/AC",complete,fmt(p.rowCount)+" positions"],
+    ["Data Date",planningShortDate(p.dataDateIso),"future source metrics excluded"]
+  ])+'<div class="notice info">Each row remains separate by WBS, currency and tax basis. CMeng does not cross-sum currencies or use Project-level EVM as a substitute for missing WBS evidence.</div><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>EVM by WBS</h4><p>'+escapeHtml(p.basis||"")+'</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>WBS</th><th>Currency</th><th>Tax basis</th><th>PV</th><th>EV</th><th>AC</th><th>SPI</th><th>CPI</th><th>SV</th><th>CV</th><th>Evidence</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></section></section>';
+}
+function renderRiskRegisterVisual(data){
+  const p=projectionFor(data,"risk_register_control");
+  if(!Array.isArray(p.rows))return"";
+  const validation=p.validation||{},conflicts=validation.ratingInconsistencyGroups?.length??0;
+  const open=p.rows.filter(r=>r.status==="open").length,unknown=p.rows.filter(r=>r.status==="unknown").length;
+  const rows=p.rows.map(r=>'<tr><td><b>'+escapeHtml(r.riskId)+'</b><br><span class="muted">'+escapeHtml(r.subject||"")+'</span></td><td>'+escapeHtml(r.category||"—")+'</td><td>'+escapeHtml(humanizeKey(r.status))+'</td><td>'+escapeHtml(r.owner||"Unassigned")+'</td><td>'+escapeHtml(planningShortDate(r.dueIso))+'</td><td>'+escapeHtml(r.probability===null?"—":fmt(r.probability))+'</td><td>'+escapeHtml(r.impact===null?"—":fmt(r.impact))+'</td><td>'+escapeHtml(r.calculatedScore===null?"—":fmt(r.calculatedScore))+'</td><td>'+escapeHtml(r.suppliedRating||"—")+'</td><td><span class="state-pill '+(r.ratingCheck==="conflict"?"blocked":"ready")+'">'+escapeHtml(r.ratingCheck)+'</span></td><td>'+escapeHtml(r.linkedActivityId||"—")+'</td></tr>').join("");
+  return '<section class="planning-view risk-register-view">'+planningKpis([
+    ["Current risks",p.currentRecordCount,"as of Data Date"],["Open",open,"source status"],["Unknown status",unknown,"not forced open or closed"],
+    ["Future records",p.futureRecordCount,"excluded from current"],["Undated records",p.undatedRecordCount,"historical status not assumed"],
+    ["Rating conflicts",conflicts,"same probability × impact with inconsistent supplied rating",conflicts?"danger":""]
+  ])+'<div class="notice '+(conflicts?"warn":"info")+'"><b>Risk scoring check.</b> '+escapeHtml(validation.scoreBasis||"Probability × impact is checked only where both source values exist. Rating thresholds are not invented.")+'</div><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Risk register</h4><p>Current dated source risks, ownership and activity links.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Risk</th><th>Category</th><th>Status</th><th>Owner</th><th>Due</th><th>P</th><th>I</th><th>P×I</th><th>Source rating</th><th>Rating check</th><th>Activity</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></section></section>';
+}
+function renderContractRiskVisual(data){
+  const p=projectionFor(data,"contract_risk");
+  if(!Array.isArray(p.items))return"";
+  const actions=p.items.filter(r=>r.state==="action").length,reviews=p.items.filter(r=>r.state==="review").length;
+  const rows=p.items.map(r=>'<tr><td><span class="state-pill '+(r.state==="action"?"blocked":r.state==="review"?"review":"ready")+'">'+escapeHtml(humanizeKey(r.state))+'</span></td><td><b>'+escapeHtml(r.area)+'</b></td><td>'+escapeHtml(r.condition)+'</td><td>'+escapeHtml(r.basis)+'</td><td>'+escapeHtml(r.action)+'</td></tr>').join("");
+  return '<section class="planning-view contract-risk-view">'+planningKpis([
+    ["Conditions",p.itemCount,"deterministic contract controls"],["Immediate actions",actions,"dated/current exceptions"],["Review items",reviews,"evidence or commercial review"],["Data Date",planningShortDate(p.dataDateIso),"current contract position"]
+  ])+'<div class="notice info">'+escapeHtml(p.basis||"")+'</div><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Contract risk & control exceptions</h4><p>Concrete obligations, notices, instructions, variations, security, retention and LD conditions requiring attention. No legal probability or entitlement is inferred.</p></div></div><div class="planning-panel-body">'+(rows?'<div class="table-wrap"><table><thead><tr><th>Attention</th><th>Area</th><th>Condition</th><th>Basis</th><th>Action</th></tr></thead><tbody>'+rows+'</tbody></table></div>':'<div class="notice info">No exception was identified by the current deterministic checks.</div>')+'</div></section></section>';
+}
+function renderFinalAccountVisual(data){
+  const p=projectionFor(data,"final_account_closeout");
+  if(!Array.isArray(p.checks))return"";
+  const checkRows=p.checks.map(r=>'<tr><td><b>'+escapeHtml(r.label)+'</b></td><td><span class="state-pill '+(r.state==="clear"?"ready":r.state==="open"?"review":"blocked")+'">'+escapeHtml(humanizeKey(r.state))+'</span></td><td>'+escapeHtml(r.detail)+'</td><td>'+escapeHtml(r.source)+'</td></tr>').join("");
+  const moneyRows=(p.currencies||[]).map(r=>'<tr><td><b>'+escapeHtml(r.currency)+'</b></td><td>'+escapeHtml(fmt(r.originalContractValue))+'</td><td>'+escapeHtml(fmt(r.currentContractValue))+'</td><td>'+escapeHtml(fmt(r.approvedVariationAmount))+'</td><td>'+escapeHtml(fmt(r.pendingVariationAmount))+'</td><td>'+escapeHtml(fmt(r.grossCertifiedAmount))+'</td><td>'+escapeHtml(fmt(r.paidAmount))+'</td><td>'+escapeHtml(fmt(r.certifiedUnpaidAmount))+'</td><td>'+escapeHtml(fmt(r.retentionHeldAmount))+'</td><td>'+escapeHtml(fmt(r.claimedAmount))+'</td><td>'+escapeHtml(fmt(r.assessedClaimAmount))+'</td></tr>').join("");
+  const open=p.checks.filter(r=>r.state==="open").length,unresolved=p.checks.filter(r=>r.state==="unresolved").length;
+  return '<section class="planning-view final-account-view">'+planningKpis([
+    ["Closeout state",humanizeKey(p.state),"not a final-account certification"],["Open controls",open,"must be resolved or formally treated"],["Unresolved controls",unresolved,"missing population/evidence"],["Currencies",(p.currencies||[]).length,"never cross-summed"]
+  ])+'<div class="notice info">'+escapeHtml(p.basis||"")+'</div><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Final-account readiness</h4><p>Commercial closeout remains blocked or qualified where an applicable population is open or not established.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Control</th><th>State</th><th>Detail</th><th>Source</th></tr></thead><tbody>'+checkRows+'</tbody></table></div></div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Commercial position by currency</h4><p>Amounts remain source/authority-specific and are not interpreted as an agreed final account.</p></div></div><div class="planning-panel-body">'+(moneyRows?'<div class="table-wrap"><table><thead><tr><th>Currency</th><th>Original</th><th>Current</th><th>Approved VO</th><th>Pending VO</th><th>Certified</th><th>Paid</th><th>Unpaid</th><th>Retention held</th><th>Claimed</th><th>Assessed claims</th></tr></thead><tbody>'+moneyRows+'</tbody></table></div>':'<div class="empty-visual">No commercial currency position is established.</div>')+'</div></section></section>';
+}
 function renderCommercialCapabilityVisual(key,data){
   if(!data||typeof data!=="object")return"";
   const table=(heads,rows,empty)=>rows.length?'<div class="table-wrap"><table><thead><tr>'+heads.map(h=>'<th>'+escapeHtml(h)+'</th>').join("")+'</tr></thead><tbody>'+rows.join("")+'</tbody></table></div>':'<div class="empty-visual">'+escapeHtml(empty)+'</div>';
@@ -3902,6 +3962,11 @@ function renderSpecializedModule(key,data){
   if(key==="forecast-history")return renderForecastHistoryVisual(data);
   if(key==="independent-forecast")return renderForecastVisual(data);
   if(key==="monte-carlo-risk")return renderMonteCarloRiskVisual(data);
+  if(key==="earned-schedule")return renderEarnedScheduleVisual(data);
+  if(key==="evm-by-wbs")return renderEvmByWbsVisual(data);
+  if(key==="risk-register")return renderRiskRegisterVisual(data);
+  if(key==="contract-risk")return renderContractRiskVisual(data);
+  if(key==="final-account")return renderFinalAccountVisual(data);
   if(key==="delay-claims")return renderDelayClaimsVisual(data);
   if(key==="notices-claims")return renderNoticesClaimsVisual(data);
   if(key==="windows-analysis")return renderWindowsVisual(data);
