@@ -2301,6 +2301,28 @@ function renderVarianceTrendVisual(data){
     ["Project finish movement",latest.projectCompletionVarianceDays===null?"Unresolved":fmt(latest.projectCompletionVarianceDays)+" d","vs controlled baseline",latest.projectCompletionVarianceDays>0?"danger":""]
   ])+'<section class="planning-panel"><div class="planning-panel-head"><div><h4>Revision values</h4><p>Exact values supporting the trend. Source activity finish movements use the shared activity matching; unknown baseline and ambiguous identity remain visible.</p></div></div><div class="planning-panel-body"><div class="revision-value-grid">'+cards+'</div>'+distributionSummary(latest.movementDistribution)+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Revision detail</h4></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Seq</th><th>Revision</th><th>Data date</th><th>Avg vs baseline d</th><th>Max movement d</th><th>Late</th><th>Early</th><th>On time</th><th>Neg. float</th><th>Critical</th><th>Project finish vs baseline d</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></section></section>';
 }
+function renderScopeClassificationVisual(data){
+  const p=projectionFor(data,"scope_classification");
+  if(!Array.isArray(p.coverage))return"";
+  const coverageRows=p.coverage.map(row=>'<tr><td><b>'+escapeHtml(row.label)+'</b></td><td>'+escapeHtml(fmt(row.classified))+' / '+escapeHtml(fmt(row.total))+'</td><td>'+escapeHtml(row.coveragePercent===null?"Unresolved":fmt(row.coveragePercent)+"%")+'</td><td>'+escapeHtml(row.basis)+'</td></tr>').join("");
+  const dimensions=['zone','floor','level','tower','building','area','workFront','discipline','package'];
+  const grouped=dimensions.map(key=>{
+    const values=new Map();
+    for(const row of p.rows||[]){const value=row[key];if(value!==null&&value!==undefined&&String(value).trim())values.set(String(value),(values.get(String(value))||0)+1);}
+    if(!values.size)return"";
+    const rows=[...values.entries()].sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0])).map(([value,count])=>'<tr><td>'+escapeHtml(value)+'</td><td>'+escapeHtml(fmt(count))+'</td></tr>').join("");
+    return '<details class="source-scope"><summary>By '+escapeHtml(humanizeKey(key))+' · '+escapeHtml(fmt(values.size))+' values</summary><div class="table-wrap"><table><thead><tr><th>'+escapeHtml(humanizeKey(key))+'</th><th>Activities</th></tr></thead><tbody>'+rows+'</tbody></table></div></details>';
+  }).filter(Boolean).join("");
+  const available=p.coverage.filter(row=>row.classified>0).length,missing=p.coverage.filter(row=>row.classified===0).length;
+  return '<section class="planning-view scope-classification-view">'+planningKpis([
+    ["Execution activities",p.activityCount,"classification population"],
+    ["Dimensions available",available,"source or deterministic source-derived"],
+    ["Dimensions unavailable",missing,"not inferred from absent evidence"],
+    ["Classification state",humanizeKey(p.classificationState||"unresolved"),"source-derived classifications do not become official master data"]
+  ])+
+  '<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Schedule scope classification coverage</h4><p>These dimensions drive Activity Review, WBS Progress and Ask CMeng filters. Explicit source wording may be deterministically classified; ambiguous or absent scope remains unclassified.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Dimension</th><th>Classified</th><th>Coverage</th><th>Basis</th></tr></thead><tbody>'+coverageRows+'</tbody></table></div></div></section>'+
+  '<section class="planning-panel"><div class="planning-panel-head"><div><h4>Available schedule breakdowns</h4><p>Use these exact source-derived values in Ask CMeng, for example “activities for Zone 7” or “electrical activities by floor”.</p></div></div><div class="planning-panel-body">'+(grouped||'<div class="empty-visual">No spatial, discipline or package classification is readable from the current source programme.</div>')+'</div></section></section>';
+}
 function renderProgressBreakdownVisual(data){
   const p=projectionFor(data,"progress_breakdown");
   if(!Array.isArray(p.rows))return "";
@@ -3745,6 +3767,7 @@ function renderSpecializedModule(key,data){
   if(key==="pmo-analysis")return renderPmoVisual(data);
   if(key==="schedule-analytics")return renderScheduleAnalyticsVisual(data);
   if(key==="activity-analytics")return renderActivityAnalyticsVisual(data);
+  if(key==="scope-classification")return renderScopeClassificationVisual(data);
   if(key==="resource-utilization")return renderResourceVisual(data);
   if(key==="lookahead-schedule")return renderLookAheadVisual(data);
   if(key==="progress-report")return renderProgressReportVisual(data);
