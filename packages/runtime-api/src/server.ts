@@ -107,6 +107,12 @@ import {
   projectScheduleControlBasis,
 } from "./schedule-control-basis";
 
+const advancedControlKeys=new Set([
+  'scope-classification','monte-carlo-risk','earned-schedule','evm-by-wbs','risk-register','contract-risk','final-account',
+  'commercial-terms','cost-register','payment-register','cbs-breakdown','cost-control','evm-performance','cash-flow-register','cost-scurve',
+  'site-instructions','contract-obligations','liquidated-damages','bonds-insurance','retention-calendar'
+]);
+
 export function projectDocumentRegister(projectId:string){
   const state=runtimeProjects.get(projectId);if(!state)return null;
     const schemaDiagnostics: string[] = [];
@@ -2169,6 +2175,30 @@ async function route(
   }
 
   if(await deliveryRequest(req,res,url))return;
+
+  const advancedReportMatch=/^\/api\/projects\/([^/]+)\/advanced\/([^/]+)\/report\.(xlsx|json)$/.exec(url.pathname);
+  if(req.method==='GET'&&advancedReportMatch){
+    const projectId=decodeURIComponent(advancedReportMatch[1]!),key=decodeURIComponent(advancedReportMatch[2]!),format=advancedReportMatch[3] as 'xlsx'|'json';
+    if(!advancedControlKeys.has(key)){json(res,404,{error:'advanced_control_not_found',controlKey:key});return;}
+    const result=moduleForProject(projectId,key);
+    if(result.status==='blocked'){json(res,409,{error:'advanced_control_blocked',controlKey:key,reason:result.reason,dependencies:result.dependencies});return;}
+    if(format==='xlsx'){
+      const workbook=await buildModuleWorkbook(projectId,key,result);
+      attachment(res,200,workbook,'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',moduleReportFilename(projectId,key,'xlsx'));
+    }else{
+      attachment(res,200,buildModuleJsonDownload(projectId,key,result),'application/json; charset=utf-8',moduleReportFilename(projectId,key,'json'));
+    }
+    return;
+  }
+
+  const advancedMatch=/^\/api\/projects\/([^/]+)\/advanced\/([^/]+)$/.exec(url.pathname);
+  if(req.method==='GET'&&advancedMatch){
+    const projectId=decodeURIComponent(advancedMatch[1]!),key=decodeURIComponent(advancedMatch[2]!);
+    if(!advancedControlKeys.has(key)){json(res,404,{error:'advanced_control_not_found',controlKey:key});return;}
+    const result=moduleForProject(projectId,key);
+    json(res,result.status==='blocked'?409:200,result);
+    return;
+  }
 
   const moduleReportMatch =
     /^\/api\/projects\/([^/]+)\/(schedule|commercial|delivery)\/modules\/([^/]+)\/report\.(xlsx|json)$/.exec(
