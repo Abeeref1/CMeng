@@ -60,6 +60,10 @@ export interface AnalysisPlan {
   countRows?: boolean;
   rankings?: {authorityId: string; field: string; direction: 'asc' | 'desc'; limit: number}[];
   authorityFilters?: Record<string,Filter[]>;
+  /** Extra schedule-activity result sets requested in the same natural-language question.
+   * They are evaluated independently against the full activity population so "A and B"
+   * is not silently converted into an intersection. */
+  activityBreakouts?: Array<{label:string;filters:Filter[]}>;
 }
 export interface Presentation {
   title: string; audience: 'project' | 'planner' | 'commercial' | 'director' | 'executive';
