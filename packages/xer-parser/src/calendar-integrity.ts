@@ -8,6 +8,9 @@ export interface XerCalendarAssessment {
   data: P6CalendarDataResult | null;
   status: "verified" | "unresolved";
   diagnostics: string[];
+  conversionDiagnostics: string[];
+  conversionDayHours: number | null;
+  conversionWeekHours: number | null;
 }
 
 export interface XerCalendarIntegrity {
@@ -74,6 +77,8 @@ export function verifyXerCalendars(result: XerParseResult): XerCalendarIntegrity
     parentById.set(calendarId, baseCalendarId);
 
     const diagnostics: string[] = [];
+    const conversionDiagnostics:string[]=[];
+    const conversionHours=(name:string)=>{const raw=field(row,name);const value=raw===null?NaN:Number(raw);return Number.isFinite(value)&&value>0?value:null;};
     if (baseCalendarId && !ids.has(baseCalendarId)) {
       missingBase.add(baseCalendarId);
       diagnostics.push(`CALENDAR_BASE_MISSING:${baseCalendarId}`);
@@ -98,8 +103,8 @@ export function verifyXerCalendars(result: XerParseResult): XerCalendarIntegrity
         declaredWeekHours!==null&&Number.isFinite(declaredWeekHours) &&
         Math.abs(declaredWeekHours - computedWeekHours) > 0.001
       ) {
-        diagnostics.push(
-          `CALENDAR_WEEK_HOURS_MISMATCH:${declaredWeekHours}:${computedWeekHours}`,
+        conversionDiagnostics.push(
+          `CALENDAR_WEEK_CONVERSION_DIFFERS_FROM_WORK_PATTERN:${declaredWeekHours}:${computedWeekHours}`,
         );
       }
 
@@ -118,8 +123,8 @@ export function verifyXerCalendars(result: XerParseResult): XerCalendarIntegrity
         nonzeroDayHours.length === 1 &&
         Math.abs(declaredDayHours - nonzeroDayHours[0]!) > 0.001
       ) {
-        diagnostics.push(
-          `CALENDAR_DAY_HOURS_MISMATCH:${declaredDayHours}:${nonzeroDayHours[0]}`,
+        conversionDiagnostics.push(
+          `CALENDAR_DAY_CONVERSION_DIFFERS_FROM_WORK_PATTERN:${declaredDayHours}:${nonzeroDayHours[0]}`,
         );
       }
     }
@@ -135,6 +140,11 @@ export function verifyXerCalendars(result: XerParseResult): XerCalendarIntegrity
       data,
       status: diagnostics.length === 0 ? "verified" : "unresolved",
       diagnostics,
+      // P6 Hours per Time Period are display/input conversion factors. They
+      // do not invalidate the independently specified working intervals.
+      conversionDiagnostics,
+      conversionDayHours:conversionHours('day_hr_cnt'),
+      conversionWeekHours:conversionHours('week_hr_cnt'),
     });
   }
 

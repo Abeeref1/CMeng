@@ -40,7 +40,7 @@ import {
   scheduleProgress,
 } from "../../schedule-analysis-core/src";
 import {
-  buildActivityAnalyticsProjection, activityAnalyticsCounts,
+  buildActivityAnalyticsProjection, activityAnalyticsCounts, activityDelayStatus,
 } from "../../activity-analytics/src";
 import {
   buildChallengeContractProjection,
@@ -7082,6 +7082,7 @@ function resolveProjectModuleCandidate(state: ProjectRuntimeState, key: string):
       } : {}),
       ...(key === "milestones" ? { movementDistribution: numericDistribution((data.rows ?? []).map((row: any)=>row.varianceDays)) } : {}),
       ...(key === "activity-analytics" ? {
+        rows:(data.rows??[]).map((row:any)=>({...row,...activityDelayStatus(row)})),
         counts: activityAnalyticsCounts(data.rows ?? []),
         movementDistribution: numericDistribution((data.rows ?? []).map((row: any)=>row.finishVarianceDays)),
         movementAnalysis: (()=>{const history=analyticalHistory(state);const current=projectControlSchedule(state)!;const index=history.findIndex(r=>r.revision.revisionId===current.revision.revisionId);const previous=index>0?history[index-1]:null;const baseline=state.schedules.find(r=>r.revision.revisionId===data.controlledBaselineRevisionId);return activityMovementAnalysis(data.rows??[],{dataDateIso:model.dataDateIso,currentRevisionId:current.revision.revisionId,currentLabel:current.revision.label??current.sourceFilename??current.revision.revisionId,baselineRevisionId:data.controlledBaselineRevisionId??null,baselineLabel:baseline?.revision.label??null,previousRevisionId:previous?.revision.revisionId??null,previousLabel:previous?.revision.label??null,previousRows:previous?.revision.model.activities??[]});})(),
@@ -7768,12 +7769,17 @@ export function managementSurfacesForProject(
   const issueAssessment=summarizeControlIssues([...issues,...governanceIssues,...operationalIssues]);
   const lookahead=(resolvedModules.get('lookahead-schedule')?.data as any);
   const overdueRows=(lookahead?.rows??[]).filter((r:any)=>r.finishOverdue);
+  const activities=resolvedModules.get('activity-analytics')?.data as any;
+  const scheduleExceptions=activities?{dataDate:current?.revision.model.dataDateIso??null,counts:activities.counts,
+    rows:(activities.rows??[]).filter((r:any)=>!['wbs_summary','level_of_effort'].includes(r.activityType)&&r.scheduleDelayed===true)
+      .sort((a:any,b:any)=>(a.criticality==='critical'?-1:0)-(b.criticality==='critical'?-1:0)||(b.finishOverdueCalendarDays??b.startOverdueCalendarDays??0)-(a.finishOverdueCalendarDays??a.startOverdueCalendarDays??0)||String(a.activityId).localeCompare(String(b.activityId)))
+      .map((r:any)=>({activityId:r.activityId,name:r.name,status:r.status,currentStartIso:r.currentStartIso,currentFinishIso:r.forecastFinishIso??r.currentFinishIso,percentComplete:r.percentComplete,totalFloatHours:r.totalFloatHours,delayStatus:r.delayStatus,criticality:r.criticality}))}:null;
   const deliveryExceptions={actions:[...operations.actions,...overdueRows.map((r:any)=>({recordId:r.activityId,type:'Activity',priority:'overdue',owner:null,dueIso:r.finishIso,ageDays:null,
     overdueDays:current?.revision.model.dataDateIso&&r.finishIso?Math.floor((Date.parse(current.revision.model.dataDateIso.slice(0,10))-Date.parse(r.finishIso.slice(0,10)))/86400000):null,
     action:'Review overdue activity '+r.activityId+' ('+r.name+') and agree its recovery dates.',sourceRefs:[]}))],overdueActivityCount:Array.isArray(lookahead?.rows)?overdueRows.length:null};
   const result = { ...surfaces,
     sourceQuality: {...sourceQualityPosition(resolvedModules,issueAssessment,state.evidenceDocuments,current?.revision.model.dataDateIso??null),registerDateReview:registerDateReview(state)},
-    masterDashboard: {delivery:deliveryDashboard(state),deliveryExceptions,...managementReportingData(state, surfaces.masterDashboard, resolvedModules),decisions:surfaces.commandCenter.decisions,trend:(resolvedModules.get("forecast-history")?.data as any)??null,issueAssessment,operationalReporting:operationalReporting(state),sourceInterpretation:director?.sourceInterpretation},
+    masterDashboard: {delivery:deliveryDashboard(state),scheduleExceptions,deliveryExceptions,...managementReportingData(state, surfaces.masterDashboard, resolvedModules),decisions:surfaces.commandCenter.decisions,trend:(resolvedModules.get("forecast-history")?.data as any)??null,issueAssessment,operationalReporting:operationalReporting(state),sourceInterpretation:director?.sourceInterpretation},
     commandCenter: {deliveryExceptions,...managementReportingData(state, surfaces.commandCenter, resolvedModules),issueAssessment,operationalReporting:operationalReporting(state),sourceInterpretation:director?.sourceInterpretation},
     masterControlProgramme: {...managementReportingData(state, surfaces.masterControlProgramme, resolvedModules),issueAssessment,sourceInterpretation:director?.sourceInterpretation} };
   const allPages=new Map(resolvedModules);

@@ -33,6 +33,14 @@ export async function askAiRequest(req:IncomingMessage,res:ServerResponse,url:UR
       const {pages,...summary}=reference;json(res,201,{...summary,pages:pages.length});return true;
     }
     const chartMatch=/^results\/([a-zA-Z0-9_-]+)\/charts\/(.+)$/.exec(path);
+    const tableMatch=/^results\/([a-zA-Z0-9_-]+)\/tables\/([^/]+)$/.exec(path);
+    if(req.method==='GET'&&tableMatch){
+      const result=await engine.store.result(tableMatch[1]!,projectId,user),table=result.sections.flatMap(s=>s.tables).find(t=>t.id===decodeURIComponent(tableMatch[2]!));
+      if(!table)throw new AskError(404,'table_not_found','This activity list is not available.');
+      const offset=Number(url.searchParams.get('offset')??0),limit=Number(url.searchParams.get('limit')??200);
+      if(!Number.isSafeInteger(offset)||offset<0||!Number.isSafeInteger(limit)||limit<1||limit>200)throw new AskError(400,'invalid_page','Choose a valid page of up to 200 rows.');
+      json(res,200,{id:table.id,analysisId:result.id,offset,rows:table.rows.slice(offset,offset+limit),totalRows:table.rows.length});return true;
+    }
     if(req.method==='GET'&&chartMatch){const result=await engine.store.result(chartMatch[1]!,projectId,user),chart=result.sections.flatMap(s=>s.charts).find(c=>c.id===decodeURIComponent(chartMatch[2]!)),table=chart?result.sections.flatMap(s=>s.tables).find(t=>t.id===chart.tableId):null;if(!chart||!table)throw new AskError(404,'chart_not_found','This chart is not available.');sendHttpBody(res,200,{'content-type':'image/png','cache-control':'no-store'},askChartPng(chart,table));return true;}
     const resultMatch=/^results\/([a-zA-Z0-9_-]+)(?:\/(export))?$/.exec(path);
     if(req.method==='GET'&&resultMatch){

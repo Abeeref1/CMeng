@@ -18,11 +18,35 @@ import {deliveryRecords} from './delivery-records';
 import type {ProjectRuntimeState} from './project-state-types';
 
 export const askCatalogue=createAskAuthorityCatalogue();
+function activityAnswer(result:AnalysisResult):NarrativeBlock|null{
+  const section=result.sections.find(s=>['activities','float','critical-path'].includes(s.authorityId));
+  if(!section||result.plan.groupBy.length)return null;
+  const table=section.tables[0];if(!table)return null;
+  const asOf=result.scope.dataDate?' as of '+result.scope.dataDate.slice(0,10):'';
+  if(section.state==='unavailable')return {heading:'Answer',text:'I cannot list these activities yet because this project has no adopted programme available. Open Documents to review the programme upload.',classification:'project_fact',traceIds:[table.traceId]};
+  const n=table.selection?.matching??table.rows.length,filters=result.plan.authorityFilters?.[section.authorityId]??[];
+  const has=(field:string)=>filters.some(f=>f.field===field);
+  const phrase=section.authorityId==='critical-path'?(section.state==='established'?'are critical in the calendar calculation':'have known critical float in the uploaded programme')
+    :has('missedPlannedStart')?'should have started but have not':has('finishOverdue')?'have passed their finish date and are still unfinished'
+    :has('scheduleDelayed')?'show a missed start, overdue finish or finish later than baseline':has('totalFloatHours')?'match your float limit'
+    :result.plan.criticalOnly?'have critical float':has('floatRiskWatchlist')?'are in the float-risk band':'match your request';
+  const verb=n===1?phrase.replace(/^are /,'is ').replace(/^have /,'has ').replace(/^show /,'shows ').replace(/^match /,'matches '):phrase;
+  let text=n+' '+(n===1?'activity':'activities')+' '+verb+asOf+'.';
+  if(n===0)text='No matching activities were found in the available programme records'+asOf+'.';
+  if(section.authorityId==='critical-path'&&section.state!=='established')text+=' The independent critical path is not yet confirmed; this is the programme’s known critical-activity list.';
+  if(has('scheduleDelayed'))text+=' These are schedule warning signs. They do not by themselves prove what caused the project delay.';
+  if(result.unresolved.some(g=>/lack |excluded|missing|unconfirmed/i.test(g)))text+=' Some records need review; the list contains the matches we can confirm.';
+  const preview=table.rows.slice(0,result.presentation.detail==='short'?3:5).map(r=>String(r.activityId)+' — '+String(r.name??'Unnamed activity'));
+  if(preview.length)text+='\n\n'+preview.join('\n')+(n>preview.length?'\nThe activity table below contains the rest.':'');
+  return {heading:'Answer',text,classification:'calculated_intelligence',traceIds:[table.traceId]};
+}
 function narrativeFor(result:AnalysisResult):NarrativeBlock[]{
   const ar=result.presentation.language==='ar';
   const metrics=result.sections.flatMap(s=>s.metrics);
   const lines=metrics.slice(0,result.presentation.detail==='short'?6:18).map(m=>m.label+': '+(m.value===null?(ar?'غير مثبت':'Not established'):String(m.value)+(m.unit?' '+m.unit:''))+(m.state==='candidate'?' · candidate source, not governed':''));
-  const blocks:NarrativeBlock[]=[{heading:ar?'الوضع الحالي':'Current position',text:lines.length?lines.join('\n'):result.sections.map(s=>s.title+': '+s.explanation).slice(0,8).join('\n'),classification:'calculated_intelligence',traceIds:metrics.slice(0,18).map(m=>m.traceId)}];
+  const direct=activityAnswer(result);
+  const blocks:NarrativeBlock[]=direct?[direct]:[{heading:ar?'الوضع الحالي':'Answer',text:lines.length?lines.join('\n'):result.sections.map(s=>s.tables.length?s.tables.reduce((n,t)=>n+(t.selection?.matching??t.rows.length),0)+' matching records in '+s.title+'.':s.title+': '+s.explanation).slice(0,8).join('\n'),classification:'calculated_intelligence',traceIds:metrics.slice(0,18).map(m=>m.traceId)}];
+  if(direct&&result.sections.some(s=>!['activities','float','critical-path'].includes(s.authorityId))&&lines.length)blocks.push({heading:'Other project figures',text:lines.join('\n'),classification:'calculated_intelligence',traceIds:metrics.slice(0,18).map(m=>m.traceId)});
   const findings=result.sections.flatMap(s=>s.findings).sort((a,b)=>(a.severity==='action'?0:a.severity==='review'?1:2)-(b.severity==='action'?0:b.severity==='review'?1:2)||a.id.localeCompare(b.id));
   if(findings.length)blocks.push({heading:ar?'ما يحتاج الى اهتمام':'What requires attention',text:findings.slice(0,8).map(f=>f.title+': '+f.explanation).join('\n'),classification:'calculated_intelligence',traceIds:findings.slice(0,8).flatMap(f=>f.traceIds)});
   if(findings.length)blocks.push({heading:ar?'الاجراءات المقترحة':'Recommended actions',text:[...new Set(findings.map(f=>f.action))].slice(0,8).join('\n'),classification:'professional_guidance',traceIds:findings.slice(0,8).flatMap(f=>f.traceIds)});

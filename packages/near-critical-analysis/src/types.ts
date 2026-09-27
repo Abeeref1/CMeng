@@ -75,10 +75,16 @@ export interface NearCriticalProjection {
   floatRiskWatchlistCount: number | null;
   zeroFloatCount: number | null;
   negativeFloatCount: number | null;
+  knownCriticalCount: number;
+  knownNegativeFloatCount: number;
+  knownZeroFloatCount: number;
+  unknownFloatCount: number;
   floatRiskWatchlistIncludesCriticalThreshold: boolean;
   population?: ActivityPopulationContract;
   floatDistribution?: ReturnType<typeof numericDistribution>;
   rows: NearCriticalRow[];
   watchlistRows: NearCriticalRow[];
+  criticalRows: NearCriticalRow[];
+  negativeFloatRows: NearCriticalRow[];
   boundaryAudit: NearCriticalBoundaryAudit;
 }

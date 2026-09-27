@@ -72,6 +72,8 @@ export interface CanonicalCalendar {
   exceptions?: CanonicalCalendarException[];
   standardDayHours?: number | null;
   standardWeekHours?: number | null;
+  sourceConversionDayHours?: number | null;
+  sourceConversionWeekHours?: number | null;
   sourceRefs: ScheduleSourceRef[];
 }
 

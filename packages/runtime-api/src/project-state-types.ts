@@ -326,6 +326,8 @@ export type ScheduleUploadFormat =
   | "schedule_csv";
 
 export interface StoredScheduleRevision {
+  calendarReaderVersion?:string;
+  calendarReadRefresh?:{readerVersion:string;sourceHashSha256:string;refreshedAt:string;previousDiagnostics:string[];diagnostics:string[];resolvedCalendarCount:number;totalCalendarCount:number};
   roleConfirmed?:boolean;
   approvalReference?:string;
   revision: ScheduleRevision;

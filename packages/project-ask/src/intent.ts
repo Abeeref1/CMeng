@@ -8,16 +8,20 @@ const defaults=(question:string):AnalysisPlan=>({objective:question,kind:'facts'
 const mentions=mentionsConcept;
 export function resolveIntent(question:string,catalogue:AuthorityDescriptor[],principal:AskSession,page:PageContext|null,previous:AnalysisResult|null){
   const q=normalized(substantiveQuestion(question)).replace(/worst(\d)/g,'worst $1').replace(/\bprocument\b/g,'procurement').replace(/\bprogess\b/g,'progress');
+  const fullList=/^(?:(?:show|give|list)(?: me)?\s+)?(?:(?:the|a)\s+)?(?:full|complete|all)(?:\s+(?:the\s+)?(?:list|activities|rows|results|details|of them))?[.!?]*$/.test(q);
+  const simpleFollowup=/^(?:make (?:it|that) (?:easy|simple|simpler)|(?:in )?(?:plain|simple) (?:english|language)|simpler|explain (?:it )?simply)[.!?]*$/.test(q);
   if(/\b(across|all|compare|other|another)\s+(projects|portfolios|programmes)\b|organization.wide|portfolio.rollup|cross.project|جميع المشاريع|كل المشاريع/.test(q))
     throw new AskError(422,'capability_not_enabled','Capability not enabled. Select one Project for this analysis.');
   const transform=/^(excel|xlsx|pdf|word|docx|csv|json|power ?bi|better|shorter|more detail|ceo|executive|project director|planner detail|commercial manager|only |by |add |remove |put my name|prepared by|our logo|change chart|sar\b|aed\b|usd\b|tower |floor |zone |بالعربي|بالعربية|عربي|مختصر|اكسل|إكسل)/i.test(question.trim());
   const purePresentation=transform&&!/^(only |by |add (?:value|procurement|progress)|remove |tower |floor |zone |sar\b|aed\b|usd\b)/.test(q);
-  const inherited=!!previous&&transform;
+  const inherited=!!previous&&(transform||fullList||simpleFollowup);
   const plan:AnalysisPlan=inherited?structuredClone(previous.plan):defaults(question);
   const presentation:Presentation=inherited?structuredClone(previous.presentation):{
     title:question.slice(0,160),audience:'project',language:/[\u0600-\u06ff]/.test(question)?'ar':'en',detail:'normal',charts:true,
     preparedBy:null,jobTitle:null,company:null,reportNumber:null,confidentiality:'Project Internal',status:'Draft / Prepared',format:'interactive'};
   const gaps:string[]=[];presentation.format='interactive';
+  if(fullList){plan.limit=null;plan.rankings=[];presentation.detail='detailed';}
+  if(simpleFollowup)presentation.detail='short';
   for(const [pattern,format] of formats)if(pattern.test(question))presentation.format=format;
   if(/shorter|brief|مختصر/.test(q))presentation.detail='short';
   if(/more detail|detailed|تفصيل/.test(q))presentation.detail='detailed';
@@ -56,12 +60,33 @@ export function resolveIntent(question:string,catalogue:AuthorityDescriptor[],pr
   }
   if(inherited&&/^remove /.test(q))plan.authorities=plan.authorities.filter(id=>!catalogue.find(c=>c.id===id)?.concepts.some(c=>q.slice(7).includes(normalized(c))));
   if(inherited&&/add .*curve/.test(q))for(const c of catalogue.filter(c=>c.concepts.some(k=>mentions(q,k))))if(!plan.authorities.includes(c.id))plan.authorities.push(c.id);
-  if(/only critical|critical.*(?:packages|activities|mep)|الحرجه/.test(q)&&!/negative.float/.test(q))plan.criticalOnly=true;
+  // Resolve activity questions before generic words such as "delayed" can select a claims register.
+  const claimsQuestion=/\b(?:claims?|entitlement|delay events?|time impact|windows analysis)\b/.test(q);
+  const activityQuestion=/\bactivit(?:y|ies)\b|\b(?:critical|driving) path\b|should (?:have )?(?:start|finish)|should have (?:started|finished)|\b(?:missed|overdue|late) starts?\b|\b(?:overdue|late) finishes?\b/.test(q);
+  const scheduleQuestion=activityQuestion||/\b(?:project|programme|schedule)\b.*\b(?:delayed|delay|late|behind)\b|\b(?:delay|delaying)\b.*\bproject\b|^(?:show (?:me )?|what (?:is|are) (?:the )?)?(?:delayed|late|overdue)(?: work)?[.!?]*$/.test(q);
+  if(!inherited&&!claimsQuestion&&scheduleQuestion){
+    const available=(id:string)=>catalogue.some(c=>c.id===id);
+    const path=/\b(?:critical|driving) path\b/.test(q);
+    // Keep explicitly requested non-schedule domains in a combined question.
+    plan.authorities=plan.authorities.filter(id=>!['programme','activities','float','critical-path','forecast','delay','lookahead'].includes(id));
+    if(available(path?'critical-path':'activities'))plan.authorities.unshift(path?'critical-path':'activities');
+    if(/\b(?:why|caus\w*|delaying|makes?|making)\b/.test(q)&&available('lookahead'))plan.authorities.push('lookahead');
+  }
+  if(/only critical|critical.*(?:packages|activities|mep)|الحرجه/.test(q)&&!/negative.float|near[ -]critical|(?:critical|driving) path/.test(q))plan.criticalOnly=true;
   if(/only (problems|bad|issues)|bad material|material problem|only exceptions|المشاكل/.test(q))plan.issuesOnly=true;
   const rank=/\b(top|worst)\s*(\d{1,4})/.exec(q);if(rank){plan.limit=Math.min(1000,Math.max(1,Number(rank[2])));plan.rankBy=/cost|value|boq/.test(q)?'amount':/risk/.test(q)&&!/float|activit/.test(q)?'score':/material|procurement/.test(q)?'headroomCalendarDays':'totalFloatHours';plan.rankDirection=plan.rankBy==='amount'||plan.rankBy==='score'?'desc':'asc';}
   plan.rankings=rankedRequests(q,catalogue);
   plan.countRows=/\bhow many\b|\bcount\b|عدد/.test(q);
   const scopedFilter=(ids:string[],filter:AnalysisPlan['filters'][number])=>{plan.authorityFilters??={};for(const id of ids)if(plan.authorities.includes(id))plan.authorityFilters[id]=[...(plan.authorityFilters[id]??[]),filter];};
+  if(!inherited&&!claimsQuestion&&scheduleQuestion){
+    const starts=/should (?:have )?start|should have started|(?:missed|overdue|late) starts?|start.*(?:did(?:n.?t| not)|ha(?:s|ve)(?:n.?t| not)|not yet)|(?:did(?:n.?t| not)|ha(?:s|ve)(?:n.?t| not)).*start/.test(q);
+    const finishes=/should (?:have )?finish|should have finished|(?:overdue|late) finish|finish.*(?:overdue|did(?:n.?t| not)|ha(?:s|ve)(?:n.?t| not))/.test(q);
+    const field=starts?'missedPlannedStart':finishes?'finishOverdue':/\b(?:delayed|delay|late|overdue|behind|delaying)\b/.test(q)?'scheduleDelayed':null;
+    if(field){scopedFilter(['activities'],{field,operator:'eq',value:true,upper:null});plan.rankBy=starts?'startOverdueCalendarDays':'finishOverdueCalendarDays';plan.rankDirection='desc';}
+    else if(/\bnot started\b/.test(q))scopedFilter(['activities'],{field:'status',operator:'eq',value:'not_started',upper:null});
+  }
+  if(/near[ -]critical/.test(q))scopedFilter(['activities','float'],{field:'criticality',operator:'eq',value:'near_critical',upper:null});
+  else if(/float[ -]risk/.test(q)&&!plan.criticalOnly)scopedFilter(['activities','float'],{field:'floatRiskWatchlist',operator:'eq',value:true,upper:null});
   const threshold=/(?:float\s*(?:below|under|less than|<)\s*|(?:below|under|less than)\s*)(-?\d+(?:\.\d+)?)\s*(hours?|days?)?\s*(?:float)?/.exec(q);
   if(/negative[ -]float/.test(q))scopedFilter(['activities','float'],{field:'totalFloatHours',operator:'lt',value:0,upper:null});
   else if(threshold&&/float/.test(q)){if(threshold[2]?.startsWith('day'))gaps.push('Float is stored in hours. Supply the threshold in hours; no hours-per-day conversion has been assumed.');else scopedFilter(['activities','float'],{field:'totalFloatHours',operator:'lt',value:Number(threshold[1]),upper:null});}
@@ -85,7 +110,7 @@ export function resolveIntent(question:string,catalogue:AuthorityDescriptor[],pr
   if(/\bphases?\b/.test(q)&&catalogue.some(c=>c.id==='phase-programmes')){plan.authorities=['phase-programmes'];plan.criticalOnly=false;plan.countRows=false;plan.groupBy=[];plan.rankBy=null;plan.limit=null;gaps.push('Phase requests use separate phase programme positions. Whole-project KPI values are not substituted for phase metrics; combined phase roll-ups are not established.');}
   plan.authorities=[...new Set(plan.authorities)];plan.metricIds=[...new Set(plan.metricIds)];
   if(plan.kind==='proposal')gaps.push('This is a proposed change only. Use the record’s governed review workflow to approve any change.');
-  return {plan,presentation,gaps,inherited,purePresentation:inherited&&purePresentation};
+  return {plan,presentation,gaps,inherited,purePresentation:inherited&&(simpleFollowup||purePresentation)&&!fullList};
 }
 
 /** Model proposals are untrusted query plans, never executable code or authority. */
