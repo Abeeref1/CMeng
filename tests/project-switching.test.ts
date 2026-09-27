@@ -53,13 +53,15 @@ function harness() {
 
 test('opening another project clears every old-project surface before its first response arrives',async()=>{
   const h=harness();
+  h.el('askViewName').value='OLD-PROJECT review';
   const pending=h.call('openProject("NEW-PROJECT")');
   assert.equal(h.context.overview,null);assert.equal(h.context.currentModuleResult,null);
   assert.equal(h.el('activeProjectName').textContent,'NEW-PROJECT');
-  for(const id of ['activeProjectMeta','workspaceProjectMeta','projectStatus','director','evidenceLibrary','aiProjectInfo','aiAnswer','moduleContent','nav','uploadMessage']) {
+  for(const id of ['activeProjectMeta','workspaceProjectMeta','projectStatus','director','evidenceLibrary','aiProjectInfo','aiAnswer','askProjectTitle','askReportingDate','askSavedViews','aiSuggestions','moduleContent','nav','uploadMessage']) {
     assert.doesNotMatch(h.el(id).textContent,/OLD-PROJECT|39 documents|2032-04-30/,id);
   }
   assert.match(h.el('moduleContent').innerHTML,/Opening NEW-PROJECT/);
+  assert.equal(h.el('askViewName').value,'');
   assert.equal(h.el('moduleReport').disabled,true);
   assert.equal(h.el('runAnalysisTop').disabled,true);
   assert.equal(h.context.selectedEvidenceDocuments.size,0);

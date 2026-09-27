@@ -38,3 +38,11 @@ On review commit `7deaf6102634953f5d7a485b634c0c95de54f26a`, a fresh governed `A
 Browser review found a structured Commercial calculation basis rendering as `[object Object]`; the adapter now retains its method, reporting date and source references as readable text. It also found the old sample-project overview waiting for a portfolio entry from which samples are intentionally excluded; the gateway now opens sample overviews directly. Both corrections have focused regressions. Wide analysis tables now show useful primary columns, with every field expandable and retained in exports. Reference attachments can be removed from the next request.
 
 Two further scenarios verify a mixed native/scanned PDF through real contained OCR, including per-page reading receipts and an inert malicious instruction, and withdrawing a governed package while preserving an independent project's results and the original saved snapshot. The PDF assertion CPI 1.5 remains a reference discrepancy against governed CPI 0.8.
+
+## Verification checkpoint — 2026-09-27
+
+All 761 tests passed before the final project-heading reset, and the focused eight workspace/switching checks passed with that reset. The unchanged release latency gate also passed: a fresh 20,000-activity upload reached a calculated dashboard in 2,885.9 ms; the 12,500-activity, three-revision cold-open case took 4,241.7 ms. GitHub Verify and Scale Certification passed on `b96a5bb`.
+
+The browser switched from ASK-BROWSER-A (required 64, delivered 52, 81.25%) to ASK-BROWSER-B (required 80, delivered 40, 50%), with separate results and saved views. Review exposed a briefly stale project heading during that switch. The final reset now clears the heading, reporting date, suggestions and saved-view name immediately, before any network response.
+
+The browser file-chooser check was interrupted and then the execution environment disconnected. The actual attachment control has not been verified; successful API/OCR tests do not close that browser check. Final browser validation of the corrected review build, responsive review and a real configured model response remain open. No new access-control flow is introduced.
