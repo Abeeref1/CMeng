@@ -3,6 +3,7 @@ import type {CanonicalScheduleModel} from '../../schedule-analysis-core/src';
 import type {ProjectRuntimeState,ModuleRuntimeResult} from './project-state-types';
 import {canonicalTimeClaims,projectControlSchedule} from './canonical-time-claims';
 import {operationalReporting} from './reporting-state';
+import {cell,numberValue,sourceTables} from '../../truth-kernel/src';
 
 export interface MonteCarloConfig {
   iterations:number;
@@ -14,10 +15,38 @@ export interface MonteCarloConfig {
 const DEFAULT_CONFIG:MonteCarloConfig={iterations:1000,seed:20260927,minFactor:0.9,modeFactor:1,maxFactor:1.25};
 
 function seededRandom(seed:number){let state=seed>>>0;return()=>{state=(Math.imul(1664525,state)+1013904223)>>>0;return state/4294967296;};}
-function triangular(random:()=>number,min:number,mode:number,max:number){const u=random(),split=(mode-min)/(max-min);return u<split?min+Math.sqrt(u*(max-min)*(mode-min)):max-Math.sqrt((1-u)*(max-min)*(max-mode));}
+function triangularFromU(u:number,min:number,mode:number,max:number){const split=(mode-min)/(max-min);return u<split?min+Math.sqrt(u*(max-min)*(mode-min)):max-Math.sqrt((1-u)*(max-min)*(max-mode));}
+function triangular(random:()=>number,min:number,mode:number,max:number){return triangularFromU(random(),min,mode,max);}
 function quantile(values:number[],p:number){if(!values.length)return null;const i=Math.min(values.length-1,Math.max(0,Math.ceil(p*values.length)-1));return values[i]??null;}
 function iso(ms:number|null){return ms===null?null:new Date(ms).toISOString();}
 function validConfig(c:MonteCarloConfig){return Number.isSafeInteger(c.iterations)&&c.iterations>=100&&c.iterations<=10000&&c.minFactor>0&&c.minFactor<=c.modeFactor&&c.modeFactor<=c.maxFactor&&c.maxFactor>c.minFactor;}
+type ActivityUncertainty={activityId:string;minFactor:number;modeFactor:number;maxFactor:number;correlationGroup:string|null;sourceRefs:string[]};
+function sourceUncertainty(state:ProjectRuntimeState,remainingById:Map<string,number>){
+  const docs=state.evidenceDocuments.filter(d=>['active','additive'].includes(d.basisState)),diagnostics:string[]=[];
+  const tables=sourceTables(docs,diagnostics),byId=new Map<string,ActivityUncertainty>(),conflicts:string[]=[];
+  for(const table of tables)for(const row of table.rows){
+    const activityId=cell(row,'activity id','activity code','schedule activity id').trim();if(!activityId||!remainingById.has(activityId))continue;
+    const minFactor=numberValue(cell(row,'minimum factor','min factor','optimistic factor'));
+    const modeFactor=numberValue(cell(row,'most likely factor','mode factor','likely factor'));
+    const maxFactor=numberValue(cell(row,'maximum factor','max factor','pessimistic factor'));
+    const base=remainingById.get(activityId)!;
+    const optimisticHours=numberValue(cell(row,'optimistic remaining hours','minimum remaining hours','min remaining hours'));
+    const likelyHours=numberValue(cell(row,'most likely remaining hours','mode remaining hours'));
+    const pessimisticHours=numberValue(cell(row,'pessimistic remaining hours','maximum remaining hours','max remaining hours'));
+    const min=minFactor??(optimisticHours!==null&&base>0?optimisticHours/base:null);
+    const mode=modeFactor??(likelyHours!==null&&base>0?likelyHours/base:null);
+    const max=maxFactor??(pessimisticHours!==null&&base>0?pessimisticHours/base:null);
+    if(min===null||mode===null||max===null)continue;
+    if(!(min>0&&min<=mode&&mode<=max&&max>min)){conflicts.push('INVALID_UNCERTAINTY_RANGE:'+activityId);continue;}
+    const candidate:ActivityUncertainty={activityId,minFactor:min,modeFactor:mode,maxFactor:max,correlationGroup:cell(row,'correlation group','risk correlation group','correlation').trim()||null,
+      sourceRefs:['evidence-document:'+row.receipt.documentId+':'+row.receipt.locator]};
+    const prior=byId.get(activityId);
+    if(prior&&(prior.minFactor!==candidate.minFactor||prior.modeFactor!==candidate.modeFactor||prior.maxFactor!==candidate.maxFactor||prior.correlationGroup!==candidate.correlationGroup)){conflicts.push('CONFLICTING_UNCERTAINTY_RANGE:'+activityId);byId.delete(activityId);continue;}
+    if(!conflicts.includes('CONFLICTING_UNCERTAINTY_RANGE:'+activityId))byId.set(activityId,candidate);
+  }
+  return {byId,conflicts,diagnostics};
+}
+
 
 const cache=new WeakMap<ProjectRuntimeState,{version:number;key:string;result:ModuleRuntimeResult}>();
 
@@ -61,13 +90,20 @@ export function scheduleRiskMonteCarlo(state:ProjectRuntimeState,input:Partial<M
   // count is bounded so the on-demand analysis does not monopolize a project worker.
   const iterations=Math.min(requested.iterations,execution.length>20000?500:execution.length>10000?750:requested.iterations);
   const random=seededRandom(requested.seed);
+  const remainingById=new Map(uncertain.map(a=>[a.activityId,a.remainingDurationHours!])),sourceRanges=sourceUncertainty(state,remainingById);
+  const sourceCovered=uncertain.filter(a=>sourceRanges.byId.has(a.activityId)).length;
   const finishes:number[]=[];
   const criticalCounts=new Map<string,number>();
   let failedIterations=0;
   const uncertainIds=new Set(uncertain.map(a=>a.activityId));
   for(let iteration=0;iteration<iterations;iteration+=1){
-    const factors=new Map<string,number>();
-    for(const activity of uncertain)factors.set(activity.activityId,triangular(random,requested.minFactor,requested.modeFactor,requested.maxFactor));
+    const factors=new Map<string,number>(),groupU=new Map<string,number>();
+    for(const activity of uncertain){
+      const source=sourceRanges.byId.get(activity.activityId),range=source??{minFactor:requested.minFactor,modeFactor:requested.modeFactor,maxFactor:requested.maxFactor,correlationGroup:null};
+      let u:number;
+      if(source?.correlationGroup){if(!groupU.has(source.correlationGroup))groupU.set(source.correlationGroup,random());u=groupU.get(source.correlationGroup)!;}else u=random();
+      factors.set(activity.activityId,triangularFromU(u,range.minFactor,range.modeFactor,range.maxFactor));
+    }
     const sampled:CanonicalScheduleModel={...model,activities:model.activities.map(activity=>{
       if(!uncertainIds.has(activity.activityId)||typeof activity.remainingDurationHours!=='number')return activity;
       return {...activity,remainingDurationHours:Number((activity.remainingDurationHours*(factors.get(activity.activityId)??1)).toFixed(6))};
@@ -100,16 +136,20 @@ export function scheduleRiskMonteCarlo(state:ProjectRuntimeState,input:Partial<M
   const data={projectionKey:'schedule_risk_monte_carlo',schemaVersion:'1.0',state:completed?'scenario':'unavailable',projectId:state.projectId,
     sourceRevisionId:model.sourceRevisionId,dataDateIso:model.dataDateIso,deterministicFinishIso:deterministic.projectFinishIso,requiredFinishIso:required,
     iterationsRequested:requested.iterations,iterationsCompleted:completed,failedIterations,seed:requested.seed,
-    uncertainty:{minFactor:requested.minFactor,modeFactor:requested.modeFactor,maxFactor:requested.maxFactor,authority:'scenario_only',
-      basis:'Each incomplete execution activity is sampled independently using the stated triangular factor applied to its source remaining duration. The full schedule network is recalculated each successful iteration.'},
+    uncertainty:{minFactor:requested.minFactor,modeFactor:requested.modeFactor,maxFactor:requested.maxFactor,
+      authority:sourceCovered===uncertain.length&&uncertain.length?'source_ranges':sourceCovered?'mixed_source_and_scenario':'scenario_only',
+      sourceCoveredActivityCount:sourceCovered,scenarioDefaultActivityCount:uncertain.length-sourceCovered,coveragePercent:uncertain.length?Number((sourceCovered/uncertain.length*100).toFixed(2)):null,
+      correlationGroupCount:new Set([...sourceRanges.byId.values()].map(r=>r.correlationGroup).filter(Boolean)).size,
+      conflicts:sourceRanges.conflicts,
+      basis:'Each incomplete execution activity is sampled from an explicit source triangular range where available; otherwise the stated scenario default is used. Activities with the same explicit correlation group share the same percentile draw. The full schedule network is recalculated each successful iteration.'},
     activityPopulation:execution.length,uncertainActivityCount:uncertain.length,confidence,finishByRequiredDateProbabilityPercent:finishProbability,
     histogram:[...histogram.entries()].map(([weekStartIso,count])=>({weekStartIso,count})).sort((a,b)=>a.weekStartIso.localeCompare(b.weekStartIso)),
     riskDrivers:drivers,riskRegister:{currentRiskCount:risk.currentRecordCount??null,linkedOpenRiskActivityCount:openRiskActivities.size,
       basis:'Risk-register links are shown as context only. No duration impact or probability is invented from qualitative risk ratings.'},
     assumptions:[
       'This is a schedule-risk scenario, not the official project forecast or contractual completion position.',
-      'Default uncertainty factors are explicit scenario assumptions until project-specific activity uncertainty ranges are supplied.',
-      'Activity durations are sampled independently; correlation groups are not established from the current project evidence.',
+      sourceCovered?sourceCovered+' activity uncertainty range(s) are read from explicit source factor/hour fields; remaining activities use the displayed scenario defaults.':'Default uncertainty factors are explicit scenario assumptions until project-specific activity uncertainty ranges are supplied.',
+      sourceRanges.byId.size?'Explicit correlation groups are applied where supplied; ungrouped activities are sampled independently.':'Activity durations are sampled independently because no explicit correlation groups are established from the current project evidence.',
       'Completed activities retain their actual dates. Deterministic CPM remains the canonical current schedule calculation.'
     ]};
   const result:ModuleRuntimeResult={key:'monte-carlo-risk',status:completed?'partial':'blocked',engineState:'ready',evidenceState:'partial',professionalState:'review_required',
