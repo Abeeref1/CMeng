@@ -21,4 +21,8 @@ for(const kind of ['schedule','boq','contract','evidence'])test(kind+' upload re
   assert.deepEqual(refreshed,[],'finishing FIRST must not refresh SECOND');
   assert.ok(recalculated[0]?.includes('/FIRST/'));
   requests[1]!.resolve();await second;assert.deepEqual(refreshed,['SECOND']);assert.ok(recalculated[1]?.includes('/SECOND/'));
+  const completed=context.projectUploadJobs.get('SECOND'),message=completed.message;
+  context.updateUploadJob(completed,{state:'receiving',percent:0,message:'Waiting to receive project documents'},0,1,'');
+  assert.equal(completed.message,message,'a delayed poll must not overwrite the completed upload');
+  assert.equal(el('uploadMessage').textContent,message);
 });

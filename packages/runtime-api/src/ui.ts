@@ -4557,7 +4557,8 @@ function uploadEvidenceFileWithProgress(file,fileIndex,fileTotal,job){
         reject(Object.assign(new Error(data?.message||data?.reason||data?.error||("HTTP "+xhr.status)),{status:xhr.status,data}));
         return;
       }
-      updateUploadJob(job,lastServerProgress||{
+      updateUploadJob(job,{
+        ...(lastServerProgress||{}),
         state:"complete",
         percent:100,
         message:"File processed · check Documents for the reading result",

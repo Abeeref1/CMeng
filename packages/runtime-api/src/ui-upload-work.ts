@@ -11,6 +11,7 @@ function renderBackgroundUploads(){
   el("backgroundUploads").querySelectorAll(".upload-project-link").forEach(button=>button.onclick=()=>openProject(button.dataset.project));
 }
 function updateUploadJob(job,progress,index,total,detail){
+  if(job.state!=="uploading")return;
   job.percent=Math.round((index+progress.percent/100)/total*100);
   job.message=progress.message||"Processing project documents";
   renderBackgroundUploads();
@@ -44,6 +45,7 @@ async function startProjectUpload(kind){
     if(uploadJobVisible(job)){
       await refresh(false);
       if(uploadJobVisible(job)){
+        el('uploadMessage').textContent=job.message;
         const review=currentModuleResult?.scheduleAuthorityReview||currentModuleResult?.data?.scheduleAuthorityReview;
         if(review?.pendingSchedules?.length){
           job.message=review.state==='missing'?'Programme uploaded · adoption required':'Documents loaded · programme revisions await review';

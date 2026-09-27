@@ -117,6 +117,10 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
           if(retain)incoming.on('data',(chunk:Buffer)=>{bytes+=chunk.length;if(bytes<=MAX_PROJECT_READ_BYTES)chunks.push(Buffer.from(chunk));else chunks.length=0;});
           incoming.on('error',reject);incoming.on('aborted',()=>reject(new Error('PROJECT_RESPONSE_INTERRUPTED')));
           incoming.on('end',()=>{
+            if(uploadId){
+              const key=id+'::'+uploadId,prior=progress.get(key);
+              if(prior?.state!=='complete'&&prior?.state!=='failed')progress.set(key,{...prior,state:succeeded?'complete':'failed',percent:succeeded?100:prior?.percent??0,message:succeeded?'File processed · check Documents for the reading result':'The upload could not finish. Check the document register before retrying.',updatedAt:new Date().toISOString()});
+            }
             if(retain&&bytes<=MAX_PROJECT_READ_BYTES)void reads(id).put(release(),version,path,Buffer.concat(chunks)).then(resolve,resolve);
             else resolve();
           });forwardHttpBody(res,incoming);

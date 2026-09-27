@@ -57,6 +57,7 @@ test('CPI is the Commercial authority value, with future snapshots excluded and 
   const metric=r.sections.flatMap(s=>s.metrics).find(m=>m.id.includes('.cpi-'))!;
   assert.equal(metric.value,.8);assert.equal(typeof metric.basis,'string');assert.match(metric.basis,/EV.*AC/);assert.ok(r.sections.flatMap(s=>s.traces).some(t=>t.sourceRefs.length>0));assert.equal(metric.value,source.position.performance.costControl.positions[0].cpi.value);assert.equal(r.scope.dataDate,'2036-08-31');assert.match(r.narrative[0]!.text,/0.8/);assert.ok(!r.narrative[0]!.text.includes('9999'));
   const empty=await fixture(t),missing=await empty.ask('What is CPI?');assert.equal(missing.sections.flatMap(s=>s.metrics).find(m=>m.id.endsWith('.cpi'))!.value,null);
+  assert.doesNotMatch(JSON.stringify(missing),/Cost snapshots are available/);assert.match(JSON.stringify(missing),/Cost snapshots are not established/);
 });
 test('custom materials query calculates 52/64=81.25%, uses linked need dates and exposes the excess four units',async t=>{
   const f=await fixture(t);await materials(f);const before=f.state.version;
