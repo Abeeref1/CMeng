@@ -2049,6 +2049,11 @@ function filterActivityReview(){
   body.innerHTML=rows.slice(0,500).map(activityReviewRowHtml).join("")||'<tr><td colspan="13">No activities match the selected filters.</td></tr>';
 }
 function renderActivityAnalyticsVisual(data){
+  const rowHtml=a=>'<tr><td><b>'+escapeHtml(a.activityId)+'</b><br><span class="muted">'+escapeHtml(a.name||"")+'</span><br><span class="muted">'+escapeHtml(a.wbsPath||a.wbsId||"")+'</span></td>'+
+    '<td>'+escapeHtml(a.zone||"—")+'</td><td>'+escapeHtml(a.floor||a.level||"—")+'</td><td>'+escapeHtml(a.discipline||"—")+'</td><td>'+escapeHtml(a.package||"—")+'</td>'+
+    '<td>'+escapeHtml(planningStateLabel(a.status))+'</td><td><span class="state-pill '+(a.criticality==="critical"?"blocked":a.criticality==="near_critical"?"review":"ready")+'">'+escapeHtml(planningStateLabel(a.criticality))+'</span></td>'+
+    '<td>'+escapeHtml(planningShortDate(a.currentStartIso))+'</td><td>'+escapeHtml(planningShortDate(a.currentFinishIso))+'</td><td>'+escapeHtml(a.percentComplete===null?"—":fmt(a.percentComplete)+"%")+'</td>'+
+    '<td>'+escapeHtml(fmt(a.totalFloatHours))+'</td><td>'+escapeHtml(a.finishVarianceDays===null?"Unresolved":fmt(a.finishVarianceDays))+'</td><td>'+escapeHtml(a.delayStatus||"—")+'</td></tr>';
   const p=projectionFor(data,"activity_analytics");
   if(!Array.isArray(p.rows))return"";
   const executionRows=p.rows.filter(row=>!["level_of_effort","wbs_summary"].includes(row.activityType));
@@ -2098,7 +2103,7 @@ function renderActivityAnalyticsVisual(data){
     const bs=(b.scheduleDelayed?1500:0)+(b.criticality==="critical"?1000:b.criticality==="near_critical"?500:0)+(b.finishVarianceDays>0?b.finishVarianceDays:0)+(b.totalFloatHours<0?200:0);
     return bs-as||String(a.activityId).localeCompare(String(b.activityId));
   }).slice(0,500);
-  const rows=ranked.map(activityReviewRowHtml).join("");
+  const rows=ranked.map(rowHtml).join("");
   const options=key=>[...new Set(executionRows.map(r=>r[key]).filter(v=>v!==null&&v!==undefined&&String(v).trim()))].sort((a,b)=>String(a).localeCompare(String(b),undefined,{numeric:true}));
   const select=(id,label,key,custom=null)=>'<label>'+escapeHtml(label)+'<select id="'+id+'" onchange="filterActivityReview()"><option value="">All</option>'+((custom||options(key)).map(v=>'<option value="'+escapeHtml(String(Array.isArray(v)?v[0]:v))+'">'+escapeHtml(String(Array.isArray(v)?v[1]:v))+'</option>').join(""))+'</select></label>';
   const floors=[...new Set(executionRows.map(r=>r.floor??r.level).filter(Boolean))].sort((a,b)=>String(a).localeCompare(String(b),undefined,{numeric:true}));
