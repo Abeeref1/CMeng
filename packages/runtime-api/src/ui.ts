@@ -2328,6 +2328,98 @@ function renderVarianceTrendVisual(data){
     ["Project finish movement",latest.projectCompletionVarianceDays===null?"Unresolved":fmt(latest.projectCompletionVarianceDays)+" d","vs controlled baseline",latest.projectCompletionVarianceDays>0?"danger":""]
   ])+'<section class="planning-panel"><div class="planning-panel-head"><div><h4>Revision values</h4><p>Exact values supporting the trend. Source activity finish movements use the shared activity matching; unknown baseline and ambiguous identity remain visible.</p></div></div><div class="planning-panel-body"><div class="revision-value-grid">'+cards+'</div>'+distributionSummary(latest.movementDistribution)+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Revision detail</h4></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Seq</th><th>Revision</th><th>Data date</th><th>Avg vs baseline d</th><th>Max movement d</th><th>Late</th><th>Early</th><th>On time</th><th>Neg. float</th><th>Critical</th><th>Project finish vs baseline d</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></section></section>';
 }
+function commercialCapabilityValue(value,unit=""){
+  if(value&&typeof value==="object"&&"value" in value){
+    const v=value.value;
+    if(v===null||v===undefined)return"Unresolved";
+    if(typeof v==="string"&&/^\d{4}-\d{2}-\d{2}/.test(v))return planningShortDate(v);
+    return fmt(v)+(unit?" "+unit:"");
+  }
+  if(value===null||value===undefined)return"Unresolved";
+  return typeof value==="string"&&/^\d{4}-\d{2}-\d{2}/.test(value)?planningShortDate(value):fmt(value)+(unit?" "+unit:"");
+}
+function renderCommercialCapabilityVisual(key,data){
+  if(!data||typeof data!=="object")return"";
+  const table=(heads,rows,empty)=>rows.length?'<div class="table-wrap"><table><thead><tr>'+heads.map(h=>'<th>'+escapeHtml(h)+'</th>').join("")+'</tr></thead><tbody>'+rows.join("")+'</tbody></table></div>':'<div class="empty-visual">'+escapeHtml(empty)+'</div>';
+  const state=humanizeKey(data.state||"missing");
+  const head=(title,description)=>'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>'+escapeHtml(title)+'</h4><p>'+escapeHtml(description)+'</p></div><span class="badge '+(data.state==="established"?"ready":"partial")+'">'+escapeHtml(state)+'</span></div><div class="planning-panel-body">';
+  if(key==="commercial-terms"){
+    const clauses=data.clauses||[],amendments=data.amendments||[];
+    return '<section class="planning-view commercial-capability">'+planningKpis([
+      ["Contract currency",commercialCapabilityValue(data.contractCurrency),"source term"],
+      ["Contract completion",commercialCapabilityValue(data.contractualCompletionDate),"dated contract basis"],
+      ["Retention",commercialCapabilityValue(data.retentionPercent,"%"),"contract term"],
+      ["Retention cap",commercialCapabilityValue(data.retentionCapPercent,"%"),"contract term"],
+      ["Certification period",commercialCapabilityValue(data.certificationPeriodDays,"days"),"contract term"],
+      ["Payment period",commercialCapabilityValue(data.paymentPeriodDays,"days"),"contract term"],
+      ["Notice period",commercialCapabilityValue(data.noticePeriodDays,"days"),"contract version at event date"],
+      ["Clauses",clauses.length,amendments.length+" amendments"]
+    ])+head("Commercial terms & amendments","Contract terms remain dated and source-backed. Provisional or conflicting terms do not become current facts.")+
+      table(["Clause","Heading","Role","State","Page"],clauses.map(r=>'<tr><td>'+escapeHtml(r.identifier||"Not numbered")+'</td><td>'+escapeHtml(r.heading||"")+'</td><td>'+escapeHtml(r.documentRole||"")+'</td><td>'+escapeHtml(humanizeKey(r.governanceState))+'</td><td>'+escapeHtml(r.startPage??"—")+'</td></tr>'),"No contract clauses are established.")+
+      '<details class="source-scope"><summary>Amendments · '+fmt(amendments.length)+'</summary>'+table(["Document","Effective","Completion","EOT incorporated","State"],amendments.map(r=>'<tr><td>'+escapeHtml(r.documentId)+'</td><td>'+escapeHtml(planningShortDate(r.effectiveDate))+'</td><td>'+escapeHtml(planningShortDate(r.completionIso))+'</td><td>'+escapeHtml(r.incorporatedEotDays===null?"Unresolved":fmt(r.incorporatedEotDays)+" d")+'</td><td>'+escapeHtml(humanizeKey(r.state))+'</td></tr>'),"No amendments are established.")+'</details></div></section></section>';
+  }
+  if(key==="cost-register"){
+    const rows=data.rows||[];
+    return '<section class="planning-view commercial-capability">'+planningKpis([
+      ["Cost records",data.recordCount,"source records"],
+      ["Mapped to CBS",data.mappedCbsRecordCount,"records"],
+      ["Unmapped",data.unmappedCbsRecordCount,"records"],
+      ["CBS coverage",data.mappingCoveragePercent===null?"Unresolved":fmt(data.mappingCoveragePercent)+"%","explicit mapping only"]
+    ])+head("Cost register","Cost records retain WBS, CBS, currency, tax basis and reporting date. Different currencies are not combined.")+
+      table(["Cost code","Description","WBS","Currency","Tax basis","State"],rows.slice(0,500).map(r=>'<tr><td><b>'+escapeHtml(r.costCode||"Unmapped")+'</b></td><td>'+escapeHtml(r.description||"")+'</td><td>'+escapeHtml(r.wbsId||"—")+'</td><td>'+escapeHtml(r.currency||"")+'</td><td>'+escapeHtml(humanizeKey(r.taxBasis||"unknown"))+'</td><td>'+escapeHtml(humanizeKey(r.state||"missing"))+'</td></tr>'),"No cost-register records are established.")+'</div></section></section>';
+  }
+  if(key==="payment-register"){
+    const rows=data.rows||[],lc=data.lifecycleCounts||{},sla=data.slaCounts||{};
+    return '<section class="planning-view commercial-capability">'+planningKpis([
+      ["Certificates by Data Date",data.asOfRecordCount??data.recordCount,"current population"],
+      ["Future",data.futureRecordCount??0,"excluded from current"],
+      ["Undated",data.undatedRecordCount??0,"excluded from current"],
+      ["Stage coverage",data.stageCoveragePercent===null?"Unresolved":fmt(data.stageCoveragePercent)+"%","application → payment"],
+      ["Applied",lc.applied??0,"records"],["Assessed",lc.assessed??0,"records"],["Certified",lc.certified??0,"records"],["Paid",lc.paid??0,"records"],
+      ["Overdue unpaid",sla.overdueUnpaid===null||sla.overdueUnpaid===undefined?"Not assessable":sla.overdueUnpaid,"confirmed due dates only"]
+    ])+head("Payment / IPC register","Application, assessment, certification and payment are separate lifecycle events. Future and undated periods never enter current totals.")+
+      table(["Payment","Type","Period","Applied","Assessed","Certified","Payment due","Paid","SLA"],rows.slice(0,500).map(r=>'<tr><td><b>'+escapeHtml(r.paymentId)+'</b></td><td>'+escapeHtml(r.paymentType||"—")+'</td><td>'+escapeHtml(planningShortDate(r.periodEnd))+'</td><td>'+escapeHtml(planningShortDate(r.lifecycle?.applicationDate))+'</td><td>'+escapeHtml(planningShortDate(r.lifecycle?.assessmentDate))+'</td><td>'+escapeHtml(planningShortDate(r.lifecycle?.certificationDate))+'</td><td>'+escapeHtml(commercialCapabilityValue(r.lifecycle?.paymentDueDate))+'</td><td>'+escapeHtml(planningShortDate(r.lifecycle?.paymentDate))+'</td><td>'+escapeHtml(humanizeKey(r.lifecycle?.slaState||"not established"))+'</td></tr>'),"No payment records are established.")+'</div></section></section>';
+  }
+  if(key==="cbs-breakdown"){
+    const rows=data.nodes||[];
+    return '<section class="planning-view commercial-capability">'+planningKpis([
+      ["CBS nodes",data.nodeCount,"hierarchy population"],["Roots",(data.rootCostCodes||[]).length,"root codes"],
+      ["Mapping coverage",data.mappingCoveragePercent===null?"Unresolved":fmt(data.mappingCoveragePercent)+"%","explicit cost mapping"],
+      ["Unmapped metrics",data.unmappedCostMetricCount,"retained for review"]
+    ])+head("Cost Breakdown Structure","CBS remains separate from WBS and contractual package identity. Only explicit links are shown.")+
+      table(["CBS","Description","Parent","WBS links","BOQ links","Payment links"],rows.slice(0,500).map(r=>'<tr><td><b>'+escapeHtml(r.costCode)+'</b></td><td>'+escapeHtml(r.description||"")+'</td><td>'+escapeHtml(r.parentCostCode||"Root")+'</td><td>'+escapeHtml((r.wbsIds||[]).join(", ")||"—")+'</td><td>'+escapeHtml((r.boqItemIds||[]).join(", ")||"—")+'</td><td>'+escapeHtml((r.paymentIds||[]).join(", ")||"—")+'</td></tr>'),"No CBS hierarchy is established.")+'</div></section></section>';
+  }
+  if(key==="cost-control"){
+    const rows=data.positions||[];
+    const panels=rows.map(r=>'<section class="planning-panel"><div class="planning-panel-head"><div><h4>'+escapeHtml(r.currency+" · "+humanizeKey(r.taxBasis||"unknown")+" tax basis")+'</h4></div></div><div class="planning-panel-body">'+planningKpis([
+      ["BAC",commercialCapabilityValue(r.bac,r.currency),"budget at completion"],["PV",commercialCapabilityValue(r.pv,r.currency),"planned value"],["EV",commercialCapabilityValue(r.ev,r.currency),"earned value"],["AC",commercialCapabilityValue(r.ac,r.currency),"actual cost"],
+      ["SPI",commercialCapabilityValue(r.spi),"EV / PV"],["CPI",commercialCapabilityValue(r.cpi),"EV / AC"],["CV",commercialCapabilityValue(r.cv,r.currency),"EV − AC"],["SV",commercialCapabilityValue(r.sv,r.currency),"EV − PV"],
+      ["Source EAC",commercialCapabilityValue(r.sourceEac,r.currency),"source forecast"],["VAC",commercialCapabilityValue(r.calculatedVac,r.currency),"BAC − source EAC"],["TCPI · BAC",commercialCapabilityValue(r.tcpiBudget),"required efficiency"],["TCPI · EAC",commercialCapabilityValue(r.tcpiForecast),"required efficiency"]
+    ])+'</div></section>').join("");
+    return '<section class="planning-view commercial-capability">'+head("Cost control","BAC, PV, EV, AC and forecast scenarios remain separated by currency and tax basis. Calculated scenarios never replace a source forecast.")+panels+'</div></section></section>';
+  }
+  if(key==="evm-performance"){
+    const series=data.series||[];
+    return '<section class="planning-view commercial-capability">'+planningKpis([["Series",series.length,"currency / tax partitions"],["State",state,"time-phased source observations"]])+
+      series.map(s=>{const points=(s.points||[]).map(p=>({dateIso:p.asOf,pv:metricValue(p.pv),ev:metricValue(p.ev),ac:metricValue(p.ac),spi:metricValue(p.spi),cpi:metricValue(p.cpi)}));return '<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>'+escapeHtml(s.currency+" · "+humanizeKey(s.taxBasis||"unknown"))+'</h4><p>'+escapeHtml(fmt(s.completePvEvAcPointCount))+' complete PV/EV/AC points · '+escapeHtml(s.coveragePercent===null?"coverage unresolved":fmt(s.coveragePercent)+"% coverage")+'</p></div></div><div class="planning-panel-body"><div class="commercial-visual-grid">'+
+        renderVisualPanel("PV / EV / AC","Source time-phased values only.",renderLineChart(points,[{key:"pv",label:"PV",tone:"graphite"},{key:"ev",label:"EV",tone:"accent"},{key:"ac",label:"AC",tone:"danger"}],null,{unit:s.currency,yLabel:"Value",xLabel:"Reporting date"}))+
+        renderVisualPanel("SPI / CPI","Calculated indices on the same source observations.",renderLineChart(points,[{key:"spi",label:"SPI",tone:"accent"},{key:"cpi",label:"CPI",tone:"success"}],null,{yLabel:"Index",xLabel:"Reporting date",zeroBaseline:false}))+
+        '</div></div></section>';}).join("")+'</section>';
+  }
+  if(key==="cost-scurve"){
+    return '<section class="planning-view commercial-capability">'+(data.series||[]).map(s=>{const points=(s.points||[]).map(p=>({dateIso:p.asOf,pv:metricValue(p.plannedCost),ev:metricValue(p.earnedValue),ac:metricValue(p.actualCost),eac:metricValue(p.sourceEac)}));return renderVisualPanel(s.currency+" · Cost S-Curve","PV, EV, AC and source EAC; currencies and tax bases remain separate.",renderLineChart(points,[{key:"pv",label:"PV",tone:"graphite"},{key:"ev",label:"EV",tone:"accent"},{key:"ac",label:"AC",tone:"danger"},{key:"eac",label:"EAC",tone:"purple"}],null,{unit:s.currency,yLabel:"Cost",xLabel:"Reporting date"}));}).join("")+'</section>';
+  }
+  if(key==="cash-flow-register"){
+    return '<section class="planning-view commercial-capability">'+(data.currencies||[]).map(r=>'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>'+escapeHtml(r.currency+" · Cash Flow Register")+'</h4><p>Actual receipts, actual expenditure, certification and forward plan remain separate.</p></div></div><div class="planning-panel-body">'+planningKpis([
+      ["Certified",commercialCapabilityValue(r.certifiedIncome,r.currency),"income certified"],["Paid",commercialCapabilityValue(r.paidIncome,r.currency),"cash received"],["Actual expenditure",commercialCapabilityValue(r.actualExpenditure,r.currency),"cash spent"],["Net cash",commercialCapabilityValue(r.netCashPosition,r.currency),"paid less actual expenditure"],["Peak funding need",commercialCapabilityValue(r.peakFundingNeed,r.currency),"observed deficit"]
+    ])+'</div></section>').join("")+'</section>';
+  }
+  const rows=data.rows||data.bonds||data.insurances||data.scenarios||[];
+  const count=data.recordCount??rows.length;
+  return '<section class="planning-view commercial-capability">'+planningKpis([["Current state",state,"source-backed capability"],["Records / scenarios",count,"current capability population"]])+head(names[key]||humanizeKey(key),descriptions[key]||"Controlled commercial position.")+
+    (rows.length?'<div class="table-wrap"><table><thead><tr>'+Object.keys(rows[0]).filter(k=>!["sourceRefs","diagnostics","source","cost","amount"].includes(k)&&["string","number","boolean"].includes(typeof rows[0][k])||rows[0][k]===null).slice(0,10).map(k=>'<th>'+escapeHtml(humanizeKey(k))+'</th>').join("")+'</tr></thead><tbody>'+rows.slice(0,300).map(row=>'<tr>'+Object.keys(rows[0]).filter(k=>!["sourceRefs","diagnostics","source","cost","amount"].includes(k)&&["string","number","boolean"].includes(typeof rows[0][k])||rows[0][k]===null).slice(0,10).map(k=>'<td>'+escapeHtml(row[k]===null||row[k]===undefined?"Unresolved":/^\d{4}-\d{2}-\d{2}/.test(String(row[k]))?planningShortDate(row[k]):fmt(row[k]))+'</td>').join("")+'</tr>').join("")+'</tbody></table></div>':'<div class="empty-visual">No current rows are established for this capability.</div>')+
+    '</div></section></section>';
+}
 function renderScopeClassificationVisual(data){
   const p=projectionFor(data,"scope_classification");
   if(!Array.isArray(p.coverage))return"";
@@ -3815,6 +3907,7 @@ function renderSpecializedModule(key,data){
   if(key==="windows-analysis")return renderWindowsVisual(data);
   if(key==="eot-assessment")return renderEotVisual(data);
   if(["commercial-overview","cost-forecast","variations-change","payments","cash-flow","commercial-claims-notices","contract-particulars-bonds"].includes(key))return renderCommercialVisual(key,data);
+  if(["commercial-terms","cost-register","payment-register","cbs-breakdown","cost-control","evm-performance","cash-flow-register","cost-scurve","site-instructions","contract-obligations","liquidated-damages","bonds-insurance","retention-calendar"].includes(key))return renderCommercialCapabilityVisual(key,data);
   return"";
 }
 function findProjectionRoot(data){
