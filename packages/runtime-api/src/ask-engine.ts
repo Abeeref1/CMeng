@@ -95,7 +95,7 @@ function narrativeFor(result:AnalysisResult):NarrativeBlock[]{
   const lines=metrics.slice(0,result.presentation.detail==='short'?6:18).map(m=>m.label+': '+(m.value===null?(ar?'غير مثبت':'Not established'):String(m.value)+(m.unit?' '+m.unit:''))+(m.state==='candidate'?' · candidate source, not governed':''));
   const direct=diagnosisAnswer(result)??drivingPathAnswer(result)??delayDriversAnswer(result)??activityAnswer(result)??completionAnswer(result);
   const blocks:NarrativeBlock[]=direct?[direct]:[{heading:ar?'الوضع الحالي':'Answer',text:lines.length?lines.join('\n'):result.sections.map(s=>s.tables.length?s.tables.reduce((n,t)=>n+(t.selection?.matching??t.rows.length),0)+' matching records in '+s.title+'.':s.title+': '+s.explanation).slice(0,8).join('\n'),classification:'calculated_intelligence',traceIds:metrics.slice(0,18).map(m=>m.traceId)}];
-  if(direct&&result.sections.some(s=>!['activities','float','critical-path'].includes(s.authorityId))&&lines.length)blocks.push({heading:'Other project figures',text:lines.join('\n'),classification:'calculated_intelligence',traceIds:metrics.slice(0,18).map(m=>m.traceId)});
+  if(direct&&result.sections.some(s=>!['activities','float','critical-path'].includes(s.authorityId))&&knownMetrics.length)blocks.push({heading:'Other project figures',text:lines.join('\n'),classification:'calculated_intelligence',traceIds:metrics.slice(0,18).map(m=>m.traceId)});
   const findings=result.sections.flatMap(s=>s.findings).filter(f=>f.severity==='action').sort((a,b)=>a.id.localeCompare(b.id));
   if(findings.length)blocks.push({heading:ar?'ما يحتاج الى اهتمام':'What requires attention',text:findings.slice(0,8).map(f=>f.title+': '+f.explanation).join('\n'),classification:'calculated_intelligence',traceIds:findings.slice(0,8).flatMap(f=>f.traceIds)});
   if(findings.length)blocks.push({heading:ar?'الاجراءات المقترحة':'Recommended actions',text:[...new Set(findings.map(f=>f.action))].slice(0,8).join('\n'),classification:'professional_guidance',traceIds:findings.slice(0,8).flatMap(f=>f.traceIds)});
@@ -188,7 +188,11 @@ export class ProjectAskEngine {
           }
         }
         const countGapTables=new Set<string>();
-        const authorityPlan={...plan,groupBy:result.authorityId==='wbs'?plan.groupBy.filter(g=>g!=='wbsId'):plan.groupBy,filters:[...plan.filters,...(plan.authorityFilters?.[result.authorityId]??[])]};
+        // Diagnosis has already selected activities and their linked evidence together.
+        // Reapplying WBS/activity filters to evidence rows (which lack those dimensions)
+        // drops valid linked records and incorrectly invalidates the scoped count.
+        const selectedDiagnosis=result.authorityId==='project-diagnosis'&&plan.diagnosisActivityFilters!==undefined&&['delay_diagnosis','wbs_pressure'].includes(plan.questionRecipe??'');
+        const authorityPlan={...plan,groupBy:result.authorityId==='wbs'?plan.groupBy.filter(g=>g!=='wbsId'):plan.groupBy,filters:selectedDiagnosis?[]:[...plan.filters,...(plan.authorityFilters?.[result.authorityId]??[])]};
         if(authorityPlan.filters.length||plan.groupBy.length||plan.criticalOnly||plan.issuesOnly||plan.limit!==null||plan.nextDays!==null||plan.deliveryBelowPercent!==null||plan.countRows){
           result.tables=result.tables.map(table=>{const ranking=plan.rankings?.find(r=>r.authorityId===result.authorityId);let queryPlan=plan.rankings?.length?{...authorityPlan,rankBy:ranking?.field??null,rankDirection:ranking?.direction??'desc',limit:ranking?.limit??null}:authorityPlan;
             if(result.authorityId==='float'&&plan.authorityFilters?.activities?.some(f=>f.field==='scheduleDelayed'))queryPlan={...authorityPlan,rankBy:'totalFloatHours',rankDirection:'asc'};

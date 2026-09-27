@@ -67,6 +67,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: cmeng-verification-${{ github.run_id }}
+          name: cmeng-verification-${{ github.run_id }}-${{ github.run_attempt }}
           path: /tmp/cmeng-verification/
           retention-days: 7
