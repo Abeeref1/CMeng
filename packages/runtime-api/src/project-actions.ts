@@ -18,7 +18,7 @@ export interface ProjectAction {
     instruction:string;
     completionRule:string;
   };
-  target:{type:'schedule'|'document'|'delivery'|'module'|'upload'|'inline';label:string;documentId?:string;revisionId?:string;phaseId?:string;canConfirm?:boolean;moduleKey?:string;kind?:string;population?:boolean;uploadHint?:string};
+  target:{type:'schedule'|'document'|'delivery'|'module'|'upload'|'inline';label:string;documentId?:string;revisionId?:string;phaseId?:string;canConfirm?:boolean;moduleKey?:string;kind?:string;population?:boolean;uploadHint?:string;uploadMode?:'schedule'|'evidence';sourceHash?:string;scheduleRole?:string;needsPurpose?:boolean;approvalRequired?:boolean;relationshipOptions?:Array<{value:'new_record'|'replacement'|'amendment';label:string}>;relationshipTargets?:Array<{documentId:string;filename:string;familyKey:string;basisState:string}>};
   issue?:ControlIssue;requestCount?:number;findingIds?:string[];findings?:ControlIssue[];affectedPages?:string[];completionPosition?:unknown;
 }
 const identity=(value:unknown)=>createHash('sha256').update(JSON.stringify(value)).digest('hex').slice(0,24);
@@ -26,8 +26,8 @@ type ReviewGroup=ReturnType<typeof projectReviewGroup>;
 function informationResolution(instruction:string):Pick<ProjectAction,'category'|'resolution'|'target'>{
   return {category:'information',resolution:{kind:'information',requiresUserAction:false,instruction,completionRule:'No user action is required. CMeng will refresh this information automatically when the underlying project evidence or calculation changes.'},target:{type:'inline',label:'Why this is not an action'}};
 }
-function uploadResolution(label:string,hint:string,instruction:string):Pick<ProjectAction,'category'|'resolution'|'target'>{
-  return {category:'review',resolution:{kind:'upload',requiresUserAction:true,instruction,completionRule:'This action closes automatically after the uploaded evidence establishes or corrects the required basis.'},target:{type:'upload',label,uploadHint:hint}};
+function uploadResolution(label:string,hint:string,instruction:string,uploadMode:'schedule'|'evidence'='evidence'):Pick<ProjectAction,'category'|'resolution'|'target'>{
+  return {category:'review',resolution:{kind:'upload',requiresUserAction:true,instruction,completionRule:'This action closes automatically after the uploaded evidence establishes or corrects the required basis.'},target:{type:'upload',label,uploadHint:hint,uploadMode}};
 }
 function actionResolution(group:ReviewGroup,issues:ControlIssue[]):Pick<ProjectAction,'category'|'resolution'|'target'>{
   const conflict=issues.some(i=>['source_conflict','data_quality'].includes(i.kind));
@@ -80,7 +80,7 @@ function actionResolution(group:ReviewGroup,issues:ControlIssue[]):Pick<ProjectA
         : informationResolution('Missing optional commercial information remains unavailable; it does not require a user confirmation.');
     case 'programme-information':
       return conflict
-        ? uploadResolution('Upload corrected programme','Corrected current programme','Upload a corrected programme if the source itself is wrong. CMeng will not ask you to manually repair source schedule fields in another page.')
+        ? uploadResolution('Upload corrected programme','Corrected current programme','Upload a corrected programme if the source itself is wrong. CMeng will not ask you to manually repair source schedule fields in another page.','schedule')
         : informationResolution('The programme does not establish this optional field. CMeng will keep the measure unavailable rather than ask you to invent it.');
     default:
       return conflict
@@ -93,14 +93,35 @@ export function programmeActions(state:ProjectRuntimeState):ProjectAction[]{
   const items:ProjectAction[]=[];
   for(const [phaseId,scope]of [[null,state],...(state.phaseProgrammes??[]).map(p=>[p.phaseId,phaseProgrammeState(state,p.phaseId)])] as Array<[string|null,ProjectRuntimeState]>){
     const review=scheduleAuthorityReview(scope),prefix=phaseId?'Phase '+phaseId+': ':'';
-    const add=(revisionId:string,documentId:string,filename:string,canConfirm:boolean,reason:string,current=false)=>items.push({id:'schedule:'+identity([phaseId,revisionId]),category:'confirmation',title:prefix+(current?'Confirm the schedule used for reporting':'Review the uploaded schedule'),reason:filename+'. '+reason+' '+(()=>{const m=scope.schedules.find(r=>r.revision.revisionId===revisionId)?.revision.model;return m?m.activities.length+' activities recognised; Data Date '+(m.dataDateIso??'not supplied')+'.':'';})(),recordCount:1,
-      resolution:{kind:canConfirm?'confirm':'choose',requiresUserAction:true,instruction:canConfirm?'Confirm that this is the programme CMeng should use for the current reporting position.':'Open the programme details and resolve its purpose/date before CMeng can use it for reporting.',completionRule:'The action closes when a valid reporting programme is explicitly selected.'},
-      target:{type:'schedule',label:canConfirm?'Use this schedule for reporting':'Review schedule details',revisionId,documentId,canConfirm,...phaseId?{phaseId}:{}}});
-    if(review.state==='pending_review'&&review.currentRevisionId&&review.documentId){const revision=scope.schedules.find(r=>r.revision.revisionId===review.currentRevisionId)!;const canConfirm=!!review.dataDateIso&&!(revision.roleConfirmed&&['baseline','revised_baseline'].includes(revision.role)&&!revision.approvalReference?.trim());add(review.currentRevisionId,review.documentId,revision.sourceFilename??revision.revision.label??'Selected schedule',canConfirm,canConfirm?'CMeng is already using this schedule. Confirm that this is your reporting selection.':'Review its reporting date and programme purpose before confirming.',true);}
-    for(const p of review.pendingSchedules)add(p.revisionId,p.documentId,p.filename,p.canAdopt,p.adoptionBlocker??(review.currentRevisionId?'This upload has not replaced the current reporting schedule. Review its purpose and date before selecting it.':'Choose the schedule to use for project reporting.'));
+    const add=(revisionId:string,documentId:string,filename:string,canConfirm:boolean,reason:string,current=false)=>{
+      const stored=scope.schedules.find(r=>r.revision.revisionId===revisionId),model=stored?.revision.model;
+      const source=scope.evidenceDocuments.find(d=>d.documentId===documentId);
+      const missingDate=!model?.dataDateIso;
+      const hashMismatch=!!stored&&!!source&&stored.sourceHashSha256!==source.sourceHashSha256;
+      if(!canConfirm&&(missingDate||hashMismatch)){
+        items.push({id:'schedule:'+identity([phaseId,revisionId]),category:'review',title:prefix+'Replace unreadable reporting programme',
+          reason:filename+'. '+reason+' '+(model?model.activities.length+' activities recognised; Data Date '+(model.dataDateIso??'not supplied')+'.':''),
+          recordCount:1,resolution:{kind:'upload',requiresUserAction:true,instruction:'Upload a corrected current programme here. CMeng will process it and use it only after the source is valid.',completionRule:'The action closes when a valid reporting programme is established.'},
+          target:{type:'upload',label:'Upload corrected programme',uploadHint:'Corrected current programme',uploadMode:'schedule',...phaseId?{phaseId}:{}}});
+        return;
+      }
+      const needsPurpose=!canConfirm;
+      items.push({id:'schedule:'+identity([phaseId,revisionId]),category:'confirmation',title:prefix+(current?'Confirm the schedule used for reporting':'Confirm the uploaded schedule'),reason:filename+'. '+reason+' '+(model?model.activities.length+' activities recognised; Data Date '+(model.dataDateIso??'not supplied')+'.':''),
+        recordCount:1,
+        resolution:{kind:needsPurpose?'choose':'confirm',requiresUserAction:true,instruction:needsPurpose?'Choose the programme purpose here and provide an approval reference only if you select a baseline. Then CMeng will make the programme current in the same action.':'Confirm here that CMeng should use this programme for the current reporting position.',completionRule:'The action closes when the programme is explicitly selected as the reporting basis.'},
+        target:{type:'schedule',label:needsPurpose?'Confirm purpose and use programme':'Use this programme for reporting',revisionId,documentId,canConfirm,
+          sourceHash:source?.sourceHashSha256??stored?.sourceHashSha256,scheduleRole:stored?.role??'update',needsPurpose,
+          approvalRequired:needsPurpose&&['baseline','revised_baseline'].includes(stored?.role??''),...phaseId?{phaseId}:{}}});
+    };
+    if(review.state==='pending_review'&&review.currentRevisionId&&review.documentId){
+      const revision=scope.schedules.find(r=>r.revision.revisionId===review.currentRevisionId)!;
+      const canConfirm=!!review.dataDateIso&&!(revision.roleConfirmed&&['baseline','revised_baseline'].includes(revision.role)&&!revision.approvalReference?.trim());
+      add(review.currentRevisionId,review.documentId,revision.sourceFilename??revision.revision.label??'Selected schedule',canConfirm,canConfirm?'CMeng is already using this schedule. Confirm that this is your reporting selection.':'Confirm its programme purpose and approval basis here before CMeng makes it current.',true);
+    }
+    for(const p of review.pendingSchedules)add(p.revisionId,p.documentId,p.filename,p.canAdopt,p.adoptionBlocker??(review.currentRevisionId?'This upload has not replaced the current reporting schedule.':'Choose the schedule to use for project reporting.'));
     if(review.state==='missing'&&!review.pendingSchedules.length)items.push({id:'schedule-missing:'+identity(phaseId),category:'review',title:prefix+'Add a reporting schedule',reason:'A schedule is needed to establish the reporting date and programme results.',recordCount:0,
-      resolution:{kind:'upload',requiresUserAction:true,instruction:'Upload the current reporting programme. CMeng needs this to establish the Data Date and schedule position.',completionRule:'The action closes when a valid reporting programme is uploaded and selected.'},
-      target:{type:'upload',label:'Upload reporting schedule',uploadHint:'Current reporting programme',...phaseId?{phaseId}:{}}});
+      resolution:{kind:'upload',requiresUserAction:true,instruction:'Upload the current reporting programme here. CMeng will process it and establish the schedule position.',completionRule:'The action closes when a valid reporting programme is uploaded and selected.'},
+      target:{type:'upload',label:'Upload reporting programme',uploadHint:'Current reporting programme',uploadMode:'schedule',...phaseId?{phaseId}:{}}});
   }
   return items;
 }
@@ -117,7 +138,7 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
         actions.push({id:'document:'+d.documentId,category:'confirmation',title:'Confirm how this document updates the project',reason:d.sourceFilename+'. Choose once; CMeng will apply the relationship and refresh the project.',recordCount:1,
           resolution:{kind:'choose',requiresUserAction:true,instruction:'Choose how this uploaded document relates to the current project evidence.',completionRule:'The action closes immediately after the relationship is saved.'},
           target:{type:'document',documentId:d.documentId,label:'Confirm relationship',sourceHash:d.sourceHashSha256,relationshipOptions:options,
-            relationshipTargets:targets.map(t=>({documentId:t.documentId,filename:t.sourceFilename,familyKey:t.familyKey,basisState:t.basisState}))} as any});
+            relationshipTargets:targets.map(t=>({documentId:t.documentId,filename:t.sourceFilename,familyKey:t.familyKey,basisState:t.basisState}))}});
       }
     }
   }
