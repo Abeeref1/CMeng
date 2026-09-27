@@ -1236,7 +1236,8 @@ function renderMonteCarloRiskVisual(data){
   const driverRows=drivers.map(row=>'<tr><td><b>'+escapeHtml(row.activityId)+'</b><br><span class="muted">'+escapeHtml(row.name||"")+'</span></td><td>'+escapeHtml(row.wbsId||"—")+'</td><td>'+escapeHtml(row.criticalityIndexPercent===null?"Unresolved":fmt(row.criticalityIndexPercent)+"%")+'</td><td>'+escapeHtml(row.remainingDurationHours===null?"—":fmt(row.remainingDurationHours)+" h")+'</td><td>'+escapeHtml(row.sourceTotalFloatHours===null?"—":fmt(row.sourceTotalFloatHours)+" h")+'</td><td>'+escapeHtml(fmt(row.linkedOpenRiskCount||0))+'</td></tr>').join("");
   const hist=(p.histogram||[]).map(row=>({dateIso:row.weekStartIso,count:row.count}));
   const probability=p.finishByRequiredDateProbabilityPercent;
-  const scenario='<div class="notice warn"><b>Scenario, not an official forecast.</b> Each incomplete activity is sampled independently using triangular factors '+escapeHtml(fmt(p.uncertainty?.minFactor))+' / '+escapeHtml(fmt(p.uncertainty?.modeFactor))+' / '+escapeHtml(fmt(p.uncertainty?.maxFactor))+'. Project-specific uncertainty ranges and correlations are not yet governed. Deterministic CPM remains the current schedule authority.</div>';
+  const uncertainty=p.uncertainty||{},sourceCovered=Number(uncertainty.sourceCoveredActivityCount||0),defaults=Number(uncertainty.scenarioDefaultActivityCount??p.uncertainActivityCount??0);
+  const scenario='<div class="notice '+(defaults?"warn":"info")+'"><b>Schedule-risk simulation, not an official forecast.</b> '+(sourceCovered?escapeHtml(fmt(sourceCovered))+' activities use explicit source uncertainty ranges. ':'')+(defaults?escapeHtml(fmt(defaults))+' activities use scenario-default triangular factors '+escapeHtml(fmt(uncertainty.minFactor))+' / '+escapeHtml(fmt(uncertainty.modeFactor))+' / '+escapeHtml(fmt(uncertainty.maxFactor))+'. ':'')+(uncertainty.correlationGroupCount?escapeHtml(fmt(uncertainty.correlationGroupCount))+' explicit correlation groups are applied. ':'No explicit correlation group is established; ungrouped activities are sampled independently. ')+'Deterministic CPM remains the current schedule authority.</div>';
   return '<section class="planning-view monte-carlo-view">'+planningKpis([
     ["Deterministic finish",planningShortDate(p.deterministicFinishIso),"canonical CPM"],
     ["P50",planningShortDate(percentile("P50")),"scenario completion"],
@@ -1245,7 +1246,9 @@ function renderMonteCarloRiskVisual(data){
     ["Required finish",planningShortDate(p.requiredFinishIso),"contract basis if established"],
     ["Probability ≤ required",probability===null?"Unresolved":fmt(probability)+"%","scenario only"],
     ["Iterations",p.iterationsCompleted,fmt(p.failedIterations||0)+" failed"],
-    ["Uncertain activities",p.uncertainActivityCount,fmt(p.activityPopulation)+" execution activities"]
+    ["Uncertain activities",p.uncertainActivityCount,fmt(p.activityPopulation)+" execution activities"],
+    ["Source uncertainty coverage",uncertainty.coveragePercent===null||uncertainty.coveragePercent===undefined?"0%":fmt(uncertainty.coveragePercent)+"%",sourceCovered+" source · "+defaults+" scenario default"],
+    ["Correlation groups",uncertainty.correlationGroupCount||0,"explicit source groups only"]
   ])+scenario+
   '<div class="planning-primary-grid">'+
     renderVisualPanel("Completion distribution","Successful activity-by-activity network simulations grouped by completion week.",renderLineChart(hist,[{key:"count",label:"Simulations",tone:"accent"}],null,{unit:"runs",yLabel:"Runs",xLabel:"Completion week"}))+
