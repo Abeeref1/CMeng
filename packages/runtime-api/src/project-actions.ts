@@ -13,7 +13,7 @@ import {deliveryPages} from '../../delivery-core/src/registry';
 export interface ProjectAction {
   id:string;category:'confirmation'|'review'|'information';title:string;reason:string;recordCount:number;
   resolution?:{
-    kind:'confirm'|'choose'|'upload'|'correct'|'open_register'|'compare'|'information';
+    kind:'confirm'|'choose'|'upload'|'information';
     requiresUserAction:boolean;
     instruction:string;
     completionRule:string;
@@ -23,65 +23,69 @@ export interface ProjectAction {
 }
 const identity=(value:unknown)=>createHash('sha256').update(JSON.stringify(value)).digest('hex').slice(0,24);
 type ReviewGroup=ReturnType<typeof projectReviewGroup>;
+function informationResolution(instruction:string):Pick<ProjectAction,'category'|'resolution'|'target'>{
+  return {category:'information',resolution:{kind:'information',requiresUserAction:false,instruction,completionRule:'No user action is required. CMeng will refresh this information automatically when the underlying project evidence or calculation changes.'},target:{type:'inline',label:'Why this is not an action'}};
+}
+function uploadResolution(label:string,hint:string,instruction:string):Pick<ProjectAction,'category'|'resolution'|'target'>{
+  return {category:'review',resolution:{kind:'upload',requiresUserAction:true,instruction,completionRule:'This action closes automatically after the uploaded evidence establishes or corrects the required basis.'},target:{type:'upload',label,uploadHint:hint}};
+}
 function actionResolution(group:ReviewGroup,issues:ControlIssue[]):Pick<ProjectAction,'category'|'resolution'|'target'>{
   const conflict=issues.some(i=>['source_conflict','data_quality'].includes(i.kind));
-  const comparison=issues.some(i=>i.kind==='comparison_difference');
-  const upload=(label:string,hint:string,instruction:string,required=false):Pick<ProjectAction,'category'|'resolution'|'target'>=>({
-    category:required?'review':'information',
-    resolution:{kind:'upload',requiresUserAction:required,instruction,completionRule:'CMeng will recalculate this matter automatically after the required project information is supplied and governed.'},
-    target:{type:'upload',label,uploadHint:hint}
-  });
-  const open=(moduleKey:string,label:string,instruction:string,kind:ProjectAction['resolution']['kind']='open_register',required=true):Pick<ProjectAction,'category'|'resolution'|'target'>=>({
-    category:required?'review':'information',
-    resolution:{kind,requiresUserAction:required,instruction,completionRule:required?'Resolve or confirm the underlying record/basis in the connected page. CMeng will then refresh this matter automatically.':'No confirmation is required. This item will update automatically when the underlying project evidence changes.'},
-    target:{type:'module',moduleKey,label}
-  });
   switch(group.key){
     case 'schedule-calculation':
-      return open('independent-forecast','Open calculation comparison',
-        'No approval is required from you. CMeng continues to use the submitted programme as the reporting basis. Open the comparison only if you want to inspect the calendar/date differences; source constraints not applied by CMeng remain a CMeng calculation limitation, not a user confirmation.',
-        'compare',false);
-    case 'contract-completion':
-      return group.available
-        ? open('contract-particulars-bonds','Open contract particulars','Confirm which dated contract/amendment establishes the contractual completion date. If the applicable date is not in the supplied documents, upload the missing contract or amendment.','choose',true)
-        : upload('Upload contract / amendment','Contract or amendment containing the applicable contractual completion date','Upload or identify the dated contract source only if you need contractual/EOT comparisons. Programme forecasting remains usable without it.',true);
+      return informationResolution('CMeng found a difference between submitted dates and its independent calculation. This is a calculation qualification, not something you must confirm. The submitted programme remains the reporting authority unless you explicitly replace it.');
     case 'programme-comparison':
-      return group.available
-        ? open('schedule-change-report','Open programme comparison','Select/confirm the baseline or earlier reporting revision used for comparison. Do not treat embedded target dates as a confirmed baseline.','choose',true)
-        : upload('Upload baseline / prior programme','Confirmed baseline or prior adopted programme','Supply a comparable baseline/prior programme only if baseline or revision slippage is required.',false);
+      return informationResolution('A baseline or earlier adopted revision is needed only for baseline/revision comparison. Current programme analysis remains usable. Any uploaded programme that actually needs selection appears separately as a direct programme confirmation action.');
+    case 'contract-completion':
+      return uploadResolution('Upload contract completion evidence','Contract / amendment establishing the contractual completion date','Upload the contract, amendment or other dated contractual source that establishes the applicable completion date. No separate review page is required.');
     case 'resources':
-      return group.available
-        ? open('resource-utilization','Open Resources','Review the specific resource rows with missing/conflicting capacity, usage or period basis. Correct the source record if it is wrong; otherwise leave the unavailable measure unresolved.','correct',conflict)
-        : upload('Add resource / manpower evidence','Periodised manpower/resource plan, dated usage and capacity where available','This information is only required for manpower/capacity calculations. You may leave it unresolved and continue using schedule analysis.',false);
+      return group.available&&conflict
+        ? uploadResolution('Upload corrected resource evidence','Corrected manpower/resource plan, usage or capacity record','Upload the corrected resource/manpower source that resolves the conflicting or invalid record.')
+        : informationResolution('Resource capacity/manpower evidence is optional for schedule analysis. Add it only when you need manpower or capacity calculations.');
     case 'quantities':
-      return group.available
-        ? open('quantity-scurve','Open Installed Quantities','Review the BOQ/measurement/activity links that are missing or conflicting. Confirm/correct the mapping only where the source supports it.','correct',conflict)
-        : upload('Add BOQ / measured quantities','BOQ plus dated installed/measurement evidence and activity links where available','Upload quantity evidence only if you need quantity-based progress. Schedule progress remains separate.',false);
+      return group.available&&conflict
+        ? uploadResolution('Upload corrected quantity evidence','Corrected BOQ / measured quantity source','Upload the corrected BOQ or measurement source that resolves the conflicting quantity basis.')
+        : informationResolution('Quantity evidence is optional for schedule analysis. Add BOQ/measurements only when you need quantity-based progress.');
     case 'productivity':
-      return group.available
-        ? open('challenge-contract','Open productivity analysis','Review the quantities, production rates and work-package dates used by the productivity forecast. Correct only unsupported or conflicting source inputs.','correct',conflict)
-        : upload('Add productivity evidence','Dated quantities, production rates and relevant work-package dates','Upload productivity evidence only if you need an independent productivity forecast.',false);
+      return group.available&&conflict
+        ? uploadResolution('Upload corrected productivity evidence','Corrected quantity / production-rate evidence','Upload the corrected dated quantity or production-rate source.')
+        : informationResolution('Productivity evidence is optional. Add it only when you need an independent productivity forecast.');
     case 'risks':
-      return open('delivery-risks','Open Risk Register','Review the exact dated risk records and rating inputs highlighted by CMeng. Correct conflicting probability/impact/rating evidence or leave an unavailable field unresolved.','correct',conflict);
+      return conflict
+        ? uploadResolution('Upload corrected risk register','Corrected dated risk register','Upload the corrected risk register that resolves the highlighted rating/date conflict.')
+        : informationResolution('No user action is required for an unavailable optional risk field. CMeng will use the risk information that is actually established.');
     case 'hse':
-      return open('delivery-hse','Open Construction HSE','Review the exact incident/exposure records. Correct missing dates or mismatched exposure only when source evidence exists.','correct',conflict);
+      return conflict
+        ? uploadResolution('Upload corrected HSE evidence','Corrected dated HSE / exposure record','Upload the corrected HSE source that resolves the highlighted date, status or exposure conflict.')
+        : informationResolution('No user action is required for unavailable optional HSE information.');
     case 'quality':
-      return open('delivery-quality','Open Quality & Inspections','Review the highlighted NCR/inspection record and its dated status. Correct the source lifecycle only when supported.','correct',conflict);
+      return conflict
+        ? uploadResolution('Upload corrected quality evidence','Corrected NCR / inspection register','Upload the corrected quality register that resolves the highlighted lifecycle/date conflict.')
+        : informationResolution('No user action is required for unavailable optional quality information.');
     case 'design-permits':
-      return open(/permit/.test(issues.map(i=>i.summary+' '+i.detail).join(' ').toLowerCase())?'delivery-permits':'delivery-design',
-        /permit/.test(issues.map(i=>i.summary+' '+i.detail).join(' ').toLowerCase())?'Open Permits & Authorities':'Open RFI & Design',
-        'Review the exact readiness record and its date/status. Add or correct the linked record only where evidence exists.','correct',conflict);
+      return conflict
+        ? uploadResolution('Upload corrected design / permit evidence','Corrected RFI, design or permit register','Upload the corrected source that resolves the highlighted design/permit record conflict.')
+        : informationResolution('No user action is required for unavailable optional design or permit information.');
     case 'claims':
-      return open('notices-claims','Open Notice / Claim evidence','Review the dated event, notice, determination and activity links. Confirm/correct only source-backed relationships; CMeng must not infer entitlement from a missing link.','correct',conflict||comparison);
+      return conflict
+        ? uploadResolution('Upload corrected claim / notice evidence','Corrected claim, notice, delay-event or determination evidence','Upload the corrected dated source that resolves the highlighted claim/notice/event conflict.')
+        : informationResolution('Missing claim/notice evidence limits entitlement analysis but does not block the established programme position.');
     case 'payments':
-      return open('payments','Open Payments','Review the exact certificate/payment/retention record and its dated lifecycle. Correct the source series basis, dates or amounts only where the evidence supports it.','correct',conflict);
+      return conflict
+        ? uploadResolution('Upload corrected payment evidence','Corrected IPC / payment / retention register','Upload the corrected payment source that resolves the highlighted amount, date or series-basis conflict.')
+        : informationResolution('Missing optional payment fields remain unavailable; no user action is required unless you need that commercial measure.');
     case 'commercial':
-      return open('contract-particulars-bonds','Open Commercial / Contract controls','Review the exact contract, variation, bond, insurance or currency record identified below. Correct/confirm the source basis rather than entering a substitute value.','correct',conflict);
+      return conflict
+        ? uploadResolution('Upload corrected commercial evidence','Corrected contract / variation / bond / insurance / cost source','Upload the corrected commercial source that resolves the highlighted conflict.')
+        : informationResolution('Missing optional commercial information remains unavailable; it does not require a user confirmation.');
     case 'programme-information':
-      return open('activity-analytics','Open Activity Review','Review the exact programme fields highlighted below. If the source genuinely does not contain the field, leave it unresolved; do not create a value just to clear the item.','correct',conflict);
+      return conflict
+        ? uploadResolution('Upload corrected programme','Corrected current programme','Upload a corrected programme if the source itself is wrong. CMeng will not ask you to manually repair source schedule fields in another page.')
+        : informationResolution('The programme does not establish this optional field. CMeng will keep the measure unavailable rather than ask you to invent it.');
     default:
-      if(group.available)return {category:'review',resolution:{kind:'correct',requiresUserAction:true,instruction:'Open the supporting details below and correct or confirm the specific source record identified by CMeng.',completionRule:'The matter closes automatically when the underlying evidence is corrected or confirmed.'},target:{type:'inline',label:'Show exact record and required correction'}};
-      return {category:'information',resolution:{kind:'information',requiresUserAction:false,instruction:'No action is required unless you need this unavailable measure. CMeng will continue using the evidence that is established.',completionRule:'This information item disappears automatically if the missing evidence is later supplied.'},target:{type:'inline',label:'Show why this is unavailable'}};
+      return conflict
+        ? uploadResolution('Upload corrected evidence','Corrected source evidence','Upload the corrected source that resolves this conflict. CMeng will recalculate automatically.')
+        : informationResolution('No direct user decision is required for this item.');
   }
 }
 
@@ -105,20 +109,25 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
   for(const d of state.evidenceDocuments){
     if(d.category==='schedule'||!['candidate','active','additive'].includes(d.basisState))continue;
     if(d.basisState==='candidate'){
-      actions.push({id:'document:'+d.documentId,category:'confirmation',title:'Confirm how this document updates the project',reason:d.sourceFilename+'. Select whether it is a new record, a replacement or a contract amendment.',recordCount:1,
-        resolution:{kind:'choose',requiresUserAction:true,instruction:'Choose New record, Replacement or Amendment in the connected document review. CMeng will not guess this relationship.',completionRule:'The action closes when the document relationship is explicitly confirmed.'},
-        target:{type:'document',documentId:d.documentId,label:'Choose document relationship'}});
+      {
+        const targets=state.evidenceDocuments.filter(t=>t.documentId!==d.documentId&&['active','additive'].includes(t.basisState));
+        const sameFamily=targets.filter(t=>t.familyKey===d.familyKey);
+        const baseContracts=targets.filter(t=>t.familyKey==='contract:base');
+        const options=[{value:'new_record',label:'New record'},...(sameFamily.length?[{value:'replacement',label:'Replacement'}]:[]),...(d.documentType==='contract_amendment'&&baseContracts.length?[{value:'amendment',label:'Contract amendment'}]:[])];
+        actions.push({id:'document:'+d.documentId,category:'confirmation',title:'Confirm how this document updates the project',reason:d.sourceFilename+'. Choose once; CMeng will apply the relationship and refresh the project.',recordCount:1,
+          resolution:{kind:'choose',requiresUserAction:true,instruction:'Choose how this uploaded document relates to the current project evidence.',completionRule:'The action closes immediately after the relationship is saved.'},
+          target:{type:'document',documentId:d.documentId,label:'Confirm relationship',sourceHash:d.sourceHashSha256,relationshipOptions:options,
+            relationshipTargets:targets.map(t=>({documentId:t.documentId,filename:t.sourceFilename,familyKey:t.familyKey,basisState:t.basisState}))} as any});
+      }
     }
   }
   const delivery=deliveryPosition(state);
   for(const kind of deliveryKinds){const records=delivery.records.filter(r=>r.kind===kind&&!['superseded','scenario'].includes(r.state));if(!records.length)continue;
     const pending=records.filter(r=>['extracted_candidate','working','conflicted','stale','source_evidence','not_established'].includes(r.state)),moduleKey=deliveryPages.find(p=>p[3]===kind)?.[0]??'delivery-control';
-    if(pending.length)actions.push({id:'delivery-review:'+kind,category:'review',title:'Review '+deliveryLabels[kind].toLowerCase(),reason:pending.length+' records need a decision or have changed since their previous review. Open the register to review each record and its source.',recordCount:pending.length,
-      resolution:{kind:'correct',requiresUserAction:true,instruction:'Open the connected register. For each highlighted record, confirm/correct its state from the source or leave it unresolved if evidence is insufficient.',completionRule:'The action closes when no applicable record remains candidate, conflicted, stale or awaiting review.'},
-      target:{type:'delivery',kind,moduleKey,label:'Open '+deliveryLabels[kind]+' register'}});
-    else if(delivery.populations[kind]?.state!=='established')actions.push({id:'delivery-population:'+kind,category:'confirmation',title:'Confirm the complete '+deliveryLabels[kind].toLowerCase()+' list',reason:'The records have been reviewed. Confirm whether they cover the complete required scope before percentages are reported.',recordCount:records.length,
-      resolution:{kind:'confirm',requiresUserAction:true,instruction:'Review the connected register, then confirm Complete population only if all applicable records are represented. Otherwise keep it unconfirmed.',completionRule:'The action closes only after the complete population is explicitly confirmed.'},
-      target:{type:'delivery',kind,moduleKey,population:true,label:'Review list and confirm completeness'}});
+    if(pending.length){/* Candidate/stale Delivery rows remain supporting information; no page-loop action is created. */}
+    else if(delivery.populations[kind]?.state!=='established')actions.push({id:'delivery-population:'+kind,category:'confirmation',title:'Confirm complete '+deliveryLabels[kind].toLowerCase()+' population',reason:records.length+' governed record(s) are available. Confirm only if this is the complete applicable population for reporting percentages.',recordCount:records.length,
+      resolution:{kind:'confirm',requiresUserAction:true,instruction:'Confirm complete population here. If it is not complete, do nothing; CMeng will keep percentages unconfirmed.',completionRule:'The action closes immediately after population completeness is confirmed.'},
+      target:{type:'delivery',kind,moduleKey,population:true,label:'Confirm complete population'}});
   }
   const groups=new Map<string,{group:ReturnType<typeof projectReviewGroup>;issues:ControlIssue[]}>();
   const systemItems=assessment.issues.filter(i=>i.owner==='CMeng'||['system_defect','verification_pending'].includes(i.kind));
