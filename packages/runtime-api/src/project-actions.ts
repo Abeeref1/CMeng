@@ -110,7 +110,8 @@ export function programmeActions(state:ProjectRuntimeState):ProjectAction[]{
         recordCount:1,
         resolution:{kind:needsPurpose?'choose':'confirm',requiresUserAction:true,instruction:needsPurpose?'Choose the programme purpose here and provide an approval reference only if you select a baseline. Then CMeng will make the programme current in the same action.':'Confirm here that CMeng should use this programme for the current reporting position.',completionRule:'The action closes when the programme is explicitly selected as the reporting basis.'},
         target:{type:'schedule',label:needsPurpose?'Confirm purpose and use programme':'Use this programme for reporting',revisionId,documentId,canConfirm,
-          sourceHash:source?.sourceHashSha256??stored?.sourceHashSha256,scheduleRole:stored?.role??'update',needsPurpose,
+          ...((source?.sourceHashSha256??stored?.sourceHashSha256)?{sourceHash:(source?.sourceHashSha256??stored?.sourceHashSha256)!}:{}),
+          scheduleRole:stored?.role??'update',needsPurpose,
           approvalRequired:needsPurpose&&['baseline','revised_baseline'].includes(stored?.role??''),...phaseId?{phaseId}:{}}});
     };
     if(review.state==='pending_review'&&review.currentRevisionId&&review.documentId){
@@ -134,7 +135,7 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
         const targets=state.evidenceDocuments.filter(t=>t.documentId!==d.documentId&&['active','additive'].includes(t.basisState));
         const sameFamily=targets.filter(t=>t.familyKey===d.familyKey);
         const baseContracts=targets.filter(t=>t.familyKey==='contract:base');
-        const options=[{value:'new_record',label:'New record'},...(sameFamily.length?[{value:'replacement',label:'Replacement'}]:[]),...(d.documentType==='contract_amendment'&&baseContracts.length?[{value:'amendment',label:'Contract amendment'}]:[])];
+        const options:Array<{value:'new_record'|'replacement'|'amendment';label:string}>=[{value:'new_record',label:'New record'},...(sameFamily.length?[{value:'replacement' as const,label:'Replacement'}]:[]),...(d.documentType==='contract_amendment'&&baseContracts.length?[{value:'amendment' as const,label:'Contract amendment'}]:[])];
         actions.push({id:'document:'+d.documentId,category:'confirmation',title:'Confirm how this document updates the project',reason:d.sourceFilename+'. Choose once; CMeng will apply the relationship and refresh the project.',recordCount:1,
           resolution:{kind:'choose',requiresUserAction:true,instruction:'Choose how this uploaded document relates to the current project evidence.',completionRule:'The action closes immediately after the relationship is saved.'},
           target:{type:'document',documentId:d.documentId,label:'Confirm relationship',sourceHash:d.sourceHashSha256,relationshipOptions:options,
