@@ -5,7 +5,7 @@ import { createSourceFile, ScriptTarget, isFunctionDeclaration } from 'typescrip
 import { cmengUatHtml } from '../packages/runtime-api/src/ui';
 
 const source=createSourceFile('browser.js',cmengUatHtml().match(/<script>([\s\S]*?)<\/script>/)![1]!,ScriptTarget.Latest,true);
-const names=['projectRequestIsCurrent','clearProjectWorkspace','openProject','refresh','updateActiveProjectShell','setAppView','renderNav','loadModule','loadEvidence','loadDirector','askCmeng'];
+const names=['projectRequestIsCurrent','clearProjectWorkspace','openProject','refresh','updateActiveProjectShell','setAppView','renderNav','loadModule','loadEvidence','loadPhaseProgrammes','loadDirector','askCmeng','resetAskWorkspace','askPage'];
 const code=source.statements.filter(isFunctionDeclaration).filter(n=>n.name&&names.includes(n.name.text)).map(n=>n.getText(source)).join('\n');
 const tick=()=>new Promise<void>(resolve=>setImmediate(resolve));
 const overview=(projectId:string,count=7)=>({projectId,evidenceDocumentCount:count,revisionCount:2,latestDataDateIso:'2032-04-30',releaseCommitSha:'release',moduleStates:[],managementStates:[]});
@@ -23,14 +23,14 @@ function harness() {
   const storage=new Map<string,string>();
   const requests:Array<{path:string,resolve:(v:any)=>void,reject:(e:Error)=>void,done:boolean}>=[];
   const context=createContext({
-    el,project:()=>el('projectId').value,overview:overview('OLD-PROJECT',39),selected:'command-center',appView:'project',projectLoadState:'ready',
+    el,askBase:()=>'/api/projects/'+encodeURIComponent(el('projectId').value)+'/intelligence',askAnalysis:null,askConversation:null,askReferences:[],askPageContext:null,askHomeSeq:0,project:()=>el('projectId').value,overview:overview('OLD-PROJECT',39),selected:'command-center',appView:'project',projectLoadState:'ready',
     projectRequestSeq:0,moduleRequestSeq:0,evidenceRequestSeq:0,directorRequestSeq:0,aiRequestSeq:0,currentModuleResult:{key:'command-center',data:'OLD-PROJECT'},
     scheduleSelection:['old.xer'],boqSelection:['old.csv'],contractSelection:[],evidenceSelection:['old.zip'],selectedEvidenceDocuments:new Set(['old-document']),
     names:{'command-center':'Command Center'},descriptions:{},apiKeys:{},groups:{Management:['command-center']},
     managementSurfaceKeysForApi:new Set(['command-center']),commercialModuleKeysForApi:new Set(),
     fmt:String,planningShortDate:String,escapeHtml:(s:any)=>String(s).replace(/[&<>"']/g,'_'),
     document:{body:{classList:{remove(){},toggle(){}}},querySelectorAll:()=>[]},window:{scrollTo(){}},
-    localStorage:{setItem:(key:string,value:string)=>storage.set(key,value)},renderPlatformNav(){},loadPortfolio(){},
+    localStorage:{setItem:(key:string,value:string)=>storage.set(key,value)},renderPlatformNav(){},loadPortfolio(){},loadAskHome(){},
     setBusy:(text:string)=>{el('globalStatus').textContent=text;},renderStatus:(o:any)=>{el('projectStatus').textContent=o.projectId;el('projectBadge').textContent='CURRENT PROJECT';},
     renderDirector:(d:any)=>{el('director').textContent=d?.projectId||'No management detail';},
     renderModuleResult:(r:any)=>{context.currentModuleResult=r;el('moduleContent').textContent=r.data.projectId;el('moduleReport').disabled=false;},
@@ -46,6 +46,7 @@ function harness() {
     next('/overview',projectId).resolve(overview(projectId,count));await tick();
     next('/command-center',projectId).resolve({key:'command-center',data:{projectId}});
     next('/documents',projectId).resolve({documentCount:0,documents:[]});
+    next('/phases',projectId).resolve({phases:[]});
     next('/director-position',projectId).resolve({projectId});await tick();
   };
   return {context,nodes,el,storage,requests,next,finish,call};
@@ -53,13 +54,15 @@ function harness() {
 
 test('opening another project clears every old-project surface before its first response arrives',async()=>{
   const h=harness();
+  h.el('askViewName').value='OLD-PROJECT review';
   const pending=h.call('openProject("NEW-PROJECT")');
   assert.equal(h.context.overview,null);assert.equal(h.context.currentModuleResult,null);
   assert.equal(h.el('activeProjectName').textContent,'NEW-PROJECT');
-  for(const id of ['activeProjectMeta','workspaceProjectMeta','projectStatus','director','evidenceLibrary','aiProjectInfo','aiAnswer','moduleContent','nav','uploadMessage']) {
+  for(const id of ['activeProjectMeta','workspaceProjectMeta','projectStatus','director','evidenceLibrary','phaseProgrammesPanel','aiProjectInfo','aiAnswer','askProjectTitle','askReportingDate','askSavedViews','aiSuggestions','moduleContent','nav','uploadMessage']) {
     assert.doesNotMatch(h.el(id).textContent,/OLD-PROJECT|39 documents|2032-04-30/,id);
   }
   assert.match(h.el('moduleContent').innerHTML,/Opening NEW-PROJECT/);
+  assert.equal(h.el('askViewName').value,'');
   assert.equal(h.el('moduleReport').disabled,true);
   assert.equal(h.el('runAnalysisTop').disabled,true);
   assert.equal(h.context.selectedEvidenceDocuments.size,0);
@@ -132,4 +135,55 @@ test('an overview identifying a different project is rejected before any child r
   assert.equal(h.context.overview,null);assert.equal(h.requests.length,1);
   assert.equal(h.el('activeProjectName').textContent,'EXPECTED');
   assert.match(h.el('moduleContent').textContent,/Unable to open EXPECTED/);
+});
+
+test('Ask opens inside the loaded project and retains its page context and navigation',async()=>{
+  const h=harness();
+  await h.call('setAppView("ai")');
+  assert.equal(h.el('projectWorkspace').hidden,false);
+  assert.equal(h.el('aiView').hidden,false);
+  assert.equal(h.el('projectModulePanel').hidden,true);
+  assert.equal(h.el('portfolioView').hidden,true);
+  assert.equal(h.el('projectsView').hidden,true);
+  assert.equal(h.el('platformContextTitle').textContent,'OLD-PROJECT');
+  assert.equal(h.el('topbarModule').textContent,'Ask CMeng');
+  assert.equal(h.context.selected,'command-center','the question retains the originating project page');
+  assert.match(h.el('nav').innerHTML,/id="projectAskNav" aria-current="page"/);
+  assert.match(h.el('nav').innerHTML,/data-key="command-center"/);
+  await h.call('setAppView("project")');
+  assert.equal(h.el('aiView').hidden,true);
+  assert.equal(h.el('projectModulePanel').hidden,false);
+  assert.equal(h.el('topbarModule').textContent,'Command Center');
+});
+
+test('Ask requires the selected project to be loaded without adding a generic conversation',async()=>{
+  for(const mismatch of [false,true]){
+    const h=harness();
+    h.context.overview=mismatch?overview('ANOTHER-PROJECT'):null;
+    await h.call('setAppView("ai")');
+    assert.equal(h.context.appView,'projects');
+    assert.equal(h.el('aiView').hidden,true);
+    assert.equal(h.el('projectWorkspace').hidden,true);
+    assert.equal(h.el('projectsView').hidden,false);
+    assert.match(h.el('createProjectMessage').textContent,/Open a project to ask/);
+    assert.equal(h.requests.length,0);
+  }
+});
+
+test('switching projects from Ask clears its conversation, references and exports before the new project opens',async()=>{
+  const h=harness();
+  await h.call('setAppView("ai")');
+  h.context.askConversation='conversation-old';h.context.askAnalysis={id:'analysis-old'};
+  h.context.askReferences=[{id:'reference-old'}];
+  h.el('askExports').textContent='OLD-PROJECT exports';
+  const pending=h.call('openProject("NEW-PROJECT")');
+  assert.equal(h.context.askConversation,null);assert.equal(h.context.askAnalysis,null);
+  assert.equal(h.context.askReferences.length,0);assert.equal(h.el('askExports').textContent,'');
+  assert.equal(h.el('aiView').hidden,true);
+  await h.finish('NEW-PROJECT');await pending;
+  await h.call('setAppView("ai")');
+  assert.equal(h.el('projectWorkspace').hidden,false);
+  assert.equal(h.el('platformContextTitle').textContent,'NEW-PROJECT');
+  assert.equal(h.el('askProjectTitle').textContent,'Ask CMeng about NEW-PROJECT');
+  assert.doesNotMatch(h.el('nav').innerHTML,/OLD-PROJECT/);
 });

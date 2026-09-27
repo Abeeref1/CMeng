@@ -21,11 +21,13 @@ test('gateway returns save failures honestly, preserves other projects, and ackn
  try{
   for(const projectId of ['SAVE-FAULT','OTHER'])assert.equal((await api('/api/projects',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({projectId})})).status,201);
   const body=['ERMHDR\t23.12','%T\tPROJECT','%F\tproj_id\tproj_short_name\tdata_date','%R\t1\tSAVE-FAULT\t2031-08-31','%T\tTASK','%F\ttask_id\tproj_id\ttask_code\ttask_name\tstatus_code\tearly_start_date\tearly_end_date\ttarget_drtn_hr_cnt\tremain_drtn_hr_cnt','%R\t1\t1\tA1\tMobilise\tTK_NotStart\t2031-08-31\t2031-09-01\t8\t8','%E'].join('\n');
-  const upload=()=>api('/api/projects/SAVE-FAULT/schedule/uploads',{method:'POST',headers:{'content-type':'text/plain','x-source-filename':'Current.xer'},body});
+  const upload=()=>api('/api/projects/SAVE-FAULT/schedule/uploads',{method:'POST',headers:{'content-type':'text/plain','x-source-filename':'Current.xer','x-upload-id':'schedule-progress'},body});
   writeFileSync(flag,'fail');
   for(let i=0;i<2;i++){const result=await upload();assert.equal(result.status,503);assert.match(result.body.error,/save could not be confirmed/);assert.equal((await api('/api/projects/SAVE-FAULT/schedule/revisions')).body.length,0);}
+  assert.equal((await api('/api/projects/SAVE-FAULT/evidence/upload-progress/schedule-progress')).body.state,'failed');
   assert.equal((await api('/health')).status,200);assert.equal((await api('/api/projects/OTHER/evidence/documents')).status,200);
   unlinkSync(flag);const success=await upload();assert.equal(success.status,201);assert.equal((await upload()).body.revisionId,success.body.revisionId);
+  const progress=(await api('/api/projects/SAVE-FAULT/evidence/upload-progress/schedule-progress')).body;assert.equal(progress.state,'complete');assert.equal(progress.percent,100);
   await stop();base=await start();const restored=await api('/api/projects/SAVE-FAULT/schedule/revisions');assert.equal(restored.status,200);assert.equal(restored.body.length,1);assert.equal(restored.body[0].revisionId,success.body.revisionId);
  }finally{await stop();rmSync(root,{recursive:true,force:true});}
 });

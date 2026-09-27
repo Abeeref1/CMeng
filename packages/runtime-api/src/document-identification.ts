@@ -1,3 +1,4 @@
+import {sourceDocumentIdentifier} from './evidence-control';
 import {hasFinancialSecurityContent} from './security-document-content';
 import {readableXlsx} from '../../shared/src/xlsx';
 import {csv,prepareRegisterRows} from '../../truth-kernel/src';
@@ -7,7 +8,6 @@ import { join } from "node:path";
 
 import ExcelJS from "exceljs";
 import JSZip from "jszip";
-import { PDFParse } from "pdf-parse";
 
 import {
   TesseractOcrProvider,
@@ -360,7 +360,7 @@ async function extractPdfSample(
   diagnostics: string[];
 }> {
   const parser =
-    new PDFParse({
+    new (await import('pdf-parse')).PDFParse({
       data:
         Buffer.from(bytes) as any,
     });
@@ -2469,6 +2469,7 @@ export async function identifyEvidenceDocument(
 
   return {
     identification: {
+      sourceDocumentIdentity:sourceDocumentIdentifier(detectedDocumentType,text),
       verifiedMediaType:
         mediaType,
       detectedCategory,

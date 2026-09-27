@@ -1,3 +1,4 @@
+import {phaseProgrammePosition} from './phase-programmes';
 import {deliveryExportResult} from './delivery-projections';
 import {deliveryRequest} from './delivery-api';
 import {isDeliveryPage} from '../../delivery-core/src/registry';
@@ -119,6 +120,7 @@ export function projectDocumentRegister(projectId:string){
       );
     return {
       projectId,
+      projectVersion:state.version,
       documentCount:
         state.evidenceDocuments
           .length,
@@ -856,50 +858,7 @@ async function route(
     return;
   }
 
-  const intelligenceMatch =
-    /^\/api\/projects\/([^/]+)\/intelligence\/ask$/.exec(
-      url.pathname,
-    );
-
-  if (
-    req.method === "POST" &&
-    intelligenceMatch
-  ) {
-    const projectId =
-      decodeURIComponent(
-        intelligenceMatch[1]!,
-      );
-    const body =
-      await readJsonBody<{
-        question?: string;
-      }>(req);
-    const question =
-      (
-        body.question ??
-        ""
-      ).trim();
-    if (!question) {
-      json(res, 400, {
-        error:
-          "question_required",
-      });
-      return;
-    }
-    const answer =
-      answerProjectQuestion(
-        projectId,
-        question,
-      );
-    if (!answer) {
-      json(res, 404, {
-        error:
-          "project_not_found",
-      });
-      return;
-    }
-    json(res, 200, answer);
-    return;
-  }
+  if(/^\/api\/projects\/[^/]+\/intelligence(?:\/|$)/.test(url.pathname)){const {askAiRequest}=await import('./ask-api');if(await askAiRequest(req,res,url))return;}
 
   if(req.method === "GET" && url.pathname === "/api/delivery/modules"){const modules=moduleRegistry.filter(m=>m.area==="delivery");json(res,200,{moduleCount:modules.length,modules});return;}
 
@@ -1939,6 +1898,24 @@ async function route(
     return;
   }
 
+  const relationshipMatch=/^\/api\/projects\/([^/]+)\/evidence\/documents\/([^/]+)\/relationship$/.exec(url.pathname);
+  if(req.method==='POST'&&relationshipMatch){try{const projectId=decodeURIComponent(relationshipMatch[1]!),input=JSON.parse(Buffer.from(await readBody(req)).toString('utf8'));const effect=runtimeProjects.reviewEvidenceRelationship(projectId,{...input,documentId:decodeURIComponent(relationshipMatch[2]!)});invalidateProject(projectId);json(res,200,{projectId,effect});}catch(error){json(res,409,{error:'document_relationship_not_completed',message:error instanceof Error?error.message:String(error)});}return;}
+
+  const purposeMatch=/^\/api\/projects\/([^/]+)(?:\/phases\/([^/]+))?\/schedule\/revisions\/([^/]+)\/purpose$/.exec(url.pathname);
+  if(req.method==='POST'&&purposeMatch){try{const projectId=decodeURIComponent(purposeMatch[1]!),input=JSON.parse(Buffer.from(await readBody(req)).toString('utf8'));const result=runtimeProjects.reviewSchedulePurpose(projectId,decodeURIComponent(purposeMatch[3]!),input,purposeMatch[2]?decodeURIComponent(purposeMatch[2]):undefined);invalidateProject(projectId);json(res,200,result);}catch(error){json(res,409,{error:'programme_purpose_not_completed',message:error instanceof Error?error.message:String(error)});}return;}
+
+  const phaseMatch=/^\/api\/projects\/([^/]+)\/phases(?:\/([^/]+)(?:\/schedule(?:\/(uploads)|\/revisions\/([^/]+)\/(adopt)))?)?$/.exec(url.pathname);
+  if(phaseMatch){
+    const projectId=decodeURIComponent(phaseMatch[1]!),state=runtimeProjects.get(projectId);if(!state){json(res,404,{error:'project_not_found'});return;}
+    try{
+      const phaseId=phaseMatch[2]?decodeURIComponent(phaseMatch[2]):null;
+      if(req.method==='GET'){json(res,200,phaseId?phaseProgrammePosition(state,phaseId):{projectId,phases:(state.phaseProgrammes??[]).map(p=>phaseProgrammePosition(state,p.phaseId))});return;}
+      if(req.method==='POST'&&phaseId&&phaseMatch[3]){const result=await runtimeProjects.ingestSchedule({projectId,phaseId,bytes:await readBody(req),mediaType:mediaType(req),sourceFilename:header(req,'x-source-filename'),role:header(req,'x-schedule-role'),roleConfirmed:header(req,'x-schedule-role-confirmed')==='1',...(header(req,'x-approval-reference')?{approvalReference:header(req,'x-approval-reference')!}:{}),uploadIntent:uploadIntent(req),uploadedAt:new Date().toISOString()});invalidateProject(projectId);json(res,201,{...result,phaseId,scope:'phase',position:phaseProgrammePosition(state,phaseId)});return;}
+      if(req.method==='POST'&&phaseId&&phaseMatch[4]){const effect=runtimeProjects.adoptSchedule(projectId,decodeURIComponent(phaseMatch[4]),phaseId);invalidateProject(projectId);json(res,200,{projectId,phaseId,effect,position:phaseProgrammePosition(state,phaseId)});return;}
+      json(res,405,{error:'phase_action_not_supported'});return;
+    }catch(error){json(res,409,{error:'phase_programme_not_completed',message:error instanceof Error?error.message:String(error)});return;}
+  }
+
   const scheduleUploadMatch =
     /^\/api\/projects\/([^/]+)\/schedule\/uploads$/.exec(
       url.pathname,
@@ -1959,6 +1936,8 @@ async function route(
         .ingestSchedule({
           projectId,
           uploadIntent: uploadIntent(req),
+          roleConfirmed:header(req,'x-schedule-role-confirmed')==='1',
+          ...(header(req,'x-approval-reference')?{approvalReference:header(req,'x-approval-reference')!}:{}),
           bytes: body,
           mediaType:
             mediaType(req),
@@ -1995,7 +1974,7 @@ async function route(
   const adoptionMatch=/^\/api\/projects\/([^/]+)\/schedule\/revisions\/([^/]+)\/adopt$/.exec(url.pathname);
   if(req.method==='POST'&&adoptionMatch){
     const projectId=decodeURIComponent(adoptionMatch[1]!),revisionId=decodeURIComponent(adoptionMatch[2]!);
-    try{const effect=runtimeProjects.adoptSchedule(projectId,revisionId);json(res,200,{projectId,revisionId,effect});}
+    try{const effect=runtimeProjects.adoptSchedule(projectId,revisionId);invalidateProject(projectId);json(res,200,{projectId,revisionId,effect});}
     catch(error){json(res,409,{error:'programme_adoption_not_completed',message:error instanceof Error?error.message:String(error)});}
     return;
   }

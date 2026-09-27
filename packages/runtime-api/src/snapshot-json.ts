@@ -31,11 +31,24 @@ export function writeSnapshotJson(path:string,value:unknown):void {
   };
   const omitted=(v:unknown)=>v===undefined||typeof v==='function'||typeof v==='symbol';
   const prepare=(input:any,key:string)=>input&&typeof input.toJSON==='function'?input.toJSON(key):input;
+  // Native serialization is safe for bounded flat records. Large containers and
+  // text still use the streaming path, so the whole-project string limit cannot return.
+  const inlineRecord=(v:any):boolean=>{
+    if(Array.isArray(v)||Object.getPrototypeOf(v)!==Object.prototype||typeof v.toJSON==='function')return false;
+    const keys=Object.keys(v);if(keys.length>64)return false;let budget=32*1024;
+    const scalar=(value:any)=>{if(value!==null&&typeof value==='object'||typeof value==='bigint')return false;budget-=typeof value==='string'?value.length*6+2:32;return budget>=0;};
+    for(const key of keys){const descriptor=Object.getOwnPropertyDescriptor(v,key)!;if(descriptor.get||descriptor.set)return false;budget-=key.length*6+4;if(budget<0)return false;const value=descriptor.value;
+      if(Array.isArray(value)){if(value.length>8||typeof (value as any).toJSON==='function')return false;for(let i=0;i<value.length;i++){const item=Object.getOwnPropertyDescriptor(value,String(i));if(item&&(item.get||item.set)||!scalar(item?.value))return false;}}
+      else if(!scalar(value))return false;
+    }
+    return true;
+  };
   const encode=(v:any):void=>{
     if(v===null||omitted(v)){append('null');return;}
     if(typeof v==='string'){string(v);return;}
     if(typeof v!=='object'){append(JSON.stringify(v));return;}
     if(ancestors.has(v))throw new TypeError('Converting circular structure to JSON');
+    if(inlineRecord(v)){append(JSON.stringify(v));return;}
     ancestors.add(v);
     if(Array.isArray(v)){
       append('[');for(let i=0;i<v.length;i++){if(i)append(',');encode(prepare(v[i],String(i)));}append(']');

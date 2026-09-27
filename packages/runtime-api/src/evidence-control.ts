@@ -115,6 +115,9 @@ function documentIdentifier(
   return null;
 }
 
+export const sourceDocumentIdentifier=(documentType:string,text:string)=>documentIdentifier(documentType,text,'');
+export function hasSourceDocumentIdentity(document:StoredEvidenceDocument){return !!document.identification?.sourceDocumentIdentity||documentIdentifier(document.documentType,document.assertions.map(a=>a.sourceText).join('\n'),'')!==null;}
+
 export function evidenceFamily(
   input: {
     category: string;
@@ -155,7 +158,7 @@ export function evidenceFamily(
           norm(sourceFilename),
       };
     }
-    if (scheduleRole === "baseline") {
+    if (scheduleRole === "baseline" || scheduleRole === "revised_baseline") {
       return {
         familyKey:
           "schedule:baseline",
@@ -637,6 +640,8 @@ export function applyEvidenceBasis(
         document.sourceFilename,
     }).behavior;
 
+  if(['additive','contract_delta'].includes(behavior)&&document.identification?.sourceDocumentIdentity&&!document.relationshipDecision)document.logicalDocumentKey=document.identification.sourceDocumentIdentity;
+
   const current =
     activeDocument(
       state,
@@ -669,10 +674,19 @@ export function applyEvidenceBasis(
     reason,
   });
 
+  if(current?.documentId===document.documentId&&document.basisState==='active')return result('active',false,'Identical active source retained; upload did not demote or duplicate its authority.');
+  const identical=state.evidenceDocuments.find(d=>d.documentId!==document.documentId&&d.familyKey===familyKey&&d.sourceHashSha256===document.sourceHashSha256&&['active','additive'].includes(d.basisState));
+  if(identical){document.basisState='historical';document.supersededByDocumentId=identical.documentId;return result('historical',false,'Identical content already exists in this project source family. Retained as history; not counted twice.');}
+  const relationship=document.relationshipDecision;
+  if(relationship?.sourceHash===document.sourceHashSha256&&relationship.kind==='replacement'){
+    const target=state.evidenceDocuments.find(d=>d.documentId===relationship.targetDocumentId&&d.sourceHashSha256===relationship.targetSourceHash);
+    if(!target||target.familyKey!==document.familyKey)throw new Error('REPLACEMENT_TARGET_INVALID');
+    document.logicalDocumentKey=target.logicalDocumentKey;intent='replace_current_basis';
+  }
   if (
     behavior ===
       "schedule_special" &&
-    (document.scheduleRole === "recovery" || document.scheduleRole === "scenario" || scenarioName(document.sourceFilename))
+    (document.scheduleRole === "recovery" || document.scheduleRole === "scenario" || !document.scheduleRoleConfirmed&&scenarioName(document.sourceFilename))
   ) {
     document.basisState =
       "scenario";
@@ -683,6 +697,9 @@ export function applyEvidenceBasis(
     );
   }
 
+  if(['contract_delta','additive'].includes(behavior)&&['contract_amendment','variation_order'].includes(document.documentType)&&!relationship&&!hasSourceDocumentIdentity(document)&&state.evidenceDocuments.some(d=>d.documentId!==document.documentId&&d.familyKey===familyKey&&['active','additive'].includes(d.basisState))){
+    document.basisState='candidate';document.lineage.needsReview=true;return result('candidate',false,'The source does not establish a unique document identifier. Review whether this is a new record or a correction; the filename does not establish that relationship.');
+  }
   if (
     behavior ===
     "contract_delta"
@@ -698,8 +715,7 @@ export function applyEvidenceBasis(
             item.logicalDocumentKey ===
               document
                 .logicalDocumentKey &&
-            item.basisState !==
-              "superseded",
+            ["active", "additive"].includes(item.basisState),
         )
         .sort(
           (a, b) =>
@@ -729,6 +745,7 @@ export function applyEvidenceBasis(
           ]),
         ];
     }
+    if(priorVersion&&intent==='add_update'&&priorVersion.sourceHashSha256!==document.sourceHashSha256){document.basisState='candidate';document.lineage.needsReview=true;return result('candidate',false,'Another record has the same document identity. Review whether this corrects that record; both revisions are not counted together.');}
     document.basisState =
       "additive";
     return result(
@@ -750,8 +767,7 @@ export function applyEvidenceBasis(
             item.logicalDocumentKey ===
               document
                 .logicalDocumentKey &&
-            item.basisState !==
-              "superseded",
+            ["active", "additive"].includes(item.basisState),
         )
         .sort(
           (a, b) =>
@@ -781,6 +797,7 @@ export function applyEvidenceBasis(
           ]),
         ];
     }
+    if(priorVersion&&intent==='add_update'&&priorVersion.sourceHashSha256!==document.sourceHashSha256){document.basisState='candidate';document.lineage.needsReview=true;return result('candidate',false,'Another record has the same document identity. Review whether this corrects that record; both revisions are not counted together.');}
     document.basisState =
       "additive";
     return result(

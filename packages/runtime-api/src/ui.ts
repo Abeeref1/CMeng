@@ -1,3 +1,4 @@
+import {askAiHtml,askAiStyles,askAiScript} from './ui-ask-ai';
 import {deliveryScript} from './ui-delivery';
 import {programmeReviewScript} from './ui-programme-review';
 import {uploadWorkScript} from './ui-upload-work';
@@ -34,7 +35,7 @@ button,input,select{font:inherit}button{cursor:pointer}
 .brand-mark{width:50px;height:50px;display:grid;place-items:center;flex:0 0 auto}.cmeng-emblem{width:50px;height:50px;display:block}.cmeng-emblem .c-ring{fill:none;stroke:url(#cmengBlue);stroke-width:9;stroke-linecap:round}.cmeng-emblem .arrow{fill:#2c3f54}.cmeng-emblem .hub{fill:#5f86ad}
 .brand-copy h1{font-size:23px;line-height:1;margin:0 0 5px;letter-spacing:-.04em;font-weight:780;color:var(--slate)}.brand-copy p{margin:0;color:#66727f;font-size:9.5px;line-height:1.35;text-transform:uppercase;letter-spacing:.09em;font-weight:700}
 .platform-nav{display:grid;gap:4px;margin:0 0 14px}.platform-item{width:100%;border:0;background:transparent;color:#4f5b67;text-align:left;padding:10px 11px;border-radius:9px;display:flex;align-items:center;gap:10px;font-size:13.5px;font-weight:650;transition:.16s ease}.platform-item:hover{background:#eef4fa;color:var(--slate)}.platform-item.active{background:#eaf2fb;color:var(--slate);box-shadow:inset 3px 0 0 var(--accent)}.platform-icon{width:18px;text-align:center;color:#7e8993;font-weight:850}.platform-item.active .platform-icon{color:#456f9f}.active-project-card{margin:10px 0 6px;padding:12px;border:1px solid #d7e2ed;border-radius:10px;background:#fff;box-shadow:0 4px 14px rgba(46,58,70,.03)}.active-project-card b{display:block;font-size:12.5px;color:#23272e;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.active-project-card span{display:block;color:#7a8290;font-size:10.5px;margin-top:3px}.sidebar-divider{height:1px;background:#dce5ef;margin:13px 0}.sidebar-motto{margin:30px 10px 2px;padding-top:18px;border-top:1px solid #dce5ef;color:#7d8790}.sidebar-motto span{display:block;font-size:9px;letter-spacing:.13em;font-weight:800;margin-bottom:6px}.sidebar-motto b{display:block;font-size:11px;line-height:1.45;font-weight:600;color:#5f6b76}
-.platform-view[hidden],#projectWorkspace[hidden]{display:none!important}.project-side-only{display:none}.project-active .project-side-only{display:block}
+.platform-view[hidden],#projectWorkspace[hidden],#projectModulePanel[hidden]{display:none!important}.project-side-only{display:none}.project-active .project-side-only{display:block}
 .portfolio-hero{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;margin-bottom:24px}.portfolio-hero h2{font-size:34px;line-height:1.08;margin:0 0 8px;letter-spacing:-.045em}.portfolio-hero p{margin:0;color:var(--muted);max-width:780px;font-size:14px}.portfolio-hero .section-kicker{color:#4e7299}
 .portfolio-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:20px}.summary-metric{position:relative;padding:17px 18px 16px 62px;min-height:102px;background:#fff;border:1px solid #dce5ef;border-radius:12px;box-shadow:0 5px 16px rgba(46,58,70,.035)}.summary-icon{position:absolute;left:17px;top:17px;width:34px;height:34px;border-radius:9px;display:grid;place-items:center;background:#edf4fb;color:#3d6897;font-size:16px;font-weight:800}.summary-metric b{display:block;font-size:27px;line-height:1;margin-bottom:7px;letter-spacing:-.04em;color:var(--slate)}.summary-metric span{display:block;font-size:10.5px;color:#5f6b76;text-transform:uppercase;letter-spacing:.065em;font-weight:800}.summary-metric small{display:block;color:#9299a0;font-size:11px;margin-top:4px}
 .portfolio-section-head{display:flex;align-items:end;justify-content:space-between;gap:16px;margin:24px 0 10px}.portfolio-section-head h3{margin:0;font-size:18px;letter-spacing:-.02em}.portfolio-section-head span{font-size:12px;color:var(--muted)}
@@ -211,6 +212,7 @@ details:not(.workspace-drawer){border:1px solid var(--line);border-radius:9px;ba
 .module-live-dot{background:#8a99a8!important;box-shadow:none!important}
 .issue-badge{display:inline-block;border-radius:5px;padding:3px 6px;font-size:10px;font-weight:800;white-space:nowrap;background:#eef1f5;color:#596779}.issue-badge.system_defect{background:#fde8e7;color:#a42822}.issue-badge.source_conflict{background:#f1e8fa;color:#75429b}.issue-badge.data_quality{background:#fff0db;color:#976018}.issue-badge.missing_information{background:#fff8dc;color:#7b671c}.issue-badge.comparison_difference{background:#e6f0fc;color:#2d6099}.issue-badge.governance_review{background:#edeaf6;color:#65538a}.issue-badge.checked{background:#edf7f1;color:#286748}.issue-category-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px;margin:12px 0}.issue-category{border:1px solid #dce4ee;border-radius:8px;padding:10px;background:white}.issue-category b{display:block;font-size:19px;margin:6px 0}.issue-category small{display:block;color:#5d6c7d;line-height:1.4}.issue-assessment{padding:14px;border:1px solid #dce4ee;border-radius:9px;background:#f7f9fc;margin-bottom:14px}.issue-assessment h4{margin:0 0 6px}.issue-assessment .table-wrap{max-height:400px}.nav-state .issue-badge{font-size:8px;padding:2px 4px}.issue-assessment details summary{cursor:pointer;font-weight:700;padding:9px 0}
 ${experienceStyles}
+${askAiStyles}
 ${systemReviewStyles}
 .planning-kpi.unavailable strong{font-size:16px;font-weight:600;line-height:1.45}.planning-kpi.unavailable{background:#f8fafc}
 </style>
@@ -289,26 +291,6 @@ ${systemReviewStyles}
         <div id="projectRegister"></div>
       </section>
 
-      <section id="aiView" class="platform-view" hidden>
-        <div class="portfolio-hero">
-          <div><span class="section-kicker">CMeng AI</span><h2>Ask CMeng</h2><p>Ask about the current programme, progress, resources, forecast, claims, contract and project documents.</p></div>
-          <span class="badge" id="aiProjectBadge">No active project</span>
-        </div>
-        <div class="ai-shell">
-          <div class="ai-panel">
-            <h3>Ask about this project</h3>
-            <div class="ai-intro">CMeng AI answers from the current project records and calculated position. Recommendations do not change the current project position unless you approve them.</div>
-            <div class="ai-composer"><textarea id="aiQuestion" placeholder="Ask: What changed since the last update? What is driving the forecast? Which claims have the strongest time impact?"></textarea><button class="btn primary" id="askAi">Ask</button></div>
-            <div class="ai-suggestions" id="aiSuggestions"></div>
-            <div id="aiAnswer" class="ai-answer">Open a project, then ask CMeng about its position.</div>
-          </div>
-          <div class="ai-context">
-            <h3>Project information used</h3>
-            <div id="aiProjectInfo" class="muted">No project selected.</div>
-          </div>
-        </div>
-      </section>
-
       <div id="projectWorkspace" hidden>
       <div class="workspace-header">
         <div class="page-title">
@@ -326,7 +308,9 @@ ${systemReviewStyles}
         </div>
       </div>
 
-      <section class="card module-panel module-workspace">
+      ${askAiHtml}
+
+      <section class="card module-panel module-workspace" id="projectModulePanel">
         <div class="module-head module-workspace-head">
           <div>
             <span class="section-kicker">Current view</span>
@@ -356,10 +340,13 @@ ${systemReviewStyles}
               <div class="upload-row">
                 <div class="upload-box">
                   <strong>Schedule revisions</strong>
-                  <small>Select baseline, updates, revised baseline and recovery files together. CMeng verifies content and chronology; filenames are only hints.</small>
+                  <small>Choose the purpose and scope of these programmes. Filenames and dates do not establish approval or replacement authority.</small>
                   <div class="intent-control"><span>Document action</span><select id="scheduleIntent"><option value="add_update" selected>Upload for review</option><option value="replace_current_basis">Adopt uploaded programme</option></select></div>
+                  <div class="intent-control"><label for="scheduleScope">Programme coverage</label><select id="scheduleScope"><option value="project">Whole project</option><option value="phase">One phase only</option></select></div>
+                  <div class="intent-control"><label for="schedulePhase">Phase ID (for phase programmes)</label><input id="schedulePhase" placeholder="e.g. Phase 2"></div>
+                  <div class="intent-control"><label for="scheduleApproval">Baseline approval reference</label><input id="scheduleApproval" placeholder="Approval letter / document reference"></div>
                   <input type="file" id="scheduleFiles" multiple accept=".xer,.xml,.xlsx,.xlsm,.csv">
-                  <div id="scheduleQueue" class="queue"></div>
+                  <div id="scheduleQueue" class="queue"></div><div id="phaseProgrammesPanel"></div>
                   <div class="upload-actions"><button class="btn small primary" id="uploadSchedules">Upload schedule batch</button></div>
                 </div>
                 <div class="upload-box">
@@ -601,11 +588,11 @@ function renderPlatformNav(){
 }
 function renderNav(){
   const nav=el("nav");
-  if(appView!=="project"||!overview){nav.innerHTML="";return}
+  if(!["project","ai"].includes(appView)||!overview){nav.innerHTML="";return}
   const states=new Map([...(overview?.moduleStates||[]),...(overview?.managementStates||[])].map(x=>[x.key,x]));
   const overall=states.get('master-dashboard')?.issueAssessment?.counts||{};
   const sourceTotal=(overall.source_conflict||0)+(overall.data_quality||0)+(overall.missing_information||0);
-  let html='<div class="nav-review-totals"><div>Information items<b>'+fmt(sourceTotal)+'</b></div><div>System failures<b>'+fmt(overall.system_defect||0)+'</b></div></div><div class="nav-group">';
+  let html='<button class="nav-item '+(appView==="ai"?'active':'')+'" id="projectAskNav" aria-current="'+(appView==="ai"?'page':'false')+'" title="Ask about '+escapeHtml(project())+'"><span class="nav-label">✦ Ask CMeng</span></button><div class="nav-review-totals"><div>Information items<b>'+fmt(sourceTotal)+'</b></div><div>System failures<b>'+fmt(overall.system_defect||0)+'</b></div></div><div class="nav-group">';
   Object.entries(groups).forEach(([group,keys])=>{
     html+='<div class="nav-group-title" style="padding-top:10px">'+group+'</div>';
     keys.forEach(key=>{
@@ -616,12 +603,13 @@ function renderNav(){
       // Keep the full counts on Information & Actions. Repeating the same
       // propagated requests on every destination makes navigation look broken.
       const count='<span class="nav-counts">'+(errors?'<span class="nav-count error" aria-label="'+errors+' system failures">Error '+errors+'</span>':'')+'</span>';
-      html+='<button class="nav-item '+(selected===key?"active":"")+'" data-key="'+key+'" title="'+escapeHtml(title)+'" aria-current="'+(selected===key?'page':'false')+'"><span class="nav-label">'+names[key]+'</span>'+count+'</button>';
+      html+='<button class="nav-item '+(appView==="project"&&selected===key?"active":"")+'" data-key="'+key+'" title="'+escapeHtml(title)+'" aria-current="'+(appView==="project"&&selected===key?'page':'false')+'"><span class="nav-label">'+names[key]+'</span>'+count+'</button>';
     });
   });
   html+='</div>';
   nav.innerHTML=html;
-  nav.querySelectorAll(".nav-item").forEach(b=>b.onclick=()=>{selected=b.dataset.key;localStorage.setItem("cmeng-module",selected);renderNav();loadModule(selected)});
+  el("projectAskNav").onclick=()=>setAppView("ai");
+  nav.querySelectorAll(".nav-item[data-key]").forEach(b=>b.onclick=()=>{selected=b.dataset.key;localStorage.setItem("cmeng-module",selected);setAppView("project");loadModule(selected)});
 }
 function scalarPairs(obj){if(!obj||typeof obj!=="object")return[];return Object.entries(obj).filter(([k,v])=>["string","number","boolean"].includes(typeof v)||v===null).slice(0,12)}
 function humanizeIsoText(value){
@@ -1485,6 +1473,7 @@ function planningRevisionLabel(value){
     .trim();
 }
 function planningStateLabel(value){
+  if(value===null||value===undefined)return 'Not established';
   const sharedLabels=${JSON.stringify(STATUS_LABELS)};if(sharedLabels[value])return sharedLabels[value];
   const labels={
     ready:"Ready",partial:"Review needed",blocked:"Blocked",
@@ -3861,7 +3850,7 @@ function renderModuleResultBody(result){
   const roleLabel=managementSurface?"Management Control":(roleViews[selectedRoleView]?.label||roleViews.overall.label);
   el("moduleTitle").textContent=moduleName;
   el("moduleSubtitle").textContent=(descriptions[result.key]||"Current position, key changes and actions requiring attention.")+(managementSurface?"":" · "+roleLabel);
-  el("topbarModule").textContent=moduleName;
+  if(appView!=="ai")el("topbarModule").textContent=moduleName;
   el("moduleBadge").className="issue-badge "+(result.issueAssessment?.primaryKind||"verification_pending");
   el("moduleBadge").textContent=result.issueAssessment?.counts?.system_defect>0?"Calculation error":"";
   if(renderDelivery(result)){el('roleViewSelector').style.display='none';return;}
@@ -3923,7 +3912,7 @@ async function loadModule(key){
   el("moduleContent").classList.remove("empty");
   el("moduleTitle").textContent=moduleName;
   el("moduleSubtitle").textContent=descriptions[key]||"Current position, key changes and actions requiring attention.";
-  el("topbarModule").textContent=moduleName;
+  if(appView!=="ai")el("topbarModule").textContent=moduleName;
   el("moduleBadge").className="badge";
   el("moduleBadge").textContent="Updating";
   setBusy("Updating "+moduleName);
@@ -3997,7 +3986,7 @@ function renderScheduleQueue(){
   el("scheduleQueue").innerHTML=scheduleSelection.map((file,i)=>{
     const full=fileDisplayName(file);
     const role=inferScheduleRole(file.name);
-    return '<div class="queue-row">'+queueFileHtml(file)+'<div class="queue-role-control"><label>This programme is</label><select class="schedule-role" data-index="'+i+'" title="Select role for '+escapeHtml(full)+'"><option value="baseline" '+(role==="baseline"?"selected":"")+'>Baseline</option><option value="update" '+(role==="update"?"selected":"")+'>Update</option><option value="revised_baseline" '+(role==="revised_baseline"?"selected":"")+'>Revised baseline</option><option value="recovery" '+(role==="recovery"?"selected":"")+'>Recovery</option><option value="scenario" '+(role==="scenario"?"selected":"")+'>Draft / scenario</option></select></div><button class="queue-remove" data-type="schedule" data-index="'+i+'">Remove</button></div>';
+    return '<div class="queue-row">'+queueFileHtml(file)+'<div class="queue-role-control"><label>This programme is</label><select class="schedule-role" data-index="'+i+'" title="Select role for '+escapeHtml(full)+'"><option value="" selected>Choose programme purpose</option><option value="baseline" >Baseline</option><option value="update" >Update</option><option value="revised_baseline" >Revised baseline</option><option value="recovery" >Recovery</option><option value="scenario" >Draft / scenario</option></select></div><button class="queue-remove" data-type="schedule" data-index="'+i+'">Remove</button></div>';
   }).join("");
   bindQueueRemoval();
 }
@@ -4169,9 +4158,16 @@ async function loadEvidence(){
       const readLabel=d.readReview?.label||documentReadLabel(d.parserState);
       const readNote=d.readReview?.note||documentReadNote(d.parserState);
       const checked=selectedEvidenceDocuments.has(d.documentId)?" checked":"";
-      const adopt=d.category==="schedule"&&d.linkedArtifactId&&!["recovery","scenario"].includes(d.scheduleRole)&&!(d.basisState==="active"&&d.scheduleAdoption?.method==="explicit")?'<button class="btn small adopt-programme" data-revision="'+escapeHtml(d.linkedArtifactId)+'">'+(d.scheduleRole==="baseline"?'Adopt as baseline':'Adopt as current')+'</button>':"";
-      return '<tr><td class="select-col"><input type="checkbox" class="evidence-select" data-document-id="'+escapeHtml(d.documentId)+'" data-filename="'+escapeHtml(d.sourceFilename)+'"'+checked+'></td><td class="document-file" title="'+escapeHtml(full)+'"><b>'+escapeHtml(d.sourceFilename)+'</b><span class="muted">'+escapeHtml(full)+'</span></td><td class="document-updated" title="'+escapeHtml(d.uploadedAt||"")+'"><b>'+escapeHtml(formatDocumentTime(d.uploadedAt))+'</b><small>'+escapeHtml(d.uploadedAt||"—")+'</small></td><td><b>'+escapeHtml(humanizeKey(d.classificationReview?.category||d.category))+'</b><br>'+escapeHtml(humanizeKey(d.classificationReview?.documentType||d.documentType))+(d.classificationReview?.reviewRequired?'<br><span class="badge partial">Stored as '+escapeHtml(humanizeKey(d.documentType))+' · mapping review required</span>':'')+title+'</td><td class="document-position"><span class="badge '+positionClass+'">'+escapeHtml(position)+'</span></td><td>'+escapeHtml(humanizeKey(d.lineage?.effect||"unknown"))+(d.lineage?.replacesEntireBasis?'<br><span class="badge partial">replaces current document</span>':d.lineage?.appliesAsDelta?'<br><span class="badge">additional record</span>':'')+'</td><td>'+escapeHtml(confidence)+(i.needsReview?'<br><span class="badge partial">review</span>':'')+'</td><td>'+escapeHtml(humanizeKey(method))+'</td><td>'+escapeHtml(conflict)+'</td><td title="'+escapeHtml(readNote)+'"><b>'+escapeHtml(readLabel)+'</b><br><span class="muted">'+escapeHtml(readNote)+'</span></td><td>'+escapeHtml(d.scheduleRole?humanizeKey(d.scheduleRole):"—")+'</td><td>'+escapeHtml(mapping)+'</td><td>'+adopt+'<button class="document-delete document-delete-single" data-document-id="'+escapeHtml(d.documentId)+'" data-filename="'+escapeHtml(d.sourceFilename)+'">Delete</button></td></tr>';
+      const adopt=d.category==="schedule"&&d.linkedArtifactId&&!["recovery","scenario"].includes(d.scheduleRole)&&!(d.basisState==="active"&&d.scheduleAdoption?.method==="explicit")?'<button class="btn small adopt-programme" data-revision="'+escapeHtml(d.linkedArtifactId)+'">'+(['baseline','revised_baseline'].includes(d.scheduleRole)?'Adopt as baseline':'Adopt as current')+'</button>':"";
+      return '<tr><td class="select-col"><input type="checkbox" class="evidence-select" data-document-id="'+escapeHtml(d.documentId)+'" data-filename="'+escapeHtml(d.sourceFilename)+'"'+checked+'></td><td class="document-file" title="'+escapeHtml(full)+'"><b>'+escapeHtml(d.sourceFilename)+'</b><span class="muted">'+escapeHtml(full)+'</span></td><td class="document-updated" title="'+escapeHtml(d.uploadedAt||"")+'"><b>'+escapeHtml(formatDocumentTime(d.uploadedAt))+'</b><small>'+escapeHtml(d.uploadedAt||"—")+'</small></td><td><b>'+escapeHtml(humanizeKey(d.classificationReview?.category||d.category))+'</b><br>'+escapeHtml(humanizeKey(d.classificationReview?.documentType||d.documentType))+(d.classificationReview?.reviewRequired?'<br><span class="badge partial">Stored as '+escapeHtml(humanizeKey(d.documentType))+' · mapping review required</span>':'')+title+'</td><td class="document-position"><span class="badge '+positionClass+'">'+escapeHtml(position)+'</span></td><td>'+escapeHtml(humanizeKey(d.lineage?.effect||"unknown"))+(d.lineage?.replacesEntireBasis?'<br><span class="badge partial">replaces current document</span>':d.lineage?.appliesAsDelta?'<br><span class="badge">additional record</span>':'')+'</td><td>'+escapeHtml(confidence)+(i.needsReview?'<br><span class="badge partial">review</span>':'')+'</td><td>'+escapeHtml(humanizeKey(method))+'</td><td>'+escapeHtml(conflict)+'</td><td title="'+escapeHtml(readNote)+'"><b>'+escapeHtml(readLabel)+'</b><br><span class="muted">'+escapeHtml(readNote)+'</span></td><td>'+escapeHtml(d.scheduleRole?humanizeKey(d.scheduleRole):"—")+'</td><td>'+escapeHtml(mapping)+'</td><td>'+adopt+(d.category==='schedule'&&!d.scheduleAdoption&&!['active','superseded'].includes(d.basisState)?'<button class="btn small programme-purpose" data-document-id="'+escapeHtml(d.documentId)+'">Review programme purpose</button>':'')+(d.category!=='schedule'?'<button class="btn small document-relationship" data-document-id="'+escapeHtml(d.documentId)+'">Review relationship</button>':'')+'<button class="document-delete document-delete-single" data-document-id="'+escapeHtml(d.documentId)+'" data-filename="'+escapeHtml(d.sourceFilename)+'">Delete</button></td></tr>';
     }).join("")+'</tbody></table></div>';
+    el('evidenceLibrary').querySelectorAll('.document-relationship').forEach(button=>button.onclick=()=>{
+      const d=data.documents.find(d=>d.documentId===button.dataset.documentId),container=button.parentElement;
+      const targets=data.documents.filter(x=>x.documentId!==d.documentId&&['active','additive'].includes(x.basisState));
+      container.innerHTML='<label>Document relationship<select class="relationship-kind"><option value="new_record">New independent record</option><option value="replacement">Corrects / replaces an existing record</option><option value="amendment">Amends the base contract</option></select></label><label>Previous / parent document<select class="relationship-target"><option value="">No parent for a new record</option>'+targets.map(x=>'<option value="'+escapeHtml(x.documentId)+'">'+escapeHtml(x.sourceFilename)+' · '+escapeHtml(x.documentType)+'</option>').join('')+'</select></label><label>Reason / source reference<input class="relationship-note"></label><button class="btn small relationship-save">Save relationship and refresh</button><div class="relationship-error" role="status"></div>';
+      container.querySelector('.relationship-save').onclick=async()=>{try{await api('/api/projects/'+encodeURIComponent(projectId)+'/evidence/documents/'+encodeURIComponent(d.documentId)+'/relationship',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({expectedVersion:data.projectVersion??overview.version,sourceHash:d.sourceHashSha256,kind:container.querySelector('.relationship-kind').value,targetDocumentId:container.querySelector('.relationship-target').value||null,note:container.querySelector('.relationship-note').value})});if(project()===projectId)await refresh(false);}catch(e){container.querySelector('.relationship-error').textContent=e.message;}};
+    });
+    el('evidenceLibrary').querySelectorAll('.programme-purpose').forEach(button=>button.onclick=()=>{const d=data.documents.find(d=>d.documentId===button.dataset.documentId);editProgrammePurpose(button.parentElement,projectId,d.linkedArtifactId,d.sourceHashSha256,data.projectVersion,d.scheduleRole,d.scheduleApprovalReference);});
     bindDocumentDeletion();
     bindEvidenceSelection();
     el("evidenceLibrary").querySelectorAll(".adopt-programme").forEach(button=>button.onclick=async()=>{
@@ -4272,27 +4268,32 @@ function updateActiveProjectShell(){
   const pending=projectLoadState==="loading"||projectLoadState==="updating";
   const unloaded=pending?"Loading project information…":id?"Project information could not be loaded":"Open a project from Portfolio or Projects";
   const displayDataDate=overview?.latestDataDateIso?planningShortDate(overview.latestDataDateIso):"No data date";
-  if(appView==="project")el("platformContextTitle").textContent=id;
+  if(appView==="project"||appView==="ai")el("platformContextTitle").textContent=id;
+  el("topbarModule").textContent=appView==="ai"?"Ask CMeng":names[selected]||"Project Controls";
   el("activeProjectName").textContent=id||"No project selected";
   el("activeProjectMeta").textContent=overview?(displayDataDate+" · "+overview.evidenceDocumentCount+" project documents"+(overview.releaseCommitSha?" · Release "+overview.releaseCommitSha.slice(0,7):"")):unloaded;
   el("workspaceProjectMeta").textContent=overview?(id+" · Data Date "+displayDataDate+(overview.releaseCommitSha?" · Release "+overview.releaseCommitSha.slice(0,7):" · Release not supplied")):id+" · "+unloaded;
   el("aiProjectBadge").className="badge";
   el("aiProjectBadge").textContent=id||"No active project";
   el("aiProjectInfo").innerHTML=overview?'<b>'+escapeHtml(id)+'</b><br>'+escapeHtml(overview.evidenceDocumentCount)+' evidence documents<br>'+escapeHtml(overview.revisionCount)+' schedule revisions<br>'+escapeHtml(overview.latestDataDateIso?planningShortDate(overview.latestDataDateIso):"No current data date"):escapeHtml(unloaded);
-  ["runAnalysisTop","askAi"].forEach(key=>{el(key).disabled=!overview});
+  ["runAnalysisTop","askAi","openAiTop"].forEach(key=>{el(key).disabled=!overview});
   el("openLibraryQuick").disabled=!project();el("openEvidenceTop").disabled=!overview;
 }
 function setAppView(view){
+  if(view==="ai"&&(!overview||overview.projectId!==project())){view="projects";el("createProjectMessage").textContent="Open a project to ask about its documents, calculations and current position.";}
   appView=view;
   ["portfolio","projects","ai"].forEach(name=>{el(name+"View").hidden=view!==name});
-  el("projectWorkspace").hidden=view!=="project";
-  document.body.classList.toggle("project-active",view==="project"&&!!project());
-  const titles={portfolio:"Portfolio",projects:"Projects",ai:"Ask CMeng",project:project()||"Project Controls"};
+  const projectView=view==="project"||view==="ai";
+  el("projectWorkspace").hidden=!projectView;
+  el("projectModulePanel").hidden=view!=="project";
+  document.body.classList.toggle("project-active",projectView&&!!project());
+  const titles={portfolio:"Portfolio",projects:"Projects",ai:project(),project:project()||"Project Controls"};
   el("platformContextTitle").textContent=titles[view]||"CMeng";
   renderPlatformNav();
   renderNav();
   if(view==="portfolio"||view==="projects")loadPortfolio();
-  if(view==="ai")updateActiveProjectShell();
+  if(projectView)updateActiveProjectShell();
+  if(view==="ai")loadAskHome();
   window.scrollTo({top:0,behavior:"smooth"});
 }
 function projectRequestIsCurrent(projectId,requestSeq){
@@ -4302,6 +4303,10 @@ function clearProjectWorkspace(projectId){
   // Invalidate every read before changing the visible project. An older response
   // must remain obsolete even if the user switches A → B → A.
   projectRequestSeq++;moduleRequestSeq++;directorRequestSeq++;evidenceRequestSeq++;aiRequestSeq++;
+  resetAskWorkspace();
+  if(el('phaseProgrammesPanel'))el('phaseProgrammesPanel').innerHTML='';
+  for(const id of ['schedulePhase','scheduleApproval'])if(el(id))el(id).value='';
+  if(el('scheduleScope'))el('scheduleScope').value='project';
   overview=null;currentModuleResult=null;projectLoadState="loading";
   selectedEvidenceDocuments.clear();
   scheduleSelection=[];boqSelection=[];contractSelection=[];evidenceSelection=[];
@@ -4371,28 +4376,22 @@ async function runAnalysis(){
     if(d.certification){await refresh(false)}
   }finally{if(project()===projectId)setBusy("")}
 }
+function editProgrammePurpose(container,projectId,revisionId,sourceHash,version,role,approval,phaseId){
+  container.innerHTML='<label>Programme purpose<select class="purpose-role">'+[['baseline','Approved baseline'],['update','Progress update'],['revised_baseline','Approved revised baseline'],['recovery','Recovery plan'],['scenario','Draft / scenario']].map(r=>'<option value="'+r[0]+'" '+(r[0]===role?'selected':'')+'>'+r[1]+'</option>').join('')+'</select></label><label>Baseline approval reference<input class="purpose-approval" value="'+escapeHtml(approval||'')+'"></label><button class="btn small purpose-save">Save purpose</button><p class="purpose-message" role="status">Saving the purpose leaves the programme awaiting adoption.</p>';
+  container.querySelector('.purpose-save').onclick=async()=>{try{await api('/api/projects/'+encodeURIComponent(projectId)+(phaseId?'/phases/'+encodeURIComponent(phaseId):'')+'/schedule/revisions/'+encodeURIComponent(revisionId)+'/purpose',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({expectedVersion:version,sourceHash,role:container.querySelector('.purpose-role').value,approvalReference:container.querySelector('.purpose-approval').value})});if(project()===projectId)await refresh(false);}catch(e){container.querySelector('.purpose-message').textContent=e.message;}};
+}
+async function loadPhaseProgrammes(){
+  const target=el('phaseProgrammesPanel');if(!target)return;const id=project(),seq=projectRequestSeq;const current=()=>projectRequestIsCurrent(id,seq);
+  try{const data=await api('/api/projects/'+encodeURIComponent(id)+'/phases');if(!current())return;
+    target.innerHTML=data.phases.map(p=>'<details class="ask-evidence"><summary>'+escapeHtml(p.phaseId)+' · '+escapeHtml(p.review.state)+'</summary><p>Phase Data Date: '+escapeHtml(p.programme?.dataDate||'Not established')+'. Whole-project authority is unchanged.</p>'+p.revisions.map(r=>'<p>'+escapeHtml(r.filename)+' · '+escapeHtml(r.role)+' · '+escapeHtml(r.dataDate||'No Data Date')+(r.adopted?' · adopted':'')+(r.canReview?'<button class="btn small phase-purpose" data-phase="'+escapeHtml(p.phaseId)+'" data-revision="'+escapeHtml(r.revisionId)+'">Review purpose</button>':'')+'</p>').join('')+p.review.pendingSchedules.map(r=>'<button class="btn small phase-adopt" data-action="'+escapeHtml(r.actionPath)+'" '+(r.canAdopt?'':'disabled')+'>Adopt '+escapeHtml(r.filename)+' for '+escapeHtml(p.phaseId)+'</button>').join('')+'</details>').join('');
+    target.querySelectorAll('.phase-purpose').forEach(button=>button.onclick=()=>{const p=data.phases.find(p=>p.phaseId===button.dataset.phase),r=p.revisions.find(r=>r.revisionId===button.dataset.revision);editProgrammePurpose(button.parentElement,id,r.revisionId,r.sourceHash,p.projectVersion,r.role,r.approvalReference,p.phaseId);});
+    target.querySelectorAll('.phase-adopt').forEach(button=>button.onclick=async()=>{try{await api(button.dataset.action,{method:'POST'});if(project()===id)await refresh(false);}catch(e){if(project()===id)el('uploadMessage').textContent=e.message;}});
+  }catch(e){if(current())target.textContent='Phase programmes could not be loaded: '+e.message;}
+}
 async function afterEvidenceChange(){
   if(el("runAfterUpload")?.checked){await runAnalysis()}else{await refresh(false)}
 }
-async function askCmeng(){
-  if(!overview){el("aiAnswer").textContent="Open a project first.";return}
-  const question=el("aiQuestion").value.trim();
-  if(!question)return;
-  const projectId=project(),projectSeq=projectRequestSeq,requestSeq=++aiRequestSeq;
-  const current=()=>requestSeq===aiRequestSeq&&projectRequestIsCurrent(projectId,projectSeq);
-  el("aiAnswer").textContent="Reviewing the current project position...";
-  try{
-    const result=await api("/api/projects/"+encodeURIComponent(project())+"/intelligence/ask",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({question})});
-    if(!current())return;
-    el("aiAnswer").textContent=result.answer+(result.managementActions?.length?"\n\nManagement actions:\n"+result.managementActions.map(x=>"• "+x).join("\n"):"")+(result.governance?"\n\n"+result.governance:"");
-    el("aiProjectInfo").innerHTML='<b>'+escapeHtml(result.projectId)+'</b><br>'+result.relevantModules.map(x=>escapeHtml((names[x.key]||humanizeKey(x.key))+" · "+statusLabel(x.status))).join("<br>");
-  }catch(e){if(current())el("aiAnswer").textContent="CMeng AI could not answer: "+e.message}
-}
-function renderAiSuggestions(){
-  const qs=["What changed since the previous schedule update?","What is driving the current completion forecast?","Which delay events have the strongest time impact?","What project information is missing from the look-ahead?","What commercial exposure is linked to schedule delay?"];
-  el("aiSuggestions").innerHTML=qs.map(q=>'<button class="ai-suggestion">'+escapeHtml(q)+'</button>').join("");
-  document.querySelectorAll(".ai-suggestion").forEach(b=>b.onclick=()=>{el("aiQuestion").value=b.textContent;askCmeng()});
-}
+${askAiScript}
 let directorRequestSeq=0;
 async function loadDirector(projectId=project(),attempt=0){
   const requestSeq=++directorRequestSeq;
@@ -4460,6 +4459,7 @@ async function refresh(bootstrapDemo=true){
     await Promise.allSettled([
       loadModule(selected),
       loadEvidence(),
+      loadPhaseProgrammes(),
       loadDirector(projectId)
     ]);
   }catch(e){
@@ -4485,12 +4485,12 @@ async function refresh(bootstrapDemo=true){
     if(current())setBusy("");
   }
 }
-async function loadDemo(){setBusy("Loading demonstration project");try{el("projectId").value="UAT-DEMO";localStorage.setItem("cmeng-project","UAT-DEMO");await api("/api/projects/UAT-DEMO/demo",{method:"POST"});selected="pmo-analysis";await refresh(false);el("uploadMessage").innerHTML='<div class="notice info">Demonstration project loaded. Your own projects are not changed.</div>'}catch(e){el("uploadMessage").innerHTML='<div class="notice error">'+escapeHtml(e.message)+'</div>'}finally{setBusy("")}}
+async function loadDemo(){setBusy("Loading demonstration project");try{await api("/api/projects/UAT-DEMO/demo",{method:"POST"});selected="pmo-analysis";await openProject("UAT-DEMO");el("uploadMessage").innerHTML='<div class="notice info">Demonstration project loaded. Your own projects are not changed.</div>'}catch(e){el("uploadMessage").innerHTML='<div class="notice error">'+escapeHtml(e.message)+'</div>'}finally{setBusy("")}}
 ${uploadWorkScript}
 function uploadEvidenceFileWithProgress(file,fileIndex,fileTotal,job){
   return new Promise((resolve,reject)=>{
     const id=uploadId();
-    const url="/api/projects/"+encodeURIComponent(job.projectId)+"/evidence/uploads";
+    const url="/api/projects/"+encodeURIComponent(job.projectId)+(job.kind==="schedule"?(job.programmeScope==="phase"?"/phases/"+encodeURIComponent(job.phaseId)+"/schedule/uploads":"/schedule/uploads"):"/evidence/uploads");
     const xhr=new XMLHttpRequest();
     let lastServerProgress=null;
     let pollBusy=false;
@@ -4500,7 +4500,7 @@ function uploadEvidenceFileWithProgress(file,fileIndex,fileTotal,job){
     xhr.setRequestHeader("x-source-relative-path",file.webkitRelativePath||file.name);
     xhr.setRequestHeader("x-upload-intent",job.intent);
     xhr.setRequestHeader("x-upload-id",id);
-    if(job.kind==="schedule"){xhr.setRequestHeader("x-evidence-category","schedule");xhr.setRequestHeader("x-schedule-role",job.roles[fileIndex]||inferScheduleRole(file.name));}
+    if(job.kind==="schedule"){xhr.setRequestHeader("x-evidence-category","schedule");xhr.setRequestHeader("x-schedule-role",job.roles[fileIndex]);xhr.setRequestHeader("x-schedule-role-confirmed","1");if(job.approvalReference)xhr.setRequestHeader("x-approval-reference",job.approvalReference);}
     if(job.kind==="boq"){xhr.setRequestHeader("x-evidence-category","boq_cost");xhr.setRequestHeader("x-document-type","boq");}
     if(job.kind==="contract"){
       const role=job.roles[fileIndex]||inferContractRole(file.name);
@@ -4557,7 +4557,8 @@ function uploadEvidenceFileWithProgress(file,fileIndex,fileTotal,job){
         reject(Object.assign(new Error(data?.message||data?.reason||data?.error||("HTTP "+xhr.status)),{status:xhr.status,data}));
         return;
       }
-      updateUploadJob(job,lastServerProgress||{
+      updateUploadJob(job,{
+        ...(lastServerProgress||{}),
         state:"complete",
         percent:100,
         message:"File processed · check Documents for the reading result",
@@ -4569,6 +4570,7 @@ function uploadEvidenceFileWithProgress(file,fileIndex,fileTotal,job){
     xhr.send(file);
   });
 }
+bindAskWorkspace();
 el("loadDemo").onclick=loadDemo;el("refresh").onclick=()=>refresh(false);el("runAnalysisTop").onclick=runAnalysis;el("openAiTop").onclick=()=>setAppView("ai");el("askAi").onclick=askCmeng;el("createProject").onclick=createProject;el("portfolioNewProject").onclick=()=>setAppView("projects");
 function openEvidenceWorkspace(){
   if(!overview){setAppView("projects");el("createProjectMessage").innerHTML='<div class="notice info">Create or open a project before adding documents.</div>';return}

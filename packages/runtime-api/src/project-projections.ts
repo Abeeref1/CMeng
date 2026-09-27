@@ -6776,7 +6776,9 @@ function applyProfessionalModuleState(
     const cost = position?.performance?.costControl;
     const conflicts = (position?.sourceLedger?.costPosition ?? []).some((row: any) => (row.diagnostics ?? []).some((issue: string) => /CONFLICT|UNRESOLVED/.test(issue)));
     if (conflicts || cost?.state !== "established" || position?.foundation?.costRegister?.mappingCoveragePercent !== 100) {
-      review("Cost snapshots are available, but reconciliation, source authority or CBS mapping requires review. A single observation does not establish a trend.");
+      review((position?.sourceLedger?.costPosition ?? []).length
+        ? "Cost snapshots are available, but reconciliation, source authority or CBS mapping requires review. A single observation does not establish a trend."
+        : "Cost snapshots are not established. Supply dated EVM inputs with a compatible currency, tax basis and measurement population before calculating cost performance.");
     }
   }
 

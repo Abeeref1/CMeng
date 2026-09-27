@@ -1,7 +1,7 @@
 import type {ProjectRuntimeState,StoredEvidenceDocument,StoredScheduleRevision} from './project-state-types';
 
 export const scenarioName=(name:string)=>/\b(draft|scenario|what if|proposed|recovery)\b/i.test(name.normalize('NFKC').replace(/[_/\\.-]+/g,' '));
-export const isScenarioRevision=(revision:StoredScheduleRevision)=>revision.role==='recovery'||revision.role==='scenario'||scenarioName(revision.sourceFilename??revision.revision.label??'');
+export const isScenarioRevision=(revision:StoredScheduleRevision)=>revision.role==='recovery'||revision.role==='scenario'||!revision.roleConfirmed&&scenarioName(revision.sourceFilename??revision.revision.label??'');
 export function isAdoptedProgrammeRevision(state:ProjectRuntimeState,revision:StoredScheduleRevision){
   if(isScenarioRevision(revision))return false;
   const documents=state.evidenceDocuments.filter(d=>d.category==='schedule'&&d.linkedArtifactId===revision.revision.revisionId);
@@ -20,7 +20,7 @@ export function scheduleAuthorityReview(state:ProjectRuntimeState){
     if(!source)return [];
     const date=s.revision.model.dataDateIso?.slice(0,10)??null;
     const dateRelationship=!date?'date_missing':!dataDateIso?'no_current_programme':date>dataDateIso?'later':date===dataDateIso?'same':'earlier';
-    const adoptionBlocker=!date?'The programme Data Date must be established before adoption.':source.sourceHashSha256!==s.sourceHashSha256?'The programme and document source hashes do not agree. Review the source before adoption.':null;
+    const adoptionBlocker=s.roleConfirmed&&['baseline','revised_baseline'].includes(s.role)&&!s.approvalReference?.trim()?'Review the programme purpose and enter its approval reference in Documents before adoption.':!date?'The programme Data Date must be established before adoption.':source.sourceHashSha256!==s.sourceHashSha256?'The programme and document source hashes do not agree. Review the source before adoption.':null;
     return [{documentId:source.documentId,revisionId:s.revision.revisionId,sourceHashSha256:source.sourceHashSha256,
       filename:source.sourceFilename,dataDateIso:date,uploadedAt:source.uploadedAt,role:s.role,dateRelationship,
       canAdopt:adoptionBlocker===null,adoptionBlocker,

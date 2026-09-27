@@ -1,3 +1,4 @@
+import {boqItemContinuity} from './boq-item-continuity';
 import type {BoqIngestionResult} from '../../boq-ingestion/src';
 import type {CanonicalQuantityProgressModel} from '../../quantity-progress-core/src';
 import type {ProjectRuntimeState} from './project-state-types';
@@ -96,12 +97,7 @@ export function quantityModelFromBoq(
     }),
   );
 
-  const itemIds = new Set(
-    items.map(
-      (item) =>
-        item.quantityItemId,
-    ),
-  );
+  const continuity=boqItemContinuity((existing?.items??[]).map(i=>({...i,id:i.quantityItemId})),items.map(i=>({...i,id:i.quantityItemId})));
 
   return {
     projectId: result.projectId,
@@ -111,21 +107,13 @@ export function quantityModelFromBoq(
     scheduleRevisionId,
     items,
     allocations:
-      existing?.allocations.filter(
-        (allocation) =>
-          itemIds.has(
-            allocation.quantityItemId,
-          ),
-      ) ?? [],
+      existing?.allocations.filter(a=>continuity.has(a.quantityItemId)).map(a=>({...a,quantityItemId:continuity.get(a.quantityItemId)!})) ?? [],
     installedSnapshots:
-      existing?.installedSnapshots.filter(
-        (snapshot) =>
-          itemIds.has(
-            snapshot.quantityItemId,
-          ),
-      ) ?? [],
+      existing?.installedSnapshots.filter(s=>continuity.has(s.quantityItemId)).map(s=>({...s,quantityItemId:continuity.get(s.quantityItemId)!})) ?? [],
     diagnostics: [
       ...result.diagnostics,
+      ...(existing&&continuity.size<existing.items.length?['BOQ_ITEM_LINKS_REQUIRE_REVIEW']:[]),
+      ...([...continuity].some(([a,b])=>a!==b)?['BOQ_LINKS_CARRIED_BY_UNIQUE_ITEM_IDENTITY']:[]),
     ],
   };
 }

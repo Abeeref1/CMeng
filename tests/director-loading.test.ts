@@ -27,7 +27,7 @@ test('opening a project loads and renders the canonical Director position with i
     api,project:()=> 'OTHER-2032',el:(id:string)=>nodes[id]??(nodes[id]={}),
     selected:'command-center',renderDirector:(data:any)=>rendered.push(data),
     renderStatus:()=>{},renderNav:()=>{},updateActiveProjectShell:()=>{},setBusy:()=>{},
-    loadModule:async()=>{},loadEvidence:async()=>{},localStorage:{setItem:()=>{}},escapeHtml:String,
+    loadModule:async()=>{},loadEvidence:async()=>{},loadPhaseProgrammes:async()=>{},localStorage:{setItem:()=>{}},escapeHtml:String,
   });
   assert.ok(requested.includes('/api/projects/OTHER-2032/director-position'));
   assert.deepEqual(rendered,[director]);

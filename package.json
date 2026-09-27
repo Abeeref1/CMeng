@@ -19,6 +19,7 @@
     "test:release": "npm run verify && npm run test:release:latency"
   },
   "dependencies": {
+    "@napi-rs/canvas": "0.1.80",
     "@streamparser/json": "0.0.26",
     "@tesseract.js-data/ara": "1.0.0",
     "@tesseract.js-data/eng": "1.0.0",
@@ -27,10 +28,12 @@
     "iconv-lite": "0.6.3",
     "jszip": "3.10.1",
     "pdf-parse": "2.4.5",
+    "pdfkit": "0.17.2",
     "tesseract.js": "7.0.0"
   },
   "devDependencies": {
     "@types/node": "22.18.0",
+    "@types/pdfkit": "0.17.4",
     "pdf-lib": "1.17.1",
     "typescript": "5.9.2"
   },

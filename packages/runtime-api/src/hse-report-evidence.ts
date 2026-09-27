@@ -1,6 +1,5 @@
 import {createHash} from 'node:crypto';
 import {readFileSync} from 'node:fs';
-import {PDFParse} from 'pdf-parse';
 import {dateValue,sourceTables,cell,numberValue,canonicalHeader} from '../../truth-kernel/src';
 import type {StoredEvidenceDocument,ProjectRuntimeState} from './project-state-types';
 import {weeklyResourceCapacityEvidence} from './canonical-resource-evidence';
@@ -50,7 +49,7 @@ export async function refreshHseSummary(document:StoredEvidenceDocument):Promise
     return true;
   }
   if(!/pdf/i.test(document.mediaType))return false;
-  const parser=new PDFParse({data:bytes as any});
+  const parser=new (await import('pdf-parse')).PDFParse({data:bytes as any});
   try{const parsed=await parser.getText();document.hseSummary={...parseHseSummary(parsed.text,document.sourceHashSha256,'evidence-document:'+document.documentId+':native-pdf-summary'),producerVersion:'hse-summary-v2',sourceTableRead:parsed.pages.every(p=>p.text.trim().length>0)};return true;}finally{await parser.destroy();}
 }
 const cache=new WeakMap<ProjectRuntimeState,{version:number;date:string|null;value:ReturnType<typeof calculateHsePosition>}>();
