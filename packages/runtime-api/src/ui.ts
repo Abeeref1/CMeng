@@ -1226,6 +1226,33 @@ function renderLookAheadVisual(data){
   const blockers=planningLookAheadBlockers(p.blockerTypes);
   return '<section class="planning-view lookahead-view">'+kpis+coverageHtml+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>6-week execution view</h4><p>Showing the 36 highest-priority activities from '+escapeHtml(fmt(inWindow))+' activities. The label at right states the actual blocker or whether evidence is still missing.</p></div></div><div class="planning-panel-body">'+timeline+'</div></section><div class="planning-primary-grid"><section class="planning-panel"><div class="planning-panel-head"><div><h4>Readiness position</h4><p>A known blocker is different from missing readiness evidence.</p></div></div><div class="planning-panel-body">'+readiness+'<div class="coverage-line"><span>Date coverage</span><b>'+escapeHtml(p.currentDateCoveragePercent===null?"—":fmt(p.currentDateCoveragePercent)+"%")+'</b></div></div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Why work is blocked</h4><p>Explicit blocker occurrences. Predecessor checks assess relationship anchors, working-calendar lag and submitted date fit; unfinished work alone is not a blocker.</p></div></div><div class="planning-panel-body">'+blockers+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Readiness matrix</h4><p>All activities in the window. Search an activity, deliverable or package. Open a cell to read its source date and reason.</p></div></div><div class="planning-panel-body"><label class="register-search">Find a readiness record <input type="search" data-register-filter placeholder="Activity, deliverable, package or reason" aria-label="Filter readiness records"></label><span class="register-search-count" aria-live="polite">'+fmt(watch.length)+' activities</span><div class="table-wrap readiness-table"><table><thead><tr><th>Activity</th><th>Start</th><th>Finish</th><th>Overall</th>'+dimensions.map(key=>'<th>'+escapeHtml(labels[key])+'</th>').join("")+'</tr></thead><tbody>'+rows+'</tbody></table></div></div></section></section>';
 }
+function renderMonteCarloRiskVisual(data){
+  const p=projectionFor(data,"schedule_risk_monte_carlo");
+  if(!p||p.state==="unavailable")return '<section class="planning-view"><div class="notice warn"><b>Schedule risk simulation is not yet available.</b><p>'+escapeHtml(data?.reason||"Complete the deterministic schedule basis and remaining durations first.")+'</p></div></section>';
+  const confidence=p.confidence||[];
+  const percentile=name=>confidence.find(row=>row.percentile===name)?.completionIso??null;
+  const drivers=(p.riskDrivers||[]).slice(0,20);
+  const driverRows=drivers.map(row=>'<tr><td><b>'+escapeHtml(row.activityId)+'</b><br><span class="muted">'+escapeHtml(row.name||"")+'</span></td><td>'+escapeHtml(row.wbsId||"—")+'</td><td>'+escapeHtml(row.criticalityIndexPercent===null?"Unresolved":fmt(row.criticalityIndexPercent)+"%")+'</td><td>'+escapeHtml(row.remainingDurationHours===null?"—":fmt(row.remainingDurationHours)+" h")+'</td><td>'+escapeHtml(row.sourceTotalFloatHours===null?"—":fmt(row.sourceTotalFloatHours)+" h")+'</td><td>'+escapeHtml(fmt(row.linkedOpenRiskCount||0))+'</td></tr>').join("");
+  const hist=(p.histogram||[]).map(row=>({dateIso:row.weekStartIso,count:row.count}));
+  const probability=p.finishByRequiredDateProbabilityPercent;
+  const scenario='<div class="notice warn"><b>Scenario, not an official forecast.</b> Each incomplete activity is sampled independently using triangular factors '+escapeHtml(fmt(p.uncertainty?.minFactor))+' / '+escapeHtml(fmt(p.uncertainty?.modeFactor))+' / '+escapeHtml(fmt(p.uncertainty?.maxFactor))+'. Project-specific uncertainty ranges and correlations are not yet governed. Deterministic CPM remains the current schedule authority.</div>';
+  return '<section class="planning-view monte-carlo-view">'+planningKpis([
+    ["Deterministic finish",planningShortDate(p.deterministicFinishIso),"canonical CPM"],
+    ["P50",planningShortDate(percentile("P50")),"scenario completion"],
+    ["P80",planningShortDate(percentile("P80")),"scenario completion"],
+    ["P90",planningShortDate(percentile("P90")),"scenario completion"],
+    ["Required finish",planningShortDate(p.requiredFinishIso),"contract basis if established"],
+    ["Probability ≤ required",probability===null?"Unresolved":fmt(probability)+"%","scenario only"],
+    ["Iterations",p.iterationsCompleted,fmt(p.failedIterations||0)+" failed"],
+    ["Uncertain activities",p.uncertainActivityCount,fmt(p.activityPopulation)+" execution activities"]
+  ])+scenario+
+  '<div class="planning-primary-grid">'+
+    renderVisualPanel("Completion distribution","Successful activity-by-activity network simulations grouped by completion week.",renderLineChart(hist,[{key:"count",label:"Simulations",tone:"accent"}],null,{unit:"runs",yLabel:"Runs",xLabel:"Completion week"}))+
+    renderVisualPanel("Confidence dates","Percentile completion dates from the same simulation population.",basisTable(["Confidence","Completion"],confidence.map(row=>[row.percentile,planningShortDate(row.completionIso)])))+
+  '</div>'+
+  '<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Schedule risk drivers</h4><p>Activities ranked by simulated criticality index. Linked risk-register records are context only; qualitative risk ratings are not converted into duration impacts.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Activity</th><th>WBS</th><th>Criticality index</th><th>Remaining duration</th><th>Source float</th><th>Linked open risks</th></tr></thead><tbody>'+driverRows+'</tbody></table></div></div></section>'+
+  '<details class="source-scope"><summary>Simulation assumptions and limitations</summary><ul>'+(p.assumptions||[]).map(x=>'<li>'+escapeHtml(x)+'</li>').join("")+'</ul><p>'+escapeHtml(p.riskRegister?.basis||"")+'</p></details></section>';
+}
 function renderForecastVisual(data){
   const p=projectionFor(data,"independent_forecast");
   if(!("independentForecastCompletionIso" in p))return"";
@@ -3782,6 +3809,7 @@ function renderSpecializedModule(key,data){
   if(key==="manhour-scurve")return renderManhourVisual(data);
   if(key==="forecast-history")return renderForecastHistoryVisual(data);
   if(key==="independent-forecast")return renderForecastVisual(data);
+  if(key==="monte-carlo-risk")return renderMonteCarloRiskVisual(data);
   if(key==="delay-claims")return renderDelayClaimsVisual(data);
   if(key==="notices-claims")return renderNoticesClaimsVisual(data);
   if(key==="windows-analysis")return renderWindowsVisual(data);
