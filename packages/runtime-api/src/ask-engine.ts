@@ -205,7 +205,8 @@ export class ProjectAskEngine {
         if(result.authorityId==='activities'&&plan.activityBreakouts?.length&&breakoutSources.length){
           const base=breakoutSources[0]!;
           for(const [index,breakout] of plan.activityBreakouts.entries()){
-            const breakoutPlan={...plan,filters:[...breakout.filters],authorityFilters:{},groupBy:[],rankBy:null,rankings:[],limit:null,criticalOnly:false,issuesOnly:false,activityBreakouts:undefined};
+            const {activityBreakouts:_activityBreakouts,...planWithoutBreakouts}=plan;
+            const breakoutPlan:AnalysisPlan={...planWithoutBreakouts,filters:[...breakout.filters],authorityFilters:{},groupBy:[],rankBy:null,rankings:[],limit:null,criticalOnly:false,issuesOnly:false};
             const queried=queryTable(base,breakoutPlan);
             unresolved.push(...queried.gaps);
             result.tables.push({...queried.table,id:base.id+'-breakout-'+index,title:breakout.label,basis:queried.table.basis+' This is an independent result set from the same full programme population; it is not intersected with the primary activity request.'});
