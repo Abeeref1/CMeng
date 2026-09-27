@@ -186,6 +186,7 @@ export type EvidenceIdentificationMethod =
   | "unreadable";
 
 export interface EvidenceIdentification {
+  sourceDocumentIdentity?:string|null;
   verifiedMediaType: string;
   detectedCategory: EvidenceCategory;
   detectedDocumentType: string;

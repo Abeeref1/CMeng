@@ -115,6 +115,9 @@ function documentIdentifier(
   return null;
 }
 
+export const sourceDocumentIdentifier=(documentType:string,text:string)=>documentIdentifier(documentType,text,'');
+export function hasSourceDocumentIdentity(document:StoredEvidenceDocument){return !!document.identification?.sourceDocumentIdentity||documentIdentifier(document.documentType,document.assertions.map(a=>a.sourceText).join('\n'),'')!==null;}
+
 export function evidenceFamily(
   input: {
     category: string;
@@ -637,6 +640,8 @@ export function applyEvidenceBasis(
         document.sourceFilename,
     }).behavior;
 
+  if(['additive','contract_delta'].includes(behavior)&&document.identification?.sourceDocumentIdentity&&!document.relationshipDecision)document.logicalDocumentKey=document.identification.sourceDocumentIdentity;
+
   const current =
     activeDocument(
       state,
@@ -692,6 +697,9 @@ export function applyEvidenceBasis(
     );
   }
 
+  if(['contract_delta','additive'].includes(behavior)&&['contract_amendment','variation_order'].includes(document.documentType)&&!relationship&&!hasSourceDocumentIdentity(document)&&state.evidenceDocuments.some(d=>d.documentId!==document.documentId&&d.familyKey===familyKey&&['active','additive'].includes(d.basisState))){
+    document.basisState='candidate';document.lineage.needsReview=true;return result('candidate',false,'The source does not establish a unique document identifier. Review whether this is a new record or a correction; the filename does not establish that relationship.');
+  }
   if (
     behavior ===
     "contract_delta"

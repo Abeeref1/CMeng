@@ -1,3 +1,4 @@
+import {hasSourceDocumentIdentity} from './evidence-control';
 import {isDeepStrictEqual} from 'node:util';
 import {phaseProgrammeState} from './phase-programmes';
 import {hasFinancialSecurityContent} from './security-document-content';
@@ -5185,7 +5186,8 @@ export class RuntimeProjectStore {
     if(input.kind!=='new_record'&&(!target||target.documentId===document.documentId||!['active','additive'].includes(target.basisState)))throw new Error('CURRENT_TARGET_DOCUMENT_REQUIRED');
     if(input.kind==='replacement'&&target!.familyKey!==document.familyKey)throw new Error('REPLACEMENT_MUST_MATCH_DOCUMENT_FAMILY');
     if(input.kind==='amendment'&&!(document.documentType==='contract_amendment'&&target!.familyKey==='contract:base'))throw new Error('AMENDMENT_REQUIRES_CLASSIFIED_CONTRACT_AMENDMENT_AND_BASE');
-    if(input.kind==='new_record'&&state.evidenceDocuments.some(d=>d.documentId!==document.documentId&&d.familyKey===document.familyKey&&d.logicalDocumentKey===document.logicalDocumentKey&&['active','additive'].includes(d.basisState)))throw new Error('DUPLICATE_DOCUMENT_ID_REQUIRES_REPLACEMENT');
+    if(input.kind==='new_record'&&hasSourceDocumentIdentity(document)&&state.evidenceDocuments.some(d=>d.documentId!==document.documentId&&d.familyKey===document.familyKey&&d.logicalDocumentKey===document.logicalDocumentKey&&['active','additive'].includes(d.basisState)))throw new Error('DUPLICATE_DOCUMENT_ID_REQUIRES_REPLACEMENT');
+    if(input.kind==='new_record'&&!hasSourceDocumentIdentity(document)&&['contract_amendment','variation_order'].includes(document.documentType))document.logicalDocumentKey=document.familyKey+':reviewed-new:'+document.documentId;
     document.relationshipDecision={kind:input.kind,targetDocumentId:target?.documentId??null,targetSourceHash:target?.sourceHashSha256??null,sourceHash:document.sourceHashSha256,note:input.note.trim(),recordedAt:new Date().toISOString()};
     document.lineage={...document.lineage,predecessorDocumentIds:target?[target.documentId]:[],replacesEntireBasis:input.kind==='replacement',appliesAsDelta:input.kind==='amendment',inferred:false,needsReview:false,confidence:1};
     const effect=applyEvidenceBasis(state,document,input.kind==='replacement'?'replace_current_basis':'add_update');

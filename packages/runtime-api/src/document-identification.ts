@@ -1,3 +1,4 @@
+import {sourceDocumentIdentifier} from './evidence-control';
 import {hasFinancialSecurityContent} from './security-document-content';
 import {readableXlsx} from '../../shared/src/xlsx';
 import {csv,prepareRegisterRows} from '../../truth-kernel/src';
@@ -2468,6 +2469,7 @@ export async function identifyEvidenceDocument(
 
   return {
     identification: {
+      sourceDocumentIdentity:sourceDocumentIdentifier(detectedDocumentType,text),
       verifiedMediaType:
         mediaType,
       detectedCategory,

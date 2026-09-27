@@ -102,3 +102,20 @@ test('HTTP gateway persists phase review/adoption, refreshes project versions an
  const ask:any=await (await fetch(base+path+'/intelligence/ask',{method:'POST',headers:jsonHeaders,body:JSON.stringify({question:'What is the Data Date?'})})).json();assert.equal(ask.scope.dataDate,null);assert.equal(ask.telemetry.aiInvoked,false);
  await gateway.close();closed=true;
 });
+
+
+test('ambiguous renamed VO is pending until its relationship is explicit; same filename can still be a distinct reviewed record',t=>{
+ const f=store(t),state=f.store.getOrCreate('VO-AMBIGUOUS'),a=document('a','Additional scope amount AED 100'),b=document('b','Additional scope amount AED 150');
+ for(const d of [a,b]){state.evidenceDocuments.push(d);applyEvidenceBasis(state,d,'add_update');}assert.equal(a.basisState,'additive');assert.equal(b.basisState,'candidate');
+ b.sourceFilename=a.sourceFilename;b.logicalDocumentKey=a.logicalDocumentKey;
+ f.store.reviewEvidenceRelationship(state.projectId,{documentId:b.documentId,sourceHash:b.sourceHashSha256,expectedVersion:state.version,kind:'new_record',note:'Separate instructed scope; register identifier not supplied.'});
+ assert.equal(a.basisState,'additive');assert.equal(b.basisState,'additive');assert.notEqual(a.logicalDocumentKey,b.logicalDocumentKey);
+});
+
+
+test('real text intake retains source VO identity beyond numeric assertions regardless of filenames',async t=>{
+ const f=store(t),projectId='VO-CONTENT-ID';
+ const upload=(filename:string,amount:number)=>f.store.ingestEvidenceFile({projectId,sourceFilename:filename,bytes:Buffer.from('VARIATION ORDER\nVO No: VO-101\nVariation Amount: AED '+amount+'\nAdditional quantities'),mediaType:'text/plain',uploadedAt:'2036-09-01'});
+ await upload('unrelated-one.txt',100);await upload('entirely-renamed.txt',150);
+ const docs=f.store.get(projectId)!.evidenceDocuments;assert.deepEqual(docs.map(d=>d.basisState),['additive','candidate']);assert.ok(docs.every(d=>d.identification.sourceDocumentIdentity==='vo:vo-101'));assert.equal(docs[0]!.logicalDocumentKey,docs[1]!.logicalDocumentKey);
+});
