@@ -17,6 +17,7 @@ import {quantityBasisReview,contractValueBasisReview} from './source-basis-revie
 import {sourceInterpretation} from "./source-interpretation";
 import {scheduleScopeClassification} from "./schedule-scope-classification";
 import {scheduleRiskMonteCarlo} from "./schedule-risk-monte-carlo";
+import {earnedScheduleForState,evmByWbsForState,riskRegisterForState,contractRiskForState,finalAccountForState} from "./advanced-controls";
 import {contractChallengeForState} from './contract-challenge-runtime';
 import { enforceModuleReadiness } from "./module-readiness";
 import {assessModuleIssues} from './module-issues';
@@ -7175,6 +7176,11 @@ export function moduleForProject(
   }
   if (isDeliveryPage(key)) return deliveryModule(state,key);
   if (key==='monte-carlo-risk') return scheduleRiskMonteCarlo(reportingState(state));
+  if (key==='earned-schedule') return earnedScheduleForState(reportingState(state));
+  if (key==='evm-by-wbs') return evmByWbsForState(reportingState(state));
+  if (key==='risk-register') return riskRegisterForState(reportingState(state));
+  if (key==='contract-risk') return contractRiskForState(reportingState(state));
+  if (key==='final-account') return finalAccountForState(reportingState(state));
   const commercialCapability=commercialFoundationCapabilityForState(state,key)??commercialPerformanceCapabilityForState(state,key)??commercialContractControlCapabilityForState(state,key);
   if(commercialCapability)return attachReportingContract(reportingState(state),commercialCapability);
   if (managementModuleKeys.includes(key)) {
