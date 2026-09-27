@@ -190,7 +190,7 @@ function moduleLoader(api:(route:string)=>Promise<unknown>) {
   const elements=new Map<string,any>();
   const el=(id:string)=>{if(!elements.has(id))elements.set(id,{innerHTML:'',classList:{remove(){}},textContent:'',onclick:null});return elements.get(id);};
   const rendered:any[]=[];
-  const context=createContext({...common,moduleRegistry,document:{body:{classList:{remove(){}}},querySelectorAll:()=>[]},el,api,overview:{},names:{cash:'Cash',progress:'Progress'},descriptions:{},project:()=> 'unrelated-project',projectRequestSeq:0,projectLoadState:"ready",moduleRequestSeq:0,currentModuleResult:{key:'old',data:{value:999}},managementSurfaceKeysForApi:new Set(),commercialModuleKeysForApi:new Set(),setBusy:()=>{},renderModuleResult:(r:any)=>{rendered.push(r);context.currentModuleResult=r;el('moduleContent').innerHTML='Rendered '+r.key;}});
+  const context=createContext({...common,appView:"project",moduleRegistry,document:{body:{classList:{remove(){}}},querySelectorAll:()=>[]},el,api,overview:{},names:{cash:'Cash',progress:'Progress'},descriptions:{},project:()=> 'unrelated-project',projectRequestSeq:0,projectLoadState:"ready",moduleRequestSeq:0,currentModuleResult:{key:'old',data:{value:999}},managementSurfaceKeysForApi:new Set(),commercialModuleKeysForApi:new Set(),setBusy:()=>{},renderModuleResult:(r:any)=>{rendered.push(r);context.currentModuleResult=r;el('moduleContent').innerHTML='Rendered '+r.key;}});
   runInContext(functions(['projectRequestIsCurrent','loadModule']),context);
   return {context,elements,rendered,load:(key:string)=>{context.requestedKey=key;return runInContext('loadModule(requestedKey)',context) as Promise<void>;}};
 }
@@ -250,7 +250,7 @@ test('source quality and date scope preserve record evidence behind concise disc
 test('navigation does not multiply information warnings across page links; calculation failures remain explicit',()=>{
  const render=functions(['renderNav']);
  const nav={innerHTML:'',querySelectorAll:()=>[]};
- const ctx={...common,el:()=>nav,appView:'project',selected:'one',names:{one:'One',two:'Two'},groups:{Planning:['one','two']},overview:{moduleStates:[{key:'one',issueAssessment:{counts:{missing_information:3}}},{key:'two',issueAssessment:{counts:{system_defect:1,source_conflict:4}}}],managementStates:[{key:'master-dashboard',issueAssessment:{counts:{missing_information:7,system_defect:1}}}]}};
+ const ctx={...common,el:()=>nav,project:()=> 'TEST-PROJECT',appView:'project',selected:'one',names:{one:'One',two:'Two'},groups:{Planning:['one','two']},overview:{moduleStates:[{key:'one',issueAssessment:{counts:{missing_information:3}}},{key:'two',issueAssessment:{counts:{system_defect:1,source_conflict:4}}}],managementStates:[{key:'master-dashboard',issueAssessment:{counts:{missing_information:7,system_defect:1}}}]}};
  runInNewContext(render+';renderNav()',ctx);
  assert.match(nav.innerHTML,/Information items<b>7/);
  assert.doesNotMatch(nav.innerHTML,/nav-count attention|>Source [0-9]/);

@@ -30,7 +30,7 @@ function harness() {
     managementSurfaceKeysForApi:new Set(['command-center']),commercialModuleKeysForApi:new Set(),
     fmt:String,planningShortDate:String,escapeHtml:(s:any)=>String(s).replace(/[&<>"']/g,'_'),
     document:{body:{classList:{remove(){},toggle(){}}},querySelectorAll:()=>[]},window:{scrollTo(){}},
-    localStorage:{setItem:(key:string,value:string)=>storage.set(key,value)},renderPlatformNav(){},loadPortfolio(){},
+    localStorage:{setItem:(key:string,value:string)=>storage.set(key,value)},renderPlatformNav(){},loadPortfolio(){},loadAskHome(){},
     setBusy:(text:string)=>{el('globalStatus').textContent=text;},renderStatus:(o:any)=>{el('projectStatus').textContent=o.projectId;el('projectBadge').textContent='CURRENT PROJECT';},
     renderDirector:(d:any)=>{el('director').textContent=d?.projectId||'No management detail';},
     renderModuleResult:(r:any)=>{context.currentModuleResult=r;el('moduleContent').textContent=r.data.projectId;el('moduleReport').disabled=false;},
@@ -134,4 +134,54 @@ test('an overview identifying a different project is rejected before any child r
   assert.equal(h.context.overview,null);assert.equal(h.requests.length,1);
   assert.equal(h.el('activeProjectName').textContent,'EXPECTED');
   assert.match(h.el('moduleContent').textContent,/Unable to open EXPECTED/);
+});
+
+test('Ask opens inside the loaded project and retains its page context and navigation',async()=>{
+  const h=harness();
+  await h.call('setAppView("ai")');
+  assert.equal(h.el('projectWorkspace').hidden,false);
+  assert.equal(h.el('aiView').hidden,false);
+  assert.equal(h.el('projectModulePanel').hidden,true);
+  assert.equal(h.el('portfolioView').hidden,true);
+  assert.equal(h.el('projectsView').hidden,true);
+  assert.equal(h.el('platformContextTitle').textContent,'OLD-PROJECT');
+  assert.equal(h.el('topbarModule').textContent,'Ask CMeng');
+  assert.equal(h.context.selected,'command-center','the question retains the originating project page');
+  assert.match(h.el('nav').innerHTML,/id="projectAskNav" aria-current="page"/);
+  assert.match(h.el('nav').innerHTML,/data-key="command-center"/);
+  await h.call('setAppView("project")');
+  assert.equal(h.el('aiView').hidden,true);
+  assert.equal(h.el('projectModulePanel').hidden,false);
+  assert.equal(h.el('topbarModule').textContent,'Command Center');
+});
+
+test('Ask requires the selected project to be loaded without adding a generic conversation',async()=>{
+  for(const mismatch of [false,true]){
+    const h=harness();
+    h.context.overview=mismatch?overview('ANOTHER-PROJECT'):null;
+    await h.call('setAppView("ai")');
+    assert.equal(h.context.appView,'projects');
+    assert.equal(h.el('aiView').hidden,true);
+    assert.equal(h.el('projectWorkspace').hidden,true);
+    assert.equal(h.el('projectsView').hidden,false);
+    assert.equal(h.requests.length,0);
+  }
+});
+
+test('switching projects from Ask clears its conversation, references and exports before the new project opens',async()=>{
+  const h=harness();
+  await h.call('setAppView("ai")');
+  h.context.askConversation='conversation-old';h.context.askAnalysis={id:'analysis-old'};
+  h.context.askReferences=[{id:'reference-old'}];
+  h.el('askExports').textContent='OLD-PROJECT exports';
+  const pending=h.call('openProject("NEW-PROJECT")');
+  assert.equal(h.context.askConversation,null);assert.equal(h.context.askAnalysis,null);
+  assert.equal(h.context.askReferences.length,0);assert.equal(h.el('askExports').textContent,'');
+  assert.equal(h.el('aiView').hidden,true);
+  await h.finish('NEW-PROJECT');await pending;
+  await h.call('setAppView("ai")');
+  assert.equal(h.el('projectWorkspace').hidden,false);
+  assert.equal(h.el('platformContextTitle').textContent,'NEW-PROJECT');
+  assert.equal(h.el('askProjectTitle').textContent,'Ask CMeng about NEW-PROJECT');
+  assert.doesNotMatch(h.el('nav').innerHTML,/OLD-PROJECT/);
 });

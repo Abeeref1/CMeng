@@ -46,3 +46,9 @@ All 761 tests passed before the final project-heading reset, and the focused eig
 The browser switched from ASK-BROWSER-A (required 64, delivered 52, 81.25%) to ASK-BROWSER-B (required 80, delivered 40, 50%), with separate results and saved views. Review exposed a briefly stale project heading during that switch. The final reset now clears the heading, reporting date, suggestions and saved-view name immediately, before any network response.
 
 The browser file-chooser check was interrupted and then the execution environment disconnected. The actual attachment control has not been verified; successful API/OCR tests do not close that browser check. Final browser validation of the corrected review build, responsive review and a real configured model response remain open. No new access-control flow is introduced.
+
+## Ask CMeng inside each project
+
+Ask CMeng is part of the project workspace and project navigation. The generic platform-menu entry is removed. Opening it keeps the active project, reporting date, project switcher and other project pages visible. Returning to a project page restores that page, and switching projects clears the prior conversation, references and downloads before loading the new project. An unloaded or mismatched project cannot open an Ask conversation. No login or permission flow is added.
+
+The interrupted browser attachment action was retried successfully on `6fc0fe8`: the reference PDF attached and both native/scanned pages were read. Its reference-only label and reading disclosure were visible. The earlier final-commit verification rerun passed all 761 tests and the existing performance/durability gates; the first 5.164-second cold-open miss remains recorded in PR 162.

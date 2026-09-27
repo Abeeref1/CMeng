@@ -386,6 +386,11 @@ test("CMeng workspace keeps the active module primary and browser script parseab
     /id="openAiTop"/,
     "Ask CMeng must be directly accessible from project workspace",
   );
+  assert.doesNotMatch(html,/class="platform-item" data-view="ai"/,
+    "Ask CMeng belongs to a project, not the generic platform menu");
+  assert.ok(html.indexOf('id="aiView"')>html.indexOf('id="projectWorkspace"')&&
+    html.indexOf('id="aiView"')<moduleIndex,
+    "Ask must render inside the project workspace alongside the project pages");
 
   for (
     const developerPhrase of [

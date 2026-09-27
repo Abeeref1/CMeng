@@ -35,7 +35,7 @@ button,input,select{font:inherit}button{cursor:pointer}
 .brand-mark{width:50px;height:50px;display:grid;place-items:center;flex:0 0 auto}.cmeng-emblem{width:50px;height:50px;display:block}.cmeng-emblem .c-ring{fill:none;stroke:url(#cmengBlue);stroke-width:9;stroke-linecap:round}.cmeng-emblem .arrow{fill:#2c3f54}.cmeng-emblem .hub{fill:#5f86ad}
 .brand-copy h1{font-size:23px;line-height:1;margin:0 0 5px;letter-spacing:-.04em;font-weight:780;color:var(--slate)}.brand-copy p{margin:0;color:#66727f;font-size:9.5px;line-height:1.35;text-transform:uppercase;letter-spacing:.09em;font-weight:700}
 .platform-nav{display:grid;gap:4px;margin:0 0 14px}.platform-item{width:100%;border:0;background:transparent;color:#4f5b67;text-align:left;padding:10px 11px;border-radius:9px;display:flex;align-items:center;gap:10px;font-size:13.5px;font-weight:650;transition:.16s ease}.platform-item:hover{background:#eef4fa;color:var(--slate)}.platform-item.active{background:#eaf2fb;color:var(--slate);box-shadow:inset 3px 0 0 var(--accent)}.platform-icon{width:18px;text-align:center;color:#7e8993;font-weight:850}.platform-item.active .platform-icon{color:#456f9f}.active-project-card{margin:10px 0 6px;padding:12px;border:1px solid #d7e2ed;border-radius:10px;background:#fff;box-shadow:0 4px 14px rgba(46,58,70,.03)}.active-project-card b{display:block;font-size:12.5px;color:#23272e;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.active-project-card span{display:block;color:#7a8290;font-size:10.5px;margin-top:3px}.sidebar-divider{height:1px;background:#dce5ef;margin:13px 0}.sidebar-motto{margin:30px 10px 2px;padding-top:18px;border-top:1px solid #dce5ef;color:#7d8790}.sidebar-motto span{display:block;font-size:9px;letter-spacing:.13em;font-weight:800;margin-bottom:6px}.sidebar-motto b{display:block;font-size:11px;line-height:1.45;font-weight:600;color:#5f6b76}
-.platform-view[hidden],#projectWorkspace[hidden]{display:none!important}.project-side-only{display:none}.project-active .project-side-only{display:block}
+.platform-view[hidden],#projectWorkspace[hidden],#projectModulePanel[hidden]{display:none!important}.project-side-only{display:none}.project-active .project-side-only{display:block}
 .portfolio-hero{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;margin-bottom:24px}.portfolio-hero h2{font-size:34px;line-height:1.08;margin:0 0 8px;letter-spacing:-.045em}.portfolio-hero p{margin:0;color:var(--muted);max-width:780px;font-size:14px}.portfolio-hero .section-kicker{color:#4e7299}
 .portfolio-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:20px}.summary-metric{position:relative;padding:17px 18px 16px 62px;min-height:102px;background:#fff;border:1px solid #dce5ef;border-radius:12px;box-shadow:0 5px 16px rgba(46,58,70,.035)}.summary-icon{position:absolute;left:17px;top:17px;width:34px;height:34px;border-radius:9px;display:grid;place-items:center;background:#edf4fb;color:#3d6897;font-size:16px;font-weight:800}.summary-metric b{display:block;font-size:27px;line-height:1;margin-bottom:7px;letter-spacing:-.04em;color:var(--slate)}.summary-metric span{display:block;font-size:10.5px;color:#5f6b76;text-transform:uppercase;letter-spacing:.065em;font-weight:800}.summary-metric small{display:block;color:#9299a0;font-size:11px;margin-top:4px}
 .portfolio-section-head{display:flex;align-items:end;justify-content:space-between;gap:16px;margin:24px 0 10px}.portfolio-section-head h3{margin:0;font-size:18px;letter-spacing:-.02em}.portfolio-section-head span{font-size:12px;color:var(--muted)}
@@ -245,7 +245,6 @@ ${systemReviewStyles}
     <div class="platform-nav" id="platformNav">
       <button class="platform-item active" data-view="portfolio"><span class="platform-icon">◫</span><span>Portfolio</span></button>
       <button class="platform-item" data-view="projects"><span class="platform-icon">▦</span><span>Projects</span></button>
-      <button class="platform-item" data-view="ai"><span class="platform-icon">✦</span><span>Ask CMeng</span></button>
     </div>
     <div class="active-project-card project-side-only" id="activeProjectCard"><span>Active project</span><b id="activeProjectName">No project selected</b><span id="activeProjectMeta">Open a project from Portfolio or Projects</span></div>
     <div class="sidebar-divider project-side-only"></div>
@@ -291,8 +290,6 @@ ${systemReviewStyles}
         <div id="projectRegister"></div>
       </section>
 
-      ${askAiHtml}
-
       <div id="projectWorkspace" hidden>
       <div class="workspace-header">
         <div class="page-title">
@@ -310,7 +307,9 @@ ${systemReviewStyles}
         </div>
       </div>
 
-      <section class="card module-panel module-workspace">
+      ${askAiHtml}
+
+      <section class="card module-panel module-workspace" id="projectModulePanel">
         <div class="module-head module-workspace-head">
           <div>
             <span class="section-kicker">Current view</span>
@@ -585,11 +584,11 @@ function renderPlatformNav(){
 }
 function renderNav(){
   const nav=el("nav");
-  if(appView!=="project"||!overview){nav.innerHTML="";return}
+  if(!["project","ai"].includes(appView)||!overview){nav.innerHTML="";return}
   const states=new Map([...(overview?.moduleStates||[]),...(overview?.managementStates||[])].map(x=>[x.key,x]));
   const overall=states.get('master-dashboard')?.issueAssessment?.counts||{};
   const sourceTotal=(overall.source_conflict||0)+(overall.data_quality||0)+(overall.missing_information||0);
-  let html='<div class="nav-review-totals"><div>Information items<b>'+fmt(sourceTotal)+'</b></div><div>System failures<b>'+fmt(overall.system_defect||0)+'</b></div></div><div class="nav-group">';
+  let html='<button class="nav-item '+(appView==="ai"?'active':'')+'" id="projectAskNav" aria-current="'+(appView==="ai"?'page':'false')+'" title="Ask about '+escapeHtml(project())+'"><span class="nav-label">✦ Ask CMeng</span></button><div class="nav-review-totals"><div>Information items<b>'+fmt(sourceTotal)+'</b></div><div>System failures<b>'+fmt(overall.system_defect||0)+'</b></div></div><div class="nav-group">';
   Object.entries(groups).forEach(([group,keys])=>{
     html+='<div class="nav-group-title" style="padding-top:10px">'+group+'</div>';
     keys.forEach(key=>{
@@ -600,12 +599,13 @@ function renderNav(){
       // Keep the full counts on Information & Actions. Repeating the same
       // propagated requests on every destination makes navigation look broken.
       const count='<span class="nav-counts">'+(errors?'<span class="nav-count error" aria-label="'+errors+' system failures">Error '+errors+'</span>':'')+'</span>';
-      html+='<button class="nav-item '+(selected===key?"active":"")+'" data-key="'+key+'" title="'+escapeHtml(title)+'" aria-current="'+(selected===key?'page':'false')+'"><span class="nav-label">'+names[key]+'</span>'+count+'</button>';
+      html+='<button class="nav-item '+(appView==="project"&&selected===key?"active":"")+'" data-key="'+key+'" title="'+escapeHtml(title)+'" aria-current="'+(appView==="project"&&selected===key?'page':'false')+'"><span class="nav-label">'+names[key]+'</span>'+count+'</button>';
     });
   });
   html+='</div>';
   nav.innerHTML=html;
-  nav.querySelectorAll(".nav-item").forEach(b=>b.onclick=()=>{selected=b.dataset.key;localStorage.setItem("cmeng-module",selected);renderNav();loadModule(selected)});
+  el("projectAskNav").onclick=()=>setAppView("ai");
+  nav.querySelectorAll(".nav-item[data-key]").forEach(b=>b.onclick=()=>{selected=b.dataset.key;localStorage.setItem("cmeng-module",selected);setAppView("project");loadModule(selected)});
 }
 function scalarPairs(obj){if(!obj||typeof obj!=="object")return[];return Object.entries(obj).filter(([k,v])=>["string","number","boolean"].includes(typeof v)||v===null).slice(0,12)}
 function humanizeIsoText(value){
@@ -3846,7 +3846,7 @@ function renderModuleResultBody(result){
   const roleLabel=managementSurface?"Management Control":(roleViews[selectedRoleView]?.label||roleViews.overall.label);
   el("moduleTitle").textContent=moduleName;
   el("moduleSubtitle").textContent=(descriptions[result.key]||"Current position, key changes and actions requiring attention.")+(managementSurface?"":" · "+roleLabel);
-  el("topbarModule").textContent=moduleName;
+  if(appView!=="ai")el("topbarModule").textContent=moduleName;
   el("moduleBadge").className="issue-badge "+(result.issueAssessment?.primaryKind||"verification_pending");
   el("moduleBadge").textContent=result.issueAssessment?.counts?.system_defect>0?"Calculation error":"";
   if(renderDelivery(result)){el('roleViewSelector').style.display='none';return;}
@@ -3908,7 +3908,7 @@ async function loadModule(key){
   el("moduleContent").classList.remove("empty");
   el("moduleTitle").textContent=moduleName;
   el("moduleSubtitle").textContent=descriptions[key]||"Current position, key changes and actions requiring attention.";
-  el("topbarModule").textContent=moduleName;
+  if(appView!=="ai")el("topbarModule").textContent=moduleName;
   el("moduleBadge").className="badge";
   el("moduleBadge").textContent="Updating";
   setBusy("Updating "+moduleName);
@@ -4257,27 +4257,32 @@ function updateActiveProjectShell(){
   const pending=projectLoadState==="loading"||projectLoadState==="updating";
   const unloaded=pending?"Loading project information…":id?"Project information could not be loaded":"Open a project from Portfolio or Projects";
   const displayDataDate=overview?.latestDataDateIso?planningShortDate(overview.latestDataDateIso):"No data date";
-  if(appView==="project")el("platformContextTitle").textContent=id;
+  if(appView==="project"||appView==="ai")el("platformContextTitle").textContent=id;
+  el("topbarModule").textContent=appView==="ai"?"Ask CMeng":names[selected]||"Project Controls";
   el("activeProjectName").textContent=id||"No project selected";
   el("activeProjectMeta").textContent=overview?(displayDataDate+" · "+overview.evidenceDocumentCount+" project documents"+(overview.releaseCommitSha?" · Release "+overview.releaseCommitSha.slice(0,7):"")):unloaded;
   el("workspaceProjectMeta").textContent=overview?(id+" · Data Date "+displayDataDate+(overview.releaseCommitSha?" · Release "+overview.releaseCommitSha.slice(0,7):" · Release not supplied")):id+" · "+unloaded;
   el("aiProjectBadge").className="badge";
   el("aiProjectBadge").textContent=id||"No active project";
   el("aiProjectInfo").innerHTML=overview?'<b>'+escapeHtml(id)+'</b><br>'+escapeHtml(overview.evidenceDocumentCount)+' evidence documents<br>'+escapeHtml(overview.revisionCount)+' schedule revisions<br>'+escapeHtml(overview.latestDataDateIso?planningShortDate(overview.latestDataDateIso):"No current data date"):escapeHtml(unloaded);
-  ["runAnalysisTop","askAi"].forEach(key=>{el(key).disabled=!overview});
+  ["runAnalysisTop","askAi","openAiTop"].forEach(key=>{el(key).disabled=!overview});
   el("openLibraryQuick").disabled=!project();el("openEvidenceTop").disabled=!overview;
 }
 function setAppView(view){
+  if(view==="ai"&&(!overview||overview.projectId!==project()))view="projects";
   appView=view;
   ["portfolio","projects","ai"].forEach(name=>{el(name+"View").hidden=view!==name});
-  el("projectWorkspace").hidden=view!=="project";
-  document.body.classList.toggle("project-active",view==="project"&&!!project());
-  const titles={portfolio:"Portfolio",projects:"Projects",ai:"Ask CMeng",project:project()||"Project Controls"};
+  const projectView=view==="project"||view==="ai";
+  el("projectWorkspace").hidden=!projectView;
+  el("projectModulePanel").hidden=view!=="project";
+  document.body.classList.toggle("project-active",projectView&&!!project());
+  const titles={portfolio:"Portfolio",projects:"Projects",ai:project(),project:project()||"Project Controls"};
   el("platformContextTitle").textContent=titles[view]||"CMeng";
   renderPlatformNav();
   renderNav();
   if(view==="portfolio"||view==="projects")loadPortfolio();
-  if(view==="ai"){updateActiveProjectShell();loadAskHome();}
+  if(projectView)updateActiveProjectShell();
+  if(view==="ai")loadAskHome();
   window.scrollTo({top:0,behavior:"smooth"});
 }
 function projectRequestIsCurrent(projectId,requestSeq){
@@ -4453,7 +4458,7 @@ async function refresh(bootstrapDemo=true){
     if(current())setBusy("");
   }
 }
-async function loadDemo(){setBusy("Loading demonstration project");try{el("projectId").value="UAT-DEMO";localStorage.setItem("cmeng-project","UAT-DEMO");await api("/api/projects/UAT-DEMO/demo",{method:"POST"});selected="pmo-analysis";await refresh(false);el("uploadMessage").innerHTML='<div class="notice info">Demonstration project loaded. Your own projects are not changed.</div>'}catch(e){el("uploadMessage").innerHTML='<div class="notice error">'+escapeHtml(e.message)+'</div>'}finally{setBusy("")}}
+async function loadDemo(){setBusy("Loading demonstration project");try{await api("/api/projects/UAT-DEMO/demo",{method:"POST"});selected="pmo-analysis";await openProject("UAT-DEMO");el("uploadMessage").innerHTML='<div class="notice info">Demonstration project loaded. Your own projects are not changed.</div>'}catch(e){el("uploadMessage").innerHTML='<div class="notice error">'+escapeHtml(e.message)+'</div>'}finally{setBusy("")}}
 ${uploadWorkScript}
 function uploadEvidenceFileWithProgress(file,fileIndex,fileTotal,job){
   return new Promise((resolve,reject)=>{
