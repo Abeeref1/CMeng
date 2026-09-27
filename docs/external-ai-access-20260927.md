@@ -166,3 +166,10 @@ Browser review on the isolated service confirmed the actual schedule action,
 updated reporting date, cleared confirmation and local CPI = 720 / 900 = 0.8.
 The remaining missing/conflicting-evidence qualifications stayed visible with
 the answer. The normal project list kept the other, unadopted project separate.
+
+
+## Browser form save correction — 27 September 2026
+
+The initial release used `Referrer-Policy: no-referrer` on HTML pages while requiring an exact same-origin `Origin` on state-changing requests. Native browser form submissions consequently sent `Origin: null`; AI settings saves, project access controls and connection consent could be rejected. The activation button used a fetch request and could succeed independently. Earlier API tests supplied Origin explicitly, so they did not expose this browser-policy conflict.
+
+HTML pages now use `Referrer-Policy: same-origin`. Requests to other sites still disclose no referrer; callback redirects keep `no-referrer`. Exact origin checks, owner authentication and single-use form tokens remain required. Regression coverage checks the policy on all form pages, URL-encoded settings save and key retention, project isolation, null/missing/foreign-origin rejection and replay rejection. No production key, project record or connection is changed by the fix.
