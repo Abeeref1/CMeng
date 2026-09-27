@@ -813,8 +813,8 @@ async function route(
       "/api/schedule/modules"
   ) {
     json(res, 200, {
-      moduleCount: scheduleModules.length,
-      modules: scheduleModules,
+      moduleCount: schedulePageModules.length,
+      modules: schedulePageModules,
     });
     return;
   }
@@ -827,9 +827,9 @@ async function route(
   ) {
     json(res, 200, {
       moduleCount:
-        commercialModules.length,
+        commercialPageModules.length,
       modules:
-        commercialModules,
+        commercialPageModules,
       invariants: {
         missingEvidenceIsNotZero:
           true,
@@ -2195,7 +2195,7 @@ async function route(
     if (
       moduleArea ===
         "commercial" &&
-      !commercialModules.some(
+      !commercialPageModules.some(
         (module) =>
           module.key === resolveModuleKey(key),
       )
@@ -2295,7 +2295,7 @@ async function route(
     if (
       moduleArea ===
         "commercial" &&
-      !commercialModules.some(
+      !commercialPageModules.some(
         (module) =>
           module.key === resolveModuleKey(key),
       )
