@@ -16,6 +16,7 @@ import {scheduleBasisReview,durationEditReview} from './schedule-basis-review';
 import {quantityBasisReview,contractValueBasisReview} from './source-basis-review';
 import {sourceInterpretation} from "./source-interpretation";
 import {scheduleScopeClassification} from "./schedule-scope-classification";
+import {scheduleRiskMonteCarlo} from "./schedule-risk-monte-carlo";
 import {contractChallengeForState} from './contract-challenge-runtime';
 import { enforceModuleReadiness } from "./module-readiness";
 import {assessModuleIssues} from './module-issues';
@@ -7171,6 +7172,7 @@ export function moduleForProject(
     );
   }
   if (isDeliveryPage(key)) return deliveryModule(state,key);
+  if (key==='monte-carlo-risk') return scheduleRiskMonteCarlo(reportingState(state));
   if (managementModuleKeys.includes(key)) {
     return managementSurfaceForProject(projectId, key) ?? blocked(key, "Management position is not established.", []);
   }
