@@ -1815,6 +1815,7 @@ async function route(
     return;
   }
 
+  if(url.pathname.endsWith('/diagnosis')){const {diagnosisRequest}=await import('./diagnosis-api');if(await diagnosisRequest(req,res,url))return;}
   const actionsMatch=/^\/api\/projects\/([^/]+)\/actions(?:\/(confirm-schedule))?$/.exec(url.pathname);
   if(actionsMatch){
     const projectId=decodeURIComponent(actionsMatch[1]!),state=runtimeProjects.get(projectId);if(!state){json(res,404,{error:'project_not_found'});return;}

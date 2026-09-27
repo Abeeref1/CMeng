@@ -4,6 +4,7 @@ import {AuthorityBuilder,evidenceState} from './ask-authority-builder';
 import {moduleForProject} from './project-projections';
 import {runtimeProjects} from './project-state';
 import {projectControlSchedule} from './canonical-time-claims';
+import {projectDiagnosisDetails} from './project-diagnosis';
 
 const columns={activityId:{label:'Activity ID'},name:{label:'Activity'},currentStartIso:{label:'Planned start'},currentFinishIso:{label:'Planned finish'},
   plannedStartIso:{label:'Planned start'},plannedFinishIso:{label:'Forecast finish'},
@@ -16,7 +17,11 @@ export function askScheduleActivities(scope:ProjectScope){
   const basis='Activities in the adopted programme, as of '+(scope.dataDate??'an unconfirmed Data Date')+'. A missed start is a planned start before the Data Date with work not started. An overdue finish is an unfinished activity whose forecast finish has passed. Baseline slippage is shown only when a baseline comparison exists. Summary and level-of-effort rows are excluded.';
   const b=new AuthorityBuilder('activities','Programme activities','activity-analytics',scope,evidenceState(source.status),rows.length?'Activity dates, progress and float from this project’s programme.':'No adopted programme activities are available.');
   if(rows.length&&!rows.some(r=>r.baselineFinishIso!==null))b.result.explanation+=' No baseline has been confirmed, so delay against the original planned dates cannot be measured.';
-  b.table('rows','Activities',rows,basis,columns,r=>({...r,plannedStartIso:r.currentStartIso??r.forecastStartIso,plannedFinishIso:r.forecastFinishIso??r.currentFinishIso,critical:r.criticality==='unknown'?null:r.criticality==='critical',predecessors:r.predecessorIds.join('; '),successors:r.successorIds.join('; ')}));
+  const diagnosis=projectDiagnosisDetails((moduleForProject(scope.projectId,'pmo-analysis').data as any)?.projectDiagnosis);
+  const driving=new Set<string>(diagnosis?.network.rows.map((r:any)=>r.activityId)??[]),wbsNames=new Map<string,string>((diagnosis?.wbsRows??[]).map((r:any)=>[r.wbsId,r.wbs]));
+  b.table('rows','Activities',rows,basis,columns,r=>({...r,wbs:wbsNames.get(r.wbsId)??r.wbsId,onDrivingNetwork:diagnosis&&diagnosis.network.state!=='unavailable'?driving.has(r.activityId):null,
+    schedulePressure:['not_started','in_progress'].includes(r.status)?driving.has(r.activityId)||r.criticality==='critical'||r.criticality==='near_critical'||r.scheduleDelayed===true:r.status==='completed'?false:null,
+    plannedStartIso:r.currentStartIso??r.forecastStartIso,plannedFinishIso:r.forecastFinishIso??r.currentFinishIso,critical:r.criticality==='unknown'?null:r.criticality==='critical',predecessors:r.predecessorIds.join('; '),successors:r.successorIds.join('; ')}));
   const table=b.result.tables[0]!;table.population=data?.rows?.length??0;table.excluded=table.population-rows.length;
   const state=runtimeProjects.get(scope.projectId),programme=state?projectControlSchedule(state):null;
   if(programme&&programme.revision.revisionId===scope.programmeRevision)b.result.traces[0]!.sourceRefs=[programme.sourceHashSha256,programme.revision.revisionId];
@@ -27,6 +32,18 @@ export function askScheduleActivities(scope:ProjectScope){
 
 export function askCriticalPath(scope:ProjectScope){
   const source=askScheduleActivities(scope),forecast:any=moduleForProject(scope.projectId,'independent-forecast').data;
+  const diagnosis=projectDiagnosisDetails((moduleForProject(scope.projectId,'pmo-analysis').data as any)?.projectDiagnosis);
+  if(diagnosis?.network.state!=='unavailable'&&diagnosis?.network.rows.length){
+    const network=diagnosis.network,qualified=network.state==='scenario';
+    const b=new AuthorityBuilder('critical-path','Driving path to completion','independent-forecast',scope,qualified?'scenario':'established',
+      'The calendar calculation identifies '+network.rows.length+' '+(network.rows.length===1?'activity':'activities')+' and '+network.relationships.length+' binding relationships leading to completion.'+(qualified?' This is a calculated network with the stated programme assumptions.':'')+' Parallel branches are retained.');
+    b.table('network','Ordered finish-driving network',network.rows,network.basis,{...columns,sequence:{label:'Order'},wbs:{label:'WBS'},calculatedStartIso:{label:'Calculated start'},calculatedFinishIso:{label:'Calculated finish'},remainingDurationHours:{label:'Remaining duration',unit:'hours'},drivingPredecessors:{label:'Driving predecessors / link / lag'},drivingSuccessors:{label:'Driving successors / link / lag'}});
+    b.table('relationships','Driving relationships',network.relationships,network.basis,{lagHours:{unit:'working hours'}});
+    b.metric('driving-count','Finish-driving activities',network.rows.length,'activities',network.basis);
+    for(const l of diagnosis.completion?.limitations??[])b.finding(l.key,'Calculation qualification',l.text,'The network above retains this stated assumption.');
+    for(const t of b.result.traces)t.sourceRefs=source.traces.flatMap(t=>t.sourceRefs);
+    return b.result;
+  }
   const calculated=forecast?.complete===true&&forecast?.origin==='deterministic_source_calendar';
   const b=new AuthorityBuilder('critical-path','Critical activities','independent-forecast',scope,calculated?'established':source.state==='unavailable'?'unavailable':'partial',
     calculated?'Activities identified as critical by CMeng’s calendar calculation. Several parallel paths may exist.':'The independent critical path is not yet confirmed. The list below shows activities with critical float in the uploaded programme.');

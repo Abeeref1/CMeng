@@ -19,14 +19,32 @@ The supplied 58.7 MB, 25,630-activity XER was re-ingested into an isolated local
 
 Native XER WBS labels followed by numeric IDs were also being interpreted as prose KPI assertions. Native-table parsing now owns those facts. Historical extraction receipts are retained, while those false prose matches are excluded from report-assertion comparisons. Genuine narrative report assertions remain checked.
 
+## Shared project diagnosis and question orchestration
+
+The dashboard, Management Brief and Ask now consume a shared diagnosis over the adopted programme and existing governed producers. It includes completion, schedule exceptions, WBS concentration, milestone exposure, changes between adopted revisions, ten activity actions, linked supporting records and the current no-change outlook. Missing contract, quantity or procurement records qualify their dependent comparisons instead of preventing schedule analysis.
+
+The CPM forward pass retains binding predecessor relationships and traces backwards from the maximum calculated finish. All ties and parallel branches are retained. The ordered activity table includes actual driving predecessor/successor IDs, relationship types, working-hour lags, names, WBS, calculated dates, remaining hours, source float and previous-revision movement. Adjacent rows are not presented as a single connected chain. Source restrictions that the existing engine does not apply remain explicit assumptions.
+
+Ordinary project questions select complete analysis recipes. “Delayed activities” keeps missed dates/baseline slippage separate from negative-float pressure. WBS grouping and “explain these” preserve the previous selection. Factual paths, lists, totals and rankings remain local; optional provider interpretation remains separate. The external gateway exposes the same facts without a second LLM call and retains its existing project/domain access rules.
+
+Initial diagnosis tables are bounded. Read-only, project/version-checked paging and complete CSV/Excel exports use the retained full projection. Scope changes do not silently substitute a different project's rows.
+
+## BOQ-only source recovery
+
+The supplied 889-page BOQ had a complete retained native-page reading but no canonical line items from its ruled-table extraction. A conservative native-text fallback now recovers explicit item/unit/price lines for new uploads and for legacy sources with matching page-read and source hashes. It never pairs detached quantity columns by extraction order or calculates an unstated quantity from price. A bare page total cannot be assigned to the item above it.
+
+The corrected recovery found 5,519 item descriptions and 5,223 numeric amounts in that retained source. Its explicit general-summary amount remains a source-stated total, separate from the recovered item sum. This is partial extraction, not proof of a reconciled complete BOQ. Ask exposes supported scope, cost sections, item lists and source totals without requiring a programme; unsupported domains appear beneath the supported answer. Provider retrieval now declares its existing three-request bound in both the response schema and instructions; validation and cost limits remain enforced.
+
 ## Verification evidence
 
 The real source produced submitted finish **12 January 2028 14:00**, calendar recalculation **13 January 2028 08:12**, and **0.758333 elapsed calendar days** difference. The calculation remains a scenario with stated assumptions, including 4,439 of 4,587 completed activities with duration/calendar differences and 17 unapplied source restrictions. Known source counts are 4,330 critical, 683 near-critical and 4,327 negative-float activities. Contract completion remains unavailable. These observations do not assert delay causation.
 
 Automated scenarios cover missing contract and quantities, incomplete network calculation, exact fractional date difference, same finding across six pages, first selection and later candidate revisions, separate phase/project decisions, stale confirmation, restart, every analytical page's shared presentation order, inline comparison, Ask activity lists, Top N population handling, independent projects, changed source revisions and failed post-save refresh. Existing OCR, persistence, financial, Delivery, temporal and isolation tests remain required release gates.
 
-The full local suite passed before final presentation refinements. The pull request records the final CI source identity, complete suite and scale/performance gates. Deployment acceptance includes the actual browser journey; a passing suite alone is not a usability or defect-free claim.
+The diagnosis found 101 activities and 143 binding relationships in the real XER, across its eight calendars, without changing the existing calculated finish. Synthetic checks cover parallel ties, calendar holidays, FS/SS/FF/SF links, positive lags, candidate adoption, two-project isolation, linked procurement pressure, record correction/withdrawal, long-path paging/export and ordinary question follow-ups. An actual generated borderless PDF verifies the native-text recovery path; source hashes, supersession, detached quantities and page-total boundaries are checked separately.
+
+The full local suite passed 845 tests before the final scoped-follow-up refinement. The unchanged local five-second latency gate was exceeded on both the earlier foundation and diagnosis branches (5.97 and 6.32 seconds for the cold multi-revision workflow respectively); the updated branch's upload-to-ready was 4.91 seconds. The pull request records final CI source identity, complete suite and the unchanged scale/performance gates. Deployment acceptance includes the actual browser journey; a passing suite alone is not a usability or defect-free claim.
 
 ## Limits
 
-These changes do not approve programme revisions, supply missing contractual dates, infer baseline dates from filenames, validate unsupported delay entitlement, or replace missing measured quantities with schedule progress. Classification of source limitations remains visible. A date difference is not proof that the calendar caused the project's delay. Real-provider narrative quality and additional PDF/OCR corpus coverage are outside this UX change.
+These changes do not approve programme revisions, supply missing contractual dates, infer baseline dates from filenames, validate unsupported delay entitlement, or replace missing measured quantities with schedule progress. Classification of source limitations remains visible. A date difference is not proof that the calendar caused the project's delay. The BOQ fallback does not establish detached quantity alignment, supplier lead times, actual procurement progress or floor-level installation status. Real-provider narrative quality and additional PDF/OCR layouts remain separate acceptance limits.

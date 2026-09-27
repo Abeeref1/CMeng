@@ -9,7 +9,10 @@ export function projectReviewGroup(issue:ControlIssue,state:ProjectRuntimeState)
   const modules=issue.moduleKeys.join(' ');
   const docs=state.evidenceDocuments.filter(d=>['active','additive','candidate'].includes(d.basisState));
   const has=(pattern:RegExp)=>docs.some(d=>pattern.test(d.documentType+' '+d.category));
-  const group=(key:string,title:string,available:boolean,note:string)=>({key,title,available,note});
+  // A real conflict or bad record remains actionable even when its imported
+  // document has only a generic type. Optional coverage must not hide defects.
+  const needsReview=['source_conflict','data_quality','comparison_difference'].includes(issue.kind);
+  const group=(key:string,title:string,available:boolean,note:string)=>({key,title,available:available||needsReview,note});
   if(/board-publication/.test(issue.code))return group('report-publication','Report publication',false,'Report publication is a separate choice. It does not prevent live project analysis.');
   if(/contract.*(?:completion|finish)|contractual.*(?:date|finish)|completionauthority/.test(path))return group('contract-completion','Contractual completion date',has(/contract/),'Confirm the applicable contract completion date for contract and entitlement comparisons. Programme forecasts remain available.');
   if(/baseline|completionbases\[basis=programme\]|second (?:schedule )?revision|previous revision|two revision|revision history/.test(path))return group('programme-comparison','Baseline and revision comparisons',state.schedules.length>1,'A confirmed baseline or earlier adopted revision is needed only for the corresponding comparison. Current programme analysis remains available.');

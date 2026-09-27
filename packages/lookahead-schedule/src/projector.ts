@@ -80,7 +80,7 @@ export function assessPredecessorRequirement(model: CanonicalScheduleModel, rela
       (required > target ? "predecessor requirement is later than the successor target." : "relationship requirement fits the submitted dates; physical readiness is assessed separately.") };
 }
 
-function readinessForActivity(
+export function readinessForActivity(
   model: CanonicalScheduleModel,
   activity: CanonicalScheduleActivity,
   predecessors: readonly CanonicalScheduleRelationship[],

@@ -49,6 +49,8 @@ export interface Filter {
   field: string; operator: 'eq' | 'contains' | 'lt' | 'lte' | 'gt' | 'gte' | 'between'; value: Cell; upper: Cell;
 }
 export interface AnalysisPlan {
+  questionRecipe?: import('./question-recipes').ProjectQuestionRecipe;
+  diagnosisActivityFilters?: Filter[];
   objective: string; kind: 'facts' | 'analysis' | 'reconcile' | 'report' | 'document' | 'draft' | 'scenario' | 'historical' | 'proposal';
   authorities: string[]; filters: Filter[]; groupBy: string[]; rankBy: string | null; rankDirection: 'asc' | 'desc';
   limit: number | null; metricIds: string[]; issuesOnly: boolean; criticalOnly: boolean;

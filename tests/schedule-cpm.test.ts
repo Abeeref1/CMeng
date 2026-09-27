@@ -147,6 +147,19 @@ function chainModel(
   };
 }
 
+test('driving trace keeps parallel ties, omits a non-binding predecessor and preserves actual links',()=>{
+  const relation=(id:string,pre:string,post:string,type:'FS'|'SS'|'FF'|'SF'='FS',lagHours=0)=>({relationshipId:id,predecessorActivityId:pre,successorActivityId:post,type,lagHours,external:false,sourceRefs:[],diagnostics:[]});
+  const model=chainModel({activities:[activity('A',{remainingDurationHours:16}),activity('B',{remainingDurationHours:16}),activity('SLACK',{remainingDurationHours:1}),activity('FINISH')],relationships:[relation('A-F','A','FINISH'),relation('B-F','B','FINISH'),relation('S-F','SLACK','FINISH')]});
+  const result=calculateCpm(model);assert.equal(result.complete,true);const network=result.drivingNetwork!;
+  assert.deepEqual(new Set(network.activityIds),new Set(['A','B','FINISH']));assert.deepEqual(network.finishActivityIds,['FINISH']);
+  assert.deepEqual(new Set(network.relationships.map(r=>r.relationshipId)),new Set(['A-F','B-F']));
+  for(const edge of network.relationships)assert.ok(network.activityIds.indexOf(edge.predecessorActivityId)<network.activityIds.indexOf(edge.successorActivityId));
+  const lagged=calculateCpm(chainModel({activities:[activity('A',{remainingDurationHours:16}),activity('B')],relationships:[relation('SS-LAG','A','B','SS',24)]}));
+  assert.deepEqual(lagged.drivingNetwork?.activityIds,['A','B']);assert.equal(lagged.drivingNetwork?.relationships[0]?.type,'SS');assert.equal(lagged.drivingNetwork?.relationships[0]?.lagHours,24);
+  const finishLinked=calculateCpm(chainModel({activities:[activity('A',{remainingDurationHours:16}),activity('B')],relationships:[relation('FF-LAG','A','B','FF',8)]}));
+  assert.deepEqual(finishLinked.drivingNetwork?.activityIds,['A','B']);assert.equal(finishLinked.drivingNetwork?.relationships[0]?.type,'FF');
+});
+
 test('execution CPM excludes LOE and WBS durations and retains the source population',()=>{
   const base=chainModel();
   const expected=calculateCpm(base);
@@ -160,6 +173,15 @@ test('execution CPM excludes LOE and WBS durations and retains the source popula
   assert.deepEqual(result.activityPopulation.exclusions,[{activityId:'ADMIN',reason:'level_of_effort'},{activityId:'SUMMARY',reason:'wbs_summary'}]);
   assert.ok(!result.criticalActivityIds.includes('ADMIN'));
   assert.equal(calculateCpm(chainModel({activities:[extended.activities[2]!],relationships:[]})).complete,false);
+});
+test('driving links retain calendar-normalized ties and start-finish lag without inventing a single chain',()=>{
+ const rel=(id:string,pre:string,post:string,type:'FS'|'SF',lagHours:number)=>({relationshipId:id,predecessorActivityId:pre,successorActivityId:post,type,lagHours,external:false,sourceRefs:[],diagnostics:[]});
+ const c=fiveDayCalendar([{isoDate:'2026-01-12',nonWorking:true,workIntervals:[]}]);
+ const result=calculateCpm(chainModel({dataDateIso:'2026-01-12',calendars:[c],activities:[activity('SAT',{status:'completed',actualStartIso:'2026-01-09T08:00:00',actualFinishIso:'2026-01-10T12:00:00'}),activity('SUN',{status:'completed',actualStartIso:'2026-01-09T08:00:00',actualFinishIso:'2026-01-11T12:00:00'}),activity('FINISH')],relationships:[rel('SAT-F','SAT','FINISH','FS',0),rel('SUN-F','SUN','FINISH','FS',0)]}));
+ assert.equal(result.projectFinishIso,'2026-01-13T16:00:00.000Z');assert.deepEqual(new Set(result.drivingNetwork!.relationships.map(r=>r.relationshipId)),new Set(['SAT-F','SUN-F']));
+ assert.ok(result.drivingNetwork!.startReasons.every(r=>r.reason==='fixed_actual_dates'));
+ const sf=calculateCpm(chainModel({activities:[activity('START'),activity('END')],relationships:[rel('SF','START','END','SF',24)]}));
+ assert.equal(sf.projectFinishIso,'2026-01-07T16:00:00.000Z');assert.deepEqual(sf.drivingNetwork!.relationships.map(r=>r.type),['SF']);
 });
 test('source constraints remain explicit limitations of the unconstrained network calculation',()=>{
   const model=chainModel();

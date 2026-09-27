@@ -217,7 +217,7 @@ function experienceRoleContent(key,data,primaryView,challengeHtml='',includeTech
   const briefHtml=role==='overall'?'':'<section class="experience-brief"><div class="experience-brief-heading"><h4>'+escapeHtml(leadership?'Position at a glance':'Review focus')+'</h4><span>'+escapeHtml(roleViews[role].label)+'</span></div>'+(leadership?factHtml:'')+(brief.note?'<p>'+escapeHtml(brief.note)+'</p>':'')+experienceRoleReview(role,brief,key,data)+'</section>';
   // Leadership gets a short overview, with every chart and record reachable in one disclosure.
   const analysis='<div class="role-primary-analysis">'+primaryView+'</div>';
-  const content=leadership?(data.completionPosition?renderCompletionPosition(data.completionPosition):'')+experiencePreview(primaryView,role==='executive'?1:2)+experienceDisclosure('All charts and records',analysis,'Full details for this page'):analysis;
+  const content=leadership?(data.projectDiagnosis?renderProjectDiagnosis(data.projectDiagnosis):data.completionPosition?renderCompletionPosition(data.completionPosition):'')+experiencePreview(primaryView,role==='executive'?1:2)+experienceDisclosure('All charts and records',analysis,'Full details for this page'):analysis;
   const sourceContext=experienceSourceContext(key,data);
   if(['variance-trends','progress-scurve','manhour-scurve','quantity-scurve','commercial-claims-notices','contract-particulars-bonds'].includes(key))return '<div class="role-view-'+role+'">'+content+briefHtml+experienceDisclosure('Source context',sourceContext,'Supporting records and basis')+challengeHtml+'</div>';
   return '<div class="role-view-'+role+'">'+content+briefHtml+experienceDisclosure('Additional source context',sourceContext,'Supporting information')+challengeHtml+'</div>';

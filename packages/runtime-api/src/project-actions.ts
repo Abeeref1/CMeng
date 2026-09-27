@@ -47,7 +47,7 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
     if(systemItems.includes(issue))continue;
     if(/PROGRAMME_ADOPTION|CURRENT_PROGRAMME_ADOPTION|SCHEDULE_ADOPTION/.test(issue.code)&&actions.some(a=>a.target.type==='schedule'))continue;
     const group=projectReviewGroup(issue,state),existing=groups.get(group.key);
-    if(existing)existing.issues.push(issue);else groups.set(group.key,{group,issues:[issue]});
+    if(existing){existing.issues.push(issue);existing.group.available ||= group.available;}else groups.set(group.key,{group,issues:[issue]});
   }
   const information:ProjectAction[]=[];
   for(const {group,issues} of groups.values()){

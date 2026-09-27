@@ -18,6 +18,18 @@ import {deliveryRecords} from './delivery-records';
 import type {ProjectRuntimeState} from './project-state-types';
 
 export const askCatalogue=createAskAuthorityCatalogue();
+function diagnosisAnswer(result:AnalysisResult):NarrativeBlock|null{
+  const section=result.sections.find(s=>s.authorityId==='project-diagnosis');if(!section)return null;
+  const actions=section.tables.find(t=>t.id==='project-diagnosis.actions');
+  const previews=(actions?.rows??[]).slice(0,result.presentation.detail==='short'?3:5).map(r=>String(r.activityId)+' — '+String(r.name)+'; '+String(r.reason??'')+(r.previousPredecessorSlippage?' Predecessor change: '+r.previousPredecessorSlippage+'.':'')+(r.linkedEvidence?' '+r.linkedEvidence:''));
+  return {heading:result.plan.questionRecipe==='revision_change'?'What changed':result.plan.questionRecipe==='wbs_pressure'?'WBS pressure':result.plan.questionRecipe==='no_change_outlook'?'If nothing changes':'Project diagnosis',text:section.explanation+(previews.length?'\n\n'+previews.join('\n'):'')+(result.plan.questionRecipe==='delay_diagnosis'?'\n\nThe ordered network, supporting activity lists and linked records are below.':''),classification:'calculated_intelligence',traceIds:section.traces.map(t=>t.id)};
+}
+function drivingPathAnswer(result:AnalysisResult):NarrativeBlock|null{
+  const section=result.sections.find(s=>s.authorityId==='critical-path'),network=section?.tables.find(t=>t.id==='critical-path.network');if(!section||!network)return null;
+  const links=section.tables.find(t=>t.id==='critical-path.relationships');
+  const preview=(links?.rows??[]).slice(0,5).map(r=>r.predecessorActivityId+' → '+r.successorActivityId+' ('+r.type+', '+r.lagHours+' working hours lag)');
+  return {heading:'Driving path to completion',text:section.explanation+'\n\n'+(preview.length?preview.join('\n'):'The maximum calculated finish is reached by the activity or parallel finish activities shown below.')+'\n\nThe ordered table gives names, WBS, dates, remaining hours, float and actual driving links. Adjacent rows may belong to parallel branches; the links show the sequence.',classification:'calculated_intelligence',traceIds:section.traces.map(t=>t.id)};
+}
 function completionAnswer(result:AnalysisResult):NarrativeBlock|null{
   const section=result.sections.find(s=>s.authorityId==='forecast');
   if(!section||result.sections.some(s=>['activities','critical-path'].includes(s.authorityId)))return null;
@@ -78,16 +90,17 @@ function activityAnswer(result:AnalysisResult):NarrativeBlock|null{
 }
 function narrativeFor(result:AnalysisResult):NarrativeBlock[]{
   const ar=result.presentation.language==='ar';
-  const metrics=result.sections.flatMap(s=>s.metrics);
+  const allMetrics=result.sections.flatMap(s=>s.metrics),knownMetrics=allMetrics.filter(m=>m.value!==null);
+  const metrics=knownMetrics.length?knownMetrics:allMetrics;
   const lines=metrics.slice(0,result.presentation.detail==='short'?6:18).map(m=>m.label+': '+(m.value===null?(ar?'غير مثبت':'Not established'):String(m.value)+(m.unit?' '+m.unit:''))+(m.state==='candidate'?' · candidate source, not governed':''));
-  const direct=delayDriversAnswer(result)??activityAnswer(result)??completionAnswer(result);
+  const direct=diagnosisAnswer(result)??drivingPathAnswer(result)??delayDriversAnswer(result)??activityAnswer(result)??completionAnswer(result);
   const blocks:NarrativeBlock[]=direct?[direct]:[{heading:ar?'الوضع الحالي':'Answer',text:lines.length?lines.join('\n'):result.sections.map(s=>s.tables.length?s.tables.reduce((n,t)=>n+(t.selection?.matching??t.rows.length),0)+' matching records in '+s.title+'.':s.title+': '+s.explanation).slice(0,8).join('\n'),classification:'calculated_intelligence',traceIds:metrics.slice(0,18).map(m=>m.traceId)}];
   if(direct&&result.sections.some(s=>!['activities','float','critical-path'].includes(s.authorityId))&&lines.length)blocks.push({heading:'Other project figures',text:lines.join('\n'),classification:'calculated_intelligence',traceIds:metrics.slice(0,18).map(m=>m.traceId)});
-  const findings=result.sections.flatMap(s=>s.findings).sort((a,b)=>(a.severity==='action'?0:a.severity==='review'?1:2)-(b.severity==='action'?0:b.severity==='review'?1:2)||a.id.localeCompare(b.id));
+  const findings=result.sections.flatMap(s=>s.findings).filter(f=>f.severity==='action').sort((a,b)=>a.id.localeCompare(b.id));
   if(findings.length)blocks.push({heading:ar?'ما يحتاج الى اهتمام':'What requires attention',text:findings.slice(0,8).map(f=>f.title+': '+f.explanation).join('\n'),classification:'calculated_intelligence',traceIds:findings.slice(0,8).flatMap(f=>f.traceIds)});
   if(findings.length)blocks.push({heading:ar?'الاجراءات المقترحة':'Recommended actions',text:[...new Set(findings.map(f=>f.action))].slice(0,8).join('\n'),classification:'professional_guidance',traceIds:findings.slice(0,8).flatMap(f=>f.traceIds)});
   if(findings.length>8)blocks.push({heading:'Finding coverage',text:'The summary highlights 8 of '+findings.length+' findings. Every finding is retained in the detailed sections and exports; this summary is not a complete exception list.',classification:'calculated_intelligence',traceIds:[]});
-  if(result.plan.kind==='analysis')blocks.push({heading:ar?'اساس التفسير':'Why',text:ar?'تظهر الجداول الادلة المتاحة. الارتباط بين السجلات لا يثبت السببية دون روابط وادلة مؤرخة.':'The tables show the available evidence. Correlation across registers does not establish a cause without explicit links and dated supporting records.',classification:'professional_guidance',traceIds:[]});
+  if(result.plan.kind==='analysis'&&!direct)blocks.push({heading:ar?'اساس التفسير':'Interpretation basis',text:ar?'تظهر الجداول الادلة المتاحة. الارتباط بين السجلات لا يثبت السببية دون روابط وادلة مؤرخة.':'The tables show the available evidence. Correlation across registers does not establish a cause without explicit links and dated supporting records.',classification:'professional_guidance',traceIds:[]});
   if(result.plan.kind==='draft')blocks.push({heading:'Draft management response',text:'Please reconcile the reported position against the attached CMeng tables and evidence gaps. Confirm the affected work scope, reporting dates, source records and proposed corrective actions before the next reporting cut-off. Any claim or entitlement requires the applicable contract terms and substantiated causal evidence.',classification:'professional_guidance',traceIds:[]});
   if(result.plan.kind==='proposal')blocks.push({heading:'Proposed change — review required',text:result.plan.objective+'\nNo project record has been changed. Review the current record, proposed value, reason and supporting evidence in its source module.',classification:'professional_guidance',traceIds:[]});
   return blocks;

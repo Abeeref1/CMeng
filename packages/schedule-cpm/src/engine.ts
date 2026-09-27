@@ -44,6 +44,7 @@ interface BackwardState {
 }
 
 interface EffectiveRelationship {
+  relationshipId: string;
   predecessorActivityId: string;
   successorActivityId: string;
   type: Exclude<
@@ -182,6 +183,7 @@ function effectiveRelationship(
   }
 
   return {
+    relationshipId: relationship.relationshipId,
     predecessorActivityId:
       relationship.predecessorActivityId,
     successorActivityId:
@@ -597,6 +599,7 @@ export function calculateCpm(
     string,
     ForwardState
   >();
+  const bindingPredecessors=new Map<string,EffectiveRelationship[]>();
 
   for (const activityId of graph.topologicalOrder) {
     const context =
@@ -637,7 +640,7 @@ export function calculateCpm(
       continue;
     }
 
-    const candidates: number[] = [];
+    const candidates: Array<{relation:EffectiveRelationship;start:number}> = [];
 
     for (const relation of incoming.get(
       activityId,
@@ -658,7 +661,7 @@ export function calculateCpm(
         );
 
       if (candidate !== null) {
-        candidates.push(candidate);
+        candidates.push({relation,start:candidate});
       } else {
         context.diagnostics.push(
           "CPM_PREDECESSOR_TIMING_UNRESOLVED:" +
@@ -667,12 +670,7 @@ export function calculateCpm(
       }
     }
 
-    const startCandidate = Math.max(
-      anchor,
-      ...(candidates.length > 0
-        ? candidates
-        : [anchor]),
-    );
+    const startCandidate = candidates.reduce((latest,c)=>Math.max(latest,c.start),anchor);
 
     const earlyStart =
       addWorkingHours(
@@ -691,6 +689,9 @@ export function calculateCpm(
       earlyStartMs: earlyStart,
       earlyFinishMs: earlyFinish,
     });
+    // Calendar normalization may make several links bind at the same start.
+    // Retain every tie instead of selecting an arbitrary single predecessor.
+    bindingPredecessors.set(activityId,candidates.filter(c=>Math.abs(addWorkingHours(context.calendar!.calendar,c.start,0)-earlyStart)<1).map(c=>c.relation));
 
     if (
       context.activity.status ===
@@ -1001,7 +1002,16 @@ export function calculateCpm(
           activity.activityId,
       );
 
+  const drivingIds=new Set<string>(),drivingRelationships:EffectiveRelationship[]=[];
+  const finishActivityIds=graph.topologicalOrder.filter(id=>calculatedFinish!==null&&forward.get(id)?.earlyFinishMs===calculatedFinish);
+  const pending=[...finishActivityIds];
+  while(pending.length){const id=pending.pop()!;if(drivingIds.has(id))continue;drivingIds.add(id);
+    for(const relation of bindingPredecessors.get(id)??[]){drivingRelationships.push(relation);pending.push(relation.predecessorActivityId);}}
+  const drivingNetwork={activityIds:graph.topologicalOrder.filter(id=>drivingIds.has(id)),finishActivityIds,
+    relationships:drivingRelationships.map(({diagnostics,...relation})=>relation),
+    startReasons:graph.topologicalOrder.filter(id=>drivingIds.has(id)&&!(bindingPredecessors.get(id)?.length)).map(activityId=>({activityId,reason:contexts.get(activityId)?.activity.status==='completed'?'fixed_actual_dates' as const:'reporting_anchor_or_calendar' as const}))};
   return {
+    drivingNetwork,
     activityPopulation:population.contract,
     projectId: model.projectId,
     sourceRevisionId:

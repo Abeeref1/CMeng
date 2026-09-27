@@ -129,9 +129,9 @@ test('delay-driver questions return actual schedule pressure points without coll
   const f=await fixture(t);
   for(const question of ['What is driving the project delay?','Why is the project delayed?']){
     const answer=await f.engine.ask(f.id,{...user,allowModel:false},{question});
-    assert.ok(answer.plan.authorities.includes('critical-path'));assert.ok(answer.plan.authorities.includes('lookahead'));assert.ok(answer.plan.authorities.includes('forecast'));
+    assert.ok(answer.plan.authorities.includes('critical-path'));assert.ok(answer.plan.authorities.includes('project-diagnosis'));
     for(const id of ['materials','productivity','design','quality','construction-readiness','delay'])assert.ok(!answer.plan.authorities.includes(id),question+' must not add '+id+' by default');
-    assert.match(answer.narrative[0]!.text,/FINISH — FINISH work/);assert.match(answer.narrative[0]!.text,/BOTH — BOTH work/);assert.match(answer.narrative[0]!.text,/cannot infer that from float alone/);
+    assert.match(answer.narrative[0]!.text,/FINISH — FINISH work/);assert.match(answer.narrative[0]!.text,/BOTH — BOTH work/);assert.ok(answer.sections.find(s=>s.authorityId==='project-diagnosis')!.findings.some(f=>/do not establish contractual responsibility/.test(f.explanation)));
     assert.doesNotMatch(answer.narrative[0]!.text,/Existing .*producer|Open relevant|Supply quantities/);
   }
   const finish=await f.ask('What is the completion forecast?');assert.match(finish.narrative[0]!.text,/Submitted programme finish/);assert.match(finish.narrative[0]!.text,/Contract comparison unavailable/);assert.equal(f.paid(),0);
@@ -143,8 +143,8 @@ test('delay-driver summaries retain full matching counts for Top N and do not tu
   const table=answer.sections.find(s=>s.authorityId==='critical-path')!.tables[0]!;
   assert.equal(table.selection?.matching??table.rows.length,75);
   assert.equal(answer.sections.find(s=>s.authorityId==='activities')!.tables[0]!.rows.length,20);
-  assert.match(answer.narrative[0]!.text,/75 known source-float critical activities/);assert.match(answer.narrative[0]!.text,/No baseline has been confirmed/);
+  assert.match(answer.narrative[0]!.text,/75 activities have known negative float/);assert.match(answer.narrative[0]!.text,/No baseline has been confirmed/);
   const empty=f.id+'-EMPTY';runtimeProjects.getOrCreate(empty);
   const missing=await f.engine.ask(empty,{...user,allowModel:false},{question:'What is driving the project delay?'});
-  assert.match(missing.narrative[0]!.text,/not available/);assert.doesNotMatch(missing.narrative[0]!.text,/identifies 0|0 activities show|0 have negative/);
+  assert.match(missing.narrative[0]!.text,/Select the reporting programme/);assert.doesNotMatch(missing.narrative[0]!.text,/identifies 0|0 activities show|0 have negative/);
 });

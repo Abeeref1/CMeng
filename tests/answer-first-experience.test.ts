@@ -36,6 +36,8 @@ test('one missing contract date across six pages is one coverage matter with all
  const isolated=projectActions(runtimeProjects.getOrCreate('UX-OTHER'),summarizeControlIssues([]));assert.ok(!JSON.stringify(isolated).includes('contract-completion'));
  const baseline=projectActions(state,summarizeControlIssues([{...issue('schedule-analytics','data.result.completionBases[basis=programme]'),summary:'Programme completion basis missing',detail:'The source completion basis is unavailable.'}]));
  assert.ok(baseline.information.some(a=>a.id==='matter:programme-comparison'));
+ const conflict=projectActions(state,summarizeControlIssues([{...issue('delivery-risks','risk.reportingDate'),summary:'Risk reporting date missing'}, {...issue('delivery-risks','risk.rating'),kind:'source_conflict',summary:'Risk ratings disagree',detail:'The supplied register has conflicting ratings.'}]));
+ assert.ok(conflict.actions.some(a=>a.id==='matter:risks'),'a genuine record conflict remains actionable even without a specifically typed risk document');
 });
 
 test('Management Brief cannot promote an unrelated first finding into its answer',()=>{
