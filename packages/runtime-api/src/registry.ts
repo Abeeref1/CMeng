@@ -8,6 +8,9 @@ export interface ModuleDescriptor {
   group: string;
   area: "management" | "schedule" | "commercial" | "delivery";
   category: "management" | "analysis" | "progress" | "forecast" | "claims" | "contract" | "commercial" | "delivery";
+  /** Heavy or specialist pages are resolved only when opened and are excluded
+   * from the all-module certification/cold-load bundle. */
+  onDemand?: boolean;
 }
 
 export const moduleRegistry: ModuleDescriptor[] = [
@@ -33,6 +36,7 @@ export const moduleRegistry: ModuleDescriptor[] = [
   {"key": "manhour-scurve", "title": "Man-Hour S-Curve", "description": "Planned, actual and forecast labor hours, with history coverage stated explicitly.", "group": "Progress & Resources", "area": "schedule", "category": "progress"},
   {"key": "forecast-history", "title": "Completion History", "description": "How submitted finishes and calendar recalculations move across programme revisions.", "group": "Forecast & Finish", "area": "schedule", "category": "forecast"},
   {"key": "independent-forecast", "title": "Completion Forecast", "description": "Submitted completion, calendar recalculation and the productivity outlook, with each calculation basis and unresolved limit stated.", "group": "Forecast & Finish", "area": "schedule", "category": "forecast"},
+  {"key": "monte-carlo-risk", "title": "Monte Carlo Schedule Risk", "description": "Activity-by-activity probabilistic network simulation with P10/P50/P80/P90/P95 completion dates, criticality index and explicit uncertainty assumptions.", "group": "Forecast & Finish", "area": "schedule", "category": "forecast", "onDemand": true},
   {"key": "challenge-contract", "title": "Challenge the Contract", "description": "Tests the submitted manpower plan and current schedule against project evidence and required milestones, then combines the gaps, consequences and actions.", "group": "Forecast & Finish", "area": "schedule", "category": "forecast"},
   {"key": "delay-claims", "title": "Delay Event Register", "description": "Recorded delay events, affected activities and linked records for investigation. Causation requires supporting evidence.", "group": "Delay & Time Entitlement", "area": "schedule", "category": "claims"},
   {"key": "notices-claims", "title": "Notice Compliance", "description": "Event dates, notice deadlines and issue dates checked against the applicable contract version.", "group": "Delay & Time Entitlement", "area": "schedule", "category": "claims"},
@@ -68,8 +72,10 @@ export function titleForModule(key: string): string {
 
 export type ScheduleModuleDescriptor = ModuleDescriptor;
 export type CommercialModuleDescriptor = ModuleDescriptor;
-export const scheduleModules = moduleRegistry.filter(m => m.area === "schedule");
-export const commercialModules = moduleRegistry.filter(m => m.area === "commercial");
+export const scheduleModules = moduleRegistry.filter(m => m.area === "schedule" && !m.onDemand);
+export const commercialModules = moduleRegistry.filter(m => m.area === "commercial" && !m.onDemand);
+export const schedulePageModules = moduleRegistry.filter(m => m.area === "schedule");
+export const commercialPageModules = moduleRegistry.filter(m => m.area === "commercial");
 
 export function scheduleModuleSummary() {
   return {total: scheduleModules.length, keys: scheduleModules.map(m => m.key)};
