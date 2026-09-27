@@ -245,6 +245,7 @@ ${systemReviewStyles}
     <div class="platform-nav" id="platformNav">
       <button class="platform-item active" data-view="portfolio"><span class="platform-icon">◫</span><span>Portfolio</span></button>
       <button class="platform-item" data-view="projects"><span class="platform-icon">▦</span><span>Projects</span></button>
+      <button class="platform-item" data-view="ai"><span class="platform-icon">✦</span><span>Ask CMeng</span></button>
     </div>
     <div class="active-project-card project-side-only" id="activeProjectCard"><span>Active project</span><b id="activeProjectName">No project selected</b><span id="activeProjectMeta">Open a project from Portfolio or Projects</span></div>
     <div class="sidebar-divider project-side-only"></div>
@@ -4269,7 +4270,7 @@ function updateActiveProjectShell(){
   el("openLibraryQuick").disabled=!project();el("openEvidenceTop").disabled=!overview;
 }
 function setAppView(view){
-  if(view==="ai"&&(!overview||overview.projectId!==project()))view="projects";
+  if(view==="ai"&&(!overview||overview.projectId!==project())){view="projects";el("createProjectMessage").textContent="Open a project to ask about its documents, calculations and current position.";}
   appView=view;
   ["portfolio","projects","ai"].forEach(name=>{el(name+"View").hidden=view!==name});
   const projectView=view==="project"||view==="ai";

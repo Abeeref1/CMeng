@@ -49,6 +49,6 @@ The browser file-chooser check was interrupted and then the execution environmen
 
 ## Ask CMeng inside each project
 
-Ask CMeng is part of the project workspace and project navigation. The generic platform-menu entry is removed. Opening it keeps the active project, reporting date, project switcher and other project pages visible. Returning to a project page restores that page, and switching projects clears the prior conversation, references and downloads before loading the new project. An unloaded or mismatched project cannot open an Ask conversation. No login or permission flow is added.
+Ask CMeng is part of the project workspace and project navigation. The main-menu shortcut remains available as requested; it opens Ask for the current project or directs the user to choose a project first. Opening it keeps the active project, reporting date, project switcher and other project pages visible. Returning to a project page restores that page, and switching projects clears the prior conversation, references and downloads before loading the new project. An unloaded or mismatched project cannot open an Ask conversation. No login or permission flow is added.
 
 The interrupted browser attachment action was retried successfully on `6fc0fe8`: the reference PDF attached and both native/scanned pages were read. Its reference-only label and reading disclosure were visible. The earlier final-commit verification rerun passed all 761 tests and the existing performance/durability gates; the first 5.164-second cold-open miss remains recorded in PR 162.

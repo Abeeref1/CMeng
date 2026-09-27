@@ -164,6 +164,7 @@ test('Ask requires the selected project to be loaded without adding a generic co
     assert.equal(h.el('aiView').hidden,true);
     assert.equal(h.el('projectWorkspace').hidden,true);
     assert.equal(h.el('projectsView').hidden,false);
+    assert.match(h.el('createProjectMessage').textContent,/Open a project to ask/);
     assert.equal(h.requests.length,0);
   }
 });
