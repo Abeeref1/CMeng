@@ -2017,7 +2017,7 @@ function activityReviewRowHtml(a){
 }
 function activityFilterValue(id){const node=el(id);return node?String(node.value||"").trim():"";}
 function clearActivityFilters(){
-  ["activityFilterSearch","activityFilterWbs","activityFilterZone","activityFilterFloor","activityFilterTower","activityFilterBuilding","activityFilterArea","activityFilterWorkFront","activityFilterDiscipline","activityFilterPackage","activityFilterStatus","activityFilterCriticality","activityFilterCondition"].forEach(id=>{const node=el(id);if(node)node.value="";});
+  ["activityFilterSearch","activityFilterWbs","activityFilterZone","activityFilterFloor","activityFilterTower","activityFilterBuilding","activityFilterArea","activityFilterWorkFront","activityFilterPhase","activityFilterSection","activityFilterChainage","activityFilterDiscipline","activityFilterTrade","activityFilterSystem","activityFilterPackage","activityFilterCbs","activityFilterContractor","activityFilterSubcontractor","activityFilterStatus","activityFilterCriticality","activityFilterCondition"].forEach(id=>{const node=el(id);if(node)node.value="";});
   filterActivityReview();
 }
 function filterActivityReview(){
@@ -2029,8 +2029,8 @@ function filterActivityReview(){
   const floorWanted=activityFilterValue("activityFilterFloor");
   const condition=activityFilterValue("activityFilterCondition");
   let rows=p.rows.filter(row=>!["level_of_effort","wbs_summary"].includes(row.activityType)).filter(row=>{
-    if(q&&!String([row.activityId,row.name,row.wbsId,row.wbsPath,row.location,row.zone,row.floor,row.level,row.tower,row.building,row.area,row.workFront,row.discipline,row.package].filter(Boolean).join(" ")).toLowerCase().includes(q))return false;
-    if(!exact("activityFilterWbs","wbsId",row)||!exact("activityFilterZone","zone",row)||!exact("activityFilterTower","tower",row)||!exact("activityFilterBuilding","building",row)||!exact("activityFilterArea","area",row)||!exact("activityFilterWorkFront","workFront",row)||!exact("activityFilterDiscipline","discipline",row)||!exact("activityFilterPackage","package",row)||!exact("activityFilterStatus","status",row)||!exact("activityFilterCriticality","criticality",row))return false;
+    if(q&&!String([row.activityId,row.name,row.wbsId,row.wbsPath,row.location,row.zone,row.floor,row.level,row.tower,row.building,row.area,row.workFront,row.phase,row.section,row.chainage,row.discipline,row.trade,row.system,row.package,row.cbs,row.contractor,row.subcontractor].filter(Boolean).join(" ")).toLowerCase().includes(q))return false;
+    if(!exact("activityFilterWbs","wbsId",row)||!exact("activityFilterZone","zone",row)||!exact("activityFilterTower","tower",row)||!exact("activityFilterBuilding","building",row)||!exact("activityFilterArea","area",row)||!exact("activityFilterWorkFront","workFront",row)||!exact("activityFilterPhase","phase",row)||!exact("activityFilterSection","section",row)||!exact("activityFilterChainage","chainage",row)||!exact("activityFilterDiscipline","discipline",row)||!exact("activityFilterTrade","trade",row)||!exact("activityFilterSystem","system",row)||!exact("activityFilterPackage","package",row)||!exact("activityFilterCbs","cbs",row)||!exact("activityFilterContractor","contractor",row)||!exact("activityFilterSubcontractor","subcontractor",row)||!exact("activityFilterStatus","status",row)||!exact("activityFilterCriticality","criticality",row))return false;
     if(floorWanted&&String(row.floor??row.level??"")!==floorWanted)return false;
     if(condition==="delayed"&&row.scheduleDelayed!==true)return false;
     if(condition==="missed_start"&&row.missedPlannedStart!==true)return false;
@@ -2101,7 +2101,8 @@ function renderActivityAnalyticsVisual(data){
   const floors=[...new Set(executionRows.map(r=>r.floor??r.level).filter(Boolean))].sort((a,b)=>String(a).localeCompare(String(b),undefined,{numeric:true}));
   const filterPanel='<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Filter activities</h4><p>Filter the full execution population by schedule status and source/source-derived project scope. Unclassified activities remain visible when no scope filter is selected.</p></div><b id="activityFilterCount">'+fmt(executionRows.length)+' of '+fmt(executionRows.length)+' execution activities</b></div><div class="planning-panel-body"><div class="scope-filter-grid">'+
     '<label>Search<input id="activityFilterSearch" placeholder="Activity ID, name, WBS, zone…" oninput="filterActivityReview()"></label>'+
-    select("activityFilterWbs","WBS","wbsId")+select("activityFilterZone","Zone","zone")+select("activityFilterFloor","Floor / level","floor",floors)+select("activityFilterTower","Tower","tower")+select("activityFilterBuilding","Building","building")+select("activityFilterArea","Area","area")+select("activityFilterWorkFront","Work front","workFront")+select("activityFilterDiscipline","Discipline","discipline")+select("activityFilterPackage","Package","package")+
+    select("activityFilterWbs","WBS","wbsId")+select("activityFilterZone","Zone","zone")+select("activityFilterFloor","Floor / level","floor",floors)+select("activityFilterTower","Tower","tower")+select("activityFilterBuilding","Building","building")+select("activityFilterArea","Area","area")+select("activityFilterWorkFront","Work front","workFront")+
+    select("activityFilterPhase","Phase","phase")+select("activityFilterSection","Section","section")+select("activityFilterChainage","Chainage","chainage")+select("activityFilterDiscipline","Discipline","discipline")+select("activityFilterTrade","Trade","trade")+select("activityFilterSystem","System","system")+select("activityFilterPackage","Package","package")+select("activityFilterCbs","CBS","cbs")+select("activityFilterContractor","Contractor","contractor")+select("activityFilterSubcontractor","Subcontractor","subcontractor")+
     select("activityFilterStatus","Status","status")+select("activityFilterCriticality","Criticality","criticality")+
     select("activityFilterCondition","Schedule condition","",[["delayed","Delayed / schedule pressure"],["missed_start","Missed start"],["overdue_finish","Overdue finish"],["negative_float","Negative float"],["zero_float","Zero float"],["float_risk","Float-risk watchlist"],["open_logic","Open / isolated logic"]])+
     '<button class="btn small" type="button" onclick="clearActivityFilters()">Clear filters</button></div></div></section>';
@@ -2531,7 +2532,7 @@ function renderScopeClassificationVisual(data){
   const p=projectionFor(data,"scope_classification");
   if(!Array.isArray(p.coverage))return"";
   const coverageRows=p.coverage.map(row=>'<tr><td><b>'+escapeHtml(row.label)+'</b></td><td>'+escapeHtml(fmt(row.classified))+' / '+escapeHtml(fmt(row.total))+'</td><td>'+escapeHtml(row.coveragePercent===null?"Unresolved":fmt(row.coveragePercent)+"%")+'</td><td>'+escapeHtml(row.basis)+'</td></tr>').join("");
-  const dimensions=['zone','floor','level','tower','building','area','workFront','discipline','package'];
+  const dimensions=['zone','floor','level','tower','building','area','workFront','phase','section','chainage','discipline','trade','system','package','cbs','contractor','subcontractor'];
   const grouped=dimensions.map(key=>{
     const values=new Map();
     for(const row of p.rows||[]){const value=row[key];if(value!==null&&value!==undefined&&String(value).trim())values.set(String(value),(values.get(String(value))||0)+1);}
