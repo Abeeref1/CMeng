@@ -78,9 +78,9 @@ test('MCP and API share facts; OAuth checks callback, PKCE, CSRF, audience, rota
   assert.equal((await post('/external-ai/register',{client_name:'Bad',redirect_uris:['https://evil.example/callback']})).status,400);
   const activate=await post('/external-ai/activate',{token:f.activation},{origin:base});assert.equal(activate.status,200);const cookie=activate.headers.get('set-cookie')!.split(';')[0]!;
   const verifier=secret(),challenge=createHash('sha256').update(verifier).digest('base64url');const args=new URLSearchParams({client_id:client.client_id,redirect_uri:'https://assistant.example/callback',response_type:'code',resource:base+'/external-ai/mcp',code_challenge:challenge,code_challenge_method:'S256',scope:'cmeng:read',state:'owned-state'});
-  const auth=await fetch(base+'/external-ai/authorize?'+args,{headers:{cookie}}),html=await auth.text();assert.equal(auth.status,200);assert.match(html,/Connect Independent MCP client/);const csrf=/name="csrf" value="([^"]+)"/.exec(html)![1];
+  const auth=await fetch(base+'/external-ai/authorize?'+args,{headers:{cookie}}),html=await auth.text();assert.equal(auth.status,200);assert.equal(auth.headers.get('referrer-policy'),'same-origin');assert.match(html,/Connect Independent MCP client/);const csrf=/name="csrf" value="([^"]+)"/.exec(html)![1];
   assert.equal((await post('/external-ai/authorize',{csrf,profile:'customer',projects:['A']},{cookie,origin:'https://evil.example'})).status,403);
-  const consent=await post('/external-ai/authorize',{csrf,profile:'customer',projects:['A']},{cookie,origin:base});assert.equal(consent.status,303);const callback=new URL(consent.headers.get('location')!);assert.equal(callback.searchParams.get('state'),'owned-state');
+  const consent=await post('/external-ai/authorize',{csrf,profile:'customer',projects:['A']},{cookie,origin:base});assert.equal(consent.status,303);assert.equal(consent.headers.get('referrer-policy'),'no-referrer');const callback=new URL(consent.headers.get('location')!);assert.equal(callback.searchParams.get('state'),'owned-state');
   const grant={grant_type:'authorization_code',code:callback.searchParams.get('code'),client_id:client.client_id,redirect_uri:'https://assistant.example/callback',resource:base+'/external-ai/mcp',code_verifier:verifier};
   assert.equal((await post('/external-ai/token',{...grant,code_verifier:secret()})).status,400);const exchange=await post('/external-ai/token',grant);assert.equal(exchange.status,200);const tokens:any=await exchange.json();assert.equal((await post('/external-ai/token',grant)).status,400);
   const authorization='Bearer '+tokens.access_token,call={projectId:'A',metric:'CPI'};
@@ -146,4 +146,43 @@ test('unreadable paid AI settings do not break deterministic calculation and can
   const answer=await new ProjectAskEngine(new AskStore(join(f.root,'native')),configuredAskModel()).ask(id,{userId:'owner',workspaceId:'workspace',name:null,title:null,company:null,allowModel:true},{question:'What is CPI?'});
   assert.equal(answer.telemetry?.aiInvoked,false);assert.equal(answer.sections.flatMap(s=>s.metrics).find(m=>m.id.includes('.cpi'))!.value,null);
   saveManagedAskSettings(path,'gpt-4.1-mini','sk-test-'+secret());assert.equal(readManagedAskSettings(path)!.model,'gpt-4.1-mini');
+});
+
+
+test('owner HTML forms save and manage access without stripping their origin; untrusted posts remain denied',async t=>{
+  const f=fixture(t),settingsPath=join(f.root,'model.json'),http=new ExternalHttp(f.access,f.service,settingsPath);
+  const server=createServer((req,res)=>{void http.handle(req,res);});
+  await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));t.after(()=>server.close());
+  const base='http://127.0.0.1:'+(server.address() as any).port;f.policy.publicOrigin=base;
+  const cookie='cmeng_external_owner='+f.access.activateOwner(f.activation);
+  const page=async(path:string)=>{
+    const response=await fetch(base+path,{headers:{cookie}}),html=await response.text();
+    assert.equal(response.status,200);
+    // WHATWG Fetch: native form POSTs under no-referrer send Origin: null.
+    // This policy permits same-site forms without disclosing referrers off-site.
+    assert.equal(response.headers.get('referrer-policy'),'same-origin');
+    assert.match(response.headers.get('content-security-policy')!,/form-action 'self'/);
+    return {html,csrf:/name="csrf" value="([^"]+)"/.exec(html)![1]!};
+  };
+  const post=(path:string,values:Record<string,string>,origin:string|null=base)=>fetch(base+path,{
+    method:'POST',headers:{cookie,...origin===null?{}:{origin}},body:new URLSearchParams(values),redirect:'manual'
+  });
+  const before=await page('/settings/ask-ai'),key='sk-test-'+secret();
+  const values={csrf:before.csrf,model:'gpt-5-mini',apiKey:key};
+  for(const origin of ['null','https://untrusted.example',null]){
+    const response=await post('/settings/ask-ai',values,origin);
+    assert.equal(response.status,403);assert.equal((await response.json() as any).error,'origin_denied');
+    assert.equal(readManagedAskSettings(settingsPath),null);
+  }
+  const saved=await post('/settings/ask-ai',values);
+  assert.equal(saved.status,303);assert.equal(saved.headers.get('location'),'/settings/ask-ai?saved=1');
+  assert.equal(readManagedAskSettings(settingsPath)!.apiKey,key);
+  assert.equal((await post('/settings/ask-ai',values)).status,403,'a submitted form cannot be replayed');
+  const after=await page('/settings/ask-ai?saved=1');assert.match(after.html,/Saved model: gpt-5-mini/);assert.ok(!after.html.includes(key));
+  assert.equal((await post('/settings/ask-ai',{csrf:after.csrf,model:'gpt-4.1-mini',apiKey:''})).status,303);
+  assert.equal(readManagedAskSettings(settingsPath)!.model,'gpt-4.1-mini');assert.equal(readManagedAskSettings(settingsPath)!.apiKey,key);
+  const manage=await page('/external-ai');
+  const change={csrf:manage.csrf,action:'project',projectId:'A',disabled:'true'};
+  assert.equal((await post('/external-ai/manage',change,'null')).status,403);assert.equal(f.access.projectEnabled('A'),true);
+  assert.equal((await post('/external-ai/manage',change)).status,303);assert.equal(f.access.projectEnabled('A'),false);assert.equal(f.access.projectEnabled('B'),true);
 });
