@@ -84,11 +84,12 @@ export function evmByWbsForState(state:ProjectRuntimeState):ModuleRuntimeResult{
       if(distinct.length===1)metrics[metric]=distinct[0] as number;else if(distinct.length>1)conflicted=true;
       for(const r of current)refs.push(...r.amount.receipts.map(x=>'evidence-document:'+x.documentId+':'+x.locator));
     }
-    return {wbsId,currency,taxBasis,pv:metrics.pv,ev:metrics.ev,ac:metrics.ac,bac:metrics.bac,eac:metrics.eac,
-      spi:ratio(metrics.ev,metrics.pv),cpi:ratio(metrics.ev,metrics.ac),
-      scheduleVariance:metrics.ev!==null&&metrics.pv!==null?Number((metrics.ev-metrics.pv).toFixed(6)):null,
-      costVariance:metrics.ev!==null&&metrics.ac!==null?Number((metrics.ev-metrics.ac).toFixed(6)):null,
-      sourceState:conflicted?'conflicting':metrics.pv!==null&&metrics.ev!==null&&metrics.ac!==null?'established':'partial',
+    const pv=metrics.pv??null,ev=metrics.ev??null,ac=metrics.ac??null,bac=metrics.bac??null,eac=metrics.eac??null;
+    return {wbsId,currency,taxBasis,pv,ev,ac,bac,eac,
+      spi:ratio(ev,pv),cpi:ratio(ev,ac),
+      scheduleVariance:ev!==null&&pv!==null?Number((ev-pv).toFixed(6)):null,
+      costVariance:ev!==null&&ac!==null?Number((ev-ac).toFixed(6)):null,
+      sourceState:conflicted?'conflicting':pv!==null&&ev!==null&&ac!==null?'established':'partial',
       sourceRefs:[...new Set(refs)]};
   }).sort((a,b)=>String(a.wbsId).localeCompare(String(b.wbsId))||String(a.currency).localeCompare(String(b.currency)));
   const complete=rows.filter(r=>r.sourceState==='established').length;
