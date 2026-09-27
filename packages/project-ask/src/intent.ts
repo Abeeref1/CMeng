@@ -72,6 +72,10 @@ export function resolveIntent(question:string,catalogue:AuthorityDescriptor[],pr
     // Keep explicitly requested non-schedule domains in a combined question.
     plan.authorities=plan.authorities.filter(id=>!['programme','activities','float','critical-path','forecast','delay','lookahead'].includes(id));
     if(available(path?'critical-path':'activities'))plan.authorities.unshift(path?'critical-path':'activities');
+    // A spatial word in an activity question scopes the programme activity
+    // population; it does not automatically request the Delivery location register.
+    if(activityQuestion&&/\b(?:zone|floor|level|tower|building|area|work ?front)\b/.test(q)&&!/\b(?:location register|location hierarchy|governed locations?)\b/.test(q))
+      plan.authorities=plan.authorities.filter(id=>id!=='locations');
     if(/\b(?:why|caus\w*|driv\w*|delaying|makes?|making)\b/.test(q)){
       // A schedule diagnosis starts from schedule facts and linked blockers.
       // Optional domains are added only when the question actually names them.
@@ -102,8 +106,18 @@ export function resolveIntent(question:string,catalogue:AuthorityDescriptor[],pr
   if(/\bncrs?\b/.test(q))scopedFilter(['quality'],{field:'recordType',operator:'eq',value:'ncr',upper:null});
   if(/\b(?:open|late|overdue)\b/.test(q)){const status=/\b(open|late|overdue)\b/.exec(q)![1]!;scopedFilter(plan.authorities.filter(id=>['quality','milestones','submittals','closeout','handover','permits','risks'].includes(id)),{field:status==='open'?'open':'late',operator:'eq',value:true,upper:null});}
   for(const dimension of ['discipline','location','floor','zone','supplier','wbs','trade','currency'])if(new RegExp('\\bby '+dimension+'\\b').test(q))plan.groupBy=[dimension==='wbs'?'wbsId':dimension==='trade'?'discipline':dimension];
-  const location=/\bfor wbs\b/.test(q)?null:/\b(tower\s+[a-z0-9]+|floor\s+\d+|zone\s+[a-z0-9]+)\b/i.exec(question);
-  if(location){plan.filters=plan.filters.filter(f=>f.field!=='location');plan.filters.push({field:'location',operator:'contains',value:location[1]!,upper:null});}
+  const location=/\bfor wbs\b/.test(q)?null:/\b(tower\s+[a-z0-9]+|building\s+[a-z0-9]+|block\s+[a-z0-9]+|floor\s+[a-z0-9]+|level\s+[a-z0-9]+|zone\s+[a-z0-9]+|area\s+[a-z0-9]+|work\s*front\s+[a-z0-9_-]+)\b/i.exec(question);
+  if(location){
+    const scopeFilter={field:'location',operator:'contains' as const,value:location[1]!,upper:null};
+    const compoundActivityRequest=!inherited&&!claimsQuestion&&scheduleQuestion&&activityQuestion&&/\b(?:and|also|plus)\b/.test(q)&&/\b(?:delayed|late|overdue)\b/.test(q);
+    if(compoundActivityRequest){
+      // Keep the primary delayed-activity selection intact and create a
+      // second independent result set for the requested spatial scope.
+      plan.activityBreakouts=[...(plan.activityBreakouts??[]),{label:'Activities for '+location[1]!,filters:[scopeFilter]}];
+    }else{
+      plan.filters=plan.filters.filter(f=>f.field!=='location');plan.filters.push(scopeFilter);
+    }
+  }
   if(!/\bfor wbs\b/.test(q)&&/\bmep\b|\bmechanical\b|\belectrical\b|\bcivil\b/.test(q)){const value=/\b(mep|mechanical|electrical|civil)\b/.exec(q)![1]!;plan.filters=plan.filters.filter(f=>f.field!=='discipline');plan.filters.push({field:'discipline',operator:'contains',value,upper:null});}
   const currency=/^(SAR|AED|USD|EUR|GBP)$/i.exec(question.trim());if(currency){plan.filters=plan.filters.filter(f=>f.field!=='currency');plan.filters.push({field:'currency',operator:'eq',value:currency[1]!.toUpperCase(),upper:null});gaps.push('Currency filtering does not convert values. No exchange rate is assumed.');}
   const days=/next\s+(\d+)\s+days|القادمه\s+(\d+)/.exec(q);if(days)plan.nextDays=Math.min(3650,Number(days[1]??days[2]));
