@@ -6,6 +6,7 @@ import {aggregateCount} from '../../truth-kernel/src/aggregates';
 import {moduleRegistry, titleForModule} from './registry';
 import {STATUS_LABELS} from './position-review';
 import {systemReviewScript,systemReviewStyles} from './ui-system-review';
+import {projectActionsScript,projectActionsStyles} from './ui-project-actions';
 import {basisReviewScript} from './ui-basis-review';
 import { experienceStyles, experienceScript } from './ui-experience';
 
@@ -214,6 +215,7 @@ details:not(.workspace-drawer){border:1px solid var(--line);border-radius:9px;ba
 ${experienceStyles}
 ${askAiStyles}
 ${systemReviewStyles}
+${projectActionsStyles}
 .planning-kpi.unavailable strong{font-size:16px;font-weight:600;line-height:1.45}.planning-kpi.unavailable{background:#f8fafc}
 </style>
 </head>
@@ -299,15 +301,19 @@ ${systemReviewStyles}
           <p id="workspaceProjectMeta">No project selected</p>
         </div>
         <div class="workspace-actions">
+          <button class="btn" id="openProjectActions">Actions required</button>
           <button class="btn" id="openLibraryQuick">Documents</button>
           <button class="btn primary" id="openEvidenceTop">Add documents</button>
           <button class="btn" id="runAnalysisTop">Update position</button>
           <button class="btn" id="openAiTop">Ask CMeng</button>
+          <a class="btn" href="/external-ai" target="_blank" rel="noopener">External AI Access</a>
+          <a class="btn" href="/settings/ask-ai" target="_blank" rel="noopener">AI settings</a>
           <button class="btn small" id="refresh">Refresh</button>
           <span id="projectBadge" class="badge">No project</span>
         </div>
       </div>
 
+      <p id="projectActionNotification" class="action-notification" role="status" aria-live="polite"></p>
       ${askAiHtml}
 
       <section class="card module-panel module-workspace" id="projectModulePanel">
@@ -412,6 +418,7 @@ ${systemReviewStyles}
 ${aggregateCount.toString()}
 ${experienceScript}
 ${systemReviewScript}
+${projectActionsScript}
 ${basisReviewScript}
 const moduleRegistry=${JSON.stringify(moduleRegistry).replace(/</g, '\u003c')};
 const groups=moduleRegistry.reduce((groups,m)=>{(groups[m.group]??=[]).push(m.key);return groups},{});
@@ -518,7 +525,7 @@ function setBusy(text){el("globalStatus").innerHTML=text?'<span class="spinner">
 async function api(path,opts={}){
   const controller=(!opts.method||opts.method==="GET")&&typeof AbortController!=="undefined"?new AbortController():null;
   const timeout=controller?setTimeout(()=>controller.abort(),60000):null;
-  try{const r=await fetch(path,{...opts,...(controller?{signal:controller.signal}:{})});let data=null;try{data=await r.json()}catch{}if(!r.ok){const e=new Error(data?.message||data?.reason||data?.error||("HTTP "+r.status));e.data=data;e.status=r.status;throw e}if(data===null)throw new Error("The service returned an incomplete response. Please try again.");return data;}
+  try{const r=await fetch(path,{...opts,...(controller?{signal:controller.signal}:{})});let data=null;try{data=await r.json()}catch{}if(!r.ok){const e=new Error(data?.message||data?.reason||data?.error||("HTTP "+r.status));e.data=data;e.status=r.status;throw e}if(data===null)throw new Error("The service returned an incomplete response. Please try again.");if(opts.method&&!["GET","HEAD"].includes(opts.method)&&path.startsWith("/api/projects/"+encodeURIComponent(project())+"/")&&!path.includes("/intelligence/")&&typeof loadProjectActions==="function"){setTimeout(()=>{if(overview)void loadProjectActions();},0);}return data;}
   catch(error){if(controller?.signal.aborted)throw new Error("The connection took too long. Your documents remain saved. Try opening the project again.");throw error;}
   finally{if(timeout!==null)clearTimeout(timeout);}
 }
@@ -592,10 +599,10 @@ function renderNav(){
   const states=new Map([...(overview?.moduleStates||[]),...(overview?.managementStates||[])].map(x=>[x.key,x]));
   const overall=states.get('master-dashboard')?.issueAssessment?.counts||{};
   const sourceTotal=(overall.source_conflict||0)+(overall.data_quality||0)+(overall.missing_information||0);
-  let html='<button class="nav-item '+(appView==="ai"?'active':'')+'" id="projectAskNav" aria-current="'+(appView==="ai"?'page':'false')+'" title="Ask about '+escapeHtml(project())+'"><span class="nav-label">✦ Ask CMeng</span></button><div class="nav-review-totals"><div>Information items<b>'+fmt(sourceTotal)+'</b></div><div>System failures<b>'+fmt(overall.system_defect||0)+'</b></div></div><div class="nav-group">';
+  let html='<button class="nav-item '+(appView==="ai"?'active':'')+'" id="projectAskNav" aria-current="'+(appView==="ai"?'page':'false')+'" title="Ask about '+escapeHtml(project())+'"><span class="nav-label">✦ Ask CMeng</span></button><button class="nav-item" id="projectActionsNav"><span>Actions required</span><b id="projectActionNavCount">'+(typeof projectActionState!=='undefined'&&projectActionState?.projectId===project()&&projectActionState.status==='ready'?fmt(projectActionState.data.actionCount):'…')+'</b></button><div class="nav-group">';
   Object.entries(groups).forEach(([group,keys])=>{
     html+='<div class="nav-group-title" style="padding-top:10px">'+group+'</div>';
-    keys.forEach(key=>{
+    keys.filter(key=>key!=='source-quality').forEach(key=>{
       const state=states.get(key)||{};
       const issues=state.issueAssessment?.counts||{};
       const errors=issues.system_defect||0,source=(issues.source_conflict||0)+(issues.data_quality||0)+(issues.missing_information||0),review=(issues.comparison_difference||0)+(issues.governance_review||0),pending=issues.verification_pending||0;
@@ -609,6 +616,7 @@ function renderNav(){
   html+='</div>';
   nav.innerHTML=html;
   el("projectAskNav").onclick=()=>setAppView("ai");
+  el("projectActionsNav").onclick=()=>openProjectActions();
   nav.querySelectorAll(".nav-item[data-key]").forEach(b=>b.onclick=()=>{selected=b.dataset.key;localStorage.setItem("cmeng-module",selected);setAppView("project");loadModule(selected)});
 }
 function scalarPairs(obj){if(!obj||typeof obj!=="object")return[];return Object.entries(obj).filter(([k,v])=>["string","number","boolean"].includes(typeof v)||v===null).slice(0,12)}
@@ -3835,8 +3843,12 @@ ${deliveryScript()}
 function renderModuleResult(result){
   renderModuleResultBody(result);
   const container=el('moduleContent');
-  container.insertAdjacentHTML('afterbegin',renderProgrammeReview(result.scheduleAuthorityReview||result.data?.scheduleAuthorityReview));
-  bindProgrammeReview(container);
+  const review=result.scheduleAuthorityReview||result.data?.scheduleAuthorityReview;
+  if((result.legacyKey||result.key)==='source-quality'){const panel=el('projectActionPanel');if(panel)bindProjectActions(panel);}
+  else if(review&&(review.state!=='established'||review.pendingSchedules?.length)){
+    container.insertAdjacentHTML('afterbegin','<p class="action-notification">'+(review.state==='missing'?'Select a schedule to enable programme reporting.':review.state==='pending_review'?'Confirm the schedule used for reporting.':'A newly uploaded schedule needs your review.')+' <button class="btn small" id="programmeActionLink">Open Actions required</button></p>');
+    el('programmeActionLink').onclick=()=>openProjectActions();
+  }
 }
 function renderModuleResultBody(result){
   result={...result,key:result.legacyKey||result.key};
@@ -3866,7 +3878,7 @@ function renderModuleResultBody(result){
   el("directorDrawer").open=false;
   el("directorDrawer").hidden=result.key!=="pmo-analysis";
   if(result.key==="challenge-contract"&&renderDeliveryChallenge(data,result.reason,result.status))return;
-  const basisHtml=renderPositionVerdict(data)+renderModuleBasis(data)+renderRegisterScope(data);
+  const basisHtml=result.key==='source-quality'?'':renderPositionVerdict(data)+renderModuleBasis(data)+renderRegisterScope(data);
   const challengeBody=renderUniversalChallenge(data.challenge);
   const challengeHtml=challengeBody?'<details class="reconciliation-panel"><summary><span>Comparison with the submitted position</span><b>'+escapeHtml(reconciliationSummary(data.challenge))+'</b></summary><div class="reconciliation-body">'+challengeBody+'</div></details>':'';
   const specialized=renderSpecializedModule(result.key,data);
@@ -4308,6 +4320,7 @@ function clearProjectWorkspace(projectId){
   for(const id of ['schedulePhase','scheduleApproval'])if(el(id))el(id).value='';
   if(el('scheduleScope'))el('scheduleScope').value='project';
   overview=null;currentModuleResult=null;projectLoadState="loading";
+  resetProjectActions();
   selectedEvidenceDocuments.clear();
   scheduleSelection=[];boqSelection=[];contractSelection=[];evidenceSelection=[];
   ["scheduleFiles","boqFiles","contractFiles","evidenceFiles","aiQuestion"].forEach(id=>{el(id).value=""});
@@ -4462,6 +4475,7 @@ async function refresh(bootstrapDemo=true){
       loadPhaseProgrammes(),
       loadDirector(projectId)
     ]);
+    if(current())await loadProjectActions();
   }catch(e){
     if(!current())return;
     if(bootstrapDemo&&e.status===404&&projectId==="UAT-DEMO"){
@@ -4572,6 +4586,8 @@ function uploadEvidenceFileWithProgress(file,fileIndex,fileTotal,job){
 }
 bindAskWorkspace();
 el("loadDemo").onclick=loadDemo;el("refresh").onclick=()=>refresh(false);el("runAnalysisTop").onclick=runAnalysis;el("openAiTop").onclick=()=>setAppView("ai");el("askAi").onclick=askCmeng;el("createProject").onclick=createProject;el("portfolioNewProject").onclick=()=>setAppView("projects");
+el('openProjectActions').onclick=()=>openProjectActions();
+window.addEventListener('focus',()=>{if(overview&&['project','ai'].includes(appView))void loadProjectActions();});
 function openEvidenceWorkspace(){
   if(!overview){setAppView("projects");el("createProjectMessage").innerHTML='<div class="notice info">Create or open a project before adding documents.</div>';return}
   setAppView("project");

@@ -5,6 +5,7 @@ export type Domain = 'schedule' | 'boq' | 'delivery' | 'commercial' | 'claims' |
 export interface AskSession {
   userId: string; workspaceId: string; name: string | null; title: string | null; company: string | null;
   allowModel: boolean;
+  allowedAuthorityIds?: string[];
 }
 export interface PageContext {
   projectId: string; page: string | null; filters: Record<string, string>;

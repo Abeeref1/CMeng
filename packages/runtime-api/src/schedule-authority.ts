@@ -30,7 +30,7 @@ export function scheduleAuthorityReview(state:ProjectRuntimeState){
     documentId:document?.documentId??null,sourceHashSha256:document?.sourceHashSha256??null,
     state:!revision?'missing':isScenarioRevision(revision)?'invalid':validDecision&&decision?.method==='explicit'?'established':'pending_review',
     method:validDecision?decision?.method:null,
-    explanation:!revision?(pendingSchedules.length?'Programme uploaded and awaiting adoption. Review the programme below and select Adopt as current to enable programme-based reporting.':'Upload a programme, then review and adopt it to enable programme-based reporting.'):isScenarioRevision(revision)?'A draft or scenario cannot be the current programme.':validDecision&&decision?.method==='explicit'?'Current programme selected by an explicit adoption decision.':'The previous programme selection is retained as a source position. Confirm adoption in Documents; it is not an approved programme.',
+    explanation:!revision?(pendingSchedules.length?'Programme uploaded and awaiting adoption. Review the programme below and select Adopt as current to enable programme-based reporting.':'Upload a programme, then review and adopt it to enable programme-based reporting.'):isScenarioRevision(revision)?'A draft or scenario cannot be the current programme.':validDecision&&decision?.method==='explicit'?'Current programme selected by an explicit adoption decision.':'CMeng is using '+(document?.sourceFilename??revision.sourceFilename??'the previously selected schedule')+' for reporting. Confirm in Documents that this is the schedule you want to use.',
   };
 }
 

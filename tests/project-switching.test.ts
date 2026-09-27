@@ -30,7 +30,7 @@ function harness() {
     managementSurfaceKeysForApi:new Set(['command-center']),commercialModuleKeysForApi:new Set(),
     fmt:String,planningShortDate:String,escapeHtml:(s:any)=>String(s).replace(/[&<>"']/g,'_'),
     document:{body:{classList:{remove(){},toggle(){}}},querySelectorAll:()=>[]},window:{scrollTo(){}},
-    localStorage:{setItem:(key:string,value:string)=>storage.set(key,value)},renderPlatformNav(){},loadPortfolio(){},loadAskHome(){},
+    localStorage:{setItem:(key:string,value:string)=>storage.set(key,value)},renderPlatformNav(){},loadPortfolio(){},loadAskHome(){},resetProjectActions(){},loadProjectActions:async()=>{},
     setBusy:(text:string)=>{el('globalStatus').textContent=text;},renderStatus:(o:any)=>{el('projectStatus').textContent=o.projectId;el('projectBadge').textContent='CURRENT PROJECT';},
     renderDirector:(d:any)=>{el('director').textContent=d?.projectId||'No management detail';},
     renderModuleResult:(r:any)=>{context.currentModuleResult=r;el('moduleContent').textContent=r.data.projectId;el('moduleReport').disabled=false;},

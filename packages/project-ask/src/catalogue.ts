@@ -10,11 +10,12 @@ export class AuthorityCatalogue<C> {
     this.providers.set(provider.id, provider); return this;
   }
   available(_session?: AskSession): AuthorityDescriptor[] {
-    return [...this.providers.values()].map(({produce, ...descriptor}) => descriptor);
+    return [...this.providers.values()].filter(p=>!_session?.allowedAuthorityIds||_session.allowedAuthorityIds.includes(p.id)).map(({produce, ...descriptor}) => descriptor);
   }
   resolve(id: string, principal: AskSession): AuthorityProvider<C> {
     const provider = this.providers.get(id);
     if (!provider) throw new AskError(422, 'authority_not_registered', 'This project analysis source is not registered.');
+    if(principal.allowedAuthorityIds&&!principal.allowedAuthorityIds.includes(id))throw new AskError(403,'authority_not_permitted','This authority is not permitted for the current connection.');
     return provider;
   }
 }

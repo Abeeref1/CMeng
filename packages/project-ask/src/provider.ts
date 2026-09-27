@@ -1,6 +1,7 @@
 import type {AnalysisPlan,AnalysisResult,AskTelemetry,AuthorityDescriptor,NarrativeBlock} from './types';
 import {validateProposedPlan} from './intent';
 import {selectEvidence,retrieveEvidence,type EvidenceItem,type EvidenceRequest,type ReferencePage} from './evidence';
+import {readManagedAskSettings} from './settings';
 
 export interface AskModel {
   plan(question:string,base:AnalysisPlan,catalogue:AuthorityDescriptor[]):Promise<AnalysisPlan>;
@@ -126,4 +127,4 @@ export function validateNarrative(output:any,result:AnalysisResult,items:Evidenc
     return {heading:b.heading,text,classification:'ai_recommendation',traceIds:b.traceIds};
   });
 }
-export function configuredAskModel(){const key=process.env.CMENG_ASK_AI_API_KEY??'',model=process.env.CMENG_ASK_AI_MODEL,baseUrl=process.env.CMENG_ASK_AI_BASE_URL,protocol=process.env.CMENG_ASK_AI_PROTOCOL??'responses';if(protocol==='none'||!model||!key&&!baseUrl)return null;if(!['responses','chat-completions'].includes(protocol))return null;return new OpenAiAskModel(key,model,fetch,configuredModelLimits(),{...(baseUrl?{baseUrl}:{}),protocol:protocol as 'responses'|'chat-completions'});}
+export function configuredAskModel(){let managed;try{managed=readManagedAskSettings(process.env.CMENG_ASK_AI_CONFIG_FILE);}catch{return null;}const key=managed?.apiKey??process.env.CMENG_ASK_AI_API_KEY??'',model=managed?.model??process.env.CMENG_ASK_AI_MODEL,baseUrl=managed?undefined:process.env.CMENG_ASK_AI_BASE_URL,protocol=managed?'responses':process.env.CMENG_ASK_AI_PROTOCOL??'responses';if(protocol==='none'||!model||!key&&!baseUrl)return null;if(!['responses','chat-completions'].includes(protocol))return null;return new OpenAiAskModel(key,model,fetch,configuredModelLimits(),{...(baseUrl?{baseUrl}:{}),protocol:protocol as 'responses'|'chat-completions'});}
