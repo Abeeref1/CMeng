@@ -20,7 +20,7 @@ export function askProjectDiagnosis(scope:ProjectScope,plan:AnalysisPlan){
  for(const [id,label] of Object.entries(labels)){const c=d.counts[id];b.metric(id,label,c.knownCount,'activities','Existing activity authority. '+c.unresolvedCount+' of '+c.population+' activities lack fields needed for the complete count; known matches are not the complete population.',{refs:[scope.programmeRevision??'']});}
  if(p){b.metric('submitted-finish','Submitted finish',p.submittedFinishIso,null,'Current adopted programme.',{fact:true});b.metric('calculated-finish','Calendar recalculation',p.independentFinishIso,null,p.differenceBasis,{state:p.calculationState});}
  let wbs=d.wbsRows.filter((r:any)=>r.pressureCount>0);
- if(recipe==='wbs_pressure'&&plan.diagnosisActivityFilters?.length){
+ if(recipe==='wbs_pressure'&&plan.diagnosisActivityFilters!==undefined){
    const driving=new Set(d.network.rows.map((r:any)=>r.activityId)),pressure=new Set(d.pressureActivityIds),groups=new Map<string,any>(),wbsById=new Map(d.wbsRows.map((w:any)=>[w.wbsId,w]));
    const filters=[...plan.filters,...plan.diagnosisActivityFilters!];
    const applicable=d.activities.map((r:any)=>({...r,onDrivingNetwork:d.network.state==='unavailable'?null:driving.has(r.activityId),schedulePressure:pressure.has(r.activityId),critical:r.criticality==='unknown'?null:r.criticality==='critical'}))
@@ -40,7 +40,7 @@ export function askProjectDiagnosis(scope:ProjectScope,plan:AnalysisPlan){
    b.result.explanation=d.summary+(linked.length?' Linked evidence: '+linked.map((c:any)=>c.activityId+' — '+c.explanation).join(' '):' No specific linked non-schedule blocker is established for these pressure activities.')+' '+d.noChangeOutlook+(d.counts.baselineSlippage.knownCount===null?' No baseline has been confirmed, so delay against the original planned dates cannot be measured.':'');
  }
  if(selectedIds){b.result.metrics=[];b.metric('matching-activities','Activities in your preceding selection',selectedIds.size,'activities','Prior activity filters applied to the full population. Missing filter values are excluded. Whole-project completion remains context, not a recalculated finish for this subset.');}
- if(plan.filters.length)b.result.explanation='Project-wide context (the tables retain your requested filters): '+b.result.explanation;
+ if(plan.filters.length&&!selectedIds&&plan.diagnosisActivityFilters===undefined)b.result.explanation='Project-wide context (the tables retain your requested filters): '+b.result.explanation;
  const units={totalFloatHours:{unit:'hours'},worstFloatHours:{unit:'hours'},remainingDurationHours:{unit:'hours'},finishMovementCalendarDays:{unit:'elapsed calendar days'},previousFinishMovementCalendarDays:{unit:'elapsed calendar days'},percentComplete:{unit:'%'},wbsId:{dimension:true}};
  if(!selectedIds&&!['revision_change','no_change_outlook','milestone_exposure'].includes(recipe)){
    b.table('wbs-pressure','Where schedule pressure is concentrated',wbs,'Disjoint assigned WBS groups. Pressure activities are counted once per group; critical, negative-float and driving counts overlap and must not be added together.',units);

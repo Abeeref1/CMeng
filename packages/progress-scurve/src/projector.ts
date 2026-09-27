@@ -11,7 +11,7 @@ const ms = (value: string | null): number | null => {
   const parsed = parseScheduleTime(value); return Number.isFinite(parsed) ? parsed : null;
 };
 const coverage = (known: number, total: number) => total ? Number((known / total * 100).toFixed(4)) : null;
-interface WeightedActivity { activityId: string; weight: number; start: number; finish: number; calendar: CanonicalCalendar; clock?: (at: number) => number; work?: number; }
+interface WeightedActivity { activityId: string; weight: number; start: number; finish: number; calendar: CanonicalCalendar; clock?: (at: number) => number; clockStart?: number; work?: number; }
 
 function eligible(model: CanonicalScheduleModel, dates: (activity: CanonicalScheduleActivity) => [string | null, string | null], diagnostics: string[]): WeightedActivity[] {
   const rows: WeightedActivity[] = [];
@@ -33,11 +33,14 @@ function eligible(model: CanonicalScheduleModel, dates: (activity: CanonicalSche
     if (days > 36525) { diagnostics.push("PROGRESS_HORIZON_EXCEEDS_SUPPORTED_WORKING_CALENDAR_RANGE"); continue; }
     const prefix = [0];
     for (let day = 0; day < days; day++) prefix.push(prefix[day]! + workingHoursBetween(calendar, origin + day * DAY, origin + (day + 1) * DAY));
+    const clockValues = new Map<number,number>();
     const clock = (at: number) => {
+      const known=clockValues.get(at);if(known!==undefined)return known;
       const offset = Math.max(0, Math.min(days, Math.floor((at - origin) / DAY)));
-      return prefix[offset]! + (offset < days ? workingHoursBetween(calendar, origin + offset * DAY, Math.max(origin + offset * DAY, at)) : 0);
+      const value=prefix[offset]! + (offset < days ? workingHoursBetween(calendar, origin + offset * DAY, Math.max(origin + offset * DAY, at)) : 0);
+      clockValues.set(at,value);return value;
     };
-    for (const row of group) { row.clock = clock; row.work = clock(row.finish) - clock(row.start); }
+    for (const row of group) { row.clock = clock; row.clockStart = clock(row.start); row.work = clock(row.finish) - row.clockStart; }
   }
   return rows.filter(row => row.clock && row.work !== undefined && row.work > 0);
 }
@@ -45,7 +48,7 @@ function eligible(model: CanonicalScheduleModel, dates: (activity: CanonicalSche
 function cumulative(rows: readonly WeightedActivity[], at: number): number | null {
   let earned = 0, weight = 0;
   for (const row of rows) {
-    const fraction = at <= row.start ? 0 : at >= row.finish ? 1 : (row.clock!(at) - row.clock!(row.start)) / row.work!;
+    const fraction = at <= row.start ? 0 : at >= row.finish ? 1 : (row.clock!(at) - row.clockStart!) / row.work!;
     earned += row.weight * Math.max(0, Math.min(1, fraction)); weight += row.weight;
   }
   return weight > 0 ? Number((100 * earned / weight).toFixed(6)) : null;

@@ -75,13 +75,14 @@ export function assessModuleIssues(result: ModuleRuntimeResult, consistency: Con
   // expose their owned evidence in focus; unrelated missing registers must not
   // turn every commercial page into the same warning.
   const visited=new WeakSet<object>();
+  const noDiagnostics:readonly string[]=[];
   const issueStates=new Set(['conflicted','invalid','stale','missing','not_submitted','missing_evidence','missing_information','submitted_unparsed','candidate','provisional','pending_review']);
   const excludedKeys=new Set(['source','sourceLedger','futureRows','undatedRows','futureInsurances','undatedInsurances','claimsReporting','challenge','reportingContract','moduleReadiness','issueAssessment','systemEvidenceContract','controlBasis','sourceRefs','diagnostics','receipts','population','populations','model']);
   const walk=(value:any,path:string,depth:number)=>{
     if(!value||typeof value!=='object'||depth>9||visited.has(value))return;
     visited.add(value);
-    if(Array.isArray(value)){for(const item of value)walk(item,path+'['+(typeof item?.topic==='string'?'topic='+item.topic:typeof item?.basis==='string'?'basis='+item.basis:'*')+']',depth+1);return;}
-    const diagnostics=(Array.isArray(value.diagnostics)?value.diagnostics:[]).filter((s:unknown)=>typeof s==='string') as string[];
+    if(Array.isArray(value)){for(const item of value)if(item&&typeof item==='object')walk(item,path+'['+(typeof item.topic==='string'?'topic='+item.topic:typeof item.basis==='string'?'basis='+item.basis:'*')+']',depth+1);return;}
+    const diagnostics=Array.isArray(value.diagnostics)&&value.diagnostics.length?value.diagnostics.filter((s:unknown)=>typeof s==='string') as string[]:noDiagnostics;
     // Plain rows still receive full recursive inspection. Construct issue labels
     // and references only for objects that can actually produce a finding.
     if(diagnostics.length||issueStates.has(value.state)||value.population?.exclusions?.length){
@@ -117,7 +118,8 @@ export function assessModuleIssues(result: ModuleRuntimeResult, consistency: Con
         'Correct the invalid event-date values and rerun validation.',path+'.population','Project evidence owner',refs);
     }
     }
-    for(const key of Object.keys(value)) {
+    for(const key in value) {
+      if(!Object.hasOwn(value,key))continue;
       const child=value[key];
       if(!child||typeof child!=='object'||excludedKeys.has(key))continue;
       walk(child,path?path+'.'+key:key,depth+1);
