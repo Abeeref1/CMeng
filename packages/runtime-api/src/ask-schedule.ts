@@ -8,7 +8,8 @@ import {projectDiagnosisDetails} from './project-diagnosis';
 import {scheduleScopeClassification} from './schedule-scope-classification';
 
 const columns={activityId:{label:'Activity ID'},name:{label:'Activity'},wbs:{label:'WBS',dimension:true},wbsId:{label:'WBS ID',dimension:true},wbsPath:{label:'WBS path',dimension:true},wbsLevel:{label:'WBS level',dimension:true},
-  location:{label:'Location',dimension:true},zone:{label:'Zone',dimension:true},floor:{label:'Floor',dimension:true},level:{label:'Level',dimension:true},tower:{label:'Tower',dimension:true},building:{label:'Building',dimension:true},area:{label:'Area',dimension:true},workFront:{label:'Work front',dimension:true},discipline:{label:'Discipline',dimension:true},package:{label:'Package',dimension:true},
+  location:{label:'Location',dimension:true},zone:{label:'Zone',dimension:true},floor:{label:'Floor',dimension:true},level:{label:'Level',dimension:true},tower:{label:'Tower',dimension:true},building:{label:'Building',dimension:true},area:{label:'Area',dimension:true},workFront:{label:'Work front',dimension:true},
+  phase:{label:'Phase',dimension:true},section:{label:'Section',dimension:true},chainage:{label:'Chainage',dimension:true},discipline:{label:'Discipline',dimension:true},trade:{label:'Trade',dimension:true},system:{label:'System',dimension:true},package:{label:'Package',dimension:true},cbs:{label:'CBS',dimension:true},contractor:{label:'Contractor',dimension:true},subcontractor:{label:'Subcontractor',dimension:true},
   currentStartIso:{label:'Planned start'},currentFinishIso:{label:'Planned finish'},
   plannedStartIso:{label:'Planned start'},plannedFinishIso:{label:'Forecast finish'},
   totalFloatHours:{label:'Programme float',unit:'hours'},independentTotalFloatHours:{label:'Calculated float',unit:'hours'},
@@ -26,7 +27,8 @@ export function askScheduleActivities(scope:ProjectScope){
   const classifications=programme&&programme.revision.revisionId===scope.programmeRevision?scheduleScopeClassification(programme.revision.model):null;
   const classificationById=new Map((classifications?.rows??[]).map(row=>[row.activityId,row]));
   b.table('rows','Activities',rows,basis,columns,r=>{const scopeRow=classificationById.get(r.activityId);return {...r,wbs:wbsNames.get(r.wbsId)??r.wbsId,
-    wbsPath:scopeRow?.wbsPath??null,wbsLevel:scopeRow?.wbsLevel??null,location:scopeRow?.location??null,zone:scopeRow?.zone??null,floor:scopeRow?.floor??null,level:scopeRow?.level??null,tower:scopeRow?.tower??null,building:scopeRow?.building??null,area:scopeRow?.area??null,workFront:scopeRow?.workFront??null,discipline:scopeRow?.discipline??null,package:scopeRow?.package??null,
+    wbsPath:scopeRow?.wbsPath??null,wbsLevel:scopeRow?.wbsLevel??null,location:scopeRow?.location??null,zone:scopeRow?.zone??null,floor:scopeRow?.floor??null,level:scopeRow?.level??null,tower:scopeRow?.tower??null,building:scopeRow?.building??null,area:scopeRow?.area??null,workFront:scopeRow?.workFront??null,
+    phase:scopeRow?.phase??null,section:scopeRow?.section??null,chainage:scopeRow?.chainage??null,discipline:scopeRow?.discipline??null,trade:scopeRow?.trade??null,system:scopeRow?.system??null,package:scopeRow?.package??null,cbs:scopeRow?.cbs??null,contractor:scopeRow?.contractor??null,subcontractor:scopeRow?.subcontractor??null,
     onDrivingNetwork:diagnosis&&diagnosis.network.state!=='unavailable'?driving.has(r.activityId):null,
     schedulePressure:['not_started','in_progress'].includes(r.status)?driving.has(r.activityId)||r.criticality==='critical'||r.criticality==='near_critical'||r.scheduleDelayed===true:r.status==='completed'?false:null,
     plannedStartIso:r.currentStartIso??r.forecastStartIso,plannedFinishIso:r.forecastFinishIso??r.currentFinishIso,critical:r.criticality==='unknown'?null:r.criticality==='critical',predecessors:r.predecessorIds.join('; '),successors:r.successorIds.join('; ')}});
