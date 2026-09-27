@@ -39,15 +39,15 @@ test('project action notifications ignore late responses after A to B to A and n
   ctx.api=()=>Promise.reject(new Error('Unavailable'));await ctx.loadProjectActions();assert.match(notice.textContent,/could not be refreshed/);assert.doesNotMatch(button.innerHTML,/>0</);
 });
 
-test('one missing-information action per destination preserves every underlying request',async()=>{
+test('unrelated missing commercial inputs remain visible together without creating page-navigation tasks',async()=>{
   const {runtimeProjects}=await import('../packages/runtime-api/src/project-state');
   const {projectActions}=await import('../packages/runtime-api/src/project-actions');
   const {summarizeControlIssues}=await import('../packages/truth-kernel/src');
   const state=runtimeProjects.getOrCreate('GROUPED-ACTION-REVIEW');
   const items=['currency','retention','paymentPeriod'].map(field=>({code:'MISSING_SOURCE_VALUE',kind:'missing_information' as const,summary:field,detail:'Missing '+field,action:'Provide '+field,owner:'Project evidence owner' as const,moduleKeys:['contract-particulars-bonds'],sourceRefs:[],checkIds:[],evidencePaths:['contract.'+field]}));
-  const result=projectActions(state,summarizeControlIssues([...items,{...items[0]!,summary:'Missing invoice date',moduleKeys:['payments']}]));
-  const contract=result.actions.find(a=>a.id==='information:contract-particulars-bonds')!,payment=result.actions.find(a=>a.id==='information:payments')!;
-  assert.equal(contract.requestCount,3);assert.equal(new Set(contract.findingIds).size,3);assert.equal(contract.recordCount,0,'requests are not invented source records');
-  assert.equal(payment.requestCount,1);assert.equal(contract.target.moduleKey,'contract-particulars-bonds');assert.equal(payment.target.moduleKey,'payments');
-  assert.equal(result.actions.filter(a=>a.id.startsWith('information:')).length,2);
+  const result=projectActions(state,summarizeControlIssues(items));
+  assert.equal(result.information.reduce((n,a)=>n+(a.requestCount??0),0),3);
+  assert.ok(result.information.every(a=>a.target.type==='inline'));
+  assert.equal(result.information.flatMap(a=>a.findings??[]).length,3);
+  assert.ok(!result.actions.some(a=>a.target.type==='module'));
 });

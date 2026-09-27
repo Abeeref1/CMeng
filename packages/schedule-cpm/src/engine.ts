@@ -78,7 +78,7 @@ function maxDefined(
   );
   return known.length === 0
     ? null
-    : Math.max(...known);
+    : known.reduce((a,b)=>Math.max(a,b),-Infinity);
 }
 
 function minDefined(
@@ -90,7 +90,7 @@ function minDefined(
   );
   return known.length === 0
     ? null
-    : Math.min(...known);
+    : known.reduce((a,b)=>Math.min(a,b),Infinity);
 }
 
 function earliestModelDate(
@@ -787,7 +787,7 @@ export function calculateCpm(
 
     const lateFinishCandidate =
       candidates.length > 0
-        ? Math.min(...candidates)
+        ? candidates.reduce((a,b)=>Math.min(a,b),Infinity)
         : previousWorkingInstant(
             context.calendar.calendar,
             latePassFinish,

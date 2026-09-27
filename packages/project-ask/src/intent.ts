@@ -70,7 +70,12 @@ export function resolveIntent(question:string,catalogue:AuthorityDescriptor[],pr
     // Keep explicitly requested non-schedule domains in a combined question.
     plan.authorities=plan.authorities.filter(id=>!['programme','activities','float','critical-path','forecast','delay','lookahead'].includes(id));
     if(available(path?'critical-path':'activities'))plan.authorities.unshift(path?'critical-path':'activities');
-    if(/\b(?:why|caus\w*|delaying|makes?|making)\b/.test(q)&&available('lookahead'))plan.authorities.push('lookahead');
+    if(/\b(?:why|caus\w*|driv\w*|delaying|makes?|making)\b/.test(q)){
+      // A schedule diagnosis starts from schedule facts and linked blockers.
+      // Optional domains are added only when the question actually names them.
+      plan.authorities=plan.authorities.filter(id=>['activities','critical-path'].includes(id)||catalogue.find(c=>c.id===id)?.concepts.some(c=>mentions(q,c)));
+      for(const id of ['critical-path','lookahead','forecast'])if(available(id)&&!plan.authorities.includes(id))plan.authorities.push(id);
+    }
   }
   if(/only critical|critical.*(?:packages|activities|mep)|الحرجه/.test(q)&&!/negative.float|near[ -]critical|(?:critical|driving) path/.test(q))plan.criticalOnly=true;
   if(/only (problems|bad|issues)|bad material|material problem|only exceptions|المشاكل/.test(q))plan.issuesOnly=true;

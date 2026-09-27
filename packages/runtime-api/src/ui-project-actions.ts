@@ -7,8 +7,13 @@ function actionStateCurrent(){return projectActionState?.projectId===project();}
 function updateActionIndicator(){
  const button=el('openProjectActions');if(!button)return;
  const ready=actionStateCurrent()&&projectActionState.status==='ready';
- button.disabled=!overview;button.innerHTML='Actions required'+(ready?' <span class="project-action-count">'+fmt(projectActionState.data.actionCount)+'</span>':'');
- const notice=el('projectActionNotification');if(notice){notice.textContent=ready?(projectActionState.data.actionCount?projectActionState.data.actionCount+' pending actions for '+project()+'. Open Actions required to review and resolve them.':'No pending user actions in the current checks.'):(actionStateCurrent()&&projectActionState.status==='error'?'Actions could not be refreshed. Open Actions required to retry.':'Checking project actions…');}
+ button.disabled=!overview;button.innerHTML='Project review'+(ready?' <span class="project-action-count">'+fmt(projectActionState.data.actionCount)+'</span>':'');
+ const notice=el('projectActionNotification');if(notice){
+  const a=projectActionState?.data?.analysis;
+  const position=a?.state==='analysed'?'Project analysed · '+fmt(a.activityCount)+' activities recognised · Data Date '+planningShortDate(a.dataDateIso):a?.state==='programme_selection_needed'?'Programme read · select the reporting schedule in Project review':'Project records loaded';
+  notice.textContent=ready?position+(projectActionState.data.actionCount?' · '+projectActionState.data.actionCount+' matters need review':' · No outstanding decisions in the current checks'):(actionStateCurrent()&&projectActionState.status==='error'?'Project review could not be refreshed. Open Project review to retry.':'Checking the latest project position…');
+ }
+
  const navCount=el('projectActionNavCount');if(navCount)navCount.textContent=ready?String(projectActionState.data.actionCount):'…';
 }
 function resetProjectActions(){projectActionRequest++;projectActionState=null;projectActionSearch='';projectActionFilter='all';updateActionIndicator();}
@@ -18,16 +23,30 @@ async function loadProjectActions(){
  projectActionState={projectId:owner,status:'loading',data:actionStateCurrent()?projectActionState?.data:null};updateActionIndicator();
  try{const data=await api('/api/projects/'+encodeURIComponent(owner)+'/actions');if(seq!==projectActionRequest||!projectRequestIsCurrent(owner,projectSeq))return;if(data.projectId!==owner)throw new Error('The action list belongs to a different project.');projectActionState={projectId:owner,status:'ready',data};}
  catch(e){if(seq!==projectActionRequest||!projectRequestIsCurrent(owner,projectSeq))return;projectActionState={projectId:owner,status:'error',message:e.message};}
- updateActionIndicator();const panel=el('projectActionPanel');if(panel){panel.innerHTML=renderProjectActionList();bindProjectActions(panel);}
+ updateActionIndicator();for(const id of ['projectActionPanel','projectReviewPanel']){const panel=el(id);if(panel){panel.innerHTML=renderProjectActionList();bindProjectActions(panel);}}
+}
+function renderActionFindings(a){
+ const rows=(a.findings||[]).map(i=>{const r=readerIssue(i);return '<details><summary>'+escapeHtml(r.title||i.summary)+'</summary><p>'+escapeHtml(i.detail)+'</p><p><b>What is needed:</b> '+escapeHtml(r.action||i.action)+'</p><p>Affects: '+escapeHtml(i.moduleKeys.map(k=>names[k]||k).join(', '))+'</p>'+(i.sourceRefs.length?'<p>Sources: '+escapeHtml(i.sourceRefs.join('; '))+'</p>':'')+'</details>';}).join('');
+ return (a.completionPosition?renderCompletionPosition(a.completionPosition,true):'')+rows;
 }
 function renderProjectActionList(){
- if(!actionStateCurrent()||projectActionState.status==='loading')return '<p role="status">Checking the latest actions for this project…</p>';
- if(projectActionState.status==='error')return '<p role="alert">Actions could not be refreshed. '+escapeHtml(projectActionState.message)+'</p><button class="btn" data-action-refresh>Try again</button>';
- const data=projectActionState.data,items=data.actions.map(a=>{const r=a.issue?readerIssue(a.issue):null;return {...a,title:r?.title||a.title,reason:r?.action||a.reason};});
+ if(!actionStateCurrent()||projectActionState.status==='loading')return '<p role="status">Checking the latest project review…</p>';
+ if(projectActionState.status==='error')return '<p role="alert">Project review could not be refreshed. '+escapeHtml(projectActionState.message)+'</p><button class="btn" data-action-refresh>Try again</button>';
+ const data=projectActionState.data,items=data.actions;
  const filtered=items.filter(a=>(projectActionFilter==='all'||a.category===projectActionFilter)&&((a.title+' '+a.reason).toLowerCase().includes(projectActionSearch.toLowerCase())));
- return '<div class="action-summary"><b>'+fmt(data.actionCount)+' pending actions</b><span>'+escapeHtml(project())+'</span><small>Checked '+escapeHtml(formatDocumentTime(data.checkedAt))+'</small><button class="btn small" data-action-refresh>Refresh actions</button></div><p>Choose an action below. Once its decision or corrected information is saved, this list refreshes. System checks are listed separately below.</p><div class="action-filters"><input id="projectActionSearch" aria-label="Find a project action" placeholder="Find an action or document" value="'+escapeHtml(projectActionSearch)+'"><select id="projectActionFilter" aria-label="Action type">'+[['all','All actions'],['confirmation','Confirmations'],['review','Reviews'],['information','Information needed']].map(([value,label])=>'<option value="'+value+'" '+(projectActionFilter===value?'selected':'')+'>'+label+'</option>').join('')+'</select></div><p id="projectActionMessage" role="status"></p><div class="project-action-list">'+filtered.map(a=>'<article class="project-action" id="action-'+escapeHtml(a.id)+'"><h4>'+escapeHtml(a.title)+'</h4><p>'+escapeHtml(a.reason)+'</p><footer><button class="btn primary" data-project-action="'+escapeHtml(a.id)+'">'+escapeHtml(a.target.label)+'</button>'+(a.target.type==='schedule'&&a.target.canConfirm?'<button class="btn" data-project-action-review="'+escapeHtml(a.id)+'">Review schedule first</button>':'')+'<small>'+escapeHtml(({confirmation:'Your confirmation needed',review:'Review needed',information:'Information needed'})[a.category])+(a.requestCount>1?' · '+fmt(a.requestCount)+' information requests':a.recordCount>1?' · '+fmt(a.recordCount)+' records':'')+'</small></footer></article>').join('')+'</div>'+(!filtered.length?'<p>'+(items.length?'No actions match this filter. Clear it to see the complete list.':'No pending user actions were found in the current project checks.')+'</p>':'');
+ const article=a=>'<article class="project-action" data-action-id="'+escapeHtml(a.id)+'"><h4>'+escapeHtml(a.title)+'</h4><p>'+escapeHtml(a.reason)+'</p>'+
+  (a.target.type==='inline'?'<details class="review-inline"><summary>'+escapeHtml(a.target.label)+'</summary>'+renderActionFindings(a)+'</details>':'<footer><button class="btn primary" data-project-action="'+escapeHtml(a.id)+'">'+escapeHtml(a.target.label)+'</button>'+(a.target.type==='schedule'&&a.target.canConfirm?'<button class="btn" data-project-action-review="'+escapeHtml(a.id)+'">Review schedule first</button>':'')+'</footer>')+
+  (a.affectedPages?.length?'<small>One matter affecting '+fmt(a.affectedPages.length)+' pages · all '+fmt(a.requestCount)+' supporting findings retained</small>':'')+'</article>';
+ return '<div class="action-summary"><b>'+fmt(data.actionCount)+' matters to review</b><small>Checked '+escapeHtml(formatDocumentTime(data.checkedAt))+'</small><button class="btn small" data-action-refresh>Refresh review</button><button class="btn small" data-action-close>Return to answer</button></div><p>Resolve document decisions here. Review differences without leaving your answer. Missing optional information is listed separately below.</p><div class="action-filters"><input class="project-action-search" aria-label="Find a project matter" placeholder="Find a matter or document" value="'+escapeHtml(projectActionSearch)+'"><select class="project-action-filter" aria-label="Review type">'+[['all','All matters'],['confirmation','Decisions'],['review','Differences and checks'],['information','Information needed']].map(([value,label])=>'<option value="'+value+'" '+(projectActionFilter===value?'selected':'')+'>'+label+'</option>').join('')+'</select></div><p class="project-action-message" role="status"></p><div class="project-action-list">'+filtered.map(article).join('')+'</div>'+(!filtered.length?'<p>'+(items.length?'No matters match this filter.':'No outstanding user decisions in the current checks.')+'</p>':'')+
+  '<details class="review-inline"><summary>Other information not yet available · '+fmt(data.information?.length||0)+' groups</summary><p>These are limits on the relevant measures, not tasks you must complete to use the available project analysis.</p>'+(data.information||[]).map(article).join('')+'</details>'+
+  (data.systemCheckCount?'<p>'+fmt(data.systemCheckCount)+' CMeng checks are tracked separately. They do not require you to supply a document unless a specific missing input is identified.</p>':'');
 }
-async function openProjectActions(){if(!overview)return;selected='source-quality';localStorage.setItem('cmeng-module',selected);setAppView('project');await loadModule(selected);await loadProjectActions();}
+async function openProjectActions(){
+ if(!overview)return;
+ const drawer=el('projectReviewDrawer');drawer.hidden=false;drawer.open=true;
+ await loadProjectActions();drawer.scrollIntoView({block:'start'});
+}
+
 async function openActionDocument(target){
  if(target.phaseId){await loadPhaseProgrammes();const drawer=el('evidenceControlDrawer');drawer.hidden=false;drawer.open=true;el('phaseProgrammesPanel')?.scrollIntoView({block:'center'});return;}
  const owner=project();await loadEvidence();if(project()!==owner)return;
@@ -39,24 +58,25 @@ async function openActionDocument(target){
 async function followProjectAction(id,reviewOnly=false){
  if(!actionStateCurrent()||projectActionState.status!=='ready')return;
  const owner=project(),version=projectActionState.data.projectVersion,a=projectActionState.data.actions.find(a=>a.id===id);if(!a)return;
- const target=a.target,message=el('projectActionMessage');
+ const target=a.target,message=el('projectReviewPanel')?.querySelector('.project-action-message');
  try{
    if(target.type==='schedule'){
      if(reviewOnly||!target.canConfirm){await openActionDocument(target);return;}
      document.querySelectorAll('[data-project-action]').forEach(b=>b.disabled=true);if(message)message.textContent='Saving your reporting schedule selection…';
-     await api('/api/projects/'+encodeURIComponent(owner)+'/actions/confirm-schedule',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({expectedVersion:version,actionId:id})});if(project()===owner){await refresh(false);const result=el('projectActionMessage');if(result)result.textContent='Reporting schedule confirmed. The action list is up to date.';}return;
+     await api('/api/projects/'+encodeURIComponent(owner)+'/actions/confirm-schedule',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({expectedVersion:version,actionId:id})});if(project()===owner){await refresh(false);const result=el('projectReviewPanel')?.querySelector('.project-action-message');if(result)result.textContent='Reporting schedule confirmed. The action list is up to date.';}return;
    }
    if(target.type==='document'){await openActionDocument(target);return;}
    if(target.type==='upload'){el('openEvidenceTop').click();if(target.phaseId){el('scheduleScope').value='phase';el('schedulePhase').value=target.phaseId;}el('scheduleFiles')?.focus();return;}
    selected=target.moduleKey;localStorage.setItem('cmeng-module',selected);setAppView('project');await loadModule(selected);if(project()!==owner||selected!==target.moduleKey)return;
    if(target.type==='delivery'&&el('deliveryReviewPanel')){el('deliveryReviewPanel').open=true;el('deliveryKind').value=target.kind;await deliveryBrowseRecords();if(project()===owner){el('deliveryReviewPanel').scrollIntoView({block:'start'});if(target.population)el('deliveryConfirmPopulation').focus();}}
- }catch(e){if(project()!==owner)return;await loadProjectActions();const result=el('projectActionMessage');if(result)result.textContent=e.message;}
+ }catch(e){if(project()!==owner)return;await loadProjectActions();const result=el('projectReviewPanel')?.querySelector('.project-action-message');if(result)result.textContent=e.message;}
 }
 function bindProjectActions(root){
  root.querySelectorAll('[data-project-action]').forEach(b=>b.onclick=()=>followProjectAction(b.dataset.projectAction));
  root.querySelectorAll('[data-project-action-review]').forEach(b=>b.onclick=()=>followProjectAction(b.dataset.projectActionReview,true));
  root.querySelectorAll('[data-action-refresh]').forEach(b=>b.onclick=()=>loadProjectActions());
- const search=el('projectActionSearch');if(search)search.oninput=()=>{projectActionSearch=search.value;const start=search.selectionStart;root.innerHTML=renderProjectActionList();bindProjectActions(root);el('projectActionSearch')?.focus();el('projectActionSearch')?.setSelectionRange(start,start);};
- const filter=el('projectActionFilter');if(filter)filter.onchange=()=>{projectActionFilter=filter.value;root.innerHTML=renderProjectActionList();bindProjectActions(root);};
+ root.querySelectorAll('[data-action-close]').forEach(b=>b.onclick=()=>{const drawer=el('projectReviewDrawer');drawer.open=false;drawer.hidden=true;el('moduleContent')?.scrollIntoView({block:'start'});});
+ const search=root.querySelector('.project-action-search');if(search)search.oninput=()=>{projectActionSearch=search.value;const start=search.selectionStart;root.innerHTML=renderProjectActionList();bindProjectActions(root);const input=root.querySelector('.project-action-search');input?.focus();input?.setSelectionRange(start,start);};
+ const filter=root.querySelector('.project-action-filter');if(filter)filter.onchange=()=>{projectActionFilter=filter.value;root.innerHTML=renderProjectActionList();bindProjectActions(root);};
 }
 `;

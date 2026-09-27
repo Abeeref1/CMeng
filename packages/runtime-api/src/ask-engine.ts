@@ -18,6 +18,34 @@ import {deliveryRecords} from './delivery-records';
 import type {ProjectRuntimeState} from './project-state-types';
 
 export const askCatalogue=createAskAuthorityCatalogue();
+function completionAnswer(result:AnalysisResult):NarrativeBlock|null{
+  const section=result.sections.find(s=>s.authorityId==='forecast');
+  if(!section||result.sections.some(s=>['activities','critical-path'].includes(s.authorityId)))return null;
+  const row=section.tables.find(t=>t.id==='forecast.position')?.rows[0];if(!row)return null;
+  const date=(v:unknown)=>typeof v==='string'?v.slice(0,10):'not available';
+  return {heading:'Completion position',text:'Submitted programme finish: '+date(row.submittedFinish)+'.\nCMeng calendar recalculation: '+date(row.calendarRecalculation)+(row.calculationState==='scenario'?' (with assumptions)':'')+'.\n'+section.explanation,
+    classification:'calculated_intelligence',traceIds:section.traces.map(t=>t.id)};
+}
+function delayDriversAnswer(result:AnalysisResult):NarrativeBlock|null{
+  if(!/\b(?:why|caus\w*|driv\w*|delaying|makes?|making)\b/i.test(result.plan.objective)||!result.sections.some(s=>s.authorityId==='activities'))return null;
+  const path=result.sections.find(s=>s.authorityId==='critical-path'),pressure=result.sections.find(s=>s.authorityId==='float');
+  const work=result.sections.find(s=>s.authorityId==='lookahead');
+  const pathTable=path?.tables[0],activitySection=result.sections.find(s=>s.authorityId==='activities');
+  const critical=(pathTable?.rows??[]).filter(r=>['not_started','in_progress'].includes(String(r.status)));
+  const delayed=activitySection?.tables[0];
+  const negative=pressure?.tables[0];
+  const linked=(work?.tables[0]?.rows??[]).filter(r=>typeof r.linkedBlockers==='string'&&r.linkedBlockers!=='No confirmed linked blocker');
+  let text=path&&path.state!=='unavailable'?'The programme identifies '+(pathTable?.selection?.matching??pathTable?.rows.length??0)+' '+(path.state==='established'?'calculated critical':'known source-float critical')+' activities in the requested scope'+(result.scope.dataDate?' at '+result.scope.dataDate.slice(0,10):'')+'.':'A critical-activity position is not available from the selected programme.';
+  if(delayed&&activitySection?.state!=='unavailable')text+=' '+(delayed.selection?.matching??delayed.rows.length)+' activities show missed dates or baseline slippage.';
+  if(negative&&pressure?.state!=='unavailable')text+=' '+(negative.selection?.matching??negative.rows.length)+' have negative float.';
+  if(activitySection?.explanation.includes('No baseline has been confirmed'))text+=' No baseline has been confirmed, so delay against the original planned dates cannot be measured.';
+  const rows=delayed?.selection?.ranked&&delayed.rows.length?delayed.rows:critical.length?critical:(delayed?.rows??[]);
+  if(rows.length)text+='\n\nActivities to focus on:\n'+rows.slice(0,5).map(r=>String(r.activityId)+' — '+String(r.name)+'; finish '+String(r.plannedFinishIso??r.forecastFinishIso??r.currentFinishIso??'not available').slice(0,10)).join('\n')+'\nThe tables below show the matching populations and any requested selection.';
+  if(linked.length)text+='\n\nConfirmed linked work blockers:\n'+linked.slice(0,5).map(r=>String(r.activityId)+' — '+String(r.linkedBlockers)).join('\n');
+  else text+='\n\nNo specific linked work blocker is established in the available look-ahead records.';
+  text+=' These are the schedule pressure points I can identify. A proven cause of project delay requires dated events tied to the controlling path; I cannot infer that from float alone.';
+  return {heading:'What is putting completion under pressure',text,classification:'calculated_intelligence',traceIds:[...new Set([...(path?.traces??[]),...(pressure?.traces??[]),...(work?.traces??[])].map(t=>t.id))]};
+}
 function activityAnswer(result:AnalysisResult):NarrativeBlock|null{
   const section=result.sections.find(s=>['activities','float','critical-path'].includes(s.authorityId));
   if(!section||result.plan.groupBy.length)return null;
@@ -52,7 +80,7 @@ function narrativeFor(result:AnalysisResult):NarrativeBlock[]{
   const ar=result.presentation.language==='ar';
   const metrics=result.sections.flatMap(s=>s.metrics);
   const lines=metrics.slice(0,result.presentation.detail==='short'?6:18).map(m=>m.label+': '+(m.value===null?(ar?'غير مثبت':'Not established'):String(m.value)+(m.unit?' '+m.unit:''))+(m.state==='candidate'?' · candidate source, not governed':''));
-  const direct=activityAnswer(result);
+  const direct=delayDriversAnswer(result)??activityAnswer(result)??completionAnswer(result);
   const blocks:NarrativeBlock[]=direct?[direct]:[{heading:ar?'الوضع الحالي':'Answer',text:lines.length?lines.join('\n'):result.sections.map(s=>s.tables.length?s.tables.reduce((n,t)=>n+(t.selection?.matching??t.rows.length),0)+' matching records in '+s.title+'.':s.title+': '+s.explanation).slice(0,8).join('\n'),classification:'calculated_intelligence',traceIds:metrics.slice(0,18).map(m=>m.traceId)}];
   if(direct&&result.sections.some(s=>!['activities','float','critical-path'].includes(s.authorityId))&&lines.length)blocks.push({heading:'Other project figures',text:lines.join('\n'),classification:'calculated_intelligence',traceIds:metrics.slice(0,18).map(m=>m.traceId)});
   const findings=result.sections.flatMap(s=>s.findings).sort((a,b)=>(a.severity==='action'?0:a.severity==='review'?1:2)-(b.severity==='action'?0:b.severity==='review'?1:2)||a.id.localeCompare(b.id));

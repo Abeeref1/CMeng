@@ -136,6 +136,18 @@ function moduleAuthority(context:AskProducerContext,scope:ProjectScope,key:strin
   if(registration.id==='activities')return askScheduleActivities(scope);
   const result=moduleForProject(scope.projectId,key),d:any=result.data;
   const b=new AuthorityBuilder(registration.id,title,key,scope,evidenceState(result.status),result.reason??'Existing CMeng authority at the programme Data Date.');
+  if(registration.id==='forecast'&&d?.completionPosition){
+    const p=d.completionPosition;
+    b.result.explanation=p.interpretation+' '+p.contractNote;
+    for(const [id,name,value,unit] of [
+      ['sourceForecastCompletionIso','Submitted programme finish',p.submittedFinishIso,null],['independentForecastCompletionIso','CMeng calendar recalculation',p.independentFinishIso,null],
+      ['difference','Recalculation minus submitted finish',p.differenceElapsedDays,'elapsed calendar days'],['contract','Contractual completion',p.contractualFinishIso,null]
+    ])b.metric(id,name,value,unit,p.differenceBasis,{state:id==='independentForecastCompletionIso'?p.calculationState:undefined,refs:[scope.programmeRevision??'']});
+    for(const [path,name,unit] of registration.metrics??[])if(!b.result.metrics.some(m=>m.id===registration.id+'.'+path))b.metric(path,name,at(d,path),unit,'Existing '+title+' producer.',{path});
+    b.table('position','Completion position',[{submittedFinish:p.submittedFinishIso,calendarRecalculation:p.independentFinishIso,calculationState:p.calculationState,differenceElapsedDays:p.differenceElapsedDays,contractualFinish:p.contractualFinishIso}],p.differenceBasis);
+    for(const l of p.limitations)b.finding(l.key,'Calculation qualification',l.text,'Review this stated calculation assumption with the relevant programme record.');
+    return b.result;
+  }
   if(registration.id==='float'){
     const activities=askScheduleActivities(scope);
     b.result.tables=activities.tables.map(t=>({...t,id:'float.rows',authorityId:'float',title:'Activity float',traceId:'float:rows'}));

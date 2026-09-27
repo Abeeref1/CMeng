@@ -1,3 +1,4 @@
+import {completionPosition} from './completion-position';
 import {buildModuleChallenge} from '../../module-challenge/src';
 import {deliveryModule,deliveryDashboard,isDeliveryPage} from './delivery-projections';
 import {isAdoptedProgrammeRevision,isScenarioRevision,scheduleAuthorityReview} from './schedule-authority';
@@ -7122,6 +7123,15 @@ function resolveProjectModule(state: ProjectRuntimeState, key: string): ModuleRu
     modules: candidates, director: bundle.director, boardReport: bundle.boardReport});
   const p4=profiling?performance.now():0;
   const modules = new Map([...candidates].map(([key, result]) => [key, enforceModuleReadiness(result, consistency)]));
+  const forecast=modules.get('independent-forecast')?.data as any;
+  const near=modules.get('near-critical')?.data as any;
+  const activityNames=new Map((projectControlSchedule(scoped)?.revision.model.activities??[]).map(a=>[a.activityId,a.name??a.activityId]));
+  for(const key of ['pmo-analysis','independent-forecast']){
+    const result=modules.get(key),data=result?.data as any;
+    if(data&&forecast){data.completionPosition=completionPosition(data,forecast,activityNames);
+      if(key==='pmo-analysis')data.knownScheduleCounts={critical:near?.knownCriticalCount??near?.criticalCount??null,nearCritical:near?.nearCriticalCount??near?.rows?.length??null,negativeFloat:near?.knownNegativeFloatCount??near?.negativeFloatCount??null};
+    }
+  }
   const p5=profiling?performance.now():0;
   if(profiling)process.stdout.write(JSON.stringify({event:'project_resolution_profile',projectId:state.projectId,
     reportingStateMs:p1-p0,bundleMs:p2-p1,candidatesMs:p3-p2,certificationMs:p4-p3,readinessMs:p5-p4,totalMs:p5-p0})+'\n');
@@ -7777,10 +7787,11 @@ export function managementSurfacesForProject(
   const deliveryExceptions={actions:[...operations.actions,...overdueRows.map((r:any)=>({recordId:r.activityId,type:'Activity',priority:'overdue',owner:null,dueIso:r.finishIso,ageDays:null,
     overdueDays:current?.revision.model.dataDateIso&&r.finishIso?Math.floor((Date.parse(current.revision.model.dataDateIso.slice(0,10))-Date.parse(r.finishIso.slice(0,10)))/86400000):null,
     action:'Review overdue activity '+r.activityId+' ('+r.name+') and agree its recovery dates.',sourceRefs:[]}))],overdueActivityCount:Array.isArray(lookahead?.rows)?overdueRows.length:null};
+  const completion=(resolvedModules.get('independent-forecast')?.data as any)?.completionPosition??null;
   const result = { ...surfaces,
     sourceQuality: {...sourceQualityPosition(resolvedModules,issueAssessment,state.evidenceDocuments,current?.revision.model.dataDateIso??null),registerDateReview:registerDateReview(state)},
-    masterDashboard: {delivery:deliveryDashboard(state),scheduleExceptions,deliveryExceptions,...managementReportingData(state, surfaces.masterDashboard, resolvedModules),decisions:surfaces.commandCenter.decisions,trend:(resolvedModules.get("forecast-history")?.data as any)??null,issueAssessment,operationalReporting:operationalReporting(state),sourceInterpretation:director?.sourceInterpretation},
-    commandCenter: {deliveryExceptions,...managementReportingData(state, surfaces.commandCenter, resolvedModules),issueAssessment,operationalReporting:operationalReporting(state),sourceInterpretation:director?.sourceInterpretation},
+    masterDashboard: {completionPosition:completion,delivery:deliveryDashboard(state),scheduleExceptions,deliveryExceptions,...managementReportingData(state, surfaces.masterDashboard, resolvedModules),decisions:surfaces.commandCenter.decisions,trend:(resolvedModules.get("forecast-history")?.data as any)??null,issueAssessment,operationalReporting:operationalReporting(state),sourceInterpretation:director?.sourceInterpretation},
+    commandCenter: {completionPosition:completion,scheduleExceptions,deliveryExceptions,...managementReportingData(state, surfaces.commandCenter, resolvedModules),issueAssessment,operationalReporting:operationalReporting(state),sourceInterpretation:director?.sourceInterpretation},
     masterControlProgramme: {...managementReportingData(state, surfaces.masterControlProgramme, resolvedModules),issueAssessment,sourceInterpretation:director?.sourceInterpretation} };
   const allPages=new Map(resolvedModules);
   allPages.set('master-dashboard',{key:'master-dashboard',status:'partial',reason:null,dependencies:[],data:result.masterDashboard});

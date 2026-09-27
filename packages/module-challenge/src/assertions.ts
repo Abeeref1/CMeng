@@ -362,6 +362,9 @@ export function extractDocumentAssertions(
   text: string,
   sourceRef: string,
 ): DocumentAssertion[] {
+  // Native XER tables are parsed by the schedule authority. A field such as a
+  // WBS name followed by a numeric ID is not a prose assertion about a KPI.
+  if(/(?:^|\n)%T\t/.test(text)&&/(?:^|\n)%F\t/.test(text))return [];
   const assertions:
     DocumentAssertion[] = [];
 

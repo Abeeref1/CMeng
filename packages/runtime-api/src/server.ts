@@ -1819,7 +1819,7 @@ async function route(
   if(actionsMatch){
     const projectId=decodeURIComponent(actionsMatch[1]!),state=runtimeProjects.get(projectId);if(!state){json(res,404,{error:'project_not_found'});return;}
     const {projectActions,programmeActions}=await import('./project-actions');
-    if(req.method==='GET'&&!actionsMatch[2]){const assessment=managementSurfacesForProject(projectId)!.sourceQuality.issueAssessment;json(res,200,projectActions(state,assessment));return;}
+    if(req.method==='GET'&&!actionsMatch[2]){const surfaces=managementSurfacesForProject(projectId)!;json(res,200,projectActions(state,surfaces.sourceQuality.issueAssessment,{completionPosition:(surfaces.masterDashboard as any).completionPosition}));return;}
     if(req.method==='POST'&&actionsMatch[2]){try{const input=JSON.parse(Buffer.from(await readBody(req)).toString('utf8'));if(input.expectedVersion!==state.version)throw new Error('The project changed. Refresh Actions required before confirming.');const action=programmeActions(state).find(a=>a.id===input.actionId);if(!action?.target.canConfirm||!action.target.revisionId)throw new Error('This schedule needs review before it can be selected. Refresh Actions required.');runtimeProjects.adoptSchedule(projectId,action.target.revisionId,action.target.phaseId);invalidateProject(projectId);json(res,200,{projectId,projectVersion:state.version,completedActionId:action.id});}catch(e){json(res,409,{error:'schedule_confirmation_not_completed',message:e instanceof Error?e.message:'The schedule could not be confirmed.'});}return;}
     json(res,405,{error:'action_not_supported'});return;
   }

@@ -1,3 +1,4 @@
+import {answerFirstScript,answerFirstStyles} from './ui-answer-first';
 import {askAiHtml,askAiStyles,askAiScript} from './ui-ask-ai';
 import {deliveryScript} from './ui-delivery';
 import {programmeReviewScript} from './ui-programme-review';
@@ -213,6 +214,7 @@ details:not(.workspace-drawer){border:1px solid var(--line);border-radius:9px;ba
 .module-live-dot{background:#8a99a8!important;box-shadow:none!important}
 .issue-badge{display:inline-block;border-radius:5px;padding:3px 6px;font-size:10px;font-weight:800;white-space:nowrap;background:#eef1f5;color:#596779}.issue-badge.system_defect{background:#fde8e7;color:#a42822}.issue-badge.source_conflict{background:#f1e8fa;color:#75429b}.issue-badge.data_quality{background:#fff0db;color:#976018}.issue-badge.missing_information{background:#fff8dc;color:#7b671c}.issue-badge.comparison_difference{background:#e6f0fc;color:#2d6099}.issue-badge.governance_review{background:#edeaf6;color:#65538a}.issue-badge.checked{background:#edf7f1;color:#286748}.issue-category-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px;margin:12px 0}.issue-category{border:1px solid #dce4ee;border-radius:8px;padding:10px;background:white}.issue-category b{display:block;font-size:19px;margin:6px 0}.issue-category small{display:block;color:#5d6c7d;line-height:1.4}.issue-assessment{padding:14px;border:1px solid #dce4ee;border-radius:9px;background:#f7f9fc;margin-bottom:14px}.issue-assessment h4{margin:0 0 6px}.issue-assessment .table-wrap{max-height:400px}.nav-state .issue-badge{font-size:8px;padding:2px 4px}.issue-assessment details summary{cursor:pointer;font-weight:700;padding:9px 0}
 ${experienceStyles}
+${answerFirstStyles}
 ${askAiStyles}
 ${systemReviewStyles}
 ${projectActionsStyles}
@@ -301,7 +303,7 @@ ${projectActionsStyles}
           <p id="workspaceProjectMeta">No project selected</p>
         </div>
         <div class="workspace-actions">
-          <button class="btn" id="openProjectActions">Actions required</button>
+          <button class="btn" id="openProjectActions">Project review</button>
           <button class="btn" id="openLibraryQuick">Documents</button>
           <button class="btn primary" id="openEvidenceTop">Add documents</button>
           <button class="btn" id="runAnalysisTop">Update position</button>
@@ -313,7 +315,8 @@ ${projectActionsStyles}
         </div>
       </div>
 
-      <p id="projectActionNotification" class="action-notification" role="status" aria-live="polite"></p>
+      <p id="projectActionNotification" class="analysis-summary" role="status" aria-live="polite"></p>
+      <details id="projectReviewDrawer" class="project-review-drawer" hidden><summary>Project review · confirmations and information</summary><div id="projectReviewPanel"></div></details>
       ${askAiHtml}
 
       <section class="card module-panel module-workspace" id="projectModulePanel">
@@ -417,6 +420,7 @@ ${projectActionsStyles}
 <script>
 ${aggregateCount.toString()}
 ${experienceScript}
+${answerFirstScript}
 ${systemReviewScript}
 ${projectActionsScript}
 ${basisReviewScript}
@@ -599,7 +603,7 @@ function renderNav(){
   const states=new Map([...(overview?.moduleStates||[]),...(overview?.managementStates||[])].map(x=>[x.key,x]));
   const overall=states.get('master-dashboard')?.issueAssessment?.counts||{};
   const sourceTotal=(overall.source_conflict||0)+(overall.data_quality||0)+(overall.missing_information||0);
-  let html='<button class="nav-item '+(appView==="ai"?'active':'')+'" id="projectAskNav" aria-current="'+(appView==="ai"?'page':'false')+'" title="Ask about '+escapeHtml(project())+'"><span class="nav-label">✦ Ask CMeng</span></button><button class="nav-item" id="projectActionsNav"><span>Actions required</span><b id="projectActionNavCount">'+(typeof projectActionState!=='undefined'&&projectActionState?.projectId===project()&&projectActionState.status==='ready'?fmt(projectActionState.data.actionCount):'…')+'</b></button><div class="nav-group">';
+  let html='<button class="nav-item '+(appView==="ai"?'active':'')+'" id="projectAskNav" aria-current="'+(appView==="ai"?'page':'false')+'" title="Ask about '+escapeHtml(project())+'"><span class="nav-label">✦ Ask CMeng</span></button><button class="nav-item" id="projectActionsNav"><span>Project review</span><b id="projectActionNavCount">'+(typeof projectActionState!=='undefined'&&projectActionState?.projectId===project()&&projectActionState.status==='ready'?fmt(projectActionState.data.actionCount):'…')+'</b></button><div class="nav-group">';
   Object.entries(groups).forEach(([group,keys])=>{
     html+='<div class="nav-group-title" style="padding-top:10px">'+group+'</div>';
     keys.filter(key=>key!=='source-quality').forEach(key=>{
@@ -1266,7 +1270,7 @@ function renderForecastVisual(data){
     (review?'<div class="notice info" style="margin-top:12px">P50/P80/P90 values are intentionally suppressed while the deterministic independent finish is under reconciliation. The forecast taxonomy remains visible without publishing unsupported dates.</div>':'');
   const forecastDrivers=(p.activities||[]).filter(r=>typeof r.finishVarianceDays==='number').sort((a,b)=>Math.abs(b.finishVarianceDays)-Math.abs(a.finishVarianceDays)).slice(0,10);
   const diagnostics='<section class="planning-panel"><div class="planning-panel-head"><div><h4>Programme calendar recalculation evidence</h4><p>Largest calculated finish differences identify rows to investigate. They do not establish the cause of the project forecast gap.</p></div></div><div class="planning-panel-body"><div class="notice info">'+escapeHtml((p.diagnostics||[]).map(humanizeKey).join('; ')||'Review the calendar and constraint assumptions below.')+'<br>'+escapeHtml((p.assumptions||[]).map(humanizeKey).join('; '))+'</div><div class="table-wrap"><table><thead><tr><th>Activity</th><th>Submitted finish</th><th>Programme calendar recalculation</th><th>Elapsed movement d</th><th>Calendar mode</th><th>Calculation state</th></tr></thead><tbody>'+forecastDrivers.map(r=>'<tr><td>'+escapeHtml(r.activityId)+'</td><td>'+escapeHtml(planningShortDate(r.sourceFinishIso))+'</td><td>'+escapeHtml(planningShortDate(r.independentEarlyFinishIso))+'</td><td>'+escapeHtml(fmt(r.finishVarianceDays))+'</td><td>'+escapeHtml(humanizeKey(r.calendarMode))+'</td><td>'+escapeHtml(humanizeKey(r.status))+'</td></tr>').join('')+'</tbody></table></div></div></section>';
-  return '<section class="planning-view independent-forecast-view">'+kpis+warning+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Completion positions and contractual target</h4><p>Contractor programme, source productivity, CMeng deterministic CPM and the contractual target remain separate.</p></div><span class="badge '+(review?"partial":"ready")+'">'+escapeHtml(review?"Reconciliation required":"Calculated")+'</span></div><div class="planning-panel-body">'+dateLadder+'</div></section><details><summary>Alternative forecast-distance charts</summary>'+visualOverview+'</details><section class="planning-panel"><div class="planning-panel-head"><div><h4>Limited duration sensitivity</h4><p>Global triangular duration-factor sensitivity (0.9 / 1.0 / 1.25), not a network risk model. Requires a reconciled deterministic basis.</p></div></div><div class="planning-panel-body">'+probPanel+'</div></section>'+diagnostics+'</section>';
+  return '<section class="planning-view independent-forecast-view">'+renderCompletionPosition(data.completionPosition)+experienceDisclosure('Forecast measures and assumptions',kpis+warning,'Separate calculation bases')+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Completion positions and contractual target</h4><p>Contractor programme, source productivity, CMeng deterministic CPM and the contractual target remain separate.</p></div><span class="badge '+(review?"partial":"ready")+'">'+escapeHtml(review?"Reconciliation required":"Calculated")+'</span></div><div class="planning-panel-body">'+dateLadder+'</div></section><details><summary>Alternative forecast-distance charts</summary>'+visualOverview+'</details><section class="planning-panel"><div class="planning-panel-head"><div><h4>Limited duration sensitivity</h4><p>Global triangular duration-factor sensitivity (0.9 / 1.0 / 1.25), not a network risk model. Requires a reconciled deterministic basis.</p></div></div><div class="planning-panel-body">'+probPanel+'</div></section>'+diagnostics+'</section>';
 }
 function renderWindowsVisual(data){
   const p=projectionFor(data,"windows_analysis");
@@ -1867,12 +1871,14 @@ function renderPmoVisual(data){
   const p=projectionFor(data,"pmo_analysis");
   if(!p.schedule||!p.progress||!p.forecast)return"";
   const variance=typeof p.forecast.varianceDays==="number"?p.forecast.varianceDays:null;
+  const known=data.knownScheduleCounts||{};
+  const knownValue=(total,value)=>total??(typeof value==='number'?fmt(value)+' known':null);
   const kpis=planningKpis([
     ["Baseline finish",planningShortDate(p.programmeBaselineCompletionIso),"controlled baseline",""],
     ["Submitted finish",planningShortDate(p.forecast.sourceCompletionIso),"current programme",""],
-    ["Critical",p.schedule.criticalCount,"activities","danger"],
-    ["Near-critical",p.schedule.nearCriticalCount,"activities","warning"],
-    ["Negative float",p.schedule.negativeFloatCount,"activities","danger"],
+    ["Critical",knownValue(p.schedule.criticalCount,known.critical),"activities","danger"],
+    ["Near-critical",knownValue(p.schedule.nearCriticalCount,known.nearCritical),"activities","warning"],
+    ["Negative float",knownValue(p.schedule.negativeFloatCount,known.negativeFloat),"activities","danger"],
     ["Overdue milestones",p.progress.lateMilestoneCount,"past the data date","danger"],["Missed planned starts",p.progress.lookAheadMissedStartCount,"execution activities","warning"]
   ]);
   const completion=planningDateLadder([
@@ -1917,7 +1923,7 @@ function renderPmoVisual(data){
       ["Delay events",p.claims.eventCount],["Claims",p.claims.claimCount],["Recalculated window movement",fmt(p.claims.grossPositiveAnalyticalMovementDays)+" days · "+(p.claims.windowMovementTrace||[]).map(w=>fmt(w.calculatedDays)).join(" + ")],["Net submitted finish movement",fmt(p.claims.netSubmittedFinishMovementDays)+" days"],["Effective approved determinations at Data Date",fmt(p.claims.effectiveDeterminationDays)+" days"],["EOT incorporated in amendment",fmt(p.claims.incorporatedEotDays)+" days"],["Determination register total",fmt(p.claims.registerDeterminationDays)+" days"]
     ]]
   ].map(group=>'<div class="domain-card"><h5>'+escapeHtml(group[0])+'</h5>'+group[1].map(m=>metricLine(m[0],m[1])).join("")+'</div>').join("")+'</div>';
-  return '<section class="planning-view management-view">'+kpis+visualOverview+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Finish-date position</h4><p>Controlled baseline, submitted finish date and any independently calculated, approved or scenario finish dates.</p></div></div><div class="planning-panel-body">'+completion+'</div></section><section class="planning-panel attention"><div class="planning-panel-head"><div><h4>What needs attention</h4><p>Items that can change the current programme position.</p></div></div><div class="planning-panel-body">'+attention+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Programme health</h4><p>Schedule coverage is field coverage, not physical progress. Gross and net time movements have different bases; their difference is not proven overlap.</p></div></div><div class="planning-panel-body">'+health+'</div></section></section>';
+  return '<section class="planning-view management-view">'+renderCompletionPosition(data.completionPosition)+kpis+visualOverview+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Finish-date position</h4><p>Controlled baseline, submitted finish date and any independently calculated, approved or scenario finish dates.</p></div></div><div class="planning-panel-body">'+completion+'</div></section><section class="planning-panel attention"><div class="planning-panel-head"><div><h4>What needs attention</h4><p>Items that can change the current programme position.</p></div></div><div class="planning-panel-body">'+attention+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Programme health</h4><p>Schedule coverage is field coverage, not physical progress. Gross and net time movements have different bases; their difference is not proven overlap.</p></div></div><div class="planning-panel-body">'+health+'</div></section></section>';
 }
 function renderScheduleAnalyticsVisual(data){
   const p=projectionFor(data,"schedule_analytics");
@@ -3643,7 +3649,7 @@ function renderManagementControlVisual(key,data){
       {label:"Blocked specialist views",value:r.blocked??0,tone:"danger"}
     ],"Control views");
     return '<div class="planning-view management-view master-dashboard-view">'+
-      managementPanel("Executive Project Position","Current programme, progress and delivery exposure. Open a measure for its supporting analysis.",renderManagementMetricGrid(mainMetrics),true)+renderDeliveryDashboard(data.delivery)+
+      renderCompletionPosition(data.completionPosition)+managementPanel("Executive Project Position","Current programme, progress and delivery exposure. Open a measure for its supporting analysis.",renderManagementMetricGrid(mainMetrics),true)+renderDeliveryDashboard(data.delivery)+
       renderDashboardScheduleExceptions(data)+renderDashboardExceptions(data)+renderDashboardTrend(data)+renderDashboardDecisions(data)+
       managementPanel("Control Readiness","Calculation availability, evidence readiness and affected consistency checks are shown separately. A project-wide issue does not automatically make every specialist view defective.",readinessDonut+renderManagementConsistency(data.consistency))+
       managementPanel("Evidence Snapshot","Current evidence coverage. Missing or conflicted evidence remains explicit rather than being converted to zero.",planningKpis([
@@ -3681,7 +3687,7 @@ function renderManagementControlVisual(key,data){
       ["Expired bonds",ctrl.bondEvidenceState==="established"?ctrl.expiredBondCount:"Unresolved","security evidence",ctrl.expiredBondCount?"danger":""],
       ["Expiring bonds",ctrl.bondEvidenceState==="established"?ctrl.expiringBondCount30Days:"Unresolved","next 30 days",ctrl.expiringBondCount30Days?"warning":""]
     ]):'<div class="empty">Project Director control position is not confirmed.</div>';
-    return '<div class="planning-view management-view command-center-view">'+
+    return '<div class="planning-view management-view command-center-view">'+renderCompletionPosition(data.completionPosition)+
       managementPanel("Immediate Control Signals","Confirmed counts are shown below. Open the relevant record to resolve an incomplete count.",controlsBody,true)+
       experienceSourceContext(key,data)+
       ((data.sourceInterpretation?.actions||[]).length?"":managementPanel("Action Suggestions — Awaiting Assignment","Suggested follow-up only. Assignment, due dates and closure tracking are not yet established in CMeng.",decisionBody,true))+
@@ -3796,7 +3802,7 @@ function renderModuleReadiness(data,reason=''){
   const notes=reason?'<p>'+escapeHtml(reason)+'</p>':'';
   return '<details id="moduleReviewDetail" class="experience-disclosure experience-audit"><summary>Actions and supporting details<span>Documents, date rules and calculation checks</span></summary><div class="experience-disclosure-body">'+classification+checks+notes+(data?.positionVerdict?.specific===false?renderPositionVerdict(data,true):'')+renderRegisterScope(data,true)+renderModuleBasis(data,true)+'<p><a href="'+escapeHtml(reportDownloadUrl('json'))+'" download>Download complete calculation data</a> · <a href="'+escapeHtml(reportDownloadUrl('xlsx'))+'" download>Download the full register</a></p></div></details>';
 }
-function renderModuleBasis(data,detail=false){
+function renderModuleBasis(data,detail=false,contextOnly=false){
   const root=findProjectionRoot(data);
   const revision=root.sourceRevisionId||root.evidenceRevisionId||root.scheduleRevisionId||root.boqRevisionId||root.basisRevisionId||root.forecast?.basisRevisionId||null;
   const asOf=data?.reportingContract?.dataDateIso||root.dataDateIso||root.asOfIso||overview?.latestDataDateIso||null;
@@ -3826,7 +3832,8 @@ function renderModuleBasis(data,detail=false){
   const adoptionReview=data?.scheduleAuthorityReview;
   const adoptionHeadline=adoptionReview&&adoptionReview.state!=="established"?'<div class="notice warn">'+escapeHtml(adoptionReview.explanation)+'</div>':"";
   const newerHeadline=newer.length?'<div class="notice warn"><b>Newer programme supplied, not adopted.</b> '+newer.map(r=>escapeHtml(planningShortDate(r.dataDateIso))+' · '+escapeHtml(r.filename||'Programme')).join('; ')+'</div>':'';
-  return baselineHeadline+completionHeadline+calendarHeadline+screeningHeadline+'<div class="module-basis">'+values.map(([label,value])=>'<span class="basis-chip"><b>'+escapeHtml(label)+'</b><strong title="'+escapeHtml(label==="Programme basis"&&revision?revision:value)+'">'+escapeHtml(value)+'</strong></span>').join("")+'</div>';
+  const chips='<div class="module-basis">'+values.map(([label,value])=>'<span class="basis-chip"><b>'+escapeHtml(label)+'</b><strong title="'+escapeHtml(label==="Programme basis"&&revision?revision:value)+'">'+escapeHtml(value)+'</strong></span>').join("")+'</div>';
+  return contextOnly?chips:baselineHeadline+completionHeadline+calendarHeadline+screeningHeadline+chips;
 }
 function renderStructuredSections(data){
   if(!data||typeof data!=="object")return"";
@@ -3853,7 +3860,7 @@ function renderModuleResult(result){
   const review=result.scheduleAuthorityReview||result.data?.scheduleAuthorityReview;
   if((result.legacyKey||result.key)==='source-quality'){const panel=el('projectActionPanel');if(panel)bindProjectActions(panel);}
   else if(review&&(review.state!=='established'||review.pendingSchedules?.length)){
-    container.insertAdjacentHTML('afterbegin','<p class="action-notification">'+(review.state==='missing'?'Select a schedule to enable programme reporting.':review.state==='pending_review'?'Confirm the schedule used for reporting.':'A newly uploaded schedule needs your review.')+' <button class="btn small" id="programmeActionLink">Open Actions required</button></p>');
+    container.insertAdjacentHTML('beforeend','<p class="action-notification">'+(review.state==='missing'?'Select a schedule to enable programme reporting.':review.state==='pending_review'?'Confirm the schedule used for reporting.':'A newly uploaded schedule needs your review.')+' <button class="btn small" id="programmeActionLink">Open project review</button></p>');
     el('programmeActionLink').onclick=()=>openProjectActions();
   }
 }
@@ -3881,7 +3888,7 @@ function renderModuleResultBody(result){
     return;
   }
   const data=result.data||{};
-  if(data.registerReadIssues?.length){el('moduleContent').innerHTML='<div class="notice warn"><b>Unresolved register</b>'+data.registerReadIssues.map(r=>'<p>'+escapeHtml(r.filename)+': '+escapeHtml(r.message)+'</p>').join('')+'</div>';return;}
+  if(data.registerReadIssues?.length){el('moduleContent').innerHTML='<section class="notice warn"><h4>This register could not be read</h4>'+data.registerReadIssues.map(r=>'<p>'+escapeHtml(r.filename)+': '+escapeHtml(r.message)+'</p>').join('')+'<p>The other project analyses remain available. Values dependent on this unread register are withheld.</p></section>'+renderModuleReadiness(data,result.reason);return;}
   el("directorDrawer").open=false;
   el("directorDrawer").hidden=result.key!=="pmo-analysis";
   if(result.key==="challenge-contract"&&renderDeliveryChallenge(data,result.reason,result.status))return;
@@ -3893,17 +3900,19 @@ function renderModuleResultBody(result){
   const structured=specialized?"":renderStructuredSections(data);
   const genericView=(scalars?'<div class="scalar-grid">'+scalars+'</div>':'')+structured;
   const sourceBasis=renderBasisReviews(data,result.key);
-  const resultFirst=['variance-trends','progress-scurve','manhour-scurve','quantity-scurve','commercial-claims-notices','contract-particulars-bonds'].includes(result.key);
-  const commercialBasisDetails=resultFirst||['commercial-overview','cost-forecast','progress-report'].includes(result.key);
-  const managementLead=['master-dashboard','command-center','pmo-analysis'].includes(result.key);
-  const primaryView=(resultFirst?"":renderClaimsReporting(data.claimsReporting,result.key))+(managementLead?(specialized||genericView)+(sourceBasis?experienceDisclosure('Supporting project analysis',sourceBasis,'Package, record and calculation detail'):''):commercialBasisDetails?(specialized||genericView)+(sourceBasis?'<details class="reconciliation-panel"><summary><span>Compare documents and contract versions</span><b>Amounts, dates and versions</b></summary><div class="reconciliation-body">'+sourceBasis+'</div></details>':''):sourceBasis+(specialized||genericView));
-  const generated=data.challenge?.generatedAt||findProjectionRoot(data)?.generatedAt||data.generatedAt||null;
-  const viewState=result.status==="ready"?"":'<div class="view-state-bar">'+issueBadge(result.issueAssessment)+'<strong>'+escapeHtml(moduleName)+'</strong>'+(generated?'<span>Updated '+escapeHtml(formatDocumentTime(generated))+'</span>':'')+'</div>';
+  // Every analytical page leads with its answer. Review and source administration
+  // are supporting context, never a per-page opt-in presentation rule.
+  const primaryView=(specialized||genericView);
+
   el("directorDrawer").open=false;
   el("directorDrawer").hidden=result.key!=="pmo-analysis";
   const userReason=userFacingModuleReason(result.key,result.reason);
-  const context=resultFirst?viewState:basisHtml;
-  el("moduleContent").innerHTML=context+(managementSurface?primaryView:renderRoleContent(result.key,data,primaryView,challengeHtml,Boolean(specialized)))+(resultFirst?experienceDisclosure("Source basis and reporting scope",basisHtml+renderClaimsReporting(data.claimsReporting,result.key),"Supporting dates, populations and authority"):"")+experienceReviewSummary(data.issueAssessment,managementSurface)+renderModuleReadiness(data,userReason);
+  const context=renderModuleBasis(data,false,true);
+  const readWarnings=(data.registerReadIssues||[]).map(r=>'<p>'+escapeHtml(r.filename)+': '+escapeHtml(r.message)+'</p>').join('');
+  el("moduleContent").innerHTML=context+(managementSurface?primaryView:renderRoleContent(result.key,data,primaryView,challengeHtml,Boolean(specialized)))+
+    experienceDisclosure("Evidence limits and supporting information",readWarnings+basisHtml+renderClaimsReporting(data.claimsReporting,result.key)+sourceBasis,"Dates, records and calculation qualifications")+
+    experienceReviewSummary(data.issueAssessment,managementSurface)+renderModuleReadiness(data,userReason);
+
 }
 let moduleRequestSeq=0;
 const managementSurfaceKeysForApi=new Set(["master-dashboard","command-center","master-control-programme","source-quality"]);
@@ -4328,6 +4337,8 @@ function clearProjectWorkspace(projectId){
   if(el('scheduleScope'))el('scheduleScope').value='project';
   overview=null;currentModuleResult=null;projectLoadState="loading";
   resetProjectActions();
+  if(el('projectReviewDrawer')){el('projectReviewDrawer').open=false;el('projectReviewDrawer').hidden=true;}
+  if(el('projectReviewPanel'))el('projectReviewPanel').innerHTML='';
   selectedEvidenceDocuments.clear();
   scheduleSelection=[];boqSelection=[];contractSelection=[];evidenceSelection=[];
   ["scheduleFiles","boqFiles","contractFiles","evidenceFiles","aiQuestion"].forEach(id=>{el(id).value=""});
@@ -4409,6 +4420,7 @@ async function loadPhaseProgrammes(){
   }catch(e){if(current())target.textContent='Phase programmes could not be loaded: '+e.message;}
 }
 async function afterEvidenceChange(){
+  selected='master-dashboard';localStorage.setItem('cmeng-module',selected);setAppView('project');
   if(el("runAfterUpload")?.checked){await runAnalysis()}else{await refresh(false)}
 }
 ${askAiScript}
