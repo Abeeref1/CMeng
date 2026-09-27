@@ -68,6 +68,7 @@ button,input,select{font:inherit}button{cursor:pointer}
 .director-section{margin-top:24px}.section-heading{display:flex;justify-content:space-between;align-items:end;gap:14px;margin:0 0 12px}.section-heading h3{font-size:20px;margin:0 0 3px;letter-spacing:-.02em}.section-heading p{font-size:13px;color:var(--muted);margin:0}
 .scalar-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(175px,1fr));gap:11px;margin-bottom:14px}.scalar{background:#f7f5f1;padding:13px 14px;border-radius:9px;border:1px solid #e8e3db;min-width:0}.scalar b{display:block;font-size:11.5px;color:var(--muted);margin-bottom:6px;overflow:hidden;text-overflow:ellipsis;font-weight:750}.scalar span{font-size:15px;font-weight:680;word-break:break-word}
 .table-wrap{overflow:auto;border:1px solid var(--line);border-radius:10px;max-height:min(66vh,680px);background:#fff;scrollbar-color:#c7d2df transparent;scrollbar-width:thin}table{border-collapse:separate;border-spacing:0;width:100%;font-size:13px;font-variant-numeric:tabular-nums}th,td{padding:11px 12px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}th{background:#f1eee9;color:#55616d;font-weight:780;position:sticky;top:0;z-index:2;font-size:11.5px;letter-spacing:.025em;white-space:nowrap;text-transform:none}td{color:#27364a}tbody tr:nth-child(even) td{background:#fbfaf8}tbody tr:hover td{background:#f5f2ed}tr:last-child td{border-bottom:0}.kpi-value,.position-value,.scalar span,.currency-line strong,.movement-value,.candidate-value{font-variant-numeric:tabular-nums}.module-panel{position:relative}.module-panel:before{content:"";position:absolute;left:0;right:0;top:0;height:3px;background:linear-gradient(90deg,#4f7fb4,#a9c1da);z-index:3}.module-basis{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 14px}.basis-chip{display:inline-flex;align-items:center;gap:7px;min-height:32px;padding:6px 9px;border:1px solid #dbe4ee;border-radius:9px;background:#fff;font-size:11.5px;color:#506579}.basis-chip b{font-size:10.5px;color:#738198;text-transform:uppercase;letter-spacing:.05em}.basis-chip strong{font-size:12.5px;color:#2e3a46;font-weight:780}.focus-module .app{grid-template-columns:minmax(0,1fr)}.focus-module .sidebar{display:none}.focus-module .content{max-width:none;padding:18px}.focus-module .topbar{position:sticky;top:0}.page-expand{white-space:nowrap;margin-left:auto;flex-shrink:0}
+.advanced-control-tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}.advanced-control-head{display:flex;justify-content:space-between;gap:14px;align-items:flex-start;margin:16px 0}.advanced-control-head h3{margin:0 0 4px}.advanced-controls #advancedControlHost:empty{display:none}
 .scope-filter-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:9px;align-items:end}.scope-filter-grid label{display:grid;gap:4px;font-size:10.5px;font-weight:750;color:#64748b}.scope-filter-grid select,.scope-filter-grid input{height:36px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;padding:0 9px;color:#334155;font-size:11.5px}.scope-filter-grid .btn{align-self:end}
 .actions{display:flex;flex-direction:column;gap:8px}.action{padding:11px 13px;background:#fff8ed;border-left:3px solid #f79009;border-radius:7px;font-size:13px}
 .empty{padding:34px;text-align:center;color:var(--muted);font-size:14px}.notice{padding:12px 14px;border-radius:9px;font-size:13px;margin:11px 0;line-height:1.45}.notice.info{background:#f3eee7;color:#5b5144;border:1px solid #d8e4ef}.notice.warn{background:#fff6e5;color:#8b5a16;border:1px solid #ead8ac}.notice.error{background:#fff1f0;color:#912018;border:1px solid #ffd8d3}
@@ -433,6 +434,18 @@ const groups=moduleRegistry.reduce((groups,m)=>{(groups[m.group]??=[]).push(m.ke
 const apiKeys=Object.fromEntries(moduleRegistry.map(m=>[m.key,m.apiKey]));
 const names=Object.fromEntries(moduleRegistry.map(m=>[m.key,m.title]));
 const descriptions=Object.fromEntries(moduleRegistry.map(m=>[m.key,m.description]));
+const advancedSubviewMap={
+  "activity-analytics":[["scope-classification","Scope & Classification"]],
+  "progress-breakdown":[["scope-classification","Scope & Classification"]],
+  "independent-forecast":[["monte-carlo-risk","Monte Carlo Risk"]],
+  "cost-forecast":[["cost-control","Cost Control"],["evm-performance","EVM Curves & Performance"],["earned-schedule","Earned Schedule"],["evm-by-wbs","EVM by WBS"],["cost-scurve","Cost S-Curve"],["cost-register","Cost Register"],["cbs-breakdown","CBS Breakdown"]],
+  "payments":[["payment-register","Payment Register (IPC)"],["retention-calendar","Retention Calendar"]],
+  "cash-flow":[["cash-flow-register","Cash Flow Register"],["cost-scurve","Cost S-Curve"]],
+  "variations-change":[["site-instructions","Site Instructions"]],
+  "contract-particulars-bonds":[["commercial-terms","Commercial Terms"],["contract-obligations","Contract Obligations"],["liquidated-damages","Liquidated Damages"],["bonds-insurance","Bonds & Insurance"],["contract-risk","Contract Risk"],["final-account","Final Account / Closeout"]],
+  "commercial-overview":[["cost-control","Cost Control"],["payment-register","Payment Register"],["contract-risk","Contract Risk"],["final-account","Final Account / Closeout"]]
+};
+const advancedSubviewTitles=Object.fromEntries(Object.values(advancedSubviewMap).flat().map(([key,label])=>[key,label]));
 const roleViews={
   overall:{
     label:"Overall Detailed",
@@ -4122,6 +4135,25 @@ function userFacingModuleReason(key,reason){
 }
 ${programmeReviewScript()}
 ${deliveryScript()}
+function advancedControlsHtml(parentKey){
+  const views=advancedSubviewMap[parentKey]||[];
+  if(!views.length)return"";
+  return '<section class="planning-panel advanced-controls"><div class="planning-panel-head"><div><h4>Additional controls</h4><p>Specialist analyses are kept inside the relevant page so the main navigation stays concise.</p></div></div><div class="planning-panel-body"><div class="advanced-control-tabs">'+views.map(([key,label])=>'<button type="button" class="btn small" data-advanced-control="'+escapeHtml(key)+'">'+escapeHtml(label)+'</button>').join("")+'</div><div id="advancedControlHost"></div></div></section>';
+}
+function bindAdvancedControls(parentKey){
+  const views=advancedSubviewMap[parentKey]||[];if(!views.length)return;
+  document.querySelectorAll("[data-advanced-control]").forEach(button=>button.onclick=async()=>{
+    const key=button.dataset.advancedControl,label=advancedSubviewTitles[key]||humanizeKey(key),host=el("advancedControlHost");
+    if(!host)return;document.querySelectorAll("[data-advanced-control]").forEach(b=>b.classList.toggle("primary",b===button));
+    host.innerHTML='<div class="view-state-bar"><span class="spinner"></span><strong>Preparing '+escapeHtml(label)+'</strong></div>';
+    try{
+      const result=await api("/api/projects/"+encodeURIComponent(project())+"/advanced/"+encodeURIComponent(key));
+      const data=result.data||{},specialized=renderSpecializedModule(key,data);
+      const fallback='<div class="scalar-grid">'+scalarPairs(data).map(([k,v])=>'<div class="scalar"><b>'+escapeHtml(humanizeKey(k))+'</b><span>'+escapeHtml(fmt(v))+'</span></div>').join("")+'</div>'+renderStructuredSections(data);
+      host.innerHTML='<div class="advanced-control-head"><div><h3>'+escapeHtml(label)+'</h3><p>'+escapeHtml(userFacingModuleReason(key,result.reason)||"Current project position.")+'</p></div><div class="ask-export-bar"><a class="btn small" href="/api/projects/'+encodeURIComponent(project())+'/advanced/'+encodeURIComponent(key)+'/report.xlsx">Excel</a><a class="btn small" href="/api/projects/'+encodeURIComponent(project())+'/advanced/'+encodeURIComponent(key)+'/report.json">JSON</a></div></div>'+(specialized||fallback)+renderModuleReadiness(data,result.reason||"");
+    }catch(e){const d=e.data||{};host.innerHTML='<div class="notice warn"><b>'+escapeHtml(label)+' is not established.</b><p>'+escapeHtml(d.reason||d.message||e.message||"The current project evidence does not support this analysis.")+'</p></div>';}
+  });
+}
 function renderModuleResult(result){
   renderModuleResultBody(result);
   const container=el('moduleContent');
@@ -4178,8 +4210,10 @@ function renderModuleResultBody(result){
   const context=renderModuleBasis(data,false,true);
   const readWarnings=(data.registerReadIssues||[]).map(r=>'<p>'+escapeHtml(r.filename)+': '+escapeHtml(r.message)+'</p>').join('');
   el("moduleContent").innerHTML=context+(managementSurface?primaryView:renderRoleContent(result.key,data,primaryView,challengeHtml,Boolean(specialized)))+
+    advancedControlsHtml(result.key)+
     experienceDisclosure("Evidence limits and supporting information",readWarnings+basisHtml+renderClaimsReporting(data.claimsReporting,result.key)+sourceBasis,"Dates, records and calculation qualifications")+
     experienceReviewSummary(data.issueAssessment,managementSurface)+renderModuleReadiness(data,userReason);
+  bindAdvancedControls(result.key);
 
 }
 let moduleRequestSeq=0;
