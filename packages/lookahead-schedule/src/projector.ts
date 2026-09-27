@@ -1,4 +1,5 @@
 import {naturalCompare} from '../../shared/src/natural-order';
+import {activityDateExceptionReader} from '../../activity-analytics/src/exceptions';
 import { addWorkingHours, resolveWorkingCalendar, parseScheduleInstant } from "../../schedule-cpm/src/calendar";
 import {
   buildScheduleActivityLogicIndex,
@@ -202,6 +203,7 @@ export function buildLookAheadProjection(
   }
 
   const dataDateMs = ms(model.dataDateIso);
+  const dateExceptions=activityDateExceptionReader(model.dataDateIso);
   const windowEndMs =
     dataDateMs === null
       ? null
@@ -240,9 +242,9 @@ export function buildLookAheadProjection(
       continue;
     }
 
-    const isOverdue = finishMs < dataDateMs;
-    const plannedStartMs = ms(activity.currentStartIso ?? activity.forecastStartIso);
-    const missedStart = activity.status === "not_started" && !activity.actualStartIso && plannedStartMs !== null && plannedStartMs < dataDateMs;
+    const dates=dateExceptions(activity);
+    const isOverdue = dates.finishOverdue === true;
+    const missedStart = dates.missedPlannedStart === true;
     const overlapsWindow =
       startMs <= windowEndMs! &&
       finishMs >= dataDateMs;

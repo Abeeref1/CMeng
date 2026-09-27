@@ -49,6 +49,14 @@ test("P6 calendar structured text preserves split shifts and exceptions", () => 
   assert.equal(parsed.exceptions[1]!.intervals[0]!.minutes, 240);
 });
 
+test('XER DEL record separators preserve the same split shifts, holidays and exception hours',()=>{
+  const exported='\x7f'+fiveDay.replaceAll('(0||','\x7f\x7f  (0||')+'\x7f';
+  assert.deepEqual(parseP6CalendarData(exported),parseP6CalendarData(fiveDay));
+  // Separator support cannot repair truncated structures or alter clock text.
+  assert.equal(parseP6CalendarData(exported.replace('08:00','08:\x7f00')).status,'invalid');
+  assert.equal(parseP6CalendarData(exported.slice(0,-4)).status,'invalid');
+});
+
 test("overlapping calendar work intervals invalidate semantic certification", () => {
   const bad =
     "(0||CalendarData()((0||DaysOfWeek()(" +

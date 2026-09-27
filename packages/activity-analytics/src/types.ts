@@ -35,6 +35,12 @@ export interface ActivityAnalyticsRow {
   criticality: ActivityCriticality;
   floatRiskWatchlist: boolean | null;
   finishVarianceDays: number | null;
+  missedPlannedStart: boolean | null;
+  finishOverdue: boolean | null;
+  startOverdueCalendarDays: number | null;
+  finishOverdueCalendarDays: number | null;
+  scheduleDelayed: boolean | null;
+  delayStatus: string;
 
   predecessorIds: string[];
   successorIds: string[];
@@ -55,7 +61,7 @@ export interface ActivityAnalyticsProjection {
   projectId: string | null;
   sourceRevisionId: string;
   activityCount: number;
-  counts: Record<'critical' | 'nearCritical' | 'floatRisk' | 'late', {
+  counts: Record<'critical' | 'nearCritical' | 'floatRisk' | 'late' | 'missedStart' | 'overdueFinish' | 'scheduleDelayed', {
     value: number | null; knownCount: number | null; unresolvedCount: number | null; populationCount: number | null;
   }>;
   population: {

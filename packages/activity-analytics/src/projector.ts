@@ -1,4 +1,5 @@
 import {aggregateCount} from '../../truth-kernel/src/aggregates';
+import {activityDateExceptionReader,activityDelayStatus} from './exceptions';
 import {
   buildScheduleActivityLogicIndex,
   DEFAULT_SCHEDULE_ANALYSIS_CONFIG,
@@ -84,6 +85,9 @@ export function activityAnalyticsCounts(rows: readonly ActivityAnalyticsRow[]) {
     nearCritical: aggregateCount(executionRows, row => row.criticality === 'unknown' || row.floatRiskWatchlist === null ? null : row.criticality === 'near_critical'),
     floatRisk: aggregateCount(executionRows, row => row.floatRiskWatchlist),
     late: aggregateCount(executionRows, row => row.finishVarianceDays === null ? null : row.finishVarianceDays > 0),
+    missedStart: aggregateCount(executionRows, row => row.missedPlannedStart),
+    overdueFinish: aggregateCount(executionRows, row => row.finishOverdue),
+    scheduleDelayed: aggregateCount(executionRows, row => activityDelayStatus(row).scheduleDelayed),
   };
 }
 
@@ -100,6 +104,7 @@ export function buildActivityAnalyticsProjection(
     DEFAULT_SCHEDULE_ANALYSIS_CONFIG;
   const logic =
     buildScheduleActivityLogicIndex(model);
+  const dateExceptions=activityDateExceptionReader(model.dataDateIso);
 
   const rows: ActivityAnalyticsRow[] =
     model.activities.map((activity) => {
@@ -109,6 +114,8 @@ export function buildActivityAnalyticsProjection(
         entry?.predecessorIds ?? [];
       const successors =
         entry?.successorIds ?? [];
+      const dates=dateExceptions(activity);
+      const variance=finishVarianceDays(activity);
 
       return {
         activityId: activity.activityId,
@@ -154,8 +161,9 @@ export function buildActivityAnalyticsProjection(
             activity,
             config,
           ),
-        finishVarianceDays:
-          finishVarianceDays(activity),
+        finishVarianceDays: variance,
+        ...dates,
+        ...activityDelayStatus({...dates,status:activity.status,finishVarianceDays:variance}),
 
         predecessorIds: predecessors,
         successorIds: successors,

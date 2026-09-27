@@ -260,6 +260,13 @@ export function buildNearCriticalProjection(
     classified.map(
       boundaryAuditRowFor,
     );
+  // Submitted critical/negative float is in hours and does not require a
+  // working-day conversion or an independently recalculated driving path.
+  // Keep these populations separate from the existing boundary-to-upper band.
+  const criticalRows=classified.filter(({activity})=>sourceFloatCriticality(model,activity,config)==='critical').map(rowFor)
+    .sort((a,b)=>a.totalFloatHours-b.totalFloatHours||naturalCompare(a.activityId,b.activityId));
+  const negativeFloatRows=classified.filter(({activity})=>activity.totalFloatHours!<0).map(rowFor)
+    .sort((a,b)=>a.totalFloatHours-b.totalFloatHours||naturalCompare(a.activityId,b.activityId));
   const SAMPLE_LIMIT = 100;
   const byCriticalDistance = (
     a: ReturnType<typeof boundaryAuditRowFor>,
@@ -407,12 +414,18 @@ export function buildNearCriticalProjection(
       (activity) =>
         activity.totalFloatHours! < 0,
     ).length,
+    knownCriticalCount:criticalRows.length,
+    knownNegativeFloatCount:negativeFloatRows.length,
+    knownZeroFloatCount:known.filter(a=>a.totalFloatHours===0).length,
+    unknownFloatCount:population.activities.length-known.length,
     floatRiskWatchlistIncludesCriticalThreshold:
       config.floatRiskWatchlistIncludesCriticalThreshold === true,
     population: population.contract,
     floatDistribution: numericDistribution(known.map(activity => activity.totalFloatHours)),
     rows,
     watchlistRows,
+    criticalRows,
+    negativeFloatRows,
     boundaryAudit,
   };
 }

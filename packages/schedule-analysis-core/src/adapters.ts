@@ -834,6 +834,8 @@ export function canonicalScheduleFromXer(
         return {
           calendarId: calendar.calendarId,
           name: calendar.name,
+          sourceConversionDayHours:calendar.conversionDayHours,
+          sourceConversionWeekHours:calendar.conversionWeekHours,
           semanticComplete:
             calendar.status === "verified" &&
             resolved !== null &&
@@ -924,6 +926,7 @@ export function canonicalScheduleFromXer(
           diagnostic.message,
       ),
       ...calendarDiagnostics,
+      ...calendarIntegrity.calendars.flatMap(c=>c.conversionDiagnostics.map(d=>'CALENDAR_CONVERSION_REVIEW:'+c.calendarId+':'+d)),
     ],
   };
 }

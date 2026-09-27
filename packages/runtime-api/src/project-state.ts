@@ -1,4 +1,5 @@
 import {hasSourceDocumentIdentity} from './evidence-control';
+import {refreshStoredXerCalendars,XER_CALENDAR_READER_VERSION} from './refresh-xer-calendars';
 import {isDeepStrictEqual} from 'node:util';
 import {phaseProgrammeState} from './phase-programmes';
 import {hasFinancialSecurityContent} from './security-document-content';
@@ -1315,6 +1316,7 @@ export class RuntimeProjectStore {
             serialized,
           );
         const migrated = migrateTypedEvidenceFamilies(state, applyEvidenceBasis);
+        const calendarReadRefreshed=refreshStoredXerCalendars(state);
         let controlBasisMigrated = false;
         const priorSourceIntegrationVersion =
           state.sourceIntegrationVersion;
@@ -1498,7 +1500,7 @@ export class RuntimeProjectStore {
             : false;
 
         if (
-          scheduleAuthorityMigrated || migrated ||
+          calendarReadRefreshed || scheduleAuthorityMigrated || migrated ||
           controlBasisMigrated ||
           scheduleRoleMigrated ||
           activeBoqMigrated ||
@@ -5435,6 +5437,7 @@ export class RuntimeProjectStore {
         model,
       },
       format,
+      ...(format==='xer'?{calendarReaderVersion:XER_CALENDAR_READER_VERSION}:{}),
       sourceFilename:
         input.sourceFilename?.trim() ||
         null,
