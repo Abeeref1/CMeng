@@ -25,7 +25,9 @@ import { reportingScope, summarizeControlIssues, type ControlIssue } from "../..
 import { attachReportingContract, reportingData, managementReportingData } from "./reporting-contract";
 import { activityMovementAnalysis } from "../../activity-analytics/src/movement";
 import { reportingState, claimsReporting, operationalReporting, boqSourceReporting } from "./reporting-state";
-import { commercialFoundationForState } from "./commercial-foundation-runtime";
+import { commercialFoundationForState, commercialFoundationCapabilityForState } from "./commercial-foundation-runtime";
+import { commercialPerformanceCapabilityForState } from "./commercial-performance-runtime";
+import { commercialContractControlCapabilityForState } from "./commercial-contract-controls-runtime";
 import { parseScheduleTime } from "../../schedule-analysis-core/src";
 import { checkProjectionIntegrity } from "./projection-integrity";
 import { resolveRevisionActivityCorrespondence } from "../../schedule-revision-core/src";
@@ -7173,6 +7175,8 @@ export function moduleForProject(
   }
   if (isDeliveryPage(key)) return deliveryModule(state,key);
   if (key==='monte-carlo-risk') return scheduleRiskMonteCarlo(reportingState(state));
+  const commercialCapability=commercialFoundationCapabilityForState(state,key)??commercialPerformanceCapabilityForState(state,key)??commercialContractControlCapabilityForState(state,key);
+  if(commercialCapability)return attachReportingContract(reportingState(state),commercialCapability);
   if (managementModuleKeys.includes(key)) {
     return managementSurfaceForProject(projectId, key) ?? blocked(key, "Management position is not established.", []);
   }
