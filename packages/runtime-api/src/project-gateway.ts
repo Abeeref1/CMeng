@@ -118,9 +118,18 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
   }
   function portfolioEntry(entry:CatalogEntry){
     const busy=(updating.get(entry.projectId)??0)>0;
-    if(!busy&&entry.summaryRelease===release()&&entry.summary?.version===entry.metadata?.version)return entry.summary;
-    return {...entry.metadata,evidenceDocumentCount:busy?null:entry.metadata?.evidenceDocumentCount??null,revisionCount:busy?null:entry.metadata?.revisionCount??null,projectId:entry.projectId,positionState:'updating',analysisState:'unresolved',
-      analysisError:busy?'Documents are being processed. The project position will update when finished.':'The project position is being checked. You can open this project or work in another.',
+    const sameVersion=entry.summary?.version===entry.metadata?.version;
+    if(!busy&&entry.summaryRelease===release()&&sameVersion)return entry.summary;
+    if(!busy&&sameVersion&&entry.summary){
+      // Keep the last same-project-version facts visible while this release rechecks
+      // the expensive summary. A release cache miss is not project processing and
+      // must never erase the known Data Date or management counts.
+      return {...entry.summary,positionState:'checking',analysisState:'stale',
+        analysisError:'Showing the saved project position while CMeng rechecks this release. Project records are not being changed.'};
+    }
+    return {...entry.metadata,evidenceDocumentCount:busy?null:entry.metadata?.evidenceDocumentCount??null,revisionCount:busy?null:entry.metadata?.revisionCount??null,projectId:entry.projectId,
+      positionState:busy?'updating':'checking',analysisState:busy?'processing':'unresolved',
+      analysisError:busy?'Documents are being processed. The project position will update when finished.':'The project position has not yet been calculated for this release. Saved project metadata remains visible.',
       forecastCompletionIso:null,officialCompletionIso:null,furtherAdjustedCompletionIso:null,programmeMovementDays:null,
       approvedEotDays:null,claimCount:null,fullyLinkedClaimCount:null,managementActionCount:null,commercialCurrencyCount:null,
       readyModules:null,partialModules:null,blockedModules:null,managementActions:[]};
