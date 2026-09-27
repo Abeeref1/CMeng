@@ -1,3 +1,4 @@
+import {phaseProgrammePosition} from './phase-programmes';
 import {AuthorityCatalogue} from '../../project-ask/src/catalogue';
 import type {AnalysisPlan,AuthorityResult,Column,Domain,ProjectScope} from '../../project-ask/src/types';
 import {cell,label} from '../../project-ask/src/primitives';
@@ -35,10 +36,10 @@ const registrations:Record<string,Registration>={
   'schedule-analytics':{id:'programme',concepts:['programme','schedule position','data date','reporting date','program','البرنامج','تاريخ البيانات'],metrics:[['result.activityCount','Execution activities','activities'],['result.float.criticalCount','Critical execution activities','activities']]},
   'activity-analytics':{id:'activities',concepts:['activities','activity','critical activities','انشطه'],tables:['rows']},
   'near-critical':{id:'float',concepts:['critical','float','worst','حرج'],metrics:[['nearCriticalCount','Strict near-critical activities','activities'],['negativeFloatCount','Negative float activities','activities'],['classificationCoveragePercent','Float classification coverage','%']],tables:['watchlistRows']},
-  'progress-report':{id:'progress',concepts:['progress','behind','slippage','التقدم','انجاز']},
+  'progress-report':{id:'progress',concepts:['current completion','completion percentage','progress','behind','slippage','التقدم','انجاز']},
   'progress-breakdown':{id:'wbs',concepts:['wbs','by trade','work breakdown'],tables:['rows']},
   'progress-scurve':{id:'progress-curve',concepts:['progress curve','s-curve','s curve','progress chart'],tables:['points','actualSnapshots']},
-  'quantity-scurve':{id:'quantities',concepts:['installed quantity','quantity progress','quantities','quantity completion','كميات']},
+  'quantity-scurve':{id:'quantities',concepts:['installed','installed quantity','quantity progress','quantities','quantity completion','كميات']},
   'resource-utilization':{id:'resources',concepts:['resources','labour','labor','manpower','crew','عماله'],tables:['rows','weeklyRows']},
   'manhour-scurve':{id:'manhours',concepts:['manhour','man-hour','man hour','ساعات العمل'],tables:['points']},
   'lookahead-schedule':{id:'lookahead',concepts:['lookahead','look-ahead','next week'],tables:['rows','activities']},
@@ -50,7 +51,7 @@ const registrations:Record<string,Registration>={
   'independent-forecast':{id:'forecast',concepts:['forecast','finish','completion date','cpm','التوقع','الانتهاء'],metrics:[['sourceForecastCompletionIso','Submitted programme finish',null],['independentForecastCompletionIso','Calendar recalculation finish',null],['sourceProductivityForecastCompletionIso','Source productivity forecast finish',null],['activityCoveragePercent','Calculation activity coverage','%']]},
   'cost-forecast':{id:'evm',concepts:['cpi','spi','evm','earned value','cost performance','ev','pv','ac','مؤشر التكلفه'],domains:['commercial']},
   'commercial-overview':{id:'commercial',concepts:['commercial','contract value','cost exposure','commercial kpi','التجاري'],domains:['commercial','claims']},
-  'payments':{id:'payments',concepts:['payment','certificate','certified','retention','دفع','مستخلص'],domains:['commercial']},
+  'payments':{id:'payments',concepts:['paid','payment','certificate','certified','retention','دفع','مستخلص'],domains:['commercial']},
   'cash-flow':{id:'cash',concepts:['cash','cash flow','التدفق النقدي'],domains:['commercial'],tables:['focus.transactions','focus.cashFlowRegister.currencies']},
   'variations-change':{id:'variations',concepts:['variation','change order','تغيير'],domains:['commercial']},
   'commercial-claims-notices':{id:'financial-claims',concepts:['financial claim','claimed amount','money claim'],domains:['claims','commercial']},
@@ -106,11 +107,13 @@ function deliveryAuthority(context:AskProducerContext,scope:ProjectScope,key:str
   b.table('rows',title,rows,'Current governed subset at the programme Data Date. '+(d?.population?.basis??''),overrides,(r:any)=>{
     const pack=packages.get(r.recordId);const locationIds=pack?.locationIds??r.links?.locationIds??[];
     const loc=locationIds.map((id:string)=>p.locations.find(l=>l.recordId===id)?.description??null);
-    return {...r,displayState:r.state??r.currentStatus??r.permitStatus??r.readinessState??r.status??r.scope??null,discipline:r.discipline??pack?.discipline??(r.dimension==='discipline'?r.label:null),location:loc.length&&loc.every(Boolean)?loc.join('; '):r.dimension==='location'?r.name??r.label??null:null,
+    const statedType=String(r.fields?.['record type']??r.fields?.['quality type']??r.fields?.type??'').toLowerCase();const recordType=statedType||(Object.keys(r.fields??{}).some(k=>/^ncr (id|no|number)$/.test(k))?'ncr':null);
+    return {...r,recordType,open:typeof r.currentStatus==='string'&&r.currentStatus!=='not_established'?!['closed','accepted','source_approved','passed'].includes(r.currentStatus):typeof r.status==='string'&&['open','closed'].includes(r.status)?r.status==='open':null,late:typeof r.overdue==='boolean'?r.overdue:typeof r.state==='string'?/^(late|overdue)$/i.test(r.state):null,displayState:r.state??r.currentStatus??r.permitStatus??r.readinessState??r.status??r.scope??null,discipline:r.discipline??pack?.discipline??(r.dimension==='discipline'?r.label:null),location:loc.length&&loc.every(Boolean)?loc.join('; '):r.dimension==='location'?r.name??r.label??null:null,
       critical:pack?.programmeFloat.length?pack.programmeFloat.every(a=>typeof a.totalFloatHours==='number')?pack.programmeFloat.some(a=>a.totalFloatHours!<=projectScheduleControlBasis(context.state).analysisConfig.criticalFloatThresholdHours):null:r.critical??null,
       programmeNeedDate:pack?.programmeNeedDate??r.programmeNeedDate??null,headroomCalendarDays:pack?.headroomCalendarDays??r.headroomCalendarDays??null,
       issueCount:(d?.findings??[]).filter((f:any)=>f.recordId===r.recordId).length};
   });
+  const primary=b.result.tables[0];if(primary){primary.population=(d?.rows??[]).length;primary.excluded=primary.population-rows.length;}
   for(const f of d?.findings??[])b.finding(f.findingId??f.code+':'+f.recordId,f.code.replace(/_/g,' '),f.explanation??f.message??f.reason??'',f.action??'Review the source record.',{},[b.trace('record:'+f.recordId,'Delivery record '+f.recordId, f.receipts??[])]);
   for(const curve of d?.curves??[]){
     b.table('curve-'+curve.key,curve.kind==='throughput'?'Procurement Throughput':label(curve.kind)+' · '+curve.stage,curve.points,
@@ -131,7 +134,7 @@ function moduleAuthority(context:AskProducerContext,scope:ProjectScope,key:strin
   const result=moduleForProject(scope.projectId,key),d:any=result.data;
   const b=new AuthorityBuilder(registration.id,title,key,scope,evidenceState(result.status),result.reason??'Existing CMeng authority at the programme Data Date.');
   for(const [path,name,unit] of registration.metrics??[])b.metric(path,name,at(d,path),unit,'Existing '+title+' producer.',{path});
-  for(const path of registration.tables??[])if(Array.isArray(at(d,path)))b.table(path,title+' · '+label(path.split('.').at(-1)!),at(d,path),'Existing '+title+' producer. Its population, exclusions and calculation basis apply.',overrides,r=>({...r,critical:typeof r.critical==='boolean'?r.critical:typeof r.criticality==='string'?r.criticality==='critical':null}));
+  for(const path of registration.tables??[])if(Array.isArray(at(d,path)))b.table(path,title+' · '+label(path.split('.').at(-1)!),at(d,path),'Existing '+title+' producer. Its population, exclusions and calculation basis apply.',overrides,r=>({...r,late:typeof r.dueState==='string'&&r.dueState!=='unknown'?r.dueState==='overdue':null,critical:typeof r.critical==='boolean'?r.critical:typeof r.criticality==='string'?r.criticality==='unknown'?null:r.criticality==='critical':typeof r.totalFloatHours==='number'?r.totalFloatHours<=projectScheduleControlBasis(context.state).analysisConfig.criticalFloatThresholdHours:null}));
   if(registration.id==='programme'){
     b.metric('dataDate','Programme Data Date',scope.dataDate,null,'Selected programme authority.',{fact:true});
     const finish=d?.result?.completionBases?.find((c:any)=>c.basis==='forecast');b.metric('source-finish','Submitted programme completion',finish?.dateIso??null,null,finish?.method??'Selected programme source finish, as published by Programme Review.',{fact:true,refs:finish?.sourceRefs??[]});
@@ -151,6 +154,7 @@ function moduleAuthority(context:AskProducerContext,scope:ProjectScope,key:strin
   }
   if(registration.id==='quantities')for(const [i,s]of(d?.series??[]).entries()){
     b.metric('required-'+i,'Known contract quantity · '+s.unit,s.knownContractQuantity,s.unit,'Existing Installed Quantities authority; compatible BOQ unit group.');
+    const latest=(s.points??[]).filter((p:any)=>typeof p.dateIso==='string'&&scope.dataDate&&p.dateIso.slice(0,10)<=scope.dataDate).at(-1);b.metric('installed-'+i,'Installed quantity · '+s.unit,latest?.actualInstalledQuantity??null,s.unit,'Existing Installed Quantities authority at the latest published point on or before the programme Data Date. '+s.actualAuthority);
     b.table('series-'+i,'Installed Quantities · '+s.unit,s.points,'Unit '+s.unit+'. '+s.actualAuthority+'. Actual item coverage '+(s.actualSnapshotItemCoveragePercent??'unresolved')+'%. '+s.actualHistoryMode,
       {baselinePlannedQuantity:{unit:s.unit},currentForecastQuantity:{unit:s.unit},actualInstalledQuantity:{unit:s.unit},dateIso:{type:'date'}});
   }
@@ -176,6 +180,11 @@ export function createAskAuthorityCatalogue(){
     const d:any=moduleForProject(scope.projectId,'independent-forecast').data,p=d?.sourceProductivityForecastEvidence??d?.sourceProductivityForecast;
     const b=new AuthorityBuilder('productivity','Productivity / Installation Rates','independent-forecast',scope,evidenceState(p?.state),p?.explanation??'Productivity needs measured quantities, periods, work scope and source rates.');
     b.table('rates','Source productivity work packages',p?.workPackages??p?.rows, 'Existing source productivity authority; never inferred from a schedule percentage.',overrides);return b.result;
+  }});
+  catalogue.register({id:'phase-programmes',title:'Phase Programme Positions',description:'Separate adopted programme positions for each project phase; no automatic whole-project roll-up.',module:'phase-programmes',domains:['schedule'],concepts:['phase','phases','next phase'],fields:['phaseId','dataDate','revisionId','activityCount','role','authorityState'],historical:false,produce:(context,scope,plan)=>{
+    const all=(context.state.phaseProgrammes??[]).map(p=>phaseProgrammePosition(context.state,p.phaseId)),q=plan.objective.normalize('NFKC').toLowerCase(),matched=all.filter(p=>q.includes(p.phaseId.toLowerCase()));
+    const selected=matched.length?matched:all,b=new AuthorityBuilder('phase-programmes','Phase Programme Positions','phase-programmes',scope,selected.length?'partial':'unavailable','Each row uses that phase’s adopted programme and Data Date. Whole-project metrics and evidence are not phase metrics. Phase commercial, Delivery and combined roll-up calculations are not established by uploading a programme.');
+    b.table('positions','Phase programme authority',selected.map(p=>({phaseId:p.phaseId,authorityState:p.review.state,dataDate:p.programme?.dataDate??null,revisionId:p.programme?.revisionId??null,activityCount:p.programme?.activityCount??null,role:p.programme?.role??null,pendingRevisions:p.review.pendingSchedules.length})),b.result.explanation,{phaseId:{dimension:true},activityCount:{unit:'activities'}});return b.result;
   }});
   return catalogue;
 }

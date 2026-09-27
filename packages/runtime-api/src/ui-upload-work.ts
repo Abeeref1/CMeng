@@ -22,7 +22,10 @@ async function startProjectUpload(kind){
   const selections={schedule:scheduleSelection,boq:boqSelection,contract:contractSelection,evidence:evidenceSelection};
   const files=[...selections[kind]];if(!files.length)return;
   const roles=[...document.querySelectorAll(kind==="schedule"?".schedule-role":".contract-role")].reduce((result,node)=>{result[Number(node.dataset.index)]=node.value;return result},{});
-  const job={projectId,kind,files,intent:el(kind+"Intent").value,rerun:!!el("runAfterUpload")?.checked,roles,state:"uploading",percent:0,message:"Uploading project documents"};
+  const programmeScope=kind==='schedule'?(el('scheduleScope')?.value||'project'):'project',phaseId=kind==='schedule'?el('schedulePhase')?.value.trim():'',approvalReference=kind==='schedule'?el('scheduleApproval')?.value.trim():'';
+  if(kind==='schedule'&&(files.some((_,i)=>!roles[i])||programmeScope==='phase'&&!phaseId)){el('uploadMessage').textContent='Choose each programme’s purpose and enter a Phase ID for phase programmes.';return;}
+  if(kind==='schedule'&&el(kind+'Intent').value==='replace_current_basis'&&Object.values(roles).some(role=>['baseline','revised_baseline'].includes(role))&&!approvalReference){el('uploadMessage').textContent='Enter the approval reference before adopting a baseline.';return;}
+  const job={projectId,kind,files,programmeScope,phaseId,approvalReference,intent:el(kind+"Intent").value,rerun:!!el("runAfterUpload")?.checked,roles,state:"uploading",percent:0,message:"Uploading project documents"};
   projectUploadJobs.set(projectId,job);renderBackgroundUploads();
   // Active uploads own their captured files, independent of every project picker.
   if(kind==="schedule"){scheduleSelection=[];renderScheduleQueue()}

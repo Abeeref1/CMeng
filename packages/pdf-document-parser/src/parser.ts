@@ -1,4 +1,3 @@
-import { PDFParse } from "pdf-parse";
 import type {
   AiPageVerifier,
   OcrProvider,
@@ -31,7 +30,7 @@ export async function parsePdfDocument(
 ): Promise<PdfDocumentResult> {
   const threshold = options.nativeTextCharacterThreshold ?? 12;
   const screenshotScale = options.screenshotScale ?? 2;
-  const parser = new PDFParse({ data: Buffer.from(bytes) as any });
+  const parser = new (await import('pdf-parse')).PDFParse({ data: Buffer.from(bytes) as any });
   const pages: PdfPageResult[] = [];
   const diagnostics: string[] = [];
 

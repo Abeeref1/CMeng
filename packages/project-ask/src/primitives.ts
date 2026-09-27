@@ -36,6 +36,7 @@ export function queryTable(table: AnalysisTable, plan: AnalysisPlan): {table: An
   let rows=table.rows;const gaps:string[]=[];
   for(const f of plan.filters){
     if(f.field!=='search'&&!table.columns.some(c=>c.key===f.field)){gaps.push(table.title+': '+label(f.field)+' is not mapped; the requested filtered position is not established.');rows=[];break;}
+    const unknown=rows.filter(r=>f.field!=='search'&&(r[f.field]===null||r[f.field]===undefined)).length;if(unknown)gaps.push(table.title+': '+unknown+' records lack '+label(f.field)+' and are excluded from the requested filter.');
     rows=rows.filter(r=>matchFilter(r,f));
   }
   if(plan.criticalOnly){
@@ -48,13 +49,15 @@ export function queryTable(table: AnalysisTable, plan: AnalysisPlan): {table: An
   let result:AnalysisTable={...table,rows,excluded:table.excluded+table.rows.length-rows.length};
   for(const dimension of plan.groupBy)if(!table.columns.some(c=>c.key===dimension&&c.dimension))gaps.push(table.title+': grouping by '+label(dimension)+' is not established; the source rows retain their existing scope.');
   result=groupTable(result,plan.groupBy);
-  const rank=plan.rankBy && result.columns.some(c=>c.key===plan.rankBy) ? plan.rankBy : null;
+  let rank=plan.rankBy && result.columns.some(c=>c.key===plan.rankBy) ? plan.rankBy : null;
+  if(rank&&result.columns.find(c=>c.key===rank)?.unit==='row currency'&&new Set(result.rows.map(r=>r.currency??'unknown')).size>1){gaps.push(table.title+': monetary ranking requires a single currency; no exchange rate is assumed. Filter by currency to establish Top N.');rank=null;}
   if(plan.rankBy&&!rank)gaps.push(table.title+': ranking by '+label(plan.rankBy)+' is not established. These are source rows, not a ranked risk assessment.');
   if(rank) result={...result,rows:[...result.rows].sort((a,b)=>{
-    const x=a[rank],y=b[rank];if(x==null)return y==null?0:1;if(y==null)return -1;
-    const cmp=typeof x==='number'&&typeof y==='number'?x-y:String(x).localeCompare(String(y));return plan.rankDirection==='asc'?cmp:-cmp;
+    const x=a[rank],y=b[rank];if(x==null)return y==null?JSON.stringify(a).localeCompare(JSON.stringify(b)):1;if(y==null)return -1;
+    const cmp=typeof x==='number'&&typeof y==='number'?x-y:String(x).localeCompare(String(y));return (plan.rankDirection==='asc'?cmp:-cmp)||JSON.stringify(a).localeCompare(JSON.stringify(b));
   })};
-  if(plan.limit!==null)result={...result,rows:result.rows.slice(0,plan.limit),basis:result.basis+' Showing up to '+plan.limit+' of '+result.rows.length+' matching records.'};
+  result={...result,selection:{matching:result.rows.length,ranked:!!rank,requested:plan.limit,rankBy:rank,direction:plan.rankDirection}};
+  if(plan.limit!==null&&rank)result={...result,rows:result.rows.slice(0,plan.limit),basis:result.basis+' Showing up to '+plan.limit+' of '+result.rows.length+' matching records.'};
   return {table:result,gaps};
 }
 export function chooseChart(table: AnalysisTable, dataDate:string|null): AnalysisChart|null {

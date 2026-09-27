@@ -1,3 +1,4 @@
+import {boqItemContinuity} from './boq-item-continuity';
 import {createHash,randomUUID} from 'node:crypto';
 import {sourceTables,cell,canonicalHeader,registerDate,type SourceRow,type SourceReceipt} from '../../truth-kernel/src';
 import {deliveryKinds,kindIdentities,emptyLinks,type DeliveryRecord,type DeliveryKind,type DeliveryFields,type DeliveryLinks,type DeliveryStateStore} from '../../delivery-core/src/types';
@@ -36,6 +37,7 @@ function kindFor(row:SourceRow,type:string):DeliveryKind|null {
  // Ambiguous tables require a mapping decision. Foreign IDs are never promoted by text similarity.
  return candidates.find(k=>identityKeys[k].includes(first??''))??null;
 }
+const boqContinuityCache=new WeakMap<ProjectRuntimeState,{version:number;mapping:Map<string,string>}>();
 export function deliveryRecords(state:ProjectRuntimeState){
  const diagnostics:string[]=[];const tables=deliverySourceTables(state,diagnostics);const store=deliveryStore(state);
  const decidedIds=new Set(store.decisions.map(d=>d.recordId));
@@ -65,12 +67,16 @@ export function deliveryRecords(state:ProjectRuntimeState){
  for(const d of state.evidenceDocuments){if(documents.some(r=>r.documentId===d.documentId))continue;
   if(/procurement|submittal|commissioning|handover|permit|asset|snag|spare|weather|hse|rfi|quality|delivery/.test(d.documentType))documents.push({documentId:d.documentId,filename:d.sourceFilename,kind:typed[d.documentType]??null,rowCount:0,readingComplete:d.fullTextRead?.result.complete??null,state:'submitted_not_interpreted',diagnostics:['Source retained. Structured Delivery records have not been established. Review the reading receipt and field mapping.']});
  }
+ let continuity=boqContinuityCache.get(state)?.version===state.version?boqContinuityCache.get(state)!.mapping:null;
+ if(!continuity){continuity=new Map<string,string>();const currentBoq=resolveBoqSource(state,'').boq;if(currentBoq){const currentItems=currentBoq.canonicalItems.map(i=>({...i,id:i.itemId}));for(const previous of state.boqRevisions)for(const [oldId,newId]of boqItemContinuity(previous.canonicalItems.map(i=>({...i,id:i.itemId})),currentItems))continuity.set(oldId,newId);}boqContinuityCache.set(state,{version:state.version,mapping:continuity});}
  const latest=new Map(store.decisions.map(d=>[d.recordId,d]));
  for(const r of records){const d=latest.get(r.recordId);if(d){if(d.sourceRevision!==r.revision||!r.sourceActive)r.state='stale';else{r.state=d.state;r.fields={...r.fields,...d.fields};r.links={...emptyLinks(),...structuredClone(d.links)};r.reference=String(r.fields['record reference']??r.reference??'')||null;r.description=String(r.fields.description??r.description??'')||null;}}}
  for(const r of records){
   const decision=latest.get(r.recordId);
   if(decision?.receipts){r.evidenceRevision=deliveryHash(decision.receipts);r.receipts=structuredClone(decision.receipts);r.sourceActive=r.sourceActive&&r.receipts.every(receipt=>state.evidenceDocuments.some(d=>d.documentId===receipt.documentId&&d.sourceHashSha256===receipt.sourceHash&&!d.supersededByDocumentId&&(['active','additive','candidate'].includes(d.basisState)||['supporting_document','delivery_register'].includes(d.documentType)&&d.basisState==='historical')));}
   r.links={...emptyLinks(),...r.links};
+  if(r.links.boqItemIds.some(id=>continuity!.has(id)&&continuity!.get(id)!==id))r.diagnostics.push('BOQ links carried to the active revision by unique item number, section, description and unit.');
+  r.links.boqItemIds=r.links.boqItemIds.map(id=>continuity!.get(id)??id);r.links.boqAllocations=r.links.boqAllocations.map(a=>({...a,boqItemId:continuity!.get(a.boqItemId)??a.boqItemId}));
   r.diagnostics.push(...deliveryNumericIssues(r.kind,r.fields).map(i=>i.message));
  }
  const superseded=new Set([...latest.values()].filter(d=>['governed','verified'].includes(d.state)).map(d=>d.supersedesId).filter(Boolean));
@@ -134,7 +140,9 @@ export function changeDelivery(state:ProjectRuntimeState,input:any){
    if(fields['lifecycle id']&&!all.some(x=>x.kind==='lifecycle'&&x.recordId===fields['lifecycle id']&&['governed','verified'].includes(x.state)))throw new Error('Select a governed lifecycle template in this project.');
   }
   if(!String(input.note??'').trim())throw new Error('Record the reason for this decision.');
-  const latest=new Map(store.decisions.map(d=>[d.recordId,d]));
+  let continuity=boqContinuityCache.get(state)?.version===state.version?boqContinuityCache.get(state)!.mapping:null;
+ if(!continuity){continuity=new Map<string,string>();const currentBoq=resolveBoqSource(state,'').boq;if(currentBoq){const currentItems=currentBoq.canonicalItems.map(i=>({...i,id:i.itemId}));for(const previous of state.boqRevisions)for(const [oldId,newId]of boqItemContinuity(previous.canonicalItems.map(i=>({...i,id:i.itemId})),currentItems))continuity.set(oldId,newId);}boqContinuityCache.set(state,{version:state.version,mapping:continuity});}
+ const latest=new Map(store.decisions.map(d=>[d.recordId,d]));
   const supersedesId=input.supersedesId===undefined?latest.get(r.recordId)?.supersedesId??null:input.supersedesId;
   const old=supersedesId?all.find(x=>x.recordId===supersedesId):null;if(supersedesId&&(!old||old.kind!==r.kind||old.recordId===r.recordId))throw new Error('Select a previous record of the same type.');
   const seen=new Set([r.recordId]);let predecessor=old?.recordId;

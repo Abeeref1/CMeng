@@ -1,4 +1,3 @@
-import { PDFParse } from "pdf-parse";
 import { detectBoqHeader } from "../../boq-parser/src/headers";
 import { resolveBoqCommercialNumerics } from "../../boq-parser/src/numeric";
 import type { BoqColumnRole } from "../../boq-parser/src/types";
@@ -251,7 +250,7 @@ export async function parseBoqPdf(
     ...(options.aiPageVerifier ? { aiVerifier: options.aiPageVerifier } : {}),
   });
 
-  const parser = new PDFParse({ data: Buffer.from(bytes) as any });
+  const parser = new (await import('pdf-parse')).PDFParse({ data: Buffer.from(bytes) as any });
   const diagnostics: string[] = [...pageResult.diagnostics];
   const items: BoqPdfLineItem[] = [];
   const unresolvedPages = new Set<number>();

@@ -265,6 +265,9 @@ export interface CorrespondenceNarrativeRefreshReceipt {
 }
 
 export interface StoredEvidenceDocument {
+  scheduleRoleConfirmed?:boolean;
+  scheduleApprovalReference?:string;
+  relationshipDecision?:{kind:'new_record'|'replacement'|'amendment';targetDocumentId:string|null;targetSourceHash:string|null;sourceHash:string;note:string;recordedAt:string};
   scheduleAdoption?:{method:'explicit'|'legacy_retained';sourceHashSha256:string;recordedAt:string;note:string};
   derivedRegisterRead?: {producerVersion:string;sourceHashSha256:string};
   tabularRead?: import("../../truth-kernel/src").EvidenceDocument["tabularRead"];
@@ -322,6 +325,8 @@ export type ScheduleUploadFormat =
   | "schedule_csv";
 
 export interface StoredScheduleRevision {
+  roleConfirmed?:boolean;
+  approvalReference?:string;
   revision: ScheduleRevision;
   format: ScheduleUploadFormat;
   sourceFilename: string | null;
@@ -416,6 +421,7 @@ export interface ProjectControlState {
 }
 
 export interface ProjectRuntimeState {
+  phaseProgrammes?: {phaseId:string;name:string;schedules:StoredScheduleRevision[];evidenceDocuments:StoredEvidenceDocument[];activeEvidenceBasis:Record<string,EvidenceBasisRecord>}[];
   delivery?: import("../../delivery-core/src/types").DeliveryStateStore;
   scheduleAuthorityVersion?: "explicit-adoption-v1";
   auditHistory?: import('./audit-context').AuditEvent[];

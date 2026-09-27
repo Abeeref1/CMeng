@@ -5,7 +5,7 @@ import { createSourceFile, ScriptTarget, isFunctionDeclaration } from 'typescrip
 import { cmengUatHtml } from '../packages/runtime-api/src/ui';
 
 const source=createSourceFile('browser.js',cmengUatHtml().match(/<script>([\s\S]*?)<\/script>/)![1]!,ScriptTarget.Latest,true);
-const names=['projectRequestIsCurrent','clearProjectWorkspace','openProject','refresh','updateActiveProjectShell','setAppView','renderNav','loadModule','loadEvidence','loadDirector','askCmeng','resetAskWorkspace','askPage'];
+const names=['projectRequestIsCurrent','clearProjectWorkspace','openProject','refresh','updateActiveProjectShell','setAppView','renderNav','loadModule','loadEvidence','loadPhaseProgrammes','loadDirector','askCmeng','resetAskWorkspace','askPage'];
 const code=source.statements.filter(isFunctionDeclaration).filter(n=>n.name&&names.includes(n.name.text)).map(n=>n.getText(source)).join('\n');
 const tick=()=>new Promise<void>(resolve=>setImmediate(resolve));
 const overview=(projectId:string,count=7)=>({projectId,evidenceDocumentCount:count,revisionCount:2,latestDataDateIso:'2032-04-30',releaseCommitSha:'release',moduleStates:[],managementStates:[]});
@@ -46,6 +46,7 @@ function harness() {
     next('/overview',projectId).resolve(overview(projectId,count));await tick();
     next('/command-center',projectId).resolve({key:'command-center',data:{projectId}});
     next('/documents',projectId).resolve({documentCount:0,documents:[]});
+    next('/phases',projectId).resolve({phases:[]});
     next('/director-position',projectId).resolve({projectId});await tick();
   };
   return {context,nodes,el,storage,requests,next,finish,call};
@@ -57,7 +58,7 @@ test('opening another project clears every old-project surface before its first 
   const pending=h.call('openProject("NEW-PROJECT")');
   assert.equal(h.context.overview,null);assert.equal(h.context.currentModuleResult,null);
   assert.equal(h.el('activeProjectName').textContent,'NEW-PROJECT');
-  for(const id of ['activeProjectMeta','workspaceProjectMeta','projectStatus','director','evidenceLibrary','aiProjectInfo','aiAnswer','askProjectTitle','askReportingDate','askSavedViews','aiSuggestions','moduleContent','nav','uploadMessage']) {
+  for(const id of ['activeProjectMeta','workspaceProjectMeta','projectStatus','director','evidenceLibrary','phaseProgrammesPanel','aiProjectInfo','aiAnswer','askProjectTitle','askReportingDate','askSavedViews','aiSuggestions','moduleContent','nav','uploadMessage']) {
     assert.doesNotMatch(h.el(id).textContent,/OLD-PROJECT|39 documents|2032-04-30/,id);
   }
   assert.match(h.el('moduleContent').innerHTML,/Opening NEW-PROJECT/);

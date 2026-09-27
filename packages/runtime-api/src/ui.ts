@@ -340,10 +340,13 @@ ${systemReviewStyles}
               <div class="upload-row">
                 <div class="upload-box">
                   <strong>Schedule revisions</strong>
-                  <small>Select baseline, updates, revised baseline and recovery files together. CMeng verifies content and chronology; filenames are only hints.</small>
+                  <small>Choose the purpose and scope of these programmes. Filenames and dates do not establish approval or replacement authority.</small>
                   <div class="intent-control"><span>Document action</span><select id="scheduleIntent"><option value="add_update" selected>Upload for review</option><option value="replace_current_basis">Adopt uploaded programme</option></select></div>
+                  <div class="intent-control"><label for="scheduleScope">Programme coverage</label><select id="scheduleScope"><option value="project">Whole project</option><option value="phase">One phase only</option></select></div>
+                  <div class="intent-control"><label for="schedulePhase">Phase ID (for phase programmes)</label><input id="schedulePhase" placeholder="e.g. Phase 2"></div>
+                  <div class="intent-control"><label for="scheduleApproval">Baseline approval reference</label><input id="scheduleApproval" placeholder="Approval letter / document reference"></div>
                   <input type="file" id="scheduleFiles" multiple accept=".xer,.xml,.xlsx,.xlsm,.csv">
-                  <div id="scheduleQueue" class="queue"></div>
+                  <div id="scheduleQueue" class="queue"></div><div id="phaseProgrammesPanel"></div>
                   <div class="upload-actions"><button class="btn small primary" id="uploadSchedules">Upload schedule batch</button></div>
                 </div>
                 <div class="upload-box">
@@ -3983,7 +3986,7 @@ function renderScheduleQueue(){
   el("scheduleQueue").innerHTML=scheduleSelection.map((file,i)=>{
     const full=fileDisplayName(file);
     const role=inferScheduleRole(file.name);
-    return '<div class="queue-row">'+queueFileHtml(file)+'<div class="queue-role-control"><label>This programme is</label><select class="schedule-role" data-index="'+i+'" title="Select role for '+escapeHtml(full)+'"><option value="baseline" '+(role==="baseline"?"selected":"")+'>Baseline</option><option value="update" '+(role==="update"?"selected":"")+'>Update</option><option value="revised_baseline" '+(role==="revised_baseline"?"selected":"")+'>Revised baseline</option><option value="recovery" '+(role==="recovery"?"selected":"")+'>Recovery</option><option value="scenario" '+(role==="scenario"?"selected":"")+'>Draft / scenario</option></select></div><button class="queue-remove" data-type="schedule" data-index="'+i+'">Remove</button></div>';
+    return '<div class="queue-row">'+queueFileHtml(file)+'<div class="queue-role-control"><label>This programme is</label><select class="schedule-role" data-index="'+i+'" title="Select role for '+escapeHtml(full)+'"><option value="" selected>Choose programme purpose</option><option value="baseline" >Baseline</option><option value="update" >Update</option><option value="revised_baseline" >Revised baseline</option><option value="recovery" >Recovery</option><option value="scenario" >Draft / scenario</option></select></div><button class="queue-remove" data-type="schedule" data-index="'+i+'">Remove</button></div>';
   }).join("");
   bindQueueRemoval();
 }
@@ -4155,9 +4158,16 @@ async function loadEvidence(){
       const readLabel=d.readReview?.label||documentReadLabel(d.parserState);
       const readNote=d.readReview?.note||documentReadNote(d.parserState);
       const checked=selectedEvidenceDocuments.has(d.documentId)?" checked":"";
-      const adopt=d.category==="schedule"&&d.linkedArtifactId&&!["recovery","scenario"].includes(d.scheduleRole)&&!(d.basisState==="active"&&d.scheduleAdoption?.method==="explicit")?'<button class="btn small adopt-programme" data-revision="'+escapeHtml(d.linkedArtifactId)+'">'+(d.scheduleRole==="baseline"?'Adopt as baseline':'Adopt as current')+'</button>':"";
-      return '<tr><td class="select-col"><input type="checkbox" class="evidence-select" data-document-id="'+escapeHtml(d.documentId)+'" data-filename="'+escapeHtml(d.sourceFilename)+'"'+checked+'></td><td class="document-file" title="'+escapeHtml(full)+'"><b>'+escapeHtml(d.sourceFilename)+'</b><span class="muted">'+escapeHtml(full)+'</span></td><td class="document-updated" title="'+escapeHtml(d.uploadedAt||"")+'"><b>'+escapeHtml(formatDocumentTime(d.uploadedAt))+'</b><small>'+escapeHtml(d.uploadedAt||"—")+'</small></td><td><b>'+escapeHtml(humanizeKey(d.classificationReview?.category||d.category))+'</b><br>'+escapeHtml(humanizeKey(d.classificationReview?.documentType||d.documentType))+(d.classificationReview?.reviewRequired?'<br><span class="badge partial">Stored as '+escapeHtml(humanizeKey(d.documentType))+' · mapping review required</span>':'')+title+'</td><td class="document-position"><span class="badge '+positionClass+'">'+escapeHtml(position)+'</span></td><td>'+escapeHtml(humanizeKey(d.lineage?.effect||"unknown"))+(d.lineage?.replacesEntireBasis?'<br><span class="badge partial">replaces current document</span>':d.lineage?.appliesAsDelta?'<br><span class="badge">additional record</span>':'')+'</td><td>'+escapeHtml(confidence)+(i.needsReview?'<br><span class="badge partial">review</span>':'')+'</td><td>'+escapeHtml(humanizeKey(method))+'</td><td>'+escapeHtml(conflict)+'</td><td title="'+escapeHtml(readNote)+'"><b>'+escapeHtml(readLabel)+'</b><br><span class="muted">'+escapeHtml(readNote)+'</span></td><td>'+escapeHtml(d.scheduleRole?humanizeKey(d.scheduleRole):"—")+'</td><td>'+escapeHtml(mapping)+'</td><td>'+adopt+'<button class="document-delete document-delete-single" data-document-id="'+escapeHtml(d.documentId)+'" data-filename="'+escapeHtml(d.sourceFilename)+'">Delete</button></td></tr>';
+      const adopt=d.category==="schedule"&&d.linkedArtifactId&&!["recovery","scenario"].includes(d.scheduleRole)&&!(d.basisState==="active"&&d.scheduleAdoption?.method==="explicit")?'<button class="btn small adopt-programme" data-revision="'+escapeHtml(d.linkedArtifactId)+'">'+(['baseline','revised_baseline'].includes(d.scheduleRole)?'Adopt as baseline':'Adopt as current')+'</button>':"";
+      return '<tr><td class="select-col"><input type="checkbox" class="evidence-select" data-document-id="'+escapeHtml(d.documentId)+'" data-filename="'+escapeHtml(d.sourceFilename)+'"'+checked+'></td><td class="document-file" title="'+escapeHtml(full)+'"><b>'+escapeHtml(d.sourceFilename)+'</b><span class="muted">'+escapeHtml(full)+'</span></td><td class="document-updated" title="'+escapeHtml(d.uploadedAt||"")+'"><b>'+escapeHtml(formatDocumentTime(d.uploadedAt))+'</b><small>'+escapeHtml(d.uploadedAt||"—")+'</small></td><td><b>'+escapeHtml(humanizeKey(d.classificationReview?.category||d.category))+'</b><br>'+escapeHtml(humanizeKey(d.classificationReview?.documentType||d.documentType))+(d.classificationReview?.reviewRequired?'<br><span class="badge partial">Stored as '+escapeHtml(humanizeKey(d.documentType))+' · mapping review required</span>':'')+title+'</td><td class="document-position"><span class="badge '+positionClass+'">'+escapeHtml(position)+'</span></td><td>'+escapeHtml(humanizeKey(d.lineage?.effect||"unknown"))+(d.lineage?.replacesEntireBasis?'<br><span class="badge partial">replaces current document</span>':d.lineage?.appliesAsDelta?'<br><span class="badge">additional record</span>':'')+'</td><td>'+escapeHtml(confidence)+(i.needsReview?'<br><span class="badge partial">review</span>':'')+'</td><td>'+escapeHtml(humanizeKey(method))+'</td><td>'+escapeHtml(conflict)+'</td><td title="'+escapeHtml(readNote)+'"><b>'+escapeHtml(readLabel)+'</b><br><span class="muted">'+escapeHtml(readNote)+'</span></td><td>'+escapeHtml(d.scheduleRole?humanizeKey(d.scheduleRole):"—")+'</td><td>'+escapeHtml(mapping)+'</td><td>'+adopt+(d.category==='schedule'&&!d.scheduleAdoption&&!['active','superseded'].includes(d.basisState)?'<button class="btn small programme-purpose" data-document-id="'+escapeHtml(d.documentId)+'">Review programme purpose</button>':'')+(d.category!=='schedule'?'<button class="btn small document-relationship" data-document-id="'+escapeHtml(d.documentId)+'">Review relationship</button>':'')+'<button class="document-delete document-delete-single" data-document-id="'+escapeHtml(d.documentId)+'" data-filename="'+escapeHtml(d.sourceFilename)+'">Delete</button></td></tr>';
     }).join("")+'</tbody></table></div>';
+    el('evidenceLibrary').querySelectorAll('.document-relationship').forEach(button=>button.onclick=()=>{
+      const d=data.documents.find(d=>d.documentId===button.dataset.documentId),container=button.parentElement;
+      const targets=data.documents.filter(x=>x.documentId!==d.documentId&&['active','additive'].includes(x.basisState));
+      container.innerHTML='<label>Document relationship<select class="relationship-kind"><option value="new_record">New independent record</option><option value="replacement">Corrects / replaces an existing record</option><option value="amendment">Amends the base contract</option></select></label><label>Previous / parent document<select class="relationship-target"><option value="">No parent for a new record</option>'+targets.map(x=>'<option value="'+escapeHtml(x.documentId)+'">'+escapeHtml(x.sourceFilename)+' · '+escapeHtml(x.documentType)+'</option>').join('')+'</select></label><label>Reason / source reference<input class="relationship-note"></label><button class="btn small relationship-save">Save relationship and refresh</button><div class="relationship-error" role="status"></div>';
+      container.querySelector('.relationship-save').onclick=async()=>{try{await api('/api/projects/'+encodeURIComponent(projectId)+'/evidence/documents/'+encodeURIComponent(d.documentId)+'/relationship',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({expectedVersion:data.projectVersion??overview.version,sourceHash:d.sourceHashSha256,kind:container.querySelector('.relationship-kind').value,targetDocumentId:container.querySelector('.relationship-target').value||null,note:container.querySelector('.relationship-note').value})});if(project()===projectId)await refresh(false);}catch(e){container.querySelector('.relationship-error').textContent=e.message;}};
+    });
+    el('evidenceLibrary').querySelectorAll('.programme-purpose').forEach(button=>button.onclick=()=>{const d=data.documents.find(d=>d.documentId===button.dataset.documentId);editProgrammePurpose(button.parentElement,projectId,d.linkedArtifactId,d.sourceHashSha256,data.projectVersion,d.scheduleRole,d.scheduleApprovalReference);});
     bindDocumentDeletion();
     bindEvidenceSelection();
     el("evidenceLibrary").querySelectorAll(".adopt-programme").forEach(button=>button.onclick=async()=>{
@@ -4294,6 +4304,9 @@ function clearProjectWorkspace(projectId){
   // must remain obsolete even if the user switches A → B → A.
   projectRequestSeq++;moduleRequestSeq++;directorRequestSeq++;evidenceRequestSeq++;aiRequestSeq++;
   resetAskWorkspace();
+  if(el('phaseProgrammesPanel'))el('phaseProgrammesPanel').innerHTML='';
+  for(const id of ['schedulePhase','scheduleApproval'])if(el(id))el(id).value='';
+  if(el('scheduleScope'))el('scheduleScope').value='project';
   overview=null;currentModuleResult=null;projectLoadState="loading";
   selectedEvidenceDocuments.clear();
   scheduleSelection=[];boqSelection=[];contractSelection=[];evidenceSelection=[];
@@ -4362,6 +4375,18 @@ async function runAnalysis(){
     el("globalStatus").textContent=d.certification?"Project position needs review":"Project position could not be updated · "+e.message;
     if(d.certification){await refresh(false)}
   }finally{if(project()===projectId)setBusy("")}
+}
+function editProgrammePurpose(container,projectId,revisionId,sourceHash,version,role,approval,phaseId){
+  container.innerHTML='<label>Programme purpose<select class="purpose-role">'+[['baseline','Approved baseline'],['update','Progress update'],['revised_baseline','Approved revised baseline'],['recovery','Recovery plan'],['scenario','Draft / scenario']].map(r=>'<option value="'+r[0]+'" '+(r[0]===role?'selected':'')+'>'+r[1]+'</option>').join('')+'</select></label><label>Baseline approval reference<input class="purpose-approval" value="'+escapeHtml(approval||'')+'"></label><button class="btn small purpose-save">Save purpose</button><p class="purpose-message" role="status">Saving the purpose leaves the programme awaiting adoption.</p>';
+  container.querySelector('.purpose-save').onclick=async()=>{try{await api('/api/projects/'+encodeURIComponent(projectId)+(phaseId?'/phases/'+encodeURIComponent(phaseId):'')+'/schedule/revisions/'+encodeURIComponent(revisionId)+'/purpose',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({expectedVersion:version,sourceHash,role:container.querySelector('.purpose-role').value,approvalReference:container.querySelector('.purpose-approval').value})});if(project()===projectId)await refresh(false);}catch(e){container.querySelector('.purpose-message').textContent=e.message;}};
+}
+async function loadPhaseProgrammes(){
+  const target=el('phaseProgrammesPanel');if(!target)return;const id=project(),seq=projectRequestSeq;const current=()=>projectRequestIsCurrent(id,seq);
+  try{const data=await api('/api/projects/'+encodeURIComponent(id)+'/phases');if(!current())return;
+    target.innerHTML=data.phases.map(p=>'<details class="ask-evidence"><summary>'+escapeHtml(p.phaseId)+' · '+escapeHtml(p.review.state)+'</summary><p>Phase Data Date: '+escapeHtml(p.programme?.dataDate||'Not established')+'. Whole-project authority is unchanged.</p>'+p.revisions.map(r=>'<p>'+escapeHtml(r.filename)+' · '+escapeHtml(r.role)+' · '+escapeHtml(r.dataDate||'No Data Date')+(r.adopted?' · adopted':'')+(r.canReview?'<button class="btn small phase-purpose" data-phase="'+escapeHtml(p.phaseId)+'" data-revision="'+escapeHtml(r.revisionId)+'">Review purpose</button>':'')+'</p>').join('')+p.review.pendingSchedules.map(r=>'<button class="btn small phase-adopt" data-action="'+escapeHtml(r.actionPath)+'" '+(r.canAdopt?'':'disabled')+'>Adopt '+escapeHtml(r.filename)+' for '+escapeHtml(p.phaseId)+'</button>').join('')+'</details>').join('');
+    target.querySelectorAll('.phase-purpose').forEach(button=>button.onclick=()=>{const p=data.phases.find(p=>p.phaseId===button.dataset.phase),r=p.revisions.find(r=>r.revisionId===button.dataset.revision);editProgrammePurpose(button.parentElement,id,r.revisionId,r.sourceHash,p.projectVersion,r.role,r.approvalReference,p.phaseId);});
+    target.querySelectorAll('.phase-adopt').forEach(button=>button.onclick=async()=>{try{await api(button.dataset.action,{method:'POST'});if(project()===id)await refresh(false);}catch(e){if(project()===id)el('uploadMessage').textContent=e.message;}});
+  }catch(e){if(current())target.textContent='Phase programmes could not be loaded: '+e.message;}
 }
 async function afterEvidenceChange(){
   if(el("runAfterUpload")?.checked){await runAnalysis()}else{await refresh(false)}
@@ -4434,6 +4459,7 @@ async function refresh(bootstrapDemo=true){
     await Promise.allSettled([
       loadModule(selected),
       loadEvidence(),
+      loadPhaseProgrammes(),
       loadDirector(projectId)
     ]);
   }catch(e){
@@ -4464,7 +4490,7 @@ ${uploadWorkScript}
 function uploadEvidenceFileWithProgress(file,fileIndex,fileTotal,job){
   return new Promise((resolve,reject)=>{
     const id=uploadId();
-    const url="/api/projects/"+encodeURIComponent(job.projectId)+"/evidence/uploads";
+    const url="/api/projects/"+encodeURIComponent(job.projectId)+(job.kind==="schedule"?(job.programmeScope==="phase"?"/phases/"+encodeURIComponent(job.phaseId)+"/schedule/uploads":"/schedule/uploads"):"/evidence/uploads");
     const xhr=new XMLHttpRequest();
     let lastServerProgress=null;
     let pollBusy=false;
@@ -4474,7 +4500,7 @@ function uploadEvidenceFileWithProgress(file,fileIndex,fileTotal,job){
     xhr.setRequestHeader("x-source-relative-path",file.webkitRelativePath||file.name);
     xhr.setRequestHeader("x-upload-intent",job.intent);
     xhr.setRequestHeader("x-upload-id",id);
-    if(job.kind==="schedule"){xhr.setRequestHeader("x-evidence-category","schedule");xhr.setRequestHeader("x-schedule-role",job.roles[fileIndex]||inferScheduleRole(file.name));}
+    if(job.kind==="schedule"){xhr.setRequestHeader("x-evidence-category","schedule");xhr.setRequestHeader("x-schedule-role",job.roles[fileIndex]);xhr.setRequestHeader("x-schedule-role-confirmed","1");if(job.approvalReference)xhr.setRequestHeader("x-approval-reference",job.approvalReference);}
     if(job.kind==="boq"){xhr.setRequestHeader("x-evidence-category","boq_cost");xhr.setRequestHeader("x-document-type","boq");}
     if(job.kind==="contract"){
       const role=job.roles[fileIndex]||inferContractRole(file.name);

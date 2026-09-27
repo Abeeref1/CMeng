@@ -18,7 +18,7 @@ export class AuthorityBuilder {
   table(id:string,title:string,source:unknown,basis:string,overrides:Record<string,Partial<Column>>={},mapper?:(row:any)=>Record<string,unknown>){
     const input=Array.isArray(source)?source:[];
     const rows=input.filter(r=>r&&typeof r==='object').map(raw=>{const r=mapper?mapper(raw):raw;return Object.fromEntries(Object.entries(r).filter(([k,v])=>!['projectId','fields','sourceRefs','receipts','links','diagnostics','history','evidence','trace'].includes(k)&&(v===null||['string','number','boolean'].includes(typeof v))).map(([k,v])=>[k,cell(v)]));});
-    const columns=columnsFor(rows,overrides);this.result.tables.push({id:this.id+'.'+id,title,authorityId:this.id,columns,rows,population:rows.length,excluded:0,state:this.result.state,basis,traceId:this.trace(id,basis,input.flatMap(r=>r?.sourceRefs??[]).slice(0,200))});return this;
+    const columns=columnsFor(rows,overrides);this.result.tables.push({id:this.id+'.'+id,title,authorityId:this.id,columns,rows,population:rows.length,excluded:0,state:this.result.state,basis,traceId:this.trace(id,basis,[...new Set(input.flatMap(r=>r?.sourceRefs??[]))])});return this;
   }
   finding(id:string,title:string,explanation:string,action:string,values:Record<string,Cell>={},refs:string[]=[]){
     this.result.findings.push({id:this.id+':'+id,severity:'review',title,explanation,values,traceIds:refs.length?refs:[this.trace(id,explanation)],action,owner:null,dueBasis:null});return this;

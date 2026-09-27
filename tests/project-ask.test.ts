@@ -102,7 +102,7 @@ test('Excel, PDF, Word, CSV and charts derive from the same populated AnalysisRe
   if(process.env.CMENG_ASK_PROOF_DIR){writeFileSync(join(process.env.CMENG_ASK_PROOF_DIR,'Ask-Materials.pdf'),pd.bytes);writeFileSync(join(process.env.CMENG_ASK_PROOF_DIR,'Ask-Materials.xlsx'),excel.bytes);writeFileSync(join(process.env.CMENG_ASK_PROOF_DIR,'Ask-Materials.docx'),doc.bytes);}
 });
 test('provider failure leaves deterministic results intact and no model can invent an authority',async t=>{
-  const f=await fixture(t);await materials(f);const model={plan:async()=>{throw new Error('outage');},explain:async()=>{throw new Error('outage');}};const engine=new ProjectAskEngine(f.store,model);const r=await engine.ask(f.id,user,{question:'material problem'});assert.equal(r.mode,'Deterministic CMeng Summary');assert.equal(r.providerStatus,'failed');assert.equal(r.sections.find(s=>s.authorityId==='materials')!.tables[0]!.rows[0]!.required,64);
+  const f=await fixture(t);await materials(f);const model={plan:async()=>{throw new Error('outage');},explain:async()=>{throw new Error('outage');}};const engine=new ProjectAskEngine(f.store,model);const r=await engine.ask(f.id,user,{question:'Explain the material problem'});assert.equal(r.mode,'Deterministic CMeng Summary');assert.equal(r.providerStatus,'failed');assert.equal(r.sections.find(s=>s.authorityId==='materials')!.tables[0]!.rows[0]!.required,64);
   assert.throws(()=>validateProposedPlan({authorities:['made-up-portfolio']},r.plan,askCatalogue.available(user)),/Unregistered/);
 });
 test('grouping withholds unknown totals and never adds incompatible quantities or currencies',()=>{
@@ -157,9 +157,9 @@ test('all result rows export while browser preview is bounded; a BOQ-only projec
 });
 
 test('structured model commentary substitutes only existing metrics and rejects invented figures and citations',async t=>{
-  const f=await fixture(t);await materials(f);const r=await f.ask('material status'),metric=r.sections[0]!.metrics.find(m=>typeof m.value==='number')!,trace=r.sections[0]!.traces[0]!.id;
+  const f=await fixture(t);await materials(f);const r=await f.ask('material status'),metric=r.sections[0]!.metrics.find(m=>typeof m.value==='number')!,trace=metric.traceId;
   const requests:any[]=[];let output:any={blocks:[{heading:'Management review',text:'The governed package population is {{metric:'+metric.id+'}}. Reconcile the delivery discrepancy before using this position.',traceIds:[trace]}]};
-  const mock:typeof fetch=async(_url,init)=>{requests.push(JSON.parse(String(init?.body)));return new Response(JSON.stringify({status:'completed',output:[{type:'message',content:[{type:'output_text',text:JSON.stringify(output)}]}]}),{status:200});};
+  const mock:typeof fetch=async(_url,init)=>{const requestBody=JSON.parse(String(init?.body)),input=JSON.parse(requestBody.input);requests.push(requestBody);const verified={...input.scope,evidenceHash:input.evidenceHash,coveredEvidenceIds:input.items.map((v:any)=>v.id),unresolvedAcknowledged:true,retrieval:[],blocks:output.blocks.map((b:any)=>({...b,evidenceIds:input.items.map((i:any)=>i.id),entityIds:[],claimScope:'selected_evidence',claimType:'recommendation'}))};return new Response(JSON.stringify({status:'completed',output:[{type:'message',content:[{type:'output_text',text:JSON.stringify(verified)}]}]}),{status:200});};
   const model=new OpenAiAskModel('test-key','test-model',mock);const blocks=await model.explain(r,[]);
   assert.ok(blocks[0]!.text.includes(String(metric.value)));assert.equal(requests[0].store,false);assert.equal(requests[0].tools,undefined);
   output={blocks:[{heading:'Position',text:'CPI is 9.9',traceIds:[trace]}]};await assert.rejects(()=>model.explain(r,[]),/UNGROUNDED/);
@@ -200,4 +200,68 @@ test('withdrawing a governed record removes it from refreshed analysis while ano
   const record=deliveryRecords(a.state).records.find(r=>r.kind==='package')!;a.change({action:'review',recordId:record.recordId,sourceRevision:record.revision,state:'working',fields:{},note:'Withdrawn from the governed calculation pending source reconciliation.'});
   const fresh=await a.ask('material status');assert.equal(fresh.sections.find(s=>s.authorityId==='materials')!.tables[0]!.rows.length,0);
   assert.equal((await a.store.result(original.id,a.id,user)).sections.find(s=>s.authorityId==='materials')!.tables[0]!.rows[0]!.required,64);assert.equal(askHash(b.state),other);
+});
+
+
+test('local routing invokes neither model method for social, facts, filtering, ranking, visual and export requests',async t=>{
+  const f=await fixture(t);await materials(f);await f.upload('Cost-EVM.csv','Metric,Value,Unit,Status,As Of,VAT Basis\nEV,720,AED,Approved,2036-08-31,Exclusive\nAC,900,AED,Actual,2036-08-31,Exclusive','replace_current_basis');
+  let calls=0;const engine=new ProjectAskEngine(f.store,{plan:async()=>{calls++;throw new Error('unexpected planning');},explain:async()=>{calls++;throw new Error('unexpected explanation');}});
+  const social=await engine.ask(f.id,user,{question:'Good morning, how are you today?'});assert.equal(social.route,'social');assert.deepEqual(social.sections,[]);assert.deepEqual(social.telemetry!.authorities,[]);
+  for(const question of ['What is CPI please?','What is the Data Date?','What is current completion?','How much has been paid?','How much is installed?','How many NCRs are open?','Show activities below 5 float','How many negative-float activities?','Top 20 BOQ cost items','Show payment position','Give me Project progress by WBS','Show a material chart','What is approved EOT?']){
+    const r=await engine.ask(f.id,user,{question});assert.equal(r.providerStatus,'not_needed',question);assert.equal(r.telemetry!.aiInvoked,false,question);
+    if(question.includes('CPI')){const metrics=r.sections.flatMap(s=>s.metrics);assert.equal(metrics.find(m=>m.id.includes('.cpi-'))!.value,.8);assert.equal(metrics.find(m=>m.id.includes('.ev-'))!.value,720);assert.equal(metrics.find(m=>m.id.includes('.ac-'))!.value,900);}
+    if(question.includes('Data Date'))assert.equal(r.sections.flatMap(s=>s.metrics).find(m=>m.id==='programme.dataDate')!.value,'2036-08-31');
+    if(question.includes('below 5')){assert.equal(r.sections.find(s=>s.authorityId==='activities')!.tables[0]!.rows.length,1);assert.equal(r.sections.find(s=>s.authorityId==='activities')!.tables[0]!.rows[0]!.totalFloatHours,0);}
+    if(question.includes('paid'))assert.ok(r.plan.authorities.includes('payments'));
+    if(question.includes('NCRs'))assert.ok(r.plan.authorities.includes('quality'));
+  }
+  assert.equal(calls,0);
+  const mixed=await engine.ask(f.id,user,{question:'Good morning. Why did our completion date move?'});assert.equal(calls,1);assert.equal(mixed.providerStatus,'failed');assert.ok(mixed.sections.length>0);
+});
+
+test('social follow-up does not destroy the retained factual analysis used by Excel',async t=>{
+  const f=await fixture(t);await materials(f);const initial=await f.ask('material status'),thanks=await f.ask('Thanks!',initial),excel=await f.ask('Excel',thanks);
+  assert.equal(thanks.route,'social');assert.deepEqual(excel.sections,initial.sections);assert.equal(excel.factsHash,initial.factsHash);
+});
+
+test('complete BOQ replacement uses project authority regardless of filename and never retains old quantities as current',async t=>{
+  const other=await fixture(t);await materials(other,80,40,40);const otherHash=askHash(other.state);
+  for(const filename of ['Scope.csv','Entirely-Different-Submission.csv']){
+    const f=await fixture(t);await materials(f);const old=await f.ask('Show BOQ and materials'),oldDocument=f.state.evidenceDocuments.find(d=>d.familyKey==='boq:quantity'&&d.basisState==='active')!;
+    const before=f.state.version;await f.upload(filename,'Item No,Description,Unit,Quantity,Rate,Amount,Currency\nA,Plant units,No.,100,12,1200,AED\nB,Additional plant,No.,5,20,100,AED','replace_current_basis');
+    const revised=await f.ask('Show BOQ and materials'),boq=revised.sections.find(s=>s.authorityId==='boq')!;
+    assert.equal(boq.tables[0]!.rows.length,2);assert.equal(boq.tables[0]!.rows.find(r=>r.itemNumber==='A')!.quantity,100);assert.equal(boq.metrics.find(m=>m.id==='boq.value-AED')!.value,1300);
+    assert.equal(f.state.evidenceDocuments.find(d=>d.documentId===oldDocument.documentId)!.basisState,'superseded');assert.equal(f.state.evidenceDocuments.filter(d=>d.familyKey==='boq:quantity'&&d.basisState==='active').length,1);assert.ok(f.state.version>before);
+    // Source-hash IDs change, but exact unique item identity carries governed links to the new quantity.
+    const material=revised.sections.find(s=>s.authorityId==='materials')!;assert.equal(material.tables[0]!.rows[0]!.required,100);assert.equal(material.tables[0]!.rows[0]!.deliveryCoveragePercent,52);
+    assert.equal((await f.store.result(old.id,f.id,user)).sections.find(s=>s.authorityId==='boq')!.tables[0]!.rows[0]!.quantity,64);
+    assert.equal(askHash(other.state),otherHash);
+  }
+});
+
+test('generic mixed request preserves independent rankings, local KPIs, charts and populated exports',async t=>{
+  const f=await fixture(t);await materials(f);
+  await f.upload('BOQ-Full.csv','Item No,Description,Unit,Quantity,Rate,Amount,Currency\n'+Array.from({length:30},(_,i)=>'B'+i+',Plant '+i+',No.,1,'+(i+1)+','+(i+1)+',AED').join('\n'),'replace_current_basis');
+  const r=await f.ask('Prepare a report explaining CPI, Top 20 BOQ cost items and Top 3 risks, material exceptions, cross-domain interpretation and charts in Excel');
+  assert.ok(r.plan.authorities.includes('evm'));assert.ok(r.plan.authorities.includes('materials'));assert.equal(r.plan.rankings!.find(q=>q.authorityId==='boq')!.limit,20);assert.equal(r.plan.rankings!.find(q=>q.authorityId==='risks')!.limit,3);
+  const table=r.sections.find(s=>s.authorityId==='boq')!.tables[0]!;assert.equal(table.rows.length,20);assert.equal(table.rows[0]!.amount,30);assert.equal(table.rows.at(-1)!.amount,11);
+  assert.equal(r.coverage!.entries.find(c=>c.id===table.id)!.mandatoryRepresented,20);assert.equal(r.presentation.format,'xlsx');
+  const book=new ExcelJS.Workbook();await book.xlsx.load((await exportAskAnalysis(r,'xlsx')).bytes as any);assert.ok(book.getWorksheet('Evidence Coverage'));assert.ok(book.worksheets.some(s=>s.name.startsWith('Chart ')));
+});
+
+
+test('phase upload and independent project updates cannot change whole-project Ask facts or retained exports',async t=>{
+ const a=await fixture(t),b=await fixture(t);const before=await a.ask('What is the Data Date?');
+ await runtimeProjects.ingestSchedule({projectId:a.id,phaseId:'PHASE-2',bytes:Buffer.from(programme('2037-03-31')),mediaType:'text/plain',uploadedAt:'2037-04-01',sourceFilename:'the-same.xer',role:'update',roleConfirmed:true,uploadIntent:'replace_current_basis'});
+ await b.upload('another.xer',programme('2038-04-30'),'replace_current_basis');
+ const after=await a.ask('What is the Data Date?');assert.equal(after.scope.dataDate,'2036-08-31');const phase=await a.ask('What is the Data Date for PHASE-2?');assert.deepEqual(phase.sections.map(s=>s.authorityId),['phase-programmes']);assert.equal(phase.sections[0]!.tables[0]!.rows[0]!.dataDate,'2037-03-31');assert.deepEqual(after.sections,before.sections);assert.equal((await b.ask('What is the Data Date?')).scope.dataDate,'2038-04-30');
+});
+
+test('NCR counts include dated failed outcomes still open, but exclude future and closed records',async t=>{
+ const f=await fixture(t);
+ f.record('quality','NCR-1',{'record type':'ncr','raised date':'2036-07-01','actual date':'2036-08-01','outcome date':'2036-08-01',status:'failed'});
+ f.record('quality','NCR-2',{'record type':'ncr','raised date':'2036-09-02',status:'open'});
+ f.change({action:'confirm_population',kind:'quality',note:'Complete NCR test population'});
+ const result=await f.ask('How many NCRs are open?');const table=result.sections.find(s=>s.authorityId==='quality')!.tables[0]!;
+ assert.deepEqual(table.rows.map(r=>r.reference),['NCR-1']);assert.equal(result.sections.flatMap(s=>s.metrics).find(m=>m.id.endsWith('matching-count'))!.value,1,JSON.stringify({gaps:result.unresolved,table}));
 });

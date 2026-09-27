@@ -2,6 +2,8 @@ import {randomUUID} from 'node:crypto';
 import type {AnalysisPlan,AnalysisResult,AskRequest,AskSession,AuthorityResult,NarrativeBlock,Presentation,ProjectScope,SavedView} from '../../project-ask/src/types';
 import {AskError,resolveAskScopeType} from '../../project-ask/src/catalogue';
 import {resolveIntent} from '../../project-ask/src/intent';
+import {isSocial,socialReply,routeRequest,needsInterpretation} from '../../project-ask/src/router';
+import {selectEvidence} from '../../project-ask/src/evidence';
 import {chooseChart,queryTable,normalized} from '../../project-ask/src/primitives';
 import {configuredAskModel,type AskModel} from '../../project-ask/src/provider';
 import {createAskAuthorityCatalogue} from './ask-authorities';
@@ -18,12 +20,13 @@ import type {ProjectRuntimeState} from './project-state-types';
 export const askCatalogue=createAskAuthorityCatalogue();
 function narrativeFor(result:AnalysisResult):NarrativeBlock[]{
   const ar=result.presentation.language==='ar';
-  const metrics=result.sections.flatMap(s=>s.metrics).filter(m=>!result.plan.metricIds.length||result.plan.metricIds.some(id=>m.id.includes('.'+id)));
+  const metrics=result.sections.flatMap(s=>s.metrics);
   const lines=metrics.slice(0,result.presentation.detail==='short'?6:18).map(m=>m.label+': '+(m.value===null?(ar?'غير مثبت':'Not established'):String(m.value)+(m.unit?' '+m.unit:''))+(m.state==='candidate'?' · candidate source, not governed':''));
   const blocks:NarrativeBlock[]=[{heading:ar?'الوضع الحالي':'Current position',text:lines.length?lines.join('\n'):result.sections.map(s=>s.title+': '+s.explanation).slice(0,8).join('\n'),classification:'calculated_intelligence',traceIds:metrics.slice(0,18).map(m=>m.traceId)}];
-  const findings=result.sections.flatMap(s=>s.findings);
+  const findings=result.sections.flatMap(s=>s.findings).sort((a,b)=>(a.severity==='action'?0:a.severity==='review'?1:2)-(b.severity==='action'?0:b.severity==='review'?1:2)||a.id.localeCompare(b.id));
   if(findings.length)blocks.push({heading:ar?'ما يحتاج الى اهتمام':'What requires attention',text:findings.slice(0,8).map(f=>f.title+': '+f.explanation).join('\n'),classification:'calculated_intelligence',traceIds:findings.slice(0,8).flatMap(f=>f.traceIds)});
   if(findings.length)blocks.push({heading:ar?'الاجراءات المقترحة':'Recommended actions',text:[...new Set(findings.map(f=>f.action))].slice(0,8).join('\n'),classification:'professional_guidance',traceIds:findings.slice(0,8).flatMap(f=>f.traceIds)});
+  if(findings.length>8)blocks.push({heading:'Finding coverage',text:'The summary highlights 8 of '+findings.length+' findings. Every finding is retained in the detailed sections and exports; this summary is not a complete exception list.',classification:'calculated_intelligence',traceIds:[]});
   if(result.plan.kind==='analysis')blocks.push({heading:ar?'اساس التفسير':'Why',text:ar?'تظهر الجداول الادلة المتاحة. الارتباط بين السجلات لا يثبت السببية دون روابط وادلة مؤرخة.':'The tables show the available evidence. Correlation across registers does not establish a cause without explicit links and dated supporting records.',classification:'professional_guidance',traceIds:[]});
   if(result.plan.kind==='draft')blocks.push({heading:'Draft management response',text:'Please reconcile the reported position against the attached CMeng tables and evidence gaps. Confirm the affected work scope, reporting dates, source records and proposed corrective actions before the next reporting cut-off. Any claim or entitlement requires the applicable contract terms and substantiated causal evidence.',classification:'professional_guidance',traceIds:[]});
   if(result.plan.kind==='proposal')blocks.push({heading:'Proposed change — review required',text:result.plan.objective+'\nNo project record has been changed. Review the current record, proposed value, reason and supporting evidence in its source module.',classification:'professional_guidance',traceIds:[]});
@@ -45,8 +48,8 @@ function referenceSection(scope:ProjectScope,files:ReferenceFile[],sections:Auth
   const b=new AuthorityBuilder('reference-files','Attached reference documents','documents',scope,'candidate','Attachments are reference only. Their statements do not change governed project facts.');
   const metrics=sections.flatMap(s=>s.metrics);const excerpts:{filename:string;page:number;statement:string;sourceHash:string}[]=[];
   for(const file of files)for(const page of file.pages){
-    const text=page.text;for(const line of text.split(/[\n\r]+/).filter(s=>s.trim()).slice(0,100)){
-      excerpts.push({filename:file.filename,page:page.page,statement:line.slice(0,1200),sourceHash:file.hash});
+    const text=page.text;for(const line of text.split(/[\n\r]+/).filter(s=>s.trim())){
+      excerpts.push({filename:file.filename,page:page.page,statement:line,sourceHash:file.hash});
       const match=/^\s*(CPI|SPI|physical progress|Data Date)\s*[:=,\t]\s*(\d+(?:\.\d+)?|\d{4}-\d{2}-\d{2})\s*%?\s*$/i.exec(line);
       if(!match)continue;const metric=metrics.find(m=>normalized(m.label).startsWith(normalized(match[1])));if(!metric||metric.value===null)continue;
       const assertion=/^\d{4}-/.test(match[2]!)?match[2]!:Number(match[2]);if(assertion!==metric.value)b.finding(file.id+':'+page.page+':'+metric.id,'Reference differs from CMeng',file.filename+', page '+page.page+': '+match[1]+' is '+assertion+'; CMeng reports '+metric.value+'.','Reconcile reporting date, units and scope. This difference does not authorize changing the official basis.',{submitted:assertion,cmeng:metric.value},[metric.traceId,b.trace(file.id+':'+page.page,'Reference only; page text, not a governed record.',[file.hash+':page:'+page.page],'candidate')]);
@@ -74,17 +77,27 @@ export class ProjectAskEngine {
   }
   async ask(projectId:string,user:AskSession,request:AskRequest,view?:SavedView){
     if(typeof request.question!=='string'||!request.question.trim()||request.question.length>24000)throw new AskError(400,'question_required','Enter a question or report brief of up to 24,000 characters.');
+    // Cheap project/session validation is retained for social messages, but no schedule or other producer is executed.
+    if(isSocial(request.question)&&!view){
+      resolveAskScopeType(request.scopeType);const state=this.getState(projectId);if(!state)throw new AskError(404,'project_not_found','Open an existing project first.');
+      if(request.pageContext?.projectId&&request.pageContext.projectId!==projectId)throw new AskError(409,'page_project_changed','The project changed. Start from the current project page.');
+      if(request.conversationId){const conversation=await this.store.conversation(request.conversationId,projectId,user);if(request.analysisId&&conversation.analysisIds.at(-1)!==request.analysisId)throw new AskError(409,'conversation_updated','This conversation has a newer answer.');}
+      const intent=resolveIntent(request.question,[],user,null,null),result:AnalysisResult={schemaVersion:1,id:randomUUID(),conversationId:request.conversationId??randomUUID(),createdAt:new Date().toISOString(),
+        scope:{scopeType:'project',projectId,projectName:projectId,workspaceId:user.workspaceId,userId:user.userId,projectVersion:state.version,dataDate:null,authorityState:'not_evaluated',programmeRevision:null,pageContext:request.pageContext??null},
+        plan:{...intent.plan,authorities:[]},presentation:intent.presentation,mode:'Deterministic CMeng Summary',sections:[],narrative:[{heading:'Ask CMeng',text:socialReply(request.question),classification:'professional_guidance',traceIds:[]}],unresolved:[],referenceFiles:[],factsHash:askHash([]),snapshotHash:'',providerStatus:'not_needed',route:'social',
+        telemetry:{route:'social',aiInvoked:false,authorities:[],retrievalRounds:0,retrievedRecords:0,calls:[],providerFailures:[],validationFailures:[],criticUsed:false}};
+      result.snapshotHash=askHash({scope:result.scope,plan:result.plan});await this.store.saveResult(result,user);return result;
+    }
     const {scope,state}=this.scope(projectId,user,request),catalogue=askCatalogue.available(user);
     let previous:AnalysisResult|null=null;
-    if(request.conversationId){const conversation=await this.store.conversation(request.conversationId,projectId,user);const id=conversation.analysisIds.at(-1);if(request.analysisId&&id!==request.analysisId)throw new AskError(409,'conversation_updated','This conversation has a newer answer. Refresh it before adding another follow-up.');if(id)previous=await this.store.result(id,projectId,user);}
+    if(request.conversationId){const conversation=await this.store.conversation(request.conversationId,projectId,user);const id=conversation.analysisIds.at(-1);if(request.analysisId&&id!==request.analysisId)throw new AskError(409,'conversation_updated','This conversation has a newer answer. Refresh it before adding another follow-up.');if(id)previous=await this.store.result(id,projectId,user);if(previous?.route==='social'){previous=null;for(const priorId of [...conversation.analysisIds].reverse()){const prior=await this.store.result(priorId,projectId,user);if(prior.route!=='social'){previous=prior;break;}}}}
     if(previous&&scope.pageContext&&previous.scope.pageContext?.page!==scope.pageContext.page)previous=null;
     const intent=resolveIntent(request.question,catalogue,user,scope.pageContext,previous);
     let plan=view?structuredClone(view.plan):intent.plan,presentation=view?structuredClone(view.presentation):intent.presentation;
     const unresolved=[...intent.gaps,...(intent.purePresentation&&previous?previous.unresolved:[])];let providerStatus:AnalysisResult['providerStatus']=!this.model?'not_configured':!user.allowModel?'not_permitted':'not_needed';
-    const precise=/^(what is |what's |show )?(cpi|spi|ev|pv|ac|data date)\??$/i.test(request.question.trim());
-    if(this.model&&user.allowModel&&!intent.purePresentation&&!precise&&!view&&plan.kind!=='historical'&&plan.kind!=='scenario'){
-      try{plan=await this.model.plan(request.question,plan,catalogue);providerStatus='available';}catch{providerStatus='failed';unresolved.push('The AI interpreter is unavailable. The deterministic project analysis below remains usable.');}
-    }
+    const route=routeRequest(request.question,plan,intent.purePresentation),interpret=needsInterpretation(route)&&plan.kind!=='proposal';
+    const precise=!interpret&&!intent.purePresentation&&((plan.metricIds.length>0&&plan.authorities.every(id=>id==='evm'))||plan.authorities.every(id=>id==='programme')&&/data date|reporting date|تاريخ البيانات/i.test(request.question));
+    if(!interpret)providerStatus='not_needed';
     if(request.attachmentIds){if(!Array.isArray(request.attachmentIds)||request.attachmentIds.length>8||request.attachmentIds.some(id=>typeof id!=='string'))throw new AskError(400,'invalid_attachments','Attach up to eight reference documents.');plan.attachmentIds=[...new Set(request.attachmentIds)];}
     const files:ReferenceFile[]=[];for(const id of plan.attachmentIds)files.push(await this.store.reference(id,projectId,user));
     let sections:AuthorityResult[]=[];
@@ -101,26 +114,33 @@ export class ProjectAskEngine {
             }
           }
         }
-        if(plan.filters.length||plan.groupBy.length||plan.criticalOnly||plan.issuesOnly||plan.limit!==null||plan.nextDays!==null||plan.deliveryBelowPercent!==null){
-          result.tables=result.tables.map(table=>{const queried=queryTable(table,plan);unresolved.push(...queried.gaps);return queried.table;});
-          if(plan.filters.length||plan.criticalOnly||plan.issuesOnly||plan.nextDays!==null||plan.deliveryBelowPercent!==null)result.metrics=result.metrics.map(m=>({...m,value:null,state:'unavailable',basis:m.basis+' The project total is not a valid KPI for this filtered subset; see the matching records.'}));
+        const countGapTables=new Set<string>();
+        const authorityPlan={...plan,groupBy:result.authorityId==='wbs'?plan.groupBy.filter(g=>g!=='wbsId'):plan.groupBy,filters:[...plan.filters,...(plan.authorityFilters?.[result.authorityId]??[])]};
+        if(authorityPlan.filters.length||plan.groupBy.length||plan.criticalOnly||plan.issuesOnly||plan.limit!==null||plan.nextDays!==null||plan.deliveryBelowPercent!==null||plan.countRows){
+          result.tables=result.tables.map(table=>{const ranking=plan.rankings?.find(r=>r.authorityId===result.authorityId);const queryPlan=plan.rankings?.length?{...authorityPlan,rankBy:ranking?.field??null,rankDirection:ranking?.direction??'desc',limit:ranking?.limit??null}:authorityPlan;const queried=queryTable(table,queryPlan);unresolved.push(...queried.gaps);if(queried.gaps.length)countGapTables.add(queried.table.id);return queried.table;});
+          if(authorityPlan.filters.length||plan.criticalOnly||plan.issuesOnly||plan.nextDays!==null||plan.deliveryBelowPercent!==null)result.metrics=result.metrics.map(m=>({...m,value:null,state:'unavailable',basis:m.basis+' The project total is not a valid KPI for this filtered subset; see the matching records.'}));
         }
+        if(plan.countRows)for(const table of result.tables){const missing=countGapTables.has(table.id);result.metrics.push({id:table.id+'.matching-count',label:'Matching '+table.title+' records',value:missing||table.state==='unavailable'?null:table.selection?.matching??table.rows.length,unit:'records',state:missing?'unavailable':table.state,classification:'calculated_intelligence',traceId:table.traceId,basis:'Count after applying all requested filters to the full available population, before Top N selection. '+table.basis});}
         result.charts=presentation.charts?result.tables.map(t=>chooseChart(t,scope.dataDate)).filter((c):c is NonNullable<typeof c>=>c!==null):[];sections.push(result);
       }
       materialReconciliation(sections);
-      if(precise&&/data date/i.test(request.question))sections.forEach(s=>{s.metrics=s.metrics.filter(m=>m.id==='programme.dataDate');s.tables=[];});
-      if(precise&&plan.metricIds.length)sections.forEach(s=>{s.metrics=s.metrics.filter(m=>plan.metricIds.some(id=>m.id.includes('.'+id)));s.tables=[];s.charts=[];});
+      if(precise&&/data date|reporting date|تاريخ البيانات/i.test(request.question))sections.forEach(s=>{s.metrics=s.metrics.filter(m=>m.id==='programme.dataDate');s.tables=[];});
+      if(precise&&plan.metricIds.length)sections.forEach(s=>{const keys=[...plan.metricIds,...(plan.metricIds.includes('cpi')?['ev','ac']:[]),...(plan.metricIds.includes('spi')?['ev','pv']:[])];s.metrics=s.metrics.filter(m=>keys.some(id=>m.id.includes('.'+id))); s.tables=[];s.charts=[];});
       if(plan.kind==='scenario')sections.push(applyScenario(state,scope,plan));
       if(files.length)sections.push(referenceSection(scope,files,sections));
     }
     if(plan.kind==='historical')scope.dataDate=plan.asOf==='unresolved'?null:plan.asOf;
     sections.forEach(s=>s.charts=presentation.charts?s.tables.map(t=>chooseChart(t,scope.dataDate)).filter((c):c is NonNullable<typeof c>=>c!==null):[]);
     const result:AnalysisResult={schemaVersion:1,id:randomUUID(),conversationId:request.conversationId??randomUUID(),createdAt:new Date().toISOString(),scope,plan,presentation,sections,narrative:[],unresolved:[...new Set(unresolved)],mode:'Deterministic CMeng Summary',providerStatus,
+      route,telemetry:{route,aiInvoked:false,authorities:sections.map(s=>s.authorityId),retrievalRounds:0,retrievedRecords:0,calls:[],providerFailures:[],validationFailures:[],criticUsed:false},
       referenceFiles:files.map(({id,filename,hash,state,reading})=>({id,filename,hash,state,reading})),factsHash:askHash(sections),snapshotHash:''};
+    const references=files.flatMap(f=>f.pages.map(p=>({filename:f.filename,fileId:f.id,hash:f.hash,page:p.page,text:p.text})));
+    result.coverage=selectEvidence(result,references).coverage;
     result.narrative=narrativeFor(result);
-    if(this.model&&user.allowModel&&!precise&&!intent.purePresentation&&plan.kind!=='proposal'){
-      try{const blocks=await this.model.explain(result,files.flatMap(f=>f.pages.map(p=>({filename:f.filename,page:p.page,text:p.text}))));result.narrative.push(...blocks);result.mode='CMeng AI Analysis';result.providerStatus='available';}
-      catch{result.providerStatus='failed';result.unresolved.push('AI commentary is unavailable. The tables and calculations are the deterministic CMeng result.');}
+    for(const metric of sections.flatMap(s=>s.metrics).filter(m=>/\.cpi(?:-|$)/.test(m.id)&&typeof m.value==='number'&&m.value<1))result.narrative.push({heading:'Cost performance',text:'CPI below 1.00 indicates earned value is below actual cost on the stated currency and tax basis. This ratio alone does not establish the cause.',classification:'calculated_intelligence',traceIds:[metric.traceId]});
+    if(this.model&&user.allowModel&&interpret&&!intent.purePresentation){
+      try{const blocks=await this.model.explain(result,references);result.narrative.push(...blocks);result.mode='CMeng AI Analysis';result.providerStatus='available';}
+      catch(error){result.providerStatus='failed';const code=error instanceof Error&&/^(MODEL|RETRIEVAL)_[A-Z_]+$/.test(error.message)?error.message:'MODEL_PROVIDER_UNAVAILABLE';if(!result.telemetry!.providerFailures.includes(code)&&!result.telemetry!.validationFailures.includes(code))result.telemetry!.providerFailures.push(code);result.unresolved.push('AI commentary could not be completed or validated ('+code+'). The complete local tables, findings and calculations remain available. No partial AI assessment has been presented.');}
     }
     if(!intent.purePresentation&&state.version!==scope.projectVersion)throw new AskError(409,'project_updated','The project changed while this analysis was being prepared. Run it again for a consistent position.');
     result.snapshotHash=askHash({scope:result.scope,plan:result.plan,sections:result.sections});await this.store.saveResult(result,user);return result;

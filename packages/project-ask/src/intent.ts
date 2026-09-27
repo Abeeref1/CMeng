@@ -1,12 +1,13 @@
 import type {AnalysisPlan, AnalysisResult, AuthorityDescriptor, PageContext, Presentation, AskSession} from './types';
 import {AskError} from './catalogue';
 import {normalized} from './primitives';
+import {mentionsConcept,rankedRequests,substantiveQuestion} from './router';
 
 const formats: [RegExp,Presentation['format']][]=[[/\bexcel\b|xlsx|اكسل|إكسل/i,'xlsx'],[/\bpdf\b/i,'pdf'],[/\bword\b|docx|وورد/i,'docx'],[/\bcsv\b/i,'csv'],[/power\s?bi|\bpbix\b/i,'powerbi'],[/\bjson\b/i,'json']];
 const defaults=(question:string):AnalysisPlan=>({objective:question,kind:'facts',authorities:[],filters:[],groupBy:[],rankBy:null,rankDirection:'desc',limit:null,metricIds:[],issuesOnly:false,criticalOnly:false,nextDays:null,deliveryBelowPercent:null,asOf:null,scenario:null,attachmentIds:[]});
-const mentions=(q:string,concept:string)=>/^[a-z]{1,3}$/i.test(concept)?new RegExp('\\b'+concept+'\\b','i').test(q):q.includes(normalized(concept));
+const mentions=mentionsConcept;
 export function resolveIntent(question:string,catalogue:AuthorityDescriptor[],principal:AskSession,page:PageContext|null,previous:AnalysisResult|null){
-  const q=normalized(question).replace(/worst(\d)/g,'worst $1').replace(/\bprocument\b/g,'procurement').replace(/\bprogess\b/g,'progress');
+  const q=normalized(substantiveQuestion(question)).replace(/worst(\d)/g,'worst $1').replace(/\bprocument\b/g,'procurement').replace(/\bprogess\b/g,'progress');
   if(/\b(across|all|compare|other|another)\s+(projects|portfolios|programmes)\b|organization.wide|portfolio.rollup|cross.project|جميع المشاريع|كل المشاريع/.test(q))
     throw new AskError(422,'capability_not_enabled','Capability not enabled. Select one Project for this analysis.');
   const transform=/^(excel|xlsx|pdf|word|docx|csv|json|power ?bi|better|shorter|more detail|ceo|executive|project director|planner detail|commercial manager|only |by |add |remove |put my name|prepared by|our logo|change chart|sar\b|aed\b|usd\b|tower |floor |zone |بالعربي|بالعربية|عربي|مختصر|اكسل|إكسل)/i.test(question.trim());
@@ -55,9 +56,17 @@ export function resolveIntent(question:string,catalogue:AuthorityDescriptor[],pr
   }
   if(inherited&&/^remove /.test(q))plan.authorities=plan.authorities.filter(id=>!catalogue.find(c=>c.id===id)?.concepts.some(c=>q.slice(7).includes(normalized(c))));
   if(inherited&&/add .*curve/.test(q))for(const c of catalogue.filter(c=>c.concepts.some(k=>mentions(q,k))))if(!plan.authorities.includes(c.id))plan.authorities.push(c.id);
-  if(/only critical|critical.*(?:packages|activities|mep)|الحرجه/.test(q))plan.criticalOnly=true;
+  if(/only critical|critical.*(?:packages|activities|mep)|الحرجه/.test(q)&&!/negative.float/.test(q))plan.criticalOnly=true;
   if(/only (problems|bad|issues)|bad material|material problem|only exceptions|المشاكل/.test(q))plan.issuesOnly=true;
   const rank=/\b(top|worst)\s*(\d{1,4})/.exec(q);if(rank){plan.limit=Math.min(1000,Math.max(1,Number(rank[2])));plan.rankBy=/cost|value|boq/.test(q)?'amount':/risk/.test(q)&&!/float|activit/.test(q)?'score':/material|procurement/.test(q)?'headroomCalendarDays':'totalFloatHours';plan.rankDirection=plan.rankBy==='amount'||plan.rankBy==='score'?'desc':'asc';}
+  plan.rankings=rankedRequests(q,catalogue);
+  plan.countRows=/\bhow many\b|\bcount\b|عدد/.test(q);
+  const scopedFilter=(ids:string[],filter:AnalysisPlan['filters'][number])=>{plan.authorityFilters??={};for(const id of ids)if(plan.authorities.includes(id))plan.authorityFilters[id]=[...(plan.authorityFilters[id]??[]),filter];};
+  const threshold=/(?:float\s*(?:below|under|less than|<)\s*|(?:below|under|less than)\s*)(-?\d+(?:\.\d+)?)\s*(hours?|days?)?\s*(?:float)?/.exec(q);
+  if(/negative[ -]float/.test(q))scopedFilter(['activities','float'],{field:'totalFloatHours',operator:'lt',value:0,upper:null});
+  else if(threshold&&/float/.test(q)){if(threshold[2]?.startsWith('day'))gaps.push('Float is stored in hours. Supply the threshold in hours; no hours-per-day conversion has been assumed.');else scopedFilter(['activities','float'],{field:'totalFloatHours',operator:'lt',value:Number(threshold[1]),upper:null});}
+  if(/\bncrs?\b/.test(q))scopedFilter(['quality'],{field:'recordType',operator:'eq',value:'ncr',upper:null});
+  if(/\b(?:open|late|overdue)\b/.test(q)){const status=/\b(open|late|overdue)\b/.exec(q)![1]!;scopedFilter(plan.authorities.filter(id=>['quality','milestones','submittals','closeout','handover','permits','risks'].includes(id)),{field:status==='open'?'open':'late',operator:'eq',value:true,upper:null});}
   for(const dimension of ['discipline','location','floor','zone','supplier','wbs','trade','currency'])if(new RegExp('\\bby '+dimension+'\\b').test(q))plan.groupBy=[dimension==='wbs'?'wbsId':dimension==='trade'?'discipline':dimension];
   const location=/\b(tower\s+[a-z0-9]+|floor\s+\d+|zone\s+[a-z0-9]+)\b/i.exec(question);
   if(location){plan.filters=plan.filters.filter(f=>f.field!=='location');plan.filters.push({field:'location',operator:'contains',value:location[1]!,upper:null});}
@@ -73,6 +82,7 @@ export function resolveIntent(question:string,catalogue:AuthorityDescriptor[],pr
   const scenario=/assume|what if|scenario|افترض/.test(q);
   if(scenario){plan.kind='scenario';const lead=/(\d+(?:\.\d+)?)\s*(weeks?|days?)/.exec(q);if(lead)plan.scenario={field:'manufacturingLeadTime',value:Number(lead[1]),unit:lead[2]!.startsWith('week')?'weeks':'days',target:/transformer/.test(q)?'transformer':null};else gaps.push('The scenario assumption needs a numeric duration and its unit.');}
   for(const metric of ['cpi','spi','ev','pv','ac'])if(new RegExp('\\b'+metric+'\\b').test(q))plan.metricIds.push(metric);
+  if(/\bphases?\b/.test(q)&&catalogue.some(c=>c.id==='phase-programmes')){plan.authorities=['phase-programmes'];plan.criticalOnly=false;plan.countRows=false;plan.groupBy=[];plan.rankBy=null;plan.limit=null;gaps.push('Phase requests use separate phase programme positions. Whole-project KPI values are not substituted for phase metrics; combined phase roll-ups are not established.');}
   plan.authorities=[...new Set(plan.authorities)];plan.metricIds=[...new Set(plan.metricIds)];
   if(plan.kind==='proposal')gaps.push('This is a proposed change only. Use the record’s governed review workflow to approve any change.');
   return {plan,presentation,gaps,inherited,purePresentation:inherited&&purePresentation};
@@ -83,12 +93,12 @@ export function validateProposedPlan(value:unknown,base:AnalysisPlan,catalogue:A
   if(!value||typeof value!=='object')throw new Error('Invalid analysis plan');const p=value as Record<string,unknown>;
   const ids=new Set(catalogue.map(c=>c.id)),fields=new Set(catalogue.flatMap(c=>c.fields));
   if(!Array.isArray(p.authorities)||!p.authorities.length||p.authorities.some(id=>typeof id!=='string'||!ids.has(id)))throw new Error('Unregistered or unauthorized authority');
-  const plan=structuredClone(base);plan.authorities=p.authorities as string[];
+  const plan=structuredClone(base);plan.authorities=[...new Set([...base.authorities,...p.authorities as string[]])];
   if(Array.isArray(p.filters)){if(p.filters.length>12)throw new Error('Too many filters');const proposed=p.filters.map((f:any)=>{if(!f||!fields.has(f.field)||!['eq','contains','lt','lte','gt','gte','between'].includes(f.operator)||!['string','number','boolean'].includes(typeof f.value)||typeof f.value==='number'&&!Number.isFinite(f.value))throw new Error('Unsupported filter');return {field:f.field,operator:f.operator,value:f.value,upper:typeof f.upper==='number'||typeof f.upper==='string'?f.upper:null};});plan.filters=[...base.filters,...proposed.filter((f:any)=>!base.filters.some(b=>b.field===f.field))];}
   if(Array.isArray(p.groupBy)){if(p.groupBy.some(f=>typeof f!=='string'||!fields.has(f)))throw new Error('Unsupported grouping');plan.groupBy=p.groupBy.length?p.groupBy as string[]:base.groupBy;}
-  if(typeof p.rankBy==='string'&&fields.has(p.rankBy))plan.rankBy=p.rankBy;
-  if(p.rankDirection==='asc'||p.rankDirection==='desc')plan.rankDirection=p.rankDirection;
-  if(typeof p.limit==='number'&&Number.isInteger(p.limit)&&p.limit>0&&p.limit<=1000)plan.limit=p.limit;
+  if(!base.rankBy&&typeof p.rankBy==='string'&&fields.has(p.rankBy))plan.rankBy=p.rankBy;
+  if(!base.rankBy&&(p.rankDirection==='asc'||p.rankDirection==='desc'))plan.rankDirection=p.rankDirection;
+  if(base.limit===null&&typeof p.limit==='number'&&Number.isInteger(p.limit)&&p.limit>0&&p.limit<=1000)plan.limit=p.limit;
   // Time, scenario, scope, identity, permissions and attachments are resolved by CMeng, never copied from model output.
   return plan;
 }

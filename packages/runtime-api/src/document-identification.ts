@@ -7,7 +7,6 @@ import { join } from "node:path";
 
 import ExcelJS from "exceljs";
 import JSZip from "jszip";
-import { PDFParse } from "pdf-parse";
 
 import {
   TesseractOcrProvider,
@@ -360,7 +359,7 @@ async function extractPdfSample(
   diagnostics: string[];
 }> {
   const parser =
-    new PDFParse({
+    new (await import('pdf-parse')).PDFParse({
       data:
         Buffer.from(bytes) as any,
     });

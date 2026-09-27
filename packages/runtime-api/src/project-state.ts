@@ -1,3 +1,5 @@
+import {isDeepStrictEqual} from 'node:util';
+import {phaseProgrammeState} from './phase-programmes';
 import {hasFinancialSecurityContent} from './security-document-content';
 import {scenarioName,migrateScheduleAuthority,explicitScheduleDecision,isScenarioRevision} from './schedule-authority';
 import {parentPort} from 'node:worker_threads';
@@ -31,7 +33,6 @@ import {
   extname,
   join,
 } from "node:path";
-import { PDFParse } from "pdf-parse";
 
 import {
   ingestBoq,
@@ -1291,6 +1292,7 @@ export class RuntimeProjectStore {
 
     try {
       const parsed = readSnapshotJson<RuntimeStateSnapshot>(this.stateFile);
+      let restoredStateChanged=false;
 
       if (
         parsed.schemaVersion !== 1 ||
@@ -1504,20 +1506,23 @@ export class RuntimeProjectStore {
           requiresV6RoleAndBasisMigration ||
           requiresV7ProductivityGovernance
         ) {
+          restoredStateChanged=true;
           state.sourceIntegrationVersion =
             "canonical-source-v7";
           state.version += 1;
           this.staleFinalizedBoardPublications(state);
           state.lastRerunReceipt = null;
         }
+        const priorDelay=state.controls.delayClaims,priorTime=state.controls.contractTimeBasis,priorHistory=state.delayEventHistory.length;
         synchronizeCanonicalTimeClaims(state, true);
+        if(priorHistory!==state.delayEventHistory.length||!isDeepStrictEqual(priorDelay,state.controls.delayClaims)||!isDeepStrictEqual(priorTime,state.controls.contractTimeBasis))restoredStateChanged=true;
         this.projects.set(
           state.projectId,
           state,
         );
       for(const restored of this.projects.values()) if(!this.auditWatermarks.has(restored.projectId)) {this.auditWatermarks.set(restored.projectId,{fingerprint:this.auditFingerprint(restored),version:restored.version});this.auditSourceFingerprints.set(restored.projectId,this.auditSources(restored));}
       }
-      this.persistSnapshot();
+      if(restoredStateChanged)this.persistSnapshot();
     } catch (error) {
       throw new Error(
         "CMENG_STATE_RESTORE_FAILED:" +
@@ -1875,7 +1880,7 @@ export class RuntimeProjectStore {
   }> {
     const diagnostics: string[] = [];
     const parser =
-      new PDFParse({
+      new (await import('pdf-parse')).PDFParse({
         data:
           Buffer.from(bytes) as any,
       });
@@ -2550,7 +2555,7 @@ export class RuntimeProjectStore {
         }
 
         const parser =
-          new PDFParse({
+          new (await import('pdf-parse')).PDFParse({
             data:
               Buffer.from(
                 bytes,
@@ -4083,9 +4088,7 @@ export class RuntimeProjectStore {
                         item.documentId,
                     );
                 return (
-                  evidence
-                    ?.basisState !==
-                  "superseded"
+                  evidence?.basisState === "additive" && (!evidence.relationshipDecision?.targetDocumentId || evidence.relationshipDecision.targetDocumentId === base.documentId)
                 );
               },
             )
@@ -4121,7 +4124,7 @@ export class RuntimeProjectStore {
         storedPaths
     ) {
       if (
-        !state.evidenceDocuments.some(
+        ![...state.evidenceDocuments,...(state.phaseProgrammes??[]).flatMap(p=>p.evidenceDocuments)].some(
           (item) =>
             item.storedPath ===
             storedPath,
@@ -4190,6 +4193,8 @@ export class RuntimeProjectStore {
           document.documentId,
       );
     if (index >= 0) {
+      const previous=state.evidenceDocuments[index]!;
+      if(previous.sourceHashSha256===document.sourceHashSha256&&previous.familyKey===document.familyKey){document.basisState=previous.basisState;document.supersedesDocumentIds=previous.supersedesDocumentIds;document.supersededByDocumentId=previous.supersededByDocumentId;if(previous.relationshipDecision)document.relationshipDecision=previous.relationshipDecision;if(previous.scheduleAdoption)document.scheduleAdoption=previous.scheduleAdoption;}
       state.evidenceDocuments[index] =
         document;
     } else {
@@ -5163,25 +5168,70 @@ export class RuntimeProjectStore {
     };
   }
 
-  adoptSchedule(projectId:string,revisionId:string){
-    const state=this.get(projectId);if(!state)throw new Error('PROJECT_NOT_FOUND');
+  private refreshContractFamily(state:ProjectRuntimeState){
+    const activeId=state.activeEvidenceBasis['contract:base']?.activeDocumentId;
+    const base=state.contractDocuments.find(d=>d.documentId===activeId);
+    if(!base)return;
+    const amendments=state.contractDocuments.filter(d=>d.role==='amendment'&&state.evidenceDocuments.some(e=>e.documentId===d.documentId&&e.basisState==='additive'&&(!e.relationshipDecision?.targetDocumentId||e.relationshipDecision.targetDocumentId===base.documentId))).map(d=>d.result);
+    state.contract=base.result;state.contractFamily=linkContractFamily(base.result,amendments);promoteContractTimeBasis(state);
+  }
+
+  reviewEvidenceRelationship(projectId:string,input:{documentId:string;sourceHash:string;expectedVersion:number;kind:'new_record'|'replacement'|'amendment';targetDocumentId?:string|null;note:string}){
+    const state=this.get(projectId);if(!state)throw new Error('PROJECT_NOT_FOUND');if(state.version!==input.expectedVersion)throw new Error('PROJECT_VERSION_CONFLICT');
+    const document=state.evidenceDocuments.find(d=>d.documentId===input.documentId&&d.sourceHashSha256===input.sourceHash);if(!document)throw new Error('DOCUMENT_REVISION_CHANGED');
+    if(document.category==='schedule')throw new Error('USE_PROGRAMME_ADOPTION_WORKFLOW');
+    if(!['new_record','replacement','amendment'].includes(input.kind)||typeof input.note!=='string'||!input.note.trim())throw new Error('DOCUMENT_RELATIONSHIP_AND_NOTE_REQUIRED');
+    const target=input.targetDocumentId?state.evidenceDocuments.find(d=>d.documentId===input.targetDocumentId):null;
+    if(input.kind!=='new_record'&&(!target||target.documentId===document.documentId||!['active','additive'].includes(target.basisState)))throw new Error('CURRENT_TARGET_DOCUMENT_REQUIRED');
+    if(input.kind==='replacement'&&target!.familyKey!==document.familyKey)throw new Error('REPLACEMENT_MUST_MATCH_DOCUMENT_FAMILY');
+    if(input.kind==='amendment'&&!(document.documentType==='contract_amendment'&&target!.familyKey==='contract:base'))throw new Error('AMENDMENT_REQUIRES_CLASSIFIED_CONTRACT_AMENDMENT_AND_BASE');
+    if(input.kind==='new_record'&&state.evidenceDocuments.some(d=>d.documentId!==document.documentId&&d.familyKey===document.familyKey&&d.logicalDocumentKey===document.logicalDocumentKey&&['active','additive'].includes(d.basisState)))throw new Error('DUPLICATE_DOCUMENT_ID_REQUIRES_REPLACEMENT');
+    document.relationshipDecision={kind:input.kind,targetDocumentId:target?.documentId??null,targetSourceHash:target?.sourceHashSha256??null,sourceHash:document.sourceHashSha256,note:input.note.trim(),recordedAt:new Date().toISOString()};
+    document.lineage={...document.lineage,predecessorDocumentIds:target?[target.documentId]:[],replacesEntireBasis:input.kind==='replacement',appliesAsDelta:input.kind==='amendment',inferred:false,needsReview:false,confidence:1};
+    const effect=applyEvidenceBasis(state,document,input.kind==='replacement'?'replace_current_basis':'add_update');
+    if(document.documentType==='boq'&&document.basisState==='active'){const boq=state.boqRevisions.find(b=>b.ingestionId===document.linkedArtifactId);if(boq){state.boq=boq;state.quantities=quantityModelFromBoq(boq,this.latestSchedule(projectId)?.revision.revisionId??'',state.quantities);}}
+    this.refreshContractFamily(state);rebuildReadinessEvidence(state);rebuildDerivedControls(state);this.touchEvidence(state);return effect;
+  }
+
+  reviewSchedulePurpose(projectId:string,revisionId:string,input:{expectedVersion:number;sourceHash:string;role:string;approvalReference?:string},phaseId?:string){
+    const parent=this.get(projectId);if(!parent)throw new Error('PROJECT_NOT_FOUND');
+    if(parent.version!==input.expectedVersion)throw new Error('PROJECT_VERSION_CONFLICT');
+    const state=phaseId?phaseProgrammeState(parent,phaseId):parent,revision=state.schedules.find(s=>s.revision.revisionId===revisionId),document=state.evidenceDocuments.find(d=>d.linkedArtifactId===revisionId&&d.category==='schedule');
+    if(!revision||!document||revision.sourceHashSha256!==input.sourceHash||document.sourceHashSha256!==input.sourceHash)throw new Error('DOCUMENT_REVISION_CHANGED');
+    if(!['baseline','update','revised_baseline','recovery','scenario'].includes(input.role))throw new Error('PROGRAMME_PURPOSE_REQUIRED');
+    if(document.scheduleAdoption||['active','superseded'].includes(document.basisState))throw new Error('ADOPTED_PROGRAMME_PURPOSE_IS_IMMUTABLE');
+    const role=scheduleRole(input.role),approval=typeof input.approvalReference==='string'?input.approvalReference.trim():'';
+    if(['baseline','revised_baseline'].includes(role)&&!approval)throw new Error('BASELINE_APPROVAL_REFERENCE_REQUIRED');
+    revision.role=role;revision.roleConfirmed=true;revision.approvalReference=approval;
+    document.scheduleRole=role;document.scheduleRoleConfirmed=true;document.scheduleApprovalReference=approval;document.documentType='schedule_'+role;
+    Object.assign(document,evidenceFamily({category:'schedule',documentType:document.documentType,scheduleRole:role,textSample:'',sourceFilename:document.sourceFilename}));
+    document.uploadIntent='add_update';document.basisState=['recovery','scenario'].includes(role)?'scenario':'candidate';
+    this.touchEvidence(parent);return {projectId,revisionId,role,basisState:document.basisState};
+  }
+
+  adoptSchedule(projectId:string,revisionId:string,phaseId?:string){
+    const parent=this.get(projectId);const state=parent&&phaseId?phaseProgrammeState(parent,phaseId):parent;if(!state)throw new Error('PROJECT_NOT_FOUND');
     const revision=state.schedules.find(s=>s.revision.revisionId===revisionId);
     const document=state.evidenceDocuments.find(d=>d.linkedArtifactId===revisionId&&d.category==='schedule');
     if(!revision||!document)throw new Error('SCHEDULE_DOCUMENT_NOT_FOUND');
     if(revision.sourceHashSha256!==document.sourceHashSha256)throw new Error('SCHEDULE_SOURCE_HASH_MISMATCH');
     if(isScenarioRevision(revision))throw new Error('DRAFT_OR_SCENARIO_CANNOT_BECOME_CURRENT');
+    if(revision.roleConfirmed&&['baseline','revised_baseline'].includes(revision.role)&&!revision.approvalReference?.trim())throw new Error('BASELINE_APPROVAL_REFERENCE_REQUIRED');
     if(!revision.revision.model.dataDateIso)throw new Error('SCHEDULE_DATA_DATE_REQUIRED');
     if(revision.role==='other'){revision.role='update';document.scheduleRole='update';document.documentType='schedule_update';}
     if(!['baseline','update','revised_baseline'].includes(revision.role))throw new Error('SCHEDULE_ROLE_REQUIRES_REVIEW');
     explicitScheduleDecision(document,new Date().toISOString());
     const effect=applyEvidenceBasis(state,document,'replace_current_basis');
     if(effect.basisState!=='active')throw new Error('SCHEDULE_ADOPTION_NOT_ESTABLISHED');
-    this.touchEvidence(state);return effect;
+    this.touchEvidence(parent!);return effect;
   }
 
   async ingestSchedule(
     input: {
       projectId: string;
+      phaseId?: string;
+      roleConfirmed?: boolean;
+      approvalReference?: string;
       bytes: Uint8Array;
       mediaType: string;
       sourceFilename?: string | null;
@@ -5199,10 +5249,9 @@ export class RuntimeProjectStore {
         EvidenceUploadIntent;
     },
   ): Promise<ScheduleUploadSummary> {
-    const state =
-      this.getOrCreate(
-        input.projectId,
-      );
+    if(input.roleConfirmed&&['baseline','revised_baseline'].includes(String(input.role))&&input.uploadIntent==='replace_current_basis'&&!input.approvalReference?.trim())throw new Error('BASELINE_APPROVAL_REFERENCE_REQUIRED');
+    const parent=this.getOrCreate(input.projectId);
+    const state=input.phaseId?phaseProgrammeState(parent,input.phaseId,true):parent;
     const hash =
       hashBytes(input.bytes);
     const identification =
@@ -5260,7 +5309,10 @@ export class RuntimeProjectStore {
           hash,
       );
     if (existing) {
-      if(uploadIntent==='replace_current_basis'&&!isScenarioRevision(existing))this.adoptSchedule(state.projectId,existing.revision.revisionId);
+      const source=state.evidenceDocuments.find(d=>d.linkedArtifactId===existing.revision.revisionId&&d.category==='schedule');
+      if(input.roleConfirmed&&(!existing.roleConfirmed||scheduleRole(input.role)!==existing.role||input.approvalReference?.trim()!==existing.approvalReference)&&source&&!source.scheduleAdoption&&!['active','superseded'].includes(source.basisState))this.reviewSchedulePurpose(state.projectId,existing.revision.revisionId,{expectedVersion:parent.version,sourceHash:hash,role:input.role??'other',...(input.approvalReference?{approvalReference:input.approvalReference}:{})},input.phaseId);
+      else if(input.roleConfirmed&&scheduleRole(input.role)!==existing.role)throw new Error('ADOPTED_PROGRAMME_PURPOSE_IS_IMMUTABLE');
+      if(uploadIntent==='replace_current_basis'&&!isScenarioRevision(existing))this.adoptSchedule(state.projectId,existing.revision.revisionId,input.phaseId);
       return summary(
         existing,
         state.resourcesByRevision,
@@ -5387,8 +5439,10 @@ export class RuntimeProjectStore {
       sourceHashSha256: hash,
       uploadedAt:
         input.uploadedAt,
+      roleConfirmed:input.roleConfirmed??false,
+      ...(input.approvalReference?.trim()?{approvalReference:input.approvalReference.trim()}:{}),
       role:
-        (scenarioName(input.sourceRelativePath??input.sourceFilename??input.label??'')&&input.role!=='recovery' ? 'scenario' : scheduleRole(input.role)==='other'&&uploadIntent==='replace_current_basis'?'update':scheduleRole(input.role)),
+        (!input.roleConfirmed&&scenarioName(input.sourceRelativePath??input.sourceFilename??input.label??'')&&input.role!=='recovery' ? 'scenario' : scheduleRole(input.role)==='other'&&uploadIntent==='replace_current_basis'?'update':scheduleRole(input.role)),
     };
 
     state.schedules.push(
@@ -5449,6 +5503,8 @@ export class RuntimeProjectStore {
     const document:
       StoredEvidenceDocument = {
       documentId,
+      scheduleRoleConfirmed:input.roleConfirmed??false,
+      ...(input.approvalReference?.trim()?{scheduleApprovalReference:input.approvalReference.trim()}:{}),
       category: "schedule",
       documentType:
         stored.role === "scenario" ? "schedule_scenario" : stored.role === "baseline"
@@ -5529,7 +5585,7 @@ export class RuntimeProjectStore {
       };
     }
 
-    this.touchEvidence(state);
+    this.touchEvidence(parent);
 
     return summary(
       stored,
@@ -6057,8 +6113,8 @@ export class RuntimeProjectStore {
                   item.documentId,
               );
             return (
-              evidence?.basisState !==
-              "superseded"
+              evidence?.basisState ===
+              "additive"
             );
           },
         )
@@ -6075,6 +6131,7 @@ export class RuntimeProjectStore {
       state,
     );
 
+    this.refreshContractFamily(state);
     document.diagnostics = [
       ...document.diagnostics,
       ...(

@@ -30,6 +30,7 @@ export interface Column {
 export interface AnalysisTable {
   id: string; title: string; authorityId: string; columns: Column[]; rows: Record<string, Cell>[];
   population: number; excluded: number; state: EvidenceState; basis: string; traceId: string;
+  selection?: {matching: number; ranked: boolean; requested: number | null; rankBy: string | null; direction: 'asc' | 'desc'};
 }
 export interface AnalysisChart {
   id: string; title: string; type: 'bar' | 'line'; tableId: string; category: string; series: string[];
@@ -53,6 +54,9 @@ export interface AnalysisPlan {
   nextDays: number | null; deliveryBelowPercent: number | null; asOf: string | null;
   scenario: {field: string; value: number; unit: string; target: string | null} | null;
   attachmentIds: string[];
+  countRows?: boolean;
+  rankings?: {authorityId: string; field: string; direction: 'asc' | 'desc'; limit: number}[];
+  authorityFilters?: Record<string,Filter[]>;
 }
 export interface Presentation {
   title: string; audience: 'project' | 'planner' | 'commercial' | 'director' | 'executive';
@@ -69,6 +73,25 @@ export interface AnalysisResult {
   sections: AuthorityResult[]; narrative: NarrativeBlock[]; unresolved: string[];
   referenceFiles: {id: string; filename: string; hash: string; state: 'reference_only'; reading: string}[];
   snapshotHash: string; factsHash: string; providerStatus: 'not_configured' | 'not_permitted' | 'available' | 'failed' | 'not_needed';
+  route?: RequestRoute;
+  coverage?: CoverageManifest;
+  telemetry?: AskTelemetry;
+}
+export type RequestRoute = 'social' | 'deterministic_fact' | 'local_data' | 'local_visual_export' | 'ai_explanation' | 'cross_domain_diagnostic' | 'complex_report' | 'document_analysis' | 'scenario' | 'historical' | 'unsupported_enterprise';
+export interface EvidenceCoverage {
+  id: string; authorityId: string; sourcePopulation: number; applicablePopulation: number; relevantPopulation: number;
+  directlyRepresented: number; aggregated: number; supportingOmitted: number; mandatoryPopulation: number;
+  mandatoryRepresented: number; omissionBasis: string; state: 'complete' | 'partial' | 'unavailable';
+}
+export interface CoverageManifest {
+  version: 1; projectId: string; projectVersion: number; dataDate: string | null;
+  entries: EvidenceCoverage[]; materialComplete: boolean; sourceComplete: boolean;
+  evidenceHash: string; representedToModel: boolean;
+}
+export interface AskTelemetry {
+  route: RequestRoute; aiInvoked: boolean; authorities: string[]; retrievalRounds: number; retrievedRecords: number;
+  calls: {stage: string; estimatedInputTokens: number; inputTokens: number | null; outputTokens: number | null}[];
+  providerFailures: string[]; validationFailures: string[]; criticUsed: boolean;
 }
 export interface AuthorityDescriptor {
   id: string; title: string; description: string; module: string; domains: Domain[];

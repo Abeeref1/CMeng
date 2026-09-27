@@ -73,3 +73,13 @@ test('new durability boundary: a directory sync failure after replacement report
   const reopened=new RuntimeProjectStore({dataDir:root});assert.equal(reopened.get('SAVE')!.schedules.length,1);assert.equal(reopened.get('SAVE')!.schedules[0]!.revision.revisionId,retry.revisionId);assert.equal(reopened.get('UNRELATED')!.schedules.length,0);
  }finally{t.mock.restoreAll();fs.rmSync(root,{recursive:true,force:true});}
 });
+
+
+test('restoring an unchanged current snapshot does not rewrite it; real migrations remain durable',async t=>{
+ const root=fs.mkdtempSync(join(tmpdir(),'cmeng-restore-read-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+ const store=new RuntimeProjectStore({dataDir:root});await store.ingestSchedule({...input,uploadIntent:'replace_current_basis'});
+ // First restore may persist an existing schema migration. The stable restore must be read-only.
+ const migrated=new RuntimeProjectStore({dataDir:root}),path=migrated.persistenceStatus().stateFile,before=fs.statSync(path),saved=fs.readFileSync(path);
+ const fault=t.mock.method(fs,'writeSync',()=>{throw new Error('Unexpected snapshot write on read');});
+ const again=new RuntimeProjectStore({dataDir:root});assert.equal(again.get('SAVE')!.schedules.length,1);assert.deepEqual(fs.readFileSync(path),saved);assert.equal(fs.statSync(path).mtimeMs,before.mtimeMs);fault.mock.restore();
+});
