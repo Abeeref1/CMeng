@@ -15,6 +15,7 @@ export function askScheduleActivities(scope:ProjectScope){
   const rows:ActivityAnalyticsRow[]=(data?.rows??[]).filter(execution);
   const basis='Activities in the adopted programme, as of '+(scope.dataDate??'an unconfirmed Data Date')+'. A missed start is a planned start before the Data Date with work not started. An overdue finish is an unfinished activity whose forecast finish has passed. Baseline slippage is shown only when a baseline comparison exists. Summary and level-of-effort rows are excluded.';
   const b=new AuthorityBuilder('activities','Programme activities','activity-analytics',scope,evidenceState(source.status),rows.length?'Activity dates, progress and float from this project’s programme.':'No adopted programme activities are available.');
+  if(rows.length&&!rows.some(r=>r.baselineFinishIso!==null))b.result.explanation+=' No baseline has been confirmed, so delay against the original planned dates cannot be measured.';
   b.table('rows','Activities',rows,basis,columns,r=>({...r,plannedStartIso:r.currentStartIso??r.forecastStartIso,plannedFinishIso:r.forecastFinishIso??r.currentFinishIso,critical:r.criticality==='unknown'?null:r.criticality==='critical',predecessors:r.predecessorIds.join('; '),successors:r.successorIds.join('; ')}));
   const table=b.result.tables[0]!;table.population=data?.rows?.length??0;table.excluded=table.population-rows.length;
   const state=runtimeProjects.get(scope.projectId),programme=state?projectControlSchedule(state):null;
@@ -40,6 +41,10 @@ export function askCriticalPath(scope:ProjectScope){
   const missing=population.filter(r=>r.critical===null).length;
   b.metric('known-count',calculated?'Calculated critical activities':'Known programme critical activities',source.state==='unavailable'?null:rows.length,'activities',basis);
   if(!calculated&&missing)b.finding('missing-float','Some activities have no float',missing+' activities have no readable source float. The known list is shown; the full critical total is unconfirmed.','Review those activities in Programme Review.');
+  if(!calculated&&forecast?.complete){
+    const reasons=(forecast.assumptions??[]).flatMap((a:string)=>a.startsWith('SOURCE_CONSTRAINTS_RETAINED_NOT_APPLIED')?['Some activity date restrictions have not been applied in the calendar calculation.']:a==='UNKNOWN_ACTIVITY_STATUS_TREATED_AS_INCOMPLETE'?['Some activity statuses need checking.']:a==='SOURCE_DURATION_ELAPSED_DAY_PATTERN_REQUIRES_CALENDAR_RECONCILIATION'?['Some recorded durations differ from the working-calendar calculation.']:[]);
+    b.finding('calculation-review','Why the calculated path still needs review',reasons.join(' ')||'The calculation depends on assumptions that need review.','Open Completion Forecast to review the stated assumptions.');
+  }
   for(const trace of source.traces)b.result.traces.push(trace);
   return b.result;
 }

@@ -26,3 +26,11 @@ Oracle P6 documents hours per time period as conversion factors for duration/wor
 ## Limits
 
 No contract completion date, baseline, actual progress, missing float or causal claim is invented. A readable calendar cannot repair missing activity links, unsupported constraints, contradictory actual dates or other source defects. Known matches remain visible while incomplete totals stay qualified. The release does not claim that every possible natural-language phrasing or every client source file has been tested.
+
+## Live check and zero-match follow-up
+
+Release cfbd043 preserved all 19 projects and 509 documents. DMINFRA-101 retained its adopted revision/hash and 3,992 source activities; all 3,991 execution activities became calendar-calculable. The recalculation remains a scenario because source constraints, unknown status and source-duration/calendar reconciliation need review. Source classifications expose 90 known critical activities and 39 known near-critical activities. All 90 critical records were reachable through browser paging; WBS retained 731 direct rows.
+
+Its current submitted dates produce zero confirmed missed starts/overdue finishes, five status/date exclusions and no confirmed baseline comparison. A follow-up adds a separate negative-float table to broad delayed-activity questions and explicitly explains those limits. This prevents an empty overdue list from being read as no schedule pressure. A new independent scenario tests future current dates plus negative float and an unknown-status row, including a full-list follow-up and zero model calls. The critical-path answer also explains the actual calculation assumptions in plain language.
+
+Independent CI for PR #166 passed the unchanged five-second limit: cold dashboard 3.11 seconds and 20,000-activity upload-to-ready 2.31 seconds. The local workspace also exceeded the limit on unchanged production code; that local timing was not presented as a passed gate.
