@@ -4213,6 +4213,7 @@ async function loadEvidence(){
 }
 function positionText(p){
   if(p.positionState==="updating")return["review","Updating project position"];
+  if(p.positionState==="checking")return["review","Checking current position"];
   if(p.positionState==="current")return["current","Current position"];
   if(p.positionState==="needs_review")return["review","Review required"];
   return["missing","Needs project records"];
@@ -4260,13 +4261,14 @@ function bindPortfolioEmptyActions(){
 function renderPortfolio(){
   const data=portfolioData||{projects:[],projectCount:0};
   const projects=data.projects||[];
-  const current=projects.some(p=>p.positionState==="updating")?"Unresolved":projects.filter(p=>p.positionState==="current").length;
-  const attention=projects.some(p=>p.positionState==="updating")?"Unresolved":projects.filter(p=>p.positionState!=="current"||(p.managementActionCount||0)>0).length;
+  const current=projects.filter(p=>p.positionState==="current").length;
+  const checking=projects.filter(p=>p.positionState==="checking"||p.positionState==="updating").length;
+  const attention=projects.filter(p=>p.positionState!=="current"||(p.managementActionCount||0)>0).length;
   const docs=projects.some(p=>p.evidenceDocumentCount===null||p.evidenceDocumentCount===undefined)?"Unresolved":projects.reduce((sum,p)=>sum+p.evidenceDocumentCount,0);
 
   el("portfolioStats").innerHTML=[
     ["▣",data.projectCount||0,"Live projects","User projects in this portfolio"],
-    ["▥",current,"Current positions","Position updated and certified"],
+    ["▥",current,"Current positions",checking?checking+" project"+(checking===1?"":"s")+" being checked or updated":"Position updated and certified"],
     ["△",attention,"Need attention","Projects requiring management review"],
     ["▤",docs,"Project documents","Documents registered across live projects"]
   ].map(x=>'<div class="summary-metric"><span class="summary-icon">'+escapeHtml(x[0])+'</span><b>'+escapeHtml(x[1])+'</b><span>'+escapeHtml(x[2])+'</span><small>'+escapeHtml(x[3])+'</small></div>').join("");
