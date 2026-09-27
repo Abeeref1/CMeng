@@ -20,3 +20,11 @@ Local `npm run verify`: **731 tests passed, none failed or skipped**. Added test
 The existing cold release gate passed: a fresh 20,000-activity HTTP upload reached its calculated dashboard in **2,676 ms**, against the five-second limit. The existing 51,700-source-row Delivery fixture calculated its first projection in **333 ms** and retained the same complete record and module fingerprints as the preceding release.
 
 Before deployment, read-only checks recorded source/adoption fingerprints and canonical results for **13 existing projects and all 286 Delivery pages**, with no failures. The pull request records the CI result, deployed release, review upload checks, and the matching post-deployment comparison. No real project source or programme decision is changed by this release verification.
+
+## Upload size correction — 27 September 2026
+
+Project file uploads now allow **200 MB per file** (209,715,200 bytes), including programme, phase-programme, BOQ and general evidence uploads. `CMENG_MAX_UPLOAD_BYTES` remains configurable for each installation; invalid non-positive or non-integer values are rejected. The health response publishes the effective limit as `uploadLimits.maxFileBytes`.
+
+Previously the shared request reader rejected files after 50 MB and displayed only `UPLOAD_TOO_LARGE`. A declared oversized upload is now rejected before buffering its contents. Both declared and chunked requests retain a bounded byte check and return HTTP 413 with the limit and a plain-language explanation. Chunked rejection preserves the response socket so the browser receives that explanation. The stable error code is retained.
+
+Verification covers the exact 200 MB boundary, the first byte beyond it, configured limits, readable HTTP errors and a successful request after rejection. An isolated HTTP upload of the supplied 58,678,830-byte XER completed in 7.3 seconds, preserving all 25,630 activities, 97,230 relationships and 87,625 resource assignments. The revision survived a restart unchanged. This is an upload-and-retention check; the file's programme logic has not been certified. No production project was changed or programme adopted by this test.

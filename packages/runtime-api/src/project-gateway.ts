@@ -1,4 +1,5 @@
 import {retainedAuditSessionKey} from './audit-session-key';
+import {configuredUploadLimit} from './request-body';
 import {createServer,request,type IncomingMessage,type ServerResponse} from 'node:http';
 import {Worker} from 'node:worker_threads';
 import {join} from 'node:path';
@@ -169,7 +170,7 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
     if(url.pathname.startsWith('/internal/')){send(res,404,{error:'not_found'});return;}
     if(url.pathname.startsWith('/external-ai')||url.pathname.startsWith('/.well-known/oauth-')||url.pathname==='/settings/ask-ai'){await externalController().handle(req,res);return;}
     if(/^Bearer\s+cmeng_(ext|refresh)_/i.test(String(req.headers.authorization??''))){send(res,403,{error:'external_route_required',message:'External AI credentials may only call the external read-only gateway.'});return;}
-    if(req.method==='GET'&&url.pathname==='/health'){send(res,200,{status:'ok',service:'cmeng',release:release(),scheduleModules:scheduleModuleSummary(),commercialModules:commercialModuleSummary(),boqIngestion:{persistence:process.env.RAILWAY_VOLUME_MOUNT_PATH?'railway_volume':'runtime_local',authority:'candidate_only'},projectWorkers:lanes.size});return;}
+    if(req.method==='GET'&&url.pathname==='/health'){send(res,200,{status:'ok',service:'cmeng',release:release(),scheduleModules:scheduleModuleSummary(),commercialModules:commercialModuleSummary(),boqIngestion:{persistence:process.env.RAILWAY_VOLUME_MOUNT_PATH?'railway_volume':'runtime_local',authority:'candidate_only'},uploadLimits:{maxFileBytes:configuredUploadLimit()},projectWorkers:lanes.size});return;}
     if(req.method==='GET'&&url.pathname==='/'){sendHttpBody(res,200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store'},html);return;}
     if(req.method==='GET'&&url.pathname==='/api/portfolio'){
       const visible=[...catalog.values()].filter(e=>!e.metadata?.demo&&!e.projectId.toUpperCase().startsWith('PERSISTENCE-SMOKE-'));
