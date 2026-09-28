@@ -3923,6 +3923,11 @@ function renderOperationalReporting(report){
     ["Risks open at DD",report.counts.openRiskCount??"Unresolved","dated risk lifecycle or status snapshot"]
   ])+'<div class="table-wrap"><table><thead><tr><th>Register</th><th>Programme records</th><th>Known by DD</th><th>Future</th><th>Date missing</th><th>Status unresolved at DD</th><th>Evidence state</th></tr></thead><tbody>'+rows+'</tbody></table></div>'+(report.risk.undatedRecordCount?'<p>Undated risk snapshot, excluded from current totals: '+escapeHtml(Object.entries(riskStates).map(([key,n])=>key+' '+fmt(n)).join(' · '))+'. A due date does not establish when a risk was raised or its historical status.</p>':'')+'</div></section>';
 }
+function renderManagementAccountability(delivery){
+  const rows=delivery?.accountabilityRows||[];
+  if(!rows.length)return '<div class="notice info">No cross-domain owner concentration is established from the current linked records.</div>';
+  return '<div class="table-wrap"><table><thead><tr><th>Responsible party</th><th>Open</th><th>Overdue</th><th>Activities affected</th><th>Procurement</th><th>Interfaces</th><th>Design / RFI</th><th>Submittals</th><th>Quality</th><th>Permits</th><th>Snags</th></tr></thead><tbody>'+rows.map(r=>'<tr><td><b>'+escapeHtml(r.owner)+'</b></td><td>'+fmt(r.openItemCount)+'</td><td>'+fmt(r.overdueItemCount)+'</td><td>'+fmt(r.affectedActivityCount)+'</td><td>'+fmt(r.procurementCount)+'</td><td>'+fmt(r.interfaceCount)+'</td><td>'+fmt(r.rfiDesignCount)+'</td><td>'+fmt(r.submittalCount)+'</td><td>'+fmt(r.qualityCount)+'</td><td>'+fmt(r.permitCount)+'</td><td>'+fmt(r.snagCount)+'</td></tr>').join('')+'</tbody></table></div><p class="muted">Counts are grouped from the same current Delivery records. A record is counted under its responsible party once; open and overdue are not separate source records.</p>';
+}
 function renderManagementControlVisual(key,data){
   if(key==="source-quality")return renderSourceQuality(data);
   if(key==="master-dashboard"){
@@ -3982,6 +3987,7 @@ function renderManagementControlVisual(key,data){
       experienceSourceContext(key,data)+
       ((data.sourceInterpretation?.actions||[]).length?"":managementPanel("Action Suggestions — Awaiting Assignment","Suggested follow-up only. Assignment, due dates and closure tracking are not yet established in CMeng.",decisionBody,true))+
       managementPanel("Management Priorities","Current blockers and escalations from confirmed specialist positions, ordered before supporting KPIs.",renderManagementAlerts(data.alerts||[]))+
+      managementPanel("Who is holding the Project","Open and overdue obligations grouped across procurement, interfaces, design/RFI, submittals, quality, permits and snags.",renderManagementAccountability(data.delivery))+
       experienceDisclosure("NCR, RFI and risk records",renderOperationalReporting(data.operationalReporting||ctrl?.reporting),"Quality, RFI and risk records")+
       managementPanel("Current Programme Position","Supporting completion and programme facts used to understand the actions above.",renderManagementMetricGrid(data.programmePosition||[]))+
       managementPanel("Information to confirm","Confirm missing information, outdated records and conflicting values.",renderManagementEvidenceGaps(data.evidenceGaps||[]))+
