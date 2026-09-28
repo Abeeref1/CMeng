@@ -8,7 +8,6 @@ export const externalAuthorityMetadata:AuthorityDescriptor[]=[
     "module": "pmo-analysis",
     "domains": [
       "schedule",
-      "boq",
       "delivery",
       "commercial",
       "claims",
