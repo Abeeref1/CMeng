@@ -232,7 +232,8 @@ function commercialClaimsNotices(
       assessment.timeliness
     ] = (noticeTimelinessCounts[assessment.timeliness] ?? 0) + 1;
   }
-  if(!lifecycle)for(const key of Object.keys(noticeTimelinessCounts) as Array<keyof typeof noticeTimelinessCounts>)noticeTimelinessCounts[key]=null;
+  const lifecycleQuarantined = lifecycle?.integrity?.state === "quarantined";
+  if(!lifecycle || lifecycleQuarantined)for(const key of Object.keys(noticeTimelinessCounts) as Array<keyof typeof noticeTimelinessCounts>)noticeTimelinessCounts[key]=null;
 
   const eventTitles =
     new Map(
@@ -277,11 +278,17 @@ function commercialClaimsNotices(
     );
   }
 
+  if(lifecycleQuarantined){
+    diagnostics.push("CLAIM_POPULATION_QUARANTINED_SOURCE_RETAINED_COUNTS_WITHHELD");
+  }
+
   return {
     state:
-      hasLifecycle
-        ? "established"
-        : stateFor(false, sources.claims),
+      lifecycleQuarantined
+        ? "missing_information"
+        : hasLifecycle
+          ? "established"
+          : stateFor(false, sources.claims),
     asOfNoticeCount:(lifecycle?.notices??[]).filter(n=>n.kind!=='determination'&&reportingScope(n.actualIssuedAt,input.sourceLedger?.dataDateIso??lifecycle?.dataDateIso)==='as_of').length,
     sourceNoticeCount:(sourceLifecycle?.notices??[]).filter(n=>n.kind!=='determination').length,
     futureNoticeCount:(sourceLifecycle?.notices??[]).filter(n=>n.kind!=='determination'&&reportingScope(n.actualIssuedAt,input.sourceLedger?.dataDateIso??lifecycle?.dataDateIso)==='future').length,
