@@ -222,6 +222,7 @@ ${projectDiagnosisStyles}
 ${askAiStyles}
 ${systemReviewStyles}
 ${projectActionsStyles}
+.planning-missing-kpis{margin:10px 0 16px;border:1px solid #e3e9ef;border-radius:9px;background:#fbfcfe}.planning-missing-kpis>summary{padding:10px 12px;font-size:11.5px;color:#5c6e80}.planning-missing-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;padding:10px 12px}.planning-missing-grid div{padding:8px 9px;border:1px solid #e7ecf1;border-radius:7px;background:#fff}.planning-missing-grid b{display:block;font-size:11px}.planning-missing-grid span{display:block;margin-top:3px;font-size:10.5px;color:#6b7a8a;line-height:1.4}
 .planning-kpi.unavailable strong{font-size:16px;font-weight:600;line-height:1.45}.planning-kpi.unavailable{background:#f8fafc}
 </style>
 </head>
@@ -1535,21 +1536,23 @@ function planningStateLabel(value){
   if(value===null||value===undefined)return 'Not established';
   const sharedLabels=${JSON.stringify(STATUS_LABELS)};if(sharedLabels[value])return sharedLabels[value];
   const labels={
-    ready:"Ready",partial:"Review needed",blocked:"Blocked",
+    ready:"Ready",partial:"Needs attention",blocked:"More information needed",
     completed:"Completed",in_progress:"In progress",not_started:"Not started",unknown:"Unknown",
     critical:"Critical",near_critical:"Near-critical",noncritical:"Other",
     available:"Available",missing:"Not provided",conditional:"Conditional",
-    true:"Yes",false:"No",established:"Established",not_established:"Unresolved",
-    deterministic:"Calculated",scenario:"Scenario",unresolved:"Needs review"
+    true:"Yes",false:"No",established:"Available",not_established:"Not available",
+    deterministic:"Calculated",scenario:"Scenario",unresolved:"More information needed"
   };
   const key=String(value);
   return labels[key]||humanizeKey(key);
 }
 function planningKpis(items){
-  return '<div class="planning-kpi-grid">'+items.map(item=>{
-    const label=item[0],value=item[1],sub=item[2]||"",tone=item[3]||"";
-    return '<div class="planning-kpi '+escapeHtml(tone)+(value==null||/^(Not |—|Suppressed|Missing|Mapping not)/i.test(String(value))?' unavailable':'')+'"><span>'+escapeHtml(label)+'</span><strong>'+escapeHtml(value===null||value===undefined?"Unresolved":fmt(value))+'</strong>'+(sub?'<small>'+escapeHtml(sub)+'</small>':'')+'</div>';
-  }).join("")+'</div>';
+  const unavailable=item=>{const value=item[1];return value===null||value===undefined||/^(Not |—|Suppressed|Missing|Mapping not|Unresolved)/i.test(String(value));};
+  const available=items.filter(item=>!unavailable(item)),missing=items.filter(unavailable);
+  const card=item=>{const label=item[0],value=item[1],sub=item[2]||"",tone=item[3]||"";return '<div class="planning-kpi '+escapeHtml(tone)+'"><span>'+escapeHtml(label)+'</span><strong>'+escapeHtml(value===null||value===undefined?"Not available":fmt(value))+'</strong>'+(sub?'<small>'+escapeHtml(sub)+'</small>':'')+'</div>';};
+  const primary=available.length?available:missing.slice(0,4);
+  const more=available.length&&missing.length?'<details class="planning-missing-kpis"><summary>'+missing.length+' additional measure'+(missing.length===1?' needs':'s need')+' more information</summary><div class="planning-missing-grid">'+missing.map(item=>'<div><b>'+escapeHtml(item[0])+'</b><span>'+escapeHtml(item[2]||'Not available from the current Project information.')+'</span></div>').join("")+'</div></details>':'';
+  return '<div class="planning-kpi-grid">'+primary.map(card).join("")+'</div>'+more;
 }
 function planningStatusBand(items){
   const known=(items||[]).filter(item=>typeof item[1]==="number"&&Number.isFinite(item[1])&&item[1]>=0);
@@ -4182,13 +4185,13 @@ function renderModuleResultBody(result){
   if(renderDelivery(result)){el('roleViewSelector').style.display='none';return;}
   el('moduleContent').oninput=null;el('moduleContent').onchange=null;el('moduleContent').onclick=null;
   if(result.key==='challenge-contract'&&result.data?.suppliedBoq?.rows?.length&&renderDeliveryChallenge(result.data,result.reason,result.status))return;
-  if(result.status==="blocked"){
-    const blockedBody='<div class="view-state-bar">'+issueBadge(result.issueAssessment)+'<strong>'+escapeHtml(moduleName)+'</strong><span>The calculation is unavailable. The classified findings identify the reason and responsible action.</span></div><div class="notice warn">'+escapeHtml(result.reason||"The required calculation is not confirmed.")+'</div><div class="scalar-grid">'+(result.dependencies||[]).map(x=>'<div class="scalar"><b>Calculation dependency</b><span>'+escapeHtml(humanizeKey(x))+'</span></div>').join("")+'</div>';
+  const hasUsefulPayload=!!result.data&&typeof result.data==="object"&&Object.keys(result.data).some(key=>!["projectionKey","schemaVersion","projectId","projectVersion","producerVersion","generatedAt"].includes(key));
+  if(result.status==="blocked"&&!hasUsefulPayload){
+    const blockedBody='<div class="view-state-bar"><strong>'+escapeHtml(moduleName)+'</strong><span>There is not enough Project information for this calculation yet.</span></div><div class="notice warn">'+escapeHtml(userFacingModuleReason(result.key,result.reason)||"More Project information is needed for this view.")+'</div>';
     el("moduleContent").innerHTML=blockedBody+renderModuleReadiness({issueAssessment:result.issueAssessment},result.reason);
     return;
   }
   const data=result.data||{};
-  if(data.registerReadIssues?.length){el('moduleContent').innerHTML='<section class="notice warn"><h4>This register could not be read</h4>'+data.registerReadIssues.map(r=>'<p>'+escapeHtml(r.filename)+': '+escapeHtml(r.message)+'</p>').join('')+'<p>The other project analyses remain available. Values dependent on this unread register are withheld.</p></section>'+renderModuleReadiness(data,result.reason);return;}
   el("directorDrawer").open=false;
   el("directorDrawer").hidden=result.key!=="pmo-analysis";
   if(result.key==="challenge-contract"&&renderDeliveryChallenge(data,result.reason,result.status))return;
