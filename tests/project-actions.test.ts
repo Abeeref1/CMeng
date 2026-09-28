@@ -29,6 +29,43 @@ test('one project action list follows upload, stale confirmation, adoption, new 
   const overview=await get('/api/projects/ACTION-A/overview');assert.equal(overview.latestDataDateIso,'2031-08-31');
   await gateway.close();gateway=await createProjectGateway(root,{maxWorkers:2});await listen();const restored=await get('/api/projects/ACTION-A/actions');assert.ok(!restored.actions.some((a:any)=>a.id===phase.id||a.id===schedule.id));assert.equal(restored.actions.filter((a:any)=>a.target.type==='schedule').length,1);
 });
+
+test('missing contractual completion becomes one inline confirmation action and persists the confirmed date',async t=>{
+  const root=mkdtempSync(join(tmpdir(),'contract-completion-action-'));let gateway=await createProjectGateway(root,{maxWorkers:1}),base='';
+  t.after(async()=>{await gateway.close();rmSync(root,{recursive:true,force:true});});
+  const listen=async()=>{await new Promise<void>(resolve=>gateway.server.listen(0,'127.0.0.1',resolve));base='http://127.0.0.1:'+(gateway.server.address() as any).port;};await listen();
+  const post=(path:string,body:any)=>fetch(base+path,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
+  const get=async(path:string)=>{const r=await fetch(base+path);assert.equal(r.status,200);return await r.json() as any;};
+  assert.equal((await post('/api/projects',{projectId:'CONTRACT-DATE-A'})).status,201);
+  const upload=await fetch(base+'/api/projects/CONTRACT-DATE-A/schedule/uploads',{method:'POST',headers:{'content-type':'text/plain','x-source-filename':'Current programme.xer','x-upload-intent':'add_update','x-schedule-role':'update','x-schedule-role-confirmed':'1'},body:xer('2031-08-31','Current programme')});
+  assert.equal(upload.status,201);
+  const first=await get('/api/projects/CONTRACT-DATE-A/actions');
+  const schedule=first.actions.find((a:any)=>a.target.type==='schedule');assert.ok(schedule);
+  assert.equal((await post('/api/projects/CONTRACT-DATE-A/actions/confirm-schedule',{actionId:schedule.id,expectedVersion:first.projectVersion})).status,200);
+  const pending=await get('/api/projects/CONTRACT-DATE-A/actions');
+  const contract=pending.actions.find((a:any)=>a.target.kind==='contract-completion');
+  assert.ok(contract);assert.equal(contract.category,'confirmation');assert.equal(contract.target.type,'inline');
+  assert.match(contract.resolution.instruction,/current programme finish|contractual completion date/i);
+  assert.match(String(contract.target.suggestedDateIso??''),/^2031-12-31/);
+  const saved=await post('/api/projects/CONTRACT-DATE-A/actions/confirm-contract-completion',{actionId:contract.id,expectedVersion:pending.projectVersion,dateIso:'2031-12-30'});
+  assert.equal(saved.status,200);const receipt=await saved.json() as any;assert.equal(receipt.contractualCompletionIso,'2031-12-30T00:00:00.000Z');
+  const after=await get('/api/projects/CONTRACT-DATE-A/actions');assert.ok(!after.actions.some((a:any)=>a.target.kind==='contract-completion'));
+  await gateway.close();gateway=await createProjectGateway(root,{maxWorkers:1});await listen();
+  const restored=await get('/api/projects/CONTRACT-DATE-A/actions');assert.ok(!restored.actions.some((a:any)=>a.target.kind==='contract-completion'));
+});
+
+test('missing contract date stays a review state and single-revision change limitation uses business wording',async()=>{
+  const {positionVerdict}=await import('../packages/runtime-api/src/position-review');
+  const verdict=positionVerdict({key:'master-dashboard',status:'ready',reason:null,dependencies:[],data:{metrics:[{key:'submitted-programme-finish',value:'2031-12-31T00:00:00.000Z'},{key:'contract-finish',value:null}]}} as any);
+  assert.equal(verdict.rag,'amber');assert.match(verdict.text,/Programme analysis remains available/);assert.match(verdict.nextAction,/Actions required/);
+
+  const {assessModuleIssues}=await import('../packages/runtime-api/src/module-issues');
+  const assessment=assessModuleIssues({key:'schedule-change-report',status:'partial',reason:'A second revision is required.',dependencies:[],engineState:'ready',evidenceState:'partial',data:{state:'insufficient_history',diagnostics:['SECOND_SCHEDULE_REVISION_REQUIRED_FOR_CHANGE_COMPARISON'],systemEvidenceContract:{state:'verified_for_checked_metrics',checks:[]}}} as any,{state:'pass',failedCheckIds:[],checkCount:0,checks:[]} as any);
+  const issue=assessment.issues.find((i:any)=>i.code==='SECOND_PROGRAMME_REVISION_NEEDED');assert.ok(issue);
+  assert.match(issue.summary,/Previous programme needed/);assert.doesNotMatch(issue.detail,/SECOND_SCHEDULE_REVISION/);
+  assert.equal(assessment.issues.filter((i:any)=>String(i.detail).includes('SECOND_SCHEDULE_REVISION_REQUIRED_FOR_CHANGE_COMPARISON')).length,0);
+});
+
 test('project action notifications ignore late responses after A to B to A and never claim zero on a failed refresh',async()=>{
   const button:any={disabled:false,innerHTML:''},notice:any={textContent:''},nav:any={textContent:''};const pending:Array<(v:any)=>void>=[];
   const ctx:any={console,owner:'A',projectRequestSeq:1,overview:{projectId:'A'},project:()=>ctx.owner,projectRequestIsCurrent:(id:string,seq:number)=>id===ctx.owner&&seq===ctx.projectRequestSeq,api:()=>new Promise(resolve=>pending.push(resolve)),fmt:String,el:(id:string)=>id==='openProjectActions'?button:id==='projectActionNotification'?notice:id==='projectActionNavCount'?nav:null};
