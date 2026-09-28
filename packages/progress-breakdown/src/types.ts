@@ -48,6 +48,7 @@ export interface ProgressBreakdownProjection {
   overallProgressCoveragePercent?: number | null;
   overallKnownWeightHours?: number;
   baselinePlanAvailable?: boolean;
+  controlledBaselineAvailable?: boolean;
 }
 
 
