@@ -420,6 +420,7 @@ export function buildProgressBreakdownProjection(
     overallScheduleProgressPercent: progressPosition.value,
     overallProgressCoveragePercent: progressPosition.coveragePercent,
     overallKnownWeightHours,
-    baselinePlanAvailable: Boolean(input.baselineModel),
+    baselinePlanAvailable: Boolean(input.baselineModel) && hierarchyRows.some(row=>typeof row.baselinePlannedPercent==="number"),
+    controlledBaselineAvailable: Boolean(input.baselineModel),
   };
 }
