@@ -38,11 +38,12 @@ export function commercialIntegrityChecks(key:string, position:CommercialControl
   }
   if(key==='commercial-claims-notices'){
     const p=position.claimsNotices;
+    const quarantined=p.diagnostics.includes('CLAIM_POPULATION_QUARANTINED_SOURCE_RETAINED_COUNTS_WITHHELD');
     if(p.evidenceRevisionId){
-     compare('notice_outcome_population',Object.values(p.noticeTimelinessCounts).reduce<number>((n,v)=>n+(v??0),0),p.noticeAssessments.length);
+     compare('notice_outcome_population',quarantined?null:Object.values(p.noticeTimelinessCounts).reduce<number>((n,v)=>n+(v??0),0),quarantined?null:p.noticeAssessments.length);
      compare('notice_missing_rules_are_not_unselected_rules',p.dimensionalEvidenceGaps.requirementMissing,p.noticeTimelinessCounts.requirement_missing);
     }
-    compare('notice_date_gap_population',p.dimensionalEvidenceGaps.noticeDateMissing,p.noticeAssessments.filter(a=>!a.noticeIssuedAt||!Number.isFinite(Date.parse(a.noticeIssuedAt))).length);
+    compare('notice_date_gap_population',p.dimensionalEvidenceGaps.noticeDateMissing,quarantined?null:p.noticeAssessments.filter(a=>!a.noticeIssuedAt||!Number.isFinite(Date.parse(a.noticeIssuedAt))).length);
   }
   if(key==='contract-particulars-bonds'){
     const p=position.contractControls?.contractObligations;
