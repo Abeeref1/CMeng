@@ -319,7 +319,16 @@ export function deliveryModule(state:ProjectRuntimeState,key:string):ModuleRunti
   :key==='construction-locations'?[...boqScope.dimensions.building,...boqScope.dimensions.tower,...boqScope.dimensions.zone,...boqScope.dimensions.floor,...boqScope.dimensions.level,...boqScope.dimensions.area].map((r,index)=>({recordId:'boq-location-'+index,dimension:'location',label:r.value,location:r.value,locationType:r.dimension,itemCount:r.itemCount,currency:r.currency,readableValue:r.readableValue,currentStatus:'scope from BOQ'}))
   :key==='delivery-risks'?boqScope.risks.map(r=>({recordId:r.riskId,reference:r.riskId,description:r.risk,category:r.category,impact:r.impact,probability:r.probability,severity:r.severity,mitigation:r.mitigation,responsibleParty:r.responsibleParty,currentStatus:'candidate management risk'}))
   :[];
- const useBoqCandidates=governedRows.length===0&&boqCandidateRows.length>0;
+ const relevantSourceRecords=key==='delivery-risks'
+  ?p.existingAuthorities.risk.sourceRecordCount
+  :['procurement-packages','long-lead','material-tracking'].includes(key)
+    ?p.records.filter(r=>r.kind==='package'&&!['superseded','scenario'].includes(r.state)).length
+    :key==='construction-discipline'
+      ?p.records.filter(r=>r.kind==='workfront'&&!['superseded','scenario'].includes(r.state)).length
+      :key==='construction-locations'
+        ?p.records.filter(r=>['workfront','location'].includes(r.kind)&&!['superseded','scenario'].includes(r.state)).length
+        :records.length;
+ const useBoqCandidates=governedRows.length===0&&boqCandidateRows.length>0&&relevantSourceRecords===0;
  const rows:any[]=useBoqCandidates?boqCandidateRows:governedRows;
  const rowIds=new Set(records.map(r=>r.recordId));const findings=useBoqCandidates?[]:p.findings.filter(f=>key==='delivery-control'||f.recordId&&rowIds.has(f.recordId));
  const hasRows=riskPage?(risk.state!=='missing'||useBoqCandidates):records.length>0||rows.length>0;const pending=records.filter(r=>['extracted_candidate','working','conflicted','stale'].includes(r.state));
