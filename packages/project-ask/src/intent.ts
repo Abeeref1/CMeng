@@ -157,9 +157,12 @@ export function resolveIntent(question:string,catalogue:AuthorityDescriptor[],pr
   if(recipe&&catalogue.some(c=>c.id==='project-diagnosis')&&plan.kind!=='historical'&&!/\bphases?\b/.test(q)){
     plan.questionRecipe=recipe;
     delete plan.diagnosisActivityFilters;
-    if(recipe==='driving_path')plan.authorities=['critical-path'];
-    else if(recipe==='delay_diagnosis')plan.authorities=['project-diagnosis','critical-path','activities','float'];
-    else plan.authorities=['project-diagnosis'];
+    const scheduleRecipeIds=new Set(['programme','activities','float','critical-path','forecast','delay','lookahead','project-diagnosis']);
+    const preserveCompoundRequirements=continuation||plan.authorities.some(id=>!scheduleRecipeIds.has(id));
+    const addRecipe=(ids:string[])=>{for(const id of ids)if(catalogue.some(c=>c.id===id)&&!plan.authorities.includes(id))plan.authorities.push(id);};
+    if(recipe==='driving_path'){if(preserveCompoundRequirements)addRecipe(['critical-path']);else plan.authorities=['critical-path'];}
+    else if(recipe==='delay_diagnosis'){if(preserveCompoundRequirements)addRecipe(['project-diagnosis','critical-path','activities','float']);else plan.authorities=['project-diagnosis','critical-path','activities','float'];}
+    else {if(preserveCompoundRequirements)addRecipe(['project-diagnosis']);else plan.authorities=['project-diagnosis'];}
     if(recipe==='delay_diagnosis'){
       plan.authorityFilters??={};
       plan.authorityFilters.activities=[{field:'schedulePressure',operator:'eq',value:true,upper:null}];
