@@ -3853,19 +3853,13 @@ function managementMetricBadges(metric){
 }
 function renderManagementMetricGrid(metrics){
   if(!Array.isArray(metrics)||!metrics.length)return'<div class="empty">No management figures are available yet.</div>';
-  return '<div class="management-metric-grid">'+metrics.map(m=>{
-    const display=managementMetricDisplay(m);
-    return '<article class="management-metric-card '+escapeHtml(m.health||"unavailable")+'">'+
+  const cards=metrics.map(m=>{const display=managementMetricDisplay(m);return '<article class="management-metric-card '+escapeHtml(m.health||"unavailable")+'" title="'+escapeHtml(m.basis||"")+'">'+
       '<div class="management-metric-head"><span>'+escapeHtml(m.key==='independent-forecast-finish'&&['provisional','scenario'].includes(m.authority)?'Programme calendar recalculation':m.label)+'</span>'+((m.health==="unavailable"&&display.kind!=="missing")?"":managementHealthBadge(m.health))+'</div>'+
       '<div class="management-metric-value '+escapeHtml(display.kind)+'">'+escapeHtml(display.text)+'</div>'+
       '<div class="management-metric-badges">'+managementMetricBadges(m)+'</div>'+
-      (m.key==='near-critical'?'<p class="management-metric-note">'+escapeHtml(m.basis)+'. '+escapeHtml(m.consequence||'')+'</p>':'')+
-      '<details class="metric-interpretation"><summary>What this figure means</summary><div class="management-metric-basis"><span>Basis</span><b>'+escapeHtml(m.basis||"Unresolved")+'</b></div>'+
-      (m.consequence?'<div class="management-metric-note"><span>Consequence</span><p>'+escapeHtml(m.consequence)+'</p></div>':'')+
-      (m.action?'<div class="management-metric-note action"><span>Action</span><p>'+escapeHtml(m.action)+'</p></div>':'')+
-      '</details><div class="management-metric-owner">'+managementModuleLink(m.owningModule,'Open analysis')+'</div>'+
-      '</article>';
-  }).join("")+'</div>';
+      (m.key==='near-critical'?'<p class="management-metric-note">'+escapeHtml(m.consequence||m.basis||'')+'</p>':'')+'</article>';}).join("");
+  const detailRows=metrics.filter(m=>m.basis||m.consequence||m.action||m.owningModule).map(m=>'<tr><td><b>'+escapeHtml(m.label)+'</b></td><td>'+escapeHtml(m.basis||'Not established')+'</td><td>'+escapeHtml(m.consequence||'—')+'</td><td>'+escapeHtml(m.action||'—')+'</td><td>'+managementModuleLink(m.owningModule,'Open')+'</td></tr>').join("");
+  return '<div class="management-metric-grid">'+cards+'</div>'+(detailRows?'<details class="metric-interpretation"><summary>Figure definitions and supporting analysis</summary><div class="table-wrap"><table><thead><tr><th>Figure</th><th>Basis</th><th>Consequence</th><th>Action</th><th>Detail</th></tr></thead><tbody>'+detailRows+'</tbody></table></div></details>':'');
 }
 function commercialFindingText(metric){
   if(metric==null)return"Unresolved: amount not established";
