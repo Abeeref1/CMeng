@@ -3,8 +3,9 @@ import type {IncomingMessage,ServerResponse} from 'node:http';
 import {auditContext} from './audit-context';
 import {ProjectAskEngine,askCatalogue,compactAskResult} from './ask-engine';
 import {AskError} from '../../project-ask/src/catalogue';
-import type {AskRequest,AskSession,SavedView} from '../../project-ask/src/types';
+import type {AskRequest,AskSession,SavedView,AnalysisResult} from '../../project-ask/src/types';
 import {readAskReference} from './ask-references';
+import {askHash} from './ask-store';
 import {exportAskAnalysis,askChartPng,type AskExportView} from './ask-export';
 import {sendHttpBody} from './http-response';
 import {runtimeProjects} from './project-state';
@@ -36,6 +37,26 @@ export async function askAiRequest(req:IncomingMessage,res:ServerResponse,url:UR
       const filename=String(req.headers['x-source-filename']??url.searchParams.get('filename')??'');
       const reference=await readAskReference(projectId,user,filename,await body(req,20*1024*1024));await engine.store.saveReference(reference,user);
       const {pages,...summary}=reference;json(res,201,{...summary,pages:pages.length});return true;
+    }
+    const sectionRefreshMatch=/^results\/([a-zA-Z0-9_-]+)\/sections\/([^/]+)\/refresh$/.exec(path);
+    if(req.method==='POST'&&sectionRefreshMatch){
+      const base=await engine.store.result(sectionRefreshMatch[1]!,projectId,user),authorityId=decodeURIComponent(sectionRefreshMatch[2]!);
+      const current=runtimeProjects.get(projectId)!;
+      if(current.version!==base.scope.projectVersion)throw new AskError(409,'project_changed','The Project has changed. Refresh the full analysis so every section uses one reporting basis.');
+      if(!base.sections.some(section=>section.authorityId===authorityId))throw new AskError(404,'section_not_found','This report section is not available.');
+      const createdAt=new Date().toISOString(),view:SavedView={schemaVersion:1,id:randomUUID(),projectId,workspaceId:user.workspaceId,ownerId:user.userId,name:'Refresh '+authorityId,visibility:'personal',
+        plan:{...structuredClone(base.plan),authorities:[authorityId],rankings:(base.plan.rankings??[]).filter(r=>r.authorityId===authorityId),
+          authorityFilters:base.plan.authorityFilters?.[authorityId]?{[authorityId]:structuredClone(base.plan.authorityFilters[authorityId]!)}:{},
+          activityBreakouts:authorityId==='activities'?structuredClone(base.plan.activityBreakouts):undefined},
+        presentation:structuredClone(base.presentation),savedFromDataDate:base.scope.dataDate,savedFromProjectVersion:base.scope.projectVersion,createdAt,updatedAt:createdAt};
+      const one=await engine.ask(projectId,user,{question:base.plan.objective},view),replacement=one.sections.find(section=>section.authorityId===authorityId);
+      if(!replacement)throw new AskError(409,'section_unavailable','CMeng could not refresh this section from the current Project information.');
+      const merged:AnalysisResult={...structuredClone(base),id:randomUUID(),createdAt,sections:base.sections.map(section=>section.authorityId===authorityId?replacement:section),
+        unresolved:[...new Set([...base.unresolved.filter(item=>!item.startsWith(base.sections.find(s=>s.authorityId===authorityId)?.title+':')),...one.unresolved])],
+        improvementNeeds:[...new Set([...(base.improvementNeeds??[]),...(one.improvementNeeds??[])])],
+        providerStatus:one.providerStatus,mode:one.mode,route:base.route};
+      merged.factsHash=askHash(merged.sections);merged.snapshotHash=askHash({scope:merged.scope,plan:merged.plan,sections:merged.sections});
+      await engine.store.saveResult(merged,user);json(res,200,compactAskResult(merged));return true;
     }
     const chartMatch=/^results\/([a-zA-Z0-9_-]+)\/charts\/(.+)$/.exec(path);
     const tableMatch=/^results\/([a-zA-Z0-9_-]+)\/tables\/([^/]+)$/.exec(path);
