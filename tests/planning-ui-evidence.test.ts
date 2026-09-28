@@ -39,6 +39,36 @@ test('displayed progress variance reconciles rounded values without changing the
 });
 
 
+
+test('Progress Breakdown exposes six structural filters without unresolved spam or confirmation prompts',()=>{
+ const script=functions(['renderProgressBreakdownVisual']);
+ const data={
+   rows:[{wbsId:'W1',wbsName:'Civil',activityCount:2}],
+   totalActivityCount:2,
+   overallScheduleProgressPercent:45.92,
+   overallProgressCoveragePercent:99.5,
+   baselinePlanAvailable:false,
+   hierarchyRows:[{wbsId:'W1',wbsName:'Civil',parentWbsId:null,depth:0,activityCount:2,directActivityCount:2,currentPlanPercent:40,currentPlanCoveragePercent:100,durationWeightedProgressPercent:45.92,durationWeightedCoveragePercent:99.5,criticalCount:1,negativeFloatCount:1}],
+   dimensionViews:[
+     {dimension:'wbs',label:'By WBS',sourcePopulation:2,classifiedPopulation:2,unclassifiedPopulation:0,classificationCoveragePercent:100,available:true,basis:'Direct WBS',rows:[{dimension:'wbs',groupKey:'W1',groupLabel:'Civil',classified:true,activityCount:2,completedCount:1,inProgressCount:1,notStartedCount:0,unknownStatusCount:0,scheduleProgressPercent:45.92,progressCoveragePercent:100,knownWeightHours:80,weightSharePercent:100,progressContributionPercentagePoints:45.92,criticalCount:1,nearCriticalCount:0,negativeFloatCount:1}]},
+     {dimension:'wbs_level',label:'By WBS Level',sourcePopulation:2,classifiedPopulation:2,unclassifiedPopulation:0,classificationCoveragePercent:100,available:true,basis:'Hierarchy level',rows:[]},
+     {dimension:'zone',label:'By Zone',sourcePopulation:2,classifiedPopulation:0,unclassifiedPopulation:2,classificationCoveragePercent:0,available:false,basis:'Explicit zone only',rows:[]},
+     {dimension:'level',label:'By Level',sourcePopulation:2,classifiedPopulation:0,unclassifiedPopulation:2,classificationCoveragePercent:0,available:false,basis:'Explicit level only',rows:[]},
+     {dimension:'work_front',label:'By Work Front',sourcePopulation:2,classifiedPopulation:0,unclassifiedPopulation:2,classificationCoveragePercent:0,available:false,basis:'Explicit work front only',rows:[]},
+     {dimension:'cbs',label:'By CBS',sourcePopulation:2,classifiedPopulation:0,unclassifiedPopulation:2,classificationCoveragePercent:0,available:false,basis:'Explicit CBS only',rows:[]},
+   ]
+ };
+ const html=runInNewContext(script+';renderProgressBreakdownVisual(data)',{
+   data,projectionFor:(v:any)=>v,planningKpis:()=>'',escapeHtml:String,fmt:String,percent2:(v:any)=>Number(v).toFixed(2)
+ });
+ for(const label of ['By WBS','By WBS Level','By Zone','By Level','By Work Front','By CBS'])assert.match(html,new RegExp(label));
+ assert.match(html,/data-progress-filter/);
+ assert.match(html,/Baseline planned progress is not shown/);
+ assert.match(html,/not available from the current programme/i);
+ assert.doesNotMatch(html,/Unresolved/i);
+ assert.doesNotMatch(html,/confirm/i);
+});
+
 test('Forecast review suppresses probability dates in every chart, not only the lower cards',()=>{
  const script=functions(['renderForecastVisual','planningDateMs','planningShortDate','planningCalendarDaysBetween']);
  const bars:any[][]=[];
