@@ -12,6 +12,7 @@ import {cmengUatHtml} from '../packages/runtime-api/src/ui';
 import {moduleRegistry} from '../packages/runtime-api/src/registry';
 import {answerFirstScript} from '../packages/runtime-api/src/ui-answer-first';
 import {projectActionsScript} from '../packages/runtime-api/src/ui-project-actions';
+import {comparisonRequirement} from '../packages/runtime-api/src/comparison-requirement';
 
 const issue=(module:string,path='data.contractualCompletionIso'):ControlIssue=>({code:'MISSING_SOURCE_VALUE',kind:'missing_information',summary:'Missing contractual completion date',detail:'Confirm the applicable contractual completion date.',action:'Confirm the contract completion date.',owner:'Project evidence owner',moduleKeys:[module],sourceRefs:[],checkIds:[],evidencePaths:[path]});
 const script=cmengUatHtml().match(/<script>([\s\S]*?)<\/script>/)![1]!;
@@ -54,6 +55,46 @@ test('every analytical page renders its available answer before review and sourc
   runInNewContext(functions(['renderModuleResultBody']),ctx);ctx.renderModuleResultBody({key:descriptor.key,status:'partial',data:{}});
   const html=el('moduleContent').innerHTML;assert.ok(html.indexOf('PROJECT-ANSWER')>=0,descriptor.key);assert.ok(html.indexOf('PROJECT-ANSWER')<html.indexOf('ADMINISTRATION'),descriptor.key);assert.ok(html.indexOf('PROJECT-ANSWER')<html.indexOf('SOURCE-REVIEW'),descriptor.key);
  }
+});
+
+
+test('Progress Breakdown treats generic submitted comparison as advisory and does not create a comparison requirement',()=>{
+ const result=comparisonRequirement({challenge:{reconciliationState:'not_reconciled',items:[{metric:'progress',submitted:null,independent:42}]}},'progress-breakdown');
+ assert.equal(result.advisory,true);
+ assert.equal(result.required,false);
+});
+
+test('Progress Breakdown renders the answer without generic gap, review or confirmation wrappers',()=>{
+ const nodes:Record<string,any>={};
+ const node=(id:string)=>nodes[id]??=( {innerHTML:'',textContent:'',className:'',disabled:false,hidden:false,open:false,style:{},classList:{remove(){},add(){}}} );
+ const ctx:any={
+  currentModuleResult:null,names:{'progress-breakdown':'Progress Breakdown'},descriptions:{'progress-breakdown':'Current programme progress'},
+  managementSurfaceKeysForApi:new Set(),selectedRoleView:'overall',roleViews:{overall:{label:'Overall'}},appView:'project',
+  el:node,renderRoleViewSelector(){},renderDelivery:()=>false,renderPositionVerdict:()=>'<p>CONFIRM FIGURE TO COMPARE</p>',
+  renderModuleBasis:(_d:any,_detail?:boolean,contextOnly?:boolean)=>contextOnly?'<div>PROGRAMME BASIS</div>':'<p>UNRESOLVED BASELINE</p>',
+  renderRegisterScope:()=>'',renderUniversalChallenge:()=>'<p>GAP UNRESOLVED %</p>',
+  renderSpecializedModule:()=>'<section>FILTERED PROGRESS BREAKDOWN</section>',scalarPairs:()=>[],renderStructuredSections:()=>'<p>GENERIC</p>',
+  renderBasisReviews:()=>'<p>CONFIRM MAPPING</p>',renderClaimsReporting:()=>'',renderRoleContent:(_k:any,_d:any,v:string,challenge:string)=>v+challenge,
+  advancedControlsHtml:()=>'',bindAdvancedControls(){},experienceDisclosure:()=>'<p>DISCLOSURE LOOP</p>',
+  experienceReviewSummary:()=>'<p>CONFIRM FIGURE TO COMPARE</p>',renderModuleReadiness:()=>'<p>CONFIRM SCHEDULE</p>',
+  userFacingModuleReason:()=>'',escapeHtml:String,fmt:String,readerIssue:(i:any)=>({title:i.summary||'',action:i.action||''}),readerText:String
+ };
+ runInNewContext(functions(['progressBreakdownSystemFailures','renderModuleResultBody']),ctx);
+ ctx.renderModuleResultBody({key:'progress-breakdown',status:'partial',data:{projectionKey:'progress_breakdown',issueAssessment:{counts:{system_defect:0},issues:[]},challenge:{reconciliationState:'not_reconciled',items:[{metric:'progress'}]}}});
+ const html=nodes.moduleContent.innerHTML;
+ assert.match(html,/FILTERED PROGRESS BREAKDOWN/);
+ assert.match(html,/PROGRAMME BASIS/);
+ assert.doesNotMatch(html,/GAP UNRESOLVED|CONFIRM FIGURE|CONFIRM MAPPING|CONFIRM SCHEDULE|UNRESOLVED BASELINE|DISCLOSURE LOOP/i);
+});
+
+test('Progress Breakdown does not append a page-level schedule confirmation notification',()=>{
+ const content:any={inserted:'',insertAdjacentHTML:(_where:string,html:string)=>{content.inserted+=html;}};
+ const ctx:any={
+  renderModuleResultBody(){},el:(id:string)=>id==='moduleContent'?content:null,bindProjectActions(){},openProjectActions(){},
+ };
+ runInNewContext(functions(['renderModuleResult']),ctx);
+ ctx.renderModuleResult({key:'progress-breakdown',scheduleAuthorityReview:{state:'pending_review',pendingSchedules:[{revisionId:'R2'}]}});
+ assert.equal(content.inserted,'');
 });
 
 test('completion calculation differences stay as inline information and never become user actions',async()=>{
