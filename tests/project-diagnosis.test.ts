@@ -80,6 +80,7 @@ test('diagnosis crosses linked evidence, revision changes, candidate updates and
  await a.upload('2030-01-03',2,'add_update');assert.equal(a.full().revision.state,'unavailable');assert.equal(a.full().dataDateIso,first.dataDateIso);
  const candidate=a.state.schedules.at(-1)!;runtimeProjects.adoptSchedule(a.id,candidate.revision.revisionId);
  let d=a.full();assert.equal(d.revision.state,'available');assert.equal(d.revision.finishMovementCalendarDays,2);assert.equal(d.counts.previousUpdateSlippage.knownCount,5);
+ assert.equal(d.actions[0]!.groupedCount,5);assert.match(d.actions[0]!.reason,/5 activities moved 2 elapsed days later/);
  const packageRow=a.record('package','MEP-017',{'scope basis':'Controlled equipment package','forecast delivery':'2030-01-10'},'B');
  d=a.full();assert.ok(d.evidenceChecks.some((c:any)=>c.recordId===packageRow.recordId&&c.activityId==='B'&&/5 calendar days after/.test(c.explanation)));
   const answer=await a.ask('Why are we late?');assert.equal(answer.plan.questionRecipe,'delay_diagnosis');assert.match(answer.narrative[0]!.text,/MEP-017/);assert.ok(answer.sections.some(s=>s.tables.some(t=>t.id==='project-diagnosis.linked-evidence')));
