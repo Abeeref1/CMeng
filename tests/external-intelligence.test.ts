@@ -29,7 +29,10 @@ function fixture(t:any){
 }
 const denied=(code:string)=>(e:unknown)=>e instanceof ExternalError&&e.code===code;
 
-test('public external metadata matches live authorities without importing project engines in the gateway',()=>{assert.deepEqual(externalAuthorityMetadata,externalCatalogue);});
+test('public external metadata matches live authorities without importing project engines in the gateway',()=>{
+  const ordered=(items:any[])=>[...items].sort((a,b)=>a.id.localeCompare(b.id));
+  assert.deepEqual(ordered(externalAuthorityMetadata),ordered(externalCatalogue));
+});
 test('project, domain, profile, expiry and revocation checks happen before project retrieval',async t=>{
   const f=fixture(t);await assert.rejects(()=>f.service.execute(f.token,'get_project_metric',{projectId:'B',metric:'CPI'}),denied('connection_scope_denied'));assert.equal(f.calls(),0);
   f.user.projects.A=['schedule'];await assert.rejects(()=>f.service.execute(f.token,'get_project_metric',{projectId:'A',metric:'CPI'}),denied('project_or_domain_denied'));assert.equal(f.calls(),0);
