@@ -37,7 +37,7 @@ function validExportView(view:AskExportView|undefined){
 }
 export function preparedAskResult(result:AnalysisResult,input?:AskExportView){
   const view=validExportView(input);if(!view)return result;
-  const include=view.includeAuthorities?.length?new Set(view.includeAuthorities):null,chartSet=view.includeCharts?.length?new Set(view.includeCharts):null,tableSet=view.includeTables?.length?new Set(view.includeTables):null,metricSet=view.includeMetrics?.length?new Set(view.includeMetrics):null;
+  const include=view.includeAuthorities!==undefined?new Set(view.includeAuthorities):null,chartSet=view.includeCharts!==undefined?new Set(view.includeCharts):null,tableSet=view.includeTables!==undefined?new Set(view.includeTables):null,metricSet=view.includeMetrics!==undefined?new Set(view.includeMetrics):null;
   const order=new Map((view.sectionOrder??[]).map((id,index)=>[id,index]));
   const sections=result.sections.filter(s=>!include||include.has(s.authorityId)).map(s=>({...s,
     metrics:s.metrics.filter(metric=>!metricSet||metricSet.has(metric.id)),
@@ -95,7 +95,7 @@ async function pdf(result:AnalysisResult,view?:AskExportView){
   doc.font(font);const chunks:Buffer[]=[];const done=new Promise<Buffer>((resolve,reject)=>{doc.on('data',c=>chunks.push(c));doc.on('end',()=>resolve(Buffer.concat(chunks)));doc.on('error',reject);});
   const heading=(text:string)=>{if(doc.y>690)doc.addPage();doc.moveDown(.8).fontSize(15).fillColor('#24384a').text(text,{width:507}).moveDown(.4);};
   const para=(text:string,size=9)=>{doc.fontSize(size).fillColor('#334b61').text(text,{width:507,lineGap:3,paragraphGap:5}).moveDown(.4);};
-  doc.fontSize(13).fillColor('#547d98').text('CMeng | PROJECT INTELLIGENCE');doc.moveDown(1.2).fontSize(25).fillColor('#24384a').text(result.presentation.title,{width:490});doc.moveDown();
+  doc.fontSize(13).fillColor('#547d98').text('CMeng | PROJECT INTELLIGENCE');doc.moveDown(1.2).fontSize(25).fillColor('#24384a').text(result.presentation.title,{width:490});if(view?.subtitle){doc.moveDown(.35);para(view.subtitle,10);}doc.moveDown();
   for(const [key,value]of metadata(result).filter(([k])=>!['Source snapshot','Scope','Grouping'].includes(String(k))))para(key+': '+value);
   for(const block of result.narrative){heading(block.heading);para(block.text);}
   heading('Key figures');for(const m of result.sections.flatMap(s=>s.metrics)){para(m.label+': '+display(m.value)+(m.unit?' '+m.unit:'')+' · '+m.state);}
@@ -116,7 +116,7 @@ async function pdf(result:AnalysisResult,view?:AskExportView){
 }
 function wordParagraph(text:string,style='Normal'){return '<w:p><w:pPr><w:pStyle w:val="'+style+'"/>'+(/[\u0600-\u06ff]/.test(text)?'<w:bidi/>':'')+'</w:pPr><w:r><w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:cs="Arial"/></w:rPr><w:t xml:space="preserve">'+text.split('\n').map(line=>xml(line)).join('</w:t><w:br/><w:t xml:space="preserve">')+'</w:t></w:r></w:p>';}
 async function word(result:AnalysisResult,view?:AskExportView){
-  const zip=new JSZip();let body=wordParagraph('CMeng | '+result.presentation.title,'Title');for(const [k,v]of metadata(result).filter(([key])=>!['Source snapshot','Analysis','Project version','Programme revision','Scope'].includes(String(key))))body+=wordParagraph(k+': '+v);
+  const zip=new JSZip();let body=wordParagraph('CMeng | '+result.presentation.title,'Title');if(view?.subtitle)body+=wordParagraph(view.subtitle);for(const [k,v]of metadata(result).filter(([key])=>!['Source snapshot','Analysis','Project version','Programme revision','Scope'].includes(String(key))))body+=wordParagraph(k+': '+v);
   for(const n of result.narrative)body+=wordParagraph(n.heading,'Heading1')+wordParagraph(n.text);
   body+=wordParagraph('Key figures','Heading1');for(const m of result.sections.flatMap(s=>s.metrics))body+=wordParagraph(m.label+': '+display(m.value)+(m.unit?' '+m.unit:'')+' · '+m.state);
   const relationships:string[]=[];let imageIndex=0;
