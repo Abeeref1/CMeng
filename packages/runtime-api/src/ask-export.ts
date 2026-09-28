@@ -14,11 +14,16 @@ const csv=(v:Cell|undefined)=>'"'+display(v).replace(/^[=+@\t\r]/,"'$&").replace
 const rows=(r:AnalysisResult)=>r.sections.flatMap(s=>s.tables);
 export interface AskExportView {
   title?:string;
+  subtitle?:string|null;
   includeAuthorities?:string[];
   sectionOrder?:string[];
   includeCharts?:string[];
+  includeTables?:string[];
+  includeMetrics?:string[];
   chartTypes?:Record<string,'bar'|'line'>;
   chartLimits?:Record<string,number>;
+  layout?:string|null;
+  detailLevel?:'short'|'normal'|'detailed'|null;
 }
 function validExportView(view:AskExportView|undefined){
   if(!view)return undefined;
@@ -26,16 +31,20 @@ function validExportView(view:AskExportView|undefined){
   const types:Record<string,'bar'|'line'>={};for(const [key,value] of Object.entries(view.chartTypes??{}))if(key.length<=160&&(value==='bar'||value==='line'))types[key]=value;
   const limits:Record<string,number>={};for(const [key,value] of Object.entries(view.chartLimits??{}))if(key.length<=160&&Number.isSafeInteger(value)&&value>0&&value<=5000)limits[key]=value;
   const title=typeof view.title==='string'?view.title.trim().slice(0,160):'';
-  const includeAuthorities=safeIds(view.includeAuthorities),sectionOrder=safeIds(view.sectionOrder),includeCharts=safeIds(view.includeCharts);
-  return {...(title?{title}:{}),...(includeAuthorities?{includeAuthorities}:{}),...(sectionOrder?{sectionOrder}:{}),...(includeCharts?{includeCharts}:{}),chartTypes:types,chartLimits:limits} satisfies AskExportView;
+  const includeAuthorities=safeIds(view.includeAuthorities),sectionOrder=safeIds(view.sectionOrder),includeCharts=safeIds(view.includeCharts),includeTables=safeIds(view.includeTables),includeMetrics=safeIds(view.includeMetrics);
+  const detailLevel=['short','normal','detailed'].includes(String(view.detailLevel))?view.detailLevel as 'short'|'normal'|'detailed':null;
+  return {...(title?{title}:{}),...(typeof view.subtitle==='string'?{subtitle:view.subtitle.slice(0,500)}:{}),...(includeAuthorities?{includeAuthorities}:{}),...(sectionOrder?{sectionOrder}:{}),...(includeCharts?{includeCharts}:{}),...(includeTables?{includeTables}:{}),...(includeMetrics?{includeMetrics}:{}),chartTypes:types,chartLimits:limits,...(typeof view.layout==='string'?{layout:view.layout.slice(0,80)}:{}),...(detailLevel?{detailLevel}:{})} satisfies AskExportView;
 }
 export function preparedAskResult(result:AnalysisResult,input?:AskExportView){
   const view=validExportView(input);if(!view)return result;
-  const include=view.includeAuthorities?.length?new Set(view.includeAuthorities):null,chartSet=view.includeCharts?.length?new Set(view.includeCharts):null;
+  const include=view.includeAuthorities?.length?new Set(view.includeAuthorities):null,chartSet=view.includeCharts?.length?new Set(view.includeCharts):null,tableSet=view.includeTables?.length?new Set(view.includeTables):null,metricSet=view.includeMetrics?.length?new Set(view.includeMetrics):null;
   const order=new Map((view.sectionOrder??[]).map((id,index)=>[id,index]));
-  const sections=result.sections.filter(s=>!include||include.has(s.authorityId)).map(s=>({...s,charts:s.charts.filter(chart=>!chartSet||chartSet.has(chart.id)).map(chart=>({...chart,type:view.chartTypes?.[chart.id]??chart.type}))}))
-    .sort((a,b)=>(order.get(a.authorityId)??9999)-(order.get(b.authorityId)??9999));
-  return {...result,presentation:{...result.presentation,title:view.title??result.presentation.title},sections};
+  const sections=result.sections.filter(s=>!include||include.has(s.authorityId)).map(s=>({...s,
+    metrics:s.metrics.filter(metric=>!metricSet||metricSet.has(metric.id)),
+    tables:s.tables.filter(table=>!tableSet||tableSet.has(table.id)),
+    charts:s.charts.filter(chart=>(!chartSet||chartSet.has(chart.id))&&(!tableSet||tableSet.has(chart.tableId))).map(chart=>({...chart,type:view.chartTypes?.[chart.id]??chart.type}))
+  })).sort((a,b)=>(order.get(a.authorityId)??9999)-(order.get(b.authorityId)??9999));
+  return {...result,presentation:{...result.presentation,title:view.title??result.presentation.title,...(view.detailLevel?{detail:view.detailLevel}:{})},sections};
 }
 const metadata=(r:AnalysisResult)=>[['Project',r.scope.projectName],['Data Date',r.scope.dataDate??'Not established'],['Programme revision',r.scope.programmeRevision??'Not established'],['Project version',r.scope.projectVersion],['Analysis',r.id],['Source snapshot',r.snapshotHash],['Prepared by',r.presentation.preparedBy??'Not supplied'],['Job title',r.presentation.jobTitle??'Not supplied'],['Company',r.presentation.company??'Not supplied'],['Issue date',r.createdAt.slice(0,10)],['Status','Draft / Prepared'],['Confidentiality',r.presentation.confidentiality],['Scope',JSON.stringify({filters:r.plan.filters,authorityFilters:r.plan.authorityFilters??{},rankings:r.plan.rankings??[]})],['Grouping',r.plan.groupBy.join(', ')||'None']];
 
