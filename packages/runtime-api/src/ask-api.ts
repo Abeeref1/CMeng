@@ -14,6 +14,20 @@ async function body(req:IncomingMessage,limit:number){const chunks:Buffer[]=[];l
 async function jsonBody(req:IncomingMessage){try{return JSON.parse((await body(req,128*1024)).toString('utf8'));}catch(e){if(e instanceof AskError)throw e;throw new AskError(400,'invalid_request','The request could not be read.');}}
 function json(res:ServerResponse,status:number,value:unknown){sendHttpBody(res,status,{'content-type':'application/json; charset=utf-8','cache-control':'no-store'},JSON.stringify(value));}
 function session(req:IncomingMessage):AskSession {const actor=auditContext().actor;return {userId:actor.id,workspaceId:'cmeng-projects',name:null,title:null,company:null,allowModel:req.headers['x-cmeng-paid-ai']!=='0'};}
+function savedViewDefinition(input:any){
+  const page=input?.pageContext&&typeof input.pageContext==='object'&&!Array.isArray(input.pageContext)?input.pageContext:null;
+  const filters:Record<string,string>={};if(page?.filters&&typeof page.filters==='object'&&!Array.isArray(page.filters))for(const [key,value] of Object.entries(page.filters))if(typeof value==='string'&&value.length<=500)filters[String(key).slice(0,100)]=value;
+  const pageContext=page?{projectId:String(page.projectId??'').slice(0,160),page:typeof page.page==='string'?page.page.slice(0,160):null,filters,
+    selectedActivity:typeof page.selectedActivity==='string'?page.selectedActivity.slice(0,200):null,selectedWbs:typeof page.selectedWbs==='string'?page.selectedWbs.slice(0,200):null,
+    selectedLocation:typeof page.selectedLocation==='string'?page.selectedLocation.slice(0,200):null,selectedPackage:typeof page.selectedPackage==='string'?page.selectedPackage.slice(0,200):null}:null;
+  const rv=input?.reportView&&typeof input.reportView==='object'&&!Array.isArray(input.reportView)?input.reportView:null;
+  const strings=(value:any)=>Array.isArray(value)?value.filter(x=>typeof x==='string').slice(0,200).map(x=>x.slice(0,200)):[];
+  const chartTypes:Record<string,string>={},chartLimits:Record<string,number>={};
+  if(rv?.chartTypes&&typeof rv.chartTypes==='object')for(const [key,value] of Object.entries(rv.chartTypes))if(typeof value==='string'&&['bar','line'].includes(value))chartTypes[key]=value;
+  if(rv?.chartLimits&&typeof rv.chartLimits==='object')for(const [key,value] of Object.entries(rv.chartLimits))if(typeof value==='number'&&Number.isFinite(value)&&value>0&&value<=5000)chartLimits[key]=value;
+  const reportView=rv?{title:String(rv.title??'').slice(0,240),includeAuthorities:strings(rv.includeAuthorities),sectionOrder:strings(rv.sectionOrder),includeCharts:strings(rv.includeCharts),chartTypes,chartLimits}:null;
+  return {pageContext,reportView};
+}
 function reportView(url:URL):AskExportView|undefined{
   const encoded=url.searchParams.get('view');if(!encoded)return undefined;if(encoded.length>16000)throw new AskError(400,'report_view_too_large','The report adjustment is too large.');
   try{const value=JSON.parse(Buffer.from(encoded,'base64url').toString('utf8'));if(!value||typeof value!=='object'||Array.isArray(value))throw new Error();return value as AskExportView;}
@@ -83,13 +97,13 @@ export async function askAiRequest(req:IncomingMessage,res:ServerResponse,url:UR
       const input=await jsonBody(req);if(typeof input.name!=='string'||!input.name.trim()||input.name.length>120)throw new AskError(400,'view_name_required','Enter a view name of up to 120 characters.');
       const result=await engine.store.result(String(input.analysisId??''),projectId,user),now=new Date().toISOString();
       const view:SavedView={schemaVersion:1,id:randomUUID(),projectId,workspaceId:user.workspaceId,ownerId:user.userId,name:input.name.trim(),visibility:input.visibility==='project'?'project':'personal',plan:result.plan,presentation:result.presentation,
-        savedFromDataDate:result.scope.dataDate,savedFromProjectVersion:result.scope.projectVersion,createdAt:now,updatedAt:now};
+        viewDefinition:savedViewDefinition(input.viewDefinition),savedFromDataDate:result.scope.dataDate,savedFromProjectVersion:result.scope.projectVersion,createdAt:now,updatedAt:now};
       await engine.store.saveView(view,user);json(res,201,view);return true;
     }
     const viewMatch=/^views\/([a-zA-Z0-9_-]+)\/open$/.exec(path);
     if(req.method==='POST'&&viewMatch){
       const view=await engine.store.view(viewMatch[1]!,projectId,user),refreshed=await engine.ask(projectId,user,{question:view.plan.objective},view),current=compactAskResult(refreshed);
-      json(res,200,{...current,liveViewRefresh:{viewId:view.id,name:view.name,savedFromDataDate:view.savedFromDataDate??null,savedFromProjectVersion:view.savedFromProjectVersion??null,
+      json(res,200,{...current,savedViewDefinition:view.viewDefinition??null,liveViewRefresh:{viewId:view.id,name:view.name,savedFromDataDate:view.savedFromDataDate??null,savedFromProjectVersion:view.savedFromProjectVersion??null,
         currentDataDate:refreshed.scope.dataDate,currentProjectVersion:refreshed.scope.projectVersion,
         refreshed:(view.savedFromProjectVersion??null)!==refreshed.scope.projectVersion||(view.savedFromDataDate??null)!==refreshed.scope.dataDate}});
       return true;
