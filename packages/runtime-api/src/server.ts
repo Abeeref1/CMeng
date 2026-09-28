@@ -55,6 +55,7 @@ import {
   managementSurfaceForProject,
   managementSurfacesForProject,
   moduleForProject,
+  lookAheadForProjectWindow,
   overviewForProject,
   rerunProject,
 } from "./project-projections";
@@ -2241,11 +2242,11 @@ async function route(
     }
 
     if(moduleArea==="delivery"&&!isDeliveryPage(resolveModuleKey(key))){json(res,404,{error:"delivery_module_not_found"});return;}
-    let result =
-      moduleForProject(
-        projectId,
-        key,
-      );
+    const resolvedKey=resolveModuleKey(key),windowDays=Number(url.searchParams.get("windowDays")??42);
+    if(resolvedKey==="lookahead-schedule"&&![14,28,42,56,84].includes(windowDays)){json(res,400,{error:"lookahead_window_invalid",message:"Choose 2, 4, 6, 8 or 12 weeks."});return;}
+    let result = resolvedKey==="lookahead-schedule"
+      ? lookAheadForProjectWindow(projectId,windowDays)
+      : moduleForProject(projectId,key);
 
     if (
       result.status ===
@@ -2340,11 +2341,11 @@ async function route(
       return;
     }
     if(moduleArea==="delivery"&&!isDeliveryPage(resolveModuleKey(key))){json(res,404,{error:"delivery_module_not_found"});return;}
-    const result =
-      moduleForProject(
-        projectId,
-        key,
-      );
+    const resolvedKey=resolveModuleKey(key),windowDays=Number(url.searchParams.get("windowDays")??42);
+    if(resolvedKey==="lookahead-schedule"&&![14,28,42,56,84].includes(windowDays)){json(res,400,{error:"lookahead_window_invalid",message:"Choose 2, 4, 6, 8 or 12 weeks."});return;}
+    const result = resolvedKey==="lookahead-schedule"
+      ? lookAheadForProjectWindow(projectId,windowDays)
+      : moduleForProject(projectId,key);
     json(
       res,
       result.status ===
