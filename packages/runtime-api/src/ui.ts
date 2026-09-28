@@ -1973,7 +1973,7 @@ function renderPmoVisual(data){
       ["Delay events",p.claims.eventCount],["Claims",p.claims.claimCount],["Recalculated window movement",fmt(p.claims.grossPositiveAnalyticalMovementDays)+" days · "+(p.claims.windowMovementTrace||[]).map(w=>fmt(w.calculatedDays)).join(" + ")],["Net submitted finish movement",fmt(p.claims.netSubmittedFinishMovementDays)+" days"],["Effective approved determinations at Data Date",fmt(p.claims.effectiveDeterminationDays)+" days"],["EOT incorporated in amendment",fmt(p.claims.incorporatedEotDays)+" days"],["Determination register total",fmt(p.claims.registerDeterminationDays)+" days"]
     ]]
   ].map(group=>'<div class="domain-card"><h5>'+escapeHtml(group[0])+'</h5>'+group[1].map(m=>metricLine(m[0],m[1])).join("")+'</div>').join("")+'</div>';
-  return '<section class="planning-view management-view">'+(data.projectDiagnosis?renderProjectDiagnosis(data.projectDiagnosis):renderCompletionPosition(data.completionPosition))+kpis+visualOverview+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Finish-date position</h4><p>Controlled baseline, submitted finish date and any independently calculated, approved or scenario finish dates.</p></div></div><div class="planning-panel-body">'+completion+'</div></section><section class="planning-panel attention"><div class="planning-panel-head"><div><h4>What needs attention</h4><p>Items that can change the current programme position.</p></div></div><div class="planning-panel-body">'+attention+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Programme health</h4><p>Schedule coverage is field coverage, not physical progress. Gross and net time movements have different bases; their difference is not proven overlap.</p></div></div><div class="planning-panel-body">'+health+'</div></section></section>';
+  return '<section class="planning-view management-view">'+(data.projectDiagnosis?renderProjectBrief(data.projectDiagnosis):renderCompletionPosition(data.completionPosition))+kpis+visualOverview+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Finish-date position</h4><p>Controlled baseline, submitted finish date and any independently calculated, approved or scenario finish dates.</p></div></div><div class="planning-panel-body">'+completion+'</div></section><section class="planning-panel attention"><div class="planning-panel-head"><div><h4>What needs attention</h4><p>Items that can change the current programme position.</p></div></div><div class="planning-panel-body">'+attention+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Programme health</h4><p>Schedule coverage is field coverage, not physical progress. Gross and net time movements have different bases; their difference is not proven overlap.</p></div></div><div class="planning-panel-body">'+health+'</div></section></section>';
 }
 function renderScheduleAnalyticsVisual(data){
   const p=projectionFor(data,"schedule_analytics");
@@ -3878,8 +3878,18 @@ function commercialFindingTitle(metric){
 }
 function renderManagementCommercial(rows){
   if(!Array.isArray(rows)||!rows.length)return '<div class="empty">No confirmed commercial currency position is established.</div>';
-  const cell=m=>'<td title="'+escapeHtml(commercialFindingTitle(m))+'">'+escapeHtml(commercialFindingText(m))+'</td>';
-  return '<div class="table-wrap"><table><thead><tr><th>Currency</th><th>Pending variations</th><th>Approved variations in the report</th><th>Certified unpaid</th><th>Retention deducted through DD</th><th>Held balance</th><th>Active bonds</th><th>Claimed</th><th>Assessed</th><th>LD scenario</th></tr></thead><tbody>'+rows.map(r=>'<tr><td><b>'+escapeHtml(r.currency)+'</b></td>'+cell(r.pendingVariationAmount)+cell(r.approvedVariationAmount)+cell(r.certifiedUnpaidAmount)+cell(r.retentionDeductedAmount)+cell(r.retentionHeldAmount)+cell(r.activeBondAmount)+cell(r.claimClaimedAmount)+cell(r.claimAssessedAmount)+cell(r.ldScenarioAmount)+'</tr>').join("")+'</tbody></table></div>';
+  const fields=[
+    ['pendingVariationAmount','Pending variations'],['approvedVariationAmount','Approved variations'],['certifiedUnpaidAmount','Certified unpaid'],
+    ['retentionDeductedAmount','Retention deducted through DD'],['retentionHeldAmount','Held balance'],['activeBondAmount','Active bonds'],
+    ['claimClaimedAmount','Claimed'],['claimAssessedAmount','Assessed'],['ldScenarioAmount','LD scenario']
+  ];
+  const established=(m)=>m!==null&&m!==undefined&&(typeof m!=='object'||(m.value!==null&&m.value!==undefined));
+  const visible=fields.filter(([key])=>rows.some(r=>established(r[key])));
+  const missing=rows.flatMap(r=>fields.filter(([key])=>!established(r[key])).map(([key,label])=>({currency:r.currency,label,detail:commercialFindingText(r[key])})));
+  if(!visible.length)return '<div class="notice info">No commercial amount is established from the supplied records.</div>'+(missing.length?'<details><summary>'+fmt(missing.length)+' commercial measures need more information</summary><ul>'+missing.map(x=>'<li>'+escapeHtml(x.currency+' · '+x.label+': '+x.detail)+'</li>').join('')+'</ul></details>':'');
+  const head=visible.map(([,label])=>'<th>'+escapeHtml(label)+'</th>').join('');
+  const body=rows.map(r=>'<tr><td><b>'+escapeHtml(r.currency)+'</b></td>'+visible.map(([key])=>'<td title="'+escapeHtml(commercialFindingTitle(r[key]))+'">'+(established(r[key])?escapeHtml(commercialFindingText(r[key])):'—')+'</td>').join('')+'</tr>').join('');
+  return '<div class="table-wrap"><table><thead><tr><th>Currency</th>'+head+'</tr></thead><tbody>'+body+'</tbody></table></div>'+(missing.length?'<details><summary>'+fmt(missing.length)+' additional commercial measures need more information</summary><ul>'+missing.map(x=>'<li>'+escapeHtml(x.currency+' · '+x.label+': '+x.detail)+'</li>').join('')+'</ul></details>':'');
 }
 function renderManagementAlerts(alerts){
   if(!Array.isArray(alerts)||!alerts.length)return '<div class="notice info">No current management alert is generated from the confirmed project position.</div>';
@@ -3963,7 +3973,7 @@ function renderManagementControlVisual(key,data){
       ["Expired bonds",ctrl.bondEvidenceState==="established"?ctrl.expiredBondCount:"Unresolved","security evidence",ctrl.expiredBondCount?"danger":""],
       ["Expiring bonds",ctrl.bondEvidenceState==="established"?ctrl.expiringBondCount30Days:"Unresolved","next 30 days",ctrl.expiringBondCount30Days?"warning":""]
     ]):'<div class="empty">Project Director control position is not confirmed.</div>';
-    return '<div class="planning-view management-view command-center-view">'+(data.projectDiagnosis?renderProjectDiagnosis(data.projectDiagnosis):renderCompletionPosition(data.completionPosition))+
+    return '<div class="planning-view management-view command-center-view">'+
       managementPanel("Immediate Control Signals","Confirmed counts are shown below. Open the relevant record to resolve an incomplete count.",controlsBody,true)+
       experienceSourceContext(key,data)+
       ((data.sourceInterpretation?.actions||[]).length?"":managementPanel("Action Suggestions — Awaiting Assignment","Suggested follow-up only. Assignment, due dates and closure tracking are not yet established in CMeng.",decisionBody,true))+
