@@ -8,17 +8,17 @@ import {cmengUatHtml} from '../packages/runtime-api/src/ui';
 import {buildModuleWorkbook, buildModuleJsonDownload, moduleReportFilename} from '../packages/runtime-api/src/module-report';
 import {createCmengServer} from '../packages/runtime-api/src/server';
 
-test('all 55 page titles and groups come from one registry, with distinct specialist purposes', () => {
-  assert.equal(moduleRegistry.length, 55);
-  assert.equal(new Set(moduleRegistry.map(m => m.key)).size, 55);
-  assert.equal(new Set(moduleRegistry.map(m => m.title)).size, 55);
-  assert.equal(scheduleModules.length, 22);
+test('all 58 page titles and groups come from one registry, with distinct specialist purposes', () => {
+  assert.equal(moduleRegistry.length, 58);
+  assert.equal(new Set(moduleRegistry.map(m => m.key)).size, 58);
+  assert.equal(new Set(moduleRegistry.map(m => m.title)).size, 58);
+  assert.equal(scheduleModules.length, 23);
   assert.equal(commercialModules.length, 7);
-  assert.equal(moduleRegistry.filter(m=>m.area==="delivery").length,22);
+  assert.equal(moduleRegistry.filter(m=>m.area==="delivery").length,23);
   for (const word of ['claims', 'notices', 'eot', 'position', 'forecast']) {
     assert.ok(moduleRegistry.filter(m => new RegExp('\\b' + word + '\\b', 'i').test(m.title)).length <= 1, word);
   }
-  assert.deepEqual(moduleGroups['Forecast & Finish'], ['forecast-history', 'independent-forecast', 'challenge-contract']);
+  assert.deepEqual(moduleGroups['Forecast & Finish'], ['forecast-history', 'independent-forecast', 'challenge-contract', 'recovery-acceleration']);
   assert.ok(!moduleGroups['Delay & Time Entitlement']!.includes('challenge-contract'));
   assert.equal(moduleTitles['challenge-contract'], 'Challenge the Contract');
   assert.equal(moduleTitles['commercial-claims-notices'], 'Financial Claims');
