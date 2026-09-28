@@ -2104,11 +2104,7 @@ async function route(
       managementReportMatch[3] as
         | "xlsx"
         | "json";
-    const result =
-      managementSurfaceForProject(
-        projectId,
-        key,
-      );
+    const result = moduleForProject(projectId,key);
     if (!result) {
       json(res, 404, {
         error:
@@ -2513,11 +2509,7 @@ async function route(
       decodeURIComponent(
         managementSurfaceMatch[2]!,
       );
-    const result =
-      managementSurfaceForProject(
-        projectId,
-        key,
-      );
+    const result = moduleForProject(projectId,key);
     if (!result) {
       json(res, 404, {
         error:
