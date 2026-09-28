@@ -568,13 +568,37 @@ test("Progress Breakdown keeps unsupported dimensions unavailable without invent
   }
 });
 
-test("Progress Breakdown shows controlled baseline plan only when a governed baseline model is supplied", () => {
+test("Progress Breakdown distinguishes controlled baseline presence from usable baseline phasing", () => {
+  const unresolved=buildProgressBreakdownProjection(revision2Model(),{
+    generatedAt:"2026-09-18T17:00:00.000Z",
+    producerVersion:"progress-breakdown-baseline-unphased-v1",
+    baselineModel:revision1Model(),
+  });
+  assert.equal(unresolved.controlledBaselineAvailable,true);
+  assert.equal(unresolved.baselinePlanAvailable,false);
+
   const current=revision2Model(),baseline=revision1Model();
+  const workingCalendar:any={
+    calendarId:"CAL1",name:"5 Day",semanticComplete:true,
+    weeklyWorkMinutes:[0,480,480,480,480,480,0],
+    weeklyWorkIntervals:[
+      {dayIndex:1,intervals:[]},
+      {dayIndex:2,intervals:[{start:"08:00",finish:"16:00",minutes:480}]},
+      {dayIndex:3,intervals:[{start:"08:00",finish:"16:00",minutes:480}]},
+      {dayIndex:4,intervals:[{start:"08:00",finish:"16:00",minutes:480}]},
+      {dayIndex:5,intervals:[{start:"08:00",finish:"16:00",minutes:480}]},
+      {dayIndex:6,intervals:[{start:"08:00",finish:"16:00",minutes:480}]},
+      {dayIndex:7,intervals:[]}
+    ],
+    exceptions:[],standardDayHours:8,standardWeekHours:40,sourceRefs:[]
+  };
+  current.calendars=[workingCalendar];baseline.calendars=[workingCalendar];
   const projection=buildProgressBreakdownProjection(current,{
     generatedAt:"2026-09-18T17:00:00.000Z",
     producerVersion:"progress-breakdown-baseline-v1",
     baselineModel:baseline,
   });
+  assert.equal(projection.controlledBaselineAvailable,true);
   assert.equal(projection.baselinePlanAvailable,true);
   assert.ok(projection.hierarchyRows?.some(row=>typeof row.baselinePlannedPercent==="number"));
 });
