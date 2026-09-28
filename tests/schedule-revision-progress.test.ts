@@ -516,6 +516,69 @@ test("Progress Breakdown uses one WBS grouping and keeps missing values out of e
   );
 });
 
+
+test("Progress Breakdown exposes the same governed current-programme progress across six structural views", () => {
+  const input = revision2Model();
+  const scope = {
+    rows: input.activities.map(activity => {
+      if (activity.activityId === "A400") {
+        return {activityId:activity.activityId,wbsId:activity.wbsId,wbsLevel:1,zone:"Zone 2",level:"Level 2",workFront:null,cbs:"CBS-B"};
+      }
+      return {activityId:activity.activityId,wbsId:activity.wbsId,wbsLevel:1,zone:"Zone 1",level:"Level 1",workFront:"Work Front A",cbs:"CBS-A"};
+    }),
+  };
+  const projection = buildProgressBreakdownProjection(input,{
+    generatedAt:"2026-09-18T17:00:00.000Z",
+    producerVersion:"progress-breakdown-multidimension-v1",
+    scopeClassification:scope,
+  });
+  assert.equal(projection.baselinePlanAvailable,false);
+  assert.equal(projection.dimensionViews?.length,6);
+  for (const key of ["wbs","wbs_level","zone","level","work_front","cbs"]) {
+    assert.ok(projection.dimensionViews?.find(view=>view.dimension===key));
+  }
+  const wbs=projection.dimensionViews!.find(view=>view.dimension==="wbs")!;
+  assert.equal(wbs.available,true);
+  assert.equal(wbs.rows.filter(row=>row.classified).length,2);
+  assert.equal(wbs.rows.find(row=>row.groupKey==="W1")?.scheduleProgressPercent,71.428571);
+  const workFront=projection.dimensionViews!.find(view=>view.dimension==="work_front")!;
+  assert.equal(workFront.classifiedPopulation,3);
+  assert.equal(workFront.unclassifiedPopulation,1);
+  assert.ok(workFront.rows.some(row=>row.groupLabel==="Unclassified"));
+  const cbs=projection.dimensionViews!.find(view=>view.dimension==="cbs")!;
+  assert.equal(cbs.rows.find(row=>row.groupLabel==="CBS-A")?.activityCount,3);
+  assert.equal(cbs.rows.find(row=>row.groupLabel==="CBS-B")?.activityCount,1);
+  assert.equal(projection.overallScheduleProgressPercent,52.631579);
+  assert.equal(projection.hierarchyRows?.every(row=>row.baselinePlannedPercent===null),true);
+});
+
+test("Progress Breakdown keeps unsupported dimensions unavailable without inventing classifications", () => {
+  const input=revision2Model();
+  const projection=buildProgressBreakdownProjection(input,{
+    generatedAt:"2026-09-18T17:00:00.000Z",
+    producerVersion:"progress-breakdown-wbs-only-v1",
+    scopeClassification:{rows:input.activities.map(activity=>({activityId:activity.activityId,wbsId:activity.wbsId,wbsLevel:1,zone:null,level:null,workFront:null,cbs:null}))},
+  });
+  assert.equal(projection.dimensionViews?.find(view=>view.dimension==="wbs")?.available,true);
+  for(const key of ["zone","level","work_front","cbs"]){
+    const view=projection.dimensionViews!.find(row=>row.dimension===key)!;
+    assert.equal(view.available,false);
+    assert.equal(view.classifiedPopulation,0);
+    assert.equal(view.unclassifiedPopulation,projection.totalActivityCount);
+  }
+});
+
+test("Progress Breakdown shows controlled baseline plan only when a governed baseline model is supplied", () => {
+  const current=revision2Model(),baseline=revision1Model();
+  const projection=buildProgressBreakdownProjection(current,{
+    generatedAt:"2026-09-18T17:00:00.000Z",
+    producerVersion:"progress-breakdown-baseline-v1",
+    baselineModel:baseline,
+  });
+  assert.equal(projection.baselinePlanAvailable,true);
+  assert.ok(projection.hierarchyRows?.some(row=>typeof row.baselinePlannedPercent==="number"));
+});
+
 test("Progress S-Curve derives planned curves but never fabricates actual history from one snapshot", () => {
   const input = revision2Model();
   const projection =
