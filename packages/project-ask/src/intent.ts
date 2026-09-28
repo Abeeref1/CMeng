@@ -43,8 +43,15 @@ export function resolveIntent(question:string,catalogue:AuthorityDescriptor[],pr
   if(/add charts?|with charts?/.test(q))presentation.charts=true;
   if(!inherited){
     const broad=/full.*(report|package)|construction intelligence|monthly project|project director meeting|everything|joined.*today|what killing us|what needs management|تقرير شامل/.test(q);
-    if(broad)plan.authorities=catalogue.map(c=>c.id);
-    else plan.authorities=catalogue.filter(c=>c.concepts.some(concept=>mentions(q,concept))).map(c=>c.id);
+    const explicitlyRequested=catalogue.filter(c=>c.concepts.some(concept=>mentions(q,concept))).map(c=>c.id);
+    if(broad){
+      // A broad management brief is not permission to flood the answer with
+      // every optional CMeng domain. Start from what the user named and a small
+      // cross-domain control core; unavailable specialist domains are added only
+      // when the question explicitly asks for them.
+      const core=['master-dashboard','programme','progress','boq','forecast','procurement','materials','long-lead','risks','commercial'];
+      plan.authorities=[...new Set([...explicitlyRequested,...core.filter(id=>catalogue.some(c=>c.id===id))])];
+    }else plan.authorities=explicitlyRequested;
     if(!plan.authorities.length&&page?.page){const match=catalogue.find(c=>c.module===page.page||c.id===page.page);if(match)plan.authorities=[match.id];}
     if(!plan.authorities.length){plan.authorities=catalogue.filter(c=>['programme','progress','risks'].includes(c.id)).map(c=>c.id);if(!plan.authorities.length)plan.authorities=catalogue.slice(0,2).map(c=>c.id);}
     if(/why|behind|delaying|bad|wrong|reconcil|compare|لماذا|متاخر/.test(q)){
