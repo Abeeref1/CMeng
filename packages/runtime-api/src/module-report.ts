@@ -1,7 +1,7 @@
 import {buildDeliveryWorkbook} from './delivery-export';
 import {createHash} from 'node:crypto';
 import {exportAskAnalysis,type AskExportView} from './ask-export';
-import type {AnalysisResult,AuthorityResult,Column,Cell} from '../../project-ask/src/types';
+import type {AnalysisResult,AuthorityResult,AnalysisChart,Column,Cell} from '../../project-ask/src/types';
 import {pageApiKey,publicModuleResult} from './registry';
 import ExcelJS from "exceljs";
 import type {
@@ -756,22 +756,25 @@ function analysisColumns(rows:Record<string,FlatValue>[]):Column[]{
 }
 function moduleAnalysis(projectId:string,moduleKey:string,result:ModuleRuntimeResult,view?:ModuleReportView):AnalysisResult{
   const data=result.data&&typeof result.data==='object'?result.data as Record<string,unknown>:{},arrays=collectArrays(data);
+  const dataDate=(data as any)?.reportingContract?.dataDateIso??(data as any)?.dataDateIso??null;
   const authorityState=result.status==='ready'?'established':result.status==='partial'?'partial':'unavailable';
   const sections:AuthorityResult[]=[];
   const flat=flattenRecord(data),metricRows=Object.entries(flat).filter(([,v])=>v===null||['string','number','boolean'].includes(typeof v)).slice(0,1000);
   sections.push({authorityId:'summary',title:titleForModule(moduleKey)+' · Key facts',state:authorityState,explanation:result.reason??'Current CMeng module position.',
     metrics:metricRows.map(([key,value],i)=>({id:'module.'+key,label:key.replace(/([a-z])([A-Z])/g,'$1 $2').replace(/[._-]+/g,' '),value:value as Cell,unit:null,state:authorityState,classification:'calculated_intelligence',traceId:'module:summary',basis:'Same canonical module result used by the live page.'})),
     tables:[],charts:[],findings:[],traces:[{id:'module:summary',authorityId:'summary',projectId,module:moduleKey,path:'data',sourceRefs:[],dataDate:(data as any)?.reportingContract?.dataDateIso??(data as any)?.dataDateIso??null,basis:'Canonical ModuleRuntimeResult; presentation does not recalculate Project facts.',exclusions:[],state:authorityState}]});
-  arrays.forEach((section,index)=>{const flatRows=section.rows.map(row=>row&&typeof row==='object'&&!Array.isArray(row)?flattenRecord(row):{value:primitiveValue(row)}),columns=analysisColumns(flatRows);
-    sections.push({authorityId:'table-'+index,title:section.path.replace(/[._-]+/g,' '),state:authorityState,explanation:'Same retained module population at '+section.path+'.',metrics:[],tables:[{id:'module-table-'+index,title:section.path,authorityId:'table-'+index,columns,rows:flatRows as Record<string,Cell>[],population:flatRows.length,excluded:0,state:authorityState,basis:'Canonical module array '+section.path+' after the saved/current scope definition is applied.',traceId:'module:table:'+index}],charts:[],findings:[],traces:[{id:'module:table:'+index,authorityId:'table-'+index,projectId,module:moduleKey,path:section.path,sourceRefs:[],dataDate:(data as any)?.reportingContract?.dataDateIso??(data as any)?.dataDateIso??null,basis:'Canonical module population; no independent export calculation.',exclusions:[],state:authorityState}]});
+  arrays.forEach((section,index)=>{const flatRows=section.rows.map(row=>row&&typeof row==='object'&&!Array.isArray(row)?flattenRecord(row):{value:primitiveValue(row)}),columns=analysisColumns(flatRows),tableId='module-table-'+index;
+    const category=columns.find(column=>column.dimension),numeric=columns.filter(column=>column.type==='number'&&flatRows.some(row=>typeof row[column.key]==='number')).slice(0,3);
+    const charts:AnalysisChart[]=category&&numeric.length&&flatRows.length?[{id:'module-chart-'+index,title:section.path.replace(/[._-]+/g,' '),type:category.type==='date'?'line':'bar',tableId,category:category.key,series:numeric.map(column=>column.key),unit:'value',basis:'Chart of the same retained '+section.path+' table rows; no independent report calculation.',population:flatRows.length,dataDate}]:[];
+    sections.push({authorityId:'table-'+index,title:section.path.replace(/[._-]+/g,' '),state:authorityState,explanation:'Same retained module population at '+section.path+'.',metrics:[],tables:[{id:tableId,title:section.path,authorityId:'table-'+index,columns,rows:flatRows as Record<string,Cell>[],population:flatRows.length,excluded:0,state:authorityState,basis:'Canonical module array '+section.path+' after the saved/current scope definition is applied.',traceId:'module:table:'+index}],charts,findings:[],traces:[{id:'module:table:'+index,authorityId:'table-'+index,projectId,module:moduleKey,path:section.path,sourceRefs:[],dataDate,basis:'Canonical module population; no independent export calculation.',exclusions:[],state:authorityState}]});
   });
-  const projectVersion=Number((data as any)?.projectVersion??(data as any)?.reportingContract?.projectVersion??0),dataDate=(data as any)?.reportingContract?.dataDateIso??(data as any)?.dataDateIso??null,programmeRevision=(data as any)?.programmeRevisionId??(data as any)?.reportingContract?.programmeRevisionId??null;
+  const projectVersion=Number((data as any)?.projectVersion??(data as any)?.reportingContract?.projectVersion??0),programmeRevision=(data as any)?.programmeRevisionId??(data as any)?.reportingContract?.programmeRevisionId??null;
   const snapshotHash=createHash('sha256').update(JSON.stringify({projectId,moduleKey,projectVersion,dataDate,data})).digest('hex');
   const detail=(view?.detailLevel&&['short','normal','detailed'].includes(view.detailLevel)?view.detailLevel:'normal') as 'short'|'normal'|'detailed';
   return {schemaVersion:1,id:'module-'+snapshotHash.slice(0,24),conversationId:'module-report',createdAt:new Date().toISOString(),
     scope:{scopeType:'project',projectId,projectName:projectId,workspaceId:'cmeng-projects',userId:'module-report',projectVersion,dataDate,authorityState:result.status,programmeRevision,pageContext:view?.filters?{projectId,page:moduleKey,filters:view.filters,selectedActivity:null,selectedWbs:view.filters.wbsId??null,selectedLocation:view.filters.zone??view.filters.location??null,selectedPackage:view.filters.package??null}:null},
     plan:{objective:titleForModule(moduleKey),kind:'report',authorities:sections.map(s=>s.authorityId),filters:[],groupBy:view?.grouping??[],rankBy:view?.sort?.field??null,rankDirection:view?.sort?.direction??'desc',limit:view?.topN??null,metricIds:[],issuesOnly:false,criticalOnly:false,nextDays:null,deliveryBelowPercent:null,asOf:null,scenario:null,attachmentIds:[]},
-    presentation:{title:view?.title??titleForModule(moduleKey),audience:'project',language:'en',detail,charts:false,preparedBy:null,jobTitle:null,company:null,reportNumber:null,confidentiality:'Project information',status:'Draft / Prepared',format:'interactive'},
+    presentation:{title:view?.title??titleForModule(moduleKey),audience:'project',language:'en',detail,charts:true,preparedBy:null,jobTitle:null,company:null,reportNumber:null,confidentiality:'Project information',status:'Draft / Prepared',format:'interactive'},
     mode:'Deterministic CMeng Summary',sections,narrative:[{heading:'Current position',text:result.reason??'Current CMeng module position.',classification:'calculated_intelligence',traceIds:['module:summary']}],unresolved:[],referenceFiles:[],snapshotHash,factsHash:createHash('sha256').update(JSON.stringify(data)).digest('hex'),providerStatus:'not_needed'};
 }
 export async function exportModuleReport(projectId:string,moduleKey:string,result:ModuleRuntimeResult,format:string,view?:ModuleReportView){
