@@ -516,6 +516,93 @@ test("Progress Breakdown uses one WBS grouping and keeps missing values out of e
   );
 });
 
+
+test("Progress Breakdown exposes the same governed current-programme progress across six structural views", () => {
+  const input = revision2Model();
+  const scope = {
+    rows: input.activities.map(activity => {
+      if (activity.activityId === "A400") {
+        return {activityId:activity.activityId,wbsId:activity.wbsId,wbsLevel:1,zone:"Zone 2",level:"Level 2",workFront:null,cbs:"CBS-B"};
+      }
+      return {activityId:activity.activityId,wbsId:activity.wbsId,wbsLevel:1,zone:"Zone 1",level:"Level 1",workFront:"Work Front A",cbs:"CBS-A"};
+    }),
+  };
+  const projection = buildProgressBreakdownProjection(input,{
+    generatedAt:"2026-09-18T17:00:00.000Z",
+    producerVersion:"progress-breakdown-multidimension-v1",
+    scopeClassification:scope,
+  });
+  assert.equal(projection.baselinePlanAvailable,false);
+  assert.equal(projection.dimensionViews?.length,6);
+  for (const key of ["wbs","wbs_level","zone","level","work_front","cbs"]) {
+    assert.ok(projection.dimensionViews?.find(view=>view.dimension===key));
+  }
+  const wbs=projection.dimensionViews!.find(view=>view.dimension==="wbs")!;
+  assert.equal(wbs.available,true);
+  assert.equal(wbs.rows.filter(row=>row.classified).length,2);
+  assert.equal(wbs.rows.find(row=>row.groupKey==="W1")?.scheduleProgressPercent,71.428571);
+  const workFront=projection.dimensionViews!.find(view=>view.dimension==="work_front")!;
+  assert.equal(workFront.classifiedPopulation,3);
+  assert.equal(workFront.unclassifiedPopulation,1);
+  assert.ok(workFront.rows.some(row=>row.groupLabel==="Unclassified"));
+  const cbs=projection.dimensionViews!.find(view=>view.dimension==="cbs")!;
+  assert.equal(cbs.rows.find(row=>row.groupLabel==="CBS-A")?.activityCount,3);
+  assert.equal(cbs.rows.find(row=>row.groupLabel==="CBS-B")?.activityCount,1);
+  assert.equal(projection.overallScheduleProgressPercent,52.631579);
+  assert.equal(projection.hierarchyRows?.every(row=>row.baselinePlannedPercent===null),true);
+});
+
+test("Progress Breakdown keeps unsupported dimensions unavailable without inventing classifications", () => {
+  const input=revision2Model();
+  const projection=buildProgressBreakdownProjection(input,{
+    generatedAt:"2026-09-18T17:00:00.000Z",
+    producerVersion:"progress-breakdown-wbs-only-v1",
+    scopeClassification:{rows:input.activities.map(activity=>({activityId:activity.activityId,wbsId:activity.wbsId,wbsLevel:1,zone:null,level:null,workFront:null,cbs:null}))},
+  });
+  assert.equal(projection.dimensionViews?.find(view=>view.dimension==="wbs")?.available,true);
+  for(const key of ["zone","level","work_front","cbs"]){
+    const dimensionView:any=projection.dimensionViews!.find((candidate:any)=>candidate.dimension===key)!;
+    assert.equal(dimensionView.available,false);
+    assert.equal(dimensionView.classifiedPopulation,0);
+    assert.equal(dimensionView.unclassifiedPopulation,projection.totalActivityCount);
+  }
+});
+
+test("Progress Breakdown distinguishes controlled baseline presence from usable baseline phasing", () => {
+  const unresolved=buildProgressBreakdownProjection(revision2Model(),{
+    generatedAt:"2026-09-18T17:00:00.000Z",
+    producerVersion:"progress-breakdown-baseline-unphased-v1",
+    baselineModel:revision1Model(),
+  });
+  assert.equal(unresolved.controlledBaselineAvailable,true);
+  assert.equal(unresolved.baselinePlanAvailable,false);
+
+  const current=revision2Model(),baseline=revision1Model();
+  const workingCalendar:any={
+    calendarId:"CAL1",name:"5 Day",semanticComplete:true,
+    weeklyWorkMinutes:[0,480,480,480,480,480,0],
+    weeklyWorkIntervals:[
+      {dayIndex:1,intervals:[]},
+      {dayIndex:2,intervals:[{start:"08:00",finish:"16:00",minutes:480}]},
+      {dayIndex:3,intervals:[{start:"08:00",finish:"16:00",minutes:480}]},
+      {dayIndex:4,intervals:[{start:"08:00",finish:"16:00",minutes:480}]},
+      {dayIndex:5,intervals:[{start:"08:00",finish:"16:00",minutes:480}]},
+      {dayIndex:6,intervals:[{start:"08:00",finish:"16:00",minutes:480}]},
+      {dayIndex:7,intervals:[]}
+    ],
+    exceptions:[],standardDayHours:8,standardWeekHours:40,sourceRefs:[]
+  };
+  current.calendars=[workingCalendar];baseline.calendars=[workingCalendar];
+  const projection=buildProgressBreakdownProjection(current,{
+    generatedAt:"2026-09-18T17:00:00.000Z",
+    producerVersion:"progress-breakdown-baseline-v1",
+    baselineModel:baseline,
+  });
+  assert.equal(projection.controlledBaselineAvailable,true);
+  assert.equal(projection.baselinePlanAvailable,true);
+  assert.ok(projection.hierarchyRows?.some(row=>typeof row.baselinePlannedPercent==="number"));
+});
+
 test("Progress S-Curve derives planned curves but never fabricates actual history from one snapshot", () => {
   const input = revision2Model();
   const projection =

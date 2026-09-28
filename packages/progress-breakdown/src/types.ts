@@ -43,4 +43,51 @@ export interface ProgressBreakdownProjection {
     certifiedPhysicalPercent: number | null; baselinePlannedPercent: number | null;
     currentPlanPercent: number | null; basisNote: string;
   }>;
+  dimensionViews?: ProgressBreakdownDimensionView[];
+  overallScheduleProgressPercent?: number | null;
+  overallProgressCoveragePercent?: number | null;
+  overallKnownWeightHours?: number;
+  baselinePlanAvailable?: boolean;
+  controlledBaselineAvailable?: boolean;
+}
+
+
+export type ProgressBreakdownDimension =
+  | "wbs"
+  | "wbs_level"
+  | "zone"
+  | "level"
+  | "work_front"
+  | "cbs";
+
+export interface ProgressBreakdownGroupRow {
+  dimension: ProgressBreakdownDimension;
+  groupKey: string;
+  groupLabel: string;
+  classified: boolean;
+  activityCount: number;
+  completedCount: number;
+  inProgressCount: number;
+  notStartedCount: number;
+  unknownStatusCount: number;
+  scheduleProgressPercent: number | null;
+  progressCoveragePercent: number | null;
+  knownWeightHours: number;
+  weightSharePercent: number | null;
+  progressContributionPercentagePoints: number | null;
+  criticalCount: number | null;
+  nearCriticalCount: number | null;
+  negativeFloatCount: number | null;
+}
+
+export interface ProgressBreakdownDimensionView {
+  dimension: ProgressBreakdownDimension;
+  label: string;
+  sourcePopulation: number;
+  classifiedPopulation: number;
+  unclassifiedPopulation: number;
+  classificationCoveragePercent: number | null;
+  available: boolean;
+  basis: string;
+  rows: ProgressBreakdownGroupRow[];
 }

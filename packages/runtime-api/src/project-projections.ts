@@ -1210,6 +1210,7 @@ function buildBundle(
       {
       baselineModel: controlledBaseline?.revision.model ?? null,
       previousModel: ordered.at(-2)?.revision.model ?? null,
+      scopeClassification: scheduleScopeClassification(model),
           config: scheduleAnalysisConfig,
         generatedAt,
         producerVersion:
@@ -5275,6 +5276,7 @@ function buildSpecialistModuleFast(
         {
       baselineModel: controlledBaseline?.revision.model ?? null,
       previousModel: ordered.at(-2)?.revision.model ?? null,
+      scopeClassification: scheduleScopeClassification(model),
           config: scheduleAnalysisConfig,
           generatedAt,
           producerVersion:

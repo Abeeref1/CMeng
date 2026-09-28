@@ -70,6 +70,7 @@ button,input,select{font:inherit}button{cursor:pointer}
 .table-wrap{overflow:auto;border:1px solid var(--line);border-radius:10px;max-height:min(66vh,680px);background:#fff;scrollbar-color:#c7d2df transparent;scrollbar-width:thin}table{border-collapse:separate;border-spacing:0;width:100%;font-size:13px;font-variant-numeric:tabular-nums}th,td{padding:11px 12px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}th{background:#f1eee9;color:#55616d;font-weight:780;position:sticky;top:0;z-index:2;font-size:11.5px;letter-spacing:.025em;white-space:nowrap;text-transform:none}td{color:#27364a}tbody tr:nth-child(even) td{background:#fbfaf8}tbody tr:hover td{background:#f5f2ed}tr:last-child td{border-bottom:0}.kpi-value,.position-value,.scalar span,.currency-line strong,.movement-value,.candidate-value{font-variant-numeric:tabular-nums}.module-panel{position:relative}.module-panel:before{content:"";position:absolute;left:0;right:0;top:0;height:3px;background:linear-gradient(90deg,#4f7fb4,#a9c1da);z-index:3}.module-basis{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 14px}.basis-chip{display:inline-flex;align-items:center;gap:7px;min-height:32px;padding:6px 9px;border:1px solid #dbe4ee;border-radius:9px;background:#fff;font-size:11.5px;color:#506579}.basis-chip b{font-size:10.5px;color:#738198;text-transform:uppercase;letter-spacing:.05em}.basis-chip strong{font-size:12.5px;color:#2e3a46;font-weight:780}.focus-module .app{grid-template-columns:minmax(0,1fr)}.focus-module .sidebar{display:none}.focus-module .content{max-width:none;padding:18px}.focus-module .topbar{position:sticky;top:0}.page-expand{white-space:nowrap;margin-left:auto;flex-shrink:0}
 .advanced-control-tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}.advanced-control-head{display:flex;justify-content:space-between;gap:14px;align-items:flex-start;margin:16px 0}.advanced-control-head h3{margin:0 0 4px}.advanced-controls #advancedControlHost:empty{display:none}
 .scope-filter-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:9px;align-items:end}.scope-filter-grid label{display:grid;gap:4px;font-size:10.5px;font-weight:750;color:#64748b}.scope-filter-grid select,.scope-filter-grid input{height:36px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;padding:0 9px;color:#334155;font-size:11.5px}.scope-filter-grid .btn{align-self:end}
+.progress-breakdown-tabs{margin:14px 0}.progress-breakdown-tabs .btn{display:grid;gap:2px;text-align:left;min-width:128px}.progress-breakdown-tabs .btn small{font-size:9.5px;font-weight:600;opacity:.78}.progress-breakdown-toolbar{display:grid;grid-template-columns:minmax(220px,2fr) minmax(180px,1fr) auto;gap:10px;align-items:end;margin:0 0 12px}.progress-breakdown-toolbar label{display:grid;gap:4px;font-size:10.5px;font-weight:750;color:#64748b}.progress-breakdown-toolbar input,.progress-breakdown-toolbar select{height:36px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;padding:0 9px;color:#334155;font-size:11.5px}.progress-breakdown-toolbar .register-search-count{align-self:center;white-space:nowrap}@media(max-width:760px){.progress-breakdown-toolbar{grid-template-columns:1fr}.progress-breakdown-toolbar .register-search-count{justify-self:start}}
 .actions{display:flex;flex-direction:column;gap:8px}.action{padding:11px 13px;background:#fff8ed;border-left:3px solid #f79009;border-radius:7px;font-size:13px}
 .empty{padding:34px;text-align:center;color:var(--muted);font-size:14px}.notice{padding:12px 14px;border-radius:9px;font-size:13px;margin:11px 0;line-height:1.45}.notice.info{background:#f3eee7;color:#5b5144;border:1px solid #d8e4ef}.notice.warn{background:#fff6e5;color:#8b5a16;border:1px solid #ead8ac}.notice.error{background:#fff1f0;color:#912018;border:1px solid #ffd8d3}
 .upload-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.upload-box{border:1px solid #ded8cf;border-radius:11px;padding:14px;background:#faf9f7}.upload-box strong{font-size:13px;display:block;margin-bottom:5px}.upload-box small{color:var(--muted);display:block;margin-bottom:10px;line-height:1.45;font-size:12px}.upload-box input{width:100%;font-size:12px}.intent-control{display:flex;align-items:center;justify-content:space-between;gap:9px;margin:10px 0;padding:8px 9px;background:#eef4fa;border-radius:8px}.intent-control span{font-size:11px;color:#66727f;font-weight:750}.intent-control select{max-width:175px;height:32px;border:1px solid #cbd5e1;border-radius:7px;background:#fff;color:#334155;font-size:11.5px;padding:0 7px}
@@ -2599,18 +2600,58 @@ function renderScopeClassificationVisual(data){
 function renderProgressBreakdownVisual(data){
   const p=projectionFor(data,"progress_breakdown");
   if(!Array.isArray(p.rows))return "";
-  const percent=value=>typeof value==="number"?percent2(value)+"%":"Unresolved";
-  const delta=value=>typeof value==="number"?percent2(value)+" pp":"Unresolved";
+  const pct=value=>typeof value==="number"?percent2(value)+"%":"—";
+  const views=Array.isArray(p.dimensionViews)?p.dimensionViews:[];
+  const initial=(views.find(view=>view.dimension==="wbs"&&view.available)||views.find(view=>view.available)||views[0])?.dimension||"wbs";
+  const availableCount=views.filter(view=>view.available).length;
+  const tabHtml=views.map(view=>{
+    const coverage=typeof view.classificationCoveragePercent==="number"?percent2(view.classificationCoveragePercent)+"%":"No source classification";
+    return '<button type="button" class="btn small progress-dimension-tab '+(view.dimension===initial?"primary":"")+'" data-progress-dimension="'+escapeHtml(view.dimension)+'">'+escapeHtml(view.label)+'<small>'+escapeHtml(coverage)+'</small></button>';
+  }).join("");
+  const viewHtml=views.map(view=>{
+    const available=view.available===true;
+    const rows=(view.rows||[]).map(row=>{
+      const search=[row.groupLabel,row.groupKey].filter(Boolean).join(" ").toLowerCase();
+      const open=row.activityCount-row.completedCount;
+      return '<tr data-progress-row data-progress-search="'+escapeHtml(search)+'" data-progress-open="'+(open>0?"1":"0")+'" data-progress-critical="'+(typeof row.criticalCount==="number"&&row.criticalCount>0?"1":"0")+'" data-progress-negative="'+(typeof row.negativeFloatCount==="number"&&row.negativeFloatCount>0?"1":"0")+'" data-progress-unclassified="'+(row.classified?"0":"1")+'">'+
+        '<td><b>'+escapeHtml(row.groupLabel)+'</b>'+(row.groupKey&&row.groupKey!==row.groupLabel&&row.groupKey!=="__UNCLASSIFIED__"?'<br><span class="muted">'+escapeHtml(row.groupKey)+'</span>':'')+'</td>'+
+        '<td>'+escapeHtml(fmt(row.activityCount))+'</td>'+
+        '<td>'+escapeHtml(fmt(row.completedCount))+'</td>'+
+        '<td>'+escapeHtml(fmt(open))+'</td>'+
+        '<td>'+escapeHtml(pct(row.scheduleProgressPercent))+'<br><small>Coverage '+escapeHtml(pct(row.progressCoveragePercent))+'</small></td>'+
+        '<td>'+escapeHtml(pct(row.weightSharePercent))+'</td>'+
+        '<td>'+escapeHtml(typeof row.progressContributionPercentagePoints==="number"?percent2(row.progressContributionPercentagePoints)+" pp":"—")+'</td>'+
+        '<td>'+escapeHtml(typeof row.criticalCount==="number"?fmt(row.criticalCount):"—")+'</td>'+
+        '<td>'+escapeHtml(typeof row.negativeFloatCount==="number"?fmt(row.negativeFloatCount):"—")+'</td>'+
+      '</tr>';
+    }).join("");
+    const table=available
+      ? '<div class="progress-breakdown-toolbar"><label>Find group<input type="search" data-progress-filter placeholder="WBS, zone, level, work front or CBS"></label><label>Show<select data-progress-attention><option value="all">All groups</option><option value="open">Groups with open work</option><option value="critical">Groups with critical activities</option><option value="negative">Groups with negative float</option><option value="unclassified">Unclassified only</option></select></label><span class="register-search-count" data-progress-count>'+escapeHtml(fmt(view.rows.length))+' groups</span></div>'+
+        '<div class="table-wrap"><table><thead><tr><th>'+escapeHtml(view.label.replace(/^By /,""))+'</th><th>Activities</th><th>Complete</th><th>Open</th><th>Schedule progress</th><th>Known progress weight share</th><th>Progress contribution</th><th>Critical</th><th>Negative float</th></tr></thead><tbody>'+rows+'</tbody></table></div>'
+      : '<div class="notice info"><b>'+escapeHtml(view.label)+' is not available from the current programme.</b><p>'+escapeHtml(view.basis)+'</p></div>';
+    return '<section class="planning-panel progress-breakdown-view" data-progress-breakdown-view="'+escapeHtml(view.dimension)+'" '+(view.dimension===initial?"":"hidden")+'><div class="planning-panel-head"><div><h4>'+escapeHtml(view.label)+'</h4><p>'+escapeHtml(view.basis)+'</p></div><span class="badge">'+escapeHtml(fmt(view.classifiedPopulation))+' classified · '+escapeHtml(fmt(view.unclassifiedPopulation))+' unclassified</span></div><div class="planning-panel-body">'+table+'</div></section>';
+  }).join("");
+  const baselineNote=p.baselinePlanAvailable
+    ? '<div class="notice info"><b>Controlled baseline plan is available.</b> Baseline planned progress remains a separate schedule basis and is shown only in the WBS hierarchy detail below.</div>'
+    : p.controlledBaselineAvailable
+      ? '<div class="notice info"><b>Baseline planned progress is not shown.</b> A controlled baseline exists, but its working-calendar date phasing is not sufficiently established for a defensible planned-progress curve. Current programme progress remains usable without any extra user action.</div>'
+      : '<div class="notice info"><b>Baseline planned progress is not shown.</b> No controlled baseline or revised baseline is available. Current programme progress and current-plan phasing remain usable without any extra user action.</div>';
   const hierarchy=p.hierarchyRows||p.rows;
-  const ranked=[...p.rows].filter(r=>r.activityCount>0&&r.durationWeightedProgressPercent!=null).sort((a,b)=>a.durationWeightedProgressPercent-b.durationWeightedProgressPercent||String(a.wbsId).localeCompare(String(b.wbsId))).slice(0,15);
-  const progressBars=ranked.map(r=>({label:r.wbsName||r.wbsId,value:r.durationWeightedProgressPercent}));
-  const pressure=[...p.rows].filter(r=>r.negativeFloatCount>0).sort((a,b)=>b.negativeFloatCount-a.negativeFloatCount).slice(0,12).map(r=>({label:r.wbsName||r.wbsId,value:r.negativeFloatCount,tone:"danger"}));
-  const rows=hierarchy.map(r=>'<tr><td style="min-width:220px;padding-left:'+((r.depth||0)*14+8)+'px"><b>'+escapeHtml(r.wbsName||r.wbsId)+'</b><br><span class="muted">'+escapeHtml(r.wbsId)+(r.parentWbsId?' · Parent '+escapeHtml(r.parentWbsId):' · Root')+'</span></td><td>'+escapeHtml(fmt(r.activityCount))+'</td><td>'+escapeHtml(fmt(r.directActivityCount??r.activityCount))+'</td><td>'+escapeHtml(percent(r.baselinePlannedPercent))+'<br><small>Coverage '+escapeHtml(percent(r.baselinePlanCoveragePercent))+'</small></td><td>'+escapeHtml(percent(r.currentPlanPercent))+'<br><small>Coverage '+escapeHtml(percent(r.currentPlanCoveragePercent))+'</small></td><td>'+escapeHtml(percent(r.durationWeightedProgressPercent))+'<br><small>Coverage '+escapeHtml(percent(r.durationWeightedCoveragePercent))+'</small></td><td>'+escapeHtml(delta(displayPercentDifference(r.durationWeightedProgressPercent,r.currentPlanPercent)))+'</td><td>'+escapeHtml(delta(r.scheduleProgressMovementPercentagePoints))+'</td><td>'+escapeHtml(percent(r.contractorReportedPercent))+'</td><td>'+escapeHtml(percent(r.certifiedPhysicalPercent))+'</td><td>'+escapeHtml(fmt(r.criticalCount))+'</td><td>'+escapeHtml(fmt(r.nearCriticalCount))+'</td><td>'+escapeHtml(fmt(r.negativeFloatCount))+'</td></tr>').join("");
-  const compact=basisTable(['WBS','Activities','Baseline plan','Current plan','Snapshot','Critical','Near-critical','Negative float'],hierarchy.map(r=>[r.wbsName||r.wbsId,r.activityCount,percent(r.baselinePlannedPercent),percent(r.currentPlanPercent),percent(r.durationWeightedProgressPercent),r.criticalCount,r.nearCriticalCount,r.negativeFloatCount]));
-  const unavailable=['contractorReportedPercent','certifiedPhysicalPercent','scheduleProgressMovementPercentagePoints'].filter(k=>hierarchy.every(r=>r[k]==null));
-  return '<section class="planning-view wbs-view">' +planningKpis([
-    ["Execution activities",p.totalActivityCount,"each counted once at project level"],["Direct WBS groups",p.rows.length,"direct assignments"],["Hierarchy rows",hierarchy.length,"Parent totals already include child activities"]
-  ])+'<div class="notice info">LOE and summary rows are excluded from execution progress. Parent totals include their child activities; only direct assignments add to the project total. Programme progress, planned progress and certified physical progress are shown separately. Trends require the same activities to be identified across revisions.</div><div class="planning-primary-grid">'+renderVisualPanel("Lowest current snapshot progress","15 direct WBS groups ranked by current snapshot percentage; ties use WBS ID. Added scope remains included.",moduleBarList(progressBars,"accent","%"))+renderVisualPanel("WBS negative-float exceptions","Groups with a nonzero negative-float population",moduleBarList(pressure))+'</div><section class="planning-panel"><div class="planning-panel-head"><h4>WBS hierarchy and progress bases</h4></div><div class="planning-panel-body">'+compact+'<p>Plans and snapshot retain their source populations and weights. Current planned dates may contain actuals. '+escapeHtml(unavailable.length?unavailable.map(humanizeKey).join(", ")+" are not in the supplied dated evidence.":"")+'</p><details><summary>All source columns, coverage and historical comparisons</summary><div class="table-wrap"><table><thead><tr><th>WBS</th><th>Rollup activities</th><th>Direct activities</th><th>Baseline plan</th><th>Current plan</th><th>Schedule snapshot</th><th>Snapshot vs current</th><th>Snapshot vs previous</th><th>Contractor reported</th><th>Certified physical</th><th>Critical</th><th>Near-critical</th><th>Negative float</th></tr></thead><tbody>'+rows+'</tbody></table></div></details></div></section></section>';
+  const baselineAvailable=p.baselinePlanAvailable===true;
+  const currentPlanAvailable=hierarchy.some(row=>typeof row.currentPlanPercent==="number");
+  const hierarchyRows=hierarchy.map(row=>'<tr><td style="min-width:220px;padding-left:'+((row.depth||0)*14+8)+'px"><b>'+escapeHtml(row.wbsName||row.wbsId)+'</b><br><span class="muted">'+escapeHtml(row.wbsId)+(row.parentWbsId?' · Parent '+escapeHtml(row.parentWbsId):' · Root')+'</span></td><td>'+escapeHtml(fmt(row.activityCount))+'</td><td>'+escapeHtml(fmt(row.directActivityCount??row.activityCount))+'</td>'+(baselineAvailable?'<td>'+escapeHtml(pct(row.baselinePlannedPercent))+'<br><small>Coverage '+escapeHtml(pct(row.baselinePlanCoveragePercent))+'</small></td>':'')+(currentPlanAvailable?'<td>'+escapeHtml(pct(row.currentPlanPercent))+'<br><small>Coverage '+escapeHtml(pct(row.currentPlanCoveragePercent))+'</small></td>':'')+'<td>'+escapeHtml(pct(row.durationWeightedProgressPercent))+'<br><small>Coverage '+escapeHtml(pct(row.durationWeightedCoveragePercent))+'</small></td><td>'+escapeHtml(typeof row.criticalCount==="number"?fmt(row.criticalCount):"—")+'</td><td>'+escapeHtml(typeof row.negativeFloatCount==="number"?fmt(row.negativeFloatCount):"—")+'</td></tr>').join("");
+  const hierarchyDetail='<details class="source-scope"><summary>WBS hierarchy and schedule-plan basis</summary><div class="table-wrap"><table><thead><tr><th>WBS</th><th>Rollup activities</th><th>Direct activities</th>'+(baselineAvailable?'<th>Baseline plan</th>':'')+(currentPlanAvailable?'<th>Current plan</th>':'')+'<th>Schedule snapshot</th><th>Critical</th><th>Negative float</th></tr></thead><tbody>'+hierarchyRows+'</tbody></table></div></details>';
+  return '<section class="planning-view wbs-view progress-breakdown-root" data-progress-breakdown-root data-active-dimension="'+escapeHtml(initial)+'">'+
+    planningKpis([
+      ["Execution activities",p.totalActivityCount,"current submitted programme"],
+      ["Schedule activity progress",typeof p.overallScheduleProgressPercent==="number"?pct(p.overallScheduleProgressPercent):"Not available","duration-weighted current programme"],
+      ["Progress coverage",typeof p.overallProgressCoveragePercent==="number"?pct(p.overallProgressCoveragePercent):"Not available","activities with usable duration and progress"],
+      ["Breakdowns available",availableCount,"of "+fmt(views.length)+" source-supported views"]
+    ])+
+    '<div class="notice info"><b>This is current programme activity progress.</b> It does not claim physical, certified, BOQ-quantity or earned-value progress. Missing classifications are kept as Unclassified and are never guessed.</div>'+
+    '<div class="advanced-control-tabs progress-breakdown-tabs">'+tabHtml+'</div>'+
+    viewHtml+baselineNote+hierarchyDetail+
+  '</section>';
 }
 function renderMilestonesVisual(data){
   const p=projectionFor(data,"milestones");
@@ -5057,6 +5098,39 @@ function setVisualPanelFocus(panel,enabled){
     button.setAttribute("aria-expanded",String(enabled));
   }
 }
+
+function applyProgressBreakdownFilters(root){
+  if(!root)return;
+  const active=root.dataset.activeDimension||"wbs";
+  const panel=root.querySelector('[data-progress-breakdown-view="'+active+'"]');if(!panel)return;
+  const query=(panel.querySelector('[data-progress-filter]')?.value||"").trim().toLowerCase();
+  const mode=panel.querySelector('[data-progress-attention]')?.value||"all";
+  let visible=0;
+  panel.querySelectorAll('[data-progress-row]').forEach(row=>{
+    const text=row.dataset.progressSearch||"";
+    const modeMatch=mode==="all"||(mode==="open"&&row.dataset.progressOpen==="1")||(mode==="critical"&&row.dataset.progressCritical==="1")||(mode==="negative"&&row.dataset.progressNegative==="1")||(mode==="unclassified"&&row.dataset.progressUnclassified==="1");
+    row.hidden=Boolean((query&&!text.includes(query))||!modeMatch);
+    if(!row.hidden)visible++;
+  });
+  const count=panel.querySelector('[data-progress-count]');if(count)count.textContent=visible+' groups';
+}
+document.addEventListener("click",event=>{
+  const button=event.target.closest?.("[data-progress-dimension]");if(!button)return;
+  const root=button.closest("[data-progress-breakdown-root]");if(!root)return;
+  const dimension=button.dataset.progressDimension;root.dataset.activeDimension=dimension;
+  root.querySelectorAll("[data-progress-dimension]").forEach(node=>node.classList.toggle("primary",node===button));
+  root.querySelectorAll("[data-progress-breakdown-view]").forEach(node=>node.hidden=node.dataset.progressBreakdownView!==dimension);
+  applyProgressBreakdownFilters(root);
+});
+document.addEventListener("input",event=>{
+  const input=event.target;if(!input.matches?.("[data-progress-filter]"))return;
+  applyProgressBreakdownFilters(input.closest("[data-progress-breakdown-root]"));
+});
+document.addEventListener("change",event=>{
+  const select=event.target;if(!select.matches?.("[data-progress-attention]"))return;
+  applyProgressBreakdownFilters(select.closest("[data-progress-breakdown-root]"));
+});
+
 document.addEventListener('input',event=>{
   const input=event.target;if(!input.matches?.('[data-register-filter]'))return;
   const panel=input.closest('.planning-panel');if(!panel)return;
