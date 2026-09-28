@@ -898,7 +898,7 @@ async function route(
         process.env.RAILWAY_GIT_COMMIT_SHA ??
         process.env.GIT_COMMIT_SHA ??
         null,
-      scope: "schedule-22-final",
+      scope: "schedule-controlled-registry",
       moduleCount: scheduleModules.length,
       modules: scheduleModules,
       invariants: {
