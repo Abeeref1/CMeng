@@ -1,0 +1,33 @@
+name: CMeng Current Pages 1-12 Capture
+on:
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  capture:
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1,2,3]
+    runs-on: ubuntu-latest
+    timeout-minutes: 14
+    env:
+      CMENG_RAILWAY_URL: https://cmeng-main-production.up.railway.app
+      CMENG_EXPECTED_RELEASE: 8c54f83af79e4e6818ba4d1195cb66d32be9a258
+      CMENG_AUDIT_SHARD: ${{ matrix.shard }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: |
+          python -m pip install playwright==1.57.0
+          python -m playwright install --with-deps chromium
+      - run: python scripts/railway-current-pages-capture.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cmeng-current-pages-${{ matrix.shard }}
+          path: visual-audit-current-${{ matrix.shard }}
+          retention-days: 7
