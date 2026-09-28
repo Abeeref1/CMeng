@@ -49,3 +49,18 @@ Regression checks exercise arbitrary module names, non-sample dates and amounts,
 The deployed language review then found the same problem in legacy templates and generated request titles: `Governed revisions`, `Tier 2 performance readiness`, `cashFlow`, resource-unit identifiers and uppercase claim-check codes. Those labels now use business terms. Programme filenames remain in the detailed reference while the compact header uses the readable revision name. General instructions and zero-exclusion date tables move into supporting details; actual date exclusions still remain visible. Missing KPI values use smaller type. Additional checks cover request titles from several domains and preservation of moved guidance/date counts. The full suite passes 562 tests. Resource-code translations preserve other project units (including kWh and m²) exactly. The duplicate technical readiness reason on Challenge the Contract remains in supporting detail.
 
 The specialist-position table also retains internal readiness messages under Calculation notes, with a plain business summary above. Original numeric explanations and original notes remain available.
+
+
+## 28 Sep 2026 acceptance additions
+
+### Cross-project claims duplication — confirmed data-integrity defect
+
+Production review found the same semantic claim pattern across eight unrelated projects. The affected projects use different evidence document IDs, different source SHA-256 hashes and different canonical evidence revisions, so this is not a runtime cache leak. The source data itself follows the same template: claims begin `CLM-0001`, `CLM-0002`, etc.; events are titled `Delay event 0001`, `Delay event 0002`, etc.; the opening described-impact sequence repeats 12/19/26/33/40 days; and notice IDs repeat `LTR-C-0001`, `LTR-C-0002`, etc. Most affected projects expose 180 claims with zero accepted activity linkage while their actual programme movement differs by project.
+
+Release acceptance now computes a semantic fingerprint from the first 20 claim/event records for every live project with a material claim population. If the same detailed fingerprint appears in three or more projects, live acceptance fails. Filenames and hashes are deliberately excluded from the fingerprint so project-specific wrapper files cannot mask repeated semantic data. The underlying project source data still requires correction or replacement; the product must not treat the repeated portfolio pattern as proof that the claims are independently project-specific.
+
+### Human page audit coverage — incomplete until every project/page is rendered
+
+The first TinyFish browser pass is retained only as partial evidence. Although it listed all 19 portfolio projects, it opened only a small subset of projects and roughly fifteen rendered pages in detail. Therefore its unvisited projects/pages are **not passed or clean**. The page-by-page acceptance rule remains: every page receives an explicit human check in the required full-data, schedule-only and BOQ-only states; automated CI and portfolio-level inspection are additional evidence, never substitutes for rendered page inspection.
+
+A previous claim that JED-DWT-S1 had an ungrouped run-on management-action list was disproved by direct production data and is removed from the defect register.
