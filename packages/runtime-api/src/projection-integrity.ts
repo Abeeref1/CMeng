@@ -103,13 +103,18 @@ export function checkProjectionIntegrity(result: ModuleRuntimeResult, model: Can
   }
   if (result.key === 'notices-claims') {
     const events = data.events ?? [], claims = data.claims ?? [];
+    const populationEstablished =
+      Boolean(claimsSource) &&
+      claimsSource?.integrity?.state !== 'quarantined';
     compare('notice_event_population', events.length, claimsSource?.events.length ?? 0);
     compare('claim_population', claims.length, claimsSource?.claims.length ?? 0);
     compare('unique_event_ids', new Set(events.map((r:any)=>r.eventId)).size, events.length);
     compare('unique_claim_ids', new Set(claims.map((r:any)=>r.claimId)).size, claims.length);
-    compare('claim_headline_matches_register', data.claimCount, claimsSource?claims.length:null);
-    compare('event_headline_matches_register', data.eventCount, claimsSource?events.length:null);
-    const count=(state:string)=>claimsSource?events.filter((r:any)=>r.noticeTimeliness===state).length:null;
+    // A quarantined/unestablished source population is intentionally withheld as
+    // null. Zero would falsely assert an established empty register.
+    compare('claim_headline_matches_register', data.claimCount, populationEstablished?claims.length:null);
+    compare('event_headline_matches_register', data.eventCount, populationEstablished?events.length:null);
+    const count=(state:string)=>populationEstablished?events.filter((r:any)=>r.noticeTimeliness===state).length:null;
     compare('timely_notice_count',data.timelyNoticeCount,count('timely'));
     compare('late_notice_count',data.lateNoticeCount,count('late'));
     compare('event_date_missing_count',data.noticeEventDateMissingCount,count('event_date_missing'));
