@@ -7191,6 +7191,16 @@ export function moduleForProject(
   return resolveProjectModule(state, key);
 }
 
+export function lookAheadForProjectWindow(projectId:string,windowDays:number):ModuleRuntimeResult {
+  const allowed=new Set([14,28,42,56,84]);
+  if(!allowed.has(windowDays))return blocked('lookahead-schedule','Choose a 2, 4, 6, 8 or 12-week look-ahead window.',['window']);
+  const state=runtimeProjects.get(projectId);if(!state)return blocked('lookahead-schedule','Project has not been created.',['project']);
+  const base=moduleForProject(projectId,'lookahead-schedule');if(base.status==='blocked')return base;
+  const scoped=reportingState(state),current=projectControlSchedule(scoped);if(!current)return base;
+  const projection=buildLookAheadProjection(current.revision.model,{generatedAt:new Date().toISOString(),producerVersion:'lookahead-window-v1',readinessEvidence:scoped.controls.readinessEvidence,windowDays});
+  return {...base,data:{...((base.data&&typeof base.data==='object')?base.data:{}),...projection}};
+}
+
 const managementModuleKeys = ["master-dashboard", "command-center", "master-control-programme", "source-quality"];
 
 export function directorForProject(
