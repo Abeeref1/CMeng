@@ -36,6 +36,25 @@ test('Delivery consumes the adopted programme; pending updates and first-upload 
  const blocked=deliveryModule(fresh,'construction-readiness');assert.equal((blocked.data as any).dataDateIso,null);assert.equal(blocked.scheduleAuthorityReview!.pendingSchedules[0]!.canAdopt,true);
 });
 
+
+test('BOQ-only projects expose scope, procurement, long-lead, material and risk intelligence before specialist registers exist',async t=>{
+ const f=await fixture(t);
+ await f.upload('BOQ.csv','Item No,Description,Unit,Quantity,Rate,Amount,Currency\\n1,Tower A Zone 2 Level 05 Electrical Switchgear,No.,2,1000000,2000000,AED\\n2,Tower A Zone 2 Level 05 Fire Alarm Panel,No.,4,10000,40000,AED');
+ const keys=['procurement-packages','long-lead','material-tracking','construction-discipline','construction-locations','delivery-risks'];
+ for(const key of keys){
+  const r=deliveryModule(f.state,key),data=r.data as any;
+  assert.equal(data.boqDerivedCandidate,true,key+' should use the available BOQ before asking for another register');
+  assert.ok(data.rows.length>0,key+' should return useful rows from the BOQ');
+  assert.equal(r.status,'partial',key+' BOQ intelligence must remain candidate, not falsely ready');
+ }
+ const packages=(deliveryModule(f.state,'procurement-packages').data as any).rows;
+ assert.ok(packages.some((r:any)=>/Switchgear/.test(r.system)&&r.procurementPriority==='Critical'));
+ const material=(deliveryModule(f.state,'material-tracking').data as any).rows;
+ assert.ok(material.some((r:any)=>/Tower A/.test(r.location)&&/Zone 2/.test(r.location)&&/05/.test(r.location)));
+ const risks=(deliveryModule(f.state,'delivery-risks').data as any).rows;
+ assert.ok(risks.some((r:any)=>r.category==='procurement'&&r.probability==='Not established'));
+});
+
 test('register imports remain candidates, retain source receipts and do not improve procurement figures',async t=>{
  const f=await fixture(t);await f.upload('Procurement.csv','Package ID,Description,Unit,Ordered Quantity,Ordered Date,Supplier ID,Lifecycle ID\nPK1,Chiller,No.,1,2031-08-20,S1,L1');
  const before=deliveryPosition(f.state),r=before.records.find(r=>r.reference==='PK1')!;assert.equal(r.kind,'package');assert.equal(r.state,'extracted_candidate');assert.match(r.receipts[0]!.sourceHash,/^[a-f0-9]{64}$/);assert.equal(before.packageRows.length,0);
