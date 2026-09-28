@@ -47,14 +47,14 @@ export async function askAiRequest(req:IncomingMessage,res:ServerResponse,url:UR
       const createdAt=new Date().toISOString(),view:SavedView={schemaVersion:1,id:randomUUID(),projectId,workspaceId:user.workspaceId,ownerId:user.userId,name:'Refresh '+authorityId,visibility:'personal',
         plan:{...structuredClone(base.plan),authorities:[authorityId],rankings:(base.plan.rankings??[]).filter(r=>r.authorityId===authorityId),
           authorityFilters:base.plan.authorityFilters?.[authorityId]?{[authorityId]:structuredClone(base.plan.authorityFilters[authorityId]!)}:{},
-          activityBreakouts:authorityId==='activities'?structuredClone(base.plan.activityBreakouts):undefined},
+          ...(authorityId==='activities'&&base.plan.activityBreakouts?{activityBreakouts:structuredClone(base.plan.activityBreakouts)}:{})},
         presentation:structuredClone(base.presentation),savedFromDataDate:base.scope.dataDate,savedFromProjectVersion:base.scope.projectVersion,createdAt,updatedAt:createdAt};
       const one=await engine.ask(projectId,user,{question:base.plan.objective},view),replacement=one.sections.find(section=>section.authorityId===authorityId);
       if(!replacement)throw new AskError(409,'section_unavailable','CMeng could not refresh this section from the current Project information.');
       const merged:AnalysisResult={...structuredClone(base),id:randomUUID(),createdAt,sections:base.sections.map(section=>section.authorityId===authorityId?replacement:section),
         unresolved:[...new Set([...base.unresolved.filter(item=>!item.startsWith(base.sections.find(s=>s.authorityId===authorityId)?.title+':')),...one.unresolved])],
         improvementNeeds:[...new Set([...(base.improvementNeeds??[]),...(one.improvementNeeds??[])])],
-        providerStatus:one.providerStatus,mode:one.mode,route:base.route};
+        providerStatus:one.providerStatus,mode:one.mode,...(base.route?{route:base.route}:{})};
       merged.factsHash=askHash(merged.sections);merged.snapshotHash=askHash({scope:merged.scope,plan:merged.plan,sections:merged.sections});
       await engine.store.saveResult(merged,user);json(res,200,compactAskResult(merged));return true;
     }
