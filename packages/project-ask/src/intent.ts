@@ -77,13 +77,13 @@ export function resolveIntent(question:string,catalogue:AuthorityDescriptor[],pr
     const available=(id:string)=>catalogue.some(c=>c.id===id);
     const wantsPath=/\b(?:critical|driving) path\b/.test(q);
     const wantsActivityList=/\bactivit(?:y|ies)\b|\b(?:delayed|late|overdue) (?:items|tasks|work)\b|should (?:have )?(?:start|finish)|should have (?:started|finished)|\b(?:missed|overdue|late) starts?\b|\b(?:overdue|late) finishes?\b/.test(q);
-    // Keep explicitly requested non-schedule domains in a combined question,
-    // and satisfy each schedule requirement independently rather than forcing
-    // "critical path OR activity list".
-    plan.authorities=plan.authorities.filter(id=>!['programme','activities','float','critical-path','forecast','delay','lookahead'].includes(id));
-    if(wantsActivityList&&available('activities'))plan.authorities.push('activities');
-    if(wantsPath&&available('critical-path'))plan.authorities.push('critical-path');
-    if(!wantsActivityList&&!wantsPath&&available('activities'))plan.authorities.push('activities');
+    // Keep earlier conversation requirements when this is an additive
+    // follow-up. A new standalone schedule question may replace the previous
+    // schedule slice, but "also/include/add" must never discard it.
+    if(!inherited)plan.authorities=plan.authorities.filter(id=>!['programme','activities','float','critical-path','forecast','delay','lookahead'].includes(id));
+    if(wantsActivityList&&available('activities')&&!plan.authorities.includes('activities'))plan.authorities.push('activities');
+    if(wantsPath&&available('critical-path')&&!plan.authorities.includes('critical-path'))plan.authorities.push('critical-path');
+    if(!wantsActivityList&&!wantsPath&&available('activities')&&!plan.authorities.includes('activities'))plan.authorities.push('activities');
     // A spatial word in an activity question scopes the programme activity
     // population; it does not automatically request the Delivery location register.
     if(activityQuestion&&/\b(?:zone|floor|level|tower|building|area|work ?front)\b/.test(q)&&!/\b(?:location register|location hierarchy|governed locations?)\b/.test(q))
@@ -91,7 +91,7 @@ export function resolveIntent(question:string,catalogue:AuthorityDescriptor[],pr
     if(/\b(?:why|caus\w*|driv\w*|delaying|makes?|making)\b/.test(q)){
       // A schedule diagnosis starts from schedule facts and linked blockers.
       // Optional domains are added only when the question actually names them.
-      plan.authorities=plan.authorities.filter(id=>['activities','critical-path'].includes(id)||catalogue.find(c=>c.id===id)?.concepts.some(c=>mentions(q,c)));
+      if(!inherited)plan.authorities=plan.authorities.filter(id=>['activities','critical-path'].includes(id)||catalogue.find(c=>c.id===id)?.concepts.some(c=>mentions(q,c)));
       for(const id of ['critical-path','lookahead','forecast'])if(available(id)&&!plan.authorities.includes(id))plan.authorities.push(id);
     }
   }
