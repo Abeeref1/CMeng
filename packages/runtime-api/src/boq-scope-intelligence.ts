@@ -16,7 +16,7 @@ export interface BoqCandidatePackage{
   longLeadItemCount:number;criticalItemCount:number;priority:Priority;basis:string;
 }
 export interface BoqCandidateRisk{
-  riskId:string;category:'procurement'|'construction'|'design';risk:string;impact:string;probability:'Professional assessment';severity:Priority;
+  riskId:string;category:'procurement'|'construction'|'design';risk:string;impact:string;probability:'Not established';severity:Priority;
   mitigation:string;responsibleParty:string;basis:string;relatedPackages:string[];
 }
 const clean=(v:string)=>v.normalize('NFKC').replace(/\s+/g,' ').trim();
@@ -116,7 +116,7 @@ export function boqScopeIntelligence(state:ProjectRuntimeState){
  const packages=[...packageMap.values()].map(p=>({...p,readableValue:p.readableValue===0?null:Number((p.readableValue??0).toFixed(2))})).sort((a,b)=>String(a.currency).localeCompare(String(b.currency))||((b.readableValue??-Infinity)-(a.readableValue??-Infinity))||a.package.localeCompare(b.package));
  const longLead=rows.filter(r=>r.longLeadCandidate).sort((a,b)=>{const order:Priority[]=['Critical','High','Medium','Low'];return order.indexOf(a.procurementPriority??'Low')-order.indexOf(b.procurementPriority??'Low')||((b.amount??-Infinity)-(a.amount??-Infinity));});
  const risks:BoqCandidateRisk[]=[];
- const addRisk=(id:string,category:BoqCandidateRisk['category'],risk:string,impact:string,severity:Priority,mitigation:string,owner:string,packages:string[])=>{if(packages.length&&!risks.some(r=>r.riskId===id))risks.push({riskId:id,category,risk,impact,probability:'Professional assessment',severity,mitigation,responsibleParty:owner,basis:'Candidate management risk derived from BOQ scope; not a confirmed Project Risk Register entry.',relatedPackages:packages});};
+ const addRisk=(id:string,category:BoqCandidateRisk['category'],risk:string,impact:string,severity:Priority,mitigation:string,owner:string,packages:string[])=>{if(packages.length&&!risks.some(r=>r.riskId===id))risks.push({riskId:id,category,risk,impact,probability:'Not established',severity,mitigation,responsibleParty:'Suggested: '+owner,basis:'Candidate management risk derived from BOQ scope. Severity and suggested responsibility are professional planning assessments; probability is not established and this is not a confirmed Project Risk Register entry.',relatedPackages:packages});};
  const packageNames=(pattern:RegExp)=>[...new Set(rows.filter(r=>pattern.test((r.system??'')+' '+(r.discipline??'')+' '+r.description)).map(r=>r.packageCandidate).filter((v):v is string=>!!v))];
  addRisk('boq-long-lead','procurement','Specialist or manufactured packages may require early procurement and approval.','Late award or manufacturing can constrain downstream installation and completion.','High','Confirm supplier lead times, submittal/approval durations and required-on-site dates.','Procurement / Package Manager',packages.filter(p=>p.longLeadItemCount>0).map(p=>p.package));
  addRisk('boq-facade-interface','design','Facade scope may require coordinated design, mock-ups, interfaces and specialist approvals.','Late design release can affect procurement, enclosure and finishes.','High','Establish facade design release, mock-up and procurement milestones.','Design / Facade Manager',packageNames(/Facade|Curtain Wall/i));
