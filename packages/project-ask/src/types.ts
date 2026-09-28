@@ -115,5 +115,6 @@ export interface AskRequest {
 export interface SavedView {
   schemaVersion: 1; id: string; projectId: string; workspaceId: string; ownerId: string;
   name: string; visibility: 'personal' | 'project'; plan: AnalysisPlan; presentation: Presentation;
+  savedFromDataDate?: string | null; savedFromProjectVersion?: number;
   createdAt: string; updatedAt: string;
 }
