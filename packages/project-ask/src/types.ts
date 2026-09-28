@@ -112,9 +112,21 @@ export interface AskRequest {
   question: string; scopeType?: string; conversationId?: string; analysisId?: string;
   pageContext?: PageContext; attachmentIds?: string[];
 }
+export interface SavedViewDefinition {
+  pageContext?: PageContext | null;
+  reportView?: {
+    title: string;
+    includeAuthorities: string[];
+    sectionOrder: string[];
+    includeCharts: string[];
+    chartTypes: Record<string,string>;
+    chartLimits: Record<string,number>;
+  } | null;
+}
 export interface SavedView {
   schemaVersion: 1; id: string; projectId: string; workspaceId: string; ownerId: string;
   name: string; visibility: 'personal' | 'project'; plan: AnalysisPlan; presentation: Presentation;
+  viewDefinition?: SavedViewDefinition;
   savedFromDataDate?: string | null; savedFromProjectVersion?: number;
   createdAt: string; updatedAt: string;
 }
