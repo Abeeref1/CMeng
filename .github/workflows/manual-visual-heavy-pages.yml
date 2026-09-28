@@ -1,0 +1,32 @@
+name: CMeng Heavy Pages Visual Audit
+on:
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  page:
+    strategy:
+      fail-fast: false
+      matrix:
+        page_index: [11,13]
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      CMENG_RAILWAY_URL: https://cmeng-main-production.up.railway.app
+      CMENG_EXPECTED_RELEASE: 8c54f83af79e4e6818ba4d1195cb66d32be9a258
+      CMENG_AUDIT_PAGE_INDEX: ${{ matrix.page_index }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: |
+          python -m pip install playwright==1.57.0
+          python -m playwright install --with-deps chromium
+      - run: python scripts/railway-visual-audit-light.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cmeng-heavy-page-${{ matrix.page_index }}
+          path: visual-audit-light
+          retention-days: 7
