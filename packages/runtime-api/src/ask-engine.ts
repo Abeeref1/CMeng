@@ -206,6 +206,22 @@ export class ProjectAskEngine {
     if(previous&&scope.pageContext&&previous.scope.pageContext?.page!==scope.pageContext.page)previous=null;
     const intent=resolveIntent(request.question,catalogue,user,scope.pageContext,previous);
     let plan=view?structuredClone(view.plan):intent.plan,presentation=view?structuredClone(view.presentation):intent.presentation;
+    // A saved live view is recalculated against the latest Project position, but it must
+    // retain the page scope that defined the view. The saved plan usually already carries
+    // these filters; reapply only missing context filters so an older saved definition
+    // cannot reopen visually scoped while recalculating the whole project.
+    if(view&&scope.pageContext){
+      const contextualFilters:AnalysisPlan['filters']=[
+        ...Object.entries(scope.pageContext.filters).filter(([,value])=>Boolean(value)).map(([field,value])=>({field,operator:'eq' as const,value,upper:null})),
+        ...([
+          ['activityId',scope.pageContext.selectedActivity],
+          ['wbsId',scope.pageContext.selectedWbs],
+          ['location',scope.pageContext.selectedLocation],
+          ['reference',scope.pageContext.selectedPackage],
+        ] as const).filter(([,value])=>Boolean(value)).map(([field,value])=>({field,operator:'eq' as const,value:value!,upper:null})),
+      ];
+      for(const filter of contextualFilters)if(!plan.filters.some(existing=>existing.field===filter.field&&existing.operator===filter.operator&&String(existing.value)===String(filter.value)))plan.filters.push(filter);
+    }
     const unresolved=[...intent.gaps,...(intent.purePresentation&&previous?previous.unresolved:[])];let providerStatus:AnalysisResult['providerStatus']=!this.model?'not_configured':!user.allowModel?'not_permitted':'not_needed';
     const route=routeRequest(request.question,plan,intent.purePresentation),interpret=needsInterpretation(route)&&plan.kind!=='proposal';
     const precise=!interpret&&!intent.purePresentation&&((plan.metricIds.length>0&&plan.authorities.every(id=>id==='evm'))||plan.authorities.every(id=>id==='programme')&&/data date|reporting date|تاريخ البيانات/i.test(request.question));

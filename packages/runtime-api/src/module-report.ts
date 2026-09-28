@@ -1,4 +1,7 @@
 import {buildDeliveryWorkbook} from './delivery-export';
+import {createHash} from 'node:crypto';
+import {exportAskAnalysis,type AskExportView} from './ask-export';
+import type {AnalysisResult,AuthorityResult,AnalysisChart,Column,Cell} from '../../project-ask/src/types';
 import {pageApiKey,publicModuleResult} from './registry';
 import ExcelJS from "exceljs";
 import type {
@@ -688,4 +691,96 @@ export function moduleReportFilename(
     "." +
     extension
   );
+}
+
+
+export interface ModuleReportView extends AskExportView {
+  filters?: Record<string,string>;
+  selectedRole?: string|null;
+  dateRange?: {from:string|null;to:string|null}|null;
+  grouping?: string[];
+  sort?: {field:string;direction:'asc'|'desc'}|null;
+  topN?: number|null;
+  layout?: string|null;
+}
+const normalizedKey=(value:string)=>value.normalize('NFKC').toLowerCase().replace(/[^a-z0-9]+/g,'');
+const aliases:Record<string,string[]>={
+  wbsid:['wbsid','wbs','wbspath'],zone:['zone'],floor:['floor','level'],level:['level','floor'],tower:['tower'],building:['building','block'],area:['area'],workfront:['workfront','affectedworkfront'],
+  discipline:['discipline'],trade:['trade'],system:['system'],package:['package','packagecandidate','workpackage','reference'],contractor:['contractor','owner','responsibleparty'],subcontractor:['subcontractor'],
+  status:['status','state','currentstatus','readinessstate','permitstatus'],criticality:['criticality'],currency:['currency']
+};
+function rowFilterValue(row:Record<string,unknown>,filter:string){
+  const wanted=aliases[normalizedKey(filter)]??[normalizedKey(filter)],entries=Object.entries(row);
+  for(const [key,value] of entries)if(wanted.includes(normalizedKey(key))&&value!==null&&value!==undefined)return String(value);
+  return null;
+}
+function matchesModuleFilters(row:Record<string,unknown>,filters:Record<string,string>){
+  for(const [rawKey,wantedRaw] of Object.entries(filters)){
+    const wanted=String(wantedRaw??'').trim();if(!wanted||['search','displayState','scheduleCondition'].includes(rawKey))continue;
+    const actual=rowFilterValue(row,rawKey);if(actual===null)continue;
+    if(!actual.toLowerCase().includes(wanted.toLowerCase()))return false;
+  }
+  const condition=filters.scheduleCondition;
+  if(condition){
+    const float=Number(rowFilterValue(row,'totalFloatHours')),status=String(row.status??''),delayed=row.scheduleDelayed===true,missed=row.missedPlannedStart===true,overdue=row.finishOverdue===true;
+    if(condition==='negative_float'&&!(Number.isFinite(float)&&float<0))return false;
+    if(condition==='zero_float'&&float!==0)return false;
+    if(condition==='delayed'&&!delayed)return false;
+    if(condition==='missed_start'&&!missed)return false;
+    if(condition==='overdue_finish'&&!overdue)return false;
+    if(condition==='float_risk'&&row.floatRiskWatchlist!==true)return false;
+    if(condition==='open_logic'&&!(row.openStart===true||row.openFinish===true||row.isolated===true))return false;
+    if(condition==='not_started'&&!/not.?started/i.test(status))return false;
+  }
+  const q=filters.search?.trim().toLowerCase();if(q&&!JSON.stringify(row).toLowerCase().includes(q))return false;
+  return true;
+}
+function applyModuleFilters(value:unknown,filters:Record<string,string>,depth=0):unknown{
+  if(depth>8||value===null||value===undefined||typeof value!=='object')return value;
+  if(Array.isArray(value)){
+    const objects=value.filter(v=>v&&typeof v==='object'&&!Array.isArray(v)) as Record<string,unknown>[];
+    const recognized=objects.some(row=>Object.keys(filters).some(key=>rowFilterValue(row,key)!==null)||!!filters.scheduleCondition||!!filters.search);
+    const rows=recognized?value.filter(v=>!v||typeof v!=='object'||Array.isArray(v)||matchesModuleFilters(v as Record<string,unknown>,filters)):value;
+    return rows.map(v=>applyModuleFilters(v,filters,depth+1));
+  }
+  return Object.fromEntries(Object.entries(value as Record<string,unknown>).map(([k,v])=>[k,applyModuleFilters(v,filters,depth+1)]));
+}
+export function preparedModuleResult(result:ModuleRuntimeResult,view?:ModuleReportView):ModuleRuntimeResult{
+  if(!view?.filters||!Object.values(view.filters).some(Boolean))return result;
+  return {...result,data:applyModuleFilters(result.data,view.filters) as any};
+}
+function analysisColumns(rows:Record<string,FlatValue>[]):Column[]{
+  const keys:string[]=[];const seen=new Set<string>();for(const row of rows)for(const key of Object.keys(row))if(!seen.has(key)){seen.add(key);keys.push(key);}
+  return keys.map(key=>{const values=rows.map(r=>r[key]).filter(v=>v!==null),sample=values[0];const type:Column['type']=typeof sample==='number'?'number':typeof sample==='boolean'?'boolean':typeof sample==='string'&&/^\d{4}-\d{2}-\d{2}(?:T|$)/.test(sample)?'date':'text';
+    return {key,label:key.replace(/([a-z])([A-Z])/g,'$1 $2').replace(/[._-]+/g,' ').replace(/^./,x=>x.toUpperCase()),type,unit:null,aggregate:'none',dimension:type==='text'};});
+}
+function moduleAnalysis(projectId:string,moduleKey:string,result:ModuleRuntimeResult,view?:ModuleReportView):AnalysisResult{
+  const data=result.data&&typeof result.data==='object'?result.data as Record<string,unknown>:{},arrays=collectArrays(data);
+  const dataDate=(data as any)?.reportingContract?.dataDateIso??(data as any)?.dataDateIso??null;
+  const authorityState=result.status==='ready'?'established':result.status==='partial'?'partial':'unavailable';
+  const sections:AuthorityResult[]=[];
+  const flat=flattenRecord(data),metricRows=Object.entries(flat).filter(([,v])=>v===null||['string','number','boolean'].includes(typeof v)).slice(0,1000);
+  sections.push({authorityId:'summary',title:titleForModule(moduleKey)+' · Key facts',state:authorityState,explanation:result.reason??'Current CMeng module position.',
+    metrics:metricRows.map(([key,value],i)=>({id:'module.'+key,label:key.replace(/([a-z])([A-Z])/g,'$1 $2').replace(/[._-]+/g,' '),value:value as Cell,unit:null,state:authorityState,classification:'calculated_intelligence',traceId:'module:summary',basis:'Same canonical module result used by the live page.'})),
+    tables:[],charts:[],findings:[],traces:[{id:'module:summary',authorityId:'summary',projectId,module:moduleKey,path:'data',sourceRefs:[],dataDate:(data as any)?.reportingContract?.dataDateIso??(data as any)?.dataDateIso??null,basis:'Canonical ModuleRuntimeResult; presentation does not recalculate Project facts.',exclusions:[],state:authorityState}]});
+  arrays.forEach((section,index)=>{const flatRows=section.rows.map(row=>row&&typeof row==='object'&&!Array.isArray(row)?flattenRecord(row):{value:primitiveValue(row)}),columns=analysisColumns(flatRows),tableId='module-table-'+index;
+    const category=columns.find(column=>column.dimension),numeric=columns.filter(column=>column.type==='number'&&flatRows.some(row=>typeof row[column.key]==='number')).slice(0,3);
+    const charts:AnalysisChart[]=category&&numeric.length&&flatRows.length?[{id:'module-chart-'+index,title:section.path.replace(/[._-]+/g,' '),type:category.type==='date'?'line':'bar',tableId,category:category.key,series:numeric.map(column=>column.key),unit:'value',basis:'Chart of the same retained '+section.path+' table rows; no independent report calculation.',population:flatRows.length,dataDate}]:[];
+    sections.push({authorityId:'table-'+index,title:section.path.replace(/[._-]+/g,' '),state:authorityState,explanation:'Same retained module population at '+section.path+'.',metrics:[],tables:[{id:tableId,title:section.path,authorityId:'table-'+index,columns,rows:flatRows as Record<string,Cell>[],population:flatRows.length,excluded:0,state:authorityState,basis:'Canonical module array '+section.path+' after the saved/current scope definition is applied.',traceId:'module:table:'+index}],charts,findings:[],traces:[{id:'module:table:'+index,authorityId:'table-'+index,projectId,module:moduleKey,path:section.path,sourceRefs:[],dataDate,basis:'Canonical module population; no independent export calculation.',exclusions:[],state:authorityState}]});
+  });
+  const projectVersion=Number((data as any)?.projectVersion??(data as any)?.reportingContract?.projectVersion??0),programmeRevision=(data as any)?.programmeRevisionId??(data as any)?.reportingContract?.programmeRevisionId??null;
+  const snapshotHash=createHash('sha256').update(JSON.stringify({projectId,moduleKey,projectVersion,dataDate,data})).digest('hex');
+  const detail=(view?.detailLevel&&['short','normal','detailed'].includes(view.detailLevel)?view.detailLevel:'normal') as 'short'|'normal'|'detailed';
+  return {schemaVersion:1,id:'module-'+snapshotHash.slice(0,24),conversationId:'module-report',createdAt:new Date().toISOString(),
+    scope:{scopeType:'project',projectId,projectName:projectId,workspaceId:'cmeng-projects',userId:'module-report',projectVersion,dataDate,authorityState:result.status,programmeRevision,pageContext:view?.filters?{projectId,page:moduleKey,filters:view.filters,selectedActivity:null,selectedWbs:view.filters.wbsId??null,selectedLocation:view.filters.zone??view.filters.location??null,selectedPackage:view.filters.package??null}:null},
+    plan:{objective:titleForModule(moduleKey),kind:'report',authorities:sections.map(s=>s.authorityId),filters:[],groupBy:view?.grouping??[],rankBy:view?.sort?.field??null,rankDirection:view?.sort?.direction??'desc',limit:view?.topN??null,metricIds:[],issuesOnly:false,criticalOnly:false,nextDays:null,deliveryBelowPercent:null,asOf:null,scenario:null,attachmentIds:[]},
+    presentation:{title:view?.title??titleForModule(moduleKey),audience:'project',language:'en',detail,charts:true,preparedBy:null,jobTitle:null,company:null,reportNumber:null,confidentiality:'Project information',status:'Draft / Prepared',format:'interactive'},
+    mode:'Deterministic CMeng Summary',sections,narrative:[{heading:'Current position',text:result.reason??'Current CMeng module position.',classification:'calculated_intelligence',traceIds:['module:summary']}],unresolved:[],referenceFiles:[],snapshotHash,factsHash:createHash('sha256').update(JSON.stringify(data)).digest('hex'),providerStatus:'not_needed'};
+}
+export async function exportModuleReport(projectId:string,moduleKey:string,result:ModuleRuntimeResult,format:string,view?:ModuleReportView){
+  const prepared=preparedModuleResult(result,view);
+  if(!view&&format==='xlsx')return {bytes:await buildModuleWorkbook(projectId,moduleKey,prepared),type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',filename:moduleReportFilename(projectId,moduleKey,'xlsx')};
+  if(!view&&format==='json')return {bytes:buildModuleJsonDownload(projectId,moduleKey,prepared),type:'application/json; charset=utf-8',filename:moduleReportFilename(projectId,moduleKey,'json')};
+  const analysis=moduleAnalysis(projectId,moduleKey,prepared,view),exported=await exportAskAnalysis(analysis,format,view);
+  return {...exported,filename:safeFilenamePart(projectId)+'_'+safeFilenamePart(titleForModule(moduleKey))+'_'+new Date().toISOString().slice(0,10)+'.'+exported.filename.split('.').at(-1)};
 }

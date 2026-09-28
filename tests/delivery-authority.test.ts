@@ -96,6 +96,34 @@ test('readiness gates use a scoped complete denominator; unrelated unknown gates
  assert.equal(rows.find(r=>r.recordId===b.recordId)!.unknownCount,null);
 });
 
+test('confirmed unresolved interfaces directly gate linked Construction Readiness while candidates do not',async t=>{
+ const f=await fixture(t),activity=projectControlSchedule(f.state)!.revision.model.activities[0]!;
+ const workfront=f.create('workfront','WF-IFACE',{}, {activityIds:[activity.activityId]});
+ f.create('gate','WF-READY',{applicable:'yes','satisfied date':'2031-08-20'},{recordIds:[workfront.recordId]});f.population('gate',workfront.recordId);
+ let page=deliveryModule(f.state,'construction-readiness'),row=(page.data as any).rows.find((r:any)=>r.recordId===workfront.recordId);
+ assert.equal(row.state,'ready');
+ await f.upload('Candidate_Interfaces.csv','Interface ID,Giving Party,Receiving Party,Current Status,Affected Workfront,Linked Activity\nIF-CAND,Design,Construction,Blocked,WF-IFACE,'+activity.activityId);
+ const candidate=deliveryRecords(f.state).records.find(r=>r.reference==='IF-CAND')!;
+ assert.equal(candidate.kind,'interface');assert.equal(candidate.state,'extracted_candidate');
+ page=deliveryModule(f.state,'construction-readiness');row=(page.data as any).rows.find((r:any)=>r.recordId===workfront.recordId);
+ assert.equal(row.state,'ready','candidate interface must not change readiness');
+ f.review(candidate,{}, {links:{recordIds:[workfront.recordId],activityIds:[activity.activityId]}});
+ page=deliveryModule(f.state,'construction-readiness');row=(page.data as any).rows.find((r:any)=>r.recordId===workfront.recordId);
+ assert.equal(row.state,'blocked');assert.deepEqual(row.interfaceGate.interfaceIds,['IF-CAND']);
+ assert.ok((page.data as any).findings.some((finding:any)=>finding.code==='INTERFACE_BLOCKED'));
+});
+
+test('formal Interface Register upload is identified and mapped to interface candidates without silent confirmation',async t=>{
+ const f=await fixture(t);
+ const uploaded=await f.upload('Project_Interface_Register.csv','Interface ID,Giving Party,Receiving Party,Required Deliverable,Required Date,Current Status,Responsible Party\nIF-001,Design Consultant,Main Contractor,Approved shop drawing,2031-08-20,Open,Design Manager');
+ const document=f.state.evidenceDocuments.find(d=>d.documentId===uploaded.documentId)!;assert.equal(document.documentType,'interface_register');
+ const record=deliveryRecords(f.state).records.find(r=>r.reference==='IF-001')!;
+ assert.equal(record.kind,'interface');assert.equal(record.state,'extracted_candidate');assert.equal(record.fields['giving party'],'Design Consultant');
+ const page=deliveryModule(f.state,'delivery-interfaces');
+ assert.equal(page.status,'blocked','candidate register rows remain review evidence until governed');
+ assert.equal((page.data as any).confirmedCount,0);
+});
+
 test('future approvals and closures do not improve historical position; rectification is not closure; unknown inspection outcomes are excluded',async t=>{
  const f=await fixture(t);f.create('submittal','FUTURE',{status:'Approved','raised date':'2031-08-01','approval date':'2031-09-10'});
  f.create('quality','NCR',{'raised date':'2031-08-01','due date':'2031-08-10','rectified date':'2031-08-20',status:'Closed'});

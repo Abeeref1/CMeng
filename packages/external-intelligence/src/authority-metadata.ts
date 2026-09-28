@@ -2957,8 +2957,15 @@ export const externalAuthorityMetadata:AuthorityDescriptor[]=[
 ];
 
 const analyticFields=[
-  'recordId','reference','description','name','itemNumber','activityId','wbsId','discipline','trade','system','packageCandidate','package','location','building','tower','floor','level','zone','area','sectionScope','chainage','supplier','unit','currency','taxBasis','status','state','amount','required','ordered','delivered','installed','deliveryCoveragePercent','totalFloatHours','headroomCalendarDays','programmeNeedDate','percentComplete','score','procurementPriority','longLeadCandidate','criticalScopeCandidate'
+  'recordId','reference','description','name','itemNumber','activityId','wbsId','discipline','trade','system','packageCandidate','package','location','building','tower','floor','level','zone','area','sectionScope','chainage','supplier','unit','currency','taxBasis','status','state','amount','required','ordered','delivered','installed','deliveryCoveragePercent','totalFloatHours','headroomCalendarDays','programmeNeedDate','percentComplete','score','procurementPriority','longLeadCandidate','criticalScopeCandidate',
+  'interfaceId','givingParty','receivingParty','requiredDeliverable','requiredDate','responsibleParty','affectedWorkfront','linkedActivity','linkedRfi','linkedSubmittal','linkedRisk',
+  'scenarioId','type','possibleDaysRecovered','additionalResources','implementationDate','dimension','value','openIssueCount','domainCount','overdueCount','affectedActivityCount','worstOverdueDays'
 ];
+externalAuthorityMetadata.push(
+  {id:'accountability',title:'Accountability',description:'Who holds the largest concentration of open and overdue items across Project control domains, with full drill-back.',module:'cross-domain-accountability',domains:['schedule','delivery','claims','evidence'],concepts:['accountability','who is holding','who holds','who is delaying','who has most overdue','contractor performance','responsible party','open items by contractor'],fields:[...analyticFields],historical:false},
+  {id:'recovery',title:'Recovery & Acceleration',description:'Evidence-based recovery scenarios with assumptions, local days recoverable, resources, cost limits, constraints and risk.',module:'recovery-acceleration',domains:['schedule','delivery','boq'],concepts:['recovery','acceleration','accelerate','recover days','additional crew','extra crew','additional shift','extra shift','resequence','re-sequence','expedite','recovery plan'],fields:[...analyticFields],historical:false},
+  {id:'interfaces',title:'Interface Management',description:'Package, discipline, system and contractor interfaces that can constrain delivery.',module:'delivery-interfaces',domains:['delivery','schedule'],concepts:['interface','interfaces','interface register','package interface','discipline interface','system interface','contractor interface'],fields:[...analyticFields],historical:false}
+);
 const scheduleFields=['schedulePressure','onDrivingNetwork','wbs','critical','criticality','floatRiskWatchlist','missedPlannedStart','finishOverdue','scheduleDelayed','startOverdueCalendarDays','finishOverdueCalendarDays','currentStartIso','currentFinishIso','finishVarianceDays','independentTotalFloatHours'];
 for(const item of externalAuthorityMetadata){
   if(item.fields.includes('recordId')){

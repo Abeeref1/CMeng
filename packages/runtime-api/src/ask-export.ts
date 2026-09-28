@@ -14,11 +14,16 @@ const csv=(v:Cell|undefined)=>'"'+display(v).replace(/^[=+@\t\r]/,"'$&").replace
 const rows=(r:AnalysisResult)=>r.sections.flatMap(s=>s.tables);
 export interface AskExportView {
   title?:string;
+  subtitle?:string|null;
   includeAuthorities?:string[];
   sectionOrder?:string[];
   includeCharts?:string[];
+  includeTables?:string[];
+  includeMetrics?:string[];
   chartTypes?:Record<string,'bar'|'line'>;
   chartLimits?:Record<string,number>;
+  layout?:string|null;
+  detailLevel?:'short'|'normal'|'detailed'|null;
 }
 function validExportView(view:AskExportView|undefined){
   if(!view)return undefined;
@@ -26,16 +31,20 @@ function validExportView(view:AskExportView|undefined){
   const types:Record<string,'bar'|'line'>={};for(const [key,value] of Object.entries(view.chartTypes??{}))if(key.length<=160&&(value==='bar'||value==='line'))types[key]=value;
   const limits:Record<string,number>={};for(const [key,value] of Object.entries(view.chartLimits??{}))if(key.length<=160&&Number.isSafeInteger(value)&&value>0&&value<=5000)limits[key]=value;
   const title=typeof view.title==='string'?view.title.trim().slice(0,160):'';
-  const includeAuthorities=safeIds(view.includeAuthorities),sectionOrder=safeIds(view.sectionOrder),includeCharts=safeIds(view.includeCharts);
-  return {...(title?{title}:{}),...(includeAuthorities?{includeAuthorities}:{}),...(sectionOrder?{sectionOrder}:{}),...(includeCharts?{includeCharts}:{}),chartTypes:types,chartLimits:limits} satisfies AskExportView;
+  const includeAuthorities=safeIds(view.includeAuthorities),sectionOrder=safeIds(view.sectionOrder),includeCharts=safeIds(view.includeCharts),includeTables=safeIds(view.includeTables),includeMetrics=safeIds(view.includeMetrics);
+  const detailLevel=['short','normal','detailed'].includes(String(view.detailLevel))?view.detailLevel as 'short'|'normal'|'detailed':null;
+  return {...(title?{title}:{}),...(typeof view.subtitle==='string'?{subtitle:view.subtitle.slice(0,500)}:{}),...(includeAuthorities?{includeAuthorities}:{}),...(sectionOrder?{sectionOrder}:{}),...(includeCharts?{includeCharts}:{}),...(includeTables?{includeTables}:{}),...(includeMetrics?{includeMetrics}:{}),chartTypes:types,chartLimits:limits,...(typeof view.layout==='string'?{layout:view.layout.slice(0,80)}:{}),...(detailLevel?{detailLevel}:{})} satisfies AskExportView;
 }
 export function preparedAskResult(result:AnalysisResult,input?:AskExportView){
   const view=validExportView(input);if(!view)return result;
-  const include=view.includeAuthorities?.length?new Set(view.includeAuthorities):null,chartSet=view.includeCharts?.length?new Set(view.includeCharts):null;
+  const include=view.includeAuthorities!==undefined?new Set(view.includeAuthorities):null,chartSet=view.includeCharts!==undefined?new Set(view.includeCharts):null,tableSet=view.includeTables!==undefined?new Set(view.includeTables):null,metricSet=view.includeMetrics!==undefined?new Set(view.includeMetrics):null;
   const order=new Map((view.sectionOrder??[]).map((id,index)=>[id,index]));
-  const sections=result.sections.filter(s=>!include||include.has(s.authorityId)).map(s=>({...s,charts:s.charts.filter(chart=>!chartSet||chartSet.has(chart.id)).map(chart=>({...chart,type:view.chartTypes?.[chart.id]??chart.type}))}))
-    .sort((a,b)=>(order.get(a.authorityId)??9999)-(order.get(b.authorityId)??9999));
-  return {...result,presentation:{...result.presentation,title:view.title??result.presentation.title},sections};
+  const sections=result.sections.filter(s=>!include||include.has(s.authorityId)).map(s=>({...s,
+    metrics:s.metrics.filter(metric=>!metricSet||metricSet.has(metric.id)),
+    tables:s.tables.filter(table=>!tableSet||tableSet.has(table.id)),
+    charts:s.charts.filter(chart=>(!chartSet||chartSet.has(chart.id))&&(!tableSet||tableSet.has(chart.tableId))).map(chart=>({...chart,type:view.chartTypes?.[chart.id]??chart.type}))
+  })).sort((a,b)=>(order.get(a.authorityId)??9999)-(order.get(b.authorityId)??9999));
+  return {...result,presentation:{...result.presentation,title:view.title??result.presentation.title,...(view.detailLevel?{detail:view.detailLevel}:{})},sections};
 }
 const metadata=(r:AnalysisResult)=>[['Project',r.scope.projectName],['Data Date',r.scope.dataDate??'Not established'],['Programme revision',r.scope.programmeRevision??'Not established'],['Project version',r.scope.projectVersion],['Analysis',r.id],['Source snapshot',r.snapshotHash],['Prepared by',r.presentation.preparedBy??'Not supplied'],['Job title',r.presentation.jobTitle??'Not supplied'],['Company',r.presentation.company??'Not supplied'],['Issue date',r.createdAt.slice(0,10)],['Status','Draft / Prepared'],['Confidentiality',r.presentation.confidentiality],['Scope',JSON.stringify({filters:r.plan.filters,authorityFilters:r.plan.authorityFilters??{},rankings:r.plan.rankings??[]})],['Grouping',r.plan.groupBy.join(', ')||'None']];
 
@@ -86,7 +95,7 @@ async function pdf(result:AnalysisResult,view?:AskExportView){
   doc.font(font);const chunks:Buffer[]=[];const done=new Promise<Buffer>((resolve,reject)=>{doc.on('data',c=>chunks.push(c));doc.on('end',()=>resolve(Buffer.concat(chunks)));doc.on('error',reject);});
   const heading=(text:string)=>{if(doc.y>690)doc.addPage();doc.moveDown(.8).fontSize(15).fillColor('#24384a').text(text,{width:507}).moveDown(.4);};
   const para=(text:string,size=9)=>{doc.fontSize(size).fillColor('#334b61').text(text,{width:507,lineGap:3,paragraphGap:5}).moveDown(.4);};
-  doc.fontSize(13).fillColor('#547d98').text('CMeng | PROJECT INTELLIGENCE');doc.moveDown(1.2).fontSize(25).fillColor('#24384a').text(result.presentation.title,{width:490});doc.moveDown();
+  doc.fontSize(13).fillColor('#547d98').text('CMeng | PROJECT INTELLIGENCE');doc.moveDown(1.2).fontSize(25).fillColor('#24384a').text(result.presentation.title,{width:490});if(view?.subtitle){doc.moveDown(.35);para(view.subtitle,10);}doc.moveDown();
   for(const [key,value]of metadata(result).filter(([k])=>!['Source snapshot','Scope','Grouping'].includes(String(k))))para(key+': '+value);
   for(const block of result.narrative){heading(block.heading);para(block.text);}
   heading('Key figures');for(const m of result.sections.flatMap(s=>s.metrics)){para(m.label+': '+display(m.value)+(m.unit?' '+m.unit:'')+' · '+m.state);}
@@ -107,7 +116,7 @@ async function pdf(result:AnalysisResult,view?:AskExportView){
 }
 function wordParagraph(text:string,style='Normal'){return '<w:p><w:pPr><w:pStyle w:val="'+style+'"/>'+(/[\u0600-\u06ff]/.test(text)?'<w:bidi/>':'')+'</w:pPr><w:r><w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:cs="Arial"/></w:rPr><w:t xml:space="preserve">'+text.split('\n').map(line=>xml(line)).join('</w:t><w:br/><w:t xml:space="preserve">')+'</w:t></w:r></w:p>';}
 async function word(result:AnalysisResult,view?:AskExportView){
-  const zip=new JSZip();let body=wordParagraph('CMeng | '+result.presentation.title,'Title');for(const [k,v]of metadata(result).filter(([key])=>!['Source snapshot','Analysis','Project version','Programme revision','Scope'].includes(String(key))))body+=wordParagraph(k+': '+v);
+  const zip=new JSZip();let body=wordParagraph('CMeng | '+result.presentation.title,'Title');if(view?.subtitle)body+=wordParagraph(view.subtitle);for(const [k,v]of metadata(result).filter(([key])=>!['Source snapshot','Analysis','Project version','Programme revision','Scope'].includes(String(key))))body+=wordParagraph(k+': '+v);
   for(const n of result.narrative)body+=wordParagraph(n.heading,'Heading1')+wordParagraph(n.text);
   body+=wordParagraph('Key figures','Heading1');for(const m of result.sections.flatMap(s=>s.metrics))body+=wordParagraph(m.label+': '+display(m.value)+(m.unit?' '+m.unit:'')+' · '+m.state);
   const relationships:string[]=[];let imageIndex=0;

@@ -6,7 +6,7 @@ import {
   createCmengServer,
 } from "../packages/runtime-api/src/server";
 
-test("final Railway Schedule surface exposes 22-module certificate and management endpoint guards", async () => {
+test("final Railway Schedule surface exposes the controlled registry certificate and management endpoint guards", async () => {
   const server = createCmengServer();
   await new Promise<void>((resolve) => {
     server.listen(
@@ -46,11 +46,11 @@ test("final Railway Schedule surface exposes 22-module certificate and managemen
 
     assert.equal(
       body.scope,
-      "schedule-22-final",
+      "schedule-controlled-registry",
     );
     assert.equal(
       body.moduleCount,
-      22,
+      23,
     );
     assert.equal(
       new Set(
@@ -58,7 +58,7 @@ test("final Railway Schedule surface exposes 22-module certificate and managemen
           (module) => module.key,
         ),
       ).size,
-      22,
+      23,
     );
     assert.equal(
       body.invariants

@@ -134,12 +134,12 @@ test("CMeng workspace keeps the active module primary and browser script parseab
   );
   assert.match(
     html,
-    /reportDownloadUrl\("xlsx"\)/,
+    /data-report-format="xlsx"/,
     "module report preview must provide an Excel download",
   );
   assert.match(
     html,
-    /reportDownloadUrl\("json"\)/,
+    /data-report-format="json"/,
     "module report preview must provide a confirmed data download",
   );
   assert.match(

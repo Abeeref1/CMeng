@@ -2,6 +2,9 @@ import {completionPosition} from './completion-position';
 import {buildProjectDiagnosis,presentProjectDiagnosis} from './project-diagnosis';
 import {buildModuleChallenge} from '../../module-challenge/src';
 import {deliveryModule,deliveryDashboard,isDeliveryPage} from './delivery-projections';
+import {interfaceModule,interfaceIntelligence} from './interface-intelligence';
+import {accountabilityModule,crossDomainAccountability} from './accountability-intelligence';
+import {recoveryAccelerationModule} from './recovery-acceleration';
 import {isAdoptedProgrammeRevision,isScenarioRevision,scheduleAuthorityReview} from './schedule-authority';
 import {quantityMappingForState} from "./quantity-mapping-runtime";
 import {nearCriticalScreening} from './near-critical-screening';
@@ -143,6 +146,10 @@ import {
   commercialModules,
   scheduleModules,
 } from "./registry";
+
+const certifiedScheduleModules = scheduleModules.filter(module => !module.onDemand);
+const certifiedCommercialModules = commercialModules.filter(module => !module.onDemand);
+const certifiedAnalyticalModules = [...certifiedScheduleModules, ...certifiedCommercialModules];
 import {
   applyUniversalModuleChallenges,
 } from "./module-challenges";
@@ -495,7 +502,7 @@ function buildBundle(
       ModuleRuntimeResult
     >();
 
-  for (const module of scheduleModules) {
+  for (const module of certifiedScheduleModules) {
     modules.set(
       module.key,
       blocked(
@@ -2180,7 +2187,7 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
         )
       : null;
 
-  for (const module of commercialModules) {
+  for (const module of certifiedCommercialModules) {
     const commercial =
       canonicalCommercialModule(
         state,
@@ -7135,7 +7142,7 @@ function resolveProjectModule(state: ProjectRuntimeState, key: string): ModuleRu
   const p1=profiling?performance.now():0;
   const bundle = buildBundle(scoped);
   const p2=profiling?performance.now():0;
-  const candidates = new Map([...scheduleModules, ...commercialModules].map(descriptor =>
+  const candidates = new Map(certifiedAnalyticalModules.map(descriptor =>
     [descriptor.key, resolveProjectModuleCandidate(scoped, descriptor.key)]));
   const p3=profiling?performance.now():0;
   const consistency = certifyCrossModuleConsistency({generatedAt: bundle.generatedAt, state: scoped,
@@ -7150,6 +7157,11 @@ function resolveProjectModule(state: ProjectRuntimeState, key: string): ModuleRu
     if(data&&forecast){data.completionPosition=completionPosition(data,forecast,activityNames);
       if(key==='pmo-analysis')data.knownScheduleCounts={critical:near?.knownCriticalCount??near?.criticalCount??null,nearCritical:near?.nearCriticalCount??near?.rows?.length??null,negativeFloat:near?.knownNegativeFloatCount??near?.negativeFloatCount??null};
     }
+  }
+  const interfacePosition=interfaceIntelligence(scoped);
+  for(const moduleKey of ['lookahead-schedule','delay-claims']){
+    const currentModule=modules.get(moduleKey),moduleData=currentModule?.data;
+    if(currentModule&&moduleData&&typeof moduleData==='object')modules.set(moduleKey,{...currentModule,data:{...(moduleData as Record<string,unknown>),interfacePosition}});
   }
   const diagnosis=buildProjectDiagnosis(scoped,modules);
   const management=modules.get('pmo-analysis')?.data as any;
@@ -7175,6 +7187,9 @@ export function moduleForProject(
       ["project"],
     );
   }
+  if (key==='delivery-interfaces') {const scoped=reportingState(state);return withPositionVerdict(attachReportingContract(scoped,interfaceModule(scoped)));}
+  if (key==='recovery-acceleration') {const scoped=reportingState(state);return withPositionVerdict(attachReportingContract(scoped,recoveryAccelerationModule(scoped)));}
+  if (key==='cross-domain-accountability') {const scoped=reportingState(state);return withPositionVerdict(attachReportingContract(scoped,accountabilityModule(scoped)));}
   if (isDeliveryPage(key)) return deliveryModule(state,key);
   if (key==='scope-classification') return resolveProjectModuleUncertified(reportingState(state),key);
   if (key==='monte-carlo-risk') return scheduleRiskMonteCarlo(reportingState(state));
@@ -7277,7 +7292,7 @@ export function managementSurfacesForProject(
     baselineCandidates.at(-1) ??
     null;
 
-  const resolvedModules = new Map([...scheduleModules, ...commercialModules].map(descriptor =>
+  const resolvedModules = new Map(certifiedAnalyticalModules.map(descriptor =>
     [descriptor.key, resolveProjectModule(state, descriptor.key)]));
   const mp2=profiling?performance.now():0;
   const certification = certifyCrossModuleConsistency({ generatedAt, state: reportingState(state), modules: resolvedModules,
@@ -7296,8 +7311,8 @@ export function managementSurfacesForProject(
       evidenceState: result.evidenceState ?? "not_established", professionalState: result.professionalState ?? "review_required",
       consistencyState: consistencyForModule(certification, descriptor.key).state };
   };
-  const scheduleInputs = scheduleModules.map(descriptor => moduleInput(descriptor));
-  const commercialInputs = commercialModules.map(descriptor => moduleInput(descriptor, true));
+  const scheduleInputs = certifiedScheduleModules.map(descriptor => moduleInput(descriptor));
+  const commercialInputs = certifiedCommercialModules.map(descriptor => moduleInput(descriptor, true));
 
   const terms =
     commercial.foundation
@@ -7831,7 +7846,7 @@ export function managementSurfacesForProject(
   const result = { ...surfaces,
     sourceQuality: {...sourceQualityPosition(resolvedModules,issueAssessment,state.evidenceDocuments,current?.revision.model.dataDateIso??null),registerDateReview:registerDateReview(state)},
     masterDashboard: {projectDiagnosis:diagnosis,completionPosition:completion,delivery:deliveryDashboard(state),scheduleExceptions,deliveryExceptions,...managementReportingData(state, surfaces.masterDashboard, resolvedModules),decisions:surfaces.commandCenter.decisions,trend:(resolvedModules.get("forecast-history")?.data as any)??null,issueAssessment,operationalReporting:operationalReporting(state),sourceInterpretation:director?.sourceInterpretation},
-    commandCenter: {projectDiagnosis:diagnosis,completionPosition:completion,scheduleExceptions,deliveryExceptions,...managementReportingData(state, surfaces.commandCenter, resolvedModules),issueAssessment,operationalReporting:operationalReporting(state),sourceInterpretation:director?.sourceInterpretation},
+    commandCenter: {projectDiagnosis:diagnosis,completionPosition:completion,scheduleExceptions,deliveryExceptions,...managementReportingData(state, surfaces.commandCenter, resolvedModules),issueAssessment,operationalReporting:operationalReporting(state),interfaces:interfaceIntelligence(state),accountability:crossDomainAccountability(state),sourceInterpretation:director?.sourceInterpretation},
     masterControlProgramme: {...managementReportingData(state, surfaces.masterControlProgramme, resolvedModules),issueAssessment,sourceInterpretation:director?.sourceInterpretation} };
   const allPages=new Map(resolvedModules);
   allPages.set('master-dashboard',{key:'master-dashboard',status:'partial',reason:null,dependencies:[],data:result.masterDashboard});
@@ -8141,10 +8156,7 @@ export function overviewForProject(
       return {key, status: resolved.status, reason: resolved.reason, issueAssessment: resolved.issueAssessment};
     }),
     moduleStates:
-      [
-        ...scheduleModules,
-        ...commercialModules,
-      ].map(
+      certifiedAnalyticalModules.map(
         (module) => {
           const resolved =
             resolveProjectModule(
@@ -8180,10 +8192,7 @@ export function rerunProject(
     buildBundle(state);
   const resolvedModules =
     new Map(
-      [
-        ...scheduleModules,
-        ...commercialModules,
-      ].map(
+      certifiedAnalyticalModules.map(
         (module) => [
           module.key,
           resolveProjectModule(

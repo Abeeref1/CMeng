@@ -623,7 +623,7 @@ function contract(): ContractDocumentResult {
   };
 }
 
-test("all 22 Schedule modules execute coherently from governed cross-domain evidence", () => {
+test("all 22 core Schedule modules execute coherently from governed cross-domain evidence", () => {
   const history = revisions();
   const current = history[1]!.model;
   const resourceModel = resources();
@@ -1240,9 +1240,11 @@ test("all 22 Schedule modules execute coherently from governed cross-domain evid
     22,
   );
 
-  assert.equal(scheduleModules.length, 22);
+  const coreScheduleModules = scheduleModules.filter((module) => !module.onDemand);
+  assert.equal(coreScheduleModules.length, 22);
+  assert.ok(scheduleModules.some((module) => module.key === "recovery-acceleration" && module.onDemand === true));
 
-  const runtimeKeys = scheduleModules
+  const runtimeKeys = coreScheduleModules
     .map((module) =>
       module.key.replace(/-/g, "_"),
     )
