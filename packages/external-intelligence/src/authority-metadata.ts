@@ -2955,3 +2955,18 @@ export const externalAuthorityMetadata:AuthorityDescriptor[]=[
     "historical": false
   }
 ];
+
+const analyticFields=[
+  'recordId','reference','description','name','itemNumber','activityId','wbsId','discipline','trade','system','packageCandidate','package','location','building','tower','floor','level','zone','area','sectionScope','chainage','supplier','unit','currency','taxBasis','status','state','amount','required','ordered','delivered','installed','deliveryCoveragePercent','totalFloatHours','headroomCalendarDays','programmeNeedDate','percentComplete','score','procurementPriority','longLeadCandidate','criticalScopeCandidate'
+];
+const scheduleFields=['schedulePressure','onDrivingNetwork','wbs','critical','criticality','floatRiskWatchlist','missedPlannedStart','finishOverdue','scheduleDelayed','startOverdueCalendarDays','finishOverdueCalendarDays','currentStartIso','currentFinishIso','finishVarianceDays','independentTotalFloatHours'];
+for(const item of externalAuthorityMetadata){
+  if(item.fields.includes('recordId')){
+    const scheduleSpecific=item.fields.some(field=>scheduleFields.includes(field));
+    item.fields=[...analyticFields,...(scheduleSpecific?scheduleFields:[])];
+  }
+  if(item.id==='project-diagnosis'){
+    item.title='Project position';
+    item.concepts=['project position','finish drivers','why are we late'];
+  }
+}
