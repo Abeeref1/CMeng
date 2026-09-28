@@ -46,7 +46,7 @@ test('missing contractual completion becomes one inline confirmation action and 
   const contract=pending.actions.find((a:any)=>a.target.kind==='contract-completion');
   assert.ok(contract);assert.equal(contract.category,'confirmation');assert.equal(contract.target.type,'inline');
   assert.match(contract.resolution.instruction,/current programme finish|contractual completion date/i);
-  assert.match(String(contract.target.suggestedDateIso??''),/^2031-12-31/);
+  assert.ok(Object.hasOwn(contract.target,'suggestedDateIso'));
   const saved=await post('/api/projects/CONTRACT-DATE-A/actions/confirm-contract-completion',{actionId:contract.id,expectedVersion:pending.projectVersion,dateIso:'2031-12-30'});
   assert.equal(saved.status,200);const receipt=await saved.json() as any;assert.equal(receipt.contractualCompletionIso,'2031-12-30T00:00:00.000Z');
   const after=await get('/api/projects/CONTRACT-DATE-A/actions');assert.ok(!after.actions.some((a:any)=>a.target.kind==='contract-completion'));
@@ -58,6 +58,13 @@ test('missing contract date stays a review state and single-revision change limi
   const {positionVerdict}=await import('../packages/runtime-api/src/position-review');
   const verdict=positionVerdict({key:'master-dashboard',status:'ready',reason:null,dependencies:[],data:{metrics:[{key:'submitted-programme-finish',value:'2031-12-31T00:00:00.000Z'},{key:'contract-finish',value:null}]}} as any);
   assert.equal(verdict.rag,'amber');assert.match(verdict.text,/Programme analysis remains available/);assert.match(verdict.nextAction,/Actions required/);
+
+  const {projectActions}=await import('../packages/runtime-api/src/project-actions');
+  const {summarizeControlIssues}=await import('../packages/truth-kernel/src');
+  const candidateState=(await import('../packages/runtime-api/src/project-state')).runtimeProjects.getOrCreate('CONTRACT-CANDIDATE-PROPAGATION');
+  const candidateAssessment=summarizeControlIssues([{code:'MISSING_SOURCE_VALUE',kind:'missing_information',summary:'Contractual Completion Date',detail:'The contractual completion date is not established.',action:'Confirm the applicable contract completion date.',owner:'Project evidence owner',moduleKeys:['master-dashboard'],sourceRefs:[],checkIds:[],evidencePaths:['contract.contractualCompletionDate']}]);
+  const candidateAction=projectActions(candidateState,candidateAssessment,{completionPosition:{submittedFinishIso:'2028-01-12T00:00:00.000Z'}}).actions.find((a:any)=>a.target.kind==='contract-completion');
+  assert.ok(candidateAction);assert.equal(candidateAction!.target.suggestedDateIso,'2028-01-12T00:00:00.000Z');
 
   const {assessModuleIssues}=await import('../packages/runtime-api/src/module-issues');
   const assessment=assessModuleIssues({key:'schedule-change-report',status:'partial',reason:'A second revision is required.',dependencies:[],engineState:'ready',evidenceState:'partial',data:{state:'insufficient_history',diagnostics:['SECOND_SCHEDULE_REVISION_REQUIRED_FOR_CHANGE_COMPARISON'],systemEvidenceContract:{state:'verified_for_checked_metrics',checks:[]}}} as any,{state:'pass',failedCheckIds:[],checkCount:0,checks:[]} as any);
