@@ -78,6 +78,7 @@ export interface AnalysisResult {
   schemaVersion: 1; id: string; conversationId: string; createdAt: string; scope: ProjectScope;
   plan: AnalysisPlan; presentation: Presentation; mode: 'Deterministic CMeng Summary' | 'CMeng AI Analysis';
   sections: AuthorityResult[]; narrative: NarrativeBlock[]; unresolved: string[];
+  improvementNeeds?: string[];
   referenceFiles: {id: string; filename: string; hash: string; state: 'reference_only'; reading: string}[];
   snapshotHash: string; factsHash: string; providerStatus: 'not_configured' | 'not_permitted' | 'available' | 'failed' | 'not_needed';
   route?: RequestRoute;
