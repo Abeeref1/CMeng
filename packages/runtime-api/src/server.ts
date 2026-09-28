@@ -554,11 +554,13 @@ async function route(
             runtimeProjects.latestSchedule(
               projectId,
             );
+          const coreScheduleModules=scheduleModules.filter(module=>!module.onDemand);
+          const coreCommercialModules=commercialModules.filter(module=>!module.onDemand);
           const resolvedModules =
             new Map(
               [
-                ...scheduleModules,
-                ...commercialModules,
+                ...coreScheduleModules,
+                ...coreCommercialModules,
               ].map(
                 (module) => [
                   module.key,
@@ -671,9 +673,9 @@ async function route(
             moduleCount:
               moduleStatuses.length,
             scheduleModuleCount:
-              scheduleModules.length,
+              coreScheduleModules.length,
             commercialModuleCount:
-              commercialModules.length,
+              coreCommercialModules.length,
             readyModules,
             partialModules,
             blockedModules,
