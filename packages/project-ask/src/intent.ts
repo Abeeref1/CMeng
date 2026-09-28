@@ -42,13 +42,15 @@ export function resolveIntent(question:string,catalogue:AuthorityDescriptor[],pr
   if(/without charts|remove charts/.test(q))presentation.charts=false;
   if(/add charts?|with charts?/.test(q))presentation.charts=true;
   if(!inherited){
-    const broad=/full.*(report|package)|construction intelligence|monthly project|project director meeting|everything|joined.*today|what killing us|what needs management|تقرير شامل/.test(q);
+    const fullPackage=/\bfull\b.*(?:report|package)|construction intelligence package|تقرير شامل/.test(q);
+    const broad=fullPackage||/construction intelligence|monthly project|project director meeting|everything|joined.*today|what killing us|what needs management/.test(q);
     const explicitlyRequested=catalogue.filter(c=>c.concepts.some(concept=>mentions(q,concept))).map(c=>c.id);
-    if(broad){
-      // A broad management brief is not permission to flood the answer with
-      // every optional CMeng domain. Start from what the user named and a small
-      // cross-domain control core; unavailable specialist domains are added only
-      // when the question explicitly asks for them.
+    if(fullPackage){
+      // "Full" means the complete available CMeng authority set. Unavailable
+      // domains remain explicit as unavailable; they are not silently omitted.
+      plan.authorities=catalogue.map(c=>c.id);
+    }else if(broad){
+      // A broad management brief without an explicit "full" request stays concise.
       const core=['master-dashboard','programme','progress','boq','forecast','procurement','materials','long-lead','risks','commercial'];
       plan.authorities=[...new Set([...explicitlyRequested,...core.filter(id=>catalogue.some(c=>c.id===id))])];
     }else plan.authorities=explicitlyRequested;
