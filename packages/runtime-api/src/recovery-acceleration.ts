@@ -126,5 +126,6 @@ export function recoveryAccelerationIntelligence(state:ProjectRuntimeState){
     basis:'Scenarios use existing BOQ/productivity/resource feasibility, source calendars, resource costs where fully supported, governed workfront permissions and package need-date calculations. They never replace the current programme, do not assert entitlement, and retain local-effect versus Project-completion effect separately.'};
 }
 export function recoveryAccelerationModule(state:ProjectRuntimeState):ModuleRuntimeResult{
-  const data=recoveryAccelerationIntelligence(state);return {key:'recovery-acceleration',status:data.scenarios.length?'partial':'blocked',reason:data.managementPosition,dependencies:data.scenarios.length?[]:['remaining quantity/productivity/resource or late-package evidence'],data};
+  const data=recoveryAccelerationIntelligence(state),hasProjectEvidence=Boolean(projectControlSchedule(state)||state.boqRevisions.length||state.evidenceDocuments.length);
+  return {key:'recovery-acceleration',status:data.scenarios.length||hasProjectEvidence?'partial':'blocked',reason:data.managementPosition,dependencies:data.scenarios.length?[]:['remaining quantity/productivity/resource or late-package evidence'],data};
 }
