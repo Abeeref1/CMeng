@@ -1243,7 +1243,8 @@ function renderLookAheadVisual(data){
   }).join("");
   const readiness=planningStatusBand([["Ready",p.readyCount,"success"],["Gaps without known blocker",p.conditionalCount,"warning"],["Known blocker",p.blockedCount,"danger"]]);
   const blockers=planningLookAheadBlockers(p.blockerTypes);
-  return '<section class="planning-view lookahead-view">'+kpis+coverageHtml+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>6-week execution view</h4><p>Showing the 36 highest-priority activities from '+escapeHtml(fmt(inWindow))+' activities. The label at right states the actual blocker or whether evidence is still missing.</p></div></div><div class="planning-panel-body">'+timeline+'</div></section><div class="planning-primary-grid"><section class="planning-panel"><div class="planning-panel-head"><div><h4>Readiness position</h4><p>A known blocker is different from missing readiness evidence.</p></div></div><div class="planning-panel-body">'+readiness+'<div class="coverage-line"><span>Date coverage</span><b>'+escapeHtml(p.currentDateCoveragePercent===null?"—":fmt(p.currentDateCoveragePercent)+"%")+'</b></div></div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Why work is blocked</h4><p>Explicit blocker occurrences. Predecessor checks assess relationship anchors, working-calendar lag and submitted date fit; unfinished work alone is not a blocker.</p></div></div><div class="planning-panel-body">'+blockers+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Readiness matrix</h4><p>All activities in the window. Search an activity, deliverable or package. Open a cell to read its source date and reason.</p></div></div><div class="planning-panel-body"><label class="register-search">Find a readiness record <input type="search" data-register-filter placeholder="Activity, deliverable, package or reason" aria-label="Filter readiness records"></label><span class="register-search-count" aria-live="polite">'+fmt(watch.length)+' activities</span><div class="table-wrap readiness-table"><table><thead><tr><th>Activity</th><th>Start</th><th>Finish</th><th>Overall</th>'+dimensions.map(key=>'<th>'+escapeHtml(labels[key])+'</th>').join("")+'</tr></thead><tbody>'+rows+'</tbody></table></div></div></section></section>';
+  const weeks=Math.max(2,Math.round((Number(p.windowDays)||42)/7)),horizon='<div class="view-state-bar"><strong>Look-ahead horizon</strong>'+[2,4,6,8,12].map(w=>'<button type="button" class="btn small '+(w===weeks?'active':'')+'" onclick="setLookAheadWeeks('+w+')">'+w+' weeks</button>').join('')+'<span>'+planningShortDate(p.dataDateIso)+' → '+planningShortDate(p.windowEndIso)+'</span></div>';
+  return '<section class="planning-view lookahead-view">'+horizon+kpis+coverageHtml+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>'+weeks+'-week execution view</h4><p>Showing the 36 highest-priority activities from '+escapeHtml(fmt(inWindow))+' activities. The full window population remains in the readiness matrix and report data.</p></div></div><div class="planning-panel-body">'+timeline+'</div></section><div class="planning-primary-grid"><section class="planning-panel"><div class="planning-panel-head"><div><h4>Readiness position</h4><p>A known blocker is different from missing readiness evidence.</p></div></div><div class="planning-panel-body">'+readiness+'<div class="coverage-line"><span>Date coverage</span><b>'+escapeHtml(p.currentDateCoveragePercent===null?"—":fmt(p.currentDateCoveragePercent)+"%")+'</b></div></div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Why work is blocked</h4><p>Explicit blocker occurrences. Predecessor checks assess relationship anchors, working-calendar lag and submitted date fit; unfinished work alone is not a blocker.</p></div></div><div class="planning-panel-body">'+blockers+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Readiness matrix</h4><p>All activities in the window. Search an activity, deliverable or package. Open a cell to read its source date and reason.</p></div></div><div class="planning-panel-body"><label class="register-search">Find a readiness record <input type="search" data-register-filter placeholder="Activity, deliverable, package or reason" aria-label="Filter readiness records"></label><span class="register-search-count" aria-live="polite">'+fmt(watch.length)+' activities</span><div class="table-wrap readiness-table"><table><thead><tr><th>Activity</th><th>Start</th><th>Finish</th><th>Overall</th>'+dimensions.map(key=>'<th>'+escapeHtml(labels[key])+'</th>').join("")+'</tr></thead><tbody>'+rows+'</tbody></table></div></div></section></section>';
 }
 function renderMonteCarloRiskVisual(data){
   const p=projectionFor(data,"schedule_risk_monte_carlo");
@@ -1722,8 +1723,8 @@ function planningLookAheadTimeline(p){
   const start=planningDateMs(p.dataDateIso),end=planningDateMs(p.windowEndIso);
   if(start===null||end===null||end<=start)return '<div class="empty-visual">The look-ahead date window is not confirmed.</div>';
   const x=ms=>Math.max(0,Math.min(100,((ms-start)/(end-start))*100));
-  const weekMarks=[];
-  for(let i=0;i<=6;i++)weekMarks.push('<span style="left:'+((i/6)*100).toFixed(2)+'%">'+(i===0?"Data date":"W"+i)+'</span>');
+  const weekMarks=[],weeks=Math.max(2,Math.round((Number(p.windowDays)||42)/7));
+  for(let i=0;i<=weeks;i++)weekMarks.push('<span style="left:'+((i/weeks)*100).toFixed(2)+'%">'+(i===0?"Data date":"W"+i)+'</span>');
   const body=rows.map(r=>{
     const s=planningDateMs(r.startIso),e=planningDateMs(r.finishIso);
     if(s===null||e===null)return "";
@@ -4244,6 +4245,9 @@ function renderModuleResultBody(result){
   if(result.key==="activity-analytics"&&typeof restoreActivityFilters==="function")restoreActivityFilters();
 
 }
+function lookAheadWindowStorageKey(){return "cmeng-lookahead-window:"+project();}
+function currentLookAheadWindowDays(){let days=42;try{days=Number(localStorage.getItem(lookAheadWindowStorageKey())||42);}catch{}return [14,28,42,56,84].includes(days)?days:42;}
+function setLookAheadWeeks(weeks){const days=Number(weeks)*7;if(![14,28,42,56,84].includes(days))return;try{localStorage.setItem(lookAheadWindowStorageKey(),String(days));}catch{}if(selected==="lookahead-schedule")loadModule(selected);}
 let moduleRequestSeq=0;
 const managementSurfaceKeysForApi=new Set(["master-dashboard","command-center","master-control-programme","source-quality"]);
 const commercialModuleKeysForApi=new Set([
@@ -4281,7 +4285,8 @@ async function loadModule(key){
       result=await api("/api/projects/"+encodeURIComponent(project())+"/management/"+encodeURIComponent(apiKeys[key]||key));
     }else{
       const moduleArea=moduleRegistry.find(m=>m.key===key)?.area||"schedule";
-      result=await api("/api/projects/"+encodeURIComponent(project())+"/"+moduleArea+"/modules/"+encodeURIComponent(apiKeys[key]||key));
+      const suffix=key==="lookahead-schedule"?"?windowDays="+currentLookAheadWindowDays():"";
+      result=await api("/api/projects/"+encodeURIComponent(project())+"/"+moduleArea+"/modules/"+encodeURIComponent(apiKeys[key]||key)+suffix);
     }
     if(!current())return;
     renderModuleResult(result);
@@ -5080,7 +5085,8 @@ function reportDownloadUrl(format){
     return "/api/projects/"+encodeURIComponent(project())+"/management/"+encodeURIComponent(selected)+"/report."+format;
   }
   const moduleArea=moduleRegistry.find(m=>m.key===selected)?.area||"schedule";
-  return "/api/projects/"+encodeURIComponent(project())+"/"+moduleArea+"/modules/"+encodeURIComponent(selected)+"/report."+format;
+  const suffix=selected==="lookahead-schedule"?"?windowDays="+currentLookAheadWindowDays():"";
+  return "/api/projects/"+encodeURIComponent(project())+"/"+moduleArea+"/modules/"+encodeURIComponent(selected)+"/report."+format+suffix;
 }
 function reportSafeFilename(value){
   return String(value||"report").replace(/[^A-Za-z0-9._-]+/g,"_").replace(/^_+|_+$/g,"").slice(0,120)||"report";
