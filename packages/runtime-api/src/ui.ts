@@ -2037,12 +2037,15 @@ function activityReviewRowHtml(a){
 }
 const activityFilterIds=["activityFilterSearch","activityFilterWbs","activityFilterZone","activityFilterFloor","activityFilterTower","activityFilterBuilding","activityFilterArea","activityFilterWorkFront","activityFilterPhase","activityFilterSection","activityFilterChainage","activityFilterDiscipline","activityFilterTrade","activityFilterSystem","activityFilterPackage","activityFilterCbs","activityFilterContractor","activityFilterSubcontractor","activityFilterStatus","activityFilterCriticality","activityFilterCondition"];
 function activityFilterValue(id){const node=el(id);return node?String(node.value||"").trim():"";}
+const projectScopeFilterMap={activityFilterWbs:"wbs",activityFilterZone:"zone",activityFilterFloor:"floor",activityFilterTower:"tower",activityFilterBuilding:"building",activityFilterArea:"area",activityFilterWorkFront:"workFront",activityFilterPhase:"phase",activityFilterSection:"section",activityFilterChainage:"chainage",activityFilterDiscipline:"discipline",activityFilterTrade:"trade",activityFilterSystem:"system",activityFilterPackage:"package",activityFilterCbs:"cbs",activityFilterContractor:"contractor",activityFilterSubcontractor:"subcontractor",activityFilterStatus:"status",activityFilterCriticality:"criticality",activityFilterCondition:"scheduleCondition"};
 function activityFilterStorageKey(){return "cmeng-activity-scope:"+project();}
-function saveActivityFilters(){const values={};activityFilterIds.forEach(id=>{const value=activityFilterValue(id);if(value)values[id]=value;});try{localStorage.setItem(activityFilterStorageKey(),JSON.stringify(values));}catch{}}
-function restoreActivityFilters(){let values={};try{values=JSON.parse(localStorage.getItem(activityFilterStorageKey())||"{}")||{};}catch{}activityFilterIds.forEach(id=>{const node=el(id),value=values[id];if(!node||!value)return;if(node.tagName==="SELECT"&&![...node.options].some(option=>option.value===value))return;node.value=value;});filterActivityReview();}
+function projectScopeStorageKey(){return "cmeng-project-scope:"+project();}
+function currentProjectScopeContext(){let scope={};try{scope=JSON.parse(localStorage.getItem(projectScopeStorageKey())||"{}")||{};}catch{}return scope&&typeof scope==="object"&&!Array.isArray(scope)?scope:{};}
+function saveActivityFilters(){const values={},scope={};activityFilterIds.forEach(id=>{const value=activityFilterValue(id);if(value){values[id]=value;const key=projectScopeFilterMap[id];if(key)scope[key]=value;}});try{localStorage.setItem(activityFilterStorageKey(),JSON.stringify(values));localStorage.setItem(projectScopeStorageKey(),JSON.stringify(scope));}catch{}}
+function restoreActivityFilters(){let values={};try{values=JSON.parse(localStorage.getItem(activityFilterStorageKey())||"{}")||{};}catch{}const shared=currentProjectScopeContext();for(const [id,key] of Object.entries(projectScopeFilterMap))if(!values[id]&&shared[key])values[id]=shared[key];activityFilterIds.forEach(id=>{const node=el(id),value=values[id];if(!node||!value)return;if(node.tagName==="SELECT"&&![...node.options].some(option=>option.value===value))return;node.value=value;});filterActivityReview();}
 function clearActivityFilters(){
   activityFilterIds.forEach(id=>{const node=el(id);if(node)node.value="";});
-  try{localStorage.removeItem(activityFilterStorageKey());}catch{}
+  try{localStorage.removeItem(activityFilterStorageKey());localStorage.removeItem(projectScopeStorageKey());}catch{}
   filterActivityReview();
 }
 function filterActivityReview(){
