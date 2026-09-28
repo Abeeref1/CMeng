@@ -72,7 +72,12 @@ function activityAnswer(result:AnalysisResult):NarrativeBlock|null{
     :result.plan.criticalOnly?'have critical float':has('floatRiskWatchlist')?'are in the float-risk band':'match your request';
   const verb=n===1?phrase.replace(/^are /,'is ').replace(/^have /,'has ').replace(/^show /,'shows ').replace(/^match /,'matches '):phrase;
   let text=n+' '+(n===1?'activity':'activities')+' '+verb+asOf+'.';
-  if(n===0)text='No matching activities were found in the available programme records'+asOf+'.';
+  const incompleteSelection=n===0&&(section.state==='partial'||table.state==='partial'||result.unresolved.some(g=>/float|critical|date|status|classification|coverage|missing|unconfirmed|unresolved/i.test(g)));
+  if(n===0){
+    if(incompleteSelection&&(has('totalFloatHours')||has('floatRiskWatchlist')||section.authorityId==='float'))text='No float-risk activity can be confirmed from the currently readable float data'+asOf+'. The float population is incomplete, so this is not confirmation that no float-risk activities exist.';
+    else if(incompleteSelection&&section.authorityId==='critical-path')text='The finish-driving / critical-path population is not fully calculable from the current programme fields'+asOf+'. This is not confirmation that no critical path exists.';
+    else text='No matching activities were found in the available programme records'+asOf+'.';
+  }
   if(section.authorityId==='critical-path'&&section.state!=='established')text+=' The independent critical path is not yet confirmed; this is the programme’s known critical-activity list.';
   if(has('scheduleDelayed')||has('missedPlannedStart')||has('finishOverdue')){
     if(n===0)text=has('missedPlannedStart')?'No confirmed missed starts appear in the uploaded programme'+asOf+'.':has('finishOverdue')?'No unfinished activity is confirmed past its current forecast finish'+asOf+'.':'The uploaded programme shows no confirmed missed starts or overdue finishes'+asOf+'.';
