@@ -1056,15 +1056,8 @@ export const externalAuthorityMetadata:AuthorityDescriptor[]=[
     ],
     "concepts": [
       "wbs",
-      "by wbs",
-      "wbs level",
-      "zone",
-      "level",
-      "work front",
-      "cbs",
       "by trade",
-      "work breakdown",
-      "progress breakdown"
+      "work breakdown"
     ],
     "fields": [
       "recordId",
