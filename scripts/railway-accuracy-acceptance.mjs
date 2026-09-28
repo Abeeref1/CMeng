@@ -58,6 +58,51 @@ try {
   check('Exact CMeng release is healthy', health?.release === expected && health?.service === 'cmeng');
   summary.observedRelease = health.release;
   const portfolio = await json('/api/portfolio');
+
+  // Cross-project data-integrity gate: independent projects must not silently share
+  // the same detailed claim/event pattern merely under different document hashes.
+  // This is intentionally based on semantic records, not filenames or source hashes,
+  // because templated copies can carry project-specific metadata and still be fake.
+  const claimPatternRows = [];
+  for (const projectEntry of portfolio.projects.filter(project => (project.claimCount ?? 0) >= 20)) {
+    try {
+      const delay = await json('/api/projects/' + encodeURIComponent(projectEntry.projectId) + '/schedule/modules/delay-claims');
+      const events = Array.isArray(delay?.data?.events) ? delay.data.events : [];
+      const signatureRows = events.slice(0, 20).map(event => [
+        event.eventId ?? null,
+        event.title ?? null,
+        event.describedImpactDays ?? null,
+        Array.isArray(event.noticeIds) ? event.noticeIds : [],
+        Array.isArray(event.linkedClaimIds) ? event.linkedClaimIds : []
+      ]);
+      claimPatternRows.push({
+        projectId: projectEntry.projectId,
+        claimCount: delay?.data?.claimCount ?? null,
+        activityLinkedEventCount: delay?.data?.activityLinkedEventCount ?? null,
+        movementDays: delay?.data?.projectCompletionMovementDays ?? null,
+        fingerprint: digest(signatureRows),
+        sample: signatureRows.slice(0, 5)
+      });
+    } catch (error) {
+      claimPatternRows.push({projectId:projectEntry.projectId,error:String(error)});
+    }
+  }
+  const duplicateClaimGroups = [...new Map(
+    claimPatternRows.filter(row => row.fingerprint).map(row => [row.fingerprint, []])
+  ).entries()].map(([fingerprint]) => ({
+    fingerprint,
+    projects: claimPatternRows.filter(row => row.fingerprint === fingerprint)
+  })).filter(group => group.projects.length >= 3);
+  summary.crossProjectClaimPatterns = duplicateClaimGroups.map(group => ({
+    projectIds: group.projects.map(row => row.projectId),
+    claimCounts: group.projects.map(row => row.claimCount),
+    activityLinkedCounts: group.projects.map(row => row.activityLinkedEventCount),
+    movementDays: group.projects.map(row => row.movementDays),
+    sample: group.projects[0]?.sample ?? []
+  }));
+  check('Unrelated projects do not share a repeated detailed claims/event fingerprint',
+    duplicateClaimGroups.length === 0);
+
   const requested = process.env.CMENG_PROJECT_CODE;
   let candidates = requested ? portfolio.projects.filter(p => p.projectId === requested) : portfolio.projects.filter(p => /ORBIT/i.test(p.projectId));
   if (!requested && !candidates.length && portfolio.projects.length === 1) candidates = portfolio.projects;
