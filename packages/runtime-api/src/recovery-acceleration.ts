@@ -20,7 +20,7 @@ export function recoveryAccelerationIntelligence(state:ProjectRuntimeState){
   const labourCost=(activityId:string,additionalPeople:number,availableWorkingHours:number|null)=>{
     if(!resources||availableWorkingHours===null||additionalPeople<=0)return null;
     const rows=resources.assignments.filter(a=>{
-      if(a.activityId!==activityId||a.resourceType!=='labor'||a.remainingUnits===null||a.remainingUnits<=0||a.remainingCost===null||a.remainingCost<0)return false;
+      if(a.activityId!==activityId||a.resourceType!=='labor'||a.remainingUnits===null||a.remainingUnits<=0||a.remainingCost===null||a.remainingCost===undefined||a.remainingCost<0)return false;
       const resource=a.resourceId?resourceById.get(a.resourceId):null;
       return /^(h|hr|hrs|hour|hours|labor hour|labour hour)$/i.test(resource?.unitAbbreviation??resource?.unitName??'');
     });
