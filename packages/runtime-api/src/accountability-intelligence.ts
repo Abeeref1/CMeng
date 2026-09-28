@@ -1,7 +1,7 @@
 import {canonicalHeader} from '../../truth-kernel/src';
 import {deliveryPosition} from './delivery-projections';
 import {deliveryRecords} from './delivery-records';
-import {operationalReporting} from './reporting-state';
+import {operationalReporting,claimsReporting} from './reporting-state';
 import {projectControlSchedule,projectDataDate} from './canonical-time-claims';
 import {scheduleScopeClassification} from './schedule-scope-classification';
 import type {ProjectRuntimeState,ModuleRuntimeResult} from './project-state-types';
@@ -9,7 +9,7 @@ import type {DeliveryRecord} from '../../delivery-core/src/types';
 
 const field=(r:DeliveryRecord,...names:string[])=>{for(const name of names){const value=r.fields[canonicalHeader(name)];if(value!==null&&value!==undefined&&String(value).trim())return String(value).trim();}return '';};
 const daysOver=(due:string|null,date:string|null)=>due&&date&&due<date?Math.max(0,Math.floor((Date.parse(date.slice(0,10))-Date.parse(due.slice(0,10)))/86400000)):null;
-type Dimension='organisation'|'contractor'|'subcontractor'|'discipline'|'package'|'workfront';
+type Dimension='organisation'|'party_role'|'contractor'|'subcontractor'|'discipline'|'package'|'workfront';
 export interface AccountabilityDetail {
   dimension:Dimension;value:string;domain:string;recordId:string;reference:string|null;issue:string;dueDate:string|null;overdueDays:number|null;
   activityIds:string[];sourceRefs:string[];authority:'confirmed_record'|'programme_scope';
@@ -20,7 +20,10 @@ export function crossDomainAccountability(state:ProjectRuntimeState){
   const add=(dimension:Dimension,value:string|null|undefined,detail:Omit<AccountabilityDetail,'dimension'|'value'>)=>{const v=String(value??'').trim();if(v)details.push({dimension,value:v,...detail});};
   const addDelivery=(recordId:string,domain:string,issue:string,dueDate:string|null,activityIds:string[],sourceRefs:string[])=>{
     const r=recordById.get(recordId);if(!r)return;const base={domain,recordId,reference:r.reference,issue,dueDate,overdueDays:daysOver(dueDate,dataDateIso),activityIds,sourceRefs,authority:'confirmed_record' as const};
-    add('organisation',field(r,'owner','responsible party'),base);add('contractor',field(r,'contractor'),base);add('subcontractor',field(r,'subcontractor'),base);
+    add('organisation',field(r,'owner','responsible party'),base);
+    const explicitRole=field(r,'party role','responsible party role','party type','organisation type','organization type');
+    if(explicitRole)add('party_role',explicitRole,base);
+    add('contractor',field(r,'contractor'),base);add('subcontractor',field(r,'subcontractor'),base);
     add('discipline',field(r,'discipline'),base);add('package',field(r,'work package','package')||r.links.packageIds.map(id=>recordById.get(id)?.reference??id).join('; '),base);
     add('workfront',field(r,'workfront','affected workfront')||(r.kind==='workfront'?(r.reference??r.description):null),base);
   };
@@ -37,6 +40,36 @@ export function crossDomainAccountability(state:ProjectRuntimeState){
   for(const r of operations.quality.current)if(r.status==='open')op('NCR',r,r.ncrId,(r.severity??'unknown')+' NCR remains open');
   for(const r of operations.rfi.current)if(r.status==='open')op('RFI',r,r.rfiId,r.dueIso&&dataDateIso&&r.dueIso<dataDateIso?'RFI response is overdue':'RFI remains open');
   for(const r of operations.risk.current)if(r.status==='open')op('risk',r,r.riskId,'Open Project risk');
+  const claims=claimsReporting(state);
+  if(claims){
+    const current=claims.current,events=new Map(current.events.map(event=>[event.eventId,event]));
+    const sourceRef=(ref:any)=>String(ref.sourceType??'evidence')+':'+String(ref.sourceId??'unknown')+(ref.locator?':'+String(ref.locator):'');
+    const partyRole=(responsibility:string,stateValue:string)=>{
+      if(!['official','provisional'].includes(stateValue))return null;
+      if(responsibility==='employer')return 'Client / Employer';
+      if(responsibility==='contractor')return 'Contractor';
+      if(responsibility==='concurrent')return 'Client / Employer + Contractor';
+      return null;
+    };
+    const openClaimIds=new Set<string>();
+    for(const claim of current.claims){
+      if(['determined','rejected','withdrawn'].includes(claim.state))continue;
+      openClaimIds.add(claim.claimId);
+      const linkedEvents=claim.eventIds.map(id=>events.get(id)).filter((event):event is NonNullable<typeof event>=>!!event);
+      const activityIds=[...new Set(linkedEvents.flatMap(event=>event.relatedActivityIds))];
+      const base={domain:'claim',recordId:claim.claimId,reference:claim.claimId,issue:'Claim is '+claim.state.replace(/_/g,' '),dueDate:null,overdueDays:null,activityIds,
+        sourceRefs:claim.evidenceRefs.map(sourceRef),authority:'confirmed_record' as const};
+      const roles=[...new Set(linkedEvents.map(event=>partyRole(event.responsibility,event.responsibilityState)).filter((value):value is string=>!!value))];
+      roles.forEach(role=>add('party_role',role,base));
+    }
+    for(const notice of current.notices){
+      if(!notice.claimId||!openClaimIds.has(notice.claimId)||notice.kind==='determination')continue;
+      const event=notice.eventId?events.get(notice.eventId):null;
+      const base={domain:'notice',recordId:notice.noticeId,reference:notice.noticeId,issue:(notice.kind.replace(/_/g,' ')+' linked to open claim '+notice.claimId),dueDate:null,overdueDays:null,
+        activityIds:event?.relatedActivityIds??[],sourceRefs:notice.evidenceRefs.map(sourceRef),authority:'confirmed_record' as const};
+      if(event){const role=partyRole(event.responsibility,event.responsibilityState);if(role)add('party_role',role,base);}
+    }
+  }
   const programme=projectControlSchedule(state)?.revision.model??null;
   if(programme){
     const classification=scheduleScopeClassification(programme),byId=new Map(classification.rows.map(r=>[r.activityId,r]));
