@@ -146,6 +146,10 @@ import {
   commercialModules,
   scheduleModules,
 } from "./registry";
+
+const certifiedScheduleModules = scheduleModules.filter(module => !module.onDemand);
+const certifiedCommercialModules = commercialModules.filter(module => !module.onDemand);
+const certifiedAnalyticalModules = [...certifiedScheduleModules, ...certifiedCommercialModules];
 import {
   applyUniversalModuleChallenges,
 } from "./module-challenges";
@@ -498,7 +502,7 @@ function buildBundle(
       ModuleRuntimeResult
     >();
 
-  for (const module of scheduleModules) {
+  for (const module of certifiedScheduleModules) {
     modules.set(
       module.key,
       blocked(
@@ -2183,7 +2187,7 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
         )
       : null;
 
-  for (const module of commercialModules) {
+  for (const module of certifiedCommercialModules) {
     const commercial =
       canonicalCommercialModule(
         state,
@@ -7138,7 +7142,7 @@ function resolveProjectModule(state: ProjectRuntimeState, key: string): ModuleRu
   const p1=profiling?performance.now():0;
   const bundle = buildBundle(scoped);
   const p2=profiling?performance.now():0;
-  const candidates = new Map([...scheduleModules, ...commercialModules].map(descriptor =>
+  const candidates = new Map(certifiedAnalyticalModules.map(descriptor =>
     [descriptor.key, resolveProjectModuleCandidate(scoped, descriptor.key)]));
   const p3=profiling?performance.now():0;
   const consistency = certifyCrossModuleConsistency({generatedAt: bundle.generatedAt, state: scoped,
@@ -7288,7 +7292,7 @@ export function managementSurfacesForProject(
     baselineCandidates.at(-1) ??
     null;
 
-  const resolvedModules = new Map([...scheduleModules, ...commercialModules].map(descriptor =>
+  const resolvedModules = new Map(certifiedAnalyticalModules.map(descriptor =>
     [descriptor.key, resolveProjectModule(state, descriptor.key)]));
   const mp2=profiling?performance.now():0;
   const certification = certifyCrossModuleConsistency({ generatedAt, state: reportingState(state), modules: resolvedModules,
@@ -7307,8 +7311,8 @@ export function managementSurfacesForProject(
       evidenceState: result.evidenceState ?? "not_established", professionalState: result.professionalState ?? "review_required",
       consistencyState: consistencyForModule(certification, descriptor.key).state };
   };
-  const scheduleInputs = scheduleModules.map(descriptor => moduleInput(descriptor));
-  const commercialInputs = commercialModules.map(descriptor => moduleInput(descriptor, true));
+  const scheduleInputs = certifiedScheduleModules.map(descriptor => moduleInput(descriptor));
+  const commercialInputs = certifiedCommercialModules.map(descriptor => moduleInput(descriptor, true));
 
   const terms =
     commercial.foundation
@@ -8152,10 +8156,7 @@ export function overviewForProject(
       return {key, status: resolved.status, reason: resolved.reason, issueAssessment: resolved.issueAssessment};
     }),
     moduleStates:
-      [
-        ...scheduleModules,
-        ...commercialModules,
-      ].map(
+      certifiedAnalyticalModules.map(
         (module) => {
           const resolved =
             resolveProjectModule(
@@ -8191,10 +8192,7 @@ export function rerunProject(
     buildBundle(state);
   const resolvedModules =
     new Map(
-      [
-        ...scheduleModules,
-        ...commercialModules,
-      ].map(
+      certifiedAnalyticalModules.map(
         (module) => [
           module.key,
           resolveProjectModule(
