@@ -15,6 +15,9 @@ import {sourceQualityPosition,withPositionVerdict} from './position-review';
 import {scheduleBasisReview,durationEditReview} from './schedule-basis-review';
 import {quantityBasisReview,contractValueBasisReview} from './source-basis-review';
 import {sourceInterpretation} from "./source-interpretation";
+import {scheduleScopeClassification} from "./schedule-scope-classification";
+import {scheduleRiskMonteCarlo} from "./schedule-risk-monte-carlo";
+import {earnedScheduleForState,evmByWbsForState,riskRegisterForState,contractRiskForState,finalAccountForState} from "./advanced-controls";
 import {contractChallengeForState} from './contract-challenge-runtime';
 import { enforceModuleReadiness } from "./module-readiness";
 import {assessModuleIssues} from './module-issues';
@@ -23,7 +26,9 @@ import { reportingScope, summarizeControlIssues, type ControlIssue } from "../..
 import { attachReportingContract, reportingData, managementReportingData } from "./reporting-contract";
 import { activityMovementAnalysis } from "../../activity-analytics/src/movement";
 import { reportingState, claimsReporting, operationalReporting, boqSourceReporting } from "./reporting-state";
-import { commercialFoundationForState } from "./commercial-foundation-runtime";
+import { commercialFoundationForState, commercialFoundationCapabilityForState } from "./commercial-foundation-runtime";
+import { commercialPerformanceCapabilityForState } from "./commercial-performance-runtime";
+import { commercialContractControlCapabilityForState } from "./commercial-contract-controls-runtime";
 import { parseScheduleTime } from "../../schedule-analysis-core/src";
 import { checkProjectionIntegrity } from "./projection-integrity";
 import { resolveRevisionActivityCorrespondence } from "../../schedule-revision-core/src";
@@ -6946,6 +6951,16 @@ function resolveProjectModuleUncertified(
   state: ProjectRuntimeState,
   key: string,
 ): ModuleRuntimeResult {
+  if(key==='scope-classification'){
+    const current=projectControlSchedule(state);
+    if(!current)return blocked(key,'Select an adopted reporting programme to establish schedule scope classifications.',['adopted programme']);
+    const classification=scheduleScopeClassification(current.revision.model);
+    const materiallyClassified=classification.coverage.filter(row=>!['wbsId','wbsPath','wbsLevel'].includes(String(row.key))&&row.classified>0);
+    return {key,status:'ready',engineState:'ready',evidenceState:'established',professionalState:'defensible',reason:null,dependencies:['adopted programme','source WBS/activity text'],
+      data:{projectionKey:'scope_classification',schemaVersion:'1.0',projectId:state.projectId,sourceRevisionId:current.revision.revisionId,dataDateIso:current.revision.model.dataDateIso,
+        ...classification,classificationState:materiallyClassified.length?'source_derived_available':'wbs_only',
+        basis:'Classifications are deterministic readings of explicit source WBS/activity text. They support filtering but do not silently become governed location, discipline, package or contractor master data.'}};
+  }
   const sourceResource = canonicalResourceModule(state, key) ?? canonicalCommercialModule(state, key);
   if (sourceResource) {
     const current = projectControlSchedule(state);
@@ -7029,7 +7044,7 @@ function resolveProjectModuleCandidate(state: ProjectRuntimeState, key: string):
     const laborEvidence=['challenge-contract','cost-forecast','progress-report'].includes(key)?canonicalResourceModule(state,'manhour-scurve')?.data as any:null;
     const contractReview = ['challenge-contract','cost-forecast','commercial-overview','contract-particulars-bonds'].includes(key) ? contractValueBasisReview(state) : null;
     result.data = { ...data, controlBasis, scheduleAuthorityReview:scheduleAuthorityReview(state),
-      ...(['pmo-analysis','schedule-analytics','activity-analytics','near-critical','milestones','progress-report','progress-breakdown','revision-trend'].includes(key)?{nearCriticalScreening:nearCriticalScreening(state)}:{}),
+      ...(['pmo-analysis','schedule-analytics','activity-analytics','near-critical','milestones','progress-report','progress-breakdown','revision-trend','scope-classification'].includes(key)?{nearCriticalScreening:nearCriticalScreening(state)}:{}),
       ...(forecast?{scheduleBasisReview:scheduleBasisReview(model,forecast,time.contractTimeBasis?.contractualCompletionIso??null)}:{}),
       ...(['variance-trends','schedule-change-report'].includes(key)?{durationEditReview:(()=>{const first=analyticalHistory(state)[0]?.revision.model;return first&&first!==model?durationEditReview(first,model):null;})()}:{}),
       ...(['quantity-scurve','independent-forecast','challenge-contract'].includes(key)?{quantityBasisReview:quantityBasisReview(state)}:{}),
@@ -7084,7 +7099,10 @@ function resolveProjectModuleCandidate(state: ProjectRuntimeState, key: string):
       } : {}),
       ...(key === "milestones" ? { movementDistribution: numericDistribution((data.rows ?? []).map((row: any)=>row.varianceDays)) } : {}),
       ...(key === "activity-analytics" ? {
-        rows:(data.rows??[]).map((row:any)=>({...row,...activityDelayStatus(row)})),
+        rows:(()=>{const classification=scheduleScopeClassification(model),byId=new Map(classification.rows.map(row=>[row.activityId,row]));return (data.rows??[]).map((row:any)=>{const scope=byId.get(row.activityId);return {...row,...activityDelayStatus(row),
+          wbsPath:scope?.wbsPath??null,wbsLevel:scope?.wbsLevel??null,location:scope?.location??null,zone:scope?.zone??null,floor:scope?.floor??null,level:scope?.level??null,tower:scope?.tower??null,building:scope?.building??null,area:scope?.area??null,workFront:scope?.workFront??null,
+          phase:scope?.phase??null,section:scope?.section??null,chainage:scope?.chainage??null,discipline:scope?.discipline??null,trade:scope?.trade??null,system:scope?.system??null,package:scope?.package??null,cbs:scope?.cbs??null,contractor:scope?.contractor??null,subcontractor:scope?.subcontractor??null};});})(),
+        scopeClassification:scheduleScopeClassification(model),
         counts: activityAnalyticsCounts(data.rows ?? []),
         movementDistribution: numericDistribution((data.rows ?? []).map((row: any)=>row.finishVarianceDays)),
         movementAnalysis: (()=>{const history=analyticalHistory(state);const current=projectControlSchedule(state)!;const index=history.findIndex(r=>r.revision.revisionId===current.revision.revisionId);const previous=index>0?history[index-1]:null;const baseline=state.schedules.find(r=>r.revision.revisionId===data.controlledBaselineRevisionId);return activityMovementAnalysis(data.rows??[],{dataDateIso:model.dataDateIso,currentRevisionId:current.revision.revisionId,currentLabel:current.revision.label??current.sourceFilename??current.revision.revisionId,baselineRevisionId:data.controlledBaselineRevisionId??null,baselineLabel:baseline?.revision.label??null,previousRevisionId:previous?.revision.revisionId??null,previousLabel:previous?.revision.label??null,previousRows:previous?.revision.model.activities??[]});})(),
@@ -7158,6 +7176,15 @@ export function moduleForProject(
     );
   }
   if (isDeliveryPage(key)) return deliveryModule(state,key);
+  if (key==='scope-classification') return resolveProjectModuleUncertified(reportingState(state),key);
+  if (key==='monte-carlo-risk') return scheduleRiskMonteCarlo(reportingState(state));
+  if (key==='earned-schedule') return earnedScheduleForState(reportingState(state));
+  if (key==='evm-by-wbs') return evmByWbsForState(reportingState(state));
+  if (key==='risk-register') return riskRegisterForState(reportingState(state));
+  if (key==='contract-risk') return contractRiskForState(reportingState(state));
+  if (key==='final-account') return finalAccountForState(reportingState(state));
+  const commercialCapability=commercialFoundationCapabilityForState(state,key)??commercialPerformanceCapabilityForState(state,key)??commercialContractControlCapabilityForState(state,key);
+  if(commercialCapability)return attachReportingContract(reportingState(state),commercialCapability);
   if (managementModuleKeys.includes(key)) {
     return managementSurfaceForProject(projectId, key) ?? blocked(key, "Management position is not established.", []);
   }

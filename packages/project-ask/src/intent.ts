@@ -16,7 +16,8 @@ export function resolveIntent(question:string,catalogue:AuthorityDescriptor[],pr
   const transform=/^(excel|xlsx|pdf|word|docx|csv|json|power ?bi|better|shorter|more detail|ceo|executive|project director|planner detail|commercial manager|only |by |add |remove |put my name|prepared by|our logo|change chart|sar\b|aed\b|usd\b|tower |floor |zone |بالعربي|بالعربية|عربي|مختصر|اكسل|إكسل)/i.test(question.trim());
   const purePresentation=transform&&!/^(only |by |add (?:value|procurement|progress)|remove |tower |floor |zone |sar\b|aed\b|usd\b)/.test(q);
   const wbsDrill=previous?.plan.questionRecipe==='wbs_pressure'&&/^show (?:the )?contributing activities for wbs\b/.test(q);
-  const inherited=!!previous&&(wbsDrill||transform||fullList||simpleFollowup||/^group by\b|^explain.*\b(?:these|those|they)\b/.test(q));
+  const continuation=/^(?:also\b|and also\b|plus\b|include\b|add\b|now add\b|please also\b|can you also\b)/.test(q);
+  const inherited=!!previous&&(wbsDrill||transform||fullList||simpleFollowup||continuation||/^group by\b|^explain.*\b(?:these|those|they)\b/.test(q));
   const plan:AnalysisPlan=inherited?structuredClone(previous.plan):defaults(question);
   const presentation:Presentation=inherited?structuredClone(previous.presentation):{
     title:question.slice(0,160),audience:'project',language:/[\u0600-\u06ff]/.test(question)?'ar':'en',detail:'normal',charts:true,
@@ -41,10 +42,16 @@ export function resolveIntent(question:string,catalogue:AuthorityDescriptor[],pr
   if(/our logo|client logo/.test(q))gaps.push('Use the configured CMeng branding. An authorized organization logo has not been configured.');
   if(/without charts|remove charts/.test(q))presentation.charts=false;
   if(/add charts?|with charts?/.test(q))presentation.charts=true;
+  const explicitlyRequested=catalogue.filter(c=>c.concepts.some(concept=>mentions(q,concept))).map(c=>c.id);
   if(!inherited){
-    const broad=/full.*(report|package)|construction intelligence|monthly project|project director meeting|everything|joined.*today|what killing us|what needs management|تقرير شامل/.test(q);
-    if(broad)plan.authorities=catalogue.map(c=>c.id);
-    else plan.authorities=catalogue.filter(c=>c.concepts.some(concept=>mentions(q,concept))).map(c=>c.id);
+    const broad=/full.*(?:report|package)|construction intelligence|monthly project|project director meeting|everything|joined.*today|what killing us|what needs management|تقرير شامل/.test(q);
+    if(broad){
+      // Broad requests start with a useful cross-domain core plus everything
+      // the user actually named. A phrase such as "Construction Intelligence
+      // Package" is not a hidden command to load every CMeng domain.
+      const core=['master-dashboard','programme','progress','boq','forecast','procurement','materials','long-lead','risks','commercial'];
+      plan.authorities=[...new Set([...explicitlyRequested,...core.filter(id=>catalogue.some(c=>c.id===id))])];
+    }else plan.authorities=explicitlyRequested;
     if(!plan.authorities.length&&page?.page){const match=catalogue.find(c=>c.module===page.page||c.id===page.page);if(match)plan.authorities=[match.id];}
     if(!plan.authorities.length){plan.authorities=catalogue.filter(c=>['programme','progress','risks'].includes(c.id)).map(c=>c.id);if(!plan.authorities.length)plan.authorities=catalogue.slice(0,2).map(c=>c.id);}
     if(/why|behind|delaying|bad|wrong|reconcil|compare|لماذا|متاخر/.test(q)){
@@ -61,21 +68,30 @@ export function resolveIntent(question:string,catalogue:AuthorityDescriptor[],pr
     }
   }
   if(inherited&&/^remove /.test(q))plan.authorities=plan.authorities.filter(id=>!catalogue.find(c=>c.id===id)?.concepts.some(c=>q.slice(7).includes(normalized(c))));
-  if(inherited&&/add .*curve/.test(q))for(const c of catalogue.filter(c=>c.concepts.some(k=>mentions(q,k))))if(!plan.authorities.includes(c.id))plan.authorities.push(c.id);
+  if(inherited&&(continuation||/add .*curve/.test(q)))for(const id of explicitlyRequested)if(!plan.authorities.includes(id))plan.authorities.push(id);
   // Resolve activity questions before generic words such as "delayed" can select a claims register.
   const claimsQuestion=/\b(?:claims?|entitlement|delay events?|time impact|windows analysis)\b/.test(q);
   const activityQuestion=/\bactivit(?:y|ies)\b|\b(?:delayed|late|overdue) (?:items|tasks|work)\b|\b(?:critical|driving) path\b|should (?:have )?(?:start|finish)|should have (?:started|finished)|\b(?:missed|overdue|late) starts?\b|\b(?:overdue|late) finishes?\b/.test(q);
   const scheduleQuestion=activityQuestion||/\b(?:project|programme|schedule)\b.*\b(?:delayed|delay|late|behind)\b|\b(?:delay|delaying)\b.*\bproject\b|^(?:show (?:me )?|what (?:is|are) (?:the )?)?(?:delayed|late|overdue)(?: work)?[.!?]*$/.test(q);
-  if(!inherited&&!claimsQuestion&&scheduleQuestion){
+  if((!inherited||continuation)&&!claimsQuestion&&scheduleQuestion){
     const available=(id:string)=>catalogue.some(c=>c.id===id);
-    const path=/\b(?:critical|driving) path\b/.test(q);
-    // Keep explicitly requested non-schedule domains in a combined question.
-    plan.authorities=plan.authorities.filter(id=>!['programme','activities','float','critical-path','forecast','delay','lookahead'].includes(id));
-    if(available(path?'critical-path':'activities'))plan.authorities.unshift(path?'critical-path':'activities');
+    const wantsPath=/\b(?:critical|driving) path\b/.test(q);
+    const wantsActivityList=/\bactivit(?:y|ies)\b|\b(?:delayed|late|overdue) (?:items|tasks|work)\b|should (?:have )?(?:start|finish)|should have (?:started|finished)|\b(?:missed|overdue|late) starts?\b|\b(?:overdue|late) finishes?\b/.test(q);
+    // Keep earlier conversation requirements when this is an additive
+    // follow-up. A new standalone schedule question may replace the previous
+    // schedule slice, but "also/include/add" must never discard it.
+    if(!inherited)plan.authorities=plan.authorities.filter(id=>!['programme','activities','float','critical-path','forecast','delay','lookahead'].includes(id));
+    if(wantsActivityList&&available('activities')&&!plan.authorities.includes('activities'))plan.authorities.push('activities');
+    if(wantsPath&&available('critical-path')&&!plan.authorities.includes('critical-path'))plan.authorities.push('critical-path');
+    if(!wantsActivityList&&!wantsPath&&available('activities')&&!plan.authorities.includes('activities'))plan.authorities.push('activities');
+    // A spatial word in an activity question scopes the programme activity
+    // population; it does not automatically request the Delivery location register.
+    if(activityQuestion&&/\b(?:zone|floor|level|tower|building|area|work ?front)\b/.test(q)&&!/\b(?:location register|location hierarchy|governed locations?)\b/.test(q))
+      plan.authorities=plan.authorities.filter(id=>id!=='locations');
     if(/\b(?:why|caus\w*|driv\w*|delaying|makes?|making)\b/.test(q)){
       // A schedule diagnosis starts from schedule facts and linked blockers.
       // Optional domains are added only when the question actually names them.
-      plan.authorities=plan.authorities.filter(id=>['activities','critical-path'].includes(id)||catalogue.find(c=>c.id===id)?.concepts.some(c=>mentions(q,c)));
+      if(!inherited)plan.authorities=plan.authorities.filter(id=>['activities','critical-path'].includes(id)||catalogue.find(c=>c.id===id)?.concepts.some(c=>mentions(q,c)));
       for(const id of ['critical-path','lookahead','forecast'])if(available(id)&&!plan.authorities.includes(id))plan.authorities.push(id);
     }
   }
@@ -85,7 +101,7 @@ export function resolveIntent(question:string,catalogue:AuthorityDescriptor[],pr
   plan.rankings=rankedRequests(q,catalogue);
   plan.countRows=/\bhow many\b|\bcount\b|عدد/.test(q);
   const scopedFilter=(ids:string[],filter:AnalysisPlan['filters'][number])=>{plan.authorityFilters??={};for(const id of ids)if(plan.authorities.includes(id))plan.authorityFilters[id]=[...(plan.authorityFilters[id]??[]),filter];};
-  if(!inherited&&!claimsQuestion&&scheduleQuestion){
+  if((!inherited||continuation)&&!claimsQuestion&&scheduleQuestion){
     const starts=/should (?:have )?start|should have started|(?:missed|overdue|late) starts?|start.*(?:did(?:n.?t| not)|ha(?:s|ve)(?:n.?t| not)|not yet)|(?:did(?:n.?t| not)|ha(?:s|ve)(?:n.?t| not)).*start/.test(q);
     const finishes=/should (?:have )?finish|should have finished|(?:overdue|late) finish|finish.*(?:overdue|did(?:n.?t| not)|ha(?:s|ve)(?:n.?t| not))/.test(q);
     const field=starts?'missedPlannedStart':finishes?'finishOverdue':/\b(?:delayed|delay|late|overdue|behind|delaying)\b/.test(q)?'scheduleDelayed':null;
@@ -102,9 +118,30 @@ export function resolveIntent(question:string,catalogue:AuthorityDescriptor[],pr
   if(/\bncrs?\b/.test(q))scopedFilter(['quality'],{field:'recordType',operator:'eq',value:'ncr',upper:null});
   if(/\b(?:open|late|overdue)\b/.test(q)){const status=/\b(open|late|overdue)\b/.exec(q)![1]!;scopedFilter(plan.authorities.filter(id=>['quality','milestones','submittals','closeout','handover','permits','risks'].includes(id)),{field:status==='open'?'open':'late',operator:'eq',value:true,upper:null});}
   for(const dimension of ['discipline','location','floor','zone','supplier','wbs','trade','currency'])if(new RegExp('\\bby '+dimension+'\\b').test(q))plan.groupBy=[dimension==='wbs'?'wbsId':dimension==='trade'?'discipline':dimension];
-  const location=/\bfor wbs\b/.test(q)?null:/\b(tower\s+[a-z0-9]+|floor\s+\d+|zone\s+[a-z0-9]+)\b/i.exec(question);
-  if(location){plan.filters=plan.filters.filter(f=>f.field!=='location');plan.filters.push({field:'location',operator:'contains',value:location[1]!,upper:null});}
+  const location=/\bfor wbs\b/.test(q)?null:/\b(tower\s+[a-z0-9]+|building\s+[a-z0-9]+|block\s+[a-z0-9]+|floor\s+[a-z0-9]+|level\s+[a-z0-9]+|zone\s+[a-z0-9]+|area\s+[a-z0-9]+|work\s*front\s+[a-z0-9_-]+)\b/i.exec(question);
+  if(location){
+    const scopeFilter={field:'location',operator:'contains' as const,value:location[1]!,upper:null};
+    const compoundActivityRequest=!inherited&&!claimsQuestion&&scheduleQuestion&&activityQuestion&&/\b(?:and|also|plus)\b/.test(q)&&/\b(?:delayed|late|overdue)\b/.test(q);
+    if(compoundActivityRequest){
+      // Keep the primary delayed-activity selection intact and create a
+      // second independent result set for the requested spatial scope.
+      plan.activityBreakouts=[...(plan.activityBreakouts??[]),{label:'Activities for '+location[1]!,filters:[scopeFilter]}];
+    }else{
+      plan.filters=plan.filters.filter(f=>f.field!=='location');plan.filters.push(scopeFilter);
+    }
+  }
   if(!/\bfor wbs\b/.test(q)&&/\bmep\b|\bmechanical\b|\belectrical\b|\bcivil\b/.test(q)){const value=/\b(mep|mechanical|electrical|civil)\b/.exec(q)![1]!;plan.filters=plan.filters.filter(f=>f.field!=='discipline');plan.filters.push({field:'discipline',operator:'contains',value,upper:null});}
+  if(!inherited&&!claimsQuestion&&scheduleQuestion&&activityQuestion){
+    const explicitScopes:Array<[string,RegExp]>=[
+      ['phase',/\bphase\s+([a-z0-9_.\/-]+)/i],['section',/\bsection\s+([a-z0-9_.\/-]+)/i],['chainage',/\b(?:chainage|ch)\s+(\d+\+\d+(?:\.\d+)?)/i],
+      ['workFront',/\bwork\s*front\s+([a-z0-9_.\/-]+)/i],['package',/\b(?:package|pkg)\s+([a-z0-9_.\/-]+)/i],['cbs',/\b(?:cbs|cost\s*code)\s+([a-z0-9_.\/-]+)/i],
+      ['contractor',/\bcontractor\s+([a-z0-9][a-z0-9 &_.\/-]{1,40}?)(?=\s+(?:and|with|only|status|activities)|$)/i],
+      ['subcontractor',/\bsubcontractor\s+([a-z0-9][a-z0-9 &_.\/-]{1,40}?)(?=\s+(?:and|with|only|status|activities)|$)/i],
+      ['trade',/\btrade\s+([a-z0-9][a-z0-9 _\/-]{1,30}?)(?=\s+(?:and|with|only|activities)|$)/i],
+      ['system',/\bsystem\s+([a-z0-9][a-z0-9 _\/-]{1,30}?)(?=\s+(?:and|with|only|activities)|$)/i]
+    ];
+    for(const [field,pattern] of explicitScopes){const hit=pattern.exec(question);if(hit?.[1]){plan.filters=plan.filters.filter(f=>f.field!==field);plan.filters.push({field,operator:'contains',value:hit[1].trim(),upper:null});}}
+  }
   const currency=/^(SAR|AED|USD|EUR|GBP)$/i.exec(question.trim());if(currency){plan.filters=plan.filters.filter(f=>f.field!=='currency');plan.filters.push({field:'currency',operator:'eq',value:currency[1]!.toUpperCase(),upper:null});gaps.push('Currency filtering does not convert values. No exchange rate is assumed.');}
   const days=/next\s+(\d+)\s+days|القادمه\s+(\d+)/.exec(q);if(days)plan.nextDays=Math.min(3650,Number(days[1]??days[2]));
   const coverage=/(?:delivery|delivered|التسليم).*?(?:under|below|less than|اقل من)\s+(\d+(?:\.\d+)?)\s*%/.exec(q);if(coverage)plan.deliveryBelowPercent=Number(coverage[1]);
@@ -120,9 +157,17 @@ export function resolveIntent(question:string,catalogue:AuthorityDescriptor[],pr
   if(recipe&&catalogue.some(c=>c.id==='project-diagnosis')&&plan.kind!=='historical'&&!/\bphases?\b/.test(q)){
     plan.questionRecipe=recipe;
     delete plan.diagnosisActivityFilters;
-    if(recipe==='driving_path')plan.authorities=['critical-path'];
-    else if(recipe==='delay_diagnosis')plan.authorities=['project-diagnosis','critical-path','activities','float'];
-    else plan.authorities=['project-diagnosis'];
+    const scheduleRecipeIds=new Set(['programme','activities','float','critical-path','forecast','delay','lookahead','project-diagnosis','wbs','milestones','programme-changes']);
+    const explicitNonSchedule=explicitlyRequested.some(id=>!scheduleRecipeIds.has(id));
+    const priorNonSchedule=!!previous?.plan.authorities.some(id=>!scheduleRecipeIds.has(id));
+    // Generic fallback domains are not user requirements. Preserve only
+    // requirements the user actually named, or requirements accumulated in an
+    // additive conversation.
+    const preserveCompoundRequirements=continuation||explicitNonSchedule||(inherited&&priorNonSchedule);
+    const addRecipe=(ids:string[])=>{for(const id of ids)if(catalogue.some(c=>c.id===id)&&!plan.authorities.includes(id))plan.authorities.push(id);};
+    if(recipe==='driving_path'){if(preserveCompoundRequirements)addRecipe(['critical-path']);else plan.authorities=['critical-path'];}
+    else if(recipe==='delay_diagnosis'){if(preserveCompoundRequirements)addRecipe(['project-diagnosis','critical-path','activities','float']);else plan.authorities=['project-diagnosis','critical-path','activities','float'];}
+    else {if(preserveCompoundRequirements)addRecipe(['project-diagnosis']);else plan.authorities=['project-diagnosis'];}
     if(recipe==='delay_diagnosis'){
       plan.authorityFilters??={};
       plan.authorityFilters.activities=[{field:'schedulePressure',operator:'eq',value:true,upper:null}];
@@ -135,15 +180,15 @@ export function resolveIntent(question:string,catalogue:AuthorityDescriptor[],pr
       }
     }
     if(recipe==='wbs_pressure'){
-      plan.groupBy=[];
+      if(!preserveCompoundRequirements)plan.groupBy=[];
       if(groupingPrevious&&previous){
         plan.diagnosisActivityFilters=[...(previous.plan.authorityFilters?.activities??previous.plan.authorityFilters?.float??[])];
         if(previous.plan.criticalOnly)plan.diagnosisActivityFilters.push({field:'critical',operator:'eq',value:true,upper:null});
         if(previous.plan.authorities.length===1&&previous.plan.authorities[0]==='critical-path')plan.diagnosisActivityFilters.push({field:'onDrivingNetwork',operator:'eq',value:true,upper:null});
       }
-      plan.criticalOnly=false;plan.rankBy=null;plan.rankings=[];plan.limit=null;
+      plan.criticalOnly=false;if(!preserveCompoundRequirements){plan.rankBy=null;plan.rankings=[];plan.limit=null;}
     }
-    if(['management_actions','project_position','revision_change','no_change_outlook','milestone_exposure'].includes(recipe)){plan.rankBy=null;plan.rankings=[];plan.limit=null;}
+    if(['management_actions','project_position','revision_change','no_change_outlook','milestone_exposure'].includes(recipe)&&!preserveCompoundRequirements){plan.rankBy=null;plan.rankings=[];plan.limit=null;}
   }
   if(/\bschedule pressure\b/.test(q)&&plan.authorities.includes('activities'))scopedFilter(['activities'],{field:'schedulePressure',operator:'eq',value:true,upper:null});
   const wbsFilter=/\bfor wbs\s+["']?([^"'?]+)["']?\??$/i.exec(question);

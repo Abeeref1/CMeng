@@ -6,7 +6,7 @@ import {matchFilter} from '../../project-ask/src/primitives';
 
 export function askProjectDiagnosis(scope:ProjectScope,plan:AnalysisPlan){
  let d=projectDiagnosisDetails((moduleForProject(scope.projectId,'pmo-analysis').data as any)?.projectDiagnosis);
- const b=new AuthorityBuilder('project-diagnosis','Project diagnosis','pmo-analysis',scope,d?'partial':'unavailable',d?.summary??'Select the reporting programme to establish this project’s schedule diagnosis.');
+ const b=new AuthorityBuilder('project-diagnosis','Project position','pmo-analysis',scope,d?'partial':'unavailable',d?.summary??'Select the reporting programme to establish this project’s schedule position.');
  if(!d)return b.result;
  const recipe=plan.questionRecipe??'project_position',p=d.completion;
  let selectedIds:Set<string>|null=null;
@@ -54,7 +54,7 @@ export function askProjectDiagnosis(scope:ProjectScope,plan:AnalysisPlan){
  }
  if(['revision_change','delay_diagnosis','project_position'].includes(recipe))b.table('revision-changes','Largest activity date changes',d.revision.largestChanges,d.revision.basis,units);
  if(recipe==='no_change_outlook')b.table('outlook','Current no-change outlook',[{submittedFinish:p?.submittedFinishIso??null,calendarRecalculation:p?.independentFinishIso??null,calculationState:p?.calculationState??'unavailable',contractCompletion:p?.contractualFinishIso??null,interpretation:d.noChangeOutlook}],p?.differenceBasis??'Current source position only.');
- b.finding('limits','Scope of the diagnosis',d.limitation+(p?' '+p.contractNote:''),'Use the facts and links above; confirm only the missing input needed for the particular contractual or causal conclusion.');
+ b.finding('limits','Scope of this analysis',d.limitation+(p?' '+p.contractNote:''),'Use the facts and links above; confirm only the missing input needed for the particular contractual or causal conclusion.');
  for(const t of b.result.traces)t.sourceRefs.push(scope.programmeRevision??'');
  return b.result;
 }

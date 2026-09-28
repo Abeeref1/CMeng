@@ -22,7 +22,7 @@ function diagnosisAnswer(result:AnalysisResult):NarrativeBlock|null{
   const section=result.sections.find(s=>s.authorityId==='project-diagnosis');if(!section)return null;
   const actions=section.tables.find(t=>t.id==='project-diagnosis.actions');
   const previews=(actions?.rows??[]).slice(0,result.presentation.detail==='short'?3:5).map(r=>String(r.activityId)+' — '+String(r.name)+'; '+String(r.reason??'')+(r.previousPredecessorSlippage?' Predecessor change: '+r.previousPredecessorSlippage+'.':'')+(r.linkedEvidence?' '+r.linkedEvidence:''));
-  return {heading:result.plan.questionRecipe==='revision_change'?'What changed':result.plan.questionRecipe==='wbs_pressure'?'WBS pressure':result.plan.questionRecipe==='no_change_outlook'?'If nothing changes':'Project diagnosis',text:section.explanation+(previews.length?'\n\n'+previews.join('\n'):'')+(result.plan.questionRecipe==='delay_diagnosis'?'\n\nThe ordered network, supporting activity lists and linked records are below.':''),classification:'calculated_intelligence',traceIds:section.traces.map(t=>t.id)};
+  return {heading:result.plan.questionRecipe==='revision_change'?'What changed':result.plan.questionRecipe==='wbs_pressure'?'WBS pressure':result.plan.questionRecipe==='no_change_outlook'?'If nothing changes':'Project schedule analysis',text:section.explanation+(previews.length?'\n\n'+previews.join('\n'):'')+(result.plan.questionRecipe==='delay_diagnosis'?'\n\nThe ordered network, supporting activity lists and linked records are below.':''),classification:'calculated_intelligence',traceIds:section.traces.map(t=>t.id)};
 }
 function drivingPathAnswer(result:AnalysisResult):NarrativeBlock|null{
   const section=result.sections.find(s=>s.authorityId==='critical-path'),network=section?.tables.find(t=>t.id==='critical-path.network');if(!section||!network)return null;
@@ -86,7 +86,41 @@ function activityAnswer(result:AnalysisResult):NarrativeBlock|null{
   else if(result.unresolved.some(g=>/lack |excluded|missing|unconfirmed/i.test(g)))text+=' Some records need review; the list contains the matches we can confirm.';
   const preview=table.rows.slice(0,result.presentation.detail==='short'?3:5).map(r=>String(r.activityId)+' — '+String(r.name??'Unnamed activity'));
   if(preview.length)text+='\n\n'+preview.join('\n')+(n>preview.length?'\nThe activity table below contains the rest.':'');
-  return {heading:'Answer',text,classification:'calculated_intelligence',traceIds:[table.traceId]};
+  const breakouts=section.tables.slice(1).filter(t=>t.id.includes('-breakout-'));
+  if(breakouts.length)text+='\n\n'+breakouts.map(t=>t.title+': '+String(t.selection?.matching??t.rows.length)+' matching '+((t.selection?.matching??t.rows.length)===1?'activity':'activities')+'.').join('\n');
+  return {heading:'Answer',text,classification:'calculated_intelligence',traceIds:[table.traceId,...breakouts.map(t=>t.traceId)]};
+}
+function plainAskNeed(value:string){
+  const text=String(value||'').replace(/\s+/g,' ').trim();
+  if(!text)return null;
+  if(/AI commentary could not/i.test(text))return null;
+  if(/baseline/i.test(text))return 'A confirmed baseline would add original-plan slippage and baseline variance to this answer.';
+  if(/contract(?:ual)? completion|contract time basis/i.test(text))return 'A confirmed contractual completion date would add contract-date and time-entitlement comparisons.';
+  if(/lead time|manufacturing duration|latest order/i.test(text))return 'Confirmed supplier or approved lead-time evidence would replace planning assumptions and allow firm latest-order dates.';
+  if(/procurement|ordered|delivered|supplier|manufactur/i.test(text))return 'A current procurement/material register would add actual ordered, manufacturing and delivery status.';
+  if(/installed|measured quantities|quantity progress|physical progress/i.test(text))return 'Dated measured or installed quantities would add actual quantity completion and installation progress.';
+  if(/PV|EV|AC|CPI|SPI|earned value/i.test(text))return 'Time-phased PV, EV and AC would add formal EVM performance measures such as SPI and CPI.';
+  if(/resource|manpower|labou?r|capacity/i.test(text))return 'Dated manpower/resource usage and capacity would add independent resource and manpower analysis.';
+  if(/risk/i.test(text))return 'A dated risk register would add the Project’s confirmed risk status and ownership.';
+  if(/location|zone|floor|tower|building|workfront/i.test(text))return 'A confirmed location/workfront mapping would strengthen location-based analysis where the source wording is ambiguous.';
+  if(/date|status|field|mapping|link/i.test(text))return text
+    .replace(/authority/gi,'basis')
+    .replace(/governed/gi,'confirmed')
+    .replace(/population/gi,'records')
+    .replace(/source rows?/gi,'records')
+    .replace(/applicable/gi,'relevant');
+  return text
+    .replace(/authority/gi,'basis')
+    .replace(/governed/gi,'confirmed')
+    .replace(/population/gi,'records')
+    .replace(/schema|payload|resolver|provider|endpoint/gi,'')
+    .replace(/\s+/g,' ')
+    .trim();
+}
+function improvementNeedsFor(result:AnalysisResult){
+  const raw=[...result.unresolved,...result.sections.filter(s=>s.state==='unavailable').map(s=>s.explanation)];
+  const needs=raw.map(plainAskNeed).filter((v):v is string=>!!v);
+  return [...new Set(needs)].slice(0,6);
 }
 function narrativeFor(result:AnalysisResult):NarrativeBlock[]{
   const ar=result.presentation.language==='ar';
@@ -188,6 +222,7 @@ export class ProjectAskEngine {
           }
         }
         const countGapTables=new Set<string>();
+        const breakoutSources=result.authorityId==='activities'&&(plan.activityBreakouts?.length??0)>0?result.tables.map(table=>structuredClone(table)):[];
         // Diagnosis has already selected activities and their linked evidence together.
         // Reapplying WBS/activity filters to evidence rows (which lack those dimensions)
         // drops valid linked records and incorrectly invalidates the scoped count.
@@ -198,6 +233,16 @@ export class ProjectAskEngine {
             if(result.authorityId==='float'&&plan.authorityFilters?.activities?.some(f=>f.field==='scheduleDelayed'))queryPlan={...authorityPlan,rankBy:'totalFloatHours',rankDirection:'asc'};
             const queried=queryTable(table,queryPlan);unresolved.push(...queried.gaps);if(queried.gaps.length)countGapTables.add(queried.table.id);return queried.table;});
           if(authorityPlan.filters.length||plan.criticalOnly||plan.issuesOnly||plan.nextDays!==null||plan.deliveryBelowPercent!==null)result.metrics=result.metrics.map(m=>({...m,value:null,state:'unavailable',basis:m.basis+' The project total is not a valid KPI for this filtered subset; see the matching records.'}));
+        }
+        if(result.authorityId==='activities'&&plan.activityBreakouts?.length&&breakoutSources.length){
+          const base=breakoutSources[0]!;
+          for(const [index,breakout] of plan.activityBreakouts.entries()){
+            const {activityBreakouts:_activityBreakouts,...planWithoutBreakouts}=plan;
+            const breakoutPlan:AnalysisPlan={...planWithoutBreakouts,filters:[...breakout.filters],authorityFilters:{},groupBy:[],rankBy:null,rankings:[],limit:null,criticalOnly:false,issuesOnly:false};
+            const queried=queryTable(base,breakoutPlan);
+            unresolved.push(...queried.gaps);
+            result.tables.push({...queried.table,id:base.id+'-breakout-'+index,title:breakout.label,basis:queried.table.basis+' This is an independent result set from the same full programme population; it is not intersected with the primary activity request.'});
+          }
         }
         if(plan.countRows)for(const table of result.tables){const missing=countGapTables.has(table.id);result.metrics.push({id:table.id+'.matching-count',label:'Matching '+table.title+' records',value:missing||table.state==='unavailable'?null:table.selection?.matching??table.rows.length,unit:'records',state:missing?'unavailable':table.state,classification:'calculated_intelligence',traceId:table.traceId,basis:'Count after applying all requested filters to the full available population, before Top N selection. '+table.basis});}
         result.charts=presentation.charts?result.tables.map(t=>chooseChart(t,scope.dataDate)).filter((c):c is NonNullable<typeof c>=>c!==null):[];sections.push(result);
@@ -215,11 +260,12 @@ export class ProjectAskEngine {
       referenceFiles:files.map(({id,filename,hash,state,reading})=>({id,filename,hash,state,reading})),factsHash:askHash(sections),snapshotHash:''};
     const references=files.flatMap(f=>f.pages.map(p=>({filename:f.filename,fileId:f.id,hash:f.hash,page:p.page,text:p.text})));
     result.coverage=selectEvidence(result,references).coverage;
+    result.improvementNeeds=improvementNeedsFor(result);
     result.narrative=narrativeFor(result);
     for(const metric of sections.flatMap(s=>s.metrics).filter(m=>/\.cpi(?:-|$)/.test(m.id)&&typeof m.value==='number'&&m.value<1))result.narrative.push({heading:'Cost performance',text:'CPI below 1.00 indicates earned value is below actual cost on the stated currency and tax basis. This ratio alone does not establish the cause.',classification:'calculated_intelligence',traceIds:[metric.traceId]});
     if(this.model&&user.allowModel&&interpret&&!intent.purePresentation){
       try{const blocks=await this.model.explain(result,references);result.narrative.push(...blocks);result.mode='CMeng AI Analysis';result.providerStatus='available';}
-      catch(error){result.providerStatus='failed';const code=error instanceof Error&&/^(MODEL|RETRIEVAL)_[A-Z_]+$/.test(error.message)?error.message:'MODEL_PROVIDER_UNAVAILABLE';if(!result.telemetry!.providerFailures.includes(code)&&!result.telemetry!.validationFailures.includes(code))result.telemetry!.providerFailures.push(code);result.unresolved.push('AI commentary could not be completed or validated ('+code+'). The complete local tables, findings and calculations remain available. No partial AI assessment has been presented.');}
+      catch(error){result.providerStatus='failed';const code=error instanceof Error&&/^(MODEL|RETRIEVAL)_[A-Z_]+$/.test(error.message)?error.message:'MODEL_PROVIDER_UNAVAILABLE';if(!result.telemetry!.providerFailures.includes(code)&&!result.telemetry!.validationFailures.includes(code))result.telemetry!.providerFailures.push(code);result.unresolved.push('The AI explanation could not be completed. CMeng’s calculated tables, findings and figures remain available and unchanged.');}
     }
     if(!intent.purePresentation&&state.version!==scope.projectVersion)throw new AskError(409,'project_updated','The project changed while this analysis was being prepared. Run it again for a consistent position.');
     result.snapshotHash=askHash({scope:result.scope,plan:result.plan,sections:result.sections});await this.store.saveResult(result,user);return result;

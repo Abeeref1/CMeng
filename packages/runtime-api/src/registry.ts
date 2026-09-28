@@ -8,6 +8,9 @@ export interface ModuleDescriptor {
   group: string;
   area: "management" | "schedule" | "commercial" | "delivery";
   category: "management" | "analysis" | "progress" | "forecast" | "claims" | "contract" | "commercial" | "delivery";
+  /** Heavy or specialist pages are resolved only when opened and are excluded
+   * from the all-module certification/cold-load bundle. */
+  onDemand?: boolean;
 }
 
 export const moduleRegistry: ModuleDescriptor[] = [
@@ -69,6 +72,8 @@ export type ScheduleModuleDescriptor = ModuleDescriptor;
 export type CommercialModuleDescriptor = ModuleDescriptor;
 export const scheduleModules = moduleRegistry.filter(m => m.area === "schedule");
 export const commercialModules = moduleRegistry.filter(m => m.area === "commercial");
+export const schedulePageModules = scheduleModules;
+export const commercialPageModules = commercialModules;
 
 export function scheduleModuleSummary() {
   return {total: scheduleModules.length, keys: scheduleModules.map(m => m.key)};

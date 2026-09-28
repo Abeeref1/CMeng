@@ -137,15 +137,20 @@ test('historical source selection excludes the later adopted revision and identi
   await assert.rejects(()=>f.ask('Programme as of 2036-02-31'),/valid historical/);
 });
 
-test('full package consumes existing producers and populated chart/export data without inventing absent registers',async t=>{
-  const f=await fixture(t);loadCertifiedDemoProject(f.id);const r=await f.ask('Prepare a Construction Intelligence Package');
-  assert.equal(r.sections.length,askCatalogue.available(user).length);assert.ok(r.sections.find(s=>s.authorityId==='activities')!.tables[0]!.rows.length>0);
+test('multi-question conversation accumulates independent requirements without loading every CMeng domain',async t=>{
+  const f=await fixture(t);loadCertifiedDemoProject(f.id);
+  const first=await f.ask('Prepare a Construction Intelligence Package covering programme, progress, BOQ and risks.');
+  assert.ok(first.sections.length<askCatalogue.available(user).length,'a broad package is not a hidden command for every CMeng domain');
+  for(const id of ['programme','progress','boq','risks'])assert.ok(first.sections.some(s=>s.authorityId===id),id);
+  const r=await f.ask('Also add the critical path, all delayed activities, procurement packages, long-lead items and charts in Excel.',first);
+  for(const id of ['programme','progress','boq','risks','critical-path','activities','procurement','long-lead'])assert.ok(r.sections.some(s=>s.authorityId===id),id);
+  assert.equal(r.presentation.format,'xlsx');
+  assert.ok(r.sections.find(s=>s.authorityId==='activities')!.tables.some(t=>t.rows.length>0));
+  assert.ok(r.sections.find(s=>s.authorityId==='critical-path')!.tables.some(t=>t.rows.length>0));
   assert.equal(r.sections.find(s=>s.authorityId==='progress')!.metrics.find(m=>m.id==='progress.physical')!.value,54.8);
-  assert.ok(r.sections.find(s=>s.authorityId==='progress-curve')!.charts.length>0);
-  assert.equal(r.sections.find(s=>s.authorityId==='permits')!.state,'unavailable');
-  assert.ok(r.unresolved.some(g=>g.includes('Permits')));
-  const book=new ExcelJS.Workbook();await book.xlsx.load((await exportAskAnalysis(r,'xlsx')).bytes as any);assert.ok(book.worksheets.length>35);
-  if(process.env.CMENG_ASK_PROOF_DIR)writeFileSync(join(process.env.CMENG_ASK_PROOF_DIR,'Ask-Full-Package.xlsx'),(await exportAskAnalysis(r,'xlsx')).bytes);
+  const book=new ExcelJS.Workbook();await book.xlsx.load((await exportAskAnalysis(r,'xlsx')).bytes as any);
+  assert.ok(book.getWorksheet('Evidence Coverage'));assert.ok(book.worksheets.some(s=>s.name.startsWith('Chart ')));
+  if(process.env.CMENG_ASK_PROOF_DIR)writeFileSync(join(process.env.CMENG_ASK_PROOF_DIR,'Ask-Multi-Question.xlsx'),(await exportAskAnalysis(r,'xlsx')).bytes);
 });
 
 test('all result rows export while browser preview is bounded; a BOQ-only project remains useful',async t=>{

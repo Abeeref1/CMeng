@@ -60,6 +60,10 @@ export interface AnalysisPlan {
   countRows?: boolean;
   rankings?: {authorityId: string; field: string; direction: 'asc' | 'desc'; limit: number}[];
   authorityFilters?: Record<string,Filter[]>;
+  /** Extra schedule-activity result sets requested in the same natural-language question.
+   * They are evaluated independently against the full activity population so "A and B"
+   * is not silently converted into an intersection. */
+  activityBreakouts?: Array<{label:string;filters:Filter[]}>;
 }
 export interface Presentation {
   title: string; audience: 'project' | 'planner' | 'commercial' | 'director' | 'executive';
@@ -74,6 +78,7 @@ export interface AnalysisResult {
   schemaVersion: 1; id: string; conversationId: string; createdAt: string; scope: ProjectScope;
   plan: AnalysisPlan; presentation: Presentation; mode: 'Deterministic CMeng Summary' | 'CMeng AI Analysis';
   sections: AuthorityResult[]; narrative: NarrativeBlock[]; unresolved: string[];
+  improvementNeeds?: string[];
   referenceFiles: {id: string; filename: string; hash: string; state: 'reference_only'; reading: string}[];
   snapshotHash: string; factsHash: string; providerStatus: 'not_configured' | 'not_permitted' | 'available' | 'failed' | 'not_needed';
   route?: RequestRoute;
@@ -110,5 +115,6 @@ export interface AskRequest {
 export interface SavedView {
   schemaVersion: 1; id: string; projectId: string; workspaceId: string; ownerId: string;
   name: string; visibility: 'personal' | 'project'; plan: AnalysisPlan; presentation: Presentation;
+  savedFromDataDate?: string | null; savedFromProjectVersion?: number;
   createdAt: string; updatedAt: string;
 }

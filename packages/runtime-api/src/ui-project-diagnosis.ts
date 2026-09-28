@@ -21,7 +21,7 @@ async function diagnosisPage(id,offset){
  const t=diagnosisTables.get(id),target=el(id);if(!t||!target||project()!==t.projectId)return;
  target.querySelectorAll('button').forEach(b=>b.disabled=true);
  try{const page=await api(t.url+'&offset='+offset+'&limit='+t.limit);if(project()!==t.projectId||!el(id))return;
-  if(page.projectId!==t.projectId||page.projectVersion!==t.version)throw new Error('The project changed. Refresh the diagnosis.');
+  if(page.projectId!==t.projectId||page.projectVersion!==t.version)throw new Error('The project changed. Refresh the analysis.');
   t.rows=page.rows;t.total=page.total;t.offset=page.offset;el(id).innerHTML=diagnosisTableHtml(t);
  }catch(e){if(project()===t.projectId&&el(id))el(id).innerHTML=diagnosisTableHtml(t)+'<p role="alert">'+escapeHtml(e.message)+'</p>';}
 }

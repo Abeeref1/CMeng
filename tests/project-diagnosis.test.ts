@@ -48,7 +48,7 @@ test('XER alone establishes a tied driving network, WBS pressure and a no-change
  assert.equal(d.wbsRows.find((r:any)=>r.wbs==='Structure').drivingCount,2);assert.match(d.noChangeOutlook,/2030-01-04/);
  const path=await f.ask('Show me the critical path');assert.equal(path.sections[0]!.tables[0]!.id,'critical-path.network');assert.equal(path.sections[0]!.tables[0]!.rows.length,4);assert.match(path.narrative[0]!.text,/A → B|ALT → B/);
  const all=await f.ask('show full path',path);assert.equal(all.sections[0]!.tables[0]!.rows.length,4);assert.equal(all.plan.limit,null);
- for(const q of ['Which WBS has most schedule pressure?','What happens if nothing changes?','What are the top 10 things I need to act on?']){const answer=await f.ask(q);assert.equal(answer.plan.authorities[0],'project-diagnosis');assert.doesNotMatch(answer.narrative[0]!.text,/Open relevant page|Existing .*producer/);}
+ for(const q of ['Which WBS has most schedule pressure?','What happens if nothing changes?','What are the top 10 things I need to act on?']){const answer=await f.ask(q);assert.equal(answer.plan.authorities[0],'project-diagnosis',q+': '+answer.plan.authorities.join(','));assert.doesNotMatch(answer.narrative[0]!.text,/Open relevant page|Existing .*producer/);}
  assert.equal(f.calls(),0);
 });
 
