@@ -8,6 +8,7 @@ import {AuthorityBuilder,at,evidenceState} from './ask-authority-builder';
 import {moduleRegistry} from './registry';
 import {moduleForProject} from './project-projections';
 import {resolveBoqSource,suppliedBoqFigures,suppliedBoqReportedTotals} from './boq-source';
+import {boqScopeIntelligence} from './boq-scope-intelligence';
 import {projectControlSchedule} from './canonical-time-claims';
 import {deliveryPosition,deliveryModule} from './delivery-projections';
 import {isDeliveryPage} from '../../delivery-core/src/registry';
@@ -84,36 +85,61 @@ const registrations:Record<string,Registration>={
   'delivery-weather':{id:'weather',concepts:['weather','disruption','طقس'],domains:['delivery','claims']},
   'delivery-risks':{id:'risks',concepts:['risk','what worry','مخاطر']},
 };
-const analyticFields=['recordId','reference','description','name','itemNumber','activityId','wbsId','discipline','location','floor','zone','supplier','unit','currency','taxBasis','status','state','amount','required','ordered','delivered','installed','deliveryCoveragePercent','totalFloatHours','headroomCalendarDays','programmeNeedDate','percentComplete','score'];
+const analyticFields=['recordId','reference','description','name','itemNumber','activityId','wbsId','discipline','trade','system','packageCandidate','package','location','building','tower','floor','level','zone','area','sectionScope','chainage','supplier','unit','currency','taxBasis','status','state','amount','required','ordered','delivered','installed','deliveryCoveragePercent','totalFloatHours','headroomCalendarDays','programmeNeedDate','percentComplete','score','procurementPriority','longLeadCandidate','criticalScopeCandidate'];
 const scheduleFields=['schedulePressure','onDrivingNetwork','wbs','critical','criticality','floatRiskWatchlist','missedPlannedStart','finishOverdue','scheduleDelayed','startOverdueCalendarDays','finishOverdueCalendarDays','currentStartIso','currentFinishIso','finishVarianceDays','independentTotalFloatHours'];
 
 function produceBoq({state}:AskProducerContext,scope:ProjectScope){
-  const source=resolveBoqSource(state,scope.programmeRevision??''),figures=suppliedBoqFigures(source.boq,source.quantities);
+  const source=resolveBoqSource(state,scope.programmeRevision??''),figures=suppliedBoqFigures(source.boq,source.quantities),intelligence=boqScopeIntelligence(state);
   const status=source.selection.adoptedSource?source.boq?.complete?'established':'partial':source.selection.state==='candidate'?'candidate':'unavailable';
   const b=new AuthorityBuilder('boq','BOQ / Scope','boq',scope,status,source.selection.explanation);
   b.metric('items','Readable BOQ items',figures.itemCount,'items',figures.basis,{fact:true});
-  b.table('items','BOQ items',figures.rows,figures.basis,overrides);
+  b.metric('disciplines','Disciplines identified',new Set(intelligence.rows.map(r=>r.discipline).filter(Boolean)).size,'disciplines','Disciplines deterministically classified from BOQ section/item wording.',{state:intelligence.coverage.discipline?'partial':'unavailable'});
+  b.metric('locations','Location labels identified',new Set(intelligence.rows.flatMap(r=>[r.building,r.tower,r.zone,r.floor,r.level,r.area]).filter(Boolean)).size,'locations','Explicit building/tower/zone/floor/level/area wording found in the BOQ.',{state:intelligence.coverage.location?'partial':'unavailable'});
+  b.metric('packages','Candidate work/procurement packages',intelligence.packages.length,'packages','Candidate packages derived from BOQ scope. They are not a confirmed procurement register.',{state:intelligence.packages.length?'candidate':'unavailable'});
+  b.metric('long-lead','Candidate long-lead items',intelligence.longLead.length,'items','Professional procurement screening of actual BOQ items. Supplier-confirmed lead times remain separate.',{state:intelligence.longLead.length?'candidate':'unavailable'});
+  b.metric('complexity','Construction complexity · professional assessment',intelligence.complexity.assessment,null,intelligence.complexity.basis,{state:intelligence.rows.length?'candidate':'unavailable'});
+  b.table('items','BOQ items and derived scope',intelligence.rows,intelligence.basis,{...overrides,building:{dimension:true},tower:{dimension:true},zone:{dimension:true},floor:{dimension:true},level:{dimension:true},area:{dimension:true},discipline:{dimension:true},trade:{dimension:true},system:{dimension:true},packageCandidate:{label:'Candidate package',dimension:true},procurementPriority:{label:'Procurement priority',dimension:true}});
   const reported=suppliedBoqReportedTotals(state,source.selection.sourceDocumentId);
   if(reported.length){b.table('reported-totals','Source-stated summary totals',reported,'Explicit totals in the selected source. These are not sums of the recovered rows and must not be added to them.',overrides);for(const [i,r]of reported.entries())b.metric('reported-total-'+i,'Source-stated BOQ total · '+r.taxBasis.replaceAll('_',' '),r.amount,r.currency,r.basis,{fact:true,refs:r.sourceRefs});}
   const groups=new Map<string,{section:string;currency:string|null;itemCount:number;pricedCount:number;readableAmount:number;quantityKnown:number;sourceRefs:string[]}>();
   for(const row of figures.rows){const key=JSON.stringify([row.section,row.currency]),g=groups.get(key)??{section:row.section??'Section not supplied',currency:row.currency,itemCount:0,pricedCount:0,readableAmount:0,quantityKnown:0,sourceRefs:[]};g.itemCount++;if(typeof row.amount==='number'){g.pricedCount++;g.readableAmount+=row.amount;}if(typeof row.quantity==='number')g.quantityKnown++;g.sourceRefs.push(...row.sourceRefs);groups.set(key,g);}
-  if(groups.size)b.table('scope-cost','Scope and readable cost by section',[...groups.values()].map(g=>({...g,readableAmount:g.pricedCount?Number(g.readableAmount.toFixed(2)):null})), 'Sum of readable line amounts only, separated by source section and currency. Partial coverage is not the complete section value; unpriced or included rows are not zero.',{...overrides,readableAmount:{unit:'row currency'},section:{dimension:true}});
-  if(figures.rows.length)b.result.explanation=figures.rows.length+' BOQ item descriptions are readable; '+figures.rows.filter(r=>r.amount!==null).length+' have stated amounts and '+figures.rows.filter(r=>r.quantity!==null).length+' have aligned quantities. Scope and cost information are available without a programme. '+(!source.boq?.complete?'The complete item population and total reconciliation remain unconfirmed. ':'')+(source.selection.state==='candidate'?'This is a candidate source awaiting selection.':'');
+  if(groups.size)b.table('scope-cost','Scope and readable cost by BOQ section',[...groups.values()].map(g=>({...g,readableAmount:g.pricedCount?Number(g.readableAmount.toFixed(2)):null})), 'Sum of readable line amounts only, separated by source section and currency. Partial coverage is not the complete section value; unpriced or included rows are not zero.',{...overrides,readableAmount:{unit:'row currency'},section:{dimension:true}});
+  for(const [key,title] of [['discipline','Value by discipline'],['system','Value by system'],['package','Value by candidate package'],['building','Value by building'],['tower','Value by tower'],['zone','Value by zone'],['floor','Value by floor'],['level','Value by level'],['area','Value by area']] as const){
+    const rows=(intelligence.dimensions as any)[key]??[];if(rows.length)b.table('scope-'+key,title,rows,'Readable BOQ amounts grouped only where the BOQ wording supports this classification. Currency remains separate; unpriced items are not zero.',{readableValue:{unit:'row currency'},value:{dimension:true},currency:{dimension:true}});
+  }
+  if(intelligence.packages.length)b.table('candidate-packages','Candidate procurement / work packages',intelligence.packages,intelligence.basis,{readableValue:{unit:'row currency'},package:{dimension:true},discipline:{dimension:true},system:{dimension:true},priority:{dimension:true}});
+  if(intelligence.longLead.length)b.table('long-lead-candidates','Candidate long-lead items',intelligence.longLead,'Professional long-lead screening of actual BOQ scope. Priority is advisory; confirmed supplier lead time and latest order date require Project/supplier evidence.',{...overrides,packageCandidate:{label:'Candidate package',dimension:true},procurementPriority:{label:'Professional priority',dimension:true},amount:{unit:'row currency'}});
+  const drivers=intelligence.topCostDrivers.flatMap(group=>group.items.map((row,index)=>({rank:index+1,...row})));
+  if(drivers.length)b.table('top-cost-drivers','Top cost drivers by currency',drivers,'Top 20 readable BOQ line amounts within each currency. No exchange rate is assumed across currencies.',{...overrides,rank:{type:'number'},amount:{unit:'row currency'},discipline:{dimension:true},zone:{dimension:true},packageCandidate:{label:'Candidate package',dimension:true}});
+  if(intelligence.risks.length)b.table('candidate-risks','BOQ-derived candidate management risks',intelligence.risks,'Professional assessment derived from actual BOQ scope. These are not confirmed Project Risk Register entries.',{category:{dimension:true},severity:{dimension:true}});
+  if(figures.rows.length)b.result.explanation=figures.rows.length+' BOQ items are readable. CMeng has also classified the scope it can support from the BOQ itself: '+intelligence.coverage.discipline+' discipline-classified items, '+intelligence.coverage.location+' location-classified items, '+intelligence.packages.length+' candidate packages and '+intelligence.longLead.length+' candidate long-lead items. '+(!source.boq?.complete?'The complete item population and total reconciliation remain unconfirmed. ':'')+(source.selection.state==='candidate'?'This BOQ source is awaiting confirmation.':'');
   const currencies=[...new Set(figures.rows.map(r=>r.currency))];
   for(const currency of currencies){const rows=figures.rows.filter(r=>r.currency===currency),known=rows.filter(r=>typeof r.amount==='number');
     const total=currency&&source.selection.adoptedSource&&source.boq?.complete&&known.length===rows.length?known.reduce((n,r)=>n+r.amount!,0):null;
     b.metric('value-'+(currency??'unresolved'),'BOQ value · '+(currency??'currency unresolved'),total,currency,'Sum of selected BOQ item amounts within one currency. Complete item population and readable amounts required.',{refs:rows.flatMap(r=>r.sourceRefs)});
-    if(known.length<rows.length)b.finding('missing-amounts-'+currency,'BOQ value coverage incomplete',known.length+' of '+rows.length+' item amounts are readable.','Reconcile the missing source quantities, rates and amounts.');
+    if(known.length<rows.length)b.finding('missing-amounts-'+currency,'BOQ value coverage incomplete',known.length+' of '+rows.length+' item amounts are readable.','Use the available BOQ analysis now; a corrected/reconciled BOQ would make the total fully complete.');
   }
   return b.result;
 }
 function deliveryAuthority(context:AskProducerContext,scope:ProjectScope,key:string,id:string,title:string):AuthorityResult{
-  const result=deliveryModule(context.state,key),d:any=result.data,p=deliveryPosition(context.state);
-  const b=new AuthorityBuilder(id,title,key,scope,evidenceState(result.status),result.reason??'');
-  for(const m of d?.metrics??[])b.metric(m.label.toLowerCase().replace(/[^a-z0-9]+/g,'-'),m.label,m.value,m.unit,m.basis,{state:m.state});
+  const result=deliveryModule(context.state,key),d:any=result.data,p=deliveryPosition(context.state),boq=boqScopeIntelligence(context.state);
+  const candidateRows:any[]=key==='procurement-packages'?boq.packages.map((r,index)=>({recordId:'boq-package-'+index,reference:r.package,description:r.package,discipline:r.discipline,system:r.system,itemCount:r.itemCount,currency:r.currency,packageValue:r.readableValue,longLeadItemCount:r.longLeadItemCount,criticalItemCount:r.criticalItemCount,procurementPriority:r.priority,state:'candidate'}))
+    :key==='material-tracking'?boq.rows.map(r=>({recordId:r.itemId,reference:r.itemNumber,description:r.description,discipline:r.discipline,location:[r.building,r.tower,r.zone,r.floor,r.level,r.area].filter(Boolean).join(' / ')||null,unit:r.unit,required:r.quantity,ordered:null,delivered:null,installed:null,remainingToOrder:null,remainingToDeliver:null,remainingToInstall:null,deliveryCoveragePercent:null,package:r.packageCandidate,state:'candidate'}))
+    :key==='long-lead'?boq.longLead.map(r=>({recordId:r.itemId,reference:r.itemNumber,description:r.description,discipline:r.discipline,system:r.system,package:r.packageCandidate,currency:r.currency,amount:r.amount,procurementPriority:r.procurementPriority,longLeadCandidate:true,confirmedLeadTime:null,latestOrderDate:null,state:'candidate'}))
+    :key==='construction-discipline'?boq.dimensions.discipline.map((r,index)=>({recordId:'boq-discipline-'+index,label:r.value,discipline:r.value,currency:r.currency,itemCount:r.itemCount,readableValue:r.readableValue,state:'candidate'}))
+    :key==='construction-locations'?[...boq.dimensions.building,...boq.dimensions.tower,...boq.dimensions.zone,...boq.dimensions.floor,...boq.dimensions.level,...boq.dimensions.area].map((r,index)=>({recordId:'boq-location-'+index,label:r.value,location:r.value,locationType:r.dimension,currency:r.currency,itemCount:r.itemCount,readableValue:r.readableValue,state:'candidate'}))
+    :key==='delivery-risks'?boq.risks.map(r=>({recordId:r.riskId,reference:r.riskId,description:r.risk,category:r.category,impact:r.impact,probability:r.probability,severity:r.severity,mitigation:r.mitigation,responsibleParty:r.responsibleParty,state:'candidate'}))
+    :[];
+  const governedRows=(d?.rows??[]).filter((r:any)=>!r.scope||r.scope==='current');
+  const useBoqCandidates=governedRows.length===0&&candidateRows.length>0;
+  const state=useBoqCandidates?'candidate':evidenceState(result.status);
+  const explanation=useBoqCandidates?'No current confirmed '+title.toLowerCase()+' register is available, so CMeng is showing useful scope intelligence derived from the BOQ. Candidate classifications are clearly separated from actual supplier/status records.':result.reason??'';
+  const b=new AuthorityBuilder(id,title,key,scope,state,explanation);
+  for(const m of d?.metrics??[])if(m.value!==null)b.metric(m.label.toLowerCase().replace(/[^a-z0-9]+/g,'-'),m.label,m.value,m.unit,m.basis,{state:m.state});
   const packages=new Map(p.packageRows.map(r=>[r.recordId,r]));
-  const rows=(d?.rows??[]).filter((r:any)=>!r.scope||r.scope==='current');
-  b.table('rows',title,rows,'Current governed subset at the programme Data Date. '+(d?.population?.basis??''),overrides,(r:any)=>{
+  const rows=useBoqCandidates?candidateRows:governedRows;
+  b.table('rows',useBoqCandidates?title+' · BOQ-derived candidates':title,rows,useBoqCandidates?boq.basis:'Current confirmed subset at the programme Data Date. '+(d?.population?.basis??''),overrides,(r:any)=>{
+    if(useBoqCandidates)return r;
     const pack=packages.get(r.recordId);const locationIds=pack?.locationIds??r.links?.locationIds??[];
     const loc=locationIds.map((id:string)=>p.locations.find(l=>l.recordId===id)?.description??null);
     const statedType=String(r.fields?.['record type']??r.fields?.['quality type']??r.fields?.type??'').toLowerCase();const recordType=statedType||(Object.keys(r.fields??{}).some(k=>/^ncr (id|no|number)$/.test(k))?'ncr':null);
@@ -122,14 +148,15 @@ function deliveryAuthority(context:AskProducerContext,scope:ProjectScope,key:str
       programmeNeedDate:pack?.programmeNeedDate??r.programmeNeedDate??null,headroomCalendarDays:pack?.headroomCalendarDays??r.headroomCalendarDays??null,
       issueCount:(d?.findings??[]).filter((f:any)=>f.recordId===r.recordId).length};
   });
-  const primary=b.result.tables[0];if(primary){primary.population=(d?.rows??[]).length;primary.excluded=primary.population-rows.length;}
-  for(const f of d?.findings??[])b.finding(f.findingId??f.code+':'+f.recordId,f.code.replace(/_/g,' '),f.explanation??f.message??f.reason??'',f.action??'Review the source record.',{},[b.trace('record:'+f.recordId,'Delivery record '+f.recordId, f.receipts??[])]);
+  const primary=b.result.tables[0];if(primary){primary.population=useBoqCandidates?candidateRows.length:(d?.rows??[]).length;primary.excluded=useBoqCandidates?0:primary.population-governedRows.length;}
+  if(!useBoqCandidates)for(const f of d?.findings??[])b.finding(f.findingId??f.code+':'+f.recordId,f.code.replace(/_/g,' '),f.explanation??f.message??f.reason??'',f.action??'Use the source record to resolve this item.',{},[b.trace('record:'+f.recordId,'Delivery record '+f.recordId, f.receipts??[])]);
   for(const curve of d?.curves??[]){
+    if(useBoqCandidates)break;
     b.table('curve-'+curve.key,curve.kind==='throughput'?'Procurement Throughput':label(curve.kind)+' · '+curve.stage,curve.points,
-      [curve.weighting,'Series '+curve.series,'Unit '+curve.unit,'Population '+curve.population.length,'Coverage '+String(curve.coveragePercent??'not established')].join('. '),{value:{unit:curve.unit},dateIso:{type:'date'}});
+      [curve.weighting,'Series '+curve.series,'Unit '+curve.unit,'Records '+curve.population.length,'Coverage '+String(curve.coveragePercent??'not established')].join('. '),{value:{unit:curve.unit},dateIso:{type:'date'}});
   }
-  if(rows.length!==(d?.rows??[]).length)b.finding('dated-population','Future and undated rows excluded',((d?.rows??[]).length-rows.length)+' rows are outside the current reporting population.','Review future and undated records on the source page.');
-  if(d?.population?.state!=='established')b.result.explanation+=' Complete register population is not confirmed; known rows are a subset.';
+  if(!useBoqCandidates&&governedRows.length!==(d?.rows??[]).length)b.finding('dated-records','Future and undated records excluded',((d?.rows??[]).length-governedRows.length)+' records are outside the current reporting period.','Use the current dated records for this answer; future/undated records remain separate.');
+  if(!useBoqCandidates&&d?.population?.state!=='established')b.result.explanation+=' The complete register list is not confirmed; known rows are a subset.';
   return b.result;
 }
 function evmAuthority(b:AuthorityBuilder,d:any){
