@@ -64,6 +64,26 @@ test('cash and physical progress summaries keep known zero distinct from missing
   assert.match(progress.review,/Measured physical progress is unavailable/);
 });
 
+test('Progress Status leads with current progress facts and keeps unavailable baseline comparison secondary',()=>{
+  const data={progressBases:{
+    baselinePlanned:{valuePercent:null},currentSchedule:{valuePercent:0},scheduleSnapshot:{valuePercent:5.62},
+    physical:{valuePercent:null},contractorReported:{valuePercent:null},certified:{valuePercent:null}
+  },progress:{completedCount:10,inProgressCount:5,notStartedCount:20,unknownStatusCount:0},schedule:{criticalCount:2,nearCriticalCount:3},scopeComparison:null,
+    milestones:{milestoneCount:1,openCount:1,lateOpenCount:0},lookAhead:{incompleteActivityCount:25,overdueCount:0,currentDateCoveragePercent:100}};
+  const html=runInNewContext(functions(['renderProgressReportVisual'])+';renderProgressReportVisual(data)',{
+    ...common,data,projectionFor:(d:any)=>d,displayPercentDifference:()=>null,
+    planningKpis:(rows:any[])=>'<div class="kpis">'+rows.map(r=>r[0]+':'+r[1]).join('|')+'</div>',
+    planningStatusBand:()=>'<div>STATUS</div>',renderVisualBars:()=>'<div>BARS</div>',
+    renderVisualPanel:(title:string,_copy:string,body:string)=>'<section><h4>'+title+'</h4>'+body+'</section>',
+    renderDonutChart:()=>'<div>DONUT</div>',renderProgressScope:()=>'<div>COMPARISON-UNAVAILABLE</div>',
+    progressBasisBars:()=>'<div>BASES</div>'
+  });
+  assert.ok(html.indexOf('Schedule snapshot · current scope:5.62%')>=0);
+  assert.ok(html.indexOf('Schedule snapshot · current scope:5.62%')<html.indexOf('Baseline plan · original scope:Not established'));
+  assert.ok(html.indexOf('Schedule snapshot · current scope:5.62%')<html.indexOf('COMPARISON-UNAVAILABLE'));
+  assert.match(html,/Negative float is a separate overlapping indicator/);
+});
+
 test('cost summaries preserve partial authority and never aggregate multiple currencies',()=>{
   const position={performance:{costControl:{positions:[{currency:'AED',bac:{value:100,state:'partial'},ac:{value:40},sourceEac:{value:120},calculatedVac:{value:-20}}]}}};
   const single=runInNewContext(briefFunctions+';experienceBrief("cost-forecast",data)',{...common,data:{position}});
