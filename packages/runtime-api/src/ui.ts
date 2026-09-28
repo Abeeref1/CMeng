@@ -1389,6 +1389,8 @@ function delayClaimsProjectionFor(data){
 }
 function renderDelayClaimsVisual(data){
   const p=delayClaimsProjectionFor(data);
+  const integrity=p.claimPopulationIntegrity||p.integrity||null;
+  const quarantined=integrity?.state==="quarantined";
   const reporting=data?.claimsReporting||null;
   const sourceEventCount=reporting?.events?.population?.sourceCount??reporting?.events?.source?.length??null;
   const currentEventCount=reporting?.events?.asOf?.length??p.eventCount??null;
@@ -1396,8 +1398,8 @@ function renderDelayClaimsVisual(data){
   const undatedEventCount=reporting?.events?.undated?.length??null;
   const events=Array.isArray(p.events)?p.events:[];
   const linkedClaimIds=new Set(events.flatMap(event=>event.linkedClaimIds||[]));
-  const linked=p.linkedClaimCount??linkedClaimIds.size;
-  const unlinked=p.unlinkedClaimCount??Math.max(0,(p.claimCount||0)-linked);
+  const linked=quarantined?null:(p.linkedClaimCount??linkedClaimIds.size);
+  const unlinked=quarantined?null:(p.unlinkedClaimCount??Math.max(0,(p.claimCount||0)-(linked||0)));
   const activityGapCount=p.activityEvidenceInsufficientEventCount??events.filter(e=>(e.relatedActivityIds||[]).length===0).length;
   const incompleteDeterminationCount=p.determinationChainIncompleteEventCount??events.filter(e=>e.evidenceChainState==="determination_chain_incomplete").length;
   const movementEstablished=p.windowCount>0&&typeof p.observedPositiveProgrammeMovementDays==="number";
@@ -1406,9 +1408,10 @@ function renderDelayClaimsVisual(data){
     ["Source delay-event rows",sourceEventCount===null?"Unresolved":sourceEventCount,"full retained source population"],
     ["After Data Date",futureEventCount===null?"Unresolved":futureEventCount,"retained outside current position"],
     ["Event date missing",undatedEventCount===null?"Unresolved":undatedEventCount,"retained but excluded from current position",undatedEventCount?"warning":""],
-    ["Claims",p.contractorClaimEvidenceSubmitted===false&&p.claimCount===0?"Unresolved":p.claimCount,"claim records"],
-    ["Claims linked to events",linked,"identity association; causation unproven",linked?"accent":"warning"],
-    ["Claims without event links",unlinked,"identity gap; linked claims still need causation",unlinked?"warning":""],
+    ["Claims",quarantined?"Under review":p.contractorClaimEvidenceSubmitted===false&&p.claimCount===0?"Unresolved":p.claimCount,quarantined?"source population quarantined":"claim records",quarantined?"warning":""],
+    ...(quarantined?[["Quarantined source claim rows",integrity.quarantinedClaimCount,"retained for audit; excluded from management truth","warning"]]:[]),
+    ["Claims linked to events",linked===null?"Unresolved":linked,"identity association; causation unproven",linked?"accent":"warning"],
+    ["Claims without event links",unlinked===null?"Unresolved":unlinked,"identity gap; linked claims still need causation",unlinked?"warning":""],
     ["Events linked to activities",p.activityLinkedEventCount??0,"schedule linkage"],
     ["Activity evidence gaps",activityGapCount,"fail-closed source gaps",activityGapCount?"warning":""],
     ["Events linked to windows",p.windowLinkedEventCount??0,"temporal association; not causation"],
@@ -1419,11 +1422,12 @@ function renderDelayClaimsVisual(data){
     ["Positive submitted window movement",movementEstablished?fmt(p.observedPositiveProgrammeMovementDays)+" d":"Unresolved","positive submitted programme shifts; not event attribution",movementEstablished&&p.observedPositiveProgrammeMovementDays?"warning":""],
     ["Project Completion movement",!movementEstablished||p.projectCompletionMovementDays===null||p.projectCompletionMovementDays===undefined?"Unresolved":(p.projectCompletionMovementDays>0?"+":"")+fmt(p.projectCompletionMovementDays)+" d","net submitted completion movement"]
   ]);
-  const noEventWarning=p.eventCount===0&&p.claimCount>0?'<div class="notice warn"><b>'+escapeHtml(fmt(p.claimCount))+' claim records are present, but no recorded delay events are established.</b> CMeng will not attribute schedule movement, responsibility or EOT entitlement to those claims until event linkage exists.</div>':'';
+  const integrityWarning=quarantined?'<div class="notice error"><b>Claim source integrity gate: '+escapeHtml(fmt(integrity.quarantinedClaimCount))+' source rows are quarantined.</b> The population matches a generated sequential pattern (claim/event IDs and letter references), has no established schedule-activity linkage, and contains a generated arithmetic claimed-day sequence. The source files remain retained for audit, but these rows are excluded from claim counts, delay attribution, EOT, accountability, portfolio summaries and Ask CMeng until independently verified or replaced.</div>':'';
+  const noEventWarning=!quarantined&&p.eventCount===0&&p.claimCount>0?'<div class="notice warn"><b>'+escapeHtml(fmt(p.claimCount))+' claim records are present, but no recorded delay events are established.</b> CMeng will not attribute schedule movement, responsibility or EOT entitlement to those claims until event linkage exists.</div>':'';
   const activityEvidenceWarning=activityGapCount>0?'<div class="notice warn"><b>Activity evidence not confirmed for '+escapeHtml(fmt(activityGapCount))+' delay event'+(activityGapCount===1?'':'s')+'.</b> The available claim/correspondence sources do not establish a defensible activity-level relationship for these events. The affected activities must be identified before assigning delay responsibility. Determination chains remain explicitly incomplete where the activity link is required.</div>':'';
   const populationNote=reporting?'<div class="notice info"><b>Source population is preserved.</b> Current counts include only delay events evidenced by the project Data Date. Later and undated source rows remain visible as separate populations and are not discarded or promoted into the current position.</div>':'';
-  const warning=populationNote+noEventWarning+activityEvidenceWarning;
-  const linkage=planningStatusBand([
+  const warning=integrityWarning+populationNote+noEventWarning+activityEvidenceWarning;
+  const linkage=quarantined?'<div class="empty-visual">Claim/event linkage is withheld because the submitted source population is quarantined for integrity review.</div>':planningStatusBand([
     ["Linked to delay events",linked,"success"],
     ["Not linked to delay events",unlinked,"warning"]
   ]);
@@ -1439,10 +1443,12 @@ function renderDelayClaimsVisual(data){
     {label:"Positive submitted window movement",value:movementEstablished&&typeof p.observedPositiveProgrammeMovementDays==="number"?p.observedPositiveProgrammeMovementDays:null},
     {label:"Net Project Completion movement",value:movementEstablished&&typeof p.projectCompletionMovementDays==="number"?p.projectCompletionMovementDays:null}
   ],"d");
-  const visualOverview='<div class="visual-chart-grid">'+
-    renderVisualPanel("Evidence-chain coverage","How far the confirmed claim/event population is connected into schedule, windows, notices and determinations.",chainChart)+
-    renderVisualPanel("Schedule movement semantics","Gross positive window movement and net Project Completion movement are shown as different analytical measures.",movementChart)+
-  '</div>';
+  const visualOverview=quarantined
+    ? '<div class="notice info">Evidence-chain charts are withheld for the quarantined claim population. Independent schedule movement remains available separately and is not attributed to these source rows.</div>'
+    : '<div class="visual-chart-grid">'+
+      renderVisualPanel("Evidence-chain coverage","How far the confirmed claim/event population is connected into schedule, windows, notices and determinations.",chainChart)+
+      renderVisualPanel("Schedule movement semantics","Gross positive window movement and net Project Completion movement are shown as different analytical measures.",movementChart)+
+    '</div>';
   const classes=claimStateCounts(events.map(e=>({state:e.candidateClass})));
   const rows=events.map(e=>'<tr><td><b>'+escapeHtml(e.eventId)+'</b><br><span class="muted">'+escapeHtml(e.title||"")+'</span></td><td>'+escapeHtml(humanizeKey(e.responsibility))+'</td><td>'+escapeHtml(humanizeKey(e.noticeTimeliness))+'</td><td>Not causally attributed</td><td><span class="state-pill '+(e.evidenceChainMissingLinks?.length||e.concurrencyCandidate?"review":"ready")+'">'+escapeHtml(humanizeKey(e.evidenceChainState||e.candidateClass))+'</span></td><td>'+escapeHtml((e.linkedClaimIds||[]).join(", ")||"—")+'</td><td>'+escapeHtml((e.relatedActivityIds||[]).join(", ")||"—")+'</td><td>'+escapeHtml((e.overlappingWindowIds||[]).map(id=>readableWindow(id,p.revisionLabels||{})).join(", ")||"—")+'</td><td>'+escapeHtml((e.noticeIds||[]).join(", ")||"—")+'</td><td>'+escapeHtml((e.determinationIds||[]).join(", ")||"—")+'</td><td>'+escapeHtml((e.evidenceChainMissingLinks||[]).map(humanizeKey).join(", ")||"—")+'</td></tr>').join("");
   const detail=events.length?'<div class="table-wrap"><table><thead><tr><th>Event</th><th>Responsibility</th><th>Notice status</th><th>Schedule attribution</th><th>Evidence chain</th><th>Claims</th><th>Activities</th><th>Windows</th><th>Notices</th><th>Determinations</th><th>Missing links</th></tr></thead><tbody>'+rows+'</tbody></table></div>':'<div class="empty-visual">No delay-event population is established. Claim records alone are not converted into delay events.</div>';
@@ -2849,9 +2855,12 @@ function renderForecastHistoryVisual(data){
 function renderNoticesClaimsVisual(data){
   const p=projectionFor(data,"notices_claims");
   if(!Array.isArray(p.events)||!Array.isArray(p.claims))return"";
+  const integrity=p.claimPopulationIntegrity||p.integrity||null;
+  const quarantined=integrity?.state==="quarantined";
   const assessable=p.events.filter(e=>["timely","late","not_issued","notice_date_missing"].includes(e.noticeTimeliness));
   const summary=planningKpis([
-    ["Claims known by Data Date",p.claimCount,"identities evidenced by a dated notice or submission"],
+    ["Claims known by Data Date",quarantined?"Under review":p.claimCount,quarantined?"source population quarantined":"identities evidenced by a dated notice or submission"],
+    ...(quarantined?[["Quarantined source claim rows",integrity.quarantinedClaimCount,"retained for audit; excluded from notice and entitlement conclusions","warning"]]:[]),
     ["Event / awareness dates missing",p.noticeEventDateMissingCount??"Unresolved","supply the notice trigger dates","warning"],
     ["Notice rules missing",p.noticeRequirementMissingCount,"contract rule not read or linked"],
     ["Notice rules need review",p.noticeRequirementConflictCount??0,"resolve applicability or conflicting versions"],
@@ -2861,7 +2870,10 @@ function renderNoticesClaimsVisual(data){
   const eventRows=table(["Event","Event start","Notice date","Required days","Elapsed days","Assessment"],p.events.map(e=>[e.eventId,planningShortDate(e.eventStartIso),planningShortDate(e.noticeIssuedAt),fmt(e.requiredNoticeDays),fmt(e.elapsedNoticeDays),humanizeKey(e.noticeTimeliness)]));
   const values=p.claims.map(c=>({...c,...(c.sourceRegister||{})}));
   const claimRows=table(["Claim","Register status","Claimed d","Assessed d","Employer d","Contractor d","Review"],values.map(c=>[c.claimId,c.sourceStatus||humanizeKey(c.state),fmt(c.claimedDays),fmt(c.assessedDays),fmt(c.employerDelayDays),fmt(c.contractorDelayDays),(c.diagnostics||[]).filter(x=>/CONFLICT|DIFFER|NOT_IN_DETERMINATION_REGISTER/.test(x)).map(humanizeKey).join("; ")||"Register values; dated decision not confirmed"]));
-  return '<section class="planning-view notices-view">'+summary+'<div class="notice warn"><b>'+escapeHtml(assessable.length?fmt(assessable.length)+" events can be assessed on the stated rules.":"Notice performance is not zero; it is not assessable.")+'</b> Contract rules, event/awareness dates and notice evidence are separate inputs. Claim-day sums are register statistics, not project delay or an EOT award.</div>'+renderVisualPanel("What the claim register reports","Reported statuses for the current identity cohort. They are not backdated decisions.",renderDonutChart(claimStateCounts(values).map(r=>({...r,tone:"accent"})),"Claims"))+'<details class="source-scope"><summary>Review all '+fmt(p.events.length)+' notice assessments</summary>'+eventRows+'</details><details class="source-scope"><summary>Review all '+fmt(p.claims.length)+' source claim records</summary>'+claimRows+'</details></section>';
+  const integrityWarning=quarantined?'<div class="notice error"><b>Notice/claim assessment withheld for '+escapeHtml(fmt(integrity.quarantinedClaimCount))+' quarantined source claim rows.</b> These rows remain in retained source evidence, but CMeng does not treat their notices, claimed days or linked determinations as established project facts until the source population is verified.</div>':'';
+  const assessmentWarning=quarantined?'':('<div class="notice warn"><b>'+escapeHtml(assessable.length?fmt(assessable.length)+" events can be assessed on the stated rules.":"Notice performance is not zero; it is not assessable.")+'</b> Contract rules, event/awareness dates and notice evidence are separate inputs. Claim-day sums are register statistics, not project delay or an EOT award.</div>');
+  const registerVisual=quarantined?'<div class="notice info">The quarantined source population is not charted as a live claims position. Replace or independently verify the source register to restore established claim and notice analysis.</div>':renderVisualPanel("What the claim register reports","Reported statuses for the current identity cohort. They are not backdated decisions.",renderDonutChart(claimStateCounts(values).map(r=>({...r,tone:"accent"})),"Claims"));
+  return '<section class="planning-view notices-view">'+summary+integrityWarning+assessmentWarning+registerVisual+'<details class="source-scope"><summary>Review all '+fmt(p.events.length)+' established notice assessments</summary>'+eventRows+'</details><details class="source-scope"><summary>Review all '+fmt(p.claims.length)+' established source claim records</summary>'+claimRows+'</details></section>';
 }
 function commercialMetricHtml(metric,currency=""){
   if(!metric)return'<span class="muted">Unresolved</span>';

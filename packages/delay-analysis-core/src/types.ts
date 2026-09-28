@@ -241,6 +241,22 @@ export interface DelayClaimsModel {
   claims: CanonicalClaimRecord[];
   noticeRequirements: NoticeRequirement[];
   diagnostics: string[];
+  /**
+   * Source-population integrity is separate from claim merits. A quarantined
+   * population remains retained for audit but must not feed management counts,
+   * causation, entitlement, portfolio summaries or Ask CMeng as established facts.
+   */
+  integrity?: {
+    state: "accepted" | "quarantined";
+    sourceClaimCount: number;
+    quarantinedClaimCount: number;
+    linkedActivityEventCount: number;
+    genericClaimEventPairCount: number;
+    genericNoticePairCount: number;
+    arithmeticClaimedDaysPrefixLength: number;
+    sourceFilenames: string[];
+    reasons: string[];
+  };
 }
 
 export type NoticeTimeliness =

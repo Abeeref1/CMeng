@@ -27,6 +27,87 @@ export interface CanonicalTimeClaims {
   futureDeterminationCount: number; diagnostics: string[];
 }
 const cache = new WeakMap<ProjectRuntimeState,{version:number;value:CanonicalTimeClaims}>();
+
+const sequenceNumber=(value:string,pattern:RegExp):number|null=>{
+  const match=pattern.exec(value.trim());
+  if(!match)return null;
+  const parsed=Number(match[1]);
+  return Number.isInteger(parsed)&&parsed>0?parsed:null;
+};
+
+/**
+ * Fail closed on a large generated-looking claim population. This is deliberately
+ * narrow: sequential generic claim/event identities, matching sequential letter
+ * references, zero schedule linkage and an arithmetic claimed-day prefix must all
+ * be present. The source rows stay retained for audit; they are not promoted into
+ * project-control truth until the source is replaced or independently verified.
+ */
+export function assessClaimPopulationIntegrity(
+  claims:readonly CanonicalClaimRecord[],
+  events:readonly CanonicalDelayEvent[],
+  sourceLettersByClaim:ReadonlyMap<string,string>,
+  sourceFilenames:readonly string[]=[],
+){
+  const eventById=new Map(events.map(event=>[event.eventId,event]));
+  let genericClaimEventPairCount=0,genericNoticePairCount=0;
+  const numberedDays:Array<{claimNumber:number;claimedDays:number}>=[];
+  for(const claim of claims){
+    const claimNumber=sequenceNumber(claim.claimId,/^CLM[-_\s]?0*(\d+)$/i);
+    const event=claim.eventIds.map(id=>eventById.get(id)).find(Boolean);
+    const eventNumber=event?sequenceNumber(event.title,/^Delay\s+event\s+0*(\d+)$/i):null;
+    if(claimNumber!==null&&eventNumber===claimNumber)genericClaimEventPairCount+=1;
+    const noticeNumber=sequenceNumber(sourceLettersByClaim.get(claim.claimId)??"",/^LTR[-_\s]?C[-_\s]?0*(\d+)$/i);
+    if(claimNumber!==null&&noticeNumber===claimNumber)genericNoticePairCount+=1;
+    if(claimNumber!==null&&claim.claimedDays!==null&&Number.isFinite(claim.claimedDays)){
+      numberedDays.push({claimNumber,claimedDays:claim.claimedDays});
+    }
+  }
+  numberedDays.sort((a,b)=>a.claimNumber-b.claimNumber);
+  let arithmeticClaimedDaysPrefixLength=0;
+  if(numberedDays.length>=2&&numberedDays[0]!.claimNumber===1&&numberedDays[1]!.claimNumber===2){
+    const delta=numberedDays[1]!.claimedDays-numberedDays[0]!.claimedDays;
+    if(Number.isFinite(delta)&&Math.abs(delta)>1e-9){
+      arithmeticClaimedDaysPrefixLength=2;
+      for(let index=2;index<numberedDays.length;index+=1){
+        const previous=numberedDays[index-1]!,current=numberedDays[index]!;
+        if(current.claimNumber!==previous.claimNumber+1)break;
+        if(Math.abs((current.claimedDays-previous.claimedDays)-delta)>1e-9)break;
+        arithmeticClaimedDaysPrefixLength+=1;
+      }
+    }
+  }
+  const linkedActivityEventCount=events.filter(event=>
+    event.relatedActivityIds.length>0||
+    (event.activityCorrespondence?.acceptedActivityIds.length??0)>0
+  ).length;
+  const sourceClaimCount=claims.length;
+  const pairCoverage=sourceClaimCount?genericClaimEventPairCount/sourceClaimCount:0;
+  const noticeCoverage=sourceClaimCount?genericNoticePairCount/sourceClaimCount:0;
+  const quarantined=
+    sourceClaimCount>=25&&
+    pairCoverage>=0.9&&
+    noticeCoverage>=0.9&&
+    linkedActivityEventCount===0&&
+    arithmeticClaimedDaysPrefixLength>=5;
+  const reasons=quarantined?[
+    "GENERIC_SEQUENTIAL_CLAIM_EVENT_IDENTITIES",
+    "GENERIC_SEQUENTIAL_NOTICE_REFERENCES",
+    "NO_SCHEDULE_ACTIVITY_LINKS",
+    "GENERATED_ARITHMETIC_CLAIM_DAY_PATTERN",
+  ]:[];
+  return {
+    state:quarantined?"quarantined" as const:"accepted" as const,
+    sourceClaimCount,
+    quarantinedClaimCount:quarantined?sourceClaimCount:0,
+    linkedActivityEventCount,
+    genericClaimEventPairCount,
+    genericNoticePairCount,
+    arithmeticClaimedDaysPrefixLength,
+    sourceFilenames:[...new Set(sourceFilenames.filter(Boolean))].sort(),
+    reasons,
+  };
+}
+
 const n = (r:SourceRow,...names:string[])=>numberValue(cell(r,...names));
 const evref = (r:SourceRow,sourceType:'claim'|'notice'|'other'='claim')=>({sourceType,sourceId:r.receipt.documentId,locator:r.receipt.locator});
 const splitRefs = (r:SourceRow,...names:string[]):string[] =>
@@ -318,6 +399,7 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
     rawFragments:Array<{column:string;value:string}>;
   }>();
   const explicitActivitiesByClaim=new Map<string,string[]>();
+  const sourceLettersByClaim=new Map<string,string>();
   const semanticNarrativeFragments=(row:SourceRow):Array<{column:string;value:string}> =>
     Object.entries(row.cells)
       .filter(([key,value]) =>
@@ -353,7 +435,16 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
       rawFragments:primarySemanticFragments,
     });
     const clause=cell(r,'clause'),clauseIdentifiers=clause?[clause]:[];
-    const sourceLetter=cell(r,'linked letter');
+    const sourceLetter=cell(
+      r,
+      'linked letter',
+      'notice reference',
+      'notice ref',
+      'letter reference',
+      'letter no',
+      'letter number',
+    );
+    if(sourceLetter)sourceLettersByClaim.set(claimId,sourceLetter);
     const linkedCorrespondence=sourceLetter?correspondence.get(norm(sourceLetter))??null:null;
     const linkedNarratives=sourceLetter?correspondenceNarratives.get(norm(sourceLetter))??[]:[];
     const semanticLinkVerified=!!linkedCorrespondence&&(
@@ -644,8 +735,34 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
   }else{
     diagnostics.push("CLAIM_ACTIVITY_CORRESPONDENCE_REQUIRES_ACTIVE_PROGRAMME");
   }
+
+  const claimIntegrity=assessClaimPopulationIntegrity(
+    claims,
+    events,
+    sourceLettersByClaim,
+    [...new Set([...claimDiagnosticSources.values()].map(source=>source.tableSourceFilename).filter((value):value is string=>Boolean(value)))],
+  );
+  const quarantinedClaimIds=new Set(
+    claimIntegrity.state==="quarantined"?claims.map(claim=>claim.claimId):[],
+  );
+  const quarantinedEventIds=new Set(
+    claims
+      .filter(claim=>quarantinedClaimIds.has(claim.claimId))
+      .flatMap(claim=>claim.eventIds),
+  );
+  const trustedClaims=claims.filter(claim=>!quarantinedClaimIds.has(claim.claimId));
+  const trustedEvents=events.filter(event=>!quarantinedEventIds.has(event.eventId));
+  const trustedNotices=notices.filter(notice=>!notice.claimId||!quarantinedClaimIds.has(notice.claimId));
+  const trustedDeterminations=determinations.filter(determination=>!quarantinedClaimIds.has(determination.claimId));
+  if(claimIntegrity.state==="quarantined"){
+    diagnostics.push(
+      "CLAIM_POPULATION_QUARANTINED_SYNTHETIC_SEQUENCE:"+
+      claimIntegrity.quarantinedClaimCount,
+    );
+  }
+
   // Validate lineage once, but resolve supersession separately for each reporting cutoff.
-  for (const d of determinations.filter(d => d.state === 'source_immutable' && d.supersedes)) {
+  for (const d of trustedDeterminations.filter(d => d.state === 'source_immutable' && d.supersedes)) {
     const prior = determinationById.get(d.supersedes!);
     if (!prior || prior.claimId !== d.claimId || !d.determinationDate || !prior.determinationDate ||
         d.determinationDate <= prior.determinationDate) {
@@ -654,7 +771,7 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
     }
   }
   function population(cutoff: string | null) {
-    const dated = determinations.filter(d => cutoff === null ||
+    const dated = trustedDeterminations.filter(d => cutoff === null ||
       (d.determinationDate !== null && d.determinationDate <= cutoff));
     const accepted = dated.filter(d => d.state === 'source_immutable');
     const superseded = new Set(accepted.map(d => d.supersedes).filter(Boolean));
@@ -664,7 +781,7 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
   const registerDeterminationDays = determinations.some(d => d.state === 'conflicted') ? null :
     sumKnown(eligible.map(d => d.awardedDays));
   const effective = dataDateIso === null ? [] : population(dataDateIso);
-  const asOfConflict = determinations.some(d => d.state === 'conflicted' &&
+  const asOfConflict = trustedDeterminations.some(d => d.state === 'conflicted' &&
     (d.determinationDate === null || dataDateIso !== null && d.determinationDate <= dataDateIso));
   const effectiveDeterminationDays = asOfConflict || dataDateIso === null ||
     eligible.some(d => d.determinationDate === null) ? null :
@@ -698,7 +815,7 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
       registerDeterminationCount:eligible.length,effectiveDeterminationCount:effective.length,
       futureDeterminationCount:eligible.filter(d=>dataDateIso!==null&&d.determinationDate!==null&&d.determinationDate>dataDateIso).length,dataDateIso,
     };
-    if(determinations.length)diagnostics.push('AMENDMENT_DETERMINATION_OVERLAP_UNRESOLVED_NO_ADDITIONAL_DAYS_APPLIED');
+    if(trustedDeterminations.length)diagnostics.push('AMENDMENT_DETERMINATION_OVERLAP_UNRESOLVED_NO_ADDITIONAL_DAYS_APPLIED');
   }
   if(amendmentConflict)diagnostics.push('CONFLICTING_EFFECTIVE_AMENDMENTS');
   const completion=contractCompletionPosition(state,dataDateIso);
@@ -712,11 +829,11 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
 
   for(const claim of claims){
     const reported=reportedClaim(claim);
-    const conflict=reported.state==='determined'&&!determinations.some(d=>d.claimId===claim.claimId);
+    const conflict=reported.state==='determined'&&!trustedDeterminations.some(d=>d.claimId===claim.claimId);
     claim.sourceRegister={...reported,evidenceRefs:[...claim.evidenceRefs],diagnostics:[...new Set([...reported.diagnostics,...claim.diagnostics,...(conflict?['REGISTER_DETERMINED_STATUS_NOT_IN_DETERMINATION_REGISTER']:[])])]};
   }
-  const delayClaims:DelayClaimsModel|null=claims.length?{dataDateIso,projectId:state.projectId,evidenceRevisionId:'canonical-evidence:'+createHash('sha256').update(JSON.stringify(tables.filter(t=>has(t,'claim id')).map(t=>[t.document.documentId,t.document.sourceHashSha256,t.document.basisState]))).digest('hex'),events,claims,notices,noticeRequirements:contractNoticeRules(state),diagnostics:['EVENT_IDENTITIES_ESTABLISHED_FROM_SOURCE_REGISTER_CAUSATION_REMAINS_UNPROVEN',...diagnostics]}:null;
-  const result:CanonicalTimeClaims={producerVersion:'canonical-time-claims-v1',dataDateIso,delayClaims,contractTimeBasis,determinations,amendments,registerDeterminationDays,effectiveDeterminationDays,futureDeterminationCount:eligible.filter(d=>dataDateIso!==null&&d.determinationDate!==null&&d.determinationDate>dataDateIso).length,diagnostics};
+  const delayClaims:DelayClaimsModel|null=claims.length?{dataDateIso,projectId:state.projectId,evidenceRevisionId:'canonical-evidence:'+createHash('sha256').update(JSON.stringify(tables.filter(t=>has(t,'claim id')).map(t=>[t.document.documentId,t.document.sourceHashSha256,t.document.basisState]))).digest('hex'),events:trustedEvents,claims:trustedClaims,notices:trustedNotices,noticeRequirements:contractNoticeRules(state),diagnostics:['EVENT_IDENTITIES_ESTABLISHED_FROM_SOURCE_REGISTER_CAUSATION_REMAINS_UNPROVEN',...diagnostics],integrity:claimIntegrity}:null;
+  const result:CanonicalTimeClaims={producerVersion:'canonical-time-claims-v1',dataDateIso,delayClaims,contractTimeBasis,determinations:trustedDeterminations,amendments,registerDeterminationDays,effectiveDeterminationDays,futureDeterminationCount:eligible.filter(d=>dataDateIso!==null&&d.determinationDate!==null&&d.determinationDate>dataDateIso).length,diagnostics};
   cache.set(state,{version:state.version,value:result});return result;
 }
 /** A reporting view may reuse source extraction only when every extraction
