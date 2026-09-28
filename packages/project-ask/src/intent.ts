@@ -75,10 +75,15 @@ export function resolveIntent(question:string,catalogue:AuthorityDescriptor[],pr
   const scheduleQuestion=activityQuestion||/\b(?:project|programme|schedule)\b.*\b(?:delayed|delay|late|behind)\b|\b(?:delay|delaying)\b.*\bproject\b|^(?:show (?:me )?|what (?:is|are) (?:the )?)?(?:delayed|late|overdue)(?: work)?[.!?]*$/.test(q);
   if((!inherited||continuation)&&!claimsQuestion&&scheduleQuestion){
     const available=(id:string)=>catalogue.some(c=>c.id===id);
-    const path=/\b(?:critical|driving) path\b/.test(q);
-    // Keep explicitly requested non-schedule domains in a combined question.
+    const wantsPath=/\b(?:critical|driving) path\b/.test(q);
+    const wantsActivityList=/\bactivit(?:y|ies)\b|\b(?:delayed|late|overdue) (?:items|tasks|work)\b|should (?:have )?(?:start|finish)|should have (?:started|finished)|\b(?:missed|overdue|late) starts?\b|\b(?:overdue|late) finishes?\b/.test(q);
+    // Keep explicitly requested non-schedule domains in a combined question,
+    // and satisfy each schedule requirement independently rather than forcing
+    // "critical path OR activity list".
     plan.authorities=plan.authorities.filter(id=>!['programme','activities','float','critical-path','forecast','delay','lookahead'].includes(id));
-    if(available(path?'critical-path':'activities'))plan.authorities.unshift(path?'critical-path':'activities');
+    if(wantsActivityList&&available('activities'))plan.authorities.push('activities');
+    if(wantsPath&&available('critical-path'))plan.authorities.push('critical-path');
+    if(!wantsActivityList&&!wantsPath&&available('activities'))plan.authorities.push('activities');
     // A spatial word in an activity question scopes the programme activity
     // population; it does not automatically request the Delivery location register.
     if(activityQuestion&&/\b(?:zone|floor|level|tower|building|area|work ?front)\b/.test(q)&&!/\b(?:location register|location hierarchy|governed locations?)\b/.test(q))
