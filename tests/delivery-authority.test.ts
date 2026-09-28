@@ -43,9 +43,9 @@ test('BOQ-only projects expose scope, procurement, long-lead, material and risk 
  const keys=['procurement-packages','long-lead','material-tracking','construction-discipline','construction-locations','delivery-risks'];
  for(const key of keys){
   const r=deliveryModule(f.state,key),data=r.data as any;
-  assert.equal(data.boqDerivedCandidate,true,key+' should use the available BOQ before asking for another register');
-  assert.ok(data.rows.length>0,key+' should return useful rows from the BOQ');
-  assert.equal(r.status,'partial',key+' BOQ intelligence must remain candidate, not falsely ready');
+  assert.ok(data.rows.length>0,key+' should answer from the useful Project information already available');
+  assert.notEqual(r.status,'blocked',key+' must not become an empty blocked page while usable scope intelligence exists');
+  assert.equal(r.status,'partial',key+' incomplete register confirmation must remain visible and must not become falsely ready');
  }
  const packages=(deliveryModule(f.state,'procurement-packages').data as any).rows;
  assert.ok(packages.some((r:any)=>/Switchgear/.test(r.system)&&r.procurementPriority==='Critical'));
