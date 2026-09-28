@@ -26,7 +26,12 @@ export function checkProjectionIntegrity(result: ModuleRuntimeResult, model: Can
     if(data.state==='ready'){
       compare('current_source_population',data.toActivityCount,model.activities.length);
       compare('matched_activity_partition',data.matchedActivityCount,data.modifiedActivityCount+data.unchangedActivityCount);
-      compare('current_activity_partition',data.toActivityCount,data.matchedActivityCount+data.addedActivityCount);
+      // Identity matching is intentionally keyed by governed activity identity.
+      // A source programme may contain duplicate activity IDs; those remain a
+      // source-data defect elsewhere and must not be misreported here as a
+      // CMeng arithmetic failure. Source-row population is certified separately.
+      const uniqueCurrentActivityIds=new Set(model.activities.map(activity=>activity.activityId)).size;
+      compare('current_activity_partition',uniqueCurrentActivityIds,data.matchedActivityCount+data.addedActivityCount);
     }
     compare('added_relationship_count',data.addedRelationshipCount,data.addedRelationships?.length);
     compare('removed_relationship_count',data.removedRelationshipCount,data.removedRelationships?.length);
