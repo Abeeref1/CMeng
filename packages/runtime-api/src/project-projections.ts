@@ -7154,6 +7154,11 @@ function resolveProjectModule(state: ProjectRuntimeState, key: string): ModuleRu
       if(key==='pmo-analysis')data.knownScheduleCounts={critical:near?.knownCriticalCount??near?.criticalCount??null,nearCritical:near?.nearCriticalCount??near?.rows?.length??null,negativeFloat:near?.knownNegativeFloatCount??near?.negativeFloatCount??null};
     }
   }
+  const interfacePosition=interfaceIntelligence(scoped);
+  for(const moduleKey of ['lookahead-schedule','delay-claims']){
+    const currentModule=modules.get(moduleKey),moduleData=currentModule?.data;
+    if(currentModule&&moduleData&&typeof moduleData==='object')modules.set(moduleKey,{...currentModule,data:{...(moduleData as Record<string,unknown>),interfacePosition}});
+  }
   const diagnosis=buildProjectDiagnosis(scoped,modules);
   const management=modules.get('pmo-analysis')?.data as any;
   if(management)management.projectDiagnosis=presentProjectDiagnosis(diagnosis);
