@@ -4228,7 +4228,7 @@ function renderModuleResultBody(result){
     experienceDisclosure("Evidence limits and supporting information",readWarnings+basisHtml+renderClaimsReporting(data.claimsReporting,result.key)+sourceBasis,"Dates, records and calculation qualifications")+
     experienceReviewSummary(data.issueAssessment,managementSurface)+renderModuleReadiness(data,userReason);
   if(typeof bindAdvancedControls==="function")bindAdvancedControls(result.key);
-  if(result.key==="activity-analytics")restoreActivityFilters();
+  if(result.key==="activity-analytics"&&typeof restoreActivityFilters==="function")restoreActivityFilters();
 
 }
 let moduleRequestSeq=0;
