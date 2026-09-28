@@ -5,7 +5,7 @@ import {ProjectAskEngine,askCatalogue,compactAskResult} from './ask-engine';
 import {AskError} from '../../project-ask/src/catalogue';
 import type {AskRequest,AskSession,SavedView} from '../../project-ask/src/types';
 import {readAskReference} from './ask-references';
-import {exportAskAnalysis,askChartPng} from './ask-export';
+import {exportAskAnalysis,askChartPng,type AskExportView} from './ask-export';
 import {sendHttpBody} from './http-response';
 import {runtimeProjects} from './project-state';
 import {configuredAskModel} from '../../project-ask/src/provider';
@@ -13,6 +13,11 @@ async function body(req:IncomingMessage,limit:number){const chunks:Buffer[]=[];l
 async function jsonBody(req:IncomingMessage){try{return JSON.parse((await body(req,128*1024)).toString('utf8'));}catch(e){if(e instanceof AskError)throw e;throw new AskError(400,'invalid_request','The request could not be read.');}}
 function json(res:ServerResponse,status:number,value:unknown){sendHttpBody(res,status,{'content-type':'application/json; charset=utf-8','cache-control':'no-store'},JSON.stringify(value));}
 function session(req:IncomingMessage):AskSession {const actor=auditContext().actor;return {userId:actor.id,workspaceId:'cmeng-projects',name:null,title:null,company:null,allowModel:req.headers['x-cmeng-paid-ai']!=='0'};}
+function reportView(url:URL):AskExportView|undefined{
+  const encoded=url.searchParams.get('view');if(!encoded)return undefined;if(encoded.length>16000)throw new AskError(400,'report_view_too_large','The report adjustment is too large.');
+  try{const value=JSON.parse(Buffer.from(encoded,'base64url').toString('utf8'));if(!value||typeof value!=='object'||Array.isArray(value))throw new Error();return value as AskExportView;}
+  catch{throw new AskError(400,'report_view_invalid','The report preview settings could not be read.');}
+}
 export async function askAiRequest(req:IncomingMessage,res:ServerResponse,url:URL){
   const match=/^\/api\/projects\/([^/]+)\/intelligence(?:\/(.*))?$/.exec(url.pathname);if(!match)return false;
   try{
@@ -41,11 +46,16 @@ export async function askAiRequest(req:IncomingMessage,res:ServerResponse,url:UR
       if(!Number.isSafeInteger(offset)||offset<0||!Number.isSafeInteger(limit)||limit<1||limit>200)throw new AskError(400,'invalid_page','Choose a valid page of up to 200 rows.');
       json(res,200,{id:table.id,analysisId:result.id,offset,rows:table.rows.slice(offset,offset+limit),totalRows:table.rows.length});return true;
     }
-    if(req.method==='GET'&&chartMatch){const result=await engine.store.result(chartMatch[1]!,projectId,user),chart=result.sections.flatMap(s=>s.charts).find(c=>c.id===decodeURIComponent(chartMatch[2]!)),table=chart?result.sections.flatMap(s=>s.tables).find(t=>t.id===chart.tableId):null;if(!chart||!table)throw new AskError(404,'chart_not_found','This chart is not available.');sendHttpBody(res,200,{'content-type':'image/png','cache-control':'no-store'},askChartPng(chart,table));return true;}
+    if(req.method==='GET'&&chartMatch){
+      const result=await engine.store.result(chartMatch[1]!,projectId,user),chart=result.sections.flatMap(s=>s.charts).find(c=>c.id===decodeURIComponent(chartMatch[2]!)),table=chart?result.sections.flatMap(s=>s.tables).find(t=>t.id===chart.tableId):null;if(!chart||!table)throw new AskError(404,'chart_not_found','This chart is not available.');
+      const type=url.searchParams.get('type'),limitRaw=Number(url.searchParams.get('limit')??table.rows.length),limit=Number.isSafeInteger(limitRaw)&&limitRaw>0&&limitRaw<=5000?limitRaw:table.rows.length;
+      if(type&&type!=='bar'&&type!=='line')throw new AskError(400,'chart_type_invalid','Choose a supported chart type.');
+      sendHttpBody(res,200,{'content-type':'image/png','cache-control':'no-store'},askChartPng(chart,table,{...(type?{type:type as 'bar'|'line'}:{}),limit}));return true;
+    }
     const resultMatch=/^results\/([a-zA-Z0-9_-]+)(?:\/(export))?$/.exec(path);
     if(req.method==='GET'&&resultMatch){
       const result=await engine.store.result(resultMatch[1]!,projectId,user);
-      if(resultMatch[2]){const output=await exportAskAnalysis(result,url.searchParams.get('format')??'xlsx');sendHttpBody(res,200,{'content-type':output.type,'cache-control':'no-store','content-disposition':'attachment; filename="'+output.filename+'"'},output.bytes);}
+      if(resultMatch[2]){const output=await exportAskAnalysis(result,url.searchParams.get('format')??'xlsx',reportView(url));sendHttpBody(res,200,{'content-type':output.type,'cache-control':'no-store','content-disposition':'attachment; filename="'+output.filename+'"'},output.bytes);}
       else json(res,200,compactAskResult(result));return true;
     }
     if(req.method==='POST'&&path==='views'){
