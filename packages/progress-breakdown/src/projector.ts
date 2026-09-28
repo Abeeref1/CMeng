@@ -4,7 +4,6 @@ import { resolveRevisionActivityCorrespondence } from "../../schedule-revision-c
 import {
   DEFAULT_SCHEDULE_ANALYSIS_CONFIG,
   isExecutionActivity,
-  isProgressActivity,
   scheduleProgress,
   activityPopulation,
   sourceFloatCriticality,
