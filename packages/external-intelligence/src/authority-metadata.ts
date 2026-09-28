@@ -1048,16 +1048,23 @@ export const externalAuthorityMetadata:AuthorityDescriptor[]=[
   },
   {
     "id": "wbs",
-    "title": "WBS Progress",
-    "description": "Duration-weighted progress and schedule pressure by WBS.",
+    "title": "Progress Breakdown",
+    "description": "Current programme activity progress by WBS, WBS level, zone, spatial level, work front and CBS, with source coverage stated explicitly.",
     "module": "progress-breakdown",
     "domains": [
       "schedule"
     ],
     "concepts": [
       "wbs",
+      "by wbs",
+      "wbs level",
+      "zone",
+      "level",
+      "work front",
+      "cbs",
       "by trade",
-      "work breakdown"
+      "work breakdown",
+      "progress breakdown"
     ],
     "fields": [
       "recordId",
