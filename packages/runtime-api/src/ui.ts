@@ -5109,6 +5109,77 @@ function encodeModuleReportView(view){
 function currentModuleReportView(){
   return {filters:typeof currentProjectScopeContext==="function"?currentProjectScopeContext():{},selectedRole:typeof selectedRoleView==="string"?selectedRoleView:null,grouping:[],sort:null,topN:null,layout:document.body.classList.contains("focus-module")?"expanded":"standard",detailLevel:"normal"};
 }
+function reportPrimitive(value){
+  if(value===null||value===undefined)return null;
+  if(["string","number","boolean"].includes(typeof value))return value;
+  return String(value);
+}
+function reportFlatten(value,prefix="",out={},depth=0){
+  if(depth>6){if(prefix)out[prefix]="[nested data]";return out;}
+  if(value===null||value===undefined||typeof value!=="object"){if(prefix)out[prefix]=reportPrimitive(value);return out;}
+  if(Array.isArray(value)){
+    if(prefix){
+      if(value.every(item=>item===null||item===undefined||typeof item!=="object")){
+        const joined=value.map(item=>item===null||item===undefined?"":String(item)).join("; ");
+        out[prefix]=joined.length<=32000?joined:"["+value.length+" records; complete values are in the array table]";
+      }else out[prefix]="["+value.length+" records]";
+    }
+    return out;
+  }
+  const entries=Object.entries(value);if(!entries.length){if(prefix)out[prefix]="";return out;}
+  for(const [key,child] of entries){
+    const next=prefix?prefix+"."+key:key;
+    if(Array.isArray(child)){
+      if(child.every(item=>item===null||item===undefined||typeof item!=="object")){
+        const joined=child.map(item=>item===null||item===undefined?"":String(item)).join("; ");
+        out[next]=joined.length<=32000?joined:"["+child.length+" records; complete values are in the array table]";
+      }else out[next]="["+child.length+" records]";
+    }else if(child!==null&&typeof child==="object")reportFlatten(child,next,out,depth+1);
+    else out[next]=reportPrimitive(child);
+  }
+  return out;
+}
+function reportCollectArrays(value,prefix="",out=[],depth=0){
+  if(depth>6||value===null||value===undefined||typeof value!=="object")return out;
+  if(Array.isArray(value)){out.push({path:prefix||"records",rows:value});return out;}
+  for(const [key,child] of Object.entries(value)){
+    const next=prefix?prefix+"."+key:key;
+    if(Array.isArray(child)){
+      out.push({path:next,rows:child});
+      child.slice(0,20).forEach(row=>{if(row&&typeof row==="object"&&!Array.isArray(row))reportCollectArrays(row,next,out,depth+1);});
+    }else reportCollectArrays(child,next,out,depth+1);
+  }
+  const seen=new Set();return out.filter(section=>{if(seen.has(section.path))return false;seen.add(section.path);return true;});
+}
+function reportLabel(value){
+  return String(value||"").replace(/([a-z])([A-Z])/g,"$1 $2").replace(/[._-]+/g," ").replace(/^./,x=>x.toUpperCase());
+}
+function moduleReportSemanticModel(data){
+  const source=data&&typeof data==="object"?data:{},flat=reportFlatten(source),metrics=Object.entries(flat).slice(0,1000).map(([key,value])=>({id:"module."+key,label:reportLabel(key),value}));
+  const sections=reportCollectArrays(source).map((section,index)=>{
+    const rows=section.rows.map(row=>row&&typeof row==="object"&&!Array.isArray(row)?reportFlatten(row):{value:reportPrimitive(row)});
+    const keys=[];const seen=new Set();rows.forEach(row=>Object.keys(row).forEach(key=>{if(!seen.has(key)){seen.add(key);keys.push(key);}}));
+    const textKey=keys.find(key=>rows.some(row=>typeof row[key]==="string"&&!/^\d{4}-\d{2}-\d{2}(?:T|$)/.test(String(row[key]))));
+    const numeric=keys.filter(key=>rows.some(row=>typeof row[key]==="number"&&Number.isFinite(row[key]))).slice(0,3);
+    return {authorityId:"table-"+index,tableId:"module-table-"+index,chartId:textKey&&numeric.length&&rows.length?"module-chart-"+index:null,path:section.path,title:reportLabel(section.path),rows,keys,textKey,numeric};
+  });
+  return {metrics,sections};
+}
+function moduleReportSemanticHtml(model){
+  const display=value=>value===null||value===undefined?"Not established":String(value);
+  let html='<section class="planning-panel report-semantic-section" data-report-authority="summary"><h3>Key facts</h3><div class="report-semantic-metrics">';
+  for(const metric of model.metrics)html+='<div class="report-config-row report-semantic-metric" data-report-metric="'+escapeHtml(metric.id)+'"><b>'+escapeHtml(metric.label)+'</b><span>'+escapeHtml(display(metric.value))+'</span></div>';
+  html+='</div></section>';
+  for(const section of model.sections){
+    html+='<section class="planning-panel report-semantic-section" data-report-authority="'+escapeHtml(section.authorityId)+'"><h3>'+escapeHtml(section.title)+'</h3>';
+    html+='<div class="table-wrap" data-report-table="'+escapeHtml(section.tableId)+'"><table><thead><tr>'+section.keys.map(key=>'<th>'+escapeHtml(reportLabel(key))+'</th>').join('')+'</tr></thead><tbody>';
+    for(const row of section.rows.slice(0,100))html+='<tr>'+section.keys.map(key=>'<td>'+escapeHtml(display(row[key]))+'</td>').join('')+'</tr>';
+    html+='</tbody></table><small>Showing '+Math.min(100,section.rows.length)+' of '+section.rows.length+' rows in preview. Downloads retain the selected table population.</small></div>';
+    if(section.chartId)html+='<div class="chart-card report-semantic-chart" data-report-chart="'+escapeHtml(section.chartId)+'"><h4>'+escapeHtml(section.title)+' chart</h4><p>Chart uses '+escapeHtml(section.textKey)+' against '+escapeHtml(section.numeric.map(reportLabel).join(", "))+'. The downloaded chart is rendered from these same selected table rows.</p></div>';
+    html+='</section>';
+  }
+  return html;
+}
 function reportDownloadUrl(format,view=null){
   let base;if(managementSurfaceKeysForApi.has(selected))base="/api/projects/"+encodeURIComponent(project())+"/management/"+encodeURIComponent(selected)+"/report."+format;
   else{const moduleArea=moduleRegistry.find(m=>m.key===selected)?.area||"schedule";base="/api/projects/"+encodeURIComponent(project())+"/"+moduleArea+"/modules/"+encodeURIComponent(selected)+"/report."+format;}
