@@ -5,6 +5,7 @@ export const deliveryFields:Record<DeliveryKind,string[]>={
  supplier:['company','contact','email','phone','scope','mobilisation date'],
  submittal:['revision','planned issue','forecast issue','actual issue','required response','response date','approval date','rejection date','resubmission date','review cycles','ifc date','blocking work','variation reference','claim reference'],
  design:['revision','planned issue','forecast issue','actual issue','required response','response date','approval date','rejection date','resubmission date','review cycles','ifc date','blocking work','variation reference','claim reference'],
+ interface:['giving party','receiving party','package','system','location','workfront','required deliverable','required by','response date','resolution date','consequence','escalation','responsible party'],
  workfront:['programme representation required','procurement required','high value scope','workfront type','work package','readiness basis'],
  quality:['severity','contractor','outcome','outcome date','actual date','rectified date','verification date','closed date','acceptance date','root cause','corrective action','preventive action','rework hours','rework cost','currency','handover blocker','programme consequence'],
  permit:['authority','submission date','review date','issue date','valid from','expiry date','expiry applicable','renewal required','required by','blocker'],
