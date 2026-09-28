@@ -1,0 +1,52 @@
+name: CMeng Final Six + 32 Page Audit
+on:
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  capture:
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1,2,3,4,5,6,7,8]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CMENG_RAILWAY_URL: https://cmeng-main-production.up.railway.app
+      CMENG_EXPECTED_RELEASE: dbecea2e06b26ea4bd5c37bd2252b675591919ce
+      CMENG_AUDIT_SHARD: ${{ matrix.shard }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: |
+          python -m pip install playwright==1.57.0
+          python -m playwright install --with-deps chromium
+      - run: python scripts/final-32-light-audit.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cmeng-final-32-${{ matrix.shard }}
+          path: final-32-audit-${{ matrix.shard }}
+          retention-days: 7
+  crosscheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CMENG_RAILWAY_URL: https://cmeng-main-production.up.railway.app
+      CMENG_EXPECTED_RELEASE: dbecea2e06b26ea4bd5c37bd2252b675591919ce
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: |
+          python -m pip install playwright==1.57.0
+          python -m playwright install --with-deps chromium
+      - run: python scripts/final-truth-crosscheck.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cmeng-final-crosscheck
+          path: final-crosscheck
+          retention-days: 7
