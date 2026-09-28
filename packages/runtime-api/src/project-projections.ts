@@ -7828,10 +7828,11 @@ export function managementSurfacesForProject(
   const completion=(resolvedModules.get('independent-forecast')?.data as any)?.completionPosition??null;
   const diagnosis=(resolvedModules.get('pmo-analysis')?.data as any)?.projectDiagnosis??null;
   const mp6=profiling?performance.now():0;
+  const deliveryManagement=deliveryDashboard(state);
   const result = { ...surfaces,
     sourceQuality: {...sourceQualityPosition(resolvedModules,issueAssessment,state.evidenceDocuments,current?.revision.model.dataDateIso??null),registerDateReview:registerDateReview(state)},
-    masterDashboard: {projectDiagnosis:diagnosis,completionPosition:completion,delivery:deliveryDashboard(state),scheduleExceptions,deliveryExceptions,...managementReportingData(state, surfaces.masterDashboard, resolvedModules),decisions:surfaces.commandCenter.decisions,trend:(resolvedModules.get("forecast-history")?.data as any)??null,issueAssessment,operationalReporting:operationalReporting(state),sourceInterpretation:director?.sourceInterpretation},
-    commandCenter: {projectDiagnosis:diagnosis,completionPosition:completion,scheduleExceptions,deliveryExceptions,...managementReportingData(state, surfaces.commandCenter, resolvedModules),issueAssessment,operationalReporting:operationalReporting(state),sourceInterpretation:director?.sourceInterpretation},
+    masterDashboard: {projectDiagnosis:diagnosis,completionPosition:completion,delivery:deliveryManagement,scheduleExceptions,deliveryExceptions,...managementReportingData(state, surfaces.masterDashboard, resolvedModules),decisions:surfaces.commandCenter.decisions,trend:(resolvedModules.get("forecast-history")?.data as any)??null,issueAssessment,operationalReporting:operationalReporting(state),sourceInterpretation:director?.sourceInterpretation},
+    commandCenter: {projectDiagnosis:diagnosis,completionPosition:completion,delivery:deliveryManagement,scheduleExceptions,deliveryExceptions,...managementReportingData(state, surfaces.commandCenter, resolvedModules),issueAssessment,operationalReporting:operationalReporting(state),sourceInterpretation:director?.sourceInterpretation},
     masterControlProgramme: {...managementReportingData(state, surfaces.masterControlProgramme, resolvedModules),issueAssessment,sourceInterpretation:director?.sourceInterpretation} };
   const allPages=new Map(resolvedModules);
   allPages.set('master-dashboard',{key:'master-dashboard',status:'partial',reason:null,dependencies:[],data:result.masterDashboard});
