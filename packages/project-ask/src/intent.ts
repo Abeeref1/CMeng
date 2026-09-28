@@ -158,7 +158,12 @@ export function resolveIntent(question:string,catalogue:AuthorityDescriptor[],pr
     plan.questionRecipe=recipe;
     delete plan.diagnosisActivityFilters;
     const scheduleRecipeIds=new Set(['programme','activities','float','critical-path','forecast','delay','lookahead','project-diagnosis','wbs','milestones','programme-changes']);
-    const preserveCompoundRequirements=continuation||plan.authorities.some(id=>!scheduleRecipeIds.has(id));
+    const explicitNonSchedule=explicitlyRequested.some(id=>!scheduleRecipeIds.has(id));
+    const priorNonSchedule=!!previous?.plan.authorities.some(id=>!scheduleRecipeIds.has(id));
+    // Generic fallback domains are not user requirements. Preserve only
+    // requirements the user actually named, or requirements accumulated in an
+    // additive conversation.
+    const preserveCompoundRequirements=continuation||explicitNonSchedule||(inherited&&priorNonSchedule);
     const addRecipe=(ids:string[])=>{for(const id of ids)if(catalogue.some(c=>c.id===id)&&!plan.authorities.includes(id))plan.authorities.push(id);};
     if(recipe==='driving_path'){if(preserveCompoundRequirements)addRecipe(['critical-path']);else plan.authorities=['critical-path'];}
     else if(recipe==='delay_diagnosis'){if(preserveCompoundRequirements)addRecipe(['project-diagnosis','critical-path','activities','float']);else plan.authorities=['project-diagnosis','critical-path','activities','float'];}
