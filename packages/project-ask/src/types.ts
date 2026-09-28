@@ -114,13 +114,28 @@ export interface AskRequest {
 }
 export interface SavedViewDefinition {
   pageContext?: PageContext | null;
+  selectedRole?: string | null;
+  dateRange?: {from:string|null;to:string|null} | null;
+  grouping?: string[];
+  sort?: {field:string;direction:'asc'|'desc'} | null;
+  topN?: number | null;
+  metrics?: string[];
+  tables?: string[];
+  layout?: string | null;
+  subtitle?: string | null;
+  detailLevel?: string | null;
   reportView?: {
     title: string;
+    subtitle?: string | null;
     includeAuthorities: string[];
     sectionOrder: string[];
     includeCharts: string[];
+    includeTables?: string[];
+    includeMetrics?: string[];
     chartTypes: Record<string,string>;
     chartLimits: Record<string,number>;
+    layout?: string | null;
+    detailLevel?: string | null;
   } | null;
 }
 export interface SavedView {
