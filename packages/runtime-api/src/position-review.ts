@@ -30,7 +30,7 @@ export function positionVerdict(result:ModuleRuntimeResult) {
     const days=typeof finish==='string'&&typeof contract==='string'?(Date.parse(finish.slice(0,10))-Date.parse(contract.slice(0,10)))/86400000:null;
     if(number(days)){rag=days>0?'red':'green';text=days>0?'Submitted completion is '+Math.round(days)+' calendar days late against the contract date.':'Submitted completion is within the contract date.';
       nextAction=days>0?'Review the recovery plan. The packages driving the late completion have not yet been established.':'Monitor submitted completion against the contract date.';assignTo='Project Director';}
-    else {rag='unknown';text='Completion against the contract date cannot yet be compared.';nextAction='Confirm the missing or conflicting completion date in Contract Particulars & Bonds.';}
+    else {rag='amber';text='Contract comparison is not established because no contractual completion date has been confirmed. Programme analysis remains available.';nextAction='Confirm the contractual completion date in Actions required.';}
   } else if(['notices-claims','commercial-claims-notices'].includes(result.key)) {
     // Use the assessed event population. Correspondence also includes determinations
     // and can contain several letters for one event; it is not an event counter.
