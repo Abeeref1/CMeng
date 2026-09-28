@@ -14,7 +14,7 @@ function renderCompletionPosition(p,detailsOpen=false){
  ]);
  const limits=p.limitations||[];
  return '<section class="completion-position" aria-label="Completion position"><h4>Completion position</h4>'+values+'<p><b>What this means:</b> '+escapeHtml(p.interpretation)+'</p><p>'+escapeHtml(p.contractNote)+'</p>'+
- '<details class="completion-difference"'+(detailsOpen?' open':'')+'><summary>Review difference'+(limits.length?' · '+fmt(limits.length)+' calculation qualifications':' and calculation basis')+'</summary><p>'+escapeHtml(p.differenceBasis)+'</p>'+
+ '<details class="completion-difference"'+(detailsOpen?' open':'')+'><summary>Calculation basis'+(limits.length?' · '+fmt(limits.length)+' qualifications':'')+'</summary><p>'+escapeHtml(p.differenceBasis)+'</p>'+
  (p.coveragePercent!==null?'<p>'+escapeHtml(fmt(p.coveragePercent))+'% of execution activities calculated'+(p.activityCount!==null?' · '+fmt(p.activityCount)+' activities':'')+'.</p>':'')+
  (limits.length?'<ul>'+limits.map(l=>'<li>'+escapeHtml(l.text)+'</li>').join('')+'</ul>':'<p>No additional calculation assumptions are listed for this comparison.</p>')+
   '<p>The comparison identifies a difference; it does not by itself prove which activity or event caused project delay.</p>'+
