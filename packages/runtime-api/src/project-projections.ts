@@ -7187,9 +7187,9 @@ export function moduleForProject(
       ["project"],
     );
   }
-  if (key==='delivery-interfaces') return interfaceModule(reportingState(state));
-  if (key==='recovery-acceleration') return recoveryAccelerationModule(reportingState(state));
-  if (key==='cross-domain-accountability') return accountabilityModule(reportingState(state));
+  if (key==='delivery-interfaces') {const scoped=reportingState(state);return attachReportingContract(scoped,interfaceModule(scoped));}
+  if (key==='recovery-acceleration') {const scoped=reportingState(state);return attachReportingContract(scoped,recoveryAccelerationModule(scoped));}
+  if (key==='cross-domain-accountability') {const scoped=reportingState(state);return attachReportingContract(scoped,accountabilityModule(scoped));}
   if (isDeliveryPage(key)) return deliveryModule(state,key);
   if (key==='scope-classification') return resolveProjectModuleUncertified(reportingState(state),key);
   if (key==='monte-carlo-risk') return scheduleRiskMonteCarlo(reportingState(state));
