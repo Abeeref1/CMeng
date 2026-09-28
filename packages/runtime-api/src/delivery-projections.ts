@@ -328,7 +328,8 @@ export function deliveryModule(state:ProjectRuntimeState,key:string):ModuleRunti
       :key==='construction-locations'
         ?p.records.filter(r=>['workfront','location'].includes(r.kind)&&!['superseded','scenario'].includes(r.state)).length
         :records.length;
- const useBoqCandidates=governedRows.length===0&&boqCandidateRows.length>0;
+ const reviewedSpecialistPosition=!riskPage&&records.some(r=>['working','conflicted','stale','superseded'].includes(r.state));
+ const useBoqCandidates=governedRows.length===0&&boqCandidateRows.length>0&&!reviewedSpecialistPosition;
  const rows:any[]=useBoqCandidates?boqCandidateRows:governedRows;
  const rowIds=new Set(records.map(r=>r.recordId));const findings=useBoqCandidates?[]:p.findings.filter(f=>key==='delivery-control'||f.recordId&&rowIds.has(f.recordId));
  const hasRows=riskPage?(risk.state!=='missing'||useBoqCandidates):records.length>0||rows.length>0;const pending=records.filter(r=>['extracted_candidate','working','conflicted','stale'].includes(r.state));
