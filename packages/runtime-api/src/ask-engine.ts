@@ -90,6 +90,38 @@ function activityAnswer(result:AnalysisResult):NarrativeBlock|null{
   if(breakouts.length)text+='\n\n'+breakouts.map(t=>t.title+': '+String(t.selection?.matching??t.rows.length)+' matching '+((t.selection?.matching??t.rows.length)===1?'activity':'activities')+'.').join('\n');
   return {heading:'Answer',text,classification:'calculated_intelligence',traceIds:[table.traceId,...breakouts.map(t=>t.traceId)]};
 }
+function plainAskNeed(value:string){
+  const text=String(value||'').replace(/\s+/g,' ').trim();
+  if(!text)return null;
+  if(/AI commentary could not/i.test(text))return null;
+  if(/baseline/i.test(text))return 'A confirmed baseline would add original-plan slippage and baseline variance to this answer.';
+  if(/contract(?:ual)? completion|contract time basis/i.test(text))return 'A confirmed contractual completion date would add contract-date and time-entitlement comparisons.';
+  if(/lead time|manufacturing duration|latest order/i.test(text))return 'Confirmed supplier or approved lead-time evidence would replace planning assumptions and allow firm latest-order dates.';
+  if(/procurement|ordered|delivered|supplier|manufactur/i.test(text))return 'A current procurement/material register would add actual ordered, manufacturing and delivery status.';
+  if(/installed|measured quantities|quantity progress|physical progress/i.test(text))return 'Dated measured or installed quantities would add actual quantity completion and installation progress.';
+  if(/PV|EV|AC|CPI|SPI|earned value/i.test(text))return 'Time-phased PV, EV and AC would add formal EVM performance measures such as SPI and CPI.';
+  if(/resource|manpower|labou?r|capacity/i.test(text))return 'Dated manpower/resource usage and capacity would add independent resource and manpower analysis.';
+  if(/risk/i.test(text))return 'A dated risk register would add the Project’s confirmed risk status and ownership.';
+  if(/location|zone|floor|tower|building|workfront/i.test(text))return 'A confirmed location/workfront mapping would strengthen location-based analysis where the source wording is ambiguous.';
+  if(/date|status|field|mapping|link/i.test(text))return text
+    .replace(/authority/gi,'basis')
+    .replace(/governed/gi,'confirmed')
+    .replace(/population/gi,'records')
+    .replace(/source rows?/gi,'records')
+    .replace(/applicable/gi,'relevant');
+  return text
+    .replace(/authority/gi,'basis')
+    .replace(/governed/gi,'confirmed')
+    .replace(/population/gi,'records')
+    .replace(/schema|payload|resolver|provider|endpoint/gi,'')
+    .replace(/\s+/g,' ')
+    .trim();
+}
+function improvementNeedsFor(result:AnalysisResult){
+  const raw=[...result.unresolved,...result.sections.filter(s=>s.state==='unavailable').map(s=>s.explanation)];
+  const needs=raw.map(plainAskNeed).filter((v):v is string=>!!v);
+  return [...new Set(needs)].slice(0,6);
+}
 function narrativeFor(result:AnalysisResult):NarrativeBlock[]{
   const ar=result.presentation.language==='ar';
   const allMetrics=result.sections.flatMap(s=>s.metrics),knownMetrics=allMetrics.filter(m=>m.value!==null);
@@ -228,11 +260,12 @@ export class ProjectAskEngine {
       referenceFiles:files.map(({id,filename,hash,state,reading})=>({id,filename,hash,state,reading})),factsHash:askHash(sections),snapshotHash:''};
     const references=files.flatMap(f=>f.pages.map(p=>({filename:f.filename,fileId:f.id,hash:f.hash,page:p.page,text:p.text})));
     result.coverage=selectEvidence(result,references).coverage;
+    result.improvementNeeds=improvementNeedsFor(result);
     result.narrative=narrativeFor(result);
     for(const metric of sections.flatMap(s=>s.metrics).filter(m=>/\.cpi(?:-|$)/.test(m.id)&&typeof m.value==='number'&&m.value<1))result.narrative.push({heading:'Cost performance',text:'CPI below 1.00 indicates earned value is below actual cost on the stated currency and tax basis. This ratio alone does not establish the cause.',classification:'calculated_intelligence',traceIds:[metric.traceId]});
     if(this.model&&user.allowModel&&interpret&&!intent.purePresentation){
       try{const blocks=await this.model.explain(result,references);result.narrative.push(...blocks);result.mode='CMeng AI Analysis';result.providerStatus='available';}
-      catch(error){result.providerStatus='failed';const code=error instanceof Error&&/^(MODEL|RETRIEVAL)_[A-Z_]+$/.test(error.message)?error.message:'MODEL_PROVIDER_UNAVAILABLE';if(!result.telemetry!.providerFailures.includes(code)&&!result.telemetry!.validationFailures.includes(code))result.telemetry!.providerFailures.push(code);result.unresolved.push('AI commentary could not be completed or validated ('+code+'). The complete local tables, findings and calculations remain available. No partial AI assessment has been presented.');}
+      catch(error){result.providerStatus='failed';const code=error instanceof Error&&/^(MODEL|RETRIEVAL)_[A-Z_]+$/.test(error.message)?error.message:'MODEL_PROVIDER_UNAVAILABLE';if(!result.telemetry!.providerFailures.includes(code)&&!result.telemetry!.validationFailures.includes(code))result.telemetry!.providerFailures.push(code);result.unresolved.push('The AI explanation could not be completed. CMeng’s calculated tables, findings and figures remain available and unchanged.');}
     }
     if(!intent.purePresentation&&state.version!==scope.projectVersion)throw new AskError(409,'project_updated','The project changed while this analysis was being prepared. Run it again for a consistent position.');
     result.snapshotHash=askHash({scope:result.scope,plan:result.plan,sections:result.sections});await this.store.saveResult(result,user);return result;
