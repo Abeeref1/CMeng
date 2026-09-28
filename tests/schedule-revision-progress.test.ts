@@ -561,7 +561,7 @@ test("Progress Breakdown keeps unsupported dimensions unavailable without invent
   });
   assert.equal(projection.dimensionViews?.find(view=>view.dimension==="wbs")?.available,true);
   for(const key of ["zone","level","work_front","cbs"]){
-    const dimensionView=projection.dimensionViews!.find((candidate:any)=>candidate.dimension===key)!;
+    const dimensionView:any=projection.dimensionViews!.find((candidate:any)=>candidate.dimension===key)!;
     assert.equal(dimensionView.available,false);
     assert.equal(dimensionView.classifiedPopulation,0);
     assert.equal(dimensionView.unclassifiedPopulation,projection.totalActivityCount);
