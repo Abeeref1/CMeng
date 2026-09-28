@@ -174,6 +174,13 @@ import {
   type ManagementSurfacesProjection,
 } from "../../management-surfaces/src";
 
+function claimsQuarantined(model:DelayClaimsModel|null|undefined):boolean {
+  return model?.integrity?.state==="quarantined";
+}
+function claimsIntegrity(model:DelayClaimsModel|null|undefined) {
+  return model?.integrity??null;
+}
+
 interface ProjectionBundle {
   version: number;
   generatedAt: string;
@@ -1712,6 +1719,8 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
   }
   const delayModel =
     state.controls.delayClaims;
+  const claimPopulationQuarantined=claimsQuarantined(delayModel);
+  const claimPopulationIntegrity=claimsIntegrity(delayModel);
   const analyticalDelayModel:
     DelayClaimsModel =
     delayModel ?? {
@@ -1770,15 +1779,17 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
       windows,
       ["schedule revision history"],
       ordered.length >= 2
-        ? delayModel
+        ? delayModel&&!claimPopulationQuarantined
           ? "ready"
           : "partial"
         : "partial",
       ordered.length < 2
         ? "Only one revision exists. CMeng cannot calculate a comparative window until a second revision is supplied."
-        : delayModel
-          ? null
-          : "CMeng independently calculated schedule windows and movement. No contractor delay-event model was submitted, so causation remains un-attributed.",
+        : claimPopulationQuarantined
+          ? claimPopulationIntegrity!.quarantinedClaimCount+" source claim rows are quarantined by the integrity gate and are excluded from causation, entitlement and management counts pending source verification."
+          : delayModel
+            ? null
+            : "CMeng independently calculated schedule windows and movement. No contractor delay-event model was submitted, so causation remains un-attributed.",
     ),
   );
 
@@ -1811,10 +1822,11 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
         ...delayClaims,
         contractorClaimEvidenceSubmitted:
           delayModel !== null,
+        claimPopulationIntegrity,
         independentScheduleMovementAvailable:
           windows.windowCount > 0,
-        linkedClaimCount:delayModel?linkedClaimCount:null,
-        unlinkedClaimCount:delayModel?unlinkedClaimCount:null,
+        linkedClaimCount:delayModel&&!claimPopulationQuarantined?linkedClaimCount:null,
+        unlinkedClaimCount:delayModel&&!claimPopulationQuarantined?unlinkedClaimCount:null,
         eventLinkageState:
           delayClaims.events.length > 0 &&
           linkedClaimCount > 0
@@ -1826,21 +1838,24 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
         "delay events",
         "claim-event linkage",
       ],
+      !claimPopulationQuarantined&&
       delayClaims.events.length > 0 &&
       linkedClaimCount > 0 &&
       windows.windowCount > 0
         ? "ready"
         : "partial",
-      analyticalDelayModel.claims.length > 0 &&
-      delayClaims.events.length === 0
-        ? analyticalDelayModel.claims.length +
-          " claim records are available, but no confirmed delay events are established. Programme movement cannot be attributed to those claims."
-        : linkedClaimCount === 0 &&
-            analyticalDelayModel.claims.length > 0
-          ? "Claim records are not linked to confirmed delay events, so causation and entitlement remain unassessed."
-          : windows.windowCount === 0
-            ? "Claim and event evidence exists, but a second controlled programme revision is required to independently test movement."
-            : null,
+      claimPopulationQuarantined
+        ? claimPopulationIntegrity!.quarantinedClaimCount+" source claim rows are retained but quarantined because their population matches a generated sequential pattern with no schedule linkage. They do not feed delay attribution, EOT, portfolio or Ask CMeng counts."
+        : analyticalDelayModel.claims.length > 0 &&
+          delayClaims.events.length === 0
+          ? analyticalDelayModel.claims.length +
+            " claim records are available, but no confirmed delay events are established. Programme movement cannot be attributed to those claims."
+          : linkedClaimCount === 0 &&
+              analyticalDelayModel.claims.length > 0
+            ? "Claim records are not linked to confirmed delay events, so causation and entitlement remain unassessed."
+            : windows.windowCount === 0
+              ? "Claim and event evidence exists, but a second controlled programme revision is required to independently test movement."
+              : null,
     ),
   );
 
@@ -1851,7 +1866,7 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
         generatedAt,
         producerVersion:
           versions.notices,
-        populationEstablished:delayModel!==null,
+        populationEstablished:delayModel!==null&&!claimPopulationQuarantined,
       },
     );
   const noticeAssessmentAvailable =
@@ -1868,14 +1883,15 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
         ...noticesClaims,
         contractorNoticeClaimEvidenceSubmitted:
           delayModel !== null,
+        claimPopulationIntegrity,
         noticeAssessmentState:
           noticeAssessable
             ? "assessed"
             : noticeAssessmentAvailable
               ? "partially_assessable"
               : "not_assessable_without_delay_events_and_requirements",
-        linkedClaimCount:delayModel?linkedClaimCount:null,
-        unlinkedClaimCount:delayModel?unlinkedClaimCount:null,
+        linkedClaimCount:delayModel&&!claimPopulationQuarantined?linkedClaimCount:null,
+        unlinkedClaimCount:delayModel&&!claimPopulationQuarantined?unlinkedClaimCount:null,
       },
       [
         "delay events",
@@ -1883,12 +1899,14 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
         "notices",
         "claims",
       ],
-      noticeAssessable
+      noticeAssessable&&!claimPopulationQuarantined
         ? "ready"
         : "partial",
-      noticeAssessable
-        ? null
-        : noticeAssessmentAvailable &&
+      claimPopulationQuarantined
+        ? claimPopulationIntegrity!.quarantinedClaimCount+" source claim rows are quarantined by the integrity gate. Notice compliance is withheld for that population until the source is independently verified."
+        : noticeAssessable
+          ? null
+          : noticeAssessmentAvailable &&
             noticesClaims.noticeRequirementMissingCount !== null && noticesClaims.noticeRequirementMissingCount > 0
           ? noticesClaims.noticeRequirementMissingCount +
             " confirmed delay event(s) do not have an applicable notice requirement. Assessed events remain visible, but the page stays under review."
@@ -3217,16 +3235,18 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
           : null,
         evidenceAvailability: {
           claims:
-            evidenceCoverage(
-              delayModel !==
-                null,
-              evidenceTypes.has(
-                "delay_eot_claims_register",
-              ) ||
-              evidenceCategoryPresent(
-                "risk_claims_procurement",
-              ),
-            ),
+            claimPopulationQuarantined
+              ? "partial"
+              : evidenceCoverage(
+                  delayModel !==
+                    null,
+                  evidenceTypes.has(
+                    "delay_eot_claims_register",
+                  ) ||
+                  evidenceCategoryPresent(
+                    "risk_claims_procurement",
+                  ),
+                ),
           hse:
             evidenceCoverage(
               state.controls
@@ -4524,15 +4544,19 @@ function buildPlanningModuleFast(
       },
       claims: {
         eventCount:
-          state.controls
-            .delayClaims
-            ?.events.length ??
-          null,
+          claimsQuarantined(state.controls.delayClaims)
+            ? null
+            : state.controls
+                .delayClaims
+                ?.events.length ??
+              null,
         claimCount:
-          state.controls
-            .delayClaims
-            ?.claims.length ??
-          null,
+          claimsQuarantined(state.controls.delayClaims)
+            ? null
+            : state.controls
+                .delayClaims
+                ?.claims.length ??
+              null,
         observedProgrammeMovementDays:
           null,
         officialApprovedEotDays:
@@ -5938,6 +5962,8 @@ function buildSpecialistModuleFast(
     const delayModel =
       state.controls
         .delayClaims;
+    const claimPopulationQuarantined=claimsQuarantined(delayModel);
+    const claimPopulationIntegrity=claimsIntegrity(delayModel);
     const analyticalDelayModel:
       DelayClaimsModel =
       delayModel ?? {
@@ -5966,7 +5992,7 @@ function buildSpecialistModuleFast(
             generatedAt,
             producerVersion:
               "notices-claims-fast-v3",
-            populationEstablished:delayModel!==null,
+            populationEstablished:delayModel!==null&&!claimPopulationQuarantined,
           },
         );
       const linkedClaimCount =
@@ -5997,14 +6023,15 @@ function buildSpecialistModuleFast(
           ...notices,
           contractorNoticeClaimEvidenceSubmitted:
             delayModel !== null,
+          claimPopulationIntegrity,
           noticeAssessmentState:
             noticeAssessable
               ? "assessed"
               : noticeAssessmentAvailable
                 ? "partially_assessable"
                 : "not_assessable_without_delay_events_and_requirements",
-          linkedClaimCount:delayModel?linkedClaimCount:null,
-          unlinkedClaimCount:delayModel?unlinkedClaimCount:null,
+          linkedClaimCount:delayModel&&!claimPopulationQuarantined?linkedClaimCount:null,
+          unlinkedClaimCount:delayModel&&!claimPopulationQuarantined?unlinkedClaimCount:null,
         },
         [
           "delay events",
@@ -6012,12 +6039,14 @@ function buildSpecialistModuleFast(
           "notices",
           "claims",
         ],
-        noticeAssessable
+        noticeAssessable&&!claimPopulationQuarantined
           ? "ready"
           : "partial",
-        noticeAssessable
-          ? null
-          : noticeAssessmentAvailable && notices.noticeRequirementMissingCount !== null &&
+        claimPopulationQuarantined
+          ? claimPopulationIntegrity!.quarantinedClaimCount+" source claim rows are quarantined by the integrity gate. Notice compliance is withheld for that population until the source is independently verified."
+          : noticeAssessable
+            ? null
+            : noticeAssessmentAvailable && notices.noticeRequirementMissingCount !== null &&
               notices
                 .noticeRequirementMissingCount >
                 0
@@ -6084,8 +6113,9 @@ function buildSpecialistModuleFast(
             contractorClaimEvidenceSubmitted:
               delayModel !==
               null,
-            linkedClaimCount,
-            unlinkedClaimCount,
+            claimPopulationIntegrity,
+            linkedClaimCount:claimPopulationQuarantined?null:linkedClaimCount,
+            unlinkedClaimCount:claimPopulationQuarantined?null:unlinkedClaimCount,
             eventLinkageState:
               delay.events.length >
                 0 &&
@@ -6100,20 +6130,23 @@ function buildSpecialistModuleFast(
             "delay events",
             "claim-event linkage",
           ],
+          !claimPopulationQuarantined&&
           delay.events.length > 0 &&
           linkedClaimCount > 0
             ? "ready"
             : "partial",
-          analyticalDelayModel
-              .claims.length >
-            0 &&
-          delay.events.length === 0
-            ? analyticalDelayModel
-                .claims.length +
-              " claim records are available, but no confirmed delay events are established. Programme movement cannot be attributed to those claims."
-            : linkedClaimCount === 0
-              ? "Claim records are not linked to confirmed delay events, so causation and entitlement remain unassessed."
-              : null,
+          claimPopulationQuarantined
+            ? claimPopulationIntegrity!.quarantinedClaimCount+" source claim rows are retained but quarantined because their population matches a generated sequential pattern with no schedule linkage. They do not feed delay attribution, EOT, portfolio or Ask CMeng counts."
+            : analyticalDelayModel
+                .claims.length >
+              0 &&
+              delay.events.length === 0
+              ? analyticalDelayModel
+                  .claims.length +
+                " claim records are available, but no confirmed delay events are established. Programme movement cannot be attributed to those claims."
+              : linkedClaimCount === 0
+                ? "Claim records are not linked to confirmed delay events, so causation and entitlement remain unassessed."
+                : null,
         );
       } else {
         const eot =
