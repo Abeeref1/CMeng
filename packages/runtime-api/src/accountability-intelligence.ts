@@ -59,7 +59,7 @@ export function crossDomainAccountability(state:ProjectRuntimeState){
       const activityIds=[...new Set(linkedEvents.flatMap(event=>event.relatedActivityIds))];
       const base={domain:'claim',recordId:claim.claimId,reference:claim.claimId,issue:'Claim is '+claim.state.replace(/_/g,' '),dueDate:null,overdueDays:null,activityIds,
         sourceRefs:claim.evidenceRefs.map(sourceRef),authority:'confirmed_record' as const};
-      const roles=[...new Set(linkedEvents.map(event=>partyRole(event.responsibility,event.responsibilityState)).filter((value):value is string=>!!value))];
+      const roles=[...new Set(linkedEvents.map(event=>partyRole(event.responsibility,event.responsibilityState)).filter((value):value is NonNullable<ReturnType<typeof partyRole>>=>value!==null))];
       roles.forEach(role=>add('party_role',role,base));
     }
     for(const notice of current.notices){
