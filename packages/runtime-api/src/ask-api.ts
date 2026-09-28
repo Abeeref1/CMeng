@@ -25,8 +25,10 @@ function savedViewDefinition(input:any){
   const chartTypes:Record<string,string>={},chartLimits:Record<string,number>={};
   if(rv?.chartTypes&&typeof rv.chartTypes==='object')for(const [key,value] of Object.entries(rv.chartTypes))if(typeof value==='string'&&['bar','line'].includes(value))chartTypes[key]=value;
   if(rv?.chartLimits&&typeof rv.chartLimits==='object')for(const [key,value] of Object.entries(rv.chartLimits))if(typeof value==='number'&&Number.isFinite(value)&&value>0&&value<=5000)chartLimits[key]=value;
-  const reportView=rv?{title:String(rv.title??'').slice(0,240),includeAuthorities:strings(rv.includeAuthorities),sectionOrder:strings(rv.sectionOrder),includeCharts:strings(rv.includeCharts),chartTypes,chartLimits}:null;
-  return {pageContext,reportView};
+  const reportView=rv?{title:String(rv.title??'').slice(0,240),subtitle:typeof rv.subtitle==='string'?rv.subtitle.slice(0,500):null,includeAuthorities:strings(rv.includeAuthorities),sectionOrder:strings(rv.sectionOrder),includeCharts:strings(rv.includeCharts),includeTables:strings(rv.includeTables),includeMetrics:strings(rv.includeMetrics),chartTypes,chartLimits,layout:typeof rv.layout==='string'?rv.layout.slice(0,80):null,detailLevel:typeof rv.detailLevel==='string'?rv.detailLevel.slice(0,80):null}:null;
+  const sort=input?.sort&&typeof input.sort==='object'&&typeof input.sort.field==='string'&&['asc','desc'].includes(input.sort.direction)?{field:input.sort.field.slice(0,160),direction:input.sort.direction as 'asc'|'desc'}:null;
+  const dateRange=input?.dateRange&&typeof input.dateRange==='object'?{from:typeof input.dateRange.from==='string'?input.dateRange.from.slice(0,40):null,to:typeof input.dateRange.to==='string'?input.dateRange.to.slice(0,40):null}:null;
+  return {pageContext,selectedRole:typeof input?.selectedRole==='string'?input.selectedRole.slice(0,100):null,dateRange,grouping:strings(input?.grouping),sort,topN:Number.isSafeInteger(input?.topN)&&input.topN>0&&input.topN<=5000?input.topN:null,metrics:strings(input?.metrics),tables:strings(input?.tables),layout:typeof input?.layout==='string'?input.layout.slice(0,80):null,subtitle:typeof input?.subtitle==='string'?input.subtitle.slice(0,500):null,detailLevel:typeof input?.detailLevel==='string'?input.detailLevel.slice(0,80):null,reportView};
 }
 function reportView(url:URL):AskExportView|undefined{
   const encoded=url.searchParams.get('view');if(!encoded)return undefined;if(encoded.length>16000)throw new AskError(400,'report_view_too_large','The report adjustment is too large.');
