@@ -5084,8 +5084,10 @@ function reportDownloadUrl(format){
   if(managementSurfaceKeysForApi.has(selected)){
     return "/api/projects/"+encodeURIComponent(project())+"/management/"+encodeURIComponent(selected)+"/report."+format;
   }
-  const moduleArea=moduleRegistry.find(m=>m.key===selected)?.area||"schedule";
-  const suffix=selected==="lookahead-schedule"?"?windowDays="+currentLookAheadWindowDays():"";
+  const moduleArea=moduleRegistry.find(m=>m.key===selected)?.area||"schedule",params=new URLSearchParams();
+  const version=currentModuleResult?.data?.projectVersion??overview?.projectVersion;if(Number.isSafeInteger(Number(version)))params.set("projectVersion",String(version));
+  if(selected==="lookahead-schedule")params.set("windowDays",String(currentLookAheadWindowDays()));
+  const suffix=params.toString()?"?"+params.toString():"";
   return "/api/projects/"+encodeURIComponent(project())+"/"+moduleArea+"/modules/"+encodeURIComponent(selected)+"/report."+format+suffix;
 }
 function reportSafeFilename(value){
