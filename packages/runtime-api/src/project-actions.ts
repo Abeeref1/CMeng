@@ -175,6 +175,11 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
   }
   const information:ProjectAction[]=[];
   for(const {group,issues} of groups.values()){
+    // Once a contractual completion date has been explicitly governed, stale
+    // missing-only findings must not recreate the same confirmation action.
+    // A later genuine source conflict/review remains visible and actionable.
+    const confirmedContractDate=state.controls.contractTimeBasis?.contractualCompletionIso&&state.controls.contractTimeBasis.contractualCompletionState==='official';
+    if(group.key==='contract-completion'&&confirmedContractDate&&issues.every(issue=>issue.kind==='missing_information'))continue;
     const refs=[...new Set(issues.flatMap(i=>i.sourceRefs))],pages=[...new Set(issues.flatMap(i=>i.moduleKeys))];
     const resolution=actionResolution(group,issues,context);
     const item:ProjectAction={id:'matter:'+group.key,...resolution,title:group.title,reason:group.note,
