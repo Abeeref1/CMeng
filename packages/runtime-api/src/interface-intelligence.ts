@@ -14,7 +14,7 @@ export interface InterfaceIntelligenceRow {
   givingParty:string|null; receivingParty:string|null; package:string|null; discipline:string|null; system:string|null; location:string|null;
   requiredDeliverable:string|null; requiredDate:string|null; currentStatus:string|null; responsibleParty:string|null; affectedWorkfront:string|null;
   linkedActivity:string|null; linkedRfi:string|null; linkedSubmittal:string|null; linkedRisk:string|null; consequence:string|null; escalation:string|null;
-  sourceRecordIds:string[]; sourceRefs:string[];
+  packageIds:string[]; workfrontIds:string[]; sourceRecordIds:string[]; sourceRefs:string[];
 }
 export function interfaceIntelligence(state:ProjectRuntimeState){
   const source=deliveryRecords(state),records=source.records,governed=records.filter(current),byId=new Map(governed.map(r=>[r.recordId,r]));
@@ -35,7 +35,7 @@ export function interfaceIntelligence(state:ProjectRuntimeState){
       responsibleParty:field(r,'responsible party','owner')||null,affectedWorkfront:field(r,'affected workfront')||null,
       linkedActivity:r.links.activityIds.join('; ')||null,linkedRfi:field(r,'linked rfi')||linkedKinds('design').join('; ')||null,
       linkedSubmittal:field(r,'linked submittal')||linkedKinds('submittal').join('; ')||null,linkedRisk:field(r,'linked risk')||r.links.riskIds.join('; ')||null,
-      consequence:field(r,'consequence')||null,escalation:field(r,'escalation')||null,sourceRecordIds:[r.recordId],sourceRefs:r.receipts.map(x=>x.documentId+':'+x.locator)});
+      consequence:field(r,'consequence')||null,escalation:field(r,'escalation')||null,packageIds:[...r.links.packageIds],workfrontIds:r.links.recordIds.filter(id=>byId.get(id)?.kind==='workfront'),sourceRecordIds:[r.recordId],sourceRefs:r.receipts.map(x=>x.documentId+':'+x.locator)});
   }
   const explicitPairs=new Set(rows.flatMap(r=>r.sourceRecordIds));
   const byActivity=new Map<string,DeliveryRecord[]>();
@@ -55,7 +55,7 @@ export function interfaceIntelligence(state:ProjectRuntimeState){
         linkedActivity:activityId,linkedRfi:null,linkedSubmittal:null,linkedRisk:[...new Set([...a.links.riskIds,...b.links.riskIds])].join('; ')||null,
         consequence:'Two confirmed packages converge on the same programme activity. This identifies an interface to review; it does not establish a blocker or responsibility.',
         escalation:'Confirm the giving/receiving deliverable, owner and required date before treating this interface as a management blocker.',
-        sourceRecordIds:[a.recordId,b.recordId],sourceRefs:[...a.receipts,...b.receipts].map(x=>x.documentId+':'+x.locator)});
+        packageIds:[a.recordId,b.recordId],workfrontIds:workfront?[workfront.recordId]:[],sourceRecordIds:[a.recordId,b.recordId],sourceRefs:[...a.receipts,...b.receipts].map(x=>x.documentId+':'+x.locator)});
     }
   }
   const confirmed=rows.filter(r=>r.authority==='confirmed'),candidates=rows.filter(r=>r.authority==='candidate'),open=confirmed.filter(r=>!['closed'].includes(r.state));
