@@ -39,11 +39,11 @@ test('Delivery consumes the adopted programme; pending updates and first-upload 
 
 test('BOQ-only projects expose scope, procurement, long-lead, material and risk intelligence before specialist registers exist',async t=>{
  const f=await fixture(t);
- await f.upload('BOQ.csv','Item No,Description,Unit,Quantity,Rate,Amount,Currency\\n1,Tower A Zone 2 Level 05 Electrical Switchgear,No.,2,1000000,2000000,AED\\n2,Tower A Zone 2 Level 05 Fire Alarm Panel,No.,4,10000,40000,AED');
+ await f.upload('BOQ.csv','Item No,Description,Unit,Quantity,Rate,Amount,Currency\n1,Tower A Zone 2 Level 05 Electrical Switchgear,No.,2,1000000,2000000,AED\n2,Tower A Zone 2 Level 05 Fire Alarm Panel,No.,4,10000,40000,AED');
  const keys=['procurement-packages','long-lead','material-tracking','construction-discipline','construction-locations','delivery-risks'];
  for(const key of keys){
   const r=deliveryModule(f.state,key),data=r.data as any;
-  assert.ok(data.rows.length>0,key+' should answer from the useful Project information already available: '+JSON.stringify({reason:r.reason,boqDerivedCandidate:data.boqDerivedCandidate,candidateBasis:data.candidateBasis,boqIntelligence:data.boqIntelligence,documents:deliveryRecords(f.state).documents,boqSource:resolveBoqSource(f.state,'').selection}));
+  assert.ok(data.rows.length>0,key+' should answer from the useful Project information already available');
   assert.notEqual(r.status,'blocked',key+' must not become an empty blocked page while usable scope intelligence exists');
   assert.equal(r.status,'partial',key+' incomplete register confirmation must remain visible and must not become falsely ready');
  }
