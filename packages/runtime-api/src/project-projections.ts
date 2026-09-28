@@ -7191,6 +7191,16 @@ export function moduleForProject(
   return resolveProjectModule(state, key);
 }
 
+export function lookAheadForProjectWindow(projectId:string,windowDays:number):ModuleRuntimeResult {
+  const allowed=new Set([14,28,42,56,84]);
+  if(!allowed.has(windowDays))return blocked('lookahead-schedule','Choose a 2, 4, 6, 8 or 12-week look-ahead window.',['window']);
+  const state=runtimeProjects.get(projectId);if(!state)return blocked('lookahead-schedule','Project has not been created.',['project']);
+  const base=moduleForProject(projectId,'lookahead-schedule');if(base.status==='blocked')return base;
+  const scoped=reportingState(state),current=projectControlSchedule(scoped);if(!current)return base;
+  const projection=buildLookAheadProjection(current.revision.model,{generatedAt:new Date().toISOString(),producerVersion:'lookahead-window-v1',readinessEvidence:scoped.controls.readinessEvidence,windowDays});
+  return {...base,data:{...((base.data&&typeof base.data==='object')?base.data:{}),...projection}};
+}
+
 const managementModuleKeys = ["master-dashboard", "command-center", "master-control-programme", "source-quality"];
 
 export function directorForProject(
@@ -7828,10 +7838,11 @@ export function managementSurfacesForProject(
   const completion=(resolvedModules.get('independent-forecast')?.data as any)?.completionPosition??null;
   const diagnosis=(resolvedModules.get('pmo-analysis')?.data as any)?.projectDiagnosis??null;
   const mp6=profiling?performance.now():0;
+  const deliveryManagement=deliveryDashboard(state);
   const result = { ...surfaces,
     sourceQuality: {...sourceQualityPosition(resolvedModules,issueAssessment,state.evidenceDocuments,current?.revision.model.dataDateIso??null),registerDateReview:registerDateReview(state)},
-    masterDashboard: {projectDiagnosis:diagnosis,completionPosition:completion,delivery:deliveryDashboard(state),scheduleExceptions,deliveryExceptions,...managementReportingData(state, surfaces.masterDashboard, resolvedModules),decisions:surfaces.commandCenter.decisions,trend:(resolvedModules.get("forecast-history")?.data as any)??null,issueAssessment,operationalReporting:operationalReporting(state),sourceInterpretation:director?.sourceInterpretation},
-    commandCenter: {projectDiagnosis:diagnosis,completionPosition:completion,scheduleExceptions,deliveryExceptions,...managementReportingData(state, surfaces.commandCenter, resolvedModules),issueAssessment,operationalReporting:operationalReporting(state),sourceInterpretation:director?.sourceInterpretation},
+    masterDashboard: {projectDiagnosis:diagnosis,completionPosition:completion,delivery:deliveryManagement,scheduleExceptions,deliveryExceptions,...managementReportingData(state, surfaces.masterDashboard, resolvedModules),decisions:surfaces.commandCenter.decisions,trend:(resolvedModules.get("forecast-history")?.data as any)??null,issueAssessment,operationalReporting:operationalReporting(state),sourceInterpretation:director?.sourceInterpretation},
+    commandCenter: {projectDiagnosis:diagnosis,completionPosition:completion,delivery:deliveryManagement,scheduleExceptions,deliveryExceptions,...managementReportingData(state, surfaces.commandCenter, resolvedModules),issueAssessment,operationalReporting:operationalReporting(state),sourceInterpretation:director?.sourceInterpretation},
     masterControlProgramme: {...managementReportingData(state, surfaces.masterControlProgramme, resolvedModules),issueAssessment,sourceInterpretation:director?.sourceInterpretation} };
   const allPages=new Map(resolvedModules);
   allPages.set('master-dashboard',{key:'master-dashboard',status:'partial',reason:null,dependencies:[],data:result.masterDashboard});

@@ -96,8 +96,19 @@ export function buildBoqFeasibility(input:{schedule:CanonicalScheduleModel;quant
     }
     return {activityId,itemCount:items.length,requiredLaborHours,availableWorkingHours,requiredAveragePeople,submittedPeople,manpowerGap:requiredAveragePeople!==null&&submittedPeople!==null?rounded(submittedPeople-requiredAveragePeople):null,submittedFinishIso:first.submittedFinishIso,productionFinishIso,scheduleState,reason,sourceRefs:[...new Set(items.flatMap(r=>r.sourceRefs))]};
   });
+  const recoveryScenarios=activityChecks.flatMap(check=>{
+    if(check.scheduleState!=='exceeds'||!positive(check.submittedPeople)||!positive(check.requiredAveragePeople)||!check.productionFinishIso||!check.submittedFinishIso)return [];
+    const additionalAveragePeople=rounded(Math.max(0,check.requiredAveragePeople-check.submittedPeople));
+    const localCalendarDaysRecovered=rounded(Math.max(0,(parseScheduleTime(check.productionFinishIso)-parseScheduleTime(check.submittedFinishIso))/86400000));
+    if(!positive(additionalAveragePeople)||!positive(localCalendarDaysRecovered))return [];
+    return [{scenarioId:'crew-to-submitted-finish:'+check.activityId,activityId:check.activityId,type:'resource_uplift_to_submitted_finish' as const,
+      currentAveragePeople:check.submittedPeople,requiredAveragePeople:check.requiredAveragePeople,additionalAveragePeople,
+      currentQuantityDrivenFinishIso:check.productionFinishIso,scenarioFinishIso:check.submittedFinishIso,localCalendarDaysRecovered,
+      incrementalCost:null,costBasis:'Not established: a compatible labor cost rate is not available in this calculation.',
+      basis:'Scenario only: hold the supported labor-hours-per-unit, remaining quantity, activity calendar and work sequence constant; increase average activity labor capacity to the calculated requirement. This local activity recovery does not recalculate project completion or prove that labor can be sourced without affecting other work.'}];
+  });
   const unresolvedCount=quantities?rows.filter(r=>r.manpowerState==='unresolved').length:null;
   const assessed=activityChecks.filter(r=>r.scheduleState!=='unresolved'),insufficient=assessed.filter(r=>r.scheduleState==='exceeds').length;
   const overallStatus=insufficient?'Challenge required':!assessed.length?'Unable to assess':unresolvedCount||activityChecks.some(r=>r.scheduleState==='unresolved')?'Further evidence required':'No material contradiction found';
-  return {method:'boq_quantity_labor_productivity_working_calendar' as const,state:rows.length&&!unresolvedCount?'calculated' as const:'unresolved' as const,overallStatus,reason:!rows.length?'Readable BOQ quantities are needed for the manpower calculation.':unresolvedCount?'Manpower cannot yet be calculated for '+unresolvedCount+' items because schedule links, progress, productivity or working-time inputs are missing. The supplied BOQ figures remain available.':'Item requirements are calculated from the stated production basis. This does not prove whole-programme feasibility.',unresolvedCount,requiredLaborHours:rows.length&&!unresolvedCount?rounded(rows.reduce((sum,r)=>sum+r.requiredLaborHours!,0)):null,rows,activityChecks};
+  return {method:'boq_quantity_labor_productivity_working_calendar' as const,state:rows.length&&!unresolvedCount?'calculated' as const:'unresolved' as const,overallStatus,reason:!rows.length?'Readable BOQ quantities are needed for the manpower calculation.':unresolvedCount?'Manpower cannot yet be calculated for '+unresolvedCount+' items because schedule links, progress, productivity or working-time inputs are missing. The supplied BOQ figures remain available.':'Item requirements are calculated from the stated production basis. This does not prove whole-programme feasibility.',unresolvedCount,requiredLaborHours:rows.length&&!unresolvedCount?rounded(rows.reduce((sum,r)=>sum+r.requiredLaborHours!,0)):null,rows,activityChecks,recoveryScenarios};
 }

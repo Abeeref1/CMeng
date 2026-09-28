@@ -781,9 +781,13 @@ function renderDeliveryChallenge(data,reason,status){
     table(['Activity','Submitted finish','Quantity-driven finish','Assessment','Reason'],activities.slice(0,100).map(r=>[r.activityId,r.submittedFinishIso?planningShortDate(r.submittedFinishIso):'Unresolved',r.productionFinishIso?planningShortDate(r.productionFinishIso):'Unresolved',r.scheduleState==='exceeds'?'Exceeds planned period':r.scheduleState==='fits'?'Fits planned period':'Unresolved',r.reason]),'Unresolved: productivity and activity-linked resource capacity are required.'));
   const findings=activities.slice(0,100).map(r=>[r.activityId,r.submittedPeople==null?'Unresolved':fmt(r.submittedPeople)+' people',r.requiredAveragePeople==null?'Unresolved':fmt(r.requiredAveragePeople)+' required average people',r.manpowerGap==null?'Unresolved':fmt(r.manpowerGap)+' people',r.scheduleState==='exceeds'?'Quantity-driven finish exceeds the submitted activity finish':r.scheduleState==='fits'?'No contradiction in this activity calculation':'Unresolved: '+r.reason,r.scheduleState==='exceeds'?'Revise activity resources, productivity support or duration and assess the programme effect':r.scheduleState==='fits'?'Confirm trade availability, shared resources and sequencing':r.reason]);
   const combined=panel('3. Combined delivery challenge','Submitted → Independent → Gap → Consequence → Action. Whole-programme feasibility also depends on sequencing and resources shared between activities.',table(['Activity','Submitted','Independent','Gap','Consequence','Action'],findings,'Unable to assess: the evidence needed for an independent production comparison is not established.'));
+  const recoveryRows=(f.recoveryScenarios||[]).map(r=>[r.activityId,value(r.currentAveragePeople)+' people',value(r.requiredAveragePeople)+' people','+'+value(r.additionalAveragePeople)+' average people',planningShortDate(r.currentQuantityDrivenFinishIso),planningShortDate(r.scenarioFinishIso),value(r.localCalendarDaysRecovered)+' calendar days',r.incrementalCost===null?'Cost not established':value(r.incrementalCost),r.basis]);
+  const recovery=panel('4. Recovery & acceleration scenarios','Scenario calculations use only established remaining quantity, productivity, working calendar and activity-linked labor capacity. They are options for evaluation, not an approved recovery programme.',
+    recoveryRows.length?table(['Activity','Current crew basis','Crew to meet submitted finish','Additional average people','Current quantity-driven finish','Scenario finish','Local days recovered','Incremental cost','Assumption'],recoveryRows,'No evidence-based recovery scenario is available.'):
+    '<div class="notice info"><b>No defensible recovery scenario can be calculated yet.</b><p>CMeng will not invent crew multipliers or acceleration rates. A scenario appears when remaining quantities, supported productivity, working time and current activity-linked crew capacity establish the gap.</p></div>');
   const calculations=panel('Quantity and productivity calculations','Each BOQ item retains its quantity unit and evidence basis. Inferred mappings, missing actual quantities and missing productivity are unresolved.',table(['BOQ item','Activity','Remaining quantity','Unit','Labor hours per unit','Rate basis','Required labor hours','Reason'],(f.rows||[]).slice(0,100).map(r=>[r.quantityItemId,r.activityId||'Unresolved',value(r.remainingQuantity),r.unit||'Unresolved',value(r.laborHoursPerUnit),humanizeKey(r.productivityBasis),value(r.requiredLaborHours),r.reason]),f.reason));
-  const scope='<p>Showing up to 100 activity and BOQ rows in each table. All '+fmt(activities.length)+' activity checks and '+fmt((f.rows||[]).length)+' BOQ item records remain in the Excel and data downloads.</p>';
-  const html='<section class="planning-view contract-challenge-view"><div class="notice info"><b>Manpower and duration check: '+escapeHtml(f.overallStatus)+'</b><p>'+escapeHtml(f.reason)+'</p><p>This tests delivery assumptions. It does not interpret legal clauses, establish causation or EOT, or create a replacement programme.</p></div>'+manpower+programme+combined+'<details class="management-detail"><summary>Calculation inputs and supporting detail</summary>'+scope+calculations+renderBasisReviews({...data,contractValueBasisReview:null},'challenge-contract')+'</details></section>';
+  const scope='<p>Showing up to 100 activity and BOQ rows in each table. All '+fmt(activities.length)+' activity checks, '+fmt((f.recoveryScenarios||[]).length)+' recovery scenarios and '+fmt((f.rows||[]).length)+' BOQ item records remain in the Excel and data downloads.</p>';
+  const html='<section class="planning-view contract-challenge-view"><div class="notice info"><b>Manpower and duration check: '+escapeHtml(f.overallStatus)+'</b><p>'+escapeHtml(f.reason)+'</p><p>This tests delivery assumptions. It does not interpret legal clauses, establish causation or EOT, or create a replacement programme.</p></div>'+manpower+programme+combined+recovery+'<details class="management-detail"><summary>Calculation inputs and supporting detail</summary>'+scope+calculations+renderBasisReviews({...data,contractValueBasisReview:null},'challenge-contract')+'</details></section>';
   el('moduleContent').innerHTML=renderModuleBasis(data)+renderRoleContent('challenge-contract',data,html,'',true)+'<details class="management-detail supplied-boq-support"><summary>Supplied BOQ evidence · Source quantities and rates used by the challenge</summary>'+renderSuppliedBoq(data.suppliedBoq)+'</details>'+experienceReviewSummary(data.issueAssessment)+renderModuleReadiness(data,reason);
   return true;
 }
@@ -1239,7 +1243,8 @@ function renderLookAheadVisual(data){
   }).join("");
   const readiness=planningStatusBand([["Ready",p.readyCount,"success"],["Gaps without known blocker",p.conditionalCount,"warning"],["Known blocker",p.blockedCount,"danger"]]);
   const blockers=planningLookAheadBlockers(p.blockerTypes);
-  return '<section class="planning-view lookahead-view">'+kpis+coverageHtml+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>6-week execution view</h4><p>Showing the 36 highest-priority activities from '+escapeHtml(fmt(inWindow))+' activities. The label at right states the actual blocker or whether evidence is still missing.</p></div></div><div class="planning-panel-body">'+timeline+'</div></section><div class="planning-primary-grid"><section class="planning-panel"><div class="planning-panel-head"><div><h4>Readiness position</h4><p>A known blocker is different from missing readiness evidence.</p></div></div><div class="planning-panel-body">'+readiness+'<div class="coverage-line"><span>Date coverage</span><b>'+escapeHtml(p.currentDateCoveragePercent===null?"—":fmt(p.currentDateCoveragePercent)+"%")+'</b></div></div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Why work is blocked</h4><p>Explicit blocker occurrences. Predecessor checks assess relationship anchors, working-calendar lag and submitted date fit; unfinished work alone is not a blocker.</p></div></div><div class="planning-panel-body">'+blockers+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Readiness matrix</h4><p>All activities in the window. Search an activity, deliverable or package. Open a cell to read its source date and reason.</p></div></div><div class="planning-panel-body"><label class="register-search">Find a readiness record <input type="search" data-register-filter placeholder="Activity, deliverable, package or reason" aria-label="Filter readiness records"></label><span class="register-search-count" aria-live="polite">'+fmt(watch.length)+' activities</span><div class="table-wrap readiness-table"><table><thead><tr><th>Activity</th><th>Start</th><th>Finish</th><th>Overall</th>'+dimensions.map(key=>'<th>'+escapeHtml(labels[key])+'</th>').join("")+'</tr></thead><tbody>'+rows+'</tbody></table></div></div></section></section>';
+  const weeks=Math.max(2,Math.round((Number(p.windowDays)||42)/7)),horizon='<div class="view-state-bar"><strong>Look-ahead horizon</strong>'+[2,4,6,8,12].map(w=>'<button type="button" class="btn small '+(w===weeks?'active':'')+'" onclick="setLookAheadWeeks('+w+')">'+w+' weeks</button>').join('')+'<span>'+planningShortDate(p.dataDateIso)+' → '+planningShortDate(p.windowEndIso)+'</span></div>';
+  return '<section class="planning-view lookahead-view">'+horizon+kpis+coverageHtml+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>'+weeks+'-week execution view</h4><p>Showing the 36 highest-priority activities from '+escapeHtml(fmt(inWindow))+' activities. The full window population remains in the readiness matrix and report data.</p></div></div><div class="planning-panel-body">'+timeline+'</div></section><div class="planning-primary-grid"><section class="planning-panel"><div class="planning-panel-head"><div><h4>Readiness position</h4><p>A known blocker is different from missing readiness evidence.</p></div></div><div class="planning-panel-body">'+readiness+'<div class="coverage-line"><span>Date coverage</span><b>'+escapeHtml(p.currentDateCoveragePercent===null?"—":fmt(p.currentDateCoveragePercent)+"%")+'</b></div></div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Why work is blocked</h4><p>Explicit blocker occurrences. Predecessor checks assess relationship anchors, working-calendar lag and submitted date fit; unfinished work alone is not a blocker.</p></div></div><div class="planning-panel-body">'+blockers+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Readiness matrix</h4><p>All activities in the window. Search an activity, deliverable or package. Open a cell to read its source date and reason.</p></div></div><div class="planning-panel-body"><label class="register-search">Find a readiness record <input type="search" data-register-filter placeholder="Activity, deliverable, package or reason" aria-label="Filter readiness records"></label><span class="register-search-count" aria-live="polite">'+fmt(watch.length)+' activities</span><div class="table-wrap readiness-table"><table><thead><tr><th>Activity</th><th>Start</th><th>Finish</th><th>Overall</th>'+dimensions.map(key=>'<th>'+escapeHtml(labels[key])+'</th>').join("")+'</tr></thead><tbody>'+rows+'</tbody></table></div></div></section></section>';
 }
 function renderMonteCarloRiskVisual(data){
   const p=projectionFor(data,"schedule_risk_monte_carlo");
@@ -1718,8 +1723,8 @@ function planningLookAheadTimeline(p){
   const start=planningDateMs(p.dataDateIso),end=planningDateMs(p.windowEndIso);
   if(start===null||end===null||end<=start)return '<div class="empty-visual">The look-ahead date window is not confirmed.</div>';
   const x=ms=>Math.max(0,Math.min(100,((ms-start)/(end-start))*100));
-  const weekMarks=[];
-  for(let i=0;i<=6;i++)weekMarks.push('<span style="left:'+((i/6)*100).toFixed(2)+'%">'+(i===0?"Data date":"W"+i)+'</span>');
+  const weekMarks=[],weeks=Math.max(2,Math.round((Number(p.windowDays)||42)/7));
+  for(let i=0;i<=weeks;i++)weekMarks.push('<span style="left:'+((i/weeks)*100).toFixed(2)+'%">'+(i===0?"Data date":"W"+i)+'</span>');
   const body=rows.map(r=>{
     const s=planningDateMs(r.startIso),e=planningDateMs(r.finishIso);
     if(s===null||e===null)return "";
@@ -2285,11 +2290,10 @@ function renderProgressReportVisual(data){
   const progressVarianceLabel="Physical progress vs baseline";
   const sourceProgressEstablished=typeof contractor?.valuePercent==="number"||typeof certified?.valuePercent==="number"||(physical?.authority==="source_evidence"&&typeof physical?.valuePercent==="number");
   const physicalLabel="Physical progress";
+  const currentFacts=[[physicalLabel,physical,"measured physical progress"],["Contractor reported",contractor,"contractor source basis"],["Certified progress",certified,"certified source basis"],["Schedule snapshot · current scope",snapshot,"duration-weighted source percent complete"],["Current programme plan · current scope",current,"contains actual dates; not an independent comparator"]].filter(x=>typeof x[1]?.valuePercent==="number");
   const kpis=planningKpis([
-    ["Baseline plan · original scope",baseline?.valuePercent==null?"Unresolved":percent2(baseline.valuePercent)+"%","baseline activity population"],
-    ["Current plan · current scope",current?.valuePercent==null?"—":percent2(current.valuePercent)+"%","contains actual dates; not an independent comparator"],
-    ["Snapshot · current scope",snapshot?.valuePercent==null?"—":percent2(snapshot.valuePercent)+"%","duration-weighted source percent complete"],
-    ...[[physicalLabel,physical],["Contractor reported",contractor],["Certified progress",certified]].filter(x=>typeof x[1]?.valuePercent==="number").map(x=>[x[0],percent2(x[1].valuePercent)+"%","separate source basis"])
+    ...currentFacts.map(x=>[x[0],percent2(x[1].valuePercent)+"%",x[2]]),
+    ["Baseline plan · original scope",baseline?.valuePercent==null?"Not established":percent2(baseline.valuePercent)+"%","comparison basis only"]
   ]);
   const warning=!sourceProgressEstablished?'<div class="notice warn"><b>The programme contains a percentage-complete snapshot, but certified/contractor physical progress is not confirmed.</b> CMeng keeps the schedule snapshot separate from certified or independently sourced physical progress.</div>':'';
   const status=planningStatusBand([
@@ -2319,7 +2323,8 @@ function renderProgressReportVisual(data){
       {label:"Unknown",value:p.progress?.unknownStatusCount||0,tone:"warning"}
     ],"Activities"))+
   '</div>';
-  return '<section class="planning-view progress-position-view">'+renderProgressScope(p.scopeComparison)+kpis+warning+visualOverview+'<details class="source-scope"><summary>All progress bases and schedule pressure</summary><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Progress bases</h4><p>Baseline plan, current re-phased plan, activity percentage-complete snapshot, contractor-reported and certified values remain separate.</p></div></div><div class="planning-panel-body">'+progressBasisBars(p.progressBases)+'</div></section><div class="planning-primary-grid"><section class="planning-panel"><div class="planning-panel-head"><div><h4>Activity status</h4><p>Current programme population.</p></div></div><div class="planning-panel-body">'+status+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Schedule pressure</h4><p>Critical and near-critical are disjoint classes. Negative float is an Also included in the blocked count, not an additional population.</p></div></div><div class="planning-panel-body">'+pressure+'</div></section></div></details><section class="planning-panel"><div class="planning-panel-head"><div><h4>Near-term delivery</h4><p>Milestones and look-ahead indicators tied to the current data date.</p></div></div><div class="planning-panel-body">'+planningKpis([
+  const comparison='<details class="source-scope"><summary>Baseline and comparable-scope analysis</summary>'+renderProgressScope(p.scopeComparison)+'</details>';
+  return '<section class="planning-view progress-position-view">'+kpis+warning+visualOverview+comparison+'<details class="source-scope"><summary>All progress bases and schedule pressure</summary><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Progress bases</h4><p>Baseline plan, current re-phased plan, activity percentage-complete snapshot, contractor-reported and certified values remain separate.</p></div></div><div class="planning-panel-body">'+progressBasisBars(p.progressBases)+'</div></section><div class="planning-primary-grid"><section class="planning-panel"><div class="planning-panel-head"><div><h4>Activity status</h4><p>Current programme population.</p></div></div><div class="planning-panel-body">'+status+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Schedule pressure</h4><p>Critical and near-critical are disjoint classes. Negative float is a separate overlapping indicator, not an additional activity population.</p></div></div><div class="planning-panel-body">'+pressure+'</div></section></div></details><section class="planning-panel"><div class="planning-panel-head"><div><h4>Near-term delivery</h4><p>Milestones and look-ahead indicators tied to the current data date.</p></div></div><div class="planning-panel-body">'+planningKpis([
     ["Milestones",p.milestones?.milestoneCount,"total"],
     ["Open milestones",p.milestones?.openCount,"open"],
     ["Overdue milestones",p.milestones?.lateOpenCount,"past data date",p.milestones?.lateOpenCount?"danger":""],
@@ -3923,6 +3928,11 @@ function renderOperationalReporting(report){
     ["Risks open at DD",report.counts.openRiskCount??"Unresolved","dated risk lifecycle or status snapshot"]
   ])+'<div class="table-wrap"><table><thead><tr><th>Register</th><th>Programme records</th><th>Known by DD</th><th>Future</th><th>Date missing</th><th>Status unresolved at DD</th><th>Evidence state</th></tr></thead><tbody>'+rows+'</tbody></table></div>'+(report.risk.undatedRecordCount?'<p>Undated risk snapshot, excluded from current totals: '+escapeHtml(Object.entries(riskStates).map(([key,n])=>key+' '+fmt(n)).join(' · '))+'. A due date does not establish when a risk was raised or its historical status.</p>':'')+'</div></section>';
 }
+function renderManagementAccountability(delivery){
+  const rows=delivery?.accountabilityRows||[];
+  if(!rows.length)return '<div class="notice info">No cross-domain owner concentration is established from the current linked records.</div>';
+  return '<div class="table-wrap"><table><thead><tr><th>Responsible party</th><th>Open</th><th>Overdue</th><th>Activities affected</th><th>Procurement</th><th>Interfaces</th><th>Design / RFI</th><th>Submittals</th><th>Quality</th><th>Permits</th><th>Snags</th></tr></thead><tbody>'+rows.map(r=>'<tr><td><b>'+escapeHtml(r.owner)+'</b></td><td>'+fmt(r.openItemCount)+'</td><td>'+fmt(r.overdueItemCount)+'</td><td>'+fmt(r.affectedActivityCount)+'</td><td>'+fmt(r.procurementCount)+'</td><td>'+fmt(r.interfaceCount)+'</td><td>'+fmt(r.rfiDesignCount)+'</td><td>'+fmt(r.submittalCount)+'</td><td>'+fmt(r.qualityCount)+'</td><td>'+fmt(r.permitCount)+'</td><td>'+fmt(r.snagCount)+'</td></tr>').join('')+'</tbody></table></div><p class="muted">Counts are grouped from the same current Delivery records. A record is counted under its responsible party once; open and overdue are not separate source records.</p>';
+}
 function renderManagementControlVisual(key,data){
   if(key==="source-quality")return renderSourceQuality(data);
   if(key==="master-dashboard"){
@@ -3982,6 +3992,7 @@ function renderManagementControlVisual(key,data){
       experienceSourceContext(key,data)+
       ((data.sourceInterpretation?.actions||[]).length?"":managementPanel("Action Suggestions — Awaiting Assignment","Suggested follow-up only. Assignment, due dates and closure tracking are not yet established in CMeng.",decisionBody,true))+
       managementPanel("Management Priorities","Current blockers and escalations from confirmed specialist positions, ordered before supporting KPIs.",renderManagementAlerts(data.alerts||[]))+
+      managementPanel("Who is holding the Project","Open and overdue obligations grouped across procurement, interfaces, design/RFI, submittals, quality, permits and snags.",renderManagementAccountability(data.delivery))+
       experienceDisclosure("NCR, RFI and risk records",renderOperationalReporting(data.operationalReporting||ctrl?.reporting),"Quality, RFI and risk records")+
       managementPanel("Current Programme Position","Supporting completion and programme facts used to understand the actions above.",renderManagementMetricGrid(data.programmePosition||[]))+
       managementPanel("Information to confirm","Confirm missing information, outdated records and conflicting values.",renderManagementEvidenceGaps(data.evidenceGaps||[]))+
@@ -4234,6 +4245,9 @@ function renderModuleResultBody(result){
   if(result.key==="activity-analytics"&&typeof restoreActivityFilters==="function")restoreActivityFilters();
 
 }
+function lookAheadWindowStorageKey(){return "cmeng-lookahead-window:"+project();}
+function currentLookAheadWindowDays(){let days=42;try{days=Number(localStorage.getItem(lookAheadWindowStorageKey())||42);}catch{}return [14,28,42,56,84].includes(days)?days:42;}
+function setLookAheadWeeks(weeks){const days=Number(weeks)*7;if(![14,28,42,56,84].includes(days))return;try{localStorage.setItem(lookAheadWindowStorageKey(),String(days));}catch{}if(selected==="lookahead-schedule")loadModule(selected);}
 let moduleRequestSeq=0;
 const managementSurfaceKeysForApi=new Set(["master-dashboard","command-center","master-control-programme","source-quality"]);
 const commercialModuleKeysForApi=new Set([
@@ -4271,7 +4285,8 @@ async function loadModule(key){
       result=await api("/api/projects/"+encodeURIComponent(project())+"/management/"+encodeURIComponent(apiKeys[key]||key));
     }else{
       const moduleArea=moduleRegistry.find(m=>m.key===key)?.area||"schedule";
-      result=await api("/api/projects/"+encodeURIComponent(project())+"/"+moduleArea+"/modules/"+encodeURIComponent(apiKeys[key]||key));
+      const suffix=key==="lookahead-schedule"?"?windowDays="+currentLookAheadWindowDays():"";
+      result=await api("/api/projects/"+encodeURIComponent(project())+"/"+moduleArea+"/modules/"+encodeURIComponent(apiKeys[key]||key)+suffix);
     }
     if(!current())return;
     renderModuleResult(result);
@@ -5067,10 +5082,14 @@ document.addEventListener("click",event=>{
 });
 function reportDownloadUrl(format){
   if(managementSurfaceKeysForApi.has(selected)){
-    return "/api/projects/"+encodeURIComponent(project())+"/management/"+encodeURIComponent(selected)+"/report."+format;
+    const params=new URLSearchParams(),version=currentModuleResult?.data?.projectVersion??overview?.projectVersion;if(Number.isSafeInteger(Number(version)))params.set("projectVersion",String(version));
+    return "/api/projects/"+encodeURIComponent(project())+"/management/"+encodeURIComponent(selected)+"/report."+format+(params.toString()?"?"+params.toString():"");
   }
-  const moduleArea=moduleRegistry.find(m=>m.key===selected)?.area||"schedule";
-  return "/api/projects/"+encodeURIComponent(project())+"/"+moduleArea+"/modules/"+encodeURIComponent(selected)+"/report."+format;
+  const moduleArea=moduleRegistry.find(m=>m.key===selected)?.area||"schedule",params=new URLSearchParams();
+  const version=currentModuleResult?.data?.projectVersion??overview?.projectVersion;if(Number.isSafeInteger(Number(version)))params.set("projectVersion",String(version));
+  if(selected==="lookahead-schedule")params.set("windowDays",String(currentLookAheadWindowDays()));
+  const suffix=params.toString()?"?"+params.toString():"";
+  return "/api/projects/"+encodeURIComponent(project())+"/"+moduleArea+"/modules/"+encodeURIComponent(selected)+"/report."+format+suffix;
 }
 function reportSafeFilename(value){
   return String(value||"report").replace(/[^A-Za-z0-9._-]+/g,"_").replace(/^_+|_+$/g,"").slice(0,120)||"report";

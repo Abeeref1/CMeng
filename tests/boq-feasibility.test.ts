@@ -29,8 +29,9 @@ test('BOQ and calendar establish required manpower, then supplied capacity tests
  const result=buildBoqFeasibility(fixture()),row=result.rows[0]!,activity=result.activityChecks[0]!;
  assert.equal(row.remainingQuantity,80);assert.equal(row.requiredLaborHours,160);assert.equal(row.availableWorkingHours,16);assert.equal(row.requiredAveragePeople,10);
  assert.equal(activity.submittedPeople,5);assert.equal(activity.manpowerGap,-5);assert.equal(activity.productionFinishIso,'2031-07-04T16:00:00.000Z');assert.equal(activity.scheduleState,'exceeds');assert.equal(result.overallStatus,'Challenge required');
+ assert.equal(result.recoveryScenarios.length,1);assert.equal(result.recoveryScenarios[0]!.activityId,'A');assert.equal(result.recoveryScenarios[0]!.currentAveragePeople,5);assert.equal(result.recoveryScenarios[0]!.requiredAveragePeople,10);assert.equal(result.recoveryScenarios[0]!.additionalAveragePeople,5);assert.equal(result.recoveryScenarios[0]!.scenarioFinishIso,'2031-07-02T16:00:00Z');assert.equal(result.recoveryScenarios[0]!.localCalendarDaysRecovered,2);assert.equal(result.recoveryScenarios[0]!.incrementalCost,null);
  const second=fixture();second.resources.assignments[0].remainingUnitsPerHour=10;
- const supported=buildBoqFeasibility(second);assert.equal(supported.activityChecks[0]!.scheduleState,'fits');assert.equal(supported.overallStatus,'No material contradiction found');
+ const supported=buildBoqFeasibility(second);assert.equal(supported.activityChecks[0]!.scheduleState,'fits');assert.equal(supported.overallStatus,'No material contradiction found');assert.equal(supported.recoveryScenarios.length,0);
 });
 test('measured productivity uses the same mapped scope and reporting date, not remaining budget hours',()=>{
  const input=fixture();input.rates=[];input.resources.assignments[0].remainingUnits=999999;

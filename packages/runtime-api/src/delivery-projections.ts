@@ -198,6 +198,20 @@ function buildDelivery(state:ProjectRuntimeState){
   const overdue=currentStatus==='not_established'||!dataDateIso||!due?null:!['accepted','closed','source_approved','passed'].includes(currentStatus)&&due<dataDateIso;
   return {recordId:r.recordId,reference:r.reference,kind:r.kind,description:r.description,discipline:field(r,'discipline')||null,owner:field(r,'owner','responsible party')||null,sourceStatus:rawStatus||null,currentStatus,scope,raisedDate:raised,dueDate:due,actualDate:actual,approvalDate:approval,rectifiedDate:rectified,verificationDate:verified,closedDate:closed,acceptedDate:accepted,verifiedEvidence,verificationRequired,overdue,links:r.links,fields:r.fields,receipts:r.receipts};
  });
+ const accountableKinds=new Set<DeliveryKind>(['package','submittal','design','interface','quality','permit','snag','handover']);
+ const accountabilityMap=new Map<string,{owner:string;recordIds:string[];activityIds:Set<string>;packageIds:Set<string>;openCount:number;overdueCount:number;byKind:Record<string,number>}>();
+ for(const row of registerRows){
+  if(!accountableKinds.has(row.kind)||row.scope!=='current'||!row.owner)continue;
+  const key=row.owner.trim().toLowerCase(),group=accountabilityMap.get(key)??{owner:row.owner,recordIds:[],activityIds:new Set<string>(),packageIds:new Set<string>(),openCount:0,overdueCount:0,byKind:{}};
+  group.recordIds.push(row.recordId);row.links.activityIds.forEach(id=>group.activityIds.add(id));row.links.packageIds.forEach(id=>group.packageIds.add(id));
+  if(!['closed','accepted','passed','source_approved'].includes(row.currentStatus))group.openCount++;
+  if(row.overdue===true)group.overdueCount++;
+  group.byKind[row.kind]=(group.byKind[row.kind]??0)+1;accountabilityMap.set(key,group);
+ }
+ const accountabilityRows=[...accountabilityMap.values()].map(g=>({owner:g.owner,openItemCount:g.openCount,overdueItemCount:g.overdueCount,affectedActivityCount:g.activityIds.size,packageCount:g.packageIds.size,
+  rfiDesignCount:(g.byKind.design??0),submittalCount:g.byKind.submittal??0,qualityCount:g.byKind.quality??0,permitCount:g.byKind.permit??0,snagCount:g.byKind.snag??0,interfaceCount:g.byKind.interface??0,procurementCount:g.byKind.package??0,handoverCount:g.byKind.handover??0,
+  recordIds:g.recordIds,activityIds:[...g.activityIds],packageIds:[...g.packageIds]})).sort((a,b)=>b.overdueItemCount-a.overdueItemCount||b.openItemCount-a.openItemCount||b.affectedActivityCount-a.affectedActivityCount||a.owner.localeCompare(b.owner));
+ const interfaceRows=registerRows.filter(r=>r.kind==='interface');
  const rates=(kind:DeliveryKind)=>{const rows=registerRows.filter(r=>r.kind===kind);const outcomes=rows.filter(r=>['passed','failed','accepted','rejected'].includes(r.currentStatus));const pass=outcomes.filter(r=>['passed','accepted'].includes(r.currentStatus)).length;return {knownOutcomeCount:outcomes.length,unknownOutcomeCount:rows.length-outcomes.length,passRatePercent:pct(pass,outcomes.length),basis:'Only dated known outcomes; unresolved outcomes excluded and counted separately.'};};
  const allHandover=registerRows.filter(r=>r.kind==='handover'),handoverRows=allHandover.filter(r=>r.scope==='current'),handoverKnown=allHandover.every(r=>r.scope==='future'||r.currentStatus!=='not_established'&&r.scope!=='undated'&&!r.verificationRequired);
  const handover={population:populations.handover!,acceptedKnownCount:handoverRows.filter(r=>r.currentStatus==='accepted').length,readinessPercent:populations.handover!.state==='established'&&handoverKnown?pct(handoverRows.filter(r=>r.currentStatus==='accepted').length,handoverRows.length):null,rows:handoverRows};
@@ -299,7 +313,7 @@ function buildDelivery(state:ProjectRuntimeState){
  const relationshipAuthorities=Object.fromEntries(([['riskIds','risk'],['claimIds','claim'],['noticeIds','notice'],['variationIds','variation']] as const).map(([key,kind])=>{const linked=new Set(governed.flatMap(r=>r.links[key]));return [kind,linked.size?deliveryAuthorityCatalog(state,kind).filter(r=>linked.has(r.id)):[]];}));
  return {schemaVersion:'1.0',producerVersion:'delivery-v1',projectId:state.projectId,projectVersion:state.version,dataDateIso,programmeLabel:current?.revision.label??current?.sourceFilename??null,programmeRevisionId:current?.revision.revisionId??null,
   scheduleAuthorityReview:scheduleAuthorityReview(state),records,documents:source.documents,diagnostics:source.diagnostics,populations,findings,
-  packageRows,materialRows,boqIntelligence,readiness,curves:curveData,weightedGroups,registerRows,handover,hsePosition,workfrontMatrix,supplierRows,summaries,permitRows,spareRows,assetRows,locations,riskRows,evidenceMetrics,commissioningRows,commissioningSystems,weatherRows,relationshipAuthorities,
+  packageRows,materialRows,boqIntelligence,readiness,curves:curveData,weightedGroups,registerRows,interfaceRows,accountabilityRows,handover,hsePosition,workfrontMatrix,supplierRows,summaries,permitRows,spareRows,assetRows,locations,riskRows,evidenceMetrics,commissioningRows,commissioningSystems,weatherRows,relationshipAuthorities,
   existingAuthorities:{risk:operations.risk,quality:operations.quality,rfi:operations.rfi,programme:'/schedule/modules/schedule-analytics',progress:'/schedule/modules/progress-report',installedQuantities:'/schedule/modules/quantity-scurve',commercial:'/commercial/modules/commercial-overview',claims:'/schedule/modules/delay-claims'},
   lifecycleExamples:lifecycleExamples.map(t=>({...t,state:'example_requires_adoption',weights:null})),
   authorityScope:'Delivery consumes the controlled BOQ, programme, progress and commercial/claims authorities. Procurement exposure does not establish EOT or causation.'};
@@ -375,7 +389,9 @@ export function deliveryModule(state:ProjectRuntimeState,key:string):ModuleRunti
 }
 export function deliveryDashboard(state:ProjectRuntimeState){
  if(!state.delivery?.decisions.length)return null;
- const p=deliveryPosition(state);return {projectId:state.projectId,dataDateIso:p.dataDateIso,programmeRevisionId:p.programmeRevisionId,boqMappingPercent:p.boqIntelligence.procurementMappingPercent,handoverReadinessPercent:p.handover.readinessPercent,latePackageKnownCount:p.packageRows.some(r=>r.headroomCalendarDays!==null)?p.packageRows.filter(r=>r.headroomCalendarDays!==null&&r.headroomCalendarDays<0).length:null,unresolvedPackageCount:p.packageRows.length?p.packageRows.filter(r=>r.headroomCalendarDays===null).length:null,exceptions:p.findings.slice(0,8),exceptionCount:p.findings.length};
+ const p=deliveryPosition(state);return {projectId:state.projectId,dataDateIso:p.dataDateIso,programmeRevisionId:p.programmeRevisionId,boqMappingPercent:p.boqIntelligence.procurementMappingPercent,handoverReadinessPercent:p.handover.readinessPercent,latePackageKnownCount:p.packageRows.some(r=>r.headroomCalendarDays!==null)?p.packageRows.filter(r=>r.headroomCalendarDays!==null&&r.headroomCalendarDays<0).length:null,unresolvedPackageCount:p.packageRows.length?p.packageRows.filter(r=>r.headroomCalendarDays===null).length:null,
+  interfaceOpenKnownCount:p.interfaceRows.filter(r=>r.scope==='current'&&!['closed','accepted'].includes(r.currentStatus)).length,interfaceOverdueKnownCount:p.interfaceRows.filter(r=>r.scope==='current'&&r.overdue===true).length,
+  accountabilityRows:p.accountabilityRows.slice(0,12),exceptions:p.findings.slice(0,8),exceptionCount:p.findings.length};
 }
 export function deliveryExportResult(state:ProjectRuntimeState,result:ModuleRuntimeResult):ModuleRuntimeResult{
  const data=result.data as any;if(data?.projectionKey!=='delivery')return result;
