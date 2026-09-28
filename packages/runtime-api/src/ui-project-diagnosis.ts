@@ -26,6 +26,15 @@ async function diagnosisPage(id,offset){
  }catch(e){if(project()===t.projectId&&el(id))el(id).innerHTML=diagnosisTableHtml(t)+'<p role="alert">'+escapeHtml(e.message)+'</p>';}
 }
 function diagnosisAsk(question){setAppView('ai');el('aiQuestion').value=question;askCmeng();}
+function renderProjectDashboardSummary(d){
+ if(!d)return '';
+ const c=d.counts||{},value=x=>x?.value??x?.knownCount??'Not available';
+ const drivers=(d.wbsRows||[]).filter(r=>r.pressureCount||r.drivingCount).slice(0,3);
+ const actions=(d.actions||[]).slice(0,5);
+ const driverRows=drivers.length?'<ul>'+drivers.map(r=>'<li><b>'+escapeHtml(String(r.wbs||'').split(' / ').slice(-3).join(' / '))+'</b> · '+fmt(r.pressureCount||0)+' pressure · '+fmt(r.drivingCount||0)+' driving</li>').join('')+'</ul>':'<p>No concentrated schedule pressure is established.</p>';
+ const actionRows=actions.length?'<ol>'+actions.map(r=>'<li>'+escapeHtml(r.reason)+'</li>').join('')+'</ol>':'<p>No immediate programme action is ranked from the available fields.</p>';
+ return '<section class="project-diagnosis dashboard-summary"><header class="diagnosis-heading"><h3>Current project position</h3><p>Data Date '+planningShortDate(d.dataDateIso)+'</p></header>'+renderCompletionPosition(d.completion)+'<p class="diagnosis-summary">'+escapeHtml(d.summary)+'</p>'+planningKpis([['Critical',value(c.critical),'activities'],['Negative float',value(c.negativeFloat),'activities'],['Near-critical',value(c.nearCritical),'activities'],['Driving network',d.tableTotals?.network??d.network?.rows?.length??'Not available','activities']])+'<div class="planning-primary-grid"><section class="diagnosis-section"><h4>Main schedule pressure</h4>'+driverRows+'</section><section class="diagnosis-section"><h4>Management priorities</h4>'+actionRows+'</section></div><details><summary>Detailed programme analysis</summary>'+renderProjectDiagnosis(d)+'</details></section>';
+}
 function renderProjectBrief(d){
  if(!d)return '';
  const drivers=(d.wbsRows||[]).filter(r=>r.pressureCount||r.drivingCount).slice(0,3);
