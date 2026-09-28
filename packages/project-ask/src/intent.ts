@@ -175,15 +175,15 @@ export function resolveIntent(question:string,catalogue:AuthorityDescriptor[],pr
       }
     }
     if(recipe==='wbs_pressure'){
-      plan.groupBy=[];
+      if(!preserveCompoundRequirements)plan.groupBy=[];
       if(groupingPrevious&&previous){
         plan.diagnosisActivityFilters=[...(previous.plan.authorityFilters?.activities??previous.plan.authorityFilters?.float??[])];
         if(previous.plan.criticalOnly)plan.diagnosisActivityFilters.push({field:'critical',operator:'eq',value:true,upper:null});
         if(previous.plan.authorities.length===1&&previous.plan.authorities[0]==='critical-path')plan.diagnosisActivityFilters.push({field:'onDrivingNetwork',operator:'eq',value:true,upper:null});
       }
-      plan.criticalOnly=false;plan.rankBy=null;plan.rankings=[];plan.limit=null;
+      plan.criticalOnly=false;if(!preserveCompoundRequirements){plan.rankBy=null;plan.rankings=[];plan.limit=null;}
     }
-    if(['management_actions','project_position','revision_change','no_change_outlook','milestone_exposure'].includes(recipe)){plan.rankBy=null;plan.rankings=[];plan.limit=null;}
+    if(['management_actions','project_position','revision_change','no_change_outlook','milestone_exposure'].includes(recipe)&&!preserveCompoundRequirements){plan.rankBy=null;plan.rankings=[];plan.limit=null;}
   }
   if(/\bschedule pressure\b/.test(q)&&plan.authorities.includes('activities'))scopedFilter(['activities'],{field:'schedulePressure',operator:'eq',value:true,upper:null});
   const wbsFilter=/\bfor wbs\s+["']?([^"'?]+)["']?\??$/i.exec(question);
