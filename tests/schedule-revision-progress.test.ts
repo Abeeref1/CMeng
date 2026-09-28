@@ -561,10 +561,10 @@ test("Progress Breakdown keeps unsupported dimensions unavailable without invent
   });
   assert.equal(projection.dimensionViews?.find(view=>view.dimension==="wbs")?.available,true);
   for(const key of ["zone","level","work_front","cbs"]){
-    const view=projection.dimensionViews!.find(row=>row.dimension===key)!;
-    assert.equal(view.available,false);
-    assert.equal(view.classifiedPopulation,0);
-    assert.equal(view.unclassifiedPopulation,projection.totalActivityCount);
+    const dimensionView=projection.dimensionViews!.find((candidate:any)=>candidate.dimension===key)!;
+    assert.equal(dimensionView.available,false);
+    assert.equal(dimensionView.classifiedPopulation,0);
+    assert.equal(dimensionView.unclassifiedPopulation,projection.totalActivityCount);
   }
 });
 
