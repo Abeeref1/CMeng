@@ -2,6 +2,9 @@ import {completionPosition} from './completion-position';
 import {buildProjectDiagnosis,presentProjectDiagnosis} from './project-diagnosis';
 import {buildModuleChallenge} from '../../module-challenge/src';
 import {deliveryModule,deliveryDashboard,isDeliveryPage} from './delivery-projections';
+import {interfaceModule} from './interface-intelligence';
+import {accountabilityModule,crossDomainAccountability} from './accountability-intelligence';
+import {recoveryAccelerationModule} from './recovery-acceleration';
 import {isAdoptedProgrammeRevision,isScenarioRevision,scheduleAuthorityReview} from './schedule-authority';
 import {quantityMappingForState} from "./quantity-mapping-runtime";
 import {nearCriticalScreening} from './near-critical-screening';
@@ -7175,6 +7178,9 @@ export function moduleForProject(
       ["project"],
     );
   }
+  if (key==='delivery-interfaces') return interfaceModule(reportingState(state));
+  if (key==='recovery-acceleration') return recoveryAccelerationModule(reportingState(state));
+  if (key==='cross-domain-accountability') return accountabilityModule(reportingState(state));
   if (isDeliveryPage(key)) return deliveryModule(state,key);
   if (key==='scope-classification') return resolveProjectModuleUncertified(reportingState(state),key);
   if (key==='monte-carlo-risk') return scheduleRiskMonteCarlo(reportingState(state));
@@ -7831,7 +7837,7 @@ export function managementSurfacesForProject(
   const result = { ...surfaces,
     sourceQuality: {...sourceQualityPosition(resolvedModules,issueAssessment,state.evidenceDocuments,current?.revision.model.dataDateIso??null),registerDateReview:registerDateReview(state)},
     masterDashboard: {projectDiagnosis:diagnosis,completionPosition:completion,delivery:deliveryDashboard(state),scheduleExceptions,deliveryExceptions,...managementReportingData(state, surfaces.masterDashboard, resolvedModules),decisions:surfaces.commandCenter.decisions,trend:(resolvedModules.get("forecast-history")?.data as any)??null,issueAssessment,operationalReporting:operationalReporting(state),sourceInterpretation:director?.sourceInterpretation},
-    commandCenter: {projectDiagnosis:diagnosis,completionPosition:completion,scheduleExceptions,deliveryExceptions,...managementReportingData(state, surfaces.commandCenter, resolvedModules),issueAssessment,operationalReporting:operationalReporting(state),sourceInterpretation:director?.sourceInterpretation},
+    commandCenter: {projectDiagnosis:diagnosis,completionPosition:completion,scheduleExceptions,deliveryExceptions,...managementReportingData(state, surfaces.commandCenter, resolvedModules),issueAssessment,operationalReporting:operationalReporting(state),accountability:crossDomainAccountability(state),sourceInterpretation:director?.sourceInterpretation},
     masterControlProgramme: {...managementReportingData(state, surfaces.masterControlProgramme, resolvedModules),issueAssessment,sourceInterpretation:director?.sourceInterpretation} };
   const allPages=new Map(resolvedModules);
   allPages.set('master-dashboard',{key:'master-dashboard',status:'partial',reason:null,dependencies:[],data:result.masterDashboard});
