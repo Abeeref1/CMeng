@@ -79,3 +79,41 @@ test("quarantined claim population is certified as withheld rather than false ze
     assert.equal(check.passed,true,metric);
   }
 });
+
+
+test("duplicate source activity IDs stay a source-quality defect, not a false schedule-change engine failure",()=>{
+  const duplicateSchedule:any={
+    ...schedule,
+    activities:[
+      {projectId:"Q-CLAIMS",activityId:"DUP-1",nativeId:"1",name:"First",wbsId:null,calendarId:null,activityType:"task",status:"not_started",baselineStartIso:null,baselineFinishIso:null,currentStartIso:null,currentFinishIso:null,actualStartIso:null,actualFinishIso:null,forecastStartIso:null,forecastFinishIso:null,originalDurationHours:8,remainingDurationHours:8,totalFloatHours:0,freeFloatHours:null,percentComplete:0,sourceRefs:[],diagnostics:[]},
+      {projectId:"Q-CLAIMS",activityId:"DUP-1",nativeId:"2",name:"Duplicate code",wbsId:null,calendarId:null,activityType:"task",status:"not_started",baselineStartIso:null,baselineFinishIso:null,currentStartIso:null,currentFinishIso:null,actualStartIso:null,actualFinishIso:null,forecastStartIso:null,forecastFinishIso:null,originalDurationHours:8,remainingDurationHours:8,totalFloatHours:0,freeFloatHours:null,percentComplete:0,sourceRefs:[],diagnostics:["SCHEDULE_GRAPH_DUPLICATE_ACTIVITY_IDS:DUP-1"]},
+    ],
+  };
+  const result:any={
+    key:"schedule-change-report",
+    status:"partial",
+    professionalState:"review_required",
+    evidenceState:"partial",
+    dependencies:[],
+    data:{
+      state:"ready",
+      toActivityCount:2,
+      matchedActivityCount:1,
+      addedActivityCount:0,
+      modifiedActivityCount:1,
+      unchangedActivityCount:0,
+      removedActivityCount:0,
+      changedActivities:[{activityId:"DUP-1",changeKind:"modified"}],
+      addedRelationshipCount:0,
+      removedRelationshipCount:0,
+      addedRelationships:[],
+      removedRelationships:[],
+    },
+  };
+  const checked:any=checkProjectionIntegrity(result,duplicateSchedule,{} as any,null);
+  const partition=checked.data.systemEvidenceContract.checks.find((row:any)=>row.metric==="current_activity_partition");
+  assert.ok(partition);
+  assert.equal(partition.expected,1);
+  assert.equal(partition.actual,1);
+  assert.equal(partition.passed,true);
+});
