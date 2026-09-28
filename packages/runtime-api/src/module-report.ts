@@ -779,7 +779,8 @@ function moduleAnalysis(projectId:string,moduleKey:string,result:ModuleRuntimeRe
 }
 export async function exportModuleReport(projectId:string,moduleKey:string,result:ModuleRuntimeResult,format:string,view?:ModuleReportView){
   const prepared=preparedModuleResult(result,view);
-  if(format==='json'&&!view)return {bytes:buildModuleJsonDownload(projectId,moduleKey,prepared),type:'application/json; charset=utf-8',filename:moduleReportFilename(projectId,moduleKey,'json')};
+  if(!view&&format==='xlsx')return {bytes:await buildModuleWorkbook(projectId,moduleKey,prepared),type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',filename:moduleReportFilename(projectId,moduleKey,'xlsx')};
+  if(!view&&format==='json')return {bytes:buildModuleJsonDownload(projectId,moduleKey,prepared),type:'application/json; charset=utf-8',filename:moduleReportFilename(projectId,moduleKey,'json')};
   const analysis=moduleAnalysis(projectId,moduleKey,prepared,view),exported=await exportAskAnalysis(analysis,format,view);
   return {...exported,filename:safeFilenamePart(projectId)+'_'+safeFilenamePart(titleForModule(moduleKey))+'_'+new Date().toISOString().slice(0,10)+'.'+exported.filename.split('.').at(-1)};
 }
