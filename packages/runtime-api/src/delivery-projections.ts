@@ -355,7 +355,7 @@ export function deliveryModule(state:ProjectRuntimeState,key:string):ModuleRunti
         :records.length;
  const reviewedSpecialistPosition=!riskPage&&records.some(r=>['working','conflicted','stale','superseded'].includes(r.state));
  const useBoqCandidates=governedRows.length===0&&boqCandidateRows.length>0&&!reviewedSpecialistPosition;
- const rows:any[]=riskPage?[...governedRows,...boqScope.risks.map(r=>({recordId:'boq-risk:'+r.riskId,riskId:r.riskId,reference:r.riskId,description:r.risk,status:'Candidate',rating:r.severity,score:null,categories:[r.category],owner:r.responsibleParty,authority:'candidate',basis:r.basis,relatedPackages:r.relatedPackages}))]:useBoqCandidates?boqCandidateRows:governedRows;
+ const rows:any[]=riskPage?[...governedRows,...boqScope.risks.map(r=>({recordId:'boq-risk:'+r.riskId,riskId:r.riskId,reference:r.riskId,description:r.risk,category:r.category,categories:[r.category],impact:r.impact??'Not established',probability:r.probability??'Not established',severity:r.severity,rating:r.severity,score:null,mitigation:r.mitigation,responsibleParty:r.responsibleParty,owner:r.responsibleParty,status:'Candidate',currentStatus:'candidate management risk',state:'extracted_candidate',authority:'candidate',basis:r.basis,relatedPackages:r.relatedPackages}))]:useBoqCandidates?boqCandidateRows:governedRows;
  const rowIds=new Set(records.map(r=>r.recordId));
  const interfaceFindingRows=(key==='construction-readiness'||key==='procurement-readiness')
   ?confirmedInterfaceIssues.filter(issue=>governedRows.some(row=>readinessInterfaceIssues(row).some(linked=>linked.interfaceId===issue.interfaceId)))
