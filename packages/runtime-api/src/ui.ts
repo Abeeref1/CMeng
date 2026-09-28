@@ -3969,6 +3969,8 @@ function renderManagementControlVisual(key,data){
       const meta=[['Owner',item.accountableOwner||'Not assigned'],['Due',item.dueDate?planningShortDate(item.dueDate):'Not set'],['Authority',item.requiredAuthority],['Dependency',item.dependencyParty]].filter(([,v])=>v);
       return '<article class="management-decision"><i>'+escapeHtml(i+1)+'</i><div><b>'+escapeHtml(item.description)+'</b>'+(meta.length?'<div class="management-decision-meta">'+meta.map(([label,value])=>'<span>'+escapeHtml(label+': '+value)+'</span>').join('')+'</div>':'')+'</div></article>';
     }).join("")+'</div>':'<div class="notice info">No suggested follow-up is currently generated.</div>';
+    const accountability=data.accountability||null;
+    const accountabilityBody=accountability?.rows?.length?'<div class="table-wrap"><table><thead><tr><th>Party / scope</th><th>Dimension</th><th>Open / pressure</th><th>Domains</th><th>Overdue</th><th>Affected activities</th></tr></thead><tbody>'+accountability.rows.slice(0,10).map(r=>'<tr><td><b>'+escapeHtml(r.value)+'</b></td><td>'+escapeHtml(humanizeKey(r.dimension))+'</td><td>'+fmt(r.openIssueCount)+'</td><td>'+fmt(r.domainCount)+'</td><td>'+fmt(r.overdueCount)+'</td><td>'+fmt(r.affectedActivityCount)+'</td></tr>').join('')+'</tbody></table></div><div>'+managementModuleLink("cross-domain-accountability","Open full accountability")+'</div>':'<div class="notice info">No reusable ownership concentration is established from the current open records.</div>';
     const controlsBody=ctrl?planningKpis([
       ["Open risks",ctrl.riskEvidenceState==="established"?ctrl.openRiskCount:"Unresolved","Risk register and rating method",ctrl.riskEvidenceState==="established"?"":"warning"],
       ["Major / critical NCR",ctrl.openCriticalMajorNcrCount??(data.operationalReporting?.knownCounts?.openCriticalMajorNcrCount!==undefined?fmt(data.operationalReporting.knownCounts.openCriticalMajorNcrCount)+" confirmed":"Unresolved"),ctrl.openCriticalMajorNcrCount===null?"Known subset; full total not confirmed":"quality evidence",ctrl.openCriticalMajorNcrCount?"danger":""],
@@ -3982,6 +3984,7 @@ function renderManagementControlVisual(key,data){
       experienceSourceContext(key,data)+
       ((data.sourceInterpretation?.actions||[]).length?"":managementPanel("Action Suggestions — Awaiting Assignment","Suggested follow-up only. Assignment, due dates and closure tracking are not yet established in CMeng.",decisionBody,true))+
       managementPanel("Management Priorities","Current blockers and escalations from confirmed specialist positions, ordered before supporting KPIs.",renderManagementAlerts(data.alerts||[]))+
+      managementPanel("Who is holding the most open work?","Cross-domain ownership concentration with drill-back; this is not a contractual responsibility finding.",accountabilityBody)+
       experienceDisclosure("NCR, RFI and risk records",renderOperationalReporting(data.operationalReporting||ctrl?.reporting),"Quality, RFI and risk records")+
       managementPanel("Current Programme Position","Supporting completion and programme facts used to understand the actions above.",renderManagementMetricGrid(data.programmePosition||[]))+
       managementPanel("Information to confirm","Confirm missing information, outdated records and conflicting values.",renderManagementEvidenceGaps(data.evidenceGaps||[]))+
