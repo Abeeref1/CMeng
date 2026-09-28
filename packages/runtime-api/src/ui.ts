@@ -4266,8 +4266,9 @@ function renderModuleResult(result){
   renderModuleResultBody(result);
   const container=el('moduleContent');
   const review=result.scheduleAuthorityReview||result.data?.scheduleAuthorityReview;
-  if((result.legacyKey||result.key)==='source-quality'){const panel=el('projectActionPanel');if(panel)bindProjectActions(panel);}
-  else if(review&&(review.state!=='established'||review.pendingSchedules?.length)){
+  const pageKey=result.legacyKey||result.key;
+  if(pageKey==='source-quality'){const panel=el('projectActionPanel');if(panel)bindProjectActions(panel);}
+  else if(pageKey!=='progress-breakdown'&&review&&(review.state!=='established'||review.pendingSchedules?.length)){
     container.insertAdjacentHTML('beforeend','<p class="action-notification">'+(review.state==='missing'?'Select a schedule to enable programme reporting.':review.state==='pending_review'?'Confirm the schedule used for reporting.':'A newly uploaded schedule needs your review.')+' <button class="btn small" id="programmeActionLink">Open project review</button></p>');
     el('programmeActionLink').onclick=()=>openProjectActions();
   }
@@ -4301,7 +4302,7 @@ function renderModuleResultBody(result){
   el("directorDrawer").hidden=result.key!=="pmo-analysis";
   if(result.key==="challenge-contract"&&renderDeliveryChallenge(data,result.reason,result.status))return;
   const basisHtml=result.key==='source-quality'?'':renderPositionVerdict(data)+renderModuleBasis(data)+renderRegisterScope(data);
-  const challengeBody=renderUniversalChallenge(data.challenge);
+  const challengeBody=result.key==='progress-breakdown'?'':renderUniversalChallenge(data.challenge);
   const challengeHtml=challengeBody?'<details class="reconciliation-panel"><summary><span>Comparison with the submitted position</span><b>'+escapeHtml(reconciliationSummary(data.challenge))+'</b></summary><div class="reconciliation-body">'+challengeBody+'</div></details>':'';
   const specialized=renderSpecializedModule(result.key,data);
   const scalars=scalarPairs(data).filter(([k])=>k!=="challenge").map(([k,v])=>'<div class="scalar"><b>'+escapeHtml(humanizeKey(k))+'</b><span>'+escapeHtml(fmt(v))+'</span></div>').join("");
