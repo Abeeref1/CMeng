@@ -120,7 +120,9 @@ export function resolveIntent(question:string,catalogue:AuthorityDescriptor[],pr
   for(const dimension of ['discipline','location','floor','zone','supplier','wbs','trade','currency'])if(new RegExp('\\bby '+dimension+'\\b').test(q))plan.groupBy=[dimension==='wbs'?'wbsId':dimension==='trade'?'discipline':dimension];
   const location=/\bfor wbs\b/.test(q)?null:/\b(tower\s+[a-z0-9]+|building\s+[a-z0-9]+|block\s+[a-z0-9]+|floor\s+[a-z0-9]+|level\s+[a-z0-9]+|zone\s+[a-z0-9]+|area\s+[a-z0-9]+|work\s*front\s+[a-z0-9_-]+)\b/i.exec(question);
   if(location){
-    const scopeFilter={field:'location',operator:'contains' as const,value:location[1]!,upper:null};
+    const scopeText=location[1]!,scopeLower=scopeText.toLowerCase();
+    const scopeField=scopeLower.startsWith('zone ')?'zone':scopeLower.startsWith('floor ')?'floor':scopeLower.startsWith('level ')?'level':scopeLower.startsWith('tower ')?'tower':scopeLower.startsWith('building ')?'building':scopeLower.startsWith('block ')?'building':scopeLower.startsWith('area ')?'area':scopeLower.startsWith('workfront ')||scopeLower.startsWith('work front ')?'workFront':'location';
+    const scopeFilter={field:scopeField,operator:'contains' as const,value:scopeText,upper:null};
     const compoundActivityRequest=!inherited&&!claimsQuestion&&scheduleQuestion&&activityQuestion&&/\b(?:and|also|plus)\b/.test(q)&&/\b(?:delayed|late|overdue)\b/.test(q);
     if(compoundActivityRequest){
       // Keep the primary delayed-activity selection intact and create a

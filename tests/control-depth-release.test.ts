@@ -47,7 +47,7 @@ test('compound delayed plus Zone request is decomposed into independent activity
   const r=resolveIntent('list me all delayed activities and the activities for zone 7',catalogue,principal,null,null);
   assert.ok(r.plan.authorities.includes('activities'));assert.ok(!r.plan.authorities.includes('locations'));
   assert.ok(r.plan.authorityFilters?.activities?.some(f=>f.field==='scheduleDelayed'&&f.value===true));
-  assert.deepEqual(r.plan.activityBreakouts?.[0]?.filters,[{field:'location',operator:'contains',value:'zone 7',upper:null}]);
+  assert.deepEqual(r.plan.activityBreakouts?.[0]?.filters,[{field:'zone',operator:'contains',value:'zone 7',upper:null}]);
   assert.ok(!r.plan.filters.some(f=>f.field==='location'),'Zone 7 must not be intersected with the primary delayed list');
 });
 

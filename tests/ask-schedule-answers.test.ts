@@ -137,6 +137,13 @@ test('delay-driver questions return actual schedule pressure points without coll
   const finish=await f.ask('What is the completion forecast?');assert.match(finish.narrative[0]!.text,/Submitted programme finish/);assert.match(finish.narrative[0]!.text,/Contract comparison unavailable/);assert.equal(f.paid(),0);
 });
 
+test('incomplete float data is never narrated as zero float-risk activities',async t=>{
+  const f=await fixture(t,[['NOFLOAT','TK_NotStart','2026-09-10 08:00','2026-09-30 17:00','','','']]);
+  const answer=await f.ask('Show the worst float-risk activities');
+  assert.match(answer.narrative[0]!.text,/not confirmation that no float-risk activities exist|not fully calculable/i);
+  assert.doesNotMatch(answer.narrative[0]!.text,/No matching activities were found/);
+});
+
 test('delay-driver summaries retain full matching counts for Top N and do not turn missing programmes into zero',async t=>{
   const f=await fixture(t,Array.from({length:75},(_,i)=>['PRESSURE'+i,'TK_NotStart','2026-09-01','2026-09-20','','',String(-i-1)] as Row));
   const answer=await f.engine.ask(f.id,{...user,allowModel:false},{question:'What are the top 20 activities driving the project delay?'});

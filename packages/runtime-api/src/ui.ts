@@ -1973,7 +1973,8 @@ function renderPmoVisual(data){
       ["Delay events",p.claims.eventCount],["Claims",p.claims.claimCount],["Recalculated window movement",fmt(p.claims.grossPositiveAnalyticalMovementDays)+" days · "+(p.claims.windowMovementTrace||[]).map(w=>fmt(w.calculatedDays)).join(" + ")],["Net submitted finish movement",fmt(p.claims.netSubmittedFinishMovementDays)+" days"],["Effective approved determinations at Data Date",fmt(p.claims.effectiveDeterminationDays)+" days"],["EOT incorporated in amendment",fmt(p.claims.incorporatedEotDays)+" days"],["Determination register total",fmt(p.claims.registerDeterminationDays)+" days"]
     ]]
   ].map(group=>'<div class="domain-card"><h5>'+escapeHtml(group[0])+'</h5>'+group[1].map(m=>metricLine(m[0],m[1])).join("")+'</div>').join("")+'</div>';
-  return '<section class="planning-view management-view">'+(data.projectDiagnosis?renderProjectDiagnosis(data.projectDiagnosis):renderCompletionPosition(data.completionPosition))+kpis+visualOverview+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Finish-date position</h4><p>Controlled baseline, submitted finish date and any independently calculated, approved or scenario finish dates.</p></div></div><div class="planning-panel-body">'+completion+'</div></section><section class="planning-panel attention"><div class="planning-panel-head"><div><h4>What needs attention</h4><p>Items that can change the current programme position.</p></div></div><div class="planning-panel-body">'+attention+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Programme health</h4><p>Schedule coverage is field coverage, not physical progress. Gross and net time movements have different bases; their difference is not proven overlap.</p></div></div><div class="planning-panel-body">'+health+'</div></section></section>';
+  const detail=kpis+visualOverview+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Finish-date position</h4><p>Controlled baseline, submitted finish date and any independently calculated, approved or scenario finish dates.</p></div></div><div class="planning-panel-body">'+completion+'</div></section><section class="planning-panel attention"><div class="planning-panel-head"><div><h4>What needs attention</h4><p>Items that can change the current programme position.</p></div></div><div class="planning-panel-body">'+attention+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Programme health</h4><p>Schedule coverage is field coverage, not physical progress. Gross and net time movements have different bases; their difference is not proven overlap.</p></div></div><div class="planning-panel-body">'+health+'</div></section>';
+  return '<section class="planning-view management-view">'+(data.projectDiagnosis?renderProjectBrief(data.projectDiagnosis):renderCompletionPosition(data.completionPosition))+experienceDisclosure("Detailed project controls position",detail,"KPIs, charts, finish dates and programme health")+'</section>';
 }
 function renderScheduleAnalyticsVisual(data){
   const p=projectionFor(data,"schedule_analytics");
@@ -2034,9 +2035,17 @@ function activityReviewRowHtml(a){
     '<td>'+escapeHtml(planningShortDate(a.currentStartIso))+'</td><td>'+escapeHtml(planningShortDate(a.currentFinishIso))+'</td><td>'+escapeHtml(a.percentComplete===null?"—":fmt(a.percentComplete)+"%")+'</td>'+
     '<td>'+escapeHtml(fmt(a.totalFloatHours))+'</td><td>'+escapeHtml(a.finishVarianceDays===null?"Unresolved":fmt(a.finishVarianceDays))+'</td><td>'+escapeHtml(a.delayStatus||"—")+'</td></tr>';
 }
+const activityFilterIds=["activityFilterSearch","activityFilterWbs","activityFilterZone","activityFilterFloor","activityFilterTower","activityFilterBuilding","activityFilterArea","activityFilterWorkFront","activityFilterPhase","activityFilterSection","activityFilterChainage","activityFilterDiscipline","activityFilterTrade","activityFilterSystem","activityFilterPackage","activityFilterCbs","activityFilterContractor","activityFilterSubcontractor","activityFilterStatus","activityFilterCriticality","activityFilterCondition"];
 function activityFilterValue(id){const node=el(id);return node?String(node.value||"").trim():"";}
+const projectScopeFilterMap={activityFilterWbs:"wbsId",activityFilterZone:"zone",activityFilterFloor:"floor",activityFilterTower:"tower",activityFilterBuilding:"building",activityFilterArea:"area",activityFilterWorkFront:"workFront",activityFilterPhase:"phase",activityFilterSection:"section",activityFilterChainage:"chainage",activityFilterDiscipline:"discipline",activityFilterTrade:"trade",activityFilterSystem:"system",activityFilterPackage:"package",activityFilterCbs:"cbs",activityFilterContractor:"contractor",activityFilterSubcontractor:"subcontractor",activityFilterStatus:"status",activityFilterCriticality:"criticality",activityFilterCondition:"scheduleCondition"};
+function activityFilterStorageKey(){return "cmeng-activity-scope:"+project();}
+function projectScopeStorageKey(){return "cmeng-project-scope:"+project();}
+function currentProjectScopeContext(){let scope={};try{scope=JSON.parse(localStorage.getItem(projectScopeStorageKey())||"{}")||{};}catch{}return scope&&typeof scope==="object"&&!Array.isArray(scope)?scope:{};}
+function saveActivityFilters(){const values={},scope={};activityFilterIds.forEach(id=>{const value=activityFilterValue(id);if(value){values[id]=value;const key=projectScopeFilterMap[id];if(key)scope[key]=value;}});try{localStorage.setItem(activityFilterStorageKey(),JSON.stringify(values));localStorage.setItem(projectScopeStorageKey(),JSON.stringify(scope));}catch{}}
+function restoreActivityFilters(){let values={};try{values=JSON.parse(localStorage.getItem(activityFilterStorageKey())||"{}")||{};}catch{}const shared=currentProjectScopeContext();for(const [id,key] of Object.entries(projectScopeFilterMap))if(!values[id]&&shared[key])values[id]=shared[key];activityFilterIds.forEach(id=>{const node=el(id),value=values[id];if(!node||!value)return;if(node.tagName==="SELECT"&&![...node.options].some(option=>option.value===value))return;node.value=value;});filterActivityReview();}
 function clearActivityFilters(){
-  ["activityFilterSearch","activityFilterWbs","activityFilterZone","activityFilterFloor","activityFilterTower","activityFilterBuilding","activityFilterArea","activityFilterWorkFront","activityFilterPhase","activityFilterSection","activityFilterChainage","activityFilterDiscipline","activityFilterTrade","activityFilterSystem","activityFilterPackage","activityFilterCbs","activityFilterContractor","activityFilterSubcontractor","activityFilterStatus","activityFilterCriticality","activityFilterCondition"].forEach(id=>{const node=el(id);if(node)node.value="";});
+  activityFilterIds.forEach(id=>{const node=el(id);if(node)node.value="";});
+  try{localStorage.removeItem(activityFilterStorageKey());localStorage.removeItem(projectScopeStorageKey());}catch{}
   filterActivityReview();
 }
 function filterActivityReview(){
@@ -2063,6 +2072,7 @@ function filterActivityReview(){
   rows.sort((a,b)=>{const as=(a.scheduleDelayed?1500:0)+(a.criticality==="critical"?1000:a.criticality==="near_critical"?500:0)+(a.totalFloatHours<0?200:0)+(a.finishVarianceDays>0?a.finishVarianceDays:0);const bs=(b.scheduleDelayed?1500:0)+(b.criticality==="critical"?1000:b.criticality==="near_critical"?500:0)+(b.totalFloatHours<0?200:0)+(b.finishVarianceDays>0?b.finishVarianceDays:0);return bs-as||String(a.activityId).localeCompare(String(b.activityId));});
   if(count)count.textContent=fmt(rows.length)+" of "+fmt(p.rows.filter(r=>!["level_of_effort","wbs_summary"].includes(r.activityType)).length)+" execution activities";
   body.innerHTML=rows.slice(0,500).map(activityReviewRowHtml).join("")||'<tr><td colspan="13">No activities match the selected filters.</td></tr>';
+  saveActivityFilters();
 }
 function renderActivityAnalyticsVisual(data){
   const rowHtml=a=>'<tr><td><b>'+escapeHtml(a.activityId)+'</b><br><span class="muted">'+escapeHtml(a.name||"")+'</span><br><span class="muted">'+escapeHtml(a.wbsPath||a.wbsId||"")+'</span></td>'+
@@ -3852,19 +3862,13 @@ function managementMetricBadges(metric){
 }
 function renderManagementMetricGrid(metrics){
   if(!Array.isArray(metrics)||!metrics.length)return'<div class="empty">No management figures are available yet.</div>';
-  return '<div class="management-metric-grid">'+metrics.map(m=>{
-    const display=managementMetricDisplay(m);
-    return '<article class="management-metric-card '+escapeHtml(m.health||"unavailable")+'">'+
+  const cards=metrics.map(m=>{const display=managementMetricDisplay(m);return '<article class="management-metric-card '+escapeHtml(m.health||"unavailable")+'" title="'+escapeHtml(m.basis||"")+'">'+
       '<div class="management-metric-head"><span>'+escapeHtml(m.key==='independent-forecast-finish'&&['provisional','scenario'].includes(m.authority)?'Programme calendar recalculation':m.label)+'</span>'+((m.health==="unavailable"&&display.kind!=="missing")?"":managementHealthBadge(m.health))+'</div>'+
       '<div class="management-metric-value '+escapeHtml(display.kind)+'">'+escapeHtml(display.text)+'</div>'+
       '<div class="management-metric-badges">'+managementMetricBadges(m)+'</div>'+
-      (m.key==='near-critical'?'<p class="management-metric-note">'+escapeHtml(m.basis)+'. '+escapeHtml(m.consequence||'')+'</p>':'')+
-      '<details class="metric-interpretation"><summary>What this figure means</summary><div class="management-metric-basis"><span>Basis</span><b>'+escapeHtml(m.basis||"Unresolved")+'</b></div>'+
-      (m.consequence?'<div class="management-metric-note"><span>Consequence</span><p>'+escapeHtml(m.consequence)+'</p></div>':'')+
-      (m.action?'<div class="management-metric-note action"><span>Action</span><p>'+escapeHtml(m.action)+'</p></div>':'')+
-      '</details><div class="management-metric-owner">'+managementModuleLink(m.owningModule,'Open analysis')+'</div>'+
-      '</article>';
-  }).join("")+'</div>';
+      (m.key==='near-critical'?'<p class="management-metric-note">'+escapeHtml(m.consequence||m.basis||'')+'</p>':'')+'</article>';}).join("");
+  const detailRows=metrics.filter(m=>m.basis||m.consequence||m.action||m.owningModule).map(m=>'<tr><td><b>'+escapeHtml(m.label)+'</b></td><td>'+escapeHtml(m.basis||'Not established')+'</td><td>'+escapeHtml(m.consequence||'—')+'</td><td>'+escapeHtml(m.action||'—')+'</td><td>'+managementModuleLink(m.owningModule,'Open')+'</td></tr>').join("");
+  return '<div class="management-metric-grid">'+cards+'</div>'+(detailRows?'<details class="metric-interpretation"><summary>Figure definitions and supporting analysis</summary><div class="table-wrap"><table><thead><tr><th>Figure</th><th>Basis</th><th>Consequence</th><th>Action</th><th>Detail</th></tr></thead><tbody>'+detailRows+'</tbody></table></div></details>':'');
 }
 function commercialFindingText(metric){
   if(metric==null)return"Unresolved: amount not established";
@@ -3878,8 +3882,18 @@ function commercialFindingTitle(metric){
 }
 function renderManagementCommercial(rows){
   if(!Array.isArray(rows)||!rows.length)return '<div class="empty">No confirmed commercial currency position is established.</div>';
-  const cell=m=>'<td title="'+escapeHtml(commercialFindingTitle(m))+'">'+escapeHtml(commercialFindingText(m))+'</td>';
-  return '<div class="table-wrap"><table><thead><tr><th>Currency</th><th>Pending variations</th><th>Approved variations in the report</th><th>Certified unpaid</th><th>Retention deducted through DD</th><th>Held balance</th><th>Active bonds</th><th>Claimed</th><th>Assessed</th><th>LD scenario</th></tr></thead><tbody>'+rows.map(r=>'<tr><td><b>'+escapeHtml(r.currency)+'</b></td>'+cell(r.pendingVariationAmount)+cell(r.approvedVariationAmount)+cell(r.certifiedUnpaidAmount)+cell(r.retentionDeductedAmount)+cell(r.retentionHeldAmount)+cell(r.activeBondAmount)+cell(r.claimClaimedAmount)+cell(r.claimAssessedAmount)+cell(r.ldScenarioAmount)+'</tr>').join("")+'</tbody></table></div>';
+  const fields=[
+    ['pendingVariationAmount','Pending variations'],['approvedVariationAmount','Approved variations'],['certifiedUnpaidAmount','Certified unpaid'],
+    ['retentionDeductedAmount','Retention deducted through DD'],['retentionHeldAmount','Held balance'],['activeBondAmount','Active bonds'],
+    ['claimClaimedAmount','Claimed'],['claimAssessedAmount','Assessed'],['ldScenarioAmount','LD scenario']
+  ];
+  const established=(m)=>m!==null&&m!==undefined&&(typeof m!=='object'||(m.value!==null&&m.value!==undefined));
+  const visible=fields.filter(([key])=>rows.some(r=>established(r[key])));
+  const missing=rows.flatMap(r=>fields.filter(([key])=>!established(r[key])).map(([key,label])=>({currency:r.currency,label,detail:commercialFindingText(r[key])})));
+  if(!visible.length)return '<div class="notice info">No commercial amount is established from the supplied records.</div>'+(missing.length?'<details><summary>'+fmt(missing.length)+' commercial measures need more information</summary><ul>'+missing.map(x=>'<li>'+escapeHtml(x.currency+' · '+x.label+': '+x.detail)+'</li>').join('')+'</ul></details>':'');
+  const head=visible.map(([,label])=>'<th>'+escapeHtml(label)+'</th>').join('');
+  const body=rows.map(r=>'<tr><td><b>'+escapeHtml(r.currency)+'</b></td>'+visible.map(([key])=>'<td title="'+escapeHtml(commercialFindingTitle(r[key]))+'">'+(established(r[key])?escapeHtml(commercialFindingText(r[key])):'—')+'</td>').join('')+'</tr>').join('');
+  return '<div class="table-wrap"><table><thead><tr><th>Currency</th>'+head+'</tr></thead><tbody>'+body+'</tbody></table></div>'+(missing.length?'<details><summary>'+fmt(missing.length)+' additional commercial measures need more information</summary><ul>'+missing.map(x=>'<li>'+escapeHtml(x.currency+' · '+x.label+': '+x.detail)+'</li>').join('')+'</ul></details>':'');
 }
 function renderManagementAlerts(alerts){
   if(!Array.isArray(alerts)||!alerts.length)return '<div class="notice info">No current management alert is generated from the confirmed project position.</div>';
@@ -3925,7 +3939,7 @@ function renderManagementControlVisual(key,data){
       {label:"Blocked specialist views",value:r.blocked??0,tone:"danger"}
     ],"Control views");
     return '<div class="planning-view management-view master-dashboard-view">'+
-      (data.projectDiagnosis?renderProjectDiagnosis(data.projectDiagnosis):renderCompletionPosition(data.completionPosition))+managementPanel("Executive Project Position","Current programme, progress and delivery exposure. Open a measure for its supporting analysis.",renderManagementMetricGrid(mainMetrics),true)+renderDeliveryDashboard(data.delivery)+
+      (data.projectDiagnosis?renderProjectDashboardSummary(data.projectDiagnosis):renderCompletionPosition(data.completionPosition))+managementPanel("Executive Project Position","Current programme, progress and delivery exposure. Open a measure for its supporting analysis.",renderManagementMetricGrid(mainMetrics),true)+renderDeliveryDashboard(data.delivery)+
       renderDashboardScheduleExceptions(data)+renderDashboardExceptions(data)+renderDashboardTrend(data)+renderDashboardDecisions(data)+
       managementPanel("Control Readiness","Calculation availability, evidence readiness and affected consistency checks are shown separately. A project-wide issue does not automatically make every specialist view defective.",readinessDonut+renderManagementConsistency(data.consistency))+
       managementPanel("Evidence Snapshot","Current evidence coverage. Missing or conflicted evidence remains explicit rather than being converted to zero.",planningKpis([
@@ -3963,7 +3977,7 @@ function renderManagementControlVisual(key,data){
       ["Expired bonds",ctrl.bondEvidenceState==="established"?ctrl.expiredBondCount:"Unresolved","security evidence",ctrl.expiredBondCount?"danger":""],
       ["Expiring bonds",ctrl.bondEvidenceState==="established"?ctrl.expiringBondCount30Days:"Unresolved","next 30 days",ctrl.expiringBondCount30Days?"warning":""]
     ]):'<div class="empty">Project Director control position is not confirmed.</div>';
-    return '<div class="planning-view management-view command-center-view">'+(data.projectDiagnosis?renderProjectDiagnosis(data.projectDiagnosis):renderCompletionPosition(data.completionPosition))+
+    return '<div class="planning-view management-view command-center-view">'+
       managementPanel("Immediate Control Signals","Confirmed counts are shown below. Open the relevant record to resolve an incomplete count.",controlsBody,true)+
       experienceSourceContext(key,data)+
       ((data.sourceInterpretation?.actions||[]).length?"":managementPanel("Action Suggestions — Awaiting Assignment","Suggested follow-up only. Assignment, due dates and closure tracking are not yet established in CMeng.",decisionBody,true))+
@@ -3982,7 +3996,8 @@ function renderManagementControlVisual(key,data){
     const positions=Array.isArray(data.specialistPositions)?data.specialistPositions:[];
     const candidates=Array.isArray(data.candidateInbox)?data.candidateInbox:[];
     const history=Array.isArray(data.controlHistory)?data.controlHistory:[];
-    const positionRows=positions.map(p=>'<tr><td><b>'+escapeHtml(p.group)+'</b></td><td>'+escapeHtml(names[p.key]||p.label)+'</td><td>'+issueBadge(p.issueAssessment)+'</td><td>'+escapeHtml(readerModuleSummary(p.reason))+(p.reason?'<details><summary>Calculation notes</summary>'+escapeHtml(p.reason)+'</details>':'')+'</td><td>'+managementModuleLink(p.key,"Open page")+'</td></tr>').join("");
+    const positionSeverity=p=>{const counts=p.issueAssessment?.counts||{};if((counts.system_defect||0)+(counts.source_conflict||0)+(counts.data_quality||0)>0)return {label:'Material issue',tone:'blocked'};if((counts.missing_information||0)+(counts.comparison_difference||0)>0)return {label:'Qualified',tone:'review'};if((counts.governance_review||0)+(counts.verification_pending||0)>0)return {label:'Routine follow-up',tone:'not_applicable'};return {label:'Current',tone:'ready'};};
+    const positionRows=positions.map(p=>{const severity=positionSeverity(p);return '<tr><td><b>'+escapeHtml(p.group)+'</b></td><td>'+escapeHtml(names[p.key]||p.label)+'</td><td><span class="state-pill '+severity.tone+'">'+severity.label+'</span><br>'+issueBadge(p.issueAssessment)+'</td><td>'+escapeHtml(readerModuleSummary(p.reason))+(p.reason?'<details><summary>Calculation notes</summary>'+escapeHtml(p.reason)+'</details>':'')+'</td><td>'+managementModuleLink(p.key,"Open page")+'</td></tr>';}).join("");
     const candidateRows=candidates.map(item=>'<tr><td><b>'+escapeHtml(item.label)+'</b></td><td>'+escapeHtml(humanizeKey(item.type))+'</td><td>'+managementAuthorityBadge(item.status)+'</td><td>'+escapeHtml(item.sourceRef)+'</td><td>'+managementModuleLink(item.owningModule,"Open owner")+'</td></tr>').join("");
     const historyRows=history.map(item=>'<tr><td>'+escapeHtml(formatDocumentTime(item.occurredAt))+'</td><td><b>'+escapeHtml(item.entity)+'</b></td><td>'+escapeHtml(item.action)+'</td><td>'+escapeHtml(item.actor||"System / not recorded")+'</td><td>'+managementAuthorityBadge(item.state)+'</td><td>'+escapeHtml(item.sourceRef||"—")+'</td></tr>').join("");
     return '<div class="planning-view management-view master-control-view">'+
@@ -4002,7 +4017,6 @@ function renderManagementControlVisual(key,data){
         ["Official package coverage",w.officialWorkPackageCoveragePercent===null||w.officialWorkPackageCoveragePercent===undefined?"Unresolved":fmt(w.officialWorkPackageCoveragePercent)+"%",humanizeKey(w.officialWorkPackageState||"not_established"),w.officialWorkPackageState==="established"?"success":"warning"]
       ])+(w.observedWbsLabels?.length?'<details class="management-detail"><summary>Observed WBS labels <span>'+escapeHtml(fmt(w.observedWbsLabels.length))+' labels</span></summary><div class="management-tag-list">'+w.observedWbsLabels.map(label=>'<span>'+escapeHtml(label)+'</span>').join("")+'</div></details>':""))+
       managementPanel("Specialist positions","Open each module to review its current position and supporting evidence.",positionRows?'<div class="table-wrap"><table><thead><tr><th>Workstream</th><th>Position</th><th>Status</th><th>Reason</th><th>Correction source</th></tr></thead><tbody>'+positionRows+'</tbody></table></div>':'<div class="empty">No specialist positions are established.</div>')+
-      managementPanel("Live Alert Feed","The same confirmed alert set used by Command Center is shown here for integrated control.",renderManagementAlerts(data.alerts||[]))+
       managementPanel("Suggested updates for review","Review each suggested update with its supporting document. Use the relevant page to approve, reject or defer it before it changes the project position.",candidateRows?'<div class="table-wrap"><table><thead><tr><th>Candidate</th><th>Type</th><th>Status</th><th>Source evidence</th><th>Owning module</th></tr></thead><tbody>'+candidateRows+'</tbody></table></div>':'<div class="notice info">No current candidate is waiting for review.</div>')+
       managementPanel("Information to confirm","Confirm missing information, outdated records and conflicting values.",renderManagementEvidenceGaps(data.evidenceGaps||[]))+
       managementPanel("Approvals and publication","A report awaiting publication does not change the recorded project figures.",renderManagementEvidenceGaps(data.governanceGaps||[])+renderManagementConsistency(data.consistency))+
@@ -4217,6 +4231,7 @@ function renderModuleResultBody(result){
     experienceDisclosure("Evidence limits and supporting information",readWarnings+basisHtml+renderClaimsReporting(data.claimsReporting,result.key)+sourceBasis,"Dates, records and calculation qualifications")+
     experienceReviewSummary(data.issueAssessment,managementSurface)+renderModuleReadiness(data,userReason);
   if(typeof bindAdvancedControls==="function")bindAdvancedControls(result.key);
+  if(result.key==="activity-analytics"&&typeof restoreActivityFilters==="function")restoreActivityFilters();
 
 }
 let moduleRequestSeq=0;
