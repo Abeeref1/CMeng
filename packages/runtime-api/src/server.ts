@@ -2105,6 +2105,9 @@ async function route(
       managementReportMatch[3] as
         | "xlsx"
         | "json";
+    const expectedProjectVersionRaw=url.searchParams.get("projectVersion"),expectedProjectVersion=expectedProjectVersionRaw===null?null:Number(expectedProjectVersionRaw),reportState=runtimeProjects.get(projectId);
+    if(expectedProjectVersion!==null&&(!Number.isSafeInteger(expectedProjectVersion)||expectedProjectVersion<0)){json(res,400,{error:"project_version_invalid"});return;}
+    if(expectedProjectVersion!==null&&reportState&&reportState.version!==expectedProjectVersion){json(res,409,{error:"project_changed_refresh_report",message:"The Project changed after this preview was prepared. Refresh the page and preview before exporting.",expectedProjectVersion,currentProjectVersion:reportState.version});return;}
     const result =
       managementSurfaceForProject(
         projectId,
