@@ -4071,6 +4071,7 @@ function renderSpecializedModule(key,data){
   if(key==="manhour-scurve")return renderManhourVisual(data);
   if(key==="forecast-history")return renderForecastHistoryVisual(data);
   if(key==="independent-forecast")return renderForecastVisual(data);
+  if(key==="recovery-acceleration")return renderRecoveryAccelerationVisual(data);
   if(key==="monte-carlo-risk")return renderMonteCarloRiskVisual(data);
   if(key==="earned-schedule")return renderEarnedScheduleVisual(data);
   if(key==="evm-by-wbs")return renderEvmByWbsVisual(data);
@@ -4081,6 +4082,7 @@ function renderSpecializedModule(key,data){
   if(key==="notices-claims")return renderNoticesClaimsVisual(data);
   if(key==="windows-analysis")return renderWindowsVisual(data);
   if(key==="eot-assessment")return renderEotVisual(data);
+  if(key==="delivery-interfaces")return renderInterfaceIntelligenceVisual(data);
   if(["commercial-overview","cost-forecast","variations-change","payments","cash-flow","commercial-claims-notices","contract-particulars-bonds"].includes(key))return renderCommercialVisual(key,data);
   if(["commercial-terms","cost-register","payment-register","cbs-breakdown","cost-control","evm-performance","cash-flow-register","cost-scurve","site-instructions","contract-obligations","liquidated-damages","bonds-insurance","retention-calendar"].includes(key))return renderCommercialCapabilityVisual(key,data);
   return"";
