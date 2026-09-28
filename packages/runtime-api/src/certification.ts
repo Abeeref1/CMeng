@@ -14,6 +14,7 @@ import {
 import { projectControlSchedule } from "./canonical-time-claims";
 import {resolveBoqSource} from './boq-source';
 import {isScenarioRevision} from './schedule-authority';
+import {scheduleModules,commercialModules} from './registry';
 
 export interface CrossModuleCertificationCheck {
   checkId: string;
@@ -54,7 +55,7 @@ export type CrossModuleConsistencyView =
 
 const GLOBAL_CONSISTENCY_CHECKS =
   new Set([
-    "MODULE_COUNT_29",
+    "MODULE_COUNT_REGISTRY",
     "CURRENT_PROGRAMME_ADOPTION_AUTHORITY",
     "REPORTING_CONTRACT_ALL_MODULES",
   ]);
@@ -435,16 +436,18 @@ export function certifyCrossModuleConsistency(
   checks.push(booleanCheck("POPULATION_DENOMINATOR_AUTHORITY_CONTRACT", invalidContracts.length === 0,
     "Population denominators, exclusions, Data Dates and metric authorities must reconcile.", [{ source: "invalid_contracts", value: invalidContracts.join(",") }]));
 
+  const expectedModuleCount = scheduleModules.length + commercialModules.length;
   checks.push(
     booleanCheck(
-      "MODULE_COUNT_29",
-      modules.size === 29,
-      "The runtime must expose all 22 schedule modules plus 7 commercial control modules.",
-      [{
-        source:
-          "runtime.modules",
-        value: modules.size,
-      }],
+      "MODULE_COUNT_REGISTRY",
+      modules.size === expectedModuleCount,
+      "The runtime module population must match the controlled Schedule and Commercial registry.",
+      [
+        { source: "runtime.modules", value: modules.size },
+        { source: "registry.expected", value: expectedModuleCount },
+        { source: "registry.schedule", value: scheduleModules.length },
+        { source: "registry.commercial", value: commercialModules.length },
+      ],
     ),
   );
 
