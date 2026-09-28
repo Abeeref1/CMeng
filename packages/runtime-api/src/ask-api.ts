@@ -104,7 +104,8 @@ export async function askAiRequest(req:IncomingMessage,res:ServerResponse,url:UR
     }
     const viewMatch=/^views\/([a-zA-Z0-9_-]+)\/open$/.exec(path);
     if(req.method==='POST'&&viewMatch){
-      const view=await engine.store.view(viewMatch[1]!,projectId,user),refreshed=await engine.ask(projectId,user,{question:view.plan.objective},view),current=compactAskResult(refreshed);
+      const view=await engine.store.view(viewMatch[1]!,projectId,user),savedPageContext=view.viewDefinition?.pageContext??null;
+      const refreshed=await engine.ask(projectId,user,{question:view.plan.objective,...(savedPageContext?{pageContext:savedPageContext}:{})},view),current=compactAskResult(refreshed);
       json(res,200,{...current,savedViewDefinition:view.viewDefinition??null,liveViewRefresh:{viewId:view.id,name:view.name,savedFromDataDate:view.savedFromDataDate??null,savedFromProjectVersion:view.savedFromProjectVersion??null,
         currentDataDate:refreshed.scope.dataDate,currentProjectVersion:refreshed.scope.projectVersion,
         refreshed:(view.savedFromProjectVersion??null)!==refreshed.scope.projectVersion||(view.savedFromDataDate??null)!==refreshed.scope.dataDate}});
