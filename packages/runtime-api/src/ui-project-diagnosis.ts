@@ -30,7 +30,7 @@ function renderProjectBrief(d){
  if(!d)return '';
  const drivers=(d.wbsRows||[]).filter(r=>r.pressureCount||r.drivingCount).slice(0,3);
  const actions=(d.actions||[]).slice(0,5);
- const driverText=drivers.length?drivers.map(r=>shortWbs?shortWbs(r.wbs):r.wbs).join('; '):'No concentrated schedule pressure is established from the readable programme fields.';
+ const driverText=drivers.length?drivers.map(r=>String(r.wbs||'').split(' / ').slice(-3).join(' / ')).join('; '):'No concentrated schedule pressure is established from the readable programme fields.';
  const actionHtml=actions.length?'<ol>'+actions.map(r=>'<li><b>'+escapeHtml(r.reason)+'</b> '+escapeHtml(r.action)+'</li>').join('')+'</ol>':'<p>No immediate management action can be ranked from the available information.</p>';
  return '<section class="project-diagnosis management-brief"><header class="diagnosis-heading"><h3>Management brief</h3><p>Data Date '+planningShortDate(d.dataDateIso)+' · '+fmt(d.executionActivityCount)+' execution activities</p></header><p class="diagnosis-summary">'+escapeHtml(d.summary)+'</p><section class="diagnosis-section"><h4>What is driving the current position</h4><p>'+escapeHtml(driverText)+'</p></section><section class="diagnosis-section"><h4>Decisions and actions</h4>'+actionHtml+'</section><details><summary>Supporting programme detail</summary><p>Critical '+escapeHtml(diagnosisCell(d.counts?.critical?.knownCount))+' · Negative float '+escapeHtml(diagnosisCell(d.counts?.negativeFloat?.knownCount))+' · Near-critical '+escapeHtml(diagnosisCell(d.counts?.nearCritical?.knownCount))+'.</p><p>'+escapeHtml(d.limitation||'')+'</p></details></section>';
 }
