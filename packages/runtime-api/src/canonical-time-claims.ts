@@ -435,7 +435,15 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
       rawFragments:primarySemanticFragments,
     });
     const clause=cell(r,'clause'),clauseIdentifiers=clause?[clause]:[];
-    const sourceLetter=cell(r,'linked letter');
+    const sourceLetter=cell(
+      r,
+      'linked letter',
+      'notice reference',
+      'notice ref',
+      'letter reference',
+      'letter no',
+      'letter number',
+    );
     if(sourceLetter)sourceLettersByClaim.set(claimId,sourceLetter);
     const linkedCorrespondence=sourceLetter?correspondence.get(norm(sourceLetter))??null:null;
     const linkedNarratives=sourceLetter?correspondenceNarratives.get(norm(sourceLetter))??[]:[];
