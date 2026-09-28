@@ -2632,8 +2632,10 @@ function renderProgressBreakdownVisual(data){
     return '<section class="planning-panel progress-breakdown-view" data-progress-breakdown-view="'+escapeHtml(view.dimension)+'" '+(view.dimension===initial?"":"hidden")+'><div class="planning-panel-head"><div><h4>'+escapeHtml(view.label)+'</h4><p>'+escapeHtml(view.basis)+'</p></div><span class="badge">'+escapeHtml(fmt(view.classifiedPopulation))+' classified · '+escapeHtml(fmt(view.unclassifiedPopulation))+' unclassified</span></div><div class="planning-panel-body">'+table+'</div></section>';
   }).join("");
   const baselineNote=p.baselinePlanAvailable
-    ? '<div class="notice info"><b>Controlled baseline available.</b> Baseline planned progress remains a separate schedule basis and is shown only in the WBS hierarchy detail below.</div>'
-    : '<div class="notice info"><b>Baseline planned progress is not shown.</b> No controlled baseline or revised baseline is available. Current programme progress and current-plan phasing remain usable without any confirmation step.</div>';
+    ? '<div class="notice info"><b>Controlled baseline plan is available.</b> Baseline planned progress remains a separate schedule basis and is shown only in the WBS hierarchy detail below.</div>'
+    : p.controlledBaselineAvailable
+      ? '<div class="notice info"><b>Baseline planned progress is not shown.</b> A controlled baseline exists, but its working-calendar date phasing is not sufficiently established for a defensible planned-progress curve. Current programme progress remains usable without any extra user action.</div>'
+      : '<div class="notice info"><b>Baseline planned progress is not shown.</b> No controlled baseline or revised baseline is available. Current programme progress and current-plan phasing remain usable without any extra user action.</div>';
   const hierarchy=p.hierarchyRows||p.rows;
   const baselineAvailable=p.baselinePlanAvailable===true;
   const currentPlanAvailable=hierarchy.some(row=>typeof row.currentPlanPercent==="number");
