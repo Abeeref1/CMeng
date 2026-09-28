@@ -32,7 +32,7 @@ export const moduleRegistry: ModuleDescriptor[] = [
   {"key": "variance-trends", "title": "Variance Trend", "description": "Activity finish movement and schedule pressure across controlled programme revisions.", "group": "Progress & Resources", "area": "schedule", "category": "progress"},
   {"key": "progress-scurve", "title": "Progress S-Curve", "description": "Derived baseline/current plans and schedule snapshot history on one time axis.", "group": "Progress & Resources", "area": "schedule", "category": "progress"},
   {"key": "quantity-scurve", "title": "Installed Quantities", "description": "BOQ and measured installations by unit; planned quantities require a defensible schedule mapping.", "group": "Progress & Resources", "area": "schedule", "category": "progress"},
-  {"key": "progress-breakdown", "title": "Progress Breakdown", "description": "Current programme activity progress by WBS, WBS level, zone, spatial level, work front and CBS, with source coverage stated explicitly.", "group": "Progress & Resources", "area": "schedule", "category": "progress"},
+  {"key": "progress-breakdown", "apiKey": "wbs-progress", "title": "Progress Breakdown", "description": "Current programme activity progress by WBS, WBS level, zone, spatial level, work front and CBS, with source coverage stated explicitly.", "group": "Progress & Resources", "area": "schedule", "category": "progress"},
   {"key": "manhour-scurve", "title": "Man-Hour S-Curve", "description": "Planned, actual and forecast labor hours, with history coverage stated explicitly.", "group": "Progress & Resources", "area": "schedule", "category": "progress"},
   {"key": "forecast-history", "title": "Completion History", "description": "How submitted finishes and calendar recalculations move across programme revisions.", "group": "Forecast & Finish", "area": "schedule", "category": "forecast"},
   {"key": "independent-forecast", "title": "Completion Forecast", "description": "Submitted completion, calendar recalculation and the productivity outlook, with each calculation basis and unresolved limit stated.", "group": "Forecast & Finish", "area": "schedule", "category": "forecast"},
@@ -54,7 +54,7 @@ export const moduleRegistry: ModuleDescriptor[] = [
 
 export const pageApiKey=(key:string)=>moduleRegistry.find(m=>m.key===key||m.apiKey===key)?.apiKey??key;
 export const resolveModuleKey=(key:string)=>moduleRegistry.find(m=>m.key===key||m.apiKey===key)?.key??key;
-for(const m of moduleRegistry)m.apiKey=m.title.toLowerCase().replace(/&/g,'and').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+for(const m of moduleRegistry)m.apiKey=m.apiKey??m.title.toLowerCase().replace(/&/g,'and').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
 export function publicModuleResult<T extends {key:string}>(result:T,requestedKey:string){
   const page=moduleRegistry.find(m=>m.key===result.key);
   return {...result,key:page?.apiKey===requestedKey?requestedKey:result.key,legacyKey:result.key,page:{key:page?.apiKey??result.key,title:page?.title??result.key,group:page?.group??null}};
