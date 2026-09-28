@@ -7,6 +7,7 @@ export const deliveryPages=[
  ['procurement-scurves','Procurement S-Curves','Separate throughput, value, weighted progress, material and approval curves.','package'],
  ['delivery-suppliers','Suppliers & Subcontractors','Linked package delivery and performance.','supplier'],
  ['delivery-design','RFI & Design','Required information, response dates and design blockers.','design'],
+ ['delivery-interfaces','Interface Management','Package-to-package, discipline and workfront interfaces with ownership, due dates and delivery consequences.','interface'],
  ['construction-discipline','Discipline Progress','Existing programme progress by governed discipline and workfront links.','workfront'],
  ['construction-locations','Location / Floor / Zone','Workfront progress through the governed project location hierarchy.','location'],
  ['construction-readiness','Construction Readiness','Applicable workfront gates, confirmed blockers and unresolved prerequisites.','workfront'],
