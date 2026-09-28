@@ -51,11 +51,18 @@ export async function askAiRequest(req:IncomingMessage,res:ServerResponse,url:UR
     if(req.method==='POST'&&path==='views'){
       const input=await jsonBody(req);if(typeof input.name!=='string'||!input.name.trim()||input.name.length>120)throw new AskError(400,'view_name_required','Enter a view name of up to 120 characters.');
       const result=await engine.store.result(String(input.analysisId??''),projectId,user),now=new Date().toISOString();
-      const view:SavedView={schemaVersion:1,id:randomUUID(),projectId,workspaceId:user.workspaceId,ownerId:user.userId,name:input.name.trim(),visibility:input.visibility==='project'?'project':'personal',plan:result.plan,presentation:result.presentation,createdAt:now,updatedAt:now};
+      const view:SavedView={schemaVersion:1,id:randomUUID(),projectId,workspaceId:user.workspaceId,ownerId:user.userId,name:input.name.trim(),visibility:input.visibility==='project'?'project':'personal',plan:result.plan,presentation:result.presentation,
+        savedFromDataDate:result.scope.dataDate,savedFromProjectVersion:result.scope.projectVersion,createdAt:now,updatedAt:now};
       await engine.store.saveView(view,user);json(res,201,view);return true;
     }
     const viewMatch=/^views\/([a-zA-Z0-9_-]+)\/open$/.exec(path);
-    if(req.method==='POST'&&viewMatch){const view=await engine.store.view(viewMatch[1]!,projectId,user);json(res,200,compactAskResult(await engine.ask(projectId,user,{question:view.plan.objective},view)));return true;}
+    if(req.method==='POST'&&viewMatch){
+      const view=await engine.store.view(viewMatch[1]!,projectId,user),refreshed=await engine.ask(projectId,user,{question:view.plan.objective},view),current=compactAskResult(refreshed);
+      json(res,200,{...current,liveViewRefresh:{viewId:view.id,name:view.name,savedFromDataDate:view.savedFromDataDate??null,savedFromProjectVersion:view.savedFromProjectVersion??null,
+        currentDataDate:refreshed.scope.dataDate,currentProjectVersion:refreshed.scope.projectVersion,
+        refreshed:(view.savedFromProjectVersion??null)!==refreshed.scope.projectVersion||(view.savedFromDataDate??null)!==refreshed.scope.dataDate}});
+      return true;
+    }
     throw new AskError(404,'ask_action_not_found','This Ask CMeng action is not available.');
   }catch(error){const e=error instanceof AskError?error:null;json(res,e?.status??500,{error:e?.code??'analysis_unavailable',message:e?.message??'This analysis could not be prepared. Project records have not been changed.'});}
   return true;
