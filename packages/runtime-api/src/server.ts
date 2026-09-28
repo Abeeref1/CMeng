@@ -98,6 +98,8 @@ import {
   buildModuleJsonDownload,
   buildModuleWorkbook,
   moduleReportFilename,
+  exportModuleReport,
+  type ModuleReportView,
 } from "./module-report";
 import {
   governedTables,
@@ -2084,7 +2086,7 @@ async function route(
   }
 
   const managementReportMatch =
-    /^\/api\/projects\/([^/]+)\/management\/([^/]+)\/report\.(xlsx|json)$/.exec(
+    /^\/api\/projects\/([^/]+)\/management\/([^/]+)\/report\.(xlsx|json|pdf|docx|csv|powerbi)$/.exec(
       url.pathname,
     );
 
@@ -2100,10 +2102,7 @@ async function route(
       decodeURIComponent(
         managementReportMatch[2]!,
       );
-    const format =
-      managementReportMatch[3] as
-        | "xlsx"
-        | "json";
+    const format = managementReportMatch[3]!;
     const result = moduleForProject(projectId,key);
     if (!result) {
       json(res, 404, {
@@ -2129,61 +2128,21 @@ async function route(
       return;
     }
 
-    if (format === "xlsx") {
-      const workbook =
-        await buildModuleWorkbook(
-          projectId,
-          key,
-          result,
-        );
-      attachment(
-        res,
-        200,
-        workbook,
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        moduleReportFilename(
-          projectId,
-          key,
-          "xlsx",
-        ),
-      );
-      return;
-    }
-
-    const payload =
-      buildModuleJsonDownload(
-        projectId,
-        key,
-        result,
-      );
-    attachment(
-      res,
-      200,
-      payload,
-      "application/json; charset=utf-8",
-      moduleReportFilename(
-        projectId,
-        key,
-        "json",
-      ),
-    );
+    const output=await exportModuleReport(projectId,key,result,format,moduleReportView(url));
+    attachment(res,200,output.bytes,output.type,output.filename);
     return;
   }
 
   if(await deliveryRequest(req,res,url))return;
 
-  const advancedReportMatch=/^\/api\/projects\/([^/]+)\/advanced\/([^/]+)\/report\.(xlsx|json)$/.exec(url.pathname);
+  const advancedReportMatch=/^\/api\/projects\/([^/]+)\/advanced\/([^/]+)\/report\.(xlsx|json|pdf|docx|csv|powerbi)$/.exec(url.pathname);
   if(req.method==='GET'&&advancedReportMatch){
     const projectId=decodeURIComponent(advancedReportMatch[1]!),key=decodeURIComponent(advancedReportMatch[2]!),format=advancedReportMatch[3] as 'xlsx'|'json';
     if(!advancedControlKeys.has(key)){json(res,404,{error:'advanced_control_not_found',controlKey:key});return;}
     const result=moduleForProject(projectId,key);
     if(result.status==='blocked'){json(res,409,{error:'advanced_control_blocked',controlKey:key,reason:result.reason,dependencies:result.dependencies});return;}
-    if(format==='xlsx'){
-      const workbook=await buildModuleWorkbook(projectId,key,result);
-      attachment(res,200,workbook,'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',moduleReportFilename(projectId,key,'xlsx'));
-    }else{
-      attachment(res,200,buildModuleJsonDownload(projectId,key,result),'application/json; charset=utf-8',moduleReportFilename(projectId,key,'json'));
-    }
+    const output=await exportModuleReport(projectId,key,result,format,moduleReportView(url));
+    attachment(res,200,output.bytes,output.type,output.filename);
     return;
   }
 
@@ -2197,7 +2156,7 @@ async function route(
   }
 
   const moduleReportMatch =
-    /^\/api\/projects\/([^/]+)\/(schedule|commercial|delivery)\/modules\/([^/]+)\/report\.(xlsx|json)$/.exec(
+    /^\/api\/projects\/([^/]+)\/(schedule|commercial|delivery)\/modules\/([^/]+)\/report\.(xlsx|json|pdf|docx|csv|powerbi)$/.exec(
       url.pathname,
     );
 
@@ -2215,10 +2174,7 @@ async function route(
       decodeURIComponent(
         moduleReportMatch[3]!,
       );
-    const format =
-      moduleReportMatch[4] as
-        | "xlsx"
-        | "json";
+    const format = moduleReportMatch[4]!;
 
     if (
       moduleArea ===
@@ -2260,44 +2216,8 @@ async function route(
     }
 
     if(moduleArea==="delivery"){const state=runtimeProjects.get(projectId);if(state)result=deliveryExportResult(state,result);}
-    if (format === "xlsx") {
-      const workbook =
-        await buildModuleWorkbook(
-          projectId,
-          key,
-          result,
-        );
-      attachment(
-        res,
-        200,
-        workbook,
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        moduleReportFilename(
-          projectId,
-          key,
-          "xlsx",
-        ),
-      );
-      return;
-    }
-
-    const payload =
-      buildModuleJsonDownload(
-        projectId,
-        key,
-        result,
-      );
-    attachment(
-      res,
-      200,
-      payload,
-      "application/json; charset=utf-8",
-      moduleReportFilename(
-        projectId,
-        key,
-        "json",
-      ),
-    );
+    const output=await exportModuleReport(projectId,key,result,format,moduleReportView(url));
+    attachment(res,200,output.bytes,output.type,output.filename);
     return;
   }
 
@@ -2972,6 +2892,11 @@ async function route(
 
 
 
+
+function moduleReportView(url:URL):ModuleReportView|undefined{
+  const encoded=url.searchParams.get('view');if(!encoded)return undefined;if(encoded.length>24000)throw new Error('Report view is too large.');
+  try{const value=JSON.parse(Buffer.from(encoded,'base64url').toString('utf8'));if(!value||typeof value!=='object'||Array.isArray(value))throw new Error();return value as ModuleReportView;}catch{throw new Error('The report view definition could not be read.');}
+}
 
 export function createCmengServer(): Server {
   return createServer((req, res) => {
