@@ -85,10 +85,16 @@ export function buildProjectDiagnosis(state:ProjectRuntimeState,modules:Map<stri
  }
  const uniqueChecks=[...new Map(checks.map(c=>[[c.activityId,c.domain,c.recordId,c.explanation].join('|'),c])).values()];
  const checksByActivity=new Map<string,any[]>();for(const c of uniqueChecks){const list=checksByActivity.get(c.activityId)??[];list.push(c);checksByActivity.set(c.activityId,list);}
+ const pressureIds=new Set(pressureRows.map(r=>r.activityId)),parent=new Map([...pressureIds].map(id=>[id,id]));
+ const find=(id:string):string=>{const p=parent.get(id)??id;if(p===id)return id;const root=find(p);parent.set(id,root);return root;};
+ const unite=(a:string,b:string)=>{const ra=find(a),rb=find(b);if(ra!==rb)parent.set(rb,ra);};
+ for(const rel of model.relationships)if(pressureIds.has(rel.predecessorActivityId)&&pressureIds.has(rel.successorActivityId))unite(rel.predecessorActivityId,rel.successorActivityId);
+ const componentSizes=new Map<string,number>();for(const id of pressureIds){const root=find(id);componentSizes.set(root,(componentSizes.get(root)??0)+1);}
+ const family=(r:ActivityAnalyticsRow)=>String(r.name??r.activityId).toLowerCase().replace(/\b\d+\b/g,'#').replace(/\s+/g,' ').trim();
  const actionGroups=new Map<string,{rows:ActivityAnalyticsRow[];linked:any[];movement:number|null;firstRank:number}>();
- pressureRows.forEach((r,index)=>{const movement=previousMovement(r.activityId),linked=checksByActivity.get(r.activityId)??[];
-   const linkedKey=linked.map(c=>c.recordId).filter(Boolean).sort().join('|');
-   const category=numeric(movement)&&movement>0?'revision:'+movement.toFixed(6):linkedKey?'linked:'+linkedKey:drivingIds.has(r.activityId)?'driving:'+shortWbs(wbsPath(r.wbsId)):r.finishOverdue?'overdue:'+shortWbs(wbsPath(r.wbsId)):r.missedPlannedStart?'missed:'+shortWbs(wbsPath(r.wbsId)):(numeric(r.totalFloatHours)&&r.totalFloatHours<0?'negative:'+shortWbs(wbsPath(r.wbsId)):'pressure:'+shortWbs(wbsPath(r.wbsId)));
+ pressureRows.forEach((r,index)=>{const movement=previousMovement(r.activityId),linked=checksByActivity.get(r.activityId)??[],root=find(r.activityId),componentSize=componentSizes.get(root)??1;
+   const linkedKey=linked.map(c=>c.recordId).filter(Boolean).sort().join('|'),moveKey=numeric(movement)&&movement>0?movement.toFixed(6):null;
+   const category=linkedKey?'linked:'+linkedKey:moveKey&&componentSize>1?'revision-chain:'+moveKey+':'+root:moveKey?'revision-family:'+moveKey+':'+family(r):'activity:'+r.activityId;
    const group=actionGroups.get(category)??{rows:[],linked:[],movement:numeric(movement)?movement:null,firstRank:index};group.rows.push(r);group.linked.push(...linked);actionGroups.set(category,group);
  });
  const actions=[...actionGroups.values()].sort((a,b)=>a.firstRank-b.firstRank).slice(0,10).map((group,index)=>{const r=group.rows[0]!,linked=[...new Map(group.linked.map(c=>[[c.domain,c.recordId,c.explanation].join('|'),c])).values()],described=describe(r),wbsLabels=[...new Set(group.rows.map(x=>shortWbs(wbsPath(x.wbsId))))],move=group.movement;
