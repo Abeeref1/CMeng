@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { checkProjectionIntegrity } from "../packages/runtime-api/src/projection-integrity";
+import { commercialIntegrityChecks } from "../packages/runtime-api/src/commercial-integrity";
 import type { DelayClaimsModel } from "../packages/delay-analysis-core/src";
 
 const schedule:any = {
@@ -80,6 +81,45 @@ test("quarantined claim population is certified as withheld rather than false ze
   }
 });
 
+
+test("quarantined commercial claims integrity treats withheld notice dimensions as null, not zero",()=>{
+  const position:any={
+    sourceLedger:{},
+    claimsNotices:{
+      evidenceRevisionId:"canonical-evidence:quarantined-commercial",
+      diagnostics:["CLAIM_POPULATION_QUARANTINED_SOURCE_RETAINED_COUNTS_WITHHELD"],
+      dimensionalEvidenceGaps:{requirementMissing:null,eventDateMissing:null,noticeDateMissing:null},
+      noticeTimelinessCounts:{
+        timely:null,late:null,not_issued:null,requirement_missing:null,
+        requirement_conflicted:null,event_date_missing:null,notice_date_missing:null,
+      },
+      noticeAssessments:[],
+    },
+  };
+  const checks=commercialIntegrityChecks("commercial-claims-notices",position);
+  assert.equal(checks.find(row=>row.metric==="notice_outcome_population")?.passed,true);
+  assert.equal(checks.find(row=>row.metric==="notice_missing_rules_are_not_unselected_rules")?.passed,true);
+  assert.equal(checks.find(row=>row.metric==="notice_date_gap_population")?.passed,true);
+  assert.equal(checks.filter(row=>!row.passed).length,0);
+});
+
+test("established empty commercial notice population remains verified zero",()=>{
+  const position:any={
+    sourceLedger:{},
+    claimsNotices:{
+      evidenceRevisionId:"canonical-evidence:empty-commercial",
+      diagnostics:[],
+      dimensionalEvidenceGaps:{requirementMissing:0,eventDateMissing:0,noticeDateMissing:0},
+      noticeTimelinessCounts:{
+        timely:0,late:0,not_issued:0,requirement_missing:0,
+        requirement_conflicted:0,event_date_missing:0,notice_date_missing:0,
+      },
+      noticeAssessments:[],
+    },
+  };
+  const checks=commercialIntegrityChecks("commercial-claims-notices",position);
+  assert.equal(checks.filter(row=>!row.passed).length,0);
+});
 
 test("duplicate source activity IDs stay a source-quality defect, not a false schedule-change engine failure",()=>{
   const duplicateSchedule:any={
