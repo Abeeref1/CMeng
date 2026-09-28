@@ -2035,9 +2035,14 @@ function activityReviewRowHtml(a){
     '<td>'+escapeHtml(planningShortDate(a.currentStartIso))+'</td><td>'+escapeHtml(planningShortDate(a.currentFinishIso))+'</td><td>'+escapeHtml(a.percentComplete===null?"—":fmt(a.percentComplete)+"%")+'</td>'+
     '<td>'+escapeHtml(fmt(a.totalFloatHours))+'</td><td>'+escapeHtml(a.finishVarianceDays===null?"Unresolved":fmt(a.finishVarianceDays))+'</td><td>'+escapeHtml(a.delayStatus||"—")+'</td></tr>';
 }
+const activityFilterIds=["activityFilterSearch","activityFilterWbs","activityFilterZone","activityFilterFloor","activityFilterTower","activityFilterBuilding","activityFilterArea","activityFilterWorkFront","activityFilterPhase","activityFilterSection","activityFilterChainage","activityFilterDiscipline","activityFilterTrade","activityFilterSystem","activityFilterPackage","activityFilterCbs","activityFilterContractor","activityFilterSubcontractor","activityFilterStatus","activityFilterCriticality","activityFilterCondition"];
 function activityFilterValue(id){const node=el(id);return node?String(node.value||"").trim():"";}
+function activityFilterStorageKey(){return "cmeng-activity-scope:"+project();}
+function saveActivityFilters(){const values={};activityFilterIds.forEach(id=>{const value=activityFilterValue(id);if(value)values[id]=value;});try{localStorage.setItem(activityFilterStorageKey(),JSON.stringify(values));}catch{}}
+function restoreActivityFilters(){let values={};try{values=JSON.parse(localStorage.getItem(activityFilterStorageKey())||"{}")||{};}catch{}activityFilterIds.forEach(id=>{const node=el(id),value=values[id];if(!node||!value)return;if(node.tagName==="SELECT"&&![...node.options].some(option=>option.value===value))return;node.value=value;});filterActivityReview();}
 function clearActivityFilters(){
-  ["activityFilterSearch","activityFilterWbs","activityFilterZone","activityFilterFloor","activityFilterTower","activityFilterBuilding","activityFilterArea","activityFilterWorkFront","activityFilterPhase","activityFilterSection","activityFilterChainage","activityFilterDiscipline","activityFilterTrade","activityFilterSystem","activityFilterPackage","activityFilterCbs","activityFilterContractor","activityFilterSubcontractor","activityFilterStatus","activityFilterCriticality","activityFilterCondition"].forEach(id=>{const node=el(id);if(node)node.value="";});
+  activityFilterIds.forEach(id=>{const node=el(id);if(node)node.value="";});
+  try{localStorage.removeItem(activityFilterStorageKey());}catch{}
   filterActivityReview();
 }
 function filterActivityReview(){
@@ -2064,6 +2069,7 @@ function filterActivityReview(){
   rows.sort((a,b)=>{const as=(a.scheduleDelayed?1500:0)+(a.criticality==="critical"?1000:a.criticality==="near_critical"?500:0)+(a.totalFloatHours<0?200:0)+(a.finishVarianceDays>0?a.finishVarianceDays:0);const bs=(b.scheduleDelayed?1500:0)+(b.criticality==="critical"?1000:b.criticality==="near_critical"?500:0)+(b.totalFloatHours<0?200:0)+(b.finishVarianceDays>0?b.finishVarianceDays:0);return bs-as||String(a.activityId).localeCompare(String(b.activityId));});
   if(count)count.textContent=fmt(rows.length)+" of "+fmt(p.rows.filter(r=>!["level_of_effort","wbs_summary"].includes(r.activityType)).length)+" execution activities";
   body.innerHTML=rows.slice(0,500).map(activityReviewRowHtml).join("")||'<tr><td colspan="13">No activities match the selected filters.</td></tr>';
+  saveActivityFilters();
 }
 function renderActivityAnalyticsVisual(data){
   const rowHtml=a=>'<tr><td><b>'+escapeHtml(a.activityId)+'</b><br><span class="muted">'+escapeHtml(a.name||"")+'</span><br><span class="muted">'+escapeHtml(a.wbsPath||a.wbsId||"")+'</span></td>'+
@@ -4222,6 +4228,7 @@ function renderModuleResultBody(result){
     experienceDisclosure("Evidence limits and supporting information",readWarnings+basisHtml+renderClaimsReporting(data.claimsReporting,result.key)+sourceBasis,"Dates, records and calculation qualifications")+
     experienceReviewSummary(data.issueAssessment,managementSurface)+renderModuleReadiness(data,userReason);
   if(typeof bindAdvancedControls==="function")bindAdvancedControls(result.key);
+  if(result.key==="activity-analytics")restoreActivityFilters();
 
 }
 let moduleRequestSeq=0;
