@@ -18,7 +18,7 @@ export interface ProjectAction {
     instruction:string;
     completionRule:string;
   };
-  target:{type:'schedule'|'document'|'delivery'|'module'|'upload'|'inline';label:string;documentId?:string;revisionId?:string;phaseId?:string;canConfirm?:boolean;moduleKey?:string;kind?:string;population?:boolean;uploadHint?:string;uploadMode?:'schedule'|'evidence';sourceHash?:string;scheduleRole?:string;needsPurpose?:boolean;approvalRequired?:boolean;relationshipOptions?:Array<{value:'new_record'|'replacement'|'amendment';label:string}>;relationshipTargets?:Array<{documentId:string;filename:string;familyKey:string;basisState:string}>};
+  target:{type:'schedule'|'document'|'delivery'|'module'|'upload'|'inline';label:string;documentId?:string;revisionId?:string;phaseId?:string;canConfirm?:boolean;moduleKey?:string;kind?:string;population?:boolean;uploadHint?:string;uploadMode?:'schedule'|'evidence';sourceHash?:string;scheduleRole?:string;needsPurpose?:boolean;approvalRequired?:boolean;suggestedDateIso?:string|null;relationshipOptions?:Array<{value:'new_record'|'replacement'|'amendment';label:string}>;relationshipTargets?:Array<{documentId:string;filename:string;familyKey:string;basisState:string}>};
   issue?:ControlIssue;requestCount?:number;findingIds?:string[];findings?:ControlIssue[];affectedPages?:string[];completionPosition?:unknown;
 }
 const identity=(value:unknown)=>createHash('sha256').update(JSON.stringify(value)).digest('hex').slice(0,24);
@@ -29,15 +29,29 @@ function informationResolution(instruction:string):Pick<ProjectAction,'category'
 function uploadResolution(label:string,hint:string,instruction:string,uploadMode:'schedule'|'evidence'='evidence'):Pick<ProjectAction,'category'|'resolution'|'target'>{
   return {category:'review',resolution:{kind:'upload',requiresUserAction:true,instruction,completionRule:'This action closes automatically after the uploaded evidence establishes or corrects the required basis.'},target:{type:'upload',label,uploadHint:hint,uploadMode}};
 }
-function actionResolution(group:ReviewGroup,issues:ControlIssue[]):Pick<ProjectAction,'category'|'resolution'|'target'>{
+function actionResolution(group:ReviewGroup,issues:ControlIssue[],context:{completionPosition?:unknown}={}):Pick<ProjectAction,'category'|'resolution'|'target'>{
   const conflict=issues.some(i=>['source_conflict','data_quality'].includes(i.kind));
   switch(group.key){
     case 'schedule-calculation':
       return informationResolution('CMeng found a difference between submitted dates and its independent calculation. This is a calculation qualification, not something you must confirm. The submitted programme remains the reporting authority unless you explicitly replace it.');
     case 'programme-comparison':
       return informationResolution('A baseline or earlier adopted revision is needed only for baseline/revision comparison. Current programme analysis remains usable. Any uploaded programme that actually needs selection appears separately as a direct programme confirmation action.');
-    case 'contract-completion':
-      return informationResolution('The contractual completion date is not yet established. Programme and forecast analysis remain available. If a contract comparison, EOT assessment or contractual exposure question needs this date, CMeng will ask for the specific contract or amendment in that context.');
+    case 'contract-completion': {
+      const completion=context.completionPosition as {submittedFinishIso?:string|null}|undefined;
+      const suggestedDateIso=typeof completion?.submittedFinishIso==='string'?completion.submittedFinishIso:null;
+      return {
+        category:'confirmation',
+        resolution:{
+          kind:'confirm',
+          requiresUserAction:true,
+          instruction:suggestedDateIso
+            ? 'Confirm the contractual completion date here. The current programme finish is shown only as a suggested candidate; change it if the contract date is different.'
+            : 'Enter and confirm the contractual completion date here. Programme and forecast analysis remain available while this date is unconfirmed.',
+          completionRule:'This action closes when a contractual completion date is explicitly confirmed.'
+        },
+        target:{type:'inline',kind:'contract-completion',label:'Confirm contractual completion date',suggestedDateIso}
+      };
+    }
     case 'resources':
       return group.available&&conflict
         ? uploadResolution('Upload corrected resource evidence','Corrected manpower/resource plan, usage or capacity record','Upload the corrected resource/manpower source that resolves the conflicting or invalid record.')
@@ -161,8 +175,13 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
   }
   const information:ProjectAction[]=[];
   for(const {group,issues} of groups.values()){
+    // Once a contractual completion date has been explicitly governed, stale
+    // missing-only findings must not recreate the same confirmation action.
+    // A later genuine source conflict/review remains visible and actionable.
+    const confirmedContractDate=state.controls.contractTimeBasis?.contractualCompletionIso&&state.controls.contractTimeBasis.contractualCompletionState==='official';
+    if(group.key==='contract-completion'&&confirmedContractDate&&issues.every(issue=>issue.kind==='missing_information'))continue;
     const refs=[...new Set(issues.flatMap(i=>i.sourceRefs))],pages=[...new Set(issues.flatMap(i=>i.moduleKeys))];
-    const resolution=actionResolution(group,issues);
+    const resolution=actionResolution(group,issues,context);
     const item:ProjectAction={id:'matter:'+group.key,...resolution,title:group.title,reason:group.note,
       recordCount:refs.length,requestCount:issues.length,findings:issues,findingIds:issues.map(i=>identity([i.kind,i.code,i.summary,i.detail,i.sourceRefs])),affectedPages:pages,
       ...(group.key==='schedule-calculation'?{completionPosition:context.completionPosition}:{})};

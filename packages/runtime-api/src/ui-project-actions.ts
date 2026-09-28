@@ -1,5 +1,5 @@
 export const projectActionsStyles=String.raw`
-.action-summary{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:12px 0;color:#4a5e72}.project-action-list{display:grid;gap:12px}.project-action{border:1px solid #d6e1eb;border-left:4px solid #b57a26;border-radius:9px;background:#fff;padding:18px;scroll-margin-top:110px}.project-action h4{margin:0 0 8px;font-size:17px}.project-action p{margin:7px 0;line-height:1.5}.project-action footer{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px}.action-filters{display:flex;gap:12px;flex-wrap:wrap;margin:18px 0}.action-filters input{flex:1;min-width:180px}.action-filters input,.action-filters select,.project-action select,.project-action input[type="text"],.project-action input[type="file"]{padding:10px;border:1px solid #bdcbd8;border-radius:7px;font:inherit;background:#fff}.project-action-count{display:inline-block;margin-left:6px;padding:2px 7px;border-radius:10px;background:#fff0d5;color:#6f4616}.action-notification{font-size:13px;color:#7a541c;margin:0 0 12px}.project-action small{color:#546c81}.action-resolution{display:grid;gap:9px;margin-top:12px;padding:12px;border:1px solid #e1e8ef;border-radius:8px;background:#fbfdff}.action-resolution-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:9px}.action-resolution label{display:grid;gap:5px;font-size:11px;font-weight:750;color:#5b6d80}.action-resolution .btn{justify-self:start}.action-inline-message{min-height:18px;font-size:12px;color:#526579}.action-information{border-left-color:#9aa8b5;background:#fbfcfd}.action-information .action-resolution{display:none}
+.action-summary{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:12px 0;color:#4a5e72}.project-action-list{display:grid;gap:12px}.project-action{border:1px solid #d6e1eb;border-left:4px solid #b57a26;border-radius:9px;background:#fff;padding:18px;scroll-margin-top:110px}.project-action h4{margin:0 0 8px;font-size:17px}.project-action p{margin:7px 0;line-height:1.5}.project-action footer{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px}.action-filters{display:flex;gap:12px;flex-wrap:wrap;margin:18px 0}.action-filters input{flex:1;min-width:180px}.action-filters input,.action-filters select,.project-action select,.project-action input[type="text"],.project-action input[type="date"],.project-action input[type="file"]{padding:10px;border:1px solid #bdcbd8;border-radius:7px;font:inherit;background:#fff}.project-action-count{display:inline-block;margin-left:6px;padding:2px 7px;border-radius:10px;background:#fff0d5;color:#6f4616}.action-notification{font-size:13px;color:#7a541c;margin:0 0 12px}.project-action small{color:#546c81}.action-resolution{display:grid;gap:9px;margin-top:12px;padding:12px;border:1px solid #e1e8ef;border-radius:8px;background:#fbfdff}.action-resolution-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:9px}.action-resolution label{display:grid;gap:5px;font-size:11px;font-weight:750;color:#5b6d80}.action-resolution .btn{justify-self:start}.action-inline-message{min-height:18px;font-size:12px;color:#526579}.action-information{border-left-color:#9aa8b5;background:#fbfcfd}.action-information .action-resolution{display:none}
 `;
 export const projectActionsScript=String.raw`
 let projectActionState=null,projectActionRequest=0,projectActionSearch='',projectActionFilter='all';
@@ -48,6 +48,11 @@ function actionResolutionHtml(a){
   return '<div class="action-resolution"><p>'+escapeHtml(r.instruction||'Upload the evidence needed to complete this action.')+'</p><div class="action-resolution-grid"><label>'+escapeHtml(t.uploadHint||'Evidence')+'<input type="file" class="action-upload-file" '+(schedule?'accept=".xer,.xml,.xlsx,.xlsm,.csv"':'accept=".zip,.csv,.pdf,.docx,.xlsx,.xlsm,.xer,.xml,.png,.jpg,.jpeg,.tif,.tiff,.bmp,.webp"')+'></label>'+(schedule?'<label>Programme purpose<select class="action-upload-role">'+programmePurposeOptions(t.scheduleRole||'update')+'</select></label><label>Baseline approval reference<input type="text" class="action-upload-approval" placeholder="Required only for baseline / revised baseline"></label>':'')+'</div><button class="btn primary" data-resolve-upload="'+escapeHtml(a.id)+'">'+escapeHtml(t.label||'Upload evidence')+'</button><p class="action-inline-message" role="status"></p></div>';
  }
  if(t.type==='delivery'&&t.population)return '<div class="action-resolution"><p>'+escapeHtml(r.instruction||'Confirm that the current records are the complete reporting population.')+'</p><button class="btn primary" data-resolve-population="'+escapeHtml(a.id)+'">'+escapeHtml(t.label||'Confirm complete population')+'</button><p class="action-inline-message" role="status"></p></div>';
+ if(t.type==='inline'&&t.kind==='contract-completion'){
+  const candidate=typeof t.suggestedDateIso==='string'?t.suggestedDateIso.slice(0,10):'';
+  const candidateNote=candidate?'<p><b>Suggested candidate:</b> '+escapeHtml(planningShortDate(candidate))+' from the current submitted programme finish. This is not treated as contractual unless you confirm it.</p>':'';
+  return '<div class="action-resolution"><p>'+escapeHtml(r.instruction||'Confirm the contractual completion date.')+'</p>'+candidateNote+'<div class="action-resolution-grid"><label>Contractual completion date<input type="date" class="action-contract-completion-date" value="'+escapeHtml(candidate)+'"></label></div><button class="btn primary" data-resolve-contract-completion="'+escapeHtml(a.id)+'">'+escapeHtml(t.label||'Confirm contractual completion date')+'</button><p class="action-inline-message" role="status"></p></div>';
+ }
  return '';
 }
 function renderProjectActionList(){
@@ -110,6 +115,17 @@ async function resolveUploadAction(id){
   if(project()===owner)await refresh(false);
  }catch(e){actionMessage(id,e.message);setActionBusy(id,false);}
 }
+async function resolveContractCompletionAction(id){
+ if(!actionStateCurrent()||projectActionState.status!=='ready')return;
+ const owner=project(),version=projectActionState.data.projectVersion,a=projectActionState.data.actions.find(x=>x.id===id);if(!a)return;
+ const node=actionNode(id),date=node?.querySelector('.action-contract-completion-date')?.value||'';
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(date)){actionMessage(id,'Enter the contractual completion date.');return;}
+ setActionBusy(id,true);actionMessage(id,'Saving contractual completion date…');
+ try{
+  await api('/api/projects/'+encodeURIComponent(owner)+'/actions/confirm-contract-completion',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({expectedVersion:version,actionId:id,dateIso:date})});
+  if(project()===owner)await refresh(false);
+ }catch(e){actionMessage(id,e.message);setActionBusy(id,false);}
+}
 async function resolvePopulationAction(id){
  if(!actionStateCurrent()||projectActionState.status!=='ready')return;
  const owner=project(),version=projectActionState.data.projectVersion,a=projectActionState.data.actions.find(x=>x.id===id);if(!a)return;
@@ -129,6 +145,7 @@ function bindProjectActions(root){
  root.querySelectorAll('[data-resolve-document]').forEach(b=>b.onclick=()=>resolveDocumentAction(b.dataset.resolveDocument));
  root.querySelectorAll('[data-resolve-upload]').forEach(b=>b.onclick=()=>resolveUploadAction(b.dataset.resolveUpload));
  root.querySelectorAll('[data-resolve-population]').forEach(b=>b.onclick=()=>resolvePopulationAction(b.dataset.resolvePopulation));
+ root.querySelectorAll('[data-resolve-contract-completion]').forEach(b=>b.onclick=()=>resolveContractCompletionAction(b.dataset.resolveContractCompletion));
  root.querySelectorAll('.action-document-kind').forEach(select=>select.onchange=()=>{const label=select.closest('.action-resolution').querySelector('.action-document-target-label');if(label)label.hidden=select.value==='new_record';});
  root.querySelectorAll('[data-action-refresh]').forEach(b=>b.onclick=()=>loadProjectActions());
  root.querySelectorAll('[data-action-close]').forEach(b=>b.onclick=()=>{const drawer=el('projectReviewDrawer');drawer.open=false;drawer.hidden=true;el('moduleContent')?.scrollIntoView({block:'start'});});

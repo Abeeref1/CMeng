@@ -70,6 +70,14 @@ export function assessModuleIssues(result: ModuleRuntimeResult, consistency: Con
     result.reason??result.dependencies.join(', '),'Provide the identified source evidence; missing values remain unavailable.','evidenceState');
   if(result.evidenceState==='conflicted') add('source_conflict','EVIDENCE_STATE_CONFLICTED','Source evidence conflicts',
     result.reason??'The evidence resolver reported a conflict.','Review the source assertions and govern the applicable evidence.','evidenceState');
+  if(result.key==='schedule-change-report'&&Array.isArray(d?.diagnostics)&&d.diagnostics.includes('SECOND_SCHEDULE_REVISION_REQUIRED_FOR_CHANGE_COMPARISON')) add(
+    'missing_information',
+    'SECOND_PROGRAMME_REVISION_NEEDED',
+    'Previous programme needed for change comparison',
+    'Only one controlled programme revision is available. CMeng can analyse the current programme, but it cannot state what changed since a previous revision.',
+    'Upload or identify the previous controlled programme revision only if a change comparison is required.',
+    'diagnostics'
+  );
 
   // Walk the owning projection. Commercial modules share an entire position but
   // expose their owned evidence in focus; unrelated missing registers must not
@@ -91,7 +99,7 @@ export function assessModuleIssues(result: ModuleRuntimeResult, consistency: Con
     const field=path.replace(/\[\*\]/g,'').split('.').slice(-2).join(' · ').replace(/([a-z])([A-Z])/g,'$1 $2')+(typeof value.topic==='string'?' · '+value.topic:'');
     const conflict=diagnostics.filter(s=>/(?:^|_)(CONFLICT|CONFLICTING|CONFLICTED)(?:_|:|$)/.test(s)&&!(variationGroups.length&&s===variationConflictCode));
     const invalid=diagnostics.filter(s=>/(?:^|_)(INVALID|MALFORMED|DUPLICATE|AMBIGUOUS|BROKEN|MISMATCH)(?:_|:|$)|CLOSURE_BEFORE_RAISED_DATE/.test(s));
-    const missingInput=diagnostics.filter(s=>/REQUIRED|NOT_A_RECONCILED|IS_NOT_GROSS|UNKNOWN_PAID_AMOUNT|NOT_DERIVED_FROM|SOURCE_AMOUNT_EVENT_DATE_NOT_ESTABLISHED/.test(s));
+    const missingInput=diagnostics.filter(s=>s!=='SECOND_SCHEDULE_REVISION_REQUIRED_FOR_CHANGE_COMPARISON'&&/REQUIRED|NOT_A_RECONCILED|IS_NOT_GROSS|UNKNOWN_PAID_AMOUNT|NOT_DERIVED_FROM|SOURCE_AMOUNT_EVENT_DATE_NOT_ESTABLISHED/.test(s));
     if(value.state==='conflicted'||conflict.length) {
       add('source_conflict','SOURCE_CONFLICT',field+' · source conflict',conflict.join('; ')||'The source resolver found conflicting assertions.',
         'Reconcile the retained source records; do not replace them with a silent default.',path,'Project evidence owner',refs);

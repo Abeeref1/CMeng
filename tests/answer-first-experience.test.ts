@@ -30,8 +30,8 @@ test('completion distinguishes an available scenario from missing contract and u
 test('one missing contract date across six pages is one coverage matter with all findings retained',()=>{
  const state=runtimeProjects.getOrCreate('UX-GROUPS');const findings=['pmo-analysis','milestones','independent-forecast','eot-assessment','master-dashboard','contract-particulars-bonds'].map(k=>issue(k));
  const result=projectActions(state,summarizeControlIssues(findings));
- const matter=result.information.find(a=>a.id==='matter:contract-completion')!;assert.equal(matter.requestCount,1);assert.equal(matter.findings?.length,1);assert.equal(matter.affectedPages?.length,6);assert.equal(matter.target.type,'inline');
- assert.ok(!result.actions.some(a=>a.id==='matter:contract-completion'),'an absent optional contract does not create six user jobs');
+ const matter=result.actions.find(a=>a.id==='matter:contract-completion')!;assert.equal(matter.requestCount,1);assert.equal(matter.findings?.length,1);assert.equal(matter.affectedPages?.length,6);assert.equal(matter.target.type,'inline');assert.equal(matter.target.kind,'contract-completion');
+ assert.ok(!result.information.some(a=>a.id==='matter:contract-completion'),'missing contractual completion is one direct confirmation action, not passive information or six page jobs');
  assert.equal(result.actionCount,result.actions.length);assert.ok(!JSON.stringify(result).includes('Open relevant page'));
  const isolated=projectActions(runtimeProjects.getOrCreate('UX-OTHER'),summarizeControlIssues([]));assert.ok(!JSON.stringify(isolated).includes('contract-completion'));
  const baseline=projectActions(state,summarizeControlIssues([{...issue('schedule-analytics','data.result.completionBases[basis=programme]'),summary:'Programme completion basis missing',detail:'The source completion basis is unavailable.'}]));

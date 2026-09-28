@@ -1828,12 +1828,36 @@ async function route(
   }
 
   if(url.pathname.endsWith('/diagnosis')){const {diagnosisRequest}=await import('./diagnosis-api');if(await diagnosisRequest(req,res,url))return;}
-  const actionsMatch=/^\/api\/projects\/([^/]+)\/actions(?:\/(confirm-schedule))?$/.exec(url.pathname);
+  const actionsMatch=/^\/api\/projects\/([^/]+)\/actions(?:\/(confirm-schedule|confirm-contract-completion))?$/.exec(url.pathname);
   if(actionsMatch){
     const projectId=decodeURIComponent(actionsMatch[1]!),state=runtimeProjects.get(projectId);if(!state){json(res,404,{error:'project_not_found'});return;}
     const {projectActions,programmeActions}=await import('./project-actions');
     if(req.method==='GET'&&!actionsMatch[2]){const surfaces=managementSurfacesForProject(projectId)!;json(res,200,projectActions(state,surfaces.sourceQuality.issueAssessment,{completionPosition:(surfaces.masterDashboard as any).completionPosition}));return;}
-    if(req.method==='POST'&&actionsMatch[2]){try{const input=JSON.parse(Buffer.from(await readBody(req)).toString('utf8'));if(input.expectedVersion!==state.version)throw new Error('The project changed. Refresh Actions required before confirming.');const action=programmeActions(state).find(a=>a.id===input.actionId);if(!action?.target.canConfirm||!action.target.revisionId)throw new Error('This schedule needs review before it can be selected. Refresh Actions required.');runtimeProjects.adoptSchedule(projectId,action.target.revisionId,action.target.phaseId);invalidateProject(projectId);json(res,200,{projectId,projectVersion:state.version,completedActionId:action.id});}catch(e){json(res,409,{error:'schedule_confirmation_not_completed',message:e instanceof Error?e.message:'The schedule could not be confirmed.'});}return;}
+    if(req.method==='POST'&&actionsMatch[2]==='confirm-schedule'){try{const input=JSON.parse(Buffer.from(await readBody(req)).toString('utf8'));if(input.expectedVersion!==state.version)throw new Error('The project changed. Refresh Actions required before confirming.');const action=programmeActions(state).find(a=>a.id===input.actionId);if(!action?.target.canConfirm||!action.target.revisionId)throw new Error('This schedule needs review before it can be selected. Refresh Actions required.');runtimeProjects.adoptSchedule(projectId,action.target.revisionId,action.target.phaseId);invalidateProject(projectId);json(res,200,{projectId,projectVersion:state.version,completedActionId:action.id});}catch(e){json(res,409,{error:'schedule_confirmation_not_completed',message:e instanceof Error?e.message:'The schedule could not be confirmed.'});}return;}
+    if(req.method==='POST'&&actionsMatch[2]==='confirm-contract-completion'){try{
+      const input=JSON.parse(Buffer.from(await readBody(req)).toString('utf8'));
+      if(input.expectedVersion!==state.version)throw new Error('The project changed. Refresh Actions required before confirming.');
+      const rawDate=String(input.dateIso??'').trim();
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(rawDate)||!Number.isFinite(Date.parse(rawDate+'T00:00:00Z')))throw new Error('Enter a valid contractual completion date.');
+      const surfaces=managementSurfacesForProject(projectId)!;
+      const action=projectActions(state,surfaces.sourceQuality.issueAssessment,{completionPosition:(surfaces.masterDashboard as any).completionPosition}).actions.find(a=>a.id===input.actionId);
+      if(!action||action.target.type!=='inline'||action.target.kind!=='contract-completion')throw new Error('The contractual completion date is no longer awaiting confirmation. Refresh Actions required.');
+      const current=state.controls.contractTimeBasis;
+      runtimeProjects.updateControls(projectId,{contractTimeBasis:{
+        ...(current??{}),
+        contractualCompletionIso:rawDate+'T00:00:00.000Z',
+        contractualCompletionState:'official',
+        completionReason:'Confirmed by user in Actions required.',
+        officialApprovedEotDays:current?.officialApprovedEotDays??null,
+        officialApprovedEotState:current?.officialApprovedEotState??'missing',
+        eotDayBasis:current?.eotDayBasis??'unknown',
+        eotDayBasisState:current?.eotDayBasisState??'missing',
+        sourceRefs:[...new Set([...(current?.sourceRefs??[]),'user-confirmation:contract-completion:'+rawDate])],
+      }});
+      invalidateProject(projectId);
+      const updated=runtimeProjects.get(projectId)!;
+      json(res,200,{projectId,projectVersion:updated.version,completedActionId:action.id,contractualCompletionIso:updated.controls.contractTimeBasis?.contractualCompletionIso??null});
+    }catch(e){json(res,409,{error:'contract_completion_confirmation_not_completed',message:e instanceof Error?e.message:'The contractual completion date could not be confirmed.'});}return;}
     json(res,405,{error:'action_not_supported'});return;
   }
 
