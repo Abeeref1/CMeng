@@ -436,7 +436,7 @@ export function certifyCrossModuleConsistency(
   checks.push(booleanCheck("POPULATION_DENOMINATOR_AUTHORITY_CONTRACT", invalidContracts.length === 0,
     "Population denominators, exclusions, Data Dates and metric authorities must reconcile.", [{ source: "invalid_contracts", value: invalidContracts.join(",") }]));
 
-  const expectedModuleCount = scheduleModules.length + commercialModules.length;
+  const expectedModuleCount = scheduleModules.filter(module=>!module.onDemand).length + commercialModules.filter(module=>!module.onDemand).length;
   checks.push(
     booleanCheck(
       "MODULE_COUNT_REGISTRY",
@@ -445,8 +445,8 @@ export function certifyCrossModuleConsistency(
       [
         { source: "runtime.modules", value: modules.size },
         { source: "registry.expected", value: expectedModuleCount },
-        { source: "registry.schedule", value: scheduleModules.length },
-        { source: "registry.commercial", value: commercialModules.length },
+        { source: "registry.schedule", value: scheduleModules.filter(module=>!module.onDemand).length },
+        { source: "registry.commercial", value: commercialModules.filter(module=>!module.onDemand).length },
       ],
     ),
   );
