@@ -22,5 +22,8 @@ test('Look-Ahead supports 2/4/6/8/12 week windows and report uses the selected h
  assert.ok(two.data.rows.length<six.data.rows.length);assert.ok(six.data.rows.length<twelve.data.rows.length);
  assert.deepEqual(twelve.data.rows.map((r:any)=>r.activityId).sort(),['A14','A35','A70']);
  const invalid=await fetch(base+'/api/projects/LOOKAHEAD-WINDOW/schedule/modules/lookahead-schedule?windowDays=21');assert.equal(invalid.status,400);
- const report=await fetch(base+'/api/projects/LOOKAHEAD-WINDOW/schedule/modules/lookahead-schedule/report.xlsx?windowDays=84');assert.equal(report.status,200);assert.match(report.headers.get('content-type')!,/spreadsheetml/);assert.ok((await report.arrayBuffer()).byteLength>1000);
+ const version=twelve.data.projectVersion;
+ const report=await fetch(base+'/api/projects/LOOKAHEAD-WINDOW/schedule/modules/lookahead-schedule/report.xlsx?windowDays=84&projectVersion='+version);assert.equal(report.status,200);assert.match(report.headers.get('content-type')!,/spreadsheetml/);assert.ok((await report.arrayBuffer()).byteLength>1000);
+ const newer=await fetch(base+'/api/projects/LOOKAHEAD-WINDOW/evidence/uploads',{method:'POST',headers:{'content-type':'text/plain','x-source-filename':'Current-2.xer','x-upload-intent':'replace_current_basis'},body:xer});assert.equal(newer.status,201,await newer.text());
+ const stale=await fetch(base+'/api/projects/LOOKAHEAD-WINDOW/schedule/modules/lookahead-schedule/report.xlsx?windowDays=84&projectVersion='+version);assert.equal(stale.status,409);assert.match(await stale.text(),/project_changed_refresh_report/);
 });
