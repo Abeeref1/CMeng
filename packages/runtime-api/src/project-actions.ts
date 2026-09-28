@@ -37,7 +37,7 @@ function actionResolution(group:ReviewGroup,issues:ControlIssue[]):Pick<ProjectA
     case 'programme-comparison':
       return informationResolution('A baseline or earlier adopted revision is needed only for baseline/revision comparison. Current programme analysis remains usable. Any uploaded programme that actually needs selection appears separately as a direct programme confirmation action.');
     case 'contract-completion':
-      return uploadResolution('Upload contract completion evidence','Contract / amendment establishing the contractual completion date','Upload the contract, amendment or other dated contractual source that establishes the applicable completion date. No separate review page is required.');
+      return informationResolution('The contractual completion date is not yet established. Programme and forecast analysis remain available. If a contract comparison, EOT assessment or contractual exposure question needs this date, CMeng will ask for the specific contract or amendment in that context.');
     case 'resources':
       return group.available&&conflict
         ? uploadResolution('Upload corrected resource evidence','Corrected manpower/resource plan, usage or capacity record','Upload the corrected resource/manpower source that resolves the conflicting or invalid record.')
