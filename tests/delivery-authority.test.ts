@@ -144,7 +144,7 @@ test('Delivery display preserves exact record references and quantities while fo
 
 test('Delivery Risks uses the existing risk population, not unrelated procurement candidates or population decisions',async t=>{
  const f=await fixture(t);await f.upload('Procurement.csv','Package ID,Description\nP1,Unrelated package\nP2,Another package');
- let report=deliveryModule(f.state,'delivery-risks');assert.equal(report.status,'blocked');assert.match(report.reason!,/risk register is not established/);assert.equal((report.data as any).reviewRecords.length,0);
+ let report=deliveryModule(f.state,'delivery-risks');assert.equal(report.status,'blocked');assert.match(report.reason!,/No confirmed Project Risk Register is available/);assert.equal((report.data as any).reviewRecords.length,0);
  await f.upload('Risks.csv','Risk ID,Description,Status,Identified Date,Probability,Impact,Rating\nR1,Current risk,Open,2031-08-01,0.4,3,Medium\nR2,Future risk,Open,2031-09-10,0.2,2,Low');
  report=deliveryModule(f.state,'delivery-risks');assert.equal(report.status,'ready');assert.match(report.reason!,/2 risk records are supplied: 1 current, 1 after/);
  assert.equal((report.data as any).population.kind,'risk');assert.equal((report.data as any).population.denominator,1);assert.equal((report.data as any).metrics.find((m:any)=>m.label==='Open risks').value,1);assert.equal((report.data as any).reviewRecords.length,0);
