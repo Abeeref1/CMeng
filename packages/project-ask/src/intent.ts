@@ -157,7 +157,7 @@ export function resolveIntent(question:string,catalogue:AuthorityDescriptor[],pr
   if(recipe&&catalogue.some(c=>c.id==='project-diagnosis')&&plan.kind!=='historical'&&!/\bphases?\b/.test(q)){
     plan.questionRecipe=recipe;
     delete plan.diagnosisActivityFilters;
-    const scheduleRecipeIds=new Set(['programme','activities','float','critical-path','forecast','delay','lookahead','project-diagnosis']);
+    const scheduleRecipeIds=new Set(['programme','activities','float','critical-path','forecast','delay','lookahead','project-diagnosis','wbs','milestones','programme-changes']);
     const preserveCompoundRequirements=continuation||plan.authorities.some(id=>!scheduleRecipeIds.has(id));
     const addRecipe=(ids:string[])=>{for(const id of ids)if(catalogue.some(c=>c.id===id)&&!plan.authorities.includes(id))plan.authorities.push(id);};
     if(recipe==='driving_path'){if(preserveCompoundRequirements)addRecipe(['critical-path']);else plan.authorities=['critical-path'];}
