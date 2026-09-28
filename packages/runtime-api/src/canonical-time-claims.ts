@@ -806,7 +806,13 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
   const amendment=selection.at(-1); const sameEffective=selection.filter(a=>a.effectiveDate===amendment?.effectiveDate);
   if (officialApplicable.length && applicable.some(a => a.state === 'candidate')) diagnostics.push('CANDIDATE_AMENDMENT_NOT_APPLIED');
   const amendmentConflict=new Set(sameEffective.map(a=>a.completionIso)).size>1;
-  let contractTimeBasis:ContractTimeBasis|null=null;
+  // An explicit user confirmation from Actions required is a governed reporting
+  // authority when no stronger contract/amendment source has replaced it. Keep it
+  // in the canonical time position so every page reads the same confirmed date.
+  const confirmedManualBasis=state.controls.contractTimeBasis?.sourceRefs.some(ref=>ref.startsWith('user-confirmation:contract-completion:'))
+    ? state.controls.contractTimeBasis
+    : null;
+  let contractTimeBasis:ContractTimeBasis|null=confirmedManualBasis?{...confirmedManualBasis,sourceRefs:[...confirmedManualBasis.sourceRefs]}:null;
   if(amendment&&!amendmentConflict){
     contractTimeBasis={contractualCompletionIso:amendment.completionIso,contractualCompletionState:amendment.state,
       officialApprovedEotDays:effectiveDeterminationDays,officialApprovedEotState:effectiveDeterminationDays===null?'missing':'official',eotDayBasis:'calendar_days',eotDayBasisState:amendment.state,
