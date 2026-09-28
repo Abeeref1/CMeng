@@ -56,10 +56,12 @@ test('every analytical page renders its available answer before review and sourc
  }
 });
 
-test('reviewing a completion difference shows values and assumptions inline without navigation',async()=>{
+test('completion calculation differences stay as inline information and never become user actions',async()=>{
  const values=completionPosition({}, {sourceForecastCompletionIso:'2030-01-12',independentForecastCompletionIso:'2030-01-13',complete:true,origin:'deterministic_source_calendar',forecastVarianceDays:1,assumptions:[]});
- const ctx:any={fmt:String,escapeHtml:String,planningShortDate:String,planningKpis:(rows:any[])=>rows.map(r=>r.join(' ')).join('\n'),basisTable:()=>'',project:()=> 'UX',overview:{},projectRequestSeq:1,projectRequestIsCurrent:()=>true,formatDocumentTime:String,names:{},readerIssue:(i:any)=>({title:i.summary,action:i.action}),el:()=>null,api:async()=>({projectId:'UX',projectVersion:1,checkedAt:'2030-01-01',actionCount:1,actions:[{id:'matter:schedule-calculation',title:'Programme calculation and date differences',reason:'Review the difference.',category:'review',target:{type:'inline',label:'Review difference'},completionPosition:values,findings:[]}],information:[]})};
- runInNewContext(answerFirstScript+'\n'+projectActionsScript,ctx);await ctx.loadProjectActions();const html=ctx.renderProjectActionList();assert.match(html,/Review difference/);assert.match(html,/2030-01-12/);assert.match(html,/2030-01-13/);assert.doesNotMatch(html,/data-project-action=|Open relevant page/);
+ const ctx:any={fmt:String,escapeHtml:String,planningShortDate:String,planningKpis:(rows:any[])=>rows.map(r=>r.join(' ')).join('\n'),basisTable:()=>'',project:()=> 'UX',overview:{},projectRequestSeq:1,projectRequestIsCurrent:()=>true,formatDocumentTime:String,names:{},readerIssue:(i:any)=>({title:i.summary,action:i.action}),el:()=>null,api:async()=>({projectId:'UX',projectVersion:1,checkedAt:'2030-01-01',actionCount:0,actions:[],information:[{id:'matter:schedule-calculation',title:'Programme calculation and date differences',reason:'The submitted and calculated positions differ.',category:'information',resolution:{kind:'information',requiresUserAction:false,instruction:'No user action is required.',completionRule:'Updates automatically.'},target:{type:'inline',label:'Why this is not an action'},completionPosition:values,findings:[]}]})};
+ runInNewContext(answerFirstScript+'\n'+projectActionsScript,ctx);await ctx.loadProjectActions();const html=ctx.renderProjectActionList();
+ assert.match(html,/Additional information/);assert.match(html,/2030-01-12/);assert.match(html,/2030-01-13/);
+ assert.match(html,/0 actions require your input/);assert.doesNotMatch(html,/Review difference|data-resolve-|Open relevant page/);
 });
 
 test('a fresh adopted schedule with no quantities or contract still publishes its management and forecast position',async()=>{
