@@ -90,18 +90,16 @@ test('reference instructions remain inert, differences are labelled reference-on
   const b=await fixture(t);await assert.rejects(()=>b.ask('Review attachment',undefined,{attachmentIds:[ref.id]}),/not available/);
 });
 test('live view refreshes its definition after evidence replacement while original downloads retain their original snapshot',async t=>{
-  const f=await fixture(t);await materials(f);const original=await f.ask('material status');const now=new Date().toISOString();const view={schemaVersion:1 as const,id:'saved-view',projectId:f.id,workspaceId:user.workspaceId,ownerId:user.userId,name:'Plant review',visibility:'personal' as const,plan:original.plan,presentation:original.presentation,viewDefinition:{pageContext:{projectId:f.id,page:'material-tracking',filters:{wbs:'WBS-01',zone:'Zone 7'},selectedActivity:null,selectedWbs:'WBS-01',selectedLocation:'Zone 7',selectedPackage:'PKG-PLANT'},reportView:{title:'Plant review',includeAuthorities:['materials'],sectionOrder:['materials'],includeCharts:[],chartTypes:{},chartLimits:{}}},createdAt:now,updatedAt:now};await f.store.saveView(view,user);
-  const retainedView=await f.store.view(view.id,f.id,user);assert.equal(retainedView.viewDefinition?.pageContext?.selectedWbs,'WBS-01');assert.equal(retainedView.viewDefinition?.pageContext?.filters.zone,'Zone 7');assert.equal(retainedView.viewDefinition?.reportView?.sectionOrder[0],'materials');
+  const f=await fixture(t);await materials(f);const original=await f.ask('material status');const now=new Date().toISOString();const view={schemaVersion:1 as const,id:'saved-view',projectId:f.id,workspaceId:user.workspaceId,ownerId:user.userId,name:'Plant review',visibility:'personal' as const,plan:original.plan,presentation:original.presentation,viewDefinition:{pageContext:{projectId:f.id,page:'material-tracking',filters:{discipline:'MEP'},selectedActivity:null,selectedWbs:null,selectedLocation:null,selectedPackage:'PKG-PLANT'},reportView:{title:'Plant review',includeAuthorities:['materials'],sectionOrder:['materials'],includeCharts:[],chartTypes:{},chartLimits:{}}},createdAt:now,updatedAt:now};await f.store.saveView(view,user);
+  const retainedView=await f.store.view(view.id,f.id,user);assert.equal(retainedView.viewDefinition?.pageContext?.selectedPackage,'PKG-PLANT');assert.equal(retainedView.viewDefinition?.pageContext?.filters.discipline,'MEP');assert.equal(retainedView.viewDefinition?.reportView?.sectionOrder[0],'materials');
   const r=deliveryRecords(f.state).records.find(r=>r.kind==='package')!;f.change({action:'review',recordId:r.recordId,sourceRevision:r.revision,state:'governed',fields:{'delivered quantity':60},note:'New delivery receipt reviewed.'});
   const stored=await f.store.view(view.id,f.id,user),reopened=await f.engine.ask(f.id,user,{question:view.plan.objective,pageContext:stored.viewDefinition!.pageContext!},stored);
   assert.equal(reopened.sections.find(s=>s.authorityId==='materials')!.tables[0]!.rows[0]!.delivered,60);
   assert.equal((await f.store.result(original.id,f.id,user)).sections.find(s=>s.authorityId==='materials')!.tables[0]!.rows[0]!.delivered,52);
   assert.notEqual(reopened.scope.projectVersion,original.scope.projectVersion);
-  assert.equal(reopened.scope.pageContext?.selectedWbs,'WBS-01');assert.equal(reopened.scope.pageContext?.selectedLocation,'Zone 7');
-  assert.ok(reopened.plan.filters.some(filter=>filter.field==='wbs'&&filter.value==='WBS-01'));
-  assert.ok(reopened.plan.filters.some(filter=>filter.field==='zone'&&filter.value==='Zone 7'));
-  assert.ok(reopened.plan.filters.some(filter=>filter.field==='wbsId'&&filter.value==='WBS-01'));
-  assert.ok(reopened.plan.filters.some(filter=>filter.field==='location'&&filter.value==='Zone 7'));
+  assert.equal(reopened.scope.pageContext?.selectedPackage,'PKG-PLANT');
+  assert.ok(reopened.plan.filters.some(filter=>filter.field==='discipline'&&filter.value==='MEP'));
+  assert.ok(reopened.plan.filters.some(filter=>filter.field==='reference'&&filter.value==='PKG-PLANT'));
 });
 test('Excel, PDF, Word, CSV and charts derive from the same populated AnalysisResult',async t=>{
   const f=await fixture(t);await materials(f);const r=await f.ask('material status');
