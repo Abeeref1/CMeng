@@ -158,6 +158,77 @@ test('runtime consistency gate exposes a wrong count rather than certifying it',
   const input=model(); const result=checkProjectionIntegrity({key:'near-critical',status:'ready',reason:null,dependencies:[],data:{nearCriticalCount:999}},input,DEFAULT_SCHEDULE_ANALYSIS_CONFIG);
   assert.equal(result.status,'partial'); assert.equal((result.data as any).systemEvidenceContract.state,'failed');
 });
+test('quarantined claim population keeps Notice Compliance unavailable without a false calculation error',()=>{
+  const input=model();
+  const claimsSource:any={
+    projectId:'UNRELATED-FIXTURE',
+    evidenceRevisionId:'canonical-evidence:quarantined',
+    events:[],
+    notices:[],
+    claims:[],
+    noticeRequirements:[],
+    diagnostics:['CLAIM_POPULATION_QUARANTINED_SYNTHETIC_SEQUENCE:180'],
+    integrity:{
+      state:'quarantined',
+      sourceClaimCount:180,
+      quarantinedClaimCount:180,
+      linkedActivityEventCount:0,
+      genericClaimEventPairCount:180,
+      genericNoticePairCount:180,
+      arithmeticClaimedDaysPrefixLength:180,
+      sourceFilenames:['claims.csv'],
+      reasons:['GENERIC_SEQUENTIAL_CLAIM_EVENT_IDENTITIES'],
+    },
+  };
+  const result=checkProjectionIntegrity({
+    key:'notices-claims',
+    status:'partial',
+    reason:'Source claim population is quarantined.',
+    dependencies:[],
+    data:{
+      events:[],
+      claims:[],
+      eventCount:null,
+      claimCount:null,
+      noticeCount:null,
+      timelyNoticeCount:null,
+      lateNoticeCount:null,
+      missingNoticeCount:null,
+      noticeRequirementMissingCount:null,
+      noticeEventDateMissingCount:null,
+      noticeRequirementConflictCount:null,
+    },
+  },input,DEFAULT_SCHEDULE_ANALYSIS_CONFIG,claimsSource);
+  const contract=(result.data as any).systemEvidenceContract;
+  assert.equal(contract.state,'verified_for_checked_metrics');
+  assert.equal(contract.failureCount,0);
+  assert.ok(contract.checks.filter((row:any)=>/headline|notice_count|event_date_missing|requirement_missing/.test(row.metric)).every((row:any)=>row.expected===null&&row.actual===null&&row.passed));
+});
+
+test('an established empty Notice Compliance population remains a verified zero, not null',()=>{
+  const input=model();
+  const claimsSource:any={
+    projectId:'UNRELATED-FIXTURE',
+    evidenceRevisionId:'canonical-evidence:empty',
+    events:[],notices:[],claims:[],noticeRequirements:[],diagnostics:[],
+    integrity:{state:'accepted',sourceClaimCount:0,quarantinedClaimCount:0,linkedActivityEventCount:0,genericClaimEventPairCount:0,genericNoticePairCount:0,arithmeticClaimedDaysPrefixLength:0,sourceFilenames:[],reasons:[]},
+  };
+  const result=checkProjectionIntegrity({
+    key:'notices-claims',
+    status:'ready',
+    reason:null,
+    dependencies:[],
+    data:{
+      events:[],claims:[],
+      eventCount:0,claimCount:0,noticeCount:0,
+      timelyNoticeCount:0,lateNoticeCount:0,missingNoticeCount:0,
+      noticeRequirementMissingCount:0,noticeEventDateMissingCount:0,noticeRequirementConflictCount:0,
+    },
+  },input,DEFAULT_SCHEDULE_ANALYSIS_CONFIG,claimsSource);
+  const contract=(result.data as any).systemEvidenceContract;
+  assert.equal(contract.state,'verified_for_checked_metrics');
+  assert.equal(contract.failureCount,0);
+});
 test('the universal module resolver never promotes pending, missing or failed gates to green',()=>{
   const base = {key:'fixture',status:'ready' as const,engineState:'ready' as const,evidenceState:'established' as const,
     professionalState:'defensible' as const,reason:null,dependencies:[],data:{challenge:{reconciliationState:'within_tolerance'},systemEvidenceContract:{state:'verified_for_checked_metrics',checks:[{passed:true}]}}};
