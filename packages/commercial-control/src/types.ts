@@ -77,7 +77,7 @@ export interface CommercialClaimsNoticesPosition {
   asOfNoticeCount: number;
   futureNoticeCount: number;
   undatedNoticeCount: number;
-  dimensionalEvidenceGaps: {requirementMissing:number;eventDateMissing:number;noticeDateMissing:number};
+  dimensionalEvidenceGaps: {requirementMissing:number | null;eventDateMissing:number | null;noticeDateMissing:number | null};
   state: CommercialEvidenceState;
   evidenceRevisionId: string | null;
   eventCount: number;
