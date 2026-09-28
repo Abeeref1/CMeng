@@ -131,7 +131,16 @@ function deliveryAuthority(context:AskProducerContext,scope:ProjectScope,key:str
     :key==='delivery-risks'?boq.risks.map(r=>({recordId:r.riskId,reference:r.riskId,description:r.risk,category:r.category,impact:r.impact,probability:r.probability,severity:r.severity,mitigation:r.mitigation,responsibleParty:r.responsibleParty,state:'candidate'}))
     :[];
   const governedRows=(d?.rows??[]).filter((r:any)=>!r.scope||r.scope==='current');
-  const useBoqCandidates=governedRows.length===0&&candidateRows.length>0;
+  const relevantSourceRecords=key==='delivery-risks'
+    ?p.existingAuthorities.risk.sourceRecordCount
+    :['procurement-packages','long-lead','material-tracking'].includes(key)
+      ?p.records.filter(r=>r.kind==='package'&&!['superseded','scenario'].includes(r.state)).length
+      :key==='construction-discipline'
+        ?p.records.filter(r=>r.kind==='workfront'&&!['superseded','scenario'].includes(r.state)).length
+        :key==='construction-locations'
+          ?p.records.filter(r=>['workfront','location'].includes(r.kind)&&!['superseded','scenario'].includes(r.state)).length
+          :0;
+  const useBoqCandidates=governedRows.length===0&&candidateRows.length>0&&relevantSourceRecords===0;
   const state=useBoqCandidates?'candidate':evidenceState(result.status);
   const explanation=useBoqCandidates?'No current confirmed '+title.toLowerCase()+' register is available, so CMeng is showing useful scope intelligence derived from the BOQ. Candidate classifications are clearly separated from actual supplier/status records.':result.reason??'';
   const b=new AuthorityBuilder(id,title,key,scope,state,explanation);
