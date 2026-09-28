@@ -1578,6 +1578,39 @@ const rules:
     category:
       "risk_claims_procurement",
     documentType:
+      "interface_register",
+    signals: [
+      {
+        label: "interface ID",
+        pattern: /\binterface\s+(?:id|ref(?:erence)?)\b/i,
+        weight: 7,
+      },
+      {
+        label: "giving party",
+        pattern: /\bgiving\s+party\b/i,
+        weight: 3,
+      },
+      {
+        label: "receiving party",
+        pattern: /\breceiving\s+party\b/i,
+        weight: 3,
+      },
+      {
+        label: "required deliverable",
+        pattern: /\brequired\s+deliverable\b/i,
+        weight: 3,
+      },
+      {
+        label: "affected workfront",
+        pattern: /\baffected\s+work\s*front\b/i,
+        weight: 2,
+      },
+    ],
+  },
+  {
+    category:
+      "risk_claims_procurement",
+    documentType:
       "procurement_register",
     signals: [
       {
@@ -2349,7 +2382,7 @@ export async function identifyEvidenceDocument(
   if(method==='tabular_content'){
     const rows=mediaType.includes('csv')?csv(text):text.split(/\r?\n/).map(line=>line.split('|'));
     const h=prepareRegisterRows(rows,input.declaredDocumentType??'').headers;
-    const schemas:Array<[string,string,EvidenceCategory]>=[['determination id','determination_register','risk_claims_procurement'],['bond id','bond_register','boq_cost'],['risk id','risk_register','risk_claims_procurement'],['ncr id','quality_ncr_register','hse_quality_fm'],['rfi id','rfi_register','engineering'],['package id','procurement_register','risk_claims_procurement'],['claim id','delay_eot_claims_register','risk_claims_procurement'],['variation id','variation_register','boq_cost']];
+    const schemas:Array<[string,string,EvidenceCategory]>=[['determination id','determination_register','risk_claims_procurement'],['bond id','bond_register','boq_cost'],['risk id','risk_register','risk_claims_procurement'],['ncr id','quality_ncr_register','hse_quality_fm'],['rfi id','rfi_register','engineering'],['interface id','interface_register','risk_claims_procurement'],['package id','procurement_register','risk_claims_procurement'],['claim id','delay_eot_claims_register','risk_claims_procurement'],['variation id','variation_register','boq_cost']];
     // A claim register can carry determination references and awards as later
     // lifecycle columns. Its event and notice fields identify the owning table.
     const claimLifecycle=h.includes('claim id')&&h.includes('event')&&h.includes('notice date');
