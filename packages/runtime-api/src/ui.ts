@@ -4210,10 +4210,10 @@ function renderModuleResultBody(result){
   const context=renderModuleBasis(data,false,true);
   const readWarnings=(data.registerReadIssues||[]).map(r=>'<p>'+escapeHtml(r.filename)+': '+escapeHtml(r.message)+'</p>').join('');
   el("moduleContent").innerHTML=context+(managementSurface?primaryView:renderRoleContent(result.key,data,primaryView,challengeHtml,Boolean(specialized)))+
-    advancedControlsHtml(result.key)+
+    (typeof advancedControlsHtml==="function"?advancedControlsHtml(result.key):"")+
     experienceDisclosure("Evidence limits and supporting information",readWarnings+basisHtml+renderClaimsReporting(data.claimsReporting,result.key)+sourceBasis,"Dates, records and calculation qualifications")+
     experienceReviewSummary(data.issueAssessment,managementSurface)+renderModuleReadiness(data,userReason);
-  bindAdvancedControls(result.key);
+  if(typeof bindAdvancedControls==="function")bindAdvancedControls(result.key);
 
 }
 let moduleRequestSeq=0;
