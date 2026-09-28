@@ -116,7 +116,7 @@ test('confirmed unresolved interfaces directly gate linked Construction Readines
 test('formal Interface Register upload is identified and mapped to interface candidates without silent confirmation',async t=>{
  const f=await fixture(t);
  const uploaded=await f.upload('Project_Interface_Register.csv','Interface ID,Giving Party,Receiving Party,Required Deliverable,Required Date,Current Status,Responsible Party\nIF-001,Design Consultant,Main Contractor,Approved shop drawing,2031-08-20,Open,Design Manager');
- assert.equal(uploaded.document.documentType,'interface_register');
+ const document=f.state.evidenceDocuments.find(d=>d.documentId===uploaded.documentId)!;assert.equal(document.documentType,'interface_register');
  const record=deliveryRecords(f.state).records.find(r=>r.reference==='IF-001')!;
  assert.equal(record.kind,'interface');assert.equal(record.state,'extracted_candidate');assert.equal(record.fields['giving party'],'Design Consultant');
  const page=deliveryModule(f.state,'delivery-interfaces');
