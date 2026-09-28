@@ -1,0 +1,45 @@
+name: CMeng Final Pages 5-16
+on:
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  capture:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {label: 05-programme-review, key: schedule-analytics}
+          - {label: 06-activity-review, key: activity-analytics}
+          - {label: 07-look-ahead, key: lookahead-schedule}
+          - {label: 08-programme-changes, key: schedule-change-report}
+          - {label: 09-revision-history, key: revision-trend}
+          - {label: 10-milestones, key: milestones}
+          - {label: 11-near-critical-float-risk, key: near-critical}
+          - {label: 12-resources, key: resource-utilization}
+          - {label: 13-progress-position, key: progress-report}
+          - {label: 14-variance-trend, key: variance-trends}
+          - {label: 15-progress-s-curve, key: progress-scurve}
+          - {label: 16-installed-quantities, key: quantity-scurve}
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      CMENG_RAILWAY_URL: https://cmeng-main-production.up.railway.app
+      CMENG_EXPECTED_RELEASE: 0d7b392a6e6416514dfa2115e64a021fa7acc4ac
+      CMENG_PAGE_LABEL: ${{ matrix.label }}
+      CMENG_PAGE_KEY: ${{ matrix.key }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: |
+          python -m pip install playwright==1.57.0
+          python -m playwright install --with-deps chromium
+      - run: python scripts/final-one-page-audit.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cmeng-final-${{ matrix.label }}
+          path: one-page-final-audit
+          retention-days: 7

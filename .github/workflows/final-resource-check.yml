@@ -1,0 +1,23 @@
+name: CMeng Final Resource Check
+on:
+  pull_request:
+    branches: [main]
+permissions: {contents: read}
+jobs:
+  resource:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: |
+          python -m pip install playwright==1.57.0
+          python -m playwright install --with-deps chromium
+      - run: python scripts/final-resource-check.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cmeng-final-resource-check
+          path: resource-final-check
+          retention-days: 7
