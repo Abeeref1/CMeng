@@ -16,7 +16,8 @@ export function resolveIntent(question:string,catalogue:AuthorityDescriptor[],pr
   const transform=/^(excel|xlsx|pdf|word|docx|csv|json|power ?bi|better|shorter|more detail|ceo|executive|project director|planner detail|commercial manager|only |by |add |remove |put my name|prepared by|our logo|change chart|sar\b|aed\b|usd\b|tower |floor |zone |بالعربي|بالعربية|عربي|مختصر|اكسل|إكسل)/i.test(question.trim());
   const purePresentation=transform&&!/^(only |by |add (?:value|procurement|progress)|remove |tower |floor |zone |sar\b|aed\b|usd\b)/.test(q);
   const wbsDrill=previous?.plan.questionRecipe==='wbs_pressure'&&/^show (?:the )?contributing activities for wbs\b/.test(q);
-  const inherited=!!previous&&(wbsDrill||transform||fullList||simpleFollowup||/^group by\b|^explain.*\b(?:these|those|they)\b/.test(q));
+  const continuation=/^(?:also\b|and also\b|plus\b|include\b|add\b|now add\b|please also\b|can you also\b)/.test(q);
+  const inherited=!!previous&&(wbsDrill||transform||fullList||simpleFollowup||continuation||/^group by\b|^explain.*\b(?:these|those|they)\b/.test(q));
   const plan:AnalysisPlan=inherited?structuredClone(previous.plan):defaults(question);
   const presentation:Presentation=inherited?structuredClone(previous.presentation):{
     title:question.slice(0,160),audience:'project',language:/[\u0600-\u06ff]/.test(question)?'ar':'en',detail:'normal',charts:true,
@@ -41,16 +42,13 @@ export function resolveIntent(question:string,catalogue:AuthorityDescriptor[],pr
   if(/our logo|client logo/.test(q))gaps.push('Use the configured CMeng branding. An authorized organization logo has not been configured.');
   if(/without charts|remove charts/.test(q))presentation.charts=false;
   if(/add charts?|with charts?/.test(q))presentation.charts=true;
+  const explicitlyRequested=catalogue.filter(c=>c.concepts.some(concept=>mentions(q,concept))).map(c=>c.id);
   if(!inherited){
-    const fullPackage=/\bfull\b.*(?:report|package)|construction intelligence package|تقرير شامل/.test(q);
-    const broad=fullPackage||/construction intelligence|monthly project|project director meeting|everything|joined.*today|what killing us|what needs management/.test(q);
-    const explicitlyRequested=catalogue.filter(c=>c.concepts.some(concept=>mentions(q,concept))).map(c=>c.id);
-    if(fullPackage){
-      // "Full" means the complete available CMeng authority set. Unavailable
-      // domains remain explicit as unavailable; they are not silently omitted.
-      plan.authorities=catalogue.map(c=>c.id);
-    }else if(broad){
-      // A broad management brief without an explicit "full" request stays concise.
+    const broad=/full.*(?:report|package)|construction intelligence|monthly project|project director meeting|everything|joined.*today|what killing us|what needs management|تقرير شامل/.test(q);
+    if(broad){
+      // Broad requests start with a useful cross-domain core plus everything
+      // the user actually named. A phrase such as "Construction Intelligence
+      // Package" is not a hidden command to load every CMeng domain.
       const core=['master-dashboard','programme','progress','boq','forecast','procurement','materials','long-lead','risks','commercial'];
       plan.authorities=[...new Set([...explicitlyRequested,...core.filter(id=>catalogue.some(c=>c.id===id))])];
     }else plan.authorities=explicitlyRequested;
@@ -70,12 +68,12 @@ export function resolveIntent(question:string,catalogue:AuthorityDescriptor[],pr
     }
   }
   if(inherited&&/^remove /.test(q))plan.authorities=plan.authorities.filter(id=>!catalogue.find(c=>c.id===id)?.concepts.some(c=>q.slice(7).includes(normalized(c))));
-  if(inherited&&/add .*curve/.test(q))for(const c of catalogue.filter(c=>c.concepts.some(k=>mentions(q,k))))if(!plan.authorities.includes(c.id))plan.authorities.push(c.id);
+  if(inherited&&(continuation||/add .*curve/.test(q)))for(const id of explicitlyRequested)if(!plan.authorities.includes(id))plan.authorities.push(id);
   // Resolve activity questions before generic words such as "delayed" can select a claims register.
   const claimsQuestion=/\b(?:claims?|entitlement|delay events?|time impact|windows analysis)\b/.test(q);
   const activityQuestion=/\bactivit(?:y|ies)\b|\b(?:delayed|late|overdue) (?:items|tasks|work)\b|\b(?:critical|driving) path\b|should (?:have )?(?:start|finish)|should have (?:started|finished)|\b(?:missed|overdue|late) starts?\b|\b(?:overdue|late) finishes?\b/.test(q);
   const scheduleQuestion=activityQuestion||/\b(?:project|programme|schedule)\b.*\b(?:delayed|delay|late|behind)\b|\b(?:delay|delaying)\b.*\bproject\b|^(?:show (?:me )?|what (?:is|are) (?:the )?)?(?:delayed|late|overdue)(?: work)?[.!?]*$/.test(q);
-  if(!inherited&&!claimsQuestion&&scheduleQuestion){
+  if((!inherited||continuation)&&!claimsQuestion&&scheduleQuestion){
     const available=(id:string)=>catalogue.some(c=>c.id===id);
     const path=/\b(?:critical|driving) path\b/.test(q);
     // Keep explicitly requested non-schedule domains in a combined question.
@@ -98,7 +96,7 @@ export function resolveIntent(question:string,catalogue:AuthorityDescriptor[],pr
   plan.rankings=rankedRequests(q,catalogue);
   plan.countRows=/\bhow many\b|\bcount\b|عدد/.test(q);
   const scopedFilter=(ids:string[],filter:AnalysisPlan['filters'][number])=>{plan.authorityFilters??={};for(const id of ids)if(plan.authorities.includes(id))plan.authorityFilters[id]=[...(plan.authorityFilters[id]??[]),filter];};
-  if(!inherited&&!claimsQuestion&&scheduleQuestion){
+  if((!inherited||continuation)&&!claimsQuestion&&scheduleQuestion){
     const starts=/should (?:have )?start|should have started|(?:missed|overdue|late) starts?|start.*(?:did(?:n.?t| not)|ha(?:s|ve)(?:n.?t| not)|not yet)|(?:did(?:n.?t| not)|ha(?:s|ve)(?:n.?t| not)).*start/.test(q);
     const finishes=/should (?:have )?finish|should have finished|(?:overdue|late) finish|finish.*(?:overdue|did(?:n.?t| not)|ha(?:s|ve)(?:n.?t| not))/.test(q);
     const field=starts?'missedPlannedStart':finishes?'finishOverdue':/\b(?:delayed|delay|late|overdue|behind|delaying)\b/.test(q)?'scheduleDelayed':null;
