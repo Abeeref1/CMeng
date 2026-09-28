@@ -1,6 +1,7 @@
 import {canonicalHeader,registerDate} from '../../truth-kernel/src';
 import {deliveryRecords} from './delivery-records';
 import {projectControlSchedule,projectDataDate} from './canonical-time-claims';
+import {scheduleAuthorityReview} from './schedule-authority';
 import type {ProjectRuntimeState,ModuleRuntimeResult} from './project-state-types';
 import type {DeliveryRecord} from '../../delivery-core/src/types';
 
@@ -71,5 +72,5 @@ export function interfaceIntelligence(state:ProjectRuntimeState){
 }
 export function interfaceModule(state:ProjectRuntimeState):ModuleRuntimeResult{
   const data=interfaceIntelligence(state),has=data.rows.length>0;
-  return {key:'delivery-interfaces',status:!has?'blocked':data.confirmedCount?'partial':'partial',reason:data.managementPosition,dependencies:has?[]:['governed interface records or package-to-activity relationships'],data};
+  return {key:'delivery-interfaces',status:!has?'blocked':'partial',reason:data.managementPosition,dependencies:has?[]:['governed interface records or package-to-activity relationships'],scheduleAuthorityReview:scheduleAuthorityReview(state),data};
 }
