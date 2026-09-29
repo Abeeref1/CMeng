@@ -8025,6 +8025,49 @@ export function overviewForProject(
   const scheduleEstablished =
     programmeSchedules.length > 0;
 
+  // Resolve specialists first. One call populates the project-scoped certified
+  // module cache; all remaining specialist lookups are then O(1). Management
+  // surfaces consume that same cache, avoiding the previous cold-start path
+  // where management triggered a second full specialist resolution.
+  const overviewModuleStates =
+    certifiedAnalyticalModules.map(
+      (module) => {
+        const resolved =
+          resolveProjectModule(
+            state,
+            module.key,
+          );
+        return {
+          key: module.key,
+          issueAssessment:
+            resolved.issueAssessment,
+          status:
+            resolved.status,
+          reason:
+            resolved.reason,
+        };
+      },
+    );
+  const overviewManagementStates =
+    managementModuleKeys.map(
+      (key) => {
+        const resolved =
+          moduleForProject(
+            projectId,
+            key,
+          );
+        return {
+          key,
+          status:
+            resolved.status,
+          reason:
+            resolved.reason,
+          issueAssessment:
+            resolved.issueAssessment,
+        };
+      },
+    );
+
   return {
     projectId,
     releaseCommitSha: process.env.RAILWAY_GIT_COMMIT_SHA ?? process.env.GIT_COMMIT_SHA ?? null,
@@ -8188,57 +8231,10 @@ export function overviewForProject(
             ],
           }),
         ),
-    // Overview is the project shell, not a hidden request to calculate every
-    // integrated management surface. Reuse a current rerun receipt when one is
-    // available. Otherwise resolve the certified specialist set once; the first
-    // resolver call fills the project-scoped cache for the remaining modules.
-    managementStates: (() => {
-      const cachedManagement=managementProjectionCache.get(projectId);
-      if(cachedManagement?.version===state.version){
-        return managementModuleKeys.map(key=>{
-          const resolved=managementSurfaceForProject(projectId,key);
-          return {key,status:resolved?.status??"partial",reason:resolved?.reason??null,issueAssessment:resolved?.issueAssessment};
-        });
-      }
-      const cachedResolved=resolvedProjectCache.get(projectId);
-      const currentReceipt=state.lastRerunReceipt?.projectVersion===state.version;
-      const issueRows=currentReceipt
-        ? []
-        : [...(cachedResolved?.version===state.version?cachedResolved.modules.values():[])].flatMap(result=>result.issueAssessment?.issues??[]);
-      const issueAssessment=issueRows.length?summarizeControlIssues(issueRows):undefined;
-      return managementModuleKeys.map(key=>({
-        key,
-        status:"partial" as const,
-        reason:latest
-          ?"Integrated management position calculates when this management view is opened."
-          :"A current confirmed programme is required before the integrated management position can be complete.",
-        issueAssessment,
-      }));
-    })(),
-    moduleStates: (() => {
-      const currentReceipt=state.lastRerunReceipt?.projectVersion===state.version;
-      const cachedResolved=resolvedProjectCache.get(projectId);
-      if(currentReceipt){
-        return certifiedAnalyticalModules.map(module=>({
-          key:module.key,
-          status:receiptStates.get(module.key)??"partial" as "ready"|"partial"|"blocked",
-          reason:null,
-        }));
-      }
-      if(cachedResolved?.version!==state.version&&certifiedAnalyticalModules.length){
-        resolveProjectModule(state,certifiedAnalyticalModules[0]!.key);
-      }
-      const resolved=resolvedProjectCache.get(projectId);
-      return certifiedAnalyticalModules.map(module=>{
-        const result=resolved?.version===state.version?resolved.modules.get(module.key):undefined;
-        return {
-          key:module.key,
-          issueAssessment:result?.issueAssessment,
-          status:result?.status??"partial",
-          reason:result?.reason??"This specialist view has not yet been calculated for the current project version.",
-        };
-      });
-    })(),
+    managementStates:
+      overviewManagementStates,
+    moduleStates:
+      overviewModuleStates,
   };
 }
 
