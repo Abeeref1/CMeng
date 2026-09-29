@@ -125,7 +125,7 @@ test('Progress Breakdown exposes six structural filters without unresolved spam 
 });
 
 test('Forecast review suppresses probability dates in every chart, not only the lower cards',()=>{
- const script=functions(['renderForecastVisual','planningDateMs','planningShortDate','planningCalendarDaysBetween']);
+ const script=functions(['readerText','forecastDiagnosticMessage','forecastDiagnosticSummary','renderForecastVisual','planningDateMs','planningShortDate','planningCalendarDaysBetween']);
  const bars:any[][]=[];
  const html=runInNewContext(script+';renderForecastVisual(data)',{
   data:{independentForecastCompletionIso:'2033-05-15',sourceForecastCompletionIso:'2030-06-30',dataDateIso:'2026-08-31',complete:true,managementReviewState:'review_required',probabilistic:{p50CompletionIso:'2034-01-01',p80CompletionIso:'2035-01-01',p90CompletionIso:'2036-01-01'}},
