@@ -78,12 +78,14 @@ function packageName(discipline:string|null,system:string|null,section:string|nu
  if(discipline)return discipline+' works';
  const s=section?.trim();return s?s.length>80?s.slice(0,80):s:null;
 }
+const scopeCache=new WeakMap<ProjectRuntimeState,{version:number;value:any}>();
 function aggregate(rows:BoqScopeIntelligenceRow[],field:keyof BoqScopeIntelligenceRow,label:string){
  const groups=new Map<string,{dimension:string;value:string;currency:string|null;itemCount:number;readableValue:number|null;readableAmountCount:number}>();
  for(const row of rows){const v=row[field];if(typeof v!=='string'||!v)continue;const key=v+'|'+(row.currency??'');const g=groups.get(key)??{dimension:label,value:v,currency:row.currency,itemCount:0,readableValue:0,readableAmountCount:0};g.itemCount++;if(typeof row.amount==='number'){g.readableValue=(g.readableValue??0)+row.amount;g.readableAmountCount++;}groups.set(key,g);}
  return [...groups.values()].map(g=>({...g,readableValue:g.readableAmountCount?Number((g.readableValue??0).toFixed(2)):null})).sort((a,b)=>String(a.currency).localeCompare(String(b.currency))-(0)||((b.readableValue??-Infinity)-(a.readableValue??-Infinity))||a.value.localeCompare(b.value));
 }
 export function boqScopeIntelligence(state:ProjectRuntimeState){
+ const cached=scopeCache.get(state);if(cached?.version===state.version)return cached.value;
  const revision=projectControlSchedule(state)?.revision.revisionId??'';
  const source=resolveBoqSource(state,revision),figures=suppliedBoqFigures(source.boq,source.quantities);
  const base=figures.rows;
@@ -128,7 +130,8 @@ export function boqScopeIntelligence(state:ProjectRuntimeState){
  const complexityScore=(disciplineCount>=6?2:disciplineCount>=3?1:0)+(specialistCount>=6?2:specialistCount>=2?1:0)+(locationCount>=10?2:locationCount>=3?1:0)+(longLead.length>=10?2:longLead.length>=3?1:0);
  const complexity=complexityScore>=6?'High':complexityScore>=3?'Medium':'Low';
  const topCostDrivers=[...currencyTotals.keys()].map(currency=>({currency,items:rows.filter(r=>r.currency===currency&&typeof r.amount==='number').sort((a,b)=>b.amount!-a.amount!).slice(0,20)}));
- return {source:source.selection,itemCount:figures.itemCount,rows,dimensions,packages,longLead,risks,topCostDrivers,complexity:{assessment:complexity,score:complexityScore,basis:'Professional assessment from BOQ discipline breadth, specialist systems, readable location complexity and candidate long-lead scope. It is not a contractual classification.'},
+ const value={source:source.selection,itemCount:figures.itemCount,rows,dimensions,packages,longLead,risks,topCostDrivers,complexity:{assessment:complexity,score:complexityScore,basis:'Professional assessment from BOQ discipline breadth, specialist systems, readable location complexity and candidate long-lead scope. It is not a contractual classification.'},
    coverage:{discipline:rows.filter(r=>r.discipline).length,system:rows.filter(r=>r.system).length,package:rows.filter(r=>r.packageCandidate).length,location:rows.filter(r=>r.building||r.tower||r.zone||r.floor||r.level||r.area).length,total:rows.length},
    basis:'BOQ scope intelligence uses only the selected BOQ section/item wording and readable quantities/amounts. Professional classifications remain separate from confirmed Project registers.'};
+ scopeCache.set(state,{version:state.version,value});return value;
 }
