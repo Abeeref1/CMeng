@@ -4206,7 +4206,7 @@ function renderModuleBasis(data,detail=false,contextOnly=false){
   const contract=data?.reportingContract;
   const populations=contract?uniqueReportingPopulations(Object.values(contract.populations||{})).map(p=>[p.populationId,p]):[];
   const populationHtml=populations.length?'<details class="planning-panel reporting-populations"><summary>Reporting populations · '+populations.length+' defined groups</summary><div class="planning-panel-body"><p>Denominators use eligible source records, independently of table display limits. Future planned work remains visible as forecast work.</p><div class="table-wrap"><table><thead><tr><th>Population</th><th>Included / source</th><th>Excluded</th><th>Date basis</th><th>Authority</th><th>Population ID</th></tr></thead><tbody>'+populations.map(([key,p])=>'<tr><td>'+escapeHtml(p.name)+'</td><td>'+fmt(p.denominator)+' / '+fmt(p.sourceCount)+'</td><td>'+fmt(p.exclusions.length)+'</td><td>'+escapeHtml(p.dateBasis)+'</td><td>'+escapeHtml(humanizeKey(p.authority))+'</td><td>'+escapeHtml(p.populationId)+'</td></tr>').join('')+'</tbody></table></div></div></details>':'';
-  const baselineHeadline=data?.baselineComparison?.state==='unresolved'&&['schedule_analytics','activity_analytics','milestones','near_critical','progress_report','progress_scurve','variance_trends','progress_breakdown','lookahead_schedule','challenge_contract'].includes(root.projectionKey)?'<p class="source-scope-summary">Baseline comparisons unresolved: no confirmed baseline.</p>':'';
+  const baselineHeadline=data?.baselineComparison?.state==='unresolved'&&['schedule_analytics','activity_analytics','milestones','near_critical','progress_report','progress_scurve','variance_trends','lookahead_schedule','challenge_contract'].includes(root.projectionKey)?'<p class="source-scope-summary">Baseline comparisons unresolved: no confirmed baseline.</p>':'';
   const completion=contract?.completionAuthority;
   const completionHeadline=completion&&!completion.governedContractualFinish&&['master_dashboard','command_center','pmo_analysis','independent_forecast','eot_assessment','notices_claims','milestones','commercial_claims_notices','contract_particulars_bonds','challenge_contract'].includes(root.projectionKey)?'<div class="notice warn"><b>Contract completion: unresolved.</b> '+escapeHtml(completion.reason||completion.explanation)+'</div>':'';
   const excludedActuals=[...(contract?.excludedScheduleActualEvents?.future||[]),...(contract?.excludedScheduleActualEvents?.undated||[])];
@@ -4266,11 +4266,17 @@ function renderModuleResult(result){
   renderModuleResultBody(result);
   const container=el('moduleContent');
   const review=result.scheduleAuthorityReview||result.data?.scheduleAuthorityReview;
-  if((result.legacyKey||result.key)==='source-quality'){const panel=el('projectActionPanel');if(panel)bindProjectActions(panel);}
-  else if(review&&(review.state!=='established'||review.pendingSchedules?.length)){
+  const pageKey=result.legacyKey||result.key;
+  if(pageKey==='source-quality'){const panel=el('projectActionPanel');if(panel)bindProjectActions(panel);}
+  else if(pageKey!=='progress-breakdown'&&review&&(review.state!=='established'||review.pendingSchedules?.length)){
     container.insertAdjacentHTML('beforeend','<p class="action-notification">'+(review.state==='missing'?'Select a schedule to enable programme reporting.':review.state==='pending_review'?'Confirm the schedule used for reporting.':'A newly uploaded schedule needs your review.')+' <button class="btn small" id="programmeActionLink">Open project review</button></p>');
     el('programmeActionLink').onclick=()=>openProjectActions();
   }
+}
+function progressBreakdownSystemFailures(data){
+  const failures=(data?.issueAssessment?.issues||[]).filter(issue=>issue.kind==='system_defect');
+  if(!failures.length)return '';
+  return '<details class="experience-disclosure experience-audit" open><summary>Calculation errors<span>'+escapeHtml(fmt(failures.length))+' system failure'+(failures.length===1?'':'s')+'</span></summary><div class="experience-disclosure-body"><p>CMeng must correct these calculation failures. They do not require you to confirm or invent project data.</p><div class="table-wrap"><table><thead><tr><th>Check</th><th>Problem</th></tr></thead><tbody>'+failures.map(issue=>{const item=readerIssue(issue);return '<tr><td>'+escapeHtml(item.title)+'</td><td>'+escapeHtml(readerText(issue.detail||issue.summary||''))+'</td></tr>';}).join('')+'</tbody></table></div></div></details>';
 }
 function renderModuleResultBody(result){
   result={...result,key:result.legacyKey||result.key};
@@ -4301,13 +4307,13 @@ function renderModuleResultBody(result){
   el("directorDrawer").hidden=result.key!=="pmo-analysis";
   if(result.key==="challenge-contract"&&renderDeliveryChallenge(data,result.reason,result.status))return;
   const basisHtml=result.key==='source-quality'?'':renderPositionVerdict(data)+renderModuleBasis(data)+renderRegisterScope(data);
-  const challengeBody=renderUniversalChallenge(data.challenge);
+  const challengeBody=result.key==='progress-breakdown'?'':renderUniversalChallenge(data.challenge);
   const challengeHtml=challengeBody?'<details class="reconciliation-panel"><summary><span>Comparison with the submitted position</span><b>'+escapeHtml(reconciliationSummary(data.challenge))+'</b></summary><div class="reconciliation-body">'+challengeBody+'</div></details>':'';
   const specialized=renderSpecializedModule(result.key,data);
   const scalars=scalarPairs(data).filter(([k])=>k!=="challenge").map(([k,v])=>'<div class="scalar"><b>'+escapeHtml(humanizeKey(k))+'</b><span>'+escapeHtml(fmt(v))+'</span></div>').join("");
   const structured=specialized?"":renderStructuredSections(data);
   const genericView=(scalars?'<div class="scalar-grid">'+scalars+'</div>':'')+structured;
-  const sourceBasis=renderBasisReviews(data,result.key);
+  const sourceBasis=result.key==='progress-breakdown'?'':renderBasisReviews(data,result.key);
   // Every analytical page leads with its answer. Review and source administration
   // are supporting context, never a per-page opt-in presentation rule.
   const primaryView=(specialized||genericView);
@@ -4317,10 +4323,12 @@ function renderModuleResultBody(result){
   const userReason=userFacingModuleReason(result.key,result.reason);
   const context=renderModuleBasis(data,false,true);
   const readWarnings=(data.registerReadIssues||[]).map(r=>'<p>'+escapeHtml(r.filename)+': '+escapeHtml(r.message)+'</p>').join('');
+  const progressBreakdown=result.key==='progress-breakdown';
+  const supporting=progressBreakdown?'':experienceDisclosure("Evidence limits and supporting information",readWarnings+basisHtml+renderClaimsReporting(data.claimsReporting,result.key)+sourceBasis,"Dates, records and calculation qualifications");
+  const review=progressBreakdown?progressBreakdownSystemFailures(data):experienceReviewSummary(data.issueAssessment,managementSurface)+renderModuleReadiness(data,userReason);
   el("moduleContent").innerHTML=context+(managementSurface?primaryView:renderRoleContent(result.key,data,primaryView,challengeHtml,Boolean(specialized)))+
     (typeof advancedControlsHtml==="function"?advancedControlsHtml(result.key):"")+
-    experienceDisclosure("Evidence limits and supporting information",readWarnings+basisHtml+renderClaimsReporting(data.claimsReporting,result.key)+sourceBasis,"Dates, records and calculation qualifications")+
-    experienceReviewSummary(data.issueAssessment,managementSurface)+renderModuleReadiness(data,userReason);
+    supporting+review;
   if(typeof bindAdvancedControls==="function")bindAdvancedControls(result.key);
   if(result.key==="activity-analytics"&&typeof restoreActivityFilters==="function")restoreActivityFilters();
 

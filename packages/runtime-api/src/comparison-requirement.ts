@@ -1,6 +1,6 @@
 /** One applicability rule for readiness and issue assessment. The advisory
  * module-position placeholder is not a requested independent comparison. */
-const sourceRegisterViews=new Set(['activity-analytics','schedule-change-report','revision-trend','variance-trends','forecast-history','milestones']);
+const sourceRegisterViews=new Set(['activity-analytics','schedule-change-report','revision-trend','variance-trends','forecast-history','milestones','progress-breakdown']);
 export function comparisonRequirement(data: any,moduleKey?:string) {
   const challenge = data?.challenge;
   const items = Array.isArray(challenge?.items) ? challenge.items : [];
