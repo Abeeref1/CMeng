@@ -7067,7 +7067,9 @@ function resolveProjectModuleCandidate(state: ProjectRuntimeState, key: string, 
   // If the canonical full bundle has already been built for this project
   // version, reuse its exact module calculation. Fast builders exist for isolated
   // single-module reads; rerunning them here duplicates the same schedule work.
-  const baseResult=precomputed??resolveProjectModuleUncertified(state,key);
+  const baseResult=precomputed
+    ? applyProfessionalModuleState(precomputed)
+    : resolveProjectModuleUncertified(state,key);
   const result:ModuleRuntimeResult={...baseResult,
     data:baseResult.data&&typeof baseResult.data==='object'?{...(baseResult.data as Record<string,unknown>)}:baseResult.data};
   if(key==='challenge-contract'){
@@ -7187,7 +7189,12 @@ function resolveProjectModule(state: ProjectRuntimeState, key: string): ModuleRu
   const candidateProfile:Array<{key:string;ms:number}>=[];
   const candidates = new Map(certifiedAnalyticalModules.map(descriptor => {
     const t=profiling?performance.now():0;
-    const result=resolveProjectModuleCandidate(scoped, descriptor.key, bundle.modules.get(descriptor.key));
+    // Reuse the full-bundle result only where the normal uncertified resolver
+    // would use that same bundle. Commercial and specialist Claims/Forecast
+    // modules have dedicated canonical/fast resolvers with additional semantics
+    // and must continue through those paths.
+    const bundleReusable=descriptor.key==='pmo-analysis'||descriptor.key==='progress-report';
+    const result=resolveProjectModuleCandidate(scoped, descriptor.key, bundleReusable?bundle.modules.get(descriptor.key):undefined);
     if(profiling)candidateProfile.push({key:descriptor.key,ms:performance.now()-t});
     return [descriptor.key,result] as const;
   }));
