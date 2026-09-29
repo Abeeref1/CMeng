@@ -16,6 +16,7 @@ const cache = new WeakMap<ProjectRuntimeState,{version:number;date:string|null;v
 const views = new WeakSet<ProjectRuntimeState>();
 const origins = new WeakMap<ProjectRuntimeState,ProjectRuntimeState>();
 const operationalCache = new WeakMap<ProjectRuntimeState,{version:number;date:string|null;value:OperationalReporting}>();
+const scheduleActualCache = new WeakMap<ProjectRuntimeState,{version:number;date:string|null;value:ReturnType<typeof partitionAsOf<any>>}>();
 export function operationalReporting(state:ProjectRuntimeState) {
   state=origins.get(state)??state;const date=projectDataDate(state),cached=operationalCache.get(state);
   if(cached?.version===state.version&&cached.date===date)return cached.value;
@@ -64,12 +65,15 @@ export function boqSourceReporting(state:ProjectRuntimeState) {
 
 export function scheduleActualReporting(state:ProjectRuntimeState){
   state=origins.get(state)??state;
-  const current=projectControlSchedule(state),dataDateIso=projectDataDate(state);
+  const dataDateIso=projectDataDate(state),cached=scheduleActualCache.get(state);
+  if(cached?.version===state.version&&cached.date===dataDateIso)return cached.value;
+  const current=projectControlSchedule(state);
   const rows=(current?.revision.model.activities??[]).flatMap(row=>[
     ...(row.actualStartIso?[{id:row.activityId+':actual_start',activityId:row.activityId,event:'actual_start',dateIso:row.actualStartIso}]:[]),
     ...(row.actualFinishIso?[{id:row.activityId+':actual_finish',activityId:row.activityId,event:'actual_finish',dateIso:row.actualFinishIso}]:[]),
   ]);
-  return partitionAsOf(rows,{name:'Dated schedule actual events',entity:'activity_actual_event',dataDateIso,dateBasis:'actual start and finish dates; future planned dates are a separate basis',sourceRevisionId:current?.revision.revisionId??null,id:r=>r.id,date:r=>r.dateIso});
+  const value=partitionAsOf(rows,{name:'Dated schedule actual events',entity:'activity_actual_event',dataDateIso,dateBasis:'actual start and finish dates; future planned dates are a separate basis',sourceRevisionId:current?.revision.revisionId??null,id:r=>r.id,date:r=>r.dateIso});
+  scheduleActualCache.set(state,{version:state.version,date:dataDateIso,value});return value;
 }
 
 export function claimsReporting(state: ProjectRuntimeState) {

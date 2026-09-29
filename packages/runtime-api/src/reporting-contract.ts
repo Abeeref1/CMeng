@@ -8,6 +8,15 @@ import { createHash } from 'node:crypto';
 import { projectScheduleControlBasis } from './schedule-control-basis';
 import type { ProjectRuntimeState, ModuleRuntimeResult } from './project-state-types';
 
+const schedulePopulationReportingCache=new WeakMap<ProjectRuntimeState,{version:number;revisionId:string|null;values:Record<string,PopulationContract>}>();
+function schedulePopulationReporting(state:ProjectRuntimeState,model:any):Record<string,PopulationContract>{
+  const revisionId=model?.sourceRevisionId??null,cached=schedulePopulationReportingCache.get(state);
+  if(cached?.version===state.version&&cached.revisionId===revisionId)return cached.values;
+  const values:Record<string,PopulationContract>={};
+  for(const basis of ['source_records','execution_control','milestones','duration_weighted_progress'] as const)values[basis]=activityPopulation(model,basis).reporting;
+  schedulePopulationReportingCache.set(state,{version:state.version,revisionId,values});return values;
+}
+
 export function reportingData<T extends object>(state:ProjectRuntimeState,key:string,data:T):T & {reportingContract:Record<string,unknown>} {
   return attachReportingContract(state,{key,status:'partial',reason:null,dependencies:[],data}).data as T & {reportingContract:Record<string,unknown>};
 }
@@ -60,10 +69,7 @@ export function attachReportingContract(state:ProjectRuntimeState,result:ModuleR
   const register=(key:string,name:string,entity:string,rows:readonly any[],id:(r:any,i:number)=>string,dateBasis='current governed programme snapshot',authority:ReportingAuthority='source')=>{
     populations[key]=populationContract({name,entity,dataDateIso,dateBasis,sourceRevisionId:model?.sourceRevisionId??null,authority,sourceCount:rows.length,memberIds:rows.map(id),exclusions:[]});
   };
-  if(model)for(const basis of ['source_records','execution_control','milestones','duration_weighted_progress'] as const){
-    const p=activityPopulation(model,basis);
-    populations[basis]=p.reporting;
-  }
+  if(model)Object.assign(populations,schedulePopulationReporting(state,model));
   if(data.movementAnalysis?.population)populations.baseline_comparable=data.movementAnalysis.population;
   if(data.finishMovementAnalysis?.population)populations.revision_comparable=data.finishMovementAnalysis.population;
   if(state.quantities&&['quantity-scurve','challenge-contract'].includes(result.key))register('boq_items','BOQ source quantity items','quantity_item',state.quantities.items,r=>r.quantityItemId,'BOQ source scope, separate from measured installed quantities');
