@@ -86,10 +86,31 @@ export function assessModuleIssues(result: ModuleRuntimeResult, consistency: Con
   const noDiagnostics:readonly string[]=[];
   const issueStates=new Set(['conflicted','invalid','stale','missing','not_submitted','missing_evidence','missing_information','submitted_unparsed','candidate','provisional','pending_review']);
   const excludedKeys=new Set(['source','sourceLedger','futureRows','undatedRows','futureInsurances','undatedInsurances','claimsReporting','challenge','reportingContract','moduleReadiness','issueAssessment','systemEvidenceContract','controlBasis','sourceRefs','diagnostics','receipts','population','populations','model']);
+  // Large schedule/register projections contain thousands of flat row objects.
+  // Most rows have only scalar values plus empty diagnostics/sourceRefs arrays.
+  // Recursing into those rows can never discover an issue, so screen them before
+  // constructing paths/entering the recursive walker. This is semantics-preserving:
+  // every row with a direct issue signal or any non-excluded nested object still
+  // follows the exact existing inspection path.
+  const arrayItemCanContainIssue=(item:any)=>{
+    if(!item||typeof item!=='object')return false;
+    if(Array.isArray(item))return item.length>0;
+    if((Array.isArray(item.diagnostics)&&item.diagnostics.length>0)||issueStates.has(item.state)||item.population?.exclusions?.length)return true;
+    for(const key in item){
+      if(!Object.hasOwn(item,key)||excludedKeys.has(key))continue;
+      const child=item[key];
+      if(child&&typeof child==='object')return true;
+    }
+    return false;
+  };
   const walk=(value:any,path:string,depth:number)=>{
     if(!value||typeof value!=='object'||depth>9||visited.has(value))return;
     visited.add(value);
-    if(Array.isArray(value)){for(const item of value)if(item&&typeof item==='object')walk(item,path+'['+(typeof item.topic==='string'?'topic='+item.topic:typeof item.basis==='string'?'basis='+item.basis:'*')+']',depth+1);return;}
+    if(Array.isArray(value)){
+      for(const item of value)if(arrayItemCanContainIssue(item))
+        walk(item,path+'['+(typeof item.topic==='string'?'topic='+item.topic:typeof item.basis==='string'?'basis='+item.basis:'*')+']',depth+1);
+      return;
+    }
     const diagnostics=Array.isArray(value.diagnostics)&&value.diagnostics.length?value.diagnostics.filter((s:unknown)=>typeof s==='string') as string[]:noDiagnostics;
     // Plain rows still receive full recursive inspection. Construct issue labels
     // and references only for objects that can actually produce a finding.

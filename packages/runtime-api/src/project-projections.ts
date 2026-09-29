@@ -7054,7 +7054,7 @@ function resolveProjectModuleUncertified(
   );
 }
 
-function resolveProjectModuleCandidate(state: ProjectRuntimeState, key: string): ModuleRuntimeResult {
+function resolveProjectModuleCandidate(state: ProjectRuntimeState, key: string, precomputed?: ModuleRuntimeResult): ModuleRuntimeResult {
   state = reportingState(state);
   const readIssues=registerReadIssuesForModule(state,key);
   // A rejected register withholds its count, not the independently established
@@ -7064,7 +7064,14 @@ function resolveProjectModuleCandidate(state: ProjectRuntimeState, key: string):
     reason:readIssues.map(r=>r.filename+': '+r.message).join('; '),
     data:{...(value.data&&typeof value.data==='object'?value.data:{}),state:'unresolved',recordCount:null,registerReadIssues:readIssues},
   }:value;
-  const result = resolveProjectModuleUncertified(state, key);
+  // If the canonical full bundle has already been built for this project
+  // version, reuse its exact module calculation. Fast builders exist for isolated
+  // single-module reads; rerunning them here duplicates the same schedule work.
+  const baseResult=precomputed
+    ? applyProfessionalModuleState(precomputed)
+    : resolveProjectModuleUncertified(state,key);
+  const result:ModuleRuntimeResult={...baseResult,
+    data:baseResult.data&&typeof baseResult.data==='object'?{...(baseResult.data as Record<string,unknown>)}:baseResult.data};
   if(key==='challenge-contract'){
     const suppliedBoq=suppliedBoqFigures(state.boq,state.quantities);
     result.data={...(result.data&&typeof result.data==='object'?result.data:{}),suppliedBoq};
@@ -7179,13 +7186,32 @@ function resolveProjectModule(state: ProjectRuntimeState, key: string): ModuleRu
   const p1=profiling?performance.now():0;
   const bundle = buildBundle(scoped);
   const p2=profiling?performance.now():0;
-  const candidates = new Map(certifiedAnalyticalModules.map(descriptor =>
-    [descriptor.key, resolveProjectModuleCandidate(scoped, descriptor.key)]));
+  const candidateProfile:Array<{key:string;ms:number}>=[];
+  const candidates = new Map(certifiedAnalyticalModules.map(descriptor => {
+    const t=profiling?performance.now():0;
+    // Reuse the full-bundle result only where the normal uncertified resolver
+    // would use that same bundle. Commercial and specialist Claims/Forecast
+    // modules have dedicated canonical/fast resolvers with additional semantics
+    // and must continue through those paths.
+    const bundleReusable=
+      planningModuleKeys.has(descriptor.key)||
+      descriptor.key==='pmo-analysis'||
+      descriptor.key==='progress-report';
+    const result=resolveProjectModuleCandidate(scoped, descriptor.key, bundleReusable?bundle.modules.get(descriptor.key):undefined);
+    if(profiling)candidateProfile.push({key:descriptor.key,ms:performance.now()-t});
+    return [descriptor.key,result] as const;
+  }));
   const p3=profiling?performance.now():0;
   const consistency = certifyCrossModuleConsistency({generatedAt: bundle.generatedAt, state: scoped,
     modules: candidates, director: bundle.director, boardReport: bundle.boardReport});
   const p4=profiling?performance.now():0;
-  const modules = new Map([...candidates].map(([key, result]) => [key, enforceModuleReadiness(result, consistency)]));
+  const readinessProfile:Array<{key:string;ms:number}>=[];
+  const modules = new Map([...candidates].map(([key, result]) => {
+    const t=profiling?performance.now():0;
+    const ready=enforceModuleReadiness(result, consistency);
+    if(profiling)readinessProfile.push({key,ms:performance.now()-t});
+    return [key,ready] as const;
+  }));
   const forecast=modules.get('independent-forecast')?.data as any;
   const near=modules.get('near-critical')?.data as any;
   const activityNames=new Map((projectControlSchedule(scoped)?.revision.model.activities??[]).map(a=>[a.activityId,a.name??a.activityId]));
@@ -7205,7 +7231,9 @@ function resolveProjectModule(state: ProjectRuntimeState, key: string): ModuleRu
   if(management)management.projectDiagnosis=presentProjectDiagnosis(diagnosis);
   const p5=profiling?performance.now():0;
   if(profiling)process.stdout.write(JSON.stringify({event:'project_resolution_profile',projectId:state.projectId,
-    reportingStateMs:p1-p0,bundleMs:p2-p1,candidatesMs:p3-p2,certificationMs:p4-p3,readinessMs:p5-p4,totalMs:p5-p0})+'\n');
+    reportingStateMs:p1-p0,bundleMs:p2-p1,candidatesMs:p3-p2,certificationMs:p4-p3,readinessMs:p5-p4,totalMs:p5-p0,
+    slowCandidates:candidateProfile.filter(row=>row.ms>=5).sort((a,b)=>b.ms-a.ms),
+    slowReadiness:readinessProfile.filter(row=>row.ms>=5).sort((a,b)=>b.ms-a.ms)})+'\n');
   resolvedProjectCache.set(state.projectId, {version: state.version, modules});
   return modules.get(key) ?? blocked(key, "Unknown module.", []);
 }
