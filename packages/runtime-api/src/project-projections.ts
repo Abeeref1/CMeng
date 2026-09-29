@@ -21,6 +21,7 @@ import {sourceInterpretation} from "./source-interpretation";
 import {scheduleScopeClassification} from "./schedule-scope-classification";
 import {scheduleRiskMonteCarlo} from "./schedule-risk-monte-carlo";
 import {earnedScheduleForState,evmByWbsForState,riskRegisterForState,contractRiskForState,finalAccountForState} from "./advanced-controls";
+import {tenderReadinessForState} from './tender-readiness';
 import {contractChallengeForState} from './contract-challenge-runtime';
 import { enforceModuleReadiness } from "./module-readiness";
 import {assessModuleIssues} from './module-issues';
@@ -7233,6 +7234,7 @@ export function moduleForProject(
   if (key==='risk-register') return riskRegisterForState(reportingState(state));
   if (key==='contract-risk') return contractRiskForState(reportingState(state));
   if (key==='final-account') return finalAccountForState(reportingState(state));
+  if (key==='tender-readiness') return tenderReadinessForState(reportingState(state));
   const commercialCapability=commercialFoundationCapabilityForState(state,key)??commercialPerformanceCapabilityForState(state,key)??commercialContractControlCapabilityForState(state,key);
   if(commercialCapability)return attachReportingContract(reportingState(state),commercialCapability);
   if (managementModuleKeys.includes(key)) {
@@ -7898,7 +7900,7 @@ export function managementSurfacesForProject(
   const mp7=profiling?performance.now():0;
   if(profiling)process.stdout.write(JSON.stringify({event:'management_surface_profile',projectId,
     bundleMs:mp1-mp0,resolvedModulesMs:mp2-mp1,certificationMs:mp3-mp2,preBuildMs:mp4-mp3,
-    buildSurfacesMs:mp5-mp4,issuesAndExceptionsMs:mp6-mp5,reportingAndChecksMs:mp7-mp6,totalMs:mp7-mp0})+'\\n');
+    buildSurfacesMs:mp5-mp4,issuesAndExceptionsMs:mp6-mp5,reportingAndChecksMs:mp7-mp6,totalMs:mp7-mp0})+'\n');
   managementProjectionCache.set(projectId, {version: state.version, data: result});
   return result;
 }
@@ -8022,6 +8024,49 @@ export function overviewForProject(
     );
   const scheduleEstablished =
     programmeSchedules.length > 0;
+
+  // Resolve specialists first. One call populates the project-scoped certified
+  // module cache; all remaining specialist lookups are then O(1). Management
+  // surfaces consume that same cache, avoiding the previous cold-start path
+  // where management triggered a second full specialist resolution.
+  const overviewModuleStates =
+    certifiedAnalyticalModules.map(
+      (module) => {
+        const resolved =
+          resolveProjectModule(
+            state,
+            module.key,
+          );
+        return {
+          key: module.key,
+          issueAssessment:
+            resolved.issueAssessment,
+          status:
+            resolved.status,
+          reason:
+            resolved.reason,
+        };
+      },
+    );
+  const overviewManagementStates =
+    managementModuleKeys.map(
+      (key) => {
+        const resolved =
+          moduleForProject(
+            projectId,
+            key,
+          );
+        return {
+          key,
+          status:
+            resolved.status,
+          reason:
+            resolved.reason,
+          issueAssessment:
+            resolved.issueAssessment,
+        };
+      },
+    );
 
   return {
     projectId,
@@ -8186,28 +8231,10 @@ export function overviewForProject(
             ],
           }),
         ),
-    managementStates: managementModuleKeys.map(key => {
-      const resolved = moduleForProject(projectId, key);
-      return {key, status: resolved.status, reason: resolved.reason, issueAssessment: resolved.issueAssessment};
-    }),
+    managementStates:
+      overviewManagementStates,
     moduleStates:
-      certifiedAnalyticalModules.map(
-        (module) => {
-          const resolved =
-            resolveProjectModule(
-              state,
-              module.key,
-            );
-          return {
-            key: module.key,
-            issueAssessment: resolved.issueAssessment,
-            status:
-              resolved.status,
-            reason:
-              resolved.reason,
-          };
-        },
-      ),
+      overviewModuleStates,
   };
 }
 

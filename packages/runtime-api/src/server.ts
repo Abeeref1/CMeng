@@ -110,7 +110,7 @@ import {
 } from "./schedule-control-basis";
 
 const advancedControlKeys=new Set([
-  'scope-classification','monte-carlo-risk','earned-schedule','evm-by-wbs','risk-register','contract-risk','final-account',
+  'scope-classification','monte-carlo-risk','earned-schedule','evm-by-wbs','risk-register','contract-risk','final-account','tender-readiness',
   'commercial-terms','cost-register','payment-register','cbs-breakdown','cost-control','evm-performance','cash-flow-register','cost-scurve',
   'site-instructions','contract-obligations','liquidated-damages','bonds-insurance','retention-calendar'
 ]);
