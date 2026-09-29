@@ -4,7 +4,7 @@ import {runInNewContext} from 'node:vm';
 import {createSourceFile,ScriptTarget,isFunctionDeclaration} from 'typescript';
 
 import {managementSourceInventory} from '../packages/runtime-api/src/management-source-inventory';
-import {deliveryDashboard} from '../packages/runtime-api/src/delivery-projections';
+import {deliveryDashboard,deliveryModule} from '../packages/runtime-api/src/delivery-projections';
 import {runtimeProjects} from '../packages/runtime-api/src/project-state';
 import {cmengUatHtml} from '../packages/runtime-api/src/ui';
 import {deliveryScript} from '../packages/runtime-api/src/ui-delivery';
@@ -92,7 +92,7 @@ test('PMC control room shows best available contract and procurement evidence in
     overview:{latestDataDateIso:'2026-08-31'}
   });
   assert.match(output,/7800000000 AED source contract/);
-  assert.match(output,/120 long-lead candidates/);
+  assert.match(output,/120 source-marked long-lead items/);
   assert.match(output,/2400/);
   assert.match(output,/Procurement \/ Long Lead/);
 });
@@ -110,4 +110,40 @@ test('management UI includes the visual control room and integrated MCP matrix',
   assert.match(script,/Current driving network/);
   assert.match(script,/Long-lead scope to protect/);
   assert.match(script,/What changed in the programme/);
+});
+
+
+test('PMC control room preserves source claim population when current Data Date count is zero',()=>{
+  const data:any={
+    metrics:[
+      {key:'contract-finish',value:null},{key:'submitted-programme-finish',value:null},{key:'independent-forecast-finish',value:null},
+      {key:'submitted-vs-contract',value:null},{key:'independent-vs-contract',value:null},{key:'progress-position',value:null},{key:'schedule-spi',value:null},
+    ],
+    visualControl:{
+      progress:{scopeComparison:null,progressBases:null},commercial:{positions:[],cost:[]},
+      sourceInventory:{domains:[{domain:'claims',documentCount:4,readableRowCount:350,recognisedRowCount:350,state:'source_rows_available',basis:'source rows',signals:{longLeadMarkedCount:null,longLeadSamples:[]}}]},
+      claims:{currentClaimCount:0,sourceClaimCount:350,currentEventCount:0,sourceEventCount:350,officialApprovedEotDays:null,incompleteChainCount:null},
+      boqScope:{candidateLongLeadCount:null}
+    },
+    delivery:{sourceAvailability:{}},operationalReporting:{counts:{}},sourceInterpretation:{hse:{metrics:{}}},variationReconciliation:[],reportingContract:{dataDateIso:'2026-08-31'}
+  };
+  const code=functions(['pmcDefined','pmcFirst','pmcMetric','pmcSource','pmcMoney','pmcDays','pmcCard','pmcSourceValue','renderPmcControlRoom']);
+  const output=runInNewContext(code+';renderPmcControlRoom(data)',{
+    data,fmtExecutive:String,fmt:(value:any)=>value==null?'Unresolved':String(value),planningShortDate:String,
+    managementModuleLink:(key:string,label:string)=>'<button data-module="'+key+'">'+label+'</button>',escapeHtml:(value:any)=>String(value??''),overview:{latestDataDateIso:'2026-08-31'}
+  });
+  assert.match(output,/350 source claims · 0 current by DD/);
+  assert.match(output,/Source claims<\/em><b>350<\/b>/);
+});
+
+test('Long Lead page surfaces explicit source long-lead marks before governed mapping exists',()=>{
+  const state=runtimeProjects.getOrCreate('PMC-LONG-LEAD-SOURCE-FALLBACK');
+  state.evidenceDocuments.push(procurementDocument());
+  runtimeProjects.touch(state);
+  const result:any=deliveryModule(state,'long-lead');
+  assert.equal(result.status,'partial');
+  const byLabel=new Map<string,any>(result.data.metrics.map((row:any)=>[row.label,row]));
+  assert.equal(byLabel.get('Source-marked long lead')?.value,1);
+  assert.equal(byLabel.get('Readable source rows')?.value,2);
+  assert.equal(byLabel.get('Governed procurement status')?.value,null);
 });

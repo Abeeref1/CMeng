@@ -383,12 +383,24 @@ export function deliveryModule(state:ProjectRuntimeState,key:string):ModuleRunti
    metric('Governed current records',null,'records','Not established until the applicable source population and mapping are confirmed.'),
    metric('Overdue / late position',null,'records','Requires dated governed records; source availability alone does not establish lateness.')
  ]:[metric('Current records',summary.currentCount),metric('Open records',summary.openCount),metric('Overdue records',summary.overdueCount),metric('Awaiting review',hasRows?pending.length:null,'records','Count of supplied records awaiting review; this is not an activity or scope total.')];
- if(['delivery-control','procurement-packages','long-lead','material-tracking','procurement-scurves'].includes(key))metrics=useBoqCandidates?[
+ if(['delivery-control','procurement-packages','long-lead','material-tracking','procurement-scurves'].includes(key))metrics=!hasRows&&sourceEvidenceAvailable?[
+   metric('Source documents',sourceAvailability!.documentCount,'documents','Relevant supplied procurement evidence; source presence does not establish a complete lifecycle population.'),
+   metric('Readable source rows',sourceAvailability!.readableRowCount,'rows',sourceAvailability!.basis),
+   metric('Source-marked long lead',sourceAvailability!.signals.longLeadMarkedCount,'items','Explicit Long Lead marks read from the procurement source. This does not establish schedule impact or lateness.'),
+   metric('Governed procurement status',null,'','Package completeness, dated lifecycle, programme linkage and lateness remain separate until established.')
+  ]:useBoqCandidates?[
    metric('BOQ scope items',boqScope.itemCount,'items','Readable BOQ scope used for this candidate view.'),
    metric('Candidate packages',boqScope.packages.length,'packages','Packages derived from BOQ scope; not a confirmed procurement register.'),
    metric('Candidate long-lead items',boqScope.longLead.length,'items','Professional screening of actual BOQ descriptions.'),
+   metric('Source-marked long lead',sourceAvailability?.signals.longLeadMarkedCount??null,'items','Explicit Long Lead marks from a supplied procurement register, when available.'),
    metric('Actual procurement status',null,'','Not recorded in the current Project information.')
-  ]:[metric('BOQ mapped to procurement',p.boqIntelligence.procurementMappingPercent,'%','Controlled BOQ item denominator; mapped item IDs counted once.'),metric('Confirmed packages',population.denominator),metric('Late delivery · known subset',p.packageRows.some(r=>r.headroomCalendarDays!==null)?p.packageRows.filter(r=>r.headroomCalendarDays!==null&&r.headroomCalendarDays<0).length:null),metric('Latest order unresolved',p.packageRows.length?p.packageRows.filter(r=>!r.latestOrderDate).length:null)];
+  ]:[
+   metric('BOQ mapped to procurement',p.boqIntelligence.procurementMappingPercent,'%','Controlled BOQ item denominator; mapped item IDs counted once.'),
+   metric('Confirmed packages',population.denominator),
+   metric('Source-marked long lead',sourceAvailability?.signals.longLeadMarkedCount??null,'items','Explicit Long Lead marks from a supplied procurement register; schedule impact remains separate.'),
+   metric('Late delivery · known subset',p.packageRows.some(r=>r.headroomCalendarDays!==null)?p.packageRows.filter(r=>r.headroomCalendarDays!==null&&r.headroomCalendarDays<0).length:null),
+   metric('Latest order unresolved',p.packageRows.length?p.packageRows.filter(r=>!r.latestOrderDate).length:null)
+  ];
  if(key==='delivery-hse')metrics=[metric('Reported exposure',p.hsePosition.exposureHours,'hours'),metric('Reported lost-time injuries',p.hsePosition.lostTimeInjuries),metric('Frequency rate',p.hsePosition.frequencyRate,'per '+(p.hsePosition.rateBasis??'unresolved')+' hours',p.hsePosition.explanation)];
  if(key==='handover-readiness')metrics=[metric('Handover readiness',p.handover.readinessPercent,'%','Accepted and verified requirements / confirmed current requirement population.'),metric('Confirmed requirement population',population.denominator),metric('Accepted · known subset',p.handover.rows.length?p.handover.acceptedKnownCount:null),metric('Overdue',summary.overdueCount)];
  if(key==='delivery-quality'||key==='delivery-commissioning')metrics=[...metrics.slice(0,3),metric(key==='delivery-commissioning'?'Test pass rate':'Known inspection outcome rate',summary.passRatePercent,'%',summary.basis),metric('Unknown outcomes',rows.length?summary.unknownOutcomeCount:null)];
