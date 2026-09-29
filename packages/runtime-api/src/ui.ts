@@ -445,7 +445,7 @@ const advancedSubviewMap={
   "cash-flow":[["cash-flow-register","Cash Flow Register"],["cost-scurve","Cost S-Curve"]],
   "variations-change":[["site-instructions","Site Instructions"]],
   "contract-particulars-bonds":[["commercial-terms","Commercial Terms"],["contract-obligations","Contract Obligations"],["liquidated-damages","Liquidated Damages"],["bonds-insurance","Bonds & Insurance"],["contract-risk","Contract Risk"],["final-account","Final Account / Closeout"]],
-  "commercial-overview":[["cost-control","Cost Control"],["payment-register","Payment Register"],["contract-risk","Contract Risk"],["final-account","Final Account / Closeout"]]
+  "commercial-overview":[["cost-control","Cost Control"],["payment-register","Payment Register"],["tender-readiness","Tender Readiness"],["contract-risk","Contract Risk"],["final-account","Final Account / Closeout"]]
 };
 const advancedSubviewTitles=Object.fromEntries(Object.values(advancedSubviewMap).flat().map(([key,label])=>[key,label]));
 const roleViews={
@@ -1411,21 +1411,38 @@ function delayClaimsProjectionFor(data){
   }
   return direct||data||{};
 }
+function renderTenderReadinessVisual(data){
+  const p=projectionFor(data,"tender_readiness");
+  if(!Array.isArray(p.criteria))return "";
+  const kpis=planningKpis([
+    ["Established criteria",p.establishedCount,"of "+fmt(p.criterionCount)+" default evidence criteria"],
+    ["Partial / unresolved",p.unresolvedCount,"criteria not yet fully evidenced",p.unresolvedCount?"warning":""],
+    ["Evidence coverage",p.evidenceCoveragePercent===null||p.evidenceCoveragePercent===undefined?"Unresolved":fmt(p.evidenceCoveragePercent)+"%","evidence coverage only; not a tender score"],
+    ["Weighted tender score","Not calculated","No governed criterion weights or pass threshold are invented"]
+  ]);
+  const rows=p.criteria.map(row=>'<tr><td><b>'+escapeHtml(row.criterion)+'</b></td><td>'+escapeHtml(humanizeKey(row.state))+'</td><td>'+escapeHtml(row.availableEvidence||"Not established")+'</td><td>'+escapeHtml(row.gap||"—")+'</td><td>'+escapeHtml(row.owner||"Not assigned")+'</td><td>'+escapeHtml(row.criteriaAuthority||p.criteriaAuthority||"Not established")+'</td></tr>').join("");
+  return '<section class="planning-view tender-readiness-view">'+
+    '<div class="notice info"><b>Tender Readiness is evidence coverage, not a bid/no-bid score.</b> '+escapeHtml(p.basis||"")+'</div>'+
+    kpis+
+    '<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Tender readiness evidence matrix</h4><p>Available evidence is shown first. Missing or partial criteria remain explicit and do not erase the established criteria.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Criterion</th><th>State</th><th>Available evidence</th><th>Gap</th><th>Owner</th><th>Criteria authority</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></section>'+
+  '</section>';
+}
 function renderDelayClaimsVisual(data){
   const p=delayClaimsProjectionFor(data);
   const integrity=p.claimPopulationIntegrity||p.integrity||null;
   const quarantined=integrity?.state==="quarantined";
   const reporting=data?.claimsReporting||null;
-  const sourceEventCount=reporting?.events?.population?.sourceCount??reporting?.events?.source?.length??null;
-  const currentEventCount=reporting?.events?.asOf?.length??p.eventCount??null;
+  const sourcePopulationEstablished=Boolean(reporting)||p.contractorClaimEvidenceSubmitted===true||quarantined;
+  const sourceEventCount=reporting?.events?.population?.sourceCount??reporting?.events?.source?.length??(sourcePopulationEstablished?p.eventCount??null:null);
+  const currentEventCount=reporting?.events?.asOf?.length??(sourcePopulationEstablished?p.eventCount??null:null);
   const futureEventCount=reporting?.events?.future?.length??null;
   const undatedEventCount=reporting?.events?.undated?.length??null;
   const events=Array.isArray(p.events)?p.events:[];
   const linkedClaimIds=new Set(events.flatMap(event=>event.linkedClaimIds||[]));
-  const linked=quarantined?null:(p.linkedClaimCount??linkedClaimIds.size);
-  const unlinked=quarantined?null:(p.unlinkedClaimCount??Math.max(0,(p.claimCount||0)-(linked||0)));
-  const activityGapCount=p.activityEvidenceInsufficientEventCount??events.filter(e=>(e.relatedActivityIds||[]).length===0).length;
-  const incompleteDeterminationCount=p.determinationChainIncompleteEventCount??events.filter(e=>e.evidenceChainState==="determination_chain_incomplete").length;
+  const linked=!sourcePopulationEstablished||quarantined?null:(p.linkedClaimCount??linkedClaimIds.size);
+  const unlinked=!sourcePopulationEstablished||quarantined?null:(p.unlinkedClaimCount??Math.max(0,(p.claimCount||0)-(linked||0)));
+  const activityGapCount=!sourcePopulationEstablished?null:(p.activityEvidenceInsufficientEventCount??events.filter(e=>(e.relatedActivityIds||[]).length===0).length);
+  const incompleteDeterminationCount=!sourcePopulationEstablished?null:(p.determinationChainIncompleteEventCount??events.filter(e=>e.evidenceChainState==="determination_chain_incomplete").length);
   const movementEstablished=p.windowCount>0&&typeof p.observedPositiveProgrammeMovementDays==="number";
   const kpis=planningKpis([
     ["Current delay events",currentEventCount,"evidenced by the Data Date",currentEventCount?"":"warning"],
@@ -1436,22 +1453,23 @@ function renderDelayClaimsVisual(data){
     ...(quarantined?[["Quarantined source claim rows",integrity.quarantinedClaimCount,"retained for audit; excluded from management truth","warning"]]:[]),
     ["Claims linked to events",linked===null?"Unresolved":linked,"identity association; causation unproven",linked?"accent":"warning"],
     ["Claims without event links",unlinked===null?"Unresolved":unlinked,"identity gap; linked claims still need causation",unlinked?"warning":""],
-    ["Events linked to activities",p.activityLinkedEventCount??0,"schedule linkage"],
-    ["Activity evidence gaps",activityGapCount,"fail-closed source gaps",activityGapCount?"warning":""],
-    ["Events linked to windows",p.windowLinkedEventCount??0,"temporal association; not causation"],
-    ["Events with register notice references",p.noticeLinkedEventCount??0,"letter identity and contents require separate checks"],
-    ["Determined events",p.determinationLinkedEventCount??0,"Engineer determination linkage"],
-    ["Incomplete determination chains",incompleteDeterminationCount,"required links missing",incompleteDeterminationCount?"warning":""],
+    ["Events linked to activities",sourcePopulationEstablished?(p.activityLinkedEventCount??0):"Unresolved","schedule linkage"],
+    ["Activity evidence gaps",activityGapCount===null?"Unresolved":activityGapCount,"fail-closed source gaps",activityGapCount?"warning":""],
+    ["Events linked to windows",sourcePopulationEstablished?(p.windowLinkedEventCount??0):"Unresolved","temporal association; not causation"],
+    ["Events with register notice references",sourcePopulationEstablished?(p.noticeLinkedEventCount??0):"Unresolved","letter identity and contents require separate checks"],
+    ["Determined events",sourcePopulationEstablished?(p.determinationLinkedEventCount??0):"Unresolved","Engineer determination linkage"],
+    ["Incomplete determination chains",incompleteDeterminationCount===null?"Unresolved":incompleteDeterminationCount,"required links missing",incompleteDeterminationCount?"warning":""],
     ["Gross analytical movement",movementEstablished?fmt(p.observedPositiveIndependentMovementDays)+" d":"Unresolved","independent window recalculation; not event attribution",movementEstablished&&p.observedPositiveIndependentMovementDays?"warning":""],
     ["Positive submitted window movement",movementEstablished?fmt(p.observedPositiveProgrammeMovementDays)+" d":"Unresolved","positive submitted programme shifts; not event attribution",movementEstablished&&p.observedPositiveProgrammeMovementDays?"warning":""],
     ["Project Completion movement",!movementEstablished||p.projectCompletionMovementDays===null||p.projectCompletionMovementDays===undefined?"Unresolved":(p.projectCompletionMovementDays>0?"+":"")+fmt(p.projectCompletionMovementDays)+" d","net submitted completion movement"]
   ]);
   const integrityWarning=quarantined?'<div class="notice error"><b>Claim source integrity gate: '+escapeHtml(fmt(integrity.quarantinedClaimCount))+' source rows are quarantined.</b> The population matches a generated sequential pattern (claim/event IDs and letter references), has no established schedule-activity linkage, and contains a generated arithmetic claimed-day sequence. The source files remain retained for audit, but these rows are excluded from claim counts, delay attribution, EOT, accountability, portfolio summaries and Ask CMeng until independently verified or replaced.</div>':'';
-  const noEventWarning=!quarantined&&p.eventCount===0&&p.claimCount>0?'<div class="notice warn"><b>'+escapeHtml(fmt(p.claimCount))+' claim records are present, but no recorded delay events are established.</b> CMeng will not attribute schedule movement, responsibility or EOT entitlement to those claims until event linkage exists.</div>':'';
-  const activityEvidenceWarning=activityGapCount>0?'<div class="notice warn"><b>Activity evidence not confirmed for '+escapeHtml(fmt(activityGapCount))+' delay event'+(activityGapCount===1?'':'s')+'.</b> The available claim/correspondence sources do not establish a defensible activity-level relationship for these events. The affected activities must be identified before assigning delay responsibility. Determination chains remain explicitly incomplete where the activity link is required.</div>':'';
+  const noSourceWarning=!sourcePopulationEstablished?'<div class="notice info"><b>No delay-event / claim source population is established.</b> Programme analysis remains available, but CMeng will not present missing delay-event, linkage or notice populations as zero.</div>':'';
+  const noEventWarning=sourcePopulationEstablished&&!quarantined&&p.eventCount===0&&p.claimCount>0?'<div class="notice warn"><b>'+escapeHtml(fmt(p.claimCount))+' claim records are present, but no recorded delay events are established.</b> CMeng will not attribute schedule movement, responsibility or EOT entitlement to those claims until event linkage exists.</div>':'';
+  const activityEvidenceWarning=typeof activityGapCount==="number"&&activityGapCount>0?'<div class="notice warn"><b>Activity evidence not confirmed for '+escapeHtml(fmt(activityGapCount))+' delay event'+(activityGapCount===1?'':'s')+'.</b> The available claim/correspondence sources do not establish a defensible activity-level relationship for these events. The affected activities must be identified before assigning delay responsibility. Determination chains remain explicitly incomplete where the activity link is required.</div>':'';
   const populationNote=reporting?'<div class="notice info"><b>Source population is preserved.</b> Current counts include only delay events evidenced by the project Data Date. Later and undated source rows remain visible as separate populations and are not discarded or promoted into the current position.</div>':'';
-  const warning=integrityWarning+populationNote+noEventWarning+activityEvidenceWarning;
-  const linkage=quarantined?'<div class="empty-visual">Claim/event linkage is withheld because the submitted source population is quarantined for integrity review.</div>':planningStatusBand([
+  const warning=integrityWarning+noSourceWarning+populationNote+noEventWarning+activityEvidenceWarning;
+  const linkage=!sourcePopulationEstablished?'<div class="empty-visual">Claim/event linkage is unresolved because no delay-event / claim source population has been supplied.</div>':quarantined?'<div class="empty-visual">Claim/event linkage is withheld because the submitted source population is quarantined for integrity review.</div>':planningStatusBand([
     ["Linked to delay events",linked,"success"],
     ["Not linked to delay events",unlinked,"warning"]
   ]);
@@ -1467,9 +1485,11 @@ function renderDelayClaimsVisual(data){
     {label:"Positive submitted window movement",value:movementEstablished&&typeof p.observedPositiveProgrammeMovementDays==="number"?p.observedPositiveProgrammeMovementDays:null},
     {label:"Net Project Completion movement",value:movementEstablished&&typeof p.projectCompletionMovementDays==="number"?p.projectCompletionMovementDays:null}
   ],"d");
-  const visualOverview=quarantined
-    ? '<div class="notice info">Evidence-chain charts are withheld for the quarantined claim population. Independent schedule movement remains available separately and is not attributed to these source rows.</div>'
-    : '<div class="visual-chart-grid">'+
+  const visualOverview=!sourcePopulationEstablished
+    ? '<div class="notice info">Evidence-chain charts are not shown because no delay-event / claim source population is established. Independent programme analysis remains available separately.</div>'
+    : quarantined
+      ? '<div class="notice info">Evidence-chain charts are withheld for the quarantined claim population. Independent schedule movement remains available separately and is not attributed to these source rows.</div>'
+      : '<div class="visual-chart-grid">'+
       renderVisualPanel("Evidence-chain coverage","How far the confirmed claim/event population is connected into schedule, windows, notices and determinations.",chainChart)+
       renderVisualPanel("Schedule movement semantics","Gross positive window movement and net Project Completion movement are shown as different analytical measures.",movementChart)+
     '</div>';
@@ -1586,8 +1606,13 @@ function planningKpis(items){
   const unavailable=item=>{const value=item[1];return value===null||value===undefined||/^(Not |—|Suppressed|Missing|Mapping not|Unresolved)/i.test(String(value));};
   const available=items.filter(item=>!unavailable(item)),missing=items.filter(unavailable);
   const card=item=>{const label=item[0],value=item[1],sub=item[2]||"",tone=item[3]||"";return '<div class="planning-kpi '+escapeHtml(tone)+'"><span>'+escapeHtml(label)+'</span><strong>'+escapeHtml(value===null||value===undefined?"Not available":fmt(value))+'</strong>'+(sub?'<small>'+escapeHtml(sub)+'</small>':'')+'</div>';};
+  // Available facts always lead. If nothing is available, show a small sample of
+  // unresolved measures so the page still explains what is missing.
   const primary=available.length?available:missing.slice(0,4);
-  const more=available.length&&missing.length?'<details class="planning-missing-kpis"><summary>'+missing.length+' additional measure'+(missing.length===1?' needs':'s need')+' more information</summary><div class="planning-missing-grid">'+missing.map(item=>'<div><b>'+escapeHtml(item[0])+'</b><span>'+escapeHtml(item[2]||'Not available from the current Project information.')+'</span></div>').join("")+'</div></details>':'';
+  const remainingMissing=available.length?missing:missing.slice(4);
+  const names=remainingMissing.slice(0,4).map(item=>item[0]);
+  const labelPreview=names.length?' · '+names.map(escapeHtml).join('; ')+(remainingMissing.length>names.length?' · +'+(remainingMissing.length-names.length)+' more':''):'';
+  const more=remainingMissing.length?'<details class="planning-missing-kpis"><summary>'+remainingMissing.length+' additional measure'+(remainingMissing.length===1?' needs':'s need')+' more information'+labelPreview+'</summary><div class="planning-missing-grid">'+remainingMissing.map(item=>'<div><b>'+escapeHtml(item[0])+'</b><span>'+escapeHtml(item[2]||'Not available from the current Project information.')+'</span></div>').join("")+'</div></details>':'';
   return '<div class="planning-kpi-grid">'+primary.map(card).join("")+'</div>'+more;
 }
 function planningStatusBand(items){
@@ -4166,6 +4191,7 @@ function renderSpecializedModule(key,data){
   if(key==="risk-register")return renderRiskRegisterVisual(data);
   if(key==="contract-risk")return renderContractRiskVisual(data);
   if(key==="final-account")return renderFinalAccountVisual(data);
+  if(key==="tender-readiness")return renderTenderReadinessVisual(data);
   if(key==="delay-claims")return renderDelayClaimsVisual(data);
   if(key==="notices-claims")return renderNoticesClaimsVisual(data);
   if(key==="windows-analysis")return renderWindowsVisual(data);
@@ -4414,7 +4440,38 @@ async function loadModule(key){
 }
 function kpi(label,value,sub=""){if(typeof value==="string"&&/^\d{4}-\d{2}-\d{2}$/.test(value))value=planningShortDate(value);return'<div class="card kpi-card"><div class="kpi-label">'+escapeHtml(label)+'</div><div class="kpi-value">'+escapeHtml(fmt(value))+'</div><div class="kpi-sub">'+escapeHtml(sub)+'</div></div>'}
 function evidenceCount(state,value,knownSubset){if(state==="established"&&value!==null&&value!==undefined)return fmt(value);if(typeof knownSubset==="number")return fmt(knownSubset)+" confirmed; full total not confirmed";if(state==="submitted_unparsed")return"Source submitted · count not confirmed";return"Unresolved"}
-function renderDirector(d){if(!d){el("director").innerHTML='<div class="card"><div class="empty">Open a project to load its management detail.</div></div>';return}const s=d.schedule,c=d.claims,ctrl=d.controls;let html='<div class="grid kpi">'+kpi("Data Date",s.dataDateIso)+kpi("Contract Completion",s.contractualCompletionIso||"Unresolved")+kpi("Further Adjusted Completion",s.officialAdjustedCompletionIso||"Unresolved","additional adjustment after the current contract basis")+kpi("Submitted Programme Finish",s.submittedProgrammeCompletionIso||"Unresolved")+kpi("Programme calendar recalculation",s.independentForecastCompletionIso||"Unresolved","Submitted logic on its own calendars; not attributable delay")+kpi("Positive submitted window movement",c.observedProgrammeMovementDays,"sum of positive submitted project-finish changes; not EOT")+kpi("Time-impact candidate",c.analyticalTimeImpactCandidateDays,"analytical, not entitlement")+kpi("Attributable EOT candidate",c.attributableCandidateEotDays,"analytical, not awarded")+kpi("Gross source-approved EOT",c.officialApprovedEotDays,"dated determinations through DD; overlap and further adjustment require reconciliation")+kpi("Network calculation",s.independentCpmState==="established"?"Computed":"Unavailable","Graph/calculation coverage only; source float and calendars require reconciliation")+kpi("Claims linked",c.claimCount===null||c.claimCount===undefined?"Unresolved":fmt(c.fullyLinkedClaimCount??0)+" / "+fmt(c.claimCount),"claim → event → activity")+kpi("LD Scenario",d.ld.cappedAmount===null?"—":fmt(d.ld.cappedAmount)+" "+(d.ld.currency||""),humanizeKey(d.ld.state))+'</div>';html+='<div class="grid two"><div class="card"><h3>Commercial exposure by currency</h3><div class="grid three">';(d.commercialByCurrency||[]).forEach(r=>{html+='<div class="currency-card"><div class="currency-code">'+escapeHtml(r.currency)+'</div>'+[["Pending variations",r.pendingVariationAmount],["Approved variations · source aggregate",r.approvedVariationAmount],["Certified unpaid",r.certifiedUnpaidAmount],["Retention deducted through DD",r.retentionDeductedAmount],["Held balance",r.retentionHeldAmount],["Active bonds",r.activeBondAmount],["Claimed",r.claimClaimedAmount],["LD scenario",r.ldScenarioAmount]].map(x=>'<div class="currency-line" title="'+escapeHtml(commercialFindingTitle(x[1]))+'"><span>'+x[0]+'</span><strong>'+escapeHtml(commercialFindingText(x[1]))+'</strong></div>').join("")+'</div>'});html+='</div></div><div class="card"><h3>Management actions</h3><div class="actions">'+((d.managementActions||[]).length?d.managementActions.map(a=>'<div class="action">'+escapeHtml(a)+'</div>').join(""):'<div class="empty">No current actions generated.</div>')+'</div><div style="margin-top:14px" class="scalar-grid">'+'<div class="scalar"><b>Open HSE</b><span>'+escapeHtml(evidenceCount(ctrl.hseEvidenceState,ctrl.openHseIncidentCount))+'</span></div>'+'<div class="scalar"><b>Reported lost-time injuries</b><span>'+escapeHtml(d.sourceInterpretation?.hse?.metrics?.lostTimeInjuries??"Unresolved")+'</span></div>'+'<div class="scalar"><b>Major / critical NCR</b><span>'+escapeHtml(evidenceCount(ctrl.qualityEvidenceState,ctrl.openCriticalMajorNcrCount,ctrl.reporting?.knownCounts?.openCriticalMajorNcrCount))+'</span></div>'+'<div class="scalar"><b>Overdue RFI</b><span>'+escapeHtml(evidenceCount(ctrl.rfiEvidenceState,ctrl.overdueRfiCount))+'</span></div>'+'<div class="scalar"><b>Permit issues</b><span>'+escapeHtml(evidenceCount(ctrl.permitEvidenceState,ctrl.overduePermitCount))+'</span></div>'+'<div class="scalar"><b>Expiring bonds</b><span>'+escapeHtml(evidenceCount(ctrl.bondEvidenceState,ctrl.expiringBondCount30Days))+'</span></div>'+'<div class="scalar"><b>Open risks</b><span>'+escapeHtml(evidenceCount(ctrl.riskEvidenceState,ctrl.openRiskCount))+'</span></div>'+'</div></div></div>';el("director").innerHTML=html}
+function renderDirector(d){
+  if(!d){el("director").innerHTML='<div class="card"><div class="empty">Open a project to load its management detail.</div></div>';return}
+  const s=d.schedule,c=d.claims,ctrl=d.controls;
+  const programmeKpis=planningKpis([
+    ["Data Date",s.dataDateIso,"current reporting programme"],
+    ["Contract Completion",s.contractualCompletionIso||"Unresolved","governed contract date"],
+    ["Further Adjusted Completion",s.officialAdjustedCompletionIso||"Unresolved","additional adjustment after the current contract basis"],
+    ["Submitted Programme Finish",s.submittedProgrammeCompletionIso||"Unresolved","current programme"],
+    ["Programme calendar recalculation",s.independentForecastCompletionIso||"Unresolved","submitted logic on its own calendars; not attributable delay"],
+    ["Positive submitted window movement",c.observedProgrammeMovementDays===null||c.observedProgrammeMovementDays===undefined?"Unresolved":c.observedProgrammeMovementDays,"sum of positive submitted project-finish changes; not EOT"],
+    ["Time-impact candidate",c.analyticalTimeImpactCandidateDays===null||c.analyticalTimeImpactCandidateDays===undefined?"Unresolved":c.analyticalTimeImpactCandidateDays,"analytical, not entitlement"],
+    ["Attributable EOT candidate",c.attributableCandidateEotDays===null||c.attributableCandidateEotDays===undefined?"Unresolved":c.attributableCandidateEotDays,"analytical, not awarded"],
+    ["Gross source-approved EOT",c.officialApprovedEotDays===null||c.officialApprovedEotDays===undefined?"Unresolved":c.officialApprovedEotDays,"dated determinations through DD; overlap and further adjustment require reconciliation"],
+    ["Network calculation",s.independentCpmState==="established"?"Computed":"Unavailable","graph/calculation coverage only; source float and calendars require reconciliation"],
+    ["Claims linked",c.claimCount===null||c.claimCount===undefined?"Unresolved":fmt(c.fullyLinkedClaimCount??0)+" / "+fmt(c.claimCount),"claim → event → activity"],
+    ["LD Scenario",d.ld.cappedAmount===null||d.ld.cappedAmount===undefined?"Unresolved":fmt(d.ld.cappedAmount)+" "+(d.ld.currency||""),humanizeKey(d.ld.state)]
+  ]);
+  let html='<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Available management position</h4><p>Established information is shown first. Measures needing more evidence are grouped separately and are never converted to zero.</p></div></div><div class="planning-panel-body">'+programmeKpis+'</div></section>';
+  html+='<div class="grid two"><div class="card"><h3>Commercial exposure by currency</h3><div class="grid three">';
+  (d.commercialByCurrency||[]).forEach(r=>{html+='<div class="currency-card"><div class="currency-code">'+escapeHtml(r.currency)+'</div>'+[["Pending variations",r.pendingVariationAmount],["Approved variations · source aggregate",r.approvedVariationAmount],["Certified unpaid",r.certifiedUnpaidAmount],["Retention deducted through DD",r.retentionDeductedAmount],["Held balance",r.retentionHeldAmount],["Active bonds",r.activeBondAmount],["Claimed",r.claimClaimedAmount],["LD scenario",r.ldScenarioAmount]].map(x=>'<div class="currency-line" title="'+escapeHtml(commercialFindingTitle(x[1]))+'"><span>'+x[0]+'</span><strong>'+escapeHtml(commercialFindingText(x[1]))+'</strong></div>').join("")+'</div>'});
+  if(!(d.commercialByCurrency||[]).length)html+='<div class="empty">No governed commercial currency position is established.</div>';
+  html+='</div></div><div class="card"><h3>Management actions</h3><div class="actions">'+((d.managementActions||[]).length?d.managementActions.map(a=>'<div class="action">'+escapeHtml(a)+'</div>').join(""):'<div class="empty">No current actions generated.</div>')+'</div><div style="margin-top:14px" class="scalar-grid">'+
+    '<div class="scalar"><b>Open HSE</b><span>'+escapeHtml(evidenceCount(ctrl.hseEvidenceState,ctrl.openHseIncidentCount))+'</span></div>'+
+    '<div class="scalar"><b>Reported lost-time injuries</b><span>'+escapeHtml(d.sourceInterpretation?.hse?.metrics?.lostTimeInjuries??"Unresolved")+'</span></div>'+
+    '<div class="scalar"><b>Major / critical NCR</b><span>'+escapeHtml(evidenceCount(ctrl.qualityEvidenceState,ctrl.openCriticalMajorNcrCount,ctrl.reporting?.knownCounts?.openCriticalMajorNcrCount))+'</span></div>'+
+    '<div class="scalar"><b>Overdue RFI</b><span>'+escapeHtml(evidenceCount(ctrl.rfiEvidenceState,ctrl.overdueRfiCount))+'</span></div>'+
+    '<div class="scalar"><b>Permit issues</b><span>'+escapeHtml(evidenceCount(ctrl.permitEvidenceState,ctrl.overduePermitCount))+'</span></div>'+
+    '<div class="scalar"><b>Expiring bonds</b><span>'+escapeHtml(evidenceCount(ctrl.bondEvidenceState,ctrl.expiringBondCount30Days))+'</span></div>'+
+    '<div class="scalar"><b>Open risks</b><span>'+escapeHtml(evidenceCount(ctrl.riskEvidenceState,ctrl.openRiskCount))+'</span></div>'+
+    '</div></div></div>';
+  el("director").innerHTML=html;
+}
 function renderStatus(o){
   const ready=o.moduleStates.filter(x=>x.status==="ready").length;
   const partial=o.moduleStates.filter(x=>x.status==="partial").length;
