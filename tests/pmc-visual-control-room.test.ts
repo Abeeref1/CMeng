@@ -142,7 +142,7 @@ test('Long Lead page surfaces explicit source long-lead marks before governed ma
   runtimeProjects.touch(state);
   const result:any=deliveryModule(state,'long-lead');
   assert.equal(result.status,'partial');
-  const byLabel=new Map(result.data.metrics.map((row:any)=>[row.label,row]));
+  const byLabel=new Map<string,any>(result.data.metrics.map((row:any)=>[row.label,row]));
   assert.equal(byLabel.get('Source-marked long lead')?.value,1);
   assert.equal(byLabel.get('Readable source rows')?.value,2);
   assert.equal(byLabel.get('Governed procurement status')?.value,null);
