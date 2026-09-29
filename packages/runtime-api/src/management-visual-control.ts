@@ -1,6 +1,7 @@
 import type {CommercialControlPosition} from '../../commercial-control/src';
 import type {ModuleRuntimeResult,ProjectRuntimeState} from './project-state-types';
 import {managementSourceInventory} from './management-source-inventory';
+import {boqScopeIntelligence} from './boq-scope-intelligence';
 
 const data=(modules:Map<string,ModuleRuntimeResult>,key:string):any=>{
   const value=modules.get(key)?.data;
@@ -13,6 +14,7 @@ export function managementVisualControl(
   modules:Map<string,ModuleRuntimeResult>,
   commercial:CommercialControlPosition,
 ){
+  const boqScope=boqScopeIntelligence(state);
   const activity=data(modules,'activity-analytics');
   const independent=data(modules,'independent-forecast');
   const milestones=data(modules,'milestones');
@@ -180,5 +182,18 @@ export function managementVisualControl(
       actualHours:manhour.actualHours??manhour.actualHoursKnown??null,
     },
     challenge:challengeSummary,
+    boqScope:{
+      itemCount:boqScope.itemCount,
+      candidatePackageCount:boqScope.packages.length,
+      candidateLongLeadCount:boqScope.longLead.length,
+      complexity:boqScope.complexity,
+      coverage:boqScope.coverage,
+      topLongLead:boqScope.longLead.slice(0,12).map(row=>({
+        itemId:row.itemId,itemNumber:row.itemNumber,description:row.description,discipline:row.discipline,system:row.system,
+        package:row.packageCandidate,priority:row.procurementPriority,amount:row.amount,currency:row.currency,
+        basis:row.classificationBasis.longLeadCandidate
+      })),
+      basis:boqScope.basis,
+    },
   };
 }
