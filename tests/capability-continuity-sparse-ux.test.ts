@@ -94,6 +94,7 @@ test('schedule-only Delay Events presents missing event populations as unresolve
     functions(['planningKpis','delayClaimsProjectionFor','renderDelayClaimsVisual'])+';renderDelayClaimsVisual(data)',
     {
       data,
+      projectionFor:(value:any)=>value,
       escapeHtml:String,
       fmt:(v:any)=>v==null?'Unresolved':String(v),
       humanizeKey:String,
