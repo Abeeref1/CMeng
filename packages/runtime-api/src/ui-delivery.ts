@@ -6,7 +6,7 @@ let deliveryTables={},deliveryEditorContext=null,deliverySourceContext=null,deli
 const deliveryNumberFormat=new Intl.NumberFormat('en-GB',{maximumFractionDigits:6});
 const deliveryDateFormat=new Intl.DateTimeFormat('en-GB',{day:'2-digit',month:'short',year:'numeric',timeZone:'UTC'});
 function deliveryValue(v){
- if(v===null||v===undefined||v==='')return 'Not established';
+ if(v===null||v===undefined||v===''||typeof v==='string'&&/^(?:undefined|null|nan)$/i.test(v.trim()))return 'Not established';
  if(typeof v==='number')return Number.isFinite(v)?deliveryNumberFormat.format(v):'Not established';
  if(typeof v==='boolean')return v?'Yes':'No';
  if(Array.isArray(v))return v.length?v.map(x=>typeof x==='object'?(x?.reference||x?.stage||x?.recordId||'Record'):deliveryValue(x)).join('; '):'None in this set';
