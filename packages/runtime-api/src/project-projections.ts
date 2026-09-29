@@ -3020,7 +3020,7 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
     modules,
   });
 
-  for (const [key, result] of modules) modules.set(key, checkProjectionIntegrity(result, model, scheduleAnalysisConfig));
+  for (const [key, result] of modules) modules.set(key, checkProjectionIntegrity(result, model, scheduleAnalysisConfig, delayModel));
 
   const latestBoardPublicationRecord =
     state.boardPublicationHistory
