@@ -312,8 +312,7 @@ const deliverySourceDomain=(key:string):ManagementSourceDomain|null=>
  key==='delivery-submittals'?'submittal':
  key==='delivery-design'?'design':
  key==='delivery-quality'?'quality':
- key==='delivery-hse'?'hse':
- key==='delivery-risks'?'risk':null;
+ key==='delivery-hse'?'hse':null;
 export function deliveryModule(state:ProjectRuntimeState,key:string):ModuleRuntimeResult{
  if(key==='delivery-interfaces')return interfaceModule(state);
  const definition=deliveryPages.find(p=>p[0]===key);if(!definition)return {key,status:'blocked',reason:'Delivery page not found.',dependencies:[],data:null};
