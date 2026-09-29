@@ -620,7 +620,8 @@ test("CMeng workspace keeps the active module primary and browser script parseab
       "WBS & Work-Package Control",
       "Suggested updates for review",
       "Control History",
-      "WBS names come from the programme.",
+      "Observed programme structure is shown first.",
+      "Approval of an official contractual work-package structure remains a separate authority question.",
       "Use the relevant page to approve, reject or defer it before it changes the project position.",
     ]
   ) {
