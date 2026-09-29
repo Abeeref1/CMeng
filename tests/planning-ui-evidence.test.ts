@@ -40,6 +40,61 @@ test('displayed progress variance reconciles rounded values without changing the
 
 
 
+
+test('Completion Forecast translates calendar and graph diagnostics instead of exposing internal codes',()=>{
+ const script=functions(['readerText','forecastDiagnosticMessage','forecastDiagnosticSummary']);
+ const value=runInNewContext(script+';forecastDiagnosticSummary(["CALENDAR_SEMANTICS_UNRESOLVED:6:CALENDAR_WORKING_INTERVALS_NOT_ESTABLISHED; SCHEDULE_GRAPH_CYCLES:RMH 010 008; SCHEDULE_GRAPH_DUPLICATE_ACTIVITY_IDS:RMH 010 008; SCHEDULE_GRAPH_SELF_LOOPS:RMH 010 008"])');
+ assert.match(value,/Working calendar definitions are incomplete/i);
+ assert.match(value,/circular relationships/i);
+ assert.match(value,/Duplicate activity IDs/i);
+ assert.match(value,/Self-referencing activity relationships/i);
+ assert.doesNotMatch(value,/CALENDAR_SEMANTICS_UNRESOLVED|SCHEDULE_GRAPH_CYCLES|SCHEDULE_GRAPH_DUPLICATE_ACTIVITY_IDS|SCHEDULE_GRAPH_SELF_LOOPS/);
+});
+
+test('Master Dashboard management priorities identify the activity or grouped population even when reasons repeat',()=>{
+ const script=functions(['renderProjectDashboardSummary']);
+ const data:any={
+  dataDateIso:'2026-08-31',counts:{critical:{knownCount:5},negativeFloat:{knownCount:5},nearCritical:{knownCount:0}},
+  tableTotals:{network:5},network:{rows:[]},completion:null,summary:'Schedule pressure exists.',wbsRows:[],
+  actions:[
+   {activityId:'A-101',name:'Foundation pour',wbs:'Civil / Foundations',reason:'On the calculated finish-driving network; -420 hours source float',action:'Assess recovery.'},
+   {activityId:'A-202',name:'Steel erection',wbs:'Structure / Steel',reason:'On the calculated finish-driving network; -420 hours source float',action:'Assess recovery.'},
+  ]
+ };
+ const html=runInNewContext(script+';renderProjectDashboardSummary(data)',{
+  data,escapeHtml:String,fmt:String,planningShortDate:String,renderCompletionPosition:()=>'',planningKpis:()=>'',renderProjectDiagnosis:()=>''
+ });
+ assert.match(html,/A-101/);assert.match(html,/Foundation pour/);
+ assert.match(html,/A-202/);assert.match(html,/Steel erection/);
+ assert.equal((html.match(/On the calculated finish-driving network; -420 hours source float/g)||[]).length,2);
+});
+
+test('Interface Management never renders literal undefined or null source strings',()=>{
+ const script=functions(['interfaceDisplay','renderInterfaceIntelligenceVisual']);
+ const data:any={projectionKey:'interface_intelligence',managementPosition:'Open interfaces',confirmedCount:1,blockerCount:0,candidateCount:0,linkedActivityCount:1,basis:'Explicit links',rows:[{
+   interfaceId:'IF-01',authority:'confirmed',state:'open',givingParty:'undefined',receivingParty:'null',package:'PKG-1',discipline:null,system:'NaN',location:'',requiredDeliverable:'undefined',requiredDate:null,responsibleParty:'undefined',linkedActivity:'A-1',linkedRfi:null,linkedSubmittal:null,linkedRisk:null,consequence:'undefined',escalation:null
+ }]};
+ const html=runInNewContext(script+';renderInterfaceIntelligenceVisual(data)',{
+  data,projectionFor:(v:any)=>v,escapeHtml:String,humanizeKey:String,planningShortDate:String,fmt:String,planningKpis:()=>''
+ });
+ assert.doesNotMatch(html,/>undefined</i);assert.doesNotMatch(html,/>null</i);assert.doesNotMatch(html,/>NaN</i);
+ assert.match(html,/Not established/);
+});
+
+test('Recovery and Acceleration explains eligibility instead of presenting a bare zero-scenario result',()=>{
+ const script=functions(['renderRecoveryAccelerationVisual']);
+ const data:any={projectionKey:'recovery_acceleration',scenarios:[],calculatedScenarioCount:0,assumptionRequiredCount:0,scenarioState:'no_eligible_recovery_basis',
+  dataDateIso:'2026-08-31',managementPosition:'No recovery option currently meets the calculation criteria.',
+  eligibility:{activityFeasibilityCheckCount:44,crewAccelerationCandidateCount:0,lateProcurementPackageCount:0,unresolvedFeasibilityCheckCount:0,governedResequencingWorkfrontCount:0},basis:'Evidence only.'};
+ const html=runInNewContext(script+';renderRecoveryAccelerationVisual(data)',{
+  data,projectionFor:(v:any)=>v,escapeHtml:String,humanizeKey:String,planningShortDate:String,fmt:String,planningKpis:(rows:any[])=>rows.map(r=>r.join(' ')).join(' ')
+ });
+ assert.match(html,/None qualify/);
+ assert.match(html,/44/);
+ assert.match(html,/No eligible quantified recovery scenario/i);
+ assert.doesNotMatch(html,/Calculated recovery options 0\b/);
+});
+
 test('Progress Breakdown exposes six structural filters without unresolved spam or confirmation prompts',()=>{
  const script=functions(['renderProgressBreakdownVisual']);
  const data={
