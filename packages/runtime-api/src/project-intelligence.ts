@@ -77,6 +77,7 @@ function relevantKeys(
     );
   }
   if (/commercial|exposure/.test(q)) add("commercial-overview");
+  if (/tender readiness|bid readiness|tender basis|employer requirements|\brfp\b|\bitt\b/.test(q)) add("tender-readiness");
   if (/variation|change order/.test(q)) add("variations-change");
   if (/payment|certificate|certified|retention/.test(q)) add("payments");
   if (/cash/.test(q)) add("cash-flow");
@@ -163,7 +164,7 @@ function scalarFacts(
 function projectControlName(
   key: string,
 ): string {
-  return titleForModule(key);
+  return key==='tender-readiness'?'Tender Readiness':titleForModule(key);
 }
 
 function factLabel(
@@ -252,6 +253,16 @@ function requestedFacts(question: string, projectId: string): AnswerFact[] {
     add(key + '.reportingContract.populations.' + name + '.afterDataDate', label + ' after Data Date (excluded)', established && p ? p.exclusions.filter((e:any)=>e.reason==='after_data_date').length : null, context);
     add(key + '.reportingContract.populations.' + name + '.undated', label + ' without a usable date (excluded)', established && p ? p.exclusions.filter((e:any)=>/date_missing|date_invalid/.test(e.reason)).length : null, context);
   };
+  if (/tender readiness|bid readiness|tender basis|employer requirements|\brfp\b|\bitt\b/.test(q)) {
+    const d=data('tender-readiness');
+    const context={dataDateIso:d?.dataDateIso??null,authority:'calculated'};
+    add('tender-readiness.establishedCount','Tender readiness criteria established',d?.establishedCount,context);
+    add('tender-readiness.unresolvedCount','Tender readiness criteria partial / unresolved',d?.unresolvedCount,context);
+    add('tender-readiness.evidenceCoveragePercent','Tender readiness evidence coverage (%) · not a bid score',d?.evidenceCoveragePercent,context);
+    add('tender-readiness.readinessScore','Weighted tender score · not calculated without governed weights',d?.readinessScore,{...context,state:d?.readinessScoreState});
+    for(const [i,row] of (d?.criteria??[]).entries())
+      add('tender-readiness.criteria['+i+'].state',row.criterion,row.state,{...context,state:row.state});
+  }
   if (/claim|notice/.test(q)) {
     const d = data('notices-claims');
     const submitted = d?.contractorNoticeClaimEvidenceSubmitted === true;
