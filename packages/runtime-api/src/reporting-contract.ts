@@ -8,6 +8,65 @@ import { createHash } from 'node:crypto';
 import { projectScheduleControlBasis } from './schedule-control-basis';
 import type { ProjectRuntimeState, ModuleRuntimeResult } from './project-state-types';
 
+const sharedReportingContextCache=new WeakMap<ProjectRuntimeState,{version:number;dataDateIso:string|null;value:any}>();
+
+/** Project-level reporting facts are identical for every module at one project
+ * version. Build them once and let each module add only its owned populations
+ * and metric contracts. This changes no authority or denominator semantics. */
+function sharedReportingContext(state:ProjectRuntimeState){
+  const dataDateIso=projectDataDate(state);
+  const cached=sharedReportingContextCache.get(state);
+  if(cached?.version===state.version&&cached.dataDateIso===dataDateIso)return cached.value;
+
+  const authorityReview=scheduleAuthorityReview(state);
+  const current=projectControlSchedule(state);
+  const model=current?.revision.model;
+  const operations=operationalReporting(state);
+  const actuals=scheduleActualReporting(state);
+  const basePopulations:Record<string,PopulationContract>={schedule_actual_events:actuals.population};
+
+  if(model){
+    for(const basis of ['source_records','execution_control','milestones','duration_weighted_progress'] as const)
+      basePopulations[basis]=activityPopulation(model,basis).reporting;
+    basePopulations.relationships=populationContract({
+      name:'Source relationship records',entity:'relationship',dataDateIso,
+      dateBasis:'current governed programme snapshot',sourceRevisionId:model.sourceRevisionId,authority:'source',
+      sourceCount:model.relationships.length,
+      memberIds:model.relationships.map((r,i)=>String(r.relationshipId??[r.predecessorActivityId,r.successorActivityId,r.type,r.lagHours,i].join(':'))),
+      exclusions:[]
+    });
+  }
+
+  const revisionScope=partitionAsOf(state.schedules.filter(s=>!isScenarioRevision(s)),{
+    name:'Programme revisions by Data Date',entity:'programme_revision',dataDateIso,
+    dateBasis:'programme Data Date or explicit revision effective date',
+    id:r=>r.revision.revisionId,date:r=>r.revision.model.dataDateIso??r.revision.effectiveAt
+  });
+  basePopulations.revisions=revisionScope.population;
+
+  const analysisConfig=projectScheduleControlBasis(state).analysisConfig;
+  const calendarById=model?new Map(model.calendars.map(calendar=>[calendar.calendarId,calendar])):null;
+  const executionActivities=model?activityPopulation(model).activities:[];
+  const calendarUnresolvedActivityCount=model&&calendarById
+    ? executionActivities.filter(activity=>calendarWorkingDayHours(calendarById.get(activity.calendarId))===null).length
+    : null;
+  const time=canonicalTimeClaims(state).contractTimeBasis??state.controls.contractTimeBasis;
+  const baseline=state.schedules
+    .filter(s=>['baseline','revised_baseline'].includes(s.role)&&s.revision.model.dataDateIso&&dataDateIso&&s.revision.model.dataDateIso.slice(0,10)<=dataDateIso)
+    .sort((a,b)=>(a.revision.model.dataDateIso??'').localeCompare(b.revision.model.dataDateIso??'')).at(-1);
+  const value={
+    authorityReview,current,model,dataDateIso,operations,actuals,basePopulations,
+    claims:claimsReporting(state),
+    resources:current?state.resourcesByRevision.get(current.revision.revisionId):null,
+    dateReview:registerDateReview(state),
+    analysisConfig,
+    configurationId:createHash('sha256').update(JSON.stringify(analysisConfig)).digest('hex').slice(0,24),
+    calendarUnresolvedActivityCount,time,baseline
+  };
+  sharedReportingContextCache.set(state,{version:state.version,dataDateIso,value});
+  return value;
+}
+
 export function reportingData<T extends object>(state:ProjectRuntimeState,key:string,data:T):T & {reportingContract:Record<string,unknown>} {
   return attachReportingContract(state,{key,status:'partial',reason:null,dependencies:[],data}).data as T & {reportingContract:Record<string,unknown>};
 }
@@ -44,32 +103,24 @@ export function managementReportingData<T extends object>(state: ProjectRuntimeS
  * Population references are independent of UI pagination and retain excluded IDs.
  */
 export function attachReportingContract(state:ProjectRuntimeState,result:ModuleRuntimeResult):ModuleRuntimeResult {
-  const authorityReview=scheduleAuthorityReview(state);
+  const shared=sharedReportingContext(state);
+  const {authorityReview,current,model,dataDateIso,operations,actuals}=shared;
   result={...result,scheduleAuthorityReview:authorityReview};
   // An unavailable calculation still has a project, version and authority context.
   // Keep its result blocked while publishing that shared context to its consumers.
   if(!result.data||typeof result.data!=='object')result={...result,data:{}};
-  const data=result.data as any, current=projectControlSchedule(state), model=current?.revision.model, dataDateIso=projectDataDate(state);
-  const populations:Record<string,PopulationContract>={};
-  const operations=operationalReporting(state);
+  const data=result.data as any;
+  const populations:Record<string,PopulationContract>={...shared.basePopulations};
   if(['project-director','board-report','management-surfaces','pmo-analysis','lookahead-schedule'].includes(result.key)) {
     populations.ncrs=operations.quality.population;populations.rfis=operations.rfi.population;populations.risks=operations.risk.population;
   }
-  const actuals=scheduleActualReporting(state);
-  populations.schedule_actual_events=actuals.population;
   const register=(key:string,name:string,entity:string,rows:readonly any[],id:(r:any,i:number)=>string,dateBasis='current governed programme snapshot',authority:ReportingAuthority='source')=>{
     populations[key]=populationContract({name,entity,dataDateIso,dateBasis,sourceRevisionId:model?.sourceRevisionId??null,authority,sourceCount:rows.length,memberIds:rows.map(id),exclusions:[]});
   };
-  if(model)for(const basis of ['source_records','execution_control','milestones','duration_weighted_progress'] as const){
-    const p=activityPopulation(model,basis);
-    populations[basis]=p.reporting;
-  }
   if(data.movementAnalysis?.population)populations.baseline_comparable=data.movementAnalysis.population;
   if(data.finishMovementAnalysis?.population)populations.revision_comparable=data.finishMovementAnalysis.population;
   if(state.quantities&&['quantity-scurve','challenge-contract'].includes(result.key))register('boq_items','BOQ source quantity items','quantity_item',state.quantities.items,r=>r.quantityItemId,'BOQ source scope, separate from measured installed quantities');
   if(model)register('relationships','Source relationship records','relationship',model.relationships,(r,i)=>String(r.relationshipId??[r.predecessorActivityId,r.successorActivityId,r.type,r.lagHours,i].join(':')));
-  const revisionScope=partitionAsOf(state.schedules.filter(s=>!isScenarioRevision(s)),{name:'Programme revisions by Data Date',entity:'programme_revision',dataDateIso,dateBasis:'programme Data Date or explicit revision effective date',id:r=>r.revision.revisionId,date:r=>r.revision.model.dataDateIso??r.revision.effectiveAt});
-  populations.revisions=revisionScope.population;
   if(data.windows||data.windowCandidates)register('windows','Compared programme windows','programme_window',data.windows??data.windowCandidates,(r,i)=>String(r.windowId??i),'comparison of dated programme revisions');
   if(data.points)register('series_points','Reported series points','series_point',data.points,(r,i)=>String(r.dateIso??r.periodEnd??r.revisionId??i),'each series retains its stated actual, planned or forecast date basis');
   const commercial=data.position;
@@ -86,7 +137,7 @@ export function attachReportingContract(state:ProjectRuntimeState,result:ModuleR
     }
     register('commercial_positions','Currency-specific commercial positions','currency_position',commercial.currencies??[],r=>r.currency,'dated source facts and separately governed contractual terms');
   }
-  const claims=['pmo-analysis','delay-claims','notices-claims','windows-analysis','eot-assessment','commercial-claims-notices','project-director','board-report','management-surfaces'].includes(result.key)?claimsReporting(state):null;
+  const claims=['pmo-analysis','delay-claims','notices-claims','windows-analysis','eot-assessment','commercial-claims-notices','project-director','board-report','management-surfaces'].includes(result.key)?shared.claims:null;
   if(claims){
     populations.claims=claims.claims.population;populations.notices=claims.notices.population;populations.events=claims.events.population;
     for (const [key,determination] of [['claim_notices',false],['determinations',true]] as const) {
@@ -95,7 +146,7 @@ export function attachReportingContract(state:ProjectRuntimeState,result:ModuleR
         dateBasis:'actualIssuedAt',sourceRevisionId:claims.source.evidenceRevisionId,id:n=>n.noticeId,date:n=>n.actualIssuedAt}).population;
     }
   }
-  const resources=current?state.resourcesByRevision.get(current.revision.revisionId):null;
+  const resources=shared.resources;
   if(resources&&['resource-utilization','manhour-scurve','pmo-analysis','progress-report','project-director'].includes(result.key)){
     const ids=resources.resources.map(r=>r.resourceId);
     populations.resources=populationContract({name:'P6 resource master identities',entity:'resource',dataDateIso,dateBasis:'current programme resource master',sourceRevisionId:model?.sourceRevisionId??null,authority:'source',sourceCount:ids.length,memberIds:ids,exclusions:[]});
@@ -172,11 +223,11 @@ export function attachReportingContract(state:ProjectRuntimeState,result:ModuleR
     }
   };
   walk(data,'',0);
-  const time=canonicalTimeClaims(state).contractTimeBasis??state.controls.contractTimeBasis;
-  const baseline=state.schedules.filter(s=>['baseline','revised_baseline'].includes(s.role)&&s.revision.model.dataDateIso&&dataDateIso&&s.revision.model.dataDateIso.slice(0,10)<=dataDateIso).sort((a,b)=>(a.revision.model.dataDateIso??'').localeCompare(b.revision.model.dataDateIso??'')).at(-1);
-  return {...result,data:{...data,scheduleAuthorityReview:authorityReview,registerDateReview:scopeRegisterDateReview(registerDateReview(state),result.key),baselineComparison:{state:baseline?'established':'unresolved',revisionId:baseline?.revision.revisionId??null,reason:baseline?null:'No confirmed baseline'},reportingContract:{schemaVersion:'1.0',dataDateIso,projectVersion:state.version,
-    calendarResolution:{unresolvedActivityCount:model?activityPopulation(model).activities.filter(a=>calendarWorkingDayHours(model.calendars.find(c=>c.calendarId===a.calendarId))===null).length:null},
-    configurationId:createHash('sha256').update(JSON.stringify(projectScheduleControlBasis(state).analysisConfig)).digest('hex').slice(0,24),
+  const time=shared.time;
+  const baseline=shared.baseline;
+  return {...result,data:{...data,scheduleAuthorityReview:authorityReview,registerDateReview:scopeRegisterDateReview(shared.dateReview,result.key),baselineComparison:{state:baseline?'established':'unresolved',revisionId:baseline?.revision.revisionId??null,reason:baseline?null:'No confirmed baseline'},reportingContract:{schemaVersion:'1.0',dataDateIso,projectVersion:state.version,
+    calendarResolution:{unresolvedActivityCount:shared.calendarUnresolvedActivityCount},
+    configurationId:shared.configurationId,
     pendingScheduleReviews:authorityReview.pendingSchedules,
     newerUnadoptedSchedules:authorityReview.pendingSchedules.filter(s=>s.dateRelationship==='later'||s.dateRelationship==='no_current_programme'),
     programmeRevisionId:current?.revision.revisionId??null,programmeLabel:current?.revision.label??null,
