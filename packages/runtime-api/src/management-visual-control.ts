@@ -103,21 +103,34 @@ export function managementVisualControl(
   });
 
   const claimsReporting=delay.claimsReporting??notices.claimsReporting??null;
+  const claimPopulationIntegrity=delay.claimPopulationIntegrity??notices.claimPopulationIntegrity??null;
+  const claimPopulationQuarantined=claimPopulationIntegrity?.state==='quarantined';
+  const claimsSource=sourceInventory.domains.find(row=>row.domain==='claims')??null;
   const claims={
-    sourceEventCount:claimsReporting?.events?.population?.sourceCount??null,
-    currentEventCount:claimsReporting?.events?.asOf?.length??(delay.contractorClaimEvidenceSubmitted===true?delay.eventCount??null:null),
-    sourceClaimCount:claimsReporting?.claims?.population?.sourceCount??null,
-    currentClaimCount:claimsReporting?.claims?.asOf?.length??null,
-    currentNoticeCount:claimsReporting?.notices?.asOf?.length??null,
-    timelyNoticeCount:notices.timelyNoticeCount??commercial.claimsNotices?.noticeTimelinessCounts?.timely??null,
-    lateNoticeCount:notices.lateNoticeCount??commercial.claimsNotices?.noticeTimelinessCounts?.late??null,
-    missingNoticeCount:notices.missingNoticeCount??commercial.claimsNotices?.noticeTimelinessCounts?.not_issued??null,
+    // Quarantined source evidence is retained for audit but is not a governed
+    // claim/event population. Keep its source row count visible while withholding
+    // governed counts so presentation can never turn "under review" into zero.
+    sourceEventCount:claimPopulationQuarantined?null:claimsReporting?.events?.population?.sourceCount??null,
+    currentEventCount:claimPopulationQuarantined?null:claimsReporting?.events?.asOf?.length??(delay.contractorClaimEvidenceSubmitted===true?delay.eventCount??null:null),
+    sourceClaimCount:claimPopulationQuarantined
+      ? claimPopulationIntegrity?.sourceClaimCount??claimsSource?.readableRowCount??null
+      : claimsReporting?.claims?.population?.sourceCount??null,
+    currentClaimCount:claimPopulationQuarantined?null:claimsReporting?.claims?.asOf?.length??null,
+    sourceEvidenceRowCount:claimsSource?.readableRowCount??null,
+    sourceDocumentCount:claimsSource?.documentCount??0,
+    integrityState:claimPopulationIntegrity?.state??null,
+    quarantinedClaimCount:claimPopulationIntegrity?.quarantinedClaimCount??0,
+    integrityReasons:claimPopulationIntegrity?.reasons??[],
+    currentNoticeCount:claimPopulationQuarantined?null:claimsReporting?.notices?.asOf?.length??null,
+    timelyNoticeCount:claimPopulationQuarantined?null:notices.timelyNoticeCount??commercial.claimsNotices?.noticeTimelinessCounts?.timely??null,
+    lateNoticeCount:claimPopulationQuarantined?null:notices.lateNoticeCount??commercial.claimsNotices?.noticeTimelinessCounts?.late??null,
+    missingNoticeCount:claimPopulationQuarantined?null:notices.missingNoticeCount??commercial.claimsNotices?.noticeTimelinessCounts?.not_issued??null,
     officialApprovedEotDays:eot.officialApprovedEotDays??null,
-    analyticalTimeImpactCandidateDays:eot.analyticalTimeImpactCandidateDays??null,
-    attributableCandidateEotDays:eot.attributableCandidateEotDays??null,
-    candidateAdditionalEotDays:eot.candidateAdditionalEotDays??null,
-    fullChainCount:delay.fullDeterminationChainEventCount??null,
-    incompleteChainCount:delay.determinationChainIncompleteEventCount??null,
+    analyticalTimeImpactCandidateDays:claimPopulationQuarantined?null:eot.analyticalTimeImpactCandidateDays??null,
+    attributableCandidateEotDays:claimPopulationQuarantined?null:eot.attributableCandidateEotDays??null,
+    candidateAdditionalEotDays:claimPopulationQuarantined?null:eot.candidateAdditionalEotDays??null,
+    fullChainCount:claimPopulationQuarantined?null:delay.fullDeterminationChainEventCount??null,
+    incompleteChainCount:claimPopulationQuarantined?null:delay.determinationChainIncompleteEventCount??null,
   };
 
   const changeSummary={
