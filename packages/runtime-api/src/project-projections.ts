@@ -7054,7 +7054,7 @@ function resolveProjectModuleUncertified(
   );
 }
 
-function resolveProjectModuleCandidate(state: ProjectRuntimeState, key: string): ModuleRuntimeResult {
+function resolveProjectModuleCandidate(state: ProjectRuntimeState, key: string, precomputed?: ModuleRuntimeResult): ModuleRuntimeResult {
   state = reportingState(state);
   const readIssues=registerReadIssuesForModule(state,key);
   // A rejected register withholds its count, not the independently established
@@ -7064,7 +7064,12 @@ function resolveProjectModuleCandidate(state: ProjectRuntimeState, key: string):
     reason:readIssues.map(r=>r.filename+': '+r.message).join('; '),
     data:{...(value.data&&typeof value.data==='object'?value.data:{}),state:'unresolved',recordCount:null,registerReadIssues:readIssues},
   }:value;
-  const result = resolveProjectModuleUncertified(state, key);
+  // If the canonical full bundle has already been built for this project
+  // version, reuse its exact module calculation. Fast builders exist for isolated
+  // single-module reads; rerunning them here duplicates the same schedule work.
+  const baseResult=precomputed??resolveProjectModuleUncertified(state,key);
+  const result:ModuleRuntimeResult={...baseResult,
+    data:baseResult.data&&typeof baseResult.data==='object'?{...(baseResult.data as Record<string,unknown>)}:baseResult.data};
   if(key==='challenge-contract'){
     const suppliedBoq=suppliedBoqFigures(state.boq,state.quantities);
     result.data={...(result.data&&typeof result.data==='object'?result.data:{}),suppliedBoq};
@@ -7182,7 +7187,7 @@ function resolveProjectModule(state: ProjectRuntimeState, key: string): ModuleRu
   const candidateProfile:Array<{key:string;ms:number}>=[];
   const candidates = new Map(certifiedAnalyticalModules.map(descriptor => {
     const t=profiling?performance.now():0;
-    const result=resolveProjectModuleCandidate(scoped, descriptor.key);
+    const result=resolveProjectModuleCandidate(scoped, descriptor.key, bundle.modules.get(descriptor.key));
     if(profiling)candidateProfile.push({key:descriptor.key,ms:performance.now()-t});
     return [descriptor.key,result] as const;
   }));
