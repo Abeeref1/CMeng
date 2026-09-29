@@ -21,6 +21,7 @@ import {sourceInterpretation} from "./source-interpretation";
 import {scheduleScopeClassification} from "./schedule-scope-classification";
 import {scheduleRiskMonteCarlo} from "./schedule-risk-monte-carlo";
 import {earnedScheduleForState,evmByWbsForState,riskRegisterForState,contractRiskForState,finalAccountForState} from "./advanced-controls";
+import {tenderReadinessForState} from './tender-readiness';
 import {contractChallengeForState} from './contract-challenge-runtime';
 import { enforceModuleReadiness } from "./module-readiness";
 import {assessModuleIssues} from './module-issues';
@@ -7233,6 +7234,7 @@ export function moduleForProject(
   if (key==='risk-register') return riskRegisterForState(reportingState(state));
   if (key==='contract-risk') return contractRiskForState(reportingState(state));
   if (key==='final-account') return finalAccountForState(reportingState(state));
+  if (key==='tender-readiness') return tenderReadinessForState(reportingState(state));
   const commercialCapability=commercialFoundationCapabilityForState(state,key)??commercialPerformanceCapabilityForState(state,key)??commercialContractControlCapabilityForState(state,key);
   if(commercialCapability)return attachReportingContract(reportingState(state),commercialCapability);
   if (managementModuleKeys.includes(key)) {
