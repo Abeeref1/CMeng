@@ -4071,13 +4071,20 @@ function renderPmcControlRoom(data){
  const changeValue=pmcDefined(changeGap)&&Math.abs(changeGap)>.01?pmcMoney(Math.abs(changeGap),vr?.currency)+" to reconcile":
    pmcDefined(vr?.datedApprovedAmount)?pmcMoney(vr.datedApprovedAmount,vr?.currency)+" dated approvals":
    pmcDefined(vr?.sourceAggregate)?pmcMoney(vr.sourceAggregate,vr?.currency)+" source reported":"Unresolved";
- const delivery=data.delivery||{},procSource=delivery.sourceAvailability?.procurement||pmcSource(data,"procurement"),longLead=delivery.candidateLongLeadCount??vc.boqScope?.candidateLongLeadCount;
+ const delivery=data.delivery||{},procSource=delivery.sourceAvailability?.procurement||pmcSource(data,"procurement");
+ const sourceLongLead=procSource?.signals?.longLeadMarkedCount;
+ const governedLongLead=delivery.candidateLongLeadCount;
+ const screenedLongLead=vc.boqScope?.candidateLongLeadCount;
+ const longLead=pmcDefined(sourceLongLead)&&Number(sourceLongLead)>0?sourceLongLead:
+   pmcDefined(screenedLongLead)&&Number(screenedLongLead)>0?screenedLongLead:
+   pmcDefined(governedLongLead)?governedLongLead:
+   pmcDefined(sourceLongLead)?sourceLongLead:screenedLongLead;
  const packageAvailable=pmcFirst(delivery.confirmedPackageCount,delivery.knownPackageRecordCount,delivery.candidatePackageCount,vc.boqScope?.candidatePackageCount,procSource?.readableRowCount);
  const procurementTone=pmcDefined(delivery.latePackageKnownCount)&&Number(delivery.latePackageKnownCount)>0?"danger":
    pmcDefined(delivery.confirmedPackageCount)?"good":pmcDefined(packageAvailable)||procSource?.documentCount?"source":"unresolved";
  const procurementValue=pmcDefined(delivery.latePackageKnownCount)&&Number(delivery.latePackageKnownCount)>0?fmt(delivery.latePackageKnownCount)+" known late packages":
-   pmcDefined(longLead)?fmt(longLead)+" long-lead candidates":
-   pmcDefined(packageAvailable)?fmt(packageAvailable)+" procurement scope items":"Unresolved";
+   pmcDefined(longLead)&&Number(longLead)>0?fmt(longLead)+(pmcDefined(sourceLongLead)&&Number(sourceLongLead)>0?" source-marked long-lead items":" long-lead candidates"):
+   pmcDefined(packageAvailable)?fmt(packageAvailable)+" procurement source / scope items":"Unresolved";
  const designSource=delivery.sourceAvailability?.design||pmcSource(data,"design"),submittalSource=delivery.sourceAvailability?.submittal||pmcSource(data,"submittal");
  const overdueRfi=ops.counts?.overdueRfiCount,openRfi=ops.counts?.openRfiCount;
  const designTone=pmcDefined(overdueRfi)&&Number(overdueRfi)>0?"danger":pmcDefined(openRfi)?"warning":designSource?.documentCount||submittalSource?.documentCount?"source":"unresolved";
@@ -4086,9 +4093,18 @@ function renderPmcControlRoom(data){
  const criticalNcr=ops.counts?.openCriticalMajorNcrCount,hse= data.sourceInterpretation?.hse?.metrics||{};
  const qualityTone=pmcDefined(criticalNcr)&&Number(criticalNcr)>0?"danger":pmcDefined(hse.lostTimeInjuries)&&Number(hse.lostTimeInjuries)>0?"danger":qualitySource?.documentCount||hseSource?.documentCount?"source":"unresolved";
  const qualityValue=pmcDefined(criticalNcr)?fmt(criticalNcr)+" major / critical NCR":pmcDefined(hse.lostTimeInjuries)?fmt(hse.lostTimeInjuries)+" reported LTI":pmcSourceValue(qualitySource)||pmcSourceValue(hseSource)||"Unresolved";
- const claims=vc.claims||{},claimsSource=pmcSource(data,"claims"),claimCurrent=pmcFirst(claims.currentClaimCount,claims.sourceClaimCount),eventCurrent=pmcFirst(claims.currentEventCount,claims.sourceEventCount);
- const claimsTone=pmcDefined(claims.incompleteChainCount)&&Number(claims.incompleteChainCount)>0?"warning":pmcDefined(claimCurrent)||pmcDefined(eventCurrent)||claimsSource?.documentCount?"source":"unresolved";
- const claimsValue=pmcDefined(claims.officialApprovedEotDays)?fmt(claims.officialApprovedEotDays)+" d approved EOT":pmcDefined(claimCurrent)?fmt(claimCurrent)+" claims available":pmcDefined(eventCurrent)?fmt(eventCurrent)+" delay events available":pmcSourceValue(claimsSource)||"Unresolved";
+ const claims=vc.claims||{},claimsSource=pmcSource(data,"claims");
+ const currentClaims=claims.currentClaimCount,sourceClaims=claims.sourceClaimCount,currentEvents=claims.currentEventCount,sourceEvents=claims.sourceEventCount;
+ const claimsTone=pmcDefined(claims.incompleteChainCount)&&Number(claims.incompleteChainCount)>0?"warning":
+   pmcDefined(currentClaims)||pmcDefined(sourceClaims)||pmcDefined(currentEvents)||pmcDefined(sourceEvents)||claimsSource?.documentCount?"source":"unresolved";
+ const claimsValue=pmcDefined(claims.officialApprovedEotDays)?fmt(claims.officialApprovedEotDays)+" d approved EOT":
+   pmcDefined(currentClaims)&&Number(currentClaims)>0?fmt(currentClaims)+" current claims":
+   pmcDefined(currentClaims)&&Number(currentClaims)===0&&pmcDefined(sourceClaims)&&Number(sourceClaims)>0?fmt(sourceClaims)+" source claims · 0 current by DD":
+   pmcDefined(sourceClaims)&&Number(sourceClaims)>0?fmt(sourceClaims)+" source claims available":
+   pmcDefined(currentEvents)&&Number(currentEvents)>0?fmt(currentEvents)+" current delay events":
+   pmcDefined(currentEvents)&&Number(currentEvents)===0&&pmcDefined(sourceEvents)&&Number(sourceEvents)>0?fmt(sourceEvents)+" source delay events · 0 current by DD":
+   pmcDefined(sourceEvents)&&Number(sourceEvents)>0?fmt(sourceEvents)+" source delay events available":
+   pmcSourceValue(claimsSource)||"Unresolved";
  const riskSource=delivery.sourceAvailability?.risk||pmcSource(data,"risk"),openRisk=ops.counts?.openRiskCount;
  const riskTone=pmcDefined(openRisk)?"warning":riskSource?.documentCount?"source":"unresolved";
  const riskValue=pmcDefined(openRisk)?fmt(openRisk)+" open risks":pmcSourceValue(riskSource)||"Unresolved";
@@ -4097,10 +4113,10 @@ function renderPmcControlRoom(data){
    pmcCard({title:"Progress",value:progressValue,state:progressTone==="warning"?"Behind":"Available position",tone:progressTone,sub:"Same-scope progress first; separate bases remain visible.",meta:[["Baseline",pmcDefined(scope.baselinePlannedPercent)?fmt(scope.baselinePlannedPercent)+"%":null],["Snapshot",pmcDefined(scope.snapshotPercent)?fmt(scope.snapshotPercent)+"%":null],["EVM SPI",pmcMetric(data,"schedule-spi")?.value]],module:"progress-report"}),
    pmcCard({title:"Cost",value:costValue,state:costTone==="danger"?"Adverse forecast":costTone==="warning"?"Efficiency pressure":"Available position",tone:costTone,sub:"No cross-currency aggregation; source forecast stays separate from CMeng scenarios.",meta:[["BAC",pmcDefined(cost?.bac)?pmcMoney(cost.bac,currency):null],["EAC",pmcDefined(bestEac)?pmcMoney(bestEac,currency):null],["CPI",cost?.cpi],["SPI",cost?.spi]],module:"cost-forecast"}),
    pmcCard({title:"Change / VO",value:changeValue,state:changeTone==="danger"?"Records disagree":"Available position",tone:changeTone,sub:"Reported variation totals and dated approvals stay separate.",meta:[["Reported",pmcDefined(vr?.sourceAggregate)?pmcMoney(vr.sourceAggregate,vr.currency):null],["Approved by DD",pmcDefined(vr?.datedApprovedAmount)?pmcMoney(vr.datedApprovedAmount,vr.currency):null],["Future approvals",vr?.futureCount]],module:"variations-change"}),
-   pmcCard({title:"Procurement / Long Lead",value:procurementValue,state:procurementTone==="danger"?"Delivery threat":"Best available scope",tone:procurementTone,sub:"Confirmed lifecycle position when available; otherwise source/BOQ candidates are shown without inventing lateness.",meta:[["Packages available",packageAvailable],["Long-lead candidates",longLead],["Source rows",procSource?.readableRowCount],["Known late",delivery.latePackageKnownCount]],module:"long-lead"}),
+   pmcCard({title:"Procurement / Long Lead",value:procurementValue,state:procurementTone==="danger"?"Delivery threat":"Best available scope",tone:procurementTone,sub:"Confirmed lifecycle position when available; otherwise source/BOQ candidates are shown without inventing lateness.",meta:[["Packages available",packageAvailable],["Source-marked long lead",sourceLongLead],["BOQ / screened long lead",screenedLongLead],["Source rows",procSource?.readableRowCount],["Known late",delivery.latePackageKnownCount]],module:"long-lead"}),
    pmcCard({title:"Design / RFI",value:designValue,state:designTone==="danger"?"Overdue design response":"Available evidence",tone:designTone,sub:"Dated RFI position when governed; design/submittal source evidence remains visible underneath.",meta:[["Open RFIs",openRfi],["Overdue RFIs",overdueRfi],["Design rows",designSource?.readableRowCount],["Submittal rows",submittalSource?.readableRowCount]],module:"delivery-design"}),
    pmcCard({title:"Quality / HSE",value:qualityValue,state:qualityTone==="danger"?"Intervention required":"Available evidence",tone:qualityTone,sub:"Quality and safety are not reduced to a composite score.",meta:[["Major / critical NCR",criticalNcr],["LTIFR",hse.ltifr],["TRIR",hse.trir],["Exposure hours",hse.exposureHours]],module:"delivery-quality"}),
-   pmcCard({title:"Claims / EOT",value:claimsValue,state:claimsTone==="warning"?"Chain incomplete":"Available evidence",tone:claimsTone,sub:"Claim, event, notice, time-impact and determination authorities remain separate.",meta:[["Events",eventCurrent],["Claims",claimCurrent],["Timely notices",claims.timelyNoticeCount],["Late notices",claims.lateNoticeCount],["Time-impact candidate",pmcDefined(claims.analyticalTimeImpactCandidateDays)?fmt(claims.analyticalTimeImpactCandidateDays)+" d":null]],module:"eot-assessment"}),
+   pmcCard({title:"Claims / EOT",value:claimsValue,state:claimsTone==="warning"?"Chain incomplete":"Available evidence",tone:claimsTone,sub:"Claim, event, notice, time-impact and determination authorities remain separate.",meta:[["Current events",currentEvents],["Source events",sourceEvents],["Current claims",currentClaims],["Source claims",sourceClaims],["Timely notices",claims.timelyNoticeCount],["Late notices",claims.lateNoticeCount],["Time-impact candidate",pmcDefined(claims.analyticalTimeImpactCandidateDays)?fmt(claims.analyticalTimeImpactCandidateDays)+" d":null]],module:"eot-assessment"}),
    pmcCard({title:"Risk",value:riskValue,state:riskTone==="warning"?"Open risk position":"Source available",tone:riskTone,sub:"Confirmed ratings only; source registers remain visible even when scoring/date completeness is unresolved.",meta:[["Source rows",riskSource?.readableRowCount],["Documents",riskSource?.documentCount]],module:"risk-register"})
  ];
  return '<section class="pmc-control-room"><div class="pmc-control-head"><div><h3>PMC Control Room</h3><p>Best available project position across time, progress, cost, change, delivery and assurance. Source evidence is shown even when a higher-authority conclusion is still unresolved.</p></div><span class="badge">Data Date '+escapeHtml(planningShortDate(data.reportingContract?.dataDateIso||overview?.latestDataDateIso))+'</span></div><div class="pmc-domain-grid">'+cards.join("")+'</div></section>';
