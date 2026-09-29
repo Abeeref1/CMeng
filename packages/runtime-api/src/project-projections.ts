@@ -7900,7 +7900,7 @@ export function managementSurfacesForProject(
   const mp7=profiling?performance.now():0;
   if(profiling)process.stdout.write(JSON.stringify({event:'management_surface_profile',projectId,
     bundleMs:mp1-mp0,resolvedModulesMs:mp2-mp1,certificationMs:mp3-mp2,preBuildMs:mp4-mp3,
-    buildSurfacesMs:mp5-mp4,issuesAndExceptionsMs:mp6-mp5,reportingAndChecksMs:mp7-mp6,totalMs:mp7-mp0})+'\\n');
+    buildSurfacesMs:mp5-mp4,issuesAndExceptionsMs:mp6-mp5,reportingAndChecksMs:mp7-mp6,totalMs:mp7-mp0})+'\n');
   managementProjectionCache.set(projectId, {version: state.version, data: result});
   return result;
 }
