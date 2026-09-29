@@ -4,6 +4,7 @@ import {runInNewContext} from 'node:vm';
 import {createSourceFile,ScriptTarget,isFunctionDeclaration} from 'typescript';
 
 import {managementSourceInventory} from '../packages/runtime-api/src/management-source-inventory';
+import {managementVisualControl} from '../packages/runtime-api/src/management-visual-control';
 import {deliveryDashboard,deliveryModule} from '../packages/runtime-api/src/delivery-projections';
 import {runtimeProjects} from '../packages/runtime-api/src/project-state';
 import {cmengUatHtml} from '../packages/runtime-api/src/ui';
@@ -112,8 +113,16 @@ test('management UI includes the visual control room and integrated MCP matrix',
   assert.match(script,/What changed in the programme/);
 });
 
+test('MCP leads with observed WBS structure before the official package authority limitation',()=>{
+  assert.match(script,/Observed programme structure/);
+  assert.match(script,/activity coverage/);
+  assert.match(script,/Approved \/ official work-package structure/);
+  assert.match(script,/Authority not established/);
+  assert.match(script,/Observed WBS coverage does not prove an approved contractual work-package structure/);
+});
 
-test('PMC control room preserves source claim population when current Data Date count is zero',()=>{
+
+test('PMC control room presents quarantined claims as retained source evidence, never zero management truth',()=>{
   const data:any={
     metrics:[
       {key:'contract-finish',value:null},{key:'submitted-programme-finish',value:null},{key:'independent-forecast-finish',value:null},
@@ -121,8 +130,12 @@ test('PMC control room preserves source claim population when current Data Date 
     ],
     visualControl:{
       progress:{scopeComparison:null,progressBases:null},commercial:{positions:[],cost:[]},
-      sourceInventory:{domains:[{domain:'claims',documentCount:4,readableRowCount:350,recognisedRowCount:350,state:'source_rows_available',basis:'source rows',signals:{longLeadMarkedCount:null,longLeadSamples:[]}}]},
-      claims:{currentClaimCount:0,sourceClaimCount:350,currentEventCount:0,sourceEventCount:350,officialApprovedEotDays:null,incompleteChainCount:null},
+      sourceInventory:{domains:[{domain:'claims',documentCount:8,readableRowCount:350,recognisedRowCount:350,state:'source_rows_available',basis:'source rows',signals:{longLeadMarkedCount:null,longLeadSamples:[]}}]},
+      claims:{
+        currentClaimCount:null,sourceClaimCount:350,currentEventCount:null,sourceEventCount:null,
+        sourceEvidenceRowCount:350,sourceDocumentCount:8,integrityState:'quarantined',quarantinedClaimCount:350,
+        officialApprovedEotDays:null,incompleteChainCount:null
+      },
       boqScope:{candidateLongLeadCount:null}
     },
     delivery:{sourceAvailability:{}},operationalReporting:{counts:{}},sourceInterpretation:{hse:{metrics:{}}},variationReconciliation:[],reportingContract:{dataDateIso:'2026-08-31'}
@@ -132,8 +145,13 @@ test('PMC control room preserves source claim population when current Data Date 
     data,fmtExecutive:String,fmt:(value:any)=>value==null?'Unresolved':String(value),planningShortDate:String,
     managementModuleLink:(key:string,label:string)=>'<button data-module="'+key+'">'+label+'</button>',escapeHtml:(value:any)=>String(value??''),overview:{latestDataDateIso:'2026-08-31'}
   });
-  assert.match(output,/350 source claims · 0 current by DD/);
-  assert.match(output,/Source claims<\/em><b>350<\/b>/);
+  assert.match(output,/350 source claim rows retained/);
+  assert.match(output,/Source evidence under review/);
+  assert.match(output,/Current governed claims<\/em><b>Not established<\/b>/);
+  assert.match(output,/Current governed delay events<\/em><b>Not established<\/b>/);
+  assert.match(output,/Source population<\/em><b>Quarantined from management truth<\/b>/);
+  assert.match(output,/Supporting documents<\/em><b>8<\/b>/);
+  assert.doesNotMatch(output,/0 current/);
 });
 
 test('Long Lead page surfaces explicit source long-lead marks before governed mapping exists',()=>{
@@ -146,4 +164,35 @@ test('Long Lead page surfaces explicit source long-lead marks before governed ma
   assert.equal(byLabel.get('Source-marked long lead')?.value,1);
   assert.equal(byLabel.get('Readable source rows')?.value,2);
   assert.equal(byLabel.get('Governed procurement status')?.value,null);
+});
+
+
+test('management visual control withholds governed claim counts while retaining quarantined source rows',()=>{
+  const state=runtimeProjects.getOrCreate('PMC-QUARANTINED-CLAIMS-VISUAL');
+  state.evidenceDocuments.push({
+    ...procurementDocument(),
+    documentId:'CLAIMS-1',documentType:'claims_register',sourceFilename:'Claims Register.csv',
+    sourceHashSha256:'claims-hash',familyKey:'claims',logicalDocumentKey:'claims',
+    tabularRead:{producerVersion:'test',sourceHashSha256:'claims-hash',sheets:[{name:'Claims',rows:[['Claim ID','Claimed Days'],['CLM-001','10']]}]}
+  } as any);
+  state.evidenceDocuments.push(procurementDocument());
+  runtimeProjects.touch(state);
+  const integrity={
+    state:'quarantined',sourceClaimCount:350,quarantinedClaimCount:350,linkedActivityEventCount:0,
+    genericClaimEventPairCount:350,genericNoticePairCount:350,arithmeticClaimedDaysPrefixLength:350,
+    sourceFilenames:['Claims Register.csv'],reasons:['GENERATED_ARITHMETIC_CLAIM_DAY_PATTERN']
+  };
+  const modules=new Map<string,any>([
+    ['delay-claims',{data:{claimPopulationIntegrity:integrity,claimsReporting:null}}],
+    ['notices-claims',{data:{claimPopulationIntegrity:integrity,claimsReporting:null}}],
+  ]);
+  const commercial:any={currencies:[],performance:{costControl:{positions:[]}},claimsNotices:{noticeTimelinessCounts:{timely:null,late:null,not_issued:null}}};
+  const visual:any=managementVisualControl(state,modules,commercial);
+  assert.equal(visual.claims.integrityState,'quarantined');
+  assert.equal(visual.claims.quarantinedClaimCount,350);
+  assert.equal(visual.claims.sourceClaimCount,350);
+  assert.equal(visual.claims.currentClaimCount,null);
+  assert.equal(visual.claims.currentEventCount,null);
+  assert.equal(visual.claims.timelyNoticeCount,null);
+  assert.ok(visual.claims.sourceDocumentCount>=1);
 });
