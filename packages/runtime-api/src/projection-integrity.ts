@@ -3,15 +3,35 @@ import { parseScheduleTime, activityPopulation, activityNearCriticalThresholdHou
 import type { ModuleRuntimeResult } from './project-state-types';
 import {commercialIntegrityChecks} from './commercial-integrity';
 
+type SharedIntegrityBasis={
+  execution:ReturnType<typeof activityPopulation>;
+  expectedCritical:number|null;
+  expectedNear:number|null;
+  progress:ReturnType<typeof scheduleProgress>;
+};
+const integrityBasisCache=new WeakMap<CanonicalScheduleModel,Map<string,SharedIntegrityBasis>>();
+function sharedIntegrityBasis(model:CanonicalScheduleModel,config:ScheduleAnalysisConfig):SharedIntegrityBasis{
+  // The inputs are immutable for one schedule model/configuration. Integrity
+  // checks across 29 specialist modules must not rescan the same activity
+  // population and float classifications 29 times.
+  const configKey=JSON.stringify(config);
+  let byConfig=integrityBasisCache.get(model);
+  if(!byConfig){byConfig=new Map();integrityBasisCache.set(model,byConfig);}
+  const cached=byConfig.get(configKey);if(cached)return cached;
+  const execution=activityPopulation(model);
+  const classifications=execution.activities.map(a=>sourceFloatCriticality(model,a,config));
+  const expectedCritical=execution.activities.some(a=>a.totalFloatHours===null)?null:classifications.filter(x=>x==='critical').length;
+  const expectedNear=execution.activities.some(a=>a.totalFloatHours===null||activityNearCriticalThresholdHours(model,a,config)===null)?null:classifications.filter(x=>x==='near_critical').length;
+  const progress=scheduleProgress(model.activities);
+  const value={execution,expectedCritical,expectedNear,progress};
+  byConfig.set(configKey,value);return value;
+}
+
 /** Certifies only the metrics actually checked, never the completeness of project evidence. */
 export function checkProjectionIntegrity(result: ModuleRuntimeResult, model: CanonicalScheduleModel, config: ScheduleAnalysisConfig, claimsSource?: import('../../delay-analysis-core/src').DelayClaimsModel | null): ModuleRuntimeResult {
   if (!result.data || typeof result.data !== 'object') return result;
   const data = result.data as Record<string, any>;
-  const execution = activityPopulation(model);
-  const classifications = execution.activities.map(a => sourceFloatCriticality(model, a, config));
-  const expectedCritical = execution.activities.some(a=>a.totalFloatHours===null)?null:classifications.filter(x => x === 'critical').length;
-  const expectedNear = execution.activities.some(a=>a.totalFloatHours===null||activityNearCriticalThresholdHours(model,a,config)===null)?null:classifications.filter(x => x === 'near_critical').length;
-  const progress = scheduleProgress(model.activities);
+  const {execution,expectedCritical,expectedNear,progress}=sharedIntegrityBasis(model,config);
   const checks: Array<{ metric: string; expected: unknown; actual: unknown; passed: boolean }> = [];
   const compare = (metric: string, actual: unknown, expected: unknown, tolerance = 0.00001) => {
     const passed = typeof actual === 'number' && typeof expected === 'number'
