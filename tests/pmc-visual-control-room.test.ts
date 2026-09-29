@@ -196,3 +196,31 @@ test('management visual control withholds governed claim counts while retaining 
   assert.equal(visual.claims.timelyNoticeCount,null);
   assert.ok(visual.claims.sourceDocumentCount>=1);
 });
+
+test('PMC control room does not present zero canonical claims/events when Claims/EOT evidence documents exist',()=>{
+  const data:any={
+    metrics:[
+      {key:'contract-finish',value:null},{key:'submitted-programme-finish',value:null},{key:'independent-forecast-finish',value:null},
+      {key:'submitted-vs-contract',value:null},{key:'independent-vs-contract',value:null},{key:'progress-position',value:null},{key:'schedule-spi',value:null},
+    ],
+    visualControl:{
+      progress:{scopeComparison:null,progressBases:null},commercial:{positions:[],cost:[]},
+      sourceInventory:{domains:[{domain:'claims',documentCount:8,readableRowCount:null,recognisedRowCount:null,state:'source_file_available',basis:'source files',signals:{longLeadMarkedCount:null,longLeadSamples:[]}}]},
+      claims:{currentClaimCount:0,sourceClaimCount:0,currentEventCount:0,sourceEventCount:0,officialApprovedEotDays:null,incompleteChainCount:null},
+      boqScope:{candidateLongLeadCount:null}
+    },
+    delivery:{sourceAvailability:{}},operationalReporting:{counts:{}},sourceInterpretation:{hse:{metrics:{}}},variationReconciliation:[],reportingContract:{dataDateIso:'2026-08-31'}
+  };
+  const code=functions(['pmcDefined','pmcFirst','pmcMetric','pmcSource','pmcMoney','pmcDays','pmcCard','pmcSourceValue','renderPmcControlRoom']);
+  const output=runInNewContext(code+';renderPmcControlRoom(data)',{
+    data,fmtExecutive:String,fmt:(value:any)=>value==null?'Unresolved':String(value),planningShortDate:String,
+    managementModuleLink:(key:string,label:string)=>'<button data-module="'+key+'">'+label+'</button>',
+    escapeHtml:(value:any)=>String(value??''),overview:{latestDataDateIso:'2026-08-31'}
+  });
+  assert.match(output,/8 source documents/);
+  assert.match(output,/Canonical source claims<\/em><b>Not established<\/b>/);
+  assert.match(output,/Canonical source events<\/em><b>Not established<\/b>/);
+  assert.match(output,/Current claims<\/em><b>0<\/b>/);
+  assert.doesNotMatch(output,/Canonical source claims<\/em><b>0<\/b>/);
+  assert.doesNotMatch(output,/Canonical source events<\/em><b>0<\/b>/);
+});

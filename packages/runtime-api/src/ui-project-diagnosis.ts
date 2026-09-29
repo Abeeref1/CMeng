@@ -36,7 +36,7 @@ function renderProjectDashboardSummary(d){
   const wbs=String(action.wbs||'').split(' / ').slice(-3).join(' / ');
   const key=String(action.reason||'')+'|'+wbs;
   let group=groups.get(key);
-  if(!group){group={reason:action.reason||'Programme action',wbs,items:[],rank:action.rank||999,groupedCount:0,wbsGroupCount:0};groups.set(key,group);groupedActions.push(group);}
+  if(!group){group={reason:action.reason||'Programme action',action:action.action||'',wbs,items:[],rank:action.rank||999,groupedCount:0,wbsGroupCount:0};groups.set(key,group);groupedActions.push(group);}else if(!group.action&&action.action){group.action=action.action;}
   group.rank=Math.min(group.rank,action.rank||999);
   if(Number(action.groupedCount||1)>1){
     group.groupedCount+=Number(action.groupedCount||1);
@@ -55,7 +55,7 @@ function renderProjectDashboardSummary(d){
    const identities=unique.slice(0,3).map(item=>[item.activityId,item.name].filter(Boolean).join(' · ')).filter(Boolean);
    const more=Math.max(0,group.groupedCount-identities.length);
    const identityText=identities.length?'<span class="muted">'+escapeHtml(identities.join('; '))+(more?' · '+escapeHtml(fmt(more))+' more':'')+(group.wbs?' · WBS '+escapeHtml(group.wbs):'')+'</span>':'<span class="muted">'+escapeHtml(fmt(group.groupedCount))+' related activities'+(group.wbs?' · WBS '+escapeHtml(group.wbs):'')+'</span>';
-   return '<li><b>'+escapeHtml(group.reason)+'</b><br>'+identityText+'</li>';
+   return '<li><b>'+escapeHtml(group.reason)+'</b><br>'+identityText+(group.action?'<br><span class="muted">Next: '+escapeHtml(group.action)+'</span>':'')+'</li>';
  }).join('')+'</ol>':'<p>No immediate programme action is ranked from the available fields.</p>';
  return '<section class="project-diagnosis dashboard-summary"><header class="diagnosis-heading"><h3>Current project position</h3><p>Data Date '+planningShortDate(d.dataDateIso)+'</p></header>'+renderCompletionPosition(d.completion)+'<p class="diagnosis-summary">'+escapeHtml(d.summary)+'</p>'+planningKpis([['Critical',value(c.critical),'activities'],['Negative float',value(c.negativeFloat),'activities'],['Near-critical',value(c.nearCritical),'activities'],['Driving network',d.tableTotals?.network??d.network?.rows?.length??'Not available','activities']])+'<div class="planning-primary-grid"><section class="diagnosis-section"><h4>Main schedule pressure</h4>'+driverRows+'</section><section class="diagnosis-section"><h4>Management priorities</h4>'+actionRows+'</section></div><details><summary>Detailed programme analysis</summary>'+renderProjectDiagnosis(d)+'</details></section>';
 }
