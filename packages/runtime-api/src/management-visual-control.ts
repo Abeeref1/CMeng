@@ -14,7 +14,10 @@ export function managementVisualControl(
   modules:Map<string,ModuleRuntimeResult>,
   commercial:CommercialControlPosition,
 ){
-  const boqScope=boqScopeIntelligence(state);
+  const sourceInventory=managementSourceInventory(state);
+  const procurementSource=sourceInventory.domains.find(row=>row.domain==='procurement')??null;
+  const sourceLongLeadCount=procurementSource?.signals.longLeadMarkedCount??null;
+  const boqScope=sourceLongLeadCount===null?boqScopeIntelligence(state):null;
   const activity=data(modules,'activity-analytics');
   const independent=data(modules,'independent-forecast');
   const milestones=data(modules,'milestones');
@@ -148,7 +151,7 @@ export function managementVisualControl(
 
   return {
     schemaVersion:'1.0',
-    sourceInventory:managementSourceInventory(state),
+    sourceInventory,
     schedule:{
       drivingActivityCount:drivingIds.length,
       finishActivityIds:independent.drivingNetwork?.finishActivityIds??[],
@@ -182,7 +185,15 @@ export function managementVisualControl(
       actualHours:manhour.actualHours??manhour.actualHoursKnown??null,
     },
     challenge:challengeSummary,
-    boqScope:{
+    boqScope:sourceLongLeadCount!==null?{
+      itemCount:null,candidatePackageCount:null,candidateLongLeadCount:sourceLongLeadCount,complexity:null,coverage:null,
+      topLongLead:(procurementSource?.signals.longLeadSamples??[]).map((row,index)=>({
+        itemId:'source-long-lead-'+index,itemNumber:row.reference,description:row.description,discipline:null,system:null,
+        package:row.reference,priority:'Source marked',amount:null,currency:null,status:row.status,
+        requiredOnSite:row.requiredOnSite,forecastDelivery:row.forecastDelivery,basis:'source_register'
+      })),
+      basis:'Long-lead items are taken from the explicit Long Lead field in the supplied procurement source. Dated lifecycle and schedule impact remain separate.'
+    }:boqScope?{
       itemCount:boqScope.itemCount,
       candidatePackageCount:boqScope.packages.length,
       candidateLongLeadCount:boqScope.longLead.length,
@@ -194,6 +205,6 @@ export function managementVisualControl(
         basis:row.classificationBasis.longLeadCandidate
       })),
       basis:boqScope.basis,
-    },
+    }:{itemCount:null,candidatePackageCount:null,candidateLongLeadCount:null,complexity:null,coverage:null,topLongLead:[],basis:'No procurement Long Lead field or readable BOQ long-lead screening basis is available.'},
   };
 }
