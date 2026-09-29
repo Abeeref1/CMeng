@@ -48,7 +48,7 @@ function sharedReportingContext(state:ProjectRuntimeState){
   const calendarById=model?new Map(model.calendars.map(calendar=>[calendar.calendarId,calendar])):null;
   const executionActivities=model?activityPopulation(model).activities:[];
   const calendarUnresolvedActivityCount=model&&calendarById
-    ? executionActivities.filter(activity=>calendarWorkingDayHours(calendarById.get(activity.calendarId))===null).length
+    ? executionActivities.filter(activity=>calendarWorkingDayHours(activity.calendarId?calendarById.get(activity.calendarId):undefined)===null).length
     : null;
   const time=canonicalTimeClaims(state).contractTimeBasis??state.controls.contractTimeBasis;
   const baseline=state.schedules
@@ -141,16 +141,16 @@ export function attachReportingContract(state:ProjectRuntimeState,result:ModuleR
   if(claims){
     populations.claims=claims.claims.population;populations.notices=claims.notices.population;populations.events=claims.events.population;
     for (const [key,determination] of [['claim_notices',false],['determinations',true]] as const) {
-      populations[key] = partitionAsOf(claims.source.notices.filter(n=>(n.kind==='determination')===determination),{
+      populations[key] = partitionAsOf(claims.source.notices.filter((n:any)=>(n.kind==='determination')===determination),{
         name: determination ? 'Dated determinations' : 'Claim notices, excluding determinations',entity: determination ? 'determination' : 'notice',dataDateIso,
-        dateBasis:'actualIssuedAt',sourceRevisionId:claims.source.evidenceRevisionId,id:n=>n.noticeId,date:n=>n.actualIssuedAt}).population;
+        dateBasis:'actualIssuedAt',sourceRevisionId:claims.source.evidenceRevisionId,id:(n:any)=>n.noticeId,date:(n:any)=>n.actualIssuedAt}).population;
     }
   }
   const resources=shared.resources;
   if(resources&&['resource-utilization','manhour-scurve','pmo-analysis','progress-report','project-director'].includes(result.key)){
-    const ids=resources.resources.map(r=>r.resourceId);
+    const ids=resources.resources.map((r:any)=>r.resourceId);
     populations.resources=populationContract({name:'P6 resource master identities',entity:'resource',dataDateIso,dateBasis:'current programme resource master',sourceRevisionId:model?.sourceRevisionId??null,authority:'source',sourceCount:ids.length,memberIds:ids,exclusions:[]});
-    populations.assignments=populationContract({name:'P6 resource assignment records',entity:'assignment',dataDateIso,dateBasis:'current programme assignment register; not resource identities',sourceRevisionId:model?.sourceRevisionId??null,authority:'source',sourceCount:resources.assignments.length,memberIds:resources.assignments.map((r,i)=>String((r as any).assignmentId??i)),exclusions:[]});
+    populations.assignments=populationContract({name:'P6 resource assignment records',entity:'assignment',dataDateIso,dateBasis:'current programme assignment register; not resource identities',sourceRevisionId:model?.sourceRevisionId??null,authority:'source',sourceCount:resources.assignments.length,memberIds:resources.assignments.map((r:any,i:number)=>String(r.assignmentId??i)),exclusions:[]});
   }
   const metricContracts:Record<string,{populationId:string;denominator:number;excludedCount:number;exclusionsRef:string;dataDateIso:string|null;authority:ReportingAuthority;dateBasis:string}>={};
   const add=(path:string,population:PopulationContract|undefined,authority:ReportingAuthority='calculated')=>{
@@ -229,7 +229,7 @@ export function attachReportingContract(state:ProjectRuntimeState,result:ModuleR
     calendarResolution:{unresolvedActivityCount:shared.calendarUnresolvedActivityCount},
     configurationId:shared.configurationId,
     pendingScheduleReviews:authorityReview.pendingSchedules,
-    newerUnadoptedSchedules:authorityReview.pendingSchedules.filter(s=>s.dateRelationship==='later'||s.dateRelationship==='no_current_programme'),
+    newerUnadoptedSchedules:authorityReview.pendingSchedules.filter((s:any)=>s.dateRelationship==='later'||s.dateRelationship==='no_current_programme'),
     programmeRevisionId:current?.revision.revisionId??null,programmeLabel:current?.revision.label??null,
     actualEventPolicy:'Only dated events on or before the Data Date enter current actuals. Future and undated evidence is retained separately.',
     forecastPolicy:'Future planned work and forecast dates remain visible as forecasts, never as actual events.',
