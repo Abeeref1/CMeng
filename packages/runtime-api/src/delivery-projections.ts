@@ -432,9 +432,9 @@ export function deliveryDashboard(state:ProjectRuntimeState){
    exceptions:[],exceptionCount:0,
    basis:'Available source evidence and BOQ-derived candidates are shown without asserting governed Delivery lifecycle status, lateness or schedule impact.'};
  }
- const p=deliveryPosition(state);return {projectId:state.projectId,dataDateIso:p.dataDateIso,programmeRevisionId:p.programmeRevisionId,mode:'governed_or_reviewed',
+ const p=deliveryPosition(state),packagePopulation=p.populations.package;return {projectId:state.projectId,dataDateIso:p.dataDateIso,programmeRevisionId:p.programmeRevisionId,mode:'governed_or_reviewed',
   boqMappingPercent:p.boqIntelligence.procurementMappingPercent,handoverReadinessPercent:p.handover.readinessPercent,
-  confirmedPackageCount:p.populations.package.denominator,knownPackageRecordCount:p.populations.package.knownRecordCount,
+  confirmedPackageCount:packagePopulation?.denominator??null,knownPackageRecordCount:packagePopulation?.knownRecordCount??null,
   candidatePackageCount:boq.packages.length||null,candidateLongLeadCount:boq.longLead.length||null,
   latePackageKnownCount:p.packageRows.some(r=>r.headroomCalendarDays!==null)?p.packageRows.filter(r=>r.headroomCalendarDays!==null&&r.headroomCalendarDays<0).length:null,
   unresolvedPackageCount:p.packageRows.length?p.packageRows.filter(r=>r.headroomCalendarDays===null).length:null,
