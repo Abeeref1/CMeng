@@ -30,9 +30,33 @@ function renderProjectDashboardSummary(d){
  if(!d)return '';
  const c=d.counts||{},value=x=>x?.value??x?.knownCount??'Not available';
  const drivers=(d.wbsRows||[]).filter(r=>r.pressureCount||r.drivingCount).slice(0,3);
- const actions=(d.actions||[]).slice(0,5);
+ const rawActions=d.actions||[],groupedActions=[];
+ const groups=new Map();
+ for(const action of rawActions){
+  const wbs=String(action.wbs||'').split(' / ').slice(-3).join(' / ');
+  const key=String(action.reason||'')+'|'+wbs;
+  let group=groups.get(key);
+  if(!group){group={reason:action.reason||'Programme action',wbs,items:[],rank:action.rank||999,groupedCount:0,wbsGroupCount:0};groups.set(key,group);groupedActions.push(group);}
+  group.rank=Math.min(group.rank,action.rank||999);
+  if(Number(action.groupedCount||1)>1){
+    group.groupedCount+=Number(action.groupedCount||1);
+    group.wbsGroupCount=Math.max(group.wbsGroupCount,Number(action.wbsGroupCount||1));
+    for(const id of action.activityIds||[])group.items.push({activityId:id,name:''});
+  }else{
+    group.groupedCount+=1;
+    group.items.push({activityId:action.activityId||'',name:action.name||''});
+  }
+ }
+ groupedActions.sort((a,b)=>a.rank-b.rank);
+ const actions=groupedActions.slice(0,5);
  const driverRows=drivers.length?'<ul>'+drivers.map(r=>'<li><b>'+escapeHtml(String(r.wbs||'').split(' / ').slice(-3).join(' / '))+'</b> · '+fmt(r.pressureCount||0)+' pressure · '+fmt(r.drivingCount||0)+' driving</li>').join('')+'</ul>':'<p>No concentrated schedule pressure is established.</p>';
- const actionRows=actions.length?'<ol>'+actions.map(r=>'<li>'+escapeHtml(r.reason)+'</li>').join('')+'</ol>':'<p>No immediate programme action is ranked from the available fields.</p>';
+ const actionRows=actions.length?'<ol>'+actions.map(group=>{
+   const unique=[...new Map(group.items.filter(item=>item.activityId||item.name).map(item=>[(item.activityId||item.name),item])).values()];
+   const identities=unique.slice(0,3).map(item=>[item.activityId,item.name].filter(Boolean).join(' · ')).filter(Boolean);
+   const more=Math.max(0,group.groupedCount-identities.length);
+   const identityText=identities.length?'<span class="muted">'+escapeHtml(identities.join('; '))+(more?' · '+escapeHtml(fmt(more))+' more':'')+(group.wbs?' · WBS '+escapeHtml(group.wbs):'')+'</span>':'<span class="muted">'+escapeHtml(fmt(group.groupedCount))+' related activities'+(group.wbs?' · WBS '+escapeHtml(group.wbs):'')+'</span>';
+   return '<li><b>'+escapeHtml(group.reason)+'</b><br>'+identityText+'</li>';
+ }).join('')+'</ol>':'<p>No immediate programme action is ranked from the available fields.</p>';
  return '<section class="project-diagnosis dashboard-summary"><header class="diagnosis-heading"><h3>Current project position</h3><p>Data Date '+planningShortDate(d.dataDateIso)+'</p></header>'+renderCompletionPosition(d.completion)+'<p class="diagnosis-summary">'+escapeHtml(d.summary)+'</p>'+planningKpis([['Critical',value(c.critical),'activities'],['Negative float',value(c.negativeFloat),'activities'],['Near-critical',value(c.nearCritical),'activities'],['Driving network',d.tableTotals?.network??d.network?.rows?.length??'Not available','activities']])+'<div class="planning-primary-grid"><section class="diagnosis-section"><h4>Main schedule pressure</h4>'+driverRows+'</section><section class="diagnosis-section"><h4>Management priorities</h4>'+actionRows+'</section></div><details><summary>Detailed programme analysis</summary>'+renderProjectDiagnosis(d)+'</details></section>';
 }
 function renderProjectBrief(d){
