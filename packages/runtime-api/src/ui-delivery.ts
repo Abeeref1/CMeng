@@ -6,7 +6,7 @@ let deliveryTables={},deliveryEditorContext=null,deliverySourceContext=null,deli
 const deliveryNumberFormat=new Intl.NumberFormat('en-GB',{maximumFractionDigits:6});
 const deliveryDateFormat=new Intl.DateTimeFormat('en-GB',{day:'2-digit',month:'short',year:'numeric',timeZone:'UTC'});
 function deliveryValue(v){
- if(v===null||v===undefined||v==='')return 'Not established';
+ if(v===null||v===undefined||v===''||typeof v==='string'&&/^(?:undefined|null|nan)$/i.test(v.trim()))return 'Not established';
  if(typeof v==='number')return Number.isFinite(v)?deliveryNumberFormat.format(v):'Not established';
  if(typeof v==='boolean')return v?'Yes':'No';
  if(Array.isArray(v))return v.length?v.map(x=>typeof x==='object'?(x?.reference||x?.stage||x?.recordId||'Record'):deliveryValue(x)).join('; '):'None in this set';
@@ -79,6 +79,10 @@ function deliveryChart(curve){if(!curve?.points?.length)return '<p class="empty"
  return '<h4>'+escapeHtml(deliveryLabel(curve.kind)+' · '+curve.stage+' · '+curve.series)+'</h4><p>'+escapeHtml(curve.weighting)+' · Unit '+deliveryText(curve.unit)+' · Data Date '+deliveryText(curve.dataDateIso)+'</p><svg role="img" aria-label="'+escapeHtml(curve.stage+' '+curve.series+' curve in '+curve.unit)+'" viewBox="0 0 920 300" style="width:100%;min-height:240px"><line x1="65" y1="40" x2="65" y2="255" stroke="#aebbc8"/><line x1="65" y1="255" x2="860" y2="255" stroke="#aebbc8"/>'+[0,.25,.5,.75,1].map(f=>{const value=minY+(maxY-minY)*f;return '<line x1="65" x2="860" y1="'+y(value)+'" y2="'+y(value)+'" stroke="#e7edf3"/><text x="57" y="'+(y(value)+4)+'" text-anchor="end" font-size="12">'+deliveryText(Number(value.toFixed(2)))+'</text>';}).join('')+(ddX!==null?'<line x1="'+ddX+'" x2="'+ddX+'" y1="30" y2="255" stroke="#ad7630" stroke-dasharray="4 4"/><text x="'+ddX+'" y="22" text-anchor="middle" font-size="11">Data Date</text>':'')+'<polyline fill="none" stroke="#176b78" stroke-width="3" points="'+pts.map(p=>x(p.dateIso)+','+y(p.value)).join(' ')+'"/>'+pts.map(p=>'<circle cx="'+x(p.dateIso)+'" cy="'+y(p.value)+'" r="3.5" fill="#176b78"><title>'+escapeHtml(deliveryValue(p.dateIso)+' · '+deliveryValue(p.value)+' '+curve.unit)+'</title></circle>').join('')+'<text x="65" y="280" font-size="12">'+deliveryText(pts[0].dateIso)+'</text><text x="860" y="280" text-anchor="end" font-size="12">'+deliveryText(pts.at(-1).dateIso)+'</text></svg><p>Included '+(curve.includedRecordIds||curve.population||[]).length+' · Excluded '+(curve.excludedRecordIds||[]).length+' · Coverage '+(curve.coveragePercent===null?'Unresolved':deliveryText(curve.coveragePercent)+'%')+' · Denominator '+deliveryText(curve.denominator)+'</p><details><summary>Chart points and source records</summary>'+deliveryObjectDetail(curve)+'</details>';
 }
 function renderDelivery(result){const raw=result.data;if(raw?.projectionKey!=='delivery')return false;const p={...raw,
+ title:typeof raw.title==='string'&&raw.title.trim()?raw.title:raw.deliveryPage==='delivery-interfaces'?'Interface Management':deliveryLabel(raw.deliveryPage||raw.kind||'Delivery'),
+ managementPosition:typeof raw.managementPosition==='string'&&raw.managementPosition.trim()?raw.managementPosition:(result.reason||'Current delivery position.'),
+ programmeLabel:raw.programmeLabel??(raw.programmeRevisionId?'Current programme':null),
+ authorityScope:typeof raw.authorityScope==='string'&&raw.authorityScope.trim()?raw.authorityScope:(typeof raw.basis==='string'&&raw.basis.trim()?raw.basis:'Only established source records and explicit links are used; missing values are not inferred.'),
  rows:Array.isArray(raw.rows)?raw.rows:[],
  reviewRecords:Array.isArray(raw.reviewRecords)?raw.reviewRecords:[],
  findings:Array.isArray(raw.findings)?raw.findings:[],
