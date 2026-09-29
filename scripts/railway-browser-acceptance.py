@@ -11,7 +11,7 @@ SUMMARY={"expectedRelease":EXPECTED,"mode":"GET_ONLY_ALL_REAL_PROJECTS_BROWSER",
 STAGE="initialization"
 
 KEYS=[
- "master-dashboard","command-center","master-control-programme","source-quality",
+ "master-dashboard","command-center","master-control-programme",
  "pmo-analysis","schedule-analytics","activity-analytics","lookahead-schedule",
  "schedule-change-report","revision-trend","milestones","near-critical",
  "resource-utilization","progress-report","variance-trends","progress-scurve",
@@ -81,6 +81,33 @@ try:
       SUMMARY["projects"].append(project_result)
 
       check("Navigation exposes complete client workspace",all(page.locator('.nav-item[data-key="'+key+'"]').count()==1 for key in KEYS),project_id)
+
+      # Source Quality was intentionally consolidated into the answer-first
+      # Project review / Actions required control. Verify the current client UX
+      # directly rather than waiting for the retired source-quality nav key.
+      STAGE=project_result["projectFingerprint"]+":actions-required"
+      check("Actions required control is available",page.locator("#projectActionsNav").count()==1,project_id)
+      page.locator("#projectActionsNav").click(timeout=15000)
+      page.wait_for_function("""() => {
+        const drawer=document.getElementById('projectReviewDrawer');
+        return drawer && !drawer.hidden && drawer.open &&
+          typeof projectActionState!=='undefined' &&
+          projectActionState?.status==='ready';
+      }""",timeout=90000)
+      action_view=page.evaluate("""() => ({
+        body:document.getElementById('projectReviewPanel')?.innerText??'',
+        actionCount:projectActionState?.data?.actionCount,
+        informationCount:projectActionState?.data?.information?.length??0,
+        systemCheckCount:projectActionState?.data?.systemCheckCount??0
+      })""")
+      check("Actions required renders the consolidated project review",len(action_view["body"])>80,project_id)
+      check("Actions required exposes governed action counts",isinstance(action_view["actionCount"],int) and action_view["actionCount"]>=0,project_id)
+      check("Actions required client canvas contains no raw non-finite values",re.search(r"\b(?:NaN|Infinity|-Infinity)\b",action_view["body"]) is None,project_id)
+      check("Actions required client canvas does not render literal undefined",re.search(r"\bundefined\b",action_view["body"],re.I) is None,project_id)
+      close_action=page.locator("#projectReviewPanel [data-action-close]")
+      if close_action.count():
+        close_action.click(timeout=15000)
+        page.wait_for_function("() => document.getElementById('projectReviewDrawer')?.hidden===true",timeout=15000)
 
       for key in KEYS:
         STAGE=project_result["projectFingerprint"]+":"+key
