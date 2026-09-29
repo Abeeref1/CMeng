@@ -4,7 +4,6 @@ import { runInNewContext } from 'node:vm';
 import { createSourceFile, ScriptTarget, isFunctionDeclaration } from 'typescript';
 import { cmengUatHtml } from '../packages/runtime-api/src/ui';
 import { deliveryScript } from '../packages/runtime-api/src/ui-delivery';
-import { projectDiagnosisScript } from '../packages/runtime-api/src/ui-project-diagnosis';
 
 function functions(names: string[]) {
   const script=cmengUatHtml().match(/<script>([\s\S]*?)<\/script>/)![1]!;
@@ -117,7 +116,7 @@ test('Master Dashboard groups repeated priority reasons and retains activity ide
    {rank:3,activityId:'JRT-001-075',name:'Programme Management Activity 075',wbs:'Programme Management - WP01',reason:'-120 hours source float',action:'Review'},
   ],
  };
- const html=runInNewContext(projectDiagnosisScript+';renderProjectDashboardSummary(d)',{
+ const html=runInNewContext(functions(['renderProjectDashboardSummary'])+';renderProjectDashboardSummary(d)',{
   d,escapeHtml:String,fmt:String,planningShortDate:String,planningKpis:()=>'',renderCompletionPosition:()=>'',renderProjectDiagnosis:()=>''
  });
  assert.equal((html.match(/-120 hours source float/g)||[]).length,1);
@@ -128,7 +127,7 @@ test('Master Dashboard groups repeated priority reasons and retains activity ide
 });
 
 test('Forecast review suppresses probability dates in every chart, not only the lower cards',()=>{
- const script=functions(['renderForecastVisual','planningDateMs','planningShortDate','planningCalendarDaysBetween']);
+ const script=functions(['forecastDiagnosticMessages','renderForecastVisual','planningDateMs','planningShortDate','planningCalendarDaysBetween']);
  const bars:any[][]=[];
  const html=runInNewContext(script+';renderForecastVisual(data)',{
   data:{independentForecastCompletionIso:'2033-05-15',sourceForecastCompletionIso:'2030-06-30',dataDateIso:'2026-08-31',complete:true,managementReviewState:'review_required',probabilistic:{p50CompletionIso:'2034-01-01',p80CompletionIso:'2035-01-01',p90CompletionIso:'2036-01-01'}},
