@@ -82,6 +82,40 @@ test("quarantined claim population is certified as withheld rather than false ze
 });
 
 
+
+test("real non-quarantined notice population certifies headline and timeliness counts",()=>{
+  const source:any={
+    projectId:"Q-CLAIMS",evidenceRevisionId:"canonical-evidence:real",dataDateIso:"2026-08-31",
+    events:[
+      {eventId:"E1",noticeTimeliness:"timely",eventStartIso:"2026-08-01",noticeIssuedAt:"2026-08-05",requiredNoticeDays:7},
+      {eventId:"E2",noticeTimeliness:"late",eventStartIso:"2026-08-01",noticeIssuedAt:"2026-08-12",requiredNoticeDays:7},
+      {eventId:"E3",noticeTimeliness:"event_date_missing",eventStartIso:null,noticeIssuedAt:"2026-08-05",requiredNoticeDays:7},
+      {eventId:"E4",noticeTimeliness:"requirement_missing",eventStartIso:"2026-08-01",noticeIssuedAt:"2026-08-05",requiredNoticeDays:null},
+    ],
+    notices:[],noticeRequirements:[],
+    claims:[
+      {claimId:"C1",claimedDays:4},{claimId:"C2",claimedDays:9}
+    ],
+    diagnostics:[],
+    integrity:{state:"verified",sourceClaimCount:2,quarantinedClaimCount:0,reasons:[]},
+  };
+  const result:any={
+    key:"notices-claims",status:"ready",professionalState:"defensible",evidenceState:"established",dependencies:[],
+    data:{
+      events:source.events.map((row:any)=>({...row})),
+      claims:source.claims.map((row:any)=>({...row})),
+      claimCount:2,eventCount:4,timelyNoticeCount:1,lateNoticeCount:1,
+      noticeEventDateMissingCount:1,noticeRequirementMissingCount:1,
+    },
+  };
+  const checked:any=checkProjectionIntegrity(result,schedule,{} as any,source);
+  assert.equal(checked.data.systemEvidenceContract.state,"verified_for_checked_metrics");
+  for(const metric of ["claim_headline_matches_register","event_headline_matches_register","timely_notice_count","late_notice_count","event_date_missing_count","requirement_missing_count"]){
+    const check=checked.data.systemEvidenceContract.checks.find((row:any)=>row.metric===metric);
+    assert.ok(check,metric);assert.equal(check.passed,true,metric);
+  }
+});
+
 test("quarantined commercial claims integrity treats withheld notice dimensions as null, not zero",()=>{
   const position:any={
     sourceLedger:{},
