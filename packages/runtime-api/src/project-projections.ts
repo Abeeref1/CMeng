@@ -7193,7 +7193,10 @@ function resolveProjectModule(state: ProjectRuntimeState, key: string): ModuleRu
     // would use that same bundle. Commercial and specialist Claims/Forecast
     // modules have dedicated canonical/fast resolvers with additional semantics
     // and must continue through those paths.
-    const bundleReusable=descriptor.key==='pmo-analysis'||descriptor.key==='progress-report';
+    const bundleReusable=
+      planningModuleKeys.has(descriptor.key)||
+      descriptor.key==='pmo-analysis'||
+      descriptor.key==='progress-report';
     const result=resolveProjectModuleCandidate(scoped, descriptor.key, bundleReusable?bundle.modules.get(descriptor.key):undefined);
     if(profiling)candidateProfile.push({key:descriptor.key,ms:performance.now()-t});
     return [descriptor.key,result] as const;
