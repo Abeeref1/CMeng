@@ -13,6 +13,10 @@ export interface ManagementSourceDomainSummary {
   readableRowCount: number | null;
   recognisedRowCount: number | null;
   filenames: string[];
+  signals: {
+    longLeadMarkedCount: number | null;
+    longLeadSamples: Array<{reference:string|null;description:string|null;status:string|null;requiredOnSite:string|null;forecastDelivery:string|null;source:string}>;
+  };
   state: 'not_provided'|'source_file_available'|'source_read'|'source_rows_available';
   basis: string;
 }
@@ -41,7 +45,8 @@ function build(state:ProjectRuntimeState){
     const matched=documents.filter(document=>definition.pattern.test(
       [document.documentType,document.category,document.sourceFilename,document.familyKey].filter(Boolean).join(' ')
     ));
-    let readableRows=0,recognisedRows=0,hasReadableRows=false,hasRecognisedRows=false;
+    let readableRows=0,recognisedRows=0,hasReadableRows=false,hasRecognisedRows=false,longLeadMarkedCount=0,longLeadObserved=false;
+    const longLeadSamples:ManagementSourceDomainSummary['signals']['longLeadSamples']=[];
     for(const document of matched){
       for(const sheet of document.tabularRead?.sheets??[]){
         const prepared=prepareRegisterRows(sheet.rows,document.documentType);
@@ -50,6 +55,28 @@ function build(state:ProjectRuntimeState){
         if(prepared.recognized){
           recognisedRows+=prepared.readRowCount;
           hasRecognisedRows=hasRecognisedRows||prepared.readRowCount>0;
+        }
+        if(definition.domain==='procurement'){
+          const longLeadIndex=prepared.headers.indexOf('long lead');
+          if(longLeadIndex>=0){
+            longLeadObserved=true;
+            const index=(name:string)=>prepared.headers.indexOf(name);
+            const refIndex=index('package id'),descriptionIndex=index('description'),statusIndex=index('status'),requiredIndex=index('required on site'),forecastIndex=index('forecast delivery');
+            for(const row of prepared.rows){
+              const raw=String(row[longLeadIndex]??'').trim();
+              const marked=/^(?:yes|y|true|1|long\s*lead|ll|critical)$/i.test(raw);
+              if(!marked)continue;
+              longLeadMarkedCount++;
+              if(longLeadSamples.length<12)longLeadSamples.push({
+                reference:refIndex>=0?String(row[refIndex]??'').trim()||null:null,
+                description:descriptionIndex>=0?String(row[descriptionIndex]??'').trim()||null:null,
+                status:statusIndex>=0?String(row[statusIndex]??'').trim()||null:null,
+                requiredOnSite:requiredIndex>=0?String(row[requiredIndex]??'').trim()||null:null,
+                forecastDelivery:forecastIndex>=0?String(row[forecastIndex]??'').trim()||null:null,
+                source:document.sourceFilename,
+              });
+            }
+          }
         }
       }
     }
@@ -69,7 +96,9 @@ function build(state:ProjectRuntimeState){
     return {
       domain:definition.domain,label:definition.label,documentCount:matched.length,parsedDocumentCount,
       readableRowCount:hasReadableRows?readableRows:null,recognisedRowCount:hasRecognisedRows?recognisedRows:null,
-      filenames:matched.map(document=>document.sourceFilename),state:stateValue,basis
+      filenames:matched.map(document=>document.sourceFilename),
+      signals:{longLeadMarkedCount:longLeadObserved?longLeadMarkedCount:null,longLeadSamples},
+      state:stateValue,basis
     } satisfies ManagementSourceDomainSummary;
   });
   return {schemaVersion:'1.0',domains};
