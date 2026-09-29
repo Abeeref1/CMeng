@@ -1603,7 +1603,7 @@ function planningStateLabel(value){
   return labels[key]||humanizeKey(key);
 }
 function planningKpis(items){
-  const unavailable=item=>{const value=item[1];return value===null||value===undefined||/^(Not |—|Suppressed|Missing|Mapping not|Unresolved)/i.test(String(value));};
+  const unavailable=item=>{const value=item[1];return value===null||value===undefined||/^(Not |—|Suppressed|Missing|Mapping not|Unresolved|Unavailable)/i.test(String(value));};
   const available=items.filter(item=>!unavailable(item)),missing=items.filter(unavailable);
   const card=item=>{const label=item[0],value=item[1],sub=item[2]||"",tone=item[3]||"";return '<div class="planning-kpi '+escapeHtml(tone)+'"><span>'+escapeHtml(label)+'</span><strong>'+escapeHtml(value===null||value===undefined?"Not available":fmt(value))+'</strong>'+(sub?'<small>'+escapeHtml(sub)+'</small>':'')+'</div>';};
   // Available facts always lead. If nothing is available, show a small sample of
