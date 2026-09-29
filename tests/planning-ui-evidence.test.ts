@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { runInNewContext } from 'node:vm';
 import { createSourceFile, ScriptTarget, isFunctionDeclaration } from 'typescript';
 import { cmengUatHtml } from '../packages/runtime-api/src/ui';
+import { deliveryScript } from '../packages/runtime-api/src/ui-delivery';
+import { projectDiagnosisScript } from '../packages/runtime-api/src/ui-project-diagnosis';
 
 function functions(names: string[]) {
   const script=cmengUatHtml().match(/<script>([\s\S]*?)<\/script>/)![1]!;
@@ -67,6 +69,62 @@ test('Progress Breakdown exposes six structural filters without unresolved spam 
  assert.match(html,/not available from the current programme/i);
  assert.doesNotMatch(html,/Unresolved/i);
  assert.doesNotMatch(html,/confirm/i);
+});
+
+
+test('Completion Forecast converts calendar and graph diagnostics to business language',()=>{
+ const run=functions(['forecastDiagnosticMessages'])+';forecastDiagnosticMessages';
+ const messages=runInNewContext(run,{fmt:(v:any)=>String(v)})([
+  'CALENDAR_SEMANTICS_UNRESOLVED:6:CALENDAR_WORKING_INTERVALS_NOT_ESTABLISHED:Supply The Calendar Working Days',
+  'SCHEDULE_GRAPH_CYCLES:RMH 010 008',
+  'SCHEDULE_GRAPH_DUPLICATE_ACTIVITY_IDS:RMH 010 008',
+  'SCHEDULE_GRAPH_SELF_LOOPS:RMH 010 008',
+  'SCHEDULE_GRAPH_BROKEN_PREDECESSORS:Native:1::99999999',
+ ]);
+ const text=messages.join(' ');
+ assert.match(text,/calendar definition/i);
+ assert.match(text,/cycle/i);
+ assert.match(text,/duplicate activity ID/i);
+ assert.match(text,/self-referencing relationship/i);
+ assert.match(text,/predecessor that is not present/i);
+ assert.doesNotMatch(text,/CALENDAR_SEMANTICS|SCHEDULE_GRAPH|WORKING_INTERVALS|DUPLICATE_ACTIVITY_IDS|SELF_LOOPS/i);
+});
+
+test('Interface Management uses its dedicated renderer and never prints undefined for an empty interface position',()=>{
+ const data:any={
+  projectionKey:'delivery',deliveryPage:'delivery-interfaces',interfaceProjectionKey:'interface_intelligence',
+  managementPosition:'No confirmed or derivable interface population is available from the current Project information.',
+  rows:[],confirmedCount:0,candidateCount:0,blockerCount:0,linkedActivityCount:0,basis:'Confirmed interfaces come from reviewed Interface records.',
+ };
+ const html=runInNewContext(functions(['renderInterfaceIntelligenceVisual'])+';renderInterfaceIntelligenceVisual(data)',{
+  data,projectionFor:(v:any)=>v,escapeHtml:String,fmt:String,humanizeKey:String,planningShortDate:String,
+  planningKpis:()=>'<div>KPI</div>'
+ });
+ assert.match(html,/Interface position/);
+ assert.match(html,/No confirmed or derivable interface population/);
+ assert.doesNotMatch(html,/undefined/i);
+ const routed=runInNewContext(deliveryScript()+';renderDelivery({data})',{data});
+ assert.equal(routed,false,'Interface intelligence must bypass the generic Delivery renderer');
+});
+
+test('Master Dashboard groups repeated priority reasons and retains activity identities',()=>{
+ const d:any={
+  dataDateIso:'2026-08-31',counts:{critical:{value:3},negativeFloat:{value:3},nearCritical:{value:0}},
+  wbsRows:[],network:{rows:[]},tableTotals:{network:0},completion:{},summary:'Position',
+  actions:[
+   {rank:1,activityId:'JRT-001-073',name:'Programme Management Activity 073',wbs:'Programme Management - WP01',reason:'-120 hours source float',action:'Review'},
+   {rank:2,activityId:'JRT-001-074',name:'Programme Management Activity 074',wbs:'Programme Management - WP01',reason:'-120 hours source float',action:'Review'},
+   {rank:3,activityId:'JRT-001-075',name:'Programme Management Activity 075',wbs:'Programme Management - WP01',reason:'-120 hours source float',action:'Review'},
+  ],
+ };
+ const html=runInNewContext(projectDiagnosisScript+';renderProjectDashboardSummary(d)',{
+  d,escapeHtml:String,fmt:String,planningShortDate:String,planningKpis:()=>'',renderCompletionPosition:()=>'',renderProjectDiagnosis:()=>''
+ });
+ assert.equal((html.match(/-120 hours source float/g)||[]).length,1);
+ assert.match(html,/JRT-001-073/);
+ assert.match(html,/JRT-001-074/);
+ assert.match(html,/JRT-001-075/);
+ assert.match(html,/WBS Programme Management - WP01/);
 });
 
 test('Forecast review suppresses probability dates in every chart, not only the lower cards',()=>{
