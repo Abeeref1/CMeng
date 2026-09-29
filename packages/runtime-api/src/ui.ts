@@ -4095,9 +4095,13 @@ function renderPmcControlRoom(data){
  const qualityValue=pmcDefined(criticalNcr)?fmt(criticalNcr)+" major / critical NCR":pmcDefined(hse.lostTimeInjuries)?fmt(hse.lostTimeInjuries)+" reported LTI":pmcSourceValue(qualitySource)||pmcSourceValue(hseSource)||"Unresolved";
  const claims=vc.claims||{},claimsSource=pmcSource(data,"claims");
  const currentClaims=claims.currentClaimCount,sourceClaims=claims.sourceClaimCount,currentEvents=claims.currentEventCount,sourceEvents=claims.sourceEventCount;
- const claimsTone=pmcDefined(claims.incompleteChainCount)&&Number(claims.incompleteChainCount)>0?"warning":
+ const claimsQuarantined=claims.integrityState==="quarantined";
+ const retainedClaimRows=pmcFirst(claims.quarantinedClaimCount,sourceClaims,claims.sourceEvidenceRowCount,claimsSource?.readableRowCount);
+ const claimsTone=claimsQuarantined?"warning":
+   pmcDefined(claims.incompleteChainCount)&&Number(claims.incompleteChainCount)>0?"warning":
    pmcDefined(currentClaims)||pmcDefined(sourceClaims)||pmcDefined(currentEvents)||pmcDefined(sourceEvents)||claimsSource?.documentCount?"source":"unresolved";
- const claimsValue=pmcDefined(claims.officialApprovedEotDays)?fmt(claims.officialApprovedEotDays)+" d approved EOT":
+ const claimsValue=claimsQuarantined&&pmcDefined(retainedClaimRows)?fmt(retainedClaimRows)+" source claim rows retained":
+   pmcDefined(claims.officialApprovedEotDays)?fmt(claims.officialApprovedEotDays)+" d approved EOT":
    pmcDefined(currentClaims)&&Number(currentClaims)>0?fmt(currentClaims)+" current claims":
    pmcDefined(currentClaims)&&Number(currentClaims)===0&&pmcDefined(sourceClaims)&&Number(sourceClaims)>0?fmt(sourceClaims)+" source claims · 0 current by DD":
    pmcDefined(sourceClaims)&&Number(sourceClaims)>0?fmt(sourceClaims)+" source claims available":
@@ -4105,6 +4109,21 @@ function renderPmcControlRoom(data){
    pmcDefined(currentEvents)&&Number(currentEvents)===0&&pmcDefined(sourceEvents)&&Number(sourceEvents)>0?fmt(sourceEvents)+" source delay events · 0 current by DD":
    pmcDefined(sourceEvents)&&Number(sourceEvents)>0?fmt(sourceEvents)+" source delay events available":
    pmcSourceValue(claimsSource)||"Unresolved";
+ const claimsState=claimsQuarantined?"Source evidence under review":claimsTone==="warning"?"Chain incomplete":"Available evidence";
+ const claimsSub=claimsQuarantined
+   ?"Source population is retained for audit but quarantined from management truth. Governed claims and delay events remain not established."
+   :"Claim, event, notice, time-impact and determination authorities remain separate.";
+ const claimsMeta=claimsQuarantined?[
+   ["Source claim rows retained",retainedClaimRows],
+   ["Current governed claims","Not established"],
+   ["Current governed delay events","Not established"],
+   ["Source population","Quarantined from management truth"],
+   ["Supporting documents",pmcFirst(claims.sourceDocumentCount,claimsSource?.documentCount)]
+ ]:[
+   ["Current events",currentEvents],["Source events",sourceEvents],["Current claims",currentClaims],["Source claims",sourceClaims],
+   ["Timely notices",claims.timelyNoticeCount],["Late notices",claims.lateNoticeCount],
+   ["Time-impact candidate",pmcDefined(claims.analyticalTimeImpactCandidateDays)?fmt(claims.analyticalTimeImpactCandidateDays)+" d":null]
+ ];
  const riskSource=delivery.sourceAvailability?.risk||pmcSource(data,"risk"),openRisk=ops.counts?.openRiskCount;
  const riskTone=pmcDefined(openRisk)?"warning":riskSource?.documentCount?"source":"unresolved";
  const riskValue=pmcDefined(openRisk)?fmt(openRisk)+" open risks":pmcSourceValue(riskSource)||"Unresolved";
@@ -4116,7 +4135,7 @@ function renderPmcControlRoom(data){
    pmcCard({title:"Procurement / Long Lead",value:procurementValue,state:procurementTone==="danger"?"Delivery threat":"Best available scope",tone:procurementTone,sub:"Confirmed lifecycle position when available; otherwise source/BOQ candidates are shown without inventing lateness.",meta:[["Packages available",packageAvailable],["Source-marked long lead",sourceLongLead],["BOQ / screened long lead",screenedLongLead],["Source rows",procSource?.readableRowCount],["Known late",delivery.latePackageKnownCount]],module:"long-lead"}),
    pmcCard({title:"Design / RFI",value:designValue,state:designTone==="danger"?"Overdue design response":"Available evidence",tone:designTone,sub:"Dated RFI position when governed; design/submittal source evidence remains visible underneath.",meta:[["Open RFIs",openRfi],["Overdue RFIs",overdueRfi],["Design rows",designSource?.readableRowCount],["Submittal rows",submittalSource?.readableRowCount]],module:"delivery-design"}),
    pmcCard({title:"Quality / HSE",value:qualityValue,state:qualityTone==="danger"?"Intervention required":"Available evidence",tone:qualityTone,sub:"Quality and safety are not reduced to a composite score.",meta:[["Major / critical NCR",criticalNcr],["LTIFR",hse.ltifr],["TRIR",hse.trir],["Exposure hours",hse.exposureHours]],module:"delivery-quality"}),
-   pmcCard({title:"Claims / EOT",value:claimsValue,state:claimsTone==="warning"?"Chain incomplete":"Available evidence",tone:claimsTone,sub:"Claim, event, notice, time-impact and determination authorities remain separate.",meta:[["Current events",currentEvents],["Source events",sourceEvents],["Current claims",currentClaims],["Source claims",sourceClaims],["Timely notices",claims.timelyNoticeCount],["Late notices",claims.lateNoticeCount],["Time-impact candidate",pmcDefined(claims.analyticalTimeImpactCandidateDays)?fmt(claims.analyticalTimeImpactCandidateDays)+" d":null]],module:"eot-assessment"}),
+   pmcCard({title:"Claims / EOT",value:claimsValue,state:claimsState,tone:claimsTone,sub:claimsSub,meta:claimsMeta,module:"eot-assessment"}),
    pmcCard({title:"Risk",value:riskValue,state:riskTone==="warning"?"Open risk position":"Source available",tone:riskTone,sub:"Confirmed ratings only; source registers remain visible even when scoring/date completeness is unresolved.",meta:[["Source rows",riskSource?.readableRowCount],["Documents",riskSource?.documentCount]],module:"risk-register"})
  ];
  return '<section class="pmc-control-room"><div class="pmc-control-head"><div><h3>PMC Control Room</h3><p>Best available project position across time, progress, cost, change, delivery and assurance. Source evidence is shown even when a higher-authority conclusion is still unresolved.</p></div><span class="badge">Data Date '+escapeHtml(planningShortDate(data.reportingContract?.dataDateIso||overview?.latestDataDateIso))+'</span></div><div class="pmc-domain-grid">'+cards.join("")+'</div></section>';
@@ -4138,7 +4157,9 @@ function renderPmcControlCharts(data){
    {label:"Reported variation total",value:vr.sourceAggregate,tone:"warning"},{label:"Dated approvals through DD",value:vr.datedApprovedAmount,tone:"accent"}
  ].filter(row=>pmcDefined(row.value)):[];
  const sourceRows=(vc.sourceInventory?.domains||[]).filter(row=>["procurement","design","submittal","quality","hse","claims"].includes(row.domain)&&pmcDefined(row.readableRowCount)).map(row=>({label:row.label,value:row.readableRowCount,tone:"accent"}));
- const claims=vc.claims||{},claimRows=[
+ const claims=vc.claims||{},claimRows=claims.integrityState==="quarantined"?[
+   {label:"Source claim rows retained",value:pmcFirst(claims.quarantinedClaimCount,claims.sourceClaimCount,claims.sourceEvidenceRowCount),tone:"accent"}
+ ]:[
    {label:"Delay events",value:pmcFirst(claims.currentEventCount,claims.sourceEventCount),tone:"warning"},
    {label:"Claims",value:pmcFirst(claims.currentClaimCount,claims.sourceClaimCount),tone:"accent"},
    {label:"Timely notices",value:claims.timelyNoticeCount,tone:"success"},
@@ -4186,7 +4207,17 @@ function renderMcpGovernanceMatrix(data){
  add("Procurement",pmcDefined(delivery.latePackageKnownCount)&&delivery.latePackageKnownCount>0?delivery.latePackageKnownCount+" known late packages":pmcDefined(delivery.candidateLongLeadCount)?delivery.candidateLongLeadCount+" long-lead candidates":"Procurement evidence available",pmcSourceValue(delivery.sourceAvailability?.procurement||src("procurement"))||"Procurement population unresolved",pmcDefined(delivery.latePackageKnownCount)&&delivery.latePackageKnownCount>0?"danger":"source","long-lead");
  add("Design / RFI",pmcDefined(ops.counts?.overdueRfiCount)?ops.counts.overdueRfiCount+" overdue RFIs":"Design evidence available",pmcSourceValue(delivery.sourceAvailability?.design||src("design"))||pmcSourceValue(src("submittal"))||"Design population unresolved",pmcDefined(ops.counts?.overdueRfiCount)&&ops.counts.overdueRfiCount>0?"danger":"source","delivery-design");
  add("Quality / HSE",pmcDefined(ops.counts?.openCriticalMajorNcrCount)?ops.counts.openCriticalMajorNcrCount+" major / critical NCR":"Quality/HSE evidence available",pmcSourceValue(delivery.sourceAvailability?.quality||src("quality"))||pmcSourceValue(src("hse"))||"Quality population unresolved",pmcDefined(ops.counts?.openCriticalMajorNcrCount)&&ops.counts.openCriticalMajorNcrCount>0?"danger":"source","delivery-quality");
- add("Claims / EOT",pmcDefined(vc.claims?.officialApprovedEotDays)?vc.claims.officialApprovedEotDays+" d approved EOT":pmcDefined(vc.claims?.currentClaimCount)?vc.claims.currentClaimCount+" current claims":"Claims evidence available",pmcSourceValue(src("claims"))||"Claim chain completeness unresolved",pmcDefined(vc.claims?.incompleteChainCount)&&vc.claims.incompleteChainCount>0?"warning":"source","eot-assessment");
+ const mcpClaims=vc.claims||{},mcpClaimsQuarantined=mcpClaims.integrityState==="quarantined";
+ const mcpRetainedClaims=pmcFirst(mcpClaims.quarantinedClaimCount,mcpClaims.sourceClaimCount,mcpClaims.sourceEvidenceRowCount,src("claims")?.readableRowCount);
+ add("Claims / EOT",
+   mcpClaimsQuarantined&&pmcDefined(mcpRetainedClaims)?mcpRetainedClaims+" source claim rows retained":
+   pmcDefined(mcpClaims.officialApprovedEotDays)?mcpClaims.officialApprovedEotDays+" d approved EOT":
+   pmcDefined(mcpClaims.currentClaimCount)?mcpClaims.currentClaimCount+" current claims":"Claims evidence available",
+   mcpClaimsQuarantined
+     ?"Governed claims / delay events not established · source population quarantined for review"
+     :pmcSourceValue(src("claims"))||"Claim chain completeness unresolved",
+   mcpClaimsQuarantined||pmcDefined(mcpClaims.incompleteChainCount)&&mcpClaims.incompleteChainCount>0?"warning":"source",
+   "eot-assessment");
  add("Risk",pmcDefined(ops.counts?.openRiskCount)?ops.counts.openRiskCount+" open risks":"Risk evidence available",pmcSourceValue(delivery.sourceAvailability?.risk||src("risk"))||"Rating/date completeness unresolved",pmcDefined(ops.counts?.openRiskCount)?"warning":"source","risk-register");
  return '<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Integrated MCP governance matrix</h4><p>One project-control view across scope, time, progress, cost, change, design, delivery, assurance and entitlement. Source availability is visible even when the higher-authority conclusion is unresolved.</p></div></div><div class="planning-panel-body"><div class="table-wrap pmc-governance-table"><table><thead><tr><th>Control domain</th><th>Current signal</th><th>Evidence available</th><th>Control state</th><th>Drill-down</th></tr></thead><tbody>'+rows.map(row=>'<tr><td><b>'+escapeHtml(row.domain)+'</b></td><td>'+escapeHtml(row.signal)+'</td><td>'+escapeHtml(row.evidence)+'</td><td><span class="pmc-governance-state '+escapeHtml(row.tone)+'">'+escapeHtml(row.tone==="danger"?"Intervention":row.tone==="warning"?"Review":"Available")+'</span></td><td>'+managementModuleLink(row.module,"Open")+'</td></tr>').join("")+'</tbody></table></div></div></section>';
 }
@@ -4285,11 +4316,11 @@ function renderManagementControlVisual(key,data){
         ["Recovery scenarios",r.recoveryScenarioCount??0,"Separate from the current programme"]
       ]),true)+
       experienceSourceContext(key,data)+
-      managementPanel("WBS & Work-Package Control","WBS names come from the programme. Confirm them against the approved work-package structure.",planningKpis([
-        ["Observed WBS",w.observedWbsCount??0,"Programme labels"],
+      managementPanel("WBS & Work-Package Control","Observed programme structure is shown first. Approval of an official contractual work-package structure remains a separate authority question.",planningKpis([
+        ["Observed programme structure",w.observedCoveragePercent===null||w.observedCoveragePercent===undefined?"Coverage unavailable":fmt(w.observedCoveragePercent)+"% activity coverage",(w.activityCount??0)+" activities mapped against the observed programme WBS structure","accent"],
+        ["Observed WBS",w.observedWbsCount??0,"programme labels"],
         ["Activities",w.activityCount??0,"current programme"],
-        ["WBS activity coverage",w.observedCoveragePercent===null||w.observedCoveragePercent===undefined?"Unresolved":fmt(w.observedCoveragePercent)+"%","observed mapping"],
-        ["Official package coverage",w.officialWorkPackageCoveragePercent===null||w.officialWorkPackageCoveragePercent===undefined?"Unresolved":fmt(w.officialWorkPackageCoveragePercent)+"%",humanizeKey(w.officialWorkPackageState||"not_established"),w.officialWorkPackageState==="established"?"success":"warning"]
+        ["Approved / official work-package structure",w.officialWorkPackageState==="established"&&w.officialWorkPackageCoveragePercent!==null&&w.officialWorkPackageCoveragePercent!==undefined?fmt(w.officialWorkPackageCoveragePercent)+"% coverage":"Authority not established",w.officialWorkPackageState==="established"?humanizeKey(w.officialWorkPackageState):"Observed WBS coverage does not prove an approved contractual work-package structure.",w.officialWorkPackageState==="established"?"success":"warning"]
       ])+(w.observedWbsLabels?.length?'<details class="management-detail"><summary>Observed WBS labels <span>'+escapeHtml(fmt(w.observedWbsLabels.length))+' labels</span></summary><div class="management-tag-list">'+w.observedWbsLabels.map(label=>'<span>'+escapeHtml(label)+'</span>').join("")+'</div></details>':""))+
       managementPanel("Specialist positions","Open each module to review its current position and supporting evidence.",positionRows?'<div class="table-wrap"><table><thead><tr><th>Workstream</th><th>Position</th><th>Status</th><th>Reason</th><th>Correction source</th></tr></thead><tbody>'+positionRows+'</tbody></table></div>':'<div class="empty">No specialist positions are established.</div>')+
       managementPanel("Suggested updates for review","Review each suggested update with its supporting document. Use the relevant page to approve, reject or defer it before it changes the project position.",candidateRows?'<div class="table-wrap"><table><thead><tr><th>Candidate</th><th>Type</th><th>Status</th><th>Source evidence</th><th>Owning module</th></tr></thead><tbody>'+candidateRows+'</tbody></table></div>':'<div class="notice info">No current candidate is waiting for review.</div>')+
