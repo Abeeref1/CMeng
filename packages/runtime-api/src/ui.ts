@@ -4100,8 +4100,8 @@ function renderPmcControlRoom(data){
  const claimsTone=claimsQuarantined?"warning":
    pmcDefined(claims.incompleteChainCount)&&Number(claims.incompleteChainCount)>0?"warning":
    pmcDefined(currentClaims)||pmcDefined(sourceClaims)||pmcDefined(currentEvents)||pmcDefined(sourceEvents)||claimsSource?.documentCount?"source":"unresolved";
- const claimsValue=claimsQuarantined&&pmcDefined(retainedClaimRows)?fmt(retainedClaimRows)+" source claim rows retained":
-   pmcDefined(claims.officialApprovedEotDays)?fmt(claims.officialApprovedEotDays)+" d approved EOT":
+ const claimsValue=pmcDefined(claims.officialApprovedEotDays)?fmt(claims.officialApprovedEotDays)+" d approved EOT":
+   claimsQuarantined&&pmcDefined(retainedClaimRows)?fmt(retainedClaimRows)+" source claim rows retained":
    pmcDefined(currentClaims)&&Number(currentClaims)>0?fmt(currentClaims)+" current claims":
    pmcDefined(currentClaims)&&Number(currentClaims)===0&&pmcDefined(sourceClaims)&&Number(sourceClaims)>0?fmt(sourceClaims)+" source claims · 0 current by DD":
    pmcDefined(sourceClaims)&&Number(sourceClaims)>0?fmt(sourceClaims)+" source claims available":
@@ -4210,8 +4210,8 @@ function renderMcpGovernanceMatrix(data){
  const mcpClaims=vc.claims||{},mcpClaimsQuarantined=mcpClaims.integrityState==="quarantined";
  const mcpRetainedClaims=pmcFirst(mcpClaims.quarantinedClaimCount,mcpClaims.sourceClaimCount,mcpClaims.sourceEvidenceRowCount,src("claims")?.readableRowCount);
  add("Claims / EOT",
-   mcpClaimsQuarantined&&pmcDefined(mcpRetainedClaims)?mcpRetainedClaims+" source claim rows retained":
    pmcDefined(mcpClaims.officialApprovedEotDays)?mcpClaims.officialApprovedEotDays+" d approved EOT":
+   mcpClaimsQuarantined&&pmcDefined(mcpRetainedClaims)?mcpRetainedClaims+" source claim rows retained":
    pmcDefined(mcpClaims.currentClaimCount)?mcpClaims.currentClaimCount+" current claims":"Claims evidence available",
    mcpClaimsQuarantined
      ?"Governed claims / delay events not established · source population quarantined for review"
