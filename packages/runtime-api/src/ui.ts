@@ -4121,13 +4121,21 @@ function renderManagementControlVisual(key,data){
 
 function renderRecoveryAccelerationVisual(data){
   const p=projectionFor(data,"recovery_acceleration");if(!p)return "";
-  const scenarios=Array.isArray(p.scenarios)?p.scenarios:[];
+  const scenarios=Array.isArray(p.scenarios)?p.scenarios:[],eligibility=p.eligibility||{};
   const rows=scenarios.map(s=>'<tr><td><b>'+escapeHtml(humanizeKey(s.type))+'</b><br><span class="muted">'+escapeHtml(s.state==='calculated'?'Calculated scenario':'Needs assumption')+'</span></td><td>'+escapeHtml(s.subject)+'</td><td>'+escapeHtml(s.assumption)+'</td><td>'+escapeHtml(s.currentPosition)+'</td><td>'+escapeHtml(s.targetPosition)+'</td><td>'+escapeHtml(s.possibleDaysRecovered===null?'Not calculable':fmt(s.possibleDaysRecovered)+' d')+'</td><td>'+escapeHtml(s.additionalResources||'Not established')+'</td><td>'+escapeHtml(s.estimatedCost===null?'Not established':fmt(s.estimatedCost)+' '+(s.currency||''))+'<br><span class="muted">'+escapeHtml(s.costBasis)+'</span></td><td>'+escapeHtml(s.implementationDate?planningShortDate(s.implementationDate):'Not established')+'</td><td>'+escapeHtml((s.constraints||[]).join('; '))+'</td><td>'+escapeHtml((s.risks||[]).join('; '))+'</td></tr>').join('');
+  const noScenario=!scenarios.length?'<div class="notice info"><b>No eligible quantified recovery scenario is available from the current evidence.</b><p>'+escapeHtml(p.managementPosition)+'</p></div>':'';
+  const table=scenarios.length?'<div class="table-wrap"><table><thead><tr><th>Scenario</th><th>Subject</th><th>Assumption</th><th>Current position</th><th>Target</th><th>Possible days recovered</th><th>Additional resources</th><th>Estimated cost</th><th>Implementation</th><th>Constraints</th><th>Risks</th></tr></thead><tbody>'+rows+'</tbody></table></div>':noScenario;
   return '<section class="planning-view recovery-view"><div class="notice info"><h4>Recovery & acceleration position</h4><p>'+escapeHtml(p.managementPosition)+'</p><p>Every option below is a scenario, not an approved Project plan.</p></div>'+planningKpis([
-    ["Calculated recovery options",p.calculatedScenarioCount??0,"evidence-supported local scenarios"],
-    ["Options needing assumptions",p.assumptionRequiredCount??0,"not quantified until the missing assumption is supplied"],
+    ["Calculated recovery options",p.calculatedScenarioCount>0?p.calculatedScenarioCount:"None qualify","evidence-supported local scenarios"],
+    ["Options needing assumptions",p.assumptionRequiredCount>0?p.assumptionRequiredCount:"None","not quantified until the missing assumption is supplied"],
     ["Data Date",planningShortDate(p.dataDateIso),"current Project position"]
-  ])+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Recovery scenarios</h4><p>Days recovered are kept local to the affected activity/package unless the evidence proves a Project-completion effect.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Scenario</th><th>Subject</th><th>Assumption</th><th>Current position</th><th>Target</th><th>Possible days recovered</th><th>Additional resources</th><th>Estimated cost</th><th>Implementation</th><th>Constraints</th><th>Risks</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></section><details class="source-scope"><summary>Calculation basis and limits</summary><p>'+escapeHtml(p.basis||'')+'</p></details></section>';
+  ])+'<section class="planning-panel"><div class="planning-panel-head"><div><h4>Eligibility checked</h4><p>CMeng does not invent a recovery option merely because project data exists.</p></div></div><div class="planning-panel-body">'+planningKpis([
+    ["Activity feasibility checks",eligibility.activityFeasibilityCheckCount??0,"quantity / productivity / resource checks"],
+    ["Crew acceleration candidates",eligibility.crewAccelerationCandidateCount??0,"submitted crew below calculated need"],
+    ["Late procurement packages",eligibility.lateProcurementPackageCount??0,"forecast delivery after programme need"],
+    ["Feasibility checks needing basis",eligibility.unresolvedFeasibilityCheckCount??0,"working-time / productivity / resource input"],
+    ["Resequencing-enabled workfronts",eligibility.governedResequencingWorkfrontCount??0,"explicit governed permission"]
+  ])+'</div></section><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Recovery scenarios</h4><p>Days recovered are kept local to the affected activity/package unless the evidence proves a Project-completion effect.</p></div></div><div class="planning-panel-body">'+table+'</div></section><details class="source-scope"><summary>Calculation basis and limits</summary><p>'+escapeHtml(p.basis||'')+'</p></details></section>';
 }
 function renderInterfaceIntelligenceVisual(data){
   const p=projectionFor(data,"interface_intelligence");if(!p)return "";
