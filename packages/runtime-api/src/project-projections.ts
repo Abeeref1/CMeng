@@ -7179,13 +7179,24 @@ function resolveProjectModule(state: ProjectRuntimeState, key: string): ModuleRu
   const p1=profiling?performance.now():0;
   const bundle = buildBundle(scoped);
   const p2=profiling?performance.now():0;
-  const candidates = new Map(certifiedAnalyticalModules.map(descriptor =>
-    [descriptor.key, resolveProjectModuleCandidate(scoped, descriptor.key)]));
+  const candidateProfile:Array<{key:string;ms:number}>=[];
+  const candidates = new Map(certifiedAnalyticalModules.map(descriptor => {
+    const t=profiling?performance.now():0;
+    const result=resolveProjectModuleCandidate(scoped, descriptor.key);
+    if(profiling)candidateProfile.push({key:descriptor.key,ms:performance.now()-t});
+    return [descriptor.key,result] as const;
+  }));
   const p3=profiling?performance.now():0;
   const consistency = certifyCrossModuleConsistency({generatedAt: bundle.generatedAt, state: scoped,
     modules: candidates, director: bundle.director, boardReport: bundle.boardReport});
   const p4=profiling?performance.now():0;
-  const modules = new Map([...candidates].map(([key, result]) => [key, enforceModuleReadiness(result, consistency)]));
+  const readinessProfile:Array<{key:string;ms:number}>=[];
+  const modules = new Map([...candidates].map(([key, result]) => {
+    const t=profiling?performance.now():0;
+    const ready=enforceModuleReadiness(result, consistency);
+    if(profiling)readinessProfile.push({key,ms:performance.now()-t});
+    return [key,ready] as const;
+  }));
   const forecast=modules.get('independent-forecast')?.data as any;
   const near=modules.get('near-critical')?.data as any;
   const activityNames=new Map((projectControlSchedule(scoped)?.revision.model.activities??[]).map(a=>[a.activityId,a.name??a.activityId]));
@@ -7205,7 +7216,9 @@ function resolveProjectModule(state: ProjectRuntimeState, key: string): ModuleRu
   if(management)management.projectDiagnosis=presentProjectDiagnosis(diagnosis);
   const p5=profiling?performance.now():0;
   if(profiling)process.stdout.write(JSON.stringify({event:'project_resolution_profile',projectId:state.projectId,
-    reportingStateMs:p1-p0,bundleMs:p2-p1,candidatesMs:p3-p2,certificationMs:p4-p3,readinessMs:p5-p4,totalMs:p5-p0})+'\n');
+    reportingStateMs:p1-p0,bundleMs:p2-p1,candidatesMs:p3-p2,certificationMs:p4-p3,readinessMs:p5-p4,totalMs:p5-p0,
+    slowCandidates:candidateProfile.filter(row=>row.ms>=5).sort((a,b)=>b.ms-a.ms),
+    slowReadiness:readinessProfile.filter(row=>row.ms>=5).sort((a,b)=>b.ms-a.ms)})+'\n');
   resolvedProjectCache.set(state.projectId, {version: state.version, modules});
   return modules.get(key) ?? blocked(key, "Unknown module.", []);
 }
