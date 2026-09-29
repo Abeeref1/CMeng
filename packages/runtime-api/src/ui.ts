@@ -1275,6 +1275,33 @@ function renderMonteCarloRiskVisual(data){
   '<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Schedule risk drivers</h4><p>Activities ranked by simulated criticality index. Linked risk-register records are context only; qualitative risk ratings are not converted into duration impacts.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Activity</th><th>WBS</th><th>Criticality index</th><th>Remaining duration</th><th>Source float</th><th>Linked open risks</th></tr></thead><tbody>'+driverRows+'</tbody></table></div></div></section>'+
   '<details class="source-scope"><summary>Simulation assumptions and limitations</summary><ul>'+(p.assumptions||[]).map(x=>'<li>'+escapeHtml(x)+'</li>').join("")+'</ul><p>'+escapeHtml(p.riskRegister?.basis||"")+'</p></details></section>';
 }
+function forecastDiagnosticMessage(value){
+  const raw=String(value||"").trim();if(!raw)return "";
+  const text=raw.replace(/\s+/g," ");
+  const detail=()=>{
+    const parts=text.split(":").slice(1).join(":").trim();
+    return parts&&!/^[0-9]+(?::|$)/.test(parts)?parts:"";
+  };
+  if(/CALENDAR(?:_| )SEMANTICS(?:_| )UNRESOLVED|CALENDAR(?:_| )WORKING(?:_| )INTERVALS(?:_| )NOT(?:_| )ESTABLISHED/i.test(text))
+    return "Working calendar definitions are incomplete for affected activities. Working days, shift times or calendar exceptions must be readable before the calendar recalculation can be relied upon.";
+  if(/SCHEDULE(?:_| )GRAPH(?:_| )CYCLES/i.test(text)){
+    const ids=detail();return "The programme logic contains circular relationships"+(ids?" involving "+ids:"")+".";
+  }
+  if(/SCHEDULE(?:_| )GRAPH(?:_| )DUPLICATE(?:_| )ACTIVITY(?:_| )IDS/i.test(text)){
+    const ids=detail();return "Duplicate activity IDs were found"+(ids?" ("+ids+")":"")+". The source identities must be corrected before a complete network calculation is possible.";
+  }
+  if(/SCHEDULE(?:_| )GRAPH(?:_| )SELF(?:_| )LOOPS/i.test(text)){
+    const ids=detail();return "Self-referencing activity relationships were found"+(ids?" ("+ids+")":"")+".";
+  }
+  if(/^NOT(?:_| )ESTABLISHED\s*:/i.test(text)){
+    const message=text.split(":").slice(1).join(":").trim();return message?message.replace(/^./,x=>x.toUpperCase()):"The required calculation basis is not established.";
+  }
+  return readerText(text).replace(/\s*;\s*/g,". ").replace(/\s+/g," ").trim();
+}
+function forecastDiagnosticSummary(values){
+  const messages=[...new Set((values||[]).flatMap(value=>String(value||"").split(";")).map(forecastDiagnosticMessage).filter(Boolean))];
+  return messages.join(" ");
+}
 function renderForecastVisual(data){
   const p=projectionFor(data,"independent_forecast");
   if(!("independentForecastCompletionIso" in p))return"";
@@ -1291,7 +1318,7 @@ function renderForecastVisual(data){
     ["Required finish",planningShortDate(p.requiredFinishIso),"contract/target if established"]
   ]);
   const constraintTrace=p.sourceConstraints?.length?'<details class="notice info"><summary>'+escapeHtml(fmt(p.sourceConstraints.length))+' activities have source constraints · unconstrained calculation</summary><p>Retained source constraints have not been applied to this execution-network result. This is a calculation scope limitation requiring reconciliation, not a request for missing contractor documents.</p><div class="table-wrap"><table><thead><tr><th>Activity</th><th>Source constraint</th><th>Date</th></tr></thead><tbody>'+p.sourceConstraints.flatMap(a=>(a.constraints||[]).map(c=>'<tr><td>'+escapeHtml(a.activityId)+'</td><td>'+escapeHtml(c.type)+'</td><td>'+escapeHtml(c.dateIso||'Unresolved')+'</td></tr>')).join('')+'</tbody></table></div></details>':'';
-  const warning=constraintTrace+(review?'<div class="notice warn"><b>Independent forecast requires reconciliation before management use.</b><br>'+escapeHtml(p.managementReviewReason||"The deterministic CPM basis contains unresolved evidence.")+'</div>':'');
+  const warning=constraintTrace+(review?'<div class="notice warn"><b>Programme calendar recalculation needs review.</b><br>'+escapeHtml(forecastDiagnosticSummary([p.managementReviewReason])||"The calendar calculation basis needs review before management use.")+'</div>':'');
   const forecastDistance=[
     {label:"Contractor Programme Forecast",value:planningCalendarDaysBetween(p.dataDateIso,p.sourceForecastCompletionIso),tone:"graphite"},
     {label:"Source Productivity Forecast",value:planningCalendarDaysBetween(p.dataDateIso,p.sourceProductivityForecastCompletionIso),tone:"warning"},
@@ -1321,7 +1348,8 @@ function renderForecastVisual(data){
     ].map(c=>'<div class="position-card '+(review?"review":"")+'"><div class="position-label">'+escapeHtml(c[0])+'</div><div class="position-value">'+escapeHtml(c[1])+'</div><div class="position-sub">'+escapeHtml(c[2])+'</div></div>').join("")+'</div>'+
     (review?'<div class="notice info" style="margin-top:12px">P50/P80/P90 values are intentionally suppressed while the deterministic independent finish is under reconciliation. The forecast taxonomy remains visible without publishing unsupported dates.</div>':'');
   const forecastDrivers=(p.activities||[]).filter(r=>typeof r.finishVarianceDays==='number').sort((a,b)=>Math.abs(b.finishVarianceDays)-Math.abs(a.finishVarianceDays)).slice(0,10);
-  const diagnostics='<section class="planning-panel"><div class="planning-panel-head"><div><h4>Programme calendar recalculation evidence</h4><p>Largest calculated finish differences identify rows to investigate. They do not establish the cause of the project forecast gap.</p></div></div><div class="planning-panel-body"><div class="notice info">'+escapeHtml((p.diagnostics||[]).map(humanizeKey).join('; ')||'Review the calendar and constraint assumptions below.')+'<br>'+escapeHtml((p.assumptions||[]).map(humanizeKey).join('; '))+'</div><div class="table-wrap"><table><thead><tr><th>Activity</th><th>Submitted finish</th><th>Programme calendar recalculation</th><th>Elapsed movement d</th><th>Calendar mode</th><th>Calculation state</th></tr></thead><tbody>'+forecastDrivers.map(r=>'<tr><td>'+escapeHtml(r.activityId)+'</td><td>'+escapeHtml(planningShortDate(r.sourceFinishIso))+'</td><td>'+escapeHtml(planningShortDate(r.independentEarlyFinishIso))+'</td><td>'+escapeHtml(fmt(r.finishVarianceDays))+'</td><td>'+escapeHtml(humanizeKey(r.calendarMode))+'</td><td>'+escapeHtml(humanizeKey(r.status))+'</td></tr>').join('')+'</tbody></table></div></div></section>';
+  const diagnosticText=forecastDiagnosticSummary([...(p.diagnostics||[]),...(p.assumptions||[])])||'Review the calendar and constraint assumptions below.';
+  const diagnostics='<section class="planning-panel"><div class="planning-panel-head"><div><h4>Programme calendar recalculation evidence</h4><p>Largest calculated finish differences identify rows to investigate. They do not establish the cause of the project forecast gap.</p></div></div><div class="planning-panel-body"><div class="notice info">'+escapeHtml(diagnosticText)+'</div><div class="table-wrap"><table><thead><tr><th>Activity</th><th>Submitted finish</th><th>Programme calendar recalculation</th><th>Elapsed movement d</th><th>Calendar mode</th><th>Calculation state</th></tr></thead><tbody>'+forecastDrivers.map(r=>'<tr><td>'+escapeHtml(r.activityId)+'</td><td>'+escapeHtml(planningShortDate(r.sourceFinishIso))+'</td><td>'+escapeHtml(planningShortDate(r.independentEarlyFinishIso))+'</td><td>'+escapeHtml(fmt(r.finishVarianceDays))+'</td><td>'+escapeHtml(humanizeKey(r.calendarMode))+'</td><td>'+escapeHtml(humanizeKey(r.status))+'</td></tr>').join('')+'</tbody></table></div></div></section>';
   return '<section class="planning-view independent-forecast-view">'+renderCompletionPosition(data.completionPosition)+experienceDisclosure('Forecast measures and assumptions',kpis+warning,'Separate calculation bases')+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Completion positions and contractual target</h4><p>Contractor programme, source productivity, CMeng deterministic CPM and the contractual target remain separate.</p></div><span class="badge '+(review?"partial":"ready")+'">'+escapeHtml(review?"Reconciliation required":"Calculated")+'</span></div><div class="planning-panel-body">'+dateLadder+'</div></section><details><summary>Alternative forecast-distance charts</summary>'+visualOverview+'</details><section class="planning-panel"><div class="planning-panel-head"><div><h4>Limited duration sensitivity</h4><p>Global triangular duration-factor sensitivity (0.9 / 1.0 / 1.25), not a network risk model. Requires a reconciled deterministic basis.</p></div></div><div class="planning-panel-body">'+probPanel+'</div></section>'+diagnostics+'</section>';
 }
 function renderWindowsVisual(data){
