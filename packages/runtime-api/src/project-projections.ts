@@ -22,6 +22,7 @@ import {scheduleScopeClassification} from "./schedule-scope-classification";
 import {scheduleRiskMonteCarlo} from "./schedule-risk-monte-carlo";
 import {earnedScheduleForState,evmByWbsForState,riskRegisterForState,contractRiskForState,finalAccountForState} from "./advanced-controls";
 import {tenderReadinessForState} from './tender-readiness';
+import {managementVisualControl} from './management-visual-control';
 import {contractChallengeForState} from './contract-challenge-runtime';
 import { enforceModuleReadiness } from "./module-readiness";
 import {assessModuleIssues} from './module-issues';
@@ -7879,12 +7880,13 @@ export function managementSurfacesForProject(
     action:'Review overdue activity '+r.activityId+' ('+r.name+') and agree its recovery dates.',sourceRefs:[]}))],overdueActivityCount:Array.isArray(lookahead?.rows)?overdueRows.length:null};
   const completion=(resolvedModules.get('independent-forecast')?.data as any)?.completionPosition??null;
   const diagnosis=(resolvedModules.get('pmo-analysis')?.data as any)?.projectDiagnosis??null;
+  const visualControl=managementVisualControl(state,resolvedModules,commercial);
   const mp6=profiling?performance.now():0;
   const result = { ...surfaces,
     sourceQuality: {...sourceQualityPosition(resolvedModules,issueAssessment,state.evidenceDocuments,current?.revision.model.dataDateIso??null),registerDateReview:registerDateReview(state)},
-    masterDashboard: {projectDiagnosis:diagnosis,completionPosition:completion,delivery:deliveryDashboard(state),scheduleExceptions,deliveryExceptions,...managementReportingData(state, surfaces.masterDashboard, resolvedModules),decisions:surfaces.commandCenter.decisions,trend:(resolvedModules.get("forecast-history")?.data as any)??null,issueAssessment,operationalReporting:operationalReporting(state),sourceInterpretation:director?.sourceInterpretation},
-    commandCenter: {projectDiagnosis:diagnosis,completionPosition:completion,scheduleExceptions,deliveryExceptions,...managementReportingData(state, surfaces.commandCenter, resolvedModules),issueAssessment,operationalReporting:operationalReporting(state),interfaces:interfaceIntelligence(state),accountability:crossDomainAccountability(state),sourceInterpretation:director?.sourceInterpretation},
-    masterControlProgramme: {...managementReportingData(state, surfaces.masterControlProgramme, resolvedModules),issueAssessment,sourceInterpretation:director?.sourceInterpretation} };
+    masterDashboard: {projectDiagnosis:diagnosis,completionPosition:completion,delivery:deliveryDashboard(state),visualControl,scheduleExceptions,deliveryExceptions,...managementReportingData(state, surfaces.masterDashboard, resolvedModules),decisions:surfaces.commandCenter.decisions,trend:(resolvedModules.get("forecast-history")?.data as any)??null,issueAssessment,operationalReporting:operationalReporting(state),sourceInterpretation:director?.sourceInterpretation},
+    commandCenter: {projectDiagnosis:diagnosis,completionPosition:completion,scheduleExceptions,deliveryExceptions,visualControl,...managementReportingData(state, surfaces.commandCenter, resolvedModules),issueAssessment,operationalReporting:operationalReporting(state),interfaces:interfaceIntelligence(state),accountability:crossDomainAccountability(state),sourceInterpretation:director?.sourceInterpretation},
+    masterControlProgramme: {visualControl,...managementReportingData(state, surfaces.masterControlProgramme, resolvedModules),issueAssessment,sourceInterpretation:director?.sourceInterpretation} };
   const allPages=new Map(resolvedModules);
   allPages.set('master-dashboard',{key:'master-dashboard',status:'partial',reason:null,dependencies:[],data:result.masterDashboard});
   allPages.set('command-center',{key:'command-center',status:'partial',reason:null,dependencies:[],data:result.commandCenter});
