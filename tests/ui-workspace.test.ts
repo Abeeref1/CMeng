@@ -1048,7 +1048,7 @@ test("CMeng workspace keeps the active module primary and browser script parseab
       "Notice performance is not zero; it is not assessable.",
       "Schedule movement is not an EOT time-impact assessment.",
       "Source forecast history is available.",
-      "Independent forecast requires reconciliation before management use.",
+      "Programme calendar recalculation needs review.",
     ]
   ) {
     assert.equal(

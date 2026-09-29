@@ -5,7 +5,9 @@ import {scheduleAuthorityReview} from './schedule-authority';
 import type {ProjectRuntimeState,ModuleRuntimeResult} from './project-state-types';
 import type {DeliveryRecord} from '../../delivery-core/src/types';
 
-const field=(r:DeliveryRecord,...names:string[])=>{for(const name of names){const value=r.fields[canonicalHeader(name)];if(value!==null&&value!==undefined&&String(value).trim())return String(value).trim();}return '';};
+const cleanText=(value:unknown)=>{if(value===null||value===undefined)return '';const text=String(value).trim();return /^(?:undefined|null|nan)$/i.test(text)?'':text;};
+const field=(r:DeliveryRecord,...names:string[])=>{for(const name of names){const value=cleanText(r.fields[canonicalHeader(name)]);if(value)return value;}return '';};
+const recordLabel=(value:unknown,fallback:string)=>cleanText(value)||fallback;
 const current=(r:DeliveryRecord)=>r.state==='governed'||r.state==='verified';
 const closed=(value:string)=>/^(closed|resolved|accepted|complete|completed)$/i.test(value.trim());
 const days=(later:string|null,earlier:string|null)=>later&&earlier&&Number.isFinite(Date.parse(later))&&Number.isFinite(Date.parse(earlier))?Math.round((Date.parse(later)-Date.parse(earlier))/86400000):null;
@@ -29,10 +31,10 @@ export function interfaceIntelligence(state:ProjectRuntimeState){
     const blocked=/blocked|hold|stopped|unresolved/i.test(raw);
     const linkedKinds=(kind:string)=>r.links.recordIds.map(id=>byId.get(id)).filter(x=>x?.kind===kind).map(x=>x!.reference??x!.recordId);
     const pkgRefs=r.links.packageIds.map(id=>byId.get(id)?.reference??id),locRefs=r.links.locationIds.map(id=>byId.get(id)?.description??byId.get(id)?.reference??id);
-    rows.push({interfaceId:r.reference??r.recordId,authority:'confirmed',state:closed(raw)?'closed':overdue?'overdue':blocked?'blocked':raw?'open':'unknown',
-      givingParty:field(r,'giving party')||null,receivingParty:field(r,'receiving party')||null,package:field(r,'package')||pkgRefs.join('; ')||null,
+    rows.push({interfaceId:recordLabel(r.reference,r.recordId),authority:'confirmed',state:closed(raw)?'closed':overdue?'overdue':blocked?'blocked':raw?'open':'unknown',
+      givingParty:field(r,'giving party')||null,receivingParty:field(r,'receiving party')||null,package:field(r,'package')||pkgRefs.map(x=>cleanText(x)).filter(Boolean).join('; ')||null,
       discipline:field(r,'discipline')||null,system:field(r,'system')||null,location:field(r,'location')||locRefs.join('; ')||null,
-      requiredDeliverable:field(r,'required deliverable','description')||r.description||null,requiredDate,currentStatus:raw||null,
+      requiredDeliverable:field(r,'required deliverable','description')||cleanText(r.description)||null,requiredDate,currentStatus:raw||null,
       responsibleParty:field(r,'responsible party','owner')||null,affectedWorkfront:field(r,'affected workfront')||null,
       linkedActivity:r.links.activityIds.join('; ')||null,linkedRfi:field(r,'linked rfi')||linkedKinds('design').join('; ')||null,
       linkedSubmittal:field(r,'linked submittal')||linkedKinds('submittal').join('; ')||null,linkedRisk:field(r,'linked risk')||r.links.riskIds.join('; ')||null,
@@ -50,9 +52,9 @@ export function interfaceIntelligence(state:ProjectRuntimeState){
       const discipline=[field(a,'discipline'),field(b,'discipline')].filter(Boolean);
       const requiredDate=activity?.currentStartIso?.slice(0,10)??activity?.forecastStartIso?.slice(0,10)??null;
       rows.push({interfaceId:'candidate:'+pair,authority:'candidate',state:'candidate',givingParty:field(a,'owner')||null,receivingParty:field(b,'owner')||null,
-        package:[a.reference??a.recordId,b.reference??b.recordId].join(' ↔ '),discipline:[...new Set(discipline)].join(' / ')||null,system:null,
+        package:[recordLabel(a.reference,a.recordId),recordLabel(b.reference,b.recordId)].join(' ↔ '),discipline:[...new Set(discipline)].join(' / ')||null,system:null,
         location:[...new Set([...a.links.locationIds,...b.links.locationIds])].map(id=>byId.get(id)?.description??byId.get(id)?.reference??id).join(' / ')||null,
-        requiredDeliverable:null,requiredDate,currentStatus:'Candidate interface — confirmation required',responsibleParty:null,affectedWorkfront:workfront?.reference??workfront?.description??null,
+        requiredDeliverable:null,requiredDate,currentStatus:'Candidate interface — confirmation required',responsibleParty:null,affectedWorkfront:workfront?recordLabel(workfront.reference,cleanText(workfront.description)||workfront.recordId):null,
         linkedActivity:activityId,linkedRfi:null,linkedSubmittal:null,linkedRisk:[...new Set([...a.links.riskIds,...b.links.riskIds])].join('; ')||null,
         consequence:'Two confirmed packages converge on the same programme activity. This identifies an interface to review; it does not establish a blocker or responsibility.',
         escalation:'Confirm the giving/receiving deliverable, owner and required date before treating this interface as a management blocker.',

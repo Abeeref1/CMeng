@@ -31,8 +31,13 @@ export function recoveryAccelerationIntelligence(state:ProjectRuntimeState){
     return {amount:Number((additionalPeople*availableWorkingHours*rate).toFixed(2)),currency:resourceCurrency,rate:Number(rate.toFixed(6)),
       basis:'Activity-linked labour assignment remaining cost ÷ remaining labour-hours, applied to the additional average people over the established remaining working hours. The single explicit Project cost currency is '+resourceCurrency+'.'};
   };
+  const feasibilityChecks=feasibility?.activityChecks??[];
+  const latePackages=delivery.packageRows.filter(p=>typeof p.headroomCalendarDays==='number'&&p.headroomCalendarDays<0);
+  const unresolvedChecks=feasibilityChecks.filter(r=>r.scheduleState==='unresolved');
+  const crewEligibleChecks=feasibilityChecks.filter(check=>check.scheduleState==='exceeds'&&typeof check.requiredAveragePeople==='number'&&typeof check.submittedPeople==='number'&&check.requiredAveragePeople>check.submittedPeople&&!!check.submittedFinishIso);
+  const governedResequencingWorkfronts=delivery.records.filter(r=>r.kind==='workfront'&&['governed','verified'].includes(r.state)&&['yes','true','permitted','allowed'].includes(String(r.fields['resequencing permitted']??r.fields['parallel execution permitted']??'').trim().toLowerCase()));
   const scenarios:RecoveryScenario[]=[];
-  for(const check of feasibility?.activityChecks??[]){
+  for(const check of feasibilityChecks){
     if(check.scheduleState!=='exceeds'||typeof check.requiredAveragePeople!=='number'||typeof check.submittedPeople!=='number'||check.requiredAveragePeople<=check.submittedPeople||!check.submittedFinishIso)continue;
     const additional=Math.max(1,Math.ceil(check.requiredAveragePeople-check.submittedPeople)),recoverable=dayDiff(check.productionFinishIso,check.submittedFinishIso);
     const cost=labourCost(check.activityId,additional,check.availableWorkingHours??null);
@@ -46,7 +51,7 @@ export function recoveryAccelerationIntelligence(state:ProjectRuntimeState){
       implementationDate:dataDateIso,constraints:['The BOQ-to-activity allocation, installed quantity, productivity basis and activity calendar must remain valid.','Project-wide labour sharing and access constraints are not automatically resolved by increasing this activity crew.'],
       risks:['Additional labour may have diminishing productivity where workspace, supervision, plant or access is constrained.'],diminishingReturn:'Do not assume linear recovery beyond the calculated average requirement; productivity should be rechecked after each resource step.',authority:'scenario'});
   }
-  for(const p of delivery.packageRows.filter(p=>typeof p.headroomCalendarDays==='number'&&p.headroomCalendarDays<0)){
+  for(const p of latePackages){
     scenarios.push({scenarioId:'expedite:'+p.recordId,type:'procurement_expedite',state:'calculated',subject:p.reference??p.recordId,affectedActivities:[...p.activityIds],affectedPackages:[p.recordId],
       assumption:'Bring forecast delivery forward to the controlled programme need date without changing downstream logic.',
       currentPosition:'Forecast delivery '+(p.forecastDelivery??'unresolved')+' is '+(-p.headroomCalendarDays!)+' calendar days after programme need '+(p.programmeNeedDate??'unresolved')+'.',
@@ -57,7 +62,7 @@ export function recoveryAccelerationIntelligence(state:ProjectRuntimeState){
       risks:['Premium freight, resequenced approvals or supplier acceleration may add cost and quality/interface risk.'],diminishingReturn:'Recovery cannot exceed the current package lateness unless downstream work is also resequenced.',authority:'scenario'});
   }
   // Equal-shift sensitivity: only where quantity, productivity, crew and the source calendar are already calculable.
-  for(const check of (feasibility?.activityChecks??[]).filter(r=>r.scheduleState==='exceeds'&&typeof r.requiredLaborHours==='number'&&typeof r.submittedPeople==='number'&&r.submittedPeople>0)){
+  for(const check of feasibilityChecks.filter(r=>r.scheduleState==='exceeds'&&typeof r.requiredLaborHours==='number'&&typeof r.submittedPeople==='number'&&r.submittedPeople>0)){
     const activity=programme?.activities.find(a=>a.activityId===check.activityId),calendar=activity&&programme?resolveWorkingCalendar(activity.calendarId,programme.calendars,false)?.calendar:null;
     const start=dataDateIso&&activity?Math.max(Date.parse(dataDateIso),Date.parse(activity.forecastStartIso??activity.currentStartIso??dataDateIso)):NaN;
     if(!calendar||!Number.isFinite(start))continue;
@@ -111,18 +116,29 @@ export function recoveryAccelerationIntelligence(state:ProjectRuntimeState){
     }
   }
 
-  const unresolved=(feasibility?.activityChecks??[]).filter(r=>r.scheduleState==='unresolved');
-  for(const check of unresolved.slice(0,20)){
+  for(const check of unresolvedChecks.slice(0,20)){
     scenarios.push({scenarioId:'calendar:'+check.activityId,type:'additional_shift_or_calendar',state:'option_requires_assumption',subject:check.activityId,affectedActivities:[check.activityId],affectedPackages:[],
       assumption:'Evaluate an added shift or calendar extension only after the missing working-time/productivity/resource evidence is established.',currentPosition:check.reason||'Current quantity/resource feasibility is unresolved.',targetPosition:'A quantified recovery target is not yet established.',possibleDaysRecovered:null,effectBasis:'Not calculated; CMeng will not invent hours-per-shift or productivity uplift.',additionalResources:null,estimatedCost:null,currency:null,costBasis:'Not calculable without a quantified shift/calendar and marginal resource cost.',
       implementationDate:null,constraints:['Confirm remaining quantity, productivity, available crew and working calendar first.'],risks:['An assumed extra shift can overstate recovery if access, supervision, materials or productivity do not support it.'],diminishingReturn:'Not calculable until a quantified scenario assumption is entered.',authority:'scenario'});
   }
   scenarios.sort((a,b)=>(b.possibleDaysRecovered??-1)-(a.possibleDaysRecovered??-1)||a.scenarioId.localeCompare(b.scenarioId));
   const calculated=scenarios.filter(s=>s.state==='calculated'),max=calculated.find(s=>s.possibleDaysRecovered!==null)??null;
+  const eligibility={
+    activityFeasibilityCheckCount:feasibilityChecks.length,
+    crewAccelerationCandidateCount:crewEligibleChecks.length,
+    lateProcurementPackageCount:latePackages.length,
+    unresolvedFeasibilityCheckCount:unresolvedChecks.length,
+    governedResequencingWorkfrontCount:governedResequencingWorkfronts.length,
+  };
+  const scenarioState=calculated.length?'calculated_options_available':scenarios.length?'options_need_assumptions':'no_eligible_recovery_basis';
+  const managementPosition=max
+    ? 'The strongest currently calculable local recovery option is '+max.subject+': up to '+max.possibleDaysRecovered+' days of local '+(max.type==='procurement_expedite'?'procurement headroom':'activity production')+' could be recovered under the stated scenario assumptions. This is not an approved Project plan or guaranteed completion recovery.'
+    : scenarios.length
+      ? 'Recovery options exist, but the current Project evidence is insufficient to quantify days recovered without additional assumptions. '+unresolvedChecks.length+' feasibility check(s) need a quantified working-time, productivity or resource basis.'
+      : 'No recovery option currently meets the calculation criteria. CMeng checked '+feasibilityChecks.length+' activity feasibility position(s), '+latePackages.length+' late procurement package(s) and '+governedResequencingWorkfronts.length+' governed workfront permission(s). A zero is not presented as a recovery result; it means no eligible scenario basis was found.';
   return {schemaVersion:'1.0',projectionKey:'recovery_acceleration',projectId:state.projectId,projectVersion:state.version,dataDateIso,programmeRevisionId:programme?.sourceRevisionId??null,scenarios,
-    calculatedScenarioCount:calculated.length,assumptionRequiredCount:scenarios.length-calculated.length,
-    managementPosition:max?'The strongest currently calculable local recovery option is '+max.subject+': up to '+max.possibleDaysRecovered+' days of local '+(max.type==='procurement_expedite'?'procurement headroom':'activity production')+' could be recovered under the stated scenario assumptions. This is not an approved Project plan or guaranteed completion recovery.':
-      scenarios.length?'Recovery options exist, but the current Project evidence is insufficient to quantify days recovered without additional assumptions.':'No recovery scenario can be quantified from the current Project information.',
+    calculatedScenarioCount:calculated.length,assumptionRequiredCount:scenarios.length-calculated.length,scenarioState,eligibility,
+    managementPosition,
     basis:'Scenarios use existing BOQ/productivity/resource feasibility, source calendars, resource costs where fully supported, governed workfront permissions and package need-date calculations. They never replace the current programme, do not assert entitlement, and retain local-effect versus Project-completion effect separately.'};
 }
 export function recoveryAccelerationModule(state:ProjectRuntimeState):ModuleRuntimeResult{
