@@ -133,7 +133,7 @@ test('PMC control room preserves source claim population when current Data Date 
     managementModuleLink:(key:string,label:string)=>'<button data-module="'+key+'">'+label+'</button>',escapeHtml:(value:any)=>String(value??''),overview:{latestDataDateIso:'2026-08-31'}
   });
   assert.match(output,/350 source claims · 0 current by DD/);
-  assert.match(output,/Source claims<\/em><b>350<\/b>/);
+  assert.match(output,/Canonical source claims<\/em><b>350<\/b>/);
 });
 
 
