@@ -1,0 +1,27 @@
+name: Batch A deterministic finalization
+on:
+  push:
+    branches: [fix/abc-finalization]
+    paths: [.github/workflows/batch-a-deterministic-finalization.yml]
+permissions:
+  contents: read
+jobs:
+  batch-a:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Build exact Batch A head
+        run: npm run build
+      - name: Task 01-07 deterministic acceptance
+        run: node --test dist/tests/management-truth-foundation.test.js dist/tests/batch-a-closure.test.js dist/tests/pmc-visual-control-room.test.js
+      - name: Full regression
+        run: npm run verify
+      - name: Scale regression
+        run: npm run test:stress
