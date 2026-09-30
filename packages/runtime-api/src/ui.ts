@@ -1271,7 +1271,7 @@ function renderLookAheadVisual(data){
   return '<section class="planning-view lookahead-view">'+kpis+
     managementPanel("Forward-window interventions","Blockers are grouped by workfront/WBS before the detailed activity matrix. Owners are shown only when the linked evidence establishes them.",interventionHtml,true)+
     managementPanel("Overdue backlog","Work already overdue at the Data Date is controlled separately from the forward '+escapeHtml(fmt(p.windowDays))+'-day look-ahead.",backlogHtml)+
-    coverageHtml+interfaceHtml+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>'+escapeHtml(fmt(p.windowDays))+'-day forward execution view</h4><p>Showing the highest-priority current/upcoming activities only. Overdue backlog is not mixed into this window.</p></div></div><div class="planning-panel-body">'+timeline+'</div></section><div class="planning-primary-grid"><section class="planning-panel"><div class="planning-panel-head"><div><h4>Readiness position</h4><p>A known blocker is different from missing readiness evidence.</p></div></div><div class="planning-panel-body">'+readiness+'<div class="coverage-line"><span>Date coverage</span><b>'+escapeHtml(p.currentDateCoveragePercent===null?"—":fmt(p.currentDateCoveragePercent)+"%")+'</b></div></div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Why work is blocked</h4><p>Explicit blocker occurrences. Predecessor checks assess relationship anchors, working-calendar lag and submitted date fit; unfinished work alone is not a blocker.</p></div></div><div class="planning-panel-body">'+blockers+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Readiness matrix</h4><p>All activities in the window. Search an activity, deliverable or package. Open a cell to read its source date and reason.</p></div></div><div class="planning-panel-body"><label class="register-search">Find a readiness record <input type="search" data-register-filter placeholder="Activity, deliverable, package or reason" aria-label="Filter readiness records"></label><span class="register-search-count" aria-live="polite">'+fmt(watch.length)+' activities</span><div class="table-wrap readiness-table"><table><thead><tr><th>Activity</th><th>Start</th><th>Finish</th><th>Overall</th>'+dimensions.map(key=>'<th>'+escapeHtml(labels[key])+'</th>').join("")+'</tr></thead><tbody>'+rows+'</tbody></table></div></div></section></section>';
+    coverageHtml+interfaceHtml+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>6-week execution view · forward window</h4><p>Configured horizon: '+escapeHtml(fmt(p.windowDays))+' calendar days. Showing current/upcoming activities only; overdue backlog is controlled separately above.</p></div></div><div class="planning-panel-body">'+timeline+'</div></section><div class="planning-primary-grid"><section class="planning-panel"><div class="planning-panel-head"><div><h4>Readiness position</h4><p>A known blocker is different from missing readiness evidence.</p></div></div><div class="planning-panel-body">'+readiness+'<div class="coverage-line"><span>Date coverage</span><b>'+escapeHtml(p.currentDateCoveragePercent===null?"—":fmt(p.currentDateCoveragePercent)+"%")+'</b></div></div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Why work is blocked</h4><p>Explicit blocker occurrences. Predecessor checks assess relationship anchors, working-calendar lag and submitted date fit; unfinished work alone is not a blocker.</p></div></div><div class="planning-panel-body">'+blockers+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Readiness matrix</h4><p>All activities in the window. Search an activity, deliverable or package. Open a cell to read its source date and reason.</p></div></div><div class="planning-panel-body"><label class="register-search">Find a readiness record <input type="search" data-register-filter placeholder="Activity, deliverable, package or reason" aria-label="Filter readiness records"></label><span class="register-search-count" aria-live="polite">'+fmt(watch.length)+' activities</span><div class="table-wrap readiness-table"><table><thead><tr><th>Activity</th><th>Start</th><th>Finish</th><th>Overall</th>'+dimensions.map(key=>'<th>'+escapeHtml(labels[key])+'</th>').join("")+'</tr></thead><tbody>'+rows+'</tbody></table></div></div></section></section>';
 }
 function renderMonteCarloRiskVisual(data){
   const p=projectionFor(data,"schedule_risk_monte_carlo");
@@ -2430,6 +2430,10 @@ function renderRevisionMovementConcentration(a,fallback){
 function renderScheduleChangeVisual(data){
   const p=projectionFor(data,"schedule_change_report");
   if(!Array.isArray(p.changedActivities))return"";
+  const availability=data?.featureAvailability||p.featureAvailability||null;
+  if(availability&&availability.state!=="active"){
+    return '<section class="planning-view changes-view"><div class="notice info"><b>Programme Changes requires a controlled revision pair.</b><p>'+escapeHtml(availability.reason||"At least two controlled programme revisions are required before a from/to change comparison is meaningful.")+'</p></div><p>This page answers what changed between two revisions. Current programme status remains available in Programme Review and Activity Review.</p></section>';
+  }
   const comparisonRibbon='<div class="comparison-ribbon"><div><span>From</span><b>'+escapeHtml(planningRevisionLabel(p.fromRevisionLabel||p.fromRevisionId))+'</b></div><i>→</i><div><span>To</span><b>'+escapeHtml(planningRevisionLabel(p.toRevisionLabel||p.toRevisionId))+'</b></div></div>';
   const kpis=planningKpis([
     ["Activities compared",p.matchedActivityCount,"matched between revisions"],
@@ -2461,6 +2465,16 @@ function renderFloatPressureTrend(points){
 function renderRevisionTrendVisual(data){
   const p=projectionFor(data,"revision_trend");
   if(!Array.isArray(p.points))return"";
+  const availability=data?.featureAvailability||p.featureAvailability||null;
+  if(availability&&availability.state!=="active"){
+    const latest=p.points.at(-1)||null;
+    return '<section class="planning-view revision-view"><div class="notice info"><b>Revision History is available, but a trend is not yet established.</b><p>'+escapeHtml(availability.reason||"At least two controlled revisions are required for movement trends.")+'</p></div>'+(latest?planningKpis([
+      ["Current revision",planningRevisionLabel(latest.label)||("Revision "+latest.sequence),"chronology only"],
+      ["Data Date",planningShortDate(latest.dataDateIso),"current controlled programme"],
+      ["Schedule progress",latest.durationWeightedProgressPercent==null?"—":fmt(latest.durationWeightedProgressPercent)+"%","current revision"],
+      ["Submitted forecast",planningShortDate(latest.forecastCompletionIso),"current revision"]
+    ]):"")+'<p>Programme Changes compares two revisions. Variance Trend shows quantitative movement only after at least two comparable revisions exist.</p></section>';
+  }
   const points=p.points.map(x=>({...x,dateIso:x.dataDateIso||planningRevisionLabel(x.label)||("Revision "+x.sequence)}));
   const latest=p.points.at(-1)||{};
   const kpis=planningKpis([
@@ -2487,6 +2501,15 @@ function renderRevisionTrendVisual(data){
 function renderVarianceTrendVisual(data){
   const p=projectionFor(data,"variance_trends");
   if(!Array.isArray(p.points))return"";
+  const availability=data?.featureAvailability||p.featureAvailability||null;
+  if(availability&&availability.state!=="active"){
+    const latest=p.points.at(-1)||null;
+    return '<section class="planning-view variance-view"><div class="notice info"><b>Variance Trend is not yet a trend.</b><p>'+escapeHtml(availability.reason||"At least two comparable controlled revisions are required.")+'</p></div>'+(latest?planningKpis([
+      ["Current revision",latest.sequence??1,"current controlled programme"],
+      ["Late activities",latest.lateActivityCount??"Not established","current comparison position"],
+      ["Project finish vs baseline",latest.projectCompletionVarianceDays==null?"Unresolved":fmt(latest.projectCompletionVarianceDays)+" d","current position; not a trend"]
+    ]):"")+'<p>Use Programme Changes for a specific revision-to-revision comparison and Revision History for chronology.</p></section>';
+  }
   const labels=p.revisionLabels||{};
   const points=p.points.map(x=>({...x,dateIso:x.dataDateIso||("R"+x.sequence)}));
   const latest=p.points.at(-1)||{};
@@ -2908,7 +2931,7 @@ function renderNearCriticalVisual(data){
   const basis='<div class="notice info"><b>Float screening basis:</b> '+escapeHtml(thresholdAuthority)+'. Critical = TF ≤ '+escapeHtml(fmt(criticalThreshold))+' h; Near-Critical screening = TF > '+escapeHtml(fmt(criticalThreshold))+' h and ≤ '+escapeHtml(limitValue)+'; Float-Risk Watchlist boundary inclusion: '+(p.floatRiskWatchlistIncludesCriticalThreshold?'Included':'Excluded')+'. Working-day limits use each activity\'s own programme calendar.<p>'+escapeHtml(thresholdExplanation)+'</p></div>';
   const reconciliation='<div class="notice '+(sourceMatch==="float_risk_watchlist"||sourceMatch==="strict_near_critical"?"good":"warn")+'"><b>Submitted label versus the float rules:</b> '+escapeHtml(reconciliationText)+'</div>';
   return '<section class="planning-view nearcritical-view">'+coverageHeadline+managementControl+
-    experienceDisclosure("Float analytics & classification detail",kpis+basis+exceptionsPanel+reconciliation+floatConcentrationWarning+distributionSummary(p.floatDistribution,'hours','All execution activity float values'),"Thresholds, known exceptions, source reconciliation and distribution")+
+    '<details class="source-scope"><summary>Float analytics & classification detail</summary><div class="planning-panel-body">'+kpis+basis+exceptionsPanel+reconciliation+floatConcentrationWarning+distributionSummary(p.floatDistribution,'hours','All execution activity float values')+'</div></details>'+
     '<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Float-risk distribution</h4><p>Submitted total float is classified against the disclosed screening basis using each activity calendar. A CMeng policy threshold is never presented as a client-approved project rule.</p></div></div><div class="planning-panel-body">'+histogram+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Where float-risk work finishes</h4><p>Current finish-month concentration for the full float-risk watchlist.</p></div></div><div class="planning-panel-body">'+finishPeriods+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Float-Risk Watchlist</h4><p>This band runs from the disclosed critical boundary to the near-critical limit. Critical and negative-float exceptions are listed above. Open activities appear before completed history. '+(p.floatRiskWatchlistCount===null?'The full screening count is unresolved for '+escapeHtml(fmt(unresolved))+' activities because float values or working-calendar inputs are missing. Any listed rows are the confirmed subset.':'Showing '+escapeHtml(fmt(watch.length))+' of '+escapeHtml(fmt(riskRows.length))+' watchlist activities; the complete population is available through Download Excel / Download data.')+'</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Activity</th><th>Risk class</th><th>Status</th><th>Total float h</th><th>Threshold h</th><th>Calendar</th><th>Controlled baseline finish</th><th>Current finish</th><th>Vs controlled baseline d</th><th>Progress</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></section></section>';
 }
 function renderManhourVisual(data){
