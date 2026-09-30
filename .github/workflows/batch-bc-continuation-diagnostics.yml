@@ -1,0 +1,25 @@
+name: Batch B-C continuation diagnostics (branch only)
+on:
+  push:
+    branches: [fix/batch-c-overdue-start-acceptance]
+    paths: [.github/workflows/batch-bc-continuation-diagnostics.yml]
+permissions:
+  contents: read
+jobs:
+  source-snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Capture tracked source only; no credentials or production data
+        run: |
+          mkdir -p continuation-evidence
+          git rev-parse HEAD > continuation-evidence/source-commit.txt
+          git archive --format=tar.gz HEAD > continuation-evidence/source.tar.gz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: batch-bc-continuation-source-${{ github.run_id }}
+          path: continuation-evidence/
+          retention-days: 7
