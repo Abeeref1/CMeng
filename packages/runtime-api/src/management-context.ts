@@ -176,6 +176,7 @@ export function projectManagementContext(
   const revision=moduleData('revision-trend');
   const progress=moduleData('progress-report');
   const progressBreakdown=moduleData('progress-breakdown');
+  const lookAhead=moduleData('lookahead-schedule');
   const quantities=moduleData('quantity-scurve');
   const delay=moduleData('delay-claims');
   const notices=moduleData('notices-claims');
@@ -191,6 +192,32 @@ export function projectManagementContext(
       totalFloatHours:row.totalFloatHours??null,finishVarianceDays:row.finishVarianceDays??null,criticality:row.criticality??null,
     }));
   const milestoneRows=Array.isArray(milestones.rows)?milestones.rows:[];
+  const interventions=Array.isArray(lookAhead.managementInterventions)?lookAhead.managementInterventions:[];
+  const managedProgrammeStages=programmeStages.map(stage=>{
+    const stageActivities=new Set(stage.activityIds??[]);
+    const stageWbs=new Set(stage.wbsIds??[]);
+    const relevant=interventions.filter((row:any)=>
+      (row.wbsId&&stageWbs.has(row.wbsId))||
+      (Array.isArray(row.activityIds)&&row.activityIds.some((id:string)=>stageActivities.has(id)))
+    );
+    const blockedActivities=[...new Set(relevant.flatMap((row:any)=>Array.isArray(row.activityIds)?row.activityIds:[]))];
+    const owners=[...new Set(relevant.map((row:any)=>row.owner).filter((value:any)=>typeof value==='string'&&value.trim()))];
+    const actions=[...new Set(relevant.map((row:any)=>row.action).filter((value:any)=>typeof value==='string'&&value.trim()))];
+    const requiredDates=relevant.map((row:any)=>row.requiredByIso).filter((value:any):value is string=>typeof value==='string'&&value.length>0).sort();
+    return {
+      ...stage,
+      readinessBlockerCount:blockedActivities.length,
+      readinessBlockerTypes:[...new Set(relevant.map((row:any)=>row.blockerType).filter(Boolean))],
+      readinessRequiredByIso:requiredDates[0]??null,
+      owners,
+      actions,
+      longLeadExposure:stage.stage==='procurement'?{
+        scheduleCandidateCount:scheduleLongLead.length,
+        boqCandidateCount:boq.longLead.length,
+        readableProcurementSourceRows:source('procurement')?.readableRowCount??null,
+      }:null,
+    };
+  });
   return {
     projectId: state.projectId,
     dataDateIso: schedule?.dataDateIso ?? null,
@@ -199,7 +226,7 @@ export function projectManagementContext(
       activityCount: schedule.activities.length,
       relationshipCount: schedule.relationships.length,
       longLeadEvidence: scheduleLongLead,
-      programmeStages,
+      programmeStages: managedProgrammeStages,
     } : null,
     boq: {
       itemCount: boq.itemCount,
