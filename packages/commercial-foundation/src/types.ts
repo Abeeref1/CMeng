@@ -126,12 +126,7 @@ export interface FoundationMoneyInput {
   currency: string | null;
   taxBasis: "exclusive" | "inclusive" | "unknown";
   amountBasis: string;
-  state:
-    | "official"
-    | "candidate"
-    | "missing"
-    | "partial"
-    | "conflicted";
+  state: import("../../truth-kernel/src").FactState;
   asOf: string | null;
   sourceRefs: string[];
 }
