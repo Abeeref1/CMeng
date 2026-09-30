@@ -1121,14 +1121,26 @@ function buildBundle(
                           .currentFinishIso
                       )
                     : null;
+                const movementDate =
+                  row.status === "completed"
+                    ? row.actualDateIso ?? row.currentDateIso
+                    : row.forecastDateIso ?? row.currentDateIso;
                 return refreshMilestoneManagementControl({
                   ...row,
                   baselineDateIso:
                     baselineDate,
+                  movementBasis:
+                    baselineDate === null || movementDate === null
+                      ? "not_established"
+                      : row.status === "completed" && row.actualDateIso
+                        ? "actual_vs_baseline"
+                        : row.forecastDateIso
+                          ? "forecast_vs_baseline"
+                          : "current_vs_baseline",
                   varianceDays:
                     varianceDays(
                       baselineDate,
-                      row.currentDateIso,
+                      movementDate,
                     ),
                 });
               },
@@ -4112,13 +4124,25 @@ function buildPlanningModuleFast(
                             .currentFinishIso
                         )
                       : null;
-                  return refreshMilestoneManagementControl({
+                  const movementDate =
+                  row.status === "completed"
+                    ? row.actualDateIso ?? row.currentDateIso
+                    : row.forecastDateIso ?? row.currentDateIso;
+                return refreshMilestoneManagementControl({
                     ...row,
                     baselineDateIso,
+                    movementBasis:
+                      baselineDateIso === null || movementDate === null
+                        ? "not_established"
+                        : row.status === "completed" && row.actualDateIso
+                          ? "actual_vs_baseline"
+                          : row.forecastDateIso
+                            ? "forecast_vs_baseline"
+                            : "current_vs_baseline",
                     varianceDays:
                       daysBetween(
                         baselineDateIso,
-                        row.currentDateIso,
+                        movementDate,
                       ),
                   });
                 },
@@ -8151,76 +8175,45 @@ export function overviewForProject(
   const scheduleEstablished =
     programmeSchedules.length > 0;
 
-  // The overview is navigation/status metadata, not a request to recalculate
-  // every specialist and management projection. Reuse the latest rerun receipt
-  // when present. If a page has not yet been calculated for this project
-  // version, report a qualified partial state and calculate it when the user
-  // opens that page. This keeps the overview truthful and avoids making project
-  // opening pay the full analytical cost twice.
+  // Resolve specialists first. One call populates the project-scoped certified
+  // module cache; all remaining specialist lookups are then O(1). Management
+  // surfaces consume that same cache, avoiding the previous cold-start path
+  // where management triggered a second full specialist resolution.
   const overviewModuleStates =
     certifiedAnalyticalModules.map(
       (module) => {
-        const receiptStatus =
-          receiptStates.get(
+        const resolved =
+          resolveProjectModule(
+            state,
             module.key,
           );
-        const status:
-          | "ready"
-          | "partial"
-          | "blocked" =
-          receiptStatus === "ready"
-            ? "ready"
-            : receiptStatus ===
-                "blocked"
-              ? "blocked"
-              : "partial";
         return {
           key: module.key,
-          status,
+          issueAssessment:
+            resolved.issueAssessment,
+          status:
+            resolved.status,
           reason:
-            receiptStatus
-              ? null
-              : scheduleEstablished
-                ? "Detailed position is calculated when this page is opened."
-                : "A current programme is required before this page can establish its position.",
+            resolved.reason,
         };
       },
-    );
-
-  const cachedManagement =
-    managementProjectionCache.get(
-      projectId,
     );
   const overviewManagementStates =
     managementModuleKeys.map(
       (key) => {
-        if (
-          cachedManagement?.version ===
-          state.version
-        ) {
-          const resolved =
-            moduleForProject(
-              projectId,
-              key,
-            );
-          return {
+        const resolved =
+          moduleForProject(
+            projectId,
             key,
-            status:
-              resolved.status,
-            reason:
-              resolved.reason,
-            issueAssessment:
-              resolved.issueAssessment,
-          };
-        }
+          );
         return {
           key,
           status:
-            "partial" as const,
+            resolved.status,
           reason:
-            scheduleEstablished
-              ? "Detailed management position is calculated when this page is opened."
-              : "A current programme is required before the management position can be complete.",
+            resolved.reason,
+          issueAssessment:
+            resolved.issueAssessment,
         };
       },
     );
