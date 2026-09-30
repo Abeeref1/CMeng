@@ -9,6 +9,7 @@ import {
   managementAction,
   managementFactView,
   populationCanAssertZero,
+  populationAuthority,
   type ManagementFactView,
   type PopulationAuthority,
 } from '../packages/truth-kernel/src';
@@ -24,6 +25,12 @@ test('population zero is only authoritative for an established population',()=>{
     assert.equal(populationCanAssertZero(pop(state)),false,state);
   assert.equal(establishedPopulationCount(0,pop('established')),0);
   assert.equal(establishedPopulationCount(0,pop('source_only')),null);
+});
+
+test('shared population authority keeps source, applicable, current, exclusions and bounded coverage together',()=>{
+  const p=populationAuthority({state:'partial',sourceCount:12,applicableCount:10,currentCount:7,excludedCount:2,coveragePercent:116,basis:'controlled test'});
+  assert.deepEqual(p,{state:'partial',sourceCount:12,applicableCount:10,currentCount:7,excludedCount:2,coveragePercent:100,basis:'controlled test'});
+  assert.equal(populationAuthority({state:'missing',sourceCount:-1,basis:'missing'}).sourceCount,null);
 });
 
 test('best available fact prefers usable higher-authority evidence without erasing qualified evidence',()=>{
@@ -68,6 +75,8 @@ test('management actions deduplicate scope, milestones and source references',()
   assert.deepEqual(action.affectedScope,['Zone 1']);
   assert.deepEqual(action.affectedMilestones,['M1']);
   assert.deepEqual(action.sourceRefs,['R1']);
+  assert.equal(action.confidence,null);
+  assert.equal(managementAction({...action,confidence:'high'}).confidence,'high');
 });
 
 test('diagnostic labels expose management language rather than raw codes',()=>{
