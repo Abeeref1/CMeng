@@ -1,12 +1,4 @@
-export type ResourceBusinessClass =
-  | "labor"
-  | "equipment"
-  | "material"
-  | "cost"
-  | "quantity"
-  | "weight_progress"
-  | "other";
-
+import type {ResourceBusinessClass} from '../../schedule-resource-core/src';
 export type ResourceUtilizationState =
   | "capacity_based"
   | "demand_only"
