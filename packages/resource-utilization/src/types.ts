@@ -1,7 +1,17 @@
+export type ResourceBusinessClass =
+  | "labor"
+  | "equipment"
+  | "material"
+  | "cost"
+  | "quantity"
+  | "weight_progress"
+  | "other";
+
 export type ResourceUtilizationState =
   | "capacity_based"
   | "demand_only"
-  | "no_assignments";
+  | "no_assignments"
+  | "not_capacity_resource";
 
 export interface ResourceUtilizationRow {
   resourceId: string;
@@ -11,6 +21,8 @@ export interface ResourceUtilizationRow {
     | "nonlabor"
     | "material"
     | "unknown";
+  businessClass: ResourceBusinessClass;
+  capacityEligible: boolean;
   assignmentCount: number;
 
   plannedUnitsKnown: number;
@@ -60,6 +72,8 @@ export interface ResourceUtilizationProjection {
   capacityBasedResourceCount: number;
   capacityCoveragePercent: number | null;
   overloadedResourceCount: number;
+  capacityEligibleResourceCount: number;
+  businessClassCounts: Record<ResourceBusinessClass, number>;
   rows: ResourceUtilizationRow[];
   diagnostics: string[];
 }
