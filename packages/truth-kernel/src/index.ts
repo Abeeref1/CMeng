@@ -236,6 +236,44 @@ export const MANAGEMENT_DIAGNOSTIC_LABELS: Readonly<Record<string, string>> = Ob
     'This activity could not be included in the programme calendar recalculation.',
   INDEPENDENT_CPM_NOT_CALCULATED_IN_THIS_FAST_VIEW:
     'The independent CPM calculation is not available in this fast view.',
+  CPM_ACTIVITY_CALENDAR_UNRESOLVED:
+    'An activity cannot be recalculated because its source calendar is unresolved.',
+  CPM_DURATION_RAW_UNSUPPORTED:
+    'A source duration value cannot be used by the CPM calculation.',
+  CPM_DAY_DURATION_REQUIRES_UNIFORM_CALENDAR_DAY_HOURS:
+    'A day-based duration cannot be converted because the source calendar does not establish uniform working hours per day.',
+  CPM_WEEK_DURATION_REQUIRES_CALENDAR_WEEK_HOURS:
+    'A week-based duration cannot be converted because the source calendar does not establish working hours per week.',
+  CPM_DURATION_UNIT_UNKNOWN:
+    'A source activity duration unit is unknown.',
+  CPM_REMAINING_DURATION_UNRESOLVED:
+    'An activity remaining duration cannot be established.',
+  CPM_RELATIONSHIP_TYPE_UNRESOLVED:
+    'A schedule relationship type cannot be established.',
+  CPM_RELATIONSHIP_LAG_UNRESOLVED:
+    'A schedule relationship lag cannot be established.',
+  CPM_EXTERNAL_RELATIONSHIP_UNRESOLVED:
+    'An external schedule relationship cannot be resolved inside the current programme.',
+  CPM_RELATIONSHIP_UNRESOLVED:
+    'A schedule relationship cannot be resolved for CPM calculation.',
+  CPM_PROJECT_START_UNRESOLVED:
+    'The CPM project start cannot be established.',
+  CPM_NETWORK_NOT_CALCULABLE:
+    'The schedule network cannot be recalculated from the current source inputs.',
+  CPM_RELATIONSHIP_ENDPOINT_UNRESOLVED:
+    'A schedule relationship endpoint cannot be resolved.',
+  CPM_COMPLETED_ACTIVITY_FINISH_UNRESOLVED:
+    'A completed activity does not have a usable actual finish for CPM calculation.',
+  CPM_PREDECESSOR_TIMING_UNRESOLVED:
+    'A predecessor timing position cannot be resolved.',
+  CPM_UNKNOWN_ACTIVITY_STATUS_TREATED_AS_INCOMPLETE:
+    'An unknown activity status is retained as incomplete for CPM calculation.',
+  CPM_ACTIVITY_UNRESOLVED:
+    'An activity cannot be fully recalculated.',
+  CPM_COMPLETED_ACTIVITY_FLOAT_NOT_RECALCULATED:
+    'Float is not recalculated for a completed activity.',
+  CPM_LATE_PASS_UNRESOLVED:
+    'The CPM late-pass calculation cannot be completed for an activity.',
 });
 
 export function diagnosticBusinessLabel(code: string): string {
