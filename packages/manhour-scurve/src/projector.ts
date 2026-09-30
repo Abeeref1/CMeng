@@ -2,11 +2,12 @@ import { parseScheduleTime } from "../../schedule-analysis-core/src";
 import type {
   CanonicalScheduleModel,
 } from "../../schedule-analysis-core/src";
-import type {
-  CanonicalResource,
-  CanonicalResourceAssignment,
-  CanonicalResourceModel,
-  CanonicalResourcePeriodActual,
+import {
+  resourceLaborEligible,
+  type CanonicalResource,
+  type CanonicalResourceAssignment,
+  type CanonicalResourceModel,
+  type CanonicalResourcePeriodActual,
 } from "../../schedule-resource-core/src";
 import type {
   ManhourScurvePoint,
@@ -191,7 +192,7 @@ function laborResourceIds(
     resources
       .filter(
         (resource) =>
-          resource.resourceType === "labor",
+          resourceLaborEligible(resource),
       )
       .map(
         (resource) =>
