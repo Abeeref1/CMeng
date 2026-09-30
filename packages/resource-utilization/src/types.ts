@@ -43,6 +43,11 @@ export interface ResourceUtilizationRow {
   plannedUtilizationPercent: number | null;
   remainingUtilizationPercent: number | null;
   overloaded: boolean | null;
+  remainingCapacityGapUnitsPerHour: number | null;
+  peakRemainingAtIso: string | null;
+  affectedActivityIds: string[];
+  affectedWbsIds: string[];
+  managementAction: string | null;
   state: ResourceUtilizationState;
   assumptions: string[];
 }
