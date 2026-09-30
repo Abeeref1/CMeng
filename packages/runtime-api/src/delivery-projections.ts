@@ -1,4 +1,4 @@
-import {canonicalHeader,registerDate,numberValue,sumKnown} from '../../truth-kernel/src';
+import {canonicalHeader,registerDate,numberValue,sumKnown,establishedPopulationCount,type PopulationAuthority} from '../../truth-kernel/src';
 import {deliveryHsePosition,deliveryEvidenceMetrics} from './delivery-intelligence';
 import {deliveryNumericIssues} from './delivery-validation';
 import {deliveryAuthorityCatalog} from './delivery-authorities';
@@ -30,6 +30,20 @@ const pct=(n:number|null,d:number|null)=>n===null||d===null||d<=0?null:round(n/d
 const difference=(a:number|null,b:number|null)=>a===null||b===null?null:round(a-b);
 const days=(later:string|null,earlier:string|null)=>later&&earlier?round((Date.parse(later.slice(0,10))-Date.parse(earlier.slice(0,10)))/86400000):null;
 const isOnDate=(d:string|null,cutoff:string|null):boolean=>!!d&&!!cutoff&&d<=cutoff;
+const deliveryPopulationAuthority=(population:any,sourceCount:number|null,currentCount:number|null):PopulationAuthority=>{
+ const established=population?.state==='established';
+ const known=typeof population?.knownRecordCount==='number'?population.knownRecordCount:null;
+ const source=typeof sourceCount==='number'?sourceCount:null;
+ return {
+  state:established?'established':known!==null&&known>0?'partial':'missing',
+  sourceCount:source,
+  applicableCount:established&&typeof population?.denominator==='number'?population.denominator:known,
+  currentCount:established?currentCount:null,
+  excludedCount:typeof population?.pendingRecordCount==='number'?population.pendingRecordCount:null,
+  coveragePercent:source!==null&&source>0&&known!==null?round(known/source*100):established?100:null,
+  basis:String(population?.basis??'Applicable population authority is not established.'),
+ };
+};
 const cache=new WeakMap<ProjectRuntimeState,{version:number;value:ReturnType<typeof buildDelivery>}>();
 
 function buildDelivery(state:ProjectRuntimeState){
@@ -320,6 +334,7 @@ export function deliveryModule(state:ProjectRuntimeState,key:string):ModuleRunti
  const records=p.records.filter(r=>riskPage?r.links.riskIds.length>0:r.kind===kind);
  const population=riskPage?{kind:'risk',scopeId:null,state:risk.complete?'established':'not_established',denominator:risk.complete?risk.currentRecordCount:null,knownRecordCount:risk.currentRecordCount,pendingRecordCount:risk.undatedRecordCount+ risk.unknownStatusCount,recordIds:risk.current.map(r=>r.riskId),basis:'Existing project risk register, using its dated status and source completeness checks. Delivery record review does not approve the risk register.',confirmedAt:null}:p.populations[kind]!;
  const summary=riskPage?{currentCount:risk.complete?risk.currentRecordCount:null,openCount:risk.complete?risk.current.filter(r=>r.status==='open').length:null,overdueCount:null,passRatePercent:null,unknownOutcomeCount:risk.unknownStatusCount,basis:population.basis}:p.summaries[kind]!;
+ const populationAuthority=deliveryPopulationAuthority(population,records.length,summary.currentCount);
  const confirmedInterfaceIssues=interfaces.rows.filter(r=>r.authority==='confirmed'&&r.state!=='closed');
  const interfaceRiskRows=confirmedInterfaceIssues.map(r=>({recordId:'interface-risk:'+r.interfaceId,riskId:'IF-'+r.interfaceId,reference:r.interfaceId,description:r.consequence||('Open interface '+r.interfaceId),status:'Candidate',rating:null,score:null,categories:['interface'],owner:r.responsibleParty??r.givingParty??r.receivingParty,authority:'candidate',basis:'Professional delivery-risk candidate from confirmed Interface records; not a formal Project Risk Register entry.',linkedActivity:r.linkedActivity,relatedPackages:r.packageIds}));
  const baseGovernedRows:any[]=key==='delivery-control'||key==='long-lead'||key==='procurement-packages'?p.packageRows:key==='material-tracking'?p.materialRows:key.includes('readiness')&&key!=='handover-readiness'?p.readiness.filter(r=>r.kind===(key==='construction-readiness'?'workfront':'package')):key==='construction-discipline'||key==='construction-locations'?p.workfrontMatrix.filter(r=>r.dimension===(key==='construction-discipline'?'discipline':'location')):key==='delivery-suppliers'?p.supplierRows:key==='delivery-risks'?[...p.riskRows,...interfaceRiskRows]:key==='delivery-commissioning'?p.commissioningRows:key==='delivery-permits'?p.permitRows:key==='delivery-spares'?p.spareRows:key==='delivery-assets'?p.assetRows:key==='delivery-weather'?p.weatherRows:p.registerRows.filter(r=>r.kind===kind);
@@ -377,12 +392,13 @@ export function deliveryModule(state:ProjectRuntimeState,key:string):ModuleRunti
  const usable=hasRows||sourceEvidenceAvailable;
  let managementPosition=useBoqCandidates?'CMeng has identified '+rows.length+' useful '+title.toLowerCase()+' candidate'+(rows.length===1?'':'s')+' from the BOQ. Scope, quantities, values and professional classifications are shown now; actual supplier/status dates remain separate until supplied.'+(relevantSourceRecords?' '+relevantSourceRecords+' supplied specialist record'+(relevantSourceRecords===1?' is':'s are')+' also awaiting review and may improve this position.':''):!hasRows&&sourceEvidenceAvailable?(sourceAvailability?.readableRowCount!==null?sourceAvailability!.readableRowCount+' source row(s) are available from '+sourceAvailability!.documentCount+' '+sourceAvailability!.label.toLowerCase()+' document(s). The governed Delivery population and dependent dates/mappings are not yet established; the source evidence remains visible.':sourceAvailability!.documentCount+' relevant source document(s) are available. The governed Delivery population is not yet established, so CMeng shows the supplied evidence without inventing lifecycle status or schedule impact.'):!hasRows?unread?'Source files are retained but their records could not yet be read reliably. Other Project information remains available.':'No current '+title.toLowerCase()+' information is available from the Project records.':!p.dataDateIso?'The records are available, but a reporting programme would add the dated Delivery position.':pending.length?pending.length+' supplied records still need confirmation; confirmed records remain usable.':findings.length?findings.length+' delivery exceptions require attention.':'Current confirmed records are available against the programme Data Date.';
  const metric=(label:string,value:number|null,unit='records',basis='Governed records at the programme Data Date')=>({label,value,unit,state:value===null?'unavailable':'calculated',basis});
+ const establishedCurrentCount=establishedPopulationCount(summary.currentCount,populationAuthority),establishedOpenCount=establishedPopulationCount(summary.openCount,populationAuthority),establishedOverdueCount=establishedPopulationCount(summary.overdueCount,populationAuthority);
  let metrics=!hasRows&&sourceEvidenceAvailable?[
    metric('Source documents',sourceAvailability!.documentCount,'documents','Relevant supplied evidence; document presence does not establish a complete control population.'),
    metric('Readable source rows',sourceAvailability!.readableRowCount,'rows',sourceAvailability!.basis),
    metric('Governed current records',null,'records','Not established until the applicable source population and mapping are confirmed.'),
    metric('Overdue / late position',null,'records','Requires dated governed records; source availability alone does not establish lateness.')
- ]:[metric('Current records',summary.currentCount),metric('Open records',summary.openCount),metric('Overdue records',summary.overdueCount),metric('Awaiting review',hasRows?pending.length:null,'records','Count of supplied records awaiting review; this is not an activity or scope total.')];
+ ]:[metric('Current records',establishedCurrentCount),metric('Open records',establishedOpenCount),metric('Overdue records',establishedOverdueCount),metric('Known reviewed records',populationAuthority.state==='established'?null:population.knownRecordCount,'records','Known subset only; the complete applicable population is not established.'),metric('Awaiting review',hasRows?pending.length:null,'records','Count of supplied records awaiting review; this is not an activity or scope total.')];
  if(['delivery-control','procurement-packages','long-lead','material-tracking','procurement-scurves'].includes(key))metrics=!hasRows&&sourceEvidenceAvailable?[
    metric('Source documents',sourceAvailability!.documentCount,'documents','Relevant supplied procurement evidence; source presence does not establish a complete lifecycle population.'),
    metric('Readable source rows',sourceAvailability!.readableRowCount,'rows',sourceAvailability!.basis),
@@ -429,7 +445,7 @@ export function deliveryModule(state:ProjectRuntimeState,key:string):ModuleRunti
  extras.relationshipAuthorities=Object.fromEntries(Object.entries(p.relationshipAuthorities).map(([kind,rows])=>[kind,rows.map(r=>({id:r.id,label:r.label,authority:kind==='risk'?'Existing project Risk authority':kind==='variation'?'Existing Commercial authority':'Existing Delay / Notices / Claims authority'}))]));
  return {key,status:!usable?'blocked':ready?'ready':'partial',reason:managementPosition,dependencies:useBoqCandidates?['readable BOQ scope']:['controlled programme','applicable Delivery records'],scheduleAuthorityReview:p.scheduleAuthorityReview,
   data:{projectionKey:'delivery',deliveryPage:key,projectId:state.projectId,projectVersion:state.version,dataDateIso:p.dataDateIso,programmeLabel:p.programmeLabel,programmeRevisionId:p.programmeRevisionId,title,kind,managementPosition,boqDerivedCandidate:useBoqCandidates,candidateBasis:useBoqCandidates?boqScope.basis:null,rows:rows.map(r=>({...r,projectId:state.projectId})),metrics,findings,
-   reviewRecords:records.map(r=>({recordId:r.recordId,reference:r.reference,description:r.description,kind:r.kind,state:r.state,revision:r.revision,diagnostics:r.diagnostics})),population,summary,documents:sourceDocs,sourceAvailability,sourceReadingDiagnostics:p.diagnostics.filter(d=>sourceDocs.some(doc=>d.includes(doc.documentId))),authorityScope:p.authorityScope,authorityLinks:{programme:'/schedule/modules/schedule-analytics',progress:'/schedule/modules/progress-report',installed:'/schedule/modules/quantity-scurve',commercial:'/commercial/modules/commercial-overview',claims:'/schedule/modules/delay-claims'},...extras}};
+   reviewRecords:records.map(r=>({recordId:r.recordId,reference:r.reference,description:r.description,kind:r.kind,state:r.state,revision:r.revision,diagnostics:r.diagnostics})),population,populationAuthority,summary,documents:sourceDocs,sourceAvailability,sourceReadingDiagnostics:p.diagnostics.filter(d=>sourceDocs.some(doc=>d.includes(doc.documentId))),authorityScope:p.authorityScope,authorityLinks:{programme:'/schedule/modules/schedule-analytics',progress:'/schedule/modules/progress-report',installed:'/schedule/modules/quantity-scurve',commercial:'/commercial/modules/commercial-overview',claims:'/schedule/modules/delay-claims'},...extras}};
 }
 export function deliveryDashboard(state:ProjectRuntimeState){
  const inventory=managementSourceInventory(state);
@@ -444,7 +460,10 @@ export function deliveryDashboard(state:ProjectRuntimeState){
    exceptions:[],exceptionCount:0,
    basis:'Available source evidence and BOQ-derived candidates are shown without asserting governed Delivery lifecycle status, lateness or schedule impact.'};
  }
- const p=deliveryPosition(state),packagePopulation=p.populations.package;return {projectId:state.projectId,dataDateIso:p.dataDateIso,programmeRevisionId:p.programmeRevisionId,mode:'governed_or_reviewed',
+ const p=deliveryPosition(state),packagePopulation=p.populations.package;
+ const packageSourceCount=p.records.filter(r=>r.kind==='package'&&!['superseded','scenario'].includes(r.state)).length;
+ const packageAuthority=deliveryPopulationAuthority(packagePopulation,packageSourceCount,packagePopulation?.denominator??null);
+ return {projectId:state.projectId,dataDateIso:p.dataDateIso,programmeRevisionId:p.programmeRevisionId,mode:'governed_or_reviewed',
   boqMappingPercent:p.boqIntelligence.procurementMappingPercent,handoverReadinessPercent:p.handover.readinessPercent,
   packagePopulationState:packagePopulation?.state??'not_established',
   confirmedPackageCount:packagePopulation?.denominator??null,knownPackageRecordCount:packagePopulation?.knownRecordCount??null,
