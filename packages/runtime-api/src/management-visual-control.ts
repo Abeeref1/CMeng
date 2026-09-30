@@ -278,6 +278,10 @@ export function managementVisualControl(
     sourceRowsFact('risk','risk-source-rows','Readable formal risk source rows'),
     numericFact('schedule-float-risk','Schedule float-risk activities',activity.counts?.floatRisk?.value??null,'Programme float exposure; contextual risk intelligence, not a formal risk register.','calculated','candidate'),
   ];
+  const qualityCandidates:Array<ManagementFactView<number>|null>=[
+    sourceRowsFact('quality','quality-source-rows','Readable quality/NCR/inspection source rows'),
+    sourceRowsFact('hse','hse-source-rows','Readable HSE/safety source rows'),
+  ];
   const resourceCandidates:Array<ManagementFactView<number>|null>=[
     numericFact('assigned-resources','Assigned schedule resources',resource.assignedResourceCount??null,'Resources assigned to current programme activities.','source','partial'),
     numericFact('resource-master','Schedule resource master',resource.resourceCount??resource.p6ResourceMasterCount??null,'Resource master evidence from the programme.','source','partial'),
@@ -289,6 +293,8 @@ export function managementVisualControl(
     change:pick(changeCandidates),
     claims:pick(claimsCandidates),
     design:pick(designCandidates),
+    procurement:bestLongLead??null,
+    quality:pick(qualityCandidates),
     quantities:pick(quantityCandidates),
     risk:pick(riskCandidates),
     resources:pick(resourceCandidates),
