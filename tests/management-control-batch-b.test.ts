@@ -47,6 +47,10 @@ test('Master Dashboard uses schedule WBS long-lead evidence instead of an unesta
   assert.ok(output.indexOf('Procurement / Long Lead')<output.indexOf('Control gaps'),'available long-lead evidence must precede missing domains');
 });
 
+test('Task 11 Command Center keeps issue consequence scope owner action due and escalation as separate primary columns',()=>{
+  assert.match(script,/<th>Priority<\/th><th>Issue<\/th><th>Consequence<\/th><th>Scope<\/th><th>Owner<\/th><th>Action<\/th><th>Due<\/th><th>Escalation<\/th>/);
+});
+
 test('management UI is action-first and MCP execution-first',()=>{
   assert.match(script,/Actions requiring management attention/);
   assert.match(script,/Issue & consequence/);
