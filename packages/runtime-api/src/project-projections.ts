@@ -489,6 +489,48 @@ function actualHistory(
     );
 }
 
+function previousComparableFloatBasis(
+  ordered: ReturnType<typeof analyticalHistory>,
+  current: NonNullable<ReturnType<typeof projectControlSchedule>>,
+) {
+  const previous = ordered
+    .filter(
+      (item) =>
+        !isScenarioRevision(item) &&
+        item.revision.revisionId !== current.revision.revisionId &&
+        item.revision.sequence < current.revision.sequence,
+    )
+    .at(-1) ?? null;
+  if (!previous) return null;
+  const sourceById = new Map(
+    previous.revision.model.activities.map(
+      (activity) => [
+        activity.activityId,
+        activity,
+      ],
+    ),
+  );
+  const correspondence =
+    resolveRevisionActivityCorrespondence(
+      previous.revision.model.activities,
+      current.revision.model.activities,
+    );
+  const totalFloatByActivity =
+    new Map<string, number | null>();
+  for (const match of correspondence.matches) {
+    totalFloatByActivity.set(
+      match.toActivityId,
+      sourceById.get(match.fromActivityId)
+        ?.totalFloatHours ?? null,
+    );
+  }
+  return {
+    revisionId:
+      previous.revision.revisionId,
+    totalFloatByActivity,
+  };
+}
+
 function buildBundle(
   state: ProjectRuntimeState,
 ): ProjectionBundle {
@@ -568,6 +610,11 @@ function buildBundle(
       )
       .at(-1) ??
     null;
+  const previousFloat =
+    previousComparableFloatBasis(
+      ordered,
+      current,
+    );
   const baselineSourceById = new Map((controlledBaseline?.revision.model.activities ?? []).map(activity => [activity.activityId, activity]));
   const baselineCorrespondence = resolveRevisionActivityCorrespondence(controlledBaseline?.revision.model.activities ?? [], model.activities);
   const baselineByActivity = new Map(baselineCorrespondence.matches.map(match => [match.toActivityId, baselineSourceById.get(match.fromActivityId)!]));
@@ -1105,6 +1152,7 @@ function buildBundle(
           versions.nearCritical,
         config: scheduleAnalysisConfig,
         controlledBaseline: controlledBaseline ? { revisionId: controlledBaseline.revision.revisionId, finishByActivity: new Map([...baselineByActivity].map(([id,a]) => [id,controlledBaselineFinish(a)])) } : null,
+        previousFloat,
       },
     );
   const nearCriticalBase = {
@@ -3506,6 +3554,11 @@ function calculatePlanningContext(state: ProjectRuntimeState, current: NonNullab
       )
       .at(-1) ??
     null;
+  const previousFloat =
+    previousComparableFloatBasis(
+      ordered,
+      current,
+    );
 
   const baselineSourceById = new Map((controlledBaseline?.revision.model.activities ?? []).map(activity => [activity.activityId, activity]));
   const baselineCorrespondence = resolveRevisionActivityCorrespondence(controlledBaseline?.revision.model.activities ?? [], model.activities);
@@ -3813,7 +3866,7 @@ function calculatePlanningContext(state: ProjectRuntimeState, current: NonNullab
 
   return {
     generatedAt, ordered, model, scheduleControlBasis, scheduleAnalysisConfig,
-    controlledBaseline, baselineByActivity, currentByActivity, baselineFinish,
+    controlledBaseline, previousFloat, baselineByActivity, currentByActivity, baselineFinish,
     currentFinish, daysBetween, controlledBaselineCompletion, knownVariances,
     scheduleAnalytics, independentForecast, minimalDeliveryChallenge,
   };
@@ -3855,7 +3908,7 @@ function buildPlanningModuleFast(
 
   const {
     generatedAt, ordered, model, scheduleControlBasis, scheduleAnalysisConfig,
-    controlledBaseline, baselineByActivity, currentByActivity, baselineFinish,
+    controlledBaseline, previousFloat, baselineByActivity, currentByActivity, baselineFinish,
     currentFinish, daysBetween, controlledBaselineCompletion, knownVariances,
     scheduleAnalytics, independentForecast, minimalDeliveryChallenge,
   } = planningContextForState(state, current);
@@ -4091,6 +4144,7 @@ function buildPlanningModuleFast(
             "planning-fast:near-critical-v1",
           config: scheduleAnalysisConfig,
           controlledBaseline: controlledBaseline ? { revisionId: controlledBaseline.revision.revisionId, finishByActivity: new Map([...baselineByActivity].map(([id,a]) => [id,baselineFinish(a)])) } : null,
+          previousFloat,
         },
       );
     const nearCriticalBase = {
