@@ -3,7 +3,9 @@ export type CommercialFindingState =
   | "candidate"
   | "partial"
   | "missing"
-  | "conflicted";
+  | "conflicted"
+  | "not_applicable"
+  | "quarantined";
 
 export type CommercialFindingAuthority =
   | "source"
