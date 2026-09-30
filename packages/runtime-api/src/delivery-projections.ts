@@ -30,7 +30,7 @@ const pct=(n:number|null,d:number|null)=>n===null||d===null||d<=0?null:round(n/d
 const difference=(a:number|null,b:number|null)=>a===null||b===null?null:round(a-b);
 const days=(later:string|null,earlier:string|null)=>later&&earlier?round((Date.parse(later.slice(0,10))-Date.parse(earlier.slice(0,10)))/86400000):null;
 const isOnDate=(d:string|null,cutoff:string|null):boolean=>!!d&&!!cutoff&&d<=cutoff;
-const deliveryPopulationAuthority=(population:any,sourceCount:number|null,currentCount:number|null):PopulationAuthority=>{
+export const deliveryPopulationAuthority=(population:any,sourceCount:number|null,currentCount:number|null):PopulationAuthority=>{
  const established=population?.state==='established';
  const known=typeof population?.knownRecordCount==='number'?population.knownRecordCount:null;
  const source=typeof sourceCount==='number'?sourceCount:null;
