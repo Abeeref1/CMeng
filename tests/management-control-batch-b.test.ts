@@ -53,7 +53,8 @@ test('management UI is action-first and MCP execution-first',()=>{
   assert.match(script,/Accountability action register/);
   assert.match(script,/Integrated programme control sequence/);
   assert.match(script,/Control authority & evidence matrix/);
-  assert.ok(script.indexOf('Integrated programme control sequence')<script.indexOf('Control authority & evidence matrix'));
+  assert.match(script,/renderMcpProgrammeControl\(data\)[\s\S]*experienceDisclosure\("Control authority & evidence"/,
+    'MCP branch must render execution control before supporting governance/evidence');
 });
 
 test('programme control stages derive an integrated execution sequence from programme evidence',()=>{
