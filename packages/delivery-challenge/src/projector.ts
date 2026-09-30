@@ -1419,6 +1419,89 @@ export function buildDeliveryChallengeProjection(
     );
   }
 
+  const quantityRemainingKnown =
+    quantityByUnit.some(
+      row =>
+        row.remainingQuantity !== null,
+    );
+  const quantityEvidenceKnown =
+    quantityByUnit.length > 0;
+
+  findings.push(
+    finding({
+      topic: "quantity",
+      state:
+        !input.quantities
+          ? "missing_evidence"
+          : !mapping
+            ? "missing_evidence"
+            : quantityRemainingKnown
+              ? (
+                  mapping.unmappedItemIds.length > 0 ||
+                  mapping.ambiguousItemIds.length > 0
+                    ? "challenged"
+                    : "supported"
+                )
+              : "missing_evidence",
+      contractorAssumption:
+        input.quantities
+          ? String(input.quantities.items.length) +
+            " BOQ item(s) define the supplied quantity scope."
+          : "No BOQ quantity scope is established.",
+      independentCalculation:
+        quantityEvidenceKnown
+          ? quantityByUnit.map(
+              row =>
+                row.unit +
+                ": remaining " +
+                (
+                  row.remainingQuantity === null
+                    ? "unresolved"
+                    : row.remainingQuantity.toFixed(2)
+                ) +
+                "; mapping " +
+                (
+                  row.mappingCoveragePercent === null
+                    ? "unresolved"
+                    : row.mappingCoveragePercent.toFixed(2) + "%"
+                ),
+            ).join(" | ")
+          : null,
+      difference:
+        mapping
+          ? String(mapping.unmappedItemIds.length) +
+            " unmapped BOQ item(s); " +
+            String(mapping.ambiguousItemIds.length) +
+            " ambiguous item(s)."
+          : null,
+      evidenceBasis: [
+        "BOQ contract quantities",
+        "Installed quantity snapshots through the Data Date",
+        "Current-revision BOQ-to-activity mapping",
+      ],
+      milestoneConsequence:
+        mapping &&
+        (
+          mapping.unmappedItemIds.length > 0 ||
+          mapping.ambiguousItemIds.length > 0
+        )
+          ? "Unmapped or ambiguous quantity scope limits quantity-driven duration, productivity and manpower conclusions."
+          : null,
+      requiredResponse:
+        !input.quantities
+          ? "Provide the BOQ quantity basis."
+          : !quantityRemainingKnown
+            ? "Confirm dated installed quantities so remaining quantity can be established without inventing progress."
+            : mapping &&
+                (
+                  mapping.unmappedItemIds.length > 0 ||
+                  mapping.ambiguousItemIds.length > 0
+                )
+              ? "Confirm the material BOQ-to-activity links before relying on quantity-driven delivery conclusions."
+              : null,
+    }),
+  );
+
   findings.push(
     finding({
       topic: "programme",
@@ -1656,6 +1739,57 @@ export function buildDeliveryChallengeProjection(
                   productivityTolerance
             ? "Demonstrate productivity improvement measures, additional crews or revised sequencing."
             : null,
+    }),
+  );
+
+  findings.push(
+    finding({
+      topic: "workfront",
+      state:
+        fronts.activityCount > 0
+          ? (
+              independentRequiresReview
+                ? "scenario"
+                : "supported"
+            )
+          : "missing_evidence",
+      contractorAssumption:
+        "The submitted programme logic and dated activities define the current execution sequence and concurrency pattern.",
+      independentCalculation:
+        fronts.activityCount > 0
+          ? "Observed execution concurrency: average " +
+            (
+              fronts.average === null
+                ? "unresolved"
+                : fronts.average.toFixed(2)
+            ) +
+            " work fronts; peak " +
+            (
+              fronts.peak === null
+                ? "unresolved"
+                : fronts.peak.toFixed(2)
+            ) +
+            " across " +
+            fronts.activityCount +
+            " execution activities."
+          : null,
+      difference:
+        independentRequiresReview
+          ? "The programme sequence can be observed, but the independent CPM basis still requires reconciliation."
+          : null,
+      evidenceBasis: [
+        "Current programme relationships",
+        "Current/forecast activity dates",
+        "Execution activity population",
+      ],
+      milestoneConsequence:
+        fronts.activityCount > 0
+          ? "Observed concurrency is a schedule pattern only; it does not prove that access, shared resources, interfaces or procurement support every parallel work front."
+          : null,
+      requiredResponse:
+        fronts.activityCount === 0
+          ? "Establish the execution activity/workfront population before assessing sequencing."
+          : "Confirm that access, interfaces, procurement and shared resources support the concurrent work fronts before relying on the submitted sequence.",
     }),
   );
 

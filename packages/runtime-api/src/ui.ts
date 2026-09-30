@@ -768,40 +768,50 @@ function renderSuppliedBoq(boq){
   return '<section class="planning-panel supplied-boq-panel"><div class="planning-panel-head"><div><h4>Supplied BOQ figures</h4><p>'+escapeHtml(boq.sourceFilename||'Uploaded BOQ')+' · '+fmt(boq.itemCount)+' items. Quantities, rates and amounts are shown as read. Missing calculation inputs do not block these figures.</p></div></div><div class="planning-panel-body"><label for="suppliedBoqSearch">Find BOQ item</label><input id="suppliedBoqSearch" type="search" placeholder="Item number, description, section or unit" oninput="updateSuppliedBoq(0,this.value)"><div id="suppliedBoqRows">'+renderSuppliedBoqRows(boq)+'</div></div></section>';
 }
 function renderDeliveryChallenge(data,reason,status){
-  const d=data?.deliveryChallenge||{};if(!data?.deliveryChallenge&&!data?.suppliedBoq?.rows?.length)return false;
+  const d=data?.deliveryChallenge||{};
+  if(!data?.deliveryChallenge&&!data?.suppliedBoq?.rows?.length)return false;
   const f=data.boqFeasibility||{rows:[],activityChecks:[],overallStatus:"Unable to assess",reason:"Current quantity and productivity assessment is unresolved."};
-  const pc=f.programmePc||{},s=d.scheduleChallenge||{};
   const availability=data?.featureAvailability||null;
-  const value=x=>x===null||x===undefined?"Unresolved":fmt(x);
+  const prerequisites=Array.isArray(availability?.prerequisites)?availability.prerequisites:[];
+  const prereqRows=prerequisites.map(row=>'<tr><td><b>'+escapeHtml(row.label)+'</b></td><td><span class="state-pill '+(row.established?"ready":"review")+'">'+escapeHtml(row.established?"Established":"Missing")+'</span></td><td>'+escapeHtml(row.evidence||"")+'</td></tr>').join("");
+  const prereqTable=prereqRows?'<div class="table-wrap"><table><thead><tr><th>Prerequisite</th><th>State</th><th>Evidence basis</th></tr></thead><tbody>'+prereqRows+'</tbody></table></div>':'';
+  const sourceKpis=planningKpis([
+    ["BOQ scope",data?.suppliedBoq?.itemCount??data?.suppliedBoq?.rows?.length??"Not established","source quantity population"],
+    ["BOQ feasibility rows",(f.rows||[]).length||"Not established","available item-level calculations"],
+    ["Activity feasibility checks",(f.activityChecks||[]).length||"Not established","current activity checks"],
+    ["Labour evidence",data.sourceLaborEvidence?"Available":"Not established","source hours remain evidence; not inferred headcount"]
+  ]);
   if(availability&&availability.state!=="active"){
-    const boqCount=data?.suppliedBoq?.itemCount??data?.suppliedBoq?.rows?.length??null;
-    const checks=(f.activityChecks||[]).length;
-    const sourceHours=data?.sourceLaborEvidence;
-    const compact='<section class="planning-view contract-challenge-view"><div class="notice info"><b>Challenge the Contract is not yet fully assessable.</b><p>'+escapeHtml(availability.reason||f.reason||"Quantity, productivity and resource prerequisites are incomplete.")+'</p></div>'+planningKpis([
-      ["BOQ scope",boqCount===null?"Not established":boqCount,"best available source quantity scope"],
-      ["Activity feasibility checks",checks||"Not established","checks attempted from the current evidence"],
-      ["Labor evidence",sourceHours?"Available":"Not established","source hours remain supporting evidence; not inferred headcount"]
-    ])+experienceDisclosure("What would complete the assessment",'<p>Confirm BOQ-to-activity links, remaining quantities, productivity basis, working calendars and usable resource capacity. Existing source evidence remains available below.</p>',"Prerequisites for a defensible challenge")+'</section>';
-    el('moduleContent').innerHTML=renderModuleBasis(data)+renderRoleContent('challenge-contract',data,compact,'',true)+(data?.suppliedBoq?.rows?.length?'<details class="management-detail supplied-boq-support"><summary>Supplied BOQ evidence</summary>'+renderSuppliedBoq(data.suppliedBoq)+'</details>':'')+experienceReviewSummary(data.issueAssessment)+renderModuleReadiness(data,reason);
+    const compact='<section class="planning-view contract-challenge-view"><div class="notice info"><b>Challenge the Contract is not yet fully assessable.</b><p>'+escapeHtml(availability.reason||f.reason||"Delivery-challenge prerequisites are incomplete.")+'</p></div>'+sourceKpis+
+      '<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>What is available and what is missing</h4><p>The challenge activates only when BOQ, remaining quantities, activity links, productivity, calendar/working time and resource basis are all represented. Existing evidence remains visible.</p></div></div><div class="planning-panel-body">'+prereqTable+'</div></section></section>';
+    el("moduleContent").innerHTML=renderModuleBasis(data)+renderRoleContent("challenge-contract",data,compact,"",true)+(data?.suppliedBoq?.rows?.length?'<details class="management-detail supplied-boq-support"><summary>Supplied BOQ evidence</summary>'+renderSuppliedBoq(data.suppliedBoq)+'</details>':'')+experienceReviewSummary(data.issueAssessment)+renderModuleReadiness(data,reason);
     return true;
   }
-  const table=(heads,rows,empty)=>'<div class="table-wrap"><table><thead><tr>'+heads.map(h=>'<th>'+escapeHtml(h)+'</th>').join('')+'</tr></thead><tbody>'+(rows.length?rows.map(r=>'<tr>'+r.map(v=>'<td>'+escapeHtml(v)+'</td>').join('')+'</tr>').join(''):'<tr><td colspan="'+heads.length+'">'+escapeHtml(empty)+'</td></tr>')+'</tbody></table></div>';
-  const panel=(title,copy,body)=>'<section class="planning-panel"><div class="planning-panel-head"><div><h4>'+escapeHtml(title)+'</h4><p>'+escapeHtml(copy)+'</p></div></div><div class="planning-panel-body">'+body+'</div></section>';
+  const findings=Array.isArray(d.findings)?d.findings:[];
+  const topics=[
+    ["quantity","Quantities"],
+    ["manpower","Manpower"],
+    ["productivity","Productivity"],
+    ["programme","Duration"],
+    ["workfront","Sequencing"]
+  ];
+  const primaryRows=topics.map(([key,label])=>{
+    const row=findings.find(item=>item.topic===key);
+    return '<tr><td><b>'+escapeHtml(label)+'</b><br><span class="state-pill '+(row?.state==="challenged"?"blocked":row?.state==="supported"?"ready":"review")+'">'+escapeHtml(humanizeKey(row?.state||"missing_evidence"))+'</span></td>'+
+      '<td>'+escapeHtml(row?.contractorAssumption||"Not established")+'</td>'+
+      '<td>'+escapeHtml(row?.independentCalculation||"Not established")+'</td>'+
+      '<td>'+escapeHtml(row?.difference||"Not established")+'</td>'+
+      '<td>'+escapeHtml(row?.milestoneConsequence||"No programme consequence established from the available evidence")+'</td>'+
+      '<td>'+escapeHtml(row?.requiredResponse||"No additional response identified by this check")+'</td></tr>';
+  }).join("");
+  const primary='<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Delivery challenge</h4><p>Submitted assumption → Independent requirement → Gap → Programme consequence → Required action. Quantities, manpower, productivity, duration and sequencing are kept separate.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Challenge</th><th>Submitted assumption</th><th>Independent requirement</th><th>Gap</th><th>Programme consequence</th><th>Required action</th></tr></thead><tbody>'+primaryRows+'</tbody></table></div></div></section>';
   const activities=f.activityChecks||[];
-  const sourceHours=data.sourceLaborEvidence;
-  const hours=sourceHours?planningKpis([["Submitted planned labor hours",sourceHours.plannedHours,"supplied register period"],["Recorded hours through reporting date",sourceHours.actualHoursToDataDate,"labor source; not automatically certified utilization"]]):'';
-  const manpower=panel('1. Challenge manpower plan','Remaining quantities × supported labor hours per unit, distributed over each activity’s source-calendar working time. Supplied resource loading is compared on that same basis.',
-    planningKpis([["Independent remaining labor requirement",value(f.requiredLaborHours),"labor hours; requires quantities, productivity and scheduled working time"],["Manpower calculations unresolved",f.unresolvedCount??'Unresolved',f.reason]])+hours+
-    table(['Activity','Required labor hours','Available working hours','Required average people','Submitted people','Submitted minus required','Assessment'],activities.slice(0,100).map(r=>[r.activityId,value(r.requiredLaborHours),value(r.availableWorkingHours),value(r.requiredAveragePeople),value(r.submittedPeople),value(r.manpowerGap),r.scheduleState==='exceeds'?'Insufficient for the planned period':r.scheduleState==='fits'?'Adequate for this activity calculation':'Unresolved: '+r.reason]),'Unresolved: confirm BOQ-to-activity links, remaining quantities, productivity and resource loading.'));
-  const programme=panel('2. Challenge current schedule','Programme PC compares the same explicit milestone in baseline and current revisions. Quantity-driven finish checks use supported production rates and resource capacity.',
-    planningKpis([["Baseline Programme PC",pc.baseline?.dateIso?planningShortDate(pc.baseline.dateIso):'Unresolved',pc.baseline?.reason||pc.reason||'Baseline milestone not established'],["Current Programme PC",pc.current?.dateIso?planningShortDate(pc.current.dateIso):'Unresolved',pc.current?.reason||'Current milestone not established'],["Baseline-to-current PC movement",pc.movementDays==null?'Unresolved':fmt(pc.movementDays)+' calendar days',pc.reason||'Comparable milestones not established'],["Submitted completion",s.contractorSubmittedCompletionIso?planningShortDate(s.contractorSubmittedCompletionIso):'Unresolved','separate from the Programme PC milestone comparison'],["Programme calendar recalculation",s.independentCompletionIso?planningShortDate(s.independentCompletionIso):'Unresolved',data.independentForecastReviewReason||'Uses the current programme logic and readable calendars']])+
-    table(['Activity','Submitted finish','Quantity-driven finish','Assessment','Reason'],activities.slice(0,100).map(r=>[r.activityId,r.submittedFinishIso?planningShortDate(r.submittedFinishIso):'Unresolved',r.productionFinishIso?planningShortDate(r.productionFinishIso):'Unresolved',r.scheduleState==='exceeds'?'Exceeds planned period':r.scheduleState==='fits'?'Fits planned period':'Unresolved',r.reason]),'Unresolved: productivity and activity-linked resource capacity are required.'));
-  const findings=activities.slice(0,100).map(r=>[r.activityId,r.submittedPeople==null?'Unresolved':fmt(r.submittedPeople)+' people',r.requiredAveragePeople==null?'Unresolved':fmt(r.requiredAveragePeople)+' required average people',r.manpowerGap==null?'Unresolved':fmt(r.manpowerGap)+' people',r.scheduleState==='exceeds'?'Quantity-driven finish exceeds the submitted activity finish':r.scheduleState==='fits'?'No contradiction in this activity calculation':'Unresolved: '+r.reason,r.scheduleState==='exceeds'?'Revise activity resources, productivity support or duration and assess the programme effect':r.scheduleState==='fits'?'Confirm trade availability, shared resources and sequencing':r.reason]);
-  const combined=panel('3. Combined delivery challenge','Submitted → Independent → Gap → Consequence → Action. Whole-programme feasibility also depends on sequencing and resources shared between activities.',table(['Activity','Submitted','Independent','Gap','Consequence','Action'],findings,'Unable to assess: the evidence needed for an independent production comparison is not established.'));
-  const calculations=panel('Quantity and productivity calculations','Each BOQ item retains its quantity unit and evidence basis. Inferred mappings, missing actual quantities and missing productivity are unresolved.',table(['BOQ item','Activity','Remaining quantity','Unit','Labor hours per unit','Rate basis','Required labor hours','Reason'],(f.rows||[]).slice(0,100).map(r=>[r.quantityItemId,r.activityId||'Unresolved',value(r.remainingQuantity),r.unit||'Unresolved',value(r.laborHoursPerUnit),humanizeKey(r.productivityBasis),value(r.requiredLaborHours),r.reason]),f.reason));
-  const scope='<p>Showing up to 100 activity and BOQ rows in each table. All '+fmt(activities.length)+' activity checks and '+fmt((f.rows||[]).length)+' BOQ item records remain in the Excel and data downloads.</p>';
-  const html='<section class="planning-view contract-challenge-view"><div class="notice info"><b>Manpower and duration check: '+escapeHtml(f.overallStatus)+'</b><p>'+escapeHtml(f.reason)+'</p><p>This tests delivery assumptions. It does not interpret legal clauses, establish causation or EOT, or create a replacement programme.</p></div>'+manpower+programme+combined+'<details class="management-detail"><summary>Calculation inputs and supporting detail</summary>'+scope+calculations+renderBasisReviews({...data,contractValueBasisReview:null},'challenge-contract')+'</details></section>';
-  el('moduleContent').innerHTML=renderModuleBasis(data)+renderRoleContent('challenge-contract',data,html,'',true)+'<details class="management-detail supplied-boq-support"><summary>Supplied BOQ evidence · Source quantities and rates used by the challenge</summary>'+renderSuppliedBoq(data.suppliedBoq)+'</details>'+experienceReviewSummary(data.issueAssessment)+renderModuleReadiness(data,reason);
+  const itemRows=f.rows||[];
+  const activityDetail=activities.length?'<div class="table-wrap"><table><thead><tr><th>Activity</th><th>Required labour hours</th><th>Working hours</th><th>Required average people</th><th>Submitted people</th><th>Quantity-driven finish</th><th>State</th></tr></thead><tbody>'+activities.slice(0,100).map(row=>'<tr><td><b>'+escapeHtml(row.activityId)+'</b></td><td>'+escapeHtml(row.requiredLaborHours==null?"Unresolved":fmt(row.requiredLaborHours))+'</td><td>'+escapeHtml(row.availableWorkingHours==null?"Unresolved":fmt(row.availableWorkingHours))+'</td><td>'+escapeHtml(row.requiredAveragePeople==null?"Unresolved":fmt(row.requiredAveragePeople))+'</td><td>'+escapeHtml(row.submittedPeople==null?"Unresolved":fmt(row.submittedPeople))+'</td><td>'+escapeHtml(row.productionFinishIso?planningShortDate(row.productionFinishIso):"Unresolved")+'</td><td>'+escapeHtml(humanizeKey(row.scheduleState||"unresolved"))+'</td></tr>').join("")+'</tbody></table></div>':'<p>No activity-level feasibility calculation is established.</p>';
+  const itemDetail=itemRows.length?'<div class="table-wrap"><table><thead><tr><th>BOQ item</th><th>Activity</th><th>Remaining quantity</th><th>Unit</th><th>Labour h/unit</th><th>Required labour hours</th><th>Reason</th></tr></thead><tbody>'+itemRows.slice(0,100).map(row=>'<tr><td><b>'+escapeHtml(row.quantityItemId)+'</b></td><td>'+escapeHtml(row.activityId||"Unresolved")+'</td><td>'+escapeHtml(row.remainingQuantity==null?"Unresolved":fmt(row.remainingQuantity))+'</td><td>'+escapeHtml(row.unit||"Unresolved")+'</td><td>'+escapeHtml(row.laborHoursPerUnit==null?"Unresolved":fmt(row.laborHoursPerUnit))+'</td><td>'+escapeHtml(row.requiredLaborHours==null?"Unresolved":fmt(row.requiredLaborHours))+'</td><td>'+escapeHtml(row.reason||"")+'</td></tr>').join("")+'</tbody></table></div>':'<p>No BOQ item calculation is established.</p>';
+  const detail='<details class="management-detail"><summary>Calculation detail and source evidence</summary><p>'+escapeHtml(d.disclaimer||"")+'</p>'+prereqTable+'<h4>Activity feasibility</h4>'+activityDetail+'<h4>Quantity/productivity inputs</h4>'+itemDetail+renderBasisReviews({...data,contractValueBasisReview:null},"challenge-contract")+'</details>';
+  const html='<section class="planning-view contract-challenge-view"><div class="notice '+(d.position==="material_delivery_gap"||d.position==="challenged"?"warn":"info")+'"><b>Delivery challenge position: '+escapeHtml(humanizeKey(d.position||"not_yet_supportable"))+'</b><p>This is an analytical delivery challenge, not a replacement programme and not an EOT/entitlement decision.</p></div>'+sourceKpis+primary+detail+'</section>';
+  el("moduleContent").innerHTML=renderModuleBasis(data)+renderRoleContent("challenge-contract",data,html,"",true)+(data?.suppliedBoq?.rows?.length?'<details class="management-detail supplied-boq-support"><summary>Supplied BOQ evidence</summary>'+renderSuppliedBoq(data.suppliedBoq)+'</details>':'')+experienceReviewSummary(data.issueAssessment)+renderModuleReadiness(data,reason);
   return true;
 }
 function resourceUnitLabel(unit){
@@ -1308,75 +1318,90 @@ function renderMonteCarloRiskVisual(data){
 }
 function forecastDiagnosticMessages(codes){
   const diagnostics=(Array.isArray(codes)?codes:[]).filter(code=>typeof code==="string");
-  const starts=prefix=>diagnostics.filter(code=>code.startsWith(prefix));
-  const suffixes=rows=>[...new Set(rows.map(code=>code.slice(code.indexOf(":")+1).split(":").at(-1)?.trim()).filter(Boolean))];
-  const messages=[];
-  const calendars=[...starts("CALENDAR_SEMANTICS_UNRESOLVED:"),...starts("CALENDAR_WORK_PATTERN_NOT_ESTABLISHED:")];
-  if(calendars.length)messages.push(fmt(calendars.length)+" referenced calendar definition"+(calendars.length===1?" does":"s do")+" not establish usable working days, shifts and exceptions. CMeng withholds the affected calendar recalculation rather than assuming a calendar.");
-  const cycles=starts("SCHEDULE_GRAPH_CYCLES:");
-  if(cycles.length){const ids=suffixes(cycles);messages.push("Schedule logic contains "+fmt(cycles.length)+" cycle"+(cycles.length===1?"":"s")+(ids.length?" affecting "+ids.slice(0,5).join(", "):"")+". Correct the circular logic before using the recalculated completion.");}
-  const duplicates=starts("SCHEDULE_GRAPH_DUPLICATE_ACTIVITY_IDS:");
-  if(duplicates.length){const ids=suffixes(duplicates);messages.push("The programme contains duplicate activity ID"+(duplicates.length===1?"":"s")+(ids.length?": "+ids.slice(0,5).join(", "):"")+". Activity identities must be unique before the network can be recalculated reliably.");}
-  const selfLoops=starts("SCHEDULE_GRAPH_SELF_LOOPS:");
-  if(selfLoops.length){const ids=suffixes(selfLoops);messages.push("The programme contains self-referencing relationship"+(selfLoops.length===1?"":"s")+(ids.length?" on "+ids.slice(0,5).join(", "):"")+". Remove the self-link before relying on the recalculated network.");}
-  const broken=starts("SCHEDULE_GRAPH_BROKEN_PREDECESSORS:");
-  if(broken.length)messages.push(fmt(broken.length)+" relationship"+(broken.length===1?" references":"s reference")+" a predecessor that is not present in the current programme. Correct the missing relationship endpoint before relying on the recalculation.");
-  const known=new Set([...calendars,...cycles,...duplicates,...selfLoops,...broken]);
-  const remaining=diagnostics.filter(code=>!known.has(code));
-  if(remaining.length)messages.push(fmt(remaining.length)+" additional calculation qualification"+(remaining.length===1?" is":"s are")+" retained in the downloadable calculation data.");
-  return messages;
+  const labels={
+    CALENDAR_SEMANTICS_UNRESOLVED:"Programme calendar working days, shifts or exceptions are not sufficiently defined.",
+    CALENDAR_WORK_PATTERN_NOT_ESTABLISHED:"Programme calendar work pattern is not sufficiently defined.",
+    SCHEDULE_GRAPH_CYCLES:"Schedule logic contains a circular relationship.",
+    SCHEDULE_GRAPH_DUPLICATE_ACTIVITY_IDS:"The programme contains duplicate activity IDs.",
+    SCHEDULE_GRAPH_SELF_LOOPS:"The programme contains a self-referencing relationship.",
+    SCHEDULE_GRAPH_BROKEN_PREDECESSORS:"A relationship references a predecessor that is not present in the programme.",
+    CPM_ACTIVITY_CALENDAR_UNRESOLVED:"An activity cannot be recalculated because its source calendar is unresolved.",
+    CPM_DURATION_RAW_UNSUPPORTED:"A source duration value cannot be used by the CPM calculation.",
+    CPM_DAY_DURATION_REQUIRES_UNIFORM_CALENDAR_DAY_HOURS:"A day-based duration cannot be converted because working hours per day are not established.",
+    CPM_WEEK_DURATION_REQUIRES_CALENDAR_WEEK_HOURS:"A week-based duration cannot be converted because working hours per week are not established.",
+    CPM_DURATION_UNIT_UNKNOWN:"A source activity duration unit is unknown.",
+    CPM_REMAINING_DURATION_UNRESOLVED:"An activity remaining duration cannot be established.",
+    CPM_RELATIONSHIP_TYPE_UNRESOLVED:"A schedule relationship type cannot be established.",
+    CPM_RELATIONSHIP_LAG_UNRESOLVED:"A schedule relationship lag cannot be established.",
+    CPM_EXTERNAL_RELATIONSHIP_UNRESOLVED:"An external relationship cannot be resolved inside the current programme.",
+    CPM_RELATIONSHIP_UNRESOLVED:"A schedule relationship cannot be resolved for the CPM calculation.",
+    CPM_PROJECT_START_UNRESOLVED:"The CPM project start cannot be established.",
+    CPM_NETWORK_NOT_CALCULABLE:"The schedule network cannot be recalculated from the current source inputs.",
+    CPM_RELATIONSHIP_ENDPOINT_UNRESOLVED:"A schedule relationship endpoint cannot be resolved.",
+    CPM_COMPLETED_ACTIVITY_FINISH_UNRESOLVED:"A completed activity does not have a usable actual finish.",
+    CPM_PREDECESSOR_TIMING_UNRESOLVED:"A predecessor timing position cannot be resolved.",
+    CPM_UNKNOWN_ACTIVITY_STATUS_TREATED_AS_INCOMPLETE:"An unknown activity status is retained as incomplete for calculation.",
+    CPM_ACTIVITY_UNRESOLVED:"An activity cannot be fully recalculated.",
+    CPM_COMPLETED_ACTIVITY_FLOAT_NOT_RECALCULATED:"Float is not recalculated for a completed activity.",
+    CPM_LATE_PASS_UNRESOLVED:"The CPM late-pass calculation cannot be completed for an activity."
+  };
+  const grouped=new Map(),unknown=[];
+  for(const code of diagnostics){
+    const key=String(code).split(":")[0];
+    if(!labels[key]){unknown.push(code);continue;}
+    const group=grouped.get(key)||{count:0,examples:[]};group.count++;
+    const suffix=String(code).includes(":")?String(code).slice(String(code).indexOf(":")+1):"";
+    if(suffix&&group.examples.length<5)group.examples.push(suffix);
+    grouped.set(key,group);
+  }
+  const messages=[...grouped.entries()].map(([key,group])=>labels[key]+(group.count>1?" ("+fmt(group.count)+" occurrences)":"")+(group.examples.length?" Affected: "+group.examples.join(", ")+".":""));
+  return {messages,unknown};
 }
 function renderForecastVisual(data){
   const p=projectionFor(data,"independent_forecast");
   if(!("independentForecastCompletionIso" in p))return"";
+  const taxonomy=p.forecastTaxonomy||{};
+  const gate=p.forecastReconciliationGate||{publishable:false,checks:[],reason:p.managementReviewReason||"Forecast reconciliation is not established.",basis:""};
   const rawProb=p.probabilistic||{};
-  const review=p.managementReviewState==="review_required"||!p.complete;
-  const prob=review?{}:rawProb;
-  const variance=planningCalendarDaysBetween(p.sourceForecastCompletionIso,p.independentForecastCompletionIso);
+  const probAvailable=rawProb.status==="available";
+  const positions=[
+    taxonomy.contractualCompletion||{label:"Contractual completion",completionIso:p.requiredFinishIso,state:p.requiredFinishIso?"established":"not_established"},
+    taxonomy.contractorProgramme||{label:"Contractor programme forecast",completionIso:p.sourceForecastCompletionIso,state:p.sourceForecastCompletionIso?"established":"missing"},
+    taxonomy.cmengCpm||{label:"CMeng CPM/network recalculation",completionIso:p.independentForecastCompletionIso,state:p.complete?"calculated":"review_required"},
+    taxonomy.sourceProductivity||{label:"Source productivity forecast",completionIso:p.sourceProductivityForecastCompletionIso,state:p.sourceProductivityForecastState||"not_established"},
+    taxonomy.independentEvidenceBased||{label:"Independent evidence-based forecast",completionIso:null,state:"not_established"},
+    taxonomy.scenarioRecovery||{label:"Scenario/recovery forecast",completionIso:null,state:"not_established"}
+  ];
+  const managementForecast=p.managementForecastCompletionIso||null;
   const kpis=planningKpis([
-    ["Contractor Programme Forecast",planningShortDate(p.sourceForecastCompletionIso),"submitted programme"],
-    ["Source Productivity Forecast",planningShortDate(p.sourceProductivityForecastCompletionIso),p.sourceProductivityForecastCompletionIso?"source evidence / derived forecast":"Unresolved",p.sourceProductivityForecastState==="conflicted"?"danger":p.sourceProductivityForecastState==="candidate"?"warning":""],
-    ["Programme calendar recalculation",p.unresolvedActivityCount>0?"Unresolved: "+fmt(p.unresolvedActivityCount)+" activities":planningShortDate(p.independentForecastCompletionIso),review?"requires reconciliation":"deterministic CMeng calculation",review?"warning":"accent"],
-    ["Programme calendar recalculation vs submitted",p.unresolvedActivityCount>0?"Unresolved: "+fmt(p.unresolvedActivityCount)+" activities":variance===null?"Unresolved":(variance>0?"+":"")+fmt(variance)+" days","model reconciliation; not delay",""],
-    ["CPM activity coverage",p.activityCoveragePercent===null?"—":fmt(p.activityCoveragePercent)+"%",p.activityPopulation?fmt(p.calculatedActivityCount)+" / "+fmt(p.activityPopulation.denominator)+" execution activities; "+fmt(p.activityPopulation.excludedCount)+" LOE / WBS records excluded":"calculated schedule inputs; not resource or quantity coverage"],
-    ["Required finish",planningShortDate(p.requiredFinishIso),"contract/target if established"]
+    ["Management analytical forecast",managementForecast?planningShortDate(managementForecast):"Withheld",managementForecast?"all six reconciliation checks passed":"raw CPM result remains visible below; management publication gate not passed",managementForecast?"success":"warning"],
+    ["CPM activity coverage",p.activityCoveragePercent===null?"Unresolved":fmt(p.activityCoveragePercent)+"%",fmt(p.calculatedActivityCount)+" calculated · "+fmt(p.unresolvedActivityCount)+" unresolved",p.unresolvedActivityCount?"warning":""],
+    ["Submitted vs CPM",p.forecastVarianceDays===null?"Unresolved":(p.forecastVarianceDays>0?"+":"")+fmt(p.forecastVarianceDays)+" d","model comparison only; not delay"],
+    ["Required finish",planningShortDate(taxonomy.contractualCompletion?.completionIso||p.requiredFinishIso),"contractual/required authority if established"]
   ]);
-  const constraintTrace=p.sourceConstraints?.length?'<details class="notice info"><summary>'+escapeHtml(fmt(p.sourceConstraints.length))+' activities have source constraints · unconstrained calculation</summary><p>Retained source constraints have not been applied to this execution-network result. This is a calculation scope limitation requiring reconciliation, not a request for missing contractor documents.</p><div class="table-wrap"><table><thead><tr><th>Activity</th><th>Source constraint</th><th>Date</th></tr></thead><tbody>'+p.sourceConstraints.flatMap(a=>(a.constraints||[]).map(c=>'<tr><td>'+escapeHtml(a.activityId)+'</td><td>'+escapeHtml(c.type)+'</td><td>'+escapeHtml(c.dateIso||'Unresolved')+'</td></tr>')).join('')+'</tbody></table></div></details>':'';
-  const warning=constraintTrace+(review?'<div class="notice warn"><b>Independent forecast requires reconciliation before management use.</b><br>'+escapeHtml(p.managementReviewReason||"The deterministic CPM basis contains unresolved evidence.")+'</div>':'');
-  const forecastDistance=[
-    {label:"Contractor Programme Forecast",value:planningCalendarDaysBetween(p.dataDateIso,p.sourceForecastCompletionIso),tone:"graphite"},
-    {label:"Source Productivity Forecast",value:planningCalendarDaysBetween(p.dataDateIso,p.sourceProductivityForecastCompletionIso),tone:"warning"},
-    {label:"Programme calendar recalculation",value:planningCalendarDaysBetween(p.dataDateIso,p.independentForecastCompletionIso),tone:"accent"},
-    {label:"P50 duration sensitivity",value:planningCalendarDaysBetween(p.dataDateIso,prob.p50CompletionIso),tone:"teal"},
-    {label:"P80 duration sensitivity",value:planningCalendarDaysBetween(p.dataDateIso,prob.p80CompletionIso),tone:"purple"},
-    {label:"P90 duration sensitivity",value:planningCalendarDaysBetween(p.dataDateIso,prob.p90CompletionIso),tone:"danger"}
-  ].filter(item=>typeof item.value==="number"&&Number.isFinite(item.value)&&item.value>=0);
-  const visualOverview='<div class="visual-chart-grid">'+
-    renderVisualPanel("Forecast distance from Data Date","All forecast positions translated to a common time distance without merging their authority.",renderVisualBars(forecastDistance,"d"))+
-    renderVisualPanel("Forecast variance comparison","Deterministic and source-productivity differences retain their own basis.",renderWaterfallChart([
-      {label:"CMeng vs Contractor",value:typeof variance==="number"?variance:null},
-      {label:"Source productivity vs Contractor",value:(p.sourceProductivityForecastCompletionIso&&p.sourceForecastCompletionIso)?planningCalendarDaysBetween(p.sourceForecastCompletionIso,p.sourceProductivityForecastCompletionIso):null},
-      {label:"P80 vs CMeng CPM",value:(prob.p80CompletionIso&&p.independentForecastCompletionIso)?planningCalendarDaysBetween(p.independentForecastCompletionIso,prob.p80CompletionIso):null}
-    ],"d"))+
-  '</div>';
-  const dateLadder=planningDateLadder([
-    {label:"Contractor Programme Forecast",date:p.sourceForecastCompletionIso,tone:"current"},
-    {label:"Source Productivity Forecast",date:p.sourceProductivityForecastCompletionIso,tone:"scenario"},
-    {label:"Programme calendar recalculation",date:p.independentForecastCompletionIso,tone:"cmeng"},
-    {label:"Required finish",date:p.requiredFinishIso,tone:"baseline"}
-  ],p.dataDateIso);
-  const probPanel=review?'<p>P50, P80 and P90 are withheld until the calendar model is reconciled.</p>':'<div class="position-grid">'+[
-      ["P50 duration sensitivity",review?"Suppressed":planningShortDate(prob.p50CompletionIso),review?"Deterministic basis requires reconciliation":"CMeng non-official comparator"],
-      ["P80 duration sensitivity",review?"Suppressed":planningShortDate(prob.p80CompletionIso),review?"Deterministic basis requires reconciliation":"CMeng non-official comparator"],
-      ["P90 duration sensitivity",review?"Suppressed":planningShortDate(prob.p90CompletionIso),review?"Deterministic basis requires reconciliation":"CMeng non-official comparator"]
-    ].map(c=>'<div class="position-card '+(review?"review":"")+'"><div class="position-label">'+escapeHtml(c[0])+'</div><div class="position-value">'+escapeHtml(c[1])+'</div><div class="position-sub">'+escapeHtml(c[2])+'</div></div>').join("")+'</div>'+
-    (review?'<div class="notice info" style="margin-top:12px">P50/P80/P90 values are intentionally suppressed while the deterministic independent finish is under reconciliation. The forecast taxonomy remains visible without publishing unsupported dates.</div>':'');
-  const forecastDrivers=(p.activities||[]).filter(r=>typeof r.finishVarianceDays==='number').sort((a,b)=>Math.abs(b.finishVarianceDays)-Math.abs(a.finishVarianceDays)).slice(0,10);
-  const diagnosticMessages=forecastDiagnosticMessages(p.diagnostics||[]);
-  const diagnosticSummary=diagnosticMessages.length?'<ul>'+diagnosticMessages.map(message=>'<li>'+escapeHtml(message)+'</li>').join('')+'</ul>':'<p>No additional calendar/network qualification is identified by the checked calculation.</p>';
-  const assumptionSummary=(p.assumptions||[]).length?'<details><summary>Calculation assumptions</summary><ul>'+(p.assumptions||[]).map(value=>'<li>'+escapeHtml(humanizeKey(value))+'</li>').join('')+'</ul></details>':'';
-  const diagnostics='<section class="planning-panel"><div class="planning-panel-head"><div><h4>Programme calendar recalculation evidence</h4><p>Largest calculated finish differences identify rows to investigate. They do not establish the cause of the project forecast gap.</p></div></div><div class="planning-panel-body"><div class="notice info">'+diagnosticSummary+assumptionSummary+'</div><div class="table-wrap"><table><thead><tr><th>Activity</th><th>Submitted finish</th><th>Programme calendar recalculation</th><th>Elapsed movement d</th><th>Calendar mode</th><th>Calculation state</th></tr></thead><tbody>'+forecastDrivers.map(r=>'<tr><td>'+escapeHtml(r.activityId)+'</td><td>'+escapeHtml(planningShortDate(r.sourceFinishIso))+'</td><td>'+escapeHtml(planningShortDate(r.independentEarlyFinishIso))+'</td><td>'+escapeHtml(fmt(r.finishVarianceDays))+'</td><td>'+escapeHtml(humanizeKey(r.calendarMode))+'</td><td>'+escapeHtml(humanizeKey(r.status))+'</td></tr>').join('')+'</tbody></table></div></div></section>';
-  return '<section class="planning-view independent-forecast-view">'+renderCompletionPosition(data.completionPosition)+experienceDisclosure('Forecast measures and assumptions',kpis+warning,'Separate calculation bases')+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Completion positions and contractual target</h4><p>Contractor programme, source productivity, CMeng deterministic CPM and the contractual target remain separate.</p></div><span class="badge '+(review?"partial":"ready")+'">'+escapeHtml(review?"Reconciliation required":"Calculated")+'</span></div><div class="planning-panel-body">'+dateLadder+'</div></section><details><summary>Alternative forecast-distance charts</summary>'+visualOverview+'</details><section class="planning-panel"><div class="planning-panel-head"><div><h4>Limited duration sensitivity</h4><p>Global triangular duration-factor sensitivity (0.9 / 1.0 / 1.25), not a network risk model. Requires a reconciled deterministic basis.</p></div></div><div class="planning-panel-body">'+probPanel+'</div></section>'+diagnostics+'</section>';
+  const positionRows=positions.map(row=>'<tr><td><b>'+escapeHtml(row.label)+'</b></td><td>'+escapeHtml(row.completionIso?planningShortDate(row.completionIso):"Not established")+'</td><td>'+escapeHtml(humanizeKey(row.state||"not_established"))+'</td><td>'+escapeHtml(humanizeKey(row.authority||"not_established"))+'</td><td>'+escapeHtml(row.basis||"")+'</td></tr>').join("");
+  const taxonomyTable='<div class="table-wrap"><table><thead><tr><th>Forecast position</th><th>Completion</th><th>State</th><th>Authority</th><th>Basis / limitation</th></tr></thead><tbody>'+positionRows+'</tbody></table></div>';
+  const dateLadder=planningDateLadder(positions.filter(row=>row.completionIso).map((row,index)=>({label:row.label,date:row.completionIso,tone:["baseline","current","cmeng","scenario","accent","warning"][index]})),p.dataDateIso);
+  const gateRows=(gate.checks||[]).map(check=>'<tr><td><b>'+escapeHtml(check.label)+'</b></td><td><span class="state-pill '+(check.state==="passed"?"ready":"review")+'">'+escapeHtml(humanizeKey(check.state))+'</span></td><td>'+escapeHtml(check.count===null?"—":fmt(check.count))+'</td><td>'+escapeHtml(check.detail)+'</td></tr>').join("");
+  const gatePanel='<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Management forecast reconciliation gate</h4><p>Calendar coverage, graph validity, source constraints, calculation coverage, material activity divergence and required-finish authority are checked independently. A matching Project finish cannot override an internal failure.</p></div><span class="badge '+(gate.publishable?"ready":"partial")+'">'+escapeHtml(gate.publishable?"Publishable":"Review required")+'</span></div><div class="planning-panel-body">'+(gateRows?'<div class="table-wrap"><table><thead><tr><th>Check</th><th>State</th><th>Count</th><th>Management meaning</th></tr></thead><tbody>'+gateRows+'</tbody></table></div>':'<div class="notice warn">Forecast reconciliation checks are not established.</div>')+'<p class="muted">'+escapeHtml(gate.basis||"")+'</p></div></section>';
+  const constraintTrace=p.sourceConstraints?.length?'<details class="notice info"><summary>'+escapeHtml(fmt(p.sourceConstraints.length))+' activities have retained source constraints</summary><p>These constraints are preserved, but the current CPM/network recalculation does not apply them. Their effect must be reconciled before management publication.</p><div class="table-wrap"><table><thead><tr><th>Activity</th><th>Constraint</th><th>Date</th></tr></thead><tbody>'+p.sourceConstraints.flatMap(a=>(a.constraints||[]).map(c=>'<tr><td>'+escapeHtml(a.activityId)+'</td><td>'+escapeHtml(c.type)+'</td><td>'+escapeHtml(c.dateIso||"Unresolved")+'</td></tr>')).join("")+'</tbody></table></div></details>':'';
+  const diagnostic=forecastDiagnosticMessages(p.diagnostics||[]);
+  const diagnosticSummary=diagnostic.messages.length?'<ul>'+diagnostic.messages.map(message=>'<li>'+escapeHtml(message)+'</li>').join("")+'</ul>':'<p>No translated CPM/calendar exception is identified by the checked calculation.</p>';
+  const technical=diagnostic.unknown.length?'<details><summary>Additional technical calculation diagnostics · '+escapeHtml(fmt(diagnostic.unknown.length))+'</summary><ul>'+diagnostic.unknown.map(code=>'<li>'+escapeHtml(code)+'</li>').join("")+'</ul></details>':'';
+  const forecastDrivers=(p.activities||[]).filter(row=>typeof row.finishVarianceDays==="number").sort((a,b)=>Math.abs(b.finishVarianceDays)-Math.abs(a.finishVarianceDays)).slice(0,20);
+  const driverRows=forecastDrivers.map(row=>'<tr><td><b>'+escapeHtml(row.activityId)+'</b></td><td>'+escapeHtml(planningShortDate(row.sourceFinishIso))+'</td><td>'+escapeHtml(planningShortDate(row.independentEarlyFinishIso))+'</td><td>'+escapeHtml((row.finishVarianceDays>0?"+":"")+fmt(row.finishVarianceDays)+" d")+'</td><td>'+escapeHtml(humanizeKey(row.calendarMode))+'</td><td>'+escapeHtml(humanizeKey(row.status))+'</td></tr>').join("");
+  const diagnosticPanel='<section class="planning-panel"><div class="planning-panel-head"><div><h4>CPM reconciliation evidence</h4><p>Business-language diagnostics are shown first. Raw technical codes remain in supporting detail.</p></div></div><div class="planning-panel-body">'+diagnosticSummary+constraintTrace+technical+(driverRows?'<details><summary>Largest activity finish divergences</summary><div class="table-wrap"><table><thead><tr><th>Activity</th><th>Submitted finish</th><th>CPM recalculation</th><th>Difference</th><th>Calendar</th><th>State</th></tr></thead><tbody>'+driverRows+'</tbody></table></div></details>':'')+'</div></section>';
+  const sensitivity=probAvailable?'<div class="position-grid">'+[
+    ["P50 duration sensitivity",planningShortDate(rawProb.p50CompletionIso)],
+    ["P80 duration sensitivity",planningShortDate(rawProb.p80CompletionIso)],
+    ["P90 duration sensitivity",planningShortDate(rawProb.p90CompletionIso)]
+  ].map(row=>'<div class="position-card"><div class="position-label">'+escapeHtml(row[0])+'</div><div class="position-value">'+escapeHtml(row[1])+'</div><div class="position-sub">Non-official duration-factor sensitivity; not one of the six forecast authorities.</div></div>').join("")+'</div>':'<div class="notice info">P50/P80/P90 sensitivity is not available on the current reconciled calculation basis.</div>';
+  return '<section class="planning-view independent-forecast-view">'+kpis+
+    '<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Forecast taxonomy</h4><p>The six forecast positions remain separate. CMeng CPM/network recalculation is schedule-only and never implies BOQ, productivity, manpower or procurement evidence it does not use.</p></div></div><div class="planning-panel-body">'+taxonomyTable+dateLadder+'</div></section>'+
+    gatePanel+
+    '<section class="planning-panel"><div class="planning-panel-head"><div><h4>Probabilistic / duration sensitivity</h4><p>Separate non-official sensitivity. It does not replace the six forecast authorities.</p></div></div><div class="planning-panel-body">'+sensitivity+'</div></section>'+
+    diagnosticPanel+
+  '</section>';
 }
 function renderWindowsVisual(data){
   const p=projectionFor(data,"windows_analysis");
@@ -4575,20 +4600,30 @@ function renderManagementControlVisual(key,data){
 function renderRecoveryAccelerationVisual(data){
   const p=projectionFor(data,"recovery_acceleration");if(!p)return "";
   const scenarios=Array.isArray(p.scenarios)?p.scenarios:[],eligibility=p.eligibility||{};
-  const rows=scenarios.map(s=>'<tr><td><b>'+escapeHtml(humanizeKey(s.type))+'</b><br><span class="muted">'+escapeHtml(s.state==='calculated'?'Calculated scenario':'Needs assumption')+'</span></td><td>'+escapeHtml(s.subject)+'</td><td>'+escapeHtml(s.assumption)+'</td><td>'+escapeHtml(s.currentPosition)+'</td><td>'+escapeHtml(s.targetPosition)+'</td><td>'+escapeHtml(s.possibleDaysRecovered===null?'Not calculable':fmt(s.possibleDaysRecovered)+' d')+'</td><td>'+escapeHtml(s.additionalResources||'Not established')+'</td><td>'+escapeHtml(s.estimatedCost===null?'Not established':fmt(s.estimatedCost)+' '+(s.currency||''))+'<br><span class="muted">'+escapeHtml(s.costBasis)+'</span></td><td>'+escapeHtml(s.implementationDate?planningShortDate(s.implementationDate):'Not established')+'</td><td>'+escapeHtml((s.constraints||[]).join('; '))+'</td><td>'+escapeHtml((s.risks||[]).join('; '))+'</td></tr>').join('');
-  const noScenario=!scenarios.length?'<div class="notice info"><b>No eligible quantified recovery scenario is available from the current evidence.</b><p>'+escapeHtml(p.managementPosition)+'</p></div>':'';
-  const table=scenarios.length?'<div class="table-wrap"><table><thead><tr><th>Scenario</th><th>Subject</th><th>Assumption</th><th>Current position</th><th>Target</th><th>Possible days recovered</th><th>Additional resources</th><th>Estimated cost</th><th>Implementation</th><th>Constraints</th><th>Risks</th></tr></thead><tbody>'+rows+'</tbody></table></div>':noScenario;
-  return '<section class="planning-view recovery-view"><div class="notice info"><h4>Recovery & acceleration position</h4><p>'+escapeHtml(p.managementPosition)+'</p><p>Every option below is a scenario, not an approved Project plan.</p></div>'+planningKpis([
-    ["Calculated recovery options",p.calculatedScenarioCount>0?p.calculatedScenarioCount:"None qualify","evidence-supported local scenarios"],
-    ["Options needing assumptions",p.assumptionRequiredCount>0?p.assumptionRequiredCount:"None","not quantified until the missing assumption is supplied"],
-    ["Data Date",planningShortDate(p.dataDateIso),"current Project position"]
-  ])+'<section class="planning-panel"><div class="planning-panel-head"><div><h4>Eligibility checked</h4><p>CMeng does not invent a recovery option merely because project data exists.</p></div></div><div class="planning-panel-body">'+planningKpis([
-    ["Activity feasibility checks",eligibility.activityFeasibilityCheckCount??0,"quantity / productivity / resource checks"],
-    ["Crew acceleration candidates",eligibility.crewAccelerationCandidateCount??0,"submitted crew below calculated need"],
-    ["Late procurement packages",eligibility.lateProcurementPackageCount??0,"forecast delivery after programme need"],
-    ["Feasibility checks needing basis",eligibility.unresolvedFeasibilityCheckCount??0,"working-time / productivity / resource input"],
-    ["Resequencing-enabled workfronts",eligibility.governedResequencingWorkfrontCount??0,"explicit governed permission"]
-  ])+'</div></section><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Recovery scenarios</h4><p>Days recovered are kept local to the affected activity/package unless the evidence proves a Project-completion effect.</p></div></div><div class="planning-panel-body">'+table+'</div></section><details class="source-scope"><summary>Calculation basis and limits</summary><p>'+escapeHtml(p.basis||'')+'</p></details></section>';
+  const assessment=p.eligibilityAssessmentState||(p.calculatedScenarioCount>0?"calculated_options_available":p.assumptionRequiredCount>0?"candidates_need_assumptions":"checked_no_eligible_basis");
+  const basisAbsent=assessment==="supporting_basis_absent";
+  const headline=assessment==="calculated_options_available"
+    ?"Calculated recovery option(s) are available under the stated scenario assumptions."
+    :assessment==="candidates_need_assumptions"
+      ?"Recovery candidates exist, but quantified recovery needs additional assumptions."
+      :assessment==="supporting_basis_absent"
+        ?"No supporting recovery basis is established; eligibility counts are not presented as assessed zeros."
+        :"Recovery eligibility checks were performed and no eligible quantified recovery basis was found.";
+  const rows=scenarios.map(s=>'<tr><td><b>'+escapeHtml(humanizeKey(s.type))+'</b><br><span class="muted">'+escapeHtml(s.state==="calculated"?"Calculated scenario":"Needs assumption")+'</span></td><td>'+escapeHtml(s.subject)+'</td><td>'+escapeHtml(s.assumption)+'</td><td>'+escapeHtml(s.currentPosition)+'</td><td>'+escapeHtml(s.targetPosition)+'</td><td>'+escapeHtml(s.possibleDaysRecovered===null?"Not calculable":fmt(s.possibleDaysRecovered)+" d")+'</td><td>'+escapeHtml(s.additionalResources||"Not established")+'</td><td>'+escapeHtml(s.estimatedCost===null?"Not established":fmt(s.estimatedCost)+" "+(s.currency||""))+'<br><span class="muted">'+escapeHtml(s.costBasis)+'</span></td><td>'+escapeHtml((s.constraints||[]).join("; "))+'</td><td>'+escapeHtml((s.risks||[]).join("; "))+'</td></tr>').join("");
+  const count=(value)=>basisAbsent?"Not assessable":fmt(value??0);
+  const table=scenarios.length?'<div class="table-wrap"><table><thead><tr><th>Scenario</th><th>Subject</th><th>Assumption</th><th>Current position</th><th>Target</th><th>Possible days recovered</th><th>Additional resources</th><th>Estimated cost</th><th>Constraints</th><th>Risks</th></tr></thead><tbody>'+rows+'</tbody></table></div>':'<div class="notice info"><b>'+escapeHtml(headline)+'</b><p>'+escapeHtml(p.managementPosition||"")+'</p></div>';
+  return '<section class="planning-view recovery-view"><div class="notice '+(assessment==="calculated_options_available"?"info":assessment==="supporting_basis_absent"?"warn":"info")+'"><h4>Recovery & acceleration position</h4><p>'+escapeHtml(headline)+'</p><p>'+escapeHtml(p.managementPosition||"")+'</p><p>Every option remains a scenario until separately approved/adopted.</p></div>'+planningKpis([
+    ["Calculated recovery options",p.calculatedScenarioCount>0?p.calculatedScenarioCount:basisAbsent?"Not assessable":0,"evidence-supported local scenarios"],
+    ["Options needing assumptions",p.assumptionRequiredCount>0?p.assumptionRequiredCount:basisAbsent?"Not assessable":0,"not quantified until assumptions are established"],
+    ["Eligibility checks performed",basisAbsent?"Not assessable":eligibility.actualEligibilityChecksPerformed??0,"true zero retained when checks were possible"],
+    ["Data Date",planningShortDate(p.dataDateIso),"current project position"]
+  ])+'<section class="planning-panel"><div class="planning-panel-head"><div><h4>Eligibility evidence</h4><p>Missing supporting basis is different from a checked zero.</p></div></div><div class="planning-panel-body">'+planningKpis([
+    ["Activity feasibility checks",count(eligibility.activityFeasibilityCheckCount),"quantity / productivity / resource checks"],
+    ["Crew acceleration candidates",count(eligibility.crewAccelerationCandidateCount),"submitted crew below calculated need"],
+    ["Late procurement packages",count(eligibility.lateProcurementPackageCount),"forecast delivery after programme need"],
+    ["Checks needing basis",count(eligibility.unresolvedFeasibilityCheckCount),"working-time / productivity / resource input"],
+    ["Resequencing-enabled workfronts",count(eligibility.governedResequencingWorkfrontCount),"explicit governed permission"]
+  ])+'</div></section><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Recovery scenarios</h4><p>Days recovered remain local to the affected activity/package unless project-completion effect is separately proven.</p></div></div><div class="planning-panel-body">'+table+'</div></section><details class="source-scope"><summary>Calculation basis and limits</summary><p>'+escapeHtml(p.basis||"")+'</p></details></section>';
 }
 function interfaceDisplay(value,fallback='—'){if(value===null||value===undefined)return fallback;const text=String(value).trim();return !text||/^(?:undefined|null|nan)$/i.test(text)?fallback:text;}
 function renderInterfaceIntelligenceVisual(data){

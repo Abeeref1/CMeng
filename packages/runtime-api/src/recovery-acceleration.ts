@@ -123,14 +123,38 @@ export function recoveryAccelerationIntelligence(state:ProjectRuntimeState){
   }
   scenarios.sort((a,b)=>(b.possibleDaysRecovered??-1)-(a.possibleDaysRecovered??-1)||a.scenarioId.localeCompare(b.scenarioId));
   const calculated=scenarios.filter(s=>s.state==='calculated'),max=calculated.find(s=>s.possibleDaysRecovered!==null)??null;
+  const feasibilitySourceRowCount=feasibility?.rows?.length??0;
+  const deliveryPackagePopulationCount=delivery.packageRows.length;
+  const workfrontPopulationCount=delivery.records.filter(r=>r.kind==='workfront').length;
+  const supportingBasisAvailable=
+    feasibilitySourceRowCount>0||
+    deliveryPackagePopulationCount>0||
+    workfrontPopulationCount>0;
+  const actualEligibilityChecksPerformed=
+    feasibilityChecks.length+
+    deliveryPackagePopulationCount+
+    governedResequencingWorkfronts.length;
   const eligibility={
     activityFeasibilityCheckCount:feasibilityChecks.length,
     crewAccelerationCandidateCount:crewEligibleChecks.length,
     lateProcurementPackageCount:latePackages.length,
     unresolvedFeasibilityCheckCount:unresolvedChecks.length,
     governedResequencingWorkfrontCount:governedResequencingWorkfronts.length,
+    feasibilitySourceRowCount,
+    deliveryPackagePopulationCount,
+    workfrontPopulationCount,
+    supportingBasisAvailable,
+    actualEligibilityChecksPerformed,
   };
   const scenarioState=calculated.length?'calculated_options_available':scenarios.length?'options_need_assumptions':'no_eligible_recovery_basis';
+  const eligibilityAssessmentState=
+    calculated.length
+      ? 'calculated_options_available'
+      : scenarios.length
+        ? 'candidates_need_assumptions'
+        : !supportingBasisAvailable
+          ? 'supporting_basis_absent'
+          : 'checked_no_eligible_basis';
   const managementPosition=max
     ? 'The strongest currently calculable local recovery option is '+max.subject+': up to '+max.possibleDaysRecovered+' days of local '+(max.type==='procurement_expedite'?'procurement headroom':'activity production')+' could be recovered under the stated scenario assumptions. This is not an approved Project plan or guaranteed completion recovery.'
     : scenarios.length
@@ -138,6 +162,7 @@ export function recoveryAccelerationIntelligence(state:ProjectRuntimeState){
       : 'No recovery option currently meets the calculation criteria. CMeng checked '+feasibilityChecks.length+' activity feasibility position(s), '+latePackages.length+' late procurement package(s) and '+governedResequencingWorkfronts.length+' governed workfront permission(s). A zero is not presented as a recovery result; it means no eligible scenario basis was found.';
   return {schemaVersion:'1.0',projectionKey:'recovery_acceleration',projectId:state.projectId,projectVersion:state.version,dataDateIso,programmeRevisionId:programme?.sourceRevisionId??null,scenarios,
     calculatedScenarioCount:calculated.length,assumptionRequiredCount:scenarios.length-calculated.length,scenarioState,eligibility,
+    eligibilityAssessmentState,
     managementPosition,
     basis:'Scenarios use existing BOQ/productivity/resource feasibility, source calendars, resource costs where fully supported, governed workfront permissions and package need-date calculations. They never replace the current programme, do not assert entitlement, and retain local-effect versus Project-completion effect separately.'};
 }

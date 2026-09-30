@@ -47,6 +47,7 @@ import {
 import { canonicalTimeClaims, projectControlSchedule } from "./canonical-time-claims";
 import { projectScheduleControlBasis } from "./schedule-control-basis";
 import { sourceProductivityForecastEvidence } from "./source-productivity-forecast";
+import { forecastControlForState } from "./forecast-control";
 import { reviewScheduleCalendarBasis } from './schedule-calendar-review';
 import { canonicalResourceModule } from "./canonical-resource-runtime";
 import { createHash } from "node:crypto";
@@ -1293,59 +1294,14 @@ function buildBundle(
   const independentForecast = cachedIndependentForecast(model, generatedAt);
   const productivityForecast =
     sourceProductivityForecastEvidence(state);
-  const forecastTaxonomy = {
-    contractorProgramme: {
-      label: "Contractor Programme Forecast",
-      completionIso:
-        independentForecast.sourceForecastCompletionIso,
-      authority: "submitted_programme",
-      state:
-        independentForecast.sourceForecastCompletionIso !== null
-          ? "established"
-          : "missing",
-    },
-    sourceProductivity: {
-      label: "Source Productivity Forecast",
-      completionIso:
-        productivityForecast.completionIso,
-      authority: "source_productivity_evidence",
-      state: productivityForecast.state,
-      method: productivityForecast.method,
-      driverWorkPackageId:
-        productivityForecast.driverWorkPackageId,
-      workPackageCount:
-        productivityForecast.workPackageCount,
-      calculatedWorkPackageCount:
-        productivityForecast.calculatedWorkPackageCount,
-      coveragePercent:
-        productivityForecast.calculationCoveragePercent,
-      reconciliation:
-        productivityForecast.reconciliation,
-      sourceRefs: productivityForecast.sourceRefs,
-    },
-    cmengCpm: {
-      label: "CMeng Independent CPM Forecast",
-      completionIso:
-        independentForecast.independentForecastCompletionIso,
-      authority: "cmeng_deterministic",
-      state:
-        independentForecast.complete
-          ? "established"
-          : "review_required",
-    },
-    probabilistic: {
-      label: "CMeng Probabilistic Forecast",
-      p50CompletionIso:
-        independentForecast.probabilistic.p50CompletionIso,
-      p80CompletionIso:
-        independentForecast.probabilistic.p80CompletionIso,
-      p90CompletionIso:
-        independentForecast.probabilistic.p90CompletionIso,
-      authority: "non_official_comparator",
-      state:
-        independentForecast.probabilistic.status,
-    },
-  };
+  const forecastControl =
+    forecastControlForState(
+      state,
+      model,
+      independentForecast,
+    );
+  const forecastTaxonomy =
+    forecastControl.taxonomy;
   modules.set(
     "independent-forecast",
     available(
@@ -1371,14 +1327,27 @@ function buildBundle(
         sourceProductivityForecastEvidence:
           productivityForecast,
         forecastTaxonomy,
+        forecastReconciliationGate:
+          forecastControl.gate,
+        managementForecastCompletionIso:
+          forecastControl.gate
+            .managementForecastCompletionIso,
+        managementReviewState:
+          forecastControl.gate.publishable
+            ? "accepted_for_analysis"
+            : "review_required",
+        managementReviewReason:
+          forecastControl.gate.publishable
+            ? null
+            : forecastControl.gate.reason,
       },
       [],
-      independentForecast.complete
+      forecastControl.gate.publishable
         ? "ready"
         : "partial",
-      independentForecast.complete
+      forecastControl.gate.publishable
         ? null
-        : "Independent forecast contains unresolved schedule evidence.",
+        : forecastControl.gate.reason,
     ),
   );
 
@@ -5759,6 +5728,19 @@ function buildSpecialistModuleFast(
       independentForecastReviewReason(
         forecast,
       );
+    const forecastControl =
+      forecastControlForState(
+        state,
+        model,
+        forecast,
+      );
+    const finalReviewReason =
+      reviewReason ??
+      (
+        forecastControl.gate.publishable
+          ? null
+          : forecastControl.gate.reason
+      );
     const productivityForecast =
       sourceProductivityForecastEvidence(state);
     result = available(
@@ -5783,79 +5765,29 @@ function buildSpecialistModuleFast(
           productivityForecast.reconciliation,
         sourceProductivityForecastEvidence:
           productivityForecast,
-        forecastTaxonomy: {
-          contractorProgramme: {
-            label: "Contractor Programme Forecast",
-            completionIso:
-              forecast.sourceForecastCompletionIso,
-            authority: "submitted_programme",
-            state:
-              forecast.sourceForecastCompletionIso !== null
-                ? "established"
-                : "missing",
-          },
-          sourceProductivity: {
-            label: "Source Productivity Forecast",
-            completionIso:
-              productivityForecast.completionIso,
-            authority: "source_productivity_evidence",
-            state:
-              productivityForecast.state,
-            method:
-              productivityForecast.method,
-            driverWorkPackageId:
-              productivityForecast.driverWorkPackageId,
-            workPackageCount:
-              productivityForecast.workPackageCount,
-            calculatedWorkPackageCount:
-              productivityForecast.calculatedWorkPackageCount,
-            coveragePercent:
-              productivityForecast.calculationCoveragePercent,
-            reconciliation:
-              productivityForecast.reconciliation,
-            sourceRefs:
-              productivityForecast.sourceRefs,
-          },
-          cmengCpm: {
-            label: "CMeng Independent CPM Forecast",
-            completionIso:
-              forecast.independentForecastCompletionIso,
-            authority: "cmeng_deterministic",
-            state:
-              forecast.complete
-                ? "established"
-                : "review_required",
-          },
-          probabilistic: {
-            label: "CMeng Probabilistic Forecast",
-            p50CompletionIso:
-              forecast.probabilistic.p50CompletionIso,
-            p80CompletionIso:
-              forecast.probabilistic.p80CompletionIso,
-            p90CompletionIso:
-              forecast.probabilistic.p90CompletionIso,
-            authority:
-              "non_official_comparator",
-            state:
-              forecast.probabilistic.status,
-          },
-        },
+        forecastTaxonomy:
+          forecastControl.taxonomy,
+        forecastReconciliationGate:
+          forecastControl.gate,
+        managementForecastCompletionIso:
+          forecastControl.gate
+            .managementForecastCompletionIso,
         managementReviewState:
-          reviewReason
+          finalReviewReason
             ? "review_required"
             : "accepted_for_analysis",
         managementReviewReason:
-          reviewReason,
+          finalReviewReason,
       },
       [
         "current programme logic",
         "remaining durations",
         "source calendars",
       ],
-      reviewReason
+      finalReviewReason
         ? "partial"
         : "ready",
-      reviewReason,
+      finalReviewReason,
     );
   } else if (
     key ===
@@ -5915,25 +5847,23 @@ function buildSpecialistModuleFast(
             ),
           ),
         historyState:
-          projection
-            .establishedForecastCount >
-          0
-            ? "source_and_independent"
-            : "source_forecast_only",
+          projection.points.length >= 2
+            ? "history_trend"
+            : projection.points.length === 1
+              ? "current_position_only"
+              : "no_history",
       },
       [
         "controlled programme revision history",
       ],
-      projection
-          .establishedForecastCount >
-        0
+      projection.points.length >= 2
         ? "ready"
         : "partial",
-      projection
-          .establishedForecastCount >
-        0
+      projection.points.length >= 2
         ? null
-        : "Source forecast history is established. Independent historical CPM dates are not recalculated automatically in this view.",
+        : projection.points.length === 1
+          ? "Only one comparable programme revision exists. CMeng shows the current completion position, not a trend."
+          : "No comparable programme revision is available for completion history.",
     );
   } else if (
     key ===
@@ -7229,20 +7159,84 @@ function resolveProjectModuleCandidate(state: ProjectRuntimeState, key: string, 
           return {...row, calendarId: activity?.calendarId ?? null};
         }),
       } : {}),
-      ...(key === "independent-forecast" ? {
-        requiredFinishIso: time.contractTimeBasis?.contractualCompletionIso ?? data.requiredFinishIso ?? null,
-        requiredFinishVarianceDays: (()=>{const required=time.contractTimeBasis?.contractualCompletionIso??data.requiredFinishIso;return required&&data.independentForecastCompletionIso?(parseScheduleTime(data.independentForecastCompletionIso)-parseScheduleTime(required))/86400000:null;})(),
-        sourceConstraints: model.activities.filter(a=>a.sourceConstraints?.length).map(a=>({activityId:a.activityId,constraints:a.sourceConstraints})),
-        probabilistic: {...data.probabilistic,
-          ...(forecastReview ? {status:"unavailable",p50CompletionIso:null,p80CompletionIso:null,p90CompletionIso:null} : {}),
-          suppressionReason: forecastReview,
-        },
-        forecastTaxonomy: {...data.forecastTaxonomy,
-          probabilistic: {...data.forecastTaxonomy?.probabilistic,
-            ...(forecastReview ? {state:"suppressed",p50CompletionIso:null,p80CompletionIso:null,p90CompletionIso:null} : {}),
+      ...(key === "independent-forecast" ? (() => {
+        const control =
+          forecastControlForState(
+            state,
+            model,
+            forecast!,
+          );
+        const finalReview =
+          forecastReview ??
+          (
+            control.gate.publishable
+              ? null
+              : control.gate.reason
+          );
+        const required =
+          control.taxonomy
+            .contractualCompletion
+            .completionIso ??
+          data.requiredFinishIso ??
+          null;
+        return {
+          requiredFinishIso:
+            required,
+          requiredFinishVarianceDays:
+            required &&
+            data.independentForecastCompletionIso
+              ? (
+                  parseScheduleTime(
+                    data.independentForecastCompletionIso,
+                  ) -
+                  parseScheduleTime(required)
+                ) /
+                86400000
+              : null,
+          sourceConstraints:
+            model.activities
+              .filter(
+                a =>
+                  a.sourceConstraints?.length,
+              )
+              .map(a => ({
+                activityId:
+                  a.activityId,
+                constraints:
+                  a.sourceConstraints,
+              })),
+          forecastTaxonomy:
+            control.taxonomy,
+          forecastReconciliationGate:
+            control.gate,
+          managementForecastCompletionIso:
+            control.gate
+              .managementForecastCompletionIso,
+          managementReviewState:
+            finalReview
+              ? "review_required"
+              : "accepted_for_analysis",
+          managementReviewReason:
+            finalReview,
+          probabilistic: {
+            ...data.probabilistic,
+            ...(forecastReview
+              ? {
+                  status:
+                    "unavailable",
+                  p50CompletionIso:
+                    null,
+                  p80CompletionIso:
+                    null,
+                  p90CompletionIso:
+                    null,
+                }
+              : {}),
+            suppressionReason:
+              forecastReview,
           },
-        },
-      } : {}),
+        };
+      })() : {}),
       ...(key === "milestones" ? { movementDistribution: numericDistribution((data.rows ?? []).map((row: any)=>row.varianceDays)) } : {}),
       ...(key === "activity-analytics" ? {
         rows:(()=>{const classification=scheduleScopeClassification(model),byId=new Map(classification.rows.map(row=>[row.activityId,row]));return (data.rows??[]).map((row:any)=>{const scope=byId.get(row.activityId);return {...row,...activityDelayStatus(row),

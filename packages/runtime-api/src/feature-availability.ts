@@ -5,6 +5,12 @@ export interface RuntimeFeatureAvailability {
   reason: string;
   prerequisiteCount: number | null;
   establishedResultCount: number | null;
+  prerequisites?: Array<{
+    key: string;
+    label: string;
+    established: boolean;
+    evidence: string;
+  }>;
 }
 
 const array=(value:unknown):any[]=>Array.isArray(value)?value:[];
@@ -34,16 +40,26 @@ export function moduleFeatureAvailability(key:string,data:unknown):RuntimeFeatur
     };
   }
   if(key==='challenge-contract'){
-    const f=d.boqFeasibility??{},checks=array(f.activityChecks);
+    const f=d.boqFeasibility??{},checks=array(f.activityChecks),rows=array(f.rows);
     const calculated=checks.filter((row:any)=>['fits','exceeds'].includes(row?.scheduleState)||typeof row?.requiredAveragePeople==='number').length;
     const boqCount=number(d.suppliedBoq?.itemCount)??array(d.suppliedBoq?.rows).length;
-    const useful=boqCount>0||checks.length>0||Boolean(d.sourceLaborEvidence);
+    const prerequisites=[
+      {key:'boq',label:'BOQ',established:boqCount>0,evidence:boqCount>0?String(boqCount)+' BOQ item(s) available.':'BOQ quantity scope not established.'},
+      {key:'remaining_quantities',label:'Remaining quantities',established:rows.some((row:any)=>number(row?.remainingQuantity)!==null),evidence:'Dated installed quantity and contract quantity on the same BOQ item.'},
+      {key:'activity_links',label:'Activity links',established:rows.some((row:any)=>typeof row?.activityId==='string'&&row.activityId.length>0),evidence:'Current-revision BOQ-to-activity link.'},
+      {key:'productivity',label:'Productivity',established:rows.some((row:any)=>number(row?.laborHoursPerUnit)!==null),evidence:'Supported labour-hours-per-unit or same-scope measured productivity.'},
+      {key:'calendar_working_time',label:'Calendar / working time',established:rows.some((row:any)=>number(row?.availableWorkingHours)!==null),evidence:'Readable source activity calendar and positive remaining working period.'},
+      {key:'resource_basis',label:'Resource basis',established:rows.some((row:any)=>number(row?.submittedPeople)!==null),evidence:'Activity-linked remaining labour capacity in compatible hour units.'},
+    ];
+    const prerequisiteComplete=prerequisites.every(row=>row.established);
+    const useful=boqCount>0||checks.length>0||rows.length>0||Boolean(d.sourceLaborEvidence);
+    const missing=prerequisites.filter(row=>!row.established).map(row=>row.label);
     return {
-      state:featureAvailability({hasEstablishedResult:calculated>0,hasUsefulEvidence:useful,prerequisitesSatisfied:calculated>0}),
-      reason:calculated>0?'Quantity/productivity/resource evidence supports at least one independent feasibility check.':
-        useful?'Useful source evidence is available, but the quantity/productivity/resource prerequisites for a defensible challenge are incomplete.':
+      state:featureAvailability({hasEstablishedResult:calculated>0&&prerequisiteComplete,hasUsefulEvidence:useful,prerequisitesSatisfied:prerequisiteComplete}),
+      reason:calculated>0&&prerequisiteComplete?'All six delivery-challenge prerequisites are represented and at least one independent feasibility check is calculable.':
+        useful?'Useful source evidence is available. Missing prerequisite(s): '+missing.join(', ')+'.':
         'No useful quantity/productivity/resource evidence is available for a feasibility challenge.',
-      prerequisiteCount:checks.length||boqCount||null,establishedResultCount:calculated||null
+      prerequisiteCount:prerequisites.length,establishedResultCount:calculated||null,prerequisites
     };
   }
   if(key==='revision-trend'||key==='variance-trends'){
