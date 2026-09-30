@@ -6,20 +6,48 @@ on:
 permissions:
   contents: read
 jobs:
-  source-snapshot:
+  live-failure-trace:
     runs-on: ubuntu-latest
-    timeout-minutes: 3
+    timeout-minutes: 8
     steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - name: Capture tracked source only; no credentials or production data
+      - name: Read actual failed page responses; do not change source data
+        shell: python
         run: |
-          mkdir -p continuation-evidence
-          git rev-parse HEAD > continuation-evidence/source-commit.txt
-          git archive --format=tar.gz HEAD > continuation-evidence/source.tar.gz
+          import json, urllib.request, urllib.error, hashlib, pathlib
+          base='https://cmeng-main-production.up.railway.app'
+          expected='a5f85338565ce4e0bcdb669bb72c0c20a2842db3'
+          out=pathlib.Path('continuation-evidence'); out.mkdir()
+          def get(path):
+              try:
+                  with urllib.request.urlopen(base+path,timeout=90) as r: return r.status,json.load(r)
+              except urllib.error.HTTPError as e: return e.code,json.load(e)
+          status,health=get('/health')
+          assert status==200 and health.get('release')==expected and health.get('status')=='ok',health
+          projects=['DMMC-112','QA-DELIVERY-RELEASE-20260926','RYD-NME-PKG-C']
+          def digest(project):
+              status,data=get('/api/projects/'+project+'/evidence/documents')
+              assert status==200
+              return hashlib.sha256(json.dumps(sorted((x.get('documentId'),x.get('sourceHashSha256')) for x in data['documents'])).encode()).hexdigest()
+          before={p:digest(p) for p in projects}
+          summary=[]
+          paths=['management/cross-domain-accountability','management/master-dashboard','management/source-quality','schedule/modules/lookahead-schedule']
+          for path in paths:
+              for project in projects:
+                  status,data=get('/api/projects/'+project+'/'+path)
+                  filename=project+'--'+path.replace('/','-')+'.json'
+                  (out/filename).write_text(json.dumps({'httpStatus':status,'response':data},indent=2))
+                  assessment=data.get('issueAssessment') or (data.get('data') or {}).get('issueAssessment') or {}
+                  row={'project':project,'path':path,'httpStatus':status,'key':data.get('key'),'legacyKey':data.get('legacyKey'),'status':data.get('status'),'reason':data.get('reason'),'dataKeys':list((data.get('data') or {}).keys()),'systemFailures':[x for x in assessment.get('issues',[]) if x.get('kind')=='system_defect']}
+                  summary.append(row)
+                  print(json.dumps(row),flush=True)
+          after={p:digest(p) for p in projects}
+          assert before==after,'Source identities/hashes changed during GET-only trace'
+          status,health=get('/health')
+          assert status==200 and health.get('release')==expected and health.get('status')=='ok',health
+          (out/'summary.json').write_text(json.dumps({'release':expected,'sourceHashesUnchanged':True,'observations':summary},indent=2))
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
-          name: batch-bc-continuation-source-${{ github.run_id }}
+          name: batch-bc-live-trace-${{ github.run_id }}
           path: continuation-evidence/
           retention-days: 7
