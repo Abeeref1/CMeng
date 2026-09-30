@@ -822,14 +822,13 @@ function humanizeKey(key){
 function humanizeDiagnostic(code){
   const value=String(code??"").trim();
   if(!value)return "";
-  const key=value.split(":")[0];
-  const diagnosticLabels={};
-  const friendly={"PARALLEL_ASSESSMENT_VALUES_DIFFER":"Claim assessments disagree","REGISTER_DETERMINED_STATUS_NOT_IN_DETERMINATION_REGISTER":"Reported determination is absent from the award register"};
-  const shared={};
-  const embedded={};
-  if(friendly[key])return friendly[key];
-  if(/^[A-Z][A-Z0-9_]+(?::.*)?$/.test(value)&&value.includes("_"))return "Additional calculation qualification";
-  return humanizeKey(value);
+  const translated=humanizeKey(value);
+  const mechanical=value
+    .replace(/[_-]+/g," ")
+    .replace(/([a-z0-9])([A-Z])/g,"$1 $2")
+    .replace(/\b\w/g,c=>c.toUpperCase());
+  if(/^[A-Z][A-Z0-9_]+(?::.*)?$/.test(value)&&value.includes("_")&&translated===mechanical)return "Additional calculation qualification";
+  return translated;
 }
 function documentUseLabel(state,document=null){
   if(document?.category==="schedule"&&state==="active"&&document.scheduleAdoption?.method!=="explicit")return"Previous source selection · adoption needs confirmation";
