@@ -14,7 +14,12 @@ export interface PerformanceCostSnapshotInput {
   currency: string;
   taxBasis: "exclusive" | "inclusive" | "unknown";
   asOf: string;
-  state: import("../../truth-kernel/src").FactState;
+  state:
+    | "official"
+    | "candidate"
+    | "partial"
+    | "conflicted"
+    | "missing";
   values: Record<string, number | null>;
   sourceRefs: string[];
   diagnostics: string[];
@@ -26,7 +31,12 @@ export interface PerformanceCostMetricInput {
   currency: string | null;
   taxBasis: "exclusive" | "inclusive" | "unknown";
   asOf: string | null;
-  state: import("../../truth-kernel/src").FactState;
+  state:
+    | "official"
+    | "candidate"
+    | "missing"
+    | "partial"
+    | "conflicted";
   sourceStatus: string;
   amountBasis: string;
   cbsId: string | null;
