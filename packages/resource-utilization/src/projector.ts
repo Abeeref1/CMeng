@@ -13,6 +13,7 @@ import type {
   CanonicalResourceModel,
 } from "../../schedule-resource-core/src";
 import type {
+  ResourceBusinessClass,
   ResourceUtilizationProjection,
   ResourceUtilizationRow,
 } from "./types";
@@ -23,6 +24,69 @@ function coverage(
 ): number | null {
   if (total === 0) return null;
   return Number(((known / total) * 100).toFixed(4));
+}
+
+function resourceBusinessClass(
+  resource: CanonicalResource,
+): ResourceBusinessClass {
+  const text = [
+    resource.name,
+    resource.shortName,
+    resource.unitName,
+    resource.unitAbbreviation,
+    resource.priceTimeUnit,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase()
+    .replace(/[_-]+/g, " ");
+
+  if (
+    /\bphysical\s*weight(?:age)?\b|\bweightage\b|\bprogress\s*weight\b|\bweighted\s*progress\b|\bpercent(?:age)?\b|%/.test(
+      text,
+    )
+  ) {
+    return "weight_progress";
+  }
+
+  if (
+    /\bqty\b|\bquantity\b|\bquantities\b|\bmeasured\s*quantity\b/.test(
+      text,
+    )
+  ) {
+    return "quantity";
+  }
+
+  if (
+    /\bcost\b|\bamount\b|\bvalue\b|\bcurrency\b|\baed\b|\bsar\b|\busd\b|\beur\b|\bqar\b|\bkwd\b|\bomr\b|\bbhd\b/.test(
+      text,
+    )
+  ) {
+    return "cost";
+  }
+
+  if (resource.resourceType === "labor") {
+    return "labor";
+  }
+
+  if (resource.resourceType === "material") {
+    return "material";
+  }
+
+  if (resource.resourceType === "nonlabor") {
+    return "equipment";
+  }
+
+  return "other";
+}
+
+function capacityEligible(
+  businessClass: ResourceBusinessClass,
+): boolean {
+  return (
+    businessClass === "labor" ||
+    businessClass === "equipment"
+  );
 }
 
 function aggregate(
@@ -473,6 +537,11 @@ export function buildResourceUtilizationProjection(
           resource.resourceId,
         ) ?? [];
 
+      const businessClass =
+        resourceBusinessClass(resource);
+      const canAssessCapacity =
+        capacityEligible(businessClass);
+
       const planned = aggregate(
         assignments,
         (assignment) =>
@@ -492,35 +561,55 @@ export function buildResourceUtilizationProjection(
         atCompletionUnits,
       );
 
-      const plannedPeak = peakRate(
-        assignments,
-        resource,
-        schedule,
-        "planned",
-      );
-      const remainingPeak = peakRate(
-        assignments,
-        resource,
-        schedule,
-        "remaining",
-      );
+      const plannedPeak = canAssessCapacity
+        ? peakRate(
+            assignments,
+            resource,
+            schedule,
+            "planned",
+          )
+        : {
+            peak: null,
+            knownCount: 0,
+            coveragePercent: null,
+            assumptions: [],
+          };
+      const remainingPeak = canAssessCapacity
+        ? peakRate(
+            assignments,
+            resource,
+            schedule,
+            "remaining",
+          )
+        : {
+            peak: null,
+            knownCount: 0,
+            coveragePercent: null,
+            assumptions: [],
+          };
 
-      const capacity =
-        effectiveCapacity(
-          resource,
-          schedule.dataDateIso,
-        );
+      const capacity = canAssessCapacity
+        ? effectiveCapacity(
+            resource,
+            schedule.dataDateIso,
+          )
+        : {
+            value: null,
+            effectiveDateIso: null,
+          };
 
-      const plannedUtilization =
-        percentage(
-          plannedPeak.peak,
-          capacity.value,
-        );
-      const remainingUtilization =
-        percentage(
-          remainingPeak.peak,
-          capacity.value,
-        );
+      const plannedUtilization = canAssessCapacity
+        ? percentage(
+            plannedPeak.peak,
+            capacity.value,
+          )
+        : null;
+      const remainingUtilization = canAssessCapacity
+        ? percentage(
+            remainingPeak.peak,
+            capacity.value,
+          )
+        : null;
 
       return {
         resourceId: resource.resourceId,
@@ -529,6 +618,8 @@ export function buildResourceUtilizationProjection(
           resource.shortName,
         resourceType:
           resource.resourceType,
+        businessClass,
+        capacityEligible: canAssessCapacity,
         assignmentCount:
           assignments.length,
 
@@ -584,9 +675,11 @@ export function buildResourceUtilizationProjection(
         state:
           assignments.length === 0
             ? "no_assignments"
-            : capacity.value === null
-              ? "demand_only"
-              : "capacity_based",
+            : !canAssessCapacity
+              ? "not_capacity_resource"
+              : capacity.value === null
+                ? "demand_only"
+                : "capacity_based",
         assumptions: [
           ...new Set([
             ...plannedPeak.assumptions,
@@ -599,9 +692,27 @@ export function buildResourceUtilizationProjection(
   const assigned = rows.filter(
     (row) => row.assignmentCount > 0,
   );
-  const capacityBased = assigned.filter(
+  const capacityEligibleRows = assigned.filter(
+    (row) => row.capacityEligible,
+  );
+  const capacityBased = capacityEligibleRows.filter(
     (row) =>
       row.state === "capacity_based",
+  );
+  const businessClassCounts = rows.reduce(
+    (counts, row) => {
+      counts[row.businessClass] += 1;
+      return counts;
+    },
+    {
+      labor: 0,
+      equipment: 0,
+      material: 0,
+      cost: 0,
+      quantity: 0,
+      weight_progress: 0,
+      other: 0,
+    } as Record<ResourceBusinessClass, number>,
   );
 
   return {
@@ -625,11 +736,14 @@ export function buildResourceUtilizationProjection(
       "p6_resource_master",
     capacityBasedResourceCount:
       capacityBased.length,
+    capacityEligibleResourceCount:
+      capacityEligibleRows.length,
     capacityCoveragePercent:
       coverage(
         capacityBased.length,
-        assigned.length,
+        capacityEligibleRows.length,
       ),
+    businessClassCounts,
     overloadedResourceCount:
       capacityBased.filter(
         (row) =>
