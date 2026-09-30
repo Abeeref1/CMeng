@@ -7917,8 +7917,8 @@ export function managementSurfacesForProject(
     action:'Review overdue activity '+r.activityId+' ('+r.name+') and agree its recovery dates.',sourceRefs:[]}))],overdueActivityCount:Array.isArray(lookahead?.overdueBacklogRows)||Array.isArray(lookahead?.rows)?overdueRows.length:null};
   const completion=(resolvedModules.get('independent-forecast')?.data as any)?.completionPosition??null;
   const diagnosis=(resolvedModules.get('pmo-analysis')?.data as any)?.projectDiagnosis??null;
-  const visualControl=managementVisualControl(state,resolvedModules,commercial);
   const managementContext=projectManagementContext(state,resolvedModules,commercial);
+  const visualControl=managementVisualControl(state,resolvedModules,commercial,managementContext);
   const interfaces=interfaceIntelligence(state);
   const accountability=crossDomainAccountability(state);
   const deliveryPosition=deliveryDashboard(state);
