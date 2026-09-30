@@ -114,16 +114,17 @@ jobs:
           replace(path,"      add('contractor',c.contractor,base);","      retain(base);if(!c)continue;\n      add('contractor',c.contractor,base);")
           replace(path,"  const byRecord=new Map<string,AccountabilityDetail[]>();","  const byRecord=new Map<string,AccountabilityDetail[]>([...eligible.keys()].map(key=>[key,[]]));")
           replace(path,"    const first=items[0]!,dimension=(name:Dimension)=>items.find(item=>item.dimension===name)?.value??null;","    const first=eligible.get(key)!,dimension=(name:Dimension)=>items.find(item=>item.dimension===name)?.value??null;")
+          replace(path,"    const overdue=Math.max(0,...items.map(item=>item.overdueDays??0));","    const overdue=Math.max(0,first.overdueDays??0,...items.map(item=>item.overdueDays??0));")
           replace(path,"      owner,organisation,requiredAction,dueIso:first.dueDate,","      owner,organisation,requiredAction:owner?requiredAction:'Assign an accountable party. '+requiredAction,dueIso:first.dueDate,")
       - name: Verify corrected behaviour and complete regression suite
         shell: bash
         run: |
           set -o pipefail
+          git diff --check
+          git diff > repair-evidence/repair.patch
           npm run verify 2>&1 | tee repair-evidence/verify.log
           node --test dist/tests/batch-b-live-failures.test.js dist/tests/accountability-unassigned.test.js 2>&1 | tee repair-evidence/green-after.log
           npm run test:stress 2>&1 | tee repair-evidence/scale.log
-          git diff --check
-          git diff > repair-evidence/repair.patch
       - name: Existing release performance and durability gates
         shell: bash
         run: |
