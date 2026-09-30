@@ -75,6 +75,39 @@ export function managementVisualControl(
     };
   });
 
+  const driverGroupsMap=new Map<string,{
+    wbs:string;activityIds:string[];activityNames:string[];currentFinishes:string[];
+    lowestFloatHours:number|null;milestoneIds:string[];packageCandidates:string[];
+  }>();
+  const milestoneSource=(Array.isArray(milestones.rows)?milestones.rows:[]).filter((row:any)=>row.status!=='completed');
+  for(const row of drivingActivities){
+    const wbs=String(row.wbs??'Unclassified driving scope');
+    const group=driverGroupsMap.get(wbs)??{
+      wbs,activityIds:[],activityNames:[],currentFinishes:[],lowestFloatHours:null,milestoneIds:[],packageCandidates:[]
+    };
+    group.activityIds.push(row.activityId);
+    if(row.name)group.activityNames.push(String(row.name));
+    if(row.currentFinishIso)group.currentFinishes.push(String(row.currentFinishIso));
+    if(typeof row.sourceFloatHours==='number')group.lowestFloatHours=group.lowestFloatHours===null?row.sourceFloatHours:Math.min(group.lowestFloatHours,row.sourceFloatHours);
+    group.milestoneIds.push(...milestoneSource.filter((m:any)=>String(m.wbsName??m.wbsId??'')===wbs).map((m:any)=>String(m.activityId)));
+    group.packageCandidates.push(...boqScope.packages.filter((p:any)=>String(p.packageCandidate??p.label??p.package??'')===wbs)
+      .map((p:any)=>String(p.packageCandidate??p.label??p.package??'')));
+    driverGroupsMap.set(wbs,group);
+  }
+  const priorityGroups=[...driverGroupsMap.values()].map(group=>({
+    wbs:group.wbs,
+    activityCount:group.activityIds.length,
+    activityIds:[...new Set(group.activityIds)],
+    activityNames:[...new Set(group.activityNames)],
+    latestCurrentFinishIso:group.currentFinishes.sort().at(-1)??null,
+    lowestFloatHours:group.lowestFloatHours,
+    milestoneIds:[...new Set(group.milestoneIds)].slice(0,10),
+    packageCandidates:[...new Set(group.packageCandidates)].slice(0,10),
+    consequence:group.milestoneIds.length
+      ?'Completion-driving scope is linked to '+[...new Set(group.milestoneIds)].length+' open milestone(s).'
+      :'Completion-driving scope is established; a downstream milestone link is not established from the available programme evidence.',
+  })).sort((a,b)=>(a.lowestFloatHours??Number.MAX_SAFE_INTEGER)-(b.lowestFloatHours??Number.MAX_SAFE_INTEGER)||b.activityCount-a.activityCount||a.wbs.localeCompare(b.wbs));
+
   const delayed=activityRows.filter((row:any)=>!['level_of_effort','wbs_summary'].includes(row.activityType)&&(
     row.scheduleDelayed===true||(typeof row.finishVarianceDays==='number'&&row.finishVarianceDays>0)
   ));
@@ -269,6 +302,7 @@ export function managementVisualControl(
       drivingActivityCount:drivingIds.length,
       finishActivityIds:independent.drivingNetwork?.finishActivityIds??[],
       drivingActivities,
+      priorityGroups,
       delayedActivityCount:delayed.length,
       delayedWbs,
       criticalCount:activity.counts?.critical?.value??null,
