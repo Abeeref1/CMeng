@@ -2,11 +2,13 @@ import { parseScheduleTime } from "../../schedule-analysis-core/src";
 import type {
   CanonicalScheduleModel,
 } from "../../schedule-analysis-core/src";
-import type {
-  CanonicalResource,
-  CanonicalResourceAssignment,
-  CanonicalResourceModel,
-  CanonicalResourcePeriodActual,
+import {
+  resourceBusinessClass,
+  resourceLaborHourEligible,
+  type CanonicalResource,
+  type CanonicalResourceAssignment,
+  type CanonicalResourceModel,
+  type CanonicalResourcePeriodActual,
 } from "../../schedule-resource-core/src";
 import type {
   ManhourScurvePoint,
@@ -191,7 +193,7 @@ function laborResourceIds(
     resources
       .filter(
         (resource) =>
-          resource.resourceType === "labor",
+          resourceLaborHourEligible(resource),
       )
       .map(
         (resource) =>
@@ -375,25 +377,23 @@ export function buildManhourScurveProjection(
     );
   }
 
-  const laborIds =
-    laborResourceIds(
-      resources.resources,
-    );
+  const laborDefinitions = resources.resources.filter(
+    resource => resourceBusinessClass(resource) === "labor",
+  );
+  const laborIds = laborResourceIds(resources.resources);
+  const excludedNonHourLaborResourceIds = laborDefinitions
+    .filter(resource => !laborIds.has(resource.resourceId))
+    .map(resource => resource.resourceId)
+    .sort();
+  const excludedIds = new Set(excludedNonHourLaborResourceIds);
+  const unresolvedUnitLaborAssignmentCount = resources.assignments.filter(
+    assignment => assignment.resourceType === "labor" &&
+      (assignment.resourceId === null || excludedIds.has(assignment.resourceId)),
+  ).length;
 
-  const laborAssignments =
-    resources.assignments.filter(
-      (assignment) =>
-        (
-          assignment.resourceId !== null &&
-          laborIds.has(
-            assignment.resourceId,
-          )
-        ) ||
-        (
-          assignment.resourceId === null &&
-          assignment.resourceType === "labor"
-        ),
-    );
+  const laborAssignments = resources.assignments.filter(
+    assignment => assignment.resourceId !== null && laborIds.has(assignment.resourceId),
+  );
 
   const assumptions: string[] = [];
 
@@ -621,6 +621,14 @@ export function buildManhourScurveProjection(
 
     laborResourceCount:
       laborIds.size,
+    laborResourceDefinitionCount:
+      laborDefinitions.length,
+    laborHourResourceCount:
+      laborIds.size,
+    excludedNonHourLaborResourceIds,
+    unresolvedUnitLaborAssignmentCount,
+    unitCompatibilityBasis:
+      "explicit_hour_unit_required",
     laborAssignmentCount:
       laborAssignments.length,
 

@@ -128,6 +128,7 @@ export function buildProgressBreakdownProjection(
     config?: ScheduleAnalysisConfig;
     baselineModel?: CanonicalScheduleModel | null;
     previousModel?: CanonicalScheduleModel | null;
+    readinessEvidence?: Record<string, Partial<Record<"procurement_material"|"design_submittal", {state:string}>>>;
     scopeClassification?: {
       rows: Array<{
         activityId: string;
@@ -177,6 +178,58 @@ export function buildProgressBreakdownProjection(
   const previousMatches = input.previousModel ? resolveRevisionActivityCorrespondence(input.previousModel.activities, model.activities) : null;
   const previousById = new Map(input.previousModel?.activities.map(a=>[a.activityId,a]) ?? []);
   const previous = new Map(previousMatches?.matches.map(match=>[match.toActivityId,previousById.get(match.fromActivityId)!]) ?? []);
+  const dataDateMs = model.dataDateIso ? Date.parse(model.dataDateIso) : NaN;
+  const longLeadPattern = /\blong[\s-]?lead\b|\bprocurement\b|\bmaterial\b|\bvendor\b|\bmanufactur(?:e|ing)\b|\bfabrication\b/i;
+  const effectiveFinish = (a:CanonicalScheduleActivity) => a.status==="completed"
+    ? a.actualFinishIso ?? a.forecastFinishIso ?? a.currentFinishIso
+    : a.forecastFinishIso ?? a.currentFinishIso;
+  const managementSignals = (activities:readonly CanonicalScheduleActivity[]) => {
+    const ids=new Set(activities.map(a=>a.activityId));
+    const wbsIds=new Set(activities.map(a=>a.wbsId).filter((v):v is string=>Boolean(v)));
+    const finishes=activities.map(effectiveFinish).filter((v):v is string=>Boolean(v)).sort();
+    const delayed=activities.filter(a=>{
+      const finish=effectiveFinish(a),finishMs=finish?Date.parse(finish):NaN;
+      const baseline=a.baselineFinishIso?Date.parse(a.baselineFinishIso):NaN;
+      return a.status!=="completed"&&(
+        (Number.isFinite(dataDateMs)&&Number.isFinite(finishMs)&&finishMs<dataDateMs)||
+        (Number.isFinite(baseline)&&Number.isFinite(finishMs)&&finishMs>baseline)
+      );
+    });
+    const milestoneThreatIds=model.activities.filter(a=>
+      ["milestone","start_milestone","finish_milestone"].includes(a.activityType)&&
+      a.status!=="completed"&&a.wbsId!==null&&wbsIds.has(a.wbsId)&&
+      (typeof a.totalFloatHours==="number"?a.totalFloatHours<=0:true)
+    ).map(a=>a.activityId).slice(0,10);
+    const longLeadActivityCount=activities.filter(a=>longLeadPattern.test([a.name,a.wbsId?model.wbs.find(w=>w.wbsId===a.wbsId)?.name:null].filter(Boolean).join(" "))).length;
+    let procurementBlockerCount=0,designBlockerCount=0;
+    for(const id of ids){
+      const readiness=input.readinessEvidence?.[id];
+      if(readiness?.procurement_material?.state==="blocked")procurementBlockerCount++;
+      if(readiness?.design_submittal?.state==="blocked")designBlockerCount++;
+    }
+    const criticalOrNegative=activities.filter(a=>typeof a.totalFloatHours==="number"&&a.totalFloatHours<=0).length;
+    const managementAction = procurementBlockerCount>0
+      ? "Expedite procurement/material blockers and protect the affected workfront dates."
+      : designBlockerCount>0
+        ? "Close design/RFI/submittal blockers before the affected workfront proceeds."
+        : delayed.length>0
+          ? "Agree recovery dates and accountable actions for delayed activities in this scope."
+          : criticalOrNegative>0
+            ? "Protect remaining float and monitor the critical/negative-float activities."
+            : "Monitor the current plan and recorded progress for this scope.";
+    return {
+      forecastFinishIso:finishes.at(-1)??null,
+      delayedActivityCount:delayed.length,
+      milestoneThreatIds,
+      longLeadActivityCount,
+      procurementBlockerCount,
+      designBlockerCount,
+      owner:null,
+      managementAction,
+      physicalMeasuredPercent:null,
+      certifiedPhysicalPercent:null,
+    };
+  };
   const enrich = (row: ProgressBreakdownRow, activities: readonly CanonicalScheduleActivity[]) => {
     const eligibleCount = scheduleProgress(activities).totalCount;
     const weighted = (basis: "baseline" | "current") => {
@@ -196,7 +249,8 @@ export function buildProgressBreakdownProjection(
       scheduleMinusBaselinePercentagePoints: row.durationWeightedProgressPercent !== null && baseline.value !== null ? Number((row.durationWeightedProgressPercent-baseline.value).toFixed(6)) : null,
       previousScheduleProgressPercent: priorProgress.value, previousComparisonCoveragePercent: coverage(prior.length,activities.length),
       scheduleProgressMovementPercentagePoints: priorProgress.value !== null && prior.length === activities.length && row.durationWeightedProgressPercent !== null ? Number((row.durationWeightedProgressPercent-priorProgress.value).toFixed(6)) : null,
-      contractorReportedPercent: null, certifiedPhysicalPercent: null,
+      contractorReportedPercent: null,
+      ...managementSignals(activities),
     };
   };
   const rows = [...groups.entries()]
@@ -332,7 +386,7 @@ export function buildProgressBreakdownProjection(
     activities: CanonicalScheduleActivity[],
   ) => {
     const progress = scheduleProgress(activities);
-    const row = buildRow(model, groupKey, groupLabel, activities, config);
+    const row = enrich(buildRow(model, groupKey, groupLabel, activities, config), activities);
     const weightSharePercent = overallKnownWeightHours > 0
       ? Number((progress.knownWeightHours / overallKnownWeightHours * 100).toFixed(6))
       : null;
@@ -345,6 +399,19 @@ export function buildProgressBreakdownProjection(
       groupKey,
       groupLabel,
       classified,
+      activityIds: activities.map(activity=>activity.activityId),
+      baselinePlannedPercent: row.baselinePlannedPercent ?? null,
+      currentPlanPercent: row.currentPlanPercent ?? null,
+      physicalMeasuredPercent: row.physicalMeasuredPercent ?? null,
+      certifiedPhysicalPercent: row.certifiedPhysicalPercent ?? null,
+      forecastFinishIso: row.forecastFinishIso ?? null,
+      delayedActivityCount: row.delayedActivityCount ?? 0,
+      milestoneThreatIds: row.milestoneThreatIds ?? [],
+      longLeadActivityCount: row.longLeadActivityCount ?? 0,
+      procurementBlockerCount: row.procurementBlockerCount ?? 0,
+      designBlockerCount: row.designBlockerCount ?? 0,
+      owner: row.owner ?? null,
+      managementAction: row.managementAction ?? "Monitor the current plan and recorded progress for this scope.",
       activityCount: activities.length,
       completedCount: row.completedCount,
       inProgressCount: row.inProgressCount,

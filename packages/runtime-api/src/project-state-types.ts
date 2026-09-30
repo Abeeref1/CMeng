@@ -406,6 +406,7 @@ export interface ProjectControlState {
     physical?: ExternalProgressEvidence;
     contractorReported?: ExternalProgressEvidence;
     certified?: ExternalProgressEvidence;
+    earnedValue?: ExternalProgressEvidence;
   };
   contractValue: MoneyValue | null;
   variations: VariationRecord[];

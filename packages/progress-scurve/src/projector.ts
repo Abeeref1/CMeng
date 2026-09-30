@@ -99,8 +99,10 @@ export function buildProgressScurveProjection(model: CanonicalScheduleModel, inp
     const observed = lastObservation !== null && at <= lastObservation && cutoff !== null && at <= cutoff
       ? observations.filter(([date]) => date <= at).at(-1) : undefined;
     const date = new Date(at).toISOString();
+    const currentSchedulePhasingPercent = cumulative(current, at);
     return { dateIso: date.endsWith("T00:00:00.000Z") ? date.slice(0,10) : date, baselinePlannedPercent: cumulative(baseline, at),
-      currentForecastPercent: cumulative(current, at), actualProgressPercent: observed ? observedValue(observed[1]) : null };
+      currentSchedulePhasingPercent, currentForecastPercent: currentSchedulePhasingPercent,
+      actualProgressPercent: observed ? observedValue(observed[1]) : null };
   });
   diagnostics.push("SCURVE_WORKING_CALENDAR_PHASING", "SCHEDULE_SNAPSHOTS_ARE_NOT_CERTIFIED_PHYSICAL_PROGRESS");
   if (snapshots.length <= 1) diagnostics.push("SCURVE_ACTUAL_HISTORY_NOT_RECONSTRUCTED_FROM_SINGLE_SNAPSHOT");
@@ -116,6 +118,7 @@ export function buildProgressScurveProjection(model: CanonicalScheduleModel, inp
     currentCoveragePercent: coverage(current.length, currentPopulation.activities.length),
     actualSnapshotCoveragePercent: snapshot.coveragePercent,
     actualHistoryMode: snapshots.length > 1 ? "snapshot_history" : snapshots.length === 1 ? "current_snapshot_only" : "missing",
+    currentSeriesMeaning: "current_schedule_date_phasing_not_achieved_progress",
     points, actualSnapshots: snapshots, diagnostics,
     scopeComparison:input.baselineModel?compareProgressScopes(model,input.baselineModel):null,
   };

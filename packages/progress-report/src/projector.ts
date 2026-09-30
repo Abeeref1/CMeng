@@ -124,6 +124,7 @@ export function buildProgressReportProjection(
       physical?: ExternalProgressEvidence;
       contractorReported?: ExternalProgressEvidence;
       certified?: ExternalProgressEvidence;
+      earnedValue?: ExternalProgressEvidence;
     };
   },
 ): ProgressReportProjection {
@@ -171,7 +172,8 @@ export function buildProgressReportProjection(
   const baselinePercent =
     dataDatePoint?.baselinePlannedPercent ??
     null;
-  const currentSchedulePercent =
+  const currentPlannedPercent =
+    dataDatePoint?.currentSchedulePhasingPercent ??
     dataDatePoint?.currentForecastPercent ??
     null;
   const latestActual =
@@ -186,6 +188,14 @@ export function buildProgressReportProjection(
     input.progressEvidence?.physical
       ?.sourceRefs ??
     [];
+
+  const currentPlanned = progressBasis(
+    currentPlannedPercent,
+    "deterministic_schedule",
+    ["progress-scurve:current-plan:" + (dataDatePoint?.dateIso ?? "unestablished")],
+    baselinePercent,
+    { asOfIso: dataDatePoint?.dateIso ?? schedule.dataDateIso, coveragePercent: input.progressScurve.currentCoveragePercent },
+  );
 
   const progressBases = {
     scheduleSnapshot: progressBasis(latestActual?.progressPercent ?? null, "progress_snapshot", latestActual?.sourceRefs ?? [], baselinePercent,
@@ -208,24 +218,8 @@ export function buildProgressReportProjection(
             .baselineCoveragePercent,
       },
     ),
-    currentSchedule: progressBasis(
-      currentSchedulePercent,
-      "deterministic_schedule",
-      [
-        "progress-scurve:current:" +
-          (dataDatePoint?.dateIso ?? "unestablished"),
-      ],
-      baselinePercent,
-      {
-        asOfIso:
-          dataDatePoint
-            ?.dateIso ??
-          schedule.dataDateIso,
-        coveragePercent:
-          input.progressScurve
-            .currentCoveragePercent,
-      },
-    ),
+    currentPlanned,
+    currentSchedule: currentPlanned,
     physical: progressBasis(
       physicalPercent,
       input.progressEvidence?.physical
@@ -290,11 +284,48 @@ export function buildProgressReportProjection(
           null,
       },
     ),
+    earnedValue: progressBasis(
+      input.progressEvidence?.earnedValue?.valuePercent ?? null,
+      input.progressEvidence?.earnedValue ? "earned_value" : "missing",
+      input.progressEvidence?.earnedValue?.sourceRefs ?? [],
+      baselinePercent,
+      {
+        asOfIso: input.progressEvidence?.earnedValue?.asOfIso ?? schedule.dataDateIso,
+        coveragePercent: input.progressEvidence?.earnedValue?.coveragePercent ?? null,
+      },
+    ),
   };
+  const headlineCandidates = [
+    {key:"physical" as const,label:"Physical measured progress",basis:progressBases.physical},
+    {key:"certified" as const,label:"Certified progress",basis:progressBases.certified},
+    {key:"contractor_reported" as const,label:"Contractor reported progress",basis:progressBases.contractorReported},
+    {key:"earned_value" as const,label:"Earned-value progress",basis:progressBases.earnedValue},
+    {key:"schedule_snapshot" as const,label:"Schedule progress snapshot",basis:progressBases.scheduleSnapshot},
+  ];
+  const headlineSelected = headlineCandidates.find(row => row.basis.valuePercent !== null) ?? null;
+  const headlineProgress = headlineSelected
+    ? {
+        key: headlineSelected.key,
+        label: headlineSelected.label,
+        valuePercent: headlineSelected.basis.valuePercent,
+        authority: headlineSelected.basis.authority,
+        basis: headlineSelected.key === "schedule_snapshot"
+          ? "Submitted activity percentage-complete snapshot; not certified physical progress."
+          : "Best available achieved-progress evidence; current planned phasing remains a separate comparator.",
+      }
+    : {
+        key: "missing" as const,
+        label: "Achieved progress",
+        valuePercent: null,
+        authority: "missing" as const,
+        basis: "No achieved-progress evidence is established.",
+      };
   const externalProgressEvidenceEstablished =
     progressBases.contractorReported
       .valuePercent !== null ||
     progressBases.certified
+      .valuePercent !== null ||
+    progressBases.earnedValue
       .valuePercent !== null ||
     (
       progressBases.physical
@@ -322,6 +353,7 @@ export function buildProgressReportProjection(
     dataDateIso:
       schedule.dataDateIso,
     progressBases,
+    headlineProgress,
     scopeComparison:input.progressScurve.scopeComparison??null,
     activityPopulation: {
       ...schedule.population,

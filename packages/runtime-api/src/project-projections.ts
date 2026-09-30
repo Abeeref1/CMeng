@@ -1275,6 +1275,7 @@ function buildBundle(
       baselineModel: controlledBaseline?.revision.model ?? null,
       previousModel: ordered.at(-2)?.revision.model ?? null,
       scopeClassification: scheduleScopeClassification(model),
+      readinessEvidence: state.controls.readinessEvidence,
           config: scheduleAnalysisConfig,
         generatedAt,
         producerVersion:
@@ -3480,6 +3481,14 @@ function canonicalQuantityModule(state: ProjectRuntimeState, model: ProjectRunti
   const measurementsPresent = !!quantities.measurementReview || quantities.installedSnapshots.length>0;
   const hasMeasuredActual = series.some(group=>group.points.some(point=>point.actualInstalledQuantity!==null));
   const measurementState = !hasMeasuredActual?"unresolved":measuredItems.size===quantities.items.length?"available":"partial";
+  const productivityForecast = sourceProductivityForecastEvidence(state);
+  const quantityProductivityRows = productivityForecast.rows.map(row=>({
+    workPackageId:row.workPackageId,description:row.description,unit:row.unit,
+    totalQuantity:row.totalQuantity,installedQuantity:row.installedQuantity,remainingQuantity:row.remainingQuantity,
+    evidencedRatePerHour:row.evidencedRatePerHour,rateBasis:row.rateBasis,
+    completionIso:row.completionIso,completionBasis:row.completionBasis,state:row.state,
+    linkedActivityId:row.linkedActivityId,sourceRefs:row.sourceRefs,
+  }));
   const installedQuantityStatus = {state:measurementState,measuredItemCount:measurementsPresent?measuredItems.size:null,boqItemCount:quantities.items.length,
     itemCoveragePercent:measurementsPresent&&quantities.items.length?measuredItems.size/quantities.items.length*100:null,
     explanation:hasMeasuredActual?"Dated installed quantities are available for "+measuredItems.size+" of "+quantities.items.length+" BOQ items. Programme links are a separate requirement for planned curves.":"Dated installed quantities are unresolved. A measurement source label or programme link does not establish measured actuals."};
@@ -3499,6 +3508,7 @@ function canonicalQuantityModule(state: ProjectRuntimeState, model: ProjectRunti
     unmappedKnownQuantityItemIds: projection.unmappedItemIds,
     unmappedItemIds: quantities.items.filter(item => !mappedItemIds.has(item.quantityItemId)).map(item => item.quantityItemId),
     actualAuthority: "measured_installed_quantities", actualIndependentOfScheduleMapping: true, measurementReview:quantities.measurementReview??null,
+    productivityForecast:{state:productivityForecast.state,method:productivityForecast.method,coveragePercent:productivityForecast.calculationCoveragePercent,rows:quantityProductivityRows},
     series,
     diagnostics: [...projection.diagnostics, ...(scenario ? ["QUANTITY_PLAN_IS_CANDIDATE_SCENARIO_NOT_GOVERNED"] : []), ...(!sameRevision ? ["QUANTITY_MAPPING_REVISION_MISMATCH_PLANS_WITHHELD"] : [])],
   }, ["BOQ", "quantity-to-activity mapping", "installed quantity measurements"],
@@ -5359,6 +5369,7 @@ function buildSpecialistModuleFast(
       baselineModel: controlledBaseline?.revision.model ?? null,
       previousModel: ordered.at(-2)?.revision.model ?? null,
       scopeClassification: scheduleScopeClassification(model),
+      readinessEvidence: state.controls.readinessEvidence,
           config: scheduleAnalysisConfig,
           generatedAt,
           producerVersion:
