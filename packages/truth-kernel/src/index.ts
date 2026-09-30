@@ -8,6 +8,7 @@ export * from './issues';
 export * from './aggregates';
 
 export type FactState = 'official' | 'candidate' | 'missing' | 'partial' | 'conflicted';
+export type ManagementFactState = FactState | 'not_applicable' | 'quarantined';
 export interface SourceReceipt {
   documentId: string; sourceHash: string; revision: string; locator: string;
   basisState: string; authority: 'source_record' | 'source_approved' | 'engineer_determination';
@@ -23,6 +24,164 @@ export interface SourceTable { headers: string[]; rows: SourceRow[]; document: E
 export interface Fact<T> {
   value: T | null; state: FactState; receipts: SourceReceipt[];
   diagnostics: string[]; method: string; coverage: { known: number; total: number };
+}
+
+export type PopulationState =
+  | 'established'
+  | 'partial'
+  | 'source_only'
+  | 'candidate'
+  | 'missing'
+  | 'not_applicable'
+  | 'quarantined'
+  | 'conflicted';
+
+export interface PopulationAuthority {
+  state: PopulationState;
+  sourceCount: number | null;
+  applicableCount: number | null;
+  currentCount: number | null;
+  excludedCount: number | null;
+  coveragePercent: number | null;
+  basis: string;
+}
+
+export type ManagementFactAuthority =
+  | 'official'
+  | 'source'
+  | 'calculated'
+  | 'candidate'
+  | 'scenario'
+  | 'none';
+
+export interface ManagementFactView<T> {
+  key: string;
+  label: string;
+  value: T | null;
+  state: ManagementFactState;
+  authority: ManagementFactAuthority;
+  basis: string;
+  limitation: string | null;
+  receipts: SourceReceipt[];
+  coverage: { known: number; total: number };
+}
+
+const factStateRank: Record<ManagementFactState, number> = {
+  official: 700,
+  partial: 600,
+  conflicted: 500,
+  candidate: 400,
+  quarantined: 300,
+  not_applicable: 100,
+  missing: 0,
+};
+
+export function bestAvailableFact<T>(
+  candidates: readonly ManagementFactView<T>[],
+): ManagementFactView<T> | null {
+  if (!candidates.length) return null;
+  const ranked = [...candidates].sort((a, b) => {
+    const aHasValue = a.value !== null ? 1 : 0;
+    const bHasValue = b.value !== null ? 1 : 0;
+    return (
+      bHasValue - aHasValue ||
+      factStateRank[b.state] - factStateRank[a.state] ||
+      (b.coverage.total > 0 ? b.coverage.known / b.coverage.total : 0) -
+        (a.coverage.total > 0 ? a.coverage.known / a.coverage.total : 0)
+    );
+  });
+  return ranked[0] ?? null;
+}
+
+export function populationCanAssertCompleteValue(
+  population: PopulationAuthority | null | undefined,
+): boolean {
+  return population?.state === 'established';
+}
+
+export function populationCanAssertZero(
+  population: PopulationAuthority | null | undefined,
+): boolean {
+  return populationCanAssertCompleteValue(population);
+}
+
+export function establishedPopulationCount(
+  value: number | null | undefined,
+  population: PopulationAuthority | null | undefined,
+): number | null {
+  if (!populationCanAssertCompleteValue(population)) return null;
+  return value === null || value === undefined ? null : value;
+}
+
+export interface ManagementAction {
+  actionId: string;
+  issue: string;
+  consequence: string | null;
+  affectedScope: string[];
+  affectedMilestones: string[];
+  owner: string | null;
+  organisation: string | null;
+  requiredAction: string;
+  dueIso: string | null;
+  escalation: string | null;
+  severity: 'critical' | 'high' | 'medium' | 'low' | 'information';
+  authority: ManagementFactAuthority;
+  sourceRefs: string[];
+}
+
+export function managementAction(
+  value: ManagementAction,
+): ManagementAction {
+  return {
+    ...value,
+    affectedScope: [...new Set(value.affectedScope.filter(Boolean))],
+    affectedMilestones: [...new Set(value.affectedMilestones.filter(Boolean))],
+    sourceRefs: [...new Set(value.sourceRefs.filter(Boolean))],
+  };
+}
+
+export type FeatureAvailability =
+  | 'active'
+  | 'useful_partial'
+  | 'evidence_only'
+  | 'not_applicable'
+  | 'blocked';
+
+export function featureAvailability(input: {
+  applicable?: boolean;
+  hasEstablishedResult?: boolean;
+  hasUsefulEvidence?: boolean;
+  prerequisitesSatisfied?: boolean;
+}): FeatureAvailability {
+  if (input.applicable === false) return 'not_applicable';
+  if (input.hasEstablishedResult) return 'active';
+  if (input.hasUsefulEvidence && input.prerequisitesSatisfied === false) return 'evidence_only';
+  if (input.hasUsefulEvidence) return 'useful_partial';
+  return 'blocked';
+}
+
+export const MANAGEMENT_DIAGNOSTIC_LABELS: Readonly<Record<string, string>> = Object.freeze({
+  CALENDAR_SEMANTICS_UNRESOLVED:
+    'Programme calendar working days, shifts or exceptions are not sufficiently defined.',
+  CALENDAR_WORK_PATTERN_NOT_ESTABLISHED:
+    'Programme calendar work pattern is not sufficiently defined.',
+  SCHEDULE_GRAPH_CYCLES:
+    'Schedule logic contains a circular relationship.',
+  SCHEDULE_GRAPH_DUPLICATE_ACTIVITY_IDS:
+    'The programme contains duplicate activity IDs.',
+  SCHEDULE_GRAPH_SELF_LOOPS:
+    'The programme contains a self-referencing relationship.',
+  SCHEDULE_GRAPH_BROKEN_PREDECESSORS:
+    'A schedule relationship references a predecessor that is not present in the programme.',
+  INDEPENDENT_FORECAST_ACTIVITY_NOT_CALCULATED:
+    'This activity could not be included in the programme calendar recalculation.',
+  INDEPENDENT_CPM_NOT_CALCULATED_IN_THIS_FAST_VIEW:
+    'The independent CPM calculation is not available in this fast view.',
+});
+
+export function diagnosticBusinessLabel(code: string): string {
+  const key = String(code ?? '').split(':', 1)[0] ?? '';
+  return MANAGEMENT_DIAGNOSTIC_LABELS[key] ?? 'Additional calculation qualification';
 }
 export const norm = (value: string): string => value.normalize('NFKC').replace(/^\uFEFF/, '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
 export function csv(text: string): string[][] {

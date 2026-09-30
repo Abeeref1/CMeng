@@ -1,0 +1,79 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+
+import {
+  bestAvailableFact,
+  diagnosticBusinessLabel,
+  establishedPopulationCount,
+  featureAvailability,
+  managementAction,
+  populationCanAssertZero,
+  type ManagementFactView,
+  type PopulationAuthority,
+} from '../packages/truth-kernel/src';
+import {scheduleLongLeadEvidence} from '../packages/runtime-api/src/management-context';
+
+const pop=(state:PopulationAuthority['state']):PopulationAuthority=>({
+  state,sourceCount:null,applicableCount:null,currentCount:null,excludedCount:null,coveragePercent:null,basis:'test'
+});
+
+test('population zero is only authoritative for an established population',()=>{
+  assert.equal(populationCanAssertZero(pop('established')),true);
+  for(const state of ['partial','source_only','candidate','missing','not_applicable','quarantined','conflicted'] as const)
+    assert.equal(populationCanAssertZero(pop(state)),false,state);
+  assert.equal(establishedPopulationCount(0,pop('established')),0);
+  assert.equal(establishedPopulationCount(0,pop('source_only')),null);
+});
+
+test('best available fact prefers usable higher-authority evidence without erasing qualified evidence',()=>{
+  const facts:ManagementFactView<number>[]=[
+    {key:'gap',label:'Gap',value:null,state:'missing',authority:'none',basis:'missing',limitation:null,receipts:[],coverage:{known:0,total:1}},
+    {key:'candidate',label:'Candidate',value:49,state:'candidate',authority:'candidate',basis:'schedule WBS',limitation:'Procurement status not established',receipts:[],coverage:{known:49,total:49}},
+    {key:'source',label:'Source',value:12,state:'partial',authority:'source',basis:'source rows',limitation:'Population incomplete',receipts:[],coverage:{known:12,total:20}},
+  ];
+  assert.equal(bestAvailableFact(facts)?.key,'source');
+  assert.equal(bestAvailableFact([facts[0]!,facts[1]!])?.value,49);
+});
+
+test('feature availability distinguishes evidence-only from active and blocked',()=>{
+  assert.equal(featureAvailability({hasEstablishedResult:true}),'active');
+  assert.equal(featureAvailability({hasUsefulEvidence:true,prerequisitesSatisfied:false}),'evidence_only');
+  assert.equal(featureAvailability({hasUsefulEvidence:true}),'useful_partial');
+  assert.equal(featureAvailability({applicable:false}),'not_applicable');
+  assert.equal(featureAvailability({}),'blocked');
+});
+
+test('management actions deduplicate scope, milestones and source references',()=>{
+  const action=managementAction({
+    actionId:'A1',issue:'Late package',consequence:'Milestone threat',
+    affectedScope:['Zone 1','Zone 1'],affectedMilestones:['M1','M1'],owner:null,organisation:null,
+    requiredAction:'Expedite',dueIso:null,escalation:null,severity:'high',authority:'source',sourceRefs:['R1','R1']
+  });
+  assert.deepEqual(action.affectedScope,['Zone 1']);
+  assert.deepEqual(action.affectedMilestones,['M1']);
+  assert.deepEqual(action.sourceRefs,['R1']);
+});
+
+test('diagnostic labels expose management language rather than raw codes',()=>{
+  assert.match(diagnosticBusinessLabel('SCHEDULE_GRAPH_CYCLES:A1'),/circular relationship/i);
+  assert.equal(diagnosticBusinessLabel('UNKNOWN_INTERNAL_CODE:X'),'Additional calculation qualification');
+});
+
+test('schedule long-lead evidence is reusable outside the schedule module',()=>{
+  const model:any={
+    projectId:'P',sourceRevisionId:'R1',dataDateIso:'2030-01-01',
+    wbs:[
+      {wbsId:'W0',parentWbsId:null,name:'Project'},
+      {wbsId:'W1',parentWbsId:'W0',name:'Long Lead Materials'},
+      {wbsId:'W2',parentWbsId:'W0',name:'Civil Works'},
+    ],
+    activities:[
+      {activityId:'A1',activityType:'task',name:'Transformer procurement',wbsId:'W1',currentStartIso:'2030-01-02',currentFinishIso:'2030-03-01',totalFloatHours:8,percentComplete:0},
+      {activityId:'A2',activityType:'task',name:'Excavate trench',wbsId:'W2',currentStartIso:'2030-01-02',currentFinishIso:'2030-01-20',totalFloatHours:40,percentComplete:0},
+    ],
+    relationships:[],
+  };
+  const rows=scheduleLongLeadEvidence(model);
+  assert.deepEqual(rows.map(row=>row.activityId),['A1']);
+  assert.match(rows[0]!.wbsPath??'',/Long Lead Materials/);
+});
