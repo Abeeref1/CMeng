@@ -80,3 +80,40 @@ test('programme control stages derive an integrated execution sequence from prog
   assert.equal(stages.find(row=>row.stage==='procurement')?.criticalOrNegativeFloatCount,1);
   assert.equal(stages.find(row=>row.stage==='construction')?.criticalOrNegativeFloatCount,1);
 });
+
+
+test('Task 08 Dashboard ranks intervention before material/source information and gaps',()=>{
+  const data:any={
+    metrics:[
+      {key:'contract-finish',value:'2030-06-30'},
+      {key:'submitted-programme-finish',value:'2030-07-30'},
+      {key:'submitted-vs-contract',value:30},
+      {key:'independent-forecast-finish',value:null},
+      {key:'independent-vs-contract',value:null},
+      {key:'progress-position',value:null},
+      {key:'schedule-spi',value:null},
+    ],
+    visualControl:{
+      progress:{scopeComparison:null,progressBases:null},
+      commercial:{positions:[],cost:[]},
+      sourceInventory:{domains:[
+        {domain:'risk',label:'Risk',documentCount:1,readableRowCount:12},
+        {domain:'procurement',label:'Procurement',documentCount:1,readableRowCount:5,signals:{longLeadMarkedCount:2}},
+      ]},
+      claims:{},boqScope:{candidateLongLeadCount:2,boqCandidateLongLeadCount:null,scheduleCandidateLongLeadCount:null,candidatePackageCount:null,topLongLead:[]}
+    },
+    delivery:{packagePopulationState:'not_established',confirmedPackageCount:0,knownPackageRecordCount:0,candidatePackageCount:null,candidateLongLeadCount:null,
+      latePackageKnownCount:null,sourceAvailability:{}},
+    operationalReporting:{counts:{}},sourceInterpretation:{hse:{metrics:{}}},variationReconciliation:[],
+    reportingContract:{dataDateIso:'2026-09-14'}
+  };
+  const code=functions(['pmcDefined','pmcFirst','pmcMetric','pmcSource','pmcMoney','pmcDays','pmcCard','pmcSourceValue','renderPmcControlRoom']);
+  const output=runInNewContext(code+';renderPmcControlRoom(data)',{
+    data,fmtExecutive:String,fmt:String,planningShortDate:String,
+    managementModuleLink:(_key:string,label:string)=>label,escapeHtml:(value:any)=>String(value??''),overview:{latestDataDateIso:'2026-09-14'}
+  });
+  assert.ok(output.indexOf('>Time<')>=0);
+  assert.ok(output.indexOf('>Time<')<output.indexOf('>Procurement / Long Lead<'),'schedule intervention must precede material exposure');
+  assert.ok(output.indexOf('>Procurement / Long Lead<')<output.indexOf('>Risk<'),'material exposure must precede source-only risk information');
+  assert.ok(output.indexOf('>Risk<')<output.indexOf('Control gaps'),'usable source information must precede gaps');
+});
