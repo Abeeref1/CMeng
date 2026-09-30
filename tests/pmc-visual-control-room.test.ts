@@ -243,7 +243,8 @@ test('Task 03 Best Available Position selects useful evidence by domain without 
   const commercial:any={
     currencies:[{
       currency:'AED',originalContractValue:fact(90),currentContractValue:fact(100),approvedVariationAmount:fact(10),
-      pendingVariationAmount:fact(null,'missing'),certifiedUnpaidAmount:fact(null,'missing'),retentionDeductedAmount:fact(null,'missing')
+      pendingVariationAmount:fact(null,'missing'),certifiedUnpaidAmount:fact(null,'missing'),retentionDeductedAmount:fact(null,'missing'),
+      paidAmount:fact(55)
     }],
     performance:{costControl:{positions:[]}},
     claimsNotices:{noticeTimelinessCounts:{timely:null,late:null,not_issued:null}}
