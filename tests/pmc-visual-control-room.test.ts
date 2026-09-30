@@ -124,7 +124,9 @@ test('management UI includes the visual control room, integrated programme contr
   assert.match(script,/PMC Control Room/);
   assert.match(script,/Integrated programme control sequence/);
   assert.match(script,/Control authority & evidence matrix/);
-  assert.match(script,/Current driving network/);
+  assert.match(script,/Current driving priorities/);
+  assert.match(script,/Driver chain \/ WBS/);
+  assert.match(script,/Milestone consequence/);
   assert.match(script,/Long-lead scope to protect/);
   assert.match(script,/What changed in the programme/);
 });
@@ -277,4 +279,37 @@ test('Task 03 Best Available Position selects useful evidence by domain without 
   assert.equal(visual.bestAvailablePositions.resources?.key,'assigned-resources');
   assert.equal(visual.bestAvailablePositions.claims,null);
   assert.equal(visual.bestAvailablePositions.design,null);
+});
+
+
+test('Task 10 groups repeated completion-driving activities by WBS and milestone consequence',()=>{
+  const state=runtimeProjects.getOrCreate('B10-GROUPED-DRIVERS');
+  const modules=new Map<string,any>([
+    ['independent-forecast',{data:{
+      drivingNetwork:{activityIds:['A1','A2'],finishActivityIds:['M1']},
+      activities:[]
+    }}],
+    ['activity-analytics',{data:{
+      rows:[
+        {activityId:'A1',name:'Civil work 1',wbsPath:'Civil / Zone 1',wbsId:'W1',currentFinishIso:'2030-05-01',forecastFinishIso:null,totalFloatHours:0,status:'not_started',activityType:'task'},
+        {activityId:'A2',name:'Civil work 2',wbsPath:'Civil / Zone 1',wbsId:'W1',currentFinishIso:'2030-05-10',forecastFinishIso:null,totalFloatHours:-8,status:'not_started',activityType:'task'},
+      ],
+      counts:{critical:{value:2},nearCritical:{value:0},floatRisk:{value:2}}
+    }}],
+    ['milestones',{data:{
+      milestoneCount:1,openCount:1,rows:[
+        {activityId:'M1',name:'Zone 1 complete',wbsName:'Civil / Zone 1',wbsId:'W1',status:'not_started',managementPriority:'critical',
+         baselineDateIso:'2030-05-01',currentDateIso:'2030-05-15',varianceDays:14,totalFloatHours:0,criticality:'critical'}
+      ]
+    }}],
+  ]);
+  const commercial:any={currencies:[],performance:{costControl:{positions:[]}},claimsNotices:{noticeTimelinessCounts:{timely:null,late:null,not_issued:null}}};
+  const visual:any=managementVisualControl(state,modules,commercial);
+  assert.equal(visual.schedule.priorityGroups.length,1);
+  const group=visual.schedule.priorityGroups[0];
+  assert.equal(group.wbs,'Civil / Zone 1');
+  assert.deepEqual(group.activityIds,['A1','A2']);
+  assert.equal(group.activityCount,2);
+  assert.deepEqual(group.milestoneIds,['M1']);
+  assert.equal(group.lowestFloatHours,-8);
 });
