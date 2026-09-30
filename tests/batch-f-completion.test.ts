@@ -22,6 +22,14 @@ test("Task 36 canonical delay/EOT chain preserves the required eight-link order"
  assert.equal(chain.rows[0]!.links.find(link=>link.key==="eot")!.state,"candidate");
  assert.equal(chain.rows[0]!.links.find(link=>link.key==="determination")!.state,"established");
 });
+test("Task 36 fail-closes a missing responsibility value instead of publishing unknown",()=>{
+ const delay:any={projectId:"F-TEST",events:[{eventId:"E-MISSING",title:"Unallocated event",responsibility:"unknown",responsibilityState:"missing",noticeTimeliness:"requirement_missing",linkedClaimIds:["C-X"],relatedActivityIds:[],activityCorrespondence:null,overlappingWindowIds:[],noticeIds:[],determinationIds:[],evidenceChainState:"claim_event_only",evidenceChainMissingLinks:["activity","window","notice","determination"],observedNetIndependentMovementDays:null,observedPositiveIndependentMovementDays:null,observedNetProgrammeMovementDays:null,observedPositiveProgrammeMovementDays:null,programmeMovementBasis:"unavailable",concurrencyCandidate:false,candidateClass:"insufficient_evidence",scheduleAttribution:"not_causally_attributed",describedImpactDays:null,describedImpactState:"missing",diagnostics:[]}]};
+ const chain=buildDelayEotEvidenceChain({schedule,windows,delay,notices:{events:[]} as any,populationState:"established",sourceClaimCount:1,quarantinedClaimCount:0});
+ const responsibility=chain.rows[0]!.links.find(link=>link.key==="responsibility")!;
+ assert.equal(responsibility.state,"missing");
+ assert.equal(responsibility.value,null);
+});
+
 test("Task 37 keeps contextual programme intelligence when no formal delay-event population exists",()=>{
  const chain=buildDelayEotEvidenceChain({schedule,windows,delay:{projectId:"F-TEST",events:[]} as any,notices:{events:[]} as any,populationState:"missing",sourceClaimCount:null,quarantinedClaimCount:null});
  assert.equal(chain.populationState,"missing");assert.equal(chain.rows.length,0);assert.equal(chain.programmeContext.projectCompletionMovementDays,10);
