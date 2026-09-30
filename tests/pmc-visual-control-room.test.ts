@@ -105,9 +105,10 @@ test('Delivery UI explicitly presents source availability before unresolved mapp
   assert.match(delivery,/governed lifecycle and schedule-impact conclusions stay separate/i);
 });
 
-test('management UI includes the visual control room and integrated MCP matrix',()=>{
+test('management UI includes the visual control room, integrated programme control and supporting governance',()=>{
   assert.match(script,/PMC Control Room/);
-  assert.match(script,/Integrated MCP governance matrix/);
+  assert.match(script,/Integrated programme control sequence/);
+  assert.match(script,/Control authority & evidence matrix/);
   assert.match(script,/Current driving network/);
   assert.match(script,/Long-lead scope to protect/);
   assert.match(script,/What changed in the programme/);
