@@ -24,11 +24,12 @@ import {earnedScheduleForState,evmByWbsForState,riskRegisterForState,contractRis
 import {tenderReadinessForState} from './tender-readiness';
 import {managementVisualControl} from './management-visual-control';
 import {projectManagementContext} from './management-context';
+import {moduleFeatureAvailability} from './feature-availability';
 import {contractChallengeForState} from './contract-challenge-runtime';
 import { enforceModuleReadiness } from "./module-readiness";
 import {assessModuleIssues} from './module-issues';
 import { documentClassificationForReview } from "./document-identification";
-import { reportingScope, summarizeControlIssues, type ControlIssue } from "../../truth-kernel/src";
+import { managementAction, reportingScope, summarizeControlIssues, type ControlIssue, type ManagementAction } from "../../truth-kernel/src";
 import { attachReportingContract, reportingData, managementReportingData } from "./reporting-contract";
 import { activityMovementAnalysis } from "../../activity-analytics/src/movement";
 import { reportingState, claimsReporting, operationalReporting, boqSourceReporting } from "./reporting-state";
@@ -7085,7 +7086,11 @@ function resolveProjectModuleCandidate(state: ProjectRuntimeState, key: string, 
   if (!model) {
     const data=result.data&&typeof result.data==='object'?result.data as Record<string,unknown>:{};
     const challenge=data.challenge??buildModuleChallenge({moduleKey:key,generatedAt:new Date().toISOString(),assertions:[],metrics:[],diagnostics:['Programme comparison unavailable until a programme is adopted.']});
-    return attachReportingContract(state,discloseReadIssues({...result,data:{...data,challenge}}));
+    const enriched={...result,data:{...data,challenge}};
+    if(enriched.data&&typeof enriched.data==='object'){
+      (enriched.data as any).featureAvailability=moduleFeatureAvailability(key,enriched.data);
+    }
+    return attachReportingContract(state,discloseReadIssues(enriched));
   }
   const controlBasis = projectScheduleControlBasis(state);
   if (result.data && typeof result.data === "object") {
@@ -7166,6 +7171,9 @@ function resolveProjectModuleCandidate(state: ProjectRuntimeState, key: string, 
     result.professionalState='review_required';
     result.evidenceState='partial';
     result.reason='Milestones use submitted float and a '+controlBasis.nearCriticalThresholdMethod.replaceAll('_',' ')+' threshold. Contractual threshold authority and independent driving-path validation remain separate.';
+  }
+  if(result.data&&typeof result.data==='object'){
+    (result.data as any).featureAvailability=moduleFeatureAvailability(key,result.data);
   }
   if(result.data&&typeof result.data==='object'&&['pmo-analysis','schedule-analytics','independent-forecast','progress-report','cash-flow','cost-forecast','commercial-overview'].includes(key)) {
     const interpretation=buildBundle(state).director?.sourceInterpretation??sourceInterpretation(state);
@@ -7910,7 +7918,7 @@ export function managementSurfacesForProject(
   const completion=(resolvedModules.get('independent-forecast')?.data as any)?.completionPosition??null;
   const diagnosis=(resolvedModules.get('pmo-analysis')?.data as any)?.projectDiagnosis??null;
   const visualControl=managementVisualControl(state,resolvedModules,commercial);
-  const managementContext=projectManagementContext(state);
+  const managementContext=projectManagementContext(state,resolvedModules,commercial);
   const interfaces=interfaceIntelligence(state);
   const accountability=crossDomainAccountability(state);
   const deliveryPosition=deliveryDashboard(state);
