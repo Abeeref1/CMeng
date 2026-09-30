@@ -15,6 +15,9 @@ import type {
   MilestoneDueState,
   MilestoneManagementFlag,
   MilestoneManagementPriority,
+  MilestoneAuthority,
+  MilestoneCategory,
+  MilestoneMovementBasis,
   MilestoneRow,
   MilestonesProjection,
 } from "./types";
@@ -30,15 +33,65 @@ function currentDate(
 ): string | null {
   if (
     activity.status === "completed" &&
-    activity.actualFinishIso
+    (activity.actualFinishIso || activity.actualStartIso)
   ) {
-    return activity.actualFinishIso;
+    return activity.actualFinishIso ?? activity.actualStartIso;
   }
   return (
-    activity.forecastFinishIso ??
     activity.currentFinishIso ??
     activity.currentStartIso
   );
+}
+
+function forecastDate(
+  activity: CanonicalScheduleActivity,
+): string | null {
+  if (activity.status === "completed") return null;
+  return activity.forecastFinishIso ?? activity.forecastStartIso;
+}
+
+function managementDate(
+  activity: CanonicalScheduleActivity,
+): string | null {
+  return (
+    activity.status === "completed"
+      ? activity.actualFinishIso ?? activity.actualStartIso
+      : activity.forecastFinishIso ??
+        activity.forecastStartIso ??
+        activity.currentFinishIso ??
+        activity.currentStartIso
+  );
+}
+
+function milestoneAuthority(
+  activity: CanonicalScheduleActivity,
+): MilestoneAuthority {
+  if (
+    activity.status === "completed" &&
+    (activity.actualFinishIso || activity.actualStartIso)
+  ) return "actual";
+  if (
+    activity.currentFinishIso ||
+    activity.currentStartIso ||
+    activity.forecastFinishIso ||
+    activity.forecastStartIso
+  ) return "submitted_programme";
+  return "not_established";
+}
+
+function milestoneCategory(
+  activity: CanonicalScheduleActivity,
+  wbsName: string | null,
+  terminal: boolean,
+): MilestoneCategory {
+  if (terminal) return "terminal_completion";
+  const text = [activity.name, wbsName]
+    .filter(Boolean)
+    .join(" ");
+  if (/\btest(?:ing)?\b|\bcommission(?:ing)?\b|\bhandover\b|\bclose[ -]?out\b|\btaking over\b|\benerg(?:ise|ize|isation|ization)\b/i.test(text)) {
+    return "testing_handover";
+  }
+  return "programme";
 }
 
 function daysBetween(
@@ -316,9 +369,11 @@ export function buildMilestonesProjection(
       )
       .map((activity) => {
         const current = currentDate(activity);
+        const forecast = forecastDate(activity);
+        const effectiveDate = managementDate(activity);
         const daysFromDataDate = daysBetween(
           model.dataDateIso,
-          current,
+          effectiveDate,
         );
         const activityCriticality = criticality(
           model,
@@ -329,6 +384,22 @@ export function buildMilestonesProjection(
           predecessors.get(activity.activityId) ?? [];
         const successorIds =
           successors.get(activity.activityId) ?? [];
+
+        const criticalDriverIds = predecessorIds
+          .filter((id) => criticalActivityIds.has(id))
+          .slice(0, 10);
+        const baselineIso =
+          activity.baselineFinishIso ??
+          activity.baselineStartIso;
+        const movementBasis: MilestoneMovementBasis =
+          baselineIso === null || effectiveDate === null
+            ? "not_established"
+            : activity.status === "completed" &&
+                (activity.actualFinishIso || activity.actualStartIso)
+              ? "actual_vs_baseline"
+              : forecast !== null
+                ? "forecast_vs_baseline"
+                : "current_vs_baseline";
 
         const base: MilestoneRow = {
           activityId: activity.activityId,
@@ -343,18 +414,28 @@ export function buildMilestonesProjection(
             activity.activityType,
           status: activity.status,
           baselineDateIso:
-            activity.baselineFinishIso ??
-            activity.baselineStartIso,
+            baselineIso,
           currentDateIso: current,
+          forecastDateIso: forecast,
           actualDateIso:
             activity.actualFinishIso ??
             activity.actualStartIso,
           totalFloatHours:
             activity.totalFloatHours,
+          authority: milestoneAuthority(activity),
+          category: milestoneCategory(
+            activity,
+            activity.wbsId
+              ? wbsById.get(activity.wbsId) ?? null
+              : null,
+            successorIds.length === 0,
+          ),
+          owner: null,
+          driverActivityIds: criticalDriverIds,
+          movementBasis,
           varianceDays: daysBetween(
-            activity.baselineFinishIso ??
-              activity.baselineStartIso,
-            current,
+            baselineIso,
+            effectiveDate,
           ),
           daysFromDataDate,
           dueState: dueState(
