@@ -180,6 +180,61 @@ function effectiveFinish(
   );
 }
 
+function wbsPathLookup(model: CanonicalScheduleModel): Map<string,string> {
+  const nodes=new Map(model.wbs.map(node=>[node.wbsId,node]));
+  const cache=new Map<string,string>();
+  const pathFor=(id:string|null):string=>{
+    if(!id)return '';
+    const cached=cache.get(id);if(cached!==undefined)return cached;
+    const parts:string[]=[],seen=new Set<string>();let current:string|null=id;
+    while(current&&!seen.has(current)){
+      seen.add(current);const node=nodes.get(current);if(!node)break;
+      parts.unshift(node.name??node.wbsId);current=node.parentWbsId??null;
+    }
+    const value=parts.join(' / ');cache.set(id,value);return value;
+  };
+  for(const id of nodes.keys())pathFor(id);
+  return cache;
+}
+
+function nearestSuccessorMilestones(
+  model: CanonicalScheduleModel,
+  activityId:string,
+):string[] {
+  const successors=new Map<string,string[]>();
+  for(const rel of model.relationships){
+    if(rel.external)continue;
+    const rows=successors.get(rel.predecessorActivityId)??[];
+    rows.push(rel.successorActivityId);successors.set(rel.predecessorActivityId,rows);
+  }
+  const byId=new Map(model.activities.map(activity=>[activity.activityId,activity]));
+  let frontier=[activityId],seen=new Set<string>([activityId]);
+  for(let depth=0;depth<50&&frontier.length;depth++){
+    const next:string[]=[],milestones:string[]=[];
+    for(const id of frontier)for(const successorId of successors.get(id)??[]){
+      if(seen.has(successorId))continue;seen.add(successorId);
+      const activity=byId.get(successorId);if(!activity)continue;
+      if(activity.activityType==='start_milestone'||activity.activityType==='finish_milestone')milestones.push(successorId);
+      else next.push(successorId);
+    }
+    if(milestones.length)return [...new Set(milestones)].sort(naturalCompare).slice(0,5);
+    frontier=next;
+  }
+  return [];
+}
+
+const readinessAction:Record<ReadinessDimensionKey,string>={
+  predecessor:'Resolve the predecessor/logic requirement before releasing the affected activities.',
+  procurement_material:'Expedite the material/procurement requirement and confirm the programme need date.',
+  design_submittal:'Close the design/RFI/submittal requirement before the affected work proceeds.',
+  permit:'Secure or renew the required permit/authority approval before the affected work proceeds.',
+  resource:'Mobilise or reallocate the required labour/equipment capacity for the affected workfront.',
+  quality:'Close the quality hold/inspection requirement before the affected work proceeds.',
+  commercial:'Resolve the commercial instruction/change/payment dependency affecting the workfront.',
+  risk:'Implement the linked mitigation or escalation affecting the workfront.',
+  access:'Resolve site/access/logistics readiness before the affected activities are released.',
+};
+
 export function buildLookAheadProjection(
   model: CanonicalScheduleModel,
   input: {
@@ -223,7 +278,9 @@ export function buildLookAheadProjection(
   );
 
   const missingCurrentDateActivityIds: string[] = [];
-  const rows: LookAheadActivityRow[] = [];
+  const forwardWindowRows: LookAheadActivityRow[] = [];
+  const overdueBacklogRows: LookAheadActivityRow[] = [];
+  const wbsPaths=wbsPathLookup(model);
 
   for (const activity of incomplete) {
     const startIso = effectiveStart(activity);
@@ -277,10 +334,12 @@ export function buildLookAheadProjection(
     const activityLogic =
       logic.byActivityId[activity.activityId];
 
-    rows.push({
+    const row:LookAheadActivityRow={
       activityId: activity.activityId,
       name: activity.name,
       wbsId: activity.wbsId,
+      wbsPath: activity.wbsId ? wbsPaths.get(activity.wbsId) ?? null : null,
+      affectedMilestoneIds: nearestSuccessorMilestones(model,activity.activityId),
       activityType: activity.activityType,
       status: activity.status,
       startIso,
@@ -317,17 +376,38 @@ export function buildLookAheadProjection(
           86_400_000
         ).toFixed(6),
       ),
-    });
+    };
+    if(isOverdue)overdueBacklogRows.push(row);
+    else forwardWindowRows.push(row);
   }
 
-  rows.sort((a, b) => {
-    const aDate = a.finishIso ?? "9999";
-    const bDate = b.finishIso ?? "9999";
-    return (
-      aDate.localeCompare(bDate) ||
-      naturalCompare(a.activityId, b.activityId)
-    );
-  });
+  const byFinish=(a:LookAheadActivityRow,b:LookAheadActivityRow)=>{
+    const aDate=a.finishIso??"9999",bDate=b.finishIso??"9999";
+    return aDate.localeCompare(bDate)||naturalCompare(a.activityId,b.activityId);
+  };
+  forwardWindowRows.sort(byFinish);
+  overdueBacklogRows.sort((a,b)=>(a.daysToFinish??0)-(b.daysToFinish??0)||byFinish(a,b));
+
+  const managementGroups=new Map<string,{
+    blockerType:ReadinessDimensionKey;wbsId:string|null;wbsPath:string|null;rows:LookAheadActivityRow[];sourceRefs:Set<string>
+  }>();
+  for(const row of forwardWindowRows){
+    for(const dimension of row.readiness.dimensions){
+      if(dimension.state!=="blocked")continue;
+      const key=dimension.key+"|"+(row.wbsId??"");
+      const group=managementGroups.get(key)??{blockerType:dimension.key,wbsId:row.wbsId,wbsPath:row.wbsPath??null,rows:[],sourceRefs:new Set<string>()};
+      group.rows.push(row);for(const ref of dimension.sourceRefs)group.sourceRefs.add(ref);managementGroups.set(key,group);
+    }
+  }
+  const managementInterventions=[...managementGroups.values()].map(group=>({
+    blockerType:group.blockerType,wbsId:group.wbsId,wbsPath:group.wbsPath,
+    activityCount:group.rows.length,activityIds:group.rows.map(row=>row.activityId),
+    affectedMilestoneIds:[...new Set(group.rows.flatMap(row=>row.affectedMilestoneIds??[]))].slice(0,10),
+    requiredByIso:group.rows.map(row=>row.startIso).filter((value):value is string=>!!value).sort()[0]??null,
+    owner:null,
+    action:readinessAction[group.blockerType],
+    sourceRefs:[...group.sourceRefs],
+  })).sort((a,b)=>b.activityCount-a.activityCount||(a.requiredByIso??"9999").localeCompare(b.requiredByIso??"9999")||String(a.wbsPath??"").localeCompare(String(b.wbsPath??"")));
 
   return {
     schemaVersion: "1.0",
@@ -353,31 +433,35 @@ export function buildLookAheadProjection(
         missingCurrentDateActivityIds.length,
       incomplete.length,
     ),
-    overdueCount: rows.filter(
-      (row) => row.classification === "overdue",
-    ).length,
-    missedStartCount: rows.filter(row => row.missedPlannedStart).length,
-    evidenceGapActivityCount: rows.filter(row => row.readiness.unknownCount > 0).length,
-    blockedWithEvidenceGapCount: rows.filter(row => row.readiness.state === "blocked" && row.readiness.unknownCount > 0).length,
-    blockerOccurrenceCount: rows.reduce((sum, row) => sum + row.readiness.blockedCount, 0),
-    blockerTypes: summarizeReadinessBlockers(rows),
-    readinessCoverage: READINESS_KEYS.map(key => ({ key, denominator: rows.length,
-      linkedActivityCount: rows.filter(row=>(row.readiness.dimensions.find(d=>d.key===key)?.sourceRefs.length??0)>0).length,
-      linkedSourceRecordCount: new Set(rows.flatMap(row=>row.readiness.dimensions.find(d=>d.key===key)?.sourceRefs??[])).size,
-      unresolvedLinkedActivityCount: rows.filter(row=>row.readiness.dimensions.some(d=>d.key===key&&d.state==='unknown'&&d.sourceRefs.length>0)).length,
-      knownCount: rows.filter(row => row.readiness.dimensions.find(d => d.key === key)?.state !== "unknown").length,
-      coveragePercent: coverage(rows.filter(row => row.readiness.dimensions.find(d => d.key === key)?.state !== "unknown").length, rows.length),
+    overdueCount: overdueBacklogRows.length,
+    missedStartCount: forwardWindowRows.filter(row => row.missedPlannedStart).length,
+    evidenceGapActivityCount: forwardWindowRows.filter(row => row.readiness.unknownCount > 0).length,
+    blockedWithEvidenceGapCount: forwardWindowRows.filter(row => row.readiness.state === "blocked" && row.readiness.unknownCount > 0).length,
+    blockerOccurrenceCount: forwardWindowRows.reduce((sum, row) => sum + row.readiness.blockedCount, 0),
+    blockerTypes: summarizeReadinessBlockers(forwardWindowRows),
+    readinessCoverage: READINESS_KEYS.map(key => ({ key, denominator: forwardWindowRows.length,
+      linkedActivityCount: forwardWindowRows.filter(row=>(row.readiness.dimensions.find(d=>d.key===key)?.sourceRefs.length??0)>0).length,
+      linkedSourceRecordCount: new Set(forwardWindowRows.flatMap(row=>row.readiness.dimensions.find(d=>d.key===key)?.sourceRefs??[])).size,
+      unresolvedLinkedActivityCount: forwardWindowRows.filter(row=>row.readiness.dimensions.some(d=>d.key===key&&d.state==='unknown'&&d.sourceRefs.length>0)).length,
+      knownCount: forwardWindowRows.filter(row => row.readiness.dimensions.find(d => d.key === key)?.state !== "unknown").length,
+      coveragePercent: coverage(forwardWindowRows.filter(row => row.readiness.dimensions.find(d => d.key === key)?.state !== "unknown").length, forwardWindowRows.length),
     })),
-    readyCount: rows.filter(
+    forwardWindowCount:forwardWindowRows.length,
+    overdueBacklogCount:overdueBacklogRows.length,
+    overdueBacklogBlockedCount:overdueBacklogRows.filter(row=>row.readiness.state==="blocked").length,
+    forwardWindowRows,
+    overdueBacklogRows,
+    managementInterventions,
+    readyCount: forwardWindowRows.filter(
       (row) => row.readiness.state === "ready",
     ).length,
-    conditionalCount: rows.filter(
+    conditionalCount: forwardWindowRows.filter(
       (row) => row.readiness.state === "conditional",
     ).length,
-    blockedCount: rows.filter(
+    blockedCount: forwardWindowRows.filter(
       (row) => row.readiness.state === "blocked",
     ).length,
-    rows,
+    rows:forwardWindowRows,
     missingCurrentDateActivityIds:
       missingCurrentDateActivityIds.sort(),
   };
