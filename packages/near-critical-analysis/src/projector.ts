@@ -23,6 +23,33 @@ function coverage(
   return Number(((known / total) * 100).toFixed(4));
 }
 
+function wbsPathLookup(model:CanonicalScheduleModel):Map<string,string>{
+  const nodes=new Map(model.wbs.map(node=>[node.wbsId,node])),cache=new Map<string,string>();
+  const pathFor=(id:string|null):string=>{
+    if(!id)return '';const cached=cache.get(id);if(cached!==undefined)return cached;
+    const parts:string[]=[],seen=new Set<string>();let current:string|null=id;
+    while(current&&!seen.has(current)){seen.add(current);const node=nodes.get(current);if(!node)break;parts.unshift(node.name??node.wbsId);current=node.parentWbsId??null;}
+    const value=parts.join(' / ');cache.set(id,value);return value;
+  };
+  for(const id of nodes.keys())pathFor(id);return cache;
+}
+
+function nearestSuccessorMilestones(model:CanonicalScheduleModel,activityId:string):string[]{
+  const successors=new Map<string,string[]>(),byId=new Map(model.activities.map(a=>[a.activityId,a]));
+  for(const rel of model.relationships){if(rel.external)continue;const rows=successors.get(rel.predecessorActivityId)??[];rows.push(rel.successorActivityId);successors.set(rel.predecessorActivityId,rows);}
+  let frontier=[activityId],seen=new Set<string>([activityId]);
+  for(let depth=0;depth<50&&frontier.length;depth++){
+    const next:string[]=[],milestones:string[]=[];
+    for(const id of frontier)for(const successorId of successors.get(id)??[]){
+      if(seen.has(successorId))continue;seen.add(successorId);const activity=byId.get(successorId);if(!activity)continue;
+      if(activity.activityType==='start_milestone'||activity.activityType==='finish_milestone')milestones.push(successorId);else next.push(successorId);
+    }
+    if(milestones.length)return [...new Set(milestones)].sort(naturalCompare).slice(0,5);
+    frontier=next;
+  }
+  return [];
+}
+
 export function buildNearCriticalProjection(
   model: CanonicalScheduleModel,
   input: {
@@ -37,6 +64,7 @@ export function buildNearCriticalProjection(
     DEFAULT_SCHEDULE_ANALYSIS_CONFIG;
 
   const population = activityPopulation(model);
+  const wbsPaths=wbsPathLookup(model);
   const known = population.activities.filter(
     (activity) =>
       activity.totalFloatHours !== null,
@@ -58,6 +86,8 @@ export function buildNearCriticalProjection(
     activityId: activity.activityId,
     name: activity.name,
     wbsId: activity.wbsId,
+    wbsPath: activity.wbsId ? wbsPaths.get(activity.wbsId) ?? null : null,
+    affectedMilestoneIds: nearestSuccessorMilestones(model,activity.activityId),
     calendarId: activity.calendarId,
     status: activity.status,
     totalFloatHours:
@@ -365,6 +395,32 @@ export function buildNearCriticalProjection(
     },
   };
 
+  const managementSource=[...new Map([...watchlistRows,...criticalRows,...negativeFloatRows].map(row=>[row.activityId,row])).values()]
+    .filter(row=>row.status!=="completed");
+  const managementMap=new Map<string,{
+    wbsId:string|null;wbsPath:string|null;rows:typeof managementSource;
+  }>();
+  for(const row of managementSource){
+    const key=row.wbsId??"";
+    const group=managementMap.get(key)??{wbsId:row.wbsId,wbsPath:row.wbsPath??null,rows:[]};
+    group.rows.push(row);managementMap.set(key,group);
+  }
+  const managementGroups=[...managementMap.values()].map(group=>{
+    const floats=group.rows.map(row=>row.totalFloatHours).filter((v):v is number=>typeof v==="number");
+    const finishes=group.rows.map(row=>row.currentFinishIso).filter((v):v is string=>!!v).sort();
+    const later=group.rows.filter(row=>row.baselineFinishIso&&row.currentFinishIso&&row.currentFinishIso.slice(0,10)>row.baselineFinishIso.slice(0,10)).length;
+    return {
+      wbsId:group.wbsId,wbsPath:group.wbsPath,activityCount:group.rows.length,activityIds:group.rows.map(row=>row.activityId),
+      nearCriticalCount:group.rows.filter(row=>row.totalFloatHours>config.criticalFloatThresholdHours).length,
+      criticalCount:group.rows.filter(row=>row.totalFloatHours<=config.criticalFloatThresholdHours).length,
+      negativeFloatCount:group.rows.filter(row=>row.totalFloatHours<0).length,
+      lowestFloatHours:floats.length?Math.min(...floats):null,earliestCurrentFinishIso:finishes[0]??null,
+      affectedMilestoneIds:[...new Set(group.rows.flatMap(row=>row.affectedMilestoneIds??[]))].slice(0,10),
+      laterThanBaselineCount:later,
+      action:'Protect remaining float, clear the linked constraints and confirm the recovery/protection action before this scope becomes completion-driving.',
+    };
+  }).sort((a,b)=>(a.lowestFloatHours??Number.MAX_SAFE_INTEGER)-(b.lowestFloatHours??Number.MAX_SAFE_INTEGER)||b.activityCount-a.activityCount||String(a.wbsPath??"").localeCompare(String(b.wbsPath??"")));
+
   return {
     schemaVersion: "1.0",
     projectionKey: "near_critical",
@@ -426,6 +482,7 @@ export function buildNearCriticalProjection(
     watchlistRows,
     criticalRows,
     negativeFloatRows,
+    managementGroups,
     boundaryAudit,
   };
 }
