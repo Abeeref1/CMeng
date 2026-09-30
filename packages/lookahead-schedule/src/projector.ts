@@ -197,30 +197,40 @@ function wbsPathLookup(model: CanonicalScheduleModel): Map<string,string> {
   return cache;
 }
 
-function nearestSuccessorMilestones(
-  model: CanonicalScheduleModel,
-  activityId:string,
-):string[] {
-  const successors=new Map<string,string[]>();
-  for(const rel of model.relationships){
-    if(rel.external)continue;
-    const rows=successors.get(rel.predecessorActivityId)??[];
-    rows.push(rel.successorActivityId);successors.set(rel.predecessorActivityId,rows);
-  }
+function downstreamMilestoneLookup(model:CanonicalScheduleModel):Map<string,string[]>{
   const byId=new Map(model.activities.map(activity=>[activity.activityId,activity]));
-  let frontier=[activityId],seen=new Set<string>([activityId]);
-  for(let depth=0;depth<50&&frontier.length;depth++){
-    const next:string[]=[],milestones:string[]=[];
-    for(const id of frontier)for(const successorId of successors.get(id)??[]){
-      if(seen.has(successorId))continue;seen.add(successorId);
-      const activity=byId.get(successorId);if(!activity)continue;
-      if(activity.activityType==='start_milestone'||activity.activityType==='finish_milestone')milestones.push(successorId);
-      else next.push(successorId);
-    }
-    if(milestones.length)return [...new Set(milestones)].sort(naturalCompare).slice(0,5);
-    frontier=next;
+  const predecessors=new Map<string,string[]>();
+  for(const rel of model.relationships){
+    if(rel.external||!byId.has(rel.predecessorActivityId)||!byId.has(rel.successorActivityId))continue;
+    const rows=predecessors.get(rel.successorActivityId)??[];
+    rows.push(rel.predecessorActivityId);predecessors.set(rel.successorActivityId,rows);
   }
-  return [];
+  const bestDepth=new Map<string,number>(),milestonesByActivity=new Map<string,Set<string>>();
+  const queue:Array<{id:string;milestoneId:string;depth:number}>=[];
+  for(const activity of model.activities){
+    if(activity.activityType!=='start_milestone'&&activity.activityType!=='finish_milestone')continue;
+    bestDepth.set(activity.activityId,0);
+    milestonesByActivity.set(activity.activityId,new Set([activity.activityId]));
+    queue.push({id:activity.activityId,milestoneId:activity.activityId,depth:0});
+  }
+  for(let index=0;index<queue.length;index++){
+    const current=queue[index]!;
+    for(const predecessorId of predecessors.get(current.id)??[]){
+      const depth=current.depth+1,knownDepth=bestDepth.get(predecessorId);
+      if(knownDepth===undefined||depth<knownDepth){
+        bestDepth.set(predecessorId,depth);
+        milestonesByActivity.set(predecessorId,new Set([current.milestoneId]));
+        queue.push({id:predecessorId,milestoneId:current.milestoneId,depth});
+      }else if(depth===knownDepth){
+        const set=milestonesByActivity.get(predecessorId)??new Set<string>();
+        if(!set.has(current.milestoneId)&&set.size<5){
+          set.add(current.milestoneId);milestonesByActivity.set(predecessorId,set);
+          queue.push({id:predecessorId,milestoneId:current.milestoneId,depth});
+        }
+      }
+    }
+  }
+  return new Map([...milestonesByActivity.entries()].map(([id,set])=>[id,[...set].sort(naturalCompare).slice(0,5)]));
 }
 
 const readinessAction:Record<ReadinessDimensionKey,string>={
@@ -281,6 +291,7 @@ export function buildLookAheadProjection(
   const forwardWindowRows: LookAheadActivityRow[] = [];
   const overdueBacklogRows: LookAheadActivityRow[] = [];
   const wbsPaths=wbsPathLookup(model);
+  const downstreamMilestones=downstreamMilestoneLookup(model);
 
   for (const activity of incomplete) {
     const startIso = effectiveStart(activity);
@@ -339,7 +350,7 @@ export function buildLookAheadProjection(
       name: activity.name,
       wbsId: activity.wbsId,
       wbsPath: activity.wbsId ? wbsPaths.get(activity.wbsId) ?? null : null,
-      affectedMilestoneIds: nearestSuccessorMilestones(model,activity.activityId),
+      affectedMilestoneIds: downstreamMilestones.get(activity.activityId)??[],
       activityType: activity.activityType,
       status: activity.status,
       startIso,
@@ -387,6 +398,7 @@ export function buildLookAheadProjection(
   };
   forwardWindowRows.sort(byFinish);
   overdueBacklogRows.sort((a,b)=>(a.daysToFinish??0)-(b.daysToFinish??0)||byFinish(a,b));
+  const rows=[...overdueBacklogRows,...forwardWindowRows].sort(byFinish);
 
   const managementGroups=new Map<string,{
     blockerType:ReadinessDimensionKey;wbsId:string|null;wbsPath:string|null;rows:LookAheadActivityRow[];sourceRefs:Set<string>
@@ -461,7 +473,7 @@ export function buildLookAheadProjection(
     blockedCount: forwardWindowRows.filter(
       (row) => row.readiness.state === "blocked",
     ).length,
-    rows:forwardWindowRows,
+    rows,
     missingCurrentDateActivityIds:
       missingCurrentDateActivityIds.sort(),
   };
