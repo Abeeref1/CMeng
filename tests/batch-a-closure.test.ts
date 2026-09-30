@@ -80,9 +80,9 @@ test('unknown internal diagnostics do not become mechanical primary-page labels'
     .filter(isFunctionDeclaration)
     .filter(node=>node.name&&names.includes(node.name.text))
     .map(node=>node.getText(source)).join('\n');
-  const code=functionText(['humanizeKey','humanizeDiagnostic']);
-  const unknown=runInNewContext(code+';humanizeDiagnostic("UNMAPPED_INTERNAL_ENGINE_TOKEN:ABC")');
+  const code=functionText(['humanizeKey']);
+  const unknown=runInNewContext(code+';humanizeKey("UNMAPPED_INTERNAL_ENGINE_TOKEN:ABC")');
   assert.equal(unknown,'Additional calculation qualification');
-  const known=runInNewContext(code+';humanizeDiagnostic("SCHEDULE_GRAPH_CYCLES:A1")');
+  const known=runInNewContext(code+';humanizeKey("SCHEDULE_GRAPH_CYCLES:A1")');
   assert.match(String(known),/circular relationship/i);
 });
