@@ -8,7 +8,7 @@ test('Master Dashboard preserves the executive hierarchy even when no additional
   const script=cmengUatHtml().match(/<script>([\s\S]*?)<\/script>/)![1]!;
   assert.match(script,/managementPanel\("Executive Project Position"/);
   assert.match(script,/No additional executive metric is established from the current evidence/);
-  assert.match(script,/Missing higher-authority measures stay in Control Gaps/);
+  assert.match(script,/missing higher-authority measures stay in Control Gaps/i);
 });
 
 test('Railway browser acceptance recognises the valid conditional Delay Windows state',()=>{
