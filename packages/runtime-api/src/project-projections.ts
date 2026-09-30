@@ -7294,7 +7294,13 @@ function resolveProjectModule(state: ProjectRuntimeState, key: string): ModuleRu
     const bundleReusable=
       planningModuleKeys.has(descriptor.key)||
       descriptor.key==='pmo-analysis'||
-      descriptor.key==='progress-report';
+      descriptor.key==='progress-report'||
+      descriptor.key==='progress-scurve'||
+      descriptor.key==='progress-breakdown'||
+      descriptor.key==='variance-trends'||
+      descriptor.key==='resource-utilization'||
+      descriptor.key==='manhour-scurve'||
+      descriptor.key==='quantity-scurve';
     const result=resolveProjectModuleCandidate(scoped, descriptor.key, bundleReusable?bundle.modules.get(descriptor.key):undefined);
     if(profiling)candidateProfile.push({key:descriptor.key,ms:performance.now()-t});
     return [descriptor.key,result] as const;

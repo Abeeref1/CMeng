@@ -481,6 +481,10 @@ export function buildResourceUtilizationProjection(
     );
   }
 
+  const activityById = new Map(
+    schedule.activities.map(activity => [activity.activityId, activity]),
+  );
+
   const rows: ResourceUtilizationRow[] =
     resources.resources.map((resource) => {
       const assignments =
@@ -565,7 +569,6 @@ export function buildResourceUtilizationProjection(
         : null;
 
       const affectedActivityIds = [...new Set(assignments.map(assignment => assignment.activityId).filter(Boolean))];
-      const activityById = new Map(schedule.activities.map(activity => [activity.activityId, activity]));
       const affectedWbsIds = [...new Set(affectedActivityIds.map(id => activityById.get(id)?.wbsId ?? null).filter((id): id is string => Boolean(id)))];
       const affectedActivities = affectedActivityIds.map(id => activityById.get(id)).filter((row): row is NonNullable<typeof row> => Boolean(row));
       const pressureCount = affectedActivities.filter(activity => typeof activity.totalFloatHours === "number" && activity.totalFloatHours <= 0).length;
