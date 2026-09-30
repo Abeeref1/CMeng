@@ -91,5 +91,5 @@ test("Tasks 31 34 and 35 management UI exposes translated forecast diagnostics, 
   assert.match(html,/Programme consequence/);
   assert.match(html,/Required action/);
   assert.match(html,/No supporting recovery basis is established/);
-  assert.match(html,/CPM remaining duration/i);
+  assert.match(html,/CPM remaining duration cannot be established/i);
 });

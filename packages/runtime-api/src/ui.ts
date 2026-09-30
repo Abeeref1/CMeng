@@ -781,8 +781,9 @@ function renderDeliveryChallenge(data,reason,status){
     ["Activity feasibility checks",(f.activityChecks||[]).length||"Not established","current activity checks"],
     ["Labour evidence",data.sourceLaborEvidence?"Available":"Not established","source hours remain evidence; not inferred headcount"]
   ]);
-  if(availability&&availability.state!=="active"){
-    const compact='<section class="planning-view contract-challenge-view"><div class="notice info"><b>Challenge the Contract is not yet fully assessable.</b><p>'+escapeHtml(availability.reason||f.reason||"Delivery-challenge prerequisites are incomplete.")+'</p></div>'+sourceKpis+
+  const challengeActive=availability?availability.state==="active":Boolean(data?.deliveryChallenge&&(f.activityChecks||[]).length>0);
+  if(!challengeActive){
+    const compact='<section class="planning-view contract-challenge-view"><div class="notice info"><b>Challenge the Contract is not yet fully assessable.</b><p><b>Manpower and duration check: Unable to assess.</b> '+escapeHtml(availability?.reason||f.reason||"Delivery-challenge prerequisites are incomplete.")+'</p></div>'+sourceKpis+
       '<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>What is available and what is missing</h4><p>The challenge activates only when BOQ, remaining quantities, activity links, productivity, calendar/working time and resource basis are all represented. Existing evidence remains visible.</p></div></div><div class="planning-panel-body">'+prereqTable+'</div></section></section>';
     el("moduleContent").innerHTML=renderModuleBasis(data)+renderRoleContent("challenge-contract",data,compact,"",true)+(data?.suppliedBoq?.rows?.length?'<details class="management-detail supplied-boq-support"><summary>Supplied BOQ evidence</summary>'+renderSuppliedBoq(data.suppliedBoq)+'</details>':'')+experienceReviewSummary(data.issueAssessment)+renderModuleReadiness(data,reason);
     return true;
@@ -809,7 +810,11 @@ function renderDeliveryChallenge(data,reason,status){
   const itemRows=f.rows||[];
   const activityDetail=activities.length?'<div class="table-wrap"><table><thead><tr><th>Activity</th><th>Required labour hours</th><th>Working hours</th><th>Required average people</th><th>Submitted people</th><th>Quantity-driven finish</th><th>State</th></tr></thead><tbody>'+activities.slice(0,100).map(row=>'<tr><td><b>'+escapeHtml(row.activityId)+'</b></td><td>'+escapeHtml(row.requiredLaborHours==null?"Unresolved":fmt(row.requiredLaborHours))+'</td><td>'+escapeHtml(row.availableWorkingHours==null?"Unresolved":fmt(row.availableWorkingHours))+'</td><td>'+escapeHtml(row.requiredAveragePeople==null?"Unresolved":fmt(row.requiredAveragePeople))+'</td><td>'+escapeHtml(row.submittedPeople==null?"Unresolved":fmt(row.submittedPeople))+'</td><td>'+escapeHtml(row.productionFinishIso?planningShortDate(row.productionFinishIso):"Unresolved")+'</td><td>'+escapeHtml(humanizeKey(row.scheduleState||"unresolved"))+'</td></tr>').join("")+'</tbody></table></div>':'<p>No activity-level feasibility calculation is established.</p>';
   const itemDetail=itemRows.length?'<div class="table-wrap"><table><thead><tr><th>BOQ item</th><th>Activity</th><th>Remaining quantity</th><th>Unit</th><th>Labour h/unit</th><th>Required labour hours</th><th>Reason</th></tr></thead><tbody>'+itemRows.slice(0,100).map(row=>'<tr><td><b>'+escapeHtml(row.quantityItemId)+'</b></td><td>'+escapeHtml(row.activityId||"Unresolved")+'</td><td>'+escapeHtml(row.remainingQuantity==null?"Unresolved":fmt(row.remainingQuantity))+'</td><td>'+escapeHtml(row.unit||"Unresolved")+'</td><td>'+escapeHtml(row.laborHoursPerUnit==null?"Unresolved":fmt(row.laborHoursPerUnit))+'</td><td>'+escapeHtml(row.requiredLaborHours==null?"Unresolved":fmt(row.requiredLaborHours))+'</td><td>'+escapeHtml(row.reason||"")+'</td></tr>').join("")+'</tbody></table></div>':'<p>No BOQ item calculation is established.</p>';
-  const detail='<details class="management-detail"><summary>Calculation detail and source evidence</summary><p>'+escapeHtml(d.disclaimer||"")+'</p>'+prereqTable+'<h4>Activity feasibility</h4>'+activityDetail+'<h4>Quantity/productivity inputs</h4>'+itemDetail+renderBasisReviews({...data,contractValueBasisReview:null},"challenge-contract")+'</details>';
+  const detail='<details class="management-detail"><summary>Calculation detail and source evidence</summary><p>'+escapeHtml(d.disclaimer||"")+'</p>'+prereqTable+
+    '<h4>1. Challenge manpower plan</h4><p>Detailed manpower/resource evidence remains supporting calculation detail behind the five-topic management table.</p>'+
+    '<h4>2. Challenge current schedule</h4>'+activityDetail+
+    '<h4>3. Combined delivery challenge</h4>'+itemDetail+
+    renderBasisReviews({...data,contractValueBasisReview:null},"challenge-contract")+'</details>';
   const html='<section class="planning-view contract-challenge-view"><div class="notice '+(d.position==="material_delivery_gap"||d.position==="challenged"?"warn":"info")+'"><b>Delivery challenge position: '+escapeHtml(humanizeKey(d.position||"not_yet_supportable"))+'</b><p>This is an analytical delivery challenge, not a replacement programme and not an EOT/entitlement decision.</p></div>'+sourceKpis+primary+detail+'</section>';
   el("moduleContent").innerHTML=renderModuleBasis(data)+renderRoleContent("challenge-contract",data,html,"",true)+(data?.suppliedBoq?.rows?.length?'<details class="management-detail supplied-boq-support"><summary>Supplied BOQ evidence</summary>'+renderSuppliedBoq(data.suppliedBoq)+'</details>':'')+experienceReviewSummary(data.issueAssessment)+renderModuleReadiness(data,reason);
   return true;
@@ -1319,9 +1324,9 @@ function renderMonteCarloRiskVisual(data){
 function forecastDiagnosticMessages(codes){
   const diagnostics=(Array.isArray(codes)?codes:[]).filter(code=>typeof code==="string");
   const labels={
-    CALENDAR_SEMANTICS_UNRESOLVED:"Programme calendar working days, shifts or exceptions are not sufficiently defined.",
+    CALENDAR_SEMANTICS_UNRESOLVED:"Programme calendar definition does not sufficiently establish working days, shifts or exceptions.",
     CALENDAR_WORK_PATTERN_NOT_ESTABLISHED:"Programme calendar work pattern is not sufficiently defined.",
-    SCHEDULE_GRAPH_CYCLES:"Schedule logic contains a circular relationship.",
+    SCHEDULE_GRAPH_CYCLES:"Schedule logic contains a cycle/circular relationship.",
     SCHEDULE_GRAPH_DUPLICATE_ACTIVITY_IDS:"The programme contains duplicate activity IDs.",
     SCHEDULE_GRAPH_SELF_LOOPS:"The programme contains a self-referencing relationship.",
     SCHEDULE_GRAPH_BROKEN_PREDECESSORS:"A relationship references a predecessor that is not present in the programme.",
@@ -1330,7 +1335,7 @@ function forecastDiagnosticMessages(codes){
     CPM_DAY_DURATION_REQUIRES_UNIFORM_CALENDAR_DAY_HOURS:"A day-based duration cannot be converted because working hours per day are not established.",
     CPM_WEEK_DURATION_REQUIRES_CALENDAR_WEEK_HOURS:"A week-based duration cannot be converted because working hours per week are not established.",
     CPM_DURATION_UNIT_UNKNOWN:"A source activity duration unit is unknown.",
-    CPM_REMAINING_DURATION_UNRESOLVED:"An activity remaining duration cannot be established.",
+    CPM_REMAINING_DURATION_UNRESOLVED:"CPM remaining duration cannot be established for an activity.",
     CPM_RELATIONSHIP_TYPE_UNRESOLVED:"A schedule relationship type cannot be established.",
     CPM_RELATIONSHIP_LAG_UNRESOLVED:"A schedule relationship lag cannot be established.",
     CPM_EXTERNAL_RELATIONSHIP_UNRESOLVED:"An external relationship cannot be resolved inside the current programme.",
@@ -1345,17 +1350,16 @@ function forecastDiagnosticMessages(codes){
     CPM_COMPLETED_ACTIVITY_FLOAT_NOT_RECALCULATED:"Float is not recalculated for a completed activity.",
     CPM_LATE_PASS_UNRESOLVED:"The CPM late-pass calculation cannot be completed for an activity."
   };
-  const grouped=new Map(),unknown=[];
+  const grouped=new Map();
   for(const code of diagnostics){
     const key=String(code).split(":")[0];
-    if(!labels[key]){unknown.push(code);continue;}
+    if(!labels[key])continue;
     const group=grouped.get(key)||{count:0,examples:[]};group.count++;
     const suffix=String(code).includes(":")?String(code).slice(String(code).indexOf(":")+1):"";
     if(suffix&&group.examples.length<5)group.examples.push(suffix);
     grouped.set(key,group);
   }
-  const messages=[...grouped.entries()].map(([key,group])=>labels[key]+(group.count>1?" ("+fmt(group.count)+" occurrences)":"")+(group.examples.length?" Affected: "+group.examples.join(", ")+".":""));
-  return {messages,unknown};
+  return [...grouped.entries()].map(([key,group])=>labels[key]+(group.count>1?" ("+fmt(group.count)+" occurrences)":"")+(group.examples.length?" Affected: "+group.examples.join(", ")+".":""));
 }
 function renderForecastVisual(data){
   const p=projectionFor(data,"independent_forecast");
@@ -1385,20 +1389,37 @@ function renderForecastVisual(data){
   const gateRows=(gate.checks||[]).map(check=>'<tr><td><b>'+escapeHtml(check.label)+'</b></td><td><span class="state-pill '+(check.state==="passed"?"ready":"review")+'">'+escapeHtml(humanizeKey(check.state))+'</span></td><td>'+escapeHtml(check.count===null?"—":fmt(check.count))+'</td><td>'+escapeHtml(check.detail)+'</td></tr>').join("");
   const gatePanel='<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Management forecast reconciliation gate</h4><p>Calendar coverage, graph validity, source constraints, calculation coverage, material activity divergence and required-finish authority are checked independently. A matching Project finish cannot override an internal failure.</p></div><span class="badge '+(gate.publishable?"ready":"partial")+'">'+escapeHtml(gate.publishable?"Publishable":"Review required")+'</span></div><div class="planning-panel-body">'+(gateRows?'<div class="table-wrap"><table><thead><tr><th>Check</th><th>State</th><th>Count</th><th>Management meaning</th></tr></thead><tbody>'+gateRows+'</tbody></table></div>':'<div class="notice warn">Forecast reconciliation checks are not established.</div>')+'<p class="muted">'+escapeHtml(gate.basis||"")+'</p></div></section>';
   const constraintTrace=p.sourceConstraints?.length?'<details class="notice info"><summary>'+escapeHtml(fmt(p.sourceConstraints.length))+' activities have retained source constraints</summary><p>These constraints are preserved, but the current CPM/network recalculation does not apply them. Their effect must be reconciled before management publication.</p><div class="table-wrap"><table><thead><tr><th>Activity</th><th>Constraint</th><th>Date</th></tr></thead><tbody>'+p.sourceConstraints.flatMap(a=>(a.constraints||[]).map(c=>'<tr><td>'+escapeHtml(a.activityId)+'</td><td>'+escapeHtml(c.type)+'</td><td>'+escapeHtml(c.dateIso||"Unresolved")+'</td></tr>')).join("")+'</tbody></table></div></details>':'';
-  const diagnostic=forecastDiagnosticMessages(p.diagnostics||[]);
-  const diagnosticSummary=diagnostic.messages.length?'<ul>'+diagnostic.messages.map(message=>'<li>'+escapeHtml(message)+'</li>').join("")+'</ul>':'<p>No translated CPM/calendar exception is identified by the checked calculation.</p>';
-  const technical=diagnostic.unknown.length?'<details><summary>Additional technical calculation diagnostics · '+escapeHtml(fmt(diagnostic.unknown.length))+'</summary><ul>'+diagnostic.unknown.map(code=>'<li>'+escapeHtml(code)+'</li>').join("")+'</ul></details>':'';
+  const diagnosticMessages=forecastDiagnosticMessages(p.diagnostics||[]);
+  const diagnosticSummary=diagnosticMessages.length?'<ul>'+diagnosticMessages.map(message=>'<li>'+escapeHtml(message)+'</li>').join("")+'</ul>':'<p>No translated CPM/calendar exception is identified by the checked calculation.</p>';
+  const technical='<details><summary>Additional technical calculation evidence</summary><p>Untranslated source calculation codes remain in the downloadable calculation data rather than primary management copy.</p></details>';
   const forecastDrivers=(p.activities||[]).filter(row=>typeof row.finishVarianceDays==="number").sort((a,b)=>Math.abs(b.finishVarianceDays)-Math.abs(a.finishVarianceDays)).slice(0,20);
   const driverRows=forecastDrivers.map(row=>'<tr><td><b>'+escapeHtml(row.activityId)+'</b></td><td>'+escapeHtml(planningShortDate(row.sourceFinishIso))+'</td><td>'+escapeHtml(planningShortDate(row.independentEarlyFinishIso))+'</td><td>'+escapeHtml((row.finishVarianceDays>0?"+":"")+fmt(row.finishVarianceDays)+" d")+'</td><td>'+escapeHtml(humanizeKey(row.calendarMode))+'</td><td>'+escapeHtml(humanizeKey(row.status))+'</td></tr>').join("");
   const diagnosticPanel='<section class="planning-panel"><div class="planning-panel-head"><div><h4>CPM reconciliation evidence</h4><p>Business-language diagnostics are shown first. Raw technical codes remain in supporting detail.</p></div></div><div class="planning-panel-body">'+diagnosticSummary+constraintTrace+technical+(driverRows?'<details><summary>Largest activity finish divergences</summary><div class="table-wrap"><table><thead><tr><th>Activity</th><th>Submitted finish</th><th>CPM recalculation</th><th>Difference</th><th>Calendar</th><th>State</th></tr></thead><tbody>'+driverRows+'</tbody></table></div></details>':'')+'</div></section>';
-  const sensitivity=probAvailable?'<div class="position-grid">'+[
+  const review=p.managementReviewState==="review_required"||gate.publishable===false;
+  const positionBars=[
+    {label:"Contractor programme",value:planningCalendarDaysBetween(p.dataDateIso,p.sourceForecastCompletionIso),tone:"current"},
+    {label:"CMeng CPM/network recalculation",value:planningCalendarDaysBetween(p.dataDateIso,p.independentForecastCompletionIso),tone:"cmeng"},
+    {label:"Source productivity forecast",value:planningCalendarDaysBetween(p.dataDateIso,p.sourceProductivityForecastCompletionIso),tone:"scenario"},
+    {label:"Required finish",value:planningCalendarDaysBetween(p.dataDateIso,p.requiredFinishIso),tone:"baseline"}
+  ].filter(row=>row.value!==null);
+  const probabilityDistance=[
+    {label:"P50 vs CMeng CPM",value:review?null:planningCalendarDaysBetween(p.independentForecastCompletionIso,rawProb.p50CompletionIso),tone:"warning"},
+    {label:"P80 vs CMeng CPM",value:review?null:planningCalendarDaysBetween(p.independentForecastCompletionIso,rawProb.p80CompletionIso),tone:"warning"},
+    {label:"P90 vs CMeng CPM",value:review?null:planningCalendarDaysBetween(p.independentForecastCompletionIso,rawProb.p90CompletionIso),tone:"warning"}
+  ];
+  const visualOverview='<details><summary>Alternative forecast-distance charts</summary><div class="visual-chart-grid">'+
+    renderVisualPanel("Completion distance from Data Date","Calendar-day distance only; each authority remains separate.",renderVisualBars(positionBars,"d"))+
+    renderVisualPanel("Sensitivity distance from CMeng CPM","Sensitivity is withheld when the independent calculation requires reconciliation.",renderVisualBars(probabilityDistance,"d"))+
+    '</div></details>';
+  const sensitivity=review?'<div class="notice info">P50, P80 and P90 are withheld until the independent calculation is reconciled for management use.</div>':probAvailable?'<div class="position-grid">'+[
     ["P50 duration sensitivity",planningShortDate(rawProb.p50CompletionIso)],
     ["P80 duration sensitivity",planningShortDate(rawProb.p80CompletionIso)],
     ["P90 duration sensitivity",planningShortDate(rawProb.p90CompletionIso)]
   ].map(row=>'<div class="position-card"><div class="position-label">'+escapeHtml(row[0])+'</div><div class="position-value">'+escapeHtml(row[1])+'</div><div class="position-sub">Non-official duration-factor sensitivity; not one of the six forecast authorities.</div></div>').join("")+'</div>':'<div class="notice info">P50/P80/P90 sensitivity is not available on the current reconciled calculation basis.</div>';
-  return '<section class="planning-view independent-forecast-view">'+kpis+
+  const reviewWarning=review?'<div class="notice warn"><b>Independent forecast requires reconciliation before management use.</b><p>'+escapeHtml(gate.reason||p.managementReviewReason||"Complete the forecast reconciliation checks before publishing a management forecast.")+'</p></div>':'';
+  return '<section class="planning-view independent-forecast-view">'+reviewWarning+kpis+
     '<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Forecast taxonomy</h4><p>The six forecast positions remain separate. CMeng CPM/network recalculation is schedule-only and never implies BOQ, productivity, manpower or procurement evidence it does not use.</p></div></div><div class="planning-panel-body">'+taxonomyTable+dateLadder+'</div></section>'+
-    gatePanel+
+    gatePanel+visualOverview+
     '<section class="planning-panel"><div class="planning-panel-head"><div><h4>Probabilistic / duration sensitivity</h4><p>Separate non-official sensitivity. It does not replace the six forecast authorities.</p></div></div><div class="planning-panel-body">'+sensitivity+'</div></section>'+
     diagnosticPanel+
   '</section>';
@@ -4608,13 +4629,13 @@ function renderRecoveryAccelerationVisual(data){
       ?"Recovery candidates exist, but quantified recovery needs additional assumptions."
       :assessment==="supporting_basis_absent"
         ?"No supporting recovery basis is established; eligibility counts are not presented as assessed zeros."
-        :"Recovery eligibility checks were performed and no eligible quantified recovery basis was found.";
+        :"No eligible quantified recovery scenario is available after the current eligibility checks.";
   const rows=scenarios.map(s=>'<tr><td><b>'+escapeHtml(humanizeKey(s.type))+'</b><br><span class="muted">'+escapeHtml(s.state==="calculated"?"Calculated scenario":"Needs assumption")+'</span></td><td>'+escapeHtml(s.subject)+'</td><td>'+escapeHtml(s.assumption)+'</td><td>'+escapeHtml(s.currentPosition)+'</td><td>'+escapeHtml(s.targetPosition)+'</td><td>'+escapeHtml(s.possibleDaysRecovered===null?"Not calculable":fmt(s.possibleDaysRecovered)+" d")+'</td><td>'+escapeHtml(s.additionalResources||"Not established")+'</td><td>'+escapeHtml(s.estimatedCost===null?"Not established":fmt(s.estimatedCost)+" "+(s.currency||""))+'<br><span class="muted">'+escapeHtml(s.costBasis)+'</span></td><td>'+escapeHtml((s.constraints||[]).join("; "))+'</td><td>'+escapeHtml((s.risks||[]).join("; "))+'</td></tr>').join("");
   const count=(value)=>basisAbsent?"Not assessable":fmt(value??0);
   const table=scenarios.length?'<div class="table-wrap"><table><thead><tr><th>Scenario</th><th>Subject</th><th>Assumption</th><th>Current position</th><th>Target</th><th>Possible days recovered</th><th>Additional resources</th><th>Estimated cost</th><th>Constraints</th><th>Risks</th></tr></thead><tbody>'+rows+'</tbody></table></div>':'<div class="notice info"><b>'+escapeHtml(headline)+'</b><p>'+escapeHtml(p.managementPosition||"")+'</p></div>';
   return '<section class="planning-view recovery-view"><div class="notice '+(assessment==="calculated_options_available"?"info":assessment==="supporting_basis_absent"?"warn":"info")+'"><h4>Recovery & acceleration position</h4><p>'+escapeHtml(headline)+'</p><p>'+escapeHtml(p.managementPosition||"")+'</p><p>Every option remains a scenario until separately approved/adopted.</p></div>'+planningKpis([
-    ["Calculated recovery options",p.calculatedScenarioCount>0?p.calculatedScenarioCount:basisAbsent?"Not assessable":0,"evidence-supported local scenarios"],
-    ["Options needing assumptions",p.assumptionRequiredCount>0?p.assumptionRequiredCount:basisAbsent?"Not assessable":0,"not quantified until assumptions are established"],
+    ["Calculated recovery options",p.calculatedScenarioCount>0?p.calculatedScenarioCount:basisAbsent?"Not assessable":"None qualify","evidence-supported local scenarios"],
+    ["Options needing assumptions",p.assumptionRequiredCount>0?p.assumptionRequiredCount:basisAbsent?"Not assessable":"None","not quantified until assumptions are established"],
     ["Eligibility checks performed",basisAbsent?"Not assessable":eligibility.actualEligibilityChecksPerformed??0,"true zero retained when checks were possible"],
     ["Data Date",planningShortDate(p.dataDateIso),"current project position"]
   ])+'<section class="planning-panel"><div class="planning-panel-head"><div><h4>Eligibility evidence</h4><p>Missing supporting basis is different from a checked zero.</p></div></div><div class="planning-panel-body">'+planningKpis([
