@@ -88,6 +88,7 @@ function renderLookAhead(p:ReturnType<typeof buildLookAheadProjection>):string {
     p,projectionFor:(value:unknown)=>value,
     escapeHtml:(value:unknown)=>String(value??''),fmt:(value:unknown)=>String(value??''),
     planningShortDate:(value:unknown)=>String(value??''),humanizeKey:(value:unknown)=>String(value??''),
+    planningStateLabel:(value:unknown)=>String(value??''),
     planningKpis:()=>'',experienceDisclosure:()=>'',moduleBarList:()=>'',planningLookAheadTimeline:()=>'',
     planningStatusBand:()=>'',planningLookAheadBlockers:()=>'',
     managementPanel:(title:string,description:string,content:string)=>'<section><h4>'+title+'</h4>'+description+content+'</section>',
@@ -104,6 +105,7 @@ test('Batch C: overdue-start screen reports start lateness, never absolute futur
   assert.match(rendered,/<th>Finish overdue days<\/th>/);
   assert.match(rendered,/<td>Start overdue<\/td><td>2026-01-06<\/td><td>5<\/td><td>—<\/td>/);
   assert.doesNotMatch(rendered,/<td>15<\/td>/);
+  assert.doesNotMatch(rendered,/escapeHtml\(fmt/);
 });
 
 test('Batch C: screen keeps both overdue amounts separate for a late start and finish',()=>{
