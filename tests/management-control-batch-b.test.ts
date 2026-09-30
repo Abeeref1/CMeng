@@ -93,6 +93,14 @@ test('programme control stages derive an integrated execution sequence from prog
   assert.ok(Array.isArray(procurement.controlMilestoneIds));
 });
 
+test('Task 12 accountability is embedded in Command Center and preserves unassigned/escalation controls',()=>{
+  assert.match(script,/Accountability & escalation/);
+  assert.match(script,/Owner \/ accountable party/);
+  assert.match(script,/Assignment required/);
+  assert.match(script,/Threatened milestones/);
+  assert.match(script,/Escalations/);
+});
+
 test('Task 13 MCP renderer exposes package, dependency, current/forecast, float, readiness, owner and action controls',()=>{
   assert.match(script,/Work packages \/ WBS/);
   assert.match(script,/Control milestones/);
