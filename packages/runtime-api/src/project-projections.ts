@@ -8097,45 +8097,76 @@ export function overviewForProject(
   const scheduleEstablished =
     programmeSchedules.length > 0;
 
-  // Resolve specialists first. One call populates the project-scoped certified
-  // module cache; all remaining specialist lookups are then O(1). Management
-  // surfaces consume that same cache, avoiding the previous cold-start path
-  // where management triggered a second full specialist resolution.
+  // The overview is navigation/status metadata, not a request to recalculate
+  // every specialist and management projection. Reuse the latest rerun receipt
+  // when present. If a page has not yet been calculated for this project
+  // version, report a qualified partial state and calculate it when the user
+  // opens that page. This keeps the overview truthful and avoids making project
+  // opening pay the full analytical cost twice.
   const overviewModuleStates =
     certifiedAnalyticalModules.map(
       (module) => {
-        const resolved =
-          resolveProjectModule(
-            state,
+        const receiptStatus =
+          receiptStates.get(
             module.key,
           );
+        const status:
+          | "ready"
+          | "partial"
+          | "blocked" =
+          receiptStatus === "ready"
+            ? "ready"
+            : receiptStatus ===
+                "blocked"
+              ? "blocked"
+              : "partial";
         return {
           key: module.key,
-          issueAssessment:
-            resolved.issueAssessment,
-          status:
-            resolved.status,
+          status,
           reason:
-            resolved.reason,
+            receiptStatus
+              ? null
+              : scheduleEstablished
+                ? "Detailed position is calculated when this page is opened."
+                : "A current programme is required before this page can establish its position.",
         };
       },
+    );
+
+  const cachedManagement =
+    managementProjectionCache.get(
+      projectId,
     );
   const overviewManagementStates =
     managementModuleKeys.map(
       (key) => {
-        const resolved =
-          moduleForProject(
-            projectId,
+        if (
+          cachedManagement?.version ===
+          state.version
+        ) {
+          const resolved =
+            moduleForProject(
+              projectId,
+              key,
+            );
+          return {
             key,
-          );
+            status:
+              resolved.status,
+            reason:
+              resolved.reason,
+            issueAssessment:
+              resolved.issueAssessment,
+          };
+        }
         return {
           key,
           status:
-            resolved.status,
+            "partial" as const,
           reason:
-            resolved.reason,
-          issueAssessment:
-            resolved.issueAssessment,
+            scheduleEstablished
+              ? "Detailed management position is calculated when this page is opened."
+              : "A current programme is required before the management position can be complete.",
         };
       },
     );
