@@ -17,7 +17,15 @@ export interface AccountabilityDetail {
 export function crossDomainAccountability(state:ProjectRuntimeState){
   const dataDateIso=projectDataDate(state),delivery=deliveryPosition(state),source=deliveryRecords(state),recordById=new Map(source.records.map(r=>[r.recordId,r]));
   const operations=operationalReporting(state),details:AccountabilityDetail[]=[];
-  const add=(dimension:Dimension,value:string|null|undefined,detail:Omit<AccountabilityDetail,'dimension'|'value'>)=>{const v=String(value??'').trim();if(v)details.push({dimension,value:v,...detail});};
+  // Action eligibility is independent of whether ownership/scope is assigned.
+  // Keep concentration groups without using them to erase eligible records.
+  type Item=Omit<AccountabilityDetail,'dimension'|'value'>;
+  const eligible=new Map<string,Item>();
+  const retain=(item:Item)=>{
+    const key=item.domain+'|'+item.recordId,previous=eligible.get(key);
+    eligible.set(key,previous?{...previous,activityIds:[...new Set([...previous.activityIds,...item.activityIds])],sourceRefs:[...new Set([...previous.sourceRefs,...item.sourceRefs])]}:item);
+  };
+  const add=(dimension:Dimension,value:string|null|undefined,detail:Item)=>{retain(detail);const v=String(value??'').trim();if(v)details.push({dimension,value:v,...detail});};
   const addDelivery=(recordId:string,domain:string,issue:string,dueDate:string|null,activityIds:string[],sourceRefs:string[])=>{
     const r=recordById.get(recordId);if(!r)return;const base={domain,recordId,reference:r.reference,issue,dueDate,overdueDays:daysOver(dueDate,dataDateIso),activityIds,sourceRefs,authority:'confirmed_record' as const};
     add('organisation',field(r,'owner','responsible party'),base);
@@ -60,14 +68,14 @@ export function crossDomainAccountability(state:ProjectRuntimeState){
       const base={domain:'claim',recordId:claim.claimId,reference:claim.claimId,issue:'Claim is '+claim.state.replace(/_/g,' '),dueDate:null,overdueDays:null,activityIds,
         sourceRefs:claim.evidenceRefs.map(sourceRef),authority:'confirmed_record' as const};
       const roles=[...new Set(linkedEvents.map(event=>partyRole(event.responsibility,event.responsibilityState)).filter((value):value is NonNullable<ReturnType<typeof partyRole>>=>value!==null))];
-      roles.forEach(role=>add('party_role',role,base));
+      retain(base);roles.forEach(role=>add('party_role',role,base));
     }
     for(const notice of current.notices){
       if(!notice.claimId||!openClaimIds.has(notice.claimId)||notice.kind==='determination')continue;
       const event=notice.eventId?events.get(notice.eventId):null;
       const base={domain:'notice',recordId:notice.noticeId,reference:notice.noticeId,issue:(notice.kind.replace(/_/g,' ')+' linked to open claim '+notice.claimId),dueDate:null,overdueDays:null,
         activityIds:event?.relatedActivityIds??[],sourceRefs:notice.evidenceRefs.map(sourceRef),authority:'confirmed_record' as const};
-      if(event){const role=partyRole(event.responsibility,event.responsibilityState);if(role)add('party_role',role,base);}
+      retain(base);if(event){const role=partyRole(event.responsibility,event.responsibilityState);if(role)add('party_role',role,base);}
     }
   }
   const programme=projectControlSchedule(state)?.revision.model??null;
@@ -76,8 +84,9 @@ export function crossDomainAccountability(state:ProjectRuntimeState){
     for(const a of programme.activities){
       if(['completed','wbs_summary','level_of_effort'].includes(String((a as any).status??a.activityType)))continue;
       const pressure=(typeof a.totalFloatHours==='number'&&a.totalFloatHours<0)||(a.currentFinishIso&&dataDateIso&&a.currentFinishIso.slice(0,10)<dataDateIso&&!(a.actualFinishIso));
-      if(!pressure)continue;const c=byId.get(a.activityId);if(!c)continue;
+      if(!pressure)continue;const c=byId.get(a.activityId);
       const base={domain:'schedule',recordId:a.activityId,reference:a.activityId,issue:typeof a.totalFloatHours==='number'&&a.totalFloatHours<0?'Activity has '+a.totalFloatHours+' hours total float':'Unfinished activity is past its current finish',dueDate:a.currentFinishIso?.slice(0,10)??null,overdueDays:daysOver(a.currentFinishIso?.slice(0,10)??null,dataDateIso),activityIds:[a.activityId],sourceRefs:[],authority:'programme_scope' as const};
+      retain(base);if(!c)continue;
       add('contractor',c.contractor,base);add('subcontractor',c.subcontractor,base);add('discipline',c.discipline,base);add('package',c.package,base);add('workfront',c.workFront,base);
     }
   }
@@ -89,14 +98,14 @@ export function crossDomainAccountability(state:ProjectRuntimeState){
   const rows=[...grouped.values()].map(g=>({dimension:g.dimension,value:g.value,openIssueCount:g.detailIds.size,domainCount:g.domains.size,overdueCount:g.overdueCount,openNcrCount:g.openNcrCount,overdueRfiCount:g.overdueRfiCount,latePackageCount:g.latePackageCount,openSnagCount:g.openSnagCount,permitIssueCount:g.permitIssueCount,openRiskCount:g.openRiskCount,affectedActivityCount:g.affectedActivityIds.size,worstOverdueDays:g.worstOverdueDays,
     domains:[...g.domains].sort(),detailRecordIds:[...g.detailIds]})).sort((a,b)=>b.openIssueCount-a.openIssueCount||b.overdueCount-a.overdueCount||(b.worstOverdueDays??-1)-(a.worstOverdueDays??-1)||a.value.localeCompare(b.value));
 
-  const byRecord=new Map<string,AccountabilityDetail[]>();
+  const byRecord=new Map<string,AccountabilityDetail[]>([...eligible.keys()].map(key=>[key,[]]));
   for(const detail of details){const key=detail.domain+'|'+detail.recordId,items=byRecord.get(key)??[];items.push(detail);byRecord.set(key,items);}
   const actions:ManagementAction[]=[...byRecord.entries()].map(([key,items])=>{
-    const first=items[0]!,dimension=(name:Dimension)=>items.find(item=>item.dimension===name)?.value??null;
+    const first=eligible.get(key)!,dimension=(name:Dimension)=>items.find(item=>item.dimension===name)?.value??null;
     const organisation=dimension('organisation')??dimension('contractor')??dimension('subcontractor');
     const owner=dimension('organisation')??dimension('party_role')??dimension('contractor')??dimension('subcontractor');
     const scope=[dimension('package'),dimension('workfront'),dimension('discipline'),...first.activityIds].filter((value):value is string=>!!value);
-    const overdue=Math.max(0,...items.map(item=>item.overdueDays??0));
+    const overdue=Math.max(0,first.overdueDays??0,...items.map(item=>item.overdueDays??0));
     const domain=first.domain.toLowerCase();
     const consequence=
       domain==='procurement'?'Programme need dates may be affected by the late package.':
@@ -116,7 +125,7 @@ export function crossDomainAccountability(state:ProjectRuntimeState){
       'Assign ownership, confirm the required completion date and close the underlying control item.';
     return managementAction({
       actionId:'accountability:'+key,issue:first.issue,consequence,affectedScope:scope,affectedMilestones:[],
-      owner,organisation,requiredAction,dueIso:first.dueDate,escalation:overdue>0?'Escalate because the required date is already past.':null,
+      owner,organisation,requiredAction:owner?requiredAction:'Assign an accountable party. '+requiredAction,dueIso:first.dueDate,escalation:overdue>0?'Escalate because the required date is already past.':null,
       severity:overdue>0||['procurement','ncr','rfi','schedule'].includes(domain)?'high':'medium',
       authority:first.authority==='confirmed_record'?'source':'source',sourceRefs:first.sourceRefs,
     });

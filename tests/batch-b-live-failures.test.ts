@@ -42,7 +42,7 @@ test('Batch B: genuine server errors must not be relabelled as valid sparse posi
   }
 });
 test('Batch B: wrong-page and malformed blocked responses remain retryable errors',async()=>{
-  for(const body of [{...sparse(),legacyKey:'wrong-page'},{...sparse(),data:null},{...sparse(),data:{arbitrary:true}}]){
+  for(const body of [{...sparse(),legacyKey:'wrong-page'},{...sparse(),data:null},{...sparse(),data:{arbitrary:true}},{...sparse(),data:{...sparse().data,projectId:'FOREIGN-PROJECT'}},{...sparse(),data:{projectionKey:''}}]){
     const h=await loadFailure(body,409);
     assert.equal(h.rendered.length,0);
     assert.match(h.nodes.get('moduleContent').innerHTML,/Unable to load/);

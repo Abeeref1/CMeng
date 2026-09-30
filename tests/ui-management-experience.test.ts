@@ -212,7 +212,7 @@ test('a failed view request clears the old position, offers retry and does not i
 
 test('a classified blocked module response retains its real assessment',async()=>{
   const blocked={key:'cash',status:'blocked',reason:'Invalid supplied dates',issueAssessment:{primaryKind:'data_quality'}};
-  const h=moduleLoader(async()=>{throw Object.assign(new Error('Unavailable'),{data:blocked});});
+  const h=moduleLoader(async()=>{throw Object.assign(new Error('Unavailable'),{status:409,data:blocked});});
   await h.load('cash');assert.equal(h.rendered[0],blocked);
 });
 

@@ -4763,7 +4763,10 @@ async function loadModule(key){
   }catch(e){
     if(!current())return;
     const d=e.data||{};
-    if((d.legacyKey||d.key)===key&&d.status==="blocked"&&(d.issueAssessment||d.data?.projectionKey==="delivery")){
+    const structuredPosition=d.data&&typeof d.data==="object"&&!Array.isArray(d.data)&&typeof d.data.projectionKey==="string"&&d.data.projectionKey.trim().length>0;
+    const assessedPosition=d.issueAssessment&&typeof d.issueAssessment==="object"&&!Array.isArray(d.issueAssessment);
+    const sameProject=(!d.projectId||d.projectId===projectId)&&(!d.data?.projectId||d.data.projectId===projectId);
+    if(e.status===409&&(d.legacyKey||d.key)===key&&d.status==="blocked"&&sameProject&&(assessedPosition||(Array.isArray(d.dependencies)&&structuredPosition))){
       renderModuleResult(d);
     }else{
       el("moduleBadge").className="badge";
