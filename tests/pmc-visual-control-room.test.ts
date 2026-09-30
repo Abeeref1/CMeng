@@ -225,3 +225,40 @@ test('PMC control room does not present zero canonical claims/events when Claims
   assert.doesNotMatch(output,/Canonical source claims<\/em><b>0<\/b>/);
   assert.doesNotMatch(output,/Canonical source events<\/em><b>0<\/b>/);
 });
+
+
+test('Task 03 Best Available Position selects useful evidence by domain without changing its authority',()=>{
+  const state=runtimeProjects.getOrCreate('A03-BEST-AVAILABLE-DOMAINS');
+  const modules=new Map<string,any>([
+    ['progress-report',{data:{progressBases:{
+      physical:{valuePercent:36},contractorReported:{valuePercent:null},certified:{valuePercent:null},
+      scheduleSnapshot:{valuePercent:42},currentSchedule:{valuePercent:45}
+    }}}],
+    ['activity-analytics',{data:{rows:[],counts:{floatRisk:{value:5}}}}],
+    ['resource-utilization',{data:{assignedResourceCount:12,resourceCount:20}}],
+    ['schedule-change-report',{data:{modifiedActivityCount:3}}],
+    ['quantity-scurve',{data:{boqItemCount:100,measurementReview:{measuredItemCount:20}}}],
+  ]);
+  const fact=(value:number|null,state='official')=>({value,state});
+  const commercial:any={
+    currencies:[{
+      currency:'AED',originalContractValue:fact(90),currentContractValue:fact(100),approvedVariationAmount:fact(10),
+      pendingVariationAmount:fact(null,'missing'),certifiedUnpaidAmount:fact(null,'missing'),retentionDeductedAmount:fact(null,'missing')
+    }],
+    performance:{costControl:{positions:[]}},
+    claimsNotices:{noticeTimelinessCounts:{timely:null,late:null,not_issued:null}}
+  };
+  const visual:any=managementVisualControl(state,modules,commercial);
+  assert.equal(visual.bestAvailablePositions.progress?.key,'physical-progress');
+  assert.equal(visual.bestAvailablePositions.progress?.value,36);
+  assert.equal(visual.bestAvailablePositions.progress?.authority,'source');
+  assert.equal(visual.bestAvailablePositions.cost?.key,'current-contract-value');
+  assert.equal(visual.bestAvailablePositions.change?.key,'approved-variation-amount');
+  assert.equal(visual.bestAvailablePositions.quantities?.key,'measured-quantity-items');
+  assert.equal(visual.bestAvailablePositions.risk?.key,'schedule-float-risk');
+  assert.equal(visual.bestAvailablePositions.risk?.authority,'calculated');
+  assert.match(visual.bestAvailablePositions.risk?.basis??'',/not a formal risk register/i);
+  assert.equal(visual.bestAvailablePositions.resources?.key,'assigned-resources');
+  assert.equal(visual.bestAvailablePositions.claims,null);
+  assert.equal(visual.bestAvailablePositions.design,null);
+});
