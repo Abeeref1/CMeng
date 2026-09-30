@@ -3,9 +3,7 @@ export type CommercialFindingState =
   | "candidate"
   | "partial"
   | "missing"
-  | "conflicted"
-  | "not_applicable"
-  | "quarantined";
+  | "conflicted";
 
 export type CommercialFindingAuthority =
   | "source"
@@ -128,7 +126,12 @@ export interface FoundationMoneyInput {
   currency: string | null;
   taxBasis: "exclusive" | "inclusive" | "unknown";
   amountBasis: string;
-  state: import("../../truth-kernel/src").FactState;
+  state:
+    | "official"
+    | "candidate"
+    | "missing"
+    | "partial"
+    | "conflicted";
   asOf: string | null;
   sourceRefs: string[];
 }
