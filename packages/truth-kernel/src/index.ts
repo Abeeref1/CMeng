@@ -7,7 +7,8 @@ export * from './reporting';
 export * from './issues';
 export * from './aggregates';
 
-export type FactState = 'official' | 'candidate' | 'missing' | 'partial' | 'conflicted' | 'not_applicable' | 'quarantined';
+export type FactState = 'official' | 'candidate' | 'missing' | 'partial' | 'conflicted';
+export type ManagementFactState = FactState | 'not_applicable' | 'quarantined';
 export interface SourceReceipt {
   documentId: string; sourceHash: string; revision: string; locator: string;
   basisState: string; authority: 'source_record' | 'source_approved' | 'engineer_determination';
@@ -57,7 +58,7 @@ export interface ManagementFactView<T> {
   key: string;
   label: string;
   value: T | null;
-  state: FactState;
+  state: ManagementFactState;
   authority: ManagementFactAuthority;
   basis: string;
   limitation: string | null;
@@ -65,7 +66,7 @@ export interface ManagementFactView<T> {
   coverage: { known: number; total: number };
 }
 
-const factStateRank: Record<FactState, number> = {
+const factStateRank: Record<ManagementFactState, number> = {
   official: 700,
   partial: 600,
   conflicted: 500,
