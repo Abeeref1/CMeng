@@ -136,11 +136,28 @@ export function projectManagementContext(
     const value=modules?.get(key)?.data;
     return value&&typeof value==='object'?value:{};
   };
+  const activity=moduleData('activity-analytics');
+  const independent=moduleData('independent-forecast');
+  const milestones=moduleData('milestones');
+  const change=moduleData('schedule-change-report');
+  const revision=moduleData('revision-trend');
   const progress=moduleData('progress-report');
+  const progressBreakdown=moduleData('progress-breakdown');
+  const quantities=moduleData('quantity-scurve');
   const delay=moduleData('delay-claims');
   const notices=moduleData('notices-claims');
+  const eot=moduleData('eot-assessment');
   const resources=moduleData('resource-utilization');
+  const manhours=moduleData('manhour-scurve');
   const source=(domain:string)=>sourceInventory.domains.find(row=>row.domain===domain)??null;
+  const activityRows=Array.isArray(activity.rows)?activity.rows:[];
+  const delayedActivities=activityRows.filter((row:any)=>row.scheduleDelayed===true||
+    (typeof row.finishVarianceDays==='number'&&row.finishVarianceDays>0)).map((row:any)=>({
+      activityId:row.activityId??null,name:row.name??null,wbsId:row.wbsId??null,wbsPath:row.wbsPath??null,
+      currentStartIso:row.currentStartIso??null,currentFinishIso:row.forecastFinishIso??row.currentFinishIso??null,
+      totalFloatHours:row.totalFloatHours??null,finishVarianceDays:row.finishVarianceDays??null,criticality:row.criticality??null,
+    }));
+  const milestoneRows=Array.isArray(milestones.rows)?milestones.rows:[];
   return {
     projectId: state.projectId,
     dataDateIso: schedule?.dataDateIso ?? null,
@@ -159,19 +176,46 @@ export function projectManagementContext(
     },
     sourceInventory,
     crossModule:{
+      programme:{
+        revisionId:schedule?.sourceRevisionId??null,
+        dataDateIso:schedule?.dataDateIso??null,
+        drivingNetwork:independent.drivingNetwork??null,
+        delayedActivities,
+        criticalCount:activity.counts?.critical?.value??null,
+        nearCriticalCount:activity.counts?.nearCritical?.value??null,
+        negativeFloatCount:activityRows.filter((row:any)=>typeof row.totalFloatHours==='number'&&row.totalFloatHours<0).length,
+      },
+      milestones:{
+        rows:milestoneRows.map((row:any)=>({
+          activityId:row.activityId??null,name:row.name??null,wbsId:row.wbsId??null,
+          baselineDateIso:row.baselineDateIso??null,currentDateIso:row.currentDateIso??null,forecastDateIso:row.forecastDateIso??row.currentDateIso??null,
+          totalFloatHours:row.totalFloatHours??null,criticality:row.criticality??null,managementPriority:row.managementPriority??null,
+        })),
+      },
+      boq:{itemCount:boq.itemCount,candidateLongLeadCount:boq.longLead.length,candidatePackageCount:boq.packages.length,basis:boq.basis},
+      quantities:{
+        boqItemCount:quantities.boqItemCount??boq.itemCount??null,
+        installedQuantityStatus:quantities.installedQuantityStatus??null,
+        series:quantities.series??null,
+      },
+      procurement:{
+        sourceEvidence:source('procurement'),
+        scheduleLongLeadEvidence:scheduleLongLead,
+        boqLongLeadCandidates:boq.longLead,
+      },
+      design:{sourceEvidence:source('design'),rfiSourceEvidence:source('rfi'),submittalSourceEvidence:source('submittal')},
+      interfaces:{sourceEvidence:source('interfaces')??source('interface')},
       progress:{
         progressBases:progress.progressBases??null,
         scopeComparison:progress.scopeComparison??null,
-      },
-      claims:{
-        eventCount:delay.eventCount??null,
-        claimCount:notices.claimCount??delay.claimCount??null,
-        noticeCount:notices.noticeCount??null,
-        sourceEvidence:source('claims'),
+        breakdown:progressBreakdown.rows??progressBreakdown.breakdown??null,
       },
       resources:{
         resourceCount:resources.resourceCount??resources.p6ResourceMasterCount??null,
         assignedResourceCount:resources.assignedResourceCount??null,
+        utilization:resources.rows??null,
+        plannedHours:manhours.plannedHours??manhours.plannedHoursKnown??null,
+        actualHours:manhours.actualHours??manhours.actualHoursKnown??null,
         sourceEvidence:source('resources'),
       },
       commercial:commercial?{
@@ -183,6 +227,20 @@ export function projectManagementContext(
           paidAmount:row.paidAmount.value,
         })),
       }:null,
+      change:{
+        fromRevisionId:change.fromRevisionId??null,toRevisionId:change.toRevisionId??null,
+        addedActivityCount:change.addedActivityCount??null,removedActivityCount:change.removedActivityCount??null,modifiedActivityCount:change.modifiedActivityCount??null,
+        revisionCount:revision.revisionCount??null,
+      },
+      claimsEot:{
+        eventCount:delay.eventCount??null,
+        claimCount:notices.claimCount??delay.claimCount??null,
+        noticeCount:notices.noticeCount??null,
+        officialApprovedEotDays:eot.officialApprovedEotDays??null,
+        candidateAdditionalEotDays:eot.candidateAdditionalEotDays??null,
+        sourceEvidence:source('claims'),
+      },
+      risk:{sourceEvidence:source('risk')},
       deliverySources:{
         procurement:source('procurement'),
         design:source('design'),
