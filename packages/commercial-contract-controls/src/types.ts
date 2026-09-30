@@ -6,12 +6,7 @@ import type {
 export interface ContractControlMoney {
   value: number | null;
   currency: string | null;
-  state:
-    | "official"
-    | "candidate"
-    | "partial"
-    | "missing"
-    | "conflicted";
+  state: import("../../truth-kernel/src").FactState;
   asOf: string | null;
   sourceRefs: string[];
 }
