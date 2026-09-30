@@ -7,13 +7,15 @@ import {
   parseScheduleInstant,
   workingHoursBetween,
 } from "../../schedule-cpm/src";
-import type {
-  CanonicalResource,
-  CanonicalResourceAssignment,
-  CanonicalResourceModel,
+import {
+  resourceBusinessClass,
+  resourceCapacityEligible,
+  type CanonicalResource,
+  type CanonicalResourceAssignment,
+  type CanonicalResourceModel,
+  type ResourceBusinessClass,
 } from "../../schedule-resource-core/src";
 import type {
-  ResourceBusinessClass,
   ResourceUtilizationProjection,
   ResourceUtilizationRow,
 } from "./types";
@@ -24,69 +26,6 @@ function coverage(
 ): number | null {
   if (total === 0) return null;
   return Number(((known / total) * 100).toFixed(4));
-}
-
-function resourceBusinessClass(
-  resource: CanonicalResource,
-): ResourceBusinessClass {
-  const text = [
-    resource.name,
-    resource.shortName,
-    resource.unitName,
-    resource.unitAbbreviation,
-    resource.priceTimeUnit,
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase()
-    .replace(/[_-]+/g, " ");
-
-  if (
-    /\bphysical\s*weight(?:age)?\b|\bweightage\b|\bprogress\s*weight\b|\bweighted\s*progress\b|\bpercent(?:age)?\b|%/.test(
-      text,
-    )
-  ) {
-    return "weight_progress";
-  }
-
-  if (
-    /\bqty\b|\bquantity\b|\bquantities\b|\bmeasured\s*quantity\b/.test(
-      text,
-    )
-  ) {
-    return "quantity";
-  }
-
-  if (
-    /\bcost\b|\bamount\b|\bvalue\b|\bcurrency\b|\baed\b|\bsar\b|\busd\b|\beur\b|\bqar\b|\bkwd\b|\bomr\b|\bbhd\b/.test(
-      text,
-    )
-  ) {
-    return "cost";
-  }
-
-  if (resource.resourceType === "labor") {
-    return "labor";
-  }
-
-  if (resource.resourceType === "material") {
-    return "material";
-  }
-
-  if (resource.resourceType === "nonlabor") {
-    return "equipment";
-  }
-
-  return "other";
-}
-
-function capacityEligible(
-  businessClass: ResourceBusinessClass,
-): boolean {
-  return (
-    businessClass === "labor" ||
-    businessClass === "equipment"
-  );
 }
 
 function aggregate(
@@ -540,7 +479,7 @@ export function buildResourceUtilizationProjection(
       const businessClass =
         resourceBusinessClass(resource);
       const canAssessCapacity =
-        capacityEligible(businessClass);
+        resourceCapacityEligible(businessClass);
 
       const planned = aggregate(
         assignments,
