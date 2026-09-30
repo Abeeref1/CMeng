@@ -4,50 +4,89 @@ on:
     branches: [fix/batch-c-overdue-start-acceptance]
     paths: [.github/workflows/batch-bc-continuation-diagnostics.yml]
 permissions:
-  contents: read
+  contents: write
 jobs:
-  live-failure-trace:
+  repair-and-verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 15
     steps:
-      - name: Read actual failed page responses; do not change source data
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Prove the specific defects before changing code
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p continuation-evidence
+          git rev-parse HEAD > continuation-evidence/source-before.txt
+          npm run build
+          set +e
+          node --test dist/tests/batch-b-live-failures.test.js > continuation-evidence/red-before.log 2>&1
+          result=$?
+          set -e
+          cat continuation-evidence/red-before.log
+          test "$result" -ne 0
+          grep -E 'not ok.*valid sparse Accountability' continuation-evidence/red-before.log
+          grep -E 'not ok.*added duplicate source rows' continuation-evidence/red-before.log
+      - name: Correct shared response handling and certify like-for-like populations
         shell: python
         run: |
-          import json, urllib.request, urllib.error, hashlib, pathlib
-          base='https://cmeng-main-production.up.railway.app'
-          expected='a5f85338565ce4e0bcdb669bb72c0c20a2842db3'
-          out=pathlib.Path('continuation-evidence'); out.mkdir()
-          def get(path):
-              try:
-                  with urllib.request.urlopen(base+path,timeout=90) as r: return r.status,json.load(r)
-              except urllib.error.HTTPError as e: return e.code,json.load(e)
-          status,health=get('/health')
-          assert status==200 and health.get('release')==expected and health.get('status')=='ok',health
-          projects=['DMMC-112','QA-DELIVERY-RELEASE-20260926','RYD-NME-PKG-C']
-          def digest(project):
-              status,data=get('/api/projects/'+project+'/evidence/documents')
-              assert status==200
-              return hashlib.sha256(json.dumps(sorted((x.get('documentId'),x.get('sourceHashSha256')) for x in data['documents'])).encode()).hexdigest()
-          before={p:digest(p) for p in projects}
-          summary=[]
-          paths=['management/cross-domain-accountability','management/master-dashboard','management/source-quality','schedule/modules/lookahead-schedule']
-          for path in paths:
-              for project in projects:
-                  status,data=get('/api/projects/'+project+'/'+path)
-                  filename=project+'--'+path.replace('/','-')+'.json'
-                  (out/filename).write_text(json.dumps({'httpStatus':status,'response':data},indent=2))
-                  assessment=data.get('issueAssessment') or (data.get('data') or {}).get('issueAssessment') or {}
-                  row={'project':project,'path':path,'httpStatus':status,'key':data.get('key'),'legacyKey':data.get('legacyKey'),'status':data.get('status'),'reason':data.get('reason'),'dataKeys':list((data.get('data') or {}).keys()),'systemFailures':[x for x in assessment.get('issues',[]) if x.get('kind')=='system_defect']}
-                  summary.append(row)
-                  print(json.dumps(row),flush=True)
-          after={p:digest(p) for p in projects}
-          assert before==after,'Source identities/hashes changed during GET-only trace'
-          status,health=get('/health')
-          assert status==200 and health.get('release')==expected and health.get('status')=='ok',health
-          (out/'summary.json').write_text(json.dumps({'release':expected,'sourceHashesUnchanged':True,'observations':summary},indent=2))
+          from pathlib import Path
+          def replace(path,before,after):
+              p=Path(path);s=p.read_text()
+              assert s.count(before)==1,(path,'expected patch context missing or ambiguous')
+              p.write_text(s.replace(before,after))
+          replace('packages/runtime-api/src/ui.ts',
+            'if((d.legacyKey||d.key)===key&&d.status==="blocked"&&(d.issueAssessment||d.data?.projectionKey==="delivery")){',
+            'if(e.status===409&&(d.legacyKey||d.key)===key&&d.status==="blocked"&&(d.issueAssessment||(Array.isArray(d.dependencies)&&d.data&&typeof d.data==="object"&&!Array.isArray(d.data)&&typeof d.data.projectionKey==="string"))){')
+          replace('tests/ui-management-experience.test.ts',
+            "Object.assign(new Error('Unavailable'),{data:blocked})",
+            "Object.assign(new Error('Unavailable'),{status:409,data:blocked})")
+          replace('packages/runtime-api/src/projection-integrity.ts',
+            """      // Identity matching is intentionally keyed by governed activity identity.
+                // A source programme may contain duplicate activity IDs; those remain a
+                // source-data defect elsewhere and must not be misreported here as a
+                // CMeng arithmetic failure. Source-row population is certified separately.
+                const uniqueCurrentActivityIds=new Set(model.activities.map(activity=>activity.activityId)).size;
+                compare('current_activity_partition',uniqueCurrentActivityIds,data.matchedActivityCount+data.addedActivityCount);""".replace('\n      ','\n'),
+            """      // Matched activities use distinct identity pairs, while added activities
+                // retain every supplied source row (including duplicate IDs). Compare
+                // identities with identities and source rows with source rows; neither
+                // drop duplicate evidence nor conceal a genuinely missing/extra row.
+                const currentIds=new Set(model.activities.map(activity=>activity.activityId));
+                const addedIds=new Set<string>(rows.filter((row:any)=>row.changeKind==='added').map((row:any)=>row.activityId));
+                const addedSourceRowCount=model.activities.filter(activity=>addedIds.has(activity.activityId)).length;
+                const matchedSourceRowCount=model.activities.length-addedSourceRowCount;
+                compare('current_activity_partition',currentIds.size,data.matchedActivityCount+addedIds.size);
+                compare('added_identity_membership',[...addedIds].every(id=>currentIds.has(id)),true);
+                compare('added_source_population',data.addedActivityCount,addedSourceRowCount);
+                compare('current_source_row_partition',model.activities.length,matchedSourceRowCount+data.addedActivityCount);""".replace('\n      ','\n'))
+      - name: Full regression verification
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run verify 2>&1 | tee continuation-evidence/verify.log
+          npm run test:stress 2>&1 | tee continuation-evidence/scale.log
+          git diff --check
+          git diff > continuation-evidence/repair.patch
+      - name: Commit verified repairs only when this branch has not changed
+        shell: bash
+        run: |
+          test "$(git ls-remote origin refs/heads/fix/batch-c-overdue-start-acceptance | cut -f1)" = "$GITHUB_SHA"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add packages/runtime-api/src/ui.ts packages/runtime-api/src/projection-integrity.ts tests/ui-management-experience.test.ts
+          git commit -m 'Fix sparse Accountability rendering and source-row identity reconciliation'
+          git push origin HEAD:refs/heads/fix/batch-c-overdue-start-acceptance
+          git rev-parse HEAD > continuation-evidence/source-after.txt
+          git archive --format=tar.gz HEAD > continuation-evidence/source.tar.gz
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: batch-bc-live-trace-${{ github.run_id }}
+          name: batch-bc-repair-${{ github.run_id }}
           path: continuation-evidence/
           retention-days: 7
