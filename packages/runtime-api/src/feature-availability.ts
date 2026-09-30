@@ -34,8 +34,8 @@ export function moduleFeatureAvailability(key:string,data:unknown):RuntimeFeatur
     return {
       state:featureAvailability({hasEstablishedResult:windows.length>0,hasUsefulEvidence:comparable>0,prerequisitesSatisfied:comparable>=2}),
       reason:windows.length?'Comparable programme states are available for window analysis.':
-        comparable===1?'Only one comparable programme state exists. A delay window requires at least two comparable programme states.':
-        'No comparable programme states are available for delay-window analysis.',
+        comparable===1?'Window analysis not yet available — another comparable programme revision is required.':
+        'Window analysis not yet available — at least two comparable programme revisions are required.',
       prerequisiteCount:comparable,establishedResultCount:windows.length||null
     };
   }
