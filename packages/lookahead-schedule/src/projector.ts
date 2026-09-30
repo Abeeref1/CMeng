@@ -317,7 +317,7 @@ export function buildLookAheadProjection(
       startMs <= windowEndMs! &&
       finishMs >= dataDateMs;
 
-    if (!isOverdue && !overlapsWindow) {
+    if (!isOverdue && !missedStart && !overlapsWindow) {
       continue;
     }
 
@@ -388,7 +388,7 @@ export function buildLookAheadProjection(
         ).toFixed(6),
       ),
     };
-    if(isOverdue)overdueBacklogRows.push(row);
+    if(isOverdue || missedStart)overdueBacklogRows.push(row);
     else forwardWindowRows.push(row);
   }
 
@@ -397,7 +397,8 @@ export function buildLookAheadProjection(
     return aDate.localeCompare(bDate)||naturalCompare(a.activityId,b.activityId);
   };
   forwardWindowRows.sort(byFinish);
-  overdueBacklogRows.sort((a,b)=>(a.daysToFinish??0)-(b.daysToFinish??0)||byFinish(a,b));
+  const backlogAge=(row:LookAheadActivityRow)=>Math.max(0,row.missedPlannedStart?-(row.daysToStart??0):0,row.finishOverdue?-(row.daysToFinish??0):0);
+  overdueBacklogRows.sort((a,b)=>backlogAge(b)-backlogAge(a)||byFinish(a,b));
   const rows=[...overdueBacklogRows,...forwardWindowRows].sort(byFinish);
 
   const managementGroups=new Map<string,{
@@ -445,8 +446,9 @@ export function buildLookAheadProjection(
         missingCurrentDateActivityIds.length,
       incomplete.length,
     ),
-    overdueCount: overdueBacklogRows.length,
-    missedStartCount: forwardWindowRows.filter(row => row.missedPlannedStart).length,
+    // Preserve the established finish-overdue definition; backlog is the union of overdue starts and finishes.
+    overdueCount: overdueBacklogRows.filter(row=>row.finishOverdue).length,
+    missedStartCount: overdueBacklogRows.filter(row => row.missedPlannedStart).length,
     evidenceGapActivityCount: forwardWindowRows.filter(row => row.readiness.unknownCount > 0).length,
     blockedWithEvidenceGapCount: forwardWindowRows.filter(row => row.readiness.state === "blocked" && row.readiness.unknownCount > 0).length,
     blockerOccurrenceCount: forwardWindowRows.reduce((sum, row) => sum + row.readiness.blockedCount, 0),

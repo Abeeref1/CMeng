@@ -1,0 +1,153 @@
+name: Repair confirmed A-B acceptance defects
+on:
+  push:
+    branches: [fix/batch-c-overdue-start-acceptance]
+    paths: [.github/workflows/repair-196-shared-defects.yml]
+permissions:
+  contents: write
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Guard exact source and add unassigned-action regression cases
+        shell: python
+        run: |
+          from pathlib import Path
+          import subprocess
+          expected={'packages/runtime-api/src/accountability-intelligence.ts':'46aee6c6c6a8cdd9069514cebd40233401c527d8','packages/runtime-api/src/projection-integrity.ts':'02227271f80976a4bfb6250db8d79a7f08e79cab','packages/runtime-api/src/ui.ts':'ffcb80aae1687ed4c8223e55f68b384d5e28150f'}
+          for path,sha in expected.items():
+              assert subprocess.check_output(['git','hash-object',path],text=True).strip()==sha,('source changed',path)
+          out=Path('repair-evidence');out.mkdir()
+          (out/'source-before.txt').write_text(subprocess.check_output(['git','rev-parse','HEAD'],text=True))
+          p=Path('tests/accountability-unassigned.test.ts');assert not p.exists()
+          p.write_text("""import test from 'node:test';
+          import assert from 'node:assert/strict';
+          import {randomUUID} from 'node:crypto';
+          import {runtimeProjects} from '../packages/runtime-api/src/project-state';
+          import {crossDomainAccountability,accountabilityModule} from '../packages/runtime-api/src/accountability-intelligence';
+          import type {ProjectRuntimeState} from '../packages/runtime-api/src/project-state-types';
+          import type {CanonicalScheduleModel} from '../packages/schedule-analysis-core/src';
+          function fixture(){
+            const state=runtimeProjects.getOrCreate('UNASSIGNED-'+randomUUID());
+            const model:CanonicalScheduleModel={projectId:state.projectId,source:'xer',sourceRevisionId:'CURRENT',dataDateIso:'2031-04-15',activities:[],relationships:[],calendars:[],wbs:[],diagnostics:[]};
+            state.schedules.push({role:'update',format:'xer',sourceFilename:'current.xer',sourceHashSha256:'test',uploadedAt:'2031-04-15',revision:{revisionId:'CURRENT',label:'Current',sequence:1,effectiveAt:'2031-04-15',model}} as ProjectRuntimeState['schedules'][number]);
+            state.version++;return {state,model};
+          }
+          function ncr(id:string,owner:string|null=null){return {ncrId:id,status:'open' as const,severity:'major' as const,raisedIso:'2031-04-01',dueIso:'2031-04-10',closedIso:null,owner,linkedActivityId:'WORK',sourceRefs:['quality-source:'+id]};}
+          test('unassigned NCR stays actionable with its source, scope, due date and escalation',()=>{
+            const {state}=fixture();state.controls.ncrs.push(ncr('N1'));state.version++;
+            const before=JSON.stringify(state.controls),p=crossDomainAccountability(state);
+            assert.equal(p.actions.length,1);const a=p.actions[0]!;
+            assert.equal(a.owner,null);assert.equal(a.organisation,null);
+            assert.equal(a.dueIso,'2031-04-10');assert.deepEqual(a.affectedScope,['WORK']);assert.deepEqual(a.sourceRefs,['quality-source:N1']);
+            assert.match(a.requiredAction,/Assign an accountable party/);assert.match(a.escalation??'',/required date is already past/);
+            assert.match(p.managementPosition,/1 still need ownership/);assert.equal(accountabilityModule(state).status,'partial');
+            assert.equal(JSON.stringify(state.controls),before,'read-only projection must preserve source records');
+          });
+          test('assigning ownership changes the accountable party, not the action identity or population',()=>{
+            const {state}=fixture();state.controls.ncrs.push(ncr('N1'));state.version++;
+            const before=crossDomainAccountability(state);state.controls.ncrs[0]!.owner='Quality Engineer';state.version++;
+            const after=crossDomainAccountability(state);assert.equal(before.actions.length,1);assert.equal(after.actions.length,1);
+            assert.equal(before.actions[0]!.actionId,after.actions[0]!.actionId);assert.equal(after.actions[0]!.owner,'Quality Engineer');
+            assert.equal(after.rows.filter(r=>r.dimension==='organisation'&&r.value==='Quality Engineer').length,1);
+          });
+          test('unassigned RFI and risk remain distinct actions; closed and future NCRs do not enter the current list',()=>{
+            const {state}=fixture();state.controls.ncrs.push({...ncr('CLOSED'),status:'closed',closedIso:'2031-04-12'},{...ncr('FUTURE'),raisedIso:'2031-04-20'});
+            state.controls.rfis.push({rfiId:'R1',status:'open',raisedIso:'2031-04-01',dueIso:'2031-04-10',owner:null,linkedActivityId:'WORK',sourceRefs:['rfi-source:R1']});
+            state.controls.risks.push({riskId:'K1',status:'open',rating:'high',raisedIso:'2031-04-01',dueIso:'2031-04-10',owner:null,sourceRefs:['risk-source:K1']});state.version++;
+            const p=crossDomainAccountability(state);assert.deepEqual(p.actions.map(a=>a.actionId).sort(),['accountability:RFI|R1','accountability:risk|K1'].sort());assert.ok(p.actions.every(a=>a.owner===null));
+          });
+          test('schedule pressure without ownership or scope classification stays an unassigned programme action',()=>{
+            const {state,model}=fixture();model.activities.push({projectId:state.projectId,activityId:'WORK',nativeId:'1',name:'Unassigned work',wbsId:null,calendarId:null,activityType:'task',status:'not_started',baselineStartIso:null,baselineFinishIso:null,currentStartIso:'2031-04-01',currentFinishIso:'2031-04-10',actualStartIso:null,actualFinishIso:null,forecastStartIso:null,forecastFinishIso:null,originalDurationHours:8,remainingDurationHours:8,totalFloatHours:-8,freeFloatHours:null,percentComplete:0,sourceRefs:[],diagnostics:[]});state.version++;
+            const p=crossDomainAccountability(state);assert.equal(p.actions.length,1);assert.equal(p.actions[0]!.actionId,'accountability:schedule|WORK');assert.equal(p.actions[0]!.owner,null);assert.deepEqual(p.actions[0]!.affectedScope,['WORK']);
+          });
+          test('one project cannot acquire another project unassigned records, and a genuine empty position stays empty',()=>{
+            const {state:a}=fixture(),{state:b}=fixture();a.controls.ncrs.push(ncr('N1'));a.version++;
+            assert.equal(crossDomainAccountability(a).actions.length,1);assert.equal(crossDomainAccountability(b).actions.length,0);assert.equal(accountabilityModule(b).status,'blocked');
+          });
+          """)
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Prove original failures before changing application logic
+        shell: bash
+        run: |
+          npm run build
+          set +e
+          node --test dist/tests/batch-b-live-failures.test.js dist/tests/accountability-unassigned.test.js > repair-evidence/red-before.log 2>&1
+          result=$?
+          set -e
+          cat repair-evidence/red-before.log
+          test "$result" -ne 0
+          grep -E 'not ok.*valid sparse Accountability' repair-evidence/red-before.log
+          grep -E 'not ok.*added duplicate source rows' repair-evidence/red-before.log
+          grep -E 'not ok.*unassigned NCR stays actionable' repair-evidence/red-before.log
+      - name: Apply shared corrections without changing project evidence or weakening checks
+        shell: python
+        run: |
+          from pathlib import Path
+          def replace(path,before,after):
+              p=Path(path);s=p.read_text();assert s.count(before)==1,(path,'context count',s.count(before));p.write_text(s.replace(before,after))
+          replace('packages/runtime-api/src/ui.ts',
+            '    if((d.legacyKey||d.key)===key&&d.status==="blocked"&&(d.issueAssessment||d.data?.projectionKey==="delivery")){',
+            '    const structuredPosition=d.data&&typeof d.data==="object"&&!Array.isArray(d.data)&&typeof d.data.projectionKey==="string"&&d.data.projectionKey.trim().length>0;\n    const assessedPosition=d.issueAssessment&&typeof d.issueAssessment==="object"&&!Array.isArray(d.issueAssessment);\n    const sameProject=(!d.projectId||d.projectId===projectId)&&(!d.data?.projectId||d.data.projectId===projectId);\n    if(e.status===409&&(d.legacyKey||d.key)===key&&d.status==="blocked"&&sameProject&&(assessedPosition||(Array.isArray(d.dependencies)&&structuredPosition))){')
+          replace('tests/ui-management-experience.test.ts',"Object.assign(new Error('Unavailable'),{data:blocked})","Object.assign(new Error('Unavailable'),{status:409,data:blocked})")
+          replace('tests/batch-b-live-failures.test.ts',
+            "  for(const body of [{...sparse(),legacyKey:'wrong-page'},{...sparse(),data:null},{...sparse(),data:{arbitrary:true}}]){",
+            "  for(const body of [{...sparse(),legacyKey:'wrong-page'},{...sparse(),data:null},{...sparse(),data:{arbitrary:true}},{...sparse(),data:{...sparse().data,projectId:'FOREIGN-PROJECT'}},{...sparse(),data:{projectionKey:''}}]){")
+          path='packages/runtime-api/src/projection-integrity.ts'
+          before='\n'.join(['      // Identity matching is intentionally keyed by governed activity identity.','      // A source programme may contain duplicate activity IDs; those remain a','      // source-data defect elsewhere and must not be misreported here as a','      // CMeng arithmetic failure. Source-row population is certified separately.','      const uniqueCurrentActivityIds=new Set(model.activities.map(activity=>activity.activityId)).size;',"      compare('current_activity_partition',uniqueCurrentActivityIds,data.matchedActivityCount+data.addedActivityCount);"])
+          after='\n'.join(['      // Matching counts distinct identity pairs; added records retain every','      // supplied row. Reconcile identities and source rows separately, without','      // discarding duplicate evidence or accepting a dropped/invented row.','      const currentIds=new Set(model.activities.map(activity=>activity.activityId));',"      const addedIds=new Set<string>(rows.filter((row:any)=>row.changeKind==='added').map((row:any)=>row.activityId));",'      const addedSourceRows=model.activities.filter(activity=>addedIds.has(activity.activityId)).length;','      const matchedSourceRows=model.activities.length-addedSourceRows;',"      compare('current_activity_partition',data.matchedActivityCount+addedIds.size,currentIds.size);","      compare('added_identity_membership',[...addedIds].every(id=>currentIds.has(id)),true);","      compare('added_source_population',data.addedActivityCount,addedSourceRows);","      compare('current_source_row_partition',matchedSourceRows+data.addedActivityCount,model.activities.length);","      compare('modified_identity_membership',rows.filter((row:any)=>row.changeKind==='modified').every((row:any)=>currentIds.has(row.toActivityId??row.activityId)),true);"])
+          replace(path,before,after)
+          path='packages/runtime-api/src/accountability-intelligence.ts'
+          before="  const operations=operationalReporting(state),details:AccountabilityDetail[]=[];\n  const add=(dimension:Dimension,value:string|null|undefined,detail:Omit<AccountabilityDetail,'dimension'|'value'>)=>{const v=String(value??'').trim();if(v)details.push({dimension,value:v,...detail});};"
+          after='\n'.join(['  const operations=operationalReporting(state),details:AccountabilityDetail[]=[];','  // Action eligibility is independent of whether ownership/scope is assigned.','  // Keep concentration groups without using them to erase eligible records.',"  type Item=Omit<AccountabilityDetail,'dimension'|'value'>;",'  const eligible=new Map<string,Item>();','  const retain=(item:Item)=>{',"    const key=item.domain+'|'+item.recordId,previous=eligible.get(key);",'    eligible.set(key,previous?{...previous,activityIds:[...new Set([...previous.activityIds,...item.activityIds])],sourceRefs:[...new Set([...previous.sourceRefs,...item.sourceRefs])]}:item);','  };',"  const add=(dimension:Dimension,value:string|null|undefined,detail:Item)=>{retain(detail);const v=String(value??'').trim();if(v)details.push({dimension,value:v,...detail});};"])
+          replace(path,before,after)
+          replace(path,"      roles.forEach(role=>add('party_role',role,base));","      retain(base);roles.forEach(role=>add('party_role',role,base));")
+          replace(path,"      if(event){const role=partyRole(event.responsibility,event.responsibilityState);if(role)add('party_role',role,base);}","      retain(base);if(event){const role=partyRole(event.responsibility,event.responsibilityState);if(role)add('party_role',role,base);}")
+          replace(path,"      if(!pressure)continue;const c=byId.get(a.activityId);if(!c)continue;","      if(!pressure)continue;const c=byId.get(a.activityId);")
+          replace(path,"      add('contractor',c.contractor,base);","      retain(base);if(!c)continue;\n      add('contractor',c.contractor,base);")
+          replace(path,"  const byRecord=new Map<string,AccountabilityDetail[]>();","  const byRecord=new Map<string,AccountabilityDetail[]>([...eligible.keys()].map(key=>[key,[]]));")
+          replace(path,"    const first=items[0]!,dimension=(name:Dimension)=>items.find(item=>item.dimension===name)?.value??null;","    const first=eligible.get(key)!,dimension=(name:Dimension)=>items.find(item=>item.dimension===name)?.value??null;")
+          replace(path,"    const overdue=Math.max(0,...items.map(item=>item.overdueDays??0));","    const overdue=Math.max(0,first.overdueDays??0,...items.map(item=>item.overdueDays??0));")
+          replace(path,"      owner,organisation,requiredAction,dueIso:first.dueDate,","      owner,organisation,requiredAction:owner?requiredAction:'Assign an accountable party. '+requiredAction,dueIso:first.dueDate,")
+      - name: Verify corrected behaviour and complete regression suite
+        shell: bash
+        run: |
+          set -o pipefail
+          git diff --check
+          git diff > repair-evidence/repair.patch
+          npm run verify 2>&1 | tee repair-evidence/verify.log
+          node --test dist/tests/batch-b-live-failures.test.js dist/tests/accountability-unassigned.test.js 2>&1 | tee repair-evidence/green-after.log
+          npm run test:stress 2>&1 | tee repair-evidence/scale.log
+      - name: Existing release performance and durability gates
+        shell: bash
+        run: |
+          set -o pipefail
+          CMENG_LATENCY_RESULT=repair-evidence/cold-dashboard.json npm run test:release:latency 2>&1 | tee repair-evidence/latency.log
+          CMENG_DURABILITY_RESULT=repair-evidence/upload-durability.json node --max-old-space-size=3072 scripts/upload-durability-scale.cjs 2>&1 | tee repair-evidence/durability.log
+          CMENG_DELIVERY_BENCHMARK_OUTPUT=repair-evidence/delivery-latency.json node scripts/delivery-latency.cjs 2>&1 | tee repair-evidence/delivery.log
+      - name: Commit verified application repairs only to the unchanged repair branch
+        shell: bash
+        run: |
+          test "$(git ls-remote origin refs/heads/fix/batch-c-overdue-start-acceptance | cut -f1)" = "$GITHUB_SHA"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add packages/runtime-api/src/ui.ts packages/runtime-api/src/projection-integrity.ts packages/runtime-api/src/accountability-intelligence.ts tests/batch-b-live-failures.test.ts tests/accountability-unassigned.test.ts tests/ui-management-experience.test.ts
+          git commit -m 'Fix sparse page responses, source-row reconciliation and unassigned accountability actions'
+          git push origin HEAD:refs/heads/fix/batch-c-overdue-start-acceptance
+          git rev-parse HEAD > repair-evidence/source-after.txt
+          git archive --format=tar.gz HEAD > repair-evidence/source.tar.gz
+          echo "Verified repair commit: $(git rev-parse HEAD)" >> "$GITHUB_STEP_SUMMARY"
+          echo 'A/B/C batch acceptance remains OPEN. No merge, production deployment, project edit or D advancement.' >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: shared-acceptance-repair-${{ github.run_id }}
+          path: repair-evidence/
+          retention-days: 7

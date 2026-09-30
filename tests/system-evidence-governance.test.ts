@@ -100,7 +100,12 @@ test('lookahead excludes LOE and exposes missed starts and gaps even in blocked 
   const input=model([pred,succ,activity('LOE',{activityType:'level_of_effort'})]); input.relationships=[relation('FS',0)];
   const look=buildLookAheadProjection(input,options); const row=look.rows.find(r=>r.activityId==='S')!;
   assert.equal(look.rows.some(r=>r.activityId==='LOE'),false); assert.equal(row.missedPlannedStart,true); assert.equal(row.finishOverdue,false);
-  assert.equal(row.readiness.state,'blocked'); assert.ok(look.blockedWithEvidenceGapCount!>0); assert.equal(look.evidenceGapActivityCount,look.rows.length);
+  assert.equal(row.readiness.state,'blocked'); assert.ok(row.readiness.unknownCount>0);
+  assert.deepEqual(look.overdueBacklogRows.map(r=>r.activityId),['S']);
+  assert.equal(look.overdueBacklogBlockedCount,1);
+  assert.equal(look.blockedWithEvidenceGapCount,0,'backlog blockers must not inflate the forward window');
+  assert.equal(look.evidenceGapActivityCount,look.forwardWindowRows.length);
+  assert.equal(look.forwardWindowCount+look.overdueBacklogCount,look.rows.length);
 });
 function submitted(value: number, unit='activities'): ChallengeValue { return {value,unit,state:'submitted',authority:'submitted',sourceRefs:['source'],basisRevisionId:'R2',coveragePercent:100,asOfIso:'2030-01-07',confidence:1,diagnostics:[],note:null}; }
 function challenge(value: number|null, override: ChallengeValue, tolerance=0) {

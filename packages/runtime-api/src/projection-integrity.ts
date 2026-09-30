@@ -46,12 +46,18 @@ export function checkProjectionIntegrity(result: ModuleRuntimeResult, model: Can
     if(data.state==='ready'){
       compare('current_source_population',data.toActivityCount,model.activities.length);
       compare('matched_activity_partition',data.matchedActivityCount,data.modifiedActivityCount+data.unchangedActivityCount);
-      // Identity matching is intentionally keyed by governed activity identity.
-      // A source programme may contain duplicate activity IDs; those remain a
-      // source-data defect elsewhere and must not be misreported here as a
-      // CMeng arithmetic failure. Source-row population is certified separately.
-      const uniqueCurrentActivityIds=new Set(model.activities.map(activity=>activity.activityId)).size;
-      compare('current_activity_partition',uniqueCurrentActivityIds,data.matchedActivityCount+data.addedActivityCount);
+      // Matching counts distinct identity pairs; added records retain every
+      // supplied row. Reconcile identities and source rows separately, without
+      // discarding duplicate evidence or accepting a dropped/invented row.
+      const currentIds=new Set(model.activities.map(activity=>activity.activityId));
+      const addedIds=new Set<string>(rows.filter((row:any)=>row.changeKind==='added').map((row:any)=>row.activityId));
+      const addedSourceRows=model.activities.filter(activity=>addedIds.has(activity.activityId)).length;
+      const matchedSourceRows=model.activities.length-addedSourceRows;
+      compare('current_activity_partition',data.matchedActivityCount+addedIds.size,currentIds.size);
+      compare('added_identity_membership',[...addedIds].every(id=>currentIds.has(id)),true);
+      compare('added_source_population',data.addedActivityCount,addedSourceRows);
+      compare('current_source_row_partition',matchedSourceRows+data.addedActivityCount,model.activities.length);
+      compare('modified_identity_membership',rows.filter((row:any)=>row.changeKind==='modified').every((row:any)=>currentIds.has(row.toActivityId??row.activityId)),true);
     }
     compare('added_relationship_count',data.addedRelationshipCount,data.addedRelationships?.length);
     compare('removed_relationship_count',data.removedRelationshipCount,data.removedRelationships?.length);
