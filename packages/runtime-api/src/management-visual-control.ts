@@ -15,9 +15,10 @@ export function managementVisualControl(
   state:ProjectRuntimeState,
   modules:Map<string,ModuleRuntimeResult>,
   commercial:CommercialControlPosition,
+  precomputedManagementContext?:ReturnType<typeof projectManagementContext>,
 ){
   const sourceInventory=managementSourceInventory(state);
-  const managementContext=projectManagementContext(state,modules,commercial);
+  const managementContext=precomputedManagementContext??projectManagementContext(state,modules,commercial);
   const procurementSource=sourceInventory.domains.find(row=>row.domain==='procurement')??null;
   const sourceLongLeadCount=procurementSource?.signals.longLeadMarkedCount??null;
   const scheduleLongLead=managementContext.schedule?.longLeadEvidence??[];
