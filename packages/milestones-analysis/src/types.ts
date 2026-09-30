@@ -23,6 +23,22 @@ export type MilestoneManagementPriority =
   | "watch"
   | "normal";
 
+export type MilestoneAuthority =
+  | "actual"
+  | "submitted_programme"
+  | "not_established";
+
+export type MilestoneCategory =
+  | "programme"
+  | "testing_handover"
+  | "terminal_completion";
+
+export type MilestoneMovementBasis =
+  | "actual_vs_baseline"
+  | "forecast_vs_baseline"
+  | "current_vs_baseline"
+  | "not_established";
+
 export type MilestoneManagementFlag =
   | "SOURCE_FLOAT_CRITICAL"
   | "NEGATIVE_FLOAT"
@@ -43,7 +59,13 @@ export interface MilestoneRow {
   status: CanonicalActivityStatus;
   baselineDateIso: string | null;
   currentDateIso: string | null;
+  forecastDateIso?: string | null;
   actualDateIso: string | null;
+  authority?: MilestoneAuthority;
+  category?: MilestoneCategory;
+  owner?: string | null;
+  driverActivityIds?: string[];
+  movementBasis?: MilestoneMovementBasis;
   totalFloatHours: number | null;
   calendarId: string | null;
   nearCriticalThresholdHours: number | null;

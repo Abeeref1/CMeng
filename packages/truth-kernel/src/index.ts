@@ -64,6 +64,42 @@ export interface ManagementFactView<T> {
   limitation: string | null;
   receipts: SourceReceipt[];
   coverage: { known: number; total: number };
+  /** Reporting cutoff used for this management fact. Never infer it from display time. */
+  dataDateIso: string | null;
+  /** Business-safe calculation/source qualifications attached to this fact. */
+  diagnostics: string[];
+  /** Population authority controlling whether zero/rates can be asserted. */
+  population: PopulationAuthority | null;
+}
+
+export function managementFactView<T>(input: {
+  key: string;
+  label: string;
+  value: T | null;
+  state: ManagementFactState;
+  authority: ManagementFactAuthority;
+  basis: string;
+  limitation?: string | null;
+  receipts?: SourceReceipt[];
+  coverage?: { known: number; total: number };
+  dataDateIso?: string | null;
+  diagnostics?: string[];
+  population?: PopulationAuthority | null;
+}): ManagementFactView<T> {
+  return {
+    key: input.key,
+    label: input.label,
+    value: input.value,
+    state: input.state,
+    authority: input.authority,
+    basis: input.basis,
+    limitation: input.limitation ?? null,
+    receipts: [...(input.receipts ?? [])],
+    coverage: input.coverage ?? {known: input.value === null ? 0 : 1, total: 1},
+    dataDateIso: input.dataDateIso ?? null,
+    diagnostics: [...(input.diagnostics ?? [])],
+    population: input.population ?? null,
+  };
 }
 
 const factStateRank: Record<ManagementFactState, number> = {
@@ -91,6 +127,25 @@ export function bestAvailableFact<T>(
     );
   });
   return ranked[0] ?? null;
+}
+
+export function populationAuthority(input: {
+  state: PopulationState;
+  sourceCount?: number | null;
+  applicableCount?: number | null;
+  currentCount?: number | null;
+  excludedCount?: number | null;
+  coveragePercent?: number | null;
+  basis: string;
+}): PopulationAuthority {
+  const clean=(value:number|null|undefined)=>typeof value==='number'&&Number.isFinite(value)&&value>=0?value:null;
+  const sourceCount=clean(input.sourceCount),applicableCount=clean(input.applicableCount),currentCount=clean(input.currentCount),excludedCount=clean(input.excludedCount);
+  const coverage=typeof input.coveragePercent==='number'&&Number.isFinite(input.coveragePercent)
+    ?Math.max(0,Math.min(100,input.coveragePercent)):null;
+  return {
+    state:input.state,sourceCount,applicableCount,currentCount,excludedCount,
+    coveragePercent:coverage,basis:input.basis,
+  };
 }
 
 export function populationCanAssertCompleteValue(
@@ -126,15 +181,18 @@ export interface ManagementAction {
   escalation: string | null;
   severity: 'critical' | 'high' | 'medium' | 'low' | 'information';
   authority: ManagementFactAuthority;
+  /** Confidence in the action linkage, distinct from source/decision authority. */
+  confidence: 'high' | 'medium' | 'low' | null;
   sourceRefs: string[];
   owningModule?: string | null;
 }
 
 export function managementAction(
-  value: ManagementAction,
+  value: Omit<ManagementAction,'confidence'> & {confidence?: ManagementAction['confidence']},
 ): ManagementAction {
   return {
     ...value,
+    confidence:value.confidence??null,
     affectedScope: [...new Set(value.affectedScope.filter(Boolean))],
     affectedMilestones: [...new Set(value.affectedMilestones.filter(Boolean))],
     sourceRefs: [...new Set(value.sourceRefs.filter(Boolean))],

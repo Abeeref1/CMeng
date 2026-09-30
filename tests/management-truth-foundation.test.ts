@@ -7,7 +7,9 @@ import {
   establishedPopulationCount,
   featureAvailability,
   managementAction,
+  managementFactView,
   populationCanAssertZero,
+  populationAuthority,
   type ManagementFactView,
   type PopulationAuthority,
 } from '../packages/truth-kernel/src';
@@ -25,14 +27,35 @@ test('population zero is only authoritative for an established population',()=>{
   assert.equal(establishedPopulationCount(0,pop('source_only')),null);
 });
 
+test('shared population authority keeps source, applicable, current, exclusions and bounded coverage together',()=>{
+  const p=populationAuthority({state:'partial',sourceCount:12,applicableCount:10,currentCount:7,excludedCount:2,coveragePercent:116,basis:'controlled test'});
+  assert.deepEqual(p,{state:'partial',sourceCount:12,applicableCount:10,currentCount:7,excludedCount:2,coveragePercent:100,basis:'controlled test'});
+  assert.equal(populationAuthority({state:'missing',sourceCount:-1,basis:'missing'}).sourceCount,null);
+});
+
 test('best available fact prefers usable higher-authority evidence without erasing qualified evidence',()=>{
   const facts:ManagementFactView<number>[]=[
-    {key:'gap',label:'Gap',value:null,state:'missing',authority:'none',basis:'missing',limitation:null,receipts:[],coverage:{known:0,total:1}},
-    {key:'candidate',label:'Candidate',value:49,state:'candidate',authority:'candidate',basis:'schedule WBS',limitation:'Procurement status not established',receipts:[],coverage:{known:49,total:49}},
-    {key:'source',label:'Source',value:12,state:'partial',authority:'source',basis:'source rows',limitation:'Population incomplete',receipts:[],coverage:{known:12,total:20}},
+    managementFactView<number>({key:'gap',label:'Gap',value:null,state:'missing',authority:'none',basis:'missing',coverage:{known:0,total:1}}),
+    managementFactView<number>({key:'candidate',label:'Candidate',value:49,state:'candidate',authority:'candidate',basis:'schedule WBS',limitation:'Procurement status not established',coverage:{known:49,total:49},dataDateIso:'2030-01-31',diagnostics:['QUALIFIED_SCOPE'],population:pop('candidate')}),
+    managementFactView<number>({key:'source',label:'Source',value:12,state:'partial',authority:'source',basis:'source rows',limitation:'Population incomplete',coverage:{known:12,total:20},dataDateIso:'2030-01-31',population:pop('partial')}),
   ];
   assert.equal(bestAvailableFact(facts)?.key,'source');
   assert.equal(bestAvailableFact([facts[0]!,facts[1]!])?.value,49);
+  const candidate=bestAvailableFact([facts[0]!,facts[1]!] as const)!;
+  assert.equal(candidate.dataDateIso,'2030-01-31');
+  assert.equal(candidate.population?.state,'candidate');
+  assert.deepEqual(candidate.diagnostics,['QUALIFIED_SCOPE']);
+});
+
+test('management fact contract carries every Task 01 authority field',()=>{
+  const view=managementFactView({
+    key:'progress',label:'Progress',value:42,state:'partial',authority:'source',basis:'reported progress',
+    coverage:{known:42,total:50},dataDateIso:'2030-01-31',diagnostics:['PARTIAL_SCOPE'],population:pop('partial'),
+  });
+  assert.equal(view.value,42);assert.equal(view.state,'partial');assert.equal(view.authority,'source');
+  assert.deepEqual(view.coverage,{known:42,total:50});assert.equal(view.dataDateIso,'2030-01-31');
+  assert.deepEqual(view.diagnostics,['PARTIAL_SCOPE']);assert.equal(view.population?.state,'partial');
+  assert.ok(Array.isArray(view.receipts));
 });
 
 test('feature availability distinguishes evidence-only from active and blocked',()=>{
@@ -52,6 +75,8 @@ test('management actions deduplicate scope, milestones and source references',()
   assert.deepEqual(action.affectedScope,['Zone 1']);
   assert.deepEqual(action.affectedMilestones,['M1']);
   assert.deepEqual(action.sourceRefs,['R1']);
+  assert.equal(action.confidence,null);
+  assert.equal(managementAction({...action,confidence:'high'}).confidence,'high');
 });
 
 test('diagnostic labels expose management language rather than raw codes',()=>{

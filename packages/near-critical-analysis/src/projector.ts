@@ -76,6 +76,7 @@ export function buildNearCriticalProjection(
     producerVersion: string;
     config?: ScheduleAnalysisConfig;
     controlledBaseline?: { revisionId: string; finishByActivity: ReadonlyMap<string, string | null> } | null;
+    previousFloat?: { revisionId: string; totalFloatByActivity: ReadonlyMap<string, number | null> } | null;
   },
 ): NearCriticalProjection {
   const config =
@@ -112,6 +113,15 @@ export function buildNearCriticalProjection(
     status: activity.status,
     totalFloatHours:
       activity.totalFloatHours!,
+    previousTotalFloatHours:
+      input.previousFloat?.totalFloatByActivity.get(activity.activityId) ?? null,
+    floatErosionHours:
+      (() => {
+        const previous = input.previousFloat?.totalFloatByActivity.get(activity.activityId) ?? null;
+        return previous === null
+          ? null
+          : Number((previous - activity.totalFloatHours!).toFixed(6));
+      })(),
     nearCriticalThresholdHours:
       threshold,
     baselineFinishIso:
@@ -429,17 +439,24 @@ export function buildNearCriticalProjection(
     const floats=group.rows.map(row=>row.totalFloatHours).filter((v):v is number=>typeof v==="number");
     const finishes=group.rows.map(row=>row.currentFinishIso).filter((v):v is string=>!!v).sort();
     const later=group.rows.filter(row=>row.baselineFinishIso&&row.currentFinishIso&&row.currentFinishIso.slice(0,10)>row.baselineFinishIso.slice(0,10)).length;
+    const erosions=group.rows.map(row=>row.floatErosionHours).filter((v):v is number=>typeof v==="number"&&Number.isFinite(v));
     return {
       wbsId:group.wbsId,wbsPath:group.wbsPath,activityCount:group.rows.length,activityIds:group.rows.map(row=>row.activityId),
       nearCriticalCount:group.rows.filter(row=>row.totalFloatHours>config.criticalFloatThresholdHours).length,
       criticalCount:group.rows.filter(row=>row.totalFloatHours<=config.criticalFloatThresholdHours).length,
       negativeFloatCount:group.rows.filter(row=>row.totalFloatHours<0).length,
-      lowestFloatHours:floats.length?Math.min(...floats):null,earliestCurrentFinishIso:finishes[0]??null,
+      lowestFloatHours:floats.length?Math.min(...floats):null,
+      floatErosionKnownCount:erosions.length,
+      maxFloatErosionHours:erosions.length?Math.max(...erosions):null,
+      averageFloatErosionHours:erosions.length?Number((erosions.reduce((sum,value)=>sum+value,0)/erosions.length).toFixed(6)):null,
+      earliestCurrentFinishIso:finishes[0]??null,
       affectedMilestoneIds:[...new Set(group.rows.flatMap(row=>row.affectedMilestoneIds??[]))].slice(0,10),
       laterThanBaselineCount:later,
       action:'Protect remaining float, clear the linked constraints and confirm the recovery/protection action before this scope becomes completion-driving.',
     };
-  }).sort((a,b)=>(a.lowestFloatHours??Number.MAX_SAFE_INTEGER)-(b.lowestFloatHours??Number.MAX_SAFE_INTEGER)||b.activityCount-a.activityCount||String(a.wbsPath??"").localeCompare(String(b.wbsPath??"")));
+  }).sort((a,b)=>(a.lowestFloatHours??Number.MAX_SAFE_INTEGER)-(b.lowestFloatHours??Number.MAX_SAFE_INTEGER)||
+    (b.maxFloatErosionHours??Number.NEGATIVE_INFINITY)-(a.maxFloatErosionHours??Number.NEGATIVE_INFINITY)||
+    b.activityCount-a.activityCount||String(a.wbsPath??"").localeCompare(String(b.wbsPath??"")));
 
   return {
     schemaVersion: "1.0",
@@ -450,6 +467,7 @@ export function buildNearCriticalProjection(
     sourceRevisionId:
       model.sourceRevisionId,
     controlledBaselineRevisionId: input.controlledBaseline?.revisionId ?? null,
+    floatComparisonRevisionId: input.previousFloat?.revisionId ?? null,
     criticalThresholdHours:
       config.criticalFloatThresholdHours,
     nearCriticalThresholdHours:

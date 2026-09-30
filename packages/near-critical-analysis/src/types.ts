@@ -51,6 +51,8 @@ export interface NearCriticalRow {
   calendarId: string | null;
   status: string;
   totalFloatHours: number;
+  previousTotalFloatHours?: number | null;
+  floatErosionHours?: number | null;
   nearCriticalThresholdHours: number | null;
   baselineFinishIso: string | null;
   sourceTargetFinishIso?: string | null;
@@ -66,6 +68,7 @@ export interface NearCriticalProjection {
   projectId: string | null;
   sourceRevisionId: string;
   controlledBaselineRevisionId?: string | null;
+  floatComparisonRevisionId?: string | null;
   criticalThresholdHours: number;
   nearCriticalThresholdHours: number | null;
   nearCriticalThresholdWorkingDays: number | null;
@@ -97,6 +100,9 @@ export interface NearCriticalProjection {
     criticalCount: number;
     negativeFloatCount: number;
     lowestFloatHours: number | null;
+    floatErosionKnownCount?: number;
+    maxFloatErosionHours?: number | null;
+    averageFloatErosionHours?: number | null;
     earliestCurrentFinishIso: string | null;
     affectedMilestoneIds: string[];
     laterThanBaselineCount: number;

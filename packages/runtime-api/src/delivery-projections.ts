@@ -1,4 +1,4 @@
-import {canonicalHeader,registerDate,numberValue,sumKnown,establishedPopulationCount,type PopulationAuthority} from '../../truth-kernel/src';
+import {canonicalHeader,registerDate,numberValue,sumKnown,establishedPopulationCount,populationAuthority,type PopulationAuthority} from '../../truth-kernel/src';
 import {deliveryHsePosition,deliveryEvidenceMetrics} from './delivery-intelligence';
 import {deliveryNumericIssues} from './delivery-validation';
 import {deliveryAuthorityCatalog} from './delivery-authorities';
@@ -34,7 +34,7 @@ export const deliveryPopulationAuthority=(population:any,sourceCount:number|null
  const established=population?.state==='established';
  const known=typeof population?.knownRecordCount==='number'?population.knownRecordCount:null;
  const source=typeof sourceCount==='number'?sourceCount:null;
- return {
+ return populationAuthority({
   state:established?'established':known!==null&&known>0?'partial':'missing',
   sourceCount:source,
   applicableCount:established&&typeof population?.denominator==='number'?population.denominator:known,
@@ -42,7 +42,7 @@ export const deliveryPopulationAuthority=(population:any,sourceCount:number|null
   excludedCount:typeof population?.pendingRecordCount==='number'?population.pendingRecordCount:null,
   coveragePercent:source!==null&&source>0&&known!==null?round(known/source*100):established?100:null,
   basis:String(population?.basis??'Applicable population authority is not established.'),
- };
+ });
 };
 const cache=new WeakMap<ProjectRuntimeState,{version:number;value:ReturnType<typeof buildDelivery>}>();
 

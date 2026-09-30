@@ -489,6 +489,48 @@ function actualHistory(
     );
 }
 
+function previousComparableFloatBasis(
+  ordered: ReturnType<typeof analyticalHistory>,
+  current: NonNullable<ReturnType<typeof projectControlSchedule>>,
+) {
+  const previous = ordered
+    .filter(
+      (item) =>
+        !isScenarioRevision(item) &&
+        item.revision.revisionId !== current.revision.revisionId &&
+        item.revision.sequence < current.revision.sequence,
+    )
+    .at(-1) ?? null;
+  if (!previous) return null;
+  const sourceById = new Map(
+    previous.revision.model.activities.map(
+      (activity) => [
+        activity.activityId,
+        activity,
+      ],
+    ),
+  );
+  const correspondence =
+    resolveRevisionActivityCorrespondence(
+      previous.revision.model.activities,
+      current.revision.model.activities,
+    );
+  const totalFloatByActivity =
+    new Map<string, number | null>();
+  for (const match of correspondence.matches) {
+    totalFloatByActivity.set(
+      match.toActivityId,
+      sourceById.get(match.fromActivityId)
+        ?.totalFloatHours ?? null,
+    );
+  }
+  return {
+    revisionId:
+      previous.revision.revisionId,
+    totalFloatByActivity,
+  };
+}
+
 function buildBundle(
   state: ProjectRuntimeState,
 ): ProjectionBundle {
@@ -568,6 +610,11 @@ function buildBundle(
       )
       .at(-1) ??
     null;
+  const previousFloat =
+    previousComparableFloatBasis(
+      ordered,
+      current,
+    );
   const baselineSourceById = new Map((controlledBaseline?.revision.model.activities ?? []).map(activity => [activity.activityId, activity]));
   const baselineCorrespondence = resolveRevisionActivityCorrespondence(controlledBaseline?.revision.model.activities ?? [], model.activities);
   const baselineByActivity = new Map(baselineCorrespondence.matches.map(match => [match.toActivityId, baselineSourceById.get(match.fromActivityId)!]));
@@ -1074,14 +1121,26 @@ function buildBundle(
                           .currentFinishIso
                       )
                     : null;
+                const movementDate =
+                  row.status === "completed"
+                    ? row.actualDateIso ?? row.currentDateIso
+                    : row.forecastDateIso ?? row.currentDateIso;
                 return refreshMilestoneManagementControl({
                   ...row,
                   baselineDateIso:
                     baselineDate,
+                  movementBasis:
+                    baselineDate === null || movementDate === null
+                      ? "not_established"
+                      : row.status === "completed" && row.actualDateIso
+                        ? "actual_vs_baseline"
+                        : row.forecastDateIso
+                          ? "forecast_vs_baseline"
+                          : "current_vs_baseline",
                   varianceDays:
                     varianceDays(
                       baselineDate,
-                      row.currentDateIso,
+                      movementDate,
                     ),
                 });
               },
@@ -1105,6 +1164,7 @@ function buildBundle(
           versions.nearCritical,
         config: scheduleAnalysisConfig,
         controlledBaseline: controlledBaseline ? { revisionId: controlledBaseline.revision.revisionId, finishByActivity: new Map([...baselineByActivity].map(([id,a]) => [id,controlledBaselineFinish(a)])) } : null,
+        previousFloat,
       },
     );
   const nearCriticalBase = {
@@ -3506,6 +3566,11 @@ function calculatePlanningContext(state: ProjectRuntimeState, current: NonNullab
       )
       .at(-1) ??
     null;
+  const previousFloat =
+    previousComparableFloatBasis(
+      ordered,
+      current,
+    );
 
   const baselineSourceById = new Map((controlledBaseline?.revision.model.activities ?? []).map(activity => [activity.activityId, activity]));
   const baselineCorrespondence = resolveRevisionActivityCorrespondence(controlledBaseline?.revision.model.activities ?? [], model.activities);
@@ -3813,7 +3878,7 @@ function calculatePlanningContext(state: ProjectRuntimeState, current: NonNullab
 
   return {
     generatedAt, ordered, model, scheduleControlBasis, scheduleAnalysisConfig,
-    controlledBaseline, baselineByActivity, currentByActivity, baselineFinish,
+    controlledBaseline, previousFloat, baselineByActivity, currentByActivity, baselineFinish,
     currentFinish, daysBetween, controlledBaselineCompletion, knownVariances,
     scheduleAnalytics, independentForecast, minimalDeliveryChallenge,
   };
@@ -3855,7 +3920,7 @@ function buildPlanningModuleFast(
 
   const {
     generatedAt, ordered, model, scheduleControlBasis, scheduleAnalysisConfig,
-    controlledBaseline, baselineByActivity, currentByActivity, baselineFinish,
+    controlledBaseline, previousFloat, baselineByActivity, currentByActivity, baselineFinish,
     currentFinish, daysBetween, controlledBaselineCompletion, knownVariances,
     scheduleAnalytics, independentForecast, minimalDeliveryChallenge,
   } = planningContextForState(state, current);
@@ -4059,13 +4124,25 @@ function buildPlanningModuleFast(
                             .currentFinishIso
                         )
                       : null;
-                  return refreshMilestoneManagementControl({
+                  const movementDate =
+                  row.status === "completed"
+                    ? row.actualDateIso ?? row.currentDateIso
+                    : row.forecastDateIso ?? row.currentDateIso;
+                return refreshMilestoneManagementControl({
                     ...row,
                     baselineDateIso,
+                    movementBasis:
+                      baselineDateIso === null || movementDate === null
+                        ? "not_established"
+                        : row.status === "completed" && row.actualDateIso
+                          ? "actual_vs_baseline"
+                          : row.forecastDateIso
+                            ? "forecast_vs_baseline"
+                            : "current_vs_baseline",
                     varianceDays:
                       daysBetween(
                         baselineDateIso,
-                        row.currentDateIso,
+                        movementDate,
                       ),
                   });
                 },
@@ -4091,6 +4168,7 @@ function buildPlanningModuleFast(
             "planning-fast:near-critical-v1",
           config: scheduleAnalysisConfig,
           controlledBaseline: controlledBaseline ? { revisionId: controlledBaseline.revision.revisionId, finishByActivity: new Map([...baselineByActivity].map(([id,a]) => [id,baselineFinish(a)])) } : null,
+          previousFloat,
         },
       );
     const nearCriticalBase = {
@@ -7917,8 +7995,8 @@ export function managementSurfacesForProject(
     action:'Review overdue activity '+r.activityId+' ('+r.name+') and agree its recovery dates.',sourceRefs:[]}))],overdueActivityCount:Array.isArray(lookahead?.overdueBacklogRows)||Array.isArray(lookahead?.rows)?overdueRows.length:null};
   const completion=(resolvedModules.get('independent-forecast')?.data as any)?.completionPosition??null;
   const diagnosis=(resolvedModules.get('pmo-analysis')?.data as any)?.projectDiagnosis??null;
-  const visualControl=managementVisualControl(state,resolvedModules,commercial);
   const managementContext=projectManagementContext(state,resolvedModules,commercial);
+  const visualControl=managementVisualControl(state,resolvedModules,commercial,managementContext);
   const interfaces=interfaceIntelligence(state);
   const accountability=crossDomainAccountability(state);
   const deliveryPosition=deliveryDashboard(state);

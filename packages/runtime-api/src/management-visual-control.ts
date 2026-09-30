@@ -3,7 +3,7 @@ import type {ModuleRuntimeResult,ProjectRuntimeState} from './project-state-type
 import {managementSourceInventory} from './management-source-inventory';
 import {boqScopeIntelligence} from './boq-scope-intelligence';
 import {projectManagementContext} from './management-context';
-import {bestAvailableFact,type ManagementFactView} from '../../truth-kernel/src';
+import {bestAvailableFact,managementFactView,type ManagementFactView,type PopulationAuthority} from '../../truth-kernel/src';
 
 const data=(modules:Map<string,ModuleRuntimeResult>,key:string):any=>{
   const value=modules.get(key)?.data;
@@ -15,16 +15,22 @@ export function managementVisualControl(
   state:ProjectRuntimeState,
   modules:Map<string,ModuleRuntimeResult>,
   commercial:CommercialControlPosition,
+  precomputedManagementContext?:ReturnType<typeof projectManagementContext>,
 ){
   const sourceInventory=managementSourceInventory(state);
-  const managementContext=projectManagementContext(state,modules,commercial);
+  const managementContext=precomputedManagementContext??projectManagementContext(state,modules,commercial);
   const procurementSource=sourceInventory.domains.find(row=>row.domain==='procurement')??null;
   const sourceLongLeadCount=procurementSource?.signals.longLeadMarkedCount??null;
   const scheduleLongLead=managementContext.schedule?.longLeadEvidence??[];
   const boqScope=boqScopeIntelligence(state);
-  const countFact=(key:string,label:string,value:number,basis:string,authority:ManagementFactView<number>['authority'],state:ManagementFactView<number>['state']):ManagementFactView<number>=>({
-    key,label,value,state,authority,basis,limitation:null,receipts:[],coverage:{known:value,total:value}
-  });
+  const countFact=(key:string,label:string,value:number,basis:string,authority:ManagementFactView<number>['authority'],state:ManagementFactView<number>['state']):ManagementFactView<number>=>{
+    const populationState:PopulationAuthority['state']=state==='official'?'established':state==='partial'?'partial':state==='candidate'?'candidate':state==='quarantined'?'quarantined':state==='conflicted'?'conflicted':'missing';
+    return managementFactView({
+      key,label,value,state,authority,basis,dataDateIso:managementContext.dataDateIso,diagnostics:[],
+      receipts:[],coverage:{known:value,total:value},
+      population:{state:populationState,sourceCount:value,applicableCount:populationState==='established'?value:null,currentCount:populationState==='established'?value:null,excludedCount:0,coveragePercent:100,basis},
+    });
+  };
   const longLeadFacts:ManagementFactView<number>[]=[];
   if(typeof sourceLongLeadCount==='number'&&sourceLongLeadCount>0)longLeadFacts.push(
     countFact('source-long-lead','Source-marked long lead',sourceLongLeadCount,
@@ -43,6 +49,7 @@ export function managementVisualControl(
   const revision=data(modules,'revision-trend');
   const progress=data(modules,'progress-report');
   const progressCurve=data(modules,'progress-scurve');
+  const quantity=data(modules,'quantity-scurve');
   const delay=data(modules,'delay-claims');
   const notices=data(modules,'notices-claims');
   const eot=data(modules,'eot-assessment');
@@ -67,6 +74,39 @@ export function managementVisualControl(
       status:scheduleRow?.status??null,
     };
   });
+
+  const driverGroupsMap=new Map<string,{
+    wbs:string;activityIds:string[];activityNames:string[];currentFinishes:string[];
+    lowestFloatHours:number|null;milestoneIds:string[];packageCandidates:string[];
+  }>();
+  const milestoneSource=(Array.isArray(milestones.rows)?milestones.rows:[]).filter((row:any)=>row.status!=='completed');
+  for(const row of drivingActivities){
+    const wbs=String(row.wbs??'Unclassified driving scope');
+    const group=driverGroupsMap.get(wbs)??{
+      wbs,activityIds:[],activityNames:[],currentFinishes:[],lowestFloatHours:null,milestoneIds:[],packageCandidates:[]
+    };
+    group.activityIds.push(row.activityId);
+    if(row.name)group.activityNames.push(String(row.name));
+    if(row.currentFinishIso)group.currentFinishes.push(String(row.currentFinishIso));
+    if(typeof row.sourceFloatHours==='number')group.lowestFloatHours=group.lowestFloatHours===null?row.sourceFloatHours:Math.min(group.lowestFloatHours,row.sourceFloatHours);
+    group.milestoneIds.push(...milestoneSource.filter((m:any)=>String(m.wbsName??m.wbsId??'')===wbs).map((m:any)=>String(m.activityId)));
+    group.packageCandidates.push(...boqScope.packages.filter((p:any)=>String(p.packageCandidate??p.label??p.package??'')===wbs)
+      .map((p:any)=>String(p.packageCandidate??p.label??p.package??'')));
+    driverGroupsMap.set(wbs,group);
+  }
+  const priorityGroups=[...driverGroupsMap.values()].map(group=>({
+    wbs:group.wbs,
+    activityCount:group.activityIds.length,
+    activityIds:[...new Set(group.activityIds)],
+    activityNames:[...new Set(group.activityNames)],
+    latestCurrentFinishIso:group.currentFinishes.sort().at(-1)??null,
+    lowestFloatHours:group.lowestFloatHours,
+    milestoneIds:[...new Set(group.milestoneIds)].slice(0,10),
+    packageCandidates:[...new Set(group.packageCandidates)].slice(0,10),
+    consequence:group.milestoneIds.length
+      ?'Completion-driving scope is linked to '+[...new Set(group.milestoneIds)].length+' open milestone(s).'
+      :'Completion-driving scope is established; a downstream milestone link is not established from the available programme evidence.',
+  })).sort((a,b)=>(a.lowestFloatHours??Number.MAX_SAFE_INTEGER)-(b.lowestFloatHours??Number.MAX_SAFE_INTEGER)||b.activityCount-a.activityCount||a.wbs.localeCompare(b.wbs));
 
   const delayed=activityRows.filter((row:any)=>!['level_of_effort','wbs_summary'].includes(row.activityType)&&(
     row.scheduleDelayed===true||(typeof row.finishVarianceDays==='number'&&row.finishVarianceDays>0)
@@ -180,13 +220,95 @@ export function managementVisualControl(
     sourceLabor:challenge.sourceLaborEvidence??null,
   };
 
+  const sourceDomain=(domain:string)=>sourceInventory.domains.find(row=>row.domain===domain)??null;
+  const numericFact=(key:string,label:string,value:number|null,basis:string,authority:ManagementFactView<number>['authority'],state:ManagementFactView<number>['state'],coverage:{known:number;total:number}={known:value===null?0:1,total:1})=>
+    value===null?null:managementFactView<number>({
+      key,label,value,state,authority,basis,dataDateIso:managementContext.dataDateIso,diagnostics:[],receipts:[],coverage,
+      population:{state:state==='official'?'established':state==='partial'?'partial':state==='candidate'?'candidate':state==='quarantined'?'quarantined':state==='conflicted'?'conflicted':'missing',
+        sourceCount:coverage.total,applicableCount:state==='official'?coverage.total:null,currentCount:state==='official'?coverage.known:null,excludedCount:null,
+        coveragePercent:coverage.total>0?Number((coverage.known/coverage.total*100).toFixed(4)):null,basis},
+    });
+  const sourceRowsFact=(domain:string,key:string,label:string)=>{
+    const src=sourceDomain(domain),value=typeof src?.readableRowCount==='number'?src.readableRowCount:null;
+    return numericFact(key,label,value,src?.basis??'No readable source population is established.','source','partial',
+      {known:value??0,total:value??0});
+  };
+  const pick=<T>(rows:Array<ManagementFactView<T>|null>)=>bestAvailableFact(rows.filter((row):row is ManagementFactView<T>=>row!==null));
+
+  const pBases=progress.progressBases??{};
+  const progressCandidates:Array<ManagementFactView<number>|null>=[
+    numericFact('physical-progress','Physical measured progress',pBases.physical?.valuePercent??null,'Physical measured progress evidence.','source','partial'),
+    numericFact('contractor-progress','Contractor reported progress',pBases.contractorReported?.valuePercent??null,'Contractor reported progress evidence; not certified physical progress.','source','partial'),
+    numericFact('certified-progress','Certified progress',pBases.certified?.valuePercent??null,'Certified progress evidence; retained as its own progress basis.','source','partial'),
+    numericFact('schedule-snapshot-progress','Schedule snapshot progress',pBases.scheduleSnapshot?.valuePercent??null,'Schedule snapshot observation; contextual programme intelligence, not physical/certified progress.','calculated','candidate'),
+    numericFact('current-planned-progress','Current planned progress',pBases.currentSchedule?.valuePercent??null,'Current schedule phasing at the Data Date; plan, not actual progress.','calculated','candidate'),
+  ];
+  const firstCost=costPositions[0]??null;
+  const firstCommercial=commercialPositions[0]??null;
+  const costCandidates:Array<ManagementFactView<number>|null>=[
+    numericFact('source-eac','Source reported EAC',firstCost?.sourceEac??null,'Source-reported estimate at completion.','source','partial'),
+    numericFact('calculated-eac','CMeng EAC scenario',firstCost?.bestEacBasis==='cmeng_scenario'?firstCost.bestEac:null,'CMeng calculated EAC scenario; not an official forecast.','calculated','candidate'),
+    numericFact('current-contract-value','Current contract value',firstCommercial?.currentContractValue.value??null,'Current contract value; commercial basis rather than cost forecast.','source','partial'),
+  ];
+  const changeCandidates:Array<ManagementFactView<number>|null>=[
+    numericFact('approved-variation-amount','Approved variation amount',firstCommercial?.approvedVariationAmount.value??null,'Approved/current variation amount from Commercial control.','source','partial'),
+    numericFact('programme-modified-activities','Programme modified activities',change.modifiedActivityCount??null,'Observed schedule revision change; programme movement, not a contractual variation.','calculated','candidate'),
+    sourceRowsFact('variations','variation-source-rows','Readable variation/change source rows'),
+  ];
+  const claimsCandidates:Array<ManagementFactView<number>|null>=[
+    numericFact('current-claim-count','Current governed claims',claims.currentClaimCount,'Current governed claim population at the Data Date.','source','partial'),
+    numericFact('source-claim-count','Source claims',claims.sourceClaimCount,'Readable claim records; source availability does not establish entitlement.','source',claims.integrityState==='quarantined'?'quarantined':'partial'),
+    sourceRowsFact('claims','claim-source-rows','Readable Claims/EOT source rows'),
+  ];
+  const designSrc=sourceDomain('design'),submittalSrc=sourceDomain('submittal');
+  const designCandidates:Array<ManagementFactView<number>|null>=[
+    sourceRowsFact('design','design-source-rows','Readable design/RFI source rows'),
+    sourceRowsFact('submittal','submittal-source-rows','Readable submittal source rows'),
+    numericFact('programme-design-activities','Programme design/approval activities',
+      managementContext.schedule?.programmeStages?.find((row:any)=>row.stage==='design')?.activityCount??null,
+      'Schedule/WBS design and approval scope; contextual intelligence, not a confirmed design register.','candidate','candidate'),
+  ];
+  const measuredQuantityCount=typeof quantity.measurementReview?.measuredItemCount==='number'?quantity.measurementReview.measuredItemCount:null;
+  const quantityCandidates:Array<ManagementFactView<number>|null>=[
+    numericFact('measured-quantity-items','Measured installed quantity items',measuredQuantityCount,'Dated installed-quantity evidence.','source','partial'),
+    numericFact('boq-quantity-items','BOQ quantity items',quantity.boqItemCount??boqScope.itemCount??null,'Readable BOQ quantity scope; not installed progress.','source','partial'),
+    sourceRowsFact('boq','boq-source-rows','Readable BOQ/quantity source rows'),
+  ];
+  const riskCandidates:Array<ManagementFactView<number>|null>=[
+    sourceRowsFact('risk','risk-source-rows','Readable formal risk source rows'),
+    numericFact('schedule-float-risk','Schedule float-risk activities',activity.counts?.floatRisk?.value??null,'Programme float exposure; contextual risk intelligence, not a formal risk register.','calculated','candidate'),
+  ];
+  const qualityCandidates:Array<ManagementFactView<number>|null>=[
+    sourceRowsFact('quality','quality-source-rows','Readable quality/NCR/inspection source rows'),
+    sourceRowsFact('hse','hse-source-rows','Readable HSE/safety source rows'),
+  ];
+  const resourceCandidates:Array<ManagementFactView<number>|null>=[
+    numericFact('assigned-resources','Assigned schedule resources',resource.assignedResourceCount??null,'Resources assigned to current programme activities.','source','partial'),
+    numericFact('resource-master','Schedule resource master',resource.resourceCount??resource.p6ResourceMasterCount??null,'Resource master evidence from the programme.','source','partial'),
+    sourceRowsFact('resources','resource-source-rows','Readable resource/manpower source rows'),
+  ];
+  const bestAvailablePositions={
+    progress:pick(progressCandidates),
+    cost:pick(costCandidates),
+    change:pick(changeCandidates),
+    claims:pick(claimsCandidates),
+    design:pick(designCandidates),
+    procurement:bestLongLead??null,
+    quality:pick(qualityCandidates),
+    quantities:pick(quantityCandidates),
+    risk:pick(riskCandidates),
+    resources:pick(resourceCandidates),
+  };
+
   return {
     schemaVersion:'1.0',
     sourceInventory,
+    bestAvailablePositions,
     schedule:{
       drivingActivityCount:drivingIds.length,
       finishActivityIds:independent.drivingNetwork?.finishActivityIds??[],
       drivingActivities,
+      priorityGroups,
       delayedActivityCount:delayed.length,
       delayedWbs,
       criticalCount:activity.counts?.critical?.value??null,

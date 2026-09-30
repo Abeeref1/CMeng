@@ -78,9 +78,21 @@ export interface ProgrammeControlStagePosition {
   activityCount: number;
   openActivityCount: number;
   criticalOrNegativeFloatCount: number;
+  activityIds: string[];
+  wbsIds: string[];
+  wbsPaths: string[];
+  controlMilestoneIds: string[];
+  dependencyStages: ProgrammeControlStage[];
   earliestStartIso: string | null;
   latestFinishIso: string | null;
-  sampleActivities: Array<{activityId:string;name:string|null;wbsPath:string|null;finishIso:string|null;totalFloatHours:number|null}>;
+  earliestCurrentStartIso: string | null;
+  latestCurrentFinishIso: string | null;
+  latestForecastFinishIso: string | null;
+  lowestFloatHours: number | null;
+  sampleActivities: Array<{
+    activityId:string;name:string|null;wbsPath:string|null;
+    currentFinishIso:string|null;forecastFinishIso:string|null;finishIso:string|null;totalFloatHours:number|null
+  }>;
   basis: 'observed_programme_structure';
 }
 
@@ -95,27 +107,48 @@ const stageRules: Array<{stage:ProgrammeControlStage;label:string;pattern:RegExp
 export function programmeControlStages(model: CanonicalScheduleModel): ProgrammeControlStagePosition[] {
   const paths=wbsPathById(model);
   const buckets=new Map<ProgrammeControlStage,Array<typeof model.activities[number]>>();
+  const stageByActivity=new Map<string,ProgrammeControlStage>();
   const stageFor=(activity:typeof model.activities[number]):ProgrammeControlStage=>{
     const text=[activity.name,activity.wbsId?paths.get(activity.wbsId):null].filter(Boolean).join(' | ');
     return stageRules.find(rule=>rule.pattern.test(text))?.stage??'other';
   };
   for(const activity of model.activities){
     if(['level_of_effort','wbs_summary'].includes(activity.activityType))continue;
-    const stage=stageFor(activity),rows=buckets.get(stage)??[];rows.push(activity);buckets.set(stage,rows);
+    const stage=stageFor(activity),rows=buckets.get(stage)??[];
+    rows.push(activity);buckets.set(stage,rows);stageByActivity.set(activity.activityId,stage);
+  }
+  const incomingStages=new Map<ProgrammeControlStage,Set<ProgrammeControlStage>>();
+  for(const rel of model.relationships){
+    if(rel.external)continue;
+    const from=stageByActivity.get(rel.predecessorActivityId),to=stageByActivity.get(rel.successorActivityId);
+    if(!from||!to||from===to)continue;
+    const set=incomingStages.get(to)??new Set<ProgrammeControlStage>();set.add(from);incomingStages.set(to,set);
   }
   const ordered:ProgrammeControlStage[]=['design','procurement','construction','testing_commissioning','handover','other'];
   return ordered.flatMap(stage=>{
     const rows=buckets.get(stage)??[];if(!rows.length)return [];
-    const datesStart=rows.map(r=>r.currentStartIso).filter((v):v is string=>!!v).sort();
-    const datesFinish=rows.map(r=>r.forecastFinishIso??r.currentFinishIso).filter((v):v is string=>!!v).sort();
+    const currentStarts=rows.map(r=>r.currentStartIso).filter((v):v is string=>!!v).sort();
+    const currentFinishes=rows.map(r=>r.currentFinishIso).filter((v):v is string=>!!v).sort();
+    const forecastFinishes=rows.map(r=>r.forecastFinishIso).filter((v):v is string=>!!v).sort();
+    const effectiveFinishes=rows.map(r=>r.forecastFinishIso??r.currentFinishIso).filter((v):v is string=>!!v).sort();
     const open=rows.filter(r=>r.status!=='completed');
     const pressure=open.filter(r=>typeof r.totalFloatHours==='number'&&r.totalFloatHours<=0);
+    const knownFloat=open.map(r=>r.totalFloatHours).filter((v):v is number=>typeof v==='number'&&Number.isFinite(v));
     const rule=stageRules.find(r=>r.stage===stage);
+    const wbsIds=[...new Set(rows.map(r=>r.wbsId).filter((v):v is string=>!!v))];
+    const wbsPaths=[...new Set(wbsIds.map(id=>paths.get(id)??id))];
+    const controlMilestoneIds=rows.filter(r=>['milestone','start_milestone','finish_milestone'].includes(r.activityType)).map(r=>r.activityId);
     return [{
       stage,label:rule?.label??'Other programme scope',activityCount:rows.length,openActivityCount:open.length,
-      criticalOrNegativeFloatCount:pressure.length,earliestStartIso:datesStart[0]??null,latestFinishIso:datesFinish.at(-1)??null,
+      criticalOrNegativeFloatCount:pressure.length,
+      activityIds:rows.map(r=>r.activityId),wbsIds,wbsPaths,controlMilestoneIds,
+      dependencyStages:[...(incomingStages.get(stage)??new Set<ProgrammeControlStage>())],
+      earliestStartIso:currentStarts[0]??null,latestFinishIso:effectiveFinishes.at(-1)??null,
+      earliestCurrentStartIso:currentStarts[0]??null,latestCurrentFinishIso:currentFinishes.at(-1)??null,
+      latestForecastFinishIso:forecastFinishes.at(-1)??null,lowestFloatHours:knownFloat.length?Math.min(...knownFloat):null,
       sampleActivities:[...open].sort((a,b)=>(a.totalFloatHours??Number.MAX_SAFE_INTEGER)-(b.totalFloatHours??Number.MAX_SAFE_INTEGER))
         .slice(0,5).map(r=>({activityId:r.activityId,name:r.name,wbsPath:r.wbsId?paths.get(r.wbsId)??null:null,
+          currentFinishIso:r.currentFinishIso,forecastFinishIso:r.forecastFinishIso,
           finishIso:r.forecastFinishIso??r.currentFinishIso,totalFloatHours:r.totalFloatHours})),
       basis:'observed_programme_structure' as const,
     }];
@@ -136,11 +169,55 @@ export function projectManagementContext(
     const value=modules?.get(key)?.data;
     return value&&typeof value==='object'?value:{};
   };
+  const activity=moduleData('activity-analytics');
+  const independent=moduleData('independent-forecast');
+  const milestones=moduleData('milestones');
+  const change=moduleData('schedule-change-report');
+  const revision=moduleData('revision-trend');
   const progress=moduleData('progress-report');
+  const progressBreakdown=moduleData('progress-breakdown');
+  const lookAhead=moduleData('lookahead-schedule');
+  const quantities=moduleData('quantity-scurve');
   const delay=moduleData('delay-claims');
   const notices=moduleData('notices-claims');
+  const eot=moduleData('eot-assessment');
   const resources=moduleData('resource-utilization');
+  const manhours=moduleData('manhour-scurve');
   const source=(domain:string)=>sourceInventory.domains.find(row=>row.domain===domain)??null;
+  const activityRows=Array.isArray(activity.rows)?activity.rows:[];
+  const delayedActivities=activityRows.filter((row:any)=>row.scheduleDelayed===true||
+    (typeof row.finishVarianceDays==='number'&&row.finishVarianceDays>0)).map((row:any)=>({
+      activityId:row.activityId??null,name:row.name??null,wbsId:row.wbsId??null,wbsPath:row.wbsPath??null,
+      currentStartIso:row.currentStartIso??null,currentFinishIso:row.forecastFinishIso??row.currentFinishIso??null,
+      totalFloatHours:row.totalFloatHours??null,finishVarianceDays:row.finishVarianceDays??null,criticality:row.criticality??null,
+    }));
+  const milestoneRows=Array.isArray(milestones.rows)?milestones.rows:[];
+  const interventions=Array.isArray(lookAhead.managementInterventions)?lookAhead.managementInterventions:[];
+  const managedProgrammeStages=programmeStages.map(stage=>{
+    const stageActivities=new Set(stage.activityIds??[]);
+    const stageWbs=new Set(stage.wbsIds??[]);
+    const relevant=interventions.filter((row:any)=>
+      (row.wbsId&&stageWbs.has(row.wbsId))||
+      (Array.isArray(row.activityIds)&&row.activityIds.some((id:string)=>stageActivities.has(id)))
+    );
+    const blockedActivities=[...new Set(relevant.flatMap((row:any)=>Array.isArray(row.activityIds)?row.activityIds:[]))];
+    const owners=[...new Set(relevant.map((row:any)=>row.owner).filter((value:any)=>typeof value==='string'&&value.trim()))];
+    const actions=[...new Set(relevant.map((row:any)=>row.action).filter((value:any)=>typeof value==='string'&&value.trim()))];
+    const requiredDates=relevant.map((row:any)=>row.requiredByIso).filter((value:any):value is string=>typeof value==='string'&&value.length>0).sort();
+    return {
+      ...stage,
+      readinessBlockerCount:blockedActivities.length,
+      readinessBlockerTypes:[...new Set(relevant.map((row:any)=>row.blockerType).filter(Boolean))],
+      readinessRequiredByIso:requiredDates[0]??null,
+      owners,
+      actions,
+      longLeadExposure:stage.stage==='procurement'?{
+        scheduleCandidateCount:scheduleLongLead.length,
+        boqCandidateCount:boq.longLead.length,
+        readableProcurementSourceRows:source('procurement')?.readableRowCount??null,
+      }:null,
+    };
+  });
   return {
     projectId: state.projectId,
     dataDateIso: schedule?.dataDateIso ?? null,
@@ -149,7 +226,7 @@ export function projectManagementContext(
       activityCount: schedule.activities.length,
       relationshipCount: schedule.relationships.length,
       longLeadEvidence: scheduleLongLead,
-      programmeStages,
+      programmeStages: managedProgrammeStages,
     } : null,
     boq: {
       itemCount: boq.itemCount,
@@ -159,19 +236,46 @@ export function projectManagementContext(
     },
     sourceInventory,
     crossModule:{
+      programme:{
+        revisionId:schedule?.sourceRevisionId??null,
+        dataDateIso:schedule?.dataDateIso??null,
+        drivingNetwork:independent.drivingNetwork??null,
+        delayedActivities,
+        criticalCount:activity.counts?.critical?.value??null,
+        nearCriticalCount:activity.counts?.nearCritical?.value??null,
+        negativeFloatCount:activityRows.filter((row:any)=>typeof row.totalFloatHours==='number'&&row.totalFloatHours<0).length,
+      },
+      milestones:{
+        rows:milestoneRows.map((row:any)=>({
+          activityId:row.activityId??null,name:row.name??null,wbsId:row.wbsId??null,
+          baselineDateIso:row.baselineDateIso??null,currentDateIso:row.currentDateIso??null,forecastDateIso:row.forecastDateIso??row.currentDateIso??null,
+          totalFloatHours:row.totalFloatHours??null,criticality:row.criticality??null,managementPriority:row.managementPriority??null,
+        })),
+      },
+      boq:{itemCount:boq.itemCount,candidateLongLeadCount:boq.longLead.length,candidatePackageCount:boq.packages.length,basis:boq.basis},
+      quantities:{
+        boqItemCount:quantities.boqItemCount??boq.itemCount??null,
+        installedQuantityStatus:quantities.installedQuantityStatus??null,
+        series:quantities.series??null,
+      },
+      procurement:{
+        sourceEvidence:source('procurement'),
+        scheduleLongLeadEvidence:scheduleLongLead,
+        boqLongLeadCandidates:boq.longLead,
+      },
+      design:{sourceEvidence:source('design'),rfiSourceEvidence:source('design'),submittalSourceEvidence:source('submittal')},
+      interfaces:{sourceEvidence:source('interfaces')},
       progress:{
         progressBases:progress.progressBases??null,
         scopeComparison:progress.scopeComparison??null,
-      },
-      claims:{
-        eventCount:delay.eventCount??null,
-        claimCount:notices.claimCount??delay.claimCount??null,
-        noticeCount:notices.noticeCount??null,
-        sourceEvidence:source('claims'),
+        breakdown:progressBreakdown.rows??progressBreakdown.breakdown??null,
       },
       resources:{
         resourceCount:resources.resourceCount??resources.p6ResourceMasterCount??null,
         assignedResourceCount:resources.assignedResourceCount??null,
+        utilization:resources.rows??null,
+        plannedHours:manhours.plannedHours??manhours.plannedHoursKnown??null,
+        actualHours:manhours.actualHours??manhours.actualHoursKnown??null,
         sourceEvidence:source('resources'),
       },
       commercial:commercial?{
@@ -183,6 +287,20 @@ export function projectManagementContext(
           paidAmount:row.paidAmount.value,
         })),
       }:null,
+      change:{
+        fromRevisionId:change.fromRevisionId??null,toRevisionId:change.toRevisionId??null,
+        addedActivityCount:change.addedActivityCount??null,removedActivityCount:change.removedActivityCount??null,modifiedActivityCount:change.modifiedActivityCount??null,
+        revisionCount:revision.revisionCount??null,
+      },
+      claimsEot:{
+        eventCount:delay.eventCount??null,
+        claimCount:notices.claimCount??delay.claimCount??null,
+        noticeCount:notices.noticeCount??null,
+        officialApprovedEotDays:eot.officialApprovedEotDays??null,
+        candidateAdditionalEotDays:eot.candidateAdditionalEotDays??null,
+        sourceEvidence:source('claims'),
+      },
+      risk:{sourceEvidence:source('risk')},
       deliverySources:{
         procurement:source('procurement'),
         design:source('design'),

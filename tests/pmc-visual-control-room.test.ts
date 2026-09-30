@@ -26,6 +26,21 @@ function procurementDocument(){
   } as any;
 }
 
+test('management source inventory exposes Interface evidence to cross-module control',()=>{
+  const doc:any={
+    ...procurementDocument(),documentId:'IF-1',documentType:'interface_register',sourceFilename:'Interface Register.csv',
+    sourceHashSha256:'if-hash',familyKey:'interfaces',logicalDocumentKey:'interfaces',
+    tabularRead:{producerVersion:'test',sourceHashSha256:'if-hash',sheets:[{name:'Interfaces',rows:[
+      ['Interface ID','Giving Party','Receiving Party','Required Date'],
+      ['IF-001','Civil','MEP','2030-04-01']
+    ]}]}
+  };
+  const inventory=managementSourceInventory({version:1,evidenceDocuments:[doc]} as any);
+  const interfaces=inventory.domains.find(row=>row.domain==='interfaces');
+  assert.equal(interfaces?.documentCount,1);
+  assert.equal(interfaces?.readableRowCount,1);
+});
+
 test('management source inventory preserves readable procurement evidence and explicit long-lead marks',()=>{
   const state={version:1,evidenceDocuments:[procurementDocument()]} as any;
   const inventory=managementSourceInventory(state);
@@ -109,7 +124,9 @@ test('management UI includes the visual control room, integrated programme contr
   assert.match(script,/PMC Control Room/);
   assert.match(script,/Integrated programme control sequence/);
   assert.match(script,/Control authority & evidence matrix/);
-  assert.match(script,/Current driving network/);
+  assert.match(script,/Current driving priorities/);
+  assert.match(script,/Driver chain \/ WBS/);
+  assert.match(script,/Milestone consequence/);
   assert.match(script,/Long-lead scope to protect/);
   assert.match(script,/What changed in the programme/);
 });
@@ -224,4 +241,75 @@ test('PMC control room does not present zero canonical claims/events when Claims
   assert.match(output,/Current claims<\/em><b>0<\/b>/);
   assert.doesNotMatch(output,/Canonical source claims<\/em><b>0<\/b>/);
   assert.doesNotMatch(output,/Canonical source events<\/em><b>0<\/b>/);
+});
+
+
+test('Task 03 Best Available Position selects useful evidence by domain without changing its authority',()=>{
+  const state=runtimeProjects.getOrCreate('A03-BEST-AVAILABLE-DOMAINS');
+  const modules=new Map<string,any>([
+    ['progress-report',{data:{progressBases:{
+      physical:{valuePercent:36},contractorReported:{valuePercent:null},certified:{valuePercent:null},
+      scheduleSnapshot:{valuePercent:42},currentSchedule:{valuePercent:45}
+    }}}],
+    ['activity-analytics',{data:{rows:[],counts:{floatRisk:{value:5}}}}],
+    ['resource-utilization',{data:{assignedResourceCount:12,resourceCount:20}}],
+    ['schedule-change-report',{data:{modifiedActivityCount:3}}],
+    ['quantity-scurve',{data:{boqItemCount:100,measurementReview:{measuredItemCount:20}}}],
+  ]);
+  const fact=(value:number|null,state='official')=>({value,state});
+  const commercial:any={
+    currencies:[{
+      currency:'AED',originalContractValue:fact(90),currentContractValue:fact(100),approvedVariationAmount:fact(10),
+      pendingVariationAmount:fact(null,'missing'),certifiedUnpaidAmount:fact(null,'missing'),retentionDeductedAmount:fact(null,'missing'),
+      paidAmount:fact(55)
+    }],
+    performance:{costControl:{positions:[]}},
+    claimsNotices:{noticeTimelinessCounts:{timely:null,late:null,not_issued:null}}
+  };
+  const visual:any=managementVisualControl(state,modules,commercial);
+  assert.equal(visual.bestAvailablePositions.progress?.key,'physical-progress');
+  assert.equal(visual.bestAvailablePositions.progress?.value,36);
+  assert.equal(visual.bestAvailablePositions.progress?.authority,'source');
+  assert.equal(visual.bestAvailablePositions.cost?.key,'current-contract-value');
+  assert.equal(visual.bestAvailablePositions.change?.key,'approved-variation-amount');
+  assert.equal(visual.bestAvailablePositions.quantities?.key,'measured-quantity-items');
+  assert.equal(visual.bestAvailablePositions.risk?.key,'schedule-float-risk');
+  assert.equal(visual.bestAvailablePositions.risk?.authority,'calculated');
+  assert.match(visual.bestAvailablePositions.risk?.basis??'',/not a formal risk register/i);
+  assert.equal(visual.bestAvailablePositions.resources?.key,'assigned-resources');
+  assert.equal(visual.bestAvailablePositions.claims,null);
+  assert.equal(visual.bestAvailablePositions.design,null);
+});
+
+
+test('Task 10 groups repeated completion-driving activities by WBS and milestone consequence',()=>{
+  const state=runtimeProjects.getOrCreate('B10-GROUPED-DRIVERS');
+  const modules=new Map<string,any>([
+    ['independent-forecast',{data:{
+      drivingNetwork:{activityIds:['A1','A2'],finishActivityIds:['M1']},
+      activities:[]
+    }}],
+    ['activity-analytics',{data:{
+      rows:[
+        {activityId:'A1',name:'Civil work 1',wbsPath:'Civil / Zone 1',wbsId:'W1',currentFinishIso:'2030-05-01',forecastFinishIso:null,totalFloatHours:0,status:'not_started',activityType:'task'},
+        {activityId:'A2',name:'Civil work 2',wbsPath:'Civil / Zone 1',wbsId:'W1',currentFinishIso:'2030-05-10',forecastFinishIso:null,totalFloatHours:-8,status:'not_started',activityType:'task'},
+      ],
+      counts:{critical:{value:2},nearCritical:{value:0},floatRisk:{value:2}}
+    }}],
+    ['milestones',{data:{
+      milestoneCount:1,openCount:1,rows:[
+        {activityId:'M1',name:'Zone 1 complete',wbsName:'Civil / Zone 1',wbsId:'W1',status:'not_started',managementPriority:'critical',
+         baselineDateIso:'2030-05-01',currentDateIso:'2030-05-15',varianceDays:14,totalFloatHours:0,criticality:'critical'}
+      ]
+    }}],
+  ]);
+  const commercial:any={currencies:[],performance:{costControl:{positions:[]}},claimsNotices:{noticeTimelinessCounts:{timely:null,late:null,not_issued:null}}};
+  const visual:any=managementVisualControl(state,modules,commercial);
+  assert.equal(visual.schedule.priorityGroups.length,1);
+  const group=visual.schedule.priorityGroups[0];
+  assert.equal(group.wbs,'Civil / Zone 1');
+  assert.deepEqual(group.activityIds,['A1','A2']);
+  assert.equal(group.activityCount,2);
+  assert.deepEqual(group.milestoneIds,['M1']);
+  assert.equal(group.lowestFloatHours,-8);
 });
