@@ -2820,11 +2820,29 @@ const movementClusters=new Map();
       '<td>'+escapeHtml(r.managementAction||"Monitor against the current programme and controlled baseline.")+'</td>'+
     '</tr>';
   }).join("");
-  return '<section class="planning-view milestone-view">'+kpis+authority+basis+repeatedMovementWarning+movementGroups+
-    '<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Milestone movement & criticality</h4><p>Priority milestones on a common calendar axis. Exact dates and float remain visible without horizontal scrolling.</p></div></div><div class="planning-panel-body">'+timeline+'</div></section>'+
-    '<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Source-float & key milestone watchlist</h4><p>Open milestones are ranked by urgency and submitted float. Repeated watch-level movements are represented once here; every record and its action remain in the full register below.</p></div></div><div class="planning-panel-body">'+priorityBoard+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Management alerts</h4><p>Exceptions requiring intervention or protection.</p></div></div><div class="planning-panel-body">'+attention+'</div></section></div>'+
+  const controlRows=priorityRows.slice(0,30).map(r=>{
+    const variance=r.varianceDays===null||r.varianceDays===undefined?"—":((r.varianceDays>0?"+":"")+fmt(r.varianceDays)+" d");
+    const float=r.totalFloatHours===null||r.totalFloatHours===undefined?"—":fmt(r.totalFloatHours)+" h";
+    const exposure=(r.managementFlags||[]).length?(r.managementFlags||[]).map(planningMilestoneFlagLabel).join("; "):
+      r.predecessorCount?fmt(r.predecessorCount)+" predecessor(s) · "+fmt(r.criticalPredecessorCount||0)+" critical":"No driver flag established";
+    return '<tr><td><span class="milestone-priority-pill '+escapeHtml(r.managementPriority||"normal")+'">'+escapeHtml(humanizeKey(r.managementPriority||"normal"))+'</span></td>'+
+      '<td><b>'+escapeHtml(r.activityId)+'</b><br>'+escapeHtml(r.name||"")+'<br><span class="muted">'+escapeHtml(r.wbsName||r.wbsId||"")+'</span></td>'+
+      '<td>'+escapeHtml(planningShortDate(r.baselineDateIso))+'</td>'+
+      '<td>'+escapeHtml(planningShortDate(r.status==="completed"?(r.actualDateIso||r.currentDateIso):r.currentDateIso))+'<br><span class="muted">'+escapeHtml(planningMilestoneDueLabel(r))+'</span></td>'+
+      '<td class="'+((r.varianceDays||0)>0?"late-text":(r.varianceDays||0)<0?"early-text":"")+'">'+escapeHtml(variance)+'</td>'+
+      '<td>'+escapeHtml(float)+'</td>'+
+      '<td>'+escapeHtml(exposure)+'</td>'+
+      '<td>'+escapeHtml(r.managementAction||"Monitor against the current programme and controlled baseline.")+'</td></tr>';
+  }).join("");
+  const managementControl=managementPanel("Milestones requiring management control","Baseline → current/actual → movement → float → exposure → required action. Float analytics are supporting evidence, not the first answer.",controlRows?'<div class="table-wrap"><table><thead><tr><th>Priority</th><th>Milestone / WBS</th><th>Baseline</th><th>Current / actual</th><th>Variance</th><th>Float</th><th>Driver / exposure</th><th>Required action</th></tr></thead><tbody>'+controlRows+'</tbody></table></div>':'<div class="notice info">No open milestone currently requires ranked management action.</div>',true);
+  const analytics=experienceDisclosure("Milestone analytics & source-float detail",kpis+authority+basis+repeatedMovementWarning+movementGroups+
+
+    '','Counts, thresholds, movement clusters and authority')+
+    '<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Milestone timeline</h4><p>Priority milestone dates on a common calendar axis after the management action table.</p></div></div><div class="planning-panel-body">'+timeline+'</div></section>'+
+    '<div class="planning-primary-grid"><section class="planning-panel"><div class="planning-panel-head"><div><h4>Priority watchlist</h4><p>Supporting urgency and source-float view.</p></div></div><div class="planning-panel-body">'+priorityBoard+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Management alerts</h4><p>Exceptions requiring intervention or protection.</p></div></div><div class="planning-panel-body">'+attention+'</div></section></div>'+
     '<div class="planning-primary-grid"><section class="planning-panel"><div class="planning-panel-head"><div><h4>Milestone status</h4><p>Completed, open and overdue commitments.</p></div></div><div class="planning-panel-body">'+statusBand+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Management priority</h4><p>Open milestones grouped by required level of attention.</p></div></div><div class="planning-panel-body">'+priorityBand+'</div></section></div>'+
     '<section class="planning-panel"><div class="planning-panel-head"><div><h4>Milestone control register</h4><p>Source activity names are descriptive and do not establish contractual authority. Current/actual dates, baseline movement and source-float classifications remain separate. Showing '+escapeHtml(fmt(Math.min(500,p.rows.length)))+' of '+escapeHtml(fmt(p.rows.length))+' milestones; the complete population is available through Download Excel / Download data.</p></div></div><div class="planning-panel-body"><details><summary>Open the complete milestone register</summary><div class="table-wrap"><table><thead><tr><th>Priority</th><th>Milestone / WBS</th><th>Status</th><th>Criticality</th><th>Baseline</th><th>Current / actual</th><th>Vs baseline d</th><th>Total float h</th><th>Flags</th><th>Required attention</th></tr></thead><tbody>'+detail+'</tbody></table></div></details></div></section></section>';
+  return '<section class="planning-view milestone-view">'+managementControl+analytics+
 }
 function renderNearCriticalVisual(data){
   const p=projectionFor(data,"near_critical");
