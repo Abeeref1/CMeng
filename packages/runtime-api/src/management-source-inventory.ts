@@ -2,7 +2,7 @@ import {prepareRegisterRows} from '../../truth-kernel/src';
 import type {ProjectRuntimeState} from './project-state-types';
 
 export type ManagementSourceDomain =
-  | 'procurement'|'design'|'submittal'|'quality'|'hse'|'claims'|'variations'
+  | 'procurement'|'design'|'submittal'|'interfaces'|'quality'|'hse'|'claims'|'variations'
   | 'payments'|'cost'|'boq'|'resources'|'risk'|'contract';
 
 export interface ManagementSourceDomainSummary {
@@ -25,6 +25,7 @@ const definitions:Array<{domain:ManagementSourceDomain;label:string;pattern:RegE
   {domain:'procurement',label:'Procurement / suppliers / materials',pattern:/procurement|purchase order|\bpo\b|supplier|vendor|material|long.?lead/i},
   {domain:'design',label:'Design / engineering / RFI',pattern:/design|engineering|deliverable|\brfi\b/i},
   {domain:'submittal',label:'Submittals',pattern:/submittal|shop.?drawing|material.?approval/i},
+  {domain:'interfaces',label:'Interfaces / coordination',pattern:/interface|coordination.?register|interface.?register|giving.?party|receiving.?party/i},
   {domain:'quality',label:'Quality / NCR / inspection',pattern:/quality|\bncr\b|inspection|\bwir\b|\bmir\b/i},
   {domain:'hse',label:'HSE / safety',pattern:/\bhse\b|safety|incident|near.?miss/i},
   {domain:'claims',label:'Claims / EOT / notices',pattern:/claim|\beot\b|notice|delay.?event|determination/i},
