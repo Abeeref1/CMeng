@@ -77,8 +77,26 @@ test('programme control stages derive an integrated execution sequence from prog
   };
   const stages=programmeControlStages(model);
   assert.deepEqual(stages.slice(0,5).map(row=>row.stage),['design','procurement','construction','testing_commissioning','handover']);
-  assert.equal(stages.find(row=>row.stage==='procurement')?.criticalOrNegativeFloatCount,1);
-  assert.equal(stages.find(row=>row.stage==='construction')?.criticalOrNegativeFloatCount,1);
+  const procurement=stages.find(row=>row.stage==='procurement')!;
+  const construction=stages.find(row=>row.stage==='construction')!;
+  assert.equal(procurement.criticalOrNegativeFloatCount,1);
+  assert.equal(construction.criticalOrNegativeFloatCount,1);
+  assert.deepEqual(procurement.wbsPaths,['Long Lead Procurement']);
+  assert.deepEqual(construction.wbsPaths,['Civil Construction']);
+  assert.equal(procurement.latestCurrentFinishIso,'2030-05-01');
+  assert.equal(procurement.latestForecastFinishIso,null);
+  assert.ok(Array.isArray(procurement.dependencyStages));
+  assert.ok(Array.isArray(procurement.controlMilestoneIds));
+});
+
+test('Task 13 MCP renderer exposes package, dependency, current/forecast, float, readiness, owner and action controls',()=>{
+  assert.match(script,/Work packages \/ WBS/);
+  assert.match(script,/Control milestones/);
+  assert.match(script,/Dependencies/);
+  assert.match(script,/Current finish/);
+  assert.match(script,/Forecast finish/);
+  assert.match(script,/Readiness \/ long lead/);
+  assert.match(script,/<th>Owner<\/th><th>Action<\/th>/);
 });
 
 
