@@ -771,7 +771,20 @@ function renderDeliveryChallenge(data,reason,status){
   const d=data?.deliveryChallenge||{};if(!data?.deliveryChallenge&&!data?.suppliedBoq?.rows?.length)return false;
   const f=data.boqFeasibility||{rows:[],activityChecks:[],overallStatus:"Unable to assess",reason:"Current quantity and productivity assessment is unresolved."};
   const pc=f.programmePc||{},s=d.scheduleChallenge||{};
+  const availability=data?.featureAvailability||null;
   const value=x=>x===null||x===undefined?"Unresolved":fmt(x);
+  if(availability&&availability.state!=="active"){
+    const boqCount=data?.suppliedBoq?.itemCount??data?.suppliedBoq?.rows?.length??null;
+    const checks=(f.activityChecks||[]).length;
+    const sourceHours=data?.sourceLaborEvidence;
+    const compact='<section class="planning-view contract-challenge-view"><div class="notice info"><b>Challenge the Contract is not yet fully assessable.</b><p>'+escapeHtml(availability.reason||f.reason||"Quantity, productivity and resource prerequisites are incomplete.")+'</p></div>'+planningKpis([
+      ["BOQ scope",boqCount===null?"Not established":boqCount,"best available source quantity scope"],
+      ["Activity feasibility checks",checks||"Not established","checks attempted from the current evidence"],
+      ["Labor evidence",sourceHours?"Available":"Not established","source hours remain supporting evidence; not inferred headcount"]
+    ])+experienceDisclosure("What would complete the assessment",'<p>Confirm BOQ-to-activity links, remaining quantities, productivity basis, working calendars and usable resource capacity. Existing source evidence remains available below.</p>',"Prerequisites for a defensible challenge")+'</section>';
+    el('moduleContent').innerHTML=renderModuleBasis(data)+renderRoleContent('challenge-contract',data,compact,'',true)+(data?.suppliedBoq?.rows?.length?'<details class="management-detail supplied-boq-support"><summary>Supplied BOQ evidence</summary>'+renderSuppliedBoq(data.suppliedBoq)+'</details>':'')+experienceReviewSummary(data.issueAssessment)+renderModuleReadiness(data,reason);
+    return true;
+  }
   const table=(heads,rows,empty)=>'<div class="table-wrap"><table><thead><tr>'+heads.map(h=>'<th>'+escapeHtml(h)+'</th>').join('')+'</tr></thead><tbody>'+(rows.length?rows.map(r=>'<tr>'+r.map(v=>'<td>'+escapeHtml(v)+'</td>').join('')+'</tr>').join(''):'<tr><td colspan="'+heads.length+'">'+escapeHtml(empty)+'</td></tr>')+'</tbody></table></div>';
   const panel=(title,copy,body)=>'<section class="planning-panel"><div class="planning-panel-head"><div><h4>'+escapeHtml(title)+'</h4><p>'+escapeHtml(copy)+'</p></div></div><div class="planning-panel-body">'+body+'</div></section>';
   const activities=f.activityChecks||[];
@@ -801,7 +814,8 @@ function humanizeKey(key){
   const labels={PARALLEL_ASSESSMENT_VALUES_DIFFER:"Claim assessments disagree",REGISTER_DETERMINED_STATUS_NOT_IN_DETERMINATION_REGISTER:"Reported determination is absent from the award register",labor_hour:"Labor hours",equipment_hour:"Equipment hours",rfi_register:"RFI",design_deliverables:"Design deliverable",submittal_register:"Submittal",governed:"Confirmed",established:"Confirmed",candidate:"Needs review",not_established:"Unresolved",not_applicable:"Not applicable",quarantined:"Source evidence under review",not_submitted:"Not provided",submitted_unparsed:"Provided; not read",independent_cpm:"Calendar calculation",source_forecast:"Submitted forecast",event_date_missing:"Event / awareness date missing",requirement_missing:"Notice rule missing"};
   if(labels[key])return labels[key];
   const value=String(key);
-  return (/^[A-Z][A-Z0-9_]+$/.test(value)&&value.includes("_")?value.toLowerCase():value)
+  if(/^[A-Z][A-Z0-9_]+(?::.*)?$/.test(value)&&value.includes("_"))return "Additional calculation qualification";
+  return value
     .replace(/[_-]+/g," ")
     .replace(/([a-z0-9])([A-Z])/g,"$1 $2")
     .replace(/\b\w/g,c=>c.toUpperCase());
@@ -1179,6 +1193,7 @@ function renderQuantityScurveVisual(data){
   if(!Array.isArray(p.series))return"";
   const mappingLabel=p.mappingBasis==="governed"?"Confirmed links":p.mappingBasis==="candidate_scenario"?"Suggested links for review":"Activities not yet linked";
   const mappedSeries=p.series.filter(series=>(series.points||[]).length>0);
+  const availability=data?.featureAvailability||p.featureAvailability||null;
   const seriesItemCount=p.series.reduce((sum,series)=>sum+(Number.isFinite(Number(series.itemCount))?Number(series.itemCount):0),0);
   const populationKnown=typeof p.boqItemCount==="number"||Boolean(p.boqRevisionId);
   const unmappedCount=populationKnown?p.unmappedItemIds?.length??null:null;
@@ -1203,11 +1218,11 @@ function renderQuantityScurveVisual(data){
   if(mappedSeries.length===0){
     const candidates=p.inferredMapping?.selectedScenarioLinks?.length||0;
     const mappingSummary=boqItemCount===null?"BOQ item population is not confirmed.":fmt(mappedItemCount||0)+" of "+fmt(boqItemCount)+" BOQ items currently have an allocation.";
-    return '<section class="planning-view quantity-view">'+installedSummary+measured+top+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Installed Quantities</h4><p>BOQ quantities are shown by unit. Schedule mapping is required for planned curves; measured installed quantities require dated quantity evidence.</p></div></div><div class="planning-panel-body"><div class="notice warn"><b>No confirmed quantity curve is available.</b> '+escapeHtml(candidates?candidates+" candidate link(s) were found, but they remain scenarios and are not used as project facts.":"No defensible BOQ-to-activity crosswalk is established.")+" "+escapeHtml(mappingSummary)+'</div>'+moduleEvidenceGate([
-      {label:"BOQ quantity basis",value:p.boqRevisionId?"Loaded":"Unresolved",state:p.boqRevisionId?"ready":"missing"},
-      {label:"Confirmed BOQ-to-activity links",value:p.mappingBasis==="governed"?"Established":"Unresolved",state:p.mappingBasis==="governed"?"ready":"missing"},
+    return '<section class="planning-view quantity-view">'+installedSummary+measured+top+'<div class="notice info"><b>No confirmed quantity curve is available.</b><p>Quantity evidence is available, but a complete quantity curve is not yet established. '+escapeHtml(availability?.reason||"Programme mapping and/or dated installed measurements are incomplete.")+'</p><p>'+escapeHtml(candidates?candidates+" candidate link(s) are retained for review. ":"")+escapeHtml(mappingSummary)+'</p></div>'+experienceDisclosure("Quantity-curve prerequisites",moduleEvidenceGate([
+      {label:"BOQ quantity basis",value:p.boqRevisionId?"Loaded":"Not established",state:p.boqRevisionId?"ready":"missing"},
+      {label:"Confirmed BOQ-to-activity links",value:p.mappingBasis==="governed"?"Established":"Not established",state:p.mappingBasis==="governed"?"ready":"missing"},
       {label:"Installed quantity history",value:"Dated installed measurements not confirmed",state:"missing"}
-    ])+'</div></section>'+diagnostics+'</section>';
+    ]),"Why the full curve is not yet available")+diagnostics+'</section>';
   }
 
   const charts=mappedSeries.map(series=>'<section class="planning-panel"><div class="planning-panel-head"><div><h4>'+escapeHtml(series.unit||series.unitKey||"Unit")+' quantity curve</h4><p>'+escapeHtml(fmt(series.itemCount))+' BOQ item(s) in this unit · mapping coverage '+escapeHtml(series.mappingCoveragePercent===null?"—":fmt(series.mappingCoveragePercent)+"%")+'</p></div><span class="badge '+(p.mappingBasis==="governed"?"ready":"partial")+'">'+escapeHtml(p.mappingBasis==="governed"?"Confirmed mapped plan":p.mappingBasis==="candidate_scenario"?"Scenario plan; measured actual separate":"Measured actual; plan mapping missing")+'</span></div><div class="planning-panel-body">'+renderLineChart(series.points||[],[
@@ -1356,6 +1371,10 @@ function renderWindowsVisual(data){
   const p=projectionFor(data,"windows_analysis");
   if(!Array.isArray(p.windows))return"";
   const labels=p.revisionLabels||{};
+  const availability=data?.featureAvailability||p.featureAvailability||null;
+  if(availability&&availability.state!=="active"&&!p.windows.length){
+    return '<section class="planning-view windows-view"><div class="notice info"><b>Delay-window analysis is not yet applicable.</b><p>'+escapeHtml(availability.reason||"At least two comparable programme states are required.")+'</p></div><p>CMeng does not present zero windows or zero comparisons as an assessed delay position when the comparison population has not been established.</p></section>';
+  }
   const bars=p.windows.map(w=>{const value=w.sourceForecastMovementDays??w.scheduleBoundaryMovementDays??null;return {label:"Window "+w.sequence,value,tone:value===null?"neutral":value>0?"danger":value<0?"success":"neutral"}});
   const cards=p.windows.map(w=>{
     const sourceMove=w.sourceForecastMovementDays??w.scheduleBoundaryMovementDays;
@@ -2928,6 +2947,17 @@ function renderForecastHistoryVisual(data){
   const p=projectionFor(data,"forecast_history");
   if(!Array.isArray(p.points))return"";
   const labels=p.revisionLabels||{};
+  const availability=data?.featureAvailability||p.featureAvailability||null;
+  if(availability&&availability.state!=="active"){
+    const current=p.points.at(-1)||null;
+    const currentPosition=current?planningKpis([
+      ["Current revision",shortRevision(current.sourceRevisionId,labels),"single comparable programme state"],
+      ["Data Date",planningShortDate(current.dataDateIso),"current recorded position"],
+      ["Submitted finish",planningShortDate(current.sourceForecastCompletionIso),"source programme forecast"],
+      ["Programme calendar recalculation",planningShortDate(current.independentForecastCompletionIso),"calculated only when available"]
+    ]):"";
+    return '<section class="planning-view forecast-history-view"><div class="notice info"><b>Completion history is not yet a trend.</b><p>'+escapeHtml(availability.reason||"At least two comparable programme revisions are required.")+'</p></div>'+currentPosition+'<details class="management-detail"><summary>History prerequisite</summary><p>CMeng keeps the current completion position visible, but does not draw a movement trend from a single observation.</p></details></section>';
+  }
   const points=p.points.map((x,index)=>({...x,dateIso:x.dataDateIso||("Revision "+(index+1))}));
   const sourceCount=p.sourceForecastCount??p.points.filter(x=>x.sourceForecastCompletionIso).length;
   const independentCount=p.establishedForecastCount||0;
@@ -4233,6 +4263,12 @@ function renderMcpGovernanceMatrix(data){
  return '<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Control authority & evidence matrix</h4><p>Supporting governance view across scope, time, progress, cost, change, design, delivery, assurance and entitlement. It qualifies the integrated programme; it is not the Master Control Programme itself.</p></div></div><div class="planning-panel-body"><div class="table-wrap pmc-governance-table"><table><thead><tr><th>Control domain</th><th>Current signal</th><th>Evidence available</th><th>Control state</th><th>Drill-down</th></tr></thead><tbody>'+rows.map(row=>'<tr><td><b>'+escapeHtml(row.domain)+'</b></td><td>'+escapeHtml(row.signal)+'</td><td>'+escapeHtml(row.evidence)+'</td><td><span class="pmc-governance-state '+escapeHtml(row.tone)+'">'+escapeHtml(row.tone==="danger"?"Intervention":row.tone==="warning"?"Review":"Available")+'</span></td><td>'+managementModuleLink(row.module,"Open")+'</td></tr>').join("")+'</tbody></table></div></div></section>';
 }
 function commandActionItems(data){
+ const canonical=Array.isArray(data.actions)?data.actions:[];
+ if(canonical.length){
+  const rank={critical:0,high:1,medium:2,low:3,information:4};
+  return canonical.map(action=>({...action,module:action.owningModule??null}))
+    .sort((a,b)=>(rank[a.severity]??2)-(rank[b.severity]??2)||(a.dueIso||"9999").localeCompare(b.dueIso||"9999"));
+ }
  const rows=[];
  for(const action of data.accountability?.actions||[])rows.push({...action,module:"cross-domain-accountability"});
  for(const alert of data.alerts||[])rows.push({actionId:"alert:"+alert.alertId,issue:alert.title,consequence:alert.consequence,affectedScope:[],affectedMilestones:[],owner:null,organisation:null,requiredAction:alert.action,dueIso:null,escalation:null,severity:alert.severity==="critical"?"critical":alert.severity==="high"?"high":"medium",authority:"calculated",sourceRefs:[],module:alert.owningModule});

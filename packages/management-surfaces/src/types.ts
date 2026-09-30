@@ -244,6 +244,7 @@ export interface CommandCenterProjection {
   programmePosition: ManagementMetric[];
   alerts: ManagementAlert[];
   decisions: ManagementDecision[];
+  actions: import("../../truth-kernel/src").ManagementAction[];
   evidenceGaps: ManagementEvidenceGapInput[];
   governanceGaps: ManagementEvidenceGapInput[];
   evidenceCoverage: ManagementEvidenceGapInput[];

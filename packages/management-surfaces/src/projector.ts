@@ -10,6 +10,7 @@ import type {
   MasterDashboardProjection,
 } from "./types";
 import {managementForecastPosition} from './forecast-position';
+import {managementAction,type ManagementAction} from '../../truth-kernel/src';
 
 function healthForSignedVariance(
   value: number | null,
@@ -449,6 +450,52 @@ function buildDecisions(
     state:"not_assigned" as const,
     source:"project_director" as const,
   }));
+}
+
+function buildCanonicalActions(
+  alerts: ManagementAlert[],
+  decisions: ManagementDecision[],
+): ManagementAction[] {
+  const rows:ManagementAction[]=[];
+  for(const alert of alerts)rows.push(managementAction({
+    actionId:'alert:'+alert.alertId,
+    issue:alert.title,
+    consequence:alert.consequence,
+    affectedScope:[],
+    affectedMilestones:[],
+    owner:null,
+    organisation:null,
+    requiredAction:alert.action,
+    dueIso:null,
+    escalation:null,
+    severity:alert.severity==='critical'?'critical':alert.severity==='high'?'high':alert.severity==='medium'?'medium':'information',
+    authority:'calculated',
+    sourceRefs:[],
+    owningModule:alert.owningModule,
+  }));
+  for(const decision of decisions)rows.push(managementAction({
+    actionId:'decision:'+decision.decisionId,
+    issue:decision.description,
+    consequence:'Management follow-up is required.',
+    affectedScope:[],
+    affectedMilestones:[],
+    owner:decision.accountableOwner,
+    organisation:decision.dependencyParty,
+    requiredAction:decision.description,
+    dueIso:decision.dueDate,
+    escalation:null,
+    severity:'medium',
+    authority:'calculated',
+    sourceRefs:[],
+    owningModule:null,
+  }));
+  const unique=new Map<string,ManagementAction>();
+  for(const row of rows){
+    const key=(row.issue+'|'+row.requiredAction+'|'+row.affectedScope.join('|')).toLowerCase().replace(/\s+/g,' ').trim();
+    if(key&&!unique.has(key))unique.set(key,row);
+  }
+  const rank={critical:0,high:1,medium:2,low:3,information:4};
+  return [...unique.values()].sort((a,b)=>rank[a.severity]-rank[b.severity]||(a.dueIso??'9999').localeCompare(b.dueIso??'9999'));
 }
 
 function dashboardMetrics(
@@ -934,6 +981,8 @@ export function buildManagementSurfaces(
     buildAlerts(input);
   const decisions =
     buildDecisions(input);
+  const actions =
+    buildCanonicalActions(alerts,decisions);
   const metrics =
     dashboardMetrics(input);
 
@@ -996,6 +1045,7 @@ export function buildManagementSurfaces(
     programmePosition,
     alerts,
     decisions,
+    actions,
     evidenceGaps,
     governanceGaps,
     evidenceCoverage,

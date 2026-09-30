@@ -127,6 +127,7 @@ export interface ManagementAction {
   severity: 'critical' | 'high' | 'medium' | 'low' | 'information';
   authority: ManagementFactAuthority;
   sourceRefs: string[];
+  owningModule?: string | null;
 }
 
 export function managementAction(

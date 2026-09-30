@@ -1,5 +1,6 @@
 import type {CanonicalScheduleModel} from '../../schedule-analysis-core/src';
-import type {ProjectRuntimeState} from './project-state-types';
+import type {ModuleRuntimeResult,ProjectRuntimeState} from './project-state-types';
+import type {CommercialControlPosition} from '../../commercial-control/src';
 import {projectControlSchedule} from './canonical-time-claims';
 import {boqScopeIntelligence} from './boq-scope-intelligence';
 import {managementSourceInventory} from './management-source-inventory';
@@ -121,12 +122,25 @@ export function programmeControlStages(model: CanonicalScheduleModel): Programme
   });
 }
 
-export function projectManagementContext(state: ProjectRuntimeState) {
+export function projectManagementContext(
+  state: ProjectRuntimeState,
+  modules?: Map<string,ModuleRuntimeResult>,
+  commercial?: CommercialControlPosition | null,
+) {
   const schedule = projectControlSchedule(state)?.revision.model ?? null;
   const scheduleLongLead = schedule ? scheduleLongLeadEvidence(schedule) : [];
   const programmeStages = schedule ? programmeControlStages(schedule) : [];
   const boq = boqScopeIntelligence(state);
   const sourceInventory = managementSourceInventory(state);
+  const moduleData=(key:string):any=>{
+    const value=modules?.get(key)?.data;
+    return value&&typeof value==='object'?value:{};
+  };
+  const progress=moduleData('progress-report');
+  const delay=moduleData('delay-claims');
+  const notices=moduleData('notices-claims');
+  const resources=moduleData('resource-utilization');
+  const source=(domain:string)=>sourceInventory.domains.find(row=>row.domain===domain)??null;
   return {
     projectId: state.projectId,
     dataDateIso: schedule?.dataDateIso ?? null,
@@ -144,5 +158,39 @@ export function projectManagementContext(state: ProjectRuntimeState) {
       basis: boq.basis,
     },
     sourceInventory,
+    crossModule:{
+      progress:{
+        progressBases:progress.progressBases??null,
+        scopeComparison:progress.scopeComparison??null,
+      },
+      claims:{
+        eventCount:delay.eventCount??null,
+        claimCount:notices.claimCount??delay.claimCount??null,
+        noticeCount:notices.noticeCount??null,
+        sourceEvidence:source('claims'),
+      },
+      resources:{
+        resourceCount:resources.resourceCount??resources.p6ResourceMasterCount??null,
+        assignedResourceCount:resources.assignedResourceCount??null,
+        sourceEvidence:source('resources'),
+      },
+      commercial:commercial?{
+        currencies:commercial.currencies.map(row=>({
+          currency:row.currency,
+          originalContractValue:row.originalContractValue.value,
+          currentContractValue:row.currentContractValue.value,
+          approvedVariationAmount:row.approvedVariationAmount.value,
+          paidAmount:row.paidAmount.value,
+        })),
+      }:null,
+      deliverySources:{
+        procurement:source('procurement'),
+        design:source('design'),
+        submittal:source('submittal'),
+        quality:source('quality'),
+        hse:source('hse'),
+        risk:source('risk'),
+      },
+    },
   };
 }
