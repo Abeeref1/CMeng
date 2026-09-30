@@ -45,6 +45,8 @@ import {
   commercialPositionForState,
 } from "./commercial-runtime";
 import { canonicalTimeClaims, projectControlSchedule } from "./canonical-time-claims";
+import { contractCompletionPosition } from "./contract-completion";
+import { buildDelayEotEvidenceChain } from "./delay-eot-evidence-chain";
 import { projectScheduleControlBasis } from "./schedule-control-basis";
 import { sourceProductivityForecastEvidence } from "./source-productivity-forecast";
 import { forecastControlForState } from "./forecast-control";
@@ -1819,7 +1821,7 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
           : "partial"
         : "partial",
       ordered.length < 2
-        ? "Only one revision exists. CMeng cannot calculate a comparative window until a second revision is supplied."
+        ? "Window analysis not yet available — another comparable programme revision is required."
         : claimPopulationQuarantined
           ? claimPopulationIntegrity!.quarantinedClaimCount+" source claim rows are quarantined by the integrity gate and are excluded from causation, entitlement and management counts pending source verification."
           : delayModel
@@ -1910,6 +1912,28 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
   const noticeAssessable =
     noticeAssessmentAvailable &&
     noticesClaims.noticeRequirementMissingCount === 0;
+  const delayEotEvidenceChain = buildDelayEotEvidenceChain({
+    schedule: model,
+    windows,
+    delay: delayClaims,
+    notices: noticesClaims,
+    populationState: claimPopulationQuarantined ? "quarantined" : delayModel ? "established" : "missing",
+    sourceClaimCount: claimPopulationIntegrity?.sourceClaimCount ?? (delayModel ? delayModel.claims.length : null),
+    quarantinedClaimCount: claimPopulationIntegrity?.quarantinedClaimCount ?? null,
+  });
+  for (const moduleKey of ["windows-analysis", "delay-claims"] as const) {
+    const existing = modules.get(moduleKey);
+    if (existing?.data && typeof existing.data === "object") {
+      modules.set(moduleKey, {
+        ...existing,
+        data: {
+          ...(existing.data as Record<string, unknown>),
+          delayEotEvidenceChain,
+          contextualProgrammeIntelligence: delayEotEvidenceChain.programmeContext,
+        },
+      });
+    }
+  }
   modules.set(
     "notices-claims",
     available(
@@ -1927,6 +1951,8 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
               : "not_assessable_without_delay_events_and_requirements",
         linkedClaimCount:delayModel&&!claimPopulationQuarantined?linkedClaimCount:null,
         unlinkedClaimCount:delayModel&&!claimPopulationQuarantined?unlinkedClaimCount:null,
+        delayEotEvidenceChain,
+        contextualProgrammeIntelligence: delayEotEvidenceChain.programmeContext,
       },
       [
         "delay events",
@@ -2066,6 +2092,9 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
             eligibleCausalEvents,
           contractTimeBasisEstablished:
             contractReady,
+          delayEotEvidenceChain,
+          contextualProgrammeIntelligence:
+            delayEotEvidenceChain.programmeContext,
         },
         [
           "contract time basis",
@@ -5000,6 +5029,14 @@ const claimsFastContextCache =
         ReturnType<
           typeof buildDelayClaimsProjection
         >;
+      notices:
+        ReturnType<
+          typeof buildNoticesClaimsProjection
+        >;
+      delayEotEvidenceChain:
+        ReturnType<
+          typeof buildDelayEotEvidenceChain
+        >;
       linkedClaimCount: number;
       unlinkedClaimCount: number;
       revisionLabels:
@@ -5079,6 +5116,25 @@ function claimsFastContext(
           "delay-claims-fast-v3",
       },
     );
+  const claimPopulationIntegrity = claimsIntegrity(delayModel);
+  const claimPopulationQuarantined = claimsQuarantined(delayModel);
+  const notices = buildNoticesClaimsProjection(
+    analyticalDelayModel,
+    {
+      generatedAt,
+      producerVersion: "notices-claims-fast-v3",
+      populationEstablished: delayModel !== null && !claimPopulationQuarantined,
+    },
+  );
+  const delayEotEvidenceChain = buildDelayEotEvidenceChain({
+    schedule: current.revision.model,
+    windows,
+    delay,
+    notices,
+    populationState: claimPopulationQuarantined ? "quarantined" : delayModel ? "established" : "missing",
+    sourceClaimCount: claimPopulationIntegrity?.sourceClaimCount ?? (delayModel ? delayModel.claims.length : null),
+    quarantinedClaimCount: claimPopulationIntegrity?.quarantinedClaimCount ?? null,
+  });
 
   const linkedClaimCount =
     analyticalDelayModel.claims.filter(
@@ -5108,6 +5164,8 @@ function claimsFastContext(
     analyticalDelayModel,
     windows,
     delay,
+    notices,
+    delayEotEvidenceChain,
     linkedClaimCount,
     unlinkedClaimCount,
     revisionLabels,
@@ -5117,6 +5175,35 @@ function claimsFastContext(
     context,
   );
   return context;
+}
+
+function eotCompletionAuthorityContext(
+  state: ProjectRuntimeState,
+  time: ReturnType<typeof canonicalTimeClaims>,
+  model: ProjectRuntimeState["schedules"][number]["revision"]["model"],
+  generatedAt: string,
+) {
+  const completion = contractCompletionPosition(state, time.dataDateIso);
+  const originalDates = [...new Set(completion.candidates.filter(candidate => candidate.role === "main").map(candidate => candidate.date))];
+  const originalContractualCompletionIso = originalDates.length === 1 ? originalDates[0]! : null;
+  const originalContractualCompletionState = originalDates.length === 1 ? "official" : originalDates.length > 1 ? "conflicted" : "missing";
+  const applicableAmendments = time.amendments
+    .filter(amendment => amendment.state === "official" && amendment.effectiveDate !== null && time.dataDateIso !== null && amendment.effectiveDate <= time.dataDateIso)
+    .sort((a,b)=>a.effectiveDate!.localeCompare(b.effectiveDate!));
+  const latestEffective = applicableAmendments.at(-1)?.effectiveDate ?? null;
+  const latestAmendmentDates = latestEffective
+    ? [...new Set(applicableAmendments.filter(amendment => amendment.effectiveDate === latestEffective).map(amendment => amendment.completionIso))]
+    : [];
+  const amendedContractualCompletionIso = latestAmendmentDates.length === 1 ? latestAmendmentDates[0]! : null;
+  const amendedContractualCompletionState = latestAmendmentDates.length === 1 ? "official" : latestAmendmentDates.length > 1 ? "conflicted" : "missing";
+  return {
+    originalContractualCompletionIso,
+    originalContractualCompletionState,
+    amendedContractualCompletionIso,
+    amendedContractualCompletionState,
+    currentContractualCompletionIso: time.contractTimeBasis?.contractualCompletionIso ?? null,
+    sourceForecastCompletionIso: sourceOnlyForecast(model, generatedAt).sourceForecastCompletionIso,
+  };
 }
 
 function independentForecastReviewReason(
@@ -6006,20 +6093,17 @@ function buildSpecialistModuleFast(
         ],
       };
 
+    const context = claimsFastContext(
+      state,
+      ordered,
+      current,
+      generatedAt,
+    );
     if (
       key ===
       "notices-claims"
     ) {
-      const notices =
-        buildNoticesClaimsProjection(
-          analyticalDelayModel,
-          {
-            generatedAt,
-            producerVersion:
-              "notices-claims-fast-v3",
-            populationEstablished:delayModel!==null&&!claimPopulationQuarantined,
-          },
-        );
+      const notices = context.notices;
       const linkedClaimCount =
         analyticalDelayModel
           .claims.filter(
@@ -6057,6 +6141,8 @@ function buildSpecialistModuleFast(
                 : "not_assessable_without_delay_events_and_requirements",
           linkedClaimCount:delayModel&&!claimPopulationQuarantined?linkedClaimCount:null,
           unlinkedClaimCount:delayModel&&!claimPopulationQuarantined?unlinkedClaimCount:null,
+          delayEotEvidenceChain: context.delayEotEvidenceChain,
+          contextualProgrammeIntelligence: context.delayEotEvidenceChain.programmeContext,
         },
         [
           "delay events",
@@ -6084,13 +6170,6 @@ function buildSpecialistModuleFast(
               : "Notice compliance is not assessable until confirmed delay events, applicable notice requirements and actual notice evidence are established.",
       );
     } else {
-      const context =
-        claimsFastContext(
-          state,
-          ordered,
-          current,
-          generatedAt,
-        );
       const windows =
         context.windows;
       const delay =
@@ -6112,6 +6191,8 @@ function buildSpecialistModuleFast(
               "source_forecast_then_schedule_boundary",
             revisionLabels:
               context.revisionLabels,
+            delayEotEvidenceChain: context.delayEotEvidenceChain,
+            contextualProgrammeIntelligence: context.delayEotEvidenceChain.programmeContext,
           },
           [
             "controlled programme revision history",
@@ -6149,6 +6230,8 @@ function buildSpecialistModuleFast(
                 : "not_established",
             revisionLabels:
               context.revisionLabels,
+            delayEotEvidenceChain: context.delayEotEvidenceChain,
+            contextualProgrammeIntelligence: context.delayEotEvidenceChain.programmeContext,
           },
           [
             "schedule windows",
@@ -6392,6 +6475,10 @@ function buildSpecialistModuleFast(
               eligibleCausalEvents,
             contractTimeBasisEstablished:
               contractReady,
+            delayEotEvidenceChain:
+              context.delayEotEvidenceChain,
+            contextualProgrammeIntelligence:
+              context.delayEotEvidenceChain.programmeContext,
             revisionLabels:
               context.revisionLabels,
           },
@@ -7138,7 +7225,7 @@ function resolveProjectModuleCandidate(state: ProjectRuntimeState, key: string, 
         basis:'Weekly labor demand and approved usage; source hours do not by themselves establish a submitted headcount plan or measured productivity.'
       }:null,boqSource:boqSourceReporting(state)}:{}),
       ...(["pmo-analysis","delay-claims","notices-claims","eot-assessment","windows-analysis","commercial-claims-notices"].includes(key) ? { claimsReporting: claimsReporting(state) } : {}),
-      ...(key==='eot-assessment'?{sourceForecastCompletionIso:sourceOnlyForecast(model,new Date().toISOString()).sourceForecastCompletionIso,
+      ...(key==='eot-assessment'?{...eotCompletionAuthorityContext(state,time,model,new Date().toISOString()),
         determinationOverlapScenario:(()=>{const finish=sourceOnlyForecast(model,new Date().toISOString()).sourceForecastCompletionIso,contract=time.contractTimeBasis?.contractualCompletionIso;
           if(!finish||!contract||time.effectiveDeterminationDays===null||data.timeBasisReconciliation?.overlapResolution!=='unresolved')return null;
           const late=(Date.parse(finish.slice(0,10))-Date.parse(contract.slice(0,10)))/86400000;
