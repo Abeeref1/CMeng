@@ -203,8 +203,8 @@ export function projectManagementContext(
         scheduleLongLeadEvidence:scheduleLongLead,
         boqLongLeadCandidates:boq.longLead,
       },
-      design:{sourceEvidence:source('design'),rfiSourceEvidence:source('rfi'),submittalSourceEvidence:source('submittal')},
-      interfaces:{sourceEvidence:source('interfaces')??source('interface')},
+      design:{sourceEvidence:source('design'),rfiSourceEvidence:source('design'),submittalSourceEvidence:source('submittal')},
+      interfaces:{sourceEvidence:source('interfaces')},
       progress:{
         progressBases:progress.progressBases??null,
         scopeComparison:progress.scopeComparison??null,
