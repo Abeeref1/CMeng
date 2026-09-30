@@ -129,6 +129,25 @@ export function bestAvailableFact<T>(
   return ranked[0] ?? null;
 }
 
+export function populationAuthority(input: {
+  state: PopulationState;
+  sourceCount?: number | null;
+  applicableCount?: number | null;
+  currentCount?: number | null;
+  excludedCount?: number | null;
+  coveragePercent?: number | null;
+  basis: string;
+}): PopulationAuthority {
+  const clean=(value:number|null|undefined)=>typeof value==='number'&&Number.isFinite(value)&&value>=0?value:null;
+  const sourceCount=clean(input.sourceCount),applicableCount=clean(input.applicableCount),currentCount=clean(input.currentCount),excludedCount=clean(input.excludedCount);
+  const coverage=typeof input.coveragePercent==='number'&&Number.isFinite(input.coveragePercent)
+    ?Math.max(0,Math.min(100,input.coveragePercent)):null;
+  return {
+    state:input.state,sourceCount,applicableCount,currentCount,excludedCount,
+    coveragePercent:coverage,basis:input.basis,
+  };
+}
+
 export function populationCanAssertCompleteValue(
   population: PopulationAuthority | null | undefined,
 ): boolean {
@@ -163,16 +182,17 @@ export interface ManagementAction {
   severity: 'critical' | 'high' | 'medium' | 'low' | 'information';
   authority: ManagementFactAuthority;
   /** Confidence in the action linkage, distinct from source/decision authority. */
-  confidence?: 'high' | 'medium' | 'low' | null;
+  confidence: 'high' | 'medium' | 'low' | null;
   sourceRefs: string[];
   owningModule?: string | null;
 }
 
 export function managementAction(
-  value: ManagementAction,
+  value: Omit<ManagementAction,'confidence'> & {confidence?: ManagementAction['confidence']},
 ): ManagementAction {
   return {
     ...value,
+    confidence:value.confidence??null,
     affectedScope: [...new Set(value.affectedScope.filter(Boolean))],
     affectedMilestones: [...new Set(value.affectedMilestones.filter(Boolean))],
     sourceRefs: [...new Set(value.sourceRefs.filter(Boolean))],
