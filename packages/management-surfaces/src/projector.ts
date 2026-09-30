@@ -428,28 +428,27 @@ function buildAlerts(
 function buildDecisions(
   input: ManagementSurfacesInput,
 ): ManagementDecision[] {
-  return (
-    input.director
-      ?.managementActions ??
-    []
-  ).map(
-    (
-      description,
-      index,
-    ) => ({
-      decisionId:
-        "director-action-" +
-        String(index + 1),
-      description,
-      accountableOwner: null,
-      dueDate: null,
-      requiredAuthority: null,
-      dependencyParty: null,
-      state: "not_assigned",
-      source:
-        "project_director",
-    }),
-  );
+  const source=input.director?.managementActions??[];
+  const groups=new Map<string,{description:string;count:number}>();
+  for(const description of source){
+    const normalized=String(description).trim().replace(/\s+/g,' ').toLowerCase();
+    if(!normalized)continue;
+    const current=groups.get(normalized);
+    if(current)current.count++;
+    else groups.set(normalized,{description:String(description).trim(),count:1});
+  }
+  return [...groups.values()].map((group,index)=>({
+    decisionId:"director-action-"+String(index+1),
+    description:group.count>1
+      ?group.description+" · "+group.count+" underlying items share this management action; use the driving-network/WBS detail to distinguish them."
+      :group.description,
+    accountableOwner:null,
+    dueDate:null,
+    requiredAuthority:null,
+    dependencyParty:null,
+    state:"not_assigned" as const,
+    source:"project_director" as const,
+  }));
 }
 
 function dashboardMetrics(
