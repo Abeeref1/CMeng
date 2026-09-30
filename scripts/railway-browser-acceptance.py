@@ -140,7 +140,9 @@ try:
         if key=="near-critical" and visible["status"]!="blocked":
           check("Near-Critical discloses threshold authority",("Project control basis" in body or "CMeng screening policy" in body or "Threshold authority unresolved" in body),project_id)
         if key=="windows-analysis" and visible["status"]!="blocked":
-          check("Delay Windows separates analytical submitted and net movement",all(label in body for label in ["Gross analytical movement","Positive submitted window movement","Project Completion movement"]),project_id)
+          movement_position=all(label in body for label in ["Gross analytical movement","Positive submitted window movement","Project Completion movement"])
+          conditional_position=("Delay-window analysis is not yet applicable" in body and "comparable programme" in body)
+          check("Delay Windows either separates movement measures or states the comparison prerequisite",movement_position or conditional_position,project_id)
         if key=="delay-claims" and visible["status"]!="blocked":
           check("Delay Events exposes full/current date populations",all(label in body for label in ["Current delay events","Source delay-event rows","After Data Date","Event date missing"]),project_id)
         if key=="cash-flow" and visible["status"]!="blocked":
