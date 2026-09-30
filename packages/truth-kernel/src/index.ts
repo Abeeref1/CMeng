@@ -64,6 +64,42 @@ export interface ManagementFactView<T> {
   limitation: string | null;
   receipts: SourceReceipt[];
   coverage: { known: number; total: number };
+  /** Reporting cutoff used for this management fact. Never infer it from display time. */
+  dataDateIso: string | null;
+  /** Business-safe calculation/source qualifications attached to this fact. */
+  diagnostics: string[];
+  /** Population authority controlling whether zero/rates can be asserted. */
+  population: PopulationAuthority | null;
+}
+
+export function managementFactView<T>(input: {
+  key: string;
+  label: string;
+  value: T | null;
+  state: ManagementFactState;
+  authority: ManagementFactAuthority;
+  basis: string;
+  limitation?: string | null;
+  receipts?: SourceReceipt[];
+  coverage?: { known: number; total: number };
+  dataDateIso?: string | null;
+  diagnostics?: string[];
+  population?: PopulationAuthority | null;
+}): ManagementFactView<T> {
+  return {
+    key: input.key,
+    label: input.label,
+    value: input.value,
+    state: input.state,
+    authority: input.authority,
+    basis: input.basis,
+    limitation: input.limitation ?? null,
+    receipts: [...(input.receipts ?? [])],
+    coverage: input.coverage ?? {known: input.value === null ? 0 : 1, total: 1},
+    dataDateIso: input.dataDateIso ?? null,
+    diagnostics: [...(input.diagnostics ?? [])],
+    population: input.population ?? null,
+  };
 }
 
 const factStateRank: Record<ManagementFactState, number> = {
@@ -126,6 +162,8 @@ export interface ManagementAction {
   escalation: string | null;
   severity: 'critical' | 'high' | 'medium' | 'low' | 'information';
   authority: ManagementFactAuthority;
+  /** Confidence in the action linkage, distinct from source/decision authority. */
+  confidence?: 'high' | 'medium' | 'low' | null;
   sourceRefs: string[];
   owningModule?: string | null;
 }
