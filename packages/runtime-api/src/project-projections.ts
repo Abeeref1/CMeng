@@ -7922,11 +7922,40 @@ export function managementSurfacesForProject(
   const interfaces=interfaceIntelligence(state);
   const accountability=crossDomainAccountability(state);
   const deliveryPosition=deliveryDashboard(state);
+  const deliveryManagementActions:ManagementAction[]=(deliveryExceptions.actions??[]).map((row:any,index:number)=>managementAction({
+    actionId:'delivery-exception:'+String(row.recordId??row.type??index),
+    issue:String(row.action??row.type??'Delivery control item requires review'),
+    consequence:typeof row.overdueDays==='number'&&row.overdueDays>0
+      ?'Required date is '+row.overdueDays+' calendar days overdue.'
+      :'Delivery control evidence requires management review.',
+    affectedScope:[String(row.recordId??'')].filter(Boolean),
+    affectedMilestones:[],
+    owner:row.owner??null,
+    organisation:null,
+    requiredAction:String(row.action??'Review the delivery control item.'),
+    dueIso:row.dueIso??null,
+    escalation:typeof row.overdueDays==='number'&&row.overdueDays>0?'Escalate the overdue item.':null,
+    severity:row.priority==='critical'?'critical':'high',
+    authority:'source',
+    sourceRefs:Array.isArray(row.sourceRefs)?row.sourceRefs:[],
+    owningModule:'lookahead-schedule',
+  }));
+  const canonicalActionRows:ManagementAction[]=[
+    ...(surfaces.commandCenter.actions??[]),
+    ...(accountability.actions??[]),
+    ...deliveryManagementActions,
+  ];
+  const canonicalActionMap=new Map<string,ManagementAction>();
+  for(const row of canonicalActionRows){
+    const identity=(row.issue+'|'+row.requiredAction+'|'+row.affectedScope.join('|')).toLowerCase().replace(/\s+/g,' ').trim();
+    if(identity&&!canonicalActionMap.has(identity))canonicalActionMap.set(identity,row);
+  }
+  const canonicalActions=[...canonicalActionMap.values()];
   const mp6=profiling?performance.now():0;
   const result = { ...surfaces,
     sourceQuality: {...sourceQualityPosition(resolvedModules,issueAssessment,state.evidenceDocuments,current?.revision.model.dataDateIso??null),registerDateReview:registerDateReview(state)},
     masterDashboard: {projectDiagnosis:diagnosis,completionPosition:completion,delivery:deliveryPosition,visualControl,managementContext,scheduleExceptions,deliveryExceptions,...managementReportingData(state, surfaces.masterDashboard, resolvedModules),decisions:surfaces.commandCenter.decisions,trend:(resolvedModules.get("forecast-history")?.data as any)??null,issueAssessment,operationalReporting:operationalReporting(state),sourceInterpretation:director?.sourceInterpretation},
-    commandCenter: {projectDiagnosis:diagnosis,completionPosition:completion,scheduleExceptions,deliveryExceptions,delivery:deliveryPosition,visualControl,managementContext,...managementReportingData(state, surfaces.commandCenter, resolvedModules),issueAssessment,operationalReporting:operationalReporting(state),interfaces,accountability,sourceInterpretation:director?.sourceInterpretation},
+    commandCenter: {projectDiagnosis:diagnosis,completionPosition:completion,scheduleExceptions,deliveryExceptions,delivery:deliveryPosition,visualControl,managementContext,...managementReportingData(state, surfaces.commandCenter, resolvedModules),actions:canonicalActions,issueAssessment,operationalReporting:operationalReporting(state),interfaces,accountability,sourceInterpretation:director?.sourceInterpretation},
     masterControlProgramme: {visualControl,managementContext,interfaces,accountability,delivery:deliveryPosition,...managementReportingData(state, surfaces.masterControlProgramme, resolvedModules),issueAssessment,operationalReporting:operationalReporting(state),sourceInterpretation:director?.sourceInterpretation} };
   const allPages=new Map(resolvedModules);
   allPages.set('master-dashboard',{key:'master-dashboard',status:'partial',reason:null,dependencies:[],data:result.masterDashboard});
