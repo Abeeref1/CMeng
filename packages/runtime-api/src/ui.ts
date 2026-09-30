@@ -2843,21 +2843,32 @@ const movementClusters=new Map();
       '<td>'+escapeHtml(r.managementAction||"Monitor against the current programme and controlled baseline.")+'</td>'+
     '</tr>';
   }).join("");
-  const controlRows=priorityRows.slice(0,30).map(r=>{
+  const milestoneCategoryLabel={terminal_completion:"Terminal completion",testing_handover:"Testing / handover",programme:"Programme milestones"};
+  const milestoneCategoryRank={terminal_completion:0,testing_handover:1,programme:2};
+  const primaryMilestones=priorityRows.slice(0,40).sort((a,b)=>(milestoneCategoryRank[a.category]??9)-(milestoneCategoryRank[b.category]??9)||planningMilestonePriorityRank(a.managementPriority)-planningMilestonePriorityRank(b.managementPriority)||((a.daysFromDataDate??Number.MAX_SAFE_INTEGER)-(b.daysFromDataDate??Number.MAX_SAFE_INTEGER)));
+  const controlRows=primaryMilestones.map((r,index)=>{
     const variance=r.varianceDays===null||r.varianceDays===undefined?"—":((r.varianceDays>0?"+":"")+fmt(r.varianceDays)+" d");
     const float=r.totalFloatHours===null||r.totalFloatHours===undefined?"—":fmt(r.totalFloatHours)+" h";
-    const exposure=(r.managementFlags||[]).length?(r.managementFlags||[]).map(planningMilestoneFlagLabel).join("; "):
-      r.predecessorCount?fmt(r.predecessorCount)+" predecessor(s) · "+fmt(r.criticalPredecessorCount||0)+" critical":"No driver flag established";
-    return '<tr><td><span class="milestone-priority-pill '+escapeHtml(r.managementPriority||"normal")+'">'+escapeHtml(humanizeKey(r.managementPriority||"normal"))+'</span></td>'+
-      '<td><b>'+escapeHtml(r.activityId)+'</b><br>'+escapeHtml(r.name||"")+'<br><span class="muted">'+escapeHtml(r.wbsName||r.wbsId||"")+'</span></td>'+
+    const category=r.category||"programme";
+    const prior=primaryMilestones[index-1]?.category||null;
+    const categoryRow=index===0||prior!==category?'<tr class="management-group-row"><td colspan="10"><b>'+escapeHtml(milestoneCategoryLabel[category]||humanizeKey(category))+'</b></td></tr>':'';
+    const drivers=(r.driverActivityIds||[]).length?(r.driverActivityIds||[]).join("; "):
+      r.predecessorCount?fmt(r.predecessorCount)+" predecessor(s); no immediate critical predecessor established":"No immediate driver established";
+    const authority=humanizeKey(r.authority||"not_established");
+    const movementBasis=humanizeKey(r.movementBasis||"not_established");
+    return categoryRow+'<tr>'+
+      '<td><b>'+escapeHtml(r.activityId)+'</b><br>'+escapeHtml(r.name||"")+'<br><span class="milestone-priority-pill '+escapeHtml(r.managementPriority||"normal")+'">'+escapeHtml(humanizeKey(r.managementPriority||"normal"))+'</span><br><span class="muted">'+escapeHtml(r.wbsName||r.wbsId||"")+'</span></td>'+
+      '<td>'+escapeHtml(authority)+'</td>'+
       '<td>'+escapeHtml(planningShortDate(r.baselineDateIso))+'</td>'+
-      '<td>'+escapeHtml(planningShortDate(r.status==="completed"?(r.actualDateIso||r.currentDateIso):r.currentDateIso))+'<br><span class="muted">'+escapeHtml(planningMilestoneDueLabel(r))+'</span></td>'+
-      '<td class="'+((r.varianceDays||0)>0?"late-text":(r.varianceDays||0)<0?"early-text":"")+'">'+escapeHtml(variance)+'</td>'+
+      '<td>'+escapeHtml(planningShortDate(r.currentDateIso))+'<br><span class="muted">'+escapeHtml(planningMilestoneDueLabel(r))+'</span></td>'+
+      '<td>'+escapeHtml(r.forecastDateIso?planningShortDate(r.forecastDateIso):"Not established")+'</td>'+
+      '<td class="'+((r.varianceDays||0)>0?"late-text":(r.varianceDays||0)<0?"early-text":"")+'">'+escapeHtml(variance)+'<br><span class="muted">'+escapeHtml(movementBasis)+'</span></td>'+
       '<td>'+escapeHtml(float)+'</td>'+
-      '<td>'+escapeHtml(exposure)+'</td>'+
+      '<td>'+escapeHtml(drivers)+'</td>'+
+      '<td>'+escapeHtml(r.owner||"Not recorded")+'</td>'+
       '<td>'+escapeHtml(r.managementAction||"Monitor against the current programme and controlled baseline.")+'</td></tr>';
   }).join("");
-  const managementControl=managementPanel("Milestones requiring management control","Baseline → current/actual → movement → float → exposure → required action. Float analytics are supporting evidence, not the first answer.",controlRows?'<div class="table-wrap"><table><thead><tr><th>Priority</th><th>Milestone / WBS</th><th>Baseline</th><th>Current / actual</th><th>Variance</th><th>Float</th><th>Driver / exposure</th><th>Required action</th></tr></thead><tbody>'+controlRows+'</tbody></table></div>':'<div class="notice info">No open milestone currently requires ranked management action.</div>',true);
+  const managementControl=managementPanel("Milestones requiring management control","Milestone authority, baseline, current position, forecast, movement, float, driver, recorded owner and required action. Contractual/client authority is not inferred from a programme activity name.",controlRows?'<div class="table-wrap"><table><thead><tr><th>Milestone</th><th>Authority</th><th>Baseline</th><th>Current</th><th>Forecast</th><th>Movement</th><th>Float</th><th>Driver</th><th>Owner</th><th>Action</th></tr></thead><tbody>'+controlRows+'</tbody></table></div>':'<div class="notice info">No open milestone currently requires ranked management action.</div>',true);
   const analytics=experienceDisclosure(
     "Milestone analytics & source-float detail",
     kpis+authority+basis+repeatedMovementWarning+movementGroups,
