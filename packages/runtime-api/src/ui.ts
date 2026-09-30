@@ -4379,8 +4379,32 @@ function renderCommandActionTable(data){
 }
 function renderMcpProgrammeControl(data){
  const context=data.managementContext||{},stages=context.schedule?.programmeStages||[],vc=data.visualControl||{};
- const stageRows=stages.map(stage=>'<tr><td><b>'+escapeHtml(stage.label)+'</b></td><td>'+fmt(stage.activityCount)+'</td><td>'+fmt(stage.openActivityCount)+'</td><td>'+fmt(stage.criticalOrNegativeFloatCount)+'</td><td>'+escapeHtml(stage.earliestStartIso?planningShortDate(stage.earliestStartIso):"—")+'</td><td>'+escapeHtml(stage.latestFinishIso?planningShortDate(stage.latestFinishIso):"—")+'</td><td>'+escapeHtml((stage.sampleActivities||[]).map(row=>row.activityId+(row.wbsPath?" · "+row.wbsPath:"")).join("; ")||"—")+'</td></tr>').join("");
- const stagesHtml=stageRows?'<div class="table-wrap"><table><thead><tr><th>Integrated stage</th><th>Activities</th><th>Open</th><th>Critical / negative float</th><th>Earliest current start</th><th>Latest current finish</th><th>Priority scope examples</th></tr></thead><tbody>'+stageRows+'</tbody></table></div>':'<div class="notice info">A current programme is required to build the integrated design → procurement → construction → testing → handover sequence.</div>';
+ const stageRows=stages.map(stage=>{
+   const packages=(stage.wbsPaths||[]).slice(0,5).join("; ")+(stage.wbsPaths?.length>5?" · "+fmt(stage.wbsPaths.length-5)+" more":"");
+   const milestones=(stage.controlMilestoneIds||[]).slice(0,6).join("; ")||"No control milestone identified in this stage";
+   const dependencies=(stage.dependencyStages||[]).map(humanizeKey).join(" → ")||"No incoming cross-stage dependency identified";
+   const float=pmcDefined(stage.lowestFloatHours)?fmt(stage.lowestFloatHours)+" h":"Not established";
+   const blockers=stage.readinessBlockerCount>0
+     ? fmt(stage.readinessBlockerCount)+" affected activities · "+(stage.readinessBlockerTypes||[]).map(humanizeKey).join(", ")
+     : "No linked Look-Ahead blocker identified";
+   const longLead=stage.longLeadExposure
+     ?"Schedule candidates "+fmt(stage.longLeadExposure.scheduleCandidateCount)+" · BOQ candidates "+fmt(stage.longLeadExposure.boqCandidateCount)+" · procurement source rows "+(pmcDefined(stage.longLeadExposure.readableProcurementSourceRows)?fmt(stage.longLeadExposure.readableProcurementSourceRows):"Not established")
+     :"";
+   const owners=(stage.owners||[]).join("; ")||"Not recorded";
+   const actions=(stage.actions||[]).slice(0,3).join("; ")||"No stage-specific action recorded";
+   return '<tr><td><b>'+escapeHtml(stage.label)+'</b><br><span class="muted">'+escapeHtml(fmt(stage.openActivityCount))+' open / '+escapeHtml(fmt(stage.activityCount))+' activities</span></td>'+
+     '<td>'+escapeHtml(packages||"Observed package/WBS not established")+'</td>'+
+     '<td>'+escapeHtml(milestones)+'</td>'+
+     '<td>'+escapeHtml(dependencies)+'</td>'+
+     '<td>'+escapeHtml(stage.earliestCurrentStartIso?planningShortDate(stage.earliestCurrentStartIso):"—")+'</td>'+
+     '<td>'+escapeHtml(stage.latestCurrentFinishIso?planningShortDate(stage.latestCurrentFinishIso):"—")+'</td>'+
+     '<td>'+escapeHtml(stage.latestForecastFinishIso?planningShortDate(stage.latestForecastFinishIso):"Not established")+'</td>'+
+     '<td>'+escapeHtml(float)+'<br><span class="muted">'+escapeHtml(fmt(stage.criticalOrNegativeFloatCount))+' critical / negative-float activities</span></td>'+
+     '<td>'+escapeHtml(blockers)+(stage.readinessRequiredByIso?'<br><span class="muted">Required by '+escapeHtml(planningShortDate(stage.readinessRequiredByIso))+'</span>':'')+(longLead?'<br><span class="muted">'+escapeHtml(longLead)+'</span>':'')+'</td>'+
+     '<td>'+escapeHtml(owners)+'</td>'+
+     '<td>'+escapeHtml(actions)+'</td></tr>';
+ }).join("");
+ const stagesHtml=stageRows?'<div class="table-wrap"><table><thead><tr><th>Integrated stage</th><th>Work packages / WBS</th><th>Control milestones</th><th>Dependencies</th><th>Current start</th><th>Current finish</th><th>Forecast finish</th><th>Float</th><th>Readiness / long lead</th><th>Owner</th><th>Action</th></tr></thead><tbody>'+stageRows+'</tbody></table></div>':'<div class="notice info">A current programme is required to build the integrated design → procurement → construction → testing → handover sequence.</div>';
  const path=vc.schedule?.drivingActivities||[];
  const pathHtml=path.length?'<div class="table-wrap"><table><thead><tr><th>Driving activity</th><th>WBS</th><th>Current finish</th><th>Source float</th></tr></thead><tbody>'+path.slice(0,15).map(row=>'<tr><td><b>'+escapeHtml(row.activityId)+'</b><br>'+escapeHtml(row.name||"")+'</td><td>'+escapeHtml(row.wbs||"—")+'</td><td>'+escapeHtml(planningShortDate(row.currentFinishIso))+'</td><td>'+escapeHtml(pmcDefined(row.sourceFloatHours)?fmt(row.sourceFloatHours)+" h":"—")+'</td></tr>').join("")+'</tbody></table></div>':'<div class="notice info">Independent completion-driving network is not established; source programme stages remain available above.</div>';
  const milestones=vc.milestones?.topRows||[];
