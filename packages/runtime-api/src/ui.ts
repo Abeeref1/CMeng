@@ -1356,7 +1356,7 @@ function forecastDiagnosticMessages(codes){
     if(!labels[key])continue;
     const group=grouped.get(key)||{count:0,examples:[]};group.count++;
     const suffix=String(code).includes(":")?String(code).slice(String(code).indexOf(":")+1):"";
-    if(suffix&&group.examples.length<5)group.examples.push(suffix);
+    if(suffix&&group.examples.length<5&&!/[A-Z]{3,}_[A-Z0-9_]+/.test(suffix))group.examples.push(suffix);
     grouped.set(key,group);
   }
   return [...grouped.entries()].map(([key,group])=>labels[key]+(group.count>1?" ("+fmt(group.count)+" occurrences)":"")+(group.examples.length?" Affected: "+group.examples.join(", ")+".":""));
