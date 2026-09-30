@@ -21,6 +21,16 @@ jobs:
         with:
           node-version: '22'
       - run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Complete renderer test harness before reproduction
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('tests/batch-c-overdue-start-acceptance.test.ts')
+          s=p.read_text()
+          old="planningShortDate:(value:unknown)=>String(value??''),humanizeKey:(value:unknown)=>String(value??''),"
+          assert s.count(old)==1
+          p.write_text(s.replace(old,old+"\n    planningStateLabel:(value:unknown)=>String(value??''),"))
+          PY
       - run: npm run build
       - name: Confirm the new acceptance tests reproduce the existing defect
         shell: bash
@@ -29,7 +39,7 @@ jobs:
           node --test dist/tests/batch-c-overdue-start-acceptance.test.js > /tmp/batch-c-before.log 2>&1
           result=$?
           set -e
-          cat /tmp/batch-c-before.log
+          grep -E '^(not ok|# tests|# pass|# fail)' /tmp/batch-c-before.log || true
           if [ "$result" -eq 0 ]; then
             echo 'No failure reproduced; refuse to apply an unneeded repair.'
             exit 1
@@ -56,23 +66,51 @@ jobs:
           text=replace_once(text,'p.rows.filter(row=>row.classification!=="overdue");','p.rows.filter(row=>row.classification!=="overdue"&&row.classification!=="missed_start"&&row.finishOverdue!==true&&row.missedPlannedStart!==true);')
           text=replace_once(text,'p.rows.filter(row=>row.classification==="overdue");','p.rows.filter(row=>row.classification==="overdue"||row.classification==="missed_start"||row.finishOverdue===true||row.missedPlannedStart===true);')
           text=replace_once(text,'forward-window activities not started by planned start','overdue-start backlog; may also be finish overdue')
+          text=replace_once(text,"Work already overdue at the Data Date is controlled separately from the forward '+escapeHtml(fmt(p.windowDays))+'-day look-ahead.",'Work already overdue at the Data Date is controlled separately from the configured forward look-ahead.')
           lines=text.splitlines(keepends=True)
           matches=[i for i,line in enumerate(lines) if line.startswith('  const backlogHtml=backlogRows.length?')]
           if len(matches)!=1:
               raise RuntimeError('Expected one Look-Ahead backlog renderer')
           lines[matches[0]]='''  const backlogHtml=backlogRows.length?'<div class="table-wrap"><table><thead><tr><th>Overdue activity</th><th>WBS</th><th>Overdue basis</th><th>Required date</th><th>Start overdue days</th><th>Finish overdue days</th><th>Readiness</th><th>Milestones exposed</th></tr></thead><tbody>'+backlogRows.slice(0,30).map(row=>{const startOverdue=row.missedPlannedStart===true||row.classification==="missed_start",finishOverdue=row.finishOverdue===true||row.classification==="overdue";const basis=startOverdue&&finishOverdue?'Start and finish overdue':finishOverdue?'Finish overdue':'Start overdue';const overdueDays=(known,days)=>known&&typeof days==="number"?fmt(Math.max(0,-days)):'—';return '<tr><td><b>'+escapeHtml(row.activityId)+'</b><br>'+escapeHtml(row.name||'')+'</td><td>'+escapeHtml(row.wbsPath||row.wbsId||'—')+'</td><td>'+escapeHtml(basis)+'</td><td>'+escapeHtml(planningShortDate(finishOverdue?row.finishIso:row.startIso))+'</td><td>'+escapeHtml(overdueDays(startOverdue,row.daysToStart))+'</td><td>'+escapeHtml(overdueDays(finishOverdue,row.daysToFinish))+'</td><td>'+escapeHtml(row.readiness?.state==="blocked"?'Known blocker':row.readiness?.state==="conditional"?'Evidence gaps':'No blocker established')+'</td><td>'+escapeHtml((row.affectedMilestoneIds||[]).join('; ')||'—')+'</td></tr>';}).join('')+'</tbody></table></div>':'<div class="notice info">No overdue-start or overdue-finish backlog is identified from the current programme dates.</div>';\n'''
           path.write_text(''.join(lines))
+          path=Path('tests/system-evidence-governance.test.ts')
+          text=path.read_text()
+          text=replace_once(text,"assert.equal(row.readiness.state,'blocked'); assert.ok(look.blockedWithEvidenceGapCount!>0); assert.equal(look.evidenceGapActivityCount,look.rows.length);", "assert.equal(row.readiness.state,'blocked'); assert.ok(row.readiness.unknownCount>0);\n  assert.deepEqual(look.overdueBacklogRows.map(r=>r.activityId),['S']);\n  assert.equal(look.overdueBacklogBlockedCount,1);\n  assert.equal(look.blockedWithEvidenceGapCount,0,'backlog blockers must not inflate the forward window');\n  assert.equal(look.evidenceGapActivityCount,look.forwardWindowRows.length);\n  assert.equal(look.forwardWindowCount+look.overdueBacklogCount,look.rows.length);")
+          path.write_text(text)
+          path=Path('tests/batch-c-overdue-start-acceptance.test.ts')
+          text=path.read_text()
+          text=replace_once(text,"assert.doesNotMatch(rendered,/<td>15<\\/td>/);", "assert.doesNotMatch(rendered,/<td>15<\\/td>/);\n  assert.doesNotMatch(rendered,/escapeHtml\\(fmt/);")
+          path.write_text(text)
           PY
       - name: Run full verification without skipping tests
-        run: npm run verify
+        shell: bash
+        run: |
+          set +e
+          npm run verify > /tmp/batch-c-verify.log 2>&1
+          result=$?
+          set -e
+          python - <<'PY'
+          from pathlib import Path
+          lines=Path('/tmp/batch-c-verify.log').read_text().splitlines()
+          for i,line in enumerate(lines):
+              if line.startswith('not ok '): print('\n'.join(lines[max(0,i-1):i+30]))
+          print('\n'.join(lines[-12:]))
+          PY
+          exit "$result"
       - name: Retain existing scale certification
-        run: npm run test:stress
+        run: npm run test:stress > /tmp/batch-c-stress.log 2>&1 || { tail -80 /tmp/batch-c-stress.log; exit 1; }
       - name: Commit only the verified correction to the isolated branch
         shell: bash
         run: |
           git diff --check
-          git add packages/lookahead-schedule/src/projector.ts packages/runtime-api/src/ui.ts
+          git add packages/lookahead-schedule/src/projector.ts packages/runtime-api/src/ui.ts tests/system-evidence-governance.test.ts tests/batch-c-overdue-start-acceptance.test.ts
           git config user.name 'CMeng acceptance checks'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git commit -m 'fix: separate overdue starts and finish backlog from forward look-ahead'
           git push origin HEAD:fix/batch-c-overdue-start-acceptance
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: batch-c-overdue-acceptance-${{ github.run_id }}
+          path: /tmp/batch-c-*.log
+          retention-days: 7
