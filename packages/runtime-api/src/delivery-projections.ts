@@ -438,6 +438,7 @@ export function deliveryDashboard(state:ProjectRuntimeState){
  if(!state.delivery?.decisions.length){
   return {projectId:state.projectId,dataDateIso:projectDataDate(state),programmeRevisionId:projectControlSchedule(state)?.revision.revisionId??null,
    mode:'source_available',boqMappingPercent:null,handoverReadinessPercent:null,latePackageKnownCount:null,unresolvedPackageCount:null,
+   packagePopulationState:'not_established',
    confirmedPackageCount:null,knownPackageRecordCount:null,candidatePackageCount:boq.packages.length||null,candidateLongLeadCount:boq.longLead.length||null,
    sourceAvailability:{procurement:domain('procurement'),design:domain('design'),submittal:domain('submittal'),quality:domain('quality'),hse:domain('hse'),risk:domain('risk')},
    exceptions:[],exceptionCount:0,
@@ -445,6 +446,7 @@ export function deliveryDashboard(state:ProjectRuntimeState){
  }
  const p=deliveryPosition(state),packagePopulation=p.populations.package;return {projectId:state.projectId,dataDateIso:p.dataDateIso,programmeRevisionId:p.programmeRevisionId,mode:'governed_or_reviewed',
   boqMappingPercent:p.boqIntelligence.procurementMappingPercent,handoverReadinessPercent:p.handover.readinessPercent,
+  packagePopulationState:packagePopulation?.state??'not_established',
   confirmedPackageCount:packagePopulation?.denominator??null,knownPackageRecordCount:packagePopulation?.knownRecordCount??null,
   candidatePackageCount:boq.packages.length||null,candidateLongLeadCount:boq.longLead.length||null,
   latePackageKnownCount:p.packageRows.some(r=>r.headroomCalendarDays!==null)?p.packageRows.filter(r=>r.headroomCalendarDays!==null&&r.headroomCalendarDays<0).length:null,

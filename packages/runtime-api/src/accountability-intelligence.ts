@@ -1,4 +1,4 @@
-import {canonicalHeader} from '../../truth-kernel/src';
+import {canonicalHeader,managementAction,type ManagementAction} from '../../truth-kernel/src';
 import {deliveryPosition} from './delivery-projections';
 import {deliveryRecords} from './delivery-records';
 import {operationalReporting,claimsReporting} from './reporting-state';
@@ -88,10 +88,49 @@ export function crossDomainAccountability(state:ProjectRuntimeState){
     d.activityIds.forEach(id=>g.affectedActivityIds.add(id));if(d.overdueDays!==null)g.worstOverdueDays=g.worstOverdueDays===null?d.overdueDays:Math.max(g.worstOverdueDays,d.overdueDays);grouped.set(key,g);}
   const rows=[...grouped.values()].map(g=>({dimension:g.dimension,value:g.value,openIssueCount:g.detailIds.size,domainCount:g.domains.size,overdueCount:g.overdueCount,openNcrCount:g.openNcrCount,overdueRfiCount:g.overdueRfiCount,latePackageCount:g.latePackageCount,openSnagCount:g.openSnagCount,permitIssueCount:g.permitIssueCount,openRiskCount:g.openRiskCount,affectedActivityCount:g.affectedActivityIds.size,worstOverdueDays:g.worstOverdueDays,
     domains:[...g.domains].sort(),detailRecordIds:[...g.detailIds]})).sort((a,b)=>b.openIssueCount-a.openIssueCount||b.overdueCount-a.overdueCount||(b.worstOverdueDays??-1)-(a.worstOverdueDays??-1)||a.value.localeCompare(b.value));
-  return {schemaVersion:'1.0',projectionKey:'cross_domain_accountability',projectId:state.projectId,projectVersion:state.version,dataDateIso,rows,details,
-    managementPosition:rows.length?rows[0]!.value+' has the largest identified concentration: '+rows[0]!.openIssueCount+' open/pressure items across '+rows[0]!.domainCount+' domain'+(rows[0]!.domainCount===1?'':'s')+'. This is an accountability workload concentration, not a finding of contractual delay responsibility.':'No accountable party can be ranked because current open/overdue records do not contain reusable ownership or scope classifications.',
-    basis:'Counts are deduplicated within each accountability dimension and drill back to confirmed records or programme scope classifications. CMeng does not infer contractual responsibility from ownership, correlation or schedule pressure.'};
+
+  const byRecord=new Map<string,AccountabilityDetail[]>();
+  for(const detail of details){const key=detail.domain+'|'+detail.recordId,items=byRecord.get(key)??[];items.push(detail);byRecord.set(key,items);}
+  const actions:ManagementAction[]=[...byRecord.entries()].map(([key,items])=>{
+    const first=items[0]!,dimension=(name:Dimension)=>items.find(item=>item.dimension===name)?.value??null;
+    const organisation=dimension('organisation')??dimension('contractor')??dimension('subcontractor');
+    const owner=dimension('organisation')??dimension('party_role')??dimension('contractor')??dimension('subcontractor');
+    const scope=[dimension('package'),dimension('workfront'),dimension('discipline'),...first.activityIds].filter((value):value is string=>!!value);
+    const overdue=Math.max(0,...items.map(item=>item.overdueDays??0));
+    const domain=first.domain.toLowerCase();
+    const consequence=
+      domain==='procurement'?'Programme need dates may be affected by the late package.':
+      domain==='rfi'?'The unresolved design response may constrain linked programme work.':
+      domain==='ncr'?'The open quality issue may prevent acceptance or downstream work.':
+      domain==='risk'?'The open risk requires an owned mitigation and current status.':
+      domain==='claim'||domain==='notice'?'The claim/notice evidence chain remains open and may affect entitlement assessment.':
+      domain==='schedule'?'The activity is under current schedule pressure and may affect dependent work or milestones.':
+      'The open control item requires resolution before its affected scope can be treated as clear.';
+    const requiredAction=
+      domain==='procurement'?'Confirm vendor status, recovery delivery date and affected programme need dates; expedite where required.':
+      domain==='rfi'?'Obtain the response, confirm the affected activities and update the required date.':
+      domain==='ncr'?'Close the NCR with corrective evidence and confirm downstream release.':
+      domain==='risk'?'Confirm risk owner, mitigation, due date and residual exposure.':
+      domain==='claim'||domain==='notice'?'Complete the event, notice, activity and determination evidence chain.':
+      domain==='schedule'?'Confirm the remaining work, driving logic, accountable delivery party and recovery date.':
+      'Assign ownership, confirm the required completion date and close the underlying control item.';
+    return managementAction({
+      actionId:'accountability:'+key,issue:first.issue,consequence,affectedScope:scope,affectedMilestones:[],
+      owner,organisation,requiredAction,dueIso:first.dueDate,escalation:overdue>0?'Escalate because the required date is already past.':null,
+      severity:overdue>0||['procurement','ncr','rfi','schedule'].includes(domain)?'high':'medium',
+      authority:first.authority==='confirmed_record'?'source':'source',sourceRefs:first.sourceRefs,
+    });
+  }).sort((a,b)=>{
+    const rank={critical:0,high:1,medium:2,low:3,information:4};
+    return rank[a.severity]-rank[b.severity]||(a.dueIso??'9999').localeCompare(b.dueIso??'9999')||a.actionId.localeCompare(b.actionId);
+  });
+  const owned=actions.filter(action=>action.owner).length,unassigned=actions.length-owned;
+  return {schemaVersion:'1.0',projectionKey:'cross_domain_accountability',projectId:state.projectId,projectVersion:state.version,dataDateIso,rows,details,actions,
+    managementPosition:actions.length
+      ?actions.length+' actionable control item'+(actions.length===1?' is':'s are')+' identified; '+owned+' have a reusable accountable party'+(unassigned?' and '+unassigned+' still need ownership.':'.')
+      :'No actionable ownership chain is established from the current open/overdue records.',
+    basis:'Actions drill back to confirmed records or programme scope classifications. Ownership identifies the party carrying the current action; it is not by itself a finding of contractual delay responsibility. Concentration counts remain supporting analysis only.'};
 }
 export function accountabilityModule(state:ProjectRuntimeState):ModuleRuntimeResult{
-  const data=crossDomainAccountability(state);return {key:'cross-domain-accountability',status:data.rows.length?'partial':'blocked',reason:data.managementPosition,dependencies:data.rows.length?[]:['dated open records with owner/contractor/scope information'],data};
+  const data=crossDomainAccountability(state);return {key:'cross-domain-accountability',status:data.actions.length||data.rows.length?'partial':'blocked',reason:data.managementPosition,dependencies:data.actions.length||data.rows.length?[]:['dated open records with owner/contractor/scope information'],data};
 }
