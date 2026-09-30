@@ -3,6 +3,7 @@ import type {ModuleRuntimeResult,ProjectRuntimeState} from './project-state-type
 import {managementSourceInventory} from './management-source-inventory';
 import {boqScopeIntelligence} from './boq-scope-intelligence';
 import {projectManagementContext} from './management-context';
+import {bestAvailableFact,type ManagementFactView} from '../../truth-kernel/src';
 
 const data=(modules:Map<string,ModuleRuntimeResult>,key:string):any=>{
   const value=modules.get(key)?.data;
@@ -16,11 +17,25 @@ export function managementVisualControl(
   commercial:CommercialControlPosition,
 ){
   const sourceInventory=managementSourceInventory(state);
-  const managementContext=projectManagementContext(state);
+  const managementContext=projectManagementContext(state,modules,commercial);
   const procurementSource=sourceInventory.domains.find(row=>row.domain==='procurement')??null;
   const sourceLongLeadCount=procurementSource?.signals.longLeadMarkedCount??null;
   const scheduleLongLead=managementContext.schedule?.longLeadEvidence??[];
   const boqScope=boqScopeIntelligence(state);
+  const countFact=(key:string,label:string,value:number,basis:string,authority:ManagementFactView<number>['authority'],state:ManagementFactView<number>['state']):ManagementFactView<number>=>({
+    key,label,value,state,authority,basis,limitation:null,receipts:[],coverage:{known:value,total:value}
+  });
+  const longLeadFacts:ManagementFactView<number>[]=[];
+  if(typeof sourceLongLeadCount==='number'&&sourceLongLeadCount>0)longLeadFacts.push(
+    countFact('source-long-lead','Source-marked long lead',sourceLongLeadCount,
+      'Explicit Long Lead marks read from the supplied procurement source.','source','partial'));
+  if(boqScope.longLead.length>0)longLeadFacts.push(
+    countFact('boq-long-lead','BOQ-screened long lead',boqScope.longLead.length,
+      'Professional screening of readable BOQ descriptions; not a confirmed procurement lifecycle.','candidate','candidate'));
+  if(scheduleLongLead.length>0)longLeadFacts.push(
+    countFact('schedule-long-lead','Schedule/WBS long lead',scheduleLongLead.length,
+      'Explicit Long Lead/procurement wording in the current programme and WBS; not a confirmed procurement lifecycle.','candidate','candidate'));
+  const bestLongLead=bestAvailableFact(longLeadFacts);
   const activity=data(modules,'activity-analytics');
   const independent=data(modules,'independent-forecast');
   const milestones=data(modules,'milestones');
@@ -207,41 +222,37 @@ export function managementVisualControl(
       sourceMarkedLongLeadCount:sourceLongLeadCount,
       boqCandidateLongLeadCount:boqScope.longLead.length||null,
       scheduleCandidateLongLeadCount:scheduleLongLead.length||null,
-      candidateLongLeadCount:
-        sourceLongLeadCount!==null&&sourceLongLeadCount>0?sourceLongLeadCount:
-        boqScope.longLead.length>0?boqScope.longLead.length:
-        scheduleLongLead.length>0?scheduleLongLead.length:
-        sourceLongLeadCount,
+      candidateLongLeadCount:bestLongLead?.value??null,
+      bestLongLeadPosition:bestLongLead?{
+        key:bestLongLead.key,label:bestLongLead.label,value:bestLongLead.value,state:bestLongLead.state,
+        authority:bestLongLead.authority,basis:bestLongLead.basis
+      }:null,
       complexity:boqScope.complexity,
       coverage:boqScope.coverage,
       topLongLead:
-        sourceLongLeadCount!==null&&sourceLongLeadCount>0
+        bestLongLead?.key==='source-long-lead'
           ?(procurementSource?.signals.longLeadSamples??[]).map((row,index)=>({
             itemId:'source-long-lead-'+index,itemNumber:row.reference,description:row.description,discipline:null,system:null,
             package:row.reference,priority:'Source marked',amount:null,currency:null,status:row.status,
             requiredOnSite:row.requiredOnSite,forecastDelivery:row.forecastDelivery,basis:'source_register'
           }))
-          :boqScope.longLead.length
+          :bestLongLead?.key==='boq-long-lead'
             ?boqScope.longLead.slice(0,12).map(row=>({
               itemId:row.itemId,itemNumber:row.itemNumber,description:row.description,discipline:row.discipline,system:row.system,
               package:row.packageCandidate,priority:row.procurementPriority,amount:row.amount,currency:row.currency,
               basis:row.classificationBasis.longLeadCandidate
             }))
-            :scheduleLongLead.slice(0,12).map(row=>({
-              itemId:row.activityId,itemNumber:row.activityId,description:row.name,discipline:null,system:null,
-              package:row.wbsPath,priority:typeof row.totalFloatHours==='number'&&row.totalFloatHours<=0?'Critical':'Schedule candidate',
-              amount:null,currency:null,currentFinishIso:row.currentFinishIso,totalFloatHours:row.totalFloatHours,basis:'schedule_wbs_candidate'
-            })),
-      basis:
-        sourceLongLeadCount!==null&&sourceLongLeadCount>0
-          ?'Long-lead items are taken from explicit marks in the supplied procurement source. Schedule impact remains separate.'
-          :boqScope.longLead.length
-            ?boqScope.basis
-            :scheduleLongLead.length
-              ?'Best available long-lead scope is derived from explicit Long Lead / procurement wording in the current programme and WBS. This is schedule scope evidence, not confirmed procurement lifecycle status.'
-              :sourceLongLeadCount===0
-                ?'The supplied procurement source contains no explicit Long Lead marks. No BOQ- or schedule-derived long-lead candidate is currently identified.'
-                :'No procurement Long Lead field, readable BOQ long-lead screening, or schedule/WBS long-lead evidence is available.'
+            :bestLongLead?.key==='schedule-long-lead'
+              ?scheduleLongLead.slice(0,12).map(row=>({
+                itemId:row.activityId,itemNumber:row.activityId,description:row.name,discipline:null,system:null,
+                package:row.wbsPath,priority:typeof row.totalFloatHours==='number'&&row.totalFloatHours<=0?'Critical':'Schedule candidate',
+                amount:null,currency:null,currentFinishIso:row.currentFinishIso,totalFloatHours:row.totalFloatHours,basis:'schedule_wbs_candidate'
+              }))
+              :[],
+      basis:bestLongLead?.basis??(
+        sourceLongLeadCount===0
+          ?'The supplied procurement source contains no explicit Long Lead marks. No BOQ- or schedule-derived long-lead candidate is currently identified.'
+          :'No procurement Long Lead field, readable BOQ long-lead screening, or schedule/WBS long-lead evidence is available.')
     },
   };
 }
