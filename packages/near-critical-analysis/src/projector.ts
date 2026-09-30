@@ -23,6 +23,52 @@ function coverage(
   return Number(((known / total) * 100).toFixed(4));
 }
 
+function wbsPathLookup(model:CanonicalScheduleModel):Map<string,string>{
+  const nodes=new Map((model.wbs??[]).map(node=>[node.wbsId,node])),cache=new Map<string,string>();
+  const pathFor=(id:string|null):string=>{
+    if(!id)return '';const cached=cache.get(id);if(cached!==undefined)return cached;
+    const parts:string[]=[],seen=new Set<string>();let current:string|null=id;
+    while(current&&!seen.has(current)){seen.add(current);const node=nodes.get(current);if(!node)break;parts.unshift(node.name??node.wbsId);current=node.parentWbsId??null;}
+    const value=parts.join(' / ');cache.set(id,value);return value;
+  };
+  for(const id of nodes.keys())pathFor(id);return cache;
+}
+
+function downstreamMilestoneLookup(model:CanonicalScheduleModel):Map<string,string[]>{
+  const byId=new Map(model.activities.map(a=>[a.activityId,a]));
+  const predecessors=new Map<string,string[]>();
+  for(const rel of model.relationships){
+    if(rel.external||!byId.has(rel.predecessorActivityId)||!byId.has(rel.successorActivityId))continue;
+    const rows=predecessors.get(rel.successorActivityId)??[];rows.push(rel.predecessorActivityId);predecessors.set(rel.successorActivityId,rows);
+  }
+  const bestDepth=new Map<string,number>(),milestonesByActivity=new Map<string,Set<string>>();
+  const queue:Array<{id:string;milestoneId:string;depth:number}>=[];
+  for(const activity of model.activities){
+    if(activity.activityType!=='start_milestone'&&activity.activityType!=='finish_milestone')continue;
+    bestDepth.set(activity.activityId,0);
+    milestonesByActivity.set(activity.activityId,new Set([activity.activityId]));
+    queue.push({id:activity.activityId,milestoneId:activity.activityId,depth:0});
+  }
+  for(let index=0;index<queue.length;index++){
+    const current=queue[index]!;
+    for(const predecessorId of predecessors.get(current.id)??[]){
+      const depth=current.depth+1,knownDepth=bestDepth.get(predecessorId);
+      if(knownDepth===undefined||depth<knownDepth){
+        bestDepth.set(predecessorId,depth);
+        milestonesByActivity.set(predecessorId,new Set([current.milestoneId]));
+        queue.push({id:predecessorId,milestoneId:current.milestoneId,depth});
+      }else if(depth===knownDepth){
+        const set=milestonesByActivity.get(predecessorId)??new Set<string>();
+        if(!set.has(current.milestoneId)&&set.size<8){
+          set.add(current.milestoneId);milestonesByActivity.set(predecessorId,set);
+          queue.push({id:predecessorId,milestoneId:current.milestoneId,depth});
+        }
+      }
+    }
+  }
+  return new Map([...milestonesByActivity.entries()].map(([id,set])=>[id,[...set].sort(naturalCompare).slice(0,5)]));
+}
+
 export function buildNearCriticalProjection(
   model: CanonicalScheduleModel,
   input: {
@@ -37,6 +83,8 @@ export function buildNearCriticalProjection(
     DEFAULT_SCHEDULE_ANALYSIS_CONFIG;
 
   const population = activityPopulation(model);
+  const wbsPaths=wbsPathLookup(model);
+  const downstreamMilestones=downstreamMilestoneLookup(model);
   const known = population.activities.filter(
     (activity) =>
       activity.totalFloatHours !== null,
@@ -58,6 +106,8 @@ export function buildNearCriticalProjection(
     activityId: activity.activityId,
     name: activity.name,
     wbsId: activity.wbsId,
+    wbsPath: activity.wbsId ? wbsPaths.get(activity.wbsId) ?? null : null,
+    affectedMilestoneIds: downstreamMilestones.get(activity.activityId)??[],
     calendarId: activity.calendarId,
     status: activity.status,
     totalFloatHours:
@@ -365,6 +415,32 @@ export function buildNearCriticalProjection(
     },
   };
 
+  const managementSource=[...new Map([...watchlistRows,...criticalRows,...negativeFloatRows].map(row=>[row.activityId,row])).values()]
+    .filter(row=>row.status!=="completed");
+  const managementMap=new Map<string,{
+    wbsId:string|null;wbsPath:string|null;rows:typeof managementSource;
+  }>();
+  for(const row of managementSource){
+    const key=row.wbsId??"";
+    const group=managementMap.get(key)??{wbsId:row.wbsId,wbsPath:row.wbsPath??null,rows:[]};
+    group.rows.push(row);managementMap.set(key,group);
+  }
+  const managementGroups=[...managementMap.values()].map(group=>{
+    const floats=group.rows.map(row=>row.totalFloatHours).filter((v):v is number=>typeof v==="number");
+    const finishes=group.rows.map(row=>row.currentFinishIso).filter((v):v is string=>!!v).sort();
+    const later=group.rows.filter(row=>row.baselineFinishIso&&row.currentFinishIso&&row.currentFinishIso.slice(0,10)>row.baselineFinishIso.slice(0,10)).length;
+    return {
+      wbsId:group.wbsId,wbsPath:group.wbsPath,activityCount:group.rows.length,activityIds:group.rows.map(row=>row.activityId),
+      nearCriticalCount:group.rows.filter(row=>row.totalFloatHours>config.criticalFloatThresholdHours).length,
+      criticalCount:group.rows.filter(row=>row.totalFloatHours<=config.criticalFloatThresholdHours).length,
+      negativeFloatCount:group.rows.filter(row=>row.totalFloatHours<0).length,
+      lowestFloatHours:floats.length?Math.min(...floats):null,earliestCurrentFinishIso:finishes[0]??null,
+      affectedMilestoneIds:[...new Set(group.rows.flatMap(row=>row.affectedMilestoneIds??[]))].slice(0,10),
+      laterThanBaselineCount:later,
+      action:'Protect remaining float, clear the linked constraints and confirm the recovery/protection action before this scope becomes completion-driving.',
+    };
+  }).sort((a,b)=>(a.lowestFloatHours??Number.MAX_SAFE_INTEGER)-(b.lowestFloatHours??Number.MAX_SAFE_INTEGER)||b.activityCount-a.activityCount||String(a.wbsPath??"").localeCompare(String(b.wbsPath??"")));
+
   return {
     schemaVersion: "1.0",
     projectionKey: "near_critical",
@@ -426,6 +502,7 @@ export function buildNearCriticalProjection(
     watchlistRows,
     criticalRows,
     negativeFloatRows,
+    managementGroups,
     boundaryAudit,
   };
 }

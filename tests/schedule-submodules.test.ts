@@ -346,6 +346,22 @@ test("Look-Ahead uses current/forecast dates and never substitutes baseline date
     milestone.daysToFinish,
     -1,
   );
+  assert.equal(
+    projection.overdueBacklogRows.some(
+      (row) => row.activityId === "A300",
+    ),
+    true,
+  );
+  assert.equal(
+    projection.forwardWindowRows.some(
+      (row) => row.activityId === "A300",
+    ),
+    false,
+  );
+  assert.equal(
+    projection.overdueBacklogCount,
+    projection.overdueBacklogRows.length,
+  );
 
   const missing = projection.rows.find(
     (row) => row.activityId === "A400",

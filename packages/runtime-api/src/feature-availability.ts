@@ -46,6 +46,27 @@ export function moduleFeatureAvailability(key:string,data:unknown):RuntimeFeatur
       prerequisiteCount:checks.length||boqCount||null,establishedResultCount:calculated||null
     };
   }
+  if(key==='revision-trend'||key==='variance-trends'){
+    const points=array(d.points);
+    return {
+      state:featureAvailability({hasEstablishedResult:points.length>=2,hasUsefulEvidence:points.length>=1,prerequisitesSatisfied:points.length>=2}),
+      reason:points.length>=2?'Two or more comparable controlled programme revisions are available for trend analysis.':
+        points.length===1?'Only one comparable controlled programme revision exists. Show the current revision position, not a trend.':
+        'No comparable controlled programme revision is available for trend analysis.',
+      prerequisiteCount:points.length,establishedResultCount:points.length>=2?points.length:null
+    };
+  }
+  if(key==='schedule-change-report'){
+    const compared=Boolean(d.fromRevisionId&&d.toRevisionId)&&Array.isArray(d.changedActivities);
+    const hasAny=Boolean(d.toRevisionId||d.fromRevisionId||Array.isArray(d.changedActivities));
+    return {
+      state:featureAvailability({hasEstablishedResult:compared,hasUsefulEvidence:hasAny,prerequisitesSatisfied:compared}),
+      reason:compared?'A controlled from/to revision pair is available for change comparison.':
+        hasAny?'Programme evidence exists, but a controlled from/to revision pair is not established for change comparison.':
+        'At least two controlled programme revisions are required before Programme Changes can be calculated.',
+      prerequisiteCount:compared?2:hasAny?1:0,establishedResultCount:compared?2:null
+    };
+  }
   if(key==='quantity-scurve'){
     const series=array(d.series),mapped=series.filter((row:any)=>array(row?.points).length>0).length;
     const measured=d.installedQuantityStatus?.state==='available'||number(d.measurementReview?.measuredItemCount)!==null&&Number(d.measurementReview?.measuredItemCount)>0;

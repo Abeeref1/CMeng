@@ -46,6 +46,8 @@ export interface NearCriticalRow {
   activityId: string;
   name: string | null;
   wbsId: string | null;
+  wbsPath?: string | null;
+  affectedMilestoneIds?: string[];
   calendarId: string | null;
   status: string;
   totalFloatHours: number;
@@ -86,5 +88,19 @@ export interface NearCriticalProjection {
   watchlistRows: NearCriticalRow[];
   criticalRows: NearCriticalRow[];
   negativeFloatRows: NearCriticalRow[];
+  managementGroups?: Array<{
+    wbsId: string | null;
+    wbsPath: string | null;
+    activityCount: number;
+    activityIds: string[];
+    nearCriticalCount: number;
+    criticalCount: number;
+    negativeFloatCount: number;
+    lowestFloatHours: number | null;
+    earliestCurrentFinishIso: string | null;
+    affectedMilestoneIds: string[];
+    laterThanBaselineCount: number;
+    action: string;
+  }>;
   boundaryAudit: NearCriticalBoundaryAudit;
 }

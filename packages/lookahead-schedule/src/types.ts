@@ -65,6 +65,8 @@ export interface LookAheadActivityRow {
   activityId: string;
   name: string | null;
   wbsId: string | null;
+  wbsPath?: string | null;
+  affectedMilestoneIds?: string[];
   activityType: CanonicalActivityType;
   status: CanonicalActivityStatus;
   startIso: string | null;
@@ -102,6 +104,23 @@ export interface LookAheadProjection {
   blockerOccurrenceCount?: number;
   blockerTypes?: Array<{ documentType: string; activityCount: number; recordCount: number; recordIds: string[] }>;
   readinessCoverage?: Array<{ key: ReadinessDimensionKey; denominator: number; knownCount: number; coveragePercent: number | null; linkedActivityCount?:number; linkedSourceRecordCount?:number; unresolvedLinkedActivityCount?:number }>;
+  forwardWindowCount: number;
+  overdueBacklogCount: number;
+  overdueBacklogBlockedCount: number;
+  forwardWindowRows: LookAheadActivityRow[];
+  overdueBacklogRows: LookAheadActivityRow[];
+  managementInterventions?: Array<{
+    blockerType: ReadinessDimensionKey;
+    wbsId: string | null;
+    wbsPath: string | null;
+    activityCount: number;
+    activityIds: string[];
+    affectedMilestoneIds: string[];
+    requiredByIso: string | null;
+    owner: string | null;
+    action: string;
+    sourceRefs: string[];
+  }>;
   readyCount: number;
   conditionalCount: number;
   blockedCount: number;

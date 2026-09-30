@@ -61,11 +61,24 @@ function renderProjectDashboardSummary(d){
 }
 function renderProjectBrief(d){
  if(!d)return '';
- const drivers=(d.wbsRows||[]).filter(r=>r.pressureCount||r.drivingCount).slice(0,3);
+ const drivers=(d.wbsRows||[]).filter(r=>r.pressureCount||r.drivingCount).slice(0,4);
  const actions=(d.actions||[]).slice(0,5);
- const driverText=drivers.length?drivers.map(r=>String(r.wbs||'').split(' / ').slice(-3).join(' / ')).join('; '):'No concentrated schedule pressure is established from the readable programme fields.';
- const actionHtml=actions.length?'<ol>'+actions.map(r=>'<li><b>'+escapeHtml(r.reason)+'</b> '+escapeHtml(r.action)+'</li>').join('')+'</ol>':'<p>No immediate management action can be ranked from the available information.</p>';
- return '<section class="project-diagnosis management-brief"><header class="diagnosis-heading"><h3>Management brief</h3><p>Data Date '+planningShortDate(d.dataDateIso)+' · '+fmt(d.executionActivityCount)+' execution activities</p></header><p class="diagnosis-summary">'+escapeHtml(d.summary)+'</p><section class="diagnosis-section"><h4>What is driving the current position</h4><p>'+escapeHtml(driverText)+'</p></section><section class="diagnosis-section"><h4>Decisions and actions</h4>'+actionHtml+'</section><details><summary>Supporting programme detail</summary><p>Critical '+escapeHtml(diagnosisCell(d.counts?.critical?.knownCount))+' · Negative float '+escapeHtml(diagnosisCell(d.counts?.negativeFloat?.knownCount))+' · Near-critical '+escapeHtml(diagnosisCell(d.counts?.nearCritical?.knownCount))+'.</p><p>'+escapeHtml(d.limitation||'')+'</p></details></section>';
+ const milestones=(d.milestoneRows||[]).slice(0,5);
+ const revision=d.revision||{};
+ const driversHtml=drivers.length?'<div class="table-wrap"><table><thead><tr><th>Driver WBS / workfront</th><th>Pressure</th><th>Driving</th><th>Critical</th><th>Negative float</th><th>Lowest float</th></tr></thead><tbody>'+drivers.map(r=>'<tr><td><b>'+escapeHtml(String(r.wbs||'').split(' / ').slice(-3).join(' / ')||'Project scope')+'</b></td><td>'+escapeHtml(fmt(r.pressureCount||0))+'</td><td>'+escapeHtml(fmt(r.drivingCount||0))+'</td><td>'+escapeHtml(fmt(r.criticalCount||0))+'</td><td>'+escapeHtml(fmt(r.negativeFloatCount||0))+'</td><td>'+escapeHtml(r.worstFloatHours==null?'—':fmt(r.worstFloatHours)+' h')+'</td></tr>').join('')+'</tbody></table></div>':'<p>No concentrated schedule pressure is established from the readable programme fields.</p>';
+ const milestoneHtml=milestones.length?'<div class="table-wrap"><table><thead><tr><th>Milestone</th><th>Current date</th><th>Float</th><th>Exposure</th><th>Action</th></tr></thead><tbody>'+milestones.map(r=>'<tr><td><b>'+escapeHtml(r.activityId)+'</b><br>'+escapeHtml(r.name||'')+'</td><td>'+escapeHtml(planningShortDate(r.currentFinishIso||r.currentDateIso))+'</td><td>'+escapeHtml(r.totalFloatHours==null?'—':fmt(r.totalFloatHours)+' h')+'</td><td>'+escapeHtml(r.reason||r.priority||'Monitor')+'</td><td>'+escapeHtml(r.action||'Confirm the milestone protection action.')+'</td></tr>').join('')+'</tbody></table></div>':'<p>No priority milestone exposure is established from the current programme evidence.</p>';
+ const actionHtml=actions.length?'<ol>'+actions.map(r=>'<li><b>'+escapeHtml(r.reason)+'</b><br><span class="muted">'+escapeHtml((r.activityIds||[r.activityId]).filter(Boolean).slice(0,5).join('; '))+(r.wbs?' · '+escapeHtml(String(r.wbs).split(' / ').slice(-3).join(' / ')):'')+'</span><br>'+escapeHtml(r.action)+'</li>').join('')+'</ol>':'<p>No immediate management action can be ranked from the available information.</p>';
+ const revisionHtml=revision.state==='available'
+   ?'<p><b>Previous programme comparison:</b> '+escapeHtml(fmt(revision.modified||0))+' changed, '+escapeHtml(fmt(revision.added||0))+' added and '+escapeHtml(fmt(revision.removed||0))+' removed activities. Submitted completion movement: '+escapeHtml(revision.finishMovementCalendarDays==null?'Unresolved':(revision.finishMovementCalendarDays>0?'+':'')+fmt(revision.finishMovementCalendarDays)+' elapsed days')+'.</p>'
+   :'<p>'+escapeHtml(revision.basis||'No applicable previous controlled revision is available for comparison.')+'</p>';
+ return '<section class="project-diagnosis management-brief"><header class="diagnosis-heading"><h3>Management brief</h3><p>Data Date '+planningShortDate(d.dataDateIso)+' · '+fmt(d.executionActivityCount)+' execution activities</p></header>'+
+   renderCompletionPosition(d.completion)+
+   '<p class="diagnosis-summary">'+escapeHtml(d.summary)+'</p>'+
+   '<section class="diagnosis-section"><h4>What is driving the current position</h4><p>Distinct WBS/workfront concentrations are shown rather than repeating the same finish-driving statement per activity.</p>'+driversHtml+'</section>'+
+   '<section class="diagnosis-section"><h4>Milestones to protect</h4>'+milestoneHtml+'</section>'+
+   '<section class="diagnosis-section"><h4>What changed since the previous programme</h4>'+revisionHtml+'</section>'+
+   '<section class="diagnosis-section"><h4>Decisions and actions</h4>'+actionHtml+'</section>'+
+   '<details><summary>Supporting programme detail</summary><p>Critical '+escapeHtml(diagnosisCell(d.counts?.critical?.knownCount))+' · Negative float '+escapeHtml(diagnosisCell(d.counts?.negativeFloat?.knownCount))+' · Near-critical '+escapeHtml(diagnosisCell(d.counts?.nearCritical?.knownCount))+'.</p><p>'+escapeHtml(d.limitation||'')+'</p></details></section>';
 }
 function renderProjectDiagnosis(d){
  if(!d)return '';
