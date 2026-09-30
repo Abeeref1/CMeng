@@ -78,9 +78,21 @@ export interface ProgrammeControlStagePosition {
   activityCount: number;
   openActivityCount: number;
   criticalOrNegativeFloatCount: number;
+  activityIds: string[];
+  wbsIds: string[];
+  wbsPaths: string[];
+  controlMilestoneIds: string[];
+  dependencyStages: ProgrammeControlStage[];
   earliestStartIso: string | null;
   latestFinishIso: string | null;
-  sampleActivities: Array<{activityId:string;name:string|null;wbsPath:string|null;finishIso:string|null;totalFloatHours:number|null}>;
+  earliestCurrentStartIso: string | null;
+  latestCurrentFinishIso: string | null;
+  latestForecastFinishIso: string | null;
+  lowestFloatHours: number | null;
+  sampleActivities: Array<{
+    activityId:string;name:string|null;wbsPath:string|null;
+    currentFinishIso:string|null;forecastFinishIso:string|null;finishIso:string|null;totalFloatHours:number|null
+  }>;
   basis: 'observed_programme_structure';
 }
 
@@ -95,27 +107,48 @@ const stageRules: Array<{stage:ProgrammeControlStage;label:string;pattern:RegExp
 export function programmeControlStages(model: CanonicalScheduleModel): ProgrammeControlStagePosition[] {
   const paths=wbsPathById(model);
   const buckets=new Map<ProgrammeControlStage,Array<typeof model.activities[number]>>();
+  const stageByActivity=new Map<string,ProgrammeControlStage>();
   const stageFor=(activity:typeof model.activities[number]):ProgrammeControlStage=>{
     const text=[activity.name,activity.wbsId?paths.get(activity.wbsId):null].filter(Boolean).join(' | ');
     return stageRules.find(rule=>rule.pattern.test(text))?.stage??'other';
   };
   for(const activity of model.activities){
     if(['level_of_effort','wbs_summary'].includes(activity.activityType))continue;
-    const stage=stageFor(activity),rows=buckets.get(stage)??[];rows.push(activity);buckets.set(stage,rows);
+    const stage=stageFor(activity),rows=buckets.get(stage)??[];
+    rows.push(activity);buckets.set(stage,rows);stageByActivity.set(activity.activityId,stage);
+  }
+  const incomingStages=new Map<ProgrammeControlStage,Set<ProgrammeControlStage>>();
+  for(const rel of model.relationships){
+    if(rel.external)continue;
+    const from=stageByActivity.get(rel.predecessorActivityId),to=stageByActivity.get(rel.successorActivityId);
+    if(!from||!to||from===to)continue;
+    const set=incomingStages.get(to)??new Set<ProgrammeControlStage>();set.add(from);incomingStages.set(to,set);
   }
   const ordered:ProgrammeControlStage[]=['design','procurement','construction','testing_commissioning','handover','other'];
   return ordered.flatMap(stage=>{
     const rows=buckets.get(stage)??[];if(!rows.length)return [];
-    const datesStart=rows.map(r=>r.currentStartIso).filter((v):v is string=>!!v).sort();
-    const datesFinish=rows.map(r=>r.forecastFinishIso??r.currentFinishIso).filter((v):v is string=>!!v).sort();
+    const currentStarts=rows.map(r=>r.currentStartIso).filter((v):v is string=>!!v).sort();
+    const currentFinishes=rows.map(r=>r.currentFinishIso).filter((v):v is string=>!!v).sort();
+    const forecastFinishes=rows.map(r=>r.forecastFinishIso).filter((v):v is string=>!!v).sort();
+    const effectiveFinishes=rows.map(r=>r.forecastFinishIso??r.currentFinishIso).filter((v):v is string=>!!v).sort();
     const open=rows.filter(r=>r.status!=='completed');
     const pressure=open.filter(r=>typeof r.totalFloatHours==='number'&&r.totalFloatHours<=0);
+    const knownFloat=open.map(r=>r.totalFloatHours).filter((v):v is number=>typeof v==='number'&&Number.isFinite(v));
     const rule=stageRules.find(r=>r.stage===stage);
+    const wbsIds=[...new Set(rows.map(r=>r.wbsId).filter((v):v is string=>!!v))];
+    const wbsPaths=[...new Set(wbsIds.map(id=>paths.get(id)??id))];
+    const controlMilestoneIds=rows.filter(r=>['milestone','start_milestone','finish_milestone'].includes(r.activityType)).map(r=>r.activityId);
     return [{
       stage,label:rule?.label??'Other programme scope',activityCount:rows.length,openActivityCount:open.length,
-      criticalOrNegativeFloatCount:pressure.length,earliestStartIso:datesStart[0]??null,latestFinishIso:datesFinish.at(-1)??null,
+      criticalOrNegativeFloatCount:pressure.length,
+      activityIds:rows.map(r=>r.activityId),wbsIds,wbsPaths,controlMilestoneIds,
+      dependencyStages:[...(incomingStages.get(stage)??new Set<ProgrammeControlStage>())],
+      earliestStartIso:currentStarts[0]??null,latestFinishIso:effectiveFinishes.at(-1)??null,
+      earliestCurrentStartIso:currentStarts[0]??null,latestCurrentFinishIso:currentFinishes.at(-1)??null,
+      latestForecastFinishIso:forecastFinishes.at(-1)??null,lowestFloatHours:knownFloat.length?Math.min(...knownFloat):null,
       sampleActivities:[...open].sort((a,b)=>(a.totalFloatHours??Number.MAX_SAFE_INTEGER)-(b.totalFloatHours??Number.MAX_SAFE_INTEGER))
         .slice(0,5).map(r=>({activityId:r.activityId,name:r.name,wbsPath:r.wbsId?paths.get(r.wbsId)??null:null,
+          currentFinishIso:r.currentFinishIso,forecastFinishIso:r.forecastFinishIso,
           finishIso:r.forecastFinishIso??r.currentFinishIso,totalFloatHours:r.totalFloatHours})),
       basis:'observed_programme_structure' as const,
     }];
