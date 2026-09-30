@@ -26,6 +26,21 @@ function procurementDocument(){
   } as any;
 }
 
+test('management source inventory exposes Interface evidence to cross-module control',()=>{
+  const doc:any={
+    ...procurementDocument(),documentId:'IF-1',documentType:'interface_register',sourceFilename:'Interface Register.csv',
+    sourceHashSha256:'if-hash',familyKey:'interfaces',logicalDocumentKey:'interfaces',
+    tabularRead:{producerVersion:'test',sourceHashSha256:'if-hash',sheets:[{name:'Interfaces',rows:[
+      ['Interface ID','Giving Party','Receiving Party','Required Date'],
+      ['IF-001','Civil','MEP','2030-04-01']
+    ]}]}
+  };
+  const inventory=managementSourceInventory({version:1,evidenceDocuments:[doc]} as any);
+  const interfaces=inventory.domains.find(row=>row.domain==='interfaces');
+  assert.equal(interfaces?.documentCount,1);
+  assert.equal(interfaces?.readableRowCount,1);
+});
+
 test('management source inventory preserves readable procurement evidence and explicit long-lead marks',()=>{
   const state={version:1,evidenceDocuments:[procurementDocument()]} as any;
   const inventory=managementSourceInventory(state);
