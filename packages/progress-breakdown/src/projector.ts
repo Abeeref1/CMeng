@@ -57,6 +57,7 @@ function buildRow(
     (activity) =>
       activity.totalFloatHours !== null,
   );
+  const progress = scheduleProgress(activities);
 
   return {
     wbsId,
@@ -83,8 +84,8 @@ function buildRow(
       pctKnown.length,
       activities.length,
     ),
-    durationWeightedProgressPercent: scheduleProgress(activities).value,
-    durationWeightedCoveragePercent: scheduleProgress(activities).coveragePercent,
+    durationWeightedProgressPercent: progress.value,
+    durationWeightedCoveragePercent: progress.coveragePercent,
     originalDurationHoursKnown:
       activities.reduce(
         (sum, activity) =>
@@ -183,43 +184,68 @@ export function buildProgressBreakdownProjection(
   const effectiveFinish = (a:CanonicalScheduleActivity) => a.status==="completed"
     ? a.actualFinishIso ?? a.forecastFinishIso ?? a.currentFinishIso
     : a.forecastFinishIso ?? a.currentFinishIso;
-  const managementSignals = (activities:readonly CanonicalScheduleActivity[]) => {
-    const ids=new Set(activities.map(a=>a.activityId));
-    const wbsIds=new Set(activities.map(a=>a.wbsId).filter((v):v is string=>Boolean(v)));
-    const finishes=activities.map(effectiveFinish).filter((v):v is string=>Boolean(v)).sort();
-    const delayed=activities.filter(a=>{
-      const finish=effectiveFinish(a),finishMs=finish?Date.parse(finish):NaN;
-      const baseline=a.baselineFinishIso?Date.parse(a.baselineFinishIso):NaN;
-      return a.status!=="completed"&&(
+  const wbsNameForSignals = new Map(model.wbs.map(wbs=>[wbs.wbsId,wbs.name]));
+  const milestoneThreatsByWbs = new Map<string,string[]>();
+  for(const activity of model.activities){
+    if(!["milestone","start_milestone","finish_milestone"].includes(activity.activityType)||
+      activity.status==="completed"||activity.wbsId===null||
+      (typeof activity.totalFloatHours==="number"&&activity.totalFloatHours>0))continue;
+    const list=milestoneThreatsByWbs.get(activity.wbsId)??[];
+    if(list.length<10)list.push(activity.activityId);
+    milestoneThreatsByWbs.set(activity.wbsId,list);
+  }
+  const signalByActivity = new Map(model.activities.map(activity=>{
+    const finishIso=effectiveFinish(activity);
+    const finishMs=finishIso?Date.parse(finishIso):NaN;
+    const baselineMs=activity.baselineFinishIso?Date.parse(activity.baselineFinishIso):NaN;
+    const readiness=input.readinessEvidence?.[activity.activityId];
+    return [activity.activityId,{
+      finishIso,
+      delayed:activity.status!=="completed"&&(
         (Number.isFinite(dataDateMs)&&Number.isFinite(finishMs)&&finishMs<dataDateMs)||
-        (Number.isFinite(baseline)&&Number.isFinite(finishMs)&&finishMs>baseline)
-      );
-    });
-    const milestoneThreatIds=model.activities.filter(a=>
-      ["milestone","start_milestone","finish_milestone"].includes(a.activityType)&&
-      a.status!=="completed"&&a.wbsId!==null&&wbsIds.has(a.wbsId)&&
-      (typeof a.totalFloatHours==="number"?a.totalFloatHours<=0:true)
-    ).map(a=>a.activityId).slice(0,10);
-    const longLeadActivityCount=activities.filter(a=>longLeadPattern.test([a.name,a.wbsId?model.wbs.find(w=>w.wbsId===a.wbsId)?.name:null].filter(Boolean).join(" "))).length;
-    let procurementBlockerCount=0,designBlockerCount=0;
-    for(const id of ids){
-      const readiness=input.readinessEvidence?.[id];
-      if(readiness?.procurement_material?.state==="blocked")procurementBlockerCount++;
-      if(readiness?.design_submittal?.state==="blocked")designBlockerCount++;
+        (Number.isFinite(baselineMs)&&Number.isFinite(finishMs)&&finishMs>baselineMs)
+      ),
+      longLead:longLeadPattern.test([activity.name,activity.wbsId?wbsNameForSignals.get(activity.wbsId):null].filter(Boolean).join(" ")),
+      procurementBlocked:readiness?.procurement_material?.state==="blocked",
+      designBlocked:readiness?.design_submittal?.state==="blocked",
+      pressure:typeof activity.totalFloatHours==="number"&&activity.totalFloatHours<=0,
+    }] as const;
+  }));
+  const managementSignals = (activities:readonly CanonicalScheduleActivity[]) => {
+    const wbsIds=new Set<string>();
+    let forecastFinishIso:string|null=null,delayedActivityCount=0,longLeadActivityCount=0;
+    let procurementBlockerCount=0,designBlockerCount=0,criticalOrNegative=0;
+    for(const activity of activities){
+      if(activity.wbsId)wbsIds.add(activity.wbsId);
+      const signal=signalByActivity.get(activity.activityId);
+      if(!signal)continue;
+      if(signal.finishIso&&(!forecastFinishIso||signal.finishIso>forecastFinishIso))forecastFinishIso=signal.finishIso;
+      if(signal.delayed)delayedActivityCount++;
+      if(signal.longLead)longLeadActivityCount++;
+      if(signal.procurementBlocked)procurementBlockerCount++;
+      if(signal.designBlocked)designBlockerCount++;
+      if(signal.pressure)criticalOrNegative++;
     }
-    const criticalOrNegative=activities.filter(a=>typeof a.totalFloatHours==="number"&&a.totalFloatHours<=0).length;
+    const milestoneThreatIds:string[]=[];
+    for(const wbsId of wbsIds){
+      for(const id of milestoneThreatsByWbs.get(wbsId)??[]){
+        if(!milestoneThreatIds.includes(id))milestoneThreatIds.push(id);
+        if(milestoneThreatIds.length>=10)break;
+      }
+      if(milestoneThreatIds.length>=10)break;
+    }
     const managementAction = procurementBlockerCount>0
       ? "Expedite procurement/material blockers and protect the affected workfront dates."
       : designBlockerCount>0
         ? "Close design/RFI/submittal blockers before the affected workfront proceeds."
-        : delayed.length>0
+        : delayedActivityCount>0
           ? "Agree recovery dates and accountable actions for delayed activities in this scope."
           : criticalOrNegative>0
             ? "Protect remaining float and monitor the critical/negative-float activities."
             : "Monitor the current plan and recorded progress for this scope.";
     return {
-      forecastFinishIso:finishes.at(-1)??null,
-      delayedActivityCount:delayed.length,
+      forecastFinishIso,
+      delayedActivityCount,
       milestoneThreatIds,
       longLeadActivityCount,
       procurementBlockerCount,
