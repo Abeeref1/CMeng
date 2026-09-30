@@ -28,9 +28,9 @@ test('population zero is only authoritative for an established population',()=>{
 
 test('best available fact prefers usable higher-authority evidence without erasing qualified evidence',()=>{
   const facts:ManagementFactView<number>[]=[
-    managementFactView({key:'gap',label:'Gap',value:null,state:'missing',authority:'none',basis:'missing',coverage:{known:0,total:1}}),
-    managementFactView({key:'candidate',label:'Candidate',value:49,state:'candidate',authority:'candidate',basis:'schedule WBS',limitation:'Procurement status not established',coverage:{known:49,total:49},dataDateIso:'2030-01-31',diagnostics:['QUALIFIED_SCOPE'],population:pop('candidate')}),
-    managementFactView({key:'source',label:'Source',value:12,state:'partial',authority:'source',basis:'source rows',limitation:'Population incomplete',coverage:{known:12,total:20},dataDateIso:'2030-01-31',population:pop('partial')}),
+    managementFactView<number>({key:'gap',label:'Gap',value:null,state:'missing',authority:'none',basis:'missing',coverage:{known:0,total:1}}),
+    managementFactView<number>({key:'candidate',label:'Candidate',value:49,state:'candidate',authority:'candidate',basis:'schedule WBS',limitation:'Procurement status not established',coverage:{known:49,total:49},dataDateIso:'2030-01-31',diagnostics:['QUALIFIED_SCOPE'],population:pop('candidate')}),
+    managementFactView<number>({key:'source',label:'Source',value:12,state:'partial',authority:'source',basis:'source rows',limitation:'Population incomplete',coverage:{known:12,total:20},dataDateIso:'2030-01-31',population:pop('partial')}),
   ];
   assert.equal(bestAvailableFact(facts)?.key,'source');
   assert.equal(bestAvailableFact([facts[0]!,facts[1]!])?.value,49);
