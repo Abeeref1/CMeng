@@ -3,14 +3,16 @@ import type {
   CanonicalScheduleModel,
 } from "../../schedule-analysis-core/src";
 import {
-  ELAPSED_24H_CALENDAR,
   parseScheduleInstant,
   workingHoursBetween,
 } from "../../schedule-cpm/src";
-import type {
-  CanonicalResource,
-  CanonicalResourceAssignment,
-  CanonicalResourceModel,
+import {
+  resourceBusinessClass,
+  resourceCapacityEligible,
+  type CanonicalResource,
+  type CanonicalResourceAssignment,
+  type CanonicalResourceModel,
+  type ResourceBusinessClass,
 } from "../../schedule-resource-core/src";
 import type {
   ResourceUtilizationProjection,
@@ -94,7 +96,7 @@ function calendarFor(
   resource: CanonicalResource,
   schedule: CanonicalScheduleModel,
 ): {
-  calendar: CanonicalCalendar;
+  calendar: CanonicalCalendar | null;
   assumption: string | null;
 } {
   const activity =
@@ -129,9 +131,9 @@ function calendarFor(
   }
 
   return {
-    calendar: ELAPSED_24H_CALENDAR,
+    calendar: null,
     assumption:
-      "RESOURCE_RATE_DERIVATION_USED_24H_ELAPSED_FALLBACK",
+      "RESOURCE_RATE_DERIVATION_CALENDAR_UNRESOLVED",
   };
 }
 
@@ -183,6 +185,10 @@ function derivedRate(
     resource,
     schedule,
   );
+  if (!resolved.calendar) {
+    return { rate: null, assumption: resolved.assumption };
+  }
+
   const hours = workingHoursBetween(
     resolved.calendar,
     start,
@@ -209,6 +215,7 @@ function peakRate(
   mode: "planned" | "remaining",
 ): {
   peak: number | null;
+  peakAtIso: string | null;
   knownCount: number;
   coveragePercent: number | null;
   assumptions: string[];
@@ -300,10 +307,14 @@ function peakRate(
 
   let current = 0;
   let peak = 0;
+  let peakAt: number | null = null;
 
   for (const event of events) {
     current += event.delta;
-    peak = Math.max(peak, current);
+    if (current > peak) {
+      peak = current;
+      peakAt = event.ms;
+    }
   }
 
   return {
@@ -311,6 +322,10 @@ function peakRate(
       knownCount === 0
         ? null
         : Number(peak.toFixed(6)),
+    peakAtIso:
+      knownCount === 0 || peakAt === null
+        ? null
+        : new Date(peakAt).toISOString(),
     knownCount,
     coveragePercent: coverage(
       knownCount,
@@ -466,12 +481,21 @@ export function buildResourceUtilizationProjection(
     );
   }
 
+  const activityById = new Map(
+    schedule.activities.map(activity => [activity.activityId, activity]),
+  );
+
   const rows: ResourceUtilizationRow[] =
     resources.resources.map((resource) => {
       const assignments =
         assignmentByResource.get(
           resource.resourceId,
         ) ?? [];
+
+      const businessClass =
+        resourceBusinessClass(resource);
+      const canAssessCapacity =
+        resourceCapacityEligible(businessClass);
 
       const planned = aggregate(
         assignments,
@@ -492,35 +516,77 @@ export function buildResourceUtilizationProjection(
         atCompletionUnits,
       );
 
-      const plannedPeak = peakRate(
-        assignments,
-        resource,
-        schedule,
-        "planned",
-      );
-      const remainingPeak = peakRate(
-        assignments,
-        resource,
-        schedule,
-        "remaining",
-      );
+      const plannedPeak = canAssessCapacity
+        ? peakRate(
+            assignments,
+            resource,
+            schedule,
+            "planned",
+          )
+        : {
+            peak: null,
+            peakAtIso: null,
+            knownCount: 0,
+            coveragePercent: null,
+            assumptions: [],
+          };
+      const remainingPeak = canAssessCapacity
+        ? peakRate(
+            assignments,
+            resource,
+            schedule,
+            "remaining",
+          )
+        : {
+            peak: null,
+            peakAtIso: null,
+            knownCount: 0,
+            coveragePercent: null,
+            assumptions: [],
+          };
 
-      const capacity =
-        effectiveCapacity(
-          resource,
-          schedule.dataDateIso,
-        );
+      const capacity = canAssessCapacity
+        ? effectiveCapacity(
+            resource,
+            schedule.dataDateIso,
+          )
+        : {
+            value: null,
+            effectiveDateIso: null,
+          };
 
-      const plannedUtilization =
-        percentage(
-          plannedPeak.peak,
-          capacity.value,
-        );
-      const remainingUtilization =
-        percentage(
-          remainingPeak.peak,
-          capacity.value,
-        );
+      const plannedUtilization = canAssessCapacity
+        ? percentage(
+            plannedPeak.peak,
+            capacity.value,
+          )
+        : null;
+      const remainingUtilization = canAssessCapacity
+        ? percentage(
+            remainingPeak.peak,
+            capacity.value,
+          )
+        : null;
+
+      const affectedActivityIds = [...new Set(assignments.map(assignment => assignment.activityId).filter(Boolean))];
+      const affectedWbsIds = [...new Set(affectedActivityIds.map(id => activityById.get(id)?.wbsId ?? null).filter((id): id is string => Boolean(id)))];
+      const affectedActivities = affectedActivityIds.map(id => activityById.get(id)).filter((row): row is NonNullable<typeof row> => Boolean(row));
+      const pressureCount = affectedActivities.filter(activity => typeof activity.totalFloatHours === "number" && activity.totalFloatHours <= 0).length;
+      const programmeEffect = affectedActivities.length === 0 ? null : pressureCount > 0
+        ? String(pressureCount) + " affected activity(ies) are on submitted critical/negative-float scope."
+        : "Affected programme scope is identified; project-completion effect is not established from resource evidence alone.";
+      const remainingCapacityGapUnitsPerHour =
+        canAssessCapacity && remainingPeak.peak !== null && capacity.value !== null
+          ? Number((remainingPeak.peak - capacity.value).toFixed(6))
+          : null;
+      const managementAction =
+        !canAssessCapacity
+          ? null
+          : remainingCapacityGapUnitsPerHour !== null && remainingCapacityGapUnitsPerHour > 0
+            ? 'Mobilise, reallocate or resequence this resource before the affected workfront demand peaks.'
+            : capacity.value === null
+              ? 'Confirm usable resource capacity before relying on utilization or overload conclusions.'
+              : 'Monitor the resource against its remaining-work peak and affected activities.';
 
       return {
         resourceId: resource.resourceId,
@@ -529,6 +595,8 @@ export function buildResourceUtilizationProjection(
           resource.shortName,
         resourceType:
           resource.resourceType,
+        businessClass,
+        capacityEligible: canAssessCapacity,
         assignmentCount:
           assignments.length,
 
@@ -581,12 +649,20 @@ export function buildResourceUtilizationProjection(
           remainingUtilization === null
             ? null
             : remainingUtilization > 100,
+        remainingCapacityGapUnitsPerHour,
+        peakRemainingAtIso: remainingPeak.peakAtIso,
+        affectedActivityIds,
+        affectedWbsIds,
+        managementAction,
+        programmeEffect,
         state:
           assignments.length === 0
             ? "no_assignments"
-            : capacity.value === null
-              ? "demand_only"
-              : "capacity_based",
+            : !canAssessCapacity
+              ? "not_capacity_resource"
+              : capacity.value === null
+                ? "demand_only"
+                : "capacity_based",
         assumptions: [
           ...new Set([
             ...plannedPeak.assumptions,
@@ -599,9 +675,27 @@ export function buildResourceUtilizationProjection(
   const assigned = rows.filter(
     (row) => row.assignmentCount > 0,
   );
-  const capacityBased = assigned.filter(
+  const capacityEligibleRows = assigned.filter(
+    (row) => row.capacityEligible,
+  );
+  const capacityBased = capacityEligibleRows.filter(
     (row) =>
       row.state === "capacity_based",
+  );
+  const businessClassCounts = rows.reduce(
+    (counts, row) => {
+      counts[row.businessClass] += 1;
+      return counts;
+    },
+    {
+      labor: 0,
+      equipment: 0,
+      material: 0,
+      cost: 0,
+      quantity: 0,
+      weight_progress: 0,
+      other: 0,
+    } as Record<ResourceBusinessClass, number>,
   );
 
   return {
@@ -625,11 +719,14 @@ export function buildResourceUtilizationProjection(
       "p6_resource_master",
     capacityBasedResourceCount:
       capacityBased.length,
+    capacityEligibleResourceCount:
+      capacityEligibleRows.length,
     capacityCoveragePercent:
       coverage(
         capacityBased.length,
-        assigned.length,
+        capacityEligibleRows.length,
       ),
+    businessClassCounts,
     overloadedResourceCount:
       capacityBased.filter(
         (row) =>

@@ -1,7 +1,9 @@
+import type {ResourceBusinessClass} from '../../schedule-resource-core/src';
 export type ResourceUtilizationState =
   | "capacity_based"
   | "demand_only"
-  | "no_assignments";
+  | "no_assignments"
+  | "not_capacity_resource";
 
 export interface ResourceUtilizationRow {
   resourceId: string;
@@ -11,6 +13,8 @@ export interface ResourceUtilizationRow {
     | "nonlabor"
     | "material"
     | "unknown";
+  businessClass: ResourceBusinessClass;
+  capacityEligible: boolean;
   assignmentCount: number;
 
   plannedUnitsKnown: number;
@@ -39,6 +43,12 @@ export interface ResourceUtilizationRow {
   plannedUtilizationPercent: number | null;
   remainingUtilizationPercent: number | null;
   overloaded: boolean | null;
+  remainingCapacityGapUnitsPerHour: number | null;
+  peakRemainingAtIso: string | null;
+  affectedActivityIds: string[];
+  affectedWbsIds: string[];
+  managementAction: string | null;
+  programmeEffect: string | null;
   state: ResourceUtilizationState;
   assumptions: string[];
 }
@@ -60,6 +70,8 @@ export interface ResourceUtilizationProjection {
   capacityBasedResourceCount: number;
   capacityCoveragePercent: number | null;
   overloadedResourceCount: number;
+  capacityEligibleResourceCount: number;
+  businessClassCounts: Record<ResourceBusinessClass, number>;
   rows: ResourceUtilizationRow[];
   diagnostics: string[];
 }

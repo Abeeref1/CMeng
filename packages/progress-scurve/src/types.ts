@@ -7,6 +7,9 @@ export type ScurveTimePhasingMethod =
 export interface ProgressScurvePoint {
   dateIso: string;
   baselinePlannedPercent: number | null;
+  /** Schedule-date phasing of the current programme. This is not achieved progress. */
+  currentSchedulePhasingPercent: number | null;
+  /** @deprecated Compatibility alias for currentSchedulePhasingPercent. */
   currentForecastPercent: number | null;
   actualProgressPercent: number | null;
 }
@@ -49,6 +52,7 @@ export interface ProgressScurveProjection {
     | "snapshot_history"
     | "current_snapshot_only"
     | "missing";
+  currentSeriesMeaning: "current_schedule_date_phasing_not_achieved_progress";
   points: ProgressScurvePoint[];
   actualSnapshots: ActualProgressSnapshot[];
   diagnostics: string[];

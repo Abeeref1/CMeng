@@ -31,6 +31,11 @@ export interface ManhourScurveProjection {
     | "missing";
 
   laborResourceCount: number;
+  laborResourceDefinitionCount: number;
+  laborHourResourceCount: number;
+  excludedNonHourLaborResourceIds: string[];
+  unresolvedUnitLaborAssignmentCount: number;
+  unitCompatibilityBasis: "explicit_hour_unit_required";
   laborAssignmentCount: number;
 
   plannedHoursKnown: number | null;

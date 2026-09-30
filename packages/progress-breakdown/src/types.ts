@@ -6,6 +6,15 @@ export interface ProgressBreakdownRow {
   previousScheduleProgressPercent?: number | null; previousComparisonCoveragePercent?: number | null;
   scheduleProgressMovementPercentagePoints?: number | null;
   contractorReportedPercent?: number | null; certifiedPhysicalPercent?: number | null;
+  physicalMeasuredPercent?: number | null;
+  forecastFinishIso?: string | null;
+  delayedActivityCount?: number;
+  milestoneThreatIds?: string[];
+  longLeadActivityCount?: number;
+  procurementBlockerCount?: number;
+  designBlockerCount?: number;
+  owner?: string | null;
+  managementAction?: string;
   wbsId: string;
   wbsName: string | null;
   activityCount: number;
@@ -78,6 +87,19 @@ export interface ProgressBreakdownGroupRow {
   criticalCount: number | null;
   nearCriticalCount: number | null;
   negativeFloatCount: number | null;
+  activityIds?: string[];
+  baselinePlannedPercent?: number | null;
+  currentPlanPercent?: number | null;
+  physicalMeasuredPercent?: number | null;
+  certifiedPhysicalPercent?: number | null;
+  forecastFinishIso?: string | null;
+  delayedActivityCount?: number;
+  milestoneThreatIds?: string[];
+  longLeadActivityCount?: number;
+  procurementBlockerCount?: number;
+  designBlockerCount?: number;
+  owner?: string | null;
+  managementAction?: string;
 }
 
 export interface ProgressBreakdownDimensionView {

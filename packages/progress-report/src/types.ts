@@ -2,6 +2,7 @@ export type ProgressBasisAuthority =
   | "deterministic_schedule"
   | "progress_snapshot"
   | "source_evidence"
+  | "earned_value"
   | "missing";
 
 export interface ProgressBasisValue {
@@ -73,10 +74,20 @@ export interface ProgressReportProjection {
   progressBases: {
     scheduleSnapshot?: ProgressBasisValue;
     baselinePlanned: ProgressBasisValue;
+    currentPlanned: ProgressBasisValue;
+    /** @deprecated Compatibility alias for currentPlanned. */
     currentSchedule: ProgressBasisValue;
     physical: ProgressBasisValue;
     contractorReported: ProgressBasisValue;
     certified: ProgressBasisValue;
+    earnedValue: ProgressBasisValue;
+  };
+  headlineProgress: {
+    key: "physical" | "certified" | "contractor_reported" | "earned_value" | "schedule_snapshot" | "missing";
+    label: string;
+    valuePercent: number | null;
+    authority: ProgressBasisAuthority;
+    basis: string;
   };
   scopeComparison?: import('../../progress-scurve/src').ProgressScurveProjection['scopeComparison'];
 

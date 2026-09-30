@@ -57,6 +57,7 @@ function buildRow(
     (activity) =>
       activity.totalFloatHours !== null,
   );
+  const progress = scheduleProgress(activities);
 
   return {
     wbsId,
@@ -83,8 +84,8 @@ function buildRow(
       pctKnown.length,
       activities.length,
     ),
-    durationWeightedProgressPercent: scheduleProgress(activities).value,
-    durationWeightedCoveragePercent: scheduleProgress(activities).coveragePercent,
+    durationWeightedProgressPercent: progress.value,
+    durationWeightedCoveragePercent: progress.coveragePercent,
     originalDurationHoursKnown:
       activities.reduce(
         (sum, activity) =>
@@ -128,6 +129,7 @@ export function buildProgressBreakdownProjection(
     config?: ScheduleAnalysisConfig;
     baselineModel?: CanonicalScheduleModel | null;
     previousModel?: CanonicalScheduleModel | null;
+    readinessEvidence?: Record<string, Partial<Record<"procurement_material"|"design_submittal", {state:string}>>>;
     scopeClassification?: {
       rows: Array<{
         activityId: string;
@@ -177,6 +179,83 @@ export function buildProgressBreakdownProjection(
   const previousMatches = input.previousModel ? resolveRevisionActivityCorrespondence(input.previousModel.activities, model.activities) : null;
   const previousById = new Map(input.previousModel?.activities.map(a=>[a.activityId,a]) ?? []);
   const previous = new Map(previousMatches?.matches.map(match=>[match.toActivityId,previousById.get(match.fromActivityId)!]) ?? []);
+  const dataDateMs = model.dataDateIso ? Date.parse(model.dataDateIso) : NaN;
+  const longLeadPattern = /\blong[\s-]?lead\b|\bprocurement\b|\bmaterial\b|\bvendor\b|\bmanufactur(?:e|ing)\b|\bfabrication\b/i;
+  const effectiveFinish = (a:CanonicalScheduleActivity) => a.status==="completed"
+    ? a.actualFinishIso ?? a.forecastFinishIso ?? a.currentFinishIso
+    : a.forecastFinishIso ?? a.currentFinishIso;
+  const wbsNameForSignals = new Map(model.wbs.map(wbs=>[wbs.wbsId,wbs.name]));
+  const milestoneThreatsByWbs = new Map<string,string[]>();
+  for(const activity of model.activities){
+    if(!["milestone","start_milestone","finish_milestone"].includes(activity.activityType)||
+      activity.status==="completed"||activity.wbsId===null||
+      (typeof activity.totalFloatHours==="number"&&activity.totalFloatHours>0))continue;
+    const list=milestoneThreatsByWbs.get(activity.wbsId)??[];
+    if(list.length<10)list.push(activity.activityId);
+    milestoneThreatsByWbs.set(activity.wbsId,list);
+  }
+  const signalByActivity = new Map(model.activities.map(activity=>{
+    const finishIso=effectiveFinish(activity);
+    const finishMs=finishIso?Date.parse(finishIso):NaN;
+    const baselineMs=activity.baselineFinishIso?Date.parse(activity.baselineFinishIso):NaN;
+    const readiness=input.readinessEvidence?.[activity.activityId];
+    return [activity.activityId,{
+      finishIso,
+      delayed:activity.status!=="completed"&&(
+        (Number.isFinite(dataDateMs)&&Number.isFinite(finishMs)&&finishMs<dataDateMs)||
+        (Number.isFinite(baselineMs)&&Number.isFinite(finishMs)&&finishMs>baselineMs)
+      ),
+      longLead:longLeadPattern.test([activity.name,activity.wbsId?wbsNameForSignals.get(activity.wbsId):null].filter(Boolean).join(" ")),
+      procurementBlocked:readiness?.procurement_material?.state==="blocked",
+      designBlocked:readiness?.design_submittal?.state==="blocked",
+      pressure:typeof activity.totalFloatHours==="number"&&activity.totalFloatHours<=0,
+    }] as const;
+  }));
+  const managementSignals = (activities:readonly CanonicalScheduleActivity[]) => {
+    const wbsIds=new Set<string>();
+    let forecastFinishIso:string|null=null,delayedActivityCount=0,longLeadActivityCount=0;
+    let procurementBlockerCount=0,designBlockerCount=0,criticalOrNegative=0;
+    for(const activity of activities){
+      if(activity.wbsId)wbsIds.add(activity.wbsId);
+      const signal=signalByActivity.get(activity.activityId);
+      if(!signal)continue;
+      if(signal.finishIso&&(!forecastFinishIso||signal.finishIso>forecastFinishIso))forecastFinishIso=signal.finishIso;
+      if(signal.delayed)delayedActivityCount++;
+      if(signal.longLead)longLeadActivityCount++;
+      if(signal.procurementBlocked)procurementBlockerCount++;
+      if(signal.designBlocked)designBlockerCount++;
+      if(signal.pressure)criticalOrNegative++;
+    }
+    const milestoneThreatIds:string[]=[];
+    for(const wbsId of wbsIds){
+      for(const id of milestoneThreatsByWbs.get(wbsId)??[]){
+        if(!milestoneThreatIds.includes(id))milestoneThreatIds.push(id);
+        if(milestoneThreatIds.length>=10)break;
+      }
+      if(milestoneThreatIds.length>=10)break;
+    }
+    const managementAction = procurementBlockerCount>0
+      ? "Expedite procurement/material blockers and protect the affected workfront dates."
+      : designBlockerCount>0
+        ? "Close design/RFI/submittal blockers before the affected workfront proceeds."
+        : delayedActivityCount>0
+          ? "Agree recovery dates and accountable actions for delayed activities in this scope."
+          : criticalOrNegative>0
+            ? "Protect remaining float and monitor the critical/negative-float activities."
+            : "Monitor the current plan and recorded progress for this scope.";
+    return {
+      forecastFinishIso,
+      delayedActivityCount,
+      milestoneThreatIds,
+      longLeadActivityCount,
+      procurementBlockerCount,
+      designBlockerCount,
+      owner:null,
+      managementAction,
+      physicalMeasuredPercent:null,
+      certifiedPhysicalPercent:null,
+    };
+  };
   const enrich = (row: ProgressBreakdownRow, activities: readonly CanonicalScheduleActivity[]) => {
     const eligibleCount = scheduleProgress(activities).totalCount;
     const weighted = (basis: "baseline" | "current") => {
@@ -196,7 +275,8 @@ export function buildProgressBreakdownProjection(
       scheduleMinusBaselinePercentagePoints: row.durationWeightedProgressPercent !== null && baseline.value !== null ? Number((row.durationWeightedProgressPercent-baseline.value).toFixed(6)) : null,
       previousScheduleProgressPercent: priorProgress.value, previousComparisonCoveragePercent: coverage(prior.length,activities.length),
       scheduleProgressMovementPercentagePoints: priorProgress.value !== null && prior.length === activities.length && row.durationWeightedProgressPercent !== null ? Number((row.durationWeightedProgressPercent-priorProgress.value).toFixed(6)) : null,
-      contractorReportedPercent: null, certifiedPhysicalPercent: null,
+      contractorReportedPercent: null,
+      ...managementSignals(activities),
     };
   };
   const rows = [...groups.entries()]
@@ -332,7 +412,7 @@ export function buildProgressBreakdownProjection(
     activities: CanonicalScheduleActivity[],
   ) => {
     const progress = scheduleProgress(activities);
-    const row = buildRow(model, groupKey, groupLabel, activities, config);
+    const row = enrich(buildRow(model, groupKey, groupLabel, activities, config), activities);
     const weightSharePercent = overallKnownWeightHours > 0
       ? Number((progress.knownWeightHours / overallKnownWeightHours * 100).toFixed(6))
       : null;
@@ -345,6 +425,19 @@ export function buildProgressBreakdownProjection(
       groupKey,
       groupLabel,
       classified,
+      activityIds: activities.map(activity=>activity.activityId),
+      baselinePlannedPercent: row.baselinePlannedPercent ?? null,
+      currentPlanPercent: row.currentPlanPercent ?? null,
+      physicalMeasuredPercent: row.physicalMeasuredPercent ?? null,
+      certifiedPhysicalPercent: row.certifiedPhysicalPercent ?? null,
+      forecastFinishIso: row.forecastFinishIso ?? null,
+      delayedActivityCount: row.delayedActivityCount ?? 0,
+      milestoneThreatIds: row.milestoneThreatIds ?? [],
+      longLeadActivityCount: row.longLeadActivityCount ?? 0,
+      procurementBlockerCount: row.procurementBlockerCount ?? 0,
+      designBlockerCount: row.designBlockerCount ?? 0,
+      owner: row.owner ?? null,
+      managementAction: row.managementAction ?? "Monitor the current plan and recorded progress for this scope.",
       activityCount: activities.length,
       completedCount: row.completedCount,
       inProgressCount: row.inProgressCount,
