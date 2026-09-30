@@ -69,9 +69,62 @@ export function scheduleLongLeadEvidence(
     }));
 }
 
+export type ProgrammeControlStage = 'design' | 'procurement' | 'construction' | 'testing_commissioning' | 'handover' | 'other';
+
+export interface ProgrammeControlStagePosition {
+  stage: ProgrammeControlStage;
+  label: string;
+  activityCount: number;
+  openActivityCount: number;
+  criticalOrNegativeFloatCount: number;
+  earliestStartIso: string | null;
+  latestFinishIso: string | null;
+  sampleActivities: Array<{activityId:string;name:string|null;wbsPath:string|null;finishIso:string|null;totalFloatHours:number|null}>;
+  basis: 'observed_programme_structure';
+}
+
+const stageRules: Array<{stage:ProgrammeControlStage;label:string;pattern:RegExp}> = [
+  {stage:'design',label:'Design & approvals',pattern:/\bdesign\b|\bdrawing\b|\bshop drawing\b|\brfi\b|\bsubmittal\b|\bapproval\b|\bengineering\b/i},
+  {stage:'procurement',label:'Procurement & long lead',pattern:/\blong[\s-]?lead\b|\bprocurement\b|\bmaterial\b|\bvendor\b|\bmanufactur(?:e|ing)\b|\bfabrication\b|\bdelivery\b/i},
+  {stage:'testing_commissioning',label:'Testing & commissioning',pattern:/\btest(?:ing)?\b|\bcommission(?:ing)?\b|\benerg(?:ise|ize|isation|ization)\b|\bstart[\s-]?up\b/i},
+  {stage:'handover',label:'Handover & closeout',pattern:/\bhandover\b|\bclose[\s-]?out\b|\bsnag\b|\bas[\s-]?built\b|\bo\s*&\s*m\b|\btaking over\b/i},
+  {stage:'construction',label:'Construction',pattern:/\bconstruct(?:ion)?\b|\binstall(?:ation|ing)?\b|\bcivil\b|\bstructur(?:al|e)\b|\bexcavat(?:e|ion)\b|\bconcrete\b|\bmep\b|\bmechanical\b|\belectrical\b|\bpipe(?:work)?\b/i},
+];
+
+export function programmeControlStages(model: CanonicalScheduleModel): ProgrammeControlStagePosition[] {
+  const paths=wbsPathById(model);
+  const buckets=new Map<ProgrammeControlStage,Array<typeof model.activities[number]>>();
+  const stageFor=(activity:typeof model.activities[number]):ProgrammeControlStage=>{
+    const text=[activity.name,activity.wbsId?paths.get(activity.wbsId):null].filter(Boolean).join(' | ');
+    return stageRules.find(rule=>rule.pattern.test(text))?.stage??'other';
+  };
+  for(const activity of model.activities){
+    if(['level_of_effort','wbs_summary'].includes(activity.activityType))continue;
+    const stage=stageFor(activity),rows=buckets.get(stage)??[];rows.push(activity);buckets.set(stage,rows);
+  }
+  const ordered:ProgrammeControlStage[]=['design','procurement','construction','testing_commissioning','handover','other'];
+  return ordered.flatMap(stage=>{
+    const rows=buckets.get(stage)??[];if(!rows.length)return [];
+    const datesStart=rows.map(r=>r.currentStartIso).filter((v):v is string=>!!v).sort();
+    const datesFinish=rows.map(r=>r.forecastFinishIso??r.currentFinishIso).filter((v):v is string=>!!v).sort();
+    const open=rows.filter(r=>r.status!=='completed');
+    const pressure=open.filter(r=>typeof r.totalFloatHours==='number'&&r.totalFloatHours<=0);
+    const rule=stageRules.find(r=>r.stage===stage);
+    return [{
+      stage,label:rule?.label??'Other programme scope',activityCount:rows.length,openActivityCount:open.length,
+      criticalOrNegativeFloatCount:pressure.length,earliestStartIso:datesStart[0]??null,latestFinishIso:datesFinish.at(-1)??null,
+      sampleActivities:[...open].sort((a,b)=>(a.totalFloatHours??Number.MAX_SAFE_INTEGER)-(b.totalFloatHours??Number.MAX_SAFE_INTEGER))
+        .slice(0,5).map(r=>({activityId:r.activityId,name:r.name,wbsPath:r.wbsId?paths.get(r.wbsId)??null:null,
+          finishIso:r.forecastFinishIso??r.currentFinishIso,totalFloatHours:r.totalFloatHours})),
+      basis:'observed_programme_structure' as const,
+    }];
+  });
+}
+
 export function projectManagementContext(state: ProjectRuntimeState) {
   const schedule = projectControlSchedule(state)?.revision.model ?? null;
   const scheduleLongLead = schedule ? scheduleLongLeadEvidence(schedule) : [];
+  const programmeStages = schedule ? programmeControlStages(schedule) : [];
   const boq = boqScopeIntelligence(state);
   const sourceInventory = managementSourceInventory(state);
   return {
@@ -82,6 +135,7 @@ export function projectManagementContext(state: ProjectRuntimeState) {
       activityCount: schedule.activities.length,
       relationshipCount: schedule.relationships.length,
       longLeadEvidence: scheduleLongLead,
+      programmeStages,
     } : null,
     boq: {
       itemCount: boq.itemCount,
