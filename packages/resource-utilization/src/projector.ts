@@ -212,6 +212,7 @@ function peakRate(
   mode: "planned" | "remaining",
 ): {
   peak: number | null;
+  peakAtIso: string | null;
   knownCount: number;
   coveragePercent: number | null;
   assumptions: string[];
@@ -303,10 +304,14 @@ function peakRate(
 
   let current = 0;
   let peak = 0;
+  let peakAt: number | null = null;
 
   for (const event of events) {
     current += event.delta;
-    peak = Math.max(peak, current);
+    if (current > peak) {
+      peak = current;
+      peakAt = event.ms;
+    }
   }
 
   return {
@@ -314,6 +319,10 @@ function peakRate(
       knownCount === 0
         ? null
         : Number(peak.toFixed(6)),
+    peakAtIso:
+      knownCount === 0 || peakAt === null
+        ? null
+        : new Date(peakAt).toISOString(),
     knownCount,
     coveragePercent: coverage(
       knownCount,
@@ -509,6 +518,7 @@ export function buildResourceUtilizationProjection(
           )
         : {
             peak: null,
+            peakAtIso: null,
             knownCount: 0,
             coveragePercent: null,
             assumptions: [],
@@ -522,6 +532,7 @@ export function buildResourceUtilizationProjection(
           )
         : {
             peak: null,
+            peakAtIso: null,
             knownCount: 0,
             coveragePercent: null,
             assumptions: [],
@@ -549,6 +560,22 @@ export function buildResourceUtilizationProjection(
             capacity.value,
           )
         : null;
+
+      const affectedActivityIds = [...new Set(assignments.map(assignment => assignment.activityId).filter(Boolean))];
+      const activityById = new Map(schedule.activities.map(activity => [activity.activityId, activity]));
+      const affectedWbsIds = [...new Set(affectedActivityIds.map(id => activityById.get(id)?.wbsId ?? null).filter((id): id is string => Boolean(id)))];
+      const remainingCapacityGapUnitsPerHour =
+        canAssessCapacity && remainingPeak.peak !== null && capacity.value !== null
+          ? Number((remainingPeak.peak - capacity.value).toFixed(6))
+          : null;
+      const managementAction =
+        !canAssessCapacity
+          ? null
+          : remainingCapacityGapUnitsPerHour !== null && remainingCapacityGapUnitsPerHour > 0
+            ? 'Mobilise, reallocate or resequence this resource before the affected workfront demand peaks.'
+            : capacity.value === null
+              ? 'Confirm usable resource capacity before relying on utilization or overload conclusions.'
+              : 'Monitor the resource against its remaining-work peak and affected activities.';
 
       return {
         resourceId: resource.resourceId,
@@ -611,6 +638,11 @@ export function buildResourceUtilizationProjection(
           remainingUtilization === null
             ? null
             : remainingUtilization > 100,
+        remainingCapacityGapUnitsPerHour,
+        peakRemainingAtIso: remainingPeak.peakAtIso,
+        affectedActivityIds,
+        affectedWbsIds,
+        managementAction,
         state:
           assignments.length === 0
             ? "no_assignments"
