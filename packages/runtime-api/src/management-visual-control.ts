@@ -3,7 +3,7 @@ import type {ModuleRuntimeResult,ProjectRuntimeState} from './project-state-type
 import {managementSourceInventory} from './management-source-inventory';
 import {boqScopeIntelligence} from './boq-scope-intelligence';
 import {projectManagementContext} from './management-context';
-import {bestAvailableFact,type ManagementFactView} from '../../truth-kernel/src';
+import {bestAvailableFact,managementFactView,type ManagementFactView,type PopulationAuthority} from '../../truth-kernel/src';
 
 const data=(modules:Map<string,ModuleRuntimeResult>,key:string):any=>{
   const value=modules.get(key)?.data;
@@ -22,9 +22,14 @@ export function managementVisualControl(
   const sourceLongLeadCount=procurementSource?.signals.longLeadMarkedCount??null;
   const scheduleLongLead=managementContext.schedule?.longLeadEvidence??[];
   const boqScope=boqScopeIntelligence(state);
-  const countFact=(key:string,label:string,value:number,basis:string,authority:ManagementFactView<number>['authority'],state:ManagementFactView<number>['state']):ManagementFactView<number>=>({
-    key,label,value,state,authority,basis,limitation:null,receipts:[],coverage:{known:value,total:value}
-  });
+  const countFact=(key:string,label:string,value:number,basis:string,authority:ManagementFactView<number>['authority'],state:ManagementFactView<number>['state']):ManagementFactView<number>=>{
+    const populationState:PopulationAuthority['state']=state==='official'?'established':state==='partial'?'partial':state==='candidate'?'candidate':state==='quarantined'?'quarantined':state==='conflicted'?'conflicted':'missing';
+    return managementFactView({
+      key,label,value,state,authority,basis,dataDateIso:managementContext.dataDateIso,diagnostics:[],
+      receipts:[],coverage:{known:value,total:value},
+      population:{state:populationState,sourceCount:value,applicableCount:populationState==='established'?value:null,currentCount:populationState==='established'?value:null,excludedCount:0,coveragePercent:100,basis},
+    });
+  };
   const longLeadFacts:ManagementFactView<number>[]=[];
   if(typeof sourceLongLeadCount==='number'&&sourceLongLeadCount>0)longLeadFacts.push(
     countFact('source-long-lead','Source-marked long lead',sourceLongLeadCount,
