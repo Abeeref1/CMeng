@@ -48,6 +48,7 @@ export function managementVisualControl(
   const revision=data(modules,'revision-trend');
   const progress=data(modules,'progress-report');
   const progressCurve=data(modules,'progress-scurve');
+  const quantity=data(modules,'quantity-scurve');
   const delay=data(modules,'delay-claims');
   const notices=data(modules,'notices-claims');
   const eot=data(modules,'eot-assessment');
@@ -185,9 +186,84 @@ export function managementVisualControl(
     sourceLabor:challenge.sourceLaborEvidence??null,
   };
 
+  const sourceDomain=(domain:string)=>sourceInventory.domains.find(row=>row.domain===domain)??null;
+  const numericFact=(key:string,label:string,value:number|null,basis:string,authority:ManagementFactView<number>['authority'],state:ManagementFactView<number>['state'],coverage:{known:number;total:number}={known:value===null?0:1,total:1})=>
+    value===null?null:managementFactView<number>({
+      key,label,value,state,authority,basis,dataDateIso:managementContext.dataDateIso,diagnostics:[],receipts:[],coverage,
+      population:{state:state==='official'?'established':state==='partial'?'partial':state==='candidate'?'candidate':state==='quarantined'?'quarantined':state==='conflicted'?'conflicted':'missing',
+        sourceCount:coverage.total,applicableCount:state==='official'?coverage.total:null,currentCount:state==='official'?coverage.known:null,excludedCount:null,
+        coveragePercent:coverage.total>0?Number((coverage.known/coverage.total*100).toFixed(4)):null,basis},
+    });
+  const sourceRowsFact=(domain:string,key:string,label:string)=>{
+    const src=sourceDomain(domain),value=typeof src?.readableRowCount==='number'?src.readableRowCount:null;
+    return numericFact(key,label,value,src?.basis??'No readable source population is established.','source','partial',
+      {known:value??0,total:value??0});
+  };
+  const pick=<T>(rows:Array<ManagementFactView<T>|null>)=>bestAvailableFact(rows.filter((row):row is ManagementFactView<T>=>row!==null));
+
+  const pBases=progress.progressBases??{};
+  const progressCandidates:Array<ManagementFactView<number>|null>=[
+    numericFact('physical-progress','Physical measured progress',pBases.physical?.valuePercent??null,'Physical measured progress evidence.','source','partial'),
+    numericFact('contractor-progress','Contractor reported progress',pBases.contractorReported?.valuePercent??null,'Contractor reported progress evidence; not certified physical progress.','source','partial'),
+    numericFact('certified-progress','Certified progress',pBases.certified?.valuePercent??null,'Certified progress evidence; retained as its own progress basis.','source','partial'),
+    numericFact('schedule-snapshot-progress','Schedule snapshot progress',pBases.scheduleSnapshot?.valuePercent??null,'Schedule snapshot observation; contextual programme intelligence, not physical/certified progress.','calculated','candidate'),
+    numericFact('current-planned-progress','Current planned progress',pBases.currentSchedule?.valuePercent??null,'Current schedule phasing at the Data Date; plan, not actual progress.','calculated','candidate'),
+  ];
+  const firstCost=costPositions[0]??null;
+  const firstCommercial=commercialPositions[0]??null;
+  const costCandidates:Array<ManagementFactView<number>|null>=[
+    numericFact('source-eac','Source reported EAC',firstCost?.sourceEac??null,'Source-reported estimate at completion.','source','partial'),
+    numericFact('calculated-eac','CMeng EAC scenario',firstCost?.bestEacBasis==='cmeng_scenario'?firstCost.bestEac:null,'CMeng calculated EAC scenario; not an official forecast.','calculated','candidate'),
+    numericFact('current-contract-value','Current contract value',firstCommercial?.currentContractValue.value??null,'Current contract value; commercial basis rather than cost forecast.','source','partial'),
+  ];
+  const changeCandidates:Array<ManagementFactView<number>|null>=[
+    numericFact('approved-variation-amount','Approved variation amount',firstCommercial?.approvedVariationAmount.value??null,'Approved/current variation amount from Commercial control.','source','partial'),
+    numericFact('programme-modified-activities','Programme modified activities',change.modifiedActivityCount??null,'Observed schedule revision change; programme movement, not a contractual variation.','calculated','candidate'),
+    sourceRowsFact('variations','variation-source-rows','Readable variation/change source rows'),
+  ];
+  const claimsCandidates:Array<ManagementFactView<number>|null>=[
+    numericFact('current-claim-count','Current governed claims',claims.currentClaimCount,'Current governed claim population at the Data Date.','source','partial'),
+    numericFact('source-claim-count','Source claims',claims.sourceClaimCount,'Readable claim records; source availability does not establish entitlement.','source',claims.integrityState==='quarantined'?'quarantined':'partial'),
+    sourceRowsFact('claims','claim-source-rows','Readable Claims/EOT source rows'),
+  ];
+  const designSrc=sourceDomain('design'),submittalSrc=sourceDomain('submittal');
+  const designCandidates:Array<ManagementFactView<number>|null>=[
+    sourceRowsFact('design','design-source-rows','Readable design/RFI source rows'),
+    sourceRowsFact('submittal','submittal-source-rows','Readable submittal source rows'),
+    numericFact('programme-design-activities','Programme design/approval activities',
+      managementContext.schedule?.programmeStages?.find((row:any)=>row.stage==='design')?.activityCount??null,
+      'Schedule/WBS design and approval scope; contextual intelligence, not a confirmed design register.','candidate','candidate'),
+  ];
+  const measuredQuantityCount=typeof quantity.measurementReview?.measuredItemCount==='number'?quantity.measurementReview.measuredItemCount:null;
+  const quantityCandidates:Array<ManagementFactView<number>|null>=[
+    numericFact('measured-quantity-items','Measured installed quantity items',measuredQuantityCount,'Dated installed-quantity evidence.','source','partial'),
+    numericFact('boq-quantity-items','BOQ quantity items',quantity.boqItemCount??boqScope.itemCount??null,'Readable BOQ quantity scope; not installed progress.','source','partial'),
+    sourceRowsFact('boq','boq-source-rows','Readable BOQ/quantity source rows'),
+  ];
+  const riskCandidates:Array<ManagementFactView<number>|null>=[
+    sourceRowsFact('risk','risk-source-rows','Readable formal risk source rows'),
+    numericFact('schedule-float-risk','Schedule float-risk activities',activity.counts?.floatRisk?.value??null,'Programme float exposure; contextual risk intelligence, not a formal risk register.','calculated','candidate'),
+  ];
+  const resourceCandidates:Array<ManagementFactView<number>|null>=[
+    numericFact('assigned-resources','Assigned schedule resources',resource.assignedResourceCount??null,'Resources assigned to current programme activities.','source','partial'),
+    numericFact('resource-master','Schedule resource master',resource.resourceCount??resource.p6ResourceMasterCount??null,'Resource master evidence from the programme.','source','partial'),
+    sourceRowsFact('resources','resource-source-rows','Readable resource/manpower source rows'),
+  ];
+  const bestAvailablePositions={
+    progress:pick(progressCandidates),
+    cost:pick(costCandidates),
+    change:pick(changeCandidates),
+    claims:pick(claimsCandidates),
+    design:pick(designCandidates),
+    quantities:pick(quantityCandidates),
+    risk:pick(riskCandidates),
+    resources:pick(resourceCandidates),
+  };
+
   return {
     schemaVersion:'1.0',
     sourceInventory,
+    bestAvailablePositions,
     schedule:{
       drivingActivityCount:drivingIds.length,
       finishActivityIds:independent.drivingNetwork?.finishActivityIds??[],
