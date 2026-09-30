@@ -4372,6 +4372,31 @@ function commandActionItems(data){
  }
  return [...unique.values()].sort((a,b)=>(rank[a.severity]??2)-(rank[b.severity]??2)||(a.dueIso||"9999").localeCompare(b.dueIso||"9999"));
 }
+function renderCommandAccountability(data){
+ const actions=commandActionItems(data);
+ if(!actions.length)return '<div class="notice info">No current accountable action population is established.</div>';
+ const dd=String(data?.reportingContract?.dataDateIso||overview?.latestDataDateIso||'').slice(0,10);
+ const groups=new Map();
+ for(const action of actions){
+  const recorded=action.owner||action.organisation||null;
+  const key=recorded||'__UNASSIGNED__';
+  const group=groups.get(key)||{party:recorded||'Unassigned',unassigned:!recorded,actions:0,overdue:0,material:0,milestones:new Set(),scopes:new Set(),nextDue:null,escalations:0};
+  group.actions++;
+  if(action.severity==='critical'||action.severity==='high')group.material++;
+  for(const milestone of action.affectedMilestones||[])if(milestone)group.milestones.add(milestone);
+  for(const scope of action.affectedScope||[])if(scope)group.scopes.add(scope);
+  if(action.dueIso){
+   const due=String(action.dueIso).slice(0,10);
+   if(dd&&due<dd)group.overdue++;
+   if(!group.nextDue||due<group.nextDue)group.nextDue=due;
+  }
+  if(action.escalation)group.escalations++;
+  groups.set(key,group);
+ }
+ const rows=[...groups.values()].sort((a,b)=>(a.unassigned?0:1)-(b.unassigned?0:1)||b.overdue-a.overdue||b.material-a.material||b.actions-a.actions||a.party.localeCompare(b.party));
+ return '<div class="table-wrap"><table><thead><tr><th>Owner / accountable party</th><th>Open actions</th><th>Overdue</th><th>High / critical</th><th>Threatened milestones</th><th>Affected scope</th><th>Next due</th><th>Escalations</th></tr></thead><tbody>'+rows.map(group=>'<tr><td><b>'+escapeHtml(group.party)+'</b>'+(group.unassigned?'<br><span class="state-pill review">Assignment required</span>':'')+'</td><td>'+escapeHtml(fmt(group.actions))+'</td><td>'+escapeHtml(fmt(group.overdue))+'</td><td>'+escapeHtml(fmt(group.material))+'</td><td>'+escapeHtml([...group.milestones].join('; ')||'Not linked')+'</td><td>'+escapeHtml([...group.scopes].slice(0,6).join('; ')||'Not classified')+'</td><td>'+escapeHtml(group.nextDue?planningShortDate(group.nextDue):'Not set')+'</td><td>'+escapeHtml(fmt(group.escalations))+'</td></tr>').join('')+'</tbody></table></div>';
+}
+
 function renderCommandActionTable(data){
  const actions=commandActionItems(data);
  if(!actions.length)return '<div class="notice info"><b>No current action is established from the available Project information.</b><p>Information gaps remain listed separately below.</p></div>';
@@ -4470,7 +4495,8 @@ function renderManagementControlVisual(key,data){
       ["Expiring bonds",ctrl.bondEvidenceState==="established"?ctrl.expiringBondCount30Days:"Not established","next 30 days",ctrl.expiringBondCount30Days?"warning":""]
     ]):'<div class="empty">Project Director control position is not confirmed.</div>';
     return '<div class="planning-view management-view command-center-view">'+
-      managementPanel("Actions requiring management attention","Issue → consequence → affected scope → owner → due date → required action. Missing ownership or dates are shown, never invented.",renderCommandActionTable(data),true)+
+      managementPanel("Actions requiring management attention","Issue → consequence → affected scope → owner → action → due date → escalation. Missing ownership or dates are shown, never invented.",renderCommandActionTable(data),true)+
+      managementPanel("Accountability & escalation","The same canonical action population grouped by recorded owner/accountable party. Unassigned actions remain visible and are not converted into 'no action'.",renderCommandAccountability(data))+
       experienceSourceContext(key,data)+
       managementPanel("Current Programme Position","Completion and programme facts that explain the actions above.",renderManagementMetricGrid((data.programmePosition||[]).filter(m=>m.value!==null&&m.value!==undefined)))+
       experienceDisclosure("Supporting control signals",controlsBody,"Risk, quality, RFI, permits and securities")+
