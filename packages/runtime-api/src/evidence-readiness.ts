@@ -1,4 +1,4 @@
-import {csv as parseCsv} from "../../truth-kernel/src";
+import {cell,csv as parseCsv,sourceTables} from "../../truth-kernel/src";
 import {canonicalHeader,prepareEvidenceRows,registerDate} from '../../truth-kernel/src';
 import {
   readFileSync,
@@ -172,93 +172,19 @@ function dimensionFor(
 function procurementPackageMap(
   state: ProjectRuntimeState,
 ): Map<string, string> {
-  const map =
-    new Map<
-      string,
-      string
-    >();
-
-  const activeProcurement =
-    state.evidenceDocuments
-      .filter(
-        (document) =>
-          document.documentType ===
-            "procurement_register" &&
-          document.basisState ===
-            "active",
-      )
-      .sort(
-        (a, b) =>
-          a.uploadedAt.localeCompare(
-            b.uploadedAt,
-          ),
-      )
-      .at(-1);
-
-  if (!activeProcurement) {
-    return map;
+  const map=new Map<string,string>();
+  const activeProcurement=state.evidenceDocuments
+    .filter(document=>document.documentType==="procurement_register"&&document.basisState==="active")
+    .sort((a,b)=>a.uploadedAt.localeCompare(b.uploadedAt))
+    .at(-1);
+  if(!activeProcurement)return map;
+  const diagnostics:string[]=[];
+  const tables=sourceTables([activeProcurement],diagnostics);
+  for(const table of tables)for(const row of table.rows){
+    const packageId=cell(row,"package id","procurement package");
+    const activityId=cell(row,"linked activity","linked schedule activity","activity id");
+    if(packageId&&activityId)map.set(packageId,activityId);
   }
-
-  try {
-    const text =
-      readFileSync(
-        activeProcurement
-          .storedPath,
-        "utf8",
-      ).replace(
-        /^\uFEFF/,
-        "",
-      );
-    const rows =
-      parseCsv(text);
-    const headers =
-      rows[0] ?? [];
-    const packageIndex =
-      headerIndex(
-        headers,
-        [
-          "package id",
-          "procurement package",
-        ],
-      );
-    const activityIndex =
-      headerIndex(
-        headers,
-        [
-          "linked activity",
-          "linked schedule activity",
-          "activity id",
-        ],
-      );
-
-    for (
-      const row of
-        rows.slice(1)
-    ) {
-      const packageId =
-        valueAt(
-          row,
-          packageIndex,
-        );
-      const activityId =
-        valueAt(
-          row,
-          activityIndex,
-        );
-      if (
-        packageId &&
-        activityId
-      ) {
-        map.set(
-          packageId,
-          activityId,
-        );
-      }
-    }
-  } catch {
-    return map;
-  }
-
   return map;
 }
 
