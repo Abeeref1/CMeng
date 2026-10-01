@@ -24,14 +24,16 @@ export function operationalReporting(state:ProjectRuntimeState) {
 /** Read-only reporting view. Never truncates or overwrites persisted evidence. */
 export function reportingState(state: ProjectRuntimeState): ProjectRuntimeState {
   if(views.has(state))return state;
-  const scheduleDate=projectDataDate(state);
+  const scheduleDate=projectDataDate(state), old=cache.get(state);
+  // Keep the established programme path exactly cache-first: claims-only
+  // fallback logic must not add work to normal schedule-heavy reads.
+  if(scheduleDate&&old?.version===state.version&&old.date===scheduleDate)return old.value;
   const governed=state.controls.delayClaims;
   const source=governed&&!/^(canonical-evidence|evidence-document):/.test(governed.evidenceRevisionId)?governed:canonicalTimeClaims(state).delayClaims??governed;
   // The programme Data Date remains the project-wide schedule cutoff when it
-  // exists. A claims-only project still has a legitimate claims reporting
-  // cutoff on its governed register; use that only to reconstruct the claims
-  // reporting view rather than erasing all dated claim/event evidence.
-  const date=scheduleDate??source?.dataDateIso??null, old=cache.get(state);
+  // exists. A claims-only project may use its own governed register cutoff only
+  // for claims reporting; it never becomes programme authority.
+  const date=scheduleDate??source?.dataDateIso??null;
   if(old?.version===state.version&&old.date===date)return old.value;
   const hasBaseline=state.schedules.some(s=>isAdoptedProgrammeRevision(state,s)&&['baseline','revised_baseline'].includes(s.role)&&reportingScope(s.revision.model.dataDateIso??s.revision.effectiveAt,date)==='as_of');
   const schedules=state.schedules.map(stored=>{
