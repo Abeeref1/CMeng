@@ -308,6 +308,17 @@ test('Batch J Task 62: claims-only project retains governed claim/event evidence
   assert.equal(delay.data.contractorClaimEvidenceSubmitted,true);
   assert.ok((delay.data.eventCount??0)>0);
   assert.ok((delay.data.claimCount??0)>0);
+  assert.equal(delay.data.independentScheduleMovementAvailable,false);
+  assert.equal(delay.data.programmeEvidenceState,'not_established');
+  assert.equal(delay.data.windowCount,null,'missing programme windows must not become zero');
+  assert.equal(delay.data.activityLinkedEventCount,null,'activity validation needs a programme and must not become zero');
+  assert.ok((delay.data.sourceActivityReferenceEventCount??0)>0,'source activity references remain visible without being promoted to validated schedule links');
+
+  const notices:any=moduleForProject(id,'notices-claims');
+  assert.notEqual(notices.status,'blocked');
+  assert.equal(notices.data.contractorNoticeClaimEvidenceSubmitted,true);
+  assert.equal(notices.data.programmeEvidenceState,'not_established');
+  assert.ok((notices.data.claimCount??0)>0);
 });
 
 test('Batch J Task 62: schedule plus BOQ stays useful without Commercial or claims',()=>{
