@@ -113,7 +113,9 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
       entry.summary=summary;entry.summaryRelease=release();
       summaryFailures.delete(id);
       await atomicJson(join(projectDirectory(root,id),'portfolio.json'),{release:release(),summary});
-    }).catch(()=>{const entry=catalog.get(id);if(entry){entry.summaryRelease=null;summaryFailures.set(id,entry.metadata?.version);}}).finally(()=>summaryJobs.delete(id));
+    }).catch(error=>{const entry=catalog.get(id);if(entry){entry.summaryRelease=null;summaryFailures.set(id,entry.metadata?.version);}
+      console.error('[refreshSummary] project='+id+' version='+entry?.metadata?.version+' failed:',error instanceof Error?error.stack??error.message:String(error));
+    }).finally(()=>summaryJobs.delete(id));
     summaryJobs.set(id,task);return task;
   }
   function portfolioEntry(entry:CatalogEntry){
