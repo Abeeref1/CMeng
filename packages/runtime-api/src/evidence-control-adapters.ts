@@ -1,5 +1,5 @@
 import {csv as parseCsv} from "../../truth-kernel/src";
-import {canonicalHeader,prepareRegisterRows,registerDate} from '../../truth-kernel/src';
+import {canonicalHeader,prepareEvidenceRows,registerDate} from '../../truth-kernel/src';
 import { numberValue } from "../../truth-kernel/src";
 import type {
   CanonicalClaimRecord,
@@ -333,6 +333,7 @@ export function deriveControlsFromCsv(
     document:
       StoredEvidenceDocument;
     bytes: Uint8Array;
+    sheetName?: string;
   },
 ): DerivedControlEvidence {
   const text =
@@ -344,7 +345,11 @@ export function deriveControlsFromCsv(
         /^\uFEFF/,
         "",
       );
-  const parsedTable=prepareRegisterRows(parseCsv(text),input.document.documentType);
+  const parsedTable=prepareEvidenceRows(
+    parseCsv(text),
+    input.document.documentType,
+    (input.document.tableConfirmations??[]).filter(item=>item.sheetName===(input.sheetName??'CSV')),
+  );
   const rows=[parsedTable.headers,...parsedTable.rows];
   const headers=parsedTable.headers;
   const currencyIndex=indexOf(headers,['currency']);
