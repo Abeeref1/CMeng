@@ -5179,6 +5179,32 @@ export class RuntimeProjectStore {
     state.contract=base.result;state.contractFamily=linkContractFamily(base.result,amendments);promoteContractTimeBasis(state);
   }
 
+  async confirmTableColumnMeaning(projectId:string,input:{documentId:string;sourceHash:string;expectedVersion:number;sheetName:string;columnIndex:number;rawHeader:string;meaning:string;note?:string|null}){
+    const state=this.get(projectId);if(!state)throw new Error('PROJECT_NOT_FOUND');
+    if(state.version!==input.expectedVersion)throw new Error('PROJECT_VERSION_CONFLICT');
+    const document=state.evidenceDocuments.find(d=>d.documentId===input.documentId&&d.sourceHashSha256===input.sourceHash);
+    if(!document)throw new Error('DOCUMENT_REVISION_CHANGED');
+    const sheet=document.tabularRead?.sheets.find(s=>s.name===input.sheetName);
+    if(!sheet)throw new Error('TABLE_SHEET_NOT_FOUND');
+    if(!Number.isInteger(input.columnIndex)||input.columnIndex<0||input.columnIndex>=Math.max(0,...sheet.rows.map(r=>r.length)))throw new Error('TABLE_COLUMN_NOT_FOUND');
+    const meaning=String(input.meaning??'').trim();
+    if(!meaning)throw new Error('TABLE_COLUMN_MEANING_REQUIRED');
+    const rawHeader=String(input.rawHeader??'').trim();
+    const confirmations=(document.tableConfirmations??[]).filter(item=>!(item.sheetName===input.sheetName&&item.columnIndex===input.columnIndex));
+    confirmations.push({
+      sheetName:input.sheetName,columnIndex:input.columnIndex,rawHeader,meaning,
+      confirmedAt:new Date().toISOString(),note:typeof input.note==='string'?input.note.trim()||null:null,
+    });
+    document.tableConfirmations=confirmations;
+    document.derivedRegisterRead=undefined;
+    document.diagnostics=[...document.diagnostics.filter(x=>!x.startsWith('TABLE_COLUMN_CONFIRMED:')),
+      ...confirmations.map(item=>'TABLE_COLUMN_CONFIRMED:'+item.sheetName+':'+item.columnIndex+':'+item.meaning)];
+    await this.refreshSpreadsheetRegisters(projectId);
+    const updated=this.get(projectId)!;
+    const refreshed=updated.evidenceDocuments.find(d=>d.documentId===input.documentId)!;
+    return {projectId,projectVersion:updated.version,documentId:refreshed.documentId,sourceHash:refreshed.sourceHashSha256,confirmations:refreshed.tableConfirmations??[]};
+  }
+
   reviewEvidenceRelationship(projectId:string,input:{documentId:string;sourceHash:string;expectedVersion:number;kind:'new_record'|'replacement'|'amendment';targetDocumentId?:string|null;note:string}){
     const state=this.get(projectId);if(!state)throw new Error('PROJECT_NOT_FOUND');if(state.version!==input.expectedVersion)throw new Error('PROJECT_VERSION_CONFLICT');
     const document=state.evidenceDocuments.find(d=>d.documentId===input.documentId&&d.sourceHashSha256===input.sourceHash);if(!document)throw new Error('DOCUMENT_REVISION_CHANGED');
