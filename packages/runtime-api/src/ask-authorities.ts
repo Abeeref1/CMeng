@@ -189,10 +189,12 @@ function moduleAuthority(context:AskProducerContext,scope:ProjectScope,key:strin
   const b=new AuthorityBuilder(registration.id,title,key,scope,evidenceState(result.status),result.reason??'Existing CMeng authority at the programme Data Date.');
   if(registration.id==='command-center'){
     const rows=Array.isArray(d?.actions)?d.actions:[];
+    const requested=plan?.limit&&plan.limit>0?plan.limit:null;
+    const selected=requested?rows.slice(0,requested):rows;
     b.result.explanation=rows.length
       ?'Canonical cross-domain management actions from Command Center. Issue, consequence, affected scope, owner, required action, due date, escalation and authority are retained without reinterpretation.'
       :'No canonical cross-domain management action is established from the current evidence. This is not confirmation that the project has no problems.';
-    b.table('actions','Canonical management actions',rows,b.result.explanation,{
+    b.table('actions','Canonical management actions',selected,b.result.explanation,{
       dueDate:{type:'date'},severity:{dimension:true},authority:{dimension:true},owner:{dimension:true}
     },(row:any)=>({
       severity:row.severity??null,
@@ -208,6 +210,11 @@ function moduleAuthority(context:AskProducerContext,scope:ProjectScope,key:strin
       authority:row.authority??null,
       owningModule:row.owningModule??null
     }));
+    const table=b.result.tables[0];
+    if(table){
+      table.population=rows.length;
+      table.selection={matching:rows.length,ranked:true,requested,rankBy:'canonical management priority',direction:'desc'};
+    }
     return b.result;
   }
   if(registration.id==='wbs'){
