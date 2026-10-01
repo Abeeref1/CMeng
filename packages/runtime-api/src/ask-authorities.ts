@@ -42,7 +42,7 @@ const registrations:Record<string,Registration>={
   'activity-analytics':{id:'activities',concepts:['activities','activity','critical activities','انشطه'],tables:['rows']},
   'near-critical':{id:'float',concepts:['critical','float','worst','حرج'],metrics:[['nearCriticalCount','Strict near-critical activities','activities'],['negativeFloatCount','Negative float activities','activities'],['classificationCoveragePercent','Float classification coverage','%']],tables:['rows']},
   'progress-report':{id:'progress',concepts:['current completion','completion percentage','progress','behind','slippage','التقدم','انجاز']},
-  'progress-breakdown':{id:'wbs',concepts:['wbs','by trade','work breakdown','progress breakdown','progress by zone','progress by level','progress by workfront','progress by work front','progress by discipline','progress by wbs'],tables:['rows']},
+  'progress-breakdown':{id:'wbs',concepts:['wbs','by trade','work breakdown','progress breakdown','progress by zone','progress by level','progress by workfront','progress by work front','progress by wbs'],tables:['rows']},
   'progress-scurve':{id:'progress-curve',concepts:['progress curve','s-curve','s curve','progress chart'],tables:['points','actualSnapshots']},
   'quantity-scurve':{id:'quantities',concepts:['installed','installed quantity','quantity progress','quantities','quantity completion','كميات']},
   'resource-utilization':{id:'resources',concepts:['resources','labour','labor','manpower','crew','عماله'],tables:['rows','weeklyRows']},
