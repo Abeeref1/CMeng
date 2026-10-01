@@ -145,6 +145,47 @@ function buildDelivery(state:ProjectRuntimeState){
    latestOrderState:latestOrder?(assumption?'scenario':'calculated'):'not_established',leadTimeBasis:latestOrder?'Governed lifecycle durations, explicit day basis and controlled programme need date.':'Latest order date not established: confirm programme links, lifecycle, duration sources and day/calendar basis.',
    packageValue:numeric(r,'package value','amount','value'),currency:field(r,'currency')||null,readiness:readiness.find(q=>q.recordId===r.recordId),receipts:r.receipts};
  });
+ const scheduleWbs=model?.wbs??[];
+ const longLeadRoots=scheduleWbs.filter(w=>/\blong[\s_-]*lead\b/i.test([w.wbsId,w.name].filter(Boolean).join(' ')));
+ const descendantWbs=(rootId:string)=>{
+  const ids=new Set<string>([rootId]);let changed=true;
+  while(changed){changed=false;for(const w of scheduleWbs)if(w.parentWbsId&&ids.has(w.parentWbsId)&&!ids.has(w.wbsId)){ids.add(w.wbsId);changed=true;}}
+  return ids;
+ };
+ const deliveryDependencyRefs=(kind:DeliveryKind,activityIds:Set<string>)=>byKind(kind)
+  .filter(r=>r.links.activityIds.some(id=>activityIds.has(id)))
+  .map(r=>r.reference??r.recordId);
+ const scheduleLongLeadCandidates:Array<any>=[];
+ const representedActivities=new Set<string>();
+ for(const root of longLeadRoots){
+  const wbsIds=descendantWbs(root.wbsId);
+  const activityRows=(model?.activities??[]).filter(a=>a.wbsId&&wbsIds.has(a.wbsId));
+  activityRows.forEach(a=>representedActivities.add(a.activityId));
+  const activityIds=new Set(activityRows.map(a=>a.activityId));
+  const starts=activityRows.map(a=>a.currentStartIso??a.forecastStartIso).filter((d):d is string=>!!d).map(d=>d.slice(0,10)).sort();
+  const finishes=activityRows.map(a=>a.currentFinishIso??a.forecastFinishIso).filter((d):d is string=>!!d).map(d=>d.slice(0,10)).sort();
+  scheduleLongLeadCandidates.push({
+   recordId:'schedule-long-lead-wbs:'+root.wbsId,reference:root.name||root.wbsId,description:root.name||root.wbsId,
+   authority:'candidate',candidateType:'schedule_wbs',wbsId:root.wbsId,activityIds:[...activityIds],activityCount:activityRows.length,
+   programmeNeedDate:starts[0]??null,forecastFinish:finishes.at(-1)??null,
+   designDependencies:deliveryDependencyRefs('design',activityIds),submittalDependencies:deliveryDependencyRefs('submittal',activityIds),
+   currentStatus:'schedule-derived long-lead scope candidate',
+   basis:'Schedule-derived long-lead scope candidate from the controlled programme/WBS. This is not a confirmed procurement package and does not establish procurement lateness.'
+  });
+ }
+ for(const activity of model?.activities??[]){
+  if(representedActivities.has(activity.activityId)||!/\blong[\s_-]*lead\b/i.test(activity.name??''))continue;
+  const activityIds=new Set([activity.activityId]);
+  scheduleLongLeadCandidates.push({
+   recordId:'schedule-long-lead-activity:'+activity.activityId,reference:activity.activityId,description:activity.name,
+   authority:'candidate',candidateType:'schedule_activity',wbsId:activity.wbsId??null,activityIds:[activity.activityId],activityCount:1,
+   programmeNeedDate:(activity.currentStartIso??activity.forecastStartIso)?.slice(0,10)??null,
+   forecastFinish:(activity.currentFinishIso??activity.forecastFinishIso)?.slice(0,10)??null,
+   designDependencies:deliveryDependencyRefs('design',activityIds),submittalDependencies:deliveryDependencyRefs('submittal',activityIds),
+   currentStatus:'schedule-derived long-lead scope candidate',
+   basis:'Schedule-derived long-lead activity candidate. This is contextual programme intelligence, not a confirmed procurement package or delay conclusion.'
+  });
+ }
  const packagesByItem=new Map<string,DeliveryRecord[]>();for(const r of byKind('package'))for(const id of r.links.boqItemIds){const list=packagesByItem.get(id)??[];list.push(r);packagesByItem.set(id,list);}
  const materialRows=byKind('package').map(r=>{
   const linked=r.links.boqItemIds.map(id=>items.get(id)),units=[...new Set(linked.map(i=>i?.unit))];
@@ -316,7 +357,7 @@ function buildDelivery(state:ProjectRuntimeState){
  const relationshipAuthorities=Object.fromEntries(([['riskIds','risk'],['claimIds','claim'],['noticeIds','notice'],['variationIds','variation']] as const).map(([key,kind])=>{const linked=new Set(governed.flatMap(r=>r.links[key]));return [kind,linked.size?deliveryAuthorityCatalog(state,kind).filter(r=>linked.has(r.id)):[]];}));
  return {schemaVersion:'1.0',producerVersion:'delivery-v1',projectId:state.projectId,projectVersion:state.version,dataDateIso,programmeLabel:current?.revision.label??current?.sourceFilename??null,programmeRevisionId:current?.revision.revisionId??null,
   scheduleAuthorityReview:scheduleAuthorityReview(state),records,documents:source.documents,diagnostics:source.diagnostics,populations,findings,
-  packageRows,materialRows,boqIntelligence,readiness,curves:curveData,weightedGroups,registerRows,handover,hsePosition,workfrontMatrix,supplierRows,summaries,permitRows,spareRows,assetRows,locations,riskRows,evidenceMetrics,commissioningRows,commissioningSystems,weatherRows,relationshipAuthorities,
+  packageRows,materialRows,boqIntelligence,scheduleLongLeadCandidates,readiness,curves:curveData,weightedGroups,registerRows,handover,hsePosition,workfrontMatrix,supplierRows,summaries,permitRows,spareRows,assetRows,locations,riskRows,evidenceMetrics,commissioningRows,commissioningSystems,weatherRows,relationshipAuthorities,
   existingAuthorities:{risk:operations.risk,quality:operations.quality,rfi:operations.rfi,programme:'/schedule/modules/schedule-analytics',progress:'/schedule/modules/progress-report',installedQuantities:'/schedule/modules/quantity-scurve',commercial:'/commercial/modules/commercial-overview',claims:'/schedule/modules/delay-claims'},
   lifecycleExamples:lifecycleExamples.map(t=>({...t,state:'example_requires_adoption',weights:null})),
   authorityScope:'Delivery consumes the controlled BOQ, programme, progress and commercial/claims authorities. Procurement exposure does not establish EOT or causation.'};
@@ -361,7 +402,7 @@ export function deliveryModule(state:ProjectRuntimeState,key:string):ModuleRunti
   return {...row,state:stateNow,interfaceGate:{state:interfaceState,interfaceIds:linked.map(issue=>issue.interfaceId),basis:'Confirmed unresolved Interface records explicitly linked to this package/workfront or one of its programme activities.'}};
  });
  const boqCandidateRows:any[]=key==='procurement-packages'?boqScope.packages.map((r,index)=>({recordId:'boq-package-'+index,reference:r.package,description:r.package,discipline:r.discipline,system:r.system,itemCount:r.itemCount,currency:r.currency,packageValue:r.readableValue,longLeadItemCount:r.longLeadItemCount,criticalItemCount:r.criticalItemCount,procurementPriority:r.priority,currentStatus:'candidate from BOQ'}))
-  :key==='long-lead'?boqScope.longLead.map(r=>({recordId:r.itemId,reference:r.itemNumber,description:r.description,discipline:r.discipline,system:r.system,package:r.packageCandidate,currency:r.currency,amount:r.amount,procurementPriority:r.procurementPriority,confirmedLeadTime:null,latestOrderDate:null,currentStatus:'candidate from BOQ'}))
+  :key==='long-lead'?[...boqScope.longLead.map(r=>({recordId:r.itemId,reference:r.itemNumber,description:r.description,discipline:r.discipline,system:r.system,package:r.packageCandidate,currency:r.currency,amount:r.amount,procurementPriority:r.procurementPriority,confirmedLeadTime:null,latestOrderDate:null,currentStatus:'candidate from BOQ',authority:'candidate',basis:'BOQ-screened long-lead scope candidate; not a confirmed procurement package.'})),...p.scheduleLongLeadCandidates]
   :key==='material-tracking'?boqScope.rows.map(r=>({recordId:r.itemId,reference:r.itemNumber||r.itemId,description:r.description,discipline:r.discipline,location:[r.building,r.tower,r.zone,r.floor,r.level,r.area].filter(Boolean).join(' / ')||null,package:r.packageCandidate,unit:r.unit,required:r.quantity,ordered:null,manufactured:null,delivered:null,accepted:null,installed:null,remainingToOrder:null,remainingToDeliver:null,remainingToInstall:null,currentStatus:'scope from BOQ',state:'extracted_candidate',basis:'BOQ quantity and scope only. Procurement, delivery and installation status are not established.'}))
   :key==='construction-discipline'?boqScope.dimensions.discipline.map((r,index)=>({recordId:'boq-discipline-'+index,dimension:'discipline',label:r.value,discipline:r.value,itemCount:r.itemCount,currency:r.currency,readableValue:r.readableValue,currentStatus:'scope from BOQ'}))
   :key==='construction-locations'?[...boqScope.dimensions.building,...boqScope.dimensions.tower,...boqScope.dimensions.zone,...boqScope.dimensions.floor,...boqScope.dimensions.level,...boqScope.dimensions.area].map((r,index)=>({recordId:'boq-location-'+index,dimension:'location',label:r.value,location:r.value,locationType:r.dimension,itemCount:r.itemCount,currency:r.currency,readableValue:r.readableValue,currentStatus:'scope from BOQ'}))
@@ -391,7 +432,7 @@ export function deliveryModule(state:ProjectRuntimeState,key:string):ModuleRunti
  const sourceAvailability=sourceDomain?managementSourceInventory(state).domains.find(domain=>domain.domain===sourceDomain)??null:null;
  const sourceEvidenceAvailable=Boolean(sourceAvailability?.documentCount);
  const usable=hasRows||sourceEvidenceAvailable;
- let managementPosition=useBoqCandidates?'CMeng has identified '+rows.length+' useful '+title.toLowerCase()+' candidate'+(rows.length===1?'':'s')+' from the BOQ. Scope, quantities, values and professional classifications are shown now; actual supplier/status dates remain separate until supplied.'+(relevantSourceRecords?' '+relevantSourceRecords+' supplied specialist record'+(relevantSourceRecords===1?' is':'s are')+' also awaiting review and may improve this position.':''):!hasRows&&sourceEvidenceAvailable?(sourceAvailability?.readableRowCount!==null?sourceAvailability!.readableRowCount+' source row(s) are available from '+sourceAvailability!.documentCount+' '+sourceAvailability!.label.toLowerCase()+' document(s). The governed Delivery population and dependent dates/mappings are not yet established; the source evidence remains visible.':sourceAvailability!.documentCount+' relevant source document(s) are available. The governed Delivery population is not yet established, so CMeng shows the supplied evidence without inventing lifecycle status or schedule impact.'):!hasRows?unread?'Source files are retained but their records could not yet be read reliably. Other Project information remains available.':'No current '+title.toLowerCase()+' information is available from the Project records.':!p.dataDateIso?'The records are available, but a reporting programme would add the dated Delivery position.':pending.length?pending.length+' supplied records still need confirmation; confirmed records remain usable.':findings.length?findings.length+' delivery exceptions require attention.':'Current confirmed records are available against the programme Data Date.';
+ let managementPosition=useBoqCandidates?(key==='long-lead'?'CMeng has identified '+rows.length+' qualified long-lead scope candidate'+(rows.length===1?'':'s')+' from BOQ and/or controlled schedule/WBS intelligence. These candidates remain separate from confirmed procurement status, supplier dates and lateness.':'CMeng has identified '+rows.length+' useful '+title.toLowerCase()+' candidate'+(rows.length===1?'':'s')+' from the BOQ. Scope, quantities, values and professional classifications are shown now; actual supplier/status dates remain separate until supplied.'+(relevantSourceRecords?' '+relevantSourceRecords+' supplied specialist record'+(relevantSourceRecords===1?' is':'s are')+' also awaiting review and may improve this position.':'')):!hasRows&&sourceEvidenceAvailable?(sourceAvailability?.readableRowCount!==null?sourceAvailability!.readableRowCount+' source row(s) are available from '+sourceAvailability!.documentCount+' '+sourceAvailability!.label.toLowerCase()+' document(s). The governed Delivery population and dependent dates/mappings are not yet established; the source evidence remains visible.':sourceAvailability!.documentCount+' relevant source document(s) are available. The governed Delivery population is not yet established, so CMeng shows the supplied evidence without inventing lifecycle status or schedule impact.'):!hasRows?unread?'Source files are retained but their records could not yet be read reliably. Other Project information remains available.':'No current '+title.toLowerCase()+' information is available from the Project records.':!p.dataDateIso?'The records are available, but a reporting programme would add the dated Delivery position.':pending.length?pending.length+' supplied records still need confirmation; confirmed records remain usable.':findings.length?findings.length+' delivery exceptions require attention.':'Current confirmed records are available against the programme Data Date.';
  const metric=(label:string,value:number|null,unit='records',basis='Governed records at the programme Data Date')=>({label,value,unit,state:value===null?'unavailable':'calculated',basis});
  const establishedCurrentCount=establishedPopulationCount(summary.currentCount,populationAuthority),establishedOpenCount=establishedPopulationCount(summary.openCount,populationAuthority),establishedOverdueCount=establishedPopulationCount(summary.overdueCount,populationAuthority);
  let metrics=!hasRows&&sourceEvidenceAvailable?[
@@ -435,6 +476,7 @@ export function deliveryModule(state:ProjectRuntimeState,key:string):ModuleRunti
  const ready=useBoqCandidates?false:!hasRows&&sourceEvidenceAvailable?false:riskPage?risk.complete&&risk.validation.state!=='conflicted'&&!!p.dataDateIso:hasRows&&!unread&&!!p.dataDateIso&&pending.length===0&&findings.length===0&&population.state==='established'&&metrics.every(m=>m.value!==null);
  const extras:Record<string,unknown>={};
  if(['delivery-control','procurement-packages','material-tracking','long-lead','construction-discipline','construction-locations','delivery-risks'].includes(key))extras.boqIntelligence=useBoqCandidates?boqScope:p.boqIntelligence;
+ if(key==='long-lead')extras.scheduleLongLeadCandidates=p.scheduleLongLeadCandidates;
  if(['delivery-control','handover-readiness'].includes(key))extras.handover={...p.handover,rows:undefined};
  if(key==='delivery-control')extras.readiness=p.readiness;
  if(['procurement-scurves','delivery-submittals','material-tracking'].includes(key)){extras.curves=p.curves.filter(c=>key==='procurement-scurves'||key==='delivery-submittals'&&c.kind==='submittal_throughput'||key==='material-tracking'&&c.kind==='material_quantity');extras.weightedGroups=p.weightedGroups;}
@@ -456,7 +498,7 @@ export function deliveryDashboard(state:ProjectRuntimeState){
   return {projectId:state.projectId,dataDateIso:projectDataDate(state),programmeRevisionId:projectControlSchedule(state)?.revision.revisionId??null,
    mode:'source_available',boqMappingPercent:null,handoverReadinessPercent:null,latePackageKnownCount:null,unresolvedPackageCount:null,
    packagePopulationState:'not_established',
-   confirmedPackageCount:null,knownPackageRecordCount:null,candidatePackageCount:boq.packages.length||null,candidateLongLeadCount:boq.longLead.length||null,
+   confirmedPackageCount:null,knownPackageRecordCount:null,candidatePackageCount:boq.packages.length||null,candidateLongLeadCount:boq.longLead.length||null,scheduleLongLeadCandidateCount:deliveryPosition(state).scheduleLongLeadCandidates.length||null,
    sourceAvailability:{procurement:domain('procurement'),design:domain('design'),submittal:domain('submittal'),quality:domain('quality'),hse:domain('hse'),risk:domain('risk')},
    exceptions:[],exceptionCount:0,
    basis:'Available source evidence and BOQ-derived candidates are shown without asserting governed Delivery lifecycle status, lateness or schedule impact.'};
@@ -468,7 +510,7 @@ export function deliveryDashboard(state:ProjectRuntimeState){
   boqMappingPercent:p.boqIntelligence.procurementMappingPercent,handoverReadinessPercent:p.handover.readinessPercent,
   packagePopulationState:packagePopulation?.state??'not_established',
   confirmedPackageCount:packagePopulation?.denominator??null,knownPackageRecordCount:packagePopulation?.knownRecordCount??null,
-  candidatePackageCount:boq.packages.length||null,candidateLongLeadCount:boq.longLead.length||null,
+  candidatePackageCount:boq.packages.length||null,candidateLongLeadCount:boq.longLead.length||null,scheduleLongLeadCandidateCount:p.scheduleLongLeadCandidates.length||null,
   latePackageKnownCount:p.packageRows.some(r=>r.headroomCalendarDays!==null)?p.packageRows.filter(r=>r.headroomCalendarDays!==null&&r.headroomCalendarDays<0).length:null,
   unresolvedPackageCount:p.packageRows.length?p.packageRows.filter(r=>r.headroomCalendarDays===null).length:null,
   sourceAvailability:{procurement:domain('procurement'),design:domain('design'),submittal:domain('submittal'),quality:domain('quality'),hse:domain('hse'),risk:domain('risk')},
