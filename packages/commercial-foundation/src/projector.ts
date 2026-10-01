@@ -1,4 +1,4 @@
-import {termAtEvent} from '../../runtime-api/src/contract-term-versions';
+import {contractTermSelectionFactState,termAtEvent} from '../../runtime-api/src/contract-term-versions';
 import { partitionAsOf } from "../../truth-kernel/src";
 import { reportingScope } from "../../truth-kernel/src";
 import type {
@@ -1626,7 +1626,8 @@ function buildPaymentRegister(
             "application_date_plus_contract_certification_period",
           );
         const periodVersion=input.datedTermVersions?.some(v=>v.term==='paymentPeriodDays')?termAtEvent(input.datedTermVersions,'paymentPeriodDays',payment.certificationDate):null;
-        const eventPaymentPeriod=periodVersion?{...terms.paymentPeriodDays,value:periodVersion.unit?.includes('working')?null:periodVersion.value,state:periodVersion.state==='established'?'established' as const:'conflicted' as const,basis:{...terms.paymentPeriodDays.basis,sourceRefs:periodVersion.sourceRefs,asOfDate:payment.certificationDate}}:terms.paymentPeriodDays;
+        const periodFact=periodVersion?contractTermSelectionFactState(periodVersion):null;
+        const eventPaymentPeriod=periodVersion?{...terms.paymentPeriodDays,value:periodVersion.unit?.includes('working')?null:periodVersion.value,state:periodFact!.state,authority:periodFact!.authority,basis:{...terms.paymentPeriodDays.basis,sourceRefs:periodVersion.sourceRefs,asOfDate:payment.certificationDate},diagnostics:periodVersion.reason?[periodVersion.reason]:[],action:periodVersion.reason}:terms.paymentPeriodDays;
         const paymentDueDate =
           dateDueFinding(
             payment.paymentDueDate,
