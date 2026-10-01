@@ -17,13 +17,14 @@ const typed:Record<string,DeliveryKind>={procurement_register:'package',interfac
 // once, rather than repeating the same alias/Unicode work for every source row.
 const identityKeys=Object.fromEntries(deliveryKinds.map(k=>[k,kindIdentities[k].map(id=>canonicalHeader(id))])) as Record<DeliveryKind,string[]>;
 export function classifyDeliveryRowKind(row:SourceRow,type:string,governedKind:DeliveryKind|null=null):DeliveryKind|null {
- // Deterministic precedence: explicit row type -> explicit document type ->
- // unique identity signature -> governed mapping decision -> ambiguous.
+ // Deterministic precedence: explicit row type -> unique physical-page identity
+ // -> explicit document type -> unique table identity -> governed mapping -> ambiguous.
  // Column order must never change record kind.
  const explicit=cell(row,'delivery record type') as DeliveryKind;
  if(deliveryKinds.includes(explicit))return explicit;
- if(typed[type])return typed[type]!;
  const candidates=deliveryKinds.filter(k=>identityKeys[k].some(id=>Object.hasOwn(row.cells,id)));
+ if(row.receipt.locator.startsWith('page:')&&candidates.length===1)return candidates[0]!;
+ if(typed[type])return typed[type]!;
  if(candidates.length===1)return candidates[0]!;
  if(governedKind&&deliveryKinds.includes(governedKind))return governedKind;
  return null;
