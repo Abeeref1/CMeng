@@ -765,10 +765,10 @@ function reportEvidenceState(value:unknown,fallback:EvidenceState):EvidenceState
   return state?'partial':fallback;
 }
 function reportMetricContract(data:Record<string,unknown>,path:string):any{
-  const contracts=(data as any)?.reportingContract?.metricContracts??{};
-  if(contracts[path])return contracts[path];
+  const reporting=(data as any)?.reportingContract??{},semantics=reporting.factSemantics??{},contracts=reporting.metricContracts??{};
+  if(semantics[path]||contracts[path])return semantics[path]??contracts[path];
   const wildcard=path.replace(/\[\d+\]/g,'[*]').replace(/\.\d+(?=\.|$)/g,'[*]');
-  return contracts[wildcard]??null;
+  return semantics[wildcard]??contracts[wildcard]??null;
 }
 function reportMetricBasis(contract:any){
   if(!contract)return 'Same canonical module result used by the live page.';
