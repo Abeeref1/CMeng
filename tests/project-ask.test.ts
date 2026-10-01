@@ -251,7 +251,7 @@ test('Batch I Ask CMeng regression questions consume the same canonical page aut
   const zonePage=breakdown.dimensionViews.find((view:any)=>view.dimension==='zone')!,zoneAsk=progress.sections.find(s=>s.authorityId==='wbs')!.tables[0]!;
   assert.equal(zoneAsk.population,zonePage.sourcePopulation);
   assert.equal(zoneAsk.excluded,zonePage.unclassifiedPopulation);
-  assert.deepEqual(zoneAsk.rows.map((row:any)=>[row.zone,row.scheduleProgressPercent]),zonePage.rows.map((row:any)=>[row.groupLabel,row.scheduleProgressPercent]));
+  assert.deepEqual(zoneAsk.rows.map((row:any)=>[row.zone,row.scheduleProgressPercent??null]),zonePage.rows.map((row:any)=>[row.groupLabel,row.scheduleProgressPercent??null]));
 
   for(const [question,pageKey,authority] of [['Procurement exposure?','procurement-packages','procurement'],['Long-lead items?','long-lead','long-lead']] as const){
     const answer=answers.get(question)!,page:any=moduleForProject(f.id,pageKey).data,section=answer.sections.find(s=>s.authorityId===authority)!;
