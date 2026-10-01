@@ -764,11 +764,29 @@ function reportEvidenceState(value:unknown,fallback:EvidenceState):EvidenceState
   if(['missing','blocked','unavailable','not_established'].includes(state))return 'unavailable';
   return state?'partial':fallback;
 }
+function canonicalFactSemantics(data:Record<string,unknown>,path:string):any{
+  const parts=path.split('.');if(parts.length<2)return null;
+  parts.pop();
+  let parent:any=data;
+  for(const part of parts){if(!parent||typeof parent!=='object')return null;parent=parent[part];}
+  if(!parent||typeof parent!=='object'||Array.isArray(parent))return null;
+  const allowed=new Set(['source','submitted','calculated','adjusted','official','scenario']);
+  const declaredAuthority=typeof parent.authority==='string'&&allowed.has(parent.authority)?parent.authority:null;
+  const inferredAuthority=/official/i.test(path)?'official':/source|submitted/i.test(path)?'submitted':null;
+  const authority=declaredAuthority??inferredAuthority??'calculated';
+  const unit=typeof parent.unit==='string'?parent.unit:typeof parent.currency==='string'?parent.currency:null;
+  const state=typeof parent.state==='string'?parent.state:null;
+  const qualification=typeof parent.basis==='string'?parent.basis:typeof parent.qualification==='string'?parent.qualification:typeof parent.reason==='string'?parent.reason:null;
+  if(!declaredAuthority&&!inferredAuthority&&unit===null&&state===null&&qualification===null)return null;
+  const reporting=(data as any)?.reportingContract??{};
+  return {populationId:null,denominator:null,excludedCount:0,exclusionsRef:null,dataDateIso:reporting.dataDateIso??(data as any)?.dataDateIso??null,
+    authority,dateBasis:qualification??'Metric-specific canonical module basis.',unit,state,qualification};
+}
 function reportMetricContract(data:Record<string,unknown>,path:string):any{
-  const reporting=(data as any)?.reportingContract??{},semantics=reporting.factSemantics??{},contracts=reporting.metricContracts??{};
-  if(semantics[path]||contracts[path])return semantics[path]??contracts[path];
+  const reporting=(data as any)?.reportingContract??{},contracts=reporting.metricContracts??{};
+  if(contracts[path])return contracts[path];
   const wildcard=path.replace(/\[\d+\]/g,'[*]').replace(/\.\d+(?=\.|$)/g,'[*]');
-  return semantics[wildcard]??contracts[wildcard]??null;
+  return contracts[wildcard]??canonicalFactSemantics(data,path);
 }
 function reportMetricBasis(contract:any){
   if(!contract)return 'Same canonical module result used by the live page.';
