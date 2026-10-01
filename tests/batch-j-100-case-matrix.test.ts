@@ -175,10 +175,11 @@ test('Batch J 100-case matrix: Claims and Notice states remain truthful across 1
     assert.equal(projection.projectId,source.projectId,'project '+i);
     assert.equal(projection.claimCount,1,'claim count '+i);
     assert.equal(projection.eventCount,1,'event count '+i);
-    assert.ok(projection.noticeTimelinessCounts,'timeliness '+i);
+    const classified=(projection.timelyNoticeCount??0)+(projection.lateNoticeCount??0)+(projection.missingNoticeCount??0)+(projection.noticeRequirementMissingCount??0)+(projection.noticeEventDateMissingCount??0)+(projection.noticeRequirementConflictCount??0);
+    assert.equal(classified,1,'exactly one notice state '+i);
     if(i%11===0)assert.ok((projection.noticeRequirementMissingCount??0)>0,'missing requirement '+i);
     if(i%5===0)assert.ok((projection.noticeEventDateMissingCount??0)>0,'missing event date '+i);
-    if(i%7===0)assert.ok((projection.noticeDateMissingCount??0)>0,'missing notice date '+i);
+    if(i%7===0&&i%5!==0&&i%11!==0)assert.ok((projection.missingNoticeCount??0)>0,'missing notice date '+i);
     assert.doesNotMatch(JSON.stringify(projection),/NaN|Infinity/,'finite '+i);
   }
 });
@@ -218,9 +219,9 @@ test('Batch J 100-case matrix: project identity never changes calculations for e
     const result=buildScheduleAnalyticsProjection(copy,{generatedAt:'2036-12-31T00:00:00.000Z',producerVersion:'matrix'}).result;
     values.push({
       activityCount:result.activityCount,
-      criticalCount:result.criticalCount,
-      negativeFloatCount:result.negativeFloatCount,
-      floatCoveragePercent:result.floatCoveragePercent,
+      criticalCount:result.float.criticalCount,
+      negativeFloatCount:result.float.negativeFloatCount,
+      floatCoveragePercent:result.float.coveragePercent,
       submittedCompletionIso:result.completionBases.find(x=>x.basis==='programme')?.dateIso??null,
     });
   }
