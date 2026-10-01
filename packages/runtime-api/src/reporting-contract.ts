@@ -10,19 +10,6 @@ import type { ProjectRuntimeState, ModuleRuntimeResult } from './project-state-t
 
 const sharedReportingContextCache=new WeakMap<ProjectRuntimeState,{version:number;dataDateIso:string|null;value:any}>();
 
-type MetricSemanticContract={
-  populationId:string|null;
-  denominator:number|null;
-  excludedCount:number;
-  exclusionsRef:string|null;
-  dataDateIso:string|null;
-  authority:ReportingAuthority;
-  dateBasis:string;
-  unit:string|null;
-  state:string|null;
-  qualification:string|null;
-};
-
 /** Project-level reporting facts are identical for every module at one project
  * version. Build them once and let each module add only its owned populations
  * and metric contracts. This changes no authority or denominator semantics. */
@@ -98,28 +85,16 @@ export function managementReportingData<T extends object>(state: ProjectRuntimeS
       const key = metric.key as string;
       const population = /critical/.test(key) ? populations.execution_control : /claims/.test(key) ? populations.claims :
         key === 'progress-position' ? populations.duration_weighted_progress : key === 'schedule-spi' ? populations.commercial_positions : undefined;
-      if (population) {
-        const path = collection + '[' + key + '].value';
-        const populationKey = Object.keys(populations).find(k => populations[k] === population) ?? null;
-        contract.metricContracts[path] = {
-          populationId: population.populationId,
-          denominator: population.denominator,
-          excludedCount: population.exclusions.length,
-          exclusionsRef: populationKey ? 'reportingContract.populations.' + populationKey + '.exclusions' : null,
-          dataDateIso: contract.dataDateIso,
-          authority: ['source','submitted','calculated','adjusted','official','scenario'].includes(metric.authority) ? metric.authority : 'calculated',
-          dateBasis: population.dateBasis,
-          unit: metric.unit ?? null,
-          state: metric.state ?? null,
-          qualification: metric.basis ?? null,
-        };
-      }
+      if (population) contract.metricContracts[collection + '[' + key + '].value'] = {
+        populationId: population.populationId, denominator: population.denominator, excludedCount: population.exclusions.length,
+        exclusionsRef: 'reportingContract.populations.' + Object.keys(populations).find(k => populations[k] === population) + '.exclusions',
+        dataDateIso: contract.dataDateIso, authority: metric.authority === 'source' ? 'source' : 'calculated', dateBasis: metric.basis,
+      };
     }
   }
   for (const field of ['approvedVariationAmount', 'pendingVariationAmount', 'retentionDeductedAmount', 'retentionHeldAmount', 'certifiedUnpaidAmount', 'activeBondAmount']) {
-    const sourcePath='position.currencies[*].' + field + '.value',targetPath='commercialByCurrency[*].' + field + '.value';
-    const original = commercial?.metricContracts?.[sourcePath];
-    if (original) contract.metricContracts[targetPath] = original;
+    const original = commercial?.metricContracts?.['position.currencies[*].' + field + '.value'];
+    if (original) contract.metricContracts['commercialByCurrency[*].' + field + '.value'] = original;
   }
   return result;
 }
@@ -177,22 +152,9 @@ export function attachReportingContract(state:ProjectRuntimeState,result:ModuleR
     populations.resources=populationContract({name:'P6 resource master identities',entity:'resource',dataDateIso,dateBasis:'current programme resource master',sourceRevisionId:model?.sourceRevisionId??null,authority:'source',sourceCount:ids.length,memberIds:ids,exclusions:[]});
     populations.assignments=populationContract({name:'P6 resource assignment records',entity:'assignment',dataDateIso,dateBasis:'current programme assignment register; not resource identities',sourceRevisionId:model?.sourceRevisionId??null,authority:'source',sourceCount:resources.assignments.length,memberIds:resources.assignments.map((r:any,i:number)=>String(r.assignmentId??i)),exclusions:[]});
   }
-  const metricContracts:Record<string,MetricSemanticContract>={};
-  const add=(path:string,population:PopulationContract|undefined,authority:ReportingAuthority='calculated',semantic:{unit?:string|null;state?:string|null;qualification?:string|null}={})=>{
-    if(!population)return;
-    const populationKey=Object.keys(populations).find(key=>populations[key]===population)??null;
-    metricContracts[path]={
-      populationId:population.populationId,
-      denominator:population.denominator,
-      excludedCount:population.exclusions.length,
-      exclusionsRef:populationKey?'reportingContract.populations.'+populationKey+'.exclusions':null,
-      dataDateIso,
-      authority,
-      dateBasis:population.dateBasis,
-      unit:semantic.unit??null,
-      state:semantic.state??null,
-      qualification:semantic.qualification??population.dateBasis
-    };
+  const metricContracts:Record<string,{populationId:string;denominator:number;excludedCount:number;exclusionsRef:string;dataDateIso:string|null;authority:ReportingAuthority;dateBasis:string}>={};
+  const add=(path:string,population:PopulationContract|undefined,authority:ReportingAuthority='calculated')=>{
+    if(population)metricContracts[path]={populationId:population.populationId,denominator:population.denominator,excludedCount:population.exclusions.length,exclusionsRef:'reportingContract.populations.'+Object.keys(populations).find(key=>populations[key]===population)+'.exclusions',dataDateIso,authority,dateBasis:population.dateBasis};
   };
   // Explicit metric-family rules: a resource count can never use assignment rows.
   const walk=(value:any,path:string,depth:number)=>{
@@ -255,12 +217,8 @@ export function attachReportingContract(state:ProjectRuntimeState,result:ModuleR
           }
           p=populations[scopedKey];
         }
-        const declaredAuthority=typeof value?.authority==='string'&&['source','submitted','calculated','adjusted','official','scenario'].includes(value.authority)?value.authority as ReportingAuthority:null;
-        const authority:ReportingAuthority=declaredAuthority??(/official/i.test(full)?'official':/position\.currencies\[\*\]\.approvedVariationAmount\.value/.test(full)?'source':/source|submitted/i.test(full)?'submitted':value?.basis?.authority==='source'?'source':'calculated');
-        const unit=typeof value?.unit==='string'?value.unit:typeof value?.currency==='string'?value.currency:/Percent$|PercentagePoints$/.test(key)?'%':/Hours$/.test(key)?'hours':/Days$/.test(key)?'calendar days':null;
-        const state=typeof value?.state==='string'?value.state:v===null?'not_established':'established';
-        const qualification=typeof value?.basis==='string'?value.basis:typeof value?.qualification==='string'?value.qualification:typeof value?.reason==='string'?value.reason:p?.dateBasis??null;
-        add(full,p,authority,{unit,state,qualification});
+        const authority:ReportingAuthority=/official/i.test(full)?'official':/position\.currencies\[\*\]\.approvedVariationAmount\.value/.test(full)?'source':/source|submitted/i.test(full)?'submitted':value?.basis?.authority==='source'?'source':'calculated';
+        add(full,p,authority);
       }else walk(v,full,depth+1);
     }
   };
