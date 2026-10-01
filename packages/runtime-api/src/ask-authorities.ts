@@ -31,7 +31,7 @@ type Registration={id:string;concepts:string[];metrics?:[string,string,string|nu
 /** Registration metadata belongs to each producer, not to question-specific branches. */
 const registrations:Record<string,Registration>={
   'master-dashboard':{id:'master-dashboard',concepts:['kpi dashboard','executive summary','kpi','key figures','project status','project position'],tables:['scheduleExceptions.rows']},
-  'command-center':{id:'command-center',concepts:['management action','director','meeting','what killing','urgent'],tables:['decisions','evidenceGaps']},
+  'command-center':{id:'command-center',concepts:['management action','management actions','top actions','required actions','next actions','director','meeting','what killing','urgent'],tables:['actions']},
   'master-control-programme':{id:'master-control-programme',concepts:['programme control','project history','joined'],tables:['controlHistory','specialistPositions']},
   'source-quality':{id:'source-quality',concepts:['missing evidence','information gaps','evidence gaps'],tables:['sourceIssues','reviewActions','pendingChecks']},
   'pmo-analysis':{id:'pmo-analysis',concepts:['management brief','executive brief'],metrics:[['forecast.sourceCompletionIso','Submitted completion',null],['forecast.independentCompletionIso','Calendar recalculation completion',null],['progress.durationWeightedProgressPercent','Schedule snapshot','%'],['claims.officialApprovedEotDays','Approved EOT','calendar days']]},
@@ -42,7 +42,7 @@ const registrations:Record<string,Registration>={
   'activity-analytics':{id:'activities',concepts:['activities','activity','critical activities','انشطه'],tables:['rows']},
   'near-critical':{id:'float',concepts:['critical','float','worst','حرج'],metrics:[['nearCriticalCount','Strict near-critical activities','activities'],['negativeFloatCount','Negative float activities','activities'],['classificationCoveragePercent','Float classification coverage','%']],tables:['rows']},
   'progress-report':{id:'progress',concepts:['current completion','completion percentage','progress','behind','slippage','التقدم','انجاز']},
-  'progress-breakdown':{id:'wbs',concepts:['wbs','by trade','work breakdown'],tables:['rows']},
+  'progress-breakdown':{id:'wbs',concepts:['wbs','by trade','work breakdown','progress breakdown','progress by zone','progress by level','progress by workfront','progress by work front','progress by discipline','progress by wbs'],tables:['rows']},
   'progress-scurve':{id:'progress-curve',concepts:['progress curve','s-curve','s curve','progress chart'],tables:['points','actualSnapshots']},
   'quantity-scurve':{id:'quantities',concepts:['installed','installed quantity','quantity progress','quantities','quantity completion','كميات']},
   'resource-utilization':{id:'resources',concepts:['resources','labour','labor','manpower','crew','عماله'],tables:['rows','weeklyRows']},
@@ -183,10 +183,51 @@ function evmAuthority(b:AuthorityBuilder,d:any){
   if(!positions.length)for(const key of ['cpi','spi','ev','pv','ac'])b.metric(key,key.toUpperCase(),null,key==='cpi'||key==='spi'?'ratio':null,'Commercial EVM inputs and a compatible measurement population are not established.');
   for(const [i,series] of (performance?.evmPerformance?.series??[]).entries())b.table('evm-'+i,'EVM · '+series.currency,series.points,'Existing Commercial EVM time series; current and future positions retain their producer labels.',{},r=>Object.fromEntries(Object.entries(r).map(([k,v]:[string,any])=>[k,v&&typeof v==='object'?'value'in v?v.value:null:v])));
 }
-function moduleAuthority(context:AskProducerContext,scope:ProjectScope,key:string,registration:Registration,title:string):AuthorityResult{
+function moduleAuthority(context:AskProducerContext,scope:ProjectScope,key:string,registration:Registration,title:string,plan?:AnalysisPlan):AuthorityResult{
   if(registration.id==='activities')return askScheduleActivities(scope);
   const result=moduleForProject(scope.projectId,key),d:any=result.data;
   const b=new AuthorityBuilder(registration.id,title,key,scope,evidenceState(result.status),result.reason??'Existing CMeng authority at the programme Data Date.');
+  if(registration.id==='command-center'){
+    const rows=Array.isArray(d?.actions)?d.actions:[];
+    b.result.explanation=rows.length
+      ?'Canonical cross-domain management actions from Command Center. Issue, consequence, affected scope, owner, required action, due date, escalation and authority are retained without reinterpretation.'
+      :'No canonical cross-domain management action is established from the current evidence. This is not confirmation that the project has no problems.';
+    b.table('actions','Canonical management actions',rows,b.result.explanation,{
+      dueDate:{type:'date'},severity:{dimension:true},authority:{dimension:true},owner:{dimension:true}
+    },(row:any)=>({
+      severity:row.severity??null,
+      issue:row.issue??null,
+      consequence:row.consequence??null,
+      affectedScope:Array.isArray(row.affectedScope)?row.affectedScope.join('; '):null,
+      affectedMilestones:Array.isArray(row.affectedMilestones)?row.affectedMilestones.join('; '):null,
+      owner:row.owner??null,
+      organisation:row.organisation??null,
+      requiredAction:row.requiredAction??null,
+      dueDate:row.dueIso??null,
+      escalation:row.escalation??null,
+      authority:row.authority??null,
+      owningModule:row.owningModule??null
+    }));
+    return b.result;
+  }
+  if(registration.id==='wbs'){
+    const requested=plan?.groupBy?.[0]??'wbsId';
+    const dimension=requested==='zone'?'zone':requested==='level'||requested==='floor'?'level':requested==='workFront'||requested==='workfront'?'work_front':requested==='discipline'?'wbs':requested==='wbsId'?'wbs':null;
+    const view=dimension&&Array.isArray(d?.dimensionViews)?d.dimensionViews.find((candidate:any)=>candidate.dimension===dimension):null;
+    const rows=view?.rows??d?.rows??[];
+    const dimensionField=dimension==='zone'?'zone':dimension==='level'?'level':dimension==='work_front'?'workFront':dimension==='wbs'?'wbsId':null;
+    b.result.explanation=view
+      ?'Progress Breakdown '+view.label+' uses the same classified activity population and progress basis as the page. Unclassified activities remain outside the named group and are not treated as zero.'
+      :(result.reason??'Current Progress Breakdown position.');
+    b.table('rows',view?view.label:'Progress Breakdown',rows,view?.basis??b.result.explanation,overrides,(row:any)=>({
+      ...row,
+      ...(dimensionField?{[dimensionField]:row.groupLabel??row.groupKey??row[dimensionField]??null}:{}),
+      scheduleProgressPercent:row.scheduleProgressPercent??row.durationWeightedProgressPercent??null
+    }));
+    const table=b.result.tables[0];
+    if(table&&view){table.population=view.sourcePopulation??table.population;table.excluded=view.unclassifiedPopulation??Math.max(0,table.population-table.rows.length);}
+    return b.result;
+  }
   if(registration.id==='forecast'&&d?.completionPosition){
     const p=d.completionPosition;
     b.result.explanation=p.interpretation+' '+p.contractNote;
@@ -258,7 +299,7 @@ export function createAskAuthorityCatalogue(){
     const registration=registrations[module.key]??{id:module.key,concepts:[module.title.toLowerCase()]};
     const domains:Domain[]=registration.domains??(module.area==='delivery'?['delivery']:module.area==='commercial'?['commercial','claims']:module.area==='management'?['schedule','delivery','boq','commercial','claims','evidence']:module.category==='claims'||module.key==='challenge-contract'?['schedule','claims','commercial']:['schedule']);
     catalogue.register({id:registration.id,title:module.title,description:module.description,module:module.key,domains,concepts:registration.concepts,fields:['activities','float'].includes(registration.id)?[...new Set([...analyticFields,...scheduleFields])]:analyticFields,historical:false,
-      produce:(context,scope)=>isDeliveryPage(module.key)?deliveryAuthority(context,scope,module.key,registration.id,module.title):moduleAuthority(context,scope,module.key,registration,module.title)});
+      produce:(context,scope,plan)=>isDeliveryPage(module.key)?deliveryAuthority(context,scope,module.key,registration.id,module.title):moduleAuthority(context,scope,module.key,registration,module.title,plan)});
   }
   catalogue.register({id:'productivity',title:'Productivity / Installation Rates',description:'Existing source productivity calculation with explicit scope and activity links.',module:'independent-forecast',domains:['schedule','boq'],concepts:['productivity','installation rate','productivity weak','انتاجيه'],fields:analyticFields,historical:false,produce:(context,scope)=>{
     const d:any=moduleForProject(scope.projectId,'independent-forecast').data,p=d?.sourceProductivityForecastEvidence??d?.sourceProductivityForecast;
