@@ -350,8 +350,11 @@ export function sourceTables(documents: readonly EvidenceDocument[], diagnostics
       const sheets=doc.tabularRead?.sourceHashSha256===identity?doc.tabularRead.sheets:[{name:'CSV',rows:csv(bytes.toString(encoding))}];
       for(const sheet of sheets){
         const confirmations=(doc.tableConfirmations??[]).filter(c=>c.sheetName===sheet.name);
-        const intelligence=sheet.intelligence??analyzeEvidenceTable(sheet.rows,confirmations);
-        const preparedInput=sheet.rows.slice(intelligence.headerRowIndex);
+        const intelligence=confirmations.length?analyzeEvidenceTable(sheet.rows,confirmations):(sheet.intelligence??analyzeEvidenceTable(sheet.rows));
+        const confirmationByColumn=new Map(confirmations.map(item=>[item.columnIndex,item.meaning] as const));
+        const preparedInput=sheet.rows.slice(intelligence.headerRowIndex).map((row,index)=>index===0
+          ?row.map((value,columnIndex)=>confirmationByColumn.get(columnIndex)??value)
+          :row);
         const prepared=prepareRegisterRows(preparedInput,doc.documentType),{headers,rows}=prepared;
         const absoluteHeaderRow=intelligence.headerRowIndex+prepared.headerRow;
         if(!headers.length||headers.some(h=>!h)||new Set(headers).size!==headers.length){diagnostics.push('DUPLICATE_NORMALIZED_HEADERS:'+doc.documentId);continue;}
