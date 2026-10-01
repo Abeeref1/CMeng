@@ -61,3 +61,12 @@ export function termAtEvent(versions:readonly ContractTermVersion[],term:Contrac
  const established=Boolean(date)&&!unresolved&&distinct.size===1;
  return {state:established?'established' as const:'unresolved' as const,value:established?applicable[0]!.value:null,unit:established?applicable[0]!.unit:null,reason:!date?'Event date is unresolved.':unresolved?'Amendment applicability is unresolved.':distinct.size>1?'Conflicting applicable contract values.':!distinct.size?'No applicable labelled contract value was recognised.':null,versions:applicable,sourceRefs:[...new Set(applicable.flatMap(v=>v.sourceRefs))]};
 }
+
+export function contractTermSelectionFactState(selected:ReturnType<typeof termAtEvent>){
+ const conflicting=/^Conflicting applicable contract values\.$/.test(selected.reason??'');
+ const hasApplicableSource=selected.versions.length>0;
+ return {
+  state:selected.state==='established'?'established' as const:conflicting?'conflicted' as const:hasApplicableSource?'partial' as const:'missing' as const,
+  authority:selected.state==='established'?'source' as const:conflicting?'mixed' as const:hasApplicableSource?'candidate' as const:'missing' as const,
+ };
+}
