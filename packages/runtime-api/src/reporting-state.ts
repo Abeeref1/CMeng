@@ -56,7 +56,7 @@ export function reportingState(state: ProjectRuntimeState): ProjectRuntimeState 
   const view={...state,schedules,boq:boqSource.boq,quantities:withInstalledMeasurements(state,boqSource.quantities,date),
     contract:state.contract?refreshContractSegmentation(state.contract):null,
     contractDocuments:state.contractDocuments.map(doc=>({...doc,result:refreshContractSegmentation(doc.result)})),
-    controls:{...state.controls,readinessEvidence:reportingReadinessEvidence(state,date),delayClaims:source?delayClaimsAsOf(source,date).current:null,
+    controls:{...state.controls,readinessEvidence:reportingReadinessEvidence(state,date),delayClaims:source?(date?delayClaimsAsOf(source,date).current:source):null,
     ncrs:ops.quality.current as typeof state.controls.ncrs,rfis:ops.rfi.current as typeof state.controls.rfis,risks:ops.risk.current as typeof state.controls.risks}};
   inheritTimeClaimsCache(state,view);
   views.add(view);origins.set(view,state);cache.set(state,{version:state.version,date,value:view});return view;
