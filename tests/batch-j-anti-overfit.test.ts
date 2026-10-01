@@ -108,8 +108,9 @@ test('Batch J anti-overfit: schedule rules work across unrelated project IDs, WB
     assert.notEqual(result.status,'blocked',c.id);
     assert.equal(result.data.result.projectId,c.id);
     assert.equal(result.data.result.activityCount,1);
-    assert.ok(JSON.stringify(result.data).includes(c.code));
-    assert.ok(JSON.stringify(result.data).includes(c.name));
+    assert.equal(result.data.result.float.coveragePercent,100,c.id);
+    assert.equal(result.data.result.float.negativeFloatCount,c.float<0?1:0,c.id);
+    assert.equal(result.data.result.float.zeroFloatCount,c.float===0?1:0,c.id);
   }
 });
 
@@ -164,7 +165,7 @@ test('Batch J anti-overfit: Commercial facts remain usable without schedule and 
     runtimeProjects.getOrCreate(c.id);
     runtimeProjects.updateControls(c.id,{
       contractValue:{amount:c.contract,currency:c.currency,sourceRefs:['generic-contract:'+c.id]},
-      invoices:[{invoiceId:'IPC-'+c.id,currency:c.currency,certifiedAmount:c.certified,paidAmount:c.paid,sourceRefs:['generic-payment:'+c.id]} as any],
+      invoices:[{invoiceId:'IPC-'+c.id,currency:c.currency,certifiedAmount:c.certified,paidAmount:c.paid,certificateDateIso:'2036-08-15',paymentDateIso:'2036-08-20',sourceRefs:['generic-payment:'+c.id]} as any],
     });
     const state=runtimeProjects.get(c.id)!;
     assert.equal(state.schedules.length,0);
