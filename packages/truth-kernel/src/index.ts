@@ -1,6 +1,8 @@
 import {parseCsv as parseDelimitedCsv} from "../../tabular-parser/src";
 import {canonicalHeader,prepareRegisterRows} from './register-schema';
+import {analyzeEvidenceTable, type EvidenceTableIntelligence, type EvidenceColumnConfirmation} from './table-intelligence';
 export * from './register-schema';
+export * from './table-intelligence';
 import { createHash } from 'node:crypto';
 import { readFileSync, statSync } from 'node:fs';
 export * from './reporting';
@@ -17,10 +19,11 @@ export interface EvidenceDocument {
   documentId: string; sourceHashSha256: string; storedPath: string;
   sourceFilename: string; mediaType: string; basisState: string;
   linkedArtifactId: string | null; uploadedAt: string; familyKey?: string; documentType?: string;
-  tabularRead?: {producerVersion:string;sourceHashSha256:string;sheets:Array<{name:string;rows:string[][]}>} | undefined;
+  tabularRead?: {producerVersion:string;sourceHashSha256:string;sheets:Array<{name:string;rows:string[][];intelligence?:EvidenceTableIntelligence}>} | undefined;
+  tableConfirmations?: EvidenceColumnConfirmation[] | undefined;
 }
 export interface SourceRow { cells: Readonly<Record<string, string>>; receipt: SourceReceipt }
-export interface SourceTable { headers: string[]; rows: SourceRow[]; document: EvidenceDocument; recognition?: {headerRow:number;readRowCount:number;recognized:boolean;unknown:string[]}; }
+export interface SourceTable { headers: string[]; rows: SourceRow[]; document: EvidenceDocument; intelligence: EvidenceTableIntelligence; recognition?: {headerRow:number;readRowCount:number;recognized:boolean;unknown:string[]}; }
 export interface Fact<T> {
   value: T | null; state: FactState; receipts: SourceReceipt[];
   diagnostics: string[]; method: string; coverage: { known: number; total: number };
@@ -346,13 +349,18 @@ export function sourceTables(documents: readonly EvidenceDocument[], diagnostics
       const encoding = bytes[0] === 0xff && bytes[1] === 0xfe ? 'utf16le' : 'utf8';
       const sheets=doc.tabularRead?.sourceHashSha256===identity?doc.tabularRead.sheets:[{name:'CSV',rows:csv(bytes.toString(encoding))}];
       for(const sheet of sheets){
-        const prepared=prepareRegisterRows(sheet.rows,doc.documentType),{headers,rows}=prepared;
+        const confirmations=(doc.tableConfirmations??[]).filter(c=>c.sheetName===sheet.name);
+        const intelligence=sheet.intelligence??analyzeEvidenceTable(sheet.rows,confirmations);
+        const preparedInput=sheet.rows.slice(intelligence.headerRowIndex);
+        const prepared=prepareRegisterRows(preparedInput,doc.documentType),{headers,rows}=prepared;
+        const absoluteHeaderRow=intelligence.headerRowIndex+prepared.headerRow;
         if(!headers.length||headers.some(h=>!h)||new Set(headers).size!==headers.length){diagnostics.push('DUPLICATE_NORMALIZED_HEADERS:'+doc.documentId);continue;}
         if(rows.some(row=>row.length!==headers.length)){diagnostics.push('CSV_ROW_WIDTH_MISMATCH:'+doc.documentId);continue;}
         if(!prepared.recognized)diagnostics.push('REGISTER_COLUMNS_NOT_RECOGNISED:'+doc.documentId+':'+prepared.rawHeaders.join(', '));
-        const table:SourceTable={headers,document:doc,recognition:{headerRow:prepared.headerRow,readRowCount:prepared.readRowCount,recognized:prepared.recognized,unknown:prepared.unknown},rows:rows.map((r,i)=>({
+        if(!intelligence.structurallyReadable)diagnostics.push('TABLE_STRUCTURE_REVIEW_REQUIRED:'+doc.documentId+':'+sheet.name);
+        const table:SourceTable={headers,document:doc,intelligence,recognition:{headerRow:absoluteHeaderRow,readRowCount:prepared.readRowCount,recognized:prepared.recognized,unknown:prepared.unknown},rows:rows.map((r,i)=>({
           cells:Object.freeze(Object.fromEntries(headers.map((h,j)=>[h,r[j]??'']))),
-          receipt:{documentId:doc.documentId,sourceHash:identity,revision:doc.linkedArtifactId??identity,locator:(sheet.name==='CSV'?'':'sheet:'+sheet.name+':')+'row:'+(i+prepared.headerRow+1),basisState:doc.basisState,authority:'source_record'},
+          receipt:{documentId:doc.documentId,sourceHash:identity,revision:doc.linkedArtifactId??identity,locator:(sheet.name==='CSV'?'':'sheet:'+sheet.name+':')+'row:'+(i+absoluteHeaderRow+1),basisState:doc.basisState,authority:'source_record'},
         }))};
         // Multi-sheet workbooks remain distinct and retain their sheet/row references.
         if(sheets.length===1){if(tableCache.size>=64)tableCache.delete(tableCache.keys().next().value!);tableCache.set(key,table);}result.push(table);
