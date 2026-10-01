@@ -29,7 +29,7 @@ export interface PaymentStageRecord {
   paymentId: string; periodEnd: string | null; sourceStatus: string;
   certifiedAmountBasis: PaymentSeriesBasis;
   paidAmountBasis: PaymentSeriesBasis;
-  amounts: Record<'applicationAmount'|'engineerAssessedAmount'|'employerCertifiedAmount'|'grossWork'|'variations'|'retentionDeduction'|'advanceRecovery'|'otherDeduction'|'taxAmount'|'netCertifiedAmount'|'paidAmount'|'outstandingAmount',CommercialMoney>;
+  amounts: Record<'applicationAmount'|'engineerAssessedAmount'|'employerCertifiedAmount'|'grossWork'|'grossCertifiedAmount'|'variations'|'variationCertifiedAmount'|'retentionDeduction'|'advanceRecovery'|'otherDeduction'|'taxAmount'|'netCertifiedAmount'|'paidAmount'|'outstandingAmount',CommercialMoney>;
   receipt: SourceReceipt; reconciliation: 'matched'|'conflicted'|'unresolved';
   componentArithmetic?: {state:'matched'|'conflicted'|'unresolved';calculatedNet:number|null;difference:number|null;omittedComponents:string[];basis:string};
   diagnostics: string[]; calculatedOutstandingAmount: CommercialMoney;
@@ -135,9 +135,9 @@ export interface CanonicalCommercialModel {
   };
   diagnostics:string[];
 }
-const moneyNames=['applicationAmount','engineerAssessedAmount','employerCertifiedAmount','grossWork','variations','retentionDeduction','advanceRecovery','otherDeduction','taxAmount','netCertifiedAmount','paidAmount','outstandingAmount'] as const;
+const moneyNames=['applicationAmount','engineerAssessedAmount','employerCertifiedAmount','grossWork','grossCertifiedAmount','variations','variationCertifiedAmount','retentionDeduction','advanceRecovery','otherDeduction','taxAmount','netCertifiedAmount','paidAmount','outstandingAmount'] as const;
 const paymentHeaders:Record<typeof moneyNames[number],string[]>={
-  applicationAmount:['application amount','applied amount'],engineerAssessedAmount:['engineer assessed amount'],employerCertifiedAmount:['employer certified amount'],grossWork:['gross work'],variations:['variations'],retentionDeduction:['retention','retention deduction'],advanceRecovery:['advance recovery'],otherDeduction:['other deduction','other deductions'],taxAmount:['tax amount','vat amount'],netCertifiedAmount:['net certified','net certified amount'],paidAmount:['paid amount'],outstandingAmount:['outstanding amount'],
+  applicationAmount:['application amount','applied amount'],engineerAssessedAmount:['engineer assessed amount'],employerCertifiedAmount:['employer certified amount'],grossWork:['gross work'],grossCertifiedAmount:['gross certified','gross certified amount'],variations:['variations'],variationCertifiedAmount:['variation certified','variation certified amount','variation certification','certified variations'],retentionDeduction:['retention','retention deduction'],advanceRecovery:['advance recovery'],otherDeduction:['other deduction','other deductions'],taxAmount:['tax amount','vat amount'],netCertifiedAmount:['net certified','net certified amount'],paidAmount:['paid amount'],outstandingAmount:['outstanding amount'],
 };
 const tax=(s:string):CommercialMoney['taxBasis']=>/excl/i.test(s)?'exclusive':/incl/i.test(s)?'inclusive':'unknown';
 function paymentSeriesBasis(value:string):PaymentSeriesBasis{
