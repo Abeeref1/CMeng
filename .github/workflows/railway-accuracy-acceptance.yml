@@ -14,9 +14,9 @@ jobs:
   read-only-production:
     if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
-    # The 19-project runtime and browser checks already take over 12 minutes.
-    # Preserve every assertion and allow the focused page-first B check to finish too.
-    timeout-minutes: 25
+    # A healthy full production acceptance is currently about 29 minutes.
+    # Keep headroom so successful page-first acceptance is not cancelled by the job cap.
+    timeout-minutes: 40
     env:
       CMENG_RAILWAY_URL: https://cmeng-main-production.up.railway.app
       CMENG_EXPECTED_RELEASE: ${{ github.event.workflow_run.head_sha || github.sha }}
@@ -36,10 +36,8 @@ jobs:
           python -m pip install playwright==1.57.0
           python -m playwright install --with-deps chromium
       - name: Verify live module navigation and report window without writes
-        if: always()
         run: python scripts/railway-browser-acceptance.py
       - name: Verify every Batch B management page across all projects, ORBIT last
-        if: always()
         env:
           CMENG_MIN_PROJECTS: '19'
         run: python scripts/railway-management-batch-b-acceptance.py
