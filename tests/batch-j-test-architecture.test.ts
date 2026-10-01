@@ -12,9 +12,9 @@ import {runtimeProjects} from '../packages/runtime-api/src/project-state';
 import {moduleForProject} from '../packages/runtime-api/src/project-projections';
 import {boqScopeIntelligence} from '../packages/runtime-api/src/boq-scope-intelligence';
 import {canonicalCommercialModule} from '../packages/runtime-api/src/commercial-runtime';
-import {canonicalTimeClaims} from '../packages/runtime-api/src/canonical-time-claims';
 import {changeDelivery,deliveryRecords,deliveryStore} from '../packages/runtime-api/src/delivery-records';
 import {cmengUatHtml} from '../packages/runtime-api/src/ui';
+import {moduleRegistry} from '../packages/runtime-api/src/registry';
 
 const truthStates:PopulationState[]=[
   'established','missing','partial','candidate','source_only','conflicted','not_applicable','quarantined',
@@ -211,12 +211,19 @@ test('Batch J Task 61: primary management surfaces are answer-first, impact/scop
   const id='J-MANAGEMENT-USEFULNESS';
   loadCertifiedDemoProject(id);
 
-  const dashboard:any=moduleForProject(id,'master-dashboard');
-  const command:any=moduleForProject(id,'command-center');
-  const mcp:any=moduleForProject(id,'master-control-programme');
+  const managementKeys=moduleRegistry.filter(row=>row.area==='management').map(row=>row.key);
+  assert.deepEqual(managementKeys,[
+    'master-dashboard','command-center','cross-domain-accountability','master-control-programme','source-quality',
+  ]);
+  const managementPages=Object.fromEntries(managementKeys.map(key=>[key,moduleForProject(id,key)])) as Record<string,any>;
+  const dashboard:any=managementPages['master-dashboard'];
+  const command:any=managementPages['command-center'];
+  const accountability:any=managementPages['cross-domain-accountability'];
+  const mcp:any=managementPages['master-control-programme'];
+  const sourceQuality:any=managementPages['source-quality'];
   const pmo:any=moduleForProject(id,'pmo-analysis');
 
-  for(const [name,page] of Object.entries({dashboard,command,mcp,pmo}) as Array<[string,any]>){
+  for(const [name,page] of Object.entries({...managementPages,'pmo-analysis':pmo}) as Array<[string,any]>){
     assert.notEqual(page.status,'blocked',name);
     assert.ok(page.data&&typeof page.data==='object',name+' current answer');
     assert.ok(JSON.stringify(page.data).replace(/null|false|0|\[\]|\{\}/g,'').length>100,name+' usable content');
@@ -229,6 +236,11 @@ test('Batch J Task 61: primary management surfaces are answer-first, impact/scop
   assert.ok(command.data.actions.some((row:any)=>(row.affectedScope?.length??0)>0||(row.affectedMilestones?.length??0)>0),'affected scope');
   assert.ok(command.data.actions.some((row:any)=>String(row.requiredAction??'').trim()),'next action');
   assert.match(JSON.stringify(command.data),/Project Director/,'known owner remains visible');
+  assert.ok((accountability.data.actions?.length??0)>0,'accountability page must expose real actions');
+  assert.ok(accountability.data.actions.some((row:any)=>String(row.consequence??'').trim()),'accountability impact');
+  assert.ok(accountability.data.actions.some((row:any)=>String(row.requiredAction??'').trim()),'accountability next action');
+  assert.ok(sourceQuality.data,'source-quality page remains available as secondary review information');
+  assert.ok(mcp.data,'MCP current execution position remains available');
 
   const html=cmengUatHtml();
   assert.match(html,/Actions requiring management attention/);
@@ -282,18 +294,20 @@ test('Batch J Task 62: Commercial-only project retains known money without a pro
     row.originalContractValue?.value!==null||row.currentContractValue?.value!==null||row.grossCertifiedAmount?.value!==null));
 });
 
-test('Batch J Task 62: claims-only project retains claim/event evidence without a programme',()=>{
+test('Batch J Task 62: claims-only project retains governed claim/event evidence without a programme',()=>{
   const id='J-SPARSE-CLAIMS';
   const state:any=loadCertifiedDemoProject(id);
   state.schedules=[];
   state.resourcesByRevision.clear();
   state.quantities=null;
   clearCommercialControls(state);
-  const claims:any=canonicalTimeClaims(state,true);
-  assert.ok(claims.events.length>0);
-  assert.ok(claims.claims.length>0);
+  assert.ok((state.controls.delayClaims?.events.length??0)>0);
+  assert.ok((state.controls.delayClaims?.claims.length??0)>0);
   const delay:any=moduleForProject(id,'delay-claims');
   assert.notEqual(delay.status,'blocked');
+  assert.equal(delay.data.contractorClaimEvidenceSubmitted,true);
+  assert.ok((delay.data.eventCount??0)>0);
+  assert.ok((delay.data.claimCount??0)>0);
 });
 
 test('Batch J Task 62: schedule plus BOQ stays useful without Commercial or claims',()=>{
@@ -318,12 +332,15 @@ test('Batch J Task 62: schedule plus claims stays useful without BOQ or Commerci
   state.quantities=null;
   clearCommercialControls(state);
   const schedule:any=moduleForProject(id,'schedule-analytics');
-  const claims:any=canonicalTimeClaims(state,true);
   const delay:any=moduleForProject(id,'delay-claims');
   assert.notEqual(schedule.status,'blocked');
   assert.ok((schedule.data.result?.activityCount??0)>0);
-  assert.ok(claims.events.length>0&&claims.claims.length>0);
+  assert.ok((state.controls.delayClaims?.events.length??0)>0);
+  assert.ok((state.controls.delayClaims?.claims.length??0)>0);
   assert.notEqual(delay.status,'blocked');
+  assert.equal(delay.data.contractorClaimEvidenceSubmitted,true);
+  assert.ok((delay.data.eventCount??0)>0);
+  assert.ok((delay.data.claimCount??0)>0);
 });
 
 test('Batch J Task 62: full project keeps all primary management surfaces useful',()=>{
