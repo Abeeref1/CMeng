@@ -847,3 +847,32 @@ test('A qualified single cost snapshot remains available without certifying tren
   assert.ok(result.costControl.positions[0]!.sourceEac.value !== null);
   assert.equal(result.costScurve.series[0]!.points.length, 1);
 });
+
+test("Batch G EVM future exclusions stay partitioned by currency and tax basis", () => {
+  const value = input();
+  const base = value.costSnapshots[0]!;
+  value.costSnapshots = [
+    {...base, currency:"AED", taxBasis:"exclusive", asOf:"2026-07-31"},
+    {...base, currency:"AED", taxBasis:"exclusive", asOf:"2026-09-30"},
+    {...base, currency:"USD", taxBasis:"exclusive", asOf:"2026-07-31"},
+    {...base, currency:"USD", taxBasis:"exclusive", asOf:"2026-09-30"},
+    {...base, currency:"USD", taxBasis:"exclusive", asOf:"2026-10-31"},
+  ];
+  const result = buildCommercialPerformance(value);
+  const aed = result.evmPerformance.series.find(row=>row.currency==="AED"&&row.taxBasis==="exclusive")!;
+  const usd = result.evmPerformance.series.find(row=>row.currency==="USD"&&row.taxBasis==="exclusive")!;
+  assert.equal(aed.futureExcludedPointCount, 1);
+  assert.equal(usd.futureExcludedPointCount, 2);
+  assert.ok(!JSON.stringify(result).match(/NaN|Infinity/));
+});
+
+test("Batch G preserves EVM minimum-point and unofficial EAC controls", () => {
+  const value = input();
+  value.costSnapshots = [value.costSnapshots[0]!];
+  const result = buildCommercialPerformance(value);
+  assert.equal(result.evmPerformance.state, "partial");
+  assert.equal(result.evmPerformance.series[0]!.points.length, 1);
+  const scenarios = result.costControl.positions[0]!.eacScenarios;
+  assert.ok(scenarios.filter(row=>row.method!=="source_reported").every(row=>row.official===false));
+});
+
