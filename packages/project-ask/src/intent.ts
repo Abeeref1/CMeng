@@ -167,7 +167,14 @@ export function resolveIntent(question:string,catalogue:AuthorityDescriptor[],pr
     // additive conversation.
     const preserveCompoundRequirements=continuation||explicitNonSchedule||(inherited&&priorNonSchedule);
     const addRecipe=(ids:string[])=>{for(const id of ids)if(catalogue.some(c=>c.id===id)&&!plan.authorities.includes(id))plan.authorities.push(id);};
-    if(recipe==='driving_path'){if(preserveCompoundRequirements)addRecipe(['critical-path']);else plan.authorities=['critical-path'];}
+    if(recipe==='management_actions'){
+      // Management actions are cross-domain canonical Command Center actions,
+      // not the schedule-only action slice inside Project Diagnosis.
+      if(preserveCompoundRequirements)addRecipe(['command-center']);else plan.authorities=['command-center'];
+      const requested=/\btop\s+(\d{1,4})\b/.exec(q);
+      plan.limit=requested?Math.min(1000,Math.max(1,Number(requested[1]))):plan.limit;
+      plan.rankBy=null;plan.rankings=[];
+    }else if(recipe==='driving_path'){if(preserveCompoundRequirements)addRecipe(['critical-path']);else plan.authorities=['critical-path'];}
     else if(recipe==='delay_diagnosis'){if(preserveCompoundRequirements)addRecipe(['project-diagnosis','critical-path','activities','float']);else plan.authorities=['project-diagnosis','critical-path','activities','float'];}
     else {if(preserveCompoundRequirements)addRecipe(['project-diagnosis']);else plan.authorities=['project-diagnosis'];}
     if(recipe==='delay_diagnosis'){
@@ -190,7 +197,7 @@ export function resolveIntent(question:string,catalogue:AuthorityDescriptor[],pr
       }
       plan.criticalOnly=false;if(!preserveCompoundRequirements){plan.rankBy=null;plan.rankings=[];plan.limit=null;}
     }
-    if(['management_actions','project_position','revision_change','no_change_outlook','milestone_exposure'].includes(recipe)&&!preserveCompoundRequirements){plan.rankBy=null;plan.rankings=[];plan.limit=null;}
+    if(['project_position','revision_change','no_change_outlook','milestone_exposure'].includes(recipe)&&!preserveCompoundRequirements){plan.rankBy=null;plan.rankings=[];plan.limit=null;}
   }
   if(/\bschedule pressure\b/.test(q)&&plan.authorities.includes('activities'))scopedFilter(['activities'],{field:'schedulePressure',operator:'eq',value:true,upper:null});
   const wbsFilter=/\bfor wbs\s+["']?([^"'?]+)["']?\??$/i.exec(question);

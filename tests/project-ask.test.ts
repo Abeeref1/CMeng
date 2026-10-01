@@ -216,6 +216,70 @@ test('withdrawing a governed record removes it from refreshed analysis while ano
 });
 
 
+test('Batch I Ask CMeng regression questions consume the same canonical page authorities',async t=>{
+  const f=await fixture(t);
+  const overdue=programme('2036-08-31','2036-08-10').replace('2036-09-10\t2036-08-10','2036-08-01\t2036-08-10');
+  await f.upload('Current-overdue.xer',overdue,'replace_current_basis');
+  await materials(f);
+  await f.upload('Cost-EVM.csv','Metric,Value,Unit,Status,As Of,VAT Basis\nBAC,2000,AED,Approved,2036-08-31,Exclusive\nEV,720,AED,Approved,2036-08-31,Exclusive\nAC,900,AED,Actual,2036-08-31,Exclusive\nPV,800,AED,Plan,2036-08-31,Exclusive','replace_current_basis');
+  const cases:Array<[string,string]>= [
+    ['What is driving completion?','critical-path'],
+    ['Why is the project late?','project-diagnosis'],
+    ['List delayed activities.','activities'],
+    ['Top delayed WBS?','project-diagnosis'],
+    ['Long-lead items?','long-lead'],
+    ['Progress by zone?','wbs'],
+    ['Current completion forecast?','forecast'],
+    ['Procurement exposure?','procurement'],
+    ['Claims/EOT?','eot'],
+    ['Cost exposure?','commercial'],
+    ['Top 10 actions?','command-center']
+  ];
+  const answers=new Map<string,AnalysisResult>();
+  for(const [question,authority] of cases){
+    const answer=await f.ask(question);answers.set(question,answer);
+    assert.ok(answer.sections.some(section=>section.authorityId===authority),question+' must use '+authority);
+  }
+
+  const forecast=answers.get('Current completion forecast?')!,forecastPage:any=moduleForProject(f.id,'independent-forecast').data;
+  const forecastRow=forecast.sections.find(s=>s.authorityId==='forecast')!.tables.find(t=>t.id==='forecast.position')!.rows[0]!;
+  assert.equal(forecastRow.calendarRecalculation,forecastPage.completionPosition.independentFinishIso);
+  assert.equal(forecastRow.submittedFinish,forecastPage.completionPosition.submittedFinishIso);
+
+  const progress=answers.get('Progress by zone?')!,breakdown:any=moduleForProject(f.id,'progress-breakdown').data;
+  assert.deepEqual(progress.plan.groupBy,['zone']);
+  const zonePage=breakdown.dimensionViews.find((view:any)=>view.dimension==='zone')!,zoneAsk=progress.sections.find(s=>s.authorityId==='wbs')!.tables[0]!;
+  assert.equal(zoneAsk.population,zonePage.sourcePopulation);
+  assert.equal(zoneAsk.excluded,zonePage.unclassifiedPopulation);
+  assert.deepEqual(zoneAsk.rows.map((row:any)=>[row.zone,row.scheduleProgressPercent??null]),zonePage.rows.map((row:any)=>[row.groupLabel,row.scheduleProgressPercent??null]));
+
+  for(const [question,pageKey,authority] of [['Procurement exposure?','procurement-packages','procurement'],['Long-lead items?','long-lead','long-lead']] as const){
+    const answer=answers.get(question)!,page:any=moduleForProject(f.id,pageKey).data,section=answer.sections.find(s=>s.authorityId===authority)!;
+    const askRefs=section.tables.flatMap(t=>t.rows).map((row:any)=>row.reference).filter(Boolean);
+    const pageRefs=(page.rows??[]).map((row:any)=>row.reference).filter(Boolean);
+    assert.deepEqual(askRefs.slice(0,5),pageRefs.slice(0,5),question);
+  }
+
+  const eot=answers.get('Claims/EOT?')!,eotPage:any=moduleForProject(f.id,'eot-assessment').data;
+  const eotMetric=eot.sections.find(s=>s.authorityId==='eot')!.metrics.find(m=>m.id==='eot.officialApprovedEotDays');
+  if(eotMetric)assert.equal(eotMetric.value,eotPage.officialApprovedEotDays??null);
+
+  const actions=answers.get('Top 10 actions?')!,command:any=moduleForProject(f.id,'command-center').data,actionTable=actions.sections.find(s=>s.authorityId==='command-center')!.tables.find(t=>t.id==='command-center.actions')!;
+  assert.equal(actions.plan.limit,10);
+  assert.ok(command.actions.length>0,'fixture must exercise a real canonical management action');
+  assert.deepEqual(actionTable.rows.map((row:any)=>row.issue),command.actions.slice(0,10).map((row:any)=>row.issue));
+  assert.match(actions.narrative[0]!.text,/same canonical actions used by the management pages/i);
+
+  const commercial=answers.get('Cost exposure?')!.sections.find(s=>s.authorityId==='commercial')!,commercialPage:any=moduleForProject(f.id,'commercial-overview').data;
+  for(const metric of commercial.metrics.filter(m=>m.value!==null)){
+    const suffix=metric.id.split('.').at(-1)!;
+    if(!suffix.includes('-'))continue;
+    const field=suffix.slice(0,suffix.lastIndexOf('-')),currency=suffix.slice(suffix.lastIndexOf('-')+1);
+    const pageMetric=commercialPage.position?.currencies?.find((row:any)=>row.currency===currency)?.[field];
+    if(pageMetric)assert.equal(metric.value,pageMetric.value,'Cost exposure must match Commercial page '+field+' '+currency);
+  }
+});
+
 test('local routing invokes neither model method for social, facts, filtering, ranking, visual and export requests',async t=>{
   const f=await fixture(t);await materials(f);await f.upload('Cost-EVM.csv','Metric,Value,Unit,Status,As Of,VAT Basis\nEV,720,AED,Approved,2036-08-31,Exclusive\nAC,900,AED,Actual,2036-08-31,Exclusive','replace_current_basis');
   let calls=0;const engine=new ProjectAskEngine(f.store,{plan:async()=>{calls++;throw new Error('unexpected planning');},explain:async()=>{calls++;throw new Error('unexpected explanation');}});

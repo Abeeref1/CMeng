@@ -568,6 +568,39 @@ export interface ProjectRuntimeOverview {
     EvidenceRerunReceipt | null;
   boardPublicationHistory:
     PublishedBoardReportRecord[];
+  roleLensContext: {
+    dataDateIso: string | null;
+    planning: {
+      criticalCount: number | null;
+      nearCriticalCount: number | null;
+      negativeFloatCount: number | null;
+      drivingNetworkState: string | null;
+      drivers: Array<Record<string, unknown>>;
+      revision: Record<string, unknown> | null;
+    };
+    controls: {
+      progress: Record<string, unknown> | null;
+      forecastCompletionIso: string | null;
+      submittedCompletionIso: string | null;
+      scheduleVarianceDays: number | null;
+      revision: Record<string, unknown> | null;
+    };
+    projectDirector: {
+      actions: Array<Record<string, unknown>>;
+    };
+    programDirector: {
+      programmeStages: Array<Record<string, unknown>>;
+      interfaces: Array<Record<string, unknown>>;
+    };
+    executive: {
+      contractualCompletionIso: string | null;
+      submittedCompletionIso: string | null;
+      forecastCompletionIso: string | null;
+      metrics: Array<Record<string, unknown>>;
+      commercialByCurrency: Array<Record<string, unknown>>;
+      decisions: Array<Record<string, unknown>>;
+    };
+  };
   managementStates: Array<{
     issueAssessment?: import('../../truth-kernel/src').ControlIssueAssessment | undefined;
     key: string;

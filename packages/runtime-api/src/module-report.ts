@@ -1,7 +1,7 @@
 import {buildDeliveryWorkbook} from './delivery-export';
 import {createHash} from 'node:crypto';
 import {exportAskAnalysis,type AskExportView} from './ask-export';
-import type {AnalysisResult,AuthorityResult,AnalysisChart,Column,Cell} from '../../project-ask/src/types';
+import type {AnalysisResult,AuthorityResult,AnalysisChart,Column,Cell,EvidenceState} from '../../project-ask/src/types';
 import {pageApiKey,publicModuleResult} from './registry';
 import ExcelJS from "exceljs";
 import type {
@@ -754,15 +754,45 @@ function analysisColumns(rows:Record<string,FlatValue>[]):Column[]{
   return keys.map(key=>{const values=rows.map(r=>r[key]).filter(v=>v!==null),sample=values[0];const type:Column['type']=typeof sample==='number'?'number':typeof sample==='boolean'?'boolean':typeof sample==='string'&&/^\d{4}-\d{2}-\d{2}(?:T|$)/.test(sample)?'date':'text';
     return {key,label:key.replace(/([a-z])([A-Z])/g,'$1 $2').replace(/[._-]+/g,' ').replace(/^./,x=>x.toUpperCase()),type,unit:null,aggregate:'none',dimension:type==='text'};});
 }
+function reportEvidenceState(value:unknown,fallback:EvidenceState):EvidenceState{
+  const state=String(value??'').toLowerCase();
+  if(['established','available','ready','verified','governed','source','official','complete','calculated'].includes(state))return 'established';
+  if(['candidate','working','extracted_candidate'].includes(state))return 'candidate';
+  if(['conflicting','conflicted'].includes(state))return 'conflicting';
+  if(state==='stale')return 'stale';
+  if(state==='scenario')return 'scenario';
+  if(['missing','blocked','unavailable','not_established'].includes(state))return 'unavailable';
+  return state?'partial':fallback;
+}
+function reportMetricContract(data:Record<string,unknown>,path:string):any{
+  const reporting=(data as any)?.reportingContract??{},semantics=reporting.factSemantics??{},contracts=reporting.metricContracts??{};
+  if(semantics[path]||contracts[path])return semantics[path]??contracts[path];
+  const wildcard=path.replace(/\[\d+\]/g,'[*]').replace(/\.\d+(?=\.|$)/g,'[*]');
+  return semantics[wildcard]??contracts[wildcard]??null;
+}
+function reportMetricBasis(contract:any){
+  if(!contract)return 'Same canonical module result used by the live page.';
+  const parts=[
+    contract.qualification||contract.dateBasis||'Canonical module fact',
+    contract.populationId?(contract.denominator===null?'Population retained':'Population '+String(contract.denominator)+(contract.excludedCount?' · excluded '+String(contract.excludedCount):'')):'Population not separately established',
+    contract.dataDateIso?'Data Date '+String(contract.dataDateIso).slice(0,10):'Data Date not established',
+    'Authority '+String(contract.authority??'calculated')
+  ];
+  return parts.join(' · ');
+}
 function moduleAnalysis(projectId:string,moduleKey:string,result:ModuleRuntimeResult,view?:ModuleReportView):AnalysisResult{
   const data=result.data&&typeof result.data==='object'?result.data as Record<string,unknown>:{},arrays=collectArrays(data);
   const dataDate=(data as any)?.reportingContract?.dataDateIso??(data as any)?.dataDateIso??null;
   const authorityState=result.status==='ready'?'established':result.status==='partial'?'partial':'unavailable';
   const sections:AuthorityResult[]=[];
-  const flat=flattenRecord(data),metricRows=Object.entries(flat).filter(([,v])=>v===null||['string','number','boolean'].includes(typeof v)).slice(0,1000);
+  const flat=flattenRecord(data),metricRows=Object.entries(flat).filter(([key,v])=>!key.startsWith('reportingContract.')&&(v===null||['string','number','boolean'].includes(typeof v))).slice(0,1000);
+  const metricTraces=metricRows.map(([key])=>{
+    const contract=reportMetricContract(data,key),state=reportEvidenceState(contract?.state,authorityState);
+    return {id:'module:metric:'+key,authorityId:'summary',projectId,module:moduleKey,path:key,sourceRefs:[],dataDate:contract?.dataDateIso??dataDate,basis:reportMetricBasis(contract),exclusions:contract?.excludedCount?['Reporting population excludes '+String(contract.excludedCount)+' record(s); see '+String(contract.exclusionsRef??'the reporting contract')+'.']:[],state};
+  });
   sections.push({authorityId:'summary',title:titleForModule(moduleKey)+' · Key facts',state:authorityState,explanation:result.reason??'Current CMeng module position.',
-    metrics:metricRows.map(([key,value],i)=>({id:'module.'+key,label:key.replace(/([a-z])([A-Z])/g,'$1 $2').replace(/[._-]+/g,' '),value:value as Cell,unit:null,state:authorityState,classification:'calculated_intelligence',traceId:'module:summary',basis:'Same canonical module result used by the live page.'})),
-    tables:[],charts:[],findings:[],traces:[{id:'module:summary',authorityId:'summary',projectId,module:moduleKey,path:'data',sourceRefs:[],dataDate:(data as any)?.reportingContract?.dataDateIso??(data as any)?.dataDateIso??null,basis:'Canonical ModuleRuntimeResult; presentation does not recalculate Project facts.',exclusions:[],state:authorityState}]});
+    metrics:metricRows.map(([key,value],i)=>{const contract=reportMetricContract(data,key),state=reportEvidenceState(contract?.state,authorityState);return {id:'module.'+key,label:key.replace(/([a-z])([A-Z])/g,'$1 $2').replace(/[._-]+/g,' '),value:value as Cell,unit:contract?.unit??null,state,classification:['source','submitted','official'].includes(String(contract?.authority))?'project_fact':'calculated_intelligence',traceId:'module:metric:'+key,basis:reportMetricBasis(contract)};}),
+    tables:[],charts:[],findings:[],traces:[{id:'module:summary',authorityId:'summary',projectId,module:moduleKey,path:'data',sourceRefs:[],dataDate,basis:'Canonical ModuleRuntimeResult; presentation does not recalculate Project facts.',exclusions:[],state:authorityState},...metricTraces]});
   arrays.forEach((section,index)=>{const flatRows=section.rows.map(row=>row&&typeof row==='object'&&!Array.isArray(row)?flattenRecord(row):{value:primitiveValue(row)}),columns=analysisColumns(flatRows),tableId='module-table-'+index;
     const category=columns.find(column=>column.dimension),numeric=columns.filter(column=>column.type==='number'&&flatRows.some(row=>typeof row[column.key]==='number')).slice(0,3);
     const charts:AnalysisChart[]=category&&numeric.length&&flatRows.length?[{id:'module-chart-'+index,title:section.path.replace(/[._-]+/g,' '),type:category.type==='date'?'line':'bar',tableId,category:category.key,series:numeric.map(column=>column.key),unit:'value',basis:'Chart of the same retained '+section.path+' table rows; no independent report calculation.',population:flatRows.length,dataDate}]:[];

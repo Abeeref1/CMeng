@@ -8296,14 +8296,25 @@ export function overviewForProject(
         };
       },
     );
+  const overviewManagementResults =
+    new Map(
+      managementModuleKeys.map(
+        (key) => [
+          key,
+          moduleForProject(
+            projectId,
+            key,
+          ),
+        ] as const,
+      ),
+    );
   const overviewManagementStates =
     managementModuleKeys.map(
       (key) => {
         const resolved =
-          moduleForProject(
-            projectId,
+          overviewManagementResults.get(
             key,
-          );
+          )!;
         return {
           key,
           status:
@@ -8315,6 +8326,277 @@ export function overviewForProject(
         };
       },
     );
+
+  // Task 56: every role lens consumes the same already-resolved Management
+  // Control payloads. Do not perform a second management-surface lookup solely
+  // for presentation; the role lens is a compact view, not another calculation.
+  const roleDashboard =
+    (overviewManagementResults.get(
+      "master-dashboard",
+    )?.data as any) ?? {};
+  const roleCommand =
+    (overviewManagementResults.get(
+      "command-center",
+    )?.data as any) ?? {};
+  const roleMcp =
+    (overviewManagementResults.get(
+      "master-control-programme",
+    )?.data as any) ?? {};
+  const roleDiagnosis =
+    roleDashboard.projectDiagnosis ??
+    null;
+  const roleCompletion =
+    roleDashboard.completionPosition ??
+    null;
+  const roleContext =
+    roleDashboard.managementContext ??
+    roleCommand.managementContext ??
+    roleMcp.managementContext ??
+    null;
+  const compactActions = (
+    roleCommand.actions ??
+    []
+  ).slice(0, 12).map(
+    (action: any) => ({
+      issue: action.issue ?? null,
+      consequence:
+        action.consequence ?? null,
+      affectedScope:
+        Array.isArray(
+          action.affectedScope,
+        )
+          ? action.affectedScope
+          : [],
+      affectedMilestones:
+        Array.isArray(
+          action.affectedMilestones,
+        )
+          ? action.affectedMilestones
+          : [],
+      owner: action.owner ?? null,
+      organisation:
+        action.organisation ?? null,
+      requiredAction:
+        action.requiredAction ??
+        null,
+      dueIso:
+        action.dueIso ?? null,
+      escalation:
+        action.escalation ?? null,
+      severity:
+        action.severity ?? null,
+      authority:
+        action.authority ?? null,
+      owningModule:
+        action.owningModule ??
+        null,
+    }),
+  );
+  const roleLensContext = {
+    dataDateIso:
+      latest?.revision.model
+        .dataDateIso ?? null,
+    planning: {
+      criticalCount:
+        roleDiagnosis?.counts
+          ?.critical
+          ?.knownCount ?? null,
+      nearCriticalCount:
+        roleDiagnosis?.counts
+          ?.nearCritical
+          ?.knownCount ?? null,
+      negativeFloatCount:
+        roleDiagnosis?.counts
+          ?.negativeFloat
+          ?.knownCount ?? null,
+      drivingNetworkState:
+        roleDiagnosis?.network
+          ?.state ?? null,
+      drivers:
+        Array.isArray(
+          roleDiagnosis?.network
+            ?.rows,
+        )
+          ? roleDiagnosis.network.rows
+              .slice(0, 10)
+              .map((row: any) => ({
+                activityId:
+                  row.activityId ??
+                  null,
+                name:
+                  row.name ?? null,
+                wbs:
+                  row.wbs ??
+                  row.wbsPath ??
+                  null,
+                calculatedFinishIso:
+                  row.calculatedFinishIso ??
+                  row.finishIso ??
+                  null,
+                totalFloatHours:
+                  row.totalFloatHours ??
+                  row.independentTotalFloatHours ??
+                  null,
+              }))
+          : [],
+      revision:
+        roleDiagnosis?.revision
+          ? {
+              state:
+                roleDiagnosis
+                  .revision.state ??
+                null,
+              fromRevisionId:
+                roleDiagnosis
+                  .revision
+                  .fromRevisionId ??
+                null,
+              toRevisionId:
+                roleDiagnosis
+                  .revision
+                  .toRevisionId ??
+                null,
+              modified:
+                roleDiagnosis
+                  .revision.modified ??
+                null,
+              added:
+                roleDiagnosis
+                  .revision.added ??
+                null,
+              removed:
+                roleDiagnosis
+                  .revision.removed ??
+                null,
+              finishMovementCalendarDays:
+                roleDiagnosis
+                  .revision
+                  .finishMovementCalendarDays ??
+                null,
+            }
+          : null,
+    },
+    controls: {
+      progress:
+        roleContext?.crossModule
+          ?.progress?.progressBases ??
+        null,
+      forecastCompletionIso:
+        roleCompletion
+          ?.independentFinishIso ??
+        null,
+      submittedCompletionIso:
+        roleCompletion
+          ?.submittedFinishIso ??
+        null,
+      scheduleVarianceDays:
+        roleCompletion
+          ?.differenceElapsedDays ??
+        null,
+      revision:
+        roleDiagnosis?.revision
+          ? {
+              state:
+                roleDiagnosis
+                  .revision.state ??
+                null,
+              modified:
+                roleDiagnosis
+                  .revision.modified ??
+                null,
+              finishMovementCalendarDays:
+                roleDiagnosis
+                  .revision
+                  .finishMovementCalendarDays ??
+                null,
+            }
+          : null,
+    },
+    projectDirector: {
+      actions: compactActions,
+    },
+    programDirector: {
+      programmeStages:
+        Array.isArray(
+          roleContext?.schedule
+            ?.programmeStages,
+        )
+          ? roleContext.schedule.programmeStages
+              .slice(0, 10)
+          : [],
+      interfaces:
+        Array.isArray(
+          roleCommand.interfaces?.rows,
+        )
+          ? roleCommand.interfaces.rows
+              .slice(0, 10)
+              .map((row: any) => ({
+                interfaceId:
+                  row.interfaceId ??
+                  null,
+                package:
+                  row.package ?? null,
+                affectedWorkfront:
+                  row.affectedWorkfront ??
+                  null,
+                requiredDate:
+                  row.requiredDate ??
+                  null,
+                responsibleParty:
+                  row.responsibleParty ??
+                  null,
+                consequence:
+                  row.consequence ??
+                  null,
+                state:
+                  row.state ?? null,
+              }))
+          : [],
+    },
+    executive: {
+      contractualCompletionIso:
+        roleCompletion
+          ?.contractualFinishIso ??
+        null,
+      submittedCompletionIso:
+        roleCompletion
+          ?.submittedFinishIso ??
+        null,
+      forecastCompletionIso:
+        roleCompletion
+          ?.independentFinishIso ??
+        null,
+      metrics:
+        Array.isArray(
+          roleDashboard.metrics,
+        )
+          ? roleDashboard.metrics
+              .filter(
+                (metric: any) =>
+                  metric?.value !==
+                    null &&
+                  metric?.value !==
+                    undefined,
+              )
+              .slice(0, 10)
+          : [],
+      commercialByCurrency:
+        Array.isArray(
+          roleDashboard
+            .commercialByCurrency,
+        )
+          ? roleDashboard.commercialByCurrency
+              .slice(0, 8)
+          : [],
+      decisions:
+        Array.isArray(
+          roleCommand.decisions,
+        )
+          ? roleCommand.decisions
+              .slice(0, 8)
+          : [],
+    },
+  };
 
   return {
     projectId,
@@ -8479,6 +8761,7 @@ export function overviewForProject(
             ],
           }),
         ),
+    roleLensContext,
     managementStates:
       overviewManagementStates,
     moduleStates:
