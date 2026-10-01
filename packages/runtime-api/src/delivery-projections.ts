@@ -395,6 +395,7 @@ export function deliveryModule(state:ProjectRuntimeState,key:string):ModuleRunti
   });
  };
  const governedRows:any[]=baseGovernedRows.map(row=>{
+  if(key==='long-lead')return {...row,authority:'confirmed',basis:row.leadTimeBasis};
   if(key!=='construction-readiness'&&key!=='procurement-readiness')return row;
   const linked=readinessInterfaceIssues(row);if(!linked.length)return row;
   const interfaceState=linked.some(issue=>issue.state==='blocked'||issue.state==='overdue')?'blocked':'at_risk';
@@ -426,6 +427,29 @@ export function deliveryModule(state:ProjectRuntimeState,key:string):ModuleRunti
   :interfaces.blockers;
  const interfaceFindings=interfaceFindingRows.map(r=>({code:'INTERFACE_'+r.state.toUpperCase(),recordId:null,message:(r.interfaceId+' · '+(r.consequence||'Interface requires action')),action:r.escalation||'Resolve the interface before the affected workfront/package proceeds.',sourceRefs:r.sourceRefs}));
  const findings=useBoqCandidates?interfaceFindings:[...p.findings.filter(f=>key==='delivery-control'||f.recordId&&rowIds.has(f.recordId)),...(['delivery-control','construction-readiness','procurement-readiness','delivery-risks'].includes(key)?interfaceFindings:[])];
+ const programmeModel=projectControlSchedule(state)?.revision.model??null;
+ const programmeActivities=new Map(programmeModel?.activities.map(a=>[a.activityId,a])??[]);
+ const deliveryControlActions=key==='delivery-control'?findings.map((finding,index)=>{
+  const source=finding.recordId?p.records.find(r=>r.recordId===finding.recordId)??null:null;
+  const packageRow=finding.recordId?p.packageRows.find(r=>r.recordId===finding.recordId)??null:null;
+  const issueInterface=interfaceFindingRows.find(row=>finding.message.startsWith(row.interfaceId+' ·'))??null;
+  const activityIds=[...new Set([...(source?.links.activityIds??[]),...(issueInterface?.linkedActivity?issueInterface.linkedActivity.split(';').map(v=>v.trim()).filter(Boolean):[])])];
+  const workfronts=p.records.filter(r=>['governed','verified'].includes(r.state)&&r.kind==='workfront'&&r.links.activityIds.some(id=>activityIds.includes(id)));
+  const affectedSchedule=activityIds.map(id=>{const activity=programmeActivities.get(id);return activity?(activity.name?activity.activityId+' · '+activity.name:activity.activityId):id;});
+  const consequence=issueInterface?.consequence
+    ??(packageRow?.headroomCalendarDays!==null&&packageRow?.headroomCalendarDays!==undefined&&packageRow.headroomCalendarDays<0
+      ?'Forecast delivery is '+(-packageRow.headroomCalendarDays)+' calendar days after the controlled programme need date.'
+      :'The Delivery exception affects the linked scope or programme until the recorded action is resolved.');
+  const requiredDate=issueInterface?.requiredDate??packageRow?.programmeNeedDate??packageRow?.sourceRequiredOnSite??null;
+  const owner=issueInterface?.responsibleParty??issueInterface?.givingParty??issueInterface?.receivingParty??packageRow?.owner??(source?field(source,'owner','responsible party')||null:null);
+  const packageLabel=issueInterface?.package??packageRow?.reference??(source?.kind==='package'?(source.reference??source.recordId):null);
+  return {
+   actionId:'delivery-control:'+index,issue:finding.message,workfront:workfronts.map(r=>r.reference??r.description??r.recordId).join('; ')||issueInterface?.affectedWorkfront||null,
+   affectedSchedule,package:packageLabel,owner,requiredDate,consequence,action:finding.action,
+   severity:issueInterface&&['blocked','overdue'].includes(issueInterface.state)||packageRow?.headroomCalendarDays!==null&&packageRow?.headroomCalendarDays!==undefined&&packageRow.headroomCalendarDays<0?'high':'medium',
+   authority:issueInterface?'source':source?'source':'calculated',sourceRefs:finding.sourceRefs
+  };
+ }).sort((a,b)=>(a.severity==='high'?0:1)-(b.severity==='high'?0:1)||(a.requiredDate??'9999').localeCompare(b.requiredDate??'9999')):[];
  const hasRows=riskPage?(risk.state!=='missing'||useBoqCandidates):records.length>0||rows.length>0;const pending=records.filter(r=>['extracted_candidate','working','conflicted','stale'].includes(r.state));
  const sourceDocs=p.documents.filter(d=>d.kind===kind);const unread=sourceDocs.some(d=>d.state==='submitted_not_interpreted'||d.state==='mapping_required'||d.state==='partial_page_reading');
  const sourceDomain=deliverySourceDomain(key);
@@ -478,7 +502,7 @@ export function deliveryModule(state:ProjectRuntimeState,key:string):ModuleRunti
  if(['delivery-control','procurement-packages','material-tracking','long-lead','construction-discipline','construction-locations','delivery-risks'].includes(key))extras.boqIntelligence=useBoqCandidates?boqScope:p.boqIntelligence;
  if(key==='long-lead')extras.scheduleLongLeadCandidates=p.scheduleLongLeadCandidates;
  if(['delivery-control','handover-readiness'].includes(key))extras.handover={...p.handover,rows:undefined};
- if(key==='delivery-control')extras.readiness=p.readiness;
+ if(key==='delivery-control'){extras.readiness=p.readiness;extras.managementActions=deliveryControlActions;}
  if(['procurement-scurves','delivery-submittals','material-tracking'].includes(key)){extras.curves=p.curves.filter(c=>key==='procurement-scurves'||key==='delivery-submittals'&&c.kind==='submittal_throughput'||key==='material-tracking'&&c.kind==='material_quantity');extras.weightedGroups=p.weightedGroups;}
  if(key==='delivery-hse')extras.hsePosition=p.hsePosition;
  if(key==='construction-locations')extras.locations=p.locations;
