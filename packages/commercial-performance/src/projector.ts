@@ -1234,23 +1234,25 @@ function evmPerformance(
       string,
       PerformanceCostSnapshotInput[]
     >();
-  let futureExcluded =
-    0;
+  const futureByKey =
+    new Map<string, number>();
   for (
     const snapshot of
       input.costSnapshots
   ) {
-    if (
-      reportingScope(snapshot.asOf,input.dataDateIso)!=='as_of'
-    ) {
-      futureExcluded +=
-        1;
-      continue;
-    }
     const key = [
       snapshot.currency,
       snapshot.taxBasis,
     ].join("|");
+    if (
+      reportingScope(snapshot.asOf,input.dataDateIso)!=='as_of'
+    ) {
+      futureByKey.set(
+        key,
+        (futureByKey.get(key) ?? 0) + 1,
+      );
+      continue;
+    }
     const list =
       groups.get(key) ?? [];
     list.push(snapshot);
@@ -1418,7 +1420,9 @@ function evmPerformance(
           points.length,
         ),
       futureExcludedPointCount:
-        futureExcluded,
+        futureByKey.get(
+          key,
+        ) ?? 0,
       diagnostics: [
         ...(complete <
         points.length

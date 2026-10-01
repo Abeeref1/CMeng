@@ -3259,7 +3259,25 @@ function renderCommercialVisual(key,data){
       const paymentPopulationEstablished=(paymentRegister.recordCount??0)>0||paymentRegister.state==="established";
       const paymentRows=(paymentRegister.rows||[]).map(row=>{
         const amounts=row.amounts||{};
-        return '<tr><td><b>'+escapeHtml(row.paymentId)+'</b></td><td>'+escapeHtml(row.paymentType||"Not stated")+'</td><td>'+escapeHtml(planningShortDate(row.periodEnd))+'<br><span class="muted">'+escapeHtml(humanizeKey(row.reportingScope||'undated'))+'</span></td><td>'+escapeHtml(planningShortDate(row.lifecycle?.applicationDate))+'</td><td>'+escapeHtml(planningShortDate(row.lifecycle?.assessmentDate))+'</td><td>'+escapeHtml(planningShortDate(row.lifecycle?.certificationDate))+'</td><td>'+escapeHtml(planningShortDate(row.lifecycle?.certificationDueDate?.value))+'</td><td>'+escapeHtml(planningShortDate(row.lifecycle?.paymentDueDate?.value))+'</td><td>'+escapeHtml(planningShortDate(row.lifecycle?.paymentDate))+'</td><td>'+escapeHtml(humanizeKey(row.lifecycle?.slaState||"not_established"))+'</td><td>'+escapeHtml(findingValue(amounts.applicationAmount))+'</td><td>'+escapeHtml(findingValue(amounts.engineerAssessedAmount))+'</td><td>'+escapeHtml(findingValue(amounts.employerCertifiedAmount))+'</td><td>'+escapeHtml(findingValue(amounts.paidAmount))+'</td></tr>';
+        return '<tr><td><b>'+escapeHtml(row.paymentId)+'</b></td><td>'+escapeHtml(row.paymentType||"Not stated")+'</td><td>'+escapeHtml(planningShortDate(row.periodEnd))+'<br><span class="muted">'+escapeHtml(humanizeKey(row.reportingScope||'undated'))+'</span></td><td>'+escapeHtml(planningShortDate(row.lifecycle?.applicationDate))+'</td><td>'+escapeHtml(planningShortDate(row.lifecycle?.assessmentDate))+'</td><td>'+escapeHtml(planningShortDate(row.lifecycle?.certificationDate))+'</td><td>'+escapeHtml(planningShortDate(row.lifecycle?.certificationDueDate?.value))+'</td><td>'+escapeHtml(planningShortDate(row.lifecycle?.paymentDueDate?.value))+'</td><td>'+escapeHtml(planningShortDate(row.lifecycle?.paymentDate))+'</td><td>'+escapeHtml(humanizeKey(row.lifecycle?.slaState||"not_established"))+'</td><td>'+escapeHtml(findingValue(amounts.applicationAmount))+'</td><td>'+escapeHtml(findingValue(amounts.engineerAssessedAmount))+'</td><td>'+escapeHtml(findingValue(amounts.grossWork))+'</td><td>'+escapeHtml(findingValue(amounts.grossCertifiedAmount))+'</td><td>'+escapeHtml(findingValue(amounts.variationCertifiedAmount))+'</td><td>'+escapeHtml(findingValue(amounts.employerCertifiedAmount))+'</td><td>'+escapeHtml(findingValue(amounts.netCertifiedAmount))+'</td><td>'+escapeHtml(findingValue(amounts.paidAmount))+'</td><td>'+escapeHtml(findingValue(amounts.outstandingAmount))+'</td></tr>';
+      });
+      const paymentActionRows=(paymentRegister.rows||[]).map(row=>{
+        const amounts=row.amounts||{};
+        const sla=row.lifecycle?.slaState||"not_established";
+        const exposure=[
+          amounts.outstandingAmount?.value!==null&&amounts.outstandingAmount?.value!==undefined?"Outstanding "+findingValue(amounts.outstandingAmount):null,
+          amounts.employerCertifiedAmount?.value!==null&&amounts.employerCertifiedAmount?.value!==undefined?"Employer certified "+findingValue(amounts.employerCertifiedAmount):null,
+          amounts.netCertifiedAmount?.value!==null&&amounts.netCertifiedAmount?.value!==undefined?"Net certified "+findingValue(amounts.netCertifiedAmount):null
+        ].filter(Boolean).join(" · ")||"Not established";
+        const due=row.lifecycle?.paymentDueDate?.value;
+        const action=sla==="late"
+          ?(row.lifecycle?.paymentDate?"Review the late-payment record and close any remaining reconciliation.":"Escalate the overdue payment against the confirmed due date.")
+          :sla==="open"
+            ?"Monitor payment against the confirmed due date."
+            :sla==="not_established"
+              ?(row.lifecycle?.paymentDueDate?.action||"Establish the payment due-date basis before SLA escalation.")
+              :"No immediate payment action indicated by the current lifecycle.";
+        return '<tr><td><b>'+escapeHtml(row.paymentId)+'</b></td><td>'+escapeHtml(exposure)+'</td><td>Not recorded</td><td>'+escapeHtml(due?planningShortDate(due):"Not recorded")+'</td><td>'+escapeHtml(action)+'</td><td>'+escapeHtml(humanizeKey(sla))+'</td></tr>';
       });
       const lifecycleVisual=renderVisualPanel(
         "IPC lifecycle completion",
@@ -3300,7 +3318,9 @@ function renderCommercialVisual(key,data){
         ((paymentRegister.rows||[]).some(row=>row.reportingScope==="as_of"&&row.componentArithmetic?.state!=="matched")?'<div class="notice warn"><b>Certificate component reconciliation requires review.</b> Source net-certified amounts are retained. Missing or conflicting gross-work, variation, deduction, recovery or tax evidence prevents an independently reconciled certificate amount; see Certificate component checks below.</div>':'')+
         '<div class="commercial-visual-grid payment-lifecycle-grid">'+lifecycleVisual+slaVisual+'</div>'+
         '<div class="section-heading compact"><div><h5>Payment register / IPC lifecycle</h5><p>Full source register retained. Current summaries exclude future and undated certificate periods; event dates shown here are restricted to the Data Date.</p></div><span class="badge">'+escapeHtml(fmt((paymentRegister.rows||[]).length))+' records</span></div>'+
-        table(["Payment","Type","Period","Applied","Assessed","Certified","Certification due","Payment due","Paid","SLA","Applied amount","Assessed amount","Certified amount","Paid amount"],paymentRows,"No payment register is established.")+
+        table(["Payment","Type","Period","Applied","Assessed","Certified","Certification due","Payment due","Paid","SLA","Applied amount","Assessed amount","Gross work","Gross certified","Variation certified","Employer certified","Net certified","Paid amount","Outstanding"],paymentRows,"No payment register is established.")+
+        '<div class="section-heading compact"><div><h5>Payment management actions</h5><p>Exposure, due date and status use existing payment evidence. Owner stays unassigned unless a source records one.</p></div></div>'+
+        table(["Finding","Exposure","Owner","Due","Action","Status"],paymentActionRows,"No payment lifecycle actions are currently available.")+
         '</div></section>';
     }
     if(key==="contract-particulars-bonds"){
@@ -3666,6 +3686,22 @@ function renderCommercialVisual(key,data){
         )
       )).join("");
       const voRows=(vo.rows||[]).map(row=>'<tr><td><b>'+escapeHtml(row.variationId)+'</b></td><td>'+escapeHtml(humanizeKey(row.lifecycleStage))+'</td><td>'+escapeHtml(row.description||"")+'</td><td>'+escapeHtml(planningShortDate(row.dates?.instruction))+'</td><td>'+escapeHtml(planningShortDate(row.dates?.submitted))+'</td><td>'+escapeHtml(planningShortDate(row.dates?.assessed))+'</td><td>'+escapeHtml(planningShortDate(row.dates?.agreed))+'</td><td>'+escapeHtml(planningShortDate(row.dates?.approved))+'</td><td>'+escapeHtml(findingValue(row.ageDays,"d"))+'</td><td>'+escapeHtml(findingValue(row.cost?.claimed))+'</td><td>'+escapeHtml(findingValue(row.cost?.assessed))+'</td><td>'+escapeHtml(findingValue(row.cost?.agreed))+'</td><td>'+escapeHtml(findingValue(row.cost?.approved))+'</td><td>'+escapeHtml(findingValue(row.scheduleImpactDays,"d"))+'</td><td>'+escapeHtml([row.instructionId,row.claimId,row.paymentId,(row.activityIds||[]).join("; ")].filter(Boolean).join(" · ")||"No cross-domain link")+'</td></tr>');
+      const variationActionRows=(vo.rows||[]).map(row=>{
+        const exposure=[
+          row.cost?.approved?.value!==null&&row.cost?.approved?.value!==undefined?"Approved "+findingValue(row.cost.approved):null,
+          row.cost?.agreed?.value!==null&&row.cost?.agreed?.value!==undefined?"Agreed "+findingValue(row.cost.agreed):null,
+          row.cost?.assessed?.value!==null&&row.cost?.assessed?.value!==undefined?"Assessed "+findingValue(row.cost.assessed):null,
+          row.cost?.claimed?.value!==null&&row.cost?.claimed?.value!==undefined?"Claimed "+findingValue(row.cost.claimed):null
+        ].filter(Boolean).join(" · ")||"Not established";
+        const action=row.lifecycleStage==="instruction"?"Obtain and record the commercial submission or quotation."
+          :row.lifecycleStage==="submitted"?"Progress assessment of the submitted variation."
+          :row.lifecycleStage==="quoted"?"Progress assessment of the quoted variation."
+          :row.lifecycleStage==="assessed"?"Progress agreement of the assessed variation."
+          :row.lifecycleStage==="agreed"?"Progress contractual approval of the agreed variation."
+          :row.lifecycleStage==="unknown"?"Establish the current variation lifecycle stage from dated evidence."
+          :"No open lifecycle action indicated by the current stage.";
+        return '<tr><td><b>'+escapeHtml(row.variationId)+'</b> · '+escapeHtml(row.description||"")+'</td><td>'+escapeHtml(exposure)+'</td><td>Not recorded</td><td>Not recorded</td><td>'+escapeHtml(action)+'</td><td>'+escapeHtml(humanizeKey(row.lifecycleStage))+'</td></tr>';
+      });
       const si=contractControls.siteInstructions||{};
       const siteInstructionPopulationEstablished=(si.recordCount??0)>0||si.state==="established";
       const instructionPressure=renderVisualPanel(
@@ -3679,6 +3715,19 @@ function renderCommercialVisual(key,data){
         ],"items"):'<div class="empty-visual">Site Instruction register is not confirmed. Conversion and quotation counts are not confirmed.</div>'
       );
       const siRows=(si.rows||[]).map(row=>'<tr><td><b>'+escapeHtml(row.instructionId)+'</b></td><td>'+escapeHtml(planningShortDate(row.issueDate))+'</td><td>'+escapeHtml(row.description||"")+'</td><td>'+escapeHtml(humanizeKey(row.status))+'</td><td>'+escapeHtml(planningShortDate(row.quotationDueDate?.value))+'</td><td>'+escapeHtml(planningShortDate(row.quotationDate))+'</td><td>'+escapeHtml(humanizeKey(row.quotationTimeliness))+'</td><td>'+escapeHtml(findingValue(row.openAgeDays,"d"))+'</td><td>'+escapeHtml(findingValue(row.estimatedAmount))+'</td><td>'+escapeHtml(row.variationId||"Not linked")+'</td><td>'+escapeHtml([row.claimId,row.paymentId,(row.activityIds||[]).join("; ")].filter(Boolean).join(" · ")||"—")+'</td></tr>');
+      const siteInstructionActionRows=(si.rows||[]).map(row=>{
+        const exposure=[
+          row.estimatedAmount?.value!==null&&row.estimatedAmount?.value!==undefined?"Estimate "+findingValue(row.estimatedAmount):null,
+          row.scheduleImpactDays?.value!==null&&row.scheduleImpactDays?.value!==undefined?"Schedule impact "+findingValue(row.scheduleImpactDays,"d"):null
+        ].filter(Boolean).join(" · ")||"Not established";
+        const due=row.quotationDueDate?.value;
+        const action=row.quotationTimeliness==="late"&&!row.quotationDate?"Escalate the overdue quotation."
+          :!row.quotationDate&&due?"Obtain quotation by the confirmed due date."
+          :!due?(row.quotationDueDate?.action||"Establish the quotation due-date basis.")
+          :row.variationId?"Monitor the explicit variation conversion and downstream assessment."
+          :"No immediate instruction action indicated by the current record.";
+        return '<tr><td><b>'+escapeHtml(row.instructionId)+'</b> · '+escapeHtml(row.description||"")+'</td><td>'+escapeHtml(exposure)+'</td><td>Not recorded</td><td>'+escapeHtml(due?planningShortDate(due):"Not recorded")+'</td><td>'+escapeHtml(action)+'</td><td>'+escapeHtml(humanizeKey(row.quotationTimeliness||row.status))+'</td></tr>';
+      });
       contractControlDetail=
         '<section class="planning-panel primary variation-management-position"><div class="planning-panel-head"><div><h4>Variations & Change Management Position</h4><p>Lifecycle, aging, contract-value effect and schedule/claim/payment links remain controlled separately.</p></div></div><div class="planning-panel-body">'+
         planningKpis([
@@ -3696,6 +3745,8 @@ function renderCommercialVisual(key,data){
         (bridgeVisuals?'<div class="commercial-visual-grid change-bridge-grid">'+bridgeVisuals+'</div>':"")+
         '<div class="section-heading compact"><div><h5>Variation register</h5><p>Current records only. Future and undated source records are retained in separate sections below.</p></div><span class="badge">'+escapeHtml(fmt((vo.rows||[]).length))+' records</span></div>'+
         experienceDisclosure("Review variation lifecycle records",table(["Variation","Stage","Description","Instruction","Submitted","Assessed","Agreed","Approved","Open age","Claimed","Assessed value","Agreed value","Approved value","Time impact","Cross-domain links"],voRows,"No confirmed variation lifecycle records are established."),fmt(voRows.length)+" current rows")+
+        '<div class="section-heading compact"><div><h5>Variation management actions</h5><p>Owner and due date remain unassigned unless a source establishes them.</p></div></div>'+
+        table(["Finding","Exposure","Owner","Due","Action","Status"],variationActionRows,"No variation management actions are currently available.")+
         '</div></section>'+
         '<section class="planning-panel"><div class="planning-panel-head"><div><h4>Site Instructions</h4><p>An instruction is not automatically a variation or entitlement. Quotation aging uses actual issue and due dates.</p></div></div><div class="planning-panel-body">'+
         planningKpis([
@@ -3706,6 +3757,8 @@ function renderCommercialVisual(key,data){
         ])+
         instructionPressure+
         table(["Instruction","Issued","Description","Status","Quote due","Quoted","Timeliness","Open age","Estimate","Variation","Other links"],siRows,"No Site Instruction register is established.")+
+        '<div class="section-heading compact"><div><h5>Site Instruction management actions</h5><p>Due dates use only confirmed instruction/contract evidence; owner is not inferred.</p></div></div>'+
+        table(["Finding","Exposure","Owner","Due","Action","Status"],siteInstructionActionRows,"No Site Instruction management actions are currently available.")+
         '</div></section>';
     }
     if(key==="contract-particulars-bonds"){
@@ -3782,8 +3835,14 @@ function renderCommercialVisual(key,data){
       )).join("");
       const obligationRows=(obl.rows||[]).map((row,index)=>'<tr><td><b>'+escapeHtml(row.origin==='contract_clause_candidate'?'Requirement wording group '+(index+1):row.obligationId)+'</b></td><td>'+escapeHtml(humanizeKey(row.origin))+'</td><td>'+escapeHtml(row.clauseIdentifier||(row.referencedClauseIdentifiers||[]).map(id=>"References "+id).join(", ")||"Not identified")+'</td><td>'+'<details><summary>Read requirement · '+fmt(row.occurrenceCount??1)+' source occurrences</summary><p>'+escapeHtml(row.description||"")+'</p></details></td><td>'+escapeHtml(row.responsibleParty||"Not mapped")+'</td><td>'+escapeHtml(planningShortDate(row.dueDate))+'</td><td>'+escapeHtml(planningShortDate(row.completedDate))+'</td><td>'+escapeHtml(humanizeKey(row.status))+'</td><td>'+escapeHtml(findingValue(row.daysToDue,"d"))+'</td><td>'+'<details><summary>'+fmt((row.sourceRefs||[]).length)+' document references</summary><p>'+escapeHtml(row.obligationId)+'</p><ul>'+(row.sourceRefs||[]).map(ref=>'<li>'+escapeHtml(ref)+'</li>').join('')+'</ul></details>'+'</td></tr>');
       const ldRows=(ld.scenarios||[]).map(row=>'<tr><td><b>'+escapeHtml(row.scenario==="no_eot"?"No additional EOT beyond amendment":row.scenario==="awarded_eot"?"Reconciled additional EOT":humanizeKey(row.scenario))+'</b></td><td>'+escapeHtml(findingValue(row.eotDays,"d"))+'</td><td>'+escapeHtml(row.adjustedCompletion?.value?planningShortDate(row.adjustedCompletion.value):"Unresolved")+'</td><td>'+escapeHtml(row.forecastCompletion?.value?planningShortDate(row.forecastCompletion.value):"Unresolved")+'</td><td>'+escapeHtml(findingValue(row.exposureDays,"d"))+'</td><td>'+escapeHtml(findingValue(row.uncappedExposure,row.currency||""))+'</td><td>'+escapeHtml(findingValue(row.capAmount,row.currency||""))+'</td><td>'+escapeHtml(findingValue(row.cappedExposure,row.currency||""))+'</td><td>'+escapeHtml(findingMeta(row.cappedExposure))+'</td></tr>');
-      const bondRows=(bi.bonds||[]).map(row=>'<tr><td><b>'+escapeHtml(row.bondId)+'</b></td><td>'+escapeHtml(humanizeKey(row.kind))+'</td><td>'+escapeHtml(humanizeKey(row.status))+'</td><td>'+escapeHtml(findingValue(row.amount))+'</td><td>'+escapeHtml(planningShortDate(row.expiryDate))+'</td><td>'+escapeHtml(findingValue(row.daysToExpiry,"d"))+'</td><td>'+escapeHtml(humanizeKey(row.expiryState))+'</td></tr>');
-      const insuranceRows=(bi.insurances||[]).map(row=>'<tr><td><b>'+escapeHtml(row.policyId)+'</b></td><td>'+escapeHtml(humanizeKey(row.kind))+'</td><td>'+escapeHtml(row.insurer||"Not stated")+'</td><td>'+escapeHtml(humanizeKey(row.status))+'</td><td>'+escapeHtml(findingValue(row.coverageAmount))+'</td><td>'+escapeHtml(planningShortDate(row.expiryDate))+'</td><td>'+escapeHtml(findingValue(row.daysToExpiry,"d"))+'</td><td>'+escapeHtml(humanizeKey(row.expiryState))+'</td><td>'+escapeHtml(row.sourceRequirement||"Not linked")+'</td></tr>');
+      const ldActionRows=(ld.scenarios||[]).map(row=>{
+        const exposure=row.cappedExposure?.value!==null&&row.cappedExposure?.value!==undefined?findingValue(row.cappedExposure,row.currency||""):"Not established";
+        const due=row.adjustedCompletion?.value;
+        const action=row.cappedExposure?.action||row.exposureDays?.action||(row.exposureDays?.value>0?"Review LD exposure against the governed contract terms and entitlement position.":"No current calculated LD exposure.");
+        return '<tr><td><b>'+escapeHtml(row.scenario==="no_eot"?"No additional EOT beyond amendment":row.scenario==="awarded_eot"?"Reconciled additional EOT":humanizeKey(row.scenario))+'</b></td><td>'+escapeHtml(exposure)+'</td><td>Not recorded</td><td>'+escapeHtml(due?planningShortDate(due):"Not recorded")+'</td><td>'+escapeHtml(action)+'</td><td>'+escapeHtml(humanizeKey(row.cappedExposure?.state||ld.state||"missing"))+'</td></tr>';
+      });
+      const bondRows=(bi.bonds||[]).map(row=>'<tr><td><b>'+escapeHtml(row.bondId)+'</b></td><td>'+escapeHtml(humanizeKey(row.kind))+'</td><td>'+escapeHtml(humanizeKey(row.status))+'</td><td>'+escapeHtml(findingValue(row.amount))+'</td><td>'+escapeHtml(planningShortDate(row.expiryDate))+'</td><td>'+escapeHtml(findingValue(row.daysToExpiry,"d"))+'</td><td>'+escapeHtml(humanizeKey(row.expiryState))+'</td><td>'+escapeHtml(row.daysToExpiry?.action||"—")+'</td></tr>');
+      const insuranceRows=(bi.insurances||[]).map(row=>'<tr><td><b>'+escapeHtml(row.policyId)+'</b></td><td>'+escapeHtml(humanizeKey(row.kind))+'</td><td>'+escapeHtml(row.insurer||"Not stated")+'</td><td>'+escapeHtml(humanizeKey(row.status))+'</td><td>'+escapeHtml(findingValue(row.coverageAmount))+'</td><td>'+escapeHtml(planningShortDate(row.expiryDate))+'</td><td>'+escapeHtml(findingValue(row.daysToExpiry,"d"))+'</td><td>'+escapeHtml(humanizeKey(row.expiryState))+'</td><td>'+escapeHtml(row.sourceRequirement||"Not linked")+'</td><td>'+escapeHtml(row.daysToExpiry?.action||"—")+'</td></tr>');
       const retentionRows=(ret.rows||[]).map(row=>'<tr><td><b>'+escapeHtml(row.retentionId)+'</b></td><td>'+escapeHtml(humanizeKey(row.origin))+'</td><td>'+escapeHtml(row.certificateNo||"—")+'</td><td>'+escapeHtml(humanizeKey(row.state))+'</td><td>'+escapeHtml(row.trigger||"Unresolved")+'</td><td>'+escapeHtml(findingValue(row.amount))+'</td><td>'+escapeHtml(row.dueDate?.value?planningShortDate(row.dueDate.value):"Unresolved")+'</td><td>'+escapeHtml(planningShortDate(row.releaseDate))+'</td><td>'+escapeHtml(findingValue(row.daysToDue,"d"))+'</td></tr>');
       contractControlDetail=
         '<section class="planning-panel primary contract-particulars-management"><div class="planning-panel-head"><div><h4>Contract Particulars, Securities & Obligations Management Position</h4><p>Contract value, obligations, LD scenarios, securities, insurance and retention are controlled as separate evidence-backed positions.</p></div></div><div class="planning-panel-body">'+
@@ -3818,6 +3877,8 @@ function renderCommercialVisual(key,data){
           ["Scenarios",(ld.scenarios||[]).length,"time positions"]
         ])+
         table(["Scenario","EOT","Adjusted completion","Forecast completion","Exposure days","Uncapped","Cap","Capped","Authority"],ldRows,"No defensible LD scenario can be calculated from the current evidence.")+
+        '<div class="section-heading compact"><div><h5>LD management actions</h5><p>Owner is not inferred. Due uses the governed adjusted contractual completion where available.</p></div></div>'+
+        table(["Finding","Exposure","Owner","Due","Action","Status"],ldActionRows,"No LD management actions are currently available.")+
         '</div></section>'+
         '<section class="planning-panel"><div class="planning-panel-head"><div><h4>Bonds & Insurance</h4><p>Security values, cash balances, contractual requirements and expiry status remain distinct.</p></div></div><div class="planning-panel-body">'+
         planningKpis([
@@ -3829,8 +3890,8 @@ function renderCommercialVisual(key,data){
           ["Expiring policies",insuranceEstablished?(bi.expiringInsuranceCount??"Unresolved"):"Unresolved","insurance register records"]
         ])+
         '<div class="notice info"><b>Performance requirement:</b> '+escapeHtml(findingValue(bi.performanceBondRequirement))+' · '+escapeHtml(findingMeta(bi.performanceBondRequirement))+'<br><b>Advance-payment requirement:</b> '+escapeHtml(findingValue(bi.advancePaymentBondRequirement))+' · '+escapeHtml(findingMeta(bi.advancePaymentBondRequirement))+'<br><b>Contract insurance requirements:</b> '+escapeHtml(bi.insuranceRequirementCount>0?bi.insuranceRequirementCount:'Unresolved')+'</div>'+
-        table(["Bond","Type","Status","Amount","Expiry","Days","Expiry state"],bondRows,"No bond/security register is established.")+
-        table(["Policy","Type","Insurer","Status","Coverage","Expiry","Days","Expiry state","Requirement"],insuranceRows,"No insurance-policy register is established.")+'<div class="notice info">Policy records outside the current population: '+fmt(bi.futureInsurances?.length??0)+' future · '+fmt(bi.undatedInsurances?.length??0)+' undated. These remain in the source register.</div>'+
+        table(["Bond","Type","Status","Amount","Expiry","Days","Expiry state","Action"],bondRows,"No bond/security register is established.")+
+        table(["Policy","Type","Insurer","Status","Coverage","Expiry","Days","Expiry state","Requirement","Action"],insuranceRows,"No insurance-policy register is established.")+'<div class="notice info">Policy records outside the current population: '+fmt(bi.futureInsurances?.length??0)+' future · '+fmt(bi.undatedInsurances?.length??0)+' undated. These remain in the source register.</div>'+
         '</div></section>'+
         '<section class="planning-panel"><div class="planning-panel-head"><div><h4>Retention Calendar</h4><p>Percentage, cap, deduction, held balance, release due date and actual release are not interchangeable.</p></div></div><div class="planning-panel-body">'+
         planningKpis([

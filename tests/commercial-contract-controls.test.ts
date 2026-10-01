@@ -677,6 +677,18 @@ test("C2B2 Bonds and Insurance expose expiry risk without treating securities as
       ?.daysToExpiry.value,
     15,
   );
+  assert.equal(
+    p.bondsInsurance
+      .bonds[0]
+      ?.daysToExpiry.action,
+    "Escalate expired security/insurance.",
+  );
+  assert.equal(
+    p.bondsInsurance
+      .insurances[0]
+      ?.daysToExpiry.action,
+    "Obtain renewal or release confirmation.",
+  );
   assert.ok(
     p.bondsInsurance
       .diagnostics.includes(

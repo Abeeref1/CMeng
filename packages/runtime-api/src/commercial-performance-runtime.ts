@@ -1,9 +1,11 @@
 import {
   buildCommercialPerformance,
   type CommercialPerformanceProjection,
+  type PerformancePaymentInput,
 } from "../../commercial-performance/src";
 import type {
   CommercialMoney,
+  PaymentStageRecord,
 } from "./commercial-canonical";
 import {
   commercialCanonical,
@@ -63,6 +65,36 @@ function moneyRefs(
   return money.receipts.map(
     receiptRef,
   );
+}
+
+export function performancePaymentFromCanonical(
+  row: PaymentStageRecord,
+): PerformancePaymentInput {
+  const employerCertified =
+    row.amounts.employerCertifiedAmount;
+  const paid = row.amounts.paidAmount;
+  return {
+    taxBasis: employerCertified.taxBasis,
+    paymentId: row.paymentId,
+    periodEnd: row.periodEnd,
+    certificationDate: row.certificationDate,
+    paymentDate: row.paymentDate,
+    currency:
+      employerCertified.currency ??
+      paid.currency,
+    certifiedAmount:
+      employerCertified.value,
+    certifiedAmountBasis:
+      row.certifiedAmountBasis,
+    paidAmount:
+      paid.value,
+    paidAmountBasis:
+      row.paidAmountBasis,
+    sourceRefs: [
+      ...moneyRefs(employerCertified),
+      ...moneyRefs(paid),
+    ],
+  };
 }
 
 const cache = new WeakMap<
@@ -162,60 +194,7 @@ export function commercialPerformanceForState(
         ),
       payments:
         ledger.payments.map(
-          (row) => {
-            const certified =
-              row.amounts
-                .employerCertifiedAmount
-                .value ??
-              row.amounts
-                .netCertifiedAmount
-                .value;
-            const certifiedMoney =
-              row.amounts
-                .employerCertifiedAmount
-                .value !== null
-                ? row.amounts
-                    .employerCertifiedAmount
-                : row.amounts
-                    .netCertifiedAmount;
-            return {
-              taxBasis: certifiedMoney.taxBasis,
-              paymentId:
-                row.paymentId,
-              periodEnd:
-                row.periodEnd,
-              certificationDate:
-                row.certificationDate,
-              paymentDate:
-                row.paymentDate,
-              currency:
-                certifiedMoney
-                  .currency ??
-                row.amounts
-                  .paidAmount
-                  .currency,
-              certifiedAmount:
-                certified,
-              certifiedAmountBasis:
-                row.certifiedAmountBasis,
-              paidAmount:
-                row.amounts
-                  .paidAmount
-                  .value,
-              paidAmountBasis:
-                row.paidAmountBasis,
-              sourceRefs:
-                [
-                  ...moneyRefs(
-                    certifiedMoney,
-                  ),
-                  ...moneyRefs(
-                    row.amounts
-                      .paidAmount,
-                  ),
-                ],
-            };
-          },
+          performancePaymentFromCanonical,
         ),
     });
 
