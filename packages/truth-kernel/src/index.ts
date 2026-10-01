@@ -332,6 +332,24 @@ export const round = (n: number | null, decimals = 4): number | null => n === nu
 export function fact<T>(value: T | null, receipts: SourceReceipt[], method: string, diagnostics: string[] = []): Fact<T> {
   return { value, state: value === null ? 'missing' : receipts.length > 0 && receipts.every(r => ['active','additive'].includes(r.basisState)) ? 'official' : 'candidate', receipts, method, diagnostics, coverage: {known: value === null ? 0 : 1, total: 1} };
 }
+export function prepareEvidenceRows(
+  input:readonly string[][],
+  documentType='',
+  confirmations:readonly EvidenceColumnConfirmation[]=[],
+){
+  const intelligence=analyzeEvidenceTable(input,confirmations);
+  const confirmationByColumn=new Map(confirmations.map(item=>[item.columnIndex,item.meaning] as const));
+  const scoped=input.slice(intelligence.headerRowIndex).map((row,index)=>index===0
+    ?row.map((value,columnIndex)=>confirmationByColumn.get(columnIndex)??value)
+    :[...row]);
+  const prepared=prepareRegisterRows(scoped,documentType);
+  return {
+    ...prepared,
+    headerRow:intelligence.headerRowIndex+prepared.headerRow,
+    intelligence,
+  };
+}
+
 const tableCache = new Map<string, SourceTable>();
 export function sourceTables(documents: readonly EvidenceDocument[], diagnostics: string[], options: {includeHistorical?: boolean} = {}): SourceTable[] {
   const result: SourceTable[] = [], hashes = new Set<string>();
@@ -350,13 +368,8 @@ export function sourceTables(documents: readonly EvidenceDocument[], diagnostics
       const sheets=doc.tabularRead?.sourceHashSha256===identity?doc.tabularRead.sheets:[{name:'CSV',rows:csv(bytes.toString(encoding))}];
       for(const sheet of sheets){
         const confirmations=(doc.tableConfirmations??[]).filter(c=>c.sheetName===sheet.name);
-        const intelligence=confirmations.length?analyzeEvidenceTable(sheet.rows,confirmations):(sheet.intelligence??analyzeEvidenceTable(sheet.rows));
-        const confirmationByColumn=new Map(confirmations.map(item=>[item.columnIndex,item.meaning] as const));
-        const preparedInput=sheet.rows.slice(intelligence.headerRowIndex).map((row,index)=>index===0
-          ?row.map((value,columnIndex)=>confirmationByColumn.get(columnIndex)??value)
-          :row);
-        const prepared=prepareRegisterRows(preparedInput,doc.documentType),{headers,rows}=prepared;
-        const absoluteHeaderRow=intelligence.headerRowIndex+prepared.headerRow;
+        const prepared=prepareEvidenceRows(sheet.rows,doc.documentType,confirmations),{headers,rows,intelligence}=prepared;
+        const absoluteHeaderRow=prepared.headerRow;
         if(!headers.length||headers.some(h=>!h)||new Set(headers).size!==headers.length){diagnostics.push('DUPLICATE_NORMALIZED_HEADERS:'+doc.documentId);continue;}
         if(rows.some(row=>row.length!==headers.length)){diagnostics.push('CSV_ROW_WIDTH_MISMATCH:'+doc.documentId);continue;}
         if(!prepared.recognized)diagnostics.push('REGISTER_COLUMNS_NOT_RECOGNISED:'+doc.documentId+':'+prepared.rawHeaders.join(', '));
