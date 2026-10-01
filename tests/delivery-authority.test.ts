@@ -8,12 +8,14 @@ import {join} from 'node:path';
 import {Script,runInNewContext} from 'node:vm';
 import ExcelJS from 'exceljs';
 import {RuntimeProjectStore} from '../packages/runtime-api/src/project-state';
-import {changeDelivery,deliveryRecords,deliveryStore} from '../packages/runtime-api/src/delivery-records';
+import {changeDelivery,classifyDeliveryRowKind,deliveryRecords,deliveryStore} from '../packages/runtime-api/src/delivery-records';
 import {deliveryModule,deliveryPosition,deliveryPages,deliveryExportResult} from '../packages/runtime-api/src/delivery-projections';
 import {deliveryScript} from '../packages/runtime-api/src/ui-delivery';
 import {resolveBoqSource} from '../packages/runtime-api/src/boq-source';
 import {projectControlSchedule} from '../packages/runtime-api/src/canonical-time-claims';
 import {buildDeliveryWorkbook} from '../packages/runtime-api/src/delivery-export';
+import {moduleRegistry} from '../packages/runtime-api/src/registry';
+import {cmengUatHtml} from '../packages/runtime-api/src/ui';
 import type {DeliveryKind,DeliveryRecord} from '../packages/delivery-core/src/types';
 
 const calendar='(0||CalendarData()((0||DaysOfWeek()('+Array.from({length:7},(_,i)=>'(0||'+(i+1)+'()((0||0(s|08:00|f|16:00)())))').join('')+'))(0||Exceptions()())))';
@@ -121,7 +123,93 @@ test('formal Interface Register upload is identified and mapped to interface can
  assert.equal(record.kind,'interface');assert.equal(record.state,'extracted_candidate');assert.equal(record.fields['giving party'],'Design Consultant');
  const page=deliveryModule(f.state,'delivery-interfaces');
  assert.equal(page.status,'blocked','candidate register rows remain review evidence until governed');
+ assert.equal((page.data as any).title,'Interface Management');
  assert.equal((page.data as any).confirmedCount,0);
+});
+
+test('Batch H Interface columns remain explicit after governance and never render undefined',async t=>{
+ const f=await fixture(t);
+ await f.upload('Interfaces.csv','Interface ID,Giving Party,Receiving Party,Package,Discipline,System,Location,Required Deliverable,Required Date,Current Status,Responsible Party,Consequence,Escalation\nIF-H,Designer,Contractor,MEP,Electrical,BMS,Zone 2,Approved sequence,2031-08-20,Blocked,Interface Manager,Workfront cannot proceed,Escalate coordination');
+ const source=deliveryRecords(f.state).records.find(r=>r.reference==='IF-H')!;f.review(source);
+ const data=deliveryModule(f.state,'delivery-interfaces').data as any,row=data.rows[0];
+ assert.equal(data.title,'Interface Management');assert.equal(row.interfaceId,'IF-H');assert.equal(row.givingParty,'Designer');assert.equal(row.receivingParty,'Contractor');
+ assert.equal(row.package,'MEP');assert.equal(row.discipline,'Electrical');assert.equal(row.system,'BMS');assert.equal(row.location,'Zone 2');
+ assert.equal(row.requiredDeliverable,'Approved sequence');assert.equal(row.responsibleParty,'Interface Manager');assert.equal(row.consequence,'Workfront cannot proceed');assert.equal(row.escalation,'Escalate coordination');
+ assert.ok(!JSON.stringify(row).match(/undefined/i));
+ const html=cmengUatHtml();for(const heading of ['Interface ID','Giving party','Receiving party','Package','Discipline','System','Location','Deliverable','Required date','Responsible party','Activity','RFI','Submittal','Risk','Consequence','Escalation'])assert.match(html,new RegExp(heading,'i'));
+});
+
+test('Batch H Quality and Commissioning rates require complete current populations and exclude future rows',async t=>{
+ for(const kind of ['quality','commissioning'] as const){
+  const f=await fixture(t);
+  f.create(kind,'PASS',{'raised date':'2031-08-01','actual date':'2031-08-10','outcome date':'2031-08-10',outcome:'passed'});
+  f.create(kind,'FAIL',{'raised date':'2031-08-01','actual date':'2031-08-11','outcome date':'2031-08-11',outcome:'failed'});
+  f.create(kind,'FUTURE',{'raised date':'2031-09-01','actual date':'2031-09-02','outcome date':'2031-09-02',outcome:'passed'});
+  let summary=deliveryPosition(f.state).summaries[kind]!;assert.equal(summary.passRatePercent,null);
+  f.population(kind);summary=deliveryPosition(f.state).summaries[kind]!;
+  assert.equal(summary.currentCount,2);assert.equal(summary.futureCount,1);assert.equal(summary.passRatePercent,50);assert.match(summary.basis,/confirmed current applicable population/i);
+ }
+});
+
+test('Batch H readiness reconciles applicable, unknown and N/A gates and scope items',async t=>{
+ const f=await fixture(t),ready=f.create('workfront','READY'),na=f.create('workfront','NA');
+ f.create('gate','READY-G',{applicable:'yes','satisfied date':'2031-08-20'},{recordIds:[ready.recordId]});
+ f.create('gate','READY-NA',{applicable:'no'},{recordIds:[ready.recordId]});
+ f.create('gate','NA-G',{applicable:'no'},{recordIds:[na.recordId]});
+ f.population('gate',ready.recordId);f.population('gate',na.recordId);
+ const rows=deliveryPosition(f.state).readiness,readyRow=rows.find(r=>r.recordId===ready.recordId)!,naRow=rows.find(r=>r.recordId===na.recordId)!;
+ assert.equal(readyRow.state,'ready');assert.equal(readyRow.applicableCount,1);assert.equal(readyRow.notApplicableCount,1);
+ assert.equal(naRow.state,'not_applicable');assert.equal(naRow.applicableCount,0);assert.equal(naRow.notApplicableCount,1);assert.equal(naRow.readinessPercent,null);
+ const data=deliveryModule(f.state,'construction-readiness').data as any;
+ assert.equal(data.metrics.find((m:any)=>m.label==='Not applicable').value,1);assert.equal(data.metrics.find((m:any)=>m.label==='Reviewed scope').value,2);
+});
+
+test('Batch H record kind is deterministic under column permutation and ambiguous rows require governance',()=>{
+ const receipt={documentId:'D',sourceHash:'H',revision:'R',locator:'row:1',basisState:'active',authority:'source_record' as const};
+ const a:any={cells:{'package id':'P1','supplier id':'S1'},receipt},b:any={cells:{'supplier id':'S1','package id':'P1'},receipt};
+ assert.equal(classifyDeliveryRowKind(a,'',null),null);assert.equal(classifyDeliveryRowKind(b,'',null),null);
+ assert.equal(classifyDeliveryRowKind(a,'','package'),'package');assert.equal(classifyDeliveryRowKind(b,'','package'),'package');
+ assert.equal(classifyDeliveryRowKind(a,'procurement_register',null),'package');assert.equal(classifyDeliveryRowKind(b,'procurement_register',null),'package');
+ const explicit:any={cells:{'delivery record type':'interface','package id':'P1'},receipt};assert.equal(classifyDeliveryRowKind(explicit,'procurement_register',null),'interface');
+});
+
+test('Batch H schedule/WBS long-lead intelligence remains candidate and carries design/submittal dependencies',async t=>{
+ const f=await fixture(t),model=projectControlSchedule(f.state)!.revision.model,activity=model.activities[0]!;
+ (model.wbs as any[]).push({wbsId:'LL-WBS',name:'Long Lead Materials',parentWbsId:null,sourceRefs:[]});(activity as any).wbsId='LL-WBS';f.store.touch(f.state);
+ f.create('design','DES-LL',{'raised date':'2031-08-01'},{activityIds:[activity.activityId]});f.create('submittal','SUB-LL',{'raised date':'2031-08-01'},{activityIds:[activity.activityId]});
+ const data=deliveryModule(f.state,'long-lead').data as any,candidate=data.rows.find((r:any)=>r.candidateType==='schedule_wbs');
+ assert.ok(candidate);assert.equal(candidate.authority,'candidate');assert.match(candidate.basis,/not a confirmed procurement package/i);
+ assert.deepEqual(candidate.designDependencies,['DES-LL']);assert.deepEqual(candidate.submittalDependencies,['SUB-LL']);assert.equal(candidate.programmeNeedDate,'2031-09-30');
+});
+
+test('Batch H Delivery Control publishes action-first linked management constraints',async t=>{
+ const f=await fixture(t),activity=projectControlSchedule(f.state)!.revision.model.activities[0]!;
+ f.create('package','PK-H',{'forecast delivery date':'2031-10-10'},{activityIds:[activity.activityId]});
+ const data=deliveryModule(f.state,'delivery-control').data as any,action=data.managementActions.find((r:any)=>/after the linked programme need date/i.test(r.issue));
+ assert.ok(action);assert.equal(action.package,'PK-H');assert.equal(action.requiredDate,'2031-09-30');assert.equal(action.owner,null);
+ assert.ok(action.affectedSchedule.some((v:string)=>v.includes(activity.activityId)));assert.match(action.consequence,/after the controlled programme need date/i);assert.ok(action.action);
+ assert.match(deliveryScript(),/Top Delivery constraints & required actions/);
+});
+
+test('Batch H Delivery navigation groups every specialist page without deleting capability',()=>{
+ const delivery=moduleRegistry.filter(m=>m.area==='delivery');assert.equal(delivery.length,deliveryPages.length);
+ const groups=new Map(delivery.map(m=>[m.key,m.group]));
+ assert.equal(groups.get('delivery-control'),'Delivery Control');
+ for(const key of ['procurement-packages','material-tracking','long-lead','procurement-scurves','delivery-suppliers','procurement-readiness'])assert.equal(groups.get(key),'Procurement & Long Lead');
+ for(const key of ['delivery-design','delivery-submittals','delivery-interfaces'])assert.equal(groups.get(key),'Design & Interfaces');
+ for(const key of ['construction-discipline','construction-locations','construction-readiness','delivery-permits'])assert.equal(groups.get(key),'Construction Control');
+ for(const key of ['delivery-quality','delivery-hse'])assert.equal(groups.get(key),'Quality & HSE');
+ for(const key of ['delivery-commissioning','delivery-assets','delivery-closeout','delivery-spares','handover-readiness'])assert.equal(groups.get(key),'Testing & Handover');
+ for(const key of ['delivery-risks','delivery-weather'])assert.equal(groups.get(key),'Delivery Risk');
+});
+
+test('Batch H preserves BOQ candidate authority and Weather non-causation',async t=>{
+ const f=await fixture(t);await f.upload('BOQ.csv','Item No,Description,Unit,Quantity,Rate,Amount,Currency\nLL1,Elevator equipment,no,2,100,200,AED');
+ const procurement=deliveryModule(f.state,'procurement-packages').data as any;assert.ok(procurement.rows.length);assert.ok(procurement.rows.every((r:any)=>/candidate/i.test(r.currentStatus)));
+ const longLead=deliveryModule(f.state,'long-lead').data as any;assert.ok(longLead.rows.some((r:any)=>r.authority==='candidate'));
+ f.create('weather','WX-1',{'event start':'2031-08-10','event end':'2031-08-10','duration hours':8,'recorded working impact hours':4});
+ const weather=deliveryPosition(f.state).weatherRows[0]!;assert.match(weather.causationBasis,/Recorded site facts only/i);assert.match(weather.causationBasis,/causation and entitlement remain/i);
+ assert.match(deliveryPosition(f.state).authorityScope,/does not establish EOT or causation/i);
 });
 
 test('future approvals and closures do not improve historical position; rectification is not closure; unknown inspection outcomes are excluded',async t=>{
@@ -129,7 +217,7 @@ test('future approvals and closures do not improve historical position; rectific
  f.create('quality','NCR',{'raised date':'2031-08-01','due date':'2031-08-10','rectified date':'2031-08-20',status:'Closed'});
  f.create('quality','PASS',{'raised date':'2031-08-01','actual date':'2031-08-20',outcome:'passed','outcome date':'2031-08-20'});
  f.create('quality','UNKNOWN',{'raised date':'2031-08-01','actual date':'2031-08-20'});
- const p=deliveryPosition(f.state);assert.equal(p.registerRows.find(r=>r.reference==='FUTURE')!.currentStatus,'open');assert.equal(p.registerRows.find(r=>r.reference==='NCR')!.currentStatus,'open');assert.equal(p.summaries.quality!.passRatePercent,100);assert.equal(p.summaries.quality!.knownOutcomeCount,1);assert.equal(p.summaries.quality!.unknownOutcomeCount,2);
+ const p=deliveryPosition(f.state);assert.equal(p.registerRows.find(r=>r.reference==='FUTURE')!.currentStatus,'open');assert.equal(p.registerRows.find(r=>r.reference==='NCR')!.currentStatus,'open');assert.equal(p.summaries.quality!.passRatePercent,null,'known outcomes do not establish a complete applicable population');assert.equal(p.summaries.quality!.knownOutcomeCount,1);assert.equal(p.summaries.quality!.unknownOutcomeCount,2);assert.match(p.summaries.quality!.basis,/rate is withheld/i);
  f.create('hse','INCIDENT',{'incident date':'2031-08-01','lost time injuries':0,'frequency rate basis':1000000});f.population('hse');assert.equal(deliveryPosition(f.state).hsePosition.frequencyRate,null);
 });
 
