@@ -24,10 +24,17 @@ export function operationalReporting(state:ProjectRuntimeState) {
 /** Read-only reporting view. Never truncates or overwrites persisted evidence. */
 export function reportingState(state: ProjectRuntimeState): ProjectRuntimeState {
   if(views.has(state))return state;
-  const date=projectDataDate(state), old=cache.get(state);
-  if(old?.version===state.version&&old.date===date)return old.value;
+  const scheduleDate=projectDataDate(state), old=cache.get(state);
+  // Keep the established programme path exactly cache-first: claims-only
+  // fallback logic must not add work to normal schedule-heavy reads.
+  if(scheduleDate&&old?.version===state.version&&old.date===scheduleDate)return old.value;
   const governed=state.controls.delayClaims;
   const source=governed&&!/^(canonical-evidence|evidence-document):/.test(governed.evidenceRevisionId)?governed:canonicalTimeClaims(state).delayClaims??governed;
+  // The programme Data Date remains the project-wide schedule cutoff when it
+  // exists. A claims-only project may use its own governed register cutoff only
+  // for claims reporting; it never becomes programme authority.
+  const date=scheduleDate??source?.dataDateIso??null;
+  if(old?.version===state.version&&old.date===date)return old.value;
   const hasBaseline=state.schedules.some(s=>isAdoptedProgrammeRevision(state,s)&&['baseline','revised_baseline'].includes(s.role)&&reportingScope(s.revision.model.dataDateIso??s.revision.effectiveAt,date)==='as_of');
   const schedules=state.schedules.map(stored=>{
     const model=refreshScheduleConstraints(state,stored);
@@ -51,7 +58,7 @@ export function reportingState(state: ProjectRuntimeState): ProjectRuntimeState 
   const view={...state,schedules,boq:boqSource.boq,quantities:withInstalledMeasurements(state,boqSource.quantities,date),
     contract:state.contract?refreshContractSegmentation(state.contract):null,
     contractDocuments:state.contractDocuments.map(doc=>({...doc,result:refreshContractSegmentation(doc.result)})),
-    controls:{...state.controls,readinessEvidence:reportingReadinessEvidence(state,date),delayClaims:source?delayClaimsAsOf(source,date).current:null,
+    controls:{...state.controls,readinessEvidence:reportingReadinessEvidence(state,date),delayClaims:source?(date?delayClaimsAsOf(source,date).current:source):null,
     ncrs:ops.quality.current as typeof state.controls.ncrs,rfis:ops.rfi.current as typeof state.controls.rfis,risks:ops.risk.current as typeof state.controls.risks}};
   inheritTimeClaimsCache(state,view);
   views.add(view);origins.set(view,state);cache.set(state,{version:state.version,date,value:view});return view;
@@ -77,7 +84,8 @@ export function claimsReporting(state: ProjectRuntimeState) {
   const governed=state.controls.delayClaims;
   const source=governed&&!/^(canonical-evidence|evidence-document):/.test(governed.evidenceRevisionId)?governed:canonicalTimeClaims(state).delayClaims??governed;
   if(!source)return null;
-  const reporting=delayClaimsAsOf(source,projectDataDate(state));
+  const claimsDataDate=projectDataDate(state)??source.dataDateIso??null;
+  const reporting=delayClaimsAsOf(source,claimsDataDate);
   const notices=reporting.notices.asOf.filter(n=>n.kind!=='determination');
   const determinations=canonicalTimeClaims(state).determinations;
   return {...reporting,noticeRuleVersions:noticeVersionCohorts(reporting.notices.asOf,source.noticeRequirements),
@@ -86,6 +94,6 @@ export function claimsReporting(state: ProjectRuntimeState) {
       documentIdentityCount:notices.filter(n=>n.correspondenceEvidence?.identityFound).length,
       noticeContentLinkedCount:notices.filter(n=>n.correspondenceEvidence?.noticeContentLinked).length,
       unconfirmedLetterIds:notices.filter(n=>!n.correspondenceEvidence?.identityFound).map(n=>n.correspondenceEvidence?.sourceLetter??n.noticeId),
-      determinations:determinations.map(d=>({...d,reportingScope:reportingScope(d.determinationDate,projectDataDate(state))})),
+      determinations:determinations.map(d=>({...d,reportingScope:reportingScope(d.determinationDate,claimsDataDate)})),
       interpretation:'A register notice date establishes a reported notice, not delivery or its contents. A matching letter ID alone does not prove an event-specific notice or award.'}};
 }
