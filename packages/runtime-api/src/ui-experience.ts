@@ -202,6 +202,80 @@ function experienceRoleReview(role,brief,key,data){
   const labels={planning:'Technical review',controls:'Control review','project-director':'Delivery review','program-director':'Programme review',executive:'Decision context'};
   return '<div class="experience-review"><b>'+escapeHtml(labels[role]||'Review focus')+'</b><p>'+escapeHtml(brief.review)+'</p></div>';
 }
+function roleLensFacts(rows){
+  const values=rows.filter(row=>row&&row.value!==undefined);
+  if(!values.length)return '';
+  return '<div class="experience-facts">'+values.map(row=>'<div class="experience-fact"><span>'+escapeHtml(row.label)+'</span><strong'+(row.value===null||row.value===undefined?' class="unavailable"':'')+'>'+escapeHtml(row.value===null||row.value===undefined?'Not established':row.unit==='date'?planningShortDate(row.value):experienceValue(row.value,row.unit||''))+'</strong><small>'+escapeHtml(row.basis||'Canonical project position')+'</small></div>').join('')+'</div>';
+}
+function roleLensTable(title,columns,rows){
+  if(!rows?.length)return '';
+  const head='<tr>'+columns.map(column=>'<th>'+escapeHtml(column[1])+'</th>').join('')+'</tr>';
+  const body=rows.map(row=>'<tr>'+columns.map(column=>{const raw=row?.[column[0]];const value=Array.isArray(raw)?raw.join('; '):raw;return '<td>'+escapeHtml(value===null||value===undefined||value===''?'Not established':column[2]==='date'?planningShortDate(value):String(value))+'</td>';}).join('')+'</tr>').join('');
+  return '<section class="planning-panel primary"><div class="planning-panel-head"><h4>'+escapeHtml(title)+'</h4></div><div class="planning-panel-body"><div class="table-wrap"><table><thead>'+head+'</thead><tbody>'+body+'</tbody></table></div></div></section>';
+}
+function experienceRoleLensContext(role){
+  const context=typeof overview!=='undefined'&&overview?.roleLensContext?overview.roleLensContext:null;
+  if(!context||role==='overall')return '';
+  const basis='Same canonical project facts used by Management Control; the role lens does not recalculate them.';
+  if(role==='planning'){
+    const p=context.planning||{};
+    return '<section class="experience-brief role-lens-context"><div class="experience-brief-heading"><h4>Programme mechanics & driving network</h4><span>Planning Engineer</span></div>'+
+      roleLensFacts([
+        {label:'Critical activities · known',value:p.criticalCount,basis:'Current adopted programme float population'},
+        {label:'Near-critical · known',value:p.nearCriticalCount,basis:'Current configured near-critical band'},
+        {label:'Negative float · known',value:p.negativeFloatCount,basis:'Current adopted programme float population'},
+        {label:'Driving network state',value:p.drivingNetworkState,basis}
+      ])+
+      roleLensTable('Finish-driving activities',[['activityId','Activity ID'],['name','Activity'],['wbs','WBS'],['calculatedFinishIso','Calculated finish','date'],['totalFloatHours','Float · hours']],p.drivers||[])+
+      (p.revision?roleLensTable('Latest programme comparison',[['fromRevisionId','From'],['toRevisionId','To'],['modified','Modified'],['added','Added'],['removed','Removed'],['finishMovementCalendarDays','Finish movement · calendar days']],[p.revision]):'')+
+      '</section>';
+  }
+  if(role==='controls'){
+    const c=context.controls||{},progress=c.progress||{};
+    const progressValue=name=>progress?.[name]?.valuePercent??progress?.[name]?.value??null;
+    return '<section class="experience-brief role-lens-context"><div class="experience-brief-heading"><h4>Variance, progress & forecast control</h4><span>Project Controls Manager</span></div>'+
+      roleLensFacts([
+        {label:'Physical measured progress',value:progressValue('physical'),unit:'%',basis:progress?.physical?.authority||'Measured physical basis, where established'},
+        {label:'Certified progress',value:progressValue('certified'),unit:'%',basis:progress?.certified?.authority||'Certified basis, where established'},
+        {label:'Submitted completion',value:c.submittedCompletionIso,unit:'date',basis:'Current adopted programme'},
+        {label:'CMeng forecast / recalculation',value:c.forecastCompletionIso,unit:'date',basis:'Independent forecast authority and stated qualifications'}
+      ])+
+      roleLensFacts([
+        {label:'Forecast variance',value:c.scheduleVarianceDays,unit:'d',basis:'Elapsed calendar-day difference between submitted finish and the independent calculation'},
+        {label:'Schedule snapshot progress',value:progressValue('scheduleSnapshot'),unit:'%',basis:progress?.scheduleSnapshot?.authority||'Schedule snapshot; not a substitute for measured physical progress'},
+        {label:'Current planned progress',value:progressValue('currentSchedule'),unit:'%',basis:progress?.currentSchedule?.authority||'Current programme plan basis'},
+        {label:'Revision movement',value:c.revision?.finishMovementCalendarDays,unit:'d',basis:'Comparable programme revisions only'}
+      ])+'</section>';
+  }
+  if(role==='project-director'){
+    const rows=(context.projectDirector?.actions||[]).slice(0,8);
+    return '<section class="experience-brief role-lens-context"><div class="experience-brief-heading"><h4>Delivery consequences, ownership & required action</h4><span>Project Director</span></div>'+
+      roleLensTable('Top canonical management actions',[['severity','Severity'],['issue','Issue'],['consequence','Consequence'],['affectedScope','Affected scope'],['owner','Owner'],['requiredAction','Required action'],['dueIso','Due','date'],['escalation','Escalation']],rows)+
+      (!rows.length?'<p>No canonical management action is established from the current evidence. This is not a zero-problem conclusion.</p>':'')+'</section>';
+  }
+  if(role==='program-director'){
+    const p=context.programDirector||{},stages=(p.programmeStages||[]).slice(0,8),interfaces=(p.interfaces||[]).slice(0,8);
+    return '<section class="experience-brief role-lens-context"><div class="experience-brief-heading"><h4>Cross-stage, package & interface exposure</h4><span>Program Director</span></div>'+
+      roleLensTable('Programme stage position',[['label','Stage'],['openActivityCount','Open activities'],['criticalOrNegativeFloatCount','Critical / negative float'],['readinessBlockerCount','Readiness blockers'],['readinessRequiredByIso','Required by','date'],['latestFinishIso','Latest finish','date'],['owners','Owners'],['actions','Required actions']],stages)+
+      roleLensTable('Interface exposure',[['interfaceId','Interface ID'],['package','Package'],['affectedWorkfront','Workfront'],['requiredDate','Required date','date'],['responsibleParty','Responsible party'],['consequence','Consequence'],['state','State']],interfaces)+
+      (!stages.length&&!interfaces.length?'<p>Cross-stage or confirmed interface evidence is not established for this project.</p>':'')+'</section>';
+  }
+  if(role==='executive'){
+    const e=context.executive||{},metrics=(e.metrics||[]).slice(0,6),decisions=(e.decisions||[]).slice(0,6);
+    const metricRows=metrics.map(metric=>({label:metric.label,value:metric.value,unit:metric.unit,basis:metric.basis,health:metric.health}));
+    return '<section class="experience-brief role-lens-context"><div class="experience-brief-heading"><h4>Strategic commitments & intervention</h4><span>Executive / CEO</span></div>'+
+      roleLensFacts([
+        {label:'Contractual completion',value:e.contractualCompletionIso,unit:'date',basis:'Governed contract-time authority where established'},
+        {label:'Submitted completion',value:e.submittedCompletionIso,unit:'date',basis:'Current adopted programme'},
+        {label:'CMeng forecast / recalculation',value:e.forecastCompletionIso,unit:'date',basis:'Independent forecast authority and qualifications'},
+        {label:'Currency positions',value:Array.isArray(e.commercialByCurrency)?e.commercialByCurrency.length:null,basis:'Commercial positions remain separated by currency and tax basis'}
+      ])+
+      roleLensTable('Priority management metrics',[['label','Metric'],['value','Value'],['unit','Unit'],['health','Health'],['basis','Basis']],metricRows)+
+      roleLensTable('Decisions requiring ownership',[['description','Decision'],['accountableOwner','Owner'],['dueDate','Due','date'],['requiredAuthority','Required authority'],['dependencyParty','Dependency'],['state','State']],decisions)+
+      '</section>';
+  }
+  return '';
+}
 function experiencePreview(primaryView,limit=2){
   const host=document.createElement('template');host.innerHTML=primaryView;
   const panels='[data-visual-panel],.chart-card,.planning-panel';
@@ -212,12 +286,17 @@ function experiencePreview(primaryView,limit=2){
 }
 function experienceRoleContent(key,data,primaryView,challengeHtml='',includeTechnical=false){
   const role=selectedRoleView,brief=experienceBrief(key,data),leadership=['project-director','program-director','executive'].includes(role);
-  const facts=brief.facts.slice(0,4);
-  const factHtml=facts.length?'<div class="experience-facts">'+facts.map(f=>'<div class="experience-fact"><span>'+escapeHtml(f.label)+'</span><strong'+(f.display==='Unresolved'?' class="unavailable"':'')+' title="'+escapeHtml(f.value?.value??f.value??'Unresolved')+'">'+escapeHtml(f.display)+'</strong><small>'+escapeHtml(f.basis)+'</small></div>').join('')+'</div>':'';
-  const briefHtml=role==='overall'?'':'<section class="experience-brief"><div class="experience-brief-heading"><h4>'+escapeHtml(leadership?'Position at a glance':'Review focus')+'</h4><span>'+escapeHtml(roleViews[role].label)+'</span></div>'+(leadership?factHtml:'')+(brief.note?'<p>'+escapeHtml(brief.note)+'</p>':'')+experienceRoleReview(role,brief,key,data)+'</section>';
-  // Leadership gets a short overview, with every chart and record reachable in one disclosure.
+  const roleContext=experienceRoleLensContext(role);
+  const briefHtml=role==='overall'?'':'<section class="experience-brief"><div class="experience-brief-heading"><h4>Page-specific review</h4><span>'+escapeHtml(roleViews[role].label)+'</span></div>'+(brief.note?'<p>'+escapeHtml(brief.note)+'</p>':'')+experienceRoleReview(role,brief,key,data)+'</section>';
   const analysis='<div class="role-primary-analysis">'+primaryView+'</div>';
-  const content=leadership?(data.projectDiagnosis?renderProjectDiagnosis(data.projectDiagnosis):data.completionPosition?renderCompletionPosition(data.completionPosition):'')+experiencePreview(primaryView,role==='executive'?1:2)+experienceDisclosure('All charts and records',analysis,'Full details for this page'):analysis;
+  // Planning keeps the full technical page visible. Controls leads with its
+  // canonical variance/forecast context and a concise visual preview. Director
+  // and executive lenses lead with cross-domain decisions. Every lens retains
+  // one unchanged full-detail disclosure, so presentation never changes facts.
+  const content=role==='overall'?analysis
+    :role==='planning'?roleContext+analysis
+    :role==='controls'?roleContext+experiencePreview(primaryView,2)+experienceDisclosure('Detailed controls, charts and records',analysis,'Same canonical page facts')
+    :roleContext+(data.projectDiagnosis?renderProjectDiagnosis(data.projectDiagnosis):data.completionPosition?renderCompletionPosition(data.completionPosition):'')+experiencePreview(primaryView,role==='executive'?1:2)+experienceDisclosure('All charts and records',analysis,'Full details for this page');
   const sourceContext=experienceSourceContext(key,data);
   if(['variance-trends','progress-scurve','manhour-scurve','quantity-scurve','commercial-claims-notices','contract-particulars-bonds'].includes(key))return '<div class="role-view-'+role+'">'+content+briefHtml+experienceDisclosure('Source context',sourceContext,'Supporting records and basis')+challengeHtml+'</div>';
   return '<div class="role-view-'+role+'">'+content+briefHtml+experienceDisclosure('Additional source context',sourceContext,'Supporting information')+challengeHtml+'</div>';
