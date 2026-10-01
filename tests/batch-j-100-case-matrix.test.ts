@@ -178,8 +178,8 @@ test('Batch J 100-case matrix: Claims and Notice states remain truthful across 1
     const classified=(projection.timelyNoticeCount??0)+(projection.lateNoticeCount??0)+(projection.missingNoticeCount??0)+(projection.noticeRequirementMissingCount??0)+(projection.noticeEventDateMissingCount??0)+(projection.noticeRequirementConflictCount??0);
     assert.equal(classified,1,'exactly one notice state '+i);
     if(i%11===0)assert.ok((projection.noticeRequirementMissingCount??0)>0,'missing requirement '+i);
-    if(i%5===0)assert.ok((projection.noticeEventDateMissingCount??0)>0,'missing event date '+i);
-    if(i%7===0&&i%5!==0&&i%11!==0)assert.ok((projection.missingNoticeCount??0)>0,'missing notice date '+i);
+    else if(i%5===0)assert.ok((projection.noticeEventDateMissingCount??0)>0,'missing event date '+i);
+    else if(i%7===0)assert.ok((projection.missingNoticeCount??0)>0,'missing notice date '+i);
     assert.doesNotMatch(JSON.stringify(projection),/NaN|Infinity/,'finite '+i);
   }
 });
@@ -196,7 +196,7 @@ test('Batch J 100-case matrix: Commercial values and missing-payment semantics s
     runtimeProjects.getOrCreate(id);
     runtimeProjects.updateControls(id,{
       contractValue:{amount:contract,currency,sourceRefs:['contract:'+i]},
-      invoices:[{invoiceId:'IPC-'+i,currency,certifiedAmount:certified,paidAmount:paid,sourceRefs:['invoice:'+i]} as any],
+      invoices:[{invoiceId:'IPC-'+i,currency,certifiedAmount:certified,paidAmount:paid,certificateDateIso:'2036-08-15',paymentDateIso:paidKnown?'2036-08-20':null,sourceRefs:['invoice:'+i]} as any],
     });
     const page:any=canonicalCommercialModule(runtimeProjects.get(id)!,'commercial-overview')!;
     assert.notEqual(page.status,'blocked','status '+i);
