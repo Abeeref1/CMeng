@@ -30,7 +30,7 @@ test('named curves and variance trend render their chart before KPI and source d
 
 test('result-first pages retain source context after their result in every role',()=>{
   for(const role of ['overall','planning','controls','project-director','program-director','executive']){
-    const html=runInNewContext(functions(['experienceRoleContent','experienceDisclosure','experienceRoleReview'])+';experienceRoleContent("progress-scurve",{},"PRIMARY-CHART")',{
+    const html=runInNewContext(functions(['experienceRoleContent','experienceDisclosure','experienceRoleReview','experienceRoleLensContext','roleLensFacts','roleLensTable','experienceValue'])+';experienceRoleContent("progress-scurve",{},"PRIMARY-CHART")',{
       ...common,selectedRoleView:role,roleViews:{[role]:{label:role}},experienceBrief:()=>({facts:[],note:'ROLE-NOTE',review:''}),
       experienceSourceContext:()=>'SOURCE-DETAIL',experiencePreview:()=>'PRIMARY-CHART',
     });
@@ -162,13 +162,40 @@ test('all six lenses retain access to the full module and leadership does not in
   const roles=['overall','planning','controls','project-director','program-director','executive'];
   const roleViews=Object.fromEntries(roles.map(r=>[r,{label:r}]));
   for(const role of roles){
-    const html=runInNewContext(functions(['experienceRoleContent','experienceDisclosure','experienceRoleReview'])+';experienceRoleContent("test",{},"<table>evidence-row</table>","<aside>comparison</aside>",true)',{
+    const html=runInNewContext(functions(['experienceRoleContent','experienceDisclosure','experienceRoleReview','experienceRoleLensContext','roleLensFacts','roleLensTable','experienceValue'])+';experienceRoleContent("test",{},"<table>evidence-row</table>","<aside>comparison</aside>",true)',{
       ...common,selectedRoleView:role,roleViews,experienceBrief:()=>({facts:[{label:'Known value',value:17,display:'17',basis:'Source'}],note:'Current position',review:'Review one specific issue.'}),experienceSourceContext:()=>'',experiencePreview:()=>'<svg>chart</svg>'
     });
     assert.equal((html.match(/evidence-row/g)||[]).length,1,role);
     assert.match(html,/comparison/,role);
     if(['project-director','program-director','executive'].includes(role))assert.match(html,/All charts and records/,role);
     assert.doesNotMatch(html,/Control action:|Consequence:|Focus 1/,role);
+  }
+});
+
+test('Task 56 role lenses lead with materially different canonical management context',()=>{
+  const roles=['planning','controls','project-director','program-director','executive'];
+  const roleViews=Object.fromEntries(roles.map(r=>[r,{label:r}]));
+  const overview={roleLensContext:{
+    planning:{criticalCount:4,nearCriticalCount:7,negativeFloatCount:2,drivingNetworkState:'calculated',drivers:[{activityId:'ACT-DRIVE',name:'Driving work',wbs:'WBS-A',calculatedFinishIso:'2031-11-01',totalFloatHours:0}],revision:{fromRevisionId:'R1',toRevisionId:'R2',modified:3,added:1,removed:0,finishMovementCalendarDays:12}},
+    controls:{progress:{physical:{valuePercent:37,authority:'measured'},certified:{valuePercent:35,authority:'certified'},scheduleSnapshot:{valuePercent:42,authority:'schedule'},currentSchedule:{valuePercent:40,authority:'current plan'}},submittedCompletionIso:'2031-10-20',forecastCompletionIso:'2031-11-01',scheduleVarianceDays:12,revision:{finishMovementCalendarDays:12}},
+    projectDirector:{actions:[{severity:'high',issue:'Late plant delivery',consequence:'Milestone M1 threatened',affectedScope:['PKG-1'],owner:'Contractor',requiredAction:'Recover delivery',dueIso:'2031-09-15',escalation:'Escalate at weekly meeting'}]},
+    programDirector:{programmeStages:[{label:'Procurement & long lead',openActivityCount:6,criticalOrNegativeFloatCount:2,readinessBlockerCount:1,readinessRequiredByIso:'2031-09-10',latestFinishIso:'2031-10-10',owners:['Procurement'],actions:['Release PO']}],interfaces:[{interfaceId:'IF-1',package:'PKG-1',affectedWorkfront:'Zone A',requiredDate:'2031-09-05',responsibleParty:'Designer',consequence:'Construction blocked',state:'blocked'}]},
+    executive:{contractualCompletionIso:'2031-10-01',submittedCompletionIso:'2031-10-20',forecastCompletionIso:'2031-11-01',commercialByCurrency:[{currency:'AED'}],metrics:[{label:'Forecast exposure',value:12,unit:'d',health:'attention',basis:'Canonical management metric'}],decisions:[{description:'Approve recovery',accountableOwner:'PD',dueDate:'2031-09-03',requiredAuthority:'Client',dependencyParty:'Contractor',state:'open'}]}
+  }};
+  const expected={
+    planning:['Programme mechanics & driving network','ACT-DRIVE'],
+    controls:['Variance, progress & forecast control','37 %'],
+    'project-director':['Delivery consequences, ownership & required action','Late plant delivery'],
+    'program-director':['Cross-stage, package & interface exposure','IF-1'],
+    executive:['Strategic commitments & intervention','Approve recovery']
+  } as Record<string,string[]>;
+  for(const role of roles){
+    const html=runInNewContext(functions(['experienceRoleContent','experienceDisclosure','experienceRoleReview','experienceRoleLensContext','roleLensFacts','roleLensTable','experienceValue'])+';experienceRoleContent("test",{},"<table>evidence-row</table>")',{
+      ...common,overview,selectedRoleView:role,roleViews,experienceBrief:()=>({facts:[],note:'',review:''}),experienceSourceContext:()=>'',experiencePreview:()=>'<svg>page-chart</svg>',
+      renderProjectDiagnosis:()=>'',renderCompletionPosition:()=>''
+    });
+    for(const phrase of expected[role]!)assert.ok(html.includes(phrase),role+' missing '+phrase);
+    assert.equal((html.match(/evidence-row/g)||[]).length,1,role+' must retain the unchanged full page exactly once');
   }
 });
 
