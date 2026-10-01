@@ -18,6 +18,25 @@ import {deliveryRecords} from './delivery-records';
 import type {ProjectRuntimeState} from './project-state-types';
 
 export const askCatalogue=createAskAuthorityCatalogue();
+function managementActionsAnswer(result:AnalysisResult):NarrativeBlock|null{
+  if(result.plan.questionRecipe!=='management_actions')return null;
+  const section=result.sections.find(s=>s.authorityId==='command-center');
+  const table=section?.tables.find(t=>t.id==='command-center.actions');
+  if(!section||!table)return null;
+  const matching=table.selection?.matching??table.rows.length;
+  if(section.state==='unavailable')return {heading:'Management actions',text:'The canonical Command Center action population is not established from the current project evidence. This is not confirmation that there are no management issues.',classification:'calculated_intelligence',traceIds:[table.traceId]};
+  const preview=table.rows.slice(0,result.presentation.detail==='short'?3:10).map((row,index)=>{
+    const owner=row.owner?'; owner '+String(row.owner):'; owner not established';
+    const due=row.dueDate?'; due '+String(row.dueDate).slice(0,10):'';
+    const consequence=row.consequence?'; consequence '+String(row.consequence):'';
+    const action=row.requiredAction?'; action '+String(row.requiredAction):'';
+    return String(index+1)+'. '+String(row.issue??'Management issue')+consequence+owner+due+action;
+  });
+  const requested=result.plan.limit;
+  const shown=table.rows.length;
+  const prefix=(requested?('Top '+Math.min(requested,shown)+' of '+matching):String(matching))+' canonical cross-domain management '+(matching===1?'action':'actions')+' from Command Center.';
+  return {heading:'Management actions',text:prefix+(preview.length?'\n\n'+preview.join('\n'):'')+'\n\nThese are the same canonical actions used by the management pages; Ask CMeng has not created a separate action list.',classification:'calculated_intelligence',traceIds:[table.traceId]};
+}
 function diagnosisAnswer(result:AnalysisResult):NarrativeBlock|null{
   const section=result.sections.find(s=>s.authorityId==='project-diagnosis');if(!section)return null;
   const actions=section.tables.find(t=>t.id==='project-diagnosis.actions');
@@ -132,7 +151,7 @@ function narrativeFor(result:AnalysisResult):NarrativeBlock[]{
   const allMetrics=result.sections.flatMap(s=>s.metrics),knownMetrics=allMetrics.filter(m=>m.value!==null);
   const metrics=knownMetrics.length?knownMetrics:allMetrics;
   const lines=metrics.slice(0,result.presentation.detail==='short'?6:18).map(m=>m.label+': '+(m.value===null?(ar?'غير مثبت':'Not established'):String(m.value)+(m.unit?' '+m.unit:''))+(m.state==='candidate'?' · candidate source, not governed':''));
-  const direct=diagnosisAnswer(result)??drivingPathAnswer(result)??delayDriversAnswer(result)??activityAnswer(result)??completionAnswer(result);
+  const direct=managementActionsAnswer(result)??diagnosisAnswer(result)??drivingPathAnswer(result)??delayDriversAnswer(result)??activityAnswer(result)??completionAnswer(result);
   const blocks:NarrativeBlock[]=direct?[direct]:[{heading:ar?'الوضع الحالي':'Answer',text:lines.length?lines.join('\n'):result.sections.map(s=>s.tables.length?s.tables.reduce((n,t)=>n+(t.selection?.matching??t.rows.length),0)+' matching records in '+s.title+'.':s.title+': '+s.explanation).slice(0,8).join('\n'),classification:'calculated_intelligence',traceIds:metrics.slice(0,18).map(m=>m.traceId)}];
   if(direct&&result.sections.some(s=>!['activities','float','critical-path'].includes(s.authorityId))&&knownMetrics.length)blocks.push({heading:'Other project figures',text:lines.join('\n'),classification:'calculated_intelligence',traceIds:metrics.slice(0,18).map(m=>m.traceId)});
   const findings=result.sections.flatMap(s=>s.findings).filter(f=>f.severity==='action').sort((a,b)=>a.id.localeCompare(b.id));
