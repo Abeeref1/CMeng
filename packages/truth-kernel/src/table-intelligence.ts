@@ -19,6 +19,25 @@ export interface EvidenceColumnConfirmation {
   note?: string | null;
 }
 
+export type EvidenceRoleKey =
+  | 'record_identifier'
+  | 'reporting_date'
+  | 'status'
+  | 'currency'
+  | 'percentage'
+  | 'amount'
+  | 'quantity'
+  | 'owner_or_party'
+  | 'description_or_subject'
+  | 'cumulative_value'
+  | 'incremental_value';
+
+export interface EvidenceRoleCandidate {
+  role: EvidenceRoleKey;
+  confidence: number;
+  basis: string[];
+}
+
 export interface EvidenceColumnProfile {
   columnIndex: number;
   rawHeader: string;
@@ -39,6 +58,7 @@ export interface EvidenceColumnProfile {
   identifierCandidate: boolean;
   statusCandidate: boolean;
   cumulativeCandidate: boolean;
+  roleCandidates: EvidenceRoleCandidate[];
   confirmedMeaning: string | null;
   samples: string[];
 }
@@ -130,6 +150,8 @@ function typeHints(header:string){
     identifier:/\b(?:id|ref|reference|no|number|code)\b|رقم|مرجع|كود/u.test(text),
     status:/\b(?:status|state|stage)\b|حالة|الحالة/u.test(text),
     cumulative:/\b(?:cumulative|accumulated|to date|ytd)\b|تراكمي|حتى تاريخه/u.test(text),
+    owner:/\b(?:owner|responsible|assigned|party|engineer|contractor|consultant|supplier)\b|مسؤول|المسؤول|مالك|طرف|مقاول|استشاري|مورد/u.test(text),
+    description:/\b(?:description|details|subject|narrative|title|comment|remarks)\b|وصف|الموضوع|تفاصيل|ملاحظات/u.test(text),
   };
 }
 
@@ -205,6 +227,41 @@ function approx(a:number,b:number,tolerance=0.02){
   return Math.abs(a-b)<=scale*tolerance;
 }
 
+function genericRoleCandidates(input:{
+  hints:ReturnType<typeof typeHints>;
+  dominantShape:EvidenceValueShape;
+  identifierCandidate:boolean;
+  statusCandidate:boolean;
+  cumulativeCandidate:boolean;
+  uniqueRatio:number|null;
+  numericRatio:number|null;
+  dateRatio:number|null;
+  percentageRatio:number|null;
+  currencyCodeRatio:number|null;
+  monotonicNonDecreasingRatio:number|null;
+  samples:string[];
+}):EvidenceRoleCandidate[]{
+  const result:EvidenceRoleCandidate[]=[];
+  const add=(role:EvidenceRoleKey,confidence:number,...basis:string[])=>{
+    if(confidence>=0.55)result.push({role,confidence:Math.min(0.99,Number(confidence.toFixed(3))),basis});
+  };
+  if(input.identifierCandidate)add('record_identifier',Math.max(0.65,input.uniqueRatio??0),...(input.hints.identifier?['header suggests identifier']:[]),'values are highly unique');
+  if(input.dominantShape==='date'||(input.dateRatio??0)>=0.75)add('reporting_date',Math.max(input.dateRatio??0,input.hints.date?0.82:0),...(input.hints.date?['header suggests date']:[]),'values parse as dates');
+  if(input.statusCandidate)add('status',input.hints.status?0.9:0.68,...(input.hints.status?['header suggests state/status']:[]),'values form a low-cardinality category');
+  if(input.dominantShape==='currency_code'||(input.currencyCodeRatio??0)>=0.75)add('currency',Math.max(input.currencyCodeRatio??0,input.hints.currency?0.9:0),...(input.hints.currency?['header suggests currency']:[]),'values resemble currency codes');
+  if(input.dominantShape==='percentage'||(input.percentageRatio??0)>=0.7)add('percentage',Math.max(input.percentageRatio??0,input.hints.percentage?0.88:0),...(input.hints.percentage?['header suggests percentage']:[]),'values behave like percentages');
+  if((input.numericRatio??0)>=0.75){
+    if(input.hints.amount)add('amount',0.86,'header suggests monetary/value measure','values are numeric');
+    else add('amount',0.58,'values are numeric; monetary meaning is unconfirmed');
+    if(input.hints.quantity)add('quantity',0.86,'header suggests quantity/unit count','values are numeric');
+    if(input.cumulativeCandidate)add('cumulative_value',Math.max(0.78,input.monotonicNonDecreasingRatio??0),'numeric series is predominantly non-decreasing',...(input.hints.cumulative?['header suggests cumulative/to-date value']:[]));
+    if(!input.cumulativeCandidate&&input.samples.length>=3)add('incremental_value',0.56,'numeric series is not strongly cumulative; incremental meaning remains tentative');
+  }
+  if(input.hints.owner)add('owner_or_party',0.82,'header suggests responsibility/party');
+  if(input.hints.description||input.dominantShape==='text')add('description_or_subject',input.hints.description?0.86:0.62,...(input.hints.description?['header suggests description/subject']:[]),'values are narrative text');
+  return result.sort((a,b)=>b.confidence-a.confidence);
+}
+
 function columnProfile(
   rows:readonly string[][],
   headerRowIndex:number,
@@ -251,12 +308,17 @@ function columnProfile(
     dominantShape=longText>=0.55?'text':'mixed';
     confidence=Math.max(0.45,longText);
   }
+  const samples=[...new Set(values)].slice(0,8);
+  const roleCandidates=genericRoleCandidates({
+    hints,dominantShape,identifierCandidate,statusCandidate,cumulativeCandidate,uniqueRatio,numericRatio,dateRatio,
+    percentageRatio,currencyCodeRatio,monotonicNonDecreasingRatio,samples,
+  });
   return {
     columnIndex,rawHeader,headerContext:context||rawHeader,headerTokens:headerTokens(context||rawHeader),
     nonEmptyCount:nonEmpty,uniqueCount:unique.size,uniqueRatio,dateRatio,numericRatio,percentageRatio,
     currencyCodeRatio,booleanRatio,codeLikeRatio,monotonicNonDecreasingRatio,dominantShape,confidence,
-    identifierCandidate,statusCandidate,cumulativeCandidate,confirmedMeaning:confirmation?.meaning?.trim()||null,
-    samples:[...new Set(values)].slice(0,8),
+    identifierCandidate,statusCandidate,cumulativeCandidate,roleCandidates,confirmedMeaning:confirmation?.meaning?.trim()||null,
+    samples,
   };
 }
 
