@@ -1889,6 +1889,14 @@ async function route(
     return;
   }
 
+  const tableConfirmationMatch=/^\/api\/projects\/([^/]+)\/evidence\/documents\/([^/]+)\/table-confirmations$/.exec(url.pathname);
+  if(req.method==='POST'&&tableConfirmationMatch){try{
+    const projectId=decodeURIComponent(tableConfirmationMatch[1]!),documentId=decodeURIComponent(tableConfirmationMatch[2]!);
+    const input=JSON.parse(Buffer.from(await readBody(req)).toString('utf8'));
+    const result=await runtimeProjects.confirmTableColumnMeaning(projectId,{...input,documentId});
+    invalidateProject(projectId);json(res,200,result);
+  }catch(error){json(res,409,{error:'table_column_confirmation_not_completed',message:error instanceof Error?error.message:String(error)});}return;}
+
   const relationshipMatch=/^\/api\/projects\/([^/]+)\/evidence\/documents\/([^/]+)\/relationship$/.exec(url.pathname);
   if(req.method==='POST'&&relationshipMatch){try{const projectId=decodeURIComponent(relationshipMatch[1]!),input=JSON.parse(Buffer.from(await readBody(req)).toString('utf8'));const effect=runtimeProjects.reviewEvidenceRelationship(projectId,{...input,documentId:decodeURIComponent(relationshipMatch[2]!)});invalidateProject(projectId);json(res,200,{projectId,effect});}catch(error){json(res,409,{error:'document_relationship_not_completed',message:error instanceof Error?error.message:String(error)});}return;}
 
@@ -2866,6 +2874,8 @@ async function route(
         "/api/projects/:projectId/evidence/documents/delete",
       evidenceDelete:
         "/api/projects/:projectId/evidence/documents/:documentId",
+      evidenceTableConfirmation:
+        "/api/projects/:projectId/evidence/documents/:documentId/table-confirmations",
       evidenceRerun:
         "/api/projects/:projectId/evidence/rerun",
       scheduleUpload:
