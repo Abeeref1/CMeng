@@ -5199,7 +5199,7 @@ export class RuntimeProjectStore {
       confirmedAt:new Date().toISOString(),note:typeof input.note==='string'?input.note.trim()||null:null,
     });
     document.tableConfirmations=confirmations;
-    document.derivedRegisterRead=undefined;
+    delete document.derivedRegisterRead;
     document.diagnostics=[...document.diagnostics.filter(x=>!x.startsWith('TABLE_COLUMN_CONFIRMED:')),
       ...confirmations.map(item=>'TABLE_COLUMN_CONFIRMED:'+item.sheetName+':'+item.columnIndex+':'+item.meaning)];
     await this.refreshSpreadsheetRegisters(projectId);
