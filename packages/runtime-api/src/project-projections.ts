@@ -5340,6 +5340,196 @@ function buildSpecialistModuleFast(
   const current =
     projectControlSchedule(state);
   if (!current) {
+    const delayModel =
+      state.controls.delayClaims;
+    if (
+      delayModel &&
+      (
+        key === "delay-claims" ||
+        key === "notices-claims"
+      )
+    ) {
+      const generatedAt =
+        new Date().toISOString();
+      const claimPopulationQuarantined =
+        claimsQuarantined(delayModel);
+      const claimPopulationIntegrity =
+        claimsIntegrity(delayModel);
+      const linkedClaimCount =
+        delayModel.claims.filter(
+          claim =>
+            claim.eventIds.length > 0,
+        ).length;
+      const unlinkedClaimCount =
+        Math.max(
+          0,
+          delayModel.claims.length -
+            linkedClaimCount,
+        );
+
+      let claimsOnlyResult:
+        ModuleRuntimeResult;
+      if (key === "delay-claims") {
+        // Claims/events are valid evidence even when no programme has been
+        // established. Build an empty schedule-window context so the register
+        // remains usable, while withholding every schedule-derived conclusion.
+        const emptyWindows =
+          buildWindowsAnalysisProjection(
+            [],
+            delayModel,
+            {
+              generatedAt,
+              producerVersion:
+                "claims-without-programme:windows-v1",
+            },
+          );
+        const projection =
+          buildDelayClaimsProjection(
+            emptyWindows,
+            delayModel,
+            {
+              generatedAt,
+              producerVersion:
+                "claims-without-programme:delay-v1",
+            },
+          );
+        const sourceActivityReferenceEventCount =
+          projection.activityLinkedEventCount;
+        claimsOnlyResult =
+          available(
+            key,
+            {
+              ...projection,
+              // No programme population exists. These are unknown/not
+              // established, not authoritative zeroes.
+              windowCount: null,
+              activityLinkedEventCount: null,
+              windowLinkedEventCount: null,
+              observedPositiveIndependentMovementDays:
+                null,
+              observedPositiveProgrammeMovementDays:
+                null,
+              projectCompletionMovementDays:
+                null,
+              projectCompletionMovementBasis:
+                "unavailable",
+              unattributedProgrammeMovementDays:
+                null,
+              employerOrNeutralCandidateWindowMovementDays:
+                null,
+              contractorRiskWindowMovementDays:
+                null,
+              concurrentReviewWindowMovementDays:
+                null,
+              contractorClaimEvidenceSubmitted:
+                true,
+              claimPopulationIntegrity,
+              independentScheduleMovementAvailable:
+                false,
+              linkedClaimCount:
+                claimPopulationQuarantined
+                  ? null
+                  : linkedClaimCount,
+              unlinkedClaimCount:
+                claimPopulationQuarantined
+                  ? null
+                  : unlinkedClaimCount,
+              sourceActivityReferenceEventCount,
+              programmeEvidenceState:
+                "not_established",
+              eventLinkageState:
+                linkedClaimCount > 0
+                  ? "claim_event_linked_programme_not_established"
+                  : "not_established",
+            },
+            [
+              "delay events",
+              "claims",
+              "programme for schedule movement and activity validation",
+            ],
+            "partial",
+            claimPopulationQuarantined
+              ? String(
+                  claimPopulationIntegrity
+                    ?.quarantinedClaimCount ??
+                    delayModel.claims.length,
+                ) +
+                  " source claim rows are retained but quarantined. Programme evidence is also not established, so schedule attribution and EOT conclusions are withheld."
+              : "Claim and event evidence is available. Programme movement, activity validation and delay-window attribution remain not established until a controlled programme is available.",
+          );
+      } else {
+        const notices =
+          buildNoticesClaimsProjection(
+            delayModel,
+            {
+              generatedAt,
+              producerVersion:
+                "claims-without-programme:notices-v1",
+              populationEstablished:
+                !claimPopulationQuarantined,
+            },
+          );
+        const noticeAssessmentAvailable =
+          notices.eventCount !== null &&
+          notices.eventCount > 0 &&
+          delayModel
+            .noticeRequirements
+            .length > 0;
+        const noticeAssessable =
+          noticeAssessmentAvailable &&
+          notices
+            .noticeRequirementMissingCount ===
+            0;
+        claimsOnlyResult =
+          available(
+            key,
+            {
+              ...notices,
+              contractorNoticeClaimEvidenceSubmitted:
+                true,
+              claimPopulationIntegrity,
+              noticeAssessmentState:
+                noticeAssessable
+                  ? "assessed"
+                  : noticeAssessmentAvailable
+                    ? "partially_assessable"
+                    : "not_assessable_without_delay_events_and_requirements",
+              linkedClaimCount:
+                claimPopulationQuarantined
+                  ? null
+                  : linkedClaimCount,
+              unlinkedClaimCount:
+                claimPopulationQuarantined
+                  ? null
+                  : unlinkedClaimCount,
+              programmeEvidenceState:
+                "not_established",
+            },
+            [
+              "delay events",
+              "notice requirements",
+              "notices",
+              "claims",
+              "programme for schedule attribution",
+            ],
+            "partial",
+            claimPopulationQuarantined
+              ? "Claim/notice evidence is retained but quarantined. Notice and schedule conclusions are withheld until the population is independently verified."
+              : noticeAssessable
+                ? "Notice compliance is assessable from the governed event, requirement and notice evidence. Programme attribution is not established because no controlled programme is available."
+                : "Claim/notice evidence remains visible. Complete notice assessment needs the missing event/requirement evidence; programme attribution separately requires a controlled programme.",
+          );
+      }
+
+      specialistModuleCache.set(
+        cacheKey,
+        {
+          version: state.version,
+          result: claimsOnlyResult,
+        },
+      );
+      return claimsOnlyResult;
+    }
     return blocked(
       key,
       "Programme evidence has not been established.",
