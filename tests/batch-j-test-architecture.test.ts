@@ -10,7 +10,7 @@ import {
 import {loadCertifiedDemoProject} from '../packages/runtime-api/src/demo-project';
 import {runtimeProjects} from '../packages/runtime-api/src/project-state';
 import {moduleForProject} from '../packages/runtime-api/src/project-projections';
-import {boqScopeIntelligence} from '../packages/runtime-api/src/management-context';
+import {boqScopeIntelligence} from '../packages/runtime-api/src/boq-scope-intelligence';
 import {canonicalCommercialModule} from '../packages/runtime-api/src/commercial-runtime';
 import {canonicalTimeClaims} from '../packages/runtime-api/src/canonical-time-claims';
 import {changeDelivery,deliveryRecords,deliveryStore} from '../packages/runtime-api/src/delivery-records';
