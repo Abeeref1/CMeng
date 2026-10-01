@@ -9,6 +9,7 @@ import {auditContext} from './audit-context';
 import {projectControlSchedule} from './canonical-time-claims';
 import {resolveBoqSource} from './boq-source';
 import {deliveryNumericIssues} from './delivery-validation';
+import {deliveryFields} from '../../delivery-core/src/fields';
 export const deliveryHash=(value:unknown)=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const split=(value:string)=>value.split(/[;|]/).map(x=>x.trim()).filter(Boolean);
 export const deliveryStore=(state:ProjectRuntimeState):DeliveryStateStore=>state.delivery??{schemaVersion:1,manual:[],decisions:[],populations:[]};
@@ -16,17 +17,29 @@ const typed:Record<string,DeliveryKind>={procurement_register:'package',interfac
 // Source-table keys are already canonical. Normalise the finite identity list
 // once, rather than repeating the same alias/Unicode work for every source row.
 const identityKeys=Object.fromEntries(deliveryKinds.map(k=>[k,kindIdentities[k].map(id=>canonicalHeader(id))])) as Record<DeliveryKind,string[]>;
+const signatureKeys=Object.fromEntries(deliveryKinds.map(k=>[k,deliveryFields[k].map(field=>canonicalHeader(field))])) as Record<DeliveryKind,string[]>;
 export function classifyDeliveryRowKind(row:SourceRow,type:string,governedKind:DeliveryKind|null=null):DeliveryKind|null {
- // Deterministic precedence: explicit row type -> unique physical-page identity
- // -> explicit document type -> unique table identity -> governed mapping -> ambiguous.
- // Column order must never change record kind.
+ // Explicit source identity is strongest. A reviewed mapping is an intentional
+ // user decision and therefore outranks inferred document classification.
  const explicit=cell(row,'delivery record type') as DeliveryKind;
  if(deliveryKinds.includes(explicit))return explicit;
+ if(governedKind&&deliveryKinds.includes(governedKind))return governedKind;
+
  const candidates=deliveryKinds.filter(k=>identityKeys[k].some(id=>Object.hasOwn(row.cells,id)));
- if(row.receipt.locator.startsWith('page:')&&candidates.length===1)return candidates[0]!;
+ if(row.receipt.locator.startsWith('page:')){
+  if(candidates.length===1)return candidates[0]!;
+  if(candidates.length>1){
+   const ranked=candidates.map(kind=>({
+    kind,
+    score:signatureKeys[kind].reduce((score,key)=>score+(Object.hasOwn(row.cells,key)&&String(row.cells[key]??'').trim()?1:0),0),
+   })).sort((a,b)=>b.score-a.score||a.kind.localeCompare(b.kind));
+   if(ranked[0]!.score>0&&ranked[0]!.score>(ranked[1]?.score??-1))return ranked[0]!.kind;
+  }
+ }
+ // Document type is useful for ordinary single-register sources, but it must
+ // not erase a stronger page-specific signature in a mixed physical packet.
  if(typed[type])return typed[type]!;
  if(candidates.length===1)return candidates[0]!;
- if(governedKind&&deliveryKinds.includes(governedKind))return governedKind;
  return null;
 }
 const boqContinuityCache=new WeakMap<ProjectRuntimeState,{version:number;mapping:Map<string,string>}>();
