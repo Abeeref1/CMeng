@@ -115,7 +115,10 @@ test('Batch J Task 60: incomplete float coverage remains qualified across Activi
   assert.ok(near.floatCoveragePercent!==null&&near.floatCoveragePercent<100);
   assert.ok((near.unknownFloatCount??0)>0);
   assert.ok(milestones.floatCoveragePercent!==null&&milestones.floatCoveragePercent<100);
-  assert.equal(milestones.sourceFloatState,'source_float_partial');
+  assert.equal(milestones.sourceFloatState,'not_established',
+    'the only milestone has no source float, so milestone float must be explicitly not established rather than falsely partial');
+  assert.equal(milestones.criticalMilestoneCount,null);
+  assert.ok(milestones.rows.some((row:any)=>row.totalFloatHours===null&&row.managementFlags?.includes('FLOAT_NOT_ESTABLISHED')));
 });
 
 test('Batch J Task 60: schedule snapshot progress never becomes physical or certified progress',()=>{
@@ -234,87 +237,100 @@ test('Batch J Task 61: primary management surfaces are answer-first, impact/scop
   assert.match(html,/Control gaps/);
 });
 
-test('Batch J Task 62 sparse-data matrix remains useful instead of becoming zero/unresolved everywhere',()=>{
-  {
-    const id='J-SPARSE-SCHEDULE';
-    const state:any=loadCertifiedDemoProject(id);
-    clearNonSchedule(state);
-    const schedule:any=moduleForProject(id,'schedule-analytics');
-    assert.notEqual(schedule.status,'blocked');
-    assert.ok((schedule.data.activityCount??0)>0);
-  }
+test('Batch J Task 62: schedule-only project remains useful',()=>{
+  const id='J-SPARSE-SCHEDULE';
+  const state:any=loadCertifiedDemoProject(id);
+  clearNonSchedule(state);
+  const schedule:any=moduleForProject(id,'schedule-analytics');
+  assert.notEqual(schedule.status,'blocked');
+  assert.ok((schedule.data.result?.activityCount??0)>0);
+  assert.ok(schedule.data.result?.population?.sourceActivityCount>0);
+});
 
-  {
-    const id='J-SPARSE-BOQ';
-    const state:any=loadCertifiedDemoProject(id);
-    state.schedules=[];
-    state.resourcesByRevision.clear();
-    state.contract=null;
-    clearCommercialControls(state);
-    state.controls.delayClaims=null;
-    state.controls.contractTimeBasis=null;
-    state.controls.progressEvidence={};
-    const boq:any=boqScopeIntelligence(state);
-    assert.ok(boq.itemCount>0);
-    assert.ok(boq.rows.length>0);
-  }
+test('Batch J Task 62: BOQ-only project remains useful without a programme',()=>{
+  const id='J-SPARSE-BOQ';
+  const state:any=loadCertifiedDemoProject(id);
+  state.schedules=[];
+  state.resourcesByRevision.clear();
+  state.contract=null;
+  clearCommercialControls(state);
+  state.controls.delayClaims=null;
+  state.controls.contractTimeBasis=null;
+  state.controls.progressEvidence={};
+  const boq:any=boqScopeIntelligence(state);
+  assert.ok(boq.itemCount>0);
+  assert.ok(boq.rows.length>0);
+  const materials:any=moduleForProject(id,'material-tracking');
+  assert.notEqual(materials.status,'blocked');
+  assert.ok((materials.data.rows?.length??0)>0);
+  assert.match(String(materials.data.managementPosition??materials.reason??''),/BOQ|scope|review/i);
+});
 
-  {
-    const id='J-SPARSE-COMMERCIAL';
-    const state:any=loadCertifiedDemoProject(id);
-    state.schedules=[];
-    state.resourcesByRevision.clear();
-    state.quantities=null;
-    state.controls.delayClaims=null;
-    state.controls.contractTimeBasis=null;
-    state.controls.progressEvidence={};
-    const overview:any=canonicalCommercialModule(state,'commercial-overview')!;
-    assert.ok(overview.data.position.currencies.length>0);
-    assert.ok(overview.data.position.currencies.some((row:any)=>row.originalContractValue?.value!==null||row.currentContractValue?.value!==null||row.grossCertifiedAmount?.value!==null));
-  }
+test('Batch J Task 62: Commercial-only project retains known money without a programme',()=>{
+  const id='J-SPARSE-COMMERCIAL';
+  const state:any=loadCertifiedDemoProject(id);
+  state.schedules=[];
+  state.resourcesByRevision.clear();
+  state.quantities=null;
+  state.controls.delayClaims=null;
+  state.controls.contractTimeBasis=null;
+  state.controls.progressEvidence={};
+  const overview:any=canonicalCommercialModule(state,'commercial-overview')!;
+  assert.notEqual(overview.status,'blocked');
+  assert.ok(overview.data.position.currencies.length>0);
+  assert.ok(overview.data.position.currencies.some((row:any)=>
+    row.originalContractValue?.value!==null||row.currentContractValue?.value!==null||row.grossCertifiedAmount?.value!==null));
+});
 
-  {
-    const id='J-SPARSE-CLAIMS';
-    const state:any=loadCertifiedDemoProject(id);
-    state.schedules=[];
-    state.resourcesByRevision.clear();
-    state.quantities=null;
-    clearCommercialControls(state);
-    const claims:any=canonicalTimeClaims(state,true);
-    assert.ok(claims.events.length>0);
-    assert.ok(claims.claims.length>0);
-  }
+test('Batch J Task 62: claims-only project retains claim/event evidence without a programme',()=>{
+  const id='J-SPARSE-CLAIMS';
+  const state:any=loadCertifiedDemoProject(id);
+  state.schedules=[];
+  state.resourcesByRevision.clear();
+  state.quantities=null;
+  clearCommercialControls(state);
+  const claims:any=canonicalTimeClaims(state,true);
+  assert.ok(claims.events.length>0);
+  assert.ok(claims.claims.length>0);
+  const delay:any=moduleForProject(id,'delay-claims');
+  assert.notEqual(delay.status,'blocked');
+});
 
-  {
-    const id='J-SPARSE-SCHEDULE-BOQ';
-    const state:any=loadCertifiedDemoProject(id);
-    clearCommercialControls(state);
-    state.controls.delayClaims=null;
-    state.controls.contractTimeBasis=null;
-    const schedule:any=moduleForProject(id,'schedule-analytics');
-    const boq:any=boqScopeIntelligence(state);
-    assert.notEqual(schedule.status,'blocked');
-    assert.ok(boq.itemCount>0);
-  }
+test('Batch J Task 62: schedule plus BOQ stays useful without Commercial or claims',()=>{
+  const id='J-SPARSE-SCHEDULE-BOQ';
+  const state:any=loadCertifiedDemoProject(id);
+  clearCommercialControls(state);
+  state.controls.delayClaims=null;
+  state.controls.contractTimeBasis=null;
+  const schedule:any=moduleForProject(id,'schedule-analytics');
+  const boq:any=boqScopeIntelligence(state);
+  const materials:any=moduleForProject(id,'material-tracking');
+  assert.notEqual(schedule.status,'blocked');
+  assert.ok((schedule.data.result?.activityCount??0)>0);
+  assert.ok(boq.itemCount>0);
+  assert.notEqual(materials.status,'blocked');
+  assert.ok((materials.data.rows?.length??0)>0);
+});
 
-  {
-    const id='J-SPARSE-SCHEDULE-CLAIMS';
-    const state:any=loadCertifiedDemoProject(id);
-    state.quantities=null;
-    clearCommercialControls(state);
-    const schedule:any=moduleForProject(id,'schedule-analytics');
-    const claims:any=canonicalTimeClaims(state,true);
-    assert.notEqual(schedule.status,'blocked');
-    assert.ok(claims.events.length>0&&claims.claims.length>0);
-    const delay:any=moduleForProject(id,'delay-claims');
-    assert.notEqual(delay.status,'blocked');
-  }
+test('Batch J Task 62: schedule plus claims stays useful without BOQ or Commercial',()=>{
+  const id='J-SPARSE-SCHEDULE-CLAIMS';
+  const state:any=loadCertifiedDemoProject(id);
+  state.quantities=null;
+  clearCommercialControls(state);
+  const schedule:any=moduleForProject(id,'schedule-analytics');
+  const claims:any=canonicalTimeClaims(state,true);
+  const delay:any=moduleForProject(id,'delay-claims');
+  assert.notEqual(schedule.status,'blocked');
+  assert.ok((schedule.data.result?.activityCount??0)>0);
+  assert.ok(claims.events.length>0&&claims.claims.length>0);
+  assert.notEqual(delay.status,'blocked');
+});
 
-  {
-    const id='J-SPARSE-FULL';
-    loadCertifiedDemoProject(id);
-    const pages=['master-dashboard','command-center','master-control-programme','pmo-analysis'].map(key=>moduleForProject(id,key) as any);
-    assert.ok(pages.every(page=>page&&page.status!=='blocked'));
-    assert.ok((pages[1]!.data.actions?.length??0)>0);
-  }
+test('Batch J Task 62: full project keeps all primary management surfaces useful',()=>{
+  const id='J-SPARSE-FULL';
+  loadCertifiedDemoProject(id);
+  const pages=['master-dashboard','command-center','master-control-programme','pmo-analysis']
+    .map(key=>moduleForProject(id,key) as any);
+  assert.ok(pages.every(page=>page&&page.status!=='blocked'));
+  assert.ok((pages[1]!.data.actions?.length??0)>0);
 });
