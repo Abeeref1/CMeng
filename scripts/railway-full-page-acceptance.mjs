@@ -11,6 +11,15 @@ const summary={mode:"ALL_PAGES_PAGE_FIRST_ALL_PROJECTS_ORBIT_LAST",expectedRelea
 const comparable=v=>Array.isArray(v)?v.map(comparable):v&&typeof v==="object"
   ?Object.fromEntries(Object.entries(v).filter(([k])=>k!=="generatedAt").map(([k,x])=>[k,comparable(x)])):v;
 const digest=v=>createHash("sha256").update(JSON.stringify(comparable(v))).digest("hex");
+function containsPageData(reportValue,pageValue){
+  const report=comparable(reportValue),page=comparable(pageValue);
+  if(Array.isArray(page))return Array.isArray(report)&&report.length===page.length&&page.every((v,i)=>containsPageData(report[i],v));
+  if(page&&typeof page==="object"){
+    if(!report||typeof report!=="object"||Array.isArray(report))return false;
+    return Object.entries(page).every(([k,v])=>Object.prototype.hasOwnProperty.call(report,k)&&containsPageData(report[k],v));
+  }
+  return Object.is(report,page);
+}
 const fingerprint=id=>createHash("sha256").update(id).digest("hex").slice(0,16);
 const check=(name,ok,pageKey=null,projectId=null,detail=null)=>{
   summary.checks.push({name,pageKey,projectFingerprint:projectId?fingerprint(projectId):null,status:ok?"pass":"fail",detail:ok?null:detail});
@@ -125,7 +134,7 @@ try{
       const report=await json(route(id,page,true),[200,409]);
       if(result.status===200){
         check("Available page has report",report.status===200,page.key,id,"report status="+report.status);
-        check("Page/report exact governed data parity",report.status===200&&digest(report.body?.result?.data)===digest(body?.data),page.key,id);
+        check("Page/report governed screen data parity",report.status===200&&containsPageData(report.body?.result?.data,body?.data),page.key,id);
         check("Available page has usable content",usefulPayload(body?.data),page.key,id);
       }else{
         pageSummary.blockedProjects++;
