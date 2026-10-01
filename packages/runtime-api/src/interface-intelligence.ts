@@ -74,5 +74,5 @@ export function interfaceIntelligence(state:ProjectRuntimeState){
 }
 export function interfaceModule(state:ProjectRuntimeState):ModuleRuntimeResult{
   const data=interfaceIntelligence(state),has=data.rows.length>0;
-  return {key:'delivery-interfaces',status:!has?'blocked':'partial',reason:data.managementPosition,dependencies:has?[]:['governed interface records or package-to-activity relationships'],scheduleAuthorityReview:scheduleAuthorityReview(state),data:{...data,projectionKey:'delivery',deliveryPage:'delivery-interfaces',interfaceProjectionKey:data.projectionKey}};
+  return {key:'delivery-interfaces',status:!has?'blocked':'partial',reason:data.managementPosition,dependencies:has?[]:['governed interface records or package-to-activity relationships'],scheduleAuthorityReview:scheduleAuthorityReview(state),data:{...data,title:'Interface Management',projectionKey:'delivery',deliveryPage:'delivery-interfaces',interfaceProjectionKey:data.projectionKey}};
 }

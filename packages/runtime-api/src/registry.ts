@@ -1,5 +1,30 @@
 import {deliveryPages} from '../../delivery-core/src/registry';
 // Single source of page titles, purpose and navigation. Keys remain stable for saved links and API clients.
+const deliveryNavigationGroup:Record<string,string>={
+  'delivery-control':'Delivery Control',
+  'procurement-packages':'Procurement & Long Lead',
+  'material-tracking':'Procurement & Long Lead',
+  'long-lead':'Procurement & Long Lead',
+  'procurement-scurves':'Procurement & Long Lead',
+  'delivery-suppliers':'Procurement & Long Lead',
+  'procurement-readiness':'Procurement & Long Lead',
+  'delivery-design':'Design & Interfaces',
+  'delivery-submittals':'Design & Interfaces',
+  'delivery-interfaces':'Design & Interfaces',
+  'construction-discipline':'Construction Control',
+  'construction-locations':'Construction Control',
+  'construction-readiness':'Construction Control',
+  'delivery-permits':'Construction Control',
+  'delivery-quality':'Quality & HSE',
+  'delivery-hse':'Quality & HSE',
+  'delivery-commissioning':'Testing & Handover',
+  'delivery-assets':'Testing & Handover',
+  'delivery-closeout':'Testing & Handover',
+  'delivery-spares':'Testing & Handover',
+  'handover-readiness':'Testing & Handover',
+  'delivery-risks':'Delivery Risk',
+  'delivery-weather':'Delivery Risk',
+};
 export interface ModuleDescriptor {
   key: string;
   title: string;
@@ -49,7 +74,7 @@ export const moduleRegistry: ModuleDescriptor[] = [
   {"key": "cash-flow", "title": "Cash Flow", "description": "Actual cash availability, certificate reconciliation and the future certificate plan.", "group": "Commercial", "area": "commercial", "category": "commercial"},
   {"key": "commercial-claims-notices", "title": "Financial Claims", "description": "Claimed and assessed money by currency, financial exposure and recovery status, linked to the supporting time and notice records.", "group": "Commercial", "area": "commercial", "category": "commercial"},
   {"key": "contract-particulars-bonds", "title": "Contract Particulars & Bonds", "description": "Contract value, contractual completion, approved EOT and active security position.", "group": "Commercial", "area": "commercial", "category": "commercial"},
-  ...deliveryPages.map(([key,title,description])=>({key,title,description,group:"Delivery",area:"delivery" as const,category:"delivery" as const})),
+  ...deliveryPages.map(([key,title,description])=>({key,title,description,group:deliveryNavigationGroup[key]??"Delivery",area:"delivery" as const,category:"delivery" as const})),
 ];
 
 export const pageApiKey=(key:string)=>moduleRegistry.find(m=>m.key===key||m.apiKey===key)?.apiKey??key;
