@@ -764,6 +764,8 @@ function reportEvidenceState(value:unknown,fallback:EvidenceState):EvidenceState
   if(['missing','blocked','unavailable','not_established'].includes(state))return 'unavailable';
   return state?'partial':fallback;
 }
+// Task 58 semantics are derived lazily at report time so the live project
+// calculation path does not build a second metadata graph on every page load.
 function reportMetricParent(data:Record<string,unknown>,path:string):any{
   const parts=path.split('.').slice(0,-1);let value:any=data;
   for(const part of parts){
