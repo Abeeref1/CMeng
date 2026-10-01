@@ -38,19 +38,23 @@ test('JSON report preserves the exact page route key used by the live page',()=>
 test('Task 58 keeps value unit population Data Date state authority and qualification consistent across report surfaces',async()=>{
  const fact={value:37,unit:'%',state:'partial',authority:'source',basis:'Measured physical progress from the dated installed-progress register.'};
  const contract={populationId:'physical-progress-pop',denominator:120,excludedCount:5,exclusionsRef:'reportingContract.populations.physical.exclusions',dataDateIso:'2031-04-15',authority:'source',dateBasis:'Dated physical measurements on or before the Data Date',unit:'%',state:'partial',qualification:fact.basis};
- const result={key:'progress-report',status:'partial' as const,reason:'Physical progress is partially established.',dependencies:[],data:{projectVersion:9,dataDateIso:'2031-04-15',progressPosition:fact,
+ const completionFact={value:'2031-05-30',unit:'date',state:'official',authority:'official',basis:'Governed contractual completion from the adopted contract-time basis.'};
+ const result={key:'progress-report',status:'partial' as const,reason:'Physical progress is partially established.',dependencies:[],data:{projectVersion:9,dataDateIso:'2031-04-15',progressPosition:fact,contractCompletion:completionFact,
    reportingContract:{dataDateIso:'2031-04-15',projectVersion:9,populations:{physical:{populationId:'physical-progress-pop',denominator:120,memberIds:Array.from({length:115},(_,i)=>'P'+i),exclusions:Array.from({length:5},(_,i)=>({id:'X'+i,reason:'date_missing'})),dateBasis:'Dated physical measurements on or before the Data Date'}},metricContracts:{'progressPosition.value':contract}}}};
  const raw=JSON.parse(buildModuleJsonDownload('SEMANTIC-PARITY','progress-report',result).toString());
  assert.equal(raw.result.data.progressPosition.value,37);assert.equal(raw.result.data.progressPosition.unit,'%');assert.equal(raw.result.data.progressPosition.state,'partial');assert.equal(raw.result.data.reportingContract.metricContracts['progressPosition.value'].authority,'source');
  assert.equal(raw.result.data.reportingContract.metricContracts['progressPosition.value'].denominator,120);
 
- const view={title:'Semantic parity',subtitle:'Same fact semantics',includeAuthorities:['summary'],sectionOrder:['summary'],includeCharts:[],includeTables:[],includeMetrics:['module.progressPosition.value'],chartTypes:{},chartLimits:{},layout:'standard',detailLevel:'normal' as const};
+ const view={title:'Semantic parity',subtitle:'Same fact semantics',includeAuthorities:['summary'],sectionOrder:['summary'],includeCharts:[],includeTables:[],includeMetrics:['module.progressPosition.value','module.contractCompletion.value'],chartTypes:{},chartLimits:{},layout:'standard',detailLevel:'normal' as const};
  const selected=await exportModuleReport('SEMANTIC-PARITY','progress-report',result,'json',view),analysis=JSON.parse(selected.bytes.toString());
  const metric=analysis.sections[0].metrics.find((row:any)=>row.id==='module.progressPosition.value');
  assert.equal(metric.value,37);assert.equal(metric.unit,'%');assert.equal(metric.state,'partial');assert.equal(metric.classification,'project_fact');
  assert.match(metric.basis,/Measured physical progress/);assert.match(metric.basis,/Population 120/);assert.match(metric.basis,/excluded 5/);assert.match(metric.basis,/Data Date 2031-04-15/);assert.match(metric.basis,/Authority source/);
  const trace=analysis.sections[0].traces.find((row:any)=>row.id==='module:metric:progressPosition.value');
  assert.equal(trace.dataDate,'2031-04-15');assert.equal(trace.state,'partial');assert.match(trace.basis,/Authority source/);
+ const nonPopulation=analysis.sections[0].metrics.find((row:any)=>row.id==='module.contractCompletion.value');
+ assert.equal(nonPopulation.value,'2031-05-30');assert.equal(nonPopulation.unit,'date');assert.equal(nonPopulation.state,'established');assert.equal(nonPopulation.classification,'project_fact');
+ assert.match(nonPopulation.basis,/Governed contractual completion/);assert.match(nonPopulation.basis,/Population not separately established/);assert.match(nonPopulation.basis,/Data Date 2031-04-15/);assert.match(nonPopulation.basis,/Authority official/);
 
  const pdf=await exportModuleReport('SEMANTIC-PARITY','progress-report',result,'pdf',view),parser=new PDFParse({data:pdf.bytes as any});const pdfText=(await parser.getText()).text;await parser.destroy();
  assert.match(pdfText,/37/);assert.match(pdfText,/Measured physical progress/);assert.match(pdfText,/2031-04-15/);
