@@ -253,6 +253,7 @@ test('Batch J Task 62: schedule-only project remains useful',()=>{
   const id='J-SPARSE-SCHEDULE';
   const state:any=loadCertifiedDemoProject(id);
   clearNonSchedule(state);
+  runtimeProjects.touch(state);
   const schedule:any=moduleForProject(id,'schedule-analytics');
   assert.notEqual(schedule.status,'blocked');
   assert.ok((schedule.data.result?.activityCount??0)>0);
@@ -269,6 +270,7 @@ test('Batch J Task 62: BOQ-only project remains useful without a programme',()=>
   state.controls.delayClaims=null;
   state.controls.contractTimeBasis=null;
   state.controls.progressEvidence={};
+  runtimeProjects.touch(state);
   const boq:any=boqScopeIntelligence(state);
   assert.ok(boq.itemCount>0);
   assert.ok(boq.rows.length>0);
@@ -287,6 +289,7 @@ test('Batch J Task 62: Commercial-only project retains known money without a pro
   state.controls.delayClaims=null;
   state.controls.contractTimeBasis=null;
   state.controls.progressEvidence={};
+  runtimeProjects.touch(state);
   const overview:any=canonicalCommercialModule(state,'commercial-overview')!;
   assert.notEqual(overview.status,'blocked');
   assert.ok(overview.data.position.currencies.length>0);
@@ -301,12 +304,27 @@ test('Batch J Task 62: claims-only project retains governed claim/event evidence
   state.resourcesByRevision.clear();
   state.quantities=null;
   clearCommercialControls(state);
+  runtimeProjects.touch(state);
+  const storedClaimsOnly=runtimeProjects.get(id)!;
+  assert.equal(storedClaimsOnly.schedules.length,0,'claims-only fixture must have no programme');
+  assert.ok((storedClaimsOnly.controls.delayClaims?.events.length??0)>0,'governed event must survive sparse fixture mutation');
+  assert.ok((storedClaimsOnly.controls.delayClaims?.claims.length??0)>0,'governed claim must survive sparse fixture mutation');
   assert.ok((state.controls.delayClaims?.events.length??0)>0);
   assert.ok((state.controls.delayClaims?.claims.length??0)>0);
   const delay:any=moduleForProject(id,'delay-claims');
   assert.notEqual(delay.status,'blocked');
   assert.equal(delay.data.contractorClaimEvidenceSubmitted,true);
-  assert.ok((delay.data.eventCount??0)>0);
+  assert.ok((delay.data.eventCount??0)>0,
+    'claims-only page lost governed events: '+JSON.stringify({
+      rawEventCount:storedClaimsOnly.controls.delayClaims?.events.length??0,
+      rawClaimCount:storedClaimsOnly.controls.delayClaims?.claims.length??0,
+      status:delay.status,
+      reason:delay.reason,
+      eventCount:delay.data.eventCount,
+      claimCount:delay.data.claimCount,
+      programmeEvidenceState:delay.data.programmeEvidenceState,
+      projectionKey:delay.data.projectionKey,
+    }));
   assert.ok((delay.data.claimCount??0)>0);
   assert.equal(delay.data.independentScheduleMovementAvailable,false);
   assert.equal(delay.data.programmeEvidenceState,'not_established');
@@ -327,6 +345,7 @@ test('Batch J Task 62: schedule plus BOQ stays useful without Commercial or clai
   clearCommercialControls(state);
   state.controls.delayClaims=null;
   state.controls.contractTimeBasis=null;
+  runtimeProjects.touch(state);
   const schedule:any=moduleForProject(id,'schedule-analytics');
   const boq:any=boqScopeIntelligence(state);
   const materials:any=moduleForProject(id,'material-tracking');
@@ -342,6 +361,7 @@ test('Batch J Task 62: schedule plus claims stays useful without BOQ or Commerci
   const state:any=loadCertifiedDemoProject(id);
   state.quantities=null;
   clearCommercialControls(state);
+  runtimeProjects.touch(state);
   const schedule:any=moduleForProject(id,'schedule-analytics');
   const delay:any=moduleForProject(id,'delay-claims');
   assert.notEqual(schedule.status,'blocked');
