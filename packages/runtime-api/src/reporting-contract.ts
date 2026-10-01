@@ -101,7 +101,12 @@ export function managementReportingData<T extends object>(state: ProjectRuntimeS
       if (population) contract.metricContracts[collection + '[' + key + '].value'] = {
         populationId: population.populationId, denominator: population.denominator, excludedCount: population.exclusions.length,
         exclusionsRef: 'reportingContract.populations.' + Object.keys(populations).find(k => populations[k] === population) + '.exclusions',
-        dataDateIso: contract.dataDateIso, authority: metric.authority === 'source' ? 'source' : 'calculated', dateBasis: metric.basis,
+        dataDateIso: contract.dataDateIso,
+        authority: ['source','submitted','calculated','adjusted','official','scenario'].includes(metric.authority) ? metric.authority : 'calculated',
+        dateBasis: metric.basis,
+        unit: metric.unit ?? null,
+        state: metric.state ?? null,
+        qualification: metric.basis ?? null,
       };
     }
   }
