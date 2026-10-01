@@ -8296,14 +8296,25 @@ export function overviewForProject(
         };
       },
     );
+  const overviewManagementResults =
+    new Map(
+      managementModuleKeys.map(
+        (key) => [
+          key,
+          moduleForProject(
+            projectId,
+            key,
+          ),
+        ] as const,
+      ),
+    );
   const overviewManagementStates =
     managementModuleKeys.map(
       (key) => {
         const resolved =
-          moduleForProject(
-            projectId,
+          overviewManagementResults.get(
             key,
-          );
+          )!;
         return {
           key,
           status:
@@ -8316,22 +8327,21 @@ export function overviewForProject(
       },
     );
 
-  // Task 56: every role lens consumes a compact view of the same canonical
-  // management surfaces already resolved above. No lens recalculates project
-  // facts and no role-specific truth store is introduced.
-  const roleSurfaces =
-    managementSurfacesForProject(
-      projectId,
-    ) as any;
+  // Task 56: every role lens consumes the same already-resolved Management
+  // Control payloads. Do not perform a second management-surface lookup solely
+  // for presentation; the role lens is a compact view, not another calculation.
   const roleDashboard =
-    roleSurfaces?.masterDashboard ??
-    {};
+    (overviewManagementResults.get(
+      "master-dashboard",
+    )?.data as any) ?? {};
   const roleCommand =
-    roleSurfaces?.commandCenter ??
-    {};
+    (overviewManagementResults.get(
+      "command-center",
+    )?.data as any) ?? {};
   const roleMcp =
-    roleSurfaces?.masterControlProgramme ??
-    {};
+    (overviewManagementResults.get(
+      "master-control-programme",
+    )?.data as any) ?? {};
   const roleDiagnosis =
     roleDashboard.projectDiagnosis ??
     null;
