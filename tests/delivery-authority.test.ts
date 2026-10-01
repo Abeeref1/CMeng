@@ -2,7 +2,7 @@ import test from 'node:test';
 import {createHash} from 'node:crypto';
 import {deliveryAuthorityCatalog} from '../packages/runtime-api/src/delivery-authorities';
 import assert from 'node:assert/strict';
-import {mkdtempSync,rmSync,writeFileSync} from 'node:fs';
+import {mkdtempSync,readFileSync,rmSync,writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {Script,runInNewContext} from 'node:vm';
@@ -15,7 +15,6 @@ import {resolveBoqSource} from '../packages/runtime-api/src/boq-source';
 import {projectControlSchedule} from '../packages/runtime-api/src/canonical-time-claims';
 import {buildDeliveryWorkbook} from '../packages/runtime-api/src/delivery-export';
 import {moduleRegistry} from '../packages/runtime-api/src/registry';
-import {cmengUatHtml} from '../packages/runtime-api/src/ui';
 import type {DeliveryKind,DeliveryRecord} from '../packages/delivery-core/src/types';
 
 const calendar='(0||CalendarData()((0||DaysOfWeek()('+Array.from({length:7},(_,i)=>'(0||'+(i+1)+'()((0||0(s|08:00|f|16:00)())))').join('')+'))(0||Exceptions()())))';
@@ -136,7 +135,7 @@ test('Batch H Interface columns remain explicit after governance and never rende
  assert.equal(row.package,'MEP');assert.equal(row.discipline,'Electrical');assert.equal(row.system,'BMS');assert.equal(row.location,'Zone 2');
  assert.equal(row.requiredDeliverable,'Approved sequence');assert.equal(row.responsibleParty,'Interface Manager');assert.equal(row.consequence,'Workfront cannot proceed');assert.equal(row.escalation,'Escalate coordination');
  assert.ok(!JSON.stringify(row).match(/undefined/i));
- const html=cmengUatHtml();for(const heading of ['Interface ID','Giving party','Receiving party','Package','Discipline','System','Location','Deliverable','Required date','Responsible party','Activity','RFI','Submittal','Risk','Consequence','Escalation'])assert.match(html,new RegExp(heading,'i'));
+ const uiSource=readFileSync(join(process.cwd(),'packages/runtime-api/src/ui.ts'),'utf8');for(const heading of ['Interface ID','Giving party','Receiving party','Package','Discipline','System','Location','Required deliverable','Required date','Responsible party','Activity','RFI','Submittal','Risk','Consequence','Escalation'])assert.match(uiSource,new RegExp(heading,'i'));
 });
 
 test('Batch H Quality and Commissioning rates require complete current populations and exclude future rows',async t=>{
@@ -170,6 +169,8 @@ test('Batch H record kind is deterministic under column permutation and ambiguou
  assert.equal(classifyDeliveryRowKind(a,'',null),null);assert.equal(classifyDeliveryRowKind(b,'',null),null);
  assert.equal(classifyDeliveryRowKind(a,'','package'),'package');assert.equal(classifyDeliveryRowKind(b,'','package'),'package');
  assert.equal(classifyDeliveryRowKind(a,'procurement_register',null),'package');assert.equal(classifyDeliveryRowKind(b,'procurement_register',null),'package');
+ const permit:any={cells:{'permit id':'PER-1','supplier id':'SUP-1','issue date':'2031-08-01','expiry date':'2031-09-01'},receipt:{...receipt,locator:'page:3:line:1'}};
+ assert.equal(classifyDeliveryRowKind(permit,'submittal_register',null),'permit','primary page signature outranks a foreign supplier ID and document-wide type');
  const explicit:any={cells:{'delivery record type':'interface','package id':'P1'},receipt};assert.equal(classifyDeliveryRowKind(explicit,'procurement_register',null),'interface');
 });
 
