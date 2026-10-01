@@ -526,7 +526,11 @@ export function commercialFoundationForState(
     const selected=termAtEvent(datedTerms,key,projectDataDate(state));
     const old=(foundation.commercialTerms as any)[target];
     const stringValue=['ldRate','ldCap','performanceSecurity','advanceSecurity'].includes(key);
-    (foundation.commercialTerms as any)[target]={...old,value:selected.value===null?null:stringValue?selected.value+' '+selected.unit:selected.value,state:selected.state==='established'?'established':'conflicted',authority:selected.state==='established'?'source':'missing',basis:{...old.basis,asOfDate:projectDataDate(state),sourceRefs:selected.sourceRefs,method:'explicit_dated_contract_data'},diagnostics:selected.reason?[selected.reason]:[],action:selected.reason,coverage:{known:selected.value===null?0:1,total:1,percent:selected.value===null?0:100}};
+    const conflicting=/^Conflicting applicable contract values\.$/.test(selected.reason??'');
+    const hasApplicableSource=selected.versions.length>0;
+    const state=selected.state==='established'?'established':conflicting?'conflicted':hasApplicableSource?'partial':'missing';
+    const authority=selected.state==='established'?'source':conflicting?'mixed':hasApplicableSource?'candidate':'missing';
+    (foundation.commercialTerms as any)[target]={...old,value:selected.value===null?null:stringValue?selected.value+' '+selected.unit:selected.value,state,authority,basis:{...old.basis,asOfDate:projectDataDate(state),sourceRefs:selected.sourceRefs,method:'explicit_dated_contract_data'},diagnostics:selected.reason?[selected.reason]:[],action:selected.reason,coverage:{known:selected.value===null?0:1,total:1,percent:selected.value===null?0:100}};
   }
   foundation.commercialTerms.noticeVersions=[...contractNoticeRules(state),...contractNoticeRules(state,"detailed_claim")];
   cache.set(state, {
