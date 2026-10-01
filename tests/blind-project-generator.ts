@@ -223,7 +223,7 @@ async function xlsxBytes(h:ReturnType<typeof helpers>,title:string,headers:strin
 
 export async function generateBlindProject(seed:string,index=0):Promise<BlindProject>{
   const h=helpers(seed+'::'+index);
-  const language=h.pick(languages),scenario=h.pick(scenarios),currency=h.pick(currencies);
+  const language=languages[index%languages.length]!,scenario=scenarios[index%scenarios.length]!,currency=currencies[index%currencies.length]!;
   const projectId='BLIND-'+createHash('sha256').update(seed+'|'+index).digest('hex').slice(0,10).toUpperCase();
   const baseName=language==='ar'?h.pick(arabicNames):language==='mixed'?h.pick(englishNames)+' / '+h.pick(arabicNames):h.pick(englishNames);
   const projectName=baseName+' '+h.int(1,999);
