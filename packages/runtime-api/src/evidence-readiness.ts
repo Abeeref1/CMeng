@@ -1,5 +1,5 @@
 import {csv as parseCsv} from "../../truth-kernel/src";
-import {canonicalHeader,prepareRegisterRows,registerDate} from '../../truth-kernel/src';
+import {canonicalHeader,prepareEvidenceRows,registerDate} from '../../truth-kernel/src';
 import {
   readFileSync,
 } from "node:fs";
@@ -268,6 +268,7 @@ export function deriveReadinessFromCsv(
     document:
       StoredEvidenceDocument;
     bytes: Uint8Array;
+    sheetName?: string;
     dataDateIso?: string | null;
   },
 ): ReadinessByActivity {
@@ -289,7 +290,11 @@ export function deriveReadinessFromCsv(
         /^\uFEFF/,
         "",
       );
-  const parsedTable=prepareRegisterRows(parseCsv(text),input.document.documentType);
+  const parsedTable=prepareEvidenceRows(
+    parseCsv(text),
+    input.document.documentType,
+    (input.document.tableConfirmations??[]).filter(item=>item.sheetName===(input.sheetName??'CSV')),
+  );
   const rows=[parsedTable.headers,...parsedTable.rows];
   const headers=parsedTable.headers;
 
