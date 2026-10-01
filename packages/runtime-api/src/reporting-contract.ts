@@ -98,29 +98,27 @@ export function managementReportingData<T extends object>(state: ProjectRuntimeS
       const key = metric.key as string;
       const population = /critical/.test(key) ? populations.execution_control : /claims/.test(key) ? populations.claims :
         key === 'progress-position' ? populations.duration_weighted_progress : key === 'schedule-spi' ? populations.commercial_positions : undefined;
-      const path = collection + '[' + key + '].value';
-      const populationKey = population ? Object.keys(populations).find(k => populations[k] === population) ?? null : null;
-      const semantic = {
-        populationId: population?.populationId ?? null,
-        denominator: population?.denominator ?? null,
-        excludedCount: population?.exclusions.length ?? 0,
-        exclusionsRef: population && populationKey ? 'reportingContract.populations.' + populationKey + '.exclusions' : null,
-        dataDateIso: contract.dataDateIso,
-        authority: ['source','submitted','calculated','adjusted','official','scenario'].includes(metric.authority) ? metric.authority : 'calculated',
-        dateBasis: population?.dateBasis ?? metric.basis,
-        unit: metric.unit ?? null,
-        state: metric.state ?? null,
-        qualification: metric.basis ?? null,
-      };
-      (contract.factSemantics ??= {})[path] = semantic;
-      if (population) contract.metricContracts[path] = semantic;
+      if (population) {
+        const path = collection + '[' + key + '].value';
+        const populationKey = Object.keys(populations).find(k => populations[k] === population) ?? null;
+        contract.metricContracts[path] = {
+          populationId: population.populationId,
+          denominator: population.denominator,
+          excludedCount: population.exclusions.length,
+          exclusionsRef: populationKey ? 'reportingContract.populations.' + populationKey + '.exclusions' : null,
+          dataDateIso: contract.dataDateIso,
+          authority: ['source','submitted','calculated','adjusted','official','scenario'].includes(metric.authority) ? metric.authority : 'calculated',
+          dateBasis: population.dateBasis,
+          unit: metric.unit ?? null,
+          state: metric.state ?? null,
+          qualification: metric.basis ?? null,
+        };
+      }
     }
   }
   for (const field of ['approvedVariationAmount', 'pendingVariationAmount', 'retentionDeductedAmount', 'retentionHeldAmount', 'certifiedUnpaidAmount', 'activeBondAmount']) {
     const sourcePath='position.currencies[*].' + field + '.value',targetPath='commercialByCurrency[*].' + field + '.value';
     const original = commercial?.metricContracts?.[sourcePath];
-    const semantic = commercial?.factSemantics?.[sourcePath] ?? original;
-    if (semantic) (contract.factSemantics ??= {})[targetPath] = semantic;
     if (original) contract.metricContracts[targetPath] = original;
   }
   return result;
@@ -180,26 +178,21 @@ export function attachReportingContract(state:ProjectRuntimeState,result:ModuleR
     populations.assignments=populationContract({name:'P6 resource assignment records',entity:'assignment',dataDateIso,dateBasis:'current programme assignment register; not resource identities',sourceRevisionId:model?.sourceRevisionId??null,authority:'source',sourceCount:resources.assignments.length,memberIds:resources.assignments.map((r:any,i:number)=>String(r.assignmentId??i)),exclusions:[]});
   }
   const metricContracts:Record<string,MetricSemanticContract>={};
-  const factSemantics:Record<string,MetricSemanticContract>={};
   const add=(path:string,population:PopulationContract|undefined,authority:ReportingAuthority='calculated',semantic:{unit?:string|null;state?:string|null;qualification?:string|null}={})=>{
-    const populationKey=population?Object.keys(populations).find(key=>populations[key]===population)??null:null;
-    const fact:MetricSemanticContract={
-      populationId:population?.populationId??null,
-      denominator:population?.denominator??null,
-      excludedCount:population?.exclusions.length??0,
-      exclusionsRef:population&&populationKey?'reportingContract.populations.'+populationKey+'.exclusions':null,
+    if(!population)return;
+    const populationKey=Object.keys(populations).find(key=>populations[key]===population)??null;
+    metricContracts[path]={
+      populationId:population.populationId,
+      denominator:population.denominator,
+      excludedCount:population.exclusions.length,
+      exclusionsRef:populationKey?'reportingContract.populations.'+populationKey+'.exclusions':null,
       dataDateIso,
       authority,
-      dateBasis:population?.dateBasis??semantic.qualification??'Metric-specific canonical module basis.',
+      dateBasis:population.dateBasis,
       unit:semantic.unit??null,
       state:semantic.state??null,
-      qualification:semantic.qualification??population?.dateBasis??null
+      qualification:semantic.qualification??population.dateBasis
     };
-    factSemantics[path]=fact;
-    // Population contracts remain strict: every entry must reference a real
-    // controlled population. Scalar semantics without a denominator live in
-    // factSemantics and must never weaken the population consistency gate.
-    if(population)metricContracts[path]=fact;
   };
   // Explicit metric-family rules: a resource count can never use assignment rows.
   const walk=(value:any,path:string,depth:number)=>{
@@ -282,7 +275,7 @@ export function attachReportingContract(state:ProjectRuntimeState,result:ModuleR
     programmeRevisionId:current?.revision.revisionId??null,programmeLabel:current?.revision.label??null,
     actualEventPolicy:'Only dated events on or before the Data Date enter current actuals. Future and undated evidence is retained separately.',
     forecastPolicy:'Future planned work and forecast dates remain visible as forecasts, never as actual events.',
-    resolver:'moduleForProject',populations,metricContracts,factSemantics,
+    resolver:'moduleForProject',populations,metricContracts,
     excludedScheduleActualEvents:{future:actuals.future,undated:actuals.undated},
     completionAuthority:{governedContractualFinish:time?.contractualCompletionIso??null,authority:time?.contractualCompletionState??'missing',
       reason:time?.completionReason??null,
