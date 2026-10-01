@@ -112,15 +112,12 @@ export function managementReportingData<T extends object>(state: ProjectRuntimeS
         state: metric.state ?? null,
         qualification: metric.basis ?? null,
       };
-      (contract.factSemantics ??= {})[path] = semantic;
       if (population) contract.metricContracts[path] = semantic;
     }
   }
   for (const field of ['approvedVariationAmount', 'pendingVariationAmount', 'retentionDeductedAmount', 'retentionHeldAmount', 'certifiedUnpaidAmount', 'activeBondAmount']) {
     const sourcePath='position.currencies[*].' + field + '.value',targetPath='commercialByCurrency[*].' + field + '.value';
     const original = commercial?.metricContracts?.[sourcePath];
-    const semantic = commercial?.factSemantics?.[sourcePath] ?? original;
-    if (semantic) (contract.factSemantics ??= {})[targetPath] = semantic;
     if (original) contract.metricContracts[targetPath] = original;
   }
   return result;
@@ -180,30 +177,24 @@ export function attachReportingContract(state:ProjectRuntimeState,result:ModuleR
     populations.assignments=populationContract({name:'P6 resource assignment records',entity:'assignment',dataDateIso,dateBasis:'current programme assignment register; not resource identities',sourceRevisionId:model?.sourceRevisionId??null,authority:'source',sourceCount:resources.assignments.length,memberIds:resources.assignments.map((r:any,i:number)=>String(r.assignmentId??i)),exclusions:[]});
   }
   const metricContracts:Record<string,MetricSemanticContract>={};
-  const factSemantics:Record<string,MetricSemanticContract>={};
-  const add=(path:string,population:PopulationContract|undefined,authority:ReportingAuthority='calculated',semantic:{unit?:string|null;state?:string|null;qualification?:string|null;explicit?:boolean}={})=>{
-    // A fact-semantic row is useful only when the producer declares meaning
-    // beyond the bare scalar, or when it is tied to a controlled population.
-    // Avoid materializing metadata for every internal numeric counter.
-    if(!population&&!semantic.explicit)return;
-    const populationKey=population?Object.keys(populations).find(key=>populations[key]===population)??null:null;
-    const fact:MetricSemanticContract={
-      populationId:population?.populationId??null,
-      denominator:population?.denominator??null,
-      excludedCount:population?.exclusions.length??0,
-      exclusionsRef:population&&populationKey?'reportingContract.populations.'+populationKey+'.exclusions':null,
+  const add=(path:string,population:PopulationContract|undefined,authority:ReportingAuthority='calculated',semantic:{unit?:string|null;state?:string|null;qualification?:string|null}={})=>{
+    // Runtime reporting contracts certify populations only. Non-population
+    // scalar semantics are read directly from the canonical fact object when
+    // a report/export is requested, keeping the cold project path lean.
+    if(!population)return;
+    const populationKey=Object.keys(populations).find(key=>populations[key]===population)??null;
+    metricContracts[path]={
+      populationId:population.populationId,
+      denominator:population.denominator,
+      excludedCount:population.exclusions.length,
+      exclusionsRef:populationKey?'reportingContract.populations.'+populationKey+'.exclusions':null,
       dataDateIso,
       authority,
-      dateBasis:population?.dateBasis??semantic.qualification??'Metric-specific canonical module basis.',
+      dateBasis:population.dateBasis,
       unit:semantic.unit??null,
       state:semantic.state??null,
-      qualification:semantic.qualification??population?.dateBasis??null
+      qualification:semantic.qualification??population.dateBasis
     };
-    factSemantics[path]=fact;
-    // Population contracts remain strict: every entry must reference a real
-    // controlled population. Scalar semantics without a denominator live in
-    // factSemantics and must never weaken the population consistency gate.
-    if(population)metricContracts[path]=fact;
   };
   // Explicit metric-family rules: a resource count can never use assignment rows.
   const walk=(value:any,path:string,depth:number)=>{
@@ -268,14 +259,10 @@ export function attachReportingContract(state:ProjectRuntimeState,result:ModuleR
         }
         const declaredAuthority=typeof value?.authority==='string'&&['source','submitted','calculated','adjusted','official','scenario'].includes(value.authority)?value.authority as ReportingAuthority:null;
         const authority:ReportingAuthority=declaredAuthority??(/official/i.test(full)?'official':/position\.currencies\[\*\]\.approvedVariationAmount\.value/.test(full)?'source':/source|submitted/i.test(full)?'submitted':value?.basis?.authority==='source'?'source':'calculated');
-        const explicitUnit=typeof value?.unit==='string'||typeof value?.currency==='string';
-        const explicitState=typeof value?.state==='string';
-        const explicitQualification=typeof value?.basis==='string'||typeof value?.qualification==='string'||typeof value?.reason==='string';
-        const explicitSemantic=Boolean(p||declaredAuthority||explicitUnit||explicitState||explicitQualification);
         const unit=typeof value?.unit==='string'?value.unit:typeof value?.currency==='string'?value.currency:p?/Percent$|PercentagePoints$/.test(key)?'%':/Hours$/.test(key)?'hours':/Days$/.test(key)?'calendar days':null:null;
-        const state=explicitState?value.state:p?(v===null?'not_established':'established'):null;
+        const state=typeof value?.state==='string'?value.state:p?(v===null?'not_established':'established'):null;
         const qualification=typeof value?.basis==='string'?value.basis:typeof value?.qualification==='string'?value.qualification:typeof value?.reason==='string'?value.reason:p?.dateBasis??null;
-        add(full,p,authority,{unit,state,qualification,explicit:explicitSemantic});
+        add(full,p,authority,{unit,state,qualification});
       }else walk(v,full,depth+1);
     }
   };
@@ -290,7 +277,7 @@ export function attachReportingContract(state:ProjectRuntimeState,result:ModuleR
     programmeRevisionId:current?.revision.revisionId??null,programmeLabel:current?.revision.label??null,
     actualEventPolicy:'Only dated events on or before the Data Date enter current actuals. Future and undated evidence is retained separately.',
     forecastPolicy:'Future planned work and forecast dates remain visible as forecasts, never as actual events.',
-    resolver:'moduleForProject',populations,metricContracts,factSemantics,
+    resolver:'moduleForProject',populations,metricContracts,
     excludedScheduleActualEvents:{future:actuals.future,undated:actuals.undated},
     completionAuthority:{governedContractualFinish:time?.contractualCompletionIso??null,authority:time?.contractualCompletionState??'missing',
       reason:time?.completionReason??null,
