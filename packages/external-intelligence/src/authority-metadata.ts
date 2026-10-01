@@ -2976,4 +2976,10 @@ for(const item of externalAuthorityMetadata){
     item.title='Project position';
     item.concepts=['project position','finish drivers','why are we late'];
   }
+  if(item.id==='command-center'){
+    item.concepts=['management action','management actions','top actions','required actions','next actions','director','meeting','what killing','urgent'];
+  }
+  if(item.id==='wbs'){
+    item.concepts=['wbs','by trade','work breakdown','progress breakdown','progress by zone','progress by level','progress by workfront','progress by work front','progress by wbs'];
+  }
 }
