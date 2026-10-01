@@ -43,6 +43,20 @@ export function commercialPositionForState(
       : null;
 
   const ledger=commercialCanonical(state);
+  const programmeCutoff=ledger.dataDateIso;
+  const datedCommercialEvidence=[
+    ...state.controls.invoices.flatMap(row=>[row.certificateDateIso,row.paymentDateIso]),
+    ...ledger.payments.flatMap(row=>[row.periodEnd,row.certificationDate,row.paymentDate]),
+    ...ledger.variations.map(row=>row.approvalDate),
+    ...ledger.costMetrics.map(row=>row.amount.asOf),
+  ].filter((value):value is string=>typeof value==='string'&&/^\d{4}-\d{2}-\d{2}/.test(value))
+    .map(value=>value.slice(0,10))
+    .sort();
+  const sourceCommercialCutoff=programmeCutoff??datedCommercialEvidence.at(-1)??null;
+  const sourceFactVisibleWithoutProgramme=(date:string|null|undefined)=>{
+    if(programmeCutoff)return reportingScope(date,programmeCutoff)==='as_of';
+    return Boolean(date&&sourceCommercialCutoff&&String(date).slice(0,10)<=sourceCommercialCutoff);
+  };
   const parsedSource = (pattern: RegExp) => state.evidenceDocuments.some(document =>
     document.basisState !== "superseded" && document.parserState === "parsed" &&
     pattern.test(document.documentType + " " + document.sourceFilename));
@@ -93,9 +107,9 @@ export function commercialPositionForState(
             }),
           ) ?? [],
       variations:
-        state.controls.variations.filter(row=>reportingScope(ledger.variations.find(v=>v.variationId===row.variationId)?.approvalDate,ledger.dataDateIso)==='as_of'),
+        state.controls.variations.filter(row=>sourceFactVisibleWithoutProgramme(ledger.variations.find(v=>v.variationId===row.variationId)?.approvalDate)),
       invoices:
-        state.controls.invoices.filter(row=>reportingScope(row.certificateDateIso,ledger.dataDateIso)==='as_of').map(row=>({...row,paidAmount:reportingScope(row.paymentDateIso,ledger.dataDateIso)==='as_of'?row.paidAmount:null})),
+        state.controls.invoices.filter(row=>sourceFactVisibleWithoutProgramme(row.certificateDateIso)).map(row=>({...row,paidAmount:sourceFactVisibleWithoutProgramme(row.paymentDateIso)?row.paidAmount:null})),
       retentions:
         state.controls.retentions,
       bonds:
