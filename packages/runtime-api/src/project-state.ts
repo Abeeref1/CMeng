@@ -2269,10 +2269,13 @@ export class RuntimeProjectStore {
           if(isWorkbook)next.tabularRead=await readRegisterWorkbook(bytes,next.sourceHashSha256,next.documentType);
           if(isCsv)next.mapping=analyzeCsvEvidence(bytes,this.activityIds(state.projectId));
           let controls:ProjectRuntimeState['derivedControlsByDocument'][string]={},readiness:ProjectRuntimeState['derivedReadinessByDocument'][string]={};
-          for(const registerBytes of isWorkbook?next.tabularRead!.sheets.map(sheet=>Buffer.from(registerCsv(sheet.rows))):[bytes]){
-            const derived=deriveControlsFromCsv({state,document:next,bytes:registerBytes});
+          const registerSources=isWorkbook
+            ?next.tabularRead!.sheets.map(sheet=>({bytes:Buffer.from(registerCsv(sheet.rows)),sheetName:sheet.name}))
+            :[{bytes,sheetName:'CSV'}];
+          for(const registerSource of registerSources){
+            const derived=deriveControlsFromCsv({state,document:next,bytes:registerSource.bytes,sheetName:registerSource.sheetName});
             controls=Object.fromEntries(Object.entries(derived).map(([key,value])=>[key,Array.isArray(value)?[...((controls as any)[key]??[]),...value]:value]));
-            readiness={...readiness,...deriveReadinessFromCsv({state,document:next,bytes:registerBytes})};
+            readiness={...readiness,...deriveReadinessFromCsv({state,document:next,bytes:registerSource.bytes,sheetName:registerSource.sheetName})};
           }
           if(next.familyKey!==document.familyKey){families.add(document.familyKey);families.add(next.familyKey);next.diagnostics=[...document.diagnostics,'REGISTER_READER_FAMILY_REFRESH:'+document.familyKey+'->'+next.familyKey];}
           next.derivedRegisterRead={producerVersion:'register-derived-v4',sourceHashSha256:next.sourceHashSha256};
