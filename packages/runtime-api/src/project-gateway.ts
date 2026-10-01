@@ -223,10 +223,14 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
           }
         }
         if(match[2]==='/overview'&&!entry.metadata?.demo&&((updating.get(id)??0)>0||summaryJobs.has(id)||entry.summaryRelease!==release()||entry.summary?.version!==entry.metadata?.version)){
-          if(!updating.get(id)&&!summaryJobs.has(id)&&summaryFailures.has(id)&&summaryFailures.get(id)===entry.metadata?.version&&Date.now()-(summaryAttempts.get(id)??0)<60000){send(res,503,{error:'project_calculation_failed',message:'The project calculation could not finish. Your saved documents remain available. Try updating the project position again.'});return;}
-          if(!(updating.get(id)??0)&&!summaryJobs.has(id))void refreshSummary(id);
-          const saved=documentRegisters.get(id);
-          send(res,202,{projectId:id,state:'updating',documentCount:saved?.version===entry.metadata?.version?saved?.documents.documentCount??null:null,releaseCommitSha:release(),message:(updating.get(id)??0)>0?'Processing documents and updating the project position':'Calculating the project position and checking the results'});return;
+          const recentFailure=!updating.get(id)&&!summaryJobs.has(id)&&summaryFailures.has(id)&&summaryFailures.get(id)===entry.metadata?.version&&Date.now()-(summaryAttempts.get(id)??0)<60000;
+          if(!recentFailure){
+            if(!(updating.get(id)??0)&&!summaryJobs.has(id))void refreshSummary(id);
+            const saved=documentRegisters.get(id);
+            send(res,202,{projectId:id,state:'updating',documentCount:saved?.version===entry.metadata?.version?saved?.documents.documentCount??null:null,releaseCommitSha:release(),message:(updating.get(id)??0)>0?'Processing documents and updating the project position':'Calculating the project position and checking the results'});return;
+          }
+          // Cached-summary path has failed recently. Do not hard-error a valid saved
+          // project; fall through to the live worker and compute /overview directly.
         }
       }
       await proxy(id,req,res,'/api/projects/'+encodeURIComponent(id)+(match[2]??'')+url.search);return;
