@@ -181,7 +181,11 @@ export function attachReportingContract(state:ProjectRuntimeState,result:ModuleR
   }
   const metricContracts:Record<string,MetricSemanticContract>={};
   const factSemantics:Record<string,MetricSemanticContract>={};
-  const add=(path:string,population:PopulationContract|undefined,authority:ReportingAuthority='calculated',semantic:{unit?:string|null;state?:string|null;qualification?:string|null}={})=>{
+  const add=(path:string,population:PopulationContract|undefined,authority:ReportingAuthority='calculated',semantic:{unit?:string|null;state?:string|null;qualification?:string|null;explicit?:boolean}={})=>{
+    // A fact-semantic row is useful only when the producer declares meaning
+    // beyond the bare scalar, or when it is tied to a controlled population.
+    // Avoid materializing metadata for every internal numeric counter.
+    if(!population&&!semantic.explicit)return;
     const populationKey=population?Object.keys(populations).find(key=>populations[key]===population)??null:null;
     const fact:MetricSemanticContract={
       populationId:population?.populationId??null,
@@ -264,10 +268,14 @@ export function attachReportingContract(state:ProjectRuntimeState,result:ModuleR
         }
         const declaredAuthority=typeof value?.authority==='string'&&['source','submitted','calculated','adjusted','official','scenario'].includes(value.authority)?value.authority as ReportingAuthority:null;
         const authority:ReportingAuthority=declaredAuthority??(/official/i.test(full)?'official':/position\.currencies\[\*\]\.approvedVariationAmount\.value/.test(full)?'source':/source|submitted/i.test(full)?'submitted':value?.basis?.authority==='source'?'source':'calculated');
-        const unit=typeof value?.unit==='string'?value.unit:typeof value?.currency==='string'?value.currency:/Percent$|PercentagePoints$/.test(key)?'%':/Hours$/.test(key)?'hours':/Days$/.test(key)?'calendar days':null;
-        const state=typeof value?.state==='string'?value.state:v===null?'not_established':'established';
+        const explicitUnit=typeof value?.unit==='string'||typeof value?.currency==='string';
+        const explicitState=typeof value?.state==='string';
+        const explicitQualification=typeof value?.basis==='string'||typeof value?.qualification==='string'||typeof value?.reason==='string';
+        const explicitSemantic=Boolean(p||declaredAuthority||explicitUnit||explicitState||explicitQualification);
+        const unit=typeof value?.unit==='string'?value.unit:typeof value?.currency==='string'?value.currency:p?/Percent$|PercentagePoints$/.test(key)?'%':/Hours$/.test(key)?'hours':/Days$/.test(key)?'calendar days':null:null;
+        const state=explicitState?value.state:p?(v===null?'not_established':'established'):null;
         const qualification=typeof value?.basis==='string'?value.basis:typeof value?.qualification==='string'?value.qualification:typeof value?.reason==='string'?value.reason:p?.dateBasis??null;
-        add(full,p,authority,{unit,state,qualification});
+        add(full,p,authority,{unit,state,qualification,explicit:explicitSemantic});
       }else walk(v,full,depth+1);
     }
   };
