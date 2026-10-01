@@ -16,26 +16,17 @@ const typed:Record<string,DeliveryKind>={procurement_register:'package',interfac
 // Source-table keys are already canonical. Normalise the finite identity list
 // once, rather than repeating the same alias/Unicode work for every source row.
 const identityKeys=Object.fromEntries(deliveryKinds.map(k=>[k,kindIdentities[k].map(id=>canonicalHeader(id))])) as Record<DeliveryKind,string[]>;
-function kindFor(row:SourceRow,type:string):DeliveryKind|null {
- // A foreign key (supplier or location ID) does not turn a package into that register.
+export function classifyDeliveryRowKind(row:SourceRow,type:string,governedKind:DeliveryKind|null=null):DeliveryKind|null {
+ // Deterministic precedence: explicit row type -> explicit document type ->
+ // unique identity signature -> governed mapping decision -> ambiguous.
+ // Column order must never change record kind.
  const explicit=cell(row,'delivery record type') as DeliveryKind;
  if(deliveryKinds.includes(explicit))return explicit;
-
- const candidates=deliveryKinds.filter(k=>identityKeys[k].some(id=>Object.hasOwn(row.cells,id)));
- // Physical PDF pages can describe different registers in one packet. Their
- // primary identity outranks the classification of the complete document.
- if(row.receipt.locator.startsWith('page:')){
-  if(typed[type]&&candidates.includes(typed[type]!))return typed[type]!;
-  const first=Object.keys(row.cells)[0];
-  const primary=candidates.find(k=>identityKeys[k].includes(first??''));
-  if(primary)return primary;
-  if(candidates.length===1)return candidates[0]!;
- }
  if(typed[type])return typed[type]!;
+ const candidates=deliveryKinds.filter(k=>identityKeys[k].some(id=>Object.hasOwn(row.cells,id)));
  if(candidates.length===1)return candidates[0]!;
- const first=Object.keys(row.cells)[0];
- // Ambiguous tables require a mapping decision. Foreign IDs are never promoted by text similarity.
- return candidates.find(k=>identityKeys[k].includes(first??''))??null;
+ if(governedKind&&deliveryKinds.includes(governedKind))return governedKind;
+ return null;
 }
 const boqContinuityCache=new WeakMap<ProjectRuntimeState,{version:number;mapping:Map<string,string>}>();
 export function deliveryRecords(state:ProjectRuntimeState){
@@ -46,7 +37,7 @@ export function deliveryRecords(state:ProjectRuntimeState){
  for(const t of tables){let count=0,kind:DeliveryKind|null=null;const kindCounts=new Map<DeliveryKind,number>();
   const mapping=store.mappings?.filter(m=>m.documentId===t.document.documentId&&m.sourceHash===t.document.sourceHashSha256).at(-1);
   for(const original of t.rows){const row=mapping?{...original,cells:{...original.cells,...Object.fromEntries(Object.entries(mapping.columns).map(([target,source])=>[canonicalHeader(target),original.cells[canonicalHeader(source)]??'']))}}:original;
-   const k=mapping?.kind??kindFor(row,t.document.documentType??'');if(!k)continue;kind=k;count++;kindCounts.set(k,(kindCounts.get(k)??0)+1);
+   const k=classifyDeliveryRowKind(row,t.document.documentType??'',mapping?.kind??null);if(!k)continue;kind=k;count++;kindCounts.set(k,(kindCounts.get(k)??0)+1);
    const reference=cell(row,'record reference',...kindIdentities[k])||null;
    const links=emptyLinks();links.activityIds=split(cell(row,'linked activity'));links.boqItemIds=split(cell(row,'boq item id'));
    if(k!=='package')links.packageIds=split(cell(row,'package id','procurement package id'));
