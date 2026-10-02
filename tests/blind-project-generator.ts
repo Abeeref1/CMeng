@@ -271,6 +271,79 @@ export async function generateBlindRound(seed:string,count:number){
   return {seed,projects};
 }
 
+const mixedHeaders:Record<string,string[]>={
+  payments:['Certificate No','Period End','Net Certified','Paid Amount','Retention','Currency','Status'],
+  variations:['Variation ID','Description','Approved Amount','Period End','Status','Currency'],
+  risks:['Risk ID','Description','Owner','Due Date','Status'],
+  claims:['Claim ID','Event','Days Claimed','Notice Date','Status'],
+  procurement:['Package ID','Description','Required On Site','Forecast Delivery','Status','Linked Activity'],
+  quality:['NCR ID','Description','Owner','Closed Date','Status'],
+};
+
+async function mixedWorkbookBytes(
+  h:ReturnType<typeof helpers>,
+  projectName:string,
+  currency:string,
+  dataDateIso:string,
+  scenario:BlindScenario,
+  language:BlindLanguage,
+  domains:string[],
+  variant:number,
+){
+  const workbook=new ExcelJS.Workbook();
+  const cover=workbook.addWorksheet(language==='ar'?'ملخص '+h.int(10,999):'Summary '+h.int(10,999));
+  cover.addRow([projectName]);cover.addRow([language==='ar'?'تقرير متابعة المشروع':'Project control report']);cover.addRow(['']);
+  const domainRows:Record<string,number>={};
+  for(const [offset,domain] of domains.entries()){
+    const built=domain==='payments'?paymentTable(h,currency,dataDateIso,scenario,language,variant+offset):genericRegister(h,domain,dataDateIso,scenario,language,variant+offset);
+    let headers=[...mixedHeaders[domain]!],rows=built.rows.map(row=>[...row]);
+    if(domain==='variations')rows=rows.map(row=>[...row,currency]);
+    if(domain==='procurement')rows=rows.map(row=>[...row,'1000']);
+    ({headers,rows}=withJunk(h,headers,rows));
+    const order=h.shuffle(headers.map((_,index)=>index));
+    headers=order.map(index=>headers[index]!);
+    rows=rows.map(row=>order.map(index=>row[index]??''));
+    const sheet=workbook.addWorksheet((language==='ar'?'بيانات ':'Data ')+(offset+1)+' '+h.int(10,999));
+    for(let i=0;i<h.int(0,3);i++)sheet.addRow([i===0?projectName:'',h.pick(['','Control report','سري','Monthly'])]);
+    sheet.addRow(headers);rows.forEach(row=>sheet.addRow(row));
+    if(h.chance(0.35))sheet.addRow(['TOTAL','','','','','','']);
+    domainRows[domain]=rows.length;
+  }
+  if(h.chance(0.5)){
+    const notes=workbook.addWorksheet(language==='ar'?'ملاحظات '+h.int(10,999):'Notes '+h.int(10,999));
+    notes.addRow(['Reference only']);notes.addRow(['Comment','Value']);notes.addRow(['Prepared','Yes']);
+  }
+  return {bytes:new Uint8Array(await workbook.xlsx.writeBuffer()),domainRows};
+}
+
+export async function generateMixedWorkbookBlindProject(seed:string,index=0):Promise<BlindProject>{
+  const h=helpers(seed+'::mixed::'+index);
+  const language=languages[(index+1)%languages.length]!,scenario=scenarios[(index+3)%scenarios.length]!,currency=currencies[(index+2)%currencies.length]!;
+  const projectId='BLIND-MIX-'+createHash('sha256').update(seed+'|mixed|'+index).digest('hex').slice(0,10).toUpperCase();
+  const baseName=language==='ar'?h.pick(arabicNames):language==='mixed'?h.pick(englishNames)+' / '+h.pick(arabicNames):h.pick(englishNames);
+  const projectName=baseName+' '+h.int(100,999),dataDateIso='2037-'+String(h.int(2,10)).padStart(2,'0')+'-'+String(h.int(2,24)).padStart(2,'0');
+  const activityCount=h.int(8,30),docs:BlindDocument[]=[];
+  docs.push({filename:h.pick(['programme.xer','Update_'+h.int(1,99)+'.xer','البرنامج.xer']),mediaType:'text/plain',
+    bytes:makeXer(h,projectId,projectName,dataDateIso,activityCount,language),kind:'xer',domain:'schedule',truth:{rows:activityCount,scenario,facts:{activityCount}}});
+  const selected=h.shuffle(['payments','variations','risks','claims','procurement','quality']).slice(0,h.int(3,6));
+  const mixed=await mixedWorkbookBytes(h,projectName,currency,dataDateIso,scenario,language,selected,index*7);
+  docs.push({filename:h.pick(['monthly_control','project_data','status_pack','controls','متابعة'])+'_'+h.int(100,999)+'.xlsx',
+    mediaType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',bytes:mixed.bytes,kind:'xlsx',domain:'mixed_registers',
+    truth:{rows:Object.values(mixed.domainRows).reduce((a,b)=>a+b,0),scenario,facts:{domainRows:mixed.domainRows,domains:selected}}});
+  const count=(domain:string)=>mixed.domainRows[domain]??null;
+  return {seed,projectId,projectName,language,currency,dataDateIso,scenario,documents:docs,
+    truth:{scheduleActivities:activityCount,payments:selected.includes('payments')?count('payments'):null,
+      variations:selected.includes('variations')?count('variations'):null,risks:selected.includes('risks')?count('risks'):null,
+      claims:selected.includes('claims')?count('claims'):null,procurement:selected.includes('procurement')?count('procurement'):null,
+      quality:selected.includes('quality')?count('quality'):null,expectedDomains:['schedule',...selected]}};
+}
+
+export async function generateMixedWorkbookBlindRound(seed:string,count:number){
+  const projects:BlindProject[]=[];
+  for(let i=0;i<count;i++)projects.push(await generateMixedWorkbookBlindProject(seed,i));
+  return {seed,projects};
+}
+
 export function defaultBlindSeed(){
   return process.env.CMENG_GENERATOR_SEED?.trim()
     ||[process.env.GITHUB_RUN_ID,process.env.GITHUB_RUN_ATTEMPT,process.env.GITHUB_SHA].filter(Boolean).join(':')
