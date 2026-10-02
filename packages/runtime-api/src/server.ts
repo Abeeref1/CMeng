@@ -429,6 +429,29 @@ function header(
     : null;
 }
 
+function decodedUploadHeader(
+  req: IncomingMessage,
+  encodedName: string,
+  legacyName: string,
+): string | null {
+  const encoded=header(req,encodedName);
+  if(encoded!==null){
+    try{return decodeURIComponent(encoded);}
+    catch{
+      const error=Object.assign(new Error("UPLOAD_HEADER_ENCODING_INVALID:"+encodedName),{statusCode:400});
+      throw error;
+    }
+  }
+  return header(req,legacyName);
+}
+
+function sourceFilenameHeader(req:IncomingMessage):string|null {
+  return decodedUploadHeader(req,"x-source-filename-encoded","x-source-filename");
+}
+function sourceRelativePathHeader(req:IncomingMessage):string|null {
+  return decodedUploadHeader(req,"x-source-relative-path-encoded","x-source-relative-path");
+}
+
 async function readJsonBody<T>(
   req: IncomingMessage,
 ): Promise<T> {
@@ -1138,15 +1161,9 @@ async function route(
     const intent =
       uploadIntent(req);
     const filename =
-      header(
-        req,
-        "x-source-filename",
-      ) ?? "evidence";
+      sourceFilenameHeader(req) ?? "evidence";
     const relativePath =
-      header(
-        req,
-        "x-source-relative-path",
-      ) ?? filename;
+      sourceRelativePathHeader(req) ?? filename;
     const uploadId =
       header(
         req,
@@ -1911,7 +1928,7 @@ async function route(
     try{
       const phaseId=phaseMatch[2]?decodeURIComponent(phaseMatch[2]):null;
       if(req.method==='GET'){json(res,200,phaseId?phaseProgrammePosition(state,phaseId):{projectId,phases:(state.phaseProgrammes??[]).map(p=>phaseProgrammePosition(state,p.phaseId))});return;}
-      if(req.method==='POST'&&phaseId&&phaseMatch[3]){const result=await runtimeProjects.ingestSchedule({projectId,phaseId,bytes:await readBody(req),mediaType:mediaType(req),sourceFilename:header(req,'x-source-filename'),role:header(req,'x-schedule-role'),roleConfirmed:header(req,'x-schedule-role-confirmed')==='1',...(header(req,'x-approval-reference')?{approvalReference:header(req,'x-approval-reference')!}:{}),uploadIntent:uploadIntent(req),uploadedAt:new Date().toISOString()});invalidateProject(projectId);json(res,201,{...result,phaseId,scope:'phase',position:phaseProgrammePosition(state,phaseId)});return;}
+      if(req.method==='POST'&&phaseId&&phaseMatch[3]){const result=await runtimeProjects.ingestSchedule({projectId,phaseId,bytes:await readBody(req),mediaType:mediaType(req),sourceFilename:sourceFilenameHeader(req),sourceRelativePath:sourceRelativePathHeader(req),role:header(req,'x-schedule-role'),roleConfirmed:header(req,'x-schedule-role-confirmed')==='1',...(header(req,'x-approval-reference')?{approvalReference:header(req,'x-approval-reference')!}:{}),uploadIntent:uploadIntent(req),uploadedAt:new Date().toISOString()});invalidateProject(projectId);json(res,201,{...result,phaseId,scope:'phase',position:phaseProgrammePosition(state,phaseId)});return;}
       if(req.method==='POST'&&phaseId&&phaseMatch[4]){const effect=runtimeProjects.adoptSchedule(projectId,decodeURIComponent(phaseMatch[4]),phaseId);invalidateProject(projectId);json(res,200,{projectId,phaseId,effect,position:phaseProgrammePosition(state,phaseId)});return;}
       json(res,405,{error:'phase_action_not_supported'});return;
     }catch(error){json(res,409,{error:'phase_programme_not_completed',message:error instanceof Error?error.message:String(error)});return;}
@@ -1943,15 +1960,9 @@ async function route(
           mediaType:
             mediaType(req),
           sourceFilename:
-            header(
-              req,
-              "x-source-filename",
-            ),
+            sourceFilenameHeader(req),
           sourceRelativePath:
-            header(
-              req,
-              "x-source-relative-path",
-            ),
+            sourceRelativePathHeader(req),
           role:
             header(
               req,
@@ -2330,15 +2341,9 @@ async function route(
           mediaType:
             mediaType(req),
           sourceFilename:
-            header(
-              req,
-              "x-source-filename",
-            ),
+            sourceFilenameHeader(req),
           sourceRelativePath:
-            header(
-              req,
-              "x-source-relative-path",
-            ),
+            sourceRelativePathHeader(req),
           role:
             (header(
               req,
@@ -2760,7 +2765,7 @@ async function route(
       receivedAt:
         new Date().toISOString(),
       sourceFilename:
-        header(req, "x-source-filename"),
+        sourceFilenameHeader(req),
       documentId:
         header(req, "x-document-id"),
       revisionId:
@@ -2780,10 +2785,7 @@ async function route(
     runtimeProjects.attachBoq(
       result,
       body,
-      header(
-        req,
-        "x-source-filename",
-      ),
+      sourceFilenameHeader(req),
     );
     invalidateProject(
       projectId,
