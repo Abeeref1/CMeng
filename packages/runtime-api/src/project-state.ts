@@ -5277,7 +5277,7 @@ export class RuntimeProjectStore {
         );
       }
     }
-    if(document.documentType==='hse_report')await refreshHseSummary(document);
+    if(document.documentType==='hse_report'||document.tabularRead?.sheets.some(sheet=>sheet.semantic?.documentType==='hse_report'))await refreshHseSummary(document);
     this.touchEvidence(state);
     return {
       documentId,
