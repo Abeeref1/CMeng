@@ -5453,7 +5453,7 @@ export class RuntimeProjectStore {
         EvidenceUploadIntent;
     },
   ): Promise<ScheduleUploadSummary> {
-    if(['baseline','revised_baseline'].includes(scheduleRole(input.role))&&input.uploadIntent==='replace_current_basis'&&!input.approvalReference?.trim())throw new Error('BASELINE_APPROVAL_REFERENCE_REQUIRED');
+    if(input.roleConfirmed&&['baseline','revised_baseline'].includes(scheduleRole(input.role))&&input.uploadIntent==='replace_current_basis'&&!input.approvalReference?.trim())throw new Error('BASELINE_APPROVAL_REFERENCE_REQUIRED');
     const parent=this.getOrCreate(input.projectId);
     const state=input.phaseId?phaseProgrammeState(parent,input.phaseId,true):parent;
     const hash =
