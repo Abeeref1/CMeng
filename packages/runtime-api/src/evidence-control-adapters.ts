@@ -348,10 +348,15 @@ export function deriveControlsFromCsv(
         /^\uFEFF/,
         "",
       );
+  const sheetName=input.sheetName??'CSV';
+  const semantic=sheetName==='CSV'
+    ?input.document.csvSemantic
+    :input.document.tabularRead?.sheets.find(sheet=>sheet.name===sheetName)?.semantic;
   const parsedTable=prepareEvidenceRows(
     parseCsv(text),
     input.document.documentType,
-    (input.document.tableConfirmations??[]).filter(item=>item.sheetName===(input.sheetName??'CSV')),
+    (input.document.tableConfirmations??[]).filter(item=>item.sheetName===sheetName),
+    semantic?.columnMeanings??[],
   );
   const rows=[parsedTable.headers,...parsedTable.rows];
   const headers=parsedTable.headers;
