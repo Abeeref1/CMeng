@@ -128,6 +128,33 @@ test('comma, semicolon and tab registers share parsing and preserve quoted field
  assert.equal(state.evidenceDocuments.length,3);
 });
 
+test('summary footer rows never become source records while legitimate TOTAL-like identifiers remain',()=>{
+ const risk=prepareRegisterRows([
+  ['Risk ID','Description','Status','Owner'],
+  ['TOTAL','','',''],
+ ],'risk_register');
+ assert.equal(risk.recognized,true);assert.equal(risk.rows.length,0);
+
+ const payment=prepareRegisterRows([
+  ['Certificate No','Net Certified','Currency','Status'],
+  ['IPC-1','100','AED','Certified'],
+  ['Grand Total','100','',''],
+ ],'payment_certificates');
+ assert.equal(payment.recognized,true);assert.equal(payment.rows.length,1);assert.equal(payment.rows[0]![0],'IPC-1');
+
+ const arabic=prepareRegisterRows([
+  ['Risk ID','Description','Status'],
+  ['الإجمالي','',''],
+ ],'risk_register');
+ assert.equal(arabic.rows.length,0);
+
+ const legitimate=prepareRegisterRows([
+  ['Risk ID','Description','Status'],
+  ['TOTAL-01','Total station access risk','Open'],
+ ],'risk_register');
+ assert.equal(legitimate.rows.length,1);assert.equal(legitimate.rows[0]![0],'TOTAL-01');
+});
+
 test('accounting-format amounts remain numeric and reach variation controls', async t => {
  assert.equal(numberValue('(249,816)'),-249816);
  assert.equal(numberValue('(٢٤٩٬٨١٦)'),-249816);
