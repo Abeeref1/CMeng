@@ -746,7 +746,7 @@ export async function generateDelayFeatureBlindProject(seed:string,index=0):Prom
   const activityCount=lifecycle.stages.current.truth.rows;
   const scheduleDates=[lifecycle.baseDataDateIso,shiftDate(lifecycle.baseDataDateIso,-28),dataDateIso];
   const schedules=scheduleDates.map((dateIso,i):BlindDocument=>({
-    filename:['Current_Programme_','Previous_Update_','Latest_Update_'][i]+h.int(10,999)+'.xer',mediaType:'text/plain',
+    filename:(['Current_Programme_','Previous_Update_','Latest_Update_'][i]??'Programme_Update_')+h.int(10,999)+'.xer',mediaType:'text/plain',
     bytes:makeXer(h,projectId,projectName,dateIso,activityCount,language),kind:'xer',domain:'schedule',
     truth:{rows:activityCount,scenario:'complete',facts:{dataDateIso}},
   }));
