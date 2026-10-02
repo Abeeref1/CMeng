@@ -6,6 +6,7 @@ import {
 import {createHash} from 'node:crypto';
 import {dateValue} from '../../truth-kernel/src';
 import {projectDataDate,projectControlSchedule} from './canonical-time-claims';
+import {registerCsv} from './register-workbook';
 
 import type {
   ReadinessDimensionKey,
@@ -172,14 +173,9 @@ function dimensionFor(
 function procurementPackageMap(
   state: ProjectRuntimeState,
 ): Map<string, string> {
-  const map=new Map<string,string>();
-  const activeProcurement=state.evidenceDocuments
-    .filter(document=>document.documentType==="procurement_register"&&document.basisState==="active")
-    .sort((a,b)=>a.uploadedAt.localeCompare(b.uploadedAt))
-    .at(-1);
-  if(!activeProcurement)return map;
-  const diagnostics:string[]=[];
-  const tables=sourceTables([activeProcurement],diagnostics);
+  const map=new Map<string,string>(),diagnostics:string[]=[];
+  const current=state.evidenceDocuments.filter(document=>['active','additive'].includes(document.basisState));
+  const tables=sourceTables(current,diagnostics).filter(table=>table.document.documentType==='procurement_register');
   for(const table of tables)for(const row of table.rows){
     const packageId=cell(row,"package id","procurement package");
     const activityId=cell(row,"linked activity","linked schedule activity","activity id");
@@ -546,11 +542,30 @@ export function rebuildReadinessEvidence(
  * Persisted import-time statuses cannot survive as a separate authority. */
 export function reportingReadinessEvidence(state:ProjectRuntimeState,dataDateIso:string|null):ReadinessByActivity {
   const derived:ProjectRuntimeState['derivedReadinessByDocument']={};
-  for(const document of state.evidenceDocuments.filter(d=>['active','additive'].includes(d.basisState)&&dimensionFor(d.documentType)&&d.mediaType==='text/csv')){
+  for(const document of state.evidenceDocuments.filter(d=>['active','additive'].includes(d.basisState))){
     try {
+      const merge=(next:ReadinessByActivity)=>{
+        const prior=derived[document.documentId]??{};
+        for(const [activityId,dimensions] of Object.entries(next)){
+          prior[activityId]??={};
+          for(const [key,evidence] of Object.entries(dimensions) as Array<[ReadinessDimensionKey,ReadinessEvidence|undefined]>)
+            if(evidence)prior[activityId]![key]=combineReadiness(prior[activityId]![key],evidence);
+        }
+        derived[document.documentId]=prior;
+      };
+      if(document.tabularRead?.sourceHashSha256===document.sourceHashSha256){
+        for(const sheet of document.tabularRead.sheets){
+          const type=sheet.semantic?.documentType??document.documentType;
+          if(!dimensionFor(type))continue;
+          const semanticDocument=sheet.semantic?{...document,documentType:type,category:sheet.semantic.category as any}:document;
+          merge(deriveReadinessFromCsv({state,document:semanticDocument,bytes:Buffer.from(registerCsv(sheet.rows)),sheetName:sheet.name,dataDateIso}));
+        }
+        continue;
+      }
+      if(!dimensionFor(document.documentType)||document.mediaType!=='text/csv')continue;
       const bytes=readFileSync(document.storedPath);
       if(createHash('sha256').update(bytes).digest('hex')!==document.sourceHashSha256)continue;
-      derived[document.documentId]=deriveReadinessFromCsv({state,document,bytes,dataDateIso});
+      merge(deriveReadinessFromCsv({state,document,bytes,dataDateIso}));
     }catch { /* No verified source means no derived ready assertion. */ }
   }
   const view={...state,derivedReadinessByDocument:derived,controls:{...state.controls,readinessEvidence:{...state.controls.readinessEvidence}}};
