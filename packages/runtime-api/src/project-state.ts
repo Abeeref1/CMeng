@@ -5085,13 +5085,22 @@ export class RuntimeProjectStore {
       uploadIntent,
     );
     if (media.includes("csv")||tabularRead) {
-      for(const registerBytes of tabularRead?tabularRead.sheets.map(sheet=>Buffer.from(registerCsv(sheet.rows))):[input.bytes]){
+      // Initial ingestion and later reader refresh must derive from the exact same
+      // sheet identity. Otherwise a workbook can mean one thing on upload and a
+      // different thing after restart/refresh, and source-scoped confirmations
+      // cannot be applied consistently.
+      const registerSources=tabularRead
+        ?tabularRead.sheets.map(sheet=>({bytes:Buffer.from(registerCsv(sheet.rows)),sheetName:sheet.name}))
+        :[{bytes:input.bytes,sheetName:'CSV'}];
+      for(const registerSource of registerSources){
       const derived =
         deriveReadinessFromCsv({
           state,
           document,
           bytes:
-            registerBytes,
+            registerSource.bytes,
+          sheetName:
+            registerSource.sheetName,
         });
       if (
         Object.keys(
@@ -5109,7 +5118,9 @@ export class RuntimeProjectStore {
           state,
           document,
           bytes:
-            registerBytes,
+            registerSource.bytes,
+          sheetName:
+            registerSource.sheetName,
         });
       if (
         Object.keys(
@@ -5123,7 +5134,7 @@ export class RuntimeProjectStore {
       }
 
       }
-      document.derivedRegisterRead={producerVersion:'register-derived-v3',sourceHashSha256:hash};
+      document.derivedRegisterRead={producerVersion:'register-derived-v4',sourceHashSha256:hash};
       if(tabularRead)document.parserState="parsed";
       rebuildReadinessEvidence(
         state,
