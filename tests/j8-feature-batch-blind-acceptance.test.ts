@@ -338,7 +338,7 @@ for(const batch of pageBatches){
             batch.id+' report cross-project disclosure '+project.projectId+' / '+page.key);
           jsonReports++;
 
-          const selectedRole=roles[(projectIndex+pageIndex)%roles.length];
+          const selectedRole=roles[(projectIndex+pageIndex)%roles.length]??'overall';
           const view={
             filters:{search:'__CMENG_BLIND_NO_MATCH__'},
             selectedRole,
