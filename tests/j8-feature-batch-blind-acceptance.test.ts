@@ -16,6 +16,7 @@ import {
   generateCommercialFeatureBlindRound,
   generateDelayFeatureBlindRound,
   generateProgressFeatureBlindRound,
+  generateForecastFeatureBlindRound,
   type BlindDocument,
 } from './blind-project-generator';
 
@@ -148,7 +149,8 @@ function assertFeatureSubstance(batchId:string,page:ModuleDescriptor,body:any,pr
 }
 
 async function projectsFor(batchId:string,seed:string){
-  if(batchId==='F2-PROGRAMME-PLANNING'||batchId==='F4-FORECAST-RECOVERY')return programmeProjects(seed);
+  if(batchId==='F2-PROGRAMME-PLANNING')return programmeProjects(seed);
+  if(batchId==='F4-FORECAST-RECOVERY')return (await generateForecastFeatureBlindRound(seed,10)).projects;
   if(batchId==='F3-PROGRESS-RESOURCES')return (await generateProgressFeatureBlindRound(seed,10)).projects;
   if(batchId==='F5-DELAY-CLAIMS')return (await generateDelayFeatureBlindRound(seed,10)).projects;
   if(batchId==='F6-COMMERCIAL')return (await generateCommercialFeatureBlindRound(seed,10)).projects;
@@ -157,6 +159,48 @@ async function projectsFor(batchId:string,seed:string){
   }));
   return ordinaryProjects(seed);
 }
+async function governForecastQuantities(base:string,project:any){
+  const result=await request(base,pagePath(project.projectId,moduleRegistry.find(row=>row.key==='quantity-scurve')!));
+  assert.equal(result.status,200,'F4 quantity source review unavailable '+project.projectId+': '+result.text.slice(0,700));
+  const data=result.body?.data??{},supplied=data.suppliedBoq??{},rows=Array.isArray(supplied.rows)?supplied.rows:[];
+  assert.equal(rows.length,project.featureTruth.items.length,'F4 supplied BOQ population mismatch '+project.projectId);
+  const items=project.featureTruth.items.map((truth:any)=>{
+    const source=rows.find((row:any)=>String(row.itemNumber??'')===truth.itemNumber);
+    assert.ok(source?.itemId,'F4 BOQ item identity missing '+truth.itemNumber+' / '+project.projectId);
+    return {quantityItemId:source.itemId,itemNumber:source.itemNumber??truth.itemNumber,section:source.section??null,
+      description:source.description??truth.description,unit:source.unit??truth.unit,contractQuantity:source.quantity??truth.quantity,
+      sourceRefs:[{source:'boq_csv',locator:'blind-source:'+source.itemId}],diagnostics:[]};
+  });
+  const model={
+    projectId:project.projectId,
+    boqRevisionId:String(data.boqRevisionId??supplied.revisionId??''),
+    scheduleRevisionId:String(data.scheduleRevisionId??''),
+    items,
+    allocations:items.map((item:any,i:number)=>({
+      allocationId:'blind-governed-'+(i+1),quantityItemId:item.quantityItemId,activityId:project.featureTruth.items[i]!.activityId,
+      allocatedQuantity:item.contractQuantity,sourceRefs:[{source:'governed_mapping',locator:'blind-feature-certification'}],
+    })),
+    installedSnapshots:items.map((item:any,i:number)=>({
+      snapshotId:'blind-installed-'+(i+1),asOfIso:project.dataDateIso,quantityItemId:item.quantityItemId,
+      installedQuantity:project.featureTruth.items[i]!.installed,sourceRefs:[{source:'progress_record',locator:'blind-measurement:'+project.featureTruth.items[i]!.itemNumber}],
+    })),
+    measurementReview:{measuredItemCount:items.length,boqItemCount:items.length,sourceRowCount:items.length,matchedRowCount:items.length,futureRowCount:0,unresolvedRowCount:0,currentUnresolvedRowCount:0,complete:true,
+      unresolvedRows:[],diagnostics:[],basis:'Fresh blind source measurements reviewed against the current BOQ before feature certification.'},
+    diagnostics:[],
+  };
+  assert.ok(model.boqRevisionId,'F4 BOQ revision missing '+project.projectId);
+  assert.ok(model.scheduleRevisionId,'F4 schedule revision missing '+project.projectId);
+  const saved=await request(base,'/api/projects/'+encodeURIComponent(project.projectId)+'/quantities',{
+    method:'PUT',headers:{'content-type':'application/json'},body:JSON.stringify(model),
+  });
+  assert.equal(saved.status,200,'F4 governed quantity mapping failed '+project.projectId+': '+saved.text.slice(0,700));
+  assert.equal(saved.body?.allocationCount,items.length,'F4 governed mapping lost allocations '+project.projectId);
+  const checked=await request(base,pagePath(project.projectId,moduleRegistry.find(row=>row.key==='quantity-scurve')!));
+  assert.equal(checked.status,200);
+  assert.equal(checked.body?.data?.mappingBasis,'governed','F4 mapping was not retained as governed '+project.projectId);
+  assert.equal(checked.body?.data?.allocationState,'complete','F4 governed allocation is incomplete '+project.projectId);
+}
+
 const deliveryKinds=['package','supplier','submittal','design','workfront','interface','quality','permit','hse','commissioning','asset','snag','spare','handover','weather','location','lifecycle','gate'] as const;
 const blankDeliveryLinks=()=>({activityIds:[] as string[],boqItemIds:[] as string[],packageIds:[] as string[],supplierIds:[] as string[],locationIds:[] as string[],assetIds:[] as string[],recordIds:[] as string[],riskIds:[] as string[],claimIds:[] as string[],noticeIds:[] as string[],variationIds:[] as string[],boqAllocations:[] as Array<{boqItemId:string;quantity:number;unit:string}>});
 async function governDeliveryProject(base:string,projectId:string){
@@ -260,6 +304,7 @@ for(const batch of pageBatches){
     let pageChecks=0,jsonReports=0,xlsxReports=0,viewReports=0;
     try{
       for(const project of projects)await createAndUpload(base,project,batch.id);
+      if(batch.id==='F4-FORECAST-RECOVERY')for(const project of projects)await governForecastQuantities(base,project as any);
       if(batch.id==='F7-DELIVERY')for(const project of projects)await governDeliveryProject(base,project.projectId);
       const allIds=projects.map(project=>project.projectId);
       for(const [projectIndex,project] of projects.entries()){
