@@ -40,7 +40,9 @@ const pageBatches=[
 const roles=['overall','planning','controls','project-director','program-director','executive'] as const;
 const audienceForRole=(role:(typeof roles)[number])=>role==='planning'?'planner':role==='project-director'||role==='program-director'?'director':role==='executive'?'executive':'project';
 const featureProjectionKey:Record<string,string>={
-  'cross-domain-accountability':'cross_domain_accountability',
+  'master-dashboard':'master_dashboard','command-center':'command_center',
+  'cross-domain-accountability':'cross_domain_accountability','master-control-programme':'master_control_programme',
+  'source-quality':'source_quality',
   'pmo-analysis':'pmo_analysis','schedule-analytics':'schedule_analytics','activity-analytics':'activity_analytics',
   'lookahead-schedule':'lookahead_schedule','schedule-change-report':'schedule_change_report','revision-trend':'revision_trend',
   milestones:'milestones','near-critical':'near_critical','resource-utilization':'resource_utilization','progress-report':'progress_report',
@@ -170,6 +172,27 @@ function assertFeatureSubstance(batchId:string,page:ModuleDescriptor,body:any,pr
   const expectedProjection=page.area==='delivery'?'delivery':featureProjectionKey[page.key];
   if(expectedProjection)assert.equal(data.projectionKey,expectedProjection,
     batchId+' '+page.key+' returned the wrong calculation producer for '+projectId);
+  if(page.key==='master-dashboard'){
+    assert.ok(Array.isArray(data.metrics)&&data.metrics.length>0,batchId+' Master Dashboard produced no management metrics '+projectId);
+    assert.ok(data.consistency&&typeof data.consistency==='object',batchId+' Master Dashboard lost consistency control '+projectId);
+    assert.ok(data.visualControl&&typeof data.visualControl==='object',batchId+' Master Dashboard lost visual control position '+projectId);
+  }
+  if(page.key==='command-center'){
+    assert.ok(Array.isArray(data.actions),batchId+' Command Center lost action register '+projectId);
+    assert.ok(Array.isArray(data.alerts)&&Array.isArray(data.decisions),batchId+' Command Center lost alerts/decisions '+projectId);
+    assert.ok(data.accountability&&typeof data.accountability==='object',batchId+' Command Center lost accountability analysis '+projectId);
+  }
+  if(page.key==='cross-domain-accountability'){
+    assert.ok(Array.isArray(data.rows)&&Array.isArray(data.actions),batchId+' Accountability lost rows/actions '+projectId);
+  }
+  if(page.key==='master-control-programme'){
+    assert.ok(data.revisionAuthority&&data.wbsControl,batchId+' Master Control Programme lost revision/WBS authority '+projectId);
+    assert.ok(Array.isArray(data.specialistPositions)&&Array.isArray(data.controlHistory),batchId+' MCP lost specialist/history controls '+projectId);
+  }
+  if(page.key==='source-quality'){
+    assert.ok(Array.isArray(data.systemFailures)&&Array.isArray(data.reviewActions),batchId+' Actions required lost failure/review populations '+projectId);
+    assert.ok(data.issueAssessment&&typeof data.issueAssessment==='object',batchId+' Actions required lost issue assessment '+projectId);
+  }
   if(page.area==='delivery'){
     assert.equal(data.deliveryPage,page.key,batchId+' Delivery payload belongs to a different feature page: '+projectId+' / '+page.key);
     assert.ok(Array.isArray(data.rows),batchId+' '+page.key+' has no Delivery feature rows for '+projectId);
