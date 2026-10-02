@@ -4,7 +4,7 @@ import {mkdtempSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 
-import {RuntimeProjectStore} from '../packages/runtime-api/src/project-state';
+import {RuntimeProjectStore,runtimeProjects} from '../packages/runtime-api/src/project-state';
 import {sourceTables} from '../packages/truth-kernel/src';
 import {defaultBlindSeed,generateBlindRound,generateMixedWorkbookBlindRound,generateLifecycleMixedWorkbookBlindRound,generateSemanticAiBlindRound,generateScheduleLifecycleBlindRound} from './blind-project-generator';
 import {deliveryRecords} from '../packages/runtime-api/src/delivery-records';
@@ -16,6 +16,11 @@ import type {StructuredModel} from '../packages/project-ask/src/provider';
 import {scheduleAuthorityReview} from '../packages/runtime-api/src/schedule-authority';
 import {projectDataDate} from '../packages/runtime-api/src/canonical-time-claims';
 import {reportingData} from '../packages/runtime-api/src/reporting-contract';
+import {moduleRegistry} from '../packages/runtime-api/src/registry';
+import {moduleForProject} from '../packages/runtime-api/src/project-projections';
+import {ProjectAskEngine} from '../packages/runtime-api/src/ask-engine';
+import {AskStore} from '../packages/runtime-api/src/ask-store';
+import type {AskSession} from '../packages/project-ask/src/types';
 
 test('Batch J blind round: fresh generated projects survive real ingestion and shared table intelligence',async t=>{
   const seed=defaultBlindSeed();
@@ -430,6 +435,102 @@ test('J4 fresh blind project set: routine updates advance submitted analytics wh
     const contract=reported.reportingContract;
     assert.equal(contract.programmeRevisionId,expectedState.currentRevisionId);assert.equal(reported.baselineComparison.revisionId,expectedState.baselineRevisionId);
   }
+});
+
+
+test('J5 fresh blind project set: all 58 pages and Ask CMeng use one project truth',async t=>{
+  const seed=defaultBlindSeed()+'::J5-ONE-TRUTH-58-PAGES-ASK';
+  process.stdout.write('\nCMENG_J5_BLIND_PROJECT_SET_SEED='+seed+'\n');
+  const {projects}=await generateBlindRound(seed,20);
+  assert.equal(moduleRegistry.length,58,'J5 must cover the complete current 58-page registry');
+  assert.equal(new Set(projects.map(project=>project.projectId)).size,20,'J5 requires 20 fresh project identities');
+  assert.equal(new Set(projects.map(project=>project.scenario)).size,8,'J5 must cover all eight truth states');
+  assert.equal(new Set(projects.map(project=>project.language)).size,3,'J5 must cover English, Arabic and mixed projects');
+
+  const dir=mkdtempSync(join(tmpdir(),'cmeng-j5-one-truth-'));
+  const askDir=mkdtempSync(join(tmpdir(),'cmeng-j5-ask-'));
+  t.after(()=>{rmSync(dir,{recursive:true,force:true});rmSync(askDir,{recursive:true,force:true});});
+  const store=new RuntimeProjectStore({dataDir:dir,durable:false});
+  const user:AskSession={userId:'j5-blind-reader',workspaceId:'cmeng-projects',name:null,title:'Project Controls',company:null,allowModel:true};
+  let modelCalls=0;
+  const model:StructuredModel={
+    structured:async()=>{modelCalls++;throw new Error('J5 deterministic truth question invoked paid AI');},
+  };
+  const basePopulationKeys=['schedule_actual_events','source_records','execution_control','milestones','duration_weighted_progress','relationships','revisions'] as const;
+  let pageChecks=0,askChecks=0;
+
+  for(const project of projects){
+    for(const document of project.documents){
+      await store.ingestEvidenceFile({
+        projectId:project.projectId,sourceFilename:document.filename,sourceRelativePath:document.filename,
+        bytes:document.bytes,mediaType:document.mediaType,uploadedAt:'2041-12-31T00:00:00.000Z',uploadIntent:'add_update',
+      });
+    }
+    await store.refreshSpreadsheetRegisters(project.projectId);
+    const state=store.get(project.projectId)!;
+    assert.ok(state,'J5 project retained: '+project.projectId);
+    runtimeProjects.replace(state);
+
+    const dataDate=projectDataDate(state),authority=scheduleAuthorityReview(state);
+    assert.equal(dataDate,project.dataDateIso,'J5 canonical Data Date mismatch: '+project.projectId);
+    assert.ok(authority.currentRevisionId,'J5 current programme must be established: '+project.projectId);
+    assert.equal(authority.authority,'submitted','J5 ordinary generated programme must remain submitted authority: '+project.projectId);
+
+    let referenceContract:any=null,referenceBaseline:any=null;
+    for(const page of moduleRegistry){
+      const result=moduleForProject(project.projectId,page.key),data=result.data as any;
+      const contract=data?.reportingContract;
+      assert.ok(contract,'J5 page missing reporting contract: '+project.projectId+' / '+page.key);
+      assert.equal(contract.dataDateIso,dataDate,'J5 Data Date drift: '+project.projectId+' / '+page.key);
+      assert.equal(contract.projectVersion,state.version,'J5 project-version drift: '+project.projectId+' / '+page.key);
+      assert.equal(contract.programmeRevisionId,authority.currentRevisionId,'J5 programme-revision drift: '+project.projectId+' / '+page.key);
+      assert.equal(contract.programmeAuthority?.authority,authority.authority,'J5 programme-authority drift: '+project.projectId+' / '+page.key);
+      assert.equal(result.scheduleAuthorityReview?.currentRevisionId,authority.currentRevisionId,'J5 page authority-review drift: '+project.projectId+' / '+page.key);
+      const baseline=data?.baselineComparison??{state:'unresolved',revisionId:null};
+      if(referenceBaseline===null)referenceBaseline={state:baseline.state,revisionId:baseline.revisionId??null};
+      else assert.deepEqual({state:baseline.state,revisionId:baseline.revisionId??null},referenceBaseline,'J5 baseline truth drift: '+project.projectId+' / '+page.key);
+
+      if(referenceContract===null){
+        referenceContract=contract;
+      }else{
+        assert.equal(contract.configurationId,referenceContract.configurationId,'J5 analysis configuration drift: '+project.projectId+' / '+page.key);
+        assert.deepEqual(contract.calendarResolution,referenceContract.calendarResolution,'J5 calendar resolution drift: '+project.projectId+' / '+page.key);
+        assert.deepEqual(contract.completionAuthority,referenceContract.completionAuthority,'J5 completion authority drift: '+project.projectId+' / '+page.key);
+        for(const key of basePopulationKeys){
+          assert.deepEqual(contract.populations?.[key],referenceContract.populations?.[key],
+            'J5 shared population drift: '+project.projectId+' / '+page.key+' / '+key);
+        }
+      }
+      pageChecks++;
+    }
+
+    const engine=new ProjectAskEngine(new AskStore(join(askDir,project.projectId)),model);
+    const dataDateAnswer=await engine.ask(project.projectId,user,{question:'What is the Data Date?'});
+    const dateMetric=dataDateAnswer.sections.flatMap(section=>section.metrics).find(metric=>metric.id==='programme.dataDate');
+    assert.equal(dataDateAnswer.providerStatus,'not_needed','J5 Data Date must stay deterministic: '+project.projectId);
+    assert.equal(dataDateAnswer.telemetry?.aiInvoked,false,'J5 Data Date must not invoke AI: '+project.projectId);
+    assert.equal(dataDateAnswer.scope.projectId,project.projectId,'J5 Ask project contamination: '+project.projectId);
+    assert.equal(dataDateAnswer.scope.dataDate,dataDate,'J5 Ask Data Date scope drift: '+project.projectId);
+    assert.equal(dataDateAnswer.scope.programmeRevision,authority.currentRevisionId,'J5 Ask programme revision drift: '+project.projectId);
+    assert.equal(dateMetric?.value,dataDate,'J5 Ask Data Date value drift: '+project.projectId);
+    askChecks++;
+
+    const forecastPage:any=moduleForProject(project.projectId,'independent-forecast').data;
+    const forecastAnswer=await engine.ask(project.projectId,user,{question:'What is current completion?'});
+    assert.equal(forecastAnswer.providerStatus,'not_needed','J5 completion answer must stay deterministic: '+project.projectId);
+    assert.equal(forecastAnswer.telemetry?.aiInvoked,false,'J5 completion answer must not invoke AI: '+project.projectId);
+    const forecastSection=forecastAnswer.sections.find(section=>section.authorityId==='forecast');
+    const forecastRow=forecastSection?.tables.find(table=>table.id==='forecast.position')?.rows[0];
+    assert.equal(forecastRow?.submittedFinish,forecastPage.completionPosition?.submittedFinishIso??null,
+      'J5 Ask/page submitted completion drift: '+project.projectId);
+    assert.equal(forecastAnswer.scope.dataDate,dataDate,'J5 completion answer Data Date drift: '+project.projectId);
+    assert.equal(forecastAnswer.scope.programmeRevision,authority.currentRevisionId,'J5 completion answer revision drift: '+project.projectId);
+    askChecks++;
+  }
+
+  assert.equal(pageChecks,20*58,'J5 must inspect every page for every blind project');
+  assert.equal(askChecks,20*2,'J5 must compare both deterministic Ask truths for every blind project');
+  assert.equal(modelCalls,0,'J5 blind acceptance cannot be rescued by paid AI');
 });
 
 test('Batch J blind generator: same seed reproduces exact project truth, different seed changes it',async()=>{
