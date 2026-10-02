@@ -61,6 +61,19 @@ function activity(
   };
 }
 
+test('stable unique activity IDs use exact correspondence without changing identity semantics',()=>{
+  const from=Array.from({length:5000},(_,i)=>activity('A'+i,{nativeId:String(i),name:'Activity '+i}));
+  const to=from.map(row=>({...row,currentFinishIso:'2026-01-04'}));
+  const result=resolveRevisionActivityCorrespondence(from,to);
+  assert.equal(result.matches.length,5000);
+  assert.equal(result.ambiguousFrom.size,0);assert.equal(result.ambiguousTo.size,0);
+  assert.ok(result.matches.every((match,index)=>match.fromActivityId==='A'+index&&match.toActivityId==='A'+index&&match.method==='activity_id'&&match.confidence===1));
+
+  const duplicateFrom=[activity('DUP'),activity('DUP')],duplicateTo=[activity('DUP'),activity('DUP')];
+  const duplicate=resolveRevisionActivityCorrespondence(duplicateFrom,duplicateTo);
+  assert.ok(duplicate.ambiguousFrom.has('DUP')||duplicate.matches.length<2,'duplicate IDs must not be treated as a safe exact-order population');
+});
+
 test('shared activity correspondence is invalidated by every mutable identity field and population change',()=>{
   const from=[activity('A',{nativeId:'1',name:'Concrete'}),activity('B',{nativeId:'2',name:'Steel'})];
   const to=from.map(a=>({...a}));
