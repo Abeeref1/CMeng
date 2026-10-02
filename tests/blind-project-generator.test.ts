@@ -6,13 +6,16 @@ import {join} from 'node:path';
 
 import {RuntimeProjectStore} from '../packages/runtime-api/src/project-state';
 import {sourceTables} from '../packages/truth-kernel/src';
-import {defaultBlindSeed,generateBlindRound,generateMixedWorkbookBlindRound,generateLifecycleMixedWorkbookBlindRound,generateSemanticAiBlindRound} from './blind-project-generator';
+import {defaultBlindSeed,generateBlindRound,generateMixedWorkbookBlindRound,generateLifecycleMixedWorkbookBlindRound,generateSemanticAiBlindRound,generateScheduleLifecycleBlindRound} from './blind-project-generator';
 import {deliveryRecords} from '../packages/runtime-api/src/delivery-records';
 import {hseReportPosition} from '../packages/runtime-api/src/hse-report-evidence';
 import {weeklyResourceCapacityEvidence} from '../packages/runtime-api/src/canonical-resource-evidence';
 import {withInstalledMeasurements} from '../packages/runtime-api/src/installed-measurements';
 import {GroundedTableSemanticAiResolver} from '../packages/runtime-api/src/evidence-semantic-ai';
 import type {StructuredModel} from '../packages/project-ask/src/provider';
+import {scheduleAuthorityReview} from '../packages/runtime-api/src/schedule-authority';
+import {projectDataDate} from '../packages/runtime-api/src/canonical-time-claims';
+import {reportingData} from '../packages/runtime-api/src/reporting-contract';
 
 test('Batch J blind round: fresh generated projects survive real ingestion and shared table intelligence',async t=>{
   const seed=defaultBlindSeed();
@@ -334,6 +337,93 @@ test('J3 fresh blind project set: opaque sources require grounded semantic AI, r
     assert.equal(controlCount(project,state),counts.get(project.projectId),'cached semantic mapping changed specialist population: '+project.projectId);
   }
   assert.equal(calls,firstCalls,'restart/re-upload of the same source hash must not spend AI again');
+});
+
+
+test('J4 fresh blind project set: routine updates advance submitted analytics while baseline and scenario authority stay separate',async t=>{
+  const seed=defaultBlindSeed()+'::J4-SCHEDULE-LIFECYCLE';
+  process.stdout.write('\nCMENG_J4_BLIND_PROJECT_SET_SEED='+seed+'\n');
+  const {projects}=await generateScheduleLifecycleBlindRound(seed,18);
+  assert.equal(new Set(projects.map(project=>project.projectId)).size,18,'J4 requires 18 fresh lifecycle projects');
+  assert.equal(new Set(projects.map(project=>project.language)).size,3,'J4 must rotate English, Arabic and mixed programmes');
+  const dir=mkdtempSync(join(tmpdir(),'cmeng-j4-schedule-lifecycle-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));
+  let store=new RuntimeProjectStore({dataDir:dir,durable:false});
+  const expected=new Map<string,{currentRevisionId:string;baselineRevisionId:string;dataDateIso:string}>();
+
+  for(const [index,project] of projects.entries()){
+    const ingest=(stage:keyof typeof project.stages)=>{const document=project.stages[stage];return store.ingestEvidenceFile({
+      projectId:project.projectId,sourceFilename:document.filename,sourceRelativePath:document.filename,
+      bytes:document.bytes,mediaType:document.mediaType,uploadedAt:'2040-12-31T00:00:00.000Z',uploadIntent:'add_update',
+    });};
+
+    const baseline=await ingest('baseline');
+    let state=store.get(project.projectId)!;
+    assert.equal(projectDataDate(state),null,'unapproved baseline must not become the analytical current: '+project.projectId);
+    assert.equal(state.activeEvidenceBasis['schedule:baseline']?.activeArtifactId??null,null,'baseline authority must remain unapproved');
+
+    const current=await ingest('current');
+    state=store.get(project.projectId)!;
+    let review=scheduleAuthorityReview(state);
+    assert.equal(projectDataDate(state),project.baseDataDateIso,'first ordinary programme must become current submitted analytics');
+    assert.equal(review.state,'submitted_current');assert.equal(review.method,'submitted_update');assert.equal(review.authority,'submitted');
+    assert.equal(review.currentRevisionId,current.linkedArtifactId);
+    const currentDoc=state.evidenceDocuments.find(document=>document.linkedArtifactId===current.linkedArtifactId)!;
+    assert.equal(currentDoc.basisState,'active');assert.equal(currentDoc.scheduleAdoption?.method,'submitted_update');
+    assert.equal(state.schedules.find(item=>item.revision.revisionId===current.linkedArtifactId)?.role,'update');
+
+    await ingest('same');await ingest('earlier');
+    state=store.get(project.projectId)!;
+    assert.equal(projectDataDate(state),project.baseDataDateIso,'same/earlier updates cannot displace current submitted analytics');
+
+    const recovery=await ingest('recovery'),draft=await ingest('draft'),revised=await ingest('revised_baseline');
+    state=store.get(project.projectId)!;
+    assert.equal(state.evidenceDocuments.find(document=>document.linkedArtifactId===recovery.linkedArtifactId)?.basisState,'scenario');
+    assert.equal(state.evidenceDocuments.find(document=>document.linkedArtifactId===draft.linkedArtifactId)?.basisState,'scenario');
+    assert.equal(state.evidenceDocuments.find(document=>document.linkedArtifactId===revised.linkedArtifactId)?.basisState,'candidate');
+    assert.throws(()=>store.adoptSchedule(project.projectId,revised.linkedArtifactId!),/BASELINE_APPROVAL_REFERENCE_REQUIRED/);
+    assert.equal(projectDataDate(state),project.baseDataDateIso,'scenario or unapproved revised baseline cannot displace current analytics');
+
+    const later=await ingest('later');
+    state=store.get(project.projectId)!;review=scheduleAuthorityReview(state);
+    assert.equal(projectDataDate(state),project.laterDataDateIso,'later ordinary update must advance the current submitted position');
+    assert.equal(review.currentRevisionId,later.linkedArtifactId);assert.equal(review.state,'submitted_current');assert.equal(review.authority,'submitted');
+    assert.equal(state.evidenceDocuments.find(document=>document.linkedArtifactId===current.linkedArtifactId)?.basisState,'superseded');
+    assert.equal(state.evidenceDocuments.find(document=>document.linkedArtifactId===later.linkedArtifactId)?.scheduleAdoption?.method,'submitted_update');
+
+    await ingest('undated');
+    state=store.get(project.projectId)!;
+    assert.equal(projectDataDate(state),project.laterDataDateIso,'undated update cannot displace a dated current position');
+    assert.ok(scheduleAuthorityReview(state).pendingSchedules.some(item=>item.dateRelationship==='date_missing'));
+
+    const baselineRevisionId=baseline.linkedArtifactId!,baselineDocument=state.evidenceDocuments.find(document=>document.linkedArtifactId===baselineRevisionId)!;
+    store.reviewSchedulePurpose(project.projectId,baselineRevisionId,{
+      expectedVersion:state.version,sourceHash:baselineDocument.sourceHashSha256,role:'baseline',approvalReference:'APP-'+index,
+    });
+    store.adoptSchedule(project.projectId,baselineRevisionId);
+    state=store.get(project.projectId)!;review=scheduleAuthorityReview(state);
+    assert.equal(state.activeEvidenceBasis['schedule:baseline']?.activeArtifactId,baselineRevisionId,'approved baseline must remain a separate governed basis');
+    assert.equal(projectDataDate(state),project.laterDataDateIso,'formal baseline adoption must not roll back current submitted analytics');
+    assert.equal(review.currentRevisionId,later.linkedArtifactId);assert.equal(review.authority,'submitted');
+    assert.equal(state.evidenceDocuments.find(document=>document.linkedArtifactId===revised.linkedArtifactId)?.basisState,'candidate');
+
+    const contract=(reportingData(state,'j4-blind',{check:true}) as any).reportingContract;
+    assert.equal(contract.programmeRevisionId,later.linkedArtifactId);
+    assert.equal(contract.programmeAuthority.authority,'submitted');
+    assert.equal(contract.baselineComparison.revisionId,baselineRevisionId,'candidate revised baseline must not replace the approved baseline comparison');
+    expected.set(project.projectId,{currentRevisionId:later.linkedArtifactId!,baselineRevisionId,dataDateIso:project.laterDataDateIso});
+  }
+
+  store=new RuntimeProjectStore({dataDir:dir,durable:false});
+  for(const project of projects){
+    const state=store.get(project.projectId)!;assert.ok(state,'J4 project must survive restart: '+project.projectId);
+    const expectedState=expected.get(project.projectId)!;
+    const review=scheduleAuthorityReview(state);
+    assert.equal(projectDataDate(state),expectedState.dataDateIso,'restart changed current Data Date: '+project.projectId);
+    assert.equal(review.currentRevisionId,expectedState.currentRevisionId);assert.equal(review.state,'submitted_current');assert.equal(review.authority,'submitted');
+    assert.equal(state.activeEvidenceBasis['schedule:baseline']?.activeArtifactId,expectedState.baselineRevisionId);
+    const contract=(reportingData(state,'j4-blind-restart',{check:true}) as any).reportingContract;
+    assert.equal(contract.programmeRevisionId,expectedState.currentRevisionId);assert.equal(contract.baselineComparison.revisionId,expectedState.baselineRevisionId);
+  }
 });
 
 test('Batch J blind generator: same seed reproduces exact project truth, different seed changes it',async()=>{

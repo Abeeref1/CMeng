@@ -473,6 +473,47 @@ export async function generateSemanticAiBlindRound(seed:string,count:number){
   return {seed,projects};
 }
 
+
+export type ScheduleLifecycleBlindStage='baseline'|'current'|'same'|'earlier'|'later'|'undated'|'recovery'|'draft'|'revised_baseline';
+export interface ScheduleLifecycleBlindProject {
+  seed:string;projectId:string;projectName:string;language:BlindLanguage;
+  baseDataDateIso:string;laterDataDateIso:string;baselineDataDateIso:string;
+  stages:Record<ScheduleLifecycleBlindStage,BlindDocument>;
+}
+function scheduleLifecycleDocument(filename:string,bytes:Uint8Array,stage:ScheduleLifecycleBlindStage,rows:number):BlindDocument{
+  return {filename,mediaType:'text/plain',bytes,kind:'xer',domain:'schedule_'+stage,
+    truth:{rows,scenario:'complete',facts:{stage}}};
+}
+function undatedScheduleBytes(h:ReturnType<typeof helpers>,projectId:string,projectName:string,dateIso:string,count:number,language:BlindLanguage){
+  const source=makeXer(h,projectId,projectName,dateIso,count,language).toString('utf8');
+  return Buffer.from(source.replace('%R\t1\t'+projectId+'\t'+dateIso,'%R\t1\t'+projectId+'\t'));
+}
+export async function generateScheduleLifecycleBlindProject(seed:string,index=0):Promise<ScheduleLifecycleBlindProject>{
+  const h=helpers(seed+'::schedule-lifecycle::'+index),language=languages[index%languages.length]!;
+  const projectId='BLIND-SCH-'+createHash('sha256').update(seed+'|schedule-lifecycle|'+index).digest('hex').slice(0,10).toUpperCase();
+  const projectName=(language==='ar'?h.pick(arabicNames):language==='mixed'?h.pick(englishNames)+' / '+h.pick(arabicNames):h.pick(englishNames))+' '+h.int(100,999);
+  const baseDataDateIso='2040-'+String(h.int(3,8)).padStart(2,'0')+'-'+String(h.int(5,20)).padStart(2,'0');
+  const baselineDataDateIso=shiftDate(baseDataDateIso,-84),earlier=shiftDate(baseDataDateIso,-28),laterDataDateIso=shiftDate(baseDataDateIso,28);
+  const recovery=shiftDate(baseDataDateIso,42),draft=shiftDate(baseDataDateIso,56),revised=shiftDate(baseDataDateIso,70),count=h.int(8,24);
+  const stages:Record<ScheduleLifecycleBlindStage,BlindDocument>={
+    baseline:scheduleLifecycleDocument('Baseline_Rev0_'+h.int(10,999)+'.xer',makeXer(h,projectId,projectName,baselineDataDateIso,count,language),'baseline',count),
+    current:scheduleLifecycleDocument(index%2===0?'Current_Programme_'+h.int(10,999)+'.xer':'Weekly_Update_001_'+h.int(10,999)+'.xer',makeXer(h,projectId,projectName,baseDataDateIso,count,language),'current',count),
+    same:scheduleLifecycleDocument('Weekly_Update_Same_'+h.int(10,999)+'.xer',makeXer(h,projectId,projectName,baseDataDateIso,count,language),'same',count),
+    earlier:scheduleLifecycleDocument('Weekly_Update_Old_'+h.int(10,999)+'.xer',makeXer(h,projectId,projectName,earlier,count,language),'earlier',count),
+    later:scheduleLifecycleDocument('Weekly_Update_002_'+h.int(10,999)+'.xer',makeXer(h,projectId,projectName,laterDataDateIso,count,language),'later',count),
+    undated:scheduleLifecycleDocument('Weekly_Update_Undated_'+h.int(10,999)+'.xer',undatedScheduleBytes(h,projectId,projectName,baseDataDateIso,count,language),'undated',count),
+    recovery:scheduleLifecycleDocument('Recovery_Plan_'+h.int(10,999)+'.xer',makeXer(h,projectId,projectName,recovery,count,language),'recovery',count),
+    draft:scheduleLifecycleDocument('DRAFT_Future_'+h.int(10,999)+'.xer',makeXer(h,projectId,projectName,draft,count,language),'draft',count),
+    revised_baseline:scheduleLifecycleDocument('Revised_Baseline_'+h.int(10,999)+'.xer',makeXer(h,projectId,projectName,revised,count,language),'revised_baseline',count),
+  };
+  return {seed,projectId,projectName,language,baseDataDateIso,laterDataDateIso,baselineDataDateIso,stages};
+}
+export async function generateScheduleLifecycleBlindRound(seed:string,count:number){
+  const projects:ScheduleLifecycleBlindProject[]=[];
+  for(let i=0;i<count;i++)projects.push(await generateScheduleLifecycleBlindProject(seed,i));
+  return {seed,projects};
+}
+
 export function defaultBlindSeed(){
   return process.env.CMENG_GENERATOR_SEED?.trim()
     ||[process.env.GITHUB_RUN_ID,process.env.GITHUB_RUN_ATTEMPT,process.env.GITHUB_SHA].filter(Boolean).join(':')
