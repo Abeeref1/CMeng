@@ -1,7 +1,11 @@
 import type {ProjectRuntimeState,StoredEvidenceDocument,StoredScheduleRevision} from './project-state-types';
 
 export const scenarioName=(name:string)=>/\b(draft|scenario|what\s*if|proposed|recovery|mitigation|acceleration)\b/i.test(name.normalize('NFKC').replace(/[_/\\.-]+/g,' '));
-export const isScenarioRevision=(revision:StoredScheduleRevision)=>revision.role==='recovery'||revision.role==='scenario'||!revision.roleConfirmed&&scenarioName(revision.sourceFilename??revision.revision.label??'');
+export const isScenarioRevision=(revision:StoredScheduleRevision)=>{
+  if(revision.role==='recovery'||revision.role==='scenario')return true;
+  if(revision.role==='baseline'||revision.role==='revised_baseline')return false;
+  return !revision.roleConfirmed&&scenarioName(revision.sourceFilename??revision.revision.label??'');
+};
 export function isAdoptedProgrammeRevision(state:ProjectRuntimeState,revision:StoredScheduleRevision){
   if(isScenarioRevision(revision))return false;
   const documents=state.evidenceDocuments.filter(d=>d.category==='schedule'&&d.linkedArtifactId===revision.revision.revisionId);
