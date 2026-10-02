@@ -410,10 +410,11 @@ test('J4 fresh blind project set: routine updates advance submitted analytics wh
     assert.equal(review.currentRevisionId,later.linkedArtifactId);assert.equal(review.authority,'submitted');
     assert.equal(state.evidenceDocuments.find(document=>document.linkedArtifactId===revised.linkedArtifactId)?.basisState,'candidate');
 
-    const contract=(reportingData(state,'j4-blind',{check:true}) as any).reportingContract;
+    const reported=reportingData(state,'j4-blind',{check:true}) as any;
+    const contract=reported.reportingContract;
     assert.equal(contract.programmeRevisionId,later.linkedArtifactId);
     assert.equal(contract.programmeAuthority.authority,'submitted');
-    assert.equal(contract.baselineComparison.revisionId,baselineRevisionId,'candidate revised baseline must not replace the approved baseline comparison');
+    assert.equal(reported.baselineComparison.revisionId,baselineRevisionId,'candidate revised baseline must not replace the approved baseline comparison');
     expected.set(project.projectId,{currentRevisionId:later.linkedArtifactId!,baselineRevisionId,dataDateIso:project.laterDataDateIso});
   }
 
@@ -425,8 +426,9 @@ test('J4 fresh blind project set: routine updates advance submitted analytics wh
     assert.equal(projectDataDate(state),expectedState.dataDateIso,'restart changed current Data Date: '+project.projectId);
     assert.equal(review.currentRevisionId,expectedState.currentRevisionId);assert.equal(review.state,'submitted_current');assert.equal(review.authority,'submitted');
     assert.equal(state.activeEvidenceBasis['schedule:baseline']?.activeArtifactId,expectedState.baselineRevisionId);
-    const contract=(reportingData(state,'j4-blind-restart',{check:true}) as any).reportingContract;
-    assert.equal(contract.programmeRevisionId,expectedState.currentRevisionId);assert.equal(contract.baselineComparison.revisionId,expectedState.baselineRevisionId);
+    const reported=reportingData(state,'j4-blind-restart',{check:true}) as any;
+    const contract=reported.reportingContract;
+    assert.equal(contract.programmeRevisionId,expectedState.currentRevisionId);assert.equal(reported.baselineComparison.revisionId,expectedState.baselineRevisionId);
   }
 });
 
