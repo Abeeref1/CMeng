@@ -172,14 +172,10 @@ export function inferScheduleRole(
   ) {
     return "revised_baseline";
   }
-  if (
-    /\bbaseline\b/.test(words) &&
-    (
-      /\brev(?:ision)?\s*0\b/.test(words) ||
-      /\brev0\b/.test(source) ||
-      /(?:^|[\/_-])s0?1(?:[\/_-]|$)/.test(source)
-    )
-  ) {
+  // A schedule source that explicitly says "baseline" must fail closed as a
+  // baseline candidate. Treating an unapproved contract/tender/baseline programme
+  // as an ordinary update can silently make historical/contract basis current.
+  if (/\bbaseline\b/.test(words)) {
     return "baseline";
   }
   // Recovery intent is wider than the literal word "recovery". Mitigation and
