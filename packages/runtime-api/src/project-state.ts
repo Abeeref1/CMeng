@@ -3935,14 +3935,14 @@ export class RuntimeProjectStore {
   }
 
   latestSchedule(projectId:string):StoredScheduleRevision|null {
-    const state=this.projects.get(projectId);return state?projectControlSchedule(state):null;
+    const state=this.get(projectId);return state?projectControlSchedule(state):null;
   }
 
   evidence(
     projectId: string,
   ): StoredEvidenceDocument[] {
     return [
-      ...(this.projects.get(projectId)
+      ...(this.get(projectId)
         ?.evidenceDocuments ?? []),
     ].sort((a, b) =>
       a.uploadedAt.localeCompare(b.uploadedAt),
