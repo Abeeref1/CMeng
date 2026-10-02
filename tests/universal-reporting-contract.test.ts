@@ -78,6 +78,19 @@ test('NCR and RFI lifecycles reconstruct the Data Date across director, dashboar
  assert.equal(operationalReporting(state).quality.current.find(r=>r.ncrId==='N1')!.status,'closed');
 });
 
+test('Actions required carries the same shared project truth contract as the other management pages',t=>{
+ const {state}=fixture(t);
+ const dashboard=moduleForProject(state.projectId,'master-dashboard').data as any;
+ const actions=moduleForProject(state.projectId,'source-quality').data as any;
+ assert.ok(actions.reportingContract,'Actions required must expose the shared reporting contract');
+ assert.equal(actions.reportingContract.dataDateIso,dashboard.reportingContract.dataDateIso);
+ assert.equal(actions.reportingContract.projectVersion,dashboard.reportingContract.projectVersion);
+ assert.equal(actions.reportingContract.programmeRevisionId,dashboard.reportingContract.programmeRevisionId);
+ assert.deepEqual(actions.reportingContract.programmeAuthority,dashboard.reportingContract.programmeAuthority);
+ assert.deepEqual(actions.reportingContract.populations.source_records,dashboard.reportingContract.populations.source_records);
+ assert.equal(actions.scheduleAuthorityReview.currentRevisionId,dashboard.scheduleAuthorityReview.currentRevisionId);
+});
+
 test('undated or malformed operational records do not create a zero current result',t=>{
  const {state,csv}=fixture(t);
  csv('NCR ID,Raised Date,Close Date,Severity,Status\nN1,,,Major,Closed\nN2,2031-04-01,,?,Open','quality_ncr_register');
