@@ -355,6 +355,18 @@ const semanticSchemas:readonly SemanticSchema[]=[
   {documentType:'installed_measurement_register',category:'boq_cost',required:[['measurement date'],['item no'],['cumulative installed qty'],['unit']],optional:['actual quantity','description']},
   {documentType:'hse_report',category:'hse_quality_fm',required:[['man hours'],['lost time injuries','trir','medical treatment cases','first aid cases','near misses']],optional:['report date','reporting month']},
   {documentType:'design_deliverables',category:'engineering',required:[['deliverable id'],['planned issue','actual issue','status']],optional:['discipline','revision','due date']},
+  {documentType:'interface_register',category:'risk_claims_procurement',required:[['interface id'],['giving party','receiving party','required deliverable','status']],optional:['affected workfront','linked activity','due date']},
+  {documentType:'submittal_register',category:'engineering',required:[['submittal id'],['submitted date','approval date','status']],optional:['procurement package','linked activity','due date']},
+  {documentType:'asset_register',category:'hse_quality_fm',required:[['asset id'],['system','tag installed','commissioned']],optional:['o m manual','warranty','status']},
+  {documentType:'testing_commissioning_register',category:'tender_commissioning',required:[['test id'],['test','planned date','actual date','authority witness','status']],optional:['linked activity']},
+  {documentType:'cost_evm_report',category:'boq_cost',required:[['metric'],['value'],['as of'],['unit','currency']],optional:['status','vat basis','tax basis']},
+  {documentType:'wbs_dictionary',category:'schedule_control',required:[['wbs id','wbs code'],['wbs name'],['parent wbs id','parent wbs']],optional:['level']},
+  {documentType:'obs_responsibility_matrix',category:'schedule_control',required:[['obs code'],['obs name','responsible manager']],optional:['parent obs','primary wbs']},
+  {documentType:'longest_path_register',category:'schedule_control',required:[['activity id'],['float path','total float days','total float']],optional:['float path order','sequence']},
+  {documentType:'schedule_activity_comparison',category:'schedule_control',required:[['activity id'],['baseline start','baseline finish'],['current start','current finish']],optional:['baseline status','current status','total float days']},
+  {documentType:'contractor_manpower_plan',category:'schedule_control',required:[['trade'],['planned manpower','planned headcount','headcount']],optional:['week start','work front']},
+  {documentType:'productivity_work_package_register',category:'schedule_control',required:[['work package','work package id'],['remaining quantity'],['recent achieved rate day','conservative achievable rate day'],['independent forecast finish']],optional:['unit']},
+  {documentType:'delivery_register',category:'other',required:[['delivery record type'],['record reference']],optional:['description','linked activity','package id','asset id']},
 ];
 
 /** Infer a business register role from table content. The stored document type is
