@@ -6,7 +6,7 @@ import {join} from 'node:path';
 
 import {RuntimeProjectStore} from '../packages/runtime-api/src/project-state';
 import {sourceTables} from '../packages/truth-kernel/src';
-import {defaultBlindSeed,generateBlindRound} from './blind-project-generator';
+import {defaultBlindSeed,generateBlindRound,generateMixedWorkbookBlindRound} from './blind-project-generator';
 
 test('Batch J blind round: fresh generated projects survive real ingestion and shared table intelligence',async t=>{
   const seed=defaultBlindSeed();
@@ -84,6 +84,62 @@ test('Batch J blind round: fresh generated projects survive real ingestion and s
   assert.ok(generatedTabular>=40,'round must exercise many independent tables');
   assert.ok(readableTabular>=Math.floor(generatedTabular*0.70),'most non-empty generated tables must be structurally readable seed='+seed);
   assert.ok(opaquePreserved>0,'at least one readable but legacy-unrecognised table must remain preserved; proves unknown schema is not discarded');
+});
+
+test('J2 fresh blind project set: mixed workbooks route each sheet by content and survive reread/restart',async t=>{
+  const seed=defaultBlindSeed()+'::J2-MIXED-REGISTER';
+  process.stdout.write('\nCMENG_J2_BLIND_PROJECT_SET_SEED='+seed+'\n');
+  const {projects}=await generateMixedWorkbookBlindRound(seed,16);
+  assert.equal(new Set(projects.map(project=>project.projectId)).size,16,'J2 requires 16 fresh project identities');
+  const dir=mkdtempSync(join(tmpdir(),'cmeng-j2-mixed-blind-'));
+  t.after(()=>rmSync(dir,{recursive:true,force:true}));
+  let store=new RuntimeProjectStore({dataDir:dir,durable:false});
+  const beforeRestart=new Map<string,{types:string[];counts:{payments:number;variations:number;risks:number;quality:number}}>();
+
+  for(const project of projects){
+    for(const document of project.documents)await store.ingestEvidenceFile({
+      projectId:project.projectId,sourceFilename:document.filename,sourceRelativePath:document.filename,
+      bytes:document.bytes,mediaType:document.mediaType,uploadedAt:'2037-12-31T00:00:00.000Z',uploadIntent:'add_update',
+    });
+    const state=store.get(project.projectId)!;
+    const workbook=state.evidenceDocuments.find(document=>document.sourceFilename.endsWith('.xlsx'))!;
+    assert.ok(workbook,'mixed workbook retained: '+project.projectId);
+    assert.equal(workbook.documentType,'mixed_register_workbook','mixed workbook identity: '+project.projectId);
+    assert.equal(workbook.basisState,'active','first mixed workbook must be a governed current snapshot: '+project.projectId);
+    const semanticTypes=[...new Set((workbook.tabularRead?.sheets??[]).map(sheet=>sheet.semantic?.documentType).filter((value):value is string=>!!value))].sort();
+    assert.ok(semanticTypes.length>=3,'at least three independent sheet meanings required: '+project.projectId+' '+JSON.stringify(semanticTypes));
+    const diagnostics:string[]=[];
+    const routed=sourceTables([workbook],diagnostics,{includeHistorical:true});
+    const routedTypes=[...new Set(routed.map(table=>table.document.documentType))].sort();
+    for(const type of semanticTypes)assert.ok(routedTypes.includes(type),'sheet meaning did not reach sourceTables: '+project.projectId+' '+type);
+
+    const expected=project.truth;
+    if((expected.payments??0)>0)assert.ok(state.controls.invoices.length>0,'payment sheet did not reach existing payment controls: '+project.projectId);
+    if((expected.variations??0)>0)assert.ok(state.controls.variations.length>0,'variation sheet did not reach existing variation controls: '+project.projectId);
+    if((expected.risks??0)>0)assert.ok(state.controls.risks.length>0,'risk sheet did not reach existing risk controls: '+project.projectId);
+    if((expected.quality??0)>0)assert.ok(state.controls.ncrs.length>0,'quality sheet did not reach existing quality controls: '+project.projectId);
+
+    const counts={payments:state.controls.invoices.length,variations:state.controls.variations.length,risks:state.controls.risks.length,quality:state.controls.ncrs.length};
+    beforeRestart.set(project.projectId,{types:semanticTypes,counts});
+    await store.refreshSpreadsheetRegisters(project.projectId);
+    const refreshed=store.get(project.projectId)!;
+    const refreshedWorkbook=refreshed.evidenceDocuments.find(document=>document.documentId===workbook.documentId)!;
+    assert.deepEqual([...new Set((refreshedWorkbook.tabularRead?.sheets??[]).map(sheet=>sheet.semantic?.documentType).filter((value):value is string=>!!value))].sort(),semanticTypes,
+      'reread changed sheet meaning: '+project.projectId);
+    assert.deepEqual({payments:refreshed.controls.invoices.length,variations:refreshed.controls.variations.length,risks:refreshed.controls.risks.length,quality:refreshed.controls.ncrs.length},counts,
+      'reread changed routed facts: '+project.projectId);
+  }
+
+  store=new RuntimeProjectStore({dataDir:dir,durable:false});
+  for(const project of projects){
+    const state=store.get(project.projectId)!;assert.ok(state,'restart retained project: '+project.projectId);
+    const workbook=state.evidenceDocuments.find(document=>document.sourceFilename.endsWith('.xlsx'))!;
+    const expected=beforeRestart.get(project.projectId)!;
+    assert.deepEqual([...new Set((workbook.tabularRead?.sheets??[]).map(sheet=>sheet.semantic?.documentType).filter((value):value is string=>!!value))].sort(),expected.types,
+      'restart changed sheet meaning: '+project.projectId);
+    assert.deepEqual({payments:state.controls.invoices.length,variations:state.controls.variations.length,risks:state.controls.risks.length,quality:state.controls.ncrs.length},expected.counts,
+      'restart changed routed facts: '+project.projectId);
+  }
 });
 
 test('Batch J blind generator: same seed reproduces exact project truth, different seed changes it',async()=>{
