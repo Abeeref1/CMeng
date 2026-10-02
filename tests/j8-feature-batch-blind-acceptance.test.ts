@@ -36,7 +36,8 @@ const pageBatches=[
   {id:'F7-DELIVERY',keys:moduleRegistry.filter(page=>page.area==='delivery').map(page=>page.key)},
 ] as const;
 
-const roles=['overall','planning-engineer','project-controls-manager','project-director','program-director','executive'] as const;
+const roles=['overall','planning','controls','project-director','program-director','executive'] as const;
+const audienceForRole=(role:(typeof roles)[number])=>role==='planning'?'planner':role==='project-director'||role==='program-director'?'director':role==='executive'?'executive':'project';
 const batchPages=(keys:readonly string[])=>keys.map(key=>{
   const page=moduleRegistry.find(row=>row.key===key);
   assert.ok(page,'Unknown feature page '+key);
@@ -330,14 +331,17 @@ for(const batch of pageBatches){
           const jsonReport=await request(base,reportPath(project.projectId,page,'json'));
           assert.equal(jsonReport.status,200,batch.id+' JSON report failed '+project.projectId+' / '+page.key+': '+jsonReport.text.slice(0,500));
           assert.equal(jsonReport.body?.report?.projectId,project.projectId,batch.id+' JSON report project drift '+page.key);
+          assert.deepEqual(jsonReport.body?.result?.data,result.body?.data,batch.id+' JSON report data drift from live page '+project.projectId+' / '+page.key);
+          assert.equal(jsonReport.body?.result?.status,result.body?.status,batch.id+' JSON report status drift '+project.projectId+' / '+page.key);
           assert.ok(!/\b(?:NaN|Infinity|-Infinity)\b/.test(jsonReport.text),batch.id+' report emitted non-finite value '+page.key);
           for(const otherId of allIds)if(otherId!==project.projectId)assert.ok(!jsonReport.text.includes(otherId),
             batch.id+' report cross-project disclosure '+project.projectId+' / '+page.key);
           jsonReports++;
 
+          const selectedRole=roles[(projectIndex+pageIndex)%roles.length];
           const view={
             filters:{search:'__CMENG_BLIND_NO_MATCH__'},
-            selectedRole:roles[(projectIndex+pageIndex)%roles.length],
+            selectedRole,
             detailLevel:'detailed',
             topN:20,
             sort:{field:'status',direction:'desc'},
@@ -347,6 +351,18 @@ for(const batch of pageBatches){
           assert.equal(viewReport.body?.scope?.projectId,project.projectId,batch.id+' filtered report project drift '+page.key);
           assert.equal(viewReport.body?.providerStatus,'not_needed',batch.id+' deterministic feature report invoked provider '+page.key);
           assert.deepEqual(viewReport.body?.scope?.pageContext?.filters,view.filters,batch.id+' report lost applied filters '+page.key);
+          assert.equal(viewReport.body?.presentation?.reviewLens,selectedRole,batch.id+' report lost selected review lens '+page.key);
+          assert.equal(viewReport.body?.presentation?.audience,audienceForRole(selectedRole),batch.id+' report audience does not match selected lens '+page.key);
+          assert.equal(viewReport.body?.presentation?.detail,'detailed',batch.id+' report lost requested detail level '+page.key);
+          const filteredRows=(viewReport.body?.sections??[]).flatMap((section:any)=>section.tables??[]).reduce((sum:number,table:any)=>sum+(Array.isArray(table.rows)?table.rows.length:0),0);
+          const liveObjectRows=(function count(value:any,depth=0):number{
+            if(depth>8||value===null||value===undefined)return 0;
+            if(Array.isArray(value))return value.filter(row=>row&&typeof row==='object'&&!Array.isArray(row)).length+
+              value.reduce((sum,row)=>sum+count(row,depth+1),0);
+            if(typeof value==='object')return Object.values(value).reduce((sum:number,child:any)=>sum+count(child,depth+1),0);
+            return 0;
+          })(result.body?.data);
+          if(liveObjectRows>0)assert.equal(filteredRows,0,batch.id+' no-match report filter did not remove feature rows '+project.projectId+' / '+page.key);
           viewReports++;
 
           const xlsx=await requestBytes(base,reportPath(project.projectId,page,'xlsx'));
