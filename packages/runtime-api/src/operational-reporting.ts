@@ -34,11 +34,12 @@ function scope<T extends Lifecycle & {status:string}>(rows:T[],name:string,id:(r
 }
 
 export function operationalControlsAsOf(state:ProjectRuntimeState,date:string|null) {
-  const docs=state.evidenceDocuments.filter(d=>['quality_ncr_register','rfi_register','risk_register'].includes(d.documentType)&&['active','additive'].includes(d.basisState));
   const diagnostics:string[]=[];
-  const tables=sourceTables(docs,diagnostics);
-  const docIds=(type:string)=>new Set(docs.filter(d=>d.documentType===type).map(d=>d.documentId));
-  const rows=(type:string)=>tables.filter(t=>docIds(type).has(t.document.documentId)).flatMap(t=>t.rows);
+  const sourceDocuments=state.evidenceDocuments.filter(d=>['active','additive'].includes(d.basisState));
+  const tables=sourceTables(sourceDocuments,diagnostics);
+  const tablesOf=(type:string)=>tables.filter(t=>t.document.documentType===type);
+  const docIds=(type:string)=>new Set(tablesOf(type).map(t=>t.document.documentId));
+  const rows=(type:string)=>tablesOf(type).flatMap(t=>t.rows);
   const manual=<T extends {sourceRefs:string[]}>(items:T[]|undefined,type:string)=>(items??[]).filter(r=>!derived(r)||docIds(type).size===0);
   const ncrs:NcrRecord[]=[...manual(state.controls.ncrs,'quality_ncr_register'),...rows('quality_ncr_register').map(row=>({
     ncrId:cell(row,'ncr id'),severity:(/^(critical)$/.test(norm(cell(row,'severity')))?'critical':/^(major|high)$/.test(norm(cell(row,'severity')))?'major':/^(minor|low)$/.test(norm(cell(row,'severity')))?'minor':'unknown') as NcrRecord['severity'],
@@ -55,9 +56,9 @@ export function operationalControlsAsOf(state:ProjectRuntimeState,date:string|nu
     if(new Set(ids).size!==ids.length)ds.push('DUPLICATE_RECORD_ID');
     return ds;
   };
-  const quality=scope(ncrs,'NCR register',r=>r.ncrId,date,docs.some(d=>d.documentType==='quality_ncr_register')||ncrs.length>0,prepare(ncrs,'quality_ncr_register',r=>r.ncrId));
-  const rfi=scope(rfis,'RFI register',r=>r.rfiId,date,docs.some(d=>d.documentType==='rfi_register')||rfis.length>0,prepare(rfis,'rfi_register',r=>r.rfiId));
-  const risk=scope(risks,'Risk register',r=>r.riskId,date,docs.some(d=>d.documentType==='risk_register')||risks.length>0,prepare(risks,'risk_register',r=>r.riskId));
+  const quality=scope(ncrs,'NCR register',r=>r.ncrId,date,tablesOf('quality_ncr_register').length>0||ncrs.length>0,prepare(ncrs,'quality_ncr_register',r=>r.ncrId));
+  const rfi=scope(rfis,'RFI register',r=>r.rfiId,date,tablesOf('rfi_register').length>0||rfis.length>0,prepare(rfis,'rfi_register',r=>r.rfiId));
+  const risk=scope(risks,'Risk register',r=>r.riskId,date,tablesOf('risk_register').length>0||risks.length>0,prepare(risks,'risk_register',r=>r.riskId));
   const scoreRows=rows('risk_register').map(row=>{
     const probability=numberValue(cell(row,'probability')),impact=numberValue(cell(row,'impact'));
     return {riskId:cell(row,'risk id'),probability,impact,score:probability!==null&&impact!==null&&probability>=0&&impact>=0?Number((probability*impact).toFixed(6)):null,
