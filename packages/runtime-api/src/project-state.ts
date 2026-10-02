@@ -150,6 +150,72 @@ function hashBytes(
     .digest("hex");
 }
 
+const sheetSemanticExcludedTypes=new Set([
+  'supporting_document','schedule_file','schedule_baseline','schedule_update','schedule_recovery','schedule_revised_baseline',
+  'boq','main_contract','contract_amendment','contract_appendix','contract_replacement','tender_contract_document',
+]);
+
+async function enrichRegisterSheetSemantics(read:NonNullable<StoredEvidenceDocument['tabularRead']>){
+  for(const sheet of read.sheets){
+    const identified=await identifyEvidenceDocument({
+      bytes:Buffer.from(registerCsv(sheet.rows)),
+      sourceFilename:'table.csv',
+      sourceRelativePath:null,
+      declaredMediaType:'text/csv',
+    });
+    const identity=identified.identification;
+    if(identity.method!=='tabular_content'||identity.confidence<0.9||sheetSemanticExcludedTypes.has(identity.detectedDocumentType))continue;
+    sheet.semantic={
+      documentType:identity.detectedDocumentType,
+      category:identity.detectedCategory,
+      confidence:identity.confidence,
+      method:'tabular_content',
+      signals:[...identity.signals],
+    };
+  }
+  return read;
+}
+
+function workbookSemanticIdentity(
+  category:EvidenceCategory,
+  documentType:string,
+  identification:EvidenceIdentification,
+  read:NonNullable<StoredEvidenceDocument['tabularRead']>,
+){
+  const semantics=read.sheets.map(sheet=>sheet.semantic).filter((value):value is NonNullable<typeof value>=>!!value);
+  const types=[...new Set(semantics.map(value=>value.documentType))];
+  if(types.length>1){
+    const confidence=Math.min(...semantics.map(value=>value.confidence));
+    return {
+      category:'other' as EvidenceCategory,
+      documentType:'mixed_register_workbook',
+      identification:{...identification,detectedCategory:'other' as EvidenceCategory,detectedDocumentType:'mixed_register_workbook',
+        confidence,method:'tabular_content' as const,needsReview:false,
+        signals:[...identification.signals,'Multiple independently recognised register sheets: '+types.sort().join(', ')],
+        diagnostics:[...identification.diagnostics,'MIXED_REGISTER_WORKBOOK_CONTENT_IDENTIFIED']},
+    };
+  }
+  const only=semantics[0];
+  if(only&&(identification.method==='metadata_fallback'||identification.confidence<0.9||documentType==='supporting_document')){
+    return {
+      category:only.category as EvidenceCategory,
+      documentType:only.documentType,
+      identification:{...identification,detectedCategory:only.category as EvidenceCategory,detectedDocumentType:only.documentType,
+        confidence:only.confidence,method:'tabular_content' as const,needsReview:false,
+        signals:[...identification.signals,...only.signals,'Worksheet content established the register role.'],
+        diagnostics:[...identification.diagnostics,'WORKBOOK_REGISTER_ROLE_ESTABLISHED_FROM_SHEET_CONTENT']},
+    };
+  }
+  return {category,documentType,identification};
+}
+
+function semanticDocumentForSheet(
+  document:StoredEvidenceDocument,
+  semantic:NonNullable<NonNullable<StoredEvidenceDocument['tabularRead']>['sheets'][number]['semantic']>|undefined,
+):StoredEvidenceDocument {
+  return semantic?{...document,category:semantic.category as EvidenceCategory,documentType:semantic.documentType}:document;
+}
+
 function emptyControls():
   ProjectControlState {
   return {
@@ -2255,7 +2321,7 @@ export class RuntimeProjectStore {
       for(const document of state.evidenceDocuments){
         const isCsv=/csv/.test(document.mediaType)||(/^text\//.test(document.mediaType)&&/\.csv$/i.test(document.sourceFilename)),isWorkbook=/spreadsheetml|macroEnabled/.test(document.mediaType);
         if(document.category==='schedule'||(!isCsv&&!isWorkbook))continue;
-        if(document.derivedRegisterRead?.producerVersion==='register-derived-v4'&&document.derivedRegisterRead.sourceHashSha256===document.sourceHashSha256&&(!isWorkbook||document.tabularRead?.producerVersion==='register-workbook-v2'))continue;
+        if(document.derivedRegisterRead?.producerVersion==='register-derived-v5'&&document.derivedRegisterRead.sourceHashSha256===document.sourceHashSha256&&(!isWorkbook||document.tabularRead?.producerVersion==='register-workbook-v3'))continue;
         try{
           const bytes=readFileSync(document.storedPath);if(hashBytes(bytes)!==document.sourceHashSha256)throw new Error('SOURCE_HASH_MISMATCH');
           const identified=await identifyEvidenceDocument({bytes,sourceFilename:document.sourceFilename,sourceRelativePath:document.sourceRelativePath,declaredMediaType:document.mediaType});
@@ -2266,19 +2332,26 @@ export class RuntimeProjectStore {
             const family=evidenceFamily({category:next.category,documentType:next.documentType,scheduleRole:next.scheduleRole,textSample:identified.textSample,sourceFilename:next.sourceFilename});
             next.familyKey=family.familyKey;next.logicalDocumentKey=family.logicalDocumentKey;
           }
-          if(isWorkbook)next.tabularRead=await readRegisterWorkbook(bytes,next.sourceHashSha256,next.documentType);
+          if(isWorkbook){
+            next.tabularRead=await enrichRegisterSheetSemantics(await readRegisterWorkbook(bytes,next.sourceHashSha256,next.documentType));
+            const resolved=workbookSemanticIdentity(next.category,next.documentType,next.identification,next.tabularRead);
+            next.category=resolved.category;next.documentType=resolved.documentType;next.identification=resolved.identification;
+            const family=evidenceFamily({category:next.category,documentType:next.documentType,scheduleRole:next.scheduleRole,textSample:identified.textSample,sourceFilename:next.sourceFilename});
+            next.familyKey=family.familyKey;next.logicalDocumentKey=family.logicalDocumentKey;
+          }
           if(isCsv)next.mapping=analyzeCsvEvidence(bytes,this.activityIds(state.projectId));
           let controls:ProjectRuntimeState['derivedControlsByDocument'][string]={},readiness:ProjectRuntimeState['derivedReadinessByDocument'][string]={};
           const registerSources=isWorkbook
-            ?next.tabularRead!.sheets.map(sheet=>({bytes:Buffer.from(registerCsv(sheet.rows)),sheetName:sheet.name}))
-            :[{bytes,sheetName:'CSV'}];
+            ?next.tabularRead!.sheets.map(sheet=>({bytes:Buffer.from(registerCsv(sheet.rows)),sheetName:sheet.name,semantic:sheet.semantic}))
+            :[{bytes,sheetName:'CSV',semantic:undefined}];
           for(const registerSource of registerSources){
-            const derived=deriveControlsFromCsv({state,document:next,bytes:registerSource.bytes,sheetName:registerSource.sheetName});
+            const semanticDocument=semanticDocumentForSheet(next,registerSource.semantic);
+            const derived=deriveControlsFromCsv({state,document:semanticDocument,bytes:registerSource.bytes,sheetName:registerSource.sheetName});
             controls=Object.fromEntries(Object.entries(derived).map(([key,value])=>[key,Array.isArray(value)?[...((controls as any)[key]??[]),...value]:value]));
-            readiness={...readiness,...deriveReadinessFromCsv({state,document:next,bytes:registerSource.bytes,sheetName:registerSource.sheetName})};
+            readiness={...readiness,...deriveReadinessFromCsv({state,document:semanticDocument,bytes:registerSource.bytes,sheetName:registerSource.sheetName})};
           }
           if(next.familyKey!==document.familyKey){families.add(document.familyKey);families.add(next.familyKey);next.diagnostics=[...document.diagnostics,'REGISTER_READER_FAMILY_REFRESH:'+document.familyKey+'->'+next.familyKey];}
-          next.derivedRegisterRead={producerVersion:'register-derived-v4',sourceHashSha256:next.sourceHashSha256};
+          next.derivedRegisterRead={producerVersion:'register-derived-v5',sourceHashSha256:next.sourceHashSha256};
           if(isWorkbook)next.parserState='parsed';
           Object.assign(document,next);
           state.derivedControlsByDocument[document.documentId]=controls;state.derivedReadinessByDocument[document.documentId]=readiness;
@@ -4353,26 +4426,30 @@ export class RuntimeProjectStore {
       this.getOrCreate(
         input.projectId,
       );
+    let category =
+      identification.detectedCategory;
+    let documentType =
+      identification.detectedDocumentType;
+    const media =
+      identification.verifiedMediaType;
+    const sourceHashSha256=hashBytes(input.bytes);
+    let tabularRead=/spreadsheetml|ms-excel/.test(media)
+      ?await enrichRegisterSheetSemantics(await readRegisterWorkbook(input.bytes,sourceHashSha256,documentType))
+      :undefined;
+    if(tabularRead){
+      const resolved=workbookSemanticIdentity(category,documentType,identification,tabularRead);
+      category=resolved.category;documentType=resolved.documentType;Object.assign(identification,resolved.identification);
+    }
     const lineage =
       inferEvidenceLineage({
-        category:
-          identification
-            .detectedCategory,
-        documentType:
-          identification
-            .detectedDocumentType,
+        category,
+        documentType,
         textSample:
           identified.textSample,
         existingDocuments:
           existingState
             .evidenceDocuments,
       });
-    const category =
-      identification.detectedCategory;
-    const documentType =
-      identification.detectedDocumentType;
-    const media =
-      identification.verifiedMediaType;
     const activityIds =
       this.activityIds(
         input.projectId,
@@ -5022,7 +5099,6 @@ export class RuntimeProjectStore {
         sourceFilename:
           input.sourceFilename,
       });
-    const tabularRead=/spreadsheetml|ms-excel/.test(media)?await readRegisterWorkbook(input.bytes,hash,documentType):undefined;
     const parserState =
       deferFullOcr
         ? "ocr_pending" as const
@@ -5090,13 +5166,14 @@ export class RuntimeProjectStore {
       // different thing after restart/refresh, and source-scoped confirmations
       // cannot be applied consistently.
       const registerSources=tabularRead
-        ?tabularRead.sheets.map(sheet=>({bytes:Buffer.from(registerCsv(sheet.rows)),sheetName:sheet.name}))
-        :[{bytes:input.bytes,sheetName:'CSV'}];
+        ?tabularRead.sheets.map(sheet=>({bytes:Buffer.from(registerCsv(sheet.rows)),sheetName:sheet.name,semantic:sheet.semantic}))
+        :[{bytes:input.bytes,sheetName:'CSV',semantic:undefined}];
       for(const registerSource of registerSources){
+      const semanticDocument=semanticDocumentForSheet(document,registerSource.semantic);
       const derived =
         deriveReadinessFromCsv({
           state,
-          document,
+          document:semanticDocument,
           bytes:
             registerSource.bytes,
           sheetName:
@@ -5116,7 +5193,7 @@ export class RuntimeProjectStore {
       const derivedControls =
         deriveControlsFromCsv({
           state,
-          document,
+          document:semanticDocument,
           bytes:
             registerSource.bytes,
           sheetName:
@@ -5134,7 +5211,7 @@ export class RuntimeProjectStore {
       }
 
       }
-      document.derivedRegisterRead={producerVersion:'register-derived-v4',sourceHashSha256:hash};
+      document.derivedRegisterRead={producerVersion:'register-derived-v5',sourceHashSha256:hash};
       if(tabularRead)document.parserState="parsed";
       rebuildReadinessEvidence(
         state,
