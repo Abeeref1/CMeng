@@ -50,7 +50,8 @@ test('mitigation and acceleration programme names stay scenario-only until purpo
       uploadedAt:'2036-10-01',uploadIntent:'add_update',
     });
     const state=f.store.get(projectId)!,document=state.evidenceDocuments.find(d=>d.linkedArtifactId===uploaded.linkedArtifactId)!;
-    assert.equal(uploaded.scheduleRole,'recovery',name+' must be recognised as recovery intent');
+    const expectedRole=/WhatIf/i.test(name)?'scenario':'recovery';
+    assert.equal(uploaded.scheduleRole,expectedRole,name+' must be recognised as scenario/recovery intent');
     assert.equal(document.basisState,'scenario',name+' must not become the current analytical programme');
     assert.equal(projectDataDate(state),null,name+' must not establish the project Data Date');
   }
@@ -61,6 +62,22 @@ test('mitigation and acceleration programme names stay scenario-only until purpo
   });
   assert.equal(explicit.role,'update','an explicit confirmed programme purpose must override the filename hint');
   assert.equal(projectDataDate(f.store.get('EXPLICIT-ACCELERATION')!),'2036-08-31');
+});
+
+test('explicit baseline names remain unapproved candidates and never become submitted-current',async t=>{
+  const f=store(t);
+  for(const name of ['Contract_Baseline_01.xer','Tender_Baseline_02.xer','Baseline_Programme_03.xer']){
+    const projectId='BASELINE-NAME-'+name.replace(/[^A-Za-z0-9]/g,'');
+    const uploaded=await f.store.ingestEvidenceFile({
+      projectId,bytes:xer('2036-08-31'),mediaType:'text/plain',sourceFilename:name,
+      uploadedAt:'2036-09-01',uploadIntent:'add_update',
+    });
+    const state=f.store.get(projectId)!,document=state.evidenceDocuments.find(d=>d.linkedArtifactId===uploaded.linkedArtifactId)!;
+    assert.equal(uploaded.scheduleRole,'baseline',name+' must be recognised as baseline intent');
+    assert.equal(document.basisState,'candidate',name+' must remain unapproved candidate');
+    assert.equal(projectDataDate(state),null,name+' must not establish the current project Data Date');
+    assert.throws(()=>f.store.adoptSchedule(projectId,uploaded.linkedArtifactId!),/BASELINE_APPROVAL_REFERENCE_REQUIRED/);
+  }
 });
 
 test('BOQ identity ignores row order and filename but refuses missing, ambiguous or changed scope identities',()=>{
