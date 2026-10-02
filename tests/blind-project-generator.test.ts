@@ -57,7 +57,15 @@ test('Batch J blind round: fresh generated projects survive real ingestion and s
     for(const document of project.documents.filter(d=>d.kind==='csv'||d.kind==='xlsx')){
       generatedTabular++;
       const matched=tables.filter(table=>table.document.sourceFilename===document.filename);
-      assert.ok(matched.length>0,'tabular evidence disappeared: '+project.projectId+' / '+document.filename);
+      const ingestFailure=failures.find(f=>f.projectId===project.projectId&&f.filename===document.filename);
+      const retained=state!.evidenceDocuments.filter(d=>d.sourceFilename===document.filename).map(d=>({
+        documentId:d.documentId,documentType:d.documentType,category:d.category,basisState:d.basisState,
+        parserState:d.parserState,sourceHashSha256:d.sourceHashSha256,storedPath:d.storedPath,
+        derivedRegisterRead:d.derivedRegisterRead??null,diagnostics:d.diagnostics,
+      }));
+      assert.ok(matched.length>0,'tabular evidence disappeared: '+project.projectId+' / '+document.filename+
+        '; ingestFailure='+JSON.stringify(ingestFailure??null)+'; retained='+JSON.stringify(retained)+
+        '; sourceDiagnostics='+JSON.stringify(diagnostics));
       if(document.truth.rows>0){
         if(matched.some(table=>table.intelligence.structurallyReadable&&table.intelligence.dataRowCount>0))readableTabular++;
         else failures.push({projectId:project.projectId,scenario:project.scenario,domain:document.domain,filename:document.filename,error:'TABLE_NOT_STRUCTURALLY_READABLE',intelligence:matched.map(t=>t.intelligence)});
