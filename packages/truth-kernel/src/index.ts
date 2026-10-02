@@ -19,7 +19,7 @@ export interface EvidenceDocument {
   documentId: string; sourceHashSha256: string; storedPath: string;
   sourceFilename: string; mediaType: string; basisState: string;
   linkedArtifactId: string | null; uploadedAt: string; familyKey?: string; documentType?: string;
-  tabularRead?: {producerVersion:string;sourceHashSha256:string;sheets:Array<{name:string;rows:string[][];intelligence?:EvidenceTableIntelligence}>} | undefined;
+  tabularRead?: {producerVersion:string;sourceHashSha256:string;sheets:Array<{name:string;rows:string[][];intelligence?:EvidenceTableIntelligence;semantic?:{documentType:string;category:string;confidence:number;method:'tabular_content';signals:string[]}}>} | undefined;
   tableConfirmations?: EvidenceColumnConfirmation[] | undefined;
 }
 export interface SourceRow { cells: Readonly<Record<string, string>>; receipt: SourceReceipt }
@@ -361,7 +361,8 @@ export function sourceTables(documents: readonly EvidenceDocument[], diagnostics
     try {
       const stat = statSync(doc.storedPath);
       const confirmationFingerprint=createHash('sha256').update(JSON.stringify(doc.tableConfirmations??[])).digest('hex').slice(0,16);
-      const key = [doc.documentId, identity, doc.documentType, doc.tabularRead?.producerVersion, doc.basisState, doc.linkedArtifactId, confirmationFingerprint, doc.storedPath, stat.size, stat.mtimeMs, stat.ctimeMs].join(':');
+      const semanticFingerprint=createHash('sha256').update(JSON.stringify(doc.tabularRead?.sheets.map(sheet=>('semantic' in sheet?sheet.semantic:null))??[])).digest('hex').slice(0,16);
+      const key = [doc.documentId, identity, doc.documentType, doc.tabularRead?.producerVersion, semanticFingerprint, doc.basisState, doc.linkedArtifactId, confirmationFingerprint, doc.storedPath, stat.size, stat.mtimeMs, stat.ctimeMs].join(':');
       const cached = tableCache.get(key); if (cached) { result.push(cached); continue; }
       const bytes = readFileSync(doc.storedPath);
       if (createHash('sha256').update(bytes).digest('hex') !== identity) { diagnostics.push('SOURCE_HASH_MISMATCH:' + doc.documentId); continue; }
@@ -369,7 +370,11 @@ export function sourceTables(documents: readonly EvidenceDocument[], diagnostics
       const sheets=doc.tabularRead?.sourceHashSha256===identity?doc.tabularRead.sheets:[{name:'CSV',rows:csv(bytes.toString(encoding))}];
       for(const sheet of sheets){
         const confirmations=(doc.tableConfirmations??[]).filter(c=>c.sheetName===sheet.name);
-        const prepared=prepareEvidenceRows(sheet.rows,doc.documentType,confirmations),{headers,rows,intelligence}=prepared;
+        const semanticType=('semantic' in sheet&&sheet.semantic?.documentType)||doc.documentType;
+        const prepared=prepareEvidenceRows(sheet.rows,semanticType,confirmations),{headers,rows,intelligence}=prepared;
+        const effectiveDocument=('semantic' in sheet&&sheet.semantic?.documentType)
+          ?({...doc,documentType:sheet.semantic.documentType} as EvidenceDocument)
+          :doc;
         const absoluteHeaderRow=prepared.headerRow;
         if(!headers.length){diagnostics.push('TABLE_HEADERS_MISSING:'+doc.documentId+':'+sheet.name);continue;}
         if(rows.some(row=>row.length!==headers.length)){diagnostics.push('CSV_ROW_WIDTH_MISMATCH:'+doc.documentId);continue;}
@@ -396,7 +401,7 @@ export function sourceTables(documents: readonly EvidenceDocument[], diagnostics
         if(hasBlank)diagnostics.push('UNLABELLED_SOURCE_HEADERS:'+doc.documentId+':'+sheet.name);
         if(!prepared.recognized||hasDuplicate||hasBlank)diagnostics.push('REGISTER_COLUMNS_NOT_RECOGNISED:'+doc.documentId+':'+prepared.rawHeaders.join(', '));
         if(!intelligence.structurallyReadable)diagnostics.push('TABLE_STRUCTURE_REVIEW_REQUIRED:'+doc.documentId+':'+sheet.name);
-        const table:SourceTable={headers:sourceHeaders,document:doc,intelligence,recognition:{headerRow:absoluteHeaderRow,readRowCount:prepared.readRowCount,recognized:prepared.recognized&&!hasDuplicate&&!hasBlank,unknown:prepared.unknown},rows:rows.map((r,i)=>({
+        const table:SourceTable={headers:sourceHeaders,document:effectiveDocument,intelligence,recognition:{headerRow:absoluteHeaderRow,readRowCount:prepared.readRowCount,recognized:prepared.recognized&&!hasDuplicate&&!hasBlank,unknown:prepared.unknown},rows:rows.map((r,i)=>({
           cells:Object.freeze(Object.fromEntries(sourceHeaders.map((h,j)=>[h,r[j]??'']))),
           receipt:{documentId:doc.documentId,sourceHash:identity,revision:doc.linkedArtifactId??identity,locator:(sheet.name==='CSV'?'':'sheet:'+sheet.name+':')+'row:'+(i+absoluteHeaderRow+1),basisState:doc.basisState,authority:'source_record'},
         }))};
