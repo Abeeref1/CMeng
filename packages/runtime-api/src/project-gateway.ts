@@ -146,7 +146,10 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
     const mutation=req.method!=='GET'&&req.method!=='HEAD'&&!/\/intelligence(?:\/|$)/.test(path);
     if(mutation){updating.set(id,(updating.get(id)??0)+1);const e=catalog.get(id);if(e)e.summaryRelease=null;await reads(id).invalidate();}
     const uploadId=String(req.headers['x-upload-id']??'');
-    if(uploadId)progress.set(id+'::'+uploadId,{projectId:id,uploadId,state:'receiving',percent:0,filename:req.headers['x-source-filename']??'project package',message:'Waiting to receive project documents',receivedBytes:0,totalBytes:null,documentTotal:null,processedDocuments:0,identifiedDocuments:0});
+    const encodedUploadFilename=String(req.headers['x-source-filename-encoded']??'');
+    let progressFilename=String(req.headers['x-source-filename']??'project package');
+    if(encodedUploadFilename){try{progressFilename=decodeURIComponent(encodedUploadFilename);}catch{progressFilename='project package';}}
+    if(uploadId)progress.set(id+'::'+uploadId,{projectId:id,uploadId,state:'receiving',percent:0,filename:progressFilename,message:'Waiting to receive project documents',receivedBytes:0,totalBytes:null,documentTotal:null,processedDocuments:0,identifiedDocuments:0});
     let succeeded=false;
     try{
       await work(id,port=>new Promise<void>((resolve,reject)=>{
