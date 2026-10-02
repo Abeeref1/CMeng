@@ -635,6 +635,145 @@ export async function generateDeliveryFeatureBlindRound(seed:string,count:number
   return {seed,projects};
 }
 
+
+export interface CommercialFeatureBlindProject extends BlindProject {}
+function shuffledCsvDocument(
+  h:ReturnType<typeof helpers>,
+  filename:string,
+  domain:string,
+  headers:string[],
+  rows:string[][],
+  scenario:BlindScenario='complete',
+):BlindDocument{
+  const order=h.shuffle(headers.map((_,i)=>i));
+  const shuffledHeaders=order.map(i=>headers[i]!);
+  const shuffledRows=rows.map(row=>order.map(i=>row[i]??''));
+  const delimiter=h.pick([',',';','\t']);
+  return {filename,mediaType:'text/csv',bytes:csv([shuffledHeaders,...shuffledRows],delimiter),kind:'csv',domain,
+    truth:{rows:rows.length,scenario,facts:{headers:shuffledHeaders}}};
+}
+export async function generateCommercialFeatureBlindProject(seed:string,index=0):Promise<CommercialFeatureBlindProject>{
+  const h=helpers(seed+'::commercial-feature::'+index),language=languages[index%languages.length]!,currency=currencies[(index+2)%currencies.length]!;
+  const projectId='BLIND-COM-'+createHash('sha256').update(seed+'|commercial-feature|'+index).digest('hex').slice(0,10).toUpperCase();
+  const projectName=(language==='ar'?h.pick(arabicNames):language==='mixed'?h.pick(englishNames)+' / '+h.pick(arabicNames):h.pick(englishNames))+' '+h.int(100,999);
+  const dataDateIso='2042-'+String(h.int(4,9)).padStart(2,'0')+'-'+String(h.int(10,24)).padStart(2,'0');
+  const activityCount=h.int(45,140),baseValue=h.int(8_000_000,30_000_000),approvedVariation=h.int(250_000,1_500_000),currentValue=baseValue+approvedVariation;
+  const prior2=shiftDate(dataDateIso,-60),prior1=shiftDate(dataDateIso,-30),prior0=shiftDate(dataDateIso,-5),future=shiftDate(dataDateIso,30);
+  const contract=Buffer.from([
+    'MAIN WORKS CONTRACT AGREEMENT',
+    'Conditions of Contract and Contract Data.',
+    'Contract currency is '+currency+'.',
+    'Accepted Contract Amount is '+currency+' '+baseValue+'.',
+    'Original Contract Value is '+currency+' '+baseValue+'.',
+    'Contractual completion date: '+shiftDate(dataDateIso,365)+'.',
+    'The Engineer shall certify within 7 calendar days. Payment shall be made within 28 calendar days.',
+    'Retention rate is 10%. Retention shall not exceed 5% of the Accepted Contract Amount.',
+    'The Contractor shall provide a performance bond equal to 10% of the Accepted Contract Amount.',
+    'An advance-payment bond shall be maintained for the outstanding advance.',
+    'Delay damages are '+currency+' '+h.int(10_000,50_000)+' per calendar day and shall not exceed 10% of the Contract Amount.',
+    'The Contractor shall give notice within 14 calendar days as a condition precedent to an extension of time.'
+  ].join('\n'),'utf8');
+  const docs:BlindDocument[]=[
+    {filename:'Main_Works_Contract_'+h.int(100,999)+'.txt',mediaType:'text/plain',bytes:contract,kind:'text',domain:'contract',
+      truth:{rows:1,scenario:'complete',facts:{currency,baseValue}}},
+    {filename:h.pick(['programme.xer','Current_Programme.xer','البرنامج.xer']),mediaType:'text/plain',
+      bytes:makeXer(h,projectId,projectName,dataDateIso,activityCount,language),kind:'xer',domain:'schedule',
+      truth:{rows:activityCount,scenario:'complete',facts:{activityCount}}},
+  ];
+  const costHeaders=['Metric','Value','Currency','Status','As Of','Amount Basis','VAT Basis'];
+  const costRows=[
+    ['EVM','1',currency,'Approved',dataDateIso,'snapshot','Exclusive'],
+    ['BAC',String(currentValue),currency,'Approved',dataDateIso,'snapshot','Exclusive'],
+    ['PV',String(Math.round(currentValue*.35)),currency,'Approved',prior2,'snapshot','Exclusive'],
+    ['EV',String(Math.round(currentValue*.31)),currency,'Approved',prior2,'snapshot','Exclusive'],
+    ['AC',String(Math.round(currentValue*.33)),currency,'Actual',prior2,'snapshot','Exclusive'],
+    ['PV',String(Math.round(currentValue*.55)),currency,'Approved',prior1,'snapshot','Exclusive'],
+    ['EV',String(Math.round(currentValue*.50)),currency,'Approved',prior1,'snapshot','Exclusive'],
+    ['AC',String(Math.round(currentValue*.53)),currency,'Actual',prior1,'snapshot','Exclusive'],
+    ['PV',String(Math.round(currentValue*.72)),currency,'Approved',prior0,'snapshot','Exclusive'],
+    ['EV',String(Math.round(currentValue*.66)),currency,'Approved',prior0,'snapshot','Exclusive'],
+    ['AC',String(Math.round(currentValue*.70)),currency,'Actual',prior0,'snapshot','Exclusive'],
+    ['EAC',String(Math.round(currentValue*1.06)),currency,'Forecast',prior0,'snapshot','Exclusive'],
+    ['ETC',String(Math.round(currentValue*.36)),currency,'Forecast',prior0,'snapshot','Exclusive'],
+    ['Original Contract Value',String(baseValue),currency,'Approved',dataDateIso,'snapshot','Exclusive'],
+    ['Approved Variations',String(approvedVariation),currency,'Approved',dataDateIso,'snapshot','Exclusive'],
+    ['Current Contract Value',String(currentValue),currency,'Approved',dataDateIso,'snapshot','Exclusive'],
+    ['Actual Expenditure',String(Math.round(currentValue*.09)),currency,'Actual',prior2,'incremental','Exclusive'],
+    ['Actual Expenditure',String(Math.round(currentValue*.17)),currency,'Actual',prior1,'incremental','Exclusive'],
+    ['Actual Expenditure',String(Math.round(currentValue*.21)),currency,'Actual',prior0,'incremental','Exclusive'],
+    ['Expenditure Budget',String(Math.round(currentValue*.24)),currency,'Approved',future,'incremental','Exclusive'],
+    ['Expenditure Forecast',String(Math.round(currentValue*.26)),currency,'Forecast',future,'incremental','Exclusive'],
+  ];
+  docs.push(shuffledCsvDocument(h,'EVM_Cost_Report_'+h.int(10,999)+'.csv','evm',costHeaders,costRows));
+  const paymentHeaders=['Certificate No','Payment Type','Period End','Application Date','Assessment Date','Certificate Date','Payment Due Date','Payment Date','Employer Certified Amount','Net Certified','Paid Amount','Retention','Advance Recovery','Outstanding Amount','Currency','Status','Certified Amount Basis','Paid Amount Basis','VAT Basis'];
+  const paymentRows=[prior2,prior1,prior0].map((period,i)=>{
+    const certified=Math.round(currentValue*(.10+i*.08)),paid=Math.round(certified*.92),retention=Math.round(certified*.05);
+    return ['IPC-'+(i+1),'Interim',period,shiftDate(period,-10),shiftDate(period,-5),shiftDate(period,-3),shiftDate(period,25),shiftDate(period,15),String(certified),String(certified),String(paid),String(retention),String(Math.round(certified*.02)),String(certified-paid),currency,'Paid','incremental','incremental','Exclusive'];
+  });
+  docs.push(shuffledCsvDocument(h,'Payment_Certificates_'+h.int(10,999)+'.csv','payments',paymentHeaders,paymentRows));
+  const variationHeaders=['Variation ID','Description','Status','Submitted Date','Assessment Date','Agreed Date','Approval Date','Claimed Amount','Assessed Amount','Agreed Amount','Approved Amount','Schedule Impact Days','Claim ID','Payment ID','Activity ID','Clause','Currency'];
+  const variationRows=[
+    ['VO-1','Scope change A','Approved',prior2,shiftDate(prior2,7),shiftDate(prior2,14),shiftDate(prior2,21),String(approvedVariation),String(Math.round(approvedVariation*.9)),String(Math.round(approvedVariation*.88)),String(Math.round(approvedVariation*.88)),'5','CLM-1','IPC-2','1000','13.3',currency],
+    ['VO-2','Scope change B','Pending',prior1,shiftDate(prior1,8),'','',String(h.int(100_000,600_000)),String(h.int(80_000,500_000)),'','','3','','','1001','13.3',currency],
+  ];
+  docs.push(shuffledCsvDocument(h,'Variation_Register_'+h.int(10,999)+'.csv','variations',variationHeaders,variationRows));
+  const claimHeaders=['Claim ID','Event ID','Event','Event Start','Event End','Responsibility','Category','Impact Days','Activity ID','Notice Date','Days Claimed','Days Granted','Claimed Amount','Assessed Amount','Status','Clause','Determination ID','Day Basis','Currency'];
+  const claimRows=[
+    ['CLM-1','EV-1','Late access',shiftDate(prior2,-10),shiftDate(prior2,-2),'Employer','late access','8','1000',shiftDate(prior2,-8),'8','5',String(h.int(200_000,800_000)),String(h.int(150_000,650_000)),'Engineer Determined','20.1','DET-1','calendar days',currency],
+    ['CLM-2','EV-2','Late design information',shiftDate(prior1,-14),shiftDate(prior1,-4),'Employer','design','10','1001',shiftDate(prior1,-11),'10','',String(h.int(150_000,500_000)),'','Under Review','20.1','','calendar days',currency],
+  ];
+  docs.push(shuffledCsvDocument(h,'Claims_Register_'+h.int(10,999)+'.csv','claims',claimHeaders,claimRows));
+  const bondHeaders=['Bond ID','Bond Type','Bond Amount','Status','Expiry Date','Currency'];
+  const bondRows=[
+    ['BG-PERF','Performance',String(Math.round(baseValue*.10)),'Active',shiftDate(dataDateIso,300),currency],
+    ['BG-ADV','Advance Payment',String(Math.round(baseValue*.08)),'Active',shiftDate(dataDateIso,180),currency],
+  ];
+  docs.push(shuffledCsvDocument(h,'Bond_Register_'+h.int(10,999)+'.csv','bonds',bondHeaders,bondRows));
+  return {seed,projectId,projectName,language,currency,dataDateIso,scenario:'complete',documents:h.shuffle(docs),
+    truth:{scheduleActivities:activityCount,payments:paymentRows.length,variations:variationRows.length,risks:null,claims:claimRows.length,procurement:null,quality:null,
+      expectedDomains:['schedule','contract','evm','payments','variations','claims','bonds']}};
+}
+export async function generateCommercialFeatureBlindRound(seed:string,count:number){
+  const projects:CommercialFeatureBlindProject[]=[];for(let i=0;i<count;i++)projects.push(await generateCommercialFeatureBlindProject(seed,i));return {seed,projects};
+}
+
+export interface DelayFeatureBlindProject extends BlindProject {}
+export async function generateDelayFeatureBlindProject(seed:string,index=0):Promise<DelayFeatureBlindProject>{
+  const lifecycle=await generateScheduleLifecycleBlindProject(seed+'::delay-schedule',index);
+  const h=helpers(seed+'::delay-feature::'+index),currency=currencies[(index+3)%currencies.length]!,dataDateIso=lifecycle.laterDataDateIso;
+  const projectId=lifecycle.projectId.replace('BLIND-SCH-','BLIND-DLY-'),projectName=lifecycle.projectName,language=lifecycle.language;
+  // Rebuild schedule files under one project identity so every retained programme and claim belongs to the same blind project.
+  const activityCount=lifecycle.stages.current.truth.rows;
+  const scheduleDates=[lifecycle.baseDataDateIso,shiftDate(lifecycle.baseDataDateIso,-28),dataDateIso];
+  const schedules=scheduleDates.map((dateIso,i):BlindDocument=>({
+    filename:['Current_Programme_','Previous_Update_','Latest_Update_'][i]+h.int(10,999)+'.xer',mediaType:'text/plain',
+    bytes:makeXer(h,projectId,projectName,dateIso,activityCount,language),kind:'xer',domain:'schedule',
+    truth:{rows:activityCount,scenario:'complete',facts:{dataDateIso}},
+  }));
+  const contract=Buffer.from([
+    'MAIN WORKS CONTRACT AGREEMENT','Conditions of Contract and Contract Data.','Contract currency is '+currency+'.',
+    'Accepted Contract Amount is '+currency+' '+h.int(8_000_000,25_000_000)+'.','Contractual completion date: '+shiftDate(dataDateIso,280)+'.',
+    'The Contractor shall give notice within 14 calendar days as a condition precedent to an extension of time.',
+    'The Engineer shall determine extensions of time in calendar days.','Delay damages apply per calendar day subject to the stated cap.'
+  ].join('\n'),'utf8');
+  const claimHeaders=['Claim ID','Event ID','Event','Event Start','Event End','Responsibility','Category','Impact Days','Activity ID','Notice Date','Days Claimed','Days Granted','Status','Clause','Determination ID','Day Basis','Currency'];
+  const claimRows=[
+    ['CLM-'+index+'A','EV-'+index+'A','Late access',shiftDate(dataDateIso,-45),shiftDate(dataDateIso,-30),'Employer','late access','12','1000',shiftDate(dataDateIso,-42),'12','7','Engineer Determined','20.1','DET-'+index+'A','calendar days',currency],
+    ['CLM-'+index+'B','EV-'+index+'B','Late design information',shiftDate(dataDateIso,-30),shiftDate(dataDateIso,-18),'Employer','design','9','1001',shiftDate(dataDateIso,-26),'9','','Under Review','20.1','','calendar days',currency],
+    ['CLM-'+index+'C','EV-'+index+'C','Contractor productivity',shiftDate(dataDateIso,-20),shiftDate(dataDateIso,-8),'Contractor','performance','6','1002',shiftDate(dataDateIso,-15),'6','','Submitted','20.1','','calendar days',currency],
+  ];
+  const docs:BlindDocument[]=[
+    ...schedules,
+    {filename:'Main_Contract_'+h.int(100,999)+'.txt',mediaType:'text/plain',bytes:contract,kind:'text',domain:'contract',truth:{rows:1,scenario:'complete',facts:{}}},
+    shuffledCsvDocument(h,'Delay_Claims_Register_'+h.int(10,999)+'.csv','claims',claimHeaders,claimRows),
+  ];
+  return {seed,projectId,projectName,language,currency,dataDateIso,scenario:'complete',documents:h.shuffle(docs),
+    truth:{scheduleActivities:activityCount,payments:null,variations:null,risks:null,claims:claimRows.length,procurement:null,quality:null,expectedDomains:['schedule','contract','claims']}};
+}
+export async function generateDelayFeatureBlindRound(seed:string,count:number){
+  const projects:DelayFeatureBlindProject[]=[];for(let i=0;i<count;i++)projects.push(await generateDelayFeatureBlindProject(seed,i));return {seed,projects};
+}
+
 export function defaultBlindSeed(){
   // Acceptance cohorts are generated only after the code under test has been fixed.
   // The seed is intentionally unknowable before execution; it is printed by each blind test
