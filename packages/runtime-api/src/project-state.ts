@@ -100,6 +100,8 @@ import type {
 import {
   cell,
   governedTables,
+  csv as truthCsv,
+  inferTableSemanticRoute,
 } from "../../truth-kernel/src";
 import {
   analyzeCsvEvidence,
@@ -164,13 +166,23 @@ async function enrichRegisterSheetSemantics(read:NonNullable<StoredEvidenceDocum
       declaredMediaType:'text/csv',
     });
     const identity=identified.identification;
-    if(identity.method!=='tabular_content'||identity.confidence<0.9||sheetSemanticExcludedTypes.has(identity.detectedDocumentType))continue;
-    sheet.semantic={
-      documentType:identity.detectedDocumentType,
-      category:identity.detectedCategory,
-      confidence:identity.confidence,
+    if(identity.method==='tabular_content'&&identity.confidence>=0.9&&!sheetSemanticExcludedTypes.has(identity.detectedDocumentType)){
+      sheet.semantic={
+        documentType:identity.detectedDocumentType,
+        category:identity.detectedCategory,
+        confidence:identity.confidence,
+        method:'tabular_content',
+        signals:[...identity.signals],
+      };
+      continue;
+    }
+    const route=inferTableSemanticRoute(sheet.rows);
+    if(route&&!sheetSemanticExcludedTypes.has(route.documentType))sheet.semantic={
+      documentType:route.documentType,
+      category:route.category,
+      confidence:route.confidence,
       method:'tabular_content',
-      signals:[...identity.signals],
+      signals:['Generic table semantics',...route.basis],
     };
   }
   return read;
@@ -4463,6 +4475,16 @@ export class RuntimeProjectStore {
     if(tabularRead){
       const resolved=workbookSemanticIdentity(category,documentType,identification,tabularRead);
       category=resolved.category;documentType=resolved.documentType;Object.assign(identification,resolved.identification);
+    }else if(/csv/i.test(media)){
+      try{
+        const route=inferTableSemanticRoute(truthCsv(Buffer.from(input.bytes).toString('utf8').replace(/^\uFEFF/,'')),documentType);
+        if(route&&(identification.method!=='tabular_content'||identification.confidence<0.95||documentType==='supporting_document')){
+          const previous=documentType;category=route.category as EvidenceCategory;documentType=route.documentType;
+          Object.assign(identification,{detectedCategory:category,detectedDocumentType:documentType,method:'tabular_content',confidence:route.confidence,needsReview:false,
+            signals:[...identification.signals,'Generic table semantics',...route.basis],
+            diagnostics:[...identification.diagnostics,'CSV_REGISTER_ROLE_ESTABLISHED_FROM_CONTENT:'+previous+'->'+documentType]});
+        }
+      }catch{/* malformed CSV remains governed by the normal reader diagnostics */}
     }
     const lineage =
       inferEvidenceLineage({
