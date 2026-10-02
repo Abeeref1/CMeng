@@ -22,6 +22,7 @@ import {createCmengServer} from '../packages/runtime-api/src/server';
 import type {AddressInfo} from 'node:net';
 import type {ProjectRuntimeState,StoredEvidenceDocument} from '../packages/runtime-api/src/project-state-types';
 import type {CanonicalScheduleModel} from '../packages/schedule-analysis-core/src';
+import {deliveryPages} from '../packages/delivery-core/src/registry';
 
 let sequence=0;
 function fixture(t:{after(fn:()=>void):unknown}) {
@@ -89,6 +90,20 @@ test('Actions required carries the same shared project truth contract as the oth
  assert.deepEqual(actions.reportingContract.programmeAuthority,dashboard.reportingContract.programmeAuthority);
  assert.deepEqual(actions.reportingContract.populations.source_records,dashboard.reportingContract.populations.source_records);
  assert.equal(actions.scheduleAuthorityReview.currentRevisionId,dashboard.scheduleAuthorityReview.currentRevisionId);
+});
+
+test('every registered Delivery page carries the same shared reporting truth',t=>{
+ const {state}=fixture(t);
+ const reference=(moduleForProject(state.projectId,'master-dashboard').data as any).reportingContract;
+ for(const [key] of deliveryPages){
+  const result=moduleForProject(state.projectId,key),data=result.data as any;
+  assert.ok(data?.reportingContract,key+' must carry the shared reporting contract');
+  assert.equal(data.reportingContract.dataDateIso,reference.dataDateIso,key);
+  assert.equal(data.reportingContract.projectVersion,reference.projectVersion,key);
+  assert.equal(data.reportingContract.programmeRevisionId,reference.programmeRevisionId,key);
+  assert.deepEqual(data.reportingContract.programmeAuthority,reference.programmeAuthority,key);
+  assert.deepEqual(data.reportingContract.populations.source_records,reference.populations.source_records,key);
+ }
 });
 
 test('undated or malformed operational records do not create a zero current result',t=>{
