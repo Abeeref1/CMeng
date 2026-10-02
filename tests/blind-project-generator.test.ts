@@ -517,7 +517,7 @@ test('J5 fresh blind project set: all 58 pages and Ask CMeng use one project tru
     askChecks++;
 
     const forecastPage:any=moduleForProject(project.projectId,'independent-forecast').data;
-    const forecastAnswer=await engine.ask(project.projectId,user,{question:'What is current completion?'});
+    const forecastAnswer=await engine.ask(project.projectId,user,{question:'What is the current completion forecast?'});
     assert.equal(forecastAnswer.providerStatus,'not_needed','J5 completion answer must stay deterministic: '+project.projectId);
     assert.equal(forecastAnswer.telemetry?.aiInvoked,false,'J5 completion answer must not invoke AI: '+project.projectId);
     const forecastSection=forecastAnswer.sections.find(section=>section.authorityId==='forecast');
