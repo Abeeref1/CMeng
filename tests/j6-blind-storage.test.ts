@@ -71,8 +71,8 @@ test('J6 fresh blind storage cohort: concurrent projects preserve exact sources 
       method:'POST',
       headers:{
         'content-type':document.mediaType,
-        'x-source-filename':document.filename,
-        'x-source-relative-path':document.filename,
+        'x-source-filename-encoded':encodeURIComponent(document.filename),
+        'x-source-relative-path-encoded':encodeURIComponent(document.filename),
         'x-upload-intent':'add_update',
         'x-upload-id':'j6-'+project.projectId+'-'+suffix,
       },
