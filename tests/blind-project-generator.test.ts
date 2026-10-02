@@ -6,11 +6,13 @@ import {join} from 'node:path';
 
 import {RuntimeProjectStore} from '../packages/runtime-api/src/project-state';
 import {sourceTables} from '../packages/truth-kernel/src';
-import {defaultBlindSeed,generateBlindRound,generateMixedWorkbookBlindRound,generateLifecycleMixedWorkbookBlindRound} from './blind-project-generator';
+import {defaultBlindSeed,generateBlindRound,generateMixedWorkbookBlindRound,generateLifecycleMixedWorkbookBlindRound,generateSemanticAiBlindRound} from './blind-project-generator';
 import {deliveryRecords} from '../packages/runtime-api/src/delivery-records';
 import {hseReportPosition} from '../packages/runtime-api/src/hse-report-evidence';
 import {weeklyResourceCapacityEvidence} from '../packages/runtime-api/src/canonical-resource-evidence';
 import {withInstalledMeasurements} from '../packages/runtime-api/src/installed-measurements';
+import {GroundedTableSemanticAiResolver} from '../packages/runtime-api/src/evidence-semantic-ai';
+import type {StructuredModel} from '../packages/project-ask/src/provider';
 
 test('Batch J blind round: fresh generated projects survive real ingestion and shared table intelligence',async t=>{
   const seed=defaultBlindSeed();
@@ -230,6 +232,108 @@ test('J2 fresh lifecycle blind project set: mixed source packs reach Delivery, H
         'EVM sheet did not retain EV/AC source facts: '+project.projectId);
     }
   }
+});
+
+
+function j3BlindStructuredModel(onCall:()=>void):StructuredModel{
+  const isDate=(value:string)=>/^20\d{2}-\d{2}-\d{2}$/.test(value);
+  const isStatus=(value:string)=>/^(?:Paid|Certified|Approved|Pending|Open|High|Submitted|Under Review|Ordered|Late|Closed)$/i.test(value);
+  return {structured:async(_name,_schema,_prompt,input:any)=>{
+    onCall();
+    const rows=(input.table?.rows??[]) as string[][];
+    const header=rows[0]??[],data=rows.slice(1).filter(row=>row.some(value=>String(value??'').trim()));
+    const columnValues=(index:number)=>data.map(row=>String(row[index]??'').trim()).filter(Boolean);
+    const find=(predicate:(values:string[])=>boolean)=>header.findIndex((_,index)=>{const values=columnValues(index);return values.length>0&&predicate(values);});
+    const idIndex=find(values=>values.some(value=>/^(?:PC|VO|R|C|PK|NCR)-/i.test(value)));
+    if(idIndex<0)return {sourceHashSha256:input.sourceHashSha256,sheetName:input.sheetName,documentType:'unresolved',confidence:0,columns:[]};
+    const idSample=columnValues(idIndex)[0]??'';
+    const type=/^PC-/i.test(idSample)?'payment_certificates':
+      /^VO-/i.test(idSample)?'variation_register':
+      /^NCR-/i.test(idSample)?'quality_ncr_register':
+      /^PK-/i.test(idSample)?'procurement_register':
+      /^C-/i.test(idSample)?'delay_eot_claims_register':'risk_register';
+    const meanings:Array<{columnIndex:number;rawHeader:string;meaning:string;confidence:number}>=[];
+    const add=(columnIndex:number,meaning:string)=>{if(columnIndex>=0)meanings.push({columnIndex,rawHeader:header[columnIndex]!,meaning,confidence:0.98});};
+    const statusIndex=find(values=>values.every(isStatus));
+    const currencyIndex=find(values=>values.every(value=>/^[A-Z]{3}$/.test(value)));
+    const numericIndexes=header.map((_,index)=>index).filter(index=>{const values=columnValues(index);return values.length>0&&values.every(value=>/^-?\d+(?:\.\d+)?$/.test(value));});
+    const narrativeIndex=find(values=>values.every(value=>!isDate(value)&&!isStatus(value)&&!/^[A-Z]{3}$/.test(value)&&!/^(?:PC|VO|R|C|PK|NCR)-/i.test(value)&&!/^-?\d+(?:\.\d+)?$/.test(value)&&value.length>3));
+    if(type==='payment_certificates'){
+      add(idIndex,'certificate no');add(numericIndexes[0]??-1,'net certified');add(currencyIndex,'currency');add(statusIndex,'status');
+    }else if(type==='variation_register'){
+      add(idIndex,'variation id');add(narrativeIndex,'description');add(numericIndexes[0]??-1,'approved amount');add(currencyIndex,'currency');add(statusIndex,'status');
+    }else if(type==='risk_register'){
+      add(idIndex,'risk id');add(narrativeIndex,'description');add(statusIndex,'status');
+    }else if(type==='delay_eot_claims_register'){
+      add(idIndex,'claim id');add(narrativeIndex,'event');add(numericIndexes[0]??-1,'days claimed');add(statusIndex,'status');
+    }else if(type==='procurement_register'){
+      add(idIndex,'package id');add(narrativeIndex,'description');add(statusIndex,'status');
+      const activityIndex=numericIndexes.find(index=>columnValues(index).every(value=>value==='1000'))??-1;add(activityIndex,'linked activity');
+    }else{
+      add(idIndex,'ncr id');add(narrativeIndex,'description');add(statusIndex,'status');
+    }
+    return {sourceHashSha256:input.sourceHashSha256,sheetName:input.sheetName,documentType:type,confidence:0.98,columns:meanings};
+  }};
+}
+
+test('J3 fresh blind project set: opaque sources require grounded semantic AI, retain provenance and never pay twice for the same hash',async t=>{
+  const seed=defaultBlindSeed()+'::J3-GROUNDED-SEMANTIC-AI';
+  process.stdout.write('\nCMENG_J3_BLIND_PROJECT_SET_SEED='+seed+'\n');
+  const {projects}=await generateSemanticAiBlindRound(seed,18);
+  assert.equal(new Set(projects.map(project=>project.projectId)).size,18,'J3 requires 18 fresh project identities');
+  assert.equal(new Set(projects.map(project=>project.domain)).size,6,'J3 must cover all six opaque register domains');
+  const dir=mkdtempSync(join(tmpdir(),'cmeng-j3-ai-blind-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));
+  let calls=0;
+  const resolver=new GroundedTableSemanticAiResolver(j3BlindStructuredModel(()=>calls++));
+  let store=new RuntimeProjectStore({dataDir:dir,durable:false,semanticAiResolver:resolver});
+  const counts=new Map<string,number>();
+
+  const controlCount=(project:any,state:ReturnType<RuntimeProjectStore['get']>)=>{
+    assert.ok(state);
+    if(project.domain==='payments')return state!.controls.invoices.length;
+    if(project.domain==='variations')return state!.controls.variations.length;
+    if(project.domain==='risks')return state!.controls.risks.length;
+    if(project.domain==='claims')return state!.controls.delayClaims?.claims.length??0;
+    if(project.domain==='quality')return state!.controls.ncrs.length;
+    return Object.values(state!.controls.readinessEvidence).filter(dimensions=>dimensions.procurement_material).length;
+  };
+
+  for(const project of projects){
+    for(const document of project.documents){
+      await store.ingestEvidenceFile({
+        projectId:project.projectId,sourceFilename:document.filename,sourceRelativePath:document.filename,
+        bytes:document.bytes,mediaType:document.mediaType,uploadedAt:'2039-12-31T00:00:00.000Z',uploadIntent:'add_update',
+        allowSemanticAi:document.kind==='csv',
+      });
+    }
+    const state=store.get(project.projectId)!;
+    const source=state.evidenceDocuments.find(document=>document.sourceFilename.endsWith('.csv'))!;
+    assert.ok(source,'opaque source retained: '+project.projectId);
+    assert.equal(source.csvSemantic?.method,'ai_grounded','opaque table must require grounded AI: '+project.projectId);
+    assert.equal(source.documentType,project.expectedDocumentType,'AI role mismatch: '+project.projectId);
+    assert.ok(source.csvSemantic?.columnMeanings?.length,'grounded column mappings required: '+project.projectId);
+    const diagnostics:string[]=[];
+    const routed=sourceTables([source],diagnostics,{includeHistorical:true});
+    assert.ok(routed.some(table=>table.document.documentType===project.expectedDocumentType),
+      'AI semantic role did not reach canonical source table: '+project.projectId+' '+JSON.stringify(diagnostics));
+    const count=controlCount(project,state);
+    assert.ok(count>0,'AI-mapped source did not reach existing specialist controls: '+project.projectId+' / '+project.domain);
+    counts.set(project.projectId,count);
+  }
+  assert.equal(calls,projects.length,'each previously unseen opaque source should require exactly one semantic AI call');
+
+  const firstCalls=calls;
+  store=new RuntimeProjectStore({dataDir:dir,durable:false,semanticAiResolver:resolver});
+  for(const project of projects){
+    const sourceDocument=project.documents.find(document=>document.kind==='csv')!;
+    await store.ingestEvidenceFile({
+      projectId:project.projectId,sourceFilename:sourceDocument.filename,sourceRelativePath:sourceDocument.filename,
+      bytes:sourceDocument.bytes,mediaType:sourceDocument.mediaType,uploadedAt:'2040-01-01T00:00:00.000Z',uploadIntent:'add_update',allowSemanticAi:true,
+    });
+    const state=store.get(project.projectId)!;
+    assert.equal(controlCount(project,state),counts.get(project.projectId),'cached semantic mapping changed specialist population: '+project.projectId);
+  }
+  assert.equal(calls,firstCalls,'restart/re-upload of the same source hash must not spend AI again');
 });
 
 test('Batch J blind generator: same seed reproduces exact project truth, different seed changes it',async()=>{
