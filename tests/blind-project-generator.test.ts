@@ -486,7 +486,7 @@ test('J5 fresh blind project set: all 58 pages and Ask CMeng use one project tru
       assert.equal(contract.projectVersion,state.version,'J5 project-version drift: '+project.projectId+' / '+page.key);
       assert.equal(contract.programmeRevisionId,authority.currentRevisionId,'J5 programme-revision drift: '+project.projectId+' / '+page.key);
       assert.equal(contract.programmeAuthority?.authority,authority.authority,'J5 programme-authority drift: '+project.projectId+' / '+page.key);
-      assert.equal(result.scheduleAuthorityReview?.currentRevisionId,authority.currentRevisionId,'J5 page authority-review drift: '+project.projectId+' / '+page.key);
+      assert.equal(data?.scheduleAuthorityReview?.currentRevisionId,authority.currentRevisionId,'J5 page authority-review drift: '+project.projectId+' / '+page.key);
       const baseline=data?.baselineComparison??{state:'unresolved',revisionId:null};
       if(referenceBaseline===null)referenceBaseline={state:baseline.state,revisionId:baseline.revisionId??null};
       else assert.deepEqual({state:baseline.state,revisionId:baseline.revisionId??null},referenceBaseline,'J5 baseline truth drift: '+project.projectId+' / '+page.key);
