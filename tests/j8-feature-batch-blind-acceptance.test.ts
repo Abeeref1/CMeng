@@ -104,6 +104,49 @@ async function programmeProjects(seed:string):Promise<BatchProject[]>{
     ],
   }));
 }
+function materialFeatureLeaves(value:any,key='root'):number{
+  if(value===null||value===undefined)return 0;
+  if(typeof value==='number')return Number.isFinite(value)?1:0;
+  if(typeof value==='boolean')return 1;
+  if(typeof value==='string')return value.trim()&&!["schemaVersion","projectionKey","producerVersion","generatedAt","projectId","projectVersion","sourceRevisionId","dataDateIso","reason","basis","method","authority"].includes(key)?1:0;
+  if(Array.isArray(value))return value.length+value.reduce((n,row)=>n+materialFeatureLeaves(row,key),0);
+  if(typeof value==='object')return Object.entries(value).reduce((n,[childKey,child])=>
+    ["featureAvailability","diagnostics","dependencies","sourceRefs","receipts"].includes(childKey)?n:n+materialFeatureLeaves(child,childKey),0);
+  return 0;
+}
+function assertFeatureSubstance(batchId:string,page:ModuleDescriptor,body:any,projectId:string){
+  const data=body?.data??body;
+  assert.ok(data&&typeof data==='object',batchId+' '+page.key+' has no feature result object for '+projectId);
+  assert.ok(materialFeatureLeaves(data)>0,batchId+' '+page.key+' returned an empty feature shell for '+projectId);
+  const availability=data.featureAvailability;
+  if(availability)assert.ok(!['blocked','not_applicable'].includes(availability.state),
+    batchId+' '+page.key+' has no usable feature basis for '+projectId+': '+availability.reason);
+  if(batchId==='F2-PROGRAMME-PLANNING'&&['schedule-change-report','revision-trend'].includes(page.key))
+    assert.equal(availability?.state,'active',batchId+' '+page.key+' requires a real controlled revision comparison for '+projectId);
+  if(batchId==='F3-PROGRESS-RESOURCES'){
+    if(page.key==='resource-utilization')assert.equal(body.status,'ready','F3 Resources must establish the weekly resource basis for '+projectId);
+    if(page.key==='manhour-scurve')assert.ok(Array.isArray(data.points)&&data.points.length>0,'F3 Man-Hour must contain a real source weekly curve for '+projectId);
+    if(['variance-trends','quantity-scurve'].includes(page.key))assert.equal(availability?.state,'active','F3 '+page.key+' must establish its real feature basis for '+projectId);
+  }
+  if(batchId==='F4-FORECAST-RECOVERY'){
+    if(page.key==='forecast-history')assert.equal(availability?.state,'active','F4 Completion History requires multiple comparable revisions for '+projectId);
+    if(page.key==='challenge-contract'){
+      assert.equal(availability?.state,'active','F4 Challenge the Contract did not establish all six prerequisites for '+projectId+': '+availability?.reason);
+      assert.ok((availability?.establishedResultCount??0)>0,'F4 Challenge produced no calculated feasibility result for '+projectId);
+      assert.ok(Array.isArray(availability?.prerequisites)&&availability.prerequisites.every((row:any)=>row.established),
+        'F4 Challenge has an unestablished prerequisite for '+projectId);
+    }
+    if(page.key==='recovery-acceleration')assert.ok((data.calculatedScenarioCount??0)>0,
+      'F4 Recovery & Acceleration produced no calculated scenario for '+projectId);
+  }
+  if(batchId==='F5-DELAY-CLAIMS'&&page.key==='windows-analysis')
+    assert.equal(availability?.state,'active','F5 Delay Windows requires a real revision-to-revision window for '+projectId);
+  if(batchId==='F6-COMMERCIAL')assert.equal(body.status,'ready',
+    'F6 '+page.key+' must be established, not merely visible, for '+projectId+'; reason: '+String(body.reason??''));
+  if(batchId==='F7-DELIVERY')assert.ok(body.status==='ready'||body.status==='partial',
+    'F7 '+page.key+' did not produce a Delivery feature result for '+projectId);
+}
+
 async function projectsFor(batchId:string,seed:string){
   if(batchId==='F2-PROGRAMME-PLANNING'||batchId==='F4-FORECAST-RECOVERY')return programmeProjects(seed);
   if(batchId==='F3-PROGRESS-RESOURCES')return (await generateProgressFeatureBlindRound(seed,10)).projects;
@@ -235,6 +278,7 @@ for(const batch of pageBatches){
             continue;
           }
           activeByPage.set(page.key,(activeByPage.get(page.key)??0)+1);
+          assertFeatureSubstance(batch.id,page,result.body,project.projectId);
           if(result.body&&typeof result.body==='object'&&typeof result.body.projectId==='string')
             assert.equal(result.body.projectId,project.projectId,batch.id+' page project drift '+page.key);
 
