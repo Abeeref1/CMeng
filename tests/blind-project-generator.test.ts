@@ -346,6 +346,10 @@ test('J4 fresh blind project set: routine updates advance submitted analytics wh
   const {projects}=await generateScheduleLifecycleBlindRound(seed,18);
   assert.equal(new Set(projects.map(project=>project.projectId)).size,18,'J4 requires 18 fresh lifecycle projects');
   assert.equal(new Set(projects.map(project=>project.language)).size,3,'J4 must rotate English, Arabic and mixed programmes');
+  const activityCounts=projects.map(project=>project.stages.current.truth.rows);
+  assert.ok(activityCounts.every(count=>count>=35&&count<=160),'J4 fresh cohort must use realistic non-toy programme sizes');
+  assert.ok(new Set(activityCounts).size>=6,'J4 fresh cohort must materially vary programme size rather than clone one fixture');
+  assert.ok(new Set(projects.map(project=>project.baseDataDateIso)).size>=6,'J4 fresh cohort must materially vary Data Dates');
   const dir=mkdtempSync(join(tmpdir(),'cmeng-j4-schedule-lifecycle-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));
   let store=new RuntimeProjectStore({dataDir:dir,durable:false});
   const expected=new Map<string,{currentRevisionId:string;baselineRevisionId:string;dataDateIso:string}>();
