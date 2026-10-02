@@ -317,8 +317,16 @@ export const cell = (row: SourceRow, ...names: string[]): string => {
 };
 export function numberValue(value: string): number | null {
   const v = value.trim().replace(/[٠-٩]/g, d => String(d.charCodeAt(0) - 0x660)).replace(/[٬]/g, ',').replace(/[٫]/g, '.');
-  if (!/^[+-]?(?:\d+|\d{1,3}(?:,\d{3})+)(?:\.\d+)?%?$/.test(v)) return null;
-  const n = Number(v.replace(/[, %]/g, '')); return Number.isFinite(n) && Math.abs(n) <= Number.MAX_SAFE_INTEGER ? n : null;
+  const accounting=/^\((.*)\)$/.exec(v);
+  const candidate=(accounting?.[1]??v).trim();
+  // Parentheses are an accounting negative convention. A sign inside
+  // parentheses is ambiguous and remains unresolved rather than being guessed.
+  if (accounting&&/^[+-]/.test(candidate)) return null;
+  if (!/^[+-]?(?:\d+|\d{1,3}(?:,\d{3})+)(?:\.\d+)?%?$/.test(candidate)) return null;
+  const n = Number(candidate.replace(/[, %]/g, ''));
+  if (!Number.isFinite(n) || Math.abs(n) > Number.MAX_SAFE_INTEGER) return null;
+  const result=accounting?-n:n;
+  return Object.is(result,-0)?0:result;
 }
 const dateResults=new Map<string,string|null>();
 export function dateValue(value: string): string | null {
