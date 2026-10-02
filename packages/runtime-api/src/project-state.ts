@@ -216,6 +216,30 @@ function semanticDocumentForSheet(
   return semantic?{...document,category:semantic.category as EvidenceCategory,documentType:semantic.documentType}:document;
 }
 
+const derivedArrayKeys=['variations','invoices','retentions','bonds','claimCommercials','ncrs','rfis','risks'] as const;
+function mergeDerivedControls(
+  current:ProjectRuntimeState['derivedControlsByDocument'][string]|undefined,
+  incoming:ProjectRuntimeState['derivedControlsByDocument'][string],
+):ProjectRuntimeState['derivedControlsByDocument'][string]{
+  const merged={...(current??{}),...incoming};
+  for(const key of derivedArrayKeys){
+    if(!incoming[key])continue;
+    (merged as any)[key]=[...((current as any)?.[key]??[]),...(incoming as any)[key]];
+  }
+  return merged;
+}
+
+function mergeDerivedReadiness(
+  current:ProjectRuntimeState['derivedReadinessByDocument'][string]|undefined,
+  incoming:ProjectRuntimeState['derivedReadinessByDocument'][string],
+):ProjectRuntimeState['derivedReadinessByDocument'][string]{
+  const merged={...(current??{})};
+  for(const [activityId,dimensions] of Object.entries(incoming)){
+    merged[activityId]={...(merged[activityId]??{}),...dimensions};
+  }
+  return merged;
+}
+
 function emptyControls():
   ProjectControlState {
   return {
@@ -2347,8 +2371,8 @@ export class RuntimeProjectStore {
           for(const registerSource of registerSources){
             const semanticDocument=semanticDocumentForSheet(next,registerSource.semantic);
             const derived=deriveControlsFromCsv({state,document:semanticDocument,bytes:registerSource.bytes,sheetName:registerSource.sheetName});
-            controls=Object.fromEntries(Object.entries(derived).map(([key,value])=>[key,Array.isArray(value)?[...((controls as any)[key]??[]),...value]:value]));
-            readiness={...readiness,...deriveReadinessFromCsv({state,document:semanticDocument,bytes:registerSource.bytes,sheetName:registerSource.sheetName})};
+            controls=mergeDerivedControls(controls,derived);
+            readiness=mergeDerivedReadiness(readiness,deriveReadinessFromCsv({state,document:semanticDocument,bytes:registerSource.bytes,sheetName:registerSource.sheetName}));
           }
           if(next.familyKey!==document.familyKey){families.add(document.familyKey);families.add(next.familyKey);next.diagnostics=[...document.diagnostics,'REGISTER_READER_FAMILY_REFRESH:'+document.familyKey+'->'+next.familyKey];}
           next.derivedRegisterRead={producerVersion:'register-derived-v5',sourceHashSha256:next.sourceHashSha256};
@@ -5187,7 +5211,7 @@ export class RuntimeProjectStore {
         state
           .derivedReadinessByDocument[
             document.documentId
-          ] = {...state.derivedReadinessByDocument[document.documentId],...derived};
+          ] = mergeDerivedReadiness(state.derivedReadinessByDocument[document.documentId],derived);
       }
 
       const derivedControls =
@@ -5207,7 +5231,7 @@ export class RuntimeProjectStore {
         state
           .derivedControlsByDocument[
             document.documentId
-          ] = Object.fromEntries(Object.entries(derivedControls).map(([key,value])=>[key,Array.isArray(value)?[...((state.derivedControlsByDocument[document.documentId] as any)?.[key]??[]),...value]:value]));
+          ] = mergeDerivedControls(state.derivedControlsByDocument[document.documentId],derivedControls);
       }
 
       }
