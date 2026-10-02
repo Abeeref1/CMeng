@@ -5646,8 +5646,13 @@ export class RuntimeProjectStore {
         input.uploadedAt,
       roleConfirmed:input.roleConfirmed??false,
       ...(input.approvalReference?.trim()?{approvalReference:input.approvalReference.trim()}:{}),
-      role:
-        (!input.roleConfirmed&&scenarioName(input.sourceRelativePath??input.sourceFilename??input.label??'')&&input.role!=='recovery' ? 'scenario' : scheduleRole(input.role)==='other'&&uploadIntent==='replace_current_basis'?'update':scheduleRole(input.role)),
+      role: (()=> {
+        const role=scheduleRole(input.role);
+        const scenarioFallback=!input.roleConfirmed
+          &&scenarioName(input.sourceRelativePath??input.sourceFilename??input.label??'')
+          &&!['baseline','revised_baseline','recovery'].includes(role);
+        return scenarioFallback?'scenario':role==='other'&&uploadIntent==='replace_current_basis'?'update':role;
+      })(),
     };
 
     state.schedules.push(
