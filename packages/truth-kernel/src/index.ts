@@ -412,7 +412,7 @@ const tableCache = new Map<string, SourceTable>();
 export function sourceTables(documents: readonly EvidenceDocument[], diagnostics: string[], options: {includeHistorical?: boolean} = {}): SourceTable[] {
   const result: SourceTable[] = [], hashes = new Set<string>();
   for (const doc of [...documents].sort((a,b)=>Number(b.basisState!=='candidate')-Number(a.basisState!=='candidate'))) {
-    const semanticReferenceCandidate=doc.basisState==='historical'&&['supporting_document','mixed_register_workbook'].includes(doc.documentType)&&(/csv/i.test(doc.mediaType+' '+doc.sourceFilename)||Boolean(doc.tabularRead));
+    const semanticReferenceCandidate=doc.basisState==='historical'&&['supporting_document','mixed_register_workbook'].includes(doc.documentType??'')&&(/csv/i.test(doc.mediaType+' '+doc.sourceFilename)||Boolean(doc.tabularRead));
     if ((!options.includeHistorical && !['active','additive','candidate'].includes(doc.basisState)&&!semanticReferenceCandidate) || (!/csv/i.test(doc.mediaType + ' ' + doc.sourceFilename)&&!doc.tabularRead)) continue;
     const identity = doc.sourceHashSha256;
     if (hashes.has(identity)) continue;
