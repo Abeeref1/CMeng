@@ -517,12 +517,14 @@ test('J5 fresh blind project set: all 58 pages and Ask CMeng use one project tru
     askChecks++;
 
     const forecastPage:any=moduleForProject(project.projectId,'independent-forecast').data;
-    const forecastAnswer=await engine.ask(project.projectId,user,{question:'What is the current completion forecast?'});
+    const forecastAnswer=await engine.ask(project.projectId,user,{question:'What is the completion forecast?'});
     assert.equal(forecastAnswer.providerStatus,'not_needed','J5 completion answer must stay deterministic: '+project.projectId);
     assert.equal(forecastAnswer.telemetry?.aiInvoked,false,'J5 completion answer must not invoke AI: '+project.projectId);
     const forecastSection=forecastAnswer.sections.find(section=>section.authorityId==='forecast');
-    const forecastRow=forecastSection?.tables.find(table=>table.id==='forecast.position')?.rows[0];
-    assert.equal(forecastRow?.submittedFinish,forecastPage.completionPosition?.submittedFinishIso??null,
+    assert.ok(forecastSection,'J5 completion question must resolve the forecast authority: '+project.projectId);
+    const forecastRow=forecastSection.tables.find(table=>table.id==='forecast.position')?.rows[0];
+    assert.ok(forecastRow,'J5 forecast authority must expose the canonical completion position: '+project.projectId);
+    assert.equal(forecastRow.submittedFinish,forecastPage.completionPosition?.submittedFinishIso??null,
       'J5 Ask/page submitted completion drift: '+project.projectId);
     assert.equal(forecastAnswer.scope.dataDate,dataDate,'J5 completion answer Data Date drift: '+project.projectId);
     assert.equal(forecastAnswer.scope.programmeRevision,authority.currentRevisionId,'J5 completion answer revision drift: '+project.projectId);
