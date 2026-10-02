@@ -12,7 +12,7 @@ import {hseReportPosition} from '../packages/runtime-api/src/hse-report-evidence
 import {weeklyResourceCapacityEvidence} from '../packages/runtime-api/src/canonical-resource-evidence';
 import {withInstalledMeasurements} from '../packages/runtime-api/src/installed-measurements';
 import {GroundedTableSemanticAiResolver} from '../packages/runtime-api/src/evidence-semantic-ai';
-import type {StructuredModel} from '../packages/project-ask/src/provider';
+import type {StructuredModel,AskModel} from '../packages/project-ask/src/provider';
 import {scheduleAuthorityReview} from '../packages/runtime-api/src/schedule-authority';
 import {projectDataDate} from '../packages/runtime-api/src/canonical-time-claims';
 import {reportingData} from '../packages/runtime-api/src/reporting-contract';
@@ -453,8 +453,9 @@ test('J5 fresh blind project set: all 58 pages and Ask CMeng use one project tru
   const store=new RuntimeProjectStore({dataDir:dir,durable:false});
   const user:AskSession={userId:'j5-blind-reader',workspaceId:'cmeng-projects',name:null,title:'Project Controls',company:null,allowModel:true};
   let modelCalls=0;
-  const model:StructuredModel={
-    structured:async()=>{modelCalls++;throw new Error('J5 deterministic truth question invoked paid AI');},
+  const model:AskModel={
+    plan:async()=>{modelCalls++;throw new Error('J5 deterministic truth question invoked paid AI planning');},
+    explain:async()=>{modelCalls++;throw new Error('J5 deterministic truth question invoked paid AI explanation');},
   };
   const basePopulationKeys=['schedule_actual_events','source_records','execution_control','milestones','duration_weighted_progress','relationships','revisions'] as const;
   let pageChecks=0,askChecks=0;
