@@ -114,10 +114,18 @@ test('J2 fresh blind project set: mixed workbooks route each sheet by content an
     for(const type of semanticTypes)assert.ok(routedTypes.includes(type),'sheet meaning did not reach sourceTables: '+project.projectId+' '+type);
 
     const expected=project.truth;
-    if((expected.payments??0)>0)assert.ok(state.controls.invoices.length>0,'payment sheet did not reach existing payment controls: '+project.projectId);
-    if((expected.variations??0)>0)assert.ok(state.controls.variations.length>0,'variation sheet did not reach existing variation controls: '+project.projectId);
-    if((expected.risks??0)>0)assert.ok(state.controls.risks.length>0,'risk sheet did not reach existing risk controls: '+project.projectId);
-    if((expected.quality??0)>0)assert.ok(state.controls.ncrs.length>0,'quality sheet did not reach existing quality controls: '+project.projectId);
+    const derived=state.derivedControlsByDocument[workbook.documentId]??{};
+    const context=()=>JSON.stringify({semanticTypes,derivedKeys:Object.keys(derived),
+      counts:{payments:state.controls.invoices.length,variations:state.controls.variations.length,risks:state.controls.risks.length,quality:state.controls.ncrs.length}});
+    if((expected.payments??0)>0)assert.ok(state.controls.invoices.length>0,'payment sheet did not reach existing payment controls: '+project.projectId+' '+context());
+    if((expected.variations??0)>0)assert.ok(state.controls.variations.length>0,'variation sheet did not reach existing variation controls: '+project.projectId+' '+context());
+    if((expected.risks??0)>0)assert.ok(state.controls.risks.length>0,'risk sheet did not reach existing risk controls: '+project.projectId+' '+context());
+    if((expected.quality??0)>0)assert.ok(state.controls.ncrs.length>0,'quality sheet did not reach existing quality controls: '+project.projectId+' '+context());
+    const sheetDerived=[...state.controls.invoices,...state.controls.variations,...state.controls.risks,...state.controls.ncrs]
+      .filter(row=>row.sourceRefs.some(ref=>ref.startsWith('evidence-document:'+workbook.documentId)));
+    assert.ok(sheetDerived.length>0,'mixed workbook produced no traceable control rows: '+project.projectId+' '+context());
+    assert.ok(sheetDerived.every(row=>row.sourceRefs.filter(ref=>ref.startsWith('evidence-document:'+workbook.documentId)).every(ref=>ref.includes(':sheet:'))),
+      'mixed workbook control provenance must include worksheet: '+project.projectId+' '+JSON.stringify(sheetDerived.map(row=>row.sourceRefs)));
 
     const counts={payments:state.controls.invoices.length,variations:state.controls.variations.length,risks:state.controls.risks.length,quality:state.controls.ncrs.length};
     beforeRestart.set(project.projectId,{types:semanticTypes,counts});
