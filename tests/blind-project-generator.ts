@@ -554,8 +554,8 @@ const deliveryFeatureKinds:DeliveryFeatureBlindKind[]=[
 ];
 function deliveryFeatureTable(h:ReturnType<typeof helpers>,kind:DeliveryFeatureBlindKind,dataDate:string,currency:string,index:number){
   const past=(n=0)=>shiftDate(dataDate,-h.int(1+n,30+n)),future=(n=0)=>shiftDate(dataDate,h.int(5+n,60+n));
-  if(kind==='package')return {headers:['Package ID','Description','Required On Site','Forecast Delivery','Status','Linked Activity','Package Value','Currency'],
-    rows:[['PK-'+h.int(100,999),'Transformer package',future(),future(10),'Ordered','1000',String(h.int(100000,900000)),currency]]};
+  if(kind==='package')return {headers:['Package ID','Description','Required On Site','Forecast Delivery','Status','Linked Activity','Package Value','Currency','Unit','Ordered Quantity','Ordered Date','Delivered Quantity','Delivered Date','Accepted Quantity','Accepted Date'],
+    rows:[['PK-'+h.int(100,999),'Transformer package',future(),future(10),'Ordered','1000',String(h.int(100000,900000)),currency,'No.','10',past(20),'8',past(5),'7',past(2)]]};
   if(kind==='supplier')return {headers:['Supplier ID','Description','Status','Owner'],rows:[['SUP-'+h.int(100,999),'Specialist supplier','Active','Procurement']]};
   if(kind==='submittal')return {headers:['Submittal ID','Description','Submitted Date','Approval Date','Status','Linked Activity'],
     rows:[['SUB-'+h.int(100,999),'Technical submittal',past(20),index%2?past():'',index%2?'Approved':'Under Review','1000']]};
@@ -620,12 +620,17 @@ export async function generateDeliveryFeatureBlindProject(seed:string,index=0):P
       bytes:csv([['Item No','Description','Unit','Quantity','Rate','Amount','Currency'],['B1','Concrete','m3','100','10','1000',currency],['B2','Equipment','No.','10','5000','50000',currency]],','),
       kind:'csv',domain:'boq',truth:{rows:2,scenario:'complete',facts:{}}},
     {filename:'installed_'+h.int(10,999)+'.csv',mediaType:'text/csv',
-      bytes:csv([['Measurement Date','Item No','Cumulative Installed Qty','Unit'],[shiftDate(dataDateIso,-3),'B1',String(20+h.int(0,20)),'m3']],','),
-      kind:'csv',domain:'measurements',truth:{rows:1,scenario:'complete',facts:{}}},
+      bytes:csv([['Measurement Date','Item No','Cumulative Installed Qty','Unit'],
+        [shiftDate(dataDateIso,-3),'B1',String(20+h.int(0,20)),'m3'],
+        [shiftDate(dataDateIso,-2),'B2',String(3+h.int(0,3)),'No.']],','),
+      kind:'csv',domain:'measurements',truth:{rows:2,scenario:'complete',facts:{}}},
     {filename:h.pick(['delivery_controls','site_records','monthly_delivery','سجل_التسليم'])+'_'+h.int(100,999)+'.xlsx',
       mediaType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       bytes:await deliveryFeatureWorkbookBytes(h,projectName,dataDateIso,currency,index),kind:'xlsx',domain:'delivery_features',
       truth:{rows:deliveryFeatureKinds.length+3,scenario:'complete',facts:{kinds:deliveryFeatureKinds}}},
+    shuffledCsvDocument(h,'Delivery_Risk_Register_'+h.int(10,999)+'.csv','risks',
+      ['Risk ID','Description','Probability','Impact','Rating','Owner','Due Date','Status','Status As Of','Linked Activity'],
+      [['R-DEL-'+h.int(10,999),'Delivery access and coordination risk','Medium','High','High','Project Manager',shiftDate(dataDateIso,20),'Open',dataDateIso,'1000']]),
   ];
   return {seed,projectId,projectName,dataDateIso,currency,language,documents:h.shuffle(docs),expectedKinds:[...deliveryFeatureKinds]};
 }
