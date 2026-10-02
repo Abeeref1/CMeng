@@ -5420,7 +5420,7 @@ export class RuntimeProjectStore {
     if(!revision||!document)throw new Error('SCHEDULE_DOCUMENT_NOT_FOUND');
     if(revision.sourceHashSha256!==document.sourceHashSha256)throw new Error('SCHEDULE_SOURCE_HASH_MISMATCH');
     if(isScenarioRevision(revision))throw new Error('DRAFT_OR_SCENARIO_CANNOT_BECOME_CURRENT');
-    if(revision.roleConfirmed&&['baseline','revised_baseline'].includes(revision.role)&&!revision.approvalReference?.trim())throw new Error('BASELINE_APPROVAL_REFERENCE_REQUIRED');
+    if(['baseline','revised_baseline'].includes(revision.role)&&!revision.approvalReference?.trim())throw new Error('BASELINE_APPROVAL_REFERENCE_REQUIRED');
     if(!revision.revision.model.dataDateIso)throw new Error('SCHEDULE_DATA_DATE_REQUIRED');
     if(revision.role==='other'){revision.role='update';document.scheduleRole='update';document.documentType='schedule_update';}
     if(!['baseline','update','revised_baseline'].includes(revision.role))throw new Error('SCHEDULE_ROLE_REQUIRES_REVIEW');
@@ -5453,7 +5453,7 @@ export class RuntimeProjectStore {
         EvidenceUploadIntent;
     },
   ): Promise<ScheduleUploadSummary> {
-    if(input.roleConfirmed&&['baseline','revised_baseline'].includes(String(input.role))&&input.uploadIntent==='replace_current_basis'&&!input.approvalReference?.trim())throw new Error('BASELINE_APPROVAL_REFERENCE_REQUIRED');
+    if(['baseline','revised_baseline'].includes(scheduleRole(input.role))&&input.uploadIntent==='replace_current_basis'&&!input.approvalReference?.trim())throw new Error('BASELINE_APPROVAL_REFERENCE_REQUIRED');
     const parent=this.getOrCreate(input.projectId);
     const state=input.phaseId?phaseProgrammeState(parent,input.phaseId,true):parent;
     const hash =

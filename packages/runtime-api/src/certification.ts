@@ -1459,7 +1459,7 @@ export function certifyCrossModuleConsistency(
   const adoption=scheduleDocument?.scheduleAdoption;
   checks.push({checkId:'CURRENT_PROGRAMME_ADOPTION_AUTHORITY',
     state:!scheduleBasis?.activeArtifactId?'not_applicable':selectedSchedule&&!isScenarioRevision(selectedSchedule)&&scheduleDocument?.basisState==='active'&&scheduleDocument.linkedArtifactId===selectedSchedule.revision.revisionId&&selectedSchedule.sourceHashSha256===scheduleDocument.sourceHashSha256&&adoption?.sourceHashSha256===scheduleDocument.sourceHashSha256?'pass':'fail',
-    detail:'The active programme must exclude drafts/scenarios and retain an explicit decision or disclosed pre-upgrade source selection. A later data date is not an adoption decision.',
+    detail:'The active analytical programme must exclude drafts/scenarios and retain a governed source decision: explicit selection, migrated retained selection, or a later ordinary submitted update. Submitted-update authority does not imply baseline or contractual approval.',
     values:[{source:'current-programme-all-schedule-consumers',value:{revisionId:scheduleBasis?.activeArtifactId??null,method:adoption?.method??null}}]});
   const boqSelection=resolveBoqSource(state,state.quantities?.scheduleRevisionId??'').selection;
   const candidateBoq=boqSelection.state==='candidate'&&!boqSelection.adoptedSource;
