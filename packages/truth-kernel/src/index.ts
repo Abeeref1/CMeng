@@ -15,11 +15,27 @@ export interface SourceReceipt {
   documentId: string; sourceHash: string; revision: string; locator: string;
   basisState: string; authority: 'source_record' | 'source_approved' | 'engineer_determination';
 }
+export interface EvidenceSemanticColumnMeaning {
+  columnIndex:number;
+  rawHeader:string;
+  meaning:string;
+  confidence:number;
+  source:'ai_grounded';
+}
+export interface EvidenceTableSemantic {
+  documentType:string;
+  category:string;
+  confidence:number;
+  method:'tabular_content'|'ai_grounded';
+  signals:string[];
+  columnMeanings?:EvidenceSemanticColumnMeaning[];
+}
 export interface EvidenceDocument {
   documentId: string; sourceHashSha256: string; storedPath: string;
   sourceFilename: string; mediaType: string; basisState: string;
   linkedArtifactId: string | null; uploadedAt: string; familyKey?: string; documentType?: string;
-  tabularRead?: {producerVersion:string;sourceHashSha256:string;sheets:Array<{name:string;rows:string[][];intelligence?:EvidenceTableIntelligence;semantic?:{documentType:string;category:string;confidence:number;method:'tabular_content';signals:string[]}}>} | undefined;
+  tabularRead?: {producerVersion:string;sourceHashSha256:string;sheets:Array<{name:string;rows:string[][];intelligence?:EvidenceTableIntelligence;semantic?:EvidenceTableSemantic}>} | undefined;
+  csvSemantic?:EvidenceTableSemantic;
   tableConfirmations?: EvidenceColumnConfirmation[] | undefined;
 }
 export interface SourceRow { cells: Readonly<Record<string, string>>; receipt: SourceReceipt }
@@ -339,8 +355,8 @@ export interface TableSemanticRoute {
   basis:string[];
 }
 
-type SemanticSchema={documentType:string;category:string;required:string[][];optional:string[]};
-const semanticSchemas:readonly SemanticSchema[]=[
+export interface TableSemanticSchema {documentType:string;category:string;required:string[][];optional:string[]}
+export const tableSemanticSchemas:readonly TableSemanticSchema[]=[
   {documentType:'payment_certificates',category:'boq_cost',required:[['certificate no'],['net certified','gross work','paid amount','retention','advance recovery']],optional:['period end','certificate date','payment date','currency','status']},
   {documentType:'variation_register',category:'boq_cost',required:[['variation id'],['approved amount','submitted amount','agreed amount','assessed amount','status']],optional:['approval date','currency','description']},
   {documentType:'retention_register',category:'boq_cost',required:[['retention id','certificate no'],['retention','retention amount','held amount']],optional:['status','currency','payment date']},
@@ -382,7 +398,7 @@ export function inferTableSemanticRoute(
   if(!intelligence.structurallyReadable)return null;
   const raw=input[intelligence.headerRowIndex]??[];
   const confirmed=new Map(confirmations.map(c=>[c.columnIndex,c.meaning] as const));
-  const candidates=semanticSchemas.map(schema=>{
+  const candidates=tableSemanticSchemas.map(schema=>{
     const headers=raw.map((value,index)=>canonicalHeader(confirmed.get(index)??value,schema.documentType));
     const keys=new Set(headers);
     const groupHit=(group:string[])=>group.some(field=>keys.has(canonicalHeader(field,schema.documentType)));
@@ -406,11 +422,14 @@ export function prepareEvidenceRows(
   input:readonly string[][],
   documentType='',
   confirmations:readonly EvidenceColumnConfirmation[]=[],
+  semanticMeanings:readonly EvidenceSemanticColumnMeaning[]=[],
 ){
   const intelligence=analyzeEvidenceTable(input,confirmations);
-  const confirmationByColumn=new Map(confirmations.map(item=>[item.columnIndex,item.meaning] as const));
+  const meaningByColumn=new Map<number,string>();
+  for(const item of semanticMeanings)meaningByColumn.set(item.columnIndex,item.meaning);
+  for(const item of confirmations)meaningByColumn.set(item.columnIndex,item.meaning);
   const scoped=input.slice(intelligence.headerRowIndex).map((row,index)=>index===0
-    ?row.map((value,columnIndex)=>confirmationByColumn.get(columnIndex)??value)
+    ?row.map((value,columnIndex)=>meaningByColumn.get(columnIndex)??value)
     :[...row]);
   const prepared=prepareRegisterRows(scoped,documentType);
   return {
@@ -432,19 +451,19 @@ export function sourceTables(documents: readonly EvidenceDocument[], diagnostics
     try {
       const stat = statSync(doc.storedPath);
       const confirmationFingerprint=createHash('sha256').update(JSON.stringify(doc.tableConfirmations??[])).digest('hex').slice(0,16);
-      const semanticFingerprint=createHash('sha256').update(JSON.stringify(doc.tabularRead?.sheets.map(sheet=>('semantic' in sheet?sheet.semantic:null))??[])).digest('hex').slice(0,16);
+      const semanticFingerprint=createHash('sha256').update(JSON.stringify([doc.csvSemantic??null,...(doc.tabularRead?.sheets.map(sheet=>('semantic' in sheet?sheet.semantic:null))??[])])).digest('hex').slice(0,16);
       const key = [doc.documentId, identity, doc.documentType, doc.tabularRead?.producerVersion, semanticFingerprint, doc.basisState, doc.linkedArtifactId, confirmationFingerprint, doc.storedPath, stat.size, stat.mtimeMs, stat.ctimeMs].join(':');
       const cached = tableCache.get(key); if (cached) { result.push(cached); continue; }
       const bytes = readFileSync(doc.storedPath);
       if (createHash('sha256').update(bytes).digest('hex') !== identity) { diagnostics.push('SOURCE_HASH_MISMATCH:' + doc.documentId); continue; }
       const encoding = bytes[0] === 0xff && bytes[1] === 0xfe ? 'utf16le' : 'utf8';
-      const sheets=doc.tabularRead?.sourceHashSha256===identity?doc.tabularRead.sheets:[{name:'CSV',rows:csv(bytes.toString(encoding))}];
+      const sheets=doc.tabularRead?.sourceHashSha256===identity?doc.tabularRead.sheets:[{name:'CSV',rows:csv(bytes.toString(encoding)),...(doc.csvSemantic?{semantic:doc.csvSemantic}:{})}];
       for(const sheet of sheets){
         const confirmations=(doc.tableConfirmations??[]).filter(c=>c.sheetName===sheet.name);
         const storedSemantic=('semantic' in sheet&&sheet.semantic?.documentType)?sheet.semantic:undefined;
         const inferred=storedSemantic?null:inferTableSemanticRoute(sheet.rows,doc.documentType,confirmations);
         const semanticType=storedSemantic?.documentType??inferred?.documentType??doc.documentType;
-        const prepared=prepareEvidenceRows(sheet.rows,semanticType,confirmations),{headers,rows,intelligence}=prepared;
+        const prepared=prepareEvidenceRows(sheet.rows,semanticType,confirmations,storedSemantic?.columnMeanings??[]),{headers,rows,intelligence}=prepared;
         const effectiveDocument=(storedSemantic||inferred)
           ?({...doc,documentType:semanticType} as EvidenceDocument)
           :doc;
