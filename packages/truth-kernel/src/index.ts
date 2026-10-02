@@ -412,7 +412,7 @@ const tableCache = new Map<string, SourceTable>();
 export function sourceTables(documents: readonly EvidenceDocument[], diagnostics: string[], options: {includeHistorical?: boolean} = {}): SourceTable[] {
   const result: SourceTable[] = [], hashes = new Set<string>();
   for (const doc of [...documents].sort((a,b)=>Number(b.basisState!=='candidate')-Number(a.basisState!=='candidate'))) {
-    const semanticReferenceCandidate=doc.basisState==='historical'&&['supporting_document','mixed_control_workbook'].includes(doc.documentType)&&(/csv/i.test(doc.mediaType+' '+doc.sourceFilename)||Boolean(doc.tabularRead));
+    const semanticReferenceCandidate=doc.basisState==='historical'&&['supporting_document','mixed_register_workbook'].includes(doc.documentType)&&(/csv/i.test(doc.mediaType+' '+doc.sourceFilename)||Boolean(doc.tabularRead));
     if ((!options.includeHistorical && !['active','additive','candidate'].includes(doc.basisState)&&!semanticReferenceCandidate) || (!/csv/i.test(doc.mediaType + ' ' + doc.sourceFilename)&&!doc.tabularRead)) continue;
     const identity = doc.sourceHashSha256;
     if (hashes.has(identity)) continue;
@@ -429,11 +429,14 @@ export function sourceTables(documents: readonly EvidenceDocument[], diagnostics
       const sheets=doc.tabularRead?.sourceHashSha256===identity?doc.tabularRead.sheets:[{name:'CSV',rows:csv(bytes.toString(encoding))}];
       for(const sheet of sheets){
         const confirmations=(doc.tableConfirmations??[]).filter(c=>c.sheetName===sheet.name);
-        const semanticType=('semantic' in sheet&&sheet.semantic?.documentType)||doc.documentType;
+        const storedSemantic=('semantic' in sheet&&sheet.semantic?.documentType)?sheet.semantic:undefined;
+        const inferred=storedSemantic?null:inferTableSemanticRoute(sheet.rows,doc.documentType,confirmations);
+        const semanticType=storedSemantic?.documentType??inferred?.documentType??doc.documentType;
         const prepared=prepareEvidenceRows(sheet.rows,semanticType,confirmations),{headers,rows,intelligence}=prepared;
-        const effectiveDocument=('semantic' in sheet&&sheet.semantic?.documentType)
-          ?({...doc,documentType:sheet.semantic.documentType} as EvidenceDocument)
+        const effectiveDocument=(storedSemantic||inferred)
+          ?({...doc,documentType:semanticType} as EvidenceDocument)
           :doc;
+        if(inferred&&inferred.documentType!==doc.documentType)diagnostics.push('TABLE_SEMANTIC_ROUTE:'+doc.documentId+':'+sheet.name+':'+doc.documentType+'->'+inferred.documentType);
         const absoluteHeaderRow=prepared.headerRow;
         if(!headers.length){diagnostics.push('TABLE_HEADERS_MISSING:'+doc.documentId+':'+sheet.name);continue;}
         if(rows.some(row=>row.length!==headers.length)){diagnostics.push('CSV_ROW_WIDTH_MISMATCH:'+doc.documentId);continue;}
