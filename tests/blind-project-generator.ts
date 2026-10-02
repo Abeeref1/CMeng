@@ -554,11 +554,11 @@ const deliveryFeatureKinds:DeliveryFeatureBlindKind[]=[
 ];
 function deliveryFeatureTable(h:ReturnType<typeof helpers>,kind:DeliveryFeatureBlindKind,dataDate:string,currency:string,index:number){
   const past=(n=0)=>shiftDate(dataDate,-h.int(1+n,30+n)),future=(n=0)=>shiftDate(dataDate,h.int(5+n,60+n));
-  if(kind==='package')return {headers:['Package ID','Description','Required On Site','Forecast Delivery','Status','Linked Activity','Package Value','Currency','Unit','Ordered Quantity','Ordered Date','Delivered Quantity','Delivered Date','Accepted Quantity','Accepted Date'],
-    rows:[['PK-'+h.int(100,999),'Transformer package',future(),future(10),'Ordered','1000',String(h.int(100000,900000)),currency,'No.','10',past(20),'8',past(5),'7',past(2)]]};
+  if(kind==='package')return {headers:['Package ID','Description','Required On Site','Forecast Delivery','Status','Linked Activity','Package Value','Currency','Unit','Ordered Quantity','Ordered Date','Delivered Quantity','Delivered Date','Accepted Quantity','Accepted Date','PO Planned Date','PO Forecast Date','PO Actual Date','Delivery Planned Date','Delivery Forecast Date','Delivery Actual Date'],
+    rows:[['PK-'+h.int(100,999),'Transformer package',future(),future(10),'Ordered','1000',String(h.int(100000,900000)),currency,'No.','10',past(20),'8',past(5),'7',past(2),past(40),past(35),past(30),past(12),past(8),past(5)]]};
   if(kind==='supplier')return {headers:['Supplier ID','Description','Status','Owner'],rows:[['SUP-'+h.int(100,999),'Specialist supplier','Active','Procurement']]};
-  if(kind==='submittal')return {headers:['Submittal ID','Description','Submitted Date','Approval Date','Status','Linked Activity'],
-    rows:[['SUB-'+h.int(100,999),'Technical submittal',past(20),index%2?past():'',index%2?'Approved':'Under Review','1000']]};
+  if(kind==='submittal')return {headers:['Submittal ID','Description','Submitted Date','Actual Submission Date','Approval Date','Status','Linked Activity'],
+    rows:[['SUB-'+h.int(100,999),'Technical submittal',past(20),past(20),index%2?past():'',index%2?'Approved':'Under Review','1000']]};
   if(kind==='design')return {headers:['RFI ID','Description','Raised Date','Required Response','Response Date','Status','Linked Activity'],
     rows:[['RFI-'+h.int(100,999),'Design coordination query',past(20),past(5),index%3?past():'',index%3?'Closed':'Open','1000']]};
   if(kind==='workfront')return {headers:['Workfront ID','Description','Discipline','Status','Owner','Linked Activity'],
