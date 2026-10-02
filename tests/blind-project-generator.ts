@@ -774,6 +774,57 @@ export async function generateDelayFeatureBlindRound(seed:string,count:number){
   const projects:DelayFeatureBlindProject[]=[];for(let i=0;i<count;i++)projects.push(await generateDelayFeatureBlindProject(seed,i));return {seed,projects};
 }
 
+
+export interface ProgressFeatureBlindProject extends BlindProject {}
+export async function generateProgressFeatureBlindProject(seed:string,index=0):Promise<ProgressFeatureBlindProject>{
+  const h=helpers(seed+'::progress-feature::'+index),language=languages[index%languages.length]!,currency=currencies[(index+4)%currencies.length]!;
+  const projectId='BLIND-PRG-'+createHash('sha256').update(seed+'|progress-feature|'+index).digest('hex').slice(0,10).toUpperCase();
+  const projectName=(language==='ar'?h.pick(arabicNames):language==='mixed'?h.pick(englishNames)+' / '+h.pick(arabicNames):h.pick(englishNames))+' '+h.int(100,999);
+  const dataDateIso='2043-'+String(h.int(3,8)).padStart(2,'0')+'-'+String(h.int(10,22)).padStart(2,'0'),activityCount=h.int(60,180);
+  const previous=shiftDate(dataDateIso,-28),earlier=shiftDate(dataDateIso,-56);
+  const docs:BlindDocument[]=[
+    {filename:'Programme_Earlier_'+h.int(10,999)+'.xer',mediaType:'text/plain',bytes:makeXer(h,projectId,projectName,earlier,activityCount,language),kind:'xer',domain:'schedule',truth:{rows:activityCount,scenario:'complete',facts:{dataDateIso:earlier}}},
+    {filename:'Programme_Previous_'+h.int(10,999)+'.xer',mediaType:'text/plain',bytes:makeXer(h,projectId,projectName,previous,activityCount,language),kind:'xer',domain:'schedule',truth:{rows:activityCount,scenario:'complete',facts:{dataDateIso:previous}}},
+    {filename:'Programme_Current_'+h.int(10,999)+'.xer',mediaType:'text/plain',bytes:makeXer(h,projectId,projectName,dataDateIso,activityCount,language),kind:'xer',domain:'schedule',truth:{rows:activityCount,scenario:'complete',facts:{dataDateIso}}},
+  ];
+  const boqRows=[
+    ['B1','Concrete foundations','m3','1000','120','120000',currency],
+    ['B2','Cable installation','m','5000','25','125000',currency],
+    ['B3','Mechanical equipment','No.','20','15000','300000',currency],
+  ];
+  docs.push(shuffledCsvDocument(h,'BOQ_'+h.int(10,999)+'.csv','boq',['Item No','Description','Unit','Quantity','Rate','Amount','Currency'],boqRows));
+  const measuredRows=[
+    [dataDateIso,'B1',String(h.int(250,650)),'m3'],
+    [dataDateIso,'B2',String(h.int(1200,3600)),'m'],
+    [dataDateIso,'B3',String(h.int(4,14)),'No.'],
+    [previous,'B1',String(h.int(100,240)),'m3'],
+    [previous,'B2',String(h.int(500,1100)),'m'],
+  ];
+  docs.push(shuffledCsvDocument(h,'Installed_Quantities_'+h.int(10,999)+'.csv','measurements',['Measurement Date','Item No','Cumulative Installed Qty','Unit'],measuredRows));
+  const resources=[
+    ['R-LAB-1','U-LAB-1','Civil Labour','Yes','Labor','labor_hour'],
+    ['R-LAB-2','U-LAB-2','MEP Labour','Yes','Labor','labor_hour'],
+  ];
+  docs.push(shuffledCsvDocument(h,'Resource_Master_'+h.int(10,999)+'.csv','resources',['Resource ID','Resource UID','Resource Name','Utilization Applicable','Class','Unit'],resources));
+  const weekly:string[][]=[],actual:string[][]=[];
+  for(let w=-6;w<=3;w++){
+    const week=shiftDate(dataDateIso,w*7);
+    for(const [ri,id] of ['R-LAB-1','R-LAB-2'].entries()){
+      const capacity=160+h.int(0,40),planned=120+h.int(0,80),forecast=Math.max(planned,h.int(130,220));
+      weekly.push([id,week,String(capacity),String(planned),String(forecast),'labor_hour','Labor']);
+      if(w<=0)actual.push([id,week,String(Math.max(0,planned+h.int(-25,30))),'Approved','labor_hour']);
+    }
+  }
+  docs.push(shuffledCsvDocument(h,'Weekly_Resource_Capacity_'+h.int(10,999)+'.csv','resources',['Resource ID','Week Start','Available Capacity','Planned Demand','Forecast Demand','Unit','Class'],weekly));
+  docs.push(shuffledCsvDocument(h,'Approved_Resource_Usage_'+h.int(10,999)+'.csv','resources',['Resource ID','Week Start','Actual Approved Usage','Source Status','Unit'],actual));
+  return {seed,projectId,projectName,language,currency,dataDateIso,scenario:'complete',documents:h.shuffle(docs),
+    truth:{scheduleActivities:activityCount,payments:null,variations:null,risks:null,claims:null,procurement:null,quality:null,
+      expectedDomains:['schedule','boq','measurements','resources']}};
+}
+export async function generateProgressFeatureBlindRound(seed:string,count:number){
+  const projects:ProgressFeatureBlindProject[]=[];for(let i=0;i<count;i++)projects.push(await generateProgressFeatureBlindProject(seed,i));return {seed,projects};
+}
+
 export function defaultBlindSeed(){
   // Acceptance cohorts are generated only after the code under test has been fixed.
   // The seed is intentionally unknowable before execution; it is printed by each blind test
