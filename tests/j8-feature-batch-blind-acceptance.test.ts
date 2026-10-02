@@ -39,6 +39,19 @@ const pageBatches=[
 
 const roles=['overall','planning','controls','project-director','program-director','executive'] as const;
 const audienceForRole=(role:(typeof roles)[number])=>role==='planning'?'planner':role==='project-director'||role==='program-director'?'director':role==='executive'?'executive':'project';
+const featureProjectionKey:Record<string,string>={
+  'cross-domain-accountability':'cross_domain_accountability',
+  'pmo-analysis':'pmo_analysis','schedule-analytics':'schedule_analytics','activity-analytics':'activity_analytics',
+  'lookahead-schedule':'lookahead_schedule','schedule-change-report':'schedule_change_report','revision-trend':'revision_trend',
+  milestones:'milestones','near-critical':'near_critical','resource-utilization':'resource_utilization','progress-report':'progress_report',
+  'variance-trends':'variance_trends','progress-scurve':'progress_scurve','quantity-scurve':'quantity_scurve',
+  'progress-breakdown':'progress_breakdown','manhour-scurve':'manhour_scurve','forecast-history':'forecast_history',
+  'independent-forecast':'independent_forecast','challenge-contract':'challenge_contract','recovery-acceleration':'recovery_acceleration',
+  'delay-claims':'delay_claims','notices-claims':'notices_claims','windows-analysis':'windows_analysis','eot-assessment':'eot_assessment',
+  'commercial-overview':'commercial_overview','cost-forecast':'cost_forecast','variations-change':'variations_change',
+  payments:'payments','cash-flow':'cash_flow','commercial-claims-notices':'commercial_claims_notices',
+  'contract-particulars-bonds':'contract_particulars_bonds',
+};
 const batchPages=(keys:readonly string[])=>keys.map(key=>{
   const page=moduleRegistry.find(row=>row.key===key);
   assert.ok(page,'Unknown feature page '+key);
@@ -154,6 +167,40 @@ function assertFeatureSubstance(batchId:string,page:ModuleDescriptor,body:any,pr
   const data=body?.data??body;
   assert.ok(data&&typeof data==='object',batchId+' '+page.key+' has no feature result object for '+projectId);
   assert.ok(materialFeatureLeaves(data)>0,batchId+' '+page.key+' returned an empty feature shell for '+projectId);
+  const expectedProjection=page.area==='delivery'?'delivery':featureProjectionKey[page.key];
+  if(expectedProjection)assert.equal(data.projectionKey,expectedProjection,
+    batchId+' '+page.key+' returned the wrong calculation producer for '+projectId);
+  if(page.area==='delivery'){
+    assert.equal(data.deliveryPage,page.key,batchId+' Delivery payload belongs to a different feature page: '+projectId+' / '+page.key);
+    assert.ok(Array.isArray(data.rows),batchId+' '+page.key+' has no Delivery feature rows for '+projectId);
+    if(page.key==='delivery-control'){
+      assert.ok(Array.isArray(data.readiness),batchId+' Delivery Control lost readiness feature '+projectId);
+      assert.ok(Array.isArray(data.managementActions),batchId+' Delivery Control lost management actions '+projectId);
+    }
+    if(['procurement-scurves','delivery-submittals','material-tracking'].includes(page.key))
+      assert.ok(Array.isArray(data.curves),batchId+' '+page.key+' lost its feature curves '+projectId);
+    if(page.key==='long-lead')assert.ok(Array.isArray(data.scheduleLongLeadCandidates),batchId+' Long Lead lost schedule/WBS candidate analysis '+projectId);
+    if(page.key==='construction-locations')assert.ok(Array.isArray(data.locations),batchId+' Location feature lost governed hierarchy '+projectId);
+    if(page.key==='delivery-hse')assert.ok(data.hsePosition&&typeof data.hsePosition==='object',batchId+' HSE feature lost exposure/rate position '+projectId);
+    if(page.key==='delivery-commissioning')assert.ok(Array.isArray(data.systems),batchId+' Commissioning feature lost system analysis '+projectId);
+    if(page.key==='delivery-risks')assert.ok(data.riskBasis&&typeof data.riskBasis==='object',batchId+' Delivery Risks lost source authority basis '+projectId);
+    if(page.key==='handover-readiness')assert.ok(data.handover&&typeof data.handover==='object',batchId+' Handover feature lost readiness position '+projectId);
+  }
+  if(page.key==='activity-analytics'||page.key==='milestones'||page.key==='near-critical'||page.key==='resource-utilization'||page.key==='progress-breakdown')
+    assert.ok(Array.isArray(data.rows)&&data.rows.length>0,batchId+' '+page.key+' produced no substantive feature rows '+projectId);
+  if(['revision-trend','variance-trends','progress-scurve','manhour-scurve','forecast-history'].includes(page.key))
+    assert.ok(Array.isArray(data.points)&&data.points.length>0,batchId+' '+page.key+' produced no substantive feature points '+projectId);
+  if(page.key==='lookahead-schedule'){
+    assert.ok(Array.isArray(data.forwardWindowRows)&&Array.isArray(data.overdueBacklogRows),batchId+' Look-Ahead lost forward/backlog separation '+projectId);
+  }
+  if(page.key==='schedule-change-report')assert.ok(Array.isArray(data.changedActivities),batchId+' Programme Changes lost changed-activity population '+projectId);
+  if(page.key==='quantity-scurve')assert.ok(Array.isArray(data.series)&&data.series.length>0,batchId+' Installed Quantities produced no unit series '+projectId);
+  if(page.key==='progress-report')assert.ok(data.progress&&data.forecast,batchId+' Progress Status lost progress/forecast separation '+projectId);
+  if(page.key==='independent-forecast')assert.ok(typeof data.calculatedActivityCount==='number'&&data.calculatedActivityCount>0,batchId+' Completion Forecast calculated no activities '+projectId);
+  if(page.key==='delay-claims')assert.ok(Array.isArray(data.events)&&data.events.length>0,batchId+' Delay Event Register produced no event assessments '+projectId);
+  if(page.key==='notices-claims')assert.ok(Array.isArray(data.events)&&Array.isArray(data.claims),batchId+' Notice Compliance lost event/claim populations '+projectId);
+  if(page.key==='windows-analysis')assert.ok(Array.isArray(data.windows)&&data.windows.length>0,batchId+' Delay Windows produced no real windows '+projectId);
+  if(page.key==='eot-assessment')assert.ok(Array.isArray(data.windowCandidates),batchId+' EOT Assessment lost window candidates '+projectId);
   const availability=data.featureAvailability;
   if(availability)assert.ok(!['blocked','not_applicable'].includes(availability.state),
     batchId+' '+page.key+' has no usable feature basis for '+projectId+': '+availability.reason);
