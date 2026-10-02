@@ -6035,6 +6035,7 @@ export class RuntimeProjectStore {
         DocumentAssertion[];
       uploadIntent?:
         EvidenceUploadIntent;
+      allowSemanticAi?:boolean;
     },
   ): Promise<ContractDocumentResult> {
     const name =
@@ -6087,21 +6088,34 @@ export class RuntimeProjectStore {
         })
       ).identification;
 
-    const parsed = isPdf
-      ? await parseContractPdf(
-          input.bytes,
-          {
-            ...(process.env.CMENG_OCR_ENABLED?.trim()==='0'?{}:{ocrProvider:this.createOcrProvider()}),
-          },
-        )
-      : await parseContractDocx(
-          input.bytes,
-        );
-
     const state =
       this.getOrCreate(
         input.projectId,
       );
+    const hash =
+      hashBytes(input.bytes);
+    const priorSameSource=
+      state.contractDocuments.find(
+        item=>item.sourceHashSha256===hash,
+      )?.result ?? null;
+    const aiResolver=input.allowSemanticAi
+      ?(this.contractAiResolver??configuredContractHeadingAiResolver())
+      :null;
+    const parsed = priorSameSource ??
+      (isPdf
+        ? await parseContractPdf(
+            input.bytes,
+            {
+              ...(process.env.CMENG_OCR_ENABLED?.trim()==='0'?{}:{ocrProvider:this.createOcrProvider()}),
+              ...(aiResolver?{aiResolver}:{}),
+            },
+          )
+        : await parseContractDocx(
+            input.bytes,
+            {
+              ...(aiResolver?{aiResolver}:{}),
+            },
+          ));
     const assertions =
       input.assertions ??
       [];
@@ -6126,8 +6140,6 @@ export class RuntimeProjectStore {
         existingDocuments:
           state.evidenceDocuments,
       });
-    const hash =
-      hashBytes(input.bytes);
     const role =
       input.role ?? "other";
     const documentId =
