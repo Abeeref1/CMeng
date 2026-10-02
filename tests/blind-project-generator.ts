@@ -271,6 +271,26 @@ export async function generateBlindRound(seed:string,count:number){
   return {seed,projects};
 }
 
+export interface StorageBlindProject extends BlindProject {
+  storageActivityCount:number;
+}
+export async function generateStorageBlindProject(seed:string,index=0):Promise<StorageBlindProject>{
+  const project=await generateBlindProject(seed,index);
+  const h=helpers(seed+'::storage::'+index);
+  const storageActivityCount=h.int(250,1500);
+  const schedule=project.documents.find(document=>document.domain==='schedule');
+  if(!schedule)throw new Error('STORAGE_BLIND_SCHEDULE_REQUIRED');
+  schedule.bytes=makeXer(h,project.projectId,project.projectName,project.dataDateIso,storageActivityCount,project.language);
+  schedule.truth={...schedule.truth,rows:storageActivityCount,facts:{...schedule.truth.facts,activityCount:storageActivityCount}};
+  project.truth.scheduleActivities=storageActivityCount;
+  return {...project,storageActivityCount};
+}
+export async function generateStorageBlindRound(seed:string,count:number){
+  const projects:StorageBlindProject[]=[];
+  for(let i=0;i<count;i++)projects.push(await generateStorageBlindProject(seed,i));
+  return {seed,projects};
+}
+
 const mixedHeaders:Record<string,string[]>={
   payments:['Certificate No','Period End','Net Certified','Paid Amount','Retention','Currency','Status'],
   variations:['Variation ID','Description','Approved Amount','Period End','Status','Currency'],
