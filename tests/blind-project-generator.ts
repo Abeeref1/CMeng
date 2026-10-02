@@ -825,6 +825,82 @@ export async function generateProgressFeatureBlindRound(seed:string,count:number
   const projects:ProgressFeatureBlindProject[]=[];for(let i=0;i<count;i++)projects.push(await generateProgressFeatureBlindProject(seed,i));return {seed,projects};
 }
 
+
+export interface ForecastFeatureTruthItem {
+  itemNumber:string;description:string;unit:string;quantity:number;installed:number;activityId:string;laborHoursPerUnit:number;
+}
+export interface ForecastFeatureBlindProject extends BlindProject {
+  featureTruth:{items:ForecastFeatureTruthItem[]};
+}
+function p6FiveDayCalendarData(){
+  const shifts=[['08:00','12:00'],['13:00','17:00']] as const;
+  const intervals=shifts.map(([s,e],i)=>'(0||'+i+'(s|'+s+'|f|'+e+')())').join('');
+  const days=[1,2,3,4,5,6,7].map(d=>'(0||'+d+'()('+(d>=2&&d<=6?intervals:'')+'))').join('');
+  return '(0||CalendarData()((0||DaysOfWeek()('+days+'))(0||Exceptions()())))'.replaceAll('(0||','\x7f\x7f  (0||');
+}
+function makeForecastResourceXer(h:ReturnType<typeof helpers>,projectId:string,projectName:string,dataDate:string,revision:number,language:BlindLanguage){
+  const calendar=p6FiveDayCalendarData(),wbsName=language==='ar'?'الأعمال الرئيسية':'Main Works';
+  const lines=[
+    'ERMHDR\t23.12','%T\tPROJECT','%F\tproj_id\tproj_short_name\tlast_recalc_date','%R\t1\t'+projectId+'\t'+dataDate+' 08:00',
+    '%T\tPROJWBS','%F\twbs_id\tproj_id\tparent_wbs_id\twbs_short_name\twbs_name','%R\t10\t1\t\tROOT\t'+wbsName,
+    '%T\tCALENDAR','%F\tclndr_id\tclndr_name\tday_hr_cnt\tweek_hr_cnt\tclndr_data','%R\tC1\tFive Day 8h\t8\t40\t'+calendar,
+    '%T\tTASK','%F\ttask_id\tproj_id\twbs_id\tclndr_id\ttask_code\ttask_name\ttask_type\tstatus_code\ttarget_start_date\ttarget_end_date\tearly_start_date\tearly_end_date\ttarget_drtn_hr_cnt\tremain_drtn_hr_cnt\ttotal_float_hr_cnt\tphys_complete_pct'
+  ];
+  for(let i=0;i<6;i++){
+    const id=String(1000+i),start=shiftDate(dataDate,-10+i*4),finish=shiftDate(dataDate,25+i*12+revision*2),pct=i===0?40:i===1?20:0;
+    lines.push('%R\t'+id+'\t1\t10\tC1\tWP-'+(i+1)+'\t'+(language==='ar'?'حزمة عمل ':'Work Package ')+(i+1)+'\tTT_Task\t'+(pct?'TK_Active':'TK_NotStart')+'\t'+start+' 08:00\t'+finish+' 17:00\t'+start+' 08:00\t'+finish+' 17:00\t320\t'+(320-Math.round(320*pct/100))+'\t'+(i===0?-16:8+i*8)+'\t'+pct);
+  }
+  lines.push('%T\tTASKPRED','%F\ttask_pred_id\ttask_id\tpred_task_id\tpred_type\tlag_hr_cnt');
+  for(let i=1;i<6;i++)lines.push('%R\t'+(5000+i)+'\t'+(1000+i)+'\t'+(999+i)+'\tPR_FS\t0');
+  lines.push(
+    '%T\tUMEASURE','%F\tunit_id\tunit_name\tunit_abbrev\tseq_num','%R\t500\tHour\thr\t1',
+    '%T\tRSRC','%F\trsrc_id\tparent_rsrc_id\tclndr_id\trsrc_short_name\trsrc_name\trsrc_type\tunit_id\tcost_qty_type',
+    '%R\tR1\t\tC1\tLAB\tGeneral Labour\tRT_Labor\t500\tQT_Hour',
+    '%T\tRSRCRATE','%F\trsrc_rate_id\trsrc_id\tstart_date\tmax_qty_per_hr','%R\t1\tR1\t'+shiftDate(dataDate,-365)+'\t6',
+    '%T\tTASKRSRC','%F\ttaskrsrc_id\tproj_id\ttask_id\trsrc_id\trsrc_type\ttarget_qty\tact_reg_qty\tact_ot_qty\tremain_qty\ttotal_qty\ttarget_qty_per_hr\tremain_qty_per_hr\ttarget_start_date\ttarget_end_date\tact_start_date\tact_end_date\trestart_date\treend_date\ttarget_cost\tact_reg_cost\tact_ot_cost\tremain_cost'
+  );
+  for(let i=0;i<6;i++){
+    const people=2+(i%2),remain=people*240,cost=remain*(45+h.int(0,15)),start=shiftDate(dataDate,-10+i*4),finish=shiftDate(dataDate,25+i*12+revision*2);
+    lines.push('%R\tAR'+i+'\t1\t'+(1000+i)+'\tR1\tRT_Labor\t960\t'+(120+i*20)+'\t0\t'+remain+'\t1080\t3\t'+people+'\t'+start+'\t'+finish+'\t'+start+'\t\t'+dataDate+'\t'+finish+'\t48000\t6000\t0\t'+cost);
+  }
+  lines.push('%E');return Buffer.from(lines.join('\n'));
+}
+export async function generateForecastFeatureBlindProject(seed:string,index=0):Promise<ForecastFeatureBlindProject>{
+  const h=helpers(seed+'::forecast-feature::'+index),language=languages[index%languages.length]!,currency=currencies[(index+5)%currencies.length]!;
+  const projectId='BLIND-FRC-'+createHash('sha256').update(seed+'|forecast-feature|'+index).digest('hex').slice(0,10).toUpperCase();
+  const projectName=(language==='ar'?h.pick(arabicNames):language==='mixed'?h.pick(englishNames)+' / '+h.pick(arabicNames):h.pick(englishNames))+' '+h.int(100,999);
+  const dataDateIso='2044-'+String(h.int(4,8)).padStart(2,'0')+'-'+String(h.int(10,20)).padStart(2,'0');
+  const dates=[shiftDate(dataDateIso,-56),shiftDate(dataDateIso,-28),dataDateIso];
+  const items:ForecastFeatureTruthItem[]=[
+    {itemNumber:'B1',description:'Concrete works',unit:'m3',quantity:1000,installed:220+h.int(0,80),activityId:'1000',laborHoursPerUnit:4},
+    {itemNumber:'B2',description:'Cable installation',unit:'m',quantity:5000,installed:1000+h.int(0,600),activityId:'1001',laborHoursPerUnit:1.5},
+    {itemNumber:'B3',description:'Mechanical equipment',unit:'No.',quantity:20,installed:3+h.int(0,4),activityId:'1002',laborHoursPerUnit:40},
+  ];
+  const docs:BlindDocument[]=dates.map((date,i)=>({filename:'Programme_Update_'+(i+1)+'_'+h.int(10,999)+'.xer',mediaType:'text/plain',
+    bytes:makeForecastResourceXer(h,projectId,projectName,date,i,language),kind:'xer',domain:'schedule',
+    truth:{rows:6,scenario:'complete',facts:{dataDateIso:date,calendar:'C1',resource:'R1'}}}));
+  docs.push(shuffledCsvDocument(h,'BOQ_'+h.int(10,999)+'.csv','boq',['Item No','Description','Unit','Quantity','Rate','Amount','Currency'],
+    items.map(row=>[row.itemNumber,row.description,row.unit,String(row.quantity),'100',String(row.quantity*100),currency])));
+  docs.push(shuffledCsvDocument(h,'Installed_Quantities_'+h.int(10,999)+'.csv','measurements',['Measurement Date','Item No','Cumulative Installed Qty','Unit'],
+    items.map(row=>[dataDateIso,row.itemNumber,String(row.installed),row.unit])));
+  docs.push(shuffledCsvDocument(h,'IF01_Productivity_Work_Package_Register_'+h.int(10,999)+'.csv','productivity',
+    ['Work Package ID','Quantity Item ID','Description','Unit','Activity ID','As Of','Total Quantity','Installed Quantity','Remaining Quantity','Labor Hours Per Unit','Productivity Rate Per Hour','Calendar ID','Interface Allowance Days'],
+    items.map((row,i)=>['WP-'+(i+1),row.itemNumber,row.description,row.unit,row.activityId,dataDateIso,String(row.quantity),String(row.installed),String(row.quantity-row.installed),String(row.laborHoursPerUnit),String(1/row.laborHoursPerUnit),'C1','1'])));
+  const contract=Buffer.from([
+    'MAIN WORKS CONTRACT AGREEMENT','Conditions of Contract.','Contract currency is '+currency+'.',
+    'Accepted Contract Amount is '+currency+' '+h.int(10_000_000,30_000_000)+'.','Contractual completion date: '+shiftDate(dataDateIso,300)+'.',
+    'The Contractor shall give notice within 14 calendar days. Extension of time shall be determined against the accepted programme.',
+    'Variations and change orders require written instruction. Interim payment certificates are issued monthly.',
+    'Delay damages apply per calendar day. Contemporary records shall be maintained for all claims.'
+  ].join('\n'),'utf8');
+  docs.push({filename:'Main_Contract_'+h.int(10,999)+'.txt',mediaType:'text/plain',bytes:contract,kind:'text',domain:'contract',truth:{rows:1,scenario:'complete',facts:{}}});
+  return {seed,projectId,projectName,language,currency,dataDateIso,scenario:'complete',documents:h.shuffle(docs),featureTruth:{items},
+    truth:{scheduleActivities:6,payments:null,variations:null,risks:null,claims:null,procurement:null,quality:null,expectedDomains:['schedule','boq','measurements','productivity','contract']}};
+}
+export async function generateForecastFeatureBlindRound(seed:string,count:number){
+  const projects:ForecastFeatureBlindProject[]=[];for(let i=0;i<count;i++)projects.push(await generateForecastFeatureBlindProject(seed,i));return {seed,projects};
+}
+
 export function defaultBlindSeed(){
   // Acceptance cohorts are generated only after the code under test has been fixed.
   // The seed is intentionally unknowable before execution; it is printed by each blind test
