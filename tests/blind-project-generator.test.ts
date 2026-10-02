@@ -6,7 +6,11 @@ import {join} from 'node:path';
 
 import {RuntimeProjectStore} from '../packages/runtime-api/src/project-state';
 import {sourceTables} from '../packages/truth-kernel/src';
-import {defaultBlindSeed,generateBlindRound,generateMixedWorkbookBlindRound} from './blind-project-generator';
+import {defaultBlindSeed,generateBlindRound,generateMixedWorkbookBlindRound,generateLifecycleMixedWorkbookBlindRound} from './blind-project-generator';
+import {deliveryRecords} from '../packages/runtime-api/src/delivery-records';
+import {hseReportPosition} from '../packages/runtime-api/src/hse-report-evidence';
+import {weeklyResourceCapacityEvidence} from '../packages/runtime-api/src/canonical-resource-evidence';
+import {withInstalledMeasurements} from '../packages/runtime-api/src/installed-measurements';
 
 test('Batch J blind round: fresh generated projects survive real ingestion and shared table intelligence',async t=>{
   const seed=defaultBlindSeed();
@@ -172,6 +176,59 @@ test('J2 fresh blind project set: mixed workbooks route each sheet by content an
     assert.deepEqual({payments:state.controls.invoices.length,variations:state.controls.variations.length,risks:state.controls.risks.length,
       quality:state.controls.ncrs.length,claims:state.controls.delayClaims?.claims.length??0,procurement:restartedProcurement},expected.counts,
       'restart changed routed facts: '+project.projectId);
+  }
+});
+
+test('J2 fresh lifecycle blind project set: mixed source packs reach Delivery, HSE, Resources and installed quantities',async t=>{
+  const seed=defaultBlindSeed()+'::J2-LIFECYCLE-CONTROLS';
+  process.stdout.write('\nCMENG_J2_LIFECYCLE_BLIND_PROJECT_SET_SEED='+seed+'\n');
+  const {projects}=await generateLifecycleMixedWorkbookBlindRound(seed,16);
+  assert.equal(new Set(projects.map(project=>project.projectId)).size,16,'J2 lifecycle blind set requires 16 fresh project identities');
+  const covered=new Set(projects.flatMap(project=>project.expectedDomains));
+  for(const domain of ['interfaces','submittals','assets','commissioning','hse','resources','measurements','evm'])assert.ok(covered.has(domain as any),'J2 lifecycle blind set must cover '+domain);
+  const dir=mkdtempSync(join(tmpdir(),'cmeng-j2-lifecycle-blind-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));
+  const store=new RuntimeProjectStore({dataDir:dir,durable:false});
+
+  for(const project of projects){
+    for(const document of project.documents)await store.ingestEvidenceFile({
+      projectId:project.projectId,sourceFilename:document.filename,sourceRelativePath:document.filename,
+      bytes:document.bytes,mediaType:document.mediaType,uploadedAt:'2038-12-31T00:00:00.000Z',uploadIntent:'add_update',
+    });
+    const state=store.get(project.projectId)!;
+    const workbook=state.evidenceDocuments.find(document=>document.sourceFilename.endsWith('.xlsx'))!;
+    assert.ok(workbook,'lifecycle workbook retained: '+project.projectId);
+    assert.equal(workbook.documentType,'mixed_register_workbook','lifecycle workbook must be governed as mixed registers: '+project.projectId);
+    const diagnostics:string[]=[];
+    const tables=sourceTables([workbook],diagnostics,{includeHistorical:true});
+    const routedTypes=new Set(tables.map(table=>table.document.documentType));
+    for(const type of project.expectedTypes)assert.ok(routedTypes.has(type),
+      'lifecycle sheet did not route by content: '+project.projectId+' expected='+type+' got='+JSON.stringify([...routedTypes])+' diagnostics='+JSON.stringify(diagnostics));
+
+    const delivery=deliveryRecords(state).records.filter(record=>record.receipts.some(receipt=>receipt.documentId===workbook.documentId));
+    if(project.expectedDomains.includes('interfaces'))assert.ok(delivery.some(record=>record.kind==='interface'),'interface sheet did not reach Delivery: '+project.projectId);
+    if(project.expectedDomains.includes('submittals'))assert.ok(delivery.some(record=>record.kind==='submittal'),'submittal sheet did not reach Delivery: '+project.projectId);
+    if(project.expectedDomains.includes('assets'))assert.ok(delivery.some(record=>record.kind==='asset'),'asset sheet did not reach Delivery: '+project.projectId);
+    if(project.expectedDomains.includes('commissioning'))assert.ok(delivery.some(record=>record.kind==='commissioning'),'commissioning sheet did not reach Delivery: '+project.projectId);
+
+    if(project.expectedDomains.includes('hse')){
+      assert.ok(workbook.hseSummary,'HSE sheet did not create the existing HSE summary: '+project.projectId);
+      assert.notEqual(hseReportPosition(state,project.dataDateIso).state,'not_established','HSE sheet did not reach HSE position: '+project.projectId);
+    }
+    if(project.expectedDomains.includes('resources')){
+      const resources=weeklyResourceCapacityEvidence(state.evidenceDocuments,project.dataDateIso);
+      assert.ok(resources.points.length>0,'resource sheet did not reach resource capacity: '+project.projectId+' '+JSON.stringify(resources.diagnostics));
+    }
+    if(project.expectedDomains.includes('measurements')){
+      assert.ok(state.quantities,'measurement blind project must retain its BOQ: '+project.projectId);
+      const measured=withInstalledMeasurements(state,state.quantities,project.dataDateIso);
+      assert.ok(measured?.measurementReview?.sourceRowCount&&measured.measurementReview.sourceRowCount>0,
+        'installed-measurement sheet did not reach quantity progress: '+project.projectId+' '+JSON.stringify(measured?.measurementReview??null));
+    }
+    if(project.expectedDomains.includes('evm')){
+      const evm=tables.find(table=>table.document.documentType==='cost_evm_report');
+      assert.ok(evm&&evm.rows.some(row=>row.cells.metric==='EV')&&evm.rows.some(row=>row.cells.metric==='AC'),
+        'EVM sheet did not retain EV/AC source facts: '+project.projectId);
+    }
   }
 });
 
