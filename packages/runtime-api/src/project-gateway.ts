@@ -141,9 +141,8 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
     // environment, but neither may be spent by an anonymous/browser-forged
     // request. Deterministic Ask remains available when this header is 0.
     let allowPaidModel='0';
-    if(/\/intelligence(?:\/|$)/.test(path)){
-      try{if(externalController().access.identity(req).externalAdmin)allowPaidModel='1';}catch{}
-    }
+    try{if(externalController().access.identity(req).externalAdmin)allowPaidModel='1';}catch{}
+
     const mutation=req.method!=='GET'&&req.method!=='HEAD'&&!/\/intelligence(?:\/|$)/.test(path);
     if(mutation){updating.set(id,(updating.get(id)??0)+1);const e=catalog.get(id);if(e)e.summaryRelease=null;await reads(id).invalidate();}
     const uploadId=String(req.headers['x-upload-id']??'');
