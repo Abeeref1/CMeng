@@ -4,6 +4,7 @@ import {mkdtemp,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import type {AddressInfo} from 'node:net';
+import JSZip from 'jszip';
 
 import {createProjectGateway} from '../packages/runtime-api/src/project-gateway';
 import {moduleRegistry,type ModuleDescriptor} from '../packages/runtime-api/src/registry';
@@ -46,7 +47,7 @@ const batchPages=(keys:readonly string[])=>keys.map(key=>{
 function pagePath(projectId:string,page:ModuleDescriptor){
   return '/api/projects/'+encodeURIComponent(projectId)+(page.area==='management'?'/management/'+page.key:'/'+page.area+'/modules/'+page.key);
 }
-function reportPath(projectId:string,page:ModuleDescriptor,format:'json'|'xlsx',view?:unknown){
+function reportPath(projectId:string,page:ModuleDescriptor,format:'json'|'xlsx'|'pdf'|'docx'|'csv'|'powerbi',view?:unknown){
   const base='/api/projects/'+encodeURIComponent(projectId)+(page.area==='management'?'/management/'+page.key:'/ '+page.area+'/modules/'+page.key).replace('/ ','/')+'/report.'+format;
   return view===undefined?base:base+'?view='+Buffer.from(JSON.stringify(view)).toString('base64url');
 }
@@ -63,6 +64,39 @@ async function requestBytes(base:string,path:string){
   const response=await fetch(base+path),bytes=Buffer.from(await response.arrayBuffer());
   return {status:response.status,headers:response.headers,bytes};
 }
+async function assertBinaryExport(base:string,projectId:string,page:ModuleDescriptor,format:'pdf'|'docx'|'csv'|'powerbi',otherIds:string[]){
+  const exported=await requestBytes(base,reportPath(projectId,page,format));
+  assert.equal(exported.status,200,format.toUpperCase()+' export failed '+projectId+' / '+page.key);
+  const type=exported.headers.get('content-type')??'',disposition=exported.headers.get('content-disposition')??'';
+  assert.ok(exported.bytes.length>500,format.toUpperCase()+' export is empty '+projectId+' / '+page.key);
+  assert.ok(disposition.toLowerCase().includes('attachment'),format.toUpperCase()+' export lacks attachment disposition '+page.key);
+  if(format==='pdf'){
+    assert.ok(type.includes('application/pdf'),'PDF content type wrong '+page.key);
+    assert.equal(exported.bytes.subarray(0,5).toString('ascii'),'%PDF-','PDF signature wrong '+page.key);
+    return;
+  }
+  assert.equal(exported.bytes[0],0x50,format.toUpperCase()+' export is not a ZIP container '+page.key);
+  assert.equal(exported.bytes[1],0x4b,format.toUpperCase()+' export is not a ZIP container '+page.key);
+  const zip=await JSZip.loadAsync(exported.bytes);
+  if(format==='docx'){
+    assert.ok(type.includes('wordprocessingml'),'DOCX content type wrong '+page.key);
+    assert.ok(zip.file('word/document.xml'),'DOCX document.xml missing '+page.key);
+    const xml=await zip.file('word/document.xml')!.async('string');
+    assert.ok(xml.includes(projectId),'DOCX lost project identity '+projectId+' / '+page.key);
+    for(const otherId of otherIds)assert.ok(!xml.includes(otherId),'DOCX cross-project disclosure '+projectId+' / '+page.key+' contains '+otherId);
+    return;
+  }
+  assert.ok(type.includes('application/zip'),format.toUpperCase()+' package content type wrong '+page.key);
+  for(const name of ['analysis.json','project.csv','dataset-schema.json','README.txt'])
+    assert.ok(zip.file(name),format.toUpperCase()+' package missing '+name+' '+page.key);
+  const analysisText=await zip.file('analysis.json')!.async('string'),analysis=JSON.parse(analysisText);
+  assert.equal(analysis.scope?.projectId,projectId,format.toUpperCase()+' package project drift '+page.key);
+  const textEntries=await Promise.all(Object.values(zip.files).filter(entry=>!entry.dir&&/\.(?:json|csv|txt)$/i.test(entry.name)).map(entry=>entry.async('string')));
+  const joined=textEntries.join('\n');
+  assert.ok(joined.includes(projectId),format.toUpperCase()+' package lost project identity '+page.key);
+  for(const otherId of otherIds)assert.ok(!joined.includes(otherId),format.toUpperCase()+' package cross-project disclosure '+projectId+' / '+page.key+' contains '+otherId);
+}
+
 async function createAndUpload(base:string,project:BatchProject,prefix:string){
   const created=await request(base,'/api/projects',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({projectId:project.projectId})});
   assert.equal(created.status,201,project.projectId+' creation failed: '+created.text);
@@ -293,7 +327,7 @@ test('J8 feature-batch manifest covers every registered page exactly once',()=>{
 });
 
 for(const batch of pageBatches){
-  test('J8 '+batch.id+' blind feature certification: each feature is exercised on 10 unseen projects with page/report/filter parity',{timeout:420000},async()=>{
+  test('J8 '+batch.id+' blind feature certification: each feature is exercised on 10 unseen projects with page/report/filter parity',{timeout:900000},async()=>{
     const seed=defaultBlindSeed()+'::J8-'+batch.id+'-FEATURE-CERTIFICATION';
     process.stdout.write('\nCMENG_'+batch.id.replaceAll('-','_')+'_BLIND_SEED='+seed+'\n');
     const projects=await projectsFor(batch.id,seed);
@@ -302,7 +336,7 @@ for(const batch of pageBatches){
     const pages=batchPages(batch.keys),root=await mkdtemp(join(tmpdir(),'cmeng-'+batch.id.toLowerCase()+'-'));
     let gateway=await createProjectGateway(root,{maxWorkers:4}),base=await listen(gateway);
     const activeByPage=new Map(pages.map(page=>[page.key,0]));
-    let pageChecks=0,jsonReports=0,xlsxReports=0,viewReports=0;
+    let pageChecks=0,jsonReports=0,xlsxReports=0,viewReports=0,binaryReports=0;
     try{
       for(const project of projects)await createAndUpload(base,project,batch.id);
       if(batch.id==='F4-FORECAST-RECOVERY')for(const project of projects)await governForecastQuantities(base,project as any);
@@ -369,13 +403,21 @@ for(const batch of pageBatches){
           assert.equal(xlsx.status,200,batch.id+' XLSX report failed '+project.projectId+' / '+page.key);
           assert.ok((xlsx.headers.get('content-type')??'').includes('spreadsheetml'),batch.id+' wrong XLSX content type '+page.key);
           assert.ok(xlsx.bytes.length>1000&&xlsx.bytes[0]===0x50&&xlsx.bytes[1]===0x4b,batch.id+' XLSX output is not a real workbook '+page.key);
-          xlsxReports++;pageChecks++;
+          const xlsxZip=await JSZip.loadAsync(xlsx.bytes);
+          assert.ok(xlsxZip.file('xl/workbook.xml'),batch.id+' XLSX workbook structure missing '+page.key);
+          xlsxReports++;
+          const otherIds=allIds.filter(id=>id!==project.projectId);
+          for(const format of ['pdf','docx','csv','powerbi'] as const){
+            await assertBinaryExport(base,project.projectId,page,format,otherIds);
+            binaryReports++;
+          }
+          pageChecks++;
         }
       }
       for(const page of pages)assert.equal(activeByPage.get(page.key)??0,projects.length,
         batch.id+' '+page.key+' was not substantively exercised on all '+projects.length+' fresh blind projects');
       process.stdout.write('\nCMENG_'+batch.id.replaceAll('-','_')+'_RESULT='+JSON.stringify({
-        projects:projects.length,features:pages.length,pageChecks,jsonReports,viewReports,xlsxReports,
+        projects:projects.length,features:pages.length,pageChecks,jsonReports,viewReports,xlsxReports,binaryReports,
         activeByPage:Object.fromEntries(activeByPage),
       })+'\n');
     }finally{
@@ -385,7 +427,7 @@ for(const batch of pageBatches){
   });
 }
 
-test('J8 F8 platform blind certification: uploads, document lifecycle, Ask, rerun, isolation and restart use 10 new projects',{timeout:420000},async()=>{
+test('J8 F8 platform blind certification: uploads, document lifecycle, Ask, rerun, isolation and restart use 10 new projects',{timeout:900000},async()=>{
   const seed=defaultBlindSeed()+'::J8-F8-PLATFORM-FEATURE-CERTIFICATION';
   process.stdout.write('\nCMENG_F8_PLATFORM_BLIND_SEED='+seed+'\n');
   const projects=await ordinaryProjects(seed);
