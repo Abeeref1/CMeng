@@ -12,6 +12,7 @@ import {
   generateMixedWorkbookBlindRound,
   generateLifecycleMixedWorkbookBlindRound,
   generateScheduleLifecycleBlindRound,
+  generateDeliveryFeatureBlindRound,
   type BlindDocument,
 } from './blind-project-generator';
 
@@ -102,8 +103,93 @@ async function programmeProjects(seed:string):Promise<BatchProject[]>{
 }
 async function projectsFor(batchId:string,seed:string){
   if(batchId==='F2-PROGRAMME-PLANNING'||batchId==='F4-FORECAST-RECOVERY')return programmeProjects(seed);
-  if(batchId==='F3-PROGRESS-RESOURCES'||batchId==='F7-DELIVERY')return lifecycleProjects(seed);
+  if(batchId==='F3-PROGRESS-RESOURCES')return lifecycleProjects(seed);
+  if(batchId==='F7-DELIVERY')return (await generateDeliveryFeatureBlindRound(seed,10)).projects.map(project=>({
+    projectId:project.projectId,dataDateIso:project.dataDateIso,documents:project.documents,
+  }));
   return ordinaryProjects(seed);
+}
+const deliveryKinds=['package','supplier','submittal','design','workfront','interface','quality','permit','hse','commissioning','asset','snag','spare','handover','weather','location','lifecycle','gate'] as const;
+const blankDeliveryLinks=()=>({activityIds:[] as string[],boqItemIds:[] as string[],packageIds:[] as string[],supplierIds:[] as string[],locationIds:[] as string[],assetIds:[] as string[],recordIds:[] as string[],riskIds:[] as string[],claimIds:[] as string[],noticeIds:[] as string[],variationIds:[] as string[],boqAllocations:[] as Array<{boqItemId:string;quantity:number;unit:string}>});
+async function governDeliveryProject(base:string,projectId:string){
+  const endpoint='/api/projects/'+encodeURIComponent(projectId)+'/delivery/records';
+  let listed=await request(base,endpoint+'?limit=100');
+  assert.equal(listed.status,200,'F7 Delivery records unavailable '+projectId);
+  const seenKinds=new Set((listed.body?.rows??[]).map((row:any)=>row.kind));
+  for(const kind of deliveryKinds)assert.ok(seenKinds.has(kind),'F7 blind source did not produce Delivery kind '+kind+' for '+projectId);
+  let version=Number(listed.body?.projectVersion);
+  assert.ok(Number.isInteger(version),'F7 project version missing '+projectId);
+
+  for(const row of listed.body.rows as any[]){
+    const links=blankDeliveryLinks();
+    links.activityIds=(row.links?.activityIds??[]).filter((id:any)=>id==='1000');
+    const verification=String(row.fields?.['verification date']??'').trim();
+    const state=(verification&&['quality','snag','handover'].includes(row.kind))?'verified':'governed';
+    const reviewed=await request(base,endpoint,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({
+      action:'review',expectedVersion:version,recordId:row.recordId,sourceRevision:row.revision,state,
+      note:'Fresh blind feature certification: source row reviewed against retained evidence.',fields:{},links,
+    })});
+    assert.equal(reviewed.status,200,'F7 could not govern '+row.kind+' '+projectId+': '+reviewed.text.slice(0,700));
+    version=Number(reviewed.body?.projectVersion);
+  }
+
+  listed=await request(base,endpoint+'?limit=100');
+  assert.equal(listed.status,200);
+  const rows=listed.body.rows as any[],byKind=new Map<string,any>();
+  for(const row of rows)if(['governed','verified'].includes(row.state)&&!byKind.has(row.kind))byKind.set(row.kind,row);
+  for(const kind of deliveryKinds)assert.ok(byKind.has(kind),'F7 governed Delivery kind missing '+kind+' for '+projectId);
+
+  const packageRow=byKind.get('package'),supplier=byKind.get('supplier'),submittal=byKind.get('submittal'),workfront=byKind.get('workfront'),
+    location=byKind.get('location'),asset=byKind.get('asset'),spare=byKind.get('spare'),handover=byKind.get('handover'),
+    commissioning=byKind.get('commissioning'),lifecycle=byKind.get('lifecycle');
+  const relationshipRows=[
+    [packageRow,{fields:{'lifecycle id':lifecycle.recordId},links:{...blankDeliveryLinks(),activityIds:['1000']}}],
+    [supplier,{fields:{},links:{...blankDeliveryLinks(),packageIds:[packageRow.recordId]}}],
+    [submittal,{fields:{},links:{...blankDeliveryLinks(),activityIds:['1000'],packageIds:[packageRow.recordId]}}],
+    [workfront,{fields:{},links:{...blankDeliveryLinks(),activityIds:['1000'],locationIds:[location.recordId]}}],
+    [spare,{fields:{},links:{...blankDeliveryLinks(),assetIds:[asset.recordId]}}],
+    [handover,{fields:{},links:{...blankDeliveryLinks(),assetIds:[asset.recordId],activityIds:['1000']}}],
+  ] as const;
+  for(const [row,change] of relationshipRows){
+    const reviewed=await request(base,endpoint,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({
+      action:'review',expectedVersion:version,recordId:row.recordId,sourceRevision:row.revision,state:row.state,
+      note:'Fresh blind feature certification: project relationships reconciled after source review.',fields:change.fields,links:change.links,
+    })});
+    assert.equal(reviewed.status,200,'F7 relationship governance failed '+row.kind+' '+projectId+': '+reviewed.text.slice(0,700));
+    version=Number(reviewed.body?.projectVersion);
+  }
+
+  listed=await request(base,endpoint+'?limit=100');version=Number(listed.body?.projectVersion);
+  const refreshed=listed.body.rows as any[],targetByKind=new Map<string,any>();
+  for(const row of refreshed)if(['governed','verified'].includes(row.state)&&!targetByKind.has(row.kind))targetByKind.set(row.kind,row);
+  for(const gate of refreshed.filter((row:any)=>row.kind==='gate')){
+    const ref=String(gate.reference??''),target=ref.startsWith('G-PKG-')?targetByKind.get('package'):
+      ref.startsWith('G-WF-')?targetByKind.get('workfront'):ref.startsWith('G-COM-')?targetByKind.get('commissioning'):targetByKind.get('asset');
+    assert.ok(target,'F7 gate target missing '+ref);
+    const reviewed=await request(base,endpoint,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({
+      action:'review',expectedVersion:version,recordId:gate.recordId,sourceRevision:gate.revision,state:'governed',
+      note:'Fresh blind feature certification: readiness gate linked to governed scope.',fields:{},links:{...blankDeliveryLinks(),recordIds:[target.recordId]},
+    })});
+    assert.equal(reviewed.status,200,'F7 gate governance failed '+ref+' '+projectId+': '+reviewed.text.slice(0,700));
+    version=Number(reviewed.body?.projectVersion);
+  }
+
+  for(const kind of deliveryKinds){
+    const confirmed=await request(base,endpoint,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({
+      action:'confirm_population',expectedVersion:version,kind,note:'Fresh blind feature certification: complete applicable '+kind+' population for this generated source pack.',
+    })});
+    assert.equal(confirmed.status,200,'F7 population confirmation failed '+kind+' '+projectId+': '+confirmed.text.slice(0,700));
+    version=Number(confirmed.body?.projectVersion);
+  }
+  for(const kind of ['package','workfront','commissioning','asset'] as const){
+    const target=targetByKind.get(kind);
+    const confirmed=await request(base,endpoint,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({
+      action:'confirm_population',expectedVersion:version,kind:'gate',scopeId:target.recordId,
+      note:'Fresh blind feature certification: complete readiness-gate population for '+kind+'.',
+    })});
+    assert.equal(confirmed.status,200,'F7 scoped gate population failed '+kind+' '+projectId+': '+confirmed.text.slice(0,700));
+    version=Number(confirmed.body?.projectVersion);
+  }
 }
 
 test('J8 feature-batch manifest covers every registered page exactly once',()=>{
@@ -126,6 +212,7 @@ for(const batch of pageBatches){
     let pageChecks=0,jsonReports=0,xlsxReports=0,viewReports=0;
     try{
       for(const project of projects)await createAndUpload(base,project,batch.id);
+      if(batch.id==='F7-DELIVERY')for(const project of projects)await governDeliveryProject(base,project.projectId);
       const allIds=projects.map(project=>project.projectId);
       for(const [projectIndex,project] of projects.entries()){
         for(const [pageIndex,page] of pages.entries()){
