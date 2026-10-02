@@ -413,6 +413,66 @@ export async function generateLifecycleMixedWorkbookBlindRound(seed:string,count
   return {seed,projects};
 }
 
+
+export type SemanticAiBlindDomain='payments'|'variations'|'risks'|'claims'|'procurement'|'quality';
+export interface SemanticAiBlindProject {
+  seed:string;projectId:string;projectName:string;dataDateIso:string;currency:string;language:BlindLanguage;
+  domain:SemanticAiBlindDomain;expectedDocumentType:string;documents:BlindDocument[];
+}
+const semanticAiType:Record<SemanticAiBlindDomain,string>={
+  payments:'payment_certificates',variations:'variation_register',risks:'risk_register',
+  claims:'delay_eot_claims_register',procurement:'procurement_register',quality:'quality_ncr_register',
+};
+function semanticAiOpaqueTable(h:ReturnType<typeof helpers>,domain:SemanticAiBlindDomain,dataDate:string,currency:string,index:number){
+  let meanings:string[]=[],rows:string[][]=[];
+  if(domain==='payments'){
+    meanings=['certificate no','period end','net certified','paid amount','currency','status'];
+    rows=Array.from({length:3},(_,i)=>['PC-'+h.int(100,999),shiftDate(dataDate,-30*(3-i)),String(1000+(i+1)*700+index),String(900+(i+1)*650+index),currency,i===2?'Paid':'Certified']);
+  }else if(domain==='variations'){
+    meanings=['variation id','description','approved amount','currency','status'];
+    rows=Array.from({length:2},(_,i)=>['VO-'+h.int(10,999),'Scope change '+(i+1),String(5000+h.int(100,9000)+index),currency,i?'Pending':'Approved']);
+  }else if(domain==='risks'){
+    meanings=['risk id','description','owner','due date','status'];
+    rows=Array.from({length:2},(_,i)=>['R-'+h.int(10,999),i?'Design coordination exposure':'Access constraint',i?'Designer':'Contractor',shiftDate(dataDate,10+i*20),i?'High':'Open']);
+  }else if(domain==='claims'){
+    meanings=['claim id','event','days claimed','notice date','status'];
+    rows=Array.from({length:2},(_,i)=>['C-'+h.int(10,999),i?'Late design release':'Restricted access',String(10+i*7),shiftDate(dataDate,-40+i*10),i?'Under Review':'Submitted']);
+  }else if(domain==='procurement'){
+    meanings=['package id','description','required on site','forecast delivery','status','linked activity'];
+    rows=Array.from({length:2},(_,i)=>['PK-'+h.int(10,999),i?'Switchgear':'Chiller',shiftDate(dataDate,30+i*20),shiftDate(dataDate,45+i*25),i?'Late':'Ordered','1000']);
+  }else{
+    meanings=['ncr id','description','owner','closed date','status'];
+    rows=Array.from({length:2},(_,i)=>['NCR-'+h.int(10,999),i?'Waterproofing defect':'Concrete surface defect',i?'Contractor':'QA/QC',i?shiftDate(dataDate,-5):'',i?'Closed':'Open']);
+  }
+  const order=h.shuffle(meanings.map((_,i)=>i));
+  const shuffledMeanings=order.map(i=>meanings[i]!);
+  const shuffledRows=rows.map(row=>order.map(i=>row[i]??''));
+  const headers=shuffledMeanings.map((_,i)=>'ZX'+String(index+1).padStart(2,'0')+'_'+String(i+1).padStart(2,'0')+'_'+h.int(100,999));
+  return {headers,rows:shuffledRows,meanings:shuffledMeanings};
+}
+export async function generateSemanticAiBlindProject(seed:string,index=0):Promise<SemanticAiBlindProject>{
+  const h=helpers(seed+'::semantic-ai::'+index),domains:SemanticAiBlindDomain[]=['payments','variations','risks','claims','procurement','quality'];
+  const domain=domains[index%domains.length]!,language=languages[(index+1)%languages.length]!,currency=currencies[(index+4)%currencies.length]!;
+  const projectId='BLIND-AI-'+createHash('sha256').update(seed+'|semantic-ai|'+index).digest('hex').slice(0,10).toUpperCase();
+  const projectName=(language==='ar'?h.pick(arabicNames):language==='mixed'?h.pick(englishNames)+' / '+h.pick(arabicNames):h.pick(englishNames))+' '+h.int(100,999);
+  const dataDateIso='2039-'+String(h.int(2,10)).padStart(2,'0')+'-'+String(h.int(2,24)).padStart(2,'0');
+  const table=semanticAiOpaqueTable(h,domain,dataDateIso,currency,index),activityCount=h.int(8,25);
+  const docs:BlindDocument[]=[
+    {filename:h.pick(['programme.xer','Current_'+h.int(1,99)+'.xer','البرنامج.xer']),mediaType:'text/plain',
+      bytes:makeXer(h,projectId,projectName,dataDateIso,activityCount,language),kind:'xer',domain:'schedule',
+      truth:{rows:activityCount,scenario:'complete',facts:{activityCount}}},
+    {filename:h.pick(['payload','information','records','source'])+'_'+h.int(100,999)+'.csv',mediaType:'text/csv',
+      bytes:csv([table.headers,...table.rows],h.pick([',',';','\t'])),kind:'csv',domain,
+      truth:{rows:table.rows.length,scenario:'complete',facts:{expectedDocumentType:semanticAiType[domain],meanings:table.meanings}}},
+  ];
+  return {seed,projectId,projectName,dataDateIso,currency,language,domain,expectedDocumentType:semanticAiType[domain],documents:h.shuffle(docs)};
+}
+export async function generateSemanticAiBlindRound(seed:string,count:number){
+  const projects:SemanticAiBlindProject[]=[];
+  for(let i=0;i<count;i++)projects.push(await generateSemanticAiBlindProject(seed,i));
+  return {seed,projects};
+}
+
 export function defaultBlindSeed(){
   return process.env.CMENG_GENERATOR_SEED?.trim()
     ||[process.env.GITHUB_RUN_ID,process.env.GITHUB_RUN_ATTEMPT,process.env.GITHUB_SHA].filter(Boolean).join(':')
