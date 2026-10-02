@@ -15,6 +15,7 @@ import {
   generateDeliveryFeatureBlindRound,
   generateCommercialFeatureBlindRound,
   generateDelayFeatureBlindRound,
+  generateProgressFeatureBlindRound,
   type BlindDocument,
 } from './blind-project-generator';
 
@@ -105,7 +106,7 @@ async function programmeProjects(seed:string):Promise<BatchProject[]>{
 }
 async function projectsFor(batchId:string,seed:string){
   if(batchId==='F2-PROGRAMME-PLANNING'||batchId==='F4-FORECAST-RECOVERY')return programmeProjects(seed);
-  if(batchId==='F3-PROGRESS-RESOURCES')return lifecycleProjects(seed);
+  if(batchId==='F3-PROGRESS-RESOURCES')return (await generateProgressFeatureBlindRound(seed,10)).projects;
   if(batchId==='F5-DELAY-CLAIMS')return (await generateDelayFeatureBlindRound(seed,10)).projects;
   if(batchId==='F6-COMMERCIAL')return (await generateCommercialFeatureBlindRound(seed,10)).projects;
   if(batchId==='F7-DELIVERY')return (await generateDeliveryFeatureBlindRound(seed,10)).projects.map(project=>({
