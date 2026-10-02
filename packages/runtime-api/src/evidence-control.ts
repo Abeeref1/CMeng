@@ -314,6 +314,7 @@ export function evidenceFamily(
       "productivity_work_package_register",
       "productivity_forecast_basis",
       "hse_report",
+      "mixed_register_workbook",
     ]);
 
   if (
