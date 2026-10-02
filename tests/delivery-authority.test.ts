@@ -29,14 +29,32 @@ async function fixture(t:any){const dir=mkdtempSync(join(tmpdir(),'delivery-'));
  return {dir,store,state,upload,change,create,review,population};
 }
 
-test('Delivery consumes the adopted programme; pending updates and first-upload blockers stay actionable on every page',async t=>{
- const {store,state}=await fixture(t),original=projectControlSchedule(state)!.revision.revisionId;
- await store.ingestEvidenceFile({projectId:state.projectId,bytes:Buffer.from(deliveryProgramme('2031-09-30')),mediaType:'text/plain',sourceFilename:'Pending.xer',uploadedAt:'2031-10-01',uploadIntent:'add_update'});
- for(const [key] of deliveryPages){const r=deliveryModule(state,key);assert.equal((r.data as any).programmeRevisionId,original);assert.equal(r.scheduleAuthorityReview!.pendingSchedules.length,1);assert.equal((r.data as any).dataDateIso,'2031-08-31');}
- const fresh=store.getOrCreate('DELIVERY-B');await store.ingestEvidenceFile({projectId:fresh.projectId,bytes:Buffer.from(deliveryProgramme()),mediaType:'text/plain',sourceFilename:'First.xer',uploadedAt:'2031-09-01'});
- const blocked=deliveryModule(fresh,'construction-readiness');assert.equal((blocked.data as any).dataDateIso,null);assert.equal(blocked.scheduleAuthorityReview!.pendingSchedules[0]!.canAdopt,true);
+test('Delivery follows the latest submitted programme while undated updates remain pending on every page',async t=>{
+ const {store,state}=await fixture(t);
+ const later=await store.ingestEvidenceFile({projectId:state.projectId,bytes:Buffer.from(deliveryProgramme('2031-09-30')),mediaType:'text/plain',sourceFilename:'Monthly_Update.xer',uploadedAt:'2031-10-01',uploadIntent:'add_update'});
+ for(const [key] of deliveryPages){
+  const r=deliveryModule(state,key);
+  assert.equal((r.data as any).programmeRevisionId,later.linkedArtifactId);
+  assert.equal(r.scheduleAuthorityReview!.state,'submitted_current');
+  assert.equal(r.scheduleAuthorityReview!.authority,'submitted');
+  assert.equal(r.scheduleAuthorityReview!.pendingSchedules.length,0);
+  assert.equal((r.data as any).dataDateIso,'2031-09-30');
+ }
+ const undated=await store.ingestEvidenceFile({projectId:state.projectId,bytes:Buffer.from(deliveryProgramme('')),mediaType:'text/plain',sourceFilename:'Update_No_DD.xer',uploadedAt:'2031-10-02',uploadIntent:'add_update'});
+ for(const [key] of deliveryPages){
+  const r=deliveryModule(state,key);
+  assert.equal((r.data as any).programmeRevisionId,later.linkedArtifactId);
+  assert.equal((r.data as any).dataDateIso,'2031-09-30');
+  assert.ok(r.scheduleAuthorityReview!.pendingSchedules.some(p=>p.revisionId===undated.linkedArtifactId&&p.dateRelationship==='date_missing'));
+ }
+ const fresh=store.getOrCreate('DELIVERY-B');
+ const first=await store.ingestEvidenceFile({projectId:fresh.projectId,bytes:Buffer.from(deliveryProgramme()),mediaType:'text/plain',sourceFilename:'First.xer',uploadedAt:'2031-09-01'});
+ const ready=deliveryModule(fresh,'construction-readiness');
+ assert.equal((ready.data as any).programmeRevisionId,first.linkedArtifactId);
+ assert.equal((ready.data as any).dataDateIso,'2031-08-31');
+ assert.equal(ready.scheduleAuthorityReview!.state,'submitted_current');
+ assert.equal(ready.scheduleAuthorityReview!.pendingSchedules.length,0);
 });
-
 
 test('BOQ-only projects expose scope, procurement, long-lead, material and risk intelligence before specialist registers exist',async t=>{
  const f=await fixture(t);
