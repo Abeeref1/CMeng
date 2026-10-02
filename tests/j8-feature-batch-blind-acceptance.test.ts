@@ -274,8 +274,8 @@ for(const batch of pageBatches){
             assert.equal(result.body?.status,'blocked',batch.id+' non-governed 409 '+project.projectId+' / '+page.key);
             assert.ok(typeof result.body?.reason==='string'&&result.body.reason.trim(),batch.id+' blocked feature lacks reason '+page.key);
             assert.ok(Array.isArray(result.body?.dependencies),batch.id+' blocked feature lacks dependencies '+page.key);
-            pageChecks++;
-            continue;
+            assert.fail(batch.id+' '+page.key+' is not feature-certified on '+project.projectId+
+              ': every feature must produce a substantive result on all 10 fresh blind projects. Block reason: '+result.body.reason);
           }
           activeByPage.set(page.key,(activeByPage.get(page.key)??0)+1);
           assertFeatureSubstance(batch.id,page,result.body,project.projectId);
@@ -311,8 +311,8 @@ for(const batch of pageBatches){
           xlsxReports++;pageChecks++;
         }
       }
-      for(const page of pages)assert.ok((activeByPage.get(page.key)??0)>0,
-        batch.id+' never reached an active runtime result for feature '+page.key+' across its 10 fresh blind projects');
+      for(const page of pages)assert.equal(activeByPage.get(page.key)??0,projects.length,
+        batch.id+' '+page.key+' was not substantively exercised on all '+projects.length+' fresh blind projects');
       process.stdout.write('\nCMENG_'+batch.id.replaceAll('-','_')+'_RESULT='+JSON.stringify({
         projects:projects.length,features:pages.length,pageChecks,jsonReports,viewReports,xlsxReports,
         activeByPage:Object.fromEntries(activeByPage),
