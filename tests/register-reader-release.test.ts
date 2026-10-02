@@ -7,7 +7,7 @@ import {rebuildEvidenceFamily} from '../packages/runtime-api/src/evidence-contro
 import {hseReportPosition,refreshHseSummary,parseHseSummary} from '../packages/runtime-api/src/hse-report-evidence';
 import {readRegisterWorkbook} from '../packages/runtime-api/src/register-workbook';
 import {analyzeCsvEvidence,analyzeEvidenceRows} from '../packages/runtime-api/src/evidence';
-import {prepareRegisterRows,sourceTables} from '../packages/truth-kernel/src';
+import {numberValue,prepareRegisterRows,sourceTables} from '../packages/truth-kernel/src';
 import {reviewRegisterDates} from '../packages/runtime-api/src/register-date-review';
 import {moduleRegistry,pageApiKey,publicModuleResult,resolveModuleKey,titleForModule} from '../packages/runtime-api/src/registry';
 import {buildModuleJsonDownload} from '../packages/runtime-api/src/module-report';
@@ -126,6 +126,24 @@ test('comma, semicolon and tab registers share parsing and preserve quoted field
  assert.ok(!payment.headers.includes('payment date'),'release does not establish actual payment');
  assert.ok(!payment.headers.includes('certificate date'),'release does not establish certification');
  assert.equal(state.evidenceDocuments.length,3);
+});
+
+test('accounting-format amounts remain numeric and reach variation controls', async t => {
+ assert.equal(numberValue('(249,816)'),-249816);
+ assert.equal(numberValue('(٢٤٩٬٨١٦)'),-249816);
+ assert.equal(numberValue('(-249,816)'),null,'ambiguous signed accounting notation must fail closed');
+ const dir=mkdtempSync(join(tmpdir(),'variation-accounting-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));
+ const store=new RuntimeProjectStore({dataDir:dir,durable:false}),projectId='VARIATION-ACCOUNTING';
+ await store.ingestEvidenceFile({
+  projectId,sourceFilename:'Variation_Register.csv',mediaType:'text/csv',
+  bytes:Buffer.from('Variation ID,Description,Approved Amount,Status,Currency\nVO-1,Scope credit,"(249,816)",Approved,EUR'),
+  uploadedAt:'2031-04-30T00:00:00Z',uploadIntent:'add_update',
+ });
+ const state=store.get(projectId)!;
+ assert.equal(state.controls.variations.length,1);
+ assert.equal(state.controls.variations[0]!.variationId,'VO-1');
+ assert.equal(state.controls.variations[0]!.amount,-249816);
+ assert.equal(state.controls.variations[0]!.currency,'EUR');
 });
 
 test('shared reader upgrade repairs text/plain CSV ingestion without changing another project or source bytes', async t => {
