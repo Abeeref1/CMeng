@@ -332,6 +332,64 @@ export const round = (n: number | null, decimals = 4): number | null => n === nu
 export function fact<T>(value: T | null, receipts: SourceReceipt[], method: string, diagnostics: string[] = []): Fact<T> {
   return { value, state: value === null ? 'missing' : receipts.length > 0 && receipts.every(r => ['active','additive'].includes(r.basisState)) ? 'official' : 'candidate', receipts, method, diagnostics, coverage: {known: value === null ? 0 : 1, total: 1} };
 }
+export interface TableSemanticRoute {
+  documentType:string;
+  category:string;
+  confidence:number;
+  basis:string[];
+}
+
+type SemanticSchema={documentType:string;category:string;required:string[][];optional:string[]};
+const semanticSchemas:readonly SemanticSchema[]=[
+  {documentType:'payment_certificates',category:'boq_cost',required:[['certificate no'],['net certified','gross work','paid amount','retention','advance recovery']],optional:['period end','certificate date','payment date','currency','status']},
+  {documentType:'variation_register',category:'boq_cost',required:[['variation id'],['approved amount','submitted amount','agreed amount','assessed amount','status']],optional:['approval date','currency','description']},
+  {documentType:'retention_register',category:'boq_cost',required:[['retention id','certificate no'],['retention','retention amount','held amount']],optional:['status','currency','payment date']},
+  {documentType:'bond_register',category:'boq_cost',required:[['bond id'],['amount','bond amount','guarantee amount']],optional:['expiry date','status','currency','bond type']},
+  {documentType:'risk_register',category:'risk_claims_procurement',required:[['risk id'],['status','description','owner','due date']],optional:['rating','probability','impact','identified date','status as of']},
+  {documentType:'rfi_register',category:'engineering',required:[['rfi id'],['status','due date','description']],optional:['raised date','closed date','linked activity']},
+  {documentType:'quality_ncr_register',category:'hse_quality_fm',required:[['ncr id'],['status','description']],optional:['severity','raised date','closed date','owner','linked activity']},
+  {documentType:'procurement_register',category:'risk_claims_procurement',required:[['package id'],['required on site','forecast delivery','actual delivery','status']],optional:['description','supplier','linked activity']},
+  {documentType:'delay_eot_claims_register',category:'risk_claims_procurement',required:[['claim id'],['event','notice date','days claimed','assessed days','net assessed impact days']],optional:['status','linked activity','determination id','awarded eot days']},
+  {documentType:'determination_register',category:'risk_claims_procurement',required:[['determination id'],['claim id'],['awarded eot days']],optional:['determination date','status','authority']},
+  {documentType:'resource_register',category:'schedule_control',required:[['resource id'],['available capacity','planned demand','actual approved usage','utilization applicable','class','unit']],optional:['week start','assignment id','resource name','forecast demand']},
+  {documentType:'installed_measurement_register',category:'boq_cost',required:[['measurement date'],['item no'],['cumulative installed qty'],['unit']],optional:['actual quantity','description']},
+  {documentType:'hse_report',category:'hse_quality_fm',required:[['man hours'],['lost time injuries','trir','medical treatment cases','first aid cases','near misses']],optional:['report date','reporting month']},
+  {documentType:'design_deliverables',category:'engineering',required:[['deliverable id'],['planned issue','actual issue','status']],optional:['discipline','revision','due date']},
+];
+
+/** Infer a business register role from table content. The stored document type is
+ * only a tie-breaker; it is never permission to read a table. Ambiguous tables
+ * remain unrouted rather than being forced into a specialist engine. */
+export function inferTableSemanticRoute(
+  input:readonly string[][],
+  hintedDocumentType='',
+  confirmations:readonly EvidenceColumnConfirmation[]=[],
+):TableSemanticRoute|null{
+  if(!input.length)return null;
+  const intelligence=analyzeEvidenceTable(input,confirmations);
+  if(!intelligence.structurallyReadable)return null;
+  const raw=input[intelligence.headerRowIndex]??[];
+  const confirmed=new Map(confirmations.map(c=>[c.columnIndex,c.meaning] as const));
+  const candidates=semanticSchemas.map(schema=>{
+    const headers=raw.map((value,index)=>canonicalHeader(confirmed.get(index)??value,schema.documentType));
+    const keys=new Set(headers);
+    const groupHit=(group:string[])=>group.some(field=>keys.has(canonicalHeader(field,schema.documentType)));
+    const requiredHits=schema.required.filter(groupHit).length;
+    if(requiredHits!==schema.required.length)return null;
+    const optionalHits=schema.optional.filter(field=>keys.has(canonicalHeader(field,schema.documentType))).length;
+    const base=0.9+Math.min(0.06,optionalHits*0.015)+(schema.documentType===hintedDocumentType?0.02:0);
+    return {route:{documentType:schema.documentType,category:schema.category,confidence:Math.min(0.99,Number(base.toFixed(3))),basis:[...schema.required.map(group=>'required:'+group.join('|')),...schema.optional.filter(field=>keys.has(canonicalHeader(field,schema.documentType))).map(field=>'optional:'+field)]},optionalHits};
+  }).filter((value):value is {route:TableSemanticRoute;optionalHits:number}=>value!==null)
+    .sort((a,b)=>b.route.confidence-a.route.confidence||b.optionalHits-a.optionalHits||a.route.documentType.localeCompare(b.route.documentType));
+  if(!candidates.length)return null;
+  if(candidates.length>1&&candidates[0]!.route.confidence-candidates[1]!.route.confidence<0.015){
+    const hinted=candidates.find(c=>c.route.documentType===hintedDocumentType);
+    if(hinted&&hinted.route.confidence>=0.92)return hinted.route;
+    return null;
+  }
+  return candidates[0]!.route;
+}
+
 export function prepareEvidenceRows(
   input:readonly string[][],
   documentType='',
@@ -354,7 +412,8 @@ const tableCache = new Map<string, SourceTable>();
 export function sourceTables(documents: readonly EvidenceDocument[], diagnostics: string[], options: {includeHistorical?: boolean} = {}): SourceTable[] {
   const result: SourceTable[] = [], hashes = new Set<string>();
   for (const doc of [...documents].sort((a,b)=>Number(b.basisState!=='candidate')-Number(a.basisState!=='candidate'))) {
-    if ((!options.includeHistorical && !['active','additive','candidate'].includes(doc.basisState)) || (!/csv/i.test(doc.mediaType + ' ' + doc.sourceFilename)&&!doc.tabularRead)) continue;
+    const semanticReferenceCandidate=doc.basisState==='historical'&&['supporting_document','mixed_control_workbook'].includes(doc.documentType)&&(/csv/i.test(doc.mediaType+' '+doc.sourceFilename)||Boolean(doc.tabularRead));
+    if ((!options.includeHistorical && !['active','additive','candidate'].includes(doc.basisState)&&!semanticReferenceCandidate) || (!/csv/i.test(doc.mediaType + ' ' + doc.sourceFilename)&&!doc.tabularRead)) continue;
     const identity = doc.sourceHashSha256;
     if (hashes.has(identity)) continue;
     hashes.add(identity);
