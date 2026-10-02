@@ -371,12 +371,33 @@ export function sourceTables(documents: readonly EvidenceDocument[], diagnostics
         const confirmations=(doc.tableConfirmations??[]).filter(c=>c.sheetName===sheet.name);
         const prepared=prepareEvidenceRows(sheet.rows,doc.documentType,confirmations),{headers,rows,intelligence}=prepared;
         const absoluteHeaderRow=prepared.headerRow;
-        if(!headers.length||headers.some(h=>!h)||new Set(headers).size!==headers.length){diagnostics.push('DUPLICATE_NORMALIZED_HEADERS:'+doc.documentId);continue;}
+        if(!headers.length){diagnostics.push('TABLE_HEADERS_MISSING:'+doc.documentId+':'+sheet.name);continue;}
         if(rows.some(row=>row.length!==headers.length)){diagnostics.push('CSV_ROW_WIDTH_MISMATCH:'+doc.documentId);continue;}
-        if(!prepared.recognized)diagnostics.push('REGISTER_COLUMNS_NOT_RECOGNISED:'+doc.documentId+':'+prepared.rawHeaders.join(', '));
+        // A readable source table must never disappear merely because two raw
+        // headings map to the same canonical meaning or one heading is blank.
+        // Preserve every physical column with a stable unique internal key, but
+        // fail closed for specialist recognition when the canonical meaning is
+        // ambiguous: duplicate meanings are all suffixed, so has()/cell() cannot
+        // silently select one of them as the authoritative field.
+        const totals=new Map<string,number>();
+        for(const [index,header] of headers.entries()){
+          const base=header||('unlabelled column '+(index+1));
+          totals.set(base,(totals.get(base)??0)+1);
+        }
+        const seen=new Map<string,number>();
+        const sourceHeaders=headers.map((header,index)=>{
+          const base=header||('unlabelled column '+(index+1)),total=totals.get(base)??1;
+          if(total===1)return base;
+          const ordinal=(seen.get(base)??0)+1;seen.set(base,ordinal);
+          return base+' ['+ordinal+']';
+        });
+        const hasDuplicate=[...totals.values()].some(count=>count>1),hasBlank=headers.some(h=>!h);
+        if(hasDuplicate)diagnostics.push('DUPLICATE_NORMALIZED_HEADERS:'+doc.documentId+':'+sheet.name);
+        if(hasBlank)diagnostics.push('UNLABELLED_SOURCE_HEADERS:'+doc.documentId+':'+sheet.name);
+        if(!prepared.recognized||hasDuplicate||hasBlank)diagnostics.push('REGISTER_COLUMNS_NOT_RECOGNISED:'+doc.documentId+':'+prepared.rawHeaders.join(', '));
         if(!intelligence.structurallyReadable)diagnostics.push('TABLE_STRUCTURE_REVIEW_REQUIRED:'+doc.documentId+':'+sheet.name);
-        const table:SourceTable={headers,document:doc,intelligence,recognition:{headerRow:absoluteHeaderRow,readRowCount:prepared.readRowCount,recognized:prepared.recognized,unknown:prepared.unknown},rows:rows.map((r,i)=>({
-          cells:Object.freeze(Object.fromEntries(headers.map((h,j)=>[h,r[j]??'']))),
+        const table:SourceTable={headers:sourceHeaders,document:doc,intelligence,recognition:{headerRow:absoluteHeaderRow,readRowCount:prepared.readRowCount,recognized:prepared.recognized&&!hasDuplicate&&!hasBlank,unknown:prepared.unknown},rows:rows.map((r,i)=>({
+          cells:Object.freeze(Object.fromEntries(sourceHeaders.map((h,j)=>[h,r[j]??'']))),
           receipt:{documentId:doc.documentId,sourceHash:identity,revision:doc.linkedArtifactId??identity,locator:(sheet.name==='CSV'?'':'sheet:'+sheet.name+':')+'row:'+(i+absoluteHeaderRow+1),basisState:doc.basisState,authority:'source_record'},
         }))};
         // Multi-sheet workbooks remain distinct and retain their sheet/row references.
