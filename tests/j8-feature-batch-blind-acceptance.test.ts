@@ -195,13 +195,13 @@ function assertFeatureSubstance(batchId:string,page:ModuleDescriptor,body:any,pr
   }
   if(page.area==='delivery'){
     assert.equal(data.deliveryPage,page.key,batchId+' Delivery payload belongs to a different feature page: '+projectId+' / '+page.key);
-    assert.ok(Array.isArray(data.rows),batchId+' '+page.key+' has no Delivery feature rows for '+projectId);
+    assert.ok(Array.isArray(data.rows)&&data.rows.length>0,batchId+' '+page.key+' has no substantive Delivery feature rows for '+projectId);
     if(page.key==='delivery-control'){
       assert.ok(Array.isArray(data.readiness),batchId+' Delivery Control lost readiness feature '+projectId);
       assert.ok(Array.isArray(data.managementActions),batchId+' Delivery Control lost management actions '+projectId);
     }
     if(['procurement-scurves','delivery-submittals','material-tracking'].includes(page.key))
-      assert.ok(Array.isArray(data.curves),batchId+' '+page.key+' lost its feature curves '+projectId);
+      assert.ok(Array.isArray(data.curves)&&data.curves.length>0,batchId+' '+page.key+' produced no real feature curves '+projectId);
     if(page.key==='long-lead')assert.ok(Array.isArray(data.scheduleLongLeadCandidates),batchId+' Long Lead lost schedule/WBS candidate analysis '+projectId);
     if(page.key==='construction-locations')assert.ok(Array.isArray(data.locations),batchId+' Location feature lost governed hierarchy '+projectId);
     if(page.key==='delivery-hse')assert.ok(data.hsePosition&&typeof data.hsePosition==='object',batchId+' HSE feature lost exposure/rate position '+projectId);
@@ -339,11 +339,22 @@ async function governDeliveryProject(base:string,projectId:string){
   const packageRow=byKind.get('package'),supplier=byKind.get('supplier'),submittal=byKind.get('submittal'),workfront=byKind.get('workfront'),
     location=byKind.get('location'),asset=byKind.get('asset'),spare=byKind.get('spare'),handover=byKind.get('handover'),
     commissioning=byKind.get('commissioning'),lifecycle=byKind.get('lifecycle');
+  const catalogBase='/api/projects/'+encodeURIComponent(projectId)+'/delivery/catalog';
+  const boqCatalog=await request(base,catalogBase+'?kind=boq&limit=100');
+  assert.equal(boqCatalog.status,200,'F7 BOQ catalog unavailable '+projectId);
+  const boqRows=boqCatalog.body?.rows??[];
+  const equipmentBoq=boqRows.find((row:any)=>/equipment/i.test(String(row.label??'')))??boqRows.at(-1);
+  const concreteBoq=boqRows.find((row:any)=>/concrete/i.test(String(row.label??'')))??boqRows[0];
+  assert.ok(equipmentBoq?.id&&concreteBoq?.id,'F7 governed BOQ identities missing '+projectId);
+  const riskCatalog=await request(base,catalogBase+'?kind=risk&limit=100');
+  assert.equal(riskCatalog.status,200,'F7 Risk catalog unavailable '+projectId);
+  const riskId=riskCatalog.body?.rows?.[0]?.id;
+  assert.ok(riskId,'F7 blind Risk Register did not establish a Delivery-linkable risk '+projectId);
   const relationshipRows=[
-    [packageRow,{fields:{'lifecycle id':lifecycle.recordId},links:{...blankDeliveryLinks(),activityIds:['1000']}}],
+    [packageRow,{fields:{'lifecycle id':lifecycle.recordId},links:{...blankDeliveryLinks(),activityIds:['1000'],boqItemIds:[equipmentBoq.id],riskIds:[riskId]}}],
     [supplier,{fields:{},links:{...blankDeliveryLinks(),packageIds:[packageRow.recordId]}}],
     [submittal,{fields:{},links:{...blankDeliveryLinks(),activityIds:['1000'],packageIds:[packageRow.recordId]}}],
-    [workfront,{fields:{},links:{...blankDeliveryLinks(),activityIds:['1000'],locationIds:[location.recordId]}}],
+    [workfront,{fields:{},links:{...blankDeliveryLinks(),activityIds:['1000'],locationIds:[location.recordId],boqItemIds:[concreteBoq.id],riskIds:[riskId]}}],
     [spare,{fields:{},links:{...blankDeliveryLinks(),assetIds:[asset.recordId]}}],
     [handover,{fields:{},links:{...blankDeliveryLinks(),assetIds:[asset.recordId],activityIds:['1000']}}],
   ] as const;
