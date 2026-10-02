@@ -17,19 +17,26 @@ test('phase updates, baselines, scenarios and restart retain separate authority 
   const base=await upload('2036-01-01','baseline'),current=await upload('2036-08-31','update');
   const before=projectControlSchedule(state)!.revision.revisionId;
   const phaseBaseline=await upload('2037-01-31','baseline','PHASE-2'),phaseUpdate=await upload('2037-03-31','update','PHASE-2');
-  assert.equal(state.schedules.length,2);assert.equal(state.evidenceDocuments.filter(d=>d.category==='schedule').length,2);assert.equal(projectControlSchedule(state)!.revision.revisionId,before);assert.equal(projectDataDate(state),'2036-08-31');
+  assert.equal(state.schedules.length,2);assert.equal(state.evidenceDocuments.filter(d=>d.category==='schedule').length,2);
+  assert.equal(projectControlSchedule(state)!.revision.revisionId,before);assert.equal(projectDataDate(state),'2036-08-31');
   assert.equal(phaseProgrammePosition(state,'PHASE-2').programme!.revisionId,phaseUpdate.revisionId);
-  const revised=await upload('2037-04-30','revised_baseline','PHASE-2');assert.equal(phaseProgrammePosition(state,'PHASE-2').programme!.revisionId,phaseUpdate.revisionId,'baseline adoption is distinct from a current update');
+  const revised=await upload('2037-04-30','revised_baseline','PHASE-2');
+  assert.equal(phaseProgrammePosition(state,'PHASE-2').programme!.revisionId,phaseUpdate.revisionId,'baseline adoption is distinct from a current update');
   assert.equal(state.phaseProgrammes![0]!.activeEvidenceBasis['schedule:baseline']!.activeArtifactId,revised.revisionId);
-  const recovery=await upload('2037-05-31','recovery','PHASE-2',false);assert.throws(()=>f.store.adoptSchedule(projectId,recovery.revisionId,'PHASE-2'),/SCENARIO/);
+  const recovery=await upload('2037-05-31','recovery','PHASE-2',false);
+  assert.throws(()=>f.store.adoptSchedule(projectId,recovery.revisionId,'PHASE-2'),/SCENARIO/);
   assert.throws(()=>f.store.adoptSchedule(projectId,phaseUpdate.revisionId),/NOT_FOUND/);
   assert.throws(()=>f.store.adoptSchedule(projectId,current.revisionId,'PHASE-2'),/NOT_FOUND/);
-  const pending=await upload('2037-03-31','update','PHASE-3',false);assert.equal(phaseProgrammePosition(state,'PHASE-3').programme,null);f.store.adoptSchedule(projectId,pending.revisionId,'PHASE-3');
+  const submitted=await upload('2037-03-31','update','PHASE-3',false);
+  assert.equal(phaseProgrammePosition(state,'PHASE-3').programme!.revisionId,submitted.revisionId,'first dated phase update becomes the submitted analytical programme');
+  assert.equal(projectDataDate(state),'2036-08-31','phase programme must not advance the parent project Data Date');
   const restored=new RuntimeProjectStore({dataDir:f.root,durable:true}),again=restored.get(projectId)!;
   assert.equal(projectControlSchedule(again)!.revision.revisionId,current.revisionId);assert.equal(again.activeEvidenceBasis['schedule:baseline']!.activeArtifactId,base.revisionId);
-  assert.equal(phaseProgrammePosition(again,'PHASE-2').programme!.revisionId,phaseUpdate.revisionId);assert.equal(phaseProgrammePosition(again,'PHASE-3').programme!.revisionId,pending.revisionId);
+  assert.equal(phaseProgrammePosition(again,'PHASE-2').programme!.revisionId,phaseUpdate.revisionId);
+  assert.equal(phaseProgrammePosition(again,'PHASE-3').programme!.revisionId,submitted.revisionId);
   assert.ok(again.phaseProgrammes![0]!.schedules.some(s=>s.revision.revisionId===phaseBaseline.revisionId));
 });
+
 test('confirmed programme purpose overrides filename hints and baseline adoption requires an approval reference',async t=>{
   const f=store(t),input={projectId:'NAMES',bytes:xer('2036-08-31'),mediaType:'text/plain',sourceFilename:'Draft-Recovery-Phase-99.xer',role:'update',roleConfirmed:true,uploadIntent:'replace_current_basis' as const,uploadedAt:'2036-09-01'};
   const result=await f.store.ingestSchedule(input);assert.equal(result.role,'update');assert.equal(projectDataDate(f.store.get('NAMES')!),'2036-08-31');
