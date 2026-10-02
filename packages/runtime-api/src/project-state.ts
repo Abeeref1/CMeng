@@ -2391,7 +2391,7 @@ export class RuntimeProjectStore {
             next.familyKey=family.familyKey;next.logicalDocumentKey=family.logicalDocumentKey;
           }
           if(isWorkbook){
-            next.tabularRead=await enrichRegisterSheetSemantics(await readRegisterWorkbook(bytes,next.sourceHashSha256,next.documentType));
+            next.tabularRead=await enrichRegisterSheetSemantics(await readRegisterWorkbook(bytes,next.sourceHashSha256,next.documentType),{cached:document.tabularRead});
             const resolved=workbookSemanticIdentity(next.category,next.documentType,next.identification,next.tabularRead);
             next.category=resolved.category;next.documentType=resolved.documentType;next.identification=resolved.identification;
             const family=evidenceFamily({category:next.category,documentType:next.documentType,scheduleRole:next.scheduleRole,textSample:identified.textSample,sourceFilename:next.sourceFilename});
@@ -4447,6 +4447,7 @@ export class RuntimeProjectStore {
         EvidenceUploadIntent;
       preidentified?:
         EvidenceIdentificationResult;
+      allowSemanticAi?:boolean;
     },
   ): Promise<EvidenceUploadSummary> {
     const relativePath =
