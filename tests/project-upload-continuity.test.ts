@@ -37,7 +37,7 @@ test('confirmed programme purpose overrides filename hints and baseline adoption
 });
 test('mitigation and acceleration programme names stay scenario-only until purpose is explicitly confirmed',async t=>{
   const f=store(t),projectId='RECOVERY-NAMES';
-  for(const [index,name] of ['Mitigation_Programme_01.xer','Acceleration_Programme_02.xer'].entries()){
+  for(const [index,name] of ['Mitigation_Programme_01.xer','Acceleration_Programme_02.xer','WhatIf_Programme_03.xer'].entries()){
     const uploaded=await f.store.ingestEvidenceFile({
       projectId,bytes:xer('2036-0'+(index+8)+'-31'),mediaType:'text/plain',sourceFilename:name,
       uploadedAt:'2036-10-01',uploadIntent:'add_update',
