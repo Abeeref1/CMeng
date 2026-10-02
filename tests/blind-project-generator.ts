@@ -547,6 +547,7 @@ export type DeliveryFeatureBlindKind=
 export interface DeliveryFeatureBlindProject {
   seed:string;projectId:string;projectName:string;dataDateIso:string;currency:string;language:BlindLanguage;
   documents:BlindDocument[];expectedKinds:DeliveryFeatureBlindKind[];
+  featureTruth:{items:Array<{itemNumber:string;description:string;unit:string;quantity:number;installed:number;activityId:string}>};
 }
 const deliveryFeatureKinds:DeliveryFeatureBlindKind[]=[
   'package','supplier','submittal','design','workfront','interface','quality','permit','hse',
@@ -613,6 +614,10 @@ export async function generateDeliveryFeatureBlindProject(seed:string,index=0):P
   const projectId='BLIND-DEL-'+createHash('sha256').update(seed+'|delivery-feature|'+index).digest('hex').slice(0,10).toUpperCase();
   const projectName=(language==='ar'?h.pick(arabicNames):language==='mixed'?h.pick(englishNames)+' / '+h.pick(arabicNames):h.pick(englishNames))+' '+h.int(100,999);
   const dataDateIso='2041-'+String(h.int(2,10)).padStart(2,'0')+'-'+String(h.int(2,24)).padStart(2,'0'),activityCount=h.int(30,120);
+  const featureItems=[
+    {itemNumber:'B1',description:'Concrete',unit:'m3',quantity:100,installed:20+h.int(0,20),activityId:'1000'},
+    {itemNumber:'B2',description:'Equipment',unit:'No.',quantity:10,installed:3+h.int(0,3),activityId:'1001'},
+  ];
   const docs:BlindDocument[]=[
     {filename:h.pick(['programme.xer','Current_'+h.int(1,99)+'.xer','البرنامج.xer']),mediaType:'text/plain',
       bytes:makeXer(h,projectId,projectName,dataDateIso,activityCount,language),kind:'xer',domain:'schedule',truth:{rows:activityCount,scenario:'complete',facts:{activityCount}}},
@@ -621,8 +626,8 @@ export async function generateDeliveryFeatureBlindProject(seed:string,index=0):P
       kind:'csv',domain:'boq',truth:{rows:2,scenario:'complete',facts:{}}},
     {filename:'installed_'+h.int(10,999)+'.csv',mediaType:'text/csv',
       bytes:csv([['Measurement Date','Item No','Cumulative Installed Qty','Unit'],
-        [shiftDate(dataDateIso,-3),'B1',String(20+h.int(0,20)),'m3'],
-        [shiftDate(dataDateIso,-2),'B2',String(3+h.int(0,3)),'No.']],','),
+        [shiftDate(dataDateIso,-3),featureItems[0]!.itemNumber,String(featureItems[0]!.installed),featureItems[0]!.unit],
+        [shiftDate(dataDateIso,-2),featureItems[1]!.itemNumber,String(featureItems[1]!.installed),featureItems[1]!.unit]],','),
       kind:'csv',domain:'measurements',truth:{rows:2,scenario:'complete',facts:{}}},
     {filename:h.pick(['delivery_controls','site_records','monthly_delivery','سجل_التسليم'])+'_'+h.int(100,999)+'.xlsx',
       mediaType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -632,7 +637,7 @@ export async function generateDeliveryFeatureBlindProject(seed:string,index=0):P
       ['Risk ID','Description','Probability','Impact','Rating','Owner','Due Date','Status','Status As Of','Linked Activity'],
       [['R-DEL-'+h.int(10,999),'Delivery access and coordination risk','Medium','High','High','Project Manager',shiftDate(dataDateIso,20),'Open',dataDateIso,'1000']]),
   ];
-  return {seed,projectId,projectName,dataDateIso,currency,language,documents:h.shuffle(docs),expectedKinds:[...deliveryFeatureKinds]};
+  return {seed,projectId,projectName,dataDateIso,currency,language,documents:h.shuffle(docs),expectedKinds:[...deliveryFeatureKinds],featureTruth:{items:featureItems}};
 }
 export async function generateDeliveryFeatureBlindRound(seed:string,count:number){
   const projects:DeliveryFeatureBlindProject[]=[];
