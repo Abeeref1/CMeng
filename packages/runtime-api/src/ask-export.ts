@@ -46,7 +46,20 @@ export function preparedAskResult(result:AnalysisResult,input?:AskExportView){
   })).sort((a,b)=>(order.get(a.authorityId)??9999)-(order.get(b.authorityId)??9999));
   return {...result,presentation:{...result.presentation,title:view.title??result.presentation.title,...(view.detailLevel?{detail:view.detailLevel}:{})},sections};
 }
-const metadata=(r:AnalysisResult)=>[['Project',r.scope.projectName],['Data Date',r.scope.dataDate??'Not established'],['Programme revision',r.scope.programmeRevision??'Not established'],['Project version',r.scope.projectVersion],['Analysis',r.id],['Source snapshot',r.snapshotHash],['Prepared by',r.presentation.preparedBy??'Not supplied'],['Job title',r.presentation.jobTitle??'Not supplied'],['Company',r.presentation.company??'Not supplied'],['Issue date',r.createdAt.slice(0,10)],['Status','Draft / Prepared'],['Confidentiality',r.presentation.confidentiality],['Scope',JSON.stringify({filters:r.plan.filters,authorityFilters:r.plan.authorityFilters??{},rankings:r.plan.rankings??[]})],['Grouping',r.plan.groupBy.join(', ')||'None']];
+const reviewLensLabel=(value:NonNullable<AnalysisResult['presentation']['reviewLens']>)=>({
+  overall:'Overall Detailed',planning:'Planning Engineer',controls:'Project Controls Manager',
+  'project-director':'Project Director','program-director':'Program Director',executive:'Executive / CEO',
+}[value]);
+const metadata=(r:AnalysisResult):Array<[string,string|number]>=>[
+  ['Project',r.scope.projectName],
+  ...(r.presentation.reviewLens?[['Review lens',reviewLensLabel(r.presentation.reviewLens)] as [string,string]]:[]),
+  ['Data Date',r.scope.dataDate??'Not established'],['Programme revision',r.scope.programmeRevision??'Not established'],
+  ['Project version',r.scope.projectVersion],['Analysis',r.id],['Source snapshot',r.snapshotHash],
+  ['Prepared by',r.presentation.preparedBy??'Not supplied'],['Job title',r.presentation.jobTitle??'Not supplied'],
+  ['Company',r.presentation.company??'Not supplied'],['Issue date',r.createdAt.slice(0,10)],['Status','Draft / Prepared'],
+  ['Confidentiality',r.presentation.confidentiality],['Scope',JSON.stringify({filters:r.plan.filters,authorityFilters:r.plan.authorityFilters??{},rankings:r.plan.rankings??[]})],
+  ['Grouping',r.plan.groupBy.join(', ')||'None']
+];
 
 /** Charts are a rendering of table cells. No KPI is recalculated here. */
 export function askChartPng(chart:AnalysisChart,table:AnalysisTable,options:{type?:'bar'|'line';limit?:number}={}){
