@@ -5536,8 +5536,10 @@ function uploadEvidenceFileWithProgress(file,fileIndex,fileTotal,job){
     let pollBusy=false;
     xhr.open("POST",url,true);
     xhr.setRequestHeader("content-type",fileType(file));
-    xhr.setRequestHeader("x-source-filename",file.name);
-    xhr.setRequestHeader("x-source-relative-path",file.webkitRelativePath||file.name);
+    // HTTP header values are ByteString-only in browsers. Send Unicode names in
+    // percent-encoded ASCII headers; the server restores the exact filename/path.
+    xhr.setRequestHeader("x-source-filename-encoded",encodeURIComponent(file.name));
+    xhr.setRequestHeader("x-source-relative-path-encoded",encodeURIComponent(file.webkitRelativePath||file.name));
     xhr.setRequestHeader("x-upload-intent",job.intent);
     xhr.setRequestHeader("x-upload-id",id);
     if(job.kind==="schedule"){xhr.setRequestHeader("x-evidence-category","schedule");xhr.setRequestHeader("x-schedule-role",job.roles[fileIndex]);xhr.setRequestHeader("x-schedule-role-confirmed","1");if(job.approvalReference)xhr.setRequestHeader("x-approval-reference",job.approvalReference);}
