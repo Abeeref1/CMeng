@@ -160,8 +160,20 @@ const sheetSemanticExcludedTypes=new Set([
   'boq','main_contract','contract_amendment','contract_appendix','contract_replacement','tender_contract_document',
 ]);
 
-async function enrichRegisterSheetSemantics(read:NonNullable<StoredEvidenceDocument['tabularRead']>){
+async function enrichRegisterSheetSemantics(
+  read:NonNullable<StoredEvidenceDocument['tabularRead']>,
+  options:{resolver?:TableSemanticAiResolver|null;cached?:StoredEvidenceDocument['tabularRead']}={},
+){
+  let aiCalls=0;
+  const maxAiCalls=Math.max(0,Math.min(20,Number.parseInt(process.env.CMENG_SEMANTIC_AI_MAX_CALLS_PER_FILE??'8',10)||8));
   for(const sheet of read.sheets){
+    const cached=options.cached?.sourceHashSha256===read.sourceHashSha256
+      ?options.cached.sheets.find(item=>item.name===sheet.name)?.semantic
+      :undefined;
+    if(cached?.method==='ai_grounded'){
+      sheet.semantic=structuredClone(cached);
+      continue;
+    }
     const identified=await identifyEvidenceDocument({
       bytes:Buffer.from(registerCsv(sheet.rows)),
       sourceFilename:'table.csv',
@@ -170,23 +182,24 @@ async function enrichRegisterSheetSemantics(read:NonNullable<StoredEvidenceDocum
     });
     const identity=identified.identification;
     if(identity.method==='tabular_content'&&identity.confidence>=0.9&&!sheetSemanticExcludedTypes.has(identity.detectedDocumentType)){
-      sheet.semantic={
-        documentType:identity.detectedDocumentType,
-        category:identity.detectedCategory,
-        confidence:identity.confidence,
-        method:'tabular_content',
-        signals:[...identity.signals],
-      };
-      continue;
+      sheet.semantic={documentType:identity.detectedDocumentType,category:identity.detectedCategory,confidence:identity.confidence,
+        method:'tabular_content',signals:[...identity.signals]};
+    }else{
+      const route=inferTableSemanticRoute(sheet.rows);
+      if(route&&!sheetSemanticExcludedTypes.has(route.documentType))sheet.semantic={documentType:route.documentType,category:route.category,
+        confidence:route.confidence,method:'tabular_content',signals:['Generic table semantics',...route.basis]};
     }
-    const route=inferTableSemanticRoute(sheet.rows);
-    if(route&&!sheetSemanticExcludedTypes.has(route.documentType))sheet.semantic={
-      documentType:route.documentType,
-      category:route.category,
-      confidence:route.confidence,
-      method:'tabular_content',
-      signals:['Generic table semantics',...route.basis],
-    };
+    const specialistUsable=sheet.semantic
+      ?prepareEvidenceRows(sheet.rows,sheet.semantic.documentType,[],sheet.semantic.columnMeanings??[]).recognized
+      :false;
+    if(options.resolver&&aiCalls<maxAiCalls&&(!sheet.semantic||!specialistUsable)){
+      aiCalls++;
+      try{
+        const resolved=await options.resolver.resolveTable({sourceHashSha256:read.sourceHashSha256,sheetName:sheet.name,rows:sheet.rows,
+          hintedDocumentType:sheet.semantic?.documentType??null});
+        if(resolved&&!sheetSemanticExcludedTypes.has(resolved.documentType))sheet.semantic=resolved;
+      }catch{/* Provider failure leaves deterministic evidence unresolved. */}
+    }
   }
   return read;
 }
