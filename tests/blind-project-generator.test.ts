@@ -381,9 +381,9 @@ test('J4 fresh blind project set: routine updates advance submitted analytics wh
 
     const recovery=await ingest('recovery'),draft=await ingest('draft'),revised=await ingest('revised_baseline');
     state=store.get(project.projectId)!;
-    assert.equal(state.evidenceDocuments.find(document=>document.linkedArtifactId===recovery.linkedArtifactId)?.basisState,'scenario');
-    assert.equal(state.evidenceDocuments.find(document=>document.linkedArtifactId===draft.linkedArtifactId)?.basisState,'scenario');
-    assert.equal(state.evidenceDocuments.find(document=>document.linkedArtifactId===revised.linkedArtifactId)?.basisState,'candidate');
+    {const document=state.evidenceDocuments.find(document=>document.linkedArtifactId===recovery.linkedArtifactId);assert.equal(document?.basisState,'scenario','recovery must stay scenario: '+project.projectId+' / '+project.stages.recovery.filename+' / role='+String(document?.scheduleRole));}
+    {const document=state.evidenceDocuments.find(document=>document.linkedArtifactId===draft.linkedArtifactId);assert.equal(document?.basisState,'scenario','draft must stay scenario: '+project.projectId+' / '+project.stages.draft.filename+' / role='+String(document?.scheduleRole));}
+    {const document=state.evidenceDocuments.find(document=>document.linkedArtifactId===revised.linkedArtifactId);assert.equal(document?.basisState,'candidate','revised baseline must stay candidate: '+project.projectId+' / '+project.stages.revised_baseline.filename+' / role='+String(document?.scheduleRole));}
     assert.throws(()=>store.adoptSchedule(project.projectId,revised.linkedArtifactId!),/BASELINE_APPROVAL_REFERENCE_REQUIRED/);
     assert.equal(projectDataDate(state),project.baseDataDateIso,'scenario or unapproved revised baseline cannot displace current analytics');
 
