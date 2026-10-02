@@ -344,6 +344,75 @@ export async function generateMixedWorkbookBlindRound(seed:string,count:number){
   return {seed,projects};
 }
 
+
+export type LifecycleBlindDomain='interfaces'|'submittals'|'assets'|'commissioning'|'hse'|'resources'|'measurements'|'evm';
+export interface LifecycleMixedBlindProject {
+  seed:string;projectId:string;projectName:string;dataDateIso:string;currency:string;language:BlindLanguage;
+  documents:BlindDocument[];expectedDomains:LifecycleBlindDomain[];expectedTypes:string[];
+}
+const lifecycleType:Record<LifecycleBlindDomain,string>={
+  interfaces:'interface_register',submittals:'submittal_register',assets:'asset_register',
+  commissioning:'testing_commissioning_register',hse:'hse_report',resources:'resource_register',
+  measurements:'installed_measurement_register',evm:'cost_evm_report',
+};
+function lifecycleTable(h:ReturnType<typeof helpers>,domain:LifecycleBlindDomain,dataDate:string,currency:string,index:number){
+  const date=shiftDate(dataDate,-h.int(1,30)),future=shiftDate(dataDate,h.int(5,60));
+  if(domain==='interfaces')return {headers:['Interface ID','Giving Party','Receiving Party','Required Deliverable','Status','Linked Activity'],
+    rows:[[ 'IF-'+h.int(10,999),'Contractor','Designer','Approved drawing','Open','1000' ]]};
+  if(domain==='submittals')return {headers:['Submittal ID','Submitted Date','Approval Date','Status','Procurement Package','Linked Activity'],
+    rows:[[ 'SUB-'+h.int(10,999),date,index%3===0?'':future,index%3===0?'Under Review':'Approved','PK-1','1000' ]]};
+  if(domain==='assets')return {headers:['Asset ID','System','Tag Installed','Commissioned','O&M Manual','Warranty','Status'],
+    rows:[[ 'AST-'+h.int(10,999),'HVAC','Yes',index%2?'Yes':'No',index%3?'Yes':'No','Yes',index%2?'Ready':'In Progress' ]]};
+  if(domain==='commissioning')return {headers:['Test ID','Test','Planned Date','Actual Date','Authority Witness','Status','Linked Activity'],
+    rows:[[ 'T-'+h.int(10,999),'Functional test',date,index%2?date:'','Client',index%2?'Passed':'Planned','1000' ]]};
+  if(domain==='hse')return {headers:['Report Date','Man Hours','Lost Time Injuries','Medical Treatment Cases','First Aid Cases','Near Misses','TRIR'],
+    rows:[[date,'12000',String(index%2),String(index%3===0?1:0),'2','3',String(((index%2+(index%3===0?1:0))/12000*200000).toFixed(2))]]};
+  if(domain==='resources')return {headers:['Resource ID','Resource Name','Class','Unit','Utilization Applicable','Week Start','Available Capacity','Planned Demand','Actual Approved Usage'],
+    rows:[[ 'LAB-'+h.int(10,99),'Civil Labour','Labor','labor_hour','Yes',date,'1000','900','820' ]]};
+  if(domain==='measurements')return {headers:['Measurement Date','Item No','Cumulative Installed Qty','Unit'],
+    rows:[[date,'B1',String(10+index),'m3']]};
+  return {headers:['Metric','Value','Unit','Status','As Of','VAT Basis'],
+    rows:[['EV',String(700+index),currency,'Approved',date,'Exclusive'],['AC',String(800+index),currency,'Actual',date,'Exclusive'],['PV',String(750+index),currency,'Plan',date,'Exclusive']]};
+}
+async function lifecycleWorkbookBytes(h:ReturnType<typeof helpers>,projectName:string,dataDate:string,currency:string,domains:LifecycleBlindDomain[],index:number){
+  const workbook=new ExcelJS.Workbook();
+  const cover=workbook.addWorksheet(h.pick(['Summary','Overview','ملخص','Notes']));
+  cover.addRow([projectName]);cover.addRow(['Monthly controls']);cover.addRow(['']);
+  for(const [offset,domain] of domains.entries()){
+    let {headers,rows}=lifecycleTable(h,domain,dataDate,currency,index+offset);
+    ({headers,rows}=withJunk(h,headers,rows));
+    const order=h.shuffle(headers.map((_,i)=>i));headers=order.map(i=>headers[i]!);rows=rows.map(row=>order.map(i=>row[i]??''));
+    const sheet=workbook.addWorksheet(h.pick(['Data','Register','Sheet','بيانات'])+' '+(offset+1)+' '+h.int(10,999));
+    for(let n=0;n<h.int(0,2);n++)sheet.addRow([n===0?projectName:'',h.pick(['','Monthly','سري'])]);
+    sheet.addRow(headers);rows.forEach(row=>sheet.addRow(row));
+  }
+  return new Uint8Array(await workbook.xlsx.writeBuffer());
+}
+export async function generateLifecycleMixedWorkbookBlindProject(seed:string,index=0):Promise<LifecycleMixedBlindProject>{
+  const h=helpers(seed+'::lifecycle::'+index),all:LifecycleBlindDomain[]=['interfaces','submittals','assets','commissioning','hse','resources','measurements','evm'];
+  const mandatory=all[index%all.length]!,selected=[mandatory,...h.shuffle(all.filter(x=>x!==mandatory)).slice(0,h.int(4,7))];
+  const domains=[...new Set(selected)] as LifecycleBlindDomain[];
+  const language=languages[(index+2)%languages.length]!,currency=currencies[(index+3)%currencies.length]!;
+  const projectId='BLIND-LIFE-'+createHash('sha256').update(seed+'|lifecycle|'+index).digest('hex').slice(0,10).toUpperCase();
+  const projectName=(language==='ar'?h.pick(arabicNames):h.pick(englishNames))+' '+h.int(100,999);
+  const dataDateIso='2038-'+String(h.int(2,10)).padStart(2,'0')+'-'+String(h.int(2,24)).padStart(2,'0');
+  const docs:BlindDocument[]=[{filename:h.pick(['programme.xer','Current_'+h.int(1,99)+'.xer','البرنامج.xer']),mediaType:'text/plain',
+    bytes:makeXer(h,projectId,projectName,dataDateIso,h.int(10,35),language),kind:'xer',domain:'schedule',truth:{rows:1,scenario:'complete',facts:{}}}];
+  if(domains.includes('measurements'))docs.push({filename:'scope_'+h.int(10,999)+'.csv',mediaType:'text/csv',
+    bytes:csv([['Item No','Description','Unit','Quantity','Rate','Amount','Currency'],['B1','Concrete','m3','100','10','1000',currency]],','),
+    kind:'csv',domain:'boq',truth:{rows:1,scenario:'complete',facts:{}}});
+  docs.push({filename:h.pick(['information','monthly_pack','project_controls','records','بيانات'])+'_'+h.int(100,999)+'.xlsx',
+    mediaType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    bytes:await lifecycleWorkbookBytes(h,projectName,dataDateIso,currency,domains,index),kind:'xlsx',domain:'mixed_lifecycle',
+    truth:{rows:domains.length,scenario:'complete',facts:{domains}}});
+  return {seed,projectId,projectName,dataDateIso,currency,language,documents:docs,expectedDomains:domains,expectedTypes:domains.map(d=>lifecycleType[d])};
+}
+export async function generateLifecycleMixedWorkbookBlindRound(seed:string,count:number){
+  const projects:LifecycleMixedBlindProject[]=[];
+  for(let i=0;i<count;i++)projects.push(await generateLifecycleMixedWorkbookBlindProject(seed,i));
+  return {seed,projects};
+}
+
 export function defaultBlindSeed(){
   return process.env.CMENG_GENERATOR_SEED?.trim()
     ||[process.env.GITHUB_RUN_ID,process.env.GITHUB_RUN_ATTEMPT,process.env.GITHUB_SHA].filter(Boolean).join(':')
