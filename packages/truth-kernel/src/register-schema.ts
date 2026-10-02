@@ -109,6 +109,17 @@ export function registerDate(value:string):string|null {
   if(iso){y=+iso[1]!;m=+iso[2]!;d=+iso[3]!;}else if(numeric){y=+numeric[3]!;m=+numeric[2]!;d=+numeric[1]!;}else if(words){y=+words[3]!;m=months.indexOf(words[2]!.slice(0,3).toLowerCase())+1;d=+words[1]!;}else return null;
   const date=new Date(Date.UTC(y,m-1,d));return m>0&&date.getUTCFullYear()===y&&date.getUTCMonth()===m-1&&date.getUTCDate()===d?date.toISOString().slice(0,10):null;
 }
+function registerSummaryRow(row:readonly string[]):boolean{
+  const values=row.map(value=>value.normalize('NFKC').trim()).filter(Boolean);
+  if(!values.length)return false;
+  const first=values[0]!.toLowerCase().replace(/[.:：\-]+$/g,'').replace(/\s+/g,' ').trim();
+  // Spreadsheet footers must never become source records merely because their
+  // first physical cell happens to sit under an ID column after column reordering.
+  // Match only standalone summary labels; legitimate identifiers such as
+  // TOTAL-01 or SUBTOTAL-A remain ordinary source values.
+  return /^(?:grand total|sub ?total|total|totals|الإجمالي|الاجمالي|المجموع)$/.test(first);
+}
+
 export function prepareRegisterRows(input:readonly string[][],documentType='') {
   let headerIndex=0,best=0;
   input.slice(0,50).forEach((row,index)=>{const score=new Set(row.map(h=>canonicalHeader(h,documentType)).filter(h=>fields.has(h)||fields.has(h.replace(/ [a-z]{3}$/,'')))).size;if(score>best){best=score;headerIndex=index;}});
@@ -118,8 +129,10 @@ export function prepareRegisterRows(input:readonly string[][],documentType='') {
   // Column meaning is constant for the table. Do not normalise and match the
   // same header again for every cell in a large BOQ/resource register.
   const dateColumns=headers.map(isRegisterDateHeader);
-  const rows=input.slice(headerIndex+1).filter(r=>r.some(v=>v.trim())).map(row=>row.map((raw,i)=>
-    dateColumns[i]?registerDate(raw)??raw:raw));
+  const rows=input.slice(headerIndex+1)
+    .filter(r=>r.some(v=>v.trim()))
+    .filter(r=>!registerSummaryRow(r))
+    .map(row=>row.map((raw,i)=>dateColumns[i]?registerDate(raw)??raw:raw));
   const required=/claim/.test(documentType)?['claim id']:/variation/.test(documentType)?['variation id']:/payment_cert/.test(documentType)?['certificate no','net certified']:/rfi/.test(documentType)?['rfi id']:/ncr/.test(documentType)?['ncr id']:/risk_register/.test(documentType)?['risk id']:/bond|security_register/.test(documentType)?['bond id']:[];
   const recognized=best>=2&&required.every(key=>headers.includes(key));
   return {headerRow:headerIndex+1,rawHeaders,headers,rows,unknown,recognized,readRowCount:rows.length};
