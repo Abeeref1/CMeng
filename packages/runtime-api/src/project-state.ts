@@ -4492,20 +4492,30 @@ export class RuntimeProjectStore {
     const media =
       identification.verifiedMediaType;
     const sourceHashSha256=hashBytes(input.bytes);
+    const priorSameSource=existingState.evidenceDocuments.find(document=>document.sourceHashSha256===sourceHashSha256);
+    const semanticResolver=input.allowSemanticAi?(this.semanticAiResolver??configuredTableSemanticAiResolver()):null;
     let tabularRead=/spreadsheetml|ms-excel/.test(media)
-      ?await enrichRegisterSheetSemantics(await readRegisterWorkbook(input.bytes,sourceHashSha256,documentType))
+      ?await enrichRegisterSheetSemantics(await readRegisterWorkbook(input.bytes,sourceHashSha256,documentType),{resolver:semanticResolver,cached:priorSameSource?.tabularRead})
       :undefined;
+    let csvSemantic=priorSameSource?.sourceHashSha256===sourceHashSha256?priorSameSource.csvSemantic:undefined;
     if(tabularRead){
       const resolved=workbookSemanticIdentity(category,documentType,identification,tabularRead);
       category=resolved.category;documentType=resolved.documentType;Object.assign(identification,resolved.identification);
     }else if(/csv/i.test(media)){
       try{
-        const route=inferTableSemanticRoute(truthCsv(Buffer.from(input.bytes).toString('utf8').replace(/^\uFEFF/,'')),documentType);
-        if(route&&(identification.method!=='tabular_content'||identification.confidence<0.95||documentType==='supporting_document')){
-          const previous=documentType;category=route.category as EvidenceCategory;documentType=route.documentType;
-          Object.assign(identification,{detectedCategory:category,detectedDocumentType:documentType,method:'tabular_content',confidence:route.confidence,needsReview:false,
-            signals:[...identification.signals,'Generic table semantics',...route.basis],
-            diagnostics:[...identification.diagnostics,'CSV_REGISTER_ROLE_ESTABLISHED_FROM_CONTENT:'+previous+'->'+documentType]});
+        const rows=truthCsv(Buffer.from(input.bytes).toString('utf8').replace(/^\uFEFF/,''));
+        const route=inferTableSemanticRoute(rows,documentType);
+        const specialistUsable=route?prepareEvidenceRows(rows,route.documentType).recognized:false;
+        if(!csvSemantic&&semanticResolver&&(!route||!specialistUsable)){
+          try{csvSemantic=await semanticResolver.resolveTable({sourceHashSha256,sheetName:'CSV',rows,hintedDocumentType:route?.documentType??documentType});}
+          catch{/* Provider failure leaves deterministic evidence unresolved. */}
+        }
+        const resolved=csvSemantic??route;
+        if(resolved&&(identification.method!=='tabular_content'||identification.confidence<0.95||documentType==='supporting_document'||csvSemantic)){
+          const previous=documentType;category=resolved.category as EvidenceCategory;documentType=resolved.documentType;
+          Object.assign(identification,{detectedCategory:category,detectedDocumentType:documentType,method:'tabular_content',confidence:resolved.confidence,needsReview:false,
+            signals:[...identification.signals,...(resolved.signals??['Generic table semantics'])],
+            diagnostics:[...identification.diagnostics,(csvSemantic?'CSV_REGISTER_ROLE_ESTABLISHED_FROM_GROUNDED_AI:':'CSV_REGISTER_ROLE_ESTABLISHED_FROM_CONTENT:')+previous+'->'+documentType]});
         }
       }catch{/* malformed CSV remains governed by the normal reader diagnostics */}
     }
@@ -5208,6 +5218,7 @@ export class RuntimeProjectStore {
       lineage,
       assertions,
       tabularRead,
+      ...(csvSemantic?{csvSemantic}:{}),
       uploadIntent,
       familyKey:
         family.familyKey,
@@ -5236,7 +5247,7 @@ export class RuntimeProjectStore {
       // cannot be applied consistently.
       const registerSources=tabularRead
         ?tabularRead.sheets.map(sheet=>({bytes:Buffer.from(registerCsv(sheet.rows)),sheetName:sheet.name,semantic:sheet.semantic}))
-        :[{bytes:input.bytes,sheetName:'CSV',semantic:undefined}];
+        :[{bytes:input.bytes,sheetName:'CSV',semantic:document.csvSemantic}];
       for(const registerSource of registerSources){
       const semanticDocument=semanticDocumentForSheet(document,registerSource.semantic);
       const derived =
