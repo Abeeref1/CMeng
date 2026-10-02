@@ -114,7 +114,7 @@ function fmtNumber(value:number,variant:number,language:BlindLanguage){
   if(variant%5===2)return '('+Math.abs(value).toLocaleString('en-US')+')';
   if(variant%5===3)return String(value);
   const s=value.toLocaleString('en-US');
-  return language==='ar'?s.replace(/,/g,'٬').replace(/./g,'٫').replace(/[0-9]/g,x=>'٠١٢٣٤٥٦٧٨٩'[Number(x)]!):s;
+  return language==='ar'?s.replace(/,/g,'٬').replace(/\./g,'٫').replace(/[0-9]/g,x=>'٠١٢٣٤٥٦٧٨٩'[Number(x)]!):s;
 }
 function csv(rows:string[][],delimiter:string){
   const q=(v:string)=>'"'+v.replaceAll('"','""')+'"';
