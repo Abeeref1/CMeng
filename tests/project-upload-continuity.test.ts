@@ -80,6 +80,20 @@ test('explicit baseline names remain unapproved candidates and never become subm
   }
 });
 
+test('schedule and evidence registry resolve the same project through normalized identity',async t=>{
+  const f=store(t),inputId='mixed-case project';
+  const uploaded=await f.store.ingestEvidenceFile({
+    projectId:inputId,bytes:xer('2036-08-31'),mediaType:'text/plain',
+    sourceFilename:'Current_Update.xer',uploadedAt:'2036-09-01',uploadIntent:'add_update',
+  });
+  const canonical=f.store.get('MIXED-CASE PROJECT')!;
+  assert.ok(canonical);
+  assert.ok(canonical.evidenceDocuments.some(d=>d.linkedArtifactId===uploaded.linkedArtifactId));
+  assert.equal(f.store.evidence(inputId).find(d=>d.linkedArtifactId===uploaded.linkedArtifactId)?.documentId,uploaded.documentId);
+  assert.equal(f.store.latestSchedule(inputId)?.revision.revisionId,uploaded.linkedArtifactId);
+  assert.equal(f.store.latestSchedule('MIXED-CASE PROJECT')?.revision.revisionId,uploaded.linkedArtifactId);
+});
+
 test('BOQ identity ignores row order and filename but refuses missing, ambiguous or changed scope identities',()=>{
   const old={id:'hash-old-row-1',itemNumber:'B1',section:'MEP',description:'Chiller',unit:'No.'},same={...old,id:'hash-new-row-200'};
   assert.equal(boqItemContinuity([old],[same]).get(old.id),same.id);
