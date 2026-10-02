@@ -94,7 +94,7 @@ test('J2 fresh blind project set: mixed workbooks route each sheet by content an
   const dir=mkdtempSync(join(tmpdir(),'cmeng-j2-mixed-blind-'));
   t.after(()=>rmSync(dir,{recursive:true,force:true}));
   let store=new RuntimeProjectStore({dataDir:dir,durable:false});
-  const beforeRestart=new Map<string,{types:string[];counts:{payments:number;variations:number;risks:number;quality:number}}>();
+  const beforeRestart=new Map<string,{types:string[];counts:{payments:number;variations:number;risks:number;quality:number;claims:number;procurement:number}}>();
 
   for(const project of projects){
     for(const document of project.documents)await store.ingestEvidenceFile({
@@ -114,27 +114,50 @@ test('J2 fresh blind project set: mixed workbooks route each sheet by content an
     for(const type of semanticTypes)assert.ok(routedTypes.includes(type),'sheet meaning did not reach sourceTables: '+project.projectId+' '+type);
 
     const expected=project.truth;
+    const expectedTypes:Record<string,string>={payments:'payment_certificates',variations:'variation_register',risks:'risk_register',
+      claims:'delay_eot_claims_register',procurement:'procurement_register',quality:'quality_ncr_register'};
+    for(const domain of expected.expectedDomains.filter(domain=>domain!=='schedule')){
+      const type=expectedTypes[domain];if(type)assert.ok(semanticTypes.includes(type),'expected worksheet role missing: '+project.projectId+' '+domain+' -> '+type+'; got '+JSON.stringify(semanticTypes));
+    }
     const derived=state.derivedControlsByDocument[workbook.documentId]??{};
+    const claimCount=state.controls.delayClaims?.claims.length??0;
+    const procurementEvidence=Object.values(state.controls.readinessEvidence)
+      .flatMap(dimensions=>dimensions.procurement_material?[dimensions.procurement_material]:[]);
+    const procurementCount=procurementEvidence.length;
     const context=()=>JSON.stringify({semanticTypes,derivedKeys:Object.keys(derived),
-      counts:{payments:state.controls.invoices.length,variations:state.controls.variations.length,risks:state.controls.risks.length,quality:state.controls.ncrs.length}});
+      counts:{payments:state.controls.invoices.length,variations:state.controls.variations.length,risks:state.controls.risks.length,
+        quality:state.controls.ncrs.length,claims:claimCount,procurement:procurementCount}});
     if((expected.payments??0)>0)assert.ok(state.controls.invoices.length>0,'payment sheet did not reach existing payment controls: '+project.projectId+' '+context());
     if((expected.variations??0)>0)assert.ok(state.controls.variations.length>0,'variation sheet did not reach existing variation controls: '+project.projectId+' '+context());
     if((expected.risks??0)>0)assert.ok(state.controls.risks.length>0,'risk sheet did not reach existing risk controls: '+project.projectId+' '+context());
     if((expected.quality??0)>0)assert.ok(state.controls.ncrs.length>0,'quality sheet did not reach existing quality controls: '+project.projectId+' '+context());
+    if((expected.claims??0)>0)assert.ok(claimCount>0,'claims sheet did not reach existing claims controls: '+project.projectId+' '+context());
+    if((expected.procurement??0)>0)assert.ok(procurementCount>0,'procurement sheet did not reach existing readiness controls: '+project.projectId+' '+context());
+
     const sheetDerived=[...state.controls.invoices,...state.controls.variations,...state.controls.risks,...state.controls.ncrs]
       .filter(row=>row.sourceRefs.some(ref=>ref.startsWith('evidence-document:'+workbook.documentId)));
-    assert.ok(sheetDerived.length>0,'mixed workbook produced no traceable control rows: '+project.projectId+' '+context());
-    assert.ok(sheetDerived.every(row=>row.sourceRefs.filter(ref=>ref.startsWith('evidence-document:'+workbook.documentId)).every(ref=>ref.includes(':sheet:'))),
-      'mixed workbook control provenance must include worksheet: '+project.projectId+' '+JSON.stringify(sheetDerived.map(row=>row.sourceRefs)));
+    const expectedDirect=(expected.payments??0)+(expected.variations??0)+(expected.risks??0)+(expected.quality??0);
+    if(expectedDirect>0){
+      assert.ok(sheetDerived.length>0,'mixed workbook produced no traceable control rows: '+project.projectId+' '+context());
+      assert.ok(sheetDerived.every(row=>row.sourceRefs.filter(ref=>ref.startsWith('evidence-document:'+workbook.documentId)).every(ref=>ref.includes(':sheet:'))),
+        'mixed workbook control provenance must include worksheet: '+project.projectId+' '+JSON.stringify(sheetDerived.map(row=>row.sourceRefs)));
+    } else {
+      assert.equal(sheetDerived.length,0,'genuine zero source must not invent direct control rows: '+project.projectId+' '+context());
+    }
+    if((expected.procurement??0)>0)assert.ok(procurementEvidence.every(item=>item.sourceRefs.every(ref=>!ref.startsWith('evidence-document:'+workbook.documentId)||ref.includes(':sheet:'))),
+      'procurement readiness provenance must include worksheet: '+project.projectId);
 
-    const counts={payments:state.controls.invoices.length,variations:state.controls.variations.length,risks:state.controls.risks.length,quality:state.controls.ncrs.length};
+    const counts={payments:state.controls.invoices.length,variations:state.controls.variations.length,risks:state.controls.risks.length,quality:state.controls.ncrs.length,
+      claims:claimCount,procurement:procurementCount};
     beforeRestart.set(project.projectId,{types:semanticTypes,counts});
     await store.refreshSpreadsheetRegisters(project.projectId);
     const refreshed=store.get(project.projectId)!;
     const refreshedWorkbook=refreshed.evidenceDocuments.find(document=>document.documentId===workbook.documentId)!;
     assert.deepEqual([...new Set((refreshedWorkbook.tabularRead?.sheets??[]).map(sheet=>sheet.semantic?.documentType).filter((value):value is string=>!!value))].sort(),semanticTypes,
       'reread changed sheet meaning: '+project.projectId);
-    assert.deepEqual({payments:refreshed.controls.invoices.length,variations:refreshed.controls.variations.length,risks:refreshed.controls.risks.length,quality:refreshed.controls.ncrs.length},counts,
+    const refreshedProcurement=Object.values(refreshed.controls.readinessEvidence).filter(dimensions=>dimensions.procurement_material).length;
+    assert.deepEqual({payments:refreshed.controls.invoices.length,variations:refreshed.controls.variations.length,risks:refreshed.controls.risks.length,
+      quality:refreshed.controls.ncrs.length,claims:refreshed.controls.delayClaims?.claims.length??0,procurement:refreshedProcurement},counts,
       'reread changed routed facts: '+project.projectId);
   }
 
@@ -145,7 +168,9 @@ test('J2 fresh blind project set: mixed workbooks route each sheet by content an
     const expected=beforeRestart.get(project.projectId)!;
     assert.deepEqual([...new Set((workbook.tabularRead?.sheets??[]).map(sheet=>sheet.semantic?.documentType).filter((value):value is string=>!!value))].sort(),expected.types,
       'restart changed sheet meaning: '+project.projectId);
-    assert.deepEqual({payments:state.controls.invoices.length,variations:state.controls.variations.length,risks:state.controls.risks.length,quality:state.controls.ncrs.length},expected.counts,
+    const restartedProcurement=Object.values(state.controls.readinessEvidence).filter(dimensions=>dimensions.procurement_material).length;
+    assert.deepEqual({payments:state.controls.invoices.length,variations:state.controls.variations.length,risks:state.controls.risks.length,
+      quality:state.controls.ncrs.length,claims:state.controls.delayClaims?.claims.length??0,procurement:restartedProcurement},expected.counts,
       'restart changed routed facts: '+project.projectId);
   }
 });
