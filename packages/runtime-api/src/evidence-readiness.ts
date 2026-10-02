@@ -36,6 +36,11 @@ function combineReadiness(a:ReadinessEvidence|undefined,b:ReadinessEvidence):Rea
     note:[a.note,b.note].filter(Boolean).join('; '),diagnostics:[...new Set([...(a.diagnostics??[]),...(b.diagnostics??[])])]};
 }
 
+function readinessSourceRef(document:StoredEvidenceDocument,rowNumber:number,sheetName?:string){
+  const sheet=sheetName&&sheetName!=='CSV'?':sheet:'+encodeURIComponent(sheetName):'';
+  return 'evidence-document:'+document.documentId+sheet+':row:'+rowNumber;
+}
+
 
 
 function normHeader(
@@ -380,13 +385,9 @@ export function deriveReadinessFromCsv(
       state,
       diagnostics,
       records:[{recordId:valueAt(row,recordIdIndex)||null,documentType:input.document.documentType,state,dueIso:dateValue(dueIso),
-        note:scopeNote||'Source status: '+(status||'not stated'),sourceRefs:['evidence-document:'+input.document.documentId+':row:'+(index+1)]}],
+        note:scopeNote||'Source status: '+(status||'not stated'),sourceRefs:[readinessSourceRef(input.document,index+1,input.sheetName)]}],
       sourceRefs: [
-        "evidence-document:" +
-          input.document
-            .documentId +
-          ":row:" +
-          (index + 1),
+        readinessSourceRef(input.document,index+1,input.sheetName),
       ],
       note:
         (valueAt(row,recordIdIndex)?valueAt(row,recordIdIndex)+'; ':'')+(scopeNote?scopeNote+'; ':'')+
