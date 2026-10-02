@@ -55,10 +55,8 @@ test('missing contractual completion becomes one inline confirmation action and 
   assert.equal((await post('/api/projects',{projectId:'CONTRACT-DATE-A'})).status,201);
   const upload=await fetch(base+'/api/projects/CONTRACT-DATE-A/schedule/uploads',{method:'POST',headers:{'content-type':'text/plain','x-source-filename':'Current programme.xer','x-upload-intent':'add_update','x-schedule-role':'update','x-schedule-role-confirmed':'1'},body:xer('2031-08-31','Current programme')});
   assert.equal(upload.status,201);
-  const first=await get('/api/projects/CONTRACT-DATE-A/actions');
-  const schedule=first.actions.find((a:any)=>a.target.type==='schedule');assert.ok(schedule);
-  assert.equal((await post('/api/projects/CONTRACT-DATE-A/actions/confirm-schedule',{actionId:schedule.id,expectedVersion:first.projectVersion})).status,200);
   const pending=await get('/api/projects/CONTRACT-DATE-A/actions');
+  assert.equal(pending.actions.filter((a:any)=>a.target.type==='schedule').length,0,'ordinary submitted-current schedule must not require manual confirmation');
   const contract=pending.actions.find((a:any)=>a.target.kind==='contract-completion');
   assert.ok(contract);assert.equal(contract.category,'confirmation');assert.equal(contract.target.type,'inline');
   assert.match(contract.resolution.instruction,/current programme finish|contractual completion date/i);
