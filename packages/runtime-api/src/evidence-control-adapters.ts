@@ -127,10 +127,13 @@ function evidenceRef(
   document:
     StoredEvidenceDocument,
   rowNumber: number,
+  sheetName?: string,
 ): string {
+  const sheet=sheetName&&sheetName!=='CSV'?':sheet:'+encodeURIComponent(sheetName):'';
   return (
     "evidence-document:" +
     document.documentId +
+    sheet +
     ":row:" +
     rowNumber
   );
@@ -476,10 +479,7 @@ export function deriveControlsFromCsv(
           sourceCurrency,
         state,
         sourceRefs: [
-          evidenceRef(
-            input.document,
-            rowIndex + parsedTable.headerRow,
-          ),
+          evidenceRef(\n            input.document,\n            rowIndex + parsedTable.headerRow,\n            input.sheetName,\n          ),
         ],
       });
     }
@@ -607,10 +607,7 @@ export function deriveControlsFromCsv(
       if (!invoiceId) continue;
       if(/advance|mobilisation|mobilization|دفعة مقدمة/i.test(value(row,indexOf(headers,['payment type','type']))))continue;
       const sourceRef =
-        evidenceRef(
-          input.document,
-          rowIndex + parsedTable.headerRow,
-        );
+        evidenceRef(\n          input.document,\n          rowIndex + parsedTable.headerRow,\n          input.sheetName,\n        );
       const retentionAmount =
         numeric(
           value(
@@ -778,10 +775,7 @@ export function deriveControlsFromCsv(
             ),
           ),
         sourceRefs: [
-          evidenceRef(
-            input.document,
-            rowIndex + parsedTable.headerRow,
-          ),
+          evidenceRef(\n            input.document,\n            rowIndex + parsedTable.headerRow,\n            input.sheetName,\n          ),
         ],
       });
     }
@@ -905,10 +899,7 @@ export function deriveControlsFromCsv(
             ),
           ),
         sourceRefs: [
-          evidenceRef(
-            input.document,
-            rowIndex + parsedTable.headerRow,
-          ),
+          evidenceRef(\n            input.document,\n            rowIndex + parsedTable.headerRow,\n            input.sheetName,\n          ),
         ],
       });
     }
@@ -973,10 +964,7 @@ export function deriveControlsFromCsv(
         closedIso: iso(value(row,indexOf(headers,["close date","closed date","response date","answered date"]))),
         statusAsOfIso: iso(value(row,indexOf(headers,["status as of","status date","snapshot date","as of date"]))),
         sourceRefs: [
-          evidenceRef(
-            input.document,
-            rowIndex + parsedTable.headerRow,
-          ),
+          evidenceRef(\n            input.document,\n            rowIndex + parsedTable.headerRow,\n            input.sheetName,\n          ),
         ],
       });
     }
@@ -1044,10 +1032,7 @@ export function deriveControlsFromCsv(
         closedIso: iso(value(row,indexOf(headers,["close date","closed date","response date","answered date"]))),
         statusAsOfIso: iso(value(row,indexOf(headers,["status as of","status date","snapshot date","as of date"]))),
         sourceRefs: [
-          evidenceRef(
-            input.document,
-            rowIndex + parsedTable.headerRow,
-          ),
+          evidenceRef(\n            input.document,\n            rowIndex + parsedTable.headerRow,\n            input.sheetName,\n          ),
         ],
       });
     }
@@ -1132,10 +1117,7 @@ export function deriveControlsFromCsv(
         closedIso: iso(value(row,indexOf(headers,["close date","closed date","response date","answered date"]))),
         statusAsOfIso: iso(value(row,indexOf(headers,["status as of","status date","snapshot date","as of date"]))),
         sourceRefs: [
-          evidenceRef(
-            input.document,
-            rowIndex + parsedTable.headerRow,
-          ),
+          evidenceRef(\n            input.document,\n            rowIndex + parsedTable.headerRow,\n            input.sheetName,\n          ),
         ],
       });
     }
@@ -1582,10 +1564,7 @@ export function deriveControlsFromCsv(
             claimedAmount,
             assessedAmount,
             sourceRefs: [
-              evidenceRef(
-                input.document,
-                rowIndex + parsedTable.headerRow,
-              ),
+              evidenceRef(\n                input.document,\n                rowIndex + parsedTable.headerRow,\n                input.sheetName,\n              ),
             ],
           });
         }
