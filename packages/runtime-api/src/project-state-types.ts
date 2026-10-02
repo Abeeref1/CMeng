@@ -272,6 +272,7 @@ export interface StoredEvidenceDocument {
   scheduleAdoption?:{method:'explicit'|'legacy_retained';sourceHashSha256:string;recordedAt:string;note:string};
   derivedRegisterRead?: {producerVersion:string;sourceHashSha256:string};
   tabularRead?: import("../../truth-kernel/src").EvidenceDocument["tabularRead"];
+  csvSemantic?: import("../../truth-kernel/src").EvidenceTableSemantic;
   tableConfirmations?: import("../../truth-kernel/src").EvidenceColumnConfirmation[];
   documentId: string;
   category: EvidenceCategory;
