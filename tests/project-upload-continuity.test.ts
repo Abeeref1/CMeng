@@ -66,14 +66,15 @@ test('mitigation and acceleration programme names stay scenario-only until purpo
 
 test('explicit baseline names remain unapproved candidates and never become submitted-current',async t=>{
   const f=store(t);
-  for(const name of ['Contract_Baseline_01.xer','Tender_Baseline_02.xer','Baseline_Programme_03.xer']){
+  for(const name of ['Contract_Baseline_01.xer','Tender_Baseline_02.xer','Baseline_Programme_03.xer','Proposed_Baseline_04.xer','Rebaseline_Submission_05.xer']){
     const projectId='BASELINE-NAME-'+name.replace(/[^A-Za-z0-9]/g,'');
     const uploaded=await f.store.ingestEvidenceFile({
       projectId,bytes:xer('2036-08-31'),mediaType:'text/plain',sourceFilename:name,
       uploadedAt:'2036-09-01',uploadIntent:'add_update',
     });
     const state=f.store.get(projectId)!,document=state.evidenceDocuments.find(d=>d.linkedArtifactId===uploaded.linkedArtifactId)!;
-    assert.equal(uploaded.scheduleRole,'baseline',name+' must be recognised as baseline intent');
+    const expectedRole=/Proposed|Rebaseline/i.test(name)?'revised_baseline':'baseline';
+    assert.equal(uploaded.scheduleRole,expectedRole,name+' must be recognised as baseline/revised-baseline intent');
     assert.equal(document.basisState,'candidate',name+' must remain unapproved candidate');
     assert.equal(projectDataDate(state),null,name+' must not establish the current project Data Date');
     assert.throws(()=>f.store.adoptSchedule(projectId,uploaded.linkedArtifactId!),/BASELINE_APPROVAL_REFERENCE_REQUIRED/);
