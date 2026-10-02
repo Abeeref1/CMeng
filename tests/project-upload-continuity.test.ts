@@ -35,6 +35,27 @@ test('confirmed programme purpose overrides filename hints and baseline adoption
   const result=await f.store.ingestSchedule(input);assert.equal(result.role,'update');assert.equal(projectDataDate(f.store.get('NAMES')!),'2036-08-31');
   await assert.rejects(()=>f.store.ingestSchedule({...input,projectId:'NO-APPROVAL',role:'baseline'}),/APPROVAL_REFERENCE/);
 });
+test('mitigation and acceleration programme names stay scenario-only until purpose is explicitly confirmed',async t=>{
+  const f=store(t),projectId='RECOVERY-NAMES';
+  for(const [index,name] of ['Mitigation_Programme_01.xer','Acceleration_Programme_02.xer'].entries()){
+    const uploaded=await f.store.ingestEvidenceFile({
+      projectId,bytes:xer('2036-0'+(index+8)+'-31'),mediaType:'text/plain',sourceFilename:name,
+      uploadedAt:'2036-10-01',uploadIntent:'add_update',
+    });
+    const state=f.store.get(projectId)!,document=state.evidenceDocuments.find(d=>d.linkedArtifactId===uploaded.linkedArtifactId)!;
+    assert.equal(uploaded.scheduleRole,'recovery',name+' must be recognised as recovery intent');
+    assert.equal(document.basisState,'scenario',name+' must not become the current analytical programme');
+    assert.equal(projectDataDate(state),null,name+' must not establish the project Data Date');
+  }
+  const explicit=await f.store.ingestSchedule({
+    projectId:'EXPLICIT-ACCELERATION',bytes:xer('2036-08-31'),mediaType:'text/plain',
+    sourceFilename:'Acceleration_Programme_03.xer',role:'update',roleConfirmed:true,
+    uploadedAt:'2036-09-01',uploadIntent:'replace_current_basis',
+  });
+  assert.equal(explicit.role,'update','an explicit confirmed programme purpose must override the filename hint');
+  assert.equal(projectDataDate(f.store.get('EXPLICIT-ACCELERATION')!),'2036-08-31');
+});
+
 test('BOQ identity ignores row order and filename but refuses missing, ambiguous or changed scope identities',()=>{
   const old={id:'hash-old-row-1',itemNumber:'B1',section:'MEP',description:'Chiller',unit:'No.'},same={...old,id:'hash-new-row-200'};
   assert.equal(boqItemContinuity([old],[same]).get(old.id),same.id);
