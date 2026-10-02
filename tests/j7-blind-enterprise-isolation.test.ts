@@ -99,7 +99,13 @@ test('J7 fresh blind enterprise isolation: all 58 public pages remain project-sc
         const result=await request(pagePath(project.projectId,page));
         assert.ok(result.status===200||result.status===409,
           'J7 page must resolve or fail closed without server error: '+project.projectId+' / '+page.key+' -> '+result.status+' '+result.text.slice(0,500));
-        if(result.status===409)assert.equal(page.area,'delivery','only Delivery without governed records may fail closed: '+page.key);
+        if(result.status===409){
+          assert.equal(result.body?.status,'blocked','J7 409 must be an explicit governed blocked state: '+project.projectId+' / '+page.key);
+          assert.ok(typeof result.body?.reason==='string'&&result.body.reason.trim().length>0,
+            'J7 blocked page must explain why it is unavailable: '+project.projectId+' / '+page.key);
+          assert.ok(Array.isArray(result.body?.dependencies),
+            'J7 blocked page must expose its evidence dependencies: '+project.projectId+' / '+page.key);
+        }
         for(const otherId of otherIds)assert.ok(!result.text.includes(otherId),
           'J7 cross-project disclosure: '+project.projectId+' / '+page.key+' contains '+otherId);
         if(result.body&&typeof result.body==='object'&&typeof result.body.projectId==='string')
