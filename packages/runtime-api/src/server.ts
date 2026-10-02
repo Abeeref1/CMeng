@@ -1524,6 +1524,7 @@ async function route(
                 intent,
               preidentified:
                 item.identification,
+              allowSemanticAi:req.headers['x-cmeng-paid-ai']==='1',
             });
         results.push(result);
         processedCount += 1;
@@ -1694,6 +1695,7 @@ async function route(
             new Date().toISOString(),
           uploadIntent:
             intent,
+          allowSemanticAi:req.headers['x-cmeng-paid-ai']==='1',
         });
     await runtimeProjects.refreshDeferredPdfReads(projectId);
     await runtimeProjects.refreshSpreadsheetRegisters(projectId);
@@ -2351,6 +2353,7 @@ async function route(
             "other",
           uploadedAt:
             new Date().toISOString(),
+          allowSemanticAi:req.headers['x-cmeng-paid-ai']==='1',
         });
     invalidateProject(
       projectId,
