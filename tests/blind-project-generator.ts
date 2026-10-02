@@ -541,6 +541,100 @@ export async function generateScheduleLifecycleBlindRound(seed:string,count:numb
   return {seed,projects};
 }
 
+
+export type DeliveryFeatureBlindKind=
+  'package'|'supplier'|'submittal'|'design'|'workfront'|'interface'|'quality'|'permit'|'hse'|'commissioning'|'asset'|'snag'|'spare'|'handover'|'weather'|'location'|'lifecycle'|'gate';
+export interface DeliveryFeatureBlindProject {
+  seed:string;projectId:string;projectName:string;dataDateIso:string;currency:string;language:BlindLanguage;
+  documents:BlindDocument[];expectedKinds:DeliveryFeatureBlindKind[];
+}
+const deliveryFeatureKinds:DeliveryFeatureBlindKind[]=[
+  'package','supplier','submittal','design','workfront','interface','quality','permit','hse',
+  'commissioning','asset','snag','spare','handover','weather','location','lifecycle','gate'
+];
+function deliveryFeatureTable(h:ReturnType<typeof helpers>,kind:DeliveryFeatureBlindKind,dataDate:string,currency:string,index:number){
+  const past=(n=0)=>shiftDate(dataDate,-h.int(1+n,30+n)),future=(n=0)=>shiftDate(dataDate,h.int(5+n,60+n));
+  if(kind==='package')return {headers:['Package ID','Description','Required On Site','Forecast Delivery','Status','Linked Activity','Package Value','Currency'],
+    rows:[['PK-'+h.int(100,999),'Transformer package',future(),future(10),'Ordered','1000',String(h.int(100000,900000)),currency]]};
+  if(kind==='supplier')return {headers:['Supplier ID','Description','Status','Owner'],rows:[['SUP-'+h.int(100,999),'Specialist supplier','Active','Procurement']]};
+  if(kind==='submittal')return {headers:['Submittal ID','Description','Submitted Date','Approval Date','Status','Linked Activity'],
+    rows:[['SUB-'+h.int(100,999),'Technical submittal',past(20),index%2?past():'',index%2?'Approved':'Under Review','1000']]};
+  if(kind==='design')return {headers:['RFI ID','Description','Raised Date','Required Response','Response Date','Status','Linked Activity'],
+    rows:[['RFI-'+h.int(100,999),'Design coordination query',past(20),past(5),index%3?past():'',index%3?'Closed':'Open','1000']]};
+  if(kind==='workfront')return {headers:['Workfront ID','Description','Discipline','Status','Owner','Linked Activity'],
+    rows:[['WF-'+h.int(100,999),'Main construction workfront',h.pick(['Civil','MEP','Architectural']),'Active','Construction','1000']]};
+  if(kind==='interface')return {headers:['Interface ID','Description','Giving Party','Receiving Party','Required Deliverable','Status','Linked Activity'],
+    rows:[['IF-'+h.int(100,999),'Design / construction interface','Designer','Contractor','Approved IFC information','Open','1000']]};
+  if(kind==='quality')return {headers:['NCR ID','Description','Raised Date','Closed Date','Verification Date','Status','Linked Activity'],
+    rows:[['NCR-'+h.int(100,999),'Blind quality issue',past(25),index%2?past(2):'',index%2?past():'',index%2?'Closed':'Open','1000']]};
+  if(kind==='permit')return {headers:['Permit ID','Description','Issue Date','Valid From','Expiry Date','Required By','Status','Linked Activity'],
+    rows:[['PER-'+h.int(100,999),'Authority work permit',past(10),past(10),future(60),past(2),'Issued','1000']]};
+  if(kind==='hse')return {headers:['Incident ID','Description','Incident Date','Status','Man Hours','Lost Time Injuries','Medical Treatment Cases','First Aid Cases'],
+    rows:[['HSE-'+h.int(100,999),'Site safety observation',past(3),'Closed','12000',String(index%2),String(index%3===0?1:0),'2']]};
+  if(kind==='commissioning')return {headers:['Test ID','Description','Planned Date','Actual Date','Outcome Date','Status','Authority Witness','Linked Activity'],
+    rows:[['T-'+h.int(100,999),'Functional performance test',past(5),index%2?past(2):'',index%2?past(1):'',index%2?'Passed':'Planned','Client','1000']]};
+  if(kind==='asset')return {headers:['Asset ID','Description','System','Tag Installed','Commissioned','O&M Manual','Warranty','Status','Linked Activity'],
+    rows:[['AST-'+h.int(100,999),'AHU asset','HVAC','Yes',index%2?'Yes':'No','Yes','Yes',index%2?'Ready':'In Progress','1000']]};
+  if(kind==='snag')return {headers:['Snag ID','Description','Raised Date','Due Date','Rectified Date','Verification Date','Closed Date','Status','Linked Activity'],
+    rows:[['SN-'+h.int(100,999),'Closeout snag',past(20),past(5),index%2?past(3):'',index%2?past(2):'',index%2?past(1):'',index%2?'Closed':'Open','1000']]};
+  if(kind==='spare')return {headers:['Spare ID','Description','Unit','Required Quantity','Delivered Quantity','Accepted Quantity','Stored Quantity','Handed Over Quantity','Status As Of'],
+    rows:[['SP-'+h.int(100,999),'Critical spare','No.',String(10+h.int(0,5)),String(8+h.int(0,3)),String(7+h.int(0,2)),String(7+h.int(0,2)),String(5+h.int(0,2)),dataDate]]};
+  if(kind==='handover')return {headers:['Requirement ID','Description','Due Date','Acceptance Date','Verification Date','Status','Linked Activity'],
+    rows:[['HO-'+h.int(100,999),'O&M dossier',future(20),index%2?past(2):'',index%2?past(1):'',index%2?'Accepted':'Open','1000']]};
+  if(kind==='weather')return {headers:['Weather ID','Description','Event Start','Event End','Status','Linked Activity'],
+    rows:[['W-'+h.int(100,999),'High wind disruption',past(4),past(3),'Recorded','1000']]};
+  if(kind==='location')return {headers:['Location ID','Description','Parent Location ID','Status'],rows:[['LOC-'+h.int(100,999),'Zone '+h.int(1,9),'','Active']]};
+  if(kind==='lifecycle')return {headers:['Lifecycle ID','Description','Stages','PO Duration','PO Day Basis','PO Duration Source','Delivery Duration','Delivery Day Basis','Delivery Duration Source','Installation Duration','Installation Day Basis','Installation Duration Source'],
+    rows:[['LC-'+h.int(100,999),'Imported equipment lifecycle','po;delivery;installation','10','working days','Supplier programme','20','calendar days','Supplier programme','5','working days','Method statement']]};
+  return {headers:['Gate ID','Requirement','Applicable','Outcome','Outcome Date','Satisfied Date','Owner'],
+    rows:[
+      ['G-PKG-'+h.int(10,99),'Approved material submittal','Yes',index%2?'Ready':'Blocked',dataDate,index%2?past():'','Design'],
+      ['G-WF-'+h.int(10,99),'Released workfront','Yes','Ready',dataDate,past(),'Construction'],
+      ['G-COM-'+h.int(10,99),'Commissioning prerequisite','Yes',index%3?'Ready':'At Risk',dataDate,index%3?past():'','Commissioning'],
+      ['G-AST-'+h.int(10,99),'Asset handover prerequisite','Yes','Ready',dataDate,past(),'Handover'],
+    ]};
+}
+async function deliveryFeatureWorkbookBytes(h:ReturnType<typeof helpers>,projectName:string,dataDate:string,currency:string,index:number){
+  const workbook=new ExcelJS.Workbook();
+  const cover=workbook.addWorksheet(h.pick(['Summary','Overview','ملخص','Control']));
+  cover.addRow([projectName]);cover.addRow(['Delivery control evidence']);cover.addRow(['']);
+  for(const kind of h.shuffle(deliveryFeatureKinds)){
+    let {headers,rows}=deliveryFeatureTable(h,kind,dataDate,currency,index);
+    ({headers,rows}=withJunk(h,headers,rows));
+    const order=h.shuffle(headers.map((_,i)=>i));headers=order.map(i=>headers[i]!);rows=rows.map(row=>order.map(i=>row[i]??''));
+    const sheet=workbook.addWorksheet((kind.replaceAll('_',' ')+' '+h.int(10,999)).slice(0,31));
+    for(let n=0;n<h.int(0,2);n++)sheet.addRow([n===0?projectName:'',h.pick(['','Monthly','Source register'])]);
+    sheet.addRow(headers);rows.forEach(row=>sheet.addRow(row));
+  }
+  return new Uint8Array(await workbook.xlsx.writeBuffer());
+}
+export async function generateDeliveryFeatureBlindProject(seed:string,index=0):Promise<DeliveryFeatureBlindProject>{
+  const h=helpers(seed+'::delivery-feature::'+index),language=languages[index%languages.length]!,currency=currencies[(index+1)%currencies.length]!;
+  const projectId='BLIND-DEL-'+createHash('sha256').update(seed+'|delivery-feature|'+index).digest('hex').slice(0,10).toUpperCase();
+  const projectName=(language==='ar'?h.pick(arabicNames):language==='mixed'?h.pick(englishNames)+' / '+h.pick(arabicNames):h.pick(englishNames))+' '+h.int(100,999);
+  const dataDateIso='2041-'+String(h.int(2,10)).padStart(2,'0')+'-'+String(h.int(2,24)).padStart(2,'0'),activityCount=h.int(30,120);
+  const docs:BlindDocument[]=[
+    {filename:h.pick(['programme.xer','Current_'+h.int(1,99)+'.xer','البرنامج.xer']),mediaType:'text/plain',
+      bytes:makeXer(h,projectId,projectName,dataDateIso,activityCount,language),kind:'xer',domain:'schedule',truth:{rows:activityCount,scenario:'complete',facts:{activityCount}}},
+    {filename:'boq_'+h.int(10,999)+'.csv',mediaType:'text/csv',
+      bytes:csv([['Item No','Description','Unit','Quantity','Rate','Amount','Currency'],['B1','Concrete','m3','100','10','1000',currency],['B2','Equipment','No.','10','5000','50000',currency]],','),
+      kind:'csv',domain:'boq',truth:{rows:2,scenario:'complete',facts:{}}},
+    {filename:'installed_'+h.int(10,999)+'.csv',mediaType:'text/csv',
+      bytes:csv([['Measurement Date','Item No','Cumulative Installed Qty','Unit'],[shiftDate(dataDateIso,-3),'B1',String(20+h.int(0,20)),'m3']],','),
+      kind:'csv',domain:'measurements',truth:{rows:1,scenario:'complete',facts:{}}},
+    {filename:h.pick(['delivery_controls','site_records','monthly_delivery','سجل_التسليم'])+'_'+h.int(100,999)+'.xlsx',
+      mediaType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      bytes:await deliveryFeatureWorkbookBytes(h,projectName,dataDateIso,currency,index),kind:'xlsx',domain:'delivery_features',
+      truth:{rows:deliveryFeatureKinds.length+3,scenario:'complete',facts:{kinds:deliveryFeatureKinds}}},
+  ];
+  return {seed,projectId,projectName,dataDateIso,currency,language,documents:h.shuffle(docs),expectedKinds:[...deliveryFeatureKinds]};
+}
+export async function generateDeliveryFeatureBlindRound(seed:string,count:number){
+  const projects:DeliveryFeatureBlindProject[]=[];
+  for(let i=0;i<count;i++)projects.push(await generateDeliveryFeatureBlindProject(seed,i));
+  return {seed,projects};
+}
+
 export function defaultBlindSeed(){
   // Acceptance cohorts are generated only after the code under test has been fixed.
   // The seed is intentionally unknowable before execution; it is printed by each blind test
