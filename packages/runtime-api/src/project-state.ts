@@ -4507,14 +4507,17 @@ export class RuntimeProjectStore {
         const route=inferTableSemanticRoute(rows,documentType);
         const specialistUsable=route?prepareEvidenceRows(rows,route.documentType).recognized:false;
         if(!csvSemantic&&semanticResolver&&(!route||!specialistUsable)){
-          try{csvSemantic=await semanticResolver.resolveTable({sourceHashSha256,sheetName:'CSV',rows,hintedDocumentType:route?.documentType??documentType});}
-          catch{/* Provider failure leaves deterministic evidence unresolved. */}
+          try{
+            const proposed=await semanticResolver.resolveTable({sourceHashSha256,sheetName:'CSV',rows,hintedDocumentType:route?.documentType??documentType});
+            if(proposed)csvSemantic=proposed;
+          }catch{/* Provider failure leaves deterministic evidence unresolved. */}
         }
         const resolved=csvSemantic??route;
         if(resolved&&(identification.method!=='tabular_content'||identification.confidence<0.95||documentType==='supporting_document'||csvSemantic)){
           const previous=documentType;category=resolved.category as EvidenceCategory;documentType=resolved.documentType;
+          const semanticSignals='signals' in resolved?resolved.signals:resolved.basis;
           Object.assign(identification,{detectedCategory:category,detectedDocumentType:documentType,method:'tabular_content',confidence:resolved.confidence,needsReview:false,
-            signals:[...identification.signals,...(resolved.signals??['Generic table semantics'])],
+            signals:[...identification.signals,...(semanticSignals.length?semanticSignals:['Generic table semantics'])],
             diagnostics:[...identification.diagnostics,(csvSemantic?'CSV_REGISTER_ROLE_ESTABLISHED_FROM_GROUNDED_AI:':'CSV_REGISTER_ROLE_ESTABLISHED_FROM_CONTENT:')+previous+'->'+documentType]});
         }
       }catch{/* malformed CSV remains governed by the normal reader diagnostics */}
