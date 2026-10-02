@@ -68,6 +68,16 @@ test('missing numeric evidence is not zero; invalid/grouped values fail closed',
   assert.equal(numberValue(''),null);assert.equal(numberValue('NaN'),null);assert.equal(numberValue('1,00'),null);
   assert.equal(numberValue('0'),0);assert.equal(numberValue('١٬٢٣٤٫٥'),1234.5);assert.equal(sumKnown([1,null]),null);assert.equal(sumKnown([]),null);assert.equal(sumKnown([0]),0);assert.equal(ratio(1,0),null);assert.equal(fact(1,[],'unsupported').state,'candidate');
 });
+test('duplicate canonical headers preserve the readable table but cannot silently select an authoritative field',t=>{
+  const {csvDoc}=fixture(t);
+  const document=csvDoc('Risk Ref,Risk ID,Status\nR-1,R-ALT,Open','risk_register');
+  const diagnostics:string[]=[];
+  const tables=sourceTables([document],diagnostics,{includeHistorical:true});
+  assert.equal(tables.length,1);
+  assert.deepEqual(tables[0]!.headers.filter(header=>header.startsWith('risk id')),['risk id [1]','risk id [2]']);
+  assert.equal(tables[0]!.recognition?.recognized,false);
+  assert.ok(diagnostics.some(item=>item.startsWith('DUPLICATE_NORMALIZED_HEADERS:')));
+});
 test('content schemas distinguish resource capacity and actual registers without filenames',async()=>{
   const a=await identifyEvidenceDocument({bytes:Buffer.from(weekly),sourceFilename:'a.csv',sourceRelativePath:null});
   assert.equal(a.identification.detectedDocumentType,'resource_register');
