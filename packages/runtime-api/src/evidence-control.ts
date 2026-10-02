@@ -687,7 +687,15 @@ export function applyEvidenceBasis(
   if (
     behavior ===
       "schedule_special" &&
-    (document.scheduleRole === "recovery" || document.scheduleRole === "scenario" || !document.scheduleRoleConfirmed&&scenarioName(document.sourceFilename))
+    (
+      document.scheduleRole === "recovery" ||
+      document.scheduleRole === "scenario" ||
+      (
+        !document.scheduleRoleConfirmed &&
+        !["baseline","revised_baseline","recovery"].includes(document.scheduleRole ?? "other") &&
+        scenarioName(document.sourceFilename)
+      )
+    )
   ) {
     document.basisState =
       "scenario";
