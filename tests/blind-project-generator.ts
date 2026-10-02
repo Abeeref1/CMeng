@@ -1,5 +1,5 @@
 import ExcelJS from 'exceljs';
-import {createHash} from 'node:crypto';
+import {createHash,randomBytes} from 'node:crypto';
 
 export type BlindScenario =
   | 'complete'
@@ -493,18 +493,25 @@ export async function generateScheduleLifecycleBlindProject(seed:string,index=0)
   const projectId='BLIND-SCH-'+createHash('sha256').update(seed+'|schedule-lifecycle|'+index).digest('hex').slice(0,10).toUpperCase();
   const projectName=(language==='ar'?h.pick(arabicNames):language==='mixed'?h.pick(englishNames)+' / '+h.pick(arabicNames):h.pick(englishNames))+' '+h.int(100,999);
   const baseDataDateIso='2040-'+String(h.int(3,8)).padStart(2,'0')+'-'+String(h.int(5,20)).padStart(2,'0');
-  const baselineDataDateIso=shiftDate(baseDataDateIso,-84),earlier=shiftDate(baseDataDateIso,-28),laterDataDateIso=shiftDate(baseDataDateIso,28);
-  const recovery=shiftDate(baseDataDateIso,42),draft=shiftDate(baseDataDateIso,56),revised=shiftDate(baseDataDateIso,70),count=h.int(8,24);
+  const baselineDataDateIso=shiftDate(baseDataDateIso,-h.int(56,180));
+  const earlier=shiftDate(baseDataDateIso,-h.int(7,45));
+  const laterDataDateIso=shiftDate(baseDataDateIso,h.int(7,45));
+  const recovery=shiftDate(baseDataDateIso,h.int(14,75));
+  const draft=shiftDate(baseDataDateIso,h.int(21,100));
+  const revised=shiftDate(baseDataDateIso,h.int(35,140));
+  // J4 accuracy cohorts should resemble unfamiliar project programmes, not tiny toy fixtures.
+  // Scale is certified elsewhere; this wider range is for semantic/lifecycle variety.
+  const count=h.int(35,160);
   const stages:Record<ScheduleLifecycleBlindStage,BlindDocument>={
-    baseline:scheduleLifecycleDocument('Baseline_Rev0_'+h.int(10,999)+'.xer',makeXer(h,projectId,projectName,baselineDataDateIso,count,language),'baseline',count),
-    current:scheduleLifecycleDocument(index%2===0?'Current_Programme_'+h.int(10,999)+'.xer':'Weekly_Update_001_'+h.int(10,999)+'.xer',makeXer(h,projectId,projectName,baseDataDateIso,count,language),'current',count),
-    same:scheduleLifecycleDocument('Weekly_Update_Same_'+h.int(10,999)+'.xer',makeXer(h,projectId,projectName,baseDataDateIso,count,language),'same',count),
-    earlier:scheduleLifecycleDocument('Weekly_Update_Old_'+h.int(10,999)+'.xer',makeXer(h,projectId,projectName,earlier,count,language),'earlier',count),
-    later:scheduleLifecycleDocument('Weekly_Update_002_'+h.int(10,999)+'.xer',makeXer(h,projectId,projectName,laterDataDateIso,count,language),'later',count),
-    undated:scheduleLifecycleDocument('Weekly_Update_Undated_'+h.int(10,999)+'.xer',undatedScheduleBytes(h,projectId,projectName,baseDataDateIso,count,language),'undated',count),
-    recovery:scheduleLifecycleDocument('Recovery_Plan_'+h.int(10,999)+'.xer',makeXer(h,projectId,projectName,recovery,count,language),'recovery',count),
-    draft:scheduleLifecycleDocument('DRAFT_Future_'+h.int(10,999)+'.xer',makeXer(h,projectId,projectName,draft,count,language),'draft',count),
-    revised_baseline:scheduleLifecycleDocument('Revised_Baseline_'+h.int(10,999)+'.xer',makeXer(h,projectId,projectName,revised,count,language),'revised_baseline',count),
+    baseline:scheduleLifecycleDocument(h.pick(['Baseline_Rev0_','Contract_Baseline_','Tender_Baseline_','Baseline_Programme_'])+h.int(10,999)+'.xer',makeXer(h,projectId,projectName,baselineDataDateIso,count,language),'baseline',count),
+    current:scheduleLifecycleDocument(h.pick(['Current_Programme_','Weekly_Update_','Progress_Update_','Programme_Status_'])+h.int(10,999)+'.xer',makeXer(h,projectId,projectName,baseDataDateIso,count,language),'current',count),
+    same:scheduleLifecycleDocument(h.pick(['Weekly_Update_','Progress_Cutoff_','Status_Programme_'])+h.int(10,999)+'.xer',makeXer(h,projectId,projectName,baseDataDateIso,count,language),'same',count),
+    earlier:scheduleLifecycleDocument(h.pick(['Previous_Update_','Archive_Programme_','Prior_Status_'])+h.int(10,999)+'.xer',makeXer(h,projectId,projectName,earlier,count,language),'earlier',count),
+    later:scheduleLifecycleDocument(h.pick(['Latest_Update_','Monthly_Programme_','Progress_Update_','Programme_Status_'])+h.int(10,999)+'.xer',makeXer(h,projectId,projectName,laterDataDateIso,count,language),'later',count),
+    undated:scheduleLifecycleDocument(h.pick(['Update_No_DD_','Programme_Extract_','Status_Undated_'])+h.int(10,999)+'.xer',undatedScheduleBytes(h,projectId,projectName,baseDataDateIso,count,language),'undated',count),
+    recovery:scheduleLifecycleDocument(h.pick(['Recovery_Plan_','Mitigation_Programme_','Acceleration_Programme_'])+h.int(10,999)+'.xer',makeXer(h,projectId,projectName,recovery,count,language),'recovery',count),
+    draft:scheduleLifecycleDocument(h.pick(['DRAFT_Future_','WhatIf_Programme_','Scenario_Draft_'])+h.int(10,999)+'.xer',makeXer(h,projectId,projectName,draft,count,language),'draft',count),
+    revised_baseline:scheduleLifecycleDocument(h.pick(['Revised_Baseline_','Proposed_Baseline_','Rebaseline_Submission_'])+h.int(10,999)+'.xer',makeXer(h,projectId,projectName,revised,count,language),'revised_baseline',count),
   };
   return {seed,projectId,projectName,language,baseDataDateIso,laterDataDateIso,baselineDataDateIso,stages};
 }
@@ -515,7 +522,9 @@ export async function generateScheduleLifecycleBlindRound(seed:string,count:numb
 }
 
 export function defaultBlindSeed(){
+  // Acceptance cohorts are generated only after the code under test has been fixed.
+  // The seed is intentionally unknowable before execution; it is printed by each blind test
+  // so a failure can be reproduced later as a regression case without reusing it for acceptance.
   return process.env.CMENG_GENERATOR_SEED?.trim()
-    ||[process.env.GITHUB_RUN_ID,process.env.GITHUB_RUN_ATTEMPT,process.env.GITHUB_SHA].filter(Boolean).join(':')
-    ||'local:'+new Date().toISOString().slice(0,13);
+    ||'fresh:'+randomBytes(18).toString('hex');
 }
