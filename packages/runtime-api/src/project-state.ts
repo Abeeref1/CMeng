@@ -47,6 +47,7 @@ import {
 } from "../../contract-parser/src";
 import type {
   ContractDocumentResult,
+  ContractAiResolver,
 } from "../../contract-parser/src";
 import {
   canonicalScheduleFromPrimaveraXml,
@@ -102,6 +103,7 @@ import {
   governedTables,
   csv as truthCsv,
   inferTableSemanticRoute,
+  prepareEvidenceRows,
 } from "../../truth-kernel/src";
 import {
   analyzeCsvEvidence,
@@ -121,6 +123,7 @@ import {
   evidenceFamily,
   rebuildEvidenceFamily,
 } from "./evidence-control";
+import {configuredTableSemanticAiResolver,configuredContractHeadingAiResolver,type TableSemanticAiResolver} from './evidence-semantic-ai';
 import {
   deriveReadinessFromCsv,
   rebuildReadinessEvidence,
@@ -1301,6 +1304,8 @@ export class RuntimeProjectStore {
   private readonly dataDir: string;
   private readonly stateFile: string;
   private readonly durable: boolean;
+  private readonly semanticAiResolver:TableSemanticAiResolver|null;
+  private readonly contractAiResolver:ContractAiResolver|null;
   private restoreFailure:Error|null=null;
 
   private assertAvailable():void {
@@ -1311,6 +1316,8 @@ export class RuntimeProjectStore {
     options: {
       dataDir?: string;
       durable?: boolean;
+      semanticAiResolver?:TableSemanticAiResolver|null;
+      contractAiResolver?:ContractAiResolver|null;
     } = {},
   ) {
     const testMode =
@@ -1351,6 +1358,8 @@ export class RuntimeProjectStore {
         !testMode &&
         Boolean(railwayMount)
       );
+    this.semanticAiResolver=options.semanticAiResolver??null;
+    this.contractAiResolver=options.contractAiResolver??null;
 
     this.stateFile =
       join(
