@@ -130,6 +130,18 @@ async function createAndUpload(base:string,project:BatchProject,prefix:string){
     assert.equal(uploaded.status,201,project.projectId+' / '+document.filename+' upload failed: '+uploaded.text.slice(0,800));
   }
 }
+async function adoptBlindProgrammeHistory(base:string,projectId:string){
+  const listed=await request(base,'/api/projects/'+encodeURIComponent(projectId)+'/schedule/revisions');
+  assert.equal(listed.status,200,'Programme revision list unavailable '+projectId+': '+listed.text.slice(0,500));
+  const revisions=(Array.isArray(listed.body)?listed.body:[])
+    .filter((row:any)=>row.role==='update'&&typeof row.dataDateIso==='string'&&row.dataDateIso)
+    .sort((a:any,b:any)=>String(a.dataDateIso).localeCompare(String(b.dataDateIso))||Number(a.sequence??0)-Number(b.sequence??0));
+  assert.ok(revisions.length>=2,'Blind feature cohort requires at least two governed update revisions '+projectId);
+  for(const revision of revisions){
+    const adopted=await request(base,'/api/projects/'+encodeURIComponent(projectId)+'/schedule/revisions/'+encodeURIComponent(revision.revisionId)+'/adopt',{method:'POST'});
+    assert.equal(adopted.status,200,'Programme adoption failed '+projectId+' / '+revision.revisionId+': '+adopted.text.slice(0,500));
+  }
+}
 async function ordinaryProjects(seed:string):Promise<BatchProject[]>{
   return (await generateMixedWorkbookBlindRound(seed,10)).projects;
 }
@@ -209,8 +221,19 @@ function assertFeatureSubstance(batchId:string,page:ModuleDescriptor,body:any,pr
     if(page.key==='delivery-risks')assert.ok(data.riskBasis&&typeof data.riskBasis==='object',batchId+' Delivery Risks lost source authority basis '+projectId);
     if(page.key==='handover-readiness')assert.ok(data.handover&&typeof data.handover==='object',batchId+' Handover feature lost readiness position '+projectId);
   }
-  if(page.key==='activity-analytics'||page.key==='milestones'||page.key==='near-critical'||page.key==='resource-utilization'||page.key==='progress-breakdown')
+  if(page.key==='activity-analytics'||page.key==='milestones'||page.key==='near-critical'||page.key==='progress-breakdown')
     assert.ok(Array.isArray(data.rows)&&data.rows.length>0,batchId+' '+page.key+' produced no substantive feature rows '+projectId);
+  if(page.key==='resource-utilization'){
+    if(data.resourcePopulationBasis==='p6_assignments'){
+      assert.ok(Array.isArray(data.rows)&&data.rows.length>0,batchId+' Resources lost its P6 assignment population '+projectId);
+    }else{
+      assert.equal(data.resourcePopulationBasis,'weekly_resource_evidence',batchId+' Resources has an unsupported population basis '+projectId);
+      assert.ok(Array.isArray(data.weeklyResourceRows)&&data.weeklyResourceRows.length>0,batchId+' Resources lost weekly source-resource rows '+projectId);
+      assert.ok((data.resourcePeriodRowCount??0)>0,batchId+' Resources lost weekly period population '+projectId);
+      assert.ok((data.weeklyObservedResourceCount??0)>0,batchId+' Resources lost observed resource identities '+projectId);
+      assert.ok(Array.isArray(data.weeklyCapacityEvidence?.points)&&data.weeklyCapacityEvidence.points.length>0,batchId+' Resources lost source capacity/usage evidence '+projectId);
+    }
+  }
   if(['revision-trend','variance-trends','progress-scurve','manhour-scurve','forecast-history'].includes(page.key))
     assert.ok(Array.isArray(data.points)&&data.points.length>0,batchId+' '+page.key+' produced no substantive feature points '+projectId);
   if(page.key==='lookahead-schedule'){
@@ -421,6 +444,8 @@ for(const batch of pageBatches){
     let pageChecks=0,jsonReports=0,xlsxReports=0,viewReports=0,binaryReports=0;
     try{
       for(const project of projects)await createAndUpload(base,project,batch.id);
+      if(['F2-PROGRAMME-PLANNING','F3-PROGRESS-RESOURCES','F4-FORECAST-RECOVERY','F5-DELAY-CLAIMS'].includes(batch.id))
+        for(const project of projects)await adoptBlindProgrammeHistory(base,project.projectId);
       if(batch.id==='F4-FORECAST-RECOVERY'||batch.id==='F7-DELIVERY')
         for(const project of projects)await governBlindQuantities(base,project as any);
       if(batch.id==='F7-DELIVERY')for(const project of projects)await governDeliveryProject(base,project.projectId);
