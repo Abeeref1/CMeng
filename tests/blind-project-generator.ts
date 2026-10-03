@@ -141,12 +141,15 @@ function withJunk(h:ReturnType<typeof helpers>,headers:string[],rows:string[][])
 }
 function makeXer(h:ReturnType<typeof helpers>,projectId:string,projectName:string,dataDate:string,count:number,language:BlindLanguage){
   const wbsName=language==='ar'?'الأعمال الرئيسية':language==='mixed'?'Main Works / الأعمال الرئيسية':'Main Works';
+  const calendar=p6FiveDayCalendarData();
   const lines=[
     'ERMHDR\t23.12','%T\tPROJECT','%F\tproj_id\tproj_short_name\tlast_recalc_date',
     '%R\t1\t'+projectId+'\t'+dataDate,
     '%T\tPROJWBS','%F\twbs_id\tproj_id\tparent_wbs_id\twbs_short_name\twbs_name',
     '%R\t10\t1\t\tROOT\t'+wbsName,
-    '%T\tTASK','%F\ttask_id\tproj_id\twbs_id\ttask_code\ttask_name\ttask_type\tstatus_code\ttarget_start_date\ttarget_end_date\tearly_start_date\tearly_end_date\ttarget_drtn_hr_cnt\tremain_drtn_hr_cnt\ttotal_float_hr_cnt\tphys_complete_pct'
+    '%T\tCALENDAR','%F\tclndr_id\tclndr_name\tday_hr_cnt\tweek_hr_cnt\tclndr_data',
+    '%R\tC1\tFive Day 8h\t8\t40\t'+calendar,
+    '%T\tTASK','%F\ttask_id\tproj_id\twbs_id\tclndr_id\ttask_code\ttask_name\ttask_type\tstatus_code\ttarget_start_date\ttarget_end_date\tearly_start_date\tearly_end_date\ttarget_drtn_hr_cnt\tremain_drtn_hr_cnt\ttotal_float_hr_cnt\tphys_complete_pct'
   ];
   const ids:string[]=[];
   for(let i=0;i<count;i++){
@@ -160,7 +163,7 @@ function makeXer(h:ReturnType<typeof helpers>,projectId:string,projectName:strin
     const taskType=isFinishMilestone?'TT_FinMile':'TT_Task';
     const duration=isFinishMilestone?0:80,remaining=isFinishMilestone?0:Math.max(0,80*(100-pct)/100);
     const milestoneDate=isFinishMilestone?finish:start;
-    lines.push('%R\t'+id.slice(1)+'\t1\t10\t'+code+'\t'+name+'\t'+taskType+'\t'+(pct===100?'TK_Complete':pct>0?'TK_Active':'TK_NotStart')+'\t'+milestoneDate+'\t'+finish+'\t'+milestoneDate+'\t'+finish+'\t'+duration+'\t'+remaining+'\t'+tf+'\t'+pct);
+    lines.push('%R\t'+id.slice(1)+'\t1\t10\tC1\t'+code+'\t'+name+'\t'+taskType+'\t'+(pct===100?'TK_Complete':pct>0?'TK_Active':'TK_NotStart')+'\t'+milestoneDate+'\t'+finish+'\t'+milestoneDate+'\t'+finish+'\t'+duration+'\t'+remaining+'\t'+tf+'\t'+pct);
     ids.push(id.slice(1));
   }
   if(count>1){
