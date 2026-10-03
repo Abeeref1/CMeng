@@ -679,7 +679,7 @@ export async function generateCommercialFeatureBlindProject(seed:string,index=0)
   const projectId='BLIND-COM-'+createHash('sha256').update(seed+'|commercial-feature|'+index).digest('hex').slice(0,10).toUpperCase();
   const projectName=(language==='ar'?h.pick(arabicNames):language==='mixed'?h.pick(englishNames)+' / '+h.pick(arabicNames):h.pick(englishNames))+' '+h.int(100,999);
   const dataDateIso='2042-'+String(h.int(4,9)).padStart(2,'0')+'-'+String(h.int(10,24)).padStart(2,'0');
-  const activityCount=h.int(45,140),baseValue=h.int(8_000_000,30_000_000),approvedVariation=h.int(250_000,1_500_000),currentValue=baseValue+approvedVariation;
+  const activityCount=h.int(45,140),baseValue=h.int(8_000_000,30_000_000),approvedVariation=h.int(250_000,1_500_000),pendingVariation=h.int(100_000,600_000),currentValue=baseValue+approvedVariation;
   const prior2=shiftDate(dataDateIso,-60),prior1=shiftDate(dataDateIso,-30),prior0=shiftDate(dataDateIso,-5),future=shiftDate(dataDateIso,30);
   const contractualCompletion=shiftDate(dataDateIso,365),ldRate=h.int(10_000,50_000);
   const contractLines=[
@@ -690,15 +690,17 @@ export async function generateCommercialFeatureBlindProject(seed:string,index=0)
     'Original Contract Value: '+currency+' '+baseValue+'.',
     'Contractual completion date: '+contractualCompletion+'.',
     '2 Certification and Payment',
-    'The Engineer shall certify within 7 calendar days.',
-    'Payment shall be made within 28 calendar days after certification.',
+    'Certification period: 7 calendar days.',
+    'Payment period: 28 calendar days after certification.',
     '3 Retention',
-    'Retention rate is 10%. Retention shall not exceed 5% of the Accepted Contract Amount.',
+    'Retention rate: 10%.',
+    'Retention cap: 5% of the Accepted Contract Amount.',
     '4 Securities',
-    'The Contractor shall provide a performance bond equal to 10% of the Accepted Contract Amount.',
-    'An advance-payment bond shall be maintained for the outstanding advance.',
+    'Performance security: 10% of the Accepted Contract Amount.',
+    'Advance-payment security: 100% of the outstanding advance.',
     '5 Delay Damages',
-    'Delay damages are '+currency+' '+ldRate+' per calendar day and shall not exceed 10% of the Contract Amount.',
+    'Delay damages rate: '+currency+' '+ldRate+' per calendar day.',
+    'Delay damages cap: 10% of the Contract Amount.',
     '6 Notices and Claims',
     'Initial claim notice shall be given within 14 calendar days after the event occurs.'
   ];
@@ -753,14 +755,16 @@ export async function generateCommercialFeatureBlindProject(seed:string,index=0)
   docs.push(shuffledCsvDocument(h,'Payment_Certificates_'+h.int(10,999)+'.csv','payments',paymentHeaders,paymentRows));
   const variationHeaders=['Variation ID','Description','Status','Submitted Date','Assessment Date','Agreed Date','Approval Date','Claimed Amount','Assessed Amount','Agreed Amount','Approved Amount','Schedule Impact Days','Claim ID','Payment ID','Activity ID','Clause','Currency'];
   const variationRows=[
-    ['VO-1','Scope change A','Approved',prior2,shiftDate(prior2,7),shiftDate(prior2,14),shiftDate(prior2,21),String(approvedVariation),String(Math.round(approvedVariation*.9)),String(Math.round(approvedVariation*.88)),String(Math.round(approvedVariation*.88)),'5','CLM-1','IPC-2','1000','13.3',currency],
-    ['VO-2','Scope change B','Pending',prior1,shiftDate(prior1,8),'','',String(h.int(100_000,600_000)),String(h.int(80_000,500_000)),'','','3','','','1001','13.3',currency],
+    ['VO-1','Scope change A','Approved',prior2,shiftDate(prior2,7),shiftDate(prior2,14),shiftDate(prior2,21),String(Math.round(approvedVariation*1.08)),String(Math.round(approvedVariation*.96)),String(approvedVariation),String(approvedVariation),'5','CLM-1','IPC-2','','13.3',currency],
+    ['VO-2','Scope change B','Pending',prior1,shiftDate(prior1,8),'','',String(pendingVariation),String(Math.round(pendingVariation*.8)),'','','3','','','','13.3',currency],
   ];
   docs.push(shuffledCsvDocument(h,'Variation_Register_'+h.int(10,999)+'.csv','variations',variationHeaders,variationRows));
   const claimHeaders=['Claim ID','Event ID','Event','Event Start','Event End','Responsibility','Category','Impact Days','Activity ID','Notice Date','Days Claimed','Days Granted','Claimed Amount','Assessed Amount','Status','Clause','Determination ID','Day Basis','Currency'];
+  const claim1Claimed=h.int(200_000,800_000),claim1Assessed=h.int(150_000,Math.max(150_001,claim1Claimed));
+  const claim2Claimed=h.int(150_000,500_000),claim2Assessed=h.int(100_000,Math.max(100_001,claim2Claimed));
   const claimRows=[
-    ['CLM-1','EV-1','Late access',shiftDate(prior2,-10),shiftDate(prior2,-2),'Employer','late access','8','1000',shiftDate(prior2,-8),'8','5',String(h.int(200_000,800_000)),String(h.int(150_000,650_000)),'Engineer Determined','20.1','DET-1','calendar days',currency],
-    ['CLM-2','EV-2','Late design information',shiftDate(prior1,-14),shiftDate(prior1,-4),'Employer','design','10','1001',shiftDate(prior1,-11),'10','',String(h.int(150_000,500_000)),'','Under Review','20.1','','calendar days',currency],
+    ['CLM-1','EV-1','Late access',shiftDate(prior2,-10),shiftDate(prior2,-2),'Employer','late access','8','',shiftDate(prior2,-8),'8','5',String(claim1Claimed),String(claim1Assessed),'Engineer Determined','20.1','DET-1','calendar days',currency],
+    ['CLM-2','EV-2','Late design information',shiftDate(prior1,-14),shiftDate(prior1,-4),'Employer','design','10','',shiftDate(prior1,-11),'10','6',String(claim2Claimed),String(claim2Assessed),'Engineer Determined','20.1','DET-2','calendar days',currency],
   ];
   docs.push(shuffledCsvDocument(h,'Claims_Register_'+h.int(10,999)+'.csv','claims',claimHeaders,claimRows));
   const bondHeaders=['Bond ID','Bond Type','Bond Amount','Status','Expiry Date','Currency'];
@@ -769,6 +773,26 @@ export async function generateCommercialFeatureBlindProject(seed:string,index=0)
     ['BG-ADV','Advance Payment',String(Math.round(baseValue*.08)),'Active',shiftDate(dataDateIso,180),currency],
   ];
   docs.push(shuffledCsvDocument(h,'Bond_Register_'+h.int(10,999)+'.csv','bonds',bondHeaders,bondRows));
+  const grossCertifiedAmount=paymentRows
+    .filter(row=>String(row[5]??'')<=dataDateIso)
+    .reduce((sum,row)=>sum+Number(row[12]??0),0);
+  const paidAmount=paymentRows
+    .filter(row=>String(row[7]??'')&&String(row[7])<=dataDateIso)
+    .reduce((sum,row)=>sum+Number(row[15]??0),0);
+  const contractTruth=docs.find(document=>document.domain==='contract');
+  if(contractTruth)Object.assign(contractTruth.truth.facts,{
+    approvedVariation,
+    pendingVariation,
+    grossCertifiedAmount,
+    paidAmount,
+    claimedAmount:claim1Claimed+claim2Claimed,
+    assessedClaimAmount:claim1Assessed+claim2Assessed,
+    claimCommercials:[
+      {claimId:'CLM-1',claimedAmount:claim1Claimed,assessedAmount:claim1Assessed},
+      {claimId:'CLM-2',claimedAmount:claim2Claimed,assessedAmount:claim2Assessed},
+    ],
+    ldCapPercent:10,
+  });
   return {seed,projectId,projectName,language,currency,dataDateIso,scenario:'complete',documents:h.shuffle(docs),
     truth:{scheduleActivities:activityCount,payments:paymentRows.length,variations:variationRows.length,risks:null,claims:claimRows.length,procurement:null,quality:null,
       expectedDomains:['schedule','contract','evm','payments','variations','claims','bonds']}};
