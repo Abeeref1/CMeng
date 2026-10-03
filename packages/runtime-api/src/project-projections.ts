@@ -7100,22 +7100,18 @@ function applyProfessionalModuleState(
       data?.focus
         ?.variationControl ??
       null;
+    // Schedule, claim and payment links are conditional relationships, not
+    // universal prerequisites for a valid variation register. A pending change
+    // can be professionally established before a claim or payment exists.
+    // Keep linkage coverage visible, but gate readiness on the variation
+    // lifecycle/authority itself rather than forcing every optional link to 100%.
     if (
       control &&
-      (
-        control
-          .scheduleLinkCoveragePercent !==
-          100 ||
-        control
-          .claimLinkCoveragePercent !==
-          100 ||
-        control
-          .paymentLinkCoveragePercent !==
-          100
-      )
+      control.state !==
+        "established"
     ) {
       review(
-        "Variation final status is available, but cross-domain schedule/claim/payment lifecycle linkage is incomplete.",
+        "Variation lifecycle or authority is incomplete; review the unresolved current variation stages before relying on the control position.",
       );
     }
   }
