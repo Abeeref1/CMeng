@@ -739,8 +739,13 @@ function applyModuleFilters(value:unknown,filters:Record<string,string>,depth=0)
   if(depth>8||value===null||value===undefined||typeof value!=='object')return value;
   if(Array.isArray(value)){
     const objects=value.filter(v=>v&&typeof v==='object'&&!Array.isArray(v)) as Record<string,unknown>[];
-    const recognized=objects.some(row=>Object.keys(filters).some(key=>rowFilterValue(row,key)!==null)||!!filters.scheduleCondition||!!filters.search);
-    const rows=recognized?value.filter(v=>!v||typeof v!=='object'||Array.isArray(v)||matchesModuleFilters(v as Record<string,unknown>,filters)):value;
+    const hasSearch=Boolean(filters.search?.trim());
+    const recognized=objects.some(row=>Object.keys(filters).some(key=>rowFilterValue(row,key)!==null)||!!filters.scheduleCondition||hasSearch);
+    const rows=recognized||hasSearch?value.filter(v=>{
+      if(v&&typeof v==='object'&&!Array.isArray(v))return matchesModuleFilters(v as Record<string,unknown>,filters);
+      if(!hasSearch)return true;
+      return String(v??'').toLowerCase().includes(filters.search!.trim().toLowerCase());
+    }):value;
     return rows.map(v=>applyModuleFilters(v,filters,depth+1));
   }
   return Object.fromEntries(Object.entries(value as Record<string,unknown>).map(([k,v])=>[k,applyModuleFilters(v,filters,depth+1)]));
@@ -819,10 +824,13 @@ function moduleAnalysis(projectId:string,moduleKey:string,result:ModuleRuntimeRe
   const projectVersion=Number((data as any)?.projectVersion??(data as any)?.reportingContract?.projectVersion??0),programmeRevision=(data as any)?.programmeRevisionId??(data as any)?.reportingContract?.programmeRevisionId??null;
   const snapshotHash=createHash('sha256').update(JSON.stringify({projectId,moduleKey,projectVersion,dataDate,data})).digest('hex');
   const detail=(view?.detailLevel&&['short','normal','detailed'].includes(view.detailLevel)?view.detailLevel:'normal') as 'short'|'normal'|'detailed';
+  const reviewLens=(['overall','planning','controls','project-director','program-director','executive'] as const).find(role=>role===view?.selectedRole)??null;
+  const audience:'project'|'planner'|'director'|'executive'=reviewLens==='planning'?'planner':
+    reviewLens==='project-director'||reviewLens==='program-director'?'director':reviewLens==='executive'?'executive':'project';
   return {schemaVersion:1,id:'module-'+snapshotHash.slice(0,24),conversationId:'module-report',createdAt:new Date().toISOString(),
     scope:{scopeType:'project',projectId,projectName:projectId,workspaceId:'cmeng-projects',userId:'module-report',projectVersion,dataDate,authorityState:result.status,programmeRevision,pageContext:view?.filters?{projectId,page:moduleKey,filters:view.filters,selectedActivity:null,selectedWbs:view.filters.wbsId??null,selectedLocation:view.filters.zone??view.filters.location??null,selectedPackage:view.filters.package??null}:null},
     plan:{objective:titleForModule(moduleKey),kind:'report',authorities:sections.map(s=>s.authorityId),filters:[],groupBy:view?.grouping??[],rankBy:view?.sort?.field??null,rankDirection:view?.sort?.direction??'desc',limit:view?.topN??null,metricIds:[],issuesOnly:false,criticalOnly:false,nextDays:null,deliveryBelowPercent:null,asOf:null,scenario:null,attachmentIds:[]},
-    presentation:{title:view?.title??titleForModule(moduleKey),audience:'project',language:'en',detail,charts:true,preparedBy:null,jobTitle:null,company:null,reportNumber:null,confidentiality:'Project information',status:'Draft / Prepared',format:'interactive'},
+    presentation:{title:view?.title??titleForModule(moduleKey),audience,reviewLens,language:'en',detail,charts:true,preparedBy:null,jobTitle:null,company:null,reportNumber:null,confidentiality:'Project information',status:'Draft / Prepared',format:'interactive'},
     mode:'Deterministic CMeng Summary',sections,narrative:[{heading:'Current position',text:result.reason??'Current CMeng module position.',classification:'calculated_intelligence',traceIds:['module:summary']}],unresolved:[],referenceFiles:[],snapshotHash,factsHash:createHash('sha256').update(JSON.stringify(data)).digest('hex'),providerStatus:'not_needed'};
 }
 export async function exportModuleReport(projectId:string,moduleKey:string,result:ModuleRuntimeResult,format:string,view?:ModuleReportView){

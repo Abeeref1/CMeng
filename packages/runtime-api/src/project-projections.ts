@@ -1670,7 +1670,7 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
             model.dataDateIso,
         },
       );
-    modules.set(
+    if (!modules.has("resource-utilization")) modules.set(
       "resource-utilization",
       available(
         "resource-utilization",
@@ -1715,7 +1715,7 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
           : null,
       ),
     );
-    modules.set(
+    if (!modules.has("manhour-scurve")) modules.set(
       "manhour-scurve",
       available(
         "manhour-scurve",
@@ -1724,20 +1724,65 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
       ),
     );
   } else {
+    // Missing resource evidence is an evidence gap, not a reason to make the
+    // specialist pages unusable. Keep an explicit partial position here.
+    // canonicalResourceModule() below still replaces this fallback whenever
+    // governed weekly resource evidence exists, so scenario/no-evidence output
+    // can never overwrite a source-backed result.
     modules.set(
       "resource-utilization",
-      blocked(
+      available(
         "resource-utilization",
-        "The current schedule revision has no resource assignment evidence.",
-        ["resource-loaded XER"],
+        {
+          schemaVersion: "1.0",
+          projectionKey: "resource_utilization_scenario",
+          generatedAt,
+          producerVersion: versions.resource,
+          projectId: state.projectId,
+          sourceRevisionId: current.revision.revisionId,
+          dataDateIso: model.dataDateIso,
+          authority: "schedule_derived_scenario",
+          submittedPlanAvailable: state.submittedManpowerPlan !== null,
+          submittedAverageManpower: null,
+          submittedPeakManpower: null,
+          averageConcurrentWorkFronts: null,
+          peakConcurrentWorkFronts: null,
+          requiredAverageManpowerToContract: null,
+          requiredAverageManpowerToContractorForecast: null,
+          scheduleDerivedScenarios: [],
+          rows: [],
+          diagnostics: [
+            "RESOURCE_ASSIGNMENTS_AND_GOVERNED_WEEKLY_RESOURCE_EVIDENCE_NOT_ESTABLISHED",
+          ],
+        },
+        ["resource-loaded XER or governed weekly resource evidence"],
+        "partial",
+        "Resource assignments and governed weekly resource evidence are not established. The page remains available without manufacturing a resource population or utilization result.",
       ),
     );
     modules.set(
       "manhour-scurve",
-      blocked(
+      available(
         "manhour-scurve",
-        "The current schedule revision has no confirmed labour assignment evidence.",
-        ["resource-loaded XER"],
+        {
+          schemaVersion: "1.0",
+          projectionKey: "manhour_scurve_scenario",
+          generatedAt,
+          producerVersion: versions.manhours,
+          projectId: state.projectId,
+          sourceRevisionId: current.revision.revisionId,
+          dataDateIso: model.dataDateIso,
+          actualHistoryMethod: "missing",
+          submittedLaborAssignments: false,
+          scenarios: [],
+          points: [],
+          diagnostics: [
+            "LABOR_ASSIGNMENTS_AND_GOVERNED_WEEKLY_HISTORY_NOT_ESTABLISHED",
+          ],
+        },
+        ["labor assignments or governed weekly labor history"],
+        "partial",
+        "Governed labor assignments or weekly labor history are not established. No man-hour curve is manufactured from missing evidence.",
       ),
     );
   }
@@ -2364,9 +2409,10 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
   if (
     !resourceAssignmentsAvailable
   ) {
-    modules.set(
-      "resource-utilization",
-      available(
+    if (!modules.has("resource-utilization")) {
+      modules.set(
+        "resource-utilization",
+        available(
         "resource-utilization",
         {
           schemaVersion: "1.0",
@@ -2426,8 +2472,9 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
         ],
         "partial",
         "No resource-loaded schedule was submitted. Manpower remains unresolved unless a headcount plan or an explicit staffing assumption is supplied. Concurrent activities alone do not establish crews.",
-      ),
-    );
+        ),
+      );
+    }
 
     const remainingDays =
       deliveryChallenge
@@ -2471,9 +2518,10 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
             "schedule_derived_scenario",
         }));
 
-    modules.set(
-      "manhour-scurve",
-      available(
+    if (!modules.has("manhour-scurve")) {
+      modules.set(
+        "manhour-scurve",
+        available(
         "manhour-scurve",
         {
           schemaVersion: "1.0",
@@ -2505,8 +2553,9 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
         ],
         "partial",
         "No confirmed labor assignments were submitted. Remaining man-hours are unresolved unless an explicit staffing and working-hours basis is supplied.",
-      ),
-    );
+        ),
+      );
+    }
   }
 
   const evidenceTypes =
@@ -7051,22 +7100,18 @@ function applyProfessionalModuleState(
       data?.focus
         ?.variationControl ??
       null;
+    // Schedule, claim and payment links are conditional relationships, not
+    // universal prerequisites for a valid variation register. A pending change
+    // can be professionally established before a claim or payment exists.
+    // Keep linkage coverage visible, but gate readiness on the variation
+    // lifecycle/authority itself rather than forcing every optional link to 100%.
     if (
       control &&
-      (
-        control
-          .scheduleLinkCoveragePercent !==
-          100 ||
-        control
-          .claimLinkCoveragePercent !==
-          100 ||
-        control
-          .paymentLinkCoveragePercent !==
-          100
-      )
+      control.state !==
+        "established"
     ) {
       review(
-        "Variation final status is available, but cross-domain schedule/claim/payment lifecycle linkage is incomplete.",
+        "Variation lifecycle or authority is incomplete; review the unresolved current variation stages before relying on the control position.",
       );
     }
   }
@@ -7630,7 +7675,7 @@ export function moduleForProject(
   if (key==='delivery-interfaces') {const scoped=reportingState(state);return withPositionVerdict(attachReportingContract(scoped,interfaceModule(scoped)));}
   if (key==='recovery-acceleration') {const scoped=reportingState(state);return withPositionVerdict(attachReportingContract(scoped,recoveryAccelerationModule(scoped)));}
   if (key==='cross-domain-accountability') {const scoped=reportingState(state);return withPositionVerdict(attachReportingContract(scoped,accountabilityModule(scoped)));}
-  if (isDeliveryPage(key)) return deliveryModule(state,key);
+  if (isDeliveryPage(key)) {const scoped=reportingState(state);return attachReportingContract(scoped,deliveryModule(scoped,key));}
   if (key==='scope-classification') return resolveProjectModuleUncertified(reportingState(state),key);
   if (key==='monte-carlo-risk') return scheduleRiskMonteCarlo(reportingState(state));
   if (key==='earned-schedule') return earnedScheduleForState(reportingState(state));
@@ -8319,7 +8364,7 @@ export function managementSurfacesForProject(
   const canonicalActions=[...canonicalActionMap.values()];
   const mp6=profiling?performance.now():0;
   const result = { ...surfaces,
-    sourceQuality: {...sourceQualityPosition(resolvedModules,issueAssessment,state.evidenceDocuments,current?.revision.model.dataDateIso??null),registerDateReview:registerDateReview(state)},
+    sourceQuality: managementReportingData(state,{...sourceQualityPosition(resolvedModules,issueAssessment,state.evidenceDocuments,current?.revision.model.dataDateIso??null),registerDateReview:registerDateReview(state)},resolvedModules),
     masterDashboard: {projectDiagnosis:diagnosis,completionPosition:completion,delivery:deliveryPosition,visualControl,managementContext,scheduleExceptions,deliveryExceptions,...managementReportingData(state, surfaces.masterDashboard, resolvedModules),decisions:surfaces.commandCenter.decisions,trend:(resolvedModules.get("forecast-history")?.data as any)??null,issueAssessment,operationalReporting:operationalReporting(state),sourceInterpretation:director?.sourceInterpretation},
     commandCenter: {projectDiagnosis:diagnosis,completionPosition:completion,scheduleExceptions,deliveryExceptions,delivery:deliveryPosition,visualControl,managementContext,...managementReportingData(state, surfaces.commandCenter, resolvedModules),actions:canonicalActions,issueAssessment,operationalReporting:operationalReporting(state),interfaces,accountability,sourceInterpretation:director?.sourceInterpretation},
     masterControlProgramme: {visualControl,managementContext,interfaces,accountability,delivery:deliveryPosition,...managementReportingData(state, surfaces.masterControlProgramme, resolvedModules),issueAssessment,operationalReporting:operationalReporting(state),sourceInterpretation:director?.sourceInterpretation} };

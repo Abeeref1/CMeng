@@ -29,14 +29,32 @@ async function fixture(t:any){const dir=mkdtempSync(join(tmpdir(),'delivery-'));
  return {dir,store,state,upload,change,create,review,population};
 }
 
-test('Delivery consumes the adopted programme; pending updates and first-upload blockers stay actionable on every page',async t=>{
- const {store,state}=await fixture(t),original=projectControlSchedule(state)!.revision.revisionId;
- await store.ingestEvidenceFile({projectId:state.projectId,bytes:Buffer.from(deliveryProgramme('2031-09-30')),mediaType:'text/plain',sourceFilename:'Pending.xer',uploadedAt:'2031-10-01',uploadIntent:'add_update'});
- for(const [key] of deliveryPages){const r=deliveryModule(state,key);assert.equal((r.data as any).programmeRevisionId,original);assert.equal(r.scheduleAuthorityReview!.pendingSchedules.length,1);assert.equal((r.data as any).dataDateIso,'2031-08-31');}
- const fresh=store.getOrCreate('DELIVERY-B');await store.ingestEvidenceFile({projectId:fresh.projectId,bytes:Buffer.from(deliveryProgramme()),mediaType:'text/plain',sourceFilename:'First.xer',uploadedAt:'2031-09-01'});
- const blocked=deliveryModule(fresh,'construction-readiness');assert.equal((blocked.data as any).dataDateIso,null);assert.equal(blocked.scheduleAuthorityReview!.pendingSchedules[0]!.canAdopt,true);
+test('Delivery follows the latest submitted programme while undated updates remain pending on every page',async t=>{
+ const {store,state}=await fixture(t);
+ const later=await store.ingestEvidenceFile({projectId:state.projectId,bytes:Buffer.from(deliveryProgramme('2031-09-30')),mediaType:'text/plain',sourceFilename:'Monthly_Update.xer',uploadedAt:'2031-10-01',uploadIntent:'add_update'});
+ for(const [key] of deliveryPages){
+  const r=deliveryModule(state,key);
+  assert.equal((r.data as any).programmeRevisionId,later.linkedArtifactId);
+  assert.equal(r.scheduleAuthorityReview!.state,'submitted_current');
+  assert.equal(r.scheduleAuthorityReview!.authority,'submitted');
+  assert.equal(r.scheduleAuthorityReview!.pendingSchedules.length,0);
+  assert.equal((r.data as any).dataDateIso,'2031-09-30');
+ }
+ const undated=await store.ingestEvidenceFile({projectId:state.projectId,bytes:Buffer.from(deliveryProgramme('')),mediaType:'text/plain',sourceFilename:'Update_No_DD.xer',uploadedAt:'2031-10-02',uploadIntent:'add_update'});
+ for(const [key] of deliveryPages){
+  const r=deliveryModule(state,key);
+  assert.equal((r.data as any).programmeRevisionId,later.linkedArtifactId);
+  assert.equal((r.data as any).dataDateIso,'2031-09-30');
+  assert.ok(r.scheduleAuthorityReview!.pendingSchedules.some(p=>p.revisionId===undated.linkedArtifactId&&p.dateRelationship==='date_missing'));
+ }
+ const fresh=store.getOrCreate('DELIVERY-B');
+ const first=await store.ingestEvidenceFile({projectId:fresh.projectId,bytes:Buffer.from(deliveryProgramme()),mediaType:'text/plain',sourceFilename:'First.xer',uploadedAt:'2031-09-01'});
+ const ready=deliveryModule(fresh,'construction-readiness');
+ assert.equal((ready.data as any).programmeRevisionId,first.linkedArtifactId);
+ assert.equal((ready.data as any).dataDateIso,'2031-08-31');
+ assert.equal(ready.scheduleAuthorityReview!.state,'submitted_current');
+ assert.equal(ready.scheduleAuthorityReview!.pendingSchedules.length,0);
 });
-
 
 test('BOQ-only projects expose scope, procurement, long-lead, material and risk intelligence before specialist registers exist',async t=>{
  const f=await fixture(t);
@@ -76,6 +94,20 @@ test('material reconciliation uses the same BOQ and installed authority, preserv
  assert.ok(p.curves.filter(c=>c.series==='actual').every(c=>c.points.every((x:any)=>x.dateIso<='2031-08-31')));
  f.create('package','SPLIT',{}, {boqItemIds:[concrete.quantityItemId]});p=deliveryPosition(f.state);q=p.materialRows.find(x=>x.recordId===r.recordId)!;assert.equal(q.required,null);assert.equal(q.installed,null);
  f.review(r,{}, {links:{...r.links,boqAllocations:[{boqItemId:concrete.quantityItemId,quantity:60,unit:'m3'}]}});assert.equal(deliveryPosition(f.state).materialRows.find(x=>x.recordId===r.recordId)!.required,60);
+});
+
+test('Stage 1 lifecycle governance can bootstrap itself but ordinary records still require an established template',async t=>{
+ const f=await fixture(t);
+ const lifecycle=f.create('lifecycle','LC-BOOT',{'lifecycle id':'LC-BOOT',stages:'po;delivery;installation'});
+ assert.equal(lifecycle.state,'governed');
+ assert.equal(lifecycle.kind,'lifecycle');
+
+ f.change({action:'create',kind:'package',fields:{'record reference':'PK-NO-TEMPLATE',description:'Package awaiting lifecycle','lifecycle id':'LC-MISSING'}});
+ const manual=deliveryStore(f.state).manual.at(-1)!;
+ assert.throws(()=>f.change({
+   action:'review',recordId:manual.recordId,sourceRevision:manual.revision,state:'governed',
+   fields:{},note:'Attempt governance without established lifecycle.'
+ }),/Select a governed lifecycle template in this project/);
 });
 
 test('long-lead backward dates require each duration, day basis and source; missing inputs never become dates',async t=>{

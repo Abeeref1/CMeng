@@ -1,11 +1,12 @@
-import {csv as parseCsv} from "../../truth-kernel/src";
-import {canonicalHeader,prepareRegisterRows,registerDate} from '../../truth-kernel/src';
+import {cell,csv as parseCsv,sourceTables} from "../../truth-kernel/src";
+import {canonicalHeader,prepareEvidenceRows,registerDate} from '../../truth-kernel/src';
 import {
   readFileSync,
 } from "node:fs";
 import {createHash} from 'node:crypto';
 import {dateValue} from '../../truth-kernel/src';
 import {projectDataDate,projectControlSchedule} from './canonical-time-claims';
+import {registerCsv} from './register-workbook';
 
 import type {
   ReadinessDimensionKey,
@@ -33,6 +34,11 @@ function combineReadiness(a:ReadinessEvidence|undefined,b:ReadinessEvidence):Rea
   return {state:order[a.state]>=order[b.state]?a.state:b.state,sourceRefs:[...new Set([...a.sourceRefs,...b.sourceRefs])],
     records:[...(a.records??[]),...(b.records??[])],
     note:[a.note,b.note].filter(Boolean).join('; '),diagnostics:[...new Set([...(a.diagnostics??[]),...(b.diagnostics??[])])]};
+}
+
+function readinessSourceRef(document:StoredEvidenceDocument,rowNumber:number,sheetName?:string){
+  const sheet=sheetName&&sheetName!=='CSV'?':sheet:'+encodeURIComponent(sheetName):'';
+  return 'evidence-document:'+document.documentId+sheet+':row:'+rowNumber;
 }
 
 
@@ -172,93 +178,14 @@ function dimensionFor(
 function procurementPackageMap(
   state: ProjectRuntimeState,
 ): Map<string, string> {
-  const map =
-    new Map<
-      string,
-      string
-    >();
-
-  const activeProcurement =
-    state.evidenceDocuments
-      .filter(
-        (document) =>
-          document.documentType ===
-            "procurement_register" &&
-          document.basisState ===
-            "active",
-      )
-      .sort(
-        (a, b) =>
-          a.uploadedAt.localeCompare(
-            b.uploadedAt,
-          ),
-      )
-      .at(-1);
-
-  if (!activeProcurement) {
-    return map;
+  const map=new Map<string,string>(),diagnostics:string[]=[];
+  const current=state.evidenceDocuments.filter(document=>['active','additive'].includes(document.basisState));
+  const tables=sourceTables(current,diagnostics).filter(table=>table.document.documentType==='procurement_register');
+  for(const table of tables)for(const row of table.rows){
+    const packageId=cell(row,"package id","procurement package");
+    const activityId=cell(row,"linked activity","linked schedule activity","activity id");
+    if(packageId&&activityId)map.set(packageId,activityId);
   }
-
-  try {
-    const text =
-      readFileSync(
-        activeProcurement
-          .storedPath,
-        "utf8",
-      ).replace(
-        /^\uFEFF/,
-        "",
-      );
-    const rows =
-      parseCsv(text);
-    const headers =
-      rows[0] ?? [];
-    const packageIndex =
-      headerIndex(
-        headers,
-        [
-          "package id",
-          "procurement package",
-        ],
-      );
-    const activityIndex =
-      headerIndex(
-        headers,
-        [
-          "linked activity",
-          "linked schedule activity",
-          "activity id",
-        ],
-      );
-
-    for (
-      const row of
-        rows.slice(1)
-    ) {
-      const packageId =
-        valueAt(
-          row,
-          packageIndex,
-        );
-      const activityId =
-        valueAt(
-          row,
-          activityIndex,
-        );
-      if (
-        packageId &&
-        activityId
-      ) {
-        map.set(
-          packageId,
-          activityId,
-        );
-      }
-    }
-  } catch {
-    return map;
-  }
-
   return map;
 }
 
@@ -268,6 +195,7 @@ export function deriveReadinessFromCsv(
     document:
       StoredEvidenceDocument;
     bytes: Uint8Array;
+    sheetName?: string;
     dataDateIso?: string | null;
   },
 ): ReadinessByActivity {
@@ -289,7 +217,16 @@ export function deriveReadinessFromCsv(
         /^\uFEFF/,
         "",
       );
-  const parsedTable=prepareRegisterRows(parseCsv(text),input.document.documentType);
+  const sheetName=input.sheetName??'CSV';
+  const semantic=sheetName==='CSV'
+    ?input.document.csvSemantic
+    :input.document.tabularRead?.sheets.find(sheet=>sheet.name===sheetName)?.semantic;
+  const parsedTable=prepareEvidenceRows(
+    parseCsv(text),
+    input.document.documentType,
+    (input.document.tableConfirmations??[]).filter(item=>item.sheetName===sheetName),
+    semantic?.columnMeanings??[],
+  );
   const rows=[parsedTable.headers,...parsedTable.rows];
   const headers=parsedTable.headers;
 
@@ -453,13 +390,9 @@ export function deriveReadinessFromCsv(
       state,
       diagnostics,
       records:[{recordId:valueAt(row,recordIdIndex)||null,documentType:input.document.documentType,state,dueIso:dateValue(dueIso),
-        note:scopeNote||'Source status: '+(status||'not stated'),sourceRefs:['evidence-document:'+input.document.documentId+':row:'+(index+1)]}],
+        note:scopeNote||'Source status: '+(status||'not stated'),sourceRefs:[readinessSourceRef(input.document,index+1,input.sheetName)]}],
       sourceRefs: [
-        "evidence-document:" +
-          input.document
-            .documentId +
-          ":row:" +
-          (index + 1),
+        readinessSourceRef(input.document,index+1,input.sheetName),
       ],
       note:
         (valueAt(row,recordIdIndex)?valueAt(row,recordIdIndex)+'; ':'')+(scopeNote?scopeNote+'; ':'')+
@@ -615,11 +548,30 @@ export function rebuildReadinessEvidence(
  * Persisted import-time statuses cannot survive as a separate authority. */
 export function reportingReadinessEvidence(state:ProjectRuntimeState,dataDateIso:string|null):ReadinessByActivity {
   const derived:ProjectRuntimeState['derivedReadinessByDocument']={};
-  for(const document of state.evidenceDocuments.filter(d=>['active','additive'].includes(d.basisState)&&dimensionFor(d.documentType)&&d.mediaType==='text/csv')){
+  for(const document of state.evidenceDocuments.filter(d=>['active','additive'].includes(d.basisState))){
     try {
+      const merge=(next:ReadinessByActivity)=>{
+        const prior=derived[document.documentId]??{};
+        for(const [activityId,dimensions] of Object.entries(next)){
+          prior[activityId]??={};
+          for(const [key,evidence] of Object.entries(dimensions) as Array<[ReadinessDimensionKey,ReadinessEvidence|undefined]>)
+            if(evidence)prior[activityId]![key]=combineReadiness(prior[activityId]![key],evidence);
+        }
+        derived[document.documentId]=prior;
+      };
+      if(document.tabularRead?.sourceHashSha256===document.sourceHashSha256){
+        for(const sheet of document.tabularRead.sheets){
+          const type=sheet.semantic?.documentType??document.documentType;
+          if(!dimensionFor(type))continue;
+          const semanticDocument=sheet.semantic?{...document,documentType:type,category:sheet.semantic.category as any}:document;
+          merge(deriveReadinessFromCsv({state,document:semanticDocument,bytes:Buffer.from(registerCsv(sheet.rows)),sheetName:sheet.name,dataDateIso}));
+        }
+        continue;
+      }
+      if(!dimensionFor(document.documentType)||document.mediaType!=='text/csv')continue;
       const bytes=readFileSync(document.storedPath);
       if(createHash('sha256').update(bytes).digest('hex')!==document.sourceHashSha256)continue;
-      derived[document.documentId]=deriveReadinessFromCsv({state,document,bytes,dataDateIso});
+      merge(deriveReadinessFromCsv({state,document,bytes,dataDateIso}));
     }catch { /* No verified source means no derived ready assertion. */ }
   }
   const view={...state,derivedReadinessByDocument:derived,controls:{...state.controls,readinessEvidence:{...state.controls.readinessEvidence}}};

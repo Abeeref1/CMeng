@@ -68,6 +68,16 @@ test('missing numeric evidence is not zero; invalid/grouped values fail closed',
   assert.equal(numberValue(''),null);assert.equal(numberValue('NaN'),null);assert.equal(numberValue('1,00'),null);
   assert.equal(numberValue('0'),0);assert.equal(numberValue('١٬٢٣٤٫٥'),1234.5);assert.equal(sumKnown([1,null]),null);assert.equal(sumKnown([]),null);assert.equal(sumKnown([0]),0);assert.equal(ratio(1,0),null);assert.equal(fact(1,[],'unsupported').state,'candidate');
 });
+test('duplicate canonical headers preserve the readable table but cannot silently select an authoritative field',t=>{
+  const {csvDoc}=fixture(t);
+  const document=csvDoc('Risk Ref,Risk ID,Status\nR-1,R-ALT,Open','risk_register');
+  const diagnostics:string[]=[];
+  const tables=sourceTables([document],diagnostics,{includeHistorical:true});
+  assert.equal(tables.length,1);
+  assert.deepEqual(tables[0]!.headers.filter(header=>header.startsWith('risk id')),['risk id [1]','risk id [2]']);
+  assert.equal(tables[0]!.recognition?.recognized,false);
+  assert.ok(diagnostics.some(item=>item.startsWith('DUPLICATE_NORMALIZED_HEADERS:')));
+});
 test('content schemas distinguish resource capacity and actual registers without filenames',async()=>{
   const a=await identifyEvidenceDocument({bytes:Buffer.from(weekly),sourceFilename:'a.csv',sourceRelativePath:null});
   assert.equal(a.identification.detectedDocumentType,'resource_register');
@@ -264,9 +274,15 @@ test('source receipt hashes are checked again when stored bytes change',t=>{
   const {csvDoc}=fixture(t);const d=csvDoc(master);assert.equal(sourceTables([d],[]).length,1);
   writeFileSync(d.storedPath,master+'\nchanged');const diagnostics:string[]=[];assert.equal(sourceTables([d],diagnostics).length,0);assert.ok(diagnostics.some(s=>s.startsWith('SOURCE_HASH_MISMATCH')));
 });
-test('malformed row widths and duplicate normalized headers are not silently repaired',t=>{
+test('malformed row widths are rejected while duplicate semantic headers are retained but fail closed',t=>{
   const {csvDoc}=fixture(t);const a=csvDoc('A,B\n1,2,3'),b=csvDoc('Resource ID,resource_id\n1,2');const d:string[]=[];
-  assert.equal(sourceTables([a,b],d).length,0);assert.ok(d.some(s=>s.startsWith('CSV_ROW_WIDTH_MISMATCH')));assert.ok(d.some(s=>s.startsWith('DUPLICATE_NORMALIZED_HEADERS')));
+  const tables=sourceTables([a,b],d);
+  assert.equal(tables.length,1);
+  assert.equal(tables[0]!.document.documentId,b.documentId);
+  assert.deepEqual(tables[0]!.headers,['resource id [1]','resource id [2]']);
+  assert.equal(tables[0]!.recognition?.recognized,false);
+  assert.ok(d.some(s=>s.startsWith('CSV_ROW_WIDTH_MISMATCH')));
+  assert.ok(d.some(s=>s.startsWith('DUPLICATE_NORMALIZED_HEADERS')));
 });
 test('resource quantities are partitioned by class and unit; materials never enter utilization',t=>{
   const {state,csvDoc}=fixture(t);csvDoc(master);csvDoc(weekly);csvDoc("Resource ID,Week Start,Actual Approved Usage,Source Status,Unit\nL,2026-08-24,80,Approved,labor_hour\nE,2026-08-24,30,Approved,equipment_hour");const r=canonicalResources(state);

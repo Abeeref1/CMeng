@@ -42,7 +42,15 @@ export function resolveIntent(question:string,catalogue:AuthorityDescriptor[],pr
   if(/our logo|client logo/.test(q))gaps.push('Use the configured CMeng branding. An authorized organization logo has not been configured.');
   if(/without charts|remove charts/.test(q))presentation.charts=false;
   if(/add charts?|with charts?/.test(q))presentation.charts=true;
-  const explicitlyRequested=catalogue.filter(c=>c.concepts.some(concept=>mentions(q,concept))).map(c=>c.id);
+  let explicitlyRequested=catalogue.filter(c=>c.concepts.some(concept=>mentions(q,concept))).map(c=>c.id);
+  // "Current completion" is a common project-controls question for the current
+  // forecast finish. Keep percentage wording on Progress, but do not let the
+  // shorter Progress concept steal a completion-date/forecast question.
+  const currentCompletionPercentage=/\bcurrent completion\s*(?:percentage|percent|%)/.test(q);
+  if(/\bcurrent completion\b/.test(q)&&!currentCompletionPercentage&&catalogue.some(c=>c.id==='forecast')){
+    explicitlyRequested=explicitlyRequested.filter(id=>id!=='progress');
+    if(!explicitlyRequested.includes('forecast'))explicitlyRequested.push('forecast');
+  }
   if(!inherited){
     const broad=/full.*(?:report|package)|construction intelligence|monthly project|project director meeting|everything|joined.*today|what killing us|what needs management|تقرير شامل/.test(q);
     if(broad){

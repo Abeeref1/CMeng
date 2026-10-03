@@ -4,6 +4,9 @@ import test from "node:test";
 import {
   performancePaymentFromCanonical,
 } from "../packages/runtime-api/src/commercial-performance-runtime";
+import {
+  buildCommercialControlPosition,
+} from "../packages/commercial-control/src";
 import type {
   CommercialMoney,
   PaymentStageRecord,
@@ -102,6 +105,90 @@ function version(overrides:Partial<ContractTermVersion> = {}):ContractTermVersio
   };
 }
 
+test("Batch G C1 commercial-control performance path never substitutes net certified for missing employer certification", () => {
+  const amounts = {
+    applicationAmount: money(1100,"application-control"),
+    engineerAssessedAmount: money(1050,"assessment-control"),
+    employerCertifiedAmount: money(null,"employer-certified-control"),
+    grossWork: money(1000,"gross-work-control"),
+    grossCertifiedAmount: money(1025,"gross-certified-control"),
+    variations: money(100,"variation-component-control"),
+    variationCertifiedAmount: money(80,"variation-certified-control"),
+    retentionDeduction: money(50,"retention-control"),
+    advanceRecovery: money(25,"advance-control"),
+    otherDeduction: money(5,"other-control"),
+    taxAmount: money(0,"tax-control"),
+    netCertifiedAmount: money(900,"net-certified-control"),
+    paidAmount: money(800,"paid-control"),
+    outstandingAmount: money(100,"outstanding-control"),
+  } satisfies PaymentStageRecord["amounts"];
+  const row:PaymentStageRecord = {
+    paymentId:"IPC-CONTROL-01",
+    periodEnd:"2026-08-31",
+    sourceStatus:"approved",
+    certifiedAmountBasis:"incremental",
+    paidAmountBasis:"incremental",
+    amounts,
+    receipt:receipt("ipc-control"),
+    reconciliation:"unresolved",
+    diagnostics:[],
+    calculatedOutstandingAmount:money(null,"calculated-outstanding-control"),
+    paymentType:"interim",
+    applicationDate:"2026-08-01",
+    assessmentDate:"2026-08-10",
+    certificationDate:"2026-08-15",
+    certificationDueDate:"2026-08-15",
+    paymentDueDate:"2026-09-14",
+    paymentDate:"2026-08-30",
+    paymentTimestamp:null,
+    retentionReleaseDate:null,
+    finalReceiptDate:null,
+    paymentReference:"PAY-CONTROL-01",
+  };
+  const sourceLedger:any = {
+    schemaVersion:"1.0",
+    producerVersion:"commercial-canonical-v1",
+    dataDateIso:"2026-08-31",
+    costMetrics:[],
+    payments:[row],
+    variations:[],
+    siteInstructions:[],
+    insurances:[],
+    obligations:[],
+    retentions:[],
+    costPosition:[],
+    populations:{payments:{},variations:{},retentionDeductions:{}},
+    diagnostics:[],
+  };
+  const position = buildCommercialControlPosition({
+    projectId:"C1-COMMERCIAL-CONTROL",
+    generatedAt:"2026-09-01T00:00:00.000Z",
+    sourceLedger,
+    contractValue:null,
+    variations:[],
+    invoices:[],
+    retentions:[],
+    bonds:[],
+    claimCommercials:[],
+    delayClaims:null,
+    sourceDelayClaims:null,
+    contractTimeBasis:null,
+    commercialEvidenceSubmitted:false,
+    paymentEvidenceSubmitted:true,
+    variationEvidenceSubmitted:false,
+    bondEvidenceSubmitted:false,
+    claimEvidenceSubmitted:false,
+  });
+  const cash = position.performance.cashFlow.currencies.find((value:any)=>value.currency==="AED");
+  assert.ok(cash);
+  assert.equal(cash.certifiedIncome.value,null,'missing Employer Certified must stay missing even when Net Certified is present');
+  assert.equal(cash.paidIncome.value,800,'independent paid evidence remains usable');
+  assert.notEqual(cash.certifiedIncome.value,900,'Net Certified must never substitute for Employer Certified');
+  const controlCurrency=position.currencies.find(value=>value.currency==='AED')!;
+  assert.equal(controlCurrency.paidAmount.value,800,'Commercial Control must reuse the canonical dated cash position');
+  assert.equal(controlCurrency.certifiedUnpaidAmount.value,null,'certified-unpaid stays unresolved when Employer Certified is unresolved');
+});
+
 test("Batch G C2 distinguishes unresolved applicability from real conflicts", () => {
   const unresolved = termAtEvent(
     [version({documentId:"AMD-01",role:"amendment",applicability:"unresolved"})],
@@ -145,4 +232,72 @@ test("Batch G C3/C4 commercial action surfaces are present without invented owne
   assert.match(html,/\["Finding","Exposure","Owner","Due","Action","Status"\]/);
   assert.match(html,/daysToExpiry\?\.action/);
   assert.match(html,/Owner stays unassigned unless a source records one/);
+});
+
+
+test("Stage 1 governed certificate and payment values survive weaker source-ledger gaps", () => {
+  const sourceAmounts = {
+    applicationAmount: money(null,"src-application"),
+    engineerAssessedAmount: money(null,"src-assessment"),
+    employerCertifiedAmount: money(null,"src-employer-certified"),
+    grossWork: money(500,"src-gross-work"),
+    grossCertifiedAmount: money(null,"src-gross-certified"),
+    variations: money(0,"src-variations"),
+    variationCertifiedAmount: money(0,"src-variation-certified"),
+    retentionDeduction: money(0,"src-retention"),
+    advanceRecovery: money(0,"src-advance"),
+    otherDeduction: money(0,"src-other"),
+    taxAmount: money(0,"src-tax"),
+    netCertifiedAmount: money(null,"src-net"),
+    paidAmount: money(null,"src-paid"),
+    outstandingAmount: money(null,"src-outstanding"),
+  } satisfies PaymentStageRecord["amounts"];
+  const sourceRow:PaymentStageRecord = {
+    paymentId:"IPC-SOURCE-GAP",
+    periodEnd:"2026-08-31",
+    sourceStatus:"approved",
+    certifiedAmountBasis:"incremental",
+    paidAmountBasis:"incremental",
+    amounts:sourceAmounts,
+    receipt:receipt("source-gap"),
+    reconciliation:"unresolved",
+    diagnostics:[],
+    calculatedOutstandingAmount:money(null,"src-calc-outstanding"),
+    paymentType:"interim",
+    applicationDate:"2026-08-01",
+    assessmentDate:"2026-08-05",
+    certificationDate:"2026-08-10",
+    certificationDueDate:"2026-08-10",
+    paymentDueDate:"2026-09-07",
+    paymentDate:null,
+    paymentTimestamp:null,
+    retentionReleaseDate:null,
+    finalReceiptDate:null,
+    paymentReference:null,
+  };
+  const sourceLedger:any={
+    schemaVersion:"1.0",producerVersion:"commercial-canonical-v1",dataDateIso:"2026-08-31",
+    costMetrics:[],payments:[sourceRow],variations:[],siteInstructions:[],insurances:[],obligations:[],retentions:[],
+    costPosition:[],populations:{payments:{},variations:{},retentionDeductions:{}},diagnostics:[],
+  };
+  const position=buildCommercialControlPosition({
+    projectId:"STAGE1-GOVERNED-PRECEDENCE",generatedAt:"2026-09-01T00:00:00.000Z",sourceLedger,
+    contractValue:{amount:1000,currency:"AED",sourceRefs:["governed-contract"]},
+    variations:[],
+    invoices:[{
+      invoiceId:"IPC-GOVERNED",currency:"AED",certifiedAmount:500,paidAmount:400,
+      certificateDateIso:"2026-08-10",paymentDateIso:"2026-08-20",
+      retentionAmount:0,advanceRecoveryAmount:0,advanceBalance:0,
+      sourceRefs:["governed-certificate-payment"],
+    }],
+    retentions:[],bonds:[],claimCommercials:[],delayClaims:null,sourceDelayClaims:null,contractTimeBasis:null,
+    commercialEvidenceSubmitted:true,paymentEvidenceSubmitted:true,variationEvidenceSubmitted:false,
+    bondEvidenceSubmitted:false,claimEvidenceSubmitted:false,
+  });
+  const currency=position.currencies.find(row=>row.currency==="AED");
+  assert.ok(currency);
+  assert.equal(currency.grossCertifiedAmount.value,500);
+  assert.equal(currency.paidAmount.value,400);
+  assert.equal(currency.certifiedUnpaidAmount.value,100);
+  assert.ok(!currency.grossCertifiedAmount.diagnostics.includes("DATED_INCREMENTAL_CERTIFICATES_WITH_COMPATIBLE_AMOUNTS_REQUIRED"));
 });

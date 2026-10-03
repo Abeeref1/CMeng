@@ -17,7 +17,6 @@ import {ExternalIntelligenceService} from '../../external-intelligence/src/servi
 import {ExternalHttp} from '../../external-intelligence/src/http';
 import {externalAuthorityMetadata} from '../../external-intelligence/src/authority-metadata';
 import {ExternalError,type ExternalBackend,type ExternalPolicy} from '../../external-intelligence/src/types';
-import {readManagedAskSettings} from '../../project-ask/src/settings';
 
 type Lane={worker:Worker;ready:Promise<number>;tail:Promise<void>;pending:number;lastUsed:number};
 const send=(res:ServerResponse,status:number,body:unknown)=>{if(!res.destroyed&&!res.writableEnded){if(res.headersSent){res.destroy();return;}sendHttpBody(res,status,{'content-type':'application/json','cache-control':'no-store'},JSON.stringify(body));}};
@@ -137,14 +136,20 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
       readyModules:null,partialModules:null,blockedModules:null,managementActions:[]};
   }
   async function proxy(id:string,req:IncomingMessage,res:ServerResponse,path=req.url??'/'){
-    let allowPaidModel='1';
-    if(/\/intelligence(?:\/|$)/.test(path)){
-      try{if(readManagedAskSettings(askSettingsPath)?.ownerOnly){allowPaidModel='0';try{if(externalController().access.identity(req).externalAdmin)allowPaidModel='1';}catch{}}}catch{allowPaidModel='0';}
-    }
+    // Paid CMeng Intelligence is fail-closed at the public gateway. Provider
+    // credentials may come from the managed settings file or deployment
+    // environment, but neither may be spent by an anonymous/browser-forged
+    // request. Deterministic Ask remains available when this header is 0.
+    let allowPaidModel='0';
+    try{if(externalController().access.identity(req).externalAdmin)allowPaidModel='1';}catch{}
+
     const mutation=req.method!=='GET'&&req.method!=='HEAD'&&!/\/intelligence(?:\/|$)/.test(path);
     if(mutation){updating.set(id,(updating.get(id)??0)+1);const e=catalog.get(id);if(e)e.summaryRelease=null;await reads(id).invalidate();}
     const uploadId=String(req.headers['x-upload-id']??'');
-    if(uploadId)progress.set(id+'::'+uploadId,{projectId:id,uploadId,state:'receiving',percent:0,filename:req.headers['x-source-filename']??'project package',message:'Waiting to receive project documents',receivedBytes:0,totalBytes:null,documentTotal:null,processedDocuments:0,identifiedDocuments:0});
+    const encodedUploadFilename=String(req.headers['x-source-filename-encoded']??'');
+    let progressFilename=String(req.headers['x-source-filename']??'project package');
+    if(encodedUploadFilename){try{progressFilename=decodeURIComponent(encodedUploadFilename);}catch{progressFilename='project package';}}
+    if(uploadId)progress.set(id+'::'+uploadId,{projectId:id,uploadId,state:'receiving',percent:0,filename:progressFilename,message:'Waiting to receive project documents',receivedBytes:0,totalBytes:null,documentTotal:null,processedDocuments:0,identifiedDocuments:0});
     let succeeded=false;
     try{
       await work(id,port=>new Promise<void>((resolve,reject)=>{
@@ -252,7 +257,7 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
       (lanes.has(e.projectId)||lanes.size<maxWorkers||[...lanes.values()].some(l=>l.pending===0&&Date.now()-l.lastUsed>15*60*1000)));
     if(entry){warming=true;void refreshSummary(entry.projectId).finally(()=>{warming=false;});}
   },2000);warmer.unref();
-  const close=async()=>{closing=true;clearInterval(warmer);signal();server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));await Promise.all([...lanes.values()].map(l=>l.worker.terminate()));await catalogWrites;};
+  const close=async()=>{closing=true;clearInterval(warmer);signal();server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));await Promise.allSettled([...summaryJobs.values()]);await Promise.all([...lanes.values()].map(l=>l.worker.terminate()));await catalogWrites;};
   return {server,close,catalog};
 }
 

@@ -47,6 +47,7 @@ import {
 } from "../../contract-parser/src";
 import type {
   ContractDocumentResult,
+  ContractAiResolver,
 } from "../../contract-parser/src";
 import {
   canonicalScheduleFromPrimaveraXml,
@@ -100,6 +101,9 @@ import type {
 import {
   cell,
   governedTables,
+  csv as truthCsv,
+  inferTableSemanticRoute,
+  prepareEvidenceRows,
 } from "../../truth-kernel/src";
 import {
   analyzeCsvEvidence,
@@ -119,6 +123,7 @@ import {
   evidenceFamily,
   rebuildEvidenceFamily,
 } from "./evidence-control";
+import {configuredTableSemanticAiResolver,configuredContractHeadingAiResolver,type TableSemanticAiResolver} from './evidence-semantic-ai';
 import {
   deriveReadinessFromCsv,
   rebuildReadinessEvidence,
@@ -148,6 +153,119 @@ function hashBytes(
   return createHash("sha256")
     .update(bytes)
     .digest("hex");
+}
+
+const sheetSemanticExcludedTypes=new Set([
+  'supporting_document','schedule_file','schedule_baseline','schedule_update','schedule_recovery','schedule_revised_baseline',
+  'boq','main_contract','contract_amendment','contract_appendix','contract_replacement','tender_contract_document',
+]);
+
+async function enrichRegisterSheetSemantics(
+  read:NonNullable<StoredEvidenceDocument['tabularRead']>,
+  options:{resolver?:TableSemanticAiResolver|null;cached?:StoredEvidenceDocument['tabularRead']}={},
+){
+  let aiCalls=0;
+  const maxAiCalls=Math.max(0,Math.min(20,Number.parseInt(process.env.CMENG_SEMANTIC_AI_MAX_CALLS_PER_FILE??'8',10)||8));
+  for(const sheet of read.sheets){
+    const cached=options.cached?.sourceHashSha256===read.sourceHashSha256
+      ?options.cached.sheets.find(item=>item.name===sheet.name)?.semantic
+      :undefined;
+    if(cached?.method==='ai_grounded'){
+      sheet.semantic=structuredClone(cached);
+      continue;
+    }
+    const identified=await identifyEvidenceDocument({
+      bytes:Buffer.from(registerCsv(sheet.rows)),
+      sourceFilename:'table.csv',
+      sourceRelativePath:null,
+      declaredMediaType:'text/csv',
+    });
+    const identity=identified.identification;
+    if(identity.method==='tabular_content'&&identity.confidence>=0.9&&!sheetSemanticExcludedTypes.has(identity.detectedDocumentType)){
+      sheet.semantic={documentType:identity.detectedDocumentType,category:identity.detectedCategory,confidence:identity.confidence,
+        method:'tabular_content',signals:[...identity.signals]};
+    }else{
+      const route=inferTableSemanticRoute(sheet.rows);
+      if(route&&!sheetSemanticExcludedTypes.has(route.documentType))sheet.semantic={documentType:route.documentType,category:route.category,
+        confidence:route.confidence,method:'tabular_content',signals:['Generic table semantics',...route.basis]};
+    }
+    const specialistUsable=sheet.semantic
+      ?prepareEvidenceRows(sheet.rows,sheet.semantic.documentType,[],sheet.semantic.columnMeanings??[]).recognized
+      :false;
+    if(options.resolver&&aiCalls<maxAiCalls&&(!sheet.semantic||!specialistUsable)){
+      aiCalls++;
+      try{
+        const resolved=await options.resolver.resolveTable({sourceHashSha256:read.sourceHashSha256,sheetName:sheet.name,rows:sheet.rows,
+          hintedDocumentType:sheet.semantic?.documentType??null});
+        if(resolved&&!sheetSemanticExcludedTypes.has(resolved.documentType))sheet.semantic=resolved;
+      }catch{/* Provider failure leaves deterministic evidence unresolved. */}
+    }
+  }
+  return read;
+}
+
+function workbookSemanticIdentity(
+  category:EvidenceCategory,
+  documentType:string,
+  identification:EvidenceIdentification,
+  read:NonNullable<StoredEvidenceDocument['tabularRead']>,
+){
+  const semantics=read.sheets.map(sheet=>sheet.semantic).filter((value):value is NonNullable<typeof value>=>!!value);
+  const types=[...new Set(semantics.map(value=>value.documentType))];
+  if(types.length>1){
+    const confidence=Math.min(...semantics.map(value=>value.confidence));
+    return {
+      category:'other' as EvidenceCategory,
+      documentType:'mixed_register_workbook',
+      identification:{...identification,detectedCategory:'other' as EvidenceCategory,detectedDocumentType:'mixed_register_workbook',
+        confidence,method:'tabular_content' as const,needsReview:false,
+        signals:[...identification.signals,'Multiple independently recognised register sheets: '+types.sort().join(', ')],
+        diagnostics:[...identification.diagnostics,'MIXED_REGISTER_WORKBOOK_CONTENT_IDENTIFIED']},
+    };
+  }
+  const only=semantics[0];
+  if(only&&(identification.method==='metadata_fallback'||identification.confidence<0.9||documentType==='supporting_document')){
+    return {
+      category:only.category as EvidenceCategory,
+      documentType:only.documentType,
+      identification:{...identification,detectedCategory:only.category as EvidenceCategory,detectedDocumentType:only.documentType,
+        confidence:only.confidence,method:'tabular_content' as const,needsReview:false,
+        signals:[...identification.signals,...only.signals,'Worksheet content established the register role.'],
+        diagnostics:[...identification.diagnostics,'WORKBOOK_REGISTER_ROLE_ESTABLISHED_FROM_SHEET_CONTENT']},
+    };
+  }
+  return {category,documentType,identification};
+}
+
+function semanticDocumentForSheet(
+  document:StoredEvidenceDocument,
+  semantic:NonNullable<NonNullable<StoredEvidenceDocument['tabularRead']>['sheets'][number]['semantic']>|undefined,
+):StoredEvidenceDocument {
+  return semantic?{...document,category:semantic.category as EvidenceCategory,documentType:semantic.documentType}:document;
+}
+
+const derivedArrayKeys=['variations','invoices','retentions','bonds','claimCommercials','ncrs','rfis','risks'] as const;
+function mergeDerivedControls(
+  current:ProjectRuntimeState['derivedControlsByDocument'][string]|undefined,
+  incoming:ProjectRuntimeState['derivedControlsByDocument'][string],
+):ProjectRuntimeState['derivedControlsByDocument'][string]{
+  const merged={...(current??{}),...incoming};
+  for(const key of derivedArrayKeys){
+    if(!incoming[key])continue;
+    (merged as any)[key]=[...((current as any)?.[key]??[]),...(incoming as any)[key]];
+  }
+  return merged;
+}
+
+function mergeDerivedReadiness(
+  current:ProjectRuntimeState['derivedReadinessByDocument'][string]|undefined,
+  incoming:ProjectRuntimeState['derivedReadinessByDocument'][string],
+):ProjectRuntimeState['derivedReadinessByDocument'][string]{
+  const merged={...(current??{})};
+  for(const [activityId,dimensions] of Object.entries(incoming)){
+    merged[activityId]={...(merged[activityId]??{}),...dimensions};
+  }
+  return merged;
 }
 
 function emptyControls():
@@ -1199,6 +1317,8 @@ export class RuntimeProjectStore {
   private readonly dataDir: string;
   private readonly stateFile: string;
   private readonly durable: boolean;
+  private readonly semanticAiResolver:TableSemanticAiResolver|null;
+  private readonly contractAiResolver:ContractAiResolver|null;
   private restoreFailure:Error|null=null;
 
   private assertAvailable():void {
@@ -1209,6 +1329,8 @@ export class RuntimeProjectStore {
     options: {
       dataDir?: string;
       durable?: boolean;
+      semanticAiResolver?:TableSemanticAiResolver|null;
+      contractAiResolver?:ContractAiResolver|null;
     } = {},
   ) {
     const testMode =
@@ -1249,6 +1371,8 @@ export class RuntimeProjectStore {
         !testMode &&
         Boolean(railwayMount)
       );
+    this.semanticAiResolver=options.semanticAiResolver??null;
+    this.contractAiResolver=options.contractAiResolver??null;
 
     this.stateFile =
       join(
@@ -2255,7 +2379,7 @@ export class RuntimeProjectStore {
       for(const document of state.evidenceDocuments){
         const isCsv=/csv/.test(document.mediaType)||(/^text\//.test(document.mediaType)&&/\.csv$/i.test(document.sourceFilename)),isWorkbook=/spreadsheetml|macroEnabled/.test(document.mediaType);
         if(document.category==='schedule'||(!isCsv&&!isWorkbook))continue;
-        if(document.derivedRegisterRead?.producerVersion==='register-derived-v4'&&document.derivedRegisterRead.sourceHashSha256===document.sourceHashSha256&&(!isWorkbook||document.tabularRead?.producerVersion==='register-workbook-v2'))continue;
+        if(document.derivedRegisterRead?.producerVersion==='register-derived-v5'&&document.derivedRegisterRead.sourceHashSha256===document.sourceHashSha256&&(!isWorkbook||document.tabularRead?.producerVersion==='register-workbook-v3'))continue;
         try{
           const bytes=readFileSync(document.storedPath);if(hashBytes(bytes)!==document.sourceHashSha256)throw new Error('SOURCE_HASH_MISMATCH');
           const identified=await identifyEvidenceDocument({bytes,sourceFilename:document.sourceFilename,sourceRelativePath:document.sourceRelativePath,declaredMediaType:document.mediaType});
@@ -2266,16 +2390,26 @@ export class RuntimeProjectStore {
             const family=evidenceFamily({category:next.category,documentType:next.documentType,scheduleRole:next.scheduleRole,textSample:identified.textSample,sourceFilename:next.sourceFilename});
             next.familyKey=family.familyKey;next.logicalDocumentKey=family.logicalDocumentKey;
           }
-          if(isWorkbook)next.tabularRead=await readRegisterWorkbook(bytes,next.sourceHashSha256,next.documentType);
+          if(isWorkbook){
+            next.tabularRead=await enrichRegisterSheetSemantics(await readRegisterWorkbook(bytes,next.sourceHashSha256,next.documentType),{cached:document.tabularRead});
+            const resolved=workbookSemanticIdentity(next.category,next.documentType,next.identification,next.tabularRead);
+            next.category=resolved.category;next.documentType=resolved.documentType;next.identification=resolved.identification;
+            const family=evidenceFamily({category:next.category,documentType:next.documentType,scheduleRole:next.scheduleRole,textSample:identified.textSample,sourceFilename:next.sourceFilename});
+            next.familyKey=family.familyKey;next.logicalDocumentKey=family.logicalDocumentKey;
+          }
           if(isCsv)next.mapping=analyzeCsvEvidence(bytes,this.activityIds(state.projectId));
           let controls:ProjectRuntimeState['derivedControlsByDocument'][string]={},readiness:ProjectRuntimeState['derivedReadinessByDocument'][string]={};
-          for(const registerBytes of isWorkbook?next.tabularRead!.sheets.map(sheet=>Buffer.from(registerCsv(sheet.rows))):[bytes]){
-            const derived=deriveControlsFromCsv({state,document:next,bytes:registerBytes});
-            controls=Object.fromEntries(Object.entries(derived).map(([key,value])=>[key,Array.isArray(value)?[...((controls as any)[key]??[]),...value]:value]));
-            readiness={...readiness,...deriveReadinessFromCsv({state,document:next,bytes:registerBytes})};
+          const registerSources=isWorkbook
+            ?next.tabularRead!.sheets.map(sheet=>({bytes:Buffer.from(registerCsv(sheet.rows)),sheetName:sheet.name,semantic:sheet.semantic}))
+            :[{bytes,sheetName:'CSV',semantic:undefined}];
+          for(const registerSource of registerSources){
+            const semanticDocument=semanticDocumentForSheet(next,registerSource.semantic);
+            const derived=deriveControlsFromCsv({state,document:semanticDocument,bytes:registerSource.bytes,sheetName:registerSource.sheetName});
+            controls=mergeDerivedControls(controls,derived);
+            readiness=mergeDerivedReadiness(readiness,deriveReadinessFromCsv({state,document:semanticDocument,bytes:registerSource.bytes,sheetName:registerSource.sheetName}));
           }
           if(next.familyKey!==document.familyKey){families.add(document.familyKey);families.add(next.familyKey);next.diagnostics=[...document.diagnostics,'REGISTER_READER_FAMILY_REFRESH:'+document.familyKey+'->'+next.familyKey];}
-          next.derivedRegisterRead={producerVersion:'register-derived-v4',sourceHashSha256:next.sourceHashSha256};
+          next.derivedRegisterRead={producerVersion:'register-derived-v5',sourceHashSha256:next.sourceHashSha256};
           if(isWorkbook)next.parserState='parsed';
           Object.assign(document,next);
           state.derivedControlsByDocument[document.documentId]=controls;state.derivedReadinessByDocument[document.documentId]=readiness;
@@ -3801,14 +3935,14 @@ export class RuntimeProjectStore {
   }
 
   latestSchedule(projectId:string):StoredScheduleRevision|null {
-    const state=this.projects.get(projectId);return state?projectControlSchedule(state):null;
+    const state=this.get(projectId);return state?projectControlSchedule(state):null;
   }
 
   evidence(
     projectId: string,
   ): StoredEvidenceDocument[] {
     return [
-      ...(this.projects.get(projectId)
+      ...(this.get(projectId)
         ?.evidenceDocuments ?? []),
     ].sort((a, b) =>
       a.uploadedAt.localeCompare(b.uploadedAt),
@@ -4313,6 +4447,7 @@ export class RuntimeProjectStore {
         EvidenceUploadIntent;
       preidentified?:
         EvidenceIdentificationResult;
+      allowSemanticAi?:boolean;
     },
   ): Promise<EvidenceUploadSummary> {
     const relativePath =
@@ -4350,26 +4485,53 @@ export class RuntimeProjectStore {
       this.getOrCreate(
         input.projectId,
       );
+    let category =
+      identification.detectedCategory;
+    let documentType =
+      identification.detectedDocumentType;
+    const media =
+      identification.verifiedMediaType;
+    const sourceHashSha256=hashBytes(input.bytes);
+    const priorSameSource=existingState.evidenceDocuments.find(document=>document.sourceHashSha256===sourceHashSha256);
+    const semanticResolver=input.allowSemanticAi?(this.semanticAiResolver??configuredTableSemanticAiResolver()):null;
+    let tabularRead=/spreadsheetml|ms-excel/.test(media)
+      ?await enrichRegisterSheetSemantics(await readRegisterWorkbook(input.bytes,sourceHashSha256,documentType),{resolver:semanticResolver,cached:priorSameSource?.tabularRead})
+      :undefined;
+    let csvSemantic=priorSameSource?.sourceHashSha256===sourceHashSha256?priorSameSource.csvSemantic:undefined;
+    if(tabularRead){
+      const resolved=workbookSemanticIdentity(category,documentType,identification,tabularRead);
+      category=resolved.category;documentType=resolved.documentType;Object.assign(identification,resolved.identification);
+    }else if(/csv/i.test(media)){
+      try{
+        const rows=truthCsv(Buffer.from(input.bytes).toString('utf8').replace(/^\uFEFF/,''));
+        const route=inferTableSemanticRoute(rows,documentType);
+        const specialistUsable=route?prepareEvidenceRows(rows,route.documentType).recognized:false;
+        if(!csvSemantic&&semanticResolver&&(!route||!specialistUsable)){
+          try{
+            const proposed=await semanticResolver.resolveTable({sourceHashSha256,sheetName:'CSV',rows,hintedDocumentType:route?.documentType??documentType});
+            if(proposed)csvSemantic=proposed;
+          }catch{/* Provider failure leaves deterministic evidence unresolved. */}
+        }
+        const resolved=csvSemantic??route;
+        if(resolved&&(identification.method!=='tabular_content'||identification.confidence<0.95||documentType==='supporting_document'||csvSemantic)){
+          const previous=documentType;category=resolved.category as EvidenceCategory;documentType=resolved.documentType;
+          const semanticSignals='signals' in resolved?resolved.signals:resolved.basis;
+          Object.assign(identification,{detectedCategory:category,detectedDocumentType:documentType,method:'tabular_content',confidence:resolved.confidence,needsReview:false,
+            signals:[...identification.signals,...(semanticSignals.length?semanticSignals:['Generic table semantics'])],
+            diagnostics:[...identification.diagnostics,(csvSemantic?'CSV_REGISTER_ROLE_ESTABLISHED_FROM_GROUNDED_AI:':'CSV_REGISTER_ROLE_ESTABLISHED_FROM_CONTENT:')+previous+'->'+documentType]});
+        }
+      }catch{/* malformed CSV remains governed by the normal reader diagnostics */}
+    }
     const lineage =
       inferEvidenceLineage({
-        category:
-          identification
-            .detectedCategory,
-        documentType:
-          identification
-            .detectedDocumentType,
+        category,
+        documentType,
         textSample:
           identified.textSample,
         existingDocuments:
           existingState
             .evidenceDocuments,
       });
-    const category =
-      identification.detectedCategory;
-    const documentType =
-      identification.detectedDocumentType;
-    const media =
-      identification.verifiedMediaType;
     const activityIds =
       this.activityIds(
         input.projectId,
@@ -5019,7 +5181,6 @@ export class RuntimeProjectStore {
         sourceFilename:
           input.sourceFilename,
       });
-    const tabularRead=/spreadsheetml|ms-excel/.test(media)?await readRegisterWorkbook(input.bytes,hash,documentType):undefined;
     const parserState =
       deferFullOcr
         ? "ocr_pending" as const
@@ -5060,6 +5221,7 @@ export class RuntimeProjectStore {
       lineage,
       assertions,
       tabularRead,
+      ...(csvSemantic?{csvSemantic}:{}),
       uploadIntent,
       familyKey:
         family.familyKey,
@@ -5082,13 +5244,23 @@ export class RuntimeProjectStore {
       uploadIntent,
     );
     if (media.includes("csv")||tabularRead) {
-      for(const registerBytes of tabularRead?tabularRead.sheets.map(sheet=>Buffer.from(registerCsv(sheet.rows))):[input.bytes]){
+      // Initial ingestion and later reader refresh must derive from the exact same
+      // sheet identity. Otherwise a workbook can mean one thing on upload and a
+      // different thing after restart/refresh, and source-scoped confirmations
+      // cannot be applied consistently.
+      const registerSources=tabularRead
+        ?tabularRead.sheets.map(sheet=>({bytes:Buffer.from(registerCsv(sheet.rows)),sheetName:sheet.name,semantic:sheet.semantic}))
+        :[{bytes:input.bytes,sheetName:'CSV',semantic:document.csvSemantic}];
+      for(const registerSource of registerSources){
+      const semanticDocument=semanticDocumentForSheet(document,registerSource.semantic);
       const derived =
         deriveReadinessFromCsv({
           state,
-          document,
+          document:semanticDocument,
           bytes:
-            registerBytes,
+            registerSource.bytes,
+          sheetName:
+            registerSource.sheetName,
         });
       if (
         Object.keys(
@@ -5098,15 +5270,17 @@ export class RuntimeProjectStore {
         state
           .derivedReadinessByDocument[
             document.documentId
-          ] = {...state.derivedReadinessByDocument[document.documentId],...derived};
+          ] = mergeDerivedReadiness(state.derivedReadinessByDocument[document.documentId],derived);
       }
 
       const derivedControls =
         deriveControlsFromCsv({
           state,
-          document,
+          document:semanticDocument,
           bytes:
-            registerBytes,
+            registerSource.bytes,
+          sheetName:
+            registerSource.sheetName,
         });
       if (
         Object.keys(
@@ -5116,11 +5290,11 @@ export class RuntimeProjectStore {
         state
           .derivedControlsByDocument[
             document.documentId
-          ] = Object.fromEntries(Object.entries(derivedControls).map(([key,value])=>[key,Array.isArray(value)?[...((state.derivedControlsByDocument[document.documentId] as any)?.[key]??[]),...value]:value]));
+          ] = mergeDerivedControls(state.derivedControlsByDocument[document.documentId],derivedControls);
       }
 
       }
-      document.derivedRegisterRead={producerVersion:'register-derived-v3',sourceHashSha256:hash};
+      document.derivedRegisterRead={producerVersion:'register-derived-v5',sourceHashSha256:hash};
       if(tabularRead)document.parserState="parsed";
       rebuildReadinessEvidence(
         state,
@@ -5140,7 +5314,7 @@ export class RuntimeProjectStore {
         );
       }
     }
-    if(document.documentType==='hse_report')await refreshHseSummary(document);
+    if(document.documentType==='hse_report'||document.tabularRead?.sheets.some(sheet=>sheet.semantic?.documentType==='hse_report'))await refreshHseSummary(document);
     this.touchEvidence(state);
     return {
       documentId,
@@ -5177,6 +5351,32 @@ export class RuntimeProjectStore {
     if(!base)return;
     const amendments=state.contractDocuments.filter(d=>d.role==='amendment'&&state.evidenceDocuments.some(e=>e.documentId===d.documentId&&e.basisState==='additive'&&(!e.relationshipDecision?.targetDocumentId||e.relationshipDecision.targetDocumentId===base.documentId))).map(d=>d.result);
     state.contract=base.result;state.contractFamily=linkContractFamily(base.result,amendments);promoteContractTimeBasis(state);
+  }
+
+  async confirmTableColumnMeaning(projectId:string,input:{documentId:string;sourceHash:string;expectedVersion:number;sheetName:string;columnIndex:number;rawHeader:string;meaning:string;note?:string|null}){
+    const state=this.get(projectId);if(!state)throw new Error('PROJECT_NOT_FOUND');
+    if(state.version!==input.expectedVersion)throw new Error('PROJECT_VERSION_CONFLICT');
+    const document=state.evidenceDocuments.find(d=>d.documentId===input.documentId&&d.sourceHashSha256===input.sourceHash);
+    if(!document)throw new Error('DOCUMENT_REVISION_CHANGED');
+    const sheet=document.tabularRead?.sheets.find(s=>s.name===input.sheetName);
+    if(!sheet)throw new Error('TABLE_SHEET_NOT_FOUND');
+    if(!Number.isInteger(input.columnIndex)||input.columnIndex<0||input.columnIndex>=Math.max(0,...sheet.rows.map(r=>r.length)))throw new Error('TABLE_COLUMN_NOT_FOUND');
+    const meaning=String(input.meaning??'').trim();
+    if(!meaning)throw new Error('TABLE_COLUMN_MEANING_REQUIRED');
+    const rawHeader=String(input.rawHeader??'').trim();
+    const confirmations=(document.tableConfirmations??[]).filter(item=>!(item.sheetName===input.sheetName&&item.columnIndex===input.columnIndex));
+    confirmations.push({
+      sheetName:input.sheetName,columnIndex:input.columnIndex,rawHeader,meaning,
+      confirmedAt:new Date().toISOString(),note:typeof input.note==='string'?input.note.trim()||null:null,
+    });
+    document.tableConfirmations=confirmations;
+    delete document.derivedRegisterRead;
+    document.diagnostics=[...document.diagnostics.filter(x=>!x.startsWith('TABLE_COLUMN_CONFIRMED:')),
+      ...confirmations.map(item=>'TABLE_COLUMN_CONFIRMED:'+item.sheetName+':'+item.columnIndex+':'+item.meaning)];
+    await this.refreshSpreadsheetRegisters(projectId);
+    const updated=this.get(projectId)!;
+    const refreshed=updated.evidenceDocuments.find(d=>d.documentId===input.documentId)!;
+    return {projectId,projectVersion:updated.version,documentId:refreshed.documentId,sourceHash:refreshed.sourceHashSha256,confirmations:refreshed.tableConfirmations??[]};
   }
 
   reviewEvidenceRelationship(projectId:string,input:{documentId:string;sourceHash:string;expectedVersion:number;kind:'new_record'|'replacement'|'amendment';targetDocumentId?:string|null;note:string}){
@@ -5220,7 +5420,7 @@ export class RuntimeProjectStore {
     if(!revision||!document)throw new Error('SCHEDULE_DOCUMENT_NOT_FOUND');
     if(revision.sourceHashSha256!==document.sourceHashSha256)throw new Error('SCHEDULE_SOURCE_HASH_MISMATCH');
     if(isScenarioRevision(revision))throw new Error('DRAFT_OR_SCENARIO_CANNOT_BECOME_CURRENT');
-    if(revision.roleConfirmed&&['baseline','revised_baseline'].includes(revision.role)&&!revision.approvalReference?.trim())throw new Error('BASELINE_APPROVAL_REFERENCE_REQUIRED');
+    if(['baseline','revised_baseline'].includes(revision.role)&&!revision.approvalReference?.trim())throw new Error('BASELINE_APPROVAL_REFERENCE_REQUIRED');
     if(!revision.revision.model.dataDateIso)throw new Error('SCHEDULE_DATA_DATE_REQUIRED');
     if(revision.role==='other'){revision.role='update';document.scheduleRole='update';document.documentType='schedule_update';}
     if(!['baseline','update','revised_baseline'].includes(revision.role))throw new Error('SCHEDULE_ROLE_REQUIRES_REVIEW');
@@ -5253,7 +5453,7 @@ export class RuntimeProjectStore {
         EvidenceUploadIntent;
     },
   ): Promise<ScheduleUploadSummary> {
-    if(input.roleConfirmed&&['baseline','revised_baseline'].includes(String(input.role))&&input.uploadIntent==='replace_current_basis'&&!input.approvalReference?.trim())throw new Error('BASELINE_APPROVAL_REFERENCE_REQUIRED');
+    if(input.roleConfirmed&&['baseline','revised_baseline'].includes(scheduleRole(input.role))&&input.uploadIntent==='replace_current_basis'&&!input.approvalReference?.trim())throw new Error('BASELINE_APPROVAL_REFERENCE_REQUIRED');
     const parent=this.getOrCreate(input.projectId);
     const state=input.phaseId?phaseProgrammeState(parent,input.phaseId,true):parent;
     const hash =
@@ -5446,8 +5646,13 @@ export class RuntimeProjectStore {
         input.uploadedAt,
       roleConfirmed:input.roleConfirmed??false,
       ...(input.approvalReference?.trim()?{approvalReference:input.approvalReference.trim()}:{}),
-      role:
-        (!input.roleConfirmed&&scenarioName(input.sourceRelativePath??input.sourceFilename??input.label??'')&&input.role!=='recovery' ? 'scenario' : scheduleRole(input.role)==='other'&&uploadIntent==='replace_current_basis'?'update':scheduleRole(input.role)),
+      role: (()=> {
+        const role=scheduleRole(input.role);
+        const scenarioFallback=!input.roleConfirmed
+          &&scenarioName(input.sourceRelativePath??input.sourceFilename??input.label??'')
+          &&!['baseline','revised_baseline','recovery'].includes(role);
+        return scenarioFallback?'scenario':role==='other'&&uploadIntent==='replace_current_basis'?'update':role;
+      })(),
     };
 
     state.schedules.push(
@@ -5838,6 +6043,7 @@ export class RuntimeProjectStore {
         DocumentAssertion[];
       uploadIntent?:
         EvidenceUploadIntent;
+      allowSemanticAi?:boolean;
     },
   ): Promise<ContractDocumentResult> {
     const name =
@@ -5890,21 +6096,34 @@ export class RuntimeProjectStore {
         })
       ).identification;
 
-    const parsed = isPdf
-      ? await parseContractPdf(
-          input.bytes,
-          {
-            ...(process.env.CMENG_OCR_ENABLED?.trim()==='0'?{}:{ocrProvider:this.createOcrProvider()}),
-          },
-        )
-      : await parseContractDocx(
-          input.bytes,
-        );
-
     const state =
       this.getOrCreate(
         input.projectId,
       );
+    const hash =
+      hashBytes(input.bytes);
+    const priorSameSource=
+      state.contractDocuments.find(
+        item=>item.sourceHashSha256===hash,
+      )?.result ?? null;
+    const aiResolver=input.allowSemanticAi
+      ?(this.contractAiResolver??configuredContractHeadingAiResolver())
+      :null;
+    const parsed = priorSameSource ??
+      (isPdf
+        ? await parseContractPdf(
+            input.bytes,
+            {
+              ...(process.env.CMENG_OCR_ENABLED?.trim()==='0'?{}:{ocrProvider:this.createOcrProvider()}),
+              ...(aiResolver?{aiResolver}:{}),
+            },
+          )
+        : await parseContractDocx(
+            input.bytes,
+            {
+              ...(aiResolver?{aiResolver}:{}),
+            },
+          ));
     const assertions =
       input.assertions ??
       [];
@@ -5929,8 +6148,6 @@ export class RuntimeProjectStore {
         existingDocuments:
           state.evidenceDocuments,
       });
-    const hash =
-      hashBytes(input.bytes);
     const role =
       input.role ?? "other";
     const documentId =

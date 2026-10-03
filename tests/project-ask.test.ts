@@ -291,7 +291,11 @@ test('local routing invokes neither model method for social, facts, filtering, r
     if(question.includes('below 5')){assert.equal(r.sections.find(s=>s.authorityId==='activities')!.tables[0]!.rows.length,1);assert.equal(r.sections.find(s=>s.authorityId==='activities')!.tables[0]!.rows[0]!.totalFloatHours,0);}
     if(question.includes('paid'))assert.ok(r.plan.authorities.includes('payments'));
     if(question.includes('NCRs'))assert.ok(r.plan.authorities.includes('quality'));
+    if(question.includes('current completion')){assert.ok(r.plan.authorities.includes('forecast'));assert.ok(!r.plan.authorities.includes('progress'));}
   }
+  const completionPercent=await engine.ask(f.id,user,{question:'What is current completion percentage?'});
+  assert.ok(completionPercent.plan.authorities.includes('progress'));
+  assert.ok(!completionPercent.plan.authorities.includes('forecast'));
   assert.equal(calls,0);
   const mixed=await engine.ask(f.id,user,{question:'Good morning. Why did our completion date move?'});assert.equal(calls,1);assert.equal(mixed.providerStatus,'failed');assert.ok(mixed.sections.length>0);
 });

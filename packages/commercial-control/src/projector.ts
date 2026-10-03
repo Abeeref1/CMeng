@@ -1075,11 +1075,21 @@ export function buildCommercialControlPosition(
           const known=compatible&&amounts.every(a=>a.value!==null&&a.currency===position.currency&&a.taxBasis!=='unknown'&&a.state==='official')&&new Set(amounts.map(a=>a.taxBasis)).size===1;
           return known?moneyMetric(Number(amounts.reduce((n,a)=>n+a.value!,0).toFixed(8)),"established",refs):unestablished("DATED_INCREMENTAL_CERTIFICATES_WITH_COMPATIBLE_AMOUNTS_REQUIRED");
         };
-        position.grossCertifiedAmount=total(['grossWork','variations']);
-        position.netCertifiedAmount=total(['netCertifiedAmount']);
-        position.interimCertificateCount=compatible?moneyMetric(certified.length,"established",refs):unestablished("DATED_INTERIM_CERTIFICATION_COUNT_REQUIRED");
-        position.paidAmount=unestablished("DATED_PAYMENT_RECEIPT_AND_ALLOCATION_REQUIRED");
-        position.certifiedUnpaidAmount=unestablished("UNKNOWN_PAID_AMOUNT_IS_NOT_ZERO");
+        const sourceGrossCertified=total(['grossWork','variations']);
+        const sourceNetCertified=total(['netCertifiedAmount']);
+        const sourceCertificateCount=compatible?moneyMetric(certified.length,"established",refs):unestablished("DATED_INTERIM_CERTIFICATION_COUNT_REQUIRED");
+        // Source registers can supplement a governed control position, but a
+        // weaker/missing source interpretation must never erase a value that was
+        // explicitly governed through the control layer.
+        if(position.grossCertifiedAmount.value===null)position.grossCertifiedAmount=sourceGrossCertified;
+        else if(sourceGrossCertified.value!==null&&Math.abs(position.grossCertifiedAmount.value-sourceGrossCertified.value)>1e-8)
+          position.grossCertifiedAmount.diagnostics.push("GOVERNED_CERTIFIED_AMOUNT_DIFFERS_FROM_SOURCE_CERTIFICATE_TOTAL");
+        if(!position.netCertifiedAmount||position.netCertifiedAmount.value===null)position.netCertifiedAmount=sourceNetCertified;
+        else if(sourceNetCertified.value!==null&&Math.abs(position.netCertifiedAmount.value-sourceNetCertified.value)>1e-8)
+          position.netCertifiedAmount.diagnostics.push("GOVERNED_NET_CERTIFIED_AMOUNT_DIFFERS_FROM_SOURCE_CERTIFICATE_TOTAL");
+        if(position.interimCertificateCount.value===null)position.interimCertificateCount=sourceCertificateCount;
+        if(position.paidAmount.value===null)position.paidAmount=unestablished("DATED_PAYMENT_RECEIPT_AND_ALLOCATION_REQUIRED");
+        if(position.certifiedUnpaidAmount.value===null)position.certifiedUnpaidAmount=unestablished("UNKNOWN_PAID_AMOUNT_IS_NOT_ZERO");
         if(position.retentionHeldAmount.value===null){
           position.retentionHeldAmount=unestablished("RETENTION_DEDUCTION_IS_NOT_A_RECONCILED_HELD_BALANCE");
         }
@@ -1482,15 +1492,14 @@ export function buildCommercialControlPosition(
         input.sourceLedger
           ?.payments.map(
             (row) => {
+              // Employer certification and net certification are distinct ledger facts.
+              // Never substitute the net amount when employer certification is absent.
               const certifiedMoney =
                 row.amounts
-                  .employerCertifiedAmount
-                  .value !== null
-                  ? row.amounts
-                      .employerCertifiedAmount
-                  : row.amounts
-                      .netCertifiedAmount;
+                  .employerCertifiedAmount;
               return {
+                taxBasis:
+                  certifiedMoney.taxBasis,
                 paymentId:
                   row.paymentId,
                 periodEnd:
@@ -1534,6 +1543,70 @@ export function buildCommercialControlPosition(
             },
           ) ?? [],
     });
+
+  // Commercial Performance is the canonical dated cash calculation. Reuse it
+  // only when a currency has one unambiguous tax-basis position; never merge
+  // incompatible tax bases merely to fill a Commercial Control headline.
+  for (const position of positions) {
+    const cashPositions =
+      performance.cashFlow.currencies.filter(
+        (row) =>
+          row.currency ===
+          position.currency,
+      );
+    if (cashPositions.length !== 1) continue;
+    const cash = cashPositions[0]!;
+    const performanceState = (
+      state: string,
+    ): CommercialEvidenceState =>
+      state === "established"
+        ? "established"
+        : state === "missing"
+          ? "missing_information"
+          : "candidate";
+    if (
+      cash.paidIncome.value !== null
+    ) {
+      position.paidAmount =
+        moneyMetric(
+          cash.paidIncome.value,
+          performanceState(
+            cash.paidIncome.state,
+          ),
+          [
+            ...cash.paidIncome
+              .basis.sourceRefs,
+          ],
+          [
+            ...cash.paidIncome
+              .diagnostics,
+            "PAID_AMOUNT_FROM_CANONICAL_DATED_CASH_PERFORMANCE",
+          ],
+        );
+    }
+    if (
+      cash.certifiedUnpaid.value !==
+      null
+    ) {
+      position.certifiedUnpaidAmount =
+        moneyMetric(
+          cash.certifiedUnpaid.value,
+          performanceState(
+            cash.certifiedUnpaid
+              .state,
+          ),
+          [
+            ...cash.certifiedUnpaid
+              .basis.sourceRefs,
+          ],
+          [
+            ...cash.certifiedUnpaid
+              .diagnostics,
+            "CERTIFIED_UNPAID_FROM_CANONICAL_CASH_RECONCILIATION",
+          ],
+        );
+    }
+  }
 
   const claimsNotices =
     commercialClaimsNotices(

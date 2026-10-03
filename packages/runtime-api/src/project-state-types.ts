@@ -269,9 +269,11 @@ export interface StoredEvidenceDocument {
   scheduleRoleConfirmed?:boolean;
   scheduleApprovalReference?:string;
   relationshipDecision?:{kind:'new_record'|'replacement'|'amendment';targetDocumentId:string|null;targetSourceHash:string|null;sourceHash:string;note:string;recordedAt:string};
-  scheduleAdoption?:{method:'explicit'|'legacy_retained';sourceHashSha256:string;recordedAt:string;note:string};
+  scheduleAdoption?:{method:'explicit'|'legacy_retained'|'submitted_update';sourceHashSha256:string;recordedAt:string;note:string};
   derivedRegisterRead?: {producerVersion:string;sourceHashSha256:string};
   tabularRead?: import("../../truth-kernel/src").EvidenceDocument["tabularRead"];
+  csvSemantic?: import("../../truth-kernel/src").EvidenceTableSemantic;
+  tableConfirmations?: import("../../truth-kernel/src").EvidenceColumnConfirmation[];
   documentId: string;
   category: EvidenceCategory;
   documentType: string;

@@ -1,6 +1,6 @@
 import {readFileSync} from 'node:fs';
 import {createHash} from 'node:crypto';
-import {sourceTables,csv,canonicalHeader,type SourceTable} from '../../truth-kernel/src';
+import {analyzeEvidenceTable,sourceTables,csv,canonicalHeader,type SourceTable} from '../../truth-kernel/src';
 import {kindIdentities} from '../../delivery-core/src/types';
 import type {ProjectRuntimeState} from './project-state-types';
 
@@ -31,7 +31,11 @@ export function deliverySourceTables(state:ProjectRuntimeState,diagnostics:strin
     lines.forEach((line,index)=>{const match=/^\s*([^:]{2,80}):\s*(.+)$/.exec(line);if(!match)return;const key=canonicalHeader(match[1]!);if(Object.hasOwn(cells,key))ambiguous=true;cells[key]=match[2]!.trim();if(!first)first=index+1;});
     if(!ambiguous&&Object.keys(cells).some(k=>identities.has(k))&&Object.keys(cells).length>=2)rows.push({line:first,cells});
    }
-   if(rows.length)tables.push({document,headers:[...new Set(rows.flatMap(r=>Object.keys(r.cells)))],rows:rows.map(r=>({cells:r.cells,receipt:{documentId:document.documentId,sourceHash:document.sourceHashSha256,revision:document.linkedArtifactId??document.sourceHashSha256,locator:'page:'+page.pageNumber+':line:'+r.line,basisState:document.basisState,authority:'source_record'}}))});
+   if(rows.length){
+    const headers=[...new Set(rows.flatMap(r=>Object.keys(r.cells)))];
+    const intelligence=analyzeEvidenceTable([headers,...rows.map(r=>headers.map(h=>r.cells[h]??''))]);
+    tables.push({document,headers,intelligence,rows:rows.map(r=>({cells:r.cells,receipt:{documentId:document.documentId,sourceHash:document.sourceHashSha256,revision:document.linkedArtifactId??document.sourceHashSha256,locator:'page:'+page.pageNumber+':line:'+r.line,basisState:document.basisState,authority:'source_record'}}))});
+   }
   }
   if(!read.result.complete)diagnostics.push('DELIVERY_PHYSICAL_PAGE_COVERAGE_INCOMPLETE:'+document.documentId);
  }

@@ -7,7 +7,7 @@ import {rebuildEvidenceFamily} from '../packages/runtime-api/src/evidence-contro
 import {hseReportPosition,refreshHseSummary,parseHseSummary} from '../packages/runtime-api/src/hse-report-evidence';
 import {readRegisterWorkbook} from '../packages/runtime-api/src/register-workbook';
 import {analyzeCsvEvidence,analyzeEvidenceRows} from '../packages/runtime-api/src/evidence';
-import {prepareRegisterRows,sourceTables} from '../packages/truth-kernel/src';
+import {numberValue,prepareRegisterRows,sourceTables} from '../packages/truth-kernel/src';
 import {reviewRegisterDates} from '../packages/runtime-api/src/register-date-review';
 import {moduleRegistry,pageApiKey,publicModuleResult,resolveModuleKey,titleForModule} from '../packages/runtime-api/src/registry';
 import {buildModuleJsonDownload} from '../packages/runtime-api/src/module-report';
@@ -128,6 +128,51 @@ test('comma, semicolon and tab registers share parsing and preserve quoted field
  assert.equal(state.evidenceDocuments.length,3);
 });
 
+test('summary footer rows never become source records while legitimate TOTAL-like identifiers remain',()=>{
+ const risk=prepareRegisterRows([
+  ['Risk ID','Description','Status','Owner'],
+  ['TOTAL','','',''],
+ ],'risk_register');
+ assert.equal(risk.recognized,true);assert.equal(risk.rows.length,0);
+
+ const payment=prepareRegisterRows([
+  ['Certificate No','Net Certified','Currency','Status'],
+  ['IPC-1','100','AED','Certified'],
+  ['Grand Total','100','',''],
+ ],'payment_certificates');
+ assert.equal(payment.recognized,true);assert.equal(payment.rows.length,1);assert.equal(payment.rows[0]![0],'IPC-1');
+
+ const arabic=prepareRegisterRows([
+  ['Risk ID','Description','Status'],
+  ['الإجمالي','',''],
+ ],'risk_register');
+ assert.equal(arabic.rows.length,0);
+
+ const legitimate=prepareRegisterRows([
+  ['Risk ID','Description','Status'],
+  ['TOTAL-01','Total station access risk','Open'],
+ ],'risk_register');
+ assert.equal(legitimate.rows.length,1);assert.equal(legitimate.rows[0]![0],'TOTAL-01');
+});
+
+test('accounting-format amounts remain numeric and reach variation controls', async t => {
+ assert.equal(numberValue('(249,816)'),-249816);
+ assert.equal(numberValue('(٢٤٩٬٨١٦)'),-249816);
+ assert.equal(numberValue('(-249,816)'),null,'ambiguous signed accounting notation must fail closed');
+ const dir=mkdtempSync(join(tmpdir(),'variation-accounting-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));
+ const store=new RuntimeProjectStore({dataDir:dir,durable:false}),projectId='VARIATION-ACCOUNTING';
+ await store.ingestEvidenceFile({
+  projectId,sourceFilename:'Variation_Register.csv',mediaType:'text/csv',
+  bytes:Buffer.from('Variation ID,Description,Approved Amount,Status,Currency\nVO-1,Scope credit,"(249,816)",Approved,EUR'),
+  uploadedAt:'2031-04-30T00:00:00Z',uploadIntent:'add_update',
+ });
+ const state=store.get(projectId)!;
+ assert.equal(state.controls.variations.length,1);
+ assert.equal(state.controls.variations[0]!.variationId,'VO-1');
+ assert.equal(state.controls.variations[0]!.amount,-249816);
+ assert.equal(state.controls.variations[0]!.currency,'EUR');
+});
+
 test('shared reader upgrade repairs text/plain CSV ingestion without changing another project or source bytes', async t => {
  const dir=mkdtempSync(join(tmpdir(),'delimiter-upgrade-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));
  const store=new RuntimeProjectStore({dataDir:dir,durable:false});
@@ -141,7 +186,7 @@ test('shared reader upgrade repairs text/plain CSV ingestion without changing an
  const sourceHash=doc.sourceHashSha256;
  const result=await store.refreshSpreadsheetRegisters('REGISTER-PROJECT');
  assert.equal(result.refreshedDocumentCount,1);assert.deepEqual(result.diagnostics,[]);
- assert.equal(doc.derivedRegisterRead?.producerVersion,'register-derived-v4');
+ assert.equal(doc.derivedRegisterRead?.producerVersion,'register-derived-v5');
  assert.equal(sourceTables([doc],[])[0]!.recognition?.recognized,true);
  assert.equal(doc.sourceHashSha256,sourceHash);assert.deepEqual(readFileSync(doc.storedPath),bytes);
  assert.equal(JSON.stringify(unchanged),beforeOther);

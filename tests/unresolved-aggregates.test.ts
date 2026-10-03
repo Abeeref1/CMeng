@@ -76,7 +76,7 @@ test('unreadable BOQ ingestion never establishes an empty quantity population', 
   const boq=await ingestBoq({projectId:'P',bytes:Buffer.from('Month,Item,Installed Quantity\n2031-01,A,5'),verifiedMediaType:'text/csv',receivedAt:'2031-01-01',sourceFilename:'measurements.csv'});
   assert.equal(boq.canonicalItems.length,0);
   assert.equal(boq.complete,false);
-  assert.ok(boq.diagnostics.includes('BOQ_CSV_DESCRIPTION_COLUMN_MISSING'));
+  assert.ok(boq.diagnostics.includes('BOQ_CSV_HEADER_NOT_FOUND'),'a measurement register must fail before BOQ row semantics when no BOQ header can be established');
   const stale={projectId:'P',boqRevisionId:boq.evidenceReceipt.revisionId,scheduleRevisionId:'S',items:[],allocations:[],installedSnapshots:[],diagnostics:[]};
   const state:any={boq,boqRevisions:[boq],quantities:stale,evidenceDocuments:[{documentId:'D',documentType:'boq',basisState:'active',linkedArtifactId:boq.ingestionId,sourceFilename:'measurements.csv',mediaType:'text/csv',assertions:[]}]};
   const result=resolveBoqSource(state,'S');

@@ -16,6 +16,25 @@ function functions(names:string[]) {
 const common={apiKeys:{},fmt:String,fmtExecutive:String,escapeHtml:(s:unknown)=>String(s).replace(/[&<>\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]!)),humanizeKey:String,planningShortDate:(s:unknown)=>s==null?'Not available':String(s),planningRevisionLabel:String};
 const briefFunctions=functions(['aggregateCount','experienceBrief','experienceValue','findProjectionRoot']);
 
+test('browser presentation boundary never renders literal undefined or null for absent values',()=>{
+  assert.equal(runInNewContext(functions(['escapeHtml'])+';escapeHtml(undefined)',{}),'');
+  assert.equal(runInNewContext(functions(['escapeHtml'])+';escapeHtml(null)',{}),'');
+  assert.equal(runInNewContext(functions(['escapeHtml'])+';escapeHtml("<unsafe>")',{}),'&lt;unsafe&gt;');
+});
+
+test('forecast management diagnostics translate raw CPM and calendar codes into business language',()=>{
+  const messages=runInNewContext(
+    functions(['forecastDiagnosticMessages'])+';forecastDiagnosticMessages(["CALENDAR_SEMANTICS_UNRESOLVED:CAL-1","SCHEDULE_GRAPH_CYCLES:A-B-C"])',
+    {}
+  );
+  assert.equal(messages.length,2);
+  assert.match(messages[0],/^Programme calendar definition does not sufficiently establish working days, shifts or exceptions\./);
+  assert.match(messages[0],/Affected: CAL-1\./);
+  assert.match(messages[1],/^Schedule logic contains a cycle\/circular relationship\./);
+  assert.match(messages[1],/Affected: A-B-C\./);
+  assert.doesNotMatch(messages.join(' '),/CALENDAR_SEMANTICS_UNRESOLVED|SCHEDULE_GRAPH_CYCLES/);
+});
+
 test('named curves and variance trend render their chart before KPI and source detail blocks',()=>{
   const data={points:[{dateIso:'2031-01-01',dataDateIso:'2031-01-01',revisionId:'S',sequence:1}],dataDateIso:'2031-01-01',revisionCount:1};
   const ctx={...common,data,projectionFor:(d:any)=>d,planningDateMs:Date.parse,planningKpis:()=>'<div>KPI-BLOCK</div>',
