@@ -16,6 +16,12 @@ function functions(names:string[]) {
 const common={apiKeys:{},fmt:String,fmtExecutive:String,escapeHtml:(s:unknown)=>String(s).replace(/[&<>\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]!)),humanizeKey:String,planningShortDate:(s:unknown)=>s==null?'Not available':String(s),planningRevisionLabel:String};
 const briefFunctions=functions(['aggregateCount','experienceBrief','experienceValue','findProjectionRoot']);
 
+test('browser presentation boundary never renders literal undefined or null for absent values',()=>{
+  assert.equal(runInNewContext(functions(['escapeHtml'])+';escapeHtml(undefined)',{}),'');
+  assert.equal(runInNewContext(functions(['escapeHtml'])+';escapeHtml(null)',{}),'');
+  assert.equal(runInNewContext(functions(['escapeHtml'])+';escapeHtml("<unsafe>")',{}),'&lt;unsafe&gt;');
+});
+
 test('named curves and variance trend render their chart before KPI and source detail blocks',()=>{
   const data={points:[{dateIso:'2031-01-01',dataDateIso:'2031-01-01',revisionId:'S',sequence:1}],dataDateIso:'2031-01-01',revisionCount:1};
   const ctx={...common,data,projectionFor:(d:any)=>d,planningDateMs:Date.parse,planningKpis:()=>'<div>KPI-BLOCK</div>',
