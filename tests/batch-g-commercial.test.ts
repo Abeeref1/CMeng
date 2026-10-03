@@ -183,8 +183,8 @@ test("Batch G C1 commercial-control performance path never substitutes net certi
   assert.ok(cash);
   assert.equal(cash.certifiedIncome.value,null);
   assert.equal(cash.paidIncome.value,800);
-  assert.ok(cash.certifiedIncome.sourceRefs.some((ref:string)=>ref.includes("employer-certified-control")));
-  assert.ok(!cash.certifiedIncome.sourceRefs.some((ref:string)=>ref.includes("net-certified-control")));
+  assert.ok(cash.certifiedIncome.basis.sourceRefs.some((ref:string)=>ref.includes("employer-certified-control")));
+  assert.ok(!cash.certifiedIncome.basis.sourceRefs.some((ref:string)=>ref.includes("net-certified-control")));
 });
 
 test("Batch G C2 distinguishes unresolved applicability from real conflicts", () => {
