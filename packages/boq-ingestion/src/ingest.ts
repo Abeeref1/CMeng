@@ -8,6 +8,9 @@ import {
   parseBoqOoxmlWorkbook,
 } from "../../boq-parser/src";
 import {
+  parseBoqCsv,
+} from "../../boq-csv-parser/src";
+import {
   parseBoqPdf,
   type BoqPdfOptions,
 } from "../../boq-pdf-parser/src";
@@ -313,113 +316,42 @@ export async function ingestBoq(
   let canonicalItems: CanonicalBoqCommercialItem[] = [];
 
   if (sourceFormat === "csv") {
-    const text = Buffer.from(input.bytes)
-      .toString("utf8")
-      .replace(/^\uFEFF/, "");
-    const rows = parseCsv(text);
-    const headers = rows[0] ?? [];
-    const itemIndex = csvColumn(headers, [
-      "item no",
-      "item number",
-      "item",
-      "boq item",
-    ]);
-    const sectionIndex = csvColumn(headers, ["section"]);
-    const descriptionIndex = csvColumn(headers, [
-      "description",
-      "item description",
-      "scope description",
-    ]);
-    const unitIndex = csvColumn(headers, ["unit", "uom"]);
-    const quantityIndex = csvColumn(headers, ["quantity", "qty"]);
-    const rateIndex = headers.findIndex((value) =>
-      /^rate(?:\s+[a-z]{3})?$/i.test(value.trim()),
-    );
-    const amountIndex = headers.findIndex((value) =>
-      /^amount(?:\s+[a-z]{3})?$/i.test(value.trim()),
-    );
-    const currencyIndex = csvColumn(headers, ["currency"]);
-    const headerCurrency = currencyFromHeaders(headers);
-
-    const dataRows = rows.slice(1).filter((row) =>
-      row.some((value) => value.trim() !== ""),
-    );
-    candidateRows = dataRows.length;
-
-    canonicalItems = dataRows.flatMap((row, offset) => {
-      const description =
-        descriptionIndex >= 0
-          ? (row[descriptionIndex] ?? "").trim()
-          : "";
-      if (!description) {
-        unresolvedRows += 1;
-        return [];
-      }
-      const rowNumber = offset + 2;
-      const itemNumber =
-        itemIndex >= 0
-          ? (row[itemIndex] ?? "").trim() || null
-          : null;
-      const currency =
-        currencyIndex >= 0
-          ? (row[currencyIndex] ?? "").trim().toUpperCase() || headerCurrency
-          : headerCurrency;
-      verifiedRows += 1;
-      return [{
+    const parsed = parseBoqCsv(input.bytes);
+    candidateRows = parsed.candidateRows;
+    verifiedRows = parsed.verifiedRows;
+    unresolvedRows = parsed.unresolvedRows;
+    coveragePercent = parsed.coveragePercent;
+    complete = parsed.complete;
+    diagnostics = [...parsed.diagnostics];
+    canonicalItems = parsed.items
+      .filter((item) => item.rowKind === "line_item")
+      .map((item) => ({
         itemId: itemId(
           hash,
           sourceFormat,
-          "row:" + rowNumber,
+          "row:" + item.row,
         ),
-        itemNumber,
-        section:
-          sectionIndex >= 0
-            ? (row[sectionIndex] ?? "").trim() || null
-            : null,
-        description,
-        unit:
-          unitIndex >= 0
-            ? (row[unitIndex] ?? "").trim() || null
-            : null,
-        quantity:
-          quantityIndex >= 0
-            ? csvNumber(row[quantityIndex])
-            : null,
-        rate:
-          rateIndex >= 0
-            ? csvNumber(row[rateIndex])
-            : null,
-        amount:
-          amountIndex >= 0
-            ? csvNumber(row[amountIndex])
-            : null,
-        currency,
+        itemNumber: item.itemNumber,
+        section: item.section ?? null,
+        description: item.description,
+        unit: item.unit,
+        quantity: item.quantity,
+        rate: item.rate,
+        amount: item.amount,
+        currency: item.currency,
         sourceFormat,
         sourceRefs: [
           "evidence-receipt:" + evidenceReceipt.receiptId,
-          "csv:row:" + rowNumber,
+          "csv:row:" + item.row,
+          ...Object.values(item.sourceCells)
+            .filter((locator): locator is NonNullable<typeof locator> => Boolean(locator))
+            .map((locator) =>
+              "csv:row:" + locator.row + ":column:" + locator.column,
+            ),
         ],
-        status: "verified" as const,
-        diagnostics: [],
-      }];
-    });
-
-    coveragePercent =
-      candidateRows === 0
-        ? null
-        : (verifiedRows / candidateRows) * 100;
-    complete =
-      candidateRows > 0 &&
-      unresolvedRows === 0 &&
-      canonicalItems.length === candidateRows;
-    diagnostics = [
-      ...(headers.length === 0
-        ? ["BOQ_CSV_HEADER_MISSING"]
-        : []),
-      ...(descriptionIndex < 0
-        ? ["BOQ_CSV_DESCRIPTION_COLUMN_MISSING"]
-        : []),
-    ];
+        status: item.status,
+        diagnostics: [...item.diagnosticCodes],
+      }));
   } else if (sourceFormat === "excel_ooxml") {
     const parsed = await parseBoqOoxmlWorkbook(
       input.bytes,
