@@ -734,7 +734,10 @@ export async function generateCommercialFeatureBlindProject(seed:string,index=0)
     ['Expenditure Budget',String(Math.round(currentValue*.24)),currency,'Approved',future,'incremental','Exclusive'],
     ['Expenditure Forecast',String(Math.round(currentValue*.26)),currency,'Forecast',future,'incremental','Exclusive'],
   ];
-  for(const row of costRows)while(row.length<costHeaders.length)row.push(row[0]==='EVM'?'CBS-ROOT':row[0].toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').toUpperCase()||'CBS-COST',row[0]+' control','ROOT');
+  for(const row of costRows){
+    const metric=String(row[0]??'Cost');
+    while(row.length<costHeaders.length)row.push(metric==='EVM'?'CBS-ROOT':metric.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').toUpperCase()||'CBS-COST',metric+' control','ROOT');
+  }
   docs.push(shuffledCsvDocument(h,'EVM_Cost_Report_'+h.int(10,999)+'.csv','evm',costHeaders,costRows));
   const paymentHeaders=['Certificate No','Payment Type','Period End','Application Date','Assessment Date','Certificate Date','Payment Due Date','Payment Date','Payment Reference','Payment Source Status','Gross Work','Variations','Gross Certified Amount','Employer Certified Amount','Net Certified','Paid Amount','Retention','Advance Recovery','Other Deductions','Tax Amount','Outstanding Amount','Currency','Status','Certified Amount Basis','Paid Amount Basis','VAT Basis'];
   const paymentRows=[prior2,prior1,prior0].map((period,i)=>{
