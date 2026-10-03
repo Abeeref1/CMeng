@@ -1743,18 +1743,12 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
           dataDateIso: model.dataDateIso,
           authority: "schedule_derived_scenario",
           submittedPlanAvailable: state.submittedManpowerPlan !== null,
-          submittedAverageManpower:
-            deliveryChallenge.manpowerChallenge.submittedAverageManpower,
-          submittedPeakManpower:
-            deliveryChallenge.manpowerChallenge.submittedPeakManpower,
-          averageConcurrentWorkFronts:
-            deliveryChallenge.manpowerChallenge.averageConcurrentWorkFronts,
-          peakConcurrentWorkFronts:
-            deliveryChallenge.manpowerChallenge.peakConcurrentWorkFronts,
-          requiredAverageManpowerToContract:
-            deliveryChallenge.manpowerChallenge.requiredAverageManpowerToContract,
-          requiredAverageManpowerToContractorForecast:
-            deliveryChallenge.manpowerChallenge.requiredAverageManpowerToContractorForecast,
+          submittedAverageManpower: null,
+          submittedPeakManpower: null,
+          averageConcurrentWorkFronts: null,
+          peakConcurrentWorkFronts: null,
+          requiredAverageManpowerToContract: null,
+          requiredAverageManpowerToContractorForecast: null,
           scheduleDerivedScenarios: [],
           rows: [],
           diagnostics: [
