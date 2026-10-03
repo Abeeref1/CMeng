@@ -156,7 +156,7 @@ function makeXer(h:ReturnType<typeof helpers>,projectId:string,projectName:strin
       ? (language==='ar'?'إنجاز المشروع':language==='mixed'?'Project Completion / إنجاز المشروع':'Project Completion')
       : (language==='ar'?'نشاط '+(i+1):language==='mixed'&&i%3===0?'Activity '+(i+1)+' / نشاط':'Activity '+(i+1));
     const start=shiftDate(dataDate,-h.int(1,120)),finish=shiftDate(dataDate,h.int(1,240));
-    const pct=isFinishMilestone?0:h.int(0,100),tf=isFinishMilestone?0:h.pick([-80,-24,0,8,24,80]);
+    const pct=isFinishMilestone?0:h.int(0,100),tf=isFinishMilestone?0:(i===0?8:h.pick([-80,-24,0,8,24,80]));
     const taskType=isFinishMilestone?'TT_FinMile':'TT_Task';
     const duration=isFinishMilestone?0:80,remaining=isFinishMilestone?0:Math.max(0,80*(100-pct)/100);
     const milestoneDate=isFinishMilestone?finish:start;
@@ -909,9 +909,9 @@ export async function generateForecastFeatureBlindProject(seed:string,index=0):P
   const dataDateIso='2044-'+String(h.int(4,8)).padStart(2,'0')+'-'+String(h.int(10,20)).padStart(2,'0');
   const dates=[shiftDate(dataDateIso,-56),shiftDate(dataDateIso,-28),dataDateIso];
   const items:ForecastFeatureTruthItem[]=[
-    {itemNumber:'B1',description:'Concrete works',unit:'m3',quantity:1000,installed:220+h.int(0,80),activityId:'1000',laborHoursPerUnit:4},
-    {itemNumber:'B2',description:'Cable installation',unit:'m',quantity:5000,installed:1000+h.int(0,600),activityId:'1001',laborHoursPerUnit:1.5},
-    {itemNumber:'B3',description:'Mechanical equipment',unit:'No.',quantity:20,installed:3+h.int(0,4),activityId:'1002',laborHoursPerUnit:40},
+    {itemNumber:'B1',description:'Concrete works',unit:'m3',quantity:1000,installed:220+h.int(0,80),activityId:'WP-1',laborHoursPerUnit:4},
+    {itemNumber:'B2',description:'Cable installation',unit:'m',quantity:5000,installed:1000+h.int(0,600),activityId:'WP-2',laborHoursPerUnit:1.5},
+    {itemNumber:'B3',description:'Mechanical equipment',unit:'No.',quantity:20,installed:3+h.int(0,4),activityId:'WP-3',laborHoursPerUnit:40},
   ];
   const docs:BlindDocument[]=dates.map((date,i)=>({filename:'Programme_Update_'+(i+1)+'_'+h.int(10,999)+'.xer',mediaType:'text/plain',
     bytes:makeForecastResourceXer(h,projectId,projectName,date,i,language),kind:'xer',domain:'schedule',
