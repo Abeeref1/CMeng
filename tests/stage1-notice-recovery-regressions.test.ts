@@ -10,7 +10,7 @@ import {
 } from "../packages/delay-analysis-core/src";
 import {buildNoticesClaimsProjection} from "../packages/notices-claims/src";
 import {runtimeProjects} from "../packages/runtime-api/src/project-state";
-import {changeDelivery} from "../packages/runtime-api/src/delivery-records";
+import {changeDelivery,deliveryRecords,deliveryStore} from "../packages/runtime-api/src/delivery-records";
 import {recoveryAccelerationIntelligence} from "../packages/runtime-api/src/recovery-acceleration";
 
 const ref=(sourceType:any,sourceId:string)=>({sourceType,sourceId,locator:"row:1"});
@@ -126,6 +126,17 @@ test("Stage 1 Recovery distinguishes absent supporting evidence from checked evi
       "required on site date":"2031-02-10",
       "forecast delivery date":"2031-02-01",
     },
+  } as any);
+  runtimeProjects.touch(state);
+  const created=deliveryRecords(state).records.find(row=>row.recordId===deliveryStore(state).manual.at(-1)!.recordId)!;
+  changeDelivery(state,{
+    expectedVersion:state.version,
+    action:"review",
+    recordId:created.recordId,
+    sourceRevision:created.revision,
+    state:"governed",
+    fields:{},
+    note:"Stage 1 governed recovery eligibility fixture.",
   } as any);
   runtimeProjects.touch(state);
   const checked=recoveryAccelerationIntelligence(state);
