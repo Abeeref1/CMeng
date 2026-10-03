@@ -739,8 +739,13 @@ function applyModuleFilters(value:unknown,filters:Record<string,string>,depth=0)
   if(depth>8||value===null||value===undefined||typeof value!=='object')return value;
   if(Array.isArray(value)){
     const objects=value.filter(v=>v&&typeof v==='object'&&!Array.isArray(v)) as Record<string,unknown>[];
-    const recognized=objects.some(row=>Object.keys(filters).some(key=>rowFilterValue(row,key)!==null)||!!filters.scheduleCondition||!!filters.search);
-    const rows=recognized?value.filter(v=>!v||typeof v!=='object'||Array.isArray(v)||matchesModuleFilters(v as Record<string,unknown>,filters)):value;
+    const hasSearch=Boolean(filters.search?.trim());
+    const recognized=objects.some(row=>Object.keys(filters).some(key=>rowFilterValue(row,key)!==null)||!!filters.scheduleCondition||hasSearch);
+    const rows=recognized||hasSearch?value.filter(v=>{
+      if(v&&typeof v==='object'&&!Array.isArray(v))return matchesModuleFilters(v as Record<string,unknown>,filters);
+      if(!hasSearch)return true;
+      return String(v??'').toLowerCase().includes(filters.search!.trim().toLowerCase());
+    }):value;
     return rows.map(v=>applyModuleFilters(v,filters,depth+1));
   }
   return Object.fromEntries(Object.entries(value as Record<string,unknown>).map(([k,v])=>[k,applyModuleFilters(v,filters,depth+1)]));
