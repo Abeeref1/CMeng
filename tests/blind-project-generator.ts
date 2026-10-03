@@ -702,7 +702,7 @@ export async function generateCommercialFeatureBlindProject(seed:string,index=0)
     'Delay damages rate: '+currency+' '+ldRate+' per calendar day.',
     'Delay damages cap: 10% of the Contract Amount.',
     '6 Notices and Claims',
-    'Initial claim notice shall be given within 14 calendar days after the event occurs.'
+    'Initial claim notice: 14 calendar days after the event occurs.'
   ];
   const contractPdf=await PDFDocument.create(),font=await contractPdf.embedFont(StandardFonts.Helvetica);
   const page=contractPdf.addPage([595,842]);
