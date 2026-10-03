@@ -142,7 +142,7 @@ export function changeDelivery(state:ProjectRuntimeState,input:any){
     const seen=new Set([r.recordId]);let parent=String(fields['parent location id']??'');
     while(parent){if(seen.has(parent))throw new Error('Location hierarchy cannot contain a cycle.');seen.add(parent);const row=all.find(x=>x.kind==='location'&&x.recordId===parent&&['governed','verified'].includes(x.state));if(!row)throw new Error('Parent location must be a governed location in this project.');parent=String(row.fields['parent location id']??'');}
    }
-   if(fields['lifecycle id']&&!all.some(x=>x.kind==='lifecycle'&&x.recordId===fields['lifecycle id']&&['governed','verified'].includes(x.state)))throw new Error('Select a governed lifecycle template in this project.');
+   if(r.kind!=='lifecycle'&&fields['lifecycle id']&&!all.some(x=>x.kind==='lifecycle'&&x.recordId===fields['lifecycle id']&&['governed','verified'].includes(x.state)))throw new Error('Select a governed lifecycle template in this project.');
   }
   if(!String(input.note??'').trim())throw new Error('Record the reason for this decision.');
   let continuity=boqContinuityCache.get(state)?.version===state.version?boqContinuityCache.get(state)!.mapping:null;
