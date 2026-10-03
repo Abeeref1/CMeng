@@ -750,7 +750,7 @@ export async function generateCommercialFeatureBlindProject(seed:string,index=0)
     const grossWork=net+retention+advance+other-variationCertified,grossCertified=grossWork+variationCertified,employerCertified=grossCertified;
     const paid=Math.round(net*.92);
     return ['IPC-'+(i+1),'Interim',period,shiftDate(period,-10),shiftDate(period,-5),shiftDate(period,-3),shiftDate(period,25),shiftDate(period,15),'PAY-'+(i+1),'Posted',
-      String(grossWork),String(variationCertified),String(grossCertified),String(employerCertified),String(net),String(paid),String(retention),String(advance),String(other),'0',String(net-paid),currency,'Paid','incremental','certificate total','Exclusive'];
+      String(grossWork),String(variationCertified),String(grossCertified),String(employerCertified),String(net),String(paid),String(retention),String(advance),String(other),'0',String(net-paid),currency,'Paid','incremental','incremental','Exclusive'];
   });
   docs.push(shuffledCsvDocument(h,'Payment_Certificates_'+h.int(10,999)+'.csv','payments',paymentHeaders,paymentRows));
   const variationHeaders=['Variation ID','Description','Status','Submitted Date','Assessment Date','Agreed Date','Approval Date','Claimed Amount','Assessed Amount','Agreed Amount','Approved Amount','Schedule Impact Days','Claim ID','Payment ID','Activity ID','Clause','Currency'];
