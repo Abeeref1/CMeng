@@ -22,6 +22,18 @@ test('browser presentation boundary never renders literal undefined or null for 
   assert.equal(runInNewContext(functions(['escapeHtml'])+';escapeHtml("<unsafe>")',{}),'&lt;unsafe&gt;');
 });
 
+test('forecast management diagnostics translate raw CPM and calendar codes into business language',()=>{
+  const messages=runInNewContext(
+    functions(['forecastDiagnosticMessages'])+';forecastDiagnosticMessages(["CALENDAR_SEMANTICS_UNRESOLVED:CAL-1","SCHEDULE_GRAPH_CYCLES:A-B-C"])',
+    {}
+  );
+  assert.deepEqual(Array.from(messages),[
+    'Programme calendar definition does not sufficiently establish working days, shifts or exceptions.',
+    'Schedule logic contains a cycle/circular relationship.'
+  ]);
+  assert.doesNotMatch(messages.join(' '),/CALENDAR_SEMANTICS_UNRESOLVED|SCHEDULE_GRAPH_CYCLES/);
+});
+
 test('named curves and variance trend render their chart before KPI and source detail blocks',()=>{
   const data={points:[{dateIso:'2031-01-01',dataDateIso:'2031-01-01',revisionId:'S',sequence:1}],dataDateIso:'2031-01-01',revisionCount:1};
   const ctx={...common,data,projectionFor:(d:any)=>d,planningDateMs:Date.parse,planningKpis:()=>'<div>KPI-BLOCK</div>',
