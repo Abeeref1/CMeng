@@ -248,7 +248,8 @@ function assertFeatureSubstance(batchId:string,page:ModuleDescriptor,body:any,pr
   if(batchId==='F5-DELAY-CLAIMS'&&page.key==='windows-analysis')
     assert.equal(availability?.state,'active','F5 Delay Windows requires a real revision-to-revision window for '+projectId);
   if(batchId==='F6-COMMERCIAL')assert.equal(body.status,'ready',
-    'F6 '+page.key+' must be established, not merely visible, for '+projectId+'; reason: '+String(body.reason??''));
+    'F6 '+page.key+' must be established, not merely visible, for '+projectId+'; reason: '+String(body.reason??'')+
+    '; blockers: '+JSON.stringify((body.issueAssessment?.issues??body.data?.issueAssessment?.issues??[]).map((issue:any)=>({code:issue.code,path:issue.evidencePaths?.[0],summary:issue.summary,detail:issue.detail}))));
   if(batchId==='F7-DELIVERY')assert.ok(body.status==='ready'||body.status==='partial',
     'F7 '+page.key+' did not produce a Delivery feature result for '+projectId);
 }
