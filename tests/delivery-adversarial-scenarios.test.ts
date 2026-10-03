@@ -6,7 +6,7 @@ import {join} from 'node:path';
 import {PDFDocument,StandardFonts} from 'pdf-lib';
 import {PDFParse} from 'pdf-parse';
 import {RuntimeProjectStore} from '../packages/runtime-api/src/project-state';
-import {changeDelivery,deliveryRecords,deliveryStore,deliveryHash} from '../packages/runtime-api/src/delivery-records';
+import {changeDelivery,deliveryRecords,deliveryStore,deliveryHash,classifyDeliveryRowKind} from '../packages/runtime-api/src/delivery-records';
 import {deliveryModule,deliveryPosition} from '../packages/runtime-api/src/delivery-projections';
 import {resolveBoqSource} from '../packages/runtime-api/src/boq-source';
 import type {DeliveryKind,DeliveryRecord} from '../packages/delivery-core/src/types';
@@ -27,6 +27,33 @@ async function fixture(t:any,id='NEW-SCENARIO',durable=false){
  const population=(kind:DeliveryKind)=>change({action:'confirm_population',kind,note:'Enumerated new-scenario population.'});
  return {root,store,state,upload,change,record,working,review,create,population,position:()=>deliveryPosition(state)};
 }
+
+test('delivery row classification is invariant to physical column order and fails closed on a genuine tie',()=>{
+ const receipt={documentId:'DOC-CLASS',sourceHash:'hash',revision:'rev',locator:'page:1',basisState:'active',authority:'source_record'};
+ const entries:[string,string][]=[
+  ['package id','PKG-01'],
+  ['interface id','IF-01'],
+  ['giving party','Designer'],
+  ['receiving party','Main Contractor'],
+  ['required deliverable','Approved coordinated drawing'],
+  ['responsible party','Interface Manager'],
+ ];
+ const permutations=(values:[string,string][])=>{
+  const out:[string,string][][]=[];
+  const walk=(prefix:[string,string][],rest:[string,string][])=>{
+   if(!rest.length){out.push(prefix);return;}
+   for(let i=0;i<rest.length;i++)walk([...prefix,rest[i]!],[...rest.slice(0,i),...rest.slice(i+1)]);
+  };
+  walk([],values);
+  return out;
+ };
+ for(const ordered of permutations(entries)){
+  const row:any={cells:Object.fromEntries(ordered),receipt};
+  assert.equal(classifyDeliveryRowKind(row,'supporting_document'),'interface');
+ }
+ const tied:any={cells:{'package id':'PKG-01','interface id':'IF-01'},receipt};
+ assert.equal(classifyDeliveryRowKind(tied,'supporting_document'),null,'ambiguous page evidence must not be decided by column order');
+});
 
 test('new HSE scenarios: valid zero/whole Arabic counts work; negative, fractional and percent counts cannot offset other injuries',async t=>{
  const a=await fixture(t,'INDEPENDENT-A'),b=await fixture(t,'INDEPENDENT-B');
