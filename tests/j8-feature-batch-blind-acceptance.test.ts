@@ -116,14 +116,14 @@ async function createAndUpload(base:string,project:BatchProject,prefix:string){
   const created=await request(base,'/api/projects',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({projectId:project.projectId})});
   assert.equal(created.status,201,project.projectId+' creation failed: '+created.text);
   for(const [index,document] of project.documents.entries()){
-    const uploaded=await request(base,'/api/projects/'+encodeURIComponent(project.projectId)+'/evidence/uploads',{
+    const isCommercialContract=prefix==='F6-COMMERCIAL'&&document.domain==='contract';
+    const uploaded=await request(base,'/api/projects/'+encodeURIComponent(project.projectId)+(isCommercialContract?'/contract/uploads':'/evidence/uploads'),{
       method:'POST',
       headers:{
         'content-type':document.mediaType,
         'x-source-filename-encoded':encodeURIComponent(document.filename),
         'x-source-relative-path-encoded':encodeURIComponent(document.filename),
-        'x-upload-intent':'add_update',
-        'x-upload-id':prefix+'-'+index,
+        ...(isCommercialContract?{'x-contract-role':'main'}:{'x-upload-intent':'add_update','x-upload-id':prefix+'-'+index}),
       },
       body:Buffer.from(document.bytes),
     });
@@ -141,6 +141,30 @@ async function adoptBlindProgrammeHistory(base:string,projectId:string){
     const adopted=await request(base,'/api/projects/'+encodeURIComponent(projectId)+'/schedule/revisions/'+encodeURIComponent(revision.revisionId)+'/adopt',{method:'POST'});
     assert.equal(adopted.status,200,'Programme adoption failed '+projectId+' / '+revision.revisionId+': '+adopted.text.slice(0,500));
   }
+}
+async function governCommercialBlindTruth(base:string,project:any){
+  const contractDoc=project.documents.find((document:any)=>document.domain==='contract');
+  const facts=contractDoc?.truth?.facts??{};
+  assert.ok(typeof facts.baseValue==='number'&&typeof facts.currency==='string'&&typeof facts.contractualCompletion==='string',
+    'F6 independent contract truth missing '+project.projectId);
+  const updated=await request(base,'/api/projects/'+encodeURIComponent(project.projectId)+'/controls',{
+    method:'PUT',headers:{'content-type':'application/json'},body:JSON.stringify({
+      contractValue:{amount:facts.baseValue,currency:facts.currency,sourceRefs:['blind-independent-contract-value:'+project.projectId]},
+      contractTimeBasis:{
+        contractualCompletionIso:facts.contractualCompletion+'T00:00:00.000Z',
+        contractualCompletionState:'official',
+        officialApprovedEotDays:0,
+        officialApprovedEotState:'official',
+        eotDayBasis:'calendar_days',
+        eotDayBasisState:'official',
+        overlapResolution:'resolved',
+        incorporatedEotDays:0,
+        additionalApprovedEotDays:0,
+        sourceRefs:['blind-independent-contract-completion:'+project.projectId],
+      },
+    }),
+  });
+  assert.equal(updated.status,200,'F6 governed contract truth failed '+project.projectId+': '+updated.text.slice(0,700));
 }
 async function ordinaryProjects(seed:string):Promise<BatchProject[]>{
   return (await generateMixedWorkbookBlindRound(seed,10)).projects;
@@ -450,6 +474,7 @@ for(const batch of pageBatches){
       for(const project of projects)await createAndUpload(base,project,batch.id);
       if(['F2-PROGRAMME-PLANNING','F3-PROGRESS-RESOURCES','F4-FORECAST-RECOVERY','F5-DELAY-CLAIMS'].includes(batch.id))
         for(const project of projects)await adoptBlindProgrammeHistory(base,project.projectId);
+      if(batch.id==='F6-COMMERCIAL')for(const project of projects)await governCommercialBlindTruth(base,project as any);
       if(batch.id==='F4-FORECAST-RECOVERY'||batch.id==='F7-DELIVERY')
         for(const project of projects)await governBlindQuantities(base,project as any);
       if(batch.id==='F7-DELIVERY')for(const project of projects)await governDeliveryProject(base,project.projectId);
