@@ -1482,14 +1482,11 @@ export function buildCommercialControlPosition(
         input.sourceLedger
           ?.payments.map(
             (row) => {
+              // Employer certification and net certification are distinct ledger facts.
+              // Never substitute the net amount when employer certification is absent.
               const certifiedMoney =
                 row.amounts
-                  .employerCertifiedAmount
-                  .value !== null
-                  ? row.amounts
-                      .employerCertifiedAmount
-                  : row.amounts
-                      .netCertifiedAmount;
+                  .employerCertifiedAmount;
               return {
                 paymentId:
                   row.paymentId,
