@@ -96,6 +96,20 @@ test('material reconciliation uses the same BOQ and installed authority, preserv
  f.review(r,{}, {links:{...r.links,boqAllocations:[{boqItemId:concrete.quantityItemId,quantity:60,unit:'m3'}]}});assert.equal(deliveryPosition(f.state).materialRows.find(x=>x.recordId===r.recordId)!.required,60);
 });
 
+test('Stage 1 lifecycle governance can bootstrap itself but ordinary records still require an established template',async t=>{
+ const f=await fixture(t);
+ const lifecycle=f.create('lifecycle','LC-BOOT',{'lifecycle id':'LC-BOOT',stages:'po;delivery;installation'});
+ assert.equal(lifecycle.state,'governed');
+ assert.equal(lifecycle.kind,'lifecycle');
+
+ f.change({action:'create',kind:'package',fields:{'record reference':'PK-NO-TEMPLATE',description:'Package awaiting lifecycle','lifecycle id':'LC-MISSING'}});
+ const manual=deliveryStore(f.state).manual.at(-1)!;
+ assert.throws(()=>f.change({
+   action:'review',recordId:manual.recordId,sourceRevision:manual.revision,state:'governed',
+   fields:{},note:'Attempt governance without established lifecycle.'
+ }),/Select a governed lifecycle template in this project/);
+});
+
 test('long-lead backward dates require each duration, day basis and source; missing inputs never become dates',async t=>{
  const f=await fixture(t),activity=projectControlSchedule(f.state)!.revision.model.activities[0]!;
  const lifecycle=f.create('lifecycle','L1',{stages:'po; manufacturing; delivery; installation','po duration':0,'po day basis':'calendar days','po duration source':'Approved plan','manufacturing duration':20,'manufacturing day basis':'calendar days','manufacturing duration source':'Supplier confirmation','delivery duration':5,'delivery day basis':'calendar days','delivery duration source':'Carrier quotation'});
