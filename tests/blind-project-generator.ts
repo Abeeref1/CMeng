@@ -1,4 +1,5 @@
 import ExcelJS from 'exceljs';
+import {PDFDocument,StandardFonts} from 'pdf-lib';
 import {createHash,randomBytes} from 'node:crypto';
 
 export type BlindScenario =
@@ -17,7 +18,7 @@ export interface BlindDocument {
   filename:string;
   mediaType:string;
   bytes:Uint8Array;
-  kind:'xer'|'csv'|'xlsx'|'text';
+  kind:'xer'|'csv'|'xlsx'|'text'|'pdf';
   domain:string;
   truth:{rows:number;scenario:BlindScenario;facts:Record<string,unknown>};
 }
@@ -677,30 +678,41 @@ export async function generateCommercialFeatureBlindProject(seed:string,index=0)
   const dataDateIso='2042-'+String(h.int(4,9)).padStart(2,'0')+'-'+String(h.int(10,24)).padStart(2,'0');
   const activityCount=h.int(45,140),baseValue=h.int(8_000_000,30_000_000),approvedVariation=h.int(250_000,1_500_000),currentValue=baseValue+approvedVariation;
   const prior2=shiftDate(dataDateIso,-60),prior1=shiftDate(dataDateIso,-30),prior0=shiftDate(dataDateIso,-5),future=shiftDate(dataDateIso,30);
-  const contract=Buffer.from([
-    'MAIN WORKS CONTRACT AGREEMENT',
-    'Conditions of Contract and Contract Data.',
+  const contractualCompletion=shiftDate(dataDateIso,365),ldRate=h.int(10_000,50_000);
+  const contractLines=[
+    'CONSTRUCTION CONTRACT',
+    '1 Contract Particulars',
     'Contract currency is '+currency+'.',
-    'Accepted Contract Amount is '+currency+' '+baseValue+'.',
-    'Original Contract Value is '+currency+' '+baseValue+'.',
-    'Contractual completion date: '+shiftDate(dataDateIso,365)+'.',
-    'The Engineer shall certify within 7 calendar days. Payment shall be made within 28 calendar days.',
+    'Accepted Contract Amount: '+currency+' '+baseValue+'.',
+    'Original Contract Value: '+currency+' '+baseValue+'.',
+    'Contractual completion date: '+contractualCompletion+'.',
+    '2 Certification and Payment',
+    'The Engineer shall certify within 7 calendar days.',
+    'Payment shall be made within 28 calendar days after certification.',
+    '3 Retention',
     'Retention rate is 10%. Retention shall not exceed 5% of the Accepted Contract Amount.',
+    '4 Securities',
     'The Contractor shall provide a performance bond equal to 10% of the Accepted Contract Amount.',
     'An advance-payment bond shall be maintained for the outstanding advance.',
-    'Delay damages are '+currency+' '+h.int(10_000,50_000)+' per calendar day and shall not exceed 10% of the Contract Amount.',
-    'The Contractor shall give notice within 14 calendar days as a condition precedent to an extension of time.'
-  ].join('\n'),'utf8');
+    '5 Delay Damages',
+    'Delay damages are '+currency+' '+ldRate+' per calendar day and shall not exceed 10% of the Contract Amount.',
+    '6 Notices and Claims',
+    'Initial claim notice shall be given within 14 calendar days after the event occurs.'
+  ];
+  const contractPdf=await PDFDocument.create(),font=await contractPdf.embedFont(StandardFonts.Helvetica);
+  const page=contractPdf.addPage([595,842]);
+  page.drawText(contractLines.join('\n'),{x:45,y:790,size:10,font,lineHeight:22,maxWidth:505});
+  const contract=new Uint8Array(await contractPdf.save());
   const docs:BlindDocument[]=[
-    {filename:'Main_Works_Contract_'+h.int(100,999)+'.txt',mediaType:'text/plain',bytes:contract,kind:'text',domain:'contract',
-      truth:{rows:1,scenario:'complete',facts:{currency,baseValue}}},
+    {filename:'Main_Works_Contract_'+h.int(100,999)+'.pdf',mediaType:'application/pdf',bytes:contract,kind:'pdf',domain:'contract',
+      truth:{rows:1,scenario:'complete',facts:{currency,baseValue,currentValue,contractualCompletion,ldRate}}},
     {filename:h.pick(['programme.xer','Current_Programme.xer','البرنامج.xer']),mediaType:'text/plain',
       bytes:makeXer(h,projectId,projectName,dataDateIso,activityCount,language),kind:'xer',domain:'schedule',
       truth:{rows:activityCount,scenario:'complete',facts:{activityCount}}},
   ];
-  const costHeaders=['Metric','Value','Currency','Status','As Of','Amount Basis','VAT Basis'];
+  const costHeaders=['Metric','Value','Currency','Status','As Of','Amount Basis','VAT Basis','CBS ID','CBS Description','WBS ID'];
   const costRows=[
-    ['EVM','1',currency,'Approved',dataDateIso,'snapshot','Exclusive'],
+    ['EVM','1',currency,'Approved',dataDateIso,'snapshot','Exclusive','CBS-ROOT','Project Controls','ROOT'],
     ['BAC',String(currentValue),currency,'Approved',dataDateIso,'snapshot','Exclusive'],
     ['PV',String(Math.round(currentValue*.35)),currency,'Approved',prior2,'snapshot','Exclusive'],
     ['EV',String(Math.round(currentValue*.31)),currency,'Approved',prior2,'snapshot','Exclusive'],
@@ -722,11 +734,15 @@ export async function generateCommercialFeatureBlindProject(seed:string,index=0)
     ['Expenditure Budget',String(Math.round(currentValue*.24)),currency,'Approved',future,'incremental','Exclusive'],
     ['Expenditure Forecast',String(Math.round(currentValue*.26)),currency,'Forecast',future,'incremental','Exclusive'],
   ];
+  for(const row of costRows)while(row.length<costHeaders.length)row.push(row[0]==='EVM'?'CBS-ROOT':row[0].toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').toUpperCase()||'CBS-COST',row[0]+' control','ROOT');
   docs.push(shuffledCsvDocument(h,'EVM_Cost_Report_'+h.int(10,999)+'.csv','evm',costHeaders,costRows));
-  const paymentHeaders=['Certificate No','Payment Type','Period End','Application Date','Assessment Date','Certificate Date','Payment Due Date','Payment Date','Employer Certified Amount','Net Certified','Paid Amount','Retention','Advance Recovery','Outstanding Amount','Currency','Status','Certified Amount Basis','Paid Amount Basis','VAT Basis'];
+  const paymentHeaders=['Certificate No','Payment Type','Period End','Application Date','Assessment Date','Certificate Date','Payment Due Date','Payment Date','Payment Reference','Payment Source Status','Gross Work','Variations','Gross Certified Amount','Employer Certified Amount','Net Certified','Paid Amount','Retention','Advance Recovery','Other Deductions','Tax Amount','Outstanding Amount','Currency','Status','Certified Amount Basis','Paid Amount Basis','VAT Basis'];
   const paymentRows=[prior2,prior1,prior0].map((period,i)=>{
-    const certified=Math.round(currentValue*(.10+i*.08)),paid=Math.round(certified*.92),retention=Math.round(certified*.05);
-    return ['IPC-'+(i+1),'Interim',period,shiftDate(period,-10),shiftDate(period,-5),shiftDate(period,-3),shiftDate(period,25),shiftDate(period,15),String(certified),String(certified),String(paid),String(retention),String(Math.round(certified*.02)),String(certified-paid),currency,'Paid','incremental','incremental','Exclusive'];
+    const net=Math.round(currentValue*(.10+i*.08)),retention=Math.round(net*.05),advance=Math.round(net*.02),other=Math.round(net*.01),variationCertified=Math.round(net*.03);
+    const grossWork=net+retention+advance+other-variationCertified,grossCertified=grossWork+variationCertified,employerCertified=grossCertified;
+    const paid=Math.round(net*.92);
+    return ['IPC-'+(i+1),'Interim',period,shiftDate(period,-10),shiftDate(period,-5),shiftDate(period,-3),shiftDate(period,25),shiftDate(period,15),'PAY-'+(i+1),'Posted',
+      String(grossWork),String(variationCertified),String(grossCertified),String(employerCertified),String(net),String(paid),String(retention),String(advance),String(other),'0',String(net-paid),currency,'Paid','incremental','certificate total','Exclusive'];
   });
   docs.push(shuffledCsvDocument(h,'Payment_Certificates_'+h.int(10,999)+'.csv','payments',paymentHeaders,paymentRows));
   const variationHeaders=['Variation ID','Description','Status','Submitted Date','Assessment Date','Agreed Date','Approval Date','Claimed Amount','Assessed Amount','Agreed Amount','Approved Amount','Schedule Impact Days','Claim ID','Payment ID','Activity ID','Clause','Currency'];
