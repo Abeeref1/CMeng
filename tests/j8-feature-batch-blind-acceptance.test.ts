@@ -340,10 +340,14 @@ async function governDeliveryProject(base:string,projectId:string){
   for(const kind of deliveryKinds)assert.ok(seenKinds.has(kind),'F7 blind source did not produce Delivery kind '+kind+' for '+projectId);
   let version=Number(listed.body?.projectVersion);
   assert.ok(Number.isInteger(version),'F7 project version missing '+projectId);
+  const activityCatalog=await request(base,'/api/projects/'+encodeURIComponent(projectId)+'/delivery/catalog?kind=activity&limit=100');
+  assert.equal(activityCatalog.status,200,'F7 Activity catalog unavailable '+projectId);
+  const canonicalActivityId=activityCatalog.body?.rows?.[0]?.id;
+  assert.ok(canonicalActivityId,'F7 blind programme did not establish a canonical Activity ID '+projectId);
 
   for(const row of listed.body.rows as any[]){
     const links=blankDeliveryLinks();
-    links.activityIds=(row.links?.activityIds??[]).filter((id:any)=>id==='1000');
+    links.activityIds=(row.links?.activityIds??[]).filter((id:any)=>id===canonicalActivityId);
     const verification=String(row.fields?.['verification date']??'').trim();
     const state=(verification&&['quality','snag','handover'].includes(row.kind))?'verified':'governed';
     const reviewed=await request(base,endpoint,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({
@@ -375,12 +379,12 @@ async function governDeliveryProject(base:string,projectId:string){
   const riskId=riskCatalog.body?.rows?.[0]?.id;
   assert.ok(riskId,'F7 blind Risk Register did not establish a Delivery-linkable risk '+projectId);
   const relationshipRows=[
-    [packageRow,{fields:{'lifecycle id':lifecycle.recordId},links:{...blankDeliveryLinks(),activityIds:['1000'],boqItemIds:[equipmentBoq.id],riskIds:[riskId]}}],
+    [packageRow,{fields:{'lifecycle id':lifecycle.recordId},links:{...blankDeliveryLinks(),activityIds:[canonicalActivityId],boqItemIds:[equipmentBoq.id],riskIds:[riskId]}}],
     [supplier,{fields:{},links:{...blankDeliveryLinks(),packageIds:[packageRow.recordId]}}],
-    [submittal,{fields:{},links:{...blankDeliveryLinks(),activityIds:['1000'],packageIds:[packageRow.recordId]}}],
-    [workfront,{fields:{},links:{...blankDeliveryLinks(),activityIds:['1000'],locationIds:[location.recordId],boqItemIds:[concreteBoq.id],riskIds:[riskId]}}],
+    [submittal,{fields:{},links:{...blankDeliveryLinks(),activityIds:[canonicalActivityId],packageIds:[packageRow.recordId]}}],
+    [workfront,{fields:{},links:{...blankDeliveryLinks(),activityIds:[canonicalActivityId],locationIds:[location.recordId],boqItemIds:[concreteBoq.id],riskIds:[riskId]}}],
     [spare,{fields:{},links:{...blankDeliveryLinks(),assetIds:[asset.recordId]}}],
-    [handover,{fields:{},links:{...blankDeliveryLinks(),assetIds:[asset.recordId],activityIds:['1000']}}],
+    [handover,{fields:{},links:{...blankDeliveryLinks(),assetIds:[asset.recordId],activityIds:[canonicalActivityId]}}],
   ] as const;
   for(const [row,change] of relationshipRows){
     const reviewed=await request(base,endpoint,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({
