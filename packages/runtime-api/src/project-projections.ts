@@ -1670,7 +1670,7 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
             model.dataDateIso,
         },
       );
-    modules.set(
+    if (!modules.has("resource-utilization")) modules.set(
       "resource-utilization",
       available(
         "resource-utilization",
@@ -1715,7 +1715,7 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
           : null,
       ),
     );
-    modules.set(
+    if (!modules.has("manhour-scurve")) modules.set(
       "manhour-scurve",
       available(
         "manhour-scurve",
