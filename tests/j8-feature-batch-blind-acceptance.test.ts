@@ -162,6 +162,33 @@ async function governCommercialBlindTruth(base:string,project:any){
         additionalApprovedEotDays:0,
         sourceRefs:['blind-independent-contract-completion:'+project.projectId],
       },
+      variations:[
+        {variationId:'VO-1',state:'approved',amount:Math.round(facts.baseValue*.08),currency:facts.currency,sourceRefs:['blind-independent-vo-approved:'+project.projectId]},
+        {variationId:'VO-2',state:'pending',amount:Math.round(facts.baseValue*.025),currency:facts.currency,sourceRefs:['blind-independent-vo-pending:'+project.projectId]},
+      ],
+      invoices:[{
+        invoiceId:'IPC-BALANCE',
+        currency:facts.currency,
+        certifiedAmount:null,
+        paidAmount:null,
+        certificateDateIso:project.dataDateIso,
+        paymentDateIso:null,
+        retentionAmount:null,
+        advanceRecoveryAmount:null,
+        advanceBalance:Math.round(facts.baseValue*.03),
+        sourceRefs:['blind-independent-advance-balance:'+project.projectId],
+      }],
+      retentions:[{
+        retentionId:'RET-CURRENT',
+        state:'held',
+        amount:Math.round(facts.baseValue*.04),
+        currency:facts.currency,
+        sourceRefs:['blind-independent-retention-balance:'+project.projectId],
+      }],
+      claimCommercials:[
+        {claimId:'CLM-1',currency:facts.currency,claimedAmount:Math.round(facts.baseValue*.015),assessedAmount:Math.round(facts.baseValue*.011),sourceRefs:['blind-independent-claim-1:'+project.projectId]},
+        {claimId:'CLM-2',currency:facts.currency,claimedAmount:Math.round(facts.baseValue*.009),assessedAmount:Math.round(facts.baseValue*.006),sourceRefs:['blind-independent-claim-2:'+project.projectId]},
+      ],
     }),
   });
   assert.equal(updated.status,200,'F6 governed contract truth failed '+project.projectId+': '+updated.text.slice(0,700));
