@@ -1488,6 +1488,8 @@ export function buildCommercialControlPosition(
                 row.amounts
                   .employerCertifiedAmount;
               return {
+                taxBasis:
+                  certifiedMoney.taxBasis,
                 paymentId:
                   row.paymentId,
                 periodEnd:
