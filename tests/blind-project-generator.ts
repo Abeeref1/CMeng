@@ -690,8 +690,8 @@ export async function generateCommercialFeatureBlindProject(seed:string,index=0)
     'Original Contract Value: '+currency+' '+baseValue+'.',
     'Contractual completion date: '+contractualCompletion+'.',
     '2 Certification and Payment',
-    'Certification period: 7 calendar days.',
-    'Payment period: 28 calendar days after certification.',
+    'The Engineer shall certify within 7 calendar days.',
+    'Payment shall be made within 28 calendar days after certification.',
     '3 Retention',
     'Retention rate: 10%.',
     'Retention cap: 5% of the Accepted Contract Amount.',
@@ -701,6 +701,7 @@ export async function generateCommercialFeatureBlindProject(seed:string,index=0)
     '5 Delay Damages',
     'Delay damages rate: '+currency+' '+ldRate+' per calendar day.',
     'Delay damages cap: 10% of the Contract Amount.',
+    'The delay damages shall not exceed 10% of the Contract Amount.',
     '6 Notices and Claims',
     'Initial claim notice: 14 calendar days after the event occurs.'
   ];
