@@ -233,3 +233,71 @@ test("Batch G C3/C4 commercial action surfaces are present without invented owne
   assert.match(html,/daysToExpiry\?\.action/);
   assert.match(html,/Owner stays unassigned unless a source records one/);
 });
+
+
+test("Stage 1 governed certificate and payment values survive weaker source-ledger gaps", () => {
+  const sourceAmounts = {
+    applicationAmount: money(null,"src-application"),
+    engineerAssessedAmount: money(null,"src-assessment"),
+    employerCertifiedAmount: money(null,"src-employer-certified"),
+    grossWork: money(500,"src-gross-work"),
+    grossCertifiedAmount: money(null,"src-gross-certified"),
+    variations: money(0,"src-variations"),
+    variationCertifiedAmount: money(0,"src-variation-certified"),
+    retentionDeduction: money(0,"src-retention"),
+    advanceRecovery: money(0,"src-advance"),
+    otherDeduction: money(0,"src-other"),
+    taxAmount: money(0,"src-tax"),
+    netCertifiedAmount: money(null,"src-net"),
+    paidAmount: money(null,"src-paid"),
+    outstandingAmount: money(null,"src-outstanding"),
+  } satisfies PaymentStageRecord["amounts"];
+  const sourceRow:PaymentStageRecord = {
+    paymentId:"IPC-SOURCE-GAP",
+    periodEnd:"2026-08-31",
+    sourceStatus:"approved",
+    certifiedAmountBasis:"incremental",
+    paidAmountBasis:"incremental",
+    amounts:sourceAmounts,
+    receipt:receipt("source-gap"),
+    reconciliation:"unresolved",
+    diagnostics:[],
+    calculatedOutstandingAmount:money(null,"src-calc-outstanding"),
+    paymentType:"interim",
+    applicationDate:"2026-08-01",
+    assessmentDate:"2026-08-05",
+    certificationDate:"2026-08-10",
+    certificationDueDate:"2026-08-10",
+    paymentDueDate:"2026-09-07",
+    paymentDate:null,
+    paymentTimestamp:null,
+    retentionReleaseDate:null,
+    finalReceiptDate:null,
+    paymentReference:null,
+  };
+  const sourceLedger:any={
+    schemaVersion:"1.0",producerVersion:"commercial-canonical-v1",dataDateIso:"2026-08-31",
+    costMetrics:[],payments:[sourceRow],variations:[],siteInstructions:[],insurances:[],obligations:[],retentions:[],
+    costPosition:[],populations:{payments:{},variations:{},retentionDeductions:{}},diagnostics:[],
+  };
+  const position=buildCommercialControlPosition({
+    projectId:"STAGE1-GOVERNED-PRECEDENCE",generatedAt:"2026-09-01T00:00:00.000Z",sourceLedger,
+    contractValue:{amount:1000,currency:"AED",sourceRefs:["governed-contract"]},
+    variations:[],
+    invoices:[{
+      invoiceId:"IPC-GOVERNED",currency:"AED",certifiedAmount:500,paidAmount:400,
+      certificateDateIso:"2026-08-10",paymentDateIso:"2026-08-20",
+      retentionAmount:0,advanceRecoveryAmount:0,advanceBalance:0,
+      sourceRefs:["governed-certificate-payment"],
+    }],
+    retentions:[],bonds:[],claimCommercials:[],delayClaims:null,sourceDelayClaims:null,contractTimeBasis:null,
+    commercialEvidenceSubmitted:true,paymentEvidenceSubmitted:true,variationEvidenceSubmitted:false,
+    bondEvidenceSubmitted:false,claimEvidenceSubmitted:false,
+  });
+  const currency=position.currencies.find(row=>row.currency==="AED");
+  assert.ok(currency);
+  assert.equal(currency.grossCertifiedAmount.value,500);
+  assert.equal(currency.paidAmount.value,400);
+  assert.equal(currency.certifiedUnpaidAmount.value,100);
+  assert.ok(!currency.grossCertifiedAmount.diagnostics.includes("DATED_INCREMENTAL_CERTIFICATES_WITH_COMPATIBLE_AMOUNTS_REQUIRED"));
+});
