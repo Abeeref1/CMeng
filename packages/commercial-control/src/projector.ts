@@ -1534,6 +1534,70 @@ export function buildCommercialControlPosition(
           ) ?? [],
     });
 
+  // Commercial Performance is the canonical dated cash calculation. Reuse it
+  // only when a currency has one unambiguous tax-basis position; never merge
+  // incompatible tax bases merely to fill a Commercial Control headline.
+  for (const position of positions) {
+    const cashPositions =
+      performance.cashFlow.currencies.filter(
+        (row) =>
+          row.currency ===
+          position.currency,
+      );
+    if (cashPositions.length !== 1) continue;
+    const cash = cashPositions[0]!;
+    const performanceState = (
+      state: string,
+    ): CommercialEvidenceState =>
+      state === "established"
+        ? "established"
+        : state === "missing"
+          ? "missing_information"
+          : "candidate";
+    if (
+      cash.paidIncome.value !== null
+    ) {
+      position.paidAmount =
+        moneyMetric(
+          cash.paidIncome.value,
+          performanceState(
+            cash.paidIncome.state,
+          ),
+          [
+            ...cash.paidIncome
+              .basis.sourceRefs,
+          ],
+          [
+            ...cash.paidIncome
+              .diagnostics,
+            "PAID_AMOUNT_FROM_CANONICAL_DATED_CASH_PERFORMANCE",
+          ],
+        );
+    }
+    if (
+      cash.certifiedUnpaid.value !==
+      null
+    ) {
+      position.certifiedUnpaidAmount =
+        moneyMetric(
+          cash.certifiedUnpaid.value,
+          performanceState(
+            cash.certifiedUnpaid
+              .state,
+          ),
+          [
+            ...cash.certifiedUnpaid
+              .basis.sourceRefs,
+          ],
+          [
+            ...cash.certifiedUnpaid
+              .diagnostics,
+            "CERTIFIED_UNPAID_FROM_CANONICAL_CASH_RECONCILIATION",
+          ],
+        );
+    }
+  }
+
   const claimsNotices =
     commercialClaimsNotices(
       input,
