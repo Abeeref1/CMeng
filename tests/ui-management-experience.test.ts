@@ -27,10 +27,11 @@ test('forecast management diagnostics translate raw CPM and calendar codes into 
     functions(['forecastDiagnosticMessages'])+';forecastDiagnosticMessages(["CALENDAR_SEMANTICS_UNRESOLVED:CAL-1","SCHEDULE_GRAPH_CYCLES:A-B-C"])',
     {}
   );
-  assert.deepEqual(Array.from(messages),[
-    'Programme calendar definition does not sufficiently establish working days, shifts or exceptions.',
-    'Schedule logic contains a cycle/circular relationship.'
-  ]);
+  assert.equal(messages.length,2);
+  assert.match(messages[0],/^Programme calendar definition does not sufficiently establish working days, shifts or exceptions\./);
+  assert.match(messages[0],/Affected: CAL-1\./);
+  assert.match(messages[1],/^Schedule logic contains a cycle\/circular relationship\./);
+  assert.match(messages[1],/Affected: A-B-C\./);
   assert.doesNotMatch(messages.join(' '),/CALENDAR_SEMANTICS_UNRESOLVED|SCHEDULE_GRAPH_CYCLES/);
 });
 
