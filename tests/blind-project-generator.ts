@@ -145,13 +145,21 @@ function makeXer(h:ReturnType<typeof helpers>,projectId:string,projectName:strin
     '%R\t1\t'+projectId+'\t'+dataDate,
     '%T\tPROJWBS','%F\twbs_id\tproj_id\tparent_wbs_id\twbs_short_name\twbs_name',
     '%R\t10\t1\t\tROOT\t'+wbsName,
-    '%T\tTASK','%F\ttask_id\tproj_id\twbs_id\ttask_code\ttask_name\tstatus_code\ttarget_start_date\ttarget_end_date\tearly_start_date\tearly_end_date\ttarget_drtn_hr_cnt\tremain_drtn_hr_cnt\ttotal_float_hr_cnt\tphys_complete_pct'
+    '%T\tTASK','%F\ttask_id\tproj_id\twbs_id\ttask_code\ttask_name\ttask_type\tstatus_code\ttarget_start_date\ttarget_end_date\tearly_start_date\tearly_end_date\ttarget_drtn_hr_cnt\tremain_drtn_hr_cnt\ttotal_float_hr_cnt\tphys_complete_pct'
   ];
   const ids:string[]=[];
   for(let i=0;i<count;i++){
-    const id='A'+(1000+i),code=h.pick(['CIV','MEP','PRC','TST','ARC'])+'-'+h.int(10,999),name=language==='ar'?'نشاط '+(i+1):language==='mixed'&&i%3===0?'Activity '+(i+1)+' / نشاط':'Activity '+(i+1);
-    const start=shiftDate(dataDate,-h.int(1,120)),finish=shiftDate(dataDate,h.int(1,240)),pct=h.int(0,100),tf=h.pick([-80,-24,0,8,24,80]);
-    lines.push('%R\t'+id.slice(1)+'\t1\t10\t'+code+'\t'+name+'\t'+(pct===100?'TK_Complete':pct>0?'TK_Active':'TK_NotStart')+'\t'+start+'\t'+finish+'\t'+start+'\t'+finish+'\t80\t'+Math.max(0,80*(100-pct)/100)+'\t'+tf+'\t'+pct);
+    const id='A'+(1000+i),isFinishMilestone=i===count-1;
+    const code=isFinishMilestone?'MS-'+h.int(10,999):h.pick(['CIV','MEP','PRC','TST','ARC'])+'-'+h.int(10,999);
+    const name=isFinishMilestone
+      ? (language==='ar'?'إنجاز المشروع':language==='mixed'?'Project Completion / إنجاز المشروع':'Project Completion')
+      : (language==='ar'?'نشاط '+(i+1):language==='mixed'&&i%3===0?'Activity '+(i+1)+' / نشاط':'Activity '+(i+1));
+    const start=shiftDate(dataDate,-h.int(1,120)),finish=shiftDate(dataDate,h.int(1,240));
+    const pct=isFinishMilestone?0:h.int(0,100),tf=isFinishMilestone?0:h.pick([-80,-24,0,8,24,80]);
+    const taskType=isFinishMilestone?'TT_FinMile':'TT_Task';
+    const duration=isFinishMilestone?0:80,remaining=isFinishMilestone?0:Math.max(0,80*(100-pct)/100);
+    const milestoneDate=isFinishMilestone?finish:start;
+    lines.push('%R\t'+id.slice(1)+'\t1\t10\t'+code+'\t'+name+'\t'+taskType+'\t'+(pct===100?'TK_Complete':pct>0?'TK_Active':'TK_NotStart')+'\t'+milestoneDate+'\t'+finish+'\t'+milestoneDate+'\t'+finish+'\t'+duration+'\t'+remaining+'\t'+tf+'\t'+pct);
     ids.push(id.slice(1));
   }
   if(count>1){
