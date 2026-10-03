@@ -1084,7 +1084,7 @@ export function buildCommercialControlPosition(
         if(position.grossCertifiedAmount.value===null)position.grossCertifiedAmount=sourceGrossCertified;
         else if(sourceGrossCertified.value!==null&&Math.abs(position.grossCertifiedAmount.value-sourceGrossCertified.value)>1e-8)
           position.grossCertifiedAmount.diagnostics.push("GOVERNED_CERTIFIED_AMOUNT_DIFFERS_FROM_SOURCE_CERTIFICATE_TOTAL");
-        if(position.netCertifiedAmount.value===null)position.netCertifiedAmount=sourceNetCertified;
+        if(!position.netCertifiedAmount||position.netCertifiedAmount.value===null)position.netCertifiedAmount=sourceNetCertified;
         else if(sourceNetCertified.value!==null&&Math.abs(position.netCertifiedAmount.value-sourceNetCertified.value)>1e-8)
           position.netCertifiedAmount.diagnostics.push("GOVERNED_NET_CERTIFIED_AMOUNT_DIFFERS_FROM_SOURCE_CERTIFICATE_TOTAL");
         if(position.interimCertificateCount.value===null)position.interimCertificateCount=sourceCertificateCount;
