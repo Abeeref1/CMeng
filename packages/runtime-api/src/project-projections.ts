@@ -2364,9 +2364,10 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
   if (
     !resourceAssignmentsAvailable
   ) {
-    modules.set(
-      "resource-utilization",
-      available(
+    if (!modules.has("resource-utilization")) {
+      modules.set(
+        "resource-utilization",
+        available(
         "resource-utilization",
         {
           schemaVersion: "1.0",
@@ -2426,8 +2427,9 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
         ],
         "partial",
         "No resource-loaded schedule was submitted. Manpower remains unresolved unless a headcount plan or an explicit staffing assumption is supplied. Concurrent activities alone do not establish crews.",
-      ),
-    );
+        ),
+      );
+    }
 
     const remainingDays =
       deliveryChallenge
@@ -2471,9 +2473,10 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
             "schedule_derived_scenario",
         }));
 
-    modules.set(
-      "manhour-scurve",
-      available(
+    if (!modules.has("manhour-scurve")) {
+      modules.set(
+        "manhour-scurve",
+        available(
         "manhour-scurve",
         {
           schemaVersion: "1.0",
@@ -2505,8 +2508,9 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
         ],
         "partial",
         "No confirmed labor assignments were submitted. Remaining man-hours are unresolved unless an explicit staffing and working-hours basis is supplied.",
-      ),
-    );
+        ),
+      );
+    }
   }
 
   const evidenceTypes =
