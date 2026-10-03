@@ -263,9 +263,11 @@ async function projectsFor(batchId:string,seed:string){
   return ordinaryProjects(seed);
 }
 async function governBlindQuantities(base:string,project:any){
-  const result=await request(base,pagePath(project.projectId,moduleRegistry.find(row=>row.key==='quantity-scurve')!));
-  assert.equal(result.status,200,'Blind quantity source review unavailable '+project.projectId+': '+result.text.slice(0,700));
-  const data=result.body?.data??{},supplied=data.suppliedBoq??{},rows=Array.isArray(supplied.rows)?supplied.rows:[];
+  const quantityResult=await request(base,pagePath(project.projectId,moduleRegistry.find(row=>row.key==='quantity-scurve')!));
+  assert.equal(quantityResult.status,200,'Blind quantity position unavailable '+project.projectId+': '+quantityResult.text.slice(0,700));
+  const sourceResult=await request(base,pagePath(project.projectId,moduleRegistry.find(row=>row.key==='challenge-contract')!));
+  assert.equal(sourceResult.status,200,'Blind BOQ source review unavailable '+project.projectId+': '+sourceResult.text.slice(0,700));
+  const data=quantityResult.body?.data??{},supplied=sourceResult.body?.data?.suppliedBoq??{},rows=Array.isArray(supplied.rows)?supplied.rows:[];
   assert.equal(rows.length,project.featureTruth.items.length,'Blind supplied BOQ population mismatch '+project.projectId);
   const items=project.featureTruth.items.map((truth:any)=>{
     const source=rows.find((row:any)=>String(row.itemNumber??'')===truth.itemNumber);
