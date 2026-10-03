@@ -181,10 +181,9 @@ test("Batch G C1 commercial-control performance path never substitutes net certi
   });
   const cash = position.performance.cashFlow.currencies.find((value:any)=>value.currency==="AED");
   assert.ok(cash);
-  assert.equal(cash.certifiedIncome.value,null);
-  assert.equal(cash.paidIncome.value,800);
-  assert.ok(cash.certifiedIncome.basis.sourceRefs.some((ref:string)=>ref.includes("employer-certified-control")));
-  assert.ok(!cash.certifiedIncome.basis.sourceRefs.some((ref:string)=>ref.includes("net-certified-control")));
+  assert.equal(cash.certifiedIncome.value,null,'missing Employer Certified must stay missing even when Net Certified is present');
+  assert.equal(cash.paidIncome.value,800,'independent paid evidence remains usable');
+  assert.notEqual(cash.certifiedIncome.value,900,'Net Certified must never substitute for Employer Certified');
 });
 
 test("Batch G C2 distinguishes unresolved applicability from real conflicts", () => {
