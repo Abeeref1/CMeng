@@ -57,6 +57,17 @@ export function commercialPositionForState(
     if(programmeCutoff)return reportingScope(date,programmeCutoff)==='as_of';
     return Boolean(date&&sourceCommercialCutoff&&String(date).slice(0,10)<=sourceCommercialCutoff);
   };
+  const controlVariationDate=(variationId:string,stateValue:string)=>{
+    const source=ledger.variations.find(row=>row.variationId===variationId);
+    if(!source)return null;
+    // Approval date is authoritative for approved value, but using it for a
+    // pending variation removes the exposure precisely because it is not yet
+    // approved. Pending/rejected records are scoped by the earliest retained
+    // lifecycle date that establishes that the variation existed by the cutoff.
+    return stateValue==='approved'
+      ? source.approvalDate
+      : source.submittedDate??source.instructionDate??source.quotationDate??source.assessedDate??source.agreedDate??source.approvalDate;
+  };
   const parsedSource = (pattern: RegExp) => state.evidenceDocuments.some(document =>
     document.basisState !== "superseded" && document.parserState === "parsed" &&
     pattern.test(document.documentType + " " + document.sourceFilename));
@@ -107,7 +118,7 @@ export function commercialPositionForState(
             }),
           ) ?? [],
       variations:
-        state.controls.variations.filter(row=>sourceFactVisibleWithoutProgramme(ledger.variations.find(v=>v.variationId===row.variationId)?.approvalDate)),
+        state.controls.variations.filter(row=>sourceFactVisibleWithoutProgramme(controlVariationDate(row.variationId,row.state))),
       invoices:
         state.controls.invoices.filter(row=>sourceFactVisibleWithoutProgramme(row.certificateDateIso)).map(row=>({...row,paidAmount:sourceFactVisibleWithoutProgramme(row.paymentDateIso)?row.paidAmount:null})),
       retentions:
@@ -115,8 +126,18 @@ export function commercialPositionForState(
       bonds:
         state.controls.bonds,
       claimCommercials:
-        state.controls
-          .claimCommercials.filter(row=>state.controls.delayClaims?.claims.some(c=>c.claimId===row.claimId&&reportingScope(c.submittedAt,ledger.dataDateIso)==='as_of')).map(row=>({...row,assessedAmount:null})),
+        state.controls.claimCommercials.flatMap(row=>{
+          const claim=state.controls.delayClaims?.claims.find(candidate=>candidate.claimId===row.claimId);
+          if(!claim||reportingScope(claim.submittedAt,ledger.dataDateIso)!=='as_of')return [];
+          return [{
+            ...row,
+            // Claim valuation may be reported at submission, but assessed money
+            // becomes an established commercial input only when the linked
+            // lifecycle record says that assessment is official.
+            claimedAmount:claim.claimedAmount??row.claimedAmount,
+            assessedAmount:claim.assessedAmountState==='official'?claim.assessedAmount:null,
+          }];
+        }),
       delayClaims:
         state.controls
           .delayClaims,
