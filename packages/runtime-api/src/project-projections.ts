@@ -1724,20 +1724,71 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
       ),
     );
   } else {
+    // Missing resource evidence is an evidence gap, not a reason to make the
+    // specialist pages unusable. Keep an explicit partial position here.
+    // canonicalResourceModule() below still replaces this fallback whenever
+    // governed weekly resource evidence exists, so scenario/no-evidence output
+    // can never overwrite a source-backed result.
     modules.set(
       "resource-utilization",
-      blocked(
+      available(
         "resource-utilization",
-        "The current schedule revision has no resource assignment evidence.",
-        ["resource-loaded XER"],
+        {
+          schemaVersion: "1.0",
+          projectionKey: "resource_utilization_scenario",
+          generatedAt,
+          producerVersion: versions.resource,
+          projectId: state.projectId,
+          sourceRevisionId: current.revision.revisionId,
+          dataDateIso: model.dataDateIso,
+          authority: "schedule_derived_scenario",
+          submittedPlanAvailable: state.submittedManpowerPlan !== null,
+          submittedAverageManpower:
+            deliveryChallenge.manpowerChallenge.submittedAverageManpower,
+          submittedPeakManpower:
+            deliveryChallenge.manpowerChallenge.submittedPeakManpower,
+          averageConcurrentWorkFronts:
+            deliveryChallenge.manpowerChallenge.averageConcurrentWorkFronts,
+          peakConcurrentWorkFronts:
+            deliveryChallenge.manpowerChallenge.peakConcurrentWorkFronts,
+          requiredAverageManpowerToContract:
+            deliveryChallenge.manpowerChallenge.requiredAverageManpowerToContract,
+          requiredAverageManpowerToContractorForecast:
+            deliveryChallenge.manpowerChallenge.requiredAverageManpowerToContractorForecast,
+          scheduleDerivedScenarios: [],
+          rows: [],
+          diagnostics: [
+            "RESOURCE_ASSIGNMENTS_AND_GOVERNED_WEEKLY_RESOURCE_EVIDENCE_NOT_ESTABLISHED",
+          ],
+        },
+        ["resource-loaded XER or governed weekly resource evidence"],
+        "partial",
+        "Resource assignments and governed weekly resource evidence are not established. The page remains available without manufacturing a resource population or utilization result.",
       ),
     );
     modules.set(
       "manhour-scurve",
-      blocked(
+      available(
         "manhour-scurve",
-        "The current schedule revision has no confirmed labour assignment evidence.",
-        ["resource-loaded XER"],
+        {
+          schemaVersion: "1.0",
+          projectionKey: "manhour_scurve_scenario",
+          generatedAt,
+          producerVersion: versions.manhours,
+          projectId: state.projectId,
+          sourceRevisionId: current.revision.revisionId,
+          dataDateIso: model.dataDateIso,
+          actualHistoryMethod: "missing",
+          submittedLaborAssignments: false,
+          scenarios: [],
+          points: [],
+          diagnostics: [
+            "LABOR_ASSIGNMENTS_AND_GOVERNED_WEEKLY_HISTORY_NOT_ESTABLISHED",
+          ],
+        },
+        ["labor assignments or governed weekly labor history"],
+        "partial",
+        "Governed labor assignments or weekly labor history are not established. No man-hour curve is manufactured from missing evidence.",
       ),
     );
   }
