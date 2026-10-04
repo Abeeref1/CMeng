@@ -14,6 +14,51 @@ import {moduleRegistry,pageApiKey,publicModuleResult,resolveModuleKey,titleForMo
 import {buildModuleJsonDownload} from '../packages/runtime-api/src/module-report';
 import type {StoredEvidenceDocument} from '../packages/runtime-api/src/project-state-types';
 const hash=(b:string|Uint8Array)=>createHash('sha256').update(b).digest('hex');
+test('Stage 1 fresh quality cohort retains every reordered noisy workbook row and upgrades prior reader snapshots',async t=>{
+ const dir=mkdtempSync(join(tmpdir(),'quality-header-cohort-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));
+ let store=new RuntimeProjectStore({dataDir:dir,durable:false});
+ const seed=randomUUID();process.stdout.write('\nCMENG_STAGE1_QUALITY_HEADER_SEED='+seed+'\n');
+ const expected=new Map<string,{ids:string[];bytes:Buffer;documentId:string;sourceHash:string}>();
+ for(let i=0;i<10;i++){
+  const projectId=('QUALITY-'+seed+'-'+i).toUpperCase(),ids=Array.from({length:3+i%3},(_,j)=>'NCR-'+createHash('sha256').update(seed+':'+i+':'+j).digest('hex').slice(0,12));
+  const headers=['Description','Comment '+(10+i),'NCR ID','Status','Owner','Extra_'+i,'X'+(20+i),'Closed Date'];
+  const sourceRows=[['Project '+projectId,'Control report','','','','','',''],['','Control report','','','','','',''],headers,
+   ...ids.map((id,j)=>[i%2?'Quality observation '+j:'ملاحظة جودة '+j,j%2?'n/a':'-',id,j%2?'Open':'مفتوح',i%2?'QA/QC':'المقاول',j%2?'3':'','note','']),
+   ['TOTAL','','','','','','','']];
+  const rotation=(i*3)%headers.length,columns=Array.from({length:headers.length},(_,j)=>(j+rotation)%headers.length);
+  if(i%2)columns.reverse();
+  const wb=new ExcelJS.Workbook(),sheet=wb.addWorksheet(i%2?'Observations':'بيانات الجودة');
+  for(const row of sourceRows)sheet.addRow(columns.map(c=>row[c]??''));
+  wb.addWorksheet('Notes').addRows([['Unclassified evidence'],['A1','B2'],['opaque','value']]);
+  const bytes=Buffer.from(await wb.xlsx.writeBuffer());
+  await store.ingestEvidenceFile({projectId,sourceFilename:'generic-'+i+'.xlsx',sourceRelativePath:'generic-'+i+'.xlsx',mediaType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',bytes,uploadedAt:'2039-02-10T00:00:00Z',uploadIntent:'add_update'});
+  const state=store.get(projectId)!,doc=state.evidenceDocuments[0]!;
+  assert.deepEqual(state.controls.ncrs.map(row=>row.ncrId).sort(),[...ids].sort());
+  const table=sourceTables([doc],[]).find(row=>row.document.documentType==='quality_ncr_register')!;
+  assert.ok(table,'the owning worksheet must reach the shared source table');
+  assert.equal(table.rows.length,ids.length);assert.equal(table.intelligence.headerRowIndex,2);
+  assert.ok(state.controls.ncrs.every(row=>row.sourceRefs.every(ref=>ref.includes(':sheet:'))));
+  assert.ok(state.controls.ncrs.every(row=>row.closedIso===null),'no closure date is invented');
+  expected.set(projectId,{ids,bytes,documentId:doc.documentId,sourceHash:doc.sourceHashSha256});
+  // Recreate the old reader's empty derived population, then require migration
+  // from retained bytes rather than changing the source or authority decision.
+  const basisState=doc.basisState;
+  doc.derivedRegisterRead={producerVersion:'register-derived-v7',sourceHashSha256:doc.sourceHashSha256};
+  state.derivedControlsByDocument[doc.documentId]!.ncrs=[];state.controls.ncrs=[];
+  const refreshed=await store.refreshSpreadsheetRegisters(projectId);
+  assert.equal(refreshed.refreshedDocumentCount,1,JSON.stringify(refreshed));
+  assert.deepEqual(state.controls.ncrs.map(row=>row.ncrId).sort(),[...ids].sort());
+  assert.equal(doc.basisState,basisState);assert.equal(doc.derivedRegisterRead?.producerVersion,'register-derived-v8');
+  assert.deepEqual(readFileSync(doc.storedPath),bytes);assert.equal(doc.sourceHashSha256,hash(bytes));
+  assert.equal((await store.refreshSpreadsheetRegisters(projectId)).refreshedDocumentCount,0,'repeated refresh is idempotent');
+ }
+ store=new RuntimeProjectStore({dataDir:dir,durable:false});
+ for(const [projectId,e] of expected){const state=store.get(projectId)!,doc=state.evidenceDocuments.find(row=>row.documentId===e.documentId)!;
+  assert.deepEqual(state.controls.ncrs.map(row=>row.ncrId).sort(),[...e.ids].sort());
+  assert.equal(doc.sourceHashSha256,e.sourceHash);assert.deepEqual(readFileSync(doc.storedPath),e.bytes);
+ }
+ process.stdout.write('CMENG_STAGE1_QUALITY_HEADER_RESULT='+JSON.stringify({projects:10,exactPopulations:true,reorderedColumns:true,sourceBytesPreserved:true,readerMigration:true,idempotence:true,restart:true})+'\n');
+});
 test('Stage 1 sparse control schemas and compact headers retain owning roles and identities',async()=>{
  const {identifyEvidenceDocument}=await import('../packages/runtime-api/src/document-identification');
  const cases=[
@@ -270,7 +315,7 @@ test('shared reader upgrade repairs text/plain CSV ingestion without changing an
  const sourceHash=doc.sourceHashSha256;
  const result=await store.refreshSpreadsheetRegisters('REGISTER-PROJECT');
  assert.equal(result.refreshedDocumentCount,1);assert.deepEqual(result.diagnostics,[]);
- assert.equal(doc.derivedRegisterRead?.producerVersion,'register-derived-v7');
+ assert.equal(doc.derivedRegisterRead?.producerVersion,'register-derived-v8');
  assert.equal(sourceTables([doc],[])[0]!.recognition?.recognized,true);
  assert.equal(doc.sourceHashSha256,sourceHash);assert.deepEqual(readFileSync(doc.storedPath),bytes);
  assert.equal(JSON.stringify(unchanged),beforeOther);

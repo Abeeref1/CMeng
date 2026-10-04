@@ -1,3 +1,5 @@
+import {canonicalHeader,isRegisterHeader} from './register-schema';
+
 export type EvidenceValueShape =
   | 'empty'
   | 'date'
@@ -72,7 +74,7 @@ export interface EvidenceTableRelationship {
 }
 
 export interface EvidenceTableIntelligence {
-  producerVersion: 'evidence-table-intelligence-v1';
+  producerVersion: 'evidence-table-intelligence-v1' | 'evidence-table-intelligence-v2';
   headerRowIndex: number;
   headerRow: number;
   structurallyReadable: boolean;
@@ -179,7 +181,12 @@ function rowHeaderScore(rows:readonly string[][],index:number):number{
   const hints=nonEmpty.filter(v=>{
     const h=typeHints(v);return Object.values(h).some(Boolean);
   }).length/nonEmpty.length;
-  return nonEmpty.length*0.12+uniqueRatio*1.8+textLike*2.4+sameWidth*2+followingDataRatio*2+hints*0.8-dataLike*2;
+  // Annotation headings such as Comment 1, Extra_0 and X2 look numeric to
+  // structural profiling. Explicit shared register fields carry stronger
+  // header evidence than the shape of a later, sparse source data row.
+  // Exact field recognition does not assign an unknown table a business role.
+  const registerHeaders=new Set(nonEmpty.filter(isRegisterHeader).map(value=>canonicalHeader(value))).size;
+  return nonEmpty.length*0.12+uniqueRatio*1.8+textLike*2.4+sameWidth*2+followingDataRatio*2+hints*0.8+registerHeaders*2-dataLike*2;
 }
 
 function detectHeaderRow(rows:readonly string[][]):number{
@@ -383,7 +390,7 @@ export function analyzeEvidenceTable(
   const diagnostics:string[]=[];
   const rows=input.filter((row,index)=>index<60||row.some(v=>v.trim()));
   if(!rows.length)return {
-    producerVersion:'evidence-table-intelligence-v1',headerRowIndex:0,headerRow:1,structurallyReadable:false,
+    producerVersion:'evidence-table-intelligence-v2',headerRowIndex:0,headerRow:1,structurallyReadable:false,
     confidence:0,dataRowCount:0,columnCount:0,columns:[],relationships:[],diagnostics:['TABLE_EMPTY'],
   };
   const headerRowIndex=detectHeaderRow(rows);
@@ -400,7 +407,7 @@ export function analyzeEvidenceTable(
   if(columns.some(c=>c.dominantShape==='mixed'&&c.nonEmptyCount>0))diagnostics.push('MIXED_COLUMN_TYPES_RETAINED');
   if(columns.some(c=>c.confirmedMeaning))diagnostics.push('USER_CONFIRMED_COLUMN_MEANING_APPLIED');
   return {
-    producerVersion:'evidence-table-intelligence-v1',headerRowIndex,headerRow:headerRowIndex+1,
+    producerVersion:'evidence-table-intelligence-v2',headerRowIndex,headerRow:headerRowIndex+1,
     structurallyReadable,confidence,dataRowCount:dataRows.length,columnCount:width,columns,
     relationships:relationships(rows,headerRowIndex,columns),diagnostics,
   };

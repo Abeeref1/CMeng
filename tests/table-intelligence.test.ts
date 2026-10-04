@@ -5,7 +5,37 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {createHash} from 'node:crypto';
 
-import {analyzeEvidenceTable,sourceTables,type EvidenceDocument} from '../packages/truth-kernel/src';
+import {analyzeEvidenceTable,prepareEvidenceRows,inferTableSemanticRoute,sourceTables,type EvidenceDocument} from '../packages/truth-kernel/src';
+
+test('Stage 1 explicit register headers survive numeric annotation labels and sparse Arabic data rows',()=>{
+  const rows=[
+    ['مدينة طبية 347','Control report','','','','','',''],
+    ['','Control report','','','','','',''],
+    ['Description','Comment 1','NCR ID','Status','Owner','Extra_0','X2','Closed Date'],
+    ['ملاحظة جودة 0','-','NCR-731','مغلق','المقاول','','-',''],
+    ['ملاحظة جودة 1','n/a','NCR-500','مفتوح','المقاول','-','note',''],
+    ['ملاحظة جودة 2','3','NCR-753','مغلق','QA/QC','3','note',''],
+    ['TOTAL','','','','','','',''],
+  ];
+  const intelligence=analyzeEvidenceTable(rows);
+  assert.equal(intelligence.headerRowIndex,2,'data values cannot replace the explicit source header');
+  assert.equal(intelligence.columns[2]!.rawHeader,'NCR ID');
+  assert.equal(inferTableSemanticRoute(rows)?.documentType,'quality_ncr_register');
+  const read=prepareEvidenceRows(rows,'quality_ncr_register');
+  assert.equal(read.headerRow,3);assert.equal(read.recognized,true);
+  assert.deepEqual(read.rows.map(row=>row[2]),['NCR-731','NCR-500','NCR-753']);
+  assert.deepEqual(read.rows.map(row=>row[0]),['ملاحظة جودة 0','ملاحظة جودة 1','ملاحظة جودة 2']);
+  assert.equal(read.rows[0]![7],'','missing close dates remain missing');
+  const reversed=rows.map(row=>[...row].reverse());
+  assert.equal(analyzeEvidenceTable(reversed).headerRowIndex,2);
+  assert.deepEqual(prepareEvidenceRows(reversed,'quality_ncr_register').rows.map(row=>row[5]),['NCR-731','NCR-500','NCR-753']);
+});
+
+test('Stage 1 header detection retains opaque evidence without assigning it a register role',()=>{
+  const rows=[['A1','B2','C3','D4'],['REF-1','2039-02-01','123','Open'],['REF-2','2039-02-02','456','Closed']];
+  assert.equal(inferTableSemanticRoute(rows),null,'value shapes do not establish business authority');
+  assert.equal(analyzeEvidenceTable(rows).structurallyReadable,true);
+});
 
 test('Evidence Table Intelligence infers opaque identifiers, dates and cumulative/incremental relations without register aliases',()=>{
   const rows=[

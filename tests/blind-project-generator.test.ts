@@ -86,7 +86,7 @@ test('Batch J blind round: fresh generated projects survive real ingestion and s
       }
       if(matched.some(table=>table.recognition?.recognized===false&&table.intelligence.structurallyReadable))opaquePreserved++;
       for(const table of matched){
-        assert.equal(table.intelligence.producerVersion,'evidence-table-intelligence-v1');
+        assert.equal(table.intelligence.producerVersion,'evidence-table-intelligence-v2');
         assert.ok(table.intelligence.columnCount>=0);
         assert.doesNotMatch(JSON.stringify(table.intelligence),/NaN|Infinity/);
       }
@@ -98,6 +98,24 @@ test('Batch J blind round: fresh generated projects survive real ingestion and s
   assert.ok(generatedTabular>=40,'round must exercise many independent tables');
   assert.ok(readableTabular>=Math.floor(generatedTabular*0.70),'most non-empty generated tables must be structurally readable seed='+seed);
   assert.ok(opaquePreserved>0,'at least one readable but legacy-unrecognised table must remain preserved; proves unknown schema is not discarded');
+});
+
+test('Stage 1 failed quality workbook seed is permanent regression evidence, never a new blind cohort',async t=>{
+  const seed='fresh:61cc828d97c613363f94ee4258acffb08775::J2-MIXED-REGISTER';
+  const {projects}=await generateMixedWorkbookBlindRound(seed,16);
+  const project=projects.find(row=>row.projectId==='BLIND-MIX-582DD2872F')!;
+  assert.ok(project,'retain the exact failed project facts');
+  const dir=mkdtempSync(join(tmpdir(),'cmeng-quality-seed-regression-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));
+  const store=new RuntimeProjectStore({dataDir:dir,durable:false});
+  for(const document of project.documents)await store.ingestEvidenceFile({projectId:project.projectId,
+    sourceFilename:document.filename,sourceRelativePath:document.filename,bytes:document.bytes,mediaType:document.mediaType,
+    uploadedAt:'2037-12-31T00:00:00Z',uploadIntent:'add_update'});
+  const state=store.get(project.projectId)!;
+  assert.deepEqual(state.controls.ncrs.map(row=>row.ncrId).sort(),['NCR-500','NCR-731','NCR-753']);
+  const workbook=state.evidenceDocuments.find(row=>row.sourceFilename.endsWith('.xlsx'))!;
+  const quality=sourceTables([workbook],[]).find(table=>table.document.documentType==='quality_ncr_register')!;
+  assert.ok(quality);assert.equal(quality.intelligence.headerRowIndex,2);
+  assert.equal(quality.rows.length,3,'the sparse source rows must all reach canonical consumers');
 });
 
 test('J2 fresh blind project set: mixed workbooks route each sheet by content and survive reread/restart',async t=>{

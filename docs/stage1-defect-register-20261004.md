@@ -123,3 +123,38 @@ normalization now preserves acronym plurals, with exact `Activity IDs`,
 `ActivityIDs` and `Resource UIDs` protection. Expanded canonical/source/Commercial
 focused verification passes **131 tests, zero failed/cancelled/skipped**. That
 source is superseded by the correction and cannot count as final acceptance.
+
+### Fresh mixed-workbook failure: explicit header displaced by a data row
+
+Current-source Node 22 Verify run `37180154001` exercised source
+`c12803f0581a9d3cba4d99f0fe072f42077362c4`: **1,059 passed, one failed,
+zero cancelled/skipped**. All seven materially exercised ten-project feature
+cohorts passed, but the mixed-workbook ingestion test failed. The isolated
+100-project run passed locally at two-CPU affinity in 328.128 seconds under
+the unchanged 420-second deadline. Because unit verification failed, CI's
+isolated 100-project and subsequent latency/durability steps were not passed.
+
+The new finding is a real generic ingestion defect. A valid explicit NCR
+header containing numeric annotation labels (`Comment 1`, `Extra_0`, `X2`)
+lost the structural header score to a sparse Arabic data row. The workbook
+was still classified as Quality/NCR, but downstream ingestion returned an
+empty quality population. The failure was reproduced with seed
+`fresh:61cc828d97c613363f94ee4258acffb08775::J2-MIXED-REGISTER` and is now a
+permanent regression, never fresh proof. An exact header/row-order regression
+failed before correction. The original mixed-workbook positive assertion
+remains in place.
+
+The shared header detector now weights distinct explicit canonical register
+fields above purely structural value shapes. Opaque tables remain retained
+without an invented specialist role. Intelligence version v2 and derived
+reader v8 force retained sources to be reread under the corrected detector,
+preserving original bytes, source hashes and authority decisions.
+
+Post-correction focused verification: **97 passed, zero failed/cancelled/skipped**.
+It includes ten genuinely fresh quality projects with reordered columns,
+English/Arabic data, exact populations, missing closure dates, source-byte
+preservation, reader migration, idempotent refresh and restart. Broader core
+regression: **1,045 passed, zero failed/cancelled/skipped**. These counts overlap
+and must not be summed. Full final-source Node 22 regression, new feature
+cohorts, isolated 100-project acceptance, latency/durability and independent
+consultant acceptance remain required. Stage 1 remains open.

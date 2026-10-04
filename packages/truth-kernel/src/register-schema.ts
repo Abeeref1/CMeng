@@ -100,6 +100,10 @@ const fields=new Set([...Object.keys(groups),
   'work package','work package id','remaining quantity','recent achieved rate day','conservative achievable rate day','independent forecast finish',
   'measured by','filename','file name','file path','relative path','sha256','source hash','document type','purpose','expected role','notes'
 ]);
+export function isRegisterHeader(value:string):boolean {
+  const key=canonicalHeader(value);
+  return fields.has(key)||fields.has(key.replace(/ [a-z]{3}$/, ''));
+}
 const registerDateHeaders=new Set([
   'notice date','event start','period end','certificate date','payment date','raised date','identified date','status as of','due date',
   'release date','expiry date','approval date','determination date','incident date','report date','required on site','forecast delivery','actual delivery',
