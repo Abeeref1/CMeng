@@ -152,6 +152,17 @@ test('cross-kind date matrix: current requirements with future events cannot bec
  assert.equal(b.position().dataDateIso,'2034-04-30');assert.equal(b.position().handover.readinessPercent,50);assert.equal(b.position().summaries.snag!.closedCount,1);
 });
 
+test('native PDF prose with comma and unmatched quote cannot abort delivery or management projections',async t=>{
+ const f=await fixture(t,'PDF-PROSE-QUOTE');
+ await f.upload('Narrative-with-inch-mark.pdf',await packet(['General note, 12" pipe remains subject to review\nPermit ID: SAFE-PERMIT\nDescription: Lift permit\nIssue Date: 2034-04-10\nExpiry Date: 2034-05-10'],false));
+ await f.store.refreshDeferredPdfReads(f.state.projectId);
+ const records=deliveryRecords(f.state).records;
+ const permit=records.find(r=>r.reference==='SAFE-PERMIT');
+ assert.ok(permit,'valid labelled evidence on the same page must remain readable');
+ assert.equal(permit!.kind,'permit');
+ assert.doesNotThrow(()=>f.position(),'ordinary PDF quotation marks must never crash downstream management projections');
+});
+
 for(const scanned of [false,true])test('new '+(scanned?'OCR':'native')+' packet: submittal, spares and permit keep separate identities and source pages',async t=>{
  const f=await fixture(t);await f.upload('Mixed-submittal-packet.pdf',await packet(['Supplier ID: SUBCONTRACTOR-1\nSubmittal ID: NEW-SUB\nDescription: Shop drawing\nRaised Date: 2034-04-01','Description: Spare filters\nSpare ID: NEW-SPARE\nRequired Quantity: 24','Permit ID: NEW-PERMIT\nDescription: Lift permit\nSupplier ID: SUP-9\nIssue Date: 2034-04-10\nExpiry Date: 2034-05-10'],scanned));await f.store.refreshDeferredPdfReads(f.state.projectId);
  const records=deliveryRecords(f.state).records;assert.deepEqual(records.map(r=>[r.kind,r.reference,r.receipts[0]!.locator]),[['submittal','NEW-SUB','page:1:line:1'],['spare','NEW-SPARE','page:2:line:1'],['permit','NEW-PERMIT','page:3:line:1']]);assert.ok(records.every(r=>r.state==='extracted_candidate'));
