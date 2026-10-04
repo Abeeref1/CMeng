@@ -14,6 +14,10 @@ import type {
   LdRateCandidate,
 } from "./types";
 
+const currencyCodes = new Set(Intl.supportedValuesOf("currency"));
+const isCurrencyCode = (value: string): boolean =>
+  currencyCodes.has(value.trim().toUpperCase());
+
 function refs(
   section: ContractSection,
 ): string[] {
@@ -31,6 +35,9 @@ function refs(
 function cleanNumber(
   value: string,
 ): number | null {
+  // A punctuation-only match must never become Number("") === 0.
+  // Preserve explicit zeros, decimals and correctly grouped thousands.
+  if (!/^(?:\d+|\d{1,3}(?:,\d{3})+)(?:\.\d+)?$/.test(value)) return null;
   const number = Number(
     value.replace(/,/g, ""),
   );
@@ -91,7 +98,7 @@ function rateCandidates(
           : match[1]!;
       const unit = match[3]!.toLowerCase();
       const amount = cleanNumber(amountText);
-      if (amount === null) continue;
+      if (amount === null || !isCurrencyCode(currencyCode)) continue;
       const basis =
         unit.includes("week")
           ? "fixed_amount_per_week" as const
@@ -218,7 +225,7 @@ function capCandidates(
           ? fixed[2]!
           : fixed[1]!;
       const amount = cleanNumber(amountText);
-      if (amount === null) continue;
+      if (amount === null || !isCurrencyCode(currencyCode)) continue;
       out.push({
         candidateId:
           "ld-cap-" +
@@ -431,7 +438,7 @@ function contractValueCandidates(
       if (
         amount === null ||
         amount < 0 ||
-        currencyCode.length !== 3
+        !isCurrencyCode(currencyCode)
       ) {
         continue;
       }

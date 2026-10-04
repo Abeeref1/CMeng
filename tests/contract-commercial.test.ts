@@ -7,6 +7,7 @@ import type {
 } from "../packages/contract-parser/src";
 import {
   extractContractLdTerms,
+  extractContractValue,
 } from "../packages/contract-commercial/src";
 
 function contractWith(
@@ -91,6 +92,41 @@ test("LD extraction is currency-agnostic and preserves rate and cap separately",
     result.cap?.percent,
     10,
   );
+});
+
+test("ordinary tender LD prose cannot become a zero THE contract value", () => {
+  const result = extractContractValue(contractWith(
+    "Once the total sum of liquidated damages reaches ten percent (10%) of the total contract price, the Procuring Entity may rescind or terminate the contract, without prejudice to other courses of action and remedies available under the circumstances.",
+  ));
+  assert.equal(result.state, "missing");
+  assert.equal(result.candidates.length, 0);
+});
+
+test("monetary extraction rejects punctuation amounts and prose currencies", () => {
+  for (const text of [
+    "Contract Price PHP ,", "Contract Price PHP 1,,000",
+    "Contract Price 123 THE", "Contract Price THE 123",
+  ]) {
+    assert.equal(extractContractValue(contractWith(text)).state, "missing", text);
+  }
+  const ld = extractContractLdTerms(contractWith(
+    "Delay damages are the 5 per day and shall not exceed the 10. Alternatively USD , per day capped at PHP ,.",
+  ));
+  assert.equal(ld.rateCandidates.length, 0);
+  assert.equal(ld.capCandidates.length, 0);
+});
+
+test("explicit monetary zeros and valid currencies remain source candidates", () => {
+  for (const [text, amount, currency] of [
+    ["Accepted Contract Amount PHP 0", 0, "PHP"],
+    ["Contract Price aed 1,234.50", 1234.5, "AED"],
+    ["Original Contract Sum 25000 USD", 25000, "USD"],
+  ] as const) {
+    const result = extractContractValue(contractWith(text));
+    assert.equal(result.state, "candidate", text);
+    assert.equal(result.candidates[0]?.amount, amount, text);
+    assert.equal(result.candidates[0]?.currency, currency, text);
+  }
 });
 
 test("LD percentage-per-day rate is supported without inventing a currency", () => {
