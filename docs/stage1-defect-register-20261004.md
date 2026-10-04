@@ -112,3 +112,14 @@ is `612d7060-d7e0-465e-8d8d-6ed467eeb8e8`, main source
 `828b4ad9dc0a628b19c64d83b865b4e95244ec0f`. This read establishes deployed identity;
 it does not independently establish source replacement or re-certify its
 project claims. The corrected candidate source is not deployed to production.
+
+### Compact-header regression and correction
+
+Full verification of source `72ca7de6b008cb45c2c8175617356be7329797b0`
+exposed an introduced regression: splitting acronym plurals changed `Activity
+IDs` and removed a VO's source activity links. The original canonical integration
+assertion was reproduced failing; it is retained without weakening. Shared header
+normalization now preserves acronym plurals, with exact `Activity IDs`,
+`ActivityIDs` and `Resource UIDs` protection. Expanded canonical/source/Commercial
+focused verification passes **131 tests, zero failed/cancelled/skipped**. That
+source is superseded by the correction and cannot count as final acceptance.

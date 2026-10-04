@@ -36,6 +36,8 @@ test('Stage 1 sparse control schemas and compact headers retain owning roles and
  assert.equal(multi.identification.sourceDocumentIdentity,null,'a multi-record register has no single document identity from a related VO');
  assert.equal(canonicalHeader('GrossCertifiedAmount'),'gross certified amount');
  assert.equal(canonicalHeader('CPI'),'cpi');assert.equal(canonicalHeader('m3'),'m3');
+ assert.equal(canonicalHeader('Activity IDs'),'activity ids');assert.equal(canonicalHeader('ActivityIDs'),'activity ids');
+ assert.equal(canonicalHeader('Resource UIDs'),'resource uids');
  const ambiguous=await identifyEvidenceDocument({bytes:Buffer.from('Reference,Date,Value\nX-4,2032-03-09,12000'),sourceFilename:'generic.csv',sourceRelativePath:null,declaredMediaType:'text/csv'});
  assert.equal(ambiguous.identification.needsReview,true,'generic fields do not establish a specialist role');
 });
