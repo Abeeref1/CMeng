@@ -276,7 +276,7 @@ export function commercialCanonical(state:ProjectRuntimeState):CanonicalCommerci
   }
   const hasInstructionIdentity=t.headers.includes(norm('instruction id'))||t.headers.includes(norm('site instruction id'))||t.headers.includes(norm('si id'));
   const hasInstructionRegisterShape=t.headers.includes(norm('issue date'))||t.headers.includes(norm('quotation due date'))||t.headers.includes(norm('instruction description'));
-  if(hasInstructionIdentity&&hasInstructionRegisterShape&&t.headers.includes(norm('status')))for(const r of t.rows){
+  if(hasInstructionIdentity&&hasInstructionRegisterShape)for(const r of t.rows){
    const estimateHeader=amountHeader(t.headers,'estimated amount','instruction amount','quotation amount');
    const issueDate=dateValue(cell(r,'issue date','instruction date','site instruction date','si date'));
    siteInstructions.push({
@@ -311,7 +311,7 @@ export function commercialCanonical(state:ProjectRuntimeState):CanonicalCommerci
     receipt:r.receipt
    });
   }
-  if(has(t,'obligation id','status'))for(const r of t.rows){
+  if(t.headers.includes(canonicalHeader('obligation id')))for(const r of t.rows){
    obligations.push({
     obligationId:cell(r,'obligation id'),
     clauseIdentifier:cell(r,'clause','clause identifier','clause reference')||null,
@@ -324,8 +324,8 @@ export function commercialCanonical(state:ProjectRuntimeState):CanonicalCommerci
     receipt:r.receipt
    });
   }
-  if(has(t,'retention id','status'))for(const r of t.rows){
-   const amountH=amountHeader(t.headers,'retention amount','amount');
+  if(t.headers.includes(canonicalHeader('retention id')))for(const r of t.rows){
+   const amountH=amountHeader(t.headers,'retention amount','held amount','amount');
    const dueDate=dateValue(cell(r,'due date','release due date'));
    retentions.push({
     retentionId:cell(r,'retention id'),

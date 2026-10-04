@@ -83,3 +83,32 @@ result in the acceptance evidence. Failed cohorts remain exact regressions and
 must never count as unseen proof again. Successful cohorts are evidence for the
 tree exercised, and cannot substitute for newly required independent projects.
 Consultant input files/seeds/projects must differ from every internal cohort.
+
+## Follow-up: sparse controls and source identity
+
+The initial source saved as `60bbfab972b0afbd11aae9d13fba2c664dbb4bec`
+preserved complete register schemas, but an additional sparse-input probe found
+valid low-optionality SI/obligation/retention tables still falling into the legacy
+classifier. A related VO could become an instruction's document identity.
+Compact headers such as `InstructionID` also lacked shared normalization.
+
+The follow-up accepts an unambiguous required-field semantic route without
+requiring optional columns, recognizes compact headers, derives the owning
+identity for these control registers (including Unicode IDs), and keeps a
+multi-record register's single document identity unestablished. Sparse rows are
+retained canonically with missing lifecycle/financial facts, rather than being
+lost or filled with defaults. Reader v7 replays retained sources under the
+corrected interpretation; exact bytes and review decisions remain preserved.
+
+The expanded focused regression is **57 passed, zero failed/cancelled/skipped**.
+Earlier full-run feature receipts for the initial saved source are partial
+historical evidence and cannot close this follow-up. Full current-source
+verification and fresh reacceptance are mandatory after the follow-up.
+
+Historical source-integrity reconciliation found the existing generic
+quarantine and null-consistency protections in the current source and retained
+regressions. Railway's latest successful production deployment read on 4 October
+is `612d7060-d7e0-465e-8d8d-6ed467eeb8e8`, main source
+`828b4ad9dc0a628b19c64d83b865b4e95244ec0f`. This read establishes deployed identity;
+it does not independently establish source replacement or re-certify its
+project claims. The corrected candidate source is not deployed to production.

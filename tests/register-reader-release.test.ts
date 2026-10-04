@@ -14,6 +14,49 @@ import {moduleRegistry,pageApiKey,publicModuleResult,resolveModuleKey,titleForMo
 import {buildModuleJsonDownload} from '../packages/runtime-api/src/module-report';
 import type {StoredEvidenceDocument} from '../packages/runtime-api/src/project-state-types';
 const hash=(b:string|Uint8Array)=>createHash('sha256').update(b).digest('hex');
+test('Stage 1 sparse control schemas and compact headers retain owning roles and identities',async()=>{
+ const {identifyEvidenceDocument}=await import('../packages/runtime-api/src/document-identification');
+ const cases=[
+  ['Instruction ID,Issue Date,Variation ID,Status\nSI-K7,2032-03-09,VO-M8,Issued','site_instruction_register','instruction:si-k7'],
+  ['InstructionID,IssueDate,VariationID,Status\nSI-K7,2032-03-09,VO-M8,Issued','site_instruction_register','instruction:si-k7'],
+  ['Obligation ID,Due Date\nOB-H3,2032-03-12','contract_obligation_register','obligation:ob-h3'],
+  ['ObligationID,DueDate\nOB-H3,2032-03-12','contract_obligation_register','obligation:ob-h3'],
+  ['Retention ID,Held Amount\nRET-B4,12000','retention_register','retention:ret-b4'],
+  ['RetentionID,HeldAmount\nRET-B4,12000','retention_register','retention:ret-b4'],
+  ['Instruction ID,Issue Date\nتعليمات-١,2032-03-09','site_instruction_register','instruction:تعليمات-١'],
+  ['Instruction ID,Issue Date\nتوجيهات-١,2032-03-09','site_instruction_register','instruction:توجيهات-١'],
+ ];
+ for(const [text,type,identity] of cases){
+  const result=await identifyEvidenceDocument({bytes:Buffer.from(text!),sourceFilename:'generic.csv',sourceRelativePath:null,declaredMediaType:'text/csv'});
+  assert.equal(result.identification.detectedDocumentType,type,text!.split('\n')[0]);
+  assert.equal(result.identification.sourceDocumentIdentity,identity,'a related identifier cannot replace the owning identity');
+ }
+ const multi=await identifyEvidenceDocument({bytes:Buffer.from('Instruction ID,Issue Date,Variation ID,Status\nSI-K7,2032-03-09,VO-M8,Issued\nSI-K8,2032-03-10,VO-M9,Issued'),sourceFilename:'generic.csv',sourceRelativePath:null,declaredMediaType:'text/csv'});
+ assert.equal(multi.identification.detectedDocumentType,'site_instruction_register');
+ assert.equal(multi.identification.sourceDocumentIdentity,null,'a multi-record register has no single document identity from a related VO');
+ assert.equal(canonicalHeader('GrossCertifiedAmount'),'gross certified amount');
+ assert.equal(canonicalHeader('CPI'),'cpi');assert.equal(canonicalHeader('m3'),'m3');
+ const ambiguous=await identifyEvidenceDocument({bytes:Buffer.from('Reference,Date,Value\nX-4,2032-03-09,12000'),sourceFilename:'generic.csv',sourceRelativePath:null,declaredMediaType:'text/csv'});
+ assert.equal(ambiguous.identification.needsReview,true,'generic fields do not establish a specialist role');
+});
+test('Stage 1 sparse current control rows remain canonical with unknown lifecycle and financial basis',async t=>{
+ const dir=mkdtempSync(join(tmpdir(),'sparse-control-register-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));
+ const store=new RuntimeProjectStore({dataDir:dir,durable:false}),projectId='SPARSE-CONTROL-REGISTER';
+ const files=[
+  ['si.csv','InstructionID,IssueDate\nSI-P1,2032-03-09'],
+  ['ob.csv','ObligationID,DueDate\nOB-P2,2032-03-12'],
+  ['ret.csv','RetentionID,HeldAmount\nRET-P3,12000'],
+ ];
+ for(const [name,text] of files)await store.ingestEvidenceFile({projectId,sourceFilename:name!,mediaType:'text/csv',bytes:Buffer.from(text!),uploadedAt:'2032-03-10T00:00:00Z',uploadIntent:'add_update'});
+ const state=store.get(projectId)!,canonical=commercialCanonical(state);
+ assert.equal(canonical.siteInstructions.length,1);assert.equal(canonical.obligations.length,1);assert.equal(canonical.retentions.length,1);
+ assert.equal(canonical.siteInstructions[0]!.instructionId,'SI-P1');assert.equal(canonical.variations.length,0);
+ assert.equal(canonical.obligations[0]!.responsibleParty,null);
+ assert.equal(canonical.retentions[0]!.amount.value,12000);
+ assert.equal(canonical.retentions[0]!.amount.currency,null);assert.equal(canonical.retentions[0]!.amount.asOf,null);
+ assert.equal(canonical.retentions[0]!.dueDate,null);
+ for(const [name,text] of files){const doc=state.evidenceDocuments.find(row=>row.sourceFilename===name)!;assert.deepEqual(readFileSync(doc.storedPath),Buffer.from(text!));}
+});
 test('Stage 1 preserves gross work and gross certification as distinct payment columns',()=>{
  const read=prepareRegisterRows([
   ['Certificate No','Gross Work','Variations','Gross Certified Amount','Employer Certified Amount','Net Certified','Currency'],
@@ -225,7 +268,7 @@ test('shared reader upgrade repairs text/plain CSV ingestion without changing an
  const sourceHash=doc.sourceHashSha256;
  const result=await store.refreshSpreadsheetRegisters('REGISTER-PROJECT');
  assert.equal(result.refreshedDocumentCount,1);assert.deepEqual(result.diagnostics,[]);
- assert.equal(doc.derivedRegisterRead?.producerVersion,'register-derived-v6');
+ assert.equal(doc.derivedRegisterRead?.producerVersion,'register-derived-v7');
  assert.equal(sourceTables([doc],[])[0]!.recognition?.recognized,true);
  assert.equal(doc.sourceHashSha256,sourceHash);assert.deepEqual(readFileSync(doc.storedPath),bytes);
  assert.equal(JSON.stringify(unchanged),beforeOther);

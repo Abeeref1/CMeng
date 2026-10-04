@@ -2390,7 +2390,7 @@ export async function identifyEvidenceDocument(
     const found=claimLifecycle?schemas.find(([id])=>id==='claim id'):schemas.find(([id])=>h.includes(id));
     if(h.includes('delivery record type')&&h.includes('record reference'))classification={documentType:'delivery_register',category:'other',confidence:0.99,signals:['Explicit Delivery record schema; record adoption and relationships require review']};
     else if(['measurement date','item no','cumulative installed qty','unit'].every(key=>h.includes(key)))classification={documentType:'installed_measurement_register',category:'boq_cost',confidence:0.99,signals:['Dated cumulative installed quantities; separate from contract BOQ quantities']};
-    else if(semanticRoute&&semanticRoute.confidence>=0.94)classification={documentType:semanticRoute.documentType,category:semanticRoute.category as EvidenceCategory,confidence:Math.max(0.96,semanticRoute.confidence),signals:semanticRoute.basis};
+    else if(semanticRoute)classification={documentType:semanticRoute.documentType,category:semanticRoute.category as EvidenceCategory,confidence:semanticRoute.confidence,signals:semanticRoute.basis};
     else if(found)classification={documentType:found[1],category:found[2],confidence:0.96,signals:['Recognised register fields: '+h.join(', ')]};
     else if(h.includes('certificate no')&&h.includes('net certified'))classification={documentType:'payment_certificates',category:'boq_cost',confidence:0.96,signals:['Recognised payment register fields']};
     else if(h.includes('man hours')&&(h.includes('lost time injuries')||h.includes('trir')))classification={documentType:'hse_report',category:'hse_quality_fm',confidence:0.96,signals:['Recognised HSE table fields']};

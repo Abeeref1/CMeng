@@ -1,5 +1,6 @@
 import {scenarioName,explicitScheduleDecision,submittedScheduleDecision,isScenarioRevision} from './schedule-authority';
 import { typedEvidenceRoleFromText } from "./typed-evidence-families";
+import {csv,prepareRegisterRows} from '../../truth-kernel/src';
 import type {
   EvidenceBasisEffect,
   EvidenceBasisRecord,
@@ -24,6 +25,21 @@ function documentIdentifier(
   text: string,
   filename: string,
 ): string | null {
+  const controlIdentities:Record<string,[string,string[]]>={
+    site_instruction_register:['instruction',['instruction id','site instruction id','si id']],
+    contract_obligation_register:['obligation',['obligation id']],
+    retention_register:['retention',['retention id']],
+  };
+  const own=controlIdentities[documentType];
+  if(own){
+    const table=prepareRegisterRows(csv(text),documentType);
+    const column=table.headers.findIndex(header=>own[1].includes(header));
+    const ids=new Set(column<0?[]:table.rows.map(row=>row[column]?.trim()).filter(Boolean));
+    // A related VO/claim is not this register's identity. Several owning IDs
+    // describe a population, with no single document identifier established.
+    return ids.size===1?own[0]+':'+[...ids][0]!.normalize('NFKC').toLowerCase()
+      .replace(/[^\p{L}\p{N}]+/gu,'-').replace(/^-+|-+$/g,''):null;
+  }
   const corpus =
     text + "\n" + filename;
   const patterns: Array<

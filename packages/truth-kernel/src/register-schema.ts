@@ -1,5 +1,7 @@
 /** Shared semantic headers for register ingestion. Unknown columns are retained. */
-export const normalizeHeader=(v:string)=>v.normalize('NFKC').replace(/^\uFEFF/,'').toLowerCase().replace(/[^\p{L}\p{N}]+/gu,' ').trim();
+export const normalizeHeader=(v:string)=>v.normalize('NFKC').replace(/^\uFEFF/,'')
+  .replace(/([A-Z]+)([A-Z][a-z])/g,'$1 $2').replace(/([a-z0-9])([A-Z])/g,'$1 $2')
+  .toLowerCase().replace(/[^\p{L}\p{N}]+/gu,' ').trim();
 const groups:Record<string,string[]>={
   'claim id':['claim ref','claim reference','claim no','claim number','رقم المطالبة','مرجع المطالبة'],
   'event':['event description','delay event','delay description','وصف الحدث'],
