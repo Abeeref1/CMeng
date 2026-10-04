@@ -20,7 +20,18 @@ export function deliverySourceTables(state:ProjectRuntimeState,diagnostics:strin
    for(let i=0;i<lines.length;i++){
     const line=lines[i]!.trim();if(!line)continue;
     const sep=line.includes('\t')?'\t':line.includes('|')?'|':line.includes(',')?',':null;
-    const values=sep===','?csv(line)[0]??[]:sep?line.split(sep).map(s=>s.trim()):[];
+    let values:string[]=[];
+    if(sep===','){
+     try{values=csv(line)[0]??[];}
+     catch{
+      // PDF prose can legitimately contain commas plus unmatched quotation marks
+      // (for example inch marks). It is not CSV until a delivery table header has
+      // actually been established. Once inside a comma table, keep the damaged
+      // row visible as a review requirement instead of aborting the whole project.
+      if(headers&&separator===',')diagnostics.push('DELIVERY_PAGE_ROW_REQUIRES_REVIEW:'+document.documentId+':page:'+page.pageNumber+':line:'+(i+1));
+      continue;
+     }
+    }else if(sep)values=line.split(sep).map(s=>s.trim());
     const keys=values.map(v=>canonicalHeader(v));
     if(keys.some(k=>identities.has(k))&&keys.length>=2&&new Set(keys).size===keys.length){headers=keys;separator=sep;continue;}
     if(headers&&sep===separator&&values.length===headers.length){rows.push({line:i+1,cells:Object.fromEntries(headers.map((h,j)=>[h,values[j]!]))});}
