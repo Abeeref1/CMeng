@@ -60,8 +60,8 @@ export function reconcilePaymentEvidence(
 
   const paymentDate = dateValue(cell(row, 'payment as of', 'paid date', 'payment date'));
   const paymentReference = cell(row, 'payment reference', 'receipt reference') || null;
-  const allocatedBasis = /^(cumulative|certificate total|cumulative allocated to certificate)$/i.test(
-    cell(row, 'paid amount basis', 'payment amount basis').replace(/[_-]+/g, ' '));
+  const allocatedBasis = /^(cumulative|certificate total|certificate cumulative|cumulative allocated to certificate)$/i.test(
+    cell(row, 'paid allocation basis', 'payment allocation basis', 'paid amount basis', 'payment amount basis').replace(/[_-]+/g, ' '));
   const posted = /^(approved|posted|verified)$/i.test(cell(row, 'payment source status', 'receipt status'));
   const sameMoneyBasis = net.currency !== null && paid.currency === net.currency &&
     net.taxBasis !== 'unknown' && paid.taxBasis === net.taxBasis;

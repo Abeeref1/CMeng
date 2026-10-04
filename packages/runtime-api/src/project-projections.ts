@@ -1,7 +1,7 @@
 import {completionPosition} from './completion-position';
 import {buildProjectDiagnosis,presentProjectDiagnosis} from './project-diagnosis';
 import {buildModuleChallenge} from '../../module-challenge/src';
-import {deliveryModule,deliveryDashboard,isDeliveryPage} from './delivery-projections';
+import {deliveryModule,deliveryDashboard,deliveryExportResult,isDeliveryPage} from './delivery-projections';
 import {interfaceModule,interfaceIntelligence} from './interface-intelligence';
 import {accountabilityModule,crossDomainAccountability} from './accountability-intelligence';
 import {recoveryAccelerationModule} from './recovery-acceleration';
@@ -1670,7 +1670,10 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
             model.dataDateIso,
         },
       );
-    if (!modules.has("resource-utilization")) modules.set(
+    // The initial map contains blocked placeholders for every module. A real
+    // assignment calculation must replace its placeholder; the canonical weekly
+    // integration below then takes precedence over this assignment basis.
+    modules.set(
       "resource-utilization",
       available(
         "resource-utilization",
@@ -1715,7 +1718,7 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
           : null,
       ),
     );
-    if (!modules.has("manhour-scurve")) modules.set(
+    modules.set(
       "manhour-scurve",
       available(
         "manhour-scurve",
@@ -7672,7 +7675,7 @@ export function moduleForProject(
       ["project"],
     );
   }
-  if (key==='delivery-interfaces') {const scoped=reportingState(state);return withPositionVerdict(attachReportingContract(scoped,interfaceModule(scoped)));}
+  if (key==='delivery-interfaces') {const scoped=reportingState(state);return withPositionVerdict(attachReportingContract(scoped,deliveryExportResult(scoped,interfaceModule(scoped))));}
   if (key==='recovery-acceleration') {const scoped=reportingState(state);return withPositionVerdict(attachReportingContract(scoped,recoveryAccelerationModule(scoped)));}
   if (key==='cross-domain-accountability') {const scoped=reportingState(state);return withPositionVerdict(attachReportingContract(scoped,accountabilityModule(scoped)));}
   if (isDeliveryPage(key)) {const scoped=reportingState(state);return attachReportingContract(scoped,deliveryModule(scoped,key));}

@@ -503,6 +503,7 @@ export function commercialContractControlsForState(
             retentionReleaseDate:
               row
                 .retentionReleaseDate,
+            retentionReleaseDueDate:row.retentionReleaseDueDate??null,
             sourceRefs: [
               receiptRef(
                 row.receipt,

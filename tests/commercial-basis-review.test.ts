@@ -21,6 +21,21 @@ const variation=(id:string,value:number|null,date:string|null,currency='AED'):Co
 const foundationInput=(sections:CommercialFoundationInput['contractSections']=[]):CommercialFoundationInput=>({projectId:'NEW-PORT',generatedAt:'2028-04-30',dataDateIso:'2028-04-30',contractValue:null,contractValueCandidates:[],variations:[],contractTimeBasis:null,ldTerms:null,contractSections:sections,amendments:[],costMetrics:[],payments:[]});
 const amounts=():PaymentStageRecord['amounts']=>({applicationAmount:money(null),engineerAssessedAmount:money(null),employerCertifiedAmount:money(null),grossWork:money(800),grossCertifiedAmount:money(null),variations:money(200),variationCertifiedAmount:money(null),retentionDeduction:money(70),advanceRecovery:money(100),otherDeduction:money(null),taxAmount:money(null),netCertifiedAmount:money(830),paidAmount:money(null),outstandingAmount:money(null)});
 const sourceRow={receipt,cells:{},raw:{}} as unknown as SourceRow;
+test('Stage 1 distinguishes incremental cash series from cumulative allocation to one certificate',()=>{
+ const a=amounts();a.paidAmount=money(500);a.outstandingAmount=money(330);
+ const row={...sourceRow,cells:{'paid amount basis':'incremental','paid allocation basis':'certificate cumulative',
+   'payment source status':'Posted','payment date':'2028-04-25','payment reference':'PAY-X'}};
+ assert.equal(reconcilePaymentEvidence(row,a,'2028-04-30').calculatedOutstandingAmount.value,330);
+ const noAllocation={...row,cells:{...row.cells,'paid allocation basis':''}};
+ assert.equal(reconcilePaymentEvidence(noAllocation,a,'2028-04-30').calculatedOutstandingAmount.value,null);
+ for(const change of [{'payment date':'2028-05-01'},{'payment date':''},{'payment source status':'Candidate'},{'payment reference':''}]){
+   assert.equal(reconcilePaymentEvidence({...row,cells:{...row.cells,...change}},a,'2028-04-30').calculatedOutstandingAmount.value,null);
+ }
+ a.paidAmount.taxBasis='unknown';assert.equal(reconcilePaymentEvidence(row,a,'2028-04-30').calculatedOutstandingAmount.value,null);
+ a.paidAmount.taxBasis='exclusive';a.paidAmount.state='candidate';
+ assert.equal(reconcilePaymentEvidence(row,a,'2028-04-30').calculatedOutstandingAmount.value,null);
+ assert.equal(a.paidAmount.value,500,'withholding arithmetic must retain the submitted cash amount');
+});
 
 test('source read status survives missing fields, currency partitions and reporting exclusions in every project',()=>{
   const input:CommercialControlInput={projectId:'UNRELATED-HARBOUR',generatedAt:'2028-04-30',contractValue:{amount:900,currency:'AED',sourceRefs:[]},variations:[],invoices:[],retentions:[],bonds:[],claimCommercials:[],contractTimeBasis:null,commercialEvidenceSubmitted:true,paymentEvidenceSubmitted:true,variationEvidenceSubmitted:true,bondEvidenceSubmitted:true,claimEvidenceSubmitted:true};

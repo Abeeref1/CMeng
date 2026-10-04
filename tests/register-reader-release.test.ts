@@ -4,15 +4,29 @@ import {createHash,randomUUID} from 'node:crypto';import {mkdtempSync,writeFileS
 import ExcelJS from 'exceljs';import JSZip from 'jszip';
 import {runtimeProjects,RuntimeProjectStore} from '../packages/runtime-api/src/project-state';
 import {rebuildEvidenceFamily} from '../packages/runtime-api/src/evidence-control';
+import {commercialCanonical} from '../packages/runtime-api/src/commercial-canonical';
 import {hseReportPosition,refreshHseSummary,parseHseSummary} from '../packages/runtime-api/src/hse-report-evidence';
 import {readRegisterWorkbook} from '../packages/runtime-api/src/register-workbook';
 import {analyzeCsvEvidence,analyzeEvidenceRows} from '../packages/runtime-api/src/evidence';
-import {numberValue,prepareRegisterRows,sourceTables} from '../packages/truth-kernel/src';
+import {numberValue,canonicalHeader,prepareRegisterRows,sourceTables} from '../packages/truth-kernel/src';
 import {reviewRegisterDates} from '../packages/runtime-api/src/register-date-review';
 import {moduleRegistry,pageApiKey,publicModuleResult,resolveModuleKey,titleForModule} from '../packages/runtime-api/src/registry';
 import {buildModuleJsonDownload} from '../packages/runtime-api/src/module-report';
 import type {StoredEvidenceDocument} from '../packages/runtime-api/src/project-state-types';
 const hash=(b:string|Uint8Array)=>createHash('sha256').update(b).digest('hex');
+test('Stage 1 preserves gross work and gross certification as distinct payment columns',()=>{
+ const read=prepareRegisterRows([
+  ['Certificate No','Gross Work','Variations','Gross Certified Amount','Employer Certified Amount','Net Certified','Currency'],
+  ['IPC-COMPONENTS','1000','200','1200','1200','1080','AED'],
+ ],'payment_certificates');
+ assert.equal(read.recognized,true);
+ assert.equal(new Set(read.headers).size,read.headers.length,'different financial stages must not collapse into duplicate meanings');
+ assert.equal(read.headers[1],'gross work');assert.equal(read.headers[3],'gross certified amount');
+ assert.equal(read.rows[0]![1],'1000');assert.equal(read.rows[0]![3],'1200');
+ assert.equal(canonicalHeader('Gross Certified / الإجمالي المعتمد'),'gross certified amount');
+ assert.equal(canonicalHeader('Gross Certified Amount (AED)'),'gross certified amount aed');
+ assert.equal(canonicalHeader('Gross'),'gross work','retain the existing generic-gross interpretation without overriding an explicit certification header');
+});
 function setup(t:any){const dir=mkdtempSync(join(tmpdir(),'register-release-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));const state=runtimeProjects.getOrCreate('READ-'+randomUUID());
  const csv=(text:string,type:string)=>{const id='D'+state.evidenceDocuments.length,path=join(dir,id+'.csv');writeFileSync(path,text);const doc={documentId:id,sourceFilename:id+'.csv',sourceHashSha256:hash(text),storedPath:path,mediaType:'text/csv',basisState:'active',documentType:type,diagnostics:[],uploadedAt:'2031-04-30'} as unknown as StoredEvidenceDocument;state.evidenceDocuments.push(doc);state.version++;return doc;};return {state,csv};}
 
@@ -173,6 +187,31 @@ test('accounting-format amounts remain numeric and reach variation controls', as
  assert.equal(state.controls.variations[0]!.currency,'EUR');
 });
 
+test('Stage 1 supported control registers retain current identity and old reference fallthrough is repaired on refresh',async t=>{
+ const dir=mkdtempSync(join(tmpdir(),'control-register-upgrade-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));
+ const store=new RuntimeProjectStore({dataDir:dir,durable:false}),projectId='NEW-CONTROL-REGISTER';
+ const files=[
+  ['source-one.csv','Retention ID,Status,Retention Amount,Currency,VAT Basis,As Of,Due Date,Trigger\nRET-1,Held,300,AED,Exclusive,2031-04-30,2031-06-30,TOC','retention_register'],
+  ['source-two.csv','Instruction ID,Description,Issue Date,Status,Variation ID,Quotation Date,Estimated Amount,Currency\nSI-1,Drainage,2031-04-01,Issued,VO-9,2031-04-10,200,AED','site_instruction_register'],
+  ['source-three.csv','Obligation ID,Clause,Description,Responsible Party,Due Date,Status,Evidence Reference\nOBL-1,2,Certification,Engineer,2031-05-01,Open,IPC','contract_obligation_register'],
+ ];
+ for(const [name,text,type] of files){
+  await store.ingestEvidenceFile({projectId,sourceFilename:name!,mediaType:'text/csv',bytes:Buffer.from(text!),uploadedAt:'2031-04-30T00:00:00Z',uploadIntent:'add_update'});
+  const document=store.get(projectId)!.evidenceDocuments.find(doc=>doc.sourceFilename===name)!;
+  assert.equal(document.documentType,type);assert.equal(document.basisState,'active');
+ }
+ const state=store.get(projectId)!,canonical=commercialCanonical(state);
+ assert.equal(canonical.retentions.length,1);assert.equal(canonical.obligations.length,1);assert.equal(canonical.siteInstructions.length,1);
+ assert.equal(canonical.variations.length,0,'a relationship to VO-9 does not create a second variation record');
+ const retention=state.evidenceDocuments[0]!,bytes=readFileSync(retention.storedPath),sourceHash=retention.sourceHashSha256;
+ retention.basisState='historical';delete state.activeEvidenceBasis[retention.familyKey];
+ retention.derivedRegisterRead={producerVersion:'register-derived-v5',sourceHashSha256:sourceHash};
+ const refreshed=await store.refreshSpreadsheetRegisters(projectId);
+ assert.equal(refreshed.refreshedDocumentCount,1);assert.equal(retention.basisState,'active');
+ assert.equal(retention.sourceHashSha256,sourceHash);assert.deepEqual(readFileSync(retention.storedPath),bytes);
+ assert.equal((await store.refreshSpreadsheetRegisters(projectId)).refreshedDocumentCount,0,'migration must be idempotent');
+});
+
 test('shared reader upgrade repairs text/plain CSV ingestion without changing another project or source bytes', async t => {
  const dir=mkdtempSync(join(tmpdir(),'delimiter-upgrade-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));
  const store=new RuntimeProjectStore({dataDir:dir,durable:false});
@@ -186,7 +225,7 @@ test('shared reader upgrade repairs text/plain CSV ingestion without changing an
  const sourceHash=doc.sourceHashSha256;
  const result=await store.refreshSpreadsheetRegisters('REGISTER-PROJECT');
  assert.equal(result.refreshedDocumentCount,1);assert.deepEqual(result.diagnostics,[]);
- assert.equal(doc.derivedRegisterRead?.producerVersion,'register-derived-v5');
+ assert.equal(doc.derivedRegisterRead?.producerVersion,'register-derived-v6');
  assert.equal(sourceTables([doc],[])[0]!.recognition?.recognized,true);
  assert.equal(doc.sourceHashSha256,sourceHash);assert.deepEqual(readFileSync(doc.storedPath),bytes);
  assert.equal(JSON.stringify(unchanged),beforeOther);

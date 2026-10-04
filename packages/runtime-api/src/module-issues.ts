@@ -85,7 +85,10 @@ export function assessModuleIssues(result: ModuleRuntimeResult, consistency: Con
   const visited=new WeakSet<object>();
   const noDiagnostics:readonly string[]=[];
   const issueStates=new Set(['conflicted','invalid','stale','missing','not_submitted','missing_evidence','missing_information','submitted_unparsed','candidate','provisional','pending_review']);
-  const excludedKeys=new Set(['source','sourceLedger','futureRows','undatedRows','futureInsurances','undatedInsurances','claimsReporting','challenge','reportingContract','moduleReadiness','issueAssessment','systemEvidenceContract','controlBasis','sourceRefs','diagnostics','receipts','population','populations','model']);
+  // Comparison envelopes retain their own input/reconciliation states. The
+  // separate headcount review does not govern readiness of an hours/capacity
+  // source position; the primary challenge is classified above on its basis.
+  const excludedKeys=new Set(['source','sourceLedger','futureRows','undatedRows','futureInsurances','undatedInsurances','claimsReporting','challenge','manpowerRequirementComparison','reportingContract','moduleReadiness','issueAssessment','systemEvidenceContract','controlBasis','sourceRefs','diagnostics','receipts','population','populations','model']);
   // Large schedule/register projections contain thousands of flat row objects.
   // Most rows have only scalar values plus empty diagnostics/sourceRefs arrays.
   // Recursing into those rows can never discover an issue, so screen them before
@@ -128,7 +131,7 @@ export function assessModuleIssues(result: ModuleRuntimeResult, consistency: Con
     }
     else if(['invalid','stale'].includes(value.state)||invalid.length) add('data_quality','SOURCE_QUALITY',field+' · data quality',invalid.join('; ')||'The supplied record is invalid or stale for this position.',
       'Correct or govern the specific source record, then rerun the same validation.',path,'Project evidence owner',refs);
-    else if(value.state!=='submitted_unparsed'&&(['missing','not_submitted','missing_evidence','missing_information'].includes(value.state)||missingInput.length)) add('missing_information','MISSING_SOURCE_VALUE',field+' · information missing',
+    else if(value.state!=='submitted_unparsed'&&value.applicability!=='stage_not_reached'&&(['missing','not_submitted','missing_evidence','missing_information'].includes(value.state)||missingInput.length)) add('missing_information','MISSING_SOURCE_VALUE',field+' · information missing',
       value.consequence||missingInput.join('; ')||'The required source value is not established.',value.action||'Supply or identify the specific missing input; an existing register does not establish every field or calculation. Do not substitute zero.',path,'Project evidence owner',refs);
     else if(value.state==='submitted_unparsed') add('verification_pending','SUBMITTED_NOT_INTERPRETED',field+' · submitted evidence not interpreted',
       'A source exists, but CMeng has not established its structured meaning. Its presence is not proof of absence or bad data.',

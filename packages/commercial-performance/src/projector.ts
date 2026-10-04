@@ -58,7 +58,7 @@ function pct(
 
 function authorityForSnapshot(
   snapshot:
-    PerformanceCostSnapshotInput,
+    Pick<PerformanceCostSnapshotInput, 'state'>,
 ): CommercialFindingAuthority {
   if (
     snapshot.state ===
@@ -89,7 +89,7 @@ function authorityForSnapshot(
 
 function stateForSnapshot(
   snapshot:
-    PerformanceCostSnapshotInput,
+    Pick<PerformanceCostSnapshotInput, 'state'>,
 ): CommercialFindingState {
   if (
     snapshot.state ===
@@ -2059,15 +2059,9 @@ function cashFlow(
                       metric
                         .sourceRefs,
                     authority:
-                      metric.state ===
-                      "official"
-                        ? "source"
-                        : "candidate",
+                      authorityForSnapshot(metric),
                     state:
-                      metric.state ===
-                      "official"
-                        ? "established"
-                        : "candidate",
+                      stateForSnapshot(metric),
                     consequence:
                       "Cash-flow expenditure is aggregated only from an explicit incremental series basis.",
                     action: null,
@@ -2087,7 +2081,13 @@ function cashFlow(
         const staged:
           CashFlowEntry[] = [];
         let monotonic = true;
+        let seriesState: PerformanceCostMetricInput['state'] = 'official';
+        const seriesRefs: string[] = [];
         for (const metric of ordered) {
+          seriesState = seriesState === 'conflicted' || metric.state === 'conflicted' ? 'conflicted'
+            : seriesState === 'candidate' || metric.state === 'candidate' ? 'candidate'
+            : seriesState !== 'official' || metric.state !== 'official' ? 'partial' : 'official';
+          seriesRefs.push(...metric.sourceRefs);
           const delta =
             metric.value! -
             prior;
@@ -2114,13 +2114,12 @@ function cashFlow(
                     metric.asOf,
                   method:
                     "project_cumulative_cash_flow_delta",
-                  sourceRefs:
-                    metric
-                      .sourceRefs,
-                  authority:
-                    "calculated",
-                  state:
-                    "established",
+                    sourceRefs:
+                      uniq(seriesRefs),
+                    authority:
+                      seriesState === 'official' ? "calculated" : authorityForSnapshot({state:seriesState}),
+                    state:
+                      stateForSnapshot({state:seriesState}),
                   submitted:
                     metric.value!,
                   independent:
@@ -2130,10 +2129,7 @@ function cashFlow(
                   action: null,
                 },
               ),
-            sourceRefs: [
-              ...metric
-                .sourceRefs,
-            ],
+            sourceRefs: uniq(seriesRefs),
           });
           prior =
             metric.value!;
@@ -2172,6 +2168,30 @@ function cashFlow(
             b.periodDate,
           ),
     );
+
+    // Compatible explicit transaction series establish movement on their own
+    // dates. Certification/forecast-only dates must carry the last cash balance
+    // rather than permanently erase it. An absent or incomplete actual series
+    // never qualifies for zero movement or a complete funding calculation.
+    const movementCompleteness=new Map<CashFlowEntry['kind'],boolean>();
+    const calculateMovementCompleteness = (kind: CashFlowEntry['kind']): boolean => {
+      const rows=entries.filter(entry=>entry.kind===kind);
+      if(!knownTaxBasis||!rows.length||rows.some(row=>row.amount.state!=='established'||row.amount.value===null))return false;
+      if(kind==='paid_income'||kind==='certified_income')return payments.every(payment=>{
+        const amount=kind==='paid_income'?payment.paidAmount:payment.certifiedAmount,
+          date=kind==='paid_income'?payment.paymentDate:payment.certificationDate;
+        return amount!==null&&reportingScope(date,input.dataDateIso)!=='undated';
+      });
+      const names=kind==='actual_expenditure'?aliases.actualExpenditure:
+        kind==='expenditure_budget'?aliases.expenditureBudget:aliases.expenditureForecast;
+      const sourceRows=input.costMetrics.filter(row=>names.map(normalized).includes(normalized(row.metric))&&
+        reportingScope(row.asOf,input.dataDateIso)!=='future');
+      return sourceRows.length>0&&sourceRows.every(row=>row.value!==null&&row.state==='official'&&reportingScope(row.asOf,input.dataDateIso)==='as_of');
+    };
+    const completeMovement=(kind:CashFlowEntry['kind'])=>{
+      const prior=movementCompleteness.get(kind);if(prior!==undefined)return prior;
+      const complete=calculateMovementCompleteness(kind);movementCompleteness.set(kind,complete);return complete;
+    };
 
     const totalFor = (
       kind:
@@ -2217,6 +2237,10 @@ function cashFlow(
     ) => {
       const value =
         totalFor(kind);
+      const rows=entries.filter(entry=>entry.kind===kind);
+      const candidate=rows.some(row=>row.amount.state==='candidate');
+      const conflicted=rows.some(row=>row.amount.state==='conflicted');
+      const complete=completeMovement(kind);
       return value === null
         ? missing(
             "cash_flow_total:" +
@@ -2241,14 +2265,17 @@ function cashFlow(
                   kind,
                 ),
               authority:
-                "calculated",
+                conflicted ? "mixed" : candidate ? "candidate" : "calculated",
               state:
-                "established",
+                conflicted ? "conflicted" : candidate ? "candidate" : complete ? "established" : "partial",
               independent:
-                value,
+                complete ? value : null,
               consequence:
-                "The total uses only explicit dated entries of one currency.",
-              action: null,
+                conflicted ? "This retained subtotal includes conflicting evidence and is not an established cash position."
+                  : candidate ? "This retained subtotal includes candidate evidence and is not an established cash position."
+                  : complete ? "The total uses only explicit dated entries of one currency."
+                  : "Known dated entries are retained as a subtotal; incomplete current source evidence prevents an established total.",
+              action: complete ? null : "Review candidate evidence and complete the applicable dated transaction population.",
             },
           );
     };
@@ -2280,7 +2307,7 @@ function cashFlow(
       );
 
     const net =
-      paidIncome.value !==
+        completeMovement('paid_income')&&completeMovement('actual_expenditure')&&paidIncome.value !==
         null &&
       actualExpenditure.value !==
         null
@@ -2385,7 +2412,7 @@ function cashFlow(
             entry.kind === kind,
         );
       if (!rows.length) {
-        return null;
+        return completeMovement(kind)?0:null;
       }
       return sumKnown(
         rows.map(
@@ -2397,27 +2424,27 @@ function cashFlow(
 
     let cumulativeCertified:
       number | null =
-      hasCertifiedIncome
+      completeMovement('certified_income')
         ? 0
         : null;
     let cumulativePaid:
       number | null =
-      hasPaidIncome
+      completeMovement('paid_income')
         ? 0
         : null;
     let cumulativeBudget:
       number | null =
-      hasBudget
+      completeMovement('expenditure_budget')
         ? 0
         : null;
     let cumulativeForecast:
       number | null =
-      hasForecast
+      completeMovement('expenditure_forecast')
         ? 0
         : null;
     let cumulativeActual:
       number | null =
-      hasActualExpenditure
+      completeMovement('actual_expenditure')
         ? 0
         : null;
     const cumulativeActualSeries:
@@ -2428,8 +2455,8 @@ function cashFlow(
       [];
     let peakNeed:
       number | null =
-      hasPaidIncome &&
-      hasActualExpenditure
+      completeMovement('paid_income') &&
+      completeMovement('actual_expenditure')
         ? 0
         : null;
 
@@ -2574,7 +2601,7 @@ function cashFlow(
                     ),
               );
             if (!rows.length) {
-              return null;
+              return completeMovement(kind)?0:null;
             }
             return sumKnown(
               rows.map(
@@ -2667,7 +2694,7 @@ function cashFlow(
         : knownTaxBasis && hasCertifiedIncome && isAggregableCashBasis(
               certifiedBasis,
             )
-          ? "ready" as const
+          ? completeMovement('certified_income') ? "ready" as const : "partial" as const
           : "not_aggregable" as const;
     const receiptsState =
       paidAmountRows.length ===
@@ -2678,7 +2705,7 @@ function cashFlow(
         : knownTaxBasis && hasPaidIncome && isAggregableCashBasis(
               paidBasis,
             )
-          ? "ready" as const
+          ? completeMovement('paid_income') ? "ready" as const : "partial" as const
           : "not_aggregable" as const;
     const expenditureState =
       actualExpenditureRows.length ===
@@ -2687,7 +2714,7 @@ function cashFlow(
         : knownTaxBasis && hasActualExpenditure && isAggregableCashBasis(
               actualExpenditureBasis,
             )
-          ? "ready" as const
+          ? completeMovement('actual_expenditure') ? "ready" as const : "partial" as const
           : "not_aggregable" as const;
     const budgetState =
       expenditureBudgetRows.length ===
@@ -2696,7 +2723,7 @@ function cashFlow(
         : knownTaxBasis && hasBudget && isAggregableCashBasis(
               expenditureBudgetBasis,
             )
-          ? "ready" as const
+          ? completeMovement('expenditure_budget') ? "ready" as const : "partial" as const
           : "not_aggregable" as const;
     const forecastState =
       expenditureForecastRows.length ===
@@ -2705,7 +2732,7 @@ function cashFlow(
         : knownTaxBasis && hasForecast && isAggregableCashBasis(
               expenditureForecastBasis,
             )
-          ? "ready" as const
+          ? completeMovement('expenditure_forecast') ? "ready" as const : "partial" as const
           : "not_aggregable" as const;
     const forwardPlanState =
       budgetState === "ready" &&
@@ -2736,6 +2763,8 @@ function cashFlow(
           certificationState ===
           "ready"
             ? "Certified amounts can be aggregated as a controlled project series, but remain separate from cash receipts."
+            : certificationState === "partial"
+              ? "Known certifications are retained, but the applicable amount/date population is incomplete."
             : certificationState ===
                 "not_aggregable"
               ? "Certified amounts exist, but their series basis is not one explicit incremental or project-cumulative basis, so CMeng withholds the project total."
@@ -2771,6 +2800,8 @@ function cashFlow(
           receiptsState ===
           "ready"
             ? "Actual paid cash has an explicit date and aggregable series basis."
+            : receiptsState === "partial"
+              ? "Known receipts are retained, but the applicable amount/date population is incomplete."
             : receiptsState ===
                 "not_aggregable"
               ? "Paid amounts and dates exist, but the cash series basis is not explicitly incremental or project cumulative."
@@ -2800,6 +2831,8 @@ function cashFlow(
           expenditureState ===
           "ready"
             ? "Dated actual cash expenditure has an aggregable series basis."
+            : expenditureState === "partial"
+              ? "Known cash expenditure is retained, but its current population is incomplete or contains unestablished evidence."
             : actualExpenditureRows
                   .length === 0 &&
                 actualCostRows.length >
@@ -2813,6 +2846,8 @@ function cashFlow(
           expenditureState ===
           "ready"
             ? null
+            : expenditureState === "partial"
+              ? "Resolve source authority and complete the applicable expenditure amounts and dates."
             : actualExpenditureRows
                   .length === 0
               ? "Provide dated actual cash expenditure separately from AC/accrual cost."
@@ -2890,7 +2925,13 @@ function cashFlow(
     state:
       currencies.length === 0
         ? "missing" as const
-        : currencies.some(
+        : currencies.every(position=>position.sourceReadiness.certification.state==='ready'&&
+            position.sourceReadiness.receipts.state==='ready'&&position.sourceReadiness.expenditure.state==='ready'&&
+            position.sourceReadiness.forwardPlan.state==='ready'&&position.sourceReadiness.netCashReady&&
+            position.sourceReadiness.fundingCurveReady&&position.peakFundingNeed.state==='established'&&
+            position.entries.every(entry=>entry.amount.state==='established'))
+          ? 'established' as const
+          : currencies.some(
               (position) =>
                 position.paidIncome
                   .value !==

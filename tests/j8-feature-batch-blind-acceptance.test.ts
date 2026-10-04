@@ -116,7 +116,7 @@ async function createAndUpload(base:string,project:BatchProject,prefix:string){
   const created=await request(base,'/api/projects',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({projectId:project.projectId})});
   assert.equal(created.status,201,project.projectId+' creation failed: '+created.text);
   for(const [index,document] of project.documents.entries()){
-    const isCommercialContract=prefix==='F6-COMMERCIAL'&&document.domain==='contract';
+    const isCommercialContract=prefix==='F6-COMMERCIAL'&&document.domain==='contract'&&document.kind==='pdf';
     const uploaded=await request(base,'/api/projects/'+encodeURIComponent(project.projectId)+(isCommercialContract?'/contract/uploads':'/evidence/uploads'),{
       method:'POST',
       headers:{
@@ -143,7 +143,7 @@ async function adoptBlindProgrammeHistory(base:string,projectId:string){
   }
 }
 async function governCommercialBlindTruth(base:string,project:any){
-  const contractDoc=project.documents.find((document:any)=>document.domain==='contract');
+  const contractDoc=project.documents.find((document:any)=>document.domain==='contract'&&document.kind==='pdf');
   const facts=contractDoc?.truth?.facts??{};
   assert.ok(typeof facts.baseValue==='number'&&typeof facts.currency==='string'&&typeof facts.contractualCompletion==='string'&&
     typeof facts.approvedVariation==='number'&&typeof facts.pendingVariation==='number'&&typeof facts.grossCertifiedAmount==='number'&&
@@ -194,6 +194,35 @@ async function governCommercialBlindTruth(base:string,project:any){
         assessedAmount:row.assessedAmount,
         sourceRefs:['blind-independent-'+row.claimId.toLowerCase()+':'+project.projectId],
       })),
+      // The generated register reports assessments, but that status is not an
+      // authorised determination. Supply an explicit professional monetary
+      // review through the same governed control workflow a user must use.
+      // These dates/amounts come from the independent input manifest, never a
+      // CMeng calculation. No assessed EOT days or entitlement are promoted.
+      delayClaims:{
+        projectId:project.projectId,
+        evidenceRevisionId:'governed-commercial-review:'+project.projectId,
+        dataDateIso:project.dataDateIso,
+        events:facts.claimCommercials.map((row:any)=>({
+          eventId:row.eventId,title:row.title,category:'other',startIso:row.eventStart,endIso:null,
+          responsibility:'unknown',responsibilityState:'missing',describedImpactDays:null,describedImpactState:'missing',
+          relatedActivityIds:[],relatedClauseIdentifiers:[],evidenceRefs:[{sourceType:'claim',sourceId:row.claimId,locator:'independent-input-manifest'}],diagnostics:[],
+        })),
+        claims:facts.claimCommercials.map((row:any)=>({
+          claimId:row.claimId,title:row.title,state:'under_review',eventIds:[row.eventId],submittedAt:row.submittedAt,
+          assessedAt:row.assessedAt,claimedDays:row.claimedDays,claimedAmount:row.claimedAmount,
+          assessedDays:null,assessedDaysState:'missing',assessedAmount:row.assessedAmount,assessedAmountState:'official',
+          clauseIdentifiers:[],evidenceRefs:[{sourceType:'claim',sourceId:row.claimId,locator:'independent-professional-monetary-review'}],diagnostics:[],
+        })),
+        notices:facts.claimCommercials.map((row:any)=>({
+          noticeId:'N-'+row.claimId,kind:'claim_notice',eventId:row.eventId,claimId:row.claimId,
+          actualIssuedAt:row.noticeDate,actualReceivedAt:row.noticeDate,plannedAt:null,subject:row.title,
+          clauseIdentifiers:['20.1'],evidenceRefs:[{sourceType:'notice',sourceId:'N-'+row.claimId,locator:'independent-input-manifest'}],diagnostics:[],
+        })),
+        noticeRequirements:[{requirementId:'CONTRACT-INITIAL-NOTICE',noticeKind:'claim_notice',eventCategories:[],
+          noticePeriodDays:14,triggerBasis:'event_start',state:'official',clauseIdentifiers:['20.1'],
+          evidenceRefs:[{sourceType:'contract',sourceId:'independent-contract-input',locator:'6 Notices and Claims'}]}],diagnostics:[],
+      },
     }),
   });
   assert.equal(updated.status,200,'F6 governed contract truth failed '+project.projectId+': '+updated.text.slice(0,700));
@@ -326,11 +355,47 @@ function assertFeatureSubstance(batchId:string,page:ModuleDescriptor,body:any,pr
   }
   if(batchId==='F5-DELAY-CLAIMS'&&page.key==='windows-analysis')
     assert.equal(availability?.state,'active','F5 Delay Windows requires a real revision-to-revision window for '+projectId);
-  if(batchId==='F6-COMMERCIAL')assert.equal(body.status,'ready',
+  if(batchId==='F6-COMMERCIAL'&&page.key==='contract-particulars-bonds'){
+    // Reading an LD clause produces a candidate term, not professional adoption.
+    // This input deliberately contains no adoption: certify its qualified state
+    // and reject every other unexplained blocker instead of demanding promotion.
+    const focus=data.focus,ld=focus?.liquidatedDamages,issues=body.issueAssessment?.issues??data.issueAssessment?.issues??[];
+    assert.equal(body.status,'ready','F6 Contract Particulars calculations and governed source populations must be ready '+projectId);
+    assert.equal(ld?.rateState,'candidate');assert.equal(ld?.capState,'candidate');
+    assert.ok(ld.scenarios.length>0&&ld.scenarios.every((row:any)=>row.uncappedExposure.state==='candidate'&&row.cappedExposure.state==='candidate'),
+      'F6 extraction must not promote an LD scenario into an authoritative deduction '+projectId);
+    for(const key of ['contractObligations','bondsInsurance','retentionCalendar'])assert.equal(focus[key]?.state,'established',
+      'F6 '+key+' must be established separately from the unadopted LD terms '+projectId);
+    assert.ok(issues.length>0&&issues.every((issue:any)=>issue.kind==='governance_review'&&
+      issue.evidencePaths.every((path:string)=>path.includes('liquidatedDamages'))),
+      'F6 only the explicitly unadopted LD authority may qualify Contract Particulars '+projectId+': '+JSON.stringify(issues));
+  }else if(batchId==='F6-COMMERCIAL')assert.equal(body.status,'ready',
     'F6 '+page.key+' must be established, not merely visible, for '+projectId+'; reason: '+String(body.reason??'')+
     '; blockers: '+JSON.stringify((body.issueAssessment?.issues??body.data?.issueAssessment?.issues??[]).map((issue:any)=>({code:issue.code,path:issue.evidencePaths?.[0],summary:issue.summary,detail:issue.detail}))));
   if(batchId==='F7-DELIVERY')assert.ok(body.status==='ready'||body.status==='partial',
     'F7 '+page.key+' did not produce a Delivery feature result for '+projectId);
+}
+
+function assertIndependentCommercialFacts(project:BatchProject,page:ModuleDescriptor,body:any){
+  const facts=project.documents.find(document=>document.truth.facts.costSnapshots)?.truth.facts;
+  if(page.key!=='cost-forecast')return;
+  const snapshots=facts?.costSnapshots as any[]|undefined;
+  assert.ok(snapshots?.length&&snapshots.every(row=>row.asOf<=project.dataDateIso),'Independent cost manifest is required');
+  const expected=snapshots!.find(row=>row.asOf===project.dataDateIso)!,focus=body.data.focus,position=focus.costControl.positions[0];
+  assert.equal(position.asOf,expected.asOf);
+  for(const [field,truthField] of Object.entries({bac:'bac',pv:'pv',ev:'ev',ac:'ac',sourceEac:'eac',sourceEtc:'etc',sourceVac:'vac'}))
+    assert.equal(position[field].value,expected[truthField],'Independent '+field+' differs '+project.projectId);
+  const round=(value:number)=>Math.round(value*1e6)/1e6;
+  assert.equal(position.cpi.value,round(expected.ev/expected.ac));
+  assert.equal(position.spi.value,round(expected.ev/expected.pv));
+  assert.equal(position.cv.value,expected.ev-expected.ac);assert.equal(position.sv.value,expected.ev-expected.pv);
+  assert.equal(position.calculatedVac.value,expected.bac-expected.eac);
+  for(const [field,truthField] of Object.entries({price:'priceVariance',quantity:'quantityVariance',productivity:'productivityVariance'}))
+    assert.equal(position.varianceDecomposition[field].value,expected[truthField]);
+  const points=focus.evmPerformance.series[0].points;
+  assert.equal(points.length,snapshots!.length,'Independent dated EVM population differs');
+  for(const truth of snapshots!){const point=points.find((row:any)=>row.asOf===truth.asOf);assert.ok(point);
+    assert.equal(point.pv.value,truth.pv);assert.equal(point.ev.value,truth.ev);assert.equal(point.ac.value,truth.ac);}
 }
 
 async function projectsFor(batchId:string,seed:string){
@@ -528,6 +593,7 @@ for(const batch of pageBatches){
           }
           activeByPage.set(page.key,(activeByPage.get(page.key)??0)+1);
           assertFeatureSubstance(batch.id,page,result.body,project.projectId);
+          if(batch.id==='F6-COMMERCIAL')assertIndependentCommercialFacts(project,page,result.body);
           if(result.body&&typeof result.body==='object'&&typeof result.body.projectId==='string')
             assert.equal(result.body.projectId,project.projectId,batch.id+' page project drift '+page.key);
 

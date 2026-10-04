@@ -370,7 +370,7 @@ const deliverySourceDomain=(key:string):ManagementSourceDomain|null=>
  key==='delivery-quality'?'quality':
  key==='delivery-hse'?'hse':null;
 export function deliveryModule(state:ProjectRuntimeState,key:string):ModuleRuntimeResult{
- if(key==='delivery-interfaces')return interfaceModule(state);
+ if(key==='delivery-interfaces')return deliveryExportResult(state,interfaceModule(state));
  const definition=deliveryPages.find(p=>p[0]===key);if(!definition)return {key,status:'blocked',reason:'Delivery page not found.',dependencies:[],data:null};
  const p=deliveryPosition(state),kind=definition[3],title=definition[1],riskPage=key==='delivery-risks',risk=p.existingAuthorities.risk,boqScope=boqScopeIntelligence(state),interfaces=interfaceIntelligence(state);
  const records=p.records.filter(r=>riskPage?r.links.riskIds.length>0:r.kind===kind);
@@ -510,9 +510,9 @@ export function deliveryModule(state:ProjectRuntimeState,key:string):ModuleRunti
  if(key==='delivery-commissioning')extras.systems=p.commissioningSystems;
  if(p.evidenceMetrics[kind])extras.evidenceMetrics=p.evidenceMetrics[kind];
  extras.relationshipAuthorities=Object.fromEntries(Object.entries(p.relationshipAuthorities).map(([kind,rows])=>[kind,rows.map(r=>({id:r.id,label:r.label,authority:kind==='risk'?'Existing project Risk authority':kind==='variation'?'Existing Commercial authority':'Existing Delay / Notices / Claims authority'}))]));
- return {key,status:!usable?'blocked':ready?'ready':'partial',reason:managementPosition,dependencies:useBoqCandidates?['readable BOQ scope']:['controlled programme','applicable Delivery records'],scheduleAuthorityReview:p.scheduleAuthorityReview,
+ return deliveryExportResult(state,{key,status:!usable?'blocked':ready?'ready':'partial',reason:managementPosition,dependencies:useBoqCandidates?['readable BOQ scope']:['controlled programme','applicable Delivery records'],scheduleAuthorityReview:p.scheduleAuthorityReview,
   data:{projectionKey:'delivery',deliveryPage:key,projectId:state.projectId,projectVersion:state.version,dataDateIso:p.dataDateIso,programmeLabel:p.programmeLabel,programmeRevisionId:p.programmeRevisionId,title,kind,managementPosition,boqDerivedCandidate:useBoqCandidates,candidateBasis:useBoqCandidates?boqScope.basis:null,rows:rows.map(r=>({...r,projectId:state.projectId})),metrics,findings,
-   reviewRecords:records.map(r=>({recordId:r.recordId,reference:r.reference,description:r.description,kind:r.kind,state:r.state,revision:r.revision,diagnostics:r.diagnostics})),population,populationAuthority,summary,documents:sourceDocs,sourceAvailability,sourceReadingDiagnostics:p.diagnostics.filter(d=>sourceDocs.some(doc=>d.includes(doc.documentId))),authorityScope:p.authorityScope,authorityLinks:{programme:'/schedule/modules/schedule-analytics',progress:'/schedule/modules/progress-report',installed:'/schedule/modules/quantity-scurve',commercial:'/commercial/modules/commercial-overview',claims:'/schedule/modules/delay-claims'},...extras}};
+   reviewRecords:records.map(r=>({recordId:r.recordId,reference:r.reference,description:r.description,kind:r.kind,state:r.state,revision:r.revision,diagnostics:r.diagnostics})),population,populationAuthority,summary,documents:sourceDocs,sourceAvailability,sourceReadingDiagnostics:p.diagnostics.filter(d=>sourceDocs.some(doc=>d.includes(doc.documentId))),authorityScope:p.authorityScope,authorityLinks:{programme:'/schedule/modules/schedule-analytics',progress:'/schedule/modules/progress-report',installed:'/schedule/modules/quantity-scurve',commercial:'/commercial/modules/commercial-overview',claims:'/schedule/modules/delay-claims'},...extras}});
 }
 export function deliveryDashboard(state:ProjectRuntimeState){
  const inventory=managementSourceInventory(state);
@@ -543,7 +543,7 @@ export function deliveryDashboard(state:ProjectRuntimeState){
 }
 export function deliveryExportResult(state:ProjectRuntimeState,result:ModuleRuntimeResult):ModuleRuntimeResult{
  const data=result.data as any;if(data?.projectionKey!=='delivery')return result;
- const p=deliveryPosition(state),riskPage=data.deliveryPage==='delivery-risks',kinds=data.deliveryPage==='delivery-control'?deliveryKinds:[data.kind,'lifecycle','gate'];
+ const p=deliveryPosition(state),riskPage=data.deliveryPage==='delivery-risks',kind=data.kind??deliveryPages.find(page=>page[0]===data.deliveryPage)?.[3],kinds=data.deliveryPage==='delivery-control'?deliveryKinds:[kind,'lifecycle','gate'];
  const sourceRecords=p.records.filter(r=>riskPage?r.links.riskIds.length>0:kinds.includes(r.kind)),recordIds=new Set(sourceRecords.map(r=>r.recordId));
  return {...result,data:{...data,sourceRecords,reviewHistory:deliveryStore(state).decisions.filter(d=>recordIds.has(d.recordId)),populationDecisions:deliveryStore(state).populations.filter(d=>riskPage?d.recordIds.some(id=>recordIds.has(id))||!!d.scopeId&&recordIds.has(d.scopeId):kinds.includes(d.kind))}};
 }

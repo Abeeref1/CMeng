@@ -719,53 +719,75 @@ export async function generateCommercialFeatureBlindProject(seed:string,index=0)
   const costHeaders=['Metric','Value','Currency','Status','As Of','Amount Basis','VAT Basis','CBS ID','CBS Description','WBS ID'];
   const costRows=[
     ['EVM','1',currency,'Approved',dataDateIso,'snapshot','Exclusive','CBS-ROOT','Project Controls','ROOT'],
-    ['BAC',String(currentValue),currency,'Approved',dataDateIso,'snapshot','Exclusive'],
-    ['PV',String(Math.round(currentValue*.35)),currency,'Approved',prior2,'snapshot','Exclusive'],
-    ['EV',String(Math.round(currentValue*.31)),currency,'Approved',prior2,'snapshot','Exclusive'],
-    ['AC',String(Math.round(currentValue*.33)),currency,'Actual',prior2,'snapshot','Exclusive'],
-    ['PV',String(Math.round(currentValue*.55)),currency,'Approved',prior1,'snapshot','Exclusive'],
-    ['EV',String(Math.round(currentValue*.50)),currency,'Approved',prior1,'snapshot','Exclusive'],
-    ['AC',String(Math.round(currentValue*.53)),currency,'Actual',prior1,'snapshot','Exclusive'],
-    ['PV',String(Math.round(currentValue*.72)),currency,'Approved',prior0,'snapshot','Exclusive'],
-    ['EV',String(Math.round(currentValue*.66)),currency,'Approved',prior0,'snapshot','Exclusive'],
-    ['AC',String(Math.round(currentValue*.70)),currency,'Actual',prior0,'snapshot','Exclusive'],
-    ['EAC',String(Math.round(currentValue*1.06)),currency,'Forecast',prior0,'snapshot','Exclusive'],
-    ['ETC',String(Math.round(currentValue*.36)),currency,'Forecast',prior0,'snapshot','Exclusive'],
     ['Original Contract Value',String(baseValue),currency,'Approved',dataDateIso,'snapshot','Exclusive'],
     ['Approved Variations',String(approvedVariation),currency,'Approved',dataDateIso,'snapshot','Exclusive'],
     ['Current Contract Value',String(currentValue),currency,'Approved',dataDateIso,'snapshot','Exclusive'],
     ['Actual Expenditure',String(Math.round(currentValue*.09)),currency,'Actual',prior2,'incremental','Exclusive'],
     ['Actual Expenditure',String(Math.round(currentValue*.17)),currency,'Actual',prior1,'incremental','Exclusive'],
     ['Actual Expenditure',String(Math.round(currentValue*.21)),currency,'Actual',prior0,'incremental','Exclusive'],
-    ['Expenditure Budget',String(Math.round(currentValue*.24)),currency,'Approved',future,'incremental','Exclusive'],
-    ['Expenditure Forecast',String(Math.round(currentValue*.26)),currency,'Forecast',future,'incremental','Exclusive'],
+    ['Expenditure Budget',String(Math.round(currentValue*.24)),currency,'Approved',dataDateIso,'incremental','Exclusive'],
+    ['Expenditure Forecast',String(Math.round(currentValue*.26)),currency,'Forecast',dataDateIso,'incremental','Exclusive'],
   ];
+  // Complete dated submissions exercise EVM and forecasts on the same basis.
+  // BAC at the Data Date cannot supply missing PV/EV/AC for that date, and a
+  // forecast from an earlier period must not silently become the current one.
+  const costSnapshots=[
+    {asOf:prior2,bac:baseValue,pvFraction:.35,evFraction:.31,acFraction:.33,eacFraction:1.05},
+    {asOf:prior1,bac:currentValue,pvFraction:.55,evFraction:.50,acFraction:.53,eacFraction:1.06},
+    {asOf:prior0,bac:currentValue,pvFraction:.72,evFraction:.66,acFraction:.70,eacFraction:1.06},
+    {asOf:dataDateIso,bac:currentValue,pvFraction:.74,evFraction:.69,acFraction:.73,eacFraction:1.08},
+  ].map(period=>{
+    const {asOf,bac}=period,pv=Math.round(bac*period.pvFraction),ev=Math.round(bac*period.evFraction),
+      ac=Math.round(bac*period.acFraction),eac=Math.round(bac*period.eacFraction),cv=ev-ac,
+      priceVariance=Math.round(cv*.4),quantityVariance=Math.round(cv*.35),productivityVariance=cv-priceVariance-quantityVariance;
+    const values={BAC:bac,PV:pv,EV:ev,AC:ac,EAC:eac,ETC:eac-ac,VAC:bac-eac,
+      'Price Variance':priceVariance,'Quantity Variance':quantityVariance,'Productivity Variance':productivityVariance};
+    for(const [metric,value] of Object.entries(values))costRows.push([
+      metric,String(value),currency,metric==='AC'?'Actual':['EAC','ETC','VAC'].includes(metric)?'Forecast':'Approved',asOf,'snapshot','Exclusive',
+    ]);
+    return {asOf,bac,pv,ev,ac,eac,etc:eac-ac,vac:bac-eac,priceVariance,quantityVariance,productivityVariance};
+  });
   for(const row of costRows){
     const metric=String(row[0]??'Cost');
     while(row.length<costHeaders.length)row.push(metric==='EVM'?'CBS-ROOT':metric.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').toUpperCase()||'CBS-COST',metric+' control','ROOT');
   }
-  docs.push(shuffledCsvDocument(h,'EVM_Cost_Report_'+h.int(10,999)+'.csv','evm',costHeaders,costRows));
-  const paymentHeaders=['Certificate No','Payment Type','Period End','Application Date','Assessment Date','Certificate Date','Payment Due Date','Payment Date','Payment Reference','Payment Source Status','Gross Work','Variations','Gross Certified Amount','Employer Certified Amount','Net Certified','Paid Amount','Retention','Advance Recovery','Other Deductions','Tax Amount','Outstanding Amount','Currency','Status','Certified Amount Basis','Paid Amount Basis','VAT Basis'];
+  const costDocument=shuffledCsvDocument(h,'EVM_Cost_Report_'+h.int(10,999)+'.csv','evm',costHeaders,costRows);
+  Object.assign(costDocument.truth.facts,{costSnapshots});
+  docs.push(costDocument);
+  const paymentHeaders=['Certificate No','Payment Type','Period End','Application Date','Assessment Date','Certificate Date','Payment Due Date','Payment Date','Payment Reference','Payment Source Status','Gross Work','Variations','Gross Certified Amount','Employer Certified Amount','Net Certified','Paid Amount','Retention','Advance Recovery','Other Deductions','Tax Amount','Outstanding Amount','Currency','Status','Certified Amount Basis','Paid Amount Basis','VAT Basis','Application Amount','Engineer Assessed Amount','Variation Certified Amount','Paid Allocation Basis','Retention Release Due Date'];
   const paymentRows=[prior2,prior1,prior0].map((period,i)=>{
     const net=Math.round(currentValue*(.10+i*.08)),retention=Math.round(net*.05),advance=Math.round(net*.02),other=Math.round(net*.01),variationCertified=Math.round(net*.03);
     const grossWork=net+retention+advance+other-variationCertified,grossCertified=grossWork+variationCertified,employerCertified=grossCertified;
     const paid=Math.round(net*.92);
-    return ['IPC-'+(i+1),'Interim',period,shiftDate(period,-10),shiftDate(period,-5),shiftDate(period,-3),shiftDate(period,25),shiftDate(period,15),'PAY-'+(i+1),'Posted',
-      String(grossWork),String(variationCertified),String(grossCertified),String(employerCertified),String(net),String(paid),String(retention),String(advance),String(other),'0',String(net-paid),currency,'Paid','incremental','incremental','Exclusive'];
+    return ['IPC-'+(i+1),'Interim',period,shiftDate(period,-10),shiftDate(period,-5),shiftDate(period,-3),shiftDate(period,25),period,'PAY-'+(i+1),'Posted',
+      String(grossWork),String(variationCertified),String(grossCertified),String(employerCertified),String(net),String(paid),String(retention),String(advance),String(other),'0',String(net-paid),currency,'Paid','incremental','incremental','Exclusive',
+      String(Math.round(grossCertified*1.02)),String(grossCertified),String(variationCertified),'certificate cumulative',shiftDate(contractualCompletion,30)];
   });
   docs.push(shuffledCsvDocument(h,'Payment_Certificates_'+h.int(10,999)+'.csv','payments',paymentHeaders,paymentRows));
-  const variationHeaders=['Variation ID','Description','Status','Submitted Date','Assessment Date','Agreed Date','Approval Date','Claimed Amount','Assessed Amount','Agreed Amount','Approved Amount','Schedule Impact Days','Claim ID','Payment ID','Activity ID','Clause','Currency'];
+  const variationHeaders=['Variation ID','Description','Status','Submitted Date','Assessment Date','Agreed Date','Approval Date','Claimed Amount','Assessed Amount','Agreed Amount','Approved Amount','Schedule Impact Days','Claim ID','Payment ID','Activity ID','Clause','Currency','VAT Basis','Instruction ID','Instruction Date','Quotation Date'];
   const variationRows=[
-    ['VO-1','Scope change A','Approved',prior2,shiftDate(prior2,7),shiftDate(prior2,14),shiftDate(prior2,21),String(Math.round(approvedVariation*1.08)),String(Math.round(approvedVariation*.96)),String(approvedVariation),String(approvedVariation),'5','CLM-1','IPC-2','','13.3',currency],
-    ['VO-2','Scope change B','Pending',prior1,shiftDate(prior1,8),'','',String(pendingVariation),String(Math.round(pendingVariation*.8)),'','','3','','','','13.3',currency],
+    ['VO-1','Scope change A','Approved',prior2,shiftDate(prior2,7),shiftDate(prior2,14),shiftDate(prior2,21),String(Math.round(approvedVariation*1.08)),String(Math.round(approvedVariation*.96)),String(approvedVariation),String(approvedVariation),'5','CLM-1','IPC-2','','13.3',currency,'Exclusive','SI-1',shiftDate(prior2,-2),shiftDate(prior2,3)],
+    ['VO-2','Scope change B','Pending',prior1,shiftDate(prior1,8),'','',String(pendingVariation),String(Math.round(pendingVariation*.8)),'','','3','','','','13.3',currency,'Exclusive','SI-2',shiftDate(prior1,-2),shiftDate(prior1,3)],
   ];
   docs.push(shuffledCsvDocument(h,'Variation_Register_'+h.int(10,999)+'.csv','variations',variationHeaders,variationRows));
-  const claimHeaders=['Claim ID','Event ID','Event','Event Start','Event End','Responsibility','Category','Impact Days','Activity ID','Notice Date','Days Claimed','Days Granted','Claimed Amount','Assessed Amount','Status','Clause','Determination ID','Day Basis','Currency'];
+  docs.push(shuffledCsvDocument(h,'Site_Instructions_'+h.int(10,999)+'.csv','variations',
+    ['Instruction ID','Description','Issue Date','Status','Variation ID','Quotation Due Date','Quotation Date','Schedule Impact Days','Estimated Amount','Currency','VAT Basis'],
+    [
+      ['SI-1','Scope change A instruction',shiftDate(prior2,-2),'Issued','VO-1',shiftDate(prior2,5),shiftDate(prior2,3),'5',String(approvedVariation),currency,'Exclusive'],
+      ['SI-2','Scope change B instruction',shiftDate(prior1,-2),'Issued','VO-2',shiftDate(prior1,5),shiftDate(prior1,3),'3',String(pendingVariation),currency,'Exclusive'],
+    ]));
+  docs.push(shuffledCsvDocument(h,'Contract_Obligations_'+h.int(10,999)+'.csv','contract',
+    ['Obligation ID','Clause','Description','Responsible Party','Due Date','Completed Date','Status','Evidence Reference'],
+    [['OBL-2','2','Current certification and payment control','Engineer',shiftDate(dataDateIso,7),'','Open','Payment_Certificates']]));
+  docs.push(shuffledCsvDocument(h,'Retention_Balance_'+h.int(10,999)+'.csv','payments',
+    ['Retention ID','Status','Retention Amount','Currency','VAT Basis','As Of','Due Date','Trigger'],
+    [['RET-CURRENT','Held',String(Math.round(baseValue*.04)),currency,'Exclusive',dataDateIso,shiftDate(contractualCompletion,30),'Taking Over Certificate']]));
+  const claimHeaders=['Claim ID','Event ID','Event','Event Start','Event End','Responsibility','Category','Impact Days','Activity ID','Notice Date','Days Claimed','Days Granted','Claimed Amount','Assessed Amount','Status','Clause','Determination ID','Day Basis','Currency','Submitted Date','Assessment Date'];
   const claim1Claimed=h.int(200_000,800_000),claim1Assessed=h.int(150_000,Math.max(150_001,claim1Claimed));
   const claim2Claimed=h.int(150_000,500_000),claim2Assessed=h.int(100_000,Math.max(100_001,claim2Claimed));
   const claimRows=[
-    ['CLM-1','EV-1','Late access',shiftDate(prior2,-10),shiftDate(prior2,-2),'Employer','late access','8','',shiftDate(prior2,-8),'8','5',String(claim1Claimed),String(claim1Assessed),'Engineer Determined','20.1','DET-1','calendar days',currency],
-    ['CLM-2','EV-2','Late design information',shiftDate(prior1,-14),shiftDate(prior1,-4),'Employer','design','10','',shiftDate(prior1,-11),'10','6',String(claim2Claimed),String(claim2Assessed),'Engineer Determined','20.1','DET-2','calendar days',currency],
+    ['CLM-1','EV-1','Late access',shiftDate(prior2,-10),shiftDate(prior2,-2),'Employer','late access','8','',shiftDate(prior2,-8),'8','5',String(claim1Claimed),String(claim1Assessed),'Engineer Determined','20.1','DET-1','calendar days',currency,prior2,shiftDate(prior2,7)],
+    ['CLM-2','EV-2','Late design information',shiftDate(prior1,-14),shiftDate(prior1,-4),'Employer','design','10','',shiftDate(prior1,-11),'10','6',String(claim2Claimed),String(claim2Assessed),'Engineer Determined','20.1','DET-2','calendar days',currency,prior1,shiftDate(prior1,7)],
   ];
   docs.push(shuffledCsvDocument(h,'Claims_Register_'+h.int(10,999)+'.csv','claims',claimHeaders,claimRows));
   const bondHeaders=['Bond ID','Bond Type','Bond Amount','Status','Expiry Date','Currency'];
@@ -789,8 +811,8 @@ export async function generateCommercialFeatureBlindProject(seed:string,index=0)
     claimedAmount:claim1Claimed+claim2Claimed,
     assessedClaimAmount:claim1Assessed+claim2Assessed,
     claimCommercials:[
-      {claimId:'CLM-1',claimedAmount:claim1Claimed,assessedAmount:claim1Assessed},
-      {claimId:'CLM-2',claimedAmount:claim2Claimed,assessedAmount:claim2Assessed},
+      {claimId:'CLM-1',eventId:'EV-1',title:'Late access',eventStart:shiftDate(prior2,-10),noticeDate:shiftDate(prior2,-8),submittedAt:prior2,assessedAt:shiftDate(prior2,7),claimedDays:8,claimedAmount:claim1Claimed,assessedAmount:claim1Assessed},
+      {claimId:'CLM-2',eventId:'EV-2',title:'Late design information',eventStart:shiftDate(prior1,-14),noticeDate:shiftDate(prior1,-11),submittedAt:prior1,assessedAt:shiftDate(prior1,7),claimedDays:10,claimedAmount:claim2Claimed,assessedAmount:claim2Assessed},
     ],
     ldCapPercent:10,
   });

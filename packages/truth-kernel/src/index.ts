@@ -367,6 +367,8 @@ export interface TableSemanticSchema {documentType:string;category:string;requir
 export const tableSemanticSchemas:readonly TableSemanticSchema[]=[
   {documentType:'payment_certificates',category:'boq_cost',required:[['certificate no'],['net certified','gross work','paid amount','retention','advance recovery']],optional:['period end','certificate date','payment date','currency','status']},
   {documentType:'variation_register',category:'boq_cost',required:[['variation id'],['approved amount','submitted amount','agreed amount','assessed amount','status']],optional:['approval date','currency','description']},
+  {documentType:'site_instruction_register',category:'boq_cost',required:[['instruction id','site instruction id','si id'],['issue date','instruction date']],optional:['status','quotation due date','quotation date','description','variation id','estimated amount','currency']},
+  {documentType:'contract_obligation_register',category:'contract',required:[['obligation id'],['due date']],optional:['clause','description','responsible party','status','evidence reference']},
   {documentType:'retention_register',category:'boq_cost',required:[['retention id','certificate no'],['retention','retention amount','held amount']],optional:['status','currency','payment date']},
   {documentType:'bond_register',category:'boq_cost',required:[['bond id'],['amount','bond amount','guarantee amount']],optional:['expiry date','status','currency','bond type']},
   {documentType:'risk_register',category:'risk_claims_procurement',required:[['risk id'],['status','description','owner','due date']],optional:['rating','probability','impact','identified date','status as of']},
@@ -409,6 +411,11 @@ export function inferTableSemanticRoute(
   const candidates=tableSemanticSchemas.map(schema=>{
     const headers=raw.map((value,index)=>canonicalHeader(confirmed.get(index)??value,schema.documentType));
     const keys=new Set(headers);
+    // A variation reference on an instruction identifies its relationship. It
+    // cannot turn the instruction's status into a duplicate variation status.
+    if(schema.documentType==='variation_register'&&['instruction id','site instruction id','si id'].some(key=>keys.has(key))&&
+      ['issue date','instruction date'].some(key=>keys.has(key))&&
+      !['approved amount','submitted amount','claimed amount','agreed amount','assessed amount','approval date','submitted date','assessment date'].some(key=>keys.has(key)))return null;
     const groupHit=(group:string[])=>group.some(field=>keys.has(canonicalHeader(field,schema.documentType)));
     const requiredHits=schema.required.filter(groupHit).length;
     if(requiredHits!==schema.required.length)return null;

@@ -297,9 +297,14 @@ function variations(
         const stageDates=[row.instructionDate,row.submittedDate,row.quotationDate,row.assessedDate,row.agreedDate,row.approvalDate];
         const scope = stageDates.some(d=>reportingScope(d,input.dataDateIso)==='as_of')?'as_of':stageDates.some(d=>reportingScope(d,input.dataDateIso)==='future')?'future':'undated';
         const approvalScope=reportingScope(row.approvalDate,input.dataDateIso);
-        const stageMoney = (money: ContractControlMoney, date: string | null, method: string, consequence: string): CommercialFinding<number> => {
+        const stageMoney = (money: ContractControlMoney, date: string | null, method: string, consequence: string, requiredStage?: 'agreed' | 'approved'): CommercialFinding<number> => {
           const scope=reportingScope(date,input.dataDateIso);
           const result=moneyFinding(money,method,consequence);
+          const sourceStage=variationStage(sourceRow),ranks={unknown:0,instruction:1,submitted:2,quoted:3,assessed:4,agreed:5,approved:6,rejected:6};
+          if(requiredStage&&money.value===null&&!date&&ranks[sourceStage]<ranks[requiredStage])return {
+            ...result,reportingScope:scope,applicability:'stage_not_reached',action:null,
+            consequence:'The '+requiredStage+' stage has not been reached. No '+requiredStage+' amount is established or included in current totals.',
+          };
           if(scope==='as_of'||money.value===null)return {...result,reportingScope:scope};
           return {...result,reportingScope:scope,value:null,submitted:money.value,state:'partial',
             consequence:scope==='future'?'Source amount is dated after the Data Date and excluded from current totals.':'Source amount is retained, but its event date is not established for the current position.',
@@ -405,12 +410,14 @@ function variations(
                 sourceRow.agreedAmount, sourceRow.agreedDate,
                 "variation_agreed_amount",
                 "Agreed value remains distinct until contractual approval is evidenced.",
+                'agreed',
               ),
             approved:
               stageMoney(
                 sourceRow.approvedAmount, sourceRow.approvalDate,
                 "variation_approved_amount",
                 "Approved value is the only variation value eligible to change the governed contract sum.",
+                'approved',
               ),
           },
           scheduleImpactDays:
@@ -2175,6 +2182,14 @@ function retentionCalendar(
     const row of
       input.existingRetentions
   ) {
+    // The same governed balance can also be supplied as a dated register row.
+    // Join only an exact identity/value/currency match; never invent dates for
+    // a different or conflicting balance and never count one balance twice.
+    const sameSource=input.retentions.find(source=>source.retentionId===row.retentionId&&
+      source.amount.value===row.amount&&source.amount.currency===row.currency&&
+      /released/i.test(source.state)===(row.state==='released'));
+    const sameRow=sameSource&&rows.find(source=>source.origin==='explicit_register'&&source.retentionId===row.retentionId);
+    if(sameRow){sameRow.sourceRefs=uniq([...sameRow.sourceRefs,...row.sourceRefs]);continue;}
     const key =
       "control:" +
       row.retentionId;
@@ -2274,13 +2289,13 @@ function retentionCalendar(
         ),
       dueDate:
         payment
-          .retentionReleaseDate
+          .retentionReleaseDueDate
           ? finding(
               payment
-                .retentionReleaseDate,
+                .retentionReleaseDueDate,
               {
                 method:
-                  "payment_source_retention_release_date",
+                  "payment_source_retention_release_due_date",
                 asOf:
                   payment.periodEnd,
                 refs:
@@ -2290,7 +2305,7 @@ function retentionCalendar(
                 state:
                   "established",
                 consequence:
-                  "Explicit payment-source release date is retained.",
+                  "Explicit payment-source release due date is retained separately from actual release.",
                 action: null,
               },
             )
@@ -2298,7 +2313,7 @@ function retentionCalendar(
               null,
               {
                 method:
-                  "payment_source_retention_release_date",
+                  "payment_source_retention_release_due_date",
                 authority:
                   "missing",
                 state:
@@ -2309,20 +2324,20 @@ function retentionCalendar(
                   "Provide the release trigger/date.",
               },
             ),
-      releaseDate: null,
+      releaseDate: reportingScope(payment.retentionReleaseDate,input.dataDateIso)==='as_of'?payment.retentionReleaseDate:null,
       daysToDue:
         payment
-          .retentionReleaseDate &&
+          .retentionReleaseDueDate &&
         input.dataDateIso
           ? finding(
               dayDiff(
                 input.dataDateIso,
                 payment
-                  .retentionReleaseDate,
+                  .retentionReleaseDueDate,
               ),
               {
                 method:
-                  "retention_release_date_minus_data_date",
+                  "retention_release_due_date_minus_data_date",
                 asOf:
                   input.dataDateIso,
                 refs:
@@ -2337,7 +2352,7 @@ function retentionCalendar(
               },
             )
           : missingNumber(
-              "retention_release_date_minus_data_date",
+                  "retention_release_due_date_minus_data_date",
               "Provide the retention release date/trigger.",
               "Release due status remains unestablished.",
             ),

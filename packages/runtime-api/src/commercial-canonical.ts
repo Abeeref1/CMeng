@@ -42,6 +42,7 @@ export interface PaymentStageRecord {
   paymentDate: string | null;
   paymentTimestamp: string | null;
   retentionReleaseDate: string | null;
+  retentionReleaseDueDate?: string | null;
   finalReceiptDate: string | null;
   paymentReference: string | null;
 }
@@ -229,13 +230,19 @@ export function commercialCanonical(state:ProjectRuntimeState):CanonicalCommerci
     paymentDueDate:dateValue(cell(r,'payment due date','due date')),
     paymentTimestamp:cell(r,'payment timestamp','paid timestamp')||null,
     retentionReleaseDate:dateValue(cell(r,'retention release date')),
+    retentionReleaseDueDate:dateValue(cell(r,'retention release due date','retention due date')),
     finalReceiptDate:dateValue(cell(r,'final receipt date')),
     amounts,
     receipt:r.receipt,
     ...reconciliation
    });
   }
-  if(has(t,'variation id','status'))for(const r of t.rows){
+  // A related variation ID on an instruction is a relationship, not a second
+  // variation record. Require variation-specific monetary/lifecycle columns.
+  const variationShape=['approved amount','claimed amount','submitted amount','assessed amount','agreed amount',
+    'approval date','submitted date','assessment date','agreed date'].some(label=>t.headers.includes(canonicalHeader(label)));
+  const instructionIdentity=['instruction id','site instruction id','si id'].some(label=>t.headers.includes(canonicalHeader(label)));
+  if((variationShape||!instructionIdentity)&&has(t,'variation id','status'))for(const r of t.rows){
    const approvedHeader=amountHeader(t.headers,'approved amount');
    const agreedHeader=amountHeader(t.headers,'agreed amount');
    const assessedHeader=amountHeader(t.headers,'assessed amount');

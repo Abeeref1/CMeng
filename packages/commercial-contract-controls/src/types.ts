@@ -141,6 +141,7 @@ export interface PaymentRetentionInput {
     ContractControlMoney;
   retentionReleaseDate:
     string | null;
+  retentionReleaseDueDate?: string | null;
   sourceRefs: string[];
 }
 

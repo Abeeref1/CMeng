@@ -2379,7 +2379,7 @@ export class RuntimeProjectStore {
       for(const document of state.evidenceDocuments){
         const isCsv=/csv/.test(document.mediaType)||(/^text\//.test(document.mediaType)&&/\.csv$/i.test(document.sourceFilename)),isWorkbook=/spreadsheetml|macroEnabled/.test(document.mediaType);
         if(document.category==='schedule'||(!isCsv&&!isWorkbook))continue;
-        if(document.derivedRegisterRead?.producerVersion==='register-derived-v5'&&document.derivedRegisterRead.sourceHashSha256===document.sourceHashSha256&&(!isWorkbook||document.tabularRead?.producerVersion==='register-workbook-v3'))continue;
+        if(document.derivedRegisterRead?.producerVersion==='register-derived-v6'&&document.derivedRegisterRead.sourceHashSha256===document.sourceHashSha256&&(!isWorkbook||document.tabularRead?.producerVersion==='register-workbook-v3'))continue;
         try{
           const bytes=readFileSync(document.storedPath);if(hashBytes(bytes)!==document.sourceHashSha256)throw new Error('SOURCE_HASH_MISMATCH');
           const identified=await identifyEvidenceDocument({bytes,sourceFilename:document.sourceFilename,sourceRelativePath:document.sourceRelativePath,declaredMediaType:document.mediaType});
@@ -2409,7 +2409,11 @@ export class RuntimeProjectStore {
             readiness=mergeDerivedReadiness(readiness,deriveReadinessFromCsv({state,document:semanticDocument,bytes:registerSource.bytes,sheetName:registerSource.sheetName}));
           }
           if(next.familyKey!==document.familyKey){families.add(document.familyKey);families.add(next.familyKey);next.diagnostics=[...document.diagnostics,'REGISTER_READER_FAMILY_REFRESH:'+document.familyKey+'->'+next.familyKey];}
-          next.derivedRegisterRead={producerVersion:'register-derived-v5',sourceHashSha256:next.sourceHashSha256};
+          // These supported control registers previously fell through to the
+          // reference-only lifecycle. Replay their saved upload intent and
+          // review decisions under the corrected family behaviour on refresh.
+          if(['retention_register','site_instruction_register','contract_obligation_register'].includes(next.documentType))families.add(next.familyKey);
+          next.derivedRegisterRead={producerVersion:'register-derived-v6',sourceHashSha256:next.sourceHashSha256};
           if(isWorkbook)next.parserState='parsed';
           Object.assign(document,next);
           state.derivedControlsByDocument[document.documentId]=controls;state.derivedReadinessByDocument[document.documentId]=readiness;
@@ -5294,7 +5298,7 @@ export class RuntimeProjectStore {
       }
 
       }
-      document.derivedRegisterRead={producerVersion:'register-derived-v5',sourceHashSha256:hash};
+      document.derivedRegisterRead={producerVersion:'register-derived-v6',sourceHashSha256:hash};
       if(tabularRead)document.parserState="parsed";
       rebuildReadinessEvidence(
         state,
