@@ -24,9 +24,11 @@ export interface CanonicalBoqCommercialItem {
   sourceRefs: string[];
   status: "verified" | "unresolved";
   diagnostics: string[];
+  sourceCellEvidence?: import('../../boq-pdf-parser/src').BoqPdfLineItem['rasterEvidence'];
 }
 
 export interface BoqIngestionResult {
+  pdfRead?: import('../../pdf-document-parser/src').PdfDocumentResult;
   ingestionId: string;
   projectId: string;
   sourceFormat: BoqSourceFormat;

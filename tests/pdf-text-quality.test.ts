@@ -29,7 +29,7 @@ test('empty or fragmented OCR cannot convert a populated unreadable page to blan
  for(const text of ['',broken]){const r=await parsePdfDocument(await pdf(broken),{ocrProvider:provider(text)});assert.equal(r.complete,false);assert.equal(r.failedPages,1);assert.equal(r.blankPages,0);}
 });
 test('valid technical, Arabic, CJK and sparse text is not rejected by fragmentation heuristic',()=>{
- for(const text of ['A B C 1 2 3',Array(80).fill('Concrete reinforcement quantities and unit rates').join('\n'),Array(50).fill('جدول الكميات كمية الخرسانة والأعمال').join('\n'),Array(70).fill('施工 工程 数量 单位').join('\n')])assert.equal(fragmentedPdfText(text),false);
+ for(const text of ['A B C 1 2 3',Array(80).fill('Concrete reinforcement quantities and unit rates').join('\n'),Array(50).fill('جدول الكميات كمية الخرسانة والأعمال').join('\n'),Array(50).fill('كَتَبَ عُمَرُ دَرَسَ عَلِمَ').join('\n'),Array(70).fill('施工 工程 数量 单位').join('\n')])assert.equal(fragmentedPdfText(text),false);
 });
 test('legacy native checkpoint is re-read when its retained text is fragmented',async()=>{
  const bytes=await pdf(broken);const old={pageNumber:1,method:'native' as const,text:broken,nativeCharacterCount:160,ocrConfidence:null,aiReview:null,diagnostics:[]};

@@ -102,6 +102,10 @@ export function assessModuleIssues(result: ModuleRuntimeResult, consistency: Con
     for(const key in item){
       if(!Object.hasOwn(item,key)||excludedKeys.has(key))continue;
       const child=item[key];
+      // Empty arrays and arrays of scalar IDs/dates cannot produce an issue in
+      // the recursive walker. Schedule rows commonly have several such arrays;
+      // preserve inspection of every object-bearing array and every direct signal.
+      if(Array.isArray(child)&&!child.some(value=>value&&typeof value==='object'))continue;
       if(child&&typeof child==='object')return true;
     }
     return false;

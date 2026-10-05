@@ -126,6 +126,7 @@ function pdfSourceRefs(
     page: number;
     table: number;
     row: number;
+    rasterEvidence?: import('../../boq-pdf-parser/src').BoqPdfLineItem['rasterEvidence'];
     sourceCells: Record<string, {
       page: number;
       table: number;
@@ -155,6 +156,15 @@ function pdfSourceRefs(
         ":column:" +
         locator.column,
     );
+  }
+
+  if(item.rasterEvidence){
+    const evidence=item.rasterEvidence;
+    for(const [role,cells] of Object.entries(evidence.cells))for(const cell of cells){
+      if(!cell.text.trim())continue;
+      const b=cell.bounds;
+      refs.push(`pdf:page:${item.page}:rotation:${evidence.rotation}:raster:${evidence.imageWidth}x${evidence.imageHeight}:field:${role}:bounds:${b.x},${b.y},${b.width},${b.height}`);
+    }
   }
 
   return [...new Set(refs)];
@@ -314,6 +324,7 @@ export async function ingestBoq(
   let complete = false;
   let diagnostics: string[] = [];
   let canonicalItems: CanonicalBoqCommercialItem[] = [];
+  let pdfRead: BoqIngestionResult['pdfRead'];
 
   if (sourceFormat === "csv") {
     const parsed = parseBoqCsv(input.bytes);
@@ -394,6 +405,7 @@ export async function ingestBoq(
       input.bytes,
       options.pdf ?? {},
     );
+    pdfRead=parsed.pageRead;
     candidateRows = parsed.candidateRows;
     verifiedRows = parsed.verifiedRows;
     unresolvedRows = parsed.unresolvedRows;
@@ -429,6 +441,7 @@ export async function ingestBoq(
         ),
         status: item.status,
         diagnostics: [...item.diagnostics],
+        ...(item.rasterEvidence?{sourceCellEvidence:item.rasterEvidence}:{}),
       }));
   }
 
@@ -465,6 +478,7 @@ export async function ingestBoq(
     coveragePercent,
     complete,
     canonicalItems,
+    ...(pdfRead?{pdfRead}:{}),
     diagnostics,
     receivedAt: input.receivedAt,
   };

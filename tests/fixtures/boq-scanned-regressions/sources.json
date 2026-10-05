@@ -1,0 +1,39 @@
+[
+  {
+    "filename": "building-page-2.pdf",
+    "originalSourceUrl": "https://quezoncity.gov.ph/wp-content/uploads/2026/09/1.-ENGINEERING-26-BLDG-00100-SECTION-VIII-BILL-OF-QUANTITIES.pdf",
+    "originalSourceSha256": "8879d33daa1ba25ff48f8b8ffdca7535391bd3e1d6c93478f47dd9042a4e3300",
+    "originalPage": 2,
+    "fixtureSha256": "53ce36aacdf054e62ae852b9a8b2e2e40a1df41e69f9f4912818d263f1161eda",
+    "bytes": 429472,
+    "role": "known-regression-only, never fresh"
+  },
+  {
+    "filename": "flood-page-1.pdf",
+    "originalSourceUrl": "https://quezoncity.gov.ph/wp-content/uploads/2026/07/6.-OCM-CDFENGINEERING-26-FLOOD-00074-SECTION-VIII.-BILL-OF-QUANTITIES.pdf",
+    "originalSourceSha256": "9f5214eddd27238dacacea6e5b20ce0f5198b932be1425eab1b5baf2e04c15d8",
+    "originalPage": 1,
+    "fixtureSha256": "2b15f1b6e44ba9053412ebc372ba808b9e6c1a6ed27dd5b753b2afd0c6dc3079",
+    "bytes": 407746,
+    "role": "known-regression-only, never fresh"
+  },
+  {
+    "filename": "electrical-page-2.pdf",
+    "originalSourceUrl": "https://quezoncity.gov.ph/wp-content/uploads/2026/08/1.-ENGINEERING-26-ELEC-00075B-SECTION-VIII.-BILL-OF-QUANTITIES.pdf",
+    "originalSourceSha256": "0308c5b4b58208ebdbe24f9106f9660188449be5b422d95d295af34c2bd38c0f",
+    "originalPage": 2,
+    "fixtureSha256": "2654285d8a150231a30f2aac11f8b827bd244c9077ac6808fe45ea3740d40276",
+    "bytes": 439165,
+    "role": "known-regression-only, never fresh"
+  },
+  {
+    "filename": "building-page-6.pdf",
+    "originalSourceUrl": "https://quezoncity.gov.ph/wp-content/uploads/2026/09/1.-ENGINEERING-26-BLDG-00100-SECTION-VIII-BILL-OF-QUANTITIES.pdf",
+    "originalSourceSha256": "8879d33daa1ba25ff48f8b8ffdca7535391bd3e1d6c93478f47dd9042a4e3300",
+    "originalPage": 6,
+    "fixtureSha256": "86570fc11066fae89f9c9f693f270811ee96df7cc9a3a2fe90c83101b868f597",
+    "bytes": 400319,
+    "role": "known-regression-only, never fresh",
+    "observedSource": "Painting Works, Steel (Color: Paved Path): quantity 3.00 sq.m.; OCR variant returned 300"
+  }
+]

@@ -3,6 +3,7 @@ import { resolveBoqCommercialNumerics } from "../../boq-parser/src/numeric";
 import type { BoqColumnRole } from "../../boq-parser/src/types";
 import { parsePdfDocument } from "../../pdf-document-parser/src";
 import {parseNativeBoqText} from './native-text';
+import {readRasterBoqTable} from './raster-table';
 import type {
   AiBoqCellEvidence,
   AiBoqTableExtraction,
@@ -39,8 +40,9 @@ function arithmeticValid(quantity: number, rate: number, amount: number): boolea
 
 function normalizeEvidence(value: string): string {
   return value
+    .normalize("NFC")
     .toLowerCase()
-    .replace(/[\s,._:\-\/\\()[\]{}]+/g, "")
+    .replace(/\s+/g, " ")
     .trim();
 }
 
@@ -85,11 +87,10 @@ function validateAiTableEvidence(
 
       const normalizedValue = normalizeEvidence(cell.value);
       const normalizedSource = normalizeEvidence(cell.sourceText);
-      if (
-        normalizedValue &&
-        !normalizedSource.includes(normalizedValue) &&
-        !normalizedValue.includes(normalizedSource)
-      ) {
+      // Evidence spans must support the whole cell, including decimals, signs,
+      // units and identifiers. Substring/punctuation-insensitive matching can
+      // certify 3.00 as 300, -3 as 3, or 100 as 10 even if arithmetic balances.
+      if (normalizedValue !== normalizedSource) {
         diagnostics.push(
           "BOQ_AI_VALUE_NOT_SUPPORTED_BY_SOURCE:R" +
             (rowIndex + 1) +
@@ -242,13 +243,15 @@ function parseTableRows(
   return { items, diagnostics };
 }
 
-export async function parseBoqPdf(
+async function parseBoqPdfWithOpenProvider(
   bytes: Uint8Array,
   options: BoqPdfOptions = {},
 ): Promise<BoqPdfResult> {
   const pageResult = await parsePdfDocument(bytes, {
-    ...(options.ocrProvider ? { ocrProvider: options.ocrProvider } : {}),
+    // This parser owns the provider through structured cell extraction too.
+    ...(options.ocrProvider ? { ocrProvider: {name:options.ocrProvider.name,recognize:options.ocrProvider.recognize.bind(options.ocrProvider)} } : {}),
     ...(options.aiPageVerifier ? { aiVerifier: options.aiPageVerifier } : {}),
+    ...(options.onProgress?{onPageRead:(page,total)=>options.onProgress!(page.pageNumber,total,'page_read')}:{}),
   });
 
   const parser = new (await import('pdf-parse')).PDFParse({ data: Buffer.from(bytes) as any });
@@ -275,6 +278,42 @@ export async function parseBoqPdf(
     }
 
     for (const page of pageResult.pages) {
+      const nativeTables:string[][][]=tablePageByNumber.get(page.pageNumber)?.tables??[];
+      if(options.ocrProvider&&nativeTables.length===0){
+        try{
+          const screenshot=await parser.getScreenshot({partial:[page.pageNumber],scale:3,imageBuffer:true,imageDataUrl:false});
+          const image=screenshot.pages[0]?.data;
+          // A large restored BOQ can spend longer in cell extraction than in
+          // page OCR. Report actual successful cell work so the project worker
+          // retains its progress/startup watchdog through both reading phases.
+          const provider=options.ocrProvider;
+          const cellProvider:import('../../pdf-document-parser/src').OcrProvider={name:provider.name,async recognize(image,number,readOptions){
+            const result=await provider.recognize(image,number,readOptions);
+            options.onProgress?.(page.pageNumber,pageResult.totalPages,'table_read');
+            return result;
+          }};
+          const raster=image?await readRasterBoqTable(image,cellProvider,page.pageNumber):null;
+          if(raster){
+            const parsed=parseTableRows(page.pageNumber,1,raster.rows);
+            for(const item of parsed.items){
+              const evidence=raster.cells[item.row-1]??{};
+              const issues=raster.diagnostics[item.row-1]??[];
+              item.rasterEvidence={rotation:raster.rotation,imageWidth:raster.imageWidth,imageHeight:raster.imageHeight,cells:evidence};
+              item.diagnostics.push('BOQ_OFFLINE_RASTER_CELL_EVIDENCE',...issues);
+              // A withheld numeric reading is not a section or an empty row.
+              if(item.rowKind==='section'&&['quantity','rate','amount'].some(role=>(evidence[role]??[]).some(c=>/\d/.test(c.text))))item.rowKind='line_item';
+              if(issues.length){item.status='unresolved';unresolvedPages.add(page.pageNumber);}
+            }
+            items.push(...parsed.items);ocrTablePages++;
+            diagnostics.push('BOQ_OFFLINE_RASTER_TABLE:'+page.pageNumber,...parsed.diagnostics);
+            // Finding one ruled table does not establish complete page coverage.
+            // Keep that distinction until every page region has been reconciled.
+            unresolvedPages.add(page.pageNumber);
+            diagnostics.push('BOQ_RASTER_PAGE_COVERAGE_REVIEW_REQUIRED:'+page.pageNumber);
+            continue;
+          }
+        }catch(error){diagnostics.push('BOQ_RASTER_READING_FAILED:'+page.pageNumber+':'+String(error));}
+      }
       if (page.method === "failed") {
         unresolvedPages.add(page.pageNumber);
         continue;
@@ -396,6 +435,7 @@ export async function parseBoqPdf(
   const verifiedRows = items.length - unresolvedRows;
 
   return {
+    pageRead:pageResult,
     totalPages: pageResult.totalPages,
     nativeTablePages,
     ocrTablePages,
@@ -421,4 +461,9 @@ export async function parseBoqPdf(
       unresolvedPages.size === 0,
     diagnostics,
   };
+}
+
+export async function parseBoqPdf(bytes:Uint8Array,options:BoqPdfOptions={}):Promise<BoqPdfResult>{
+  try{return await parseBoqPdfWithOpenProvider(bytes,options);}
+  finally{await options.ocrProvider?.close?.();}
 }

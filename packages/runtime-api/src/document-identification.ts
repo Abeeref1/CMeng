@@ -2179,6 +2179,11 @@ function classifyText(
 /** Correct a legacy display classification from retained content, without promoting
  * the document, replacing its evidence family, or changing any official facts. */
 export function documentClassificationForReview(document: StoredEvidenceDocument) {
+  if(document.boqTableRead&&document.sourceHashSha256&&document.boqTableRead.sourceHashSha256===document.sourceHashSha256&&document.boqTableRead.structuredTableFound)return {
+    documentType:'boq',category:'boq_cost',recordedDocumentType:document.documentType,
+    reviewRequired:document.documentType!=='boq',
+    reason:document.documentType!=='boq'?'Ruled description, quantity and unit/price columns establish BOQ candidate content. Recorded classification and adoption remain unchanged.':null,
+  };
   if(['bond_register','security_register'].includes(document.documentType)&&document.identification?.method==='metadata_fallback')return {
     documentType:'supporting_document',category:document.category,recordedDocumentType:document.documentType,reviewRequired:true,
     reason:'A filename is not evidence of a bond or guarantee. Retain this document for content review without establishing security authority.',

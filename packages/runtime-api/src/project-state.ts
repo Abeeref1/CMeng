@@ -16,7 +16,7 @@ import {appendAuditEvent,auditContext} from './audit-context';
 import {refreshHseSummary} from "./hse-report-evidence";
 import {refreshDeferredPdfRead} from './document-read-review';
 import {retainedControlAssertionRead} from './control-assertion-read-cache';
-import {quantityModelFromBoq} from './boq-source';
+import {quantityModelFromBoq,quarantineBoqQuantityModel} from './boq-source';
 import { synchronizeCanonicalTimeClaims } from "./canonical-time-claims";
 import { migrateTypedEvidenceFamilies } from "./typed-evidence-families";
 import {
@@ -71,6 +71,7 @@ import {
   TesseractOcrProvider,
   fragmentedPdfText,
 } from "../../pdf-document-parser/src";
+import {refreshDeferredPdfBoq} from './boq-pdf-refresh';
 import {
   parseSubmittedManpowerPlan,
 } from "../../delivery-challenge/src";
@@ -1277,6 +1278,7 @@ function hydrateProject(
     );
   }
 
+  hydrated.quantities=quarantineBoqQuantityModel(hydrated.quantities,hydrated.boq);
   return hydrated;
 }
 
@@ -2339,7 +2341,8 @@ export class RuntimeProjectStore {
         try{
           const contractRead=state.contractDocuments.find(d=>d.documentId===document.documentId&&d.sourceHashSha256===document.sourceHashSha256)?.result.pdf;
           if(contractRead?.complete&&!contractRead.pages.some(p=>p.method==='native'&&fragmentedPdfText(p.text)))continue;
-          if(await refreshDeferredPdfRead(document,()=>process.env.CMENG_OCR_ENABLED?.trim()==='0'?undefined:this.createOcrProvider(),onPageRead)&&state.evidenceDocuments.includes(document)){
+          const refreshedBoq=await refreshDeferredPdfBoq(document,state,()=>process.env.CMENG_OCR_ENABLED?.trim()==='0'?undefined:this.createOcrProvider(),onPageRead);
+          if((refreshedBoq||await refreshDeferredPdfRead(document,()=>process.env.CMENG_OCR_ENABLED?.trim()==='0'?undefined:this.createOcrProvider(),onPageRead))&&state.evidenceDocuments.includes(document)){
             // Physical reading does not grant authority. Retain per-page facts
             // with their source locations, including pages beyond identification.
             const assertions=new Map(document.assertions.map(a=>[a.metric+'|'+String(a.value)+'|'+String(a.unit)+'|'+a.sourceRef,a]));
@@ -6021,7 +6024,7 @@ export class RuntimeProjectStore {
     const state =
       this.getOrCreate(projectId);
     state.quantities =
-      quantities;
+      quarantineBoqQuantityModel(quantities,state.boq);
     this.touchEvidence(state);
   }
 

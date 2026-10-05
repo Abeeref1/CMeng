@@ -368,12 +368,13 @@ function seriesForUnit(
       0,
     );
 
+  const withheldItemIds=new Set(items.filter(item=>item.diagnostics.includes('BOQ_AMOUNT_ARITHMETIC_MISMATCH')).map(item=>item.quantityItemId));
   const relevantAllocations =
     allocations.filter(
       (allocation) =>
         itemIds.has(
           allocation.quantityItemId,
-        ),
+        ) && !withheldItemIds.has(allocation.quantityItemId),
     );
 
   const mappedQuantity =
@@ -645,8 +646,10 @@ export function buildQuantityScurveProjection(
     ...quantities.diagnostics,
     ...mapping.diagnostics,
   ];
+  const withheldItemIds=new Set(quantities.items.filter(item=>item.diagnostics.includes('BOQ_AMOUNT_ARITHMETIC_MISMATCH')).map(item=>item.quantityItemId));
 
   for (const allocation of quantities.allocations) {
+    if(withheldItemIds.has(allocation.quantityItemId))diagnostics.push('QUANTITY_ALLOCATION_SOURCE_WITHHELD:'+allocation.allocationId);
     if (!activities.has(allocation.activityId)) {
       diagnostics.push(
         "QUANTITY_ALLOCATION_ACTIVITY_UNRESOLVED:" +

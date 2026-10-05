@@ -11,6 +11,7 @@ import type {
   CanonicalQuantityItem,
   QuantitySourceRef,
 } from "./types";
+import {admissibleBoqQuantity} from './boq-quantity';
 
 function id(
   sheet: string,
@@ -61,8 +62,7 @@ function fromLineItem(
       section: item.section ?? null,
       description: item.description,
       unit: item.unit,
-      contractQuantity:
-        item.quantity,
+      contractQuantity: admissibleBoqQuantity(item.quantity,item.diagnosticCodes).contractQuantity,
       sourceRefs: [
         ref(
           source,
@@ -70,7 +70,7 @@ function fromLineItem(
         ),
       ],
       diagnostics: [
-        ...item.diagnosticCodes,
+        ...admissibleBoqQuantity(item.quantity,item.diagnosticCodes).diagnostics,
         ...(item.status === "unresolved"
           ? ["QUANTITY_ITEM_SOURCE_UNRESOLVED"]
           : []),
@@ -128,8 +128,7 @@ export function quantityItemsFromBoqPdf(
         section: item.section,
         description: item.description,
         unit: item.unit,
-        contractQuantity:
-          item.quantity,
+        contractQuantity: admissibleBoqQuantity(item.quantity,item.diagnostics).contractQuantity,
         sourceRefs: [
           ref(
             "boq_pdf",
@@ -142,7 +141,7 @@ export function quantityItemsFromBoqPdf(
           ),
         ],
         diagnostics: [
-          ...item.diagnostics,
+          ...admissibleBoqQuantity(item.quantity,item.diagnostics).diagnostics,
           ...(item.status === "unresolved"
             ? [
                 "QUANTITY_ITEM_SOURCE_UNRESOLVED",

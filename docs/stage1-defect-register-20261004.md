@@ -158,3 +158,58 @@ regression: **1,045 passed, zero failed/cancelled/skipped**. These counts overla
 and must not be summed. Full final-source Node 22 regression, new feature
 cohorts, isolated 100-project acceptance, latency/durability and independent
 consultant acceptance remain required. Stage 1 remains open.
+
+
+## 5 October follow-up: scanned BOQ and quantity quarantine
+
+Stage 1 remains open. No stage has independent acceptance.
+
+The fragmented-text correction at `c873620` passed 1,074 local regression
+checks and its separate internal 100-project run. CI Verify 2235 passed its
+regression/cohort phases, then failed the unchanged 5,000 ms cold dashboard gate
+at 5,024.903 ms. Subsequent CI durability and Delivery gates were skipped, not
+passed. The generic issue walker now avoids descending into scalar-only arrays
+that cannot contain findings; a 20,000-row regression preserves late direct and
+nested issues. The unchanged gate passed locally at 4,135.575 ms, with 20,000-row
+upload-to-ready at 3,091.737 ms. New candidate CI remains necessary.
+
+Offline BOQ reading now detects physical table cells, retains source bounds and
+multiple readings, handles rotation, and leaves conflicting numeric/unit/item
+readings unresolved. Independent crop/segmentation views must agree; even a
+lower-confidence valid contradictory numeric reading blocks promotion. Native
+image encoding and cell recognition are sequential after an observed native
+crash. Complete runs of the three retained BOQs now finish: 28 pages, 220
+candidate items, 214 quantity readings and 104 units, with six quantities still
+withheld and all three original hashes unchanged. These counts are partial
+recovery, not independently checked source truth or full table coverage.
+
+Four original source pages are permanent hashed PDF regressions. The original
+painting quantity `3.00` versus an OCR variant `300` remains explicitly withheld.
+An AI evidence validation hole also allowed punctuation/sign removal and numeric
+substrings: exact normalized source spans now retain punctuation and signs.
+Three source-mutation cases failed before that correction. Restored uploads gain
+hash-bound derived reading receipts without adopting candidates or replacing
+source identity. Real page/cell progress reaches the worker startup watchdog.
+The reader/AI/issue focused suite passed 37 tests before the final quantity fix.
+
+A separately reported isolated-worktree arithmetic guard was not present in this
+branch. Seven new regressions reproduced quantity leakage from CSV, XLSX,
+OOXML, PDF, canonical ingestion and cached state. A shared guard now withholds
+`contractQuantity` on `BOQ_AMOUNT_ARITHMETIC_MISMATCH`, retaining the candidate
+as `QUANTITY_ITEM_CANDIDATE_WITHHELD:<value>`. An arithmetic mismatch does not
+prove which source field is wrong; no decimal is inferred or repaired. Source
+rows remain as read. Unrelated unresolved fields do not suppress a good quantity,
+and explicit zero is retained. Snapshot hydration and read projections apply the
+same quarantine to legacy saved quantities while retaining allocations and dated
+installed evidence. Saved allocations for a quarantined source cannot feed
+baseline/forecast S-curves, and a partly unknown mapping cannot claim complete
+population coverage. Eight new permanent cases and the relevant quantity,
+feasibility, native BOQ, Ask and reporting suite pass: 102 tests, zero failures,
+cancellations or skips.
+
+Full verification of this follow-up is in progress at this checkpoint. Prior
+1,080-test and internal 100-project results belong to an earlier intermediate
+tree and cannot certify this follow-up. Real-source coverage, fresh external
+cohorts, independent acceptance, hosted replay and exact release acceptance are
+still open. Production remains `828b4ad`; review remains `9831316` at the last
+hosting inspection. No source, threshold or valid expected answer was weakened.

@@ -254,3 +254,21 @@ test("high-confidence AI BOQ cell without valid OCR source span is rejected", as
     ),
   );
 });
+
+for (const attack of [
+  { name: 'decimal point removed', source: ['3.00','2','6.00'], changed: ['300','2','600'] },
+  { name: 'minus sign removed', source: ['-3','2','-6'], changed: ['3','2','6'] },
+  { name: 'numeric prefix truncated', source: ['100','2','200'], changed: ['10','2','20'] },
+] as const) test('AI source validation rejects '+attack.name+' even when changed arithmetic balances', async()=>{
+  const sourceRows=[['Item','Description','Unit','Qty','Rate','Amount'],['1','Painting steel','m2',...attack.source]];
+  const text=sourceRows.map(r=>r.join(' ')).join('\n');
+  const rows=evidenceRows(text,sourceRows);
+  attack.changed.forEach((value,index)=>{rows[1]![index+3]!.value=value;});
+  const parsed=await parseBoqPdf(await blankScannedPlaceholderPdf(),{
+    ocrProvider:new FakeOcr(text),
+    aiTableExtractor:{name:'adversarial-source-mutation',async extract(){return {rows,confidence:1,diagnostics:[]};}},
+  });
+  assert.equal(parsed.complete,false);
+  assert.equal(parsed.items.length,0,'A balancing AI rewrite is not source evidence');
+  assert.ok(parsed.diagnostics.some(d=>d.includes('BOQ_AI_VALUE_NOT_SUPPORTED_BY_SOURCE')));
+});

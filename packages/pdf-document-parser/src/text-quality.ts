@@ -2,7 +2,9 @@
  * with one OCR character per line). This is a conservative rejection check, not
  * a statement that every accepted character or numeric cell is correct. */
 export function fragmentedPdfText(text: string): boolean {
-  const words = text.match(/[\p{Script=Latin}\p{Script=Arabic}]+/gu) ?? [];
+  // Combining vowel marks must not split a normal Arabic or accented word
+  // into apparent single-character fragments. The retained text is untouched.
+  const words = text.normalize('NFC').replace(/\p{M}/gu,'').match(/[\p{Script=Latin}\p{Script=Arabic}]+/gu) ?? [];
   if (words.length < 40) return false;
   const singles = words.filter(word => [...word].length === 1).length;
   const meaningful = words.filter(word => [...word].length >= 3).length;

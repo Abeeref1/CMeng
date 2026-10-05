@@ -118,6 +118,7 @@ export function assessQuantityMapping(
       overAllocatedItemIds.length === 0 &&
       partiallyAllocatedItemIds.length === 0 &&
       unmappedItemIds.length === 0 &&
+      knownQuantityItemCount === model.items.length &&
       knownQuantityItemCount > 0,
     diagnostics,
   };
