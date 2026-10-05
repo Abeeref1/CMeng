@@ -43,7 +43,7 @@ function horizontal(r:Raster,x:number,width:number,top:number,bottom:number,thre
 }
 /** Faded rules can cross several pixel rows. Require an almost continuous
  * stroke across the cell, so pale text cannot supply a new row boundary. */
-function faintHorizontal(r:Raster,x:number,width:number,top:number,bottom:number,minStroke=.75,bridgeGaps=false,inkThreshold=235):number[]{
+function faintHorizontal(r:Raster,x:number,width:number,top:number,bottom:number,minStroke=.75,bridgeGaps=false,inkThreshold=235,minDensity=.92):number[]{
  const selected:number[]=[],maxGap=Math.max(2,Math.ceil(width*.01));
  for(let y=Math.max(2,top);y<Math.min(r.height-2,bottom);y++){
   let dark=0,run=0,longest=0,gaps=0;
@@ -54,7 +54,7 @@ function faintHorizontal(r:Raster,x:number,width:number,top:number,bottom:number
    if(ink){dark++;run++;gaps=0;longest=Math.max(longest,run);}
    else if(bridgeGaps&&run&&++gaps<=maxGap)run++;else run=0;
   }
-  if(dark>=width*.92&&longest>=Math.max(40,width*minStroke))selected.push(y);
+  if(dark>=width*minDensity&&longest>=Math.max(40,width*minStroke))selected.push(y);
  }
  return groupedPositions(selected);
 }
@@ -118,25 +118,37 @@ function grid(r:Raster,enhanced=false,compact=false){
  ys.sort((a,b)=>a-b);
  if(ys.length<3)return null;
  const top=ys[0]!,bottom=ys.at(-1)!;
+ const inferredCells=new Set<Box>();
  const columns=xs.slice(0,-1).map((x,i)=>{
   const l=x+4,width=xs[i+1]!-l-4;
   if(width<10)return [];
+  const recoveredBoundaries:number[]=[];
   const boundaries=mergePositions([top,bottom,...horizontal(r,l,width,top,bottom+1,135,.67),...horizontal(r,l,width,top,bottom+1,185,.50)]);
   // Preserve the coordinates of established dark rules and supplement only
   // missing ones; changing a good crop can unnecessarily change OCR evidence.
   for(const y of faintHorizontal(r,l,width,top,bottom+1,.75,enhanced,compact?250:enhanced?245:235))if(!boundaries.some(old=>Math.abs(old-y)<=8))boundaries.push(y);
   // A damaged rule may consist of several long strokes in this column. It
   // can divide cells only when a separate column corroborates its position.
-  for(const y of enhanced?faintHorizontal(r,l,width,top,bottom+1,.35,true,compact?250:245):[])if(faintRules.some(rule=>rule.column!==i&&Math.abs(rule.y-y)<=8)&&!boundaries.some(old=>Math.abs(old-y)<=8))boundaries.push(y);
+  for(const y of enhanced?faintHorizontal(r,l,width,top,bottom+1,.35,true,compact?250:245,.50):[])if(new Set(faintRules.filter(rule=>rule.column!==i&&Math.abs(rule.y-y)<=8).map(rule=>rule.column)).size>=2&&!boundaries.some(old=>Math.abs(old-y)<=8))boundaries.push(y);
+  // A missing divider in one column can be recovered from three independent
+  // ruled columns only through a clear band, never through visible cell text.
+  for(const rule of enhanced?faintRules:[]){
+   const y=rule.y;if(y<=top+10||y>=bottom-10||boundaries.some(old=>Math.abs(old-y)<=8)||new Set(faintRules.filter(other=>other.column!==i&&Math.abs(other.y-y)<=5).map(other=>other.column)).size<3)continue;
+   let ink=0;for(let yy=y-2;yy<=y+2;yy++)for(let xx=l+4;xx<l+width-4;xx++)if(r.pixels[(yy*r.width+xx)*4]!<235)ink++;
+   if(ink<=width*.02){boundaries.push(y);recoveredBoundaries.push(y);}
+  }
   boundaries.sort((a,b)=>a-b);
   return boundaries.slice(0,-1).flatMap((y,j)=>{
    // Keep descenders and comma tails near the rule. A large fixed inset can
    // turn "sq.m." into "sa.m." or a thousands comma into a decimal point.
    const height=boundaries[j+1]!-y-4;
-   return height>=10?[{x:l,y:y+2,width,height}]:[];
+   if(height<10)return [];
+   const box={x:l,y:y+2,width,height};
+   if(recoveredBoundaries.includes(y)||recoveredBoundaries.includes(boundaries[j+1]!))inferredCells.add(box);
+   return [box];
   });
  });
- return {xs,top,bottom,columns};
+ return {xs,top,bottom,columns,inferredCells};
 }
 /** Estimate small scan skew from long vertical strokes, not recognized values.
  * A tilted table spreads each rule across many image columns, so a fixed-column
@@ -260,6 +272,7 @@ function unitKey(text:string):string|null{
 export async function readRasterBoqTable(image:Uint8Array,provider:OcrProvider,pageNumber:number):Promise<RasterBoqTable|null>{
  const original=await loadImage(Buffer.from(image));
  let mergedFallback:RasterBoqTable|null=null;
+ let tableOrientation:number|null=null;
  // Exhaust established orientation/skew recovery before expanding pale rules.
  // Otherwise a tilted pale grid can win early and change valid numeric crops.
  // A short table can occupy less than a quarter of a full page. Try shorter
@@ -267,8 +280,9 @@ export async function readRasterBoqTable(image:Uint8Array,provider:OcrProvider,p
  // recognized physical header cells still have to establish every role.
  for(const recovery of ['standard','pale','compact'] as const){
  const enhanced=recovery!=='standard';
- const rotations:number[]=[0,90,270,180];
- for(const rotation of rotations){
+ const rotations:number[]=tableOrientation===null?[0,90,270,180]:[tableOrientation];
+ for(let orientationIndex=0;orientationIndex<rotations.length;orientationIndex++){
+  const rotation=rotations[orientationIndex]!;
   const quarter=rotation===90||rotation===270,rigid=rotation%90===0,angle=rotation*Math.PI/180;
   const width=rigid?(quarter?original.height:original.width):Math.ceil(Math.abs(original.width*Math.cos(angle))+Math.abs(original.height*Math.sin(angle)));
   const height=rigid?(quarter?original.width:original.height):Math.ceil(Math.abs(original.width*Math.sin(angle))+Math.abs(original.height*Math.cos(angle)));
@@ -328,9 +342,21 @@ export async function readRasterBoqTable(image:Uint8Array,provider:OcrProvider,p
   if(!header){queueDeskew();continue;}
   const roles=header.roles,descriptionColumn=Number(Object.keys(roles).find(k=>roles[Number(k)]==='description'))-1;
   const rows:string[][]=[headerValues],evidenceRows:Record<string,RasterCellEvidence[]>[]=[{}],diagnostics:string[][]=[[]];
-  const recoveredDescriptionBoxes=new Set<Box>();
+  const recoveredDescriptionBoxes=new Set<Box>(g.inferredCells);
+  let descriptionStart=descriptionColumn;
+  const continuousDividers=descriptionStart>0?faintVertical(r,.26,245):[];
+  while(descriptionStart>0&&!roles[descriptionStart]&&!headerValues[descriptionStart-1]?.trim()&&!continuousDividers.some(x=>Math.abs(x-g.xs[descriptionStart]!)<=8))descriptionStart--;
+  const descriptionLeft=g.columns[descriptionStart]?.[0]?.x;
   const roleColumn=(role:BoqColumnRole)=>g.columns[Number(Object.keys(roles).find(k=>roles[Number(k)]===role))-1]??[];
-  const descBoxes=(g.columns[descriptionColumn]??[]).filter(b=>b.y>=headerBottom).flatMap(box=>{
+  const descBoxes=(g.columns[descriptionColumn]??[]).filter(b=>b.y>=headerBottom).map(box=>{
+   // A short spurious separator must not clip the first characters of a
+   // description. Include adjacent blank-header, unmapped columns in its crop;
+   // explicitly identified item-code and numeric columns remain separate.
+   if(descriptionLeft===undefined||descriptionLeft>=box.x)return box;
+   const expanded={...box,x:descriptionLeft,width:box.x+box.width-descriptionLeft};
+   if(recoveredDescriptionBoxes.has(box))recoveredDescriptionBoxes.add(expanded);
+   return expanded;
+  }).flatMap(box=>{
    if(!enhanced)return [box];
    // Some originals omit the description divider entirely. A cut then needs
    // aligned physical boundaries in quantity, unit and a pricing column, plus
@@ -376,6 +402,7 @@ export async function readRasterBoqTable(image:Uint8Array,provider:OcrProvider,p
      if(!nonempty.length)continue;
      if(nonempty.length!==1){issues.push('BOQ_RASTER_'+role.toUpperCase()+'_MULTIPLE_CELLS');continue;}
      const cell=nonempty[0]!;
+     if(cell.bounds.y<box.y-8||cell.bounds.y+cell.bounds.height>box.y+box.height+8){issues.push('BOQ_RASTER_'+role.toUpperCase()+'_ROW_SPAN_REVIEW_REQUIRED');continue;}
      // Grid removal can make several correlated rereads confidently agree on
      // a lost decimal. A weak original reading needs another unaltered crop;
      // processed-image agreement alone cannot certify a pale source number.
@@ -441,16 +468,31 @@ export async function readRasterBoqTable(image:Uint8Array,provider:OcrProvider,p
      row[index]=simple(cell.text);
     }
    }
+   const physicalCells=Object.values(evidence).flat().sort((a,b)=>a.bounds.x-b.bounds.x);
+   const physicalTexts=[false,true].map(confirmed=>physicalCells.map(cell=>(confirmed?cell.confirmation?.text:undefined)??cell.text).join('').replace(/\s+/g,''));
+   // OCR can divide "Page 1 of 8" across projected description/quantity
+   // columns and read its g as j. This whole-row footer is never a BOQ item.
+   if(physicalTexts.some(text=>/^pa[gji]e\d+(?:of|0f)\d+$/i.test(text)))continue;
    rows.push(row);evidenceRows.push(evidence);diagnostics.push(issues);
   }
   if(rows.length>1){
    const result={rows,cells:evidenceRows,diagnostics,rotation,imageWidth:r.width,imageHeight:r.height};
+   // Recovery must not erase columns already established by a physical
+   // header. A tilted/pale alternative recognizing only price headings is
+   // not a replacement for an existing quantity-and-unit table.
+   const established=mergedFallback&&detectBoqHeader([mergedFallback.rows[0]!]);
+   if(established&&Object.values(established.roles).some(role=>!Object.values(roles).includes(role))){queueDeskew();continue;}
    // A recognizable header is not enough when one description cell spans
    // several quantity/unit cells. Let pale/compact geometry try to separate
    // the physical rows; retain the unresolved original if none succeeds.
-   if(diagnostics.some(row=>row.includes('BOQ_RASTER_QUANTITY_MULTIPLE_CELLS')||row.includes('BOQ_RASTER_UNIT_MULTIPLE_CELLS'))){
+   if(diagnostics.some(row=>row.includes('BOQ_RASTER_QUANTITY_MULTIPLE_CELLS')||row.includes('BOQ_RASTER_UNIT_MULTIPLE_CELLS')||row.some(issue=>issue.endsWith('_ROW_SPAN_REVIEW_REQUIRED')))){
     if(!mergedFallback||rows.length>mergedFallback.rows.length)mergedFallback=result;
+    // A recognized table with body rows establishes its orientation. Further
+    // geometry recovery should inspect that table and its small skew, rather
+    // than repeatedly OCR the same page sideways and upside down.
+    tableOrientation=rotation;
     queueDeskew();
+    rotations.splice(orientationIndex+1,rotations.length-orientationIndex-1,...rotations.slice(orientationIndex+1).filter(angle=>angle%90!==0));
     continue;
    }
    return result;

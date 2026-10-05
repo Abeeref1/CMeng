@@ -343,6 +343,8 @@ async function parseBoqPdfWithOpenProvider(
               // A low-confidence hallucination over an empty ruled cell must
               // not turn a section heading into a new quantity-review item.
               if(item.rowKind==='section'&&(item.unit!==null||['quantity','rate','amount'].some(role=>(evidence[role]??[]).some(c=>{
+                const description=evidence.description?.[0]?.bounds;
+                if(description&&(c.bounds.y<description.y-8||c.bounds.y+c.bounds.height>description.y+description.height+8))return false;
                 const readings=[c,c.confirmation,...(c.additionalReadings??[])].filter((reading):reading is NonNullable<typeof reading>=>!!reading);
                 const numeric=readings.some(reading=>(reading.confidence??0)>=.70&&/^[+\-]?[\d.,\s]+$/.test(reading.text)&&parseStrictNumeric(reading.text).status==='valid');
                 // A merged heading can extend into nominal numeric columns.

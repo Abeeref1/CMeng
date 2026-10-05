@@ -42,6 +42,8 @@ for(const source of [
  {file:'near-white-column-rule.pdf',count:15,anchors:[['Rubble Masonry',25.02],['Backfill',3.28],['Billboard',1]]},
  {file:'merged-wrapped-descriptions.pdf',count:28,anchors:[['Fabricated Screen',3],['Marble Tank',3],['Gravel Blanket',2.38]]},
  {file:'merged-heading-prose.pdf',count:50,anchors:[['Flow Meter',5],['Concrete Demolition',11.33],['Solar Street',12]]},
+ {file:'damaged-description-rules.pdf',count:40,anchors:[['Temporary Facilities',2],['Geo Resistivity',6],['Flow Meter',6]]},
+ {file:'merged-price-cross-row.pdf',count:49,anchors:[['Flow Meter',3],['Solar Street',15],['Project Billboard',1]]},
 ] as const)test('very pale column separators retain every priced source row: '+source.file,{timeout:180000},async()=>{
  const result=await parseBoqPdf(original(source.file),{ocrProvider:reader()});
  const items=result.items.filter(row=>row.rowKind==='line_item');

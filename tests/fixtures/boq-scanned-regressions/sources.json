@@ -261,5 +261,23 @@
     "bytes": 729549,
     "role": "known-regression-only, never fresh",
     "sourceQualification": "BOQ printed contract ID differs from publisher filename and project title; no authority claim."
+  },
+  {
+    "filename": "damaged-description-rules.pdf",
+    "originalSourceUrl": "https://car.nia.gov.ph/sites/car/files/CW-ALSPIP-02-2024%20NOA%20BOQ.PDF",
+    "originalSourceSha256": "40334160de7006d4f7f04b98c6b5c466e14674f0415a278b575e1c57e52562d2",
+    "originalPage": 2,
+    "fixtureSha256": "fb57183b95a64bcfaab33bf9c744637f7b0d033a23266e35ecf4050c98b6901e",
+    "bytes": 616367,
+    "role": "known-regression-only, never fresh"
+  },
+  {
+    "filename": "merged-price-cross-row.pdf",
+    "originalSourceUrl": "https://car.nia.gov.ph/sites/car/files/noa%20boq%20apayao-13-2024.PDF",
+    "originalSourceSha256": "c58acf14756c3ec1a1acfa5934f189e3b10b464f27e20ebd22499c0983d9388a",
+    "originalPage": 2,
+    "fixtureSha256": "c6298cfad86f7856786d972947a8884a2c196816fe715f605a69aeb26c4738a8",
+    "bytes": 675968,
+    "role": "known-regression-only, never fresh"
   }
 ]
