@@ -1,6 +1,6 @@
 {
   "asOf": "2026-10-05",
-  "candidate": "c873620f4213cd7d55a0a2ea763e2c9d948e2394",
+  "candidate": "f6bd3a0cf6d6d70ec2c291e391b8eaffd66bb0ec",
   "production": "828b4ad9dc0a628b19c64d83b865b4e95244ec0f",
   "reviewRelease": "9831316a6ae9c4405c4c81482d31a827500b9686",
   "rules": [
@@ -121,7 +121,7 @@
       "Complete",
       "1.06",
       "Correct availability, missing reasons, authority and data agree",
-      "Before/after regressions preserve 3.00 vs 300, AI punctuation/sign/span identity, unrelated unresolved values and explicit zero. Eight new quantity regressions; 102 relevant tests pass.",
+      "Baseline 0d48a507: 174/174 page/report outcomes agree; 1,044 exports checked (630 valid containers, 414 correctly blocked). OCR-disabled baseline, not final reader acceptance.",
       "2026-10-05"
     ],
     [
@@ -131,7 +131,7 @@
       "In progress",
       "1.01",
       "Project/hash/claim/revision/date/amount/authority/locator recorded",
-      "Restored cached quantities now reapply source arithmetic quarantine; preserved allocations cannot feed a suspect quantity into S-curve plans. Source readings and dated installed evidence remain retained.",
+      "31 source files and 2,020 rows reconciled across ten historical projects. 1,840 production-matched rows remain quarantined; 180 alternate rows stay separate. Wider portfolio authenticity/entitlement remain unestablished.",
       null
     ],
     [
@@ -141,7 +141,7 @@
       "Complete",
       "1.09",
       "Replay all recovered 10-project sources; retain every source and quarantine; no invented determination",
-      "Earlier 1080-test and internal 100-project run passed on an earlier tree. Latest 102-test quantity suite passes; final candidate full regression currently running.",
+      "Recovered-source replay preserved source identities, quarantined 1,840 claims and retained null determinations; ten-project historical scope only, never fresh acceptance.",
       "2026-10-05"
     ],
     [
@@ -151,7 +151,7 @@
       "In progress",
       "1.07",
       "Regression fails before fix and passes after; sources hashed",
-      "Permanent regressions: original scanned BOQ pages; 3.00/300 conflict; lower-confidence numeric conflict; AI decimal/sign/prefix mutation. Three AI cases failed old code and pass correction.",
+      "Four hashed source PDF pages and eight arithmetic quarantine regressions committed in f6bd3a0. Before/after proofs include 3.00/300, source mutation, restored quantities, stale S-curve allocations and explicit zero.",
       null
     ],
     [
@@ -161,7 +161,7 @@
       "In progress",
       "1.07,1.08,1.10,1.11",
       "Unchanged valid assertions; no failed/cancelled/skipped checks",
-      "First correction: 1074 regressions plus 100 internal projects passed. BOQ candidate full regression still running. Latest numeric corrections pass 17 focused tests; final exact-code full run pending.",
+      "102 relevant quantity/feasibility/Ask/reporting tests pass. Full current regression and isolated internal 100-project phase running; CI started for f6bd3a0. Earlier 1080-test result is historical only.",
       null
     ],
     [
@@ -815,9 +815,9 @@
       null
     ]
   ],
-  "updatedAt": "2026-10-05T06:12:31.766828+00:00",
+  "updatedAt": "2026-10-05T06:15:48.920650+00:00",
   "timezone": "Asia/Dubai",
-  "engineeringCandidate": "PR213 follow-up: offline BOQ recovery, OCR/AI decimal safeguards, restored-quantity quarantine; full verification running",
+  "engineeringCandidate": "f6bd3a0: quantity quarantine + offline BOQ reader; full local regression and CI running",
   "blockers": [
     [
       "B01",
@@ -885,7 +885,7 @@
     ],
     [
       "B09",
-      "1.08\u20131.10",
+      "1.07, 1.11, 1.12",
       "CORRECTED; FULL CHECK RUNNING",
       "Arithmetic warnings leaked suspect quantities into totals and restored plans",
       "Pasted isolated-worktree patch was absent here. Seven new checks reproduced failures. Shared guard now covers three adapters, saved-state restoration, setter and S-curve plans. Eight new regressions plus relevant suite: 102 passed.",
