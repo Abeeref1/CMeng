@@ -30,6 +30,13 @@ const known=[
 for(const source of [
  {file:'very-pale-column-rules.pdf',count:22,anchors:[['Cofferdam',49.73],['Precast Reinforced',3],['Reinforcing Steel',4335.96]]},
  {file:'pale-pricing-column-rules.pdf',count:31,anchors:[['Solar Street',18],['Rubble Masonry',412.5],['Construction Health',1]]},
+ {file:'compact-pale-boq-12.pdf',count:12,anchors:[['Anchoring Epoxy',15],['Dispenser Gun',1],['Billboard',1]]},
+ {file:'compact-pale-boq-16.pdf',count:16,anchors:[['Solid Rock',9.75],['Strainer',1],['Billboard',1]]},
+ {file:'compact-pale-boq-11.pdf',count:11,anchors:[['Common Excavation',65.41],['Plain Concrete',14.53],['Billboard',1]]},
+ // The original says "170 kg/sq.cm Concrete" and "Reinforcement Steel";
+ // do not substitute terminology absent from that source page.
+ {file:'compact-pale-boq-9.pdf',count:9,anchors:[['170',43.25],['Reinforcement Steel',1064.29],['Billboard',1]]},
+ {file:'blank-heading-numeric-hallucination.pdf',count:33,anchors:[['Clearing',444],['Reinforcing Steel',671.83],['Billboard',1]]},
 ] as const)test('very pale column separators retain every priced source row: '+source.file,{timeout:180000},async()=>{
  const result=await parseBoqPdf(original(source.file),{ocrProvider:reader()});
  const items=result.items.filter(row=>row.rowKind==='line_item');

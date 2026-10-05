@@ -60,7 +60,7 @@ function faintHorizontal(r:Raster,x:number,width:number,top:number,bottom:number
 }
 /** Pale column rules must form a long continuous stroke. Counting scattered
  * text pixels at a lighter threshold would invent columns through the numbers. */
-function faintVertical(r:Raster):number[]{
+function faintVertical(r:Raster,minHeightFraction=.26):number[]{
  const selected:number[]=[];
  for(let x=2;x<r.width-2;x++){
   let run=0,longest=0;
@@ -68,18 +68,18 @@ function faintVertical(r:Raster):number[]{
    let ink=false;for(let dx=-2;dx<=2;dx++)if(r.pixels[(y*r.width+x+dx)*4]!<245){ink=true;break;}
    if(ink){run++;longest=Math.max(longest,run);}else run=0;
   }
-  if(longest>r.height*.26)selected.push(x);
+  if(longest>r.height*minHeightFraction)selected.push(x);
  }
  return groupedPositions(selected);
 }
-function grid(r:Raster,enhanced=false){
+function grid(r:Raster,enhanced=false,compact=false){
  const vertical:number[]=[];
  for(let x=0;x<r.width;x++){let dark=0;for(let y=0;y<r.height;y++)if(r.pixels[(y*r.width+x)*4]!<170)dark++;
   if(dark>r.height*.26)vertical.push(x);
  }
  const xs=groupedPositions(vertical).filter((x,i,a)=>!i||x-a[i-1]!>12);
  const paleColumns=xs.length<4;
- if(enhanced&&paleColumns)for(const x of faintVertical(r))if(!xs.some(old=>Math.abs(old-x)<=12))xs.push(x);
+ if(enhanced&&(paleColumns||compact))for(const x of faintVertical(r,compact?.10:.26))if(!xs.some(old=>Math.abs(old-x)<=12))xs.push(x);
  xs.sort((a,b)=>a-b);
  if(xs.length<4||xs.length>80)return null;
  // A section can interrupt the item/description separator for much of the
@@ -261,7 +261,11 @@ export async function readRasterBoqTable(image:Uint8Array,provider:OcrProvider,p
  const original=await loadImage(Buffer.from(image));
  // Exhaust established orientation/skew recovery before expanding pale rules.
  // Otherwise a tilted pale grid can win early and change valid numeric crops.
- for(const enhanced of [false,true]){
+ // A short table can occupy less than a quarter of a full page. Try shorter
+ // continuous rules only after established geometry and pale recovery fail;
+ // recognized physical header cells still have to establish every role.
+ for(const recovery of ['standard','pale','compact'] as const){
+ const enhanced=recovery!=='standard';
  const rotations=[0,90,270,180];
  for(const rotation of rotations){
   const quarter=rotation===90||rotation===270,rigid=rotation%90===0,angle=rotation*Math.PI/180;
@@ -270,7 +274,7 @@ export async function readRasterBoqTable(image:Uint8Array,provider:OcrProvider,p
   const c=createCanvas(width,height),ctx=c.getContext('2d');
   ctx.fillStyle='white';ctx.fillRect(0,0,c.width,c.height);ctx.translate(c.width/2,c.height/2);ctx.rotate(rotation*Math.PI/180);ctx.drawImage(original,-original.width/2,-original.height/2);ctx.resetTransform();
   try{
-  const r=raster(c),g=grid(r,enhanced);
+  const r=raster(c),g=grid(r,enhanced,recovery==='compact');
   const queueDeskew=()=>{if(rigid){const correction=verticalSkew(r);if(correction!==null)rotations.push(rotation+correction);}};
   if(!g){queueDeskew();continue;}
   const cache=new Map<string,Promise<RasterCellEvidence>>();

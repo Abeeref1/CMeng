@@ -179,5 +179,45 @@
     "sourceSha256": "9de1f8b496894294b06ee8bd03292492a7912ecbc65870f8d720745f22835506",
     "fixtureSha256": "7b5b067836e1abd81e2c4d0f3ec767d31da086d72f177f12445ff3735038043f",
     "provenance": "Exact original page, copied without raster or text alteration. Failed external input retained as regression; never fresh acceptance."
+  },
+  {
+    "filename": "compact-pale-boq-12.pdf",
+    "sourceUrl": "https://car.nia.gov.ph/sites/car/files/noa%20boq%20ifugao11%202025.PDF",
+    "sourcePage": 2,
+    "sourceSha256": "0e2c5f05c7bb9851aacfcf2554ebf8a3a40b8990f6699db1f758b202013e9012",
+    "fixtureSha256": "8eb6025c104bad4019135664e67744de40a43ba74967981319e6c04599ede2d4",
+    "provenance": "Original source page copied unchanged after external failure; regression only."
+  },
+  {
+    "filename": "compact-pale-boq-16.pdf",
+    "sourceUrl": "https://car.nia.gov.ph/sites/car/files/noa%20boq%20ifugao212025.PDF",
+    "sourcePage": 2,
+    "sourceSha256": "8b48a59284d80a8db5a90bd3cbb2f21dc146dae1f31b15824d57b0b88de08fb8",
+    "fixtureSha256": "4678813069a8836ac71c3309f6b54c0c015b8c628b4fd1ada91af9bcbf0c88b1",
+    "provenance": "Original source page copied unchanged after external failure; regression only."
+  },
+  {
+    "filename": "compact-pale-boq-11.pdf",
+    "sourceUrl": "https://car.nia.gov.ph/sites/car/files/noa%20boq%20ifugao22%202025.PDF",
+    "sourcePage": 2,
+    "sourceSha256": "19f1bd1e937a036d28a998b2ad3f218ab5f0ac91590a831ee26ddb613945dc28",
+    "fixtureSha256": "5a1f98789c57b2d7cd298c46fff1b4d7c7cfe909fc356f01e484a0cf74ec45b9",
+    "provenance": "Original source page copied unchanged after external failure; regression only."
+  },
+  {
+    "filename": "compact-pale-boq-9.pdf",
+    "sourceUrl": "https://car.nia.gov.ph/sites/car/files/noa%20boq%20ifugao43%202025.PDF",
+    "sourcePage": 2,
+    "sourceSha256": "7dbed3bd36cfba30f8a3e43073ee7f7d6bb78160ad2865dc7b52a1c05d3fd143",
+    "fixtureSha256": "32fc650ddf9ae7f6f44b1c3dffa9d7debc84b9aae4be9e232e3a5d569306d216",
+    "provenance": "Original source page copied unchanged after external failure; regression only."
+  },
+  {
+    "filename": "blank-heading-numeric-hallucination.pdf",
+    "sourceUrl": "https://car.nia.gov.ph/sites/car/files/noa%20boq%20mp19%202025.PDF",
+    "sourcePage": 2,
+    "sourceSha256": "9469146f751a1d4bc8403e8e1817e42da45aa55a4a6068225ecbbffe807398a4",
+    "fixtureSha256": "3c88c5e27f9035bcd1d6266ded0c4f52c5005266dc32e8eb3f06cf2a1366aba3",
+    "provenance": "Original source page copied unchanged after external failure; regression only."
   }
 ]
